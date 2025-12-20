@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>南派食品物料管理系统 (MMS)</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <style>
+        body { 
+            font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif; 
+            background-color: #f0f2f5; 
+            margin: 0;
+            display: flex; 
+            justify-content: center; 
+            padding-top: 50px;
+        }
+        #app { width: 100%; max-width: 1000px; padding: 0 20px; }
+        
+        /* 登录卡片样式 */
+        .login-card { 
+            max-width: 380px; 
+            margin: 60px auto; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 8px 24px rgba(0,0,0,0.05); 
+            background: #fff; 
+        }
+        .login-title {
+            text-align: center; 
+            color: #303133;
+            margin-bottom: 30px;
+            font-weight: 600;
+        }
+
+        /* 主界面样式 */
+        .main-card { 
+            background: #fff; 
+            padding: 24px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05); 
+        }
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 24px; 
+            border-bottom: 1px solid #ebeef5;
+            padding-bottom: 16px;
+        }
+        .user-info {
+            font-size: 14px;
+            color: #606266;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div v-if="!token" class="login-card">
+            <h2 class="login-title">🔐 员工登录系统</h2>
+            <el-form label-position="top" size="large">
+                <el-form-item label="账号">
+                    <el-input v-model="loginForm.username" placeholder="请输入账号 (例如: zhangsan)" prefix-icon="User"></el-input>
+                </el-form-item>
+                <el-form-item label="密码">
+                    <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" prefix-icon="Lock" show-password @keyup.enter="handleLogin"></el-input>
+                </el-form-item>
+                <el-button type="primary" style="width: 100%; margin-top: 20px; font-weight: bold;" @click="handleLogin" :loading="loading" size="large">
+                    立即登录
+                </el-button>
+            </el-form>
+        </div>
+
+        <div v-else class="main-card">
+            <div class="header">
+                <div>
+                    <h2 style="margin: 0 0 8px 0;">📦 原材料库存台账</h2>
+                    <span class="user-info">
+                        当前操作员: <el-tag effect="dark" type="primary" size="small">{{ currentUser }}</el-tag>
+                    </span>
+                </div>
+                <div>
+                    <el-button type="primary" plain @click="fetchData" :loading="loading" icon="Refresh">刷新数据</el-button>
+                    <el-button type="danger" plain @click="logout" icon="SwitchButton">退出登录</el-button>
+                </div>
+            </div>
+
+            <el-table :data="tableData" stripe border style="width: 100%" v-loading="loading" empty-text="暂无数据或无权查看">
+                <el-table-column prop="id" label="ID" width="80" align="center"></el-table-column>
+                <el-table-column prop="batch_no" label="批次号" width="180"></el-table-column>
+                <el-table-column prop="name" label="物料名称" min-width="120">
+                    <template #default="scope">
+                        <span style="font-weight: bold; color: #303133;">{{ scope.row.name }}</span>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="category" label="分类" width="120">
+                    <template #default="scope">
+                        <el-tag size="small" type="success">{{ scope.row.category }}</el-tag>
+                    </template>
+                </el-table-column>
+                <el-table-column prop="weight_kg" label="重量 (kg)" width="120" align="right"></el-table-column>
+                <el-table-column prop="entry_date" label="入库日期" width="150" align="center"></el-table-column>
+                <el-table-column prop="created_by" label="录入人" width="120" align="center">
+                    <template #default="scope">
+                        <el-tag type="info" size="small" effect="plain">{{ scope.row.created_by }}</el-tag>
+                    </template>
+                </el-table-column>
+            </el-table>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+        const { ElMessage } = ElementPlus;
+        
+        const app = createApp({
+            setup() {
+                // 1. 定义响应式变量
+                const token = ref(localStorage.getItem('jwt_token') || '');
+                const currentUser = ref(localStorage.getItem('user_name') || '');
+                const loading = ref(false);
+                const tableData = ref([]);
+                const loginForm = ref({ username: 'zhangsan', password: '123456' });
+
+                // 🔵 核心功能：登录
+                const handleLogin = async () => {
+                    if(!loginForm.value.username || !loginForm.value.password) {
+                        return ElMessage.warning('请输入账号和密码');
+                    }
+                    
+                    loading.value = true;
+                    try {
+                        // 请求 PostgREST 的登录接口
+                        const res = await fetch('/api/rpc/login', {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'Prefer': 'params=single-object' // 告诉后端只返回一个对象，不要数组
+                            },
+                            body: JSON.stringify(loginForm.value)
+                        });
+
+                        // 错误处理
+                        if (!res.ok) {
+                            const err = await res.json();
+                            throw new Error(err.message || '登录失败，请检查账号密码');
+                        }
+
+                        const data = await res.json(); 
+                        
+                        // 兼容处理：PostgREST 可能返回 {"token": "..."} 也可能返回 "eyJ..." 字符串
+                        // 我们之前的 login 函数返回的是 json 对象 {'token': ...}
+                        const jwt = data.token || data; 
+
+                        if (!jwt) throw new Error('服务器未返回有效 Token');
+
+                        // ✅ 登录成功，保存信息
+                        token.value = jwt;
+                        currentUser.value = loginForm.value.username;
+                        
+                        localStorage.setItem('jwt_token', jwt);
+                        localStorage.setItem('user_name', currentUser.value);
+                        
+                        ElMessage.success('登录成功！欢迎回来');
+                        fetchData(); // 登录后立即查数据
+
+                    } catch (e) {
+                        console.error(e);
+                        ElMessage.error(e.message);
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // 🟢 核心功能：带 Token 查数据
+                const fetchData = async () => {
+                    if (!token.value) return;
+                    
+                    loading.value = true;
+                    try {
+                        const res = await fetch('/api/raw_materials?order=id.asc', {
+                            method: 'GET',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                // ✨ 关键点：把 Token 放入请求头
+                                'Authorization': `Bearer ${token.value}`
+                            }
+                        });
+
+                        if (res.status === 401) {
+                            logout(); // Token 过期或无效，强制退出
+                            throw new Error('登录已过期，请重新登录');
+                        }
+
+                        const data = await res.json();
+                        tableData.value = data;
+                    } catch (e) {
+                        ElMessage.error(e.message || '数据加载失败');
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                // 🔴 退出功能
+                const logout = () => {
+                    token.value = '';
+                    currentUser.value = '';
+                    localStorage.removeItem('jwt_token');
+                    localStorage.removeItem('user_name');
+                    tableData.value = [];
+                    ElMessage.info('已退出登录');
+                };
+
+                // 页面加载时，如果本地有 Token，自动查数据
+                onMounted(() => {
+                    if (token.value) {
+                        fetchData();
+                    }
+                });
+
+                return {
+                    token,
+                    currentUser,
+                    loading,
+                    tableData,
+                    loginForm,
+                    handleLogin,
+                    fetchData,
+                    logout
+                };
+            }
+        });
+
+        // 注册所有图标
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            app.component(key, component)
+        }
+
+        app.use(ElementPlus).mount('#app');
+    </script>
+</body>
+</html>

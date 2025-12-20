@@ -1,0 +1,45 @@
+services:
+  # 1. 数据库服务
+  db:
+    image: postgres:16
+    container_name: eiscore-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: eiscore
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # 2. Nginx 前端/网关服务 (新增部分)
+  nginx:
+    image: nginx:alpine
+    container_name: eiscore-nginx
+    restart: always
+    ports:
+      - "80:80"  # 把容器的80端口映射到你电脑的80端口
+    volumes:
+      # 挂载配置文件
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      # 挂载前端页面
+      - ./nginx/html:/usr/share/nginx/html
+  # 3. PostgREST 自动 API 网关 (核心组件)
+  pgrst:
+      image: postgrest/postgrest
+      container_name: eiscore-pgrst
+      restart: always
+      ports:
+        - "3000:3000"
+      environment:
+        PGRST_DB_URI: postgres://postgres:123456@db:5432/eiscore
+        PGRST_DB_SCHEMA: public
+        PGRST_DB_ANON_ROLE: web_anon
+        PGRST_JWT_SECRET: "12345678901234567890123456789012"
+      depends_on:
+        - db
+
+volumes:
+  pgdata:
+
