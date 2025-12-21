@@ -1,37 +1,59 @@
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from './App.vue'
+import router from './router'
 import { renderWithQiankun, qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
 
-let app = null
+let app
 
-// 封装渲染函数
+// 封装 render 函数
 function render(props = {}) {
   const { container } = props
   app = createApp(App)
-  app.use(ElementPlus)
-  // 如果在基座里，挂载到 container 内部；否则挂载到 #app
-  const mountPoint = container ? container.querySelector('#app') : '#app'
-  app.mount(mountPoint)
+  
+  app.use(createPinia())
+  app.use(router)
+
+  // 注册权限指令 (鉴权逻辑)
+  app.directive('permission', {
+    mounted(el, binding) {
+      const { value } = binding
+      const userInfoStr = localStorage.getItem('user_info')
+      const userInfo = userInfoStr ? JSON.parse(userInfoStr) : {}
+      const permissions = userInfo.permissions || []
+
+      if (value && value instanceof Array && value.length > 0) {
+        const hasPermission = permissions.some(perm => value.includes(perm))
+        if (!hasPermission) {
+          el.parentNode && el.parentNode.removeChild(el)
+        }
+      }
+    }
+  })
+
+  const target = container ? container.querySelector('#app') : '#app'
+  app.mount(target)
 }
 
-// 核心：导出生命周期
+// 初始化 qiankun
 renderWithQiankun({
-  bootstrap() { console.log('[hr] bootstrap') },
   mount(props) {
-    console.log('[hr] mount')
+    console.log('[HR] mounted')
     render(props)
   },
-  unmount() {
-    console.log('[hr] unmount')
-    app.unmount()
-    app = null
+  bootstrap() {
+    console.log('[HR] bootstrap')
   },
-  update() {}
+  unmount(props) {
+    console.log('[HR] unmount')
+    app.unmount()
+  },
+  update(props) {
+    console.log('[HR] update', props)
+  }
 })
 
-// 独立运行时逻辑
+// 独立运行时直接渲染
 if (!qiankunWindow.__POWERED_BY_QIANKUN__) {
   render()
 }

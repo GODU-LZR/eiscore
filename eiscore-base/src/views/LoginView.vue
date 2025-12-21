@@ -79,14 +79,15 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import axios from 'axios'
+import { useUserStore } from '@/stores/user' // 🟢 引入 User Store
 
 const router = useRouter()
+const userStore = useUserStore() // 🟢 初始化 Store
 const loading = ref(false)
 const loginFormRef = ref(null)
 
 const loginForm = reactive({
-  username: '', // 建议默认空，或者写 'admin' 方便调试
+  username: 'Admin', // 默认给个值方便调试
   password: '',
   remember: false
 })
@@ -102,25 +103,37 @@ const handleLogin = async () => {
   await loginFormRef.value.validate(async (valid) => {
     if (valid) {
       loading.value = true
-      try {
-        // 模拟登录请求 (后面我们会接真实的后端 /rpc/login)
-        // const res = await axios.post('/rpc/login', { ... })
-        
-        // 👇 暂时模拟成功
-        setTimeout(() => {
-          localStorage.setItem('auth_token', 'mock_token_123456')
-          localStorage.setItem('user_info', JSON.stringify({ name: loginForm.username }))
+      
+      // 模拟网络延迟
+      setTimeout(() => {
+        try {
+          // 🟢 模拟后端返回的数据结构 (这是关键点)
+          // 以后这里会替换成真实接口: const res = await api.login(...)
+          const mockResponse = {
+            token: 'mock-token-' + Date.now(),
+            user: {
+              id: 1,
+              name: loginForm.username, // 使用输入的用户名
+              role: 'admin',
+              avatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
+              // 👇 这里定义的权限，之后会被 HR 系统读取
+              permissions: ['hr:employee:edit', 'material:stock:view'] 
+            }
+          }
+
+          // 🟢 调用 Store 的 login 方法 (它会自动处理 localStorage)
+          userStore.login(mockResponse)
           
-          ElMessage.success('登录成功，欢迎回来！')
+          ElMessage.success(`登录成功，欢迎回来 ${mockResponse.user.name}！`)
           router.push('/') // 跳转到首页
           
+        } catch (error) {
+          console.error(error)
+          ElMessage.error('登录失败，请重试')
+        } finally {
           loading.value = false
-        }, 1000)
-        
-      } catch (error) {
-        ElMessage.error('登录失败，请检查账号密码')
-        loading.value = false
-      }
+        }
+      }, 800)
     }
   })
 }
@@ -150,6 +163,7 @@ const handleLogin = async () => {
   
   .login-left {
     width: 50%;
+    /* 使用稍深一点的蓝色渐变，显得更商务 */
     background: linear-gradient(135deg, #001529 0%, #003a70 100%);
     padding: 40px;
     display: flex;
