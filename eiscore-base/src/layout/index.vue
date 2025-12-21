@@ -37,7 +37,10 @@
     </el-aside>
 
     <el-container>
-      <el-header class="layout-header">
+      <el-header 
+        class="layout-header"
+        :style="{ backgroundColor: asideTheme.headerBg }"
+      >
         <div class="header-left">
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
@@ -54,11 +57,9 @@
             @change="toggleDark"
             style="margin-right: 15px"
           />
-          
           <el-tooltip content="新手指引" placement="bottom">
             <el-button circle icon="QuestionFilled" @click="startGuide" style="margin-right: 15px" />
           </el-tooltip>
-
           <el-dropdown @command="handleCommand">
             <span class="el-dropdown-link" style="display: flex; align-items: center; cursor: pointer;">
               <el-avatar :size="32" src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png" />
@@ -75,7 +76,7 @@
         </div>
       </el-header>
 
-      <el-main class="layout-main">
+      <el-main class="layout-main" :class="{ 'colorful-mode': !isDark }">
         <router-view v-slot="{ Component }">
            <transition name="fade" mode="out-in">
              <component :is="Component" />
@@ -95,70 +96,57 @@ import "driver.js/dist/driver.css";
 import { useSystemStore } from '@/stores/system'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router' 
-// 🟢 1. 引入 mix 工具
-import { mix } from '@/utils/theme'
+import { mix } from '@/utils/theme' // 引入混合函数
 
 const isCollapse = ref(false)
 const router = useRouter()
 const systemStore = useSystemStore()
 const { config } = storeToRefs(systemStore)
-
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
 
-// 🟢 2. 升级主题计算逻辑
+// 🟢 核心配置：全景颜色计算
 const asideTheme = computed(() => {
   const primaryColor = config.value?.themeColor || '#409EFF'
   
-  // 核心逻辑：
-  // 侧边栏背景 = 主题色 + 80% 黑色混合 (生成深色品牌背景)
-  // Logo背景 = 主题色 (更亮一点)
-  
   if (isDark.value) {
-    // 【黑夜模式】保持极致黑
+    // 【黑夜模式】保持深邃黑
     return {
       menuBg: '#001529',
       menuText: '#fff',
       menuActiveText: primaryColor,
-      logoBg: '#002140', 
+      logoBg: '#002140',
+      headerBg: '#001529' // 黑夜模式顶栏也是黑的
     }
   } else {
-    // 【白天/彩色模式】侧边栏使用品牌深色
-    // 如果你想让侧边栏是白色的，可以保留原来的写法。
-    // 这里我们按你的需求：让盒子/侧边栏也随主题变化。
-    
-    // 生成一个很深的品牌色作为背景 (混合 80% 黑色)
-    const brandDarkBg = mix(primaryColor, '#000000', 0.8)
-    
+    // 【白天/全彩模式】
+    // 1. 侧边栏：直接用主题色 (如红色)
+    // 2. 顶栏：用极淡的主题色 (如淡粉)
     return {
-      menuBg: brandDarkBg, 
-      menuText: '#ffffff', // 深色背景配白字
-      menuActiveText: '#ffffff', // 选中也是白字，靠背景高亮区分
-      logoBg: primaryColor, // Logo 区域直接用纯主题色，显眼！
+      menuBg: primaryColor, // 🔴 关键修复：直接使用主题色，不再混黑！
+      menuText: '#ffffff',  // 背景深色，文字必须白
+      menuActiveText: '#ffffff', 
+      logoBg: mix(primaryColor, '#000000', 0.1), // Logo稍微深一点点，体现层次
+      headerBg: mix(primaryColor, '#ffffff', 0.9) // 顶栏：90%白 + 10%主题色
     }
   }
 })
 
 const handleCommand = (command) => {
-  if (command === 'settings') {
-    router.push('/settings') 
-  } else if (command === 'logout') {
+  if (command === 'settings') { router.push('/settings') }
+  else if (command === 'logout') { 
     localStorage.removeItem('auth_token')
-    router.push('/login')
+    router.push('/login') 
   }
 }
 
 const driverObj = driver({
   showProgress: true,
   steps: [
-    { element: '.layout-aside', popover: { title: '功能导航区', description: '所有的业务模块（如物料、人事）都在这里切换。' } },
-    { element: '.layout-header .header-right', popover: { title: '个性化设置', description: '在这里切换暗黑模式，或查看个人信息。' } }
+    { element: '.layout-aside', popover: { title: '功能导航', description: '现在侧边栏会完全跟随你的主题色变身！' } }
   ]
 });
-
-const startGuide = () => {
-  driverObj.drive();
-}
+const startGuide = () => { driverObj.drive(); }
 </script>
 
 <style scoped lang="scss">
@@ -166,68 +154,46 @@ const startGuide = () => {
   height: 100vh;
   
   .layout-aside {
-    display: flex;
-    flex-direction: column;
-    box-shadow: 2px 0 6px rgba(0,21,41,0.35);
-    z-index: 10;
     transition: background-color 0.3s;
-    
     .logo {
-      height: 60px;
-      line-height: 60px;
-      text-align: center;
-      font-size: 18px;
-      font-weight: 600;
-      overflow: hidden;
-      white-space: nowrap;
-      letter-spacing: 1px;
-      transition: background-color 0.3s, color 0.3s;
+      height: 60px; line-height: 60px; text-align: center;
+      font-size: 18px; font-weight: 600; color: white;
+      transition: background-color 0.3s;
     }
-    
-    .el-menu {
-      border-right: none;
-    }
+    .el-menu { border-right: none; }
   }
   
   .layout-header {
-    background-color: var(--el-bg-color);
-    border-bottom: 1px solid var(--el-border-color-light);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    border-bottom: 1px solid rgba(0,0,0,0.05); /* 边框变淡，适应彩色顶栏 */
+    display: flex; justify-content: space-between; align-items: center;
     padding: 0 20px;
-    box-shadow: 0 1px 4px rgba(0,21,41,0.08);
-    z-index: 9;
+    transition: background-color 0.3s; /* 顶栏也要动画 */
   }
   
   .layout-main {
     background-color: var(--el-bg-color-page);
     padding: 0;
     position: relative;
-    overflow-x: hidden;
   }
 }
 
-/* 🟢 选中项样式优化：背景变亮一点 */
+/* 🟢 选中项高亮逻辑 */
 :deep(.el-menu-item.is-active) {
-  // 混合 20% 白色作为选中背景
-  background-color: rgba(255, 255, 255, 0.1) !important;
-  border-right: 3px solid #fff; // 选中指示器改为白色
-  font-weight: 600;
+  background-color: rgba(255, 255, 255, 0.2) !important; /* 半透明白 */
+  border-right: 4px solid #fff;
+  font-weight: 700;
 }
 
-.dark :deep(.el-menu-item.is-active) {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-  border-right-color: var(--el-color-primary); 
+/* 🟢 全彩模式下的卡片样式微调 */
+/* 当不是黑夜模式时，给所有 el-card 加一点点主题色微光 */
+.colorful-mode :deep(.el-card) {
+  /* 使用我们在 theme.js 里定义的 --bg-tint */
+  background-color: var(--bg-tint, #fff) !important; 
+  border: 1px solid var(--el-color-primary-light-8);
+  transition: background-color 0.3s, border-color 0.3s;
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
+/* 页面切换动画 */
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
