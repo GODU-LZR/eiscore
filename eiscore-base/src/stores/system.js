@@ -1,40 +1,36 @@
-// src/stores/system.js
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { setThemeColor } from '@/utils/theme' // 引入工具
 
 export const useSystemStore = defineStore('system', () => {
-  // --- 1. 系统外观配置 ---
+  // 1. 定义状态
   const config = ref({
-    title: '企业数字化平台', // 默认系统名
-    logo: 'https://element-plus.org/images/element-plus-logo.svg',
-    themeColor: '#409EFF',
-    isDark: false
+    title: '海边姑娘管理系统', // 默认标题
+    themeColor: '#409EFF'    // 默认主题色
   })
 
-  // --- 2. 用户信息 ---
-  const user = ref({
-    token: localStorage.getItem('auth_token') || '',
-    info: JSON.parse(localStorage.getItem('user_info') || '{}')
-  })
-
-  // --- Actions (修改数据的方法) ---
-  function setSystemConfig(newConfig) {
-    Object.assign(config.value, newConfig)
+  // 2. 定义动作
+  const updateConfig = (newConfig) => {
+    // 如果传入了标题，更新标题
+    if (newConfig.title) {
+      config.value.title = newConfig.title
+    }
+    
+    // 如果传入了颜色，更新颜色并应用样式
+    if (newConfig.themeColor) {
+      config.value.themeColor = newConfig.themeColor
+      setThemeColor(newConfig.themeColor)
+    }
   }
 
-  function login(token, userInfo) {
-    user.value.token = token
-    user.value.info = userInfo
-    localStorage.setItem('auth_token', token)
-    localStorage.setItem('user_info', JSON.stringify(userInfo))
+  // 3. 初始化动作 (App启动时调用)
+  const initTheme = () => {
+    if (config.value.themeColor) {
+      setThemeColor(config.value.themeColor)
+    }
   }
 
-  function logout() {
-    user.value.token = ''
-    user.value.info = {}
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_info')
-  }
-
-  return { config, user, setSystemConfig, login, logout }
+  return { config, updateConfig, initTheme }
+}, {
+  persist: true // 如果你装了 pinia-plugin-persistedstate 插件，这会自动保存到 localStorage
 })

@@ -2,30 +2,23 @@
   <router-view />
 </template>
 
+<script setup>
+import { onMounted } from 'vue'
+import { useSystemStore } from '@/stores/system'
+
+const systemStore = useSystemStore()
+
+onMounted(() => {
+  // 初始化系统配置（应用保存的主题色等）
+  systemStore.initTheme()
+})
+</script>
+
 <style>
-/* 全局重置样式 */
-body, html, #app {
+/* 可以在这里设置全局的基础样式 */
+body {
   margin: 0;
   padding: 0;
-  height: 100%;
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
-}
-
-/* 引用 Element Plus 的标准背景色变量 */
-html, body, #app {
-  margin: 0;
-  padding: 0;
-  height: 100%;
-  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
-  
-  /* 👇 关键：让背景色跟随主题变化 */
-  background-color: var(--el-bg-color);
-  color: var(--el-text-color-primary);
-  transition: background-color 0.3s, color 0.3s; /* 加个过渡动画更丝滑 */
-}
-
-/* 修复暗黑模式下微前端容器可能出现的白边 */
-#micro-container {
-  background-color: var(--el-bg-color-page) !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 </style>
