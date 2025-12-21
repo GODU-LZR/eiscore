@@ -1,8 +1,6 @@
 // src/utils/theme.js
 
-/**
- * 颜色混合函数
- */
+// 混合函数 (保持不变)
 export const mix = (c1, c2, ratio) => {
   ratio = Math.max(Math.min(Number(ratio), 1), 0)
   const r1 = parseInt(c1.substring(1, 3), 16)
@@ -23,28 +21,25 @@ export const mix = (c1, c2, ratio) => {
   return "#" + r + g + b
 }
 
-/**
- * 设置主题色
- */
 export const setThemeColor = (color) => {
   const el = document.documentElement
   const pre = '--el-color-primary'
   
-  // 1. 设置主色
+  // 1. 基础设置
   el.style.setProperty(pre, color)
-  
-  // 2. 混合生成 Light 系列
   for (let i = 1; i <= 9; i++) {
     el.style.setProperty(`${pre}-light-${i}`, mix(color, '#ffffff', i / 10))
   }
-  
-  // 3. 混合生成 Dark 系列
   el.style.setProperty(`${pre}-dark-2`, mix(color, '#000000', 0.2))
-
-  // 4. 设置全局主题变量 (给 Layout 用)
   el.style.setProperty('--primary-color', color)
   
-  // 5. 🔴 新增：设置页面背景 tint (用于卡片等微光效果)
-  // 生成一个极淡的颜色 (95% 白)
-  el.style.setProperty('--bg-tint', mix(color, '#ffffff', 0.95))
+  // --- 🔴 核心修改区 ---
+  
+  // 1. 页面背景色 (原先的卡片微光)：95% 白 + 5% 主题色
+  // 这会让整个大背景带有一层极淡的滤镜
+  el.style.setProperty('--page-bg-tint', mix(color, '#ffffff', 0.95))
+  
+  // 2. 卡片/组件背景色 (加深)：85% 白 + 15% 主题色
+  // 这比背景深 3 倍，能明显区分出"卡片"和"底色"
+  el.style.setProperty('--card-bg-tint', mix(color, '#ffffff', 0.85))
 }

@@ -96,7 +96,7 @@ import "driver.js/dist/driver.css";
 import { useSystemStore } from '@/stores/system'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router' 
-import { mix } from '@/utils/theme' // 引入混合函数
+import { mix } from '@/utils/theme' 
 
 const isCollapse = ref(false)
 const router = useRouter()
@@ -105,29 +105,26 @@ const { config } = storeToRefs(systemStore)
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
 
-// 🟢 核心配置：全景颜色计算
 const asideTheme = computed(() => {
   const primaryColor = config.value?.themeColor || '#409EFF'
   
   if (isDark.value) {
-    // 【黑夜模式】保持深邃黑
     return {
       menuBg: '#001529',
       menuText: '#fff',
       menuActiveText: primaryColor,
       logoBg: '#002140',
-      headerBg: '#001529' // 黑夜模式顶栏也是黑的
+      headerBg: '#001529' 
     }
   } else {
-    // 【白天/全彩模式】
-    // 1. 侧边栏：直接用主题色 (如红色)
-    // 2. 顶栏：用极淡的主题色 (如淡粉)
+    // 【全彩模式】
     return {
-      menuBg: primaryColor, // 🔴 关键修复：直接使用主题色，不再混黑！
-      menuText: '#ffffff',  // 背景深色，文字必须白
+      menuBg: primaryColor, 
+      menuText: '#ffffff',  
       menuActiveText: '#ffffff', 
-      logoBg: mix(primaryColor, '#000000', 0.1), // Logo稍微深一点点，体现层次
-      headerBg: mix(primaryColor, '#ffffff', 0.9) // 顶栏：90%白 + 10%主题色
+      logoBg: mix(primaryColor, '#000000', 0.1),
+      // 🔴 顶栏加深：改为 0.85 (15% 浓度)，和卡片保持一致，比背景深
+      headerBg: mix(primaryColor, '#ffffff', 0.85) 
     }
   }
 })
@@ -142,9 +139,7 @@ const handleCommand = (command) => {
 
 const driverObj = driver({
   showProgress: true,
-  steps: [
-    { element: '.layout-aside', popover: { title: '功能导航', description: '现在侧边栏会完全跟随你的主题色变身！' } }
-  ]
+  steps: [{ element: '.layout-aside', popover: { title: '提示', description: '侧边栏现在是纯粹的主题色！' } }]
 });
 const startGuide = () => { driverObj.drive(); }
 </script>
@@ -164,36 +159,39 @@ const startGuide = () => { driverObj.drive(); }
   }
   
   .layout-header {
-    border-bottom: 1px solid rgba(0,0,0,0.05); /* 边框变淡，适应彩色顶栏 */
+    border-bottom: 1px solid rgba(0,0,0,0.05);
     display: flex; justify-content: space-between; align-items: center;
     padding: 0 20px;
-    transition: background-color 0.3s; /* 顶栏也要动画 */
+    transition: background-color 0.3s; 
   }
   
   .layout-main {
     background-color: var(--el-bg-color-page);
     padding: 0;
     position: relative;
+    transition: background-color 0.3s;
+  }
+  
+  /* 🔴 核心样式修改区 */
+  .colorful-mode {
+    // 1. 整个页面背景变为极淡的微光色 (5% 浓度)
+    background-color: var(--page-bg-tint) !important;
+  }
+
+  .colorful-mode :deep(.el-card) {
+    // 2. 卡片背景变为稍深的颜色 (15% 浓度)
+    // 这样卡片会比背景深，形成凸起感
+    background-color: var(--card-bg-tint) !important; 
+    border: 1px solid var(--el-color-primary-light-8);
   }
 }
 
-/* 🟢 选中项高亮逻辑 */
 :deep(.el-menu-item.is-active) {
-  background-color: rgba(255, 255, 255, 0.2) !important; /* 半透明白 */
+  background-color: rgba(255, 255, 255, 0.2) !important;
   border-right: 4px solid #fff;
   font-weight: 700;
 }
 
-/* 🟢 全彩模式下的卡片样式微调 */
-/* 当不是黑夜模式时，给所有 el-card 加一点点主题色微光 */
-.colorful-mode :deep(.el-card) {
-  /* 使用我们在 theme.js 里定义的 --bg-tint */
-  background-color: var(--bg-tint, #fff) !important; 
-  border: 1px solid var(--el-color-primary-light-8);
-  transition: background-color 0.3s, border-color 0.3s;
-}
-
-/* 页面切换动画 */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
