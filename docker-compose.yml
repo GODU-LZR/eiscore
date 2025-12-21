@@ -1,45 +1,67 @@
+
 services:
   # 1. 数据库服务
   db:
-    image: postgres:16
+    image: postgres:15
     container_name: eiscore-db
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "123456"
+      POSTGRES_PASSWORD: "password" # 生产环境请修改强密码
       POSTGRES_DB: eiscore
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # 容器启动时自动执行 SQL 初始化 (创建角色/表)
+      - ./db_schema_and_data.sql:/docker-entrypoint-initdb.d/init.sql
 
-  # 2. Nginx 前端/网关服务 (新增部分)
+  # 2. 🟢 API 网关 (PostgREST) - 对应论文 "API 网关层"
+  # 原来的 pgrst 改名为 api，方便引用
+  api:
+    image: postgrest/postgrest
+    container_name: eiscore-api
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      # 连接数据库 (注意密码要和 db 服务一致)
+      PGRST_DB_URI: postgres://postgres:password@db:5432/eiscore
+      # 暴露的 Schema
+      PGRST_DB_SCHEMA: public
+      # 匿名用户角色 (未登录时使用)
+      PGRST_DB_ANON_ROLE: web_anon
+      # JWT 密钥 (用于鉴权，必须 >= 32字符)
+      PGRST_JWT_SECRET: "reallyreallyreallyreallyverysafeandlongsecretkey"
+    depends_on:
+      - db
+
+  # 3. 🟢 接口文档 (Swagger UI) - 对应论文 "自动化文档"
+  swagger:
+    image: swaggerapi/swagger-ui
+    container_name: eiscore-swagger
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      # 告诉 Swagger 去哪里读取 OpenAPI 规范 (通过 Nginx 转发的地址)
+      API_URL: http://localhost/api/
+    depends_on:
+      - api
+
+  # 4. Nginx 网关 (前端 + API + 文档)
   nginx:
     image: nginx:alpine
     container_name: eiscore-nginx
     restart: always
     ports:
-      - "80:80"  # 把容器的80端口映射到你电脑的80端口
+      - "80:80"
     volumes:
-      # 挂载配置文件
       - ./nginx/conf.d:/etc/nginx/conf.d
-      # 挂载前端页面
       - ./nginx/html:/usr/share/nginx/html
-  # 3. PostgREST 自动 API 网关 (核心组件)
-  pgrst:
-      image: postgrest/postgrest
-      container_name: eiscore-pgrst
-      restart: always
-      ports:
-        - "3000:3000"
-      environment:
-        PGRST_DB_URI: postgres://postgres:123456@db:5432/eiscore
-        PGRST_DB_SCHEMA: public
-        PGRST_DB_ANON_ROLE: web_anon
-        PGRST_JWT_SECRET: "12345678901234567890123456789012"
-      depends_on:
-        - db
+    depends_on:
+      - api
+      - swagger
 
 volumes:
   pgdata:
-

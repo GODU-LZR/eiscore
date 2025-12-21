@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict QOTaCZw09uYyp5Sjlyj0AnAdP9nlxb3PseRgSC0UhKxPENBV5rHuV8JVoZAcD2i
+\restrict U7KOBrBXGdk9irghmZf0z0R1ycewyzL4xfUKqo4PJoiDazzBBOYuXjZln9K56xh
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -158,6 +158,43 @@ CREATE VIEW public.debug_me AS
 ALTER VIEW public.debug_me OWNER TO postgres;
 
 --
+-- Name: employees; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.employees (
+    id integer NOT NULL,
+    name text NOT NULL,
+    "position" text,
+    department text,
+    created_at timestamp without time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.employees OWNER TO postgres;
+
+--
+-- Name: employees_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.employees_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.employees_id_seq OWNER TO postgres;
+
+--
+-- Name: employees_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.employees_id_seq OWNED BY public.employees.id;
+
+
+--
 -- Name: raw_materials; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -210,6 +247,13 @@ CREATE TABLE public.users (
 ALTER TABLE public.users OWNER TO postgres;
 
 --
+-- Name: employees id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.employees ALTER COLUMN id SET DEFAULT nextval('public.employees_id_seq'::regclass);
+
+
+--
 -- Name: raw_materials id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -224,6 +268,15 @@ COPY basic_auth.users (username, password, role, full_name) FROM stdin;
 admin	admin123	web_admin	系统管理员
 zhangsan	123456	web_user	张三(采购员)
 lisi	123456	web_user	李四(仓管员)
+\.
+
+
+--
+-- Data for Name: employees; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.employees (id, name, "position", department, created_at) FROM stdin;
+1	林志荣	全栈架构师	研发中心	2025-12-21 22:48:47.338352
 \.
 
 
@@ -249,6 +302,13 @@ lisi	123456	web_user
 
 
 --
+-- Name: employees_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.employees_id_seq', 1, true);
+
+
+--
 -- Name: raw_materials_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
@@ -261,6 +321,14 @@ SELECT pg_catalog.setval('public.raw_materials_id_seq', 3, true);
 
 ALTER TABLE ONLY basic_auth.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (username);
+
+
+--
+-- Name: employees employees_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.employees
+    ADD CONSTRAINT employees_pkey PRIMARY KEY (id);
 
 
 --
@@ -315,6 +383,13 @@ GRANT SELECT ON TABLE public.debug_me TO web_user;
 
 
 --
+-- Name: TABLE employees; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT ON TABLE public.employees TO web_anon;
+
+
+--
 -- Name: TABLE raw_materials; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -333,5 +408,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.raw_materials_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict QOTaCZw09uYyp5Sjlyj0AnAdP9nlxb3PseRgSC0UhKxPENBV5rHuV8JVoZAcD2i
+\unrestrict U7KOBrBXGdk9irghmZf0z0R1ycewyzL4xfUKqo4PJoiDazzBBOYuXjZln9K56xh
 
