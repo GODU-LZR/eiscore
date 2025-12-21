@@ -106,23 +106,25 @@ const { config } = storeToRefs(systemStore)
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
 
-// --- 侧边栏主题配置 (根据模式自动切换) ---
+// --- 侧边栏主题配置 (修复：让选中颜色跟随系统主题色) ---
 const asideTheme = computed(() => {
+  // 获取当前设定的主题色，如果没有就用默认蓝
+  const primaryColor = config.value?.themeColor || '#409EFF'
+  
   return isDark.value ? {
-    // 黑夜模式下的颜色 (深蓝风格)
+    // [黑夜模式]
     menuBg: '#001529',
     menuText: '#fff',
-    menuActiveText: '#409EFF',
+    menuActiveText: primaryColor, // 跟随主题色
     logoBg: '#002140', 
   } : {
-    // 白天模式下的颜色 (白色风格)
+    // [白天模式]
     menuBg: '#ffffff',
     menuText: '#303133', 
-    menuActiveText: '#409EFF',
+    menuActiveText: primaryColor, // 跟随主题色
     logoBg: '#ffffff',
-    // 如果想要顶部有一条线区分 Logo，可以加 border-bottom
   }
-})
+}) // <--- 注意这里必须有括号
 
 // --- 处理下拉菜单点击 ---
 const handleCommand = (command) => {
@@ -201,6 +203,16 @@ const startGuide = () => {
     position: relative;
     overflow-x: hidden;
   }
+}
+
+/* 🟢 新增：强制覆盖 Element Plus 菜单选中样式 (增加背景高亮) */
+:deep(.el-menu-item.is-active) {
+  background-color: var(--el-color-primary-light-9) !important;
+  border-right: 3px solid var(--el-color-primary);
+}
+
+.dark :deep(.el-menu-item.is-active) {
+  background-color: rgba(255, 255, 255, 0.05) !important; 
 }
 
 /* 页面切换动画 */

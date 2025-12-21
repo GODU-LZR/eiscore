@@ -6,6 +6,7 @@
  * @param {string} c2 颜色2 (Hex)
  * @param {number} ratio 混合比例 (0-1)
  */
+// ... mix 函数保持不变 ...
 const mix = (c1, c2, ratio) => {
   ratio = Math.max(Math.min(Number(ratio), 1), 0)
   const r1 = parseInt(c1.substring(1, 3), 16)
@@ -37,12 +38,19 @@ export const setThemeColor = (color) => {
   // 1. 设置主色
   el.style.setProperty(pre, color)
   
-  // 2. 设置混合色 (Light系列: 混合白色)
-  // Element Plus 默认生成规则: light-3, light-5, light-7, light-8, light-9
+  // 2. 混合生成 Light 系列 (用于 hover, border 等)
   for (let i = 1; i <= 9; i++) {
     el.style.setProperty(`${pre}-light-${i}`, mix(color, '#ffffff', i / 10))
   }
   
-  // 3. 设置深色 (Dark系列: 混合黑色)
+  // 3. 混合生成 Dark 系列 (用于 active 状态)
   el.style.setProperty(`${pre}-dark-2`, mix(color, '#000000', 0.2))
+
+  // --- 4. 🔴 新增：覆盖菜单相关的特定变量 ---
+  // 让菜单选中的背景色，变成淡一点的主题色 (仅影响使用了 var(--el-menu-hover-bg-color) 的地方)
+  // 注意：Element Plus 默认菜单 hover 是灰色，如果你想让 hover 变成淡主题色，可以解开下面这行
+  // el.style.setProperty('--el-menu-hover-bg-color', mix(color, '#ffffff', 0.9))
+  
+  // 设置一个全局通用的 CSS 变量，方便我们在自己的 css 里用
+  el.style.setProperty('--primary-color', color)
 }
