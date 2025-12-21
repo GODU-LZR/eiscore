@@ -95,60 +95,64 @@ import "driver.js/dist/driver.css";
 import { useSystemStore } from '@/stores/system'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router' 
+// 🟢 1. 引入 mix 工具
+import { mix } from '@/utils/theme'
 
 const isCollapse = ref(false)
 const router = useRouter()
 const systemStore = useSystemStore()
-// 使用 storeToRefs 保持响应性
 const { config } = storeToRefs(systemStore)
 
-// --- 暗黑模式核心 ---
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
 
-// --- 侧边栏主题配置 (修复：让选中颜色跟随系统主题色) ---
+// 🟢 2. 升级主题计算逻辑
 const asideTheme = computed(() => {
-  // 获取当前设定的主题色，如果没有就用默认蓝
   const primaryColor = config.value?.themeColor || '#409EFF'
   
-  return isDark.value ? {
-    // [黑夜模式]
-    menuBg: '#001529',
-    menuText: '#fff',
-    menuActiveText: primaryColor, // 跟随主题色
-    logoBg: '#002140', 
-  } : {
-    // [白天模式]
-    menuBg: '#ffffff',
-    menuText: '#303133', 
-    menuActiveText: primaryColor, // 跟随主题色
-    logoBg: '#ffffff',
+  // 核心逻辑：
+  // 侧边栏背景 = 主题色 + 80% 黑色混合 (生成深色品牌背景)
+  // Logo背景 = 主题色 (更亮一点)
+  
+  if (isDark.value) {
+    // 【黑夜模式】保持极致黑
+    return {
+      menuBg: '#001529',
+      menuText: '#fff',
+      menuActiveText: primaryColor,
+      logoBg: '#002140', 
+    }
+  } else {
+    // 【白天/彩色模式】侧边栏使用品牌深色
+    // 如果你想让侧边栏是白色的，可以保留原来的写法。
+    // 这里我们按你的需求：让盒子/侧边栏也随主题变化。
+    
+    // 生成一个很深的品牌色作为背景 (混合 80% 黑色)
+    const brandDarkBg = mix(primaryColor, '#000000', 0.8)
+    
+    return {
+      menuBg: brandDarkBg, 
+      menuText: '#ffffff', // 深色背景配白字
+      menuActiveText: '#ffffff', // 选中也是白字，靠背景高亮区分
+      logoBg: primaryColor, // Logo 区域直接用纯主题色，显眼！
+    }
   }
-}) // <--- 注意这里必须有括号
+})
 
-// --- 处理下拉菜单点击 ---
 const handleCommand = (command) => {
   if (command === 'settings') {
     router.push('/settings') 
   } else if (command === 'logout') {
-    console.log('执行退出登录逻辑...')
     localStorage.removeItem('auth_token')
     router.push('/login')
   }
 }
 
-// --- 用户指引 ---
 const driverObj = driver({
   showProgress: true,
   steps: [
-    { 
-      element: '.layout-aside', 
-      popover: { title: '功能导航区', description: '所有的业务模块（如物料、人事）都在这里切换。' } 
-    },
-    { 
-      element: '.layout-header .header-right', 
-      popover: { title: '个性化设置', description: '在这里切换暗黑模式，或查看个人信息。' } 
-    }
+    { element: '.layout-aside', popover: { title: '功能导航区', description: '所有的业务模块（如物料、人事）都在这里切换。' } },
+    { element: '.layout-header .header-right', popover: { title: '个性化设置', description: '在这里切换暗黑模式，或查看个人信息。' } }
   ]
 });
 
@@ -162,12 +166,11 @@ const startGuide = () => {
   height: 100vh;
   
   .layout-aside {
-    /* 删除了硬编码的背景色，由 JS 动态控制 */
     display: flex;
     flex-direction: column;
     box-shadow: 2px 0 6px rgba(0,21,41,0.35);
     z-index: 10;
-    transition: background-color 0.3s; /* 平滑过渡 */
+    transition: background-color 0.3s;
     
     .logo {
       height: 60px;
@@ -187,7 +190,7 @@ const startGuide = () => {
   }
   
   .layout-header {
-    background-color: var(--el-bg-color); /* Element Plus 自带变量，会自动随暗黑模式变 */
+    background-color: var(--el-bg-color);
     border-bottom: 1px solid var(--el-border-color-light);
     display: flex;
     justify-content: space-between;
@@ -205,17 +208,19 @@ const startGuide = () => {
   }
 }
 
-/* 🟢 新增：强制覆盖 Element Plus 菜单选中样式 (增加背景高亮) */
+/* 🟢 选中项样式优化：背景变亮一点 */
 :deep(.el-menu-item.is-active) {
-  background-color: var(--el-color-primary-light-9) !important;
-  border-right: 3px solid var(--el-color-primary);
+  // 混合 20% 白色作为选中背景
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  border-right: 3px solid #fff; // 选中指示器改为白色
+  font-weight: 600;
 }
 
 .dark :deep(.el-menu-item.is-active) {
-  background-color: rgba(255, 255, 255, 0.05) !important; 
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-right-color: var(--el-color-primary); 
 }
 
-/* 页面切换动画 */
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.3s ease;

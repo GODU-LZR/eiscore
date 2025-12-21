@@ -7,7 +7,7 @@
  * @param {number} ratio 混合比例 (0-1)
  */
 // ... mix 函数保持不变 ...
-const mix = (c1, c2, ratio) => {
+export const mix = (c1, c2, ratio) => {
   ratio = Math.max(Math.min(Number(ratio), 1), 0)
   const r1 = parseInt(c1.substring(1, 3), 16)
   const g1 = parseInt(c1.substring(3, 5), 16)
