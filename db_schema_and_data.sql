@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Z69TYmLMx3eYOoQmWNZ05Diq1oyZpxnRRTjcC2TuYhhzbBN69hhH1uAxk9Q2Y1m
+\restrict n1e3QGhuO3JwodPb1gYluhg3Dbk8qOh3VCYxdxCfmDi4RNfGtY6TCaK5i0SdQhf
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -408,5 +408,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.raw_materials_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Z69TYmLMx3eYOoQmWNZ05Diq1oyZpxnRRTjcC2TuYhhzbBN69hhH1uAxk9Q2Y1m
+\unrestrict n1e3QGhuO3JwodPb1gYluhg3Dbk8qOh3VCYxdxCfmDi4RNfGtY6TCaK5i0SdQhf
 

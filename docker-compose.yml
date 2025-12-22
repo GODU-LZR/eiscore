@@ -1,6 +1,6 @@
 
 services:
-  # 1. 数据库服务
+  # 1. 数据库
   db:
     image: postgres:16
     container_name: eiscore-db
@@ -15,7 +15,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./db_schema_and_data.sql:/docker-entrypoint-initdb.d/init.sql
 
-  # 2. API 网关 (PostgREST)
+  # 2. API 网关
   api:
     image: postgrest/postgrest
     container_name: eiscore-api
@@ -30,17 +30,18 @@ services:
     depends_on:
       - db
 
-  # 3. 🟢 Swagger UI (接口文档)
-  # 修改端口映射：宿主机 8079 -> 容器 8080
+  # 3. Swagger 文档
   swagger:
     image: swaggerapi/swagger-ui
     container_name: eiscore-swagger
     restart: always
     ports:
-      - "8079:8080" # <--- 这里改成了 8079
+      - "8079:8080"
     environment:
-      # 依然指向 Nginx 的 80 端口来获取 API 定义
-      API_URL: http://localhost/api/
+      # 🟢 关键修改 1：告诉 Swagger UI 它被托管在 /doc 路径下
+      BASE_URL: /doc
+      # 🟢 关键修改 2：使用相对路径请求 API，完美解决 CORS 和 Fetch Error
+      API_URL: /api/
     depends_on:
       - api
 
