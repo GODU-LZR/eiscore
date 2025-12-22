@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict O3VAWWw904fclmjThu499FjdEMbiG82ct88vRtDuZaIzIGADHtyj7sjTfDqVmw4
+\restrict wlZBuFvHaqKbg9YUoQOk14OwjGwXKufqKuukmDImTR2GZlfz2OlFU5LdgbvlbdB
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -83,7 +83,7 @@ DECLARE
     _role text;
     _permissions text[];
     result json;
-    _secret text := 'my_super_secret_key_for_eiscore_system_2025'; -- 必须与 docker-compose 一致
+    _secret text := 'my_super_secret_key_for_eiscore_system_2025';
 BEGIN
     SELECT users.role, users.permissions INTO _role, _permissions FROM public.users
     WHERE users.username = login.username AND users.password = login.password;
@@ -95,7 +95,6 @@ BEGIN
     result := json_build_object(
         'role', _role,
         'username', username,
-        -- 签发 Token (包含 permissions 方便前端鉴权)
         'permissions', _permissions, 
         'exp', extract(epoch from now() + interval '2 hours')::integer
     );
@@ -696,5 +695,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict O3VAWWw904fclmjThu499FjdEMbiG82ct88vRtDuZaIzIGADHtyj7sjTfDqVmw4
+\unrestrict wlZBuFvHaqKbg9YUoQOk14OwjGwXKufqKuukmDImTR2GZlfz2OlFU5LdgbvlbdB
 
