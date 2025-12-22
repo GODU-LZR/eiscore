@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Xv5lKJXNeiTHih3wgvzbXz1DnRuUA3WPYNRTvxRbrtpRRChAKZJaYsd2Bd1cmX7
+\restrict rnwwS8O8uLjh4C8TjczOvHYBG0AeKgeWnM9oiIhNT2iYRKP7enpLM14n8gn7710
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -387,6 +387,14 @@ GRANT SELECT ON TABLE public.debug_me TO web_user;
 --
 
 GRANT SELECT ON TABLE public.employees TO web_anon;
+GRANT ALL ON TABLE public.employees TO web_user;
+
+
+--
+-- Name: SEQUENCE employees_id_seq; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,USAGE ON SEQUENCE public.employees_id_seq TO web_user;
 
 
 --
@@ -408,5 +416,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.raw_materials_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Xv5lKJXNeiTHih3wgvzbXz1DnRuUA3WPYNRTvxRbrtpRRChAKZJaYsd2Bd1cmX7
+\unrestrict rnwwS8O8uLjh4C8TjczOvHYBG0AeKgeWnM9oiIhNT2iYRKP7enpLM14n8gn7710
 

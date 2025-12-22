@@ -79,15 +79,15 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useUserStore } from '@/stores/user' // 🟢 引入 User Store
+import { useUserStore } from '@/stores/user'
 
 const router = useRouter()
-const userStore = useUserStore() // 🟢 初始化 Store
+const userStore = useUserStore()
 const loading = ref(false)
 const loginFormRef = ref(null)
 
 const loginForm = reactive({
-  username: 'Admin', // 默认给个值方便调试
+  username: 'zhangsan', // 默认填个能用的账号
   password: '',
   remember: false
 })
@@ -104,36 +104,63 @@ const handleLogin = async () => {
     if (valid) {
       loading.value = true
       
-      // 模拟网络延迟
-      setTimeout(() => {
-        try {
-          // 🟢 模拟后端返回的数据结构 (这是关键点)
-          // 以后这里会替换成真实接口: const res = await api.login(...)
-          const mockResponse = {
-            token: 'mock-token-' + Date.now(),
-            user: {
-              id: 1,
-              name: loginForm.username, // 使用输入的用户名
-              role: 'admin',
-              avatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
-              // 👇 这里定义的权限，之后会被 HR 系统读取
-              permissions: ['hr:employee:edit', 'material:stock:view'] 
-            }
-          }
+      try {
+        // 🟢 1. 发送真实请求给 PostgREST 登录接口
+        // /api/rpc/login 会被 Vite 代理转发到后端
+        const response = await fetch('/api/rpc/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            // 告诉后端返回单个 JSON 对象，而不是数组
+            'Prefer': 'params=single-object' 
+          },
+          body: JSON.stringify({
+            username: loginForm.username,
+            password: loginForm.password
+          })
+        })
 
-          // 🟢 调用 Store 的 login 方法 (它会自动处理 localStorage)
-          userStore.login(mockResponse)
-          
-          ElMessage.success(`登录成功，欢迎回来 ${mockResponse.user.name}！`)
-          router.push('/') // 跳转到首页
-          
-        } catch (error) {
-          console.error(error)
-          ElMessage.error('登录失败，请重试')
-        } finally {
-          loading.value = false
+        // 处理 HTTP 错误 (比如 400, 403, 500)
+        if (!response.ok) {
+           const errData = await response.json().catch(() => ({}))
+           throw new Error(errData.message || '登录失败，账号或密码错误')
         }
-      }, 800)
+
+        // 🟢 2. 获取真实的 Token
+        const data = await response.json() 
+        // PostgREST 返回格式: { "token": "eyJ..." }
+        const realToken = data.token 
+
+        if (!realToken) {
+          throw new Error('服务器未返回有效 Token')
+        }
+
+        // 🟢 3. 构造 Store 需要的用户信息
+        // (在真实项目中，这里通常会用 Token 再去调一次 /me 接口获取详情，
+        // 这里为了简单，我们直接用前端填的用户名，权限先写死)
+        const userData = {
+          token: realToken, // ✅ 这里必须是刚才获取的真实 Token
+          user: {
+            id: 1, // 暂时写死
+            name: loginForm.username, 
+            role: 'admin', 
+            avatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
+            permissions: ['hr:employee:edit', 'material:stock:view'] 
+          }
+        }
+
+        // 🟢 4. 存入 Store (持久化到 localStorage)
+        userStore.login(userData)
+        
+        ElMessage.success(`登录成功！`)
+        router.push('/') // 跳转到首页
+        
+      } catch (error) {
+        console.error(error)
+        ElMessage.error(error.message || '登录出现异常')
+      } finally {
+        loading.value = false
+      }
     }
   })
 }
@@ -147,7 +174,6 @@ const handleLogin = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  /* 背景图纹理 */
   background-image: radial-gradient(#e1e6eb 1px, transparent 1px);
   background-size: 20px 20px;
 }
@@ -163,14 +189,12 @@ const handleLogin = async () => {
   
   .login-left {
     width: 50%;
-    /* 使用稍深一点的蓝色渐变，显得更商务 */
     background: linear-gradient(135deg, #001529 0%, #003a70 100%);
     padding: 40px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     color: white;
-    position: relative;
     
     .logo-box {
       display: flex;
@@ -207,27 +231,13 @@ const handleLogin = async () => {
       
       .welcome-title { font-size: 28px; font-weight: bold; color: #303133; margin-bottom: 10px; }
       .welcome-subtitle { color: #909399; margin-bottom: 30px; font-size: 14px; }
-      
       .login-btn { width: 100%; font-weight: bold; padding: 20px 0; font-size: 16px; }
-      
-      .flex-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        width: 100%;
-      }
-      
-      .footer-links {
-        margin-top: 20px;
-        text-align: center;
-        font-size: 14px;
-        color: #606266;
-      }
+      .flex-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+      .footer-links { margin-top: 20px; text-align: center; font-size: 14px; color: #606266; }
     }
   }
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .login-box {
     width: 90%;

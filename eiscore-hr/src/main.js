@@ -4,17 +4,34 @@ import App from './App.vue'
 import router from './router'
 import { renderWithQiankun, qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
 
+// 🟢 1. 引入 Element Plus 及其样式
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
+// 引入中文语言包 (可选，推荐)
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+// 引入图标 (如果用到了 Icon)
+import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+
 let app
 
-// 封装 render 函数
 function render(props = {}) {
   const { container } = props
   app = createApp(App)
+
+  // 🟢 2. 注册 Element Plus
+  app.use(ElementPlus, {
+    locale: zhCn, // 设置为中文
+  })
   
+  // 注册所有图标 (防止 el-icon 不显示)
+  for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+    app.component(key, component)
+  }
+
   app.use(createPinia())
   app.use(router)
 
-  // 注册权限指令 (鉴权逻辑)
+  // 注册权限指令
   app.directive('permission', {
     mounted(el, binding) {
       const { value } = binding
@@ -35,7 +52,6 @@ function render(props = {}) {
   app.mount(target)
 }
 
-// 初始化 qiankun
 renderWithQiankun({
   mount(props) {
     console.log('[HR] mounted')
@@ -53,7 +69,6 @@ renderWithQiankun({
   }
 })
 
-// 独立运行时直接渲染
 if (!qiankunWindow.__POWERED_BY_QIANKUN__) {
   render()
 }
