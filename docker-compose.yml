@@ -2,22 +2,20 @@
 services:
   # 1. 数据库服务
   db:
-    image: postgres:15
+    image: postgres:16
     container_name: eiscore-db
     restart: always
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "password" # 生产环境请修改强密码
+      POSTGRES_PASSWORD: "123456"
       POSTGRES_DB: eiscore
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # 容器启动时自动执行 SQL 初始化 (创建角色/表)
       - ./db_schema_and_data.sql:/docker-entrypoint-initdb.d/init.sql
 
-  # 2. 🟢 API 网关 (PostgREST) - 对应论文 "API 网关层"
-  # 原来的 pgrst 改名为 api，方便引用
+  # 2. API 网关 (PostgREST)
   api:
     image: postgrest/postgrest
     container_name: eiscore-api
@@ -25,31 +23,28 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # 连接数据库 (注意密码要和 db 服务一致)
-      PGRST_DB_URI: postgres://postgres:password@db:5432/eiscore
-      # 暴露的 Schema
+      PGRST_DB_URI: postgres://postgres:123456@db:5432/eiscore
       PGRST_DB_SCHEMA: public
-      # 匿名用户角色 (未登录时使用)
       PGRST_DB_ANON_ROLE: web_anon
-      # JWT 密钥 (用于鉴权，必须 >= 32字符)
-      PGRST_JWT_SECRET: "reallyreallyreallyreallyverysafeandlongsecretkey"
+      PGRST_JWT_SECRET: "my_super_secret_key_for_eiscore_system_2025"
     depends_on:
       - db
 
-  # 3. 🟢 接口文档 (Swagger UI) - 对应论文 "自动化文档"
+  # 3. 🟢 Swagger UI (接口文档)
+  # 修改端口映射：宿主机 8079 -> 容器 8080
   swagger:
     image: swaggerapi/swagger-ui
     container_name: eiscore-swagger
     restart: always
     ports:
-      - "8080:8080"
+      - "8079:8080" # <--- 这里改成了 8079
     environment:
-      # 告诉 Swagger 去哪里读取 OpenAPI 规范 (通过 Nginx 转发的地址)
+      # 依然指向 Nginx 的 80 端口来获取 API 定义
       API_URL: http://localhost/api/
     depends_on:
       - api
 
-  # 4. Nginx 网关 (前端 + API + 文档)
+  # 4. Nginx 网关
   nginx:
     image: nginx:alpine
     container_name: eiscore-nginx
