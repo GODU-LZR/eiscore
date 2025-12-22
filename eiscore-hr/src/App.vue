@@ -1,11 +1,12 @@
-<script setup></script>
-
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
+  <div style="border: 5px solid red; padding: 20px; margin: 10px;">
+    <h3>🚩 HR 子应用调试区</h3>
+    <p>当前路由路径: {{ $route.fullPath }}</p>
+    
+    <router-view></router-view>
+  </div>
 </template>
 
-<style scoped></style>
+<script setup>
+// 无需其他逻辑
+</script>
