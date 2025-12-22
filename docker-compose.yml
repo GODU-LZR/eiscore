@@ -19,16 +19,17 @@ services:
   api:
     image: postgrest/postgrest
     container_name: eiscore-api
-    restart: always
     ports:
       - "3000:3000"
     environment:
-      PGRST_DB_URI: postgres://postgres:123456@db:5432/eiscore
-      PGRST_DB_SCHEMA: public
-      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_DB_URI: "postgres://postgres:123456@db:5432/eis_db"
+      # 🟢 关键修改：列出所有需要生成 API 的 Schema
+      # 注意：第一个 (public) 是默认 Schema，不加 header 时访问它
+      PGRST_DB_SCHEMAS: "public, hr, scm" 
+      PGRST_DB_ANON_ROLE: "web_anon"
       PGRST_JWT_SECRET: "my_super_secret_key_for_eiscore_system_2025"
     depends_on:
-      - db
+       - db
 
   # 3. Swagger 文档
   swagger:

@@ -20,26 +20,16 @@
           <h2 class="welcome-title">欢迎登录</h2>
           <p class="welcome-subtitle">请输入您的账号密码访问系统</p>
 
-          <el-form
-            ref="loginFormRef"
-            :model="loginForm"
-            :rules="loginRules"
-            class="login-form"
-            size="large"
-          >
+          <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" class="login-form" size="large">
             <el-form-item prop="username">
-              <el-input 
-                v-model="loginForm.username" 
-                placeholder="用户名 / 手机号" 
-                prefix-icon="User"
-              />
+              <el-input v-model="loginForm.username" placeholder="用户名 (admin)" prefix-icon="User" />
             </el-form-item>
             
             <el-form-item prop="password">
               <el-input 
                 v-model="loginForm.password" 
                 type="password" 
-                placeholder="密码" 
+                placeholder="密码 (123456)" 
                 prefix-icon="Lock" 
                 show-password
                 @keyup.enter="handleLogin"
@@ -49,17 +39,12 @@
             <el-form-item>
               <div class="flex-row">
                 <el-checkbox v-model="loginForm.remember">记住我</el-checkbox>
-                <el-link type="primary" :underline="false">忘记密码？</el-link>
+                <el-link type="primary" underline="never">忘记密码？</el-link>
               </div>
             </el-form-item>
 
             <el-form-item>
-              <el-button 
-                type="primary" 
-                class="login-btn" 
-                :loading="loading" 
-                @click="handleLogin"
-              >
+              <el-button type="primary" class="login-btn" :loading="loading" @click="handleLogin">
                 立即登录
               </el-button>
             </el-form-item>
@@ -67,7 +52,7 @@
           
           <div class="footer-links">
             <span>还没有账号？</span>
-            <el-link type="primary" :underline="false">联系管理员注册</el-link>
+            <el-link type="primary" underline="never">联系管理员注册</el-link>
           </div>
         </div>
       </div>
@@ -87,7 +72,7 @@ const loading = ref(false)
 const loginFormRef = ref(null)
 
 const loginForm = reactive({
-  username: 'zhangsan', // 默认填个能用的账号
+  username: 'admin', // 默认账号
   password: '',
   remember: false
 })
@@ -95,6 +80,20 @@ const loginForm = reactive({
 const loginRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+}
+
+// 🟢 辅助函数：解析 JWT Token (无需安装 jwt-decode 库)
+function parseJwt(token) {
+  try {
+    const base64Url = token.split('.')[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+    }).join(''))
+    return JSON.parse(jsonPayload)
+  } catch (e) {
+    return {}
+  }
 }
 
 const handleLogin = async () => {
@@ -105,14 +104,12 @@ const handleLogin = async () => {
       loading.value = true
       
       try {
-        // 🟢 1. 发送真实请求给 PostgREST 登录接口
-        // /api/rpc/login 会被 Vite 代理转发到后端
+        // 1. 调用 PostgREST 登录函数 (public.login)
         const response = await fetch('/api/rpc/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            // 告诉后端返回单个 JSON 对象，而不是数组
-            'Prefer': 'params=single-object' 
+            'Prefer': 'params=single-object' // 要求返回单个 JSON 对象
           },
           body: JSON.stringify({
             username: loginForm.username,
@@ -120,40 +117,39 @@ const handleLogin = async () => {
           })
         })
 
-        // 处理 HTTP 错误 (比如 400, 403, 500)
         if (!response.ok) {
+           // 处理 403/400 错误
            const errData = await response.json().catch(() => ({}))
            throw new Error(errData.message || '登录失败，账号或密码错误')
         }
 
-        // 🟢 2. 获取真实的 Token
         const data = await response.json() 
-        // PostgREST 返回格式: { "token": "eyJ..." }
         const realToken = data.token 
 
-        if (!realToken) {
-          throw new Error('服务器未返回有效 Token')
-        }
+        if (!realToken) throw new Error('服务器未返回有效 Token')
 
-        // 🟢 3. 构造 Store 需要的用户信息
-        // (在真实项目中，这里通常会用 Token 再去调一次 /me 接口获取详情，
-        // 这里为了简单，我们直接用前端填的用户名，权限先写死)
+        // 🟢 2. 解析 Token 中的真实信息
+        const payload = parseJwt(realToken)
+        console.log('Token Payload:', payload)
+
+        // 🟢 3. 构造用户信息 (使用真实权限)
         const userData = {
-          token: realToken, // ✅ 这里必须是刚才获取的真实 Token
+          token: realToken,
           user: {
-            id: 1, // 暂时写死
-            name: loginForm.username, 
-            role: 'admin', 
-            avatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
-            permissions: ['hr:employee:edit', 'material:stock:view'] 
+            id: payload.username, // 这里暂时用 username 当 id
+            name: payload.username,
+            role: payload.role || 'user',
+            // 关键：从 Token 里拿到数据库定义的 permissions 数组
+            permissions: payload.permissions || [], 
+            avatar: payload.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
           }
         }
 
-        // 🟢 4. 存入 Store (持久化到 localStorage)
+        // 4. 存入 Store
         userStore.login(userData)
         
-        ElMessage.success(`登录成功！`)
-        router.push('/') // 跳转到首页
+        ElMessage.success(`登录成功！欢迎 ${userData.user.name}`)
+        router.push('/')
         
       } catch (error) {
         console.error(error)

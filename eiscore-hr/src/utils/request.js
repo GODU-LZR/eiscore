@@ -1,40 +1,53 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-// 1. 创建 axios 实例
+// 创建 axios 实例
 const service = axios.create({
-  // 🟢 关键：指向 Nginx 转发的 API 地址
-  // 在开发环境下，Vite 代理会把它转到 http://localhost/api
-  baseURL: '/api', 
+  baseURL: '/api', // 指向基座的代理 /api -> localhost:3000
   timeout: 5000
 })
 
-// 2. 请求拦截器：自动带上 Token
+// 🟢 请求拦截器
 service.interceptors.request.use(
-  (config) => {
-    // 从 localStorage 读取基座存入的 Token
-    const token = localStorage.getItem('auth_token')
-    if (token) {
-      // PostgREST 要求格式: Bearer <token>
+  config => {
+    // 1. 获取 Token (从 localStorage)
+    const tokenStr = localStorage.getItem('auth_token')
+    if (tokenStr) {
+      // 兼容直接存字符串或存 JSON 的情况
+      let token = tokenStr
+      try {
+        const parsed = JSON.parse(tokenStr)
+        if (parsed.token) token = parsed.token
+      } catch (e) {
+        // 是纯字符串，不用处理
+      }
       config.headers['Authorization'] = `Bearer ${token}`
     }
+
+    // 🟢 2. [核心架构修改] 锁定 Schema
+    // 告诉 PostgREST：这个子应用的所有请求，默认都是查 "hr" 模式下的表
+    config.headers['Accept-Profile'] = 'hr' 
+    
+    // 🟢 3. 还有一个细节：GET 请求如果没指定 Content-Profile，
+    // PostgREST 可能会返回 public schema 的描述。
+    // 为了保险，对于数据修改操作，也可以加上 Content-Profile (可选)
+    // config.headers['Content-Profile'] = 'hr'
+
     return config
   },
-  (error) => {
+  error => {
     return Promise.reject(error)
   }
 )
 
-// 3. 响应拦截器：处理错误
+// 响应拦截器 (保持不变)
 service.interceptors.response.use(
-  (response) => {
+  response => {
     return response.data
   },
-  (error) => {
-    // 处理 401 未授权 (Token 过期或无效)
+  error => {
     if (error.response && error.response.status === 401) {
       ElMessage.error('登录已过期，请重新登录')
-      // 可选：通知基座跳转登录页
     } else {
       ElMessage.error(error.message || '请求失败')
     }

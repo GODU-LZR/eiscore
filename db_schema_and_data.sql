@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict rnwwS8O8uLjh4C8TjczOvHYBG0AeKgeWnM9oiIhNT2iYRKP7enpLM14n8gn7710
+\restrict O3VAWWw904fclmjThu499FjdEMbiG82ct88vRtDuZaIzIGADHtyj7sjTfDqVmw4
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -26,6 +26,24 @@ CREATE SCHEMA basic_auth;
 
 
 ALTER SCHEMA basic_auth OWNER TO postgres;
+
+--
+-- Name: hr; Type: SCHEMA; Schema: -; Owner: postgres
+--
+
+CREATE SCHEMA hr;
+
+
+ALTER SCHEMA hr OWNER TO postgres;
+
+--
+-- Name: scm; Type: SCHEMA; Schema: -; Owner: postgres
+--
+
+CREATE SCHEMA scm;
+
+
+ALTER SCHEMA scm OWNER TO postgres;
 
 --
 -- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
@@ -63,11 +81,11 @@ CREATE FUNCTION public.login(username text, password text) RETURNS json
     AS $$
 DECLARE
     _role text;
+    _permissions text[];
     result json;
-    -- 👇 硬编码密钥，并用 TRIM 去除可能存在的首尾空格/回车
-    _secret text := trim(both E'\r\n ' from 'my_super_secret_key_for_eiscore_system_2025');
+    _secret text := 'my_super_secret_key_for_eiscore_system_2025'; -- 必须与 docker-compose 一致
 BEGIN
-    SELECT users.role INTO _role FROM public.users
+    SELECT users.role, users.permissions INTO _role, _permissions FROM public.users
     WHERE users.username = login.username AND users.password = login.password;
 
     IF _role IS NULL THEN
@@ -77,6 +95,8 @@ BEGIN
     result := json_build_object(
         'role', _role,
         'username', username,
+        -- 签发 Token (包含 permissions 方便前端鉴权)
+        'permissions', _permissions, 
         'exp', extract(epoch from now() + interval '2 hours')::integer
     );
 
@@ -144,6 +164,87 @@ CREATE TABLE basic_auth.users (
 
 
 ALTER TABLE basic_auth.users OWNER TO postgres;
+
+--
+-- Name: archives; Type: TABLE; Schema: hr; Owner: postgres
+--
+
+CREATE TABLE hr.archives (
+    id integer NOT NULL,
+    name text NOT NULL,
+    employee_no text,
+    department text,
+    "position" text,
+    phone text,
+    status text DEFAULT '在职'::text,
+    base_salary numeric(10,2) DEFAULT 0,
+    entry_date date DEFAULT CURRENT_DATE,
+    properties jsonb DEFAULT '{}'::jsonb,
+    version integer DEFAULT 1,
+    updated_at timestamp without time zone DEFAULT now()
+);
+
+
+ALTER TABLE hr.archives OWNER TO postgres;
+
+--
+-- Name: archives_id_seq; Type: SEQUENCE; Schema: hr; Owner: postgres
+--
+
+CREATE SEQUENCE hr.archives_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE hr.archives_id_seq OWNER TO postgres;
+
+--
+-- Name: archives_id_seq; Type: SEQUENCE OWNED BY; Schema: hr; Owner: postgres
+--
+
+ALTER SEQUENCE hr.archives_id_seq OWNED BY hr.archives.id;
+
+
+--
+-- Name: payroll; Type: TABLE; Schema: hr; Owner: postgres
+--
+
+CREATE TABLE hr.payroll (
+    id integer NOT NULL,
+    archive_id integer,
+    month character varying(7),
+    total_amount numeric(10,2),
+    status text DEFAULT '草稿'::text
+);
+
+
+ALTER TABLE hr.payroll OWNER TO postgres;
+
+--
+-- Name: payroll_id_seq; Type: SEQUENCE; Schema: hr; Owner: postgres
+--
+
+CREATE SEQUENCE hr.payroll_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE hr.payroll_id_seq OWNER TO postgres;
+
+--
+-- Name: payroll_id_seq; Type: SEQUENCE OWNED BY; Schema: hr; Owner: postgres
+--
+
+ALTER SEQUENCE hr.payroll_id_seq OWNED BY hr.payroll.id;
+
 
 --
 -- Name: debug_me; Type: VIEW; Schema: public; Owner: postgres
@@ -238,13 +339,52 @@ ALTER SEQUENCE public.raw_materials_id_seq OWNED BY public.raw_materials.id;
 --
 
 CREATE TABLE public.users (
+    id integer NOT NULL,
     username text NOT NULL,
     password text NOT NULL,
-    role text DEFAULT 'web_user'::text NOT NULL
+    role text DEFAULT 'web_user'::text NOT NULL,
+    avatar text,
+    permissions text[]
 );
 
 
 ALTER TABLE public.users OWNER TO postgres;
+
+--
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.users_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.users_id_seq OWNER TO postgres;
+
+--
+-- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
+
+
+--
+-- Name: archives id; Type: DEFAULT; Schema: hr; Owner: postgres
+--
+
+ALTER TABLE ONLY hr.archives ALTER COLUMN id SET DEFAULT nextval('hr.archives_id_seq'::regclass);
+
+
+--
+-- Name: payroll id; Type: DEFAULT; Schema: hr; Owner: postgres
+--
+
+ALTER TABLE ONLY hr.payroll ALTER COLUMN id SET DEFAULT nextval('hr.payroll_id_seq'::regclass);
+
 
 --
 -- Name: employees id; Type: DEFAULT; Schema: public; Owner: postgres
@@ -261,6 +401,13 @@ ALTER TABLE ONLY public.raw_materials ALTER COLUMN id SET DEFAULT nextval('publi
 
 
 --
+-- Name: users id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
 -- Data for Name: users; Type: TABLE DATA; Schema: basic_auth; Owner: postgres
 --
 
@@ -268,6 +415,23 @@ COPY basic_auth.users (username, password, role, full_name) FROM stdin;
 admin	admin123	web_admin	系统管理员
 zhangsan	123456	web_user	张三(采购员)
 lisi	123456	web_user	李四(仓管员)
+\.
+
+
+--
+-- Data for Name: archives; Type: TABLE DATA; Schema: hr; Owner: postgres
+--
+
+COPY hr.archives (id, name, employee_no, department, "position", phone, status, base_salary, entry_date, properties, version, updated_at) FROM stdin;
+1	张三	EMP001	研发部	开发	\N	在职	8000.00	2025-12-22	{"gender": "男"}	1	2025-12-22 22:06:27.246019
+\.
+
+
+--
+-- Data for Name: payroll; Type: TABLE DATA; Schema: hr; Owner: postgres
+--
+
+COPY hr.payroll (id, archive_id, month, total_amount, status) FROM stdin;
 \.
 
 
@@ -295,10 +459,23 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.users (username, password, role) FROM stdin;
-zhangsan	123456	web_user
-lisi	123456	web_user
+COPY public.users (id, username, password, role, avatar, permissions) FROM stdin;
+1	admin	123456	web_user	\N	{hr:view,scm:view}
 \.
+
+
+--
+-- Name: archives_id_seq; Type: SEQUENCE SET; Schema: hr; Owner: postgres
+--
+
+SELECT pg_catalog.setval('hr.archives_id_seq', 1, true);
+
+
+--
+-- Name: payroll_id_seq; Type: SEQUENCE SET; Schema: hr; Owner: postgres
+--
+
+SELECT pg_catalog.setval('hr.payroll_id_seq', 1, false);
 
 
 --
@@ -316,11 +493,42 @@ SELECT pg_catalog.setval('public.raw_materials_id_seq', 3, true);
 
 
 --
+-- Name: users_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('public.users_id_seq', 1, true);
+
+
+--
 -- Name: users users_pkey; Type: CONSTRAINT; Schema: basic_auth; Owner: postgres
 --
 
 ALTER TABLE ONLY basic_auth.users
     ADD CONSTRAINT users_pkey PRIMARY KEY (username);
+
+
+--
+-- Name: archives archives_employee_no_key; Type: CONSTRAINT; Schema: hr; Owner: postgres
+--
+
+ALTER TABLE ONLY hr.archives
+    ADD CONSTRAINT archives_employee_no_key UNIQUE (employee_no);
+
+
+--
+-- Name: archives archives_pkey; Type: CONSTRAINT; Schema: hr; Owner: postgres
+--
+
+ALTER TABLE ONLY hr.archives
+    ADD CONSTRAINT archives_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: payroll payroll_pkey; Type: CONSTRAINT; Schema: hr; Owner: postgres
+--
+
+ALTER TABLE ONLY hr.payroll
+    ADD CONSTRAINT payroll_pkey PRIMARY KEY (id);
 
 
 --
@@ -344,7 +552,23 @@ ALTER TABLE ONLY public.raw_materials
 --
 
 ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_pkey PRIMARY KEY (username);
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: users users_username_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_username_key UNIQUE (username);
+
+
+--
+-- Name: payroll payroll_archive_id_fkey; Type: FK CONSTRAINT; Schema: hr; Owner: postgres
+--
+
+ALTER TABLE ONLY hr.payroll
+    ADD CONSTRAINT payroll_archive_id_fkey FOREIGN KEY (archive_id) REFERENCES hr.archives(id);
 
 
 --
@@ -361,11 +585,25 @@ CREATE POLICY "Users can only see their own data" ON public.raw_materials FOR SE
 ALTER TABLE public.raw_materials ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: SCHEMA hr; Type: ACL; Schema: -; Owner: postgres
+--
+
+GRANT USAGE ON SCHEMA hr TO web_user;
+
+
+--
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: pg_database_owner
 --
 
 GRANT USAGE ON SCHEMA public TO web_anon;
 GRANT USAGE ON SCHEMA public TO web_user;
+
+
+--
+-- Name: SCHEMA scm; Type: ACL; Schema: -; Owner: postgres
+--
+
+GRANT USAGE ON SCHEMA scm TO web_user;
 
 
 --
@@ -376,10 +614,38 @@ GRANT ALL ON FUNCTION public.login(username text, password text) TO web_anon;
 
 
 --
+-- Name: TABLE archives; Type: ACL; Schema: hr; Owner: postgres
+--
+
+GRANT ALL ON TABLE hr.archives TO web_user;
+
+
+--
+-- Name: SEQUENCE archives_id_seq; Type: ACL; Schema: hr; Owner: postgres
+--
+
+GRANT SELECT,USAGE ON SEQUENCE hr.archives_id_seq TO web_user;
+
+
+--
+-- Name: TABLE payroll; Type: ACL; Schema: hr; Owner: postgres
+--
+
+GRANT ALL ON TABLE hr.payroll TO web_user;
+
+
+--
+-- Name: SEQUENCE payroll_id_seq; Type: ACL; Schema: hr; Owner: postgres
+--
+
+GRANT SELECT,USAGE ON SEQUENCE hr.payroll_id_seq TO web_user;
+
+
+--
 -- Name: TABLE debug_me; Type: ACL; Schema: public; Owner: postgres
 --
 
-GRANT SELECT ON TABLE public.debug_me TO web_user;
+GRANT ALL ON TABLE public.debug_me TO web_user;
 
 
 --
@@ -413,8 +679,22 @@ GRANT SELECT,USAGE ON SEQUENCE public.raw_materials_id_seq TO web_user;
 
 
 --
+-- Name: TABLE users; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.users TO web_user;
+
+
+--
+-- Name: SEQUENCE users_id_seq; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict rnwwS8O8uLjh4C8TjczOvHYBG0AeKgeWnM9oiIhNT2iYRKP7enpLM14n8gn7710
+\unrestrict O3VAWWw904fclmjThu499FjdEMbiG82ct88vRtDuZaIzIGADHtyj7sjTfDqVmw4
 
