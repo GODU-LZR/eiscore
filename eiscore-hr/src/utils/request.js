@@ -24,14 +24,17 @@ service.interceptors.request.use(
       config.headers['Authorization'] = `Bearer ${token}`
     }
 
-    // 🟢 2. [核心架构修改] 锁定 Schema
-    // 告诉 PostgREST：这个子应用的所有请求，默认都是查 "hr" 模式下的表
-    config.headers['Accept-Profile'] = 'hr' 
+    // 🟢 2. [核心修复] 智能锁定 Schema
+    // 逻辑变更：只有当业务代码没有指定 Schema 时，才默认去 "hr"
+    // 这样 system_configs 这种查 public 的请求就不会被误杀了
     
-    // 🟢 3. 还有一个细节：GET 请求如果没指定 Content-Profile，
-    // PostgREST 可能会返回 public schema 的描述。
-    // 为了保险，对于数据修改操作，也可以加上 Content-Profile (可选)
-    config.headers['Content-Profile'] = 'hr'
+    if (!config.headers['Accept-Profile']) {
+      config.headers['Accept-Profile'] = 'hr'
+    }
+    
+    if (!config.headers['Content-Profile']) {
+      config.headers['Content-Profile'] = 'hr'
+    }
 
     return config
   },

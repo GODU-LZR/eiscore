@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict ITKjGnfU1kVenhTzeYXDNL0DcdRogVf3ugVMBcZccLMA3FaFxArO44wkdpvkWQ0
+\restrict P2MlnTv0IphHT7uzf3HTt4FcyMbkd5d4CNbncCBCUlYHdzpBK8O2DzRRocTXWnR
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -473,7 +473,7 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 --
 
 COPY public.system_configs (key, value, description) FROM stdin;
-hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}]	HR花名册的动态列配置
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}]	HR花名册的动态列配置
 \.
 
 
@@ -733,5 +733,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict ITKjGnfU1kVenhTzeYXDNL0DcdRogVf3ugVMBcZccLMA3FaFxArO44wkdpvkWQ0
+\unrestrict P2MlnTv0IphHT7uzf3HTt4FcyMbkd5d4CNbncCBCUlYHdzpBK8O2DzRRocTXWnR
 
