@@ -22,14 +22,14 @@
 
           <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" class="login-form" size="large">
             <el-form-item prop="username">
-              <el-input v-model="loginForm.username" placeholder="用户名 (admin)" prefix-icon="User" />
+              <el-input v-model="loginForm.username" placeholder="用户名" prefix-icon="User" />
             </el-form-item>
             
             <el-form-item prop="password">
               <el-input 
                 v-model="loginForm.password" 
                 type="password" 
-                placeholder="密码 (123456)" 
+                placeholder="密码" 
                 prefix-icon="Lock" 
                 show-password
                 @keyup.enter="handleLogin"

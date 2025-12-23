@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict P2MlnTv0IphHT7uzf3HTt4FcyMbkd5d4CNbncCBCUlYHdzpBK8O2DzRRocTXWnR
+\restrict BC0s9auXxV1JWHl8gYv7jECs8L8h2rvumci46ro5LJthpn9xodMO1QX2WwL5DJk
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -436,7 +436,8 @@ lisi	123456	web_user	李四(仓管员)
 
 COPY hr.archives (id, name, employee_no, department, "position", phone, status, base_salary, entry_date, properties, version, updated_at) FROM stdin;
 1	张三	EMP001	研发部	开发	\N	在职	8000.00	2025-12-22	{"gender": "男"}	1	2025-12-22 22:06:27.246019
-2	测试	EMP811618	总公司/研发部	2	1	在职	0.00	2025-12-23	{"gender": "男", "id_card": "1", "field_7757": "1"}	4	2025-12-23 11:33:37.175
+2	测试	EMP811618	总公司/研发部	2	1	在职	0.00	2025-12-23	{"gender": "男", "id_card": "1", "field_7757": "1"}	5	2025-12-23 13:50:19.791
+3	1	EMP1766498618886	总公司/研发部	\N	\N	试用	0.00	2025-12-23	{"gender": "1", "id_card": "1", "field_3410": "1"}	1	2025-12-23 14:03:38.767586
 \.
 
 
@@ -490,7 +491,7 @@ COPY public.users (id, username, password, role, avatar, permissions) FROM stdin
 -- Name: archives_id_seq; Type: SEQUENCE SET; Schema: hr; Owner: postgres
 --
 
-SELECT pg_catalog.setval('hr.archives_id_seq', 2, true);
+SELECT pg_catalog.setval('hr.archives_id_seq', 3, true);
 
 
 --
@@ -733,5 +734,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict P2MlnTv0IphHT7uzf3HTt4FcyMbkd5d4CNbncCBCUlYHdzpBK8O2DzRRocTXWnR
+\unrestrict BC0s9auXxV1JWHl8gYv7jECs8L8h2rvumci46ro5LJthpn9xodMO1QX2WwL5DJk
 
