@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict jtvqOaKc9KAuvvZJTJRDahfjoLpmwnmUbnIHJG0YShyyOGSldtf2x2hKtramAHZ
+\restrict ITKjGnfU1kVenhTzeYXDNL0DcdRogVf3ugVMBcZccLMA3FaFxArO44wkdpvkWQ0
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -334,6 +334,19 @@ ALTER SEQUENCE public.raw_materials_id_seq OWNED BY public.raw_materials.id;
 
 
 --
+-- Name: system_configs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.system_configs (
+    key text NOT NULL,
+    value jsonb NOT NULL,
+    description text
+);
+
+
+ALTER TABLE public.system_configs OWNER TO postgres;
+
+--
 -- Name: users; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -423,7 +436,7 @@ lisi	123456	web_user	李四(仓管员)
 
 COPY hr.archives (id, name, employee_no, department, "position", phone, status, base_salary, entry_date, properties, version, updated_at) FROM stdin;
 1	张三	EMP001	研发部	开发	\N	在职	8000.00	2025-12-22	{"gender": "男"}	1	2025-12-22 22:06:27.246019
-2	测试	EMP811618	总公司/研发部	2	1	在职	0.00	2025-12-23	{"gender": "男", "id_card": "1"}	3	2025-12-23 11:04:10.557
+2	测试	EMP811618	总公司/研发部	2	1	在职	0.00	2025-12-23	{"gender": "男", "id_card": "1", "field_7757": "1"}	4	2025-12-23 11:33:37.175
 \.
 
 
@@ -452,6 +465,15 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 1	NP-20251220-01	金鲳鱼(特级)	海鲜原料	500.50	2025-12-20	zhangsan
 2	NP-20251220-02	食用盐	辅料	50.00	2025-12-20	lisi
 3	NP-20251221-01	真空包装袋	包材	120.00	2025-12-20	zhangsan
+\.
+
+
+--
+-- Data for Name: system_configs; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.system_configs (key, value, description) FROM stdin;
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}]	HR花名册的动态列配置
 \.
 
 
@@ -545,6 +567,14 @@ ALTER TABLE ONLY public.employees
 
 ALTER TABLE ONLY public.raw_materials
     ADD CONSTRAINT raw_materials_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: system_configs system_configs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.system_configs
+    ADD CONSTRAINT system_configs_pkey PRIMARY KEY (key);
 
 
 --
@@ -679,6 +709,13 @@ GRANT SELECT,USAGE ON SEQUENCE public.raw_materials_id_seq TO web_user;
 
 
 --
+-- Name: TABLE system_configs; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.system_configs TO web_user;
+
+
+--
 -- Name: TABLE users; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -696,5 +733,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict jtvqOaKc9KAuvvZJTJRDahfjoLpmwnmUbnIHJG0YShyyOGSldtf2x2hKtramAHZ
+\unrestrict ITKjGnfU1kVenhTzeYXDNL0DcdRogVf3ugVMBcZccLMA3FaFxArO44wkdpvkWQ0
 
