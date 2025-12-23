@@ -1,0 +1,35 @@
+serverAddr = "你的云服务器公网IP或域名"
+serverPort = 7000
+
+auth.method = "token"
+auth.token = "必须和 frps.toml 的 token 一样"
+
+[[proxies]]
+name = "base-8080"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8080
+remotePort = 8080
+
+[[proxies]]
+name = "sub-8081"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8081
+remotePort = 8081
+
+[[proxies]]
+name = "sub-8082"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8082
+remotePort = 8082
+
+# ...一直写到 8089（照这个格式复制改端口即可）
+
+[[proxies]]
+name = "sub-8089"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8089
+remotePort = 8089

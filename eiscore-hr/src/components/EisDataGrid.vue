@@ -3,7 +3,7 @@
     <div class="grid-toolbar">
       <el-input 
         v-model="searchText" 
-        placeholder="输入关键词搜索..." 
+        placeholder="全表搜索..." 
         style="width: 260px" 
         clearable
         @input="onSearch"
@@ -30,6 +30,8 @@
         :animateRows="true"
         :getRowId="getRowId"
         :suppressClipboardPaste="false"
+        :enterNavigatesVertically="true" 
+        :enterNavigatesVerticallyAfterEdit="true"
         @grid-ready="onGridReady"
         @cell-value-changed="onCellValueChanged"
         @cell-key-down="onCellKeyDown"
@@ -47,17 +49,15 @@ import { ElMessage } from 'element-plus'
 import { buildSearchQuery } from '@/utils/grid-query'
 import { debounce } from 'lodash'
 
-// 🟢 模块注册
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'; 
 ModuleRegistry.registerModules([ AllCommunityModule ]);
 
-// 🟢 引入样式 (Legacy模式必须引入)
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 
-// 🟢 汉化配置
+// 全量汉化配置
 const AG_GRID_LOCALE_CN = {
-  loadingOoo: '加载中...',
+  loadingOoo: '数据加载中...',
   noRowsToShow: '暂无数据',
   to: '至',
   of: '共',
@@ -67,17 +67,37 @@ const AG_GRID_LOCALE_CN = {
   first: '首页',
   previous: '上一页',
   filterOoo: '筛选...',
+  applyFilter: '应用',
+  clearFilter: '清除',
+  resetFilter: '重置',
+  cancelFilter: '取消',
   equals: '等于',
   notEqual: '不等于',
   contains: '包含',
   notContains: '不包含',
   startsWith: '开始于',
   endsWith: '结束于',
+  blank: '为空',
+  notBlank: '不为空',
+  lessThan: '小于',
+  greaterThan: '大于',
+  lessThanOrEqual: '小于等于',
+  greaterThanOrEqual: '大于等于',
+  inRange: '在范围内',
+  inRangeStart: '从',
+  inRangeEnd: '到',
   andCondition: '并且',
   orCondition: '或者',
-  copy: '复制',
+  pinColumn: '冻结列',
+  pinLeft: '冻结到左侧',
+  pinRight: '冻结到右侧',
+  noPin: '取消冻结',
+  autosizeThiscolumn: '自动调整列宽',
+  autosizeAllColumns: '自动调整所有列宽',
+  resetColumns: '重置列设置',
+  copy: '复制 (Ctrl+C)',
+  paste: '粘贴 (Ctrl+V)',
   ctrlC: 'Ctrl+C',
-  paste: '粘贴',
   ctrlV: 'Ctrl+V'
 }
 
@@ -90,16 +110,14 @@ const props = defineProps({
 const gridApi = ref(null)
 const gridData = ref([])
 const searchText = ref('')
-const isLoading = ref(false) // 🟢 新增 loading 状态
+const isLoading = ref(false)
 
-// 🟢 v35 新版选择配置
 const rowSelectionConfig = { 
   mode: 'multiRow', 
-  headerCheckbox: true, // 表头全选框
-  checkboxes: true      // 行选框
+  headerCheckbox: true, 
+  checkboxes: true      
 }
 
-// 1. Ag-Grid 默认配置
 const defaultColDef = {
   sortable: true,
   filter: true,
@@ -107,13 +125,13 @@ const defaultColDef = {
   editable: true, 
   minWidth: 100,
   flex: 1,
-  cellStyle: { display: 'flex', alignItems: 'center' } 
+  // 仅设置行高居中，不破坏边框
+  cellStyle: { 'line-height': '34px' } 
 }
 
-// 🟢 修复 ID 类型警告：必须返回字符串
 const getRowId = (params) => String(params.data.id)
 
-// 2. 动态生成列定义
+// 动态生成列定义
 const gridColumns = computed(() => {
   const staticCols = props.staticColumns.map(col => ({
     headerName: col.label,
@@ -128,17 +146,16 @@ const gridColumns = computed(() => {
     headerName: col.label,
     field: `properties.${col.prop}`, 
     editable: true,
+    // 🟢 关键点：headerClass 用于 CSS 样式，但去掉了颜色的强制指定
     headerClass: 'dynamic-header',
-    cellStyle: { color: 'var(--el-color-primary)', display: 'flex', alignItems: 'center' }
+    cellStyle: { 'line-height': '34px' }
   }))
 
   return [...staticCols, ...dynamicCols]
 })
 
-// 3. 加载数据
 const loadData = async () => {
-  isLoading.value = true // 🟢 开启 Loading
-  
+  isLoading.value = true 
   try {
     let url = `${props.apiUrl}?order=id.desc`
     if (searchText.value) {
@@ -150,11 +167,10 @@ const loadData = async () => {
     console.error(e)
     ElMessage.error('数据加载失败')
   } finally {
-    isLoading.value = false // 🟢 关闭 Loading
+    isLoading.value = false 
   }
 }
 
-// 4. 改一个存一个
 const onCellValueChanged = async (event) => {
   if (event.oldValue === event.newValue) return
 
@@ -189,7 +205,6 @@ const onCellValueChanged = async (event) => {
   }
 }
 
-// 5. 粘贴功能
 const onCellKeyDown = async (e) => {
   const event = e.event
   if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
@@ -245,55 +260,60 @@ defineExpose({ loadData })
   background-color: #fff;
   border-radius: 4px;
 }
-
 .grid-toolbar {
-  padding: 12px 16px;
+  padding: 8px 12px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--el-border-color-light);
+  background-color: #f8f9fa;
 }
-
-.toolbar-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.grid-container {
-  flex: 1;
-  width: 100%;
-  padding: 0; 
-}
+.toolbar-actions { display: flex; gap: 12px; }
+.grid-container { flex: 1; width: 100%; padding: 0; }
 </style>
 
 <style lang="scss">
-/* Ag-Grid 主题定制 */
+/* Ag-Grid Excel 风格精细化定制 */
 .ag-theme-alpine {
-  --ag-font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Arial, sans-serif;
-  --ag-font-size: 14px;
-  --ag-foreground-color: var(--el-text-color-primary);
+  /* 基础字体 */
+  --ag-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ag-font-size: 13px;
+  --ag-foreground-color: #303133; /* 内容全黑 */
+  
+  /* 颜色 */
   --ag-background-color: #fff;
+  --ag-header-background-color: #f1f3f4; /* 浅灰表头 */
+  --ag-header-foreground-color: #606266; /* 表头文字：标准灰黑 */
   
-  --ag-header-background-color: var(--el-fill-color-light);
-  --ag-header-foreground-color: var(--el-text-color-regular);
-  --ag-header-height: 40px;
+  /* 尺寸 */
+  --ag-header-height: 32px;
+  --ag-row-height: 35px;
   
-  --ag-row-height: 40px;
-  --ag-odd-row-background-color: var(--el-fill-color-lighter);
-  --ag-row-hover-color: var(--el-fill-color);
-  --ag-selected-row-background-color: var(--el-color-primary-light-9);
+  /* 边框 */
+  --ag-borders: solid 1px;
+  --ag-border-color: #dcdfe6;
+  --ag-row-border-color: #e4e7ed;
   
-  --ag-border-color: var(--el-border-color-lighter);
-  
+  /* 交互 */
+  --ag-row-hover-color: #f5f7fa;
+  --ag-selected-row-background-color: rgba(64, 158, 255, 0.1);
   --ag-input-focus-border-color: var(--el-color-primary);
+  
+  --ag-range-selection-border-color: var(--el-color-primary);
+  --ag-range-selection-border-style: solid;
 }
 
+/* 🟢 修复：删除了 color: var(--el-color-primary) */
 .ag-theme-alpine .dynamic-header {
-  color: var(--el-color-primary);
-  font-weight: 500;
+  font-weight: 600; /* 仅保留加粗，颜色继承默认的 #606266 */
+}
+
+/* 强制显示竖向网格线 */
+.ag-theme-alpine .ag-cell {
+  border-right: 1px solid var(--ag-border-color);
 }
 
 .ag-root-wrapper {
-  border: none !important;
+  border: 1px solid var(--el-border-color-light) !important;
 }
 </style>
