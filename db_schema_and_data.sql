@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict wlZBuFvHaqKbg9YUoQOk14OwjGwXKufqKuukmDImTR2GZlfz2OlFU5LdgbvlbdB
+\restrict jtvqOaKc9KAuvvZJTJRDahfjoLpmwnmUbnIHJG0YShyyOGSldtf2x2hKtramAHZ
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -423,6 +423,7 @@ lisi	123456	web_user	李四(仓管员)
 
 COPY hr.archives (id, name, employee_no, department, "position", phone, status, base_salary, entry_date, properties, version, updated_at) FROM stdin;
 1	张三	EMP001	研发部	开发	\N	在职	8000.00	2025-12-22	{"gender": "男"}	1	2025-12-22 22:06:27.246019
+2	测试	EMP811618	总公司/研发部	2	1	在职	0.00	2025-12-23	{"gender": "男", "id_card": "1"}	3	2025-12-23 11:04:10.557
 \.
 
 
@@ -467,7 +468,7 @@ COPY public.users (id, username, password, role, avatar, permissions) FROM stdin
 -- Name: archives_id_seq; Type: SEQUENCE SET; Schema: hr; Owner: postgres
 --
 
-SELECT pg_catalog.setval('hr.archives_id_seq', 1, true);
+SELECT pg_catalog.setval('hr.archives_id_seq', 2, true);
 
 
 --
@@ -695,5 +696,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict wlZBuFvHaqKbg9YUoQOk14OwjGwXKufqKuukmDImTR2GZlfz2OlFU5LdgbvlbdB
+\unrestrict jtvqOaKc9KAuvvZJTJRDahfjoLpmwnmUbnIHJG0YShyyOGSldtf2x2hKtramAHZ
 

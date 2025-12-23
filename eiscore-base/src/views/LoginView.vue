@@ -7,7 +7,7 @@
           <span class="logo-text">企业信息化系统</span>
         </div>
         <div class="illustration">
-          <img src="https://cdni.iconscout.com/illustration/premium/thumb/warehouse-management-illustration-download-in-svg-png-gif-file-formats--inventory-logistics-distribution-delivery-pack-business-illustrations-4440618.png" alt="login-bg">
+          <img src="https://element-plus.org/images/element-plus-logo.svg" alt="login-bg" style="opacity: 0.5; transform: scale(1.5);">
         </div>
         <div class="tips">
           <h2>构建高效的企业数字化引擎</h2>

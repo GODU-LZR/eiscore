@@ -1,12 +1,20 @@
 <template>
-  <div style="border: 5px solid red; padding: 20px; margin: 10px;">
-    <h3>🚩 HR 子应用调试区</h3>
-    <p>当前路由路径: {{ $route.fullPath }}</p>
-    
-    <router-view></router-view>
-  </div>
+  <router-view />
 </template>
 
 <script setup>
-// 无需其他逻辑
+// 这里不需要任何逻辑，路由会接管一切
 </script>
+
+<style>
+/* 确保子应用占满容器，不留白边 */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+#app {
+  height: 100%;
+}
+</style>

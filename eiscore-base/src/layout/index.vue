@@ -1,7 +1,7 @@
 <template>
   <el-container class="layout-container">
     <el-aside 
-      width="220px" 
+      :width="isCollapse ? '64px' : '200px'" 
       class="layout-aside"
       :style="{ backgroundColor: asideTheme.menuBg }"
     >
@@ -9,7 +9,8 @@
         class="logo" 
         :style="{ backgroundColor: asideTheme.logoBg, color: asideTheme.menuText }"
       >
-        <span v-if="!isCollapse">{{ config?.title || '管理系统' }}</span>
+        <span v-if="!isCollapse" class="logo-text">{{ config?.title || '管理系统' }}</span>
+        <span v-else class="logo-text">EIS</span>
       </div>
       
       <el-menu
@@ -19,19 +20,21 @@
         :text-color="asideTheme.menuText"
         :active-text-color="asideTheme.menuActiveText"
         :router="true"
+        :collapse="isCollapse" 
+        :collapse-transition="false"
         style="border-right: none;" 
       >
         <el-menu-item index="/">
           <el-icon><House /></el-icon>
-          <span>工作台</span>
+          <template #title>工作台</template>
         </el-menu-item>
         <el-menu-item index="/materials">
           <el-icon><Box /></el-icon>
-          <span>物料管理</span>
+          <template #title>物料管理</template>
         </el-menu-item>
         <el-menu-item index="/hr">
           <el-icon><User /></el-icon>
-          <span>人事管理</span>
+          <template #title>人事管理</template>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -42,6 +45,12 @@
         :style="{ backgroundColor: asideTheme.headerBg }"
       >
         <div class="header-left">
+          <div class="collapse-btn" @click="toggleCollapse">
+            <el-icon size="20" :color="isDark ? '#fff' : '#333'">
+              <component :is="isCollapse ? 'Expand' : 'Fold'" />
+            </el-icon>
+          </div>
+
           <el-breadcrumb separator="/">
             <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item>管理控制台</el-breadcrumb-item>
@@ -117,17 +126,20 @@ const asideTheme = computed(() => {
       headerBg: '#001529' 
     }
   } else {
-    // 【全彩模式】
     return {
       menuBg: primaryColor, 
       menuText: '#ffffff',  
       menuActiveText: '#ffffff', 
       logoBg: mix(primaryColor, '#000000', 0.1),
-      // 🔴 顶栏加深：改为 0.85 (15% 浓度)，和卡片保持一致，比背景深
       headerBg: mix(primaryColor, '#ffffff', 0.85) 
     }
   }
 })
+
+// 🟢 切换折叠状态
+const toggleCollapse = () => {
+  isCollapse.value = !isCollapse.value
+}
 
 const handleCommand = (command) => {
   if (command === 'settings') { router.push('/settings') }
@@ -149,13 +161,22 @@ const startGuide = () => { driverObj.drive(); }
   height: 100vh;
   
   .layout-aside {
-    transition: background-color 0.3s;
+    // 🟢 加个过渡动画，让变宽变窄更丝滑
+    transition: width 0.3s;
+    overflow-x: hidden; // 防止文字溢出
+
     .logo {
       height: 60px; line-height: 60px; text-align: center;
       font-size: 18px; font-weight: 600; color: white;
       transition: background-color 0.3s;
+      white-space: nowrap; // 防止logo文字换行
     }
     .el-menu { border-right: none; }
+    
+    // 修复折叠时菜单宽度可能抖动的问题
+    .el-menu-vertical:not(.el-menu--collapse) {
+      width: 200px;
+    }
   }
   
   .layout-header {
@@ -163,6 +184,19 @@ const startGuide = () => { driverObj.drive(); }
     display: flex; justify-content: space-between; align-items: center;
     padding: 0 20px;
     transition: background-color 0.3s; 
+    
+    .header-left {
+      display: flex; align-items: center;
+      
+      // 🟢 折叠按钮样式
+      .collapse-btn {
+        margin-right: 15px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        &:hover { opacity: 0.7; }
+      }
+    }
   }
   
   .layout-main {
@@ -172,15 +206,11 @@ const startGuide = () => { driverObj.drive(); }
     transition: background-color 0.3s;
   }
   
-  /* 🔴 核心样式修改区 */
   .colorful-mode {
-    // 1. 整个页面背景变为极淡的微光色 (5% 浓度)
     background-color: var(--page-bg-tint) !important;
   }
 
   .colorful-mode :deep(.el-card) {
-    // 2. 卡片背景变为稍深的颜色 (15% 浓度)
-    // 这样卡片会比背景深，形成凸起感
     background-color: var(--card-bg-tint) !important; 
     border: 1px solid var(--el-color-primary-light-8);
   }

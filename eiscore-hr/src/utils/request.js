@@ -31,7 +31,7 @@ service.interceptors.request.use(
     // 🟢 3. 还有一个细节：GET 请求如果没指定 Content-Profile，
     // PostgREST 可能会返回 public schema 的描述。
     // 为了保险，对于数据修改操作，也可以加上 Content-Profile (可选)
-    // config.headers['Content-Profile'] = 'hr'
+    config.headers['Content-Profile'] = 'hr'
 
     return config
   },
