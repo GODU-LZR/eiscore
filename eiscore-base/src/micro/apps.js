@@ -8,13 +8,13 @@ const apps = [
   {
     name: 'eiscore-hr',
     // 🔴 关键修改：不要写 localhost，改用动态 host
-    entry: `${protocol}//${host}:8081`, 
+    entry: `${protocol}//${host}:8082`, 
     container: '#subapp-viewport',
     activeRule: '/hr',
   },
   {
     name: 'eiscore-materials',
-    entry: `${protocol}//${host}:8082`,
+    entry: `${protocol}//${host}:8081`,
     container: '#subapp-viewport',
     activeRule: '/materials',
   },

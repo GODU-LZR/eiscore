@@ -72,7 +72,7 @@ const loading = ref(false)
 const loginFormRef = ref(null)
 
 const loginForm = reactive({
-  username: 'admin', // 默认账号
+  username: '', // 默认账号
   password: '',
   remember: false
 })
