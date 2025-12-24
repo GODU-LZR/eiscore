@@ -18,6 +18,7 @@ export default defineConfig({
   },
   server: {
     port: 8081, // 👈 端口 8081
+    cors: true, // ✅ 开启 CORS
     headers: {
       'Access-Control-Allow-Origin': '*' // 允许基座跨域加载
     }

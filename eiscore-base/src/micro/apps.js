@@ -1,17 +1,23 @@
-// src/micro/apps.js
+// eiscore-base/src/micro/apps.js
+
+// 动态获取当前访问的 hostname (比如 云IP 或 域名)
+const host = window.location.hostname;
+const protocol = window.location.protocol; // http: 或 https:
+
 const apps = [
   {
-    name: 'eiscore-materials',        // 必须与子应用 vite 配置的 name 一致
-    entry: '//localhost:8081',    // 物料子应用运行地址
-    container: '#micro-container', // 挂载容器
-    activeRule: '/materials',     // 路由匹配规则
+    name: 'eiscore-hr',
+    // 🔴 关键修改：不要写 localhost，改用动态 host
+    entry: `${protocol}//${host}:8081`, 
+    container: '#subapp-viewport',
+    activeRule: '/hr',
   },
   {
-    name: 'eiscore-hr',
-    entry: '//localhost:8082',    // 人事子应用运行地址
-    container: '#micro-container',
-    activeRule: '/hr',
-  }
+    name: 'eiscore-materials',
+    entry: `${protocol}//${host}:8082`,
+    container: '#subapp-viewport',
+    activeRule: '/materials',
+  },
 ];
 
 export default apps;

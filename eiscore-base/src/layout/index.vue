@@ -91,7 +91,8 @@
              <component :is="Component" />
            </transition>
         </router-view>
-        <div id="micro-container"></div>
+
+        <div id="subapp-viewport"></div>
       </el-main>
     </el-container>
   </el-container>
@@ -136,7 +137,6 @@ const asideTheme = computed(() => {
   }
 })
 
-// 🟢 切换折叠状态
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value
 }
@@ -161,19 +161,17 @@ const startGuide = () => { driverObj.drive(); }
   height: 100vh;
   
   .layout-aside {
-    // 🟢 加个过渡动画，让变宽变窄更丝滑
     transition: width 0.3s;
-    overflow-x: hidden; // 防止文字溢出
+    overflow-x: hidden; 
 
     .logo {
       height: 60px; line-height: 60px; text-align: center;
       font-size: 18px; font-weight: 600; color: white;
       transition: background-color 0.3s;
-      white-space: nowrap; // 防止logo文字换行
+      white-space: nowrap; 
     }
     .el-menu { border-right: none; }
     
-    // 修复折叠时菜单宽度可能抖动的问题
     .el-menu-vertical:not(.el-menu--collapse) {
       width: 200px;
     }
@@ -188,7 +186,6 @@ const startGuide = () => { driverObj.drive(); }
     .header-left {
       display: flex; align-items: center;
       
-      // 🟢 折叠按钮样式
       .collapse-btn {
         margin-right: 15px;
         cursor: pointer;
@@ -204,6 +201,11 @@ const startGuide = () => { driverObj.drive(); }
     padding: 0;
     position: relative;
     transition: background-color 0.3s;
+    // 🔴 建议给 subapp-viewport 也加个宽高，防止塌陷
+    #subapp-viewport {
+      width: 100%;
+      height: 100%;
+    }
   }
   
   .colorful-mode {
