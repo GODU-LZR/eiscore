@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict D5VxfNdYaL9B5ErHUwowRVPXlfkooX1EgIDI0RoxbX60stPnpMFuvibCvcsvfcQ
+\restrict hON7Xvh3ba3FioffjkGKS0gKfjZz83jHfXT5pO2ChISLPPlrY5KNRNezgdIMBG6
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -472,17 +472,17 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 292	新员工	EMP1766594296887	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.436
 291	新员工	EMP1766594296698	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.436
 290	新员工	EMP1766594296524	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.437
+364	新员工	EMP1766594353932	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	22	2025-12-24 17:41:38.271
 326	新员工	EMP1766594347510	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	9	2025-12-24 17:13:43.277
 325	新员工	EMP1766594347348	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.278
-364	新员工	EMP1766594353932	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	18	2025-12-24 17:13:48.813
-361	新员工	EMP1766594353405	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	28	2025-12-24 17:37:24.249
-358	新员工	EMP1766594352900	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	17	2025-12-24 17:37:24.251
+361	新员工	EMP1766594353405	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	32	2025-12-24 17:41:40.321
+358	新员工	EMP1766594352900	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	21	2025-12-24 17:41:40.322
 332	新员工	EMP1766594348466	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.267
 331	新员工	EMP1766594348306	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.269
+362	新员工	EMP1766594353574		\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	31	2025-12-24 17:41:40.321
+359	新员工	EMP1766594353067	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	24	2025-12-24 17:41:40.322
 330	新员工	EMP1766594348147	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.271
-362	新员工	EMP1766594353574	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	26	2025-12-24 17:37:24.247
-359	新员工	EMP1766594353067	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	20	2025-12-24 17:37:24.25
-365	新员工	EMP1766594354088	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	28	2025-12-24 17:37:41.261
+365	新员工	EMP1766594354088	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	30	2025-12-24 17:39:52.382
 329	新员工	EMP1766594347991	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.273
 328	新员工	EMP1766594347834	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.274
 347	新员工	EMP1766594351048	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:45.369
@@ -500,18 +500,18 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 335	新员工	EMP1766594348968	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:45.398
 334	新员工	EMP1766594348808	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	9	2025-12-24 17:13:46.219
 333	新员工	EMP1766594348622	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	9	2025-12-24 17:13:47.941
+360	新员工	EMP1766594353239	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	28	2025-12-24 17:41:40.321
+357	新员工	EMP1766594352723	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	16	2025-12-24 17:41:40.322
+356	新员工	EMP1766594352559	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	17	2025-12-24 17:41:40.323
+355	新员工	EMP1766594352388	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	10	2025-12-24 17:41:40.323
 349	新员工	EMP1766594351374	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:45.367
 348	新员工	EMP1766594351201	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:45.369
-355	新员工	EMP1766594352388	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:48.821
 354	新员工	EMP1766594352231	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:48.821
 353	新员工	EMP1766594352055	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:48.822
 352	新员工	EMP1766594351892	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:48.823
 351	新员工	EMP1766594351696	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:48.824
 350	新员工	EMP1766594351540	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:48.825
-363	新员工	EMP1766594353748	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	29	2025-12-24 17:36:00.714
-360	新员工	EMP1766594353239	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	24	2025-12-24 17:37:24.249
-357	新员工	EMP1766594352723	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	14	2025-12-24 17:37:24.252
-356	新员工	EMP1766594352559	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	15	2025-12-24 17:37:24.253
+363	新员工	EMP1766594353748	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	33	2025-12-24 17:39:51.217
 \.
 
 
@@ -808,5 +808,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict D5VxfNdYaL9B5ErHUwowRVPXlfkooX1EgIDI0RoxbX60stPnpMFuvibCvcsvfcQ
+\unrestrict hON7Xvh3ba3FioffjkGKS0gKfjZz83jHfXT5pO2ChISLPPlrY5KNRNezgdIMBG6
 
