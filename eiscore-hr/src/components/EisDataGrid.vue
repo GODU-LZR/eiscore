@@ -74,7 +74,7 @@ import { ref, computed, watch, reactive, onMounted, onUnmounted, defineComponent
 import { AgGridVue } from "ag-grid-vue3"
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox, ElTooltip, ElIcon } from 'element-plus'
-import { Lock, Unlock, Search, Delete, Download, Filter, SortUp, SortDown, Sort } from '@element-plus/icons-vue'
+import { Lock, Unlock, Search, Delete, Download, Filter, SortUp, SortDown, Sort, CirclePlus, CircleCheck } from '@element-plus/icons-vue'
 import { buildSearchQuery } from '@/utils/grid-query'
 import { debounce } from 'lodash'
 import { useUserStore } from '@/stores/user' 
@@ -87,31 +87,79 @@ import "ag-grid-community/styles/ag-theme-alpine.css"
 
 // --- 🟢 自定义组件定义区 ---
 
-// 1. 行头锁图标渲染器 (仅展示，点击由 Grid 接管)
-const LockActionRenderer = defineComponent({
+// 1. 状态显示渲染器
+const StatusRenderer = defineComponent({
   props: ['params'],
   setup(props) {
-    const isLocked = computed(() => !!props.params.data?.properties?.row_locked_by)
-    const lockedBy = computed(() => props.params.data?.properties?.row_locked_by || '系统')
+    const statusMap = {
+      'created': { label: '创建', icon: CirclePlus, color: '#409EFF' },
+      'active': { label: '生效', icon: CircleCheck, color: '#67C23A' },
+      'locked': { label: '锁定', icon: Lock, color: '#F56C6C' }
+    }
     
+    const currStatus = computed(() => {
+      const data = props.params.data
+      if (data?.properties?.row_locked_by) return 'locked'
+      return data?.properties?.status || 'created'
+    })
+    
+    const info = computed(() => statusMap[currStatus.value] || statusMap['created'])
+
     return () => h('div', { 
-      class: 'lock-action-cell', 
       style: { 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100%',
-        width: '100%'
-      }
+        display: 'flex', alignItems: 'center', gap: '6px', height: '100%', 
+        color: info.value.color, fontWeight: '500', fontSize: '12px',
+        width: '100%', paddingLeft: '4px',
+        pointerEvents: 'none' // 🟢 关键：让点击穿透，确保双击和点击事件能被 Grid 捕获
+      } 
     }, [
-      isLocked.value 
-        ? h(ElTooltip, { content: `锁定人: ${lockedBy.value}`, placement: 'right' }, { default: () => h(ElIcon, { color: '#F56C6C', size: 16, style: 'pointer-events: none' }, { default: () => h(Lock) }) })
-        : h(ElTooltip, { content: '点击锁定', placement: 'right' }, { default: () => h(ElIcon, { class: 'unlock-icon-hover', size: 16, color: '#DCDFE6', style: 'pointer-events: none' }, { default: () => h(Unlock) }) })
+      h(ElIcon, { size: 14 }, { default: () => h(info.value.icon) }),
+      h('span', info.value.label)
     ])
   }
 })
 
-// 2. 自定义表头组件
+// 2. 状态编辑器 (即时列表)
+const StatusEditor = defineComponent({
+  props: ['params'],
+  setup(props, { expose }) {
+    const selectedValue = ref(props.params.value)
+    // 🟢 动态获取宽度，确保对齐
+    const cellWidth = props.params.column.getActualWidth() + 'px'
+
+    const options = [
+      { value: 'created', label: '创建', color: '#409EFF', icon: CirclePlus },
+      { value: 'active', label: '生效', color: '#67C23A', icon: CircleCheck },
+      { value: 'locked', label: '锁定', color: '#F56C6C', icon: Lock }
+    ]
+
+    const onSelect = (val) => {
+      selectedValue.value = val
+      props.params.stopEditing() 
+    }
+
+    const getValue = () => selectedValue.value
+    expose({ getValue })
+
+    return () => h('div', { 
+      class: 'status-editor-popup',
+      style: { width: cellWidth } 
+    }, [
+      options.map(opt => 
+        h('div', {
+          class: ['status-editor-item', { 'is-selected': opt.value === selectedValue.value }],
+          onClick: () => onSelect(opt.value)
+        }, [
+          h(ElIcon, { color: opt.color, size: 16 }, { default: () => h(opt.icon) }),
+          h('span', { class: 'status-label' }, opt.label),
+          opt.value === selectedValue.value ? h('div', { class: 'status-check-mark' }) : null
+        ])
+      )
+    ])
+  }
+})
+
+// 3. 自定义表头
 const LockHeader = defineComponent({
   props: ['params'],
   setup(props) {
@@ -121,7 +169,6 @@ const LockHeader = defineComponent({
     const isLocked = computed(() => !!lockInfo.value)
     
     const sortState = ref(null) 
-    
     const onSortChanged = () => {
       if (props.params.column.isSortAscending()) sortState.value = 'asc'
       else if (props.params.column.isSortDescending()) sortState.value = 'desc'
@@ -132,16 +179,8 @@ const LockHeader = defineComponent({
     onSortChanged()
 
     const onLabelClick = (e) => props.params.progressSort(e.shiftKey)
-    
-    const onMenuClick = (e) => {
-      e.stopPropagation()
-      props.params.showColumnMenu(e.target)
-    }
-    
-    const onLockClick = (e) => {
-      e.stopPropagation()
-      gridComp.toggleColumnLock(colId)
-    }
+    const onMenuClick = (e) => { e.stopPropagation(); props.params.showColumnMenu(e.target) }
+    const onLockClick = (e) => { e.stopPropagation(); gridComp.toggleColumnLock(colId) }
 
     return () => h('div', { class: 'custom-header-wrapper' }, [
       h('div', { class: 'custom-header-main', onClick: onLabelClick }, [
@@ -210,6 +249,8 @@ const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: true, checkboxes:
 
 const isCellReadOnly = (params) => {
   const colId = params.colDef.field
+  if (colId === '_status') return false 
+
   const rowData = params.data
   if (columnLockState[colId]) return true
   if (rowData?.properties?.row_locked_by) return true
@@ -245,44 +286,21 @@ const isCellInSelection = (params) => {
   return rowIndex >= minRow && rowIndex <= maxRow && currentColIdx >= minCol && currentColIdx <= maxCol
 }
 
-const rowClassRules = { 'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by }
-const cellClassRules = { 'custom-range-selected': (params) => isCellInSelection(params), 'cell-locked-pattern': (params) => isCellReadOnly(params) }
+const cellClassRules = { 
+  'custom-range-selected': (params) => isCellInSelection(params),
+  'cell-locked-pattern': (params) => isCellReadOnly(params),
+  'status-cell': (params) => params.colDef.field === '_status'
+}
 const getCellStyle = (params) => {
   const baseStyle = { 'line-height': '34px' }
+  if (params.colDef.field === '_status') {
+    return { ...baseStyle, cursor: 'pointer' }
+  }
   if (params.colDef.editable === false) return { ...baseStyle, backgroundColor: '#f5f7fa', color: '#909399' }
   return baseStyle
 }
 
-// --- 锁定逻辑实现 ---
-
-const handleToggleRowLock = async (rowData) => {
-  if (!gridApi.value) return
-  const isLocked = !!rowData.properties?.row_locked_by
-  const newLockState = isLocked ? null : currentUser.value
-  
-  if (!rowData.properties) rowData.properties = {}
-  rowData.properties.row_locked_by = newLockState
-  
-  const rowNode = gridApi.value.getRowNode(String(rowData.id))
-  if (rowNode) {
-    rowNode.setData(rowData) // 强制刷新
-  }
-
-  try {
-    const payload = buildCompletePayload(rowData)
-    await request({
-      url: `${props.apiUrl}?id=eq.${rowData.id}`,
-      method: 'patch',
-      headers: { 'Content-Profile': 'hr', 'Prefer': 'return=representation' },
-      data: payload
-    })
-    ElMessage.success(isLocked ? '已解锁该行' : '已锁定该行')
-  } catch (e) {
-    ElMessage.error('操作失败')
-    rowData.properties.row_locked_by = isLocked ? currentUser.value : null
-    if (rowNode) rowNode.setData(rowData)
-  }
-}
+const rowClassRules = { 'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by }
 
 const handleToggleColumnLock = (colId) => {
   if (columnLockState[colId]) {
@@ -297,30 +315,58 @@ const handleToggleColumnLock = (colId) => {
 
 const context = reactive({
   componentParent: {
-    toggleRowLock: handleToggleRowLock,
     toggleColumnLock: handleToggleColumnLock,
     columnLockState 
   }
 })
 
 const gridComponents = {
-  LockActionRenderer: markRaw(LockActionRenderer),
+  StatusRenderer: markRaw(StatusRenderer),
+  StatusEditor: markRaw(StatusEditor),
   LockHeader: markRaw(LockHeader)
 }
 
 const gridColumns = computed(() => {
-  const actionCol = {
-    headerName: '',
-    field: '_row_lock_status',
-    width: 50,
+  // 🟢 状态列配置
+  const statusCol = {
+    headerName: '状态',
+    field: '_status',
+    width: 100,
+    minWidth: 100,
     pinned: 'left',
     filter: false,
     sortable: false,
     resizable: false,
     suppressHeaderMenuButton: true,
-    editable: false,
-    cellRenderer: 'LockActionRenderer',
-    cellStyle: { 'padding': 0, 'border-right': 'none', 'cursor': 'pointer' }
+    
+    // 启用编辑，默认双击进入
+    editable: true,
+    
+    cellRenderer: 'StatusRenderer',
+    cellEditor: 'StatusEditor',
+    cellEditorPopup: true,
+    cellEditorPopupPosition: 'under',
+
+    // 数据映射
+    valueGetter: (params) => {
+      if (params.data.properties?.row_locked_by) return 'locked'
+      return params.data.properties?.status || 'created'
+    },
+    valueSetter: (params) => {
+      const newVal = params.newValue
+      const oldVal = params.oldValue
+      if (newVal === oldVal) return false
+
+      if (!params.data.properties) params.data.properties = {}
+      
+      params.data.properties.status = newVal
+      if (newVal === 'locked') {
+        params.data.properties.row_locked_by = currentUser.value
+      } else {
+        params.data.properties.row_locked_by = null
+      }
+      return true 
+    }
   }
 
   const staticCols = props.staticColumns.map(col => ({
@@ -341,21 +387,34 @@ const gridColumns = computed(() => {
     headerComponent: 'LockHeader'
   }))
   
-  return [actionCol, ...staticCols, ...dynamicCols]
+  return [statusCol, ...staticCols, ...dynamicCols]
 })
 
-// 🟢 鼠标按下即触发锁定，解决不灵敏问题
+// 🟢 鼠标按下事件：核心修复，处理“再次点击收回”
 const onCellMouseDown = (params) => {
-  // 1. 如果点的是行锁列
-  if (params.colDef.field === '_row_lock_status') {
-    handleToggleRowLock(params.data)
-    return // ⛔️ 阻止后续框选逻辑
+  if (params.event.button !== 0) return 
+
+  // 1. 状态列特殊处理：Toggle 逻辑
+  if (params.colDef.field === '_status') {
+    const editingCells = gridApi.value.getEditingCells()
+    // 检查当前点击的单元格是否已经在编辑中（下拉框已显示）
+    const isEditingThisCell = editingCells.some(cell => 
+      cell.rowIndex === params.node.rowIndex && 
+      cell.column.getColId() === params.column.getColId()
+    )
+
+    if (isEditingThisCell) {
+      // 🟢 如果已弹出，再次点击则收回
+      gridApi.value.stopEditing()
+      return 
+    }
+    // 如果未弹出，放行，Ag-Grid 默认行为会处理（双击编辑或单击选中）
   }
 
-  // 2. 正常单元格选择逻辑
-  if (params.event.button !== 0) return 
+  // 2. 通用逻辑
   isDragging.value = true
-  if (isCellReadOnly(params)) return 
+  
+  if (isCellReadOnly(params) && params.colDef.field !== '_status') return 
 
   rangeSelection.startRowIndex = params.node.rowIndex
   rangeSelection.startColId = params.column.colId
@@ -442,6 +501,7 @@ const sanitizeValue = (field, value) => {
   return value
 }
 
+// 🟢 统一保存逻辑
 const onCellValueChanged = (event) => {
   if (isRemoteUpdating.value || event.oldValue === event.newValue) return
   const safeValue = sanitizeValue(event.colDef.field, event.newValue)
@@ -475,7 +535,10 @@ const debouncedSave = debounce(async () => {
         rowUpdatesMap.set(id, { rowNode, payload: basePayload, properties: basePayload.properties })
       }
       const group = rowUpdatesMap.get(id)
-      if (colDef.field.startsWith('properties.')) {
+      
+      if (colDef.field === '_status') {
+        Object.assign(group.properties, rowNode.data.properties)
+      } else if (colDef.field.startsWith('properties.')) {
         const propKey = colDef.field.split('.')[1]
         group.properties[propKey] = newValue
       } else {
@@ -497,6 +560,8 @@ const debouncedSave = debounce(async () => {
         data: apiPayload
       })
       affectedNodes.forEach(({ node, newVer }) => { node.data.version = newVer })
+      // 🟢 刷新受影响行，更新样式
+      gridApi.value.refreshCells({ rowNodes: affectedNodes.map(i => i.node), force: true })
       ElMessage.success(`已保存 ${apiPayload.length} 行变更`)
     }
   } catch (e) {
@@ -510,7 +575,6 @@ const debouncedSave = debounce(async () => {
   }
 }, 100)
 
-// 🟢 恢复：按钮删除多行
 const deleteSelectedRows = async () => {
   const selectedNodes = gridApi.value.getSelectedNodes()
   if (selectedNodes.length === 0) return
@@ -528,7 +592,6 @@ const deleteSelectedRows = async () => {
   } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }
 }
 
-// 🟢 恢复：多行粘贴
 const handleGlobalPaste = async (event) => {
   if (!gridApi.value) return
   const activeEl = document.activeElement
@@ -596,13 +659,11 @@ const handleGlobalPaste = async (event) => {
   }
 }
 
-// 🟢 恢复：键盘删除 (Delete) 和 复制 (Ctrl+C)
 const onCellKeyDown = async (e) => {
   const event = e.event
   const key = event.key
   if (!gridApi.value) return
   
-  // 1. 处理 Delete / Backspace 删除选中内容
   if (key === 'Delete' || key === 'Backspace') {
     if (rangeSelection.active) {
       const startIdx = getColIndex(rangeSelection.startColId)
@@ -637,7 +698,6 @@ const onCellKeyDown = async (e) => {
     return
   }
 
-  // 2. 处理 Ctrl+C 复制选中内容
   if ((event.ctrlKey || event.metaKey) && key === 'c') {
     const focusedCell = gridApi.value.getFocusedCell()
     const isRangeActive = rangeSelection.active
@@ -782,15 +842,43 @@ defineExpose({ loadData })
 .custom-header-wrapper:hover .menu-btn {
   opacity: 1;
 }
-.unlock-icon-hover {
-  opacity: 0;
-  transition: opacity 0.2s;
+
+/* 🟢 状态编辑器样式优化 */
+.status-editor-popup {
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e4e7ed;
+  overflow: hidden;
+  /* 移除固定宽度，使用动态 width */
+  padding: 4px 0;
 }
-.lock-action-cell:hover .unlock-icon-hover {
-  opacity: 1;
+.status-editor-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 13px;
+  color: #606266;
+  position: relative;
 }
-/* 确保锁单元格点击时有反馈 */
-.lock-action-cell:active {
-  transform: scale(0.95);
+.status-editor-item:hover {
+  background-color: #f5f7fa;
+}
+.status-editor-item.is-selected {
+  background-color: #ecf5ff;
+  color: #409EFF;
+  font-weight: 500;
+}
+.status-label {
+  margin-left: 8px;
+  flex: 1;
+}
+.status-check-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #409EFF;
 }
 </style>
