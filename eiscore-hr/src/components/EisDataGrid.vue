@@ -46,6 +46,7 @@
         :getRowId="getRowId"
         
         :context="context" 
+        :components="gridComponents"
         
         :undoRedoCellEditing="true"
         :undoRedoCellEditingLimit="50"
@@ -69,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, reactive, onMounted, onUnmounted, defineComponent, h } from 'vue'
+import { ref, computed, watch, reactive, onMounted, onUnmounted, defineComponent, h, markRaw } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox, ElTooltip, ElIcon } from 'element-plus'
@@ -95,8 +96,10 @@ const LockActionRenderer = defineComponent({
     
     const onClick = (e) => {
       e.stopPropagation() 
-      // 通过 context 调用父组件方法
-      props.params.context.componentParent.toggleRowLock(props.params.data)
+      const handler = props.params?.context?.componentParent?.toggleRowLock || props.params?.onClickLock
+      if (handler) {
+        handler(props.params.data)
+      }
     }
 
     return () => h('div', { 
@@ -121,7 +124,10 @@ const LockHeader = defineComponent({
     const lockInfo = computed(() => gridComp.columnLockState[colId])
     const isLocked = computed(() => !!lockInfo.value)
     
-    const sortState = ref(null) 
+    const sortState = ref(props.params.column.getSort())
+    const onSortChanged = () => {
+      sortState.value = props.params.column.getSort()
+    }
     const onLabelClick = () => {
       props.params.progressSort()
     }
@@ -131,8 +137,30 @@ const LockHeader = defineComponent({
       gridComp.toggleColumnLock(colId)
     }
 
+    const onMenuClick = (e) => {
+      e.stopPropagation()
+      if (props.params.showColumnMenu) {
+        props.params.showColumnMenu(e.currentTarget)
+      }
+    }
+
+    onMounted(() => {
+      props.params.column.addEventListener('sortChanged', onSortChanged)
+    })
+    onUnmounted(() => {
+      props.params.column.removeEventListener('sortChanged', onSortChanged)
+    })
+
     return () => h('div', { class: 'custom-header-wrapper' }, [
       h('span', { class: 'custom-header-label', onClick: onLabelClick }, props.params.displayName),
+      h('span', { class: 'custom-header-icons' }, [
+        h('span', { class: 'ag-header-icon ag-header-cell-menu-button', onClick: onMenuClick }, [
+          h('span', { class: 'ag-icon ag-icon-menu' })
+        ]),
+        h('span', { class: 'ag-header-icon ag-sort-indicator-icon' }, [
+          h('span', { class: `ag-icon ag-icon-${sortState.value || 'none'}` })
+        ])
+      ]),
       h('span', { class: 'custom-header-lock', onClick: onLockClick }, [
         isLocked.value
           ? h(ElTooltip, { content: `该列被 [${lockInfo.value}] 锁定`, placement: 'top' }, { default: () => h(ElIcon, { color: '#F56C6C' }, { default: () => h(Lock) }) })
@@ -233,22 +261,31 @@ const getCellStyle = (params) => {
   return baseStyle
 }
 
+const updateRowDataCache = (nextData) => {
+  const index = gridData.value.findIndex((row) => String(row.id) === String(nextData.id))
+  if (index !== -1) {
+    gridData.value.splice(index, 1, nextData)
+  }
+}
+
 // --- 锁定逻辑实现 ---
 
 const handleToggleRowLock = async (rowData) => {
+  if (!gridApi.value) return
   const isLocked = !!rowData.properties?.row_locked_by
   const newLockState = isLocked ? null : currentUser.value
   
-  if (!rowData.properties) rowData.properties = {}
-  rowData.properties.row_locked_by = newLockState
-  
   const rowNode = gridApi.value.getRowNode(String(rowData.id))
+  const nextProperties = { ...(rowData.properties || {}), row_locked_by: newLockState }
+  const nextData = { ...rowData, properties: nextProperties }
   if (rowNode) {
-    gridApi.value.redrawRows({ rowNodes: [rowNode] })
+    rowNode.setData(nextData)
+    updateRowDataCache(nextData)
+    gridApi.value.refreshCells({ rowNodes: [rowNode], force: true })
   }
 
   try {
-    const payload = buildCompletePayload(rowData)
+    const payload = buildCompletePayload(nextData)
     await request({
       url: `${props.apiUrl}?id=eq.${rowData.id}`,
       method: 'patch',
@@ -258,8 +295,13 @@ const handleToggleRowLock = async (rowData) => {
     ElMessage.success(isLocked ? '已解锁该行' : '已锁定该行')
   } catch (e) {
     ElMessage.error('锁定操作失败')
-    rowData.properties.row_locked_by = isLocked ? currentUser.value : null
-    if (rowNode) gridApi.value.redrawRows({ rowNodes: [rowNode] })
+    const rollbackProperties = { ...(rowData.properties || {}), row_locked_by: isLocked ? currentUser.value : null }
+    const rollbackData = { ...rowData, properties: rollbackProperties }
+    if (rowNode) {
+      rowNode.setData(rollbackData)
+      updateRowDataCache(rollbackData)
+      gridApi.value.refreshCells({ rowNodes: [rowNode], force: true })
+    }
   }
 }
 
@@ -271,16 +313,22 @@ const handleToggleColumnLock = (colId) => {
     columnLockState[colId] = currentUser.value
     ElMessage.success('列已锁定')
   }
-  gridApi.value.redrawRows()
+  gridApi.value.refreshCells({ force: true })
+  gridApi.value.refreshHeader()
 }
 
 // 🟢 关键：Context 对象，必须传给 Ag-Grid
-const context = {
+const context = markRaw({
   componentParent: {
     toggleRowLock: handleToggleRowLock,
     toggleColumnLock: handleToggleColumnLock,
     columnLockState 
   }
+})
+
+const gridComponents = {
+  LockActionRenderer,
+  LockHeader
 }
 
 const gridColumns = computed(() => {
@@ -293,7 +341,10 @@ const gridColumns = computed(() => {
     sortable: false,
     resizable: false,
     editable: false,
-    cellRenderer: LockActionRenderer,
+    cellRenderer: 'LockActionRenderer',
+    cellRendererParams: {
+      onClickLock: handleToggleRowLock
+    },
     cellStyle: { 'display': 'flex', 'justify-content': 'center', 'align-items': 'center', 'padding': 0 }
   }
 
@@ -303,7 +354,7 @@ const gridColumns = computed(() => {
     cellEditor: 'agTextCellEditor', width: col.width, flex: col.width ? 0 : 1,
     cellStyle: getCellStyle, 
     cellClassRules: cellClassRules,
-    headerComponent: LockHeader
+    headerComponent: 'LockHeader'
   }))
   
   const dynamicCols = props.extraColumns.map(col => ({
@@ -312,7 +363,7 @@ const gridColumns = computed(() => {
     headerClass: 'dynamic-header', 
     cellStyle: getCellStyle, 
     cellClassRules: cellClassRules,
-    headerComponent: LockHeader
+    headerComponent: 'LockHeader'
   }))
   
   return [actionCol, ...staticCols, ...dynamicCols]

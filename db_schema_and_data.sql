@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict hON7Xvh3ba3FioffjkGKS0gKfjZz83jHfXT5pO2ChISLPPlrY5KNRNezgdIMBG6
+\restrict x3Nu1NS5DrCEbN9yjEeY373R8uWmKC9ZCUf9O67FzgIHJxR6yHO8PsCiXpUdnI4
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -464,14 +464,15 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 300	新员工	EMP1766594298311	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.431
 299	新员工	EMP1766594298111	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.432
 298	新员工	EMP1766594297938	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.432
-297	新员工	EMP1766594297767	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.433
-296	新员工	EMP1766594297591	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.434
-295	新员工	EMP1766594297420	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.434
-294	新员工	EMP1766594297261	\N	\N	\N	\N	0.00	2025-12-24	{"gender": ""}	7	2025-12-24 17:13:40.435
-293	新员工	EMP1766594297088	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.435
-292	新员工	EMP1766594296887	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.436
-291	新员工	EMP1766594296698	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.436
-290	新员工	EMP1766594296524	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	6	2025-12-24 17:13:40.437
+291	新员工	EMP1766594296698	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	8	2025-12-24 18:45:56.107
+292	新员工	EMP1766594296887	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	8	2025-12-24 18:45:56.107
+293	新员工	EMP1766594297088	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	8	2025-12-24 18:45:56.107
+294	新员工	EMP1766594297261	\N	\N	\N	\N	0.00	2025-12-24	{"gender": ""}	9	2025-12-24 18:45:56.107
+295	新员工	EMP1766594297420	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	8	2025-12-24 18:45:56.107
+296	新员工	EMP1766594297591	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	8	2025-12-24 18:45:56.107
+297	新员工	EMP1766594297767	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	8	2025-12-24 18:45:56.107
+290	新员工	EMP1766594296524	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	12	2025-12-24 18:47:44.951
+366	新员工	EMP1766621520142	\N	\N	\N	\N	0.00	2025-12-25	{}	2	2025-12-25 12:05:13.89
 364	新员工	EMP1766594353932	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	22	2025-12-24 17:41:38.271
 326	新员工	EMP1766594347510	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	9	2025-12-24 17:13:43.277
 325	新员工	EMP1766594347348	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.278
@@ -482,7 +483,7 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 362	新员工	EMP1766594353574		\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	31	2025-12-24 17:41:40.321
 359	新员工	EMP1766594353067	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	24	2025-12-24 17:41:40.322
 330	新员工	EMP1766594348147	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.271
-365	新员工	EMP1766594354088	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	30	2025-12-24 17:39:52.382
+365	新员工	EMP1766594354088	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	33	2025-12-24 18:39:08.959
 329	新员工	EMP1766594347991	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.273
 328	新员工	EMP1766594347834	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:43.274
 347	新员工	EMP1766594351048	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	8	2025-12-24 17:13:45.369
@@ -549,6 +550,7 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}]	HR花名册的动态列配置
+hr_column_locks	{}	HR表格列锁配置
 \.
 
 
@@ -565,7 +567,7 @@ COPY public.users (id, username, password, role, avatar, permissions) FROM stdin
 -- Name: archives_id_seq; Type: SEQUENCE SET; Schema: hr; Owner: postgres
 --
 
-SELECT pg_catalog.setval('hr.archives_id_seq', 365, true);
+SELECT pg_catalog.setval('hr.archives_id_seq', 366, true);
 
 
 --
@@ -808,5 +810,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict hON7Xvh3ba3FioffjkGKS0gKfjZz83jHfXT5pO2ChISLPPlrY5KNRNezgdIMBG6
+\unrestrict x3Nu1NS5DrCEbN9yjEeY373R8uWmKC9ZCUf9O67FzgIHJxR6yHO8PsCiXpUdnI4
 
