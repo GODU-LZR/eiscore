@@ -38,6 +38,7 @@
         class="ag-theme-alpine no-user-select"
         :columnDefs="gridColumns"
         :rowData="gridData"
+        :pinnedBottomRowData="pinnedBottomRowData"
         :defaultColDef="defaultColDef"
         :localeText="AG_GRID_LOCALE_CN"
         :theme="'legacy'" 
@@ -54,6 +55,8 @@
         :suppressClipboardPaste="true" 
         :enterNavigatesVertically="true" 
         :enterNavigatesVerticallyAfterEdit="true"
+        :suppressRowHoverHighlight="true"
+        :enableRangeSelection="false"
         
         @grid-ready="onGridReady"
         @cell-value-changed="onCellValueChanged"
@@ -70,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, reactive, onMounted, onUnmounted, defineComponent, h, markRaw } from 'vue'
+import { ref, shallowRef, computed, watch, reactive, onMounted, onUnmounted, defineComponent, h, markRaw } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox, ElTooltip, ElIcon } from 'element-plus'
@@ -94,10 +97,12 @@ const StatusRenderer = defineComponent({
     const statusMap = {
       'created': { label: '创建', icon: CirclePlus, color: '#409EFF' },
       'active': { label: '生效', icon: CircleCheck, color: '#67C23A' },
-      'locked': { label: '锁定', icon: Lock, color: '#F56C6C' }
+      'locked': { label: '锁定', icon: Lock, color: '#F56C6C' },
+      'total': { label: '合计', icon: null, color: '#303133' }
     }
     
     const currStatus = computed(() => {
+      if (props.params.node.rowPinned === 'bottom') return 'total'
       const data = props.params.data
       if (data?.properties?.row_locked_by) return 'locked'
       return data?.properties?.status || 'created'
@@ -108,12 +113,12 @@ const StatusRenderer = defineComponent({
     return () => h('div', { 
       style: { 
         display: 'flex', alignItems: 'center', gap: '6px', height: '100%', 
-        color: info.value.color, fontWeight: '500', fontSize: '12px',
+        color: info.value.color, fontWeight: currStatus.value === 'total' ? 'bold' : '500', fontSize: '13px',
         width: '100%', paddingLeft: '4px',
         pointerEvents: 'none'
       } 
     }, [
-      h(ElIcon, { size: 14 }, { default: () => h(info.value.icon) }),
+      info.value.icon ? h(ElIcon, { size: 14 }, { default: () => h(info.value.icon) }) : null,
       h('span', info.value.label)
     ])
   }
@@ -167,7 +172,6 @@ const LockHeader = defineComponent({
     const lockInfo = computed(() => gridComp.columnLockState[colId])
     const isLocked = computed(() => !!lockInfo.value)
     
-    // 🟢 判断是否显示筛选菜单：只要列允许筛选，就显示图标
     const showMenu = computed(() => {
       return props.params.enableMenu || props.params.column.isFilterAllowed()
     })
@@ -198,7 +202,6 @@ const LockHeader = defineComponent({
             ? h(ElTooltip, { content: `列锁定: ${lockInfo.value}`, placement: 'top' }, { default: () => h(ElIcon, { color: '#F56C6C', size: 14 }, { default: () => h(Lock) }) })
             : h(ElIcon, { class: 'header-unlock-icon', size: 14, color: '#909399' }, { default: () => h(Unlock) })
         ]),
-        // 🟢 恢复筛选器图标
         showMenu.value
           ? h('span', { class: 'custom-header-icon menu-btn', onClick: onMenuClick }, [
               h(ElIcon, { size: 14, color: '#909399' }, { default: () => h(Filter) })
@@ -236,7 +239,9 @@ const userStore = useUserStore()
 const currentUser = computed(() => userStore.userInfo?.username || 'Admin')
 
 const gridApi = ref(null)
-const gridData = ref([])
+const gridData = shallowRef([])
+const pinnedBottomRowData = ref([])
+
 const searchText = ref('')
 const isLoading = ref(false)
 const selectedRowsCount = ref(0)
@@ -250,18 +255,12 @@ const rangeSelection = reactive({
   startRowIndex: -1, startColId: null, endRowIndex: -1, endColId: null, active: false
 })
 
-// 🟢 关闭自动复选框，改用手动列定义，确保存储顺序
-const rowSelectionConfig = { 
-  mode: 'multiRow', 
-  headerCheckbox: false, 
-  checkboxes: false, // 禁用自动生成的，我们自己加
-  enableClickSelection: true 
-}
+const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
 
 const isCellReadOnly = (params) => {
   const colId = params.colDef.field
   if (colId === '_status') return false 
-
+  if (params.node.rowPinned) return true
   const rowData = params.data
   if (columnLockState[colId]) return true
   if (rowData?.properties?.row_locked_by) return true
@@ -269,7 +268,7 @@ const isCellReadOnly = (params) => {
 }
 
 const defaultColDef = { 
-  sortable: true, filter: true, resizable: true, minWidth: 100, flex: 1,
+  sortable: true, filter: true, resizable: true, minWidth: 100, 
   editable: (params) => !isCellReadOnly(params)
 }
 
@@ -304,6 +303,9 @@ const cellClassRules = {
 }
 const getCellStyle = (params) => {
   const baseStyle = { 'line-height': '34px' }
+  if (params.node.rowPinned) {
+    return { ...baseStyle, backgroundColor: '#f8f9fa', fontWeight: 'bold', color: '#606266' }
+  }
   if (params.colDef.field === '_status') {
     return { ...baseStyle, cursor: 'pointer' }
   }
@@ -338,11 +340,10 @@ const gridComponents = {
 }
 
 const gridColumns = computed(() => {
-  // 🟢 0. 手动定义复选框列 (排在第一位)
   const checkboxCol = {
     colId: 'rowCheckbox',
-    headerCheckboxSelection: true, // 表头全选
-    checkboxSelection: true,       // 单元格复选框
+    headerCheckboxSelection: true,
+    checkboxSelection: true,
     width: 40,
     minWidth: 40,
     maxWidth: 40,
@@ -355,36 +356,32 @@ const gridColumns = computed(() => {
     cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }
   }
 
-  // 🟢 1. 状态列 (排在第二位，紧跟复选框)
   const statusCol = {
     headerName: '状态',
     field: '_status',
     width: 100,
     minWidth: 100,
     pinned: 'left',
-    filter: true, // 🟢 启用筛选
+    filter: true,
     sortable: false,
     resizable: false,
-    suppressHeaderMenuButton: false, // 🟢 显示表头菜单按钮(筛选器)
-    
+    suppressHeaderMenuButton: false,
     editable: true,
-    
     cellRenderer: 'StatusRenderer',
     cellEditor: 'StatusEditor',
     cellEditorPopup: true,
     cellEditorPopupPosition: 'under',
-
     valueGetter: (params) => {
+      if (params.node.rowPinned) return '合计'
       if (params.data.properties?.row_locked_by) return 'locked'
       return params.data.properties?.status || 'created'
     },
     valueSetter: (params) => {
+      if (params.node.rowPinned) return false
       const newVal = params.newValue
       const oldVal = params.oldValue
       if (newVal === oldVal) return false
-
       if (!params.data.properties) params.data.properties = {}
-      
       params.data.properties.status = newVal
       if (newVal === 'locked') {
         params.data.properties.row_locked_by = currentUser.value
@@ -413,11 +410,70 @@ const gridColumns = computed(() => {
     headerComponent: 'LockHeader'
   }))
   
-  // 🟢 最终列顺序：复选框 -> 状态 -> 静态列(ID等) -> 动态列
   return [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
 })
 
-// 鼠标按下事件
+const mouseX = ref(0)
+const mouseY = ref(0)
+let autoScrollRaf = null
+
+const onGlobalMouseMove = (e) => {
+  mouseX.value = e.clientX
+  mouseY.value = e.clientY
+}
+
+const autoScroll = () => {
+  if (!isDragging.value || !gridApi.value) return
+
+  const viewport = document.querySelector('.ag-body-viewport')
+  const hViewport = document.querySelector('.ag-body-horizontal-scroll-viewport')
+  if (!viewport) return
+
+  const rect = viewport.getBoundingClientRect()
+  const buffer = 50 
+  const speed = 15  
+
+  let scrollX = 0
+  let scrollY = 0
+
+  if (mouseY.value < rect.top + buffer) scrollY = -speed
+  else if (mouseY.value > rect.bottom - buffer) scrollY = speed
+
+  if (mouseX.value < rect.left + buffer) scrollX = -speed
+  else if (mouseX.value > rect.right - buffer) scrollX = speed
+
+  if (scrollY !== 0) viewport.scrollTop += scrollY
+  
+  if (scrollX !== 0) {
+    if (hViewport) hViewport.scrollLeft += scrollX 
+    else viewport.scrollLeft += scrollX
+  }
+
+  if (scrollX !== 0 || scrollY !== 0) {
+    const target = document.elementFromPoint(mouseX.value, mouseY.value)
+    if (target) {
+      const cell = target.closest('.ag-cell')
+      if (cell) {
+        const rowId = cell.getAttribute('row-id')
+        const colId = cell.getAttribute('col-id')
+        
+        if (rowId && colId) {
+          const rowNode = gridApi.value.getRowNode(rowId)
+          if (rowNode) {
+            if (rangeSelection.endRowIndex !== rowNode.rowIndex || rangeSelection.endColId !== colId) {
+              rangeSelection.endRowIndex = rowNode.rowIndex
+              rangeSelection.endColId = colId
+              gridApi.value.refreshCells({ force: false })
+            }
+          }
+        }
+      }
+    }
+  }
+
+  autoScrollRaf = requestAnimationFrame(autoScroll)
+}
+
 const onCellMouseDown = (params) => {
   if (params.event.button !== 0) return 
 
@@ -427,7 +483,6 @@ const onCellMouseDown = (params) => {
       cell.rowIndex === params.node.rowIndex && 
       cell.column.getColId() === params.column.getColId()
     )
-
     if (isEditingThisCell) {
       gridApi.value.stopEditing()
       return 
@@ -435,46 +490,90 @@ const onCellMouseDown = (params) => {
   }
 
   isDragging.value = true
+  autoScroll()
   
-  if (isCellReadOnly(params) && params.colDef.field !== '_status') return 
+  // 🟢 核心修复：移除对只读单元格的拦截，允许选择只读单元格
+  // if (isCellReadOnly(params) && params.colDef.field !== '_status') return 
 
   rangeSelection.startRowIndex = params.node.rowIndex
   rangeSelection.startColId = params.column.colId
   rangeSelection.endRowIndex = params.node.rowIndex
   rangeSelection.endColId = params.column.colId
   rangeSelection.active = true
-  gridApi.value.refreshCells({ force: true })
+  gridApi.value.refreshCells({ force: false })
 }
 
 const onCellMouseOver = (params) => {
   if (!isDragging.value) return
+  
   if (rangeSelection.endRowIndex !== params.node.rowIndex || rangeSelection.endColId !== params.column.colId) {
     rangeSelection.endRowIndex = params.node.rowIndex
     rangeSelection.endColId = params.column.colId
-    gridApi.value.refreshCells({ force: true }) 
+    gridApi.value.refreshCells({ force: false }) 
+    
+    // 自动滚动视口
+    gridApi.value.ensureIndexVisible(params.node.rowIndex)
+    gridApi.value.ensureColumnVisible(params.column)
   }
 }
 
 const onGridMouseLeave = () => { }
 const onCellContextMenu = () => { isDragging.value = false }
 
-// --- 其他基础逻辑 ---
 watch(isLoading, (val) => {
   if (!gridApi.value) return
   gridApi.value.setGridOption('loading', val)
 })
 
+const calculateTotals = (data) => {
+  if (!data || data.length === 0) return []
+  const totalRow = { id: 'bottom_total', _status: '合计', properties: {} }
+  const columns = [...props.staticColumns, ...props.extraColumns]
+  columns.forEach(col => {
+    const field = col.prop || `properties.${col.prop}`
+    const isNumber = data.some(row => {
+      const val = field.includes('.') ? row.properties?.[col.prop] : row[col.prop]
+      return val !== null && val !== '' && !isNaN(Number(val))
+    })
+    if (isNumber) {
+      const sum = data.reduce((acc, row) => {
+        const val = field.includes('.') ? row.properties?.[col.prop] : row[col.prop]
+        const num = Number(val)
+        return acc + (isNaN(num) ? 0 : num)
+      }, 0)
+      if (field.includes('.')) totalRow.properties[col.prop] = Number(sum.toFixed(2))
+      else totalRow[col.prop] = Number(sum.toFixed(2))
+    } else {
+      if (field.includes('.')) totalRow.properties[col.prop] = ''
+      else totalRow[col.prop] = ''
+    }
+  })
+  return [totalRow]
+}
+
+watch(gridData, (newData) => {
+  pinnedBottomRowData.value = calculateTotals(newData)
+}, { immediate: true })
+
 onMounted(() => { 
   document.addEventListener('mouseup', onGlobalMouseUp)
+  document.addEventListener('mousemove', onGlobalMouseMove) 
   document.addEventListener('paste', handleGlobalPaste)
 })
 
 onUnmounted(() => { 
+  if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf)
   document.removeEventListener('mouseup', onGlobalMouseUp)
+  document.removeEventListener('mousemove', onGlobalMouseMove)
   document.removeEventListener('paste', handleGlobalPaste)
 })
 
-const onGlobalMouseUp = () => { if (isDragging.value) isDragging.value = false }
+const onGlobalMouseUp = () => { 
+  if (isDragging.value) {
+    isDragging.value = false 
+    if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf) 
+  }
+}
 
 const realRangeRowCount = computed(() => {
   if (!rangeSelection.active) return 0
@@ -497,6 +596,12 @@ const loadData = async () => {
     }
     const res = await request({ url, method: 'get' })
     gridData.value = res
+    setTimeout(() => {
+      if (gridApi.value) {
+        const allColIds = gridApi.value.getColumns().map(col => col.getColId())
+        gridApi.value.autoSizeColumns(allColIds, false) 
+      }
+    }, 100)
   } catch (e) {
     console.error(e)
     ElMessage.error('数据加载失败')
@@ -523,8 +628,8 @@ const sanitizeValue = (field, value) => {
   return value
 }
 
-// 🟢 统一保存逻辑
 const onCellValueChanged = (event) => {
+  if (event.node.rowPinned) return 
   if (isRemoteUpdating.value || event.oldValue === event.newValue) return
   const safeValue = sanitizeValue(event.colDef.field, event.newValue)
   
@@ -533,6 +638,8 @@ const onCellValueChanged = (event) => {
     event.node.setDataValue(event.colDef.field, safeValue)
     isRemoteUpdating.value = false
   }
+
+  pinnedBottomRowData.value = calculateTotals(gridData.value)
 
   pendingChanges.push({
     rowNode: event.node,
@@ -582,7 +689,7 @@ const debouncedSave = debounce(async () => {
         data: apiPayload
       })
       affectedNodes.forEach(({ node, newVer }) => { node.data.version = newVer })
-      gridApi.value.refreshCells({ rowNodes: affectedNodes.map(i => i.node), force: true })
+      gridApi.value.refreshCells({ rowNodes: affectedNodes.map(i => i.node), force: false })
       ElMessage.success(`已保存 ${apiPayload.length} 行变更`)
     }
   } catch (e) {
@@ -608,6 +715,7 @@ const deleteSelectedRows = async () => {
     const ids = selectedNodes.map(n => n.data.id)
     await request({ url: `${props.apiUrl}?id=in.(${ids.join(',')})`, method: 'delete' })
     gridApi.value.applyTransaction({ remove: selectedNodes.map(node => node.data) })
+    pinnedBottomRowData.value = calculateTotals(gridData.value)
     ElMessage.success('删除成功')
     selectedRowsCount.value = 0
   } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }
@@ -801,6 +909,33 @@ defineExpose({ loadData })
 </style>
 
 <style lang="scss">
+/* 🟢 滚动条美化 */
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar,
+.ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb,
+.ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+  background-color: var(--el-color-primary-light-5);
+  border-radius: 8px;
+  border: 3px solid transparent; 
+  background-clip: content-box;
+}
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb:hover,
+.ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: var(--el-color-primary);
+}
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-track,
+.ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track {
+  background-color: #f5f7fa;
+  box-shadow: inset 0 0 4px rgba(0,0,0,0.05);
+}
+/* 强制显示滚动条 */
+.ag-theme-alpine .ag-body-viewport {
+  overflow-y: scroll !important;
+}
+
 .ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 32px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
 .no-user-select { user-select: none; }
 .ag-theme-alpine .dynamic-header { font-weight: 600; }
@@ -817,7 +952,6 @@ defineExpose({ loadData })
   background-color: #fafafa !important; 
 }
 
-/* 🟢 自定义表头样式 (Flex布局) */
 .custom-header-wrapper {
   display: flex;
   align-items: center;
@@ -864,14 +998,12 @@ defineExpose({ loadData })
   opacity: 1;
 }
 
-/* 🟢 状态编辑器样式优化 */
 .status-editor-popup {
   background-color: #fff;
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   border: 1px solid #e4e7ed;
   overflow: hidden;
-  /* 移除固定宽度，使用动态 width */
   padding: 4px 0;
 }
 .status-editor-item {
