@@ -110,7 +110,7 @@ const StatusRenderer = defineComponent({
         display: 'flex', alignItems: 'center', gap: '6px', height: '100%', 
         color: info.value.color, fontWeight: '500', fontSize: '12px',
         width: '100%', paddingLeft: '4px',
-        pointerEvents: 'none' // 🟢 关键：让点击穿透，确保双击和点击事件能被 Grid 捕获
+        pointerEvents: 'none'
       } 
     }, [
       h(ElIcon, { size: 14 }, { default: () => h(info.value.icon) }),
@@ -119,12 +119,11 @@ const StatusRenderer = defineComponent({
   }
 })
 
-// 2. 状态编辑器 (即时列表)
+// 2. 状态编辑器
 const StatusEditor = defineComponent({
   props: ['params'],
   setup(props, { expose }) {
     const selectedValue = ref(props.params.value)
-    // 🟢 动态获取宽度，确保对齐
     const cellWidth = props.params.column.getActualWidth() + 'px'
 
     const options = [
@@ -159,7 +158,7 @@ const StatusEditor = defineComponent({
   }
 })
 
-// 3. 自定义表头
+// 3. 自定义表头组件
 const LockHeader = defineComponent({
   props: ['params'],
   setup(props) {
@@ -168,6 +167,11 @@ const LockHeader = defineComponent({
     const lockInfo = computed(() => gridComp.columnLockState[colId])
     const isLocked = computed(() => !!lockInfo.value)
     
+    // 🟢 判断是否显示筛选菜单：只要列允许筛选，就显示图标
+    const showMenu = computed(() => {
+      return props.params.enableMenu || props.params.column.isFilterAllowed()
+    })
+
     const sortState = ref(null) 
     const onSortChanged = () => {
       if (props.params.column.isSortAscending()) sortState.value = 'asc'
@@ -194,7 +198,8 @@ const LockHeader = defineComponent({
             ? h(ElTooltip, { content: `列锁定: ${lockInfo.value}`, placement: 'top' }, { default: () => h(ElIcon, { color: '#F56C6C', size: 14 }, { default: () => h(Lock) }) })
             : h(ElIcon, { class: 'header-unlock-icon', size: 14, color: '#909399' }, { default: () => h(Unlock) })
         ]),
-        props.params.enableMenu 
+        // 🟢 恢复筛选器图标
+        showMenu.value
           ? h('span', { class: 'custom-header-icon menu-btn', onClick: onMenuClick }, [
               h(ElIcon, { size: 14, color: '#909399' }, { default: () => h(Filter) })
             ])
@@ -245,7 +250,13 @@ const rangeSelection = reactive({
   startRowIndex: -1, startColId: null, endRowIndex: -1, endColId: null, active: false
 })
 
-const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: true, checkboxes: true, enableClickSelection: true }
+// 🟢 关闭自动复选框，改用手动列定义，确保存储顺序
+const rowSelectionConfig = { 
+  mode: 'multiRow', 
+  headerCheckbox: false, 
+  checkboxes: false, // 禁用自动生成的，我们自己加
+  enableClickSelection: true 
+}
 
 const isCellReadOnly = (params) => {
   const colId = params.colDef.field
@@ -327,19 +338,35 @@ const gridComponents = {
 }
 
 const gridColumns = computed(() => {
-  // 🟢 状态列配置
+  // 🟢 0. 手动定义复选框列 (排在第一位)
+  const checkboxCol = {
+    colId: 'rowCheckbox',
+    headerCheckboxSelection: true, // 表头全选
+    checkboxSelection: true,       // 单元格复选框
+    width: 40,
+    minWidth: 40,
+    maxWidth: 40,
+    pinned: 'left',
+    resizable: false,
+    sortable: false,
+    filter: false,
+    suppressMenu: true,
+    suppressHeaderMenuButton: true,
+    cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+  }
+
+  // 🟢 1. 状态列 (排在第二位，紧跟复选框)
   const statusCol = {
     headerName: '状态',
     field: '_status',
     width: 100,
     minWidth: 100,
     pinned: 'left',
-    filter: false,
+    filter: true, // 🟢 启用筛选
     sortable: false,
     resizable: false,
-    suppressHeaderMenuButton: true,
+    suppressHeaderMenuButton: false, // 🟢 显示表头菜单按钮(筛选器)
     
-    // 启用编辑，默认双击进入
     editable: true,
     
     cellRenderer: 'StatusRenderer',
@@ -347,7 +374,6 @@ const gridColumns = computed(() => {
     cellEditorPopup: true,
     cellEditorPopupPosition: 'under',
 
-    // 数据映射
     valueGetter: (params) => {
       if (params.data.properties?.row_locked_by) return 'locked'
       return params.data.properties?.status || 'created'
@@ -387,31 +413,27 @@ const gridColumns = computed(() => {
     headerComponent: 'LockHeader'
   }))
   
-  return [statusCol, ...staticCols, ...dynamicCols]
+  // 🟢 最终列顺序：复选框 -> 状态 -> 静态列(ID等) -> 动态列
+  return [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
 })
 
-// 🟢 鼠标按下事件：核心修复，处理“再次点击收回”
+// 鼠标按下事件
 const onCellMouseDown = (params) => {
   if (params.event.button !== 0) return 
 
-  // 1. 状态列特殊处理：Toggle 逻辑
   if (params.colDef.field === '_status') {
     const editingCells = gridApi.value.getEditingCells()
-    // 检查当前点击的单元格是否已经在编辑中（下拉框已显示）
     const isEditingThisCell = editingCells.some(cell => 
       cell.rowIndex === params.node.rowIndex && 
       cell.column.getColId() === params.column.getColId()
     )
 
     if (isEditingThisCell) {
-      // 🟢 如果已弹出，再次点击则收回
       gridApi.value.stopEditing()
       return 
     }
-    // 如果未弹出，放行，Ag-Grid 默认行为会处理（双击编辑或单击选中）
   }
 
-  // 2. 通用逻辑
   isDragging.value = true
   
   if (isCellReadOnly(params) && params.colDef.field !== '_status') return 
@@ -560,7 +582,6 @@ const debouncedSave = debounce(async () => {
         data: apiPayload
       })
       affectedNodes.forEach(({ node, newVer }) => { node.data.version = newVer })
-      // 🟢 刷新受影响行，更新样式
       gridApi.value.refreshCells({ rowNodes: affectedNodes.map(i => i.node), force: true })
       ElMessage.success(`已保存 ${apiPayload.length} 行变更`)
     }

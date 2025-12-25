@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6g5ydVLkim13VCmFCYfwLhkhmOfYqGZtb632sSDUYRJaAEM6DbhLdfdwI08agDQ
+\restrict QzaYTAEjZ8pUnoVBwVhlChV5pISUNuO9qIuOk0i2cotAxNYn1FYCTOWzv8G6UCd
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -435,84 +435,21 @@ lisi	123456	web_user	李四(仓管员)
 --
 
 COPY hr.archives (id, name, employee_no, department, "position", phone, status, base_salary, entry_date, properties, version, updated_at) FROM stdin;
-317	新员工	EMP1766594301432	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	13	2025-12-25 13:50:55.308
-337	新员工	EMP1766594349296	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:45:24.206
-294	新员工	EMP1766594297261	\N	\N	\N	\N	0.00	2025-12-24	{"gender": ""}	12	2025-12-25 13:51:04.261
-293	新员工	EMP1766594297088	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	11	2025-12-25 13:51:04.261
-366	新员工	EMP1766621520142	\N	\N	\N	\N	0.00	2025-12-25	{"status": "created", "row_locked_by": null}	4	2025-12-25 15:14:56.634
-338	新员工	EMP1766594349485	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:33.316
-336	新员工	EMP1766594349134	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:33.316
-335	新员工	EMP1766594348968	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:33.316
-334	新员工	EMP1766594348808	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:33.316
-333	新员工	EMP1766594348622	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:33.316
-332	新员工	EMP1766594348466	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:33.316
-331	新员工	EMP1766594348306	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:33.316
-330	新员工	EMP1766594348147	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:33.316
-329	新员工	EMP1766594347991	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:33.316
-328	新员工	EMP1766594347834	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:33.316
-324	新员工	EMP1766594347190	\N	\N	\N	\N	0.00	2025-12-24	{"gender": "", "id_card": null}	12	2025-12-25 13:50:38.104
-323	新员工	EMP1766594347025	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:38.104
-322	新员工	EMP1766594346874	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:38.104
-321	新员工	EMP1766594346719	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:38.104
-320	新员工	EMP1766594302004	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:38.104
-319	新员工	EMP1766594301790	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:38.104
-318	新员工	EMP1766594301617	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:38.104
-327	新员工	EMP1766594347673	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	13	2025-12-25 13:50:52.21
-316	新员工	EMP1766594301243	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:53.398
-315	新员工	EMP1766594301046	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:53.398
-314	新员工	EMP1766594300852	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	13	2025-12-25 13:50:53.398
-313	新员工	EMP1766594300655	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:53.398
-361	新员工	EMP1766594353405	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null, "row_locked_by": null}	36	2025-12-25 13:59:53.87
-364	新员工	EMP1766594353932	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null, "row_locked_by": null}	22	2025-12-25 13:59:55.691
-358	新员工	EMP1766594352900	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null, "row_locked_by": null}	25	2025-12-25 13:53:39.791
-326	新员工	EMP1766594347510	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	12	2025-12-25 13:50:38.104
-325	新员工	EMP1766594347348	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:38.104
-311	新员工	EMP1766594300309	\N	\N	\N	\N	0.00	2025-12-24	{"gender": "", "id_card": null}	13	2025-12-25 13:50:56.249
-310	新员工	EMP1766594300129	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	10	2025-12-25 13:50:56.249
-309	新员工	EMP1766594299945	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:56.249
-308	新员工	EMP1766594299785	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:56.249
-307	新员工	EMP1766594299588	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:56.249
-306	新员工	EMP1766594299407	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:56.249
-312	新员工	EMP1766594300473	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	14	2025-12-25 13:50:58.123
-304	新员工	EMP1766594299023	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:59.2
-303	新员工	EMP1766594298857	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:59.2
-302	新员工	EMP1766594298674	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:59.2
-301	新员工	EMP1766594298490	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:59.2
-300	新员工	EMP1766594298311	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:59.2
-299	新员工	EMP1766594298111	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:59.2
-298	新员工	EMP1766594297938	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	9	2025-12-25 13:50:59.2
-305	新员工	EMP1766594299197	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	10	2025-12-25 13:51:01.068
-296	新员工	EMP1766594297591	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	11	2025-12-25 13:51:04.261
-295	新员工	EMP1766594297420	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	11	2025-12-25 13:51:04.261
-297	新员工	EMP1766594297767	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	12	2025-12-25 13:51:05.698
-362	新员工	EMP1766594353574	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null, "row_locked_by": null}	39	2025-12-25 15:12:58.067
-347	新员工	EMP1766594351048	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:30.431
-346	新员工	EMP1766594350867	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:30.431
-345	新员工	EMP1766594350685	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:30.431
-344	新员工	EMP1766594350520	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:30.431
-343	新员工	EMP1766594350330	\N	\N	\N	\N	0.00	2025-12-24	{"gender": "", "id_card": null}	13	2025-12-25 13:50:30.431
-342	新员工	EMP1766594350167	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": ""}	12	2025-12-25 13:45:24.206
-359	新员工	EMP1766594353067	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null, "row_locked_by": null}	28	2025-12-25 13:59:53.488
-340	新员工	EMP1766594349821	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:33.315
-339	新员工	EMP1766594349653	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:33.315
-341	新员工	EMP1766594349987	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:34.587
-292	新员工	EMP1766594296887	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null}	11	2025-12-25 13:51:04.261
-290	新员工	EMP1766594296524	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "status": "created", "row_locked_by": null}	17	2025-12-25 14:07:54.354
-289	新员工	EMP1766594296369	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "row_locked_by": null}	12	2025-12-25 13:52:18.472
-291	新员工	EMP1766594296698	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "row_locked_by": null}	11	2025-12-25 13:52:19.439
-365	新员工	EMP1766594354088	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "status": "created", "id_card": "", "row_locked_by": null}	46	2025-12-25 15:11:26.303
-363	新员工	EMP1766594353748	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "status": "created", "id_card": null, "row_locked_by": null}	35	2025-12-25 15:14:48.27
-357	新员工	EMP1766594352723	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	20	2025-12-25 13:50:28.323
-356	新员工	EMP1766594352559	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	21	2025-12-25 13:50:28.323
-355	新员工	EMP1766594352388	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	14	2025-12-25 13:50:28.323
-354	新员工	EMP1766594352231	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:28.323
-353	新员工	EMP1766594352055	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:28.323
-350	新员工	EMP1766594351540	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:50:30.431
-349	新员工	EMP1766594351374	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:30.431
-348	新员工	EMP1766594351201	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	12	2025-12-25 13:50:30.431
-352	新员工	EMP1766594351892	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	13	2025-12-25 13:50:32.811
-360	新员工	EMP1766594353239	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "status": "created", "id_card": null, "row_locked_by": null}	36	2025-12-25 14:42:57.221
-351	新员工	EMP1766594351696	\N	\N	\N	\N	0.00	2025-12-24	{"gender": null, "id_card": null}	11	2025-12-25 13:45:24.205
+368	新员工	EMP1766676473621	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:53.457004
+369	新员工	EMP1766676474175	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:53.998363
+370	新员工	EMP1766676474340	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:54.159452
+371	新员工	EMP1766676474715	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:54.527071
+372	新员工	EMP1766676474916	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:54.724324
+373	新员工	EMP1766676475098	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:54.904044
+374	新员工	EMP1766676475262	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:55.063003
+375	新员工	EMP1766676475428	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:55.225217
+376	新员工	EMP1766676475607	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:55.400543
+377	新员工	EMP1766676475812	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:55.601121
+378	新员工	EMP1766676475997	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:55.783787
+379	新员工	EMP1766676476186	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:55.970476
+380	新员工	EMP1766676478858	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:58.582649
+381	新员工	EMP1766676479034	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:59.039173
+382	新员工	EMP1766676479427	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:59.835597
 \.
 
 
@@ -549,8 +486,8 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 --
 
 COPY public.system_configs (key, value, description) FROM stdin;
-hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}]	HR花名册的动态列配置
 hr_column_locks	{}	HR表格列锁配置
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_9616", "label": "1"}, {"prop": "field_1829", "label": "2"}, {"prop": "field_3001", "label": "3"}, {"prop": "field_9287", "label": "4"}, {"prop": "field_6489", "label": "5"}]	HR花名册的动态列配置
 \.
 
 
@@ -567,7 +504,7 @@ COPY public.users (id, username, password, role, avatar, permissions) FROM stdin
 -- Name: archives_id_seq; Type: SEQUENCE SET; Schema: hr; Owner: postgres
 --
 
-SELECT pg_catalog.setval('hr.archives_id_seq', 366, true);
+SELECT pg_catalog.setval('hr.archives_id_seq', 382, true);
 
 
 --
@@ -810,5 +747,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6g5ydVLkim13VCmFCYfwLhkhmOfYqGZtb632sSDUYRJaAEM6DbhLdfdwI08agDQ
+\unrestrict QzaYTAEjZ8pUnoVBwVhlChV5pISUNuO9qIuOk0i2cotAxNYn1FYCTOWzv8G6UCd
 
