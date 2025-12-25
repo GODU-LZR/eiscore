@@ -74,7 +74,7 @@ import { ref, computed, watch, reactive, onMounted, onUnmounted, defineComponent
 import { AgGridVue } from "ag-grid-vue3"
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox, ElTooltip, ElIcon } from 'element-plus'
-import { Lock, Unlock, Search, Delete, Download } from '@element-plus/icons-vue'
+import { Lock, Unlock, Search, Delete, Download, Filter, SortUp, SortDown, Sort } from '@element-plus/icons-vue'
 import { buildSearchQuery } from '@/utils/grid-query'
 import { debounce } from 'lodash'
 import { useUserStore } from '@/stores/user' 
@@ -87,29 +87,26 @@ import "ag-grid-community/styles/ag-theme-alpine.css"
 
 // --- 🟢 自定义组件定义区 ---
 
-// 1. 行头锁图标渲染器
+// 1. 行头锁图标渲染器 (仅展示，点击由 Grid 接管)
 const LockActionRenderer = defineComponent({
   props: ['params'],
   setup(props) {
     const isLocked = computed(() => !!props.params.data?.properties?.row_locked_by)
     const lockedBy = computed(() => props.params.data?.properties?.row_locked_by || '系统')
     
-    const onClick = (e) => {
-      e.stopPropagation() 
-      const handler = props.params?.context?.componentParent?.toggleRowLock || props.params?.onClickLock
-      if (handler) {
-        handler(props.params.data)
-      }
-    }
-
     return () => h('div', { 
       class: 'lock-action-cell', 
-      onClick: onClick,
-      style: { cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }
+      style: { 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100%',
+        width: '100%'
+      }
     }, [
       isLocked.value 
-        ? h(ElTooltip, { content: `该行被 [${lockedBy.value}] 锁定`, placement: 'right' }, { default: () => h(ElIcon, { color: '#F56C6C', size: 16 }, { default: () => h(Lock) }) })
-        : h(ElIcon, { class: 'unlock-icon-hover', size: 16, color: '#DCDFE6' }, { default: () => h(Unlock) })
+        ? h(ElTooltip, { content: `锁定人: ${lockedBy.value}`, placement: 'right' }, { default: () => h(ElIcon, { color: '#F56C6C', size: 16, style: 'pointer-events: none' }, { default: () => h(Lock) }) })
+        : h(ElTooltip, { content: '点击锁定', placement: 'right' }, { default: () => h(ElIcon, { class: 'unlock-icon-hover', size: 16, color: '#DCDFE6', style: 'pointer-events: none' }, { default: () => h(Unlock) }) })
     ])
   }
 })
@@ -119,17 +116,26 @@ const LockHeader = defineComponent({
   props: ['params'],
   setup(props) {
     const colId = props.params.column.colId
-    // 通过 context 获取状态
     const gridComp = props.params.context.componentParent
     const lockInfo = computed(() => gridComp.columnLockState[colId])
     const isLocked = computed(() => !!lockInfo.value)
     
-    const sortState = ref(props.params.column.getSort())
+    const sortState = ref(null) 
+    
     const onSortChanged = () => {
-      sortState.value = props.params.column.getSort()
+      if (props.params.column.isSortAscending()) sortState.value = 'asc'
+      else if (props.params.column.isSortDescending()) sortState.value = 'desc'
+      else sortState.value = null
     }
-    const onLabelClick = () => {
-      props.params.progressSort()
+    
+    props.params.column.addEventListener('sortChanged', onSortChanged)
+    onSortChanged()
+
+    const onLabelClick = (e) => props.params.progressSort(e.shiftKey)
+    
+    const onMenuClick = (e) => {
+      e.stopPropagation()
+      props.params.showColumnMenu(e.target)
     }
     
     const onLockClick = (e) => {
@@ -137,34 +143,23 @@ const LockHeader = defineComponent({
       gridComp.toggleColumnLock(colId)
     }
 
-    const onMenuClick = (e) => {
-      e.stopPropagation()
-      if (props.params.showColumnMenu) {
-        props.params.showColumnMenu(e.currentTarget)
-      }
-    }
-
-    onMounted(() => {
-      props.params.column.addEventListener('sortChanged', onSortChanged)
-    })
-    onUnmounted(() => {
-      props.params.column.removeEventListener('sortChanged', onSortChanged)
-    })
-
     return () => h('div', { class: 'custom-header-wrapper' }, [
-      h('span', { class: 'custom-header-label', onClick: onLabelClick }, props.params.displayName),
-      h('span', { class: 'custom-header-icons' }, [
-        h('span', { class: 'ag-header-icon ag-header-cell-menu-button', onClick: onMenuClick }, [
-          h('span', { class: 'ag-icon ag-icon-menu' })
-        ]),
-        h('span', { class: 'ag-header-icon ag-sort-indicator-icon' }, [
-          h('span', { class: `ag-icon ag-icon-${sortState.value || 'none'}` })
-        ])
+      h('div', { class: 'custom-header-main', onClick: onLabelClick }, [
+        h('span', { class: 'custom-header-label' }, props.params.displayName),
+        sortState.value === 'asc' ? h(ElIcon, { size: 12, color: '#409EFF', style: 'margin-left:4px' }, { default: () => h(SortUp) }) : null,
+        sortState.value === 'desc' ? h(ElIcon, { size: 12, color: '#409EFF', style: 'margin-left:4px' }, { default: () => h(SortDown) }) : null,
       ]),
-      h('span', { class: 'custom-header-lock', onClick: onLockClick }, [
-        isLocked.value
-          ? h(ElTooltip, { content: `该列被 [${lockInfo.value}] 锁定`, placement: 'top' }, { default: () => h(ElIcon, { color: '#F56C6C' }, { default: () => h(Lock) }) })
-          : h(ElIcon, { class: 'header-unlock-icon', color: '#909399' }, { default: () => h(Unlock) })
+      h('div', { class: 'custom-header-tools' }, [
+        h('span', { class: 'custom-header-icon lock-btn', onClick: onLockClick }, [
+          isLocked.value
+            ? h(ElTooltip, { content: `列锁定: ${lockInfo.value}`, placement: 'top' }, { default: () => h(ElIcon, { color: '#F56C6C', size: 14 }, { default: () => h(Lock) }) })
+            : h(ElIcon, { class: 'header-unlock-icon', size: 14, color: '#909399' }, { default: () => h(Unlock) })
+        ]),
+        props.params.enableMenu 
+          ? h('span', { class: 'custom-header-icon menu-btn', onClick: onMenuClick }, [
+              h(ElIcon, { size: 14, color: '#909399' }, { default: () => h(Filter) })
+            ])
+          : null
       ])
     ])
   }
@@ -250,22 +245,12 @@ const isCellInSelection = (params) => {
   return rowIndex >= minRow && rowIndex <= maxRow && currentColIdx >= minCol && currentColIdx <= maxCol
 }
 
-const cellClassRules = { 
-  'custom-range-selected': (params) => isCellInSelection(params),
-  'cell-locked-pattern': (params) => isCellReadOnly(params)
-}
-
+const rowClassRules = { 'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by }
+const cellClassRules = { 'custom-range-selected': (params) => isCellInSelection(params), 'cell-locked-pattern': (params) => isCellReadOnly(params) }
 const getCellStyle = (params) => {
   const baseStyle = { 'line-height': '34px' }
   if (params.colDef.editable === false) return { ...baseStyle, backgroundColor: '#f5f7fa', color: '#909399' }
   return baseStyle
-}
-
-const updateRowDataCache = (nextData) => {
-  const index = gridData.value.findIndex((row) => String(row.id) === String(nextData.id))
-  if (index !== -1) {
-    gridData.value.splice(index, 1, nextData)
-  }
 }
 
 // --- 锁定逻辑实现 ---
@@ -275,17 +260,16 @@ const handleToggleRowLock = async (rowData) => {
   const isLocked = !!rowData.properties?.row_locked_by
   const newLockState = isLocked ? null : currentUser.value
   
+  if (!rowData.properties) rowData.properties = {}
+  rowData.properties.row_locked_by = newLockState
+  
   const rowNode = gridApi.value.getRowNode(String(rowData.id))
-  const nextProperties = { ...(rowData.properties || {}), row_locked_by: newLockState }
-  const nextData = { ...rowData, properties: nextProperties }
   if (rowNode) {
-    rowNode.setData(nextData)
-    updateRowDataCache(nextData)
-    gridApi.value.refreshCells({ rowNodes: [rowNode], force: true })
+    rowNode.setData(rowData) // 强制刷新
   }
 
   try {
-    const payload = buildCompletePayload(nextData)
+    const payload = buildCompletePayload(rowData)
     await request({
       url: `${props.apiUrl}?id=eq.${rowData.id}`,
       method: 'patch',
@@ -294,14 +278,9 @@ const handleToggleRowLock = async (rowData) => {
     })
     ElMessage.success(isLocked ? '已解锁该行' : '已锁定该行')
   } catch (e) {
-    ElMessage.error('锁定操作失败')
-    const rollbackProperties = { ...(rowData.properties || {}), row_locked_by: isLocked ? currentUser.value : null }
-    const rollbackData = { ...rowData, properties: rollbackProperties }
-    if (rowNode) {
-      rowNode.setData(rollbackData)
-      updateRowDataCache(rollbackData)
-      gridApi.value.refreshCells({ rowNodes: [rowNode], force: true })
-    }
+    ElMessage.error('操作失败')
+    rowData.properties.row_locked_by = isLocked ? currentUser.value : null
+    if (rowNode) rowNode.setData(rowData)
   }
 }
 
@@ -313,12 +292,10 @@ const handleToggleColumnLock = (colId) => {
     columnLockState[colId] = currentUser.value
     ElMessage.success('列已锁定')
   }
-  gridApi.value.refreshCells({ force: true })
-  gridApi.value.refreshHeader()
+  gridApi.value.redrawRows()
 }
 
-// 🟢 关键：Context 对象，必须传给 Ag-Grid
-const context = markRaw({
+const context = reactive({
   componentParent: {
     toggleRowLock: handleToggleRowLock,
     toggleColumnLock: handleToggleColumnLock,
@@ -327,8 +304,8 @@ const context = markRaw({
 })
 
 const gridComponents = {
-  LockActionRenderer,
-  LockHeader
+  LockActionRenderer: markRaw(LockActionRenderer),
+  LockHeader: markRaw(LockHeader)
 }
 
 const gridColumns = computed(() => {
@@ -340,12 +317,10 @@ const gridColumns = computed(() => {
     filter: false,
     sortable: false,
     resizable: false,
+    suppressHeaderMenuButton: true,
     editable: false,
     cellRenderer: 'LockActionRenderer',
-    cellRendererParams: {
-      onClickLock: handleToggleRowLock
-    },
-    cellStyle: { 'display': 'flex', 'justify-content': 'center', 'align-items': 'center', 'padding': 0 }
+    cellStyle: { 'padding': 0, 'border-right': 'none', 'cursor': 'pointer' }
   }
 
   const staticCols = props.staticColumns.map(col => ({
@@ -369,26 +344,19 @@ const gridColumns = computed(() => {
   return [actionCol, ...staticCols, ...dynamicCols]
 })
 
-watch(isLoading, (val) => {
-  if (!gridApi.value) return
-  gridApi.value.setGridOption('loading', val)
-})
-
-onMounted(() => { 
-  document.addEventListener('mouseup', onGlobalMouseUp)
-  document.addEventListener('paste', handleGlobalPaste)
-})
-
-onUnmounted(() => { 
-  document.removeEventListener('mouseup', onGlobalMouseUp)
-  document.removeEventListener('paste', handleGlobalPaste)
-})
-
-const onGlobalMouseUp = () => { if (isDragging.value) isDragging.value = false }
-
+// 🟢 鼠标按下即触发锁定，解决不灵敏问题
 const onCellMouseDown = (params) => {
+  // 1. 如果点的是行锁列
+  if (params.colDef.field === '_row_lock_status') {
+    handleToggleRowLock(params.data)
+    return // ⛔️ 阻止后续框选逻辑
+  }
+
+  // 2. 正常单元格选择逻辑
   if (params.event.button !== 0) return 
   isDragging.value = true
+  if (isCellReadOnly(params)) return 
+
   rangeSelection.startRowIndex = params.node.rowIndex
   rangeSelection.startColId = params.column.colId
   rangeSelection.endRowIndex = params.node.rowIndex
@@ -408,6 +376,24 @@ const onCellMouseOver = (params) => {
 
 const onGridMouseLeave = () => { }
 const onCellContextMenu = () => { isDragging.value = false }
+
+// --- 其他基础逻辑 ---
+watch(isLoading, (val) => {
+  if (!gridApi.value) return
+  gridApi.value.setGridOption('loading', val)
+})
+
+onMounted(() => { 
+  document.addEventListener('mouseup', onGlobalMouseUp)
+  document.addEventListener('paste', handleGlobalPaste)
+})
+
+onUnmounted(() => { 
+  document.removeEventListener('mouseup', onGlobalMouseUp)
+  document.removeEventListener('paste', handleGlobalPaste)
+})
+
+const onGlobalMouseUp = () => { if (isDragging.value) isDragging.value = false }
 
 const realRangeRowCount = computed(() => {
   if (!rangeSelection.active) return 0
@@ -479,18 +465,14 @@ const debouncedSave = debounce(async () => {
   if (pendingChanges.length === 0) return
   const changesToProcess = [...pendingChanges]
   pendingChanges.length = 0
-  
   isRemoteUpdating.value = true 
-  
   try {
     const rowUpdatesMap = new Map()
     changesToProcess.forEach(({ rowNode, colDef, newValue }) => {
       const id = rowNode.data.id
       if (!rowUpdatesMap.has(id)) {
         const basePayload = buildCompletePayload(rowNode.data)
-        rowUpdatesMap.set(id, { 
-          rowNode, payload: basePayload, properties: basePayload.properties 
-        })
+        rowUpdatesMap.set(id, { rowNode, payload: basePayload, properties: basePayload.properties })
       }
       const group = rowUpdatesMap.get(id)
       if (colDef.field.startsWith('properties.')) {
@@ -500,7 +482,6 @@ const debouncedSave = debounce(async () => {
         group.payload[colDef.field] = newValue
       }
     })
-    
     const apiPayload = []
     const affectedNodes = []
     for (const group of rowUpdatesMap.values()) {
@@ -508,7 +489,6 @@ const debouncedSave = debounce(async () => {
       apiPayload.push(group.payload)
       affectedNodes.push({ node: group.rowNode, newVer: group.payload.version })
     }
-    
     if (apiPayload.length > 0) {
       await request({
         url: `${props.apiUrl}`, 
@@ -520,9 +500,7 @@ const debouncedSave = debounce(async () => {
       ElMessage.success(`已保存 ${apiPayload.length} 行变更`)
     }
   } catch (e) {
-    console.error(e)
-    const msg = e.response?.data?.message || e.message
-    ElMessage.error('保存失败，正在回滚... (' + msg + ')')
+    ElMessage.error('保存失败')
     for (let i = changesToProcess.length - 1; i >= 0; i--) {
       const change = changesToProcess[i]
       change.rowNode.setDataValue(change.colDef.field, change.oldValue)
@@ -532,56 +510,45 @@ const debouncedSave = debounce(async () => {
   }
 }, 100)
 
+// 🟢 恢复：按钮删除多行
 const deleteSelectedRows = async () => {
   const selectedNodes = gridApi.value.getSelectedNodes()
   if (selectedNodes.length === 0) return
-
   const lockedNodes = selectedNodes.filter(n => n.data.properties?.row_locked_by)
   if (lockedNodes.length > 0) {
     return ElMessage.warning(`选中行中有 ${lockedNodes.length} 行已被锁定，无法删除`)
   }
-
   try {
-    await ElMessageBox.confirm(`确定要删除选中的 ${selectedNodes.length} 条数据吗？`, '警告', {
-      type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消'
-    })
-    
+    await ElMessageBox.confirm(`确定要删除选中的 ${selectedNodes.length} 条数据吗？`, '警告', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
     const ids = selectedNodes.map(n => n.data.id)
     await request({ url: `${props.apiUrl}?id=in.(${ids.join(',')})`, method: 'delete' })
     gridApi.value.applyTransaction({ remove: selectedNodes.map(node => node.data) })
     ElMessage.success('删除成功')
     selectedRowsCount.value = 0
-  } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败: ' + e.message) }
+  } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }
 }
 
+// 🟢 恢复：多行粘贴
 const handleGlobalPaste = async (event) => {
   if (!gridApi.value) return
   const activeEl = document.activeElement
-  if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
-    if (!activeEl.closest('.ag-root-wrapper')) return 
-  }
-
+  if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) if (!activeEl.closest('.ag-root-wrapper')) return 
   const focusedCell = gridApi.value.getFocusedCell()
   const hasRange = rangeSelection.active
   if (!focusedCell && !hasRange) return
-
   const clipboardData = event.clipboardData || window.clipboardData
   if (!clipboardData) return
   const text = clipboardData.getData('text')
   if (!text) return
-
   const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   let rows = cleanText.split('\n');
   if (rows[rows.length - 1] === '') rows.pop(); 
-
   const pasteMatrix = rows.map(row => row.split('\t'));
   const pasteRowCount = pasteMatrix.length;
   const pasteColCount = pasteMatrix.length > 0 ? pasteMatrix[0].length : 0;
   if (pasteRowCount === 0) return;
-
   const isSingleValue = pasteRowCount === 1 && pasteColCount === 1;
   const isMultiCellSelection = realRangeRowCount.value > 1 || realRangeColCount.value > 1;
-
   let startRowIdx = -1, startColIdx = -1;
   if (rangeSelection.active) {
     startRowIdx = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex);
@@ -595,16 +562,13 @@ const handleGlobalPaste = async (event) => {
     }
   }
   if (startRowIdx === -1 || startColIdx === -1) return;
-
   const allCols = gridApi.value.getAllGridColumns();
-
   if (isSingleValue && isMultiCellSelection && rangeSelection.active) {
     const valToPaste = pasteMatrix[0][0].trim();
     const endRowIdx = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex);
     const sC = getColIndex(rangeSelection.startColId);
     const eC = getColIndex(rangeSelection.endColId);
     const endColIdx = Math.max(sC, eC);
-
     for (let r = startRowIdx; r <= endRowIdx; r++) {
       const rowNode = gridApi.value.getDisplayedRowAtIndex(r);
       for (let c = startColIdx; c <= endColIdx; c++) {
@@ -632,11 +596,13 @@ const handleGlobalPaste = async (event) => {
   }
 }
 
+// 🟢 恢复：键盘删除 (Delete) 和 复制 (Ctrl+C)
 const onCellKeyDown = async (e) => {
   const event = e.event
   const key = event.key
   if (!gridApi.value) return
   
+  // 1. 处理 Delete / Backspace 删除选中内容
   if (key === 'Delete' || key === 'Backspace') {
     if (rangeSelection.active) {
       const startIdx = getColIndex(rangeSelection.startColId)
@@ -671,6 +637,7 @@ const onCellKeyDown = async (e) => {
     return
   }
 
+  // 2. 处理 Ctrl+C 复制选中内容
   if ((event.ctrlKey || event.metaKey) && key === 'c') {
     const focusedCell = gridApi.value.getFocusedCell()
     const isRangeActive = rangeSelection.active
@@ -761,35 +728,58 @@ defineExpose({ loadData })
 .custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }
 
 .cell-locked-pattern {
-  background-image: linear-gradient(45deg, #f0f0f0 25%, #fafafa 25%, #fafafa 50%, #f0f0f0 50%, #f0f0f0 75%, #fafafa 75%, #fafafa 100%);
-  background-size: 10px 10px;
-  color: #909399;
+  background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px);
+  color: #a8abb2;
+  cursor: not-allowed;
+}
+.row-locked-bg {
+  background-color: #fafafa !important; 
 }
 
+/* 🟢 自定义表头样式 (Flex布局) */
 .custom-header-wrapper {
   display: flex;
   align-items: center;
   width: 100%;
+  height: 100%;
   justify-content: space-between;
 }
-.custom-header-label {
-  cursor: pointer;
+.custom-header-main {
+  display: flex;
+  align-items: center;
   flex: 1;
+  overflow: hidden;
+  cursor: pointer;
+  padding-right: 8px;
+}
+.custom-header-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
-.custom-header-lock {
-  cursor: pointer;
-  margin-left: 4px;
+.custom-header-tools {
   display: flex;
   align-items: center;
+  gap: 2px;
 }
-.header-unlock-icon {
+.custom-header-icon {
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.custom-header-icon:hover {
+  background-color: #e6e8eb;
+}
+.header-unlock-icon, .menu-btn {
   opacity: 0;
   transition: opacity 0.2s;
 }
-.custom-header-wrapper:hover .header-unlock-icon {
+.custom-header-wrapper:hover .header-unlock-icon,
+.custom-header-wrapper:hover .menu-btn {
   opacity: 1;
 }
 .unlock-icon-hover {
@@ -798,5 +788,9 @@ defineExpose({ loadData })
 }
 .lock-action-cell:hover .unlock-icon-hover {
   opacity: 1;
+}
+/* 确保锁单元格点击时有反馈 */
+.lock-action-cell:active {
+  transform: scale(0.95);
 }
 </style>
