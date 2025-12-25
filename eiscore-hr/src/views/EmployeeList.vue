@@ -4,6 +4,7 @@
       
       <eis-data-grid
         ref="gridRef"
+        view-id="employee_list"
         api-url="/archives"
         :static-columns="staticColumns"
         :extra-columns="extraColumns"

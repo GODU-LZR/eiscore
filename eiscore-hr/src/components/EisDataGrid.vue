@@ -57,6 +57,7 @@
         :enterNavigatesVerticallyAfterEdit="true"
         :suppressRowHoverHighlight="true"
         :enableRangeSelection="false"
+        :preventDefaultOnContextMenu="true" 
         
         @grid-ready="onGridReady"
         @cell-value-changed="onCellValueChanged"
@@ -65,19 +66,63 @@
         
         @cell-mouse-down="onCellMouseDown"
         @cell-mouse-over="onCellMouseOver"
-        @cell-context-menu="onCellContextMenu"
+        @cell-double-clicked="onCellDoubleClicked"
       >
       </ag-grid-vue>
+
+      <el-dialog
+        v-model="configDialog.visible"
+        :title="configDialog.title"
+        width="360px"
+        align-center
+        destroy-on-close
+        append-to-body
+      >
+        <div class="config-dialog-content">
+          <template v-if="configDialog.type === 'data'">
+            <p class="dialog-tip">请选择该列的统计方式：</p>
+            <el-radio-group v-model="configDialog.tempValue" class="agg-radio-group">
+              <el-radio 
+                v-for="opt in aggOptions" 
+                :key="opt.value" 
+                :value="opt.value" 
+                border
+              >
+                {{ opt.label }}
+              </el-radio>
+            </el-radio-group>
+          </template>
+
+          <template v-else-if="configDialog.type === 'label'">
+            <p class="dialog-tip">自定义底部合计行的名称：</p>
+            <el-input 
+              v-model="configDialog.tempValue" 
+              placeholder="例如：本月总计" 
+              clearable 
+              @keyup.enter="saveConfig"
+            />
+          </template>
+        </div>
+        
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="configDialog.visible = false">取消</el-button>
+            <el-button type="primary" :loading="isSavingConfig" @click="saveConfig">
+              保存配置
+            </el-button>
+          </span>
+        </template>
+      </el-dialog>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, shallowRef, computed, watch, reactive, onMounted, onUnmounted, defineComponent, h, markRaw } from 'vue'
+import { ref, shallowRef, computed, watch, reactive, onMounted, onUnmounted, defineComponent, h, markRaw, nextTick } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import request from '@/utils/request'
-import { ElMessage, ElMessageBox, ElTooltip, ElIcon } from 'element-plus'
-import { Lock, Unlock, Search, Delete, Download, Filter, SortUp, SortDown, Sort, CirclePlus, CircleCheck } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElTooltip, ElIcon, ElDialog, ElRadioGroup, ElRadio, ElInput, ElButton } from 'element-plus'
+import { Lock, Unlock, Search, Delete, Download, Filter, SortUp, SortDown, Sort, CirclePlus, CircleCheck, Check, Edit } from '@element-plus/icons-vue'
 import { buildSearchQuery } from '@/utils/grid-query'
 import { debounce } from 'lodash'
 import { useUserStore } from '@/stores/user' 
@@ -98,7 +143,7 @@ const StatusRenderer = defineComponent({
       'created': { label: '创建', icon: CirclePlus, color: '#409EFF' },
       'active': { label: '生效', icon: CircleCheck, color: '#67C23A' },
       'locked': { label: '锁定', icon: Lock, color: '#F56C6C' },
-      'total': { label: '合计', icon: null, color: '#303133' }
+      'total': { icon: null, color: 'var(--el-color-primary)', fontWeight: 'bold' }
     }
     
     const currStatus = computed(() => {
@@ -108,12 +153,20 @@ const StatusRenderer = defineComponent({
       return data?.properties?.status || 'created'
     })
     
-    const info = computed(() => statusMap[currStatus.value] || statusMap['created'])
+    const info = computed(() => {
+      const base = statusMap[currStatus.value] || statusMap['created']
+      if (currStatus.value === 'total') {
+        return { ...base, label: props.params.value }
+      }
+      return base
+    })
 
     return () => h('div', { 
       style: { 
         display: 'flex', alignItems: 'center', gap: '6px', height: '100%', 
-        color: info.value.color, fontWeight: currStatus.value === 'total' ? 'bold' : '500', fontSize: '13px',
+        color: info.value.color, 
+        fontWeight: info.value.fontWeight || '500', 
+        fontSize: '13px',
         width: '100%', paddingLeft: '4px',
         pointerEvents: 'none'
       } 
@@ -231,16 +284,48 @@ const AG_GRID_LOCALE_CN = {
 
 const props = defineProps({
   apiUrl: { type: String, required: true },
+  viewId: { type: String, required: false, default: null },
   staticColumns: { type: Array, default: () => [] },
-  extraColumns: { type: Array, default: () => [] }
+  extraColumns: { type: Array, default: () => [] },
+  summary: { type: Object, default: () => ({ label: '合计', rules: {} }) }
 })
 
 const userStore = useUserStore()
 const currentUser = computed(() => userStore.userInfo?.username || 'Admin')
+const isAdmin = computed(() => currentUser.value === 'Admin') 
 
 const gridApi = ref(null)
 const gridData = shallowRef([])
 const pinnedBottomRowData = ref([])
+
+const activeSummaryConfig = reactive({
+  label: '合计',
+  rules: {},
+  ...props.summary
+})
+
+// 弹窗状态管理
+const configDialog = reactive({
+  visible: false,
+  title: '',
+  type: null, 
+  colId: null,
+  tempValue: '' 
+})
+const isSavingConfig = ref(false)
+
+const aggOptions = [
+  { label: '求和 (Sum)', value: 'sum' },
+  { label: '计数 (Count)', value: 'count' },
+  { label: '平均 (Avg)', value: 'avg' },
+  { label: '最大 (Max)', value: 'max' },
+  { label: '最小 (Min)', value: 'min' },
+  { label: '不显示', value: '' }
+]
+
+watch(() => props.summary, (newVal) => {
+  Object.assign(activeSummaryConfig, newVal)
+}, { deep: true })
 
 const searchText = ref('')
 const isLoading = ref(false)
@@ -301,10 +386,17 @@ const cellClassRules = {
   'cell-locked-pattern': (params) => isCellReadOnly(params),
   'status-cell': (params) => params.colDef.field === '_status'
 }
+
 const getCellStyle = (params) => {
   const baseStyle = { 'line-height': '34px' }
   if (params.node.rowPinned) {
-    return { ...baseStyle, backgroundColor: '#f8f9fa', fontWeight: 'bold', color: '#606266' }
+    return { 
+      ...baseStyle, 
+      backgroundColor: 'var(--el-color-primary-light-9)', 
+      color: 'var(--el-color-primary)', 
+      fontWeight: 'bold',
+      borderTop: '2px solid var(--el-color-primary-light-5)' 
+    }
   }
   if (params.colDef.field === '_status') {
     return { ...baseStyle, cursor: 'pointer' }
@@ -351,7 +443,6 @@ const gridColumns = computed(() => {
     resizable: false,
     sortable: false,
     filter: false,
-    suppressMenu: true,
     suppressHeaderMenuButton: true,
     cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }
   }
@@ -366,13 +457,13 @@ const gridColumns = computed(() => {
     sortable: false,
     resizable: false,
     suppressHeaderMenuButton: false,
-    editable: true,
+    editable: (params) => !params.node.rowPinned,
     cellRenderer: 'StatusRenderer',
     cellEditor: 'StatusEditor',
     cellEditorPopup: true,
     cellEditorPopupPosition: 'under',
     valueGetter: (params) => {
-      if (params.node.rowPinned) return '合计'
+      if (params.node.rowPinned) return activeSummaryConfig.label
       if (params.data.properties?.row_locked_by) return 'locked'
       return params.data.properties?.status || 'created'
     },
@@ -475,7 +566,7 @@ const autoScroll = () => {
 }
 
 const onCellMouseDown = (params) => {
-  if (params.event.button !== 0) return 
+  if (params.event.button === 2) return 
 
   if (params.colDef.field === '_status') {
     const editingCells = gridApi.value.getEditingCells()
@@ -492,9 +583,6 @@ const onCellMouseDown = (params) => {
   isDragging.value = true
   autoScroll()
   
-  // 🟢 核心修复：移除对只读单元格的拦截，允许选择只读单元格
-  // if (isCellReadOnly(params) && params.colDef.field !== '_status') return 
-
   rangeSelection.startRowIndex = params.node.rowIndex
   rangeSelection.startColId = params.column.colId
   rangeSelection.endRowIndex = params.node.rowIndex
@@ -510,15 +598,102 @@ const onCellMouseOver = (params) => {
     rangeSelection.endRowIndex = params.node.rowIndex
     rangeSelection.endColId = params.column.colId
     gridApi.value.refreshCells({ force: false }) 
-    
-    // 自动滚动视口
     gridApi.value.ensureIndexVisible(params.node.rowIndex)
     gridApi.value.ensureColumnVisible(params.column)
   }
 }
 
 const onGridMouseLeave = () => { }
-const onCellContextMenu = () => { isDragging.value = false }
+
+const onCellContextMenu = (params) => {
+  params.event.preventDefault() 
+}
+
+const onCellDoubleClicked = (params) => {
+  if (params.node.rowPinned !== 'bottom') return
+
+  if (!isAdmin.value) {
+    ElMessage.warning('只有管理员可以配置合计规则')
+    return
+  }
+
+  const colId = params.column.colId
+  const colName = params.colDef.headerName
+
+  if (colId === '_status' || colId === 'rowCheckbox') {
+    configDialog.type = 'label'
+    configDialog.title = '重命名合计'
+    configDialog.tempValue = activeSummaryConfig.label
+    configDialog.visible = true
+  } 
+  else {
+    configDialog.type = 'data'
+    configDialog.title = `列统计方式: ${colName}`
+    const field = params.colDef.field.replace('properties.', '')
+    configDialog.colId = field
+    configDialog.tempValue = activeSummaryConfig.rules[field] || ''
+    configDialog.visible = true
+  }
+}
+
+const loadGridConfig = async () => {
+  if (!props.viewId) return
+  try {
+    const res = await request({
+      url: `/sys_grid_configs?view_id=eq.${props.viewId}`,
+      method: 'get'
+    })
+    if (res && res.length > 0) {
+      const remoteConfig = res[0].summary_config
+      if (remoteConfig) {
+        Object.assign(activeSummaryConfig, remoteConfig)
+        pinnedBottomRowData.value = calculateTotals(gridData.value)
+      }
+    }
+  } catch(e) {
+    console.warn('Failed to load grid config', e)
+  }
+}
+
+const saveConfig = async () => {
+  if (configDialog.type === 'label') {
+    if (configDialog.tempValue) {
+      activeSummaryConfig.label = configDialog.tempValue
+    }
+  } else {
+    if (configDialog.tempValue === '') {
+      delete activeSummaryConfig.rules[configDialog.colId]
+    } else {
+      activeSummaryConfig.rules[configDialog.colId] = configDialog.tempValue
+    }
+    pinnedBottomRowData.value = calculateTotals(gridData.value)
+  }
+  
+  gridApi.value.refreshCells({ rowNodes: [gridApi.value.getPinnedBottomRow(0)], force: true })
+  configDialog.visible = false
+
+  if (props.viewId) {
+    isSavingConfig.value = true
+    try {
+      await request({
+        url: '/sys_grid_configs',
+        method: 'post',
+        headers: { 'Prefer': 'resolution=merge-duplicates' }, 
+        data: {
+          view_id: props.viewId,
+          summary_config: activeSummaryConfig,
+          updated_by: currentUser.value
+        }
+      })
+      ElMessage.success('配置已保存')
+    } catch(e) {
+      console.error(e)
+      ElMessage.error('配置保存失败')
+    } finally {
+      isSavingConfig.value = false
+    }
+  }
+}
 
 watch(isLoading, (val) => {
   if (!gridApi.value) return
@@ -527,27 +702,51 @@ watch(isLoading, (val) => {
 
 const calculateTotals = (data) => {
   if (!data || data.length === 0) return []
-  const totalRow = { id: 'bottom_total', _status: '合计', properties: {} }
+  
+  const totalRow = {
+    id: 'bottom_total',
+    _status: activeSummaryConfig.label, 
+    properties: {}
+  }
+
   const columns = [...props.staticColumns, ...props.extraColumns]
+  
   columns.forEach(col => {
-    const field = col.prop || `properties.${col.prop}`
-    const isNumber = data.some(row => {
-      const val = field.includes('.') ? row.properties?.[col.prop] : row[col.prop]
-      return val !== null && val !== '' && !isNaN(Number(val))
-    })
-    if (isNumber) {
-      const sum = data.reduce((acc, row) => {
-        const val = field.includes('.') ? row.properties?.[col.prop] : row[col.prop]
-        const num = Number(val)
-        return acc + (isNaN(num) ? 0 : num)
-      }, 0)
-      if (field.includes('.')) totalRow.properties[col.prop] = Number(sum.toFixed(2))
-      else totalRow[col.prop] = Number(sum.toFixed(2))
-    } else {
-      if (field.includes('.')) totalRow.properties[col.prop] = ''
-      else totalRow[col.prop] = ''
+    const isProp = !props.staticColumns.find(c => c.prop === col.prop)
+    const values = data.map(row => {
+      const v = isProp ? row.properties?.[col.prop] : row[col.prop]
+      return (v === null || v === undefined || v === '') ? null : v
+    }).filter(v => v !== null)
+
+    let rule = activeSummaryConfig.rules[col.prop]
+    
+    if (!rule) {
+      const isAllNumbers = values.length > 0 && values.every(v => !isNaN(Number(v)))
+      if (isAllNumbers) rule = 'sum'
     }
+
+    let result = ''
+    if (values.length > 0 && rule) {
+      const numbers = values.map(Number)
+      const validNumbers = numbers.filter(n => !isNaN(n))
+      
+      switch (rule) {
+        case 'sum': result = validNumbers.reduce((a, b) => a + b, 0); break
+        case 'avg': if (validNumbers.length) result = validNumbers.reduce((a, b) => a + b, 0) / validNumbers.length; break
+        case 'count': result = values.length; break
+        case 'max': if (validNumbers.length) result = Math.max(...validNumbers); break
+        case 'min': if (validNumbers.length) result = Math.min(...validNumbers); break
+      }
+    }
+
+    if (typeof result === 'number') {
+      result = Number(result.toFixed(2))
+    }
+
+    if (isProp) totalRow.properties[col.prop] = result
+    else totalRow[col.prop] = result
   })
+
   return [totalRow]
 }
 
@@ -560,6 +759,12 @@ onMounted(() => {
   document.addEventListener('mousemove', onGlobalMouseMove) 
   document.addEventListener('paste', handleGlobalPaste)
 })
+
+const onGridReady = (params) => { 
+  gridApi.value = params.api; 
+  loadData();
+  loadGridConfig();
+}
 
 onUnmounted(() => { 
   if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf)
@@ -893,7 +1098,6 @@ const onSelectionChanged = () => {
 }
 const exportData = () => { gridApi.value.exportDataAsCsv({ fileName: '导出数据.csv' }) }
 const onSearch = debounce(() => loadData(), 300)
-const onGridReady = (params) => { gridApi.value = params.api; loadData() }
 watch(() => props.extraColumns, () => {}, { deep: true })
 defineExpose({ loadData })
 </script>
@@ -906,6 +1110,18 @@ defineExpose({ loadData })
 .tip-text { margin-left: 12px; font-size: 12px; color: #909399; font-family: monospace; }
 .toolbar-actions { display: flex; gap: 12px; }
 .grid-container { flex: 1; width: 100%; padding: 0; }
+
+.dialog-tip {
+  margin-bottom: 12px;
+  color: #606266;
+  font-size: 14px;
+}
+.agg-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
 </style>
 
 <style lang="scss">

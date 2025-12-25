@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Clv8Fi3wCgArKAkbsP0yk5qDdwwp0X2TvwiZC4xTeo3xOWza8HdbrW76QTIcWIF
+\restrict CvA3lpoQyvTyK8fDKCMOHFE6pSD46hG6bP7OVy0Whmrrb9R6K7gC5BNLbjs5KLe
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -131,6 +131,22 @@ $$;
 
 
 ALTER FUNCTION public.sign(payload json, secret text, algorithm text) OWNER TO postgres;
+
+--
+-- Name: update_modified_column(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.update_modified_column() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION public.update_modified_column() OWNER TO postgres;
 
 --
 -- Name: url_encode(bytea); Type: FUNCTION; Schema: public; Owner: postgres
@@ -332,6 +348,20 @@ ALTER SEQUENCE public.raw_materials_id_seq OWNER TO postgres;
 
 ALTER SEQUENCE public.raw_materials_id_seq OWNED BY public.raw_materials.id;
 
+
+--
+-- Name: sys_grid_configs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.sys_grid_configs (
+    view_id text NOT NULL,
+    summary_config jsonb,
+    updated_by text,
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.sys_grid_configs OWNER TO postgres;
 
 --
 -- Name: system_configs; Type: TABLE; Schema: public; Owner: postgres
@@ -573,6 +603,14 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 
 
 --
+-- Data for Name: sys_grid_configs; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.sys_grid_configs (view_id, summary_config, updated_by, updated_at) FROM stdin;
+\.
+
+
+--
 -- Data for Name: system_configs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -675,6 +713,14 @@ ALTER TABLE ONLY public.raw_materials
 
 
 --
+-- Name: sys_grid_configs sys_grid_configs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.sys_grid_configs
+    ADD CONSTRAINT sys_grid_configs_pkey PRIMARY KEY (view_id);
+
+
+--
 -- Name: system_configs system_configs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -699,11 +745,39 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: sys_grid_configs update_sys_grid_configs_modtime; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER update_sys_grid_configs_modtime BEFORE UPDATE ON public.sys_grid_configs FOR EACH ROW EXECUTE FUNCTION public.update_modified_column();
+
+
+--
 -- Name: payroll payroll_archive_id_fkey; Type: FK CONSTRAINT; Schema: hr; Owner: postgres
 --
 
 ALTER TABLE ONLY hr.payroll
     ADD CONSTRAINT payroll_archive_id_fkey FOREIGN KEY (archive_id) REFERENCES hr.archives(id);
+
+
+--
+-- Name: sys_grid_configs Enable all access for web_user; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Enable all access for web_user" ON public.sys_grid_configs TO web_user USING (true) WITH CHECK (true);
+
+
+--
+-- Name: sys_grid_configs Enable insert/update for all users; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Enable insert/update for all users" ON public.sys_grid_configs USING (true) WITH CHECK (true);
+
+
+--
+-- Name: sys_grid_configs Enable read access for all users; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Enable read access for all users" ON public.sys_grid_configs FOR SELECT USING (true);
 
 
 --
@@ -718,6 +792,12 @@ CREATE POLICY "Users can only see their own data" ON public.raw_materials FOR SE
 --
 
 ALTER TABLE public.raw_materials ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: sys_grid_configs; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.sys_grid_configs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: SCHEMA hr; Type: ACL; Schema: -; Owner: postgres
@@ -814,6 +894,14 @@ GRANT SELECT,USAGE ON SEQUENCE public.raw_materials_id_seq TO web_user;
 
 
 --
+-- Name: TABLE sys_grid_configs; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.sys_grid_configs TO web_user;
+GRANT SELECT ON TABLE public.sys_grid_configs TO web_anon;
+
+
+--
 -- Name: TABLE system_configs; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -838,5 +926,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Clv8Fi3wCgArKAkbsP0yk5qDdwwp0X2TvwiZC4xTeo3xOWza8HdbrW76QTIcWIF
+\unrestrict CvA3lpoQyvTyK8fDKCMOHFE6pSD46hG6bP7OVy0Whmrrb9R6K7gC5BNLbjs5KLe
 
