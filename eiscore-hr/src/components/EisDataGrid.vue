@@ -69,7 +69,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, reactive, onMounted, onUnmounted, defineComponent, h } from 'vue'
+import { ref, computed, watch, reactive, onMounted, onUnmounted, defineComponent, h, markRaw } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox, ElTooltip, ElIcon } from 'element-plus'
@@ -95,8 +95,10 @@ const LockActionRenderer = defineComponent({
     
     const onClick = (e) => {
       e.stopPropagation() 
-      // 通过 context 调用父组件方法
-      props.params.context.componentParent.toggleRowLock(props.params.data)
+      const handler = props.params?.context?.componentParent?.toggleRowLock || props.params?.onClickLock
+      if (handler) {
+        handler(props.params.data)
+      }
     }
 
     return () => h('div', { 
@@ -121,7 +123,10 @@ const LockHeader = defineComponent({
     const lockInfo = computed(() => gridComp.columnLockState[colId])
     const isLocked = computed(() => !!lockInfo.value)
     
-    const sortState = ref(null) 
+    const sortState = ref(props.params.column.getSort())
+    const onSortChanged = () => {
+      sortState.value = props.params.column.getSort()
+    }
     const onLabelClick = () => {
       props.params.progressSort()
     }
@@ -131,8 +136,30 @@ const LockHeader = defineComponent({
       gridComp.toggleColumnLock(colId)
     }
 
+    const onMenuClick = (e) => {
+      e.stopPropagation()
+      if (props.params.showColumnMenu) {
+        props.params.showColumnMenu(e.currentTarget)
+      }
+    }
+
+    onMounted(() => {
+      props.params.column.addEventListener('sortChanged', onSortChanged)
+    })
+    onUnmounted(() => {
+      props.params.column.removeEventListener('sortChanged', onSortChanged)
+    })
+
     return () => h('div', { class: 'custom-header-wrapper' }, [
       h('span', { class: 'custom-header-label', onClick: onLabelClick }, props.params.displayName),
+      h('span', { class: 'custom-header-icons' }, [
+        h('span', { class: 'ag-header-icon ag-header-cell-menu-button', onClick: onMenuClick }, [
+          h('span', { class: 'ag-icon ag-icon-menu' })
+        ]),
+        h('span', { class: 'ag-header-icon ag-sort-indicator-icon' }, [
+          h('span', { class: `ag-icon ag-icon-${sortState.value || 'none'}` })
+        ])
+      ]),
       h('span', { class: 'custom-header-lock', onClick: onLockClick }, [
         isLocked.value
           ? h(ElTooltip, { content: `该列被 [${lockInfo.value}] 锁定`, placement: 'top' }, { default: () => h(ElIcon, { color: '#F56C6C' }, { default: () => h(Lock) }) })
@@ -244,7 +271,7 @@ const handleToggleRowLock = async (rowData) => {
   
   const rowNode = gridApi.value.getRowNode(String(rowData.id))
   if (rowNode) {
-    gridApi.value.redrawRows({ rowNodes: [rowNode] })
+    gridApi.value.refreshCells({ rowNodes: [rowNode], force: true })
   }
 
   try {
@@ -259,7 +286,7 @@ const handleToggleRowLock = async (rowData) => {
   } catch (e) {
     ElMessage.error('锁定操作失败')
     rowData.properties.row_locked_by = isLocked ? currentUser.value : null
-    if (rowNode) gridApi.value.redrawRows({ rowNodes: [rowNode] })
+    if (rowNode) gridApi.value.refreshCells({ rowNodes: [rowNode], force: true })
   }
 }
 
@@ -271,17 +298,17 @@ const handleToggleColumnLock = (colId) => {
     columnLockState[colId] = currentUser.value
     ElMessage.success('列已锁定')
   }
-  gridApi.value.redrawRows()
+  gridApi.value.refreshCells({ force: true })
 }
 
 // 🟢 关键：Context 对象，必须传给 Ag-Grid
-const context = {
+const context = markRaw({
   componentParent: {
     toggleRowLock: handleToggleRowLock,
     toggleColumnLock: handleToggleColumnLock,
     columnLockState 
   }
-}
+})
 
 const gridColumns = computed(() => {
   const actionCol = {
@@ -294,6 +321,9 @@ const gridColumns = computed(() => {
     resizable: false,
     editable: false,
     cellRenderer: LockActionRenderer,
+    cellRendererParams: {
+      onClickLock: handleToggleRowLock
+    },
     cellStyle: { 'display': 'flex', 'justify-content': 'center', 'align-items': 'center', 'padding': 0 }
   }
 
