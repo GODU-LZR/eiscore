@@ -94,17 +94,11 @@
                 <p class="dialog-tip">
                   <b>变量取值规则：</b><br>
                   <span style="font-size: 12px; color: #909399;">
-                    定义该列在公式中的基础值（例如"{姓名}"代表姓名的计数）。<br>
-                    默认"不显示"，即该列仅作为变量参与计算，不直接显示在底部。
+                    定义该列在公式中的基础值。默认"不显示"。
                   </span>
                 </p>
                 <el-radio-group v-model="configDialog.tempValue" class="agg-radio-group">
-                  <el-radio 
-                    v-for="opt in aggOptions" 
-                    :key="opt.value" 
-                    :value="opt.value" 
-                    border
-                  >
+                  <el-radio v-for="opt in aggOptions" :key="opt.value" :value="opt.value" border>
                     {{ opt.label }}
                   </el-radio>
                 </el-radio-group>
@@ -112,27 +106,18 @@
 
               <el-tab-pane label="高级公式" name="formula">
                 <p class="dialog-tip">
-                  <b>列间运算公式：</b> (优先显示公式结果)<br>
+                  <b>列间运算公式：</b><br>
                   <span style="font-size: 12px; color: #909399;">例如: <code>{基本工资} + {岗位津贴}</code></span>
                 </p>
-                
                 <el-input 
                   v-model="configDialog.expression" 
-                  type="textarea" 
-                  :rows="3"
+                  type="textarea" :rows="3"
                   placeholder="在此输入公式..."
                 />
-                
                 <div class="variable-tags">
                   <span class="tag-label">点击插入变量:</span>
                   <div class="tags-container">
-                    <el-tag 
-                      v-for="col in availableColumns" 
-                      :key="col.prop" 
-                      size="small" 
-                      class="variable-tag"
-                      @click="insertVariable(col.label)"
-                    >
+                    <el-tag v-for="col in availableColumns" :key="col.prop" size="small" class="variable-tag" @click="insertVariable(col.label)">
                       {{ col.label }}
                     </el-tag>
                   </div>
@@ -143,21 +128,13 @@
 
           <template v-else-if="configDialog.type === 'label'">
             <p class="dialog-tip">自定义底部合计行的名称：</p>
-            <el-input 
-              v-model="configDialog.tempValue" 
-              placeholder="例如：本月总计" 
-              clearable 
-              @keyup.enter="saveConfig"
-            />
+            <el-input v-model="configDialog.tempValue" placeholder="例如：本月总计" clearable @keyup.enter="saveConfig"/>
           </template>
         </div>
-        
         <template #footer>
           <span class="dialog-footer">
             <el-button @click="configDialog.visible = false">取消</el-button>
-            <el-button type="primary" :loading="isSavingConfig" @click="saveConfig">
-              保存配置
-            </el-button>
+            <el-button type="primary" :loading="isSavingConfig" @click="saveConfig">保存配置</el-button>
           </span>
         </template>
       </el-dialog>
@@ -181,7 +158,7 @@ ModuleRegistry.registerModules([ AllCommunityModule ]);
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
 
-// --- 🟢 自定义组件定义区 ---
+// --- 🟢 自定义组件定义区 (StatusRenderer 修复版) ---
 
 const StatusRenderer = defineComponent({
   props: ['params'],
@@ -192,34 +169,25 @@ const StatusRenderer = defineComponent({
       'locked': { label: '锁定', icon: Lock, color: '#F56C6C' },
       'total': { icon: null, color: 'var(--el-color-primary)', fontWeight: 'bold' }
     }
-    
     const currStatus = computed(() => {
       if (props.params.node.rowPinned === 'bottom') return 'total'
       const data = props.params.data
       if (data?.properties?.row_locked_by) return 'locked'
       return data?.properties?.status || 'created'
     })
+    const info = computed(() => statusMap[currStatus.value] || statusMap['created'])
     
-    const info = computed(() => {
-      const base = statusMap[currStatus.value] || statusMap['created']
-      if (currStatus.value === 'total') {
-        return { ...base, label: props.params.value }
-      }
-      return base
+    // 🟢 修复核心：如果不是合计行，优先显示 statusMap 中的 label (中文)，而非 params.value (英文)
+    const displayText = computed(() => {
+        if (currStatus.value === 'total') return props.params.value // 合计行显示 "合计"
+        return info.value.label // 数据行显示 "创建/生效"
     })
 
     return () => h('div', { 
-      style: { 
-        display: 'flex', alignItems: 'center', gap: '6px', height: '100%', 
-        color: info.value.color, 
-        fontWeight: info.value.fontWeight || '500', 
-        fontSize: '13px',
-        width: '100%', paddingLeft: '4px',
-        pointerEvents: 'none'
-      } 
+      style: { display: 'flex', alignItems: 'center', gap: '6px', color: info.value.color, fontSize: '13px', fontWeight: info.value.fontWeight || 'normal' } 
     }, [
       info.value.icon ? h(ElIcon, { size: 14 }, { default: () => h(info.value.icon) }) : null,
-      h('span', info.value.label)
+      h('span', displayText.value)
     ])
   }
 })
@@ -228,36 +196,21 @@ const StatusEditor = defineComponent({
   props: ['params'],
   setup(props, { expose }) {
     const selectedValue = ref(props.params.value)
-    const cellWidth = props.params.column.getActualWidth() + 'px'
-
     const options = [
       { value: 'created', label: '创建', color: '#409EFF', icon: CirclePlus },
       { value: 'active', label: '生效', color: '#67C23A', icon: CircleCheck },
       { value: 'locked', label: '锁定', color: '#F56C6C', icon: Lock }
     ]
-
-    const onSelect = (val) => {
-      selectedValue.value = val
-      props.params.stopEditing() 
-    }
-
-    const getValue = () => selectedValue.value
-    expose({ getValue })
-
-    return () => h('div', { 
-      class: 'status-editor-popup',
-      style: { width: cellWidth } 
-    }, [
-      options.map(opt => 
-        h('div', {
+    const onSelect = (val) => { selectedValue.value = val; props.params.stopEditing() }
+    expose({ getValue: () => selectedValue.value })
+    return () => h('div', { class: 'status-editor-popup' }, [
+      options.map(opt => h('div', {
           class: ['status-editor-item', { 'is-selected': opt.value === selectedValue.value }],
           onClick: () => onSelect(opt.value)
         }, [
-          h(ElIcon, { color: opt.color, size: 16 }, { default: () => h(opt.icon) }),
-          h('span', { class: 'status-label' }, opt.label),
-          opt.value === selectedValue.value ? h('div', { class: 'status-check-mark' }) : null
-        ])
-      )
+          h(ElIcon, { color: opt.color }, { default: () => h(opt.icon) }),
+          h('span', { class: 'status-label' }, opt.label)
+        ]))
     ])
   }
 })
@@ -267,44 +220,26 @@ const LockHeader = defineComponent({
   setup(props) {
     const colId = props.params.column.colId
     const gridComp = props.params.context.componentParent
-    const lockInfo = computed(() => gridComp.columnLockState[colId])
-    const isLocked = computed(() => !!lockInfo.value)
-    
-    const showMenu = computed(() => {
-      return props.params.enableMenu || props.params.column.isFilterAllowed()
-    })
-
+    const isLocked = computed(() => !!gridComp.columnLockState[colId])
     const sortState = ref(null) 
     const onSortChanged = () => {
       if (props.params.column.isSortAscending()) sortState.value = 'asc'
       else if (props.params.column.isSortDescending()) sortState.value = 'desc'
       else sortState.value = null
     }
-    
     props.params.column.addEventListener('sortChanged', onSortChanged)
     onSortChanged()
-
-    const onLabelClick = (e) => props.params.progressSort(e.shiftKey)
-    const onMenuClick = (e) => { e.stopPropagation(); props.params.showColumnMenu(e.target) }
-    const onLockClick = (e) => { e.stopPropagation(); gridComp.toggleColumnLock(colId) }
-
     return () => h('div', { class: 'custom-header-wrapper' }, [
-      h('div', { class: 'custom-header-main', onClick: onLabelClick }, [
-        h('span', { class: 'custom-header-label' }, props.params.displayName),
-        sortState.value === 'asc' ? h(ElIcon, { size: 12, color: '#409EFF', style: 'margin-left:4px' }, { default: () => h(SortUp) }) : null,
-        sortState.value === 'desc' ? h(ElIcon, { size: 12, color: '#409EFF', style: 'margin-left:4px' }, { default: () => h(SortDown) }) : null,
+      h('div', { class: 'custom-header-main', onClick: (e) => props.params.progressSort(e.shiftKey) }, [
+        h('span', props.params.displayName),
+        sortState.value === 'asc' ? h(ElIcon, { size: 12 }, { default: () => h(SortUp) }) : null,
+        sortState.value === 'desc' ? h(ElIcon, { size: 12 }, { default: () => h(SortDown) }) : null,
       ]),
       h('div', { class: 'custom-header-tools' }, [
-        h('span', { class: 'custom-header-icon lock-btn', onClick: onLockClick }, [
-          isLocked.value
-            ? h(ElTooltip, { content: `列锁定: ${lockInfo.value}`, placement: 'top' }, { default: () => h(ElIcon, { color: '#F56C6C', size: 14 }, { default: () => h(Lock) }) })
-            : h(ElIcon, { class: 'header-unlock-icon', size: 14, color: '#909399' }, { default: () => h(Unlock) })
+        h('span', { class: 'custom-header-icon', onClick: (e) => { e.stopPropagation(); gridComp.toggleColumnLock(colId) } }, [
+          isLocked.value ? h(ElIcon, { color: '#F56C6C' }, { default: () => h(Lock) }) : h(ElIcon, { class: 'header-unlock-icon' }, { default: () => h(Unlock) })
         ]),
-        showMenu.value
-          ? h('span', { class: 'custom-header-icon menu-btn', onClick: onMenuClick }, [
-              h(ElIcon, { size: 14, color: '#909399' }, { default: () => h(Filter) })
-            ])
-          : null
+        props.params.enableMenu ? h('span', { class: 'custom-header-icon menu-btn', onClick: (e) => { e.stopPropagation(); props.params.showColumnMenu(e.target) } }, [ h(ElIcon, { default: () => h(Filter) }) ]) : null
       ])
     ])
   }
@@ -335,7 +270,7 @@ const props = defineProps({
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) }
 })
 
-// 🟢 定义 Emits，将业务逻辑抛给父组件
+// 🟢 定义事件
 const emit = defineEmits(['create', 'config-columns'])
 
 const userStore = useUserStore()
@@ -346,7 +281,7 @@ const gridApi = ref(null)
 const gridData = shallowRef([])
 const pinnedBottomRowData = ref([])
 
-// 历史记录管理器
+// 🟢 批量撤销状态管理
 const history = reactive({
   undoStack: [],
   redoStack: []
@@ -372,12 +307,8 @@ const configDialog = reactive({
 const isSavingConfig = ref(false)
 
 const aggOptions = [
-  { label: '求和 (Sum)', value: 'sum' },
-  { label: '计数 (Count)', value: 'count' },
-  { label: '平均 (Avg)', value: 'avg' },
-  { label: '最大 (Max)', value: 'max' },
-  { label: '最小 (Min)', value: 'min' },
-  { label: '不显示 (仅作变量)', value: 'none' } 
+  { label: '求和', value: 'sum' }, { label: '计数', value: 'count' }, { label: '平均', value: 'avg' },
+  { label: '最大', value: 'max' }, { label: '最小', value: 'min' }, { label: '不显示', value: 'none' } 
 ]
 
 const availableColumns = computed(() => {
@@ -391,6 +322,23 @@ watch(() => props.summary, (newVal) => {
   Object.assign(activeSummaryConfig, newVal)
   if (!activeSummaryConfig.expressions) activeSummaryConfig.expressions = {}
 }, { deep: true, immediate: true })
+
+// 🟢 监听列配置变更（公式修改），强制全表重算
+watch(() => props.extraColumns, async () => {
+  await nextTick()
+  if (!gridApi.value) return
+  
+  let hasGlobalChanges = false
+  gridApi.value.forEachNode(node => {
+     if (calculateRowFormulas(node)) hasGlobalChanges = true
+  })
+
+  if (hasGlobalChanges) {
+    gridApi.value.refreshCells()
+    pinnedBottomRowData.value = calculateTotals(gridData.value)
+    debouncedSave()
+  }
+}, { deep: true })
 
 const searchText = ref('')
 const isLoading = ref(false)
@@ -414,10 +362,11 @@ const isCellReadOnly = (params) => {
   const rowData = params.data
   if (columnLockState[colId]) return true
   if (rowData?.properties?.row_locked_by) return true
+  if (params.colDef.type === 'formula') return true
   return false
 }
 
-// 拦截 Ctrl+Z 和 Ctrl+Y
+// 🟢 拦截默认键盘事件
 const defaultColDef = { 
   sortable: true, filter: true, resizable: true, minWidth: 100, 
   editable: (params) => !isCellReadOnly(params),
@@ -473,6 +422,9 @@ const getCellStyle = (params) => {
   }
   if (params.colDef.field === '_status') {
     return { ...baseStyle, cursor: 'pointer' }
+  }
+  if (params.colDef.type === 'formula') {
+    return { ...baseStyle, backgroundColor: '#fdf6ec', color: '#606266' }
   }
   if (params.colDef.editable === false) return { ...baseStyle, backgroundColor: '#f5f7fa', color: '#909399' }
   return baseStyle
@@ -567,6 +519,7 @@ const gridColumns = computed(() => {
   
   const dynamicCols = props.extraColumns.map(col => ({
     headerName: col.label, field: `properties.${col.prop}`, 
+    type: col.type,
     editable: (params) => !isCellReadOnly(params),
     headerClass: 'dynamic-header', 
     cellStyle: getCellStyle, 
@@ -700,9 +653,9 @@ const onCellDoubleClicked = (params) => {
     configDialog.visible = true
   } 
   else {
-    configDialog.type = 'data'
-    configDialog.title = `统计方式配置: ${colName}`
     const field = params.colDef.field.replace('properties.', '')
+    configDialog.type = 'data'
+    configDialog.title = `统计配置: ${colName}`
     configDialog.colId = field
     
     if (activeSummaryConfig.expressions?.[field]) {
@@ -746,13 +699,16 @@ const loadGridConfig = async () => {
 }
 
 const saveConfig = async () => {
+  // 1. 处理 L3: Label
   if (configDialog.type === 'label') {
     if (configDialog.tempValue) {
       activeSummaryConfig.label = configDialog.tempValue
     }
   } 
+  // 2. 处理 L1/L2: Data Config
   else {
     const field = configDialog.colId
+    
     if (configDialog.tempValue) {
       activeSummaryConfig.rules[field] = configDialog.tempValue
     } else {
@@ -771,6 +727,7 @@ const saveConfig = async () => {
   gridApi.value.refreshCells({ rowNodes: [gridApi.value.getPinnedBottomRow(0)], force: true })
   configDialog.visible = false
 
+  // 3. 持久化
   if (props.viewId) {
     isSavingConfig.value = true
     try {
@@ -802,6 +759,63 @@ watch(isLoading, (val) => {
   gridApi.value.setGridOption('loading', val)
 })
 
+// 🟢 行内公式计算引擎
+const calculateRowFormulas = (rowNode) => {
+  if (!rowNode || !rowNode.data) return false
+  
+  let hasChanges = false
+  const formulaCols = props.extraColumns.filter(c => c.type === 'formula' && c.expression)
+  
+  if (formulaCols.length === 0) return false
+
+  const rowDataMap = {}
+  props.staticColumns.forEach(c => {
+    rowDataMap[c.prop] = rowNode.data[c.prop]
+    rowDataMap[c.label] = rowNode.data[c.prop]
+  })
+  props.extraColumns.forEach(c => {
+    const val = rowNode.data.properties?.[c.prop]
+    rowDataMap[c.prop] = val
+    rowDataMap[c.label] = val
+  })
+
+  formulaCols.forEach(col => {
+    try {
+      const evalExpr = col.expression.replace(/\{(.+?)\}/g, (match, key) => {
+        let val = rowDataMap[key]
+        const num = parseFloat(val)
+        return isNaN(num) ? 0 : num
+      })
+      
+      const result = new Function(`return (${evalExpr})`)()
+      
+      if (result !== undefined && !isNaN(result) && isFinite(result)) {
+        const finalVal = Number(result.toFixed(2))
+        const currentVal = rowNode.data.properties?.[col.prop]
+        
+        if (currentVal !== finalVal) {
+          if (!rowNode.data.properties) rowNode.data.properties = {}
+          rowNode.data.properties[col.prop] = finalVal
+          
+          gridApi.value.refreshCells({ rowNodes: [rowNode], columns: [`properties.${col.prop}`] })
+          
+          hasChanges = true
+          
+          pendingChanges.push({
+            rowNode: rowNode,
+            colDef: { field: `properties.${col.prop}` },
+            newValue: finalVal,
+            oldValue: currentVal
+          })
+        }
+      }
+    } catch (e) { }
+  })
+  
+  return hasChanges
+}
+
+// 🟢 底部合计计算
 const calculateTotals = (data) => {
   if (!data || data.length === 0) return []
   
@@ -981,9 +995,11 @@ const sanitizeValue = (field, value) => {
   return value
 }
 
-// 🟢 核心重构：单个单元格变更处理
+// 🟢 核心：变更处理与历史记录
 const onCellValueChanged = (event) => {
   if (isSystemOperation) {
+    calculateRowFormulas(event.node)
+    pinnedBottomRowData.value = calculateTotals(gridData.value)
     debouncedSave()
     return
   }
@@ -998,6 +1014,7 @@ const onCellValueChanged = (event) => {
     isRemoteUpdating.value = false
   }
 
+  calculateRowFormulas(event.node)
   pinnedBottomRowData.value = calculateTotals(gridData.value)
 
   history.redoStack = [] 
