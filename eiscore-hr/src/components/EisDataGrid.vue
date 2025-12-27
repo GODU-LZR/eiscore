@@ -636,12 +636,15 @@ const onCellDoubleClicked = (params) => {
   }
 }
 
+// 🟢 核心修复：添加 Accept-Profile: public 标头
+// 确保 API 明确在 public schema 中查找表，避免因环境问题误入其他 schema 导致 404
 const loadGridConfig = async () => {
   if (!props.viewId) return
   try {
     const res = await request({
       url: `/sys_grid_configs?view_id=eq.${props.viewId}`,
-      method: 'get'
+      method: 'get',
+      headers: { 'Accept-Profile': 'public' } 
     })
     if (res && res.length > 0) {
       const remoteConfig = res[0].summary_config
@@ -651,7 +654,10 @@ const loadGridConfig = async () => {
       }
     }
   } catch(e) {
-    console.warn('Failed to load grid config', e)
+    // 忽略 404 (说明还没配置过)
+    if (e.response && e.response.status !== 404) {
+      console.warn('Failed to load grid config', e)
+    }
   }
 }
 
@@ -676,9 +682,13 @@ const saveConfig = async () => {
     isSavingConfig.value = true
     try {
       await request({
-        url: '/sys_grid_configs',
+        // 使用 UPSERT 语法
+        url: '/sys_grid_configs?on_conflict=view_id', 
         method: 'post',
-        headers: { 'Prefer': 'resolution=merge-duplicates' }, 
+        headers: { 
+          'Prefer': 'resolution=merge-duplicates',
+          'Content-Profile': 'public' 
+        }, 
         data: {
           view_id: props.viewId,
           summary_config: activeSummaryConfig,

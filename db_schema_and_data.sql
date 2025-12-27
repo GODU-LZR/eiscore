@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict CvA3lpoQyvTyK8fDKCMOHFE6pSD46hG6bP7OVy0Whmrrb9R6K7gC5BNLbjs5KLe
+\restrict y4OZg3Etz6pAkarFAjeK38UXtcT5aCC97OtcT8rEWHheognw5O6ee7oN2qAInGb
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -495,19 +495,6 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 451	新员工	EMP1766677812058	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:12.171562
 452	新员工	EMP1766677812238	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:12.348562
 453	新员工	EMP1766677812422	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:12.528867
-454	新员工	EMP1766677812597	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:12.699215
-455	新员工	EMP1766677812777	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:12.877212
-456	新员工	EMP1766677812941	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:13.035871
-457	新员工	EMP1766677813118	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:13.209608
-458	新员工	EMP1766677813288	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:13.376741
-459	新员工	EMP1766677813464	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:13.549716
-460	新员工	EMP1766677813707	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:13.78613
-461	新员工	EMP1766677813895	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:13.970948
-462	新员工	EMP1766677814028	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:14.098893
-463	新员工	EMP1766677814225	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:14.292152
-464	新员工	EMP1766677814414	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:14.478175
-465	新员工	EMP1766677814608	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:14.66783
-466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:14.805262
 468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:15.1598
 470	新员工	EMP1766677815473	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:15.512386
 471	新员工	EMP1766677815646	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:15.683206
@@ -571,6 +558,19 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 435	新员工	EMP1766677802259	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:02.588336
 436	新员工	EMP1766677802467	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:02.792326
 437	新员工	EMP1766677802583	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:02.905006
+466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:30.99
+465	新员工	EMP1766677814608	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+464	新员工	EMP1766677814414	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+463	新员工	EMP1766677814225	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+462	新员工	EMP1766677814028	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+461	新员工	EMP1766677813895	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+460	新员工	EMP1766677813707	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+459	新员工	EMP1766677813464	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+458	新员工	EMP1766677813288	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+457	新员工	EMP1766677813118	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+456	新员工	EMP1766677812941	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
+455	新员工	EMP1766677812777	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:48.174
+454	新员工	EMP1766677812597	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:48.174
 \.
 
 
@@ -607,6 +607,7 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 --
 
 COPY public.sys_grid_configs (view_id, summary_config, updated_by, updated_at) FROM stdin;
+employee_list	{"label": "员工人数", "rules": {"id": "count"}}	Admin	2025-12-25 18:44:29.890141+00
 \.
 
 
@@ -616,7 +617,7 @@ COPY public.sys_grid_configs (view_id, summary_config, updated_by, updated_at) F
 
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_column_locks	{}	HR表格列锁配置
-hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_9616", "label": "1"}, {"prop": "field_1829", "label": "2"}, {"prop": "field_3001", "label": "3"}, {"prop": "field_9287", "label": "4"}, {"prop": "field_6489", "label": "5"}]	HR花名册的动态列配置
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}]	HR花名册的动态列配置
 \.
 
 
@@ -745,39 +746,11 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: sys_grid_configs update_sys_grid_configs_modtime; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER update_sys_grid_configs_modtime BEFORE UPDATE ON public.sys_grid_configs FOR EACH ROW EXECUTE FUNCTION public.update_modified_column();
-
-
---
 -- Name: payroll payroll_archive_id_fkey; Type: FK CONSTRAINT; Schema: hr; Owner: postgres
 --
 
 ALTER TABLE ONLY hr.payroll
     ADD CONSTRAINT payroll_archive_id_fkey FOREIGN KEY (archive_id) REFERENCES hr.archives(id);
-
-
---
--- Name: sys_grid_configs Enable all access for web_user; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY "Enable all access for web_user" ON public.sys_grid_configs TO web_user USING (true) WITH CHECK (true);
-
-
---
--- Name: sys_grid_configs Enable insert/update for all users; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY "Enable insert/update for all users" ON public.sys_grid_configs USING (true) WITH CHECK (true);
-
-
---
--- Name: sys_grid_configs Enable read access for all users; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY "Enable read access for all users" ON public.sys_grid_configs FOR SELECT USING (true);
 
 
 --
@@ -792,12 +765,6 @@ CREATE POLICY "Users can only see their own data" ON public.raw_materials FOR SE
 --
 
 ALTER TABLE public.raw_materials ENABLE ROW LEVEL SECURITY;
-
---
--- Name: sys_grid_configs; Type: ROW SECURITY; Schema: public; Owner: postgres
---
-
-ALTER TABLE public.sys_grid_configs ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: SCHEMA hr; Type: ACL; Schema: -; Owner: postgres
@@ -926,5 +893,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict CvA3lpoQyvTyK8fDKCMOHFE6pSD46hG6bP7OVy0Whmrrb9R6K7gC5BNLbjs5KLe
+\unrestrict y4OZg3Etz6pAkarFAjeK38UXtcT5aCC97OtcT8rEWHheognw5O6ee7oN2qAInGb
 

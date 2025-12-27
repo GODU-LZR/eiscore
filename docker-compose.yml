@@ -1,6 +1,5 @@
 
 services:
-  # 1. 数据库
   db:
     image: postgres:16
     container_name: eiscore-db
@@ -13,9 +12,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./db_schema_and_data.sql:/docker-entrypoint-initdb.d/init.sql
+      # 🟢 挂载顺序：先创建角色 (00)
+      - ./init_roles.sql:/docker-entrypoint-initdb.d/00_init_roles.sql
+      # 🟢 再导入数据 (01)
+      - ./db_schema_and_data.sql:/docker-entrypoint-initdb.d/01_init_schema.sql
 
-  # 2. API 网关
   api:
     image: postgrest/postgrest
     container_name: eiscore-api
@@ -23,15 +24,12 @@ services:
       - "3000:3000"
     environment:
       PGRST_DB_URI: "postgres://postgres:123456@db:5432/eiscore"
-      # 🟢 关键修改：列出所有需要生成 API 的 Schema
-      # 注意：第一个 (public) 是默认 Schema，不加 header 时访问它
       PGRST_DB_SCHEMAS: "public, hr, scm" 
       PGRST_DB_ANON_ROLE: "web_anon"
       PGRST_JWT_SECRET: "my_super_secret_key_for_eiscore_system_2025"
     depends_on:
        - db
 
-  # 3. Swagger 文档
   swagger:
     image: swaggerapi/swagger-ui
     container_name: eiscore-swagger
@@ -39,14 +37,11 @@ services:
     ports:
       - "8079:8080"
     environment:
-      # 🟢 关键修改 1：告诉 Swagger UI 它被托管在 /doc 路径下
       BASE_URL: /doc
-      # 🟢 关键修改 2：使用相对路径请求 API，完美解决 CORS 和 Fetch Error
       API_URL: /api/
     depends_on:
       - api
 
-  # 4. Nginx 网关
   nginx:
     image: nginx:alpine
     container_name: eiscore-nginx
