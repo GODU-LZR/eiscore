@@ -9,7 +9,41 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
 
   const availableColumns = computed(() => [...props.staticColumns, ...props.extraColumns].map(c => ({ label: c.label, prop: c.prop })))
 
-  // L2: 行内公式
+  // 🟢 新增：加载配置 (Load Config) - 之前丢失的核心逻辑
+  const loadGridConfig = async () => {
+    if (!props.viewId) return
+    try {
+      const res = await request({
+        url: `/sys_grid_configs?view_id=eq.${props.viewId}`,
+        method: 'get',
+        headers: { 'Accept-Profile': 'public' } 
+      })
+      if (res && res.length > 0) {
+        const remoteConfig = res[0].summary_config
+        if (remoteConfig) {
+          // 响应式更新：将后端配置合并到当前配置对象
+          Object.assign(activeSummaryConfig, remoteConfig)
+          // 确保结构完整
+          if (!activeSummaryConfig.expressions) activeSummaryConfig.expressions = {}
+          if (!activeSummaryConfig.rules) activeSummaryConfig.rules = {}
+          
+          // 立即重算合计行
+          pinnedBottomRowData.value = calculateTotals(gridData.value)
+          
+          // 强制刷新 Grid 视图 (特别是合计行)
+          if (gridApi.value) {
+             gridApi.value.refreshCells({ rowNodes: [gridApi.value.getPinnedBottomRow(0)], force: true })
+          }
+        }
+      }
+    } catch(e) {
+      if (e.response && e.response.status !== 404) {
+        console.warn('Failed to load grid config', e)
+      }
+    }
+  }
+
+  // L2: 行内公式计算
   const calculateRowFormulas = (rowNode) => {
     if (!rowNode || !rowNode.data) return false
     const formulaCols = props.extraColumns.filter(c => c.type === 'formula' && c.expression)
@@ -32,10 +66,8 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
           if (currentVal !== finalVal) {
             if (!rowNode.data.properties) rowNode.data.properties = {}
             rowNode.data.properties[col.prop] = finalVal
-            // 更新视图
             gridApi.value.refreshCells({ rowNodes: [rowNode], columns: [`properties.${col.prop}`] })
             hasChanges = true
-            // 通知 History 模块记录变更
             if (hooks.pushPendingChange) {
                 hooks.pushPendingChange({
                     rowNode: rowNode,
@@ -51,14 +83,14 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     return hasChanges
   }
 
-  // L1 & L3: 底部合计
+  // L1 & L3: 底部合计计算
   const calculateTotals = (data) => {
     if (!data || data.length === 0) return []
     const totalRow = { id: 'bottom_total', _status: activeSummaryConfig.label, properties: {} }
     const l1Results = {} 
     const columns = [...props.staticColumns, ...props.extraColumns]
     
-    // L1
+    // Phase 1
     columns.forEach(col => {
       const isProp = !props.staticColumns.find(c => c.prop === col.prop)
       const values = data.map(row => { const v = isProp ? row.properties?.[col.prop] : row[col.prop]; return (v === null || v === undefined || v === '') ? null : v }).filter(v => v !== null)
@@ -83,7 +115,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
       }
     })
 
-    // L2 底部公式
+    // Phase 2
     const valueMap = {}; Object.keys(l1Results).forEach(p => { valueMap[p] = l1Results[p]; const c = columns.find(x => x.prop === p); if(c && c.label) valueMap[c.label] = l1Results[p] })
     columns.forEach(col => {
       const expr = activeSummaryConfig.expressions?.[col.prop]
@@ -98,7 +130,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
       }
     })
     
-    // L3 清理
+    // Phase 3
     columns.forEach(col => {
       const rule = activeSummaryConfig.rules[col.prop]; const hasF = !!activeSummaryConfig.expressions?.[col.prop]
       if ((!rule || rule === 'none') && !hasF) {
@@ -109,7 +141,6 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     return [totalRow]
   }
 
-  // Config Dialog Logic
   const openConfigDialog = (colName, colId, isAdmin) => {
     if (!isAdmin) { ElMessage.warning('只有管理员可以配置合计规则'); return }
     if (colId === '_status' || colId === 'rowCheckbox') {
@@ -129,20 +160,32 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     } else {
         const field = configDialog.colId
         if (formData.rule) activeSummaryConfig.rules[field] = formData.rule; else delete activeSummaryConfig.rules[field]
-        if (formData.tab === 'formula' && formData.expression.trim()) activeSummaryConfig.expressions[field] = formData.expression
+        if (formData.tab === 'formula' && formData.expression && formData.expression.trim()) activeSummaryConfig.expressions[field] = formData.expression
         else delete activeSummaryConfig.expressions[field]
     }
     pinnedBottomRowData.value = calculateTotals(gridData.value)
+    if(gridApi.value) {
+        gridApi.value.refreshCells({ rowNodes: [gridApi.value.getPinnedBottomRow(0)], force: true })
+    }
     configDialog.visible = false
     
-    // Persist
+    // 🟢 修复：持久化保存
     if (props.viewId) {
         isSavingConfig.value = true
         try {
             await request({
                 url: '/sys_grid_configs?on_conflict=view_id', method: 'post',
                 headers: { 'Prefer': 'resolution=merge-duplicates', 'Content-Profile': 'public' }, 
-                data: { view_id: props.viewId, summary_config: activeSummaryConfig, updated_by: currentUser.value }
+                // 确保序列化的是当前的 activeSummaryConfig
+                data: { 
+                    view_id: props.viewId, 
+                    summary_config: {
+                        label: activeSummaryConfig.label,
+                        rules: activeSummaryConfig.rules,
+                        expressions: activeSummaryConfig.expressions
+                    },
+                    updated_by: currentUser.value 
+                }
             })
             ElMessage.success('配置已保存')
         } catch(e) { ElMessage.error('保存失败') } 
@@ -150,10 +193,8 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     }
   }
 
-  // Watchers
   watch(gridData, (newData) => pinnedBottomRowData.value = calculateTotals(newData), { immediate: true })
   
-  // 监听列配置变化，全表重算
   watch(() => props.extraColumns, async () => {
     await nextTick()
     if (!gridApi.value) return
@@ -162,7 +203,6 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     if (hasGlobalChanges) {
       gridApi.value.refreshCells()
       pinnedBottomRowData.value = calculateTotals(gridData.value)
-      // 需要触发保存，这里由外部 hook 调用 debouncedSave
       if(hooks.triggerSave) hooks.triggerSave()
     }
   }, { deep: true })
@@ -170,6 +210,6 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
   return {
     pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
     configDialog, isSavingConfig, availableColumns, 
-    openConfigDialog, saveConfig
+    openConfigDialog, saveConfig, loadGridConfig // 🟢 导出 loadGridConfig
   }
 }

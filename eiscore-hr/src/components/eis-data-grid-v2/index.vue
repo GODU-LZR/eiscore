@@ -71,7 +71,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref } from 'vue'
+import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
@@ -117,32 +117,34 @@ const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = currentUser === 'Admin'
 
-// 0. 提前创建 ref 解决循环依赖
+// 0. 基础 Ref
 const gridApi = ref(null)
 const selectedRowsCount = ref(0)
 
-// 1. Selection Hook (优先初始化，供 Core 使用)
+// 1. 初始化 Selection
 const { 
   rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
   onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection 
 } = useGridSelection(gridApi, selectedRowsCount)
 
-// 2. Core Hook (状态与数据)
-const activeSummaryConfig = { label: '合计', rules: {}, expressions: {}, ...props.summary }
+// 2. 初始化 Core
+// 🟢 修复：必须使用 reactive，否则 formula hook 更新配置时界面不响应
+const activeSummaryConfig = reactive({ label: '合计', rules: {}, expressions: {}, ...props.summary })
+
 const { 
   gridData, gridColumns, context, gridComponents, searchText, isLoading, 
   loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules 
 } = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection)
 
-// 3. Formula Hook (计算引擎)
+// 3. 初始化 Formula
 const formulaDependencyHooks = {} 
 const { 
   pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
   configDialog, isSavingConfig, availableColumns, 
-  openConfigDialog, saveConfig 
+  openConfigDialog, saveConfig, loadGridConfig // 🟢 引入 loadGridConfig
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks)
 
-// 4. History Hook (事务管理)
+// 4. 初始化 History
 const { 
   history, isSystemOperation, 
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,
@@ -153,12 +155,12 @@ const {
 formulaDependencyHooks.pushPendingChange = pushPendingChange
 formulaDependencyHooks.triggerSave = debouncedSave
 
-// 5. Clipboard Hook (复制粘贴)
+// 5. 初始化 Clipboard
 const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, {
   history, isSystemOperation, debouncedSave, performUndoRedo, sanitizeValue, pushPendingChange
 }, { rangeSelection, getColIndex })
 
-// Grid Events
+// 配置项
 const defaultColDef = { 
   sortable: true, filter: true, resizable: true, minWidth: 100, 
   editable: (params) => !isCellReadOnly(params),
@@ -171,7 +173,13 @@ const defaultColDef = {
 const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
 const getRowId = (params) => String(params.data.id)
 
-const onGridReady = (params) => { gridApi.value = params.api; loadData(); }
+// 🟢 修复：在 Grid 准备好时，加载数据并加载配置
+const onGridReady = (params) => { 
+  gridApi.value = params.api; 
+  loadData();
+  loadGridConfig(); // 🟢 确保加载持久化的合计配置
+}
+
 const onGridMouseLeave = () => {}
 const onCellDoubleClicked = (params) => {
   if (params.node.rowPinned !== 'bottom') return
@@ -181,7 +189,7 @@ const onCellDoubleClicked = (params) => {
   openConfigDialog(colName, colId, isAdmin)
 }
 
-// Global Listeners
+// 监听器
 onMounted(() => { 
   document.addEventListener('mouseup', onGlobalMouseUp)
   document.addEventListener('mousemove', onGlobalMouseMove) 
@@ -202,7 +210,7 @@ defineExpose({ loadData })
 </style>
 
 <style lang="scss">
-/* 🟢 还原所有全局样式，解决自定义组件样式丢失问题 */
+/* Ag-Grid 全局样式复用 */
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar { width: 16px; height: 16px; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb { background-color: var(--el-color-primary-light-5); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb:hover, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover { background-color: var(--el-color-primary); }
@@ -215,12 +223,10 @@ defineExpose({ loadData })
 .ag-theme-alpine .ag-cell { border-right: 1px solid var(--ag-border-color); }
 .ag-root-wrapper { border: 1px solid var(--el-border-color-light) !important; }
 
-/* 选中样式 */
 .custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }
 .cell-locked-pattern { background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px); color: #a8abb2; cursor: not-allowed; }
 .row-locked-bg { background-color: #fafafa !important; }
 
-/* 表头样式 - 还原 LockHeader */
 .custom-header-wrapper { display: flex; align-items: center; width: 100%; height: 100%; justify-content: space-between; }
 .custom-header-main { display: flex; align-items: center; flex: 1; overflow: hidden; cursor: pointer; padding-right: 8px; }
 .custom-header-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -230,7 +236,6 @@ defineExpose({ loadData })
 .header-unlock-icon, .menu-btn { opacity: 0; transition: opacity 0.2s; }
 .custom-header-wrapper:hover .header-unlock-icon, .custom-header-wrapper:hover .menu-btn { opacity: 1; }
 
-/* 状态编辑器样式 - 还原 StatusEditor */
 .status-editor-popup { background-color: #fff; border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); border: 1px solid #e4e7ed; overflow: hidden; padding: 4px 0; }
 .status-editor-item { display: flex; align-items: center; padding: 8px 12px; cursor: pointer; transition: background-color 0.2s; font-size: 13px; color: #606266; position: relative; }
 .status-editor-item:hover { background-color: #f5f7fa; }

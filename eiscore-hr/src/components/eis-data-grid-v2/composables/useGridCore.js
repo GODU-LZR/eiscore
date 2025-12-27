@@ -29,7 +29,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     return false
   }
 
-  // 🟢 找回核心样式规则
+  // 样式规则
   const cellClassRules = { 
     'custom-range-selected': (params) => isCellInSelection && isCellInSelection(params),
     'cell-locked-pattern': (params) => isCellReadOnly(params),
@@ -40,17 +40,28 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
   const getCellStyle = (params) => {
     const base = { 'line-height': '34px' }
-    if (params.node.rowPinned) return { ...base, backgroundColor: 'var(--el-color-primary-light-9)', color: 'var(--el-color-primary)', fontWeight: 'bold', borderTop: '2px solid var(--el-color-primary-light-5)' }
+    if (params.node.rowPinned) return { ...base, backgroundColor: '#ecf5ff', color: '#409EFF', fontWeight: 'bold', borderTop: '2px solid var(--el-color-primary-light-5)' }
     if (params.colDef.field === '_status') return { ...base, cursor: 'pointer' }
+    // 公式列样式
     if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
     if (params.colDef.editable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     return base
   }
 
+  // 🟢 修复：强制刷新，解决列锁样式延迟
   const handleToggleColumnLock = (colId) => {
-    if (columnLockState[colId]) delete columnLockState[colId]
-    else columnLockState[colId] = currentUser.value
-    gridApi.value.redrawRows()
+    if (columnLockState[colId]) {
+      delete columnLockState[colId]
+      ElMessage.success('列已解锁')
+    } else {
+      columnLockState[colId] = currentUser.value
+      ElMessage.success('列已锁定')
+    }
+    if (gridApi.value) {
+      gridApi.value.redrawRows()
+      // 强制刷新所有单元格样式
+      gridApi.value.refreshCells({ force: true, columns: [colId] })
+    }
   }
 
   const context = reactive({ 
@@ -58,7 +69,12 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   })
 
   const gridColumns = computed(() => {
-    const checkboxCol = { colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, width: 40, minWidth: 40, maxWidth: 40, pinned: 'left', resizable: false, sortable: false, filter: false, suppressHeaderMenuButton: true, cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' } }
+    const checkboxCol = { 
+      colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, 
+      width: 40, minWidth: 40, maxWidth: 40, pinned: 'left', 
+      resizable: false, sortable: false, filter: false, suppressHeaderMenuButton: true, 
+      cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' } 
+    }
     
     const statusCol = { 
       headerName: '状态', field: '_status', width: 100, minWidth: 100, pinned: 'left', 
@@ -79,7 +95,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const staticCols = props.staticColumns.map(col => ({
       headerName: col.label, field: col.prop, 
       editable: col.editable!==false && (params => !isCellReadOnly(params)), 
-      cellEditor: 'agTextCellEditor', width: col.width, flex: col.width ? 0 : 1,
+      width: col.width, 
+      // 🟢 修复：找回 flex 逻辑，防止列头塌缩
+      flex: col.width ? 0 : 1, 
       cellStyle: getCellStyle, 
       cellClassRules: cellClassRules,
       headerComponent: 'LockHeader'
