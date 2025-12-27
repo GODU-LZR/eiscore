@@ -73,24 +73,64 @@
       <el-dialog
         v-model="configDialog.visible"
         :title="configDialog.title"
-        width="360px"
+        width="480px"
         align-center
         destroy-on-close
         append-to-body
+        class="eis-config-dialog"
       >
         <div class="config-dialog-content">
           <template v-if="configDialog.type === 'data'">
-            <p class="dialog-tip">请选择该列的统计方式：</p>
-            <el-radio-group v-model="configDialog.tempValue" class="agg-radio-group">
-              <el-radio 
-                v-for="opt in aggOptions" 
-                :key="opt.value" 
-                :value="opt.value" 
-                border
-              >
-                {{ opt.label }}
-              </el-radio>
-            </el-radio-group>
+            <el-tabs v-model="configDialog.tab" class="config-tabs">
+              <el-tab-pane label="基础统计" name="basic">
+                <p class="dialog-tip">
+                  <b>变量取值规则：</b><br>
+                  <span style="font-size: 12px; color: #909399;">
+                    定义该列在公式中的基础值（例如"{姓名}"代表姓名的计数）。<br>
+                    若选择"不显示"，该列仅作为变量参与计算，不直接显示在底部。
+                  </span>
+                </p>
+                <el-radio-group v-model="configDialog.tempValue" class="agg-radio-group">
+                  <el-radio 
+                    v-for="opt in aggOptions" 
+                    :key="opt.value" 
+                    :value="opt.value" 
+                    border
+                  >
+                    {{ opt.label }}
+                  </el-radio>
+                </el-radio-group>
+              </el-tab-pane>
+
+              <el-tab-pane label="高级公式" name="formula">
+                <p class="dialog-tip">
+                  <b>列间运算公式：</b> (优先显示公式结果)<br>
+                  <span style="font-size: 12px; color: #909399;">例如: <code>{基本工资} + {岗位津贴}</code></span>
+                </p>
+                
+                <el-input 
+                  v-model="configDialog.expression" 
+                  type="textarea" 
+                  :rows="3"
+                  placeholder="在此输入公式..."
+                />
+                
+                <div class="variable-tags">
+                  <span class="tag-label">点击插入变量:</span>
+                  <div class="tags-container">
+                    <el-tag 
+                      v-for="col in availableColumns" 
+                      :key="col.prop" 
+                      size="small" 
+                      class="variable-tag"
+                      @click="insertVariable(col.label)"
+                    >
+                      {{ col.label }}
+                    </el-tag>
+                  </div>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
           </template>
 
           <template v-else-if="configDialog.type === 'label'">
@@ -121,7 +161,7 @@
 import { ref, shallowRef, computed, watch, reactive, onMounted, onUnmounted, defineComponent, h, markRaw, nextTick } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import request from '@/utils/request'
-import { ElMessage, ElMessageBox, ElTooltip, ElIcon, ElDialog, ElRadioGroup, ElRadio, ElInput, ElButton } from 'element-plus'
+import { ElMessage, ElMessageBox, ElTooltip, ElIcon, ElDialog, ElRadioGroup, ElRadio, ElInput, ElButton, ElTabs, ElTabPane, ElTag } from 'element-plus'
 import { Lock, Unlock, Search, Delete, Download, Filter, SortUp, SortDown, Sort, CirclePlus, CircleCheck, Check, Edit } from '@element-plus/icons-vue'
 import { buildSearchQuery } from '@/utils/grid-query'
 import { debounce } from 'lodash'
@@ -135,7 +175,6 @@ import "ag-grid-community/styles/ag-theme-alpine.css"
 
 // --- 🟢 自定义组件定义区 ---
 
-// 1. 状态显示渲染器
 const StatusRenderer = defineComponent({
   props: ['params'],
   setup(props) {
@@ -177,7 +216,6 @@ const StatusRenderer = defineComponent({
   }
 })
 
-// 2. 状态编辑器
 const StatusEditor = defineComponent({
   props: ['params'],
   setup(props, { expose }) {
@@ -216,7 +254,6 @@ const StatusEditor = defineComponent({
   }
 })
 
-// 3. 自定义表头组件
 const LockHeader = defineComponent({
   props: ['params'],
   setup(props) {
@@ -287,7 +324,7 @@ const props = defineProps({
   viewId: { type: String, required: false, default: null },
   staticColumns: { type: Array, default: () => [] },
   extraColumns: { type: Array, default: () => [] },
-  summary: { type: Object, default: () => ({ label: '合计', rules: {} }) }
+  summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) }
 })
 
 const userStore = useUserStore()
@@ -301,16 +338,18 @@ const pinnedBottomRowData = ref([])
 const activeSummaryConfig = reactive({
   label: '合计',
   rules: {},
+  expressions: {},
   ...props.summary
 })
 
-// 弹窗状态管理
 const configDialog = reactive({
   visible: false,
   title: '',
   type: null, 
   colId: null,
-  tempValue: '' 
+  tab: 'basic', 
+  tempValue: '', 
+  expression: ''
 })
 const isSavingConfig = ref(false)
 
@@ -320,12 +359,20 @@ const aggOptions = [
   { label: '平均 (Avg)', value: 'avg' },
   { label: '最大 (Max)', value: 'max' },
   { label: '最小 (Min)', value: 'min' },
-  { label: '不显示', value: '' }
+  { label: '不显示 (仅作变量)', value: 'none' } 
 ]
+
+const availableColumns = computed(() => {
+  return [...props.staticColumns, ...props.extraColumns].map(c => ({
+    label: c.label,
+    prop: c.prop
+  }))
+})
 
 watch(() => props.summary, (newVal) => {
   Object.assign(activeSummaryConfig, newVal)
-}, { deep: true })
+  if (!activeSummaryConfig.expressions) activeSummaryConfig.expressions = {}
+}, { deep: true, immediate: true })
 
 const searchText = ref('')
 const isLoading = ref(false)
@@ -628,16 +675,31 @@ const onCellDoubleClicked = (params) => {
   } 
   else {
     configDialog.type = 'data'
-    configDialog.title = `列统计方式: ${colName}`
+    configDialog.title = `统计方式配置: ${colName}`
     const field = params.colDef.field.replace('properties.', '')
     configDialog.colId = field
+    
+    // 初始化弹窗状态
+    // 如果有公式，默认显示公式Tab，但同时也加载基础规则
+    if (activeSummaryConfig.expressions?.[field]) {
+      configDialog.tab = 'formula'
+      configDialog.expression = activeSummaryConfig.expressions[field]
+    } else {
+      configDialog.tab = 'basic'
+      configDialog.expression = ''
+    }
+    // 始终加载基础规则 (L1) 用于 Radio 选中
     configDialog.tempValue = activeSummaryConfig.rules[field] || ''
+    
     configDialog.visible = true
   }
 }
 
-// 🟢 核心修复：添加 Accept-Profile: public 标头
-// 确保 API 明确在 public schema 中查找表，避免因环境问题误入其他 schema 导致 404
+// 🟢 修改：插入 label 而不是 prop
+const insertVariable = (label) => {
+  configDialog.expression += `{${label}}`
+}
+
 const loadGridConfig = async () => {
   if (!props.viewId) return
   try {
@@ -650,11 +712,11 @@ const loadGridConfig = async () => {
       const remoteConfig = res[0].summary_config
       if (remoteConfig) {
         Object.assign(activeSummaryConfig, remoteConfig)
+        if (!activeSummaryConfig.expressions) activeSummaryConfig.expressions = {}
         pinnedBottomRowData.value = calculateTotals(gridData.value)
       }
     }
   } catch(e) {
-    // 忽略 404 (说明还没配置过)
     if (e.response && e.response.status !== 404) {
       console.warn('Failed to load grid config', e)
     }
@@ -662,27 +724,41 @@ const loadGridConfig = async () => {
 }
 
 const saveConfig = async () => {
+  // 1. 处理 L3: Label
   if (configDialog.type === 'label') {
     if (configDialog.tempValue) {
       activeSummaryConfig.label = configDialog.tempValue
     }
-  } else {
-    if (configDialog.tempValue === '') {
-      delete activeSummaryConfig.rules[configDialog.colId]
+  } 
+  // 2. 处理 L1/L2: Data Config
+  else {
+    const field = configDialog.colId
+    
+    // 无论在哪一个Tab，始终保存基础聚合规则
+    if (configDialog.tempValue) {
+      activeSummaryConfig.rules[field] = configDialog.tempValue
     } else {
-      activeSummaryConfig.rules[configDialog.colId] = configDialog.tempValue
+      delete activeSummaryConfig.rules[field]
     }
+
+    // 处理公式
+    if (configDialog.tab === 'formula' && configDialog.expression.trim()) {
+      activeSummaryConfig.expressions[field] = configDialog.expression
+    } else if (configDialog.tab === 'basic') {
+      delete activeSummaryConfig.expressions[field]
+    }
+    
     pinnedBottomRowData.value = calculateTotals(gridData.value)
   }
   
   gridApi.value.refreshCells({ rowNodes: [gridApi.value.getPinnedBottomRow(0)], force: true })
   configDialog.visible = false
 
+  // 3. 持久化
   if (props.viewId) {
     isSavingConfig.value = true
     try {
       await request({
-        // 使用 UPSERT 语法
         url: '/sys_grid_configs?on_conflict=view_id', 
         method: 'post',
         headers: { 
@@ -710,6 +786,7 @@ watch(isLoading, (val) => {
   gridApi.value.setGridOption('loading', val)
 })
 
+// 🟢 核心计算引擎升级
 const calculateTotals = (data) => {
   if (!data || data.length === 0) return []
   
@@ -719,8 +796,11 @@ const calculateTotals = (data) => {
     properties: {}
   }
 
+  const l1Results = {} 
+
   const columns = [...props.staticColumns, ...props.extraColumns]
   
+  // --- 阶段一: 计算所有基础聚合 (L1) ---
   columns.forEach(col => {
     const isProp = !props.staticColumns.find(c => c.prop === col.prop)
     const values = data.map(row => {
@@ -730,13 +810,15 @@ const calculateTotals = (data) => {
 
     let rule = activeSummaryConfig.rules[col.prop]
     
+    // 默认嗅探
     if (!rule) {
       const isAllNumbers = values.length > 0 && values.every(v => !isNaN(Number(v)))
-      if (isAllNumbers) rule = 'sum'
+      rule = isAllNumbers ? 'sum' : 'count'
     }
 
-    let result = ''
-    if (values.length > 0 && rule) {
+    let result = null
+    
+    if (values.length > 0) {
       const numbers = values.map(Number)
       const validNumbers = numbers.filter(n => !isNaN(n))
       
@@ -746,15 +828,74 @@ const calculateTotals = (data) => {
         case 'count': result = values.length; break
         case 'max': if (validNumbers.length) result = Math.max(...validNumbers); break
         case 'min': if (validNumbers.length) result = Math.min(...validNumbers); break
+        case 'none': 
+          // 特殊处理: 虽然不显示，但算一个默认值供变量引用
+          const isNum = values.every(v => !isNaN(Number(v)))
+          if (isNum) result = validNumbers.reduce((a, b) => a + b, 0)
+          else result = values.length
+          break
       }
     }
 
-    if (typeof result === 'number') {
-      result = Number(result.toFixed(2))
-    }
+    // 存储中间结果
+    l1Results[col.prop] = result !== null ? result : 0
 
-    if (isProp) totalRow.properties[col.prop] = result
-    else totalRow[col.prop] = result
+    // 写入显示对象: 仅当原始 rule 不是 'none' 时才写入
+    const userExplicitRule = activeSummaryConfig.rules[col.prop]
+    if (userExplicitRule !== 'none' && result !== null && typeof result === 'number') {
+      const displayVal = Number(result.toFixed(2))
+      if (isProp) totalRow.properties[col.prop] = displayVal
+      else totalRow[col.prop] = displayVal
+    }
+  })
+
+  // --- 阶段二: 计算公式 (L2) ---
+  // 🟢 构建查找表: 支持通过 Prop 或 Label 查找值
+  const valueMap = {}
+  Object.keys(l1Results).forEach(prop => {
+    valueMap[prop] = l1Results[prop]
+    // 找对应的 Label
+    const colDef = columns.find(c => c.prop === prop)
+    if (colDef && colDef.label) {
+      valueMap[colDef.label] = l1Results[prop]
+    }
+  })
+
+  columns.forEach(col => {
+    const expression = activeSummaryConfig.expressions?.[col.prop]
+    
+    if (expression) {
+      try {
+        // 🟢 正则改为匹配非贪婪 {xxx}，支持中文
+        let evalExpr = expression.replace(/\{(.+?)\}/g, (match, key) => {
+          const val = valueMap[key]
+          return (val !== undefined && val !== null) ? val : 0
+        })
+        
+        const result = new Function(`return (${evalExpr})`)()
+        
+        if (result !== undefined && !isNaN(result) && isFinite(result)) {
+           const displayVal = Number(result.toFixed(2))
+           const isProp = !props.staticColumns.find(c => c.prop === col.prop)
+           if (isProp) totalRow.properties[col.prop] = displayVal
+           else totalRow[col.prop] = displayVal
+        }
+      } catch (e) {
+        console.warn(`Formula error for ${col.prop}:`, e)
+      }
+    }
+  })
+
+  // --- 阶段三: 修正后的清理 (L3) ---
+  columns.forEach(col => {
+    const rule = activeSummaryConfig.rules[col.prop]
+    const hasFormula = !!activeSummaryConfig.expressions?.[col.prop]
+    
+    if (rule === 'none' && !hasFormula) {
+      const isProp = !props.staticColumns.find(c => c.prop === col.prop)
+      if (isProp) delete totalRow.properties[col.prop]
+      else delete totalRow[col.prop]
+    }
   })
 
   return [totalRow]
@@ -1124,13 +1265,37 @@ defineExpose({ loadData })
 .dialog-tip {
   margin-bottom: 12px;
   color: #606266;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 .agg-radio-group {
   display: flex;
   flex-direction: column;
   gap: 8px;
   align-items: flex-start;
+}
+.eis-config-dialog .el-tabs__content {
+  padding: 10px 0;
+}
+.variable-tags {
+  margin-top: 15px;
+}
+.tag-label {
+  font-size: 12px; 
+  color: #909399; 
+  margin-bottom: 8px; 
+  display: block;
+}
+.tags-container {
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: 8px;
+}
+.variable-tag {
+  cursor: pointer;
+  &:hover {
+    opacity: 0.8;
+  }
 }
 </style>
 

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict y4OZg3Etz6pAkarFAjeK38UXtcT5aCC97OtcT8rEWHheognw5O6ee7oN2qAInGb
+\restrict 4BzN8zcvhF8XfdKSo1jmfalPed39Me65Cb5rPYJ2hFxeCbFrdYQqIJYNnaoHr6A
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -495,13 +495,9 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 451	新员工	EMP1766677812058	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:12.171562
 452	新员工	EMP1766677812238	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:12.348562
 453	新员工	EMP1766677812422	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:12.528867
-468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:15.1598
-470	新员工	EMP1766677815473	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:15.512386
 471	新员工	EMP1766677815646	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:15.683206
 472	新员工	EMP1766677815838	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:15.870795
 473	新员工	EMP1766677815973	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:16.001997
-467	新员工	EMP1766677814931	\N	\N	\N	试用	0.00	2025-12-25	{"id_card": ""}	3	2025-12-25 16:14:10.587
-469	新员工	EMP1766677815289	\N	\N	\N	试用	0.00	2025-12-25	{"status": "created", "row_locked_by": null}	3	2025-12-25 16:21:15.034
 397	新员工	EMP1766677795947	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:49:55.721264
 398	新员工	EMP1766677796095	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:49:55.846211
 399	新员工	EMP1766677796243	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:49:55.988605
@@ -527,6 +523,10 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 382	新员工	EMP1766676479427	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:27:59.835597
 405	新员工	EMP1766677797256	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:49:56.979563
 406	新员工	EMP1766677797384	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:49:57.105772
+470	新员工	EMP1766677815473	\N	\N	\N	试用	0.00	2025-12-25	{"gender": "试用"}	2	2025-12-27 10:59:17.076
+469	新员工	EMP1766677815289	\N	\N	\N	试用	0.00	2025-12-25	{"gender": "试用", "status": "created", "row_locked_by": null}	4	2025-12-27 10:59:17.076
+468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{"gender": "试用"}	2	2025-12-27 10:59:17.076
+467	新员工	EMP1766677814931	\N	\N	\N	试用	0.00	2025-12-25	{"gender": "试用", "id_card": ""}	6	2025-12-27 10:59:24.576
 407	新员工	EMP1766677797550	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:49:57.268246
 408	新员工	EMP1766677797714	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:49:57.718884
 409	新员工	EMP1766677797920	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:49:58.344786
@@ -558,9 +558,6 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 435	新员工	EMP1766677802259	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:02.588336
 436	新员工	EMP1766677802467	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:02.792326
 437	新员工	EMP1766677802583	\N	\N	\N	试用	0.00	2025-12-25	{}	1	2025-12-25 15:50:02.905006
-466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:30.99
-465	新员工	EMP1766677814608	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
-464	新员工	EMP1766677814414	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
 463	新员工	EMP1766677814225	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
 462	新员工	EMP1766677814028	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
 461	新员工	EMP1766677813895	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
@@ -571,6 +568,9 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 456	新员工	EMP1766677812941	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:41.678
 455	新员工	EMP1766677812777	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:48.174
 454	新员工	EMP1766677812597	\N	\N	\N	试用	0.00	2025-12-25	{}	3	2025-12-26 07:36:48.174
+466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{"gender": "试用"}	4	2025-12-27 10:59:17.076
+465	新员工	EMP1766677814608	\N	\N	\N	试用	0.00	2025-12-25	{"gender": "试用"}	4	2025-12-27 10:59:17.076
+464	新员工	EMP1766677814414	\N	\N	\N	试用	0.00	2025-12-25	{"gender": "试用"}	4	2025-12-27 10:59:17.076
 \.
 
 
@@ -607,7 +607,7 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 --
 
 COPY public.sys_grid_configs (view_id, summary_config, updated_by, updated_at) FROM stdin;
-employee_list	{"label": "员工人数", "rules": {"id": "count"}}	Admin	2025-12-25 18:44:29.890141+00
+employee_list	{"label": "员工人数", "rules": {"id": "count", "name": "none", "status": "none", "employee_no": "none"}, "expressions": {}}	Admin	2025-12-25 18:44:29.890141+00
 \.
 
 
@@ -617,7 +617,7 @@ employee_list	{"label": "员工人数", "rules": {"id": "count"}}	Admin	2025-12-
 
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_column_locks	{}	HR表格列锁配置
-hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}]	HR花名册的动态列配置
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_9487", "label": "测试"}]	HR花名册的动态列配置
 \.
 
 
@@ -893,5 +893,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict y4OZg3Etz6pAkarFAjeK38UXtcT5aCC97OtcT8rEWHheognw5O6ee7oN2qAInGb
+\unrestrict 4BzN8zcvhF8XfdKSo1jmfalPed39Me65Cb5rPYJ2hFxeCbFrdYQqIJYNnaoHr6A
 
