@@ -8,29 +8,30 @@
         api-url="/archives"
         :static-columns="staticColumns"
         :extra-columns="extraColumns"
+        @create="handleCreate"
+        @config-columns="openColumnConfig"
       >
-        <template #toolbar>
-          <el-button type="primary" icon="Plus" @click="handleCreate">新增</el-button>
-          
-          <el-popover placement="bottom" title="扩展列设置" :width="300" trigger="click">
-            <template #reference>
-              <el-button icon="Setting" circle title="配置扩展列"></el-button>
-            </template>
-            <div class="column-setting-box">
-              <div v-for="(col, index) in extraColumns" :key="index" style="margin-bottom:5px; display:flex;">
-                <el-input v-model="col.label" size="small" style="width:100px"/>
-                <el-button type="danger" link icon="Delete" size="small" @click="removeColumn(index)"></el-button>
-              </div>
-              <div style="margin-top:10px; display:flex;">
-                 <el-input v-model="newColName" size="small" placeholder="列名" />
-                 <el-button type="primary" size="small" @click="addColumn">添加</el-button>
-              </div>
-            </div>
-          </el-popover>
-
-          <el-button type="info" link @click="refresh" icon="Refresh">刷新</el-button>
-        </template>
       </eis-data-grid>
+
+      <el-dialog v-model="colConfigVisible" title="扩展列设置" width="400px" append-to-body>
+        <div class="column-setting-box">
+          <p style="margin-bottom: 12px; color: #909399; font-size: 13px;">管理动态扩展字段：</p>
+          <div v-for="(col, index) in extraColumns" :key="index" style="margin-bottom:8px; display:flex; gap: 8px;">
+            <el-input v-model="col.label" size="small" placeholder="列显示名称"/>
+            <el-button type="danger" plain icon="Delete" size="small" @click="removeColumn(index)">删除</el-button>
+          </div>
+          
+          <el-divider content-position="left">新增列</el-divider>
+          
+          <div style="display:flex; gap: 8px;">
+             <el-input v-model="newColName" size="small" placeholder="输入新列名称 (如: 籍贯)" @keyup.enter="addColumn" />
+             <el-button type="primary" size="small" @click="addColumn" :disabled="!newColName">添加</el-button>
+          </div>
+        </div>
+        <template #footer>
+          <el-button @click="colConfigVisible = false">关闭</el-button>
+        </template>
+      </el-dialog>
 
     </el-card>
   </div>
@@ -43,17 +44,18 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
 const gridRef = ref(null)
+const colConfigVisible = ref(false) // 控制列配置弹窗
 
-// 1. 固定列定义 (极其简洁)
+// 1. 固定列定义
 const staticColumns = [
-  { label: 'ID', prop: 'id', editable: false },
-  { label: '姓名', prop: 'name' },
-  { label: '工号', prop: 'employee_no', editable: false },
-  { label: '部门', prop: 'department' },
-  { label: '状态', prop: 'status' }
+  { label: 'ID', prop: 'id', editable: false, width: 80 },
+  { label: '姓名', prop: 'name', width: 120 },
+  { label: '工号', prop: 'employee_no', editable: false, width: 120 },
+  { label: '部门', prop: 'department', width: 120 },
+  { label: '状态', prop: 'status', width: 100 }
 ]
 
-// 2. 动态列逻辑 (从 system_configs 读取)
+// 2. 动态列逻辑
 const extraColumns = ref([])
 const newColName = ref('')
 
@@ -94,21 +96,35 @@ const removeColumn = (index) => {
   saveColumnsConfig()
 }
 
-// 3. 新增逻辑
-const handleCreate = async () => {
-    // 插入空行，然后刷新表格让用户去改
-    await request({
-        url: '/archives',
-        method: 'post',
-        headers: { 'Content-Profile': 'hr' },
-        data: { name: '新员工', status: '试用', employee_no: 'EMP'+Date.now() }
-    })
-    gridRef.value.loadData()
-    ElMessage.success('已创建新行，请编辑')
+const openColumnConfig = () => {
+  colConfigVisible.value = true
 }
 
-const refresh = () => {
-  gridRef.value.loadData()
+// 3. 新增逻辑 (这是之前正确的逻辑)
+const handleCreate = async () => {
+    // 插入数据
+    try {
+      await request({
+          url: '/archives',
+          method: 'post',
+          headers: { 'Content-Profile': 'hr' },
+          data: { 
+            name: '新员工', 
+            status: '试用', 
+            employee_no: 'EMP' + Date.now().toString().slice(-6), // 自动生成工号
+            department: '待分配',
+            properties: {}
+          }
+      })
+      // 刷新子组件表格
+      if(gridRef.value) {
+        await gridRef.value.loadData()
+      }
+      ElMessage.success('已创建新行，请直接编辑')
+    } catch(e) {
+      console.error(e)
+      ElMessage.error('创建失败')
+    }
 }
 
 onMounted(() => {

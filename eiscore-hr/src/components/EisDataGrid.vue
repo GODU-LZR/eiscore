@@ -13,11 +13,20 @@
         </el-input>
         
         <el-button-group class="ml-2">
-          <el-button type="danger" plain icon="Delete" @click="deleteSelectedRows" :disabled="selectedRowsCount === 0">
-            删除选中行 ({{ selectedRowsCount }})
+          <el-button type="primary" plain icon="CirclePlus" @click="$emit('create')">
+            新增行
           </el-button>
+          
+          <el-button type="primary" plain icon="Operation" @click="$emit('config-columns')">
+            新增列
+          </el-button>
+
+          <el-button type="danger" plain icon="Delete" @click="deleteSelectedRows" :disabled="selectedRowsCount === 0">
+            删除选中 ({{ selectedRowsCount }})
+          </el-button>
+          
           <el-button plain icon="Download" @click="exportData">
-            导出表格
+            导出
           </el-button>
         </el-button-group>
 
@@ -161,7 +170,7 @@ import { ref, shallowRef, computed, watch, reactive, onMounted, onUnmounted, def
 import { AgGridVue } from "ag-grid-vue3"
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox, ElTooltip, ElIcon, ElDialog, ElRadioGroup, ElRadio, ElInput, ElButton, ElTabs, ElTabPane, ElTag } from 'element-plus'
-import { Lock, Unlock, Search, Delete, Download, Filter, SortUp, SortDown, Sort, CirclePlus, CircleCheck, Check, Edit } from '@element-plus/icons-vue'
+import { Lock, Unlock, Search, Delete, Download, Filter, SortUp, SortDown, Sort, CirclePlus, CircleCheck, Check, Edit, Operation } from '@element-plus/icons-vue'
 import { buildSearchQuery } from '@/utils/grid-query'
 import { debounce } from 'lodash'
 import { useUserStore } from '@/stores/user' 
@@ -326,6 +335,9 @@ const props = defineProps({
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) }
 })
 
+// 🟢 定义 Emits，将业务逻辑抛给父组件
+const emit = defineEmits(['create', 'config-columns'])
+
 const userStore = useUserStore()
 const currentUser = computed(() => userStore.userInfo?.username || 'Admin')
 const isAdmin = computed(() => currentUser.value === 'Admin') 
@@ -334,13 +346,11 @@ const gridApi = ref(null)
 const gridData = shallowRef([])
 const pinnedBottomRowData = ref([])
 
-// 🟢 历史记录管理器 (Transaction History Manager)
+// 历史记录管理器
 const history = reactive({
   undoStack: [],
   redoStack: []
 })
-// 🟢 系统操作锁：当为 true 时，表示正在执行 Undo/Redo/Paste 等系统操作，
-// onCellValueChanged 不应将其视为新的用户输入。
 let isSystemOperation = false
 
 const activeSummaryConfig = reactive({
@@ -407,7 +417,7 @@ const isCellReadOnly = (params) => {
   return false
 }
 
-// 🟢 拦截 Ctrl+Z 和 Ctrl+Y，完全接管
+// 拦截 Ctrl+Z 和 Ctrl+Y
 const defaultColDef = { 
   sortable: true, filter: true, resizable: true, minWidth: 100, 
   editable: (params) => !isCellReadOnly(params),
@@ -837,8 +847,7 @@ const calculateTotals = (data) => {
 
     l1Results[col.prop] = result !== null ? result : 0
 
-    const userExplicitRule = activeSummaryConfig.rules[col.prop]
-    if (userExplicitRule !== 'none' && result !== null && typeof result === 'number') {
+    if (rule !== 'none' && result !== null && typeof result === 'number') {
       const displayVal = Number(result.toFixed(2))
       if (isProp) totalRow.properties[col.prop] = displayVal
       else totalRow[col.prop] = displayVal
@@ -974,9 +983,7 @@ const sanitizeValue = (field, value) => {
 
 // 🟢 核心重构：单个单元格变更处理
 const onCellValueChanged = (event) => {
-  // 如果是系统操作（Undo/Redo/Paste期间），不做任何记录，仅更新界面和保存
   if (isSystemOperation) {
-    // 强制触发保存以同步后端
     debouncedSave()
     return
   }
@@ -993,8 +1000,7 @@ const onCellValueChanged = (event) => {
 
   pinnedBottomRowData.value = calculateTotals(gridData.value)
 
-  // 记录单个变更到历史栈
-  history.redoStack = [] // 新操作清空重做栈
+  history.redoStack = [] 
   history.undoStack.push({
     type: 'single',
     rowId: event.node.data.id,
@@ -1003,7 +1009,6 @@ const onCellValueChanged = (event) => {
     newValue: safeValue
   })
 
-  // 放入待保存队列
   pendingChanges.push({
     rowNode: event.node,
     colDef: event.colDef,
@@ -1053,8 +1058,6 @@ const debouncedSave = debounce(async () => {
       })
       affectedNodes.forEach(({ node, newVer }) => { node.data.version = newVer })
       gridApi.value.refreshCells({ rowNodes: affectedNodes.map(i => i.node), force: false })
-      
-      // 仅在非系统操作时提示，避免批量操作刷屏
       if (!isSystemOperation && apiPayload.length > 0) { 
         ElMessage.success(`已保存 ${apiPayload.length} 行变更`)
       }
@@ -1073,7 +1076,6 @@ const debouncedSave = debounce(async () => {
 const deleteSelectedRows = async () => {
   const selectedNodes = gridApi.value.getSelectedNodes()
   if (selectedNodes.length === 0) return
-  // 删除操作通常不走 Undo 栈（或者需要更复杂的逻辑），暂时保持现状
   const lockedNodes = selectedNodes.filter(n => n.data.properties?.row_locked_by)
   if (lockedNodes.length > 0) {
     return ElMessage.warning(`选中行中有 ${lockedNodes.length} 行已被锁定，无法删除`)
@@ -1086,13 +1088,11 @@ const deleteSelectedRows = async () => {
     pinnedBottomRowData.value = calculateTotals(gridData.value)
     ElMessage.success('删除成功')
     selectedRowsCount.value = 0
-    // 删除操作清空历史栈，防止错位
     history.undoStack = []
     history.redoStack = []
   } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }
 }
 
-// 🟢 核心重构：批量粘贴处理 (Transaction Construction)
 const handleGlobalPaste = async (event) => {
   if (!gridApi.value) return
   const activeEl = document.activeElement
@@ -1114,14 +1114,8 @@ const handleGlobalPaste = async (event) => {
   
   const allCols = gridApi.value.getAllGridColumns();
   
-  // 1. 开启系统操作锁，禁止 onCellValueChanged 干扰
   isSystemOperation = true
-  
-  // 2. 准备事务记录
-  const transaction = {
-    type: 'batch',
-    changes: []
-  }
+  const transaction = { type: 'batch', changes: [] }
 
   let startRowIdx = -1, startColIdx = -1;
   if (rangeSelection.active) {
@@ -1137,23 +1131,19 @@ const handleGlobalPaste = async (event) => {
   }
   if (startRowIdx === -1 || startColIdx === -1) return;
 
-  // 辅助函数：应用更新并记录到事务
   const applyAndRecord = (rowNode, col, rawValue) => {
     const field = col.getColDef().field
     let currentVal = field.split('.').reduce((obj, key) => obj?.[key], rowNode.data)
     const cleanValue = sanitizeValue(field, rawValue)
     
     if (String(currentVal) !== String(cleanValue)) {
-       // 应用更新
        rowNode.setDataValue(field, cleanValue)
-       // 记录到事务 (供 Undo 使用)
        transaction.changes.push({
          rowId: rowNode.data.id,
          colId: field,
          oldValue: currentVal,
          newValue: cleanValue
        })
-       // 加入待保存队列 (供后端同步)
        pendingChanges.push({
          rowNode: rowNode,
          colDef: col.getColDef(),
@@ -1198,20 +1188,16 @@ const handleGlobalPaste = async (event) => {
     }
   }
 
-  // 3. 处理事务结果
   if (transaction.changes.length > 0) {
     history.undoStack.push(transaction)
-    history.redoStack = [] // 只要有新操作，清空 Redo
+    history.redoStack = []
     ElMessage.success(`已粘贴 ${transaction.changes.length} 个单元格`)
-    // 触发保存
     debouncedSave()
   }
   
-  // 4. 延迟释放锁
   setTimeout(() => { isSystemOperation = false }, 50)
 }
 
-// 🟢 核心重构：撤销/重做处理器
 const performUndoRedo = (action) => {
   const stack = action === 'undo' ? history.undoStack : history.redoStack
   const reverseStack = action === 'undo' ? history.redoStack : history.undoStack
@@ -1222,9 +1208,8 @@ const performUndoRedo = (action) => {
   }
 
   const transaction = stack.pop()
-  reverseStack.push(transaction) // 移入另一端栈
+  reverseStack.push(transaction)
 
-  // 开启系统锁
   isSystemOperation = true
 
   const changesToApply = transaction.type === 'batch' ? transaction.changes : [transaction]
@@ -1232,24 +1217,18 @@ const performUndoRedo = (action) => {
   changesToApply.forEach(change => {
     const rowNode = gridApi.value.getRowNode(String(change.rowId))
     if (rowNode) {
-      // Undo: 使用 oldValue; Redo: 使用 newValue
       const valToSet = action === 'undo' ? change.oldValue : change.newValue
-      // 注意：Ag-Grid 的 oldValue 对应 Undo 时的目标值
       const currentVal = action === 'undo' ? change.newValue : change.oldValue
-      
       rowNode.setDataValue(change.colId, valToSet)
-      
-      // 加入待保存队列，确保后端同步
       pendingChanges.push({
         rowNode: rowNode,
-        colDef: { field: change.colId }, // 简易构造 colDef
+        colDef: { field: change.colId },
         newValue: valToSet,
         oldValue: currentVal
       })
     }
   })
 
-  // 触发保存
   debouncedSave()
   
   const msg = transaction.type === 'batch' 
@@ -1257,7 +1236,6 @@ const performUndoRedo = (action) => {
     : (action === 'undo' ? '已撤销' : '已重做')
   ElMessage.info(msg)
 
-  // 延迟释放锁
   setTimeout(() => { isSystemOperation = false }, 50)
 }
 
@@ -1268,7 +1246,6 @@ const onCellKeyDown = async (e) => {
   
   if (!gridApi.value) return
   
-  // Undo (Ctrl+Z)
   if (isCtrl && key === 'z' && !event.shiftKey) {
     event.preventDefault() 
     event.stopPropagation() 
@@ -1276,7 +1253,6 @@ const onCellKeyDown = async (e) => {
     return
   }
 
-  // Redo (Ctrl+Y or Ctrl+Shift+Z)
   if (isCtrl && (key === 'y' || (key === 'z' && event.shiftKey))) {
     event.preventDefault()
     event.stopPropagation()
@@ -1284,7 +1260,6 @@ const onCellKeyDown = async (e) => {
     return
   }
 
-  // Delete
   if (event.key === 'Delete' || event.key === 'Backspace') {
     if (rangeSelection.active) {
       isSystemOperation = true
@@ -1340,7 +1315,6 @@ const onCellKeyDown = async (e) => {
         const rowNode = gridApi.value.getDisplayedRowAtIndex(focusedCell.rowIndex)
         const col = gridApi.value.getColumn(focusedCell.column.colId)
         if (col.isCellEditable(rowNode)) {
-          // 单个删除走 onCellValueChanged 即可
           rowNode.setDataValue(col.getColDef().field, null)
         }
       }
@@ -1348,7 +1322,6 @@ const onCellKeyDown = async (e) => {
     return
   }
 
-  // Ctrl+C (复制逻辑保持不变)
   if (isCtrl && key === 'c') {
     const focusedCell = gridApi.value.getFocusedCell()
     const isRangeActive = rangeSelection.active
