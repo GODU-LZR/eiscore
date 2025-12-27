@@ -1,7 +1,7 @@
 <template>
-  <div class="eis-status-cell" :style="{ color: info.color, fontWeight: info.fontWeight || '500' }">
-    <el-icon v-if="info.icon" :size="14" style="margin-right: 4px; display: flex; align-items: center;"><component :is="info.icon" /></el-icon>
-    <span style="padding-top: 1px;">{{ displayText }}</span>
+  <div class="status-cell-wrapper" :style="{ color: info.color, fontWeight: info.fontWeight || '500' }">
+    <el-icon v-if="info.icon" :size="14" style="margin-right: 6px;"><component :is="info.icon" /></el-icon>
+    <span>{{ displayText }}</span>
   </div>
 </template>
 
@@ -35,13 +35,15 @@ const displayText = computed(() => {
 </script>
 
 <style>
-/* 必须是非 scoped 样式以确保在 Grid 内部生效 */
-.eis-status-cell {
-  display: flex;
-  align-items: center;
-  height: 100%;
-  width: 100%;
-  padding-left: 5px;
-  line-height: normal; /* 重置行高 */
+/* 🟢 修复：完全复刻原版 inline style，且不使用 scoped */
+.status-cell-wrapper {
+  display: flex !important;
+  align-items: center !important;
+  height: 100% !important;
+  width: 100% !important;
+  padding-left: 4px;
+  pointer-events: none;
+  font-size: 13px;
+  line-height: normal; /* 关键：防止文字偏上 */
 }
 </style>

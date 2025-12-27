@@ -1,9 +1,9 @@
 <template>
   <div class="custom-header-wrapper">
     <div class="custom-header-main" @click="onLabelClick">
-      <span class="custom-header-label">{{ params.displayName }}</span>
-      <el-icon v-if="sortState === 'asc'" :size="12" color="#409EFF" style="margin-left:4px"><SortUp /></el-icon>
-      <el-icon v-if="sortState === 'desc'" :size="12" color="#409EFF" style="margin-left:4px"><SortDown /></el-icon>
+      <span class="custom-header-label" :title="params.displayName">{{ params.displayName }}</span>
+      <el-icon v-if="sortState === 'asc'" :size="12" color="#409EFF" style="margin-left:4px; flex-shrink: 0;"><SortUp /></el-icon>
+      <el-icon v-if="sortState === 'desc'" :size="12" color="#409EFF" style="margin-left:4px; flex-shrink: 0;"><SortDown /></el-icon>
     </div>
     <div class="custom-header-tools">
       <span class="custom-header-icon lock-btn" @click.stop="onLockClick">
@@ -49,11 +49,12 @@ const onMenuClick = (e) => props.params.showColumnMenu(e.target)
 const onLockClick = () => gridComp.toggleColumnLock(colId)
 </script>
 
-<style scoped>
-.custom-header-wrapper { display: flex; align-items: center; width: 100%; height: 100%; justify-content: space-between; }
-.custom-header-main { display: flex; align-items: center; flex: 1; overflow: hidden; cursor: pointer; padding-right: 8px; }
-.custom-header-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.custom-header-tools { display: flex; align-items: center; gap: 2px; }
+<style>
+/* 🟢 修复：去除 scoped，对齐原版样式 */
+.custom-header-wrapper { display: flex; align-items: center; width: 100%; height: 100%; justify-content: space-between; overflow: hidden; }
+.custom-header-main { display: flex; align-items: center; flex: 1; overflow: hidden; cursor: pointer; padding-right: 4px; min-width: 0; }
+.custom-header-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
+.custom-header-tools { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .custom-header-icon { display: flex; align-items: center; padding: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
 .custom-header-icon:hover { background-color: #e6e8eb; }
 .header-unlock-icon, .menu-btn { opacity: 0; transition: opacity 0.2s; }

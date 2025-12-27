@@ -2,14 +2,15 @@ import { reactive, ref, computed, watch, nextTick } from 'vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
-export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, currentUser, hooks) {
+// 🟢 接收 columnLockState 参数
+export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, currentUser, hooks, columnLockState) {
   const pinnedBottomRowData = ref([])
   const isSavingConfig = ref(false)
   const configDialog = reactive({ visible: false, title: '', type: null, colId: null, tempValue: '', expression: '' })
 
   const availableColumns = computed(() => [...props.staticColumns, ...props.extraColumns].map(c => ({ label: c.label, prop: c.prop })))
 
-  // 🟢 新增：加载配置 (Load Config) - 之前丢失的核心逻辑
+  // 加载配置 (包含列锁)
   const loadGridConfig = async () => {
     if (!props.viewId) return
     try {
@@ -21,18 +22,20 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
       if (res && res.length > 0) {
         const remoteConfig = res[0].summary_config
         if (remoteConfig) {
-          // 响应式更新：将后端配置合并到当前配置对象
           Object.assign(activeSummaryConfig, remoteConfig)
-          // 确保结构完整
           if (!activeSummaryConfig.expressions) activeSummaryConfig.expressions = {}
           if (!activeSummaryConfig.rules) activeSummaryConfig.rules = {}
           
-          // 立即重算合计行
+          // 🟢 恢复列锁状态
+          if (remoteConfig.column_locks) {
+             Object.assign(columnLockState, remoteConfig.column_locks)
+          }
+          
           pinnedBottomRowData.value = calculateTotals(gridData.value)
           
-          // 强制刷新 Grid 视图 (特别是合计行)
           if (gridApi.value) {
-             gridApi.value.refreshCells({ rowNodes: [gridApi.value.getPinnedBottomRow(0)], force: true })
+             gridApi.value.refreshCells({ force: true })
+             gridApi.value.redrawRows() // 重绘以应用列锁样式
           }
         }
       }
@@ -43,6 +46,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     }
   }
 
+  // ... (calculateRowFormulas 和 calculateTotals 保持不变) ...
   // L2: 行内公式计算
   const calculateRowFormulas = (rowNode) => {
     if (!rowNode || !rowNode.data) return false
@@ -90,7 +94,6 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     const l1Results = {} 
     const columns = [...props.staticColumns, ...props.extraColumns]
     
-    // Phase 1
     columns.forEach(col => {
       const isProp = !props.staticColumns.find(c => c.prop === col.prop)
       const values = data.map(row => { const v = isProp ? row.properties?.[col.prop] : row[col.prop]; return (v === null || v === undefined || v === '') ? null : v }).filter(v => v !== null)
@@ -115,7 +118,6 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
       }
     })
 
-    // Phase 2
     const valueMap = {}; Object.keys(l1Results).forEach(p => { valueMap[p] = l1Results[p]; const c = columns.find(x => x.prop === p); if(c && c.label) valueMap[c.label] = l1Results[p] })
     columns.forEach(col => {
       const expr = activeSummaryConfig.expressions?.[col.prop]
@@ -130,7 +132,6 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
       }
     })
     
-    // Phase 3
     columns.forEach(col => {
       const rule = activeSummaryConfig.rules[col.prop]; const hasF = !!activeSummaryConfig.expressions?.[col.prop]
       if ((!rule || rule === 'none') && !hasF) {
@@ -169,20 +170,19 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     }
     configDialog.visible = false
     
-    // 🟢 修复：持久化保存
     if (props.viewId) {
         isSavingConfig.value = true
         try {
             await request({
                 url: '/sys_grid_configs?on_conflict=view_id', method: 'post',
                 headers: { 'Prefer': 'resolution=merge-duplicates', 'Content-Profile': 'public' }, 
-                // 确保序列化的是当前的 activeSummaryConfig
                 data: { 
                     view_id: props.viewId, 
                     summary_config: {
                         label: activeSummaryConfig.label,
                         rules: activeSummaryConfig.rules,
-                        expressions: activeSummaryConfig.expressions
+                        expressions: activeSummaryConfig.expressions,
+                        column_locks: columnLockState // 🟢 顺带保存列锁状态
                     },
                     updated_by: currentUser.value 
                 }
@@ -192,6 +192,32 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
         finally { isSavingConfig.value = false }
     }
   }
+
+  // 🟢 监听列锁变化，自动触发保存
+  watch(columnLockState, async () => {
+      // 这里的逻辑稍微有点 trick：我们复用 saveConfig 里的持久化逻辑，但不需要弹窗
+      // 为了不重写一遍 request，我们可以封装一个 internalSave
+      // 但为了简单，这里直接复制核心请求代码，实现“静默保存”
+      if (props.viewId) {
+        try {
+            await request({
+                url: '/sys_grid_configs?on_conflict=view_id', method: 'post',
+                headers: { 'Prefer': 'resolution=merge-duplicates', 'Content-Profile': 'public' }, 
+                data: { 
+                    view_id: props.viewId, 
+                    summary_config: {
+                        label: activeSummaryConfig.label,
+                        rules: activeSummaryConfig.rules,
+                        expressions: activeSummaryConfig.expressions,
+                        column_locks: columnLockState
+                    },
+                    updated_by: currentUser.value 
+                }
+            })
+            // 列锁变化不需要弹出成功提示，以免打扰用户，或者可以改用 console.log
+        } catch(e) { console.error('Auto save locks failed', e) }
+      }
+  }, { deep: true })
 
   watch(gridData, (newData) => pinnedBottomRowData.value = calculateTotals(newData), { immediate: true })
   
@@ -210,6 +236,6 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
   return {
     pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
     configDialog, isSavingConfig, availableColumns, 
-    openConfigDialog, saveConfig, loadGridConfig // 🟢 导出 loadGridConfig
+    openConfigDialog, saveConfig, loadGridConfig
   }
 }
