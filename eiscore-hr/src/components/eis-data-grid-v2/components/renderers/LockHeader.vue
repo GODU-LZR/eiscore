@@ -53,7 +53,7 @@ const onLockClick = () => gridComp.toggleColumnLock(colId)
 /* 🟢 修复：去除 scoped，对齐原版样式 */
 .custom-header-wrapper { display: flex; align-items: center; width: 100%; height: 100%; justify-content: space-between; overflow: hidden; }
 .custom-header-main { display: flex; align-items: center; flex: 1; overflow: hidden; cursor: pointer; padding-right: 4px; min-width: 0; }
-.custom-header-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
+.custom-header-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
 .custom-header-tools { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .custom-header-icon { display: flex; align-items: center; padding: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
 .custom-header-icon:hover { background-color: #e6e8eb; }
