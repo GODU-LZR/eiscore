@@ -7,7 +7,30 @@ export function useGridSelection(gridApi, selectedRowsCount) {
   const mouseY = ref(0)
   let autoScrollRaf = null
 
-  const getColIndex = (colId) => gridApi.value ? gridApi.value.getAllGridColumns().findIndex(c => c.getColId() === colId) : -1
+  const getColIndex = (colId) => {
+    if (!gridApi.value) return -1
+    const allCols = gridApi.value.getAllGridColumns()
+    return allCols.findIndex(c => c.getColId() === colId)
+  }
+
+  // 🟢 找回判定函数
+  const isCellInSelection = (params) => {
+    if (!rangeSelection.active) return false
+    const rowIndex = params.node.rowIndex
+    const colId = params.column.colId
+    const startColIdx = getColIndex(rangeSelection.startColId)
+    const endColIdx = getColIndex(rangeSelection.endColId)
+    const currentColIdx = getColIndex(colId)
+    
+    if (startColIdx === -1 || endColIdx === -1 || currentColIdx === -1) return false
+    
+    const minRow = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
+    const maxRow = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
+    const minCol = Math.min(startColIdx, endColIdx)
+    const maxCol = Math.max(startColIdx, endColIdx)
+    
+    return rowIndex >= minRow && rowIndex <= maxRow && currentColIdx >= minCol && currentColIdx <= maxCol
+  }
 
   const onGlobalMouseMove = (e) => { mouseX.value = e.clientX; mouseY.value = e.clientY }
 
@@ -32,8 +55,10 @@ export function useGridSelection(gridApi, selectedRowsCount) {
                 if (rowId && colId) {
                     const rowNode = gridApi.value.getRowNode(rowId)
                     if (rowNode) {
-                        rangeSelection.endRowIndex = rowNode.rowIndex; rangeSelection.endColId = colId
-                        gridApi.value.refreshCells({ force: false })
+                        if (rangeSelection.endRowIndex !== rowNode.rowIndex || rangeSelection.endColId !== colId) {
+                            rangeSelection.endRowIndex = rowNode.rowIndex; rangeSelection.endColId = colId
+                            gridApi.value.refreshCells({ force: false })
+                        }
                     }
                 }
             }
@@ -46,7 +71,8 @@ export function useGridSelection(gridApi, selectedRowsCount) {
     if (params.event.button === 2) return 
     if (params.colDef.field === '_status') {
         const editingCells = gridApi.value.getEditingCells()
-        if (editingCells.length > 0) { gridApi.value.stopEditing(); return }
+        const isEditing = editingCells.some(c => c.rowIndex === params.node.rowIndex && c.column.getColId() === params.column.getColId())
+        if (isEditing) { gridApi.value.stopEditing(); return }
     }
     isDragging.value = true; autoScroll()
     rangeSelection.startRowIndex = params.node.rowIndex; rangeSelection.startColId = params.column.colId
@@ -57,10 +83,12 @@ export function useGridSelection(gridApi, selectedRowsCount) {
 
   const onCellMouseOver = (params) => {
     if (!isDragging.value) return
-    rangeSelection.endRowIndex = params.node.rowIndex; rangeSelection.endColId = params.column.colId
-    gridApi.value.refreshCells({ force: false }) 
-    gridApi.value.ensureIndexVisible(params.node.rowIndex)
-    gridApi.value.ensureColumnVisible(params.column)
+    if (rangeSelection.endRowIndex !== params.node.rowIndex || rangeSelection.endColId !== params.column.colId) {
+        rangeSelection.endRowIndex = params.node.rowIndex; rangeSelection.endColId = params.column.colId
+        gridApi.value.refreshCells({ force: false }) 
+        gridApi.value.ensureIndexVisible(params.node.rowIndex)
+        gridApi.value.ensureColumnVisible(params.column)
+    }
   }
 
   const onGlobalMouseUp = () => {
@@ -74,6 +102,6 @@ export function useGridSelection(gridApi, selectedRowsCount) {
 
   return {
     rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged,
-    onGlobalMouseMove, onGlobalMouseUp, getColIndex
+    onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection
   }
 }

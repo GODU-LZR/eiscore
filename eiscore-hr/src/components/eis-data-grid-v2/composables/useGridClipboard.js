@@ -9,136 +9,240 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
     const activeEl = document.activeElement
     if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) if (!activeEl.closest('.ag-root-wrapper')) return 
     const focusedCell = gridApi.value.getFocusedCell()
-    if ((!focusedCell && !rangeSelection.active) || !event.clipboardData) return
-
-    const text = event.clipboardData.getData('text'); if (!text) return
-    const rows = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n'); if (rows[rows.length-1]==='') rows.pop()
-    const pasteMatrix = rows.map(row => row.split('\t'))
-    if (pasteMatrix.length === 0) return
-
-    isSystemOperation.value = true
+    const hasRange = rangeSelection.active
+    if (!focusedCell && !hasRange) return
+    
+    const clipboardData = event.clipboardData || window.clipboardData
+    if (!clipboardData) return
+    const text = clipboardData.getData('text')
+    if (!text) return
+    
+    // 原始逻辑：处理换行符
+    const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    let rows = cleanText.split('\n');
+    if (rows[rows.length - 1] === '') rows.pop(); 
+    
+    const pasteMatrix = rows.map(row => row.split('\t'));
+    const pasteRowCount = pasteMatrix.length;
+    const pasteColCount = pasteMatrix.length > 0 ? pasteMatrix[0].length : 0;
+    if (pasteRowCount === 0) return;
+    
+    const allCols = gridApi.value.getAllGridColumns();
+    
+    // 开启事务
+    isSystemOperation.value = true 
     const transaction = { type: 'batch', changes: [] }
-    const allCols = gridApi.value.getAllGridColumns()
 
-    let startRowIdx, startColIdx;
+    let startRowIdx = -1, startColIdx = -1;
     if (rangeSelection.active) {
-        startRowIdx = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
-        startColIdx = Math.min(getColIndex(rangeSelection.startColId), getColIndex(rangeSelection.endColId))
+      startRowIdx = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex);
+      const sC = getColIndex(rangeSelection.startColId);
+      const eC = getColIndex(rangeSelection.endColId);
+      startColIdx = Math.min(sC, eC);
     } else {
-        startRowIdx = focusedCell.rowIndex
-        startColIdx = getColIndex(focusedCell.column.colId)
+      if (focusedCell) {
+        startRowIdx = focusedCell.rowIndex;
+        startColIdx = getColIndex(focusedCell.column.colId);
+      }
+    }
+    if (startRowIdx === -1 || startColIdx === -1) return;
+
+    // 辅助函数：应用更新并记录
+    const applyAndRecord = (rowNode, col, rawValue) => {
+      const field = col.getColDef().field
+      let currentVal = field.split('.').reduce((obj, key) => obj?.[key], rowNode.data)
+      const cleanValue = sanitizeValue(field, rawValue)
+      
+      if (String(currentVal) !== String(cleanValue)) {
+         rowNode.setDataValue(field, cleanValue)
+         transaction.changes.push({
+           rowId: rowNode.data.id,
+           colId: field,
+           oldValue: currentVal,
+           newValue: cleanValue
+         })
+         pushPendingChange({
+           rowNode: rowNode,
+           colDef: col.getColDef(),
+           newValue: cleanValue,
+           oldValue: currentVal
+         })
+      }
     }
 
-    const applyPaste = (rowNode, col, val) => {
-        const field = col.getColDef().field
-        const currentVal = field.split('.').reduce((o, k) => o?.[k], rowNode.data)
-        const cleanVal = sanitizeValue(field, val)
-        if (String(currentVal) !== String(cleanVal)) {
-            rowNode.setDataValue(field, cleanVal)
-            transaction.changes.push({ rowId: rowNode.data.id, colId: field, oldValue: currentVal, newValue: cleanVal })
-            pushPendingChange({ rowNode, colDef: col.getColDef(), newValue: cleanVal, oldValue: currentVal })
-        }
-    }
+    const isSingleValue = pasteRowCount === 1 && pasteColCount === 1;
+    const realRangeRowCount = rangeSelection.active ? Math.abs(rangeSelection.endRowIndex - rangeSelection.startRowIndex) + 1 : 0
+    const realRangeColCount = rangeSelection.active ? Math.abs(getColIndex(rangeSelection.endColId) - getColIndex(rangeSelection.startColId)) + 1 : 0
+    const isMultiCellSelection = realRangeRowCount > 1 || realRangeColCount > 1;
 
-    const isSingle = pasteMatrix.length === 1 && pasteMatrix[0].length === 1
-    const isRange = rangeSelection.active && (Math.abs(rangeSelection.endRowIndex - rangeSelection.startRowIndex) > 0 || Math.abs(getColIndex(rangeSelection.endColId) - getColIndex(rangeSelection.startColId)) > 0)
-
-    if (isSingle && isRange) {
-        const val = pasteMatrix[0][0].trim(); const endR = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex); const endC = Math.max(getColIndex(rangeSelection.startColId), getColIndex(rangeSelection.endColId))
-        for (let r=startRowIdx; r<=endR; r++) {
-            const rowNode = gridApi.value.getDisplayedRowAtIndex(r)
-            for (let c=startColIdx; c<=endC; c++) {
-                const col = allCols[c]
-                if (col && col.isCellEditable(rowNode)) applyPaste(rowNode, col, val)
-            }
+    // 场景1：单值填充多选区域
+    if (isSingleValue && isMultiCellSelection && rangeSelection.active) {
+      const valToPaste = pasteMatrix[0][0].trim();
+      const endRowIdx = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex);
+      const sC = getColIndex(rangeSelection.startColId);
+      const eC = getColIndex(rangeSelection.endColId);
+      const endColIdx = Math.max(sC, eC);
+      
+      for (let r = startRowIdx; r <= endRowIdx; r++) {
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(r);
+        for (let c = startColIdx; c <= endColIdx; c++) {
+          const col = allCols[c];
+          if (col && col.isCellEditable(rowNode)) {
+            applyAndRecord(rowNode, col, valToPaste)
+          }
         }
-    } else {
-        for (let i=0; i<pasteMatrix.length; i++) {
-            const rowNode = gridApi.value.getDisplayedRowAtIndex(startRowIdx + i); if (!rowNode) break
-            for (let j=0; j<pasteMatrix[0].length; j++) {
-                const col = allCols[startColIdx + j]
-                if (col && col.isCellEditable(rowNode)) applyPaste(rowNode, col, pasteMatrix[i][j].trim())
+      }
+    } 
+    // 场景2：多对多粘贴
+    else {
+      for (let i = 0; i < pasteRowCount; i++) {
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(startRowIdx + i);
+        if (!rowNode) break; 
+        for (let j = 0; j < pasteColCount; j++) {
+          const colIndex = startColIdx + j;
+          if (colIndex < allCols.length) {
+            const col = allCols[colIndex];
+            const cellValue = pasteMatrix[i][j].trim();
+            if (col && col.isCellEditable(rowNode)) {
+               applyAndRecord(rowNode, col, cellValue)
             }
+          }
         }
+      }
     }
 
     if (transaction.changes.length > 0) {
-        history.undoStack.push(transaction); history.redoStack = []
-        ElMessage.success(`已粘贴 ${transaction.changes.length} 个单元格`)
-        debouncedSave()
+      history.undoStack.push(transaction)
+      history.redoStack = []
+      ElMessage.success(`已粘贴 ${transaction.changes.length} 个单元格`)
+      debouncedSave()
     }
-    setTimeout(() => isSystemOperation.value = false, 50)
+    
+    setTimeout(() => { isSystemOperation.value = false }, 100)
     event.preventDefault()
   }
 
-  const onCellKeyDown = (e) => {
+  const onCellKeyDown = async (e) => {
+    const event = e.event
+    const key = event.key.toLowerCase();
+    const isCtrl = event.ctrlKey || event.metaKey;
+    
     if (!gridApi.value) return
-    const evt = e.event; const key = evt.key.toLowerCase(); const ctrl = evt.ctrlKey || evt.metaKey
     
-    // Undo/Redo (Uses passed performUndoRedo)
-    if (ctrl && key === 'z' && !evt.shiftKey) { evt.preventDefault(); performUndoRedo('undo'); return }
-    if (ctrl && (key === 'y' || (key === 'z' && evt.shiftKey))) { evt.preventDefault(); performUndoRedo('redo'); return }
-    
-    // Batch Delete
-    if (key === 'delete' || key === 'backspace') {
-        if (rangeSelection.active) {
-            isSystemOperation.value = true
-            const transaction = { type: 'batch', changes: [] }
-            const r1 = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex); const r2 = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
-            const c1 = Math.min(getColIndex(rangeSelection.startColId), getColIndex(rangeSelection.endColId)); const c2 = Math.max(getColIndex(rangeSelection.startColId), getColIndex(rangeSelection.endColId))
-            const allCols = gridApi.value.getAllGridColumns()
-            
-            for(let r=r1; r<=r2; r++) {
-                const rowNode = gridApi.value.getDisplayedRowAtIndex(r)
-                for(let c=c1; c<=c2; c++) {
-                    const col = allCols[c]
-                    if (col.isCellEditable(rowNode)) {
-                        const field = col.getColDef().field
-                        const val = field.split('.').reduce((o,k)=>o?.[k], rowNode.data)
-                        if (val !== null && val !== '') {
-                            rowNode.setDataValue(field, null)
-                            transaction.changes.push({ rowId: rowNode.data.id, colId: field, oldValue: val, newValue: null })
-                            pushPendingChange({ rowNode, colDef: col.getColDef(), newValue: null, oldValue: val })
-                        }
-                    }
-                }
-            }
-            if (transaction.changes.length) { history.undoStack.push(transaction); history.redoStack=[]; debouncedSave() }
-            setTimeout(() => isSystemOperation.value = false, 50)
-        } else {
-            const cell = gridApi.value.getFocusedCell()
-            if(cell) {
-                const row = gridApi.value.getDisplayedRowAtIndex(cell.rowIndex); const col = gridApi.value.getColumn(cell.column.colId)
-                if(col.isCellEditable(row)) row.setDataValue(col.getColDef().field, null)
-            }
-        }
+    if (isCtrl && key === 'z' && !event.shiftKey) {
+      event.preventDefault(); event.stopPropagation(); 
+      performUndoRedo('undo')
+      return
     }
 
-    // Copy
-    if (ctrl && key === 'c') {
-        let r1, r2, c1, c2
-        if (rangeSelection.active) {
-            r1=Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex); r2=Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
-            c1=Math.min(getColIndex(rangeSelection.startColId), getColIndex(rangeSelection.endColId)); c2=Math.max(getColIndex(rangeSelection.startColId), getColIndex(rangeSelection.endColId))
-        } else {
-            const c = gridApi.value.getFocusedCell(); if(!c) return
-            r1=r2=c.rowIndex; c1=c2=getColIndex(c.column.colId)
-        }
+    if (isCtrl && (key === 'y' || (key === 'z' && event.shiftKey))) {
+      event.preventDefault(); event.stopPropagation(); 
+      performUndoRedo('redo')
+      return
+    }
+
+    // 批量删除
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      if (rangeSelection.active) {
+        isSystemOperation.value = true
+        const transaction = { type: 'batch', changes: [] }
+        const startIdx = getColIndex(rangeSelection.startColId)
+        const endIdx = getColIndex(rangeSelection.endColId)
+        const minRow = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
+        const maxRow = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
+        const minCol = Math.min(startIdx, endIdx)
+        const maxCol = Math.max(startIdx, endIdx)
         const allCols = gridApi.value.getAllGridColumns()
-        let txt = ''
-        for(let r=r1; r<=r2; r++) {
-            const row = gridApi.value.getDisplayedRowAtIndex(r); if(!row) continue
-            const cells = []
-            for(let c=c1; c<=c2; c++) {
-                const col = allCols[c]; if(!col) continue
+
+        for (let r = minRow; r <= maxRow; r++) {
+          const rowNode = gridApi.value.getDisplayedRowAtIndex(r)
+          if (rowNode) {
+            for (let c = minCol; c <= maxCol; c++) {
+              const col = allCols[c]
+              if (col.isCellEditable(rowNode)) {
                 const field = col.getColDef().field
-                const val = field ? field.split('.').reduce((o,k)=>o?.[k], row.data) : ''
-                cells.push(val===null||val===undefined ? '' : String(val))
+                let currentVal = field.split('.').reduce((obj, key) => obj?.[key], rowNode.data)
+                if (currentVal !== null && currentVal !== '') {
+                  rowNode.setDataValue(field, null)
+                  transaction.changes.push({ rowId: rowNode.data.id, colId: field, oldValue: currentVal, newValue: null })
+                  pushPendingChange({ rowNode: rowNode, colDef: col.getColDef(), newValue: null, oldValue: currentVal })
+                }
+              }
             }
-            txt += cells.join('\t') + (r===r2 ? '' : '\n')
+          }
         }
-        navigator.clipboard.writeText(txt).then(() => ElMessage.success(`已复制 ${Math.abs(r2-r1)+1} 行`)).catch(()=>ElMessage.error('复制失败'))
-        evt.preventDefault()
+        
+        if (transaction.changes.length > 0) {
+          history.undoStack.push(transaction); history.redoStack = []; debouncedSave()
+        }
+        setTimeout(() => { isSystemOperation.value = false }, 100)
+
+      } else {
+        const focusedCell = gridApi.value.getFocusedCell()
+        if (focusedCell) {
+          const rowNode = gridApi.value.getDisplayedRowAtIndex(focusedCell.rowIndex)
+          const col = gridApi.value.getColumn(focusedCell.column.colId)
+          if (col.isCellEditable(rowNode)) {
+            rowNode.setDataValue(col.getColDef().field, null)
+          }
+        }
+      }
+      return
+    }
+
+    // 复制 (Ctrl+C)
+    if (isCtrl && key === 'c') {
+      const focusedCell = gridApi.value.getFocusedCell()
+      const isRangeActive = rangeSelection.active
+      if (!isRangeActive && !focusedCell) return
+
+      let startRow, endRow, startCol, endCol
+      if (isRangeActive) {
+        startRow = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
+        endRow = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
+        const idx1 = getColIndex(rangeSelection.startColId); const idx2 = getColIndex(rangeSelection.endColId)
+        startCol = Math.min(idx1, idx2); endCol = Math.max(idx1, idx2)
+      } else {
+        startRow = endRow = focusedCell.rowIndex
+        startCol = endCol = getColIndex(focusedCell.column.colId)
+      }
+
+      const allCols = gridApi.value.getAllGridColumns()
+      let clipboardText = ''
+
+      for (let r = startRow; r <= endRow; r++) {
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(r)
+        if (!rowNode) continue
+        let rowCells = []
+        for (let c = startCol; c <= endCol; c++) {
+          const col = allCols[c]
+          if (!col) continue
+          const field = col.getColDef().field
+          let val = null
+          if (field) val = field.split('.').reduce((obj, key) => obj?.[key], rowNode.data)
+          const strVal = (val === null || val === undefined) ? '' : String(val)
+          rowCells.push(strVal)
+        }
+        clipboardText += rowCells.join('\t') + (r === endRow ? '' : '\n')
+      }
+
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(clipboardText)
+        } else {
+          const textArea = document.createElement("textarea")
+          textArea.value = clipboardText
+          textArea.style.position = "fixed"; textArea.style.left = "-9999px";
+          document.body.appendChild(textArea)
+          textArea.focus(); textArea.select();
+          document.execCommand('copy')
+          document.body.removeChild(textArea)
+        }
+        ElMessage.success(`已复制 ${Math.abs(endRow - startRow) + 1} 行`)
+      } catch(e) { ElMessage.error('复制失败') }
+      
+      event.preventDefault()
+      return
     }
   }
 

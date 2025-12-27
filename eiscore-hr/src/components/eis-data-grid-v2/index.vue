@@ -41,6 +41,8 @@
         :enableRangeSelection="false"
         :preventDefaultOnContextMenu="true" 
         
+        :rowClassRules="rowClassRules" 
+        
         @grid-ready="onGridReady"
         @cell-value-changed="onCellValueChanged"
         @cell-key-down="onCellKeyDown"
@@ -69,7 +71,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose } from 'vue'
+import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
@@ -83,6 +85,9 @@ import ConfigDialog from './components/ConfigDialog.vue'
 
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
 ModuleRegistry.registerModules([ AllCommunityModule ])
+
+import "ag-grid-community/styles/ag-grid.css"
+import "ag-grid-community/styles/ag-theme-alpine.css"
 
 const AG_GRID_LOCALE_CN = {
   loadingOoo: '数据加载中...', noRowsToShow: '暂无数据', to: '至', of: '共', page: '页',
@@ -112,15 +117,24 @@ const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = currentUser === 'Admin'
 
-// 1. 初始化核心状态
+// 0. 提前创建 ref 解决循环依赖
+const gridApi = ref(null)
+const selectedRowsCount = ref(0)
+
+// 1. Selection Hook (优先初始化，供 Core 使用)
+const { 
+  rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
+  onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection 
+} = useGridSelection(gridApi, selectedRowsCount)
+
+// 2. Core Hook (状态与数据)
 const activeSummaryConfig = { label: '合计', rules: {}, expressions: {}, ...props.summary }
 const { 
-  gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading, 
-  loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly 
-} = useGridCore(props, activeSummaryConfig, { value: currentUser })
+  gridData, gridColumns, context, gridComponents, searchText, isLoading, 
+  loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules 
+} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection)
 
-// 2. 初始化 Formula Hook (前置依赖)
-// 我们需要创建一个临时对象传递给 Formula，因为 History Hook 还没初始化
+// 3. Formula Hook (计算引擎)
 const formulaDependencyHooks = {} 
 const { 
   pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
@@ -128,30 +142,23 @@ const {
   openConfigDialog, saveConfig 
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks)
 
-// 3. 初始化 History Hook
-// 🟢 修复：这里正确解构出了 debouncedSave 和 performUndoRedo，解决了 ReferenceError
+// 4. History Hook (事务管理)
 const { 
-  history, isSystemOperation, selectedRowsCount,
+  history, isSystemOperation, 
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,
   debouncedSave, performUndoRedo 
 } = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData })
 
-// 注入反向依赖：Formula Hook 需要 pushPendingChange 来保存公式计算结果
+// 注入依赖
 formulaDependencyHooks.pushPendingChange = pushPendingChange
 formulaDependencyHooks.triggerSave = debouncedSave
 
-// 4. 初始化 Selection Hook
-const { 
-  rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
-  onGlobalMouseMove, onGlobalMouseUp, getColIndex 
-} = useGridSelection(gridApi, selectedRowsCount)
-
-// 5. 初始化 Clipboard Hook
+// 5. Clipboard Hook (复制粘贴)
 const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, {
   history, isSystemOperation, debouncedSave, performUndoRedo, sanitizeValue, pushPendingChange
 }, { rangeSelection, getColIndex })
 
-// Grid Config
+// Grid Events
 const defaultColDef = { 
   sortable: true, filter: true, resizable: true, minWidth: 100, 
   editable: (params) => !isCellReadOnly(params),
@@ -164,7 +171,6 @@ const defaultColDef = {
 const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
 const getRowId = (params) => String(params.data.id)
 
-// Grid Events
 const onGridReady = (params) => { gridApi.value = params.api; loadData(); }
 const onGridMouseLeave = () => {}
 const onCellDoubleClicked = (params) => {
@@ -196,22 +202,25 @@ defineExpose({ loadData })
 </style>
 
 <style lang="scss">
-/* 全局样式保留 */
+/* 🟢 还原所有全局样式，解决自定义组件样式丢失问题 */
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar { width: 16px; height: 16px; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb { background-color: var(--el-color-primary-light-5); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb:hover, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover { background-color: var(--el-color-primary); }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-track, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track { background-color: #f5f7fa; box-shadow: inset 0 0 4px rgba(0,0,0,0.05); }
 .ag-theme-alpine .ag-body-viewport { overflow-y: scroll !important; }
+
 .ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 32px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
 .no-user-select { user-select: none; }
 .ag-theme-alpine .dynamic-header { font-weight: 600; }
 .ag-theme-alpine .ag-cell { border-right: 1px solid var(--ag-border-color); }
 .ag-root-wrapper { border: 1px solid var(--el-border-color-light) !important; }
+
+/* 选中样式 */
 .custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }
 .cell-locked-pattern { background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px); color: #a8abb2; cursor: not-allowed; }
 .row-locked-bg { background-color: #fafafa !important; }
 
-/* 自定义表头 */
+/* 表头样式 - 还原 LockHeader */
 .custom-header-wrapper { display: flex; align-items: center; width: 100%; height: 100%; justify-content: space-between; }
 .custom-header-main { display: flex; align-items: center; flex: 1; overflow: hidden; cursor: pointer; padding-right: 8px; }
 .custom-header-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
@@ -221,7 +230,7 @@ defineExpose({ loadData })
 .header-unlock-icon, .menu-btn { opacity: 0; transition: opacity 0.2s; }
 .custom-header-wrapper:hover .header-unlock-icon, .custom-header-wrapper:hover .menu-btn { opacity: 1; }
 
-/* 状态编辑器 */
+/* 状态编辑器样式 - 还原 StatusEditor */
 .status-editor-popup { background-color: #fff; border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); border: 1px solid #e4e7ed; overflow: hidden; padding: 4px 0; }
 .status-editor-item { display: flex; align-items: center; padding: 8px 12px; cursor: pointer; transition: background-color 0.2s; font-size: 13px; color: #606266; position: relative; }
 .status-editor-item:hover { background-color: #f5f7fa; }

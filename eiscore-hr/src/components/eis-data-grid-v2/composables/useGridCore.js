@@ -6,9 +6,9 @@ import StatusRenderer from '../components/renderers/StatusRenderer.vue'
 import StatusEditor from '../components/renderers/StatusEditor.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 
-export function useGridCore(props, activeSummaryConfig, currentUser) {
+export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection) {
   const gridApi = ref(null)
-  const gridData = ref([]) // 使用 ref 替代 shallowRef 以确保响应性
+  const gridData = ref([])
   const searchText = ref('')
   const isLoading = ref(false)
   const columnLockState = reactive({})
@@ -25,14 +25,22 @@ export function useGridCore(props, activeSummaryConfig, currentUser) {
     if (params.node.rowPinned) return true
     if (columnLockState[colId]) return true
     if (params.data?.properties?.row_locked_by) return true
-    // 公式列只读
     if (params.colDef.type === 'formula') return true
     return false
   }
 
+  // 🟢 找回核心样式规则
+  const cellClassRules = { 
+    'custom-range-selected': (params) => isCellInSelection && isCellInSelection(params),
+    'cell-locked-pattern': (params) => isCellReadOnly(params),
+    'status-cell': (params) => params.colDef.field === '_status'
+  }
+
+  const rowClassRules = { 'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by }
+
   const getCellStyle = (params) => {
     const base = { 'line-height': '34px' }
-    if (params.node.rowPinned) return { ...base, backgroundColor: '#ecf5ff', color: '#409EFF', fontWeight: 'bold' }
+    if (params.node.rowPinned) return { ...base, backgroundColor: 'var(--el-color-primary-light-9)', color: 'var(--el-color-primary)', fontWeight: 'bold', borderTop: '2px solid var(--el-color-primary-light-5)' }
     if (params.colDef.field === '_status') return { ...base, cursor: 'pointer' }
     if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
     if (params.colDef.editable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
@@ -50,10 +58,14 @@ export function useGridCore(props, activeSummaryConfig, currentUser) {
   })
 
   const gridColumns = computed(() => {
-    const checkboxCol = { colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, width: 40, pinned: 'left', cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' } }
+    const checkboxCol = { colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, width: 40, minWidth: 40, maxWidth: 40, pinned: 'left', resizable: false, sortable: false, filter: false, suppressHeaderMenuButton: true, cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' } }
+    
     const statusCol = { 
-      headerName: '状态', field: '_status', width: 100, pinned: 'left', 
-      cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, 
+      headerName: '状态', field: '_status', width: 100, minWidth: 100, pinned: 'left', 
+      filter: true, sortable: false, resizable: false, suppressHeaderMenuButton: false,
+      editable: (params) => !params.node.rowPinned,
+      cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, cellEditorPopupPosition: 'under',
+      cellClassRules: cellClassRules,
       valueGetter: params => params.node.rowPinned ? activeSummaryConfig.label : (params.data.properties?.row_locked_by ? 'locked' : params.data.properties?.status || 'created'), 
       valueSetter: params => { 
         if(params.node.rowPinned || params.newValue===params.oldValue) return false; 
@@ -67,14 +79,20 @@ export function useGridCore(props, activeSummaryConfig, currentUser) {
     const staticCols = props.staticColumns.map(col => ({
       headerName: col.label, field: col.prop, 
       editable: col.editable!==false && (params => !isCellReadOnly(params)), 
-      width: col.width, cellStyle: getCellStyle, headerComponent: 'LockHeader'
+      cellEditor: 'agTextCellEditor', width: col.width, flex: col.width ? 0 : 1,
+      cellStyle: getCellStyle, 
+      cellClassRules: cellClassRules,
+      headerComponent: 'LockHeader'
     }))
     
     const dynamicCols = props.extraColumns.map(col => ({
       headerName: col.label, field: `properties.${col.prop}`, 
       type: col.type, 
       editable: (params) => !isCellReadOnly(params),
-      headerClass: 'dynamic-header', cellStyle: getCellStyle, headerComponent: 'LockHeader'
+      headerClass: 'dynamic-header', 
+      cellStyle: getCellStyle, 
+      cellClassRules: cellClassRules,
+      headerComponent: 'LockHeader'
     }))
     
     return [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
@@ -87,7 +105,6 @@ export function useGridCore(props, activeSummaryConfig, currentUser) {
       if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
       const res = await request({ url, method: 'get' })
       gridData.value = res
-      // Auto size after data load
       setTimeout(() => { 
         if (gridApi.value) {
           const allColIds = gridApi.value.getColumns().map(c => c.getColId())
@@ -100,6 +117,6 @@ export function useGridCore(props, activeSummaryConfig, currentUser) {
 
   return {
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
-    loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly
+    loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules
   }
 }
