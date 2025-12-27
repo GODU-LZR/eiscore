@@ -49,8 +49,7 @@
         :context="context" 
         :components="gridComponents"
         
-        :undoRedoCellEditing="true"
-        :undoRedoCellEditingLimit="50"
+        :undoRedoCellEditing="false" 
         :enableCellChangeFlash="true"
         :suppressClipboardPaste="true" 
         :enterNavigatesVertically="true" 
@@ -87,7 +86,7 @@
                   <b>变量取值规则：</b><br>
                   <span style="font-size: 12px; color: #909399;">
                     定义该列在公式中的基础值（例如"{姓名}"代表姓名的计数）。<br>
-                    若选择"不显示"，该列仅作为变量参与计算，不直接显示在底部。
+                    默认"不显示"，即该列仅作为变量参与计算，不直接显示在底部。
                   </span>
                 </p>
                 <el-radio-group v-model="configDialog.tempValue" class="agg-radio-group">
@@ -335,6 +334,15 @@ const gridApi = ref(null)
 const gridData = shallowRef([])
 const pinnedBottomRowData = ref([])
 
+// 🟢 历史记录管理器 (Transaction History Manager)
+const history = reactive({
+  undoStack: [],
+  redoStack: []
+})
+// 🟢 系统操作锁：当为 true 时，表示正在执行 Undo/Redo/Paste 等系统操作，
+// onCellValueChanged 不应将其视为新的用户输入。
+let isSystemOperation = false
+
 const activeSummaryConfig = reactive({
   label: '合计',
   rules: {},
@@ -399,9 +407,17 @@ const isCellReadOnly = (params) => {
   return false
 }
 
+// 🟢 拦截 Ctrl+Z 和 Ctrl+Y，完全接管
 const defaultColDef = { 
   sortable: true, filter: true, resizable: true, minWidth: 100, 
-  editable: (params) => !isCellReadOnly(params)
+  editable: (params) => !isCellReadOnly(params),
+  suppressKeyboardEvent: (params) => {
+    const event = params.event;
+    const key = event.key.toLowerCase();
+    const isCtrl = event.ctrlKey || event.metaKey;
+    if (isCtrl && (key === 'z' || key === 'y')) return true;
+    return false;
+  }
 }
 
 const getRowId = (params) => String(params.data.id)
@@ -679,8 +695,6 @@ const onCellDoubleClicked = (params) => {
     const field = params.colDef.field.replace('properties.', '')
     configDialog.colId = field
     
-    // 初始化弹窗状态
-    // 如果有公式，默认显示公式Tab，但同时也加载基础规则
     if (activeSummaryConfig.expressions?.[field]) {
       configDialog.tab = 'formula'
       configDialog.expression = activeSummaryConfig.expressions[field]
@@ -688,14 +702,12 @@ const onCellDoubleClicked = (params) => {
       configDialog.tab = 'basic'
       configDialog.expression = ''
     }
-    // 始终加载基础规则 (L1) 用于 Radio 选中
-    configDialog.tempValue = activeSummaryConfig.rules[field] || ''
+    configDialog.tempValue = activeSummaryConfig.rules[field] || 'none'
     
     configDialog.visible = true
   }
 }
 
-// 🟢 修改：插入 label 而不是 prop
 const insertVariable = (label) => {
   configDialog.expression += `{${label}}`
 }
@@ -724,24 +736,19 @@ const loadGridConfig = async () => {
 }
 
 const saveConfig = async () => {
-  // 1. 处理 L3: Label
   if (configDialog.type === 'label') {
     if (configDialog.tempValue) {
       activeSummaryConfig.label = configDialog.tempValue
     }
   } 
-  // 2. 处理 L1/L2: Data Config
   else {
     const field = configDialog.colId
-    
-    // 无论在哪一个Tab，始终保存基础聚合规则
     if (configDialog.tempValue) {
       activeSummaryConfig.rules[field] = configDialog.tempValue
     } else {
       delete activeSummaryConfig.rules[field]
     }
 
-    // 处理公式
     if (configDialog.tab === 'formula' && configDialog.expression.trim()) {
       activeSummaryConfig.expressions[field] = configDialog.expression
     } else if (configDialog.tab === 'basic') {
@@ -754,7 +761,6 @@ const saveConfig = async () => {
   gridApi.value.refreshCells({ rowNodes: [gridApi.value.getPinnedBottomRow(0)], force: true })
   configDialog.visible = false
 
-  // 3. 持久化
   if (props.viewId) {
     isSavingConfig.value = true
     try {
@@ -786,7 +792,6 @@ watch(isLoading, (val) => {
   gridApi.value.setGridOption('loading', val)
 })
 
-// 🟢 核心计算引擎升级
 const calculateTotals = (data) => {
   if (!data || data.length === 0) return []
   
@@ -800,7 +805,6 @@ const calculateTotals = (data) => {
 
   const columns = [...props.staticColumns, ...props.extraColumns]
   
-  // --- 阶段一: 计算所有基础聚合 (L1) ---
   columns.forEach(col => {
     const isProp = !props.staticColumns.find(c => c.prop === col.prop)
     const values = data.map(row => {
@@ -809,12 +813,7 @@ const calculateTotals = (data) => {
     }).filter(v => v !== null)
 
     let rule = activeSummaryConfig.rules[col.prop]
-    
-    // 默认嗅探
-    if (!rule) {
-      const isAllNumbers = values.length > 0 && values.every(v => !isNaN(Number(v)))
-      rule = isAllNumbers ? 'sum' : 'count'
-    }
+    if (!rule) rule = 'none'
 
     let result = null
     
@@ -829,7 +828,6 @@ const calculateTotals = (data) => {
         case 'max': if (validNumbers.length) result = Math.max(...validNumbers); break
         case 'min': if (validNumbers.length) result = Math.min(...validNumbers); break
         case 'none': 
-          // 特殊处理: 虽然不显示，但算一个默认值供变量引用
           const isNum = values.every(v => !isNaN(Number(v)))
           if (isNum) result = validNumbers.reduce((a, b) => a + b, 0)
           else result = values.length
@@ -837,10 +835,8 @@ const calculateTotals = (data) => {
       }
     }
 
-    // 存储中间结果
     l1Results[col.prop] = result !== null ? result : 0
 
-    // 写入显示对象: 仅当原始 rule 不是 'none' 时才写入
     const userExplicitRule = activeSummaryConfig.rules[col.prop]
     if (userExplicitRule !== 'none' && result !== null && typeof result === 'number') {
       const displayVal = Number(result.toFixed(2))
@@ -849,12 +845,9 @@ const calculateTotals = (data) => {
     }
   })
 
-  // --- 阶段二: 计算公式 (L2) ---
-  // 🟢 构建查找表: 支持通过 Prop 或 Label 查找值
   const valueMap = {}
   Object.keys(l1Results).forEach(prop => {
     valueMap[prop] = l1Results[prop]
-    // 找对应的 Label
     const colDef = columns.find(c => c.prop === prop)
     if (colDef && colDef.label) {
       valueMap[colDef.label] = l1Results[prop]
@@ -863,17 +856,13 @@ const calculateTotals = (data) => {
 
   columns.forEach(col => {
     const expression = activeSummaryConfig.expressions?.[col.prop]
-    
     if (expression) {
       try {
-        // 🟢 正则改为匹配非贪婪 {xxx}，支持中文
         let evalExpr = expression.replace(/\{(.+?)\}/g, (match, key) => {
           const val = valueMap[key]
           return (val !== undefined && val !== null) ? val : 0
         })
-        
         const result = new Function(`return (${evalExpr})`)()
-        
         if (result !== undefined && !isNaN(result) && isFinite(result)) {
            const displayVal = Number(result.toFixed(2))
            const isProp = !props.staticColumns.find(c => c.prop === col.prop)
@@ -886,12 +875,11 @@ const calculateTotals = (data) => {
     }
   })
 
-  // --- 阶段三: 修正后的清理 (L3) ---
   columns.forEach(col => {
     const rule = activeSummaryConfig.rules[col.prop]
     const hasFormula = !!activeSummaryConfig.expressions?.[col.prop]
     
-    if (rule === 'none' && !hasFormula) {
+    if ((!rule || rule === 'none') && !hasFormula) {
       const isProp = !props.staticColumns.find(c => c.prop === col.prop)
       if (isProp) delete totalRow.properties[col.prop]
       else delete totalRow[col.prop]
@@ -984,11 +972,19 @@ const sanitizeValue = (field, value) => {
   return value
 }
 
+// 🟢 核心重构：单个单元格变更处理
 const onCellValueChanged = (event) => {
+  // 如果是系统操作（Undo/Redo/Paste期间），不做任何记录，仅更新界面和保存
+  if (isSystemOperation) {
+    // 强制触发保存以同步后端
+    debouncedSave()
+    return
+  }
+
   if (event.node.rowPinned) return 
   if (isRemoteUpdating.value || event.oldValue === event.newValue) return
+
   const safeValue = sanitizeValue(event.colDef.field, event.newValue)
-  
   if (safeValue !== event.newValue) {
     isRemoteUpdating.value = true
     event.node.setDataValue(event.colDef.field, safeValue)
@@ -997,6 +993,17 @@ const onCellValueChanged = (event) => {
 
   pinnedBottomRowData.value = calculateTotals(gridData.value)
 
+  // 记录单个变更到历史栈
+  history.redoStack = [] // 新操作清空重做栈
+  history.undoStack.push({
+    type: 'single',
+    rowId: event.node.data.id,
+    colId: event.colDef.field,
+    oldValue: event.oldValue,
+    newValue: safeValue
+  })
+
+  // 放入待保存队列
   pendingChanges.push({
     rowNode: event.node,
     colDef: event.colDef,
@@ -1046,7 +1053,11 @@ const debouncedSave = debounce(async () => {
       })
       affectedNodes.forEach(({ node, newVer }) => { node.data.version = newVer })
       gridApi.value.refreshCells({ rowNodes: affectedNodes.map(i => i.node), force: false })
-      ElMessage.success(`已保存 ${apiPayload.length} 行变更`)
+      
+      // 仅在非系统操作时提示，避免批量操作刷屏
+      if (!isSystemOperation && apiPayload.length > 0) { 
+        ElMessage.success(`已保存 ${apiPayload.length} 行变更`)
+      }
     }
   } catch (e) {
     ElMessage.error('保存失败')
@@ -1062,6 +1073,7 @@ const debouncedSave = debounce(async () => {
 const deleteSelectedRows = async () => {
   const selectedNodes = gridApi.value.getSelectedNodes()
   if (selectedNodes.length === 0) return
+  // 删除操作通常不走 Undo 栈（或者需要更复杂的逻辑），暂时保持现状
   const lockedNodes = selectedNodes.filter(n => n.data.properties?.row_locked_by)
   if (lockedNodes.length > 0) {
     return ElMessage.warning(`选中行中有 ${lockedNodes.length} 行已被锁定，无法删除`)
@@ -1074,9 +1086,13 @@ const deleteSelectedRows = async () => {
     pinnedBottomRowData.value = calculateTotals(gridData.value)
     ElMessage.success('删除成功')
     selectedRowsCount.value = 0
+    // 删除操作清空历史栈，防止错位
+    history.undoStack = []
+    history.redoStack = []
   } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }
 }
 
+// 🟢 核心重构：批量粘贴处理 (Transaction Construction)
 const handleGlobalPaste = async (event) => {
   if (!gridApi.value) return
   const activeEl = document.activeElement
@@ -1095,8 +1111,18 @@ const handleGlobalPaste = async (event) => {
   const pasteRowCount = pasteMatrix.length;
   const pasteColCount = pasteMatrix.length > 0 ? pasteMatrix[0].length : 0;
   if (pasteRowCount === 0) return;
-  const isSingleValue = pasteRowCount === 1 && pasteColCount === 1;
-  const isMultiCellSelection = realRangeRowCount.value > 1 || realRangeColCount.value > 1;
+  
+  const allCols = gridApi.value.getAllGridColumns();
+  
+  // 1. 开启系统操作锁，禁止 onCellValueChanged 干扰
+  isSystemOperation = true
+  
+  // 2. 准备事务记录
+  const transaction = {
+    type: 'batch',
+    changes: []
+  }
+
   let startRowIdx = -1, startColIdx = -1;
   if (rangeSelection.active) {
     startRowIdx = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex);
@@ -1110,7 +1136,36 @@ const handleGlobalPaste = async (event) => {
     }
   }
   if (startRowIdx === -1 || startColIdx === -1) return;
-  const allCols = gridApi.value.getAllGridColumns();
+
+  // 辅助函数：应用更新并记录到事务
+  const applyAndRecord = (rowNode, col, rawValue) => {
+    const field = col.getColDef().field
+    let currentVal = field.split('.').reduce((obj, key) => obj?.[key], rowNode.data)
+    const cleanValue = sanitizeValue(field, rawValue)
+    
+    if (String(currentVal) !== String(cleanValue)) {
+       // 应用更新
+       rowNode.setDataValue(field, cleanValue)
+       // 记录到事务 (供 Undo 使用)
+       transaction.changes.push({
+         rowId: rowNode.data.id,
+         colId: field,
+         oldValue: currentVal,
+         newValue: cleanValue
+       })
+       // 加入待保存队列 (供后端同步)
+       pendingChanges.push({
+         rowNode: rowNode,
+         colDef: col.getColDef(),
+         newValue: cleanValue,
+         oldValue: currentVal
+       })
+    }
+  }
+
+  const isSingleValue = pasteRowCount === 1 && pasteColCount === 1;
+  const isMultiCellSelection = realRangeRowCount.value > 1 || realRangeColCount.value > 1;
+
   if (isSingleValue && isMultiCellSelection && rangeSelection.active) {
     const valToPaste = pasteMatrix[0][0].trim();
     const endRowIdx = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex);
@@ -1122,7 +1177,7 @@ const handleGlobalPaste = async (event) => {
       for (let c = startColIdx; c <= endColIdx; c++) {
         const col = allCols[c];
         if (col && col.isCellEditable(rowNode)) {
-          rowNode.setDataValue(col.getColDef().field, valToPaste)
+          applyAndRecord(rowNode, col, valToPaste)
         }
       }
     }
@@ -1134,23 +1189,107 @@ const handleGlobalPaste = async (event) => {
         const colIndex = startColIdx + j;
         if (colIndex < allCols.length) {
           const col = allCols[colIndex];
-          const cellValue = pasteMatrix[i][j];
+          const cellValue = pasteMatrix[i][j].trim();
           if (col && col.isCellEditable(rowNode)) {
-            rowNode.setDataValue(col.getColDef().field, cellValue.trim())
+             applyAndRecord(rowNode, col, cellValue)
           }
         }
       }
     }
   }
+
+  // 3. 处理事务结果
+  if (transaction.changes.length > 0) {
+    history.undoStack.push(transaction)
+    history.redoStack = [] // 只要有新操作，清空 Redo
+    ElMessage.success(`已粘贴 ${transaction.changes.length} 个单元格`)
+    // 触发保存
+    debouncedSave()
+  }
+  
+  // 4. 延迟释放锁
+  setTimeout(() => { isSystemOperation = false }, 50)
+}
+
+// 🟢 核心重构：撤销/重做处理器
+const performUndoRedo = (action) => {
+  const stack = action === 'undo' ? history.undoStack : history.redoStack
+  const reverseStack = action === 'undo' ? history.redoStack : history.undoStack
+  
+  if (stack.length === 0) {
+    ElMessage.info(action === 'undo' ? '没有可撤销的操作' : '没有可重做的操作')
+    return
+  }
+
+  const transaction = stack.pop()
+  reverseStack.push(transaction) // 移入另一端栈
+
+  // 开启系统锁
+  isSystemOperation = true
+
+  const changesToApply = transaction.type === 'batch' ? transaction.changes : [transaction]
+  
+  changesToApply.forEach(change => {
+    const rowNode = gridApi.value.getRowNode(String(change.rowId))
+    if (rowNode) {
+      // Undo: 使用 oldValue; Redo: 使用 newValue
+      const valToSet = action === 'undo' ? change.oldValue : change.newValue
+      // 注意：Ag-Grid 的 oldValue 对应 Undo 时的目标值
+      const currentVal = action === 'undo' ? change.newValue : change.oldValue
+      
+      rowNode.setDataValue(change.colId, valToSet)
+      
+      // 加入待保存队列，确保后端同步
+      pendingChanges.push({
+        rowNode: rowNode,
+        colDef: { field: change.colId }, // 简易构造 colDef
+        newValue: valToSet,
+        oldValue: currentVal
+      })
+    }
+  })
+
+  // 触发保存
+  debouncedSave()
+  
+  const msg = transaction.type === 'batch' 
+    ? (action === 'undo' ? `已撤销批量操作 (${changesToApply.length}格)` : `已重做批量操作`)
+    : (action === 'undo' ? '已撤销' : '已重做')
+  ElMessage.info(msg)
+
+  // 延迟释放锁
+  setTimeout(() => { isSystemOperation = false }, 50)
 }
 
 const onCellKeyDown = async (e) => {
   const event = e.event
-  const key = event.key
+  const key = event.key.toLowerCase();
+  const isCtrl = event.ctrlKey || event.metaKey;
+  
   if (!gridApi.value) return
   
-  if (key === 'Delete' || key === 'Backspace') {
+  // Undo (Ctrl+Z)
+  if (isCtrl && key === 'z' && !event.shiftKey) {
+    event.preventDefault() 
+    event.stopPropagation() 
+    performUndoRedo('undo')
+    return
+  }
+
+  // Redo (Ctrl+Y or Ctrl+Shift+Z)
+  if (isCtrl && (key === 'y' || (key === 'z' && event.shiftKey))) {
+    event.preventDefault()
+    event.stopPropagation()
+    performUndoRedo('redo')
+    return
+  }
+
+  // Delete
+  if (event.key === 'Delete' || event.key === 'Backspace') {
     if (rangeSelection.active) {
+      isSystemOperation = true
+      
+      const transaction = { type: 'batch', changes: [] }
       const startIdx = getColIndex(rangeSelection.startColId)
       const endIdx = getColIndex(rangeSelection.endColId)
       const minRow = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
@@ -1165,17 +1304,43 @@ const onCellKeyDown = async (e) => {
           for (let c = minCol; c <= maxCol; c++) {
             const col = allCols[c]
             if (col.isCellEditable(rowNode)) {
-              rowNode.setDataValue(col.getColDef().field, null)
+              const field = col.getColDef().field
+              let currentVal = field.split('.').reduce((obj, key) => obj?.[key], rowNode.data)
+              if (currentVal !== null && currentVal !== '') {
+                rowNode.setDataValue(field, null)
+                transaction.changes.push({
+                  rowId: rowNode.data.id,
+                  colId: field,
+                  oldValue: currentVal,
+                  newValue: null
+                })
+                pendingChanges.push({
+                   rowNode: rowNode,
+                   colDef: col.getColDef(),
+                   newValue: null,
+                   oldValue: currentVal
+                })
+              }
             }
           }
         }
       }
+      
+      if (transaction.changes.length > 0) {
+        history.undoStack.push(transaction)
+        history.redoStack = []
+        debouncedSave()
+      }
+      
+      setTimeout(() => { isSystemOperation = false }, 50)
+
     } else {
       const focusedCell = gridApi.value.getFocusedCell()
       if (focusedCell) {
         const rowNode = gridApi.value.getDisplayedRowAtIndex(focusedCell.rowIndex)
         const col = gridApi.value.getColumn(focusedCell.column.colId)
         if (col.isCellEditable(rowNode)) {
+          // 单个删除走 onCellValueChanged 即可
           rowNode.setDataValue(col.getColDef().field, null)
         }
       }
@@ -1183,7 +1348,8 @@ const onCellKeyDown = async (e) => {
     return
   }
 
-  if ((event.ctrlKey || event.metaKey) && key === 'c') {
+  // Ctrl+C (复制逻辑保持不变)
+  if (isCtrl && key === 'c') {
     const focusedCell = gridApi.value.getFocusedCell()
     const isRangeActive = rangeSelection.active
     if (!isRangeActive && !focusedCell) return
