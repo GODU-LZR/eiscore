@@ -98,7 +98,7 @@
 
 <script setup>
 import { ref, onMounted, reactive, computed } from 'vue'
-import EisDataGrid from '@/components/EisDataGrid.vue'
+import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
