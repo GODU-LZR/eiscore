@@ -1,4 +1,4 @@
-import { ref, reactive, computed, markRaw } from 'vue'
+import { ref, reactive, computed, markRaw, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 import { buildSearchQuery } from '@/utils/grid-query'
@@ -6,8 +6,8 @@ import StatusRenderer from '../components/renderers/StatusRenderer.vue'
 import StatusEditor from '../components/renderers/StatusEditor.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 
-export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection) {
-  const gridApi = ref(null)
+export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef) {
+  const gridApi = gridApiRef || ref(null)
   const gridData = ref([])
   const searchText = ref('')
   const isLoading = ref(false)
@@ -50,6 +50,16 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   // 🟢 核心修复：列锁持久化与刷新
+  const scheduleColumnRefresh = (colId) => {
+    if (!gridApi.value) return
+    nextTick(() => {
+      setTimeout(() => {
+        gridApi.value.refreshCells({ force: true, columns: [colId] })
+        gridApi.value.refreshHeader()
+      }, 0)
+    })
+  }
+
   const handleToggleColumnLock = async (colId) => {
     // 1. 更新本地状态 (乐观更新)
     const isLocking = !columnLockState[colId]
@@ -60,10 +70,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     }
 
     // 2. 立即刷新视图 (解决延迟问题)
-    if (gridApi.value) {
-        gridApi.value.refreshHeader()
-        gridApi.value.redrawRows()
-    }
+    scheduleColumnRefresh(colId)
 
     // 3. 持久化到后端 (关键修复！)
     // 注意：这里的逻辑是假设列锁是基于 System Config 或类似的机制存储的
@@ -98,7 +105,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         // 回滚
         if (isLocking) delete columnLockState[colId]
         else columnLockState[colId] = currentUser.value
-        gridApi.value.redrawRows()
+        scheduleColumnRefresh(colId)
     }
   }
 
@@ -113,9 +120,10 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     // 逻辑对齐：
     // 如果有 width，则使用固定宽度，且不自适应
     // 如果没有 width，则 flex: 1 (自动撑开)，且给一个合理的 minWidth
+    const minWidth = col.minWidth ?? 150
     const widthConfig = col.width 
-      ? { width: col.width, suppressSizeToFit: true } 
-      : { flex: 1, minWidth: 150 } // 增大 minWidth 防止文字折叠
+      ? { width: col.width, minWidth, suppressSizeToFit: true } 
+      : { flex: 1, minWidth } // 增大 minWidth 防止文字折叠
 
     return {
       headerName: col.label,

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict iPf2nJGVI8Z8LKkRT5etYqyV4sLf1lrt05XGyZKVE0hNRmKSJr5wfYmemCEvgka
+\restrict iziPtVYZJFmzh1lXhRUkaF9Owgu2JE15LGtBj1Szo6caAyguKGT277HpYjdyAQW
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -465,23 +465,24 @@ lisi	123456	web_user	李四(仓管员)
 --
 
 COPY hr.archives (id, name, employee_no, department, "position", phone, status, base_salary, entry_date, properties, version, updated_at) FROM stdin;
-481	新员工	EMP948130	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 0, "row_locked_by": null}	9	2025-12-27 19:07:23.716
-482	新员工	EMP950387	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 0, "row_locked_by": null}	13	2025-12-27 19:07:25.067
-472	新员工	EMP1766677815838	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	12	2025-12-27 16:12:10.901
-473	新员工	EMP1766677815973	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	10	2025-12-27 17:36:54.995
-471	新员工	EMP1766677815646	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	25	2025-12-27 17:52:46.175
+469	新员工	EMP1766677815289	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	34	2025-12-27 19:45:03.942
+472	新员工	EMP1766677815838	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	14	2025-12-28 10:51:26.724
+471	新员工	EMP1766677815646	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	27	2025-12-28 10:51:26.724
 470	新员工	EMP1766677815473	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	37	2025-12-27 17:52:46.175
-469	新员工	EMP1766677815289	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	30	2025-12-27 17:52:46.175
+473	新员工	EMP1766677815973	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	14	2025-12-28 11:28:03.175
+482	新员工	EMP950387	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 0, "row_locked_by": null}	15	2025-12-28 11:59:58.599
+481	新员工	EMP948130	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "id_card": null, "field_789": 0, "row_locked_by": null}	17	2025-12-28 12:00:02.666
 453	新员工	EMP1766677812422	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.554
-474	新员工	EMP1766839066179	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	20	2025-12-27 17:36:55.135
-475	新员工	EMP1766839736899	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	20	2025-12-27 17:36:55.737
-468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	29	2025-12-27 17:52:46.175
-476	新员工	EMP1766840515500	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	8	2025-12-27 17:36:38.48
-479	新员工	EMP123876	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	9	2025-12-27 18:06:15.529
-477	新员工	EMP1766840518997	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	10	2025-12-27 18:37:52.785
-467	新员工	EMP1766677814931	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	33	2025-12-27 15:53:00.554
-466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	28	2025-12-27 15:53:00.554
-465	新员工	EMP1766677814608	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	25	2025-12-27 15:53:00.554
+468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	33	2025-12-27 19:45:03.942
+467	新员工	EMP1766677814931	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	37	2025-12-27 19:45:03.942
+466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	32	2025-12-27 19:45:03.942
+465	新员工	EMP1766677814608	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	29	2025-12-27 19:45:03.942
+479	新员工	EMP123876	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	15	2025-12-28 11:28:03.175
+477	新员工	EMP1766840518997	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	18	2025-12-28 11:28:03.175
+476	新员工	EMP1766840515500	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	16	2025-12-28 11:28:03.175
+475	新员工	EMP1766839736899	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	26	2025-12-28 11:28:03.175
+474	新员工	EMP1766839066179	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	26	2025-12-28 11:28:03.175
+483	新员工	EMP862011	\N	\N	\N	试用	0.00	2025-12-28	{"status": "created", "field_789": 0, "row_locked_by": null}	6	2025-12-28 12:00:19.932
 464	新员工	EMP1766677814414	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	20	2025-12-27 15:53:00.554
 461	新员工	EMP1766677813895	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 0}	5	2025-12-27 15:53:00.554
 463	新员工	EMP1766677814225	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	16	2025-12-27 15:53:00.554
@@ -614,7 +615,7 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 --
 
 COPY public.sys_grid_configs (view_id, summary_config, updated_by, updated_at) FROM stdin;
-employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expressions": {"id": "{ID}{ID}"}, "column_locks": {}}	Admin	2025-12-25 18:44:29.890141+00
+employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expressions": {}, "column_locks": {}}	Admin	2025-12-25 18:44:29.890141+00
 \.
 
 
@@ -641,7 +642,7 @@ COPY public.users (id, username, password, role, avatar, permissions) FROM stdin
 -- Name: archives_id_seq; Type: SEQUENCE SET; Schema: hr; Owner: postgres
 --
 
-SELECT pg_catalog.setval('hr.archives_id_seq', 482, true);
+SELECT pg_catalog.setval('hr.archives_id_seq', 483, true);
 
 
 --
@@ -900,5 +901,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict iPf2nJGVI8Z8LKkRT5etYqyV4sLf1lrt05XGyZKVE0hNRmKSJr5wfYmemCEvgka
+\unrestrict iziPtVYZJFmzh1lXhRUkaF9Owgu2JE15LGtBj1Szo6caAyguKGT277HpYjdyAQW
 

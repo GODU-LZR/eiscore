@@ -132,7 +132,7 @@ const {
   gridData, gridColumns, context, gridComponents, searchText, isLoading, 
   loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
   columnLockState // 🟢 导出状态
-} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection)
+} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi)
 
 // 3. Formula (传入 columnLockState 以便持久化)
 const formulaDependencyHooks = {} 
@@ -223,7 +223,7 @@ defineExpose({ loadData })
 
 .custom-header-wrapper { display: flex !important; align-items: center !important; width: 100%; height: 100%; justify-content: space-between; overflow: hidden; }
 .custom-header-main { display: flex !important; align-items: center !important; flex: 1; overflow: hidden; cursor: pointer; padding-right: 8px; min-width: 0; }
-.custom-header-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
+.custom-header-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
 .custom-header-tools { display: flex !important; align-items: center !important; gap: 2px; flex-shrink: 0; }
 .custom-header-icon { display: flex !important; align-items: center !important; padding: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
 .custom-header-icon:hover { background-color: #e6e8eb; }
