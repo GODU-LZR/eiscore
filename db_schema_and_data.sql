@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict RfQYwwJvtwBBLNO1oh1clSaDW1eERNtMsm384DxNXpf0czRwXR8AV2VLfBNVinR
+\restrict qtVFOXXceVC2AbylyyqNSM8cC0CqpScfJj8A7WLff75LYcUsQgUbleSvz8EsP1X
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -470,8 +470,6 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 472	新员工	EMP1766677815838	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	22	2025-12-28 14:24:10.107
 473	新员工	EMP1766677815973	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	22	2025-12-28 14:24:10.354
 470	新员工	EMP1766677815473	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	45	2025-12-28 14:24:09.187
-482	新员工	EMP950387	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 0, "row_locked_by": null}	15	2025-12-28 11:59:58.599
-481	新员工	EMP948130	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "id_card": null, "field_789": 0, "row_locked_by": null}	17	2025-12-28 12:00:02.666
 453	新员工	EMP1766677812422	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.554
 467	新员工	EMP1766677814931	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	37	2025-12-27 19:45:03.942
 466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	32	2025-12-27 19:45:03.942
@@ -479,7 +477,6 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 479	新员工	EMP123876	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	15	2025-12-28 11:28:03.175
 477	新员工	EMP1766840518997	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	18	2025-12-28 11:28:03.175
 476	新员工	EMP1766840515500	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	16	2025-12-28 11:28:03.175
-483	新员工	EMP862011	\N	\N	\N	试用	0.00	2025-12-28	{"status": "created", "field_789": 0, "row_locked_by": null}	6	2025-12-28 12:00:19.932
 468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	35	2025-12-28 13:12:22.992
 475	新员工	EMP1766839736899	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	28	2025-12-28 14:20:20.143
 474	新员工	EMP1766839066179	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	30	2025-12-28 14:20:20.143
@@ -901,5 +898,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict RfQYwwJvtwBBLNO1oh1clSaDW1eERNtMsm384DxNXpf0czRwXR8AV2VLfBNVinR
+\unrestrict qtVFOXXceVC2AbylyyqNSM8cC0CqpScfJj8A7WLff75LYcUsQgUbleSvz8EsP1X
 
