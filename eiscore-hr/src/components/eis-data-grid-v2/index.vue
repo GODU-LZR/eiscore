@@ -112,6 +112,7 @@ const props = defineProps({
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) }
 })
 
+// 🟢 声明事件：增加 view-document
 const emit = defineEmits(['create', 'config-columns', 'view-document'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
@@ -126,22 +127,15 @@ const {
   onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection 
 } = useGridSelection(gridApi, selectedRowsCount)
 
-// 2. Core
+// 2. Core (传入 emit)
 const activeSummaryConfig = reactive({ label: '合计', rules: {}, expressions: {}, ...props.summary })
 const { 
   gridData, gridColumns, context, gridComponents, searchText, isLoading, 
   loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
-  columnLockState // 🟢 导出状态
-} = useGridCore(
-  props,
-  activeSummaryConfig,
-  { value: currentUser },
-  isCellInSelection,
-  gridApi,
-  (row) => emit('view-document', row)
-)
+  columnLockState 
+} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, emit) // 🟢 关键修复：传入 emit 作为第 5 个参数
 
-// 3. Formula (传入 columnLockState 以便持久化)
+// 3. Formula
 const formulaDependencyHooks = {} 
 const { 
   pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
@@ -211,7 +205,7 @@ defineExpose({ loadData })
 </style>
 
 <style lang="scss">
-/* 🟢 修复：全局样式，对齐原版 */
+/* 🟢 确保之前的全局样式修复保留 */
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar { width: 16px; height: 16px; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb { background-color: var(--el-color-primary-light-5); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb:hover, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover { background-color: var(--el-color-primary); }
@@ -230,7 +224,7 @@ defineExpose({ loadData })
 
 .custom-header-wrapper { display: flex !important; align-items: center !important; width: 100%; height: 100%; justify-content: space-between; overflow: hidden; }
 .custom-header-main { display: flex !important; align-items: center !important; flex: 1; overflow: hidden; cursor: pointer; padding-right: 8px; min-width: 0; }
-.custom-header-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
+.custom-header-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
 .custom-header-tools { display: flex !important; align-items: center !important; gap: 2px; flex-shrink: 0; }
 .custom-header-icon { display: flex !important; align-items: center !important; padding: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
 .custom-header-icon:hover { background-color: #e6e8eb; }
