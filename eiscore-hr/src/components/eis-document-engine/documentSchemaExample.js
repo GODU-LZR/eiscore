@@ -1,55 +1,51 @@
 export const documentSchemaExample = {
-  title: '原料入库单',
-  subtitle: '示例：AI 生成的单据模板',
+  docType: "employee_profile",
+  title: "员工详细档案表",
+  docNo: "employee_no", // 自动绑定 root.employee_no
   layout: [
+    // --- 第一层：Header (基本信息) ---
     {
-      type: 'row',
+      type: "section",
+      title: "基本信息",
+      cols: 2, // 2列布局
       children: [
-        { span: 12, label: '供应商', field: 'supplier_name' },
-        { span: 12, label: '入库日期', field: 'created_at' }
+        { label: "姓名", field: "name", widget: "input" },
+        { label: "所属部门", field: "department", widget: "text" }, // 纯文本展示
+        { label: "入职日期", field: "join_date", widget: "date" },
+        { label: "当前状态", field: "status", widget: "text" }
       ]
     },
     {
-      type: 'row',
+      type: "section",
+      cols: 1, // 1列布局（通栏）
       children: [
-        { span: 12, label: '单号', field: 'document_no' },
-        { span: 12, label: '仓库', field: 'warehouse_name' }
+        { label: "身份证号", field: "id_card", widget: "input" },
+        { label: "家庭住址", field: "address", widget: "input" }
       ]
     },
+
+    // --- 第二层：Body (明细表) ---
+    // 这里假设数据中有一个 properties.work_history 数组
     {
-      type: 'table',
-      label: '入库明细',
-      field: 'items',
+      type: "table",
+      title: "工作履历",
+      field: "work_history", // 自动去 properties.work_history 找数据
       columns: [
-        { label: '物料名称', field: 'material_name' },
-        { label: '规格', field: 'spec' },
-        { label: '数量', field: 'qty', width: 120 },
-        { label: '单位', field: 'unit', width: 90 }
+        { label: "公司名称", field: "company", width: 180 },
+        { label: "职位", field: "position", width: 120 },
+        { label: "开始时间", field: "start_date", width: 120 },
+        { label: "结束时间", field: "end_date", width: 120 }
       ]
     },
+
+    // --- 第三层：Footer (签字区) ---
     {
-      type: 'row',
+      type: "section",
+      cols: 2,
       children: [
-        { span: 8, label: '经办人', field: 'operator' },
-        { span: 8, label: '审核人', field: 'approved_by' },
-        { span: 8, label: '合计', content: '{{ total_amount }}' }
+        { label: "制表人", field: "created_by", widget: "text" },
+        { label: "审核日期", field: "audit_time", widget: "date" }
       ]
     }
-  ],
-  footer: '备注：{{ remark }}'
-}
-
-export const documentDataExample = {
-  supplier_name: '海风原料有限公司',
-  created_at: '2024-05-02',
-  document_no: 'RK-20240502-001',
-  warehouse_name: '原料一号仓',
-  operator: '王小明',
-  approved_by: '李主管',
-  total_amount: '￥12,560.00',
-  remark: '请按批次入库',
-  items: [
-    { material_name: '原料 A', spec: '25kg/袋', qty: 120, unit: '袋' },
-    { material_name: '原料 B', spec: '10kg/箱', qty: 60, unit: '箱' }
   ]
 }
