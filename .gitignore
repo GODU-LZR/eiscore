@@ -1,2 +1,3 @@
 pgdata/
 *.log
+db_schema_and_data.sqldb_schema_and_data.sql
