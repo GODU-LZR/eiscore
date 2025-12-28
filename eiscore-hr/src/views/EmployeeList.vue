@@ -8,24 +8,12 @@
         api-url="/archives"
         :static-columns="staticColumns"
         :extra-columns="extraColumns"
+        :summary="summaryConfig" 
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
       >
       </eis-data-grid>
-
-      <el-drawer
-        v-model="documentDrawerVisible"
-        title="员工表单"
-        size="70%"
-        append-to-body
-      >
-        <EisDocumentEngine
-          v-if="activeDocumentRow"
-          :model-value="activeDocumentRow"
-          :schema="documentSchemaExample"
-        />
-      </el-drawer>
 
       <el-dialog v-model="colConfigVisible" title="列字段管理" width="550px" append-to-body destroy-on-close @closed="resetForm">
         <div class="column-manager">
@@ -112,15 +100,13 @@
 
 <script setup>
 import { ref, onMounted, reactive, computed } from 'vue'
+import { useRouter } from 'vue-router' // 🟢 引入 Router
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
-import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
-import { documentSchemaExample } from '@/components/eis-document-engine/documentSchemaExample'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
+const router = useRouter() // 🟢 初始化 Router
 const gridRef = ref(null)
-const documentDrawerVisible = ref(false)
-const activeDocumentRow = ref(null)
 const colConfigVisible = ref(false)
 const addTab = ref('text') 
 
@@ -131,6 +117,13 @@ const staticColumns = [
   { label: '部门', prop: 'department', width: 120 },
   { label: '状态', prop: 'status', width: 100 }
 ]
+
+// 可以在这里配置合计规则
+const summaryConfig = {
+  label: '总计',
+  rules: {},
+  expressions: {}
+}
 
 const extraColumns = ref([])
 
@@ -179,9 +172,15 @@ const insertVariable = (label) => {
   currentCol.expression += `{${label}}`
 }
 
+// 🟢 核心修改：处理表单视图跳转
 const handleViewDocument = (row) => {
-  activeDocumentRow.value = row
-  documentDrawerVisible.value = true
+  console.log('跳转详情页，ID:', row.id)
+  // 跳转到详情路由，覆盖当前页面
+  // 前提：需要在 router/index.js 中配置好 EmployeeDetail 路由
+  router.push({
+    name: 'EmployeeDetail',
+    params: { id: row.id }
+  })
 }
 
 const editColumn = (index) => {

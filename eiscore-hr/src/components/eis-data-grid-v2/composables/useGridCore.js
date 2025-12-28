@@ -7,8 +7,8 @@ import StatusEditor from '../components/renderers/StatusEditor.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
 
-export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, onViewDocument) {
-  const gridApi = gridApiRef || ref(null)
+export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, emit) {
+  const gridApi = ref(null)
   const gridData = ref([])
   const searchText = ref('')
   const isLoading = ref(false)
@@ -21,9 +21,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     DocumentActionRenderer: markRaw(DocumentActionRenderer)
   }
 
+  // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
     const colId = params.colDef.field
     if (colId === '_status') return false 
+    if (colId === '_actions') return true // ⚠️ 关键：操作列必须只读！
     if (params.node.rowPinned) return true
     if (columnLockState[colId]) return true
     if (params.data?.properties?.row_locked_by) return true
@@ -51,10 +53,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const scheduleColumnRefresh = (colId) => {
     if (!gridApi.value) return
     nextTick(() => {
-      setTimeout(() => {
-        gridApi.value.refreshCells({ force: true, columns: [colId] })
-        gridApi.value.refreshHeader()
-      }, 0)
+      gridApi.value.refreshCells({ force: true, columns: [colId] })
+      gridApi.value.refreshHeader()
     })
   }
 
@@ -65,14 +65,13 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     } else {
         delete columnLockState[colId]
     }
-
+    
     scheduleColumnRefresh(colId)
 
     try {
-        if (props.viewId) {
-            const currentConfig = {
-                view_id: props.viewId,
-            }
+        if (props.viewId) { 
+            // 模拟持久化逻辑
+            const temp = { view_id: props.viewId } 
         }
         ElMessage.success(isLocking ? '列已锁定' : '列已解锁')
     } catch (e) {
@@ -83,17 +82,20 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     }
   }
 
+  const handleViewDocument = (rowData) => {
+    emit('view-document', rowData)
+  }
+
   const context = reactive({ 
-    componentParent: {
-      toggleColumnLock: handleToggleColumnLock,
-      columnLockState,
-      viewDocument: (row) => onViewDocument && onViewDocument(row)
+    componentParent: { 
+        toggleColumnLock: handleToggleColumnLock, 
+        columnLockState,
+        viewDocument: handleViewDocument 
     } 
   })
 
   const createColDef = (col, isDynamic) => {
     const field = isDynamic ? `properties.${col.prop}` : col.prop
-    
     const minWidth = col.minWidth ?? 150
     const widthConfig = col.width 
       ? { width: col.width, minWidth, suppressSizeToFit: true } 
@@ -114,21 +116,6 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const gridColumns = computed(() => {
-    const documentCol = {
-      colId: 'documentAction',
-      headerName: '表单',
-      width: 84,
-      minWidth: 84,
-      maxWidth: 84,
-      pinned: 'right',
-      resizable: false,
-      sortable: false,
-      filter: false,
-      suppressHeaderMenuButton: true,
-      cellRenderer: 'DocumentActionRenderer',
-      cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }
-    }
-
     const checkboxCol = { 
       colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, 
       width: 40, minWidth: 40, maxWidth: 40, pinned: 'left', 
@@ -152,10 +139,27 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       } 
     }
 
+    // 🟢 修复 1：配置操作列
+    const actionCol = {
+      headerName: '操作',
+      field: '_actions',
+      width: 100, // 稍微加宽一点以容纳文字
+      minWidth: 100,
+      pinned: 'right', // 固定在右侧
+      sortable: false,
+      filter: false,
+      resizable: false,
+      editable: false, // ⚠️ 再次确保不可编辑
+      suppressHeaderMenuButton: true,
+      suppressRowClickSelection: true, // ⚠️ 核心修复：点击此列单元格，不触发“行选中”，防止状态冲突
+      cellRenderer: 'DocumentActionRenderer',
+      cellStyle: { padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+    }
+
     const staticCols = props.staticColumns.map(col => createColDef(col, false))
     const dynamicCols = props.extraColumns.map(col => createColDef(col, true))
     
-    return [checkboxCol, statusCol, ...staticCols, ...dynamicCols, documentCol]
+    return [checkboxCol, statusCol, ...staticCols, ...dynamicCols, actionCol]
   })
 
   const loadData = async () => {

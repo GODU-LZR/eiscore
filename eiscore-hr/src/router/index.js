@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
 // 2. 引入页面组件 (请确保你本地 views/EmployeeList.vue 文件存在)
 import EmployeeList from '../views/EmployeeList.vue'
+import EmployeeDetail from '../views/EmployeeDetail.vue'
 
 const router = createRouter({
   // 3. 🟢 关键配置：设置路由基础路径
@@ -19,6 +20,13 @@ const router = createRouter({
       path: '/employee',
       name: 'EmployeeList',
       component: EmployeeList // 挂载组件
+    },
+    // 🟢 新增详情页路由
+    {
+      path: '/employee/detail/:id',
+      name: 'EmployeeDetail',
+      component: EmployeeDetail,
+      props: true // 允许将 route.params.id 作为 props 传给组件
     }
   ]
 })
