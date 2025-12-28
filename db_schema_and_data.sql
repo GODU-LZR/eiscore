@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 3At7iVOfX95QhugeOV9h65B67RepQR5LxXwy9wkghE6dB1NilQ6gc3OWg5FHhPM
+\restrict oKjWAZQTo9To3ktc8AOGZ0sV4ZnJZkSFqbu2ugXjriMnIiDpTtEp76t3ZqsLauy
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -900,5 +900,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 3At7iVOfX95QhugeOV9h65B67RepQR5LxXwy9wkghE6dB1NilQ6gc3OWg5FHhPM
+\unrestrict oKjWAZQTo9To3ktc8AOGZ0sV4ZnJZkSFqbu2ugXjriMnIiDpTtEp76t3ZqsLauy
 
