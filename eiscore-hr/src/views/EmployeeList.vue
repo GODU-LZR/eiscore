@@ -10,8 +10,22 @@
         :extra-columns="extraColumns"
         @create="handleCreate"
         @config-columns="openColumnConfig"
+        @view-document="handleViewDocument"
       >
       </eis-data-grid>
+
+      <el-drawer
+        v-model="documentDrawerVisible"
+        title="员工表单"
+        size="70%"
+        append-to-body
+      >
+        <EisDocumentEngine
+          v-if="activeDocumentRow"
+          :model-value="activeDocumentRow"
+          :schema="documentSchemaExample"
+        />
+      </el-drawer>
 
       <el-dialog v-model="colConfigVisible" title="列字段管理" width="550px" append-to-body destroy-on-close @closed="resetForm">
         <div class="column-manager">
@@ -99,10 +113,14 @@
 <script setup>
 import { ref, onMounted, reactive, computed } from 'vue'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
+import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
+import { documentSchemaExample } from '@/components/eis-document-engine/documentSchemaExample'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
 const gridRef = ref(null)
+const documentDrawerVisible = ref(false)
+const activeDocumentRow = ref(null)
 const colConfigVisible = ref(false)
 const addTab = ref('text') 
 
@@ -116,22 +134,18 @@ const staticColumns = [
 
 const extraColumns = ref([])
 
-// 🟢 编辑状态管理
 const isEditing = ref(false)
 const editingIndex = ref(-1)
 
-// 当前正在编辑或新增的列对象
 const currentCol = reactive({
   label: '',
   prop: '',
-  expression: '' // 仅用于公式列
+  expression: ''
 })
 
-// 排除自己，避免公式循环引用（简单处理）
 const allAvailableColumns = computed(() => {
   const all = [...staticColumns, ...extraColumns.value]
   if (isEditing.value) {
-    // 编辑时不显示自己，防止死循环引用
     return all.filter((c, i) => i !== (staticColumns.length + editingIndex.value))
   }
   return all
@@ -165,23 +179,23 @@ const insertVariable = (label) => {
   currentCol.expression += `{${label}}`
 }
 
-// 🟢 核心：进入编辑模式
+const handleViewDocument = (row) => {
+  activeDocumentRow.value = row
+  documentDrawerVisible.value = true
+}
+
 const editColumn = (index) => {
   const col = extraColumns.value[index]
-  // 回填数据
   currentCol.label = col.label
-  currentCol.prop = col.prop // 保持 prop 不变，以免丢失旧数据
+  currentCol.prop = col.prop
   currentCol.expression = col.expression || ''
   
-  // 设置状态
   isEditing.value = true
   editingIndex.value = index
   
-  // 切换 Tab
   addTab.value = col.type === 'formula' ? 'formula' : 'text'
 }
 
-// 🟢 核心：重置表单
 const resetForm = () => {
   isEditing.value = false
   editingIndex.value = -1
@@ -191,37 +205,30 @@ const resetForm = () => {
   addTab.value = 'text'
 }
 
-// 🟢 核心：保存（新增或更新）
 const saveColumn = () => {
   if (!currentCol.label) return
   
   const type = addTab.value
   
-  // 构造配置对象
   const colConfig = {
     label: currentCol.label,
     type: type
   }
 
   if (isEditing.value) {
-    // --- 更新模式 ---
-    colConfig.prop = currentCol.prop // 沿用旧 Key
+    colConfig.prop = currentCol.prop
   } else {
-    // --- 新增模式 ---
-    colConfig.prop = 'field_' + Math.floor(Math.random() * 10000) // 生成新 Key
+    colConfig.prop = 'field_' + Math.floor(Math.random() * 10000)
   }
 
-  // 如果是公式列，保存表达式
   if (type === 'formula') {
     colConfig.expression = currentCol.expression
   }
 
   if (isEditing.value) {
-    // 替换原数组中的项
     extraColumns.value[editingIndex.value] = colConfig
     ElMessage.success('列配置已更新')
   } else {
-    // 追加新项
     extraColumns.value.push(colConfig)
     ElMessage.success('列已添加')
   }
@@ -233,7 +240,6 @@ const saveColumn = () => {
 const removeColumn = (index) => {
   extraColumns.value.splice(index, 1)
   saveColumnsConfig()
-  // 如果删除的是正在编辑的列，重置表单
   if (isEditing.value && editingIndex.value === index) {
     resetForm()
   }

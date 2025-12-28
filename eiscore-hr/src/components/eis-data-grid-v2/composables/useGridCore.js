@@ -25,15 +25,12 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const colId = params.colDef.field
     if (colId === '_status') return false 
     if (params.node.rowPinned) return true
-    // 检查本地锁状态
     if (columnLockState[colId]) return true
-    // 检查数据级锁状态 (持久化数据)
     if (params.data?.properties?.row_locked_by) return true
     if (params.colDef.type === 'formula') return true
     return false
   }
 
-  // 样式规则
   const cellClassRules = { 
     'custom-range-selected': (params) => isCellInSelection && isCellInSelection(params),
     'cell-locked-pattern': (params) => isCellReadOnly(params),
@@ -51,7 +48,6 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     return base
   }
 
-  // 🟢 核心修复：列锁持久化与刷新
   const scheduleColumnRefresh = (colId) => {
     if (!gridApi.value) return
     nextTick(() => {
@@ -63,7 +59,6 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const handleToggleColumnLock = async (colId) => {
-    // 1. 更新本地状态 (乐观更新)
     const isLocking = !columnLockState[colId]
     if (isLocking) {
         columnLockState[colId] = currentUser.value
@@ -71,10 +66,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         delete columnLockState[colId]
     }
 
-    // 2. 立即刷新视图 (解决延迟问题)
     scheduleColumnRefresh(colId)
 
-    // 3. 持久化到后端 (关键修复！)
     try {
         if (props.viewId) {
             const currentConfig = {
@@ -84,7 +77,6 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         ElMessage.success(isLocking ? '列已锁定' : '列已解锁')
     } catch (e) {
         ElMessage.error('操作失败')
-        // 回滚
         if (isLocking) delete columnLockState[colId]
         else columnLockState[colId] = currentUser.value
         scheduleColumnRefresh(colId)
@@ -99,7 +91,6 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     } 
   })
 
-  // 🟢 修复：列宽塌陷问题
   const createColDef = (col, isDynamic) => {
     const field = isDynamic ? `properties.${col.prop}` : col.prop
     
