@@ -56,23 +56,34 @@
                 </div>
                 
                 <div class="content-wrapper">
-                  <div v-if="msg.images && msg.images.length" class="msg-images">
-                    <el-image 
-                      v-for="(img, idx) in msg.images" 
-                      :key="idx" 
-                      :src="img.url" 
-                      :preview-src-list="msg.images.map(i=>i.url)"
-                      class="msg-img"
-                    />
+                  <div v-if="msg.files && msg.files.length" class="msg-files">
+                    <div v-for="(file, idx) in msg.files" :key="idx" class="file-card">
+                      <el-image 
+                        v-if="file.type === 'image'"
+                        :src="file.url" 
+                        :preview-src-list="[file.url]"
+                        class="msg-img"
+                        fit="contain"
+                      />
+                      <div v-else class="doc-file">
+                        <el-icon><Document /></el-icon>
+                        <span>{{ file.name }}</span>
+                      </div>
+                    </div>
                   </div>
                   
                   <div class="bubble">
-                    <div class="markdown-body" v-html="formatText(msg.content)"></div>
-                    <span v-if="msg.role === 'assistant' && index === currentSession.messages.length - 1 && state.isStreaming" class="cursor">|</span>
+                    <div 
+                      class="markdown-body" 
+                      v-html="renderMarkdown(msg.content)"
+                      ref="markdownRefs"
+                    ></div>
+                    <span v-if="msg.role === 'assistant' && index === currentSession.messages.length - 1 && state.isStreaming" class="typing-cursor"></span>
                   </div>
                   
-                  <div v-if="msg.role === 'user' && !state.isLoading" class="msg-actions">
-                    <el-button link size="small" type="info" @click="retryMessage(msg.content)">重新发送</el-button>
+                  <div class="msg-actions">
+                    <el-button link size="small" type="danger" icon="Delete" @click="aiBridge.deleteMessage(index)"></el-button>
+                    <el-button v-if="msg.role === 'user'" link size="small" type="primary" icon="Refresh" @click="retryMessage(msg.content)">重试</el-button>
                   </div>
                 </div>
               </div>
@@ -80,10 +91,11 @@
           </div>
 
           <div class="input-section">
-            <div v-if="state.selectedImages.length" class="image-preview-bar">
-              <div v-for="(img, idx) in state.selectedImages" :key="idx" class="preview-item">
-                <img :src="img.url" />
-                <div class="remove-img" @click="state.selectedImages.splice(idx, 1)">×</div>
+            <div v-if="state.selectedFiles.length" class="file-preview-bar">
+              <div v-for="(file, idx) in state.selectedFiles" :key="idx" class="preview-item">
+                <img v-if="file.type === 'image'" :src="file.url" />
+                <div v-else class="doc-preview"><el-icon><Document /></el-icon></div>
+                <div class="remove-btn" @click="state.selectedFiles.splice(idx, 1)">×</div>
               </div>
             </div>
 
@@ -93,20 +105,19 @@
                 :auto-upload="false"
                 :show-file-list="false"
                 :on-change="(file) => aiBridge.handleFileSelect(file.raw)"
-                accept="image/*"
                 class="upload-trigger"
               >
-                <el-icon class="tool-icon"><Picture /></el-icon>
+                <el-icon class="tool-icon"><Paperclip /></el-icon>
               </el-upload>
 
               <textarea 
                 v-model="state.inputBuffer" 
-                placeholder="输入问题或指令 (Shift+Enter 换行)..."
+                placeholder="输入消息，或上传图片/文档分析..."
                 @keydown.enter="handleEnter"
                 :disabled="state.isLoading"
               ></textarea>
               
-              <div class="send-btn" :class="{ 'disabled': state.isLoading }" @click="handleSend">
+              <div class="send-btn" :class="{ 'disabled': state.isLoading || (!state.inputBuffer && !state.selectedFiles.length) }" @click="handleSend">
                 <el-icon v-if="state.isLoading" class="is-loading"><Loading /></el-icon>
                 <el-icon v-else><Position /></el-icon>
               </div>
@@ -119,26 +130,86 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onMounted } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUpdated } from 'vue'
 import { aiBridge } from '@/utils/ai-bridge'
-import { Operation, Close, Plus, Delete, Picture, Position, Loading } from '@element-plus/icons-vue'
+import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh } from '@element-plus/icons-vue'
+// 引入核心库
+import MarkdownIt from 'markdown-it'
+import mermaid from 'mermaid'
+import * as echarts from 'echarts'
 
 const state = aiBridge.state
 const showHistory = ref(false)
 const messagesRef = ref(null)
+const markdownRefs = ref([])
 
 const currentSession = computed(() => aiBridge.getCurrentSession())
 
-// 简易格式化：将换行符转为 <br>，后续可接入 markdown-it
-const formatText = (text) => {
+// 初始化 Markdown 解析器
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  breaks: true
+})
+
+// 初始化 Mermaid
+mermaid.initialize({ startOnLoad: false, theme: 'default' })
+
+// 自定义渲染器：处理图表
+const renderMarkdown = (text) => {
   if (!text) return ''
-  // 简单的安全转义
-  let safe = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-  // 代码块简单高亮背景
-  safe = safe.replace(/```([\s\S]*?)```/g, '<pre class="code-block">$1</pre>')
-  // 换行
-  return safe.replace(/\n/g, '<br>')
+  // 1. 预处理 Mermaid 代码块
+  // 将 ```mermaid ... ``` 替换为 <div class="mermaid">...</div>
+  // 注意：真实渲染在 onUpdated 中进行
+  const mermaidRegex = /```mermaid([\s\S]*?)```/g
+  let processed = text.replace(mermaidRegex, '<div class="mermaid-chart">$1</div>')
+
+  // 2. 预处理 ECharts 代码块
+  const echartsRegex = /```echarts([\s\S]*?)```/g
+  processed = processed.replace(echartsRegex, '<div class="echarts-chart" data-option="$1"></div>')
+
+  return md.render(processed)
 }
+
+// 渲染图表的副作用
+const renderCharts = async () => {
+  await nextTick()
+  // 1. 渲染 Mermaid
+  const mermaidNodes = document.querySelectorAll('.mermaid-chart:not([data-processed])')
+  mermaidNodes.forEach(async (node, index) => {
+    try {
+      node.setAttribute('data-processed', 'true')
+      const text = node.textContent
+      const id = `mermaid-${Date.now()}-${index}`
+      const { svg } = await mermaid.render(id, text)
+      node.innerHTML = svg
+    } catch (e) {
+      node.innerHTML = `<div style="color:red">流程图渲染失败</div>`
+    }
+  })
+
+  // 2. 渲染 ECharts
+  const echartsNodes = document.querySelectorAll('.echarts-chart:not([data-processed])')
+  echartsNodes.forEach((node) => {
+    try {
+      node.setAttribute('data-processed', 'true')
+      const jsonStr = node.getAttribute('data-option')
+      // 简单的去除非JSON字符 (有些模型会输出 var option = ...)
+      // 这里假设模型输出纯 JSON
+      const option = JSON.parse(jsonStr)
+      node.style.width = '100%'
+      node.style.height = '300px'
+      const chart = echarts.init(node)
+      chart.setOption(option)
+    } catch (e) {
+      console.error(e)
+      node.innerHTML = `<div style="color:red">统计图渲染失败: 请确保 AI 输出标准 JSON</div>`
+    }
+  })
+}
+
+// 监听更新以渲染图表
+onUpdated(renderCharts)
 
 const toggleHistory = () => {
   showHistory.value = !showHistory.value
@@ -146,7 +217,7 @@ const toggleHistory = () => {
 
 const switchSession = (id) => {
   state.currentSessionId = id
-  showHistory.value = false // 移动端或窄屏体验优化
+  showHistory.value = false
 }
 
 const scrollToBottom = () => {
@@ -171,12 +242,11 @@ const handleSend = () => {
 }
 
 const retryMessage = (text) => {
-  aiBridge.sendMessage(text, true) // true 表示这是重试，不重复添加用户消息
+  aiBridge.sendMessage(text, true)
 }
 
-// 监听消息变化自动滚动
 watch(() => currentSession.value?.messages.length, scrollToBottom)
-watch(() => currentSession.value?.messages[currentSession.value.messages.length-1]?.content, scrollToBottom) // 监听流式输出
+watch(() => currentSession.value?.messages[currentSession.value.messages.length-1]?.content, scrollToBottom)
 watch(() => state.isOpen, (val) => { if(val) scrollToBottom() })
 
 onMounted(() => {
@@ -185,7 +255,6 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-// 变量定义
 $primary-color: var(--el-color-primary, #409EFF);
 $bg-color: #ffffff;
 $chat-bg: #f5f7fa;
@@ -196,341 +265,191 @@ $border-color: #e4e7ed;
   bottom: 30px;
   right: 30px;
   z-index: 9999;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
 }
 
-// 1. 悬浮按钮样式优化
 .ai-trigger-btn {
   width: 60px;
   height: 60px;
   background: $primary-color;
-  border-radius: 16px; // 正方形带圆弧
+  border-radius: 16px;
   box-shadow: 0 8px 24px rgba($primary-color, 0.4);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   color: white;
-
-  &:hover {
-    transform: translateY(-4px) scale(1.05);
-    box-shadow: 0 12px 30px rgba($primary-color, 0.5);
-  }
-
-  .sparkle-icon {
-    font-size: 24px;
-    margin-bottom: 2px;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
-  }
+  transition: all 0.3s;
   
-  .ai-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-  }
+  &:hover { transform: translateY(-2px); }
+  .sparkle-icon { font-size: 24px; }
+  .ai-label { font-size: 10px; font-weight: 600; }
 }
 
-// 2. 主窗口样式
 .ai-window {
-  width: 400px;
-  height: 600px;
+  width: 420px; /* 稍微加宽以适应图表 */
+  height: 650px;
   background: $bg-color;
   border-radius: 16px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(0,0,0,0.05);
-  animation: popIn 0.3s ease-out;
-}
-
-@keyframes popIn {
-  from { opacity: 0; transform: scale(0.9) translateY(20px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 .ai-header {
-  height: 50px;
-  background: $bg-color;
+  height: 52px;
   border-bottom: 1px solid $border-color;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
-  user-select: none;
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    color: #303133;
-    
-    .history-icon { 
-      font-size: 18px; 
-      transition: transform 0.3s;
-      &.active { transform: rotate(90deg); color: $primary-color; }
-    }
+  
+  .header-left { 
+    display: flex; align-items: center; gap: 8px; cursor: pointer; 
+    .history-icon.active { transform: rotate(90deg); color: $primary-color; }
     .title { font-weight: 600; font-size: 15px; }
   }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    
-    .el-icon {
-      font-size: 18px;
-      cursor: pointer;
-      color: #909399;
-      transition: color 0.2s;
-      &:hover { color: $primary-color; }
-      &.close-btn:hover { color: #f56c6c; }
-    }
+  .header-right { 
+    display: flex; gap: 12px; font-size: 18px; color: #909399;
+    .el-icon { cursor: pointer; &:hover { color: $primary-color; } }
   }
 }
 
-.ai-body {
-  flex: 1;
-  display: flex;
-  position: relative;
-  overflow: hidden;
-}
+.ai-body { flex: 1; display: flex; position: relative; overflow: hidden; }
 
-// 侧边栏
 .history-sidebar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 200px;
-  background: #f9fafc;
-  border-right: 1px solid $border-color;
-  transform: translateX(-100%);
-  transition: transform 0.3s ease;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-
+  position: absolute; left: 0; top: 0; bottom: 0; width: 220px;
+  background: #f9fafc; border-right: 1px solid $border-color;
+  transform: translateX(-100%); transition: transform 0.3s ease; z-index: 10;
+  display: flex; flex-direction: column;
   &.show { transform: translateX(0); }
-
-  .sidebar-header {
-    padding: 12px;
-    font-size: 12px;
-    color: #909399;
-    font-weight: 600;
-  }
-
-  .session-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 8px;
-  }
-
+  
+  .sidebar-header { padding: 12px; font-weight: 600; color: #909399; font-size: 12px; }
+  .session-list { flex: 1; overflow-y: auto; padding: 0 8px; }
   .session-item {
-    padding: 10px 12px;
-    border-radius: 8px;
-    margin-bottom: 4px;
-    cursor: pointer;
-    font-size: 13px;
-    color: #606266;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: background 0.2s;
-
+    padding: 10px; margin-bottom: 4px; border-radius: 8px; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; color: #606266;
     &:hover { background: #eef0f5; }
-    &.active { background: #ecf5ff; color: $primary-color; font-weight: 500; }
-
+    &.active { background: #ecf5ff; color: $primary-color; }
     .session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    .delete-icon { font-size: 14px; color: #c0c4cc; &:hover { color: #f56c6c; } }
+    .delete-icon { display: none; &:hover { color: #f56c6c; } }
+    &:hover .delete-icon { display: block; }
   }
 }
 
-// 聊天区域
-.chat-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: $chat-bg;
-  width: 100%; // 确保占满
-}
+.chat-area { flex: 1; display: flex; flex-direction: column; background: $chat-bg; width: 100%; }
 
 .messages-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
+  flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;
 }
 
 .message-row {
-  display: flex;
-  gap: 12px;
-  
+  display: flex; gap: 12px;
   &.user { flex-direction: row-reverse; }
-
-  .avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  }
   
-  &.assistant .avatar { background: linear-gradient(135deg, #e6f7ff, #ffffff); color: $primary-color; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 8px; background: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
   &.user .avatar { background: $primary-color; color: white; }
 
-  .content-wrapper {
-    max-width: 80%;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
+  .content-wrapper { 
+    max-width: 85%; display: flex; flex-direction: column; 
+    &.user { align-items: flex-end; }
   }
-  
-  &.user .content-wrapper { align-items: flex-end; }
 
-  .msg-images {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-    
-    .msg-img {
-      width: 100px;
-      height: 100px;
-      border-radius: 8px;
-      border: 1px solid $border-color;
+  .msg-files {
+    display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
+    .msg-img { max-width: 200px; height: auto; border-radius: 8px; border: 1px solid $border-color; background: #fff; }
+    .doc-file { 
+      padding: 8px 12px; background: #fff; border: 1px solid $border-color; border-radius: 8px;
+      display: flex; align-items: center; gap: 6px; font-size: 12px;
     }
   }
 
   .bubble {
-    padding: 10px 14px;
-    border-radius: 12px;
-    font-size: 14px;
-    line-height: 1.6;
+    padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); background: #fff; color: #303133;
     position: relative;
-    word-break: break-word;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
   }
-
-  &.assistant .bubble { background: #fff; color: #303133; border-top-left-radius: 2px; }
   &.user .bubble { background: $primary-color; color: #fff; border-top-right-radius: 2px; }
+  &.assistant .bubble { border-top-left-radius: 2px; }
 
-  .msg-actions { margin-top: 4px; opacity: 0; transition: opacity 0.2s; }
+  .msg-actions {
+    margin-top: 4px; opacity: 0; transition: opacity 0.2s; display: flex; gap: 4px;
+  }
   &:hover .msg-actions { opacity: 1; }
 }
 
-// 简易 Markdown 样式覆盖
-.markdown-body :deep(pre) {
-  background: #282c34;
-  color: #abb2bf;
-  padding: 10px;
-  border-radius: 6px;
-  overflow-x: auto;
-  font-family: 'Consolas', monospace;
-  margin: 8px 0;
-}
-
-.cursor {
-  display: inline-block;
-  width: 2px;
-  height: 14px;
-  background: $primary-color;
-  animation: blink 1s infinite;
-  vertical-align: middle;
-  margin-left: 2px;
-}
-@keyframes blink { 50% { opacity: 0; } }
-
-// 输入区
+// 输入区域重构
 .input-section {
-  background: #fff;
-  border-top: 1px solid $border-color;
-  padding: 12px;
+  background: #fff; border-top: 1px solid $border-color; padding: 12px;
   
-  .image-preview-bar {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
-    overflow-x: auto;
-    
+  .file-preview-bar {
+    display: flex; gap: 8px; margin-bottom: 8px; overflow-x: auto; padding-bottom: 4px;
     .preview-item {
-      position: relative;
-      width: 48px;
-      height: 48px;
-      img { width: 100%; height: 100%; border-radius: 4px; object-fit: cover; }
-      .remove-img {
-        position: absolute; top: -6px; right: -6px;
-        width: 16px; height: 16px; background: rgba(0,0,0,0.5); color: white;
-        border-radius: 50%; font-size: 12px; display: flex; align-items: center; justify-content: center;
-        cursor: pointer;
+      position: relative; width: 48px; height: 48px; flex-shrink: 0;
+      border-radius: 6px; border: 1px solid $border-color; overflow: hidden;
+      img { width: 100%; height: 100%; object-fit: cover; }
+      .doc-preview { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f0f2f5; }
+      .remove-btn {
+        position: absolute; top: 0; right: 0; background: rgba(0,0,0,0.5); color: #fff;
+        width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;
+        font-size: 10px; cursor: pointer;
       }
     }
   }
 
   .input-box {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    background: #f5f7fa;
-    border-radius: 24px;
-    padding: 6px 6px 6px 12px;
-    border: 1px solid transparent;
-    transition: all 0.2s;
+    display: flex; align-items: center; /* 修复对齐问题 */
+    gap: 10px; background: #f5f7fa; border-radius: 20px; padding: 4px 8px 4px 12px;
+    border: 1px solid transparent; transition: all 0.2s;
+    
+    &:focus-within { background: #fff; border-color: $primary-color; box-shadow: 0 0 0 2px rgba($primary-color, 0.1); }
 
-    &:focus-within {
-      background: #fff;
-      border-color: $primary-color;
-      box-shadow: 0 0 0 2px rgba($primary-color, 0.1);
-    }
-
-    textarea {
-      flex: 1;
-      background: transparent;
-      border: none;
-      resize: none;
-      height: 40px;
-      max-height: 100px;
-      padding: 8px 0;
-      font-size: 14px;
-      &:focus { outline: none; }
-    }
-
-    .tool-icon {
-      font-size: 20px;
-      color: #909399;
-      cursor: pointer;
-      margin-bottom: 8px;
+    .upload-trigger { display: flex; }
+    .tool-icon { 
+      font-size: 20px; color: #909399; cursor: pointer; padding: 4px;
       &:hover { color: $primary-color; }
     }
 
-    .send-btn {
-      width: 36px;
-      height: 36px;
-      background: $primary-color;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      cursor: pointer;
-      transition: transform 0.2s;
-      flex-shrink: 0;
+    textarea {
+      flex: 1; background: transparent; border: none; resize: none;
+      height: 36px; padding: 8px 0; font-size: 14px; font-family: inherit;
+      &:focus { outline: none; }
+    }
 
-      &:hover { transform: scale(1.1); }
-      &.disabled { background: #a0cfff; cursor: not-allowed; }
-      
+    .send-btn {
+      width: 32px; height: 32px; background: $primary-color; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center; color: white;
+      cursor: pointer; transition: transform 0.2s; flex-shrink: 0;
+      &.disabled { background: #c0c4cc; cursor: not-allowed; }
+      &:not(.disabled):hover { transform: scale(1.1); }
       .is-loading { animation: rotate 1s linear infinite; }
     }
   }
 }
+
+// Markdown 样式修正
+.markdown-body {
+  :deep(p) { margin: 0 0 8px 0; &:last-child { margin-bottom: 0; } } /* 修复空行 */
+  :deep(pre) { 
+    background: #282c34; color: #abb2bf; padding: 10px; 
+    border-radius: 6px; overflow-x: auto; margin: 8px 0; 
+  }
+  :deep(code) { font-family: 'Consolas', monospace; }
+  :deep(img) { max-width: 100%; border-radius: 4px; }
+}
+
+// 独立光标动画
+.typing-cursor {
+  display: inline-block; width: 6px; height: 14px; background: $primary-color;
+  animation: blink 1s infinite; vertical-align: middle; margin-left: 4px;
+}
+@keyframes blink { 50% { opacity: 0; } }
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
