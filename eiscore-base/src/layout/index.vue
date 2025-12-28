@@ -28,11 +28,11 @@
           <el-icon><House /></el-icon>
           <template #title>工作台</template>
         </el-menu-item>
-        <el-menu-item index="/materials">
+        <el-menu-item index="/materials" @click.native.prevent="router.push('/materials')">
           <el-icon><Box /></el-icon>
           <template #title>物料管理</template>
         </el-menu-item>
-        <el-menu-item index="/hr">
+        <el-menu-item index="/hr/employee" @click.native.prevent="router.push('/hr/employee')">
           <el-icon><User /></el-icon>
           <template #title>人事管理</template>
         </el-menu-item>
@@ -72,7 +72,7 @@
           <el-dropdown @command="handleCommand">
             <span class="el-dropdown-link" style="display: flex; align-items: center; cursor: pointer;">
               <el-avatar :size="32" src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png" />
-              <span style="margin-left: 8px; font-weight: 500;">Admin</span>
+              <span style="margin-left: 8px; font-weight: 500;">{{ userStore.userInfo?.username || 'Admin' }}</span>
               <el-icon class="el-icon--right"><arrow-down /></el-icon>
             </span>
             <template #dropdown>
@@ -88,13 +88,17 @@
       <el-main class="layout-main" :class="{ 'colorful-mode': !isDark }">
         <router-view v-slot="{ Component }">
            <transition name="fade" mode="out-in">
-             <component :is="Component" />
+             <keep-alive>
+               <component :is="Component" />
+             </keep-alive>
            </transition>
         </router-view>
 
-        <div id="subapp-viewport"></div>
+        <div id="subapp-viewport" class="subapp-viewport"></div>
       </el-main>
     </el-container>
+
+    <AiCopilot />
   </el-container>
 </template>
 
@@ -104,13 +108,17 @@ import { useDark, useToggle } from '@vueuse/core'
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import { useSystemStore } from '@/stores/system'
+import { useUserStore } from '@/stores/user' // 引入 userStore
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router' 
 import { mix } from '@/utils/theme' 
+import { House, Box, User, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
+import AiCopilot from '@/components/AiCopilot.vue' // 🟢 引入组件
 
 const isCollapse = ref(false)
 const router = useRouter()
 const systemStore = useSystemStore()
+const userStore = useUserStore() // 使用 userStore
 const { config } = storeToRefs(systemStore)
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
@@ -144,7 +152,7 @@ const toggleCollapse = () => {
 const handleCommand = (command) => {
   if (command === 'settings') { router.push('/settings') }
   else if (command === 'logout') { 
-    localStorage.removeItem('auth_token')
+    userStore.logout() // 使用 store 的 logout 方法
     router.push('/login') 
   }
 }
@@ -201,8 +209,13 @@ const startGuide = () => { driverObj.drive(); }
     padding: 0;
     position: relative;
     transition: background-color 0.3s;
-    // 🔴 建议给 subapp-viewport 也加个宽高，防止塌陷
+    
+    // 防止子应用塌陷
     #subapp-viewport {
+      width: 100%;
+      height: 100%;
+    }
+    .subapp-viewport {
       width: 100%;
       height: 100%;
     }

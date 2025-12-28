@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict qtVFOXXceVC2AbylyyqNSM8cC0CqpScfJj8A7WLff75LYcUsQgUbleSvz8EsP1X
+\restrict h2NbZHOGaMN0bzAFtMBQF4SJeOmi9U1xRSJW9ziP6vuiEBwvX2hk5EoPzQgO7Ba
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -623,6 +623,7 @@ employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expre
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_column_locks	{}	HR表格列锁配置
 hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}]	HR花名册的动态列配置
+ai_glm_config	{"model": "glm-4.6v", "api_key": "01e666998e24458e960cfc51fd7a1ff2.a67QjUwrs2433Wk2", "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "provider": "zhipu", "thinking": {"type": "enabled"}}	智谱 AI GLM-4.6V 模型配置
 \.
 
 
@@ -772,6 +773,12 @@ CREATE POLICY "Users can only see their own data" ON public.raw_materials FOR SE
 ALTER TABLE public.raw_materials ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: system_configs; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.system_configs ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: SCHEMA hr; Type: ACL; Schema: -; Owner: postgres
 --
 
@@ -898,5 +905,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict qtVFOXXceVC2AbylyyqNSM8cC0CqpScfJj8A7WLff75LYcUsQgUbleSvz8EsP1X
+\unrestrict h2NbZHOGaMN0bzAFtMBQF4SJeOmi9U1xRSJW9ziP6vuiEBwvX2hk5EoPzQgO7Ba
 
