@@ -7,7 +7,9 @@
         link
         :icon="Document"
         @click.stop="onViewDocument"
-      />
+      >
+        表单
+      </el-button>
     </el-tooltip>
   </div>
 </template>
@@ -36,6 +38,9 @@ const onViewDocument = () => {
 }
 
 .document-action-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 16px;
 }
 </style>
