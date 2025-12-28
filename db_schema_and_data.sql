@@ -157,6 +157,7 @@ CREATE FUNCTION public.url_encode(data bytea) RETURNS text
     AS $$
     -- replace(..., E'\n', '') 用来删除换行符
     SELECT translate(replace(encode(data, 'base64'), E'\n', ''), '+/=', '-_')
+
 $$;
 
 
@@ -623,7 +624,7 @@ employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expre
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_column_locks	{}	HR表格列锁配置
 hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}]	HR花名册的动态列配置
-ai_glm_config	{"model": "glm-4.6v", "api_key": "01e666998e24458e960cfc51fd7a1ff2.a67QjUwrs2433Wk2", "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "provider": "zhipu", "thinking": {"type": "enabled"}}	智谱 AI GLM-4.6V 模型配置
+ai_glm_config	{"model": "glm-4.6v", "api_key": "", "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "provider": "zhipu", "thinking": {"type": "enabled"}}	智谱 AI GLM-4.6V 模型配置
 \.
 
 
