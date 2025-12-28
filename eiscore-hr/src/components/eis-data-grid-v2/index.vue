@@ -112,7 +112,7 @@ const props = defineProps({
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) }
 })
 
-const emit = defineEmits(['create', 'config-columns'])
+const emit = defineEmits(['create', 'config-columns', 'view-document'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = currentUser === 'Admin'
@@ -132,7 +132,14 @@ const {
   gridData, gridColumns, context, gridComponents, searchText, isLoading, 
   loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
   columnLockState // 🟢 导出状态
-} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi)
+} = useGridCore(
+  props,
+  activeSummaryConfig,
+  { value: currentUser },
+  isCellInSelection,
+  gridApi,
+  (row) => emit('view-document', row)
+)
 
 // 3. Formula (传入 columnLockState 以便持久化)
 const formulaDependencyHooks = {} 

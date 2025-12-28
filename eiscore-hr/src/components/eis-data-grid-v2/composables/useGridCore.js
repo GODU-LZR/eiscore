@@ -5,8 +5,9 @@ import { buildSearchQuery } from '@/utils/grid-query'
 import StatusRenderer from '../components/renderers/StatusRenderer.vue'
 import StatusEditor from '../components/renderers/StatusEditor.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
+import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
 
-export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef) {
+export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, onViewDocument) {
   const gridApi = gridApiRef || ref(null)
   const gridData = ref([])
   const searchText = ref('')
@@ -16,7 +17,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const gridComponents = {
     StatusRenderer: markRaw(StatusRenderer),
     StatusEditor: markRaw(StatusEditor),
-    LockHeader: markRaw(LockHeader)
+    LockHeader: markRaw(LockHeader),
+    DocumentActionRenderer: markRaw(DocumentActionRenderer)
   }
 
   const isCellReadOnly = (params) => {
@@ -110,7 +112,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const context = reactive({ 
-    componentParent: { toggleColumnLock: handleToggleColumnLock, columnLockState } 
+    componentParent: {
+      toggleColumnLock: handleToggleColumnLock,
+      columnLockState,
+      viewDocument: (row) => onViewDocument && onViewDocument(row)
+    } 
   })
 
   // 🟢 修复：列宽塌陷问题
@@ -140,6 +146,21 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const gridColumns = computed(() => {
+    const documentCol = {
+      colId: 'documentAction',
+      headerName: '',
+      width: 44,
+      minWidth: 44,
+      maxWidth: 44,
+      pinned: 'left',
+      resizable: false,
+      sortable: false,
+      filter: false,
+      suppressHeaderMenuButton: true,
+      cellRenderer: 'DocumentActionRenderer',
+      cellStyle: { padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }
+    }
+
     const checkboxCol = { 
       colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, 
       width: 40, minWidth: 40, maxWidth: 40, pinned: 'left', 
@@ -166,7 +187,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const staticCols = props.staticColumns.map(col => createColDef(col, false))
     const dynamicCols = props.extraColumns.map(col => createColDef(col, true))
     
-    return [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
+    return [documentCol, checkboxCol, statusCol, ...staticCols, ...dynamicCols]
   })
 
   const loadData = async () => {
