@@ -1,31 +1,52 @@
-import { reactive } from 'vue'
-import request from '@/utils/request' // 🟢 使用项目封装的 request (axios)
+import { reactive, watch } from 'vue'
+import request from '@/utils/request'
+import { ElMessage } from 'element-plus'
+
+const STORAGE_KEY = 'eis_ai_history_v1'
 
 /**
- * AI Bridge - 全局 AI 总线控制器
- * 职责：
- * 1. 管理 Qiankun GlobalState (上下文通讯)
- * 2. 对接 PostgREST 获取系统配置 (API Key)
- * 3. 对接智谱 AI GLM-4.6V 接口
+ * AI Bridge - 增强版全局 AI 总线
  */
 class AiBridge {
   constructor() {
     this.actions = null 
     this.config = null
+    
+    // 从本地加载历史
+    const savedData = this.loadFromStorage()
+
     this.state = reactive({
       isOpen: false,
-      messages: [
-        { role: 'assistant', content: '您好！我是 EISCore 智能助手。我可以帮您查询数据、生成图表或修改表单配置。' }
-      ],
       isLoading: false,
-      currentContext: null 
+      isStreaming: false, // 是否正在流式输出
+      currentContext: null, // 页面上下文
+      
+      // 会话管理
+      sessions: savedData.sessions || [], 
+      currentSessionId: savedData.currentSessionId || null,
+      
+      // 当前输入暂存
+      inputBuffer: '',
+      selectedImages: [] // [{ url: 'base64...', file: File }]
     })
+
+    // 如果没有会话，创建一个新的
+    if (this.state.sessions.length === 0) {
+      this.createNewSession()
+    } else if (!this.state.currentSessionId) {
+      this.state.currentSessionId = this.state.sessions[0].id
+    }
+
+    // 监听状态变化，自动持久化
+    watch(() => [this.state.sessions, this.state.currentSessionId], () => {
+      this.saveToStorage()
+    }, { deep: true })
   }
 
-  // 初始化 Qiankun Actions
+  // --- 基础初始化 ---
+
   initActions(actions) {
     this.actions = actions
-    // 监听子应用发来的上下文更新
     if (this.actions) {
       this.actions.onGlobalStateChange((state) => {
         if (state && state.context) {
@@ -35,94 +56,162 @@ class AiBridge {
     }
   }
 
-  // 加载配置
   async loadConfig() {
+    if (this.config) return
     try {
-      console.log('[AiBridge] 正在加载 AI 配置...')
-      // 🟢 核心修改：统一使用 /api 前缀
-      // Vite 代理会将 /api/system_configs 重写为 /system_configs 并转发给 PostgREST
       const res = await request({
         url: '/api/system_configs?key=eq.ai_glm_config', 
         method: 'get',
-        headers: { 
-          'Accept': 'application/json',
-          'Accept-Profile': 'public' // 显式指定 public schema
-        }
+        headers: { 'Accept': 'application/json', 'Accept-Profile': 'public' }
       })
-      
-      // 兼容处理：request 封装可能返回 res.data 或者直接返回 res
       const data = Array.isArray(res) ? res : (res.data || [])
-
       if (data && data.length > 0) {
         this.config = data[0].value
-        console.log('[AiBridge] AI 配置加载成功:', this.config.model)
-      } else {
-        console.warn('[AiBridge] 数据库中未找到 ai_glm_config 配置，请检查 system_configs 表。')
-        this.addMessage('system', '警告：系统未配置 AI 模型参数。')
-      }
+      } 
     } catch (e) {
-      console.error('[AiBridge] 加载配置失败:', e)
-      this.addMessage('system', `错误：无法连接配置接口 (${e.message})。请检查网络或代理配置。`)
+      console.error('[AiBridge] Config Load Failed', e)
     }
   }
+
+  // --- 会话管理 ---
+
+  loadFromStorage() {
+    try {
+      const json = localStorage.getItem(STORAGE_KEY)
+      return json ? JSON.parse(json) : { sessions: [], currentSessionId: null }
+    } catch {
+      return { sessions: [], currentSessionId: null }
+    }
+  }
+
+  saveToStorage() {
+    const data = {
+      sessions: this.state.sessions.slice(0, 20), // 只存最近20个会话
+      currentSessionId: this.state.currentSessionId
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+  }
+
+  createNewSession() {
+    const newSession = {
+      id: Date.now().toString(),
+      title: '新对话',
+      messages: [
+        { role: 'assistant', content: '您好！我是 EIS 人工智能助手，请问有什么可以帮您？', time: Date.now() }
+      ],
+      updatedAt: Date.now()
+    }
+    this.state.sessions.unshift(newSession)
+    this.state.currentSessionId = newSession.id
+  }
+
+  deleteSession(id) {
+    const index = this.state.sessions.findIndex(s => s.id === id)
+    if (index > -1) {
+      this.state.sessions.splice(index, 1)
+      // 如果删除了当前会话，切换到其他的
+      if (this.state.currentSessionId === id) {
+        this.state.currentSessionId = this.state.sessions[0]?.id || null
+        if (!this.state.currentSessionId) this.createNewSession()
+      }
+    }
+  }
+
+  getCurrentSession() {
+    return this.state.sessions.find(s => s.id === this.state.currentSessionId)
+  }
+
+  clearHistory() {
+    const session = this.getCurrentSession()
+    if (session) {
+      session.messages = []
+      session.updatedAt = Date.now()
+    }
+  }
+
+  // --- 核心消息处理 ---
 
   toggleWindow() {
     this.state.isOpen = !this.state.isOpen
   }
 
-  addMessage(role, content) {
-    this.state.messages.push({ role, content })
-  }
+  // 发送消息（支持流式、多模态）
+  async sendMessage(userText, isRetry = false) {
+    if ((!userText && this.state.selectedImages.length === 0) && !isRetry) return
+    if (this.state.isLoading) return
 
-  // 发送消息到智谱 GLM-4.6V
-  async sendMessage(userText) {
-    if (!userText.trim()) return
-    
-    this.addMessage('user', userText)
-    this.state.isLoading = true
+    const session = this.getCurrentSession()
+    if (!session) return
 
-    // 懒加载配置：如果还没有配置，先去拉取
-    if (!this.config || !this.config.api_key) {
-      await this.loadConfig()
-      if (!this.config) {
-        this.state.isLoading = false
-        this.addMessage('assistant', '抱歉，系统尚未配置 AI Key，无法响应。')
-        return
+    // 1. 处理用户消息
+    if (!isRetry) {
+      const userMsg = { 
+        role: 'user', 
+        content: userText, 
+        images: [...this.state.selectedImages], // 存储图片副本
+        time: Date.now() 
+      }
+      session.messages.push(userMsg)
+      
+      // 自动生成标题 (如果是第一条用户消息)
+      if (session.messages.length === 2) {
+        session.title = userText.slice(0, 10) + (userText.length > 10 ? '...' : '')
       }
     }
 
-    try {
-      // 构造 System Prompt，注入当前页面上下文
-      let systemPrompt = `你是一个企业级信息系统 (EISCore) 的智能助手。
-你的目标是协助用户管理数据、生成表单配置或导航系统。
-请以 JSON 或 简洁的中文 回复。`
+    // 清空输入区
+    this.state.inputBuffer = ''
+    this.state.selectedImages = []
+    this.state.isLoading = true
+    this.state.isStreaming = true
 
+    // 2. 准备 AI 回复占位符
+    const aiMsg = reactive({ role: 'assistant', content: '', thinking: false, time: Date.now() })
+    session.messages.push(aiMsg)
+
+    // 3. 加载配置
+    if (!this.config) await this.loadConfig()
+    if (!this.config || !this.config.api_key) {
+      aiMsg.content = '❌ 系统未配置 AI API Key，请联系管理员。'
+      this.state.isLoading = false
+      this.state.isStreaming = false
+      return
+    }
+
+    try {
+      // 4. 构建上下文 (Context Compression: Sliding Window)
+      // 只取最近 10 条消息，避免 Token 溢出
+      const historyWindow = session.messages.slice(-11, -1).map(m => {
+        const content = []
+        // 处理图片多模态格式
+        if (m.images && m.images.length > 0) {
+           m.images.forEach(img => {
+             content.push({ type: "image_url", image_url: { url: img.url } })
+           })
+        }
+        if (m.content) {
+          content.push({ type: "text", text: m.content })
+        }
+        return { role: m.role, content: content }
+      })
+
+      // 注入系统级 Prompt
+      let systemContent = `你是一个企业级信息系统 (EIS) 的智能助手。请简洁回答。`
       if (this.state.currentContext) {
-        systemPrompt += `\n\n【当前页面上下文】：
-App: ${this.state.currentContext.app}
-Page: ${this.state.currentContext.page}
-Data Schema: ${JSON.stringify(this.state.currentContext.data?.schema || {})}
-`
+        systemContent += `\n当前上下文: App=${this.state.currentContext.app}, Page=${this.state.currentContext.page}`
       }
 
-      // 构建请求体
       const payload = {
         model: this.config.model || "glm-4.6v",
+        stream: true, // 🟢 开启流式传输
         messages: [
-          { role: "system", content: systemPrompt },
-          ...this.state.messages.filter(m => m.role !== 'system').map(m => ({
-            role: m.role,
-            content: m.content
-          }))
+          { role: "system", content: systemContent },
+          ...historyWindow
         ],
-        thinking: {
-          type: "enabled" // 启用深度思考
-        }
+        thinking: { type: "enabled" }
       }
 
-      // 🟢 调用智谱 API
-      // 这里直接使用 fetch 调用外部接口，不走 /api 代理（因为是跨域的第三方服务）
-      // 如果浏览器报 CORS 跨域错误，则需要在 vite.config.js 再配一个 /zhipu-api 的代理
+      // 5. 发起 Fetch 请求
       const response = await fetch(this.config.api_url, {
         method: 'POST',
         headers: {
@@ -132,24 +221,65 @@ Data Schema: ${JSON.stringify(this.state.currentContext.data?.schema || {})}
         body: JSON.stringify(payload)
       })
 
-      if (!response.ok) {
-        const errText = await response.text()
-        throw new Error(`API Error ${response.status}: ${errText}`)
+      if (!response.ok) throw new Error(`API Error ${response.status}`)
+
+      // 6. 处理流式响应
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const jsonStr = line.slice(6)
+            if (jsonStr.trim() === '[DONE]') continue
+            
+            try {
+              const json = JSON.parse(jsonStr)
+              const delta = json.choices[0].delta
+              
+              if (delta.content) {
+                aiMsg.content += delta.content
+              }
+              // 处理 reasoning_content (思考过程，如果有的话)
+              if (delta.reasoning_content) {
+                 // 可以在这里处理思考内容的展示，暂时简化为追加
+                 // aiMsg.thinking = true ...
+              }
+            } catch (e) {
+              // 忽略解析错误 (可能是不完整的 chunk)
+            }
+          }
+        }
       }
 
-      const resJson = await response.json()
-      const aiContent = resJson.choices[0].message.content
-      
-      this.addMessage('assistant', aiContent)
-
     } catch (e) {
-      console.error('[AiBridge] 调用 AI 失败:', e)
-      this.addMessage('assistant', `抱歉，遇到了一些问题：${e.message}`)
+      console.error('[AiBridge] Stream Error:', e)
+      aiMsg.content += `\n\n[网络错误: ${e.message}]`
     } finally {
       this.state.isLoading = false
+      this.state.isStreaming = false
+      session.updatedAt = Date.now()
+    }
+  }
+  
+  // 图片处理辅助
+  async handleFileSelect(file) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = () => {
+      this.state.selectedImages.push({
+        url: reader.result,
+        file: file
+      })
     }
   }
 }
 
-// 导出单例
 export const aiBridge = new AiBridge()
