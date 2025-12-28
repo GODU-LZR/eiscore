@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict h2NbZHOGaMN0bzAFtMBQF4SJeOmi9U1xRSJW9ziP6vuiEBwvX2hk5EoPzQgO7Ba
+\restrict tUeqZiKpCQwXS5UThryC2BzyeEAhR9wqUMXzieS4202fRdDNYclLEWHEahXTKUR
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -773,12 +773,6 @@ CREATE POLICY "Users can only see their own data" ON public.raw_materials FOR SE
 ALTER TABLE public.raw_materials ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: system_configs; Type: ROW SECURITY; Schema: public; Owner: postgres
---
-
-ALTER TABLE public.system_configs ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: SCHEMA hr; Type: ACL; Schema: -; Owner: postgres
 --
 
@@ -885,6 +879,7 @@ GRANT SELECT ON TABLE public.sys_grid_configs TO web_anon;
 --
 
 GRANT ALL ON TABLE public.system_configs TO web_user;
+GRANT SELECT ON TABLE public.system_configs TO web_anon;
 
 
 --
@@ -905,5 +900,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict h2NbZHOGaMN0bzAFtMBQF4SJeOmi9U1xRSJW9ziP6vuiEBwvX2hk5EoPzQgO7Ba
+\unrestrict tUeqZiKpCQwXS5UThryC2BzyeEAhR9wqUMXzieS4202fRdDNYclLEWHEahXTKUR
 
