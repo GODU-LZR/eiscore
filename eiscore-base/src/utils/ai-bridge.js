@@ -89,7 +89,7 @@ class AiBridge {
       id: Date.now().toString(),
       title: '新对话',
       messages: [
-        { role: 'assistant', content: '您好！我是 EIS 智能助手。请上传数据文件，我可以为您生成可视化报表。', time: Date.now() }
+        { role: 'assistant', content: '您好！我是 EIS 智能助手。请上传 Excel/Word 文件，我可以为您生成可视化报表。', time: Date.now() }
       ],
       updatedAt: Date.now()
     }
@@ -196,7 +196,7 @@ class AiBridge {
         if (m.files?.length) {
            for (const f of m.files) {
              const raw = f.raw || f
-             if (raw.raw || raw instanceof File) { // 兼容逻辑
+             if (raw.raw || raw instanceof File) {
                 const parsed = await this.parseFileContent(raw.raw || raw)
                 if (typeof parsed === 'string') contentParts.push({ type: "text", text: parsed })
                 else if (parsed.type === 'image') contentParts.push({ type: "image_url", image_url: { url: parsed.url } })
@@ -209,7 +209,6 @@ class AiBridge {
         return { role: m.role, content: contentParts }
       }))
 
-      // 🟢 核心强化：System Prompt 强制 JSON 规范
       let systemContent = `你是一个数据可视化专家。
 【强制输出规则】
 1. 当用户需要图表时，你必须输出 ECharts JSON 配置。
