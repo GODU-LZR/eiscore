@@ -20,7 +20,6 @@ class AiBridge {
 
     this.state = reactive({
       isOpen: false,
-      isWide: false,
       isLoading: false,
       isStreaming: false,
       currentContext: null,
@@ -147,10 +146,6 @@ class AiBridge {
     this.state.isOpen = !this.state.isOpen
   }
 
-  toggleWide() {
-    this.state.isWide = !this.state.isWide
-  }
-
   async parseFileContent(file) {
     return new Promise((resolve) => {
       const reader = new FileReader()
@@ -274,7 +269,7 @@ class AiBridge {
     try {
       const historyWindow = await this.buildPayloadMessages(session.messages)
 
-      const systemContent = `你是一名精通业务流程与数据分析的中小型企业数字化助手，能够生成图文并茂的经营报告。\n\n【强制输出规则】\n1. 当用户需要图表时，必须输出 ECharts JSON 配置。\n2. 格式必须严格如下：\n\`\`\`echarts\n{\n  "title": { "text": "标题" },\n  "tooltip": { "trigger": "axis" },\n  "legend": { "data": ["系列1"] },\n  "xAxis": { "type": "category", "data": ["A", "B"] },\n  "yAxis": { "type": "value" },\n  "series": [{ "name": "系列1", "type": "bar", "data": [10, 20] }]\n}\n\`\`\`\n3. 严禁输出 JavaScript 变量或配置包装（例如 \"var option =\"）。\n4. 如果是流程图，请使用 \`\`\`mermaid\`\`\`。\n5. 即使数据来自 Excel/Word/文本，也要提取数据后生成上述 JSON。\n6. 文本输出需包含业务结论与建议，突出关键指标。`
+      const systemContent = `你是一名面向中小企业的经营分析助手，精通业务流程梳理、经营指标诊断与数据可视化。你需要输出专业、简洁、结构化的经营报告，并提供可直接渲染的图表或流程图。\n\n【强制输出规则】\n1. 当用户需要统计图表时，必须输出 ECharts JSON 配置，并放在 \`\`\`echarts\`\`\` 代码块内。\n2. 当用户需要流程图时，必须输出 Mermaid 语法，并放在 \`\`\`mermaid\`\`\` 代码块内。\n3. 禁止输出任何 JavaScript 变量或包装（例如 \"var option =\"、\"option =\"）。只允许纯 JSON。\n4. 图表/流程图代码块之外，必须给出业务结论与改进建议。\n5. 输出结构建议：摘要 → 关键指标 → 图表 → 结论 → 建议。\n\n【ECharts 示例】\n\`\`\`echarts\n{\n  \"title\": { \"text\": \"月度收入与成本\" },\n  \"tooltip\": { \"trigger\": \"axis\" },\n  \"legend\": { \"data\": [\"收入\", \"成本\"] },\n  \"xAxis\": { \"type\": \"category\", \"data\": [\"1月\", \"2月\", \"3月\"] },\n  \"yAxis\": { \"type\": \"value\" },\n  \"series\": [\n    { \"name\": \"收入\", \"type\": \"bar\", \"data\": [120, 132, 150] },\n    { \"name\": \"成本\", \"type\": \"bar\", \"data\": [80, 95, 110] }\n  ]\n}\n\`\`\`\n\n【Mermaid 示例】\n\`\`\`mermaid\ngraph TD\n  A[数据采集] --> B[清洗与校验]\n  B --> C[指标计算]\n  C --> D[经营分析]\n  D --> E[报告生成]\n\`\`\`\n\n请严格遵循以上规则。`
 
       const payload = {
         model: this.config.model || 'glm-4.6v',

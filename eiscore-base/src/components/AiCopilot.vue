@@ -11,15 +11,15 @@
       <span class="ai-label">人工智能</span>
     </div>
 
-    <div v-else class="ai-window" :class="{ 'is-wide': state.isWide }">
+    <div v-else class="ai-window">
       <div class="ai-header">
         <div class="header-left" @click="toggleHistory">
           <el-icon class="history-icon" :class="{ 'active': showHistory }"><Operation /></el-icon>
           <span class="title">EIS 智能助手</span>
         </div>
         <div class="header-right">
-          <el-tooltip content="宽屏模式" placement="bottom">
-            <el-icon class="action-icon" @click="aiBridge.toggleWide()"><FullScreen /></el-icon>
+          <el-tooltip content="导出PDF" placement="bottom">
+            <el-icon class="action-icon" @click="exportReportAsPdf"><Download /></el-icon>
           </el-tooltip>
           <el-tooltip content="新建对话" placement="bottom">
             <el-icon class="action-icon" @click="aiBridge.createNewSession()"><Plus /></el-icon>
@@ -157,7 +157,7 @@
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUpdated } from 'vue'
 import { aiBridge } from '@/utils/ai-bridge'
-import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, FullScreen } from '@element-plus/icons-vue'
+import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, Download } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import mermaid from 'mermaid'
 import * as echarts from 'echarts'
@@ -200,6 +200,64 @@ const renderMarkdown = (text) => {
   return md.render(text)
 }
 
+const buildPrintableHtml = () => {
+  const container = messagesRef.value?.cloneNode(true)
+  if (!container) return ''
+
+  container.querySelectorAll('.msg-actions').forEach(node => node.remove())
+  container.querySelectorAll('.typing-cursor').forEach(node => node.remove())
+
+  const echartsNodes = Array.from(container.querySelectorAll('.echarts-chart'))
+  echartsNodes.forEach((node, index) => {
+    const liveNode = document.querySelectorAll('.echarts-chart')[index]
+    const instance = liveNode ? echarts.getInstanceByDom(liveNode) : null
+    if (instance) {
+      const dataUrl = instance.getDataURL({ pixelRatio: 2, backgroundColor: '#ffffff' })
+      const img = document.createElement('img')
+      img.src = dataUrl
+      img.style.maxWidth = '100%'
+      img.style.display = 'block'
+      node.replaceWith(img)
+    }
+  })
+
+  return container.innerHTML
+}
+
+const exportReportAsPdf = () => {
+  const html = buildPrintableHtml()
+  if (!html) return
+
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) return
+
+  printWindow.document.write(`<!DOCTYPE html>
+    <html>
+      <head>
+        <title>企业经营报告</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #303133; }
+          .message-row { display: flex; gap: 12px; margin-bottom: 16px; }
+          .message-row.user { flex-direction: row-reverse; }
+          .bubble { background: #fff; padding: 12px 16px; border-radius: 12px; border: 1px solid #ebeef5; }
+          .msg-files { margin-bottom: 8px; }
+          pre { background: #f5f7fa; padding: 10px; border-radius: 6px; }
+          .mermaid-chart svg { max-width: 100%; height: auto; }
+        </style>
+      </head>
+      <body>
+        <h2>企业经营报告</h2>
+        ${html}
+      </body>
+    </html>`)
+  printWindow.document.close()
+  printWindow.focus()
+  setTimeout(() => {
+    printWindow.print()
+    printWindow.close()
+  }, 500)
+}
+
 const openLightbox = async (type, payload) => {
   lightbox.value = { visible: true, type, payload }
   await nextTick()
@@ -220,6 +278,18 @@ const closeLightbox = () => {
   }
 }
 
+const bindRetry = (node) => {
+  const retryButton = node.querySelector('.chart-retry')
+  if (retryButton && !retryButton.dataset.bound) {
+    retryButton.dataset.bound = 'true'
+    retryButton.addEventListener('click', () => {
+      node.removeAttribute('data-processed')
+      node.innerHTML = ''
+      renderCharts()
+    })
+  }
+}
+
 const renderCharts = async () => {
   await nextTick()
 
@@ -228,6 +298,7 @@ const renderCharts = async () => {
     try {
       node.setAttribute('data-processed', 'true')
       const text = decodeURIComponent(node.getAttribute('data-raw') || '')
+      await mermaid.parse(text)
       const id = `mermaid-${Date.now()}-${index}`
       const { svg } = await mermaid.render(id, text)
       node.innerHTML = svg
@@ -236,7 +307,8 @@ const renderCharts = async () => {
         node.addEventListener('dblclick', () => openLightbox('mermaid', svg))
       }
     } catch (e) {
-      node.innerHTML = '<div class="chart-error">流程图渲染失败</div>'
+      node.innerHTML = '<div class="chart-error">流程图渲染失败 <button class="chart-retry">重试</button></div>'
+      bindRetry(node)
     }
   })
 
@@ -247,7 +319,7 @@ const renderCharts = async () => {
       const jsonStr = decodeURIComponent(node.getAttribute('data-option') || '')
       const option = JSON.parse(jsonStr)
       node.style.width = '100%'
-      node.style.height = state.isWide ? '360px' : '300px'
+      node.style.height = '320px'
       const chart = echarts.init(node)
       chart.setOption(option)
       if (!node.dataset.bound) {
@@ -256,7 +328,8 @@ const renderCharts = async () => {
       }
     } catch (e) {
       console.error(e)
-      node.innerHTML = '<div class="chart-error">统计图渲染失败: 请确保 AI 输出标准 JSON</div>'
+      node.innerHTML = '<div class="chart-error">统计图渲染失败: 请确保 AI 输出标准 JSON <button class="chart-retry">重试</button></div>'
+      bindRetry(node)
     }
   })
 }
@@ -317,6 +390,10 @@ $border-color: #e4e7ed;
   bottom: 30px;
   right: 30px;
   z-index: 9999;
+
+  &.is-open {
+    inset: 0;
+  }
 }
 
 .ai-trigger-btn {
@@ -339,20 +416,17 @@ $border-color: #e4e7ed;
 }
 
 .ai-window {
-  width: 420px;
-  height: 650px;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
   background: $bg-color;
-  border-radius: 16px;
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
+  border-radius: 0;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(0,0,0,0.05);
-  transition: width 0.2s ease;
-
-  &.is-wide {
-    width: 860px;
-  }
 }
 
 .ai-header {
@@ -502,13 +576,33 @@ $border-color: #e4e7ed;
   :deep(.mermaid-chart) {
     width: 100%;
     min-height: 240px;
+    overflow: hidden;
+  }
+
+  :deep(.mermaid-chart svg) {
+    max-width: 100%;
+    height: auto;
   }
 }
 
 .chart-error {
   color: #f56c6c;
   font-size: 12px;
-  padding: 6px 0;
+  padding: 8px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chart-retry {
+  background: #fff;
+  border: 1px solid $border-color;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #606266;
+  &:hover { color: $primary-color; border-color: $primary-color; }
 }
 
 .typing-cursor {
