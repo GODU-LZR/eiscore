@@ -1,10 +1,16 @@
 import { reactive, watch } from 'vue'
 import request from '@/utils/request'
+import * as XLSX from 'xlsx'
+import mammoth from 'mammoth'
 
-const STORAGE_KEY = 'eis_ai_history_v2' // 升级存储 Key 以免旧数据冲突
+const STORAGE_KEY = 'eis_ai_history_v3' // 升级 Key，避免旧缓存污染
 
 /**
- * AI Bridge - 增强版全局 AI 总线 (支持多模态文件与图表)
+ * AI Bridge - 智能文件解析与多模态总线
+ * 职责：
+ * 1. 管理会话 (Session)
+ * 2. 处理多模态文件 (图片Base64 / 文档内容解析)
+ * 3. 对接大模型 (流式传输)
  */
 class AiBridge {
   constructor() {
@@ -24,23 +30,26 @@ class AiBridge {
       sessions: savedData.sessions || [], 
       currentSessionId: savedData.currentSessionId || null,
       
-      // 输入暂存 (支持多模态文件)
+      // 输入暂存
       inputBuffer: '',
-      selectedFiles: [] // Array<{ type: 'image'|'file', name: string, content: string(base64|text), url: string }>
+      // 选中的文件：{ type: 'image'|'file', name: string, url: string, raw: File }
+      selectedFiles: [] 
     })
 
+    // 初始化默认会话
     if (this.state.sessions.length === 0) {
       this.createNewSession()
     } else if (!this.state.currentSessionId) {
       this.state.currentSessionId = this.state.sessions[0].id
     }
 
+    // 自动持久化
     watch(() => [this.state.sessions, this.state.currentSessionId], () => {
       this.saveToStorage()
     }, { deep: true })
   }
 
-  // --- 基础初始化 ---
+  // --- 初始化与配置 ---
 
   initActions(actions) {
     this.actions = actions
@@ -82,7 +91,7 @@ class AiBridge {
   }
 
   saveToStorage() {
-    // 简单压缩：只存最近20个会话，每个会话最多存最近50条
+    // 存储压缩：只存最近20个会话，每个会话最近50条消息
     const data = {
       sessions: this.state.sessions.slice(0, 20).map(s => ({
         ...s,
@@ -98,7 +107,7 @@ class AiBridge {
       id: Date.now().toString(),
       title: '新对话',
       messages: [
-        { role: 'assistant', content: '您好！我是 EIS 智能助手。我可以帮您分析数据、绘制流程图或解答问题。', time: Date.now() }
+        { role: 'assistant', content: '您好！我是 EIS 智能助手。请上传 Excel/Word 文件进行分析，或直接提问。', time: Date.now() }
       ],
       updatedAt: Date.now()
     }
@@ -121,7 +130,6 @@ class AiBridge {
     return this.state.sessions.find(s => s.id === this.state.currentSessionId)
   }
 
-  // 删除单条消息
   deleteMessage(index) {
     const session = this.getCurrentSession()
     if (session && session.messages[index]) {
@@ -129,11 +137,67 @@ class AiBridge {
     }
   }
 
-  // --- 核心消息处理 ---
-
   toggleWindow() {
     this.state.isOpen = !this.state.isOpen
   }
+
+  // --- 核心：智能文件解析 ---
+  // 将文件对象转换为 AI 可理解的文本或 Base64
+  async parseFileContent(file) {
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      
+      // 1. Excel 文件 (.xlsx, .xls) -> CSV 文本
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        reader.readAsArrayBuffer(file)
+        reader.onload = (e) => {
+          try {
+            const data = new Uint8Array(e.target.result)
+            const workbook = XLSX.read(data, { type: 'array' })
+            // 读取第一个 Sheet
+            const firstSheetName = workbook.SheetNames[0]
+            const worksheet = workbook.Sheets[firstSheetName]
+            // 转为 CSV 格式 (比 JSON 更省 Token 且对 LLM 友好)
+            const csv = XLSX.utils.sheet_to_csv(worksheet)
+            resolve(`[Excel文件内容: ${file.name}]\n${csv}\n`)
+          } catch (err) {
+            console.error('Excel parse error:', err)
+            resolve(`[解析失败: ${file.name}] 无法读取 Excel 内容`)
+          }
+        }
+      }
+      // 2. Word 文件 (.docx) -> 纯文本
+      else if (file.name.endsWith('.docx')) {
+        reader.readAsArrayBuffer(file)
+        reader.onload = (e) => {
+          mammoth.extractRawText({ arrayBuffer: e.target.result })
+            .then(result => resolve(`[Word文件内容: ${file.name}]\n${result.value}\n`))
+            .catch(err => {
+              console.error('Word parse error:', err)
+              resolve(`[解析失败: ${file.name}] 无法读取 Word 内容`)
+            })
+        }
+      }
+      // 3. 图片文件 -> Base64 URL (不转文本，直接返回对象供 payload 使用)
+      else if (file.type.startsWith('image/')) {
+        reader.readAsDataURL(file)
+        reader.onload = () => resolve({ type: 'image', url: reader.result, name: file.name })
+      }
+      // 4. 其他文本文件 (txt, md, json, js, etc.) -> 纯文本
+      else {
+        // 简单限制大小，防止过大文件卡死
+        if (file.size > 2 * 1024 * 1024) {
+          resolve(`[文件跳过: ${file.name}] 文件过大(>2MB)，请只上传关键内容。`)
+          return
+        }
+        reader.readAsText(file)
+        reader.onload = () => resolve(`[文本文件内容: ${file.name}]\n${reader.result}\n`)
+        reader.onerror = () => resolve(`[读取失败: ${file.name}]`)
+      }
+    })
+  }
+
+  // --- 发送消息逻辑 ---
 
   async sendMessage(userText, isRetry = false) {
     if ((!userText && this.state.selectedFiles.length === 0) && !isRetry) return
@@ -147,7 +211,7 @@ class AiBridge {
       const userMsg = { 
         role: 'user', 
         content: userText, 
-        files: [...this.state.selectedFiles], // 保存文件快照
+        files: [...this.state.selectedFiles], // 快照
         time: Date.now() 
       }
       session.messages.push(userMsg)
@@ -158,57 +222,72 @@ class AiBridge {
       }
     }
 
-    // 清空输入
+    // 重置输入状态
     this.state.inputBuffer = ''
     this.state.selectedFiles = []
     this.state.isLoading = true
     this.state.isStreaming = true
 
-    // 2. 准备 AI 消息
+    // 2. 预备 AI 消息
     const aiMsg = reactive({ role: 'assistant', content: '', thinking: false, time: Date.now() })
     session.messages.push(aiMsg)
 
+    // 3. 检查配置
     if (!this.config) await this.loadConfig()
     if (!this.config || !this.config.api_key) {
-      aiMsg.content = '❌ 系统未配置 AI API Key。'
+      aiMsg.content = '❌ 系统未配置 AI API Key，请联系管理员。'
       this.state.isLoading = false
       this.state.isStreaming = false
       return
     }
 
     try {
-      // 3. 构建上下文 (Context Construction)
-      const historyWindow = session.messages.slice(-11, -1).map(m => {
+      // 4. 构建上下文 (解析文件内容)
+      // 我们只取最近 5 条消息以节省 Token，但确保包含当前这条
+      const historyWindow = await Promise.all(session.messages.slice(-5).map(async m => {
         const contentParts = []
         
-        // 处理文件附件
+        // 如果消息包含文件，先解析文件内容
         if (m.files && m.files.length > 0) {
-           m.files.forEach(f => {
-             if (f.type === 'image') {
-               // GLM-4V 支持 Base64 URL
-               contentParts.push({ type: "image_url", image_url: { url: f.url } })
-             } else if (f.type === 'file') {
-               // 文本类文件直接作为上下文注入
-               contentParts.push({ type: "text", text: `\n[文件内容: ${f.name}]\n${f.content}\n` })
+           for (const f of m.files) {
+             // 传入 raw File 对象 (如果已存盘可能没有 raw，需要兼容逻辑)
+             const fileObj = f.raw || f 
+             // 这里做一个容错：如果 f 已经是持久化的对象且没有 raw，我们无法重新解析内容
+             // 但如果是持久化的文本文件，我们假设内容不需要重新读取(太复杂)，暂只处理新上传的
+             // 实际生产中应把解析后的内容存入 messages，这里为了简化，我们每次实时解析新上传的
+             if (f.raw) {
+                const parsed = await this.parseFileContent(f.raw)
+                if (typeof parsed === 'string') {
+                  contentParts.push({ type: "text", text: parsed })
+                } else if (parsed.type === 'image') {
+                  contentParts.push({ type: "image_url", image_url: { url: parsed.url } })
+                }
+             } else if (f.type === 'image') {
+                // 旧图片，直接用 url
+                contentParts.push({ type: "image_url", image_url: { url: f.url } })
              }
-           })
+           }
         }
         
         if (m.content) {
           contentParts.push({ type: "text", text: m.content })
         }
         return { role: m.role, content: contentParts }
-      })
+      }))
 
-      // 系统提示词：增加图表支持说明
-      let systemContent = `你是一个企业级信息系统 (EIS) 的智能助手。
-请遵循以下规则：
-1. 简洁回答。
-2. 如果需要画图，请使用 Mermaid 语法 (包裹在 \`\`\`mermaid 代码块中)。
-3. 如果需要画统计图 (柱状图/折线图/饼图等)，请输出 ECharts 的 JSON 配置项 (包裹在 \`\`\`echarts 代码块中)。`
-      
+      // 5. 增强型 System Prompt (JSON 约束)
+      let systemContent = `你是一个高级数据分析师。
+【重要规则】
+1. 如果用户要求画图（统计图、饼图、柱状图等），你必须返回 **标准的 ECharts JSON 配置项**。
+   - 必须使用 \`\`\`echarts\n{ ... }\n\`\`\` 包裹 JSON。
+   - JSON 必须包含 \`tooltip\`, \`legend\`, \`series\`, \`xAxis\`, \`yAxis\` 等必要字段。
+   - **严禁** 在 JSON 代码块外部添加 "var option =" 或其他 JavaScript 语法。
+2. 如果是流程图，请使用 \`\`\`mermaid\n...\n\`\`\`。
+3. 对于 Excel/Word 数据，请深入分析并给出见解。
+4. 保持回答简洁专业。`
+
       if (this.state.currentContext) {
-        systemContent += `\n当前上下文: App=${this.state.currentContext.app}, Page=${this.state.currentContext.page}`
+        systemContent += `\n当前页面上下文: App=${this.state.currentContext.app}, Page=${this.state.currentContext.page}`
       }
 
       const payload = {
@@ -218,10 +297,10 @@ class AiBridge {
           { role: "system", content: systemContent },
           ...historyWindow
         ],
-        thinking: { type: "enabled" } // 启用 GLM 深度思考
+        thinking: { type: "enabled" }
       }
 
-      // 4. 发起请求
+      // 6. 发起流式请求
       const response = await fetch(this.config.api_url, {
         method: 'POST',
         headers: {
@@ -231,7 +310,10 @@ class AiBridge {
         body: JSON.stringify(payload)
       })
 
-      if (!response.ok) throw new Error(`API Error ${response.status}`)
+      if (!response.ok) {
+        const errText = await response.text()
+        throw new Error(`API Error ${response.status}: ${errText}`)
+      }
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
@@ -254,14 +336,15 @@ class AiBridge {
               if (delta.content) {
                 aiMsg.content += delta.content
               }
-            } catch (e) { /* ignore partial json */ }
+              // 处理 reasoning_content (如果需要显示思考过程)
+            } catch (e) { /* partial json ignored */ }
           }
         }
       }
 
     } catch (e) {
-      console.error('[AiBridge] Stream Error:', e)
-      aiMsg.content += `\n\n[网络错误: ${e.message}]`
+      console.error('[AiBridge] Error:', e)
+      aiMsg.content += `\n\n[错误: ${e.message}]`
     } finally {
       this.state.isLoading = false
       this.state.isStreaming = false
@@ -269,40 +352,20 @@ class AiBridge {
     }
   }
   
-  // 文件选择处理 (支持多模态)
+  // 文件选择处理 (仅做预览准备，不解析内容)
   async handleFileSelect(file) {
     if (!file) return
     
-    // 图片处理
     if (file.type.startsWith('image/')) {
       const reader = new FileReader()
       reader.readAsDataURL(file)
       reader.onload = () => {
-        this.state.selectedFiles.push({
-          type: 'image',
-          name: file.name,
-          url: reader.result, // base64
-          content: null
-        })
+        // 保存 raw File 对象用于发送时解析，url 用于预览
+        this.state.selectedFiles.push({ type: 'image', name: file.name, url: reader.result, raw: file })
       }
-    } 
-    // 文本/代码文件处理
-    else {
-      // 限制大小 1MB，防止 Context 溢出
-      if (file.size > 1024 * 1024) {
-        alert('文本文件不能超过 1MB')
-        return
-      }
-      const reader = new FileReader()
-      reader.readAsText(file)
-      reader.onload = () => {
-        this.state.selectedFiles.push({
-          type: 'file',
-          name: file.name,
-          url: null,
-          content: reader.result // 文本内容
-        })
-      }
+    } else {
+      // 文档类，url 为空，依靠 icon 预览
+      this.state.selectedFiles.push({ type: 'file', name: file.name, url: null, raw: file })
     }
   }
 }
