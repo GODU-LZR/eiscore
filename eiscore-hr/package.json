@@ -16,6 +16,7 @@
     "ag-grid-vue3": "^35.0.0",
     "axios": "^1.13.2",
     "element-plus": "^2.13.0",
+    "html2canvas": "^1.4.1",
     "leaflet": "^1.9.4",
     "lodash": "^4.17.21",
     "pinia": "^3.0.4",
