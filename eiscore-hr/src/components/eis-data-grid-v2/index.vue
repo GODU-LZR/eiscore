@@ -66,6 +66,12 @@
         :loading="isSavingConfig"
         @save="saveConfig"
       />
+
+      <GeoDialog
+        v-model:visible="geoDialog.visible"
+        :params="geoDialog.params"
+        @submit="handleGeoSubmit"
+      />
     </div>
   </div>
 </template>
@@ -82,6 +88,7 @@ import { useGridClipboard } from './composables/useGridClipboard'
 
 import GridToolbar from './components/GridToolbar.vue'
 import ConfigDialog from './components/ConfigDialog.vue'
+import GeoDialog from './components/GeoDialog.vue'
 
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
 ModuleRegistry.registerModules([ AllCommunityModule ])
@@ -120,6 +127,7 @@ const isAdmin = currentUser === 'Admin'
 
 const gridApi = ref(null)
 const selectedRowsCount = ref(0)
+const geoDialog = reactive({ visible: false, params: null })
 
 // 1. Selection
 const selectionHooks = useGridSelection(gridApi, selectedRowsCount)
@@ -179,11 +187,22 @@ const onGridReady = (params) => {
 
 const onGridMouseLeave = () => {}
 const onCellDoubleClicked = (params) => {
+  if (params.node.rowPinned !== 'bottom' && params.colDef?.type === 'geo') {
+    geoDialog.params = params
+    geoDialog.visible = true
+    return
+  }
   if (params.node.rowPinned !== 'bottom') return
   if (!isAdmin) { return }
   const colId = params.column.colId
   const colName = params.colDef.headerName
   openConfigDialog(colName, colId, isAdmin)
+}
+
+const handleGeoSubmit = (payload) => {
+  if (!geoDialog.params?.node || !geoDialog.params?.colDef) return
+  const colKey = geoDialog.params.colDef.field
+  geoDialog.params.node.setDataValue(colKey, payload)
 }
 
 onMounted(() => { 

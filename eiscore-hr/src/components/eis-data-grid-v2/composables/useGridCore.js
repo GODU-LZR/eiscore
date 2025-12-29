@@ -8,6 +8,7 @@ import SelectRenderer from '../components/renderers/SelectRenderer.vue'
 import SelectEditor from '../components/renderers/SelectEditor.vue'
 import CascaderRenderer from '../components/renderers/CascaderRenderer.vue'
 import CascaderEditor from '../components/renderers/CascaderEditor.vue'
+import GeoRenderer from '../components/renderers/GeoRenderer.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
 
@@ -27,6 +28,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     SelectEditor: markRaw(SelectEditor),
     CascaderRenderer: markRaw(CascaderRenderer),
     CascaderEditor: markRaw(CascaderEditor),
+    GeoRenderer: markRaw(GeoRenderer),
     LockHeader: markRaw(LockHeader),
     DocumentActionRenderer: markRaw(DocumentActionRenderer)
   }
@@ -255,6 +257,16 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         valueField: col.valueField || 'value',
         cascaderOptions: col.cascaderOptions || {},
         cascaderOptionsMap: {}
+      }
+    }
+
+    if (col?.type === 'geo') {
+      return {
+        ...colDef,
+        editable: false,
+        cellRenderer: 'GeoRenderer',
+        geoAddress: col.geoAddress !== false,
+        geoConfig: col.geoConfig || {}
       }
     }
 

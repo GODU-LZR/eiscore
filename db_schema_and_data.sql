@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 4bblA7AsHaLMyeG5jGzxCqSpF3yX0eulCaXKdAhwSVpdBlEYIV72jqRjO95v776
+\restrict aoKpSu3sbSD6sdME8WoRFagxRbMvsgX3LM3bLNEmge4a5lwXDSODthTnoe3zUID
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -570,8 +570,8 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 472	新员工	EMP1766677815838	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_2086": null, "field_5458": "100", "field_8633": null, "field_9314": "50"}	27	2025-12-29 21:23:34.851
 453	新员工	EMP1766677812422	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.554
 476	新员工	EMP1766840515500	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_2086": null, "field_5458": "100", "field_7980": null, "field_8633": null, "field_9314": "50"}	43	2025-12-29 21:44:00.163
-479	新员工	EMP123876	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	46	2025-12-29 21:23:28.123
 477	新员工	EMP1766840518997	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 150, "field_2086": "1", "field_5458": "100", "field_7980": "1", "field_8633": "6", "field_9314": "50", "row_locked_by": null}	58	2025-12-29 21:44:08.121
+479	新员工	EMP123876	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_1340": {"ip": "113.86.255.175", "lat": 23.11667, "lng": 113.25, "source": "ip", "address": "CNGuangdongGuangzhou"}, "field_5458": "100", "field_8633": null, "field_9314": "50"}	47	2025-12-29 22:11:08.277
 468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	37	2025-12-29 18:01:07.917
 467	新员工	EMP1766677814931	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	39	2025-12-29 18:01:07.917
 466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	37	2025-12-29 21:23:44.902
@@ -745,7 +745,7 @@ employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expre
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_column_locks	{}	HR表格列锁配置
 ai_glm_config	{"model": "glm-4.6v", "api_key": "01e666998e24458e960cfc51fd7a1ff2.a67QjUwrs2433Wk2", "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "provider": "zhipu", "thinking": {"type": "enabled"}}	智谱 AI GLM-4.6V 模型配置
-hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}, {"tag": true, "prop": "field_8633", "type": "select", "label": "1", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}, {"prop": "field_2086", "type": "cascader", "label": "2", "dependsOn": "field_8633", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}, {"label": "5", "value": "5"}], "3": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "4": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "5": [{"label": "1", "value": "1"}], "6": [{"label": "1", "value": "1"}], "7": [{"label": "1", "value": "1"}]}}, {"prop": "field_7980", "type": "cascader", "label": "3", "dependsOn": "field_2086", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "3": [{"label": "1", "value": "1"}], "4": [{"label": "2", "value": "2"}], "5": [{"label": "3", "value": "3"}]}}]	HR花名册的动态列配置
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}, {"tag": true, "prop": "field_8633", "type": "select", "label": "1", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}, {"prop": "field_2086", "type": "cascader", "label": "2", "dependsOn": "field_8633", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}, {"label": "5", "value": "5"}], "3": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "4": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "5": [{"label": "1", "value": "1"}], "6": [{"label": "1", "value": "1"}], "7": [{"label": "1", "value": "1"}]}}, {"prop": "field_7980", "type": "cascader", "label": "3", "dependsOn": "field_2086", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "3": [{"label": "1", "value": "1"}], "4": [{"label": "2", "value": "2"}], "5": [{"label": "3", "value": "3"}]}}, {"prop": "field_1340", "type": "geo", "label": "位置", "geoAddress": true}]	HR花名册的动态列配置
 \.
 
 
@@ -1105,5 +1105,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 4bblA7AsHaLMyeG5jGzxCqSpF3yX0eulCaXKdAhwSVpdBlEYIV72jqRjO95v776
+\unrestrict aoKpSu3sbSD6sdME8WoRFagxRbMvsgX3LM3bLNEmge4a5lwXDSODthTnoe3zUID
 
