@@ -5,7 +5,14 @@
 </template>
 
 <script setup>
+import { onActivated } from 'vue'
 import AiCopilot from '@/components/AiCopilot.vue'
+import { aiBridge } from '@/utils/ai-bridge'
+
+onActivated(() => {
+  aiBridge.setMode('enterprise')
+  aiBridge.openWindow()
+})
 </script>
 
 <style scoped lang="scss">

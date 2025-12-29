@@ -328,6 +328,7 @@ const closeLightbox = () => {
 }
 
 const openAssistant = () => {
+  aiBridge.setMode(props.mode)
   aiBridge.openWindow()
 }
 
@@ -493,8 +494,10 @@ $border-color: #e4e7ed;
     inset: 0;
   }
 
-  &.is-worker {
+  &.is-open.is-worker {
     inset: auto;
+    right: 30px;
+    bottom: 30px;
   }
 }
 
@@ -532,8 +535,8 @@ $border-color: #e4e7ed;
 
   &.is-worker {
     position: fixed;
-    right: 20px;
-    bottom: 20px;
+    right: 30px;
+    bottom: 30px;
     width: 380px;
     height: 600px;
     inset: auto;

@@ -71,17 +71,20 @@ class AiBridge {
   }
 
   loadFromStorage() {
+    const fallback = {
+      enterprise: { sessions: [], currentSessionId: null },
+      worker: { sessions: [], currentSessionId: null }
+    }
     try {
       const json = localStorage.getItem(STORAGE_KEY)
-      return json ? JSON.parse(json) : {
-        enterprise: { sessions: [], currentSessionId: null },
-        worker: { sessions: [], currentSessionId: null }
+      if (!json) return fallback
+      const parsed = JSON.parse(json)
+      return {
+        enterprise: parsed.enterprise || fallback.enterprise,
+        worker: parsed.worker || fallback.worker
       }
     } catch {
-      return {
-        enterprise: { sessions: [], currentSessionId: null },
-        worker: { sessions: [], currentSessionId: null }
-      }
+      return fallback
     }
   }
 
@@ -167,6 +170,13 @@ class AiBridge {
     this.state.isOpen = false
   }
 
+  resetTransientState() {
+    this.state.inputBuffer = ''
+    this.state.selectedFiles = []
+    this.state.isLoading = false
+    this.state.isStreaming = false
+  }
+
   setMode(mode) {
     if (!mode || this.state.assistantMode === mode) {
       return
@@ -177,6 +187,8 @@ class AiBridge {
     const modeData = this.modeStorage?.[mode] || { sessions: [], currentSessionId: null }
     this.state.sessions = modeData.sessions || []
     this.state.currentSessionId = modeData.currentSessionId || null
+    this.resetTransientState()
+    this.state.isOpen = false
 
     if (this.state.sessions.length === 0) {
       this.createNewSession()
