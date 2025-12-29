@@ -11,13 +11,18 @@
       <span class="ai-label">工作助手</span>
     </div>
 
-    <div v-else-if="state.isOpen" class="ai-window" :class="{ 'is-worker': isWorker }">
+    <div v-else-if="state.isOpen" class="ai-window" :class="{ 'is-worker': isWorker, 'is-fullscreen': isWorkerFullscreen }">
       <div class="ai-header">
         <div class="header-left" @click="toggleHistory">
           <el-icon class="history-icon" :class="{ 'active': showHistory }"><Operation /></el-icon>
           <span class="title">{{ assistantTitle }}</span>
         </div>
         <div class="header-right">
+          <el-tooltip v-if="isWorker" :content="isWorkerFullscreen ? '退出全屏' : '全屏'" placement="bottom">
+            <el-icon class="action-icon" @click="toggleFullscreen">
+              <component :is="isWorkerFullscreen ? ScaleToOriginal : FullScreen" />
+            </el-icon>
+          </el-tooltip>
           <el-tooltip v-if="isEnterprise" content="导出PDF" placement="bottom">
             <el-icon class="action-icon" @click="exportReportAsPdf"><Download /></el-icon>
           </el-tooltip>
@@ -157,11 +162,13 @@
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUpdated } from 'vue'
 import { aiBridge } from '@/utils/ai-bridge'
-import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, Download } from '@element-plus/icons-vue'
+import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, Download, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import mermaid from 'mermaid'
 import * as echarts from 'echarts'
 import { useRouter } from 'vue-router'
+
+const FULLSCREEN_KEY = 'eis_ai_worker_fullscreen'
 
 const props = defineProps({
   mode: { type: String, default: 'enterprise' },
@@ -176,10 +183,12 @@ const lightboxChartRef = ref(null)
 const lightbox = ref({ visible: false, type: '', payload: null })
 let lightboxChart = null
 const router = useRouter()
+const isFullscreen = ref(false)
 
 const currentSession = computed(() => aiBridge.getCurrentSession())
 const isWorker = computed(() => props.mode === 'worker')
 const isEnterprise = computed(() => props.mode === 'enterprise')
+const isWorkerFullscreen = computed(() => isWorker.value && isFullscreen.value)
 const assistantTitle = computed(() => (isWorker.value ? '企业工作助手' : '企业经营助手'))
 const inputPlaceholder = computed(() => (
   isWorker.value
@@ -188,7 +197,8 @@ const inputPlaceholder = computed(() => (
 ))
 const containerClasses = computed(() => ({
   'is-open': state.isOpen,
-  'is-worker': isWorker.value
+  'is-worker': isWorker.value,
+  'is-fullscreen': isWorkerFullscreen.value && state.isOpen
 }))
 
 const md = new MarkdownIt({
@@ -341,6 +351,14 @@ const closeAssistant = () => {
   aiBridge.toggleWindow()
 }
 
+const toggleFullscreen = () => {
+  if (!isWorker.value) return
+  isFullscreen.value = !isFullscreen.value
+  try {
+    localStorage.setItem(FULLSCREEN_KEY, isFullscreen.value ? '1' : '0')
+  } catch {}
+}
+
 const bindRetry = (node) => {
   const retryButton = node.querySelector('.chart-retry')
   if (retryButton && !retryButton.dataset.bound) {
@@ -466,6 +484,9 @@ watch(() => currentSession.value?.messages[currentSession.value?.messages.length
 watch(() => state.isOpen, (val) => { if (val) scrollToBottom() })
 
 onMounted(() => {
+  try {
+    isFullscreen.value = localStorage.getItem(FULLSCREEN_KEY) === '1'
+  } catch {}
   aiBridge.loadConfig()
   aiBridge.setMode(props.mode)
   if (props.autoOpen) {
@@ -497,7 +518,20 @@ $border-color: #e4e7ed;
   &.is-open.is-worker {
     inset: auto;
     right: 30px;
-    bottom: 30px;
+    top: 80px;
+    width: 380px;
+    height: calc(100vh - 160px);
+    left: auto;
+  }
+
+  &.is-open.is-worker.is-fullscreen {
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    right: 0;
+    left: 0;
+    top: 0;
+    bottom: 0;
   }
 }
 
@@ -521,10 +555,10 @@ $border-color: #e4e7ed;
 }
 
 .ai-window {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   background: $bg-color;
   border-radius: 0;
   box-shadow: none;
@@ -534,14 +568,13 @@ $border-color: #e4e7ed;
   border: 1px solid rgba(0,0,0,0.05);
 
   &.is-worker {
-    position: fixed;
-    right: 30px;
-    bottom: 30px;
-    width: 380px;
-    height: 600px;
-    inset: auto;
     border-radius: 16px;
     box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+  }
+
+  &.is-worker.is-fullscreen {
+    border-radius: 0;
+    box-shadow: none;
   }
 }
 
