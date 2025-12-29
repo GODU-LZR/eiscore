@@ -87,6 +87,24 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     setTimeout(() => { isSystemOperation.value = false }, 0)
   }
 
+  const openDependentCascader = (event) => {
+    if (!gridApi.value) return
+    if (!event || event.node?.rowPinned) return
+    const newValue = event.newValue
+    if (newValue === null || newValue === undefined || newValue === '') return
+    const changedField = event.colDef.field
+    const cols = gridApi.value.getColumns() || []
+    const targetCol = cols.find(col => {
+      const def = col.getColDef()
+      return def?.dependsOnField === changedField && def?.type === 'cascader'
+    })
+    if (!targetCol) return
+    const colId = targetCol.getColId()
+    setTimeout(() => {
+      gridApi.value.startEditingCell({ rowIndex: event.rowIndex, colKey: colId })
+    }, 0)
+  }
+
   const onCellValueChanged = (event) => {
     if (isSystemOperation.value) {
         formulaHooks.calculateRowFormulas(event.node)
@@ -115,6 +133,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
 
     pendingChanges.push({ rowNode: event.node, colDef: event.colDef, newValue: safeValue, oldValue: event.oldValue })
     clearDependentFields(event)
+    openDependentCascader(event)
     debouncedSave()
   }
 

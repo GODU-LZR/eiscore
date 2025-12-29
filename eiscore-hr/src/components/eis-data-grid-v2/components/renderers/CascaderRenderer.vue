@@ -10,12 +10,56 @@ import { computed } from 'vue'
 const props = defineProps(['params'])
 
 const rawValue = computed(() => props.params.value)
-const parentValue = computed(() => getByPath(props.params.data, props.params.colDef?.dependsOnField))
-const staticMap = computed(() => props.params.colDef?.cascaderOptions || {})
+const colDef = computed(() => props.params.colDef || {})
+
+const getByPath = (obj, path) => {
+  if (!obj || !path) return undefined
+  return path.split('.').reduce((acc, key) => acc?.[key], obj)
+}
+
+const collectParentKeys = () => {
+  const keys = []
+  const pushKey = (key) => {
+    if (!key) return
+    const text = String(key)
+    if (!keys.includes(text)) keys.push(text)
+  }
+  pushKey(colDef.value.dependsOnField)
+  pushKey(colDef.value.dependsOn)
+  if (colDef.value.dependsOn && !String(colDef.value.dependsOn).includes('.')) {
+    pushKey(`properties.${colDef.value.dependsOn}`)
+  }
+  return keys
+}
+
+const resolveParentValue = () => {
+  const data = props.params.node?.data || props.params.data || {}
+  const keys = collectParentKeys()
+  for (const key of keys) {
+    const byField = getByPath(data, key)
+    if (byField !== undefined) return byField
+  }
+  if (colDef.value.dependsOn) {
+    if (data?.properties && typeof data.properties === 'object' && colDef.value.dependsOn in data.properties) {
+      return data.properties[colDef.value.dependsOn]
+    }
+    if (colDef.value.dependsOn in data) return data[colDef.value.dependsOn]
+  }
+  if (props.params.api && typeof props.params.api.getValue === 'function' && props.params.node) {
+    for (const key of keys) {
+      const value = props.params.api.getValue(key, props.params.node)
+      if (value !== undefined) return value
+    }
+  }
+  return undefined
+}
+
+const parentValue = computed(() => resolveParentValue())
+const staticMap = computed(() => colDef.value?.cascaderOptions || {})
 const optionsMap = computed(() => {
   const staticKeys = Object.keys(staticMap.value || {})
   if (staticKeys.length > 0) return staticMap.value
-  return props.params.colDef?.cascaderOptionsMap || {}
+  return colDef.value?.cascaderOptionsMap || {}
 })
 
 const normalize = (val) => {
@@ -36,8 +80,8 @@ const normalizeOption = (item) => {
 }
 
 const displayLabel = computed(() => {
-  const parentKey = normalize(parentValue.value)
-  const options = (optionsMap.value[parentKey] || [])
+  const parentKey = normalize(parentValue.value).trim()
+  const options = (optionsMap.value[parentKey] || optionsMap.value[normalize(parentValue.value)] || [])
     .map(normalizeOption)
     .filter(Boolean)
   const target = normalize(rawValue.value)
@@ -46,10 +90,6 @@ const displayLabel = computed(() => {
   return option ? option.label : (rawValue.value ?? '')
 })
 
-const getByPath = (obj, path) => {
-  if (!obj || !path) return undefined
-  return path.split('.').reduce((acc, key) => acc?.[key], obj)
-}
 </script>
 
 <style scoped>

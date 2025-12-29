@@ -1,42 +1,73 @@
 <template>
-  <div class="cascader-editor-wrapper" @mousedown.stop>
-    <el-select
-      ref="selectRef"
-      v-model="internalValue"
-      size="small"
-      :disabled="isDisabled"
-      :placeholder="placeholderText"
-      style="width: 100%"
-      filterable
-      clearable
-      automatic-dropdown
-      @change="handleChange"
-      @visible-change="handleVisibleChange"
+  <div class="status-editor-popup select-editor-popup cascader-editor-popup" :style="{ width: cellWidth }" @mousedown.stop>
+    <div
+      v-for="opt in displayOptions"
+      :key="opt.key"
+      class="status-editor-item select-editor-item"
+      :class="{ 'is-selected': isSelected(opt), 'is-clear': opt.__clear, 'is-disabled': opt.__disabled }"
+      @click="onSelect(opt)"
     >
-      <el-option
-        v-for="item in options"
-        :key="item.value"
-        :label="item.label"
-        :value="item.value"
-      />
-    </el-select>
-    <div v-if="tips" class="cascader-tip">{{ tips }}</div>
+      <span class="status-label select-label">{{ opt.label }}</span>
+      <div v-if="isSelected(opt) && !opt.__clear" class="status-check-mark select-check-mark"></div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import request from '@/utils/request'
 
 const props = defineProps(['params'])
 const internalValue = ref(props.params.value)
-const selectRef = ref(null)
+const cellWidth = ref(props.params.column ? props.params.column.getActualWidth() + 'px' : '100%')
 const options = ref([])
 const loading = ref(false)
 
 const colDef = props.params.colDef || {}
-const parentField = colDef.dependsOnField
-const parentValue = computed(() => getByPath(props.params.data, parentField))
+
+const getByPath = (obj, path) => {
+  if (!obj || !path) return undefined
+  return path.split('.').reduce((acc, key) => acc?.[key], obj)
+}
+
+const collectParentKeys = () => {
+  const keys = []
+  const pushKey = (key) => {
+    if (!key) return
+    const text = String(key)
+    if (!keys.includes(text)) keys.push(text)
+  }
+  pushKey(colDef.dependsOnField)
+  pushKey(colDef.dependsOn)
+  if (colDef.dependsOn && !String(colDef.dependsOn).includes('.')) {
+    pushKey(`properties.${colDef.dependsOn}`)
+  }
+  return keys
+}
+
+const resolveParentValue = () => {
+  const data = props.params.node?.data || props.params.data || {}
+  const keys = collectParentKeys()
+  for (const key of keys) {
+    const byField = getByPath(data, key)
+    if (byField !== undefined) return byField
+  }
+  if (colDef.dependsOn) {
+    if (data?.properties && typeof data.properties === 'object' && colDef.dependsOn in data.properties) {
+      return data.properties[colDef.dependsOn]
+    }
+    if (colDef.dependsOn in data) return data[colDef.dependsOn]
+  }
+  if (props.params.api && typeof props.params.api.getValue === 'function' && props.params.node) {
+    for (const key of keys) {
+      const value = props.params.api.getValue(key, props.params.node)
+      if (value !== undefined) return value
+    }
+  }
+  return undefined
+}
+
+const parentValue = ref(resolveParentValue())
 const apiUrl = colDef.apiUrl || ''
 const labelField = colDef.labelField || 'label'
 const valueField = colDef.valueField || 'value'
@@ -47,20 +78,6 @@ const hasStaticMap = computed(() => Object.keys(staticOptionsMap.value || {}).le
 const hasParent = computed(() => parentValue.value !== null && parentValue.value !== undefined && parentValue.value !== '')
 
 const isDisabled = computed(() => !hasParent.value || (!hasStaticMap.value && !apiUrl))
-
-const placeholderText = computed(() => {
-  if (!hasParent.value) return '请先选择上一级'
-  if (loading.value) return '加载中...'
-  if (!hasStaticMap.value && !apiUrl) return '暂无可选项'
-  return colDef.headerName || '请选择'
-})
-
-const tips = computed(() => {
-  if (!hasParent.value) return '先选上一级，下面才会有可选项'
-  if (!hasStaticMap.value && !apiUrl) return '没有可选项'
-  if (!loading.value && options.value.length === 0) return '没有可选项'
-  return ''
-})
 
 const ensureCache = () => {
   if (!colDef.cascaderOptionsMap) colDef.cascaderOptionsMap = {}
@@ -90,8 +107,8 @@ const normalizeOption = (item) => {
 
 const loadOptions = async (val) => {
   if (hasStaticMap.value) {
-    const key = String(val)
-    const list = staticOptionsMap.value[key] || []
+    const key = String(val).trim()
+    const list = staticOptionsMap.value[key] || staticOptionsMap.value[String(val)] || []
     options.value = list
       .map(normalizeOption)
       .filter(Boolean)
@@ -122,52 +139,81 @@ const loadOptions = async (val) => {
   }
 }
 
-watch(parentValue, (val) => {
+const normalize = (val) => {
+  if (val === null || val === undefined || val === '') return ''
+  return String(val)
+}
+
+const allowClear = computed(() => colDef.allowClear !== false)
+
+const displayOptions = computed(() => {
+  const selected = normalize(internalValue.value)
+  const buildClear = () => ({
+    label: '清空',
+    value: null,
+    __clear: true,
+    key: '__clear'
+  })
+  if (!hasParent.value) {
+    const list = []
+    if (allowClear.value && selected !== '') list.push(buildClear())
+    list.push({ label: '请先选择上一级', value: null, __disabled: true, key: '__need_parent' })
+    return list
+  }
+  if (loading.value) {
+    return [{ label: '加载中...', value: null, __disabled: true, key: '__loading' }]
+  }
+  const list = options.value
+    .map((opt, idx) => {
+      const normalized = normalizeOption(opt)
+      if (!normalized) return null
+      return { ...normalized, key: `opt-${idx}-${String(normalized.value)}` }
+    })
+    .filter(Boolean)
+  if (list.length === 0) {
+    return [{ label: '没有可选项', value: null, __disabled: true, key: '__empty' }]
+  }
+  if (!allowClear.value) return list
+  return [buildClear(), ...list]
+})
+
+const refreshOptions = async () => {
+  parentValue.value = resolveParentValue()
   if (!hasParent.value) {
     options.value = []
     internalValue.value = null
     return
   }
-  loadOptions(val)
-}, { immediate: true })
-
-onMounted(() => {
-  nextTick(() => {
-    selectRef.value?.focus()
-    if (selectRef.value?.toggleMenu) selectRef.value.toggleMenu()
-  })
-})
-
-const handleChange = (val) => {
-  internalValue.value = val
-  props.params.stopEditing()
-}
-
-const handleVisibleChange = (visible) => {
-  if (!visible) {
-    props.params.stopEditing()
+  await loadOptions(parentValue.value)
+  const target = normalize(internalValue.value)
+  if (target) {
+    const exists = options.value.some(opt => normalize(opt.value) === target)
+    if (!exists) internalValue.value = null
   }
 }
 
-const getByPath = (obj, path) => {
-  if (!obj || !path) return undefined
-  return path.split('.').reduce((acc, key) => acc?.[key], obj)
+onMounted(() => {
+  refreshOptions()
+})
+
+const isSelected = (opt) => {
+  if (opt.__clear) return normalize(internalValue.value) === ''
+  return normalize(opt.value) === normalize(internalValue.value)
+}
+
+const onSelect = (opt) => {
+  if (opt.__disabled) return
+  if (isDisabled.value && !opt.__clear) return
+  internalValue.value = opt.value
+  props.params.stopEditing()
 }
 
 defineExpose({ getValue: () => internalValue.value })
 </script>
 
 <style scoped>
-.cascader-editor-wrapper {
-  width: 100%;
-}
-.cascader-tip {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #909399;
-}
-:deep(.el-input__wrapper) {
-  box-shadow: none !important;
-  padding: 0 8px;
+.cascader-editor-popup .status-editor-item.is-disabled {
+  color: #b4b4b4;
+  cursor: not-allowed;
 }
 </style>

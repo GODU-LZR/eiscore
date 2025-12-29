@@ -497,11 +497,16 @@ const saveColumn = () => {
       return
     }
     colConfig.dependsOn = currentCol.dependsOn
-    const optionKeys = cascaderParentOptions.value.map(opt => String(opt.value))
     const cascaderOptions = {}
-    optionKeys.forEach((key) => {
-      const list = currentCol.cascaderMap[key] || []
-      cascaderOptions[key] = list.map(item => ({ label: item, value: item }))
+    cascaderParentOptions.value.forEach((opt) => {
+      const valueKey = String(opt.value)
+      const labelKey = String(opt.label)
+      const list = currentCol.cascaderMap[valueKey] || currentCol.cascaderMap[labelKey] || []
+      const normalizedList = list.map(item => ({ label: item, value: item }))
+      cascaderOptions[valueKey] = normalizedList
+      if (labelKey !== valueKey && !(labelKey in cascaderOptions)) {
+        cascaderOptions[labelKey] = normalizedList
+      }
     })
     const hasAny = Object.values(cascaderOptions).some(list => Array.isArray(list) && list.length > 0)
     if (!hasAny) {
