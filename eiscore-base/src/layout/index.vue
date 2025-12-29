@@ -98,7 +98,7 @@
       </el-main>
     </el-container>
 
-    <AiCopilot />
+    <AiCopilot v-if="showAiCopilot" />
   </el-container>
 </template>
 
@@ -110,18 +110,20 @@ import "driver.js/dist/driver.css";
 import { useSystemStore } from '@/stores/system'
 import { useUserStore } from '@/stores/user' // 引入 userStore
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router' 
+import { useRouter, useRoute } from 'vue-router' 
 import { mix } from '@/utils/theme' 
 import { House, Box, User, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
 import AiCopilot from '@/components/AiCopilot.vue' // 🟢 引入组件
 
 const isCollapse = ref(false)
 const router = useRouter()
+const route = useRoute()
 const systemStore = useSystemStore()
 const userStore = useUserStore() // 使用 userStore
 const { config } = storeToRefs(systemStore)
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
+const showAiCopilot = computed(() => route.path !== '/')
 
 const asideTheme = computed(() => {
   const primaryColor = config.value?.themeColor || '#409EFF'

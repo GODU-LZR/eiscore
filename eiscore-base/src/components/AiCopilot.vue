@@ -8,7 +8,7 @@
       <div class="ai-icon-wrapper">
         <span class="sparkle-icon">✨</span>
       </div>
-      <span class="ai-label">人工智能</span>
+      <span class="ai-label">工作助手</span>
     </div>
 
     <div v-else class="ai-window">

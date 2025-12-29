@@ -66,6 +66,22 @@
       </el-col>
     </el-row>
 
+    <el-row v-if="canViewEnterpriseAssistant" :gutter="20" class="assistant-row">
+      <el-col :span="8">
+        <el-card shadow="hover" class="assistant-card" @click="goEnterpriseAssistant">
+          <div class="assistant-card-content">
+            <div class="assistant-text">
+              <div class="assistant-title">经营助手</div>
+              <div class="assistant-subtitle">经营分析 / 经营报告</div>
+            </div>
+            <div class="assistant-icon">
+              <el-icon><TrendCharts /></el-icon>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
     <el-row :gutter="20" style="margin-top: 20px;">
       <el-col :span="16">
         <el-card shadow="never" class="action-card">
@@ -116,10 +132,26 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { TrendCharts } from '@element-plus/icons-vue'
+import { useUserStore } from '@/stores/user'
 import dayjs from 'dayjs' // 如果没有装dayjs，可以用原生Date代替
 
 const currentDate = ref('')
+const router = useRouter()
+const userStore = useUserStore()
+
+const canViewEnterpriseAssistant = computed(() => {
+  const role = String(userStore.userInfo?.role || '').toLowerCase()
+  const permissions = userStore.userInfo?.permissions || []
+  const managementRoles = new Set(['admin', 'manager', 'management', 'super'])
+  return managementRoles.has(role) || permissions.includes('enterprise_assistant')
+})
+
+const goEnterpriseAssistant = () => {
+  router.push('/ai/enterprise')
+}
 
 onMounted(() => {
   const now = new Date()
@@ -197,6 +229,51 @@ onMounted(() => {
       &.bg-orange { background: #E6A23C; box-shadow: 0 4px 10px rgba(230,162,60,0.3); }
       &.bg-purple { background: #909399; box-shadow: 0 4px 10px rgba(144,147,153,0.3); }
     }
+  }
+}
+
+.assistant-row {
+  margin-top: 20px;
+}
+
+.assistant-card {
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid #e4e7ed;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+  }
+
+  .assistant-card-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .assistant-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #303133;
+  }
+
+  .assistant-subtitle {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #909399;
+  }
+
+  .assistant-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(64, 158, 255, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #409eff;
+    font-size: 22px;
   }
 }
 </style>
