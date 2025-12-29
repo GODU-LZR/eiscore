@@ -122,10 +122,11 @@ const gridApi = ref(null)
 const selectedRowsCount = ref(0)
 
 // 1. Selection
+const selectionHooks = useGridSelection(gridApi, selectedRowsCount)
 const { 
   rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
   onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection 
-} = useGridSelection(gridApi, selectedRowsCount)
+} = selectionHooks
 
 // 2. Core (传入 emit)
 const activeSummaryConfig = reactive({ label: '合计', rules: {}, expressions: {}, ...props.summary })
@@ -144,19 +145,19 @@ const {
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState)
 
 // 4. History
+const historyHooks = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData })
 const { 
   history, isSystemOperation, 
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,
   debouncedSave, performUndoRedo 
-} = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData })
+} = historyHooks
 
+// 注入公式依赖，解决循环依赖问题
 formulaDependencyHooks.pushPendingChange = pushPendingChange
 formulaDependencyHooks.triggerSave = debouncedSave
 
-// 5. Clipboard
-const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, {
-  history, isSystemOperation, debouncedSave, performUndoRedo, sanitizeValue, pushPendingChange
-}, { rangeSelection, getColIndex })
+// 5. Clipboard (修复参数传递)
+const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, historyHooks, selectionHooks)
 
 const defaultColDef = { 
   sortable: true, filter: true, resizable: true, minWidth: 100, 
