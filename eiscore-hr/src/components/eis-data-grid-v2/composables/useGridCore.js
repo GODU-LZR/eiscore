@@ -253,6 +253,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         apiUrl: col.apiUrl,
         labelField: col.labelField || 'label',
         valueField: col.valueField || 'value',
+        cascaderOptions: col.cascaderOptions || {},
         cascaderOptionsMap: {}
       }
     }

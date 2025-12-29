@@ -87,11 +87,42 @@
               <div class="form-col">
                 <el-input v-model="currentCol.label" placeholder="列名（比如：岗位）" style="margin-bottom: 10px;" />
 
-                <el-select v-model="currentCol.dependsOn" placeholder="先选哪一列" filterable style="width: 100%; margin-bottom: 10px;">
-                  <el-option v-for="col in allAvailableColumns" :key="col.prop" :label="col.label" :value="col.prop" />
+                <el-select v-model="currentCol.dependsOn" placeholder="先选哪一列（必须是下拉列）" filterable style="width: 100%; margin-bottom: 10px;">
+                  <el-option v-for="col in cascaderParentColumns" :key="col.prop" :label="col.label" :value="col.prop" />
                 </el-select>
 
-                <el-input v-model="currentCol.apiUrl" placeholder="选项来源（管理员给）" style="margin-bottom: 10px;" />
+                <div v-if="currentCol.dependsOn && cascaderParentOptions.length === 0" class="hint-text">
+                  先给上一级列设置选项，才能配置联动。
+                </div>
+                <div v-else-if="currentCol.dependsOn" class="cascader-map">
+                  <div v-for="opt in cascaderParentOptions" :key="opt.value" class="cascader-node">
+                    <div class="cascader-parent-row">
+                      <span class="cascader-parent">{{ opt.label }}</span>
+                    </div>
+                    <div class="cascader-children">
+                      <div v-if="getCascaderChildren(opt.value).length > 0" class="cascader-tags">
+                        <el-tag
+                          v-for="child in getCascaderChildren(opt.value)"
+                          :key="child"
+                          size="small"
+                          closable
+                          @close="removeCascaderChild(opt.value, child)"
+                        >
+                          {{ child }}
+                        </el-tag>
+                      </div>
+                      <div class="cascader-add">
+                        <el-input
+                          v-model="cascaderInputMap[opt.value]"
+                          placeholder="输入一个下级选项"
+                          @keyup.enter="addCascaderChild(opt.value)"
+                        />
+                        <el-button type="primary" plain @click="addCascaderChild(opt.value)">添加</el-button>
+                      </div>
+                      <div v-if="getCascaderChildren(opt.value).length === 0" class="hint-text">还没有下级选项</div>
+                    </div>
+                  </div>
+                </div>
 
                 <el-button type="primary" style="margin-top: 10px; width: 100%;" @click="saveColumn" :disabled="!currentCol.label">
                   {{ isEditing ? '保存修改' : '添加联动列' }}
@@ -179,7 +210,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, computed } from 'vue'
+import { ref, onMounted, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router' // 🟢 引入 Router
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
@@ -217,9 +248,7 @@ const currentCol = reactive({
   options: [],
   tag: false,
   dependsOn: '',
-  apiUrl: '',
-  labelField: 'label',
-  valueField: 'value',
+  cascaderMap: {},
   geoAddress: true,
   fileMaxSizeMb: 20,
   fileMaxCount: 3,
@@ -232,6 +261,52 @@ const allAvailableColumns = computed(() => {
     return all.filter((c, i) => i !== (staticColumns.length + editingIndex.value))
   }
   return all
+})
+
+const isSelectColumnConfig = (col) => {
+  if (!col) return false
+  if (Array.isArray(col.options) && col.options.length > 0) return true
+  return false
+}
+
+const cascaderParentColumns = computed(() => {
+  return allAvailableColumns.value.filter(isSelectColumnConfig)
+})
+
+const cascaderParentOptions = computed(() => {
+  const parentCol = cascaderParentColumns.value.find(col => col.prop === currentCol.dependsOn)
+  if (!parentCol || !Array.isArray(parentCol.options)) return []
+  return parentCol.options
+    .map(opt => {
+      const label = opt.label ?? opt.value ?? ''
+      const value = opt.value ?? opt.label ?? ''
+      const labelText = String(label || value)
+      const valueText = String(value || label)
+      return { label: labelText, value: valueText }
+    })
+    .filter(opt => opt.label !== '')
+})
+
+const cascaderInputMap = reactive({})
+
+const syncCascaderMap = () => {
+  const keys = cascaderParentOptions.value.map(opt => String(opt.value))
+  Object.keys(currentCol.cascaderMap).forEach((key) => {
+    if (!keys.includes(key)) delete currentCol.cascaderMap[key]
+  })
+  keys.forEach((key) => {
+    if (!Array.isArray(currentCol.cascaderMap[key])) {
+      currentCol.cascaderMap[key] = []
+    }
+    if (!(key in cascaderInputMap)) cascaderInputMap[key] = ''
+  })
+  Object.keys(cascaderInputMap).forEach((key) => {
+    if (!keys.includes(key)) delete cascaderInputMap[key]
+  })
+}
+
+watch([() => currentCol.dependsOn, cascaderParentOptions], () => {
+  syncCascaderMap()
 })
 
 const loadColumnsConfig = async () => {
@@ -294,9 +369,8 @@ const editColumn = (index) => {
     : []
   currentCol.tag = !!col.tag
   currentCol.dependsOn = col.dependsOn || ''
-  currentCol.apiUrl = col.apiUrl || ''
-  currentCol.labelField = col.labelField || 'label'
-  currentCol.valueField = col.valueField || 'value'
+  currentCol.cascaderMap = normalizeCascaderMap(col.cascaderOptions)
+  Object.keys(cascaderInputMap).forEach((key) => delete cascaderInputMap[key])
   currentCol.geoAddress = col.geoAddress !== false
   currentCol.fileMaxSizeMb = col.fileMaxSizeMb || 20
   currentCol.fileMaxCount = col.fileMaxCount || 3
@@ -311,6 +385,8 @@ const editColumn = (index) => {
   else if (col.type === 'geo') addTab.value = 'geo'
   else if (col.type === 'file') addTab.value = 'file'
   else addTab.value = 'text'
+
+  syncCascaderMap()
 }
 
 const resetForm = () => {
@@ -322,14 +398,55 @@ const resetForm = () => {
   currentCol.options = []
   currentCol.tag = false
   currentCol.dependsOn = ''
-  currentCol.apiUrl = ''
-  currentCol.labelField = 'label'
-  currentCol.valueField = 'value'
+  currentCol.cascaderMap = {}
+  Object.keys(cascaderInputMap).forEach((key) => delete cascaderInputMap[key])
   currentCol.geoAddress = true
   currentCol.fileMaxSizeMb = 20
   currentCol.fileMaxCount = 3
   currentCol.fileAccept = ''
   addTab.value = 'text'
+}
+
+const getCascaderChildren = (key) => {
+  const list = currentCol.cascaderMap[String(key)] || []
+  return Array.isArray(list) ? list : []
+}
+
+const addCascaderChild = (key) => {
+  const mapKey = String(key)
+  const raw = cascaderInputMap[mapKey]
+  const text = raw === null || raw === undefined ? '' : String(raw).trim()
+  if (!text) return
+  const list = currentCol.cascaderMap[mapKey] || []
+  if (!list.includes(text)) {
+    list.push(text)
+  }
+  currentCol.cascaderMap[mapKey] = list
+  cascaderInputMap[mapKey] = ''
+}
+
+const removeCascaderChild = (key, child) => {
+  const mapKey = String(key)
+  const list = currentCol.cascaderMap[mapKey] || []
+  currentCol.cascaderMap[mapKey] = list.filter(item => item !== child)
+}
+
+const normalizeCascaderMap = (map) => {
+  const result = {}
+  if (!map || typeof map !== 'object') return result
+  Object.entries(map).forEach(([key, list]) => {
+    if (!Array.isArray(list)) return
+    const normalized = list
+      .map(item => {
+        if (item === null || item === undefined) return ''
+        if (typeof item === 'string' || typeof item === 'number') return String(item)
+        const label = item.label ?? item.value ?? ''
+        return String(label)
+      })
+      .filter(Boolean)
+    result[String(key)] = normalized
+  })
+  return result
 }
 
 const saveColumn = () => {
@@ -374,14 +491,24 @@ const saveColumn = () => {
       ElMessage.warning('请选择上一级列')
       return
     }
-    if (!currentCol.apiUrl) {
-      ElMessage.warning('请填写选项来源')
+    const parentCol = cascaderParentColumns.value.find(col => col.prop === currentCol.dependsOn)
+    if (!parentCol) {
+      ElMessage.warning('上一级必须是下拉列')
       return
     }
     colConfig.dependsOn = currentCol.dependsOn
-    colConfig.apiUrl = currentCol.apiUrl.trim()
-    colConfig.labelField = currentCol.labelField?.trim() || 'label'
-    colConfig.valueField = currentCol.valueField?.trim() || 'value'
+    const optionKeys = cascaderParentOptions.value.map(opt => String(opt.value))
+    const cascaderOptions = {}
+    optionKeys.forEach((key) => {
+      const list = currentCol.cascaderMap[key] || []
+      cascaderOptions[key] = list.map(item => ({ label: item, value: item }))
+    })
+    const hasAny = Object.values(cascaderOptions).some(list => Array.isArray(list) && list.length > 0)
+    if (!hasAny) {
+      ElMessage.warning('请至少给一个上一级配置下级选项')
+      return
+    }
+    colConfig.cascaderOptions = cascaderOptions
   } else if (type === 'geo') {
     colConfig.geoAddress = !!currentCol.geoAddress
   } else if (type === 'file') {
@@ -497,6 +624,47 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 .add-opt-btn { width: 100%; }
+.cascader-map {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cascader-node {
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+  padding: 8px;
+  background: #fff;
+}
+.cascader-parent-row {
+  display: inline-block;
+  margin-bottom: 6px;
+}
+.cascader-parent {
+  font-size: 12px;
+  color: #606266;
+  background: #f5f7fa;
+  padding: 6px 8px;
+  border-radius: 4px;
+  text-align: center;
+  border: 1px solid #e4e7ed;
+}
+.cascader-children {
+  padding-left: 12px;
+  border-left: 2px dashed #e4e7ed;
+}
+.cascader-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.cascader-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cascader-add :deep(.el-input) { flex: 1; }
 .variable-tags { margin-top: 8px; }
 .tag-tip { font-size: 12px; color: #909399; display: block; margin-bottom: 4px; }
 .tags-wrapper { display: flex; flex-wrap: wrap; gap: 6px; }

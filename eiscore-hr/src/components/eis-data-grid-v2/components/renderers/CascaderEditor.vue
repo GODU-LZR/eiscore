@@ -41,19 +41,23 @@ const apiUrl = colDef.apiUrl || ''
 const labelField = colDef.labelField || 'label'
 const valueField = colDef.valueField || 'value'
 const queryField = colDef.dependsOn || ''
+const staticOptionsMap = computed(() => colDef.cascaderOptions || {})
+const hasStaticMap = computed(() => Object.keys(staticOptionsMap.value || {}).length > 0)
 
 const hasParent = computed(() => parentValue.value !== null && parentValue.value !== undefined && parentValue.value !== '')
 
-const isDisabled = computed(() => !hasParent.value || !apiUrl)
+const isDisabled = computed(() => !hasParent.value || (!hasStaticMap.value && !apiUrl))
 
 const placeholderText = computed(() => {
   if (!hasParent.value) return '请先选择上一级'
   if (loading.value) return '加载中...'
+  if (!hasStaticMap.value && !apiUrl) return '暂无可选项'
   return colDef.headerName || '请选择'
 })
 
 const tips = computed(() => {
   if (!hasParent.value) return '先选上一级，下面才会有可选项'
+  if (!hasStaticMap.value && !apiUrl) return '没有可选项'
   if (!loading.value && options.value.length === 0) return '没有可选项'
   return ''
 })
@@ -72,7 +76,27 @@ const buildUrl = (baseUrl, field, value, labelKey, valueKey) => {
   return `${url}${sep}${query}&${select}&${order}`
 }
 
+const normalizeOption = (item) => {
+  if (item === null || item === undefined) return null
+  if (typeof item === 'string' || typeof item === 'number') {
+    const text = String(item)
+    return { label: text, value: text }
+  }
+  const label = item.label ?? item.value ?? ''
+  const value = item.value ?? item.label ?? ''
+  const text = String(label || value)
+  return { label: text, value: text }
+}
+
 const loadOptions = async (val) => {
+  if (hasStaticMap.value) {
+    const key = String(val)
+    const list = staticOptionsMap.value[key] || []
+    options.value = list
+      .map(normalizeOption)
+      .filter(Boolean)
+    return
+  }
   if (!apiUrl || !queryField) {
     options.value = []
     return
