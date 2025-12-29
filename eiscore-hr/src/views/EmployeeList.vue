@@ -57,25 +57,12 @@
                 <div class="options-config">
                   <div class="option-row" v-for="(opt, idx) in currentCol.options" :key="idx">
                     <el-input v-model="opt.label" placeholder="选项内容" style="flex: 1;" />
-                    <el-select v-model="opt.type" placeholder="颜色(可选)" clearable style="width: 120px;">
-                      <el-option label="绿色" value="success" />
-                      <el-option label="黄色" value="warning" />
-                      <el-option label="红色" value="danger" />
-                      <el-option label="蓝色" value="info" />
-                    </el-select>
                     <el-button type="danger" link @click="removeSelectOption(idx)">删除</el-button>
                   </div>
                   <el-button class="add-opt-btn" type="primary" plain size="small" @click="addSelectOption">
                     + 添加一项
                   </el-button>
                 </div>
-
-                <el-switch
-                  v-model="currentCol.tag"
-                  active-text="彩色显示"
-                  inactive-text="普通样式"
-                  style="margin-top: 8px;"
-                />
 
                 <el-button type="primary" style="margin-top: 10px; width: 100%;" @click="saveColumn" :disabled="!currentCol.label">
                   {{ isEditing ? '保存修改' : '添加下拉列' }}
@@ -87,7 +74,7 @@
               <div class="form-col">
                 <el-input v-model="currentCol.label" placeholder="列名（比如：岗位）" style="margin-bottom: 10px;" />
 
-                <el-select v-model="currentCol.dependsOn" placeholder="先选哪一列（必须是下拉列）" filterable style="width: 100%; margin-bottom: 10px;">
+                <el-select v-model="currentCol.dependsOn" placeholder="先选哪一列（下拉或联动都可以）" filterable style="width: 100%; margin-bottom: 10px;">
                   <el-option v-for="col in cascaderParentColumns" :key="col.prop" :label="col.label" :value="col.prop" />
                 </el-select>
 
@@ -246,7 +233,6 @@ const currentCol = reactive({
   prop: '',
   expression: '',
   options: [],
-  tag: false,
   dependsOn: '',
   cascaderMap: {},
   geoAddress: true,
@@ -269,22 +255,56 @@ const isSelectColumnConfig = (col) => {
   return false
 }
 
+const isCascaderColumnConfig = (col) => {
+  if (!col) return false
+  if (col.type !== 'cascader') return false
+  if (col.cascaderOptions && Object.keys(col.cascaderOptions).length > 0) return true
+  return false
+}
+
 const cascaderParentColumns = computed(() => {
-  return allAvailableColumns.value.filter(isSelectColumnConfig)
+  return allAvailableColumns.value.filter(col => isSelectColumnConfig(col) || isCascaderColumnConfig(col) || col.type === 'cascader')
 })
+
+const normalizeCascaderOption = (opt) => {
+  if (opt === null || opt === undefined) return null
+  if (typeof opt === 'string' || typeof opt === 'number') {
+    const text = String(opt)
+    return { label: text, value: text }
+  }
+  const label = opt.label ?? opt.value ?? ''
+  const value = opt.value ?? opt.label ?? ''
+  const labelText = String(label || value)
+  const valueText = String(value || label)
+  return { label: labelText, value: valueText }
+}
 
 const cascaderParentOptions = computed(() => {
   const parentCol = cascaderParentColumns.value.find(col => col.prop === currentCol.dependsOn)
-  if (!parentCol || !Array.isArray(parentCol.options)) return []
-  return parentCol.options
-    .map(opt => {
-      const label = opt.label ?? opt.value ?? ''
-      const value = opt.value ?? opt.label ?? ''
-      const labelText = String(label || value)
-      const valueText = String(value || label)
-      return { label: labelText, value: valueText }
+  if (!parentCol) return []
+  if (Array.isArray(parentCol.options)) {
+    return parentCol.options
+      .map(normalizeCascaderOption)
+      .filter(opt => opt && opt.label !== '')
+  }
+  if (parentCol.type === 'cascader' && parentCol.cascaderOptions) {
+    const list = []
+    const seen = new Set()
+    Object.values(parentCol.cascaderOptions).forEach((items) => {
+      if (!Array.isArray(items)) return
+      items.forEach((item) => {
+        const normalized = normalizeCascaderOption(item)
+        if (!normalized) return
+        if (normalized.label === '') return
+        const key = String(normalized.value)
+        if (seen.has(key)) return
+        seen.add(key)
+        list.push(normalized)
+      })
     })
-    .filter(opt => opt.label !== '')
+    return list
+  }
+  return []
 })
 
 const cascaderInputMap = reactive({})
@@ -338,7 +358,7 @@ const insertVariable = (label) => {
 }
 
 const addSelectOption = () => {
-  currentCol.options.push({ label: '', type: '' })
+  currentCol.options.push({ label: '' })
 }
 
 const removeSelectOption = (index) => {
@@ -363,11 +383,9 @@ const editColumn = (index) => {
   currentCol.expression = col.expression || ''
   currentCol.options = Array.isArray(col.options)
     ? col.options.map(opt => ({
-        label: opt.label ?? opt.value ?? '',
-        type: opt.type || ''
+        label: opt.label ?? opt.value ?? ''
       }))
     : []
-  currentCol.tag = !!col.tag
   currentCol.dependsOn = col.dependsOn || ''
   currentCol.cascaderMap = normalizeCascaderMap(col.cascaderOptions)
   Object.keys(cascaderInputMap).forEach((key) => delete cascaderInputMap[key])
@@ -396,7 +414,6 @@ const resetForm = () => {
   currentCol.prop = ''
   currentCol.expression = ''
   currentCol.options = []
-  currentCol.tag = false
   currentCol.dependsOn = ''
   currentCol.cascaderMap = {}
   Object.keys(cascaderInputMap).forEach((key) => delete cascaderInputMap[key])
@@ -469,15 +486,13 @@ const saveColumn = () => {
     colConfig.expression = currentCol.expression
   } else if (type === 'select') {
     colConfig.type = 'select'
-    colConfig.tag = !!currentCol.tag
     const toText = (val) => (val === null || val === undefined) ? '' : String(val)
     const cleanOptions = currentCol.options
       .map(opt => {
         const text = toText(opt.label).trim()
         return {
           label: text,
-          value: text,
-          type: opt.type || ''
+          value: text
         }
       })
       .filter(opt => opt.label)
@@ -493,7 +508,7 @@ const saveColumn = () => {
     }
     const parentCol = cascaderParentColumns.value.find(col => col.prop === currentCol.dependsOn)
     if (!parentCol) {
-      ElMessage.warning('上一级必须是下拉列')
+      ElMessage.warning('上一级必须是下拉或联动列')
       return
     }
     colConfig.dependsOn = currentCol.dependsOn

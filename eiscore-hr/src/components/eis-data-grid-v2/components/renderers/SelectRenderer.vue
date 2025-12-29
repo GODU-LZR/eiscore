@@ -1,9 +1,6 @@
 <template>
   <div class="select-renderer">
-    <el-tag v-if="displayLabel && showTag" :type="tagType" size="small" disable-transitions>
-      {{ displayLabel }}
-    </el-tag>
-    <span v-else>{{ displayLabel || rawValue }}</span>
+    <span>{{ displayLabel || rawValue }}</span>
   </div>
 </template>
 
@@ -41,15 +38,6 @@ const displayLabel = computed(() => {
   return option ? option.label : rawValue.value
 })
 
-const showTag = computed(() => !!props.params.colDef.tag)
-
-const tagType = computed(() => {
-  if (!showTag.value) return ''
-  const target = normalize(rawValue.value)
-  if (target === '') return ''
-  const option = normalizedOptions.value.find(opt => normalize(opt.value) === target)
-  return option?.type || ''
-})
 </script>
 
 <style scoped>
