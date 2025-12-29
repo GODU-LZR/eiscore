@@ -66,24 +66,21 @@
       </el-col>
     </el-row>
 
-    <el-row v-if="canViewEnterpriseAssistant" :gutter="20" class="assistant-row">
-      <el-col :span="8">
-        <el-card shadow="hover" class="assistant-card" @click="goEnterpriseAssistant">
-          <div class="assistant-card-content">
-            <div class="assistant-text">
-              <div class="assistant-title">经营助手</div>
-              <div class="assistant-subtitle">经营分析 / 经营报告</div>
-            </div>
-            <div class="assistant-icon">
-              <el-icon><TrendCharts /></el-icon>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
     <el-row :gutter="20" style="margin-top: 20px;">
       <el-col :span="16">
+        <el-card shadow="never" class="enterprise-ai-card">
+          <template #header>
+            <span style="font-weight: bold">📈 企业经营 AI</span>
+          </template>
+          <div class="enterprise-ai-content">
+            <div>
+              <div class="enterprise-ai-title">经营分析与报告生成</div>
+              <div class="enterprise-ai-desc">进入全屏经营助手，生成图表与经营报告。</div>
+            </div>
+            <el-button type="primary" @click="goEnterpriseAi">进入经营助手</el-button>
+          </div>
+        </el-card>
+
         <el-card shadow="never" class="action-card">
           <template #header>
             <span style="font-weight: bold">🚀 快捷入口</span>
@@ -132,31 +129,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
+import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
-import { TrendCharts } from '@element-plus/icons-vue'
-import { useUserStore } from '@/stores/user'
-import dayjs from 'dayjs' // 如果没有装dayjs，可以用原生Date代替
 
 const currentDate = ref('')
 const router = useRouter()
-const userStore = useUserStore()
-
-const canViewEnterpriseAssistant = computed(() => {
-  const role = String(userStore.userInfo?.role || '').toLowerCase()
-  const permissions = userStore.userInfo?.permissions || []
-  const managementRoles = new Set(['admin', 'manager', 'management', 'super'])
-  return managementRoles.has(role) || permissions.includes('enterprise_assistant')
-})
-
-const goEnterpriseAssistant = () => {
-  router.push('/ai/enterprise')
-}
 
 onMounted(() => {
   const now = new Date()
   currentDate.value = now.toLocaleDateString() + ' ' + (['周日','周一','周二','周三','周四','周五','周六'][now.getDay()])
 })
+
+const goEnterpriseAi = () => {
+  router.push('/ai/enterprise')
+}
 </script>
 
 <style scoped lang="scss">
@@ -203,16 +190,16 @@ onMounted(() => {
 .quick-actions {
   display: flex;
   gap: 20px;
-  
+
   .action-item {
     display: flex;
     flex-direction: column;
     align-items: center;
     cursor: pointer;
     transition: all 0.3s;
-    
+
     &:hover { transform: translateY(-5px); }
-    
+
     .icon-box {
       width: 50px;
       height: 50px;
@@ -223,7 +210,7 @@ onMounted(() => {
       color: white;
       font-size: 24px;
       margin-bottom: 8px;
-      
+
       &.bg-blue { background: #409EFF; box-shadow: 0 4px 10px rgba(64,158,255,0.3); }
       &.bg-green { background: #67C23A; box-shadow: 0 4px 10px rgba(103,194,58,0.3); }
       &.bg-orange { background: #E6A23C; box-shadow: 0 4px 10px rgba(230,162,60,0.3); }
@@ -232,48 +219,25 @@ onMounted(() => {
   }
 }
 
-.assistant-row {
-  margin-top: 20px;
+.enterprise-ai-card {
+  margin-bottom: 20px;
 }
 
-.assistant-card {
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  border: 1px solid #e4e7ed;
+.enterprise-ai-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
 
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-  }
+.enterprise-ai-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
 
-  .assistant-card-content {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .assistant-title {
-    font-size: 18px;
-    font-weight: 600;
-    color: #303133;
-  }
-
-  .assistant-subtitle {
-    margin-top: 6px;
-    font-size: 13px;
-    color: #909399;
-  }
-
-  .assistant-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    background: rgba(64, 158, 255, 0.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #409eff;
-    font-size: 22px;
-  }
+.enterprise-ai-desc {
+  font-size: 12px;
+  color: #909399;
 }
 </style>

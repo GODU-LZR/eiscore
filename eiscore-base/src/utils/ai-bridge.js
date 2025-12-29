@@ -3,7 +3,7 @@ import request from '@/utils/request'
 import * as XLSX from 'xlsx'
 import mammoth from 'mammoth'
 
-const STORAGE_KEY = 'eis_ai_history_v4'
+const STORAGE_KEY = 'eis_ai_history_v5'
 const MAX_SESSIONS = 20
 const MAX_MESSAGES_PER_SESSION = 50
 const HISTORY_WINDOW = 8
@@ -17,14 +17,16 @@ class AiBridge {
     this.config = null
 
     const savedData = this.loadFromStorage()
+    this.modeStorage = savedData
 
     this.state = reactive({
       isOpen: false,
       isLoading: false,
       isStreaming: false,
       currentContext: null,
-      sessions: savedData.sessions || [],
-      currentSessionId: savedData.currentSessionId || null,
+      assistantMode: 'enterprise',
+      sessions: savedData.enterprise?.sessions || [],
+      currentSessionId: savedData.enterprise?.currentSessionId || null,
       inputBuffer: '',
       selectedFiles: []
     })
@@ -71,13 +73,20 @@ class AiBridge {
   loadFromStorage() {
     try {
       const json = localStorage.getItem(STORAGE_KEY)
-      return json ? JSON.parse(json) : { sessions: [], currentSessionId: null }
+      return json ? JSON.parse(json) : {
+        enterprise: { sessions: [], currentSessionId: null },
+        worker: { sessions: [], currentSessionId: null }
+      }
     } catch {
-      return { sessions: [], currentSessionId: null }
+      return {
+        enterprise: { sessions: [], currentSessionId: null },
+        worker: { sessions: [], currentSessionId: null }
+      }
     }
   }
 
   saveToStorage() {
+    const mode = this.state.assistantMode
     const data = {
       sessions: this.state.sessions.slice(0, MAX_SESSIONS).map(session => ({
         ...session,
@@ -85,7 +94,11 @@ class AiBridge {
       })),
       currentSessionId: this.state.currentSessionId
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    this.modeStorage = {
+      ...this.modeStorage,
+      [mode]: data
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.modeStorage))
   }
 
   createNewSession() {
@@ -95,7 +108,7 @@ class AiBridge {
       messages: [
         {
           role: 'assistant',
-          content: '您好！我是 EIS 智能助手。请上传数据文件，我可以为您生成可视化报表。',
+          content: this.getWelcomeMessage(),
           time: Date.now()
         }
       ],
@@ -144,6 +157,47 @@ class AiBridge {
 
   toggleWindow() {
     this.state.isOpen = !this.state.isOpen
+  }
+
+  openWindow() {
+    this.state.isOpen = true
+  }
+
+  closeWindow() {
+    this.state.isOpen = false
+  }
+
+  setMode(mode) {
+    if (!mode || this.state.assistantMode === mode) {
+      return
+    }
+
+    this.saveToStorage()
+    this.state.assistantMode = mode
+    const modeData = this.modeStorage?.[mode] || { sessions: [], currentSessionId: null }
+    this.state.sessions = modeData.sessions || []
+    this.state.currentSessionId = modeData.currentSessionId || null
+
+    if (this.state.sessions.length === 0) {
+      this.createNewSession()
+    } else if (!this.state.currentSessionId) {
+      this.state.currentSessionId = this.state.sessions[0].id
+    }
+  }
+
+  getSystemPrompt() {
+    if (this.state.assistantMode === 'worker') {
+      return `你是企业一线员工的工作助手，帮助他们把杂乱的数据整理成能录入系统的内容，并用通俗易懂的语言解释。请避免复杂术语，回答要简单、清晰、一步一步。\n\n【工作目标】\n1. 帮用户整理表格、图片、文字里的数据，输出规范字段。\n2. 帮用户查询/解释表格数据，直接给结论和下一步操作。\n3. 如果用户要填表，请给出清晰的字段清单和示例。\n4. 默认不输出图表，只有在用户明确要求图表时才输出。\n\n【回答风格】\n- 用短句、通俗话。\n- 能一步一步引导最好。\n- 不要使用专业或学术术语。`
+    }
+
+    return `你是一名面向中小企业的经营分析助手，精通业务流程梳理、经营指标诊断与数据可视化。你需要输出专业、简洁、结构化的经营报告，并提供可直接渲染的图表或流程图。\n\n【强制输出规则】\n1. 当用户需要统计图表时，必须输出 ECharts JSON 配置，并放在 \`\`\`echarts\`\`\` 代码块内。\n2. 当用户需要流程图时，必须输出 Mermaid 语法，并放在 \`\`\`mermaid\`\`\` 代码块内。\n3. 禁止输出任何 JavaScript 变量或包装（例如 \"var option =\"、\"option =\"）。只允许纯 JSON。\n4. 图表/流程图代码块之外，必须给出业务结论与改进建议。\n5. 输出结构建议：摘要 → 关键指标 → 图表 → 结论 → 建议。\n\n【ECharts 示例】\n\`\`\`echarts\n{\n  \"title\": { \"text\": \"月度收入与成本\" },\n  \"tooltip\": { \"trigger\": \"axis\" },\n  \"legend\": { \"data\": [\"收入\", \"成本\"] },\n  \"xAxis\": { \"type\": \"category\", \"data\": [\"1月\", \"2月\", \"3月\"] },\n  \"yAxis\": { \"type\": \"value\" },\n  \"series\": [\n    { \"name\": \"收入\", \"type\": \"bar\", \"data\": [120, 132, 150] },\n    { \"name\": \"成本\", \"type\": \"bar\", \"data\": [80, 95, 110] }\n  ]\n}\n\`\`\`\n\n【Mermaid 示例】\n\`\`\`mermaid\ngraph TD\n  A[数据采集] --> B[清洗与校验]\n  B --> C[指标计算]\n  C --> D[经营分析]\n  D --> E[报告生成]\n\`\`\`\n\n请严格遵循以上规则。`
+  }
+
+  getWelcomeMessage() {
+    if (this.state.assistantMode === 'worker') {
+      return '你好！我是企业工作助手。把数据、表格或图片发给我，我会帮你整理成能录入系统的内容。'
+    }
+    return '您好！我是企业经营助手。请上传数据文件，我可以为您生成可视化报表和经营报告。'
   }
 
   async parseFileContent(file) {
@@ -268,8 +322,7 @@ class AiBridge {
 
     try {
       const historyWindow = await this.buildPayloadMessages(session.messages)
-
-      const systemContent = `你是一名面向中小企业的经营分析助手，精通业务流程梳理、经营指标诊断与数据可视化。你需要输出专业、简洁、结构化的经营报告，并提供可直接渲染的图表或流程图。\n\n【强制输出规则】\n1. 当用户需要统计图表时，必须输出 ECharts JSON 配置，并放在 \`\`\`echarts\`\`\` 代码块内。\n2. 当用户需要流程图时，必须输出 Mermaid 语法，并放在 \`\`\`mermaid\`\`\` 代码块内。\n3. 禁止输出任何 JavaScript 变量或包装（例如 \"var option =\"、\"option =\"）。只允许纯 JSON。\n4. 图表/流程图代码块之外，必须给出业务结论与改进建议。\n5. 输出结构建议：摘要 → 关键指标 → 图表 → 结论 → 建议。\n\n【ECharts 示例】\n\`\`\`echarts\n{\n  \"title\": { \"text\": \"月度收入与成本\" },\n  \"tooltip\": { \"trigger\": \"axis\" },\n  \"legend\": { \"data\": [\"收入\", \"成本\"] },\n  \"xAxis\": { \"type\": \"category\", \"data\": [\"1月\", \"2月\", \"3月\"] },\n  \"yAxis\": { \"type\": \"value\" },\n  \"series\": [\n    { \"name\": \"收入\", \"type\": \"bar\", \"data\": [120, 132, 150] },\n    { \"name\": \"成本\", \"type\": \"bar\", \"data\": [80, 95, 110] }\n  ]\n}\n\`\`\`\n\n【Mermaid 示例】\n\`\`\`mermaid\ngraph TD\n  A[数据采集] --> B[清洗与校验]\n  B --> C[指标计算]\n  C --> D[经营分析]\n  D --> E[报告生成]\n\`\`\`\n\n请严格遵循以上规则。`
+      const systemContent = this.getSystemPrompt()
 
       const payload = {
         model: this.config.model || 'glm-4.6v',

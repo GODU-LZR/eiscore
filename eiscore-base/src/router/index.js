@@ -1,11 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { h } from 'vue' // 引入 h 函数
+import { h } from 'vue'
 import Layout from '@/layout/index.vue'
 
-// 🟢 修复：使用 render 函数代替 template
-// 这样不需要配置 vite alias 也能完美运行
 const EmptyView = {
-  render: () => h('div') // 渲染一个空的 div
+  render: () => h('div')
 }
 
 const router = createRouter({
@@ -32,15 +30,17 @@ const router = createRouter({
           name: 'settings',
           component: () => import('../views/SettingsView.vue')
         },
-        // 微前端子应用路由
         {
-          // 匹配 /materials, /materials/abc ...
-          path: 'materials/:page*', 
-          name: 'materials',
-          component: EmptyView 
+          path: 'ai/enterprise',
+          name: 'ai-enterprise',
+          component: () => import('../views/EnterpriseAiView.vue')
         },
         {
-          // 匹配 /hr, /hr/employee ...
+          path: 'materials/:page*',
+          name: 'materials',
+          component: EmptyView
+        },
+        {
           path: 'hr/:page*',
           name: 'hr',
           component: EmptyView
@@ -50,7 +50,6 @@ const router = createRouter({
   ]
 })
 
-// 全局前置守卫
 router.beforeEach((to, from, next) => {
   const token = localStorage.getItem('auth_token')
   if (to.meta.requiresAuth && !token) {

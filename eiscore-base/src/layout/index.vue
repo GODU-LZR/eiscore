@@ -1,18 +1,18 @@
 <template>
   <el-container class="layout-container">
-    <el-aside 
-      :width="isCollapse ? '64px' : '200px'" 
+    <el-aside
+      :width="isCollapse ? '64px' : '200px'"
       class="layout-aside"
       :style="{ backgroundColor: asideTheme.menuBg }"
     >
-      <div 
-        class="logo" 
+      <div
+        class="logo"
         :style="{ backgroundColor: asideTheme.logoBg, color: asideTheme.menuText }"
       >
         <span v-if="!isCollapse" class="logo-text">{{ config?.title || '管理系统' }}</span>
         <span v-else class="logo-text">EIS</span>
       </div>
-      
+
       <el-menu
         :default-active="$route.path"
         class="el-menu-vertical"
@@ -20,9 +20,9 @@
         :text-color="asideTheme.menuText"
         :active-text-color="asideTheme.menuActiveText"
         :router="true"
-        :collapse="isCollapse" 
+        :collapse="isCollapse"
         :collapse-transition="false"
-        style="border-right: none;" 
+        style="border-right: none;"
       >
         <el-menu-item index="/">
           <el-icon><House /></el-icon>
@@ -40,7 +40,7 @@
     </el-aside>
 
     <el-container>
-      <el-header 
+      <el-header
         class="layout-header"
         :style="{ backgroundColor: asideTheme.headerBg }"
       >
@@ -56,7 +56,7 @@
             <el-breadcrumb-item>管理控制台</el-breadcrumb-item>
           </el-breadcrumb>
         </div>
-        
+
         <div class="header-right">
           <el-switch
             v-model="isDark"
@@ -98,53 +98,56 @@
       </el-main>
     </el-container>
 
-    <AiCopilot v-if="showAiCopilot" />
+    <AiCopilot v-if="showWorkerAssistant" mode="worker" />
   </el-container>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue' 
+import { ref, computed } from 'vue'
 import { useDark, useToggle } from '@vueuse/core'
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import { useSystemStore } from '@/stores/system'
-import { useUserStore } from '@/stores/user' // 引入 userStore
+import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
-import { useRouter, useRoute } from 'vue-router' 
-import { mix } from '@/utils/theme' 
+import { useRouter, useRoute } from 'vue-router'
+import { mix } from '@/utils/theme'
 import { House, Box, User, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
-import AiCopilot from '@/components/AiCopilot.vue' // 🟢 引入组件
+import AiCopilot from '@/components/AiCopilot.vue'
 
 const isCollapse = ref(false)
 const router = useRouter()
 const route = useRoute()
 const systemStore = useSystemStore()
-const userStore = useUserStore() // 使用 userStore
+const userStore = useUserStore()
 const { config } = storeToRefs(systemStore)
 const isDark = useDark()
 const toggleDark = useToggle(isDark)
-const showAiCopilot = computed(() => route.path !== '/')
 
 const asideTheme = computed(() => {
   const primaryColor = config.value?.themeColor || '#409EFF'
-  
+
   if (isDark.value) {
     return {
       menuBg: '#001529',
       menuText: '#fff',
       menuActiveText: primaryColor,
       logoBg: '#002140',
-      headerBg: '#001529' 
+      headerBg: '#001529'
     }
   } else {
     return {
-      menuBg: primaryColor, 
-      menuText: '#ffffff',  
-      menuActiveText: '#ffffff', 
+      menuBg: primaryColor,
+      menuText: '#ffffff',
+      menuActiveText: '#ffffff',
       logoBg: mix(primaryColor, '#000000', 0.1),
-      headerBg: mix(primaryColor, '#ffffff', 0.85) 
+      headerBg: mix(primaryColor, '#ffffff', 0.85)
     }
   }
+})
+
+const showWorkerAssistant = computed(() => {
+  return route.path !== '/' && !route.path.startsWith('/ai/enterprise')
 })
 
 const toggleCollapse = () => {
@@ -153,9 +156,9 @@ const toggleCollapse = () => {
 
 const handleCommand = (command) => {
   if (command === 'settings') { router.push('/settings') }
-  else if (command === 'logout') { 
-    userStore.logout() // 使用 store 的 logout 方法
-    router.push('/login') 
+  else if (command === 'logout') {
+    userStore.logout()
+    router.push('/login')
   }
 }
 
@@ -169,33 +172,33 @@ const startGuide = () => { driverObj.drive(); }
 <style scoped lang="scss">
 .layout-container {
   height: 100vh;
-  
+
   .layout-aside {
     transition: width 0.3s;
-    overflow-x: hidden; 
+    overflow-x: hidden;
 
     .logo {
       height: 60px; line-height: 60px; text-align: center;
       font-size: 18px; font-weight: 600; color: white;
       transition: background-color 0.3s;
-      white-space: nowrap; 
+      white-space: nowrap;
     }
     .el-menu { border-right: none; }
-    
+
     .el-menu-vertical:not(.el-menu--collapse) {
       width: 200px;
     }
   }
-  
+
   .layout-header {
     border-bottom: 1px solid rgba(0,0,0,0.05);
     display: flex; justify-content: space-between; align-items: center;
     padding: 0 20px;
-    transition: background-color 0.3s; 
-    
+    transition: background-color 0.3s;
+
     .header-left {
       display: flex; align-items: center;
-      
+
       .collapse-btn {
         margin-right: 15px;
         cursor: pointer;
@@ -205,14 +208,13 @@ const startGuide = () => { driverObj.drive(); }
       }
     }
   }
-  
+
   .layout-main {
     background-color: var(--el-bg-color-page);
     padding: 0;
     position: relative;
     transition: background-color 0.3s;
-    
-    // 防止子应用塌陷
+
     #subapp-viewport {
       width: 100%;
       height: 100%;
@@ -222,13 +224,13 @@ const startGuide = () => { driverObj.drive(); }
       height: 100%;
     }
   }
-  
+
   .colorful-mode {
     background-color: var(--page-bg-tint) !important;
   }
 
   .colorful-mode :deep(.el-card) {
-    background-color: var(--card-bg-tint) !important; 
+    background-color: var(--card-bg-tint) !important;
     border: 1px solid var(--el-color-primary-light-8);
   }
 }

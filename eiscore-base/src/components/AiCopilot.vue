@@ -1,9 +1,9 @@
 <template>
-  <div class="ai-copilot-container" :class="{ 'is-open': state.isOpen }">
+  <div class="ai-copilot-container" :class="containerClasses">
     <div
-      v-if="!state.isOpen"
+      v-if="!state.isOpen && isWorker"
       class="ai-trigger-btn"
-      @click="aiBridge.toggleWindow()"
+      @click="openAssistant"
     >
       <div class="ai-icon-wrapper">
         <span class="sparkle-icon">✨</span>
@@ -11,20 +11,20 @@
       <span class="ai-label">工作助手</span>
     </div>
 
-    <div v-else class="ai-window">
+    <div v-else-if="state.isOpen" class="ai-window" :class="{ 'is-worker': isWorker }">
       <div class="ai-header">
         <div class="header-left" @click="toggleHistory">
           <el-icon class="history-icon" :class="{ 'active': showHistory }"><Operation /></el-icon>
-          <span class="title">EIS 智能助手</span>
+          <span class="title">{{ assistantTitle }}</span>
         </div>
         <div class="header-right">
-          <el-tooltip content="导出PDF" placement="bottom">
+          <el-tooltip v-if="isEnterprise" content="导出PDF" placement="bottom">
             <el-icon class="action-icon" @click="exportReportAsPdf"><Download /></el-icon>
           </el-tooltip>
           <el-tooltip content="新建对话" placement="bottom">
             <el-icon class="action-icon" @click="aiBridge.createNewSession()"><Plus /></el-icon>
           </el-tooltip>
-          <el-icon class="close-btn" @click="aiBridge.toggleWindow()"><Close /></el-icon>
+          <el-icon class="close-btn" @click="closeAssistant"><Close /></el-icon>
         </div>
       </div>
 
@@ -124,7 +124,7 @@
 
               <textarea
                 v-model="state.inputBuffer"
-                placeholder="输入消息，或上传图片/文档分析..."
+                :placeholder="inputPlaceholder"
                 @keydown.enter="handleEnter"
                 :disabled="state.isLoading"
               ></textarea>
@@ -161,6 +161,13 @@ import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document,
 import MarkdownIt from 'markdown-it'
 import mermaid from 'mermaid'
 import * as echarts from 'echarts'
+import { useRouter } from 'vue-router'
+
+const props = defineProps({
+  mode: { type: String, default: 'enterprise' },
+  closeRoute: { type: String, default: '' },
+  autoOpen: { type: Boolean, default: false }
+})
 
 const state = aiBridge.state
 const showHistory = ref(false)
@@ -168,8 +175,21 @@ const messagesRef = ref(null)
 const lightboxChartRef = ref(null)
 const lightbox = ref({ visible: false, type: '', payload: null })
 let lightboxChart = null
+const router = useRouter()
 
 const currentSession = computed(() => aiBridge.getCurrentSession())
+const isWorker = computed(() => props.mode === 'worker')
+const isEnterprise = computed(() => props.mode === 'enterprise')
+const assistantTitle = computed(() => (isWorker.value ? '企业工作助手' : '企业经营助手'))
+const inputPlaceholder = computed(() => (
+  isWorker.value
+    ? '把数据或问题告诉我，我帮你整理成能录入系统的格式...'
+    : '输入消息，或上传图片/文档分析...'
+))
+const containerClasses = computed(() => ({
+  'is-open': state.isOpen,
+  'is-worker': isWorker.value
+}))
 
 const md = new MarkdownIt({
   html: true,
@@ -307,6 +327,19 @@ const closeLightbox = () => {
   }
 }
 
+const openAssistant = () => {
+  aiBridge.openWindow()
+}
+
+const closeAssistant = () => {
+  if (props.closeRoute) {
+    aiBridge.closeWindow()
+    router.push(props.closeRoute)
+    return
+  }
+  aiBridge.toggleWindow()
+}
+
 const bindRetry = (node) => {
   const retryButton = node.querySelector('.chart-retry')
   if (retryButton && !retryButton.dataset.bound) {
@@ -433,6 +466,14 @@ watch(() => state.isOpen, (val) => { if (val) scrollToBottom() })
 
 onMounted(() => {
   aiBridge.loadConfig()
+  aiBridge.setMode(props.mode)
+  if (props.autoOpen) {
+    aiBridge.openWindow()
+  }
+})
+
+watch(() => props.mode, (val) => {
+  aiBridge.setMode(val)
 })
 </script>
 
@@ -450,6 +491,10 @@ $border-color: #e4e7ed;
 
   &.is-open {
     inset: 0;
+  }
+
+  &.is-worker {
+    inset: auto;
   }
 }
 
@@ -484,6 +529,17 @@ $border-color: #e4e7ed;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid rgba(0,0,0,0.05);
+
+  &.is-worker {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 380px;
+    height: 600px;
+    inset: auto;
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+  }
 }
 
 .ai-header {
