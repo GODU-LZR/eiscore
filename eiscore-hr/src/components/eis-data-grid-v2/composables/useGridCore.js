@@ -61,10 +61,25 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     return base
   }
 
-  const scheduleColumnRefresh = (colId) => {
+  const scheduleColumnRefresh = (colKey) => {
     if (!gridApi.value) return
     nextTick(() => {
-      gridApi.value.refreshCells({ force: true, columns: [colId] })
+      let targetCols = []
+      if (colKey) {
+        const cols = gridApi.value.getColumns() || []
+        targetCols = cols
+          .filter(col => {
+            const def = col.getColDef()
+            return col.getColId() === colKey || def.field === colKey
+          })
+          .map(col => col.getColId())
+      }
+      if (targetCols.length > 0) {
+        gridApi.value.refreshCells({ force: true, columns: targetCols })
+      } else {
+        gridApi.value.refreshCells({ force: true })
+      }
+      gridApi.value.redrawRows()
       gridApi.value.refreshHeader()
     })
   }
@@ -80,6 +95,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     } else {
       gridApi.value.refreshCells({ force: true })
     }
+    gridApi.value.redrawRows()
     gridApi.value.refreshHeader()
   }
 
@@ -144,15 +160,15 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     { deep: true, immediate: true }
   )
 
-  const handleToggleColumnLock = async (colId) => {
-    const isLocking = !columnLockState[colId]
+  const handleToggleColumnLock = async (colKey) => {
+    const isLocking = !columnLockState[colKey]
     if (isLocking) {
-        columnLockState[colId] = currentUser.value
+        columnLockState[colKey] = currentUser.value
     } else {
-        delete columnLockState[colId]
+        delete columnLockState[colKey]
     }
     
-    scheduleColumnRefresh(colId)
+    scheduleColumnRefresh(colKey)
 
     try {
         if (props.viewId) { 

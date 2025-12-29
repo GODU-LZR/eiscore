@@ -25,10 +25,10 @@ import { ElIcon, ElTooltip } from 'element-plus'
 import { SortUp, SortDown, Lock, Unlock, Filter } from '@element-plus/icons-vue'
 
 const props = defineProps(['params'])
-const colId = props.params.column.colId
+const colKey = props.params.column.getColDef().field || props.params.column.colId
 const gridComp = props.params.context.componentParent
 
-const lockInfo = computed(() => gridComp.columnLockState[colId])
+const lockInfo = computed(() => gridComp.columnLockState[colKey])
 const isLocked = computed(() => !!lockInfo.value)
 const showMenu = computed(() => props.params.enableMenu || props.params.column.isFilterAllowed())
 const sortState = ref(null)
@@ -46,7 +46,7 @@ onMounted(() => {
 
 const onLabelClick = (e) => props.params.progressSort(e.shiftKey)
 const onMenuClick = (e) => props.params.showColumnMenu(e.target)
-const onLockClick = () => gridComp.toggleColumnLock(colId)
+const onLockClick = () => gridComp.toggleColumnLock(colKey)
 </script>
 
 <style>

@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict DOSyzY1i6QXymannm7pmLKkvlJyx8XfU6oYhFk1l8v8Z2o8lW7Wsd54xwki5eWc
+\restrict zPdZTwKFwA9PLES6bf40s2nSfd3PKjTz3bEewTCCAN8evrnwz5i2OnFhNhxGZfb
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -568,14 +568,14 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 469	新员工	EMP1766677815289	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	42	2025-12-29 18:01:07.917
 473	新员工	EMP1766677815973	\N	\N	\N	试用	0.00	2025-12-25	{"status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	26	2025-12-29 18:10:17.722
 453	新员工	EMP1766677812422	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.554
-479	新员工	EMP123876	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	22	2025-12-29 18:06:10.288
+475	新员工	EMP1766839736899	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	36	2025-12-29 18:47:59.521
 468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	37	2025-12-29 18:01:07.917
 467	新员工	EMP1766677814931	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	39	2025-12-29 18:01:07.917
 466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	34	2025-12-29 18:01:07.917
 465	新员工	EMP1766677814608	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	31	2025-12-29 18:01:07.917
-475	新员工	EMP1766839736899	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	32	2025-12-29 18:31:41.778
-476	新员工	EMP1766840515500	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	23	2025-12-29 18:31:42.732
-477	新员工	EMP1766840518997	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50", "row_locked_by": null}	37	2025-12-29 18:32:28.634
+477	新员工	EMP1766840518997	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50", "row_locked_by": null}	47	2025-12-29 18:50:11.713
+479	新员工	EMP123876	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	32	2025-12-29 18:50:39.208
+476	新员工	EMP1766840515500	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	25	2025-12-29 18:47:22.436
 474	新员工	EMP1766839066179	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	35	2025-12-29 18:06:07.086
 464	新员工	EMP1766677814414	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	20	2025-12-27 15:53:00.554
 461	新员工	EMP1766677813895	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 0}	5	2025-12-27 15:53:00.554
@@ -673,6 +673,8 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 370	新员工	EMP1766676474340	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.555
 369	新员工	EMP1766676474175	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.555
 368	新员工	EMP1766676473621	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.555
+484	新员工	EMP175123	待分配	\N	\N	试用	0.00	2025-12-29	{"field_789": 0}	2	2025-12-29 18:49:51.847
+485	新员工	EMP240568	待分配	\N	\N	试用	0.00	2025-12-29	{"field_789": 0}	2	2025-12-29 18:50:54.189
 \.
 
 
@@ -733,7 +735,7 @@ COPY public.sys_dicts (id, dict_key, name, description, enabled, sort, created_a
 --
 
 COPY public.sys_grid_configs (view_id, summary_config, updated_by, updated_at) FROM stdin;
-employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expressions": {}, "column_locks": {"properties.field_5458": "Admin"}}	Admin	2025-12-25 18:44:29.890141+00
+employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expressions": {}, "column_locks": {"department": "Admin", "employee_no": "Admin", "properties.field_5458": "Admin"}}	Admin	2025-12-25 18:44:29.890141+00
 \.
 
 
@@ -743,7 +745,7 @@ employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expre
 
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_column_locks	{}	HR表格列锁配置
-hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}, {"tag": true, "prop": "field_8633", "type": "select", "label": "1", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "1"}]}]	HR花名册的动态列配置
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}, {"tag": true, "prop": "field_8633", "type": "select", "label": "1", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}]	HR花名册的动态列配置
 ai_glm_config	{"model": "glm-4.6v", "api_key": "01e666998e24458e960cfc51fd7a1ff2.a67QjUwrs2433Wk2", "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "provider": "zhipu", "thinking": {"type": "enabled"}}	智谱 AI GLM-4.6V 模型配置
 \.
 
@@ -761,7 +763,7 @@ COPY public.users (id, username, password, role, avatar, permissions) FROM stdin
 -- Name: archives_id_seq; Type: SEQUENCE SET; Schema: hr; Owner: postgres
 --
 
-SELECT pg_catalog.setval('hr.archives_id_seq', 483, true);
+SELECT pg_catalog.setval('hr.archives_id_seq', 485, true);
 
 
 --
@@ -1104,5 +1106,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict DOSyzY1i6QXymannm7pmLKkvlJyx8XfU6oYhFk1l8v8Z2o8lW7Wsd54xwki5eWc
+\unrestrict zPdZTwKFwA9PLES6bf40s2nSfd3PKjTz3bEewTCCAN8evrnwz5i2OnFhNhxGZfb
 

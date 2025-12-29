@@ -233,6 +233,7 @@ defineExpose({ loadData })
 .custom-header-wrapper:hover .header-unlock-icon, .custom-header-wrapper:hover .menu-btn { opacity: 1; }
 
 .status-editor-popup { background-color: #fff; border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); border: 1px solid #e4e7ed; overflow: hidden; padding: 4px 0; z-index: 9999; }
+.status-editor-popup.select-editor-popup { max-height: 120px; overflow-y: auto; overflow-x: hidden; }
 .status-editor-item { display: flex !important; align-items: center !important; padding: 8px 12px; cursor: pointer; transition: background-color 0.2s; font-size: 13px; color: #606266; position: relative; }
 .status-editor-item:hover { background-color: #f5f7fa; }
 .status-editor-item.is-selected { background-color: #ecf5ff; color: #409EFF; font-weight: 500; }

@@ -20,9 +20,26 @@ const props = defineProps(['params'])
 const internalValue = ref(props.params.value)
 const cellWidth = ref(props.params.column ? props.params.column.getActualWidth() + 'px' : '100%')
 
+const toText = (val) => {
+  if (val === null || val === undefined) return ''
+  return String(val)
+}
+
 const normalize = (val) => {
   if (val === null || val === undefined || val === '') return ''
   return String(val)
+}
+
+const normalizeOption = (opt) => {
+  const rawLabel = opt?.label
+  const rawValue = opt?.value
+  const label = (rawLabel === null || rawLabel === undefined || rawLabel === '')
+    ? toText(rawValue)
+    : toText(rawLabel)
+  const value = (rawValue === null || rawValue === undefined || rawValue === '')
+    ? label
+    : rawValue
+  return { label, value, type: opt?.type || '' }
 }
 
 const options = computed(() => {
@@ -32,9 +49,8 @@ const options = computed(() => {
 const displayOptions = computed(() => {
   const list = options.value
     .map((opt, idx) => {
-      const label = opt.label ?? opt.value ?? ''
-      const value = opt.value ?? opt.label ?? ''
-      return { label, value, type: opt.type || '', key: `opt-${idx}-${String(value)}` }
+      const normalized = normalizeOption(opt)
+      return { ...normalized, key: `opt-${idx}-${String(normalized.value)}` }
     })
     .filter(opt => opt.label !== '')
   const allowClear = props.params.colDef.allowClear !== false
@@ -59,8 +75,9 @@ defineExpose({ getValue: () => internalValue.value })
 
 <style scoped>
 .select-editor-popup {
-  max-height: 260px;
+  max-height: 120px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .select-editor-item.is-clear { color: #909399; }
 </style>

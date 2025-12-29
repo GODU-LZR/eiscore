@@ -20,10 +20,24 @@ const normalize = (val) => {
   return String(val)
 }
 
+const normalizeOption = (opt) => {
+  const rawLabel = opt?.label
+  const rawValue = opt?.value
+  const label = (rawLabel === null || rawLabel === undefined || rawLabel === '')
+    ? normalize(rawValue)
+    : normalize(rawLabel)
+  const value = (rawValue === null || rawValue === undefined || rawValue === '')
+    ? label
+    : rawValue
+  return { label, value, type: opt?.type || '' }
+}
+
+const normalizedOptions = computed(() => options.value.map(normalizeOption))
+
 const displayLabel = computed(() => {
   const target = normalize(rawValue.value)
   if (target === '') return ''
-  const option = options.value.find(opt => normalize(opt.value) === target)
+  const option = normalizedOptions.value.find(opt => normalize(opt.value) === target)
   return option ? option.label : rawValue.value
 })
 
@@ -33,7 +47,7 @@ const tagType = computed(() => {
   if (!showTag.value) return ''
   const target = normalize(rawValue.value)
   if (target === '') return ''
-  const option = options.value.find(opt => normalize(opt.value) === target)
+  const option = normalizedOptions.value.find(opt => normalize(opt.value) === target)
   return option?.type || ''
 })
 </script>
