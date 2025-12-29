@@ -200,6 +200,35 @@ const renderMarkdown = (text) => {
   return md.render(text)
 }
 
+const sanitizeJson = (jsonStr) => {
+  if (!jsonStr) return ''
+  let cleaned = jsonStr
+  cleaned = cleaned.replace(/^\s*[^=]*=\s*/, '')
+  cleaned = cleaned.replace(/,\s*([\]}])/g, '$1')
+  cleaned = cleaned.replace(/\/\/.*(?=[\n\r])/g, '')
+  cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '')
+  cleaned = cleaned.replace(/'([^']*)'/g, (_, p1) => `"${p1.replace(/"/g, '\\"')}"`)
+  cleaned = cleaned.replace(/([{,]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":')
+  return cleaned.trim()
+}
+
+const escapeHtml = (value) => {
+  if (!value) return ''
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+const validateEchartsOption = (option) => {
+  if (!option || !option.series || !Array.isArray(option.series) || option.series.length === 0) {
+    return '图表配置缺少必要的 series 数据'
+  }
+  return ''
+}
+
 const buildPrintableHtml = () => {
   const container = messagesRef.value?.cloneNode(true)
   if (!container) return ''
@@ -307,7 +336,17 @@ const renderCharts = async () => {
         node.addEventListener('dblclick', () => openLightbox('mermaid', svg))
       }
     } catch (e) {
-      node.innerHTML = '<div class="chart-error">流程图渲染失败 <button class="chart-retry">重试</button></div>'
+      const safeCode = escapeHtml(decodeURIComponent(node.getAttribute('data-raw') || ''))
+      node.innerHTML = `
+        <div class="chart-error">
+          <span>流程图渲染失败</span>
+          <button class="chart-retry">重试</button>
+        </div>
+        <details class="chart-details">
+          <summary>查看 Mermaid 代码</summary>
+          <pre>${safeCode}</pre>
+        </details>
+      `
       bindRetry(node)
     }
   })
@@ -317,7 +356,14 @@ const renderCharts = async () => {
     try {
       node.setAttribute('data-processed', 'true')
       const jsonStr = decodeURIComponent(node.getAttribute('data-option') || '')
-      const option = JSON.parse(jsonStr)
+      const sanitized = sanitizeJson(jsonStr)
+      const option = JSON.parse(sanitized)
+      const validationError = validateEchartsOption(option)
+      if (validationError) {
+        node.innerHTML = `<div class="chart-error">${validationError} <button class="chart-retry">重试</button></div>`
+        bindRetry(node)
+        return
+      }
       node.style.width = '100%'
       node.style.height = '320px'
       const chart = echarts.init(node)
@@ -328,7 +374,18 @@ const renderCharts = async () => {
       }
     } catch (e) {
       console.error(e)
-      node.innerHTML = '<div class="chart-error">统计图渲染失败: 请确保 AI 输出标准 JSON <button class="chart-retry">重试</button></div>'
+      const raw = decodeURIComponent(node.getAttribute('data-option') || '')
+      const safeJson = escapeHtml(raw)
+      node.innerHTML = `
+        <div class="chart-error">
+          <span>统计图渲染失败: 请确保 AI 输出标准 JSON</span>
+          <button class="chart-retry">重试</button>
+        </div>
+        <details class="chart-details">
+          <summary>查看原始 JSON</summary>
+          <pre>${safeJson}</pre>
+        </details>
+      `
       bindRetry(node)
     }
   })
@@ -592,6 +649,26 @@ $border-color: #e4e7ed;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.chart-details {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #909399;
+  max-width: 100%;
+  summary {
+    cursor: pointer;
+    color: #606266;
+  }
+  pre {
+    background: #f5f7fa;
+    padding: 8px;
+    border-radius: 6px;
+    overflow: auto;
+    max-height: 240px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
 }
 
 .chart-retry {
