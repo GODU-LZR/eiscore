@@ -1,83 +1,66 @@
 <template>
-  <div class="select-editor-wrapper" @click.stop>
-    <el-select
-      ref="selectRef"
-      v-model="internalValue"
-      size="small"
-      :placeholder="column.label"
-      style="width: 100%"
-      @change="handleChange"
-      @visible-change="handleVisibleChange"
-      automatic-dropdown
+  <div class="status-editor-popup select-editor-popup" :style="{ width: cellWidth }" @mousedown.stop>
+    <div
+      v-for="opt in displayOptions"
+      :key="opt.key"
+      class="status-editor-item select-editor-item"
+      :class="{ 'is-selected': isSelected(opt), 'is-clear': opt.__clear }"
+      @click="onSelect(opt.value)"
     >
-      <el-option
-        v-for="item in options"
-        :key="item.value"
-        :label="item.label"
-        :value="item.value"
-      />
-    </el-select>
+      <span class="status-label select-label">{{ opt.label }}</span>
+      <div v-if="isSelected(opt) && !opt.__clear" class="status-check-mark select-check-mark"></div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { computed, ref } from 'vue'
 
-const props = defineProps({
-  modelValue: [String, Number, Boolean],
-  column: {
-    type: Object,
-    required: true
-  },
-  row: {
-    type: Object,
-    required: true
-  }
-})
+const props = defineProps(['params'])
+const internalValue = ref(props.params.value)
+const cellWidth = ref(props.params.column ? props.params.column.getActualWidth() + 'px' : '100%')
 
-const emit = defineEmits(['update:modelValue', 'done'])
+const normalize = (val) => {
+  if (val === null || val === undefined || val === '') return ''
+  return String(val)
+}
 
-const internalValue = ref(props.modelValue)
-const selectRef = ref(null)
-
-// 获取选项：支持静态 options
 const options = computed(() => {
-  return props.column.options || []
+  return props.params.colDef.options || props.params.colDef.selectOptions || []
 })
 
-// 自动展开下拉框
-onMounted(() => {
-  nextTick(() => {
-    selectRef.value?.focus()
-    // 尝试触发展开，提升体验
-    if(selectRef.value) {
-      selectRef.value.toggleMenu()
-    }
-  })
+const displayOptions = computed(() => {
+  const list = options.value
+    .map((opt, idx) => {
+      const label = opt.label ?? opt.value ?? ''
+      const value = opt.value ?? opt.label ?? ''
+      return { label, value, type: opt.type || '', key: `opt-${idx}-${String(value)}` }
+    })
+    .filter(opt => opt.label !== '')
+  const allowClear = props.params.colDef.allowClear !== false
+  if (!allowClear) return list
+  return [{ label: '清空', value: null, __clear: true, key: '__clear' }, ...list]
 })
 
-const handleChange = (val) => {
+const selectedValue = computed(() => normalize(internalValue.value))
+
+const isSelected = (opt) => {
+  if (opt.__clear) return selectedValue.value === ''
+  return normalize(opt.value) === selectedValue.value
+}
+
+const onSelect = (val) => {
   internalValue.value = val
-  emit('update:modelValue', val)
-  // 选择后立即完成编辑，体验更像 Excel
-  emit('done')
+  props.params.stopEditing()
 }
 
-// 当下拉框收起时，视为编辑结束
-const handleVisibleChange = (visible) => {
-  if (!visible) {
-    emit('done')
-  }
-}
+defineExpose({ getValue: () => internalValue.value })
 </script>
 
 <style scoped>
-.select-editor-wrapper {
-  width: 100%;
+.select-editor-popup {
+  max-height: 260px;
+  overflow-y: auto;
 }
-/* 微调样式以贴合表格 */
-:deep(.el-input__wrapper) {
-  box-shadow: none !important;
-  padding: 0 8px;
-}
+.select-editor-item.is-clear { color: #909399; }
 </style>

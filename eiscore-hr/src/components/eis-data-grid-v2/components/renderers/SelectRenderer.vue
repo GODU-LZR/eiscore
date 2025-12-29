@@ -3,44 +3,37 @@
     <el-tag v-if="displayLabel && showTag" :type="tagType" size="small" disable-transitions>
       {{ displayLabel }}
     </el-tag>
-    <span v-else>{{ displayLabel || value }}</span>
+    <span v-else>{{ displayLabel || rawValue }}</span>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 
-const props = defineProps({
-  value: {
-    type: [String, Number, Boolean],
-    default: ''
-  },
-  column: {
-    type: Object,
-    required: true
-  },
-  row: {
-    type: Object,
-    default: () => ({})
-  }
-})
+const props = defineProps(['params'])
 
-// 计算显示的文本
+const rawValue = computed(() => props.params.value)
+const options = computed(() => props.params.colDef.options || props.params.colDef.selectOptions || [])
+
+const normalize = (val) => {
+  if (val === null || val === undefined) return ''
+  return String(val)
+}
+
 const displayLabel = computed(() => {
-  const options = props.column.options || []
-  const option = options.find(opt => opt.value === props.value)
-  return option ? option.label : props.value
+  const target = normalize(rawValue.value)
+  if (target === '') return ''
+  const option = options.value.find(opt => normalize(opt.value) === target)
+  return option ? option.label : rawValue.value
 })
 
-// 是否以 Tag 形式显示 (可在列配置中开启 tag: true)
-const showTag = computed(() => !!props.column.tag)
+const showTag = computed(() => !!props.params.colDef.tag)
 
-// Tag 颜色逻辑 (可选配置)
 const tagType = computed(() => {
   if (!showTag.value) return ''
-  // 简单的默认颜色映射，也可以在 options 里配置 type
-  const options = props.column.options || []
-  const option = options.find(opt => opt.value === props.value)
+  const target = normalize(rawValue.value)
+  if (target === '') return ''
+  const option = options.value.find(opt => normalize(opt.value) === target)
   return option?.type || ''
 })
 </script>

@@ -56,6 +56,37 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     return value
   }
 
+  const getByPath = (obj, path) => {
+    if (!obj || !path) return undefined
+    return path.split('.').reduce((acc, key) => acc?.[key], obj)
+  }
+
+  const clearDependentFields = (event) => {
+    if (!gridApi.value) return
+    const changedField = event.colDef.field
+    const cols = gridApi.value.getColumns() || []
+    const dependents = cols
+      .map(col => col.getColDef())
+      .filter(def => def?.dependsOnField === changedField)
+
+    if (dependents.length === 0) return
+
+    isSystemOperation.value = true
+    dependents.forEach(def => {
+      const oldVal = getByPath(event.node.data, def.field)
+      if (oldVal !== null && oldVal !== undefined && oldVal !== '') {
+        event.node.setDataValue(def.field, null)
+        pendingChanges.push({
+          rowNode: event.node,
+          colDef: { field: def.field },
+          newValue: null,
+          oldValue: oldVal
+        })
+      }
+    })
+    setTimeout(() => { isSystemOperation.value = false }, 0)
+  }
+
   const onCellValueChanged = (event) => {
     if (isSystemOperation.value) {
         formulaHooks.calculateRowFormulas(event.node)
@@ -83,6 +114,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     })
 
     pendingChanges.push({ rowNode: event.node, colDef: event.colDef, newValue: safeValue, oldValue: event.oldValue })
+    clearDependentFields(event)
     debouncedSave()
   }
 

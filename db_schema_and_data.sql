@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict QCMTnc08c8UsOlQmLqYxYJAed3ajLdSXteBCc7JMX8HCpyNOUQ43WzNqDNkQFd2
+\restrict DOSyzY1i6QXymannm7pmLKkvlJyx8XfU6oYhFk1l8v8Z2o8lW7Wsd54xwki5eWc
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -105,6 +105,22 @@ $$;
 
 
 ALTER FUNCTION public.login(username text, password text) OWNER TO postgres;
+
+--
+-- Name: set_updated_at(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.set_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION public.set_updated_at() OWNER TO postgres;
 
 --
 -- Name: sign(json, text, text); Type: FUNCTION; Schema: public; Owner: postgres
@@ -311,6 +327,27 @@ ALTER SEQUENCE public.employees_id_seq OWNED BY public.employees.id;
 
 
 --
+-- Name: files; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.files (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    filename text NOT NULL,
+    mime_type text NOT NULL,
+    size_bytes integer NOT NULL,
+    content_base64 text NOT NULL,
+    sha256 text,
+    extra jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT files_check CHECK ((octet_length(decode(content_base64, 'base64'::text)) = size_bytes)),
+    CONSTRAINT files_size_bytes_check CHECK (((size_bytes > 0) AND (size_bytes <= 20971520)))
+);
+
+
+ALTER TABLE public.files OWNER TO postgres;
+
+--
 -- Name: raw_materials; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -348,6 +385,43 @@ ALTER SEQUENCE public.raw_materials_id_seq OWNER TO postgres;
 
 ALTER SEQUENCE public.raw_materials_id_seq OWNED BY public.raw_materials.id;
 
+
+--
+-- Name: sys_dict_items; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.sys_dict_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    dict_id uuid NOT NULL,
+    label text NOT NULL,
+    value text NOT NULL,
+    sort integer DEFAULT 0 NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    extra jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.sys_dict_items OWNER TO postgres;
+
+--
+-- Name: sys_dicts; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.sys_dicts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    dict_key text NOT NULL,
+    name text NOT NULL,
+    description text,
+    enabled boolean DEFAULT true NOT NULL,
+    sort integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.sys_dicts OWNER TO postgres;
 
 --
 -- Name: sys_grid_configs; Type: TABLE; Schema: public; Owner: postgres
@@ -415,6 +489,29 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
+-- Name: v_sys_dict_items; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.v_sys_dict_items AS
+ SELECT d.id AS dict_id,
+    d.dict_key,
+    d.name AS dict_name,
+    d.enabled AS dict_enabled,
+    i.id AS item_id,
+    i.label,
+    i.value,
+    i.sort,
+    i.enabled AS item_enabled,
+    i.extra,
+    i.created_at,
+    i.updated_at
+   FROM (public.sys_dicts d
+     JOIN public.sys_dict_items i ON ((i.dict_id = d.id)));
+
+
+ALTER VIEW public.v_sys_dict_items OWNER TO postgres;
+
+--
 -- Name: archives id; Type: DEFAULT; Schema: hr; Owner: postgres
 --
 
@@ -465,21 +562,21 @@ lisi	123456	web_user	李四(仓管员)
 --
 
 COPY hr.archives (id, name, employee_no, department, "position", phone, status, base_salary, entry_date, properties, version, updated_at) FROM stdin;
-469	新员工	EMP1766677815289	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	40	2025-12-28 14:24:09.408
-471	新员工	EMP1766677815646	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	35	2025-12-28 14:24:09.836
-472	新员工	EMP1766677815838	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	22	2025-12-28 14:24:10.107
-473	新员工	EMP1766677815973	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	22	2025-12-28 14:24:10.354
-470	新员工	EMP1766677815473	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	45	2025-12-28 14:24:09.187
+472	新员工	EMP1766677815838	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	24	2025-12-29 18:01:07.917
+471	新员工	EMP1766677815646	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	37	2025-12-29 18:01:07.917
+470	新员工	EMP1766677815473	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	47	2025-12-29 18:01:07.917
+469	新员工	EMP1766677815289	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	42	2025-12-29 18:01:07.917
+473	新员工	EMP1766677815973	\N	\N	\N	试用	0.00	2025-12-25	{"status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	26	2025-12-29 18:10:17.722
 453	新员工	EMP1766677812422	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.554
-467	新员工	EMP1766677814931	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	37	2025-12-27 19:45:03.942
-466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	32	2025-12-27 19:45:03.942
-465	新员工	EMP1766677814608	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	29	2025-12-27 19:45:03.942
-479	新员工	EMP123876	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	15	2025-12-28 11:28:03.175
-477	新员工	EMP1766840518997	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 150, "field_5458": "100", "field_9314": "50", "row_locked_by": null}	18	2025-12-28 11:28:03.175
-476	新员工	EMP1766840515500	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	16	2025-12-28 11:28:03.175
-468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	35	2025-12-28 13:12:22.992
-475	新员工	EMP1766839736899	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	28	2025-12-28 14:20:20.143
-474	新员工	EMP1766839066179	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_9314": "50"}	30	2025-12-28 14:20:20.143
+479	新员工	EMP123876	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	22	2025-12-29 18:06:10.288
+468	新员工	EMP1766677815111	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	37	2025-12-29 18:01:07.917
+467	新员工	EMP1766677814931	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	39	2025-12-29 18:01:07.917
+466	新员工	EMP1766677814748	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "id_card": "", "field_789": 150, "field_5458": "100", "field_9314": "50"}	34	2025-12-29 18:01:07.917
+465	新员工	EMP1766677814608	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	31	2025-12-29 18:01:07.917
+475	新员工	EMP1766839736899	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	32	2025-12-29 18:31:41.778
+476	新员工	EMP1766840515500	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	23	2025-12-29 18:31:42.732
+477	新员工	EMP1766840518997	\N	\N	\N	试用	0.00	2025-12-27	{"status": "created", "field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50", "row_locked_by": null}	37	2025-12-29 18:32:28.634
+474	新员工	EMP1766839066179	\N	\N	\N	试用	0.00	2025-12-27	{"field_789": 150, "field_5458": "100", "field_8633": null, "field_9314": "50"}	35	2025-12-29 18:06:07.086
 464	新员工	EMP1766677814414	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	20	2025-12-27 15:53:00.554
 461	新员工	EMP1766677813895	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 0}	5	2025-12-27 15:53:00.554
 463	新员工	EMP1766677814225	\N	\N	\N	试用	0.00	2025-12-25	{"gender": null, "field_789": 150, "field_5458": "100", "field_9314": "50"}	16	2025-12-27 15:53:00.554
@@ -597,6 +694,14 @@ COPY public.employees (id, name, "position", department, created_at) FROM stdin;
 
 
 --
+-- Data for Name: files; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.files (id, filename, mime_type, size_bytes, content_base64, sha256, extra, created_at, updated_at) FROM stdin;
+\.
+
+
+--
 -- Data for Name: raw_materials; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -608,11 +713,27 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 
 
 --
+-- Data for Name: sys_dict_items; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.sys_dict_items (id, dict_id, label, value, sort, enabled, extra, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: sys_dicts; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.sys_dicts (id, dict_key, name, description, enabled, sort, created_at, updated_at) FROM stdin;
+\.
+
+
+--
 -- Data for Name: sys_grid_configs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
 COPY public.sys_grid_configs (view_id, summary_config, updated_by, updated_at) FROM stdin;
-employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expressions": {}, "column_locks": {}}	Admin	2025-12-25 18:44:29.890141+00
+employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expressions": {}, "column_locks": {"properties.field_5458": "Admin"}}	Admin	2025-12-25 18:44:29.890141+00
 \.
 
 
@@ -622,7 +743,7 @@ employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expre
 
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_column_locks	{}	HR表格列锁配置
-hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}]	HR花名册的动态列配置
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}, {"tag": true, "prop": "field_8633", "type": "select", "label": "1", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "1"}]}]	HR花名册的动态列配置
 ai_glm_config	{"model": "glm-4.6v", "api_key": "01e666998e24458e960cfc51fd7a1ff2.a67QjUwrs2433Wk2", "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "provider": "zhipu", "thinking": {"type": "enabled"}}	智谱 AI GLM-4.6V 模型配置
 \.
 
@@ -712,11 +833,51 @@ ALTER TABLE ONLY public.employees
 
 
 --
+-- Name: files files_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.files
+    ADD CONSTRAINT files_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: raw_materials raw_materials_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.raw_materials
     ADD CONSTRAINT raw_materials_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sys_dict_items sys_dict_items_dict_id_value_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.sys_dict_items
+    ADD CONSTRAINT sys_dict_items_dict_id_value_key UNIQUE (dict_id, value);
+
+
+--
+-- Name: sys_dict_items sys_dict_items_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.sys_dict_items
+    ADD CONSTRAINT sys_dict_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sys_dicts sys_dicts_dict_key_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.sys_dicts
+    ADD CONSTRAINT sys_dicts_dict_key_key UNIQUE (dict_key);
+
+
+--
+-- Name: sys_dicts sys_dicts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.sys_dicts
+    ADD CONSTRAINT sys_dicts_pkey PRIMARY KEY (id);
 
 
 --
@@ -752,11 +913,54 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: idx_files_created_at; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_files_created_at ON public.files USING btree (created_at);
+
+
+--
+-- Name: idx_sys_dict_items_dict_id_sort; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_sys_dict_items_dict_id_sort ON public.sys_dict_items USING btree (dict_id, sort);
+
+
+--
+-- Name: files trg_files_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_files_updated_at BEFORE UPDATE ON public.files FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: sys_dict_items trg_sys_dict_items_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_sys_dict_items_updated_at BEFORE UPDATE ON public.sys_dict_items FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
+-- Name: sys_dicts trg_sys_dicts_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_sys_dicts_updated_at BEFORE UPDATE ON public.sys_dicts FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+
+--
 -- Name: payroll payroll_archive_id_fkey; Type: FK CONSTRAINT; Schema: hr; Owner: postgres
 --
 
 ALTER TABLE ONLY hr.payroll
     ADD CONSTRAINT payroll_archive_id_fkey FOREIGN KEY (archive_id) REFERENCES hr.archives(id);
+
+
+--
+-- Name: sys_dict_items sys_dict_items_dict_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.sys_dict_items
+    ADD CONSTRAINT sys_dict_items_dict_id_fkey FOREIGN KEY (dict_id) REFERENCES public.sys_dicts(id) ON DELETE CASCADE;
 
 
 --
@@ -900,5 +1104,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict QCMTnc08c8UsOlQmLqYxYJAed3ajLdSXteBCc7JMX8HCpyNOUQ43WzNqDNkQFd2
+\unrestrict DOSyzY1i6QXymannm7pmLKkvlJyx8XfU6oYhFk1l8v8Z2o8lW7Wsd54xwki5eWc
 

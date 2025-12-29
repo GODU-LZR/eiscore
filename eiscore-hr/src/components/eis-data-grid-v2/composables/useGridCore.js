@@ -1,9 +1,13 @@
-import { ref, reactive, computed, markRaw, nextTick } from 'vue'
+import { ref, reactive, computed, markRaw, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 import { buildSearchQuery } from '@/utils/grid-query'
 import StatusRenderer from '../components/renderers/StatusRenderer.vue'
 import StatusEditor from '../components/renderers/StatusEditor.vue'
+import SelectRenderer from '../components/renderers/SelectRenderer.vue'
+import SelectEditor from '../components/renderers/SelectEditor.vue'
+import CascaderRenderer from '../components/renderers/CascaderRenderer.vue'
+import CascaderEditor from '../components/renderers/CascaderEditor.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
 
@@ -17,9 +21,16 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const gridComponents = {
     StatusRenderer: markRaw(StatusRenderer),
     StatusEditor: markRaw(StatusEditor),
+    SelectRenderer: markRaw(SelectRenderer),
+    SelectEditor: markRaw(SelectEditor),
+    CascaderRenderer: markRaw(CascaderRenderer),
+    CascaderEditor: markRaw(CascaderEditor),
     LockHeader: markRaw(LockHeader),
     DocumentActionRenderer: markRaw(DocumentActionRenderer)
   }
+
+  const dictOptions = reactive({})
+  const dictLoading = reactive({})
 
   // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
@@ -57,6 +68,81 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       gridApi.value.refreshHeader()
     })
   }
+
+  const refreshDictColumns = (dictKey) => {
+    if (!gridApi.value) return
+    const cols = gridApi.value.getColumns() || []
+    const targetCols = cols
+      .filter(col => col.getColDef()?.dictKey === dictKey)
+      .map(col => col.getColId())
+    if (targetCols.length > 0) {
+      gridApi.value.refreshCells({ force: true, columns: targetCols })
+    } else {
+      gridApi.value.refreshCells({ force: true })
+    }
+    gridApi.value.refreshHeader()
+  }
+
+  const loadDictOptions = async (dictKey) => {
+    if (!dictKey || dictLoading[dictKey]) return
+    dictLoading[dictKey] = true
+    try {
+      const res = await request({
+        url: `/v_sys_dict_items?dict_key=eq.${dictKey}&dict_enabled=is.true&item_enabled=is.true&order=sort.asc&select=label,value,extra`,
+        method: 'get',
+        headers: { 'Accept-Profile': 'public' }
+      })
+      const target = dictOptions[dictKey] || []
+      const nextOptions = Array.isArray(res)
+        ? res.map(item => ({
+          label: item.label,
+          value: item.value,
+          type: item.extra?.type
+        }))
+        : []
+      target.splice(0, target.length, ...nextOptions)
+      dictOptions[dictKey] = target
+      refreshDictColumns(dictKey)
+    } catch (e) {
+      console.warn(`[Dict] Load failed: ${dictKey}`, e)
+    } finally {
+      dictLoading[dictKey] = false
+    }
+  }
+
+  const resolveSelectOptions = (col) => {
+    if (Array.isArray(col.options)) return col.options
+    if (col.dictKey) {
+      if (!dictOptions[col.dictKey]) dictOptions[col.dictKey] = []
+      return dictOptions[col.dictKey]
+    }
+    return []
+  }
+
+  const isSelectColumn = (col) => {
+    if (!col) return false
+    if (col.type === 'select' || col.type === 'dropdown') return true
+    if (Array.isArray(col.options)) return true
+    if (col.dictKey) return true
+    return false
+  }
+
+  const resolveDependsOnField = (col) => {
+    if (!col?.dependsOn) return ''
+    if (String(col.dependsOn).includes('.')) return col.dependsOn
+    const isStatic = props.staticColumns.some(item => item.prop === col.dependsOn)
+    return isStatic ? col.dependsOn : `properties.${col.dependsOn}`
+  }
+
+  watch(
+    () => [...props.staticColumns, ...props.extraColumns],
+    (cols) => {
+      cols.forEach(col => {
+        if (col?.dictKey) loadDictOptions(col.dictKey)
+      })
+    },
+    { deep: true, immediate: true }
+  )
 
   const handleToggleColumnLock = async (colId) => {
     const isLocking = !columnLockState[colId]
@@ -101,17 +187,61 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       ? { width: col.width, minWidth, suppressSizeToFit: true } 
       : { flex: 1, minWidth }
 
-    return {
+    const colDef = {
       headerName: col.label,
       field: field,
-      type: isDynamic ? col.type : undefined,
+      type: col.type,
       editable: col.editable !== false && ((params) => !isCellReadOnly(params)),
-      cellEditor: 'agTextCellEditor',
       cellStyle: getCellStyle,
       cellClassRules: cellClassRules,
       headerComponent: 'LockHeader',
       headerClass: isDynamic ? 'dynamic-header' : '',
       ...widthConfig
+    }
+
+    if (isDynamic) {
+      colDef.valueSetter = (params) => {
+        if (!params.data.properties || typeof params.data.properties !== 'object') {
+          params.data.properties = {}
+        }
+        if (params.data.properties[col.prop] === params.newValue) return false
+        params.data.properties[col.prop] = params.newValue
+        return true
+      }
+    }
+
+    if (isSelectColumn(col)) {
+      return {
+        ...colDef,
+        cellRenderer: 'SelectRenderer',
+        cellEditor: 'SelectEditor',
+        cellEditorPopup: true,
+        cellEditorPopupPosition: 'under',
+        options: resolveSelectOptions(col),
+        dictKey: col.dictKey,
+        tag: col.tag
+      }
+    }
+
+    if (col?.type === 'cascader') {
+      return {
+        ...colDef,
+        cellRenderer: 'CascaderRenderer',
+        cellEditor: 'CascaderEditor',
+        cellEditorPopup: true,
+        cellEditorPopupPosition: 'under',
+        dependsOn: col.dependsOn,
+        dependsOnField: resolveDependsOnField(col),
+        apiUrl: col.apiUrl,
+        labelField: col.labelField || 'label',
+        valueField: col.valueField || 'value',
+        cascaderOptionsMap: {}
+      }
+    }
+
+    return {
+      ...colDef,
+      cellEditor: 'agTextCellEditor'
     }
   }
 
