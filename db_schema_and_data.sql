@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict zPdZTwKFwA9PLES6bf40s2nSfd3PKjTz3bEewTCCAN8evrnwz5i2OnFhNhxGZfb
+\restrict kJnCcAPWj06s3akRAH2AEkeakVZIb0XO6MTIzTHEko09iEg7ty9ubg7YFAc0qET
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -673,8 +673,6 @@ COPY hr.archives (id, name, employee_no, department, "position", phone, status, 
 370	新员工	EMP1766676474340	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.555
 369	新员工	EMP1766676474175	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.555
 368	新员工	EMP1766676473621	\N	\N	\N	试用	0.00	2025-12-25	{"field_789": 0}	2	2025-12-27 15:53:00.555
-484	新员工	EMP175123	待分配	\N	\N	试用	0.00	2025-12-29	{"field_789": 0}	2	2025-12-29 18:49:51.847
-485	新员工	EMP240568	待分配	\N	\N	试用	0.00	2025-12-29	{"field_789": 0}	2	2025-12-29 18:50:54.189
 \.
 
 
@@ -735,7 +733,7 @@ COPY public.sys_dicts (id, dict_key, name, description, enabled, sort, created_a
 --
 
 COPY public.sys_grid_configs (view_id, summary_config, updated_by, updated_at) FROM stdin;
-employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expressions": {}, "column_locks": {"department": "Admin", "employee_no": "Admin", "properties.field_5458": "Admin"}}	Admin	2025-12-25 18:44:29.890141+00
+employee_list	{"label": "合计", "rules": {"id": "avg", "name": "none"}, "expressions": {}, "column_locks": {"employee_no": "Admin"}}	Admin	2025-12-25 18:44:29.890141+00
 \.
 
 
@@ -1106,5 +1104,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict zPdZTwKFwA9PLES6bf40s2nSfd3PKjTz3bEewTCCAN8evrnwz5i2OnFhNhxGZfb
+\unrestrict kJnCcAPWj06s3akRAH2AEkeakVZIb0XO6MTIzTHEko09iEg7ty9ubg7YFAc0qET
 

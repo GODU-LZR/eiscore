@@ -134,7 +134,7 @@ const {
   gridData, gridColumns, context, gridComponents, searchText, isLoading, 
   loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
   columnLockState 
-} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, emit) // 🟢 关键修复：传入 emit 作为第 5 个参数
+} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit) // 🟢 关键修复：共享 gridApi
 
 // 3. Formula
 const formulaDependencyHooks = {} 

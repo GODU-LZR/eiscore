@@ -11,8 +11,10 @@ import CascaderEditor from '../components/renderers/CascaderEditor.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
 
-export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, emit) {
-  const gridApi = ref(null)
+export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit) {
+  const hasGridRef = gridApiRef && typeof gridApiRef === 'object' && 'value' in gridApiRef
+  const gridApi = hasGridRef ? gridApiRef : ref(null)
+  const eventEmitter = typeof gridApiRef === 'function' && !emit ? gridApiRef : emit
   const gridData = ref([])
   const searchText = ref('')
   const isLoading = ref(false)
@@ -185,7 +187,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const handleViewDocument = (rowData) => {
-    emit('view-document', rowData)
+    if (eventEmitter) eventEmitter('view-document', rowData)
   }
 
   const context = reactive({ 
