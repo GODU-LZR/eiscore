@@ -209,6 +209,10 @@ const props = defineProps({
     required: true,
     default: () => ({ layout: [] })
   },
+  readonly: {
+    type: Boolean,
+    default: false
+  },
   columns: {
     type: Array,
     default: () => []
@@ -314,14 +318,19 @@ const isSelectWidget = (item) => resolveWidgetType(item) === 'select'
 const isCascaderWidget = (item) => resolveWidgetType(item) === 'cascader'
 
 const EDITABLE_TYPES = new Set(['text', 'select', 'cascader'])
+const CUSTOM_WIDGETS = new Set(['input', 'text', 'textarea', 'date', 'number', 'select', 'cascader'])
 
 const isEditableField = (item) => {
+  if (props.readonly) return false
   const col = getColumnMeta(item?.field)
-  if (!col) return false
+  const widget = item?.widget
+  if (!col) {
+    if (!widget) return true
+    return CUSTOM_WIDGETS.has(widget)
+  }
   const type = col.type || 'text'
   if (!EDITABLE_TYPES.has(type)) return false
-  const widget = item?.widget
-  if (widget && ['image', 'date', 'number'].includes(widget)) return false
+  if (widget && widget === 'image') return false
   return true
 }
 
@@ -364,6 +373,9 @@ const resolveCascaderOptions = (item) => {
   const col = getColumnMeta(item?.field)
   const dependsOn = item?.dependsOn || item?.dependsOnField || col?.dependsOn || col?.dependsOnField
   const cascaderOptions = item?.cascaderOptions || item?.cascaderOptionsMap || col?.cascaderOptions || col?.cascaderOptionsMap
+  if (Array.isArray(cascaderOptions)) {
+    return normalizeOptions(cascaderOptions)
+  }
   if (dependsOn && cascaderOptions && typeof cascaderOptions === 'object') {
     const parentValue = getCascaderParentValue(item)
     const key = normalizeOptionKey(parentValue)
@@ -419,8 +431,12 @@ const resolveDisplayValue = (item, contentTemplate) => {
   const col = getColumnMeta(item.field)
   const raw = getValueByPath(item.field, props.modelValue)
   if (col?.type === 'geo') return formatGeoValue(raw)
-  if (col?.type === 'select') return resolveOptionLabel(raw, resolveSelectOptions(item))
-  if (col?.type === 'cascader') return resolveOptionLabel(raw, resolveCascaderOptions(item))
+  if (col?.type === 'select' || (!col && isSelectWidget(item))) {
+    return resolveOptionLabel(raw, resolveSelectOptions(item))
+  }
+  if (col?.type === 'cascader' || (!col && isCascaderWidget(item))) {
+    return resolveOptionLabel(raw, resolveCascaderOptions(item))
+  }
   if (col?.type === 'file') return formatScalarValue(raw)
   return formatScalarValue(raw)
 }
@@ -472,12 +488,14 @@ const resolveTableData = (field) => {
  * 同样需要处理 root 和 properties 的区别
  */
 const updateValue = (field, value) => {
+  if (props.readonly) return
   const newData = JSON.parse(JSON.stringify(props.modelValue))
   setValueByPath(newData, field, value)
   emit('update:modelValue', newData)
 }
 
 const updateTableValue = (tableField, rowIndex, colField, value) => {
+  if (props.readonly) return
   const newData = JSON.parse(JSON.stringify(props.modelValue))
   const table = getValueByPath(tableField, newData)
   const nextTable = Array.isArray(table) ? table : []
@@ -488,6 +506,7 @@ const updateTableValue = (tableField, rowIndex, colField, value) => {
 }
 
 const addTableRow = (section) => {
+  if (props.readonly) return
   const newData = JSON.parse(JSON.stringify(props.modelValue))
   const table = getValueByPath(section.field, newData)
   const nextTable = Array.isArray(table) ? table : []
@@ -501,6 +520,7 @@ const addTableRow = (section) => {
 }
 
 const removeTableRow = (tableField, rowIndex) => {
+  if (props.readonly) return
   const newData = JSON.parse(JSON.stringify(props.modelValue))
   const table = getValueByPath(tableField, newData)
   if (!Array.isArray(table)) return
@@ -510,10 +530,11 @@ const removeTableRow = (tableField, rowIndex) => {
 }
 
 const isTableEditable = (section, col) => {
+  if (props.readonly) return false
   if (section.editable === false) return false
   if (col.editable === false) return false
   const meta = getColumnMeta(col?.field)
-  if (!meta) return false
+  if (!meta) return true
   return meta.type === 'text'
 }
 

@@ -11,6 +11,7 @@
             :value="tpl.id"
           />
         </el-select>
+        <el-button @click="openTemplateManager">模板库</el-button>
         <el-button type="primary" @click="openAiFormAssistant">AI生成表单</el-button>
         <el-button type="primary" plain @click="printDoc">打印单据</el-button>
         <el-button type="success" @click="saveDoc">保存修改</el-button>
@@ -28,6 +29,58 @@
       />
       <el-empty v-else description="正在加载数据或配置..." />
     </div>
+
+    <el-dialog v-model="templateManagerVisible" title="模板库" width="860px">
+      <div class="template-toolbar">
+        <span class="template-tip">可预览、改名或删除模板</span>
+        <el-button type="primary" size="small" @click="openTemplateCreate">新增模板</el-button>
+      </div>
+      <el-table :data="templates" size="small" border style="width: 100%">
+        <el-table-column prop="name" label="模板名称" min-width="200" />
+        <el-table-column prop="id" label="编号" min-width="180" />
+        <el-table-column label="更新时间" width="170">
+          <template #default="scope">
+            {{ formatTemplateTime(scope.row.updated_at || scope.row.created_at) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="320" align="center">
+          <template #default="scope">
+            <div class="template-actions">
+              <el-button size="small" plain @click="openTemplatePreview(scope.row)">预览</el-button>
+              <el-button size="small" type="primary" @click="setCurrentTemplate(scope.row)">使用</el-button>
+              <el-button size="small" type="warning" plain @click="openTemplateRename(scope.row)">改名</el-button>
+              <el-button size="small" type="danger" @click="removeTemplate(scope.row)">删除</el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
+    <el-dialog v-model="templateEditVisible" :title="templateEditTitle" width="420px">
+      <el-form :model="templateEditForm" label-width="90px">
+        <el-form-item label="模板名称">
+          <el-input v-model="templateEditForm.name" placeholder="如：员工信息表" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="templateEditVisible = false">取消</el-button>
+        <el-button type="primary" :loading="templateSaving" @click="submitTemplateEdit">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="templatePreviewVisible" title="模板预览" width="980px">
+      <div class="template-preview-body">
+        <EisDocumentEngine
+          v-if="templatePreview"
+          :model-value="formModel || {}"
+          :schema="templatePreview.schema"
+          :file-options="fileOptions"
+          :columns="allColumns"
+          :readonly="true"
+        />
+        <el-empty v-else description="暂无可预览的模板" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -35,7 +88,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 
@@ -54,6 +107,13 @@ const selectedTemplateId = ref('')
 const extraValues = ref({})
 const dynamicColumns = ref([])
 const docContainerRef = ref(null)
+const templateManagerVisible = ref(false)
+const templateEditVisible = ref(false)
+const templatePreviewVisible = ref(false)
+const templateSaving = ref(false)
+const templateEditMode = ref('create')
+const templatePreview = ref(null)
+const templateEditForm = ref({ id: '', name: '' })
 const staticColumns = [
   { label: '编号', prop: 'id', type: 'text' },
   { label: '姓名', prop: 'name', type: 'text' },
@@ -66,6 +126,8 @@ const activeSchema = computed(() => {
   const current = templates.value.find(item => item.id === selectedTemplateId.value)
   return current?.schema || documentSchemaExample
 })
+
+const templateEditTitle = computed(() => (templateEditMode.value === 'rename' ? '修改模板名称' : '新增模板'))
 
 const knownPropertyKeys = computed(() => {
   const keys = new Set()
@@ -154,6 +216,19 @@ const loadTemplates = async () => {
   }
 }
 
+const saveTemplateLibrary = async (list) => {
+  return request({
+    url: '/system_configs',
+    method: 'post',
+    headers: {
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public',
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    data: { key: 'form_templates', value: list }
+  })
+}
+
 const loadDynamicColumns = async () => {
   try {
     const res = await request({
@@ -230,7 +305,7 @@ const saveFormValues = async () => {
   if (!formData.value?.id || !selectedTemplateId.value) return
   try {
     await request({
-      url: '/form_values',
+      url: '/form_values?on_conflict=template_id,row_id',
       method: 'post',
       headers: {
         'Accept-Profile': 'public',
@@ -390,11 +465,12 @@ const buildAiFormPrompt = () => {
 
   return [
     '请根据以下“当前表格列”生成单据模板。',
-    '必须严格使用列里的 prop 作为字段，不允许新增字段。',
+    '优先使用列里的 prop 作为字段。',
+    '如果用户表单需要但系统列里没有，可以新增扩展字段，field 建议用 ext_ 开头（如 ext_note）。',
     '把“当前行已存在的数据”中的值填入对应字段，没有值就留空。',
     '必须只输出一个模板 JSON，并放在 ```form-template``` 代码块中。',
     '如果是图片/文件字段，请使用 widget=image，并设置 fileSource 为对应文件列 prop。',
-    '如果列类型是 select/cascader，请使用 widget=select 或 widget=cascader，样式保持表单朴素风格。',
+    '如果字段是 select/cascader，请使用 widget=select 或 widget=cascader，并给出 options/cascaderOptions。',
     '当前表格列：',
     JSON.stringify(columns, null, 2),
     '当前行已存在的数据：',
@@ -433,6 +509,114 @@ const openAiFormAssistant = () => {
     type: 'open-worker',
     prompt
   })
+}
+
+const formatTemplateTime = (value) => {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleString()
+}
+
+const openTemplateManager = () => {
+  templateManagerVisible.value = true
+}
+
+const openTemplatePreview = (template) => {
+  templatePreview.value = template || null
+  templatePreviewVisible.value = true
+}
+
+const openTemplateCreate = () => {
+  templateEditMode.value = 'create'
+  templateEditForm.value = {
+    id: '',
+    name: activeSchema.value?.title || '新表单模板'
+  }
+  templateEditVisible.value = true
+}
+
+const openTemplateRename = (template) => {
+  templateEditMode.value = 'rename'
+  templateEditForm.value = {
+    id: template?.id || '',
+    name: template?.name || template?.schema?.title || ''
+  }
+  templateEditVisible.value = true
+}
+
+const setCurrentTemplate = (template) => {
+  if (!template?.id) return
+  selectedTemplateId.value = template.id
+  ElMessage.success('已切换模板')
+}
+
+const submitTemplateEdit = async () => {
+  const name = templateEditForm.value.name ? templateEditForm.value.name.trim() : ''
+  if (!name) {
+    ElMessage.warning('请输入模板名称')
+    return
+  }
+  templateSaving.value = true
+  try {
+    const list = Array.isArray(templates.value) ? [...templates.value] : []
+    const now = new Date().toISOString()
+    if (templateEditMode.value === 'rename') {
+      const idx = list.findIndex(item => item.id === templateEditForm.value.id)
+      if (idx >= 0) {
+        const nextSchema = list[idx].schema ? { ...list[idx].schema } : {}
+        nextSchema.title = name
+        list[idx] = { ...list[idx], name, schema: nextSchema, updated_at: now }
+      }
+    } else {
+      const schema = JSON.parse(JSON.stringify(activeSchema.value || documentSchemaExample))
+      schema.title = name
+      const templateId = `tpl_${Date.now()}`
+      schema.docType = templateId
+      const record = {
+        id: templateId,
+        name,
+        schema,
+        source: 'manual',
+        created_at: now,
+        updated_at: now
+      }
+      list.unshift(record)
+      selectedTemplateId.value = record.id
+    }
+    await saveTemplateLibrary(list)
+    templates.value = list
+    templateEditVisible.value = false
+    ElMessage.success('模板已保存')
+  } catch (e) {
+    ElMessage.error('模板保存失败')
+  } finally {
+    templateSaving.value = false
+  }
+}
+
+const removeTemplate = async (template) => {
+  if (!template?.id) return
+  try {
+    await ElMessageBox.confirm('确定删除这个模板吗？删除后无法恢复。', '确认删除', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+  } catch (e) {
+    return
+  }
+  try {
+    const list = (templates.value || []).filter(item => item.id !== template.id)
+    await saveTemplateLibrary(list)
+    templates.value = list
+    if (selectedTemplateId.value === template.id) {
+      selectedTemplateId.value = list[0]?.id || ''
+    }
+    ElMessage.success('模板已删除')
+  } catch (e) {
+    ElMessage.error('模板删除失败')
+  }
 }
 
 const saveDoc = async () => {
@@ -533,6 +717,37 @@ watch([() => dynamicColumns.value, () => formData.value?.id], () => {
   display: flex;
   justify-content: center; /* 居中显示纸张 */
   padding-bottom: 40px;
+}
+
+.template-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.template-tip {
+  font-size: 13px;
+  color: #909399;
+}
+
+.template-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.template-preview-body {
+  max-height: 70vh;
+  overflow: auto;
+  padding: 10px 0;
+}
+
+:deep(.template-actions .el-button) {
+  margin-left: 0;
 }
 
 /* 打印时的样式优化 */
