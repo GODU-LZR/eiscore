@@ -33,7 +33,8 @@ export function registerQiankun() {
   // 初始状态包含 user 信息和 context (AI 上下文)
   const actions = initGlobalState({
     user: 'admin', 
-    context: null  // 用于子应用上报页面信息给 AI
+    context: null,  // 用于子应用上报页面信息给 AI
+    command: null
   })
 
   // 3. 将 actions 交给 AI Bridge 托管

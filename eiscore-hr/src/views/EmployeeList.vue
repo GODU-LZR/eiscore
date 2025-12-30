@@ -202,6 +202,7 @@ import { useRouter } from 'vue-router' // 🟢 引入 Router
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
+import { pushAiContext } from '@/utils/ai-context'
 
 const router = useRouter() // 🟢 初始化 Router
 const gridRef = ref(null)
@@ -341,7 +342,23 @@ const loadColumnsConfig = async () => {
     } else {
       extraColumns.value = [{ label: '性别', prop: 'gender', type: 'text' }]
     }
+    syncAiContext()
   } catch (e) { console.error(e) }
+}
+
+const syncAiContext = () => {
+  const columns = [...staticColumns, ...extraColumns.value].map(col => ({
+    label: col.label,
+    prop: col.prop,
+    type: col.type || 'text'
+  }))
+  const fileColumns = columns.filter(col => col.type === 'file')
+  pushAiContext({
+    app: 'hr',
+    view: 'employee_list',
+    columns,
+    fileColumns
+  })
 }
 
 const saveColumnsConfig = async () => {
@@ -546,12 +563,14 @@ const saveColumn = () => {
   }
   
   saveColumnsConfig()
+  syncAiContext()
   resetForm()
 }
 
 const removeColumn = (index) => {
   extraColumns.value.splice(index, 1)
   saveColumnsConfig()
+  syncAiContext()
   if (isEditing.value && editingIndex.value === index) {
     resetForm()
   }

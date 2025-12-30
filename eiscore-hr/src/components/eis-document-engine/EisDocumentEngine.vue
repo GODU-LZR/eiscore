@@ -33,6 +33,16 @@
                     :placeholder="item.placeholder"
                   />
 
+                  <el-input
+                    v-else-if="item.widget === 'textarea'"
+                    :model-value="resolveValue(item.field)"
+                    @update:modelValue="(val) => updateValue(item.field, val)"
+                    type="textarea"
+                    :rows="2"
+                    size="small"
+                    :placeholder="item.placeholder"
+                  />
+
                   <el-date-picker
                     v-else-if="item.widget === 'date'"
                     :model-value="resolveValue(item.field)"
@@ -51,6 +61,33 @@
                     controls-position="right"
                     style="width: 100%"
                   />
+
+                  <div v-else-if="item.widget === 'image'" class="image-field">
+                    <el-image
+                      v-if="resolveImageValue(item)"
+                      :src="resolveImageValue(item)"
+                      fit="contain"
+                      class="image-preview"
+                      :preview-src-list="[resolveImageValue(item)]"
+                    />
+                    <div v-else class="image-placeholder">未选择图片</div>
+                    <div class="image-actions" v-if="imageOptions(item).length">
+                      <el-select
+                        size="small"
+                        placeholder="选择图片"
+                        :model-value="resolveImageValue(item)"
+                        @change="(val) => updateValue(item.field, val)"
+                      >
+                        <el-option
+                          v-for="opt in imageOptions(item)"
+                          :key="opt.value"
+                          :label="opt.label"
+                          :value="opt.value"
+                        />
+                      </el-select>
+                      <el-button size="small" @click="updateValue(item.field, '')">清空</el-button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </el-col>
@@ -59,6 +96,9 @@
 
         <div v-else-if="section.type === 'table'" class="doc-table-section">
           <div v-if="section.title" class="section-title">{{ section.title }}</div>
+          <div v-if="section.allowAdd !== false" class="table-toolbar">
+            <el-button size="small" @click="addTableRow(section)">新增一行</el-button>
+          </div>
           <el-table 
             :data="resolveTableData(section.field)" 
             border 
@@ -75,7 +115,40 @@
               :align="col.align || 'center'"
             >
               <template #default="scope">
-                <span>{{ scope.row[col.field] }}</span>
+                <span v-if="!isTableEditable(section, col)">{{ scope.row[col.field] }}</span>
+                <el-input
+                  v-else-if="col.widget === 'input' || !col.widget"
+                  size="small"
+                  :model-value="scope.row[col.field]"
+                  @update:modelValue="(val) => updateTableValue(section.field, scope.$index, col.field, val)"
+                />
+                <el-date-picker
+                  v-else-if="col.widget === 'date'"
+                  size="small"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  :model-value="scope.row[col.field]"
+                  @update:modelValue="(val) => updateTableValue(section.field, scope.$index, col.field, val)"
+                />
+                <el-input-number
+                  v-else-if="col.widget === 'number'"
+                  size="small"
+                  controls-position="right"
+                  :model-value="scope.row[col.field]"
+                  @update:modelValue="(val) => updateTableValue(section.field, scope.$index, col.field, val)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column
+              v-if="section.allowDelete !== false"
+              label="操作"
+              width="70"
+              align="center"
+            >
+              <template #default="scope">
+                <el-button size="small" type="danger" link @click="removeTableRow(section.field, scope.$index)">
+                  删除
+                </el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -87,8 +160,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { ElRow, ElCol, ElInput, ElDatePicker, ElInputNumber, ElTable, ElTableColumn } from 'element-plus'
+import { watch } from 'vue'
+import { ElRow, ElCol, ElInput, ElDatePicker, ElInputNumber, ElTable, ElTableColumn, ElImage, ElSelect, ElOption, ElButton } from 'element-plus'
 
 const props = defineProps({
   modelValue: {
@@ -100,6 +173,10 @@ const props = defineProps({
     type: Object,
     required: true,
     default: () => ({ layout: [] })
+  },
+  fileOptions: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -127,31 +204,70 @@ const resolveValue = (field, contentTemplate) => {
   return ''
 }
 
-const getValueByPath = (path) => {
-  if (!props.modelValue) return ''
-  
-  // 1. 尝试直接获取
-  if (path in props.modelValue) {
-    return props.modelValue[path]
-  }
-  
-  // 2. 尝试从 properties 获取 (自动降级)
-  if (props.modelValue.properties && path in props.modelValue.properties) {
-    return props.modelValue.properties[path]
-  }
-  
-  // 3. 支持点号访问深层对象 (e.g., "items.0.name") - 简易版
+const getValueByPath = (path, source = props.modelValue) => {
+  if (!source || !path) return ''
+  if (path in source) return source[path]
+  if (source.properties && path in source.properties) return source.properties[path]
   const parts = path.split('.')
   if (parts.length > 1) {
-    let current = props.modelValue
+    let current = source
     for (const part of parts) {
       if (current === null || current === undefined) return ''
       current = current[part]
     }
     return current
   }
-
   return ''
+}
+
+const normalizeImageValue = (value) => {
+  if (!value) return ''
+  if (Array.isArray(value)) {
+    const first = value[0]
+    if (!first) return ''
+    if (typeof first === 'string') return first
+    if (typeof first === 'object') {
+      return first.url || first.file_url || first.dataUrl || first.src || ''
+    }
+    return ''
+  }
+  if (typeof value === 'object') {
+    return value.url || value.file_url || value.dataUrl || value.src || ''
+  }
+  return value
+}
+
+const resolveImageValue = (item) => {
+  if (!item?.field) return ''
+  const raw = getValueByPath(item.field, props.modelValue)
+  return normalizeImageValue(raw)
+}
+
+const setValueByPath = (data, path, value) => {
+  if (!data || !path) return
+  if (path in data) {
+    data[path] = value
+    return
+  }
+  if (data.properties && path in data.properties) {
+    data.properties[path] = value
+    return
+  }
+  const parts = path.split('.')
+  if (parts.length > 1) {
+    let current = data
+    parts.forEach((part, idx) => {
+      if (idx === parts.length - 1) {
+        current[part] = value
+      } else {
+        if (!current[part]) current[part] = {}
+        current = current[part]
+      }
+    })
+    return
+  }
+  if (!data.properties) data.properties = {}
+  data.properties[path] = value
 }
 
 /**
@@ -159,7 +275,7 @@ const getValueByPath = (path) => {
  * 通常明细表数据存储在 properties.items 或者关联查询的子字段中
  */
 const resolveTableData = (field) => {
-  const data = getValueByPath(field)
+  const data = getValueByPath(field, props.modelValue)
   return Array.isArray(data) ? data : []
 }
 
@@ -169,18 +285,105 @@ const resolveTableData = (field) => {
  */
 const updateValue = (field, value) => {
   const newData = JSON.parse(JSON.stringify(props.modelValue))
-  
-  // 简单判断：如果 key 存在于 root，就更 root；否则更 properties
-  // 注意：这只是一个简化的逻辑，生产环境可能需要更严谨的 schema 定义字段位置
-  if (field in newData) {
-    newData[field] = value
-  } else {
-    if (!newData.properties) newData.properties = {}
-    newData.properties[field] = value
-  }
-  
+  setValueByPath(newData, field, value)
   emit('update:modelValue', newData)
 }
+
+const updateTableValue = (tableField, rowIndex, colField, value) => {
+  const newData = JSON.parse(JSON.stringify(props.modelValue))
+  const table = getValueByPath(tableField, newData)
+  const nextTable = Array.isArray(table) ? table : []
+  if (!nextTable[rowIndex]) nextTable[rowIndex] = {}
+  nextTable[rowIndex][colField] = value
+  setValueByPath(newData, tableField, nextTable)
+  emit('update:modelValue', newData)
+}
+
+const addTableRow = (section) => {
+  const newData = JSON.parse(JSON.stringify(props.modelValue))
+  const table = getValueByPath(section.field, newData)
+  const nextTable = Array.isArray(table) ? table : []
+  const newRow = {}
+  section.columns.forEach(col => {
+    newRow[col.field] = ''
+  })
+  nextTable.push(newRow)
+  setValueByPath(newData, section.field, nextTable)
+  emit('update:modelValue', newData)
+}
+
+const removeTableRow = (tableField, rowIndex) => {
+  const newData = JSON.parse(JSON.stringify(props.modelValue))
+  const table = getValueByPath(tableField, newData)
+  if (!Array.isArray(table)) return
+  table.splice(rowIndex, 1)
+  setValueByPath(newData, tableField, table)
+  emit('update:modelValue', newData)
+}
+
+const isTableEditable = (section, col) => {
+  if (section.editable === false) return false
+  if (col.editable === false) return false
+  return true
+}
+
+const appliedImageDefaults = new Set()
+
+const imageOptions = (item) => {
+  const list = []
+  if (!Array.isArray(props.fileOptions) || props.fileOptions.length === 0) return list
+  props.fileOptions.forEach(source => {
+    if (item.fileSource && item.fileSource !== source.field) return
+    const files = Array.isArray(source.files) ? source.files : []
+    files.forEach(file => {
+      if (!file.url) return
+      list.push({
+        label: `${source.label} - ${file.name || '图片'}`,
+        value: file.url
+      })
+    })
+  })
+  return list
+}
+
+const collectImageItems = (layout = []) => {
+  const items = []
+  layout.forEach(section => {
+    if (section?.type === 'section' && Array.isArray(section.children)) {
+      section.children.forEach(child => {
+        if (child?.widget === 'image' && child.field) {
+          items.push(child)
+        }
+      })
+    }
+  })
+  return items
+}
+
+const ensureImageDefaults = () => {
+  const items = collectImageItems(props.schema?.layout || [])
+  items.forEach(item => {
+    if (!item.field) return
+    const rawValue = getValueByPath(item.field, props.modelValue)
+    const current = normalizeImageValue(rawValue)
+    if (current) return
+    if (appliedImageDefaults.has(item.field)) return
+    if (Array.isArray(rawValue) && item.fileSource && item.fileSource === item.field) return
+    const options = imageOptions(item)
+    if (options.length > 0) {
+      appliedImageDefaults.add(item.field)
+      updateValue(item.field, options[0].value)
+    }
+  })
+}
+
+watch(
+  () => [props.fileOptions, props.schema, props.modelValue],
+  () => {
+    ensureImageDefaults()
+  },
+  { deep: true, immediate: true }
+)
 </script>
 
 <style scoped>
@@ -248,9 +451,45 @@ const updateValue = (field, value) => {
   font-size: 14px;
 }
 
+.image-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.image-preview {
+  width: 100%;
+  max-height: 160px;
+  border: 1px solid #000;
+}
+
+.image-placeholder {
+  width: 100%;
+  height: 120px;
+  border: 1px dashed #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #666;
+}
+
+.image-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 /* 表格区域 */
 .doc-table-section {
   margin-top: -1px; /* 边框重叠 */
+}
+
+.table-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 6px 0;
 }
 .section-title {
   font-weight: bold;
@@ -286,5 +525,13 @@ const updateValue = (field, value) => {
 :deep(.custom-doc-table td.el-table__cell) {
   border-bottom: 1px solid #000 !important;
   border-right: 1px solid #000 !important;
+}
+
+@media print {
+  .table-toolbar,
+  .image-actions,
+  :deep(.el-button) {
+    display: none !important;
+  }
 }
 </style>

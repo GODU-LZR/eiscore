@@ -80,20 +80,51 @@
                     </div>
                   </div>
 
-                  <div class="bubble">
-                    <div
-                      class="markdown-body"
-                      v-html="renderMarkdown(msg.content)"
-                    ></div>
-                    <span
-                      v-if="msg.role === 'assistant' && index === currentSession.messages.length - 1 && state.isStreaming"
-                      class="typing-cursor"
-                    ></span>
-                  </div>
+                <div class="bubble">
+                  <div
+                    class="markdown-body"
+                    v-html="renderMarkdown(msg.content)"
+                  ></div>
+                  <span
+                    v-if="msg.role === 'assistant' && index === currentSession.messages.length - 1 && state.isStreaming"
+                    class="typing-cursor"
+                  ></span>
+                </div>
 
-                  <div class="msg-actions">
-                    <el-button link size="small" type="danger" icon="Delete" @click="aiBridge.deleteMessage(index)"></el-button>
+                <div
+                  v-if="msg.role === 'assistant' && getFormTemplateInfo(msg).schema"
+                  class="form-template-card"
+                >
+                  <div class="card-header">
+                    <span class="card-title">检测到表单模板</span>
+                    <span class="card-name">{{ getFormTemplateInfo(msg).schema.title || '未命名模板' }}</span>
+                  </div>
+                  <div class="card-meta">
+                    <span>区块: {{ getTemplateSectionCount(getFormTemplateInfo(msg).schema) }}</span>
+                    <span>表格: {{ getTemplateTableCount(getFormTemplateInfo(msg).schema) }}</span>
+                  </div>
+                  <div class="card-actions">
                     <el-button
+                      size="small"
+                      type="primary"
+                      :loading="templateSaveState[msg.time] === 'saving'"
+                      @click="saveFormTemplate(getFormTemplateInfo(msg).schema, msg.time)"
+                    >
+                      {{ templateSaveState[msg.time] === 'saved' ? '已保存' : '保存到模板库' }}
+                    </el-button>
+                  </div>
+                </div>
+
+                <div
+                  v-else-if="msg.role === 'assistant' && getFormTemplateInfo(msg).error && !(state.isStreaming && index === currentSession.messages.length - 1)"
+                  class="form-template-error"
+                >
+                  模板解析失败，请检查 JSON 格式。
+                </div>
+
+                <div class="msg-actions">
+                  <el-button link size="small" type="danger" icon="Delete" @click="aiBridge.deleteMessage(index)"></el-button>
+                  <el-button
                       v-if="msg.role === 'user'"
                       link
                       size="small"
@@ -163,6 +194,7 @@
 import { ref, computed, nextTick, watch, onMounted, onUpdated } from 'vue'
 import { aiBridge } from '@/utils/ai-bridge'
 import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, Download, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import mermaid from 'mermaid'
 import * as echarts from 'echarts'
@@ -240,6 +272,123 @@ const sanitizeJson = (jsonStr) => {
   cleaned = cleaned.replace(/'([^']*)'/g, (_, p1) => `"${p1.replace(/"/g, '\\"')}"`)
   cleaned = cleaned.replace(/([{,]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":')
   return cleaned.trim()
+}
+
+const FORM_TEMPLATE_BLOCKS = ['form-template', 'form_template', 'form-schema', 'form_schema']
+const templateSaveState = ref({})
+
+const getAuthToken = () => {
+  const tokenStr = localStorage.getItem('auth_token')
+  if (!tokenStr) return ''
+  try {
+    const parsed = JSON.parse(tokenStr)
+    if (parsed && parsed.token) return parsed.token
+  } catch (e) {
+    return tokenStr
+  }
+  return tokenStr
+}
+
+const extractFormTemplate = (text) => {
+  if (!text) return { schema: null, error: null }
+  for (const tag of FORM_TEMPLATE_BLOCKS) {
+    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
+    const match = text.match(regex)
+    if (match && match[1]) {
+      try {
+        const raw = sanitizeJson(match[1])
+        const schema = JSON.parse(raw)
+        if (!schema || !schema.layout) {
+          return { schema: null, error: 'invalid' }
+        }
+        return { schema, error: null }
+      } catch (e) {
+        return { schema: null, error: 'parse' }
+      }
+    }
+  }
+  return { schema: null, error: null }
+}
+
+const getFormTemplateInfo = (msg) => extractFormTemplate(msg?.content || '')
+
+const getTemplateSectionCount = (schema) => {
+  if (!schema?.layout) return 0
+  return schema.layout.filter(item => item.type === 'section').length
+}
+
+const getTemplateTableCount = (schema) => {
+  if (!schema?.layout) return 0
+  return schema.layout.filter(item => item.type === 'table').length
+}
+
+const loadTemplateLibrary = async () => {
+  try {
+    const token = getAuthToken()
+    const headers = { 'Accept': 'application/json', 'Accept-Profile': 'public' }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const res = await fetch('/api/system_configs?key=eq.form_templates', {
+      headers
+    })
+    if (!res.ok) return []
+    const data = await res.json()
+    return Array.isArray(data) && data.length > 0 ? (data[0].value || []) : []
+  } catch (e) {
+    return []
+  }
+}
+
+const saveTemplateLibrary = async (templates) => {
+  const token = getAuthToken()
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept-Profile': 'public',
+    'Content-Profile': 'public',
+    'Prefer': 'resolution=merge-duplicates'
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+  return fetch('/api/system_configs', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ key: 'form_templates', value: templates })
+  })
+}
+
+const buildTemplateRecord = (schema) => {
+  const now = new Date().toISOString()
+  const templateId = schema.templateId || schema.docType || `tpl_${Date.now()}`
+  const name = schema.title || schema.name || 'AI生成模板'
+  return {
+    id: templateId,
+    name,
+    schema,
+    source: 'ai',
+    created_at: now,
+    updated_at: now
+  }
+}
+
+const saveFormTemplate = async (schema, messageKey) => {
+  if (!schema) return
+  if (templateSaveState.value[messageKey] === 'saved') return
+  templateSaveState.value[messageKey] = 'saving'
+  try {
+    const templates = await loadTemplateLibrary()
+    const record = buildTemplateRecord(schema)
+    const idx = templates.findIndex(item => item.id === record.id)
+    if (idx >= 0) {
+      templates[idx] = { ...templates[idx], ...record, updated_at: new Date().toISOString() }
+    } else {
+      templates.unshift(record)
+    }
+    const res = await saveTemplateLibrary(templates)
+    if (!res.ok) throw new Error('保存失败')
+    templateSaveState.value[messageKey] = 'saved'
+    ElMessage.success('模板已保存到模板库')
+  } catch (e) {
+    templateSaveState.value[messageKey] = 'error'
+    ElMessage.error('模板保存失败')
+  }
 }
 
 const escapeHtml = (value) => {
@@ -732,6 +881,52 @@ $border-color: #e4e7ed;
     max-width: 100%;
     height: auto;
   }
+}
+
+.form-template-card {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px dashed $border-color;
+  border-radius: 10px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-template-card .card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.form-template-card .card-title {
+  font-size: 12px;
+  color: #909399;
+}
+
+.form-template-card .card-name {
+  font-size: 13px;
+}
+
+.form-template-card .card-meta {
+  font-size: 12px;
+  color: #909399;
+  display: flex;
+  gap: 12px;
+}
+
+.form-template-card .card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.form-template-error {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #f56c6c;
 }
 
 .chart-error {

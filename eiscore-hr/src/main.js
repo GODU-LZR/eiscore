@@ -18,6 +18,10 @@ function render(props = {}) {
   const { container } = props
   app = createApp(App)
 
+  if (props && typeof props.setGlobalState === 'function') {
+    window.__EIS_BASE_ACTIONS__ = props
+  }
+
   // 🟢 2. 注册 Element Plus
   app.use(ElementPlus, {
     locale: zhCn, // 设置为中文
