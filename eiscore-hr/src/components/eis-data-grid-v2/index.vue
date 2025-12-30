@@ -72,6 +72,11 @@
         :params="geoDialog.params"
         @submit="handleGeoSubmit"
       />
+
+      <FileDialog
+        v-model:visible="fileDialog.visible"
+        :params="fileDialog.params"
+      />
     </div>
   </div>
 </template>
@@ -89,6 +94,7 @@ import { useGridClipboard } from './composables/useGridClipboard'
 import GridToolbar from './components/GridToolbar.vue'
 import ConfigDialog from './components/ConfigDialog.vue'
 import GeoDialog from './components/GeoDialog.vue'
+import FileDialog from './components/FileDialog.vue'
 
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
 ModuleRegistry.registerModules([ AllCommunityModule ])
@@ -128,6 +134,7 @@ const isAdmin = currentUser === 'Admin'
 const gridApi = ref(null)
 const selectedRowsCount = ref(0)
 const geoDialog = reactive({ visible: false, params: null })
+const fileDialog = reactive({ visible: false, params: null })
 
 // 1. Selection
 const selectionHooks = useGridSelection(gridApi, selectedRowsCount)
@@ -143,6 +150,14 @@ const {
   loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
   columnLockState 
 } = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit) // 🟢 关键修复：共享 gridApi
+
+const openFileDialog = (params) => {
+  if (!params || params.node?.rowPinned) return
+  fileDialog.params = params
+  fileDialog.visible = true
+}
+
+context.componentParent.openFileDialog = openFileDialog
 
 // 3. Formula
 const formulaDependencyHooks = {} 

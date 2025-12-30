@@ -9,6 +9,7 @@ import SelectEditor from '../components/renderers/SelectEditor.vue'
 import CascaderRenderer from '../components/renderers/CascaderRenderer.vue'
 import CascaderEditor from '../components/renderers/CascaderEditor.vue'
 import GeoRenderer from '../components/renderers/GeoRenderer.vue'
+import FileRenderer from '../components/renderers/FileRenderer.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
 
@@ -29,6 +30,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     CascaderRenderer: markRaw(CascaderRenderer),
     CascaderEditor: markRaw(CascaderEditor),
     GeoRenderer: markRaw(GeoRenderer),
+    FileRenderer: markRaw(FileRenderer),
     LockHeader: markRaw(LockHeader),
     DocumentActionRenderer: markRaw(DocumentActionRenderer)
   }
@@ -267,6 +269,17 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         cellRenderer: 'GeoRenderer',
         geoAddress: col.geoAddress !== false,
         geoConfig: col.geoConfig || {}
+      }
+    }
+
+    if (col?.type === 'file') {
+      return {
+        ...colDef,
+        editable: false,
+        cellRenderer: 'FileRenderer',
+        fileMaxCount: col.fileMaxCount ?? 3,
+        fileMaxSizeMb: col.fileMaxSizeMb ?? 20,
+        fileAccept: col.fileAccept || ''
       }
     }
 
