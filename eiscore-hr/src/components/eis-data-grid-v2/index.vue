@@ -62,6 +62,7 @@
         :current-rule="configDialog.tempValue"
         :current-expression="configDialog.expression"
         :current-label="activeSummaryConfig.label"
+        :current-cell-label="configDialog.cellLabel"
         :columns="availableColumns"
         :loading="isSavingConfig"
         @save="saveConfig"
@@ -126,7 +127,7 @@ const props = defineProps({
 })
 
 // 🟢 声明事件：增加 view-document
-const emit = defineEmits(['create', 'config-columns', 'view-document'])
+const emit = defineEmits(['create', 'config-columns', 'view-document', 'data-loaded'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = currentUser === 'Admin'

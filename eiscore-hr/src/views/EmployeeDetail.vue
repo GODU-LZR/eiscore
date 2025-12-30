@@ -488,7 +488,10 @@ const syncAiContext = () => {
     view: 'employee_detail',
     rowId: formData.value?.id,
     columns,
-    fileColumns
+    fileColumns,
+    aiScene: 'form',
+    allowFormula: false,
+    allowImport: false
   })
 }
 

@@ -67,6 +67,15 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     return base
   }
 
+  const formatSummaryCell = (params, col) => {
+    if (!params?.node?.rowPinned) return params.value
+    const label = activeSummaryConfig?.cellLabels?.[col?.prop]
+    if (!label) return params.value
+    const val = params.value
+    if (val === null || val === undefined || val === '') return ''
+    return `${label}: ${val}`
+  }
+
   const scheduleColumnRefresh = (colKey) => {
     if (!gridApi.value) return
     nextTick(() => {
@@ -216,6 +225,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       editable: col.editable !== false && ((params) => !isCellReadOnly(params)),
       cellStyle: getCellStyle,
       cellClassRules: cellClassRules,
+      valueFormatter: (params) => formatSummaryCell(params, col),
       headerComponent: 'LockHeader',
       headerClass: isDynamic ? 'dynamic-header' : '',
       ...widthConfig
@@ -343,6 +353,12 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
       const res = await request({ url, method: 'get' })
       gridData.value = res
+      if (eventEmitter) {
+        eventEmitter('data-loaded', {
+          rows: Array.isArray(res) ? res : [],
+          searchText: searchText.value || ''
+        })
+      }
       setTimeout(() => { 
         if (gridApi.value) {
           const allColIds = gridApi.value.getColumns().map(c => c.getColId())

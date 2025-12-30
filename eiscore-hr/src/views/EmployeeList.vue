@@ -12,6 +12,7 @@
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
+        @data-loaded="handleDataLoaded"
       >
       </eis-data-grid>
 
@@ -155,6 +156,10 @@
                 <el-input v-model="currentCol.label" placeholder="列名（比如：总工资）" style="margin-bottom: 10px;" />
 
                 <div class="formula-area">
+                  <div class="formula-actions">
+                    <el-button size="small" type="primary" plain @click="openAiFormula">AI生成公式</el-button>
+                    <span class="formula-tip">把需求告诉工作助手，自动生成复杂公式</span>
+                  </div>
                   <el-input 
                     v-model="currentCol.expression" 
                     type="textarea" 
@@ -197,15 +202,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, reactive, computed, watch } from 'vue'
 import { useRouter } from 'vue-router' // 🟢 引入 Router
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
-import { pushAiContext } from '@/utils/ai-context'
+import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 
 const router = useRouter() // 🟢 初始化 Router
 const gridRef = ref(null)
+const lastLoadedRows = ref([])
+const lastSearchText = ref('')
 const colConfigVisible = ref(false)
 const addTab = ref('text') 
 
@@ -346,18 +353,85 @@ const loadColumnsConfig = async () => {
   } catch (e) { console.error(e) }
 }
 
-const syncAiContext = () => {
+const handleDataLoaded = (payload) => {
+  const rows = Array.isArray(payload?.rows) ? payload.rows : []
+  lastLoadedRows.value = rows
+  lastSearchText.value = payload?.searchText || ''
+  syncAiContext(rows, { searchText: lastSearchText.value })
+}
+
+const buildDataStats = (rows) => {
+  const stats = { totalCount: 0, sampleSize: 0, statusCounts: {}, departmentCounts: {} }
+  if (!Array.isArray(rows)) return stats
+  stats.totalCount = rows.length
+  stats.sampleSize = rows.length
+  rows.forEach((row) => {
+    const status = row?.properties?.status || row?.status || '未设置'
+    stats.statusCounts[status] = (stats.statusCounts[status] || 0) + 1
+    const dept = row?.department || row?.properties?.department
+    if (dept) {
+      stats.departmentCounts[dept] = (stats.departmentCounts[dept] || 0) + 1
+    }
+  })
+  return stats
+}
+
+const buildDataSample = (rows, columns, limit = 50) => {
+  if (!Array.isArray(rows)) return []
+  const sample = rows.slice(0, limit)
+  return sample.map((row) => {
+    const item = {}
+    columns.forEach((col) => {
+      const prop = col.prop
+      if (!prop) return
+      if (col.type === 'file' || col.type === 'geo') return
+      const value = row?.[prop] ?? row?.properties?.[prop]
+      if (value !== undefined && value !== null && value !== '') {
+        item[prop] = value
+      }
+    })
+    if (row?.id !== undefined) item.id = row.id
+    return item
+  })
+}
+
+const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
   const columns = [...staticColumns, ...extraColumns.value].map(col => ({
     label: col.label,
     prop: col.prop,
-    type: col.type || 'text'
+    type: col.type || 'text',
+    options: col.options || [],
+    dependsOn: col.dependsOn || '',
+    cascaderOptions: col.cascaderOptions || null,
+    expression: col.expression || ''
   }))
+  const dataStats = buildDataStats(rows)
+  const dataSample = buildDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
   pushAiContext({
     app: 'hr',
     view: 'employee_list',
+    viewId: 'employee_list',
+    apiUrl: '/archives',
+    profile: 'hr',
     columns,
-    fileColumns
+    staticColumns,
+    extraColumns: extraColumns.value,
+    summaryConfig,
+    fileColumns,
+    dataStats,
+    dataSample,
+    dataScope: (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据',
+    searchText: overrides.searchText ?? lastSearchText.value ?? '',
+    aiScene: overrides.aiScene || 'grid_chat',
+    allowFormula: !!overrides.allowFormula,
+    allowFormulaOnce: !!overrides.allowFormulaOnce,
+    allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
+    importTarget: {
+      apiUrl: '/archives',
+      profile: 'hr',
+      viewId: 'employee_list'
+    }
   })
 }
 
@@ -372,6 +446,27 @@ const saveColumnsConfig = async () => {
 
 const insertVariable = (label) => {
   currentCol.expression += `{${label}}`
+}
+
+const buildFormulaPrompt = () => {
+  const label = currentCol.label || '计算列'
+  const variables = allAvailableColumns.value.map(col => col.label).join('、')
+  return [
+    '请帮我生成表格“自动计算”公式。',
+    `目标列：${label}`,
+    '要求：只输出公式，不要解释。',
+    '必须放在 ```formula``` 代码块中，内容示例：{工资}+{绩效}。',
+    `可用字段：${variables || '无'}。`
+  ].join('\n')
+}
+
+const openAiFormula = () => {
+  syncAiContext(lastLoadedRows.value, { aiScene: 'column_formula', allowFormulaOnce: true })
+  pushAiCommand({
+    id: `formula_${Date.now()}`,
+    type: 'open-worker',
+    prompt: buildFormulaPrompt()
+  })
 }
 
 const addSelectOption = () => {
@@ -439,6 +534,9 @@ const resetForm = () => {
   currentCol.fileMaxCount = 3
   currentCol.fileAccept = ''
   addTab.value = 'text'
+  if (!colConfigVisible.value) {
+    syncAiContext(lastLoadedRows.value, { aiScene: 'grid_chat', allowFormula: false })
+  }
 }
 
 const getCascaderChildren = (key) => {
@@ -605,6 +703,31 @@ const handleCreate = async () => {
 onMounted(() => {
   loadColumnsConfig()
 })
+
+const handleApplyFormula = (event) => {
+  const formula = event?.detail?.formula
+  if (!formula) return
+  if (!colConfigVisible.value || addTab.value !== 'formula') return
+  currentCol.expression = formula
+}
+
+const handleImportDone = (event) => {
+  const viewId = event?.detail?.viewId
+  if (viewId && viewId !== 'employee_list') return
+  if (gridRef.value && typeof gridRef.value.loadData === 'function') {
+    gridRef.value.loadData()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('eis-ai-apply-formula', handleApplyFormula)
+  window.addEventListener('eis-grid-imported', handleImportDone)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('eis-ai-apply-formula', handleApplyFormula)
+  window.removeEventListener('eis-grid-imported', handleImportDone)
+})
 </script>
 
 <style scoped>
@@ -648,6 +771,16 @@ onMounted(() => {
   padding: 10px; 
   border-radius: 4px; 
   border: 1px solid #dcdfe6; 
+}
+.formula-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.formula-tip {
+  font-size: 12px;
+  color: #909399;
 }
 .options-config {
   margin-top: 8px;

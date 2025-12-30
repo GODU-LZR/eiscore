@@ -116,6 +116,46 @@
                 </div>
 
                 <div
+                  v-if="msg.role === 'assistant' && getFormulaInfo(msg).formula && !isStreamingMessage(index)"
+                  class="formula-card"
+                >
+                  <div class="card-header">
+                    <span class="card-title">检测到公式</span>
+                    <span class="card-name">{{ getFormulaInfo(msg).formula }}</span>
+                  </div>
+                  <div class="card-actions">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      :loading="formulaApplyState[msg.time] === 'applying'"
+                      @click="applyAiFormula(getFormulaInfo(msg).formula, msg.time)"
+                    >
+                      {{ formulaApplyState[msg.time] === 'applied' ? '已应用' : '应用公式' }}
+                    </el-button>
+                  </div>
+                </div>
+
+                <div
+                  v-if="msg.role === 'assistant' && getImportInfo(msg).rows && getImportInfo(msg).rows.length > 0 && !isStreamingMessage(index)"
+                  class="import-card"
+                >
+                  <div class="card-header">
+                    <span class="card-title">检测到表格导入数据</span>
+                    <span class="card-name">共 {{ getImportInfo(msg).rows.length }} 行</span>
+                  </div>
+                  <div class="card-actions">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      :loading="importState[msg.time] === 'importing'"
+                      @click="applyDataImport(getImportInfo(msg), msg.time)"
+                    >
+                      {{ importState[msg.time] === 'done' ? '已导入' : '导入到当前表格' }}
+                    </el-button>
+                  </div>
+                </div>
+
+                <div
                   v-else-if="msg.role === 'assistant' && getFormTemplateInfo(msg).error && !(state.isStreaming && index === currentSession.messages.length - 1)"
                   class="form-template-error"
                 >
@@ -276,6 +316,10 @@ const sanitizeJson = (jsonStr) => {
 
 const FORM_TEMPLATE_BLOCKS = ['form-template', 'form_template', 'form-schema', 'form_schema']
 const templateSaveState = ref({})
+const FORMULA_BLOCKS = ['formula']
+const IMPORT_BLOCKS = ['data-import', 'data_import', 'grid-import', 'grid_import']
+const formulaApplyState = ref({})
+const importState = ref({})
 
 const getAuthToken = () => {
   const tokenStr = localStorage.getItem('auth_token')
@@ -287,6 +331,24 @@ const getAuthToken = () => {
     return tokenStr
   }
   return tokenStr
+}
+
+const parseJwtPayload = (token) => {
+  const parts = typeof token === 'string' ? token.split('.') : []
+  if (parts.length !== 3) return null
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+    return JSON.parse(atob(padded))
+  } catch (e) {
+    return null
+  }
+}
+
+const isTokenExpired = (token) => {
+  const payload = parseJwtPayload(token)
+  if (!payload || typeof payload.exp !== 'number') return false
+  return Date.now() / 1000 >= payload.exp
 }
 
 const extractFormTemplate = (text) => {
@@ -311,6 +373,43 @@ const extractFormTemplate = (text) => {
 }
 
 const getFormTemplateInfo = (msg) => extractFormTemplate(msg?.content || '')
+
+const extractFormula = (text) => {
+  if (!text) return { formula: null, error: null }
+  for (const tag of FORMULA_BLOCKS) {
+    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
+    const match = text.match(regex)
+    if (match && match[1]) {
+      const formula = match[1].trim()
+      if (!formula) return { formula: null, error: 'empty' }
+      return { formula, error: null }
+    }
+  }
+  return { formula: null, error: null }
+}
+
+const extractImportData = (text) => {
+  if (!text) return { rows: null, error: null }
+  for (const tag of IMPORT_BLOCKS) {
+    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
+    const match = text.match(regex)
+    if (match && match[1]) {
+      try {
+        const raw = sanitizeJson(match[1])
+        const data = JSON.parse(raw)
+        const rows = Array.isArray(data) ? data : (data.rows || data.data || data.items || null)
+        if (!Array.isArray(rows)) return { rows: null, error: 'invalid' }
+        return { rows, error: null }
+      } catch (e) {
+        return { rows: null, error: 'parse' }
+      }
+    }
+  }
+  return { rows: null, error: null }
+}
+
+const getFormulaInfo = (msg) => extractFormula(msg?.content || '')
+const getImportInfo = (msg) => extractImportData(msg?.content || '')
 
 const getTemplateSectionCount = (schema) => {
   if (!schema?.layout) return 0
@@ -388,6 +487,110 @@ const saveFormTemplate = async (schema, messageKey) => {
   } catch (e) {
     templateSaveState.value[messageKey] = 'error'
     ElMessage.error('模板保存失败')
+  }
+}
+
+const isStreamingMessage = (index) => {
+  if (!currentSession.value) return false
+  return state.isStreaming && index === currentSession.value.messages.length - 1
+}
+
+const applyAiFormula = (formula, messageKey) => {
+  if (!formula) return
+  if (formulaApplyState.value[messageKey] === 'applied') return
+  formulaApplyState.value[messageKey] = 'applying'
+  try {
+    const event = new CustomEvent('eis-ai-apply-formula', { detail: { formula } })
+    window.dispatchEvent(event)
+    formulaApplyState.value[messageKey] = 'applied'
+    ElMessage.success('公式已应用')
+  } catch (e) {
+    formulaApplyState.value[messageKey] = 'error'
+    ElMessage.error('公式应用失败')
+  }
+}
+
+const buildImportPayload = (rows, context) => {
+  const staticProps = new Set((context?.staticColumns || []).map(col => col.prop))
+  const labelToProp = new Map((context?.columns || []).map(col => [col.label, col.prop]))
+  return rows.map((row) => {
+    if (!row || typeof row !== 'object') return null
+    const payload = { properties: {} }
+    const rowProps = row.properties && typeof row.properties === 'object' ? row.properties : null
+    Object.entries(row).forEach(([key, value]) => {
+      if (key === 'properties') return
+      let prop = key
+      if (!staticProps.has(prop) && labelToProp.has(prop)) {
+        prop = labelToProp.get(prop)
+      }
+      if (staticProps.has(prop)) {
+        payload[prop] = value
+      } else {
+        payload.properties[prop] = value
+      }
+    })
+    if (rowProps) {
+      payload.properties = { ...payload.properties, ...rowProps }
+    }
+    if (Object.keys(payload.properties).length === 0) delete payload.properties
+    return payload
+  }).filter(Boolean)
+}
+
+const applyDataImport = async (info, messageKey) => {
+  if (importState.value[messageKey] === 'done') return
+  const context = aiBridge.state.currentContext
+  const target = context?.importTarget
+  if (!target?.apiUrl) {
+    ElMessage.error('未找到可导入的表格上下文')
+    return
+  }
+  const rows = info?.rows || []
+  if (!rows.length) {
+    ElMessage.warning('没有可导入的数据')
+    return
+  }
+  const payload = buildImportPayload(rows, context)
+  if (!payload.length) {
+    ElMessage.warning('导入数据格式不正确')
+    return
+  }
+  importState.value[messageKey] = 'importing'
+  try {
+    const token = getAuthToken()
+    if (token && isTokenExpired(token)) {
+      importState.value[messageKey] = 'error'
+      ElMessage.error('登录已过期，请重新登录后再导入')
+      return
+    }
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    }
+    if (target.profile) {
+      headers['Accept-Profile'] = target.profile
+      headers['Content-Profile'] = target.profile
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const url = target.apiUrl.startsWith('/api') ? target.apiUrl : `/api${target.apiUrl}`
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload)
+    })
+    if (res.status === 401) {
+      importState.value[messageKey] = 'error'
+      ElMessage.error('登录已过期，请重新登录后再导入')
+      return
+    }
+    if (!res.ok) throw new Error(`导入失败: ${res.status}`)
+    importState.value[messageKey] = 'done'
+    ElMessage.success(`已导入 ${payload.length} 行`)
+    const event = new CustomEvent('eis-grid-imported', { detail: { viewId: target.viewId } })
+    window.dispatchEvent(event)
+  } catch (e) {
+    importState.value[messageKey] = 'error'
+    ElMessage.error('导入失败')
   }
 }
 
@@ -894,7 +1097,21 @@ $border-color: #e4e7ed;
   gap: 6px;
 }
 
-.form-template-card .card-header {
+.formula-card,
+.import-card {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px dashed $border-color;
+  border-radius: 10px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-template-card .card-header,
+.formula-card .card-header,
+.import-card .card-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -902,23 +1119,31 @@ $border-color: #e4e7ed;
   color: #303133;
 }
 
-.form-template-card .card-title {
+.form-template-card .card-title,
+.formula-card .card-title,
+.import-card .card-title {
   font-size: 12px;
   color: #909399;
 }
 
-.form-template-card .card-name {
+.form-template-card .card-name,
+.formula-card .card-name,
+.import-card .card-name {
   font-size: 13px;
 }
 
-.form-template-card .card-meta {
+.form-template-card .card-meta,
+.formula-card .card-meta,
+.import-card .card-meta {
   font-size: 12px;
   color: #909399;
   display: flex;
   gap: 12px;
 }
 
-.form-template-card .card-actions {
+.form-template-card .card-actions,
+.formula-card .card-actions,
+.import-card .card-actions {
   display: flex;
   justify-content: flex-end;
 }

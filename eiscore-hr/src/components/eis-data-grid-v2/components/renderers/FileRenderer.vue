@@ -1,5 +1,5 @@
 <template>
-  <div class="file-renderer" @click.stop="openDialog">
+  <div class="file-renderer" :class="{ 'is-disabled': isPinned }" @click.stop="openDialog">
     <span>{{ displayText }}</span>
   </div>
 </template>
@@ -21,7 +21,10 @@ const getName = (item) => {
   return item.name || item.fileName || item.filename || item.title || ''
 }
 
+const isPinned = computed(() => !!props.params?.node?.rowPinned)
+
 const displayText = computed(() => {
+  if (isPinned.value) return ''
   const list = toList(props.params?.value)
   const first = list[0]
   const name = getName(first)
@@ -29,6 +32,7 @@ const displayText = computed(() => {
 })
 
 const openDialog = () => {
+  if (isPinned.value) return
   props.params?.context?.componentParent?.openFileDialog?.(props.params)
 }
 </script>
@@ -45,5 +49,14 @@ const openDialog = () => {
 
 .file-renderer:hover {
   color: #409eff;
+}
+
+.file-renderer.is-disabled {
+  cursor: default;
+  color: #909399;
+}
+
+.file-renderer.is-disabled:hover {
+  color: #909399;
 }
 </style>

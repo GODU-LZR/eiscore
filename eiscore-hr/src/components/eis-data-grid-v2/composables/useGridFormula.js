@@ -6,7 +6,7 @@ import { ElMessage } from 'element-plus'
 export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, currentUser, hooks, columnLockState) {
   const pinnedBottomRowData = ref([])
   const isSavingConfig = ref(false)
-  const configDialog = reactive({ visible: false, title: '', type: null, colId: null, tempValue: '', expression: '' })
+  const configDialog = reactive({ visible: false, title: '', type: null, colId: null, tempValue: '', expression: '', cellLabel: '' })
 
   const availableColumns = computed(() => [...props.staticColumns, ...props.extraColumns].map(c => ({ label: c.label, prop: c.prop })))
 
@@ -25,6 +25,9 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
           Object.assign(activeSummaryConfig, remoteConfig)
           if (!activeSummaryConfig.expressions) activeSummaryConfig.expressions = {}
           if (!activeSummaryConfig.rules) activeSummaryConfig.rules = {}
+          if (!activeSummaryConfig.cellLabels) {
+            activeSummaryConfig.cellLabels = remoteConfig.cell_labels || remoteConfig.cellLabels || {}
+          }
           
           // 🟢 恢复列锁状态
           if (remoteConfig.column_locks) {
@@ -139,6 +142,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
         if (isP) delete totalRow.properties[col.prop]; else delete totalRow[col.prop]
       }
     })
+
     return [totalRow]
   }
 
@@ -151,6 +155,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
       configDialog.type = 'data'; configDialog.title = `统计配置: ${colName}`; configDialog.colId = field
       configDialog.expression = activeSummaryConfig.expressions?.[field] || ''
       configDialog.tempValue = activeSummaryConfig.rules[field] || 'none'
+      configDialog.cellLabel = activeSummaryConfig.cellLabels?.[field] || ''
     }
     configDialog.visible = true
   }
@@ -163,6 +168,9 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
         if (formData.rule) activeSummaryConfig.rules[field] = formData.rule; else delete activeSummaryConfig.rules[field]
         if (formData.tab === 'formula' && formData.expression && formData.expression.trim()) activeSummaryConfig.expressions[field] = formData.expression
         else delete activeSummaryConfig.expressions[field]
+        if (!activeSummaryConfig.cellLabels) activeSummaryConfig.cellLabels = {}
+        if (formData.cellLabel && formData.cellLabel.trim()) activeSummaryConfig.cellLabels[field] = formData.cellLabel.trim()
+        else delete activeSummaryConfig.cellLabels[field]
     }
     pinnedBottomRowData.value = calculateTotals(gridData.value)
     if(gridApi.value) {
@@ -182,6 +190,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
                         label: activeSummaryConfig.label,
                         rules: activeSummaryConfig.rules,
                         expressions: activeSummaryConfig.expressions,
+                        cell_labels: activeSummaryConfig.cellLabels,
                         column_locks: columnLockState // 🟢 顺带保存列锁状态
                     },
                     updated_by: currentUser.value 
@@ -209,6 +218,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
                         label: activeSummaryConfig.label,
                         rules: activeSummaryConfig.rules,
                         expressions: activeSummaryConfig.expressions,
+                        cell_labels: activeSummaryConfig.cellLabels,
                         column_locks: columnLockState
                     },
                     updated_by: currentUser.value 

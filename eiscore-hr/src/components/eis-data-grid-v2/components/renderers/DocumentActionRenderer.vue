@@ -1,6 +1,7 @@
 <template>
   <div class="action-cell-wrapper" @mousedown.stop>
     <el-button 
+      v-if="!isPinned"
       link 
       type="primary" 
       size="small" 
@@ -14,12 +15,16 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { ElButton, ElIcon } from 'element-plus'
 import { Document } from '@element-plus/icons-vue'
 
 const props = defineProps(['params'])
 
+const isPinned = computed(() => !!props.params?.node?.rowPinned)
+
 const onViewForm = () => {
+  if (isPinned.value) return
   // 确保 Context 存在
   if (props.params.context.componentParent && props.params.context.componentParent.viewDocument) {
     props.params.context.componentParent.viewDocument(props.params.data)
