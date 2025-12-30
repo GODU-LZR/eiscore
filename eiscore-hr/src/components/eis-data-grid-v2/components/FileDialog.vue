@@ -1,9 +1,9 @@
 <template>
   <el-dialog
     :model-value="visible"
-    width="860px"
+    width="1200px"
     title="文件"
-    top="8vh"
+    top="3vh"
     destroy-on-close
     @close="closeDialog"
   >
@@ -41,6 +41,9 @@
         <div v-if="activeFile" class="file-preview-body">
           <img v-if="isImage(activeFile)" :src="previewUrl(activeFile)" alt="预览" class="file-preview-img" />
           <iframe v-else-if="isPdf(activeFile)" :src="previewUrl(activeFile)" class="file-preview-pdf"></iframe>
+          <video v-else-if="isVideo(activeFile)" :src="previewUrl(activeFile)" class="file-preview-media" controls />
+          <audio v-else-if="isAudio(activeFile)" :src="previewUrl(activeFile)" class="file-preview-audio" controls />
+          <iframe v-else-if="isDoc(activeFile)" :src="previewUrl(activeFile)" class="file-preview-doc"></iframe>
           <div v-else class="file-preview-empty">
             <div class="file-preview-text">暂不支持预览</div>
             <el-button type="primary" @click="downloadFile(activeFile)">下载查看</el-button>
@@ -80,7 +83,7 @@ const colDef = computed(() => props.params?.colDef || {})
 const maxCount = computed(() => Math.max(1, Number(colDef.value.fileMaxCount) || 3))
 const maxSizeMb = computed(() => Math.max(1, Number(colDef.value.fileMaxSizeMb) || 20))
 
-const defaultAccept = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx', '.ppt', '.pptx']
+const defaultAccept = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.mp4', '.mp3']
 
 const parseAccept = (raw) => {
   if (!raw) return defaultAccept
@@ -169,6 +172,23 @@ const isPdf = (item) => {
   const ext = item.ext || getExt(item.name)
   if (item.type && item.type.includes('pdf')) return true
   return String(ext).toLowerCase() === 'pdf'
+}
+
+const isVideo = (item) => {
+  const ext = item.ext || getExt(item.name)
+  if (item.type && item.type.startsWith('video/')) return true
+  return ['mp4', 'webm', 'ogg'].includes(String(ext).toLowerCase())
+}
+
+const isAudio = (item) => {
+  const ext = item.ext || getExt(item.name)
+  if (item.type && item.type.startsWith('audio/')) return true
+  return ['mp3', 'wav', 'ogg', 'm4a'].includes(String(ext).toLowerCase())
+}
+
+const isDoc = (item) => {
+  const ext = item.ext || getExt(item.name)
+  return String(ext).toLowerCase() === 'doc'
 }
 
 const previewUrl = (item) => item.dataUrl || item.url || ''
@@ -320,14 +340,15 @@ watch(() => props.visible, (val) => {
 watch(() => props.params, (val) => {
   if (props.visible && val) setFilesFromValue(val.value)
 })
+
 </script>
 
 <style scoped>
 .file-dialog-body {
   display: grid;
-  grid-template-columns: 1.1fr 1fr;
+  grid-template-columns: 1.2fr 1fr;
   gap: 16px;
-  min-height: 360px;
+  min-height: 600px;
 }
 
 .file-panel {
@@ -353,7 +374,7 @@ watch(() => props.params, (val) => {
   border-radius: 6px;
   padding: 8px;
   background: #fafafa;
-  max-height: 360px;
+  max-height: 580px;
   overflow-y: auto;
 }
 
@@ -428,15 +449,30 @@ watch(() => props.params, (val) => {
 .file-preview-img {
   width: 100%;
   height: 100%;
-  max-height: 360px;
+  max-height: 600px;
   object-fit: contain;
   border-radius: 4px;
 }
 
 .file-preview-pdf {
   width: 100%;
-  height: 360px;
+  height: 600px;
   border: none;
+}
+
+.file-preview-doc {
+  width: 100%;
+  height: 600px;
+  border: none;
+}
+
+.file-preview-media {
+  width: 100%;
+  max-height: 600px;
+}
+
+.file-preview-audio {
+  width: 100%;
 }
 
 .file-preview-empty {
