@@ -125,6 +125,7 @@ const loadData = async () => {
           { company: '示例前司B', position: '组长', start_date: '2021-02-01', end_date: '2023-01-01' }
         ]
       }
+      applyFormulaUpdates(formData.value)
     }
   } catch (e) {
     console.error(e)
@@ -196,6 +197,7 @@ const loadFormValues = async () => {
 
 const handleFormUpdate = (nextValue) => {
   if (!nextValue || !formData.value) return
+  sanitizeCascaderValues(nextValue)
   const nextProps = nextValue.properties || {}
   const knownKeys = knownPropertyKeys.value
   const updatedProps = {}
@@ -221,6 +223,7 @@ const handleFormUpdate = (nextValue) => {
   })
   formData.value.properties = cleanedProps
   extraValues.value = updatedExtra
+  applyFormulaUpdates(formData.value)
 }
 
 const saveFormValues = async () => {
@@ -248,6 +251,7 @@ const saveFormValues = async () => {
 const getAllColumns = () => ([
   ...staticColumns,
   ...dynamicColumns.value.map(col => ({
+    ...col,
     label: col.label,
     prop: col.prop,
     type: col.type || 'text'
@@ -260,6 +264,95 @@ const getColumnValue = (col, rowData) => {
     return rowData[col.prop]
   }
   return rowData.properties?.[col.prop] ?? ''
+}
+
+const getRowValueByProp = (rowData, prop) => {
+  if (!rowData || !prop) return ''
+  if (Object.prototype.hasOwnProperty.call(rowData, prop)) {
+    return rowData[prop]
+  }
+  return rowData.properties?.[prop] ?? ''
+}
+
+const setRowValueByProp = (rowData, prop, value) => {
+  if (!rowData || !prop) return
+  if (Object.prototype.hasOwnProperty.call(rowData, prop)) {
+    rowData[prop] = value
+    return
+  }
+  if (!rowData.properties) rowData.properties = {}
+  rowData.properties[prop] = value
+}
+
+const normalizeOptionKey = (value) => {
+  if (value === null || value === undefined) return ''
+  return String(value)
+}
+
+const normalizeOptionList = (options) => {
+  if (!Array.isArray(options)) return []
+  return options.map(opt => {
+    if (opt && typeof opt === 'object') {
+      return {
+        label: opt.label ?? opt.value ?? '',
+        value: opt.value ?? opt.label ?? ''
+      }
+    }
+    return { label: String(opt), value: opt }
+  })
+}
+
+const sanitizeCascaderValues = (rowData) => {
+  if (!rowData) return
+  const cascaderColumns = dynamicColumns.value.filter(col => col?.type === 'cascader' && col.dependsOn && col.cascaderOptions)
+  if (cascaderColumns.length === 0) return
+  cascaderColumns.forEach(col => {
+    const parentValue = getRowValueByProp(rowData, col.dependsOn)
+    const map = col.cascaderOptions || {}
+    const key = normalizeOptionKey(parentValue)
+    const options = map[key] || map[parentValue] || []
+    const normalized = normalizeOptionList(options)
+    const allowed = new Set(normalized.map(opt => normalizeOptionKey(opt.value)))
+    const current = getRowValueByProp(rowData, col.prop)
+    if (current && !allowed.has(normalizeOptionKey(current))) {
+      setRowValueByProp(rowData, col.prop, '')
+    }
+  })
+}
+
+const applyFormulaUpdates = (rowData) => {
+  if (!rowData) return
+  const formulaColumns = dynamicColumns.value.filter(col => col?.type === 'formula' && col.expression)
+  if (formulaColumns.length === 0) return
+
+  const rowDataMap = {}
+  staticColumns.forEach(col => {
+    const val = getRowValueByProp(rowData, col.prop)
+    rowDataMap[col.prop] = val
+    rowDataMap[col.label] = val
+  })
+  dynamicColumns.value.forEach(col => {
+    const val = getRowValueByProp(rowData, col.prop)
+    rowDataMap[col.prop] = val
+    rowDataMap[col.label] = val
+  })
+
+  formulaColumns.forEach(col => {
+    try {
+      const evalExpr = col.expression.replace(/\{(.+?)\}/g, (match, key) => {
+        const val = rowDataMap[key]
+        const num = parseFloat(val)
+        return Number.isFinite(num) ? num : 0
+      })
+      const result = new Function(`return (${evalExpr})`)()
+      if (result !== undefined && !isNaN(result) && isFinite(result)) {
+        const finalVal = Number(result.toFixed(2))
+        setRowValueByProp(rowData, col.prop, finalVal)
+      }
+    } catch (e) {
+      // ignore formula errors
+    }
+  })
 }
 
 const buildFileColumnPayload = (columns, rowData) => {
@@ -401,6 +494,9 @@ watch([selectedTemplateId, () => formData.value?.id], () => {
 
 watch([() => dynamicColumns.value, () => formData.value?.id], () => {
   syncAiContext()
+  if (formData.value) {
+    applyFormulaUpdates(formData.value)
+  }
 })
 </script>
 

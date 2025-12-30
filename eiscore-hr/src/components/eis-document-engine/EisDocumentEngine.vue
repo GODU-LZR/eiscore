@@ -21,20 +21,51 @@
                 <span v-if="item.label" class="field-label">{{ item.label }}:</span>
                 
                 <div class="field-content">
-                  <span v-if="!item.widget || item.widget === 'text'">
-                    {{ resolveValue(item.field, item.content) }}
-                  </span>
-
-                  <el-input 
-                    v-else-if="item.widget === 'input'"
+                  <el-input
+                    v-if="shouldRenderTextInput(item)"
                     :model-value="resolveValue(item.field)"
                     @update:modelValue="(val) => updateValue(item.field, val)"
                     size="small"
                     :placeholder="item.placeholder"
                   />
 
+                  <el-select
+                    v-else-if="isSelectWidget(item) && isEditableField(item)"
+                    :model-value="resolveValue(item.field)"
+                    @change="(val) => updateValue(item.field, val)"
+                    size="small"
+                    :placeholder="item.placeholder || '请选择'"
+                    :automatic-dropdown="true"
+                    style="width: 100%;"
+                  >
+                    <el-option
+                      v-for="opt in resolveSelectOptions(item)"
+                      :key="opt.value"
+                      :label="opt.label"
+                      :value="opt.value"
+                    />
+                  </el-select>
+
+                  <el-select
+                    v-else-if="isCascaderWidget(item) && isEditableField(item)"
+                    :model-value="resolveValue(item.field)"
+                    @change="(val) => updateValue(item.field, val)"
+                    size="small"
+                    :placeholder="cascaderPlaceholder(item)"
+                    :disabled="!hasCascaderParent(item)"
+                    :automatic-dropdown="true"
+                    style="width: 100%;"
+                  >
+                    <el-option
+                      v-for="opt in resolveCascaderOptions(item)"
+                      :key="opt.value"
+                      :label="opt.label"
+                      :value="opt.value"
+                    />
+                  </el-select>
+
                   <el-input
-                    v-else-if="item.widget === 'textarea'"
+                    v-else-if="shouldRenderTextarea(item)"
                     :model-value="resolveValue(item.field)"
                     @update:modelValue="(val) => updateValue(item.field, val)"
                     type="textarea"
@@ -44,7 +75,7 @@
                   />
 
                   <el-date-picker
-                    v-else-if="item.widget === 'date'"
+                    v-else-if="item.widget === 'date' && isEditableField(item)"
                     :model-value="resolveValue(item.field)"
                     @update:modelValue="(val) => updateValue(item.field, val)"
                     type="date"
@@ -54,7 +85,7 @@
                   />
 
                   <el-input-number
-                    v-else-if="item.widget === 'number'"
+                    v-else-if="item.widget === 'number' && isEditableField(item)"
                     :model-value="resolveValue(item.field)"
                     @update:modelValue="(val) => updateValue(item.field, val)"
                     size="small"
@@ -71,7 +102,7 @@
                       :preview-src-list="[resolveImageValue(item)]"
                     />
                     <div v-else class="image-placeholder">未选择图片</div>
-                    <div class="image-actions" v-if="imageOptions(item).length">
+                    <div class="image-actions" v-if="imageOptions(item).length && isEditableField(item)">
                       <el-select
                         size="small"
                         placeholder="选择图片"
@@ -88,6 +119,10 @@
                       <el-button size="small" @click="updateValue(item.field, '')">清空</el-button>
                     </div>
                   </div>
+
+                  <span v-else>
+                    {{ resolveDisplayValue(item, item.content) }}
+                  </span>
                 </div>
               </div>
             </el-col>
@@ -174,6 +209,10 @@ const props = defineProps({
     required: true,
     default: () => ({ layout: [] })
   },
+  columns: {
+    type: Array,
+    default: () => []
+  },
   fileOptions: {
     type: Array,
     default: () => []
@@ -235,6 +274,155 @@ const normalizeImageValue = (value) => {
     return value.url || value.file_url || value.dataUrl || value.src || ''
   }
   return value
+}
+
+const getColumnMeta = (field) => {
+  if (!field) return null
+  return Array.isArray(props.columns)
+    ? props.columns.find(col => col?.prop === field) || null
+    : null
+}
+
+const normalizeOptions = (options) => {
+  if (!Array.isArray(options)) return []
+  return options.map((opt) => {
+    if (opt && typeof opt === 'object') {
+      const label = opt.label ?? opt.value ?? ''
+      const value = opt.value ?? opt.label ?? ''
+      return { label, value }
+    }
+    return { label: String(opt), value: opt }
+  })
+}
+
+const normalizeOptionKey = (value) => {
+  if (value === null || value === undefined) return ''
+  return String(value)
+}
+
+const resolveWidgetType = (item) => {
+  const col = getColumnMeta(item?.field)
+  if (col?.type === 'select' || col?.type === 'cascader' || col?.type === 'geo' || col?.type === 'file' || col?.type === 'formula') {
+    return col.type
+  }
+  if (item?.widget) return item.widget
+  return col?.type || ''
+}
+
+const isSelectWidget = (item) => resolveWidgetType(item) === 'select'
+
+const isCascaderWidget = (item) => resolveWidgetType(item) === 'cascader'
+
+const EDITABLE_TYPES = new Set(['text', 'select', 'cascader'])
+
+const isEditableField = (item) => {
+  const col = getColumnMeta(item?.field)
+  if (!col) return false
+  const type = col.type || 'text'
+  if (!EDITABLE_TYPES.has(type)) return false
+  const widget = item?.widget
+  if (widget && ['image', 'date', 'number'].includes(widget)) return false
+  return true
+}
+
+const shouldRenderTextInput = (item) => {
+  if (!isEditableField(item)) return false
+  if (isSelectWidget(item) || isCascaderWidget(item)) return false
+  const widget = item?.widget
+  return !widget || widget === 'input' || widget === 'text'
+}
+
+const shouldRenderTextarea = (item) => {
+  if (!isEditableField(item)) return false
+  return item?.widget === 'textarea'
+}
+
+const resolveSelectOptions = (item) => {
+  const col = getColumnMeta(item?.field)
+  const options = item?.options || col?.options || []
+  return normalizeOptions(options)
+}
+
+const getCascaderParentValue = (item) => {
+  const col = getColumnMeta(item?.field)
+  const dependsOn = item?.dependsOn || item?.dependsOnField || col?.dependsOn || col?.dependsOnField
+  if (!dependsOn) return null
+  return getValueByPath(dependsOn, props.modelValue)
+}
+
+const hasCascaderParent = (item) => {
+  const value = getCascaderParentValue(item)
+  return value !== '' && value !== null && value !== undefined
+}
+
+const cascaderPlaceholder = (item) => {
+  if (hasCascaderParent(item)) return item?.placeholder || '请选择'
+  return '请先选择上级'
+}
+
+const resolveCascaderOptions = (item) => {
+  const col = getColumnMeta(item?.field)
+  const dependsOn = item?.dependsOn || item?.dependsOnField || col?.dependsOn || col?.dependsOnField
+  const cascaderOptions = item?.cascaderOptions || item?.cascaderOptionsMap || col?.cascaderOptions || col?.cascaderOptionsMap
+  if (dependsOn && cascaderOptions && typeof cascaderOptions === 'object') {
+    const parentValue = getCascaderParentValue(item)
+    const key = normalizeOptionKey(parentValue)
+    const options = cascaderOptions[key] || cascaderOptions[parentValue] || []
+    return normalizeOptions(options)
+  }
+  return resolveSelectOptions(item)
+}
+
+const formatScalarValue = (value) => {
+  if (value === null || value === undefined) return ''
+  if (Array.isArray(value)) {
+    const labels = value
+      .map((entry) => {
+        if (typeof entry === 'string') return entry
+        if (entry && typeof entry === 'object') {
+          return entry.name || entry.fileName || entry.filename || entry.label || entry.value || ''
+        }
+        return ''
+      })
+      .filter(Boolean)
+    return labels.join(', ')
+  }
+  if (typeof value === 'object') {
+    return value.label || value.value || value.name || ''
+  }
+  return String(value)
+}
+
+const resolveOptionLabel = (value, options) => {
+  const key = normalizeOptionKey(value)
+  const match = options.find(opt => normalizeOptionKey(opt.value) === key)
+  return match?.label ?? formatScalarValue(value)
+}
+
+const formatGeoValue = (value) => {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return ''
+  if (typeof value === 'object') {
+    const address = value.address || value.ai_address || value.aiAddress || value.ip_address || value.ipAddress || ''
+    if (address) return String(address)
+    const lng = value.lng ?? value.longitude ?? ''
+    const lat = value.lat ?? value.latitude ?? ''
+    if (lng !== '' || lat !== '') return `${lng}, ${lat}`.trim()
+  }
+  return ''
+}
+
+const resolveDisplayValue = (item, contentTemplate) => {
+  if (contentTemplate) return resolveValue(item?.field, contentTemplate)
+  if (!item?.field) return ''
+  const col = getColumnMeta(item.field)
+  const raw = getValueByPath(item.field, props.modelValue)
+  if (col?.type === 'geo') return formatGeoValue(raw)
+  if (col?.type === 'select') return resolveOptionLabel(raw, resolveSelectOptions(item))
+  if (col?.type === 'cascader') return resolveOptionLabel(raw, resolveCascaderOptions(item))
+  if (col?.type === 'file') return formatScalarValue(raw)
+  return formatScalarValue(raw)
 }
 
 const resolveImageValue = (item) => {
@@ -324,7 +512,9 @@ const removeTableRow = (tableField, rowIndex) => {
 const isTableEditable = (section, col) => {
   if (section.editable === false) return false
   if (col.editable === false) return false
-  return true
+  const meta = getColumnMeta(col?.field)
+  if (!meta) return false
+  return meta.type === 'text'
 }
 
 const appliedImageDefaults = new Set()
