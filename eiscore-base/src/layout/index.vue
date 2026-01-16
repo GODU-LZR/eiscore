@@ -14,7 +14,7 @@
       </div>
 
       <el-menu
-        :default-active="$route.path"
+        :default-active="activeMenu"
         class="el-menu-vertical"
         :background-color="asideTheme.menuBg"
         :text-color="asideTheme.menuText"
@@ -32,7 +32,7 @@
           <el-icon><Box /></el-icon>
           <template #title>物料管理</template>
         </el-menu-item>
-        <el-menu-item index="/hr/employee" @click.native.prevent="router.push('/hr/employee')">
+        <el-menu-item index="/hr" @click.native.prevent="router.push('/hr')">
           <el-icon><User /></el-icon>
           <template #title>人事管理</template>
         </el-menu-item>
@@ -148,6 +148,12 @@ const asideTheme = computed(() => {
 
 const showWorkerAssistant = computed(() => {
   return route.path !== '/' && !route.path.startsWith('/ai/enterprise')
+})
+
+const activeMenu = computed(() => {
+  if (route.path.startsWith('/materials')) return '/materials'
+  if (route.path.startsWith('/hr')) return '/hr'
+  return route.path
 })
 
 const toggleCollapse = () => {

@@ -99,6 +99,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     })
   }
 
+
   const refreshDictColumns = (dictKey) => {
     if (!gridApi.value) return
     const cols = gridApi.value.getColumns() || []
@@ -352,10 +353,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       let url = `${props.apiUrl}?order=id.desc`
       if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
       const res = await request({ url, method: 'get' })
-      gridData.value = res
+      const rows = Array.isArray(res) ? res : []
+      gridData.value = rows
       if (eventEmitter) {
         eventEmitter('data-loaded', {
-          rows: Array.isArray(res) ? res : [],
+          rows,
           searchText: searchText.value || ''
         })
       }

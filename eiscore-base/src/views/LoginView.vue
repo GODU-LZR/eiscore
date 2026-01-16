@@ -138,7 +138,8 @@ const handleLogin = async () => {
           user: {
             id: payload.username, // 这里暂时用 username 当 id
             name: payload.username,
-            role: payload.role || 'user',
+            role: payload.app_role || payload.role || 'user',
+            dbRole: payload.role || 'web_user',
             // 关键：从 Token 里拿到数据库定义的 permissions 数组
             permissions: payload.permissions || [], 
             avatar: payload.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'

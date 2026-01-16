@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 // 1. 引入 qiankun 辅助变量 (用于判断是否在基座中运行)
 import { qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
 // 2. 引入页面组件 (请确保你本地 views/EmployeeList.vue 文件存在)
+import HrApps from '../views/HrApps.vue'
+import HrAppView from '../views/HrAppView.vue'
 import EmployeeList from '../views/EmployeeList.vue'
 import EmployeeDetail from '../views/EmployeeDetail.vue'
 
@@ -14,7 +16,18 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/employee' // 默认跳转
+      redirect: '/apps' // 默认跳转
+    },
+    {
+      path: '/apps',
+      name: 'HrApps',
+      component: HrApps
+    },
+    {
+      path: '/app/:key',
+      name: 'HrAppView',
+      component: HrAppView,
+      props: true
     },
     {
       path: '/employee',
