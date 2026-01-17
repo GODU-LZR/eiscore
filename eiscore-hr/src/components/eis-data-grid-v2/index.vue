@@ -120,10 +120,16 @@ const AG_GRID_LOCALE_CN = {
 
 const props = defineProps({
   apiUrl: { type: String, required: true },
+  writeUrl: { type: String, default: '' },
+  includeProperties: { type: Boolean, default: true },
+  writeMode: { type: String, default: 'upsert' },
+  fieldDefaults: { type: Object, default: () => ({}) },
+  patchRequiredFields: { type: Array, default: () => [] },
   viewId: { type: String, required: false, default: null },
   staticColumns: { type: Array, default: () => [] },
   extraColumns: { type: Array, default: () => [] },
-  summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) }
+  summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) },
+  defaultOrder: { type: String, default: 'id.desc' }
 })
 
 // 🟢 声明事件：增加 view-document
@@ -193,7 +199,15 @@ const defaultColDef = {
   }
 }
 const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
-const getRowId = (params) => String(params.data.id)
+const getRowId = (params) => {
+  const data = params.data || {}
+  if (data.id !== undefined && data.id !== null) return String(data.id)
+  if (data.att_month && (data.employee_id || data.temp_phone || data.temp_name)) {
+    const key = data.employee_id || data.temp_phone || data.temp_name
+    return `${data.att_month}-${key}`
+  }
+  return String(params.rowIndex ?? '')
+}
 
 const onGridReady = (params) => { 
   gridApi.value = params.api; 
@@ -274,4 +288,27 @@ defineExpose({ loadData })
 .status-editor-item.is-selected { background-color: #ecf5ff; color: #409EFF; font-weight: 500; }
 .status-label { margin-left: 0; flex: 1; }
 .status-check-mark { width: 6px; height: 6px; border-radius: 50%; background-color: #409EFF; }
+
+.ag-theme-alpine .ag-cell-inline-editing {
+  padding: 0 !important;
+}
+
+.ag-theme-alpine .ag-cell-inline-editing .ag-input-field-input {
+  width: 100%;
+  height: 100%;
+  line-height: 34px;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.ag-theme-alpine .ag-cell-inline-editing .ag-cell-edit-wrapper {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+}
+
+.ag-theme-alpine .ag-cell-inline-editing .ag-input-field {
+  width: 100%;
+  height: 100%;
+}
 </style>

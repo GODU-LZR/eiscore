@@ -64,11 +64,18 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (params.colDef.field === '_status') return { ...base, cursor: 'pointer' }
     if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
     if (params.colDef.editable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
+    if (params.colDef?.multiLine) {
+      return { ...base, whiteSpace: 'pre-line', lineHeight: '18px', paddingTop: '6px', paddingBottom: '6px' }
+    }
     return base
   }
 
   const formatSummaryCell = (params, col) => {
-    if (!params?.node?.rowPinned) return params.value
+    if (!params?.node?.rowPinned) {
+      if (typeof col?.formatter === 'function') return col.formatter(params)
+      if (Array.isArray(params.value)) return params.value.join('  ')
+      return params.value
+    }
     const label = activeSummaryConfig?.cellLabels?.[col?.prop]
     if (!label) return params.value
     const val = params.value
@@ -219,6 +226,15 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       ? { width: col.width, minWidth, suppressSizeToFit: true } 
       : { flex: 1, minWidth }
 
+    const extraColDef = {}
+    if (typeof col.valueGetter === 'function') extraColDef.valueGetter = col.valueGetter
+    if (typeof col.valueSetter === 'function') extraColDef.valueSetter = col.valueSetter
+    if (typeof col.valueParser === 'function') extraColDef.valueParser = col.valueParser
+    if (col.multiLine) extraColDef.multiLine = true
+    if (col.cellEditor) extraColDef.cellEditor = col.cellEditor
+    if (col.cellEditorPopup !== undefined) extraColDef.cellEditorPopup = col.cellEditorPopup
+    if (col.cellEditorPopupPosition) extraColDef.cellEditorPopupPosition = col.cellEditorPopupPosition
+
     const colDef = {
       headerName: col.label,
       field: field,
@@ -229,7 +245,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       valueFormatter: (params) => formatSummaryCell(params, col),
       headerComponent: 'LockHeader',
       headerClass: isDynamic ? 'dynamic-header' : '',
-      ...widthConfig
+      ...widthConfig,
+      ...extraColDef
     }
 
     if (isDynamic) {
@@ -350,7 +367,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const loadData = async () => {
     isLoading.value = true 
     try {
-      let url = `${props.apiUrl}?order=id.desc`
+      let url = props.apiUrl
+      const orderClause = props.defaultOrder
+      if (orderClause) {
+        url = `${url}${url.includes('?') ? '&' : '?'}order=${orderClause}`
+      }
       if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
       const res = await request({ url, method: 'get' })
       const rows = Array.isArray(res) ? res : []
