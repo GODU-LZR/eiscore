@@ -155,7 +155,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
             }
         }
     } catch (e) {
-      const detail = e?.response?.data?.message || e?.message
+      const detail = e?.response?.data?.message || e?.response?.data?.details || e?.message
       ElMessage.error(detail || '保存失败')
     } 
     finally { setTimeout(() => { isRemoteUpdating.value = false }, 50) }

@@ -2,7 +2,7 @@
 create table if not exists public.form_values (
   id uuid primary key default gen_random_uuid(),
   template_id text not null,
-  row_id bigint not null,
+  row_id text not null,
   payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

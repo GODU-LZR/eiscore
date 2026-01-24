@@ -48,7 +48,7 @@ export const HR_APPS = [
     configKey: 'hr_transfer_cols',
     icon: 'Document',
     tone: 'orange',
-    enableDetail: false,
+    enableDetail: true,
     staticColumns: BASE_STATIC_COLUMNS,
     summaryConfig: DEFAULT_SUMMARY,
     defaultExtraColumns: [

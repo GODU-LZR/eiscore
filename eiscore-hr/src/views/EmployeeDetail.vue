@@ -85,12 +85,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
+import { findHrApp, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
 
 // 🟢 引入渲染引擎和 Schema 示例
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
@@ -114,7 +115,11 @@ const templateSaving = ref(false)
 const templateEditMode = ref('create')
 const templatePreview = ref(null)
 const templateEditForm = ref({ id: '', name: '' })
-const staticColumns = [
+const normalizeStaticColumns = (cols) => (
+  Array.isArray(cols) ? cols.map(col => ({ ...col, type: col.type || 'text' })) : []
+)
+
+const defaultStaticColumns = [
   { label: '编号', prop: 'id', type: 'text' },
   { label: '姓名', prop: 'name', type: 'text' },
   { label: '工号', prop: 'employee_no', type: 'text' },
@@ -122,14 +127,72 @@ const staticColumns = [
   { label: '状态', prop: 'status', type: 'text' }
 ]
 
-const activeSchema = computed(() => {
-  const current = templates.value.find(item => item.id === selectedTemplateId.value)
-  return current?.schema || documentSchemaExample
+const yesNoOptions = [
+  { label: '否', value: false },
+  { label: '是', value: true }
+]
+
+const attendanceStaticColumns = [
+  { label: '姓名', prop: 'employee_name', type: 'text' },
+  { label: '工号/电话', prop: 'employee_no', type: 'text' },
+  { label: '部门', prop: 'dept_name', type: 'text' },
+  { label: '日期', prop: 'att_date', type: 'text' },
+  { label: '班次', prop: 'shift_name', type: 'text' },
+  { label: '打卡记录', prop: 'punch_times', type: 'text' },
+  { label: '迟到', prop: 'late_flag', type: 'select', options: yesNoOptions },
+  { label: '早退', prop: 'early_flag', type: 'select', options: yesNoOptions },
+  { label: '请假', prop: 'leave_flag', type: 'select', options: yesNoOptions },
+  { label: '缺勤', prop: 'absent_flag', type: 'select', options: yesNoOptions },
+  { label: '加班(分钟)', prop: 'overtime_minutes', type: 'text' },
+  { label: '备注', prop: 'remark', type: 'text' }
+]
+
+const appKey = computed(() => (route.query.appKey ? String(route.query.appKey) : ''))
+const detailMode = computed(() => (route.query.detail ? String(route.query.detail) : ''))
+const appConfig = computed(() => (appKey.value ? findHrApp(appKey.value) : null))
+
+const detailConfig = computed(() => {
+  if (detailMode.value === 'attendance') {
+    return {
+      key: 'attendance',
+      name: '考勤记录',
+      apiUrl: '/attendance_records',
+      configKey: 'hr_attendance_cols',
+      supportsProperties: false,
+      staticColumns: attendanceStaticColumns,
+      defaultExtraColumns: []
+    }
+  }
+  if (appConfig.value) {
+    return {
+      key: appConfig.value.key,
+      name: appConfig.value.name,
+      apiUrl: '/archives',
+      configKey: appConfig.value.configKey || 'hr_table_cols',
+      supportsProperties: true,
+      staticColumns: normalizeStaticColumns(appConfig.value.staticColumns || BASE_STATIC_COLUMNS),
+      defaultExtraColumns: appConfig.value.defaultExtraColumns || []
+    }
+  }
+  return {
+    key: 'employee',
+    name: '人事花名册',
+    apiUrl: '/archives',
+    configKey: 'hr_table_cols',
+    supportsProperties: true,
+    staticColumns: defaultStaticColumns,
+    defaultExtraColumns: []
+  }
 })
+
+const supportsProperties = computed(() => detailConfig.value.supportsProperties !== false)
+
+const staticColumns = computed(() => normalizeStaticColumns(detailConfig.value.staticColumns))
 
 const templateEditTitle = computed(() => (templateEditMode.value === 'rename' ? '修改模板名称' : '新增模板'))
 
 const knownPropertyKeys = computed(() => {
+  if (!supportsProperties.value) return new Set()
   const keys = new Set()
   dynamicColumns.value.forEach(col => {
     if (col?.prop) keys.add(col.prop)
@@ -139,18 +202,21 @@ const knownPropertyKeys = computed(() => {
 
 const formModel = computed(() => {
   if (!formData.value) return null
-  return {
-    ...formData.value,
-    properties: {
+  const base = { ...formData.value }
+  if (supportsProperties.value) {
+    base.properties = {
       ...(formData.value.properties || {}),
       ...(extraValues.value || {})
     }
+  } else {
+    base.properties = { ...(extraValues.value || {}) }
   }
+  return base
 })
 
 const fileOptions = computed(() => {
   if (!formData.value) return []
-  const props = formData.value.properties || {}
+  const props = supportsProperties.value ? (formData.value.properties || {}) : (extraValues.value || {})
   return dynamicColumns.value
     .filter(col => col.type === 'file')
     .map(col => {
@@ -168,24 +234,63 @@ const fileOptions = computed(() => {
 
 const allColumns = computed(() => getAllColumns())
 
+const normalizeSchemaColumns = (cols) => (
+  Array.isArray(cols)
+    ? cols.filter(col => col && col.label && col.prop)
+    : []
+)
+
+const buildSchemaSection = (title, cols) => {
+  const list = normalizeSchemaColumns(cols)
+  if (!list.length) return null
+  return {
+    type: 'section',
+    title,
+    cols: 2,
+    children: list.map(col => ({
+      label: col.label,
+      field: col.prop
+    }))
+  }
+}
+
+const buildFallbackSchema = () => {
+  const baseSection = buildSchemaSection('基础信息', staticColumns.value || [])
+  const extraSection = buildSchemaSection('扩展信息', dynamicColumns.value || [])
+  const layout = [baseSection, extraSection].filter(Boolean)
+  if (!layout.length) return documentSchemaExample
+  return {
+    docType: `${detailConfig.value.key || 'form'}_auto`,
+    title: detailConfig.value.name || '单据',
+    layout
+  }
+}
+
+const activeSchema = computed(() => {
+  const current = templates.value.find(item => item.id === selectedTemplateId.value)
+  return current?.schema || buildFallbackSchema()
+})
+
 const loadData = async () => {
   if (!props.id) return
   loading.value = true
   try {
+    const apiUrl = detailConfig.value.apiUrl || '/archives'
     const res = await request({ 
-      url: `/archives?id=eq.${props.id}`, 
+      url: `${apiUrl}?id=eq.${props.id}`, 
       method: 'get',
       headers: { 'Accept-Profile': 'hr' }
     })
     if (res && res.length > 0) {
       formData.value = res[0]
-      // 模拟一些子表数据用于展示效果 (因为数据库里可能还没有 work_history)
-      if (!formData.value.properties) formData.value.properties = {}
-      if (!formData.value.properties.work_history) {
-        formData.value.properties.work_history = [
-          { company: '示例前司A', position: '初级工', start_date: '2020-01-01', end_date: '2021-01-01' },
-          { company: '示例前司B', position: '组长', start_date: '2021-02-01', end_date: '2023-01-01' }
-        ]
+      if (supportsProperties.value) {
+        if (!formData.value.properties) formData.value.properties = {}
+        if (detailConfig.value.key === 'employee' && !formData.value.properties.work_history) {
+          formData.value.properties.work_history = [
+            { company: '示例前司A', position: '初级工', start_date: '2020-01-01', end_date: '2021-01-01' },
+            { company: '示例前司B', position: '组长', start_date: '2021-02-01', end_date: '2023-01-01' }
+          ]
+        }
       }
       applyFormulaUpdates(formData.value)
     }
@@ -229,20 +334,34 @@ const saveTemplateLibrary = async (list) => {
   })
 }
 
+const handleTemplatesUpdated = (event) => {
+  const list = event?.detail?.templates
+  if (Array.isArray(list)) {
+    const filtered = list.filter(item => item && item.schema && Array.isArray(item.schema.layout))
+    templates.value = filtered
+    if (!selectedTemplateId.value && filtered.length > 0) {
+      selectedTemplateId.value = filtered[0].id
+    }
+  } else {
+    loadTemplates()
+  }
+}
+
 const loadDynamicColumns = async () => {
   try {
+    const configKey = detailConfig.value.configKey || 'hr_table_cols'
     const res = await request({
-      url: '/system_configs?key=eq.hr_table_cols',
+      url: `/system_configs?key=eq.${configKey}`,
       method: 'get',
       headers: { 'Accept-Profile': 'public' }
     })
     if (res && res.length > 0) {
       dynamicColumns.value = res[0].value || []
     } else {
-      dynamicColumns.value = []
+      dynamicColumns.value = detailConfig.value.defaultExtraColumns || []
     }
   } catch (e) {
-    dynamicColumns.value = []
+    dynamicColumns.value = detailConfig.value.defaultExtraColumns || []
   }
 }
 
@@ -274,6 +393,17 @@ const handleFormUpdate = (nextValue) => {
   if (!nextValue || !formData.value) return
   sanitizeCascaderValues(nextValue)
   const nextProps = nextValue.properties || {}
+  Object.keys(formData.value || {}).forEach((key) => {
+    if (key === 'properties') return
+    if (key in nextValue) formData.value[key] = nextValue[key]
+  })
+
+  if (!supportsProperties.value) {
+    extraValues.value = { ...nextProps }
+    applyFormulaUpdates(formData.value)
+    return
+  }
+
   const knownKeys = knownPropertyKeys.value
   const updatedProps = {}
   const updatedExtra = {}
@@ -284,11 +414,6 @@ const handleFormUpdate = (nextValue) => {
     } else {
       updatedExtra[key] = val
     }
-  })
-
-  Object.keys(formData.value || {}).forEach((key) => {
-    if (key === 'properties') return
-    if (key in nextValue) formData.value[key] = nextValue[key]
   })
 
   const cleanedProps = {}
@@ -324,7 +449,7 @@ const saveFormValues = async () => {
 }
 
 const getAllColumns = () => ([
-  ...staticColumns,
+  ...(staticColumns.value || []),
   ...dynamicColumns.value.map(col => ({
     ...col,
     label: col.label,
@@ -401,7 +526,7 @@ const applyFormulaUpdates = (rowData) => {
   if (formulaColumns.length === 0) return
 
   const rowDataMap = {}
-  staticColumns.forEach(col => {
+  staticColumns.value.forEach(col => {
     const val = getRowValueByProp(rowData, col.prop)
     rowDataMap[col.prop] = val
     rowDataMap[col.label] = val
@@ -432,15 +557,15 @@ const applyFormulaUpdates = (rowData) => {
 
 const buildFileColumnPayload = (columns, rowData) => {
   if (!rowData) return []
-  const props = rowData.properties || {}
   return columns
     .filter(col => col.type === 'file')
     .map(col => {
-      const rawFiles = Array.isArray(props[col.prop]) ? props[col.prop] : []
+      const rawValue = getRowValueByProp(rowData, col.prop)
+      const rawFiles = Array.isArray(rawValue) ? rawValue : []
       const files = rawFiles
         .map(file => ({
           name: file?.name || file?.fileName || file?.filename || '文件',
-          url: file?.url || file?.file_url || ''
+          url: file?.url || file?.file_url || file?.dataUrl || ''
         }))
         .filter(file => file.name)
       return { label: col.label, prop: col.prop, files }
@@ -449,8 +574,9 @@ const buildFileColumnPayload = (columns, rowData) => {
 
 const buildAiFormPrompt = () => {
   const columns = getAllColumns()
+  const model = formModel.value || formData.value
   const columnValues = columns.map(col => {
-    const value = getColumnValue(col, formData.value)
+    const value = getColumnValue(col, model)
     if (col.type === 'file') {
       const files = Array.isArray(value)
         ? value.map(file => ({
@@ -461,7 +587,7 @@ const buildAiFormPrompt = () => {
     }
     return { label: col.label, prop: col.prop, type: col.type, value: value ?? '' }
   })
-  const fileColumns = buildFileColumnPayload(columns, formData.value)
+  const fileColumns = buildFileColumnPayload(columns, model)
 
   return [
     '请根据以下“当前表格列”生成单据模板。',
@@ -485,7 +611,9 @@ const syncAiContext = () => {
   const fileColumns = columns.filter(col => col.type === 'file')
   pushAiContext({
     app: 'hr',
-    view: 'employee_detail',
+    view: detailConfig.value.key || 'employee_detail',
+    viewName: detailConfig.value.name || '',
+    apiUrl: detailConfig.value.apiUrl || '/archives',
     rowId: formData.value?.id,
     columns,
     fileColumns,
@@ -572,7 +700,7 @@ const submitTemplateEdit = async () => {
         list[idx] = { ...list[idx], name, schema: nextSchema, updated_at: now }
       }
     } else {
-      const schema = JSON.parse(JSON.stringify(activeSchema.value || documentSchemaExample))
+      const schema = JSON.parse(JSON.stringify(buildFallbackSchema()))
       schema.title = name
       const templateId = `tpl_${Date.now()}`
       schema.docType = templateId
@@ -625,9 +753,13 @@ const removeTemplate = async (template) => {
 const saveDoc = async () => {
   if (!formData.value) return
   try {
-    const { id, created_at, updated_at, ...payload } = formData.value
+    const { id, created_at, updated_at, properties, ...payload } = formData.value
+    if (supportsProperties.value) {
+      payload.properties = properties || {}
+    }
+    const apiUrl = detailConfig.value.apiUrl || '/archives'
     await request({
-      url: `/archives?id=eq.${props.id}`,
+      url: `${apiUrl}?id=eq.${props.id}`,
       method: 'patch',
       headers: { 'Content-Profile': 'hr' },
       data: payload
@@ -673,6 +805,19 @@ onMounted(() => {
   loadDynamicColumns()
   loadTemplates()
   loadData()
+  window.addEventListener('eis-form-templates-updated', handleTemplatesUpdated)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('eis-form-templates-updated', handleTemplatesUpdated)
+})
+
+watch([() => props.id, () => detailConfig.value.apiUrl], () => {
+  loadData()
+})
+
+watch(() => detailConfig.value.configKey, () => {
+  loadDynamicColumns()
 })
 
 watch([selectedTemplateId, () => formData.value?.id], () => {

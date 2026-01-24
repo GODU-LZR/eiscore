@@ -507,7 +507,8 @@ const handleViewDocument = (row) => {
   if (!row?.id) return
   router.push({
     name: 'EmployeeDetail',
-    params: { id: row.id }
+    params: { id: row.id },
+    query: { appKey: app.value.key }
   })
 }
 

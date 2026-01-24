@@ -231,6 +231,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (typeof col.valueSetter === 'function') extraColDef.valueSetter = col.valueSetter
     if (typeof col.valueParser === 'function') extraColDef.valueParser = col.valueParser
     if (col.multiLine) extraColDef.multiLine = true
+    if (Array.isArray(col.syncFields)) extraColDef.syncFields = col.syncFields
     if (col.cellEditor) extraColDef.cellEditor = col.cellEditor
     if (col.cellEditorPopup !== undefined) extraColDef.cellEditorPopup = col.cellEditorPopup
     if (col.cellEditorPopupPosition) extraColDef.cellEditorPopupPosition = col.cellEditorPopupPosition

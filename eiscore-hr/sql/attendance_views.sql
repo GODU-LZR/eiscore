@@ -84,7 +84,7 @@ begin
     e.id,
     e.name,
     e.employee_no,
-    e.department
+    coalesce(e.department, '未分配')
   from hr.archives e
   where (p_dept_name is null or e.department = p_dept_name)
     and not exists (

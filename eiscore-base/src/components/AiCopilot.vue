@@ -484,6 +484,9 @@ const saveFormTemplate = async (schema, messageKey) => {
     if (!res.ok) throw new Error('保存失败')
     templateSaveState.value[messageKey] = 'saved'
     ElMessage.success('模板已保存到模板库')
+    window.dispatchEvent(new CustomEvent('eis-form-templates-updated', {
+      detail: { templates, record }
+    }))
   } catch (e) {
     templateSaveState.value[messageKey] = 'error'
     ElMessage.error('模板保存失败')
