@@ -149,11 +149,12 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
+import { getRealtimeClient } from '@/utils/realtime'
 
 const router = useRouter()
 const gridRef = ref(null)
@@ -212,6 +213,8 @@ const patchRequiredFields = [
 ]
 
 const summaryConfig = { label: '合计', rules: {}, expressions: {} }
+let realtimeUnsub = null
+let realtimeTimer = null
 
 const formatDate = (date) => {
   const d = new Date(date)
@@ -716,6 +719,41 @@ const handleViewDocument = (row) => {
   })
 }
 
+const scheduleGridReload = () => {
+  if (realtimeTimer) return
+  realtimeTimer = setTimeout(() => {
+    realtimeTimer = null
+    if (gridRef.value?.loadData) {
+      gridRef.value.loadData()
+    }
+  }, 600)
+}
+
+const parseRealtimePayload = (event) => {
+  if (!event) return null
+  if (event.payload && typeof event.payload === 'string') {
+    try {
+      return JSON.parse(event.payload)
+    } catch (e) {
+      return null
+    }
+  }
+  return event.payload && typeof event.payload === 'object' ? event.payload : null
+}
+
+const handleRealtimeEvent = (event) => {
+  const payload = parseRealtimePayload(event)
+  if (!payload) return
+  if (payload.schema !== 'hr') return
+  if (payload.table === 'attendance_shifts') {
+    fetchShifts()
+    return
+  }
+  if (payload.table === 'attendance_records' || payload.table === 'attendance_month_overrides') {
+    scheduleGridReload()
+  }
+}
+
 const openShiftManager = async () => {
   shiftManager.value.visible = true
   await fetchShifts()
@@ -850,6 +888,17 @@ const deleteShift = async (row) => {
 onMounted(async () => {
   await Promise.allSettled([fetchDepartments(), fetchShifts()])
   await applyFilter()
+  const realtime = getRealtimeClient()
+  realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
+})
+
+onUnmounted(() => {
+  if (realtimeUnsub) realtimeUnsub()
+  realtimeUnsub = null
+  if (realtimeTimer) {
+    clearTimeout(realtimeTimer)
+    realtimeTimer = null
+  }
 })
 </script>
 

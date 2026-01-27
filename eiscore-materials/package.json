@@ -12,13 +12,23 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "ag-grid-community": "^35.0.0",
+    "ag-grid-vue3": "^35.0.0",
+    "axios": "^1.13.2",
     "element-plus": "^2.13.0",
+    "html2canvas": "^1.4.1",
+    "leaflet": "^1.9.4",
+    "lodash": "^4.17.21",
+    "pinia": "^3.0.4",
+    "qrcode": "^1.5.3",
     "vite-plugin-qiankun": "^1.0.15",
     "vue": "^3.5.25",
     "vue-router": "^4.6.3"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.2",
+    "sass-embedded": "^1.97.1",
     "vite": "^7.2.4",
     "vite-plugin-vue-devtools": "^8.0.5"
   }

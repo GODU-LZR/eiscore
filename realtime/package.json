@@ -1,0 +1,12 @@
+{
+  "name": "eiscore-realtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Small Postgres LISTEN/NOTIFY relay over WebSocket",
+  "main": "index.js",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "pg": "^8.11.5",
+    "ws": "^8.17.1"
+  }
+}

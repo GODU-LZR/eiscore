@@ -12,6 +12,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const selectedRowsCount = ref(0)
   const includeProperties = props.includeProperties !== false
   const getWriteMode = () => props.writeMode || 'upsert'
+  const resolveProfile = () => props.profile || props.contentProfile || props.acceptProfile || 'public'
   const fieldDefaults = props.fieldDefaults || {}
   const patchRequiredFields = Array.isArray(props.patchRequiredFields) ? props.patchRequiredFields : []
 
@@ -124,7 +125,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                 await request({
                   url: patchUrl,
                   method: 'patch',
-                  headers: { 'Content-Profile': 'hr', 'Prefer': 'return=representation' },
+                  headers: { 'Content-Profile': resolveProfile(), 'Prefer': 'return=representation' },
                   data: patchPayload
                 })
               }))
@@ -144,7 +145,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
               }))
               await request({
                   url: resolveWriteUrl(), method: 'post',
-                  headers: { 'Content-Profile': 'hr', 'Prefer': 'resolution=merge-duplicates,return=representation' },
+                  headers: { 'Content-Profile': resolveProfile(), 'Prefer': 'resolution=merge-duplicates,return=representation' },
                   data: apiPayload
               })
               affectedNodes.forEach(({ node, newVer }) => {
@@ -163,7 +164,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
 
   const sanitizeValue = (field, value) => {
     const key = field.includes('.') ? field.split('.').pop() : field
-    const textFields = ['name', 'code', 'employee_id', 'username', 'email', 'phone', 'id_card', 'address', 'status', 'department', 'employee_no']
+    const textFields = ['name', 'code', 'employee_id', 'username', 'email', 'phone', 'id_card', 'address']
     const isEmpty = value === null || value === undefined || value === ''
     if (key === 'punch_times') {
       if (Array.isArray(value)) return value

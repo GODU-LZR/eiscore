@@ -17,6 +17,9 @@
         ref="gridRef"
         :view-id="app.viewId"
         api-url="/archives"
+        write-mode="patch"
+        :patch-required-fields="requiredFields"
+        :field-defaults="fieldDefaults"
         :static-columns="staticColumns"
         :extra-columns="extraColumns"
         :summary="summaryConfig"
@@ -218,6 +221,7 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { findHrApp, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
+import { getRealtimeClient } from '@/utils/realtime'
 
 const props = defineProps({
   appKey: { type: String, default: 'a' },
@@ -230,6 +234,15 @@ const lastLoadedRows = ref([])
 const lastSearchText = ref('')
 const colConfigVisible = ref(false)
 const addTab = ref('text') 
+let realtimeUnsub = null
+let realtimeTimer = null
+const requiredFields = ['name', 'status', 'employee_no', 'department']
+const fieldDefaults = {
+  name: '',
+  status: '',
+  employee_no: '',
+  department: ''
+}
 
 const app = computed(() => props.appConfig || findHrApp(props.appKey) || {
   key: 'a',
@@ -512,6 +525,36 @@ const handleViewDocument = (row) => {
   })
 }
 
+const scheduleGridReload = () => {
+  if (realtimeTimer) return
+  realtimeTimer = setTimeout(() => {
+    realtimeTimer = null
+    if (gridRef.value?.loadData) {
+      gridRef.value.loadData()
+    }
+  }, 600)
+}
+
+const parseRealtimePayload = (event) => {
+  if (!event) return null
+  if (event.payload && typeof event.payload === 'string') {
+    try {
+      return JSON.parse(event.payload)
+    } catch (e) {
+      return null
+    }
+  }
+  return event.payload && typeof event.payload === 'object' ? event.payload : null
+}
+
+const handleRealtimeEvent = (event) => {
+  const payload = parseRealtimePayload(event)
+  if (!payload) return
+  if (payload.schema === 'hr' && payload.table === 'archives') {
+    scheduleGridReload()
+  }
+}
+
 const editColumn = (index) => {
   const col = extraColumns.value[index]
   currentCol.label = col.label
@@ -730,6 +773,8 @@ const goApps = () => {
 
 onMounted(() => {
   loadColumnsConfig()
+  const realtime = getRealtimeClient()
+  realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
 })
 
 const handleApplyFormula = (event) => {
@@ -755,6 +800,12 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('eis-ai-apply-formula', handleApplyFormula)
   window.removeEventListener('eis-grid-imported', handleImportDone)
+  if (realtimeUnsub) realtimeUnsub()
+  realtimeUnsub = null
+  if (realtimeTimer) {
+    clearTimeout(realtimeTimer)
+    realtimeTimer = null
+  }
 })
 </script>
 

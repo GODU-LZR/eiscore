@@ -55,5 +55,21 @@ services:
       - api
       - swagger
 
+  realtime:
+    build: ./realtime
+    container_name: eiscore-realtime
+    restart: always
+    ports:
+      - "8078:8078"
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: "123456"
+      PGDATABASE: eiscore
+      CHANNEL: eis_events
+    depends_on:
+      - db
+
 volumes:
   pgdata:
