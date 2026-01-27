@@ -28,7 +28,9 @@ begin
     'hr.archives',
     'hr.attendance_records',
     'hr.attendance_shifts',
-    'hr.attendance_month_overrides'
+    'hr.attendance_month_overrides',
+    'public.departments',
+    'public.raw_materials'
   ] loop
     if to_regclass(t) is not null then
       execute format('drop trigger if exists trg_eis_notify_%s on %s', replace(t, '.', '_'), t);

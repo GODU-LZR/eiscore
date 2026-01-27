@@ -218,6 +218,7 @@ import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { findMaterialApp, BASE_STATIC_COLUMNS } from '@/utils/material-apps'
 import { useUserStore } from '@/stores/user'
+import { getRealtimeClient } from '@/utils/realtime'
 
 const props = defineProps({
   appKey: { type: String, default: 'a' },
@@ -231,6 +232,8 @@ const lastLoadedRows = ref([])
 const lastSearchText = ref('')
 const colConfigVisible = ref(false)
 const addTab = ref('text') 
+let realtimeUnsub = null
+let realtimeTimer = null
 
 const userStore = useUserStore()
 const currentUser = computed(() => userStore.userInfo?.username || 'Admin')
@@ -379,6 +382,36 @@ const loadColumnsConfig = async () => {
     }
     syncAiContext()
   } catch (e) { console.error(e) }
+}
+
+const scheduleGridReload = () => {
+  if (realtimeTimer) return
+  realtimeTimer = setTimeout(() => {
+    realtimeTimer = null
+    if (gridRef.value?.loadData) {
+      gridRef.value.loadData()
+    }
+  }, 600)
+}
+
+const parseRealtimePayload = (event) => {
+  if (!event) return null
+  if (event.payload && typeof event.payload === 'string') {
+    try {
+      return JSON.parse(event.payload)
+    } catch (e) {
+      return null
+    }
+  }
+  return event.payload && typeof event.payload === 'object' ? event.payload : null
+}
+
+const handleRealtimeEvent = (event) => {
+  const payload = parseRealtimePayload(event)
+  if (!payload) return
+  if (payload.schema === 'public' && payload.table === 'raw_materials') {
+    scheduleGridReload()
+  }
 }
 
 const handleDataLoaded = (payload) => {
@@ -751,6 +784,8 @@ const handleCreate = async () => {
 
 onMounted(() => {
   loadColumnsConfig()
+  const realtime = getRealtimeClient()
+  realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
 })
 
 const handleApplyFormula = (event) => {
@@ -776,6 +811,12 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('eis-ai-apply-formula', handleApplyFormula)
   window.removeEventListener('eis-grid-imported', handleImportDone)
+  if (realtimeUnsub) realtimeUnsub()
+  realtimeUnsub = null
+  if (realtimeTimer) {
+    clearTimeout(realtimeTimer)
+    realtimeTimer = null
+  }
 })
 </script>
 

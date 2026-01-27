@@ -37,12 +37,12 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { User, Document, Calendar } from '@element-plus/icons-vue'
+import { User, Document, Calendar, OfficeBuilding } from '@element-plus/icons-vue'
 import { HR_APPS } from '@/utils/hr-apps'
 
 const router = useRouter()
 const apps = HR_APPS
-const iconMap = { User, Document, Calendar }
+const iconMap = { User, Document, Calendar, OfficeBuilding }
 
 const openApp = (app) => {
   if (!app?.route) return

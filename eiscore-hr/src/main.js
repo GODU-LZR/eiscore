@@ -11,6 +11,10 @@ import 'element-plus/dist/index.css'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 // 引入图标 (如果用到了 Icon)
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+// BPMN 样式与字体（用于部门架构图）
+import 'bpmn-js/dist/assets/diagram-js.css'
+import 'bpmn-js/dist/assets/bpmn-js.css'
+import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css'
 
 let app
 

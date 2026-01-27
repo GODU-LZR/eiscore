@@ -6,6 +6,7 @@ import HrApps from '../views/HrApps.vue'
 import HrAppView from '../views/HrAppView.vue'
 import EmployeeList from '../views/EmployeeList.vue'
 import EmployeeDetail from '../views/EmployeeDetail.vue'
+import HrOrgChart from '../views/HrOrgChart.vue'
 
 const router = createRouter({
   // 3. 🟢 关键配置：设置路由基础路径
@@ -40,6 +41,11 @@ const router = createRouter({
       name: 'EmployeeDetail',
       component: EmployeeDetail,
       props: true // 允许将 route.params.id 作为 props 传给组件
+    },
+    {
+      path: '/org',
+      name: 'HrOrgChart',
+      component: HrOrgChart
     }
   ]
 })

@@ -40,6 +40,20 @@ export const HR_APPS = [
     ]
   },
   {
+    key: 'org',
+    name: '部门架构图',
+    desc: '多级部门结构与成员查看',
+    route: '/org',
+    viewId: 'hr_org_chart',
+    configKey: 'hr_org_bpmn',
+    icon: 'OfficeBuilding',
+    tone: 'blue',
+    enableDetail: false,
+    staticColumns: BASE_STATIC_COLUMNS,
+    summaryConfig: DEFAULT_SUMMARY,
+    defaultExtraColumns: []
+  },
+  {
     key: 'b',
     name: '调岗记录',
     desc: '岗位变动与调岗审批留痕',
