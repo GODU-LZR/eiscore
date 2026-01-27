@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict IgaziGqQSxX6doXkAzzqRDgUGZxYaV3WeIElYcIBd8hrFdtlBOAqcsmdPAtMrSW
+\restrict 6DG5h5dayle5WRPE7nDxl9urzd3xaBnmJix35l4oaFmKEWEaoEZ5BhATlmNod8c
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -955,7 +955,7 @@ lisi	123456	web_user	李四(仓管员)
 --
 
 COPY hr.archives (id, name, employee_no, department, "position", phone, status, base_salary, entry_date, properties, version, updated_at) FROM stdin;
-802	新员工	EMP330625	\N	\N	\N	试用	0.00	2026-01-27	{}	1	2026-01-27 18:59:05.560925
+802	新员工	EMP330625		\N	\N	试用	0.00	2026-01-27	{"status": "locked", "row_locked_by": "Admin"}	1	2026-01-27 18:59:05.560925
 734	万轩敏	E0035	\N	\N	\N	在职	0.00	2026-01-24	{"gender": "男", "field_789": 0, "field_5458": "0", "field_9314": "0"}	2	2026-01-25 01:47:29.805
 733	韩欣敏	E0034	\N	\N	\N	在职	0.00	2026-01-24	{"gender": "男", "field_789": 0, "field_5458": "0", "field_9314": "0"}	2	2026-01-25 01:47:29.805
 732	徐睿宸	E0033	\N	\N	\N	试用	0.00	2026-01-24	{"gender": "女", "field_789": 0, "field_5458": "0", "field_9314": "0"}	2	2026-01-25 01:47:29.805
@@ -1653,16 +1653,16 @@ COPY hr.payroll (id, archive_id, month, total_amount, status) FROM stdin;
 --
 
 COPY public.departments (id, name, parent_id, leader_id, sort, status, created_at, updated_at) FROM stdin;
+f1b437fa-a799-4866-9478-50e15b961e93	财务部	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	10	active	2026-01-27 21:03:21.068578+00	2026-01-27 21:03:21.068578+00
+427becfd-2d82-48d6-8171-195c7acaad53	采购部	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	20	active	2026-01-27 21:05:12.19069+00	2026-01-27 21:05:12.19069+00
+821bae9d-d4d6-4f79-a2df-986400aaada3	英利工厂	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	30	active	2026-01-27 21:00:20.733454+00	2026-01-27 21:00:20.733454+00
+15e61e02-6ef3-41a0-b858-21e1618f9632	徐闻工厂	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	40	active	2026-01-27 20:59:44.411323+00	2026-01-27 20:59:44.411323+00
+8f2d51a8-5d51-4fd4-88b1-b0ccd455fc64	总经理部	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	50	active	2026-01-27 20:59:19.590919+00	2026-01-27 20:59:19.590919+00
 b0aa5f36-a392-4a79-a908-e84c3aac1112	南派	\N	\N	0	active	2026-01-27 20:58:52.006269+00	2026-01-27 20:58:52.006269+00
-8f2d51a8-5d51-4fd4-88b1-b0ccd455fc64	总经理部	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	0	active	2026-01-27 20:59:19.590919+00	2026-01-27 20:59:19.590919+00
-821bae9d-d4d6-4f79-a2df-986400aaada3	英利工厂	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	0	active	2026-01-27 21:00:20.733454+00	2026-01-27 21:00:20.733454+00
-15e61e02-6ef3-41a0-b858-21e1618f9632	徐闻工厂	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	0	active	2026-01-27 20:59:44.411323+00	2026-01-27 20:59:44.411323+00
-d26a3a93-e81d-4cc0-998f-d014edee55f4	生产部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	0	active	2026-01-27 21:02:09.756754+00	2026-01-27 21:02:09.756754+00
-529af27e-6cfb-4dcf-be03-efe17c5bb285	质检部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	0	active	2026-01-27 21:02:48.169478+00	2026-01-27 21:02:48.169478+00
-8c7d6883-4921-4ef4-ba45-8033103563e2	仓储部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	0	active	2026-01-27 21:03:18.147239+00	2026-01-27 21:03:18.147239+00
-f1b437fa-a799-4866-9478-50e15b961e93	财务部	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	0	active	2026-01-27 21:03:21.068578+00	2026-01-27 21:03:21.068578+00
-427becfd-2d82-48d6-8171-195c7acaad53	采购部	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	0	active	2026-01-27 21:05:12.19069+00	2026-01-27 21:05:12.19069+00
-3ee73ef4-5352-4806-bfc5-002f2ac68564	销售部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	0	active	2026-01-27 20:59:04.610513+00	2026-01-27 20:59:04.610513+00
+8c7d6883-4921-4ef4-ba45-8033103563e2	仓储部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	10	active	2026-01-27 21:03:18.147239+00	2026-01-27 21:03:18.147239+00
+3ee73ef4-5352-4806-bfc5-002f2ac68564	销售部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	20	active	2026-01-27 20:59:04.610513+00	2026-01-27 20:59:04.610513+00
+d26a3a93-e81d-4cc0-998f-d014edee55f4	生产部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	30	active	2026-01-27 21:02:09.756754+00	2026-01-27 21:02:09.756754+00
+529af27e-6cfb-4dcf-be03-efe17c5bb285	质检部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	40	active	2026-01-27 21:02:48.169478+00	2026-01-27 21:02:48.169478+00
 \.
 
 
@@ -2719,5 +2719,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict IgaziGqQSxX6doXkAzzqRDgUGZxYaV3WeIElYcIBd8hrFdtlBOAqcsmdPAtMrSW
+\unrestrict 6DG5h5dayle5WRPE7nDxl9urzd3xaBnmJix35l4oaFmKEWEaoEZ5BhATlmNod8c
 
