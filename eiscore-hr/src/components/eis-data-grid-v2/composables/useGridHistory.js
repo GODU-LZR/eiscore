@@ -124,7 +124,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                 await request({
                   url: patchUrl,
                   method: 'patch',
-                  headers: { 'Content-Profile': 'hr', 'Prefer': 'return=representation' },
+                  headers: { 'Content-Profile': props.contentProfile || 'hr', 'Prefer': 'return=representation' },
                   data: patchPayload
                 })
               }))
@@ -144,7 +144,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
               }))
               await request({
                   url: resolveWriteUrl(), method: 'post',
-                  headers: { 'Content-Profile': 'hr', 'Prefer': 'resolution=merge-duplicates,return=representation' },
+                  headers: { 'Content-Profile': props.contentProfile || 'hr', 'Prefer': 'resolution=merge-duplicates,return=representation' },
                   data: apiPayload
               })
               affectedNodes.forEach(({ node, newVer }) => {
@@ -315,7 +315,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
         await ElMessageBox.confirm(`确定要删除选中的 ${selectedNodes.length} 条数据吗？`, '警告', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
         const ids = selectedNodes.map(n => n.data.id)
         const deleteUrl = appendQuery(resolveWriteUrl(), `id=in.(${ids.join(',')})`)
-        await request({ url: deleteUrl, method: 'delete' })
+        await request({ url: deleteUrl, method: 'delete', headers: { 'Content-Profile': props.contentProfile || 'hr' } })
         gridApi.value.applyTransaction({ remove: selectedNodes.map(node => node.data) })
         formulaHooks.pinnedBottomRowData.value = formulaHooks.calculateTotals(gridData.value)
         ElMessage.success('删除成功'); selectedRowsCount.value = 0; history.undoStack = []; history.redoStack = []

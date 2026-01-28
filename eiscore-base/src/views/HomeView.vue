@@ -81,20 +81,20 @@
           </div>
         </el-card>
 
-        <el-card shadow="never" class="action-card">
+        <el-card shadow="never" class="action-card" v-if="canHome">
           <template #header>
             <span style="font-weight: bold">🚀 快捷入口</span>
           </template>
           <div class="quick-actions">
-            <div class="action-item" @click="$router.push('/materials')">
+            <div v-if="canMms" class="action-item" @click="$router.push('/materials')">
               <div class="icon-box bg-blue"><el-icon><Box /></el-icon></div>
               <span>物料入库</span>
             </div>
-            <div class="action-item" @click="$router.push('/materials')">
+            <div v-if="canMms" class="action-item" @click="$router.push('/materials')">
               <div class="icon-box bg-green"><el-icon><Search /></el-icon></div>
               <span>库存查询</span>
             </div>
-            <div class="action-item" @click="$router.push('/hr')">
+            <div v-if="canHr" class="action-item" @click="$router.push('/hr')">
               <div class="icon-box bg-orange"><el-icon><User /></el-icon></div>
               <span>员工录入</span>
             </div>
@@ -132,9 +132,14 @@
 import { ref, onMounted } from 'vue'
 import dayjs from 'dayjs'
 import { useRouter } from 'vue-router'
+import { computed } from 'vue'
+import { hasPerm } from '@/utils/permission'
 
 const currentDate = ref('')
 const router = useRouter()
+const canHome = computed(() => hasPerm('module:home'))
+const canHr = computed(() => hasPerm('module:hr'))
+const canMms = computed(() => hasPerm('module:mms'))
 
 onMounted(() => {
   const now = new Date()

@@ -12,6 +12,7 @@ import GeoRenderer from '../components/renderers/GeoRenderer.vue'
 import FileRenderer from '../components/renderers/FileRenderer.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
+import { useUserStore } from '@/stores/user'
 
 export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit) {
   const hasGridRef = gridApiRef && typeof gridApiRef === 'object' && 'value' in gridApiRef
@@ -21,6 +22,10 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const searchText = ref('')
   const isLoading = ref(false)
   const columnLockState = reactive({})
+  const fieldAcl = ref({})
+  const userStore = useUserStore()
+  const aclRoleId = computed(() => userStore.userInfo?.role_id || userStore.userInfo?.roleId || '')
+  const aclModule = computed(() => props.aclModule || '')
 
   const gridComponents = {
     StatusRenderer: markRaw(StatusRenderer),
@@ -38,9 +43,41 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const dictOptions = reactive({})
   const dictLoading = reactive({})
 
+  const applyFieldAcl = (col) => {
+    if (!aclModule.value || !aclRoleId.value) return {}
+    const acl = fieldAcl.value[col.prop]
+    if (!acl) return {}
+    const result = {}
+    if (acl.canView === false) result.hide = true
+    if (acl.canEdit === false) result.editable = false
+    return result
+  }
+
+  const loadFieldAcl = async () => {
+    if (!aclModule.value || !aclRoleId.value) {
+      fieldAcl.value = {}
+      return
+    }
+    try {
+      const res = await request({
+        url: `/sys_field_acl?role_id=eq.${aclRoleId.value}&module=eq.${aclModule.value}`,
+        method: 'get',
+        headers: { 'Accept-Profile': 'public' }
+      })
+      const map = {}
+      ;(Array.isArray(res) ? res : []).forEach((item) => {
+        map[item.field_code] = { canView: item.can_view, canEdit: item.can_edit }
+      })
+      fieldAcl.value = map
+    } catch (e) {
+      fieldAcl.value = {}
+    }
+  }
+
   // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
     const colId = params.colDef.field
+    if (props.canEdit === false && !params.node.rowPinned) return true
     if (colId === '_status') return false 
     if (colId === '_actions') return true // ⚠️ 关键：操作列必须只读！
     if (params.node.rowPinned) return true
@@ -250,6 +287,10 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       ...extraColDef
     }
 
+    const acl = applyFieldAcl(col)
+    if (acl.hide) colDef.hide = true
+    if (acl.editable === false) colDef.editable = false
+
     if (isDynamic) {
       colDef.valueSetter = (params) => {
         if (!params.data.properties || typeof params.data.properties !== 'object') {
@@ -362,10 +403,20 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const staticCols = props.staticColumns.map(col => createColDef(col, false))
     const dynamicCols = props.extraColumns.map(col => createColDef(col, true))
     
-    return [checkboxCol, statusCol, ...staticCols, ...dynamicCols, actionCol]
+    return props.showActionCol === false
+      ? [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
+      : [checkboxCol, statusCol, ...staticCols, ...dynamicCols, actionCol]
+  })
+
+  watch([aclRoleId, aclModule], () => {
+    if (gridApi.value) {
+      loadFieldAcl()
+      gridApi.value.refreshCells({ force: true })
+    }
   })
 
   const loadData = async () => {
+    await loadFieldAcl()
     isLoading.value = true 
     try {
       let url = props.apiUrl
@@ -374,7 +425,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         url = `${url}${url.includes('?') ? '&' : '?'}order=${orderClause}`
       }
       if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
-      const res = await request({ url, method: 'get' })
+      const res = await request({ 
+        url, 
+        method: 'get',
+        headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr' }
+      })
       const rows = Array.isArray(res) ? res : []
       gridData.value = rows
       if (eventEmitter) {

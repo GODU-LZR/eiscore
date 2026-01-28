@@ -24,15 +24,15 @@
         :collapse-transition="false"
         style="border-right: none;"
       >
-        <el-menu-item index="/">
+        <el-menu-item v-if="canHome" index="/">
           <el-icon><House /></el-icon>
           <template #title>工作台</template>
         </el-menu-item>
-        <el-menu-item index="/materials" @click.native.prevent="router.push('/materials')">
+        <el-menu-item v-if="canMms" index="/materials" @click.native.prevent="router.push('/materials')">
           <el-icon><Box /></el-icon>
           <template #title>物料管理</template>
         </el-menu-item>
-        <el-menu-item index="/hr" @click.native.prevent="router.push('/hr')">
+        <el-menu-item v-if="canHr" index="/hr" @click.native.prevent="router.push('/hr')">
           <el-icon><User /></el-icon>
           <template #title>人事管理</template>
         </el-menu-item>
@@ -112,6 +112,7 @@ import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import { mix } from '@/utils/theme'
+import { hasPerm } from '@/utils/permission'
 import { House, Box, User, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
 import AiCopilot from '@/components/AiCopilot.vue'
 
@@ -155,6 +156,10 @@ const activeMenu = computed(() => {
   if (route.path.startsWith('/hr')) return '/hr'
   return route.path
 })
+
+const canHome = computed(() => hasPerm('module:home'))
+const canHr = computed(() => hasPerm('module:hr'))
+const canMms = computed(() => hasPerm('module:mms'))
 
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value

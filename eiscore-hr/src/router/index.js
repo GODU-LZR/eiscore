@@ -7,6 +7,8 @@ import HrAppView from '../views/HrAppView.vue'
 import EmployeeList from '../views/EmployeeList.vue'
 import EmployeeDetail from '../views/EmployeeDetail.vue'
 import HrOrgChart from '../views/HrOrgChart.vue'
+import HrAclView from '../views/HrAclView.vue'
+import { hasPerm } from '@/utils/permission'
 
 const router = createRouter({
   // 3. 🟢 关键配置：设置路由基础路径
@@ -33,21 +35,38 @@ const router = createRouter({
     {
       path: '/employee',
       name: 'EmployeeList',
+      meta: { perm: 'app:hr_employee' },
       component: EmployeeList // 挂载组件
     },
     // 🟢 新增详情页路由
     {
       path: '/employee/detail/:id',
       name: 'EmployeeDetail',
+      meta: { perm: 'app:hr_employee' },
       component: EmployeeDetail,
       props: true // 允许将 route.params.id 作为 props 传给组件
     },
     {
       path: '/org',
       name: 'HrOrgChart',
+      meta: { perm: 'app:hr_org' },
       component: HrOrgChart
+    },
+    {
+      path: '/acl',
+      name: 'HrAclView',
+      meta: { perm: 'app:hr_acl' },
+      component: HrAclView
     }
   ]
+})
+
+router.beforeEach((to, from, next) => {
+  const perm = to.meta?.perm
+  if (perm && !hasPerm(perm)) {
+    return next('/apps')
+  }
+  next()
 })
 
 export default router

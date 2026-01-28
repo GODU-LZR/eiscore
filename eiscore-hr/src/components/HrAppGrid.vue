@@ -23,6 +23,12 @@
         :static-columns="staticColumns"
         :extra-columns="extraColumns"
         :summary="summaryConfig"
+        :acl-module="app.aclModule"
+        :can-create="canCreate"
+        :can-edit="canEdit"
+        :can-delete="canDelete"
+        :can-export="canExport"
+        :can-config="canConfig"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
@@ -222,6 +228,7 @@ import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { findHrApp, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
 import { getRealtimeClient } from '@/utils/realtime'
+import { hasPerm } from '@/utils/permission'
 
 const props = defineProps({
   appKey: { type: String, default: 'a' },
@@ -255,6 +262,13 @@ const app = computed(() => props.appConfig || findHrApp(props.appKey) || {
   summaryConfig: { label: '总计', rules: {}, expressions: {} },
   defaultExtraColumns: []
 })
+
+const opPerms = computed(() => app.value?.ops || {})
+const canCreate = computed(() => hasPerm(opPerms.value.create))
+const canEdit = computed(() => hasPerm(opPerms.value.edit))
+const canDelete = computed(() => hasPerm(opPerms.value.delete))
+const canExport = computed(() => hasPerm(opPerms.value.export))
+const canConfig = computed(() => hasPerm(opPerms.value.config))
 
 const staticColumns = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
 const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })

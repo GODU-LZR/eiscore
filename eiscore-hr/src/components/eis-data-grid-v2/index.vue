@@ -5,6 +5,10 @@
       :selected-count="selectedRowsCount"
       :range-info="rangeSelection"
       :grid-api="gridApi"
+      :can-create="canCreate"
+      :can-config="canConfig"
+      :can-delete="canDelete"
+      :can-export="canExport"
       @search="loadData"
       @create="$emit('create')"
       @config-columns="$emit('config-columns')"
@@ -129,7 +133,16 @@ const props = defineProps({
   staticColumns: { type: Array, default: () => [] },
   extraColumns: { type: Array, default: () => [] },
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) },
-  defaultOrder: { type: String, default: 'id.desc' }
+  defaultOrder: { type: String, default: 'id.desc' },
+  acceptProfile: { type: String, default: 'hr' },
+  contentProfile: { type: String, default: 'hr' },
+  aclModule: { type: String, default: '' },
+  showActionCol: { type: Boolean, default: true },
+  canCreate: { type: Boolean, default: true },
+  canEdit: { type: Boolean, default: true },
+  canDelete: { type: Boolean, default: true },
+  canExport: { type: Boolean, default: true },
+  canConfig: { type: Boolean, default: true }
 })
 
 // 🟢 声明事件：增加 view-document
@@ -262,7 +275,7 @@ defineExpose({ loadData })
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-track, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track { background-color: #f5f7fa; box-shadow: inset 0 0 4px rgba(0,0,0,0.05); }
 .ag-theme-alpine .ag-body-viewport { overflow-y: scroll !important; }
 
-.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 32px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
+.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei', sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 32px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
 .no-user-select { user-select: none; }
 .ag-theme-alpine .dynamic-header { font-weight: 600; }
 .ag-theme-alpine .ag-cell { border-right: 1px solid var(--ag-border-color); }

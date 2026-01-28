@@ -9,7 +9,7 @@
 
     <el-row :gutter="20">
       <el-col
-        v-for="app in apps"
+        v-for="app in visibleApps"
         :key="app.key"
         :xs="24"
         :sm="12"
@@ -36,13 +36,19 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { User, Document, Calendar, OfficeBuilding } from '@element-plus/icons-vue'
 import { HR_APPS } from '@/utils/hr-apps'
+import { hasPerm } from '@/utils/permission'
 
 const router = useRouter()
 const apps = HR_APPS
 const iconMap = { User, Document, Calendar, OfficeBuilding }
+
+const visibleApps = computed(() => {
+  return apps.filter(app => !app.perm || hasPerm(app.perm))
+})
 
 const openApp = (app) => {
   if (!app?.route) return

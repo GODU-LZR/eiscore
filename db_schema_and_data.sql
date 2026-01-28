@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict xNBT7uyhfuZWdWxMhlvFee0QQc4FF0hNNnxh51Y5j7UvpXSqk7krCesdIjfUdv9
+\restrict aLHhf61RPyg0ZaZfHKTmTeHDBrNXGuFtzYFZ7awmpL0u8MnGHxB6fou3ESdhI4I
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -220,6 +220,21 @@ $$;
 
 
 ALTER FUNCTION public.sign(payload json, secret text, algorithm text) OWNER TO postgres;
+
+--
+-- Name: touch_updated_at(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.touch_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at := now();
+  return new;
+end $$;
+
+
+ALTER FUNCTION public.touch_updated_at() OWNER TO postgres;
 
 --
 -- Name: update_modified_column(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -730,6 +745,24 @@ ALTER SEQUENCE public.raw_materials_id_seq OWNED BY public.raw_materials.id;
 
 
 --
+-- Name: role_data_scopes; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.role_data_scopes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    role_id uuid NOT NULL,
+    module text NOT NULL,
+    scope_type text NOT NULL,
+    dept_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT role_data_scopes_scope_chk CHECK ((scope_type = ANY (ARRAY['self'::text, 'dept'::text, 'dept_tree'::text, 'all'::text])))
+);
+
+
+ALTER TABLE public.role_data_scopes OWNER TO postgres;
+
+--
 -- Name: role_permissions; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -752,7 +785,8 @@ CREATE TABLE public.roles (
     name text NOT NULL,
     description text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    sort integer DEFAULT 100
 );
 
 
@@ -794,6 +828,24 @@ CREATE TABLE public.sys_dicts (
 
 
 ALTER TABLE public.sys_dicts OWNER TO postgres;
+
+--
+-- Name: sys_field_acl; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.sys_field_acl (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    role_id uuid NOT NULL,
+    module text NOT NULL,
+    field_code text NOT NULL,
+    can_view boolean DEFAULT true NOT NULL,
+    can_edit boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.sys_field_acl OWNER TO postgres;
 
 --
 -- Name: sys_grid_configs; Type: TABLE; Schema: public; Owner: postgres
@@ -880,6 +932,22 @@ ALTER SEQUENCE public.users_id_seq OWNER TO postgres;
 
 ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
+
+--
+-- Name: v_role_permissions; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.v_role_permissions AS
+ SELECT r.id AS role_id,
+    r.code AS role_code,
+    array_agg(p.code ORDER BY p.code) AS permissions
+   FROM ((public.roles r
+     LEFT JOIN public.role_permissions rp ON ((rp.role_id = r.id)))
+     LEFT JOIN public.permissions p ON ((p.id = rp.permission_id)))
+  GROUP BY r.id, r.code;
+
+
+ALTER VIEW public.v_role_permissions OWNER TO postgres;
 
 --
 -- Name: v_sys_dict_items; Type: VIEW; Schema: public; Owner: postgres
@@ -1700,38 +1768,40 @@ aef909a2-3ed1-4fd3-a6da-3e29cb04c8b7	hr_form	479	{"contract_period": "1"}	2025-1
 --
 
 COPY public.permissions (id, code, name, module, action, created_at, updated_at) FROM stdin;
-749a0f67-dc5b-4b61-be56-4b1859260ad1	hr:employee.view	Employee View	hr	view	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-0da90206-1c4b-48b3-9be4-36cbdb58e1b8	hr:employee.create	Employee Create	hr	create	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-1c507edf-adb5-4f35-ac70-da6daa6a9f7e	hr:employee.edit	Employee Edit	hr	edit	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-df4fde3f-17ac-47fb-b513-6c64ea71d137	hr:employee.delete	Employee Delete	hr	delete	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-e0baac90-7926-4337-a3fb-f5c1f6a77966	hr:employee.export	Employee Export	hr	export	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-00a17c4e-e84e-4f61-8610-e18d73ed17c6	hr:employee.config	Employee Config	hr	config	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-23bd6bc7-1717-4c2a-be99-42093e2c4a96	hr:org.view	Org View	hr	view	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-22607dfa-0016-447d-9382-af4ff3f72958	hr:org.create	Org Create	hr	create	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-5db69a98-dc1c-45b8-85f0-2f5fa94ec2ad	hr:org.edit	Org Edit	hr	edit	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-7c80805f-47bd-46d6-a80e-f195cc0be2ff	hr:org.delete	Org Delete	hr	delete	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-f9a66726-7fcb-4596-81f5-5c558e06e69d	hr:org.export	Org Export	hr	export	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-27ab46fc-3086-41c5-8ee2-4867ce222c7d	hr:org.config	Org Config	hr	config	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-da0914e1-5105-4156-9a46-cb4a36f95518	hr:change.view	Change View	hr	view	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-6d23e088-f7d9-49fe-bb07-cee9c3fe9c18	hr:change.create	Change Create	hr	create	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-0cbdfa8a-948e-407d-9a6f-f4e1784ecbd7	hr:change.edit	Change Edit	hr	edit	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-cca47339-1940-4c27-94cf-66f89923888f	hr:change.delete	Change Delete	hr	delete	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-2c9ed352-5d9c-4f8b-8993-68ec3e67a5b5	hr:change.export	Change Export	hr	export	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-9da35eef-2dab-4a37-bc95-73e12284c86e	hr:attendance.view	Attendance View	hr	view	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-fe698f3c-4a79-4e5c-8147-2324e10117be	hr:attendance.create	Attendance Create	hr	create	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-b57c9900-909d-4528-89b4-8c4910bfcdb8	hr:attendance.edit	Attendance Edit	hr	edit	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-cf33aaf0-be78-46ef-a3a8-ad0eea93f67e	hr:attendance.delete	Attendance Delete	hr	delete	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-23c8f1bf-23e5-46bc-a965-e4f74a9c5bd5	hr:attendance.export	Attendance Export	hr	export	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-7dff6243-ab88-4090-ad3e-f7419176d4e6	hr:payroll.view	Payroll View	hr	view	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-7d97095f-1371-4aee-99b3-e69cc5cad037	hr:payroll.create	Payroll Create	hr	create	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-e8bfa2dc-ab95-4970-a245-0d0b31f316a2	hr:payroll.edit	Payroll Edit	hr	edit	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-bb89aa41-93b0-4da9-99f0-5b2d20525a50	hr:payroll.delete	Payroll Delete	hr	delete	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-6f212a0f-c0d4-472d-a889-34a6f9ce3f7c	hr:payroll.export	Payroll Export	hr	export	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-37396318-923d-4fcd-bc17-8fd584200def	hr:profile.view	Profile View	hr	view	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-a53b2f02-f4b7-4c22-9c43-637e19f94ab5	hr:profile.create	Profile Create	hr	create	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-6108f0ae-516c-459f-92c7-cbab491d3c9b	hr:profile.edit	Profile Edit	hr	edit	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-938f813c-f070-460a-b9f3-b34e537e01bd	hr:profile.delete	Profile Delete	hr	delete	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-96dcd908-214a-4842-beed-c6df4b34dc71	hr:profile.export	Profile Export	hr	export	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
+749a0f67-dc5b-4b61-be56-4b1859260ad1	hr:employee.view	花名册查看	人事花名册	查看	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+0da90206-1c4b-48b3-9be4-36cbdb58e1b8	hr:employee.create	花名册新增	人事花名册	新增	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+1c507edf-adb5-4f35-ac70-da6daa6a9f7e	hr:employee.edit	花名册编辑	人事花名册	编辑	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+df4fde3f-17ac-47fb-b513-6c64ea71d137	hr:employee.delete	花名册删除	人事花名册	删除	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+e0baac90-7926-4337-a3fb-f5c1f6a77966	hr:employee.export	花名册导出	人事花名册	导出	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+00a17c4e-e84e-4f61-8610-e18d73ed17c6	hr:employee.config	花名册配置	人事花名册	配置	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+23bd6bc7-1717-4c2a-be99-42093e2c4a96	hr:org.view	组织架构查看	部门架构	查看	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+22607dfa-0016-447d-9382-af4ff3f72958	hr:org.create	组织架构新增	部门架构	新增	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+5db69a98-dc1c-45b8-85f0-2f5fa94ec2ad	hr:org.edit	组织架构编辑	部门架构	编辑	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+7c80805f-47bd-46d6-a80e-f195cc0be2ff	hr:org.delete	组织架构删除	部门架构	删除	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+f9a66726-7fcb-4596-81f5-5c558e06e69d	hr:org.export	组织架构导出	部门架构	导出	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+27ab46fc-3086-41c5-8ee2-4867ce222c7d	hr:org.config	组织架构配置	部门架构	配置	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+da0914e1-5105-4156-9a46-cb4a36f95518	hr:change.view	调岗查看	调岗记录	查看	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+6d23e088-f7d9-49fe-bb07-cee9c3fe9c18	hr:change.create	调岗新增	调岗记录	新增	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+0cbdfa8a-948e-407d-9a6f-f4e1784ecbd7	hr:change.edit	调岗编辑	调岗记录	编辑	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+cca47339-1940-4c27-94cf-66f89923888f	hr:change.delete	调岗删除	调岗记录	删除	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+2c9ed352-5d9c-4f8b-8993-68ec3e67a5b5	hr:change.export	调岗导出	调岗记录	导出	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+9da35eef-2dab-4a37-bc95-73e12284c86e	hr:attendance.view	考勤查看	考勤管理	查看	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+fe698f3c-4a79-4e5c-8147-2324e10117be	hr:attendance.create	考勤新增	考勤管理	新增	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+b57c9900-909d-4528-89b4-8c4910bfcdb8	hr:attendance.edit	考勤编辑	考勤管理	编辑	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+cf33aaf0-be78-46ef-a3a8-ad0eea93f67e	hr:attendance.delete	考勤删除	考勤管理	删除	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+23c8f1bf-23e5-46bc-a965-e4f74a9c5bd5	hr:attendance.export	考勤导出	考勤管理	导出	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+7dff6243-ab88-4090-ad3e-f7419176d4e6	hr:payroll.view	薪酬查看	薪酬管理	查看	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+7d97095f-1371-4aee-99b3-e69cc5cad037	hr:payroll.create	薪酬新增	薪酬管理	新增	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+e8bfa2dc-ab95-4970-a245-0d0b31f316a2	hr:payroll.edit	薪酬编辑	薪酬管理	编辑	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+bb89aa41-93b0-4da9-99f0-5b2d20525a50	hr:payroll.delete	薪酬删除	薪酬管理	删除	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+6f212a0f-c0d4-472d-a889-34a6f9ce3f7c	hr:payroll.export	薪酬导出	薪酬管理	导出	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+37396318-923d-4fcd-bc17-8fd584200def	hr:profile.view	档案查看	人事档案	查看	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+a53b2f02-f4b7-4c22-9c43-637e19f94ab5	hr:profile.create	档案新增	人事档案	新增	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+6108f0ae-516c-459f-92c7-cbab491d3c9b	hr:profile.edit	档案编辑	人事档案	编辑	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+938f813c-f070-460a-b9f3-b34e537e01bd	hr:profile.delete	档案删除	人事档案	删除	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+96dcd908-214a-4842-beed-c6df4b34dc71	hr:profile.export	档案导出	人事档案	导出	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+cd03668e-f24f-4b04-9015-0d8567f829f7	hr:attendance.config	考勤配置	考勤管理	配置	2026-01-28 16:50:30.552906+00	2026-01-28 19:39:52.154034+00
+6148a122-5ff1-4b53-9016-edd8af4c9ef1	hr:acl.config	权限配置	权限管理	配置	2026-01-28 16:50:30.552906+00	2026-01-28 19:39:52.154034+00
 \.
 
 
@@ -1775,6 +1845,17 @@ COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, 
 1	NP-20251220-01	金鲳鱼(特级)	海鲜原料	500.50	2025-12-20	zhangsan
 2	NP-20251220-02	食用盐	辅料	50.00	2025-12-20	lisi
 3	NP-20251221-01	真空包装袋	包材	120.00	2025-12-20	zhangsan
+\.
+
+
+--
+-- Data for Name: role_data_scopes; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.role_data_scopes (id, role_id, module, scope_type, dept_id, created_at, updated_at) FROM stdin;
+7ef5aa89-0031-4bc5-bc31-47cf25b00155	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	all	\N	2026-01-28 16:50:30.565775+00	2026-01-28 16:50:30.565775+00
+acb88f94-ae35-40de-8fd5-2a0e566d8af6	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	dept_tree	\N	2026-01-28 16:50:30.568748+00	2026-01-28 16:50:30.568748+00
+48bb2e6d-6805-404e-a81d-5b38b0272c86	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	dept	\N	2026-01-28 16:50:30.570423+00	2026-01-28 16:50:30.570423+00
 \.
 
 
@@ -1847,6 +1928,10 @@ f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	a53b2f02-f4b7-4c22-9c43-637e19f94ab5	2026-0
 f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	6108f0ae-516c-459f-92c7-cbab491d3c9b	2026-01-16 15:27:08.757051+00
 f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	938f813c-f070-460a-b9f3-b34e537e01bd	2026-01-16 15:27:08.757051+00
 f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	96dcd908-214a-4842-beed-c6df4b34dc71	2026-01-16 15:27:08.757051+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	cd03668e-f24f-4b04-9015-0d8567f829f7	2026-01-28 16:50:30.559143+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	6148a122-5ff1-4b53-9016-edd8af4c9ef1	2026-01-28 16:50:30.559143+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	cd03668e-f24f-4b04-9015-0d8567f829f7	2026-01-28 16:50:30.562776+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	6148a122-5ff1-4b53-9016-edd8af4c9ef1	2026-01-28 16:50:30.562776+00
 \.
 
 
@@ -1854,12 +1939,13 @@ f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	96dcd908-214a-4842-beed-c6df4b34dc71	2026-0
 -- Data for Name: roles; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.roles (id, code, name, description, created_at, updated_at) FROM stdin;
-acf335a2-f56f-4aca-bb4d-682553c8e5ec	super_admin	Super Admin	All permissions	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_admin	HR Admin	HR full access	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-dab1f261-b0ef-4050-82d4-251514f9041b	hr_clerk	HR Clerk	HR edit access	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-e1ba01bc-955c-4d41-9ed8-35dfd8644320	dept_manager	Dept Manager	Department manager	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
-11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	employee	Employee	Regular employee	2026-01-16 15:27:08.757051+00	2026-01-16 15:27:08.757051+00
+COPY public.roles (id, code, name, description, created_at, updated_at, sort) FROM stdin;
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	super_admin	超级管理员	拥有全部权限	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00	100
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_admin	人事管理员	人事模块全权限	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00	100
+dab1f261-b0ef-4050-82d4-251514f9041b	hr_clerk	人事文员	人事模块编辑权限	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00	100
+e1ba01bc-955c-4d41-9ed8-35dfd8644320	dept_manager	部门主管	部门管理权限	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00	100
+11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	employee	员工	普通员工权限	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00	100
+e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_viewer	人事只读	仅查看权限	2026-01-28 16:50:30.556875+00	2026-01-28 19:39:52.154034+00	30
 \.
 
 
@@ -1876,6 +1962,16 @@ COPY public.sys_dict_items (id, dict_id, label, value, sort, enabled, extra, cre
 --
 
 COPY public.sys_dicts (id, dict_key, name, description, enabled, sort, created_at, updated_at) FROM stdin;
+\.
+
+
+--
+-- Data for Name: sys_field_acl; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.sys_field_acl (id, role_id, module, field_code, can_view, can_edit, created_at, updated_at) FROM stdin;
+c598dabd-8776-41e1-b06e-9fbe5dcde2ac	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	salary	t	f	2026-01-28 16:50:30.572916+00	2026-01-28 16:50:30.572916+00
+3c0909ec-2689-459d-8c01-1f4c81815fd9	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	id_card	t	f	2026-01-28 16:50:30.572916+00	2026-01-28 16:50:30.572916+00
 \.
 
 
@@ -2120,6 +2216,22 @@ ALTER TABLE ONLY public.raw_materials
 
 
 --
+-- Name: role_data_scopes role_data_scopes_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.role_data_scopes
+    ADD CONSTRAINT role_data_scopes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: role_data_scopes role_data_scopes_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.role_data_scopes
+    ADD CONSTRAINT role_data_scopes_unique UNIQUE (role_id, module);
+
+
+--
 -- Name: role_permissions role_permissions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -2173,6 +2285,22 @@ ALTER TABLE ONLY public.sys_dicts
 
 ALTER TABLE ONLY public.sys_dicts
     ADD CONSTRAINT sys_dicts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sys_field_acl sys_field_acl_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.sys_field_acl
+    ADD CONSTRAINT sys_field_acl_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sys_field_acl sys_field_acl_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.sys_field_acl
+    ADD CONSTRAINT sys_field_acl_unique UNIQUE (role_id, module, field_code);
 
 
 --
@@ -2349,6 +2477,34 @@ CREATE TRIGGER trg_eis_notify_hr_attendance_shifts AFTER INSERT OR DELETE OR UPD
 
 
 --
+-- Name: permissions tg_permissions_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER tg_permissions_updated_at BEFORE UPDATE ON public.permissions FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
+-- Name: role_data_scopes tg_role_data_scopes_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER tg_role_data_scopes_updated_at BEFORE UPDATE ON public.role_data_scopes FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
+-- Name: roles tg_roles_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER tg_roles_updated_at BEFORE UPDATE ON public.roles FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
+-- Name: sys_field_acl tg_sys_field_acl_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER tg_sys_field_acl_updated_at BEFORE UPDATE ON public.sys_field_acl FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
 -- Name: raw_materials trg_eis_notify_public_raw_materials; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
@@ -2425,6 +2581,22 @@ ALTER TABLE ONLY public.positions
 
 
 --
+-- Name: role_data_scopes role_data_scopes_dept_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.role_data_scopes
+    ADD CONSTRAINT role_data_scopes_dept_id_fkey FOREIGN KEY (dept_id) REFERENCES public.departments(id) ON DELETE SET NULL;
+
+
+--
+-- Name: role_data_scopes role_data_scopes_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.role_data_scopes
+    ADD CONSTRAINT role_data_scopes_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
 -- Name: role_permissions role_permissions_permission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -2446,6 +2618,14 @@ ALTER TABLE ONLY public.role_permissions
 
 ALTER TABLE ONLY public.sys_dict_items
     ADD CONSTRAINT sys_dict_items_dict_id_fkey FOREIGN KEY (dict_id) REFERENCES public.sys_dicts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: sys_field_acl sys_field_acl_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.sys_field_acl
+    ADD CONSTRAINT sys_field_acl_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
 
 
 --
@@ -2665,6 +2845,13 @@ GRANT SELECT,USAGE ON SEQUENCE public.raw_materials_id_seq TO web_user;
 
 
 --
+-- Name: TABLE role_data_scopes; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.role_data_scopes TO web_user;
+
+
+--
 -- Name: TABLE role_permissions; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -2676,6 +2863,13 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.role_permissions TO web_user;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.roles TO web_user;
+
+
+--
+-- Name: TABLE sys_field_acl; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.sys_field_acl TO web_user;
 
 
 --
@@ -2719,5 +2913,5 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict xNBT7uyhfuZWdWxMhlvFee0QQc4FF0hNNnxh51Y5j7UvpXSqk7krCesdIjfUdv9
+\unrestrict aLHhf61RPyg0ZaZfHKTmTeHDBrNXGuFtzYFZ7awmpL0u8MnGHxB6fou3ESdhI4I
 
