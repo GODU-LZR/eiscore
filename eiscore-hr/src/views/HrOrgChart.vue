@@ -3,7 +3,7 @@
     <div class="view-header">
       <div class="title-block">
         <h2>部门架构图</h2>
-        <p>拖拽同级部门调整顺序，支持新增、保存与成员管理</p>
+        <p>拖拽显示虚线预览，松开后按预览结果调整层级或顺序</p>
       </div>
       <div class="header-actions">
         <el-button type="primary" plain @click="openDeptDialog()">新增部门</el-button>
@@ -41,13 +41,13 @@
                 </marker>
               </defs>
 
-              <path
-                v-for="edge in edges"
-                :key="edge.id"
-                :d="edge.path"
-                class="org-line"
-                marker-end="url(#arrow)"
-              />
+  <path
+    v-for="edge in edges"
+    :key="edge.id"
+    :d="edge.path"
+    :class="['org-line', { preview: edge.preview }]"
+    marker-end="url(#arrow)"
+  />
 
               <g
                 v-for="node in nodes"
@@ -62,8 +62,8 @@
                   :height="node.height"
                   rx="10"
                   ry="10"
-                  :class="['org-rect', { active: node.id === selectedDeptId }]"
-                />
+                :class="['org-rect', { active: node.id === selectedDeptId, preview: node.isPreviewTarget }]"
+              />
                 <text
                   :x="node.width / 2"
                   :y="node.height / 2"
@@ -212,10 +212,23 @@ const NODE_WIDTH = 180
 const NODE_HEIGHT = 60
 const H_GAP = 220
 const V_GAP = 140
+const PREVIEW_DISTANCE = 120
 
 const baseLayout = ref([])
 const dragPreview = ref({})
-const dragState = ref({ active: false, id: '', offsetX: 0, offsetY: 0, raf: 0, lastPoint: null })
+const dragState = ref({
+  active: false,
+  id: '',
+  offsetX: 0,
+  offsetY: 0,
+  raf: 0,
+  lastPoint: null,
+  startPoint: null,
+  subtreeIds: [],
+  subtreeBase: {},
+  previewTargetId: '',
+  previewType: ''
+})
 const zoom = ref(1)
 
 const memberDialog = ref({ visible: false, keyword: '', selectedIds: [] })
@@ -256,6 +269,46 @@ const sortChildren = (children) => {
   })
 }
 
+const isDescendant = (parentId, childId) => {
+  const map = new Map()
+  departments.value.forEach(d => map.set(d.id, d.parent_id))
+  let current = childId
+  while (current) {
+    if (current === parentId) return true
+    current = map.get(current)
+  }
+  return false
+}
+
+const getDescendantIds = (rootId) => {
+  const childrenMap = new Map()
+  departments.value.forEach((d) => {
+    const parent = d.parent_id || ''
+    if (!childrenMap.has(parent)) childrenMap.set(parent, [])
+    childrenMap.get(parent).push(d.id)
+  })
+  const result = []
+  const stack = [rootId]
+  while (stack.length) {
+    const current = stack.pop()
+    if (!current) continue
+    result.push(current)
+    const children = childrenMap.get(current) || []
+    children.forEach(id => stack.push(id))
+  }
+  return result
+}
+
+const distanceToRect = (point, node) => {
+  const left = node.x
+  const right = node.x + NODE_WIDTH
+  const top = node.y
+  const bottom = node.y + NODE_HEIGHT
+  const dx = Math.max(0, Math.max(left - point.x, point.x - right))
+  const dy = Math.max(0, Math.max(top - point.y, point.y - bottom))
+  return Math.hypot(dx, dy)
+}
+
 const layoutTree = (nodes, level = 0, baseX = 80, baseY = 60, positions = []) => {
   let currentX = baseX
   const ordered = sortChildren(nodes)
@@ -289,7 +342,8 @@ const nodes = computed(() => {
       x: saved?.x ?? p.x,
       y: saved?.y ?? p.y,
       width: NODE_WIDTH,
-      height: NODE_HEIGHT
+      height: NODE_HEIGHT,
+      isPreviewTarget: dragState.value.previewTargetId === p.id
     }
   })
 })
@@ -302,6 +356,7 @@ const edges = computed(() => {
     const from = map.get(d.parent_id)
     const to = map.get(d.id)
     if (!from || !to) return
+    if (dragState.value.active && dragState.value.id === d.id) return
     const startX = from.x + NODE_WIDTH / 2
     const startY = from.y + NODE_HEIGHT
     const endX = to.x + NODE_WIDTH / 2
@@ -309,9 +364,32 @@ const edges = computed(() => {
     const midY = (startY + endY) / 2
     lines.push({
       id: `${d.parent_id}-${d.id}`,
-      path: `M ${startX} ${startY} L ${startX} ${midY} L ${endX} ${midY} L ${endX} ${endY}`
+      path: `M ${startX} ${startY} L ${startX} ${midY} L ${endX} ${midY} L ${endX} ${endY}`,
+      preview: false
     })
   })
+  if (dragState.value.active && dragState.value.previewTargetId) {
+    const moved = nodes.value.find(n => n.id === dragState.value.id)
+    const target = nodes.value.find(n => n.id === dragState.value.previewTargetId)
+    const movedDept = departments.value.find(d => d.id === dragState.value.id)
+    if (moved && target && movedDept) {
+      const parentNode = dragState.value.previewType === 'reparent'
+        ? target
+        : map.get(movedDept.parent_id || '')
+      if (parentNode) {
+        const startX = parentNode.x + NODE_WIDTH / 2
+        const startY = parentNode.y + NODE_HEIGHT
+        const endX = moved.x + NODE_WIDTH / 2
+        const endY = moved.y
+        const midY = (startY + endY) / 2
+        lines.push({
+          id: `preview-${parentNode.id}-${moved.id}`,
+          path: `M ${startX} ${startY} L ${startX} ${midY} L ${endX} ${midY} L ${endX} ${endY}`,
+          preview: true
+        })
+      }
+    }
+  }
   return lines
 })
 
@@ -565,28 +643,86 @@ const getSvgPoint = (event) => {
 const onMouseDown = (event, node) => {
   if (event.button !== 0) return
   const point = getSvgPoint(event)
-  dragPreview.value = { [node.id]: { x: node.x, y: node.y } }
+  const subtreeIds = getDescendantIds(node.id)
+  const basePositions = {}
+  nodes.value.forEach((n) => {
+    if (subtreeIds.includes(n.id)) {
+      basePositions[n.id] = { x: n.x, y: n.y }
+    }
+  })
+  dragPreview.value = { ...basePositions }
   dragState.value = {
     active: true,
     id: node.id,
     offsetX: point.x - node.x,
     offsetY: point.y - node.y,
     raf: 0,
-    lastPoint: point
+    lastPoint: point,
+    startPoint: point,
+    subtreeIds,
+    subtreeBase: basePositions,
+    previewTargetId: '',
+    previewType: ''
   }
+}
+
+const detectPreviewTarget = (point) => {
+  const movedId = dragState.value.id
+  const excludeIds = new Set(dragState.value.subtreeIds || [movedId])
+  const candidates = nodes.value.filter(n => !excludeIds.has(n.id))
+  if (candidates.length === 0) return { targetId: '', type: '' }
+  const movedDept = departments.value.find(d => d.id === movedId)
+  if (!movedDept) return { targetId: '', type: '' }
+  const scale = Math.max(0.5, Math.min(2, zoom.value))
+  const threshold = PREVIEW_DISTANCE / scale
+  const insideTarget = candidates.find((node) => {
+    const insideX = point.x >= node.x && point.x <= node.x + NODE_WIDTH
+    const insideY = point.y >= node.y && point.y <= node.y + NODE_HEIGHT
+    return insideX && insideY
+  })
+  if (insideTarget) {
+    return { targetId: insideTarget.id, type: 'reparent' }
+  }
+  let best = null
+  let bestDistance = Number.POSITIVE_INFINITY
+  candidates.forEach((node) => {
+    const distance = distanceToRect(point, node)
+    if (distance < bestDistance) {
+      bestDistance = distance
+      best = node
+    }
+  })
+  if (!best || bestDistance > threshold) return { targetId: '', type: '' }
+  const targetDept = departments.value.find(d => d.id === best.id)
+  if (!targetDept) return { targetId: '', type: '' }
+  const sameParent = (movedDept.parent_id || null) === (targetDept.parent_id || null)
+  return { targetId: best.id, type: sameParent ? 'reorder' : 'reparent' }
 }
 
 const onMouseMove = (event) => {
   if (!dragState.value.active) return
   dragState.value.lastPoint = getSvgPoint(event)
+  const preview = detectPreviewTarget(dragState.value.lastPoint)
+  dragState.value.previewTargetId = preview.targetId
+  dragState.value.previewType = preview.type
   if (dragState.value.raf) return
   dragState.value.raf = requestAnimationFrame(() => {
-    const { id, offsetX, offsetY, lastPoint } = dragState.value
-    const next = { ...(dragPreview.value || {}) }
-    next[id] = {
-      x: Math.max(20, lastPoint.x - offsetX),
-      y: Math.max(20, lastPoint.y - offsetY)
+    const { subtreeIds, subtreeBase, startPoint, lastPoint } = dragState.value
+    if (!startPoint || !subtreeIds || !subtreeIds.length) {
+      dragState.value.raf = 0
+      return
     }
+    const deltaX = lastPoint.x - startPoint.x
+    const deltaY = lastPoint.y - startPoint.y
+    const next = { ...(dragPreview.value || {}) }
+    subtreeIds.forEach((subId) => {
+      const base = subtreeBase[subId]
+      if (!base) return
+      next[subId] = {
+        x: Math.max(20, base.x + deltaX),
+        y: Math.max(20, base.y + deltaY)
+      }
+    })
     dragPreview.value = next
     dragState.value.raf = 0
   })
@@ -599,29 +735,38 @@ const onMouseUp = async () => {
     dragState.value.raf = 0
   }
   const dropId = dragState.value.id
+  const previewTargetId = dragState.value.previewTargetId
+  const previewType = dragState.value.previewType
   dragState.value.active = false
+  dragState.value.previewTargetId = ''
+  dragState.value.previewType = ''
+  dragState.value.subtreeIds = []
+  dragState.value.subtreeBase = {}
+  dragState.value.startPoint = null
   const moved = dragPreview.value?.[dropId]
   dragPreview.value = {}
   if (!moved) return
 
-  const dropCenterX = moved.x + NODE_WIDTH / 2
-  const dropCenterY = moved.y + NODE_HEIGHT / 2
-  const target = nodes.value.find(n => {
-    if (n.id === dropId) return false
-    return (
-      dropCenterX > n.x &&
-      dropCenterX < n.x + NODE_WIDTH &&
-      dropCenterY > n.y &&
-      dropCenterY < n.y + NODE_HEIGHT
-    )
-  })
+  const target = nodes.value.find(n => n.id === previewTargetId)
   if (!target) return
 
   const movedDept = departments.value.find(d => d.id === dropId)
   const targetDept = departments.value.find(d => d.id === target.id)
   if (!movedDept || !targetDept) return
-  if ((movedDept.parent_id || null) !== (targetDept.parent_id || null)) return
 
+  if (previewType === 'reparent') {
+    if (isDescendant(movedDept.id, targetDept.id)) return
+    await request({
+      url: `/departments?id=eq.${movedDept.id}`,
+      method: 'patch',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      data: { parent_id: targetDept.id }
+    })
+    await reloadAll()
+    return
+  }
+
+  // 同级拖拽调整顺序
   const siblings = sortChildren(
     departments.value.filter(d => (d.parent_id || null) === (movedDept.parent_id || null))
   )
@@ -720,6 +865,11 @@ onUnmounted(() => {
   stroke-width: 2;
 }
 
+.org-line.preview {
+  stroke-dasharray: 6 4;
+  opacity: 0.8;
+}
+
 .org-rect {
   fill: #ffffff;
   stroke: #2c6cf6;
@@ -730,6 +880,12 @@ onUnmounted(() => {
 .org-rect.active {
   fill: #ecf5ff;
   stroke: #409eff;
+}
+
+.org-rect.preview {
+  stroke: #67c23a;
+  stroke-width: 2.5;
+  stroke-dasharray: 6 4;
 }
 
 .org-text {
