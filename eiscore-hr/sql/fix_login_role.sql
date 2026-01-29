@@ -13,8 +13,8 @@ declare
   result json;
   _secret text := 'my_super_secret_key_for_eiscore_system_2025';
 begin
-  select u.id, u.role
-    into _user_id, _app_role
+  select u.id
+    into _user_id
   from public.users u
   where lower(trim(u.username)) = lower(trim(login.username))
     and u.password = trim(login.password);
@@ -39,14 +39,19 @@ begin
     where u.id = _user_id;
   end if;
 
+  select v.role_code
+    into _app_role
+  from public.user_roles ur
+  join public.v_role_permissions v on v.role_id = ur.role_id
+  where ur.user_id = _user_id
+  order by v.role_code asc
+  limit 1;
+
   if _app_role is null or _app_role = '' then
-    select v.role_code
+    select u.role
       into _app_role
-    from public.user_roles ur
-    join public.v_role_permissions v on v.role_id = ur.role_id
-    where ur.user_id = _user_id
-    order by v.role_code asc
-    limit 1;
+    from public.users u
+    where u.id = _user_id;
   end if;
 
   result := json_build_object(

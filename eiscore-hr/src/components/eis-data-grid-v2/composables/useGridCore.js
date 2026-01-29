@@ -121,7 +121,13 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
   const cellClassRules = { 
     'custom-range-selected': (params) => isCellInSelection && isCellInSelection(params),
-    'cell-locked-pattern': (params) => isCellReadOnly(params),
+    // 仅业务锁定或列锁定使用条纹样式，权限只读用灰底
+    'cell-locked-pattern': (params) => {
+      const colId = params.colDef.field
+      if (params.data?.properties?.row_locked_by) return true
+      if (colId && columnLockState[colId]) return true
+      return false
+    },
     'status-cell': (params) => params.colDef.field === '_status'
   }
 
@@ -131,10 +137,12 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const base = { 'line-height': '34px' }
     if (params.node.rowPinned) return { ...base, backgroundColor: '#ecf5ff', color: '#409EFF', fontWeight: 'bold', borderTop: '2px solid var(--el-color-primary-light-5)' }
     if (params.colDef.field === '_status') return { ...base, cursor: 'pointer' }
-    if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
+    if (params.data?.properties?.row_locked_by) return base
     const acl = getFieldAcl(params.colDef)
     if (acl?.canView === false) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
-    if (params.colDef.editable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
+    if (acl?.canView !== false && acl?.canEdit === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
+    if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
+    if (params.colDef.editable === false && params.colDef.field !== '_actions') return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef?.multiLine) {
       return { ...base, whiteSpace: 'pre-line', lineHeight: '18px', paddingTop: '6px', paddingBottom: '6px' }
     }
