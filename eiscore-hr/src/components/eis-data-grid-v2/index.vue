@@ -48,12 +48,15 @@
         :rowClassRules="rowClassRules" 
         
         @grid-ready="onGridReady"
-        @cell-value-changed="onCellValueChanged"
+        @cell-value-changed="handleCellValueChanged"
         @cell-key-down="onCellKeyDown"
         @selection-changed="onSelectionChanged"
+        @column-header-clicked="onColumnHeaderClicked"
+        @row-selected="onRowSelected"
         
         @cell-mouse-down="onCellMouseDown"
         @cell-mouse-over="onCellMouseOver"
+        @cell-mouse-out="handleCellMouseOut"
         @cell-double-clicked="onCellDoubleClicked"
       >
       </ag-grid-vue>
@@ -147,10 +150,10 @@ const props = defineProps({
 })
 
 // 🟢 声明事件：增加 view-document
-const emit = defineEmits(['create', 'config-columns', 'view-document', 'data-loaded'])
+const emit = defineEmits(['create', 'config-columns', 'view-document', 'data-loaded', 'cell-value-changed'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
-const isAdmin = currentUser === 'Admin'
+const isAdmin = String(currentUser).toLowerCase() === 'admin'
 
 const agGridRef = ref(null)
 const gridApi = ref(null)
@@ -162,7 +165,8 @@ const fileDialog = reactive({ visible: false, params: null })
 const selectionHooks = useGridSelection(gridApi, selectedRowsCount, agGridRef)
 const { 
   rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
-  onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection 
+  onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection,
+  selectColumnRange, selectRowRange
 } = selectionHooks
 
 // 2. Core (传入 emit)
@@ -180,6 +184,10 @@ const openFileDialog = (params) => {
 }
 
 context.componentParent.openFileDialog = openFileDialog
+context.componentParent.onHeaderLabelClick = (params, event) => {
+  if (!params?.column) return
+  selectColumnRange(params.column.getColId())
+}
 
 // 3. Formula
 const formulaDependencyHooks = {} 
@@ -196,6 +204,11 @@ const {
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,
   debouncedSave, performUndoRedo 
 } = historyHooks
+
+const handleCellValueChanged = (params) => {
+  onCellValueChanged(params)
+  emit('cell-value-changed', params)
+}
 
 // 注入公式依赖，解决循环依赖问题
 formulaDependencyHooks.pushPendingChange = pushPendingChange
@@ -232,6 +245,14 @@ const onGridReady = (params) => {
 
 const onGridMouseLeave = () => {}
 const onCellDoubleClicked = (params) => {
+  if (!params) return
+  if (params.node?.rowPinned === 'bottom') {
+    if (!isAdmin) return
+    const colId = params.column.colId
+    const colName = params.colDef.headerName
+    openConfigDialog(colName, colId, isAdmin)
+    return
+  }
   if (params.node?.rowPinned) return
   if (params.colDef?.type === 'check') {
     const editable = typeof params.colDef.editable === 'function'
@@ -242,16 +263,40 @@ const onCellDoubleClicked = (params) => {
     params.node.setDataValue(params.colDef.field, !current)
     return
   }
-  if (params.node.rowPinned !== 'bottom' && params.colDef?.type === 'geo') {
+  if (params.colDef?.type === 'geo') {
     geoDialog.params = params
     geoDialog.visible = true
-    return
   }
-  if (params.node.rowPinned !== 'bottom') return
-  if (!isAdmin) { return }
-  const colId = params.column.colId
-  const colName = params.colDef.headerName
-  openConfigDialog(colName, colId, isAdmin)
+}
+
+const onColumnHeaderClicked = (params) => {
+  const event = params?.event
+  const colId = params?.column?.getColId?.()
+  if (!event || !colId) return
+  const target = event.target
+  if (!target || !target.closest) return
+  if (!target.closest('.custom-header-label')) return
+  selectColumnRange(colId)
+}
+
+const onRowSelected = (params) => {
+  const event = params?.event
+  if (!event) return
+  const target = event.target
+  if (!target || !target.closest) return
+  const isCheckbox = target.closest('.ag-selection-checkbox') || target.closest('.ag-checkbox-input-wrapper') || target.closest('input[type=\"checkbox\"]')
+  if (!isCheckbox) return
+  selectRowRange(params.node?.rowIndex)
+}
+
+const handleCellMouseOut = (params) => {
+  if (!params || params.node?.rowPinned) return
+  const colDef = params.colDef || {}
+  if (colDef.type !== 'check') return
+  if (!gridApi.value) return
+  if (gridApi.value.getEditingCells().length > 0) {
+    gridApi.value.stopEditing()
+  }
 }
 
 const handleGeoSubmit = (payload) => {
@@ -305,6 +350,8 @@ defineExpose({ loadData })
 .custom-header-icon:hover { background-color: #e6e8eb; }
 .header-unlock-icon, .menu-btn { opacity: 0; transition: opacity 0.2s; }
 .custom-header-wrapper:hover .header-unlock-icon, .custom-header-wrapper:hover .menu-btn { opacity: 1; }
+.ag-theme-alpine .perm-granted-header .custom-header-main { overflow: visible; }
+.ag-theme-alpine .perm-granted-header .custom-header-label { overflow: visible; text-overflow: clip; white-space: nowrap; }
 
 .status-editor-popup { background-color: #fff; border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); border: 1px solid #e4e7ed; overflow: hidden; padding: 4px 0; z-index: 9999; }
 .status-editor-popup.select-editor-popup { max-height: 120px; overflow-y: auto; overflow-x: hidden; }

@@ -131,13 +131,33 @@ const handleLogin = async () => {
         const payload = parseJwt(realToken)
         console.log('Token Payload:', payload)
 
+        let roleId = ''
+        if (payload.app_role) {
+          try {
+            const roleRes = await fetch(`/api/roles?code=eq.${payload.app_role}`, {
+              method: 'GET',
+              headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+            })
+            if (roleRes.ok) {
+              const roleList = await roleRes.json()
+              if (Array.isArray(roleList) && roleList.length > 0) {
+                roleId = roleList[0].id
+              }
+            }
+          } catch (e) {
+            roleId = ''
+          }
+        }
+
         // 🟢 3. 构造用户信息 (使用真实权限)
         const userData = {
           token: realToken,
           user: {
             id: payload.username, // 这里暂时用 username 当 id
             name: payload.username,
+            username: payload.username,
             role: payload.app_role || payload.role || 'user',
+            role_id: roleId,
             dbRole: payload.role || 'web_user',
             // 关键：从 Token 里拿到数据库定义的 permissions 数组
             permissions: payload.permissions || [], 

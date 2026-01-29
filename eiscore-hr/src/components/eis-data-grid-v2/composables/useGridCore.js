@@ -26,7 +26,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const columnLockState = reactive({})
   const fieldAcl = ref({})
   const userStore = useUserStore()
-  const aclRoleId = computed(() => userStore.userInfo?.role_id || userStore.userInfo?.roleId || '')
+  const resolvedRoleId = ref('')
+  const aclRoleId = computed(() => userStore.userInfo?.role_id || userStore.userInfo?.roleId || resolvedRoleId.value || '')
   const aclModule = computed(() => props.aclModule || '')
 
   const gridComponents = {
@@ -47,18 +48,42 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const dictOptions = reactive({})
   const dictLoading = reactive({})
 
-  const applyFieldAcl = (col) => {
-    if (!aclModule.value || !aclRoleId.value) return {}
-    const acl = fieldAcl.value[col.prop]
-    if (!acl) return {}
-    const result = {}
-    if (acl.canView === false) result.hide = true
-    if (acl.canEdit === false) result.editable = false
-    return result
+  const getFieldKeyFromColDef = (colDef) => {
+    const field = colDef?.field || ''
+    if (!field) return ''
+    return field.startsWith('properties.') ? field.slice('properties.'.length) : field
+  }
+
+  const getFieldAcl = (colDef) => {
+    if (!aclModule.value || !aclRoleId.value) return null
+    const key = getFieldKeyFromColDef(colDef)
+    if (!key) return null
+    return fieldAcl.value?.[key] || null
   }
 
   const loadFieldAcl = async () => {
-    if (!aclModule.value || !aclRoleId.value) {
+    if (!aclModule.value) {
+      fieldAcl.value = {}
+      return
+    }
+    if (!aclRoleId.value) {
+      const roleCode = userStore.userInfo?.role
+      if (roleCode) {
+        try {
+          const res = await request({
+            url: `/roles?code=eq.${roleCode}`,
+            method: 'get',
+            headers: { 'Accept-Profile': 'public' }
+          })
+          if (Array.isArray(res) && res.length > 0) {
+            resolvedRoleId.value = res[0].id
+          }
+        } catch (e) {
+          resolvedRoleId.value = ''
+        }
+      }
+    }
+    if (!aclRoleId.value) {
       fieldAcl.value = {}
       return
     }
@@ -88,6 +113,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (columnLockState[colId]) return true
     if (params.data?.properties?.row_locked_by) return true
     if (params.colDef.type === 'formula') return true
+    const acl = getFieldAcl(params.colDef)
+    if (acl?.canView === false) return true
+    if (acl?.canEdit === false) return true
     return false
   }
 
@@ -104,6 +132,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (params.node.rowPinned) return { ...base, backgroundColor: '#ecf5ff', color: '#409EFF', fontWeight: 'bold', borderTop: '2px solid var(--el-color-primary-light-5)' }
     if (params.colDef.field === '_status') return { ...base, cursor: 'pointer' }
     if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
+    const acl = getFieldAcl(params.colDef)
+    if (acl?.canView === false) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
     if (params.colDef.editable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef?.multiLine) {
       return { ...base, whiteSpace: 'pre-line', lineHeight: '18px', paddingTop: '6px', paddingBottom: '6px' }
@@ -113,10 +143,13 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
   const formatSummaryCell = (params, col) => {
     if (!params?.node?.rowPinned) {
+      const acl = getFieldAcl(params.colDef)
+      if (acl?.canView === false) return '*****'
       if (typeof col?.formatter === 'function') return col.formatter(params)
       if (Array.isArray(params.value)) return params.value.join('  ')
       return params.value
     }
+    if (col?.type === 'check') return ''
     const label = activeSummaryConfig?.cellLabels?.[col?.prop]
     if (!label) return params.value
     const val = params.value
@@ -291,9 +324,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       ...extraColDef
     }
 
-    const acl = applyFieldAcl(col)
-    if (acl.hide) colDef.hide = true
-    if (acl.editable === false) colDef.editable = false
+    if (!colDef.valueFormatter) {
+      colDef.valueFormatter = (params) => formatSummaryCell(params, col)
+    }
 
     if (isDynamic) {
       colDef.valueSetter = (params) => {
@@ -334,6 +367,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         cellEditor: 'CheckEditor',
         cellEditorPopup: false,
         editable: (params) => !isCellReadOnly(params),
+        suppressClickEdit: true,
         valueParser: (params) => {
           return parseCheckValue(params.newValue)
         },

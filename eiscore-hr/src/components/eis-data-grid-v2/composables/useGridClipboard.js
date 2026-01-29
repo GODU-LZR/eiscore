@@ -7,7 +7,11 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
   const handleGlobalPaste = async (event) => {
     if (!gridApi.value) return
     const activeEl = document.activeElement
-    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) if (!activeEl.closest('.ag-root-wrapper')) return 
+    if (activeEl) {
+      const tag = activeEl.tagName
+      const isEditable = activeEl.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA'
+      if (isEditable) return
+    }
     const focusedCell = gridApi.value.getFocusedCell()
     const hasRange = rangeSelection.active
     if (!focusedCell && !hasRange) return
@@ -192,6 +196,14 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
 
     // 复制 (Ctrl+C)
     if (isCtrl && key === 'c') {
+      const activeEl = document.activeElement
+      if (activeEl) {
+        const tag = activeEl.tagName
+        const isEditable = activeEl.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA'
+        if (isEditable) return
+      }
+      if (gridApi.value.getEditingCells().length > 0) return
+
       const focusedCell = gridApi.value.getFocusedCell()
       const isRangeActive = rangeSelection.active
       if (!isRangeActive && !focusedCell) return

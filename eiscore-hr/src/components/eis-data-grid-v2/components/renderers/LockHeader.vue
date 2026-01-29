@@ -6,6 +6,11 @@
       <el-icon v-if="sortState === 'desc'" :size="12" color="#409EFF" style="margin-left:4px; flex-shrink: 0;"><SortDown /></el-icon>
     </div>
     <div class="custom-header-tools">
+      <span class="custom-header-icon sort-btn" @click.stop="onSortClick">
+        <el-tooltip content="排序" placement="top">
+          <el-icon :size="14" color="#909399"><Sort /></el-icon>
+        </el-tooltip>
+      </span>
       <span class="custom-header-icon lock-btn" @click.stop="onLockClick">
         <el-tooltip v-if="isLocked" :content="`列锁定: ${lockInfo}`" placement="top">
           <el-icon color="#F56C6C" :size="14"><Lock /></el-icon>
@@ -22,7 +27,7 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import { ElIcon, ElTooltip } from 'element-plus'
-import { SortUp, SortDown, Lock, Unlock, Filter } from '@element-plus/icons-vue'
+import { SortUp, SortDown, Lock, Unlock, Filter, Sort } from '@element-plus/icons-vue'
 
 const props = defineProps(['params'])
 const colKey = props.params.column.getColDef().field || props.params.column.colId
@@ -44,7 +49,12 @@ onMounted(() => {
   onSortChanged()
 })
 
-const onLabelClick = (e) => props.params.progressSort(e.shiftKey)
+const onLabelClick = (e) => {
+  if (props.params?.context?.componentParent?.onHeaderLabelClick) {
+    props.params.context.componentParent.onHeaderLabelClick(props.params, e)
+  }
+}
+const onSortClick = (e) => props.params.progressSort(e.shiftKey)
 const onMenuClick = (e) => props.params.showColumnMenu(e.target)
 const onLockClick = () => gridComp.toggleColumnLock(colKey)
 </script>

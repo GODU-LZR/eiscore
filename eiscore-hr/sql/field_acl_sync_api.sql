@@ -20,6 +20,7 @@ begin
     select r.id as role_id, module_name as module, fc as field_code
     from public.roles r
     cross join unnest(field_codes) as fc
+    where fc is not null and fc <> ''
   ),
   upserted as (
     insert into public.sys_field_acl (role_id, module, field_code, can_view, can_edit)

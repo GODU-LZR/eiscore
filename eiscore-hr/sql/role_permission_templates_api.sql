@@ -66,13 +66,26 @@ begin
     where r.code = 'employee'
     on conflict do nothing
     returning 1
+  ),
+  s6 as (
+    insert into public.role_permissions (role_id, permission_id)
+    select r.id, p.id
+    from public.roles r
+    join public.permissions p
+      on p.code in ('module:home', 'module:hr')
+      or p.code in ('app:hr_employee', 'app:hr_attendance')
+      or p.code ~ '^op:hr_.*\\.view$'
+    where r.code = 'hr_viewer'
+    on conflict do nothing
+    returning 1
   )
   select
     coalesce((select count(*) from s1), 0) +
     coalesce((select count(*) from s2), 0) +
     coalesce((select count(*) from s3), 0) +
     coalesce((select count(*) from s4), 0) +
-    coalesce((select count(*) from s5), 0)
+    coalesce((select count(*) from s5), 0) +
+    coalesce((select count(*) from s6), 0)
   into _count;
 
   return _count;

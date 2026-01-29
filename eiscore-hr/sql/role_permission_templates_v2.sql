@@ -53,3 +53,14 @@ join public.permissions p
   or p.code ~ '^op:hr_.*\\.view$'
 where r.code = 'employee'
 on conflict do nothing;
+
+-- 6) 人事只读：含首页入口 + HR 只读
+insert into public.role_permissions (role_id, permission_id)
+select r.id, p.id
+from public.roles r
+join public.permissions p
+  on p.code in ('module:home', 'module:hr')
+  or p.code in ('app:hr_employee', 'app:hr_attendance')
+  or p.code ~ '^op:hr_.*\\.view$'
+where r.code = 'hr_viewer'
+on conflict do nothing;

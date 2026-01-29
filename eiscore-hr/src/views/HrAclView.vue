@@ -20,7 +20,7 @@
             api-url="/roles?order=sort.asc"
             write-url="/roles"
             :include-properties="false"
-            :static-columns="roleColumns"
+            :static-columns="roleColumnsDisplay"
             :extra-columns="[]"
             :summary="emptySummary"
             accept-profile="public"
@@ -39,10 +39,12 @@
           <eis-data-grid
             ref="permsModuleGridRef"
             view-id="hr_acl_permissions_module"
-            api-url="/permissions?code=like.module:%&order=code.asc"
-            write-url="/permissions"
+            :api-url="permModuleApiUrl"
+            write-url="/v_role_permissions_matrix"
+            write-mode="patch"
+            :patch-required-fields="['role_id','permission_id']"
             :include-properties="false"
-            :static-columns="permColumns"
+            :static-columns="permColumnsModule"
             :extra-columns="[]"
             :summary="emptySummary"
             accept-profile="public"
@@ -50,8 +52,9 @@
             :show-action-col="false"
             :auto-size-columns="false"
             default-order=""
-            @create="handleCreate('permissions')"
+            :can-create="false"
             @config-columns="handleConfigColumns"
+            @cell-value-changed="handlePermissionChanged"
           />
         </div>
       </el-tab-pane>
@@ -72,9 +75,11 @@
             ref="permsAppGridRef"
             view-id="hr_acl_permissions_app"
             :api-url="permAppApiUrl"
-            write-url="/permissions"
+            write-url="/v_role_permissions_matrix"
+            write-mode="patch"
+            :patch-required-fields="['role_id','permission_id']"
             :include-properties="false"
-            :static-columns="permColumns"
+            :static-columns="permColumnsApp"
             :extra-columns="[]"
             :summary="emptySummary"
             accept-profile="public"
@@ -82,8 +87,9 @@
             :show-action-col="false"
             :auto-size-columns="false"
             default-order=""
-            @create="handleCreate('permissions')"
+            :can-create="false"
             @config-columns="handleConfigColumns"
+            @cell-value-changed="handlePermissionChanged"
           />
         </div>
       </el-tab-pane>
@@ -104,9 +110,11 @@
             ref="permsOpGridRef"
             view-id="hr_acl_permissions_op"
             :api-url="permOpApiUrl"
-            write-url="/permissions"
+            write-url="/v_role_permissions_matrix"
+            write-mode="patch"
+            :patch-required-fields="['role_id','permission_id']"
             :include-properties="false"
-            :static-columns="permColumns"
+            :static-columns="permColumnsOp"
             :extra-columns="[]"
             :summary="emptySummary"
             accept-profile="public"
@@ -114,30 +122,9 @@
             :show-action-col="false"
             :auto-size-columns="false"
             default-order=""
-            @create="handleCreate('permissions')"
+            :can-create="false"
             @config-columns="handleConfigColumns"
-          />
-        </div>
-      </el-tab-pane>
-
-      <el-tab-pane label="数据范围" name="scope">
-        <div class="grid-wrap">
-          <eis-data-grid
-            ref="scopeGridRef"
-            view-id="hr_acl_scopes"
-            :api-url="scopeApiUrl"
-            write-url="/role_data_scopes"
-            :include-properties="false"
-            :static-columns="scopeColumns"
-            :extra-columns="[]"
-            :summary="emptySummary"
-            accept-profile="public"
-            content-profile="public"
-            :show-action-col="false"
-            :auto-size-columns="false"
-            default-order=""
-            @create="handleCreate('scopes')"
-            @config-columns="handleConfigColumns"
+            @cell-value-changed="handlePermissionChanged"
           />
         </div>
       </el-tab-pane>
@@ -162,7 +149,7 @@
             write-mode="patch"
             :patch-required-fields="['role_id','module','field_code']"
             :include-properties="false"
-            :static-columns="fieldColumns"
+            :static-columns="fieldColumnsDisplay"
             :extra-columns="[]"
             :summary="emptySummary"
             accept-profile="public"
@@ -171,6 +158,29 @@
             :auto-size-columns="false"
             default-order=""
             @create="handleCreate('fields')"
+            @config-columns="handleConfigColumns"
+            @cell-value-changed="handleFieldAclChanged"
+          />
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="部门数据查看范围" name="scope">
+        <div class="grid-wrap">
+          <eis-data-grid
+            ref="scopeGridRef"
+            view-id="hr_acl_scopes"
+            :api-url="scopeApiUrl"
+            write-url="/role_data_scopes"
+            :include-properties="false"
+            :static-columns="scopeColumnsDisplay"
+            :extra-columns="[]"
+            :summary="emptySummary"
+            accept-profile="public"
+            content-profile="public"
+            :show-action-col="false"
+            :auto-size-columns="false"
+            default-order=""
+            @create="handleCreate('scopes')"
             @config-columns="handleConfigColumns"
           />
         </div>
@@ -185,6 +195,7 @@ import request from '@/utils/request'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import { ElMessage } from 'element-plus'
 import { formatPermissionName, PERMISSION_ACTION_OPTIONS, parsePermissionCode, MODULE_LABELS, APP_LABELS } from '@/utils/permission-spec'
+import { FIELD_LABELS } from '@/utils/field-labels'
 import { HR_APPS, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
 
 const roles = ref([])
@@ -252,11 +263,11 @@ const permissionNameFromCode = (code, fallback) => {
 
 const roleLabel = (r) => {
   const name = roleNameMap[r.code] || r.name || r.code
-  return `${name}（${r.code}）`
+  return `${name}`
 }
 
 const roleColumns = [
-  { prop: 'code', label: '角色编码', editable: true },
+  { prop: 'code', label: '角色编码', editable: false },
   {
     prop: 'name',
     label: '角色名称',
@@ -293,13 +304,14 @@ const permColumns = [
     return ''
   } },
   { prop: 'action', label: '动作', width: 140, editable: true, type: 'select', options: PERMISSION_ACTION_OPTIONS },
-  { prop: 'code', label: '权限码', editable: true, width: 240 },
   {
     prop: 'name',
     label: '名称',
     editable: true,
     valueFormatter: (params) => permissionNameFromCode(params.data?.code, params.value)
-  }
+  },
+  { prop: 'granted', label: '是否有权限', editable: true, type: 'check', width: 180, minWidth: 180, suppressSizeToFit: true, headerClass: 'perm-granted-header' },
+  { prop: 'code', label: '权限码', editable: false, width: 240 }
 ]
 
 const scopeColumns = [
@@ -320,12 +332,57 @@ const fieldColumns = [
   { prop: 'module', label: '模块', width: 160, editable: false, type: 'select', options: modules.value.map(m => ({ label: moduleLabel(m), value: m })) },
   { prop: 'field_code', label: '列', width: 200, editable: false, formatter: (params) => {
     const code = params.value
-    const label = fieldLabelMap.value[code]
-    return label || '未命名字段'
+    const label = fieldLabelMap.value[code] || FIELD_LABELS[fieldModule.value]?.[code]
+    return label || code || '未命名字段'
   } },
   { prop: 'can_view', label: '可见', editable: true, type: 'check' },
   { prop: 'can_edit', label: '可编辑', editable: true, type: 'check' }
 ]
+
+const roleColumnsDisplay = computed(() => roleColumns.filter(col => col.prop !== 'code'))
+const scopeColumnsDisplay = computed(() => scopeColumns.filter(col => col.prop !== 'role_id'))
+const fieldColumnsDisplay = computed(() => fieldColumns.filter(col => col.prop !== 'role_id'))
+const permColumnsModule = computed(() => {
+  const cols = permColumns
+    .filter(col => col.prop !== 'app' && col.prop !== 'code')
+    .map((col) => {
+      if (col.prop === 'action') {
+        return { ...col, editable: false, type: undefined, options: undefined }
+      }
+      return col
+    })
+  return cols
+})
+const permColumnsApp = computed(() => permColumns.filter(col => col.prop !== 'code'))
+const permColumnsOp = computed(() => permColumns.filter(col => col.prop !== 'code'))
+
+let permissionReloadTimer = null
+const handlePermissionChanged = () => {
+  if (permissionReloadTimer) clearTimeout(permissionReloadTimer)
+  permissionReloadTimer = setTimeout(() => {
+    permsModuleGridRef.value?.loadData?.()
+    permsAppGridRef.value?.loadData?.()
+    permsOpGridRef.value?.loadData?.()
+    if (activeTab.value === 'field') {
+      fieldGridRef.value?.loadData?.()
+    }
+  }, 300)
+}
+
+const handleFieldAclChanged = (event) => {
+  if (!event?.node || event.node.rowPinned) return
+  const field = event?.colDef?.field
+  if (field === 'can_edit' && event.newValue === true) {
+    if (event.data?.can_view !== true) {
+      event.node.setDataValue('can_view', true)
+    }
+  }
+  if (field === 'can_view' && event.newValue === false) {
+    if (event.data?.can_edit === true) {
+      event.node.setDataValue('can_edit', false)
+    }
+  }
+}
 
 const loadRoles = async () => {
   const res = await request({ url: '/roles?order=sort.asc', method: 'get', headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' } })
@@ -375,22 +432,30 @@ const fieldModuleOptions = computed(() => {
 
 // 模块/子应用筛选在列权限使用
 
+const permModuleApiUrl = computed(() => {
+  if (!currentRoleId.value) return '/v_role_permissions_matrix?limit=0'
+  let base = `/v_role_permissions_matrix?role_id=eq.${currentRoleId.value}&code=like.module:%`
+  return `${base}&order=code.asc`
+})
+
 const permAppApiUrl = computed(() => {
-  let base = '/permissions?code=like.app:%'
+  if (!currentRoleId.value) return '/v_role_permissions_matrix?limit=0'
+  let base = `/v_role_permissions_matrix?role_id=eq.${currentRoleId.value}&code=like.app:%`
   if (permApp.value) {
-    base = `/permissions?code=eq.app:${permApp.value}`
+    base = `/v_role_permissions_matrix?role_id=eq.${currentRoleId.value}&code=eq.app:${permApp.value}`
   } else if (permModuleGroup.value) {
-    base = `/permissions?code=like.app:${permModuleGroup.value}_%`
+    base = `/v_role_permissions_matrix?role_id=eq.${currentRoleId.value}&code=like.app:${permModuleGroup.value}_%`
   }
   return `${base}&order=code.asc`
 })
 
 const permOpApiUrl = computed(() => {
-  let base = '/permissions?code=like.op:%'
+  if (!currentRoleId.value) return '/v_role_permissions_matrix?limit=0'
+  let base = `/v_role_permissions_matrix?role_id=eq.${currentRoleId.value}&code=like.op:%`
   if (permApp.value) {
-    base = `/permissions?code=like.op:${permApp.value}.%`
+    base = `/v_role_permissions_matrix?role_id=eq.${currentRoleId.value}&code=like.op:${permApp.value}.%`
   } else if (permModuleGroup.value) {
-    base = `/permissions?code=like.op:${permModuleGroup.value}_%`
+    base = `/v_role_permissions_matrix?role_id=eq.${currentRoleId.value}&code=like.op:${permModuleGroup.value}_%`
   }
   return `${base}&order=code.asc`
 })
@@ -517,8 +582,15 @@ watch([permModuleGroup, permApp], () => {
 })
 
 watch(activeTab, () => {
+  if (activeTab.value === 'perm-module') permsModuleGridRef.value?.loadData()
   if (activeTab.value === 'perm-app') permsAppGridRef.value?.loadData()
   if (activeTab.value === 'perm-op') permsOpGridRef.value?.loadData()
+})
+
+watch(currentRoleId, () => {
+  if (permsModuleGridRef.value?.loadData) permsModuleGridRef.value.loadData()
+  if (permsAppGridRef.value?.loadData) permsAppGridRef.value.loadData()
+  if (permsOpGridRef.value?.loadData) permsOpGridRef.value.loadData()
 })
 
 const handleCreate = async (type) => {
@@ -539,17 +611,31 @@ const handleCreate = async (type) => {
 
     if (type === 'permissions') {
       const suffix = Date.now().toString().slice(-6)
+      const appKey = permApp.value || 'hr_employee'
+      let code = `op:${appKey}.custom_${suffix}`
+      let name = `${moduleLabel(appKey)}-自定义`
+      let action = '自定义'
+      if (activeTab.value === 'perm-module') {
+        const group = permModuleGroup.value || 'hr'
+        code = `module:${group}`
+        name = `模块-${group}`
+        action = '显示'
+      } else if (activeTab.value === 'perm-app') {
+        code = `app:${appKey}`
+        name = `应用-${moduleLabel(appKey)}`
+        action = '进入'
+      }
       await request({
         url: '/permissions',
         method: 'post',
         headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
         data: {
-          module: '人事花名册',
-          action: '自定义',
-          code: `op:hr_employee.custom_${suffix}`,
-          name: '人事花名册-自定义'
-  }
-})
+          module: moduleLabel(appKey),
+          action,
+          code,
+          name
+        }
+      })
       permsModuleGridRef.value?.loadData()
       permsAppGridRef.value?.loadData()
       permsOpGridRef.value?.loadData()
