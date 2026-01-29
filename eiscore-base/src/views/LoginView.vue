@@ -108,12 +108,11 @@ const handleLogin = async () => {
         const response = await fetch('/api/rpc/login', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'Prefer': 'params=single-object' // 要求返回单个 JSON 对象
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            username: loginForm.username,
-            password: loginForm.password
+            username: loginForm.username?.trim(),
+            password: loginForm.password?.trim()
           })
         })
 

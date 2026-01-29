@@ -165,6 +165,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const sanitizeValue = (field, value) => {
     const key = field.includes('.') ? field.split('.').pop() : field
     const textFields = ['name', 'code', 'employee_id', 'username', 'email', 'phone', 'id_card', 'address']
+    if (typeof value === 'boolean') return value
     const isEmpty = value === null || value === undefined || value === ''
     if (key === 'punch_times') {
       if (Array.isArray(value)) return value
@@ -181,7 +182,10 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
       if (fallback && typeof fallback === 'object') return { ...fallback }
       return fallback
     }
-    if (isEmpty) return textFields.includes(key) ? "" : null
+    if (isEmpty) {
+      if (key.startsWith('can_')) return false
+      return textFields.includes(key) ? "" : null
+    }
     return value
   }
 

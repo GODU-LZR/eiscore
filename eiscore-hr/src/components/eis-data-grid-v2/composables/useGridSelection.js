@@ -1,6 +1,6 @@
 import { reactive, ref } from 'vue'
 
-export function useGridSelection(gridApi, selectedRowsCount) {
+export function useGridSelection(gridApi, selectedRowsCount, gridRootRef) {
   const rangeSelection = reactive({ startRowIndex: -1, startColId: null, endRowIndex: -1, endColId: null, active: false })
   const isDragging = ref(false)
   const mouseX = ref(0)
@@ -34,16 +34,39 @@ export function useGridSelection(gridApi, selectedRowsCount) {
 
   const onGlobalMouseMove = (e) => { mouseX.value = e.clientX; mouseY.value = e.clientY }
 
+  const getRootEl = () => {
+    const inst = gridRootRef?.value
+    return inst?.$el || inst?.$?.vnode?.el || inst || null
+  }
+
+  const getViewportEl = () => {
+    const root = getRootEl()
+    if (root && root.querySelector) {
+      const scoped = root.querySelector('.ag-body-viewport')
+      if (scoped) return scoped
+    }
+    return document.querySelector('.ag-body-viewport')
+  }
+
+  const getHViewportEl = () => {
+    const root = getRootEl()
+    if (root && root.querySelector) {
+      const scoped = root.querySelector('.ag-body-horizontal-scroll-viewport')
+      if (scoped) return scoped
+    }
+    return document.querySelector('.ag-body-horizontal-scroll-viewport')
+  }
+
   const autoScroll = () => {
     if (!isDragging.value || !gridApi.value) return
-    const viewport = document.querySelector('.ag-body-viewport'); if (!viewport) return
+    const viewport = getViewportEl(); if (!viewport) return
     const rect = viewport.getBoundingClientRect(); const buffer = 50; const speed = 15
     let scrollX = 0; let scrollY = 0
     if (mouseY.value < rect.top + buffer) scrollY = -speed; else if (mouseY.value > rect.bottom - buffer) scrollY = speed
     if (mouseX.value < rect.left + buffer) scrollX = -speed; else if (mouseX.value > rect.right - buffer) scrollX = speed
     if (scrollY !== 0) viewport.scrollTop += scrollY
     if (scrollX !== 0) {
-        const hViewport = document.querySelector('.ag-body-horizontal-scroll-viewport')
+        const hViewport = getHViewportEl()
         if (hViewport) hViewport.scrollLeft += scrollX; else viewport.scrollLeft += scrollX
     }
     if (scrollX !== 0 || scrollY !== 0) {

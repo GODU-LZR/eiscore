@@ -5,6 +5,10 @@
       :selected-count="selectedRowsCount"
       :range-info="rangeSelection"
       :grid-api="gridApi"
+      :can-create="canCreate"
+      :can-config="canConfig"
+      :can-delete="canDelete"
+      :can-export="canExport"
       @search="loadData"
       @create="$emit('create')"
       @config-columns="$emit('config-columns')"
@@ -129,7 +133,12 @@ const props = defineProps({
   staticColumns: { type: Array, default: () => [] },
   extraColumns: { type: Array, default: () => [] },
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) },
-  defaultOrder: { type: String, default: 'id.desc' }
+  defaultOrder: { type: String, default: 'id.desc' },
+  canCreate: { type: Boolean, default: true },
+  canEdit: { type: Boolean, default: true },
+  canDelete: { type: Boolean, default: true },
+  canExport: { type: Boolean, default: true },
+  canConfig: { type: Boolean, default: true }
 })
 
 // 🟢 声明事件：增加 view-document
@@ -138,13 +147,14 @@ const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = currentUser === 'Admin'
 
+const agGridRef = ref(null)
 const gridApi = ref(null)
 const selectedRowsCount = ref(0)
 const geoDialog = reactive({ visible: false, params: null })
 const fileDialog = reactive({ visible: false, params: null })
 
 // 1. Selection
-const selectionHooks = useGridSelection(gridApi, selectedRowsCount)
+const selectionHooks = useGridSelection(gridApi, selectedRowsCount, agGridRef)
 const { 
   rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
   onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection 

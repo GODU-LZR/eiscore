@@ -28,11 +28,11 @@
           <el-icon><House /></el-icon>
           <template #title>工作台</template>
         </el-menu-item>
-        <el-menu-item v-if="canMms" index="/materials" @click.native.prevent="router.push('/materials')">
+        <el-menu-item v-if="canMms" index="/materials" @click="router.push('/materials')">
           <el-icon><Box /></el-icon>
           <template #title>物料管理</template>
         </el-menu-item>
-        <el-menu-item v-if="canHr" index="/hr" @click.native.prevent="router.push('/hr')">
+        <el-menu-item v-if="canHr" index="/hr" @click="router.push('/hr')">
           <el-icon><User /></el-icon>
           <template #title>人事管理</template>
         </el-menu-item>

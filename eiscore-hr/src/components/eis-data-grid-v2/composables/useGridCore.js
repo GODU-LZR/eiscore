@@ -12,6 +12,8 @@ import GeoRenderer from '../components/renderers/GeoRenderer.vue'
 import FileRenderer from '../components/renderers/FileRenderer.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
+import CheckRenderer from '../components/renderers/CheckRenderer.vue'
+import CheckEditor from '../components/renderers/CheckEditor.vue'
 import { useUserStore } from '@/stores/user'
 
 export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit) {
@@ -37,7 +39,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     GeoRenderer: markRaw(GeoRenderer),
     FileRenderer: markRaw(FileRenderer),
     LockHeader: markRaw(LockHeader),
-    DocumentActionRenderer: markRaw(DocumentActionRenderer)
+    DocumentActionRenderer: markRaw(DocumentActionRenderer),
+    CheckRenderer: markRaw(CheckRenderer),
+    CheckEditor: markRaw(CheckEditor)
   }
 
   const dictOptions = reactive({})
@@ -315,6 +319,35 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       }
     }
 
+    if (col?.type === 'check') {
+      const parseCheckValue = (val) => {
+        if (typeof val === 'boolean') return val
+        if (val === null || val === undefined) return false
+        const text = String(val).toLowerCase()
+        if (text === 'true' || text === 't' || text === '1' || text === 'yes' || text === 'y') return true
+        if (text === 'false' || text === 'f' || text === '0' || text === 'no' || text === 'n') return false
+        return !!val
+      }
+      return {
+        ...colDef,
+        cellRenderer: 'CheckRenderer',
+        cellEditor: 'CheckEditor',
+        cellEditorPopup: false,
+        editable: (params) => !isCellReadOnly(params),
+        valueParser: (params) => {
+          return parseCheckValue(params.newValue)
+        },
+        valueSetter: (params) => {
+          const nextVal = parseCheckValue(params.newValue)
+          if (params.data?.[field] === nextVal) return false
+          params.data[field] = nextVal
+          return true
+        },
+        width: col.width || 90,
+        minWidth: col.minWidth || 80
+      }
+    }
+
     if (col?.type === 'cascader') {
       return {
         ...colDef,
@@ -438,12 +471,14 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
           searchText: searchText.value || ''
         })
       }
-      setTimeout(() => { 
-        if (gridApi.value) {
-          const allColIds = gridApi.value.getColumns().map(c => c.getColId())
-          gridApi.value.autoSizeColumns(allColIds, false) 
-        }
-      }, 100)
+      if (props.autoSizeColumns !== false) {
+        setTimeout(() => { 
+          if (gridApi.value) {
+            const allColIds = gridApi.value.getColumns().map(c => c.getColId())
+            gridApi.value.autoSizeColumns(allColIds, false) 
+          }
+        }, 100)
+      }
     } catch (e) { ElMessage.error('数据加载失败') } 
     finally { isLoading.value = false }
   }

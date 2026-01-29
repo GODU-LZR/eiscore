@@ -21,6 +21,8 @@ export const MATERIAL_APPS = [
     name: '物料台账',
     desc: '原料与批次基础信息管理',
     route: '/app/a',
+    perm: 'app:mms_ledger',
+    aclModule: 'mms_ledger',
     apiUrl: '/raw_materials',
     viewId: 'materials_list',
     configKey: 'materials_table_cols',
@@ -28,6 +30,14 @@ export const MATERIAL_APPS = [
     tone: 'blue',
     enableDetail: true,
     includeProperties: true,
+    ops: {
+      create: 'op:mms_ledger.create',
+      edit: 'op:mms_ledger.edit',
+      delete: 'op:mms_ledger.delete',
+      import: 'op:mms_ledger.import',
+      export: 'op:mms_ledger.export',
+      config: 'op:mms_ledger.config'
+    },
     staticColumns: BASE_STATIC_COLUMNS,
     summaryConfig: DEFAULT_SUMMARY,
     defaultExtraColumns: [

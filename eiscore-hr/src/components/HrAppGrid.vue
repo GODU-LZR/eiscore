@@ -274,6 +274,7 @@ const staticColumns = computed(() => app.value.staticColumns || BASE_STATIC_COLU
 const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
 
 const extraColumns = ref([])
+const hasSyncedFieldAcl = ref(false)
 
 const isEditing = ref(false)
 const editingIndex = ref(-1)
@@ -398,6 +399,7 @@ const loadColumnsConfig = async () => {
       }
     }
     syncAiContext()
+    await syncFieldAclForColumns()
   } catch (e) { console.error(e) }
 }
 
@@ -491,6 +493,28 @@ const saveColumnsConfig = async () => {
     headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
     data: { key: configKey, value: extraColumns.value }
   })
+}
+
+const syncFieldAclForColumns = async (columnProps = null) => {
+  const moduleName = app.value.aclModule
+  if (!moduleName) return
+  if (hasSyncedFieldAcl.value && !columnProps) return
+  const props = Array.isArray(columnProps) && columnProps.length
+    ? columnProps
+    : [...staticColumns.value, ...extraColumns.value].map(col => col.prop).filter(Boolean)
+  if (props.length === 0) return
+  const uniqueProps = Array.from(new Set(props))
+  try {
+    await request({
+      url: '/rpc/ensure_field_acl',
+      method: 'post',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      data: { module_name: moduleName, field_codes: uniqueProps }
+    })
+    if (!columnProps) hasSyncedFieldAcl.value = true
+  } catch (e) {
+    console.warn('sync field acl failed', e)
+  }
 }
 
 const insertVariable = (label) => {
@@ -662,7 +686,7 @@ const normalizeCascaderMap = (map) => {
   return result
 }
 
-const saveColumn = () => {
+const saveColumn = async () => {
   if (!currentCol.label) return
   
   const type = addTab.value
@@ -742,6 +766,7 @@ const saveColumn = () => {
   }
   
   saveColumnsConfig()
+  if (!isEditing.value) await syncFieldAclForColumns([colConfig.prop])
   syncAiContext()
   resetForm()
 }

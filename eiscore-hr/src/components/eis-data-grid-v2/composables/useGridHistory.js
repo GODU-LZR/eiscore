@@ -124,7 +124,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                 await request({
                   url: patchUrl,
                   method: 'patch',
-                  headers: { 'Content-Profile': props.contentProfile || 'hr', 'Prefer': 'return=representation' },
+                  headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr', 'Prefer': 'return=representation' },
                   data: patchPayload
                 })
               }))
@@ -144,7 +144,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
               }))
               await request({
                   url: resolveWriteUrl(), method: 'post',
-                  headers: { 'Content-Profile': props.contentProfile || 'hr', 'Prefer': 'resolution=merge-duplicates,return=representation' },
+                  headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr', 'Prefer': 'resolution=merge-duplicates,return=representation' },
                   data: apiPayload
               })
               affectedNodes.forEach(({ node, newVer }) => {
@@ -164,6 +164,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const sanitizeValue = (field, value) => {
     const key = field.includes('.') ? field.split('.').pop() : field
     const textFields = ['name', 'code', 'employee_id', 'username', 'email', 'phone', 'id_card', 'address', 'status', 'department', 'employee_no']
+    if (typeof value === 'boolean') return value
     const isEmpty = value === null || value === undefined || value === ''
     if (key === 'punch_times') {
       if (Array.isArray(value)) return value
@@ -180,7 +181,10 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
       if (fallback && typeof fallback === 'object') return { ...fallback }
       return fallback
     }
-    if (isEmpty) return textFields.includes(key) ? "" : null
+    if (isEmpty) {
+      if (key.startsWith('can_')) return false
+      return textFields.includes(key) ? "" : null
+    }
     return value
   }
 
@@ -315,7 +319,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
         await ElMessageBox.confirm(`确定要删除选中的 ${selectedNodes.length} 条数据吗？`, '警告', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
         const ids = selectedNodes.map(n => n.data.id)
         const deleteUrl = appendQuery(resolveWriteUrl(), `id=in.(${ids.join(',')})`)
-        await request({ url: deleteUrl, method: 'delete', headers: { 'Content-Profile': props.contentProfile || 'hr' } })
+        await request({ url: deleteUrl, method: 'delete', headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr' } })
         gridApi.value.applyTransaction({ remove: selectedNodes.map(node => node.data) })
         formulaHooks.pinnedBottomRowData.value = formulaHooks.calculateTotals(gridData.value)
         ElMessage.success('删除成功'); selectedRowsCount.value = 0; history.undoStack = []; history.redoStack = []

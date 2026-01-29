@@ -9,27 +9,56 @@ as $$
 declare
   _app_role text;
   _permissions text[];
+  _user_id integer;
   result json;
   _secret text := 'my_super_secret_key_for_eiscore_system_2025';
 begin
-  select users.role, users.permissions
-    into _app_role, _permissions
-  from public.users
-  where users.username = login.username
-    and users.password = login.password;
+  select u.id, u.role
+    into _user_id, _app_role
+  from public.users u
+  where lower(trim(u.username)) = lower(trim(login.username))
+    and u.password = trim(login.password);
 
-  if _app_role is null then
+  if _user_id is null then
     raise invalid_password using message = '账号或密码错误';
+  end if;
+
+  select array_agg(distinct pcode order by pcode)
+    into _permissions
+  from (
+    select unnest(v.permissions) as pcode
+    from public.user_roles ur
+    join public.v_role_permissions v on v.role_id = ur.role_id
+    where ur.user_id = _user_id
+  ) perms;
+
+  if _permissions is null then
+    select u.permissions
+      into _permissions
+    from public.users u
+    where u.id = _user_id;
+  end if;
+
+  if _app_role is null or _app_role = '' then
+    select v.role_code
+      into _app_role
+    from public.user_roles ur
+    join public.v_role_permissions v on v.role_id = ur.role_id
+    where ur.user_id = _user_id
+    order by v.role_code asc
+    limit 1;
   end if;
 
   result := json_build_object(
     'role', 'web_user',
     'app_role', _app_role,
     'username', username,
-    'permissions', _permissions,
+    'permissions', coalesce(_permissions, ARRAY[]::text[]),
     'exp', extract(epoch from now() + interval '2 hours')::integer
   );
 
   return json_build_object('token', public.sign(result, _secret));
 end;
 $$;
+
+grant execute on function public.login(text, text) to web_anon;

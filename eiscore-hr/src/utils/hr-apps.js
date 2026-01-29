@@ -93,6 +93,29 @@ export const HR_APPS = [
     defaultExtraColumns: []
   },
   {
+    key: 'user',
+    name: '用户管理',
+    desc: '系统用户与角色绑定管理',
+    route: '/users',
+    perm: 'app:hr_user',
+    aclModule: 'hr_user',
+    viewId: 'hr_user_manage',
+    configKey: 'hr_user_cols',
+    icon: 'User',
+    tone: 'blue',
+    enableDetail: false,
+    ops: {
+      create: 'op:hr_user.create',
+      edit: 'op:hr_user.edit',
+      delete: 'op:hr_user.delete',
+      export: 'op:hr_user.export',
+      config: 'op:hr_user.config'
+    },
+    staticColumns: BASE_STATIC_COLUMNS,
+    summaryConfig: DEFAULT_SUMMARY,
+    defaultExtraColumns: []
+  },
+  {
     key: 'b',
     name: '调岗记录',
     desc: '岗位变动与调岗审批留痕',

@@ -138,6 +138,7 @@ const props = defineProps({
   contentProfile: { type: String, default: 'hr' },
   aclModule: { type: String, default: '' },
   showActionCol: { type: Boolean, default: true },
+  autoSizeColumns: { type: Boolean, default: true },
   canCreate: { type: Boolean, default: true },
   canEdit: { type: Boolean, default: true },
   canDelete: { type: Boolean, default: true },
@@ -151,13 +152,14 @@ const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = currentUser === 'Admin'
 
+const agGridRef = ref(null)
 const gridApi = ref(null)
 const selectedRowsCount = ref(0)
 const geoDialog = reactive({ visible: false, params: null })
 const fileDialog = reactive({ visible: false, params: null })
 
 // 1. Selection
-const selectionHooks = useGridSelection(gridApi, selectedRowsCount)
+const selectionHooks = useGridSelection(gridApi, selectedRowsCount, agGridRef)
 const { 
   rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
   onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection 
@@ -230,6 +232,16 @@ const onGridReady = (params) => {
 
 const onGridMouseLeave = () => {}
 const onCellDoubleClicked = (params) => {
+  if (params.node?.rowPinned) return
+  if (params.colDef?.type === 'check') {
+    const editable = typeof params.colDef.editable === 'function'
+      ? params.colDef.editable(params)
+      : params.colDef.editable !== false
+    if (!editable) return
+    const current = !!params.value
+    params.node.setDataValue(params.colDef.field, !current)
+    return
+  }
   if (params.node.rowPinned !== 'bottom' && params.colDef?.type === 'geo') {
     geoDialog.params = params
     geoDialog.visible = true

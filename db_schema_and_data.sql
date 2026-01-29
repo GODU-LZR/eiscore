@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict aLHhf61RPyg0ZaZfHKTmTeHDBrNXGuFtzYFZ7awmpL0u8MnGHxB6fou3ESdhI4I
+\restrict eFd5gDdtpHr5tJw6sKan2l5UeoBSw4c9moidYXqmjiU3iafFshTa69VAhj8C13g
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -116,6 +116,142 @@ $$;
 ALTER FUNCTION hr.init_attendance_records(p_date date, p_dept_name text) OWNER TO postgres;
 
 --
+-- Name: apply_role_permission_templates(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.apply_role_permission_templates() RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $_$
+declare
+  _count integer := 0;
+begin
+  with
+  s1 as (
+    insert into public.role_permissions (role_id, permission_id)
+    select r.id, p.id
+    from public.roles r
+    join public.permissions p on true
+    where r.code = 'super_admin'
+    on conflict do nothing
+    returning 1
+  ),
+  s2 as (
+    insert into public.role_permissions (role_id, permission_id)
+    select r.id, p.id
+    from public.roles r
+    join public.permissions p
+      on p.code = 'module:hr'
+      or p.code like 'app:hr_%'
+      or p.code like 'op:hr_%'
+    where r.code = 'hr_admin'
+    on conflict do nothing
+    returning 1
+  ),
+  s3 as (
+    insert into public.role_permissions (role_id, permission_id)
+    select r.id, p.id
+    from public.roles r
+    join public.permissions p
+      on p.code = 'module:hr'
+      or p.code like 'app:hr_%'
+      or p.code ~ '^op:hr_.*\\.(create|edit)$'
+    where r.code = 'hr_clerk'
+    on conflict do nothing
+    returning 1
+  ),
+  s4 as (
+    insert into public.role_permissions (role_id, permission_id)
+    select r.id, p.id
+    from public.roles r
+    join public.permissions p
+      on p.code = 'module:hr'
+      or p.code in ('app:hr_employee', 'app:hr_org', 'app:hr_attendance', 'app:hr_change')
+      or p.code ~ '^op:hr_.*\\.(view|create|edit)$'
+    where r.code = 'dept_manager'
+    on conflict do nothing
+    returning 1
+  ),
+  s5 as (
+    insert into public.role_permissions (role_id, permission_id)
+    select r.id, p.id
+    from public.roles r
+    join public.permissions p
+      on p.code = 'module:hr'
+      or p.code in ('app:hr_employee', 'app:hr_attendance')
+      or p.code ~ '^op:hr_.*\\.view$'
+    where r.code = 'employee'
+    on conflict do nothing
+    returning 1
+  )
+  select
+    coalesce((select count(*) from s1), 0) +
+    coalesce((select count(*) from s2), 0) +
+    coalesce((select count(*) from s3), 0) +
+    coalesce((select count(*) from s4), 0) +
+    coalesce((select count(*) from s5), 0)
+  into _count;
+
+  return _count;
+end;
+$_$;
+
+
+ALTER FUNCTION public.apply_role_permission_templates() OWNER TO postgres;
+
+--
+-- Name: ensure_field_acl(text, text[]); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.ensure_field_acl(module_name text, field_codes text[]) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+declare
+  _count integer := 0;
+begin
+  if module_name is null or module_name = '' then
+    return 0;
+  end if;
+  if field_codes is null or array_length(field_codes, 1) is null then
+    return 0;
+  end if;
+
+  with targets as (
+    select r.id as role_id, module_name as module, fc as field_code
+    from public.roles r
+    cross join unnest(field_codes) as fc
+  ),
+  upserted as (
+    insert into public.sys_field_acl (role_id, module, field_code, can_view, can_edit)
+    select t.role_id, t.module, t.field_code, true, true
+    from targets t
+    on conflict (role_id, module, field_code) do nothing
+    returning 1
+  )
+  select count(*) into _count from upserted;
+
+  return _count;
+end;
+$$;
+
+
+ALTER FUNCTION public.ensure_field_acl(module_name text, field_codes text[]) OWNER TO postgres;
+
+--
+-- Name: login(json); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.login(payload json) RETURNS json
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+begin
+  return public.login(payload->>'username', payload->>'password');
+end;
+$$;
+
+
+ALTER FUNCTION public.login(payload json) OWNER TO postgres;
+
+--
 -- Name: login(text, text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -125,24 +261,51 @@ CREATE FUNCTION public.login(username text, password text) RETURNS json
 declare
   _app_role text;
   _permissions text[];
+  _user_id integer;
   result json;
   _secret text := 'my_super_secret_key_for_eiscore_system_2025';
 begin
-  select users.role, users.permissions
-    into _app_role, _permissions
-  from public.users
-  where users.username = login.username
-    and users.password = login.password;
+  select u.id, u.role
+    into _user_id, _app_role
+  from public.users u
+  where lower(trim(u.username)) = lower(trim(login.username))
+    and u.password = trim(login.password);
 
-  if _app_role is null then
+  if _user_id is null then
     raise invalid_password using message = '账号或密码错误';
+  end if;
+
+  select array_agg(distinct pcode order by pcode)
+    into _permissions
+  from (
+    select unnest(v.permissions) as pcode
+    from public.user_roles ur
+    join public.v_role_permissions v on v.role_id = ur.role_id
+    where ur.user_id = _user_id
+  ) perms;
+
+  if _permissions is null then
+    select u.permissions
+      into _permissions
+    from public.users u
+    where u.id = _user_id;
+  end if;
+
+  if _app_role is null or _app_role = '' then
+    select v.role_code
+      into _app_role
+    from public.user_roles ur
+    join public.v_role_permissions v on v.role_id = ur.role_id
+    where ur.user_id = _user_id
+    order by v.role_code asc
+    limit 1;
   end if;
 
   result := json_build_object(
     'role', 'web_user',
     'app_role', _app_role,
     'username', username,
-    'permissions', _permissions,
+    'permissions', coalesce(_permissions, ARRAY[]::text[]),
     'exp', extract(epoch from now() + interval '2 hours')::integer
   );
 
@@ -222,6 +385,188 @@ $$;
 ALTER FUNCTION public.sign(payload json, secret text, algorithm text) OWNER TO postgres;
 
 --
+-- Name: sync_field_acl_from_config(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.sync_field_acl_from_config() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+declare
+  module_name text;
+  dynamic_codes text[];
+  static_codes text[];
+  field_codes text[];
+begin
+  if TG_OP not in ('INSERT', 'UPDATE') then
+    return NEW;
+  end if;
+
+  if NEW.key is null or NEW.key = '' then
+    return NEW;
+  end if;
+
+  module_name := case NEW.key
+    when 'hr_table_cols' then 'hr_employee'
+    when 'hr_transfer_cols' then 'hr_change'
+    when 'hr_attendance_cols' then 'hr_attendance'
+    when 'materials_table_cols' then 'mms_ledger'
+    else null
+  end;
+
+  if module_name is null then
+    return NEW;
+  end if;
+
+  if jsonb_typeof(NEW.value) = 'array' then
+    select array_agg(distinct (elem->>'prop'))
+      into dynamic_codes
+    from jsonb_array_elements(NEW.value) as elem
+    where (elem ? 'prop') and (elem->>'prop') <> '';
+  end if;
+
+  if module_name in ('hr_employee', 'hr_change') then
+    select array_agg(c.column_name order by c.ordinal_position)
+      into static_codes
+    from information_schema.columns c
+    where c.table_schema = 'hr'
+      and c.table_name = 'archives'
+      and c.column_name not in ('properties','version','updated_at');
+  elsif module_name = 'hr_attendance' then
+    select array_agg(col order by ord) into static_codes
+    from (
+      select distinct on (c.column_name)
+        c.column_name as col,
+        min(c.ordinal_position) over (partition by c.column_name) as ord
+      from information_schema.columns c
+      where c.table_schema = 'hr'
+        and c.table_name in ('attendance_records','attendance_month_overrides')
+    ) t
+    where t.col is not null;
+  elsif module_name = 'mms_ledger' then
+    select array_agg(c.column_name order by c.ordinal_position)
+      into static_codes
+    from information_schema.columns c
+    where c.table_schema = 'public'
+      and c.table_name = 'raw_materials';
+  else
+    static_codes := ARRAY[]::text[];
+  end if;
+
+  field_codes := array_cat(coalesce(static_codes, ARRAY[]::text[]), coalesce(dynamic_codes, ARRAY[]::text[]));
+  if array_length(field_codes, 1) is null then
+    return NEW;
+  end if;
+
+  perform public.ensure_field_acl(module_name, field_codes);
+  return NEW;
+end;
+$$;
+
+
+ALTER FUNCTION public.sync_field_acl_from_config() OWNER TO postgres;
+
+--
+-- Name: tg_v_users_manage_delete(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.tg_v_users_manage_delete() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  delete from public.user_roles where user_id = old.id;
+  delete from public.users where id = old.id;
+  return old;
+end;
+$$;
+
+
+ALTER FUNCTION public.tg_v_users_manage_delete() OWNER TO postgres;
+
+--
+-- Name: tg_v_users_manage_insert(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.tg_v_users_manage_insert() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+declare
+  _user_id integer;
+begin
+  insert into public.users (username, password, full_name, phone, email, status)
+  values (
+    coalesce(new.username, 'user_' || to_char(now(), 'HH24MISS')),
+    coalesce(new.password, '123456'),
+    new.full_name,
+    new.phone,
+    new.email,
+    coalesce(new.status, 'active')
+  )
+  returning id into _user_id;
+
+  if new.role_id is not null then
+    insert into public.user_roles (user_id, role_id)
+    values (_user_id, new.role_id)
+    on conflict do nothing;
+  end if;
+
+  new.id := _user_id;
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION public.tg_v_users_manage_insert() OWNER TO postgres;
+
+--
+-- Name: tg_v_users_manage_update(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.tg_v_users_manage_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  update public.users
+  set username = coalesce(new.username, old.username),
+      full_name = new.full_name,
+      phone = new.phone,
+      email = new.email,
+      status = coalesce(new.status, old.status),
+      updated_at = now()
+  where id = old.id;
+
+  if new.role_id is distinct from old.role_id then
+    delete from public.user_roles where user_id = old.id;
+    if new.role_id is not null then
+      insert into public.user_roles (user_id, role_id)
+      values (old.id, new.role_id)
+      on conflict do nothing;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION public.tg_v_users_manage_update() OWNER TO postgres;
+
+--
+-- Name: touch_field_label_overrides(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.touch_field_label_overrides() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION public.touch_field_label_overrides() OWNER TO postgres;
+
+--
 -- Name: touch_updated_at(); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -251,6 +596,101 @@ $$;
 
 
 ALTER FUNCTION public.update_modified_column() OWNER TO postgres;
+
+--
+-- Name: upsert_field_acl(jsonb); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.upsert_field_acl(payload jsonb) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+declare
+  _count integer := 0;
+begin
+  if payload is null or jsonb_typeof(payload) <> 'array' then
+    return 0;
+  end if;
+
+  with items as (
+    select
+      (value->>'role_code')::text as role_code,
+      (value->>'module')::text as module,
+      (value->>'field_code')::text as field_code,
+      coalesce((value->>'can_view')::boolean, true) as can_view,
+      coalesce((value->>'can_edit')::boolean, true) as can_edit
+    from jsonb_array_elements(payload)
+  ),
+  upserted as (
+    insert into public.sys_field_acl (role_id, module, field_code, can_view, can_edit)
+    select r.id, i.module, i.field_code, i.can_view, i.can_edit
+    from items i
+    join public.roles r on r.code = i.role_code
+    on conflict (role_id, module, field_code)
+    do update set
+      can_view = excluded.can_view,
+      can_edit = excluded.can_edit
+    returning 1
+  )
+  select count(*) into _count from upserted;
+
+  return _count;
+end;
+$$;
+
+
+ALTER FUNCTION public.upsert_field_acl(payload jsonb) OWNER TO postgres;
+
+--
+-- Name: upsert_permissions(jsonb); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.upsert_permissions(payload jsonb) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+declare
+  _count integer := 0;
+begin
+  if payload is null or jsonb_typeof(payload) <> 'array' then
+    return 0;
+  end if;
+
+  with items as (
+    select
+      (value->>'code')::text as code,
+      (value->>'name')::text as name,
+      (value->>'module')::text as module,
+      (value->>'action')::text as action,
+      value->'roles' as roles
+    from jsonb_array_elements(payload)
+  ),
+  upserted as (
+    insert into public.permissions (code, name, module, action)
+    select code, coalesce(name, code), module, action
+    from items
+    where code is not null and code <> ''
+    on conflict (code) do update set
+      name = excluded.name,
+      module = excluded.module,
+      action = excluded.action
+    returning id, code
+  ),
+  role_bind as (
+    insert into public.role_permissions (role_id, permission_id)
+    select r.id, p.id
+    from items i
+    join public.permissions p on p.code = i.code
+    join public.roles r on i.roles is not null and r.code = any (select jsonb_array_elements_text(i.roles))
+    on conflict do nothing
+    returning 1
+  )
+  select count(*) into _count from upserted;
+
+  return _count;
+end;
+$$;
+
+
+ALTER FUNCTION public.upsert_permissions(payload jsonb) OWNER TO postgres;
 
 --
 -- Name: url_encode(bytea); Type: FUNCTION; Schema: public; Owner: postgres
@@ -305,6 +745,76 @@ CREATE TABLE hr.archives (
 
 
 ALTER TABLE hr.archives OWNER TO postgres;
+
+--
+-- Name: COLUMN archives.id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives.id IS '编号';
+
+
+--
+-- Name: COLUMN archives.name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives.name IS '姓名';
+
+
+--
+-- Name: COLUMN archives.employee_no; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives.employee_no IS '工号';
+
+
+--
+-- Name: COLUMN archives.department; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives.department IS '部门';
+
+
+--
+-- Name: COLUMN archives."position"; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives."position" IS '岗位';
+
+
+--
+-- Name: COLUMN archives.phone; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives.phone IS '手机号';
+
+
+--
+-- Name: COLUMN archives.status; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives.status IS '状态';
+
+
+--
+-- Name: COLUMN archives.base_salary; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives.base_salary IS '基础工资';
+
+
+--
+-- Name: COLUMN archives.entry_date; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives.entry_date IS '入职日期';
+
+
+--
+-- Name: COLUMN archives.updated_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.archives.updated_at IS '更新时间';
+
 
 --
 -- Name: archives_id_seq; Type: SEQUENCE; Schema: hr; Owner: postgres
@@ -364,6 +874,139 @@ END) STORED,
 ALTER TABLE hr.attendance_month_overrides OWNER TO postgres;
 
 --
+-- Name: COLUMN attendance_month_overrides.id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.id IS '编号';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.att_month; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.att_month IS '月份';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.person_type; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.person_type IS '人员类型';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.employee_id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.employee_id IS '员工ID';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.employee_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.employee_name IS '员工姓名';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.employee_no; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.employee_no IS '工号';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.temp_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.temp_name IS '临时工姓名';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.temp_phone; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.temp_phone IS '临时工电话';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.dept_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.dept_name IS '部门';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.person_key; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.person_key IS '人员标识';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.total_days; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.total_days IS '总天数';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.late_days; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.late_days IS '迟到天数';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.early_days; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.early_days IS '早退天数';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.leave_days; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.leave_days IS '请假天数';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.absent_days; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.absent_days IS '缺勤天数';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.overtime_minutes; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.overtime_minutes IS '加班分钟';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.remark; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.remark IS '备注';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.created_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN attendance_month_overrides.updated_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_month_overrides.updated_at IS '更新时间';
+
+
+--
 -- Name: attendance_records; Type: TABLE; Schema: hr; Owner: postgres
 --
 
@@ -403,6 +1046,195 @@ CREATE TABLE hr.attendance_records (
 ALTER TABLE hr.attendance_records OWNER TO postgres;
 
 --
+-- Name: COLUMN attendance_records.id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.id IS '编号';
+
+
+--
+-- Name: COLUMN attendance_records.att_date; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.att_date IS '日期';
+
+
+--
+-- Name: COLUMN attendance_records.person_type; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.person_type IS '人员类型';
+
+
+--
+-- Name: COLUMN attendance_records.employee_id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.employee_id IS '员工ID';
+
+
+--
+-- Name: COLUMN attendance_records.employee_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.employee_name IS '员工姓名';
+
+
+--
+-- Name: COLUMN attendance_records.employee_no; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.employee_no IS '工号';
+
+
+--
+-- Name: COLUMN attendance_records.temp_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.temp_name IS '临时工姓名';
+
+
+--
+-- Name: COLUMN attendance_records.temp_phone; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.temp_phone IS '临时工电话';
+
+
+--
+-- Name: COLUMN attendance_records.dept_id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.dept_id IS '部门ID';
+
+
+--
+-- Name: COLUMN attendance_records.dept_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.dept_name IS '部门';
+
+
+--
+-- Name: COLUMN attendance_records.shift_id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.shift_id IS '班次ID';
+
+
+--
+-- Name: COLUMN attendance_records.shift_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.shift_name IS '班次';
+
+
+--
+-- Name: COLUMN attendance_records.shift_start_time; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.shift_start_time IS '上班时间';
+
+
+--
+-- Name: COLUMN attendance_records.shift_end_time; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.shift_end_time IS '下班时间';
+
+
+--
+-- Name: COLUMN attendance_records.shift_cross_day; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.shift_cross_day IS '跨天班次';
+
+
+--
+-- Name: COLUMN attendance_records.late_grace_min; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.late_grace_min IS '迟到容忍(分)';
+
+
+--
+-- Name: COLUMN attendance_records.early_grace_min; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.early_grace_min IS '早退容忍(分)';
+
+
+--
+-- Name: COLUMN attendance_records.ot_break_min; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.ot_break_min IS '加班扣除(分)';
+
+
+--
+-- Name: COLUMN attendance_records.punch_times; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.punch_times IS '打卡记录';
+
+
+--
+-- Name: COLUMN attendance_records.late_flag; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.late_flag IS '迟到';
+
+
+--
+-- Name: COLUMN attendance_records.early_flag; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.early_flag IS '早退';
+
+
+--
+-- Name: COLUMN attendance_records.leave_flag; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.leave_flag IS '请假';
+
+
+--
+-- Name: COLUMN attendance_records.absent_flag; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.absent_flag IS '缺勤';
+
+
+--
+-- Name: COLUMN attendance_records.overtime_minutes; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.overtime_minutes IS '加班分钟';
+
+
+--
+-- Name: COLUMN attendance_records.remark; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.remark IS '备注';
+
+
+--
+-- Name: COLUMN attendance_records.created_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN attendance_records.updated_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_records.updated_at IS '更新时间';
+
+
+--
 -- Name: attendance_shifts; Type: TABLE; Schema: hr; Owner: postgres
 --
 
@@ -425,6 +1257,41 @@ CREATE TABLE hr.attendance_shifts (
 ALTER TABLE hr.attendance_shifts OWNER TO postgres;
 
 --
+-- Name: COLUMN attendance_shifts.id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_shifts.id IS '编号';
+
+
+--
+-- Name: COLUMN attendance_shifts.name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_shifts.name IS '名称';
+
+
+--
+-- Name: COLUMN attendance_shifts.sort; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_shifts.sort IS '排序';
+
+
+--
+-- Name: COLUMN attendance_shifts.created_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_shifts.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN attendance_shifts.updated_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.attendance_shifts.updated_at IS '更新时间';
+
+
+--
 -- Name: employee_profiles; Type: TABLE; Schema: hr; Owner: postgres
 --
 
@@ -440,6 +1307,27 @@ CREATE TABLE hr.employee_profiles (
 ALTER TABLE hr.employee_profiles OWNER TO postgres;
 
 --
+-- Name: COLUMN employee_profiles.id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.employee_profiles.id IS '编号';
+
+
+--
+-- Name: COLUMN employee_profiles.created_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.employee_profiles.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN employee_profiles.updated_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.employee_profiles.updated_at IS '更新时间';
+
+
+--
 -- Name: payroll; Type: TABLE; Schema: hr; Owner: postgres
 --
 
@@ -453,6 +1341,20 @@ CREATE TABLE hr.payroll (
 
 
 ALTER TABLE hr.payroll OWNER TO postgres;
+
+--
+-- Name: COLUMN payroll.id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.payroll.id IS '编号';
+
+
+--
+-- Name: COLUMN payroll.status; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.payroll.status IS '状态';
+
 
 --
 -- Name: payroll_id_seq; Type: SEQUENCE; Schema: hr; Owner: postgres
@@ -520,6 +1422,69 @@ CREATE VIEW hr.v_attendance_daily AS
 ALTER VIEW hr.v_attendance_daily OWNER TO postgres;
 
 --
+-- Name: COLUMN v_attendance_daily.id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_daily.id IS '编号';
+
+
+--
+-- Name: COLUMN v_attendance_daily.employee_id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_daily.employee_id IS '员工ID';
+
+
+--
+-- Name: COLUMN v_attendance_daily.employee_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_daily.employee_name IS '员工姓名';
+
+
+--
+-- Name: COLUMN v_attendance_daily.employee_no; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_daily.employee_no IS '工号';
+
+
+--
+-- Name: COLUMN v_attendance_daily.dept_id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_daily.dept_id IS '部门ID';
+
+
+--
+-- Name: COLUMN v_attendance_daily.dept_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_daily.dept_name IS '部门';
+
+
+--
+-- Name: COLUMN v_attendance_daily.remark; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_daily.remark IS '备注';
+
+
+--
+-- Name: COLUMN v_attendance_daily.created_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_daily.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN v_attendance_daily.updated_at; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_daily.updated_at IS '更新时间';
+
+
+--
 -- Name: v_attendance_monthly; Type: VIEW; Schema: hr; Owner: postgres
 --
 
@@ -568,6 +1533,41 @@ CREATE VIEW hr.v_attendance_monthly AS
 ALTER VIEW hr.v_attendance_monthly OWNER TO postgres;
 
 --
+-- Name: COLUMN v_attendance_monthly.dept_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_monthly.dept_name IS '部门';
+
+
+--
+-- Name: COLUMN v_attendance_monthly.employee_id; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_monthly.employee_id IS '员工ID';
+
+
+--
+-- Name: COLUMN v_attendance_monthly.employee_name; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_monthly.employee_name IS '员工姓名';
+
+
+--
+-- Name: COLUMN v_attendance_monthly.employee_no; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_monthly.employee_no IS '工号';
+
+
+--
+-- Name: COLUMN v_attendance_monthly.remark; Type: COMMENT; Schema: hr; Owner: postgres
+--
+
+COMMENT ON COLUMN hr.v_attendance_monthly.remark IS '备注';
+
+
+--
 -- Name: debug_me; Type: VIEW; Schema: public; Owner: postgres
 --
 
@@ -598,6 +1598,48 @@ CREATE TABLE public.departments (
 ALTER TABLE public.departments OWNER TO postgres;
 
 --
+-- Name: COLUMN departments.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.departments.id IS '编号';
+
+
+--
+-- Name: COLUMN departments.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.departments.name IS '名称';
+
+
+--
+-- Name: COLUMN departments.sort; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.departments.sort IS '排序';
+
+
+--
+-- Name: COLUMN departments.status; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.departments.status IS '状态';
+
+
+--
+-- Name: COLUMN departments.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.departments.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN departments.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.departments.updated_at IS '更新时间';
+
+
+--
 -- Name: employees; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -611,6 +1653,41 @@ CREATE TABLE public.employees (
 
 
 ALTER TABLE public.employees OWNER TO postgres;
+
+--
+-- Name: COLUMN employees.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.employees.id IS '编号';
+
+
+--
+-- Name: COLUMN employees.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.employees.name IS '名称';
+
+
+--
+-- Name: COLUMN employees."position"; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.employees."position" IS '岗位';
+
+
+--
+-- Name: COLUMN employees.department; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.employees.department IS '部门';
+
+
+--
+-- Name: COLUMN employees.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.employees.created_at IS '创建时间';
+
 
 --
 -- Name: employees_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -635,6 +1712,27 @@ ALTER SEQUENCE public.employees_id_seq OWNED BY public.employees.id;
 
 
 --
+-- Name: field_label_overrides; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.field_label_overrides (
+    module text NOT NULL,
+    field_code text NOT NULL,
+    field_label text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.field_label_overrides OWNER TO postgres;
+
+--
+-- Name: COLUMN field_label_overrides.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.field_label_overrides.updated_at IS '更新时间';
+
+
+--
 -- Name: files; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -656,6 +1754,27 @@ CREATE TABLE public.files (
 ALTER TABLE public.files OWNER TO postgres;
 
 --
+-- Name: COLUMN files.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.files.id IS '编号';
+
+
+--
+-- Name: COLUMN files.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.files.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN files.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.files.updated_at IS '更新时间';
+
+
+--
 -- Name: form_values; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -670,6 +1789,27 @@ CREATE TABLE public.form_values (
 
 
 ALTER TABLE public.form_values OWNER TO postgres;
+
+--
+-- Name: COLUMN form_values.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.form_values.id IS '编号';
+
+
+--
+-- Name: COLUMN form_values.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.form_values.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN form_values.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.form_values.updated_at IS '更新时间';
+
 
 --
 -- Name: permissions; Type: TABLE; Schema: public; Owner: postgres
@@ -689,6 +1829,41 @@ CREATE TABLE public.permissions (
 ALTER TABLE public.permissions OWNER TO postgres;
 
 --
+-- Name: COLUMN permissions.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.permissions.id IS '编号';
+
+
+--
+-- Name: COLUMN permissions.code; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.permissions.code IS '编码';
+
+
+--
+-- Name: COLUMN permissions.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.permissions.name IS '名称';
+
+
+--
+-- Name: COLUMN permissions.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.permissions.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN permissions.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.permissions.updated_at IS '更新时间';
+
+
+--
 -- Name: positions; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -706,6 +1881,48 @@ CREATE TABLE public.positions (
 ALTER TABLE public.positions OWNER TO postgres;
 
 --
+-- Name: COLUMN positions.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.positions.id IS '编号';
+
+
+--
+-- Name: COLUMN positions.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.positions.name IS '名称';
+
+
+--
+-- Name: COLUMN positions.dept_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.positions.dept_id IS '部门ID';
+
+
+--
+-- Name: COLUMN positions.status; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.positions.status IS '状态';
+
+
+--
+-- Name: COLUMN positions.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.positions.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN positions.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.positions.updated_at IS '更新时间';
+
+
+--
 -- Name: raw_materials; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -721,6 +1938,55 @@ CREATE TABLE public.raw_materials (
 
 
 ALTER TABLE public.raw_materials OWNER TO postgres;
+
+--
+-- Name: COLUMN raw_materials.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.id IS '编号';
+
+
+--
+-- Name: COLUMN raw_materials.batch_no; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.batch_no IS '批次号';
+
+
+--
+-- Name: COLUMN raw_materials.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.name IS '物料名称';
+
+
+--
+-- Name: COLUMN raw_materials.category; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.category IS '物料分类';
+
+
+--
+-- Name: COLUMN raw_materials.weight_kg; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.weight_kg IS '重量(kg)';
+
+
+--
+-- Name: COLUMN raw_materials.entry_date; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.entry_date IS '入库日期';
+
+
+--
+-- Name: COLUMN raw_materials.created_by; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.created_by IS '创建人';
+
 
 --
 -- Name: raw_materials_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -763,6 +2029,41 @@ CREATE TABLE public.role_data_scopes (
 ALTER TABLE public.role_data_scopes OWNER TO postgres;
 
 --
+-- Name: COLUMN role_data_scopes.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.role_data_scopes.id IS '编号';
+
+
+--
+-- Name: COLUMN role_data_scopes.role_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.role_data_scopes.role_id IS '角色';
+
+
+--
+-- Name: COLUMN role_data_scopes.dept_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.role_data_scopes.dept_id IS '部门ID';
+
+
+--
+-- Name: COLUMN role_data_scopes.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.role_data_scopes.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN role_data_scopes.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.role_data_scopes.updated_at IS '更新时间';
+
+
+--
 -- Name: role_permissions; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -774,6 +2075,20 @@ CREATE TABLE public.role_permissions (
 
 
 ALTER TABLE public.role_permissions OWNER TO postgres;
+
+--
+-- Name: COLUMN role_permissions.role_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.role_permissions.role_id IS '角色';
+
+
+--
+-- Name: COLUMN role_permissions.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.role_permissions.created_at IS '创建时间';
+
 
 --
 -- Name: roles; Type: TABLE; Schema: public; Owner: postgres
@@ -791,6 +2106,55 @@ CREATE TABLE public.roles (
 
 
 ALTER TABLE public.roles OWNER TO postgres;
+
+--
+-- Name: COLUMN roles.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.roles.id IS '编号';
+
+
+--
+-- Name: COLUMN roles.code; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.roles.code IS '编码';
+
+
+--
+-- Name: COLUMN roles.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.roles.name IS '名称';
+
+
+--
+-- Name: COLUMN roles.description; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.roles.description IS '说明';
+
+
+--
+-- Name: COLUMN roles.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.roles.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN roles.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.roles.updated_at IS '更新时间';
+
+
+--
+-- Name: COLUMN roles.sort; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.roles.sort IS '排序';
+
 
 --
 -- Name: sys_dict_items; Type: TABLE; Schema: public; Owner: postgres
@@ -812,6 +2176,34 @@ CREATE TABLE public.sys_dict_items (
 ALTER TABLE public.sys_dict_items OWNER TO postgres;
 
 --
+-- Name: COLUMN sys_dict_items.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dict_items.id IS '编号';
+
+
+--
+-- Name: COLUMN sys_dict_items.sort; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dict_items.sort IS '排序';
+
+
+--
+-- Name: COLUMN sys_dict_items.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dict_items.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN sys_dict_items.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dict_items.updated_at IS '更新时间';
+
+
+--
 -- Name: sys_dicts; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -828,6 +2220,48 @@ CREATE TABLE public.sys_dicts (
 
 
 ALTER TABLE public.sys_dicts OWNER TO postgres;
+
+--
+-- Name: COLUMN sys_dicts.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dicts.id IS '编号';
+
+
+--
+-- Name: COLUMN sys_dicts.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dicts.name IS '名称';
+
+
+--
+-- Name: COLUMN sys_dicts.description; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dicts.description IS '说明';
+
+
+--
+-- Name: COLUMN sys_dicts.sort; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dicts.sort IS '排序';
+
+
+--
+-- Name: COLUMN sys_dicts.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dicts.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN sys_dicts.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_dicts.updated_at IS '更新时间';
+
 
 --
 -- Name: sys_field_acl; Type: TABLE; Schema: public; Owner: postgres
@@ -848,6 +2282,34 @@ CREATE TABLE public.sys_field_acl (
 ALTER TABLE public.sys_field_acl OWNER TO postgres;
 
 --
+-- Name: COLUMN sys_field_acl.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_field_acl.id IS '编号';
+
+
+--
+-- Name: COLUMN sys_field_acl.role_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_field_acl.role_id IS '角色';
+
+
+--
+-- Name: COLUMN sys_field_acl.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_field_acl.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN sys_field_acl.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_field_acl.updated_at IS '更新时间';
+
+
+--
 -- Name: sys_grid_configs; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -860,6 +2322,13 @@ CREATE TABLE public.sys_grid_configs (
 
 
 ALTER TABLE public.sys_grid_configs OWNER TO postgres;
+
+--
+-- Name: COLUMN sys_grid_configs.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.sys_grid_configs.updated_at IS '更新时间';
+
 
 --
 -- Name: system_configs; Type: TABLE; Schema: public; Owner: postgres
@@ -875,6 +2344,13 @@ CREATE TABLE public.system_configs (
 ALTER TABLE public.system_configs OWNER TO postgres;
 
 --
+-- Name: COLUMN system_configs.description; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.system_configs.description IS '说明';
+
+
+--
 -- Name: user_roles; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -886,6 +2362,20 @@ CREATE TABLE public.user_roles (
 
 
 ALTER TABLE public.user_roles OWNER TO postgres;
+
+--
+-- Name: COLUMN user_roles.role_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.user_roles.role_id IS '角色';
+
+
+--
+-- Name: COLUMN user_roles.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.user_roles.created_at IS '创建时间';
+
 
 --
 -- Name: users; Type: TABLE; Schema: public; Owner: postgres
@@ -912,6 +2402,104 @@ CREATE TABLE public.users (
 ALTER TABLE public.users OWNER TO postgres;
 
 --
+-- Name: COLUMN users.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.id IS '编号';
+
+
+--
+-- Name: COLUMN users.username; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.username IS '用户名';
+
+
+--
+-- Name: COLUMN users.password; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.password IS '密码';
+
+
+--
+-- Name: COLUMN users.role; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.role IS '角色';
+
+
+--
+-- Name: COLUMN users.avatar; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.avatar IS '头像';
+
+
+--
+-- Name: COLUMN users.permissions; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.permissions IS '权限集合';
+
+
+--
+-- Name: COLUMN users.full_name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.full_name IS '姓名';
+
+
+--
+-- Name: COLUMN users.phone; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.phone IS '手机号';
+
+
+--
+-- Name: COLUMN users.email; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.email IS '邮箱';
+
+
+--
+-- Name: COLUMN users.dept_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.dept_id IS '部门ID';
+
+
+--
+-- Name: COLUMN users.status; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.status IS '状态';
+
+
+--
+-- Name: COLUMN users.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN users.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.updated_at IS '更新时间';
+
+
+--
+-- Name: COLUMN users.position_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.users.position_id IS '岗位ID';
+
+
+--
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -934,6 +2522,132 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
+-- Name: v_field_labels; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.v_field_labels AS
+ WITH overrides AS (
+         SELECT field_label_overrides.module,
+            field_label_overrides.field_code,
+            field_label_overrides.field_label,
+            0 AS priority
+           FROM public.field_label_overrides
+        ), static_cols AS (
+         SELECT 'hr_employee'::text AS module,
+            a.attname AS field_code,
+            COALESCE(col_description(c.oid, (a.attnum)::integer), (a.attname)::text) AS field_label,
+            2 AS priority
+           FROM ((pg_attribute a
+             JOIN pg_class c ON ((c.oid = a.attrelid)))
+             JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
+          WHERE ((n.nspname = 'hr'::name) AND (c.relname = 'archives'::name) AND (a.attnum > 0) AND (NOT a.attisdropped) AND (a.attname <> ALL (ARRAY['properties'::name, 'version'::name, 'updated_at'::name])))
+        UNION ALL
+         SELECT 'hr_change'::text AS module,
+            a.attname AS field_code,
+            COALESCE(col_description(c.oid, (a.attnum)::integer), (a.attname)::text) AS field_label,
+            2 AS priority
+           FROM ((pg_attribute a
+             JOIN pg_class c ON ((c.oid = a.attrelid)))
+             JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
+          WHERE ((n.nspname = 'hr'::name) AND (c.relname = 'archives'::name) AND (a.attnum > 0) AND (NOT a.attisdropped) AND (a.attname <> ALL (ARRAY['properties'::name, 'version'::name, 'updated_at'::name])))
+        UNION ALL
+         SELECT 'hr_attendance'::text AS module,
+            a.attname AS field_code,
+            COALESCE(col_description(c.oid, (a.attnum)::integer), (a.attname)::text) AS field_label,
+            2 AS priority
+           FROM ((pg_attribute a
+             JOIN pg_class c ON ((c.oid = a.attrelid)))
+             JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
+          WHERE ((n.nspname = 'hr'::name) AND (c.relname = 'attendance_records'::name) AND (a.attnum > 0) AND (NOT a.attisdropped))
+        UNION ALL
+         SELECT 'hr_attendance'::text AS module,
+            a.attname AS field_code,
+            COALESCE(col_description(c.oid, (a.attnum)::integer), (a.attname)::text) AS field_label,
+            2 AS priority
+           FROM ((pg_attribute a
+             JOIN pg_class c ON ((c.oid = a.attrelid)))
+             JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
+          WHERE ((n.nspname = 'hr'::name) AND (c.relname = 'attendance_month_overrides'::name) AND (a.attnum > 0) AND (NOT a.attisdropped))
+        UNION ALL
+         SELECT 'mms_ledger'::text AS module,
+            a.attname AS field_code,
+            COALESCE(col_description(c.oid, (a.attnum)::integer), (a.attname)::text) AS field_label,
+            2 AS priority
+           FROM ((pg_attribute a
+             JOIN pg_class c ON ((c.oid = a.attrelid)))
+             JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
+          WHERE ((n.nspname = 'public'::name) AND (c.relname = 'raw_materials'::name) AND (a.attnum > 0) AND (NOT a.attisdropped))
+        UNION ALL
+         SELECT 'hr_user'::text AS module,
+            a.attname AS field_code,
+            COALESCE(col_description(c.oid, (a.attnum)::integer), (a.attname)::text) AS field_label,
+            2 AS priority
+           FROM ((pg_attribute a
+             JOIN pg_class c ON ((c.oid = a.attrelid)))
+             JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
+          WHERE ((n.nspname = 'public'::name) AND (c.relname = 'users'::name) AND (a.attnum > 0) AND (NOT a.attisdropped))
+        ), dynamic_cols AS (
+         SELECT 'hr_employee'::text AS module,
+            (elem.value ->> 'prop'::text) AS field_code,
+            (elem.value ->> 'label'::text) AS field_label,
+            1 AS priority
+           FROM public.system_configs sc,
+            LATERAL jsonb_array_elements(sc.value) elem(value)
+          WHERE (sc.key = 'hr_table_cols'::text)
+        UNION ALL
+         SELECT 'hr_change'::text AS module,
+            (elem.value ->> 'prop'::text) AS field_code,
+            (elem.value ->> 'label'::text) AS field_label,
+            1 AS priority
+           FROM public.system_configs sc,
+            LATERAL jsonb_array_elements(sc.value) elem(value)
+          WHERE (sc.key = 'hr_transfer_cols'::text)
+        UNION ALL
+         SELECT 'hr_attendance'::text AS module,
+            (elem.value ->> 'prop'::text) AS field_code,
+            (elem.value ->> 'label'::text) AS field_label,
+            1 AS priority
+           FROM public.system_configs sc,
+            LATERAL jsonb_array_elements(sc.value) elem(value)
+          WHERE (sc.key = 'hr_attendance_cols'::text)
+        UNION ALL
+         SELECT 'mms_ledger'::text AS module,
+            (elem.value ->> 'prop'::text) AS field_code,
+            (elem.value ->> 'label'::text) AS field_label,
+            1 AS priority
+           FROM public.system_configs sc,
+            LATERAL jsonb_array_elements(sc.value) elem(value)
+          WHERE (sc.key = 'materials_table_cols'::text)
+        ), merged AS (
+         SELECT overrides.module,
+            overrides.field_code,
+            overrides.field_label,
+            overrides.priority
+           FROM overrides
+        UNION ALL
+         SELECT dynamic_cols.module,
+            dynamic_cols.field_code,
+            dynamic_cols.field_label,
+            dynamic_cols.priority
+           FROM dynamic_cols
+        UNION ALL
+         SELECT static_cols.module,
+            static_cols.field_code,
+            static_cols.field_label,
+            static_cols.priority
+           FROM static_cols
+        )
+ SELECT DISTINCT ON (module, field_code) module,
+    field_code,
+    field_label
+   FROM merged
+  WHERE ((field_code IS NOT NULL) AND (field_code <> ''::text))
+  ORDER BY module, field_code, priority;
+
+
+ALTER VIEW public.v_field_labels OWNER TO postgres;
+
+--
 -- Name: v_role_permissions; Type: VIEW; Schema: public; Owner: postgres
 --
 
@@ -948,6 +2662,20 @@ CREATE VIEW public.v_role_permissions AS
 
 
 ALTER VIEW public.v_role_permissions OWNER TO postgres;
+
+--
+-- Name: COLUMN v_role_permissions.role_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_role_permissions.role_id IS '角色';
+
+
+--
+-- Name: COLUMN v_role_permissions.permissions; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_role_permissions.permissions IS '权限集合';
+
 
 --
 -- Name: v_sys_dict_items; Type: VIEW; Schema: public; Owner: postgres
@@ -971,6 +2699,101 @@ CREATE VIEW public.v_sys_dict_items AS
 
 
 ALTER VIEW public.v_sys_dict_items OWNER TO postgres;
+
+--
+-- Name: COLUMN v_sys_dict_items.sort; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_sys_dict_items.sort IS '排序';
+
+
+--
+-- Name: COLUMN v_sys_dict_items.created_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_sys_dict_items.created_at IS '创建时间';
+
+
+--
+-- Name: COLUMN v_sys_dict_items.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_sys_dict_items.updated_at IS '更新时间';
+
+
+--
+-- Name: v_users_manage; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.v_users_manage AS
+ SELECT u.id,
+    u.username,
+    u.full_name,
+    u.phone,
+    u.email,
+    u.status,
+    ur.role_id,
+    r.code AS role_code,
+    r.name AS role_name
+   FROM ((public.users u
+     LEFT JOIN LATERAL ( SELECT ur_1.role_id
+           FROM public.user_roles ur_1
+          WHERE (ur_1.user_id = u.id)
+          ORDER BY ur_1.created_at DESC
+         LIMIT 1) ur ON (true))
+     LEFT JOIN public.roles r ON ((r.id = ur.role_id)));
+
+
+ALTER VIEW public.v_users_manage OWNER TO postgres;
+
+--
+-- Name: COLUMN v_users_manage.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_users_manage.id IS '编号';
+
+
+--
+-- Name: COLUMN v_users_manage.username; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_users_manage.username IS '用户名';
+
+
+--
+-- Name: COLUMN v_users_manage.full_name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_users_manage.full_name IS '姓名';
+
+
+--
+-- Name: COLUMN v_users_manage.phone; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_users_manage.phone IS '手机号';
+
+
+--
+-- Name: COLUMN v_users_manage.email; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_users_manage.email IS '邮箱';
+
+
+--
+-- Name: COLUMN v_users_manage.status; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_users_manage.status IS '状态';
+
+
+--
+-- Name: COLUMN v_users_manage.role_id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.v_users_manage.role_id IS '角色';
+
 
 --
 -- Name: archives id; Type: DEFAULT; Schema: hr; Owner: postgres
@@ -1364,6 +3187,7 @@ efd1986b-7bcd-4ea7-88ff-5b276fdf2806	2025-12-31	employee	590	王安桐	E0002	\N	
 92d30c9c-54ba-4c4a-8a63-32e2845c183a	1970-01-01	employee	692	新员工	EMP177340	\N	\N	\N	待分配	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-16 20:53:48.835691+00	2026-01-16 20:53:48.835691+00
 2f5fd168-720e-4ad2-9036-51a9dbc11ee6	1970-01-01	employee	690	新员工	EMP176913	\N	\N	\N	待分配	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-16 20:53:48.835691+00	2026-01-16 20:53:48.835691+00
 01531c27-ffd8-4df0-8f78-17038a09e441	1970-01-01	employee	679	黄皓宸	E0091	\N	\N	\N	财务部	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-16 20:53:48.835691+00	2026-01-16 20:53:48.835691+00
+fdb364fd-d380-4ba1-a46e-9599ee969730	2026-01-29	employee	716	徐子	E0017	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
 d9f904a6-0b46-4300-9ed4-6637f0bcf1a0	1970-01-01	employee	688	惠晨丽	E0100	\N	\N	\N	行政部	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-16 20:53:48.835691+00	2026-01-16 20:53:48.835691+00
 3e85f9da-9737-49c6-8eef-91f367d02757	1970-01-01	employee	685	单杰悦	E0097	\N	\N	\N	仓储物流部	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-16 20:53:48.835691+00	2026-01-16 20:53:48.835691+00
 8ee3fdda-75cd-412d-b669-8c3e13a28c61	1970-01-01	employee	684	魏瑜墨	E0096	\N	\N	\N	质量管理部	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-16 20:53:48.835691+00	2026-01-16 20:53:48.835691+00
@@ -1687,6 +3511,108 @@ e828aae8-fc41-414c-9869-0bdc58537416	2026-01-28	employee	753	魏伟	E0054	\N	\N	
 30ef9f0e-6e30-471c-af13-79f929e74c35	2026-01-28	employee	749	花瑜	E0050	\N	\N	\N	仓储物流部	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-27 20:46:55.19211+00	2026-01-27 20:46:55.19211+00
 7e5a97df-075a-4c9c-bf9f-d4f9eac345e6	2026-01-28	employee	772	董彬雯	E0073	\N	\N	\N	人力资源部	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-27 20:46:55.19211+00	2026-01-27 20:46:55.19211+00
 bf8502fd-fdcd-40e8-97a8-226c92475d8f	2026-01-28	employee	740	顾琪婷	E0041	\N	\N	\N	信息化/IT部	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-27 20:46:55.19211+00	2026-01-27 20:46:55.19211+00
+859d870e-c148-481f-baa9-e87735dc0d30	2026-01-29	employee	802	新员工	EMP330625	\N	\N	\N		\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+1edadb61-2f3d-404f-bac7-00ed9f303028	2026-01-29	employee	734	万轩敏	E0035	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+2cb72ca1-cda1-4061-91bc-91bfc1b03e36	2026-01-29	employee	733	韩欣敏	E0034	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+0a9c318f-8248-44fb-a5ad-4f01b8e8d825	2026-01-29	employee	732	徐睿宸	E0033	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+68bcb1c4-54f6-4163-82e9-9844ee1e4759	2026-01-29	employee	731	阮曦颖	E0032	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+1253165e-0b10-4fce-bad5-3b32cfc901c3	2026-01-29	employee	730	李安	E0031	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+417fcf84-d7f2-4668-8ff3-f21afa3fc7fd	2026-01-29	employee	729	倪墨	E0030	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+ba6f9c09-436c-431c-9392-924d03b5b54d	2026-01-29	employee	728	华浩杰	E0029	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+8ae92d50-b00c-4a15-9483-aad7714bd68b	2026-01-29	employee	727	沈萱鹏	E0028	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+5e640627-ed4f-4afe-81fd-cc7dbd547e22	2026-01-29	employee	726	闵鑫鑫	E0027	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+670e4e49-3555-47b2-8de7-0b110c82bfc2	2026-01-29	employee	725	任雪彬	E0026	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+e00f2f69-3f69-408b-83c3-50e1cbe7ef6b	2026-01-29	employee	724	唐宇	E0025	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+4bf53fde-bddd-4fca-8fb5-a4242ee27604	2026-01-29	employee	723	吴欣超	E0024	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+6f71bd0c-105e-4b91-8de4-109812456da3	2026-01-29	employee	722	焦梦曦	E0023	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+19b53d6f-15df-4432-9b7c-4a779cfe7181	2026-01-29	employee	721	范皓勇	E0022	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+8480d979-3d83-4b8b-9fad-745b0032a2f6	2026-01-29	employee	720	何安静	E0021	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+6f430553-eb3c-4f0b-a55f-0016376023cf	2026-01-29	employee	719	臧桐	E0020	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+3738698f-fcf6-40f1-a60f-e02fbb349f24	2026-01-29	employee	718	葛雪	E0019	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+cf941c20-4243-4788-95e7-73d806ad45c4	2026-01-29	employee	717	惠杰	E0018	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+9a83cc3e-fd5d-48ec-9c6b-41a8c3fcd937	2026-01-29	employee	715	山桐梦	E0016	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+4394c60c-1024-404f-a0b5-d5283d262221	2026-01-29	employee	714	龚宇勇	E0015	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+ea67dc5a-6be6-4a93-bedd-ed85f14308c2	2026-01-29	employee	713	柯芳敏	E0014	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+84fd5a1a-b547-47f3-99b5-ea371e4c4ac4	2026-01-29	employee	712	郁雪超	E0013	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+f26b0cef-9bc1-415f-a1e6-ef093d2d9d9e	2026-01-29	employee	711	杜桐	E0012	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+a921dffa-8ba1-4e78-bb72-5a5777543c98	2026-01-29	employee	710	萧勇欣	E0011	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+daa85b19-4d89-457b-921a-553d0df2843c	2026-01-29	employee	709	封瑶晨	E0010	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+127c7bc5-3165-480c-96bd-877d4a631655	2026-01-29	employee	708	储宇雪	E0009	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+10268164-9b37-4584-9413-7d6000f0bd92	2026-01-29	employee	707	曲豪珂	E0008	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+0d16969b-928b-42c9-b578-f08805067e08	2026-01-29	employee	706	巫涵	E0007	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+5eea782d-d6ea-42a0-be19-cdafe389b982	2026-01-29	employee	705	宣睿	E0006	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+d0d17f45-3164-451d-a553-24c6c73149a5	2026-01-29	employee	704	禹怡军	E0005	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+bf70e9b0-057a-4e87-8914-c472f93b2de3	2026-01-29	employee	703	傅凯妍	E0004	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+ac039f6f-3669-4d75-a4bf-e9e40a5a1fc2	2026-01-29	employee	702	应军超	E0003	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+75a8457c-c26f-445c-802e-56dc8a83876c	2026-01-29	employee	701	王安桐	E0002	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+f03ff27f-1f2d-46cd-a0fa-27f629a4b51c	2026-01-29	employee	700	史俊晨	E0001	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+bf4f68f7-5acb-4f06-bf43-c72ce03c1460	2026-01-29	employee	799	惠晨丽	E0100	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+5a7ea6d3-6e97-41d9-b1a9-d0bfab1fca6d	2026-01-29	employee	798	童杰敏	E0099	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+e53456e9-7aa9-4030-bb40-05ba4aec449d	2026-01-29	employee	797	翁涵	E0098	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+30e0cb42-64d2-4727-a914-8ea5e5298286	2026-01-29	employee	790	黄皓宸	E0091	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+d6d73024-c546-4af0-a8b9-df5052fa6260	2026-01-29	employee	789	宋娜婉	E0090	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+6c88b369-b774-4afa-a96c-e7a138483582	2026-01-29	employee	788	林雯琪	E0089	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+990588df-04d9-435a-ae26-f0af90a01aa8	2026-01-29	employee	786	米瑾梦	E0087	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+123fb135-c0be-4bea-9236-474627337d9c	2026-01-29	employee	785	洪悦妍	E0086	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+7e4d34c0-eb3e-4672-b0e3-2d8ac1e79060	2026-01-29	employee	784	安博	E0085	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+a5b88079-21d8-4ac4-9d6e-cef5dc235473	2026-01-29	employee	783	靳宸杰	E0084	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+fdf85b6d-4322-43d6-bc6b-0fbc758eb3db	2026-01-29	employee	782	颜超轩	E0083	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+f2b58dfd-b9a7-4275-8b6c-7b0c21897b35	2026-01-29	employee	781	巫超鹏	E0082	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+9782d712-3ec2-4237-b275-874d61997738	2026-01-29	employee	780	惠浩萱	E0081	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+a222c471-2438-41f2-8b17-fd35fe53ce7d	2026-01-29	employee	779	郑杰颖	E0080	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+1e41c3f2-3d4e-44e3-90e1-da569b5ae654	2026-01-29	employee	778	袁丽珂	E0079	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+5c88ab5f-47bf-43e4-9383-7117c70cb1dd	2026-01-29	employee	777	花豪倩	E0078	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+861e9d35-2a96-44c6-b8f0-2e1ebf43808a	2026-01-29	employee	776	周珂婉	E0077	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+48e8bedf-047d-405b-a8b8-71fbf2cc7281	2026-01-29	employee	775	祁昕	E0076	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+b4972af3-a19d-4ad4-b02e-bd85e916c945	2026-01-29	employee	774	喻墨敏	E0075	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+91c78fef-0d1b-40a9-b83c-e6d7801b9bc5	2026-01-29	employee	773	裘亦	E0074	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+666bfedd-cb5a-480a-b3f1-31dee06a3833	2026-01-29	employee	772	董彬雯	E0073	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+9cec412b-d686-40c3-af19-616aecd30b7c	2026-01-29	employee	771	应瑾怡	E0072	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+3111cb66-8dba-44cd-a76a-94da4b1d7c7a	2026-01-29	employee	770	诸伟婉	E0071	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+dc558ac6-67fa-4779-8fe0-03b70d22c209	2026-01-29	employee	769	解丽欣	E0070	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+e4efff46-1584-4c31-967d-82470e2948ee	2026-01-29	employee	768	柏凯浩	E0069	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+54682825-8c82-4240-beb1-974989dfc368	2026-01-29	employee	767	梅宇悦	E0068	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+e27c2832-1b6c-46a6-a76e-653d8d629372	2026-01-29	employee	766	钟皓	E0067	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+aabbb9de-1d60-41c0-b31a-ed9a4662d772	2026-01-29	employee	765	支敏	E0066	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+00c913e5-6b15-44f4-af46-c77eacf937fc	2026-01-29	employee	764	姜丽轩	E0065	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+c3efc761-e2c7-4dcf-bbf8-17d042d35be3	2026-01-29	employee	763	鲁瑾	E0064	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+bd616b88-5380-47cf-a77a-e5a08a367d71	2026-01-29	employee	796	单杰悦	E0097	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+052d1674-6eef-4123-be46-ce3595af259e	2026-01-29	employee	793	宣睿婷	E0094	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+5144211f-83e5-4cb3-a3c8-2ec68f9e4756	2026-01-29	employee	792	余涵萱	E0093	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+b34d93a0-95da-4e05-81c1-ee318cab11b9	2026-01-29	employee	791	车鹏睿	E0092	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+797c326c-f875-46d5-b806-7f4a5553f6d2	2026-01-29	employee	801	林	EMP586274	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+298a47db-ce27-4c5b-885c-823bc0c76140	2026-01-29	employee	787	马安瑾	E0088	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+d1d6d038-66cc-4dd7-ac82-66a5fc63e41c	2026-01-29	employee	749	花瑜	E0050	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+389f1629-b073-4f39-beba-5079238118d7	2026-01-29	employee	748	倪宸浩	E0049	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+fe8944d0-846c-462e-b956-6e4003380e0f	2026-01-29	employee	747	鲁桐珊	E0048	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+fd8d3084-f9ce-4220-9451-d16cd2eb089f	2026-01-29	employee	746	严强	E0047	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+74f3bd38-bce4-455a-a1ba-1e948b2d4b32	2026-01-29	employee	745	戴曦	E0046	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+128fd396-440e-43f4-b417-513ccbdad6b7	2026-01-29	employee	744	车曦军	E0045	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+360ab28e-7616-4590-b6e1-ec83d2275def	2026-01-29	employee	743	郝磊博	E0044	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+9669e2d3-790d-467a-a427-2d77b2791e83	2026-01-29	employee	742	沈安梦	E0043	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+43123815-02b7-4b64-b335-20d5ba38626f	2026-01-29	employee	741	常睿皓	E0042	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+fd2a263b-87ea-4027-8b83-49616c15c4ac	2026-01-29	employee	740	顾琪婷	E0041	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+3763824d-f3f2-4c80-8236-6d52120559de	2026-01-29	employee	739	贺超豪	E0040	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+f4aa4db3-20df-4fc9-b589-2bfa7bba08ad	2026-01-29	employee	738	曹宇桐	E0039	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+014e9af3-b4ae-464e-9ead-a0b20ba21c9c	2026-01-29	employee	737	邹琪轩	E0038	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+4a4169ca-17c3-468a-9faa-c8467fddc160	2026-01-29	employee	736	富欣瑶	E0037	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+82ac175e-0629-4601-a136-588a2a137be3	2026-01-29	employee	735	巴墨芳	E0036	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+18285bc0-7a61-4efa-a09f-a2fc017ef8e6	2026-01-29	employee	762	霍勇鹏	E0063	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+3b6515c5-7218-4ca0-88ea-162c1e281a70	2026-01-29	employee	761	陆轩	E0062	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+028b7d8a-31de-4630-bda6-830fd3f77bd2	2026-01-29	employee	760	薛萱琳	E0061	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+26c327bc-7320-4273-9ad6-b6c7bf2337e3	2026-01-29	employee	759	彭琪桐	E0060	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+dfbf4986-e079-48ab-ba26-a9869038aa4c	2026-01-29	employee	795	魏瑜墨	E0096	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+c0c66972-e463-4630-8c64-3c4717f6daa0	2026-01-29	employee	794	齐娜妍	E0095	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+2369033c-b51a-44fd-873a-2d1332675acc	2026-01-29	employee	800	你	EMP339009	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+bc5f7a49-6e67-4821-bd2b-5760e116a8dd	2026-01-29	employee	758	左怡轩	E0059	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+a6b346ef-c143-4b96-bda5-25f21da576a0	2026-01-29	employee	757	荣琳博	E0058	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+b0b2179e-b4a6-4579-afc1-aa57413a93f8	2026-01-29	employee	756	蓝瑶婷	E0057	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+c7db4cfd-f62e-4b48-8426-e3759ae4dd21	2026-01-29	employee	755	乌彬鑫	E0056	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+3c3b20d7-918d-4cf6-b48f-ba806ed19d79	2026-01-29	employee	754	莫瑾宸	E0055	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+ce0ad632-846d-47fd-8b50-2484b4209ea7	2026-01-29	employee	753	魏伟	E0054	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+996a65e9-394f-4751-8c97-6ce95f80a8c9	2026-01-29	employee	752	陈嘉婉	E0053	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+0fea18d0-47ef-449c-b7b8-6169d4ab2124	2026-01-29	employee	751	缪彬	E0052	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
+2b99ec31-8e6d-4d50-a812-a74217c499c2	2026-01-29	employee	750	苗勇静	E0051	\N	\N	\N	???	\N	\N	\N	\N	\N	\N	\N	\N	{}	f	f	f	f	0	\N	2026-01-28 20:11:44.449795+00	2026-01-28 20:11:44.449795+00
 \.
 
 
@@ -1725,7 +3651,7 @@ COPY public.departments (id, name, parent_id, leader_id, sort, status, created_a
 f1b437fa-a799-4866-9478-50e15b961e93	财务部	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	30	active	2026-01-27 21:03:21.068578+00	2026-01-27 21:03:21.068578+00
 821bae9d-d4d6-4f79-a2df-986400aaada3	英利工厂	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	40	active	2026-01-27 21:00:20.733454+00	2026-01-27 21:00:20.733454+00
 8f2d51a8-5d51-4fd4-88b1-b0ccd455fc64	总经理部	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	50	active	2026-01-27 20:59:19.590919+00	2026-01-27 20:59:19.590919+00
-3ee73ef4-5352-4806-bfc5-002f2ac68564	销售部	15e61e02-6ef3-41a0-b858-21e1618f9632	\N	20	active	2026-01-27 20:59:04.610513+00	2026-01-27 20:59:04.610513+00
+3ee73ef4-5352-4806-bfc5-002f2ac68564	销售部	b0aa5f36-a392-4a79-a908-e84c3aac1112	\N	20	active	2026-01-27 20:59:04.610513+00	2026-01-27 20:59:04.610513+00
 427becfd-2d82-48d6-8171-195c7acaad53	采购部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	10	active	2026-01-27 21:05:12.19069+00	2026-01-27 21:05:12.19069+00
 8c7d6883-4921-4ef4-ba45-8033103563e2	仓储部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	20	active	2026-01-27 21:03:18.147239+00	2026-01-27 21:03:18.147239+00
 529af27e-6cfb-4dcf-be03-efe17c5bb285	质检部	821bae9d-d4d6-4f79-a2df-986400aaada3	\N	30	active	2026-01-27 21:02:48.169478+00	2026-01-27 21:02:48.169478+00
@@ -1740,6 +3666,40 @@ b0aa5f36-a392-4a79-a908-e84c3aac1112	南派	\N	\N	0	active	2026-01-27 20:58:52.0
 
 COPY public.employees (id, name, "position", department, created_at) FROM stdin;
 1	林志荣	全栈架构师	研发中心	2025-12-21 22:48:47.338352
+\.
+
+
+--
+-- Data for Name: field_label_overrides; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.field_label_overrides (module, field_code, field_label, updated_at) FROM stdin;
+hr_employee	salary	工资	2026-01-29 00:01:12.786401+00
+hr_employee	performance	绩效	2026-01-29 00:01:12.786401+00
+hr_employee	total_salary	总工资	2026-01-29 00:01:12.786401+00
+hr_employee	id_card	身份证	2026-01-29 00:01:12.786401+00
+hr_employee	native_place	籍贯	2026-01-29 00:01:12.786401+00
+hr_employee	gender	性别	2026-01-29 00:01:12.786401+00
+hr_employee	phone	手机号	2026-01-29 00:01:12.786401+00
+hr_employee	position	岗位	2026-01-29 00:01:12.786401+00
+hr_employee	department	部门	2026-01-29 00:01:12.786401+00
+hr_employee	employee_no	工号	2026-01-29 00:01:12.786401+00
+hr_employee	name	姓名	2026-01-29 00:01:12.786401+00
+hr_employee	status	状态	2026-01-29 00:01:12.786401+00
+hr_change	from_dept	原部门	2026-01-29 00:01:12.786401+00
+hr_change	to_dept	新部门	2026-01-29 00:01:12.786401+00
+hr_change	from_position	原岗位	2026-01-29 00:01:12.786401+00
+hr_change	to_position	新岗位	2026-01-29 00:01:12.786401+00
+hr_change	effective_date	生效日期	2026-01-29 00:01:12.786401+00
+hr_change	transfer_type	调岗类型	2026-01-29 00:01:12.786401+00
+hr_change	transfer_reason	调岗原因	2026-01-29 00:01:12.786401+00
+hr_change	approver	审批人	2026-01-29 00:01:12.786401+00
+hr_attendance	att_status	考勤状态	2026-01-29 00:01:12.786401+00
+hr_attendance	check_in	签到时间	2026-01-29 00:01:12.786401+00
+hr_attendance	check_out	签退时间	2026-01-29 00:01:12.786401+00
+hr_attendance	att_note	备注	2026-01-29 00:01:12.786401+00
+hr_attendance	ot_hours	加班时长	2026-01-29 00:01:12.786401+00
+hr_user	role_id	角色	2026-01-29 00:01:12.786401+00
 \.
 
 
@@ -1781,6 +3741,41 @@ e0baac90-7926-4337-a3fb-f5c1f6a77966	hr:employee.export	花名册导出	人事�
 f9a66726-7fcb-4596-81f5-5c558e06e69d	hr:org.export	组织架构导出	部门架构	导出	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
 27ab46fc-3086-41c5-8ee2-4867ce222c7d	hr:org.config	组织架构配置	部门架构	配置	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
 da0914e1-5105-4156-9a46-cb4a36f95518	hr:change.view	调岗查看	调岗记录	查看	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
+7217fcde-beb2-4b2b-8a50-4717d3bfd2e7	module:home	模块-首页	模块	显示	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+974f2d33-db7c-4a63-b681-39053a3296c9	module:hr	模块-人事	模块	显示	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+6d5d625b-102d-44c6-9b43-ac95a43b7030	module:mms	模块-物料	模块	显示	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+52891a44-2cf0-41a8-87bf-61645d1ef732	app:hr_employee	应用-人事花名册	应用	进入	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+39958fbb-b520-44fd-bc6b-95ac7f56f1e9	app:hr_org	应用-部门架构	应用	进入	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+5c40500a-ed0d-4cbf-9a31-03af3b967974	app:hr_attendance	应用-考勤管理	应用	进入	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+30d0a60e-b529-4c7c-8809-3c803d8fc3a9	app:hr_change	应用-调岗记录	应用	进入	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+12c29a45-a19a-4fbc-ac12-9e7f9d9f72c3	app:hr_acl	应用-权限管理	应用	进入	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+c0bd2ecb-57bf-4bbb-a3e3-4c208420d211	app:mms_ledger	应用-物料台账	应用	进入	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+0902a50b-3f49-476e-b8e5-1ac0bca4b78f	op:hr_employee.create	人事花名册-新增	人事花名册	新增	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+c7177812-4aad-4925-9d3c-8b1043ad1751	op:hr_employee.edit	人事花名册-编辑	人事花名册	编辑	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+a2f2a882-1c0f-4a88-b972-36bb5be8a42f	op:hr_employee.delete	人事花名册-删除	人事花名册	删除	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+32b9854d-357c-49c9-9dd4-3c3c4f466a57	op:hr_employee.export	人事花名册-导出	人事花名册	导出	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+8e29f33b-a3d4-407d-bd84-ec41c90fccff	op:hr_employee.config	人事花名册-配置	人事花名册	配置	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+defd5f65-6660-43b9-b725-4af827c51ea6	op:hr_org.create	部门架构-新增	部门架构	新增	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+3c89b5f3-2bec-4e93-b939-6f751df2619f	op:hr_org.edit	部门架构-编辑	部门架构	编辑	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+212de9d3-3fca-484c-bea6-85a458a6d2e5	op:hr_org.delete	部门架构-删除	部门架构	删除	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+abe9f0e0-8a6c-47f3-8c39-600801e72374	op:hr_org.save_layout	部门架构-保存布局	部门架构	保存布局	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+b90a386f-ec09-4026-bdbc-6993bca73ba5	op:hr_org.member_manage	部门架构-成员管理	部门架构	成员管理	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+c325877d-19dd-4022-9e27-ff00b53d6c7e	op:hr_acl.create	权限管理-新增	权限管理	新增	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+d1b10f18-d7d8-499f-8bb9-684bee30a64a	op:hr_acl.edit	权限管理-编辑	权限管理	编辑	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+dab7524c-dd66-47cf-bd64-30b910c9adbb	op:hr_acl.delete	权限管理-删除	权限管理	删除	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+7c97b7ab-f058-4e07-bc0b-8f7b9cefd1e6	op:hr_change.create	调岗记录-新增	调岗记录	新增	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+3a9b0e2a-7726-4d71-9e7f-85c76a67825a	op:hr_change.edit	调岗记录-编辑	调岗记录	编辑	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+71b3c53c-4ea9-470b-be04-0d361ddf4b2a	op:hr_change.delete	调岗记录-删除	调岗记录	删除	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+de7a5ba6-578a-4199-8182-4dee3c977ec4	op:hr_change.export	调岗记录-导出	调岗记录	导出	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+803dbf8c-f9df-4628-b751-71f89082c9a9	op:hr_change.config	调岗记录-配置	调岗记录	配置	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+a89fb985-111c-4507-afc5-0c73602c89ee	op:hr_attendance.create	考勤管理-新增	考勤管理	新增	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+833ba41f-564d-4d53-b1f4-58068df04123	op:hr_attendance.edit	考勤管理-编辑	考勤管理	编辑	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+98a0bccb-72a5-4977-90e0-bbee6842b7e3	op:hr_attendance.delete	考勤管理-删除	考勤管理	删除	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+338880a9-7464-4cc2-8bb0-83719f3a4404	op:hr_attendance.export	考勤管理-导出	考勤管理	导出	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+701b506c-2de7-4446-8ee6-6ed9a4649508	op:hr_attendance.config	考勤管理-配置	考勤管理	配置	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+1cb97f81-8a2c-4caa-b7f0-d99dc11ed4f4	op:hr_attendance.shift_manage	考勤管理-班次管理	考勤管理	班次管理	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+d0517d99-9f67-4877-9a52-cd6542994b10	op:hr_attendance.shift_create	考勤管理-班次新增	考勤管理	班次新增	2026-01-28 20:10:19.031294+00	2026-01-29 00:00:52.098359+00
+15b8295c-a5df-4b8b-b37d-c3b57eb204e3	op:mms_ledger.create	物料台账-新增	物料台账	新增	2026-01-28 20:35:59.045028+00	2026-01-29 00:00:52.098359+00
 6d23e088-f7d9-49fe-bb07-cee9c3fe9c18	hr:change.create	调岗新增	调岗记录	新增	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
 0cbdfa8a-948e-407d-9a6f-f4e1784ecbd7	hr:change.edit	调岗编辑	调岗记录	编辑	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
 cca47339-1940-4c27-94cf-66f89923888f	hr:change.delete	调岗删除	调岗记录	删除	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
@@ -1802,6 +3797,17 @@ a53b2f02-f4b7-4c22-9c43-637e19f94ab5	hr:profile.create	档案新增	人事档案
 96dcd908-214a-4842-beed-c6df4b34dc71	hr:profile.export	档案导出	人事档案	导出	2026-01-16 15:27:08.757051+00	2026-01-28 19:39:52.154034+00
 cd03668e-f24f-4b04-9015-0d8567f829f7	hr:attendance.config	考勤配置	考勤管理	配置	2026-01-28 16:50:30.552906+00	2026-01-28 19:39:52.154034+00
 6148a122-5ff1-4b53-9016-edd8af4c9ef1	hr:acl.config	权限配置	权限管理	配置	2026-01-28 16:50:30.552906+00	2026-01-28 19:39:52.154034+00
+68dd9b9e-b264-4af0-a95e-6f3163e28b25	app:hr_user	应用-用户管理	应用	进入	2026-01-29 00:00:52.098359+00	2026-01-29 00:00:52.098359+00
+30ab876f-a563-47c6-a4fd-4c488bdb83a6	op:hr_user.create	用户管理-新增	用户管理	新增	2026-01-29 00:00:52.098359+00	2026-01-29 00:00:52.098359+00
+a7e97ec8-ef4b-412f-9ba9-aadea7e15059	op:hr_user.edit	用户管理-编辑	用户管理	编辑	2026-01-29 00:00:52.098359+00	2026-01-29 00:00:52.098359+00
+7f471355-1ab3-461f-bca0-46a886b37fe2	op:hr_user.delete	用户管理-删除	用户管理	删除	2026-01-29 00:00:52.098359+00	2026-01-29 00:00:52.098359+00
+f5c4bbdb-9a75-4fa0-8d42-037fa9c79267	op:hr_user.export	用户管理-导出	用户管理	导出	2026-01-29 00:00:52.098359+00	2026-01-29 00:00:52.098359+00
+f7032fce-1cad-4772-a8aa-6e0a83f0b1fc	op:hr_user.config	用户管理-配置	用户管理	配置	2026-01-29 00:00:52.098359+00	2026-01-29 00:00:52.098359+00
+9058f230-f9a9-4c2a-a1f2-2fedae68d9cf	op:mms_ledger.edit	物料台账-编辑	物料台账	编辑	2026-01-28 20:35:59.045028+00	2026-01-29 00:00:52.098359+00
+ad2fb879-b364-4699-af80-a4566ae40441	op:mms_ledger.delete	物料台账-删除	物料台账	删除	2026-01-28 20:35:59.045028+00	2026-01-29 00:00:52.098359+00
+448f5c64-0718-4bfa-af41-7723848c41d1	op:mms_ledger.import	物料台账-导入	物料台账	导入	2026-01-28 20:35:59.045028+00	2026-01-29 00:00:52.098359+00
+21cf8896-f18a-417b-9c18-9b41c08c2aae	op:mms_ledger.export	物料台账-导出	物料台账	导出	2026-01-28 20:35:59.045028+00	2026-01-29 00:00:52.098359+00
+96319cc7-2a65-4364-866d-5dfbefbde93e	op:mms_ledger.config	物料台账-配置	物料台账	配置	2026-01-28 20:35:59.045028+00	2026-01-29 00:00:52.098359+00
 \.
 
 
@@ -1932,6 +3938,104 @@ acf335a2-f56f-4aca-bb4d-682553c8e5ec	cd03668e-f24f-4b04-9015-0d8567f829f7	2026-0
 acf335a2-f56f-4aca-bb4d-682553c8e5ec	6148a122-5ff1-4b53-9016-edd8af4c9ef1	2026-01-28 16:50:30.559143+00
 f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	cd03668e-f24f-4b04-9015-0d8567f829f7	2026-01-28 16:50:30.562776+00
 f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	6148a122-5ff1-4b53-9016-edd8af4c9ef1	2026-01-28 16:50:30.562776+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	7217fcde-beb2-4b2b-8a50-4717d3bfd2e7	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	974f2d33-db7c-4a63-b681-39053a3296c9	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	6d5d625b-102d-44c6-9b43-ac95a43b7030	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	52891a44-2cf0-41a8-87bf-61645d1ef732	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	39958fbb-b520-44fd-bc6b-95ac7f56f1e9	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	5c40500a-ed0d-4cbf-9a31-03af3b967974	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	30d0a60e-b529-4c7c-8809-3c803d8fc3a9	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	12c29a45-a19a-4fbc-ac12-9e7f9d9f72c3	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	c0bd2ecb-57bf-4bbb-a3e3-4c208420d211	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	0902a50b-3f49-476e-b8e5-1ac0bca4b78f	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	c7177812-4aad-4925-9d3c-8b1043ad1751	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	a2f2a882-1c0f-4a88-b972-36bb5be8a42f	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	32b9854d-357c-49c9-9dd4-3c3c4f466a57	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	8e29f33b-a3d4-407d-bd84-ec41c90fccff	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	defd5f65-6660-43b9-b725-4af827c51ea6	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	3c89b5f3-2bec-4e93-b939-6f751df2619f	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	212de9d3-3fca-484c-bea6-85a458a6d2e5	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	abe9f0e0-8a6c-47f3-8c39-600801e72374	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	b90a386f-ec09-4026-bdbc-6993bca73ba5	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	c325877d-19dd-4022-9e27-ff00b53d6c7e	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	d1b10f18-d7d8-499f-8bb9-684bee30a64a	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	dab7524c-dd66-47cf-bd64-30b910c9adbb	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	7c97b7ab-f058-4e07-bc0b-8f7b9cefd1e6	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	3a9b0e2a-7726-4d71-9e7f-85c76a67825a	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	71b3c53c-4ea9-470b-be04-0d361ddf4b2a	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	de7a5ba6-578a-4199-8182-4dee3c977ec4	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	803dbf8c-f9df-4628-b751-71f89082c9a9	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	a89fb985-111c-4507-afc5-0c73602c89ee	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	833ba41f-564d-4d53-b1f4-58068df04123	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	98a0bccb-72a5-4977-90e0-bbee6842b7e3	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	338880a9-7464-4cc2-8bb0-83719f3a4404	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	701b506c-2de7-4446-8ee6-6ed9a4649508	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	1cb97f81-8a2c-4caa-b7f0-d99dc11ed4f4	2026-01-28 20:10:59.774431+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	d0517d99-9f67-4877-9a52-cd6542994b10	2026-01-28 20:10:59.774431+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	974f2d33-db7c-4a63-b681-39053a3296c9	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	52891a44-2cf0-41a8-87bf-61645d1ef732	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	39958fbb-b520-44fd-bc6b-95ac7f56f1e9	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	5c40500a-ed0d-4cbf-9a31-03af3b967974	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	30d0a60e-b529-4c7c-8809-3c803d8fc3a9	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	12c29a45-a19a-4fbc-ac12-9e7f9d9f72c3	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	0902a50b-3f49-476e-b8e5-1ac0bca4b78f	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	c7177812-4aad-4925-9d3c-8b1043ad1751	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	a2f2a882-1c0f-4a88-b972-36bb5be8a42f	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	32b9854d-357c-49c9-9dd4-3c3c4f466a57	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	8e29f33b-a3d4-407d-bd84-ec41c90fccff	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	defd5f65-6660-43b9-b725-4af827c51ea6	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	3c89b5f3-2bec-4e93-b939-6f751df2619f	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	212de9d3-3fca-484c-bea6-85a458a6d2e5	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	abe9f0e0-8a6c-47f3-8c39-600801e72374	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	b90a386f-ec09-4026-bdbc-6993bca73ba5	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	c325877d-19dd-4022-9e27-ff00b53d6c7e	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	d1b10f18-d7d8-499f-8bb9-684bee30a64a	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	dab7524c-dd66-47cf-bd64-30b910c9adbb	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	7c97b7ab-f058-4e07-bc0b-8f7b9cefd1e6	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	3a9b0e2a-7726-4d71-9e7f-85c76a67825a	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	71b3c53c-4ea9-470b-be04-0d361ddf4b2a	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	de7a5ba6-578a-4199-8182-4dee3c977ec4	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	803dbf8c-f9df-4628-b751-71f89082c9a9	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	a89fb985-111c-4507-afc5-0c73602c89ee	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	833ba41f-564d-4d53-b1f4-58068df04123	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	98a0bccb-72a5-4977-90e0-bbee6842b7e3	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	338880a9-7464-4cc2-8bb0-83719f3a4404	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	701b506c-2de7-4446-8ee6-6ed9a4649508	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	1cb97f81-8a2c-4caa-b7f0-d99dc11ed4f4	2026-01-28 20:25:08.645115+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	d0517d99-9f67-4877-9a52-cd6542994b10	2026-01-28 20:25:08.645115+00
+dab1f261-b0ef-4050-82d4-251514f9041b	974f2d33-db7c-4a63-b681-39053a3296c9	2026-01-28 20:25:08.65021+00
+dab1f261-b0ef-4050-82d4-251514f9041b	52891a44-2cf0-41a8-87bf-61645d1ef732	2026-01-28 20:25:08.65021+00
+dab1f261-b0ef-4050-82d4-251514f9041b	39958fbb-b520-44fd-bc6b-95ac7f56f1e9	2026-01-28 20:25:08.65021+00
+dab1f261-b0ef-4050-82d4-251514f9041b	5c40500a-ed0d-4cbf-9a31-03af3b967974	2026-01-28 20:25:08.65021+00
+dab1f261-b0ef-4050-82d4-251514f9041b	30d0a60e-b529-4c7c-8809-3c803d8fc3a9	2026-01-28 20:25:08.65021+00
+dab1f261-b0ef-4050-82d4-251514f9041b	12c29a45-a19a-4fbc-ac12-9e7f9d9f72c3	2026-01-28 20:25:08.65021+00
+e1ba01bc-955c-4d41-9ed8-35dfd8644320	974f2d33-db7c-4a63-b681-39053a3296c9	2026-01-28 20:25:08.652939+00
+e1ba01bc-955c-4d41-9ed8-35dfd8644320	52891a44-2cf0-41a8-87bf-61645d1ef732	2026-01-28 20:25:08.652939+00
+e1ba01bc-955c-4d41-9ed8-35dfd8644320	39958fbb-b520-44fd-bc6b-95ac7f56f1e9	2026-01-28 20:25:08.652939+00
+e1ba01bc-955c-4d41-9ed8-35dfd8644320	5c40500a-ed0d-4cbf-9a31-03af3b967974	2026-01-28 20:25:08.652939+00
+e1ba01bc-955c-4d41-9ed8-35dfd8644320	30d0a60e-b529-4c7c-8809-3c803d8fc3a9	2026-01-28 20:25:08.652939+00
+11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	974f2d33-db7c-4a63-b681-39053a3296c9	2026-01-28 20:25:08.655632+00
+11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	52891a44-2cf0-41a8-87bf-61645d1ef732	2026-01-28 20:25:08.655632+00
+11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	5c40500a-ed0d-4cbf-9a31-03af3b967974	2026-01-28 20:25:08.655632+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	15b8295c-a5df-4b8b-b37d-c3b57eb204e3	2026-01-28 20:37:35.505715+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	9058f230-f9a9-4c2a-a1f2-2fedae68d9cf	2026-01-28 20:37:35.505715+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	ad2fb879-b364-4699-af80-a4566ae40441	2026-01-28 20:37:35.505715+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	448f5c64-0718-4bfa-af41-7723848c41d1	2026-01-28 20:37:35.505715+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	21cf8896-f18a-417b-9c18-9b41c08c2aae	2026-01-28 20:37:35.505715+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	96319cc7-2a65-4364-866d-5dfbefbde93e	2026-01-28 20:37:35.505715+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	68dd9b9e-b264-4af0-a95e-6f3163e28b25	2026-01-29 14:27:02.502333+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	30ab876f-a563-47c6-a4fd-4c488bdb83a6	2026-01-29 14:27:02.502333+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	a7e97ec8-ef4b-412f-9ba9-aadea7e15059	2026-01-29 14:27:02.502333+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	7f471355-1ab3-461f-bca0-46a886b37fe2	2026-01-29 14:27:02.502333+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	f5c4bbdb-9a75-4fa0-8d42-037fa9c79267	2026-01-29 14:27:02.502333+00
+acf335a2-f56f-4aca-bb4d-682553c8e5ec	f7032fce-1cad-4772-a8aa-6e0a83f0b1fc	2026-01-29 14:27:02.502333+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	68dd9b9e-b264-4af0-a95e-6f3163e28b25	2026-01-29 14:27:02.502333+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	30ab876f-a563-47c6-a4fd-4c488bdb83a6	2026-01-29 14:27:02.502333+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	a7e97ec8-ef4b-412f-9ba9-aadea7e15059	2026-01-29 14:27:02.502333+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	7f471355-1ab3-461f-bca0-46a886b37fe2	2026-01-29 14:27:02.502333+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	f5c4bbdb-9a75-4fa0-8d42-037fa9c79267	2026-01-29 14:27:02.502333+00
+f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	f7032fce-1cad-4772-a8aa-6e0a83f0b1fc	2026-01-29 14:27:02.502333+00
+dab1f261-b0ef-4050-82d4-251514f9041b	68dd9b9e-b264-4af0-a95e-6f3163e28b25	2026-01-29 14:27:02.502333+00
 \.
 
 
@@ -1970,8 +4074,598 @@ COPY public.sys_dicts (id, dict_key, name, description, enabled, sort, created_a
 --
 
 COPY public.sys_field_acl (id, role_id, module, field_code, can_view, can_edit, created_at, updated_at) FROM stdin;
-c598dabd-8776-41e1-b06e-9fbe5dcde2ac	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	salary	t	f	2026-01-28 16:50:30.572916+00	2026-01-28 16:50:30.572916+00
-3c0909ec-2689-459d-8c01-1f4c81815fd9	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	id_card	t	f	2026-01-28 16:50:30.572916+00	2026-01-28 16:50:30.572916+00
+ee4cec45-ddc4-4f25-b26c-c26432289b56	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	salary	t	t	2026-01-28 20:25:18.733054+00	2026-01-28 20:25:18.733054+00
+e684a2b1-7892-47b2-809c-ad3f38b36abc	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	id_card	t	f	2026-01-28 20:25:18.733054+00	2026-01-28 20:25:18.733054+00
+11dc3d73-9940-435f-ac80-fe6351fe11c7	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	salary	t	f	2026-01-28 20:25:18.733054+00	2026-01-28 20:25:18.733054+00
+a244d679-feb2-43b8-8846-ea5f85389c93	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	id_card	t	f	2026-01-28 20:25:18.733054+00	2026-01-28 20:25:18.733054+00
+8f265d03-c074-4958-bfad-cb3f6be39bb6	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	salary	f	f	2026-01-28 20:25:18.733054+00	2026-01-28 20:25:18.733054+00
+398781b0-e1c6-48cb-b343-68d90c8ed6a6	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	id_card	f	f	2026-01-28 20:25:18.733054+00	2026-01-28 20:25:18.733054+00
+a649caf2-a292-4daa-a872-d56f884ea8f6	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	id	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+36ac320f-daf5-4d0e-a3bc-8313146ea04b	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	id	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+ca7a6c8c-b1df-446a-8e47-86a65b7db3e1	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	id	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+f2316834-c5f3-4ae1-93e6-03ed8b298e07	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	id	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+600b6644-71bc-406a-a8f6-77f55d84331e	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	id	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+fd1d3773-ae04-46f6-951d-95de9353e959	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	id	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+a4b6df97-6cfa-4686-8bd1-5e6e24230714	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	name	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+846ebd60-f834-49a7-80b3-ead071c0cc2e	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	name	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+7fac947c-e6b6-4f14-8335-414424973b9b	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	name	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+da4c320e-087f-45e6-ae56-fd06fd8ca65b	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	name	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+346a3a79-dce1-4f9c-b7f5-9fff82753a9e	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	name	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+5a35cee9-0d41-4841-a71d-7f60326f4cde	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	name	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+59572376-dd31-4baf-8144-dfb41d75860b	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	employee_no	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+3c200e2b-24fe-4f83-826f-fc214adfe68a	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	employee_no	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+0eb10478-8443-41e7-9b63-ec3b860f5605	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	employee_no	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+6cc8a8d9-c528-4f23-b91e-12820eb83c50	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	employee_no	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+242f9cf8-ee09-4eed-9316-329490b09f20	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	employee_no	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+2a48df5a-e062-47a1-879c-57534c3d1c97	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	employee_no	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+28b9026f-37b9-443c-b37a-d1847a1b7e2b	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	department	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+5b6a0b33-7170-44d1-8302-68ca9e986201	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	department	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+2920293b-ba90-4f95-a5e9-230e9e8a7126	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	department	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+b9b5aba2-3db8-4440-900a-c5148d46ffaf	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	department	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+6091f7df-35c6-4d43-9a29-389400e9059c	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	department	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+919c7e6f-652e-4b67-beb0-f6c19c6b1596	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	department	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+39b096f1-038f-4c59-9d12-4a04b6ed3bd8	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	status	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+2bc28437-c0ac-4c0a-a292-b0266b185ca9	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	status	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+6c7b6a9c-1276-4916-b5b9-748f3d89ea44	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	status	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+341f6021-0634-4f18-af00-755cbc52ab5e	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	status	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+acb69bf6-16cd-408e-8c80-fd1f62d1bbbd	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	status	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+1f2247ac-5a29-4e5c-b4c2-3e7e48e3a8d0	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	status	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+625b4e5d-1ab7-4d34-87c0-e766abb74bc2	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	from_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+54776101-de1c-455c-9bf8-b4eb6fa1077b	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	from_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+7ff8ce26-f65d-48fb-9c38-5f85b2486c7f	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	from_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+3282e16c-ba7e-4def-bfd9-992059d669a5	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	from_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+6989d552-1ddd-444f-83fe-f0dd3cdfe3f1	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	from_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+3ea3f3d8-efba-487b-8726-00b6b4d740eb	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	from_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+42728f12-c8ab-407e-916c-e2ffd4b70dad	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	to_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+e2dcd469-d174-405c-ae93-6eddc104e747	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	to_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+314bde83-eca6-4440-aa84-0474c6568b20	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	to_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+45fff6ac-b7f5-4637-8d3d-a698848c41cb	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	to_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+917b2052-ae95-4a4b-963d-931f9fd71677	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	to_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+a2cb1e10-503f-475c-ba0d-aae327572a85	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	from_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+4fc3ad37-cd35-4d56-8d94-0445c18eebd9	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	from_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+79b0cdef-f51c-4054-8795-30b3e1e800dd	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	from_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+372705f1-87c6-4681-9b3a-ed707c7c1f8b	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	from_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+8d2b527b-46fc-43be-a8a0-e4f234e4496d	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	from_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+c3054b66-2f0b-4e00-b03d-c4d28dacd231	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	from_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+5a501694-89f6-4302-8712-9ff5740a5910	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	to_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+0143f39d-d637-453e-a721-67e92d965652	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	to_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+6cffd676-f4ef-4005-979e-5ee33a100837	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	to_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+b93547b0-a413-483f-8df3-6d48993e4f7d	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	to_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+da4b92b7-6236-4b9c-ac67-f7a2990595ae	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	to_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+e75f3357-1d9c-4e6e-b199-ca453e96206a	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	effective_date	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+5e06567e-7c54-47b7-8a90-a9ac59578e0e	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	effective_date	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+dee94892-975a-4e76-87f8-f6d2101d3ae9	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	effective_date	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+342f7822-e8d9-4eb9-94bc-3ab3c2208b18	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	effective_date	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+34e7476e-6d3d-42da-8fff-1794a7c5a23e	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	effective_date	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+f62e98ec-1b03-427c-a52c-5c8fe7e95fa0	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	effective_date	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+5eadec20-2a96-4c18-b728-1889b6e9ddc9	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	transfer_type	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+4ad5a292-6289-4926-a983-f4238d2abe2b	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	transfer_type	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+c9ab0501-db4a-4262-895f-d8375fe22bb3	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	transfer_type	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+364b409c-28ec-42d8-995f-dd759ebd5458	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	transfer_type	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+3b919f28-4e65-496d-9eb1-1450ca38568f	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	transfer_type	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+5b91250b-46bc-43eb-859a-cb8e3f9cfa9b	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	transfer_type	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+8889500d-12f3-4b07-b6a5-69de9d3a6486	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	transfer_reason	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+4a701594-f3d1-44ba-82b0-2ca81137e8e3	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	transfer_reason	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+3ca9023c-feae-4c24-af0b-0c03784fafcb	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	transfer_reason	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+02000ba9-4241-4f24-a08a-73b4c085c71b	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	transfer_reason	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+7fef2e89-4347-4606-a939-c7e3cf6d00dc	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	transfer_reason	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+28cac2c4-74d1-4aa5-9bb4-8509f7cd1ec8	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	transfer_reason	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+dc160a1a-bc5b-44a5-9369-0d002c2bd8f4	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	to_position	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 21:32:21.50073+00
+c598dabd-8776-41e1-b06e-9fbe5dcde2ac	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	salary	t	t	2026-01-28 16:50:30.572916+00	2026-01-28 23:00:42.994972+00
+3c0909ec-2689-459d-8c01-1f4c81815fd9	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	id_card	t	t	2026-01-28 16:50:30.572916+00	2026-01-29 15:01:10.297546+00
+12c7070a-db75-487a-8030-b3e5639c551d	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	approver	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+cbb9e864-97cf-4b6a-8ef2-14f3505194bc	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	approver	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+f6d5a64d-a1a0-448a-a179-703c22356149	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	approver	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+858e862b-e7ff-4d3d-9d95-958340fa297a	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	approver	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+02b2959b-96ec-4948-94b1-670c0a77b15c	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	approver	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+c1cec663-d337-4742-827e-628788712ff5	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	approver	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 20:59:05.725584+00
+9c09485d-661d-495a-986b-32e9c5b7fee7	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	id	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+63546768-9d37-4a07-a16b-fc6c9365955f	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	id	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+582d1820-1237-4109-bee6-70f30f51182a	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	id	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+d237fa58-c43b-42d5-9bfc-830df9fe2d99	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	id	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+db6c5312-29f1-43e5-a7f5-73b615ab9b48	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	id	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+2cb2e917-1995-4c6e-b66c-ee079740b0e6	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	id	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+c143d24b-2cb9-45a0-aa67-e316bf3b9250	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	name	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+fccc8b1a-9e36-4e79-b676-b0772d484d1e	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	name	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+28444f4b-bfff-48fb-b4cd-71e4f7441446	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	name	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+a95053e1-34ff-44d8-9810-67247454b770	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	name	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+6b970cef-3aa9-4278-84af-beca5ba17ab8	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	name	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+f59f5d90-a3b6-4011-a61c-958b2212d747	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	name	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+abef6d12-aff1-454e-941b-7d54707f0853	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	employee_no	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+5216e2a9-200c-430a-85ae-79c5953a37a4	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	employee_no	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+966b4939-f426-481c-b6af-1997c66e5623	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	employee_no	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+d3768ec9-0854-482b-b9da-3c054b92f957	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	employee_no	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+c6053c6f-eeb1-4167-92f9-f02b45b0db2d	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	employee_no	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+bddbdbe7-0634-4468-811a-afc771865565	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	department	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+4c2beab3-52f1-41fa-bf6c-9209781c8f93	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	department	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+d2edfe56-f3b6-4a24-8c36-d5cf381cc987	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	department	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+020e0cee-5a0c-4b0b-b85e-35744312335c	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	department	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+94e03acf-5970-423a-8172-7563785ea556	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	department	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+ce4f1839-9d97-4e44-bf84-9efa43339713	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	status	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+d1855455-97ad-43e1-b0a8-d25c8f38588a	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	status	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+1c1012ef-62de-40c8-8781-24f97fac2e16	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	status	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+36d320b0-967d-4ac4-ab91-2315795be17e	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	status	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+e1c207ae-ddf1-4de5-b611-7f7631f24361	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	status	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+283528e0-af00-454a-80e9-7b21e08a91bc	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	status	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+972ea1e3-125e-4ef6-8eac-28751a0631c2	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	gender	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+5b58be16-dfb8-4922-ae96-42626d746337	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	gender	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+f325e628-f36d-44f7-a00f-7b3cd984544a	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	gender	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+07c2216e-1754-44ca-b4cf-556c4ec653c3	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	gender	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+5ca17f77-bb72-45f9-a278-0da534faf78c	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	gender	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+4b4ea2cd-68e8-4a0a-8309-2de91c1ceaef	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	gender	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+7f548d15-f07a-41c4-b30a-285be6660548	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	id_card	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+4c5eb0ab-744a-4b10-8bac-99dcdc0adf31	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	id_card	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+9e07a029-8ce4-4404-b96e-7c9ebfb623b5	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_3410	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+af1f4e55-d35c-4991-b1b8-f85f09633f66	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_3410	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+78d02c94-849d-48fb-b87b-fe430d1ec023	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_3410	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+c740a3ea-4536-4a57-976b-ef7bde1c379a	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_3410	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+7a309f9e-6fbe-47bf-ae63-d89fc9619fbf	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_3410	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+2d27315d-003b-4988-96a7-a5bd6b659279	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_5458	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+e18a3f7b-e298-4337-8026-25848318f2bd	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_5458	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+3d54b4d9-8893-46a4-af0b-2a10d072cef4	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_5458	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+dd21a7e5-862f-4295-aeb8-9f92648d7b4f	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_5458	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+d8077a83-f00d-48ca-8a6e-69049a7fe475	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_5458	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+c7fa69e5-b133-4d4d-9a11-6553cc33a4ba	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_5458	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+36f2c8ec-9131-4ee0-b1fb-ab36446adf69	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_9314	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+f5c428ef-29d7-4619-8131-66d4d91889b4	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_9314	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+12bc97bf-2a38-4d51-b96d-3c67bd02c9ab	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_9314	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+10654b21-11fe-4c6e-8dc7-2fe17ef92237	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_9314	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+fbd6b460-6e14-4542-ac34-ae43f391b06a	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_9314	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+32bc74d2-14a0-4ffe-a5c9-710f64ba3fe9	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_9314	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+29efa2cf-2e3f-490d-b441-cb428238a5cf	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_789	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+1b482265-ed73-4a53-a038-cd40e71b32b5	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_789	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+201d4227-8e1a-4491-99a7-da47834e6807	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_789	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+3b0d96cf-9c7c-4a10-996c-a7dcb91bc183	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_789	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+de245b70-c7dc-4c5d-b6b5-eaad0d92af71	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_789	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+739bc18d-882c-417a-9589-4187da091440	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_789	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+c8ba1e48-0fdb-4da5-a048-603035dfeb3e	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_8633	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+79fbf106-cb7a-4163-bec4-ac365e8feb75	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_8633	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+05001a2f-2626-4945-b064-f9b6418d98c1	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_8633	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+7ba99a47-4dbd-4731-8c1b-f580cc6dcdf3	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_8633	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+73f16322-3587-4935-ba11-1233f8b67028	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_8633	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+6fa8c960-08a9-40b0-aa64-b5ca9e49349d	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_8633	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+f42d7664-82c1-45cd-b833-12b2f7471028	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_2086	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+98a63639-5011-45be-a1e5-8cd6098a62c6	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_2086	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+3e6d0898-a756-4068-8b4f-4bc9c2e29033	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_2086	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+22e5ac78-46bc-4b65-ae99-5efe3bb7b3e6	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_2086	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+75cf991a-8c3d-40ea-99ea-03e51e7203f3	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_3410	t	t	2026-01-28 20:59:08.678182+00	2026-01-29 15:01:05.413087+00
+29d6debd-150a-4548-b89e-d310a971814e	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	employee_no	t	t	2026-01-28 20:59:08.678182+00	2026-01-29 15:01:04.22466+00
+60632ad0-c54a-4780-aac9-e2fbea8255d5	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_2086	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+175294a3-2698-432b-831e-67493ffef013	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_7980	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+2e9502ed-82a1-4f74-a27f-b5d962ffdff3	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_7980	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+7de36d3e-97e0-4b4f-a247-b5c2710045b8	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_7980	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+913dc224-7335-44b6-908a-d1e0273b9640	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_7980	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+7a1e3c83-20c1-47c2-afdc-795958df10a0	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_7980	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+da0a4159-625e-4c47-963c-25d879307dd1	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_7980	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+d8c0a0ab-9b8d-4a01-8db5-6cc87072e374	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_1340	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+7c2b35ea-4f06-4811-ac75-bca3d1f9beab	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_1340	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+f31893a8-d9e4-4339-bc53-9d99448e5ac3	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_1340	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+5ac35d3d-4dc3-4706-b278-95e2410b0e41	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_1340	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+86c187da-2592-4ca0-8ddb-35554f53b293	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_1340	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+bfae220f-e1f9-432b-8d7d-1660e5d4e300	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_3727	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+a0dee0f7-1c55-4daa-a5de-0eb007d60a23	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_3727	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+06b3b165-7ef0-4c12-8142-15af1cddf862	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_3727	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+43ebb8ff-b08c-46ac-863b-cea6787608e4	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_3727	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+3a3f0b04-1ef1-4fcc-8c21-7b22ed09db34	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_3727	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+b3e34ca3-eb6f-4ee8-a648-bbe1eddabe75	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_3727	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+3a81cc73-490d-437f-9553-219d25e7d636	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	field_3986	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+e4b49d42-5046-4e43-a3eb-947845422ce7	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	field_3986	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+e4969fbd-a119-4177-bb2c-d99165d9d978	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	field_3986	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+825ecad4-7d44-4178-8276-fbd81ab09587	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	field_3986	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+8de03dfa-fcb0-4a82-a011-b0d1aaf18e46	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	field_3986	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+c57761e5-5d0f-4579-b099-6a8f3bd11bcf	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_3986	t	t	2026-01-28 20:59:08.678182+00	2026-01-28 20:59:08.678182+00
+66747505-6a8f-47e5-83d6-28598f40e1bc	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+ae69fb86-2fff-46fe-9237-8a217a5a0a65	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+11173efc-fdc0-4f4d-8fa9-1225e73a82fc	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+3ebf67c2-afbf-4ca0-b598-aa03a3dc9095	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+2168a92e-cec4-46e0-a507-99585926e304	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+89e966a6-2654-4aa9-b7a4-1f997463f091	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+3e111485-30e7-484c-801c-1fe7d694f13a	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+4a93377d-e441-4a30-ba9d-e0e048beb635	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+37809228-3de8-47e1-bc36-b63520abe785	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+b4ef6b5c-7ef9-477a-89a9-6c56383e2668	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+1d5a2c6f-9756-4160-80d4-b9a75f4d6ec5	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+66ed3dcc-fdbb-4e39-8970-d155106b2066	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+052f4fee-76ac-4308-bbd1-9408b85c12cd	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	employee_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+dce147ef-504c-4022-b571-9313c6fefc45	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	employee_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+be9165ee-bed9-4a44-8aba-f3ec00f91530	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	employee_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+825f7727-a7fe-4ee4-b290-bd53cf0f6058	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	employee_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+0e60b280-c5e7-4cea-a788-57f19cdd2fce	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	employee_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+82a95a25-1fe7-4979-b1a3-65df8168ef0d	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	employee_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+1af9e70d-79a4-4f74-9e22-1062e4e69b5b	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	department	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+e62eb441-48d5-4812-b832-298ecc627c29	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	department	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+db587e1a-63c6-4b05-b455-14d8d7b3322f	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	department	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+8e1d4b4b-eccc-4167-b31d-aa0aa416eed5	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	department	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+d2557f3e-7c56-435c-91c2-d36992d53ca3	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	department	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+847b5c86-8294-452b-ba9d-3e88ceaebd1b	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	department	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+322c3d8d-d9fe-49e2-b2fc-6794bfb27b91	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+26d9ee84-df0c-4bd5-92b0-593ada220f26	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+fbdac596-cf5a-45b0-842a-b20e5a42d8c0	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+22b3428f-f81a-4440-a13e-abc3e733654e	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+0ef662e6-0e4d-4160-9432-aa0987ee6d34	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+1baf9495-822a-45a9-be3f-7704ce9255c3	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+7932e45d-1e3b-40d8-a9b3-c8097cf9763f	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	att_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+89bfe670-0e4f-4fb3-a87c-cb46e8122de3	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	att_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+f9a4f9f5-fa1a-45d4-8bc8-e8c622e1d040	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	att_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+40ff8166-8811-4369-8c35-f663ed10da15	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	att_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+0554c5a0-2dbe-4e90-bcd6-89728e1cf8bc	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	att_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+9b6e5312-c803-45d0-bd02-5a2d4aed6d26	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	att_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+7f9a427d-f400-4d6c-8000-a08283f133bd	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	att_note	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+5e3be08a-ea5e-4531-9ed2-9252a57be0bc	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	att_note	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+97da98b0-a1f4-41bb-87c1-93c0ab314fa3	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	att_note	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+005e7ca8-7082-4fc0-85da-c3df4efb6444	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	att_note	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+49be8a1a-5e94-4caf-9da7-4f99694cdf6e	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	att_note	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+dfbca679-f721-4f49-9ad3-893fd5ac4af2	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	att_note	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+d20176f0-e107-41ae-864d-4c274f31031a	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	att_status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+464116a5-666c-4cba-891d-a80b76fd2881	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	att_status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+29654a15-74ac-4ad4-9838-5b8b06934051	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	att_status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+a3522f6a-169f-43d8-b6cf-ce34dd419c47	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	att_status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+64d98b84-be28-4c41-ad64-bceebb74a7bd	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	att_status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+2245aacb-ca12-4311-b372-2b02ef5a7341	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	check_in	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+dc549cd4-f88d-4900-b041-bd189aea5db4	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	check_in	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+1956a080-16b7-4264-80b8-0708ee5c101b	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	spec	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+6c8a89cb-73b1-4de4-bb85-4440c29b0169	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_2086	t	t	2026-01-28 20:59:08.678182+00	2026-01-29 14:47:23.538353+00
+d3e9ccf4-0381-4e44-9733-049dcb00be16	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	check_in	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+eea27d32-e449-496e-acef-83d827a5f075	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	check_in	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+3f4eadc9-e383-4ece-8d95-5d3c820110d0	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	check_in	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+9014a237-72dd-4cc8-b8bf-a0b22ee42c79	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	check_out	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+9d9ddf9c-9e5b-4518-a11d-5c4e1a51e06f	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	check_out	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+2256ae94-ec6d-4ad9-864f-aef5c9d34ae7	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	check_out	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+43bc6654-8f60-491e-b737-cd0d5ad43b60	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	check_out	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+53e92810-34cc-4d07-bffa-9596ef448e5b	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	check_out	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+0f3b882c-5bba-4c6e-925e-ecf252772d18	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	ot_hours	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+0ac06099-888f-4d19-8e7b-6118e6bb42cf	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	ot_hours	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+0a80efca-1745-41a9-b1dd-6238009d5ba6	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	ot_hours	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+343863bb-a608-4fac-ba72-49b1c28407ed	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	ot_hours	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+516647f5-a46f-4af0-abcf-f62ab47bc203	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	ot_hours	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+bad791aa-bf17-4a7a-9ff4-061fa0014bfe	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	ot_hours	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+27dad196-ce86-4e9f-86b9-75f434a49254	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+d764b1c0-74b0-4e49-aac9-fc0788405384	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+599f4b12-502e-4f6e-aa74-141cf068398e	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+deca9bb5-bf2a-4c88-94d3-105f608cde91	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+694481c0-16f1-4626-811e-691584a4ce46	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+9ccb879b-4d22-4790-99a4-4799e023da15	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	id	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+2ccdcb37-d97b-463a-9dcf-5fb60fa9b8bf	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	batch_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+fdfe6e13-1d03-4240-81db-5ad62b99cac6	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	batch_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+7b192178-7ed1-4b30-8282-151995406597	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	batch_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+2605909c-1b56-4d32-b4f7-f79da754dbe3	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	batch_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+99a3be33-5b73-4bbe-8fa1-0f4dea9c992f	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	batch_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+b344a3cf-5519-48bc-ba5c-2ac713f07797	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	batch_no	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+1ebf99bf-9e55-44d5-98d4-00185b136af2	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+7a396094-b4ad-4c85-9cd7-fde07935809f	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+b6152398-8596-48a5-b4f1-d004fec96e1b	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+a9f13f7f-ba86-4fdc-9c75-50d0a228598f	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+f93f689c-9a17-413e-96d7-255e1ee79d48	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+ba1b05d9-ace7-4885-ba9e-b2caeeaab034	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	name	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+6249458f-ac2a-479a-b497-fb6e48cf553c	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	category	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+4c01681a-3998-4987-a123-b4c1e470146e	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	category	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+f7c6ab06-c65e-4585-a93d-e4ca1cc90418	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	category	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+6de4de79-0893-48bb-a27a-77f67288d819	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	category	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+8cc11c24-c728-471c-8b03-16c934ea54fa	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	category	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+bc97ea79-a57f-4ef8-9228-0fad8f8e0775	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	category	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+69f95283-1941-463b-9c40-f47de7be9311	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	weight_kg	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+d95cdafc-3a6f-4775-bee2-e6896d0d5e12	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	weight_kg	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+eb2c5530-3740-40d3-a0af-d4d158cb9a2e	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	weight_kg	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+89e6579d-7fa6-44f3-ab2a-5420c5e397fe	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	weight_kg	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+7d489c2e-f02a-4628-82e1-474eb16ad297	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	weight_kg	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+f16f2900-12fe-4f09-bba9-3de16f8bb5bc	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	weight_kg	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+792936f6-5b84-4475-8364-de3c9fab5b05	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	entry_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+ee734f2a-cf63-4682-b1be-ec8067e385d0	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	entry_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+314ea738-9f03-47c5-9f7b-e0305818ed0e	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	entry_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+90882ac5-8f5a-4924-aa53-3cb3616cf680	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	entry_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+37d625be-07bc-43c7-be14-4f284eb165f7	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	entry_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+4a860e18-f14a-4e98-815f-cb258dc056a0	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	entry_date	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+1d922bfe-8dfd-43e1-8fe2-5e0e5c88b232	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	created_by	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+d9ed26fe-bf00-4b30-acd8-c90dccb8c8c6	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	created_by	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+94777ec0-a54e-4259-980c-85c0b6a33c6f	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	created_by	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+56f8e144-0f24-44c8-bc50-c1c58670c589	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	created_by	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+80168e0f-0f50-4dae-93c7-a32ba45bbec4	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	created_by	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+ad44829f-16a6-44fa-a8af-f9691e2fa42e	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	created_by	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+55481cc6-9ae1-47cf-9343-335ff6173997	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	conversion	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+d4697596-2be3-41c6-980f-82e7e12a3ef2	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	conversion	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+5c979dda-92fb-4c5e-a12b-ca2f497ec83e	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	conversion	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+e8c2516f-ad76-4880-88eb-d9e561cbf680	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	conversion	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+41b8f5ca-45c6-4710-8aa9-d656e3e6ec4d	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	conversion	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+e39907c8-f983-43b9-92f8-470c54df2997	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	conversion	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+b28ec9f5-e57d-434d-a81d-4cd612f02693	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	finance_attribute	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+e3794ceb-ac98-4354-bafe-aa6ec6eb7c90	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	finance_attribute	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+96113ad6-22d5-4560-83ea-107a0302afe4	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	finance_attribute	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+d9d3479d-a293-42c8-92ab-673b6473e2e0	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	finance_attribute	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+5712813d-2a27-491e-ad36-29f53ade4d2e	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	finance_attribute	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+c7cd2207-0ccc-41f0-a7f8-9212aee0f090	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	finance_attribute	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+c3a323c3-5328-450b-8def-f6be402ec926	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	measure_unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+84c9e1f7-e1d0-430f-babd-71dcdd04fa8b	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	measure_unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+98f44e64-d352-40fd-843e-d886cdc48c6e	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	measure_unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+b90c6ddf-6869-44fd-868f-f83c7b9cc91d	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	measure_unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+099e5a94-c7cb-4901-850d-36058c138da2	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	measure_unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+2b842b28-263b-46ef-9543-d01d2803971c	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	measure_unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+9963a45c-0d9a-4529-9abe-2e8204d4465f	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	spec	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+044e4a06-9377-4cb9-bafd-13c333bf5922	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	spec	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+a6e26b14-ef4c-4825-bf24-a43cb36aaa44	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	spec	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+5b4ac594-9d64-41e1-b035-24b1cc5dcb64	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	spec	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+3b17ce9f-793a-452e-bec9-3c87a48abf43	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	spec	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+055a359d-7a93-4266-b4b3-fb3910b730e7	acf335a2-f56f-4aca-bb4d-682553c8e5ec	mms_ledger	unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+15ed0e9c-70ac-4a3b-878c-f03421c33770	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	mms_ledger	unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+474bbf6f-a79a-4289-bc4d-83bf58557ba9	dab1f261-b0ef-4050-82d4-251514f9041b	mms_ledger	unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+2a9f3eb7-38a6-45a0-9e6f-0e70c56384b5	e1ba01bc-955c-4d41-9ed8-35dfd8644320	mms_ledger	unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+b4515015-1122-491e-a977-bb6c0ba8c9e7	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	mms_ledger	unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+67498c13-5e54-4632-91e5-4c1b7942d79b	e0d14028-ec80-4c81-aa95-24fe79a1ad05	mms_ledger	unit	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:07:34.873684+00
+3c541041-6359-4b66-bb6f-9c9b81c95e9c	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	position	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+01154660-a51a-4913-acfd-1bfb7082e22b	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	position	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+a5b79921-dce6-4b67-9ea4-ca93edac265d	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	position	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+3a134d9b-f8d9-4f10-bc2b-991416b13068	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	position	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+e0d0e384-047b-42a4-aa36-7479b094e742	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	position	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+d12eefe4-a6c3-4b84-b716-89367091448d	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	position	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+643ddc59-971e-4481-9290-1ba71e90395b	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	phone	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+436fe3d7-71f7-42af-bc62-4f934c16929c	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	phone	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+63d0ee15-575f-4206-8cec-a3c5502352f8	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	phone	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+2541823d-c3fa-4cd3-9294-4cd83957dd66	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	phone	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+3d2e9ceb-fcd5-4ef2-8769-ddc5a70c81bc	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	phone	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+d424599c-bd9e-467a-9ef4-387a61c79a97	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	phone	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+9fe7866f-0421-4309-b1e9-494b92f8d0f4	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	base_salary	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+370794ad-85ce-4961-a3b3-d262046771ca	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	base_salary	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+3adaa8db-1bc6-427f-80bc-b4128e28c378	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	base_salary	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+957a3745-ce3a-4a84-9a47-d4f4fdb2dbc9	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	base_salary	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+faa271eb-a89e-4f9f-8542-c793233c0dd1	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	base_salary	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+369f3ce7-1dfe-4334-94af-563dd2530c3c	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_employee	entry_date	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+df7c450d-b775-4718-9094-3ab85fde4bef	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_employee	entry_date	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+2440b3c3-292a-45f7-bdd5-f25a07d95743	dab1f261-b0ef-4050-82d4-251514f9041b	hr_employee	entry_date	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+91dd64ea-19c7-48ee-a4ee-82a6b61ac57f	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_employee	entry_date	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+a1fd6a6e-ff30-469b-a0b2-03f19e2acb68	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_employee	entry_date	t	t	2026-01-28 21:10:07.688335+00	2026-01-28 21:10:07.688335+00
+c64e8449-6842-4244-8004-eeecc358d367	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	person_type	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0b39f00f-2651-425a-8190-a3d00b70643f	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	person_type	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a7bf3502-d3f9-4329-b089-1bc97062731a	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	person_type	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+41ddf4db-a622-4f31-931d-759793a4a62b	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	person_type	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0efd5adc-9269-4176-825b-02d8e74c111a	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	person_type	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+4d33da46-748d-4a86-a15d-cd6adf0fb65b	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	person_type	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+3ba10960-b9aa-40d8-b7ca-c30040e0b0af	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	employee_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a6f05b16-f10d-4726-920f-5e8114cdf080	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	employee_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0ce82955-c8ad-4f07-a541-1247e9384848	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	employee_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+c63d7f97-8b09-41f6-ab1f-a1e3ca8fefba	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	employee_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+47dbbcde-ce3d-4317-bd65-b02f3afd4157	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	employee_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+10413a39-950c-40a9-9b97-9b6d04f02e0d	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	employee_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0a99db99-b59f-4fed-b8aa-15de12244ca6	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	employee_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0312f0b6-74e3-4778-84f7-701a35ac3a77	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	employee_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+71b698bf-63f0-4783-ad48-d9d8c7166eb9	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	employee_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+c0251730-28d2-48cc-ae38-15e017ee6380	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	employee_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+e1338414-ec02-4e71-b318-db7f913c0779	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	employee_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+558a6f48-aec6-41ea-985b-fefee8df85d1	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	employee_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+befb6601-8a33-41fd-8487-d35fc94683dc	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	temp_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+2b085c71-d0bd-422e-9bfe-fc32f63b6f59	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	temp_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+278715c8-2f9e-4103-84d6-ed2e40049dba	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	temp_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+9cd95e13-8596-424b-92fe-7f187357f7a5	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	temp_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+c91f1031-3172-413f-b4d4-8d9245756140	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	temp_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+5918c3dd-0605-49a6-9a56-7ccd97305c49	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	temp_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+d1c37ccf-8720-408e-9c78-22a8867e8b39	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	temp_phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+292d638b-99ff-4917-8049-ac734544452d	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	temp_phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+116c19f9-a91e-4304-87f5-44d2729eedc2	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	temp_phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+dd143cbe-0ecb-4b20-90e1-7f726c6265ea	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	temp_phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+48ca3512-aa67-4d9b-bd67-bcbe1618911b	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	temp_phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+2aeb3fbf-c40d-4253-8bec-b63f38969693	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	temp_phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+dae73352-06cc-4871-a766-b6ab0dd79edf	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	dept_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a9840446-2257-48a9-9184-07aef990f6c2	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	dept_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+3da2139c-611d-4010-89ac-4615e2acab26	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	dept_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+d7c6c2d2-7dc6-4642-b431-cc9a07b50a15	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	dept_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+ed9cbe91-1819-44f5-a425-b0a189af14c2	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	dept_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+04e03acc-7de2-487d-882f-7f8651ff296e	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	dept_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0dfda35c-5f74-4c9e-93a7-07b0e3bcb97d	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	dept_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+10b74336-2e2b-496c-a8ab-c7f16f06d42a	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	dept_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+c929dd0b-b3a6-4ec6-aa6b-5f25c333fb9d	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	dept_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+48fc4d5d-5bf7-47ba-b5d5-d06de5651744	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	dept_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+383c9bd9-1f8f-4310-8fef-0ac7a65064b7	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	dept_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+60e23230-5e8c-4dfa-b600-5cf73db1b938	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	dept_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+efbf0fbf-3bf6-477e-8062-d53b031dd0ef	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	shift_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+30d9e271-f194-4e48-ad28-f457f5f41281	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	shift_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+4a2c145d-cf23-4226-a6db-1fbb25f2e182	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	shift_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+c8d8d03e-b5c8-4ebc-985f-de34cfa978a1	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	base_salary	t	t	2026-01-28 21:10:07.688335+00	2026-01-29 15:01:07.688989+00
+304cec56-e0a6-4bda-99e2-069221087f79	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	shift_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+acf101ca-92f7-4497-955b-d31c80ed718e	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	shift_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+ce259dc0-3d3f-41fd-ac7a-9ff062cad39b	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	shift_id	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+e45f1535-1535-4854-bbaf-45361f417b59	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	shift_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+88a070a2-0997-49ce-926b-df579ce605d7	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	shift_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+af0e9945-5408-4bda-bee0-9482e8c361e3	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	shift_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+6a4859de-808e-4da1-a19b-bc54c4ff2b0c	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	shift_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+9221aead-9abb-41ac-9499-74f5ba29abee	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	shift_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+e5bbc510-462f-4630-869c-63915561536e	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	shift_name	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+faec2641-4596-43c4-8f45-41113e5d49a4	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	shift_start_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0437b4b4-7e84-42e4-83ae-d6992e382d45	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	shift_start_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+9bf3d1e7-cf8c-49b8-b75d-4187cb8012b9	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	shift_start_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+3a27c596-8b3d-4197-9cac-5b26cf11b9e2	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	shift_start_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+f685c2ea-f0c1-43a9-83c7-26a367ce50b1	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	shift_start_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+4b5676b7-a69f-496b-9817-ee7c82f08314	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	shift_start_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+41ed2a9e-54e1-4a73-8daf-f840dc1e2efa	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	shift_end_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a790d023-0bb7-44e5-84f2-e3cd6dc088cb	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	shift_end_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+c103342c-d3f0-4eb4-b27a-6461d76f43d5	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	shift_end_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0af3dac4-0595-4c8e-8a36-c6be2f443121	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	shift_end_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+1d54e3bb-aae6-47f4-8428-bc47dae6a27f	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	shift_end_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+b5441e5e-fc7c-4f0b-a04f-0b152f46b5fc	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	shift_end_time	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+2547f767-9c6f-4445-9538-a8c224b505d7	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	shift_cross_day	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+d016c0fc-4510-4cc4-965d-d3e7657e7c9b	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	shift_cross_day	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+60d87ea4-e838-417a-95fc-b16ee0a9440e	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	shift_cross_day	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+61631817-c4c0-40a4-8cc5-d857c1f4fde8	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	shift_cross_day	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+6b3d8b10-45a7-441f-88b8-86363f04a365	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	shift_cross_day	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0a6e0328-4391-4c6d-acef-c308c0131b2d	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	shift_cross_day	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+fe4651d2-2af6-4524-9c48-ecc0d9037233	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	late_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+6601704a-bc18-4a67-a358-d314a92041e7	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	late_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+944ad726-cf2c-4d2a-a3ce-828f00290bde	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	late_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+64dd58d8-64b2-4587-aa2e-7a5950fcb844	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	late_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a151df24-cd13-41b9-9ba7-997ca0a04995	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	late_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+556a0fff-a7ac-4251-916d-291f631fbcd4	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	late_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+c10b2731-e124-4bf9-bde7-d696a9d500df	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	early_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+6bcc2f7d-bbd4-4515-a903-6c510491d83f	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	early_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+30efae71-5d42-4289-be23-ff71ef1431d2	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	early_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+13e82ced-432b-4762-b659-f20ffcb57959	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	early_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+1abddc4f-3314-4962-96dc-cf708763a957	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	early_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+c88ce757-775f-497c-8c8f-cefca5808296	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	early_grace_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a5924644-1ff1-4afb-baad-abea0c6c8143	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	ot_break_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+7d394ea5-a40c-4874-9415-74ca1c4e6b6b	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	ot_break_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0d040922-66f9-45d4-a5e6-c4641b9ddcc7	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	ot_break_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+5861f0d3-afb0-4b36-8503-15579961fdf5	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	ot_break_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+e9ca7a2d-1674-45af-82fc-3d0cd0e5de1c	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	ot_break_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+fb0a6e88-0c70-4ea0-aa05-be6c347981aa	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	ot_break_min	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+d14565f7-d17d-47bb-82b4-e2f3dbc67dfe	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	punch_times	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+e0a12a70-1097-4ff4-97c1-7a0143767c16	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	punch_times	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+dd9f1417-0ccb-42c6-8255-e9312fde83dc	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	punch_times	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+912ebe3c-aca6-433f-aea5-4133698b9cec	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	punch_times	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+79da81e6-7af2-470a-8f2a-8daea3933047	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	punch_times	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+1b9981a2-ff39-418a-87e1-87ed33474958	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	punch_times	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+1cf951a8-43ad-4145-852f-efbb2d3b5d8d	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	late_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a10d8872-15f8-49ed-bafd-1805a6895cbf	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	late_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+09f5ef3e-f4be-4184-85ef-9f5a9336028a	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	late_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+9835b106-3bd4-4508-8b22-46de28ad2928	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	late_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+be68b7fe-13d5-4853-acca-53cde1256587	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	late_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+80ba6b34-4f88-4ff2-9818-f63be91357ba	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	late_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+fad365e1-6a48-4a5b-9123-b75be0e51636	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	early_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+0af87bce-bbc0-4f5e-9efc-6e10b13f9a5c	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	early_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+cc57eb10-65f3-4cb1-abce-36074d5b77b6	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	early_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+08086b5e-7ea4-4e1d-9ef6-0b2d362bf098	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	early_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+304f2d0d-8451-4ba8-b8e6-565339d825cf	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	early_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+6935ae09-fa32-4666-b2c9-67ad112e7040	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	early_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+7f43bba4-fb6a-4e9d-afc9-33ffd94a1c7b	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	leave_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a3e59d5e-fc02-42dd-80f8-35340654650b	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	leave_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+29321d67-1869-46f0-a2be-3da716c4cf8c	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	leave_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+eba03979-eb33-4bd6-9c0a-42d1aaff9062	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	leave_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+2095c285-21fc-436a-8c3e-0548d76b7fe2	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	leave_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+ba5a9e81-351b-4052-b405-1a5cafa81e0a	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	leave_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+7de5d8be-aa8b-4fc7-bb4e-fb743c4f75e3	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	absent_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+db556dcb-3655-463c-88ef-4bb95950770c	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	absent_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+9a9cf7bb-cb45-4240-bcaa-a5598de51b8c	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	absent_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+73b44aa0-af7e-4d0f-88d8-99a1233f9881	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	absent_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+e0c3a0b6-f92d-4412-a2ef-e1c86f52cedf	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	absent_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+38a824ba-b35f-40ed-893f-3f3d28ece0f1	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	absent_flag	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+644553ef-d137-47ef-ad3d-0bece593369d	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	overtime_minutes	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+c02c4e80-b1e8-4a58-afbb-2d282e392535	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	overtime_minutes	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+d141bb97-fa23-427d-a5c0-85c6a2c0a4af	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	overtime_minutes	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+97c4c3d1-aea5-4da0-8471-421534e7f11b	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	overtime_minutes	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+363d24b1-bdf8-46cf-8c21-564e3519bd3e	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	overtime_minutes	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+4ed5d405-308f-4ed3-abcc-c7b9dfef5cbe	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	overtime_minutes	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+157b69cd-e7c0-42b7-a8a0-928ee83972c7	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	remark	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+db187e9c-97f2-49f9-9f60-ef7599e1ffa6	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	remark	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+e5bea215-f4ea-4eb1-ab17-e9955a63b37f	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	remark	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+2ca5cc4e-b8fb-4438-9c4a-d35113fd3643	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	remark	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+97a324dc-eb83-46f9-9df5-29858cc72585	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	remark	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+4b3d1e28-1459-4af3-8835-cee3b7b61806	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	remark	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+988af640-dba1-4f82-bd5f-853dc506c4dc	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	created_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+cbeeae2a-4123-4a5f-8059-1ded163c54ef	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	created_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+09c125e5-5fa9-400e-bccb-a26b81f0f695	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	created_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+5dbd06cc-1b55-4eec-922e-65f9211a699a	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	created_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+5876fb8f-2691-4d64-bed1-d7eafc62a541	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	created_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+7913c2a3-1246-4024-8b36-9aa7b6875713	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	created_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+4974a0ad-b5b3-46cd-9e99-382fc4b35957	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	updated_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+8b627e7f-4d7a-447d-bf6b-761e47c60144	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	updated_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+2a49f804-8b55-4f67-8eb9-d1e2ae3b8b76	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	updated_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+7cbd2b32-feab-43f3-895c-fbfbca4ee920	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	updated_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+bc5482be-4c1d-4295-b094-22b9724d2b0b	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	updated_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+b25354fc-1ed4-4dc2-a771-7d97efb616a7	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	updated_at	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+6e39b252-4c15-4a4a-aa87-6af9eaedae50	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	position	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+30a66aa2-b922-49c9-8e37-48ba5fa128a2	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	position	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+33a4fa62-128d-40ea-abf9-b3a1fb5e7119	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	position	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+df5cb384-f401-477e-9446-2d3c964ff12b	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	position	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+d564cc26-9ec0-4f08-9c7d-e24eed1047bb	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	position	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+f83ae997-38dd-4b46-a1a6-ed6bec32f16b	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	position	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+1b55e1fb-9cab-4013-afb6-9cb666770e96	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a87830e0-2b66-4f97-bd6c-6e2fb0247f13	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+fc0ba110-9999-4ba2-9550-eeb77b5b6ba7	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+82eb8ab2-1a88-4668-a30b-8ce4b1751f46	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+6e74df1d-ff45-4f10-b938-f847d0aba3fe	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+b295ebd6-ec73-48ef-be45-671facd106da	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	phone	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+e3e7b57b-0313-4a87-b459-43e7f8e07565	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	base_salary	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+64255522-98b2-43e1-a41f-48fc8655ab26	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	base_salary	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+cfdadae1-d1d8-4953-9296-96bcb38ddba0	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	base_salary	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+e3b89f46-13a7-4c04-9723-5c8ad79bde66	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	base_salary	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+10a1409d-bc82-477d-a75c-0f53e8b72726	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	base_salary	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+616907f8-d8a4-4f9b-b13a-19e2556f957c	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	base_salary	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+db9322de-1995-4f15-860c-a501ff3d8426	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_change	entry_date	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+48ddaa5f-9376-429d-bdfa-d0692d1cbfe7	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_change	entry_date	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+a68136e0-5f85-4ae5-812c-254fef65910e	dab1f261-b0ef-4050-82d4-251514f9041b	hr_change	entry_date	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+552d2b9c-6d3b-4f7a-96bd-3b87c4c23857	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_change	entry_date	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+d20f8500-76ec-4128-b20a-6ef65089e2e3	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_change	entry_date	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+476a3565-28d1-4eb3-b208-3805ec878346	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	entry_date	t	t	2026-01-28 21:18:50.550529+00	2026-01-28 21:18:50.550529+00
+2fc435a7-c1c5-48d4-951a-cbfc8ba8504a	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	att_status	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:27:32.435759+00
+c8a0c04b-1b0a-4ce9-8345-44fb3ea260a8	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	check_in	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:27:32.435759+00
+a949c05d-9592-493a-beb2-c5fad496d84a	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	check_out	t	t	2026-01-28 21:07:34.873684+00	2026-01-28 21:27:37.185527+00
+09fb1810-d44b-44d2-a8e5-43b39ea00a30	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_change	to_dept	t	t	2026-01-28 20:59:05.725584+00	2026-01-28 21:30:47.344913+00
+d47636dd-924d-480d-a8e8-a0afbdaaf76c	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	att_month	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+59815391-5f90-47be-be64-dc729672e4e9	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	att_month	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+a6652267-41ec-4473-b10f-a2479e76ba6a	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	att_month	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+32fa0daa-0cea-4745-8bd9-cd26ec69b390	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	att_month	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+c2a3b40b-9887-4e93-a03a-4518b9363d4b	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	att_month	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+2ce5c900-8744-47e6-ab1c-988a0ee3ace0	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	att_month	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+3236c834-f103-4ce9-8d43-f17266d1fb28	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	person_key	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+fa81adbb-a898-4a35-974e-5fb8686c809e	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	person_key	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+4e9fca75-3fba-4ed6-91ce-b1e03f5976fa	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	person_key	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+e924b945-9d41-4972-82bf-5172a2907432	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	person_key	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+a37fca85-f457-4b84-b2ba-8bb511fd1074	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	person_key	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+8ef03670-fe68-4860-b173-97967844058f	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	person_key	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+f81f662f-223a-4fe0-8dd2-7dedc2015493	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	total_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+9c81288e-e679-4790-afb2-b446f4dfff4e	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	total_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+ecb1c9cd-43c0-4ea2-8174-5e64dd917345	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	total_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+f6eb37b3-9852-4c14-adf2-34ab349c3776	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	total_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+23783a11-006b-4ed7-8ba9-e76c42e7fed9	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	total_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+91d9c6d0-ea8e-4977-a6da-454a934e6305	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	total_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+f0233b61-8c0c-4aa3-a822-64818aed84a9	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	late_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+6f5b0115-6176-4d51-8a1c-cb3844ca2aed	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	late_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+b16fd5c4-f15b-4966-89eb-b6d10ebc745a	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	late_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+4a8d8907-bd73-4fe3-a25f-1e7c05fdbb72	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	late_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+3b5ddd63-93c3-4d20-8655-73c6ea90c1fc	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	late_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+c2efb56e-c90f-4a46-be15-234c1bb4ea18	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	late_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+334920e0-9322-4816-ae8c-01e46980a5c6	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	early_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+9f74ac38-f849-490f-b05e-5378b4b25ead	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	early_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+e42f4512-0e8f-4b84-b8da-3f51d2d192ac	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	early_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+c75348c1-962b-457d-8af0-87396340d805	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	early_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+c515c1d5-3648-40e9-8ebd-11e58dd84271	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	early_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+57deda61-955b-4c91-9c76-e009a1c54a41	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	early_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+d98501a9-478a-4abc-8493-8c887084da99	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	leave_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+6620489e-4c59-4948-a84d-954eec29d95d	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	leave_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+9dab9f4c-7dbf-472c-95ea-87783222bfd4	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	leave_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+36f776fb-77e2-4b72-a256-40a302a292e8	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	leave_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+1b25401f-5619-478b-b360-18b0fe6b824c	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	leave_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+7862c2cc-97d5-4d97-ae19-1755c672f5ba	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	leave_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+3d22f12e-449f-4d9d-ba6c-c649c86c5343	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_attendance	absent_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+253fb997-1b0f-4c57-ac10-17569413ad1a	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_attendance	absent_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+7bba1f8d-279a-4876-b93c-d5ca8b85640c	dab1f261-b0ef-4050-82d4-251514f9041b	hr_attendance	absent_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+8ebb6fae-ea73-4a6c-8cbf-ae5e6a3e6c94	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_attendance	absent_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+58484492-25b0-4e23-9fc8-86070a9cb102	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_attendance	absent_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+a953c56c-d977-4067-8deb-7a3befaa977a	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_attendance	absent_days	t	t	2026-01-28 22:00:48.90728+00	2026-01-28 22:00:48.90728+00
+097353dd-9253-4637-90fa-55bec21f2f47	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	entry_date	t	t	2026-01-28 21:10:07.688335+00	2026-01-29 15:00:59.263714+00
+f49d024d-e703-4b4a-a136-fc4595dd4dde	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	field_1340	t	t	2026-01-28 20:59:08.678182+00	2026-01-29 15:01:02.134578+00
+4d46ce11-6933-489f-8a23-17d2990dc5cf	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_employee	department	t	t	2026-01-28 20:59:08.678182+00	2026-01-29 15:01:06.957181+00
+9bf011df-ec72-42bf-bc63-c0ebe081e1db	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_user	username	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+1ef6ef4b-e35e-413a-8e76-91f83e90eced	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_user	username	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+e9862047-0e27-4b88-9b61-e23eb63ff98c	dab1f261-b0ef-4050-82d4-251514f9041b	hr_user	username	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+75d27137-be5c-487d-9d9c-d2d02e3732ee	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_user	username	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+93f6181f-6701-46df-b70a-7cfb864b04ba	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_user	username	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+20a99352-8c12-4498-9471-5a1c6db3a36a	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_user	username	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+e3087345-6e33-447e-a3e8-1465e16c9ccf	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_user	full_name	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+47d3bc69-9385-406c-b56b-93e757e1f0e8	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_user	full_name	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+f5f8715d-3324-4e7b-b729-0f1b72ef63e4	dab1f261-b0ef-4050-82d4-251514f9041b	hr_user	full_name	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+72336b36-b5dc-4789-8a5e-4c5e23b92a14	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_user	full_name	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+e655fb15-2b82-4a1e-9c81-9ffc63c87b2d	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_user	full_name	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+f53b4a09-c12b-4743-86b2-6b2b467c2b48	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_user	full_name	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+7f0950b0-672c-4729-ab28-a6c8a565783e	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_user	phone	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+6f67bbdb-e357-433a-94f9-c782a617704e	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_user	phone	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+41d92cf4-5752-49d3-802f-a85e59d312d8	dab1f261-b0ef-4050-82d4-251514f9041b	hr_user	phone	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+3bc057aa-fdc2-4a42-88b8-63784b54cdd6	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_user	phone	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+355a32b2-e431-4c1b-8467-32e78207d363	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_user	phone	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+278f820d-2757-47dc-8d30-3c0b9d70f55c	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_user	phone	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+5fd478e6-9bd7-4dea-8802-778c814ff897	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_user	email	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+c3249469-c523-4218-b78c-a12365968392	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_user	email	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+61022783-f4d4-4f18-9036-6c022ca7b008	dab1f261-b0ef-4050-82d4-251514f9041b	hr_user	email	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+c636046e-5b57-495e-8852-81a81443cb8e	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_user	email	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+513bdfa2-794f-4ba4-8670-26d424e885e5	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_user	email	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+650f1f4f-dbfd-4f45-b81a-13fb2535f9a4	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_user	email	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+3a9fb52a-391d-4212-9712-94c30bffe04f	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_user	role_id	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+85f937e9-6150-40a0-8f0b-bbf78cfb7a58	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_user	role_id	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+4caf51b9-2eff-4455-b8f3-62d98ce80f68	dab1f261-b0ef-4050-82d4-251514f9041b	hr_user	role_id	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+65978dff-0de5-441f-a9b3-b217860ec6e9	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_user	role_id	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+968979ea-0ef9-41e9-b360-70a8b6273455	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_user	role_id	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+3345e611-0045-42a4-b934-6e409463e494	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_user	role_id	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+5ce7eb6f-5b51-46d0-b9e0-af9b4f81a91e	acf335a2-f56f-4aca-bb4d-682553c8e5ec	hr_user	status	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+2fd2bd0c-91fb-4164-b0bd-587189c1b829	f0c1fe49-34a3-4025-a0bc-0a7f81c313c8	hr_user	status	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+f9c6fe5d-f9dd-4a0e-947a-61335bf7cd9d	dab1f261-b0ef-4050-82d4-251514f9041b	hr_user	status	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+5e57ca4b-b312-43fc-ae70-6303277a9561	e1ba01bc-955c-4d41-9ed8-35dfd8644320	hr_user	status	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+fa966880-a754-4bd5-9080-930ae4291281	11965ac4-0b1b-4545-a2b0-c9d32d7a49ba	hr_user	status	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
+b4028219-a636-4a86-aaf3-fb18ac71cc68	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_user	status	t	t	2026-01-29 14:45:18.835105+00	2026-01-29 14:45:18.835105+00
 \.
 
 
@@ -1980,8 +4674,9 @@ c598dabd-8776-41e1-b06e-9fbe5dcde2ac	e0d14028-ec80-4c81-aa95-24fe79a1ad05	hr_emp
 --
 
 COPY public.sys_grid_configs (view_id, summary_config, updated_by, updated_at) FROM stdin;
-attendance_day	{"label": "合计", "rules": {}, "expressions": {}, "column_locks": {}}	Admin	2026-01-16 22:31:15.107929+00
 employee_list	{"label": "合计", "rules": {"id": "count", "name": "none"}, "cell_labels": {"id": "员工人数"}, "expressions": {}, "column_locks": {}}	Admin	2025-12-25 18:44:29.890141+00
+attendance_day	{"label": "合计", "rules": {}, "cell_labels": {}, "expressions": {}, "column_locks": {}}	Admin	2026-01-16 22:31:15.107929+00
+hr_acl_fields	{"label": "合计", "rules": {"role_id": "count", "can_view": "none"}, "cell_labels": {}, "expressions": {}, "column_locks": {}}	Admin	2026-01-28 21:43:19.025169+00
 \.
 
 
@@ -1991,13 +4686,13 @@ employee_list	{"label": "合计", "rules": {"id": "count", "name": "none"}, "cel
 
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_column_locks	{}	HR表格列锁配置
-ai_glm_config	{"model": "glm-4.6v", "api_key": "01e666998e24458e960cfc51fd7a1ff2.a67QjUwrs2433Wk2", "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "provider": "zhipu", "thinking": {"type": "enabled"}}	智谱 AI GLM-4.6V 模型配置
-hr_attendance_cols	[{"prop": "att_date", "type": "text", "label": "日期"}, {"prop": "check_in", "type": "text", "label": "签到时间"}, {"prop": "check_out", "type": "text", "label": "签退时间"}, {"prop": "att_status", "type": "select", "label": "考勤状态", "options": [{"label": "正常", "value": "正常"}, {"label": "迟到", "value": "迟到"}, {"label": "早退", "value": "早退"}, {"label": "缺勤", "value": "缺勤"}, {"label": "请假", "value": "请假"}]}, {"prop": "ot_hours", "type": "text", "label": "加班时长"}, {"prop": "att_note", "type": "text", "label": "备注"}]	\N
-hr_org_layout	[{"x": 850, "y": 60, "id": "b0aa5f36-a392-4a79-a908-e84c3aac1112"}, {"x": 80, "y": 200, "id": "15e61e02-6ef3-41a0-b858-21e1618f9632"}, {"x": 300, "y": 200, "id": "8f2d51a8-5d51-4fd4-88b1-b0ccd455fc64"}, {"x": 850, "y": 200, "id": "821bae9d-d4d6-4f79-a2df-986400aaada3"}, {"x": 520, "y": 340, "id": "8c7d6883-4921-4ef4-ba45-8033103563e2"}, {"x": 740, "y": 340, "id": "d26a3a93-e81d-4cc0-998f-d014edee55f4"}, {"x": 960, "y": 340, "id": "529af27e-6cfb-4dcf-be03-efe17c5bb285"}, {"x": 1180, "y": 340, "id": "3ee73ef4-5352-4806-bfc5-002f2ac68564"}, {"x": 1400, "y": 200, "id": "f1b437fa-a799-4866-9478-50e15b961e93"}, {"x": 1620, "y": 200, "id": "427becfd-2d82-48d6-8171-195c7acaad53"}]	\N
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}, {"tag": true, "prop": "field_8633", "type": "select", "label": "自定义字段7", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}, {"prop": "field_2086", "type": "cascader", "label": "自定义字段8", "dependsOn": "field_8633", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}, {"label": "5", "value": "5"}], "3": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "4": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "5": [{"label": "1", "value": "1"}], "6": [{"label": "1", "value": "1"}], "7": [{"label": "1", "value": "1"}]}}, {"prop": "field_7980", "type": "cascader", "label": "自定义字段9", "dependsOn": "field_2086", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "3": [{"label": "1", "value": "1"}], "4": [{"label": "2", "value": "2"}], "5": [{"label": "3", "value": "3"}]}}, {"prop": "field_1340", "type": "geo", "label": "位置", "geoAddress": true}, {"prop": "field_3727", "type": "file", "label": "员工照片", "fileAccept": "", "fileMaxCount": 3, "fileMaxSizeMb": 20}, {"prop": "field_3986", "type": "select", "label": "性别1", "options": [{"label": "男", "value": "男"}, {"label": "女", "value": "女"}]}]	HR花名册的动态列配置
 hr_transfer_cols	[{"prop": "from_dept", "type": "text", "label": "原部门"}, {"prop": "to_dept", "type": "text", "label": "新部门"}, {"prop": "from_position", "type": "text", "label": "原岗位"}, {"prop": "to_position", "type": "text", "label": "新岗位"}, {"prop": "effective_date", "type": "text", "label": "生效日期"}, {"prop": "transfer_type", "type": "select", "label": "调岗类型", "options": [{"label": "平调", "value": "平调"}, {"label": "晋升", "value": "晋升"}, {"label": "降级", "value": "降级"}]}, {"prop": "transfer_reason", "type": "text", "label": "调岗原因"}, {"prop": "approver", "type": "text", "label": "审批人"}]	\N
-form_templates	[{"id": "transfer_record", "name": "调岗记录单", "schema": {"docNo": "employee_no", "title": "调岗记录单", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "widget": "input", "editable": false}, {"field": "name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号", "widget": "input", "editable": false}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "status", "label": "状态", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "调岗信息", "children": [{"field": "from_dept", "label": "原部门", "widget": "input"}, {"field": "to_dept", "label": "新部门", "widget": "input"}, {"field": "from_position", "label": "原岗位", "widget": "input"}, {"field": "to_position", "label": "新岗位", "widget": "input"}, {"field": "effective_date", "label": "生效日期", "widget": "date"}, {"field": "transfer_type", "label": "调岗类型", "widget": "select", "options": [{"label": "平调", "value": "平调"}, {"label": "晋升", "value": "晋升"}, {"label": "降级", "value": "降级"}]}, {"field": "transfer_reason", "label": "调岗原因", "widget": "textarea"}, {"field": "approver", "label": "审批人", "widget": "input"}]}], "docType": "transfer_record"}, "source": "ai", "created_at": "2026-01-24T19:58:19.366Z", "updated_at": "2026-01-24T19:58:19.366Z"}, {"id": "attendance_record", "name": "考勤记录单", "schema": {"docNo": "employee_no", "title": "考勤记录单", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "employee_name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号/电话", "widget": "input"}, {"field": "dept_name", "label": "部门", "widget": "input"}, {"field": "att_date", "label": "日期", "widget": "date"}]}, {"cols": 2, "type": "section", "title": "班次与打卡", "children": [{"field": "shift_name", "label": "班次", "widget": "input"}, {"field": "punch_times", "label": "打卡记录", "widget": "textarea"}, {"field": "check_in", "label": "签到时间", "widget": "input"}, {"field": "check_out", "label": "签退时间", "widget": "input"}]}, {"cols": 4, "type": "section", "title": "考勤状态", "children": [{"field": "late_flag", "label": "迟到", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "early_flag", "label": "早退", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "leave_flag", "label": "请假", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "absent_flag", "label": "缺勤", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "att_status", "label": "考勤状态", "widget": "select", "options": [{"label": "正常", "value": "正常"}, {"label": "迟到", "value": "迟到"}, {"label": "早退", "value": "早退"}, {"label": "缺勤", "value": "缺勤"}, {"label": "请假", "value": "请假"}]}]}, {"cols": 2, "type": "section", "title": "加班与备注", "children": [{"field": "overtime_minutes", "label": "加班(分钟)", "widget": "number"}, {"field": "ot_hours", "label": "加班时长", "widget": "input"}, {"field": "remark", "label": "备注", "widget": "textarea"}, {"field": "att_note", "label": "备注", "widget": "textarea"}]}], "docType": "attendance_record"}, "source": "ai", "created_at": "2026-01-24T19:25:56.311Z", "updated_at": "2026-01-24T19:25:56.311Z"}, {"id": "employee_profile", "name": "员工详细档案表", "schema": {"docNo": "employee_no", "title": "员工详细档案表", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "value": "688", "widget": "input"}, {"field": "name", "label": "姓名", "value": "惠晨丽", "widget": "input"}, {"field": "employee_no", "label": "工号", "value": "E0100", "widget": "input"}, {"field": "department", "label": "部门", "value": "行政部", "widget": "input"}, {"field": "status", "label": "状态", "value": "试用", "widget": "input"}, {"field": "gender", "label": "性别", "value": "男", "widget": "input"}, {"field": "id_card", "label": "身份证", "widget": "input"}, {"field": "field_3410", "label": "籍贯", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "薪资信息", "children": [{"field": "field_5458", "label": "工资", "widget": "input"}, {"field": "field_9314", "label": "绩效", "widget": "input"}, {"field": "field_789", "label": "总工资", "value": 0, "widget": "input", "disabled": true}]}, {"cols": 2, "type": "section", "title": "分类信息", "children": [{"field": "field_8633", "label": "1", "value": "1", "widget": "select", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}, {"field": "field_2086", "label": "2", "value": "1", "widget": "cascader", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}, {"label": "5", "value": "5"}], "3": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "4": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "5": [{"label": "1", "value": "1"}], "6": [{"label": "1", "value": "1"}], "7": [{"label": "1", "value": "1"}]}}, {"field": "field_7980", "label": "3", "value": "1", "widget": "cascader", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "3": [{"label": "1", "value": "1"}], "4": [{"label": "2", "value": "2"}], "5": [{"label": "3", "value": "3"}]}}]}, {"cols": 2, "type": "section", "title": "其他信息", "children": [{"field": "field_1340", "label": "位置", "widget": "input", "geoAddress": true}, {"field": "field_3727", "label": "员工照片", "widget": "image", "fileSource": "field_3727"}]}], "docType": "employee_profile"}, "source": "ai", "created_at": "2025-12-30T19:26:26.913Z", "updated_at": "2025-12-30T19:26:26.913Z"}, {"id": "employee_detail", "name": "员工信息表", "schema": {"docNo": "id", "title": "员工信息表", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "widget": "input"}, {"field": "name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号", "widget": "input"}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "status", "label": "状态", "widget": "input"}, {"field": "gender", "label": "性别", "widget": "input"}, {"field": "id_card", "label": "身份证", "widget": "input"}, {"field": "field_3410", "label": "籍贯", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "薪资信息", "children": [{"field": "field_5458", "label": "工资", "widget": "input"}, {"field": "field_9314", "label": "绩效", "widget": "input"}, {"field": "field_789", "label": "总工资", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "其他信息", "children": [{"field": "field_8633", "label": "1", "widget": "select"}, {"field": "field_2086", "label": "2", "widget": "cascader"}, {"field": "field_7980", "label": "3", "widget": "cascader"}, {"field": "field_1340", "label": "位置", "widget": "geo"}, {"field": "field_3727", "label": "员工照片", "widget": "image", "fileSource": "field_3727"}]}], "docType": "employee_detail"}, "source": "ai", "created_at": "2025-12-30T13:59:49.163Z", "updated_at": "2025-12-30T13:59:49.163Z"}, {"id": "hr_form", "name": "人事信息表", "schema": {"docNo": "hr_no", "title": "人事信息表", "layout": [{"cols": 2, "type": "section", "title": "个人信息", "children": [{"field": "name", "label": "姓名", "widget": "input"}, {"field": "gender", "label": "性别", "widget": "input"}, {"field": "birth_date", "label": "出生日期", "widget": "date"}, {"field": "ethnicity", "label": "民族", "widget": "input"}, {"field": "id_card", "label": "身份证号", "widget": "input"}, {"field": "phone", "label": "联系电话", "widget": "input"}, {"field": "email", "label": "电子邮箱", "widget": "input"}, {"field": "address", "label": "现住址", "widget": "textarea"}]}, {"cols": 2, "type": "section", "title": "工作信息", "children": [{"field": "employee_no", "label": "员工编号", "widget": "input"}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "position", "label": "职位", "widget": "input"}, {"field": "entry_date", "label": "入职日期", "widget": "date"}, {"field": "contract_period", "label": "合同期限", "widget": "input"}, {"field": "contract_start_date", "label": "合同起始日期", "widget": "date"}, {"field": "contract_end_date", "label": "合同结束日期", "widget": "date"}, {"field": "supervisor", "label": "直属上级", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "紧急联系人", "children": [{"field": "emergency_contact_name", "label": "姓名", "widget": "input"}, {"field": "emergency_contact_relation", "label": "关系", "widget": "input"}, {"field": "emergency_contact_phone", "label": "联系电话", "widget": "input"}]}], "docType": "hr_form"}, "source": "ai", "created_at": "2025-12-30T13:51:48.884Z", "updated_at": "2025-12-30T13:51:48.884Z"}]	\N
-hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}, {"tag": true, "prop": "field_8633", "type": "select", "label": "1", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}, {"prop": "field_2086", "type": "cascader", "label": "2", "dependsOn": "field_8633", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}, {"label": "5", "value": "5"}], "3": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "4": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "5": [{"label": "1", "value": "1"}], "6": [{"label": "1", "value": "1"}], "7": [{"label": "1", "value": "1"}]}}, {"prop": "field_7980", "type": "cascader", "label": "3", "dependsOn": "field_2086", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "3": [{"label": "1", "value": "1"}], "4": [{"label": "2", "value": "2"}], "5": [{"label": "3", "value": "3"}]}}, {"prop": "field_1340", "type": "geo", "label": "位置", "geoAddress": true}, {"prop": "field_3727", "type": "file", "label": "员工照片", "fileAccept": "", "fileMaxCount": 3, "fileMaxSizeMb": 20}, {"prop": "field_3986", "type": "select", "label": "性别1", "options": [{"label": "男", "value": "男"}, {"label": "女", "value": "女"}]}]	HR花名册的动态列配置
+ai_glm_config	{"model": "glm-4.6v", "api_key": "01e666998e24458e960cfc51fd7a1ff2.a67QjUwrs2433Wk2", "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "provider": "zhipu", "thinking": {"type": "enabled"}}	智谱 AI GLM-4.6V 模型配置
+hr_org_layout	[{"x": 850, "y": 60, "id": "b0aa5f36-a392-4a79-a908-e84c3aac1112"}, {"x": 80, "y": 200, "id": "15e61e02-6ef3-41a0-b858-21e1618f9632"}, {"x": 300, "y": 200, "id": "8f2d51a8-5d51-4fd4-88b1-b0ccd455fc64"}, {"x": 850, "y": 200, "id": "821bae9d-d4d6-4f79-a2df-986400aaada3"}, {"x": 520, "y": 340, "id": "8c7d6883-4921-4ef4-ba45-8033103563e2"}, {"x": 740, "y": 340, "id": "d26a3a93-e81d-4cc0-998f-d014edee55f4"}, {"x": 960, "y": 340, "id": "529af27e-6cfb-4dcf-be03-efe17c5bb285"}, {"x": 1180, "y": 340, "id": "3ee73ef4-5352-4806-bfc5-002f2ac68564"}, {"x": 1400, "y": 200, "id": "f1b437fa-a799-4866-9478-50e15b961e93"}, {"x": 1620, "y": 200, "id": "427becfd-2d82-48d6-8171-195c7acaad53"}]	\N
+hr_attendance_cols	[{"prop": "att_date", "type": "text", "label": "日期"}, {"prop": "check_in", "type": "text", "label": "签到时间"}, {"prop": "check_out", "type": "text", "label": "签退时间"}, {"prop": "att_status", "type": "select", "label": "考勤状态", "options": [{"label": "正常", "value": "正常"}, {"label": "迟到", "value": "迟到"}, {"label": "早退", "value": "早退"}, {"label": "缺勤", "value": "缺勤"}, {"label": "请假", "value": "请假"}]}, {"prop": "ot_hours", "type": "text", "label": "加班时长"}, {"prop": "att_note", "type": "text", "label": "备注"}]	\N
 materials_table_cols	[{"prop": "spec", "type": "text", "label": "规格"}, {"prop": "unit", "type": "text", "label": "单位"}, {"prop": "measure_unit", "type": "text", "label": "计量单位"}, {"prop": "conversion", "type": "text", "label": "换算关系"}, {"prop": "finance_attribute", "type": "text", "label": "财务属性"}]	\N
+form_templates	[{"id": "transfer_record", "name": "调岗记录单", "schema": {"docNo": "employee_no", "title": "调岗记录单", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "widget": "input", "editable": false}, {"field": "name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号", "widget": "input", "editable": false}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "status", "label": "状态", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "调岗信息", "children": [{"field": "from_dept", "label": "原部门", "widget": "input"}, {"field": "to_dept", "label": "新部门", "widget": "input"}, {"field": "from_position", "label": "原岗位", "widget": "input"}, {"field": "to_position", "label": "新岗位", "widget": "input"}, {"field": "effective_date", "label": "生效日期", "widget": "date"}, {"field": "transfer_type", "label": "调岗类型", "widget": "select", "options": [{"label": "平调", "value": "平调"}, {"label": "晋升", "value": "晋升"}, {"label": "降级", "value": "降级"}]}, {"field": "transfer_reason", "label": "调岗原因", "widget": "textarea"}, {"field": "approver", "label": "审批人", "widget": "input"}]}], "docType": "transfer_record"}, "source": "ai", "created_at": "2026-01-24T19:58:19.366Z", "updated_at": "2026-01-24T19:58:19.366Z"}, {"id": "attendance_record", "name": "考勤记录单", "schema": {"docNo": "employee_no", "title": "考勤记录单", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "employee_name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号/电话", "widget": "input"}, {"field": "dept_name", "label": "部门", "widget": "input"}, {"field": "att_date", "label": "日期", "widget": "date"}]}, {"cols": 2, "type": "section", "title": "班次与打卡", "children": [{"field": "shift_name", "label": "班次", "widget": "input"}, {"field": "punch_times", "label": "打卡记录", "widget": "textarea"}, {"field": "check_in", "label": "签到时间", "widget": "input"}, {"field": "check_out", "label": "签退时间", "widget": "input"}]}, {"cols": 4, "type": "section", "title": "考勤状态", "children": [{"field": "late_flag", "label": "迟到", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "early_flag", "label": "早退", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "leave_flag", "label": "请假", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "absent_flag", "label": "缺勤", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "att_status", "label": "考勤状态", "widget": "select", "options": [{"label": "正常", "value": "正常"}, {"label": "迟到", "value": "迟到"}, {"label": "早退", "value": "早退"}, {"label": "缺勤", "value": "缺勤"}, {"label": "请假", "value": "请假"}]}]}, {"cols": 2, "type": "section", "title": "加班与备注", "children": [{"field": "overtime_minutes", "label": "加班(分钟)", "widget": "number"}, {"field": "ot_hours", "label": "加班时长", "widget": "input"}, {"field": "remark", "label": "备注", "widget": "textarea"}, {"field": "att_note", "label": "备注", "widget": "textarea"}]}], "docType": "attendance_record"}, "source": "ai", "created_at": "2026-01-24T19:25:56.311Z", "updated_at": "2026-01-24T19:25:56.311Z"}, {"id": "employee_profile", "name": "员工详细档案表", "schema": {"docNo": "employee_no", "title": "员工详细档案表", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "value": "688", "widget": "input"}, {"field": "name", "label": "姓名", "value": "惠晨丽", "widget": "input"}, {"field": "employee_no", "label": "工号", "value": "E0100", "widget": "input"}, {"field": "department", "label": "部门", "value": "行政部", "widget": "input"}, {"field": "status", "label": "状态", "value": "试用", "widget": "input"}, {"field": "gender", "label": "性别", "value": "男", "widget": "input"}, {"field": "id_card", "label": "身份证", "widget": "input"}, {"field": "field_3410", "label": "籍贯", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "薪资信息", "children": [{"field": "field_5458", "label": "工资", "widget": "input"}, {"field": "field_9314", "label": "绩效", "widget": "input"}, {"field": "field_789", "label": "总工资", "value": 0, "widget": "input", "disabled": true}]}, {"cols": 2, "type": "section", "title": "分类信息", "children": [{"field": "field_8633", "label": "1", "value": "1", "widget": "select", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}, {"field": "field_2086", "label": "2", "value": "1", "widget": "cascader", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}, {"label": "5", "value": "5"}], "3": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "4": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "5": [{"label": "1", "value": "1"}], "6": [{"label": "1", "value": "1"}], "7": [{"label": "1", "value": "1"}]}}, {"field": "field_7980", "label": "3", "value": "1", "widget": "cascader", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "3": [{"label": "1", "value": "1"}], "4": [{"label": "2", "value": "2"}], "5": [{"label": "3", "value": "3"}]}}]}, {"cols": 2, "type": "section", "title": "其他信息", "children": [{"field": "field_1340", "label": "位置", "widget": "input", "geoAddress": true}, {"field": "field_3727", "label": "员工照片", "widget": "image", "fileSource": "field_3727"}]}], "docType": "employee_profile"}, "source": "ai", "created_at": "2025-12-30T19:26:26.913Z", "updated_at": "2025-12-30T19:26:26.913Z"}, {"id": "employee_detail", "name": "员工信息表", "schema": {"docNo": "id", "title": "员工信息表", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "widget": "input"}, {"field": "name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号", "widget": "input"}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "status", "label": "状态", "widget": "input"}, {"field": "gender", "label": "性别", "widget": "input"}, {"field": "id_card", "label": "身份证", "widget": "input"}, {"field": "field_3410", "label": "籍贯", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "薪资信息", "children": [{"field": "field_5458", "label": "工资", "widget": "input"}, {"field": "field_9314", "label": "绩效", "widget": "input"}, {"field": "field_789", "label": "总工资", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "其他信息", "children": [{"field": "field_8633", "label": "1", "widget": "select"}, {"field": "field_2086", "label": "2", "widget": "cascader"}, {"field": "field_7980", "label": "3", "widget": "cascader"}, {"field": "field_1340", "label": "位置", "widget": "geo"}, {"field": "field_3727", "label": "员工照片", "widget": "image", "fileSource": "field_3727"}]}], "docType": "employee_detail"}, "source": "ai", "created_at": "2025-12-30T13:59:49.163Z", "updated_at": "2025-12-30T13:59:49.163Z"}, {"id": "hr_form", "name": "人事信息表", "schema": {"docNo": "hr_no", "title": "人事信息表", "layout": [{"cols": 2, "type": "section", "title": "个人信息", "children": [{"field": "name", "label": "姓名", "widget": "input"}, {"field": "gender", "label": "性别", "widget": "input"}, {"field": "birth_date", "label": "出生日期", "widget": "date"}, {"field": "ethnicity", "label": "民族", "widget": "input"}, {"field": "id_card", "label": "身份证号", "widget": "input"}, {"field": "phone", "label": "联系电话", "widget": "input"}, {"field": "email", "label": "电子邮箱", "widget": "input"}, {"field": "address", "label": "现住址", "widget": "textarea"}]}, {"cols": 2, "type": "section", "title": "工作信息", "children": [{"field": "employee_no", "label": "员工编号", "widget": "input"}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "position", "label": "职位", "widget": "input"}, {"field": "entry_date", "label": "入职日期", "widget": "date"}, {"field": "contract_period", "label": "合同期限", "widget": "input"}, {"field": "contract_start_date", "label": "合同起始日期", "widget": "date"}, {"field": "contract_end_date", "label": "合同结束日期", "widget": "date"}, {"field": "supervisor", "label": "直属上级", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "紧急联系人", "children": [{"field": "emergency_contact_name", "label": "姓名", "widget": "input"}, {"field": "emergency_contact_relation", "label": "关系", "widget": "input"}, {"field": "emergency_contact_phone", "label": "联系电话", "widget": "input"}]}], "docType": "hr_form"}, "source": "ai", "created_at": "2025-12-30T13:51:48.884Z", "updated_at": "2025-12-30T13:51:48.884Z"}]	\N
 materials_categories	[{"id": "cat_raw", "label": "原料", "children": []}, {"id": "cat_aux", "label": "辅料"}, {"id": "cat_pack", "label": "包装材料"}]	\N
 \.
 
@@ -2157,6 +4852,14 @@ ALTER TABLE ONLY public.departments
 
 ALTER TABLE ONLY public.employees
     ADD CONSTRAINT employees_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: field_label_overrides field_label_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.field_label_overrides
+    ADD CONSTRAINT field_label_overrides_pkey PRIMARY KEY (module, field_code);
 
 
 --
@@ -2477,6 +5180,13 @@ CREATE TRIGGER trg_eis_notify_hr_attendance_shifts AFTER INSERT OR DELETE OR UPD
 
 
 --
+-- Name: field_label_overrides tg_field_label_overrides_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER tg_field_label_overrides_updated_at BEFORE UPDATE ON public.field_label_overrides FOR EACH ROW EXECUTE FUNCTION public.touch_field_label_overrides();
+
+
+--
 -- Name: permissions tg_permissions_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
@@ -2498,10 +5208,38 @@ CREATE TRIGGER tg_roles_updated_at BEFORE UPDATE ON public.roles FOR EACH ROW EX
 
 
 --
+-- Name: system_configs tg_sync_field_acl_configs; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER tg_sync_field_acl_configs AFTER INSERT OR UPDATE ON public.system_configs FOR EACH ROW EXECUTE FUNCTION public.sync_field_acl_from_config();
+
+
+--
 -- Name: sys_field_acl tg_sys_field_acl_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
 CREATE TRIGGER tg_sys_field_acl_updated_at BEFORE UPDATE ON public.sys_field_acl FOR EACH ROW EXECUTE FUNCTION public.touch_updated_at();
+
+
+--
+-- Name: v_users_manage tg_v_users_manage_delete; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER tg_v_users_manage_delete INSTEAD OF DELETE ON public.v_users_manage FOR EACH ROW EXECUTE FUNCTION public.tg_v_users_manage_delete();
+
+
+--
+-- Name: v_users_manage tg_v_users_manage_insert; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER tg_v_users_manage_insert INSTEAD OF INSERT ON public.v_users_manage FOR EACH ROW EXECUTE FUNCTION public.tg_v_users_manage_insert();
+
+
+--
+-- Name: v_users_manage tg_v_users_manage_update; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER tg_v_users_manage_update INSTEAD OF UPDATE ON public.v_users_manage FOR EACH ROW EXECUTE FUNCTION public.tg_v_users_manage_update();
 
 
 --
@@ -2703,10 +5441,45 @@ GRANT ALL ON FUNCTION hr.init_attendance_records(p_date date, p_dept_name text) 
 
 
 --
+-- Name: FUNCTION apply_role_permission_templates(); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.apply_role_permission_templates() TO web_user;
+
+
+--
+-- Name: FUNCTION ensure_field_acl(module_name text, field_codes text[]); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.ensure_field_acl(module_name text, field_codes text[]) TO web_user;
+
+
+--
+-- Name: FUNCTION login(payload json); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.login(payload json) TO web_anon;
+
+
+--
 -- Name: FUNCTION login(username text, password text); Type: ACL; Schema: public; Owner: postgres
 --
 
 GRANT ALL ON FUNCTION public.login(username text, password text) TO web_anon;
+
+
+--
+-- Name: FUNCTION upsert_field_acl(payload jsonb); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.upsert_field_acl(payload jsonb) TO web_user;
+
+
+--
+-- Name: FUNCTION upsert_permissions(payload jsonb); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.upsert_permissions(payload jsonb) TO web_user;
 
 
 --
@@ -2806,6 +5579,13 @@ GRANT ALL ON TABLE public.employees TO web_user;
 --
 
 GRANT SELECT,USAGE ON SEQUENCE public.employees_id_seq TO web_user;
+
+
+--
+-- Name: TABLE field_label_overrides; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.field_label_overrides TO web_user;
 
 
 --
@@ -2910,8 +5690,22 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO web_user;
 
 
 --
+-- Name: TABLE v_field_labels; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT ON TABLE public.v_field_labels TO web_user;
+
+
+--
+-- Name: TABLE v_users_manage; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.v_users_manage TO web_user;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict aLHhf61RPyg0ZaZfHKTmTeHDBrNXGuFtzYFZ7awmpL0u8MnGHxB6fou3ESdhI4I
+\unrestrict eFd5gDdtpHr5tJw6sKan2l5UeoBSw4c9moidYXqmjiU3iafFshTa69VAhj8C13g
 

@@ -12,6 +12,8 @@ import GeoRenderer from '../components/renderers/GeoRenderer.vue'
 import FileRenderer from '../components/renderers/FileRenderer.vue'
 import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
+import CheckRenderer from '../components/renderers/CheckRenderer.vue'
+import CheckEditor from '../components/renderers/CheckEditor.vue'
 
 export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit) {
   const hasGridRef = gridApiRef && typeof gridApiRef === 'object' && 'value' in gridApiRef
@@ -32,7 +34,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     GeoRenderer: markRaw(GeoRenderer),
     FileRenderer: markRaw(FileRenderer),
     LockHeader: markRaw(LockHeader),
-    DocumentActionRenderer: markRaw(DocumentActionRenderer)
+    DocumentActionRenderer: markRaw(DocumentActionRenderer),
+    CheckRenderer: markRaw(CheckRenderer),
+    CheckEditor: markRaw(CheckEditor)
   }
 
   const dictOptions = reactive({})
@@ -41,6 +45,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
     const colId = params.colDef.field
+    if (props.canEdit === false && !params.node.rowPinned) return true
     if (colId === '_status') return false 
     if (colId === '_actions') return true // ⚠️ 关键：操作列必须只读！
     if (params.node.rowPinned) return true
@@ -276,6 +281,24 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         options: resolveSelectOptions(col),
         dictKey: col.dictKey,
         tag: col.tag
+      }
+    }
+
+    if (col?.type === 'check') {
+      return {
+        ...colDef,
+        cellRenderer: 'CheckRenderer',
+        cellEditor: 'CheckEditor',
+        cellEditorPopup: false,
+        editable: true,
+        valueParser: (params) => {
+          if (typeof params.newValue === 'boolean') return params.newValue
+          if (params.newValue === 'true') return true
+          if (params.newValue === 'false') return false
+          return !!params.newValue
+        },
+        width: col.width || 90,
+        minWidth: col.minWidth || 80
       }
     }
 

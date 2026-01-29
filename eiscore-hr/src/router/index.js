@@ -8,6 +8,7 @@ import EmployeeList from '../views/EmployeeList.vue'
 import EmployeeDetail from '../views/EmployeeDetail.vue'
 import HrOrgChart from '../views/HrOrgChart.vue'
 import HrAclView from '../views/HrAclView.vue'
+import HrUserManage from '../views/HrUserManage.vue'
 import { hasPerm } from '@/utils/permission'
 
 const router = createRouter({
@@ -57,6 +58,12 @@ const router = createRouter({
       name: 'HrAclView',
       meta: { perm: 'app:hr_acl' },
       component: HrAclView
+    },
+    {
+      path: '/users',
+      name: 'HrUserManage',
+      meta: { perm: 'app:hr_user' },
+      component: HrUserManage
     }
   ]
 })

@@ -39,9 +39,10 @@
 import { useRouter } from 'vue-router'
 import { Box } from '@element-plus/icons-vue'
 import { MATERIAL_APPS } from '@/utils/material-apps'
+import { hasPerm } from '@/utils/permission'
 
 const router = useRouter()
-const apps = MATERIAL_APPS
+const apps = MATERIAL_APPS.filter(app => !app.perm || hasPerm(app.perm))
 const iconMap = { Box }
 
 const openApp = (app) => {
