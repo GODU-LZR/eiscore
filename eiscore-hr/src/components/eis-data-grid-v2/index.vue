@@ -22,7 +22,7 @@
       <ag-grid-vue
         ref="agGridRef"
         style="width: 100%; height: 100%;"
-        class="ag-theme-alpine no-user-select"
+        :class="['ag-theme-alpine', 'no-user-select', { 'ag-theme-dark': isDark }]"
         :columnDefs="gridColumns"
         :rowData="gridData"
         :pinnedBottomRowData="pinnedBottomRowData"
@@ -160,6 +160,8 @@ const gridApi = ref(null)
 const selectedRowsCount = ref(0)
 const geoDialog = reactive({ visible: false, params: null })
 const fileDialog = reactive({ visible: false, params: null })
+const isDark = ref(false)
+let themeObserver = null
 
 // 1. Selection
 const selectionHooks = useGridSelection(gridApi, selectedRowsCount, agGridRef)
@@ -218,7 +220,9 @@ formulaDependencyHooks.triggerSave = debouncedSave
 const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, historyHooks, selectionHooks)
 
 const defaultColDef = { 
-  sortable: true, filter: true, resizable: true, minWidth: 100, 
+  sortable: true, filter: true, resizable: true, minWidth: 100,
+  wrapHeaderText: true,
+  autoHeaderHeight: true,
   editable: (params) => !isCellReadOnly(params),
   suppressKeyboardEvent: (params) => {
     const e = params.event; const k = e.key.toLowerCase(); const c = e.ctrlKey || e.metaKey;
@@ -242,6 +246,23 @@ const onGridReady = (params) => {
   loadData();
   loadGridConfig();
 }
+
+const syncTheme = () => {
+  isDark.value = document.documentElement.classList.contains('dark')
+}
+
+onMounted(() => {
+  syncTheme()
+  themeObserver = new MutationObserver(syncTheme)
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+
+onUnmounted(() => {
+  if (themeObserver) {
+    themeObserver.disconnect()
+    themeObserver = null
+  }
+})
 
 const onGridMouseLeave = () => {}
 const onCellDoubleClicked = (params) => {
@@ -332,7 +353,7 @@ defineExpose({ loadData })
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-track, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track { background-color: #f5f7fa; box-shadow: inset 0 0 4px rgba(0,0,0,0.05); }
 .ag-theme-alpine .ag-body-viewport { overflow-y: scroll !important; }
 
-.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei', sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 32px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
+.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei', sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 52px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
 .no-user-select { user-select: none; }
 .ag-theme-alpine .dynamic-header { font-weight: 600; }
 .ag-theme-alpine .ag-cell { border-right: 1px solid var(--ag-border-color); }
@@ -342,9 +363,9 @@ defineExpose({ loadData })
 .cell-locked-pattern { background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px); color: #a8abb2; cursor: not-allowed; }
 .row-locked-bg { background-color: #fafafa !important; }
 
-.custom-header-wrapper { display: flex !important; align-items: center !important; width: 100%; height: 100%; justify-content: space-between; overflow: hidden; }
-.custom-header-main { display: flex !important; align-items: center !important; flex: 1; overflow: hidden; cursor: pointer; padding-right: 8px; min-width: 0; }
-.custom-header-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
+.custom-header-wrapper { display: flex !important; align-items: flex-start !important; width: 100%; height: 100%; justify-content: space-between; overflow: visible; }
+.custom-header-main { display: flex !important; align-items: flex-start !important; flex: 1; overflow: visible; cursor: pointer; padding-right: 8px; min-width: 0; }
+.custom-header-label { overflow: visible; text-overflow: clip; white-space: normal; font-weight: 600; font-size: 13px; color: var(--ag-header-foreground-color); line-height: 16px; word-break: break-all; }
 .custom-header-tools { display: flex !important; align-items: center !important; gap: 2px; flex-shrink: 0; }
 .custom-header-icon { display: flex !important; align-items: center !important; padding: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
 .custom-header-icon:hover { background-color: #e6e8eb; }
@@ -352,6 +373,41 @@ defineExpose({ loadData })
 .custom-header-wrapper:hover .header-unlock-icon, .custom-header-wrapper:hover .menu-btn { opacity: 1; }
 .ag-theme-alpine .perm-granted-header .custom-header-main { overflow: visible; }
 .ag-theme-alpine .perm-granted-header .custom-header-label { overflow: visible; text-overflow: clip; white-space: nowrap; }
+.ag-theme-alpine .ag-header-cell-label { align-items: flex-start; overflow: visible !important; }
+.ag-theme-alpine .ag-header-cell { overflow: visible !important; }
+.ag-theme-alpine .ag-header-cell-text { white-space: normal !important; line-height: 16px; word-break: break-all; overflow: visible !important; text-overflow: clip !important; }
+
+.ag-theme-alpine.ag-theme-dark {
+  --ag-foreground-color: #f3f4f6;
+  --ag-background-color: #0b0f14;
+  --ag-header-background-color: #111827;
+  --ag-header-foreground-color: #f9fafb;
+  --ag-border-color: #1f2937;
+  --ag-row-border-color: #1f2937;
+  --ag-row-background-color: #0b0f14;
+  --ag-odd-row-background-color: #0b0f14;
+  --ag-row-hover-color: rgba(148, 163, 184, 0.18);
+  --ag-selected-row-background-color: rgba(56, 139, 253, 0.28);
+  --ag-input-focus-border-color: #60a5fa;
+}
+.ag-theme-alpine.ag-theme-dark .ag-row,
+.ag-theme-alpine.ag-theme-dark .ag-row-odd,
+.ag-theme-alpine.ag-theme-dark .ag-row-even {
+  background-color: #0b0f14;
+}
+.ag-theme-alpine.ag-theme-dark .ag-body-viewport::-webkit-scrollbar-track,
+.ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track {
+  background-color: #0b0f14;
+  box-shadow: inset 0 0 4px rgba(0,0,0,0.5);
+}
+.ag-theme-alpine.ag-theme-dark .ag-body-viewport::-webkit-scrollbar-thumb,
+.ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.45);
+}
+.ag-theme-alpine.ag-theme-dark .ag-body-viewport::-webkit-scrollbar-thumb:hover,
+.ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.7);
+}
 
 .status-editor-popup { background-color: #fff; border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); border: 1px solid #e4e7ed; overflow: hidden; padding: 4px 0; z-index: 9999; }
 .status-editor-popup.select-editor-popup { max-height: 120px; overflow-y: auto; overflow-x: hidden; }

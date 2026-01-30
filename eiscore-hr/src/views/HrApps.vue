@@ -137,4 +137,21 @@ const openApp = (app) => {
   font-size: 12px;
   color: #409eff;
 }
+
+:global(#app.dark) .hr-apps {
+  background-color: #0b0f14;
+}
+:global(#app.dark) .header-text h2,
+:global(#app.dark) .header-text p {
+  color: #f3f4f6;
+}
+:global(#app.dark) .app-card {
+  background-color: #111827;
+  border-color: #1f2937;
+}
+:global(#app.dark) .app-name,
+:global(#app.dark) .app-desc,
+:global(#app.dark) .app-enter {
+  color: #f3f4f6;
+}
 </style>

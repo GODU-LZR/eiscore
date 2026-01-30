@@ -165,12 +165,24 @@
       </el-tab-pane>
 
       <el-tab-pane label="部门数据查看范围" name="scope">
+        <div class="table-toolbar">
+          <span class="filter-label">筛选模块：</span>
+          <el-select v-model="scopeModuleGroup" placeholder="全部模块" style="width: 180px" clearable>
+            <el-option v-for="m in moduleFilters" :key="m.value" :label="m.label" :value="m.value" />
+          </el-select>
+          <span class="filter-label">筛选子应用：</span>
+          <el-select v-model="scopeApp" placeholder="选择子应用" style="width: 220px" clearable>
+            <el-option v-for="m in scopeAppOptions" :key="m.value" :label="m.label" :value="m.value" />
+          </el-select>
+        </div>
         <div class="grid-wrap">
           <eis-data-grid
             ref="scopeGridRef"
             view-id="hr_acl_scopes"
             :api-url="scopeApiUrl"
-            write-url="/role_data_scopes"
+            write-url="/v_role_data_scopes_matrix"
+            write-mode="patch"
+            :patch-required-fields="['role_id','module']"
             :include-properties="false"
             :static-columns="scopeColumnsDisplay"
             :extra-columns="[]"
@@ -199,6 +211,7 @@ import { FIELD_LABELS } from '@/utils/field-labels'
 import { HR_APPS, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
 
 const roles = ref([])
+const deptOptions = ref([])
 const modules = ref(['hr_employee', 'hr_org', 'hr_attendance', 'hr_change', 'hr_acl', 'hr_user', 'mms_ledger'])
 
 const currentRoleId = ref('')
@@ -206,6 +219,8 @@ const fieldModule = ref(modules.value[0] || '')
 const fieldModuleGroup = ref('')
 const permModuleGroup = ref('')
 const permApp = ref('')
+const scopeModuleGroup = ref('')
+const scopeApp = ref('')
 const activeTab = ref('roles')
 const rolesGridRef = ref(null)
 const permsModuleGridRef = ref(null)
@@ -266,7 +281,7 @@ const roleLabel = (r) => {
   return `${name}`
 }
 
-const roleColumns = [
+const roleColumns = computed(() => ([
   { prop: 'code', label: '角色编码', editable: false },
   {
     prop: 'name',
@@ -274,6 +289,7 @@ const roleColumns = [
     editable: true,
     valueFormatter: (params) => roleNameMap[params.data?.code] || params.value
   },
+  { prop: 'dept_id', label: '部门', editable: true, type: 'select', width: 160, options: deptOptions.value },
   {
     prop: 'description',
     label: '说明',
@@ -281,7 +297,7 @@ const roleColumns = [
     valueFormatter: (params) => roleDescMap[params.data?.code] || params.value
   },
   { prop: 'sort', label: '排序', editable: true, width: 100 }
-]
+]))
 
 const permColumns = [
   { prop: 'module', label: '模块', width: 120, editable: false, formatter: (params) => {
@@ -316,7 +332,13 @@ const permColumns = [
 
 const scopeColumns = [
   { prop: 'role_id', label: '角色ID', editable: false, width: 220 },
-  { prop: 'module', label: '模块', width: 160, editable: true, type: 'select', options: modules.value.map(m => ({ label: moduleLabel(m), value: m })) },
+  { prop: 'module_group', label: '模块', width: 120, editable: false, formatter: (params) => {
+    const key = params.data?.module || ''
+    if (key.startsWith('hr_')) return '人事'
+    if (key.startsWith('mms_')) return '物料'
+    return ''
+  } },
+  { prop: 'module', label: '应用', width: 160, editable: false, formatter: (params) => moduleLabel(params.value) },
   { prop: 'scope_type', label: '范围', width: 140, editable: true, type: 'select',
     options: [
       { label: '仅本人', value: 'self' },
@@ -339,7 +361,7 @@ const fieldColumns = [
   { prop: 'can_edit', label: '可编辑', editable: true, type: 'check' }
 ]
 
-const roleColumnsDisplay = computed(() => roleColumns.filter(col => col.prop !== 'code'))
+const roleColumnsDisplay = computed(() => roleColumns.value.filter(col => col.prop !== 'code'))
 const scopeColumnsDisplay = computed(() => scopeColumns.filter(col => col.prop !== 'role_id'))
 const fieldColumnsDisplay = computed(() => fieldColumns.filter(col => col.prop !== 'role_id'))
 const permColumnsModule = computed(() => {
@@ -390,9 +412,29 @@ const loadRoles = async () => {
   if (!currentRoleId.value && roles.value.length) currentRoleId.value = roles.value[0].id
 }
 
+const loadDepartments = async () => {
+  try {
+    const res = await request({
+      url: '/departments?order=sort.asc,name.asc',
+      method: 'get',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+    })
+    deptOptions.value = Array.isArray(res)
+      ? res.map((d) => ({ label: d.name, value: d.id }))
+      : []
+  } catch (e) {
+    deptOptions.value = []
+  }
+}
 const scopeApiUrl = computed(() => {
-  if (!currentRoleId.value) return '/role_data_scopes?order=module.asc'
-  return `/role_data_scopes?role_id=eq.${currentRoleId.value}&order=module.asc`
+  if (!currentRoleId.value) return '/v_role_data_scopes_matrix?limit=0'
+  let base = `/v_role_data_scopes_matrix?role_id=eq.${currentRoleId.value}`
+  if (scopeApp.value) {
+    base += `&module=eq.${scopeApp.value}`
+  } else if (scopeModuleGroup.value) {
+    base += `&module=like.${scopeModuleGroup.value}_%`
+  }
+  return `${base}&order=module.asc`
 })
 
 const fieldApiUrl = computed(() => {
@@ -427,6 +469,12 @@ const permAppOptions = computed(() => {
 const fieldModuleOptions = computed(() => {
   return modules.value
     .filter((key) => matchesModuleGroup(key, fieldModuleGroup.value))
+    .map((key) => ({ value: key, label: moduleLabel(key) }))
+})
+
+const scopeAppOptions = computed(() => {
+  return modules.value
+    .filter((key) => matchesModuleGroup(key, scopeModuleGroup.value))
     .map((key) => ({ value: key, label: moduleLabel(key) }))
 })
 
@@ -576,6 +624,20 @@ watch(fieldModuleGroup, () => {
   }
 })
 
+watch(scopeModuleGroup, () => {
+  const options = scopeAppOptions.value
+  if (scopeApp.value && !matchesModuleGroup(scopeApp.value, scopeModuleGroup.value)) {
+    scopeApp.value = ''
+  }
+  if (!scopeApp.value && options.length > 0) {
+    scopeApp.value = options[0].value
+  }
+})
+
+watch([scopeModuleGroup, scopeApp], () => {
+  if (activeTab.value === 'scope') scopeGridRef.value?.loadData()
+})
+
 watch([permModuleGroup, permApp], () => {
   if (activeTab.value === 'perm-app') permsAppGridRef.value?.loadData()
   if (activeTab.value === 'perm-op') permsOpGridRef.value?.loadData()
@@ -695,6 +757,7 @@ const handleCreate = async (type) => {
 
 onMounted(async () => {
   await loadRoles()
+  await loadDepartments()
 })
 </script>
 

@@ -10,21 +10,17 @@ export function registerQiankun() {
   // 1. 注册子应用
   registerMicroApps(apps, {
     beforeLoad: app => {
-      console.log('before load app.name====>>>>>', app.name)
     },
     beforeMount: [
       app => {
-        console.log('[LifeCycle] before mount %c%s', 'color: green;', app.name)
       }
     ],
     afterMount: [
       app => {
-        console.log('[LifeCycle] after mount %c%s', 'color: green;', app.name)
       }
     ],
     afterUnmount: [
       app => {
-        console.log('[LifeCycle] after unmount %c%s', 'color: green;', app.name)
       }
     ]
   })
@@ -32,7 +28,8 @@ export function registerQiankun() {
   // 2. 初始化全局状态 (Global AI Bus 的核心通道)
   // 初始状态包含 user 信息和 context (AI 上下文)
   const actions = initGlobalState({
-    user: 'admin', 
+    user: 'admin',
+    user_info: null,
     context: null,  // 用于子应用上报页面信息给 AI
     command: null
   })
@@ -47,7 +44,13 @@ export function registerQiankun() {
 
   // 监听状态变更（可选，用于调试通讯链路）
   actions.onGlobalStateChange((state, prev) => {
-    // console.log('[Base] Global State Change:', state, prev)
+    const incoming = state?.user_info || state?.user || null
+    if (incoming && typeof incoming === 'object') {
+      try {
+        localStorage.setItem('user_info', JSON.stringify(incoming))
+        window.dispatchEvent(new CustomEvent('user-info-updated'))
+      } catch (e) {}
+    }
   })
 
   // 4. 启动 Qiankun

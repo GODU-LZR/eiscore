@@ -259,4 +259,68 @@ const handleSave = () => {
     border-style: dashed;
   }
 }
+
+:global(#app.dark) .el-dialog {
+  background-color: #0f172a;
+  color: #f3f4f6;
+}
+:global(#app.dark) .el-dialog__title {
+  color: #f3f4f6;
+}
+:global(#app.dark) .column-manager {
+  border-color: #1f2937;
+}
+:global(#app.dark) .column-list {
+  border-right-color: #1f2937;
+  background-color: #0b0f14;
+}
+:global(#app.dark) .column-list .list-header {
+  border-bottom-color: #1f2937;
+  color: #f3f4f6;
+}
+:global(#app.dark) .column-item {
+  color: #f3f4f6;
+}
+:global(#app.dark) .column-item.active {
+  background-color: rgba(56, 139, 253, 0.2);
+  color: #f9fafb;
+}
+:global(#app.dark) .column-item:hover {
+  background-color: rgba(148, 163, 184, 0.15);
+}
+:global(#app.dark) .column-item .col-prop,
+:global(#app.dark) .column-item .arrow {
+  color: #e5e7eb;
+}
+:global(#app.dark) .column-editor {
+  color: #f3f4f6;
+}
+:global(#app.dark) .options-config {
+  background-color: #0b0f14;
+  border: 1px solid #1f2937;
+}
+:global(#app.dark) .options-config .divider {
+  color: #f3f4f6;
+  border-bottom-color: #1f2937;
+}
+:global(#app.dark) :deep(.el-input__wrapper),
+:global(#app.dark) :deep(.el-textarea__inner),
+:global(#app.dark) :deep(.el-select__wrapper),
+:global(#app.dark) :deep(.el-input-number) {
+  background-color: #0b0f14;
+  border-color: #1f2937;
+  color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-input__inner) {
+  color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-form-item__label) {
+  color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-tabs__item.is-active) {
+  color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-tabs__active-bar) {
+  background-color: #f3f4f6;
+}
 </style>

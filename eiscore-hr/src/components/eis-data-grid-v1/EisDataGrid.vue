@@ -44,7 +44,7 @@
       <ag-grid-vue
         ref="agGridRef"
         style="width: 100%; height: 100%;"
-        class="ag-theme-alpine no-user-select"
+        :class="['ag-theme-alpine', 'no-user-select', { 'ag-theme-dark': isDark }]"
         :columnDefs="gridColumns"
         :rowData="gridData"
         :pinnedBottomRowData="pinnedBottomRowData"
@@ -231,7 +231,7 @@ const LockHeader = defineComponent({
     onSortChanged()
     return () => h('div', { class: 'custom-header-wrapper' }, [
       h('div', { class: 'custom-header-main', onClick: (e) => props.params.progressSort(e.shiftKey) }, [
-        h('span', props.params.displayName),
+        h('span', { class: 'custom-header-label' }, props.params.displayName),
         sortState.value === 'asc' ? h(ElIcon, { size: 12 }, { default: () => h(SortUp) }) : null,
         sortState.value === 'desc' ? h(ElIcon, { size: 12 }, { default: () => h(SortDown) }) : null,
       ]),
@@ -280,6 +280,8 @@ const isAdmin = computed(() => currentUser.value === 'Admin')
 const gridApi = ref(null)
 const gridData = shallowRef([])
 const pinnedBottomRowData = ref([])
+const isDark = ref(false)
+let themeObserver = null
 
 // 🟢 批量撤销状态管理
 const history = reactive({
@@ -368,7 +370,9 @@ const isCellReadOnly = (params) => {
 
 // 🟢 拦截默认键盘事件
 const defaultColDef = { 
-  sortable: true, filter: true, resizable: true, minWidth: 100, 
+  sortable: true, filter: true, resizable: true, minWidth: 100,
+  wrapHeaderText: true,
+  autoHeaderHeight: true,
   editable: (params) => !isCellReadOnly(params),
   suppressKeyboardEvent: (params) => {
     const event = params.event;
@@ -917,6 +921,13 @@ watch(gridData, (newData) => {
 }, { immediate: true })
 
 onMounted(() => { 
+  const syncTheme = () => {
+    isDark.value = document.documentElement.classList.contains('dark')
+  }
+  syncTheme()
+  themeObserver = new MutationObserver(syncTheme)
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+
   document.addEventListener('mouseup', onGlobalMouseUp)
   document.addEventListener('mousemove', onGlobalMouseMove) 
   document.addEventListener('paste', handleGlobalPaste)
@@ -929,6 +940,10 @@ const onGridReady = (params) => {
 }
 
 onUnmounted(() => { 
+  if (themeObserver) {
+    themeObserver.disconnect()
+    themeObserver = null
+  }
   if (autoScrollRaf) cancelAnimationFrame(autoScrollRaf)
   document.removeEventListener('mouseup', onGlobalMouseUp)
   document.removeEventListener('mousemove', onGlobalMouseMove)
@@ -1483,12 +1498,15 @@ defineExpose({ loadData })
   overflow-y: scroll !important;
 }
 
-.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 32px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
+.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 52px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
 .no-user-select { user-select: none; }
 .ag-theme-alpine .dynamic-header { font-weight: 600; }
 .ag-theme-alpine .ag-cell { border-right: 1px solid var(--ag-border-color); }
 .ag-root-wrapper { border: 1px solid var(--el-border-color-light) !important; }
 .custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }
+.ag-theme-alpine .ag-header-cell-label { align-items: flex-start; overflow: visible !important; }
+.ag-theme-alpine .ag-header-cell { overflow: visible !important; }
+.ag-theme-alpine .ag-header-cell-text { white-space: normal !important; line-height: 16px; word-break: break-all; overflow: visible !important; text-overflow: clip !important; }
 
 .cell-locked-pattern {
   background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px);
@@ -1501,24 +1519,28 @@ defineExpose({ loadData })
 
 .custom-header-wrapper {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
   height: 100%;
   justify-content: space-between;
+  overflow: visible;
 }
 .custom-header-main {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex: 1;
-  overflow: hidden;
+  overflow: visible;
   cursor: pointer;
   padding-right: 8px;
 }
 .custom-header-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
   font-weight: 600;
+  color: var(--ag-header-foreground-color);
+  line-height: 16px;
+  word-break: break-all;
 }
 .custom-header-tools {
   display: flex;
@@ -1543,6 +1565,38 @@ defineExpose({ loadData })
 .custom-header-wrapper:hover .header-unlock-icon,
 .custom-header-wrapper:hover .menu-btn {
   opacity: 1;
+}
+
+.ag-theme-alpine.ag-theme-dark {
+  --ag-foreground-color: #f3f4f6;
+  --ag-background-color: #0b0f14;
+  --ag-header-background-color: #111827;
+  --ag-header-foreground-color: #f9fafb;
+  --ag-border-color: #1f2937;
+  --ag-row-border-color: #1f2937;
+  --ag-row-background-color: #0b0f14;
+  --ag-odd-row-background-color: #0b0f14;
+  --ag-row-hover-color: rgba(148, 163, 184, 0.18);
+  --ag-selected-row-background-color: rgba(56, 139, 253, 0.28);
+  --ag-input-focus-border-color: #60a5fa;
+}
+.ag-theme-alpine.ag-theme-dark .ag-row,
+.ag-theme-alpine.ag-theme-dark .ag-row-odd,
+.ag-theme-alpine.ag-theme-dark .ag-row-even {
+  background-color: #0b0f14;
+}
+.ag-theme-alpine.ag-theme-dark .ag-body-viewport::-webkit-scrollbar-track,
+.ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track {
+  background-color: #0b0f14;
+  box-shadow: inset 0 0 4px rgba(0,0,0,0.5);
+}
+.ag-theme-alpine.ag-theme-dark .ag-body-viewport::-webkit-scrollbar-thumb,
+.ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.45);
+}
+.ag-theme-alpine.ag-theme-dark .ag-body-viewport::-webkit-scrollbar-thumb:hover,
+.ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.7);
 }
 
 .status-editor-popup {

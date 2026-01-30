@@ -5,10 +5,12 @@ import router from './router'
 import { renderWithQiankun, qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 
 let app = null
+let themeObserver = null
 
 function render(props = {}) {
   const { container } = props
@@ -42,8 +44,16 @@ function render(props = {}) {
     }
   })
 
-  const mountPoint = container ? container.querySelector('#app') : '#app'
-  app.mount(mountPoint)
+  const mountPoint = container ? container.querySelector('#app') : document.querySelector('#app')
+  if (mountPoint) {
+    const syncTheme = () => {
+      mountPoint.classList.toggle('dark', document.documentElement.classList.contains('dark'))
+    }
+    syncTheme()
+    themeObserver = new MutationObserver(syncTheme)
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  }
+  app.mount(mountPoint || '#app')
 }
 
 renderWithQiankun({
@@ -56,6 +66,10 @@ renderWithQiankun({
     console.log('[materials] unmount')
     app.unmount()
     app = null
+    if (themeObserver) {
+      themeObserver.disconnect()
+      themeObserver = null
+    }
   },
   update() {}
 })

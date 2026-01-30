@@ -174,4 +174,39 @@ onUnmounted(() => {
 .variable-tag:hover { opacity: 0.8; }
 .formula-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .formula-tip { font-size: 12px; color: #909399; }
+
+:global(#app.dark) .dialog-tip,
+:global(#app.dark) .cell-label-title,
+:global(#app.dark) .cell-label-tip,
+:global(#app.dark) .tag-label,
+:global(#app.dark) .formula-tip {
+  color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-dialog) {
+  background-color: #0f172a;
+  color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-dialog__title),
+:global(#app.dark) :deep(.el-radio__label),
+:global(#app.dark) :deep(.el-tab-pane),
+:global(#app.dark) :deep(.el-tabs__item) {
+  color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-tabs__active-bar) {
+  background-color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-input__wrapper),
+:global(#app.dark) :deep(.el-textarea__inner) {
+  background-color: #0b0f14;
+  border-color: #1f2937;
+  color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-input__inner) {
+  color: #f3f4f6;
+}
+:global(#app.dark) :deep(.el-button:not(.is-text):not(.is-link)) {
+  background-color: #0f172a;
+  border-color: #1f2937;
+  color: #f3f4f6;
+}
 </style>

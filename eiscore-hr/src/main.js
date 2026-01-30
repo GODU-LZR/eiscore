@@ -7,6 +7,7 @@ import { renderWithQiankun, qiankunWindow } from 'vite-plugin-qiankun/dist/helpe
 // 🟢 1. 引入 Element Plus 及其样式
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
 // 引入中文语言包 (可选，推荐)
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 // 引入图标 (如果用到了 Icon)
@@ -17,6 +18,7 @@ import 'bpmn-js/dist/assets/bpmn-js.css'
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css'
 
 let app
+let themeObserver = null
 
 function render(props = {}) {
   const { container } = props
@@ -56,8 +58,16 @@ function render(props = {}) {
     }
   })
 
-  const target = container ? container.querySelector('#app') : '#app'
-  app.mount(target)
+  const target = container ? container.querySelector('#app') : document.querySelector('#app')
+  if (target) {
+    const syncTheme = () => {
+      target.classList.toggle('dark', document.documentElement.classList.contains('dark'))
+    }
+    syncTheme()
+    themeObserver = new MutationObserver(syncTheme)
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  }
+  app.mount(target || '#app')
 }
 
 renderWithQiankun({
@@ -71,6 +81,10 @@ renderWithQiankun({
   unmount(props) {
     console.log('[HR] unmount')
     app.unmount()
+    if (themeObserver) {
+      themeObserver.disconnect()
+      themeObserver = null
+    }
   },
   update(props) {
     console.log('[HR] update', props)

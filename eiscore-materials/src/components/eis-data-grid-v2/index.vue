@@ -22,7 +22,7 @@
       <ag-grid-vue
         ref="agGridRef"
         style="width: 100%; height: 100%;"
-        class="ag-theme-alpine no-user-select"
+        :class="['ag-theme-alpine', 'no-user-select', { 'ag-theme-dark': isDark }]"
         :columnDefs="gridColumns"
         :rowData="gridData"
         :pinnedBottomRowData="pinnedBottomRowData"
@@ -152,6 +152,8 @@ const gridApi = ref(null)
 const selectedRowsCount = ref(0)
 const geoDialog = reactive({ visible: false, params: null })
 const fileDialog = reactive({ visible: false, params: null })
+const isDark = ref(false)
+let themeObserver = null
 
 // 1. Selection
 const selectionHooks = useGridSelection(gridApi, selectedRowsCount, agGridRef)
@@ -200,7 +202,9 @@ formulaDependencyHooks.triggerSave = debouncedSave
 const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, historyHooks, selectionHooks)
 
 const defaultColDef = { 
-  sortable: true, filter: true, resizable: true, minWidth: 100, 
+  sortable: true, filter: true, resizable: true, minWidth: 100,
+  wrapHeaderText: true,
+  autoHeaderHeight: true,
   editable: (params) => !isCellReadOnly(params),
   suppressKeyboardEvent: (params) => {
     const e = params.event; const k = e.key.toLowerCase(); const c = e.ctrlKey || e.metaKey;
@@ -225,6 +229,10 @@ const onGridReady = (params) => {
   loadGridConfig();
 }
 
+const syncTheme = () => {
+  isDark.value = document.documentElement.classList.contains('dark')
+}
+
 const onGridMouseLeave = () => {}
 const onCellDoubleClicked = (params) => {
   if (params.node.rowPinned !== 'bottom' && params.colDef?.type === 'geo') {
@@ -246,11 +254,18 @@ const handleGeoSubmit = (payload) => {
 }
 
 onMounted(() => { 
+  syncTheme()
+  themeObserver = new MutationObserver(syncTheme)
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   document.addEventListener('mouseup', onGlobalMouseUp)
   document.addEventListener('mousemove', onGlobalMouseMove) 
   document.addEventListener('paste', handleGlobalPaste)
 })
 onUnmounted(() => { 
+  if (themeObserver) {
+    themeObserver.disconnect()
+    themeObserver = null
+  }
   document.removeEventListener('mouseup', onGlobalMouseUp)
   document.removeEventListener('mousemove', onGlobalMouseMove)
   document.removeEventListener('paste', handleGlobalPaste)
@@ -272,10 +287,45 @@ defineExpose({ loadData })
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-track, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track { background-color: #f5f7fa; box-shadow: inset 0 0 4px rgba(0,0,0,0.05); }
 .ag-theme-alpine .ag-body-viewport { overflow-y: scroll !important; }
 
-.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 32px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
+.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 52px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
 .no-user-select { user-select: none; }
 .ag-theme-alpine .dynamic-header { font-weight: 600; }
 .ag-theme-alpine .ag-cell { border-right: 1px solid var(--ag-border-color); }
+.ag-theme-alpine .ag-header-cell-label { align-items: flex-start; overflow: visible !important; }
+.ag-theme-alpine .ag-header-cell { overflow: visible !important; }
+.ag-theme-alpine .ag-header-cell-text { white-space: normal !important; line-height: 16px; word-break: break-all; overflow: visible !important; text-overflow: clip !important; }
+
+.ag-theme-alpine.ag-theme-dark {
+  --ag-foreground-color: #f3f4f6;
+  --ag-background-color: #0b0f14;
+  --ag-header-background-color: #111827;
+  --ag-header-foreground-color: #f9fafb;
+  --ag-border-color: #1f2937;
+  --ag-row-border-color: #1f2937;
+  --ag-row-background-color: #0b0f14;
+  --ag-odd-row-background-color: #0b0f14;
+  --ag-row-hover-color: rgba(148, 163, 184, 0.18);
+  --ag-selected-row-background-color: rgba(56, 139, 253, 0.28);
+  --ag-input-focus-border-color: #60a5fa;
+}
+.ag-theme-alpine.ag-theme-dark .ag-row,
+.ag-theme-alpine.ag-theme-dark .ag-row-odd,
+.ag-theme-alpine.ag-theme-dark .ag-row-even {
+  background-color: #0b0f14;
+}
+.ag-theme-alpine.ag-theme-dark .ag-body-viewport::-webkit-scrollbar-track,
+.ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track {
+  background-color: #0b0f14;
+  box-shadow: inset 0 0 4px rgba(0,0,0,0.5);
+}
+.ag-theme-alpine.ag-theme-dark .ag-body-viewport::-webkit-scrollbar-thumb,
+.ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.45);
+}
+.ag-theme-alpine.ag-theme-dark .ag-body-viewport::-webkit-scrollbar-thumb:hover,
+.ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.7);
+}
 .ag-root-wrapper { border: 1px solid var(--el-border-color-light) !important; }
 
 .custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }

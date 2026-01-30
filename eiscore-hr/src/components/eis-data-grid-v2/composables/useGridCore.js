@@ -424,7 +424,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         cellRenderer: 'FileRenderer',
         fileMaxCount: col.fileMaxCount ?? 3,
         fileMaxSizeMb: col.fileMaxSizeMb ?? 20,
-        fileAccept: col.fileAccept || ''
+        fileAccept: col.fileAccept || '',
+        fileStoreMode: col.fileStoreMode || 'list'
       }
     }
 
@@ -448,12 +449,32 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       editable: (params) => !params.node.rowPinned,
       cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, cellEditorPopupPosition: 'under',
       cellClassRules: cellClassRules,
-      valueGetter: params => params.node.rowPinned ? activeSummaryConfig.label : (params.data.properties?.row_locked_by ? 'locked' : params.data.properties?.status || 'created'), 
+      valueGetter: params => {
+        if (params.node.rowPinned) return activeSummaryConfig.label
+        if (params.data?.properties?.row_locked_by) return 'locked'
+        const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
+        const raw = hasStatus ? params.data?.status : params.data?.properties?.status
+        if (!raw) return 'created'
+        const text = String(raw).toLowerCase()
+        if (text === 'disabled') return 'locked'
+        if (text === 'draft' || text === 'created') return 'created'
+        if (text === 'active') return 'active'
+        if (text === 'locked') return 'locked'
+        return raw
+      },
       valueSetter: params => { 
         if(params.node.rowPinned || params.newValue===params.oldValue) return false; 
-        if(!params.data.properties) params.data.properties={}; 
-        params.data.properties.status=params.newValue; 
-        params.data.properties.row_locked_by = params.newValue==='locked'?currentUser.value:null; 
+        const allowProps = params.data && (params.data.properties || props.includeProperties !== false)
+        if (allowProps) {
+          if(!params.data.properties) params.data.properties={}; 
+          params.data.properties.status=params.newValue; 
+          params.data.properties.row_locked_by = params.newValue==='locked'?currentUser.value:null; 
+        }
+        const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
+        if (hasStatus) {
+          const mapped = params.newValue === 'locked' ? 'disabled' : (params.newValue === 'created' ? 'draft' : params.newValue)
+          params.data.status = mapped
+        }
         return true; 
       } 
     }

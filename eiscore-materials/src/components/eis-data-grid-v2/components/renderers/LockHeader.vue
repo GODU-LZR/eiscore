@@ -8,12 +8,12 @@
     <div class="custom-header-tools">
       <span class="custom-header-icon lock-btn" @click.stop="onLockClick">
         <el-tooltip v-if="isLocked" :content="`列锁定: ${lockInfo}`" placement="top">
-          <el-icon color="#F56C6C" :size="14"><Lock /></el-icon>
+          <el-icon :size="14" class="header-lock-icon"><Lock /></el-icon>
         </el-tooltip>
-        <el-icon v-else class="header-unlock-icon" :size="14" color="#909399"><Unlock /></el-icon>
+        <el-icon v-else class="header-unlock-icon" :size="14"><Unlock /></el-icon>
       </span>
       <span v-if="showMenu" class="custom-header-icon menu-btn" @click.stop="onMenuClick">
-        <el-icon :size="14" color="#909399"><Filter /></el-icon>
+        <el-icon :size="14" class="header-tool-icon"><Filter /></el-icon>
       </span>
     </div>
   </div>
@@ -52,11 +52,13 @@ const onLockClick = () => gridComp.toggleColumnLock(colKey)
 <style>
 /* 🟢 修复：去除 scoped，对齐原版样式 */
 .custom-header-wrapper { display: flex; align-items: center; width: 100%; height: 100%; justify-content: space-between; overflow: hidden; }
-.custom-header-main { display: flex; align-items: center; flex: 1; overflow: hidden; cursor: pointer; padding-right: 4px; min-width: 0; }
-.custom-header-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
+.custom-header-main { display: flex; align-items: flex-start; flex: 1; overflow: hidden; cursor: pointer; padding-right: 4px; min-width: 0; }
+.custom-header-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: clip; white-space: normal; font-weight: 600; font-size: 13px; color: var(--ag-header-foreground-color); line-height: 16px; word-break: break-all; }
 .custom-header-tools { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .custom-header-icon { display: flex; align-items: center; padding: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
 .custom-header-icon:hover { background-color: #e6e8eb; }
 .header-unlock-icon, .menu-btn { opacity: 0; transition: opacity 0.2s; }
 .custom-header-wrapper:hover .header-unlock-icon, .custom-header-wrapper:hover .menu-btn { opacity: 1; }
+.header-tool-icon { color: var(--ag-header-foreground-color); }
+.header-lock-icon { color: #f56c6c; }
 </style>

@@ -232,6 +232,7 @@
 
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUpdated } from 'vue'
+import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
 import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, Download, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -256,6 +257,7 @@ const lightbox = ref({ visible: false, type: '', payload: null })
 let lightboxChart = null
 const router = useRouter()
 const isFullscreen = ref(false)
+const isDark = useDark({ storageKey: 'eis_theme_global' })
 
 const currentSession = computed(() => aiBridge.getCurrentSession())
 const isWorker = computed(() => props.mode === 'worker')
@@ -270,7 +272,8 @@ const inputPlaceholder = computed(() => (
 const containerClasses = computed(() => ({
   'is-open': state.isOpen,
   'is-worker': isWorker.value,
-  'is-fullscreen': isWorkerFullscreen.value && state.isOpen
+  'is-fullscreen': isWorkerFullscreen.value && state.isOpen,
+  'is-dark': isDark.value
 }))
 
 const md = new MarkdownIt({
@@ -1254,4 +1257,99 @@ $border-color: #e4e7ed;
 
 @keyframes blink { 50% { opacity: 0; } }
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.ai-copilot-container.is-dark .ai-window {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+.ai-copilot-container.is-dark .ai-header {
+  border-bottom-color: #1f2937;
+  color: #f3f4f6;
+}
+.ai-copilot-container.is-dark .ai-header .header-right {
+  color: #cbd5f5;
+}
+.ai-copilot-container.is-dark .history-sidebar {
+  background: #0b1220;
+  border-right-color: #1f2937;
+}
+.ai-copilot-container.is-dark .history-sidebar .sidebar-header {
+  color: #e5e7eb;
+}
+.ai-copilot-container.is-dark .session-item {
+  color: #e5e7eb;
+}
+.ai-copilot-container.is-dark .session-item:hover {
+  background: rgba(148, 163, 184, 0.15);
+}
+.ai-copilot-container.is-dark .session-item.active {
+  background: rgba(96, 165, 250, 0.2);
+}
+.ai-copilot-container.is-dark .chat-area {
+  background: #0b1220;
+}
+.ai-copilot-container.is-dark .message-row .avatar {
+  background: #111827;
+  color: #f3f4f6;
+  box-shadow: none;
+}
+.ai-copilot-container.is-dark .message-row .bubble {
+  background: #111827;
+  color: #f3f4f6;
+  border: 1px solid #1f2937;
+  box-shadow: none;
+}
+.ai-copilot-container.is-dark .message-row.user .bubble {
+  color: #ffffff;
+}
+.ai-copilot-container.is-dark .msg-files .doc-file,
+.ai-copilot-container.is-dark .msg-files .msg-img {
+  background: #0f172a;
+  border-color: #1f2937;
+  color: #e5e7eb;
+}
+.ai-copilot-container.is-dark .input-section {
+  background: #0f172a;
+  border-top-color: #1f2937;
+}
+.ai-copilot-container.is-dark .input-box {
+  background: #0b1220;
+  border-color: #1f2937;
+}
+.ai-copilot-container.is-dark .input-box textarea {
+  color: #f3f4f6;
+}
+.ai-copilot-container.is-dark .tool-icon {
+  color: #cbd5f5;
+}
+.ai-copilot-container.is-dark .form-template-card,
+.ai-copilot-container.is-dark .formula-card,
+.ai-copilot-container.is-dark .import-card {
+  background: #0f172a;
+  border-color: #1f2937;
+  color: #f3f4f6;
+}
+.ai-copilot-container.is-dark .form-template-card .card-title,
+.ai-copilot-container.is-dark .formula-card .card-title,
+.ai-copilot-container.is-dark .import-card .card-title,
+.ai-copilot-container.is-dark .form-template-card .card-meta,
+.ai-copilot-container.is-dark .formula-card .card-meta,
+.ai-copilot-container.is-dark .import-card .card-meta {
+  color: #cbd5f5;
+}
+.ai-copilot-container.is-dark .chart-details,
+.ai-copilot-container.is-dark .chart-details summary {
+  color: #cbd5f5;
+}
+.ai-copilot-container.is-dark .chart-details pre {
+  background: #0b1220;
+  border: 1px solid #1f2937;
+}
+.ai-copilot-container.is-dark .lightbox-content {
+  background: #0f172a;
+}
+.ai-copilot-container.is-dark .lightbox-header {
+  border-bottom-color: #1f2937;
+  color: #f3f4f6;
+}
 </style>

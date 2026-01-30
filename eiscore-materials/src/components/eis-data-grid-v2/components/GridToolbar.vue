@@ -66,4 +66,40 @@ const realRangeColCount = computed(() => {
 .ml-2 { margin-left: 8px; }
 .tip-text { margin-left: 12px; font-size: 12px; color: #909399; font-family: monospace; }
 .toolbar-actions { display: flex; gap: 12px; }
+
+:global(#app.dark) .grid-toolbar {
+  background-color: #0b0f14;
+  border-bottom-color: #1f2937;
+}
+:global(#app.dark) .grid-toolbar :deep(.el-input__wrapper) {
+  background-color: #0f172a;
+  border-color: #1f2937;
+  box-shadow: none;
+}
+:global(#app.dark) .grid-toolbar :deep(.el-input__inner) {
+  color: #f3f4f6;
+}
+:global(#app.dark) .grid-toolbar :deep(.el-input__prefix-inner),
+:global(#app.dark) .grid-toolbar :deep(.el-input__suffix-inner) {
+  color: #e5e7eb;
+}
+:global(#app.dark) .grid-toolbar :deep(.el-button) {
+  background-color: #0f172a;
+  border-color: #1f2937;
+  color: #f3f4f6;
+}
+:global(#app.dark) .grid-toolbar :deep(.el-button.is-plain) {
+  background-color: #0f172a;
+  color: #f3f4f6;
+}
+:global(#app.dark) .grid-toolbar :deep(.el-button.is-disabled) {
+  background-color: #0b0f14;
+  color: #6b7280;
+}
+:global(#app.dark) .grid-toolbar :deep(.el-button-group .el-button) {
+  border-color: #1f2937;
+}
+:global(#app.dark) .grid-toolbar .tip-text {
+  color: #f3f4f6;
+}
 </style>

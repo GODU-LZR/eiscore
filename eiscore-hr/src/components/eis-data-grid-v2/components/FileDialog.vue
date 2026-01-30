@@ -67,6 +67,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import request from '@/utils/request'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -102,10 +103,31 @@ const parseAccept = (raw) => {
 
 const acceptRules = computed(() => parseAccept(colDef.value.fileAccept))
 const acceptAttr = computed(() => acceptRules.value.join(','))
+const fileStoreMode = computed(() => colDef.value.fileStoreMode || 'list')
+const fileUrlCache = new Map()
+
+
+const parseMaybeJson = (value) => {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return null
+  try {
+    return JSON.parse(trimmed)
+  } catch (e) {
+    return null
+  }
+}
 
 const toList = (value) => {
   if (Array.isArray(value)) return value
   if (value === null || value === undefined || value === '') return []
+  if (typeof value === 'string') {
+    const parsed = parseMaybeJson(value)
+    if (Array.isArray(parsed)) return parsed
+    if (parsed && typeof parsed === 'object') return [parsed]
+  }
+  if (typeof value === 'object') return [value]
   return [value]
 }
 
@@ -121,9 +143,27 @@ const getExt = (name) => {
   return parts.pop().toLowerCase()
 }
 
+const parseDataUrlMeta = (dataUrl) => {
+  if (!dataUrl || typeof dataUrl !== 'string') return { type: '', ext: '' }
+  const match = dataUrl.match(/^data:([^;]+);base64,/i)
+  if (!match) return { type: '', ext: '' }
+  const type = match[1] || ''
+  const ext = type.includes('/') ? type.split('/')[1] : ''
+  return { type, ext }
+}
+
 const normalizeItem = (item) => {
   if (item === null || item === undefined) return null
   if (typeof item === 'string') {
+    if (item.startsWith('data:')) {
+      const meta = parseDataUrlMeta(item)
+      const name = meta.ext ? `image.${meta.ext}` : '已上传文件'
+      return { id: createId(), name, dataUrl: item, ext: meta.ext, type: meta.type }
+    }
+    if (item.startsWith('file:')) {
+      const fileId = item.replace('file:', '')
+      return { id: fileId || createId(), name: '已上传文件', url: item }
+    }
     const ext = getExt(item)
     return { id: createId(), name: item, ext }
   }
@@ -133,10 +173,15 @@ const normalizeItem = (item) => {
     const url = item.url || item.file_url || ''
     const size = item.size || item.fileSize || 0
     const type = item.type || item.mime || ''
-    const ext = item.ext || getExt(name)
+    let ext = item.ext || getExt(name)
+    if (!ext && dataUrl) {
+      const meta = parseDataUrlMeta(dataUrl)
+      ext = meta.ext
+    }
+    const resolvedName = name || (dataUrl ? (ext ? `image.${ext}` : '已上传文件') : '')
     return {
       id: item.id || item.uuid || createId(),
-      name,
+      name: resolvedName,
       dataUrl,
       url,
       size,
@@ -148,12 +193,55 @@ const normalizeItem = (item) => {
   return null
 }
 
+const fetchFileDataUrl = async (fileId) => {
+  if (!fileId) return { dataUrl: '', name: '' }
+  if (fileUrlCache.has(fileId)) return fileUrlCache.get(fileId)
+  try {
+    const res = await request({
+      url: `/files?id=eq.${fileId}&select=content_base64,mime_type,filename`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+    })
+    const row = Array.isArray(res) ? res[0] : null
+    if (!row?.content_base64) return { dataUrl: '', name: '' }
+    const mime = row.mime_type || 'application/octet-stream'
+    const dataUrl = `data:${mime};base64,${row.content_base64}`
+    const payload = { dataUrl, name: row.filename || '' }
+    fileUrlCache.set(fileId, payload)
+    return payload
+  } catch (e) {
+    return { dataUrl: '', name: '' }
+  }
+}
+
+const hydrateFileItem = async (item) => {
+  if (!item?.url || item.dataUrl) return item
+  if (!item.url.startsWith('file:')) return item
+  const fileId = item.url.replace('file:', '')
+  const res = await fetchFileDataUrl(fileId)
+  if (!res.dataUrl) return item
+  const meta = parseDataUrlMeta(res.dataUrl)
+  return {
+    ...item,
+    dataUrl: res.dataUrl,
+    name: item.name || res.name || item.name,
+    type: item.type || meta.type || '',
+    ext: item.ext || meta.ext || getExt(res.name || item.name)
+  }
+}
+
 const setFilesFromValue = (value) => {
   const list = toList(value)
     .map(normalizeItem)
     .filter(Boolean)
   files.value = list
   activeId.value = list[0]?.id || ''
+  if (list.length > 0) {
+    Promise.all(list.map(hydrateFileItem)).then((next) => {
+      files.value = next
+      if (!activeId.value) activeId.value = next[0]?.id || ''
+    })
+  }
 }
 
 const activeFile = computed(() => files.value.find(item => item.id === activeId.value) || null)
@@ -163,12 +251,14 @@ const setActive = (id) => {
 }
 
 const isImage = (item) => {
+  if (item?.dataUrl && String(item.dataUrl).startsWith('data:image/')) return true
   const ext = item.ext || getExt(item.name)
   if (item.type && item.type.startsWith('image/')) return true
   return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(String(ext).toLowerCase())
 }
 
 const isPdf = (item) => {
+  if (item?.dataUrl && String(item.dataUrl).startsWith('data:application/pdf')) return true
   const ext = item.ext || getExt(item.name)
   if (item.type && item.type.includes('pdf')) return true
   return String(ext).toLowerCase() === 'pdf'
@@ -226,6 +316,7 @@ const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
 const updateCellValue = (list) => {
   const field = props.params?.colDef?.field
   if (!field || !props.params?.node) return
+  const storeMode = fileStoreMode.value
   const payload = list.map(item => ({
     id: item.id,
     name: item.name,
@@ -236,7 +327,66 @@ const updateCellValue = (list) => {
     ext: item.ext,
     uploadedAt: item.uploadedAt
   }))
-  props.params.node.setDataValue(field, payload.length ? payload : null)
+  if (storeMode === 'url') {
+    const first = payload[0]
+    const value = first?.url || first?.dataUrl || first?.name || ''
+    props.params.node.setDataValue(field, value || null)
+    return
+  }
+  if (storeMode === 'single') {
+    const first = payload[0]
+    const value = first?.dataUrl || first?.url || first?.name || ''
+    props.params.node.setDataValue(field, value || null)
+  } else {
+    props.params.node.setDataValue(field, payload.length ? payload : null)
+  }
+}
+
+const extractBase64 = (dataUrl) => {
+  if (!dataUrl || typeof dataUrl !== 'string') return ''
+  const idx = dataUrl.indexOf(',')
+  return idx >= 0 ? dataUrl.slice(idx + 1) : ''
+}
+
+const extractMime = (dataUrl) => {
+  if (!dataUrl || typeof dataUrl !== 'string') return ''
+  const match = dataUrl.match(/^data:([^;]+);base64,/i)
+  return match ? match[1] : ''
+}
+
+const uploadToDb = async (file, dataUrl) => {
+  const contentBase64 = extractBase64(dataUrl)
+  const mimeType = file.type || extractMime(dataUrl) || 'application/octet-stream'
+  const res = await request({
+    url: '/files',
+    method: 'post',
+    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=representation' },
+    data: {
+      filename: file.name,
+      mime_type: mimeType,
+      size_bytes: file.size,
+      content_base64: contentBase64
+    }
+  })
+  const row = Array.isArray(res) ? res[0] : res
+  if (!row?.id) throw new Error('文件保存失败')
+  return row
+}
+
+const deleteFromDb = async (fileId) => {
+  if (!fileId) return
+  try {
+    await request({
+      url: `/files?id=eq.${fileId}`,
+      method: 'delete',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      // 对已不存在的文件返回 404 时直接视为成功，避免错误弹窗
+      validateStatus: (status) => (status >= 200 && status < 300) || status === 404
+    })
+    fileUrlCache.delete(fileId)
+  } catch (e) {
+    // ignore delete errors; user may not have permission
+  }
 }
 
 const handleFileInput = async (event) => {
@@ -275,15 +425,29 @@ const handleFileInput = async (event) => {
   for (const file of accepted) {
     try {
       const dataUrl = await readFileAsDataUrl(file)
-      newItems.push({
-        id: createId(),
-        name: file.name,
-        type: file.type || '',
-        size: file.size || 0,
-        dataUrl,
-        ext: getExt(file.name),
-        uploadedAt: new Date().toISOString()
-      })
+      if (fileStoreMode.value === 'url') {
+        const saved = await uploadToDb(file, dataUrl)
+        newItems.push({
+          id: saved.id,
+          name: saved.filename || file.name,
+          type: saved.mime_type || file.type || '',
+          size: saved.size_bytes || file.size || 0,
+          dataUrl,
+          url: `file:${saved.id}`,
+          ext: getExt(saved.filename || file.name),
+          uploadedAt: saved.created_at || new Date().toISOString()
+        })
+      } else {
+        newItems.push({
+          id: createId(),
+          name: file.name,
+          type: file.type || '',
+          size: file.size || 0,
+          dataUrl,
+          ext: getExt(file.name),
+          uploadedAt: new Date().toISOString()
+        })
+      }
     } catch (e) {
       ElMessage.warning(`文件读取失败：${file.name}`)
     }
@@ -300,6 +464,10 @@ const triggerSelect = () => {
 }
 
 const removeFile = (id) => {
+  const target = files.value.find(item => item.id === id)
+  if (fileStoreMode.value === 'url' && target?.url?.startsWith('file:')) {
+    deleteFromDb(target.url.replace('file:', ''))
+  }
   const next = files.value.filter(item => item.id !== id)
   files.value = next
   if (activeId.value === id) {
@@ -309,6 +477,11 @@ const removeFile = (id) => {
 }
 
 const clearFiles = () => {
+  if (fileStoreMode.value === 'url') {
+    files.value.forEach(item => {
+      if (item?.url?.startsWith('file:')) deleteFromDb(item.url.replace('file:', ''))
+    })
+  }
   files.value = []
   activeId.value = ''
   updateCellValue([])

@@ -129,9 +129,9 @@ const handleLogin = async () => {
 
         // 🟢 2. 解析 Token 中的真实信息
         const payload = parseJwt(realToken)
-        console.log('Token Payload:', payload)
 
         let roleId = ''
+        let avatarUrl = ''
         if (payload.app_role) {
           try {
             const roleRes = await fetch(`/api/roles?code=eq.${payload.app_role}`, {
@@ -149,6 +149,44 @@ const handleLogin = async () => {
           }
         }
 
+        const resolveAvatarUrl = async (avatar) => {
+          if (!avatar || typeof avatar !== 'string') return ''
+          if (!avatar.startsWith('file:')) return avatar
+          const fileId = avatar.replace('file:', '')
+          try {
+            const res = await fetch(`/api/files?id=eq.${fileId}&select=content_base64,mime_type`, {
+              headers: { 'Accept-Profile': 'public', Authorization: `Bearer ${realToken}` }
+            })
+            if (!res.ok) return ''
+            const list = await res.json()
+            const row = Array.isArray(list) ? list[0] : null
+            if (!row?.content_base64) return ''
+            const mime = row.mime_type || 'application/octet-stream'
+            return `data:${mime};base64,${row.content_base64}`
+          } catch (e) {
+            return ''
+          }
+        }
+
+        try {
+          const userRes = await fetch(`/api/users?username=eq.${payload.username}`, {
+            method: 'GET',
+            headers: {
+              'Accept-Profile': 'public',
+              'Content-Profile': 'public',
+              Authorization: `Bearer ${realToken}`
+            }
+          })
+          if (userRes.ok) {
+            const userList = await userRes.json()
+            if (Array.isArray(userList) && userList.length > 0) {
+              avatarUrl = await resolveAvatarUrl(userList[0].avatar || '')
+            }
+          }
+        } catch (e) {
+          avatarUrl = ''
+        }
+
         // 🟢 3. 构造用户信息 (使用真实权限)
         const userData = {
           token: realToken,
@@ -161,7 +199,7 @@ const handleLogin = async () => {
             dbRole: payload.role || 'web_user',
             // 关键：从 Token 里拿到数据库定义的 permissions 数组
             permissions: payload.permissions || [], 
-            avatar: payload.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+            avatar: avatarUrl || payload.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
           }
         }
 

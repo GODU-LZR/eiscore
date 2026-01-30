@@ -10,7 +10,9 @@ select u.id,
        u.status,
        ur.role_id,
        r.code as role_code,
-       r.name as role_name
+       r.name as role_name,
+       u.password,
+       u.avatar
 from public.users u
 left join lateral (
   select role_id
@@ -39,6 +41,10 @@ begin
   )
   returning id into _user_id;
 
+  if new.avatar is not null then
+    update public.users set avatar = new.avatar where id = _user_id;
+  end if;
+
   if new.role_id is not null then
     insert into public.user_roles (user_id, role_id)
     values (_user_id, new.role_id)
@@ -59,8 +65,13 @@ begin
       phone = new.phone,
       email = new.email,
       status = coalesce(new.status, old.status),
+      avatar = new.avatar,
       updated_at = now()
   where id = old.id;
+
+  if new.password is not null and new.password <> '' then
+    update public.users set password = new.password where id = old.id;
+  end if;
 
   if new.role_id is distinct from old.role_id then
     delete from public.user_roles where user_id = old.id;

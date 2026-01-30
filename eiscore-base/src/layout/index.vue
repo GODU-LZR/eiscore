@@ -59,6 +59,7 @@
 
         <div class="header-right">
           <el-switch
+            v-if="showThemeToggle"
             v-model="isDark"
             inline-prompt
             active-icon="Moon"
@@ -71,7 +72,7 @@
           </el-tooltip>
           <el-dropdown @command="handleCommand">
             <span class="el-dropdown-link" style="display: flex; align-items: center; cursor: pointer;">
-              <el-avatar :size="32" src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png" />
+              <el-avatar :key="avatarTick" :size="32" :src="avatarRenderSrc" />
               <span style="margin-left: 8px; font-weight: 500;">{{ userStore.userInfo?.username || 'Admin' }}</span>
               <el-icon class="el-icon--right"><arrow-down /></el-icon>
             </span>
@@ -103,7 +104,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useDark, useToggle } from '@vueuse/core'
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
@@ -119,11 +120,40 @@ import AiCopilot from '@/components/AiCopilot.vue'
 const isCollapse = ref(false)
 const router = useRouter()
 const route = useRoute()
+let userInfoPoller = null
+let lastUserInfoStr = ''
+const avatarTick = ref(0)
+const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+const avatarSrc = computed(() => userStore.userInfo?.avatar || defaultAvatar)
+const avatarRenderSrc = computed(() => {
+  const src = avatarSrc.value || defaultAvatar
+  if (!src) return defaultAvatar
+  if (src.startsWith('data:')) return `${src}#t=${avatarTick.value}`
+  if (src.startsWith('http')) {
+    const joiner = src.includes('?') ? '&' : '?'
+    return `${src}${joiner}t=${avatarTick.value}`
+  }
+  return src
+})
 const systemStore = useSystemStore()
 const userStore = useUserStore()
 const { config } = storeToRefs(systemStore)
-const isDark = useDark()
+const isDark = useDark({ storageKey: 'eis_theme_global' })
 const toggleDark = useToggle(isDark)
+const showThemeToggle = false
+const userThemeKey = computed(() => {
+  const username = userStore.userInfo?.username || userStore.userInfo?.id || 'guest'
+  return `eis_theme_${String(username).toLowerCase()}`
+})
+
+const applyUserTheme = () => {
+  try {
+    const raw = localStorage.getItem(userThemeKey.value)
+    if (raw === null || raw === undefined || raw === '') return
+    if (raw === 'dark' || raw === '1' || raw === 'true') isDark.value = true
+    if (raw === 'light' || raw === '0' || raw === 'false') isDark.value = false
+  } catch (e) {}
+}
 
 const asideTheme = computed(() => {
   const primaryColor = config.value?.themeColor || '#409EFF'
@@ -149,6 +179,103 @@ const asideTheme = computed(() => {
 
 const showWorkerAssistant = computed(() => {
   return route.path !== '/' && !route.path.startsWith('/ai/enterprise')
+})
+
+const getAuthHeader = () => {
+  const tokenStr = localStorage.getItem('auth_token') || ''
+  if (!tokenStr) return {}
+  let token = tokenStr
+  try {
+    const parsed = JSON.parse(tokenStr)
+    if (parsed?.token) token = parsed.token
+  } catch (e) {}
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+const resolveAvatarUrl = async (info) => {
+  if (!info?.avatar || typeof info.avatar !== 'string') return info
+  if (!info.avatar.startsWith('file:')) return info
+  const fileId = info.avatar.replace('file:', '')
+  try {
+    const res = await fetch(`/api/files?id=eq.${fileId}&select=content_base64,mime_type`, {
+      headers: { 'Accept-Profile': 'public', ...getAuthHeader() }
+    })
+    if (!res.ok) return { ...info, avatar: '' }
+    const list = await res.json()
+    const row = Array.isArray(list) ? list[0] : null
+    if (!row?.content_base64) return { ...info, avatar: '' }
+    const mime = row.mime_type || 'application/octet-stream'
+    return { ...info, avatar: `data:${mime};base64,${row.content_base64}` }
+  } catch (e) {
+    return { ...info, avatar: '' }
+  }
+}
+
+const refreshUserInfo = async () => {
+  try {
+    const info = JSON.parse(localStorage.getItem('user_info') || '{}')
+    const resolved = await resolveAvatarUrl(info)
+    userStore.userInfo = resolved
+    avatarTick.value += 1
+    if (resolved && typeof resolved === 'object') {
+      const next = { ...info, avatar: resolved.avatar || '' }
+      localStorage.setItem('user_info', JSON.stringify(next))
+    }
+  } catch (e) {
+    userStore.userInfo = {}
+  }
+}
+
+const handleUserInfoMessage = (event) => {
+  const data = event?.data || {}
+  if (data?.type !== 'user-info-updated') return
+  const next = data.user_info || data.user
+  if (!next || typeof next !== 'object') return
+  try {
+    localStorage.setItem('user_info', JSON.stringify(next))
+    refreshUserInfo()
+  } catch (e) {}
+}
+
+const handleUserInfoStorage = (event) => {
+  if (!event || event.key !== 'user_info') return
+  refreshUserInfo()
+}
+
+onMounted(() => {
+  window.addEventListener('user-info-updated', refreshUserInfo)
+  window.addEventListener('message', handleUserInfoMessage)
+  window.addEventListener('storage', handleUserInfoStorage)
+  applyUserTheme()
+  refreshUserInfo()
+  lastUserInfoStr = localStorage.getItem('user_info') || ''
+  // 兜底：同窗口 localStorage 变更不会触发 storage 事件，用轮询确保头像即时刷新
+  userInfoPoller = window.setInterval(() => {
+    const current = localStorage.getItem('user_info') || ''
+    if (current !== lastUserInfoStr) {
+      lastUserInfoStr = current
+      refreshUserInfo()
+    }
+  }, 500)
+})
+onUnmounted(() => {
+  window.removeEventListener('user-info-updated', refreshUserInfo)
+  window.removeEventListener('message', handleUserInfoMessage)
+  window.removeEventListener('storage', handleUserInfoStorage)
+  if (userInfoPoller) {
+    window.clearInterval(userInfoPoller)
+    userInfoPoller = null
+  }
+})
+
+watch(userThemeKey, () => {
+  applyUserTheme()
+})
+
+watch(isDark, (val) => {
+  try {
+    localStorage.setItem(userThemeKey.value, val ? 'dark' : 'light')
+  } catch (e) {}
 })
 
 const activeMenu = computed(() => {

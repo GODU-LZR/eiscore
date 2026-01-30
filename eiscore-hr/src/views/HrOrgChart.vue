@@ -128,6 +128,28 @@
               </div>
             </el-scrollbar>
           </div>
+
+          <div class="side-section">
+            <div class="section-title">部门角色</div>
+            <div class="member-actions">
+              <el-button size="small" type="primary" plain @click="openRoleDialog('create')" :disabled="!deptForm.id">
+                新增角色
+              </el-button>
+            </div>
+            <div v-if="deptRoles.length === 0" class="empty-tip">暂无角色</div>
+            <el-scrollbar v-else class="member-list">
+              <div v-for="role in deptRoles" :key="role.id" class="member-item">
+                <div class="member-main">
+                  <span class="member-name">{{ role.name }}</span>
+                  <span class="member-sub">{{ role.description || '' }}</span>
+                </div>
+                <div class="member-actions-inline">
+                  <el-button size="small" text type="primary" @click="openRoleDialog('edit', role)">编辑</el-button>
+                  <el-button size="small" text type="danger" @click="deleteDeptRole(role)">删除</el-button>
+                </div>
+              </div>
+            </el-scrollbar>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -180,6 +202,28 @@
         <el-button type="primary" @click="addMember" :disabled="memberDialog.selectedIds.length === 0">添加</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="roleDialog.visible" :title="roleDialog.mode === 'create' ? '绑定角色' : '编辑角色'" width="420px" append-to-body @closed="resetRoleDialog">
+      <el-form label-width="90px">
+        <el-form-item label="选择角色">
+          <el-select v-model="roleDialog.form.role_id" placeholder="请选择角色" filterable>
+            <el-option v-for="r in roleOptions" :key="r.value" :label="r.label" :value="r.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input v-model="roleDialog.form.description" placeholder="可不填" />
+        </el-form-item>
+        <el-form-item label="排序">
+          <el-input-number v-model="roleDialog.form.sort" :min="0" :max="999" controls-position="right" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="roleDialog.visible = false">取消</el-button>
+        <el-button type="primary" @click="submitRoleDialog" :disabled="!roleDialog.form.role_id">
+          {{ roleDialog.mode === 'create' ? '绑定' : '保存' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -190,7 +234,9 @@ import { getRealtimeClient } from '@/utils/realtime'
 
 const departments = ref([])
 const members = ref([])
+const deptRoles = ref([])
 const leaderOptions = ref([])
+const roleOptions = ref([])
 const selectedDeptId = ref('')
 const canvasRef = ref(null)
 const svgRef = ref(null)
@@ -206,6 +252,12 @@ const deptDialog = ref({
   visible: false,
   mode: 'create',
   form: { id: '', name: '', parent_id: '', leader_id: '' }
+})
+
+const roleDialog = ref({
+  visible: false,
+  mode: 'create',
+  form: { id: '', role_id: '', description: '', sort: 100 }
 })
 
 const NODE_WIDTH = 180
@@ -421,6 +473,21 @@ const loadLeaders = async () => {
   leaderOptions.value = Array.isArray(res) ? res : []
 }
 
+const loadRoleOptions = async () => {
+  try {
+    const res = await request({
+      url: '/roles?order=sort.asc',
+      method: 'get',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+    })
+    roleOptions.value = Array.isArray(res)
+      ? res.map(r => ({ label: r.name || r.code, value: r.id, raw: r }))
+      : []
+  } catch (e) {
+    roleOptions.value = []
+  }
+}
+
 const loadMembers = async (deptId) => {
   if (!deptId) {
     members.value = []
@@ -444,6 +511,94 @@ const loadMembers = async (deptId) => {
         position: item.properties?.position || ''
       }))
     : []
+}
+
+const loadDeptRoles = async (deptId) => {
+  if (!deptId) {
+    deptRoles.value = []
+    return
+  }
+  try {
+    const res = await request({
+      url: `/roles?dept_id=eq.${deptId}&order=sort.asc`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+    })
+    deptRoles.value = Array.isArray(res) ? res : []
+  } catch (e) {
+    deptRoles.value = []
+  }
+}
+
+const openRoleDialog = (mode, role = null) => {
+  if (!deptForm.value.id) return
+  roleDialog.value.mode = mode
+  if (mode === 'edit' && role) {
+    roleDialog.value.form = {
+      id: role.id,
+      role_id: role.id,
+      description: role.description || '',
+      sort: role.sort ?? 100
+    }
+  } else {
+    roleDialog.value.form = { id: '', role_id: '', description: '', sort: 100 }
+  }
+  roleDialog.value.visible = true
+}
+
+const resetRoleDialog = () => {
+  roleDialog.value.form = { id: '', role_id: '', description: '', sort: 100 }
+}
+
+const submitRoleDialog = async () => {
+  const deptId = deptForm.value.id
+  if (!deptId) return
+  try {
+    if (roleDialog.value.mode === 'create') {
+      const roleId = roleDialog.value.form.role_id
+      if (!roleId) return
+      await request({
+        url: `/roles?id=eq.${roleId}`,
+        method: 'patch',
+        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+        data: {
+          dept_id: deptId,
+          description: roleDialog.value.form.description || null,
+          sort: roleDialog.value.form.sort ?? 100
+        }
+      })
+    } else {
+      await request({
+        url: `/roles?id=eq.${roleDialog.value.form.role_id}`,
+        method: 'patch',
+        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+        data: {
+          description: roleDialog.value.form.description || '',
+          sort: roleDialog.value.form.sort ?? 100,
+          dept_id: deptId
+        }
+      })
+    }
+    roleDialog.value.visible = false
+    await loadDeptRoles(deptId)
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+const deleteDeptRole = async (role) => {
+  if (!role?.id) return
+  try {
+    await request({
+      url: `/roles?id=eq.${role.id}`,
+      method: 'patch',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      data: { dept_id: null }
+    })
+    await loadDeptRoles(deptForm.value.id)
+  } catch (e) {
+    console.error(e)
+  }
 }
 
 const loadAvailableMembers = async () => {
@@ -476,6 +631,7 @@ const selectNode = async (node) => {
     status: dept.status || 'active'
   }
   await loadMembers(dept.id)
+  await loadDeptRoles(dept.id)
 }
 
 const openDeptDialog = (parentId = '') => {
@@ -577,6 +733,7 @@ const deleteDeptById = async (deptId) => {
   if (deptForm.value.id === deptId) {
     deptForm.value = { id: '', name: '', parent_id: '', leader_id: '', status: 'active' }
     members.value = []
+    deptRoles.value = []
     selectedDeptId.value = ''
   }
   await reloadAll()
@@ -587,8 +744,12 @@ const deleteDept = async () => {
 }
 
 const reloadAll = async () => {
-  await Promise.all([loadDepartments(), loadLeaders()])
+  await Promise.all([loadDepartments(), loadLeaders(), loadRoleOptions()])
   rebuildLayout()
+  if (deptForm.value.id) {
+    await loadMembers(deptForm.value.id)
+    await loadDeptRoles(deptForm.value.id)
+  }
 }
 
 const scheduleReload = () => {
@@ -959,6 +1120,11 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px dashed #ebeef5;
+}
+
+.member-actions-inline {
+  display: flex;
+  gap: 6px;
 }
 
 .member-main {
