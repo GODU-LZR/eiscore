@@ -103,6 +103,15 @@ dynamic_cols as (
   from public.system_configs sc,
        jsonb_array_elements(sc.value) elem
   where sc.key = 'materials_table_cols'
+
+  union all
+  select 'hr_user'::text as module,
+         (elem->>'prop')::text as field_code,
+         (elem->>'label')::text as field_label,
+         1 as priority
+  from public.system_configs sc,
+       jsonb_array_elements(sc.value) elem
+  where sc.key = 'hr_user_cols'
 ),
 merged as (
   select * from overrides

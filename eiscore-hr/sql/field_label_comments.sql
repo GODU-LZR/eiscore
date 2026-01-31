@@ -67,6 +67,7 @@ comment on column public.raw_materials.id is '编号';
 comment on column public.raw_materials.batch_no is '批次号';
 comment on column public.raw_materials.name is '物料名称';
 comment on column public.raw_materials.category is '物料分类';
+comment on column public.raw_materials.dept_id is '部门';
 comment on column public.raw_materials.weight_kg is '重量(kg)';
 comment on column public.raw_materials.entry_date is '入库日期';
 comment on column public.raw_materials.created_by is '创建人';

@@ -47,11 +47,16 @@ export const FIELD_LABELS = {
   },
   mms_ledger: {
     id: '编号',
-    batch_no: '批次号',
+    batch_no: '物料编码',
     name: '物料名称',
-    category: '物料分类',
-    weight_kg: '重量(kg)',
-    entry_date: '入库日期',
+    category: '物料分类编码',
+    dept_id: '部门',
+    spec: '规格',
+    unit: '单位',
+    measure_unit: '计量单位',
+    conversion_ratio: '换算比例',
+    conversion: '换算关系',
+    finance_attribute: '财务属性',
     created_by: '创建人'
   }
 }

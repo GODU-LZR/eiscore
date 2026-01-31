@@ -14,6 +14,7 @@ import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
 import CheckRenderer from '../components/renderers/CheckRenderer.vue'
 import CheckEditor from '../components/renderers/CheckEditor.vue'
+import { useUserStore } from '@/stores/user'
 
 export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit) {
   const hasGridRef = gridApiRef && typeof gridApiRef === 'object' && 'value' in gridApiRef
@@ -23,6 +24,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const searchText = ref('')
   const isLoading = ref(false)
   const columnLockState = reactive({})
+  const fieldAcl = ref({})
+  const userStore = useUserStore()
+  const resolvedRoleId = ref('')
+  const aclRoleId = computed(() => userStore.userInfo?.role_id || userStore.userInfo?.roleId || resolvedRoleId.value || '')
+  const aclModule = computed(() => props.aclModule || '')
 
   const gridComponents = {
     StatusRenderer: markRaw(StatusRenderer),
@@ -42,6 +48,68 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const dictOptions = reactive({})
   const dictLoading = reactive({})
 
+  const getFieldKeyFromColDef = (colDef) => {
+    const field = colDef?.field || ''
+    if (!field) return ''
+    return field.startsWith('properties.') ? field.slice('properties.'.length) : field
+  }
+
+  const getFieldAcl = (colDef) => {
+    if (!aclModule.value || !aclRoleId.value) return null
+    const key = getFieldKeyFromColDef(colDef)
+    if (!key) return null
+    return fieldAcl.value?.[key] || null
+  }
+
+  const applyFieldAclVisibility = () => {
+    if (!gridApi.value) return
+    gridApi.value.refreshCells({ force: true })
+    gridApi.value.refreshHeader()
+  }
+
+  const loadFieldAcl = async () => {
+    if (!aclModule.value) {
+      fieldAcl.value = {}
+      return
+    }
+    if (!aclRoleId.value) {
+      const roleCode = userStore.userInfo?.app_role || userStore.userInfo?.appRole || userStore.userInfo?.role
+      if (roleCode) {
+        try {
+          const res = await request({
+            url: `/roles?code=eq.${roleCode}`,
+            method: 'get',
+            headers: { 'Accept-Profile': 'public' }
+          })
+          if (Array.isArray(res) && res.length > 0) {
+            resolvedRoleId.value = res[0].id
+          }
+        } catch (e) {
+          resolvedRoleId.value = ''
+        }
+      }
+    }
+    if (!aclRoleId.value) {
+      fieldAcl.value = {}
+      return
+    }
+    try {
+      const res = await request({
+        url: `/sys_field_acl?role_id=eq.${aclRoleId.value}&module=eq.${aclModule.value}`,
+        method: 'get',
+        headers: { 'Accept-Profile': 'public' }
+      })
+      const map = {}
+      ;(Array.isArray(res) ? res : []).forEach((item) => {
+        map[item.field_code] = { canView: item.can_view, canEdit: item.can_edit }
+      })
+      fieldAcl.value = map
+      applyFieldAclVisibility()
+    } catch (e) {
+      fieldAcl.value = {}
+    }
+  }
+
   // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
     const colId = params.colDef.field
@@ -52,6 +120,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (columnLockState[colId]) return true
     if (params.data?.properties?.row_locked_by) return true
     if (params.colDef.type === 'formula') return true
+    const acl = getFieldAcl(params.colDef)
+    if (acl?.canView === false) return true
+    if (acl?.canEdit === false) return true
     return false
   }
 
@@ -67,6 +138,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const base = { 'line-height': '34px' }
     if (params.node.rowPinned) return { ...base, backgroundColor: '#ecf5ff', color: '#409EFF', fontWeight: 'bold', borderTop: '2px solid var(--el-color-primary-light-5)' }
     if (params.colDef.field === '_status') return { ...base, cursor: 'pointer' }
+    const acl = getFieldAcl(params.colDef)
+    if (acl?.canView === false) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
+    if (acl?.canView !== false && acl?.canEdit === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
     if (params.colDef.editable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef?.multiLine) {
@@ -77,6 +151,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
   const formatSummaryCell = (params, col) => {
     if (!params?.node?.rowPinned) {
+      const acl = getFieldAcl(params.colDef)
+      if (acl?.canView === false) return '*****'
       if (typeof col?.formatter === 'function') return col.formatter(params)
       if (Array.isArray(params.value)) return params.value.join('  ')
       return params.value
@@ -230,7 +306,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   })
 
   const createColDef = (col, isDynamic) => {
-    const field = isDynamic ? `properties.${col.prop}` : col.prop
+    const useProperties = isDynamic || col.storeInProperties === true
+    const field = useProperties ? `properties.${col.prop}` : col.prop
     const minWidth = col.minWidth ?? 150
     const widthConfig = col.width 
       ? { width: col.width, minWidth, suppressSizeToFit: true } 
@@ -255,12 +332,12 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       cellClassRules: cellClassRules,
       valueFormatter: (params) => formatSummaryCell(params, col),
       headerComponent: 'LockHeader',
-      headerClass: isDynamic ? 'dynamic-header' : '',
+      headerClass: useProperties ? 'dynamic-header' : '',
       ...widthConfig,
       ...extraColDef
     }
 
-    if (isDynamic) {
+    if (useProperties) {
       colDef.valueSetter = (params) => {
         if (!params.data.properties || typeof params.data.properties !== 'object') {
           params.data.properties = {}
@@ -347,6 +424,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const gridColumns = computed(() => {
+    // ensure acl updates can trigger colDef recalculation
+    fieldAcl.value
     const checkboxCol = { 
       colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, 
       width: 40, minWidth: 40, maxWidth: 40, pinned: 'left', 
@@ -393,7 +472,15 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     return [checkboxCol, statusCol, ...staticCols, ...dynamicCols, actionCol]
   })
 
+  watch([aclRoleId, aclModule], () => {
+    if (gridApi.value) {
+      loadFieldAcl()
+      gridApi.value.refreshCells({ force: true })
+    }
+  })
+
   const loadData = async () => {
+    await loadFieldAcl()
     isLoading.value = true 
     try {
       let url = props.apiUrl

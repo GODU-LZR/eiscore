@@ -17,8 +17,8 @@
           <eis-data-grid
             ref="rolesGridRef"
             view-id="hr_acl_roles"
-            api-url="/roles?order=sort.asc"
-            write-url="/roles"
+            api-url="/v_roles_manage?order=sort.asc"
+            write-url="/v_roles_manage"
             :include-properties="false"
             :static-columns="roleColumnsDisplay"
             :extra-columns="[]"
@@ -211,7 +211,6 @@ import { FIELD_LABELS } from '@/utils/field-labels'
 import { HR_APPS, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
 
 const roles = ref([])
-const deptOptions = ref([])
 const modules = ref(['hr_employee', 'hr_org', 'hr_attendance', 'hr_change', 'hr_acl', 'hr_user', 'mms_ledger'])
 
 const currentRoleId = ref('')
@@ -289,7 +288,6 @@ const roleColumns = computed(() => ([
     editable: true,
     valueFormatter: (params) => roleNameMap[params.data?.code] || params.value
   },
-  { prop: 'dept_id', label: '部门', editable: true, type: 'select', width: 160, options: deptOptions.value },
   {
     prop: 'description',
     label: '说明',
@@ -412,20 +410,6 @@ const loadRoles = async () => {
   if (!currentRoleId.value && roles.value.length) currentRoleId.value = roles.value[0].id
 }
 
-const loadDepartments = async () => {
-  try {
-    const res = await request({
-      url: '/departments?order=sort.asc,name.asc',
-      method: 'get',
-      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
-    })
-    deptOptions.value = Array.isArray(res)
-      ? res.map((d) => ({ label: d.name, value: d.id }))
-      : []
-  } catch (e) {
-    deptOptions.value = []
-  }
-}
 const scopeApiUrl = computed(() => {
   if (!currentRoleId.value) return '/v_role_data_scopes_matrix?limit=0'
   let base = `/v_role_data_scopes_matrix?role_id=eq.${currentRoleId.value}`
@@ -542,26 +526,32 @@ const getConfigKeyByModule = (moduleKey) => {
     hr_employee: 'hr_table_cols',
     hr_change: 'hr_transfer_cols',
     hr_attendance: 'hr_attendance_cols',
-    mms_ledger: 'materials_table_cols'
+    mms_ledger: 'materials_table_cols',
+    hr_user: 'hr_user_cols'
   }
   return map[moduleKey] || ''
 }
 
 const getStaticColumnsByModule = (moduleKey) => {
-  if (moduleKey === 'mms_ledger') {
-    return [
-      { label: '编号', prop: 'id' },
-      { label: '批次号', prop: 'batch_no' },
-      { label: '物料名称', prop: 'name' },
-      { label: '物料分类', prop: 'category' },
-      { label: '重量(kg)', prop: 'weight_kg' },
-      { label: '入库日期', prop: 'entry_date' },
-      { label: '创建人', prop: 'created_by' }
-    ]
-  }
   const app = HR_APPS.find(item => item.aclModule === moduleKey)
   if (app?.staticColumns?.length) return app.staticColumns
   return BASE_STATIC_COLUMNS
+}
+
+const fetchConfigColumns = async (moduleKey) => {
+  const configKey = getConfigKeyByModule(moduleKey)
+  if (!configKey) return []
+  try {
+    const res = await request({
+      url: `/system_configs?key=eq.${configKey}`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'public' }
+    })
+    const raw = Array.isArray(res) && res.length ? res[0].value : []
+    return Array.isArray(raw) ? raw : []
+  } catch (e) {
+    return []
+  }
 }
 
 const loadFieldLabelMap = async () => {
@@ -579,15 +569,64 @@ const loadFieldLabelMap = async () => {
     })
     if (Array.isArray(res)) {
       res.forEach((row) => {
-        if (row?.field_code && row?.field_label) {
-          map[row.field_code] = row.field_label
+        if (!row?.field_code) return
+        const raw = row?.field_label || ''
+        const code = row.field_code
+        const normalized = String(raw).trim()
+        const looksLikeCode = /^[a-z0-9_]+$/i.test(normalized)
+        if (!normalized || normalized === '???' || normalized === '？？？' || looksLikeCode) {
+          return
         }
+        map[code] = normalized
       })
     }
   } catch (e) {
     console.warn('load field labels failed', e)
   }
+  const fallbackLabels = FIELD_LABELS[moduleKey] || {}
+  Object.keys(fallbackLabels).forEach((code) => {
+    if (!map[code]) map[code] = fallbackLabels[code]
+  })
+  const configCols = await fetchConfigColumns(moduleKey)
+  configCols.forEach((col) => {
+    if (col?.prop && col?.label && !map[col.prop]) {
+      map[col.prop] = col.label
+    }
+  })
   fieldLabelMap.value = map
+}
+
+const ensureFieldAclForModule = async (moduleKey) => {
+  if (!moduleKey) return
+  try {
+    const res = await request({
+      url: `/v_field_labels?module=eq.${moduleKey}`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'public' }
+    })
+    const codes = new Set()
+    if (Array.isArray(res)) {
+      res.forEach((row) => {
+        if (row?.field_code) codes.add(row.field_code)
+      })
+    }
+    const fallbackLabels = FIELD_LABELS[moduleKey] || {}
+    Object.keys(fallbackLabels).forEach((code) => codes.add(code))
+    const configCols = await fetchConfigColumns(moduleKey)
+    configCols.forEach((col) => {
+      if (col?.prop) codes.add(col.prop)
+    })
+    const payload = Array.from(codes).filter(Boolean)
+    if (payload.length === 0) return
+    await request({
+      url: '/rpc/ensure_field_acl',
+      method: 'post',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      data: { module_name: moduleKey, field_codes: payload }
+    })
+  } catch (e) {
+    console.warn('ensure field acl failed', e)
+  }
 }
 
 watchEffect(() => {
@@ -597,11 +636,19 @@ watchEffect(() => {
 })
 
 watchEffect(() => {
-  if (activeTab.value === 'field') loadFieldLabelMap()
+  if (activeTab.value === 'field') {
+    ensureFieldAclForModule(fieldModule.value).then(() => {
+      loadFieldLabelMap()
+    })
+  }
 })
 
-watch([fieldModule, fieldModuleGroup], () => {
-  if (activeTab.value === 'field') fieldGridRef.value?.loadData()
+watch([fieldModule, fieldModuleGroup], async () => {
+  if (activeTab.value === 'field') {
+    await ensureFieldAclForModule(fieldModule.value)
+    await loadFieldLabelMap()
+    fieldGridRef.value?.loadData()
+  }
 })
 
 watch(permModuleGroup, () => {
@@ -757,7 +804,6 @@ const handleCreate = async (type) => {
 
 onMounted(async () => {
   await loadRoles()
-  await loadDepartments()
 })
 </script>
 

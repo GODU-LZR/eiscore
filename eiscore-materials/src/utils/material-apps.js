@@ -1,8 +1,76 @@
+import { FINANCE_ATTRIBUTE_SELECT_OPTIONS } from '@/constants/financeAttributes'
+
+const UNIT_SELECT_OPTIONS = [
+  { label: '个', value: '个' },
+  { label: '件', value: '件' },
+  { label: '箱', value: '箱' },
+  { label: '袋', value: '袋' },
+  { label: '盒', value: '盒' },
+  { label: '瓶', value: '瓶' },
+  { label: '吨', value: '吨' },
+  { label: '千克', value: '千克' },
+  { label: '克', value: '克' },
+  { label: '斤', value: '斤' },
+  { label: '米', value: '米' },
+  { label: '平方米', value: '平方米' },
+  { label: '立方米', value: '立方米' }
+]
+
 export const BASE_STATIC_COLUMNS = [
   { label: '物料编码', prop: 'batch_no', editable: false, width: 160 },
   { label: '物料名称', prop: 'name', width: 160 },
   { label: '物料分类编码', prop: 'category', editable: false, width: 160 },
-  { label: '入库日期', prop: 'entry_date', width: 120 },
+  { label: '规格', prop: 'spec', width: 160, storeInProperties: true },
+  {
+    label: '单位',
+    prop: 'unit',
+    type: 'select',
+    options: UNIT_SELECT_OPTIONS,
+    width: 120,
+    storeInProperties: true
+  },
+  {
+    label: '计量单位',
+    prop: 'measure_unit',
+    type: 'select',
+    options: UNIT_SELECT_OPTIONS,
+    width: 120,
+    storeInProperties: true
+  },
+  {
+    label: '换算比例',
+    prop: 'conversion_ratio',
+    type: 'number',
+    width: 120,
+    storeInProperties: true
+  },
+  {
+    label: '换算关系',
+    prop: 'conversion',
+    editable: false,
+    width: 180,
+    storeInProperties: true,
+    valueGetter: (params) => {
+      const unit = params?.data?.properties?.unit || ''
+      const measureUnit = params?.data?.properties?.measure_unit || ''
+      const ratio = params?.data?.properties?.conversion_ratio
+      if (unit && measureUnit && ratio !== undefined && ratio !== null && ratio !== '') {
+        return `1 ${measureUnit} = ${ratio} ${unit}`
+      }
+      if (unit && measureUnit) {
+        return `${measureUnit} ↔ ${unit}`
+      }
+      return ''
+    }
+  },
+  {
+    label: '财务属性',
+    prop: 'finance_attribute',
+    type: 'select',
+    options: FINANCE_ATTRIBUTE_SELECT_OPTIONS,
+    width: 200,
+    storeInProperties: true
+  },
   { label: '创建人', prop: 'created_by', editable: false, width: 120 }
 ]
 
@@ -16,8 +84,8 @@ const DEFAULT_SUMMARY = {
 export const MATERIAL_APPS = [
   {
     key: 'a',
-    name: '物料台账',
-    desc: '原料与批次基础信息管理',
+    name: '物料',
+    desc: '物料基础信息管理',
     route: '/app/a',
     perm: 'app:mms_ledger',
     aclModule: 'mms_ledger',
@@ -36,15 +104,10 @@ export const MATERIAL_APPS = [
       export: 'op:mms_ledger.export',
       config: 'op:mms_ledger.config'
     },
+    patchRequiredFields: ['batch_no', 'name', 'category'],
     staticColumns: BASE_STATIC_COLUMNS,
     summaryConfig: DEFAULT_SUMMARY,
-    defaultExtraColumns: [
-      { label: '规格', prop: 'spec', type: 'text' },
-      { label: '单位', prop: 'unit', type: 'text' },
-      { label: '计量单位', prop: 'measure_unit', type: 'text' },
-      { label: '换算关系', prop: 'conversion', type: 'text' },
-      { label: '财务属性', prop: 'finance_attribute', type: 'text' }
-    ]
+    defaultExtraColumns: []
   }
 ]
 

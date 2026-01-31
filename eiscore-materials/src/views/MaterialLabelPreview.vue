@@ -50,7 +50,6 @@ const infoPairs = computed(() => {
     { key: '单位', value: props.unit },
     { key: '计量单位', value: props.measure_unit },
     { key: '换算关系', value: props.conversion },
-    { key: '入库日期', value: row.entry_date },
     { key: '创建人', value: row.created_by }
   ]
 })

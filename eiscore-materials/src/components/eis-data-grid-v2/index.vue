@@ -130,6 +130,7 @@ const props = defineProps({
   fieldDefaults: { type: Object, default: () => ({}) },
   patchRequiredFields: { type: Array, default: () => [] },
   viewId: { type: String, required: false, default: null },
+  aclModule: { type: String, default: '' },
   staticColumns: { type: Array, default: () => [] },
   extraColumns: { type: Array, default: () => [] },
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) },

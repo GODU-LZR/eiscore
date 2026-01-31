@@ -143,6 +143,23 @@
                     <span class="card-title">检测到表格导入数据</span>
                     <span class="card-name">共 {{ getImportInfo(msg).rows.length }} 行</span>
                   </div>
+                  <div class="preview-table">
+                    <el-table
+                      :data="getImportPreview(getImportInfo(msg)).rows"
+                      size="small"
+                      border
+                      style="width: 100%"
+                      max-height="220"
+                    >
+                      <el-table-column
+                        v-for="col in getImportPreview(getImportInfo(msg)).columns"
+                        :key="col.prop"
+                        :prop="col.prop"
+                        :label="col.label"
+                        min-width="120"
+                      />
+                    </el-table>
+                  </div>
                   <div class="card-actions">
                     <el-button
                       size="small"
@@ -162,6 +179,14 @@
                   <div class="card-header">
                     <span class="card-title">检测到物料分类</span>
                     <span class="card-name">共 {{ getCategoryInfo(msg).data.length }} 项</span>
+                  </div>
+                  <div class="preview-tree">
+                    <el-tree
+                      :data="getCategoryInfo(msg).data"
+                      :props="{ label: 'label', children: 'children' }"
+                      node-key="id"
+                      default-expand-all
+                    />
                   </div>
                   <div class="card-actions">
                     <el-button
@@ -307,6 +332,9 @@ const defaultFence = md.renderer.rules.fence
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
   const info = token.info.trim().toLowerCase()
+  if (MATERIAL_CATEGORY_BLOCKS.includes(info) || IMPORT_BLOCKS.includes(info)) {
+    return ''
+  }
   if (info === 'mermaid') {
     return `<div class="mermaid-chart" data-raw="${encodeURIComponent(token.content)}"></div>`
   }
@@ -374,6 +402,12 @@ const parseJwtPayload = (token) => {
   } catch (e) {
     return null
   }
+}
+
+const getTokenUsername = (token) => {
+  const payload = parseJwtPayload(token)
+  const username = payload?.username
+  return username ? String(username) : ''
 }
 
 const isTokenExpired = (token) => {
@@ -481,6 +515,31 @@ const extractCategoryData = (text, blocks) => {
 
 const getCategoryInfo = (msg) => extractCategoryData(msg?.content || '', MATERIAL_CATEGORY_BLOCKS)
 
+const getImportPreview = (info) => {
+  const rows = Array.isArray(info?.rows) ? info.rows : []
+  if (rows.length === 0) return { columns: [], rows: [] }
+  const keySet = new Set()
+  rows.forEach((row) => {
+    Object.keys(row || {}).forEach((key) => keySet.add(key))
+  })
+  const contextColumns = Array.isArray(state.currentContext?.columns)
+    ? state.currentContext.columns
+    : []
+  const orderedKeys = []
+  contextColumns.forEach((col) => {
+    if (keySet.has(col.prop)) orderedKeys.push(col.prop)
+  })
+  keySet.forEach((key) => {
+    if (!orderedKeys.includes(key)) orderedKeys.push(key)
+  })
+  const labelMap = new Map(contextColumns.map(col => [col.prop, col.label]))
+  const columns = orderedKeys.map((key) => ({
+    prop: key,
+    label: labelMap.get(key) || key
+  }))
+  return { columns, rows: rows.slice(0, 8) }
+}
+
 const getTemplateSectionCount = (schema) => {
   if (!schema?.layout) return 0
   return schema.layout.filter(item => item.type === 'section').length
@@ -586,8 +645,60 @@ const applyAiFormula = (formula, messageKey) => {
 const buildImportPayload = (rows, context) => {
   const staticProps = new Set((context?.staticColumns || []).map(col => col.prop))
   const labelToProp = new Map((context?.columns || []).map(col => [col.label, col.prop]))
-  const categoryMap = new Map()
+  const propertyFields = new Set(context?.propertyFields || [])
+  const token = getAuthToken()
+  const tokenUsername = getTokenUsername(token)
+  const currentUser = tokenUsername || context?.currentUser || ''
+  return rows.map((row) => {
+    if (!row || typeof row !== 'object') return null
+    const payload = { properties: {} }
+    const rowProps = row.properties && typeof row.properties === 'object' ? row.properties : null
+    Object.entries(row).forEach(([key, value]) => {
+      if (key === 'properties') return
+      let prop = key
+      if (!staticProps.has(prop) && labelToProp.has(prop)) {
+        prop = labelToProp.get(prop)
+      }
+      if (staticProps.has(prop)) {
+        if (propertyFields.has(prop)) {
+          payload.properties[prop] = value
+        } else {
+          payload[prop] = value
+        }
+      } else {
+        payload.properties[prop] = value
+      }
+    })
+    if (rowProps) {
+      payload.properties = { ...payload.properties, ...rowProps }
+    }
+    if (staticProps.has('created_by') && currentUser) {
+      payload.created_by = currentUser
+    }
+    if (Object.keys(payload.properties).length === 0) delete payload.properties
+    return payload
+  }).filter(Boolean)
+}
+
+const applyDataImport = async (info, messageKey) => {
+  if (importState.value[messageKey] === 'done') return
+  const context = aiBridge.state.currentContext
+  const target = context?.importTarget
+  if (!target?.apiUrl) {
+    ElMessage.error('未找到可导入的表格上下文')
+    return
+  }
+  const token = getAuthToken()
+  const tokenUsername = getTokenUsername(token)
+  const currentUser = tokenUsername || context?.currentUser || ''
+  const rows = info?.rows || []
+  if (!rows.length) {
+    ElMessage.warning('没有可导入的数据')
+    return
+  }
+  const labelToProp = new Map((context?.columns || []).map(col => [col.label, col.prop]))
   const categories = Array.isArray(context?.materialsCategories) ? context.materialsCategories : []
+  const categoryMap = new Map()
   const buildCategoryMap = (list, parentName = '') => {
     if (!Array.isArray(list)) return
     list.forEach((item) => {
@@ -603,55 +714,80 @@ const buildImportPayload = (rows, context) => {
     })
   }
   buildCategoryMap(categories)
-  return rows.map((row) => {
-    if (!row || typeof row !== 'object') return null
-    const payload = { properties: {} }
-    const rowProps = row.properties && typeof row.properties === 'object' ? row.properties : null
-    Object.entries(row).forEach(([key, value]) => {
-      if (key === 'properties') return
-      let prop = key
-      if (!staticProps.has(prop) && labelToProp.has(prop)) {
-        prop = labelToProp.get(prop)
-      }
-      if (staticProps.has(prop)) {
-        if (prop === 'category' && typeof value === 'string') {
-          payload[prop] = categoryMap.get(value.trim()) || value
-        } else {
-          payload[prop] = value
-        }
-      } else {
-        payload.properties[prop] = value
-      }
-    })
-    if (rowProps) {
-      payload.properties = { ...payload.properties, ...rowProps }
+  const getRowValue = (row, prop, labels = []) => {
+    if (row[prop] !== undefined && row[prop] !== null && row[prop] !== '') return row[prop]
+    for (const label of labels) {
+      if (row[label] !== undefined && row[label] !== null && row[label] !== '') return row[label]
+      const mapped = labelToProp.get(label)
+      if (mapped && row[mapped] !== undefined && row[mapped] !== null && row[mapped] !== '') return row[mapped]
     }
-    if (Object.keys(payload.properties).length === 0) delete payload.properties
-    return payload
-  }).filter(Boolean)
-}
+    return ''
+  }
+  const parseSeq = (code) => {
+    if (!code) return 0
+    const parts = String(code).split('.')
+    const tail = parts[parts.length - 1]
+    const num = Number(tail)
+    return Number.isFinite(num) ? num : 0
+  }
+  const nextSeqMap = new Map()
+  const fetchNextCode = async (prefix) => {
+    if (nextSeqMap.has(prefix)) {
+      const next = nextSeqMap.get(prefix) + 1
+      nextSeqMap.set(prefix, next)
+      return `${prefix}.${String(next).padStart(4, '0')}`
+    }
+    const token = getAuthToken()
+    const headers = { 'Accept': 'application/json', 'Accept-Profile': 'public' }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const likePattern = `${prefix}.%`
+    const url = `/api/raw_materials?select=batch_no&batch_no=like.${encodeURIComponent(
+      likePattern
+    )}&order=batch_no.desc&limit=1`
+    const res = await fetch(url, { headers })
+    const data = res.ok ? await res.json() : []
+    const latest = Array.isArray(data) && data.length ? data[0].batch_no : ''
+    const next = parseSeq(latest) + 1
+    nextSeqMap.set(prefix, next)
+    return `${prefix}.${String(next).padStart(4, '0')}`
+  }
 
-const applyDataImport = async (info, messageKey) => {
-  if (importState.value[messageKey] === 'done') return
-  const context = aiBridge.state.currentContext
-  const target = context?.importTarget
-  if (!target?.apiUrl) {
-    ElMessage.error('未找到可导入的表格上下文')
-    return
+  let skipped = 0
+  const cleanedRows = []
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    const name = getRowValue(row, 'name', ['物料名称', '名称'])
+    if (!name) {
+      skipped += 1
+      continue
+    }
+    const categoryRaw = getRowValue(row, 'category', ['物料分类', '物料分类编码'])
+    const categoryCode = typeof categoryRaw === 'string'
+      ? (categoryMap.get(categoryRaw.trim()) || categoryRaw.trim())
+      : categoryRaw
+    if (categoryCode) row.category = categoryCode
+    const batchNo = getRowValue(row, 'batch_no', ['物料编码'])
+    if (!batchNo) {
+      if (!categoryCode) {
+        skipped += 1
+        continue
+      }
+      row.batch_no = await fetchNextCode(categoryCode)
+    }
+    if (currentUser) {
+      row.created_by = currentUser
+    }
+    row.name = name
+    cleanedRows.push(row)
   }
-  const rows = info?.rows || []
-  if (!rows.length) {
-    ElMessage.warning('没有可导入的数据')
-    return
-  }
-  const payload = buildImportPayload(rows, context)
+
+  const payload = buildImportPayload(cleanedRows, context)
   if (!payload.length) {
     ElMessage.warning('导入数据格式不正确')
     return
   }
   importState.value[messageKey] = 'importing'
   try {
-    const token = getAuthToken()
     if (token && isTokenExpired(token)) {
       importState.value[messageKey] = 'error'
       ElMessage.error('登录已过期，请重新登录后再导入')
@@ -667,6 +803,9 @@ const applyDataImport = async (info, messageKey) => {
     }
     if (token) headers.Authorization = `Bearer ${token}`
     const url = target.apiUrl.startsWith('/api') ? target.apiUrl : `/api${target.apiUrl}`
+    if (currentUser) {
+      payload.forEach((item) => { item.created_by = currentUser })
+    }
     const res = await fetch(url, {
       method: 'POST',
       headers,
@@ -679,7 +818,8 @@ const applyDataImport = async (info, messageKey) => {
     }
     if (!res.ok) throw new Error(`导入失败: ${res.status}`)
     importState.value[messageKey] = 'done'
-    ElMessage.success(`已导入 ${payload.length} 行`)
+    const extra = skipped > 0 ? `，跳过 ${skipped} 行（物料名称缺失）` : ''
+    ElMessage.success(`已导入 ${payload.length} 行${extra}`)
     const event = new CustomEvent('eis-grid-imported', { detail: { viewId: target.viewId } })
     window.dispatchEvent(event)
   } catch (e) {
@@ -1032,6 +1172,9 @@ $border-color: #e4e7ed;
   bottom: 30px;
   right: 30px;
   z-index: 9999;
+  --ai-panel-bg: var(--el-color-primary-light-9, #f5f7fa);
+  --ai-panel-surface: #ffffff;
+  --ai-panel-border: #e4e7ed;
 
   &.is-open {
     inset: 0;
@@ -1081,7 +1224,7 @@ $border-color: #e4e7ed;
   inset: 0;
   width: 100%;
   height: 100%;
-  background: $bg-color;
+  background: var(--ai-panel-bg);
   border-radius: 0;
   box-shadow: none;
   display: flex;
@@ -1107,6 +1250,7 @@ $border-color: #e4e7ed;
   justify-content: space-between;
   align-items: center;
   padding: 0 16px;
+  background: var(--ai-panel-surface);
 
   .header-left {
     display: flex; align-items: center; gap: 8px; cursor: pointer;
@@ -1142,7 +1286,7 @@ $border-color: #e4e7ed;
   }
 }
 
-.chat-area { flex: 1; display: flex; flex-direction: column; background: $chat-bg; width: 100%; }
+.chat-area { flex: 1; display: flex; flex-direction: column; background: var(--ai-panel-bg); width: 100%; }
 
 .messages-container {
   flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;
@@ -1187,7 +1331,7 @@ $border-color: #e4e7ed;
 }
 
 .input-section {
-  background: #fff; border-top: 1px solid $border-color; padding: 12px;
+  background: var(--ai-panel-surface); border-top: 1px solid $border-color; padding: 12px;
 
   .file-preview-bar {
     display: flex; gap: 8px; margin-bottom: 8px; overflow-x: auto; padding-bottom: 4px;
@@ -1259,7 +1403,7 @@ $border-color: #e4e7ed;
 .form-template-card {
   margin-top: 8px;
   padding: 10px 12px;
-  border: 1px dashed $border-color;
+  border: 1px solid $border-color;
   border-radius: 10px;
   background: #fff;
   display: flex;
@@ -1271,7 +1415,7 @@ $border-color: #e4e7ed;
 .import-card {
   margin-top: 8px;
   padding: 10px 12px;
-  border: 1px dashed $border-color;
+  border: 1px solid $border-color;
   border-radius: 10px;
   background: #fff;
   display: flex;
@@ -1316,6 +1460,25 @@ $border-color: #e4e7ed;
 .import-card .card-actions {
   display: flex;
   justify-content: flex-end;
+}
+
+.preview-table,
+.preview-tree {
+  margin-top: 8px;
+  background: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.preview-table :deep(.el-table) {
+  border: none;
+}
+.preview-table :deep(.el-table__inner-wrapper::before),
+.preview-table :deep(.el-table::before) {
+  height: 0;
 }
 
 .form-template-error {

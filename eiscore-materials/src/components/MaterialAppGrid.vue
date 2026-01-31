@@ -15,6 +15,7 @@
         :field-defaults="app.fieldDefaults || {}"
         :patch-required-fields="app.patchRequiredFields || []"
         :default-order="app.defaultOrder || 'id.desc'"
+        :acl-module="app.aclModule"
         :static-columns="staticColumns"
         :extra-columns="extraColumns"
         :summary="summaryConfig"
@@ -32,6 +33,23 @@
 
       <el-dialog v-model="colConfigVisible" title="列管理" width="600px" append-to-body destroy-on-close @closed="resetForm">
         <div class="column-manager">
+          <p class="section-title">固定列显示：</p>
+          <div class="col-list">
+            <div v-for="col in staticColumnsAll" :key="col.prop" class="col-item">
+              <div class="col-info">
+                <span class="col-label">{{ col.label }}</span>
+              </div>
+              <div class="col-actions">
+                <el-switch
+                  :model-value="isStaticVisible(col.prop)"
+                  active-text="显示"
+                  inactive-text="隐藏"
+                  @change="toggleStaticColumn(col.prop, $event)"
+                />
+              </div>
+            </div>
+          </div>
+
           <p class="section-title">已添加的列：</p>
           <div v-if="extraColumns.length === 0" class="empty-tip">还没有新增列</div>
           
@@ -240,14 +258,18 @@ const colConfigVisible = ref(false)
 const addTab = ref('text') 
 let realtimeUnsub = null
 let realtimeTimer = null
+let fieldLabelRetryTimer = null
+let fieldLabelRetrying = false
+let fieldLabelWarned = false
 
 const userStore = useUserStore()
 const currentUser = computed(() => userStore.userInfo?.username || 'Admin')
+const currentDeptId = computed(() => userStore.userInfo?.dept_id || userStore.userInfo?.deptId || '')
 
 const app = computed(() => props.appConfig || findMaterialApp(props.appKey) || {
   key: 'a',
-  name: '物料台账',
-  desc: '原料与批次基础信息管理',
+  name: '物料',
+  desc: '物料基础信息管理',
   route: '/app/a',
   viewId: 'materials_list',
   configKey: 'materials_table_cols',
@@ -265,7 +287,11 @@ const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
 const canConfig = computed(() => hasPerm(opPerms.value.config))
 
-const staticColumns = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
+const staticHidden = ref([])
+const staticColumnsAll = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
+const staticColumns = computed(() =>
+  staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
+)
 const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
 
 const extraColumns = ref([])
@@ -398,7 +424,36 @@ const loadColumnsConfig = async () => {
     }
     syncAiContext()
     await syncFieldAclForColumns()
+    await syncFieldLabels()
   } catch (e) { console.error(e) }
+}
+
+const loadStaticColumnsConfig = async () => {
+  const configKey = `${app.value.configKey || 'materials_table_cols'}_static_hidden`
+  try {
+    const res = await request({
+      url: `/system_configs?key=eq.${configKey}`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'public' }
+    })
+    const hidden = Array.isArray(res) && res.length ? res[0].value : []
+    const props = new Set(staticColumnsAll.value.map(col => col.prop).filter(Boolean))
+    staticHidden.value = Array.isArray(hidden)
+      ? hidden.filter(prop => props.has(prop))
+      : []
+  } catch (e) {
+    staticHidden.value = []
+  }
+}
+
+const saveStaticColumnsConfig = async () => {
+  const configKey = `${app.value.configKey || 'materials_table_cols'}_static_hidden`
+  await request({
+    url: '/system_configs',
+    method: 'post',
+    headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+    data: { key: configKey, value: staticHidden.value }
+  })
 }
 
 const scheduleGridReload = () => {
@@ -463,7 +518,9 @@ const buildDataSample = (rows, columns, limit = 50) => {
       const prop = col.prop
       if (!prop) return
       if (col.type === 'file' || col.type === 'geo') return
-      const value = row?.[prop] ?? row?.properties?.[prop]
+      const value = col.storeInProperties
+        ? row?.properties?.[prop]
+        : (row?.[prop] ?? row?.properties?.[prop])
       if (value !== undefined && value !== null && value !== '') {
         item[prop] = value
       }
@@ -481,8 +538,12 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     options: col.options || [],
     dependsOn: col.dependsOn || '',
     cascaderOptions: col.cascaderOptions || null,
-    expression: col.expression || ''
+    expression: col.expression || '',
+    storeInProperties: col.storeInProperties === true
   }))
+  const propertyFields = columns
+    .filter(col => col.storeInProperties)
+    .map(col => col.prop)
   const dataStats = buildDataStats(rows)
   const dataSample = buildDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
@@ -491,8 +552,10 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     view: app.value.key,
     viewId: app.value.viewId,
     apiUrl: app.value.apiUrl || '/raw_materials',
+    currentUser: currentUser.value,
     profile: 'public',
     columns,
+    propertyFields,
     staticColumns: staticColumns.value,
     extraColumns: extraColumns.value,
     summaryConfig: summaryConfig.value,
@@ -508,7 +571,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     allowFormulaOnce: !!overrides.allowFormulaOnce,
     allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
     importTarget: {
-      apiUrl: app.value.apiUrl || '/raw_materials',
+      apiUrl: app.value.writeUrl || (app.value.apiUrl || '/raw_materials').split('?')[0],
       profile: 'public',
       viewId: app.value.viewId
     }
@@ -523,6 +586,8 @@ const saveColumnsConfig = async () => {
     headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
     data: { key: configKey, value: extraColumns.value }
   })
+  await syncFieldAclForColumns([...staticColumnsAll.value, ...extraColumns.value].map(col => col.prop).filter(Boolean))
+  await syncFieldLabels()
 }
 
 const syncFieldAclForColumns = async (columnProps = null) => {
@@ -531,7 +596,7 @@ const syncFieldAclForColumns = async (columnProps = null) => {
   if (hasSyncedFieldAcl.value && !columnProps) return
   const props = Array.isArray(columnProps) && columnProps.length
     ? columnProps
-    : [...staticColumns.value, ...extraColumns.value].map(col => col.prop).filter(Boolean)
+    : [...staticColumnsAll.value, ...extraColumns.value].map(col => col.prop).filter(Boolean)
   if (props.length === 0) return
   const uniqueProps = Array.from(new Set(props))
   try {
@@ -544,6 +609,43 @@ const syncFieldAclForColumns = async (columnProps = null) => {
     if (!columnProps) hasSyncedFieldAcl.value = true
   } catch (e) {
     console.warn('sync field acl failed', e)
+  }
+}
+
+const syncFieldLabels = async () => {
+  const moduleName = app.value.aclModule
+  if (!moduleName) return
+  const cols = [...staticColumnsAll.value, ...extraColumns.value]
+  const payload = cols
+    .filter(col => col?.prop && col?.label)
+    .map(col => ({
+      module: moduleName,
+      field_code: col.prop,
+      field_label: col.label
+    }))
+  if (payload.length === 0) return
+  try {
+    await request({
+      url: '/field_label_overrides',
+      method: 'post',
+      headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      data: payload
+    })
+    fieldLabelRetrying = false
+    fieldLabelWarned = false
+  } catch (e) {
+    console.warn('sync field labels failed', e)
+    if (!fieldLabelWarned) {
+      fieldLabelWarned = true
+      ElMessage.warning('列权限名称同步失败，正在重试...')
+    }
+    if (!fieldLabelRetryTimer) {
+      fieldLabelRetrying = true
+      fieldLabelRetryTimer = setTimeout(() => {
+        fieldLabelRetryTimer = null
+        syncFieldLabels()
+      }, 2000)
+    }
   }
 }
 
@@ -793,6 +895,19 @@ const openColumnConfig = () => {
   colConfigVisible.value = true
 }
 
+const isStaticVisible = (prop) => !staticHidden.value.includes(prop)
+const toggleStaticColumn = async (prop, visible) => {
+  const has = staticHidden.value.includes(prop)
+  if (visible && has) {
+    staticHidden.value = staticHidden.value.filter(item => item !== prop)
+  }
+  if (!visible && !has) {
+    staticHidden.value = [...staticHidden.value, prop]
+  }
+  await saveStaticColumnsConfig()
+  syncAiContext()
+}
+
 const normalizeCategoryCode = (value) => {
   if (value === undefined || value === null) return ''
   const text = String(value).trim()
@@ -842,7 +957,8 @@ const handleCreate = async () => {
       category: categoryCode,
       weight_kg: null,
       entry_date: today,
-      created_by: currentUser.value
+      created_by: currentUser.value,
+      dept_id: currentDeptId.value || null
     }
     if (app.value.includeProperties !== false) {
       payload.properties = {}
@@ -863,7 +979,7 @@ const handleCreate = async () => {
 }
 
 onMounted(() => {
-  loadColumnsConfig()
+  loadStaticColumnsConfig().then(loadColumnsConfig)
   loadMaterialsSettings()
   const realtime = getRealtimeClient()
   realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
@@ -924,6 +1040,10 @@ onUnmounted(() => {
   if (realtimeTimer) {
     clearTimeout(realtimeTimer)
     realtimeTimer = null
+  }
+  if (fieldLabelRetryTimer) {
+    clearTimeout(fieldLabelRetryTimer)
+    fieldLabelRetryTimer = null
   }
 })
 </script>

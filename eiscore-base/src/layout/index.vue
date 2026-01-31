@@ -192,6 +192,67 @@ const getAuthHeader = () => {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+const superScopeSynced = ref(false)
+const superScopeRetryCount = ref(0)
+let superScopeRetryTimer = null
+
+const scheduleSuperScopeRetry = () => {
+  if (superScopeRetryTimer || superScopeSynced.value) return
+  if (superScopeRetryCount.value >= 3) return
+  superScopeRetryTimer = window.setTimeout(() => {
+    superScopeRetryTimer = null
+    superScopeRetryCount.value += 1
+    ensureSuperAdminScopes()
+  }, 2000 * (superScopeRetryCount.value + 1))
+}
+
+const ensureSuperAdminScopes = async () => {
+  const info = userStore.userInfo || {}
+  const isSuper = info.role === 'super_admin' || info.dbRole === 'super_admin'
+  if (!isSuper || superScopeSynced.value) return
+  let roleId = info.role_id || ''
+  if (!roleId) {
+    try {
+      const res = await fetch('/api/roles?code=eq.super_admin', {
+        method: 'GET',
+        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', ...getAuthHeader() }
+      })
+      if (res.ok) {
+        const list = await res.json()
+        if (Array.isArray(list) && list.length > 0) {
+          roleId = list[0].id
+        }
+      }
+    } catch (e) {}
+  }
+  if (!roleId) return
+  const modules = ['hr_employee', 'hr_org', 'hr_attendance', 'hr_change', 'hr_user', 'mms_ledger']
+  const payload = modules.map((module) => ({
+    role_id: roleId,
+    module,
+    scope_type: 'all',
+    dept_id: null
+  }))
+  try {
+    await fetch('/api/role_data_scopes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public',
+        'Prefer': 'resolution=merge-duplicates',
+        ...getAuthHeader()
+      },
+      body: JSON.stringify(payload)
+    })
+    superScopeSynced.value = true
+    if (superScopeRetryTimer) {
+      window.clearTimeout(superScopeRetryTimer)
+      superScopeRetryTimer = null
+    }
+  } catch (e) {}
+}
+
 const resolveAvatarUrl = async (info) => {
   if (!info?.avatar || typeof info.avatar !== 'string') return info
   if (!info.avatar.startsWith('file:')) return info
@@ -248,6 +309,8 @@ onMounted(() => {
   window.addEventListener('storage', handleUserInfoStorage)
   applyUserTheme()
   refreshUserInfo()
+  ensureSuperAdminScopes()
+  scheduleSuperScopeRetry()
   lastUserInfoStr = localStorage.getItem('user_info') || ''
   // 兜底：同窗口 localStorage 变更不会触发 storage 事件，用轮询确保头像即时刷新
   userInfoPoller = window.setInterval(() => {
@@ -266,11 +329,20 @@ onUnmounted(() => {
     window.clearInterval(userInfoPoller)
     userInfoPoller = null
   }
+  if (superScopeRetryTimer) {
+    window.clearTimeout(superScopeRetryTimer)
+    superScopeRetryTimer = null
+  }
 })
 
 watch(userThemeKey, () => {
   applyUserTheme()
 })
+
+watch(() => userStore.userInfo, () => {
+  ensureSuperAdminScopes()
+  scheduleSuperScopeRetry()
+}, { deep: true })
 
 watch(isDark, (val) => {
   try {

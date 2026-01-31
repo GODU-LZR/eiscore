@@ -61,13 +61,19 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     return fieldAcl.value?.[key] || null
   }
 
+  const applyFieldAclVisibility = () => {
+    if (!gridApi.value) return
+    gridApi.value.refreshCells({ force: true })
+    gridApi.value.refreshHeader()
+  }
+
   const loadFieldAcl = async () => {
     if (!aclModule.value) {
       fieldAcl.value = {}
       return
     }
     if (!aclRoleId.value) {
-      const roleCode = userStore.userInfo?.role
+      const roleCode = userStore.userInfo?.app_role || userStore.userInfo?.appRole || userStore.userInfo?.role
       if (roleCode) {
         try {
           const res = await request({
@@ -98,6 +104,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         map[item.field_code] = { canView: item.can_view, canEdit: item.can_edit }
       })
       fieldAcl.value = map
+      applyFieldAclVisibility()
     } catch (e) {
       fieldAcl.value = {}
     }
@@ -436,6 +443,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const gridColumns = computed(() => {
+    // ensure acl updates can trigger colDef recalculation
+    fieldAcl.value
     const checkboxCol = { 
       colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, 
       width: 40, minWidth: 40, maxWidth: 40, pinned: 'left', 

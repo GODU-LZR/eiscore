@@ -9,7 +9,7 @@
     </div>
 
     <el-card shadow="never" class="grid-card" :body-style="{ height: '100%', display: 'flex', flexDirection: 'column' }">
-<eis-data-grid
+      <eis-data-grid
         ref="gridRef"
         view-id="hr_user_manage"
         api-url="/v_users_manage?order=id.asc"
@@ -28,9 +28,34 @@
         :can-export="canExport"
         :can-config="canConfig"
         @create="handleCreate"
+        @config-columns="openColumnConfig"
         @cell-value-changed="handleCellChanged"
       />
     </el-card>
+
+    <el-dialog v-model="colConfigVisible" title="列管理" width="520px" append-to-body destroy-on-close>
+      <div class="column-manager">
+        <p class="section-title">固定列显示：</p>
+        <div class="col-list">
+          <div v-for="col in staticColumnsAll" :key="col.prop" class="col-item">
+            <div class="col-info">
+              <span class="col-label">{{ col.label }}</span>
+            </div>
+            <div class="col-actions">
+              <el-switch
+                :model-value="isStaticVisible(col.prop)"
+                active-text="显示"
+                inactive-text="隐藏"
+                @change="toggleStaticColumn(col.prop, $event)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="colConfigVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -46,17 +71,26 @@ import { useUserStore } from '@/stores/user'
 const router = useRouter()
 const gridRef = ref(null)
 const roleOptions = ref([])
+const deptOptions = ref([])
 const userStore = useUserStore()
 
-const columns = computed(() => ([
+const colConfigVisible = ref(false)
+const staticHidden = ref([])
+
+const staticColumnsAll = computed(() => ([
   { label: '用户名', prop: 'username', width: 140 },
   { label: '登录密码', prop: 'password', width: 140, valueFormatter: (params) => (params.value ? '******' : '') },
   { label: '姓名', prop: 'full_name', width: 140 },
   { label: '手机号', prop: 'phone', width: 140 },
   { label: '邮箱', prop: 'email', width: 180 },
+  { label: '部门', prop: 'dept_id', width: 160, type: 'select', options: deptOptions.value },
   { label: '头像', prop: 'avatar', width: 120, type: 'file', fileMaxCount: 1, fileMaxSizeMb: 2, fileAccept: 'image/*', fileStoreMode: 'url' },
   { label: '角色', prop: 'role_id', width: 160, type: 'select', options: roleOptions.value }
 ]))
+
+const columns = computed(() =>
+  staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
+)
 
 const opPerms = {
   create: 'op:hr_user.create',
@@ -76,6 +110,50 @@ const goApps = () => {
   router.push('/apps')
 }
 
+const openColumnConfig = () => {
+  colConfigVisible.value = true
+}
+
+const loadStaticColumnsConfig = async () => {
+  const configKey = 'hr_user_manage_static_hidden'
+  try {
+    const res = await request({
+      url: `/system_configs?key=eq.${configKey}`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'public' }
+    })
+    const hidden = Array.isArray(res) && res.length ? res[0].value : []
+    const props = new Set(staticColumnsAll.value.map(col => col.prop).filter(Boolean))
+    staticHidden.value = Array.isArray(hidden)
+      ? hidden.filter(prop => props.has(prop))
+      : []
+  } catch (e) {
+    staticHidden.value = []
+  }
+}
+
+const saveStaticColumnsConfig = async () => {
+  const configKey = 'hr_user_manage_static_hidden'
+  await request({
+    url: '/system_configs',
+    method: 'post',
+    headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+    data: { key: configKey, value: staticHidden.value }
+  })
+}
+
+const isStaticVisible = (prop) => !staticHidden.value.includes(prop)
+const toggleStaticColumn = async (prop, visible) => {
+  const has = staticHidden.value.includes(prop)
+  if (visible && has) {
+    staticHidden.value = staticHidden.value.filter(item => item !== prop)
+  }
+  if (!visible && !has) {
+    staticHidden.value = [...staticHidden.value, prop]
+  }
+  await saveStaticColumnsConfig()
+}
+
 const loadRoles = async () => {
   try {
     const res = await request({
@@ -88,6 +166,21 @@ const loadRoles = async () => {
       : []
   } catch (e) {
     console.error(e)
+  }
+}
+
+const loadDepartments = async () => {
+  try {
+    const res = await request({
+      url: '/departments?order=sort.asc,name.asc',
+      method: 'get',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+    })
+    deptOptions.value = Array.isArray(res)
+      ? res.map((d) => ({ label: d.name, value: d.id }))
+      : []
+  } catch (e) {
+    deptOptions.value = []
   }
 }
 
@@ -202,7 +295,7 @@ const handleCellChanged = async (event) => {
 }
 
 const syncFieldAcl = async () => {
-  const fieldCodes = ['username', 'password', 'full_name', 'phone', 'email', 'avatar', 'role_id']
+  const fieldCodes = ['username', 'password', 'full_name', 'phone', 'email', 'dept_id', 'avatar', 'role_id']
   try {
     await request({
       url: '/rpc/ensure_field_acl',
@@ -215,9 +308,33 @@ const syncFieldAcl = async () => {
   }
 }
 
+const syncFieldLabels = async () => {
+  const payload = staticColumnsAll.value
+    .filter(col => col?.prop && col?.label)
+    .map(col => ({
+      module: 'hr_user',
+      field_code: col.prop,
+      field_label: col.label
+    }))
+  if (payload.length === 0) return
+  try {
+    await request({
+      url: '/field_label_overrides',
+      method: 'post',
+      headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      data: payload
+    })
+  } catch (e) {
+    console.warn('sync field labels failed', e)
+  }
+}
+
 onMounted(async () => {
   await loadRoles()
+  await loadDepartments()
+  await loadStaticColumnsConfig()
   await syncFieldAcl()
+  await syncFieldLabels()
 })
 </script>
 
@@ -255,4 +372,27 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
 }
+
+.column-manager { padding: 0 5px; }
+.section-title { font-weight: bold; margin-bottom: 10px; color: #303133; font-size: 14px; }
+.col-list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #ebeef5;
+  padding: 5px;
+  border-radius: 4px;
+  background-color: #fafafa;
+}
+.col-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid #ebeef5;
+  background-color: #fff;
+}
+.col-item:last-child { border-bottom: none; }
+.col-info { display: flex; align-items: center; }
+.col-label { font-size: 13px; font-weight: 500; }
+.col-actions { display: flex; align-items: center; }
 </style>

@@ -14,7 +14,7 @@
       
       <el-button-group class="ml-2">
         <el-button v-if="canCreate" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
-        <el-button v-if="canConfig" type="primary" plain icon="Operation" @click="$emit('config-columns')">新增列</el-button>
+        <el-button v-if="canConfig" type="primary" plain icon="Operation" @click="$emit('config-columns')">列管理</el-button>
         <el-button
           v-if="canDelete"
           type="danger"

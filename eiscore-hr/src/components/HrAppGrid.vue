@@ -37,6 +37,23 @@
 
       <el-dialog v-model="colConfigVisible" title="列管理" width="600px" append-to-body destroy-on-close @closed="resetForm">
         <div class="column-manager">
+          <p class="section-title">固定列显示：</p>
+          <div class="col-list">
+            <div v-for="col in staticColumnsAll" :key="col.prop" class="col-item">
+              <div class="col-info">
+                <span class="col-label">{{ col.label }}</span>
+              </div>
+              <div class="col-actions">
+                <el-switch
+                  :model-value="isStaticVisible(col.prop)"
+                  active-text="显示"
+                  inactive-text="隐藏"
+                  @change="toggleStaticColumn(col.prop, $event)"
+                />
+              </div>
+            </div>
+          </div>
+
           <p class="section-title">已添加的列：</p>
           <div v-if="extraColumns.length === 0" class="empty-tip">还没有新增列</div>
           
@@ -243,6 +260,9 @@ const colConfigVisible = ref(false)
 const addTab = ref('text') 
 let realtimeUnsub = null
 let realtimeTimer = null
+let fieldLabelRetryTimer = null
+let fieldLabelRetrying = false
+let fieldLabelWarned = false
 const requiredFields = ['name', 'status', 'employee_no', 'department']
 const fieldDefaults = {
   name: '',
@@ -270,7 +290,11 @@ const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
 const canConfig = computed(() => hasPerm(opPerms.value.config))
 
-const staticColumns = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
+const staticHidden = ref([])
+const staticColumnsAll = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
+const staticColumns = computed(() =>
+  staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
+)
 const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
 
 const extraColumns = ref([])
@@ -400,7 +424,36 @@ const loadColumnsConfig = async () => {
     }
     syncAiContext()
     await syncFieldAclForColumns()
+    await syncFieldLabels()
   } catch (e) { console.error(e) }
+}
+
+const loadStaticColumnsConfig = async () => {
+  const configKey = `${app.value.configKey || 'hr_table_cols'}_static_hidden`
+  try {
+    const res = await request({
+      url: `/system_configs?key=eq.${configKey}`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'public' }
+    })
+    const hidden = Array.isArray(res) && res.length ? res[0].value : []
+    const props = new Set(staticColumnsAll.value.map(col => col.prop).filter(Boolean))
+    staticHidden.value = Array.isArray(hidden)
+      ? hidden.filter(prop => props.has(prop))
+      : []
+  } catch (e) {
+    staticHidden.value = []
+  }
+}
+
+const saveStaticColumnsConfig = async () => {
+  const configKey = `${app.value.configKey || 'hr_table_cols'}_static_hidden`
+  await request({
+    url: '/system_configs',
+    method: 'post',
+    headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+    data: { key: configKey, value: staticHidden.value }
+  })
 }
 
 const handleDataLoaded = (payload) => {
@@ -493,6 +546,8 @@ const saveColumnsConfig = async () => {
     headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
     data: { key: configKey, value: extraColumns.value }
   })
+  await syncFieldAclForColumns([...staticColumnsAll.value, ...extraColumns.value].map(col => col.prop).filter(Boolean))
+  await syncFieldLabels()
 }
 
 const syncFieldAclForColumns = async (columnProps = null) => {
@@ -501,7 +556,7 @@ const syncFieldAclForColumns = async (columnProps = null) => {
   if (hasSyncedFieldAcl.value && !columnProps) return
   const props = Array.isArray(columnProps) && columnProps.length
     ? columnProps
-    : [...staticColumns.value, ...extraColumns.value].map(col => col.prop).filter(Boolean)
+    : [...staticColumnsAll.value, ...extraColumns.value].map(col => col.prop).filter(Boolean)
   if (props.length === 0) return
   const uniqueProps = Array.from(new Set(props))
   try {
@@ -514,6 +569,43 @@ const syncFieldAclForColumns = async (columnProps = null) => {
     if (!columnProps) hasSyncedFieldAcl.value = true
   } catch (e) {
     console.warn('sync field acl failed', e)
+  }
+}
+
+const syncFieldLabels = async () => {
+  const moduleName = app.value.aclModule
+  if (!moduleName) return
+  const cols = [...staticColumnsAll.value, ...extraColumns.value]
+  const payload = cols
+    .filter(col => col?.prop && col?.label)
+    .map(col => ({
+      module: moduleName,
+      field_code: col.prop,
+      field_label: col.label
+    }))
+  if (payload.length === 0) return
+  try {
+    await request({
+      url: '/field_label_overrides',
+      method: 'post',
+      headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      data: payload
+    })
+    fieldLabelRetrying = false
+    fieldLabelWarned = false
+  } catch (e) {
+    console.warn('sync field labels failed', e)
+    if (!fieldLabelWarned) {
+      fieldLabelWarned = true
+      ElMessage.warning('列权限名称同步失败，正在重试...')
+    }
+    if (!fieldLabelRetryTimer) {
+      fieldLabelRetrying = true
+      fieldLabelRetryTimer = setTimeout(() => {
+        fieldLabelRetryTimer = null
+        syncFieldLabels()
+      }, 2000)
+    }
   }
 }
 
@@ -784,6 +876,19 @@ const openColumnConfig = () => {
   colConfigVisible.value = true
 }
 
+const isStaticVisible = (prop) => !staticHidden.value.includes(prop)
+const toggleStaticColumn = async (prop, visible) => {
+  const has = staticHidden.value.includes(prop)
+  if (visible && has) {
+    staticHidden.value = staticHidden.value.filter(item => item !== prop)
+  }
+  if (!visible && !has) {
+    staticHidden.value = [...staticHidden.value, prop]
+  }
+  await saveStaticColumnsConfig()
+  syncAiContext()
+}
+
 const handleCreate = async () => {
   try {
     await request({
@@ -811,7 +916,7 @@ const goApps = () => {
 }
 
 onMounted(() => {
-  loadColumnsConfig()
+  loadStaticColumnsConfig().then(loadColumnsConfig)
   const realtime = getRealtimeClient()
   realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
 })
@@ -844,6 +949,10 @@ onUnmounted(() => {
   if (realtimeTimer) {
     clearTimeout(realtimeTimer)
     realtimeTimer = null
+  }
+  if (fieldLabelRetryTimer) {
+    clearTimeout(fieldLabelRetryTimer)
+    fieldLabelRetryTimer = null
   }
 })
 </script>

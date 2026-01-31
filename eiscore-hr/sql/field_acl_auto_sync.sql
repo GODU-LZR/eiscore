@@ -26,6 +26,7 @@ begin
     when 'hr_transfer_cols' then 'hr_change'
     when 'hr_attendance_cols' then 'hr_attendance'
     when 'materials_table_cols' then 'mms_ledger'
+    when 'hr_user_cols' then 'hr_user'
     else null
   end;
 
@@ -64,6 +65,12 @@ begin
     from information_schema.columns c
     where c.table_schema = 'public'
       and c.table_name = 'raw_materials';
+  elsif module_name = 'hr_user' then
+    select array_agg(c.column_name order by c.ordinal_position)
+      into static_codes
+    from information_schema.columns c
+    where c.table_schema = 'public'
+      and c.table_name = 'users';
   else
     static_codes := ARRAY[]::text[];
   end if;
@@ -86,4 +93,4 @@ for each row execute function public.sync_field_acl_from_config();
 -- 补齐一次已有配置
 update public.system_configs
 set value = value
-where key in ('hr_table_cols', 'hr_transfer_cols', 'hr_attendance_cols', 'materials_table_cols');
+where key in ('hr_table_cols', 'hr_transfer_cols', 'hr_attendance_cols', 'materials_table_cols', 'hr_user_cols');

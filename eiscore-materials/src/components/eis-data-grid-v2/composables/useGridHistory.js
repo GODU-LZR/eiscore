@@ -28,12 +28,27 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     return `${url}${url.includes('?') ? '&' : '?'}${query}`
   }
 
+  const hasPropertyColumns = () => {
+    const staticCols = Array.isArray(props.staticColumns) ? props.staticColumns : []
+    const extraCols = Array.isArray(props.extraColumns) ? props.extraColumns : []
+    return [...staticCols, ...extraCols].some(col => col?.storeInProperties === true)
+  }
+
+  const ensurePayloadProperties = (payload) => {
+    if (!payload.properties || typeof payload.properties !== 'object') {
+      payload.properties = {}
+    }
+  }
+
   const buildCompletePayload = (rowData) => {
     const payload = JSON.parse(JSON.stringify(rowData))
     if (includeProperties) {
-      const hasProps = Object.prototype.hasOwnProperty.call(payload, 'properties') || (props.extraColumns || []).length > 0
+      const hasProps =
+        Object.prototype.hasOwnProperty.call(payload, 'properties') ||
+        (props.extraColumns || []).length > 0 ||
+        hasPropertyColumns()
       if (hasProps) {
-        if (!payload.properties || typeof payload.properties !== 'object') payload.properties = {}
+        ensurePayloadProperties(payload)
       } else {
         delete payload.properties
       }
@@ -81,6 +96,21 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     try {
         const writeMode = getWriteMode()
         const rowUpdatesMap = new Map()
+        const ensureGroupProperties = (group, rowNode) => {
+          if (!group.useProperties) {
+            group.useProperties = true
+            if (!group.payload.properties) {
+              const existing = rowNode?.data?.properties
+              group.payload.properties = existing && typeof existing === 'object' ? { ...existing } : {}
+            }
+            group.properties = group.payload.properties
+          } else if (!group.payload.properties) {
+            const existing = rowNode?.data?.properties
+            group.payload.properties = existing && typeof existing === 'object' ? { ...existing } : {}
+            group.properties = group.payload.properties
+          }
+        }
+
         changesToProcess.forEach(({ rowNode, colDef, newValue }) => {
             const id = rowNode.data.id
             if (!rowUpdatesMap.has(id)) {
@@ -109,7 +139,17 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                   group.properties[propKey] = newValue
                 }
             }
-            else group.payload[colDef.field] = newValue
+            else if (colDef.field.startsWith('properties.')) {
+                ensureGroupProperties(group, rowNode)
+                const propKey = colDef.field.split('.')[1]
+                if (writeMode === 'patch') {
+                  group.payload.properties[propKey] = newValue
+                } else {
+                  group.properties[propKey] = newValue
+                }
+            } else {
+                group.payload[colDef.field] = newValue
+            }
         })
         const entries = Array.from(rowUpdatesMap.values())
 
@@ -262,6 +302,23 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
 
     if (event.node.rowPinned) return 
     if (isRemoteUpdating.value || event.oldValue === event.newValue) return
+
+    const requiredFields = Array.isArray(props.patchRequiredFields)
+      ? props.patchRequiredFields
+      : []
+    const isRequired = requiredFields.includes(event.colDef.field)
+    const isEmpty =
+      event.newValue === null ||
+      event.newValue === undefined ||
+      (typeof event.newValue === 'string' && event.newValue.trim() === '') ||
+      event.newValue === ''
+    if (isRequired && isEmpty) {
+      ElMessage.warning('该字段不能为空')
+      isRemoteUpdating.value = true
+      event.node.setDataValue(event.colDef.field, event.oldValue ?? '')
+      isRemoteUpdating.value = false
+      return
+    }
 
     const safeValue = sanitizeValue(event.colDef.field, event.newValue)
     if (safeValue !== event.newValue) {

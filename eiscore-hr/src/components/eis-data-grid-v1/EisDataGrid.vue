@@ -18,7 +18,7 @@
           </el-button>
           
           <el-button type="primary" plain icon="Operation" @click="$emit('config-columns')">
-            新增列
+            列管理
           </el-button>
 
           <el-button type="danger" plain icon="Delete" @click="deleteSelectedRows" :disabled="selectedRowsCount === 0">
