@@ -43,14 +43,13 @@ const infoPairs = computed(() => {
   const row = material.value || {}
   const props = row.properties || {}
   return [
-    { key: '批次号', value: row.batch_no },
+    { key: '物料编码', value: row.batch_no },
     { key: '物料名称', value: row.name },
     { key: '物料分类', value: row.category },
     { key: '规格', value: props.spec },
     { key: '单位', value: props.unit },
     { key: '计量单位', value: props.measure_unit },
     { key: '换算关系', value: props.conversion },
-    { key: '重量(kg)', value: row.weight_kg },
     { key: '入库日期', value: row.entry_date },
     { key: '创建人', value: row.created_by }
   ]

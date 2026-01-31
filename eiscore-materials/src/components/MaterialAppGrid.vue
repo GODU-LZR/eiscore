@@ -270,6 +270,8 @@ const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计
 
 const extraColumns = ref([])
 const hasSyncedFieldAcl = ref(false)
+const materialsCategories = ref([])
+const materialsCategoryDepth = ref(2)
 
 const isEditing = ref(false)
 const editingIndex = ref(-1)
@@ -499,6 +501,8 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     dataSample,
     dataScope: (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据',
     searchText: overrides.searchText ?? lastSearchText.value ?? '',
+    materialsCategories: materialsCategories.value,
+    materialsCategoryDepth: materialsCategoryDepth.value,
     aiScene: overrides.aiScene || 'grid_chat',
     allowFormula: !!overrides.allowFormula,
     allowFormulaOnce: !!overrides.allowFormulaOnce,
@@ -789,15 +793,53 @@ const openColumnConfig = () => {
   colConfigVisible.value = true
 }
 
-const buildBatchNo = () => `MAT${Date.now().toString().slice(-6)}`
+const normalizeCategoryCode = (value) => {
+  if (value === undefined || value === null) return ''
+  const text = String(value).trim()
+  if (!text) return ''
+  return text.replace(/\.$/, '')
+}
+
+const extractSequence = (code) => {
+  if (!code) return NaN
+  const parts = String(code).split('.')
+  if (parts.length < 2) return NaN
+  const tail = parts[parts.length - 1]
+  const num = Number(tail)
+  return Number.isFinite(num) ? num : NaN
+}
+
+const buildMaterialCode = async (prefix) => {
+  const safePrefix = normalizeCategoryCode(prefix)
+  if (!safePrefix) return ''
+  const writeUrl =
+    app.value.writeUrl || (app.value.apiUrl || '/raw_materials').split('?')[0]
+  const likePattern = `${safePrefix}.%`
+  const url = `${writeUrl}?select=batch_no&batch_no=like.${encodeURIComponent(
+    likePattern
+  )}&order=batch_no.desc&limit=1`
+  const res = await request({ url, method: 'get' })
+  const latest = Array.isArray(res) && res.length ? res[0].batch_no : ''
+  const latestSeq = extractSequence(latest)
+  const nextSeq = Number.isFinite(latestSeq) ? latestSeq + 1 : 1
+  if (nextSeq > 9999) {
+    throw new Error('该物料分类编码的序号已用尽，请联系管理员扩展规则')
+  }
+  return `${safePrefix}.${String(nextSeq).padStart(4, '0')}`
+}
 
 const handleCreate = async () => {
   try {
     const today = new Date().toISOString().slice(0, 10)
-    const payload = { 
-      batch_no: buildBatchNo(),
+    const categoryCode = normalizeCategoryCode(props.category)
+    if (!categoryCode) {
+      ElMessage.warning('请先选择物料分类')
+      return
+    }
+    const payload = {
+      batch_no: await buildMaterialCode(categoryCode),
       name: '新物料',
-      category: props.category || '未分类',
+      category: categoryCode,
       weight_kg: null,
       entry_date: today,
       created_by: currentUser.value
@@ -822,9 +864,35 @@ const handleCreate = async () => {
 
 onMounted(() => {
   loadColumnsConfig()
+  loadMaterialsSettings()
   const realtime = getRealtimeClient()
   realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
 })
+
+const loadMaterialsSettings = async () => {
+  try {
+    const [categoriesRes, settingsRes] = await Promise.all([
+      request({
+        url: '/system_configs?key=eq.materials_categories',
+        method: 'get',
+        headers: { 'Accept-Profile': 'public' }
+      }),
+      request({
+        url: '/system_configs?key=eq.app_settings',
+        method: 'get',
+        headers: { 'Accept-Profile': 'public' }
+      })
+    ])
+    const categoriesRow = Array.isArray(categoriesRes) && categoriesRes.length ? categoriesRes[0] : null
+    materialsCategories.value = Array.isArray(categoriesRow?.value) ? categoriesRow.value : []
+    const settingsRow = Array.isArray(settingsRes) && settingsRes.length ? settingsRes[0] : null
+    const depth = Number(settingsRow?.value?.materialsCategoryDepth || 2)
+    materialsCategoryDepth.value = depth === 3 ? 3 : 2
+  } catch (e) {
+    materialsCategories.value = []
+    materialsCategoryDepth.value = 2
+  }
+}
 
 const handleApplyFormula = (event) => {
   const formula = event?.detail?.formula
@@ -844,11 +912,13 @@ const handleImportDone = (event) => {
 onMounted(() => {
   window.addEventListener('eis-ai-apply-formula', handleApplyFormula)
   window.addEventListener('eis-grid-imported', handleImportDone)
+  window.addEventListener('eis-materials-categories-updated', loadMaterialsSettings)
 })
 
 onUnmounted(() => {
   window.removeEventListener('eis-ai-apply-formula', handleApplyFormula)
   window.removeEventListener('eis-grid-imported', handleImportDone)
+  window.removeEventListener('eis-materials-categories-updated', loadMaterialsSettings)
   if (realtimeUnsub) realtimeUnsub()
   realtimeUnsub = null
   if (realtimeTimer) {

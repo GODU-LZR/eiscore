@@ -156,6 +156,27 @@
                 </div>
 
                 <div
+                  v-if="msg.role === 'assistant' && getCategoryInfo(msg).data && !isStreamingMessage(index)"
+                  class="import-card"
+                >
+                  <div class="card-header">
+                    <span class="card-title">检测到物料分类</span>
+                    <span class="card-name">共 {{ getCategoryInfo(msg).data.length }} 项</span>
+                  </div>
+                  <div class="card-actions">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      :loading="categoryImportState[msg.time] === 'importing'"
+                      @click="applyCategoryImport(getCategoryInfo(msg), msg.time)"
+                    >
+                      {{ categoryImportState[msg.time] === 'done' ? '已保存' : '保存到物料分类' }}
+                    </el-button>
+                  </div>
+                </div>
+
+
+                <div
                   v-else-if="msg.role === 'assistant' && getFormTemplateInfo(msg).error && !(state.isStreaming && index === currentSession.messages.length - 1)"
                   class="form-template-error"
                 >
@@ -321,8 +342,15 @@ const FORM_TEMPLATE_BLOCKS = ['form-template', 'form_template', 'form-schema', '
 const templateSaveState = ref({})
 const FORMULA_BLOCKS = ['formula']
 const IMPORT_BLOCKS = ['data-import', 'data_import', 'grid-import', 'grid_import']
+const MATERIAL_CATEGORY_BLOCKS = [
+  'materials-categories',
+  'material-categories',
+  'materials_categories',
+  'material_categories'
+]
 const formulaApplyState = ref({})
 const importState = ref({})
+const categoryImportState = ref({})
 
 const getAuthToken = () => {
   const tokenStr = localStorage.getItem('auth_token')
@@ -413,6 +441,45 @@ const extractImportData = (text) => {
 
 const getFormulaInfo = (msg) => extractFormula(msg?.content || '')
 const getImportInfo = (msg) => extractImportData(msg?.content || '')
+
+const normalizeCategoryTree = (list, parentId = '') => {
+  if (!Array.isArray(list)) return []
+  return list.map((item, idx) => {
+    const raw = item && typeof item === 'object' ? item : { label: String(item ?? '').trim() }
+    const label = String(raw.label ?? raw.name ?? '').trim() || `分类${idx + 1}`
+    let id = String(raw.id ?? raw.code ?? '').trim()
+    if (!id) {
+      const segment = String(idx + 1).padStart(2, '0')
+      id = parentId ? `${parentId}.${segment}` : segment
+    }
+    const children = normalizeCategoryTree(raw.children || raw.items || [], id)
+    return { id, label, children: children.length ? children : undefined }
+  })
+}
+
+const extractCategoryData = (text, blocks) => {
+  if (!text) return { data: null, error: null }
+  for (const tag of blocks) {
+    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
+    const match = text.match(regex)
+    if (match && match[1]) {
+      try {
+        const raw = sanitizeJson(match[1])
+        const json = JSON.parse(raw)
+        const list = Array.isArray(json)
+          ? json
+          : (json.list || json.items || json.categories || json.data || null)
+        if (!Array.isArray(list)) return { data: null, error: 'invalid' }
+        return { data: normalizeCategoryTree(list), error: null }
+      } catch (e) {
+        return { data: null, error: 'parse' }
+      }
+    }
+  }
+  return { data: null, error: null }
+}
+
+const getCategoryInfo = (msg) => extractCategoryData(msg?.content || '', MATERIAL_CATEGORY_BLOCKS)
 
 const getTemplateSectionCount = (schema) => {
   if (!schema?.layout) return 0
@@ -519,6 +586,23 @@ const applyAiFormula = (formula, messageKey) => {
 const buildImportPayload = (rows, context) => {
   const staticProps = new Set((context?.staticColumns || []).map(col => col.prop))
   const labelToProp = new Map((context?.columns || []).map(col => [col.label, col.prop]))
+  const categoryMap = new Map()
+  const categories = Array.isArray(context?.materialsCategories) ? context.materialsCategories : []
+  const buildCategoryMap = (list, parentName = '') => {
+    if (!Array.isArray(list)) return
+    list.forEach((item) => {
+      const label = String(item?.label || '').trim()
+      const id = String(item?.id || '').trim()
+      if (!label || !id) return
+      const fullName = parentName ? `${parentName}-${label}` : label
+      categoryMap.set(label, id)
+      categoryMap.set(fullName, id)
+      if (Array.isArray(item.children)) {
+        buildCategoryMap(item.children, fullName)
+      }
+    })
+  }
+  buildCategoryMap(categories)
   return rows.map((row) => {
     if (!row || typeof row !== 'object') return null
     const payload = { properties: {} }
@@ -530,7 +614,11 @@ const buildImportPayload = (rows, context) => {
         prop = labelToProp.get(prop)
       }
       if (staticProps.has(prop)) {
-        payload[prop] = value
+        if (prop === 'category' && typeof value === 'string') {
+          payload[prop] = categoryMap.get(value.trim()) || value
+        } else {
+          payload[prop] = value
+        }
       } else {
         payload.properties[prop] = value
       }
@@ -597,6 +685,82 @@ const applyDataImport = async (info, messageKey) => {
   } catch (e) {
     importState.value[messageKey] = 'error'
     ElMessage.error('导入失败')
+  }
+}
+
+const saveSystemConfig = async (key, value) => {
+  const token = getAuthToken()
+  if (token && isTokenExpired(token)) {
+    throw new Error('登录已过期')
+  }
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept-Profile': 'public',
+    'Content-Profile': 'public',
+    'Prefer': 'resolution=merge-duplicates'
+  }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res = await fetch('/api/system_configs', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ key, value })
+  })
+  if (res.status === 401) throw new Error('登录已过期')
+  if (!res.ok) throw new Error('保存失败')
+}
+
+const getNextSegment = (siblings = []) => {
+  let max = 0
+  siblings.forEach((item) => {
+    const id = String(item?.id || '')
+    const segment = id.split('.').pop()
+    const num = Number(segment)
+    if (Number.isFinite(num) && num > max) max = num
+  })
+  return String(max + 1).padStart(2, '0')
+}
+
+const assignCategoryCodes = (items = [], siblings = [], parentId = '', level = 1, maxDepth = 2) => {
+  if (!Array.isArray(items)) return []
+  if (level > maxDepth) return []
+  const localSiblings = Array.isArray(siblings) ? siblings : []
+  const assigned = []
+  items.forEach((item) => {
+    const label = String(item?.label || item?.name || '').trim()
+    if (!label) return
+    const segment = getNextSegment(localSiblings.concat(assigned))
+    const id = parentId ? `${parentId}.${segment}` : segment
+    const children = assignCategoryCodes(item?.children || [], [], id, level + 1, maxDepth)
+    assigned.push({ id, label, children: children.length ? children : undefined })
+  })
+  return assigned
+}
+
+const applyCategoryImport = async (info, messageKey) => {
+  if (categoryImportState.value[messageKey] === 'done') return
+  const list = info?.data || []
+  if (!Array.isArray(list) || list.length === 0) {
+    ElMessage.warning('没有可保存的物料分类')
+    return
+  }
+  categoryImportState.value[messageKey] = 'importing'
+  try {
+    const existingRes = await fetch('/api/system_configs?key=eq.materials_categories', {
+      headers: { 'Accept-Profile': 'public' }
+    })
+    const existingJson = existingRes.ok ? await existingRes.json() : []
+    const existingRow = Array.isArray(existingJson) && existingJson.length ? existingJson[0] : null
+    const existingList = Array.isArray(existingRow?.value) ? existingRow.value : []
+    const maxDepth = Number(aiBridge.state.currentContext?.materialsCategoryDepth || 2) === 3 ? 3 : 2
+    const appended = assignCategoryCodes(list, existingList, '', 1, maxDepth)
+    const nextList = existingList.concat(appended)
+    await saveSystemConfig('materials_categories', nextList)
+    categoryImportState.value[messageKey] = 'done'
+    ElMessage.success('物料分类已保存')
+    window.dispatchEvent(new CustomEvent('eis-materials-categories-updated', { detail: { list: nextList } }))
+  } catch (e) {
+    categoryImportState.value[messageKey] = 'error'
+    ElMessage.error(e?.message || '保存失败')
   }
 }
 

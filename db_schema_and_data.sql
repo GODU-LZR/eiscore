@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict mHAjY13KHbx0Yl3HtU1RJbayim388tnCucL1wyHicDvMPxVcjrT4qGH8EBl90w9
+\restrict 71xK8sEj5t9N9bjOxTLATfO36zBHuIycgErxyqdHoqAYKOcg7gPn7T2xST3VBVx
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -2119,7 +2119,10 @@ CREATE TABLE public.raw_materials (
     category text,
     weight_kg numeric(10,2),
     entry_date date DEFAULT CURRENT_DATE,
-    created_by text
+    created_by text,
+    properties jsonb DEFAULT '{}'::jsonb,
+    version integer DEFAULT 1,
+    updated_at timestamp without time zone DEFAULT now()
 );
 
 
@@ -2172,6 +2175,27 @@ COMMENT ON COLUMN public.raw_materials.entry_date IS '入库日期';
 --
 
 COMMENT ON COLUMN public.raw_materials.created_by IS '创建人';
+
+
+--
+-- Name: COLUMN raw_materials.properties; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.properties IS '????';
+
+
+--
+-- Name: COLUMN raw_materials.version; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.version IS '??';
+
+
+--
+-- Name: COLUMN raw_materials.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.raw_materials.updated_at IS '????';
 
 
 --
@@ -4293,10 +4317,12 @@ a017fd86-9ccd-45dc-94f9-ebcd388555df	运维工程师	\N	\N	active	2026-01-16 15:
 -- Data for Name: raw_materials; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, created_by) FROM stdin;
-1	NP-20251220-01	金鲳鱼(特级)	海鲜原料	500.50	2025-12-20	zhangsan
-2	NP-20251220-02	食用盐	辅料	50.00	2025-12-20	lisi
-3	NP-20251221-01	真空包装袋	包材	120.00	2025-12-20	zhangsan
+COPY public.raw_materials (id, batch_no, name, category, weight_kg, entry_date, created_by, properties, version, updated_at) FROM stdin;
+1	NP-20251220-01	金鲳鱼(特级)	海鲜原料	500.50	2025-12-20	zhangsan	{}	1	2026-01-30 19:55:01.309888
+2	NP-20251220-02	食用盐	辅料	50.00	2025-12-20	lisi	{}	1	2026-01-30 19:55:01.309888
+3	NP-20251221-01	真空包装袋	包材	120.00	2025-12-20	zhangsan	{}	1	2026-01-30 19:55:01.309888
+5	cat_raw.0001	新物料	cat_raw	\N	2026-01-30	hr_viewer	{}	1	2026-01-30 21:08:13.814962
+11	02.0001	新物料	02	\N	2026-01-30	admin	{}	1	2026-01-30 23:48:29.905537
 \.
 
 
@@ -5197,8 +5223,8 @@ hr_org_layout	[{"x": 850, "y": 60, "id": "b0aa5f36-a392-4a79-a908-e84c3aac1112"}
 hr_attendance_cols	[{"prop": "att_date", "type": "text", "label": "日期"}, {"prop": "check_in", "type": "text", "label": "签到时间"}, {"prop": "check_out", "type": "text", "label": "签退时间"}, {"prop": "att_status", "type": "select", "label": "考勤状态", "options": [{"label": "正常", "value": "正常"}, {"label": "迟到", "value": "迟到"}, {"label": "早退", "value": "早退"}, {"label": "缺勤", "value": "缺勤"}, {"label": "请假", "value": "请假"}]}, {"prop": "ot_hours", "type": "text", "label": "加班时长"}, {"prop": "att_note", "type": "text", "label": "备注"}]	\N
 materials_table_cols	[{"prop": "spec", "type": "text", "label": "规格"}, {"prop": "unit", "type": "text", "label": "单位"}, {"prop": "measure_unit", "type": "text", "label": "计量单位"}, {"prop": "conversion", "type": "text", "label": "换算关系"}, {"prop": "finance_attribute", "type": "text", "label": "财务属性"}]	\N
 form_templates	[{"id": "transfer_record", "name": "调岗记录单", "schema": {"docNo": "employee_no", "title": "调岗记录单", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "widget": "input", "editable": false}, {"field": "name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号", "widget": "input", "editable": false}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "status", "label": "状态", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "调岗信息", "children": [{"field": "from_dept", "label": "原部门", "widget": "input"}, {"field": "to_dept", "label": "新部门", "widget": "input"}, {"field": "from_position", "label": "原岗位", "widget": "input"}, {"field": "to_position", "label": "新岗位", "widget": "input"}, {"field": "effective_date", "label": "生效日期", "widget": "date"}, {"field": "transfer_type", "label": "调岗类型", "widget": "select", "options": [{"label": "平调", "value": "平调"}, {"label": "晋升", "value": "晋升"}, {"label": "降级", "value": "降级"}]}, {"field": "transfer_reason", "label": "调岗原因", "widget": "textarea"}, {"field": "approver", "label": "审批人", "widget": "input"}]}], "docType": "transfer_record"}, "source": "ai", "created_at": "2026-01-24T19:58:19.366Z", "updated_at": "2026-01-24T19:58:19.366Z"}, {"id": "attendance_record", "name": "考勤记录单", "schema": {"docNo": "employee_no", "title": "考勤记录单", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "employee_name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号/电话", "widget": "input"}, {"field": "dept_name", "label": "部门", "widget": "input"}, {"field": "att_date", "label": "日期", "widget": "date"}]}, {"cols": 2, "type": "section", "title": "班次与打卡", "children": [{"field": "shift_name", "label": "班次", "widget": "input"}, {"field": "punch_times", "label": "打卡记录", "widget": "textarea"}, {"field": "check_in", "label": "签到时间", "widget": "input"}, {"field": "check_out", "label": "签退时间", "widget": "input"}]}, {"cols": 4, "type": "section", "title": "考勤状态", "children": [{"field": "late_flag", "label": "迟到", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "early_flag", "label": "早退", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "leave_flag", "label": "请假", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "absent_flag", "label": "缺勤", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "att_status", "label": "考勤状态", "widget": "select", "options": [{"label": "正常", "value": "正常"}, {"label": "迟到", "value": "迟到"}, {"label": "早退", "value": "早退"}, {"label": "缺勤", "value": "缺勤"}, {"label": "请假", "value": "请假"}]}]}, {"cols": 2, "type": "section", "title": "加班与备注", "children": [{"field": "overtime_minutes", "label": "加班(分钟)", "widget": "number"}, {"field": "ot_hours", "label": "加班时长", "widget": "input"}, {"field": "remark", "label": "备注", "widget": "textarea"}, {"field": "att_note", "label": "备注", "widget": "textarea"}]}], "docType": "attendance_record"}, "source": "ai", "created_at": "2026-01-24T19:25:56.311Z", "updated_at": "2026-01-24T19:25:56.311Z"}, {"id": "employee_profile", "name": "员工详细档案表", "schema": {"docNo": "employee_no", "title": "员工详细档案表", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "value": "688", "widget": "input"}, {"field": "name", "label": "姓名", "value": "惠晨丽", "widget": "input"}, {"field": "employee_no", "label": "工号", "value": "E0100", "widget": "input"}, {"field": "department", "label": "部门", "value": "行政部", "widget": "input"}, {"field": "status", "label": "状态", "value": "试用", "widget": "input"}, {"field": "gender", "label": "性别", "value": "男", "widget": "input"}, {"field": "id_card", "label": "身份证", "widget": "input"}, {"field": "field_3410", "label": "籍贯", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "薪资信息", "children": [{"field": "field_5458", "label": "工资", "widget": "input"}, {"field": "field_9314", "label": "绩效", "widget": "input"}, {"field": "field_789", "label": "总工资", "value": 0, "widget": "input", "disabled": true}]}, {"cols": 2, "type": "section", "title": "分类信息", "children": [{"field": "field_8633", "label": "1", "value": "1", "widget": "select", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}, {"field": "field_2086", "label": "2", "value": "1", "widget": "cascader", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}, {"label": "5", "value": "5"}], "3": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "4": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "5": [{"label": "1", "value": "1"}], "6": [{"label": "1", "value": "1"}], "7": [{"label": "1", "value": "1"}]}}, {"field": "field_7980", "label": "3", "value": "1", "widget": "cascader", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "3": [{"label": "1", "value": "1"}], "4": [{"label": "2", "value": "2"}], "5": [{"label": "3", "value": "3"}]}}]}, {"cols": 2, "type": "section", "title": "其他信息", "children": [{"field": "field_1340", "label": "位置", "widget": "input", "geoAddress": true}, {"field": "field_3727", "label": "员工照片", "widget": "image", "fileSource": "field_3727"}]}], "docType": "employee_profile"}, "source": "ai", "created_at": "2025-12-30T19:26:26.913Z", "updated_at": "2025-12-30T19:26:26.913Z"}, {"id": "employee_detail", "name": "员工信息表", "schema": {"docNo": "id", "title": "员工信息表", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "widget": "input"}, {"field": "name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号", "widget": "input"}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "status", "label": "状态", "widget": "input"}, {"field": "gender", "label": "性别", "widget": "input"}, {"field": "id_card", "label": "身份证", "widget": "input"}, {"field": "field_3410", "label": "籍贯", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "薪资信息", "children": [{"field": "field_5458", "label": "工资", "widget": "input"}, {"field": "field_9314", "label": "绩效", "widget": "input"}, {"field": "field_789", "label": "总工资", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "其他信息", "children": [{"field": "field_8633", "label": "1", "widget": "select"}, {"field": "field_2086", "label": "2", "widget": "cascader"}, {"field": "field_7980", "label": "3", "widget": "cascader"}, {"field": "field_1340", "label": "位置", "widget": "geo"}, {"field": "field_3727", "label": "员工照片", "widget": "image", "fileSource": "field_3727"}]}], "docType": "employee_detail"}, "source": "ai", "created_at": "2025-12-30T13:59:49.163Z", "updated_at": "2025-12-30T13:59:49.163Z"}, {"id": "hr_form", "name": "人事信息表", "schema": {"docNo": "hr_no", "title": "人事信息表", "layout": [{"cols": 2, "type": "section", "title": "个人信息", "children": [{"field": "name", "label": "姓名", "widget": "input"}, {"field": "gender", "label": "性别", "widget": "input"}, {"field": "birth_date", "label": "出生日期", "widget": "date"}, {"field": "ethnicity", "label": "民族", "widget": "input"}, {"field": "id_card", "label": "身份证号", "widget": "input"}, {"field": "phone", "label": "联系电话", "widget": "input"}, {"field": "email", "label": "电子邮箱", "widget": "input"}, {"field": "address", "label": "现住址", "widget": "textarea"}]}, {"cols": 2, "type": "section", "title": "工作信息", "children": [{"field": "employee_no", "label": "员工编号", "widget": "input"}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "position", "label": "职位", "widget": "input"}, {"field": "entry_date", "label": "入职日期", "widget": "date"}, {"field": "contract_period", "label": "合同期限", "widget": "input"}, {"field": "contract_start_date", "label": "合同起始日期", "widget": "date"}, {"field": "contract_end_date", "label": "合同结束日期", "widget": "date"}, {"field": "supervisor", "label": "直属上级", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "紧急联系人", "children": [{"field": "emergency_contact_name", "label": "姓名", "widget": "input"}, {"field": "emergency_contact_relation", "label": "关系", "widget": "input"}, {"field": "emergency_contact_phone", "label": "联系电话", "widget": "input"}]}], "docType": "hr_form"}, "source": "ai", "created_at": "2025-12-30T13:51:48.884Z", "updated_at": "2025-12-30T13:51:48.884Z"}]	\N
-app_settings	{"title": "广东南派食品有限公司", "themeColor": "#2b0408", "notifications": true}	系统全局设置
-materials_categories	[{"id": "cat_raw", "label": "原料", "children": []}, {"id": "cat_aux", "label": "辅料"}, {"id": "cat_pack", "label": "包装材料"}]	\N
+app_settings	{"title": "广东南派食品有限公司", "themeColor": "#2b0408", "notifications": true, "materialsCategoryDepth": 2}	系统全局设置
+materials_categories	[{"id": "01", "label": "原材料"}, {"id": "02", "label": "包装材料", "children": [{"id": "02.01", "label": "纸箱类"}, {"id": "02.02", "label": "桶类"}, {"id": "02.03", "label": "罐类"}, {"id": "02.04", "label": "袋子类"}, {"id": "02.05", "label": "瓶子类"}, {"id": "02.06", "label": "封口膜类"}, {"id": "02.07", "label": "标签类"}, {"id": "02.08", "label": "封口胶"}, {"id": "02.09", "label": "其他包材"}]}, {"id": "03", "label": "五金耗材类", "children": [{"id": "03.01", "label": "办公文具"}, {"id": "03.02", "label": "清洁劳保用品"}, {"id": "03.03", "label": "机械设备"}, {"id": "03.04", "label": "五金配件"}, {"id": "03.05", "label": "其他耗材"}]}, {"id": "04", "label": "半成品", "children": [{"id": "04.01", "label": "速冻果汁系列"}, {"id": "04.02", "label": "速冻果浆系列"}, {"id": "04.03", "label": "速冻冰淇淋系列"}]}, {"id": "05", "label": "库存商品", "children": [{"id": "05.01", "label": "速冻果汁系列"}, {"id": "05.02", "label": "速冻果浆系列"}, {"id": "05.03", "label": "常温果酱系列"}, {"id": "05.04", "label": "速冻块/粒系列"}, {"id": "05.05", "label": "常温饮料类"}, {"id": "05.06", "label": "其他库存商品"}]}, {"id": "06", "label": "代加工产品"}]	\N
 \.
 
 
@@ -5255,7 +5281,7 @@ SELECT pg_catalog.setval('public.employees_id_seq', 1, true);
 -- Name: raw_materials_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.raw_materials_id_seq', 3, true);
+SELECT pg_catalog.setval('public.raw_materials_id_seq', 14, true);
 
 
 --
@@ -5942,10 +5968,31 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: raw_materials Users can delete their own data; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Users can delete their own data" ON public.raw_materials FOR DELETE TO web_user USING ((created_by = ((current_setting('request.jwt.claims'::text, true))::json ->> 'username'::text)));
+
+
+--
+-- Name: raw_materials Users can insert their own data; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Users can insert their own data" ON public.raw_materials FOR INSERT TO web_user WITH CHECK ((created_by = ((current_setting('request.jwt.claims'::text, true))::json ->> 'username'::text)));
+
+
+--
 -- Name: raw_materials Users can only see their own data; Type: POLICY; Schema: public; Owner: postgres
 --
 
 CREATE POLICY "Users can only see their own data" ON public.raw_materials FOR SELECT TO web_user USING ((created_by = ((current_setting('request.jwt.claims'::text, true))::json ->> 'username'::text)));
+
+
+--
+-- Name: raw_materials Users can update their own data; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Users can update their own data" ON public.raw_materials FOR UPDATE TO web_user USING ((created_by = ((current_setting('request.jwt.claims'::text, true))::json ->> 'username'::text))) WITH CHECK ((created_by = ((current_setting('request.jwt.claims'::text, true))::json ->> 'username'::text)));
 
 
 --
@@ -6271,5 +6318,5 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.v_users_manage TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict mHAjY13KHbx0Yl3HtU1RJbayim388tnCucL1wyHicDvMPxVcjrT4qGH8EBl90w9
+\unrestrict 71xK8sEj5t9N9bjOxTLATfO36zBHuIycgErxyqdHoqAYKOcg7gPn7T2xST3VBVx
 

@@ -22,11 +22,18 @@
       >
         <template #default="{ node, data }">
           <div class="tree-node">
-            <span class="node-label">{{ node.label }}</span>
+            <span class="node-label">{{ `${data.id} ${node.label}` }}</span>
             <span class="node-actions">
-              <el-button link size="small" @click.stop="openAddChild(data)">加子类</el-button>
-              <el-button link size="small" @click.stop="openRename(data)">改名</el-button>
-              <el-button link type="danger" size="small" @click.stop="removeNode(data)">删除</el-button>
+              <el-button
+                v-if="node.level < maxDepth"
+                link
+                size="small"
+                :icon="Plus"
+                title="新增子类"
+                @click.stop="openAddChild(data, node)"
+              />
+              <el-button link size="small" :icon="Edit" title="改名" @click.stop="openRename(data)" />
+              <el-button link type="danger" size="small" :icon="Delete" title="删除" @click.stop="removeNode(data)" />
             </span>
           </div>
         </template>
@@ -48,14 +55,17 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import request from '@/utils/request'
 
 const emit = defineEmits(['select'])
 
 const treeRef = ref(null)
-const treeData = ref([])
+const maxDepth = ref(2)
+const treeDataAll = ref([])
+const treeData = computed(() => cloneAndLimitDepth(treeDataAll.value, maxDepth.value))
 const expandedKeys = ref([])
 
 const treeProps = { children: 'children', label: 'label' }
@@ -71,10 +81,37 @@ const editDialog = reactive({
 })
 
 const defaultCategories = [
-  { id: 'cat_raw', label: '原料' },
-  { id: 'cat_aux', label: '辅料' },
-  { id: 'cat_pack', label: '包装材料' }
+  { id: '01', label: '原料' },
+  { id: '02', label: '辅料' },
+  { id: '03', label: '包装材料' }
 ]
+
+const nextSegment = (siblings = []) => {
+  let max = 0
+  siblings.forEach((child) => {
+    const code = child?.id ? String(child.id) : ''
+    if (!code) return
+    const segment = code.split('.').pop()
+    const num = Number(segment)
+    if (Number.isFinite(num) && num > max) max = num
+  })
+  return String(max + 1).padStart(2, '0')
+}
+
+const loadSettings = async () => {
+  try {
+    const res = await request({
+      url: '/system_configs?key=eq.app_settings',
+      method: 'get',
+      headers: { 'Accept-Profile': 'public' }
+    })
+    const row = Array.isArray(res) && res.length ? res[0] : null
+    const depth = Number(row?.value?.materialsCategoryDepth || 2)
+    maxDepth.value = depth === 3 ? 3 : 2
+  } catch (e) {
+    maxDepth.value = 2
+  }
+}
 
 const loadCategories = async () => {
   try {
@@ -83,14 +120,19 @@ const loadCategories = async () => {
       method: 'get',
       headers: { 'Accept-Profile': 'public' }
     })
-    const list = res && res.length > 0 ? res[0].value : []
-    treeData.value = Array.isArray(list) ? list : []
-    if (treeData.value.length === 0) {
-      treeData.value = JSON.parse(JSON.stringify(defaultCategories))
+    const hasRow = Array.isArray(res) && res.length > 0
+    const list = hasRow ? res[0].value : null
+    if (Array.isArray(list)) {
+      treeDataAll.value = list
+    } else {
+      treeDataAll.value = []
+    }
+    if (!hasRow) {
+      treeDataAll.value = JSON.parse(JSON.stringify(defaultCategories))
       await saveCategories()
     }
   } catch (e) {
-    treeData.value = JSON.parse(JSON.stringify(defaultCategories))
+    treeDataAll.value = JSON.parse(JSON.stringify(defaultCategories))
   }
   expandedKeys.value = treeData.value.map(item => item.id)
 }
@@ -106,9 +148,14 @@ const saveCategories = async () => {
     },
     data: {
       key: 'materials_categories',
-      value: treeData.value
+      value: treeDataAll.value
     }
   })
+  try {
+    window.dispatchEvent(new CustomEvent('eis-materials-categories-updated', {
+      detail: { list: treeDataAll.value }
+    }))
+  } catch (e) {}
 }
 
 const selectAll = () => {
@@ -128,7 +175,11 @@ const openAddRoot = () => {
   editDialog.form.label = ''
 }
 
-const openAddChild = (node) => {
+const openAddChild = (node, treeNode) => {
+  if (treeNode?.level >= maxDepth.value) {
+    ElMessage.warning(`最多支持${maxDepth.value}级分类`)
+    return
+  }
   editDialog.visible = true
   editDialog.title = '新增子分类'
   editDialog.mode = 'add-child'
@@ -176,17 +227,21 @@ const submitEdit = async () => {
     return
   }
   if (editDialog.mode === 'add-root') {
-    treeData.value.push({ id: `cat_${Date.now()}`, label })
+    const segment = nextSegment(treeDataAll.value)
+    treeDataAll.value.push({ id: segment, label })
   } else if (editDialog.mode === 'add-child') {
-    const node = findNodeById(treeData.value, editDialog.targetId)
+    const node = findNodeById(treeDataAll.value, editDialog.targetId)
     if (!node) {
       ElMessage.error('未找到目标分类')
       return
     }
     if (!Array.isArray(node.children)) node.children = []
-    node.children.push({ id: `cat_${Date.now()}`, label })
+    const segment = nextSegment(node.children)
+    const prefix = String(node.id || '').trim()
+    const code = prefix ? `${prefix}.${segment}` : segment
+    node.children.push({ id: code, label })
   } else if (editDialog.mode === 'rename') {
-    const node = findNodeById(treeData.value, editDialog.targetId)
+    const node = findNodeById(treeDataAll.value, editDialog.targetId)
     if (node) node.label = label
   }
   await saveCategories()
@@ -195,15 +250,36 @@ const submitEdit = async () => {
 
 const removeNode = async (node) => {
   if (!node?.id) return
-  const removed = removeNodeById(treeData.value, node.id)
+  const removed = removeNodeById(treeDataAll.value, node.id)
   if (removed) {
     await saveCategories()
     emit('select', null)
   }
 }
 
-onMounted(() => {
+function cloneAndLimitDepth(list = [], depth = 2, level = 1) {
+  if (!Array.isArray(list)) return []
+  return list.map((item) => {
+    const next = { ...item }
+    if (level >= depth) {
+      next.children = []
+    } else if (Array.isArray(item.children) && item.children.length) {
+      next.children = cloneAndLimitDepth(item.children, depth, level + 1)
+    } else {
+      next.children = []
+    }
+    return next
+  })
+}
+
+onMounted(async () => {
+  await loadSettings()
   loadCategories()
+  window.addEventListener('eis-materials-categories-updated', loadCategories)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('eis-materials-categories-updated', loadCategories)
 })
 </script>
 
@@ -212,6 +288,8 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  background: #f7f4f4;
+  border: none;
 }
 
 .tree-header {
@@ -222,9 +300,9 @@ onMounted(() => {
 }
 
 .tree-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2d3d;
 }
 
 .tree-actions {
@@ -234,7 +312,11 @@ onMounted(() => {
 
 .tree-body {
   flex: 1;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 4px 10px;
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 .tree-node {
@@ -248,15 +330,53 @@ onMounted(() => {
 .node-label {
   font-size: 13px;
   color: #303133;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .node-actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   opacity: 0;
 }
 
 .tree-node:hover .node-actions {
   opacity: 1;
+}
+
+:deep(.el-tree) {
+  background: transparent;
+}
+
+:deep(.el-tree-node__content) {
+  height: 34px;
+  border-radius: 6px;
+  padding-right: 6px;
+}
+
+:deep(.el-tree-node__content:hover) {
+  background: #f3eceb;
+}
+
+:deep(.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content) {
+  background: #efe6e5;
+}
+
+.tree-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.tree-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.tree-body::-webkit-scrollbar-thumb {
+  background: #d6c7c6;
+  border-radius: 8px;
+}
+
+.tree-body::-webkit-scrollbar-thumb:hover {
+  background: #c7b6b5;
 }
 </style>

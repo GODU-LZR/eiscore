@@ -39,6 +39,13 @@
         <el-form-item label="开启通知">
           <el-switch v-model="form.notifications" />
         </el-form-item>
+
+        <el-form-item label="物料分类层级">
+          <el-radio-group v-model="form.materialsCategoryDepth">
+            <el-radio :label="2">二级</el-radio>
+            <el-radio :label="3">三级</el-radio>
+          </el-radio-group>
+        </el-form-item>
         
         <el-form-item v-if="canManage">
           <el-button type="primary" @click="saveSettings">保存并生效</el-button>
@@ -72,7 +79,8 @@ const predefineColors = [
 const form = reactive({
   title: '',
   themeColor: '#409EFF',
-  notifications: true
+  notifications: true,
+  materialsCategoryDepth: 2
 })
 
 const canManage = computed(() => {
@@ -93,6 +101,8 @@ onMounted(() => {
     form.title = systemStore.config.title || '海边姑娘管理系统'
     form.themeColor = systemStore.config.themeColor || '#409EFF'
     form.notifications = systemStore.config.notifications !== false
+    form.materialsCategoryDepth =
+      systemStore.config.materialsCategoryDepth === 3 ? 3 : 2
   }
 })
 
@@ -101,6 +111,7 @@ watch(() => systemStore.config, (val) => {
   form.title = val.title || '海边姑娘管理系统'
   form.themeColor = val.themeColor || '#409EFF'
   form.notifications = val.notifications !== false
+  form.materialsCategoryDepth = val.materialsCategoryDepth === 3 ? 3 : 2
 }, { deep: true })
 
 const saveSettings = async () => {
@@ -108,7 +119,8 @@ const saveSettings = async () => {
   const ok = await systemStore.saveConfig({ 
     title: form.title,
     themeColor: form.themeColor,
-    notifications: form.notifications
+    notifications: form.notifications,
+    materialsCategoryDepth: form.materialsCategoryDepth === 3 ? 3 : 2
   })
   if (ok) ElMessage.success('设置已保存，主题色已更新！')
   else ElMessage.error('保存失败，请稍后重试')

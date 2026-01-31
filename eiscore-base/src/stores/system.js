@@ -6,7 +6,8 @@ export const useSystemStore = defineStore('system', () => {
   const defaultConfig = {
     title: '海边姑娘管理系统',
     themeColor: '#409EFF',
-    notifications: true
+    notifications: true,
+    materialsCategoryDepth: 2
   }
 
   // 1. 定义状态
@@ -39,6 +40,11 @@ export const useSystemStore = defineStore('system', () => {
 
     if (newConfig.notifications !== undefined) {
       config.value.notifications = !!newConfig.notifications
+    }
+
+    if (newConfig.materialsCategoryDepth !== undefined) {
+      const depth = Number(newConfig.materialsCategoryDepth)
+      config.value.materialsCategoryDepth = depth === 3 ? 3 : 2
     }
   }
 

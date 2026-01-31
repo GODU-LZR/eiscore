@@ -1,9 +1,7 @@
 export const BASE_STATIC_COLUMNS = [
-  { label: '编号', prop: 'id', editable: false, width: 80 },
-  { label: '批次号', prop: 'batch_no', width: 140 },
+  { label: '物料编码', prop: 'batch_no', editable: false, width: 160 },
   { label: '物料名称', prop: 'name', width: 160 },
-  { label: '物料分类', prop: 'category', width: 140 },
-  { label: '重量(kg)', prop: 'weight_kg', type: 'number', width: 120 },
+  { label: '物料分类编码', prop: 'category', editable: false, width: 160 },
   { label: '入库日期', prop: 'entry_date', width: 120 },
   { label: '创建人', prop: 'created_by', editable: false, width: 120 }
 ]
@@ -12,7 +10,7 @@ const DEFAULT_SUMMARY = {
   label: '总计',
   rules: {},
   expressions: {},
-  cellLabels: { weight_kg: '重量合计' }
+  cellLabels: {}
 }
 
 export const MATERIAL_APPS = [

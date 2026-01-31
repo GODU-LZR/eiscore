@@ -8,9 +8,9 @@
       <el-button type="primary" plain @click="goApps">返回应用列表</el-button>
     </div>
 
-    <div class="content-area">
-      <div class="left-panel">
-        <MaterialCategoryTree @select="handleCategorySelect" />
+    <div class="content-area" :style="{ '--sidebar-width': sidebarCollapsed ? '0px' : '280px' }">
+      <div class="left-panel" :class="{ collapsed: sidebarCollapsed }">
+        <MaterialCategoryTree v-show="!sidebarCollapsed" @select="handleCategorySelect" />
       </div>
       <div class="right-panel">
         <MaterialAppGrid
@@ -18,8 +18,11 @@
           :key="`${app.key}-${selectedCategoryKey}`"
           :app-key="app.key"
           :app-config="appOverride"
-          :category="selectedCategoryLabel"
+          :category="selectedCategoryCode"
         />
+      </div>
+      <div class="sidebar-toggle" @click="toggleSidebar">
+        <el-icon><component :is="sidebarCollapsed ? ArrowRight : ArrowLeft" /></el-icon>
       </div>
     </div>
   </div>
@@ -28,6 +31,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import MaterialCategoryTree from '@/components/MaterialCategoryTree.vue'
 import MaterialAppGrid from '@/components/MaterialAppGrid.vue'
 import { findMaterialApp, MATERIAL_APPS } from '@/utils/material-apps'
@@ -39,20 +43,21 @@ const props = defineProps({
 const router = useRouter()
 const gridRef = ref(null)
 const selectedCategory = ref(null)
+const sidebarCollapsed = ref(false)
 
 const app = computed(() => findMaterialApp(props.appKey) || MATERIAL_APPS[0])
 
-const selectedCategoryLabel = computed(() => selectedCategory.value?.label || '')
-const selectedCategoryKey = computed(() => selectedCategoryLabel.value || 'all')
+const selectedCategoryCode = computed(() => selectedCategory.value?.id || '')
+const selectedCategoryKey = computed(() => selectedCategoryCode.value || 'all')
 
 const appOverride = computed(() => {
   const base = app.value || {}
   const apiUrl = base.apiUrl || '/raw_materials'
   const writeUrl = apiUrl.split('?')[0]
-  if (!selectedCategoryLabel.value) {
+  if (!selectedCategoryCode.value) {
     return { ...base, apiUrl, writeUrl }
   }
-  const filter = `category=eq.${encodeURIComponent(selectedCategoryLabel.value)}`
+  const filter = `category=eq.${encodeURIComponent(selectedCategoryCode.value)}`
   return {
     ...base,
     apiUrl: apiUrl.includes('?') ? `${apiUrl}&${filter}` : `${apiUrl}?${filter}`,
@@ -62,6 +67,10 @@ const appOverride = computed(() => {
 
 const handleCategorySelect = (node) => {
   selectedCategory.value = node
+}
+
+const toggleSidebar = () => {
+  sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
 const goApps = () => {
@@ -107,11 +116,37 @@ const goApps = () => {
   display: flex;
   gap: 16px;
   min-height: 0;
+  position: relative;
 }
 
 .left-panel {
   width: 280px;
   flex-shrink: 0;
+  position: relative;
+  transition: width 0.2s ease;
+  overflow: visible;
+}
+
+.left-panel.collapsed {
+  width: 0;
+  overflow: hidden;
+}
+
+ .sidebar-toggle {
+  position: absolute;
+  top: 12px;
+  left: calc(var(--sidebar-width) + 8px);
+  width: 28px;
+  height: 28px;
+  background: #ffffff;
+  border: 1px solid #e4e7ed;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  z-index: 5;
 }
 
 .right-panel {
