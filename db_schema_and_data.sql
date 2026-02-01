@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict jKt80c15pNhQMkEmh96Z6T5Wy3o8n8LhZrzCpyrLxzHZsPFQDGdAyBZo7fc6vAS
+\restrict j4vYuiLASwWtKbK74NkdlfsWG22TbwVh9twlTGMqloWmuW1WKXx8LT3BVEaac6K
 
 -- Dumped from database version 16.11 (Debian 16.11-1.pgdg13+1)
 -- Dumped by pg_dump version 16.11 (Debian 16.11-1.pgdg13+1)
@@ -4370,63 +4370,63 @@ COPY public.field_label_overrides (module, field_code, field_label, updated_at) 
 hr_employee	salary	工资	2026-01-29 00:01:12.786401+00
 hr_employee	performance	绩效	2026-01-29 00:01:12.786401+00
 hr_employee	total_salary	总工资	2026-01-29 00:01:12.786401+00
+hr_employee	employee_no	工号	2026-02-01 02:57:25.771285+00
 hr_employee	native_place	籍贯	2026-01-29 00:01:12.786401+00
+hr_employee	field_2086	自定义字段8	2026-02-01 02:57:04.251947+00
 hr_employee	phone	手机号	2026-01-29 00:01:12.786401+00
 hr_employee	position	岗位	2026-01-29 00:01:12.786401+00
 hr_user	username	用户名	2026-01-31 22:56:13.441646+00
 hr_user	password	登录密码	2026-01-31 22:56:13.441646+00
+hr_employee	department	部门	2026-02-01 02:57:25.771285+00
+hr_employee	status	状态	2026-02-01 02:57:25.771285+00
 hr_user	full_name	姓名	2026-01-31 22:56:13.441646+00
 hr_user	phone	手机号	2026-01-31 22:56:13.441646+00
 hr_user	email	邮箱	2026-01-31 22:56:13.441646+00
 hr_user	dept_id	部门	2026-01-31 22:56:13.441646+00
 hr_user	avatar	头像	2026-01-31 22:56:13.441646+00
 hr_user	role_id	角色	2026-01-31 22:56:13.441646+00
-hr_employee	id	编号	2026-01-31 23:00:29.593885+00
-hr_employee	name	姓名	2026-01-31 23:00:29.593885+00
+hr_employee	gender	性别	2026-02-01 02:57:25.771285+00
+hr_employee	id_card	身份证	2026-02-01 02:57:25.771285+00
 hr_attendance	att_status	考勤状态	2026-01-29 00:01:12.786401+00
 hr_attendance	check_in	签到时间	2026-01-29 00:01:12.786401+00
 hr_attendance	check_out	签退时间	2026-01-29 00:01:12.786401+00
 hr_attendance	att_note	备注	2026-01-29 00:01:12.786401+00
 hr_attendance	ot_hours	加班时长	2026-01-29 00:01:12.786401+00
-mms_ledger	batch_no	物料编码	2026-01-31 23:00:49.600587+00
-mms_ledger	name	物料名称	2026-01-31 23:00:49.600587+00
-mms_ledger	category	物料分类编码	2026-01-31 23:00:49.600587+00
-mms_ledger	spec	规格	2026-01-31 23:00:49.600587+00
-mms_ledger	unit	单位	2026-01-31 23:00:49.600587+00
+hr_employee	field_3410	籍贯	2026-02-01 02:57:25.771285+00
+hr_employee	field_5458	工资	2026-02-01 02:57:25.771285+00
+hr_employee	field_9314	绩效	2026-02-01 02:57:25.771285+00
+hr_employee	field_789	总工资	2026-02-01 02:57:25.771285+00
+hr_employee	field_1340	位置	2026-02-01 02:57:25.771285+00
 mms_ledger	dept_id	部门	2026-01-31 20:57:06.007381+00
-mms_ledger	measure_unit	计量单位	2026-01-31 23:00:49.600587+00
-mms_ledger	conversion_ratio	换算比例	2026-01-31 23:00:49.600587+00
-mms_ledger	conversion	换算关系	2026-01-31 23:00:49.600587+00
-mms_ledger	finance_attribute	财务属性	2026-01-31 23:00:49.600587+00
-mms_ledger	created_by	创建人	2026-01-31 23:00:49.600587+00
-hr_change	id	编号	2026-01-31 22:41:39.789293+00
-hr_change	name	姓名	2026-01-31 22:41:39.789293+00
-hr_change	employee_no	工号	2026-01-31 22:41:39.789293+00
-hr_change	department	部门	2026-01-31 22:41:39.789293+00
-hr_change	status	状态	2026-01-31 22:41:39.789293+00
-hr_change	from_dept	原部门	2026-01-31 22:41:39.789293+00
-hr_change	to_dept	新部门	2026-01-31 22:41:39.789293+00
-hr_change	from_position	原岗位	2026-01-31 22:41:39.789293+00
-hr_change	to_position	新岗位	2026-01-31 22:41:39.789293+00
-hr_change	effective_date	生效日期	2026-01-31 22:41:39.789293+00
-hr_change	transfer_type	调岗类型	2026-01-31 22:41:39.789293+00
-hr_change	transfer_reason	调岗原因	2026-01-31 22:41:39.789293+00
-hr_change	approver	审批人	2026-01-31 22:41:39.789293+00
-hr_employee	employee_no	工号	2026-01-31 23:00:29.593885+00
-hr_employee	department	部门	2026-01-31 23:00:29.593885+00
-hr_employee	status	状态	2026-01-31 23:00:29.593885+00
-hr_employee	gender	性别	2026-01-31 23:00:29.593885+00
-hr_employee	id_card	身份证	2026-01-31 23:00:29.593885+00
-hr_employee	field_3410	籍贯	2026-01-31 23:00:29.593885+00
-hr_employee	field_5458	工资	2026-01-31 23:00:29.593885+00
-hr_employee	field_9314	绩效	2026-01-31 23:00:29.593885+00
-hr_employee	field_789	总工资	2026-01-31 23:00:29.593885+00
-hr_employee	field_8633	自定义字段7	2026-01-31 23:00:29.593885+00
-hr_employee	field_2086	自定义字段8	2026-01-31 23:00:29.593885+00
-hr_employee	field_7980	自定义字段9	2026-01-31 23:00:29.593885+00
-hr_employee	field_1340	位置	2026-01-31 23:00:29.593885+00
-hr_employee	field_3727	员工照片	2026-01-31 23:00:29.593885+00
-hr_employee	field_3986	性别1	2026-01-31 23:00:29.593885+00
+hr_employee	field_3727	员工照片	2026-02-01 02:57:25.771285+00
+hr_change	id	编号	2026-02-01 03:02:45.319596+00
+hr_change	name	姓名	2026-02-01 03:02:45.319596+00
+hr_change	employee_no	工号	2026-02-01 03:02:45.319596+00
+hr_employee	field_8633	自定义字段7	2026-02-01 02:57:05.433583+00
+hr_change	department	部门	2026-02-01 03:02:45.319596+00
+hr_change	status	状态	2026-02-01 03:02:45.319596+00
+hr_employee	field_3986	性别1	2026-02-01 02:56:40.769599+00
+hr_change	from_dept	原部门	2026-02-01 03:02:45.319596+00
+hr_change	to_dept	新部门	2026-02-01 03:02:45.319596+00
+hr_change	from_position	原岗位	2026-02-01 03:02:45.319596+00
+hr_change	to_position	新岗位	2026-02-01 03:02:45.319596+00
+hr_change	effective_date	生效日期	2026-02-01 03:02:45.319596+00
+hr_change	transfer_type	调岗类型	2026-02-01 03:02:45.319596+00
+hr_change	transfer_reason	调岗原因	2026-02-01 03:02:45.319596+00
+hr_change	approver	审批人	2026-02-01 03:02:45.319596+00
+hr_employee	field_7980	自定义字段9	2026-02-01 02:57:01.361361+00
+mms_ledger	batch_no	物料编码	2026-02-01 02:56:22.35803+00
+mms_ledger	name	物料名称	2026-02-01 02:56:22.35803+00
+mms_ledger	category	物料分类编码	2026-02-01 02:56:22.35803+00
+mms_ledger	spec	规格	2026-02-01 02:56:22.35803+00
+mms_ledger	unit	单位	2026-02-01 02:56:22.35803+00
+mms_ledger	measure_unit	计量单位	2026-02-01 02:56:22.35803+00
+mms_ledger	conversion_ratio	换算比例	2026-02-01 02:56:22.35803+00
+mms_ledger	conversion	换算关系	2026-02-01 02:56:22.35803+00
+mms_ledger	finance_attribute	财务属性	2026-02-01 02:56:22.35803+00
+mms_ledger	created_by	创建人	2026-02-01 02:56:22.35803+00
+hr_employee	id	编号	2026-02-01 02:57:25.771285+00
+hr_employee	name	姓名	2026-02-01 02:57:25.771285+00
 \.
 
 
@@ -5593,7 +5593,6 @@ hr_acl_fields	{"label": "合计", "rules": {"role_id": "count", "can_view": "non
 
 COPY public.system_configs (key, value, description) FROM stdin;
 hr_column_locks	{}	HR表格列锁配置
-hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}, {"tag": true, "prop": "field_8633", "type": "select", "label": "自定义字段7", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}, {"prop": "field_2086", "type": "cascader", "label": "自定义字段8", "dependsOn": "field_8633", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}, {"label": "5", "value": "5"}], "3": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "4": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "5": [{"label": "1", "value": "1"}], "6": [{"label": "1", "value": "1"}], "7": [{"label": "1", "value": "1"}]}}, {"prop": "field_7980", "type": "cascader", "label": "自定义字段9", "dependsOn": "field_2086", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "3": [{"label": "1", "value": "1"}], "4": [{"label": "2", "value": "2"}], "5": [{"label": "3", "value": "3"}]}}, {"prop": "field_1340", "type": "geo", "label": "位置", "geoAddress": true}, {"prop": "field_3727", "type": "file", "label": "员工照片", "fileAccept": "", "fileMaxCount": 3, "fileMaxSizeMb": 20}, {"prop": "field_3986", "type": "select", "label": "性别1", "options": [{"label": "男", "value": "男"}, {"label": "女", "value": "女"}]}]	HR花名册的动态列配置
 hr_transfer_cols	[{"prop": "from_dept", "type": "text", "label": "原部门"}, {"prop": "to_dept", "type": "text", "label": "新部门"}, {"prop": "from_position", "type": "text", "label": "原岗位"}, {"prop": "to_position", "type": "text", "label": "新岗位"}, {"prop": "effective_date", "type": "text", "label": "生效日期"}, {"prop": "transfer_type", "type": "select", "label": "调岗类型", "options": [{"label": "平调", "value": "平调"}, {"label": "晋升", "value": "晋升"}, {"label": "降级", "value": "降级"}]}, {"prop": "transfer_reason", "type": "text", "label": "调岗原因"}, {"prop": "approver", "type": "text", "label": "审批人"}]	\N
 ai_glm_config	{"model": "glm-4.6v", "api_key": "01e666998e24458e960cfc51fd7a1ff2.a67QjUwrs2433Wk2", "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions", "provider": "zhipu", "thinking": {"type": "enabled"}}	智谱 AI GLM-4.6V 模型配置
 hr_org_layout	[{"x": 850, "y": 60, "id": "b0aa5f36-a392-4a79-a908-e84c3aac1112"}, {"x": 80, "y": 200, "id": "15e61e02-6ef3-41a0-b858-21e1618f9632"}, {"x": 300, "y": 200, "id": "8f2d51a8-5d51-4fd4-88b1-b0ccd455fc64"}, {"x": 850, "y": 200, "id": "821bae9d-d4d6-4f79-a2df-986400aaada3"}, {"x": 520, "y": 340, "id": "8c7d6883-4921-4ef4-ba45-8033103563e2"}, {"x": 740, "y": 340, "id": "d26a3a93-e81d-4cc0-998f-d014edee55f4"}, {"x": 960, "y": 340, "id": "529af27e-6cfb-4dcf-be03-efe17c5bb285"}, {"x": 1180, "y": 340, "id": "3ee73ef4-5352-4806-bfc5-002f2ac68564"}, {"x": 1400, "y": 200, "id": "f1b437fa-a799-4866-9478-50e15b961e93"}, {"x": 1620, "y": 200, "id": "427becfd-2d82-48d6-8171-195c7acaad53"}]	\N
@@ -5601,7 +5600,8 @@ hr_attendance_cols	[{"prop": "att_date", "type": "text", "label": "日期"}, {"p
 form_templates	[{"id": "transfer_record", "name": "调岗记录单", "schema": {"docNo": "employee_no", "title": "调岗记录单", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "widget": "input", "editable": false}, {"field": "name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号", "widget": "input", "editable": false}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "status", "label": "状态", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "调岗信息", "children": [{"field": "from_dept", "label": "原部门", "widget": "input"}, {"field": "to_dept", "label": "新部门", "widget": "input"}, {"field": "from_position", "label": "原岗位", "widget": "input"}, {"field": "to_position", "label": "新岗位", "widget": "input"}, {"field": "effective_date", "label": "生效日期", "widget": "date"}, {"field": "transfer_type", "label": "调岗类型", "widget": "select", "options": [{"label": "平调", "value": "平调"}, {"label": "晋升", "value": "晋升"}, {"label": "降级", "value": "降级"}]}, {"field": "transfer_reason", "label": "调岗原因", "widget": "textarea"}, {"field": "approver", "label": "审批人", "widget": "input"}]}], "docType": "transfer_record"}, "source": "ai", "created_at": "2026-01-24T19:58:19.366Z", "updated_at": "2026-01-24T19:58:19.366Z"}, {"id": "attendance_record", "name": "考勤记录单", "schema": {"docNo": "employee_no", "title": "考勤记录单", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "employee_name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号/电话", "widget": "input"}, {"field": "dept_name", "label": "部门", "widget": "input"}, {"field": "att_date", "label": "日期", "widget": "date"}]}, {"cols": 2, "type": "section", "title": "班次与打卡", "children": [{"field": "shift_name", "label": "班次", "widget": "input"}, {"field": "punch_times", "label": "打卡记录", "widget": "textarea"}, {"field": "check_in", "label": "签到时间", "widget": "input"}, {"field": "check_out", "label": "签退时间", "widget": "input"}]}, {"cols": 4, "type": "section", "title": "考勤状态", "children": [{"field": "late_flag", "label": "迟到", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "early_flag", "label": "早退", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "leave_flag", "label": "请假", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "absent_flag", "label": "缺勤", "widget": "select", "options": [{"label": "否", "value": false}, {"label": "是", "value": true}]}, {"field": "att_status", "label": "考勤状态", "widget": "select", "options": [{"label": "正常", "value": "正常"}, {"label": "迟到", "value": "迟到"}, {"label": "早退", "value": "早退"}, {"label": "缺勤", "value": "缺勤"}, {"label": "请假", "value": "请假"}]}]}, {"cols": 2, "type": "section", "title": "加班与备注", "children": [{"field": "overtime_minutes", "label": "加班(分钟)", "widget": "number"}, {"field": "ot_hours", "label": "加班时长", "widget": "input"}, {"field": "remark", "label": "备注", "widget": "textarea"}, {"field": "att_note", "label": "备注", "widget": "textarea"}]}], "docType": "attendance_record"}, "source": "ai", "created_at": "2026-01-24T19:25:56.311Z", "updated_at": "2026-01-24T19:25:56.311Z"}, {"id": "employee_profile", "name": "员工详细档案表", "schema": {"docNo": "employee_no", "title": "员工详细档案表", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "value": "688", "widget": "input"}, {"field": "name", "label": "姓名", "value": "惠晨丽", "widget": "input"}, {"field": "employee_no", "label": "工号", "value": "E0100", "widget": "input"}, {"field": "department", "label": "部门", "value": "行政部", "widget": "input"}, {"field": "status", "label": "状态", "value": "试用", "widget": "input"}, {"field": "gender", "label": "性别", "value": "男", "widget": "input"}, {"field": "id_card", "label": "身份证", "widget": "input"}, {"field": "field_3410", "label": "籍贯", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "薪资信息", "children": [{"field": "field_5458", "label": "工资", "widget": "input"}, {"field": "field_9314", "label": "绩效", "widget": "input"}, {"field": "field_789", "label": "总工资", "value": 0, "widget": "input", "disabled": true}]}, {"cols": 2, "type": "section", "title": "分类信息", "children": [{"field": "field_8633", "label": "1", "value": "1", "widget": "select", "options": [{"type": "success", "label": "1", "value": "1"}, {"type": "warning", "label": "2", "value": "2"}, {"type": "danger", "label": "3", "value": "3"}, {"type": "info", "label": "4", "value": "4"}, {"type": "", "label": "5", "value": "5"}, {"type": "", "label": "6", "value": "6"}, {"type": "", "label": "7", "value": "7"}]}, {"field": "field_2086", "label": "2", "value": "1", "widget": "cascader", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}, {"label": "5", "value": "5"}], "3": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "4": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "5": [{"label": "1", "value": "1"}], "6": [{"label": "1", "value": "1"}], "7": [{"label": "1", "value": "1"}]}}, {"field": "field_7980", "label": "3", "value": "1", "widget": "cascader", "cascaderOptions": {"1": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "2": [{"label": "1", "value": "1"}, {"label": "2", "value": "2"}, {"label": "3", "value": "3"}, {"label": "4", "value": "4"}], "3": [{"label": "1", "value": "1"}], "4": [{"label": "2", "value": "2"}], "5": [{"label": "3", "value": "3"}]}}]}, {"cols": 2, "type": "section", "title": "其他信息", "children": [{"field": "field_1340", "label": "位置", "widget": "input", "geoAddress": true}, {"field": "field_3727", "label": "员工照片", "widget": "image", "fileSource": "field_3727"}]}], "docType": "employee_profile"}, "source": "ai", "created_at": "2025-12-30T19:26:26.913Z", "updated_at": "2025-12-30T19:26:26.913Z"}, {"id": "employee_detail", "name": "员工信息表", "schema": {"docNo": "id", "title": "员工信息表", "layout": [{"cols": 2, "type": "section", "title": "基本信息", "children": [{"field": "id", "label": "编号", "widget": "input"}, {"field": "name", "label": "姓名", "widget": "input"}, {"field": "employee_no", "label": "工号", "widget": "input"}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "status", "label": "状态", "widget": "input"}, {"field": "gender", "label": "性别", "widget": "input"}, {"field": "id_card", "label": "身份证", "widget": "input"}, {"field": "field_3410", "label": "籍贯", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "薪资信息", "children": [{"field": "field_5458", "label": "工资", "widget": "input"}, {"field": "field_9314", "label": "绩效", "widget": "input"}, {"field": "field_789", "label": "总工资", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "其他信息", "children": [{"field": "field_8633", "label": "1", "widget": "select"}, {"field": "field_2086", "label": "2", "widget": "cascader"}, {"field": "field_7980", "label": "3", "widget": "cascader"}, {"field": "field_1340", "label": "位置", "widget": "geo"}, {"field": "field_3727", "label": "员工照片", "widget": "image", "fileSource": "field_3727"}]}], "docType": "employee_detail"}, "source": "ai", "created_at": "2025-12-30T13:59:49.163Z", "updated_at": "2025-12-30T13:59:49.163Z"}, {"id": "hr_form", "name": "人事信息表", "schema": {"docNo": "hr_no", "title": "人事信息表", "layout": [{"cols": 2, "type": "section", "title": "个人信息", "children": [{"field": "name", "label": "姓名", "widget": "input"}, {"field": "gender", "label": "性别", "widget": "input"}, {"field": "birth_date", "label": "出生日期", "widget": "date"}, {"field": "ethnicity", "label": "民族", "widget": "input"}, {"field": "id_card", "label": "身份证号", "widget": "input"}, {"field": "phone", "label": "联系电话", "widget": "input"}, {"field": "email", "label": "电子邮箱", "widget": "input"}, {"field": "address", "label": "现住址", "widget": "textarea"}]}, {"cols": 2, "type": "section", "title": "工作信息", "children": [{"field": "employee_no", "label": "员工编号", "widget": "input"}, {"field": "department", "label": "部门", "widget": "input"}, {"field": "position", "label": "职位", "widget": "input"}, {"field": "entry_date", "label": "入职日期", "widget": "date"}, {"field": "contract_period", "label": "合同期限", "widget": "input"}, {"field": "contract_start_date", "label": "合同起始日期", "widget": "date"}, {"field": "contract_end_date", "label": "合同结束日期", "widget": "date"}, {"field": "supervisor", "label": "直属上级", "widget": "input"}]}, {"cols": 2, "type": "section", "title": "紧急联系人", "children": [{"field": "emergency_contact_name", "label": "姓名", "widget": "input"}, {"field": "emergency_contact_relation", "label": "关系", "widget": "input"}, {"field": "emergency_contact_phone", "label": "联系电话", "widget": "input"}]}], "docType": "hr_form"}, "source": "ai", "created_at": "2025-12-30T13:51:48.884Z", "updated_at": "2025-12-30T13:51:48.884Z"}]	\N
 materials_table_cols	[]	\N
 materials_table_cols_static_hidden	[]	\N
-app_settings	{"title": "广东南派食品有限公司", "themeColor": "#2b0408", "notifications": true, "materialsCategoryDepth": 2}	系统全局设置
+app_settings	{"title": "EISCore", "themeColor": "#2b0408", "notifications": true, "materialsCategoryDepth": 2}	系统全局设置
+hr_table_cols	[{"prop": "gender", "label": "性别"}, {"prop": "id_card", "label": "身份证"}, {"prop": "field_3410", "label": "籍贯"}, {"prop": "field_5458", "type": "text", "label": "工资"}, {"prop": "field_9314", "type": "text", "label": "绩效"}, {"prop": "field_789", "type": "formula", "label": "总工资", "expression": "{工资}+{绩效}"}, {"prop": "field_1340", "type": "geo", "label": "位置", "geoAddress": true}, {"prop": "field_3727", "type": "file", "label": "员工照片", "fileAccept": "", "fileMaxCount": 3, "fileMaxSizeMb": 20}]	HR花名册的动态列配置
 materials_categories	[{"id": "01", "label": "原材料"}, {"id": "02", "label": "包装材料", "children": [{"id": "02.01", "label": "纸箱类"}, {"id": "02.02", "label": "桶类"}, {"id": "02.03", "label": "罐类"}, {"id": "02.04", "label": "袋子类"}, {"id": "02.05", "label": "瓶子类"}, {"id": "02.06", "label": "封口膜类"}, {"id": "02.07", "label": "标签类"}, {"id": "02.08", "label": "封口胶"}, {"id": "02.09", "label": "其他包材"}]}, {"id": "03", "label": "五金耗材类", "children": [{"id": "03.01", "label": "办公文具"}, {"id": "03.02", "label": "清洁劳保用品"}, {"id": "03.03", "label": "机械设备"}, {"id": "03.04", "label": "五金配件"}, {"id": "03.05", "label": "其他耗材"}]}, {"id": "04", "label": "半成品", "children": [{"id": "04.01", "label": "速冻果汁系列"}, {"id": "04.02", "label": "速冻果浆系列"}, {"id": "04.03", "label": "速冻冰淇淋系列"}]}, {"id": "05", "label": "库存商品", "children": [{"id": "05.01", "label": "速冻果汁系列"}, {"id": "05.02", "label": "速冻果浆系列"}, {"id": "05.03", "label": "常温果酱系列"}, {"id": "05.04", "label": "速冻块/粒系列"}, {"id": "05.05", "label": "常温饮料类"}, {"id": "05.06", "label": "其他库存商品"}]}, {"id": "06", "label": "代加工产品"}]	\N
 \.
 
@@ -6771,5 +6771,5 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.v_users_manage TO web_user;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict jKt80c15pNhQMkEmh96Z6T5Wy3o8n8LhZrzCpyrLxzHZsPFQDGdAyBZo7fc6vAS
+\unrestrict j4vYuiLASwWtKbK74NkdlfsWG22TbwVh9twlTGMqloWmuW1WKXx8LT3BVEaac6K
 

@@ -27,6 +27,7 @@
             content-profile="public"
             :show-action-col="false"
             :auto-size-columns="false"
+            :enable-column-lock="false"
             default-order=""
             @create="handleCreate('roles')"
             @config-columns="handleConfigColumns"
@@ -51,6 +52,7 @@
             content-profile="public"
             :show-action-col="false"
             :auto-size-columns="false"
+            :enable-column-lock="false"
             default-order=""
             :can-create="false"
             @config-columns="handleConfigColumns"
@@ -86,6 +88,7 @@
             content-profile="public"
             :show-action-col="false"
             :auto-size-columns="false"
+            :enable-column-lock="false"
             default-order=""
             :can-create="false"
             @config-columns="handleConfigColumns"
@@ -121,6 +124,7 @@
             content-profile="public"
             :show-action-col="false"
             :auto-size-columns="false"
+            :enable-column-lock="false"
             default-order=""
             :can-create="false"
             @config-columns="handleConfigColumns"
@@ -156,6 +160,7 @@
             content-profile="public"
             :show-action-col="false"
             :auto-size-columns="false"
+            :enable-column-lock="false"
             default-order=""
             @create="handleCreate('fields')"
             @config-columns="handleConfigColumns"
@@ -191,6 +196,7 @@
             content-profile="public"
             :show-action-col="false"
             :auto-size-columns="false"
+            :enable-column-lock="false"
             default-order=""
             @create="handleCreate('scopes')"
             @config-columns="handleConfigColumns"
@@ -424,7 +430,14 @@ const scopeApiUrl = computed(() => {
 const fieldApiUrl = computed(() => {
   if (!currentRoleId.value) return '/sys_field_acl?order=module.asc,field_code.asc'
   if (fieldModule.value) {
-    return `/sys_field_acl?role_id=eq.${currentRoleId.value}&module=eq.${fieldModule.value}&order=field_code.asc`
+    const codes = allowedFieldCodes.value
+    if (!codes.length) {
+      return `/sys_field_acl?role_id=eq.${currentRoleId.value}&module=eq.${fieldModule.value}&limit=0`
+    }
+    const inFilter = codes.length
+      ? `&field_code=in.(${codes.map(c => encodeURIComponent(c)).join(',')})`
+      : ''
+    return `/sys_field_acl?role_id=eq.${currentRoleId.value}&module=eq.${fieldModule.value}${inFilter}&order=field_code.asc`
   }
   if (fieldModuleGroup.value) {
     const prefix = fieldModuleGroup.value + '_'
@@ -520,6 +533,7 @@ const applyRoleTemplates = async () => {
 }
 
 const fieldLabelMap = ref({})
+const allowedFieldCodes = ref([])
 
 const getConfigKeyByModule = (moduleKey) => {
   const map = {
@@ -536,6 +550,48 @@ const getStaticColumnsByModule = (moduleKey) => {
   const app = HR_APPS.find(item => item.aclModule === moduleKey)
   if (app?.staticColumns?.length) return app.staticColumns
   return BASE_STATIC_COLUMNS
+}
+
+const MMS_LEDGER_ALLOWED_FIELDS = [
+  'batch_no',
+  'name',
+  'category',
+  'spec',
+  'unit',
+  'measure_unit',
+  'conversion_ratio',
+  'conversion',
+  'finance_attribute',
+  'created_by'
+]
+
+const buildAllowedFieldCodeSet = async (moduleKey) => {
+  const set = new Set()
+  if (!moduleKey) return set
+  if (moduleKey === 'mms_ledger') {
+    MMS_LEDGER_ALLOWED_FIELDS.forEach(code => set.add(code))
+  } else {
+    const staticCols = getStaticColumnsByModule(moduleKey) || []
+    staticCols.forEach(col => {
+      if (col?.prop) set.add(col.prop)
+    })
+    const fallbackLabels = FIELD_LABELS[moduleKey] || {}
+    Object.keys(fallbackLabels).forEach(code => set.add(code))
+  }
+  const configCols = await fetchConfigColumns(moduleKey)
+  configCols.forEach(col => {
+    if (col?.prop) set.add(col.prop)
+  })
+  return set
+}
+
+const loadAllowedFieldCodes = async (moduleKey) => {
+  if (!moduleKey) {
+    allowedFieldCodes.value = []
+    return
+  }
+  const set = await buildAllowedFieldCodeSet(moduleKey)
+  allowedFieldCodes.value = Array.from(set)
 }
 
 const fetchConfigColumns = async (moduleKey) => {
@@ -560,6 +616,7 @@ const loadFieldLabelMap = async () => {
     fieldLabelMap.value = {}
     return
   }
+  const allowedSet = new Set(allowedFieldCodes.value)
   const map = {}
   try {
     const res = await request({
@@ -572,6 +629,7 @@ const loadFieldLabelMap = async () => {
         if (!row?.field_code) return
         const raw = row?.field_label || ''
         const code = row.field_code
+        if (allowedSet.size && !allowedSet.has(code)) return
         const normalized = String(raw).trim()
         const looksLikeCode = /^[a-z0-9_]+$/i.test(normalized)
         if (!normalized || normalized === '???' || normalized === '？？？' || looksLikeCode) {
@@ -585,11 +643,12 @@ const loadFieldLabelMap = async () => {
   }
   const fallbackLabels = FIELD_LABELS[moduleKey] || {}
   Object.keys(fallbackLabels).forEach((code) => {
+    if (allowedSet.size && !allowedSet.has(code)) return
     if (!map[code]) map[code] = fallbackLabels[code]
   })
   const configCols = await fetchConfigColumns(moduleKey)
   configCols.forEach((col) => {
-    if (col?.prop && col?.label && !map[col.prop]) {
+    if (col?.prop && col?.label && !map[col.prop] && (!allowedSet.size || allowedSet.has(col.prop))) {
       map[col.prop] = col.label
     }
   })
@@ -598,6 +657,22 @@ const loadFieldLabelMap = async () => {
 
 const ensureFieldAclForModule = async (moduleKey) => {
   if (!moduleKey) return
+  if (moduleKey === 'mms_ledger') {
+    try {
+      const allowedSet = await buildAllowedFieldCodeSet(moduleKey)
+      const payload = Array.from(allowedSet).filter(Boolean)
+      if (payload.length === 0) return
+      await request({
+        url: '/rpc/ensure_field_acl',
+        method: 'post',
+        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+        data: { module_name: moduleKey, field_codes: payload }
+      })
+    } catch (e) {
+      console.warn('ensure field acl failed', e)
+    }
+    return
+  }
   try {
     const res = await request({
       url: `/v_field_labels?module=eq.${moduleKey}`,
@@ -637,8 +712,10 @@ watchEffect(() => {
 
 watchEffect(() => {
   if (activeTab.value === 'field') {
-    ensureFieldAclForModule(fieldModule.value).then(() => {
+    ensureFieldAclForModule(fieldModule.value).then(async () => {
+      await loadAllowedFieldCodes(fieldModule.value)
       loadFieldLabelMap()
+      fieldGridRef.value?.loadData?.()
     })
   }
 })
@@ -646,6 +723,7 @@ watchEffect(() => {
 watch([fieldModule, fieldModuleGroup], async () => {
   if (activeTab.value === 'field') {
     await ensureFieldAclForModule(fieldModule.value)
+    await loadAllowedFieldCodes(fieldModule.value)
     await loadFieldLabelMap()
     fieldGridRef.value?.loadData()
   }

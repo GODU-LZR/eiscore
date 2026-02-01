@@ -30,9 +30,9 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
           }
           
           // 🟢 恢复列锁状态
-          if (remoteConfig.column_locks) {
+           if (props.enableColumnLock !== false && remoteConfig.column_locks) {
              Object.assign(columnLockState, remoteConfig.column_locks)
-          }
+           }
           
           pinnedBottomRowData.value = calculateTotals(gridData.value)
           
@@ -187,11 +187,11 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
                 data: { 
                     view_id: props.viewId, 
                     summary_config: {
-                        label: activeSummaryConfig.label,
-                        rules: activeSummaryConfig.rules,
-                        expressions: activeSummaryConfig.expressions,
-                        cell_labels: activeSummaryConfig.cellLabels,
-                        column_locks: columnLockState // 🟢 顺带保存列锁状态
+                      label: activeSummaryConfig.label,
+                      rules: activeSummaryConfig.rules,
+                      expressions: activeSummaryConfig.expressions,
+                      cell_labels: activeSummaryConfig.cellLabels,
+                      ...(props.enableColumnLock === false ? {} : { column_locks: columnLockState })
                     },
                     updated_by: currentUser.value 
                 }
@@ -203,7 +203,8 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
   }
 
   // 🟢 监听列锁变化，自动触发保存
-  watch(columnLockState, async () => {
+    watch(columnLockState, async () => {
+      if (props.enableColumnLock === false) return
       // 这里的逻辑稍微有点 trick：我们复用 saveConfig 里的持久化逻辑，但不需要弹窗
       // 为了不重写一遍 request，我们可以封装一个 internalSave
       // 但为了简单，这里直接复制核心请求代码，实现“静默保存”

@@ -80,7 +80,7 @@
                     </div>
                   </div>
 
-                <div class="bubble">
+                <div class="bubble" v-if="shouldShowBubble(msg)">
                   <div
                     class="markdown-body"
                     v-html="renderMarkdown(msg.content)"
@@ -514,6 +514,15 @@ const extractCategoryData = (text, blocks) => {
 }
 
 const getCategoryInfo = (msg) => extractCategoryData(msg?.content || '', MATERIAL_CATEGORY_BLOCKS)
+
+const shouldShowBubble = (msg) => {
+  const html = renderMarkdown(msg?.content || '')
+  const text = html
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim()
+  return text.length > 0
+}
 
 const getImportPreview = (info) => {
   const rows = Array.isArray(info?.rows) ? info.rows : []
@@ -1392,6 +1401,11 @@ $border-color: #e4e7ed;
     width: 100%;
     min-height: 240px;
     overflow: hidden;
+  }
+
+  :deep(.echarts-chart:empty),
+  :deep(.mermaid-chart:empty) {
+    display: none;
   }
 
   :deep(.mermaid-chart svg) {

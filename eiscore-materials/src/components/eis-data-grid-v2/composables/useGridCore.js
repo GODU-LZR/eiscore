@@ -117,7 +117,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (colId === '_status') return false 
     if (colId === '_actions') return true // ⚠️ 关键：操作列必须只读！
     if (params.node.rowPinned) return true
-    if (columnLockState[colId]) return true
+    if (props.enableColumnLock !== false && columnLockState[colId]) return true
     if (params.data?.properties?.row_locked_by) return true
     if (params.colDef.type === 'formula') return true
     const acl = getFieldAcl(params.colDef)
@@ -128,7 +128,14 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
   const cellClassRules = { 
     'custom-range-selected': (params) => isCellInSelection && isCellInSelection(params),
-    'cell-locked-pattern': (params) => isCellReadOnly(params),
+    // 仅业务锁定或列锁定使用条纹样式，权限只读用灰底
+    'cell-locked-pattern': (params) => {
+      if (props.enableColumnLock === false) return false
+      const colId = params.colDef.field
+      if (params.data?.properties?.row_locked_by) return true
+      if (colId && columnLockState[colId]) return true
+      return false
+    },
     'status-cell': (params) => params.colDef.field === '_status'
   }
 
@@ -265,6 +272,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   )
 
   const handleToggleColumnLock = async (colKey) => {
+    if (props.enableColumnLock === false) return
     const isLocking = !columnLockState[colKey]
     if (isLocking) {
         columnLockState[colKey] = currentUser.value
@@ -336,6 +344,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       ...widthConfig,
       ...extraColDef
     }
+    const aclSnapshot = fieldAcl.value?.[col.prop] || null
+    colDef.__aclCanView = aclSnapshot?.canView !== false
+    colDef.__aclCanEdit = aclSnapshot?.canEdit !== false
 
     if (useProperties) {
       colDef.valueSetter = (params) => {
