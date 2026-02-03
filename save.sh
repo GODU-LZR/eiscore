@@ -2,7 +2,7 @@
 
 # --- 配置区 ---
 DEFAULT_MSG="自动归档: 更新代码及数据库结构"
-SQL_FILE="db_schema_and_data.sql"
+SQL_FILE="env/db_schema_and_data.sql"
 # --- 配置结束 ---
 
 # 1. 获取提交信息
@@ -29,13 +29,5 @@ echo -e "📦 \033[33m正在提交到本地 Git...\033[0m"
 git add .
 git commit -m "$COMMIT_MSG"
 
-# 4. Git 推送 (远程) - 🟢 新增步骤
-echo -e "☁️  \033[33m正在推送到 GitHub...\033[0m"
-git push
-
-# 5. 结束
-if [ $? -eq 0 ]; then
-    echo -e "\n🎉 \033[32m大功告成！代码已同步到 GitHub。\033[0m"
-else
-    echo -e "\n⚠️ \033[33m本地提交成功，但推送到 GitHub 失败（请检查网络或权限）。\033[0m\n"
-fi
+# 4. 结束
+echo -e "\n✅ \033[32m本地提交完成（未执行远程推送）。\033[0m"
