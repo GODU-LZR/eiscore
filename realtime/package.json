@@ -1,12 +1,17 @@
 {
-  "name": "eiscore-realtime",
-  "version": "0.1.0",
+  "name": "eiscore-agent-runtime",
+  "version": "0.2.0",
   "private": true,
-  "description": "Small Postgres LISTEN/NOTIFY relay over WebSocket",
+  "description": "AI Agent Runtime with Cline-like capabilities + WebSocket Relay",
   "main": "index.js",
   "license": "UNLICENSED",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.5",
-    "ws": "^8.17.1"
+    "ws": "^8.17.1",
+    "chokidar": "^3.6.0",
+    "axios": "^1.7.9",
+    "bpmn-engine": "^25.0.1"
   }
 }
