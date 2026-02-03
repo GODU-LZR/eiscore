@@ -92,6 +92,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { findMaterialApp, BASE_STATIC_COLUMNS } from '@/utils/material-apps'
+import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
 
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
 import { documentSchemaExample } from '@/components/eis-document-engine/documentSchemaExample'
@@ -468,7 +469,7 @@ const applyFormulaUpdates = (rowData) => {
         const num = parseFloat(val)
         return Number.isFinite(num) ? num : 0
       })
-      const result = new Function(`return (${evalExpr})`)()
+      const result = evaluateFormulaExpression(evalExpr)
       if (result !== undefined && !isNaN(result) && isFinite(result)) {
         const finalVal = Number(result.toFixed(2))
         setRowValueByProp(rowData, col.prop, finalVal)
@@ -701,6 +702,25 @@ const printDoc = () => {
   if (!paper) return
   const printWindow = window.open('', '_blank')
   if (!printWindow) return
+  const sanitizePrintContent = (element) => {
+    const clone = element.cloneNode(true)
+    if (typeof document === 'undefined' || !document.createTreeWalker) return clone.outerHTML
+    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT)
+    while (walker.nextNode()) {
+      const node = walker.currentNode
+      if (node.tagName === 'SCRIPT') {
+        node.remove()
+        continue
+      }
+      Array.from(node.attributes || []).forEach((attr) => {
+        if (attr.name.toLowerCase().startsWith('on')) {
+          node.removeAttribute(attr.name)
+        }
+      })
+    }
+    return clone.outerHTML
+  }
+  const safePaper = sanitizePrintContent(paper)
   const styleText = `
     body { margin: 0; padding: 20px; background: #fff; }
     .eis-document-paper { max-width: 900px; margin: 0 auto; font-family: "SimSun", "Songti SC", serif; color: #000; }
@@ -716,7 +736,7 @@ const printDoc = () => {
     .custom-doc-table th, .custom-doc-table td { border: 1px solid #000; padding: 6px; text-align: center; }
     .table-toolbar, .image-actions, button, input, textarea, select { display: none !important; }
   `
-  printWindow.document.write(`<!DOCTYPE html><html><head><title>单据打印</title><style>${styleText}</style></head><body>${paper.outerHTML}</body></html>`)
+  printWindow.document.write(`<!DOCTYPE html><html><head><title>单据打印</title><style>${styleText}</style></head><body>${safePaper}</body></html>`)
   printWindow.document.close()
   printWindow.focus()
   setTimeout(() => {

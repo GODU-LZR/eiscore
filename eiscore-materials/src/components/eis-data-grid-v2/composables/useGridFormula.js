@@ -1,6 +1,7 @@
 import { reactive, ref, computed, watch, nextTick } from 'vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
+import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
 
 // 🟢 接收 columnLockState 参数
 export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, currentUser, hooks, columnLockState) {
@@ -66,7 +67,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
         const evalExpr = col.expression.replace(/\{(.+?)\}/g, (match, key) => {
           let val = rowDataMap[key]; const num = parseFloat(val); return isNaN(num) ? 0 : num
         })
-        const result = new Function(`return (${evalExpr})`)()
+        const result = evaluateFormulaExpression(evalExpr)
         if (result !== undefined && !isNaN(result) && isFinite(result)) {
           const finalVal = Number(result.toFixed(2)) 
           const currentVal = rowNode.data.properties?.[col.prop]
@@ -126,7 +127,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
       const expr = activeSummaryConfig.expressions?.[col.prop]
       if (expr) {
         try {
-          const res = new Function(`return (${expr.replace(/\{(.+?)\}/g, (m,k) => valueMap[k]??0)})`)()
+          const res = evaluateFormulaExpression(expr.replace(/\{(.+?)\}/g, (m,k) => valueMap[k]??0))
           if (res !== undefined && !isNaN(res) && isFinite(res)) {
              const d = Number(res.toFixed(2)); const isP = !props.staticColumns.find(c => c.prop === col.prop)
              if (isP) totalRow.properties[col.prop] = d; else totalRow[col.prop] = d
