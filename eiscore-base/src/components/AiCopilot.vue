@@ -173,6 +173,35 @@
                 </div>
 
                 <div
+                  v-if="msg.role === 'assistant' && getWorkflowInfo(msg).xml && !isStreamingMessage(index)"
+                  class="workflow-card"
+                >
+                  <div class="card-header">
+                    <span class="card-title">检测到流程</span>
+                    <span class="card-name">{{ getWorkflowInfo(msg).meta?.name || '未命名流程' }}</span>
+                  </div>
+                  <div class="card-meta">
+                    <span>关联表: {{ resolveAssociatedTable(getWorkflowInfo(msg).meta || {}) || '未指定' }}</span>
+                  </div>
+                  <div class="card-actions">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      :loading="workflowSaveState[msg.time] === 'saving'"
+                      @click="saveWorkflowDefinition(getWorkflowInfo(msg), msg.time)"
+                    >
+                      {{ workflowSaveState[msg.time] === 'saved' ? '已保存' : '保存到流程库' }}
+                    </el-button>
+                    <el-button
+                      size="small"
+                      @click="copyWorkflowXml(getWorkflowInfo(msg).xml)"
+                    >
+                      复制XML
+                    </el-button>
+                  </div>
+                </div>
+
+                <div
                   v-if="msg.role === 'assistant' && getCategoryInfo(msg).data && !isStreamingMessage(index)"
                   class="import-card"
                 >
@@ -322,17 +351,137 @@ const containerClasses = computed(() => ({
   'is-dark': isDark.value
 }))
 
+const FORM_TEMPLATE_BLOCKS = ['form-template', 'form_template', 'form-schema', 'form_schema']
+const FORMULA_BLOCKS = ['formula']
+const IMPORT_BLOCKS = ['data-import', 'data_import', 'grid-import', 'grid_import']
+const BPMN_BLOCKS = ['bpmn-xml', 'bpmn_xml', 'workflow-bpmn', 'workflow_bpmn']
+const WORKFLOW_META_BLOCKS = ['workflow-meta', 'workflow_meta']
+const MATERIAL_CATEGORY_BLOCKS = [
+  'materials-categories',
+  'material-categories',
+  'materials_categories',
+  'material_categories'
+]
+
 const md = new MarkdownIt({
-  html: true,
+  html: false,
   linkify: true,
   breaks: true
 })
+
+const allowedHtmlTags = new Set([
+  'p', 'br', 'strong', 'em', 'b', 'i', 'u', 's', 'code', 'pre', 'blockquote',
+  'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'table', 'thead', 'tbody', 'tr', 'th', 'td',
+  'a', 'img', 'hr', 'span', 'div', 'details', 'summary'
+])
+const allowedHtmlAttrs = {
+  '*': new Set(['class', 'id']),
+  a: new Set(['href', 'title', 'target', 'rel']),
+  img: new Set(['src', 'alt', 'title'])
+}
+
+const isSafeUrl = (value, allowDataImage = false) => {
+  if (!value) return false
+  const raw = String(value).trim()
+  const lower = raw.toLowerCase()
+  if (lower.startsWith('javascript:') || lower.startsWith('vbscript:') || lower.startsWith('data:text/html')) {
+    return false
+  }
+  if (allowDataImage && lower.startsWith('data:image/')) return true
+  if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('mailto:') || lower.startsWith('tel:')) return true
+  if (lower.startsWith('#') || lower.startsWith('/') || lower.startsWith('./') || lower.startsWith('../')) return true
+  if (lower.startsWith('blob:')) return true
+  return false
+}
+
+const sanitizeHtml = (dirty) => {
+  if (!dirty) return ''
+  if (typeof window === 'undefined' || !window.DOMParser) return dirty
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(dirty, 'text/html')
+
+  const walk = (node) => {
+    const children = Array.from(node.childNodes || [])
+    children.forEach((child) => {
+      if (child.nodeType === Node.COMMENT_NODE) {
+        child.remove()
+        return
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) return
+      const tag = child.tagName.toLowerCase()
+      if (!allowedHtmlTags.has(tag)) {
+        const textNode = doc.createTextNode(child.textContent || '')
+        child.replaceWith(textNode)
+        return
+      }
+      Array.from(child.attributes || []).forEach((attr) => {
+        const name = attr.name.toLowerCase()
+        if (name.startsWith('on') || name === 'style') {
+          child.removeAttribute(attr.name)
+          return
+        }
+        if (name.startsWith('data-')) return
+        const allowed = (allowedHtmlAttrs[tag] && allowedHtmlAttrs[tag].has(name)) ||
+          (allowedHtmlAttrs['*'] && allowedHtmlAttrs['*'].has(name))
+        if (!allowed) {
+          child.removeAttribute(attr.name)
+          return
+        }
+        if (tag === 'a' && name === 'href' && !isSafeUrl(attr.value)) {
+          child.removeAttribute(attr.name)
+        }
+        if (tag === 'img' && name === 'src' && !isSafeUrl(attr.value, true)) {
+          child.removeAttribute(attr.name)
+        }
+      })
+      if (tag === 'a' && child.getAttribute('target') === '_blank') {
+        const rel = child.getAttribute('rel') || ''
+        if (!rel.includes('noopener')) {
+          child.setAttribute('rel', 'noopener noreferrer')
+        }
+      }
+      walk(child)
+    })
+  }
+
+  walk(doc.body)
+  return doc.body.innerHTML
+}
+
+const sanitizeSvg = (svgText) => {
+  if (!svgText) return ''
+  if (typeof window === 'undefined' || !window.DOMParser) return svgText
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(svgText, 'image/svg+xml')
+  const scripts = doc.querySelectorAll('script')
+  scripts.forEach((node) => node.remove())
+  const walker = doc.createTreeWalker(doc.documentElement, NodeFilter.SHOW_ELEMENT)
+  while (walker.nextNode()) {
+    const el = walker.currentNode
+    Array.from(el.attributes || []).forEach((attr) => {
+      const name = attr.name.toLowerCase()
+      if (name.startsWith('on')) {
+        el.removeAttribute(attr.name)
+      }
+      if ((name === 'href' || name === 'xlink:href') && !isSafeUrl(attr.value)) {
+        el.removeAttribute(attr.name)
+      }
+    })
+  }
+  return doc.documentElement.outerHTML
+}
 
 const defaultFence = md.renderer.rules.fence
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
   const info = token.info.trim().toLowerCase()
-  if (MATERIAL_CATEGORY_BLOCKS.includes(info) || IMPORT_BLOCKS.includes(info)) {
+  if (
+    MATERIAL_CATEGORY_BLOCKS.includes(info) ||
+    IMPORT_BLOCKS.includes(info) ||
+    BPMN_BLOCKS.includes(info) ||
+    WORKFLOW_META_BLOCKS.includes(info)
+  ) {
     return ''
   }
   if (info === 'mermaid') {
@@ -351,7 +500,7 @@ mermaid.initialize({ startOnLoad: false, theme: 'default' })
 
 const renderMarkdown = (text) => {
   if (!text) return ''
-  return md.render(text)
+  return sanitizeHtml(md.render(text))
 }
 
 const sanitizeJson = (jsonStr) => {
@@ -366,19 +515,11 @@ const sanitizeJson = (jsonStr) => {
   return cleaned.trim()
 }
 
-const FORM_TEMPLATE_BLOCKS = ['form-template', 'form_template', 'form-schema', 'form_schema']
 const templateSaveState = ref({})
-const FORMULA_BLOCKS = ['formula']
-const IMPORT_BLOCKS = ['data-import', 'data_import', 'grid-import', 'grid_import']
-const MATERIAL_CATEGORY_BLOCKS = [
-  'materials-categories',
-  'material-categories',
-  'materials_categories',
-  'material_categories'
-]
 const formulaApplyState = ref({})
 const importState = ref({})
 const categoryImportState = ref({})
+const workflowSaveState = ref({})
 
 const getAuthToken = () => {
   const tokenStr = localStorage.getItem('auth_token')
@@ -471,6 +612,44 @@ const extractImportData = (text) => {
     }
   }
   return { rows: null, error: null }
+}
+
+const extractBpmnXml = (text) => {
+  if (!text) return { xml: null, error: null }
+  for (const tag of BPMN_BLOCKS) {
+    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
+    const match = text.match(regex)
+    if (match && match[1]) {
+      const xml = match[1].trim()
+      if (!xml) return { xml: null, error: 'empty' }
+      return { xml, error: null }
+    }
+  }
+  return { xml: null, error: null }
+}
+
+const extractWorkflowMeta = (text) => {
+  if (!text) return { meta: null, error: null }
+  for (const tag of WORKFLOW_META_BLOCKS) {
+    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
+    const match = text.match(regex)
+    if (match && match[1]) {
+      try {
+        const raw = sanitizeJson(match[1])
+        const meta = JSON.parse(raw)
+        return { meta, error: null }
+      } catch (e) {
+        return { meta: null, error: 'parse' }
+      }
+    }
+  }
+  return { meta: null, error: null }
+}
+
+const getWorkflowInfo = (msg) => {
+  const { xml, error } = extractBpmnXml(msg?.content || '')
+  const meta = extractWorkflowMeta(msg?.content || '').meta
+  return { xml, meta, error }
 }
 
 const getFormulaInfo = (msg) => extractFormula(msg?.content || '')
@@ -913,6 +1092,69 @@ const applyCategoryImport = async (info, messageKey) => {
   }
 }
 
+const resolveAssociatedTable = (meta = {}) => {
+  const raw = meta?.associated_table || meta?.associatedTable || ''
+  if (raw) return String(raw)
+  const context = aiBridge.state.currentContext || {}
+  const fallback = context?.workflowAssociatedTable || context?.associatedTable || ''
+  if (fallback) return String(fallback)
+  const apiUrl = context?.apiUrl || context?.importTarget?.apiUrl || ''
+  if (!apiUrl) return ''
+  const cleaned = String(apiUrl).replace(/^\/api/, '').replace(/^\//, '')
+  return cleaned ? `public.${cleaned}` : ''
+}
+
+const saveWorkflowDefinition = async (info, messageKey) => {
+  if (!info?.xml) return
+  if (workflowSaveState.value[messageKey] === 'saved') return
+  workflowSaveState.value[messageKey] = 'saving'
+  try {
+    const token = getAuthToken()
+    if (token && isTokenExpired(token)) {
+      workflowSaveState.value[messageKey] = 'error'
+      ElMessage.error('登录已过期')
+      return
+    }
+    const meta = info?.meta || {}
+    const name = meta?.name || meta?.title || 'AI流程'
+    const associatedTable = resolveAssociatedTable(meta)
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Accept-Profile': 'workflow',
+      'Content-Profile': 'workflow',
+      'Prefer': 'return=representation'
+    }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const payload = {
+      name,
+      bpmn_xml: info.xml,
+      associated_table: associatedTable || null
+    }
+    const res = await fetch('/api/workflow.definitions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload)
+    })
+    if (!res.ok) throw new Error('保存失败')
+    workflowSaveState.value[messageKey] = 'saved'
+    ElMessage.success('流程已保存到流程库')
+  } catch (e) {
+    workflowSaveState.value[messageKey] = 'error'
+    ElMessage.error(e?.message || '流程保存失败')
+  }
+}
+
+const copyWorkflowXml = async (xml) => {
+  if (!xml) return
+  try {
+    await navigator.clipboard.writeText(xml)
+    ElMessage.success('XML 已复制')
+  } catch (e) {
+    ElMessage.error('复制失败')
+  }
+}
+
 const escapeHtml = (value) => {
   if (!value) return ''
   return value
@@ -989,7 +1231,8 @@ const exportReportAsPdf = () => {
 }
 
 const openLightbox = async (type, payload) => {
-  lightbox.value = { visible: true, type, payload }
+  const safePayload = type === 'mermaid' ? sanitizeSvg(payload) : payload
+  lightbox.value = { visible: true, type, payload: safePayload }
   await nextTick()
   if (type === 'echarts' && lightboxChartRef.value) {
     if (lightboxChart) {
@@ -1053,10 +1296,11 @@ const renderCharts = async () => {
       await mermaid.parse(text)
       const id = `mermaid-${Date.now()}-${index}`
       const { svg } = await mermaid.render(id, text)
-      node.innerHTML = svg
+      const safeSvg = sanitizeSvg(svg)
+      node.innerHTML = safeSvg
       if (!node.dataset.bound) {
         node.dataset.bound = 'true'
-        node.addEventListener('dblclick', () => openLightbox('mermaid', svg))
+        node.addEventListener('dblclick', () => openLightbox('mermaid', safeSvg))
       }
     } catch (e) {
       const safeCode = escapeHtml(decodeURIComponent(node.getAttribute('data-raw') || ''))
@@ -1426,7 +1670,8 @@ $border-color: #e4e7ed;
 }
 
 .formula-card,
-.import-card {
+.import-card,
+.workflow-card {
   margin-top: 8px;
   padding: 10px 12px;
   border: 1px solid $border-color;
@@ -1439,7 +1684,8 @@ $border-color: #e4e7ed;
 
 .form-template-card .card-header,
 .formula-card .card-header,
-.import-card .card-header {
+.import-card .card-header,
+.workflow-card .card-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1449,20 +1695,23 @@ $border-color: #e4e7ed;
 
 .form-template-card .card-title,
 .formula-card .card-title,
-.import-card .card-title {
+.import-card .card-title,
+.workflow-card .card-title {
   font-size: 12px;
   color: #909399;
 }
 
 .form-template-card .card-name,
 .formula-card .card-name,
-.import-card .card-name {
+.import-card .card-name,
+.workflow-card .card-name {
   font-size: 13px;
 }
 
 .form-template-card .card-meta,
 .formula-card .card-meta,
-.import-card .card-meta {
+.import-card .card-meta,
+.workflow-card .card-meta {
   font-size: 12px;
   color: #909399;
   display: flex;
@@ -1471,7 +1720,8 @@ $border-color: #e4e7ed;
 
 .form-template-card .card-actions,
 .formula-card .card-actions,
-.import-card .card-actions {
+.import-card .card-actions,
+.workflow-card .card-actions {
   display: flex;
   justify-content: flex-end;
 }
@@ -1665,7 +1915,8 @@ $border-color: #e4e7ed;
 }
 .ai-copilot-container.is-dark .form-template-card,
 .ai-copilot-container.is-dark .formula-card,
-.ai-copilot-container.is-dark .import-card {
+.ai-copilot-container.is-dark .import-card,
+.ai-copilot-container.is-dark .workflow-card {
   background: #0f172a;
   border-color: #1f2937;
   color: #f3f4f6;
@@ -1673,9 +1924,11 @@ $border-color: #e4e7ed;
 .ai-copilot-container.is-dark .form-template-card .card-title,
 .ai-copilot-container.is-dark .formula-card .card-title,
 .ai-copilot-container.is-dark .import-card .card-title,
+.ai-copilot-container.is-dark .workflow-card .card-title,
 .ai-copilot-container.is-dark .form-template-card .card-meta,
 .ai-copilot-container.is-dark .formula-card .card-meta,
-.ai-copilot-container.is-dark .import-card .card-meta {
+.ai-copilot-container.is-dark .import-card .card-meta,
+.ai-copilot-container.is-dark .workflow-card .card-meta {
   color: #cbd5f5;
 }
 .ai-copilot-container.is-dark .chart-details,

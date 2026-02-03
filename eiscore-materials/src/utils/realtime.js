@@ -3,6 +3,18 @@ const DEFAULT_PATH = '/ws';
 
 let client = null;
 
+const getAuthToken = () => {
+  const tokenStr = localStorage.getItem('auth_token')
+  if (!tokenStr) return ''
+  try {
+    const parsed = JSON.parse(tokenStr)
+    if (parsed?.token) return parsed.token
+  } catch (e) {
+    // ignore
+  }
+  return tokenStr
+}
+
 const createClient = () => {
   const listeners = new Set();
   let socket = null;
@@ -28,7 +40,8 @@ const createClient = () => {
   const connect = () => {
     if (closed || socket) return;
     try {
-      socket = new WebSocket(buildUrl());
+      const token = getAuthToken();
+      socket = token ? new WebSocket(buildUrl(), ['bearer', token]) : new WebSocket(buildUrl());
     } catch (err) {
       scheduleReconnect();
       return;

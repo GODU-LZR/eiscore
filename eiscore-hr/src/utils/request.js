@@ -51,6 +51,13 @@ service.interceptors.response.use(
   error => {
     if (error.response && error.response.status === 401) {
       ElMessage.error('登录已过期，请重新登录')
+      try {
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('user_info')
+      } catch (e) {}
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login'
+      }
     } else {
       ElMessage.error(error.message || '请求失败')
     }

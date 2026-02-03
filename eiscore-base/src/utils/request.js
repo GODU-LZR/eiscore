@@ -12,10 +12,10 @@ const service = axios.create({
 service.interceptors.request.use(
   config => {
     // 如果有 token，可以在这里注入
-    // const token = localStorage.getItem('auth_token')
-    // if (token) {
-    //   config.headers['Authorization'] = `Bearer ${token}`
-    // }
+    const token = localStorage.getItem('auth_token')
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`
+    }
     return config
   },
   error => {
@@ -40,7 +40,13 @@ service.interceptors.response.use(
       const status = error.response.status
       if (status === 401) {
         ElMessage.error('未授权，请重新登录')
-        // router.push('/login') // 需要引入 router
+        try {
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('user_info')
+        } catch (e) {}
+        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
       } else if (status === 404) {
         // AI Bridge 有时会探测配置，404 不一定报错，留给调用方处理
         // ElMessage.error('请求的资源不存在')

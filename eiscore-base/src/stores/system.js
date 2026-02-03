@@ -50,8 +50,11 @@ export const useSystemStore = defineStore('system', () => {
 
   const loadConfig = async () => {
     try {
+      const token = getAuthToken()
+      const headers = { 'Accept-Profile': 'public' }
+      if (token) headers.Authorization = `Bearer ${token}`
       const res = await fetch('/api/system_configs?key=eq.app_settings', {
-        headers: { 'Accept-Profile': 'public' }
+        headers
       })
       if (!res.ok) return
       const list = await res.json()
@@ -75,11 +78,12 @@ export const useSystemStore = defineStore('system', () => {
         'Prefer': 'resolution=merge-duplicates'
       }
       if (token) headers.Authorization = `Bearer ${token}`
-      await fetch('/api/system_configs', {
+      const res = await fetch('/api/system_configs', {
         method: 'POST',
         headers,
         body: JSON.stringify({ key: 'app_settings', value: payload, description: '系统全局设置' })
       })
+      if (!res.ok) return false
       return true
     } catch (e) {
       return false

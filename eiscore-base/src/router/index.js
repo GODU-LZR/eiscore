@@ -51,10 +51,46 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('auth_token')
-  if (to.meta.requiresAuth && !token) {
+  const getAuthToken = () => {
+    const raw = localStorage.getItem('auth_token')
+    if (!raw) return ''
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed?.token) return parsed.token
+    } catch (e) {
+      // ignore
+    }
+    return raw
+  }
+
+  const parseJwtPayload = (token) => {
+    try {
+      const parts = String(token || '').split('.')
+      if (parts.length !== 3) return null
+      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
+      return JSON.parse(atob(padded))
+    } catch (e) {
+      return null
+    }
+  }
+
+  const isTokenExpired = (token) => {
+    if (!token) return true
+    const payload = parseJwtPayload(token)
+    if (!payload || typeof payload.exp !== 'number') return true
+    return Date.now() / 1000 >= payload.exp
+  }
+
+  const token = getAuthToken()
+  const expired = isTokenExpired(token)
+  if (to.meta.requiresAuth && (!token || expired)) {
+    try {
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('user_info')
+    } catch (e) {}
     next('/login')
-  } else if (to.path === '/login' && token) {
+  } else if (to.path === '/login' && token && !expired) {
     next('/')
   } else {
     next()
