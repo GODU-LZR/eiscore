@@ -90,6 +90,7 @@ export const MATERIAL_APPS = [
     perm: 'app:mms_ledger',
     aclModule: 'mms_ledger',
     apiUrl: '/raw_materials',
+    writeMode: 'patch',
     viewId: 'materials_list',
     configKey: 'materials_table_cols',
     icon: 'Box',

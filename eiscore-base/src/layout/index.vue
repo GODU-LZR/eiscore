@@ -36,6 +36,10 @@
           <el-icon><User /></el-icon>
           <template #title>人事管理</template>
         </el-menu-item>
+        <el-menu-item v-if="canApps" index="/apps/" @click="router.push('/apps/')">
+          <el-icon><Grid /></el-icon>
+          <template #title>应用中心</template>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -114,7 +118,7 @@ import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import { mix } from '@/utils/theme'
 import { hasPerm } from '@/utils/permission'
-import { House, Box, User, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
+import { House, Box, User, Grid, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
 import AiCopilot from '@/components/AiCopilot.vue'
 
 const isCollapse = ref(false)
@@ -234,7 +238,7 @@ const ensureSuperAdminScopes = async () => {
     dept_id: null
   }))
   try {
-    await fetch('/api/role_data_scopes', {
+    await fetch('/api/role_data_scopes?on_conflict=role_id,module', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -272,14 +276,79 @@ const resolveAvatarUrl = async (info) => {
   }
 }
 
+const parseJwt = (token) => {
+  try {
+    const base64Url = token.split('.')[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+    }).join(''))
+    return JSON.parse(jsonPayload)
+  } catch (e) {
+    return {}
+  }
+}
+
+const fetchUserInfoByToken = async (token) => {
+  if (!token) return null
+  const payload = parseJwt(token)
+  const username = payload?.username || payload?.sub || ''
+  if (!username) return null
+  try {
+    const userRes = await fetch(`/api/v_users_manage?username=eq.${username}&select=username,full_name,avatar,role_id`, {
+      method: 'GET',
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public',
+        Authorization: `Bearer ${token}`
+      }
+    })
+    if (!userRes.ok) return null
+    const list = await userRes.json()
+    let row = Array.isArray(list) ? list[0] : null
+    if (!row) {
+      const fallbackRes = await fetch(`/api/users?username=eq.${username}&select=username,full_name,avatar,role`, {
+        method: 'GET',
+        headers: {
+          'Accept-Profile': 'public',
+          'Content-Profile': 'public',
+          Authorization: `Bearer ${token}`
+        }
+      })
+      if (fallbackRes.ok) {
+        const fallbackList = await fallbackRes.json()
+        row = Array.isArray(fallbackList) ? fallbackList[0] : null
+      }
+    }
+    if (!row) return null
+    return {
+      id: row.username || username,
+      name: row.full_name || row.username || username,
+      username: row.username || username,
+      role: payload.app_role || payload.role || row.role || 'user',
+      role_id: row.role_id || row.roleId || '',
+      dbRole: payload.role || 'web_user',
+      permissions: payload.permissions || [],
+      avatar: row.avatar || ''
+    }
+  } catch (e) {
+    return null
+  }
+}
+
 const refreshUserInfo = async () => {
   try {
-    const info = JSON.parse(localStorage.getItem('user_info') || '{}')
+    let info = JSON.parse(localStorage.getItem('user_info') || '{}')
+    const token = localStorage.getItem('auth_token') || ''
+    if ((!info || !info.username) && token) {
+      const fetched = await fetchUserInfoByToken(token)
+      if (fetched) info = fetched
+    }
     const resolved = await resolveAvatarUrl(info)
-    userStore.userInfo = resolved
+    userStore.userInfo = resolved || info
     avatarTick.value += 1
-    if (resolved && typeof resolved === 'object') {
-      const next = { ...info, avatar: resolved.avatar || '' }
+    if ((resolved || info) && typeof (resolved || info) === 'object') {
+      const next = { ...(resolved || info), avatar: resolved?.avatar || info?.avatar || '' }
       localStorage.setItem('user_info', JSON.stringify(next))
     }
   } catch (e) {
@@ -353,12 +422,14 @@ watch(isDark, (val) => {
 const activeMenu = computed(() => {
   if (route.path.startsWith('/materials')) return '/materials'
   if (route.path.startsWith('/hr')) return '/hr'
+  if (route.path.startsWith('/apps')) return '/apps/'
   return route.path
 })
 
 const canHome = computed(() => hasPerm('module:home'))
 const canHr = computed(() => hasPerm('module:hr'))
 const canMms = computed(() => hasPerm('module:mms'))
+const canApps = computed(() => hasPerm('module:apps') || userStore.userInfo?.role === 'super_admin')
 
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value

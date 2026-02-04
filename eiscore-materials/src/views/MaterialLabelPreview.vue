@@ -192,17 +192,39 @@ watch(() => route.params.id, async () => {
 }
 
 @media print {
-  .page-header {
-    display: none;
-  }
-  .label-preview {
+  :global(body) {
+    margin: 0;
     padding: 0;
     background: #fff;
   }
+  :global(body *) {
+    visibility: hidden;
+  }
+  .label-preview,
+  .label-preview * {
+    visibility: visible;
+  }
+  .label-preview {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    min-height: auto;
+    padding: 0;
+    background: #fff;
+  }
+  .content {
+    justify-content: flex-start;
+    align-items: stretch;
+  }
   .label-card {
+    width: 100%;
+    max-width: none;
     border: none;
     box-shadow: none;
+    padding: 12px 16px;
   }
+  .page-header,
   .tips {
     display: none;
   }

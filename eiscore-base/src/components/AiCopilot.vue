@@ -1131,7 +1131,7 @@ const saveWorkflowDefinition = async (info, messageKey) => {
       bpmn_xml: info.xml,
       associated_table: associatedTable || null
     }
-    const res = await fetch('/api/workflow.definitions', {
+    const res = await fetch('/api/definitions', {
       method: 'POST',
       headers,
       body: JSON.stringify(payload)

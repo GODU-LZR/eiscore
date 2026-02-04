@@ -44,6 +44,11 @@ const router = createRouter({
           path: 'hr/:page*',
           name: 'hr',
           component: EmptyView
+        },
+        {
+          path: 'apps/:page*',
+          name: 'apps',
+          component: EmptyView
         }
       ]
     }

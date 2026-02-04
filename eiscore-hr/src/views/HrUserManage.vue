@@ -333,8 +333,6 @@ onMounted(async () => {
   await loadRoles()
   await loadDepartments()
   await loadStaticColumnsConfig()
-  await syncFieldAcl()
-  await syncFieldLabels()
 })
 </script>
 

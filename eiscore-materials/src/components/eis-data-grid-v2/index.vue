@@ -166,11 +166,12 @@ const {
 
 // 2. Core (传入 emit)
 const activeSummaryConfig = reactive({ label: '合计', rules: {}, expressions: {}, ...props.summary })
+const workflowBinding = ref(null)
 const { 
   gridData, gridColumns, context, gridComponents, searchText, isLoading, 
   loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
-  columnLockState 
-} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit) // 🟢 关键修复：共享 gridApi
+  columnLockState, setWorkflowBinding
+} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit, workflowBinding) // 🟢 关键修复：共享 gridApi
 
 const openFileDialog = (params) => {
   if (!params || params.node?.rowPinned) return
@@ -273,7 +274,7 @@ onUnmounted(() => {
   document.removeEventListener('paste', handleGlobalPaste)
 })
 
-defineExpose({ loadData })
+defineExpose({ loadData, setWorkflowBinding })
 </script>
 
 <style scoped lang="scss">

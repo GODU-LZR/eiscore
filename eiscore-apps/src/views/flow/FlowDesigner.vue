@@ -60,6 +60,9 @@ const selectedTables = ref([])
 const openApiSpec = ref(null)
 const isSyncingBinding = ref(false)
 const bindFormPayloadCache = ref('')
+const stateMapping = ref({ target_table: '', state_field: '', state_value: '' })
+const mappingLoading = ref(false)
+const mappingSaving = ref(false)
 let persistTimer = null
 
 const tableConfigMap = [
@@ -110,13 +113,27 @@ const BindFormPanel = defineComponent({
     tableOptions: { type: Array, default: () => [] },
     selectedTables: { type: Array, default: () => [] },
     visibleFields: { type: Array, default: () => [] },
-    editableFields: { type: Array, default: () => [] }
+    editableFields: { type: Array, default: () => [] },
+    stateMapping: { type: Object, default: () => ({}) },
+    mappingLoading: { type: Boolean, default: false },
+    mappingSaving: { type: Boolean, default: false }
   },
-  emits: ['update:visibleFields', 'update:editableFields', 'update:selectedTables', 'open-table-picker'],
+  emits: [
+    'update:visibleFields',
+    'update:editableFields',
+    'update:selectedTables',
+    'update:stateMapping',
+    'save-state-mapping',
+    'open-table-picker'
+  ],
   setup(props, { emit }) {
     const updateVisible = (value) => emit('update:visibleFields', value)
     const updateEditable = (value) => emit('update:editableFields', value)
     const updateTables = (value) => emit('update:selectedTables', value)
+    const updateMappingField = (key, value) => {
+      emit('update:stateMapping', { ...props.stateMapping, [key]: value })
+    }
+    const saveMapping = () => emit('save-state-mapping')
     const openPicker = () => emit('open-table-picker')
 
     return () => {
@@ -168,6 +185,28 @@ const BindFormPanel = defineComponent({
               label: item.label,
               value: item.value
             })))
+          ]),
+          h(ElDivider, null, () => '状态映射'),
+          h(ElFormItem, { label: '目标表' }, () => h(ElInput, {
+            modelValue: props.stateMapping?.target_table || '',
+            placeholder: '如: hr.leave_requests',
+            disabled: props.mappingLoading,
+            'onUpdate:modelValue': (value) => updateMappingField('target_table', value)
+          })),
+          h(ElFormItem, { label: '状态字段' }, () => h(ElInput, {
+            modelValue: props.stateMapping?.state_field || '',
+            placeholder: '如: approval_status',
+            disabled: props.mappingLoading,
+            'onUpdate:modelValue': (value) => updateMappingField('state_field', value)
+          })),
+          h(ElFormItem, { label: '状态值' }, () => h(ElInput, {
+            modelValue: props.stateMapping?.state_value || '',
+            placeholder: '如: PENDING_REVIEW',
+            disabled: props.mappingLoading,
+            'onUpdate:modelValue': (value) => updateMappingField('state_value', value)
+          })),
+          h('div', { class: 'mapping-actions' }, [
+            h(ElButton, { type: 'primary', size: 'small', loading: props.mappingSaving, onClick: saveMapping }, () => '保存映射')
           ])
         ])
       ])
@@ -188,9 +227,14 @@ const designerOption = computed(() => ({
       selectedTables: selectedTables.value,
       visibleFields: visibleFields.value,
       editableFields: editableFields.value,
+      stateMapping: stateMapping.value,
+      mappingLoading: mappingLoading.value,
+      mappingSaving: mappingSaving.value,
       'onUpdate:selectedTables': (value) => (selectedTables.value = value),
       'onUpdate:visibleFields': (value) => (visibleFields.value = value),
-      'onUpdate:editableFields': (value) => (editableFields.value = value)
+      'onUpdate:editableFields': (value) => (editableFields.value = value),
+      'onUpdate:stateMapping': (value) => (stateMapping.value = value),
+      'onSave-state-mapping': saveStateMapping
     })]
   }
 }))
@@ -207,6 +251,7 @@ const ensureModelerReady = () => {
     const element = event?.newSelection?.[0] || null
     selectedElement.value = element ? markRaw(element) : null
     syncBindFormFromElement(element)
+    syncStateMapping(element)
   })
 
   clearInterval(modelerReadyTimer)
@@ -231,6 +276,65 @@ const syncBindFormFromElement = (element) => {
     ? bindForm.tables
     : (bindForm?.table ? [bindForm.table] : [])
   isSyncingBinding.value = false
+}
+
+const resetStateMapping = () => {
+  stateMapping.value = { target_table: '', state_field: '', state_value: '' }
+}
+
+const syncStateMapping = async (element) => {
+  if (!element || element.type !== 'bpmn:UserTask' || !appId.value) {
+    resetStateMapping()
+    return
+  }
+  mappingLoading.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    const response = await axios.get(
+      `/api/workflow_state_mappings?workflow_app_id=eq.${appId.value}&bpmn_task_id=eq.${element.id}&limit=1`,
+      { headers: getAppCenterHeaders(token) }
+    )
+    const row = Array.isArray(response.data) ? response.data[0] : null
+    stateMapping.value = {
+      target_table: row?.target_table || '',
+      state_field: row?.state_field || '',
+      state_value: row?.state_value || ''
+    }
+  } catch (error) {
+    resetStateMapping()
+  } finally {
+    mappingLoading.value = false
+  }
+}
+
+const saveStateMapping = async () => {
+  if (!selectedElement.value || selectedElement.value.type !== 'bpmn:UserTask' || !appId.value) return
+  mappingSaving.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    await axios.post(
+      '/api/workflow_state_mappings',
+      {
+        workflow_app_id: appId.value,
+        bpmn_task_id: selectedElement.value.id,
+        target_table: stateMapping.value.target_table || null,
+        state_field: stateMapping.value.state_field || null,
+        state_value: stateMapping.value.state_value || null
+      },
+      {
+        headers: {
+          ...getAppCenterHeaders(token),
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates'
+        }
+      }
+    )
+    ElMessage.success('状态映射已保存')
+  } catch (error) {
+    ElMessage.error('状态映射保存失败')
+  } finally {
+    mappingSaving.value = false
+  }
 }
 
 const getBindFormFromElement = (element) => {
@@ -381,7 +485,7 @@ const loadTableOptions = async () => {
     const keys = tableConfigMap.map((item) => item.key).join(',')
     let list = []
     try {
-      const response = await axios.get(`/system_configs?key=in.(${keys})`, {
+      const response = await axios.get(`/api/system_configs?key=in.(${keys})`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Accept-Profile': 'public',
@@ -440,7 +544,7 @@ const loadFieldOptions = async () => {
     const collected = []
     const configKeys = tables.map((tableName) => moduleConfigKeyMap[tableName]).filter(Boolean)
     if (configKeys.length) {
-      const response = await axios.get(`/system_configs?key=in.(${configKeys.join(',')})`, {
+      const response = await axios.get(`/api/system_configs?key=in.(${configKeys.join(',')})`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Accept-Profile': 'public',
@@ -478,7 +582,7 @@ const loadFieldOptions = async () => {
       }
     }
     for (const tableName of tables) {
-      const response = await axios.get(`/sys_field_acl?module=eq.${tableName}&order=field_code.asc`, {
+      const response = await axios.get(`/api/sys_field_acl?module=eq.${tableName}&order=field_code.asc`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Accept-Profile': 'public',
@@ -632,6 +736,7 @@ const publishWorkflow = async () => {
       }
     )
     ElMessage.success('工作流已发布')
+    router.push(`/app/${appId.value}`)
   } catch (error) {
     ElMessage.error('发布失败: ' + error.message)
   } finally {
@@ -725,6 +830,12 @@ const goBack = () => {
   font-size: 14px;
   font-weight: 600;
   color: #303133;
+}
+
+.mapping-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
 }
 
 .table-empty {

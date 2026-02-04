@@ -18,6 +18,12 @@ const apps = [
     container: '#subapp-viewport',
     activeRule: '/materials',
   },
+  {
+    name: 'eiscore-apps',
+    entry: `${protocol}//${host}:8083/apps/`,
+    container: '#subapp-viewport',
+    activeRule: '/apps/',
+  },
 ];
 
 export default apps;

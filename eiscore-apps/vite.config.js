@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import qiankun from 'vite-plugin-qiankun'
 
@@ -21,6 +22,12 @@ const redirectRootPlugin = () => ({
 
 export default defineConfig({
   base: '/apps/',
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@shared': fileURLToPath(new URL('../shared', import.meta.url))
+    }
+  },
   plugins: [
     vue(),
     qiankun('eiscore-apps', { useDevMode }),

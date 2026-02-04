@@ -284,6 +284,7 @@ const app = computed(() => props.appConfig || findHrApp(props.appKey) || {
 })
 
 const opPerms = computed(() => app.value?.ops || {})
+const enableRealtime = computed(() => app.value?.enableRealtime === true)
 const canCreate = computed(() => hasPerm(opPerms.value.create))
 const canEdit = computed(() => hasPerm(opPerms.value.edit))
 const canDelete = computed(() => hasPerm(opPerms.value.delete))
@@ -423,8 +424,6 @@ const loadColumnsConfig = async () => {
       }
     }
     syncAiContext()
-    await syncFieldAclForColumns()
-    await syncFieldLabels()
   } catch (e) { console.error(e) }
 }
 
@@ -546,8 +545,6 @@ const saveColumnsConfig = async () => {
     headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
     data: { key: configKey, value: extraColumns.value }
   })
-  await syncFieldAclForColumns([...staticColumnsAll.value, ...extraColumns.value].map(col => col.prop).filter(Boolean))
-  await syncFieldLabels()
 }
 
 const syncFieldAclForColumns = async (columnProps = null) => {
@@ -858,7 +855,7 @@ const saveColumn = async () => {
   }
   
   saveColumnsConfig()
-  if (!isEditing.value) await syncFieldAclForColumns([colConfig.prop])
+  // 配置初始化与列权限同步已移至后端/SQL 脚本
   syncAiContext()
   resetForm()
 }
@@ -917,8 +914,10 @@ const goApps = () => {
 
 onMounted(() => {
   loadStaticColumnsConfig().then(loadColumnsConfig)
-  const realtime = getRealtimeClient()
-  realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
+  if (enableRealtime.value) {
+    const realtime = getRealtimeClient()
+    realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
+  }
 })
 
 const handleApplyFormula = (event) => {

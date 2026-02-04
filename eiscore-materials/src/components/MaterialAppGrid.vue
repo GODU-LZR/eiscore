@@ -281,6 +281,7 @@ const app = computed(() => props.appConfig || findMaterialApp(props.appKey) || {
 })
 
 const opPerms = computed(() => app.value?.ops || {})
+const enableRealtime = computed(() => app.value?.enableRealtime === true)
 const canCreate = computed(() => hasPerm(opPerms.value.create))
 const canEdit = computed(() => hasPerm(opPerms.value.edit))
 const canDelete = computed(() => hasPerm(opPerms.value.delete))
@@ -423,8 +424,6 @@ const loadColumnsConfig = async () => {
       }
     }
     syncAiContext()
-    await syncFieldAclForColumns()
-    await syncFieldLabels()
   } catch (e) { console.error(e) }
 }
 
@@ -486,11 +485,77 @@ const handleRealtimeEvent = (event) => {
   }
 }
 
-const handleDataLoaded = (payload) => {
+const getWorkflowTableName = () => {
+  const apiUrl = app.value?.apiUrl || ''
+  return apiUrl.startsWith('/') ? apiUrl.slice(1) : apiUrl
+}
+
+const parseBindFormFromXml = (bpmnXml, taskId) => {
+  if (!bpmnXml || !taskId) return null
+  try {
+    const doc = new DOMParser().parseFromString(bpmnXml, 'text/xml')
+    const taskNode = doc.querySelector(`[id="${taskId}"]`)
+    if (!taskNode) return null
+    const bindNode = taskNode.getElementsByTagName('eis:bindForm')[0] || taskNode.getElementsByTagName('bindForm')[0]
+    const raw = bindNode?.getAttribute('json') || bindNode?.textContent || ''
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch (e) {
+    return null
+  }
+}
+
+const loadWorkflowBindingForRow = async (row) => {
+  const tableName = getWorkflowTableName()
+  if (!tableName || !row?.id) return null
+
+  let definitions = await request({
+    url: `/definitions?associated_table=eq.${tableName}&limit=1`,
+    method: 'get',
+    headers: { 'Accept-Profile': 'workflow', 'Content-Profile': 'workflow' }
+  })
+  if (!Array.isArray(definitions) || definitions.length === 0) {
+    definitions = await request({
+      url: `/definitions?associated_table=eq.public.${tableName}&limit=1`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'workflow', 'Content-Profile': 'workflow' }
+    })
+  }
+  const definition = Array.isArray(definitions) ? definitions[0] : null
+  if (!definition?.bpmn_xml) return null
+
+  const instances = await request({
+    url: `/instances?definition_id=eq.${definition.id}&business_key=eq.${row.id}&limit=1`,
+    method: 'get',
+    headers: { 'Accept-Profile': 'workflow', 'Content-Profile': 'workflow' }
+  })
+  const instance = Array.isArray(instances) ? instances[0] : null
+  if (!instance?.current_task_id) return null
+
+  return parseBindFormFromXml(definition.bpmn_xml, instance.current_task_id)
+}
+
+const applyWorkflowBinding = async (rows) => {
+  if (!gridRef.value?.setWorkflowBinding) return
+  if (!Array.isArray(rows) || rows.length === 0) {
+    gridRef.value.setWorkflowBinding(null)
+    return
+  }
+
+  try {
+    const binding = await loadWorkflowBindingForRow(rows[0])
+    gridRef.value.setWorkflowBinding(binding)
+  } catch (e) {
+    gridRef.value.setWorkflowBinding(null)
+  }
+}
+
+const handleDataLoaded = async (payload) => {
   const rows = Array.isArray(payload?.rows) ? payload.rows : []
   lastLoadedRows.value = rows
   lastSearchText.value = payload?.searchText || ''
   syncAiContext(rows, { searchText: lastSearchText.value })
+  await applyWorkflowBinding(rows)
 }
 
 const buildDataStats = (rows) => {
@@ -586,8 +651,6 @@ const saveColumnsConfig = async () => {
     headers: { 'Prefer': 'resolution=merge-duplicates', 'Accept-Profile': 'public', 'Content-Profile': 'public' },
     data: { key: configKey, value: extraColumns.value }
   })
-  await syncFieldAclForColumns([...staticColumnsAll.value, ...extraColumns.value].map(col => col.prop).filter(Boolean))
-  await syncFieldLabels()
 }
 
 const syncFieldAclForColumns = async (columnProps = null) => {
@@ -877,7 +940,7 @@ const saveColumn = async () => {
   }
   
   saveColumnsConfig()
-  if (!isEditing.value) await syncFieldAclForColumns([colConfig.prop])
+  // 配置初始化与列权限同步已移至后端/SQL 脚本
   syncAiContext()
   resetForm()
 }
@@ -981,8 +1044,10 @@ const handleCreate = async () => {
 onMounted(() => {
   loadStaticColumnsConfig().then(loadColumnsConfig)
   loadMaterialsSettings()
-  const realtime = getRealtimeClient()
-  realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
+  if (enableRealtime.value) {
+    const realtime = getRealtimeClient()
+    realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
+  }
 })
 
 const loadMaterialsSettings = async () => {

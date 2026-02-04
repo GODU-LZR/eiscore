@@ -16,11 +16,17 @@
     "axios": "^1.7.9",
     "pinia": "^2.3.0",
     "monaco-editor": "^0.52.2",
-    "kthirty-bpmn-vue3": "^0.0.6"
+    "kthirty-bpmn-vue3": "^0.0.6",
+    "ag-grid-community": "^35.0.0",
+    "ag-grid-vue3": "^35.0.0",
+    "lodash": "^4.17.21",
+    "leaflet": "^1.9.4",
+    "html2canvas": "^1.4.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
     "vite": "^5.4.11",
-    "vite-plugin-qiankun": "^1.0.15"
+    "vite-plugin-qiankun": "^1.0.15",
+    "sass-embedded": "^1.97.1"
   }
 }

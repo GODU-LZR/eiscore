@@ -61,10 +61,38 @@
                 </el-option>
               </el-select>
             </el-form-item>
-            <el-form-item label="表单代码">
-              <el-input v-model="editForm.table" placeholder="如 hr_employee / app_center_xxx" />
+            <el-divider content-position="left">内核配置</el-divider>
+            <el-form-item label="业务表">
+              <el-input v-model="coreConfig.table" placeholder="如 hr.leave_requests / app_center_xxx" />
               <div class="form-hint">用于工作流/表单字段绑定来源（sys_field_acl）。</div>
             </el-form-item>
+            <template v-if="editForm.app_type === 'data'">
+              <el-form-item label="主键字段">
+                <el-input v-model="coreConfig.primaryKey" placeholder="如: id" />
+              </el-form-item>
+              <el-form-item label="显示列">
+                <el-input
+                  v-model="coreConfig.columns"
+                  type="textarea"
+                  :rows="4"
+                  placeholder='JSON 数组格式，如: ["name", "email"]'
+                />
+              </el-form-item>
+              <el-form-item label="过滤条件">
+                <el-input
+                  v-model="coreConfig.filters"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="PostgREST 查询参数，如: status=eq.active"
+                />
+              </el-form-item>
+            </template>
+            <template v-else-if="editForm.app_type === 'workflow'">
+              <el-alert title="工作流内核配置在流程设计器中维护" type="info" show-icon />
+            </template>
+            <template v-else-if="editForm.app_type === 'flash'">
+              <el-alert title="闪念应用内核配置在快搭构建器中维护" type="info" show-icon />
+            </template>
           </el-form>
 
           <div class="panel-actions">
@@ -171,8 +199,7 @@ const editForm = ref({
   name: '',
   description: '',
   app_type: 'workflow',
-  icon: 'Grid',
-  table: ''
+  icon: 'Grid'
 })
 
 const newAppForm = ref({
@@ -180,6 +207,13 @@ const newAppForm = ref({
   description: '',
   app_type: 'workflow',
   icon: 'Grid'
+})
+
+const coreConfig = ref({
+  table: '',
+  primaryKey: 'id',
+  columns: '[]',
+  filters: ''
 })
 
 const iconOptions = [
@@ -278,8 +312,13 @@ const selectApp = (app) => {
     name: app?.name || '',
     description: app?.description || '',
     app_type: app?.app_type || 'workflow',
-    icon: normalizeIcon(app?.icon),
-    table: config?.table || ''
+    icon: normalizeIcon(app?.icon)
+  }
+  coreConfig.value = {
+    table: config?.table || '',
+    primaryKey: config?.primaryKey || 'id',
+    columns: Array.isArray(config?.columns) ? JSON.stringify(config.columns) : (config?.columns || '[]'),
+    filters: config?.filters || ''
   }
   if (selectedAppId.value) {
     router.replace(`/config-center/${selectedAppId.value}`)
@@ -294,15 +333,22 @@ const saveApp = async () => {
     const current = apps.value.find((item) => item.id === selectedAppId.value)
     const currentConfig = normalizeConfig(current?.config)
 
+    const nextConfig = {
+      ...currentConfig,
+      table: coreConfig.value.table
+    }
+    if (editForm.value.app_type === 'data') {
+      nextConfig.primaryKey = coreConfig.value.primaryKey || 'id'
+      nextConfig.columns = coreConfig.value.columns || '[]'
+      nextConfig.filters = coreConfig.value.filters || ''
+    }
+
     const payload = {
       name: editForm.value.name,
       description: editForm.value.description,
       app_type: editForm.value.app_type,
       icon: editForm.value.icon,
-      config: {
-        ...currentConfig,
-        table: editForm.value.table
-      }
+      config: nextConfig
     }
 
     await axios.patch(`/api/apps?id=eq.${selectedAppId.value}`, payload, {
@@ -356,14 +402,7 @@ const deleteApp = async () => {
 
 const openBuilder = () => {
   if (!selectedApp.value) return
-  const map = {
-    workflow: '/workflow-designer/',
-    data: '/data-app/',
-    flash: '/flash-builder/',
-    custom: '/flash-builder/'
-  }
-  const path = map[selectedApp.value.app_type] || '/flash-builder/'
-  router.push(path + selectedApp.value.id)
+  navigateToBuilder(selectedApp.value)
 }
 
 const createApp = async () => {
@@ -391,12 +430,27 @@ const createApp = async () => {
     showCreateDialog.value = false
     await loadApps()
     const app = response.data?.[0]
-    if (app) selectApp(app)
+    if (app) {
+      selectApp(app)
+      navigateToBuilder(app)
+    }
   } catch (error) {
     ElMessage.error('创建失败: ' + error.message)
   } finally {
     creating.value = false
   }
+}
+
+const navigateToBuilder = (app) => {
+  if (!app) return
+  const map = {
+    workflow: '/workflow-designer/',
+    data: '/data-app/',
+    flash: '/flash-builder/',
+    custom: '/flash-builder/'
+  }
+  const path = map[app.app_type] || '/flash-builder/'
+  router.push(path + app.id)
 }
 
 const typeLabel = (type) => typeLabelMap[type] || '未分类'

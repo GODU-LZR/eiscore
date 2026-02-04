@@ -359,6 +359,7 @@ async function publishApp() {
     )
     ElMessage.success('应用已发布')
     await loadAppData()
+    router.push(`/app/${appId.value}`)
   } catch (error) {
     ElMessage.error('发布失败: ' + error.message)
   }

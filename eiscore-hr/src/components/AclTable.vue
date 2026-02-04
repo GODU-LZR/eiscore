@@ -69,7 +69,7 @@ const onInput = (row, col, value) => {
 }
 const onToggle = (row, col, value) => {
   if (props.readonly) return
-  emit('toggle', row, value)
+  emit('toggle', row, value, col)
 }
 
 const emitCreate = () => emit('create', {})

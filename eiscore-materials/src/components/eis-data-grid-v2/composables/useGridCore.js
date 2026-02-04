@@ -16,7 +16,7 @@ import CheckRenderer from '../components/renderers/CheckRenderer.vue'
 import CheckEditor from '../components/renderers/CheckEditor.vue'
 import { useUserStore } from '@/stores/user'
 
-export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit) {
+export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit, workflowBindingRef) {
   const hasGridRef = gridApiRef && typeof gridApiRef === 'object' && 'value' in gridApiRef
   const gridApi = hasGridRef ? gridApiRef : ref(null)
   const eventEmitter = typeof gridApiRef === 'function' && !emit ? gridApiRef : emit
@@ -25,6 +25,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const isLoading = ref(false)
   const columnLockState = reactive({})
   const fieldAcl = ref({})
+  const workflowBinding = workflowBindingRef || ref(null)
   const userStore = useUserStore()
   const resolvedRoleId = ref('')
   const aclRoleId = computed(() => userStore.userInfo?.role_id || userStore.userInfo?.roleId || resolvedRoleId.value || '')
@@ -54,6 +55,26 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     return field.startsWith('properties.') ? field.slice('properties.'.length) : field
   }
 
+  const getWorkflowBinding = () => workflowBinding.value || null
+
+  const shouldShowByWorkflow = (colDef) => {
+    const binding = getWorkflowBinding()
+    const visible = binding?.visibleFields
+    if (!Array.isArray(visible) || visible.length === 0) return true
+    const key = getFieldKeyFromColDef(colDef)
+    if (!key || key.startsWith('_')) return true
+    return visible.includes(key)
+  }
+
+  const canEditByWorkflow = (colDef) => {
+    const binding = getWorkflowBinding()
+    const editable = binding?.editableFields
+    if (!Array.isArray(editable) || editable.length === 0) return true
+    const key = getFieldKeyFromColDef(colDef)
+    if (!key || key.startsWith('_')) return true
+    return editable.includes(key)
+  }
+
   const getFieldAcl = (colDef) => {
     if (!aclModule.value || !aclRoleId.value) return null
     const key = getFieldKeyFromColDef(colDef)
@@ -65,6 +86,21 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (!gridApi.value) return
     gridApi.value.refreshCells({ force: true })
     gridApi.value.refreshHeader()
+  }
+
+  const applyWorkflowBinding = () => {
+    if (!gridApi.value) return
+    const binding = getWorkflowBinding()
+    if (!binding?.visibleFields?.length) return
+    const columns = gridApi.value.getColumns() || []
+    columns.forEach((col) => {
+      const def = col.getColDef()
+      const key = getFieldKeyFromColDef(def)
+      if (!key || key.startsWith('_')) return
+      gridApi.value.setColumnVisible(col.getColId(), binding.visibleFields.includes(key))
+    })
+    gridApi.value.refreshHeader()
+    gridApi.value.refreshCells({ force: true })
   }
 
   const loadFieldAcl = async () => {
@@ -123,6 +159,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const acl = getFieldAcl(params.colDef)
     if (acl?.canView === false) return true
     if (acl?.canEdit === false) return true
+    if (!shouldShowByWorkflow(params.colDef)) return true
+    if (!canEditByWorkflow(params.colDef)) return true
     return false
   }
 
@@ -148,6 +186,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const acl = getFieldAcl(params.colDef)
     if (acl?.canView === false) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
     if (acl?.canView !== false && acl?.canEdit === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
+    if (!shouldShowByWorkflow(params.colDef)) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
+    if (!canEditByWorkflow(params.colDef)) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
     if (params.colDef.editable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef?.multiLine) {
@@ -194,6 +234,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     })
   }
 
+  const setWorkflowBinding = (binding) => {
+    workflowBinding.value = binding || null
+    nextTick(() => applyWorkflowBinding())
+  }
+
 
   const refreshDictColumns = (dictKey) => {
     if (!gridApi.value) return
@@ -209,6 +254,10 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     gridApi.value.redrawRows()
     gridApi.value.refreshHeader()
   }
+
+  watch(workflowBinding, () => {
+    applyWorkflowBinding()
+  })
 
   const loadDictOptions = async (dictKey) => {
     if (!dictKey || dictLoading[dictKey]) return
@@ -521,6 +570,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
   return {
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
-    loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState
+    loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState,
+    setWorkflowBinding
   }
 }

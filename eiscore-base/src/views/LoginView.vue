@@ -136,7 +136,11 @@ const handleLogin = async () => {
           try {
             const roleRes = await fetch(`/api/roles?code=eq.${payload.app_role}`, {
               method: 'GET',
-              headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+              headers: {
+                'Accept-Profile': 'public',
+                'Content-Profile': 'public',
+                Authorization: `Bearer ${realToken}`
+              }
             })
             if (roleRes.ok) {
               const roleList = await roleRes.json()
@@ -149,17 +153,20 @@ const handleLogin = async () => {
           }
         }
 
-        const resolveAvatarUrl = async (avatar) => {
+        const resolveAvatarUrl = async (avatar, token) => {
           if (!avatar || typeof avatar !== 'string') return ''
           if (!avatar.startsWith('file:')) return avatar
           const fileId = avatar.replace('file:', '')
           try {
-            const res = await fetch(`/api/files?id=eq.${fileId}&select=content_base64,mime_type`, {
-              headers: { 'Accept-Profile': 'public', Authorization: `Bearer ${realToken}` }
+            const fileRes = await fetch(`/api/files?id=eq.${fileId}&select=content_base64,mime_type`, {
+              headers: {
+                'Accept-Profile': 'public',
+                Authorization: `Bearer ${token}`
+              }
             })
-            if (!res.ok) return ''
-            const list = await res.json()
-            const row = Array.isArray(list) ? list[0] : null
+            if (!fileRes.ok) return ''
+            const fileList = await fileRes.json()
+            const row = Array.isArray(fileList) ? fileList[0] : null
             if (!row?.content_base64) return ''
             const mime = row.mime_type || 'application/octet-stream'
             return `data:${mime};base64,${row.content_base64}`
@@ -169,7 +176,7 @@ const handleLogin = async () => {
         }
 
         try {
-          const userRes = await fetch(`/api/users?username=eq.${payload.username}`, {
+          const userRes = await fetch(`/api/v_users_manage?username=eq.${payload.username}&select=username,full_name,avatar,role_id`, {
             method: 'GET',
             headers: {
               'Accept-Profile': 'public',
@@ -178,9 +185,25 @@ const handleLogin = async () => {
             }
           })
           if (userRes.ok) {
-            const userList = await userRes.json()
-            if (Array.isArray(userList) && userList.length > 0) {
-              avatarUrl = await resolveAvatarUrl(userList[0].avatar || '')
+            let userList = await userRes.json()
+            let row = Array.isArray(userList) ? userList[0] : null
+            if (!row) {
+              const fallback = await fetch(`/api/users?username=eq.${payload.username}&select=username,full_name,avatar,role`, {
+                method: 'GET',
+                headers: {
+                  'Accept-Profile': 'public',
+                  'Content-Profile': 'public',
+                  Authorization: `Bearer ${realToken}`
+                }
+              })
+              if (fallback.ok) {
+                const fallbackList = await fallback.json()
+                row = Array.isArray(fallbackList) ? fallbackList[0] : null
+              }
+            }
+            if (row) {
+              avatarUrl = await resolveAvatarUrl(row.avatar || '', realToken)
+              if (!roleId && row.role_id) roleId = row.role_id
             }
           }
         } catch (e) {

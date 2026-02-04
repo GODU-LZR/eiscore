@@ -30,6 +30,12 @@ export default [
     meta: { title: '应用配置中心' }
   },
   {
+    path: '/app/:appId',
+    name: 'AppRuntime',
+    component: () => import('../views/AppRuntime.vue'),
+    meta: { title: '应用' }
+  },
+  {
     path: '/__preview/:draftId',
     name: 'PreviewFrame',
     component: () => import('../views/PreviewFrame.vue'),

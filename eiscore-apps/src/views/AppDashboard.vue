@@ -248,7 +248,9 @@ async function createApp() {
     showCreateDialog.value = false
     const app = response.data[0] || response.data
     await loadApps()
-    goConfigCenter(app?.id)
+    if (app) {
+      navigateToBuilder(app)
+    }
   } catch (error) {
     ElMessage.error('创建失败: ' + error.message)
   } finally {
@@ -269,7 +271,8 @@ function getTone(app) {
   return map[app?.app_type] || 'blue'
 }
 
-function openApp(app) {
+function navigateToBuilder(app) {
+  if (!app) return
   const routeMap = {
     workflow: '/workflow-designer/',
     data: '/data-app/',
@@ -277,8 +280,16 @@ function openApp(app) {
     custom: '/flash-builder/'
   }
   const base = routeMap[app.app_type] || '/workflow-designer/'
-  const route = base + app.id
-  router.push(route)
+  router.push(base + app.id)
+}
+
+function openApp(app) {
+  if (!app) return
+  if (app.status === 'published') {
+    router.push(`/app/${app.id}`)
+    return
+  }
+  navigateToBuilder(app)
 }
 
 async function loadApps() {
