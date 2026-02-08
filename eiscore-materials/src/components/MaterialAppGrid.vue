@@ -16,6 +16,7 @@
         :patch-required-fields="app.patchRequiredFields || []"
         :default-order="app.defaultOrder || 'id.desc'"
         :acl-module="app.aclModule"
+        :profile="appProfile"
         :static-columns="staticColumns"
         :extra-columns="extraColumns"
         :summary="summaryConfig"
@@ -279,6 +280,8 @@ const app = computed(() => props.appConfig || findMaterialApp(props.appKey) || {
   summaryConfig: { label: '总计', rules: {}, expressions: {} },
   defaultExtraColumns: []
 })
+
+const appProfile = computed(() => app.value.schema || 'public')
 
 const opPerms = computed(() => app.value?.ops || {})
 const enableRealtime = computed(() => app.value?.enableRealtime === true)
@@ -618,7 +621,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     viewId: app.value.viewId,
     apiUrl: app.value.apiUrl || '/raw_materials',
     currentUser: currentUser.value,
-    profile: 'public',
+    profile: appProfile.value,
     columns,
     propertyFields,
     staticColumns: staticColumns.value,
@@ -637,7 +640,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
     importTarget: {
       apiUrl: app.value.writeUrl || (app.value.apiUrl || '/raw_materials').split('?')[0],
-      profile: 'public',
+      profile: appProfile.value,
       viewId: app.value.viewId
     }
   })

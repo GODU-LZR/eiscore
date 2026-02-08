@@ -8,9 +8,11 @@
 import { computed } from 'vue'
 
 const props = defineProps(['params'])
+const MASKED_TEXT = '*******'
 
 const rawValue = computed(() => props.params.value)
 const colDef = computed(() => props.params.colDef || {})
+const isMasked = computed(() => props.params?.colDef?.__aclCanView === false)
 
 const getByPath = (obj, path) => {
   if (!obj || !path) return undefined
@@ -80,6 +82,7 @@ const normalizeOption = (item) => {
 }
 
 const displayLabel = computed(() => {
+  if (isMasked.value) return MASKED_TEXT
   const parentKey = normalize(parentValue.value).trim()
   const options = (optionsMap.value[parentKey] || optionsMap.value[normalize(parentValue.value)] || [])
     .map(normalizeOption)

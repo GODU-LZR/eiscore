@@ -1,28 +1,23 @@
-// eiscore-base/src/micro/apps.js
-
-// 动态获取当前访问的 hostname (比如 云IP 或 域名)
-const host = window.location.hostname;
-const protocol = window.location.protocol; // http: 或 https:
-
 const apps = [
   {
     name: 'eiscore-hr',
-    // 🔴 关键修改：不要写 localhost，改用动态 host
-    entry: `${protocol}//${host}:8082`, 
+    // Keep sub-app entry same-origin to avoid CORS in host prefetch/runtime.
+    entry: '/hr/',
     container: '#subapp-viewport',
     activeRule: '/hr',
   },
   {
     name: 'eiscore-materials',
-    entry: `${protocol}//${host}:8081`,
+    entry: '/materials/',
     container: '#subapp-viewport',
     activeRule: '/materials',
   },
   {
     name: 'eiscore-apps',
-    entry: `${protocol}//${host}:8083/apps/`,
+    // Use explicit html entry to avoid redirect chains that may jump to :8083.
+    entry: '/apps/index.html',
     container: '#subapp-viewport',
-    activeRule: '/apps/',
+    activeRule: '/apps',
   },
 ];
 

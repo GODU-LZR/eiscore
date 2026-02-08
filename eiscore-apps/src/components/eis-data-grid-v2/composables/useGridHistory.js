@@ -7,7 +7,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const history = reactive({ undoStack: [], redoStack: [] })
   const pendingChanges = []
   const isRemoteUpdating = ref(false)
-  const isSystemOperation = ref(false)
+  const isSystemOperation = ref(false) // 使用 ref 以保持响应性引用
 
   const selectedRowsCount = ref(0)
   const includeProperties = props.includeProperties !== false
@@ -76,7 +76,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
 
   const debouncedSave = debounce(async () => {
     if (pendingChanges.length === 0) return
-    const changesToProcess = [...pendingChanges]; pendingChanges.length = 0; isRemoteUpdating.value = true
+    const changesToProcess = [...pendingChanges]; pendingChanges.length = 0; isRemoteUpdating.value = true 
     try {
         const writeMode = getWriteMode()
         const rowUpdatesMap = new Map()
@@ -157,7 +157,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     } catch (e) {
       const detail = e?.response?.data?.message || e?.response?.data?.details || e?.message
       ElMessage.error(detail || '保存失败')
-    }
+    } 
     finally { setTimeout(() => { isRemoteUpdating.value = false }, 50) }
   }, 100)
 
@@ -259,7 +259,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
         return
     }
 
-    if (event.node.rowPinned) return
+    if (event.node.rowPinned) return 
     if (isRemoteUpdating.value || event.oldValue === event.newValue) return
 
     const safeValue = sanitizeValue(event.colDef.field, event.newValue)
@@ -272,7 +272,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     formulaHooks.calculateRowFormulas(event.node)
     formulaHooks.pinnedBottomRowData.value = formulaHooks.calculateTotals(gridData.value)
 
-    history.redoStack = []
+    history.redoStack = [] 
     history.undoStack.push({
         type: 'single', rowId: event.node.data.id, colId: event.colDef.field, oldValue: event.oldValue, newValue: safeValue
     })
@@ -302,7 +302,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
             pendingChanges.push({ rowNode, colDef: { field: c.colId }, newValue: val, oldValue: action==='undo'?c.newValue:c.oldValue })
         }
     })
-
+    
     debouncedSave()
     ElMessage.info(transaction.type==='batch' ? `${action==='undo'?'撤销':'重做'}批量操作` : `${action==='undo'?'撤销':'重做'}编辑`)
     setTimeout(() => isSystemOperation.value = false, 50)
@@ -326,6 +326,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }
   }
 
+  // 供 Formula Hook 回调使用
   const pushPendingChange = (change) => pendingChanges.push(change)
 
   return {

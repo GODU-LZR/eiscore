@@ -20,6 +20,7 @@ export function useGridSelection(gridApi, selectedRowsCount, gridRootRef) {
     return gridApi.value.getAllGridColumns?.() || []
   }
 
+  // 🟢 找回判定函数
   const isCellInSelection = (params) => {
     if (!rangeSelection.active) return false
     const rowIndex = params.node.rowIndex
@@ -27,14 +28,14 @@ export function useGridSelection(gridApi, selectedRowsCount, gridRootRef) {
     const startColIdx = getColIndex(rangeSelection.startColId)
     const endColIdx = getColIndex(rangeSelection.endColId)
     const currentColIdx = getColIndex(colId)
-
+    
     if (startColIdx === -1 || endColIdx === -1 || currentColIdx === -1) return false
-
+    
     const minRow = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
     const maxRow = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
     const minCol = Math.min(startColIdx, endColIdx)
     const maxCol = Math.max(startColIdx, endColIdx)
-
+    
     return rowIndex >= minRow && rowIndex <= maxRow && currentColIdx >= minCol && currentColIdx <= maxCol
   }
 
@@ -121,7 +122,7 @@ export function useGridSelection(gridApi, selectedRowsCount, gridRootRef) {
   }
 
   const onCellMouseDown = (params) => {
-    if (params.event.button === 2) return
+    if (params.event.button === 2) return 
     if (params.colDef.field === '_status') {
         const editingCells = gridApi.value.getEditingCells()
         const isEditing = editingCells.some(c => c.rowIndex === params.node.rowIndex && c.column.getColId() === params.column.getColId())
@@ -138,7 +139,7 @@ export function useGridSelection(gridApi, selectedRowsCount, gridRootRef) {
     if (!isDragging.value) return
     if (rangeSelection.endRowIndex !== params.node.rowIndex || rangeSelection.endColId !== params.column.colId) {
         rangeSelection.endRowIndex = params.node.rowIndex; rangeSelection.endColId = params.column.colId
-        gridApi.value.refreshCells({ force: false })
+        gridApi.value.refreshCells({ force: false }) 
         gridApi.value.ensureIndexVisible(params.node.rowIndex)
         gridApi.value.ensureColumnVisible(params.column)
     }

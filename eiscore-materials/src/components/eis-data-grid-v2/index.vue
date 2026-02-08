@@ -87,7 +87,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive } from 'vue'
+import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive, nextTick } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
@@ -131,6 +131,9 @@ const props = defineProps({
   patchRequiredFields: { type: Array, default: () => [] },
   viewId: { type: String, required: false, default: null },
   aclModule: { type: String, default: '' },
+  profile: { type: String, default: 'public' },
+  acceptProfile: { type: String, default: '' },
+  contentProfile: { type: String, default: '' },
   staticColumns: { type: Array, default: () => [] },
   extraColumns: { type: Array, default: () => [] },
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) },
@@ -140,7 +143,8 @@ const props = defineProps({
   canDelete: { type: Boolean, default: true },
   canExport: { type: Boolean, default: true },
   canConfig: { type: Boolean, default: true },
-  enableColumnLock: { type: Boolean, default: true }
+  enableColumnLock: { type: Boolean, default: true },
+  enableActions: { type: Boolean, default: true }
 })
 
 // 🟢 声明事件：增加 view-document
@@ -256,6 +260,18 @@ const handleGeoSubmit = (payload) => {
   geoDialog.params.node.setDataValue(colKey, payload)
 }
 
+const appendRow = (row = {}) => {
+  const nextRow = { ...row }
+  gridData.value = [nextRow, ...gridData.value]
+  nextTick(() => {
+    if (!gridApi.value) return
+    const cols = gridApi.value.getAllDisplayedColumns() || []
+    if (cols.length === 0) return
+    gridApi.value.ensureIndexVisible(0)
+    gridApi.value.setFocusedCell(0, cols[0].getColId())
+  })
+}
+
 onMounted(() => { 
   syncTheme()
   themeObserver = new MutationObserver(syncTheme)
@@ -274,7 +290,7 @@ onUnmounted(() => {
   document.removeEventListener('paste', handleGlobalPaste)
 })
 
-defineExpose({ loadData, setWorkflowBinding })
+defineExpose({ loadData, setWorkflowBinding, appendRow })
 </script>
 
 <style scoped lang="scss">

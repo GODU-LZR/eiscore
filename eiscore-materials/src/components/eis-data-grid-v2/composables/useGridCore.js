@@ -30,6 +30,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const resolvedRoleId = ref('')
   const aclRoleId = computed(() => userStore.userInfo?.role_id || userStore.userInfo?.roleId || resolvedRoleId.value || '')
   const aclModule = computed(() => props.aclModule || '')
+  const dataProfile = computed(() => props.acceptProfile || props.profile || 'public')
 
   const gridComponents = {
     StatusRenderer: markRaw(StatusRenderer),
@@ -199,7 +200,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const formatSummaryCell = (params, col) => {
     if (!params?.node?.rowPinned) {
       const acl = getFieldAcl(params.colDef)
-      if (acl?.canView === false) return '*****'
+      if (acl?.canView === false) return '*******'
       if (typeof col?.formatter === 'function') return col.formatter(params)
       if (Array.isArray(params.value)) return params.value.join('  ')
       return params.value
@@ -298,7 +299,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const isSelectColumn = (col) => {
     if (!col) return false
     if (col.type === 'select' || col.type === 'dropdown') return true
-    if (Array.isArray(col.options)) return true
+    if (Array.isArray(col.options)) return col.options.length > 0
     if (col.dictKey) return true
     return false
   }
@@ -529,7 +530,10 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const staticCols = props.staticColumns.map(col => createColDef(col, false))
     const dynamicCols = props.extraColumns.map(col => createColDef(col, true))
     
-    return [checkboxCol, statusCol, ...staticCols, ...dynamicCols, actionCol]
+    const withActions = props.enableActions !== false
+    return withActions
+      ? [checkboxCol, statusCol, ...staticCols, ...dynamicCols, actionCol]
+      : [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
   })
 
   watch([aclRoleId, aclModule], () => {
@@ -549,7 +553,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         url = `${url}${url.includes('?') ? '&' : '?'}order=${orderClause}`
       }
       if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
-      const res = await request({ url, method: 'get' })
+      const res = await request({
+        url,
+        method: 'get',
+        headers: { 'Accept-Profile': dataProfile.value }
+      })
       const rows = Array.isArray(res) ? res : []
       gridData.value = rows
       if (eventEmitter) {
@@ -564,7 +572,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
           gridApi.value.autoSizeColumns(allColIds, false) 
         }
       }, 100)
-    } catch (e) { ElMessage.error('数据加载失败') } 
+    } catch (e) {
+      const detail = e?.response?.data?.message || e?.response?.data?.details || e?.message
+      ElMessage.error(detail || '数据加载失败')
+      console.error('数据加载失败:', e)
+    }
     finally { isLoading.value = false }
   }
 

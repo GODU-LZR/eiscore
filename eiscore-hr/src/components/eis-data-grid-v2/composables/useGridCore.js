@@ -200,7 +200,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const formatSummaryCell = (params, col) => {
     if (!params?.node?.rowPinned) {
       const acl = getFieldAcl(params.colDef)
-      if (acl?.canView === false) return '*****'
+      if (acl?.canView === false) return '*******'
       if (typeof col?.formatter === 'function') return col.formatter(params)
       if (Array.isArray(params.value)) return params.value.join('  ')
       return params.value
@@ -393,6 +393,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (!colDef.valueFormatter) {
       colDef.valueFormatter = (params) => formatSummaryCell(params, col)
     }
+    const aclSnapshot = fieldAcl.value?.[col.prop] || null
+    colDef.__aclCanView = aclSnapshot?.canView !== false
+    colDef.__aclCanEdit = aclSnapshot?.canEdit !== false
 
     if (isDynamic) {
       colDef.valueSetter = (params) => {

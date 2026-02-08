@@ -70,21 +70,42 @@
               <el-form-item label="主键字段">
                 <el-input v-model="coreConfig.primaryKey" placeholder="如: id" />
               </el-form-item>
-              <el-form-item label="显示列">
-                <el-input
-                  v-model="coreConfig.columns"
-                  type="textarea"
-                  :rows="4"
-                  placeholder='JSON 数组格式，如: ["name", "email"]'
-                />
-              </el-form-item>
-              <el-form-item label="过滤条件">
-                <el-input
-                  v-model="coreConfig.filters"
-                  type="textarea"
-                  :rows="3"
-                  placeholder="PostgREST 查询参数，如: status=eq.active"
-                />
+              <el-form-item label="列配置">
+                <div class="column-config">
+                  <div class="column-actions">
+                    <el-button type="primary" @click="addCoreColumn">新增列</el-button>
+                  </div>
+                  <el-table :data="coreColumns" size="small" border style="width: 100%">
+                    <el-table-column label="字段" min-width="140">
+                      <template #default="scope">
+                        <el-input v-model="scope.row.field" placeholder="如: customer_name" />
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="显示名" min-width="140">
+                      <template #default="scope">
+                        <el-input v-model="scope.row.label" placeholder="如: 客户名称" />
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="类型" width="160">
+                      <template #default="scope">
+                        <el-select v-model="scope.row.type" placeholder="类型">
+                          <el-option
+                            v-for="option in columnTypeOptions"
+                            :key="option.value"
+                            :label="option.label"
+                            :value="option.value"
+                          />
+                        </el-select>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="120">
+                      <template #default="scope">
+                        <el-button type="danger" link @click="removeCoreColumn(scope.$index)">删除</el-button>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                  <div class="form-hint">列类型与表格组件保持一致；普通文字可用于数字/日期，下拉/联动等可在表格内继续配置。</div>
+                </div>
               </el-form-item>
             </template>
             <template v-else-if="editForm.app_type === 'workflow'">
@@ -182,6 +203,8 @@ import {
   Warning
 } from '@element-plus/icons-vue'
 import axios from 'axios'
+import { ensureAppAclConfig, ensureAppPermissions, cleanupAppPermissions, resolveAppAclModule } from '@/utils/app-permissions'
+import { DATA_APP_COLUMN_TYPES, normalizeColumnType } from '@/utils/data-app-columns'
 
 const route = useRoute()
 const router = useRouter()
@@ -211,10 +234,10 @@ const newAppForm = ref({
 
 const coreConfig = ref({
   table: '',
-  primaryKey: 'id',
-  columns: '[]',
-  filters: ''
+  primaryKey: 'id'
 })
+const coreColumns = ref([])
+const columnTypeOptions = DATA_APP_COLUMN_TYPES
 
 const iconOptions = [
   { label: 'Grid', value: 'Grid', component: Grid },
@@ -267,6 +290,15 @@ const getAppCenterHeaders = (token) => ({
   'Content-Profile': 'app_center'
 })
 
+const isCreateAppForbidden = (error) => {
+  const status = error?.response?.status
+  const code = error?.response?.data?.code
+  const message = String(error?.response?.data?.message || '').toLowerCase()
+  if (status !== 403) return false
+  if (code === '42501') return true
+  return message.includes('row-level security policy') && message.includes('apps')
+}
+
 const loadApps = async () => {
   try {
     const token = localStorage.getItem('auth_token')
@@ -299,6 +331,36 @@ const normalizeConfig = (raw) => {
   }
 }
 
+const normalizeColumns = (raw) => {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw.map(normalizeColumn)
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed.map(normalizeColumn)
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+const normalizeColumn = (col) => {
+  if (!col) return { field: '', label: '', type: 'text', isStatic: true }
+  if (typeof col === 'string') {
+    return { field: col, label: col, type: 'text', isStatic: true }
+  }
+  const field = col.field || col.prop || ''
+  return {
+    ...col,
+    field,
+    prop: col.prop || field,
+    label: col.label || field,
+    type: normalizeColumnType(col.type),
+    isStatic: col.isStatic !== false
+  }
+}
+
 const normalizeIcon = (icon) => {
   const valid = iconOptions.some((item) => item.value === icon)
   return valid ? icon : 'Grid'
@@ -316,10 +378,9 @@ const selectApp = (app) => {
   }
   coreConfig.value = {
     table: config?.table || '',
-    primaryKey: config?.primaryKey || 'id',
-    columns: Array.isArray(config?.columns) ? JSON.stringify(config.columns) : (config?.columns || '[]'),
-    filters: config?.filters || ''
+    primaryKey: config?.primaryKey || 'id'
   }
+  coreColumns.value = normalizeColumns(config?.columns)
   if (selectedAppId.value) {
     router.replace(`/config-center/${selectedAppId.value}`)
   }
@@ -333,15 +394,20 @@ const saveApp = async () => {
     const current = apps.value.find((item) => item.id === selectedAppId.value)
     const currentConfig = normalizeConfig(current?.config)
 
-    const nextConfig = {
-      ...currentConfig,
-      table: coreConfig.value.table
+  let nextConfig = {
+    ...currentConfig,
+    table: coreConfig.value.table
+  }
+  if (editForm.value.app_type === 'data') {
+    nextConfig.primaryKey = coreConfig.value.primaryKey || 'id'
+    nextConfig.columns = coreColumns.value
+    if (Object.prototype.hasOwnProperty.call(nextConfig, 'filters')) {
+      delete nextConfig.filters
     }
-    if (editForm.value.app_type === 'data') {
-      nextConfig.primaryKey = coreConfig.value.primaryKey || 'id'
-      nextConfig.columns = coreConfig.value.columns || '[]'
-      nextConfig.filters = coreConfig.value.filters || ''
+    if (selectedApp.value?.id) {
+      nextConfig = ensureAppAclConfig(nextConfig, selectedApp.value.id)
     }
+  }
 
     const payload = {
       name: editForm.value.name,
@@ -360,6 +426,9 @@ const saveApp = async () => {
 
     ElMessage.success('配置已保存')
     await loadApps()
+    if (selectedApp.value?.app_type === 'data') {
+      ensureAppPermissions(selectedApp.value, { config: nextConfig, appId: selectedApp.value.id })
+    }
   } catch (error) {
     ElMessage.error('保存失败: ' + error.message)
   } finally {
@@ -367,8 +436,18 @@ const saveApp = async () => {
   }
 }
 
+const addCoreColumn = () => {
+  coreColumns.value.push({ field: '', label: '', type: 'text', isStatic: true })
+}
+
+const removeCoreColumn = (index) => {
+  coreColumns.value.splice(index, 1)
+}
+
 const deleteApp = async () => {
   if (!selectedAppId.value) return
+  const targetApp = selectedApp.value
+  const moduleKey = resolveAppAclModule(targetApp, targetApp?.config, targetApp?.id)
   try {
     await ElMessageBox.confirm(
       '确定要删除该应用吗？此操作不可恢复。',
@@ -389,6 +468,9 @@ const deleteApp = async () => {
     await axios.delete(`/api/apps?id=eq.${selectedAppId.value}`, {
       headers: getAppCenterHeaders(token)
     })
+    if (moduleKey) {
+      cleanupAppPermissions(moduleKey)
+    }
     ElMessage.success('应用已删除')
     selectedAppId.value = null
     selectedApp.value = null
@@ -431,10 +513,29 @@ const createApp = async () => {
     await loadApps()
     const app = response.data?.[0]
     if (app) {
+      if (app.app_type === 'data') {
+        const config = ensureAppAclConfig(app.config || {}, app.id)
+        try {
+          await axios.patch(`/api/apps?id=eq.${app.id}`, { config }, {
+            headers: {
+              ...getAppCenterHeaders(token),
+              'Content-Type': 'application/json'
+            }
+          })
+          app.config = config
+        } catch (e) {
+          // ignore patch failures
+        }
+        ensureAppPermissions(app, { config, appId: app.id })
+      }
       selectApp(app)
       navigateToBuilder(app)
     }
   } catch (error) {
+    if (isCreateAppForbidden(error)) {
+      ElMessage.error('只有超级管理员才能创建应用')
+      return
+    }
     ElMessage.error('创建失败: ' + error.message)
   } finally {
     creating.value = false
@@ -580,5 +681,15 @@ watch(() => route.params.appId, (value) => {
   font-size: 12px;
   color: #909399;
   margin-top: 6px;
+}
+
+.column-config {
+  width: 100%;
+}
+
+.column-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 </style>

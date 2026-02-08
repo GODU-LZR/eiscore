@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
     .map((v) => v.trim())
     .filter(Boolean)
   return {
+    base: '/materials/',
     plugins: [
       vue(),
       // 👇 这里必须和基座 apps.js 里的 name 一致

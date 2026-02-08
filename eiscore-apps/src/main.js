@@ -20,8 +20,11 @@ function render(props = {}) {
   const { container } = props
   const pinia = createPinia()
 
+  const isSubAppRoute =
+    qiankunWindow.__POWERED_BY_QIANKUN__ ||
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/apps'))
   history = createWebHistory(
-    qiankunWindow.__POWERED_BY_QIANKUN__ ? '/apps/' : '/'
+    isSubAppRoute ? '/apps/' : '/'
   )
   router = createRouter({
     history,

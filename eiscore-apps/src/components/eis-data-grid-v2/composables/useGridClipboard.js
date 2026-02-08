@@ -15,45 +15,48 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
     const focusedCell = gridApi.value.getFocusedCell()
     const hasRange = rangeSelection.active
     if (!focusedCell && !hasRange) return
-
+    
     const clipboardData = event.clipboardData || window.clipboardData
     if (!clipboardData) return
     const text = clipboardData.getData('text')
     if (!text) return
-
-    const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-    let rows = cleanText.split('\n')
-    if (rows[rows.length - 1] === '') rows.pop()
-
-    const pasteMatrix = rows.map(row => row.split('\t'))
-    const pasteRowCount = pasteMatrix.length
-    const pasteColCount = pasteMatrix.length > 0 ? pasteMatrix[0].length : 0
-    if (pasteRowCount === 0) return
-
-    const allCols = gridApi.value.getAllGridColumns()
-
-    isSystemOperation.value = true
+    
+    // 原始逻辑：处理换行符
+    const cleanText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    let rows = cleanText.split('\n');
+    if (rows[rows.length - 1] === '') rows.pop(); 
+    
+    const pasteMatrix = rows.map(row => row.split('\t'));
+    const pasteRowCount = pasteMatrix.length;
+    const pasteColCount = pasteMatrix.length > 0 ? pasteMatrix[0].length : 0;
+    if (pasteRowCount === 0) return;
+    
+    const allCols = gridApi.value.getAllGridColumns();
+    
+    // 开启事务
+    isSystemOperation.value = true 
     const transaction = { type: 'batch', changes: [] }
 
-    let startRowIdx = -1, startColIdx = -1
+    let startRowIdx = -1, startColIdx = -1;
     if (rangeSelection.active) {
-      startRowIdx = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
-      const sC = getColIndex(rangeSelection.startColId)
-      const eC = getColIndex(rangeSelection.endColId)
-      startColIdx = Math.min(sC, eC)
+      startRowIdx = Math.min(rangeSelection.startRowIndex, rangeSelection.endRowIndex);
+      const sC = getColIndex(rangeSelection.startColId);
+      const eC = getColIndex(rangeSelection.endColId);
+      startColIdx = Math.min(sC, eC);
     } else {
       if (focusedCell) {
-        startRowIdx = focusedCell.rowIndex
-        startColIdx = getColIndex(focusedCell.column.colId)
+        startRowIdx = focusedCell.rowIndex;
+        startColIdx = getColIndex(focusedCell.column.colId);
       }
     }
-    if (startRowIdx === -1 || startColIdx === -1) return
+    if (startRowIdx === -1 || startColIdx === -1) return;
 
+    // 辅助函数：应用更新并记录
     const applyAndRecord = (rowNode, col, rawValue) => {
       const field = col.getColDef().field
       let currentVal = field.split('.').reduce((obj, key) => obj?.[key], rowNode.data)
       const cleanValue = sanitizeValue(field, rawValue)
-
+      
       if (String(currentVal) !== String(cleanValue)) {
          rowNode.setDataValue(field, cleanValue)
          transaction.changes.push({
@@ -71,37 +74,39 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
       }
     }
 
-    const isSingleValue = pasteRowCount === 1 && pasteColCount === 1
+    const isSingleValue = pasteRowCount === 1 && pasteColCount === 1;
     const realRangeRowCount = rangeSelection.active ? Math.abs(rangeSelection.endRowIndex - rangeSelection.startRowIndex) + 1 : 0
     const realRangeColCount = rangeSelection.active ? Math.abs(getColIndex(rangeSelection.endColId) - getColIndex(rangeSelection.startColId)) + 1 : 0
-    const isMultiCellSelection = realRangeRowCount > 1 || realRangeColCount > 1
+    const isMultiCellSelection = realRangeRowCount > 1 || realRangeColCount > 1;
 
+    // 场景1：单值填充多选区域
     if (isSingleValue && isMultiCellSelection && rangeSelection.active) {
-      const valToPaste = pasteMatrix[0][0].trim()
-      const endRowIdx = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex)
-      const sC = getColIndex(rangeSelection.startColId)
-      const eC = getColIndex(rangeSelection.endColId)
-      const endColIdx = Math.max(sC, eC)
-
+      const valToPaste = pasteMatrix[0][0].trim();
+      const endRowIdx = Math.max(rangeSelection.startRowIndex, rangeSelection.endRowIndex);
+      const sC = getColIndex(rangeSelection.startColId);
+      const eC = getColIndex(rangeSelection.endColId);
+      const endColIdx = Math.max(sC, eC);
+      
       for (let r = startRowIdx; r <= endRowIdx; r++) {
-        const rowNode = gridApi.value.getDisplayedRowAtIndex(r)
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(r);
         for (let c = startColIdx; c <= endColIdx; c++) {
-          const col = allCols[c]
+          const col = allCols[c];
           if (col && col.isCellEditable(rowNode)) {
             applyAndRecord(rowNode, col, valToPaste)
           }
         }
       }
-    }
+    } 
+    // 场景2：多对多粘贴
     else {
       for (let i = 0; i < pasteRowCount; i++) {
-        const rowNode = gridApi.value.getDisplayedRowAtIndex(startRowIdx + i)
-        if (!rowNode) break
+        const rowNode = gridApi.value.getDisplayedRowAtIndex(startRowIdx + i);
+        if (!rowNode) break; 
         for (let j = 0; j < pasteColCount; j++) {
-          const colIndex = startColIdx + j
+          const colIndex = startColIdx + j;
           if (colIndex < allCols.length) {
-            const col = allCols[colIndex]
-            const cellValue = pasteMatrix[i][j].trim()
+            const col = allCols[colIndex];
+            const cellValue = pasteMatrix[i][j].trim();
             if (col && col.isCellEditable(rowNode)) {
                applyAndRecord(rowNode, col, cellValue)
             }
@@ -116,30 +121,31 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
       ElMessage.success(`已粘贴 ${transaction.changes.length} 个单元格`)
       debouncedSave()
     }
-
+    
     setTimeout(() => { isSystemOperation.value = false }, 100)
     event.preventDefault()
   }
 
   const onCellKeyDown = async (e) => {
     const event = e.event
-    const key = event.key.toLowerCase()
-    const isCtrl = event.ctrlKey || event.metaKey
-
+    const key = event.key.toLowerCase();
+    const isCtrl = event.ctrlKey || event.metaKey;
+    
     if (!gridApi.value) return
-
+    
     if (isCtrl && key === 'z' && !event.shiftKey) {
-      event.preventDefault(); event.stopPropagation();
+      event.preventDefault(); event.stopPropagation(); 
       performUndoRedo('undo')
       return
     }
 
     if (isCtrl && (key === 'y' || (key === 'z' && event.shiftKey))) {
-      event.preventDefault(); event.stopPropagation();
+      event.preventDefault(); event.stopPropagation(); 
       performUndoRedo('redo')
       return
     }
 
+    // 批量删除
     if (event.key === 'Delete' || event.key === 'Backspace') {
       if (rangeSelection.active) {
         isSystemOperation.value = true
@@ -169,7 +175,7 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
             }
           }
         }
-
+        
         if (transaction.changes.length > 0) {
           history.undoStack.push(transaction); history.redoStack = []; debouncedSave()
         }
@@ -188,6 +194,7 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
       return
     }
 
+    // 复制 (Ctrl+C)
     if (isCtrl && key === 'c') {
       const activeEl = document.activeElement
       if (activeEl) {
@@ -245,7 +252,7 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
         }
         ElMessage.success(`已复制 ${Math.abs(endRow - startRow) + 1} 行`)
       } catch(e) { ElMessage.error('复制失败') }
-
+      
       event.preventDefault()
       return
     }

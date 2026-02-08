@@ -1,5 +1,5 @@
 <template>
-  <div class="file-renderer" :class="{ 'is-disabled': isPinned }" @click.stop="openDialog">
+  <div class="file-renderer" :class="{ 'is-disabled': isPinned || isMasked }" @click.stop="openDialog">
     <span>{{ displayText }}</span>
   </div>
 </template>
@@ -8,6 +8,7 @@
 import { computed } from 'vue'
 
 const props = defineProps(['params'])
+const MASKED_TEXT = '*******'
 
 const parseMaybeJson = (value) => {
   if (typeof value !== 'string') return null
@@ -40,8 +41,10 @@ const getName = (item) => {
 }
 
 const isPinned = computed(() => !!props.params?.node?.rowPinned)
+const isMasked = computed(() => props.params?.colDef?.__aclCanView === false)
 
 const displayText = computed(() => {
+  if (isMasked.value) return MASKED_TEXT
   if (isPinned.value) return ''
   const list = toList(props.params?.value)
   const first = list[0]
@@ -52,7 +55,7 @@ const displayText = computed(() => {
 })
 
 const openDialog = () => {
-  if (isPinned.value) return
+  if (isPinned.value || isMasked.value) return
   props.params?.context?.componentParent?.openFileDialog?.(props.params)
 }
 </script>

@@ -102,9 +102,26 @@ const normalizeNumber = (val) => {
   return Number.isFinite(num) ? num : null
 }
 
+const parseMaybeJson = (value) => {
+  if (typeof value !== 'string') return null
+  const text = value.trim()
+  if (!text) return null
+  if (!text.startsWith('{') && !text.startsWith('[')) return null
+  try {
+    const parsed = JSON.parse(text)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 const parseGeoValue = (value) => {
   if (value === null || value === undefined || value === '') return {}
-  if (typeof value === 'string') return { address: value }
+  if (typeof value === 'string') {
+    const parsed = parseMaybeJson(value)
+    if (parsed) return parsed
+    return { address: value }
+  }
   if (typeof value === 'object') return value
   return {}
 }
@@ -113,7 +130,7 @@ const fillForm = (value) => {
   const data = parseGeoValue(value)
   form.lng = data.lng ?? data.longitude ?? ''
   form.lat = data.lat ?? data.latitude ?? ''
-  form.address = data.address ?? ''
+  form.address = data.address ?? data.ai_address ?? data.aiAddress ?? data.ip_address ?? data.ipAddress ?? ''
   form.aiAddress = data.ai_address ?? data.aiAddress ?? ''
   form.ip = data.ip ?? ''
   form.source = data.source ?? ''

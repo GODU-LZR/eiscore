@@ -36,6 +36,12 @@ export default [
     meta: { title: '应用' }
   },
   {
+    path: '/app/:appId/record/:rowId',
+    name: 'AppRecordDetail',
+    component: () => import('../views/AppRecordDetail.vue'),
+    meta: { title: '数据表单' }
+  },
+  {
     path: '/__preview/:draftId',
     name: 'PreviewFrame',
     component: () => import('../views/PreviewFrame.vue'),

@@ -35,15 +35,15 @@
                   <el-input v-model="scope.row.label" placeholder="如: 客户名称" />
                 </template>
               </el-table-column>
-              <el-table-column label="类型" width="140">
+              <el-table-column label="类型" width="160">
                 <template #default="scope">
                   <el-select v-model="scope.row.type" placeholder="类型">
-                    <el-option label="文本" value="text" />
-                    <el-option label="数字" value="number" />
-                    <el-option label="整数" value="integer" />
-                    <el-option label="日期" value="date" />
-                    <el-option label="日期时间" value="timestamptz" />
-                    <el-option label="布尔" value="boolean" />
+                    <el-option
+                      v-for="option in columnTypeOptions"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
+                    />
                   </el-select>
                 </template>
               </el-table-column>
@@ -53,15 +53,8 @@
                 </template>
               </el-table-column>
             </el-table>
+            <div class="form-hint">列类型与表格组件一致；下拉/联动等可在表格内继续配置。</div>
           </div>
-        </el-form-item>
-        <el-form-item label="过滤条件">
-          <el-input
-            v-model="config.filters"
-            type="textarea"
-            :rows="3"
-            placeholder="PostgREST 查询参数，如: status=eq.active"
-          />
         </el-form-item>
       </el-form>
     </div>
@@ -74,6 +67,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import axios from 'axios'
+import { DATA_APP_COLUMN_TYPES, normalizeColumnType } from '@/utils/data-app-columns'
 
 const route = useRoute()
 const router = useRouter()
@@ -88,12 +82,12 @@ const appData = ref(null)
 const saving = ref(false)
 
 const columns = ref([])
+const columnTypeOptions = DATA_APP_COLUMN_TYPES
 
 const config = ref({
   table: '',
   primaryKey: 'id',
-  columns: [],
-  filters: ''
+  columns: []
 })
 
 onMounted(async () => {
@@ -147,7 +141,7 @@ function normalizeColumn(col) {
   return {
     field: col.field || '',
     label: col.label || col.field || '',
-    type: col.type || 'text',
+    type: normalizeColumnType(col.type),
     isStatic: true
   }
 }
@@ -164,12 +158,15 @@ async function saveConfig() {
   saving.value = true
   try {
     const token = localStorage.getItem('auth_token')
+    const nextConfig = { ...config.value, columns: columns.value }
+    if (Object.prototype.hasOwnProperty.call(nextConfig, 'filters')) {
+      delete nextConfig.filters
+    }
     await axios.patch(
       `/api/apps?id=eq.${appId.value}`,
       {
         config: {
-          ...config.value,
-          columns: columns.value
+          ...nextConfig
         },
         updated_at: new Date().toISOString()
       },
@@ -290,5 +287,11 @@ function goBack() {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 12px;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 6px;
 }
 </style>

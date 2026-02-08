@@ -1,4 +1,5 @@
 import { registerMicroApps, start, initGlobalState } from 'qiankun'
+import { setBootstrapMaxTime, setMountMaxTime, setUnmountMaxTime } from 'single-spa'
 import apps from './apps'
 import { aiBridge } from '@/utils/ai-bridge' 
 
@@ -7,6 +8,12 @@ import { aiBridge } from '@/utils/ai-bridge'
  * 包含：子应用注册、全局状态管理、AI通信桥接
  */
 export function registerQiankun() {
+  // Dev mode sub-apps are served by Vite and may take longer than single-spa default 4s.
+  // Relax lifecycle deadlines to prevent false timeout failures on slower machines.
+  setBootstrapMaxTime(20000, false, 10000)
+  setMountMaxTime(20000, false, 10000)
+  setUnmountMaxTime(15000, false, 8000)
+
   // 1. 注册子应用
   registerMicroApps(apps, {
     beforeLoad: app => {
@@ -55,6 +62,7 @@ export function registerQiankun() {
 
   // 4. 启动 Qiankun
   start({
+    prefetch: false,
     sandbox: {
       experimentalStyleIsolation: true
     }

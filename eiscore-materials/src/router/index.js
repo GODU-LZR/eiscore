@@ -1,18 +1,24 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
-import MaterialsApps from '@/views/MaterialsApps.vue'
-import MaterialsAppView from '@/views/MaterialsAppView.vue'
-import MaterialDetail from '@/views/MaterialDetail.vue'
-import MaterialLabelPreview from '@/views/MaterialLabelPreview.vue'
 
 const router = createRouter({
-  history: createWebHistory(qiankunWindow.__POWERED_BY_QIANKUN__ ? '/materials' : '/'),
+  history: createWebHistory(
+    (
+      qiankunWindow.__POWERED_BY_QIANKUN__ ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/materials'))
+    ) ? '/materials' : '/'
+  ),
   routes: [
     { path: '/', redirect: '/apps' },
-    { path: '/apps', name: 'MaterialsApps', component: MaterialsApps },
-    { path: '/app/:key', name: 'MaterialsAppView', component: MaterialsAppView, props: true },
-    { path: '/material/detail/:id', name: 'MaterialDetail', component: MaterialDetail, props: true },
-    { path: '/material/label/:id', name: 'MaterialLabelPreview', component: MaterialLabelPreview, props: true }
+    { path: '/apps', name: 'MaterialsApps', component: () => import('@/views/MaterialsApps.vue') },
+    { path: '/app/:key', name: 'MaterialsAppView', component: () => import('@/views/MaterialsAppView.vue'), props: true },
+    { path: '/material/detail/:id', name: 'MaterialDetail', component: () => import('@/views/MaterialDetail.vue'), props: true },
+    { path: '/material/label/:id', name: 'MaterialLabelPreview', component: () => import('@/views/MaterialLabelPreview.vue'), props: true },
+    { path: '/batch-rules', name: 'BatchNoRuleManager', component: () => import('@/views/BatchNoRuleManager.vue') },
+    { path: '/warehouses', name: 'WarehouseManagement', component: () => import('@/views/WarehouseManagement.vue') },
+    { path: '/inventory-ledger', name: 'InventoryLedgerGrid', component: () => import('@/views/InventoryLedgerGrid.vue') },
+    { path: '/inventory-current', name: 'InventoryCurrentGrid', component: () => import('@/views/InventoryCurrentGrid.vue') },
+    { path: '/inventory-dashboard', name: 'InventoryDashboard', component: () => import('@/views/InventoryDashboard.vue') }
   ]
 })
 

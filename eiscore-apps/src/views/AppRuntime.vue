@@ -62,6 +62,8 @@ import { ElMessage } from 'element-plus'
 import axios from 'axios'
 import Viewer from 'bpmn-js/lib/Viewer'
 import AppCenterGrid from '@/components/AppCenterGrid.vue'
+import { hasPerm } from '@/utils/permission'
+import { resolveAppAclModule } from '@/utils/app-permissions'
 
 import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css'
@@ -106,6 +108,12 @@ async function loadAppData() {
       headers: getAppCenterHeaders(token)
     })
     appData.value = response.data?.[0] || null
+    const moduleKey = resolveAppAclModule(appData.value, appData.value?.config, appId.value)
+    if (moduleKey && !hasPerm(`app:${moduleKey}`)) {
+      ElMessage.warning('暂无权限访问该应用')
+      router.push('/')
+      return
+    }
   } catch (error) {
     ElMessage.error('加载应用数据失败')
   } finally {

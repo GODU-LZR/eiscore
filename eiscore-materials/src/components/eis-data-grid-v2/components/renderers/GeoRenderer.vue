@@ -8,6 +8,8 @@
 import { computed } from 'vue'
 
 const props = defineProps(['params'])
+const MASKED_TEXT = '*******'
+const isMasked = computed(() => props.params?.colDef?.__aclCanView === false)
 
 const normalizeNumber = (val) => {
   const num = Number(val)
@@ -15,6 +17,7 @@ const normalizeNumber = (val) => {
 }
 
 const displayText = computed(() => {
+  if (isMasked.value) return MASKED_TEXT
   const value = props.params?.value
   if (value === null || value === undefined || value === '') return ''
   if (typeof value === 'string' || typeof value === 'number') return String(value)

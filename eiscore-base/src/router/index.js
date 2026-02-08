@@ -36,17 +36,17 @@ const router = createRouter({
           component: () => import('../views/EnterpriseAiView.vue')
         },
         {
-          path: 'materials/:page*',
+          path: 'materials/:page(.*)*',
           name: 'materials',
           component: EmptyView
         },
         {
-          path: 'hr/:page*',
+          path: 'hr/:page(.*)*',
           name: 'hr',
           component: EmptyView
         },
         {
-          path: 'apps/:page*',
+          path: 'apps/:page(.*)*',
           name: 'apps',
           component: EmptyView
         }

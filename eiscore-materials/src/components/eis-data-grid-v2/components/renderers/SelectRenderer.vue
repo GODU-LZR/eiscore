@@ -1,6 +1,6 @@
 <template>
   <div class="select-renderer">
-    <span>{{ displayLabel || rawValue }}</span>
+    <span>{{ displayText }}</span>
   </div>
 </template>
 
@@ -8,9 +8,11 @@
 import { computed } from 'vue'
 
 const props = defineProps(['params'])
+const MASKED_TEXT = '*******'
 
 const rawValue = computed(() => props.params.value)
 const options = computed(() => props.params.colDef.options || props.params.colDef.selectOptions || [])
+const isMasked = computed(() => props.params?.colDef?.__aclCanView === false)
 
 const normalize = (val) => {
   if (val === null || val === undefined) return ''
@@ -32,11 +34,14 @@ const normalizeOption = (opt) => {
 const normalizedOptions = computed(() => options.value.map(normalizeOption))
 
 const displayLabel = computed(() => {
+  if (isMasked.value) return MASKED_TEXT
   const target = normalize(rawValue.value)
   if (target === '') return ''
   const option = normalizedOptions.value.find(opt => normalize(opt.value) === target)
   return option ? option.label : rawValue.value
 })
+
+const displayText = computed(() => displayLabel.value || rawValue.value)
 
 </script>
 

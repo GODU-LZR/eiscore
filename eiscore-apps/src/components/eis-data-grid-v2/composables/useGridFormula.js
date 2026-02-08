@@ -3,6 +3,7 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
 
+// 🟢 接收 columnLockState 参数
 export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, currentUser, hooks, columnLockState) {
   const pinnedBottomRowData = ref([])
   const isSavingConfig = ref(false)
@@ -10,13 +11,14 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
 
   const availableColumns = computed(() => [...props.staticColumns, ...props.extraColumns].map(c => ({ label: c.label, prop: c.prop })))
 
+  // 加载配置 (包含列锁)
   const loadGridConfig = async () => {
     if (!props.viewId) return
     try {
       const res = await request({
         url: `/sys_grid_configs?view_id=eq.${props.viewId}`,
         method: 'get',
-        headers: { 'Accept-Profile': 'public' }
+        headers: { 'Accept-Profile': 'public' } 
       })
       if (res && res.length > 0) {
         const remoteConfig = res[0].summary_config
@@ -27,26 +29,29 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
           if (!activeSummaryConfig.cellLabels) {
             activeSummaryConfig.cellLabels = remoteConfig.cell_labels || remoteConfig.cellLabels || {}
           }
-
-          if (props.enableColumnLock !== false && remoteConfig.column_locks) {
-            Object.assign(columnLockState, remoteConfig.column_locks)
-          }
-
+          
+          // 🟢 恢复列锁状态
+           if (props.enableColumnLock !== false && remoteConfig.column_locks) {
+             Object.assign(columnLockState, remoteConfig.column_locks)
+           }
+          
           pinnedBottomRowData.value = calculateTotals(gridData.value)
-
+          
           if (gridApi.value) {
-            gridApi.value.refreshCells({ force: true })
-            gridApi.value.redrawRows()
+             gridApi.value.refreshCells({ force: true })
+             gridApi.value.redrawRows() // 重绘以应用列锁样式
           }
         }
       }
-    } catch (e) {
+    } catch(e) {
       if (e.response && e.response.status !== 404) {
         console.warn('Failed to load grid config', e)
       }
     }
   }
 
+  // ... (calculateRowFormulas 和 calculateTotals 保持不变) ...
+  // L2: 行内公式计算
   const calculateRowFormulas = (rowNode) => {
     if (!rowNode || !rowNode.data) return false
     const formulaCols = props.extraColumns.filter(c => c.type === 'formula' && c.expression)
@@ -64,7 +69,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
         })
         const result = evaluateFormulaExpression(evalExpr)
         if (result !== undefined && !isNaN(result) && isFinite(result)) {
-          const finalVal = Number(result.toFixed(2))
+          const finalVal = Number(result.toFixed(2)) 
           const currentVal = rowNode.data.properties?.[col.prop]
           if (currentVal !== finalVal) {
             if (!rowNode.data.properties) rowNode.data.properties = {}
@@ -72,12 +77,12 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
             gridApi.value.refreshCells({ rowNodes: [rowNode], columns: [`properties.${col.prop}`] })
             hasChanges = true
             if (hooks.pushPendingChange) {
-              hooks.pushPendingChange({
-                rowNode: rowNode,
-                colDef: { field: `properties.${col.prop}` },
-                newValue: finalVal,
-                oldValue: currentVal
-              })
+                hooks.pushPendingChange({
+                    rowNode: rowNode,
+                    colDef: { field: `properties.${col.prop}` },
+                    newValue: finalVal,
+                    oldValue: currentVal
+                })
             }
           }
         }
@@ -86,12 +91,13 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     return hasChanges
   }
 
+  // L1 & L3: 底部合计计算
   const calculateTotals = (data) => {
     if (!data || data.length === 0) return []
     const totalRow = { id: 'bottom_total', _status: activeSummaryConfig.label, properties: {} }
-    const l1Results = {}
+    const l1Results = {} 
     const columns = [...props.staticColumns, ...props.extraColumns]
-
+    
     columns.forEach(col => {
       const isProp = !props.staticColumns.find(c => c.prop === col.prop)
       const values = data.map(row => { const v = isProp ? row.properties?.[col.prop] : row[col.prop]; return (v === null || v === undefined || v === '') ? null : v }).filter(v => v !== null)
@@ -105,8 +111,8 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
         else if (rule === 'max' && numbers.length) result = Math.max(...numbers)
         else if (rule === 'min' && numbers.length) result = Math.min(...numbers)
         else if (rule === 'none') {
-          const isNum = values.every(v => !isNaN(Number(v)))
-          if (isNum) result = numbers.reduce((a, b) => a + b, 0); else result = values.length
+           const isNum = values.every(v => !isNaN(Number(v)))
+           if (isNum) result = numbers.reduce((a, b) => a + b, 0); else result = values.length
         }
       }
       l1Results[col.prop] = result !== null ? result : 0
@@ -123,13 +129,13 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
         try {
           const res = evaluateFormulaExpression(expr.replace(/\{(.+?)\}/g, (m,k) => valueMap[k]??0))
           if (res !== undefined && !isNaN(res) && isFinite(res)) {
-            const d = Number(res.toFixed(2)); const isP = !props.staticColumns.find(c => c.prop === col.prop)
-            if (isP) totalRow.properties[col.prop] = d; else totalRow[col.prop] = d
+             const d = Number(res.toFixed(2)); const isP = !props.staticColumns.find(c => c.prop === col.prop)
+             if (isP) totalRow.properties[col.prop] = d; else totalRow[col.prop] = d
           }
         } catch(e){}
       }
     })
-
+    
     columns.forEach(col => {
       const rule = activeSummaryConfig.rules[col.prop]; const hasF = !!activeSummaryConfig.expressions?.[col.prop]
       if ((!rule || rule === 'none') && !hasF) {
@@ -172,15 +178,15 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
         gridApi.value.refreshCells({ rowNodes: [gridApi.value.getPinnedBottomRow(0)], force: true })
     }
     configDialog.visible = false
-
+    
     if (props.viewId) {
         isSavingConfig.value = true
         try {
             await request({
                 url: '/sys_grid_configs?on_conflict=view_id', method: 'post',
-                headers: { 'Prefer': 'resolution=merge-duplicates', 'Content-Profile': 'public' },
-                data: {
-                    view_id: props.viewId,
+                headers: { 'Prefer': 'resolution=merge-duplicates', 'Content-Profile': 'public' }, 
+                data: { 
+                    view_id: props.viewId, 
                     summary_config: {
                       label: activeSummaryConfig.label,
                       rules: activeSummaryConfig.rules,
@@ -188,24 +194,28 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
                       cell_labels: activeSummaryConfig.cellLabels,
                       ...(props.enableColumnLock === false ? {} : { column_locks: columnLockState })
                     },
-                    updated_by: currentUser.value
+                    updated_by: currentUser.value 
                 }
             })
             ElMessage.success('配置已保存')
-        } catch(e) { ElMessage.error('保存失败') }
+        } catch(e) { ElMessage.error('保存失败') } 
         finally { isSavingConfig.value = false }
     }
   }
 
-  watch(columnLockState, async () => {
+  // 🟢 监听列锁变化，自动触发保存
+    watch(columnLockState, async () => {
       if (props.enableColumnLock === false) return
+      // 这里的逻辑稍微有点 trick：我们复用 saveConfig 里的持久化逻辑，但不需要弹窗
+      // 为了不重写一遍 request，我们可以封装一个 internalSave
+      // 但为了简单，这里直接复制核心请求代码，实现“静默保存”
       if (props.viewId) {
         try {
             await request({
                 url: '/sys_grid_configs?on_conflict=view_id', method: 'post',
-                headers: { 'Prefer': 'resolution=merge-duplicates', 'Content-Profile': 'public' },
-                data: {
-                    view_id: props.viewId,
+                headers: { 'Prefer': 'resolution=merge-duplicates', 'Content-Profile': 'public' }, 
+                data: { 
+                    view_id: props.viewId, 
                     summary_config: {
                         label: activeSummaryConfig.label,
                         rules: activeSummaryConfig.rules,
@@ -213,15 +223,16 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
                         cell_labels: activeSummaryConfig.cellLabels,
                         column_locks: columnLockState
                     },
-                    updated_by: currentUser.value
+                    updated_by: currentUser.value 
                 }
             })
+            // 列锁变化不需要弹出成功提示，以免打扰用户，或者可以改用 console.log
         } catch(e) { console.error('Auto save locks failed', e) }
       }
   }, { deep: true })
 
   watch(gridData, (newData) => pinnedBottomRowData.value = calculateTotals(newData), { immediate: true })
-
+  
   watch(() => props.extraColumns, async () => {
     await nextTick()
     if (!gridApi.value) return
@@ -235,8 +246,8 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
   }, { deep: true })
 
   return {
-    pinnedBottomRowData, calculateRowFormulas, calculateTotals,
-    configDialog, isSavingConfig, availableColumns,
+    pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
+    configDialog, isSavingConfig, availableColumns, 
     openConfigDialog, saveConfig, loadGridConfig
   }
 }

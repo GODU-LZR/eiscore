@@ -4,7 +4,8 @@
 export const MODULE_LABELS = {
   home: '首页',
   hr: '人事',
-  mms: '物料'
+  mms: '物料',
+  app: '应用中心'
 }
 
 export const APP_LABELS = {
@@ -34,6 +35,7 @@ export const OP_ACTION_LABELS = {
 export const PERMISSION_MODULE_OPTIONS = [
   { label: '模块', value: '模块' },
   { label: '应用', value: '应用' },
+  { label: MODULE_LABELS.app, value: MODULE_LABELS.app },
   { label: APP_LABELS.hr_employee, value: APP_LABELS.hr_employee },
   { label: APP_LABELS.hr_org, value: APP_LABELS.hr_org },
   { label: APP_LABELS.hr_attendance, value: APP_LABELS.hr_attendance },

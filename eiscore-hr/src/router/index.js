@@ -1,21 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router'
 // 1. 引入 qiankun 辅助变量 (用于判断是否在基座中运行)
 import { qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
-// 2. 引入页面组件 (请确保你本地 views/EmployeeList.vue 文件存在)
-import HrApps from '../views/HrApps.vue'
-import HrAppView from '../views/HrAppView.vue'
-import EmployeeList from '../views/EmployeeList.vue'
-import EmployeeDetail from '../views/EmployeeDetail.vue'
-import HrOrgChart from '../views/HrOrgChart.vue'
-import HrAclView from '../views/HrAclView.vue'
-import HrUserManage from '../views/HrUserManage.vue'
 import { hasPerm } from '@/utils/permission'
 
 const router = createRouter({
   // 3. 🟢 关键配置：设置路由基础路径
-  // 如果在基座中运行，基础路径是 /hr；如果独立运行，基础路径是 /
+  // 刷新时部分场景 __POWERED_BY_QIANKUN__ 可能还未就绪，改为按当前路径兜底判定。
   history: createWebHistory(
-    qiankunWindow.__POWERED_BY_QIANKUN__ ? '/hr' : '/'
+    (
+      qiankunWindow.__POWERED_BY_QIANKUN__ ||
+      (typeof window !== 'undefined' && window.location.pathname.startsWith('/hr'))
+    ) ? '/hr' : '/'
   ),
   routes: [
     {
@@ -25,45 +20,45 @@ const router = createRouter({
     {
       path: '/apps',
       name: 'HrApps',
-      component: HrApps
+      component: () => import('../views/HrApps.vue')
     },
     {
       path: '/app/:key',
       name: 'HrAppView',
-      component: HrAppView,
+      component: () => import('../views/HrAppView.vue'),
       props: true
     },
     {
       path: '/employee',
       name: 'EmployeeList',
       meta: { perm: 'app:hr_employee' },
-      component: EmployeeList // 挂载组件
+      component: () => import('../views/EmployeeList.vue') // 挂载组件
     },
     // 🟢 新增详情页路由
     {
       path: '/employee/detail/:id',
       name: 'EmployeeDetail',
       meta: { perm: 'app:hr_employee' },
-      component: EmployeeDetail,
+      component: () => import('../views/EmployeeDetail.vue'),
       props: true // 允许将 route.params.id 作为 props 传给组件
     },
     {
       path: '/org',
       name: 'HrOrgChart',
       meta: { perm: 'app:hr_org' },
-      component: HrOrgChart
+      component: () => import('../views/HrOrgChart.vue')
     },
     {
       path: '/acl',
       name: 'HrAclView',
       meta: { perm: 'app:hr_acl' },
-      component: HrAclView
+      component: () => import('../views/HrAclView.vue')
     },
     {
       path: '/users',
       name: 'HrUserManage',
       meta: { perm: 'app:hr_user' },
-      component: HrUserManage
+      component: () => import('../views/HrUserManage.vue')
     }
   ]
 })

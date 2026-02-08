@@ -157,6 +157,8 @@ import {
   Warning
 } from '@element-plus/icons-vue'
 import axios from 'axios'
+import { ensureAppAclConfig, ensureAppPermissions, resolveAppAclModule } from '@/utils/app-permissions'
+import { hasPerm } from '@/utils/permission'
 
 const router = useRouter()
 
@@ -216,6 +218,15 @@ const getAppCenterHeaders = (token) => ({
   'Content-Profile': 'app_center'
 })
 
+const isCreateAppForbidden = (error) => {
+  const status = error?.response?.status
+  const code = error?.response?.data?.code
+  const message = String(error?.response?.data?.message || '').toLowerCase()
+  if (status !== 403) return false
+  if (code === '42501') return true
+  return message.includes('row-level security policy') && message.includes('apps')
+}
+
 async function createApp() {
   if (!newAppForm.value.name) {
     ElMessage.warning('请输入应用名称')
@@ -247,11 +258,30 @@ async function createApp() {
     ElMessage.success('应用创建成功')
     showCreateDialog.value = false
     const app = response.data[0] || response.data
+    if (app?.app_type === 'data') {
+      const config = ensureAppAclConfig(app.config || {}, app.id)
+      try {
+        await axios.patch(`${apiBase}/apps?id=eq.${app.id}`, { config }, {
+          headers: {
+            ...getAppCenterHeaders(token),
+            'Content-Type': 'application/json'
+          }
+        })
+        app.config = config
+      } catch (e) {
+        // ignore patch failures
+      }
+      ensureAppPermissions(app, { config, appId: app.id })
+    }
     await loadApps()
     if (app) {
       navigateToBuilder(app)
     }
   } catch (error) {
+    if (isCreateAppForbidden(error)) {
+      ElMessage.error('只有超级管理员才能创建应用')
+      return
+    }
     ElMessage.error('创建失败: ' + error.message)
   } finally {
     creating.value = false
@@ -285,6 +315,11 @@ function navigateToBuilder(app) {
 
 function openApp(app) {
   if (!app) return
+  const moduleKey = resolveAppAclModule(app, app?.config, app?.id)
+  if (moduleKey && !hasPerm(`app:${moduleKey}`)) {
+    ElMessage.warning('暂无权限进入该应用')
+    return
+  }
   if (app.status === 'published') {
     router.push(`/app/${app.id}`)
     return
@@ -299,7 +334,12 @@ async function loadApps() {
       headers: getAppCenterHeaders(token),
       params: { order: 'created_at.desc' }
     })
-    apps.value = response.data || []
+    const list = response.data || []
+    apps.value = list.filter((app) => {
+      const moduleKey = resolveAppAclModule(app, app?.config, app?.id)
+      if (!moduleKey) return true
+      return hasPerm(`app:${moduleKey}`)
+    })
   } catch (error) {
     ElMessage.error('加载应用失败: ' + error.message)
   }

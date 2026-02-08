@@ -1,10 +1,10 @@
 <template>
   <div class="action-cell-wrapper" @mousedown.stop>
-    <el-button
+    <el-button 
       v-if="!isPinned"
-      link
-      type="primary"
-      size="small"
+      link 
+      type="primary" 
+      size="small" 
       class="action-btn"
       @click.stop="onViewForm"
     >
@@ -25,17 +25,20 @@ const isPinned = computed(() => !!props.params?.node?.rowPinned)
 
 const onViewForm = () => {
   if (isPinned.value) return
+  // 确保 Context 存在
   if (props.params.context.componentParent && props.params.context.componentParent.viewDocument) {
     props.params.context.componentParent.viewDocument(props.params.data)
+  } else {
+    console.warn('viewDocument method not found on componentParent')
   }
 }
 </script>
 
-<style scoped>
+<style>
 .action-cell-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   height: 100%;
   width: 100%;
 }
@@ -44,5 +47,9 @@ const onViewForm = () => {
   display: flex;
   align-items: center;
   font-weight: 500;
+}
+.action-btn:hover {
+  background-color: var(--el-color-primary-light-9);
+  border-radius: 4px;
 }
 </style>

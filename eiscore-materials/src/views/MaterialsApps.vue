@@ -37,13 +37,20 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { Box } from '@element-plus/icons-vue'
+import { Box, Setting, OfficeBuilding, Notebook, Search, Monitor } from '@element-plus/icons-vue'
 import { MATERIAL_APPS } from '@/utils/material-apps'
 import { hasPerm } from '@/utils/permission'
 
 const router = useRouter()
-const apps = MATERIAL_APPS.filter(app => !app.perm || hasPerm(app.perm))
-const iconMap = { Box }
+const apps = MATERIAL_APPS
+const iconMap = { 
+  Box, 
+  Setting, 
+  OfficeBuilding, 
+  Notebook, 
+  Search, 
+  Monitor 
+}
 
 const openApp = (app) => {
   if (!app?.route) return
@@ -109,6 +116,9 @@ const openApp = (app) => {
 .tone-blue { background: #409eff; }
 .tone-orange { background: #e6a23c; }
 .tone-green { background: #67c23a; }
+.tone-purple { background: #9c27b0; }
+.tone-cyan { background: #00bcd4; }
+.tone-indigo { background: #3f51b5; }
 
 .app-info {
   display: flex;

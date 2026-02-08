@@ -120,7 +120,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
           if (Array.isArray(res) && res.length > 0) {
             resolvedRoleId.value = res[0].id
           }
-        } catch {
+        } catch (e) {
           resolvedRoleId.value = ''
         }
       }
@@ -141,16 +141,17 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       })
       fieldAcl.value = map
       applyFieldAclVisibility()
-    } catch {
+    } catch (e) {
       fieldAcl.value = {}
     }
   }
 
+  // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
     const colId = params.colDef.field
     if (props.canEdit === false && !params.node.rowPinned) return true
-    if (colId === '_status') return false
-    if (colId === '_actions') return true
+    if (colId === '_status') return false 
+    if (colId === '_actions') return true // ⚠️ 关键：操作列必须只读！
     if (params.node.rowPinned) return true
     if (props.enableColumnLock !== false && columnLockState[colId]) return true
     if (params.data?.properties?.row_locked_by) return true
@@ -163,8 +164,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     return false
   }
 
-  const cellClassRules = {
+  const cellClassRules = { 
     'custom-range-selected': (params) => isCellInSelection && isCellInSelection(params),
+    // 仅业务锁定或列锁定使用条纹样式，权限只读用灰底
     'cell-locked-pattern': (params) => {
       if (props.enableColumnLock === false) return false
       const colId = params.colDef.field
@@ -187,7 +189,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (acl?.canView !== false && acl?.canEdit === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (!shouldShowByWorkflow(params.colDef)) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
     if (!canEditByWorkflow(params.colDef)) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
-    if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' }
+    if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
     if (params.colDef.editable === false && params.colDef.field !== '_actions') return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef?.multiLine) {
       return { ...base, whiteSpace: 'pre-line', lineHeight: '18px', paddingTop: '6px', paddingBottom: '6px' }
@@ -198,7 +200,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const formatSummaryCell = (params, col) => {
     if (!params?.node?.rowPinned) {
       const acl = getFieldAcl(params.colDef)
-      if (acl?.canView === false) return '*****'
+      if (acl?.canView === false) return '*******'
       if (typeof col?.formatter === 'function') return col.formatter(params)
       if (Array.isArray(params.value)) return params.value.join('  ')
       return params.value
@@ -238,6 +240,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     workflowBinding.value = binding || null
     nextTick(() => applyWorkflowBinding())
   }
+
 
   const refreshDictColumns = (dictKey) => {
     if (!gridApi.value) return
@@ -297,7 +300,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const isSelectColumn = (col) => {
     if (!col) return false
     if (col.type === 'select' || col.type === 'dropdown') return true
-    if (Array.isArray(col.options)) return true
+    if (Array.isArray(col.options) && col.options.length > 0) return true
     if (col.dictKey) return true
     return false
   }
@@ -327,12 +330,13 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     } else {
         delete columnLockState[colKey]
     }
-
+    
     scheduleColumnRefresh(colKey)
 
     try {
-        if (props.viewId) {
-            const temp = { view_id: props.viewId }
+        if (props.viewId) { 
+            // 模拟持久化逻辑
+            const temp = { view_id: props.viewId } 
         }
         ElMessage.success(isLocking ? '列已锁定' : '列已解锁')
     } catch (e) {
@@ -347,19 +351,19 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (eventEmitter) eventEmitter('view-document', rowData)
   }
 
-  const context = reactive({
-    componentParent: {
-        toggleColumnLock: handleToggleColumnLock,
+  const context = reactive({ 
+    componentParent: { 
+        toggleColumnLock: handleToggleColumnLock, 
         columnLockState,
-        viewDocument: handleViewDocument
-    }
+        viewDocument: handleViewDocument 
+    } 
   })
 
   const createColDef = (col, isDynamic) => {
     const field = isDynamic ? `properties.${col.prop}` : col.prop
     const minWidth = col.minWidth ?? 150
-    const widthConfig = col.width
-      ? { width: col.width, minWidth, suppressSizeToFit: true }
+    const widthConfig = col.width 
+      ? { width: col.width, minWidth, suppressSizeToFit: true } 
       : { flex: 1, minWidth }
 
     const extraColDef = {}
@@ -389,6 +393,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (!colDef.valueFormatter) {
       colDef.valueFormatter = (params) => formatSummaryCell(params, col)
     }
+    const aclSnapshot = fieldAcl.value?.[col.prop] || null
+    colDef.__aclCanView = aclSnapshot?.canView !== false
+    colDef.__aclCanEdit = aclSnapshot?.canEdit !== false
 
     if (isDynamic) {
       colDef.valueSetter = (params) => {
@@ -490,16 +497,17 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const gridColumns = computed(() => {
+    // ensure acl updates can trigger colDef recalculation
     fieldAcl.value
-    const checkboxCol = {
-      colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true,
-      width: 40, minWidth: 40, maxWidth: 40, pinned: 'left',
-      resizable: false, sortable: false, filter: false, suppressHeaderMenuButton: true,
-      cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }
+    const checkboxCol = { 
+      colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, 
+      width: 40, minWidth: 40, maxWidth: 40, pinned: 'left', 
+      resizable: false, sortable: false, filter: false, suppressHeaderMenuButton: true, 
+      cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' } 
     }
-
-    const statusCol = {
-      headerName: '状态', field: '_status', width: 100, minWidth: 100, pinned: 'left',
+    
+    const statusCol = { 
+      headerName: '状态', field: '_status', width: 100, minWidth: 100, pinned: 'left', 
       filter: true, sortable: false, resizable: false, suppressHeaderMenuButton: false,
       editable: (params) => !params.node.rowPinned,
       cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, cellEditorPopupPosition: 'under',
@@ -517,42 +525,43 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         if (text === 'locked') return 'locked'
         return raw
       },
-      valueSetter: params => {
-        if(params.node.rowPinned || params.newValue===params.oldValue) return false;
+      valueSetter: params => { 
+        if(params.node.rowPinned || params.newValue===params.oldValue) return false; 
         const allowProps = params.data && (params.data.properties || props.includeProperties !== false)
         if (allowProps) {
-          if(!params.data.properties) params.data.properties={};
-          params.data.properties.status=params.newValue;
-          params.data.properties.row_locked_by = params.newValue==='locked'?currentUser.value:null;
+          if(!params.data.properties) params.data.properties={}; 
+          params.data.properties.status=params.newValue; 
+          params.data.properties.row_locked_by = params.newValue==='locked'?currentUser.value:null; 
         }
         const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
         if (hasStatus) {
           const mapped = params.newValue === 'locked' ? 'disabled' : (params.newValue === 'created' ? 'draft' : params.newValue)
           params.data.status = mapped
         }
-        return true;
-      }
+        return true; 
+      } 
     }
 
+    // 🟢 修复 1：配置操作列
     const actionCol = {
       headerName: '操作',
       field: '_actions',
-      width: 100,
+      width: 100, // 稍微加宽一点以容纳文字
       minWidth: 100,
-      pinned: 'right',
+      pinned: 'right', // 固定在右侧
       sortable: false,
       filter: false,
       resizable: false,
-      editable: false,
+      editable: false, // ⚠️ 再次确保不可编辑
       suppressHeaderMenuButton: true,
-      suppressRowClickSelection: true,
+      suppressRowClickSelection: true, // ⚠️ 核心修复：点击此列单元格，不触发“行选中”，防止状态冲突
       cellRenderer: 'DocumentActionRenderer',
       cellStyle: { padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center' }
     }
 
     const staticCols = props.staticColumns.map(col => createColDef(col, false))
     const dynamicCols = props.extraColumns.map(col => createColDef(col, true))
-
+    
     return props.showActionCol === false
       ? [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
       : [checkboxCol, statusCol, ...staticCols, ...dynamicCols, actionCol]
@@ -567,7 +576,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
   const loadData = async () => {
     await loadFieldAcl()
-    isLoading.value = true
+    isLoading.value = true 
     try {
       let url = props.apiUrl
       const orderClause = props.defaultOrder
@@ -575,8 +584,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         url = `${url}${url.includes('?') ? '&' : '?'}order=${orderClause}`
       }
       if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
-      const res = await request({
-        url,
+      const res = await request({ 
+        url, 
         method: 'get',
         headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr' }
       })
@@ -589,14 +598,14 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         })
       }
       if (props.autoSizeColumns !== false) {
-        setTimeout(() => {
+        setTimeout(() => { 
           if (gridApi.value) {
             const allColIds = gridApi.value.getColumns().map(c => c.getColId())
-            gridApi.value.autoSizeColumns(allColIds, false)
+            gridApi.value.autoSizeColumns(allColIds, false) 
           }
         }, 100)
       }
-    } catch (e) { ElMessage.error('数据加载失败') }
+    } catch (e) { ElMessage.error('数据加载失败') } 
     finally { isLoading.value = false }
   }
 

@@ -217,7 +217,30 @@ import { FIELD_LABELS } from '@/utils/field-labels'
 import { HR_APPS, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
 
 const roles = ref([])
-const modules = ref(['hr_employee', 'hr_org', 'hr_attendance', 'hr_change', 'hr_acl', 'hr_user', 'mms_ledger'])
+const baseModules = ['hr_employee', 'hr_org', 'hr_attendance', 'hr_change', 'hr_acl', 'hr_user', 'mms_ledger']
+const modules = ref([...baseModules])
+const appCenterApps = ref([])
+
+const normalizeAppId = (appId) => {
+  if (!appId) return ''
+  return String(appId).replace(/-/g, '')
+}
+
+const buildAppModuleKey = (app) => {
+  const raw = normalizeAppId(app?.id)
+  if (!raw) return ''
+  return `app_${raw}`
+}
+
+const appCenterModuleMap = computed(() => {
+  const map = {}
+  appCenterApps.value.forEach((app) => {
+    if (app?.app_type !== 'data') return
+    const key = buildAppModuleKey(app)
+    if (key) map[key] = app
+  })
+  return map
+})
 
 const currentRoleId = ref('')
 const fieldModule = ref(modules.value[0] || '')
@@ -253,6 +276,10 @@ const roleDescMap = {
 }
 
 const moduleLabel = (m) => {
+  if (m?.startsWith('app_')) {
+    const app = appCenterModuleMap.value[m]
+    return app?.name || m
+  }
   const map = {
     hr_employee: '人事花名册',
     hr_org: '部门架构',
@@ -263,6 +290,15 @@ const moduleLabel = (m) => {
     mms_ledger: '物料台账'
   }
   return map[m] || m
+}
+
+const getAppLabelByKey = (key) => {
+  if (!key) return ''
+  if (key.startsWith('app_')) {
+    const app = appCenterModuleMap.value[key]
+    return app?.name || key
+  }
+  return APP_LABELS[key] || key
 }
 
 const actionLabel = (action) => {
@@ -278,6 +314,15 @@ const actionLabel = (action) => {
 }
 
 const permissionNameFromCode = (code, fallback) => {
+  const parsed = parsePermissionCode(code)
+  if (parsed?.scope === 'app' && parsed.key?.startsWith('app_')) {
+    return `应用-${getAppLabelByKey(parsed.key)}`
+  }
+  if (parsed?.scope === 'op' && parsed.appKey?.startsWith('app_')) {
+    const appName = getAppLabelByKey(parsed.appKey)
+    const action = actionLabel(parsed.actionKey || parsed.action)
+    return `${appName}-${action}`
+  }
   return formatPermissionName(code, fallback)
 }
 
@@ -312,6 +357,7 @@ const permColumns = [
       const key = parsed.appKey || parsed.key
       if (key?.startsWith('hr_')) return '人事'
       if (key?.startsWith('mms_')) return '物料'
+      if (key?.startsWith('app_')) return '应用中心'
       return MODULE_LABELS[key] || ''
     }
     return ''
@@ -319,8 +365,8 @@ const permColumns = [
   { prop: 'app', label: '子应用', width: 160, editable: false, formatter: (params) => {
     const parsed = parsePermissionCode(params.data?.code)
     if (!parsed) return ''
-    if (parsed.scope === 'app') return APP_LABELS[parsed.key] || parsed.key
-    if (parsed.scope === 'op') return APP_LABELS[parsed.appKey] || parsed.appKey
+    if (parsed.scope === 'app') return getAppLabelByKey(parsed.key)
+    if (parsed.scope === 'op') return getAppLabelByKey(parsed.appKey)
     return ''
   } },
   { prop: 'action', label: '动作', width: 140, editable: true, type: 'select', options: PERMISSION_ACTION_OPTIONS },
@@ -353,9 +399,11 @@ const scopeColumns = [
   }
 ]
 
-const fieldColumns = [
+const fieldColumns = computed(() => ([
   { prop: 'role_id', label: '角色ID', editable: false, width: 220 },
-  { prop: 'module', label: '模块', width: 160, editable: false, type: 'select', options: modules.value.map(m => ({ label: moduleLabel(m), value: m })) },
+  { prop: 'module', label: '模块', width: 160, editable: false, type: 'select',
+    options: modules.value.map(m => ({ label: moduleLabel(m), value: m }))
+  },
   { prop: 'field_code', label: '列', width: 200, editable: false, formatter: (params) => {
     const code = params.value
     const label = fieldLabelMap.value[code] || FIELD_LABELS[fieldModule.value]?.[code]
@@ -363,11 +411,11 @@ const fieldColumns = [
   } },
   { prop: 'can_view', label: '可见', editable: true, type: 'check' },
   { prop: 'can_edit', label: '可编辑', editable: true, type: 'check' }
-]
+]))
 
 const roleColumnsDisplay = computed(() => roleColumns.value.filter(col => col.prop !== 'code'))
 const scopeColumnsDisplay = computed(() => scopeColumns.filter(col => col.prop !== 'role_id'))
-const fieldColumnsDisplay = computed(() => fieldColumns.filter(col => col.prop !== 'role_id'))
+const fieldColumnsDisplay = computed(() => fieldColumns.value.filter(col => col.prop !== 'role_id'))
 const permColumnsModule = computed(() => {
   const cols = permColumns
     .filter(col => col.prop !== 'app' && col.prop !== 'code')
@@ -416,6 +464,62 @@ const loadRoles = async () => {
   if (!currentRoleId.value && roles.value.length) currentRoleId.value = roles.value[0].id
 }
 
+const buildPermissionPayload = (app, moduleKey, roles = ['super_admin']) => {
+  if (!moduleKey) return []
+  const appName = app?.name || moduleKey
+  return [
+    { code: `app:${moduleKey}`, name: `应用-${appName}`, module: appName, action: '进入', roles },
+    { code: `op:${moduleKey}.create`, name: `${appName}-新增`, module: appName, action: '新增', roles },
+    { code: `op:${moduleKey}.edit`, name: `${appName}-编辑`, module: appName, action: '编辑', roles },
+    { code: `op:${moduleKey}.delete`, name: `${appName}-删除`, module: appName, action: '删除', roles },
+    { code: `op:${moduleKey}.export`, name: `${appName}-导出`, module: appName, action: '导出', roles },
+    { code: `op:${moduleKey}.config`, name: `${appName}-配置`, module: appName, action: '配置', roles }
+  ]
+}
+
+const syncModules = () => {
+  const dynamic = appCenterApps.value
+    .filter(app => app?.app_type === 'data')
+    .map(app => buildAppModuleKey(app))
+    .filter(Boolean)
+  const merged = Array.from(new Set([...baseModules, ...dynamic]))
+  modules.value = merged
+  if (!fieldModule.value && merged.length) {
+    fieldModule.value = merged[0]
+  }
+}
+
+const loadAppCenterApps = async () => {
+  try {
+    const res = await request({
+      url: '/apps?order=created_at.desc',
+      method: 'get',
+      headers: { 'Accept-Profile': 'app_center', 'Content-Profile': 'app_center' }
+    })
+    appCenterApps.value = Array.isArray(res) ? res : []
+    syncModules()
+    const payload = [
+      { code: 'module:app', name: '模块-应用中心', module: '模块', action: '显示', roles: ['super_admin'] }
+    ]
+    appCenterApps.value.forEach((app) => {
+      if (app?.app_type !== 'data') return
+      const moduleKey = buildAppModuleKey(app)
+      payload.push(...buildPermissionPayload(app, moduleKey))
+    })
+    if (payload.length) {
+      await request({
+        url: '/rpc/upsert_permissions',
+        method: 'post',
+        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+        data: { payload }
+      })
+    }
+  } catch (e) {
+    appCenterApps.value = []
+    syncModules()
+  }
+}
+
 const scopeApiUrl = computed(() => {
   if (!currentRoleId.value) return '/v_role_data_scopes_matrix?limit=0'
   let base = `/v_role_data_scopes_matrix?role_id=eq.${currentRoleId.value}`
@@ -449,11 +553,13 @@ const fieldApiUrl = computed(() => {
 const moduleFilters = computed(() => ([
   { label: '人事', value: 'hr' },
   { label: '物料', value: 'mms' },
-  { label: '首页', value: 'home' }
+  { label: '首页', value: 'home' },
+  { label: '应用中心', value: 'app' }
 ]))
 
 const matchesModuleGroup = (appKey, group) => {
   if (!group) return true
+  if (group === 'app') return appKey?.startsWith('app_')
   return appKey?.startsWith(`${group}_`)
 }
 
@@ -535,7 +641,40 @@ const applyRoleTemplates = async () => {
 const fieldLabelMap = ref({})
 const allowedFieldCodes = ref([])
 
+const normalizeConfig = (raw) => {
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return {}
+  }
+}
+
+const normalizeAppColumns = (columns) => {
+  if (!Array.isArray(columns)) return []
+  return columns
+    .map((col) => {
+      if (!col) return null
+      if (typeof col === 'string') {
+        return { prop: col, label: col }
+      }
+      const prop = col.prop || col.field || ''
+      const label = col.label || prop
+      return prop ? { prop, label } : null
+    })
+    .filter(Boolean)
+}
+
+const fetchAppCenterColumns = (moduleKey) => {
+  const app = appCenterModuleMap.value[moduleKey]
+  if (!app) return []
+  const config = normalizeConfig(app?.config)
+  return normalizeAppColumns(config?.columns)
+}
+
 const getConfigKeyByModule = (moduleKey) => {
+  if (moduleKey?.startsWith('app_')) return ''
   const map = {
     hr_employee: 'hr_table_cols',
     hr_change: 'hr_transfer_cols',
@@ -547,6 +686,9 @@ const getConfigKeyByModule = (moduleKey) => {
 }
 
 const getStaticColumnsByModule = (moduleKey) => {
+  if (moduleKey?.startsWith('app_')) {
+    return fetchAppCenterColumns(moduleKey)
+  }
   const app = HR_APPS.find(item => item.aclModule === moduleKey)
   if (app?.staticColumns?.length) return app.staticColumns
   return BASE_STATIC_COLUMNS
@@ -568,6 +710,13 @@ const MMS_LEDGER_ALLOWED_FIELDS = [
 const buildAllowedFieldCodeSet = async (moduleKey) => {
   const set = new Set()
   if (!moduleKey) return set
+  if (moduleKey.startsWith('app_')) {
+    const configCols = await fetchAppCenterColumns(moduleKey)
+    configCols.forEach(col => {
+      if (col?.prop) set.add(col.prop)
+    })
+    return set
+  }
   if (moduleKey === 'mms_ledger') {
     MMS_LEDGER_ALLOWED_FIELDS.forEach(code => set.add(code))
   } else {
@@ -595,6 +744,9 @@ const loadAllowedFieldCodes = async (moduleKey) => {
 }
 
 const fetchConfigColumns = async (moduleKey) => {
+  if (moduleKey?.startsWith('app_')) {
+    return fetchAppCenterColumns(moduleKey)
+  }
   const configKey = getConfigKeyByModule(moduleKey)
   if (!configKey) return []
   try {
@@ -657,6 +809,22 @@ const loadFieldLabelMap = async () => {
 
 const ensureFieldAclForModule = async (moduleKey) => {
   if (!moduleKey) return
+  if (moduleKey.startsWith('app_')) {
+    try {
+      const configCols = fetchAppCenterColumns(moduleKey)
+      const payload = configCols.map(col => col.prop).filter(Boolean)
+      if (payload.length === 0) return
+      await request({
+        url: '/rpc/ensure_field_acl',
+        method: 'post',
+        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+        data: { module_name: moduleKey, field_codes: payload }
+      })
+    } catch (e) {
+      console.warn('ensure field acl failed', e)
+    }
+    return
+  }
   if (moduleKey === 'mms_ledger') {
     try {
       const allowedSet = await buildAllowedFieldCodeSet(moduleKey)
@@ -772,6 +940,9 @@ watch(activeTab, () => {
   if (activeTab.value === 'perm-module') permsModuleGridRef.value?.loadData()
   if (activeTab.value === 'perm-app') permsAppGridRef.value?.loadData()
   if (activeTab.value === 'perm-op') permsOpGridRef.value?.loadData()
+  if (['perm-app', 'perm-op', 'field', 'scope'].includes(activeTab.value)) {
+    loadAppCenterApps()
+  }
 })
 
 watch(currentRoleId, () => {
@@ -882,6 +1053,7 @@ const handleCreate = async (type) => {
 
 onMounted(async () => {
   await loadRoles()
+  await loadAppCenterApps()
 })
 </script>
 

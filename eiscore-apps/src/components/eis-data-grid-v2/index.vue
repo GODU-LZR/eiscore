@@ -28,32 +28,32 @@
         :pinnedBottomRowData="pinnedBottomRowData"
         :defaultColDef="defaultColDef"
         :localeText="AG_GRID_LOCALE_CN"
-        :theme="'legacy'"
+        :theme="'legacy'" 
         :rowSelection="rowSelectionConfig"
         :animateRows="true"
         :getRowId="getRowId"
-
-        :context="context"
+        
+        :context="context" 
         :components="gridComponents"
-
-        :undoRedoCellEditing="false"
+        
+        :undoRedoCellEditing="false" 
         :enableCellChangeFlash="true"
-        :suppressClipboardPaste="true"
-        :enterNavigatesVertically="true"
+        :suppressClipboardPaste="true" 
+        :enterNavigatesVertically="true" 
         :enterNavigatesVerticallyAfterEdit="true"
         :suppressRowHoverHighlight="true"
         :enableRangeSelection="false"
-        :preventDefaultOnContextMenu="true"
-
-        :rowClassRules="rowClassRules"
-
+        :preventDefaultOnContextMenu="true" 
+        
+        :rowClassRules="rowClassRules" 
+        
         @grid-ready="onGridReady"
         @cell-value-changed="handleCellValueChanged"
         @cell-key-down="onCellKeyDown"
         @selection-changed="onSelectionChanged"
         @column-header-clicked="onColumnHeaderClicked"
         @row-selected="onRowSelected"
-
+        
         @cell-mouse-down="onCellMouseDown"
         @cell-mouse-over="onCellMouseOver"
         @cell-mouse-out="handleCellMouseOut"
@@ -92,7 +92,7 @@
 <script setup>
 import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
-import { useUserStore } from '@/stores/user'
+import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
 import { useGridFormula } from './composables/useGridFormula'
 import { useGridHistory } from './composables/useGridHistory'
@@ -150,6 +150,7 @@ const props = defineProps({
   enableColumnLock: { type: Boolean, default: true }
 })
 
+// 🟢 声明事件：增加 view-document
 const emit = defineEmits(['create', 'config-columns', 'view-document', 'data-loaded', 'cell-value-changed'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
@@ -163,20 +164,22 @@ const fileDialog = reactive({ visible: false, params: null })
 const isDark = ref(false)
 let themeObserver = null
 
+// 1. Selection
 const selectionHooks = useGridSelection(gridApi, selectedRowsCount, agGridRef)
-const {
-  rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged,
+const { 
+  rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
   onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection,
   selectColumnRange, selectRowRange
 } = selectionHooks
 
+// 2. Core (传入 emit)
 const activeSummaryConfig = reactive({ label: '合计', rules: {}, expressions: {}, ...props.summary })
 const workflowBinding = ref(null)
-const {
-  gridData, gridColumns, context, gridComponents, searchText, isLoading,
+const { 
+  gridData, gridColumns, context, gridComponents, searchText, isLoading, 
   loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
   columnLockState, setWorkflowBinding
-} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit, workflowBinding)
+} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit, workflowBinding) // 🟢 关键修复：共享 gridApi
 
 const openFileDialog = (params) => {
   if (!params || params.node?.rowPinned) return
@@ -190,18 +193,20 @@ context.componentParent.onHeaderLabelClick = (params, event) => {
   selectColumnRange(params.column.getColId())
 }
 
-const formulaDependencyHooks = {}
-const {
-  pinnedBottomRowData, calculateRowFormulas, calculateTotals,
-  configDialog, isSavingConfig, availableColumns,
-  openConfigDialog, saveConfig, loadGridConfig
+// 3. Formula
+const formulaDependencyHooks = {} 
+const { 
+  pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
+  configDialog, isSavingConfig, availableColumns, 
+  openConfigDialog, saveConfig, loadGridConfig 
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState)
 
+// 4. History
 const historyHooks = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData })
-const {
-  history, isSystemOperation,
+const { 
+  history, isSystemOperation, 
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,
-  debouncedSave, performUndoRedo
+  debouncedSave, performUndoRedo 
 } = historyHooks
 
 const handleCellValueChanged = (params) => {
@@ -209,12 +214,19 @@ const handleCellValueChanged = (params) => {
   emit('cell-value-changed', params)
 }
 
+const prependRow = (row) => {
+  if (!row) return
+  gridData.value = [row, ...gridData.value]
+}
+
+// 注入公式依赖，解决循环依赖问题
 formulaDependencyHooks.pushPendingChange = pushPendingChange
 formulaDependencyHooks.triggerSave = debouncedSave
 
+// 5. Clipboard (修复参数传递)
 const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, historyHooks, selectionHooks)
 
-const defaultColDef = {
+const defaultColDef = { 
   sortable: true, filter: true, resizable: true, minWidth: 100,
   wrapHeaderText: true,
   autoHeaderHeight: true,
@@ -236,10 +248,10 @@ const getRowId = (params) => {
   return String(params.rowIndex ?? '')
 }
 
-const onGridReady = (params) => {
-  gridApi.value = params.api;
-  loadData()
-  loadGridConfig()
+const onGridReady = (params) => { 
+  gridApi.value = params.api; 
+  loadData();
+  loadGridConfig();
 }
 
 const syncTheme = () => {
@@ -300,7 +312,7 @@ const onRowSelected = (params) => {
   if (!event) return
   const target = event.target
   if (!target || !target.closest) return
-  const isCheckbox = target.closest('.ag-selection-checkbox') || target.closest('.ag-checkbox-input-wrapper') || target.closest('input[type="checkbox"]')
+  const isCheckbox = target.closest('.ag-selection-checkbox') || target.closest('.ag-checkbox-input-wrapper') || target.closest('input[type=\"checkbox\"]')
   if (!isCheckbox) return
   selectRowRange(params.node?.rowIndex)
 }
@@ -321,18 +333,18 @@ const handleGeoSubmit = (payload) => {
   geoDialog.params.node.setDataValue(colKey, payload)
 }
 
-onMounted(() => {
+onMounted(() => { 
   document.addEventListener('mouseup', onGlobalMouseUp)
-  document.addEventListener('mousemove', onGlobalMouseMove)
+  document.addEventListener('mousemove', onGlobalMouseMove) 
   document.addEventListener('paste', handleGlobalPaste)
 })
-onUnmounted(() => {
+onUnmounted(() => { 
   document.removeEventListener('mouseup', onGlobalMouseUp)
   document.removeEventListener('mousemove', onGlobalMouseMove)
   document.removeEventListener('paste', handleGlobalPaste)
 })
 
-defineExpose({ loadData, setWorkflowBinding })
+defineExpose({ loadData, setWorkflowBinding, prependRow })
 </script>
 
 <style scoped lang="scss">
@@ -341,6 +353,7 @@ defineExpose({ loadData, setWorkflowBinding })
 </style>
 
 <style lang="scss">
+/* 🟢 确保之前的全局样式修复保留 */
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar { width: 16px; height: 16px; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb { background-color: var(--el-color-primary-light-5); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb:hover, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover { background-color: var(--el-color-primary); }

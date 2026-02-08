@@ -109,6 +109,51 @@ export const MATERIAL_APPS = [
     staticColumns: BASE_STATIC_COLUMNS,
     summaryConfig: DEFAULT_SUMMARY,
     defaultExtraColumns: []
+  },
+  {
+    key: 'batch-rules',
+    name: '批次号规则',
+    desc: '配置批次号生成规则',
+    route: '/batch-rules',
+    perm: 'app:mms_batch_rule',
+    icon: 'Setting',
+    tone: 'purple'
+  },
+  {
+    key: 'warehouses',
+    name: '仓库管理',
+    desc: '仓库/库区/库位管理',
+    route: '/warehouses',
+    perm: 'app:mms_warehouse',
+    icon: 'OfficeBuilding',
+    tone: 'orange'
+  },
+  {
+    key: 'inventory-ledger',
+    name: '库存台账',
+    desc: '入库出库流水记录',
+    route: '/inventory-ledger',
+    perm: 'app:mms_inventory',
+    icon: 'Notebook',
+    tone: 'green'
+  },
+  {
+    key: 'inventory-current',
+    name: '库存查询',
+    desc: '实时库存汇总',
+    route: '/inventory-current',
+    perm: 'app:mms_inventory',
+    icon: 'Search',
+    tone: 'cyan'
+  },
+  {
+    key: 'inventory-dashboard',
+    name: '库存大屏',
+    desc: '可视化库存监控',
+    route: '/inventory-dashboard',
+    perm: 'app:mms_dashboard',
+    icon: 'Monitor',
+    tone: 'indigo'
   }
 ]
 

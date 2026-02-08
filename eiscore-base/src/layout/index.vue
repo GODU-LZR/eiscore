@@ -429,7 +429,16 @@ const activeMenu = computed(() => {
 const canHome = computed(() => hasPerm('module:home'))
 const canHr = computed(() => hasPerm('module:hr'))
 const canMms = computed(() => hasPerm('module:mms'))
-const canApps = computed(() => hasPerm('module:apps') || userStore.userInfo?.role === 'super_admin')
+const hasAnyAppCenterEntryPerm = computed(() => {
+  const perms = Array.isArray(userStore.userInfo?.permissions) ? userStore.userInfo.permissions : []
+  return perms.some((perm) => typeof perm === 'string' && perm.startsWith('app:app_'))
+})
+const canApps = computed(() =>
+  hasPerm('module:app') ||
+  hasPerm('module:apps') ||
+  hasAnyAppCenterEntryPerm.value ||
+  userStore.userInfo?.role === 'super_admin'
+)
 
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value
