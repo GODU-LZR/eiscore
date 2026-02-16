@@ -1,5 +1,5 @@
 import { createApp } from 'vue'
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, createMemoryHistory } from 'vue-router'
 import { createPinia } from 'pinia'
 import {
   renderWithQiankun,
@@ -8,9 +8,12 @@ import {
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+import { patchElMessage } from '@/utils/message-patch'
 
 import App from './App.vue'
 import routes from './router'
+
+patchElMessage()
 
 let app = null
 let router = null
@@ -20,12 +23,18 @@ function render(props = {}) {
   const { container } = props
   const pinia = createPinia()
 
-  const isSubAppRoute =
-    qiankunWindow.__POWERED_BY_QIANKUN__ ||
-    (typeof window !== 'undefined' && window.location.pathname.startsWith('/apps'))
-  history = createWebHistory(
-    isSubAppRoute ? '/apps/' : '/'
-  )
+  const pathname = typeof window !== 'undefined' ? String(window.location.pathname || '') : ''
+  const href = typeof window !== 'undefined' ? String(window.location.href || '') : ''
+  const protocol = typeof window !== 'undefined' ? String(window.location.protocol || '') : ''
+  const isPreviewProxyRoute = pathname.startsWith('/flash-preview/apps')
+  const isAppsRoute = pathname.startsWith('/apps')
+  const isSubAppRoute = qiankunWindow.__POWERED_BY_QIANKUN__ || isAppsRoute
+  const isInlineSnapshotRoute = protocol === 'about:' || protocol === 'blob:' || href.startsWith('about:srcdoc')
+  const historyBase = isPreviewProxyRoute ? '/flash-preview/apps/' : (isSubAppRoute ? '/apps/' : '/')
+
+  history = isInlineSnapshotRoute
+    ? createMemoryHistory('/')
+    : createWebHistory(historyBase)
   router = createRouter({
     history,
     routes
