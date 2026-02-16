@@ -71,6 +71,11 @@ const parentValue = ref(resolveParentValue())
 const apiUrl = colDef.apiUrl || ''
 const labelField = colDef.labelField || 'label'
 const valueField = colDef.valueField || 'value'
+const flatOptions = colDef.cascaderFlatOptions || null
+const parentField = colDef.cascaderParentField || 'parent_id'
+const flatLabelField = colDef.cascaderLabelField || 'name'
+const flatValueField = colDef.cascaderValueField || 'id'
+const flatCodeField = colDef.cascaderCodeField || 'code'
 const queryField = colDef.dependsOn || ''
 const staticOptionsMap = computed(() => colDef.cascaderOptions || {})
 const hasStaticMap = computed(() => Object.keys(staticOptionsMap.value || {}).length > 0)
@@ -101,17 +106,51 @@ const normalizeOption = (item) => {
   }
   const label = item.label ?? item.value ?? ''
   const value = item.value ?? item.label ?? ''
-  const text = String(label || value)
-  return { label: text, value: text }
+  return { label: String(label || value), value: value }
+}
+
+const buildFromFlat = (val) => {
+  if (!flatOptions) return []
+  const rawList = Array.isArray(flatOptions.value) ? flatOptions.value : flatOptions
+  if (!Array.isArray(rawList)) return []
+  const targetKey = String(val)
+  let matches = rawList
+    .filter(item => String(item?.[parentField] || '') === targetKey)
+  if (matches.length === 0) {
+    const parentIds = rawList
+      .filter(item => {
+        const idText = String(item?.[flatValueField] || '')
+        const nameText = String(item?.[flatLabelField] || '')
+        const codeText = String(item?.[flatCodeField] || '')
+        return idText === targetKey || nameText === targetKey || codeText === targetKey
+      })
+      .map(item => String(item?.[flatValueField] || ''))
+      .filter(Boolean)
+    if (parentIds.length > 0) {
+      matches = rawList.filter(item => parentIds.includes(String(item?.[parentField] || '')))
+    }
+  }
+  return matches
+    .map(item => ({
+      label: item?.[flatLabelField] ?? item?.[flatValueField] ?? '',
+      value: item?.[flatValueField] ?? ''
+    }))
+    .filter(item => item.label !== '' && item.value !== '')
 }
 
 const loadOptions = async (val) => {
   if (hasStaticMap.value) {
     const key = String(val).trim()
     const list = staticOptionsMap.value[key] || staticOptionsMap.value[String(val)] || []
-    options.value = list
+    const fallback = list.length > 0 ? list : buildFromFlat(val)
+    options.value = fallback
       .map(normalizeOption)
       .filter(Boolean)
+    return
+  }
+  const fallback = buildFromFlat(val)
+  if (fallback.length > 0) {
+    options.value = fallback.map(normalizeOption).filter(Boolean)
     return
   }
   if (!apiUrl || !queryField) {

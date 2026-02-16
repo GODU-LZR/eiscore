@@ -408,6 +408,16 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       }
     }
 
+    if (col?.type === 'status') {
+      return {
+        ...colDef,
+        cellRenderer: 'StatusRenderer',
+        cellEditor: 'StatusEditor',
+        cellEditorPopup: true,
+        cellEditorPopupPosition: 'under'
+      }
+    }
+
     if (isSelectColumn(col)) {
       return {
         ...colDef,
@@ -561,10 +571,14 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
     const staticCols = props.staticColumns.map(col => createColDef(col, false))
     const dynamicCols = props.extraColumns.map(col => createColDef(col, true))
-    
+
+    const baseCols = props.showStatusCol === false
+      ? [checkboxCol, ...staticCols, ...dynamicCols]
+      : [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
+
     return props.showActionCol === false
-      ? [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
-      : [checkboxCol, statusCol, ...staticCols, ...dynamicCols, actionCol]
+      ? baseCols
+      : [...baseCols, actionCol]
   })
 
   watch([aclRoleId, aclModule], () => {

@@ -92,17 +92,35 @@ class AiBridge {
     if (this.config) return
     try {
       const res = await request({
-        url: '/api/system_configs?key=eq.ai_glm_config',
+        url: '/agent/ai/config',
         method: 'get',
-        headers: { 'Accept': 'application/json', 'Accept-Profile': 'public' }
+        headers: { 'Accept': 'application/json' }
       })
-      const data = Array.isArray(res) ? res : (res.data || [])
-      if (data && data.length > 0) {
-        this.config = data[0].value
+      if (res && typeof res === 'object') {
+        this.config = res
       }
     } catch (e) {
       console.error('[AiBridge] Config Load Failed', e)
     }
+  }
+
+  getAuthToken() {
+    const tokenStr = localStorage.getItem('auth_token')
+    if (!tokenStr) return ''
+    try {
+      const parsed = JSON.parse(tokenStr)
+      if (parsed?.token) return parsed.token
+    } catch (e) {
+      // ignore
+    }
+    return tokenStr
+  }
+
+  buildAuthHeaders() {
+    const headers = { 'Content-Type': 'application/json' }
+    const token = this.getAuthToken()
+    if (token) headers.Authorization = `Bearer ${token}`
+    return headers
   }
 
   loadFromStorage() {
@@ -353,7 +371,7 @@ class AiBridge {
     }))
   }
 
-  async sendMessage(userText, { isRetry = false } = {}) {
+  async sendMessage(userText, { isRetry = false, silentRetryCount = 0 } = {}) {
     if ((!userText && this.state.selectedFiles.length === 0) && !isRetry) return
     if (this.state.isLoading) return
 
@@ -378,46 +396,46 @@ class AiBridge {
     this.state.isLoading = true
     this.state.isStreaming = true
 
-    const aiMsg = reactive({ role: 'assistant', content: '', thinking: false, time: Date.now() })
+    const aiMsg = reactive({ role: 'assistant', content: '', thinking: false, time: Date.now(), agent: '' })
     session.messages.push(aiMsg)
 
     if (!this.config) await this.loadConfig()
-    if (!this.config?.api_key) {
-      aiMsg.content = '❌ 未配置 API Key'
-      this.state.isLoading = false
-      this.state.isStreaming = false
-      return
-    }
-
+    let silentRetryNeeded = false
     try {
       const historyWindow = await this.buildPayloadMessages(session.messages)
-      const systemContent = this.getSystemPrompt()
       const contextPayload = this.state.currentContext
       if (contextPayload?.allowFormulaOnce) {
         contextPayload.allowFormulaOnce = false
       }
-      const contextBlock = contextPayload
-        ? `\n\n【当前业务上下文】\n${JSON.stringify(contextPayload, null, 2)}`
-        : ''
 
       const payload = {
-        model: this.config.model || 'glm-4.6v',
+        model: this.config?.model || 'glm-4.6v',
         stream: true,
-        messages: [{ role: 'system', content: systemContent + contextBlock }, ...historyWindow],
+        assistant_mode: this.state.assistantMode,
+        context: contextPayload || null,
+        messages: historyWindow,
         thinking: { type: 'enabled' }
       }
 
-      const response = await fetch(this.config.api_url, {
+      const response = await fetch('/agent/ai/chat/completions', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.config.api_key}`,
-          'Content-Type': 'application/json'
-        },
+        headers: this.buildAuthHeaders(),
         body: JSON.stringify(payload)
       })
+      const routedAgent = response.headers.get('x-eis-ai-agent')
+      if (routedAgent) {
+        aiMsg.agent = routedAgent
+      }
 
       if (!response.ok) {
-        throw new Error(`网络错误: ${response.status}`)
+        let detail = ''
+        try {
+          const text = await response.text()
+          detail = String(text || '').slice(0, 180)
+        } catch {}
+        const error = new Error(`网络错误: ${response.status}${detail ? ` ${detail}` : ''}`)
+        error.status = response.status
+        throw error
       }
 
       if (!response.body) {
@@ -454,11 +472,27 @@ class AiBridge {
         }
       }
     } catch (e) {
-      aiMsg.content += `\n[Error: ${e.message}]`
+      const message = String(e?.message || '')
+      const status = Number(e?.status || 0)
+      const isTransientStatus = [429, 500, 502, 503, 504].includes(status)
+      const isTransientStreamError = /input stream|networkerror|failed to fetch|stream|网络错误:\s*(429|500|502|503|504)/i.test(message.toLowerCase()) || isTransientStatus
+      if (silentRetryCount < 2 && isTransientStreamError) {
+        silentRetryNeeded = true
+        const idx = session.messages.indexOf(aiMsg)
+        if (idx >= 0) session.messages.splice(idx, 1)
+      } else {
+        aiMsg.content += `\n[Error: ${message || 'Unknown Error'}]`
+      }
     } finally {
       this.state.isLoading = false
       this.state.isStreaming = false
       session.updatedAt = Date.now()
+    }
+
+    if (silentRetryNeeded) {
+      const waitMs = 220 * (silentRetryCount + 1)
+      await new Promise((resolve) => setTimeout(resolve, waitMs))
+      return this.sendMessage(userText, { isRetry: true, silentRetryCount: silentRetryCount + 1 })
     }
   }
 

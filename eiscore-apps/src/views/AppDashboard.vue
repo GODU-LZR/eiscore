@@ -218,6 +218,25 @@ const getAppCenterHeaders = (token) => ({
   'Content-Profile': 'app_center'
 })
 
+const toAppRouterPath = (routePath) => {
+  const raw = String(routePath || '').trim()
+  if (!raw) return ''
+  if (raw === '/apps') return '/'
+  if (raw.startsWith('/apps/')) return raw.slice('/apps'.length)
+  return raw.startsWith('/') ? raw : `/${raw}`
+}
+
+const resolvePublishedRoutePath = async (app) => {
+  if (!app?.id) return ''
+  const token = localStorage.getItem('auth_token')
+  const response = await axios.get(
+    `${apiBase}/published_routes?app_id=eq.${app.id}&is_active=eq.true&order=id.desc&limit=1`,
+    { headers: getAppCenterHeaders(token) }
+  )
+  const row = Array.isArray(response.data) ? response.data[0] : null
+  return row?.route_path || ''
+}
+
 const isCreateAppForbidden = (error) => {
   const status = error?.response?.status
   const code = error?.response?.data?.code
@@ -313,7 +332,7 @@ function navigateToBuilder(app) {
   router.push(base + app.id)
 }
 
-function openApp(app) {
+async function openApp(app) {
   if (!app) return
   const moduleKey = resolveAppAclModule(app, app?.config, app?.id)
   if (moduleKey && !hasPerm(`app:${moduleKey}`)) {
@@ -321,7 +340,13 @@ function openApp(app) {
     return
   }
   if (app.status === 'published') {
-    router.push(`/app/${app.id}`)
+    try {
+      const publishedPath = await resolvePublishedRoutePath(app)
+      const resolved = toAppRouterPath(publishedPath || '')
+      router.push(resolved || `/app/${app.id}`)
+    } catch (error) {
+      router.push(`/app/${app.id}`)
+    }
     return
   }
   navigateToBuilder(app)

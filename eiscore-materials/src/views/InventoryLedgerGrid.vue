@@ -1,6 +1,30 @@
 <template>
   <div class="inventory-ledger">
-    <MaterialAppGrid :app-config="appConfig" />
+    <EisDataGrid
+      ref="gridRef"
+      class="ledger-grid"
+      :view-id="appConfig.viewId"
+      :api-url="appConfig.apiUrl"
+      :write-url="appConfig.writeUrl || ''"
+      :include-properties="appConfig.includeProperties !== false"
+      :write-mode="appConfig.writeMode || 'upsert'"
+      :patch-required-fields="appConfig.patchRequiredFields || []"
+      :field-defaults="appConfig.fieldDefaults || {}"
+      :default-order="appConfig.defaultOrder || 'id.desc'"
+      :acl-module="appConfig.aclModule"
+      :profile="appProfile"
+      :accept-profile="appProfile"
+      :content-profile="appProfile"
+      :static-columns="staticColumns"
+      :extra-columns="extraColumns"
+      :summary="summaryConfig"
+      :can-create="canCreate"
+      :can-edit="canEdit"
+      :can-delete="canDelete"
+      :can-export="canExport"
+      :can-config="canConfig"
+      @create="openStockInDialog"
+    />
     
     <!-- 入库对话框 -->
     <el-dialog v-model="stockInDialog.visible" title="入库" width="600px" append-to-body>
@@ -72,11 +96,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
-import MaterialAppGrid from '@/components/MaterialAppGrid.vue'
+import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
+import { hasPerm } from '@/utils/permission'
 
+const gridRef = ref(null)
 const materials = ref([])
 const warehouseOptions = ref([])
 const batchRules = ref([])
@@ -217,6 +243,18 @@ const appConfig = computed(() => ({
     }
   ]
 }))
+
+const appProfile = computed(() => appConfig.value.schema || 'public')
+const staticColumns = computed(() => appConfig.value.staticColumns || [])
+const extraColumns = computed(() => appConfig.value.defaultExtraColumns || [])
+const summaryConfig = computed(() => appConfig.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
+
+const opPerms = computed(() => appConfig.value?.ops || {})
+const canCreate = computed(() => hasPerm(opPerms.value.create))
+const canEdit = computed(() => hasPerm(opPerms.value.edit))
+const canDelete = computed(() => hasPerm(opPerms.value.delete))
+const canExport = computed(() => hasPerm(opPerms.value.export))
+const canConfig = computed(() => hasPerm(opPerms.value.config))
 
 const loadMaterials = async () => {
   try {
@@ -362,16 +400,55 @@ const submitStockIn = async () => {
   }
 }
 
-onMounted(() => {
+
+onMounted(async () => {
   loadMaterials()
   loadWarehouses()
   loadBatchRules()
+  await nextTick()
+  gridRef.value?.loadData?.()
 })
 </script>
 
 <style scoped>
 .inventory-ledger {
-  height: 100%;
+  min-height: 100vh;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  box-sizing: border-box;
+  background: #f5f7fb;
+}
+
+.ledger-grid {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.ledger-grid :deep(.eis-grid-wrapper) {
+  height: 100%;
+  min-height: 0;
+}
+
+.ledger-grid :deep(.grid-card) {
+  height: 100%;
+  min-height: 560px;
+}
+
+.ledger-grid :deep(.eis-grid-container) {
+  flex: 1;
+  min-height: 0;
+}
+
+.ledger-grid :deep(.ag-theme-alpine),
+.ledger-grid :deep(.ag-root-wrapper),
+.ledger-grid :deep(.ag-root-wrapper-body),
+.ledger-grid :deep(.ag-root) {
+  height: 100%;
+  min-height: 480px;
 }
 </style>

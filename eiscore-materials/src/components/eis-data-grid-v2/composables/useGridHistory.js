@@ -12,7 +12,6 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const selectedRowsCount = ref(0)
   const includeProperties = props.includeProperties !== false
   const getWriteMode = () => props.writeMode || 'upsert'
-  const resolveProfile = () => props.profile || props.contentProfile || props.acceptProfile || 'public'
   const fieldDefaults = props.fieldDefaults || {}
   const patchRequiredFields = Array.isArray(props.patchRequiredFields) ? props.patchRequiredFields : []
 
@@ -28,27 +27,12 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     return `${url}${url.includes('?') ? '&' : '?'}${query}`
   }
 
-  const hasPropertyColumns = () => {
-    const staticCols = Array.isArray(props.staticColumns) ? props.staticColumns : []
-    const extraCols = Array.isArray(props.extraColumns) ? props.extraColumns : []
-    return [...staticCols, ...extraCols].some(col => col?.storeInProperties === true)
-  }
-
-  const ensurePayloadProperties = (payload) => {
-    if (!payload.properties || typeof payload.properties !== 'object') {
-      payload.properties = {}
-    }
-  }
-
   const buildCompletePayload = (rowData) => {
     const payload = JSON.parse(JSON.stringify(rowData))
     if (includeProperties) {
-      const hasProps =
-        Object.prototype.hasOwnProperty.call(payload, 'properties') ||
-        (props.extraColumns || []).length > 0 ||
-        hasPropertyColumns()
+      const hasProps = Object.prototype.hasOwnProperty.call(payload, 'properties') || (props.extraColumns || []).length > 0
       if (hasProps) {
-        ensurePayloadProperties(payload)
+        if (!payload.properties || typeof payload.properties !== 'object') payload.properties = {}
       } else {
         delete payload.properties
       }
@@ -96,21 +80,6 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     try {
         const writeMode = getWriteMode()
         const rowUpdatesMap = new Map()
-        const ensureGroupProperties = (group, rowNode) => {
-          if (!group.useProperties) {
-            group.useProperties = true
-            if (!group.payload.properties) {
-              const existing = rowNode?.data?.properties
-              group.payload.properties = existing && typeof existing === 'object' ? { ...existing } : {}
-            }
-            group.properties = group.payload.properties
-          } else if (!group.payload.properties) {
-            const existing = rowNode?.data?.properties
-            group.payload.properties = existing && typeof existing === 'object' ? { ...existing } : {}
-            group.properties = group.payload.properties
-          }
-        }
-
         changesToProcess.forEach(({ rowNode, colDef, newValue }) => {
             const id = rowNode.data.id
             if (!rowUpdatesMap.has(id)) {
@@ -122,11 +91,16 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                 }
             }
             const group = rowUpdatesMap.get(id)
-            if (colDef.field === '_status' && group.useProperties && rowNode.data?.properties) {
-                if (writeMode === 'patch') {
-                  group.payload.properties = { ...(rowNode.data.properties || {}) }
-                } else {
-                  Object.assign(group.properties, rowNode.data.properties)
+            if (colDef.field === '_status') {
+                if (group.useProperties && rowNode.data?.properties) {
+                  if (writeMode === 'patch') {
+                    group.payload.properties = { ...(rowNode.data.properties || {}) }
+                  } else {
+                    Object.assign(group.properties, rowNode.data.properties)
+                  }
+                }
+                if (rowNode.data && Object.prototype.hasOwnProperty.call(rowNode.data, 'status')) {
+                  group.payload.status = rowNode.data.status
                 }
             } else if (colDef.field.startsWith('properties.') && group.useProperties) {
                 const propKey = colDef.field.split('.')[1]
@@ -139,17 +113,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                   group.properties[propKey] = newValue
                 }
             }
-            else if (colDef.field.startsWith('properties.')) {
-                ensureGroupProperties(group, rowNode)
-                const propKey = colDef.field.split('.')[1]
-                if (writeMode === 'patch') {
-                  group.payload.properties[propKey] = newValue
-                } else {
-                  group.properties[propKey] = newValue
-                }
-            } else {
-                group.payload[colDef.field] = newValue
-            }
+            else group.payload[colDef.field] = newValue
         })
         const entries = Array.from(rowUpdatesMap.values())
 
@@ -165,7 +129,11 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                 await request({
                   url: patchUrl,
                   method: 'patch',
-                  headers: { 'Content-Profile': resolveProfile(), 'Prefer': 'return=representation' },
+                  headers: {
+                    'Accept-Profile': props.acceptProfile || props.profile || 'hr',
+                    'Content-Profile': props.contentProfile || props.profile || 'hr',
+                    'Prefer': 'return=representation'
+                  },
                   data: patchPayload
                 })
               }))
@@ -185,7 +153,11 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
               }))
               await request({
                   url: resolveWriteUrl(), method: 'post',
-                  headers: { 'Content-Profile': resolveProfile(), 'Prefer': 'resolution=merge-duplicates,return=representation' },
+                  headers: {
+                    'Accept-Profile': props.acceptProfile || props.profile || 'hr',
+                    'Content-Profile': props.contentProfile || props.profile || 'hr',
+                    'Prefer': 'resolution=merge-duplicates,return=representation'
+                  },
                   data: apiPayload
               })
               affectedNodes.forEach(({ node, newVer }) => {
@@ -204,7 +176,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
 
   const sanitizeValue = (field, value) => {
     const key = field.includes('.') ? field.split('.').pop() : field
-    const textFields = ['name', 'code', 'employee_id', 'username', 'email', 'phone', 'id_card', 'address']
+    const textFields = ['name', 'code', 'employee_id', 'username', 'email', 'phone', 'id_card', 'address', 'status', 'department', 'employee_no']
     if (typeof value === 'boolean') return value
     const isEmpty = value === null || value === undefined || value === ''
     if (key === 'punch_times') {
@@ -228,6 +200,8 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     }
     return value
   }
+
+  const shouldSkipSave = (colDef) => colDef?.skipSave === true
 
   const getByPath = (obj, path) => {
     if (!obj || !path) return undefined
@@ -303,20 +277,9 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     if (event.node.rowPinned) return 
     if (isRemoteUpdating.value || event.oldValue === event.newValue) return
 
-    const requiredFields = Array.isArray(props.patchRequiredFields)
-      ? props.patchRequiredFields
-      : []
-    const isRequired = requiredFields.includes(event.colDef.field)
-    const isEmpty =
-      event.newValue === null ||
-      event.newValue === undefined ||
-      (typeof event.newValue === 'string' && event.newValue.trim() === '') ||
-      event.newValue === ''
-    if (isRequired && isEmpty) {
-      ElMessage.warning('该字段不能为空')
-      isRemoteUpdating.value = true
-      event.node.setDataValue(event.colDef.field, event.oldValue ?? '')
-      isRemoteUpdating.value = false
+    if (shouldSkipSave(event.colDef)) {
+      clearDependentFields(event)
+      openDependentCascader(event)
       return
     }
 
@@ -380,7 +343,10 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
         await request({
           url: deleteUrl,
           method: 'delete',
-          headers: { 'Content-Profile': resolveProfile() }
+          headers: {
+            'Accept-Profile': props.acceptProfile || props.profile || 'hr',
+            'Content-Profile': props.contentProfile || props.profile || 'hr'
+          }
         })
         gridApi.value.applyTransaction({ remove: selectedNodes.map(node => node.data) })
         formulaHooks.pinnedBottomRowData.value = formulaHooks.calculateTotals(gridData.value)

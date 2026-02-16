@@ -23,7 +23,13 @@ const currStatus = computed(() => {
   if (props.params.node.rowPinned === 'bottom') return 'total'
   const data = props.params.data
   if (data?.properties?.row_locked_by) return 'locked'
-  return data?.properties?.status || 'created'
+  const raw = data?.status ?? data?.properties?.status
+  if (!raw) return 'created'
+  const text = String(raw).toLowerCase()
+  if (text === 'disabled') return 'locked'
+  if (text === 'draft') return 'created'
+  if (text === 'active' || text === 'locked' || text === 'created') return text
+  return raw
 })
 
 const info = computed(() => statusMap[currStatus.value] || statusMap['created'])

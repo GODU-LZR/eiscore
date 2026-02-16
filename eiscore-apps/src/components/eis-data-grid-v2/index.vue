@@ -147,7 +147,8 @@ const props = defineProps({
   canDelete: { type: Boolean, default: true },
   canExport: { type: Boolean, default: true },
   canConfig: { type: Boolean, default: true },
-  enableColumnLock: { type: Boolean, default: true }
+  enableColumnLock: { type: Boolean, default: true },
+  showStatusCol: { type: Boolean, default: true }
 })
 
 // 🟢 声明事件：增加 view-document

@@ -8,6 +8,47 @@ import { aiBridge } from '@/utils/ai-bridge'
  * 包含：子应用注册、全局状态管理、AI通信桥接
  */
 export function registerQiankun() {
+  if (window.__EIS_QIANKUN_STARTED__) return
+
+  const waitForContainer = (selector, timeoutMs = 12000) => new Promise((resolve) => {
+    const existed = document.querySelector(selector)
+    if (existed) {
+      resolve(existed)
+      return
+    }
+
+    let settled = false
+    const timer = window.setTimeout(() => {
+      if (settled) return
+      settled = true
+      observer.disconnect()
+      resolve(null)
+    }, timeoutMs)
+
+    const observer = new MutationObserver(() => {
+      const el = document.querySelector(selector)
+      if (!el || settled) return
+      settled = true
+      window.clearTimeout(timer)
+      observer.disconnect()
+      resolve(el)
+    })
+
+    observer.observe(document.body, { childList: true, subtree: true })
+  })
+
+  waitForContainer('#subapp-viewport').then((containerEl) => {
+    if (!containerEl) {
+      console.error('[Qiankun] container #subapp-viewport not ready, retry start later')
+      if (!window.__EIS_QIANKUN_RETRY_TIMER__) {
+        window.__EIS_QIANKUN_RETRY_TIMER__ = window.setTimeout(() => {
+          window.__EIS_QIANKUN_RETRY_TIMER__ = null
+          registerQiankun()
+        }, 1500)
+      }
+      return
+    }
+
   // Dev mode sub-apps are served by Vite and may take longer than single-spa default 4s.
   // Relax lifecycle deadlines to prevent false timeout failures on slower machines.
   setBootstrapMaxTime(20000, false, 10000)
@@ -66,5 +107,7 @@ export function registerQiankun() {
     sandbox: {
       experimentalStyleIsolation: true
     }
+  })
+  window.__EIS_QIANKUN_STARTED__ = true
   })
 }

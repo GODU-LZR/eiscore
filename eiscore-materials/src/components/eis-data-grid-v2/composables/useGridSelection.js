@@ -13,6 +13,13 @@ export function useGridSelection(gridApi, selectedRowsCount, gridRootRef) {
     return allCols.findIndex(c => c.getColId() === colId)
   }
 
+  const getDisplayedCols = () => {
+    if (!gridApi.value) return []
+    const cols = gridApi.value.getAllDisplayedColumns?.()
+    if (Array.isArray(cols) && cols.length > 0) return cols
+    return gridApi.value.getAllGridColumns?.() || []
+  }
+
   // 🟢 找回判定函数
   const isCellInSelection = (params) => {
     if (!rangeSelection.active) return false
@@ -30,6 +37,30 @@ export function useGridSelection(gridApi, selectedRowsCount, gridRootRef) {
     const maxCol = Math.max(startColIdx, endColIdx)
     
     return rowIndex >= minRow && rowIndex <= maxRow && currentColIdx >= minCol && currentColIdx <= maxCol
+  }
+
+  const selectColumnRange = (colId) => {
+    if (!gridApi.value || !colId) return
+    const rowCount = gridApi.value.getDisplayedRowCount?.() ?? 0
+    if (rowCount <= 0) return
+    rangeSelection.startRowIndex = 0
+    rangeSelection.endRowIndex = rowCount - 1
+    rangeSelection.startColId = colId
+    rangeSelection.endColId = colId
+    rangeSelection.active = true
+    gridApi.value.refreshCells({ force: false })
+  }
+
+  const selectRowRange = (rowIndex) => {
+    if (!gridApi.value || rowIndex === undefined || rowIndex === null) return
+    const cols = getDisplayedCols()
+    if (!cols.length) return
+    rangeSelection.startRowIndex = rowIndex
+    rangeSelection.endRowIndex = rowIndex
+    rangeSelection.startColId = cols[0].getColId()
+    rangeSelection.endColId = cols[cols.length - 1].getColId()
+    rangeSelection.active = true
+    gridApi.value.refreshCells({ force: false })
   }
 
   const onGlobalMouseMove = (e) => { mouseX.value = e.clientX; mouseY.value = e.clientY }
@@ -125,6 +156,7 @@ export function useGridSelection(gridApi, selectedRowsCount, gridRootRef) {
 
   return {
     rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged,
-    onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection
+    onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection,
+    selectColumnRange, selectRowRange
   }
 }

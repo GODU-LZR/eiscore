@@ -15,6 +15,7 @@
 
     <div class="designer-body">
       <BpmnDesigner
+        :key="designerRenderKey"
         v-model:xml="xml"
         :option="designerOption"
         class="designer-canvas"
@@ -43,9 +44,112 @@ const getAppCenterHeaders = (token) => ({
   'Content-Profile': 'app_center'
 })
 
+const getWorkflowHeaders = (token) => ({
+  Authorization: `Bearer ${token}`,
+  'Accept-Profile': 'workflow',
+  'Content-Profile': 'workflow'
+})
+
+const getRuntimeRoutePath = (id) => `/apps/app/${id}`
+
+const normalizeRuntimeRoutePath = (routePath, appIdValue) => {
+  const fallback = getRuntimeRoutePath(appIdValue)
+  const raw = String(routePath || '').trim()
+  if (!raw) return fallback
+  if (!raw.startsWith('/apps/app/')) return fallback
+  return raw
+}
+
+const toAppRouterPath = (routePath) => {
+  const raw = String(routePath || '').trim()
+  if (!raw) return ''
+  if (raw === '/apps') return '/'
+  if (raw.startsWith('/apps/')) return raw.slice('/apps'.length)
+  return raw.startsWith('/') ? raw : `/${raw}`
+}
+
+const getErrorDetails = (error) => ({
+  status: error?.response?.status,
+  code: error?.response?.data?.code || '',
+  message: error?.response?.data?.message || error?.message || '未知错误'
+})
+
+const isRlsDenied = (error) => {
+  const { status, code } = getErrorDetails(error)
+  return status === 403 && code === '42501'
+}
+
+const formatWorkflowError = (fallback, error) => {
+  const { message } = getErrorDetails(error)
+  if (isRlsDenied(error)) {
+    return `${fallback}（当前账号无权限，请使用超级管理员）`
+  }
+  return `${fallback}：${message}`
+}
+
+const parseDefinitionId = (value) => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const normalizeBpmnXml = (raw) => {
+  let text = String(raw || '')
+  if (!text) return ''
+
+  text = text.replace(/^\uFEFF/, '')
+  const trimmed = text.trim()
+
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+    || (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (typeof parsed === 'string') {
+        text = parsed
+      }
+    } catch {
+      // keep original text
+    }
+  }
+
+  return text
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\r/g, '\r')
+}
+
+const isBpmnXmlUsable = (raw) => {
+  const text = normalizeBpmnXml(raw).trim()
+  if (!text) return false
+  if (!text.includes('<bpmn:definitions') || !text.includes('<bpmn:process')) return false
+  if (!text.includes('<bpmndi:BPMNPlane')) return false
+
+  const processMatch = text.match(/<bpmn:process\b[^>]*\bid="([^"]+)"/i)
+  const planeMatch = text.match(/<bpmndi:BPMNPlane\b[^>]*\bbpmnElement="([^"]+)"/i)
+  if (processMatch?.[1] && planeMatch?.[1] && processMatch[1] !== planeMatch[1]) return false
+
+  return true
+}
+
+const loadFallbackDefinitionXml = async (token, appIdValue, definitionId = null) => {
+  const headers = getWorkflowHeaders(token)
+  if (definitionId) {
+    const byId = await axios.get(`/api/definitions?id=eq.${definitionId}&limit=1`, { headers })
+    const row = Array.isArray(byId.data) ? byId.data[0] : null
+    if (row?.bpmn_xml) return normalizeBpmnXml(row.bpmn_xml)
+  }
+  const latest = await axios.get(`/api/definitions?app_id=eq.${appIdValue}&order=id.desc&limit=1`, { headers })
+  const latestRow = Array.isArray(latest.data) ? latest.data[0] : null
+  return normalizeBpmnXml(latestRow?.bpmn_xml || '')
+}
+
 const appId = computed(() => route.params.appId)
 const appData = ref(null)
 const xml = ref('')
+const designerRenderKey = ref(0)
 const saving = ref(false)
 const publishing = ref(false)
 const importing = ref(false)
@@ -63,6 +167,11 @@ const bindFormPayloadCache = ref('')
 const stateMapping = ref({ target_table: '', state_field: '', state_value: '' })
 const mappingLoading = ref(false)
 const mappingSaving = ref(false)
+const taskAssignment = ref({ candidate_roles: [], candidate_users: [] })
+const assignmentLoading = ref(false)
+const assignmentSaving = ref(false)
+const roleOptions = ref([])
+const userOptions = ref([])
 let persistTimer = null
 
 const tableConfigMap = [
@@ -85,6 +194,19 @@ const tableLabelMap = tableConfigMap.reduce((acc, item) => {
 }, {})
 
 let modelerReadyTimer = null
+
+const scheduleEnsureModelerReady = () => {
+  if (modelerReadyTimer) {
+    clearInterval(modelerReadyTimer)
+  }
+  modelerReadyTimer = setInterval(ensureModelerReady, 300)
+}
+
+const remountDesigner = () => {
+  designerRenderKey.value += 1
+  selectedElement.value = null
+  scheduleEnsureModelerReady()
+}
 
 const defaultBpmnXml = `<?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -116,7 +238,12 @@ const BindFormPanel = defineComponent({
     editableFields: { type: Array, default: () => [] },
     stateMapping: { type: Object, default: () => ({}) },
     mappingLoading: { type: Boolean, default: false },
-    mappingSaving: { type: Boolean, default: false }
+    mappingSaving: { type: Boolean, default: false },
+    taskAssignment: { type: Object, default: () => ({}) },
+    assignmentLoading: { type: Boolean, default: false },
+    assignmentSaving: { type: Boolean, default: false },
+    roleOptions: { type: Array, default: () => [] },
+    userOptions: { type: Array, default: () => [] }
   },
   emits: [
     'update:visibleFields',
@@ -124,6 +251,8 @@ const BindFormPanel = defineComponent({
     'update:selectedTables',
     'update:stateMapping',
     'save-state-mapping',
+    'update:taskAssignment',
+    'save-task-assignment',
     'open-table-picker'
   ],
   setup(props, { emit }) {
@@ -133,7 +262,11 @@ const BindFormPanel = defineComponent({
     const updateMappingField = (key, value) => {
       emit('update:stateMapping', { ...props.stateMapping, [key]: value })
     }
+    const updateAssignmentField = (key, value) => {
+      emit('update:taskAssignment', { ...props.taskAssignment, [key]: value })
+    }
     const saveMapping = () => emit('save-state-mapping')
+    const saveAssignment = () => emit('save-task-assignment')
     const openPicker = () => emit('open-table-picker')
 
     return () => {
@@ -207,6 +340,38 @@ const BindFormPanel = defineComponent({
           })),
           h('div', { class: 'mapping-actions' }, [
             h(ElButton, { type: 'primary', size: 'small', loading: props.mappingSaving, onClick: saveMapping }, () => '保存映射')
+          ]),
+          h(ElDivider, null, () => '任务分派'),
+          h(ElFormItem, { label: '候选角色' }, () => h(ElSelect, {
+            modelValue: props.taskAssignment?.candidate_roles || [],
+            'onUpdate:modelValue': (value) => updateAssignmentField('candidate_roles', value),
+            multiple: true,
+            filterable: true,
+            clearable: true,
+            collapseTags: true,
+            disabled: props.assignmentLoading,
+            placeholder: '选择可执行角色'
+          }, () => props.roleOptions.map((item) => h(ElOption, {
+            key: item.value,
+            label: item.label,
+            value: item.value
+          })))),
+          h(ElFormItem, { label: '候选用户' }, () => h(ElSelect, {
+            modelValue: props.taskAssignment?.candidate_users || [],
+            'onUpdate:modelValue': (value) => updateAssignmentField('candidate_users', value),
+            multiple: true,
+            filterable: true,
+            clearable: true,
+            collapseTags: true,
+            disabled: props.assignmentLoading,
+            placeholder: '选择可执行用户'
+          }, () => props.userOptions.map((item) => h(ElOption, {
+            key: item.value,
+            label: item.label,
+            value: item.value
+          })))),
+          h('div', { class: 'mapping-actions' }, [
+            h(ElButton, { type: 'primary', size: 'small', loading: props.assignmentSaving, onClick: saveAssignment }, () => '保存分派')
           ])
         ])
       ])
@@ -230,11 +395,18 @@ const designerOption = computed(() => ({
       stateMapping: stateMapping.value,
       mappingLoading: mappingLoading.value,
       mappingSaving: mappingSaving.value,
+      taskAssignment: taskAssignment.value,
+      assignmentLoading: assignmentLoading.value,
+      assignmentSaving: assignmentSaving.value,
+      roleOptions: roleOptions.value,
+      userOptions: userOptions.value,
       'onUpdate:selectedTables': (value) => (selectedTables.value = value),
       'onUpdate:visibleFields': (value) => (visibleFields.value = value),
       'onUpdate:editableFields': (value) => (editableFields.value = value),
       'onUpdate:stateMapping': (value) => (stateMapping.value = value),
-      'onSave-state-mapping': saveStateMapping
+      'onUpdate:taskAssignment': (value) => (taskAssignment.value = value),
+      'onSave-state-mapping': saveStateMapping,
+      'onSave-task-assignment': saveTaskAssignment
     })]
   }
 }))
@@ -252,6 +424,7 @@ const ensureModelerReady = () => {
     selectedElement.value = element ? markRaw(element) : null
     syncBindFormFromElement(element)
     syncStateMapping(element)
+    syncTaskAssignment(element)
   })
 
   clearInterval(modelerReadyTimer)
@@ -265,6 +438,7 @@ const syncBindFormFromElement = (element) => {
     editableFields.value = []
     selectedTables.value = []
     isSyncingBinding.value = false
+    resetTaskAssignment()
     return
   }
 
@@ -280,6 +454,69 @@ const syncBindFormFromElement = (element) => {
 
 const resetStateMapping = () => {
   stateMapping.value = { target_table: '', state_field: '', state_value: '' }
+}
+
+const normalizeStringList = (value) => {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+}
+
+const resetTaskAssignment = () => {
+  taskAssignment.value = { candidate_roles: [], candidate_users: [] }
+}
+
+const ensureWorkflowDefinitionId = async (token) => {
+  const existing = parseDefinitionId(appData.value?.config?.workflowDefinitionId)
+  if (existing) return existing
+
+  const response = await axios.get(
+    `/api/definitions?app_id=eq.${appId.value}&order=id.desc&limit=1`,
+    { headers: getWorkflowHeaders(token) }
+  )
+  const row = Array.isArray(response.data) ? response.data[0] : null
+  const resolved = parseDefinitionId(row?.id)
+  if (resolved) {
+    appData.value.config = {
+      ...(appData.value?.config || {}),
+      workflowDefinitionId: resolved
+    }
+    return resolved
+  }
+
+  const bpmnXml = await getCurrentXml()
+  const created = await upsertWorkflowDefinition(bpmnXml, token)
+  return parseDefinitionId(created)
+}
+
+const syncTaskAssignment = async (element) => {
+  if (!element || element.type !== 'bpmn:UserTask' || !appId.value) {
+    resetTaskAssignment()
+    return
+  }
+  assignmentLoading.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    const definitionId = await ensureWorkflowDefinitionId(token)
+    if (!definitionId) {
+      resetTaskAssignment()
+      return
+    }
+    const response = await axios.get(
+      `/api/task_assignments?definition_id=eq.${definitionId}&task_id=eq.${element.id}&limit=1`,
+      { headers: getWorkflowHeaders(token) }
+    )
+    const row = Array.isArray(response.data) ? response.data[0] : null
+    taskAssignment.value = {
+      candidate_roles: normalizeStringList(row?.candidate_roles),
+      candidate_users: normalizeStringList(row?.candidate_users)
+    }
+  } catch (error) {
+    resetTaskAssignment()
+  } finally {
+    assignmentLoading.value = false
+  }
 }
 
 const syncStateMapping = async (element) => {
@@ -313,7 +550,7 @@ const saveStateMapping = async () => {
   try {
     const token = localStorage.getItem('auth_token')
     await axios.post(
-      '/api/workflow_state_mappings',
+      '/api/workflow_state_mappings?on_conflict=workflow_app_id,bpmn_task_id',
       {
         workflow_app_id: appId.value,
         bpmn_task_id: selectedElement.value.id,
@@ -325,15 +562,67 @@ const saveStateMapping = async () => {
         headers: {
           ...getAppCenterHeaders(token),
           'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates'
+          Prefer: 'resolution=merge-duplicates,return=representation'
         }
       }
     )
     ElMessage.success('状态映射已保存')
   } catch (error) {
-    ElMessage.error('状态映射保存失败')
+    ElMessage.error(formatWorkflowError('状态映射保存失败', error))
   } finally {
     mappingSaving.value = false
+  }
+}
+
+const saveTaskAssignment = async () => {
+  if (!selectedElement.value || selectedElement.value.type !== 'bpmn:UserTask' || !appId.value) return
+  assignmentSaving.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    const definitionId = await ensureWorkflowDefinitionId(token)
+    if (!definitionId) {
+      ElMessage.warning('未找到流程定义，请先导出并保存流程')
+      return
+    }
+    const payload = {
+      definition_id: definitionId,
+      task_id: selectedElement.value.id,
+      candidate_roles: normalizeStringList(taskAssignment.value.candidate_roles),
+      candidate_users: normalizeStringList(taskAssignment.value.candidate_users)
+    }
+    const headers = {
+      ...getWorkflowHeaders(token),
+      'Content-Type': 'application/json'
+    }
+
+    const existingResponse = await axios.get(
+      `/api/task_assignments?definition_id=eq.${definitionId}&task_id=eq.${selectedElement.value.id}&order=id.desc&limit=1`,
+      { headers: getWorkflowHeaders(token) }
+    )
+    const existing = Array.isArray(existingResponse.data) ? existingResponse.data[0] : null
+    if (existing?.id) {
+      await axios.patch(
+        `/api/task_assignments?id=eq.${existing.id}`,
+        payload,
+        { headers }
+      )
+    } else {
+      await axios.post(
+        '/api/task_assignments',
+        payload,
+        {
+          headers: {
+            ...headers,
+            Prefer: 'return=representation'
+          }
+        }
+      )
+    }
+    ElMessage.success('任务分派已保存')
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('任务分派保存失败', error))
+  } finally {
+    assignmentSaving.value = false
   }
 }
 
@@ -419,10 +708,15 @@ watch(selectedTables, async () => {
 
 onMounted(async () => {
   await loadAppData()
+  await Promise.all([loadRoleOptions(), loadUserOptions()])
   await loadTableOptions()
   await loadFieldOptions()
-  if (!xml.value) xml.value = defaultBpmnXml
-  modelerReadyTimer = setInterval(ensureModelerReady, 300)
+  if (!xml.value) {
+    xml.value = defaultBpmnXml
+    remountDesigner()
+  } else {
+    scheduleEnsureModelerReady()
+  }
 })
 
 onUnmounted(() => {
@@ -445,7 +739,23 @@ const loadAppData = async () => {
       headers: getAppCenterHeaders(token)
     })
     appData.value = response.data[0]
-    xml.value = appData.value?.bpmn_xml || defaultBpmnXml
+    const appXml = normalizeBpmnXml(appData.value?.bpmn_xml || '')
+    let resolvedXml = appXml
+
+    if (!isBpmnXmlUsable(appXml)) {
+      const configuredDefinitionId = parseDefinitionId(appData.value?.config?.workflowDefinitionId)
+      const fallbackXml = await loadFallbackDefinitionXml(token, appId.value, configuredDefinitionId)
+      if (isBpmnXmlUsable(fallbackXml)) {
+        resolvedXml = fallbackXml
+        ElMessage.warning('检测到应用流程图异常，已自动回退到流程定义版本')
+      } else {
+        resolvedXml = defaultBpmnXml
+        ElMessage.warning('流程定义异常，已回退默认模板，请导入或重新绘制后保存')
+      }
+    }
+
+    xml.value = resolvedXml || defaultBpmnXml
+    remountDesigner()
     if (!selectedTables.value.length && appData.value?.config?.table) {
       selectedTables.value = [appData.value.config.table]
     }
@@ -628,7 +938,8 @@ const handleFileChange = async (event) => {
   importing.value = true
   try {
     const text = await file.text()
-    xml.value = text
+    xml.value = normalizeBpmnXml(text)
+    remountDesigner()
     ElMessage.success('XML 导入成功')
   } catch (error) {
     ElMessage.error('XML 导入失败')
@@ -678,9 +989,51 @@ const exportAndSave = async () => {
     )
     ElMessage.success('流程已保存')
   } catch (error) {
-    ElMessage.error('保存失败: ' + error.message)
+    ElMessage.error(formatWorkflowError('流程保存失败', error))
   } finally {
     saving.value = false
+  }
+}
+
+const loadRoleOptions = async () => {
+  try {
+    const token = localStorage.getItem('auth_token')
+    const response = await axios.get('/api/roles?select=code,name&order=sort.asc,name.asc', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
+      }
+    })
+    roleOptions.value = (Array.isArray(response.data) ? response.data : [])
+      .map((item) => ({
+        value: String(item.code || '').trim(),
+        label: item.name ? `${item.name} (${item.code})` : String(item.code || '').trim()
+      }))
+      .filter((item) => item.value)
+  } catch (error) {
+    roleOptions.value = []
+  }
+}
+
+const loadUserOptions = async () => {
+  try {
+    const token = localStorage.getItem('auth_token')
+    const response = await axios.get('/api/users?select=username,full_name&order=username.asc', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
+      }
+    })
+    userOptions.value = (Array.isArray(response.data) ? response.data : [])
+      .map((item) => ({
+        value: String(item.username || '').trim(),
+        label: item.full_name ? `${item.full_name} (${item.username})` : String(item.username || '').trim()
+      }))
+      .filter((item) => item.value)
+  } catch (error) {
+    userOptions.value = []
   }
 }
 
@@ -690,6 +1043,7 @@ const upsertWorkflowDefinition = async (bpmnXml, token) => {
   const payload = {
     name: appData.value?.name || '流程定义',
     bpmn_xml: bpmnXml,
+    app_id: appId.value,
     associated_table: tableName
   }
   const headers = {
@@ -700,11 +1054,11 @@ const upsertWorkflowDefinition = async (bpmnXml, token) => {
   }
 
   if (existingId) {
-    await axios.patch(`/api/workflow.definitions?id=eq.${existingId}`, payload, { headers })
+    await axios.patch(`/api/definitions?id=eq.${existingId}`, payload, { headers })
     return existingId
   }
 
-  const response = await axios.post(`/api/workflow.definitions`, payload, {
+  const response = await axios.post(`/api/definitions`, payload, {
     headers: {
       ...headers,
       Prefer: 'return=representation'
@@ -718,6 +1072,37 @@ const upsertWorkflowDefinition = async (bpmnXml, token) => {
     }
   }
   return definitionId
+}
+
+const upsertPublishedRoute = async (token) => {
+  const headers = {
+    ...getAppCenterHeaders(token),
+    'Content-Type': 'application/json'
+  }
+  const defaultRoutePath = getRuntimeRoutePath(appId.value)
+  const listResponse = await axios.get(
+    `/api/published_routes?app_id=eq.${appId.value}&order=id.desc&limit=1`,
+    { headers }
+  )
+  const current = Array.isArray(listResponse.data) ? listResponse.data[0] : null
+  const normalizedRoutePath = normalizeRuntimeRoutePath(current?.route_path, appId.value)
+  const payload = {
+    app_id: appId.value,
+    route_path: normalizedRoutePath || defaultRoutePath,
+    mount_point: current?.mount_point || '/apps',
+    is_active: true
+  }
+  if (current?.id) {
+    await axios.patch(`/api/published_routes?id=eq.${current.id}`, payload, { headers })
+    return payload.route_path
+  }
+  const createResponse = await axios.post('/api/published_routes', payload, {
+    headers: {
+      ...headers,
+      Prefer: 'return=representation'
+    }
+  })
+  return createResponse.data?.[0]?.route_path || payload.route_path
 }
 
 const publishWorkflow = async () => {
@@ -735,10 +1120,11 @@ const publishWorkflow = async () => {
         }
       }
     )
+    const routePath = await upsertPublishedRoute(token)
     ElMessage.success('工作流已发布')
-    router.push(`/app/${appId.value}`)
+    router.push(toAppRouterPath(routePath || getRuntimeRoutePath(appId.value)))
   } catch (error) {
-    ElMessage.error('发布失败: ' + error.message)
+    ElMessage.error(formatWorkflowError('发布失败', error))
   } finally {
     publishing.value = false
   }

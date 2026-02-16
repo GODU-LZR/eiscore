@@ -10,9 +10,27 @@ import { computed } from 'vue'
 const props = defineProps(['params'])
 const MASKED_TEXT = '*******'
 
+const parseMaybeJson = (value) => {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (!(trimmed.startsWith('{') || trimmed.startsWith('['))) return null
+  try {
+    return JSON.parse(trimmed)
+  } catch (e) {
+    return null
+  }
+}
+
 const toList = (value) => {
   if (Array.isArray(value)) return value
   if (value === null || value === undefined || value === '') return []
+  if (typeof value === 'string') {
+    const parsed = parseMaybeJson(value)
+    if (Array.isArray(parsed)) return parsed
+    if (parsed && typeof parsed === 'object') return [parsed]
+  }
+  if (typeof value === 'object') return [value]
   return [value]
 }
 
@@ -31,7 +49,9 @@ const displayText = computed(() => {
   const list = toList(props.params?.value)
   const first = list[0]
   const name = getName(first)
-  return name || (list.length ? '未命名文件' : '点击上传')
+  if (typeof first === 'string' && first.startsWith('data:')) return '已上传'
+  if (first && typeof first === 'object' && first.dataUrl) return '已上传'
+  return name || (list.length ? '已上传' : '点击上传')
 })
 
 const openDialog = () => {

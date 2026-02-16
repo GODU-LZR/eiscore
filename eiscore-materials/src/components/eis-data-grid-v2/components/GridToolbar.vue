@@ -15,7 +15,14 @@
       <el-button-group class="ml-2">
         <el-button v-if="canCreate" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
         <el-button v-if="canConfig" type="primary" plain icon="Operation" @click="$emit('config-columns')">列管理</el-button>
-        <el-button v-if="canDelete" type="danger" plain icon="Delete" @click="$emit('delete')" :disabled="selectedCount === 0">
+        <el-button
+          v-if="canDelete"
+          type="danger"
+          plain
+          icon="Delete"
+          @click="$emit('delete')"
+          :disabled="selectedCount === 0"
+        >
           删除选中 ({{ selectedCount }})
         </el-button>
         <el-button v-if="canExport" plain icon="Download" @click="$emit('export')">导出</el-button>
@@ -37,7 +44,16 @@ import { computed } from 'vue'
 import { ElInput, ElButton, ElButtonGroup, ElIcon } from 'element-plus'
 import { Search, CirclePlus, Operation, Delete, Download } from '@element-plus/icons-vue'
 
-const props = defineProps(['search', 'selectedCount', 'rangeInfo', 'gridApi', 'canCreate', 'canConfig', 'canDelete', 'canExport'])
+const props = defineProps([
+  'search',
+  'selectedCount',
+  'rangeInfo',
+  'gridApi',
+  'canCreate',
+  'canConfig',
+  'canDelete',
+  'canExport'
+])
 const emit = defineEmits(['update:search', 'search', 'create', 'config-columns', 'delete', 'export'])
 
 const getColIndex = (colId) => {

@@ -10,8 +10,10 @@ const chokidar = require('chokidar');
 const axios = require('axios');
 
 const WORKSPACE_ROOT = '/workspace';
-const MODEL = 'claude-sonnet-4-20250514';
-const MAX_TOKENS = 8192;
+const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_MAX_TOKENS = Number(process.env.AGENT_TASK_MAX_TOKENS || 2048);
+const DEFAULT_MAX_TURNS = Number(process.env.AGENT_MAX_TURNS || 4);
+const DEFAULT_TURN_DELAY_MS = Number(process.env.AGENT_TURN_DELAY_MS || 80);
 
 const FORBIDDEN_SHELL_TOKENS = /[;&|`$<>]/;
 
@@ -24,9 +26,37 @@ function resolveWithin(rootDir, targetPath) {
   return resolved;
 }
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
+function normalizeRelativePath(input) {
+  const raw = String(input || '').replace(/\\/g, '/').trim();
+  if (!raw) return '';
+  if (raw.startsWith('/')) return '';
+  const normalized = path.posix.normalize(raw).replace(/^\.\/+/, '');
+  if (!normalized || normalized === '.') return '';
+  if (normalized.startsWith('../') || normalized.includes('/../')) return '';
+  return normalized;
+}
+
+function normalizeWritePolicy(writePolicy) {
+  const policy = (writePolicy && typeof writePolicy === 'object') ? writePolicy : {};
+  const allowedFiles = Array.isArray(policy.allowedFiles)
+    ? policy.allowedFiles.map(normalizeRelativePath).filter(Boolean)
+    : [];
+  const allowedDirs = Array.isArray(policy.allowedDirs)
+    ? policy.allowedDirs
+        .map(normalizeRelativePath)
+        .map((value) => value.replace(/\/+$/, ''))
+        .filter(Boolean)
+    : [];
+  return { allowedFiles, allowedDirs };
+}
+
+const createAnthropicClient = () => {
+  const key = String(process.env.ANTHROPIC_API_KEY || '').trim();
+  if (!key) return null;
+  return new Anthropic({ apiKey: key });
+};
+
+const anthropic = createAnthropicClient();
 
 /**
  * System Prompt for Agent
@@ -73,12 +103,32 @@ When the task is complete, respond with:
  * Tool Implementations
  */
 class AgentTools {
-  constructor(projectPath = 'eiscore-apps') {
+  constructor(projectPath = 'eiscore-apps', writePolicy = null) {
     this.projectRoot = resolveWithin(WORKSPACE_ROOT, projectPath);
+    this.writePolicy = normalizeWritePolicy(writePolicy);
+  }
+
+  isWriteAllowed(relativePath) {
+    const targetPath = normalizeRelativePath(relativePath);
+    if (!targetPath) return false;
+
+    const fileSet = new Set(this.writePolicy.allowedFiles);
+    const dirList = this.writePolicy.allowedDirs;
+    const hasFileRules = fileSet.size > 0;
+    const hasDirRules = dirList.length > 0;
+    if (!hasFileRules && !hasDirRules) return true;
+    if (hasFileRules && fileSet.has(targetPath)) return true;
+    if (hasDirRules) {
+      return dirList.some((dirPath) => targetPath === dirPath || targetPath.startsWith(`${dirPath}/`));
+    }
+    return false;
   }
 
   async writeFile(relativePath, content) {
     try {
+      if (!this.isWriteAllowed(relativePath)) {
+        return { success: false, error: `Write path not allowed: ${relativePath}`, code: 'WRITE_PATH_NOT_ALLOWED' };
+      }
       const fullPath = resolveWithin(this.projectRoot, relativePath);
       await fs.mkdir(path.dirname(fullPath), { recursive: true });
       await fs.writeFile(fullPath, content, 'utf-8');
@@ -153,10 +203,21 @@ class AgentTools {
  * Conversation Manager (for multi-turn agent interactions)
  */
 class AgentConversation {
-  constructor(projectPath) {
-    this.tools = new AgentTools(projectPath);
+  constructor(projectPath, options = {}) {
+    this.tools = new AgentTools(projectPath, options?.writePolicy || null);
     this.messages = [];
-    this.maxTurns = 10;
+    this.maxTurns = Number.isFinite(Number(options?.maxTurns))
+      ? Number(options.maxTurns)
+      : DEFAULT_MAX_TURNS;
+    this.turnDelayMs = Number.isFinite(Number(options?.turnDelayMs))
+      ? Number(options.turnDelayMs)
+      : DEFAULT_TURN_DELAY_MS;
+    this.aiInvoker = typeof options?.aiInvoker === 'function' ? options.aiInvoker : null;
+    this.model = String(options?.model || DEFAULT_MODEL).trim() || DEFAULT_MODEL;
+    this.maxTokens = Number.isFinite(Number(options?.maxTokens))
+      ? Number(options.maxTokens)
+      : DEFAULT_MAX_TOKENS;
+    this.systemPrompt = String(options?.systemPrompt || SYSTEM_PROMPT);
   }
 
   async addUserMessage(content) {
@@ -191,11 +252,9 @@ class AgentConversation {
 
   parseToolCalls(text) {
     const codeBlocks = text.match(/```json\n([\s\S]*?)\n```/g);
-    if (!codeBlocks) return [];
-    
     const toolCalls = [];
-    for (const block of codeBlocks) {
-      const json = block.replace(/```json\n/, '').replace(/\n```$/, '');
+    for (const block of (codeBlocks || [])) {
+      const json = block.replace(/```json\n/, '').replace(/\n```$/, '').trim();
       try {
         const parsed = JSON.parse(json);
         if (parsed.tool) {
@@ -205,18 +264,55 @@ class AgentConversation {
         // Ignore invalid JSON
       }
     }
+
+    if (toolCalls.length > 0) return toolCalls;
+
+    // Fallback: sometimes model returns raw JSON without fenced block.
+    try {
+      const raw = String(text || '').trim();
+      if (raw.startsWith('{') && raw.endsWith('}')) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.tool) return [parsed];
+      }
+      if (raw.startsWith('[') && raw.endsWith(']')) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item) => item && item.tool);
+        }
+      }
+    } catch (error) {
+      // ignore
+    }
+
     return toolCalls;
   }
 
   async runTurn() {
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      messages: this.messages
-    });
+    let assistantMessage = '';
+    if (this.aiInvoker) {
+      assistantMessage = await this.aiInvoker({
+        model: this.model,
+        maxTokens: this.maxTokens,
+        systemPrompt: this.systemPrompt,
+        messages: this.messages
+      });
+    } else {
+      if (!anthropic) {
+        throw new Error('AI provider not configured: missing ANTHROPIC_API_KEY');
+      }
+      const response = await anthropic.messages.create({
+        model: this.model,
+        max_tokens: this.maxTokens,
+        system: this.systemPrompt,
+        messages: this.messages
+      });
+      assistantMessage = String(response?.content?.[0]?.text || '').trim();
+    }
 
-    const assistantMessage = response.content[0].text;
+    if (!assistantMessage) {
+      throw new Error('AI returned empty response');
+    }
+
     this.messages.push({
       role: 'assistant',
       content: assistantMessage
@@ -272,6 +368,7 @@ class AgentConversation {
     
     const executionLog = [];
     let completed = false;
+    let textOnlyTurns = 0;
 
     for (let turn = 0; turn < this.maxTurns && !completed; turn++) {
       const result = await this.runTurn();
@@ -283,10 +380,22 @@ class AgentConversation {
 
       if (result.completed) {
         completed = true;
+        break;
+      }
+
+      // If model keeps returning plain text (no tool JSON), force one correction turn,
+      // then fail fast instead of waiting all turns and causing user-visible timeout.
+      if (result.type === 'text') {
+        textOnlyTurns += 1;
+        if (textOnlyTurns >= 2) break;
+        this.messages.push({
+          role: 'user',
+          content: 'Return ONLY valid JSON tool call(s). Do not output plain text.'
+        });
       }
 
       // Small delay to avoid rate limits
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, this.turnDelayMs));
     }
 
     return {

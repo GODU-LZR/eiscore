@@ -48,12 +48,15 @@
         :rowClassRules="rowClassRules" 
         
         @grid-ready="onGridReady"
-        @cell-value-changed="onCellValueChanged"
+        @cell-value-changed="handleCellValueChanged"
         @cell-key-down="onCellKeyDown"
-        @selection-changed="onSelectionChanged"
+        @selection-changed="handleSelectionChanged"
+        @column-header-clicked="onColumnHeaderClicked"
+        @row-selected="onRowSelected"
         
         @cell-mouse-down="onCellMouseDown"
         @cell-mouse-over="onCellMouseOver"
+        @cell-mouse-out="handleCellMouseOut"
         @cell-double-clicked="onCellDoubleClicked"
       >
       </ag-grid-vue>
@@ -87,7 +90,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive, nextTick } from 'vue'
+import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
@@ -130,28 +133,29 @@ const props = defineProps({
   fieldDefaults: { type: Object, default: () => ({}) },
   patchRequiredFields: { type: Array, default: () => [] },
   viewId: { type: String, required: false, default: null },
-  aclModule: { type: String, default: '' },
-  profile: { type: String, default: 'public' },
-  acceptProfile: { type: String, default: '' },
-  contentProfile: { type: String, default: '' },
   staticColumns: { type: Array, default: () => [] },
   extraColumns: { type: Array, default: () => [] },
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) },
   defaultOrder: { type: String, default: 'id.desc' },
+  acceptProfile: { type: String, default: 'hr' },
+  contentProfile: { type: String, default: 'hr' },
+  aclModule: { type: String, default: '' },
+  showActionCol: { type: Boolean, default: true },
+  autoSizeColumns: { type: Boolean, default: true },
   canCreate: { type: Boolean, default: true },
   canEdit: { type: Boolean, default: true },
   canDelete: { type: Boolean, default: true },
   canExport: { type: Boolean, default: true },
   canConfig: { type: Boolean, default: true },
   enableColumnLock: { type: Boolean, default: true },
-  enableActions: { type: Boolean, default: true }
+  showStatusCol: { type: Boolean, default: true }
 })
 
 // 🟢 声明事件：增加 view-document
-const emit = defineEmits(['create', 'config-columns', 'view-document', 'view-label', 'data-loaded'])
+const emit = defineEmits(['create', 'config-columns', 'view-document', 'data-loaded', 'cell-value-changed', 'selection-changed'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
-const isAdmin = currentUser === 'Admin'
+const isAdmin = String(currentUser).toLowerCase() === 'admin'
 
 const agGridRef = ref(null)
 const gridApi = ref(null)
@@ -165,7 +169,8 @@ let themeObserver = null
 const selectionHooks = useGridSelection(gridApi, selectedRowsCount, agGridRef)
 const { 
   rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
-  onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection 
+  onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection,
+  selectColumnRange, selectRowRange
 } = selectionHooks
 
 // 2. Core (传入 emit)
@@ -184,6 +189,10 @@ const openFileDialog = (params) => {
 }
 
 context.componentParent.openFileDialog = openFileDialog
+context.componentParent.onHeaderLabelClick = (params, event) => {
+  if (!params?.column) return
+  selectColumnRange(params.column.getColId())
+}
 
 // 3. Formula
 const formulaDependencyHooks = {} 
@@ -200,6 +209,17 @@ const {
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,
   debouncedSave, performUndoRedo 
 } = historyHooks
+
+const handleCellValueChanged = (params) => {
+  onCellValueChanged(params)
+  emit('cell-value-changed', params)
+}
+
+const handleSelectionChanged = () => {
+  onSelectionChanged()
+  const rows = gridApi.value ? gridApi.value.getSelectedRows() : []
+  emit('selection-changed', rows)
+}
 
 // 注入公式依赖，解决循环依赖问题
 formulaDependencyHooks.pushPendingChange = pushPendingChange
@@ -219,7 +239,7 @@ const defaultColDef = {
     return false;
   }
 }
-const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
+const rowSelectionConfig = { mode: 'singleRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
 const getRowId = (params) => {
   const data = params.data || {}
   if (data.id !== undefined && data.id !== null) return String(data.id)
@@ -240,18 +260,73 @@ const syncTheme = () => {
   isDark.value = document.documentElement.classList.contains('dark')
 }
 
+onMounted(() => {
+  syncTheme()
+  themeObserver = new MutationObserver(syncTheme)
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+
+onUnmounted(() => {
+  if (themeObserver) {
+    themeObserver.disconnect()
+    themeObserver = null
+  }
+})
+
 const onGridMouseLeave = () => {}
 const onCellDoubleClicked = (params) => {
-  if (params.node.rowPinned !== 'bottom' && params.colDef?.type === 'geo') {
-    geoDialog.params = params
-    geoDialog.visible = true
+  if (!params) return
+  if (params.node?.rowPinned === 'bottom') {
+    if (!isAdmin) return
+    const colId = params.column.colId
+    const colName = params.colDef.headerName
+    openConfigDialog(colName, colId, isAdmin)
     return
   }
-  if (params.node.rowPinned !== 'bottom') return
-  if (!isAdmin) { return }
-  const colId = params.column.colId
-  const colName = params.colDef.headerName
-  openConfigDialog(colName, colId, isAdmin)
+  if (params.node?.rowPinned) return
+  if (params.colDef?.type === 'check') {
+    const editable = typeof params.colDef.editable === 'function'
+      ? params.colDef.editable(params)
+      : params.colDef.editable !== false
+    if (!editable) return
+    const current = !!params.value
+    params.node.setDataValue(params.colDef.field, !current)
+    return
+  }
+  if (params.colDef?.type === 'geo') {
+    geoDialog.params = params
+    geoDialog.visible = true
+  }
+}
+
+const onColumnHeaderClicked = (params) => {
+  const event = params?.event
+  const colId = params?.column?.getColId?.()
+  if (!event || !colId) return
+  const target = event.target
+  if (!target || !target.closest) return
+  if (!target.closest('.custom-header-label')) return
+  selectColumnRange(colId)
+}
+
+const onRowSelected = (params) => {
+  const event = params?.event
+  if (!event) return
+  const target = event.target
+  if (!target || !target.closest) return
+  const isCheckbox = target.closest('.ag-selection-checkbox') || target.closest('.ag-checkbox-input-wrapper') || target.closest('input[type=\"checkbox\"]')
+  if (!isCheckbox) return
+  selectRowRange(params.node?.rowIndex)
+}
+
+const handleCellMouseOut = (params) => {
+  if (!params || params.node?.rowPinned) return
+  const colDef = params.colDef || {}
+  if (colDef.type !== 'check') return
+  if (!gridApi.value) return
+  if (gridApi.value.getEditingCells().length > 0) {
+    gridApi.value.stopEditing()
+  }
 }
 
 const handleGeoSubmit = (payload) => {
@@ -260,37 +335,22 @@ const handleGeoSubmit = (payload) => {
   geoDialog.params.node.setDataValue(colKey, payload)
 }
 
-const appendRow = (row = {}) => {
-  const nextRow = { ...row }
-  gridData.value = [nextRow, ...gridData.value]
-  nextTick(() => {
-    if (!gridApi.value) return
-    const cols = gridApi.value.getAllDisplayedColumns() || []
-    if (cols.length === 0) return
-    gridApi.value.ensureIndexVisible(0)
-    gridApi.value.setFocusedCell(0, cols[0].getColId())
-  })
-}
-
 onMounted(() => { 
-  syncTheme()
-  themeObserver = new MutationObserver(syncTheme)
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   document.addEventListener('mouseup', onGlobalMouseUp)
   document.addEventListener('mousemove', onGlobalMouseMove) 
   document.addEventListener('paste', handleGlobalPaste)
 })
 onUnmounted(() => { 
-  if (themeObserver) {
-    themeObserver.disconnect()
-    themeObserver = null
-  }
   document.removeEventListener('mouseup', onGlobalMouseUp)
   document.removeEventListener('mousemove', onGlobalMouseMove)
   document.removeEventListener('paste', handleGlobalPaste)
 })
 
-defineExpose({ loadData, setWorkflowBinding, appendRow })
+const refreshCells = (params) => {
+  gridApi.value?.refreshCells(params || { force: true })
+}
+
+defineExpose({ loadData, setWorkflowBinding, refreshCells })
 </script>
 
 <style scoped lang="scss">
@@ -306,10 +366,26 @@ defineExpose({ loadData, setWorkflowBinding, appendRow })
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-track, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-track { background-color: #f5f7fa; box-shadow: inset 0 0 4px rgba(0,0,0,0.05); }
 .ag-theme-alpine .ag-body-viewport { overflow-y: scroll !important; }
 
-.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 52px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
+.ag-theme-alpine { --ag-font-family: 'Helvetica Neue', Helvetica, Arial, 'Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei', sans-serif; --ag-font-size: 13px; --ag-foreground-color: #303133; --ag-background-color: #fff; --ag-header-background-color: #f1f3f4; --ag-header-foreground-color: #606266; --ag-header-height: 52px; --ag-row-height: 35px; --ag-borders: solid 1px; --ag-border-color: #dcdfe6; --ag-row-border-color: #e4e7ed; --ag-row-hover-color: #f5f7fa; --ag-selected-row-background-color: rgba(64, 158, 255, 0.1); --ag-input-focus-border-color: var(--el-color-primary); --ag-range-selection-border-color: var(--el-color-primary); --ag-range-selection-border-style: solid; }
 .no-user-select { user-select: none; }
 .ag-theme-alpine .dynamic-header { font-weight: 600; }
 .ag-theme-alpine .ag-cell { border-right: 1px solid var(--ag-border-color); }
+.ag-root-wrapper { border: 1px solid var(--el-border-color-light) !important; }
+
+.custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }
+.cell-locked-pattern { background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px); color: #a8abb2; cursor: not-allowed; }
+.row-locked-bg { background-color: #fafafa !important; }
+
+.custom-header-wrapper { display: flex !important; align-items: flex-start !important; width: 100%; height: 100%; justify-content: space-between; overflow: visible; }
+.custom-header-main { display: flex !important; align-items: flex-start !important; flex: 1; overflow: visible; cursor: pointer; padding-right: 8px; min-width: 0; }
+.custom-header-label { overflow: visible; text-overflow: clip; white-space: normal; font-weight: 600; font-size: 13px; color: var(--ag-header-foreground-color); line-height: 16px; word-break: break-all; }
+.custom-header-tools { display: flex !important; align-items: center !important; gap: 2px; flex-shrink: 0; }
+.custom-header-icon { display: flex !important; align-items: center !important; padding: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
+.custom-header-icon:hover { background-color: #e6e8eb; }
+.header-unlock-icon, .menu-btn { opacity: 0; transition: opacity 0.2s; }
+.custom-header-wrapper:hover .header-unlock-icon, .custom-header-wrapper:hover .menu-btn { opacity: 1; }
+.ag-theme-alpine .perm-granted-header .custom-header-main { overflow: visible; }
+.ag-theme-alpine .perm-granted-header .custom-header-label { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .ag-theme-alpine .ag-header-cell-label { align-items: flex-start; overflow: visible !important; }
 .ag-theme-alpine .ag-header-cell { overflow: visible !important; }
 .ag-theme-alpine .ag-header-cell-text { white-space: normal !important; line-height: 16px; word-break: break-all; overflow: visible !important; text-overflow: clip !important; }
@@ -345,20 +421,6 @@ defineExpose({ loadData, setWorkflowBinding, appendRow })
 .ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
   background-color: rgba(148, 163, 184, 0.7);
 }
-.ag-root-wrapper { border: 1px solid var(--el-border-color-light) !important; }
-
-.custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }
-.cell-locked-pattern { background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px); color: #a8abb2; cursor: not-allowed; }
-.row-locked-bg { background-color: #fafafa !important; }
-
-.custom-header-wrapper { display: flex !important; align-items: center !important; width: 100%; height: 100%; justify-content: space-between; overflow: hidden; }
-.custom-header-main { display: flex !important; align-items: center !important; flex: 1; overflow: hidden; cursor: pointer; padding-right: 8px; min-width: 0; }
-.custom-header-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 13px; color: #606266; }
-.custom-header-tools { display: flex !important; align-items: center !important; gap: 2px; flex-shrink: 0; }
-.custom-header-icon { display: flex !important; align-items: center !important; padding: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
-.custom-header-icon:hover { background-color: #e6e8eb; }
-.header-unlock-icon, .menu-btn { opacity: 0; transition: opacity 0.2s; }
-.custom-header-wrapper:hover .header-unlock-icon, .custom-header-wrapper:hover .menu-btn { opacity: 1; }
 
 .status-editor-popup { background-color: #fff; border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); border: 1px solid #e4e7ed; overflow: hidden; padding: 4px 0; z-index: 9999; }
 .status-editor-popup.select-editor-popup { max-height: 120px; overflow-y: auto; overflow-x: hidden; }

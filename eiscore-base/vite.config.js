@@ -3,6 +3,8 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
+const ideProxyTarget = process.env.VITE_FLASH_IDE_PROXY_TARGET || 'http://localhost:8443'
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
@@ -20,6 +22,9 @@ export default defineConfig({
           rawPath.startsWith('/materials') ||
           rawPath.startsWith('/hr') ||
           rawPath.startsWith('/apps')
+        const isAppsDraftPreview =
+          rawPath === '/apps/preview/flash-draft' ||
+          rawPath.startsWith('/apps/preview/')
         const isDevAsset =
           rawPath.includes('/@vite') ||
           rawPath.includes('/src/') ||
@@ -34,7 +39,8 @@ export default defineConfig({
 
         // For deep-link refresh, always serve host index.html first so Vue Router + qiankun can mount.
         // Sub-app assets/HMR still proxy via /materials|/hr|/apps prefixed asset paths.
-        if (isMicroRoute && isDocumentNav && !isDevAsset) {
+        // Keep flash draft preview out of host-shell rewrite: it must load pure apps sub-app page.
+        if (isMicroRoute && isDocumentNav && !isDevAsset && !isAppsDraftPreview) {
           req.url = '/'
           next()
           return
@@ -66,6 +72,12 @@ export default defineConfig({
             .replace(/^\/api/, '')
         )
       },
+      '/agent': {
+        target: 'http://localhost:8078',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/agent/, ''),
+        ws: true
+      },
       '/rpc': {
         target: 'http://localhost:3000/rpc',
         changeOrigin: true,
@@ -96,10 +108,28 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
+          const rawPath = (req.url || '').split('?')[0]
+          const isPreview =
+            rawPath === '/apps/preview/flash-draft' ||
+            rawPath.startsWith('/apps/preview/')
+          if (isPreview) return undefined
           const accept = String(req.headers.accept || '')
           const isDocument = req.headers['sec-fetch-dest'] === 'document' || accept.includes('text/html')
           return isDocument ? '/index.html' : undefined
         }
+      },
+      '/flash-preview': {
+        target: 'http://localhost:8083',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/flash-preview/, '')
+      },
+      '/ide': {
+        target: ideProxyTarget,
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/ide/, '')
       },
       
     }

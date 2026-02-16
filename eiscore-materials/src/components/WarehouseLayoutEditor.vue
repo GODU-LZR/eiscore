@@ -5,34 +5,23 @@
         <el-button :type="tool === 'select' ? 'primary' : ''" @click="tool = 'select'">
           <el-icon><Pointer /></el-icon> 选择
         </el-button>
-        <el-button :type="tool === 'rect' ? 'primary' : ''" @click="tool = 'rect'">
-          <el-icon><Grid /></el-icon> 添加货架
+        <el-button :type="tool === 'area' ? 'primary' : ''" @click="openAddAreaDialog">
+          <el-icon><Grid /></el-icon> 添加库区
         </el-button>
-      </el-button-group>
-      <el-divider direction="vertical" />
-      <el-button-group>
-        <el-button size="small" @click="alignLeft">左对齐</el-button>
-        <el-button size="small" @click="alignRight">右对齐</el-button>
-        <el-button size="small" @click="alignTop">顶对齐</el-button>
-        <el-button size="small" @click="alignBottom">底对齐</el-button>
-        <el-button size="small" @click="distributeHorizontal">横向分布</el-button>
-        <el-button size="small" @click="distributeVertical">纵向分布</el-button>
-        <el-button size="small" @click="duplicateSelected">复制</el-button>
+        <el-button :type="tool === 'location' ? 'primary' : ''" @click="openAddLocationDialog">
+          <el-icon><Grid /></el-icon> 添加库位
+        </el-button>
       </el-button-group>
       <el-divider direction="vertical" />
       <el-switch v-model="snapEnabled" size="small" />
       <span class="toolbar-mini">网格</span>
       <el-input-number v-model="gridSize" size="small" :min="5" :max="50" />
       <el-divider direction="vertical" />
-      <el-select v-model="activeLayerId" size="small" class="layer-select" placeholder="选择库区层">
-        <el-option
-          v-for="layer in layerOptions"
-          :key="layer.key"
-          :label="layer.name"
-          :value="layer.key"
-        />
-      </el-select>
-      <el-divider direction="vertical" />
+      <template v-if="selectedShape">
+        <span class="toolbar-mini">文字</span>
+        <el-input-number v-model="selectedTextSize" size="small" :min="10" :max="48" @change="applySelectedTextSize" />
+        <el-divider direction="vertical" />
+      </template>
       <el-button @click="saveLayout" type="success" :loading="saving">
         <el-icon><Check /></el-icon> 保存布局
       </el-button>
@@ -45,66 +34,47 @@
 
     <div class="editor-main">
       <div class="canvas-container" ref="containerRef">
-        <div id="konva-stage" @dragover.prevent @drop="handleCanvasDrop"></div>
-      </div>
-
-      <div class="properties-panel" v-if="selectedShape">
-        <el-card shadow="never">
-          <template #header>
-            <div class="panel-header">
-              <span>属性面板</span>
-              <el-button link type="danger" @click="deleteSelected">
-                <el-icon><Delete /></el-icon>
-              </el-button>
-            </div>
-          </template>
-          
-          <el-form label-width="80px" size="small">
-            <el-form-item label="绑定位置">
-              <el-select v-model="selectedProps.bindId" placeholder="绑定库区/库位" @change="updateBindProps">
-                <el-option-group label="库区">
-                  <el-option
-                    v-for="area in bindOptions.areas"
-                    :key="area.id"
-                    :label="`${area.code} ${area.name}`"
-                    :value="area.id"
-                  />
-                </el-option-group>
-                <el-option-group label="库位">
-                  <el-option
-                    v-for="loc in bindOptions.locations"
-                    :key="loc.id"
-                    :label="`${loc.code} ${loc.name}`"
-                    :value="loc.id"
-                  />
-                </el-option-group>
-              </el-select>
-            </el-form-item>
-            <el-form-item label="库位编码">
-              <el-input v-model="selectedProps.code" @change="updateShapeProps" />
-            </el-form-item>
-            <el-form-item label="X坐标">
-              <el-input-number v-model="selectedProps.x" :min="0" @change="updateShapePosition" />
-            </el-form-item>
-            <el-form-item label="Y坐标">
-              <el-input-number v-model="selectedProps.y" :min="0" @change="updateShapePosition" />
-            </el-form-item>
-            <el-form-item label="宽度">
-              <el-input-number v-model="selectedProps.width" :min="20" @change="updateShapeSize" />
-            </el-form-item>
-            <el-form-item label="高度">
-              <el-input-number v-model="selectedProps.height" :min="20" @change="updateShapeSize" />
-            </el-form-item>
-            <el-form-item label="行数">
-              <el-input-number v-model="selectedProps.rows" :min="1" :max="10" @change="updateShapeGrid" />
-            </el-form-item>
-            <el-form-item label="列数">
-              <el-input-number v-model="selectedProps.cols" :min="1" :max="10" @change="updateShapeGrid" />
-            </el-form-item>
-          </el-form>
-        </el-card>
+        <div id="konva-stage" :style="gridStyle" @dragover.prevent @drop="handleCanvasDrop"></div>
       </div>
     </div>
+
+    <el-dialog v-model="showAreaDialog" title="选择库区" width="360px">
+      <el-form label-width="80px">
+        <el-form-item label="库区">
+          <el-select v-model="selectedAreaId" placeholder="请选择库区" filterable>
+            <el-option
+              v-for="area in areaOptions"
+              :key="area.id"
+              :label="area.name"
+              :value="area.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAreaDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmAddArea">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="showLocationDialog" title="选择库位" width="420px">
+      <el-form label-width="80px">
+        <el-form-item label="库位">
+          <el-cascader
+            v-model="selectedLocationPath"
+            :options="locationCascaderOptions"
+            :props="{ value: 'id', label: 'name', children: 'children' }"
+            placeholder="请选择库区/库位"
+            filterable
+            clearable
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showLocationDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmAddLocation">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -138,6 +108,13 @@ const areaOptions = ref([])
 const locationOptions = ref([])
 const snapEnabled = ref(true)
 const gridSize = ref(10)
+const selectedTextSize = ref(14)
+const showAreaDialog = ref(false)
+const showLocationDialog = ref(false)
+const selectedAreaId = ref('')
+const selectedLocationPath = ref([])
+const pendingAreaNode = ref(null)
+const pendingLocationNode = ref(null)
 
 let stage = null
 let layer = null
@@ -145,7 +122,7 @@ let transformer = null
 let resizeObserver = null
 let lastSize = { width: 0, height: 0 }
 let areaGroupMap = new Map()
-
+let keyHandler = null
 const selectedShape = ref(null)
 const selectedProps = reactive({
   code: '',
@@ -178,11 +155,28 @@ const activeLayer = computed(() => {
   return layoutLayers.value.find((layer) => getLayerKey(layer) === activeLayerId.value)
 })
 
-const bindOptions = computed(() => {
+const gridStyle = computed(() => {
+  const size = Math.max(5, Number(gridSize.value) || 10)
+  const gridOn = !!snapEnabled.value
   return {
-    areas: areaOptions.value || [],
-    locations: locationOptions.value || []
+    backgroundSize: `${size}px ${size}px`,
+    backgroundImage: gridOn
+      ? 'linear-gradient(0deg, rgba(148, 163, 184, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(148, 163, 184, 0.2) 1px, transparent 1px)'
+      : 'none'
   }
+})
+
+const locationCascaderOptions = computed(() => {
+  return areaOptions.value.map((area) => ({
+    id: area.id,
+    name: area.name,
+    children: locationOptions.value
+      .filter((loc) => loc.parent_id === area.id)
+      .map((loc) => ({
+        id: loc.id,
+        name: loc.name
+      }))
+  }))
 })
 
 
@@ -239,12 +233,17 @@ const initKonva = () => {
 
   stage.on('click', (e) => {
     const isStage = e.target === stage
-    if (tool.value === 'rect' && isStage) {
-      const pos = stage.getPointerPosition()
-      if (pos) addShelf(pos.x, pos.y)
-      return
-    }
     if (isStage) {
+      if (tool.value === 'area') {
+        const pos = stage.getPointerPosition()
+        if (pos) addArea(pos.x, pos.y, pendingAreaNode.value)
+        return
+      }
+      if (tool.value === 'location') {
+        const pos = stage.getPointerPosition()
+        if (pos) addLocation(pos.x, pos.y, pendingLocationNode.value)
+        return
+      }
       setSelection([])
     }
   })
@@ -267,6 +266,55 @@ const getGroupSize = (group) => {
   const width = Math.round((rect?.width() || 0) * (group.scaleX() || 1))
   const height = Math.round((rect?.height() || 0) * (group.scaleY() || 1))
   return { width, height }
+}
+
+const getActiveAreaGroup = () => {
+  if (!selectedShape.value) return null
+  if (selectedShape.value.attrs?.shapeType === 'area') return selectedShape.value
+  const parent = selectedShape.value.getParent()
+  if (parent?.attrs?.shapeType === 'area') return parent
+  return null
+}
+
+const updateLabelLayout = (group, rect, text, shapeType) => {
+  if (!rect || !text) return
+  const width = rect.width()
+  const height = rect.height()
+  const defaultRatio = shapeType === 'area' ? 0.18 : 0.22
+  const ratio = group?.attrs?.textRatio || defaultRatio
+  const base = Math.min(width, height)
+  text.width(width)
+  text.height(height)
+  text.fontSize(Math.max(10, Math.round(base * ratio)))
+  text.scaleX(1)
+  text.scaleY(1)
+}
+
+const updateLabelDuringTransform = (group, rect, text, shapeType) => {
+  if (!rect || !text) return
+  const scaledWidth = rect.width() * (group.scaleX() || 1)
+  const scaledHeight = rect.height() * (group.scaleY() || 1)
+  const defaultRatio = shapeType === 'area' ? 0.18 : 0.22
+  const ratio = group?.attrs?.textRatio || defaultRatio
+  const base = Math.min(scaledWidth, scaledHeight)
+  text.width(scaledWidth)
+  text.height(scaledHeight)
+  text.fontSize(Math.max(10, Math.round(base * ratio)))
+  text.scaleX(1 / (group.scaleX() || 1))
+  text.scaleY(1 / (group.scaleY() || 1))
+}
+
+const normalizeGroupScale = (group, shapeType) => {
+  const rect = group.findOne('Rect')
+  const text = group.findOne('Text')
+  if (!rect || !text) return
+  const nextWidth = Math.round(rect.width() * (group.scaleX() || 1))
+  const nextHeight = Math.round(rect.height() * (group.scaleY() || 1))
+  rect.width(Math.max(20, nextWidth))
+  rect.height(Math.max(20, nextHeight))
+  group.scaleX(1)
+  group.scaleY(1)
+  updateLabelLayout(group, rect, text, shapeType)
 }
 
 const setSelection = (groups) => {
@@ -295,8 +343,42 @@ const selectShape = (group, evt) => {
   setSelection([group])
 }
 
+const getExistingAreaGroup = (areaId) => {
+  if (!areaId) return null
+  return areaGroupMap.get(areaId) || null
+}
+
+const hasLocationGroup = (locationId) => {
+  if (!locationId) return false
+  return layer.find('Group').some((group) => {
+    return group?.attrs?.shapeType === 'location' && group?.attrs?.bindData?.warehouse_id === locationId
+  })
+}
+
+
 const clampPosition = (value, min, max) => {
   return Math.max(min, Math.min(value, max))
+}
+
+const getRectSize = (rect, group) => {
+  const scaleX = group?.scaleX ? group.scaleX() : 1
+  const scaleY = group?.scaleY ? group.scaleY() : 1
+  return {
+    width: (rect?.width?.() || 0) * scaleX,
+    height: (rect?.height?.() || 0) * scaleY
+  }
+}
+
+const clampLocationPosition = (pos, areaGroup, locationGroup, locationRect) => {
+  const areaRect = areaGroup?.findOne?.('Rect')
+  if (!areaRect || !locationRect) return pos
+  const size = getRectSize(locationRect, locationGroup)
+  const maxX = areaRect.width() - size.width
+  const maxY = areaRect.height() - size.height
+  return {
+    x: clampPosition(pos.x, 0, Math.max(0, maxX)),
+    y: clampPosition(pos.y, 0, Math.max(0, maxY))
+  }
 }
 
 const createAreaGroup = (shapeData) => {
@@ -316,7 +398,7 @@ const createAreaGroup = (shapeData) => {
   })
 
   const text = new Konva.Text({
-    text: shapeData.code || '库区',
+    text: shapeData.name || '库区',
     fontSize: 14,
     fill: '#0f172a',
     width: shapeData.width,
@@ -329,6 +411,13 @@ const createAreaGroup = (shapeData) => {
   group.add(text)
 
   group.on('click', (evt) => {
+    if (evt?.evt?.altKey) {
+      const parent = group.getParent()
+      if (parent?.attrs?.shapeType === 'area') {
+        setSelection([parent])
+        return
+      }
+    }
     selectShape(group, evt)
   })
 
@@ -341,7 +430,29 @@ const createAreaGroup = (shapeData) => {
     }
   })
 
+  group.on('transform', () => {
+    const minSize = 20
+    let minWidth = minSize
+    let minHeight = minSize
+    group.getChildren((node) => node.attrs?.shapeType === 'location').forEach((loc) => {
+      const locRect = loc.findOne('Rect')
+      if (!locRect) return
+      minWidth = Math.max(minWidth, locRect.width())
+      minHeight = Math.max(minHeight, locRect.height())
+    })
+    const targetWidth = rect.width() * (group.scaleX() || 1)
+    const targetHeight = rect.height() * (group.scaleY() || 1)
+    if (targetWidth < minWidth) {
+      group.scaleX(minWidth / rect.width())
+    }
+    if (targetHeight < minHeight) {
+      group.scaleY(minHeight / rect.height())
+    }
+    updateLabelDuringTransform(group, rect, text, 'area')
+  })
+
   group.on('transformend', () => {
+    normalizeGroupScale(group, 'area')
     if (selectedShape.value === group) {
       updateSelectedProps(group)
     }
@@ -351,8 +462,11 @@ const createAreaGroup = (shapeData) => {
   group.attrs.areaData = {
     warehouse_id: shapeData.warehouse_id || null,
     code: shapeData.code || '',
-    name: shapeData.name || ''
+    name: shapeData.name || '库区'
   }
+  group.attrs.textRatio = shapeData.text_ratio || null
+
+  updateLabelLayout(group, rect, text, 'area')
 
   return group
 }
@@ -374,7 +488,7 @@ const createLocationGroup = (shapeData, areaGroup) => {
   })
 
   const text = new Konva.Text({
-    text: shapeData.code || '库位',
+    text: shapeData.name || '库位',
     fontSize: 12,
     fill: '#0f172a',
     width: shapeData.width,
@@ -387,21 +501,23 @@ const createLocationGroup = (shapeData, areaGroup) => {
   group.add(text)
 
   group.on('click', (evt) => {
+    if (evt?.evt?.altKey) {
+      const parent = group.getParent()
+      if (parent?.attrs?.shapeType === 'area') {
+        setSelection([parent])
+        return
+      }
+    }
     selectShape(group, evt)
   })
 
-  if (areaGroup) {
-    const areaRect = areaGroup.findOne('Rect')
-    group.dragBoundFunc((pos) => {
-      if (!areaRect) return pos
-      const maxX = areaRect.width() - rect.width()
-      const maxY = areaRect.height() - rect.height()
-      return {
-        x: clampPosition(pos.x, 0, Math.max(0, maxX)),
-        y: clampPosition(pos.y, 0, Math.max(0, maxY))
-      }
-    })
-  }
+  group.on('dblclick', (evt) => {
+    const parent = group.getParent()
+    if (parent?.attrs?.shapeType === 'area') {
+      setSelection([parent])
+      evt.cancelBubble = true
+    }
+  })
 
   group.on('dragend', () => {
     const pos = snapPoint(group.x(), group.y())
@@ -412,7 +528,12 @@ const createLocationGroup = (shapeData, areaGroup) => {
     }
   })
 
+  group.on('transform', () => {
+    updateLabelDuringTransform(group, rect, text, 'location')
+  })
+
   group.on('transformend', () => {
+    normalizeGroupScale(group, 'location')
     if (selectedShape.value === group) {
       updateSelectedProps(group)
     }
@@ -422,6 +543,7 @@ const createLocationGroup = (shapeData, areaGroup) => {
   group.attrs.areaId = shapeData.area_id || null
   group.attrs.shelfData = {
     code: shapeData.code || `LOC-${Date.now()}`,
+    name: shapeData.name || '库位',
     rows: shapeData.rows || 1,
     cols: shapeData.cols || 1
   }
@@ -431,53 +553,116 @@ const createLocationGroup = (shapeData, areaGroup) => {
     code: shapeData.code || '',
     name: shapeData.name || ''
   }
+  group.attrs.textRatio = shapeData.text_ratio || null
+
+  updateLabelLayout(group, rect, text, 'location')
 
   return group
 }
 
-const addShelf = (x, y, node, areaGroup) => {
-  const snapped = snapPoint(x, y)
-  if (node?.level === 2 || node?.shapeType === 'area') {
-    const shapeData = {
-      x: snapped.x,
-      y: snapped.y,
-      width: 260,
-      height: 180,
-      code: node?.code || `AREA-${Date.now()}`,
-      warehouse_id: node?.id || null,
-      name: node?.name || ''
-    }
-    const group = createAreaGroup(shapeData)
-    layer.add(group)
-    if (node?.id) {
-      areaGroupMap.set(node.id, group)
-    }
-    layer.draw()
-    setSelection([group])
+const addArea = (x, y, node) => {
+  if (!node) {
+    ElMessage.warning('请先选择库区')
     return
   }
-
+  if (getExistingAreaGroup(node.id)) {
+    ElMessage.warning('该库区已存在')
+    return
+  }
+  const snapped = snapPoint(x, y)
   const shapeData = {
     x: snapped.x,
     y: snapped.y,
-    width: 90,
-    height: 50,
+    width: 260,
+    height: 180,
+    code: node?.code || `AREA-${Date.now()}`,
+    warehouse_id: node?.id || null,
+    name: node?.name || '库区'
+  }
+  const group = createAreaGroup(shapeData)
+  layer.add(group)
+  if (node?.id) {
+    areaGroupMap.set(node.id, group)
+  }
+  layer.draw()
+  setSelection([group])
+  pendingAreaNode.value = null
+  tool.value = 'select'
+}
+
+const addLocation = (x, y, node) => {
+  const areaId = node?.parent_id || null
+  const areaGroup = areaId ? areaGroupMap.get(areaId) : getActiveAreaGroup()
+  if (!areaGroup) {
+    ElMessage.warning('请先在画布中添加对应库区')
+    return
+  }
+  if (node?.id && hasLocationGroup(node.id)) {
+    ElMessage.warning('该库位已存在')
+    return
+  }
+  const areaRect = areaGroup.findOne('Rect')
+  const stagePos = stage?.getPointerPosition() || { x, y }
+  const localPos = areaGroup.getAbsoluteTransform().copy().invert().point(stagePos)
+  const snapped = snapPoint(localPos.x, localPos.y)
+  const width = 90
+  const height = 50
+  const shapeData = {
+    x: snapped.x,
+    y: snapped.y,
+    width,
+    height,
     code: node?.code || `LOC-${Date.now()}`,
+    name: node?.name || '库位',
     rows: 1,
     cols: 1,
     warehouse_id: node?.id || null,
     level: node?.level || null,
-    name: node?.name || '',
     area_id: node?.parent_id || null
   }
   const group = createLocationGroup(shapeData, areaGroup)
-  if (areaGroup) {
-    areaGroup.add(group)
-  } else {
-    layer.add(group)
-  }
+  areaGroup.add(group)
   layer.draw()
   setSelection([group])
+  pendingLocationNode.value = null
+  tool.value = 'select'
+}
+
+const openAddAreaDialog = () => {
+  selectedAreaId.value = ''
+  showAreaDialog.value = true
+  tool.value = 'area'
+}
+
+const confirmAddArea = () => {
+  const area = areaOptions.value.find((item) => item.id === selectedAreaId.value)
+  if (!area) {
+    ElMessage.warning('请选择库区')
+    return
+  }
+  pendingAreaNode.value = area
+  showAreaDialog.value = false
+}
+
+const openAddLocationDialog = () => {
+  selectedLocationPath.value = []
+  showLocationDialog.value = true
+  tool.value = 'location'
+}
+
+const confirmAddLocation = () => {
+  if (!selectedLocationPath.value.length) {
+    ElMessage.warning('请选择库区/库位')
+    return
+  }
+  const locationId = selectedLocationPath.value[selectedLocationPath.value.length - 1]
+  const location = locationOptions.value.find((item) => item.id === locationId)
+  if (!location) {
+    ElMessage.warning('请选择库位')
+    return
+  }
+  pendingLocationNode.value = location
+  showLocationDialog.value = false
 }
 
 const updateSelectedProps = (shape) => {
@@ -503,6 +688,28 @@ const updateSelectedProps = (shape) => {
   selectedProps.height = Math.round(shape.height() * (shape.scaleY() || 1))
   selectedProps.rows = data.rows || 3
   selectedProps.cols = data.cols || 4
+  const text = shape.findOne('Text')
+  if (text) {
+    selectedTextSize.value = Math.round(text.fontSize() || 14)
+  }
+}
+
+const applySelectedTextSize = () => {
+  if (!selectedShape.value) return
+  const text = selectedShape.value.findOne('Text')
+  const rect = selectedShape.value.findOne('Rect')
+  if (!text) return
+  const nextSize = Math.max(10, Number(selectedTextSize.value) || 14)
+  text.fontSize(nextSize)
+  text.scaleX(1)
+  text.scaleY(1)
+  if (rect) {
+    const base = Math.min(rect.width(), rect.height())
+    if (base > 0) {
+      selectedShape.value.attrs.textRatio = nextSize / base
+    }
+  }
+  layer.draw()
 }
 
 const updateShapeProps = () => {
@@ -645,21 +852,30 @@ const updateShapeGrid = () => {
 const deleteSelected = () => {
   const nodes = transformer.nodes()
   if (!nodes.length) return
+  stage?.stopDrag()
+  transformer.nodes([])
   nodes.forEach((node) => {
     if (node.attrs.shapeType === 'area') {
       const areaId = node.attrs.areaData?.warehouse_id
       if (areaId) areaGroupMap.delete(areaId)
+      node.getChildren((child) => child.attrs?.shapeType === 'location').forEach((child) => {
+        child.destroy()
+      })
     }
     node.destroy()
   })
-  transformer.nodes([])
   selectedShape.value = null
   layer.draw()
 }
 
 const clearLayout = () => {
-  layer.find('Group').forEach(group => group.destroy())
+  stage?.stopDrag()
   transformer.nodes([])
+  layer.find('Group').forEach(group => {
+    if (group?.attrs?.shapeType) {
+      group.destroy()
+    }
+  })
   selectedShape.value = null
   areaGroupMap.clear()
   if (activeLayer.value) {
@@ -671,11 +887,14 @@ const clearLayout = () => {
 const collectShapes = () => {
   const shapes = []
   layer.find('Group').forEach(group => {
+    if (!group?.attrs?.shapeType) return
     const rect = group.findOne('Rect')
+    const text = group.findOne('Text')
     const width = Math.round((rect?.width() || 0) * (group.scaleX() || 1))
     const height = Math.round((rect?.height() || 0) * (group.scaleY() || 1))
     if (group.attrs.shapeType === 'area') {
       const area = group.attrs.areaData || {}
+      const label = area.name || area.code || '库区'
       shapes.push({
         shape_type: 'area',
         code: area.code,
@@ -685,13 +904,15 @@ const collectShapes = () => {
         height,
         warehouse_id: area.warehouse_id || null,
         level: 2,
-        name: area.name || null
+        name: label,
+        text_ratio: group.attrs.textRatio || null
       })
       return
     }
     if (group.attrs.shapeType === 'location') {
       const data = group.attrs.shelfData || {}
       const bind = group.attrs.bindData || {}
+      const label = data.name || bind.name || data.code || '库位'
       shapes.push({
         shape_type: 'location',
         code: data.code,
@@ -703,8 +924,9 @@ const collectShapes = () => {
         cols: data.cols || 1,
         warehouse_id: bind.warehouse_id || null,
         level: bind.level || 3,
-        name: bind.name || null,
-        area_id: group.attrs.areaId || null
+        name: label,
+        area_id: group.attrs.areaId || null,
+        text_ratio: group.attrs.textRatio || null
       })
     }
   })
@@ -718,8 +940,13 @@ const syncActiveLayerShapes = () => {
 
 const renderLayer = () => {
   if (!activeLayer.value) return
-  layer.find('Group').forEach(group => group.destroy())
+  stage?.stopDrag()
   transformer.nodes([])
+  layer.find('Group').forEach(group => {
+    if (group?.attrs?.shapeType) {
+      group.destroy()
+    }
+  })
   selectedShape.value = null
   areaGroupMap.clear()
   const shapes = activeLayer.value.shapes || []
@@ -762,7 +989,11 @@ const handleCanvasDrop = (event) => {
   const pos = stage.getPointerPosition()
   if (!pos) return
   const bound = warehouseNodes.value.find((item) => item.id === node.id)
-  addShelf(pos.x, pos.y, bound || node)
+  if (node.level === 2) {
+    addArea(pos.x, pos.y, bound || node)
+  } else {
+    addLocation(pos.x, pos.y, bound || node)
+  }
 }
 
 const getSelectedGroups = () => {
@@ -991,15 +1222,33 @@ onMounted(async () => {
   if (containerRef.value) {
     resizeObserver.observe(containerRef.value)
   }
+  keyHandler = (event) => {
+    if (event.key !== 'Delete' && event.key !== 'Backspace') return
+    if (showAreaDialog.value || showLocationDialog.value) return
+    deleteSelected()
+  }
+  window.addEventListener('keydown', keyHandler)
 })
 
 onBeforeUnmount(() => {
   if (stage) {
+    stage.stopDrag()
+    if (transformer) {
+      transformer.nodes([])
+      transformer.destroy()
+    }
     stage.destroy()
+    stage = null
+    layer = null
+    transformer = null
   }
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null
+  }
+  if (keyHandler) {
+    window.removeEventListener('keydown', keyHandler)
+    keyHandler = null
   }
 })
 </script>
@@ -1056,22 +1305,9 @@ onBeforeUnmount(() => {
 
 #konva-stage {
   border: 1px solid #dcdfe6;
-  background: #fafafa;
+  background-color: #fbfcfe;
   width: 100%;
   height: 100%;
 }
 
-.properties-panel {
-  width: 300px;
-  background: #f9f9f9;
-  border-left: 1px solid #dcdfe6;
-  overflow-y: auto;
-  padding: 12px;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 </style>

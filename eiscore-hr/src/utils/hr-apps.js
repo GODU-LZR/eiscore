@@ -6,6 +6,8 @@ export const BASE_STATIC_COLUMNS = [
   { label: '状态', prop: 'status', width: 100 }
 ]
 
+const EMPLOYEE_STATIC_COLUMNS = BASE_STATIC_COLUMNS.filter((col) => col.prop !== 'status')
+
 const DEFAULT_SUMMARY = {
   label: '总计',
   rules: {},
@@ -32,7 +34,7 @@ export const HR_APPS = [
       export: 'op:hr_employee.export',
       config: 'op:hr_employee.config'
     },
-    staticColumns: BASE_STATIC_COLUMNS,
+    staticColumns: EMPLOYEE_STATIC_COLUMNS,
     summaryConfig: DEFAULT_SUMMARY,
     defaultExtraColumns: [
       { label: '性别', prop: 'gender', type: 'select', options: [

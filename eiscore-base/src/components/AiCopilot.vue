@@ -23,9 +23,6 @@
               <component :is="isWorkerFullscreen ? ScaleToOriginal : FullScreen" />
             </el-icon>
           </el-tooltip>
-          <el-tooltip v-if="isEnterprise" content="导出PDF" placement="bottom">
-            <el-icon class="action-icon" @click="exportReportAsPdf"><Download /></el-icon>
-          </el-tooltip>
           <el-tooltip content="新建对话" placement="bottom">
             <el-icon class="action-icon" @click="aiBridge.createNewSession()"><Plus /></el-icon>
           </el-tooltip>
@@ -58,6 +55,7 @@
                 :key="index"
                 class="message-row"
                 :class="msg.role"
+                :data-message-index="index"
               >
                 <div class="avatar-wrapper">
                   <div class="avatar">{{ msg.role === 'user' ? '👤' : '✨' }}</div>
@@ -83,7 +81,7 @@
                 <div class="bubble" v-if="shouldShowBubble(msg)">
                   <div
                     class="markdown-body"
-                    v-html="renderMarkdown(msg.content)"
+                    v-html="renderMarkdown(msg.content, { enableVisualBlocks: !isStreamingMessage(index) })"
                   ></div>
                   <span
                     v-if="msg.role === 'assistant' && index === currentSession.messages.length - 1 && state.isStreaming"
@@ -240,6 +238,13 @@
                 <div class="msg-actions">
                   <el-button link size="small" type="danger" icon="Delete" @click="aiBridge.deleteMessage(index)"></el-button>
                   <el-button
+                    v-if="shouldShowReportDownload(msg, index)"
+                    link
+                    size="small"
+                    type="primary"
+                    @click="exportMessageReportAsPdf(index)"
+                  >下载报告</el-button>
+                  <el-button
                       v-if="msg.role === 'user'"
                       link
                       size="small"
@@ -306,10 +311,10 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onMounted, onUpdated } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUpdated, onBeforeUnmount } from 'vue'
 import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
-import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, Download, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
+import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import mermaid from 'mermaid'
@@ -330,6 +335,10 @@ const messagesRef = ref(null)
 const lightboxChartRef = ref(null)
 const lightbox = ref({ visible: false, type: '', payload: null })
 let lightboxChart = null
+let chartResizeObserver = null
+let resizeRafId = 0
+let mermaidRenderSeed = 0
+const chartResizeTimers = new Map()
 const router = useRouter()
 const isFullscreen = ref(false)
 const isDark = useDark({ storageKey: 'eis_theme_global' })
@@ -485,10 +494,18 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     return ''
   }
   if (info === 'mermaid') {
-    return `<div class="mermaid-chart" data-raw="${encodeURIComponent(token.content)}"></div>`
+    if (env?.enableVisualBlocks === false) {
+      if (defaultFence) return defaultFence(tokens, idx, options, env, self)
+      return self.renderToken(tokens, idx, options)
+    }
+    return `<div class="mermaid-chart chart-pending" data-raw="${encodeURIComponent(token.content)}"></div>`
   }
   if (info === 'echarts') {
-    return `<div class="echarts-chart" data-option="${encodeURIComponent(token.content)}"></div>`
+    if (env?.enableVisualBlocks === false) {
+      if (defaultFence) return defaultFence(tokens, idx, options, env, self)
+      return self.renderToken(tokens, idx, options)
+    }
+    return `<div class="echarts-chart chart-pending" data-option="${encodeURIComponent(token.content)}"></div>`
   }
   if (defaultFence) {
     return defaultFence(tokens, idx, options, env, self)
@@ -498,9 +515,78 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
 
 mermaid.initialize({ startOnLoad: false, theme: 'default' })
 
-const renderMarkdown = (text) => {
+const renderMarkdown = (text, env = {}) => {
   if (!text) return ''
-  return sanitizeHtml(md.render(text))
+  return sanitizeHtml(md.render(text, env))
+}
+
+const waitTwoFrames = () => new Promise((resolve) => {
+  if (typeof window === 'undefined') {
+    resolve()
+    return
+  }
+  requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+})
+
+const delayMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const stripFunctionValueBlocks = (input) => {
+  const text = String(input || '')
+  if (!text.includes(': function')) return text
+  let out = ''
+  let cursor = 0
+  while (cursor < text.length) {
+    const fnToken = text.indexOf(': function', cursor)
+    if (fnToken < 0) {
+      out += text.slice(cursor)
+      break
+    }
+
+    out += text.slice(cursor, fnToken) + ': null'
+    let i = fnToken + 1
+    const keyword = text.indexOf('function', i)
+    if (keyword < 0) {
+      cursor = fnToken + 1
+      continue
+    }
+    i = keyword + 'function'.length
+    while (i < text.length && text[i] !== '{') i += 1
+    if (i >= text.length) {
+      cursor = text.length
+      break
+    }
+
+    let depth = 0
+    let inString = false
+    let escaped = false
+    for (; i < text.length; i += 1) {
+      const ch = text[i]
+      if (inString) {
+        if (escaped) {
+          escaped = false
+        } else if (ch === '\\') {
+          escaped = true
+        } else if (ch === '"') {
+          inString = false
+        }
+        continue
+      }
+      if (ch === '"') {
+        inString = true
+        continue
+      }
+      if (ch === '{') depth += 1
+      if (ch === '}') {
+        depth -= 1
+        if (depth === 0) {
+          i += 1
+          break
+        }
+      }
+    }
+    cursor = i
+  }
+  return out
 }
 
 const sanitizeJson = (jsonStr) => {
@@ -510,9 +596,135 @@ const sanitizeJson = (jsonStr) => {
   cleaned = cleaned.replace(/,\s*([\]}])/g, '$1')
   cleaned = cleaned.replace(/\/\/.*(?=[\n\r])/g, '')
   cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '')
+  cleaned = cleaned.replace(/\bundefined\b/g, 'null')
+  cleaned = cleaned.replace(/\bNaN\b/g, '0')
+  cleaned = cleaned.replace(/\bInfinity\b/g, '0')
+  cleaned = cleaned.replace(/\b-Infinity\b/g, '0')
+  cleaned = stripFunctionValueBlocks(cleaned)
   cleaned = cleaned.replace(/'([^']*)'/g, (_, p1) => `"${p1.replace(/"/g, '\\"')}"`)
   cleaned = cleaned.replace(/([{,]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":')
   return cleaned.trim()
+}
+
+const extractBalancedJson = (input) => {
+  const text = String(input || '')
+  const start = text.search(/[{[]/)
+  if (start < 0) return ''
+  const open = text[start]
+  const close = open === '{' ? '}' : ']'
+  let depth = 0
+  let inString = false
+  let escaped = false
+
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i]
+    if (inString) {
+      if (escaped) {
+        escaped = false
+      } else if (ch === '\\') {
+        escaped = true
+      } else if (ch === '"') {
+        inString = false
+      }
+      continue
+    }
+    if (ch === '"') {
+      inString = true
+      continue
+    }
+    if (ch === open) depth += 1
+    if (ch === close) depth -= 1
+    if (depth === 0) return text.slice(start, i + 1)
+  }
+  return ''
+}
+
+const normalizeGridItem = (grid) => {
+  const base = { left: 56, right: 28, top: 64, bottom: 44, containLabel: true }
+  const next = { ...base, ...(grid && typeof grid === 'object' ? grid : {}) }
+  const widthNum = typeof next.width === 'number' ? next.width : Number.NaN
+  const heightNum = typeof next.height === 'number' ? next.height : Number.NaN
+  const widthPct = typeof next.width === 'string' && next.width.endsWith('%') ? Number.parseFloat(next.width) : Number.NaN
+  const heightPct = typeof next.height === 'string' && next.height.endsWith('%') ? Number.parseFloat(next.height) : Number.NaN
+
+  if ((Number.isFinite(widthNum) && widthNum < 260) || (Number.isFinite(widthPct) && widthPct < 70)) delete next.width
+  if ((Number.isFinite(heightNum) && heightNum < 180) || (Number.isFinite(heightPct) && heightPct < 55)) delete next.height
+  return next
+}
+
+const normalizeEchartsOption = (option) => {
+  if (!option || typeof option !== 'object' || Array.isArray(option)) return null
+  const cloned = JSON.parse(JSON.stringify(option))
+  if (cloned.series && !Array.isArray(cloned.series)) {
+    cloned.series = [cloned.series]
+  }
+  if (!Array.isArray(cloned.series) || cloned.series.length === 0) return null
+  cloned.series = cloned.series
+    .filter(item => item && typeof item === 'object')
+    .map(item => ({
+      type: item.type || 'line',
+      ...item
+    }))
+  if (!cloned.series.length) return null
+  cloned.animation = false
+  if (Array.isArray(cloned.grid)) {
+    cloned.grid = cloned.grid.map(item => normalizeGridItem(item))
+  } else {
+    cloned.grid = normalizeGridItem(cloned.grid)
+  }
+  if (!cloned.tooltip) {
+    cloned.tooltip = { trigger: 'axis' }
+  }
+  return cloned
+}
+
+const parseEchartsOptionSafely = (raw) => {
+  const source = String(raw || '')
+  const primary = sanitizeJson(source)
+  const candidates = []
+
+  const rawTrimmed = source.trim()
+  if (rawTrimmed) candidates.push(rawTrimmed)
+  const rawBalanced = extractBalancedJson(rawTrimmed)
+  if (rawBalanced) candidates.push(rawBalanced)
+  if (primary) {
+    candidates.push(primary)
+    const firstBrace = primary.search(/[{[]/)
+    const lastCurly = primary.lastIndexOf('}')
+    const lastSquare = primary.lastIndexOf(']')
+    const lastBrace = Math.max(lastCurly, lastSquare)
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      candidates.push(primary.slice(firstBrace, lastBrace + 1))
+    }
+    const balanced = extractBalancedJson(primary)
+    if (balanced) candidates.push(balanced)
+  }
+
+  const seen = new Set()
+  for (const candidate of candidates) {
+    if (!candidate) continue
+    const key = candidate.trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    try {
+      const parsed = JSON.parse(key)
+      const normalized = normalizeEchartsOption(parsed)
+      if (normalized) return normalized
+    } catch {}
+  }
+  return null
+}
+
+const isOmittedOption = (option) => {
+  if (!option || typeof option !== 'object') return false
+  const xAxis = Array.isArray(option.xAxis) ? option.xAxis[0] : option.xAxis
+  const yAxis = Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis
+  const firstSeries = Array.isArray(option.series) ? option.series[0] : null
+  if (!xAxis || !yAxis || !firstSeries) return false
+  const hiddenAxis = xAxis.show === false && yAxis.show === false
+  const hiddenLine = Number(firstSeries?.lineStyle?.opacity) === 0
+  const hiddenPoint = Number(firstSeries?.itemStyle?.opacity) === 0
+  return hiddenAxis && hiddenLine && hiddenPoint
 }
 
 const templateSaveState = ref({})
@@ -1155,16 +1367,6 @@ const copyWorkflowXml = async (xml) => {
   }
 }
 
-const escapeHtml = (value) => {
-  if (!value) return ''
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 const validateEchartsOption = (option) => {
   if (!option || !option.series || !Array.isArray(option.series) || option.series.length === 0) {
     return '图表配置缺少必要的 series 数据'
@@ -1172,33 +1374,105 @@ const validateEchartsOption = (option) => {
   return ''
 }
 
-const buildPrintableHtml = () => {
-  const container = messagesRef.value?.cloneNode(true)
-  if (!container) return ''
+const REPORT_FILLER_LINE_RE = /^(好的|当然|收到|已收到|明白|了解|下面|以下|我将|我会|请查看|这里是|先给出|先汇总).{0,120}(经营分析|经营报告|分析报告|报告|图表|洞察|结论)/
+const REPORT_FILLER_SENTENCE_RE = /(好的|当然|收到|已收到|明白|了解)[，,。！!\s].{0,100}(经营分析|经营报告|分析报告|报告)/
 
-  container.querySelectorAll('.msg-actions').forEach(node => node.remove())
-  container.querySelectorAll('.typing-cursor').forEach(node => node.remove())
-
-  const echartsNodes = Array.from(container.querySelectorAll('.echarts-chart'))
-  echartsNodes.forEach((node, index) => {
-    const liveNode = document.querySelectorAll('.echarts-chart')[index]
-    const instance = liveNode ? echarts.getInstanceByDom(liveNode) : null
-    if (instance) {
-      const dataUrl = instance.getDataURL({ pixelRatio: 2, backgroundColor: '#ffffff' })
-      const img = document.createElement('img')
-      img.src = dataUrl
-      img.style.maxWidth = '100%'
-      img.style.display = 'block'
-      node.replaceWith(img)
-    }
-  })
-
-  return container.innerHTML
+const shouldShowReportDownload = (msg, index) => {
+  if (!isEnterprise.value) return false
+  if (msg?.role !== 'assistant') return false
+  if (isStreamingMessage(index)) return false
+  return Boolean(String(msg?.content || '').trim())
 }
 
-const exportReportAsPdf = () => {
-  const html = buildPrintableHtml()
-  if (!html) return
+const normalizeInlineText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+
+const isReportFillerLine = (text) => {
+  const value = normalizeInlineText(text)
+  if (!value) return false
+  return REPORT_FILLER_LINE_RE.test(value) || REPORT_FILLER_SENTENCE_RE.test(value)
+}
+
+const stripReportLeadPreamble = (bubbleNode) => {
+  const markdownNode = bubbleNode ? bubbleNode.querySelector('.markdown-body') : null
+  if (!markdownNode) return
+  const nodes = Array.from(markdownNode.childNodes || [])
+  let scanned = 0
+  for (const node of nodes) {
+    if (scanned >= 12) break
+    scanned += 1
+    if (node.nodeType === 3 && !normalizeInlineText(node.textContent)) {
+      node.remove()
+      continue
+    }
+    if (node.nodeType === 3) {
+      const text = normalizeInlineText(node.textContent)
+      if (isReportFillerLine(text) && text.length <= 180) {
+        node.remove()
+      }
+      continue
+    }
+    if (node.nodeType === 1) {
+      const text = normalizeInlineText(node.textContent)
+      if (!text) {
+        node.remove()
+        continue
+      }
+      const tag = String(node.tagName || '').toLowerCase()
+      const canTrim = tag === 'p' || tag === 'div' || tag === 'span'
+      if (canTrim && isReportFillerLine(text) && text.length <= 180) {
+        node.remove()
+        continue
+      }
+      if (canTrim && REPORT_FILLER_SENTENCE_RE.test(text) && text.length <= 200) {
+        const cleaned = normalizeInlineText(text.replace(REPORT_FILLER_SENTENCE_RE, ''))
+        if (!cleaned) {
+          node.remove()
+        } else {
+          node.textContent = cleaned
+        }
+      }
+    }
+  }
+}
+
+const buildPrintableHtmlForMessage = (messageIndex) => {
+  const sourceRow = messagesRef.value
+    ? messagesRef.value.querySelector(`.message-row[data-message-index="${messageIndex}"]`)
+    : null
+  const sourceBubble = sourceRow ? sourceRow.querySelector('.bubble') : null
+  if (!sourceBubble) return ''
+
+  const printableBubble = sourceBubble.cloneNode(true)
+  printableBubble.querySelectorAll('.msg-actions').forEach(node => node.remove())
+  printableBubble.querySelectorAll('.typing-cursor').forEach(node => node.remove())
+  printableBubble.querySelectorAll('.chart-error, .chart-details, .chart-retry, .chart-inline-status').forEach(node => node.remove())
+
+  stripReportLeadPreamble(printableBubble)
+
+  const printableCharts = Array.from(printableBubble.querySelectorAll('.echarts-chart'))
+  const sourceCharts = Array.from(sourceBubble.querySelectorAll('.echarts-chart'))
+  printableCharts.forEach((node, index) => {
+    const liveNode = sourceCharts[index]
+    const instance = liveNode ? echarts.getInstanceByDom(liveNode) : null
+    if (!instance) return
+    const dataUrl = instance.getDataURL({ pixelRatio: 2, backgroundColor: '#ffffff' })
+    const img = document.createElement('img')
+    img.src = dataUrl
+    img.style.maxWidth = '100%'
+    img.style.display = 'block'
+    node.replaceWith(img)
+  })
+  printableBubble.querySelectorAll('.echarts-chart, .mermaid-chart').forEach((node) => node.remove())
+
+  return printableBubble.innerHTML
+}
+
+const exportMessageReportAsPdf = (messageIndex) => {
+  const html = buildPrintableHtmlForMessage(messageIndex)
+  if (!html) {
+    ElMessage.warning('当前消息没有可导出的报告内容')
+    return
+  }
 
   const printWindow = window.open('', '_blank')
   if (!printWindow) return
@@ -1209,17 +1483,17 @@ const exportReportAsPdf = () => {
         <title>企业经营报告</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #303133; }
-          .message-row { display: flex; gap: 12px; margin-bottom: 16px; }
-          .message-row.user { flex-direction: row-reverse; }
-          .bubble { background: #fff; padding: 12px 16px; border-radius: 12px; border: 1px solid #ebeef5; }
-          .msg-files { margin-bottom: 8px; }
-          pre { background: #f5f7fa; padding: 10px; border-radius: 6px; }
+          .report-content { background: #fff; }
+          .markdown-body p { margin: 0 0 8px; line-height: 1.7; }
+          .markdown-body pre { background: #f5f7fa; padding: 10px; border-radius: 6px; overflow: auto; }
+          .markdown-body table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+          .markdown-body th, .markdown-body td { border: 1px solid #ebeef5; padding: 6px 8px; text-align: left; }
           .mermaid-chart svg { max-width: 100%; height: auto; }
         </style>
       </head>
       <body>
         <h2>企业经营报告</h2>
-        ${html}
+        <div class="report-content">${html}</div>
       </body>
     </html>`)
   printWindow.document.close()
@@ -1251,6 +1525,81 @@ const closeLightbox = () => {
   }
 }
 
+const clearChartResizeTimer = (node) => {
+  if (!node) return
+  const timer = chartResizeTimers.get(node)
+  if (timer) {
+    clearTimeout(timer)
+    chartResizeTimers.delete(node)
+  }
+}
+
+const shouldSkipChartResize = (node) => {
+  if (!node) return true
+  return node.classList.contains('is-rendering') ||
+    node.classList.contains('chart-pending') ||
+    node.classList.contains('is-retrying')
+}
+
+const queueNodeChartResize = (node, delay = 60) => {
+  if (!node || shouldSkipChartResize(node)) return
+  clearChartResizeTimer(node)
+  const timer = setTimeout(() => {
+    clearChartResizeTimer(node)
+    if (shouldSkipChartResize(node)) return
+    const chart = echarts.getInstanceByDom(node)
+    if (!chart) return
+    requestAnimationFrame(() => {
+      try {
+        chart.resize()
+      } catch (e) {
+        if (typeof window !== 'undefined' && window.__EIS_DEBUG__) {
+          console.warn('[AiCopilot] chart.resize skipped', e)
+        }
+      }
+    })
+  }, Math.max(20, delay))
+  chartResizeTimers.set(node, timer)
+}
+
+const scheduleResizeAllCharts = () => {
+  if (typeof window === 'undefined') return
+  if (resizeRafId) {
+    cancelAnimationFrame(resizeRafId)
+  }
+  resizeRafId = requestAnimationFrame(() => {
+    resizeRafId = 0
+    document.querySelectorAll('.echarts-chart[data-processed="true"]').forEach((node) => {
+      queueNodeChartResize(node, 72)
+    })
+  })
+}
+
+const getChartResizeObserver = () => {
+  if (chartResizeObserver || typeof ResizeObserver === 'undefined') return chartResizeObserver
+  chartResizeObserver = new ResizeObserver((entries) => {
+    entries.forEach((entry) => {
+      queueNodeChartResize(entry.target, 96)
+    })
+  })
+  return chartResizeObserver
+}
+
+const observeChartNode = (node) => {
+  if (!node) return
+  const observer = getChartResizeObserver()
+  if (observer) observer.observe(node)
+}
+
+const unobserveChartNode = (node) => {
+  if (!node) return
+  clearChartResizeTimer(node)
+  if (!chartResizeObserver) return
+  try {
+    chartResizeObserver.unobserve(node)
+  } catch {}
+}
+
 const openAssistant = () => {
   aiBridge.setMode(props.mode)
   aiBridge.openWindow()
@@ -1273,88 +1622,104 @@ const toggleFullscreen = () => {
   } catch {}
 }
 
-const bindRetry = (node) => {
-  const retryButton = node.querySelector('.chart-retry')
-  if (retryButton && !retryButton.dataset.bound) {
-    retryButton.dataset.bound = 'true'
-    retryButton.addEventListener('click', () => {
-      node.removeAttribute('data-processed')
-      node.innerHTML = ''
-      renderCharts()
-    })
+const renderFallbackEcharts = async (node) => {
+  const previous = echarts.getInstanceByDom(node)
+  if (previous) previous.dispose()
+  unobserveChartNode(node)
+  node.innerHTML = ''
+  node.classList.add('chart-omitted')
+  node.classList.remove('is-rendering')
+  node.classList.remove('chart-pending')
+  node.classList.remove('is-retrying')
+}
+
+const renderMermaidNode = async (node) => {
+  try {
+    node.setAttribute('data-processed', 'true')
+    node.classList.add('is-rendering')
+    const text = decodeURIComponent(node.getAttribute('data-raw') || '')
+    await mermaid.parse(text)
+    const id = `mermaid-${Date.now()}-${mermaidRenderSeed++}`
+    const { svg } = await mermaid.render(id, text)
+    const safeSvg = sanitizeSvg(svg)
+    node.innerHTML = safeSvg
+    await waitTwoFrames()
+    node.classList.remove('is-rendering')
+    node.classList.remove('chart-pending')
+    if (!node.dataset.bound) {
+      node.dataset.bound = 'true'
+      node.addEventListener('dblclick', () => openLightbox('mermaid', safeSvg))
+    }
+  } catch (e) {
+    node.classList.remove('is-rendering')
+    node.classList.remove('chart-pending')
+    node.innerHTML = '<div class="chart-inline-status">流程图暂不可用</div>'
+  }
+}
+
+const renderEchartsNode = async (node, attempt = 0) => {
+  const maxRetries = 16
+  try {
+    node.classList.remove('chart-omitted')
+    const hasRendered = node.getAttribute('data-processed') === 'true'
+    node.setAttribute('data-processed', 'true')
+    if (!hasRendered) {
+      node.classList.add('is-rendering')
+    }
+    const jsonStr = decodeURIComponent(node.getAttribute('data-option') || '')
+    const option = parseEchartsOptionSafely(jsonStr)
+    if (!option) {
+      throw new Error('ECharts JSON parse failed')
+    }
+    const validationError = validateEchartsOption(option)
+    if (validationError) {
+      throw new Error(validationError)
+    }
+    if (isOmittedOption(option)) {
+      await renderFallbackEcharts(node)
+      return
+    }
+    const previous = echarts.getInstanceByDom(node)
+    if (previous) previous.dispose()
+    unobserveChartNode(node)
+    node.style.width = '100%'
+    node.style.height = '360px'
+    const chart = echarts.init(node)
+    chart.setOption(option, true)
+    await waitTwoFrames()
+    node.classList.remove('is-rendering')
+    node.classList.remove('chart-pending')
+    observeChartNode(node)
+    if (!node.dataset.bound) {
+      node.dataset.bound = 'true'
+      node.addEventListener('dblclick', () => openLightbox('echarts', option))
+    }
+    queueNodeChartResize(node, 110)
+  } catch (e) {
+    if (typeof window !== 'undefined' && window.__EIS_DEBUG__) {
+      console.warn('[AiCopilot] ECharts render failed', e)
+    }
+    if (attempt < maxRetries) {
+      node.classList.add('is-retrying')
+      node.classList.remove('is-rendering')
+      await delayMs(240 + attempt * 180)
+      return renderEchartsNode(node, attempt + 1)
+    }
+    await renderFallbackEcharts(node)
   }
 }
 
 const renderCharts = async () => {
   await nextTick()
 
-  const mermaidNodes = document.querySelectorAll('.mermaid-chart:not([data-processed])')
-  mermaidNodes.forEach(async (node, index) => {
-    try {
-      node.setAttribute('data-processed', 'true')
-      const text = decodeURIComponent(node.getAttribute('data-raw') || '')
-      await mermaid.parse(text)
-      const id = `mermaid-${Date.now()}-${index}`
-      const { svg } = await mermaid.render(id, text)
-      const safeSvg = sanitizeSvg(svg)
-      node.innerHTML = safeSvg
-      if (!node.dataset.bound) {
-        node.dataset.bound = 'true'
-        node.addEventListener('dblclick', () => openLightbox('mermaid', safeSvg))
-      }
-    } catch (e) {
-      const safeCode = escapeHtml(decodeURIComponent(node.getAttribute('data-raw') || ''))
-      node.innerHTML = `
-        <div class="chart-error">
-          <span>流程图渲染失败</span>
-          <button class="chart-retry">重试</button>
-        </div>
-        <details class="chart-details">
-          <summary>查看 Mermaid 代码</summary>
-          <pre>${safeCode}</pre>
-        </details>
-      `
-      bindRetry(node)
-    }
-  })
+  const mermaidNodes = Array.from(document.querySelectorAll('.mermaid-chart:not([data-processed])'))
+  for (const node of mermaidNodes) {
+    await renderMermaidNode(node)
+  }
 
-  const echartsNodes = document.querySelectorAll('.echarts-chart:not([data-processed])')
+  const echartsNodes = Array.from(document.querySelectorAll('.echarts-chart:not([data-processed])'))
   echartsNodes.forEach((node) => {
-    try {
-      node.setAttribute('data-processed', 'true')
-      const jsonStr = decodeURIComponent(node.getAttribute('data-option') || '')
-      const sanitized = sanitizeJson(jsonStr)
-      const option = JSON.parse(sanitized)
-      const validationError = validateEchartsOption(option)
-      if (validationError) {
-        node.innerHTML = `<div class="chart-error">${validationError} <button class="chart-retry">重试</button></div>`
-        bindRetry(node)
-        return
-      }
-      node.style.width = '100%'
-      node.style.height = '320px'
-      const chart = echarts.init(node)
-      chart.setOption(option)
-      if (!node.dataset.bound) {
-        node.dataset.bound = 'true'
-        node.addEventListener('dblclick', () => openLightbox('echarts', option))
-      }
-    } catch (e) {
-      console.error(e)
-      const raw = decodeURIComponent(node.getAttribute('data-option') || '')
-      const safeJson = escapeHtml(raw)
-      node.innerHTML = `
-        <div class="chart-error">
-          <span>统计图渲染失败: 请确保 AI 输出标准 JSON</span>
-          <button class="chart-retry">重试</button>
-        </div>
-        <details class="chart-details">
-          <summary>查看原始 JSON</summary>
-          <pre>${safeJson}</pre>
-        </details>
-      `
-      bindRetry(node)
-    }
+    void renderEchartsNode(node)
   })
 }
 
@@ -1397,20 +1762,52 @@ const retryMessage = (index) => {
 watch(() => currentSession.value?.messages.length, scrollToBottom)
 watch(() => currentSession.value?.messages[currentSession.value?.messages.length - 1]?.content, scrollToBottom)
 watch(() => state.isOpen, (val) => { if (val) scrollToBottom() })
+watch(() => isWorkerFullscreen.value, () => {
+  if (!state.isOpen) return
+  setTimeout(() => scheduleResizeAllCharts(), 80)
+})
 
 onMounted(() => {
   try {
     isFullscreen.value = localStorage.getItem(FULLSCREEN_KEY) === '1'
   } catch {}
-  aiBridge.loadConfig()
   aiBridge.setMode(props.mode)
   if (props.autoOpen) {
     aiBridge.openWindow()
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', scheduleResizeAllCharts)
   }
 })
 
 watch(() => props.mode, (val) => {
   aiBridge.setMode(val)
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', scheduleResizeAllCharts)
+  }
+  if (resizeRafId) {
+    cancelAnimationFrame(resizeRafId)
+    resizeRafId = 0
+  }
+  Array.from(chartResizeTimers.keys()).forEach((node) => {
+    clearChartResizeTimer(node)
+  })
+  document.querySelectorAll('.echarts-chart').forEach((node) => {
+    unobserveChartNode(node)
+    const chart = echarts.getInstanceByDom(node)
+    if (chart) chart.dispose()
+  })
+  if (chartResizeObserver) {
+    chartResizeObserver.disconnect()
+    chartResizeObserver = null
+  }
+  if (lightboxChart) {
+    lightboxChart.dispose()
+    lightboxChart = null
+  }
 })
 </script>
 
@@ -1542,7 +1939,7 @@ $border-color: #e4e7ed;
 .chat-area { flex: 1; display: flex; flex-direction: column; background: var(--ai-panel-bg); width: 100%; }
 
 .messages-container {
-  flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;
+  flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 18px;
 }
 
 .message-row {
@@ -1559,6 +1956,9 @@ $border-color: #e4e7ed;
   .content-wrapper {
     max-width: 85%; display: flex; flex-direction: column;
   }
+  &.assistant .content-wrapper {
+    width: min(85%, 1200px);
+  }
 
   .msg-files {
     display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;
@@ -1570,9 +1970,12 @@ $border-color: #e4e7ed;
   }
 
   .bubble {
-    padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6;
+    padding: 14px 20px; border-radius: 12px; font-size: 14px; line-height: 1.7;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05); background: #fff; color: #303133;
     position: relative;
+  }
+  &.assistant .bubble {
+    width: 100%;
   }
   &.user .bubble { background: $primary-color; color: #fff; border-top-right-radius: 2px; }
   &.assistant .bubble { border-top-left-radius: 2px; }
@@ -1642,14 +2045,44 @@ $border-color: #e4e7ed;
 
   :deep(.echarts-chart),
   :deep(.mermaid-chart) {
+    display: block;
+    position: relative;
     width: 100%;
+    max-width: 100%;
     min-height: 240px;
+    margin: 10px 0;
     overflow: hidden;
+    transition: opacity 0.16s ease;
+  }
+
+  :deep(.echarts-chart > div),
+  :deep(.echarts-chart canvas) {
+    max-width: 100%;
   }
 
   :deep(.echarts-chart:empty),
   :deep(.mermaid-chart:empty) {
     display: none;
+  }
+  :deep(.echarts-chart.chart-omitted),
+  :deep(.mermaid-chart.chart-omitted) {
+    display: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+  }
+
+  :deep(.echarts-chart.chart-pending),
+  :deep(.mermaid-chart.chart-pending),
+  :deep(.echarts-chart.is-rendering),
+  :deep(.mermaid-chart.is-rendering) {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  :deep(.echarts-chart.is-retrying),
+  :deep(.mermaid-chart.is-retrying) {
+    pointer-events: none;
+    cursor: progress;
   }
 
   :deep(.mermaid-chart svg) {
@@ -1752,43 +2185,21 @@ $border-color: #e4e7ed;
 }
 
 .chart-error {
-  color: #f56c6c;
-  font-size: 12px;
-  padding: 8px 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  display: none !important;
 }
 
 .chart-details {
-  margin-top: 6px;
-  font-size: 12px;
-  color: #909399;
-  max-width: 100%;
-  summary {
-    cursor: pointer;
-    color: #606266;
-  }
-  pre {
-    background: #f5f7fa;
-    padding: 8px;
-    border-radius: 6px;
-    overflow: auto;
-    max-height: 240px;
-    white-space: pre-wrap;
-    word-break: break-word;
-  }
+  display: none !important;
 }
 
 .chart-retry {
-  background: #fff;
-  border: 1px solid $border-color;
-  border-radius: 12px;
-  padding: 2px 8px;
+  display: none !important;
+}
+
+.chart-inline-status {
+  padding: 8px 0;
   font-size: 12px;
-  cursor: pointer;
-  color: #606266;
-  &:hover { color: $primary-color; border-color: $primary-color; }
+  color: #909399;
 }
 
 .typing-cursor {
@@ -1930,14 +2341,6 @@ $border-color: #e4e7ed;
 .ai-copilot-container.is-dark .import-card .card-meta,
 .ai-copilot-container.is-dark .workflow-card .card-meta {
   color: #cbd5f5;
-}
-.ai-copilot-container.is-dark .chart-details,
-.ai-copilot-container.is-dark .chart-details summary {
-  color: #cbd5f5;
-}
-.ai-copilot-container.is-dark .chart-details pre {
-  background: #0b1220;
-  border: 1px solid #1f2937;
 }
 .ai-copilot-container.is-dark .lightbox-content {
   background: #0f172a;

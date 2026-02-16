@@ -77,8 +77,17 @@ services:
       PGDATABASE: eiscore
       CHANNEL: eis_events
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:-my_super_secret_key_for_eiscore_system_2025}"
-      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      FLASH_CLINE_ENABLED: "${FLASH_CLINE_ENABLED:-true}"
+      FLASH_CLINE_COMMAND: "${FLASH_CLINE_COMMAND:-/app/node_modules/.bin/cline}"
+      FLASH_CLINE_PROJECT_PATH: "${FLASH_CLINE_PROJECT_PATH:-eiscore-apps/src/views/drafts}"
+      FLASH_CLINE_WORKDIR: "${FLASH_CLINE_WORKDIR:-/workspace/eiscore-apps/src/views/drafts}"
+      FLASH_CLINE_CONFIG_ROOT: "${FLASH_CLINE_CONFIG_ROOT:-/tmp/flash-cline}"
+      FLASH_CLINE_PROVIDER: "${FLASH_CLINE_PROVIDER:-openai}"
+      FLASH_CLINE_TASK_TIMEOUT_MS: "${FLASH_CLINE_TASK_TIMEOUT_MS:-480000}"
     volumes:
+      # Mount runtime source so index.js/agent-core.js/workflow-engine.js stay in sync
+      - ./realtime:/app
       # Mount source code directories for file operations
       - ./eiscore-base:/workspace/eiscore-base
       - ./eiscore-hr:/workspace/eiscore-hr
@@ -87,5 +96,39 @@ services:
     depends_on:
       - db
 
+  code-server:
+    image: linuxserver/code-server:latest
+    container_name: eiscore-ide
+    restart: unless-stopped
+    environment:
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      TZ: "${TZ:-Asia/Shanghai}"
+      # Dev mode: keep both empty so linuxserver/code-server starts with --auth none.
+      PASSWORD: ""
+      HASHED_PASSWORD: ""
+      SUDO_PASSWORD: "${CODE_SERVER_SUDO_PASSWORD:-}"
+      # Cline compatibility/stability for extension host in web code-server runtime.
+      NODE_OPTIONS: "--no-experimental-global-navigator"
+      VSCODE_NODE_OPTIONS: "--max-old-space-size=4096 --no-experimental-global-navigator"
+      DEFAULT_WORKSPACE: /config/workspace/drafts
+      # Optional OpenAI-compatible endpoint values for Cline (set in env/.env when needed).
+      CLINE_OPENAI_BASE_URL: "${CLINE_OPENAI_BASE_URL:-}"
+      CLINE_OPENAI_API_KEY: "${CLINE_OPENAI_API_KEY:-}"
+      CLINE_OPENAI_MODEL: "${CLINE_OPENAI_MODEL:-}"
+    ports:
+      - "8443:8443"
+    read_only: true
+    volumes:
+      # 只读根文件系统下，提供运行时可执行/可写目录
+      - code_server_tmp:/tmp
+      - code_server_run:/run
+      # code-server 配置与插件目录（可写）
+      - ./config/code-server:/config
+      # 仅挂载闪念草稿目录，避免误改工程其它文件
+      - ./eiscore-apps/src/views/drafts:/config/workspace/drafts
+
 volumes:
   pgdata:
+  code_server_tmp:
+  code_server_run:

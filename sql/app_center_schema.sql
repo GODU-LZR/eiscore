@@ -107,6 +107,8 @@ GRANT SELECT ON app_center.categories TO web_anon, web_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON app_center.published_routes TO web_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON app_center.workflow_state_mappings TO web_user;
 GRANT SELECT ON app_center.execution_logs TO web_user;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA app_center TO web_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA app_center GRANT USAGE, SELECT ON SEQUENCES TO web_user;
 
 -- Policy 1: All authenticated users can read categories
 DROP POLICY IF EXISTS "categories_select_policy" ON app_center.categories;
@@ -144,7 +146,29 @@ DROP POLICY IF EXISTS "published_routes_select_policy" ON app_center.published_r
 CREATE POLICY "published_routes_select_policy" ON app_center.published_routes
     FOR SELECT USING (is_active = true);
 
--- Policy 6: Workflow mappings inherit app permissions
+-- Policy 5b: Published routes write by super admin
+DROP POLICY IF EXISTS "published_routes_insert_policy" ON app_center.published_routes;
+CREATE POLICY "published_routes_insert_policy" ON app_center.published_routes
+    FOR INSERT WITH CHECK (
+        (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
+    );
+
+DROP POLICY IF EXISTS "published_routes_update_policy" ON app_center.published_routes;
+CREATE POLICY "published_routes_update_policy" ON app_center.published_routes
+    FOR UPDATE USING (
+        (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
+    )
+    WITH CHECK (
+        (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
+    );
+
+DROP POLICY IF EXISTS "published_routes_delete_policy" ON app_center.published_routes;
+CREATE POLICY "published_routes_delete_policy" ON app_center.published_routes
+    FOR DELETE USING (
+        (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
+    );
+
+-- Policy 6: Workflow mappings read
 DROP POLICY IF EXISTS "workflow_mappings_select_policy" ON app_center.workflow_state_mappings;
 CREATE POLICY "workflow_mappings_select_policy" ON app_center.workflow_state_mappings
     FOR SELECT USING (
@@ -152,6 +176,28 @@ CREATE POLICY "workflow_mappings_select_policy" ON app_center.workflow_state_map
             SELECT 1 FROM app_center.apps 
             WHERE id = workflow_app_id
         )
+    );
+
+-- Policy 6b: Workflow mappings write by super admin
+DROP POLICY IF EXISTS "workflow_mappings_insert_policy" ON app_center.workflow_state_mappings;
+CREATE POLICY "workflow_mappings_insert_policy" ON app_center.workflow_state_mappings
+    FOR INSERT WITH CHECK (
+        (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
+    );
+
+DROP POLICY IF EXISTS "workflow_mappings_update_policy" ON app_center.workflow_state_mappings;
+CREATE POLICY "workflow_mappings_update_policy" ON app_center.workflow_state_mappings
+    FOR UPDATE USING (
+        (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
+    )
+    WITH CHECK (
+        (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
+    );
+
+DROP POLICY IF EXISTS "workflow_mappings_delete_policy" ON app_center.workflow_state_mappings;
+CREATE POLICY "workflow_mappings_delete_policy" ON app_center.workflow_state_mappings
+    FOR DELETE USING (
+        (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
     );
 
 -- Policy 7: Execution logs readable by app creator or executor

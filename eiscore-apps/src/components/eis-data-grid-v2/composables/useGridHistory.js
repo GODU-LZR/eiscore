@@ -91,11 +91,16 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                 }
             }
             const group = rowUpdatesMap.get(id)
-            if (colDef.field === '_status' && group.useProperties && rowNode.data?.properties) {
-                if (writeMode === 'patch') {
-                  group.payload.properties = { ...(rowNode.data.properties || {}) }
-                } else {
-                  Object.assign(group.properties, rowNode.data.properties)
+            if (colDef.field === '_status') {
+                if (group.useProperties && rowNode.data?.properties) {
+                  if (writeMode === 'patch') {
+                    group.payload.properties = { ...(rowNode.data.properties || {}) }
+                  } else {
+                    Object.assign(group.properties, rowNode.data.properties)
+                  }
+                }
+                if (rowNode.data && Object.prototype.hasOwnProperty.call(rowNode.data, 'status')) {
+                  group.payload.status = rowNode.data.status
                 }
             } else if (colDef.field.startsWith('properties.') && group.useProperties) {
                 const propKey = colDef.field.split('.')[1]

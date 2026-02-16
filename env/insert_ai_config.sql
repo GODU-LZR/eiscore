@@ -26,6 +26,29 @@ VALUES (
         "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
         "thinking": {
             "type": "enabled"
+        },
+        "agents": {
+            "enterprise_analyst": {
+                "model": "glm-4.6v",
+                "temperature": 0.2,
+                "top_p": 0.8,
+                "max_tokens": 4096,
+                "tools_whitelist": ["echarts"]
+            },
+            "worker_assistant": {
+                "model": "glm-4.6v",
+                "temperature": 0.3,
+                "top_p": 0.9,
+                "max_tokens": 4096,
+                "tools_whitelist": ["form-template", "translate", "map-locate"]
+            },
+            "workflow_orchestrator": {
+                "model": "glm-4.6v",
+                "temperature": 0.1,
+                "top_p": 0.7,
+                "max_tokens": 6144,
+                "tools_whitelist": ["workflow-meta", "bpmn-xml", "mermaid"]
+            }
         }
     }'::jsonb,
     '智谱 AI GLM-4.6V 模型配置'

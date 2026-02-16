@@ -30,6 +30,12 @@ export default [
     meta: { title: '应用配置中心' }
   },
   {
+    path: '/ontology-relations/:appId?',
+    name: 'OntologyWorkbench',
+    component: () => import('../views/OntologyWorkbench.vue'),
+    meta: { title: '本体关系工作台' }
+  },
+  {
     path: '/app/:appId',
     name: 'AppRuntime',
     component: () => import('../views/AppRuntime.vue'),
@@ -40,6 +46,12 @@ export default [
     name: 'AppRecordDetail',
     component: () => import('../views/AppRecordDetail.vue'),
     meta: { title: '数据表单' }
+  },
+  {
+    path: '/preview/flash-draft',
+    name: 'FlashDraftPreview',
+    component: () => import('../views/drafts/FlashDraft.vue'),
+    meta: { title: '闪念草稿预览' }
   },
   {
     path: '/__preview/:draftId',

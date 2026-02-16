@@ -1,6 +1,18 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+const getAuthToken = () => {
+  const tokenStr = localStorage.getItem('auth_token')
+  if (!tokenStr) return ''
+  try {
+    const parsed = JSON.parse(tokenStr)
+    if (parsed?.token) return parsed.token
+  } catch (e) {
+    // ignore
+  }
+  return tokenStr
+}
+
 // 创建 axios 实例
 const service = axios.create({
   // baseURL: '/api', // 🟢 注意：因为我们在 AiBridge 里已经手动写了 /api 前缀，这里留空或者是 '/' 即可，避免双重前缀
@@ -12,7 +24,7 @@ const service = axios.create({
 service.interceptors.request.use(
   config => {
     // 如果有 token，可以在这里注入
-    const token = localStorage.getItem('auth_token')
+    const token = getAuthToken()
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
     }
@@ -38,14 +50,19 @@ service.interceptors.response.use(
     // 处理 HTTP 错误状态
     if (error.response) {
       const status = error.response.status
+      const reqUrl = String(error.config?.url || '')
+      const isAiEndpoint = reqUrl.includes('/agent/ai/')
       if (status === 401) {
-        ElMessage.error('未授权，请重新登录')
-        try {
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('user_info')
-        } catch (e) {}
-        if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-          window.location.href = '/login'
+        // AI 接口为可选能力，401 不应影响主业务登录态
+        if (!isAiEndpoint) {
+          ElMessage.error('未授权，请重新登录')
+          try {
+            localStorage.removeItem('auth_token')
+            localStorage.removeItem('user_info')
+          } catch (e) {}
+          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+            window.location.href = '/login'
+          }
         }
       } else if (status === 404) {
         // AI Bridge 有时会探测配置，404 不一定报错，留给调用方处理

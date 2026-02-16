@@ -84,8 +84,6 @@ const form = reactive({
 })
 
 const translationCache = new Map()
-let aiConfigCache = null
-let aiConfigPromise = null
 
 const allowAddress = computed(() => {
   const colDef = props.params?.colDef || {}
@@ -287,25 +285,23 @@ const extractTranslation = (data, resultField) => {
   return ''
 }
 
-const loadAiConfig = async () => {
-  if (aiConfigCache) return aiConfigCache
-  if (aiConfigPromise) return aiConfigPromise
-  aiConfigPromise = (async () => {
-    try {
-      const res = await fetch('/api/system_configs?key=eq.ai_glm_config', {
-        headers: { 'Accept': 'application/json', 'Accept-Profile': 'public' }
-      })
-      if (!res.ok) return null
-      const data = await res.json()
-      aiConfigCache = Array.isArray(data) ? data[0]?.value : null
-      return aiConfigCache
-    } catch (e) {
-      return null
-    } finally {
-      aiConfigPromise = null
-    }
-  })()
-  return aiConfigPromise
+const getAuthToken = () => {
+  const tokenStr = localStorage.getItem('auth_token')
+  if (!tokenStr) return ''
+  try {
+    const parsed = JSON.parse(tokenStr)
+    if (parsed?.token) return parsed.token
+  } catch (e) {
+    // ignore
+  }
+  return tokenStr
+}
+
+const buildAuthHeaders = () => {
+  const headers = { 'Content-Type': 'application/json' }
+  const token = getAuthToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
 }
 
 const translateWithGlm = async (text) => {
@@ -313,33 +309,19 @@ const translateWithGlm = async (text) => {
   if (!trimmed) return ''
   const cached = translationCache.get(trimmed)
   if (cached) return cached
-  const cfg = await loadAiConfig()
-  if (!cfg?.api_url || !cfg?.api_key) return trimmed
   const systemPrompt = `你是翻译助手。把用户输入翻译成简洁、自然的中文地址，只输出翻译结果，不要添加任何解释。若输入已是中文，原样输出。`
-  const userPrompt = trimmed
-  const payload = {
-    model: cfg.model || 'glm-4.6v',
-    stream: false,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt }
-    ],
-    thinking: cfg.thinking || { type: 'disabled' }
-  }
   try {
-    const res = await fetch(cfg.api_url, {
+    const res = await fetch('/agent/ai/translate', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${cfg.api_key}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+      headers: buildAuthHeaders(),
+      body: JSON.stringify({
+        text: trimmed,
+        prompt: systemPrompt
+      })
     })
     if (!res.ok) return trimmed
     const data = await res.json()
-    const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.delta?.content || ''
-    const result = String(content).trim().replace(/^["“]|["”]$/g, '')
-    const finalText = result || trimmed
+    const finalText = String(data?.text || '').trim() || trimmed
     translationCache.set(trimmed, finalText)
     return finalText
   } catch (e) {
@@ -410,38 +392,22 @@ const captureMapSnapshot = async () => {
 }
 
 const askGlmForMapLocation = async (imageUrl, lat, lng) => {
-  const cfg = await loadAiConfig()
-  if (!cfg?.api_url || !cfg?.api_key) return ''
   const config = getGeoConfig()
   const prompt = config.mapAiPrompt || `请根据地图截图上的中文地名，且以蓝色圆点为用户当前位置，找出离蓝点最近的街道级位置。输出严格格式的中文位置：“省-市-区/县/县级市-街道/乡镇”。必须包含街道级；如果无法确定街道，请用“某街道”或“附近街道”占位，但仍要输出四段。只输出位置，不要解释，不要多余的话。坐标：${lng},${lat}`
-  const payload = {
-    model: cfg.model || 'glm-4.6v',
-    stream: false,
-    messages: [
-      { role: 'system', content: '你是位置识别助手，只输出中文位置名称。' },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: imageUrl } }
-        ]
-      }
-    ],
-    thinking: cfg.thinking || { type: 'disabled' }
-  }
   try {
-    const res = await fetch(cfg.api_url, {
+    const res = await fetch('/agent/ai/map-locate', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${cfg.api_key}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+      headers: buildAuthHeaders(),
+      body: JSON.stringify({
+        imageUrl,
+        lat,
+        lng,
+        prompt
+      })
     })
     if (!res.ok) return ''
     const data = await res.json()
-    const content = data?.choices?.[0]?.message?.content || ''
-    return String(content).trim().replace(/^["“]|["”]$/g, '')
+    return String(data?.address || '').trim()
   } catch (e) {
     return ''
   }

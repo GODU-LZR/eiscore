@@ -9,9 +9,12 @@ import 'element-plus/dist/index.css'
 // 👇👇👇 暗黑模式变量定义 👇👇👇
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+import { patchElMessage } from '@/utils/message-patch'
 
 // 🟢 确保这里是命名导入，对应 micro/index.js 的 export function
 import { registerQiankun } from './micro'
+
+patchElMessage()
 
 const app = createApp(App)
 
@@ -49,5 +52,8 @@ if (typeof window !== 'undefined' && window.fetch) {
   }
 }
 
-// 🟢 启动微前端架构
-registerQiankun()
+// Start qiankun only after router is ready and layout container can render.
+// This avoids intermittent "Target container #subapp-viewport not existed".
+router.isReady().then(() => {
+  registerQiankun()
+})

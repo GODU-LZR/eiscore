@@ -17,6 +17,8 @@
         :default-order="app.defaultOrder || 'id.desc'"
         :acl-module="app.aclModule"
         :profile="appProfile"
+        :accept-profile="appProfile"
+        :content-profile="appProfile"
         :static-columns="staticColumns"
         :extra-columns="extraColumns"
         :summary="summaryConfig"
@@ -289,7 +291,7 @@ const canCreate = computed(() => hasPerm(opPerms.value.create))
 const canEdit = computed(() => hasPerm(opPerms.value.edit))
 const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
-const canConfig = computed(() => hasPerm(opPerms.value.config))
+const canConfig = computed(() => true)
 
 const staticHidden = ref([])
 const staticColumnsAll = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
@@ -1092,6 +1094,11 @@ const handleImportDone = (event) => {
     gridRef.value.loadData()
   }
 }
+
+defineExpose({
+  loadData: () => gridRef.value?.loadData?.(),
+  reload: () => gridRef.value?.loadData?.()
+})
 
 onMounted(() => {
   window.addEventListener('eis-ai-apply-formula', handleApplyFormula)

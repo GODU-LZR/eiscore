@@ -1,18 +1,17 @@
 <template>
-  <span class="check-editor">{{ value ? '✔' : '✘' }}</span>
+  <span class="check-editor">{{ nextValue ? '✔' : '✘' }}</span>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
 
 const props = defineProps(['params'])
-const value = ref(!!props.params?.value)
+const nextValue = !Boolean(props.params?.value)
 
-const getValue = () => value.value
+const getValue = () => nextValue
 defineExpose({ getValue })
 
 onMounted(() => {
-  value.value = !value.value
   props.params?.api?.stopEditing()
 })
 </script>

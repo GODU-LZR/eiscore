@@ -35,6 +35,12 @@ const normalizedOptions = computed(() => options.value.map(normalizeOption))
 
 const displayLabel = computed(() => {
   if (isMasked.value) return MASKED_TEXT
+  // If a formatter is provided on colDef, use it for display
+  const formatter = props.params?.colDef?.formatter
+  if (typeof formatter === 'function') {
+    const formatted = formatter(props.params)
+    if (formatted !== null && formatted !== undefined && formatted !== '') return formatted
+  }
   const target = normalize(rawValue.value)
   if (target === '') return ''
   const option = normalizedOptions.value.find(opt => normalize(opt.value) === target)

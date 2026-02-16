@@ -88,4 +88,11 @@ body {
 .dark #app .el-switch__core {
   background-color: #111827;
 }
+
+/* Keep message position stable in host + qiankun sub-apps */
+.el-message {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+}
 </style>

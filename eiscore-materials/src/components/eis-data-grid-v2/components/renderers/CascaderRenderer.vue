@@ -77,20 +77,41 @@ const normalizeOption = (item) => {
   }
   const label = item.label ?? item.value ?? ''
   const value = item.value ?? item.label ?? ''
-  const text = String(label || value)
-  return { label: text, value: text }
+  return { label: String(label || value), value: value }
 }
+
+const flatOptions = computed(() => colDef.value?.cascaderFlatOptions || null)
+const flatLabelField = computed(() => colDef.value?.cascaderLabelField || 'name')
+const flatValueField = computed(() => colDef.value?.cascaderValueField || 'id')
 
 const displayLabel = computed(() => {
   if (isMasked.value) return MASKED_TEXT
+  const target = normalize(rawValue.value)
+  if (target === '') return ''
+
+  // 1) Try formatter first if defined on colDef
+  if (typeof colDef.value?.formatter === 'function') {
+    const formatted = colDef.value.formatter(props.params)
+    if (formatted) return formatted
+  }
+
+  // 2) Try static options map
   const parentKey = normalize(parentValue.value).trim()
   const options = (optionsMap.value[parentKey] || optionsMap.value[normalize(parentValue.value)] || [])
     .map(normalizeOption)
     .filter(Boolean)
-  const target = normalize(rawValue.value)
-  if (target === '') return ''
   const option = options.find(opt => normalize(opt.value) === target)
-  return option ? option.label : (rawValue.value ?? '')
+  if (option) return option.label
+
+  // 3) Fallback: look up in flat warehouse list
+  const flat = flatOptions.value
+  if (flat) {
+    const rawList = Array.isArray(flat.value) ? flat.value : (Array.isArray(flat) ? flat : [])
+    const found = rawList.find(item => String(item?.[flatValueField.value] || '') === target)
+    if (found) return found[flatLabelField.value] || found[flatValueField.value] || target
+  }
+
+  return rawValue.value ?? ''
 })
 
 </script>

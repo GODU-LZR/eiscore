@@ -30,7 +30,6 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const resolvedRoleId = ref('')
   const aclRoleId = computed(() => userStore.userInfo?.role_id || userStore.userInfo?.roleId || resolvedRoleId.value || '')
   const aclModule = computed(() => props.aclModule || '')
-  const dataProfile = computed(() => props.acceptProfile || props.profile || 'public')
 
   const gridComponents = {
     StatusRenderer: markRaw(StatusRenderer),
@@ -151,6 +150,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const isCellReadOnly = (params) => {
     const colId = params.colDef.field
     if (props.canEdit === false && !params.node.rowPinned) return true
+    if (props.aclModule === 'mms_inventory' && !params.node.rowPinned) {
+      const rawStatus = params.data?.properties?.status ?? params.data?.status
+      const status = rawStatus ? String(rawStatus).toLowerCase() : ''
+      if (status === 'active' || status === 'locked') return true
+    }
     if (colId === '_status') return false 
     if (colId === '_actions') return true // ⚠️ 关键：操作列必须只读！
     if (params.node.rowPinned) return true
@@ -184,13 +188,14 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const base = { 'line-height': '34px' }
     if (params.node.rowPinned) return { ...base, backgroundColor: '#ecf5ff', color: '#409EFF', fontWeight: 'bold', borderTop: '2px solid var(--el-color-primary-light-5)' }
     if (params.colDef.field === '_status') return { ...base, cursor: 'pointer' }
+    if (params.data?.properties?.row_locked_by) return base
     const acl = getFieldAcl(params.colDef)
     if (acl?.canView === false) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
     if (acl?.canView !== false && acl?.canEdit === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (!shouldShowByWorkflow(params.colDef)) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
     if (!canEditByWorkflow(params.colDef)) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
-    if (params.colDef.editable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
+    if (params.colDef.editable === false && params.colDef.field !== '_actions') return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef?.multiLine) {
       return { ...base, whiteSpace: 'pre-line', lineHeight: '18px', paddingTop: '6px', paddingBottom: '6px' }
     }
@@ -202,9 +207,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       const acl = getFieldAcl(params.colDef)
       if (acl?.canView === false) return '*******'
       if (typeof col?.formatter === 'function') return col.formatter(params)
+      if (typeof col?.valueFormatter === 'function') return col.valueFormatter(params)
       if (Array.isArray(params.value)) return params.value.join('  ')
       return params.value
     }
+    if (col?.type === 'check') return ''
     const label = activeSummaryConfig?.cellLabels?.[col?.prop]
     if (!label) return params.value
     const val = params.value
@@ -299,7 +306,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const isSelectColumn = (col) => {
     if (!col) return false
     if (col.type === 'select' || col.type === 'dropdown') return true
-    if (Array.isArray(col.options)) return col.options.length > 0
+    if (Array.isArray(col.options)) return true
     if (col.dictKey) return true
     return false
   }
@@ -350,22 +357,16 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (eventEmitter) eventEmitter('view-document', rowData)
   }
 
-  const handleViewLabel = (rowData) => {
-    if (eventEmitter) eventEmitter('view-label', rowData)
-  }
-
   const context = reactive({ 
     componentParent: { 
         toggleColumnLock: handleToggleColumnLock, 
         columnLockState,
-        viewDocument: handleViewDocument,
-        viewLabel: handleViewLabel
+        viewDocument: handleViewDocument 
     } 
   })
 
   const createColDef = (col, isDynamic) => {
-    const useProperties = isDynamic || col.storeInProperties === true
-    const field = useProperties ? `properties.${col.prop}` : col.prop
+    const field = isDynamic ? `properties.${col.prop}` : col.prop
     const minWidth = col.minWidth ?? 150
     const widthConfig = col.width 
       ? { width: col.width, minWidth, suppressSizeToFit: true } 
@@ -377,6 +378,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (typeof col.valueParser === 'function') extraColDef.valueParser = col.valueParser
     if (col.multiLine) extraColDef.multiLine = true
     if (Array.isArray(col.syncFields)) extraColDef.syncFields = col.syncFields
+    if (col.skipSave === true) extraColDef.skipSave = true
+    if (col.allowClear !== undefined) extraColDef.allowClear = col.allowClear
     if (col.cellEditor) extraColDef.cellEditor = col.cellEditor
     if (col.cellEditorPopup !== undefined) extraColDef.cellEditorPopup = col.cellEditorPopup
     if (col.cellEditorPopupPosition) extraColDef.cellEditorPopupPosition = col.cellEditorPopupPosition
@@ -390,15 +393,19 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       cellClassRules: cellClassRules,
       valueFormatter: (params) => formatSummaryCell(params, col),
       headerComponent: 'LockHeader',
-      headerClass: useProperties ? 'dynamic-header' : '',
+      headerClass: isDynamic ? 'dynamic-header' : '',
       ...widthConfig,
       ...extraColDef
+    }
+
+    if (!colDef.valueFormatter) {
+      colDef.valueFormatter = (params) => formatSummaryCell(params, col)
     }
     const aclSnapshot = fieldAcl.value?.[col.prop] || null
     colDef.__aclCanView = aclSnapshot?.canView !== false
     colDef.__aclCanEdit = aclSnapshot?.canEdit !== false
 
-    if (useProperties) {
+    if (isDynamic) {
       colDef.valueSetter = (params) => {
         if (!params.data.properties || typeof params.data.properties !== 'object') {
           params.data.properties = {}
@@ -406,6 +413,16 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         if (params.data.properties[col.prop] === params.newValue) return false
         params.data.properties[col.prop] = params.newValue
         return true
+      }
+    }
+
+    if (col?.type === 'status') {
+      return {
+        ...colDef,
+        cellRenderer: 'StatusRenderer',
+        cellEditor: 'StatusEditor',
+        cellEditorPopup: true,
+        cellEditorPopupPosition: 'under'
       }
     }
 
@@ -423,17 +440,29 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     }
 
     if (col?.type === 'check') {
+      const parseCheckValue = (val) => {
+        if (typeof val === 'boolean') return val
+        if (val === null || val === undefined) return false
+        const text = String(val).toLowerCase()
+        if (text === 'true' || text === 't' || text === '1' || text === 'yes' || text === 'y') return true
+        if (text === 'false' || text === 'f' || text === '0' || text === 'no' || text === 'n') return false
+        return !!val
+      }
       return {
         ...colDef,
         cellRenderer: 'CheckRenderer',
         cellEditor: 'CheckEditor',
         cellEditorPopup: false,
-        editable: true,
+        editable: (params) => !isCellReadOnly(params),
+        suppressClickEdit: true,
         valueParser: (params) => {
-          if (typeof params.newValue === 'boolean') return params.newValue
-          if (params.newValue === 'true') return true
-          if (params.newValue === 'false') return false
-          return !!params.newValue
+          return parseCheckValue(params.newValue)
+        },
+        valueSetter: (params) => {
+          const nextVal = parseCheckValue(params.newValue)
+          if (params.data?.[field] === nextVal) return false
+          params.data[field] = nextVal
+          return true
         },
         width: col.width || 90,
         minWidth: col.minWidth || 80
@@ -452,6 +481,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         apiUrl: col.apiUrl,
         labelField: col.labelField || 'label',
         valueField: col.valueField || 'value',
+        cascaderFlatOptions: col.cascaderFlatOptions || null,
+        cascaderParentField: col.cascaderParentField || 'parent_id',
+        cascaderLabelField: col.cascaderLabelField || 'name',
+        cascaderValueField: col.cascaderValueField || 'id',
+        cascaderCodeField: col.cascaderCodeField || 'code',
         cascaderOptions: col.cascaderOptions || {},
         cascaderOptionsMap: {}
       }
@@ -474,7 +508,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         cellRenderer: 'FileRenderer',
         fileMaxCount: col.fileMaxCount ?? 3,
         fileMaxSizeMb: col.fileMaxSizeMb ?? 20,
-        fileAccept: col.fileAccept || ''
+        fileAccept: col.fileAccept || '',
+        fileStoreMode: col.fileStoreMode || 'list'
       }
     }
 
@@ -500,12 +535,32 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       editable: (params) => !params.node.rowPinned,
       cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, cellEditorPopupPosition: 'under',
       cellClassRules: cellClassRules,
-      valueGetter: params => params.node.rowPinned ? activeSummaryConfig.label : (params.data.properties?.row_locked_by ? 'locked' : params.data.properties?.status || 'created'), 
+      valueGetter: params => {
+        if (params.node.rowPinned) return activeSummaryConfig.label
+        if (params.data?.properties?.row_locked_by) return 'locked'
+        const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
+        const raw = hasStatus ? params.data?.status : params.data?.properties?.status
+        if (!raw) return 'created'
+        const text = String(raw).toLowerCase()
+        if (text === 'disabled') return 'locked'
+        if (text === 'draft' || text === 'created') return 'created'
+        if (text === 'active') return 'active'
+        if (text === 'locked') return 'locked'
+        return raw
+      },
       valueSetter: params => { 
         if(params.node.rowPinned || params.newValue===params.oldValue) return false; 
-        if(!params.data.properties) params.data.properties={}; 
-        params.data.properties.status=params.newValue; 
-        params.data.properties.row_locked_by = params.newValue==='locked'?currentUser.value:null; 
+        const allowProps = params.data && (params.data.properties || props.includeProperties !== false)
+        if (allowProps) {
+          if(!params.data.properties) params.data.properties={}; 
+          params.data.properties.status=params.newValue; 
+          params.data.properties.row_locked_by = params.newValue==='locked'?currentUser.value:null; 
+        }
+        const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
+        if (hasStatus) {
+          const mapped = params.newValue === 'locked' ? 'disabled' : (params.newValue === 'created' ? 'draft' : params.newValue)
+          params.data.status = mapped
+        }
         return true; 
       } 
     }
@@ -514,8 +569,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const actionCol = {
       headerName: '操作',
       field: '_actions',
-      width: 140,
-      minWidth: 140,
+      width: 100, // 稍微加宽一点以容纳文字
+      minWidth: 100,
       pinned: 'right', // 固定在右侧
       sortable: false,
       filter: false,
@@ -530,10 +585,13 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const staticCols = props.staticColumns.map(col => createColDef(col, false))
     const dynamicCols = props.extraColumns.map(col => createColDef(col, true))
     
-    const withActions = props.enableActions !== false
-    return withActions
-      ? [checkboxCol, statusCol, ...staticCols, ...dynamicCols, actionCol]
+    const baseCols = props.showStatusCol === false
+      ? [checkboxCol, ...staticCols, ...dynamicCols]
       : [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
+
+    return props.showActionCol === false
+      ? baseCols
+      : [...baseCols, actionCol]
   })
 
   watch([aclRoleId, aclModule], () => {
@@ -553,10 +611,12 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         url = `${url}${url.includes('?') ? '&' : '?'}order=${orderClause}`
       }
       if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
-      const res = await request({
-        url,
+      const acceptProfile = props.acceptProfile || props.profile || 'hr'
+      const contentProfile = props.contentProfile || props.profile || 'hr'
+      const res = await request({ 
+        url, 
         method: 'get',
-        headers: { 'Accept-Profile': dataProfile.value }
+        headers: { 'Accept-Profile': acceptProfile, 'Content-Profile': contentProfile }
       })
       const rows = Array.isArray(res) ? res : []
       gridData.value = rows
@@ -566,17 +626,15 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
           searchText: searchText.value || ''
         })
       }
-      setTimeout(() => { 
-        if (gridApi.value) {
-          const allColIds = gridApi.value.getColumns().map(c => c.getColId())
-          gridApi.value.autoSizeColumns(allColIds, false) 
-        }
-      }, 100)
-    } catch (e) {
-      const detail = e?.response?.data?.message || e?.response?.data?.details || e?.message
-      ElMessage.error(detail || '数据加载失败')
-      console.error('数据加载失败:', e)
-    }
+      if (props.autoSizeColumns !== false) {
+        setTimeout(() => { 
+          if (gridApi.value) {
+            const allColIds = gridApi.value.getColumns().map(c => c.getColId())
+            gridApi.value.autoSizeColumns(allColIds, false) 
+          }
+        }, 100)
+      }
+    } catch (e) { ElMessage.error('数据加载失败') } 
     finally { isLoading.value = false }
   }
 

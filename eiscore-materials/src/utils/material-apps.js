@@ -138,6 +138,24 @@ export const MATERIAL_APPS = [
     tone: 'green'
   },
   {
+    key: 'inventory-stock-in',
+    name: '入库',
+    desc: '登记物料入库与批次号',
+    route: '/inventory-stock-in',
+    perm: 'app:mms_inventory',
+    icon: 'Upload',
+    tone: 'teal'
+  },
+  {
+    key: 'inventory-stock-out',
+    name: '出库',
+    desc: '批次出库与库存扣减',
+    route: '/inventory-stock-out',
+    perm: 'app:mms_inventory',
+    icon: 'Download',
+    tone: 'red'
+  },
+  {
     key: 'inventory-current',
     name: '库存查询',
     desc: '实时库存汇总',
