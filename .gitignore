@@ -12,3 +12,5 @@ logs/
 .idea/
 .DS_Store
 db_schema_and_data.sql
+config/code-server/
+ecosystem.config.js.brokenlink

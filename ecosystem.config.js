@@ -1,1 +1,1 @@
-scripts/ecosystem.config.js
+module.exports = require('./scripts/ecosystem.config.js')

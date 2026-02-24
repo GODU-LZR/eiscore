@@ -4,6 +4,7 @@ const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { AgentConversation, FileWatcher } = require('./agent-core');
 const { WorkflowEngine } = require('./workflow-engine');
@@ -20,6 +21,9 @@ const jwtSecret = envText(process.env.PGRST_JWT_SECRET, envText(process.env.JWT_
 const aiConfigKey = envText(process.env.AI_CONFIG_KEY, 'ai_glm_config') || 'ai_glm_config';
 const aiConfigTtlMs = Number(process.env.AI_CONFIG_TTL_MS || 30 * 1000);
 const aiUpstreamTimeoutMs = Number(process.env.AI_UPSTREAM_TIMEOUT_MS || 120 * 1000);
+const postgrestBaseUrl = envText(process.env.AGENT_POSTGREST_URL, 'http://api:3000').replace(/\/+$/, '');
+const flashToolCallTimeoutMs = Number(process.env.FLASH_TOOL_CALL_TIMEOUT_MS || 30 * 1000);
+const flashToolIdempotencyTtlMs = Number(process.env.FLASH_TOOL_IDEMPOTENCY_TTL_MS || 10 * 60 * 1000);
 const flashCliEnabled = envText(process.env.FLASH_CLINE_ENABLED, 'true').toLowerCase() !== 'false';
 const flashCliCommand = envText(process.env.FLASH_CLINE_COMMAND, '/app/node_modules/.bin/cline');
 const flashCliProjectPath = envText(process.env.FLASH_CLINE_PROJECT_PATH, 'eiscore-apps/src/views/drafts');
@@ -39,8 +43,26 @@ const flashCliInstallTimeoutMs = Number(process.env.FLASH_CLINE_INSTALL_TIMEOUT_
 const flashCliSelfHealMaxRounds = Math.max(0, Number(process.env.FLASH_CLINE_SELF_HEAL_ROUNDS || 3));
 const flashCliAutoInstallDeps = envText(process.env.FLASH_CLINE_AUTO_INSTALL_DEPS, 'true').toLowerCase() !== 'false';
 const flashDraftFileName = envText(process.env.FLASH_DRAFT_FILE, 'FlashDraft.vue');
+const flashAttachmentDirName = envText(process.env.FLASH_ATTACHMENT_DIR_NAME, '.uploads') || '.uploads';
+const flashAttachmentMaxBytes = Math.max(256 * 1024, Number(process.env.FLASH_ATTACHMENT_MAX_BYTES || 8 * 1024 * 1024));
+const flashAttachmentPreviewMaxChars = Math.max(800, Number(process.env.FLASH_ATTACHMENT_PREVIEW_MAX_CHARS || 8000));
+const flashSemanticCliScript = envText(process.env.FLASH_SEMANTIC_CLI_SCRIPT, '/app/flash-semantic-tool.js');
+const flashAgentBaseUrl = envText(process.env.FLASH_AGENT_BASE_URL, `http://127.0.0.1:${port}`).replace(/\/+$/, '');
 const runtimeNodeMajor = Number.parseInt(String(process.versions.node || '0').split('.')[0], 10) || 0;
 const flashCliRuntimeReady = runtimeNodeMajor >= 20;
+
+const ensureBashCompat = () => {
+  try {
+    if (fs.existsSync('/bin/bash')) return true;
+    if (!fs.existsSync('/bin/sh')) return false;
+    fs.symlinkSync('/bin/sh', '/bin/bash');
+    return fs.existsSync('/bin/bash');
+  } catch {
+    return false;
+  }
+};
+
+ensureBashCompat();
 
 const resolveFlashCliWorkdir = () => {
   const candidates = [
@@ -97,6 +119,22 @@ const resolveFlashDraftFilePath = () => {
   return resolved;
 };
 
+const readFlashDraftFingerprintSafe = async () => {
+  try {
+    const target = resolveFlashDraftFilePath();
+    const stat = await fs.promises.stat(target);
+    if (!stat?.isFile?.()) return null;
+    const buffer = await fs.promises.readFile(target);
+    return {
+      bytes: Number(stat.size || 0),
+      mtimeMs: Number(stat.mtimeMs || 0),
+      sha1: crypto.createHash('sha1').update(buffer).digest('hex')
+    };
+  } catch {
+    return null;
+  }
+};
+
 // In proxy-based environments, Node fetch reads proxy vars when this flag is enabled.
 if (!process.env.NODE_USE_ENV_PROXY) {
   process.env.NODE_USE_ENV_PROXY = '1';
@@ -108,6 +146,487 @@ let shuttingDown = false;
 let workflowEngine = null;
 let aiConfigCache = null;
 let aiConfigLoadedAt = 0;
+const flashToolIdempotencyCache = new Map();
+
+const flashSemanticToolRegistryVersion = 'flash-tools-v2';
+const flashSemanticToolRegistry = Object.freeze([
+  {
+    tool_id: 'flash.app.list',
+    tool_name_zh: '查询应用列表',
+    intent: 'read_list',
+    object: 'app_registry',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/apps', method: 'GET', accept_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.app.detail',
+    tool_name_zh: '查询应用详情',
+    intent: 'read_detail',
+    object: 'app_registry',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/apps', method: 'GET', accept_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.route.resolve',
+    tool_name_zh: '查询发布路由',
+    intent: 'read_detail',
+    object: 'published_route',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/published_routes', method: 'GET', accept_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.data.grid.list',
+    tool_name_zh: '查询表格列表数据',
+    intent: 'read_list',
+    object: 'data_table',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/{table}', method: 'GET' }
+  },
+  {
+    tool_id: 'flash.data.grid.detail',
+    tool_name_zh: '查询表格单条详情',
+    intent: 'read_detail',
+    object: 'data_table',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/{table}', method: 'GET' }
+  },
+  {
+    tool_id: 'flash.data.grid.export',
+    tool_name_zh: '导出表格数据',
+    intent: 'read_export',
+    object: 'data_table',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/{table}', method: 'GET' }
+  },
+  {
+    tool_id: 'flash.workflow.definition.list',
+    tool_name_zh: '查询流程定义',
+    intent: 'read_list',
+    object: 'workflow_definition',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/definitions', method: 'GET', accept_profile: 'workflow' }
+  },
+  {
+    tool_id: 'flash.workflow.instance.list',
+    tool_name_zh: '查询流程实例',
+    intent: 'read_list',
+    object: 'workflow_instance',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/instances', method: 'GET', accept_profile: 'workflow' }
+  },
+  {
+    tool_id: 'flash.workflow.event.list',
+    tool_name_zh: '查询流程日志',
+    intent: 'read_list',
+    object: 'workflow_event',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/instance_events', method: 'GET', accept_profile: 'workflow' }
+  },
+  {
+    tool_id: 'flash.workflow.assignment.list',
+    tool_name_zh: '查询流程任务分派',
+    intent: 'read_list',
+    object: 'workflow_task_assignment',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/task_assignments', method: 'GET', accept_profile: 'workflow' }
+  },
+  {
+    tool_id: 'flash.workflow.mapping.list',
+    tool_name_zh: '查询流程状态映射',
+    intent: 'read_list',
+    object: 'workflow_state_mapping',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/workflow_state_mappings', method: 'GET', accept_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.inventory.current.list',
+    tool_name_zh: '查询当前库存',
+    intent: 'read_list',
+    object: 'inventory_current',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/v_inventory_current', method: 'GET', accept_profile: 'scm' }
+  },
+  {
+    tool_id: 'flash.inventory.draft.list',
+    tool_name_zh: '查询库存草稿',
+    intent: 'read_list',
+    object: 'inventory_draft',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/v_inventory_drafts', method: 'GET', accept_profile: 'scm' }
+  },
+  {
+    tool_id: 'flash.material.master.list',
+    tool_name_zh: '查询物料主数据',
+    intent: 'read_list',
+    object: 'material_master',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/raw_materials', method: 'GET', accept_profile: 'public' }
+  },
+  {
+    tool_id: 'flash.warehouse.list',
+    tool_name_zh: '查询仓库列表',
+    intent: 'read_list',
+    object: 'warehouse',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/warehouses', method: 'GET', accept_profile: 'scm' }
+  },
+  {
+    tool_id: 'flash.hr.archive.list',
+    tool_name_zh: '查询人事档案',
+    intent: 'read_list',
+    object: 'hr_archive',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/archives', method: 'GET', accept_profile: 'hr' }
+  },
+  {
+    tool_id: 'flash.ontology.relation.list',
+    tool_name_zh: '查询本体关系',
+    intent: 'read_list',
+    object: 'ontology_relation',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/ontology_table_relations', method: 'GET', accept_profile: 'app_data' }
+  },
+  {
+    tool_id: 'flash.ontology.semantic.list',
+    tool_name_zh: '查询本体语义',
+    intent: 'read_list',
+    object: 'ontology_semantic',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 1,
+    api: { path: '/ontology_table_semantics', method: 'GET', accept_profile: 'public' }
+  },
+  {
+    tool_id: 'flash.app.create',
+    tool_name_zh: '创建应用',
+    intent: 'create_record',
+    object: 'app_registry',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/apps', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.app.delete',
+    tool_name_zh: '删除应用',
+    intent: 'delete_record',
+    object: 'app_registry',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/apps', method: 'DELETE', accept_profile: 'app_center', content_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.data.table.ensure',
+    tool_name_zh: '初始化数据应用表',
+    intent: 'configure_app',
+    object: 'data_table',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/rpc/create_data_app_table', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.data.grid.create',
+    tool_name_zh: '新增表格记录',
+    intent: 'create_record',
+    object: 'data_table',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/{table}', method: 'POST' }
+  },
+  {
+    tool_id: 'flash.data.grid.update',
+    tool_name_zh: '更新表格记录',
+    intent: 'update_record',
+    object: 'data_table',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/{table}', method: 'PATCH' }
+  },
+  {
+    tool_id: 'flash.data.grid.delete',
+    tool_name_zh: '删除表格记录',
+    intent: 'delete_record',
+    object: 'data_table',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/{table}', method: 'DELETE' }
+  },
+  {
+    tool_id: 'flash.workflow.definition.upsert',
+    tool_name_zh: '写入流程定义',
+    intent: 'configure_app',
+    object: 'workflow_definition',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/definitions', method: 'POST/PATCH', accept_profile: 'workflow', content_profile: 'workflow' }
+  },
+  {
+    tool_id: 'flash.workflow.assignment.upsert',
+    tool_name_zh: '写入流程任务分派',
+    intent: 'configure_app',
+    object: 'workflow_task_assignment',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/task_assignments', method: 'POST/PATCH', accept_profile: 'workflow', content_profile: 'workflow' }
+  },
+  {
+    tool_id: 'flash.workflow.mapping.upsert',
+    tool_name_zh: '写入流程状态映射',
+    intent: 'configure_app',
+    object: 'workflow_state_mapping',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/workflow_state_mappings', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.workflow.instance.start',
+    tool_name_zh: '启动流程实例',
+    intent: 'start_workflow',
+    object: 'workflow_instance',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/rpc/start_workflow_instance', method: 'POST', accept_profile: 'workflow', content_profile: 'workflow' }
+  },
+  {
+    tool_id: 'flash.workflow.instance.transition',
+    tool_name_zh: '推进流程实例',
+    intent: 'transition_workflow',
+    object: 'workflow_instance',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/rpc/transition_workflow_instance', method: 'POST', accept_profile: 'workflow', content_profile: 'workflow' }
+  },
+  {
+    tool_id: 'flash.hr.archive.update',
+    tool_name_zh: '更新人事档案',
+    intent: 'update_record',
+    object: 'hr_archive',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/archives', method: 'PATCH', accept_profile: 'hr', content_profile: 'hr' }
+  },
+  {
+    tool_id: 'flash.hr.attendance.init',
+    tool_name_zh: '初始化考勤记录',
+    intent: 'configure_app',
+    object: 'hr_attendance_record',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/rpc/init_attendance_records', method: 'POST', accept_profile: 'hr', content_profile: 'hr' }
+  },
+  {
+    tool_id: 'flash.inventory.draft.create',
+    tool_name_zh: '创建库存草稿',
+    intent: 'create_record',
+    object: 'inventory_draft',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/inventory_drafts', method: 'POST', accept_profile: 'scm', content_profile: 'scm' }
+  },
+  {
+    tool_id: 'flash.inventory.batchno.generate',
+    tool_name_zh: '生成批次号',
+    intent: 'configure_app',
+    object: 'inventory_draft',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/rpc/generate_batch_no', method: 'POST', accept_profile: 'scm', content_profile: 'scm' }
+  },
+  {
+    tool_id: 'flash.inventory.stock.in',
+    tool_name_zh: '执行库存入库',
+    intent: 'update_record',
+    object: 'inventory_transaction',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/rpc/stock_in', method: 'POST', accept_profile: 'scm', content_profile: 'scm' }
+  },
+  {
+    tool_id: 'flash.inventory.stock.out',
+    tool_name_zh: '执行库存出库',
+    intent: 'update_record',
+    object: 'inventory_transaction',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/rpc/stock_out', method: 'POST', accept_profile: 'scm', content_profile: 'scm' }
+  },
+  {
+    tool_id: 'flash.ontology.semantic.enrich',
+    tool_name_zh: '补全本体语义',
+    intent: 'semantic_enrich',
+    object: 'ontology_semantic',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/ontology_table_semantics', method: 'POST/PATCH', accept_profile: 'public', content_profile: 'public' }
+  },
+  {
+    tool_id: 'flash.draft.read',
+    tool_name_zh: '读取闪念草稿',
+    intent: 'read',
+    object: 'flash_draft',
+    risk_level: 'low',
+    confirm_required: false,
+    batch: 2,
+    api: { path: '/agent/flash/draft', method: 'GET' }
+  },
+  {
+    tool_id: 'flash.draft.write',
+    tool_name_zh: '写入闪念草稿',
+    intent: 'save',
+    object: 'flash_draft',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/agent/flash/draft', method: 'POST' }
+  },
+  {
+    tool_id: 'flash.attachment.upload',
+    tool_name_zh: '上传闪念附件',
+    intent: 'upload',
+    object: 'flash_attachment',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/agent/flash/attachments', method: 'POST' }
+  },
+  {
+    tool_id: 'flash.app.save',
+    tool_name_zh: '保存闪念应用',
+    intent: 'save',
+    object: 'flash_application',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/apps', method: 'PATCH', accept_profile: 'app_center', content_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.app.publish',
+    tool_name_zh: '发布闪念应用',
+    intent: 'publish',
+    object: 'flash_application',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/apps', method: 'PATCH', accept_profile: 'app_center', content_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.route.upsert',
+    tool_name_zh: '写入发布路由',
+    intent: 'configure_app',
+    object: 'published_route',
+    risk_level: 'high',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/published_routes', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
+  },
+  {
+    tool_id: 'flash.audit.write',
+    tool_name_zh: '写入执行审计',
+    intent: 'audit',
+    object: 'execution_log',
+    risk_level: 'medium',
+    confirm_required: true,
+    batch: 2,
+    api: { path: '/execution_logs', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
+  }
+]);
+
+const flashSemanticToolAliases = Object.freeze({
+  'cap.app.list': 'flash.app.list',
+  'cap.app.detail': 'flash.app.detail',
+  'cap.app.create': 'flash.app.create',
+  'cap.app.update': 'flash.app.save',
+  'cap.app.delete': 'flash.app.delete',
+  'cap.route.resolve': 'flash.route.resolve',
+  'cap.route.upsert': 'flash.route.upsert',
+  'cap.data.table.ensure': 'flash.data.table.ensure',
+  'cap.data.grid.list': 'flash.data.grid.list',
+  'cap.data.grid.detail': 'flash.data.grid.detail',
+  'cap.data.grid.create': 'flash.data.grid.create',
+  'cap.data.grid.update': 'flash.data.grid.update',
+  'cap.data.grid.delete': 'flash.data.grid.delete',
+  'cap.data.grid.export': 'flash.data.grid.export',
+  'cap.workflow.definition.list': 'flash.workflow.definition.list',
+  'cap.workflow.definition.upsert': 'flash.workflow.definition.upsert',
+  'cap.workflow.assignment.list': 'flash.workflow.assignment.list',
+  'cap.workflow.assignment.upsert': 'flash.workflow.assignment.upsert',
+  'cap.workflow.mapping.list': 'flash.workflow.mapping.list',
+  'cap.workflow.mapping.upsert': 'flash.workflow.mapping.upsert',
+  'cap.workflow.instance.list': 'flash.workflow.instance.list',
+  'cap.workflow.event.list': 'flash.workflow.event.list',
+  'cap.workflow.instance.start': 'flash.workflow.instance.start',
+  'cap.workflow.instance.transition': 'flash.workflow.instance.transition',
+  'cap.hr.archive.list': 'flash.hr.archive.list',
+  'cap.hr.archive.update': 'flash.hr.archive.update',
+  'cap.hr.attendance.init': 'flash.hr.attendance.init',
+  'cap.inventory.current.list': 'flash.inventory.current.list',
+  'cap.inventory.draft.list': 'flash.inventory.draft.list',
+  'cap.inventory.draft.create': 'flash.inventory.draft.create',
+  'cap.inventory.batchno.generate': 'flash.inventory.batchno.generate',
+  'cap.inventory.stock.in': 'flash.inventory.stock.in',
+  'cap.inventory.stock.out': 'flash.inventory.stock.out',
+  'cap.material.master.list': 'flash.material.master.list',
+  'cap.warehouse.list': 'flash.warehouse.list',
+  'cap.ontology.relation.list': 'flash.ontology.relation.list',
+  'cap.ontology.semantic.list': 'flash.ontology.semantic.list',
+  'cap.ontology.semantic.enrich': 'flash.ontology.semantic.enrich',
+  'flash.app.read': 'flash.app.detail'
+});
+
+const flashSemanticToolMap = new Map(
+  flashSemanticToolRegistry.map((tool) => [tool.tool_id, tool])
+);
 
 const getRequestPath = (req) => {
   const rawPath = String(req?.url || '/').split('?')[0] || '/';
@@ -135,10 +654,12 @@ const getBearerFromAuthHeader = (req) => {
   return match ? match[1].trim() : '';
 };
 
-const asUser = (payload) => ({
+const asUser = (payload, token) => ({
   id: payload?.user_id || payload?.sub || payload?.username || payload?.email || '',
+  username: payload?.username || '',
   role: payload?.app_role || payload?.role || '',
-  permissions: Array.isArray(payload?.permissions) ? payload.permissions.map((p) => String(p)) : []
+  permissions: Array.isArray(payload?.permissions) ? payload.permissions.map((p) => String(p)) : [],
+  token: token || ''
 });
 
 const readJsonBody = (req, maxBytes = 25 * 1024 * 1024) => {
@@ -190,6 +711,15 @@ const normalizeAiText = (value) => {
     return String(value.text || '').trim();
   }
   return String(value).trim();
+};
+
+const normalizeFlashCliError = (value) => {
+  const text = normalizeAiText(value);
+  if (!text) return '';
+  if (/spawn\s+\/bin\/bash\s+ENOENT/i.test(text) || /\/bin\/bash.*not found/i.test(text)) {
+    return '自动修复失败：运行环境缺少 /bin/bash，Cline 无法执行命令。请重建 agent-runtime 后重试。';
+  }
+  return text;
 };
 
 const normalizeMode = (value) => {
@@ -425,23 +955,85 @@ const buildAgentCatalog = (user, cfg) => {
 };
 
 const buildAgentSystemPrompt = ({ agentId, context, user, intent }) => {
-  const safeContext = context && typeof context === 'object'
-    ? JSON.stringify(context, null, 2).slice(0, 3000)
+  const snapshot = context?.businessSnapshot;
+  const semanticCtx = context?.semanticContext;
+  const ctxCopy = context ? { ...context } : {};
+  delete ctxCopy.businessSnapshot;
+  delete ctxCopy.injectBusinessData;
+  delete ctxCopy.semanticContext;
+
+  const safeContext = ctxCopy && typeof ctxCopy === 'object' && Object.keys(ctxCopy).length
+    ? JSON.stringify(ctxCopy, null, 2).slice(0, 3000)
     : '';
 
   const contextBlock = safeContext
     ? `\n\n【业务上下文】\n${safeContext}`
     : '';
 
+  const snapshotBlock = snapshot && typeof snapshot === 'object'
+    ? `\n\n【企业实时数据快照（${snapshot.snapshotTime || '最新'}）】\n以下是从系统数据库查询到的真实业务数据，请基于这些真实数据进行分析，不要编造数据：\n${JSON.stringify(snapshot, null, 2).slice(0, 8000)}`
+    : '';
+
+  // ── 构建语义上下文块（所有 agent 通用） ──
+  let semanticBlock = '';
+  if (semanticCtx && typeof semanticCtx === 'object') {
+    const parts = [];
+    parts.push('以下是系统本体语义模型，描述了数据库表、列和关系的业务含义，请利用这些语义信息更准确地理解和分析数据：');
+
+    // 表级语义
+    if (Array.isArray(semanticCtx.tables) && semanticCtx.tables.length) {
+      const tableLines = semanticCtx.tables.map(t =>
+        `  - ${t.schema}.${t.table}（${t.name}）${t.desc ? '：' + t.desc : ''}`
+      );
+      parts.push(`\n数据表清单（${semanticCtx.tables.length}张）：\n${tableLines.join('\n')}`);
+    }
+
+    // 列级语义（按表分组，每表最多显示关键列）
+    if (semanticCtx.columns && typeof semanticCtx.columns === 'object') {
+      const tableKeys = Object.keys(semanticCtx.columns);
+      const colLines = [];
+      for (const tbl of tableKeys) {
+        const cols = semanticCtx.columns[tbl];
+        if (!Array.isArray(cols) || !cols.length) continue;
+        const colDesc = cols.slice(0, 15).map(c =>
+          `${c.col}=${c.name}${c.cls ? '(' + c.cls + ')' : ''}`
+        ).join(', ');
+        colLines.push(`  ${tbl}: ${colDesc}${cols.length > 15 ? ` ...共${cols.length}列` : ''}`);
+      }
+      if (colLines.length) {
+        parts.push(`\n列级语义（${tableKeys.length}张表）：\n${colLines.join('\n')}`);
+      }
+    }
+
+    // 表间关系
+    if (Array.isArray(semanticCtx.relations) && semanticCtx.relations.length) {
+      const relLines = semanticCtx.relations.map(r =>
+        `  - ${r.from}（${r.fromName || ''}）--[${r.predicate}]--> ${r.to}（${r.toName || ''}）`
+      );
+      parts.push(`\n表间关系（${semanticCtx.relations.length}条）：\n${relLines.join('\n')}`);
+    }
+
+    // 权限语义
+    if (Array.isArray(semanticCtx.permissions) && semanticCtx.permissions.length) {
+      const permLines = semanticCtx.permissions.slice(0, 30).map(p =>
+        `  - ${p.code}（${p.kind}${p.entity ? '/' + p.entity : ''}${p.action ? '.' + p.action : ''}）`
+      );
+      parts.push(`\n权限语义（前${Math.min(30, semanticCtx.permissions.length)}条）：\n${permLines.join('\n')}`);
+    }
+
+    const rawSemanticText = parts.join('\n');
+    semanticBlock = `\n\n【系统本体语义模型（${semanticCtx.fetchedAt || '最新'}）】\n${rawSemanticText.slice(0, 6000)}`;
+  }
+
   if (agentId === 'workflow_orchestrator') {
-    return `你是流程编排智能体。你的职责是把业务需求转换成可落地的流程定义。\n\n【硬性规则】\n1. 必须输出 Mermaid 流程图（\`\`\`mermaid）。\n2. 必须输出 BPMN XML（\`\`\`bpmn-xml）。\n3. 必须输出流程元信息（\`\`\`workflow-meta），包含 name 与 associated_table。\n4. 禁止输出经营分析图表（如 ECharts）和无关内容。\n5. 语气简洁，优先可执行结果。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${contextBlock}`;
+    return `你是流程编排智能体。你的职责是把业务需求转换成可落地的流程定义。\n\n【硬性规则】\n1. 必须输出 Mermaid 流程图（\`\`\`mermaid）。\n2. 必须输出 BPMN XML（\`\`\`bpmn-xml）。\n3. 必须输出流程元信息（\`\`\`workflow-meta），包含 name 与 associated_table。\n4. 禁止输出经营分析图表（如 ECharts）和无关内容。\n5. 语气简洁，优先可执行结果。\n6. 利用【系统本体语义模型】中的表结构和关系来选择正确的 associated_table 和字段映射。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${contextBlock}`;
   }
 
   if (agentId === 'enterprise_analyst') {
-    return `你是企业经营分析智能体。你的职责是输出“专业但通俗易懂”的经营分析报告，并给出可执行建议。\n\n【表达风格】\n1. 用业务语言解释指标含义，尽量少术语；若必须用术语，紧跟一句白话解释。\n2. 先给一句结论，再给证据（数据/图表），最后给行动建议。\n3. 每条建议都要可落地（负责人/时点/目标方向）。\n\n【硬性规则】\n1. 回答开头禁止客套语（如“好的/收到/我将”），直接进入“经营分析报告”或“摘要”。\n2. 默认输出结构：摘要 -> 核心指标解读 -> 图表洞察 -> 风险与机会 -> 执行建议。\n3. 图文并茂：当有数据时，优先给 2-4 个图（趋势、结构、对比、相关性）。\n4. 输出 ECharts 时只允许 \`\`\`echarts 代码块，且必须是严格 JSON：双引号、无注释、无尾逗号、禁止函数（如 formatter/itemStyle.color function）。\n5. 严禁输出 BPMN XML、workflow-meta、流程编排内容，除非用户明确要求“流程编排/BPMN审批流设计”。\n6. 结论必须业务可执行，避免空话。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${contextBlock}`;
+    return `你是企业经营分析智能体。你的职责是输出“专业但通俗易懂”的经营分析报告，并给出可执行建议。\n\n【表达风格】\n1. 用业务语言解释指标含义，尽量少术语；若必须用术语，紧跟一句白话解释。\n2. 先给一句结论，再给证据（数据/图表），最后给行动建议。\n3. 每条建议都要可落地（负责人/时点/目标方向）。\n\n【硬性规则】\n1. 回答开头禁止客套语（如“好的/收到/我将”），直接进入“经营分析报告”或“摘要”。\n2. 默认输出结构：摘要 -> 核心指标解读 -> 图表洞察 -> 风险与机会 -> 执行建议。\n3. 图文并茂：当有数据时，优先给 2-4 个图（趋势、结构、对比、相关性）。\n4. 输出 ECharts 时只允许 \`\`\`echarts 代码块，且必须是严格 JSON：双引号、无注释、无尾逗号、禁止函数（如 formatter/itemStyle.color function）。\n5. 严禁输出 BPMN XML、workflow-meta、流程编排内容，除非用户明确要求“流程编排/BPMN审批流设计”。\n6. 结论必须业务可执行，避免空话。\n7. 当系统提供了【企业实时数据快照】时，必须基于真实数据进行分析和图表生成，禁止编造或使用示例假数据。\n8. 利用【系统本体语义模型】理解数据表和字段的业务含义，用语义名称（中文）而非数据库原始字段名来呈现分析结果。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${snapshotBlock}${contextBlock}`;
   }
 
-  return `你是企业一线工作助手。你的职责是帮助用户整理数据、填表、导入、解释字段。\n\n【硬性规则】\n1. 用通俗语句分步骤回答。\n2. 默认不输出流程编排内容（BPMN/workflow-meta），除非用户明确提出流程编排需求。\n3. 当用户要求表单模板时，输出 form-template 代码块。\n4. 关注可直接录入系统的字段结果。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${contextBlock}`;
+  return `你是企业一线工作助手。你的职责是帮助用户整理数据、填表、导入、解释字段。\n\n【硬性规则】\n1. 用通俗语句分步骤回答。\n2. 默认不输出流程编排内容（BPMN/workflow-meta），除非用户明确提出流程编排需求。\n3. 当用户要求表单模板时，输出 form-template 代码块。\n4. 关注可直接录入系统的字段结果。\n5. 利用【系统本体语义模型】中的列语义信息帮助用户理解字段含义、正确填写表单。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${contextBlock}`;
 };
 
 const resolveAgentRoute = ({ user, body, messages }) => {
@@ -835,6 +1427,13 @@ const runSpawnCapture = (command, args, options = {}) => {
   });
 };
 
+const buildFlashCliEnv = (token = '') => ({
+  ...process.env,
+  FLASH_AGENT_TOKEN: String(token || ''),
+  FLASH_AGENT_BASE_URL: flashAgentBaseUrl,
+  FLASH_SEMANTIC_CLI_SCRIPT: flashSemanticCliScript
+});
+
 const summarizeCommandOutput = (stdout, stderr, maxChars = 1800) => {
   const text = `${String(stdout || '')}\n${String(stderr || '')}`.trim();
   if (!text) return '';
@@ -1046,10 +1645,17 @@ const runFlashBuildSelfHeal = async ({
   configDir,
   model,
   prompt,
-  taskWorkdir
+  taskWorkdir,
+  clineEnv
 }) => {
   if (!flashCliBuildValidateEnabled) {
     return { success: true, skipped: true };
+  }
+  if (!ensureBashCompat()) {
+    return {
+      success: false,
+      error: '自动修复失败：运行环境缺少 /bin/bash，无法执行命令。请重建 agent-runtime 后重试。'
+    };
   }
 
   const buildWorkdir = resolveFlashBuildWorkdir(taskWorkdir);
@@ -1131,7 +1737,9 @@ const runFlashBuildSelfHeal = async ({
       manager = installRun.manager;
       const installResult = installRun.result;
       if (installResult.timedOut || Number(installResult.code || 0) !== 0) {
-        const installError = summarizeCommandOutput(installResult.stdout, installResult.stderr, 800);
+        const installError = normalizeFlashCliError(
+          summarizeCommandOutput(installResult.stdout, installResult.stderr, 800)
+        );
         return {
           success: false,
           error: `自动安装依赖失败：${installError || 'unknown error'}`
@@ -1166,6 +1774,7 @@ const runFlashBuildSelfHeal = async ({
     });
     const repairResult = await runSpawnCapture(clineBin, repairArgs, {
       cwd: '/app',
+      env: clineEnv || process.env,
       timeoutMs: flashCliTaskTimeoutMs,
       onSpawn: bindSessionProcess.onSpawn,
       onDone: bindSessionProcess.onDone
@@ -1192,7 +1801,9 @@ const runFlashBuildSelfHeal = async ({
       };
     }
     if (Number(repairResult.code || 0) !== 0) {
-      const repairError = repairEvents.errorText || summarizeCommandOutput(repairResult.stdout, repairResult.stderr, 900);
+      const repairError = normalizeFlashCliError(
+        repairEvents.errorText || summarizeCommandOutput(repairResult.stdout, repairResult.stderr, 900)
+      );
       return {
         success: false,
         error: `自动修复失败：${repairError || 'unknown error'}`
@@ -1222,14 +1833,62 @@ const clampFlashHistory = (history) => {
   return items.slice(-limit);
 };
 
-const buildFlashCliPrompt = (prompt, history = []) => {
+const normalizeFlashAttachmentList = (attachments, taskWorkdir) => {
+  if (!Array.isArray(attachments) || !taskWorkdir) return [];
+  const workdirResolved = path.resolve(taskWorkdir);
+  let totalPreviewChars = 0;
+
+  return attachments
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const relativePath = normalizeRelativeAgentPath(item.relativePath || item.path);
+      if (!relativePath) return null;
+      const absolutePath = path.resolve(workdirResolved, relativePath);
+      if (absolutePath !== workdirResolved && !absolutePath.startsWith(`${workdirResolved}${path.sep}`)) {
+        return null;
+      }
+      if (!fs.existsSync(absolutePath)) return null;
+
+      const name = sanitizeUploadFileName(item.name || path.posix.basename(relativePath));
+      const mimeType = normalizeAiText(item.mimeType || item.type).slice(0, 120) || 'application/octet-stream';
+      const size = Number.isFinite(Number(item.size)) ? Number(item.size) : 0;
+      let textPreview = normalizeAiText(item.textPreview || item.preview || '');
+      if (textPreview) {
+        const remaining = Math.max(0, flashAttachmentPreviewMaxChars - totalPreviewChars);
+        if (remaining <= 0) {
+          textPreview = '';
+        } else if (textPreview.length > remaining) {
+          textPreview = `${textPreview.slice(0, remaining)}...`;
+          totalPreviewChars = flashAttachmentPreviewMaxChars;
+        } else {
+          totalPreviewChars += textPreview.length;
+        }
+      }
+
+      return {
+        name,
+        mimeType,
+        size: Math.max(0, Math.floor(size)),
+        relativePath,
+        textPreview
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 8);
+};
+
+const buildFlashCliPrompt = (prompt, history = [], attachments = []) => {
   const cleanPrompt = normalizeAiText(prompt);
   const lines = [
     '你是闪念应用开发助手，只允许在当前工作目录内编辑应用草稿。',
     '硬性约束：只能修改 FlashDraft.vue 及其同目录草稿文件，不要触碰路由/鉴权/核心基座文件。',
     '输出要求：先给结果，再给关键变更点，尽量简洁。',
     '严禁输出思考过程、任务计划、系统提示、工作目录、环境信息和历史上下文原文。',
-    '禁止出现“用户要求”“当前用户请求”“以下是最近上下文”“从环境信息来看”等复述语句。'
+    '禁止出现“用户要求”“当前用户请求”“以下是最近上下文”“从环境信息来看”等复述语句。',
+    `可调用系统语义接口：使用命令 \`node ${flashSemanticCliScript}\`。`,
+    `先运行 \`node ${flashSemanticCliScript} --registry\` 查看可用 tool_id。`,
+    `读接口示例：\`node ${flashSemanticCliScript} flash.app.detail --args '{"appId":"<APP_ID>"}'\`。`,
+    `写接口必须添加 --confirm，例如：\`node ${flashSemanticCliScript} flash.audit.write --args '{"payload":{"event_type":"test"}}' --confirm\`。`
   ];
 
   if (history.length > 0) {
@@ -1237,6 +1896,19 @@ const buildFlashCliPrompt = (prompt, history = []) => {
     history.forEach((item, idx) => {
       lines.push(`${idx + 1}. [${item.role}] ${item.content}`);
     });
+  }
+
+  if (attachments.length > 0) {
+    lines.push('本次用户上传了附件，请结合附件内容完成界面设计和代码生成：');
+    attachments.forEach((item, idx) => {
+      lines.push(`${idx + 1}. 文件: ${item.name} | 类型: ${item.mimeType || 'unknown'} | 大小: ${item.size || 0} bytes`);
+      lines.push(`   路径: ${item.relativePath}`);
+      if (item.textPreview) {
+        lines.push('   文本摘要(可能截断):');
+        lines.push(`   ${item.textPreview.replace(/\n/g, '\n   ')}`);
+      }
+    });
+    lines.push('你可以读取上述文件路径获取完整内容，但写入修改仍仅限草稿目录。');
   }
 
   lines.push('当前用户请求：');
@@ -1720,7 +2392,7 @@ const authorizeHttpRequest = (req, res) => {
     sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Invalid or missing token' });
     return null;
   }
-  const user = asUser(payload);
+  const user = asUser(payload, token);
   if (!canUseAi(user)) {
     sendJson(res, 403, { code: 'FORBIDDEN', message: 'AI access denied for current role' });
     return null;
@@ -1759,6 +2431,218 @@ const handleAiAgents = async (req, res) => {
   }
 };
 
+// ── 轻量本体语义上下文采集 ───────────────────────────────────
+const fetchSemanticContext = async (user) => {
+  const semantic = {};
+  const safeQuery = async (label, opts) => {
+    try {
+      const result = await callPostgrestWithUser(user, { ...opts, timeoutMs: 5000 });
+      return result?.data;
+    } catch (e) {
+      console.warn(`[semantic-ctx] ${label} failed:`, e?.message || e);
+      return null;
+    }
+  };
+
+  // 1. 表级语义（仅激活的）
+  const tables = await safeQuery('table_semantics', {
+    method: 'GET', path: '/ontology_table_semantics',
+    query: { select: 'table_schema,table_name,semantic_name,semantic_description,tags', is_active: 'eq.true', order: 'table_schema.asc,table_name.asc', limit: '200' },
+    acceptProfile: 'public'
+  });
+  if (Array.isArray(tables) && tables.length) {
+    semantic.tables = tables.map(t => ({
+      schema: t.table_schema,
+      table: t.table_name,
+      name: t.semantic_name,
+      desc: t.semantic_description || '',
+      tags: t.tags || []
+    }));
+  }
+
+  // 2. 列级语义（仅激活的，按表分组压缩）
+  const columns = await safeQuery('column_semantics', {
+    method: 'GET', path: '/ontology_column_semantics',
+    query: { select: 'table_schema,table_name,column_name,semantic_name,semantic_class,data_type,ui_type', is_active: 'eq.true', order: 'table_schema.asc,table_name.asc,column_name.asc', limit: '1000' },
+    acceptProfile: 'public'
+  });
+  if (Array.isArray(columns) && columns.length) {
+    const grouped = {};
+    for (const c of columns) {
+      const key = `${c.table_schema}.${c.table_name}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push({
+        col: c.column_name,
+        name: c.semantic_name,
+        cls: c.semantic_class || '',
+        type: c.data_type || '',
+        ui: c.ui_type || ''
+      });
+    }
+    semantic.columns = grouped;
+  }
+
+  // 3. 表间关系
+  const relations = await safeQuery('table_relations', {
+    method: 'GET', path: '/ontology_table_relations',
+    query: { select: 'subject_table,predicate,object_table,subject_semantic_name,object_semantic_name,relation_type', relation_type: 'eq.ontology', limit: '200' },
+    acceptProfile: 'app_data'
+  });
+  if (Array.isArray(relations) && relations.length) {
+    semantic.relations = relations.map(r => ({
+      from: r.subject_table,
+      to: r.object_table,
+      predicate: r.predicate || '',
+      fromName: r.subject_semantic_name || '',
+      toName: r.object_semantic_name || ''
+    }));
+  }
+
+  // 4. 权限语义视图（压缩输出）
+  const permissions = await safeQuery('permission_ontology', {
+    method: 'GET', path: '/v_permission_ontology',
+    query: { select: 'code,scope,semantic_kind,entity_key,action_key', limit: '200' },
+    acceptProfile: 'public'
+  });
+  if (Array.isArray(permissions) && permissions.length) {
+    semantic.permissions = permissions.map(p => ({
+      code: p.code,
+      scope: p.scope,
+      kind: p.semantic_kind,
+      entity: p.entity_key || '',
+      action: p.action_key || ''
+    }));
+  }
+
+  semantic.fetchedAt = new Date().toISOString();
+
+  const tableCnt = semantic.tables?.length || 0;
+  const colCnt = columns?.length || 0;
+  const relCnt = semantic.relations?.length || 0;
+  const permCnt = semantic.permissions?.length || 0;
+  console.log(`[semantic-ctx] user=${user?.username || '?'} => tables:${tableCnt}, columns:${colCnt}, relations:${relCnt}, permissions:${permCnt}`);
+
+  return (tableCnt + colCnt + relCnt + permCnt) > 0 ? semantic : null;
+};
+
+// ── 企业经营助手：业务数据快照采集 ───────────────────────────
+const fetchBusinessSnapshot = async (user) => {
+  const snapshot = {};
+  const safeQuery = async (label, opts) => {
+    try {
+      const result = await callPostgrestWithUser(user, { ...opts, timeoutMs: 5000 });
+      return result?.data;
+    } catch (e) {
+      console.warn(`[biz-snapshot] ${label} failed:`, e?.message || e);
+      return null;
+    }
+  };
+
+  // 1. 仓库列表（含全级别，按 level+sort 排序）
+  const warehouses = await safeQuery('warehouses', {
+    method: 'GET', path: '/warehouses',
+    query: { select: 'id,code,name,level,status', order: 'level.asc,sort.asc', limit: '50' },
+    acceptProfile: 'scm'
+  });
+  if (Array.isArray(warehouses)) {
+    snapshot.warehouses = { total: warehouses.length, list: warehouses.map(w => ({ code: w.code, name: w.name, level: w.level, status: w.status })) };
+  }
+
+  // 2. 库存汇总 (v_inventory_current)
+  const inventory = await safeQuery('inventory', {
+    method: 'GET', path: '/v_inventory_current',
+    query: { select: 'warehouse_name,material_name,material_code,available_qty,unit', limit: '200', order: 'available_qty.desc' },
+    acceptProfile: 'scm'
+  });
+  if (Array.isArray(inventory)) {
+    const totalQty = inventory.reduce((s, r) => s + (Number(r.available_qty) || 0), 0);
+    const materialCount = new Set(inventory.map(r => r.material_code)).size;
+    const warehouseNames = [...new Set(inventory.map(r => r.warehouse_name))];
+    const top10 = inventory.slice(0, 10).map(r => ({
+      warehouse: r.warehouse_name, material: r.material_name,
+      code: r.material_code, qty: r.available_qty, unit: r.unit
+    }));
+    snapshot.inventory = { totalRecords: inventory.length, totalQty, materialCount, warehouseNames, top10 };
+  }
+
+  // 3. 最近出入库流水（使用视图 v_inventory_transactions，含物料名称和仓库名称）
+  const transactions = await safeQuery('transactions', {
+    method: 'GET', path: '/v_inventory_transactions',
+    query: { select: 'id,transaction_type,io_type,material_name,material_code,quantity,unit,warehouse_name,transaction_date', order: 'transaction_date.desc', limit: '30' },
+    acceptProfile: 'scm'
+  });
+  if (Array.isArray(transactions)) {
+    const inCount = transactions.filter(t => t.transaction_type === '入库').length;
+    const outCount = transactions.filter(t => t.transaction_type === '出库').length;
+    snapshot.recentTransactions = {
+      total: transactions.length, inCount, outCount,
+      latest: transactions.slice(0, 10).map(t => ({
+        type: t.transaction_type, ioType: t.io_type, material: t.material_name,
+        code: t.material_code, qty: t.quantity, unit: t.unit,
+        warehouse: t.warehouse_name, date: t.transaction_date
+      }))
+    };
+  }
+
+  // 4. 物料主数据统计
+  const materials = await safeQuery('materials', {
+    method: 'GET', path: '/raw_materials',
+    query: { select: 'id,name,category', limit: '500' },
+    acceptProfile: 'public'
+  });
+  if (Array.isArray(materials)) {
+    const categories = {};
+    materials.forEach(m => { const c = m.category || '未分类'; categories[c] = (categories[c] || 0) + 1; });
+    snapshot.materials = { total: materials.length, byCategory: categories };
+  }
+
+  // 5. 员工统计
+  const employees = await safeQuery('employees', {
+    method: 'GET', path: '/employees',
+    query: { select: 'id,department', limit: '500' },
+    acceptProfile: 'public'
+  });
+  if (Array.isArray(employees)) {
+    const depts = {};
+    employees.forEach(e => { const d = e.department || '未分配'; depts[d] = (depts[d] || 0) + 1; });
+    snapshot.employees = { total: employees.length, byDepartment: depts };
+  }
+
+  // 6. 盘点单统计
+  const checks = await safeQuery('checks', {
+    method: 'GET', path: '/inventory_checks',
+    query: { select: 'id,check_no,status,check_date,total_items,diff_count,created_at', order: 'created_at.desc', limit: '50' },
+    acceptProfile: 'scm'
+  });
+  if (Array.isArray(checks)) {
+    const statusCount = {};
+    checks.forEach(c => { const s = c.status || '未知'; statusCount[s] = (statusCount[s] || 0) + 1; });
+    snapshot.inventoryChecks = { total: checks.length, byStatus: statusCount };
+  }
+
+  // 7. 应用列表
+  const apps = await safeQuery('apps', {
+    method: 'GET', path: '/apps',
+    query: { select: 'id,name,app_type,status', order: 'created_at.desc', limit: '50' },
+    acceptProfile: 'app_center'
+  });
+  if (Array.isArray(apps)) {
+    snapshot.apps = { total: apps.length, list: apps.slice(0, 20).map(a => ({ name: a.name, type: a.app_type, status: a.status })) };
+  }
+
+  snapshot.snapshotTime = new Date().toISOString();
+
+  // 输出快照摘要日志（方便调试）
+  const keys = Object.keys(snapshot).filter(k => k !== 'snapshotTime');
+  const summary = keys.map(k => {
+    const v = snapshot[k];
+    return `${k}:${v?.total ?? (v?.totalRecords ?? '?')}`;
+  }).join(', ');
+  console.log(`[biz-snapshot] user=${user?.username || '?'} => ${summary}`);
+
+  return snapshot;
+};
+
 const handleAiChat = async (req, res) => {
   const user = authorizeHttpRequest(req, res);
   if (!user) return;
@@ -1775,6 +2659,29 @@ const handleAiChat = async (req, res) => {
     const cfg = await getAiConfig();
     const sanitizedMessages = sanitizeConversationMessages(body?.messages);
     const route = resolveAgentRoute({ user, body, messages: sanitizedMessages });
+
+    // ── 所有 agent：注入本体语义上下文 ──
+    try {
+      const semanticCtx = await fetchSemanticContext(user);
+      if (semanticCtx) {
+        if (!route.context) route.context = {};
+        route.context.semanticContext = semanticCtx;
+      }
+    } catch (semErr) {
+      console.warn('[ai-chat] semantic context fetch failed:', semErr?.message || semErr);
+    }
+
+    // ── 企业经营助手：自动注入业务数据快照 ──
+    if (route.agentId === 'enterprise_analyst') {
+      try {
+        const snapshot = await fetchBusinessSnapshot(user);
+        if (!route.context) route.context = {};
+        route.context.businessSnapshot = snapshot;
+      } catch (snapErr) {
+        console.warn('[ai-chat] business snapshot fetch failed:', snapErr?.message || snapErr);
+      }
+    }
+
     const agentRuntime = resolveAgentRuntimeConfig(cfg, route.agentId);
     const useStream = body?.stream === true;
     const requiresGuard = shouldApplyEnterpriseOutputGuard(route);
@@ -1995,20 +2902,1281 @@ const authorizeAgentHttpRequest = (req, res) => {
     sendJson(res, 403, { code: 'FORBIDDEN', message: 'Agent access denied for current role' });
     return null;
   }
+  user.token = token;
   return user;
+};
+
+function requireNonEmptyText(value, fieldName) {
+  const text = String(value || '').trim();
+  if (!text) {
+    throw new FlashToolError('VALIDATION_FAILED', `${fieldName} is required`, { httpStatus: 400 });
+  }
+  return text;
+}
+
+async function readFlashDraftSource() {
+  const target = resolveFlashDraftFilePath();
+  const content = await fs.promises.readFile(target, 'utf8');
+  return {
+    path: normalizeProjectPath(`${flashCliProjectPath}/${flashDraftFileName}`),
+    content,
+    bytes: Buffer.byteLength(content, 'utf8')
+  };
+}
+
+async function writeFlashDraftSource(content, reason = '', user = null) {
+  const text = String(content || '');
+  if (!text.trim()) {
+    throw new FlashToolError('VALIDATION_FAILED', 'content is required', { httpStatus: 400 });
+  }
+  const bytes = Buffer.byteLength(text, 'utf8');
+  if (bytes > 1024 * 1024) {
+    throw new FlashToolError('VALIDATION_FAILED', 'content exceeds 1MB limit', { httpStatus: 400 });
+  }
+
+  const target = resolveFlashDraftFilePath();
+  await ensureDir(path.dirname(target));
+  await fs.promises.writeFile(target, text, 'utf8');
+  if (user) {
+    logAgentEvent('flash:draft_write', user, {
+      bytes,
+      reason: normalizeAiText(reason).slice(0, 80)
+    });
+  }
+  return {
+    path: normalizeProjectPath(`${flashCliProjectPath}/${flashDraftFileName}`),
+    bytes
+  };
+}
+
+async function uploadFlashAttachment(body = {}, user = null) {
+  const appId = sanitizePathToken(body?.appId, 'app');
+  const conversationId = sanitizePathToken(body?.conversationId, 'default');
+  const fileName = sanitizeUploadFileName(body?.fileName);
+  const mimeType = normalizeAiText(body?.mimeType || body?.contentType).slice(0, 120) || 'application/octet-stream';
+  const binary = decodeBase64Payload(body?.contentBase64 || body?.base64);
+
+  if (!binary.length) {
+    throw new FlashToolError('VALIDATION_FAILED', 'contentBase64 is required', { httpStatus: 400 });
+  }
+  if (binary.length > flashAttachmentMaxBytes) {
+    throw new FlashToolError('VALIDATION_FAILED', `attachment exceeds ${flashAttachmentMaxBytes} bytes`, { httpStatus: 400 });
+  }
+
+  const taskWorkdir = resolveFlashCliWorkdir();
+  const targetInfo = buildSafeUploadPath(taskWorkdir, appId, conversationId, fileName);
+  await ensureDir(targetInfo.baseDir);
+
+  let finalName = targetInfo.safeName;
+  let targetPath = targetInfo.candidate;
+  let suffix = 1;
+  while (fs.existsSync(targetPath)) {
+    const ext = path.extname(targetInfo.safeName);
+    const stem = targetInfo.safeName.slice(0, Math.max(1, targetInfo.safeName.length - ext.length));
+    finalName = `${stem}-${suffix}${ext}`;
+    targetPath = path.resolve(targetInfo.baseDir, finalName);
+    suffix += 1;
+  }
+
+  await fs.promises.writeFile(targetPath, binary);
+  const relativePath = path.relative(path.resolve(taskWorkdir), targetPath).replace(/\\/g, '/');
+  const uploadedAt = new Date().toISOString();
+
+  let textPreview = '';
+  if (isTextLikeAttachment(finalName, mimeType)) {
+    try {
+      const utf8 = binary.toString('utf8');
+      textPreview = normalizeAiText(utf8).slice(0, flashAttachmentPreviewMaxChars);
+    } catch {
+      textPreview = '';
+    }
+  }
+
+  if (user) {
+    logAgentEvent('flash:attachment_upload', user, {
+      appId,
+      conversationId,
+      name: finalName,
+      mimeType,
+      size: binary.length
+    });
+  }
+
+  return {
+    id: `att-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    appId,
+    conversationId,
+    name: finalName,
+    mimeType,
+    size: binary.length,
+    relativePath,
+    textPreview,
+    uploadedAt
+  };
+}
+
+function normalizeFlashToolCallEnvelope(rawInput = {}) {
+  const payload = toPlainObject(rawInput);
+  const args = toPlainObject(payload.arguments);
+  const context = toPlainObject(payload.context);
+  const traceId = sanitizeTraceId(payload.trace_id || payload.traceId || payload.trace) || generateTraceId('tr');
+  const toolId = resolveFlashToolId(payload.tool_id || payload.toolId);
+  const idempotencyKey = sanitizeIdempotencyKey(payload.idempotency_key || payload.idempotencyKey);
+  const sessionId = sanitizePathToken(payload.session_id || payload.sessionId || context.sessionId, 'default');
+  const appId = String(payload.app_id || payload.appId || args.appId || '').trim();
+  const confirmed = normalizeToolCallBoolean(
+    payload.confirmed ?? payload.confirm ?? context.confirmed ?? context.confirm
+  );
+  return {
+    traceId,
+    toolId,
+    idempotencyKey,
+    sessionId,
+    appId,
+    arguments: args,
+    context,
+    confirmed
+  };
+}
+
+async function executeFlashSemanticTool(toolId, args, user, callContext) {
+  const requestArgs = toPlainObject(args);
+  switch (toolId) {
+    case 'flash.app.list': {
+      const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
+      if (!query.order) query.order = 'id.desc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 50, 200);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/apps',
+        query,
+        acceptProfile: 'app_center',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '应用列表查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.app.detail': {
+      const appId = requireNonEmptyText(requestArgs.appId || requestArgs.id || callContext.appId, 'appId');
+      const query = sanitizeQueryParams(requestArgs.query);
+      query.id = `eq.${appId}`;
+      if (!query.limit) query.limit = '1';
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/apps',
+        query,
+        acceptProfile: 'app_center',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: item ? '应用详情查询成功' : '应用不存在', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.app.create': {
+      const payload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.record);
+      if (!Object.keys(payload).length) {
+        throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.app.create', { httpStatus: 400 });
+      }
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/apps',
+        body: payload,
+        acceptProfile: 'app_center',
+        contentProfile: 'app_center',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '应用创建成功', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.app.delete': {
+      const appId = requireNonEmptyText(requestArgs.appId || requestArgs.id || callContext.appId, 'appId');
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'DELETE',
+        path: '/apps',
+        query: { id: `eq.${appId}` },
+        acceptProfile: 'app_center',
+        contentProfile: 'app_center',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '应用删除成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.route.resolve': {
+      const query = sanitizeQueryParams(requestArgs.query);
+      const routePath = String(requestArgs.routePath || requestArgs.path || '').trim();
+      const appId = String(requestArgs.appId || requestArgs.id || '').trim();
+      if (!routePath && !appId) {
+        throw new FlashToolError('VALIDATION_FAILED', 'routePath or appId is required', { httpStatus: 400 });
+      }
+      if (routePath) query.route_path = `eq.${routePath}`;
+      if (appId) query.app_id = `eq.${appId}`;
+      if (!query.order) query.order = 'id.desc';
+      if (!query.limit) query.limit = '1';
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/published_routes',
+        query,
+        acceptProfile: 'app_center',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '发布路由查询成功', data: { items, item: items[0] || null }, rowsAffected: items.length };
+    }
+    case 'flash.data.grid.list': {
+      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 50, 500);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: `/${table}`,
+        query,
+        acceptProfile: schema,
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '表格列表查询成功', data: { schema, table, items }, rowsAffected: items.length };
+    }
+    case 'flash.data.grid.detail': {
+      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const recordId = requireNonEmptyText(requestArgs.id || requestArgs.recordId, 'id');
+      const query = sanitizeQueryParams(requestArgs.query);
+      query.id = `eq.${recordId}`;
+      if (!query.limit) query.limit = '1';
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: `/${table}`,
+        query,
+        acceptProfile: schema,
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: item ? '表格详情查询成功' : '数据不存在', data: { schema, table, item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.data.grid.export': {
+      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 500, 5000);
+      if (!query.order && requestArgs.order) query.order = String(requestArgs.order);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: `/${table}`,
+        query,
+        acceptProfile: schema,
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '表格导出数据查询成功', data: { schema, table, items }, rowsAffected: items.length };
+    }
+    case 'flash.data.table.ensure': {
+      const appId = requireNonEmptyText(requestArgs.appId || requestArgs.id || callContext.appId, 'appId');
+      const tableName = String(requestArgs.tableName || requestArgs.table || '').trim() || null;
+      const columns = Array.isArray(requestArgs.columns)
+        ? requestArgs.columns
+        : Array.isArray(requestArgs.payload?.columns)
+          ? requestArgs.payload.columns
+          : [];
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/rpc/create_data_app_table',
+        body: {
+          app_id: appId,
+          table_name: tableName,
+          columns
+        },
+        acceptProfile: 'app_center',
+        contentProfile: 'app_center',
+        traceId: callContext.traceId
+      });
+      const tableFqn = typeof upstream.data === 'string'
+        ? upstream.data
+        : Array.isArray(upstream.data)
+          ? upstream.data[0] || ''
+          : String(upstream.data || '');
+      return { message: '数据应用表初始化成功', data: { table: normalizeAiText(tableFqn) }, rowsAffected: 1 };
+    }
+    case 'flash.data.grid.create': {
+      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const payload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.record);
+      if (!Object.keys(payload).length) {
+        throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.data.grid.create', { httpStatus: 400 });
+      }
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: `/${table}`,
+        body: payload,
+        acceptProfile: schema,
+        contentProfile: schema,
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '表格记录创建成功', data: { schema, table, item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.data.grid.update': {
+      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const recordId = requireNonEmptyText(requestArgs.id || requestArgs.recordId, 'id');
+      const payload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.patch);
+      if (!Object.keys(payload).length) {
+        throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.data.grid.update', { httpStatus: 400 });
+      }
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'PATCH',
+        path: `/${table}`,
+        query: { id: `eq.${recordId}` },
+        body: payload,
+        acceptProfile: schema,
+        contentProfile: schema,
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '表格记录更新成功', data: { schema, table, item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.data.grid.delete': {
+      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const recordId = requireNonEmptyText(requestArgs.id || requestArgs.recordId, 'id');
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'DELETE',
+        path: `/${table}`,
+        query: { id: `eq.${recordId}` },
+        acceptProfile: schema,
+        contentProfile: schema,
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '表格记录删除成功', data: { schema, table, items }, rowsAffected: items.length };
+    }
+    case 'flash.workflow.definition.list': {
+      const appId = requireNonEmptyText(requestArgs.appId || callContext.appId, 'appId');
+      const query = sanitizeQueryParams(requestArgs.query);
+      query.app_id = `eq.${appId}`;
+      if (!query.order) query.order = 'id.desc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 20, 200);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/definitions',
+        query,
+        acceptProfile: 'workflow',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '流程定义查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.workflow.instance.list': {
+      const definitionId = requireNonEmptyText(requestArgs.definitionId || requestArgs.id, 'definitionId');
+      const query = sanitizeQueryParams(requestArgs.query);
+      query.definition_id = `eq.${definitionId}`;
+      if (!query.order) query.order = 'started_at.desc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 40, 300);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/instances',
+        query,
+        acceptProfile: 'workflow',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '流程实例查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.workflow.event.list': {
+      const query = sanitizeQueryParams(requestArgs.query);
+      const definitionId = String(requestArgs.definitionId || '').trim();
+      const instanceId = String(requestArgs.instanceId || requestArgs.id || '').trim();
+      const instanceIds = Array.isArray(requestArgs.instanceIds) ? requestArgs.instanceIds : [];
+      if (instanceIds.length) {
+        const inExpr = encodeInList(instanceIds);
+        if (!inExpr) {
+          throw new FlashToolError('VALIDATION_FAILED', 'instanceIds is invalid', { httpStatus: 400 });
+        }
+        query.instance_id = inExpr;
+      } else if (instanceId) {
+        query.instance_id = `eq.${instanceId}`;
+      } else if (definitionId) {
+        query.definition_id = `eq.${definitionId}`;
+      } else {
+        throw new FlashToolError('VALIDATION_FAILED', 'instanceId, instanceIds or definitionId is required', { httpStatus: 400 });
+      }
+      if (!query.order) query.order = 'created_at.desc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 50, 300);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/instance_events',
+        query,
+        acceptProfile: 'workflow',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '流程日志查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.workflow.assignment.list': {
+      const definitionId = requireNonEmptyText(requestArgs.definitionId || requestArgs.id, 'definitionId');
+      const query = sanitizeQueryParams(requestArgs.query);
+      query.definition_id = `eq.${definitionId}`;
+      const taskId = String(requestArgs.taskId || requestArgs.bpmnTaskId || '').trim();
+      if (taskId) query.task_id = `eq.${taskId}`;
+      if (!query.order) query.order = 'id.asc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 100, 500);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/task_assignments',
+        query,
+        acceptProfile: 'workflow',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '流程任务分派查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.workflow.mapping.list': {
+      const workflowAppId = requireNonEmptyText(
+        requestArgs.workflowAppId || requestArgs.workflow_app_id || requestArgs.appId || callContext.appId,
+        'workflowAppId'
+      );
+      const query = sanitizeQueryParams(requestArgs.query);
+      query.workflow_app_id = `eq.${workflowAppId}`;
+      const bpmnTaskId = String(requestArgs.bpmnTaskId || requestArgs.taskId || requestArgs.bpmn_task_id || '').trim();
+      if (bpmnTaskId) query.bpmn_task_id = `eq.${bpmnTaskId}`;
+      if (!query.order) query.order = 'id.asc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 100, 500);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/workflow_state_mappings',
+        query,
+        acceptProfile: 'app_center',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '流程状态映射查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.workflow.definition.upsert': {
+      const payload = toPlainObject(requestArgs.payload || requestArgs.data || {});
+      const definitionId = String(requestArgs.definitionId || requestArgs.id || payload.id || '').trim();
+      if (!definitionId && !payload.app_id && (requestArgs.appId || callContext.appId)) {
+        payload.app_id = requestArgs.appId || callContext.appId;
+      }
+      if (!definitionId && !String(payload.app_id || '').trim()) {
+        throw new FlashToolError('VALIDATION_FAILED', 'definitionId or payload.app_id is required', { httpStatus: 400 });
+      }
+
+      if (definitionId) {
+        const patchBody = { ...payload };
+        delete patchBody.id;
+        const upstream = await callPostgrestWithUser(user, {
+          method: 'PATCH',
+          path: '/definitions',
+          query: { id: `eq.${definitionId}` },
+          body: patchBody,
+          acceptProfile: 'workflow',
+          contentProfile: 'workflow',
+          prefer: 'return=representation',
+          traceId: callContext.traceId
+        });
+        const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+        return { message: '流程定义已更新', data: { item }, rowsAffected: item ? 1 : 0 };
+      }
+
+      const existing = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/definitions',
+        query: {
+          app_id: `eq.${String(payload.app_id || '').trim()}`,
+          order: 'id.desc',
+          limit: '1'
+        },
+        acceptProfile: 'workflow',
+        traceId: callContext.traceId
+      });
+      const existingRow = Array.isArray(existing.data) ? existing.data[0] : null;
+      if (existingRow?.id) {
+        const patchBody = { ...payload };
+        delete patchBody.id;
+        const upstream = await callPostgrestWithUser(user, {
+          method: 'PATCH',
+          path: '/definitions',
+          query: { id: `eq.${existingRow.id}` },
+          body: patchBody,
+          acceptProfile: 'workflow',
+          contentProfile: 'workflow',
+          prefer: 'return=representation',
+          traceId: callContext.traceId
+        });
+        const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+        return { message: '流程定义已更新', data: { item }, rowsAffected: item ? 1 : 0 };
+      }
+
+      const createBody = { ...payload };
+      delete createBody.id;
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/definitions',
+        body: createBody,
+        acceptProfile: 'workflow',
+        contentProfile: 'workflow',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '流程定义已创建', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.workflow.assignment.upsert': {
+      const payload = {
+        ...toPlainObject(requestArgs.payload || requestArgs.data || {})
+      };
+      if (!payload.definition_id) payload.definition_id = requestArgs.definitionId || requestArgs.definition_id;
+      if (!payload.task_id) payload.task_id = requestArgs.taskId || requestArgs.task_id;
+      payload.definition_id = requireNonEmptyText(payload.definition_id, 'definitionId');
+      payload.task_id = requireNonEmptyText(payload.task_id, 'taskId');
+
+      const explicitId = String(requestArgs.id || requestArgs.assignmentId || payload.id || '').trim();
+      if (explicitId) {
+        const patchBody = { ...payload };
+        delete patchBody.id;
+        const upstream = await callPostgrestWithUser(user, {
+          method: 'PATCH',
+          path: '/task_assignments',
+          query: { id: `eq.${explicitId}` },
+          body: patchBody,
+          acceptProfile: 'workflow',
+          contentProfile: 'workflow',
+          prefer: 'return=representation',
+          traceId: callContext.traceId
+        });
+        const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+        return { message: '流程任务分派已更新', data: { item }, rowsAffected: item ? 1 : 0 };
+      }
+
+      const existing = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/task_assignments',
+        query: {
+          definition_id: `eq.${payload.definition_id}`,
+          task_id: `eq.${payload.task_id}`,
+          order: 'id.desc',
+          limit: '1'
+        },
+        acceptProfile: 'workflow',
+        traceId: callContext.traceId
+      });
+      const existingRow = Array.isArray(existing.data) ? existing.data[0] : null;
+      if (existingRow?.id) {
+        const patchBody = { ...payload };
+        delete patchBody.id;
+        const upstream = await callPostgrestWithUser(user, {
+          method: 'PATCH',
+          path: '/task_assignments',
+          query: { id: `eq.${existingRow.id}` },
+          body: patchBody,
+          acceptProfile: 'workflow',
+          contentProfile: 'workflow',
+          prefer: 'return=representation',
+          traceId: callContext.traceId
+        });
+        const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+        return { message: '流程任务分派已更新', data: { item }, rowsAffected: item ? 1 : 0 };
+      }
+
+      const createBody = { ...payload };
+      delete createBody.id;
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/task_assignments',
+        body: createBody,
+        acceptProfile: 'workflow',
+        contentProfile: 'workflow',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '流程任务分派已创建', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.workflow.mapping.upsert': {
+      const payload = {
+        ...toPlainObject(requestArgs.payload || requestArgs.data || {})
+      };
+      if (!payload.workflow_app_id) payload.workflow_app_id = requestArgs.workflowAppId || requestArgs.workflow_app_id || requestArgs.appId || callContext.appId;
+      if (!payload.bpmn_task_id) payload.bpmn_task_id = requestArgs.bpmnTaskId || requestArgs.bpmn_task_id || requestArgs.taskId;
+      payload.workflow_app_id = requireNonEmptyText(payload.workflow_app_id, 'workflowAppId');
+      payload.bpmn_task_id = requireNonEmptyText(payload.bpmn_task_id, 'bpmnTaskId');
+
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/workflow_state_mappings',
+        query: {
+          on_conflict: 'workflow_app_id,bpmn_task_id'
+        },
+        body: payload,
+        acceptProfile: 'app_center',
+        contentProfile: 'app_center',
+        prefer: 'resolution=merge-duplicates,return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '流程状态映射已保存', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.workflow.instance.start': {
+      const definitionIdRaw = requestArgs.definitionId || requestArgs.id || requestArgs.p_definition_id;
+      const definitionId = Number.parseInt(String(definitionIdRaw || ''), 10);
+      if (!Number.isFinite(definitionId) || definitionId <= 0) {
+        throw new FlashToolError('VALIDATION_FAILED', 'definitionId must be a positive integer', { httpStatus: 400 });
+      }
+      const body = {
+        p_definition_id: definitionId,
+        p_business_key: requestArgs.businessKey ?? requestArgs.p_business_key ?? null,
+        p_initial_task_id: requestArgs.initialTaskId ?? requestArgs.p_initial_task_id ?? null,
+        p_variables: requestArgs.variables ?? requestArgs.p_variables ?? {}
+      };
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/rpc/start_workflow_instance',
+        body,
+        acceptProfile: 'workflow',
+        contentProfile: 'workflow',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : toPlainObject(upstream.data);
+      return { message: '流程实例启动成功', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.workflow.instance.transition': {
+      const instanceIdRaw = requestArgs.instanceId || requestArgs.id || requestArgs.p_instance_id;
+      const instanceId = Number.parseInt(String(instanceIdRaw || ''), 10);
+      if (!Number.isFinite(instanceId) || instanceId <= 0) {
+        throw new FlashToolError('VALIDATION_FAILED', 'instanceId must be a positive integer', { httpStatus: 400 });
+      }
+      const complete = normalizeToolCallBoolean(requestArgs.complete ?? requestArgs.p_complete);
+      const nextTaskId = requestArgs.nextTaskId ?? requestArgs.p_next_task_id ?? null;
+      const body = {
+        p_instance_id: instanceId,
+        p_next_task_id: complete ? null : nextTaskId,
+        p_complete: complete,
+        p_variables: requestArgs.variables ?? requestArgs.p_variables ?? null
+      };
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/rpc/transition_workflow_instance',
+        body,
+        acceptProfile: 'workflow',
+        contentProfile: 'workflow',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : toPlainObject(upstream.data);
+      return { message: '流程实例推进成功', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.inventory.current.list': {
+      const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 80, 500);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/v_inventory_current',
+        query,
+        acceptProfile: 'scm',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '库存查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.inventory.draft.list': {
+      const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
+      const draftType = String(requestArgs.draftType || requestArgs.draft_type || '').trim();
+      if (draftType && !query.draft_type) query.draft_type = `eq.${draftType}`;
+      if (!query.order) query.order = 'created_at.desc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 80, 500);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/v_inventory_drafts',
+        query,
+        acceptProfile: 'scm',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '库存草稿查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.material.master.list': {
+      const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
+      if (!query.order) query.order = 'id.asc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 100, 500);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/raw_materials',
+        query,
+        acceptProfile: 'public',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '物料主数据查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.warehouse.list': {
+      const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
+      if (!query.order) query.order = 'code.asc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 100, 500);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/warehouses',
+        query,
+        acceptProfile: 'scm',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '仓库列表查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.hr.archive.list': {
+      const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
+      if (!query.order) query.order = 'id.desc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 80, 500);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/archives',
+        query,
+        acceptProfile: 'hr',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '人事档案查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.hr.archive.update': {
+      const archiveId = requireNonEmptyText(requestArgs.id || requestArgs.archiveId || requestArgs.recordId, 'id');
+      const payload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.patch);
+      if (!Object.keys(payload).length) {
+        throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.hr.archive.update', { httpStatus: 400 });
+      }
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'PATCH',
+        path: '/archives',
+        query: { id: `eq.${archiveId}` },
+        body: payload,
+        acceptProfile: 'hr',
+        contentProfile: 'hr',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '人事档案更新成功', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.hr.attendance.init': {
+      const date = requireNonEmptyText(requestArgs.date || requestArgs.attDate || requestArgs.p_date, 'date');
+      const dept = requestArgs.deptName ?? requestArgs.dept_name ?? requestArgs.p_dept_name ?? null;
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/rpc/init_attendance_records',
+        body: {
+          p_date: date,
+          p_dept_name: dept
+        },
+        acceptProfile: 'hr',
+        contentProfile: 'hr',
+        traceId: callContext.traceId
+      });
+      const inserted = Number(upstream.data);
+      return { message: '考勤初始化完成', data: { inserted: Number.isFinite(inserted) ? inserted : upstream.data }, rowsAffected: 1 };
+    }
+    case 'flash.inventory.draft.create': {
+      const payload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.record);
+      if (!Object.keys(payload).length) {
+        throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.inventory.draft.create', { httpStatus: 400 });
+      }
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/inventory_drafts',
+        body: payload,
+        acceptProfile: 'scm',
+        contentProfile: 'scm',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '库存草稿创建成功', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.inventory.batchno.generate': {
+      const payload = {
+        p_rule_id: requestArgs.ruleId ?? requestArgs.rule_id ?? requestArgs.p_rule_id,
+        p_material_id: requestArgs.materialId ?? requestArgs.material_id ?? requestArgs.p_material_id,
+        p_manual_override: requestArgs.manualOverride ?? requestArgs.manual_override ?? requestArgs.p_manual_override ?? null
+      };
+      payload.p_rule_id = requireNonEmptyText(payload.p_rule_id, 'ruleId');
+      const materialId = Number.parseInt(String(payload.p_material_id || ''), 10);
+      if (!Number.isFinite(materialId) || materialId <= 0) {
+        throw new FlashToolError('VALIDATION_FAILED', 'materialId must be a positive integer', { httpStatus: 400 });
+      }
+      payload.p_material_id = materialId;
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/rpc/generate_batch_no',
+        body: payload,
+        acceptProfile: 'scm',
+        contentProfile: 'scm',
+        traceId: callContext.traceId
+      });
+      const batchNo = normalizeAiText(upstream.data);
+      return { message: '批次号生成成功', data: { batch_no: batchNo }, rowsAffected: batchNo ? 1 : 0 };
+    }
+    case 'flash.inventory.stock.in':
+    case 'flash.inventory.stock.out': {
+      const sourcePayload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.record);
+      const payload = {
+        p_material_id: sourcePayload.p_material_id ?? requestArgs.materialId ?? requestArgs.material_id ?? requestArgs.p_material_id,
+        p_warehouse_id: sourcePayload.p_warehouse_id ?? requestArgs.warehouseId ?? requestArgs.warehouse_id ?? requestArgs.p_warehouse_id,
+        p_quantity: sourcePayload.p_quantity ?? requestArgs.quantity ?? requestArgs.p_quantity,
+        p_unit: sourcePayload.p_unit ?? requestArgs.unit ?? requestArgs.p_unit,
+        p_batch_no: sourcePayload.p_batch_no ?? requestArgs.batchNo ?? requestArgs.batch_no ?? requestArgs.p_batch_no,
+        p_transaction_no: sourcePayload.p_transaction_no ?? requestArgs.transactionNo ?? requestArgs.transaction_no ?? requestArgs.p_transaction_no ?? null,
+        p_operator: sourcePayload.p_operator ?? requestArgs.operator ?? requestArgs.p_operator ?? null,
+        p_production_date: sourcePayload.p_production_date ?? requestArgs.productionDate ?? requestArgs.production_date ?? requestArgs.p_production_date ?? null,
+        p_remark: sourcePayload.p_remark ?? requestArgs.remark ?? requestArgs.p_remark ?? null
+      };
+      const materialId = Number.parseInt(String(payload.p_material_id || ''), 10);
+      if (!Number.isFinite(materialId) || materialId <= 0) {
+        throw new FlashToolError('VALIDATION_FAILED', 'materialId must be a positive integer', { httpStatus: 400 });
+      }
+      payload.p_material_id = materialId;
+      payload.p_warehouse_id = requireNonEmptyText(payload.p_warehouse_id, 'warehouseId');
+      payload.p_unit = requireNonEmptyText(payload.p_unit, 'unit');
+      payload.p_batch_no = requireNonEmptyText(payload.p_batch_no, 'batchNo');
+      const quantity = Number(payload.p_quantity);
+      if (!Number.isFinite(quantity) || quantity <= 0) {
+        throw new FlashToolError('VALIDATION_FAILED', 'quantity must be a positive number', { httpStatus: 400 });
+      }
+      payload.p_quantity = quantity;
+      if (toolId === 'flash.inventory.stock.out') {
+        delete payload.p_production_date;
+      }
+      const rpcPath = toolId === 'flash.inventory.stock.out' ? '/rpc/stock_out' : '/rpc/stock_in';
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: rpcPath,
+        body: payload,
+        acceptProfile: 'scm',
+        contentProfile: 'scm',
+        traceId: callContext.traceId
+      });
+      const item = toPlainObject(upstream.data);
+      return {
+        message: toolId === 'flash.inventory.stock.out' ? '库存出库执行成功' : '库存入库执行成功',
+        data: { item },
+        rowsAffected: Object.keys(item).length ? 1 : 0
+      };
+    }
+    case 'flash.ontology.relation.list': {
+      const query = sanitizeQueryParams(requestArgs.query);
+      if (!query.relation_type) query.relation_type = 'eq.ontology';
+      if (!query.order) query.order = 'relation_type.asc,id.asc';
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/ontology_table_relations',
+        query,
+        acceptProfile: 'app_data',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '本体关系查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.ontology.semantic.list': {
+      const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
+      if (!query.is_active) query.is_active = 'eq.true';
+      if (!query.order) query.order = 'table_schema.asc,table_name.asc';
+      if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 200, 2000);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/ontology_table_semantics',
+        query,
+        acceptProfile: 'public',
+        traceId: callContext.traceId
+      });
+      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      return { message: '本体语义查询成功', data: { items }, rowsAffected: items.length };
+    }
+    case 'flash.ontology.semantic.enrich': {
+      const payload = {
+        ...toPlainObject(requestArgs.payload || requestArgs.data || {})
+      };
+      const tableInput = String(requestArgs.table || payload.table || '').trim();
+      if ((!payload.table_schema || !payload.table_name) && tableInput) {
+        const resolved = resolveDataTableTarget(tableInput);
+        payload.table_schema = payload.table_schema || resolved.schema;
+        payload.table_name = payload.table_name || resolved.table;
+      }
+      payload.table_schema = requireNonEmptyText(payload.table_schema, 'table_schema');
+      payload.table_name = requireNonEmptyText(payload.table_name, 'table_name');
+      if (payload.is_active === undefined) payload.is_active = true;
+
+      const lookup = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/ontology_table_semantics',
+        query: {
+          table_schema: `eq.${payload.table_schema}`,
+          table_name: `eq.${payload.table_name}`,
+          limit: '1'
+        },
+        acceptProfile: 'public',
+        traceId: callContext.traceId
+      });
+      const existing = Array.isArray(lookup.data) ? lookup.data[0] : null;
+      if (existing) {
+        const patchBody = { ...payload };
+        delete patchBody.created_at;
+        const upstream = await callPostgrestWithUser(user, {
+          method: 'PATCH',
+          path: '/ontology_table_semantics',
+          query: {
+            table_schema: `eq.${payload.table_schema}`,
+            table_name: `eq.${payload.table_name}`
+          },
+          body: patchBody,
+          acceptProfile: 'public',
+          contentProfile: 'public',
+          prefer: 'return=representation',
+          traceId: callContext.traceId
+        });
+        const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+        return { message: '本体语义已更新', data: { item }, rowsAffected: item ? 1 : 0 };
+      }
+
+      const createBody = { ...payload };
+      delete createBody.created_at;
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/ontology_table_semantics',
+        body: createBody,
+        acceptProfile: 'public',
+        contentProfile: 'public',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '本体语义已创建', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.draft.read': {
+      const data = await readFlashDraftSource();
+      return { message: '草稿读取成功', data, rowsAffected: 1 };
+    }
+    case 'flash.draft.write': {
+      const content = requestArgs.content;
+      const reason = requestArgs.reason || callContext.context.reason || '';
+      const data = await writeFlashDraftSource(content, reason, user);
+      return { message: '草稿已保存', data, rowsAffected: 1 };
+    }
+    case 'flash.attachment.upload': {
+      const data = await uploadFlashAttachment(requestArgs, user);
+      return { message: '附件上传成功', data: { file: data }, rowsAffected: 1 };
+    }
+    case 'flash.app.save': {
+      const appId = requireNonEmptyText(requestArgs.appId || requestArgs.id || callContext.appId, 'appId');
+      const payload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.patch);
+      if (!Object.keys(payload).length) {
+        throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.app.save', { httpStatus: 400 });
+      }
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'PATCH',
+        path: '/apps',
+        query: { id: `eq.${appId}` },
+        body: payload,
+        acceptProfile: 'app_center',
+        contentProfile: 'app_center',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '应用保存成功', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.app.publish': {
+      const appId = requireNonEmptyText(requestArgs.appId || requestArgs.id || callContext.appId, 'appId');
+      const payload = {
+        ...toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.patch),
+        status: 'published'
+      };
+      // app_center.apps has no top-level published_* columns; publish metadata stays in source_code/config.
+      delete payload.published_at;
+      delete payload.published_by;
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'PATCH',
+        path: '/apps',
+        query: { id: `eq.${appId}` },
+        body: payload,
+        acceptProfile: 'app_center',
+        contentProfile: 'app_center',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '应用发布成功', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.route.upsert': {
+      const payload = {
+        ...toPlainObject(requestArgs.payload || requestArgs.data || {})
+      };
+      if (!payload.app_id) {
+        payload.app_id = requestArgs.appId || requestArgs.app_id || requestArgs.payload?.app_id || requestArgs.data?.app_id;
+      }
+      if (!payload.route_path) {
+        payload.route_path =
+          requestArgs.routePath ||
+          requestArgs.path ||
+          requestArgs.route_path ||
+          requestArgs.payload?.route_path ||
+          requestArgs.data?.route_path;
+      }
+      payload.app_id = requireNonEmptyText(payload.app_id, 'appId');
+      payload.route_path = requireNonEmptyText(payload.route_path, 'routePath');
+      if (payload.is_active === undefined) payload.is_active = true;
+
+      const explicitId = String(requestArgs.id || requestArgs.routeId || payload.id || '').trim();
+      if (explicitId) {
+        const patchBody = { ...payload };
+        delete patchBody.id;
+        const upstream = await callPostgrestWithUser(user, {
+          method: 'PATCH',
+          path: '/published_routes',
+          query: { id: `eq.${explicitId}` },
+          body: patchBody,
+          acceptProfile: 'app_center',
+          contentProfile: 'app_center',
+          prefer: 'return=representation',
+          traceId: callContext.traceId
+        });
+        const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+        return { message: '发布路由已更新', data: { item }, rowsAffected: item ? 1 : 0 };
+      }
+
+      const existing = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/published_routes',
+        query: {
+          app_id: `eq.${payload.app_id}`,
+          route_path: `eq.${payload.route_path}`,
+          order: 'id.desc',
+          limit: '1'
+        },
+        acceptProfile: 'app_center',
+        traceId: callContext.traceId
+      });
+      const existingRow = Array.isArray(existing.data) ? existing.data[0] : null;
+      if (existingRow?.id) {
+        const patchBody = { ...payload };
+        delete patchBody.id;
+        const upstream = await callPostgrestWithUser(user, {
+          method: 'PATCH',
+          path: '/published_routes',
+          query: { id: `eq.${existingRow.id}` },
+          body: patchBody,
+          acceptProfile: 'app_center',
+          contentProfile: 'app_center',
+          prefer: 'return=representation',
+          traceId: callContext.traceId
+        });
+        const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+        return { message: '发布路由已更新', data: { item }, rowsAffected: item ? 1 : 0 };
+      }
+
+      const createBody = { ...payload };
+      delete createBody.id;
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/published_routes',
+        body: createBody,
+        acceptProfile: 'app_center',
+        contentProfile: 'app_center',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '发布路由已创建', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    case 'flash.audit.write': {
+      const rawPayload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.log);
+      if (!Object.keys(rawPayload).length) {
+        throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.audit.write', { httpStatus: 400 });
+      }
+      const payload = normalizeExecutionLogPayload(rawPayload, callContext, user);
+      const upstream = await callPostgrestWithUser(user, {
+        method: 'POST',
+        path: '/execution_logs',
+        body: payload,
+        acceptProfile: 'app_center',
+        contentProfile: 'app_center',
+        prefer: 'return=representation',
+        traceId: callContext.traceId
+      });
+      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      return { message: '审计日志写入成功', data: { item }, rowsAffected: item ? 1 : 0 };
+    }
+    default:
+      throw new FlashToolError('TOOL_NOT_FOUND', `Unsupported tool_id: ${toolId}`, { httpStatus: 404 });
+  }
+}
+
+async function executeFlashToolCall(user, rawPayload = {}, source = 'http') {
+  const startedAt = Date.now();
+  const call = normalizeFlashToolCallEnvelope(rawPayload);
+  if (!call.toolId) {
+    const errorResponse = {
+      ok: false,
+      code: 'VALIDATION_FAILED',
+      message: 'tool_id is required',
+      tool_id: '',
+      trace_id: call.traceId,
+      error: { reason_code: 'VALIDATION_FAILED', http_status: 400 }
+    };
+    return { status: 400, payload: errorResponse };
+  }
+
+  const tool = flashSemanticToolMap.get(call.toolId);
+  if (!tool) {
+    const errorResponse = {
+      ok: false,
+      code: 'TOOL_NOT_FOUND',
+      message: `tool_id not found: ${call.toolId}`,
+      tool_id: call.toolId,
+      trace_id: call.traceId,
+      error: { reason_code: 'TOOL_NOT_FOUND', http_status: 404 }
+    };
+    return { status: 404, payload: errorResponse };
+  }
+
+  const isWriteTool = tool.confirm_required || tool.risk_level !== 'low';
+  if (isWriteTool && !call.confirmed) {
+    const errorResponse = {
+      ok: false,
+      code: 'PERMISSION_DENIED',
+      message: 'write tool requires confirmed=true',
+      tool_id: call.toolId,
+      trace_id: call.traceId,
+      error: { reason_code: 'PERMISSION_DENIED', http_status: 403 }
+    };
+    return { status: 403, payload: errorResponse };
+  }
+
+  if (isWriteTool && !call.idempotencyKey) {
+    const errorResponse = {
+      ok: false,
+      code: 'VALIDATION_FAILED',
+      message: 'idempotency_key is required for write tools',
+      tool_id: call.toolId,
+      trace_id: call.traceId,
+      error: { reason_code: 'VALIDATION_FAILED', http_status: 400 }
+    };
+    return { status: 400, payload: errorResponse };
+  }
+
+  cleanupFlashToolIdempotencyCache();
+  let cacheKey = '';
+  if (isWriteTool && call.idempotencyKey) {
+    cacheKey = makeFlashToolIdempotencyCacheKey(user, call.toolId, call.idempotencyKey);
+    const cached = flashToolIdempotencyCache.get(cacheKey);
+    if (cached && cached.expireAt > Date.now()) {
+      const replay = cloneJsonValue(cached.payload);
+      replay.meta = {
+        ...(toPlainObject(replay.meta)),
+        idempotent_replay: true
+      };
+      return { status: 200, payload: replay };
+    }
+  }
+
+  try {
+    const result = await executeFlashSemanticTool(call.toolId, call.arguments, user, call);
+    const responsePayload = {
+      ok: true,
+      code: 'OK',
+      message: normalizeAiText(result?.message) || 'OK',
+      tool_id: call.toolId,
+      trace_id: call.traceId,
+      registry_version: flashSemanticToolRegistryVersion,
+      registry_tools_count_actual: flashSemanticToolRegistry.length,
+      data: cloneJsonValue(result?.data),
+      meta: {
+        risk_level: tool.risk_level,
+        duration_ms: Date.now() - startedAt,
+        rows_affected: Number(result?.rowsAffected || 0),
+        source
+      }
+    };
+    if (cacheKey) {
+      flashToolIdempotencyCache.set(cacheKey, {
+        expireAt: Date.now() + flashToolIdempotencyTtlMs,
+        payload: cloneJsonValue(responsePayload)
+      });
+    }
+    logAgentEvent('flash:tool_call_ok', user, {
+      tool_id: call.toolId,
+      trace_id: call.traceId,
+      source,
+      duration_ms: responsePayload.meta.duration_ms
+    });
+    return { status: 200, payload: responsePayload };
+  } catch (error) {
+    const isTypedError = error instanceof FlashToolError;
+    const code = isTypedError ? error.code : 'INTERNAL_ERROR';
+    const httpStatus = isTypedError ? error.httpStatus : 500;
+    const responsePayload = {
+      ok: false,
+      code,
+      message: normalizeAiText(error?.message) || 'Tool execution failed',
+      tool_id: call.toolId,
+      trace_id: call.traceId,
+      registry_version: flashSemanticToolRegistryVersion,
+      registry_tools_count_actual: flashSemanticToolRegistry.length,
+      error: {
+        reason_code: isTypedError ? error.reasonCode : code,
+        http_status: httpStatus,
+        data: cloneJsonValue(isTypedError ? error.data : null)
+      }
+    };
+    logAgentEvent('flash:tool_call_fail', user, {
+      tool_id: call.toolId,
+      trace_id: call.traceId,
+      source,
+      code,
+      message: responsePayload.message
+    });
+    return { status: httpStatus, payload: responsePayload };
+  }
+}
+
+const handleFlashToolsRegistryGet = async (req, res) => {
+  const user = authorizeAgentHttpRequest(req, res);
+  if (!user) return;
+  sendJson(res, 200, getFlashToolRegistryPayload());
+};
+
+const handleFlashToolCallHttp = async (req, res) => {
+  const user = authorizeAgentHttpRequest(req, res);
+  if (!user) return;
+  let body = {};
+  try {
+    body = await readJsonBody(req, 4 * 1024 * 1024);
+  } catch (error) {
+    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
+    return;
+  }
+  const result = await executeFlashToolCall(user, body, 'http');
+  sendJson(res, result.status, result.payload);
+};
+
+const handleFlashToolCallWs = async (ws, payload) => {
+  if (!canUseAgent(ws.user)) {
+    sendWsJson(ws, {
+      type: 'flash:tool_result',
+      ok: false,
+      code: 'PERMISSION_DENIED',
+      message: 'Forbidden: agent access denied'
+    });
+    return;
+  }
+  const requestId = String(payload?.requestId || payload?.request_id || '').trim();
+  const body = payload?.payload && typeof payload.payload === 'object' ? payload.payload : payload;
+  const result = await executeFlashToolCall(ws.user, body, 'ws');
+  sendWsJson(ws, {
+    type: 'flash:tool_result',
+    requestId,
+    ...result.payload
+  });
 };
 
 const handleFlashDraftGet = async (req, res) => {
   const user = authorizeAgentHttpRequest(req, res);
   if (!user) return;
   try {
-    const target = resolveFlashDraftFilePath();
-    const content = await fs.promises.readFile(target, 'utf8');
-    sendJson(res, 200, {
-      path: normalizeProjectPath(`${flashCliProjectPath}/${flashDraftFileName}`),
-      content,
-      bytes: Buffer.byteLength(content, 'utf8')
-    });
+    const data = await readFlashDraftSource();
+    sendJson(res, 200, data);
   } catch (error) {
     sendJson(res, 500, {
       code: 'FLASH_DRAFT_READ_FAILED',
@@ -2029,33 +4197,38 @@ const handleFlashDraftWrite = async (req, res) => {
     return;
   }
 
-  const content = String(body?.content || '');
-  if (!content.trim()) {
-    sendJson(res, 400, { code: 'CONTENT_REQUIRED', message: 'content is required' });
-    return;
+  try {
+    const data = await writeFlashDraftSource(body?.content, body?.reason, user);
+    sendJson(res, 200, { ok: true, ...data });
+  } catch (error) {
+    const status = error instanceof FlashToolError ? error.httpStatus : 500;
+    sendJson(res, status, {
+      code: status === 400 ? 'BAD_REQUEST' : 'FLASH_DRAFT_WRITE_FAILED',
+      message: error?.message || 'Write flash draft failed'
+    });
   }
-  if (Buffer.byteLength(content, 'utf8') > 1024 * 1024) {
-    sendJson(res, 400, { code: 'CONTENT_TOO_LARGE', message: 'content exceeds 1MB limit' });
+};
+
+const handleFlashAttachmentUpload = async (req, res) => {
+  const user = authorizeAgentHttpRequest(req, res);
+  if (!user) return;
+
+  let body = {};
+  try {
+    body = await readJsonBody(req, Math.max(2 * 1024 * 1024, flashAttachmentMaxBytes * 2));
+  } catch (error) {
+    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
     return;
   }
 
   try {
-    const target = resolveFlashDraftFilePath();
-    await ensureDir(path.dirname(target));
-    await fs.promises.writeFile(target, content, 'utf8');
-    logAgentEvent('flash:draft_write', user, {
-      bytes: Buffer.byteLength(content, 'utf8'),
-      reason: normalizeAiText(body?.reason).slice(0, 80)
-    });
-    sendJson(res, 200, {
-      ok: true,
-      path: normalizeProjectPath(`${flashCliProjectPath}/${flashDraftFileName}`),
-      bytes: Buffer.byteLength(content, 'utf8')
-    });
+    const file = await uploadFlashAttachment(body, user);
+    sendJson(res, 200, { ok: true, file });
   } catch (error) {
-    sendJson(res, 500, {
-      code: 'FLASH_DRAFT_WRITE_FAILED',
-      message: error?.message || 'Write flash draft failed'
+    const status = error instanceof FlashToolError ? error.httpStatus : 500;
+    sendJson(res, status, {
+      code: status === 400 ? 'BAD_REQUEST' : 'FLASH_ATTACHMENT_UPLOAD_FAILED',
+      message: error?.message || 'Attachment upload failed'
     });
   }
 };
@@ -2111,6 +4284,21 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/flash/attachments' && method === 'POST') {
+    await handleFlashAttachmentUpload(req, res);
+    return;
+  }
+
+  if (pathname === '/flash/tools/registry' && method === 'GET') {
+    await handleFlashToolsRegistryGet(req, res);
+    return;
+  }
+
+  if (pathname === '/flash/tools/call' && method === 'POST') {
+    await handleFlashToolCallHttp(req, res);
+    return;
+  }
+
   res.writeHead(404);
   res.end();
 });
@@ -2160,6 +4348,353 @@ function normalizeRelativeAgentPath(value) {
 function normalizeProjectPath(value) {
   const normalized = normalizeRelativeAgentPath(value);
   return normalized.replace(/\/+$/, '');
+}
+
+function generateTraceId(prefix = 'tr') {
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `${prefix}_${Date.now()}_${rand}`;
+}
+
+function sanitizeIdempotencyKey(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 128);
+}
+
+function sanitizeToolId(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.replace(/[^a-zA-Z0-9._-]/g, '');
+}
+
+function sanitizeQueryParams(query = {}) {
+  const out = {};
+  if (!query || typeof query !== 'object') return out;
+  for (const [key, value] of Object.entries(query)) {
+    const k = String(key || '').trim();
+    if (!k) continue;
+    if (value === undefined || value === null) continue;
+    out[k] = String(value);
+  }
+  return out;
+}
+
+function isValidDbObjectName(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  return /^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$/.test(text);
+}
+
+class FlashToolError extends Error {
+  constructor(code, message, options = {}) {
+    super(message || code || 'Flash tool error');
+    this.name = 'FlashToolError';
+    this.code = String(code || 'INTERNAL_ERROR');
+    this.httpStatus = Number(options.httpStatus || 500);
+    this.reasonCode = String(options.reasonCode || this.code);
+    this.data = options.data === undefined ? null : options.data;
+  }
+}
+
+function toPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function cloneJsonValue(value) {
+  if (value === undefined) return null;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return value;
+  }
+}
+
+function sanitizeTraceId(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 128);
+}
+
+function normalizeToolCallBoolean(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return false;
+  return text === '1' || text === 'true' || text === 'yes' || text === 'y';
+}
+
+function normalizeLimit(value, fallback = 50, max = 500) {
+  const parsed = Number.parseInt(String(value || ''), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return String(fallback);
+  return String(Math.min(parsed, max));
+}
+
+function cleanupFlashToolIdempotencyCache(now = Date.now()) {
+  for (const [key, record] of flashToolIdempotencyCache.entries()) {
+    if (!record || !record.expireAt || record.expireAt <= now) {
+      flashToolIdempotencyCache.delete(key);
+    }
+  }
+}
+
+function makeFlashToolIdempotencyCacheKey(user, toolId, idempotencyKey) {
+  const userId = String(user?.id || 'anonymous');
+  return `${userId}:${toolId}:${idempotencyKey}`;
+}
+
+function resolveFlashToolId(rawToolId) {
+  const cleaned = sanitizeToolId(rawToolId);
+  if (!cleaned) return '';
+  return flashSemanticToolAliases[cleaned] || cleaned;
+}
+
+function resolveDataTableTarget(tableInput) {
+  const raw = String(tableInput || '').trim();
+  if (!raw) {
+    throw new FlashToolError('VALIDATION_FAILED', 'table is required', { httpStatus: 400 });
+  }
+  if (!isValidDbObjectName(raw)) {
+    throw new FlashToolError('VALIDATION_FAILED', 'table is invalid', { httpStatus: 400 });
+  }
+  const [schema, table] = raw.includes('.') ? raw.split('.', 2) : ['app_data', raw];
+  if (!schema || !table || !isValidDbObjectName(`${schema}.${table}`)) {
+    throw new FlashToolError('VALIDATION_FAILED', 'table is invalid', { httpStatus: 400 });
+  }
+  return { schema, table };
+}
+
+function normalizeExecutionLogStatus(rawStatus = '') {
+  const value = String(rawStatus || '').trim().toLowerCase();
+  if (value === 'pending' || value === 'running' || value === 'completed' || value === 'failed') {
+    return value;
+  }
+  return '';
+}
+
+function toJsonObjectOrNull(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  return null;
+}
+
+function normalizeExecutionLogPayload(rawPayload = {}, callContext = {}, user = null) {
+  const src = toPlainObject(rawPayload);
+  const out = {};
+
+  // Keep only real app_center.execution_logs columns to avoid PGRST204.
+  if (src.app_id !== undefined) out.app_id = src.app_id;
+  if (src.execution_id !== undefined) out.execution_id = src.execution_id;
+  if (src.task_id !== undefined) out.task_id = src.task_id;
+  if (src.status !== undefined) out.status = src.status;
+  if (src.input_data !== undefined) out.input_data = src.input_data;
+  if (src.output_data !== undefined) out.output_data = src.output_data;
+  if (src.error_message !== undefined) out.error_message = src.error_message;
+  if (src.executed_by !== undefined) out.executed_by = src.executed_by;
+  if (src.executed_at !== undefined) out.executed_at = src.executed_at;
+
+  if (!out.app_id) out.app_id = src.appId || callContext.appId || '';
+  if (!out.task_id) out.task_id = src.event_type || src.eventType || 'flash.audit.write';
+
+  const normalizedStatus = normalizeExecutionLogStatus(out.status);
+  if (normalizedStatus) {
+    out.status = normalizedStatus;
+  } else {
+    const severity = String(src.severity || '').trim().toLowerCase();
+    out.status = severity === 'error' || severity === 'fatal' ? 'failed' : 'completed';
+  }
+
+  if (!out.executed_by) {
+    out.executed_by = String(src.operator || user?.id || 'flash_agent');
+  }
+
+  const mergedOutput = toJsonObjectOrNull(out.output_data) || {};
+  if (src.event_message !== undefined && src.event_message !== null) {
+    mergedOutput.event_message = String(src.event_message);
+  }
+  if (src.severity !== undefined && src.severity !== null) {
+    mergedOutput.severity = String(src.severity);
+  }
+  if (callContext.traceId) {
+    mergedOutput.trace_id = String(callContext.traceId);
+  }
+  if (Object.keys(mergedOutput).length > 0) {
+    out.output_data = mergedOutput;
+  }
+
+  if (!out.app_id) {
+    delete out.app_id;
+  } else {
+    out.app_id = String(out.app_id);
+  }
+  out.task_id = String(out.task_id).slice(0, 100);
+  out.executed_by = String(out.executed_by).slice(0, 120);
+
+  return out;
+}
+
+function encodeInList(values = []) {
+  const list = values
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+    .map((item) => item.replace(/[,()]/g, ''));
+  if (!list.length) return '';
+  return `in.(${list.join(',')})`;
+}
+
+function mapPostgrestErrorCode(status, payload) {
+  if (status === 400) return 'VALIDATION_FAILED';
+  if (status === 401 || status === 403) {
+    const code = String(payload?.code || '').trim();
+    const message = String(payload?.message || '').toLowerCase();
+    if (code === '42501' || message.includes('permission denied')) return 'RLS_DENIED';
+    return 'PERMISSION_DENIED';
+  }
+  if (status === 404) return 'BAD_REQUEST';
+  if (status === 409) return 'CONFLICT';
+  if (status === 408 || status === 504) return 'TIMEOUT';
+  if (status >= 500) return 'UPSTREAM_ERROR';
+  return 'UPSTREAM_ERROR';
+}
+
+function buildPostgrestPath(pathname = '/', query = {}) {
+  const basePath = String(pathname || '/').startsWith('/') ? String(pathname || '/') : `/${pathname}`;
+  const params = new URLSearchParams();
+  const cleaned = sanitizeQueryParams(query);
+  for (const [key, value] of Object.entries(cleaned)) {
+    params.set(key, value);
+  }
+  const queryString = params.toString();
+  return queryString ? `${basePath}?${queryString}` : basePath;
+}
+
+async function callPostgrestWithUser(user, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  const requestPath = buildPostgrestPath(options.path, options.query);
+  const url = `${postgrestBaseUrl}${requestPath}`;
+  const headers = {
+    Authorization: `Bearer ${user?.token || ''}`,
+    Accept: 'application/json'
+  };
+  if (options.acceptProfile) headers['Accept-Profile'] = options.acceptProfile;
+  if (options.traceId) headers['X-Trace-Id'] = options.traceId;
+  if (options.prefer) headers.Prefer = options.prefer;
+
+  let body;
+  if (options.body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    if (options.contentProfile) headers['Content-Profile'] = options.contentProfile;
+    body = JSON.stringify(options.body);
+  }
+
+  const controller = new AbortController();
+  const timeout = Number(options.timeoutMs || flashToolCallTimeoutMs);
+  const timeoutHandle = setTimeout(() => controller.abort(), timeout);
+  let response;
+  try {
+    response = await fetch(url, {
+      method,
+      headers,
+      body,
+      signal: controller.signal
+    });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new FlashToolError('TIMEOUT', `Tool upstream timeout after ${timeout}ms`, { httpStatus: 504 });
+    }
+    throw new FlashToolError('UPSTREAM_ERROR', error?.message || 'Tool upstream request failed', { httpStatus: 502 });
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+
+  const rawText = await response.text();
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  let payload = null;
+  if (rawText) {
+    if (contentType.includes('json')) payload = parseJsonMaybe(rawText);
+    if (payload === null) payload = { raw: rawText };
+  }
+
+  if (!response.ok) {
+    const reasonCode = mapPostgrestErrorCode(response.status, payload || {});
+    const message = normalizeAiText(payload?.message || payload?.details || payload?.hint) ||
+      `PostgREST request failed (${response.status})`;
+    throw new FlashToolError(reasonCode, message, {
+      httpStatus: response.status,
+      data: payload
+    });
+  }
+
+  return {
+    status: response.status,
+    data: payload,
+    path: requestPath
+  };
+}
+
+function getFlashToolRegistryPayload() {
+  return {
+    registry_version: flashSemanticToolRegistryVersion,
+    tools_count: flashSemanticToolRegistry.length,
+    generated_at: new Date().toISOString(),
+    domain: 'flash',
+    tools: flashSemanticToolRegistry.map((tool) => ({
+      tool_id: tool.tool_id,
+      tool_name_zh: tool.tool_name_zh,
+      intent: tool.intent,
+      object: tool.object,
+      risk_level: tool.risk_level,
+      confirm_required: tool.confirm_required,
+      batch: tool.batch,
+      api: cloneJsonValue(tool.api)
+    }))
+  };
+}
+
+function sanitizePathToken(value, fallback = 'default') {
+  const raw = String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/^_+|_+$/g, '');
+  if (!raw) return fallback;
+  return raw.slice(0, 64);
+}
+
+function sanitizeUploadFileName(value) {
+  const base = path.posix.basename(String(value || '').trim());
+  const safe = base
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/^_+/, '')
+    .slice(0, 96);
+  if (!safe) return `upload-${Date.now()}.bin`;
+  return safe;
+}
+
+function decodeBase64Payload(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return Buffer.alloc(0);
+  const payload = raw.includes(',') ? raw.slice(raw.indexOf(',') + 1) : raw;
+  return Buffer.from(payload, 'base64');
+}
+
+function isTextLikeAttachment(fileName, mimeType) {
+  const mime = String(mimeType || '').toLowerCase();
+  if (mime.startsWith('text/')) return true;
+  if (mime.includes('json') || mime.includes('xml') || mime.includes('yaml') || mime.includes('csv')) return true;
+  const ext = path.extname(String(fileName || '').toLowerCase());
+  const textExt = new Set(['.txt', '.md', '.markdown', '.csv', '.json', '.yaml', '.yml', '.xml', '.html', '.htm', '.sql', '.js', '.ts', '.vue', '.py']);
+  return textExt.has(ext);
+}
+
+function buildSafeUploadPath(taskWorkdir, appId, conversationId, fileName) {
+  const appPart = sanitizePathToken(appId, 'app');
+  const convPart = sanitizePathToken(conversationId, 'default');
+  const safeName = sanitizeUploadFileName(fileName);
+  const baseDir = path.resolve(taskWorkdir, flashAttachmentDirName, appPart, convPart);
+  const candidate = path.resolve(baseDir, safeName);
+  const workdirResolved = path.resolve(taskWorkdir);
+  if (candidate !== workdirResolved && !candidate.startsWith(`${workdirResolved}${path.sep}`)) {
+    throw new Error('Attachment target escapes task workdir');
+  }
+  return { baseDir, candidate, safeName };
 }
 
 function sanitizeWritePolicy(rawPolicy) {
@@ -2350,11 +4885,13 @@ async function runFlashClineTask(ws, payload = {}) {
   }
 
   const clineBin = resolveClineBin();
+  const clineEnv = buildFlashCliEnv(ws?.user?.token || '');
   const model = envText(payload?.model, envText(cfg?.model, 'gpt-4o'));
   const history = clampFlashHistory(payload?.history);
-  const composedPrompt = buildFlashCliPrompt(prompt, history);
   const configDir = path.posix.join(flashCliConfigRoot, sessionId);
   const taskWorkdir = resolveFlashCliWorkdir();
+  const attachments = normalizeFlashAttachmentList(payload?.attachments, taskWorkdir);
+  const composedPrompt = buildFlashCliPrompt(prompt, history, attachments);
 
   await ensureDir(configDir);
   await ensureDir(taskWorkdir);
@@ -2377,6 +4914,7 @@ async function runFlashClineTask(ws, payload = {}) {
 
   const authResult = await runSpawnCapture(clineBin, authArgs, {
     cwd: '/app',
+    env: clineEnv,
     timeoutMs: flashCliAuthTimeoutMs
   });
   if (authResult.timedOut || authResult.code !== 0) {
@@ -2400,9 +4938,11 @@ async function runFlashClineTask(ws, payload = {}) {
     prompt: composedPrompt,
     workdir: taskWorkdir
   });
+  const draftBefore = await readFlashDraftFingerprintSafe();
 
   const child = spawn(clineBin, taskArgs, {
     cwd: '/app',
+    env: clineEnv,
     stdio: ['ignore', 'pipe', 'pipe']
   });
 
@@ -2424,6 +4964,13 @@ async function runFlashClineTask(ws, payload = {}) {
     sessionId,
     status: 'running',
     message: 'Cline CLI 正在处理...'
+  });
+  sendWsJson(ws, {
+    type: 'flash:cline_status',
+    sessionId,
+    status: 'registry_meta',
+    registryVersion: flashSemanticToolRegistryVersion,
+    registryCount: flashSemanticToolRegistry.length
   });
 
   const timeoutTimer = setTimeout(() => {
@@ -2453,7 +5000,7 @@ async function runFlashClineTask(ws, payload = {}) {
     }
 
     if (parsed.type === 'error') {
-      const errorText = normalizeAiText(parsed.message || parsed.text || 'Cline task failed');
+      const errorText = normalizeFlashCliError(parsed.message || parsed.text || 'Cline task failed');
       sendWsJson(ws, {
         type: 'flash:cline_error',
         sessionId,
@@ -2534,6 +5081,16 @@ async function runFlashClineTask(ws, payload = {}) {
       let exitCode = Number(code || 0);
       const elapsedMs = Date.now() - startedAt;
       const summary = assistantChunks.filter(Boolean).join('\n\n').trim();
+      const draftAfter = await readFlashDraftFingerprintSafe();
+      const draftChanged = !!(
+        draftAfter
+        && (
+          !draftBefore
+          || draftBefore.sha1 !== draftAfter.sha1
+          || draftBefore.bytes !== draftAfter.bytes
+          || draftBefore.mtimeMs !== draftAfter.mtimeMs
+        )
+      );
 
       if (summary) {
         sendWsJson(ws, {
@@ -2558,7 +5115,8 @@ async function runFlashClineTask(ws, payload = {}) {
           configDir,
           model,
           prompt,
-          taskWorkdir
+          taskWorkdir,
+          clineEnv
         });
         if (!healResult.success) {
           success = false;
@@ -2578,13 +5136,17 @@ async function runFlashClineTask(ws, payload = {}) {
         sessionId,
         success,
         exitCode,
-        elapsedMs
+        elapsedMs,
+        draftChanged,
+        draftFingerprint: draftAfter || null
       });
       logAgentEvent('flash:cline_done', ws.user, {
         sessionId,
         success,
         exitCode,
-        elapsedMs
+        elapsedMs,
+        draftChanged,
+        draftBytes: Number(draftAfter?.bytes || 0)
       });
     })().catch((error) => {
       session.running = false;
@@ -2766,8 +5328,8 @@ wss.on('connection', (ws, req) => {
     return;
   }
   ws.user = {
-    id: payload.user_id || payload.sub || payload.username || payload.email || '',
-    role: payload.app_role || payload.role || ''
+    ...asUser(payload),
+    token
   };
   ws.channels = new Set([channel]);
   ws.agentConversation = null; // Will be initialized on agent:task
@@ -2788,6 +5350,11 @@ wss.on('connection', (ws, req) => {
       if (data.type === 'unsubscribe') {
         const list = normalizeStringList(data.channels);
         list.forEach((ch) => ws.channels.delete(ch));
+        return;
+      }
+
+      if (data.type === 'flash:tool_call') {
+        await handleFlashToolCallWs(ws, data);
         return;
       }
 
