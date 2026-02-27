@@ -1,4 +1,0 @@
-backup_at=2026-02-23 06:56:01.284397+00
-client_encoding=UTF8
-semantics_count=44
-relations_count=88

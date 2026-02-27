@@ -6,6 +6,7 @@ dist/
 build/
 .tmp/
 logs/
+backups/
 .env
 .env.*
 .vscode/
@@ -14,3 +15,4 @@ logs/
 db_schema_and_data.sql
 config/code-server/
 ecosystem.config.js.brokenlink
+**/.uploads/
