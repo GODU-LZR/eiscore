@@ -1940,6 +1940,8 @@ $border-color: #e4e7ed;
 
 .messages-container {
   flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 18px;
+  scrollbar-width: none; -ms-overflow-style: none;
+  &::-webkit-scrollbar { display: none; }
 }
 
 .message-row {
@@ -2005,13 +2007,13 @@ $border-color: #e4e7ed;
   }
 
   .input-box {
-    display: flex; align-items: center;
-    gap: 10px; background: #f5f7fa; border-radius: 20px; padding: 4px 8px 4px 12px;
+    display: flex; align-items: flex-end;
+    gap: 10px; background: #f5f7fa; border-radius: 16px; padding: 10px 10px 10px 14px;
     border: 1px solid transparent; transition: all 0.2s;
 
     &:focus-within { background: #fff; border-color: $primary-color; box-shadow: 0 0 0 2px rgba($primary-color, 0.1); }
 
-    .upload-trigger { display: flex; }
+    .upload-trigger { display: flex; padding-bottom: 5px; }
     .tool-icon {
       font-size: 20px; color: #909399; cursor: pointer; padding: 4px;
       &:hover { color: $primary-color; }
@@ -2019,7 +2021,7 @@ $border-color: #e4e7ed;
 
     textarea {
       flex: 1; background: transparent; border: none; resize: none;
-      height: 36px; padding: 8px 0; font-size: 14px; font-family: inherit;
+      height: 52px; padding: 0; font-size: 14px; font-family: inherit; line-height: 1.7;
       &:focus { outline: none; }
     }
 

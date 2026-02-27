@@ -8,6 +8,8 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { AgentConversation, FileWatcher } = require('./agent-core');
 const { WorkflowEngine } = require('./workflow-engine');
+const { TwinEngine } = require('./twin-engine');
+const { createTwinTools, buildTwinSystemPrompt, createPersistence } = require('./twin-tools');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -1251,6 +1253,14 @@ const callAiUpstream = async (incomingPayload, options = {}) => {
     });
   } catch (error) {
     const isTimeout = error?.name === 'AbortError';
+    const endpoint = normalizeAiText(cfg?.api_url || '').slice(0, 200);
+    const errCode = normalizeAiText(error?.cause?.code || error?.code || '').slice(0, 64);
+    console.warn('[ai-upstream] fetch failed:', JSON.stringify({
+      timeout: isTimeout,
+      code: errCode || 'N/A',
+      message: normalizeAiText(error?.message || 'fetch failed').slice(0, 240),
+      endpoint
+    }));
     return {
       ok: false,
       status: 502,
@@ -1258,7 +1268,7 @@ const callAiUpstream = async (incomingPayload, options = {}) => {
         code: 'AI_UPSTREAM_ERROR',
         message: isTimeout
           ? `AI upstream timeout after ${aiUpstreamTimeoutMs}ms`
-          : (error?.message || 'AI upstream request failed'),
+          : ((errCode ? `${errCode}: ` : '') + (error?.message || 'AI upstream request failed')),
         detail: ''
       }
     };
@@ -4233,6 +4243,409 @@ const handleFlashAttachmentUpload = async (req, res) => {
   }
 };
 
+// ═══════════════════════════════════════════════════════════════
+// ── 员工数字分身 (Digital Twin) API Handlers ─────────────────
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 数字分身授权（复用 authorizeHttpRequest 逻辑但也允许普通员工角色）
+ */
+const authorizeTwinRequest = (req, res) => {
+  const token = getBearerFromAuthHeader(req);
+  const payload = verifyToken(token);
+  if (!payload) {
+    sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Invalid or missing token' });
+    return null;
+  }
+  return asUser(payload, token);
+};
+
+/**
+ * 为指定用户创建绑定到其 JWT 的 PostgREST 查询函数
+ */
+const bindPgQueryForUser = (user) => {
+  return (options) => callPostgrestWithUser(user, options);
+};
+
+/**
+ * POST /twin/chat — 数字分身对话（SSE 流式）
+ *
+ * Body: {
+ *   message: string,           // 用户消息
+ *   session_id?: string,       // 可选，复用已有会话
+ *   history?: [{role,content}] // 可选，前端传入的历史消息（若无 session_id）
+ * }
+ */
+const handleTwinChat = async (req, res) => {
+  const user = authorizeTwinRequest(req, res);
+  if (!user) return;
+
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
+    return;
+  }
+
+  const userMessage = normalizeAiText(body?.message || body?.content || '');
+  if (!userMessage) {
+    sendJson(res, 400, { code: 'MESSAGE_REQUIRED', message: 'message is required' });
+    return;
+  }
+
+  try {
+    const cfg = await getAiConfig();
+    if (!cfg?.api_url || !cfg?.api_key) {
+      sendJson(res, 503, { code: 'AI_CONFIG_MISSING', message: 'AI configuration not available' });
+      return;
+    }
+
+    const pgQuery = bindPgQueryForUser(user);
+    const persistence = createPersistence(pgQuery, user.username);
+
+    // 会话管理：复用或创建
+    let sessionId = body.session_id || null;
+    if (!sessionId) {
+      try {
+        sessionId = await persistence.createSession(
+          userMessage.slice(0, 30) + (userMessage.length > 30 ? '...' : '')
+        );
+      } catch (e) {
+        console.warn('[twin-chat] create session failed:', e?.message);
+      }
+    }
+
+    // 加载历史（从数据库或前端传入）
+    let history = [];
+    if (sessionId) {
+      try {
+        history = await persistence.loadHistory(sessionId, 12);
+      } catch (e) {
+        console.warn('[twin-chat] load history failed:', e?.message);
+      }
+    }
+    if (!history.length && Array.isArray(body.history)) {
+      history = body.history
+        .filter(m => m && (m.role === 'user' || m.role === 'assistant') && m.content)
+        .slice(-12)
+        .map(m => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+    }
+
+    // 语义上下文
+    let semanticCtx = null;
+    try {
+      semanticCtx = await fetchSemanticContext(user);
+    } catch (e) {
+      console.warn('[twin-chat] semantic context failed:', e?.message);
+    }
+
+    // 构建工具集 & 系统提示
+    const tools = createTwinTools(pgQuery, user);
+    const systemPrompt = buildTwinSystemPrompt(user, semanticCtx);
+
+    // 构建 AI 调用器（非流式，用于 ReAct 中间推理 / 工具选择）
+    const aiCaller = async ({ model, messages, stream }) => {
+      const payload = {
+        model: model || cfg.model || 'glm-4.6v',
+        stream: false,
+        messages
+      };
+      const result = await callAiUpstreamWithRetry(
+        payload,
+        { forceStream: false, cfg },
+        { maxRetries: 3, baseDelayMs: 320 }
+      );
+      if (!result.ok) {
+        throw new Error(result.payload?.message || 'AI upstream failed');
+      }
+      return result.data;
+    };
+
+    // SSE 事件推送
+    setCorsHeaders(res);
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+      'X-Eis-Agent': 'digital_twin',
+      'X-Eis-Session': sessionId || ''
+    });
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+
+    const sendSseEvent = (eventType, data) => {
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ type: eventType, ...data })}\n\n`);
+      }
+    };
+
+    // 目标断开则提前结束
+    let aborted = false;
+    req.on('close', () => { aborted = true; });
+
+    // 流式 AI 调用器 — 用于最终回答的实时 token 推送
+    const streamingAiCaller = async ({ model, messages }) => {
+      const payload = {
+        model: model || cfg.model || 'glm-4.6v',
+        stream: true,
+        messages
+      };
+      const upstream = await callAiUpstreamWithRetry(
+        payload,
+        { forceStream: true, cfg },
+        { maxRetries: 3, baseDelayMs: 320 }
+      );
+      if (!upstream.ok) {
+        throw new Error(upstream.payload?.message || 'AI upstream failed');
+      }
+
+      // 非流式回退（上游未返回流）
+      if (!upstream.stream) {
+        const text = extractCompletionText(upstream.data || {});
+        // 非流式结果用小分块 + 延迟模拟逐字效果
+        const chunkSize = 20;
+        for (let i = 0; i < text.length; i += chunkSize) {
+          if (aborted) break;
+          writeSsePayload(res, { choices: [{ delta: { content: text.slice(i, i + chunkSize) } }] });
+          await waitMs(25);
+        }
+        return text;
+      }
+
+      // 真正的流式：逐 chunk 透传
+      const upstreamBody = upstream.response.body;
+      if (!upstreamBody || typeof upstreamBody.getReader !== 'function') {
+        throw new Error('AI upstream stream is unavailable');
+      }
+
+      const reader = upstreamBody.getReader();
+      const decoder = new TextDecoder();
+      let fullText = '';
+      let sseBuffer = '';
+
+      // 安全超时：防止流式响应无限挂起
+      const streamTimeout = setTimeout(() => {
+        console.warn('[twin-stream] stream read timeout, cancelling');
+        try { reader.cancel(); } catch { /* ignore */ }
+      }, aiUpstreamTimeoutMs || 60000);
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || aborted) break;
+
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split('\n');
+          sseBuffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data:')) continue;
+            const jsonStr = trimmed.slice(5).trim();
+            if (!jsonStr || jsonStr === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const delta = parsed?.choices?.[0]?.delta?.content || '';
+              if (delta) {
+                fullText += delta;
+                if (!res.writableEnded) {
+                  writeSsePayload(res, { choices: [{ delta: { content: delta } }] });
+                }
+              }
+            } catch { /* skip unparseable chunk */ }
+          }
+        }
+      } finally {
+        clearTimeout(streamTimeout);
+        try { reader.releaseLock(); } catch { /* ignore */ }
+      }
+
+      return fullText;
+    };
+
+    // ── 启动 ReAct 推理循环 ──
+    const engine = new TwinEngine({
+      aiCaller,
+      streamingAiCaller,
+      tools,
+      systemPrompt,
+      model: cfg.model || 'glm-4.6v',
+      maxTurns: 6,
+      turnDelayMs: 120,
+      onEvent: (event) => {
+        if (aborted) return;
+        sendSseEvent(event.type, event);
+      },
+      persistence
+    });
+
+    console.log('[twin-chat]', JSON.stringify({
+      user: user.username,
+      session: sessionId,
+      msgLen: userMessage.length,
+      tools: Object.keys(tools).length
+    }));
+
+    const result = await engine.run(userMessage, history, { sessionId });
+
+    // 发送最终回答：如果流式已在 engine 内完成，跳过；否则回退到分块发送
+    if (!aborted && !res.writableEnded) {
+      if (!result.streamed) {
+        // 非流式回退：小分块 + 延迟模拟逐字效果
+        const answer = result.answer || '';
+        const chunkSize = 20;
+        for (let i = 0; i < answer.length; i += chunkSize) {
+          if (aborted) break;
+          const chunk = answer.slice(i, i + chunkSize);
+          writeSsePayload(res, { choices: [{ delta: { content: chunk } }] });
+          await waitMs(25);
+        }
+      }
+      // 发送元信息
+      sendSseEvent('meta', {
+        session_id: sessionId,
+        turns: result.turns,
+        tool_calls: result.toolLogs.length
+      });
+      writeSseDone(res);
+    }
+
+  } catch (error) {
+    console.error('[twin-chat] error:', error?.message || error);
+    if (!res.headersSent) {
+      sendJson(res, 500, { code: 'TWIN_CHAT_FAILED', message: error?.message || 'Digital twin chat failed' });
+    } else if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: 'error', message: error?.message || 'Internal error' })}\n\n`);
+      res.end();
+    }
+  }
+};
+
+/**
+ * GET /twin/sessions — 列出会话历史
+ */
+const handleTwinSessionsList = async (req, res) => {
+  const user = authorizeTwinRequest(req, res);
+  if (!user) return;
+  try {
+    const pgQuery = bindPgQueryForUser(user);
+    const persistence = createPersistence(pgQuery, user.username);
+    const sessions = await persistence.listSessions(30);
+    sendJson(res, 200, { sessions });
+  } catch (error) {
+    sendJson(res, 500, { code: 'TWIN_SESSIONS_FAILED', message: error?.message || 'Failed to list sessions' });
+  }
+};
+
+/**
+ * DELETE /twin/sessions?id=xxx — 删除会话
+ */
+const handleTwinSessionDelete = async (req, res) => {
+  const user = authorizeTwinRequest(req, res);
+  if (!user) return;
+  try {
+    const url = new URL(req.url, `http://localhost:${port}`);
+    const sessionId = url.searchParams.get('id') || '';
+    if (!sessionId) {
+      sendJson(res, 400, { code: 'ID_REQUIRED', message: 'session id is required' });
+      return;
+    }
+    const pgQuery = bindPgQueryForUser(user);
+    const persistence = createPersistence(pgQuery, user.username);
+    await persistence.deleteSession(sessionId);
+    sendJson(res, 200, { ok: true });
+  } catch (error) {
+    console.error('[twin-session-delete] error:', error);
+    sendJson(res, 500, { code: 'TWIN_DELETE_FAILED', message: error?.message || 'Failed to delete session' });
+  }
+};
+
+/**
+ * GET /twin/messages?session_id=xxx — 加载会话消息
+ */
+const handleTwinMessagesGet = async (req, res) => {
+  const user = authorizeTwinRequest(req, res);
+  if (!user) return;
+  try {
+    const url = new URL(req.url, `http://localhost:${port}`);
+    const sessionId = url.searchParams.get('session_id') || '';
+    if (!sessionId) {
+      sendJson(res, 400, { code: 'SESSION_ID_REQUIRED', message: 'session_id is required' });
+      return;
+    }
+    const pgQuery = bindPgQueryForUser(user);
+    const persistence = createPersistence(pgQuery, user.username);
+    const messages = await persistence.loadHistory(sessionId, 50);
+    sendJson(res, 200, { messages });
+  } catch (error) {
+    sendJson(res, 500, { code: 'TWIN_MESSAGES_FAILED', message: error?.message || 'Failed to load messages' });
+  }
+};
+
+/**
+ * POST /twin/knowledge/upload — 上传文件到个人知识库
+ * Body: { fileName, fileType, fileSize, contentText, contentB64, tags, summary }
+ */
+const handleTwinKnowledgeUpload = async (req, res) => {
+  const user = authorizeTwinRequest(req, res);
+  if (!user) return;
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
+    return;
+  }
+  try {
+    const pgQuery = bindPgQueryForUser(user);
+    const persistence = createPersistence(pgQuery, user.username);
+    const file = await persistence.uploadKnowledgeFile(body);
+    sendJson(res, 200, { ok: true, file });
+  } catch (error) {
+    sendJson(res, 500, { code: 'TWIN_UPLOAD_FAILED', message: error?.message || 'Failed to upload file' });
+  }
+};
+
+/**
+ * GET /twin/knowledge — 列出知识库文件
+ */
+const handleTwinKnowledgeList = async (req, res) => {
+  const user = authorizeTwinRequest(req, res);
+  if (!user) return;
+  try {
+    const pgQuery = bindPgQueryForUser(user);
+    const persistence = createPersistence(pgQuery, user.username);
+    const files = await persistence.listKnowledgeFiles(50);
+    sendJson(res, 200, { files });
+  } catch (error) {
+    sendJson(res, 500, { code: 'TWIN_KB_LIST_FAILED', message: error?.message || 'Failed to list knowledge files' });
+  }
+};
+
+/**
+ * DELETE /twin/knowledge?id=xxx — 删除知识库文件
+ */
+const handleTwinKnowledgeDelete = async (req, res) => {
+  const user = authorizeTwinRequest(req, res);
+  if (!user) return;
+  try {
+    const url = new URL(req.url, `http://localhost:${port}`);
+    const fileId = url.searchParams.get('id') || '';
+    if (!fileId) {
+      sendJson(res, 400, { code: 'ID_REQUIRED', message: 'file id is required' });
+      return;
+    }
+    const pgQuery = bindPgQueryForUser(user);
+    const persistence = createPersistence(pgQuery, user.username);
+    await persistence.deleteKnowledgeFile(fileId);
+    sendJson(res, 200, { ok: true });
+  } catch (error) {
+    sendJson(res, 500, { code: 'TWIN_KB_DELETE_FAILED', message: error?.message || 'Failed to delete knowledge file' });
+  }
+};
+
 const server = http.createServer(async (req, res) => {
   const method = String(req.method || 'GET').toUpperCase();
   const pathname = getRequestPath(req);
@@ -4296,6 +4709,42 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/flash/tools/call' && method === 'POST') {
     await handleFlashToolCallHttp(req, res);
+    return;
+  }
+
+  // ── 数字分身 API 路由 ──
+  if (pathname === '/twin/chat' && method === 'POST') {
+    await handleTwinChat(req, res);
+    return;
+  }
+
+  if (pathname === '/twin/sessions' && method === 'GET') {
+    await handleTwinSessionsList(req, res);
+    return;
+  }
+
+  if (pathname === '/twin/sessions' && method === 'DELETE') {
+    await handleTwinSessionDelete(req, res);
+    return;
+  }
+
+  if (pathname === '/twin/messages' && method === 'GET') {
+    await handleTwinMessagesGet(req, res);
+    return;
+  }
+
+  if (pathname === '/twin/knowledge' && method === 'GET') {
+    await handleTwinKnowledgeList(req, res);
+    return;
+  }
+
+  if (pathname === '/twin/knowledge/upload' && method === 'POST') {
+    await handleTwinKnowledgeUpload(req, res);
+    return;
+  }
+
+  if (pathname === '/twin/knowledge' && method === 'DELETE') {
+    await handleTwinKnowledgeDelete(req, res);
     return;
   }
 
@@ -4578,10 +5027,13 @@ async function callPostgrestWithUser(user, options = {}) {
   if (options.traceId) headers['X-Trace-Id'] = options.traceId;
   if (options.prefer) headers.Prefer = options.prefer;
 
+  // Content-Profile must be set for all write operations (POST/PATCH/PUT/DELETE),
+  // not just when body is present — PostgREST uses it to resolve the target schema.
+  if (options.contentProfile) headers['Content-Profile'] = options.contentProfile;
+
   let body;
   if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json';
-    if (options.contentProfile) headers['Content-Profile'] = options.contentProfile;
     body = JSON.stringify(options.body);
   }
 

@@ -13,6 +13,30 @@
       </div>
     </div>
 
+    <div class="designer-link-config">
+      <div class="link-config-title">
+        <el-icon><Connection /></el-icon>
+        <span>流程业务联动配置</span>
+      </div>
+      <div class="link-config-form">
+        <el-switch
+          v-model="workflowLinkConfig.autoAdvanceEnabled"
+          active-text="开启自动检测并推进"
+          inactive-text="仅手动推进"
+        />
+        <el-radio-group v-model="panelMode" size="small" class="config-mode-switch">
+          <el-radio-button value="simple">简单模式</el-radio-button>
+          <el-radio-button value="pro">专业模式</el-radio-button>
+        </el-radio-group>
+        <el-button :icon="Check" type="primary" plain @click="saveWorkflowLinkConfig">
+          保存联动配置
+        </el-button>
+      </div>
+      <p class="link-config-tip">
+        建议流程节点状态统一使用：创建 / 生效 / 锁定。运行页会跳转到已绑定业务应用并自动检测状态推进流程。
+      </p>
+    </div>
+
     <div class="designer-body">
       <BpmnDesigner
         :key="designerRenderKey"
@@ -27,10 +51,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, defineComponent, h, markRaw, toRaw } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, defineComponent, h, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElEmpty, ElDivider, ElForm, ElFormItem, ElSelect, ElOption, ElInput, ElButton } from 'element-plus'
-import { ArrowLeft } from '@element-plus/icons-vue'
+import { ElMessage, ElEmpty, ElDivider, ElForm, ElFormItem, ElSelect, ElOption, ElInput, ElButton, ElSwitch, ElIcon } from 'element-plus'
+import { ArrowLeft, Connection, Check } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { BpmnDesigner } from 'kthirty-bpmn-vue3'
 import 'kthirty-bpmn-vue3/dist/style.css'
@@ -156,42 +180,152 @@ const importing = ref(false)
 const fileInputRef = ref(null)
 
 const selectedElement = ref(null)
-const visibleFields = ref([])
-const editableFields = ref([])
-const availableFields = ref([])
-const availableTables = ref([])
-const selectedTables = ref([])
-const openApiSpec = ref(null)
-const isSyncingBinding = ref(false)
-const bindFormPayloadCache = ref('')
 const stateMapping = ref({ target_table: '', state_field: '', state_value: '' })
 const mappingLoading = ref(false)
 const mappingSaving = ref(false)
+const autoRuleSaving = ref(false)
 const taskAssignment = ref({ candidate_roles: [], candidate_users: [] })
 const assignmentLoading = ref(false)
 const assignmentSaving = ref(false)
 const roleOptions = ref([])
 const userOptions = ref([])
-let persistTimer = null
+const businessAppOptions = ref([])
+const businessAppTableMap = ref({})
+const workflowLinkConfig = ref({
+  businessAppId: '',
+  autoAdvanceEnabled: true,
+  taskBusinessAppBindings: {}
+})
+const taskAutoRule = ref({
+  enabled: true,
+  trigger_state: ''
+})
+const panelMode = ref('simple')
 
-const tableConfigMap = [
-  { key: 'hr_table_cols', module: 'hr_employee', label: '人事花名册' },
-  { key: 'hr_attendance_cols', module: 'hr_attendance', label: '考勤管理' },
-  { key: 'hr_transfer_cols', module: 'hr_change', label: '调岗记录' },
-  { key: 'hr_user_cols', module: 'hr_user', label: '用户管理' },
-  { key: 'hr_org_cols', module: 'hr_org', label: '部门架构' },
-  { key: 'materials_table_cols', module: 'mms_ledger', label: '物料' }
-]
+const WORKFLOW_STATE_CANONICAL_MAP = Object.freeze({
+  created: 'created',
+  draft: 'created',
+  '创建': 'created',
+  '新建': 'created',
+  active: 'active',
+  enabled: 'active',
+  '生效': 'active',
+  '启用': 'active',
+  locked: 'locked',
+  disabled: 'locked',
+  '锁定': 'locked',
+  '禁用': 'locked'
+})
 
-const moduleConfigKeyMap = tableConfigMap.reduce((acc, item) => {
-  acc[item.module] = item.key
-  return acc
-}, {})
+const canonicalizeWorkflowState = (value) => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const normalized = WORKFLOW_STATE_CANONICAL_MAP[raw.toLowerCase()] || WORKFLOW_STATE_CANONICAL_MAP[raw]
+  return normalized || raw
+}
 
-const tableLabelMap = tableConfigMap.reduce((acc, item) => {
-  acc[item.module] = item.label
-  return acc
-}, {})
+const WORKFLOW_STATE_OPTIONS = Object.freeze([
+  { label: '创建', value: 'created' },
+  { label: '生效', value: 'active' },
+  { label: '锁定', value: 'locked' }
+])
+
+const LEGACY_BINDABLE_APP_OPTIONS = Object.freeze([
+  { value: 'legacy:hr_employee', label: '人事花名册（HR）' },
+  { value: 'legacy:hr_user', label: '用户管理（HR）' },
+  { value: 'legacy:hr_attendance', label: '考勤管理（HR）' },
+  { value: 'legacy:hr_change', label: '调岗记录（HR）' },
+  { value: 'legacy:mms_ledger', label: '物料台账（MMS）' },
+  { value: 'legacy:mms_inventory_ledger', label: '库存台账（MMS）' },
+  { value: 'legacy:mms_inventory_stock_in', label: '入库（MMS）' },
+  { value: 'legacy:mms_inventory_stock_out', label: '出库（MMS）' },
+  { value: 'legacy:mms_inventory_current', label: '库存查询（MMS）' }
+])
+
+const LEGACY_APP_STATE_TARGET_MAP = Object.freeze({
+  'legacy:hr_employee': { target_table: 'hr.archives', state_field: 'status' },
+  'legacy:hr_user': { target_table: 'public.users', state_field: 'status' },
+  'legacy:hr_attendance': { target_table: 'hr.attendance_records', state_field: 'status' },
+  'legacy:hr_change': { target_table: 'hr.employee_changes', state_field: 'status' },
+  'legacy:mms_ledger': { target_table: 'public.raw_materials', state_field: 'status' },
+  'legacy:mms_inventory_stock_in': { target_table: 'scm.inventory_drafts', state_field: 'status' },
+  'legacy:mms_inventory_stock_out': { target_table: 'scm.inventory_drafts', state_field: 'status' }
+})
+
+const getAppConfigObject = () => (
+  appData.value?.config && typeof appData.value.config === 'object'
+    ? appData.value.config
+    : {}
+)
+
+const normalizeTaskBusinessBindings = (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const next = {}
+  Object.entries(value).forEach(([taskId, binding]) => {
+    const key = String(taskId || '').trim()
+    const mapValue = String(binding || '').trim()
+    if (key && mapValue) next[key] = mapValue
+  })
+  return next
+}
+
+const getSelectedTaskId = () => {
+  if (!selectedElement.value || selectedElement.value.type !== 'bpmn:UserTask') return ''
+  return String(selectedElement.value.id || '').trim()
+}
+
+const getCurrentBusinessBinding = () => {
+  const taskId = getSelectedTaskId()
+  if (taskId) {
+    return String(workflowLinkConfig.value?.taskBusinessAppBindings?.[taskId] || '').trim()
+  }
+  return String(workflowLinkConfig.value?.businessAppId || '').trim()
+}
+
+const setCurrentBusinessBinding = (value) => {
+  const normalized = String(value || '').trim()
+  const taskId = getSelectedTaskId()
+  if (taskId) {
+    const currentMap = normalizeTaskBusinessBindings(workflowLinkConfig.value?.taskBusinessAppBindings)
+    const nextMap = { ...currentMap }
+    if (normalized) nextMap[taskId] = normalized
+    else delete nextMap[taskId]
+    workflowLinkConfig.value = {
+      ...workflowLinkConfig.value,
+      taskBusinessAppBindings: nextMap
+    }
+    return
+  }
+  workflowLinkConfig.value = {
+    ...workflowLinkConfig.value,
+    businessAppId: normalized
+  }
+}
+
+const inferStateTargetByBusinessBinding = () => {
+  const binding = getCurrentBusinessBinding()
+  if (!binding) return { target_table: '', state_field: '' }
+  if (binding.startsWith('legacy:')) {
+    const legacy = LEGACY_APP_STATE_TARGET_MAP[binding]
+    if (legacy) return { ...legacy }
+  }
+  const tableName = String(businessAppTableMap.value?.[binding] || '').trim()
+  if (tableName) return { target_table: tableName, state_field: 'status' }
+  return { target_table: '', state_field: '' }
+}
+
+const toConfigObject = (value) => {
+  if (value && typeof value === 'object') return value
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (parsed && typeof parsed === 'object') return parsed
+    } catch {
+      // ignore
+    }
+  }
+  return {}
+}
 
 let modelerReadyTimer = null
 
@@ -231,14 +365,14 @@ const BindFormPanel = defineComponent({
   name: 'BindFormPanel',
   props: {
     elementType: { type: String, default: '' },
-    fieldOptions: { type: Array, default: () => [] },
-    tableOptions: { type: Array, default: () => [] },
-    selectedTables: { type: Array, default: () => [] },
-    visibleFields: { type: Array, default: () => [] },
-    editableFields: { type: Array, default: () => [] },
     stateMapping: { type: Object, default: () => ({}) },
     mappingLoading: { type: Boolean, default: false },
     mappingSaving: { type: Boolean, default: false },
+    taskAutoRule: { type: Object, default: () => ({ enabled: true, trigger_state: '' }) },
+    autoRuleSaving: { type: Boolean, default: false },
+    mode: { type: String, default: 'simple' },
+    businessAppOptions: { type: Array, default: () => [] },
+    businessAppId: { type: String, default: '' },
     taskAssignment: { type: Object, default: () => ({}) },
     assignmentLoading: { type: Boolean, default: false },
     assignmentSaving: { type: Boolean, default: false },
@@ -246,79 +380,134 @@ const BindFormPanel = defineComponent({
     userOptions: { type: Array, default: () => [] }
   },
   emits: [
-    'update:visibleFields',
-    'update:editableFields',
-    'update:selectedTables',
     'update:stateMapping',
     'save-state-mapping',
+    'update:taskAutoRule',
+    'save-task-auto-rule',
     'update:taskAssignment',
     'save-task-assignment',
-    'open-table-picker'
+    'update:businessAppId',
+    'save-link-config'
   ],
   setup(props, { emit }) {
-    const updateVisible = (value) => emit('update:visibleFields', value)
-    const updateEditable = (value) => emit('update:editableFields', value)
-    const updateTables = (value) => emit('update:selectedTables', value)
     const updateMappingField = (key, value) => {
       emit('update:stateMapping', { ...props.stateMapping, [key]: value })
+    }
+    const updateAutoRuleField = (key, value) => {
+      emit('update:taskAutoRule', { ...props.taskAutoRule, [key]: value })
     }
     const updateAssignmentField = (key, value) => {
       emit('update:taskAssignment', { ...props.taskAssignment, [key]: value })
     }
     const saveMapping = () => emit('save-state-mapping')
+    const saveAutoRule = () => emit('save-task-auto-rule')
     const saveAssignment = () => emit('save-task-assignment')
-    const openPicker = () => emit('open-table-picker')
+    const updateBusinessApp = (value) => emit('update:businessAppId', String(value || '').trim())
+    const saveLinkConfig = () => emit('save-link-config')
 
     return () => {
+      const linkageBlock = [
+        h(ElDivider, null, () => '业务应用绑定'),
+        h(ElForm, { labelWidth: '100px', size: 'small' }, () => [
+          h(ElFormItem, { label: '业务应用' }, () => h(ElSelect, {
+            modelValue: props.businessAppId || '',
+            clearable: true,
+            filterable: true,
+            placeholder: '选择要联动的业务应用',
+            'onUpdate:modelValue': updateBusinessApp
+          }, () => props.businessAppOptions.map((item) => h(ElOption, {
+            key: item.value,
+            label: item.label,
+            value: item.value
+          }))))
+        ]),
+        h('div', { class: 'mapping-actions' }, [
+          h(ElButton, { type: 'primary', size: 'small', plain: true, onClick: saveLinkConfig }, () => '保存联动配置')
+        ])
+      ]
+
       if (props.elementType !== 'bpmn:UserTask') {
         return h('div', { class: 'bindform-panel' }, [
+          ...linkageBlock,
           h(ElEmpty, { description: '请选择用户任务节点' })
         ])
       }
 
       return h('div', { class: 'bindform-panel' }, [
-        h(ElDivider, null, () => '表单绑定'),
+        ...linkageBlock,
+        ...(props.mode === 'pro'
+          ? []
+          : [
+              h(ElDivider, null, () => '简单模式配置'),
+              h('p', { class: 'panel-mode-tip' }, '当前仅显示常用配置；字段权限、任务分派等高级项请切换到专业模式。'),
+              h(ElForm, { labelWidth: '100px', size: 'small' }, () => [
+                h(ElFormItem, { label: '节点状态' }, () => h(ElSelect, {
+                  modelValue: props.stateMapping?.state_value || '',
+                  filterable: true,
+                  allowCreate: true,
+                  clearable: true,
+                  defaultFirstOption: true,
+                  placeholder: '建议: 创建 / 生效 / 锁定',
+                  disabled: props.mappingLoading,
+                  'onUpdate:modelValue': (value) => updateMappingField('state_value', value || '')
+                }, () => WORKFLOW_STATE_OPTIONS.map((item) => h(ElOption, {
+                  key: item.value,
+                  label: item.label,
+                  value: item.value
+                })))),
+                h(ElFormItem, { label: '自动推进' }, () => h(ElSwitch, {
+                  modelValue: props.taskAutoRule?.enabled !== false,
+                  'onUpdate:modelValue': (value) => updateAutoRuleField('enabled', value !== false)
+                })),
+                h(ElFormItem, { label: '触发状态' }, () => h(ElSelect, {
+                  modelValue: props.taskAutoRule?.trigger_state || '',
+                  filterable: true,
+                  allowCreate: true,
+                  clearable: true,
+                  defaultFirstOption: true,
+                  placeholder: '达到该状态时自动推进',
+                  'onUpdate:modelValue': (value) => updateAutoRuleField('trigger_state', value || '')
+                }, () => WORKFLOW_STATE_OPTIONS.map((item) => h(ElOption, {
+                  key: item.value,
+                  label: item.label,
+                  value: item.value
+                })))),
+                h(ElDivider, null, () => '任务办理限制'),
+                h(ElFormItem, { label: '指定办理角色' }, () => h(ElSelect, {
+                  modelValue: props.taskAssignment?.candidate_roles?.[0] || '',
+                  clearable: true,
+                  filterable: true,
+                  placeholder: '不指定则任意角色可办理',
+                  disabled: props.assignmentLoading,
+                  'onUpdate:modelValue': (value) => updateAssignmentField('candidate_roles', value ? [String(value)] : [])
+                }, () => props.roleOptions.map((item) => h(ElOption, {
+                  key: item.value,
+                  label: item.label,
+                  value: item.value
+                })))),
+                h(ElFormItem, { label: '指定办理人' }, () => h(ElSelect, {
+                  modelValue: props.taskAssignment?.candidate_users?.[0] || '',
+                  clearable: true,
+                  filterable: true,
+                  placeholder: '不指定则任意人员可办理',
+                  disabled: props.assignmentLoading,
+                  'onUpdate:modelValue': (value) => updateAssignmentField('candidate_users', value ? [String(value)] : [])
+                }, () => props.userOptions.map((item) => h(ElOption, {
+                  key: item.value,
+                  label: item.label,
+                  value: item.value
+                })))),
+                h('div', { class: 'mapping-actions' }, [
+                  h(ElButton, { type: 'primary', size: 'small', loading: props.mappingSaving, onClick: saveMapping }, () => '保存状态'),
+                  h(ElButton, { type: 'primary', size: 'small', plain: true, loading: props.autoRuleSaving, onClick: saveAutoRule }, () => '保存推进'),
+                  h(ElButton, { type: 'primary', size: 'small', plain: true, loading: props.assignmentSaving, onClick: saveAssignment }, () => '保存分派')
+                ])
+              ])
+            ]),
+        ...(props.mode === 'pro'
+          ? [
+        h(ElDivider, null, () => '专业模式配置'),
         h(ElForm, { labelWidth: '100px', size: 'small' }, () => [
-          h(ElFormItem, { label: '业务表' }, () => h(ElSelect, {
-            modelValue: props.selectedTables,
-            'onUpdate:modelValue': updateTables,
-            multiple: true,
-            filterable: true,
-            collapseTags: true,
-            placeholder: '选择业务表'
-          }, () => props.tableOptions.map((item) => h(ElOption, {
-            key: item.value,
-            label: item.label,
-            value: item.value
-          })))),
-          h(ElFormItem, { label: '可见字段' }, () => [
-            h(ElSelect, {
-              modelValue: props.visibleFields,
-              'onUpdate:modelValue': updateVisible,
-              multiple: true,
-              filterable: true,
-              collapseTags: true,
-              placeholder: '选择可见字段'
-            }, () => props.fieldOptions.map((item) => h(ElOption, {
-              key: item.value,
-              label: item.label,
-              value: item.value
-            })))
-          ]),
-          h(ElFormItem, { label: '可编辑字段' }, () => [
-            h(ElSelect, {
-              modelValue: props.editableFields,
-              'onUpdate:modelValue': updateEditable,
-              multiple: true,
-              filterable: true,
-              collapseTags: true,
-              placeholder: '选择可编辑字段'
-            }, () => props.fieldOptions.map((item) => h(ElOption, {
-              key: item.value,
-              label: item.label,
-              value: item.value
-            })))
-          ]),
           h(ElDivider, null, () => '状态映射'),
           h(ElFormItem, { label: '目标表' }, () => h(ElInput, {
             modelValue: props.stateMapping?.target_table || '',
@@ -332,14 +521,43 @@ const BindFormPanel = defineComponent({
             disabled: props.mappingLoading,
             'onUpdate:modelValue': (value) => updateMappingField('state_field', value)
           })),
-          h(ElFormItem, { label: '状态值' }, () => h(ElInput, {
+          h(ElFormItem, { label: '状态值' }, () => h(ElSelect, {
             modelValue: props.stateMapping?.state_value || '',
-            placeholder: '如: PENDING_REVIEW',
+            filterable: true,
+            allowCreate: true,
+            clearable: true,
+            defaultFirstOption: true,
+            placeholder: '建议: 创建 / 生效 / 锁定',
             disabled: props.mappingLoading,
-            'onUpdate:modelValue': (value) => updateMappingField('state_value', value)
-          })),
+            'onUpdate:modelValue': (value) => updateMappingField('state_value', value || '')
+          }, () => WORKFLOW_STATE_OPTIONS.map((item) => h(ElOption, {
+            key: item.value,
+            label: item.label,
+            value: item.value
+          })))),
           h('div', { class: 'mapping-actions' }, [
             h(ElButton, { type: 'primary', size: 'small', loading: props.mappingSaving, onClick: saveMapping }, () => '保存映射')
+          ]),
+          h(ElDivider, null, () => '自动推进规则'),
+          h(ElFormItem, { label: '启用自动推进' }, () => h(ElSwitch, {
+            modelValue: props.taskAutoRule?.enabled !== false,
+            'onUpdate:modelValue': (value) => updateAutoRuleField('enabled', value !== false)
+          })),
+          h(ElFormItem, { label: '触发状态' }, () => h(ElSelect, {
+            modelValue: props.taskAutoRule?.trigger_state || '',
+            filterable: true,
+            allowCreate: true,
+            clearable: true,
+            defaultFirstOption: true,
+            placeholder: '达到该状态时自动推进',
+            'onUpdate:modelValue': (value) => updateAutoRuleField('trigger_state', value || '')
+          }, () => WORKFLOW_STATE_OPTIONS.map((item) => h(ElOption, {
+            key: item.value,
+            label: item.label,
+            value: item.value
+          })))),
+          h('div', { class: 'mapping-actions' }, [
+            h(ElButton, { type: 'primary', size: 'small', loading: props.autoRuleSaving, onClick: saveAutoRule }, () => '保存规则')
           ]),
           h(ElDivider, null, () => '任务分派'),
           h(ElFormItem, { label: '候选角色' }, () => h(ElSelect, {
@@ -374,39 +592,44 @@ const BindFormPanel = defineComponent({
             h(ElButton, { type: 'primary', size: 'small', loading: props.assignmentSaving, onClick: saveAssignment }, () => '保存分派')
           ])
         ])
+      ]
+          : [])
       ])
     }
   }
 })
+
+const panelItemOptions = Object.freeze(['UserTask', 'UserTaskButtons', 'Condition', 'Listener', 'StartInitiator', 'ServiceTask'])
 
 const designerOption = computed(() => ({
   toolbar: {
     items: ['Imports', 'Exports', 'Previews', 'LintToggle', 'Aligns', 'Scales', 'Commands']
   },
   panel: {
-    items: ['UserTask', 'UserTaskButtons', 'Condition', 'Listener', 'StartInitiator', 'ServiceTask'],
+    items: panelMode.value === 'pro' ? panelItemOptions : [],
     extra: [() => h(BindFormPanel, {
       elementType: selectedElement.value?.type || '',
-      fieldOptions: availableFields.value,
-      tableOptions: availableTables.value,
-      selectedTables: selectedTables.value,
-      visibleFields: visibleFields.value,
-      editableFields: editableFields.value,
       stateMapping: stateMapping.value,
       mappingLoading: mappingLoading.value,
       mappingSaving: mappingSaving.value,
+      taskAutoRule: taskAutoRule.value,
+      autoRuleSaving: autoRuleSaving.value,
+      mode: panelMode.value,
+      businessAppOptions: businessAppOptions.value,
+      businessAppId: getCurrentBusinessBinding(),
       taskAssignment: taskAssignment.value,
       assignmentLoading: assignmentLoading.value,
       assignmentSaving: assignmentSaving.value,
       roleOptions: roleOptions.value,
       userOptions: userOptions.value,
-      'onUpdate:selectedTables': (value) => (selectedTables.value = value),
-      'onUpdate:visibleFields': (value) => (visibleFields.value = value),
-      'onUpdate:editableFields': (value) => (editableFields.value = value),
       'onUpdate:stateMapping': (value) => (stateMapping.value = value),
+      'onUpdate:taskAutoRule': (value) => (taskAutoRule.value = value),
       'onUpdate:taskAssignment': (value) => (taskAssignment.value = value),
+      'onUpdate:businessAppId': (value) => { setCurrentBusinessBinding(value) },
       'onSave-state-mapping': saveStateMapping,
-      'onSave-task-assignment': saveTaskAssignment
+      'onSave-task-auto-rule': saveTaskAutoRule,
+      'onSave-task-assignment': saveTaskAssignment,
+      'onSave-link-config': saveWorkflowLinkConfig
     })]
   }
 }))
@@ -422,8 +645,8 @@ const ensureModelerReady = () => {
   eventBus.on('selection.changed', (event) => {
     const element = event?.newSelection?.[0] || null
     selectedElement.value = element ? markRaw(element) : null
-    syncBindFormFromElement(element)
     syncStateMapping(element)
+    syncTaskAutoRule(element)
     syncTaskAssignment(element)
   })
 
@@ -431,29 +654,12 @@ const ensureModelerReady = () => {
   modelerReadyTimer = null
 }
 
-const syncBindFormFromElement = (element) => {
-  if (!element || element.type !== 'bpmn:UserTask') {
-    isSyncingBinding.value = true
-    visibleFields.value = []
-    editableFields.value = []
-    selectedTables.value = []
-    isSyncingBinding.value = false
-    resetTaskAssignment()
-    return
-  }
-
-  const bindForm = getBindFormFromElement(element)
-  isSyncingBinding.value = true
-  visibleFields.value = Array.isArray(bindForm?.visibleFields) ? bindForm.visibleFields : []
-  editableFields.value = Array.isArray(bindForm?.editableFields) ? bindForm.editableFields : []
-  selectedTables.value = Array.isArray(bindForm?.tables)
-    ? bindForm.tables
-    : (bindForm?.table ? [bindForm.table] : [])
-  isSyncingBinding.value = false
-}
-
 const resetStateMapping = () => {
   stateMapping.value = { target_table: '', state_field: '', state_value: '' }
+}
+
+const resetTaskAutoRule = () => {
+  taskAutoRule.value = { enabled: true, trigger_state: '' }
 }
 
 const normalizeStringList = (value) => {
@@ -519,6 +725,27 @@ const syncTaskAssignment = async (element) => {
   }
 }
 
+const syncTaskAutoRule = (element) => {
+  if (!element || element.type !== 'bpmn:UserTask') {
+    resetTaskAutoRule()
+    return
+  }
+  const taskId = String(element?.id || '').trim()
+  if (!taskId) {
+    resetTaskAutoRule()
+    return
+  }
+  const cfg = getAppConfigObject()
+  const allRules = cfg.workflowAutoAdvanceRules && typeof cfg.workflowAutoAdvanceRules === 'object'
+    ? cfg.workflowAutoAdvanceRules
+    : {}
+  const rule = allRules[taskId] && typeof allRules[taskId] === 'object' ? allRules[taskId] : {}
+  taskAutoRule.value = {
+    enabled: rule.enabled !== false,
+    trigger_state: canonicalizeWorkflowState(rule.trigger_state)
+  }
+}
+
 const syncStateMapping = async (element) => {
   if (!element || element.type !== 'bpmn:UserTask' || !appId.value) {
     resetStateMapping()
@@ -532,10 +759,12 @@ const syncStateMapping = async (element) => {
       { headers: getAppCenterHeaders(token) }
     )
     const row = Array.isArray(response.data) ? response.data[0] : null
+    const inferred = inferStateTargetByBusinessBinding()
+    const defaultTable = String(inferred.target_table || appData.value?.config?.table || '').trim()
     stateMapping.value = {
-      target_table: row?.target_table || '',
-      state_field: row?.state_field || '',
-      state_value: row?.state_value || ''
+      target_table: row?.target_table || defaultTable,
+      state_field: row?.state_field || inferred.state_field || 'status',
+      state_value: canonicalizeWorkflowState(row?.state_value)
     }
   } catch (error) {
     resetStateMapping()
@@ -548,15 +777,18 @@ const saveStateMapping = async () => {
   if (!selectedElement.value || selectedElement.value.type !== 'bpmn:UserTask' || !appId.value) return
   mappingSaving.value = true
   try {
+    const inferred = inferStateTargetByBusinessBinding()
+    const resolvedTargetTable = String(stateMapping.value.target_table || inferred.target_table || appData.value?.config?.table || '').trim()
+    const resolvedStateField = String(stateMapping.value.state_field || inferred.state_field || 'status').trim()
     const token = localStorage.getItem('auth_token')
     await axios.post(
       '/api/workflow_state_mappings?on_conflict=workflow_app_id,bpmn_task_id',
       {
         workflow_app_id: appId.value,
         bpmn_task_id: selectedElement.value.id,
-        target_table: stateMapping.value.target_table || null,
-        state_field: stateMapping.value.state_field || null,
-        state_value: stateMapping.value.state_value || null
+        target_table: resolvedTargetTable || null,
+        state_field: resolvedStateField || 'status',
+        state_value: canonicalizeWorkflowState(stateMapping.value.state_value) || null
       },
       {
         headers: {
@@ -571,6 +803,48 @@ const saveStateMapping = async () => {
     ElMessage.error(formatWorkflowError('状态映射保存失败', error))
   } finally {
     mappingSaving.value = false
+  }
+}
+
+const saveTaskAutoRule = async () => {
+  if (!selectedElement.value || selectedElement.value.type !== 'bpmn:UserTask' || !appId.value) return
+  const taskId = String(selectedElement.value.id || '').trim()
+  if (!taskId) return
+
+  autoRuleSaving.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    const cfg = getAppConfigObject()
+    const currentRules = cfg.workflowAutoAdvanceRules && typeof cfg.workflowAutoAdvanceRules === 'object'
+      ? cfg.workflowAutoAdvanceRules
+      : {}
+    const nextRules = {
+      ...currentRules,
+      [taskId]: {
+        enabled: taskAutoRule.value.enabled !== false,
+        trigger_state: canonicalizeWorkflowState(taskAutoRule.value.trigger_state) || null
+      }
+    }
+    const nextConfig = {
+      ...cfg,
+      workflowAutoAdvanceRules: nextRules
+    }
+    await axios.patch(
+      `/api/apps?id=eq.${appId.value}`,
+      { config: nextConfig, updated_at: new Date().toISOString() },
+      {
+        headers: {
+          ...getAppCenterHeaders(token),
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    appData.value.config = nextConfig
+    ElMessage.success('自动推进规则已保存')
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('自动推进规则保存失败', error))
+  } finally {
+    autoRuleSaving.value = false
   }
 }
 
@@ -626,91 +900,42 @@ const saveTaskAssignment = async () => {
   }
 }
 
-const getBindFormFromElement = (element) => {
-  const values = element?.businessObject?.extensionElements?.values || []
-  const bindForm = values.find((item) => item.$type === 'eis:bindForm')
-  if (!bindForm) return null
-  const raw = bindForm?.json || bindForm?.value || bindForm?.body || bindForm?.text || ''
-  if (!raw) return null
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
-}
-
-const persistBindFormToElement = async () => {
-  if (isSyncingBinding.value) return
-  if (!selectedElement.value || selectedElement.value.type !== 'bpmn:UserTask') return
-
-  const modeler = window?.__kthirty?.modeler
-  if (!modeler) return
-
-  const moddle = modeler.get('moddle')
-  const modeling = modeler.get('modeling')
-  if (!moddle || !modeling) return
-
-  const element = toRaw(selectedElement.value)
-  const businessObject = element.businessObject
-  let extensionElements = businessObject.extensionElements
-  if (!extensionElements) {
-    extensionElements = moddle.create('bpmn:ExtensionElements', { values: [] })
-  }
-  if (!Array.isArray(extensionElements.values)) {
-    extensionElements.values = []
-  }
-
-  const payload = JSON.stringify({
-    tables: selectedTables.value || [],
-    visibleFields: visibleFields.value || [],
-    editableFields: editableFields.value || []
-  })
-  if (payload === bindFormPayloadCache.value) return
-  bindFormPayloadCache.value = payload
-
-  const existingIndex = extensionElements.values.findIndex((item) => item.$type === 'eis:bindForm')
-  const newElement = moddle.createAny
-    ? moddle.createAny('eis:bindForm', 'http://eiscore.com/schema/bpmn', { json: payload })
-    : moddle.create('eis:bindForm', { json: payload })
-
-  if (existingIndex >= 0) {
-    extensionElements.values.splice(existingIndex, 1, newElement)
-  } else {
-    extensionElements.values.push(newElement)
-  }
-
-  modeling.updateProperties(element, { extensionElements })
-}
-
-const schedulePersistBindForm = () => {
-  if (persistTimer) clearTimeout(persistTimer)
-  persistTimer = setTimeout(() => {
-    persistBindFormToElement()
-  }, 150)
-}
-
-watch(visibleFields, (list) => {
-  if (isSyncingBinding.value) return
-  if (!Array.isArray(list)) return
-  editableFields.value = editableFields.value.filter((item) => list.includes(item))
+watch(panelMode, () => {
+  remountDesigner()
 })
 
-watch([visibleFields, editableFields, selectedTables], () => {
-  if (isSyncingBinding.value) return
-  schedulePersistBindForm()
-})
+watch(
+  () => getCurrentBusinessBinding(),
+  (newBinding, oldBinding) => {
+    if (!selectedElement.value || selectedElement.value.type !== 'bpmn:UserTask') return
+    const currentTarget = String(stateMapping.value.target_table || '').trim()
+    const oldRef = (() => {
+      const binding = String(oldBinding || '').trim()
+      if (!binding) return { target_table: '', state_field: '' }
+      if (binding.startsWith('legacy:')) {
+        return LEGACY_APP_STATE_TARGET_MAP[binding] || { target_table: '', state_field: '' }
+      }
+      const tableName = String(businessAppTableMap.value?.[binding] || '').trim()
+      return tableName ? { target_table: tableName, state_field: 'status' } : { target_table: '', state_field: '' }
+    })()
+    const nextRef = inferStateTargetByBusinessBinding()
+    if (!nextRef.target_table) return
 
-watch(selectedTables, async () => {
-  visibleFields.value = []
-  editableFields.value = []
-  await loadFieldOptions()
-})
+    // 保留手动指定；仅在“未设置”或“仍是旧绑定推断值”时自动切换
+    if (!currentTarget || currentTarget === String(oldRef.target_table || '').trim()) {
+      stateMapping.value = {
+        ...stateMapping.value,
+        target_table: nextRef.target_table,
+        state_field: stateMapping.value.state_field || nextRef.state_field || 'status'
+      }
+    }
+  }
+)
 
 onMounted(async () => {
   await loadAppData()
   await Promise.all([loadRoleOptions(), loadUserOptions()])
-  await loadTableOptions()
-  await loadFieldOptions()
+  await loadBusinessAppOptions()
   if (!xml.value) {
     xml.value = defaultBpmnXml
     remountDesigner()
@@ -724,10 +949,6 @@ onUnmounted(() => {
     clearInterval(modelerReadyTimer)
     modelerReadyTimer = null
   }
-  if (persistTimer) {
-    clearTimeout(persistTimer)
-    persistTimer = null
-  }
 })
 
 const loadAppData = async () => {
@@ -739,6 +960,7 @@ const loadAppData = async () => {
       headers: getAppCenterHeaders(token)
     })
     appData.value = response.data[0]
+    appData.value.config = toConfigObject(appData.value?.config)
     const appXml = normalizeBpmnXml(appData.value?.bpmn_xml || '')
     let resolvedXml = appXml
 
@@ -756,172 +978,15 @@ const loadAppData = async () => {
 
     xml.value = resolvedXml || defaultBpmnXml
     remountDesigner()
-    if (!selectedTables.value.length && appData.value?.config?.table) {
-      selectedTables.value = [appData.value.config.table]
+    const cfg = getAppConfigObject()
+    workflowLinkConfig.value = {
+      businessAppId: String(cfg.workflowBusinessAppId || '').trim(),
+      autoAdvanceEnabled: cfg.workflowAutoAdvanceEnabled !== false,
+      taskBusinessAppBindings: normalizeTaskBusinessBindings(cfg.workflowTaskBusinessAppBindings)
     }
+    panelMode.value = cfg.workflowDesignerPanelMode === 'pro' ? 'pro' : 'simple'
   } catch (error) {
     ElMessage.error('加载应用数据失败')
-  }
-}
-
-const isPermissionTable = (name = '') => {
-  const lower = String(name).toLowerCase()
-  if (lower.startsWith('sys_')) return true
-  return ['permission', 'acl', 'role', 'auth'].some((key) => lower.includes(key))
-}
-
-const fetchOpenApi = async () => {
-  if (openApiSpec.value) return openApiSpec.value
-  const token = localStorage.getItem('auth_token')
-  const response = await axios.get('/api/', {
-    headers: getAppCenterHeaders(token)
-  })
-  openApiSpec.value = response.data
-  return openApiSpec.value
-}
-
-const getConfigValueFromRow = (row) => {
-  if (!row || typeof row !== 'object') return undefined
-  if (row.value !== undefined) return row.value
-  if (row.config_value !== undefined) return row.config_value
-  if (row.data !== undefined) return row.data
-  if (row.content !== undefined) return row.content
-  return undefined
-}
-
-const loadTableOptions = async () => {
-  try {
-    const token = localStorage.getItem('auth_token')
-    const keys = tableConfigMap.map((item) => item.key).join(',')
-    let list = []
-    try {
-      const response = await axios.get(`/api/system_configs?key=in.(${keys})`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Accept-Profile': 'public',
-          'Content-Profile': 'public'
-        }
-      })
-      const rows = Array.isArray(response.data) ? response.data : []
-      const existingKeys = new Set(rows.map((item) => item.key))
-      const modules = tableConfigMap
-        .filter((item) => existingKeys.has(item.key))
-        .map((item) => ({ value: item.module, label: item.label }))
-      list = modules.length
-        ? modules
-        : tableConfigMap.map((item) => ({ value: item.module, label: item.label }))
-    } catch (error) {
-      console.error('加载业务表配置失败，回退到接口扫描：', error)
-      const spec = await fetchOpenApi()
-      const paths = spec?.paths || {}
-      const tables = new Set()
-      Object.keys(paths).forEach((path) => {
-        const parts = String(path).split('/').filter(Boolean)
-        if (!parts.length) return
-        if (parts[0] === 'rpc') return
-        const name = parts[0]
-        if (isPermissionTable(name)) return
-        if (tableLabelMap[name]) tables.add(name)
-      })
-      list = Array.from(tables).sort().map((name) => ({
-        value: name,
-        label: tableLabelMap[name] || name
-      }))
-    }
-    availableTables.value = list
-    if (!selectedTables.value.length) {
-      const initial = appData.value?.config?.table || list[0]?.value
-      selectedTables.value = initial ? [initial] : []
-    }
-  } catch (error) {
-    availableTables.value = []
-    console.error('加载业务表失败：', error)
-    ElMessage.error('加载业务表失败')
-  }
-}
-
-const loadFieldOptions = async () => {
-  const tables = selectedTables.value.length
-    ? selectedTables.value
-    : (appData.value?.config?.table ? [appData.value.config.table] : [])
-  if (!tables.length) {
-    availableFields.value = []
-    return
-  }
-
-  try {
-    const token = localStorage.getItem('auth_token')
-    const collected = []
-    const configKeys = tables.map((tableName) => moduleConfigKeyMap[tableName]).filter(Boolean)
-    if (configKeys.length) {
-      const response = await axios.get(`/api/system_configs?key=in.(${configKeys.join(',')})`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Accept-Profile': 'public',
-          'Content-Profile': 'public'
-        }
-      })
-      const rows = Array.isArray(response.data) ? response.data : []
-      rows.forEach((row) => {
-        const moduleName = Object.keys(moduleConfigKeyMap).find((mod) => moduleConfigKeyMap[mod] === row.key)
-        const tableLabel = tableLabelMap[moduleName] || moduleName || ''
-        if (!moduleName) return
-        let value = getConfigValueFromRow(row)
-        if (typeof value === 'string') {
-          try {
-            value = JSON.parse(value)
-          } catch {
-            value = []
-          }
-        }
-        if (Array.isArray(value)) {
-          value
-            .filter((item) => item && item.prop)
-            .forEach((item) => {
-              const label = item.label || item.prop
-              collected.push({
-                value: `${moduleName}.${item.prop}`,
-                label: `${tableLabel}.${label}`
-              })
-            })
-        }
-      })
-      if (collected.length) {
-        availableFields.value = collected
-        return
-      }
-    }
-    for (const tableName of tables) {
-      const response = await axios.get(`/api/sys_field_acl?module=eq.${tableName}&order=field_code.asc`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Accept-Profile': 'public',
-          'Content-Profile': 'public'
-        }
-      })
-      const tableLabel = tableLabelMap[tableName] || tableName
-      const list = (Array.isArray(response.data) ? response.data : []).map((item) => ({
-        value: `${tableName}.${item.field_code}`,
-        label: `${tableLabel}.${item.field_label || item.field_name || item.field_code}`
-      }))
-      if (list.length) {
-        collected.push(...list)
-        continue
-      }
-
-      const spec = await fetchOpenApi()
-      const schema = spec?.components?.schemas?.[tableName]
-      const properties = schema?.properties || {}
-      collected.push(...Object.keys(properties).map((key) => ({
-        value: `${tableName}.${key}`,
-        label: `${tableLabel}.${key}`
-      })))
-    }
-
-    availableFields.value = collected
-  } catch (error) {
-    availableFields.value = []
-    ElMessage.error('加载字段配置失败')
   }
 }
 
@@ -951,7 +1016,9 @@ const handleFileChange = async (event) => {
 const handleCommandStackChanged = () => {
   if (!selectedElement.value) return
   if (selectedElement.value.type !== 'bpmn:UserTask') return
-  syncBindFormFromElement(selectedElement.value)
+  syncStateMapping(selectedElement.value)
+  syncTaskAutoRule(selectedElement.value)
+  syncTaskAssignment(selectedElement.value)
 }
 
 const getCurrentXml = async () => {
@@ -975,9 +1042,13 @@ const exportAndSave = async () => {
         bpmn_xml: bpmnXml,
         updated_at: new Date().toISOString(),
         config: {
-          ...(appData.value?.config || {}),
-          workflowDefinitionId: definitionId || appData.value?.config?.workflowDefinitionId || null,
-          table: selectedTables.value[0] || appData.value?.config?.table || null
+          ...getAppConfigObject(),
+          workflowDefinitionId: definitionId || getAppConfigObject()?.workflowDefinitionId || null,
+          table: getAppConfigObject()?.table || null,
+          workflowBusinessAppId: workflowLinkConfig.value.businessAppId || getAppConfigObject()?.workflowBusinessAppId || null,
+          workflowTaskBusinessAppBindings: normalizeTaskBusinessBindings(workflowLinkConfig.value.taskBusinessAppBindings),
+          workflowAutoAdvanceEnabled: workflowLinkConfig.value.autoAdvanceEnabled !== false,
+          workflowDesignerPanelMode: panelMode.value === 'pro' ? 'pro' : 'simple'
         }
       },
       {
@@ -992,6 +1063,67 @@ const exportAndSave = async () => {
     ElMessage.error(formatWorkflowError('流程保存失败', error))
   } finally {
     saving.value = false
+  }
+}
+
+const loadBusinessAppOptions = async () => {
+  try {
+    const token = localStorage.getItem('auth_token')
+    const response = await axios.get('/api/apps?select=id,name,config,status,app_type&order=updated_at.desc', {
+      headers: getAppCenterHeaders(token)
+    })
+    const rows = Array.isArray(response.data) ? response.data : []
+    const tableMap = {}
+    const appOptions = rows
+      .filter((item) => String(item?.id || '') !== String(appId.value || ''))
+      .filter((item) => String(item?.app_type || '').trim() === 'data')
+      .map((item) => {
+        const cfg = toConfigObject(item?.config)
+        const tableName = String(cfg.table || '').trim()
+        const id = String(item.id || '')
+        if (id) tableMap[id] = tableName
+        const status = String(item?.status || '').trim() || 'draft'
+        const suffix = [tableName, status].filter(Boolean).join(' / ')
+        return {
+          value: id,
+          label: suffix ? `${item.name || item.id}（数据应用：${suffix}）` : `${String(item.name || item.id || '')}（数据应用）`
+        }
+      })
+      .filter((item) => item.value)
+
+    businessAppTableMap.value = tableMap
+    businessAppOptions.value = [...appOptions, ...LEGACY_BINDABLE_APP_OPTIONS]
+  } catch {
+    businessAppTableMap.value = {}
+    businessAppOptions.value = [...LEGACY_BINDABLE_APP_OPTIONS]
+  }
+}
+
+const saveWorkflowLinkConfig = async () => {
+  if (!appId.value || !appData.value) return
+  try {
+    const token = localStorage.getItem('auth_token')
+    const nextConfig = {
+      ...getAppConfigObject(),
+      workflowBusinessAppId: workflowLinkConfig.value.businessAppId || null,
+      workflowTaskBusinessAppBindings: normalizeTaskBusinessBindings(workflowLinkConfig.value.taskBusinessAppBindings),
+      workflowAutoAdvanceEnabled: workflowLinkConfig.value.autoAdvanceEnabled !== false,
+      workflowDesignerPanelMode: panelMode.value === 'pro' ? 'pro' : 'simple'
+    }
+    await axios.patch(
+      `/api/apps?id=eq.${appId.value}`,
+      { config: nextConfig, updated_at: new Date().toISOString() },
+      {
+        headers: {
+          ...getAppCenterHeaders(token),
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+    appData.value.config = nextConfig
+    ElMessage.success('流程业务联动配置已保存')
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('保存流程业务联动配置失败', error))
   }
 }
 
@@ -1038,7 +1170,7 @@ const loadUserOptions = async () => {
 }
 
 const upsertWorkflowDefinition = async (bpmnXml, token) => {
-  const tableName = selectedTables.value[0] || appData.value?.config?.table || null
+  const tableName = appData.value?.config?.table || null
   const existingId = appData.value?.config?.workflowDefinitionId
   const payload = {
     name: appData.value?.name || '流程定义',
@@ -1170,6 +1302,43 @@ const goBack = () => {
   gap: 12px;
 }
 
+.designer-link-config {
+  margin: 10px 16px 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 10px;
+  background: var(--el-color-primary-light-9);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.link-config-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-color-primary-dark-2);
+}
+
+.link-config-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.link-config-tip {
+  margin: 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.config-mode-switch {
+  margin-left: 4px;
+}
+
 .designer-body {
   flex: 1;
   overflow: hidden;
@@ -1185,6 +1354,12 @@ const goBack = () => {
 
 .bindform-panel {
   padding: 8px 12px;
+}
+
+.panel-mode-tip {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .table-picker-row {
@@ -1220,6 +1395,7 @@ const goBack = () => {
 
 .mapping-actions {
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
   margin-top: 4px;
 }

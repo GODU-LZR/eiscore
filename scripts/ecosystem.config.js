@@ -63,6 +63,22 @@ module.exports = {
       error_file: './logs/apps-error.log',
       out_file: './logs/apps-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+    {
+      name: 'eiscore-mobile',
+      cwd: './eiscore-mobile',
+      script: 'npm',
+      args: 'run dev',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8084
+      },
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      error_file: './logs/mobile-error.log',
+      out_file: './logs/mobile-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
     }
   ]
 }

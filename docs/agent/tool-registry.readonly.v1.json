@@ -1,0 +1,269 @@
+﻿{
+    "registry_version":  "readonly-tools-v1",
+    "generated_at":  "2026-02-19",
+    "mode":  "compat",
+    "readonly":  true,
+    "source_doc":  "docs/AGENT_READONLY_TOOLSET_V1.md",
+    "tools":  [
+                  {
+                      "tool_id":  "cap.app.list",
+                      "tool_name_zh":  "查询应用列表",
+                      "intent":  "read_list",
+                      "object":  "app_registry",
+                      "api":  {
+                                  "path":  "/api/apps",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "module:app"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "应用列表",
+                                          "应用清单",
+                                          "应用中心全部应用"
+                                      ],
+                      "examples_zh":  [
+                                          "帮我看一下应用中心所有应用",
+                                          "列出全部应用"
+                                      ]
+                  },
+                  {
+                      "tool_id":  "cap.app.detail",
+                      "tool_name_zh":  "查询应用详情",
+                      "intent":  "read_detail",
+                      "object":  "app_registry",
+                      "api":  {
+                                  "path":  "/api/apps?id=eq.{appId}",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "app:{aclModule}"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "应用详情",
+                                          "应用配置详情",
+                                          "单个应用信息"
+                                      ],
+                      "examples_zh":  [
+                                          "打开这个应用详情",
+                                          "查看应用 appId=xxx 的配置"
+                                      ]
+                  },
+                  {
+                      "tool_id":  "cap.route.resolve",
+                      "tool_name_zh":  "查询发布路由",
+                      "intent":  "read_detail",
+                      "object":  "published_route",
+                      "api":  {
+                                  "path":  "/api/published_routes?route_path=eq.{path}",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "module:app"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "路由解析",
+                                          "路径归属",
+                                          "发布入口查询"
+                                      ],
+                      "examples_zh":  [
+                                          "这个路径属于哪个应用",
+                                          "查路由 /apps/xxx 对应应用"
+                                      ]
+                  },
+                  {
+                      "tool_id":  "cap.data.grid.list",
+                      "tool_name_zh":  "查询表格列表数据",
+                      "intent":  "read_list",
+                      "object":  "data_table",
+                      "api":  {
+                                  "path":  "/api/{table}",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "app:{aclModule}"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "表格列表",
+                                          "台账列表",
+                                          "数据列表"
+                                      ],
+                      "examples_zh":  [
+                                          "看一下这张表的数据",
+                                          "查表 app_data.xxx 前50条"
+                                      ]
+                  },
+                  {
+                      "tool_id":  "cap.data.grid.detail",
+                      "tool_name_zh":  "查询表格单条详情",
+                      "intent":  "read_detail",
+                      "object":  "data_table",
+                      "api":  {
+                                  "path":  "/api/{table}?id=eq.{id}",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "app:{aclModule}"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "表格详情",
+                                          "记录详情",
+                                          "单条数据详情"
+                                      ],
+                      "examples_zh":  [
+                                          "看这条记录的详细信息",
+                                          "查 id=xxx 的记录"
+                                      ]
+                  },
+                  {
+                      "tool_id":  "cap.workflow.definition.list",
+                      "tool_name_zh":  "查询流程定义",
+                      "intent":  "read_list",
+                      "object":  "workflow_definition",
+                      "api":  {
+                                  "path":  "/api/definitions?app_id=eq.{appId}",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "app:{aclModule}"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "流程模板",
+                                          "流程定义",
+                                          "审批模板"
+                                      ],
+                      "examples_zh":  [
+                                          "查这个流程的模板",
+                                          "看应用下的流程定义"
+                                      ]
+                  },
+                  {
+                      "tool_id":  "cap.workflow.instance.list",
+                      "tool_name_zh":  "查询流程实例",
+                      "intent":  "read_list",
+                      "object":  "workflow_instance",
+                      "api":  {
+                                  "path":  "/api/instances?definition_id=eq.{definitionId}",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "app:{aclModule}"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "流程实例",
+                                          "审批单",
+                                          "流程进度"
+                                      ],
+                      "examples_zh":  [
+                                          "看流程实例进度",
+                                          "查询流程 definitionId 下的实例"
+                                      ]
+                  },
+                  {
+                      "tool_id":  "cap.workflow.event.list",
+                      "tool_name_zh":  "查询流程日志",
+                      "intent":  "read_list",
+                      "object":  "workflow_event",
+                      "api":  {
+                                  "path":  "/api/instance_events?...",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "app:{aclModule}"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "流程日志",
+                                          "流转记录",
+                                          "实例轨迹"
+                                      ],
+                      "examples_zh":  [
+                                          "看流程流转日志",
+                                          "查看实例事件记录"
+                                      ]
+                  },
+                  {
+                      "tool_id":  "cap.inventory.current.list",
+                      "tool_name_zh":  "查询当前库存",
+                      "intent":  "read_list",
+                      "object":  "inventory_current",
+                      "api":  {
+                                  "path":  "/api/v_inventory_current",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "app:mms_ledger"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "库存现状",
+                                          "库存余额",
+                                          "当前库存"
+                                      ],
+                      "examples_zh":  [
+                                          "看当前库存情况",
+                                          "查库存现状"
+                                      ]
+                  },
+                  {
+                      "tool_id":  "cap.ontology.relation.list",
+                      "tool_name_zh":  "查询本体关系",
+                      "intent":  "read_list",
+                      "object":  "ontology_relation",
+                      "api":  {
+                                  "path":  "/api/ontology_table_relations?relation_type=eq.ontology",
+                                  "method":  "GET"
+                              },
+                      "auth":  {
+                                   "permission_min":  "app:ontology_workbench"
+                               },
+                      "risk":  {
+                                   "level":  "low",
+                                   "confirm_required":  false
+                               },
+                      "synonyms_zh":  [
+                                          "本体关系图",
+                                          "语义关系",
+                                          "依赖关系"
+                                      ],
+                      "examples_zh":  [
+                                          "看本体关系图",
+                                          "查询本体关系"
+                                      ]
+                  }
+              ]
+}

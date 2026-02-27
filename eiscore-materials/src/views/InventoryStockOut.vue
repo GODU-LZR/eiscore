@@ -7,6 +7,7 @@
       </div>
       <div class="header-actions">
         <el-button plain @click="goBatchRules">批次号规则</el-button>
+        <el-button :icon="Setting" circle @click="openTypeManager" title="管理出库类型" />
         <el-button type="primary" @click="openDrawer">出库登记</el-button>
       </div>
     </div>
@@ -50,6 +51,7 @@
       :can-export="canExport"
       :can-config="canConfig"
       @create="openDrawer"
+      @view-document="handleViewDocument"
       @cell-value-changed="handleCellValueChanged"
       @selection-changed="handleSelection"
       @data-loaded="handleDataLoaded"
@@ -107,6 +109,17 @@
           </el-select>
         </el-form-item>
 
+        <el-form-item label="出库类型" required>
+          <el-select v-model="drawer.form.io_type" placeholder="请选择出库类型" style="width: 100%;">
+            <el-option
+              v-for="opt in ioTypeSelectOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </el-form-item>
+
         <el-form-item label="无需选择批次号">
           <el-switch v-model="drawer.form.allowNoBatch" />
           <span class="hint-text">开启后自动选择批次号出库</span>
@@ -142,20 +155,50 @@
         </div>
       </template>
     </el-drawer>
+
+    <el-dialog v-model="typeManager.visible" title="出库类型管理" width="560px" append-to-body>
+      <div class="type-toolbar">
+        <el-button type="primary" plain :icon="Plus" @click="addTypeRow">新增类型</el-button>
+      </div>
+      <el-table :data="typeManager.rows" size="small" border style="width: 100%">
+        <el-table-column prop="name" label="类型名称" min-width="260">
+          <template #default="scope">
+            <el-input v-model="scope.row.name" placeholder="例如：销售出库" />
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="100" align="center">
+          <template #default="scope">
+            <el-button type="danger" link :icon="Delete" @click="removeTypeRow(scope.$index)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="typeManager.visible = false">取消</el-button>
+        <el-button type="primary" :loading="typeManager.saving" @click="saveTypeManager">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Goods } from '@element-plus/icons-vue'
+import { Goods, Setting, Plus, Delete } from '@element-plus/icons-vue'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { hasPerm } from '@/utils/permission'
 import { useUserStore } from '@/stores/user'
+import {
+  DEFAULT_INVENTORY_IO_TYPES,
+  loadInventoryIoTypes,
+  saveInventoryIoTypes,
+  getInventoryIoTypesByDraft,
+  buildInventoryIoTypeOptions
+} from '@/utils/inventory-io-types'
 
 const router = useRouter()
+const route = useRoute()
 const gridRef = ref(null)
 const formRef = ref(null)
 const selectedRow = ref(null)
@@ -168,12 +211,69 @@ const loadedRows = ref([])
 
 const userStore = useUserStore()
 const operatorName = computed(() => userStore.userInfo?.username || 'Admin')
+const workflowContext = computed(() => {
+  const query = route.query || {}
+  const instanceId = String(query.wf_instance || '').trim()
+  const key = String(query.wf_key || '').trim()
+  return {
+    active: Boolean(instanceId && key),
+    instanceId,
+    key,
+    taskId: String(query.wf_task || '').trim(),
+    definitionId: String(query.wf_definition || '').trim(),
+    workflowAppId: String(query.wf_app || '').trim()
+  }
+})
+
+const buildWorkflowProps = (baseProps = {}) => {
+  const next = baseProps && typeof baseProps === 'object' && !Array.isArray(baseProps) ? { ...baseProps } : {}
+  const ctx = workflowContext.value
+  if (!ctx.active) return next
+  next.workflow_instance_id = ctx.instanceId
+  next.workflow_business_key = ctx.key
+  next.workflow_task_id = ctx.taskId || ''
+  next.workflow_definition_id = ctx.definitionId || ''
+  next.workflow_app_id = ctx.workflowAppId || ''
+  next.workflow_source = 'materials_inventory_stock_out'
+  return next
+}
+
+const ensureDraftWorkflowBinding = async (rowId) => {
+  const ctx = workflowContext.value
+  if (!ctx.active || !rowId) return
+  try {
+    const rows = await request({
+      url: `/inventory_drafts?id=eq.${rowId}&select=id,properties&limit=1`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' }
+    })
+    const row = Array.isArray(rows) ? rows[0] : null
+    if (!row?.id) return
+    const merged = buildWorkflowProps(row.properties)
+    await request({
+      url: `/inventory_drafts?id=eq.${rowId}`,
+      method: 'patch',
+      headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
+      data: { properties: merged }
+    })
+  } catch (e) {
+    console.warn('ensure draft workflow binding failed', e)
+  }
+}
 
 const unitOptions = ['个', '件', '箱', '吨', '千克', '克', '斤', '米']
 const unitSelectOptions = unitOptions.map(item => ({ label: item, value: item }))
+const ioTypeSelectOptions = []
+const ioTypeList = ref([])
+const allIoTypes = ref([])
 const materialSelectOptions = []
 const warehouseSlotOptions = []
 const batchSelectOptions = []
+const typeManager = reactive({
+  visible: false,
+  saving: false,
+  rows: []
+})
 
 /* ── 物料库存信息栏 ── */
 const focusedMaterialId = ref(null)
@@ -299,8 +399,8 @@ const gridConfig = {
   writeUrl: '/inventory_drafts',
   schema: 'scm',
   includeProperties: false,
-  patchRequiredFields: ['draft_type', 'status', 'material_id', 'warehouse_id', 'quantity', 'unit', 'batch_id'],
-  fieldDefaults: { draft_type: 'out', status: 'created' },
+  patchRequiredFields: ['draft_type', 'status', 'material_id', 'warehouse_id', 'quantity', 'unit', 'batch_id', 'io_type'],
+  fieldDefaults: { draft_type: 'out', status: 'created', io_type: '' },
   defaultOrder: 'created_at.desc',
   aclModule: 'mms_inventory',
   summaryConfig: { label: '总计', rules: {}, expressions: {} },
@@ -320,6 +420,26 @@ const gridConfig = {
           return false
         }
         params.data.status = next
+        return true
+      }
+    },
+    {
+      label: '出库类型',
+      prop: 'io_type',
+      width: 140,
+      editable: (params) => canEditField(params, 'io_type'),
+      type: 'select',
+      options: ioTypeSelectOptions,
+      allowClear: false,
+      valueSetter: (params) => {
+        const nextValue = params.newValue ? String(params.newValue).trim() : ''
+        if (!nextValue) {
+          ElMessage.warning('出库类型不能为空')
+          return false
+        }
+        if (params.data?.io_type === nextValue) return false
+        params.data.io_type = nextValue
+        ensureIoTypeOption(nextValue)
         return true
       }
     },
@@ -407,6 +527,7 @@ const drawer = reactive({
     material_id: null,
     warehouse_id: null,
     batch_id: null,
+    io_type: '',
     batch_no: '',
     quantity: 1,
     unit: '个',
@@ -436,10 +557,12 @@ const goBatchRules = () => router.push('/batch-rules')
 
 const openDrawer = () => {
   drawer.visible = true
+  const defaultIoType = ioTypeSelectOptions[0]?.value || ''
   drawer.form = {
     material_id: null,
     warehouse_id: null,
     batch_id: null,
+    io_type: defaultIoType,
     batch_no: '',
     quantity: 1,
     unit: '个',
@@ -447,6 +570,109 @@ const openDrawer = () => {
     remark: '',
     allowNoBatch: false,
     autoStrategy: 'fifo'
+  }
+}
+
+const normalizeTypeName = (value) => String(value || '').trim()
+
+const syncIoTypeOptions = (list) => {
+  ioTypeList.value = getInventoryIoTypesByDraft(list, 'out')
+  ioTypeSelectOptions.splice(0, ioTypeSelectOptions.length, ...buildInventoryIoTypeOptions(list, 'out'))
+  if (!ioTypeSelectOptions.length) {
+    const fallback = DEFAULT_INVENTORY_IO_TYPES.filter(item => item.draft_type === 'out').map(item => ({
+      id: item.id,
+      draft_type: 'out',
+      name: item.name
+    }))
+    ioTypeList.value = fallback
+    ioTypeSelectOptions.splice(0, ioTypeSelectOptions.length, ...fallback.map(item => ({ label: item.name, value: item.name })))
+  }
+  gridConfig.fieldDefaults.io_type = ioTypeSelectOptions[0]?.value || ''
+}
+
+const ensureIoTypeOption = (value) => {
+  const normalized = normalizeTypeName(value)
+  if (!normalized) return
+  if (!ioTypeSelectOptions.some(item => item.value === normalized)) {
+    ioTypeSelectOptions.push({ label: normalized, value: normalized })
+  }
+}
+
+const loadIoTypes = async () => {
+  try {
+    const all = await loadInventoryIoTypes()
+    allIoTypes.value = all
+    syncIoTypeOptions(all)
+  } catch (e) {
+    const fallback = DEFAULT_INVENTORY_IO_TYPES.map(item => ({ ...item }))
+    allIoTypes.value = fallback
+    syncIoTypeOptions(fallback)
+  }
+}
+
+const openTypeManager = async () => {
+  if (!allIoTypes.value.length) {
+    await loadIoTypes()
+  }
+  typeManager.rows = ioTypeList.value.map(item => ({ ...item }))
+  typeManager.visible = true
+}
+
+const addTypeRow = () => {
+  typeManager.rows.push({
+    id: `out_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    draft_type: 'out',
+    name: ''
+  })
+}
+
+const removeTypeRow = (index) => {
+  typeManager.rows.splice(index, 1)
+}
+
+const saveTypeManager = async () => {
+  const cleaned = []
+  const nameSet = new Set()
+  for (const row of typeManager.rows) {
+    const name = normalizeTypeName(row.name)
+    if (!name) {
+      ElMessage.warning('类型名称不能为空')
+      return
+    }
+    if (nameSet.has(name)) {
+      ElMessage.warning('类型名称不能重复')
+      return
+    }
+    nameSet.add(name)
+    cleaned.push({
+      id: row.id || `out_${Date.now()}_${cleaned.length}`,
+      draft_type: 'out',
+      name
+    })
+  }
+  if (!cleaned.length) {
+    ElMessage.warning('至少保留一个出库类型')
+    return
+  }
+
+  typeManager.saving = true
+  try {
+    const keepIn = getInventoryIoTypesByDraft(allIoTypes.value, 'in')
+    const merged = [...keepIn, ...cleaned]
+    const saved = await saveInventoryIoTypes(merged)
+    allIoTypes.value = saved
+    syncIoTypeOptions(saved)
+    ensureIoTypeOption(drawer.form.io_type)
+    if (!normalizeTypeName(drawer.form.io_type)) {
+      drawer.form.io_type = ioTypeSelectOptions[0]?.value || ''
+    }
+    typeManager.visible = false
+    ElMessage.success('出库类型已更新')
+    gridRef.value?.loadData?.()
+  } catch (e) {
+    ElMessage.error(getErrorMessage(e, '保存出库类型失败'))
+  } finally {
+    typeManager.saving = false
   }
 }
 
@@ -509,9 +735,9 @@ const pickAutoBatch = () => {
 
 /* ── 提交出库草稿 ── */
 const submitStockOut = async () => {
-  const { material_id, warehouse_id, quantity, unit, remark } = drawer.form
+  const { material_id, warehouse_id, quantity, unit, remark, io_type } = drawer.form
 
-  if (!material_id || !warehouse_id || !quantity) {
+  if (!material_id || !warehouse_id || !quantity || !normalizeTypeName(io_type)) {
     ElMessage.warning('请填写必填项')
     return
   }
@@ -533,7 +759,7 @@ const submitStockOut = async () => {
 
   drawer.loading = true
   try {
-    await request({
+    const created = await request({
       url: '/inventory_drafts',
       method: 'post',
       headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm', 'Prefer': 'return=representation' },
@@ -546,12 +772,23 @@ const submitStockOut = async () => {
         batch_no: drawer.form.batch_no,
         quantity,
         unit,
+        io_type: normalizeTypeName(io_type),
         remark,
-        operator: operatorName.value
+        operator: operatorName.value,
+        properties: buildWorkflowProps()
       }
     })
 
-    ElMessage.success('已创建出库草稿')
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (createdRow?.id) {
+      await ensureDraftWorkflowBinding(createdRow.id)
+    }
+
+    if (workflowContext.value.active) {
+      ElMessage.success(`已创建出库草稿并关联流程单号 ${workflowContext.value.instanceId}`)
+    } else {
+      ElMessage.success('已创建出库草稿')
+    }
     drawer.visible = false
     gridRef.value?.loadData?.()
     loadBatches()
@@ -596,7 +833,8 @@ const handleCellValueChanged = async (params) => {
 
   if (field === 'status') {
     if (params.newValue !== 'active' || params.oldValue === 'active') return
-    if (!row.material_id || !row.warehouse_id || !row.quantity || !row.unit || !row.batch_no) {
+    await ensureDraftWorkflowBinding(row.id)
+    if (!row.material_id || !row.warehouse_id || !row.quantity || !row.unit || !row.batch_no || !normalizeTypeName(row.io_type)) {
       ElMessage.warning('草稿信息不完整，无法生效')
       await request({
         url: `/inventory_drafts?id=eq.${row.id}`,
@@ -618,6 +856,7 @@ const handleCellValueChanged = async (params) => {
           p_quantity: row.quantity,
           p_unit: row.unit,
           p_batch_no: row.batch_no,
+          p_io_type: normalizeTypeName(row.io_type) || null,
           p_remark: row.remark,
           p_operator: operatorName.value
         }
@@ -655,9 +894,19 @@ const handleSelection = (rows) => {
   }
 }
 
+const handleViewDocument = (row) => {
+  if (!row?.id) return
+  router.push({
+    name: 'InventoryDraftDetail',
+    params: { id: row.id },
+    query: { draftType: 'out' }
+  })
+}
+
 const handleDataLoaded = (payload) => {
   const rows = Array.isArray(payload?.rows) ? payload.rows : []
   loadedRows.value = rows
+  rows.forEach((row) => ensureIoTypeOption(row?.io_type))
   if (rows.length === 0) return
   gridRef.value?.refreshCells?.({ force: true })
 }
@@ -668,6 +917,7 @@ const applySelectedRow = () => {
   drawer.form.material_id = row.material_id || drawer.form.material_id
   drawer.form.warehouse_id = row.warehouse_id || drawer.form.warehouse_id
   drawer.form.unit = row.unit || drawer.form.unit
+  drawer.form.io_type = normalizeTypeName(row.io_type) || drawer.form.io_type
   if (row.batch_id) {
     drawer.form.batch_id = row.batch_id
     handleBatchPick(row.batch_id)
@@ -758,11 +1008,21 @@ const buildTree = (flatData) => {
 
 /* ── 初始化：先加载物料+仓库，再加载批次 ── */
 onMounted(async () => {
+  await loadIoTypes()
   await Promise.all([loadMaterials(), loadWarehouses()])
   await loadBatches()
   await nextTick()
   gridRef.value?.loadData?.()
 })
+
+watch(
+  () => drawer.visible,
+  (visible) => {
+    if (visible && !normalizeTypeName(drawer.form.io_type)) {
+      drawer.form.io_type = ioTypeSelectOptions[0]?.value || ''
+    }
+  }
+)
 </script>
 
 <style scoped>

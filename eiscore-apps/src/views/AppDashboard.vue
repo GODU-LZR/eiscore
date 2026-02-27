@@ -56,8 +56,8 @@
                 <el-icon><component :is="getIconComponent(app.icon)" /></el-icon>
               </div>
               <div class="app-info">
-                <div class="app-name">{{ app.name }}</div>
-                <div class="app-desc">{{ app.description || '暂无描述' }}</div>
+                <div class="app-name">{{ getDisplayName(app) }}</div>
+                <div class="app-desc">{{ getDisplayDescription(app) }}</div>
               </div>
             </div>
             <div class="app-actions">
@@ -159,6 +159,7 @@ import {
 import axios from 'axios'
 import { ensureAppAclConfig, ensureAppPermissions, resolveAppAclModule } from '@/utils/app-permissions'
 import { hasPerm } from '@/utils/permission'
+import { ensureSemanticConfig } from '@/utils/semantics-config'
 
 const router = useRouter()
 
@@ -211,7 +212,22 @@ const iconMap = iconOptions.reduce((acc, item) => {
   return acc
 }, {})
 
+const ONTOLOGY_SYSTEM_APP = 'ontology_workbench'
+const ONTOLOGY_READONLY_NAME = '本体关系工作台'
+const ONTOLOGY_READONLY_DESC = '可视化查看系统表关系与影响范围'
+
 const apiBase = '/api'
+const toAbsoluteApiUrl = (path) => {
+  const normalized = String(path || '').startsWith('/') ? String(path || '') : `/${String(path || '')}`
+  if (typeof window !== 'undefined' && /^https?:$/i.test(window.location?.protocol || '')) {
+    try {
+      return new URL(normalized, window.location.origin).toString()
+    } catch {
+      // fallback
+    }
+  }
+  return normalized
+}
 const getAppCenterHeaders = (token) => ({
   Authorization: `Bearer ${token}`,
   'Accept-Profile': 'app_center',
@@ -230,7 +246,7 @@ const resolvePublishedRoutePath = async (app) => {
   if (!app?.id) return ''
   const token = localStorage.getItem('auth_token')
   const response = await axios.get(
-    `${apiBase}/published_routes?app_id=eq.${app.id}&is_active=eq.true&order=id.desc&limit=1`,
+    toAbsoluteApiUrl(`${apiBase}/published_routes?app_id=eq.${app.id}&is_active=eq.true&order=id.desc&limit=1`),
     { headers: getAppCenterHeaders(token) }
   )
   const row = Array.isArray(response.data) ? response.data[0] : null
@@ -244,6 +260,24 @@ const isCreateAppForbidden = (error) => {
   if (status !== 403) return false
   if (code === '42501') return true
   return message.includes('row-level security policy') && message.includes('apps')
+}
+
+const parseAppConfig = (raw) => {
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return {}
+  }
+}
+
+const isOntologyReadonlyApp = (app) => {
+  if (!app) return false
+  const config = parseAppConfig(app.config)
+  if (config.systemApp === ONTOLOGY_SYSTEM_APP) return true
+  const name = String(app.name || '')
+  return name === 'Ontology Workbench' || name === '本体关系工作台' || name === '本体工作台'
 }
 
 async function createApp() {
@@ -264,10 +298,11 @@ async function createApp() {
     const payload = {
       ...newAppForm.value,
       category_id: categoryMap[newAppForm.value.app_type],
-      status: 'draft'
+      status: 'draft',
+      config: ensureSemanticConfig({})
     }
 
-    const response = await axios.post(`${apiBase}/apps`, payload, {
+    const response = await axios.post(toAbsoluteApiUrl(`${apiBase}/apps`), payload, {
       headers: {
         ...getAppCenterHeaders(token),
         'Content-Type': 'application/json'
@@ -278,9 +313,9 @@ async function createApp() {
     showCreateDialog.value = false
     const app = response.data[0] || response.data
     if (app?.app_type === 'data') {
-      const config = ensureAppAclConfig(app.config || {}, app.id)
+      const config = ensureSemanticConfig(ensureAppAclConfig(app.config || {}, app.id))
       try {
-        await axios.patch(`${apiBase}/apps?id=eq.${app.id}`, { config }, {
+        await axios.patch(toAbsoluteApiUrl(`${apiBase}/apps?id=eq.${app.id}`), { config }, {
           headers: {
             ...getAppCenterHeaders(token),
             'Content-Type': 'application/json'
@@ -309,6 +344,18 @@ async function createApp() {
 
 function getIconComponent(icon) {
   return iconMap[icon] || Grid
+}
+
+function getDisplayName(app) {
+  if (!app) return ''
+  if (isOntologyReadonlyApp(app)) return ONTOLOGY_READONLY_NAME
+  return app.name || ''
+}
+
+function getDisplayDescription(app) {
+  if (!app) return '暂无描述'
+  if (isOntologyReadonlyApp(app)) return ONTOLOGY_READONLY_DESC
+  return app.description || '暂无描述'
 }
 
 function getTone(app) {
@@ -340,13 +387,17 @@ async function openApp(app) {
     return
   }
   if (app.status === 'published') {
-    try {
-      const publishedPath = await resolvePublishedRoutePath(app)
-      const resolved = toAppRouterPath(publishedPath || '')
-      router.push(resolved || `/app/${app.id}`)
-    } catch (error) {
-      router.push(`/app/${app.id}`)
+    if (app.app_type === 'flash' || app.app_type === 'custom') {
+      try {
+        const publishedPath = await resolvePublishedRoutePath(app)
+        const resolved = toAppRouterPath(publishedPath || '')
+        router.push(resolved || `/app/${app.id}`)
+      } catch (error) {
+        router.push(`/app/${app.id}`)
+      }
+      return
     }
+    router.push(`/app/${app.id}`)
     return
   }
   navigateToBuilder(app)
@@ -355,7 +406,7 @@ async function openApp(app) {
 async function loadApps() {
   try {
     const token = localStorage.getItem('auth_token')
-    const response = await axios.get(`${apiBase}/apps`, {
+    const response = await axios.get(toAbsoluteApiUrl(`${apiBase}/apps`), {
       headers: getAppCenterHeaders(token),
       params: { order: 'created_at.desc' }
     })

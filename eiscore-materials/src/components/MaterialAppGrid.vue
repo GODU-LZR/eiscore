@@ -27,6 +27,7 @@
         :can-delete="canDelete"
         :can-export="canExport"
         :can-config="canConfig"
+        :show-status-col="app.showStatusCol !== false"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
@@ -541,17 +542,22 @@ const loadWorkflowBindingForRow = async (row) => {
 }
 
 const applyWorkflowBinding = async (rows) => {
-  if (!gridRef.value?.setWorkflowBinding) return
+  const grid = gridRef.value
+  if (!grid?.setWorkflowBinding) return
   if (!Array.isArray(rows) || rows.length === 0) {
-    gridRef.value.setWorkflowBinding(null)
+    grid.setWorkflowBinding(null)
     return
   }
 
   try {
     const binding = await loadWorkflowBindingForRow(rows[0])
-    gridRef.value.setWorkflowBinding(binding)
+    if (gridRef.value === grid && grid?.setWorkflowBinding) {
+      grid.setWorkflowBinding(binding)
+    }
   } catch (e) {
-    gridRef.value.setWorkflowBinding(null)
+    if (gridRef.value === grid && grid?.setWorkflowBinding) {
+      grid.setWorkflowBinding(null)
+    }
   }
 }
 

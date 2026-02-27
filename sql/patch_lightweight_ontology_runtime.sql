@@ -316,6 +316,159 @@ AS $$
     LIMIT 1;
 $$;
 
+CREATE OR REPLACE FUNCTION workflow.apply_mapped_state_to_business(
+    p_definition_id INT,
+    p_task_id TEXT,
+    p_business_key TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = workflow, public
+AS $$
+DECLARE
+    v_business_key TEXT := NULLIF(btrim(COALESCE(p_business_key, '')), '');
+    v_target_table TEXT;
+    v_state_field TEXT;
+    v_state_value TEXT;
+    v_schema_name TEXT;
+    v_table_name TEXT;
+    v_has_target_table BOOLEAN;
+    v_has_state_field BOOLEAN;
+    v_has_id_col BOOLEAN;
+    v_has_business_key_col BOOLEAN;
+    v_updated_count INT := 0;
+BEGIN
+    IF p_definition_id IS NULL OR p_task_id IS NULL OR btrim(p_task_id) = '' THEN
+        RETURN jsonb_build_object('applied', false, 'reason', 'missing_definition_or_task');
+    END IF;
+
+    SELECT
+        NULLIF(btrim(m.target_table), ''),
+        NULLIF(btrim(m.state_field), ''),
+        NULLIF(btrim(m.state_value), '')
+    INTO v_target_table, v_state_field, v_state_value
+    FROM workflow.definitions d
+    JOIN app_center.workflow_state_mappings m
+      ON m.workflow_app_id = d.app_id
+     AND m.bpmn_task_id = p_task_id
+    WHERE d.id = p_definition_id
+    ORDER BY m.id DESC
+    LIMIT 1;
+
+    IF v_target_table IS NULL THEN
+        RETURN jsonb_build_object('applied', false, 'reason', 'mapping_not_found');
+    END IF;
+
+    IF v_state_field IS NULL OR v_state_value IS NULL THEN
+        RETURN jsonb_build_object('applied', false, 'reason', 'mapping_incomplete', 'target_table', v_target_table);
+    END IF;
+
+    IF strpos(v_target_table, '.') > 0 THEN
+        v_schema_name := split_part(v_target_table, '.', 1);
+        v_table_name := split_part(v_target_table, '.', 2);
+    ELSE
+        v_schema_name := 'public';
+        v_table_name := v_target_table;
+    END IF;
+
+    SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.tables t
+        WHERE t.table_schema = v_schema_name
+          AND t.table_name = v_table_name
+    ) INTO v_has_target_table;
+
+    IF NOT v_has_target_table THEN
+        RETURN jsonb_build_object(
+            'applied', false,
+            'reason', 'target_table_not_found',
+            'target_table', format('%I.%I', v_schema_name, v_table_name)
+        );
+    END IF;
+
+    SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns c
+        WHERE c.table_schema = v_schema_name
+          AND c.table_name = v_table_name
+          AND c.column_name = v_state_field
+    ) INTO v_has_state_field;
+
+    IF NOT v_has_state_field THEN
+        RETURN jsonb_build_object(
+            'applied', false,
+            'reason', 'state_field_not_found',
+            'target_table', format('%I.%I', v_schema_name, v_table_name),
+            'state_field', v_state_field
+        );
+    END IF;
+
+    IF v_business_key IS NULL THEN
+        RETURN jsonb_build_object(
+            'applied', false,
+            'reason', 'business_key_empty',
+            'target_table', format('%I.%I', v_schema_name, v_table_name),
+            'state_field', v_state_field,
+            'state_value', v_state_value
+        );
+    END IF;
+
+    SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns c
+        WHERE c.table_schema = v_schema_name
+          AND c.table_name = v_table_name
+          AND c.column_name = 'id'
+    ) INTO v_has_id_col;
+
+    SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns c
+        WHERE c.table_schema = v_schema_name
+          AND c.table_name = v_table_name
+          AND c.column_name = 'business_key'
+    ) INTO v_has_business_key_col;
+
+    IF v_has_id_col THEN
+        EXECUTE format(
+            'UPDATE %I.%I SET %I = $1 WHERE id::text = $2',
+            v_schema_name,
+            v_table_name,
+            v_state_field
+        )
+        USING v_state_value, v_business_key;
+        GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+    ELSIF v_has_business_key_col THEN
+        EXECUTE format(
+            'UPDATE %I.%I SET %I = $1 WHERE business_key::text = $2',
+            v_schema_name,
+            v_table_name,
+            v_state_field
+        )
+        USING v_state_value, v_business_key;
+        GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+    ELSE
+        RETURN jsonb_build_object(
+            'applied', false,
+            'reason', 'unsupported_key_column',
+            'target_table', format('%I.%I', v_schema_name, v_table_name),
+            'state_field', v_state_field,
+            'state_value', v_state_value
+        );
+    END IF;
+
+    RETURN jsonb_build_object(
+        'applied', v_updated_count > 0,
+        'updated_rows', v_updated_count,
+        'target_table', format('%I.%I', v_schema_name, v_table_name),
+        'state_field', v_state_field,
+        'state_value', v_state_value,
+        'business_key', v_business_key
+    );
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION workflow.check_state_transition_permission(
     p_definition_id INT,
     p_app_key TEXT,
@@ -385,6 +538,8 @@ DECLARE
     v_initial_task_id TEXT := NULLIF(btrim(COALESCE(p_initial_task_id, '')), '');
     v_app_key TEXT;
     v_created workflow.instances%ROWTYPE;
+    v_state_apply JSONB := '{}'::jsonb;
+    v_event_id INT;
 BEGIN
     IF p_definition_id IS NULL THEN
         RAISE EXCEPTION 'definition_id is required' USING ERRCODE = '22023';
@@ -460,7 +615,18 @@ BEGIN
             'business_key', v_created.business_key,
             'variables', COALESCE(p_variables, '{}'::jsonb)
         )
+    )
+    RETURNING id INTO v_event_id;
+
+    v_state_apply := workflow.apply_mapped_state_to_business(
+        v_created.definition_id,
+        v_created.current_task_id,
+        v_created.business_key
     );
+
+    UPDATE workflow.instance_events
+    SET payload = COALESCE(payload, '{}'::jsonb) || jsonb_build_object('state_apply', v_state_apply)
+    WHERE id = v_event_id;
 
     RETURN v_created;
 END;
@@ -491,6 +657,8 @@ DECLARE
     v_fallback_perm TEXT;
     v_from_state TEXT;
     v_to_state TEXT;
+    v_state_apply JSONB := '{}'::jsonb;
+    v_event_id INT;
 BEGIN
     IF p_instance_id IS NULL THEN
         RAISE EXCEPTION 'instance_id is required' USING ERRCODE = '22023';
@@ -591,7 +759,18 @@ BEGIN
         v_actor,
         v_actor_role,
         COALESCE(p_variables, '{}'::jsonb)
+    )
+    RETURNING id INTO v_event_id;
+
+    v_state_apply := workflow.apply_mapped_state_to_business(
+        v_updated.definition_id,
+        CASE WHEN v_complete THEN v_from_task ELSE v_updated.current_task_id END,
+        v_updated.business_key
     );
+
+    UPDATE workflow.instance_events
+    SET payload = COALESCE(payload, '{}'::jsonb) || jsonb_build_object('state_apply', v_state_apply)
+    WHERE id = v_event_id;
 
     RETURN v_updated;
 END;
@@ -603,6 +782,7 @@ REVOKE ALL ON FUNCTION workflow.claim_has_any_permission(JSONB, TEXT[]) FROM PUB
 REVOKE ALL ON FUNCTION workflow.resolve_app_acl_key(INT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION workflow.normalize_status_token(TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION workflow.resolve_mapped_state_value(INT, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION workflow.apply_mapped_state_to_business(INT, TEXT, TEXT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION workflow.check_state_transition_permission(INT, TEXT, TEXT, TEXT, JSONB, BOOLEAN) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION workflow.claim_permissions(JSONB) TO web_user;

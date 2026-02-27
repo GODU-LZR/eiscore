@@ -2,7 +2,8 @@
 set -euo pipefail
 
 CONTAINER_NAME="${1:-eiscore-ide}"
-CLINE_VERSION="${CLINE_VERSION:-3.56.0}"
+# 3.66.0+ avoids the Node22 navigator migration crash seen in older Cline builds.
+CLINE_VERSION="${CLINE_VERSION:-3.66.0}"
 EXTENSIONS_DIR="${EXTENSIONS_DIR:-/config/extensions}"
 USER_DATA_DIR="${USER_DATA_DIR:-/config/data}"
 
@@ -14,6 +15,14 @@ fi
 if ! docker ps --format '{{.Names}}' | grep -qx "${CONTAINER_NAME}"; then
   echo "[flash] container not running: ${CONTAINER_NAME}"
   exit 1
+fi
+
+# Migrate legacy linuxserver-owned /config (uid 911) to current container user if needed.
+if ! docker exec "${CONTAINER_NAME}" sh -lc "[ -w /config ] && [ -w /config/.config ]" >/dev/null 2>&1; then
+  TARGET_UID="$(docker exec "${CONTAINER_NAME}" sh -lc 'id -u')"
+  TARGET_GID="$(docker exec "${CONTAINER_NAME}" sh -lc 'id -g')"
+  echo "[flash] fixing config ownership to ${TARGET_UID}:${TARGET_GID} ..."
+  docker exec -u 0 "${CONTAINER_NAME}" sh -lc "chown -R ${TARGET_UID}:${TARGET_GID} /config /home/coder"
 fi
 
 echo "[flash] preparing code-server config in ${CONTAINER_NAME} ..."
@@ -52,25 +61,34 @@ EOF"
 
 echo "[flash] installing/updating Cline extension ..."
 docker exec "${CONTAINER_NAME}" sh -lc "\
-  /app/code-server/bin/code-server \
+  CODE_SERVER_BIN=\$(command -v code-server 2>/dev/null || true); \
+  if [ -z \"\$CODE_SERVER_BIN\" ] && [ -x /app/code-server/bin/code-server ]; then CODE_SERVER_BIN=/app/code-server/bin/code-server; fi; \
+  if [ -z \"\$CODE_SERVER_BIN\" ]; then echo '[flash] code-server binary not found'; exit 127; fi; \
+  \"\$CODE_SERVER_BIN\" \
     --extensions-dir ${EXTENSIONS_DIR} \
     --user-data-dir ${USER_DATA_DIR} \
     --uninstall-extension saoudrizwan.claude-dev >/dev/null 2>&1 || true"
 docker exec "${CONTAINER_NAME}" sh -lc "\
   rm -rf ${EXTENSIONS_DIR}/saoudrizwan.claude-dev-*"
 docker exec "${CONTAINER_NAME}" sh -lc "\
-  /app/code-server/bin/code-server \
+  CODE_SERVER_BIN=\$(command -v code-server 2>/dev/null || true); \
+  if [ -z \"\$CODE_SERVER_BIN\" ] && [ -x /app/code-server/bin/code-server ]; then CODE_SERVER_BIN=/app/code-server/bin/code-server; fi; \
+  if [ -z \"\$CODE_SERVER_BIN\" ]; then echo '[flash] code-server binary not found'; exit 127; fi; \
+  \"\$CODE_SERVER_BIN\" \
     --extensions-dir ${EXTENSIONS_DIR} \
     --user-data-dir ${USER_DATA_DIR} \
     --install-extension saoudrizwan.claude-dev@${CLINE_VERSION} --force >/dev/null || \
-  /app/code-server/bin/code-server \
+  \"\$CODE_SERVER_BIN\" \
     --extensions-dir ${EXTENSIONS_DIR} \
     --user-data-dir ${USER_DATA_DIR} \
     --install-extension saoudrizwan.claude-dev --force >/dev/null"
 
 echo "[flash] installed extensions:"
 docker exec "${CONTAINER_NAME}" sh -lc "\
-  /app/code-server/bin/code-server \
+  CODE_SERVER_BIN=\$(command -v code-server 2>/dev/null || true); \
+  if [ -z \"\$CODE_SERVER_BIN\" ] && [ -x /app/code-server/bin/code-server ]; then CODE_SERVER_BIN=/app/code-server/bin/code-server; fi; \
+  if [ -z \"\$CODE_SERVER_BIN\" ]; then echo '[flash] code-server binary not found'; exit 127; fi; \
+  \"\$CODE_SERVER_BIN\" \
     --extensions-dir ${EXTENSIONS_DIR} \
     --user-data-dir ${USER_DATA_DIR} \
     --list-extensions --show-versions | grep -i '^saoudrizwan.claude-dev@' || true"

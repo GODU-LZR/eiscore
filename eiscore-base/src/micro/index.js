@@ -1,5 +1,5 @@
 import { registerMicroApps, start, initGlobalState } from 'qiankun'
-import { setBootstrapMaxTime, setMountMaxTime, setUnmountMaxTime } from 'single-spa'
+import { setBootstrapMaxTime, setMountMaxTime, setUnmountMaxTime, addErrorHandler, unloadApplication } from 'single-spa'
 import apps from './apps'
 import { aiBridge } from '@/utils/ai-bridge' 
 
@@ -9,6 +9,10 @@ import { aiBridge } from '@/utils/ai-bridge'
  */
 export function registerQiankun() {
   if (window.__EIS_QIANKUN_STARTED__) return
+  const MAX_AUTO_RECOVERY = 2
+  const RECOVERY_WINDOW_MS = 12000
+  const retryMap = window.__EIS_QIANKUN_RETRY_MAP__ || {}
+  window.__EIS_QIANKUN_RETRY_MAP__ = retryMap
 
   const waitForContainer = (selector, timeoutMs = 12000) => new Promise((resolve) => {
     const existed = document.querySelector(selector)
@@ -51,13 +55,44 @@ export function registerQiankun() {
 
   // Dev mode sub-apps are served by Vite and may take longer than single-spa default 4s.
   // Relax lifecycle deadlines to prevent false timeout failures on slower machines.
-  setBootstrapMaxTime(20000, false, 10000)
-  setMountMaxTime(20000, false, 10000)
-  setUnmountMaxTime(15000, false, 8000)
+  setBootstrapMaxTime(60000, false, 15000)
+  setMountMaxTime(60000, false, 15000)
+  setUnmountMaxTime(20000, false, 8000)
+
+  if (!window.__EIS_QIANKUN_ERROR_HANDLER_READY__) {
+    addErrorHandler((error) => {
+      const message = String(error?.message || '')
+      const appName = String(error?.appOrParcelName || '')
+      const target = ['eiscore-apps', 'eiscore-materials', 'eiscore-hr']
+        .find((name) => appName === name || message.includes(name))
+      if (!target) return
+
+      const now = Date.now()
+      const state = retryMap[target] || { count: 0, ts: 0 }
+      const elapsed = now - (state.ts || 0)
+      const nextCount = elapsed > RECOVERY_WINDOW_MS ? 1 : state.count + 1
+      retryMap[target] = { count: nextCount, ts: now }
+      if (nextCount > MAX_AUTO_RECOVERY) {
+        console.error(`[Qiankun] ${target} failed repeatedly, stop auto recover`, error)
+        return
+      }
+
+      console.warn(`[Qiankun] auto recover ${target}, attempt ${nextCount}`, error)
+      unloadApplication(target, { waitForUnmount: false })
+        .catch(() => {})
+        .finally(() => {
+          window.setTimeout(() => {
+            window.dispatchEvent(new PopStateEvent('popstate'))
+          }, 120)
+        })
+    })
+    window.__EIS_QIANKUN_ERROR_HANDLER_READY__ = true
+  }
 
   // 1. 注册子应用
   registerMicroApps(apps, {
     beforeLoad: app => {
+      window.dispatchEvent(new CustomEvent('eis:micro-loading', { detail: { app: app?.name || '', loading: true } }))
     },
     beforeMount: [
       app => {
@@ -65,10 +100,12 @@ export function registerQiankun() {
     ],
     afterMount: [
       app => {
+        window.dispatchEvent(new CustomEvent('eis:micro-loading', { detail: { app: app?.name || '', loading: false } }))
       }
     ],
     afterUnmount: [
       app => {
+        window.dispatchEvent(new CustomEvent('eis:micro-loading', { detail: { app: app?.name || '', loading: false } }))
       }
     ]
   })
@@ -102,10 +139,12 @@ export function registerQiankun() {
   })
 
   // 4. 启动 Qiankun
+  const useStyleIsolation = !import.meta.env.DEV
   start({
-    prefetch: false,
+    prefetch: 'all',
+    singular: true,
     sandbox: {
-      experimentalStyleIsolation: true
+      experimentalStyleIsolation: useStyleIsolation
     }
   })
   window.__EIS_QIANKUN_STARTED__ = true

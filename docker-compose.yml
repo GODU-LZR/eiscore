@@ -65,6 +65,7 @@ services:
     build: ./realtime
     container_name: eiscore-agent-runtime
     restart: always
+    command: sh -lc "node index.js"
     ports:
       - "8078:8078"
     env_file:
@@ -97,21 +98,28 @@ services:
       - db
 
   code-server:
-    image: linuxserver/code-server:latest
+    image: codercom/code-server:4.108.2
     container_name: eiscore-ide
     restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command:
+      - --bind-addr
+      - 0.0.0.0:8443
+      - --auth
+      - none
+      - --user-data-dir
+      - /config/data
+      - --extensions-dir
+      - /config/extensions
+      - --disable-telemetry
+      - /config/workspace/drafts
     environment:
-      PUID: "${PUID:-1000}"
-      PGID: "${PGID:-1000}"
       TZ: "${TZ:-Asia/Shanghai}"
-      # Dev mode: keep both empty so linuxserver/code-server starts with --auth none.
-      PASSWORD: ""
-      HASHED_PASSWORD: ""
-      SUDO_PASSWORD: "${CODE_SERVER_SUDO_PASSWORD:-}"
+      HOME: /home/coder
+      XDG_CONFIG_HOME: /config/.config
       # Cline compatibility/stability for extension host in web code-server runtime.
       NODE_OPTIONS: "--no-experimental-global-navigator"
       VSCODE_NODE_OPTIONS: "--max-old-space-size=4096 --no-experimental-global-navigator"
-      DEFAULT_WORKSPACE: /config/workspace/drafts
       # Optional OpenAI-compatible endpoint values for Cline (set in env/.env when needed).
       CLINE_OPENAI_BASE_URL: "${CLINE_OPENAI_BASE_URL:-}"
       CLINE_OPENAI_API_KEY: "${CLINE_OPENAI_API_KEY:-}"
@@ -123,6 +131,7 @@ services:
       # 只读根文件系统下，提供运行时可执行/可写目录
       - code_server_tmp:/tmp
       - code_server_run:/run
+      - code_server_home:/home/coder
       # code-server 配置与插件目录（可写）
       - ./config/code-server:/config
       # 仅挂载闪念草稿目录，避免误改工程其它文件
@@ -132,3 +141,4 @@ volumes:
   pgdata:
   code_server_tmp:
   code_server_run:
+  code_server_home:

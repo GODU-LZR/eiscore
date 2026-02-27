@@ -68,6 +68,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { DATA_APP_COLUMN_TYPES, normalizeColumnType } from '@/utils/data-app-columns'
+import { ensureSemanticConfig } from '@/utils/semantics-config'
 
 const route = useRoute()
 const router = useRouter()
@@ -87,7 +88,9 @@ const columnTypeOptions = DATA_APP_COLUMN_TYPES
 const config = ref({
   table: '',
   primaryKey: 'id',
-  columns: []
+  columns: [],
+  semantics_mode: 'ai_defined',
+  permission_mode: 'compat'
 })
 
 onMounted(async () => {
@@ -110,8 +113,10 @@ async function loadAppData() {
     if (appData.value.config) {
       config.value = {
         ...config.value,
-        ...appData.value.config
+        ...ensureSemanticConfig(appData.value.config)
       }
+    } else {
+      config.value = ensureSemanticConfig(config.value)
     }
     columns.value = normalizeColumns(config.value.columns)
   } catch (error) {
@@ -158,7 +163,7 @@ async function saveConfig() {
   saving.value = true
   try {
     const token = localStorage.getItem('auth_token')
-    const nextConfig = { ...config.value, columns: columns.value }
+    const nextConfig = ensureSemanticConfig({ ...config.value, columns: columns.value })
     if (Object.prototype.hasOwnProperty.call(nextConfig, 'filters')) {
       delete nextConfig.filters
     }

@@ -90,7 +90,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive } from 'vue'
+import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive, watch } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
@@ -254,6 +254,16 @@ const onGridReady = (params) => {
   loadData();
   loadGridConfig();
 }
+
+watch(
+  () => props.apiUrl,
+  (next, prev) => {
+    if (!gridApi.value) return
+    if (!next || !String(next).trim()) return
+    if (next === prev) return
+    loadData()
+  }
+)
 
 const syncTheme = () => {
   isDark.value = document.documentElement.classList.contains('dark')

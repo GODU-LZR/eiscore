@@ -1,0 +1,913 @@
+﻿{
+    "version":  "zh-query-testset-v1",
+    "generated_at":  "2026-02-19",
+    "source_doc":  "docs/API_SEMANTIC_CHINESE_LEXICON_V1.md",
+    "total_cases":  100,
+    "notes":  [
+                  "本测试集用于只读工具命中率评估",
+                  "全部样本应命中低风险只读工具",
+                  "评估口径建议: Top-1 准确率与歧义追问率"
+              ],
+    "cases":  [
+                  {
+                      "case_id":  "Q001",
+                      "query":  "帮我看一下应用中心所有应用",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q002",
+                      "query":  "把应用清单列出来",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q003",
+                      "query":  "查询全部应用列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q004",
+                      "query":  "显示当前可见的应用",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q005",
+                      "query":  "给我看应用中心卡片列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q006",
+                      "query":  "查系统里有哪些应用",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q007",
+                      "query":  "列出应用中心里的所有应用项",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q008",
+                      "query":  "看一眼应用列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q009",
+                      "query":  "应用中心全部应用都给我展示",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q010",
+                      "query":  "帮我拉取应用总列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q011",
+                      "query":  "打开应用 app_001 的详情",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q012",
+                      "query":  "查看这个应用的配置详情",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q013",
+                      "query":  "帮我看应用 app_hr 的详细信息",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q014",
+                      "query":  "查询 appId=3f9a 的应用详情",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q015",
+                      "query":  "显示该应用的完整配置",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q016",
+                      "query":  "我想看单个应用的详情页数据",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q017",
+                      "query":  "查一下这个应用的基本信息",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q018",
+                      "query":  "给我看 app_demo 的应用明细",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q019",
+                      "query":  "读取应用 app_xxx 详情",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q020",
+                      "query":  "把当前应用配置详细列出来",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "app_registry",
+                      "expected_tool_id":  "cap.app.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q021",
+                      "query":  "这个路径 /apps/workflow-designer 对应哪个应用",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q022",
+                      "query":  "帮我查路由 /apps/hr-employee 的归属",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q023",
+                      "query":  "看看 /apps/ontology-relations 发布到了哪个应用",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q024",
+                      "query":  "查询路径 /apps/mms-ledger 映射到谁",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q025",
+                      "query":  "这个访问地址属于哪个应用",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q026",
+                      "query":  "解析路由 /apps/flash-builder",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q027",
+                      "query":  "查一下 route_path=/apps/app-center 对应关系",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q028",
+                      "query":  "路径 /apps/hr-attendance 绑定的是哪张应用卡片",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q029",
+                      "query":  "查发布入口 /apps/demo",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q030",
+                      "query":  "帮我确认这个URL归属应用",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "published_route",
+                      "expected_tool_id":  "cap.route.resolve",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q031",
+                      "query":  "看一下 app_data.hr_employee 这张表的数据",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q032",
+                      "query":  "查询 app_data.mms_ledger 列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q033",
+                      "query":  "列出 app_data.data_app_abcd 的记录",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q034",
+                      "query":  "我想看员工台账列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q035",
+                      "query":  "帮我读取这张业务表的全部行",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q036",
+                      "query":  "查看表格应用当前数据列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q037",
+                      "query":  "把该数据表的前几条记录给我看",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q038",
+                      "query":  "查询这个台账的明细列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q039",
+                      "query":  "看 app_data.workflow_data 的列表数据",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q040",
+                      "query":  "显示当前表格应用记录",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q041",
+                      "query":  "查看 app_data.hr_employee 中 id=1001 的详情",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q042",
+                      "query":  "帮我打开这条记录的详细信息",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q043",
+                      "query":  "查一下这条台账记录的内容",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q044",
+                      "query":  "读取 id=abc123 这条数据",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q045",
+                      "query":  "看 app_data.mms_ledger 中某条记录详情",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q046",
+                      "query":  "我要看单条记录明细",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q047",
+                      "query":  "根据 id 查询这条数据详情",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q048",
+                      "query":  "把该记录的完整字段显示出来",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q049",
+                      "query":  "打开这条表格数据",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q050",
+                      "query":  "看一下 id=9f9f9f 的业务记录详情",
+                      "expected_intent":  "read_detail",
+                      "expected_object":  "data_table",
+                      "expected_tool_id":  "cap.data.grid.detail",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q051",
+                      "query":  "查询这个应用的流程定义",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q052",
+                      "query":  "看流程模板列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q053",
+                      "query":  "把审批模板都列出来",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q054",
+                      "query":  "查看 appId=e02a 的流程图定义",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q055",
+                      "query":  "读取流程定义清单",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q056",
+                      "query":  "我要看业务流程模板",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q057",
+                      "query":  "显示当前应用下所有流程定义",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q058",
+                      "query":  "查流程配置模板",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q059",
+                      "query":  "列出流程定义数据",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q060",
+                      "query":  "帮我看这个流程应用的模板",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_definition",
+                      "expected_tool_id":  "cap.workflow.definition.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q061",
+                      "query":  "查询 definitionId=wf001 的流程实例",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q062",
+                      "query":  "看审批单列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q063",
+                      "query":  "查看流程进度实例",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q064",
+                      "query":  "把这个流程模板下的实例都列出来",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q065",
+                      "query":  "读取流程实例清单",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q066",
+                      "query":  "我想看流程单执行情况",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q067",
+                      "query":  "列出当前流程实例",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q068",
+                      "query":  "查流程实例数据",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q069",
+                      "query":  "显示该流程的运行实例",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q070",
+                      "query":  "看看这个流程已经发起了哪些单",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_instance",
+                      "expected_tool_id":  "cap.workflow.instance.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q071",
+                      "query":  "查看流程流转日志",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q072",
+                      "query":  "看实例事件记录",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q073",
+                      "query":  "查询流程节点操作轨迹",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q074",
+                      "query":  "把这个流程实例的日志列出来",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q075",
+                      "query":  "我想看审批历史记录",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q076",
+                      "query":  "显示流程事件明细",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q077",
+                      "query":  "查流程实例的每一步日志",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q078",
+                      "query":  "查看instance events",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q079",
+                      "query":  "读取流程操作日志",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q080",
+                      "query":  "看一下流程轨迹",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "workflow_event",
+                      "expected_tool_id":  "cap.workflow.event.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q081",
+                      "query":  "查看当前库存情况",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q082",
+                      "query":  "查询库存现状",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q083",
+                      "query":  "看库存余额列表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q084",
+                      "query":  "把库存快照拉出来",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q085",
+                      "query":  "我要看各仓库当前库存",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q086",
+                      "query":  "显示实时库存数据",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q087",
+                      "query":  "查一下现在还有多少库存",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q088",
+                      "query":  "读取库存现状表",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q089",
+                      "query":  "列出当前物料库存",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q090",
+                      "query":  "查看 v_inventory_current 数据",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "inventory_current",
+                      "expected_tool_id":  "cap.inventory.current.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q091",
+                      "query":  "查看本体关系图",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q092",
+                      "query":  "查询语义关系",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q093",
+                      "query":  "看表之间的本体依赖关系",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q094",
+                      "query":  "把本体关系列表展示出来",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q095",
+                      "query":  "我要看 ontology 关系",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q096",
+                      "query":  "读取本体关系工作台数据",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q097",
+                      "query":  "看语义依赖图",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q098",
+                      "query":  "查询 relation_type=ontology 的关系",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q099",
+                      "query":  "显示本体关系清单",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  },
+                  {
+                      "case_id":  "Q100",
+                      "query":  "查看当前系统本体关系",
+                      "expected_intent":  "read_list",
+                      "expected_object":  "ontology_relation",
+                      "expected_tool_id":  "cap.ontology.relation.list",
+                      "expected_risk":  "low",
+                      "should_clarify":  false
+                  }
+              ]
+}

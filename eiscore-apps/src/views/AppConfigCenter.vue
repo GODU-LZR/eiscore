@@ -21,7 +21,7 @@
             :class="{ active: app.id === selectedAppId }"
             @click="selectApp(app)"
           >
-            <div class="app-list-title">{{ app.name }}</div>
+            <div class="app-list-title">{{ getDisplayAppName(app) }}</div>
             <div class="app-list-meta">{{ typeLabel(app.app_type) }}</div>
           </div>
         </el-scrollbar>
@@ -32,22 +32,30 @@
           <el-empty description="请选择一个应用" />
         </div>
         <div v-else>
+          <el-alert
+            v-if="isSelectedAppReadonly"
+            title="系统内置应用：名称与描述只读，且不允许删除"
+            type="info"
+            show-icon
+            :closable="false"
+            style="margin-bottom: 12px;"
+          />
           <el-form :model="editForm" label-width="100px">
             <el-form-item label="应用名称">
-              <el-input v-model="editForm.name" />
+              <el-input v-model="editForm.name" :disabled="isSelectedAppReadonly" />
             </el-form-item>
             <el-form-item label="应用描述">
-              <el-input v-model="editForm.description" type="textarea" :rows="3" />
+              <el-input v-model="editForm.description" type="textarea" :rows="3" :disabled="isSelectedAppReadonly" />
             </el-form-item>
             <el-form-item label="应用类型">
-              <el-select v-model="editForm.app_type" placeholder="选择类型">
+              <el-select v-model="editForm.app_type" placeholder="选择类型" :disabled="isSelectedAppReadonly">
                 <el-option label="工作流应用" value="workflow" />
                 <el-option label="数据应用" value="data" />
                 <el-option label="闪念应用" value="flash" />
               </el-select>
             </el-form-item>
             <el-form-item label="图标">
-              <el-select v-model="editForm.icon" placeholder="选择图标">
+              <el-select v-model="editForm.icon" placeholder="选择图标" :disabled="isSelectedAppReadonly">
                 <el-option
                   v-for="icon in iconOptions"
                   :key="icon.value"
@@ -119,7 +127,14 @@
           <div class="panel-actions">
             <el-button type="primary" :loading="saving" @click="saveApp">保存配置</el-button>
             <el-button @click="openBuilder">打开配置器</el-button>
-            <el-button type="danger" :loading="deleting" @click="deleteApp">删除应用</el-button>
+            <el-button
+              type="danger"
+              :loading="deleting"
+              :disabled="isSelectedAppReadonly"
+              @click="deleteApp"
+            >
+              删除应用
+            </el-button>
           </div>
         </div>
       </div>
@@ -205,6 +220,7 @@ import {
 import axios from 'axios'
 import { ensureAppAclConfig, ensureAppPermissions, cleanupAppPermissions, resolveAppAclModule } from '@/utils/app-permissions'
 import { DATA_APP_COLUMN_TYPES, normalizeColumnType } from '@/utils/data-app-columns'
+import { ensureSemanticConfig } from '@/utils/semantics-config'
 
 const route = useRoute()
 const router = useRouter()
@@ -278,11 +294,35 @@ const typeLabelMap = {
   flash: '闪念应用'
 }
 
+const ONTOLOGY_SYSTEM_APP = 'ontology_workbench'
+const ONTOLOGY_READONLY_NAME = '本体关系工作台'
+const ONTOLOGY_READONLY_DESC = '可视化查看系统表关系与影响范围'
+
+const isOntologyReadonlyApp = (app) => {
+  if (!app) return false
+  const config = normalizeConfig(app.config)
+  if (config.systemApp === ONTOLOGY_SYSTEM_APP) return true
+  const name = String(app.name || '')
+  return name === 'Ontology Workbench' || name === '本体关系工作台' || name === '本体工作台'
+}
+
+const getDisplayAppName = (app) => {
+  if (!app) return ''
+  if (isOntologyReadonlyApp(app)) return ONTOLOGY_READONLY_NAME
+  return app.name || ''
+}
+
 const filteredApps = computed(() => {
   const keyword = search.value.trim().toLowerCase()
   if (!keyword) return apps.value
-  return apps.value.filter((app) => String(app.name || '').toLowerCase().includes(keyword))
+  return apps.value.filter((app) => {
+    const displayName = getDisplayAppName(app).toLowerCase()
+    const rawName = String(app.name || '').toLowerCase()
+    return displayName.includes(keyword) || rawName.includes(keyword)
+  })
 })
+
+const isSelectedAppReadonly = computed(() => isOntologyReadonlyApp(selectedApp.value))
 
 const getAppCenterHeaders = (token) => ({
   Authorization: `Bearer ${token}`,
@@ -369,12 +409,13 @@ const normalizeIcon = (icon) => {
 const selectApp = (app) => {
   selectedAppId.value = app?.id || null
   selectedApp.value = app || null
-  const config = normalizeConfig(app?.config)
+  const readonly = isOntologyReadonlyApp(app)
+  const config = ensureSemanticConfig(normalizeConfig(app?.config), { forceNone: readonly })
   editForm.value = {
-    name: app?.name || '',
-    description: app?.description || '',
-    app_type: app?.app_type || 'workflow',
-    icon: normalizeIcon(app?.icon)
+    name: readonly ? ONTOLOGY_READONLY_NAME : (app?.name || ''),
+    description: readonly ? ONTOLOGY_READONLY_DESC : (app?.description || ''),
+    app_type: readonly ? 'custom' : (app?.app_type || 'workflow'),
+    icon: readonly ? 'DataAnalysis' : normalizeIcon(app?.icon)
   }
   coreConfig.value = {
     table: config?.table || '',
@@ -393,10 +434,19 @@ const saveApp = async () => {
     const token = localStorage.getItem('auth_token')
     const current = apps.value.find((item) => item.id === selectedAppId.value)
     const currentConfig = normalizeConfig(current?.config)
+    const readonly = isOntologyReadonlyApp(current)
 
   let nextConfig = {
     ...currentConfig,
     table: coreConfig.value.table
+  }
+  if (readonly) {
+    nextConfig = {
+      ...nextConfig,
+      systemApp: ONTOLOGY_SYSTEM_APP,
+      readonlyName: ONTOLOGY_READONLY_NAME,
+      readonlyDescription: ONTOLOGY_READONLY_DESC
+    }
   }
   if (editForm.value.app_type === 'data') {
     nextConfig.primaryKey = coreConfig.value.primaryKey || 'id'
@@ -409,11 +459,13 @@ const saveApp = async () => {
     }
   }
 
+  nextConfig = ensureSemanticConfig(nextConfig, { forceNone: readonly })
+
     const payload = {
-      name: editForm.value.name,
-      description: editForm.value.description,
-      app_type: editForm.value.app_type,
-      icon: editForm.value.icon,
+      name: readonly ? ONTOLOGY_READONLY_NAME : editForm.value.name,
+      description: readonly ? ONTOLOGY_READONLY_DESC : editForm.value.description,
+      app_type: readonly ? 'custom' : editForm.value.app_type,
+      icon: readonly ? 'DataAnalysis' : editForm.value.icon,
       config: nextConfig
     }
 
@@ -446,6 +498,10 @@ const removeCoreColumn = (index) => {
 
 const deleteApp = async () => {
   if (!selectedAppId.value) return
+  if (isSelectedAppReadonly.value) {
+    ElMessage.warning('系统内置应用不允许删除')
+    return
+  }
   const targetApp = selectedApp.value
   const moduleKey = resolveAppAclModule(targetApp, targetApp?.config, targetApp?.id)
   try {
@@ -499,7 +555,8 @@ const createApp = async () => {
     const payload = {
       ...newAppForm.value,
       category_id: categoryMap[newAppForm.value.app_type],
-      status: 'draft'
+      status: 'draft',
+      config: ensureSemanticConfig({})
     }
     const response = await axios.post('/api/apps', payload, {
       headers: {
@@ -514,7 +571,7 @@ const createApp = async () => {
     const app = response.data?.[0]
     if (app) {
       if (app.app_type === 'data') {
-        const config = ensureAppAclConfig(app.config || {}, app.id)
+        const config = ensureSemanticConfig(ensureAppAclConfig(app.config || {}, app.id))
         try {
           await axios.patch(`/api/apps?id=eq.${app.id}`, { config }, {
             headers: {

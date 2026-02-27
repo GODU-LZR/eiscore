@@ -12,7 +12,7 @@ cd /home/lzr/eiscore
 
 # Step 1: Check .env
 echo ""
-echo "📋 Step 1/5: 检查环境配置..."
+echo "📋 Step 1/7: 检查环境配置..."
 if [ ! -f .env ]; then
     cp .env.example .env
     sed -i 's/POSTGRES_PASSWORD=change_me/POSTGRES_PASSWORD=postgres123/' .env
@@ -22,7 +22,7 @@ fi
 
 # Step 2: Start Docker
 echo ""
-echo "🐳 Step 2/5: 启动 Docker 服务..."
+echo "🐳 Step 2/7: 启动 Docker 服务..."
 docker-compose up -d db
 sleep 3
 
@@ -32,9 +32,24 @@ docker exec -i eiscore-db psql -U postgres -d eiscore < sql/app_center_schema.sq
 docker-compose build agent-runtime 2>&1 | grep -E "(Step|Successfully|built)" || true
 docker-compose up -d
 
-# Step 3: Install dependencies
 echo ""
-echo "📦 Step 3/5: 安装依赖..."
+echo "🧩 Step 3/7: 应用 Workflow 运行时补丁..."
+for patch in sql/workflow_runtime_patch.sql sql/patch_lightweight_ontology_runtime.sql; do
+    if [ ! -f "$patch" ]; then
+        echo "❌ 缺少补丁文件: $patch"
+        exit 1
+    fi
+    echo "   应用 $patch ..."
+    docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore < "$patch"
+done
+
+echo ""
+echo "🧪 Step 4/7: 执行本体语义 UTF-8 校验..."
+./scripts/apply-sql-patch-utf8.sh -p sql/patch_fix_ontology_semantic_chinese.sql
+
+# Step 5: Install dependencies
+echo ""
+echo "📦 Step 5/7: 安装依赖..."
 for app in eiscore-apps eiscore-base eiscore-hr eiscore-materials; do
     if [ -d "$app" ] && [ ! -d "$app/node_modules" ]; then
         echo "   安装 $app..."
@@ -44,9 +59,9 @@ for app in eiscore-apps eiscore-base eiscore-hr eiscore-materials; do
     fi
 done
 
-# Step 4: Start dev servers in background
+# Step 6: Start dev servers in background
 echo ""
-echo "▶️  Step 4/5: 启动开发服务器..."
+echo "▶️  Step 6/7: 启动开发服务器..."
 
 # Kill existing processes
 pkill -f "vite.*8080" || true
@@ -67,6 +82,8 @@ sleep 2
 
 echo ""
 echo "✅ 部署完成！"
+echo ""
+echo "🔍 Step 7/7: 检查服务状态..."
 echo ""
 echo "📊 服务状态："
 echo "   Docker 服务："

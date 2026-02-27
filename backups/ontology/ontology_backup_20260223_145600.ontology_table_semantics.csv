@@ -1,0 +1,45 @@
+table_schema,table_name,semantic_domain,semantic_class,semantic_name,semantic_description,is_business,is_active,tags,created_at,updated_at
+app_center,apps,system,app_registry,应用注册,应用中心中的应用定义主表,f,t,"[""system"", ""config""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+app_center,categories,system,app_category,应用分类,应用中心分类配置,f,t,"[""system"", ""config""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+app_center,execution_logs,system,app_execution_log,执行日志,应用运行与操作日志,f,t,"[""system"", ""log""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+app_center,published_routes,system,app_route,发布路由,应用发布后的访问路径映射,f,t,"[""system"", ""route""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+app_center,workflow_state_mappings,system,workflow_state_mapping,流程状态映射,流程节点与业务状态映射配置,f,t,"[""system"", ""workflow"", ""config""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+app_data,data_app_6da3f976,app_data,dynamic_data_app,动态业务表单(data_app_6da3f976),应用中心动态业务表“data_app_6da3f976”的语义信息,t,t,"[""app_data"", ""dynamic"", ""business""]",2026-02-16 09:07:18.973316+00,2026-02-19 09:43:14.079525+00
+app_data,data_app_cd7a8401,app_data,dynamic_data_app,动态业务表单(1),应用中心数据应用“1”对应业务表,t,t,"[""app_data"", ""dynamic"", ""business"", ""cd7a8401-7ccc-47df-ba5a-1446f5d436f8""]",2026-02-16 09:07:18.973316+00,2026-02-23 06:42:43.497112+00
+basic_auth,users,system,auth_user,认证用户,认证域用户账号信息,f,t,"[""system"", ""account""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+hr,archives,hr,employee_archive,人事花名册,员工花名册台账,t,t,"[""hr"", ""employee"", ""archive""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+hr,attendance_month_overrides,hr,attendance_override,月度考勤修正,月度考勤修正规则与结果,t,t,"[""hr"", ""attendance""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+hr,attendance_records,hr,attendance_record,考勤记录,员工出勤与考勤记录,t,t,"[""hr"", ""attendance""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+hr,attendance_shifts,hr,attendance_shift,班次定义,考勤班次主数据,t,t,"[""hr"", ""attendance"", ""shift""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+hr,employee_profiles,hr,employee_profile,员工档案主数据,员工扩展档案与属性信息,t,t,"[""hr"", ""employee"", ""master""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+hr,payroll,hr,payroll_item,薪酬记录,员工薪酬核算记录,t,t,"[""hr"", ""payroll""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,departments,hr,department,组织部门,组织架构部门信息,t,t,"[""hr"", ""org""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,employees,hr,employee_basic,员工基础资料,员工基础主数据,t,t,"[""hr"", ""employee""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,field_label_overrides,system,field_label_override,字段标签覆盖,字段显示标签覆盖配置,f,t,"[""system"", ""config""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,files,system,file_asset,文件资产,系统文件与附件元数据,t,t,"[""file"", ""asset""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,form_values,system,form_value,表单值,动态表单提交值,t,t,"[""form"", ""value""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,permissions,system,permission,权限定义,权限码定义主表,f,t,"[""system"", ""acl""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,positions,hr,position,岗位,岗位主数据,t,t,"[""hr"", ""org"", ""position""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,raw_materials,mms,material_master,原料主数据,原料与物料基础信息,t,t,"[""mms"", ""material"", ""master""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,role_data_scopes,system,role_scope,角色数据范围,角色数据范围规则配置,f,t,"[""system"", ""acl""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,role_permissions,system,role_permission,角色权限关系,角色与权限码关系,f,t,"[""system"", ""acl""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,roles,system,role,角色,系统角色定义,f,t,"[""system"", ""acl""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,sys_dict_items,system,dict_item,字典项,系统字典项明细,f,t,"[""system"", ""dict""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,sys_dicts,system,dict,系统字典,系统字典定义,f,t,"[""system"", ""dict""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,sys_field_acl,system,field_acl,字段权限,字段级权限控制配置,f,t,"[""system"", ""acl""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,sys_grid_configs,system,grid_config,表格配置,表格组件配置元数据,f,t,"[""system"", ""config""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,system_configs,system,system_config,系统配置,系统全局配置,f,t,"[""system"", ""config""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,user_roles,system,user_role,用户角色关系,用户与角色关系,f,t,"[""system"", ""acl""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+public,users,system,system_user,用户,系统用户账号信息,f,t,"[""system"", ""account""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+scm,batch_no_rules,mms,batch_rule,批次号规则,库存批次号生成规则,t,t,"[""mms"", ""batch""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+scm,inventory_batches,mms,inventory_batch,库存批次,库存批次主数据,t,t,"[""mms"", ""inventory"", ""batch""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+scm,inventory_check_items,mms,inventory_check_item,盘点明细,盘点单明细项目,t,t,"[""mms"", ""inventory"", ""check""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+scm,inventory_checks,mms,inventory_check,盘点单,库存盘点主单,t,t,"[""mms"", ""inventory"", ""check""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+scm,inventory_drafts,mms,inventory_draft,库存单据草稿,入出库草稿单据,t,t,"[""mms"", ""inventory"", ""draft""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+scm,inventory_transactions,mms,inventory_transaction,库存流水,库存出入库流水记录,t,t,"[""mms"", ""inventory"", ""transaction""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+scm,warehouse_layouts,mms,warehouse_layout,仓库布局,仓库货位与布局配置,t,t,"[""mms"", ""warehouse"", ""layout""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+scm,warehouses,mms,warehouse,仓库,仓库主数据,t,t,"[""mms"", ""warehouse""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+workflow,definitions,workflow,workflow_definition,流程定义,BPMN 流程定义,t,t,"[""workflow"", ""definition""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+workflow,instance_events,workflow,workflow_event,流程实例事件,流程实例流转事件日志,t,t,"[""workflow"", ""event"", ""audit""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+workflow,instances,workflow,workflow_instance,流程实例,流程运行实例,t,t,"[""workflow"", ""instance""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00
+workflow,task_assignments,workflow,task_assignment,任务分配规则,流程任务候选人分配规则,t,t,"[""workflow"", ""task""]",2026-02-16 09:07:18.964262+00,2026-02-23 06:42:43.497112+00

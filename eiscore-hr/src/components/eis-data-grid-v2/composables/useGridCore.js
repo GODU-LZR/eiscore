@@ -30,6 +30,78 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const resolvedRoleId = ref('')
   const aclRoleId = computed(() => userStore.userInfo?.role_id || userStore.userInfo?.roleId || resolvedRoleId.value || '')
   const aclModule = computed(() => props.aclModule || '')
+  const STATUS_TRANSITION_ACTION = 'status_transition'
+
+  const getUserInfoSnapshot = () => {
+    const info = userStore.userInfo
+    if (info && typeof info === 'object' && Object.keys(info).length > 0) return info
+    try {
+      const raw = localStorage.getItem('user_info')
+      return raw ? JSON.parse(raw) : {}
+    } catch (e) {
+      return {}
+    }
+  }
+
+  const getPermissionList = () => {
+    const info = getUserInfoSnapshot()
+    const perms = info?.permissions
+    return Array.isArray(perms) ? perms : []
+  }
+
+  const getRoleCode = () => {
+    const info = getUserInfoSnapshot()
+    return info?.app_role || info?.appRole || info?.role || ''
+  }
+
+  const hasPermission = (permission) => {
+    if (!permission) return true
+    if (getRoleCode() === 'super_admin') return true
+    return getPermissionList().includes(permission)
+  }
+
+  const normalizeStatus = (value) => {
+    if (value === null || value === undefined || value === '') return ''
+    const text = String(value).toLowerCase()
+    if (text === 'disabled') return 'locked'
+    if (text === 'draft') return 'created'
+    if (text === 'created' || text === 'active' || text === 'locked') return text
+    return text
+  }
+
+  const toStoredStatus = (value) => {
+    const normalized = normalizeStatus(value)
+    if (normalized === 'locked') return 'disabled'
+    if (normalized === 'created') return 'draft'
+    return normalized
+  }
+
+  const shouldEnforceStatusTransitionPermission = () => {
+    if (!aclModule.value) return false
+    const prefix = `op:${aclModule.value}.${STATUS_TRANSITION_ACTION}.`
+    return getPermissionList().some((item) => typeof item === 'string' && item.startsWith(prefix))
+  }
+
+  const canTransitionStatus = (fromStatus, toStatus) => {
+    const from = normalizeStatus(fromStatus)
+    const to = normalizeStatus(toStatus)
+    if (!from || !to || from === to) return true
+    if (!shouldEnforceStatusTransitionPermission()) return true
+    if (!aclModule.value) return true
+    const exactCode = `op:${aclModule.value}.${STATUS_TRANSITION_ACTION}.${from}_${to}`
+    const wildcardCode = `op:${aclModule.value}.${STATUS_TRANSITION_ACTION}.*`
+    return hasPermission(exactCode) || hasPermission(wildcardCode)
+  }
+
+  const hasOutgoingTransitionPermission = (fromStatus) => {
+    if (!shouldEnforceStatusTransitionPermission()) return true
+    if (!aclModule.value) return true
+    const from = normalizeStatus(fromStatus) || 'created'
+    const wildcardCode = `op:${aclModule.value}.${STATUS_TRANSITION_ACTION}.*`
+    if (hasPermission(wildcardCode)) return true
+    const prefix = `op:${aclModule.value}.${STATUS_TRANSITION_ACTION}.${from}_`
+    return getPermissionList().some((item) => typeof item === 'string' && item.startsWith(prefix))
+  }
 
   const gridComponents = {
     StatusRenderer: markRaw(StatusRenderer),
@@ -150,7 +222,10 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const isCellReadOnly = (params) => {
     const colId = params.colDef.field
     if (props.canEdit === false && !params.node.rowPinned) return true
-    if (colId === '_status') return false 
+    if (colId === '_status') {
+      const currentStatus = params.data?.properties?.status ?? params.data?.status
+      return !hasOutgoingTransitionPermission(currentStatus)
+    }
     if (colId === '_actions') return true // ⚠️ 关键：操作列必须只读！
     if (params.node.rowPinned) return true
     if (props.enableColumnLock !== false && columnLockState[colId]) return true
@@ -519,7 +594,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const statusCol = { 
       headerName: '状态', field: '_status', width: 100, minWidth: 100, pinned: 'left', 
       filter: true, sortable: false, resizable: false, suppressHeaderMenuButton: false,
-      editable: (params) => !params.node.rowPinned,
+      editable: (params) => !params.node.rowPinned && !isCellReadOnly(params),
       cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, cellEditorPopupPosition: 'under',
       cellClassRules: cellClassRules,
       valueGetter: params => {
@@ -537,15 +612,24 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       },
       valueSetter: params => { 
         if(params.node.rowPinned || params.newValue===params.oldValue) return false; 
+        const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
+        const currentRaw = hasStatus ? params.data?.status : params.data?.properties?.status
+        const fromStatus = normalizeStatus(currentRaw) || 'created'
+        const toStatus = normalizeStatus(params.newValue)
+        if (!toStatus) return false
+        if (!canTransitionStatus(fromStatus, toStatus)) {
+          const code = `op:${aclModule.value}.${STATUS_TRANSITION_ACTION}.${fromStatus}_${toStatus}`
+          ElMessage.warning(`无权限变更状态：缺少 ${code}`)
+          return false
+        }
         const allowProps = params.data && (params.data.properties || props.includeProperties !== false)
         if (allowProps) {
           if(!params.data.properties) params.data.properties={}; 
-          params.data.properties.status=params.newValue; 
-          params.data.properties.row_locked_by = params.newValue==='locked'?currentUser.value:null; 
+          params.data.properties.status=toStatus; 
+          params.data.properties.row_locked_by = toStatus==='locked'?currentUser.value:null; 
         }
-        const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
         if (hasStatus) {
-          const mapped = params.newValue === 'locked' ? 'disabled' : (params.newValue === 'created' ? 'draft' : params.newValue)
+          const mapped = toStoredStatus(toStatus)
           params.data.status = mapped
         }
         return true; 
@@ -614,8 +698,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       if (props.autoSizeColumns !== false) {
         setTimeout(() => { 
           if (gridApi.value) {
-            const allColIds = gridApi.value.getColumns().map(c => c.getColId())
-            gridApi.value.autoSizeColumns(allColIds, false) 
+            const cols = gridApi.value.getAllGridColumns?.() || gridApi.value.getColumns?.() || []
+            if (cols.length) {
+              const allColIds = cols.map(c => c.getColId())
+              gridApi.value.autoSizeColumns(allColIds, false)
+            }
           }
         }, 100)
       }

@@ -25,7 +25,7 @@ fi
 
 # Step 1: Initialize database
 echo ""
-echo "📊 Step 1/5: 初始化数据库..."
+echo "📊 Step 1/7: 初始化数据库..."
 docker-compose up -d db
 sleep 5
 
@@ -36,7 +36,7 @@ docker exec -i eiscore-db psql -U postgres -d eiscore < sql/app_center_schema.sq
 
 # Step 2: Build and start agent-runtime
 echo ""
-echo "🤖 Step 2/5: 构建 Agent Runtime..."
+echo "🤖 Step 2/7: 构建 Agent Runtime..."
 docker-compose build agent-runtime
 
 echo "   启动 Agent Runtime..."
@@ -44,12 +44,27 @@ docker-compose up -d agent-runtime
 
 # Step 3: Start other services
 echo ""
-echo "🐳 Step 3/5: 启动其他服务..."
+echo "🐳 Step 3/7: 启动其他服务..."
 docker-compose up -d
 
-# Step 4: Install frontend dependencies
 echo ""
-echo "📦 Step 4/5: 安装前端依赖..."
+echo "🧩 Step 4/7: 应用 Workflow 运行时补丁..."
+for patch in sql/workflow_runtime_patch.sql sql/patch_lightweight_ontology_runtime.sql; do
+    if [ ! -f "$patch" ]; then
+        echo "❌ 缺少补丁文件: $patch"
+        exit 1
+    fi
+    echo "   应用 $patch ..."
+    docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore < "$patch"
+done
+
+echo ""
+echo "🧪 Step 5/7: 执行本体语义 UTF-8 校验..."
+./scripts/apply-sql-patch-utf8.sh -p sql/patch_fix_ontology_semantic_chinese.sql
+
+# Step 6: Install frontend dependencies
+echo ""
+echo "📦 Step 6/7: 安装前端依赖..."
 
 if [ ! -d "eiscore-apps/node_modules" ]; then
     echo "   安装 eiscore-apps 依赖..."
@@ -60,9 +75,9 @@ else
     echo "   ✅ eiscore-apps 依赖已安装"
 fi
 
-# Step 5: Check status
+# Step 7: Check status
 echo ""
-echo "🔍 Step 5/5: 检查服务状态..."
+echo "🔍 Step 7/7: 检查服务状态..."
 sleep 3
 
 docker-compose ps

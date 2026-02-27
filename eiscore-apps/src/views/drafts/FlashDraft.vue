@@ -1,488 +1,706 @@
 <template>
-  <div class="cost-calculation">
-    <header class="calculation-header">
-      <div class="header-content">
-        <h1>成本核算系统</h1>
-        <p>精准计算成本，优化资源配置</p>
-      </div>
-      <div class="header-actions">
-        <el-button type="primary" @click="calculateCost">计算成本</el-button>
-        <el-button type="success" @click="exportReport">导出报表</el-button>
-        <el-button type="info" @click="resetForm">重置</el-button>
-      </div>
-    </header>
+  <div class="pda-material-inbound">
+    <div class="header">
+      <h1>PDA 物料入库</h1>
+      <p>请填写入库信息</p>
+    </div>
 
-    <div class="calculation-content">
-      <!-- 成本输入表单 -->
-      <el-card class="input-card" shadow="never">
-        <template #header>
-          <div class="card-title">成本输入</div>
-        </template>
-        
-        <div class="input-form">
-          <el-form :model="costForm" label-width="120px">
-            <el-row :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="产品名称">
-                  <el-input v-model="costForm.productName" placeholder="请输入产品名称" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="生产数量">
-                  <el-input-number v-model="costForm.quantity" :min="1" placeholder="请输入数量" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="单位">
-                  <el-input v-model="costForm.unit" placeholder="请输入单位" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-            
-            <el-row :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="原材料成本">
-                  <el-input-number v-model="costForm.materialCost" :precision="2" :step="0.01" placeholder="元" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="人工成本">
-                  <el-input-number v-model="costForm.laborCost" :precision="2" :step="0.01" placeholder="元" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="制造费用">
-                  <el-input-number v-model="costForm.manufacturingCost" :precision="2" :step="0.01" placeholder="元" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-            
-            <el-row :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="管理费用">
-                  <el-input-number v-model="costForm.managementCost" :precision="2" :step="0.01" placeholder="元" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="销售费用">
-                  <el-input-number v-model="costForm.salesCost" :precision="2" :step="0.01" placeholder="元" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="其他费用">
-                  <el-input-number v-model="costForm.otherCost" :precision="2" :step="0.01" placeholder="元" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-            
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="目标利润率">
-                  <el-input-number v-model="costForm.targetProfitRate" :precision="2" :step="0.1" placeholder="%" />
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="目标售价">
-                  <el-input-number v-model="costForm.targetPrice" :precision="2" :step="0.01" placeholder="元" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-          </el-form>
-        </div>
-      </el-card>
-
-      <!-- 成本分析卡片 -->
-      <div class="analysis-cards">
-        <el-card class="analysis-card" shadow="hover">
-          <div class="card-content">
-            <div class="card-icon">
-              <i class="el-icon-money"></i>
-            </div>
-            <div class="card-info">
-              <div class="card-value">{{ formatCurrency(totalCost) }}</div>
-              <div class="card-label">总成本</div>
-            </div>
-          </div>
-        </el-card>
-        
-        <el-card class="analysis-card" shadow="hover">
-          <div class="card-content">
-            <div class="card-icon">
-              <i class="el-icon-discount"></i>
-            </div>
-            <div class="card-info">
-              <div class="card-value">{{ formatCurrency(unitCost) }}</div>
-              <div class="card-label">单位成本</div>
-            </div>
-          </div>
-        </el-card>
-        
-        <el-card class="analysis-card" shadow="hover">
-          <div class="card-content">
-            <div class="card-icon">
-              <i class="el-icon-percent"></i>
-            </div>
-            <div class="card-info">
-              <div class="card-value">{{ formatPercentage(profitRate) }}</div>
-              <div class="card-label">利润率</div>
-            </div>
-          </div>
-        </el-card>
-        
-        <el-card class="analysis-card" shadow="hover">
-          <div class="card-content">
-            <div class="card-icon">
-              <i class="el-icon-tickets"></i>
-            </div>
-            <div class="card-info">
-              <div class="card-value">{{ formatCurrency(targetPrice) }}</div>
-              <div class="card-label">建议售价</div>
-            </div>
-          </div>
-        </el-card>
+    <div class="form-container">
+      <div class="form-group">
+        <label>物料</label>
+        <select v-model="formData.materialId" @change="handleMaterialChange">
+          <option value="">请选择物料</option>
+          <option v-for="material in materials" :key="material.id" :value="material.id">
+            {{ material.name }} ({{ material.batch_no }})
+          </option>
+        </select>
       </div>
 
-      <!-- 成本明细表格 -->
-      <el-card class="detail-card" shadow="never">
-        <template #header>
-          <div class="card-title">成本明细</div>
-        </template>
-        
-        <div class="detail-table">
-          <el-table :data="costDetails" style="width: 100%" border>
-            <el-table-column prop="category" label="成本类别" width="120" />
-            <el-table-column prop="amount" label="金额(元)" width="150">
-              <template #default="scope">
-                {{ formatCurrency(scope.row.amount) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="percentage" label="占比" width="100">
-              <template #default="scope">
-                {{ formatPercentage(scope.row.percentage) }}
-              </template>
-            </el-table-column>
-            <el-table-column prop="unitCost" label="单位成本(元)" width="150">
-              <template #default="scope">
-                {{ formatCurrency(scope.row.unitCost) }}
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-      </el-card>
+      <div class="form-group">
+        <label>仓库</label>
+        <select v-model="formData.warehouseId">
+          <option value="">请选择仓库</option>
+          <option v-for="warehouse in warehouses" :key="warehouse.id" :value="warehouse.id">
+            {{ warehouse.code }} - {{ warehouse.name }}
+          </option>
+        </select>
+      </div>
 
-      <!-- 成本趋势图表 -->
-      <el-card class="chart-card" shadow="never">
-        <template #header>
-          <div class="card-title">成本趋势分析</div>
-        </template>
-        
-        <div class="chart-content">
-          <div ref="chart" style="width: 100%; height: 300px;"></div>
+      <div class="form-group">
+        <label>数量</label>
+        <input 
+          type="number" 
+          v-model="formData.quantity" 
+          placeholder="请输入数量"
+          @input="handleQuantityInput"
+        >
+      </div>
+
+      <div class="form-group">
+        <label>单位</label>
+        <input 
+          type="text" 
+          v-model="formData.unit" 
+          placeholder="请输入单位"
+          readonly
+        >
+      </div>
+
+      <div class="form-group">
+        <label>批次号</label>
+        <div class="batch-no-container">
+          <input 
+            type="text" 
+            v-model="formData.batchNo" 
+            placeholder="请输入或生成批次号"
+          >
+          <button 
+            @click="generateBatchNo" 
+            :disabled="loading.generateBatchNo"
+            class="generate-btn"
+          >
+            {{ loading.generateBatchNo ? '生成中...' : '生成批次号' }}
+          </button>
         </div>
-      </el-card>
+      </div>
+
+      <div class="form-group">
+        <label>备注</label>
+        <textarea 
+          v-model="formData.remarks" 
+          placeholder="请输入备注信息"
+          rows="3"
+        ></textarea>
+      </div>
+
+      <div class="button-group">
+        <button 
+          @click="saveDraft" 
+          :disabled="loading.saveDraft || !isFormValid"
+          class="save-btn"
+        >
+          {{ loading.saveDraft ? '保存中...' : '保存草稿' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="draft-history">
+      <h2>最近草稿记录</h2>
+      <div v-if="loading.draftHistory" class="loading">加载中...</div>
+      <div v-else-if="draftHistory.length === 0" class="empty">
+        暂无草稿记录
+      </div>
+      <div v-else class="draft-list">
+        <div 
+          v-for="draft in draftHistory" 
+          :key="draft.id" 
+          class="draft-item"
+          @click="loadDraft(draft)"
+        >
+          <div class="draft-header">
+            <span class="material">{{ draft.material_name }}</span>
+            <span class="warehouse">{{ draft.warehouse_code }}</span>
+            <span class="quantity">{{ draft.quantity }} {{ draft.unit }}</span>
+          </div>
+          <div class="draft-footer">
+            <span class="batch-no">{{ draft.batch_no }}</span>
+            <span class="time">{{ formatTime(draft.created_at) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 错误提示 -->
+    <div v-if="error" class="error-message">
+      {{ error }}
+    </div>
+
+    <!-- 成功提示 -->
+    <div v-if="successMessage" class="success-message">
+      {{ successMessage }}
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, onMounted } from 'vue'
-import * as echarts from 'echarts'
+<script>
+import { ref, onMounted, computed } from 'vue'
 
-// 成本表单数据
-const costForm = ref({
-  productName: '',
-  quantity: 1,
-  unit: '',
-  materialCost: 0,
-  laborCost: 0,
-  manufacturingCost: 0,
-  managementCost: 0,
-  salesCost: 0,
-  otherCost: 0,
-  targetProfitRate: 20,
-  targetPrice: 0
-})
+export default {
+  name: 'FlashDraft',
+  setup() {
+    const materials = ref([])
+    const warehouses = ref([])
+    const batchRules = ref([])
+    const draftHistory = ref([])
+    const error = ref('')
+    const successMessage = ref('')
+    const loading = ref({
+      materials: false,
+      warehouses: false,
+      generateBatchNo: false,
+      saveDraft: false,
+      draftHistory: false
+    })
 
-// 计算结果
-const totalCost = ref(0)
-const unitCost = ref(0)
-const profitRate = ref(0)
-const targetPrice = ref(0)
-const costDetails = ref([])
+    const formData = ref({
+      materialId: '',
+      warehouseId: '',
+      quantity: '',
+      unit: '',
+      batchNo: '',
+      remarks: ''
+    })
 
-// 图表实例
-const chart = ref(null)
-
-// 计算成本
-const calculateCost = () => {
-  // 计算总成本
-  totalCost.value = costForm.value.materialCost + 
-                   costForm.value.laborCost + 
-                   costForm.value.manufacturingCost + 
-                   costForm.value.managementCost + 
-                   costForm.value.salesCost + 
-                   costForm.value.otherCost
-  
-  // 计算单位成本
-  unitCost.value = totalCost.value / costForm.value.quantity
-  
-  // 计算建议售价
-  targetPrice.value = unitCost.value * (1 + costForm.value.targetProfitRate / 100)
-  
-  // 计算实际利润率
-  if (costForm.value.targetPrice > 0) {
-    profitRate.value = ((costForm.value.targetPrice - unitCost.value) / costForm.value.targetPrice) * 100
-  } else {
-    profitRate.value = costForm.value.targetProfitRate
-  }
-  
-  // 生成成本明细
-  costDetails.value = [
-    {
-      category: '原材料成本',
-      amount: costForm.value.materialCost,
-      percentage: (costForm.value.materialCost / totalCost.value) * 100,
-      unitCost: costForm.value.materialCost / costForm.value.quantity
-    },
-    {
-      category: '人工成本',
-      amount: costForm.value.laborCost,
-      percentage: (costForm.value.laborCost / totalCost.value) * 100,
-      unitCost: costForm.value.laborCost / costForm.value.quantity
-    },
-    {
-      category: '制造费用',
-      amount: costForm.value.manufacturingCost,
-      percentage: (costForm.value.manufacturingCost / totalCost.value) * 100,
-      unitCost: costForm.value.manufacturingCost / costForm.value.quantity
-    },
-    {
-      category: '管理费用',
-      amount: costForm.value.managementCost,
-      percentage: (costForm.value.managementCost / totalCost.value) * 100,
-      unitCost: costForm.value.managementCost / costForm.value.quantity
-    },
-    {
-      category: '销售费用',
-      amount: costForm.value.salesCost,
-      percentage: (costForm.value.salesCost / totalCost.value) * 100,
-      unitCost: costForm.value.salesCost / costForm.value.quantity
-    },
-    {
-      category: '其他费用',
-      amount: costForm.value.otherCost,
-      percentage: (costForm.value.otherCost / totalCost.value) * 100,
-      unitCost: costForm.value.otherCost / costForm.value.quantity
+    const resetMessages = () => {
+      error.value = ''
+      successMessage.value = ''
     }
-  ]
-  
-  // 初始化图表
-  initChart()
-}
 
-// 初始化图表
-const initChart = () => {
-  if (chart.value) {
-    const myChart = echarts.init(chart.value)
-    
-    const option = {
-      title: {
-        text: '成本构成分析',
-        left: 'center'
-      },
-      tooltip: {
-        trigger: 'item',
-        formatter: '{a} <br/>{b}: {c} ({d}%)'
-      },
-      legend: {
-        orient: 'vertical',
-        left: 'left'
-      },
-      series: [
-        {
-          name: '成本构成',
-          type: 'pie',
-          radius: '50%',
-          data: costDetails.value.map(item => ({
-            value: item.amount,
-            name: item.category
-          })),
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)'
-            }
-          }
+    const showError = (message) => {
+      error.value = String(message || '操作失败')
+      successMessage.value = ''
+    }
+
+    const showSuccess = (message) => {
+      successMessage.value = String(message || '操作成功')
+      error.value = ''
+      setTimeout(() => {
+        if (successMessage.value === message) successMessage.value = ''
+      }, 2200)
+    }
+
+    const readAuthToken = () => {
+      const raw = localStorage.getItem('auth_token')
+      if (!raw) return ''
+      try {
+        const parsed = JSON.parse(raw)
+        return String(parsed?.token || '').trim() || String(raw).trim()
+      } catch {
+        return String(raw).trim()
+      }
+    }
+
+    const parseJsonOrThrow = (text, label) => {
+      try {
+        return JSON.parse(String(text || 'null'))
+      } catch {
+        const snippet = String(text || '').replace(/\s+/g, ' ').slice(0, 140)
+        throw new Error(`${label} 返回非JSON: ${snippet}`)
+      }
+    }
+
+    const normalizeList = (payload) => {
+      if (Array.isArray(payload)) return payload
+      if (payload && Array.isArray(payload.items)) return payload.items
+      if (payload && payload.data) return normalizeList(payload.data)
+      return []
+    }
+
+    const requestApi = async ({ url, method = 'GET', profile = '', contentProfile = '', body = null, extraHeaders = {} }) => {
+      const token = readAuthToken()
+      const isWrite = method !== 'GET' && method !== 'HEAD'
+      const headers = {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(profile ? { 'Accept-Profile': profile } : {}),
+        ...extraHeaders
+      }
+      if (isWrite) {
+        headers['Content-Type'] = 'application/json'
+        if (contentProfile || profile) headers['Content-Profile'] = contentProfile || profile
+      }
+
+      const response = await fetch(`/api${url}`, {
+        method,
+        headers,
+        body: isWrite && body ? JSON.stringify(body) : undefined
+      })
+      const text = await response.text()
+      const payload = parseJsonOrThrow(text, url)
+      if (!response.ok) {
+        const message = payload?.message || payload?.code || `${method} ${url} 失败`
+        throw new Error(message)
+      }
+      return payload
+    }
+
+    const callFlashTool = async (toolId, args = {}, confirmed = false) => {
+      const token = readAuthToken()
+      if (!token) throw new Error('缺少登录态，请重新登录')
+      const payload = {
+        tool_id: toolId,
+        arguments: args,
+        trace_id: `tr_${Date.now()}`
+      }
+      if (confirmed) {
+        payload.confirmed = true
+        payload.idempotency_key = `idem_${Date.now()}`
+      }
+
+      const response = await fetch('/agent/flash/tools/call', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+      const text = await response.text()
+      const result = parseJsonOrThrow(text, '/agent/flash/tools/call')
+      if (!response.ok || result?.ok === false) {
+        throw new Error(String(result?.message || result?.code || `tool call failed(${response.status})`))
+      }
+      return result
+    }
+
+    // 计算属性：表单是否有效
+    const isFormValid = computed(() => {
+      const qty = Number(formData.value.quantity)
+      return formData.value.materialId &&
+             formData.value.warehouseId &&
+             Number.isFinite(qty) &&
+             qty > 0 &&
+             formData.value.batchNo
+    })
+
+    // 页面加载时获取数据
+    onMounted(async () => {
+      await Promise.allSettled([loadMaterials(), loadWarehouses(), loadBatchRules()])
+      await loadDraftHistory()
+    })
+
+    // 加载物料列表
+    const loadMaterials = async () => {
+      loading.value.materials = true
+      resetMessages()
+      try {
+        const data = await requestApi({
+          url: '/raw_materials?select=id,batch_no,name&order=batch_no.asc',
+          method: 'GET',
+          profile: 'public'
+        })
+        materials.value = normalizeList(data)
+      } catch (err) {
+        showError(`加载物料列表失败: ${err.message}`)
+      } finally {
+        loading.value.materials = false
+      }
+    }
+
+    // 加载仓库列表
+    const loadWarehouses = async () => {
+      loading.value.warehouses = true
+      resetMessages()
+      try {
+        const data = await requestApi({
+          url: '/warehouses?select=id,code,name,status&order=code.asc',
+          method: 'GET',
+          profile: 'scm'
+        })
+        warehouses.value = normalizeList(data).filter((item) => item?.status !== '停用')
+      } catch (err) {
+        showError(`加载仓库列表失败: ${err.message}`)
+      } finally {
+        loading.value.warehouses = false
+      }
+    }
+
+    const loadBatchRules = async () => {
+      try {
+        const data = await requestApi({
+          url: '/batch_no_rules?select=id,rule_name,status&order=created_at.desc&limit=20',
+          method: 'GET',
+          profile: 'scm'
+        })
+        batchRules.value = normalizeList(data).filter((item) => item?.status !== '停用')
+      } catch {
+        batchRules.value = []
+      }
+    }
+
+    // 加载草稿历史
+    const loadDraftHistory = async () => {
+      loading.value.draftHistory = true
+      resetMessages()
+      try {
+        const data = await requestApi({
+          url: '/v_inventory_drafts?limit=10&order=created_at.desc',
+          method: 'GET',
+          profile: 'scm'
+        })
+        draftHistory.value = normalizeList(data)
+      } catch (err) {
+        showError(`加载草稿历史失败: ${err.message}`)
+      } finally {
+        loading.value.draftHistory = false
+      }
+    }
+
+    // 处理物料选择变化
+    const handleMaterialChange = () => {
+      const material = materials.value.find((item) => String(item.id) === String(formData.value.materialId))
+      if (material) {
+        formData.value.unit = material.unit || formData.value.unit || '个'
+      }
+    }
+
+    // 处理数量输入
+    const handleQuantityInput = (e) => {
+      const value = e.target.value
+      if (value === '' || /^[\d.]+$/.test(value)) {
+        formData.value.quantity = value
+      }
+    }
+
+    // 生成批次号
+    const generateBatchNo = async () => {
+      if (loading.value.generateBatchNo) return
+      loading.value.generateBatchNo = true
+      resetMessages()
+
+      try {
+        const materialId = Number.parseInt(String(formData.value.materialId || ''), 10)
+        if (!Number.isFinite(materialId) || materialId <= 0) {
+          throw new Error('请先选择物料')
         }
-      ]
+        const ruleId = batchRules.value[0]?.id
+        if (!ruleId) throw new Error('未找到可用批次规则')
+
+        const result = await callFlashTool('flash.inventory.batchno.generate', {
+          ruleId,
+          materialId
+        }, true)
+        const batchNo = String(result?.data?.batch_no || '').trim()
+        if (!batchNo) throw new Error('批次号为空')
+        formData.value.batchNo = batchNo
+      } catch (err) {
+        formData.value.batchNo = `BATCH-${Date.now()}`
+        showError(`批次号工具不可用，已使用本地批次号: ${err.message}`)
+      } finally {
+        loading.value.generateBatchNo = false
+      }
     }
-    
-    myChart.setOption(option)
+
+    // 保存草稿
+    const saveDraft = async () => {
+      if (!isFormValid.value) {
+        showError('请填写所有必填字段')
+        return
+      }
+
+      loading.value.saveDraft = true
+      resetMessages()
+
+      try {
+        const payload = {
+          draft_type: 'in',
+          status: 'created',
+          io_type: 'in',
+          material_id: Number(formData.value.materialId),
+          warehouse_id: String(formData.value.warehouseId),
+          quantity: Number(formData.value.quantity),
+          unit: String(formData.value.unit || '个').trim() || '个',
+          batch_no: String(formData.value.batchNo || '').trim() || null,
+          remark: String(formData.value.remarks || '').trim() || null
+        }
+
+        await requestApi({
+          url: '/inventory_drafts',
+          method: 'POST',
+          profile: 'scm',
+          contentProfile: 'scm',
+          body: payload,
+          extraHeaders: { Prefer: 'return=representation' }
+        })
+
+        showSuccess('草稿保存成功')
+        formData.value = {
+          materialId: '',
+          warehouseId: '',
+          quantity: '',
+          unit: '',
+          batchNo: '',
+          remarks: ''
+        }
+        await loadDraftHistory()
+      } catch (err) {
+        showError(`保存草稿失败: ${err.message}`)
+      } finally {
+        loading.value.saveDraft = false
+      }
+    }
+
+    // 加载草稿到表单
+    const loadDraft = (draft) => {
+      formData.value = {
+        materialId: draft.material_id,
+        warehouseId: draft.warehouse_id,
+        quantity: draft.quantity != null ? String(draft.quantity) : '',
+        unit: draft.unit || '',
+        batchNo: draft.batch_no || '',
+        remarks: draft.remark || ''
+      }
+    }
+
+    // 格式化时间
+    const formatTime = (timestamp) => {
+      if (!timestamp) return ''
+      const date = new Date(timestamp)
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    }
+
+    return {
+      formData,
+      materials,
+      warehouses,
+      draftHistory,
+      error,
+      successMessage,
+      loading,
+      isFormValid,
+      handleMaterialChange,
+      handleQuantityInput,
+      generateBatchNo,
+      saveDraft,
+      loadDraft,
+      formatTime
+    }
   }
 }
-
-// 重置表单
-const resetForm = () => {
-  costForm.value = {
-    productName: '',
-    quantity: 1,
-    unit: '',
-    materialCost: 0,
-    laborCost: 0,
-    manufacturingCost: 0,
-    managementCost: 0,
-    salesCost: 0,
-    otherCost: 0,
-    targetProfitRate: 20,
-    targetPrice: 0
-  }
-  totalCost.value = 0
-  unitCost.value = 0
-  profitRate.value = 0
-  targetPrice.value = 0
-  costDetails.value = []
-}
-
-// 格式化货币
-const formatCurrency = (value) => {
-  return value.toFixed(2)
-}
-
-// 格式化百分比
-const formatPercentage = (value) => {
-  return value.toFixed(2) + '%'
-}
-
-// 导出报表
-const exportReport = () => {
-  console.log('导出成本报表')
-}
-
-// 组件挂载时初始化
-onMounted(() => {
-  calculateCost()
-})
 </script>
 
 <style scoped>
-.cost-calculation {
-  min-height: 100vh;
-  box-sizing: border-box;
-  padding: 24px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+.pda-material-inbound {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-.calculation-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #eaeaea;
+.header {
+  text-align: center;
+  margin-bottom: 30px;
 }
 
-.header-content h1 {
+.header h1 {
+  color: #1d4ed8;
   margin: 0;
-  font-size: 28px;
-  color: #1f2937;
-  font-weight: 600;
+  font-size: 24px;
 }
 
-.header-content p {
+.header p {
+  color: #64748b;
   margin: 8px 0 0;
-  color: #6b7280;
   font-size: 14px;
 }
 
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.input-card, .detail-card, .chart-card {
-  margin-bottom: 24px;
-  border: none;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+.form-container {
+  background: white;
   border-radius: 12px;
-}
-
-.card-title {
-  font-weight: 600;
-  color: #1f2937;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.input-form {
-  padding: 16px;
-}
-
-.analysis-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.analysis-card {
-  transition: all 0.3s ease;
-  border: none;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-}
-
-.analysis-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-}
-
-.card-content {
-  display: flex;
-  align-items: center;
   padding: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
 }
 
-.card-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #334155;
+  font-size: 14px;
+}
+
+.form-group select,
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.batch-no-container {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 16px;
-  background: #f0f9ff;
+  gap: 10px;
 }
 
-.card-icon i {
-  font-size: 24px;
-  color: #3b82f6;
-}
-
-.card-info {
+.batch-no-container input {
   flex: 1;
 }
 
-.card-value {
-  font-size: 24px;
-  font-weight: 600;
-  color: #1f2937;
-  margin: 0;
-}
-
-.card-label {
+.generate-btn {
+  padding: 10px 16px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
   font-size: 14px;
-  color: #6b7280;
-  margin: 4px 0 0;
+  white-space: nowrap;
 }
 
-.detail-table {
+.generate-btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.button-group {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.save-btn {
+  padding: 12px 24px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.save-btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.draft-history {
+  margin-top: 30px;
+}
+
+.draft-history h2 {
+  font-size: 18px;
+  margin-bottom: 16px;
+  color: #334155;
+}
+
+.loading, .empty {
+  text-align: center;
+  padding: 20px;
+  color: #64748b;
+}
+
+.draft-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.draft-item {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.draft-item:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.draft-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.draft-header .material {
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.draft-header .warehouse {
+  color: #059669;
+}
+
+.draft-header .quantity {
+  color: #7c3aed;
+  font-weight: 500;
+}
+
+.draft-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.draft-footer .batch-no {
+  font-family: monospace;
+}
+
+.draft-footer .time {
+  color: #94a3b8;
+}
+
+.error-message {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 12px;
+  border-radius: 6px;
   margin: 16px 0;
+  font-size: 14px;
 }
 
-.chart-content {
-  padding: 16px;
+.success-message {
+  background: #d1fae5;
+  color: #059669;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 16px 0;
+  font-size: 14px;
+}
+
+/* 移动端适配 */
+@media (max-width: 480px) {
+  .pda-material-inbound {
+    padding: 10px;
+  }
+  
+  .header h1 {
+    font-size: 20px;
+  }
+  
+  .form-container {
+    padding: 15px;
+  }
+  
+  .form-group label {
+    font-size: 13px;
+  }
+  
+  .form-group select,
+  .form-group input,
+  .form-group textarea {
+    font-size: 13px;
+    padding: 8px;
+  }
+  
+  .generate-btn,
+  .save-btn {
+    font-size: 14px;
+    padding: 10px 20px;
+  }
 }
 </style>
-

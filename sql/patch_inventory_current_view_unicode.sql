@@ -26,7 +26,6 @@ SELECT
 FROM scm.inventory_batches ib
 LEFT JOIN public.raw_materials m ON ib.material_id = m.id
 LEFT JOIN scm.warehouses w ON ib.warehouse_id = w.id
-WHERE ib.status IN (U&'\6B63\5E38', U&'\9501\5B9A')
-  AND (ib.available_qty + ib.locked_qty) > 0;
+;
 
 COMMENT ON VIEW scm.v_inventory_current IS '实时库存查询视图';

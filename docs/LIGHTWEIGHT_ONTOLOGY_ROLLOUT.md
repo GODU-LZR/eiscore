@@ -58,6 +58,16 @@
 cat sql/patch_lightweight_ontology_runtime.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 ```
 
+PowerShell（UTF-8 安全）：
+
+```powershell
+Get-Content sql/patch_lightweight_ontology_runtime.sql -Raw -Encoding UTF8 | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
+```
+
+执行规范：
+1. 统一遵守 `docs/SQL_PATCH_UTF8_EXECUTION_STANDARD.md`。
+2. 含中文语义文本的补丁执行后，必须跑乱码校验 SQL。
+
 ### 4.2 验证语义视图
 
 ```sql

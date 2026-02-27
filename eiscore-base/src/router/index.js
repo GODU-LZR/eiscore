@@ -55,7 +55,24 @@ const router = createRouter({
   ]
 })
 
+// 移动端设备检测：手机/平板访问自动跳转到 /mobile/
+const isMobileDevice = () => {
+  if (typeof navigator === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Tablet/i.test(ua)
+    || (window.innerWidth <= 768)
+}
+
 router.beforeEach((to, from, next) => {
+  // 移动端自动跳转（仅在非 /mobile/ 路径下触发）
+  if (isMobileDevice() && !window.__EIS_SKIP_MOBILE_REDIRECT__) {
+    const currentPath = window.location.pathname
+    if (!currentPath.startsWith('/mobile')) {
+      window.location.href = '/mobile/'
+      return
+    }
+  }
+
   const getAuthToken = () => {
     const raw = localStorage.getItem('auth_token')
     if (!raw) return ''

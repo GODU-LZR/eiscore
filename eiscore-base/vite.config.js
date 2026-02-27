@@ -21,7 +21,8 @@ export default defineConfig({
         const isMicroRoute =
           rawPath.startsWith('/materials') ||
           rawPath.startsWith('/hr') ||
-          rawPath.startsWith('/apps')
+          rawPath.startsWith('/apps') ||
+          rawPath.startsWith('/mobile')
         const isAppsDraftPreview =
           rawPath === '/apps/preview/flash-draft' ||
           rawPath.startsWith('/apps/preview/')
@@ -35,12 +36,14 @@ export default defineConfig({
           rawPath.includes('/__vite_ping')
         const isDocumentNav =
           req.headers['sec-fetch-dest'] === 'document' ||
-          String(req.headers.accept || '').includes('text/html')
+          req.headers['sec-fetch-mode'] === 'navigate'
 
         // For deep-link refresh, always serve host index.html first so Vue Router + qiankun can mount.
         // Sub-app assets/HMR still proxy via /materials|/hr|/apps prefixed asset paths.
         // Keep flash draft preview out of host-shell rewrite: it must load pure apps sub-app page.
-        if (isMicroRoute && isDocumentNav && !isDevAsset && !isAppsDraftPreview) {
+        // /mobile is a standalone SPA — let it pass through to its own dev server directly.
+        const isMobileRoute = rawPath.startsWith('/mobile')
+        if (isMicroRoute && isDocumentNav && !isDevAsset && !isAppsDraftPreview && !isMobileRoute) {
           req.url = '/'
           next()
           return
@@ -49,7 +52,8 @@ export default defineConfig({
         const redirectMap = {
           '/apps': '/apps/',
           '/hr': '/hr/',
-          '/materials': '/materials/'
+          '/materials': '/materials/',
+          '/mobile': '/mobile/'
         }
         const target = redirectMap[rawPath]
         if (target) {
@@ -88,8 +92,9 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
-          const accept = String(req.headers.accept || '')
-          const isDocument = req.headers['sec-fetch-dest'] === 'document' || accept.includes('text/html')
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
           return isDocument ? '/index.html' : undefined
         }
       },
@@ -98,8 +103,9 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
-          const accept = String(req.headers.accept || '')
-          const isDocument = req.headers['sec-fetch-dest'] === 'document' || accept.includes('text/html')
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
           return isDocument ? '/index.html' : undefined
         }
       },
@@ -113,8 +119,9 @@ export default defineConfig({
             rawPath === '/apps/preview/flash-draft' ||
             rawPath.startsWith('/apps/preview/')
           if (isPreview) return undefined
-          const accept = String(req.headers.accept || '')
-          const isDocument = req.headers['sec-fetch-dest'] === 'document' || accept.includes('text/html')
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
           return isDocument ? '/index.html' : undefined
         }
       },
@@ -126,10 +133,17 @@ export default defineConfig({
       },
       '/ide': {
         target: ideProxyTarget,
-        changeOrigin: true,
+        // Keep original host so code-server's WS origin/host check passes.
+        // If host is rewritten to :8443, WS handshake from :8080 gets 403/1006.
+        changeOrigin: false,
         secure: false,
         ws: true,
         rewrite: (path) => path.replace(/^\/ide/, '')
+      },
+      '/mobile': {
+        target: 'http://localhost:8084',
+        changeOrigin: true,
+        ws: true,
       },
       
     }

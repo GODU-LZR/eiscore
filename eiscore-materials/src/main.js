@@ -12,8 +12,26 @@ import { patchElMessage } from '@/utils/message-patch'
 
 patchElMessage()
 
+const MICRO_APP_NAME = 'eiscore-materials'
+
 let app = null
 let themeObserver = null
+
+function isRunningInQiankun() {
+  if (typeof window === 'undefined') return false
+  return Boolean(
+    qiankunWindow.__POWERED_BY_QIANKUN__ ||
+    window.__POWERED_BY_QIANKUN__ ||
+    window.proxy?.__POWERED_BY_QIANKUN__ ||
+    window.__INJECTED_PUBLIC_PATH_BY_QIANKUN__
+  )
+}
+
+function ensureQiankunLifecycleBucket(lifecycle) {
+  if (typeof window === 'undefined') return
+  window.moudleQiankunAppLifeCycles = window.moudleQiankunAppLifeCycles || {}
+  window.moudleQiankunAppLifeCycles[MICRO_APP_NAME] = lifecycle
+}
 
 function render(props = {}) {
   const { container } = props
@@ -59,7 +77,7 @@ function render(props = {}) {
   app.mount(mountPoint || '#app')
 }
 
-renderWithQiankun({
+const lifecycle = {
   bootstrap() { console.log('[materials] bootstrap') },
   mount(props) {
     console.log('[materials] mount')
@@ -75,8 +93,11 @@ renderWithQiankun({
     }
   },
   update() {}
-})
+}
 
-if (!qiankunWindow.__POWERED_BY_QIANKUN__) {
+renderWithQiankun(lifecycle)
+ensureQiankunLifecycleBucket(lifecycle)
+
+if (!isRunningInQiankun()) {
   render()
 }

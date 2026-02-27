@@ -19,6 +19,7 @@ const router = createRouter({
     { path: '/inventory-ledger', name: 'InventoryLedgerGrid', component: () => import('@/views/InventoryLedgerGrid.vue') },
     { path: '/inventory-stock-in', name: 'InventoryStockIn', component: () => import('@/views/InventoryStockIn.vue') },
     { path: '/inventory-stock-out', name: 'InventoryStockOut', component: () => import('@/views/InventoryStockOut.vue') },
+    { path: '/inventory-draft/detail/:id', name: 'InventoryDraftDetail', component: () => import('@/views/InventoryDraftDetail.vue'), props: true },
     { path: '/inventory-current', name: 'InventoryCurrentGrid', component: () => import('@/views/InventoryCurrentGrid.vue') },
     { path: '/inventory-dashboard', name: 'InventoryDashboard', component: () => import('@/views/InventoryDashboard.vue') }
   ]

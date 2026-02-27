@@ -52,7 +52,6 @@
         
         <el-form-item label="批次号规则">
           <el-select v-model="stockInDialog.form.rule_id" placeholder="选择规则" style="width: 60%;" @change="handleRuleChange">
-            <el-option label="手动输入" :value="null" />
             <el-option
               v-for="r in batchRules"
               :key="r.id"
@@ -105,6 +104,8 @@ import { hasPerm } from '@/utils/permission'
 const gridRef = ref(null)
 const materials = ref([])
 const warehouseOptions = ref([])
+const warehouseFlat = ref([])
+const warehouseIndex = ref({})
 const batchRules = ref([])
 const stockInFormRef = ref(null)
 
@@ -127,7 +128,7 @@ const appConfig = computed(() => ({
   key: 'inventory-ledger',
   name: '库存台账',
   desc: '库存入库出库流水记录',
-  apiUrl: '/inventory_transactions',
+  apiUrl: '/v_inventory_transactions',
   schema: 'scm',
   viewId: 'inventory_ledger',
   configKey: 'inventory_ledger_cols',
@@ -144,19 +145,31 @@ const appConfig = computed(() => ({
     {
       label: '业务类型',
       prop: 'transaction_type',
-      width: 100,
+      width: 140,
       editable: false,
+      valueGetter: (params) => {
+        const ioType = String(params.data?.io_type || '').trim()
+        if (ioType && !/[?？]/.test(ioType)) return ioType
+        return params.data?.transaction_type || ''
+      },
       cellStyle: (params) => {
-        if (params.value === '入库') return { color: '#67c23a', fontWeight: 'bold' }
-        if (params.value === '出库') return { color: '#f56c6c', fontWeight: 'bold' }
-        if (params.value === '调整') return { color: '#e6a23c', fontWeight: 'bold' }
+        const baseType = params.data?.transaction_type
+        if (baseType === '入库') return { color: '#67c23a', fontWeight: 'bold' }
+        if (baseType === '出库') return { color: '#f56c6c', fontWeight: 'bold' }
+        if (baseType === '调整') return { color: '#e6a23c', fontWeight: 'bold' }
         return {}
       }
     },
     {
       label: '物料编码',
-      prop: 'material_id',
+      prop: 'material_code',
       width: 140,
+      editable: false
+    },
+    {
+      label: '物料名称',
+      prop: 'material_name',
+      width: 180,
       editable: false
     },
     {
@@ -167,9 +180,24 @@ const appConfig = computed(() => ({
     },
     {
       label: '仓库',
-      prop: 'warehouse_id',
+      prop: 'warehouse_name',
       width: 140,
-      editable: false
+      editable: false,
+      valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 1)
+    },
+    {
+      label: '库区',
+      prop: 'warehouse_area',
+      width: 140,
+      editable: false,
+      valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 2)
+    },
+    {
+      label: '库位',
+      prop: 'warehouse_slot',
+      width: 140,
+      editable: false,
+      valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 3)
     },
     {
       label: '数量',
@@ -268,13 +296,48 @@ const loadMaterials = async () => {
   }
 }
 
+const buildWarehouseIndex = (list) => {
+  const map = {}
+  list.forEach(item => {
+    map[item.id] = item
+  })
+  warehouseIndex.value = map
+}
+
+const resolveWarehouseNameByLevel = (warehouseId, targetLevel) => {
+  if (!warehouseId) return ''
+  let node = warehouseIndex.value[warehouseId]
+  if (!node) return ''
+  let guard = 0
+  while (node && Number(node.level) > targetLevel && guard < 10) {
+    node = warehouseIndex.value[node.parent_id]
+    guard += 1
+  }
+  if (!node) return ''
+  if (Number(node.level) !== targetLevel) {
+    if (targetLevel === 3 && Number(node.level) === 2) return ''
+    if (targetLevel === 2 && Number(node.level) === 1) return ''
+    if (targetLevel === 1 && Number(node.level) >= 1) {
+      while (node && Number(node.level) > 1 && guard < 20) {
+        node = warehouseIndex.value[node.parent_id]
+        guard += 1
+      }
+    }
+  }
+  return node?.name || node?.code || ''
+}
+
 const loadWarehouses = async () => {
   try {
     const res = await request({
       url: '/warehouses?order=code.asc',
       headers: { 'Accept-Profile': 'scm' }
     })
-    warehouseOptions.value = buildTree(res || [])
+    const list = Array.isArray(res) ? res : []
+    warehouseFlat.value = list
+    buildWarehouseIndex(list)
+    warehouseOptions.value = buildTree(list)
+    gridRef.value?.refreshCells?.({ force: true })
   } catch (e) {
     console.error('加载仓库失败:', e)
   }

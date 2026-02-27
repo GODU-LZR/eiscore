@@ -13,6 +13,27 @@
       class="grid-card"
       :body-style="{ height: '100%', display: 'flex', flexDirection: 'column' }"
     >
+      <div v-if="workflowContext.active" class="workflow-bind-card">
+        <div class="workflow-bind-head">
+          <div class="workflow-bind-title">当前流程单号：{{ workflowContext.instanceId }}</div>
+        </div>
+        <div class="workflow-bind-tip">
+          新建单据会自动关联当前流程单号。若该单据已存在，可在这里手动绑定。
+        </div>
+        <div class="workflow-bind-actions">
+          <el-input
+            v-model="workflowManualRowId"
+            size="small"
+            clearable
+            placeholder="输入已有单据主键（如 123 或 UUID）"
+            class="workflow-bind-input"
+          />
+          <el-button size="small" :loading="workflowBindingLoading" @click="bindExistingRowToWorkflow">
+            绑定已有单据
+          </el-button>
+        </div>
+      </div>
+
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
@@ -245,7 +266,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, reactive, computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
@@ -254,6 +275,7 @@ import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { hasPerm } from '@/utils/permission'
 import { getRealtimeClient } from '@/utils/realtime'
 import { buildDefaultOps, ensureAppAclConfig, ensureAppPermissions } from '@/utils/app-permissions'
+import { ensureSemanticConfig } from '@/utils/semantics-config'
 
 const props = defineProps({
   appData: { type: Object, default: null },
@@ -261,6 +283,7 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const gridRef = ref(null)
 const colConfigVisible = ref(false)
@@ -332,7 +355,9 @@ const configRef = ref({
   table: '',
   columns: [],
   summary: { label: '合计', rules: {}, expressions: {} },
-  staticHidden: []
+  staticHidden: [],
+  semantics_mode: 'ai_defined',
+  permission_mode: 'compat'
 })
 
 const schemaName = computed(() => {
@@ -352,6 +377,14 @@ const summaryConfig = computed(() => configRef.value.summary || { label: '合计
 const staticColumns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
 )
+const allConfiguredFieldSet = computed(() => {
+  const set = new Set()
+  ;[...staticColumnsAll.value, ...extraColumns.value].forEach((col) => {
+    const key = String(col?.prop || '').trim()
+    if (key) set.add(key)
+  })
+  return set
+})
 
 const opPerms = computed(() => {
   if (configRef.value.ops) return configRef.value.ops
@@ -375,6 +408,244 @@ const patchRequiredFields = computed(() =>
 )
 const enableDetail = computed(() => configRef.value.enableDetail !== false)
 const enableRealtime = computed(() => configRef.value.enableRealtime === true)
+
+const workflowManualRowId = ref('')
+const workflowBindingLoading = ref(false)
+const workflowDetailJumped = ref(false)
+const workflowContext = computed(() => {
+  const query = route.query || {}
+  const instanceId = String(query.wf_instance || '').trim()
+  const key = String(query.wf_key || '').trim()
+  const taskId = String(query.wf_task || '').trim()
+  const definitionId = String(query.wf_definition || '').trim()
+  const workflowAppId = String(query.wf_app || '').trim()
+  const rowId = String(query.wf_row_id || '').trim()
+  return {
+    active: Boolean(instanceId && key),
+    instanceId,
+    key,
+    taskId,
+    definitionId,
+    workflowAppId,
+    rowId
+  }
+})
+const WORKFLOW_BIND_PROP_FIELDS = {
+  instanceId: 'workflow_instance_id',
+  key: 'workflow_business_key',
+  taskId: 'workflow_task_id',
+  definitionId: 'workflow_definition_id',
+  workflowAppId: 'workflow_app_id',
+  source: 'workflow_source'
+}
+
+const normalizeObject = (value) => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  return {}
+}
+
+const getRowPrimaryValue = (row) => {
+  const key = String(primaryKey.value || 'id')
+  return row?.[key] ?? row?.id ?? null
+}
+
+const buildWorkflowBindingSelect = () => {
+  const fields = new Set(['id'])
+  const key = String(primaryKey.value || 'id').trim()
+  if (key) fields.add(key)
+  fields.add('properties')
+  if (allConfiguredFieldSet.value.has('business_key')) fields.add('business_key')
+  if (allConfiguredFieldSet.value.has('workflow_instance_id')) fields.add('workflow_instance_id')
+  if (allConfiguredFieldSet.value.has('workflow_business_key')) fields.add('workflow_business_key')
+  return Array.from(fields).join(',')
+}
+
+const getWorkflowBindingProps = (base = {}) => {
+  const next = { ...normalizeObject(base) }
+  const ctx = workflowContext.value
+  if (!ctx.active) return next
+  next[WORKFLOW_BIND_PROP_FIELDS.instanceId] = ctx.instanceId
+  next[WORKFLOW_BIND_PROP_FIELDS.key] = ctx.key
+  next[WORKFLOW_BIND_PROP_FIELDS.taskId] = ctx.taskId || ''
+  next[WORKFLOW_BIND_PROP_FIELDS.definitionId] = ctx.definitionId || ''
+  next[WORKFLOW_BIND_PROP_FIELDS.workflowAppId] = ctx.workflowAppId || ''
+  next[WORKFLOW_BIND_PROP_FIELDS.source] = 'workflow_runtime'
+  return next
+}
+
+const applyWorkflowBindingToPayload = (payload) => {
+  const ctx = workflowContext.value
+  if (!ctx.active) return payload
+  const next = { ...(payload || {}) }
+  if (includeProperties.value || Object.prototype.hasOwnProperty.call(next, 'properties')) {
+    next.properties = getWorkflowBindingProps(next.properties)
+  }
+  if (allConfiguredFieldSet.value.has('business_key') && !next.business_key) {
+    next.business_key = ctx.key
+  }
+  if (allConfiguredFieldSet.value.has('workflow_instance_id')) {
+    next.workflow_instance_id = ctx.instanceId
+  }
+  if (allConfiguredFieldSet.value.has('workflow_business_key')) {
+    next.workflow_business_key = ctx.key
+  }
+  return next
+}
+
+const readRowBoundInstanceId = (row) => {
+  const props = normalizeObject(row?.properties)
+  const fromProps = String(props[WORKFLOW_BIND_PROP_FIELDS.instanceId] || '').trim()
+  if (fromProps) return fromProps
+  return String(row?.workflow_instance_id || '').trim()
+}
+
+const queryRowsByFilter = async (filterExpr, limit = 5) => {
+  if (!apiUrl.value || !filterExpr) return []
+  const select = buildWorkflowBindingSelect()
+  const rows = await request({
+    url: `${apiUrl.value}?select=${select}&${filterExpr}&limit=${limit}`,
+    method: 'get',
+    headers: { 'Accept-Profile': schemaName.value, 'Content-Profile': schemaName.value }
+  })
+  return Array.isArray(rows) ? rows : []
+}
+
+const findBoundRowsForWorkflow = async (limit = 5) => {
+  const ctx = workflowContext.value
+  if (!ctx.active) return []
+  const picked = new Map()
+  const appendRows = (rows) => {
+    rows.forEach((row) => {
+      const id = String(getRowPrimaryValue(row) || '').trim()
+      if (id && !picked.has(id)) picked.set(id, row)
+    })
+  }
+
+  if (ctx.instanceId) {
+    const propFilter = `${encodeURIComponent('properties->>workflow_instance_id')}=eq.${encodeURIComponent(ctx.instanceId)}`
+    appendRows(await queryRowsByFilter(propFilter, limit))
+    if (allConfiguredFieldSet.value.has('workflow_instance_id')) {
+      const directFilter = `${encodeURIComponent('workflow_instance_id')}=eq.${encodeURIComponent(ctx.instanceId)}`
+      appendRows(await queryRowsByFilter(directFilter, limit))
+    }
+  }
+  if (ctx.key) {
+    const propFilter = `${encodeURIComponent('properties->>workflow_business_key')}=eq.${encodeURIComponent(ctx.key)}`
+    appendRows(await queryRowsByFilter(propFilter, limit))
+    if (allConfiguredFieldSet.value.has('business_key')) {
+      const directFilter = `${encodeURIComponent('business_key')}=eq.${encodeURIComponent(ctx.key)}`
+      appendRows(await queryRowsByFilter(directFilter, limit))
+    }
+    if (allConfiguredFieldSet.value.has('workflow_business_key')) {
+      const directFilter = `${encodeURIComponent('workflow_business_key')}=eq.${encodeURIComponent(ctx.key)}`
+      appendRows(await queryRowsByFilter(directFilter, limit))
+    }
+  }
+  return Array.from(picked.values()).slice(0, limit)
+}
+
+const findBoundRowForWorkflow = async () => {
+  const rows = await findBoundRowsForWorkflow(1)
+  return rows[0] || null
+}
+
+const fetchRowByPrimaryValue = async (value) => {
+  const key = String(primaryKey.value || 'id').trim()
+  const rowValue = String(value || '').trim()
+  if (!key || !rowValue || !apiUrl.value) return null
+  const select = buildWorkflowBindingSelect()
+  const rows = await request({
+    url: `${apiUrl.value}?select=${select}&${encodeURIComponent(key)}=eq.${encodeURIComponent(rowValue)}&limit=1`,
+    method: 'get',
+    headers: { 'Accept-Profile': schemaName.value, 'Content-Profile': schemaName.value }
+  })
+  if (!Array.isArray(rows)) return null
+  return rows[0] || null
+}
+
+const buildWorkflowBindPatchPayload = (row) => {
+  const patch = {}
+  if (includeProperties.value || Object.prototype.hasOwnProperty.call(row || {}, 'properties')) {
+    patch.properties = getWorkflowBindingProps(row?.properties)
+  }
+  const ctx = workflowContext.value
+  if (allConfiguredFieldSet.value.has('business_key')) patch.business_key = ctx.key
+  if (allConfiguredFieldSet.value.has('workflow_instance_id')) patch.workflow_instance_id = ctx.instanceId
+  if (allConfiguredFieldSet.value.has('workflow_business_key')) patch.workflow_business_key = ctx.key
+  return patch
+}
+
+const bindExistingRowToWorkflow = async () => {
+  if (!workflowContext.value.active) {
+    ElMessage.warning('当前不在流程处理场景，无法绑定单据')
+    return
+  }
+  const rowId = String(workflowManualRowId.value || '').trim()
+  if (!rowId) {
+    ElMessage.warning('请先输入要绑定的单据主键')
+    return
+  }
+  workflowBindingLoading.value = true
+  try {
+    const alreadyBound = await findBoundRowForWorkflow()
+    const alreadyBoundId = String(getRowPrimaryValue(alreadyBound) || '').trim()
+    if (alreadyBoundId && alreadyBoundId !== rowId) {
+      ElMessage.warning(`流程单号 ${workflowContext.value.instanceId} 已绑定单据 ${alreadyBoundId}，请勿重复绑定`)
+      return
+    }
+
+    const row = await fetchRowByPrimaryValue(rowId)
+    if (!row) {
+      ElMessage.warning('未找到该单据，请检查主键是否正确')
+      return
+    }
+    const boundInstance = readRowBoundInstanceId(row)
+    if (boundInstance && boundInstance !== workflowContext.value.instanceId) {
+      ElMessage.warning(`该单据已绑定流程单号 ${boundInstance}，不能重复绑定`)
+      return
+    }
+
+    const patch = buildWorkflowBindPatchPayload(row)
+    if (Object.keys(patch).length === 0) {
+      ElMessage.warning('当前应用未配置可写入的流程关联字段')
+      return
+    }
+    const key = String(primaryKey.value || 'id').trim()
+    const updated = await request({
+      url: `${apiUrl.value}?${encodeURIComponent(key)}=eq.${encodeURIComponent(rowId)}`,
+      method: 'patch',
+      headers: {
+        'Accept-Profile': schemaName.value,
+        'Content-Profile': schemaName.value,
+        Prefer: 'return=representation'
+      },
+      data: patch
+    })
+    const rowData = Array.isArray(updated) ? updated[0] : updated
+    const finalId = String(getRowPrimaryValue(rowData) || rowId)
+    workflowManualRowId.value = ''
+    ElMessage.success(`已绑定：流程单号 ${workflowContext.value.instanceId} -> 单据 ${finalId}`)
+    if (gridRef.value?.loadData) {
+      await gridRef.value.loadData()
+    }
+  } catch {
+    ElMessage.error('绑定失败，请稍后重试')
+  } finally {
+    workflowBindingLoading.value = false
+  }
+}
+
+const tryOpenWorkflowRowDetail = () => {
+  if (workflowDetailJumped.value) return
+  const rowId = String(workflowContext.value?.rowId || '').trim()
+  if (!rowId || !props.appId || !enableDetail.value) return
+  workflowDetailJumped.value = true
+  router.replace({
+    name: 'AppRecordDetail',
+    params: { appId: props.appId, rowId },
+    query: { ...route.query }
+  })
+}
 
 const normalizeColumns = (raw) => {
   if (!raw) return { columns: [], changed: false }
@@ -458,12 +729,12 @@ const loadConfigFromApp = async () => {
   extraColumns.value = columns.filter(col => col.isStatic === false)
   staticHidden.value = hiddenList
 
-  let nextConfig = {
+  let nextConfig = ensureSemanticConfig({
     ...configRef.value,
     ...cfg,
     columns: buildColumnsPayload(),
     staticHidden: hiddenList
-  }
+  })
   const aclConfig = ensureAppAclConfig(nextConfig, props.appId)
   const aclChanged = JSON.stringify(aclConfig.ops || {}) !== JSON.stringify(nextConfig.ops || {}) ||
     aclConfig.aclModule !== nextConfig.aclModule ||
@@ -1049,8 +1320,9 @@ const saveColumnsConfig = async () => {
     columns: columnsPayload,
     staticHidden: staticHidden.value
   }
-  await saveAppConfig(nextConfig)
-  configRef.value = nextConfig
+  const normalizedConfig = ensureSemanticConfig(nextConfig)
+  await saveAppConfig(normalizedConfig)
+  configRef.value = normalizedConfig
   await syncFieldAclForColumns(columnsPayload.map(col => col.field).filter(Boolean))
   syncFieldLabels()
   syncAiContext()
@@ -1171,21 +1443,42 @@ const handleCreate = async () => {
     return
   }
   try {
+    if (workflowContext.value.active) {
+      const existed = await findBoundRowForWorkflow()
+      const existedId = String(getRowPrimaryValue(existed) || '').trim()
+      if (existedId) {
+        ElMessage.info(`流程单号 ${workflowContext.value.instanceId} 已关联单据 ${existedId}，请直接处理或手动改绑`)
+        if (gridRef.value?.loadData) {
+          await gridRef.value.loadData()
+        }
+        return
+      }
+    }
     const payload = { ...(configRef.value.fieldDefaults || {}) }
     if (includeProperties.value && !Object.prototype.hasOwnProperty.call(payload, 'properties')) {
       payload.properties = {}
     }
+    const finalPayload = applyWorkflowBindingToPayload(payload)
     const res = await request({
       url: apiUrl.value,
       method: 'post',
       headers: { 'Accept-Profile': schemaName.value, 'Content-Profile': schemaName.value, Prefer: 'return=representation' },
-      data: payload
+      data: finalPayload
     })
     const created = Array.isArray(res) ? res[0] : res
     if (created && gridRef.value?.prependRow) {
       gridRef.value.prependRow(created)
     } else if (gridRef.value?.loadData) {
       await gridRef.value.loadData()
+    }
+    if (workflowContext.value.active) {
+      const duplicates = await findBoundRowsForWorkflow(2)
+      if (duplicates.length > 1) {
+        ElMessage.warning(`流程单号 ${workflowContext.value.instanceId} 检测到多条关联单据，请尽快人工核对`)
+      }
+      const createdId = String(getRowPrimaryValue(created) || '').trim()
+      ElMessage.success(createdId ? `已创建并关联单据 ${createdId}` : '已创建并自动关联流程单号')
+      return
     }
     ElMessage.success('已创建新行')
   } catch (e) {
@@ -1199,9 +1492,18 @@ const goApps = () => {
 
 onMounted(() => {
   loadConfigFromApp()
+  tryOpenWorkflowRowDetail()
   window.addEventListener('eis-ai-apply-formula', handleApplyFormula)
   window.addEventListener('eis-grid-imported', handleImportDone)
 })
+
+watch(
+  () => workflowContext.value.rowId,
+  () => {
+    tryOpenWorkflowRowDetail()
+  },
+  { immediate: false }
+)
 
 onUnmounted(() => {
   window.removeEventListener('eis-ai-apply-formula', handleApplyFormula)
@@ -1247,6 +1549,44 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+.workflow-bind-card {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid #dfe7f5;
+  border-radius: 10px;
+  background: #f6f8fc;
+}
+
+.workflow-bind-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.workflow-bind-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #22324d;
+}
+
+.workflow-bind-tip {
+  font-size: 12px;
+  color: #5f6f8a;
+  line-height: 1.5;
+}
+
+.workflow-bind-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workflow-bind-input {
+  max-width: 320px;
 }
 
 .column-manager { padding: 0 5px; }

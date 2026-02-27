@@ -20,8 +20,26 @@ import 'bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css'
 
 patchElMessage()
 
+const MICRO_APP_NAME = 'eiscore-hr'
+
 let app
 let themeObserver = null
+
+function isRunningInQiankun() {
+  if (typeof window === 'undefined') return false
+  return Boolean(
+    qiankunWindow.__POWERED_BY_QIANKUN__ ||
+    window.__POWERED_BY_QIANKUN__ ||
+    window.proxy?.__POWERED_BY_QIANKUN__ ||
+    window.__INJECTED_PUBLIC_PATH_BY_QIANKUN__
+  )
+}
+
+function ensureQiankunLifecycleBucket(lifecycle) {
+  if (typeof window === 'undefined') return
+  window.moudleQiankunAppLifeCycles = window.moudleQiankunAppLifeCycles || {}
+  window.moudleQiankunAppLifeCycles[MICRO_APP_NAME] = lifecycle
+}
 
 function render(props = {}) {
   const { container } = props
@@ -73,7 +91,7 @@ function render(props = {}) {
   app.mount(target || '#app')
 }
 
-renderWithQiankun({
+const lifecycle = {
   mount(props) {
     console.log('[HR] mounted')
     render(props)
@@ -92,8 +110,11 @@ renderWithQiankun({
   update(props) {
     console.log('[HR] update', props)
   }
-})
+}
 
-if (!qiankunWindow.__POWERED_BY_QIANKUN__) {
+renderWithQiankun(lifecycle)
+ensureQiankunLifecycleBucket(lifecycle)
+
+if (!isRunningInQiankun()) {
   render()
 }

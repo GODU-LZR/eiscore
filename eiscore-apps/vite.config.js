@@ -4,6 +4,7 @@ import vue from '@vitejs/plugin-vue'
 import qiankun from 'vite-plugin-qiankun'
 
 const useDevMode = true
+const enablePollingWatch = String(process.env.VITE_FLASH_WATCH_POLLING || 'true').toLowerCase() !== 'false'
 
 const redirectRootPlugin = () => ({
   name: 'redirect-root-to-apps',
@@ -36,6 +37,17 @@ export default defineConfig({
   server: {
     port: 8083,
     host: true,
+    watch: enablePollingWatch
+      ? {
+        usePolling: true,
+        interval: Number(process.env.VITE_FLASH_WATCH_POLLING_INTERVAL || 220)
+      }
+      : undefined,
+    hmr: {
+      // In iframe/srcdoc preview, Vite's built-in overlay can throw "Illegal constructor".
+      // Keep HMR active but suppress overlay to avoid breaking Flash preview rendering.
+      overlay: false
+    },
     cors: {
       origin: true,
       credentials: true

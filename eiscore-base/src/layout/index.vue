@@ -28,22 +28,22 @@
           <el-icon><House /></el-icon>
           <template #title>工作台</template>
         </el-menu-item>
-        <el-menu-item v-if="canMms" index="/materials" @click="router.push('/materials')">
+        <el-menu-item v-if="canMms" index="/materials">
           <el-icon><Box /></el-icon>
           <template #title>物料管理</template>
         </el-menu-item>
-        <el-menu-item v-if="canHr" index="/hr" @click="router.push('/hr')">
+        <el-menu-item v-if="canHr" index="/hr">
           <el-icon><User /></el-icon>
           <template #title>人事管理</template>
         </el-menu-item>
-        <el-menu-item v-if="canApps" index="/apps/" @click="router.push('/apps/')">
+        <el-menu-item v-if="canApps" index="/apps/">
           <el-icon><Grid /></el-icon>
           <template #title>应用中心</template>
         </el-menu-item>
       </el-menu>
     </el-aside>
 
-    <el-container>
+    <el-container class="main-container">
       <el-header
         class="layout-header"
         :style="{ backgroundColor: asideTheme.headerBg }"
@@ -54,11 +54,28 @@
               <component :is="isCollapse ? 'Expand' : 'Fold'" />
             </el-icon>
           </div>
-
-          <el-breadcrumb separator="/">
-            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
-            <el-breadcrumb-item>管理控制台</el-breadcrumb-item>
-          </el-breadcrumb>
+          <div class="host-tabs-wrap">
+            <div class="host-tabs-scroll">
+              <button
+                v-for="tab in hostTabs"
+                :key="tab.key"
+                type="button"
+                class="host-tab"
+                :class="{ active: activeHostTabKey === tab.key }"
+                @click="switchHostTab(tab)"
+              >
+                <span class="host-tab-dot" :class="`dot-${tab.dot || 'default'}`"></span>
+                <span class="host-tab-label">{{ tab.title }}</span>
+                <el-icon
+                  v-if="tab.closable"
+                  class="host-tab-close"
+                  @click.stop="closeHostTab(tab.key)"
+                >
+                  <Close />
+                </el-icon>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="header-right">
@@ -118,7 +135,7 @@ import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import { mix } from '@/utils/theme'
 import { hasPerm } from '@/utils/permission'
-import { House, Box, User, Grid, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown } from '@element-plus/icons-vue'
+import { House, Box, User, Grid, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import AiCopilot from '@/components/AiCopilot.vue'
 
 const isCollapse = ref(false)
@@ -440,6 +457,251 @@ const canApps = computed(() =>
   userStore.userInfo?.role === 'super_admin'
 )
 
+const HOST_TABS_STORAGE_KEY = 'eis_host_nav_tabs_v1'
+const hostOpenTabAliasMap = new Map()
+const hostTabs = ref([{ key: '/', path: '/', query: {}, title: '首页', closable: false, dot: 'home', routeId: '/' }])
+const activeHostTabKey = ref('/')
+
+const normalizeHostPath = (value) => {
+  const raw = String(value || '').trim() || '/'
+  if (raw === '/apps' || raw === '/apps/index.html') return '/apps/'
+  if (raw === '/materials/apps' || raw === '/materials/apps/') return '/materials'
+  if (raw === '/hr/apps' || raw === '/hr/apps/') return '/hr'
+  // Keep full child route for micro-app deep links (e.g. /materials/inventory-stock-in).
+  if (raw === '/materials' || raw.startsWith('/materials/')) return raw
+  if (raw === '/hr' || raw.startsWith('/hr/')) return raw
+  if (raw.startsWith('/apps/config-center')) return '/apps/config-center'
+  if (raw.startsWith('/apps/')) return raw
+  if (raw === '/settings') return '/settings'
+  if (raw.startsWith('/ai/enterprise')) return '/ai/enterprise'
+  return raw
+}
+
+const normalizeHostQuery = (value) => {
+  if (!value || typeof value !== 'object') return {}
+  const next = {}
+  Object.keys(value).sort().forEach((key) => {
+    const current = value[key]
+    if (current === null || current === undefined) return
+    if (Array.isArray(current)) {
+      const list = current.map((item) => String(item || '').trim()).filter(Boolean)
+      if (list.length) next[key] = list.join(',')
+      return
+    }
+    const text = String(current).trim()
+    if (text) next[key] = text
+  })
+  return next
+}
+
+const serializeHostQuery = (query = {}) => {
+  const params = new URLSearchParams()
+  Object.keys(query).sort().forEach((key) => params.set(key, query[key]))
+  return params.toString()
+}
+
+const buildHostRouteId = (path, query = {}) => {
+  const qs = serializeHostQuery(query)
+  return qs ? `${path}?${qs}` : path
+}
+
+const resolveHostTabDot = (path) => {
+  if (path === '/') return 'home'
+  if (path.startsWith('/materials')) return 'materials'
+  if (path.startsWith('/hr')) return 'hr'
+  if (path.startsWith('/apps')) return 'apps'
+  return 'default'
+}
+
+const resolveHostTabTitle = (path, query = {}, fallback = '') => {
+  const preferred = String(fallback || '').trim()
+  if (preferred) return preferred
+  if (path === '/') return '首页'
+  if (path === '/materials') return '物料管理'
+  if (path === '/hr') return '人事管理'
+  if (path === '/apps/' || path === '/apps') return '应用中心'
+  if (path === '/apps/config-center') return '应用配置中心'
+  if (path.startsWith('/apps/workflow-designer/')) return '流程应用'
+  if (path.startsWith('/apps/flash-builder/')) return '闪念应用'
+  if (path.startsWith('/apps/data-app/')) return '数据表格应用'
+  if (path.startsWith('/apps/ontology-relations/')) return '本体关系工作台'
+  if (path.startsWith('/apps/app/')) return String(query.appName || query.name || '').trim() || '应用运行'
+  if (path === '/settings') return '系统设置'
+  if (path.startsWith('/ai/enterprise')) return '企业助手'
+  return '页面'
+}
+
+const buildDefaultTabKey = (path) => {
+  if (path === '/') return '/'
+  if (path === '/materials') return '/materials'
+  if (path === '/hr') return '/hr'
+  if (path === '/apps/' || path === '/apps') return '/apps/'
+  if (path === '/apps/config-center') return '/apps/config-center'
+  if (path === '/settings') return '/settings'
+  if (path.startsWith('/ai/enterprise')) return '/ai/enterprise'
+  return path
+}
+
+const persistHostTabs = () => {
+  try {
+    const payload = hostTabs.value.map((tab) => ({
+      key: tab.key,
+      path: tab.path,
+      query: tab.query || {},
+      title: tab.title,
+      closable: tab.key !== '/',
+      dot: tab.dot || resolveHostTabDot(tab.path)
+    }))
+    localStorage.setItem(HOST_TABS_STORAGE_KEY, JSON.stringify(payload))
+  } catch (e) {}
+}
+
+const restoreHostTabs = () => {
+  try {
+    const raw = localStorage.getItem(HOST_TABS_STORAGE_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return
+    const next = []
+    const seen = new Set()
+    const seenRouteIds = new Set()
+    parsed.forEach((item) => {
+      if (!item || typeof item !== 'object') return
+      const path = normalizeHostPath(item.path)
+      const query = normalizeHostQuery(item.query)
+      const defaultKey = buildDefaultTabKey(path)
+      const forceDefaultKey =
+        path === '/' ||
+        path === '/materials' ||
+        path === '/hr' ||
+        path === '/apps/' ||
+        path === '/apps/config-center' ||
+        path === '/settings' ||
+        path.startsWith('/ai/enterprise')
+      const key = String(forceDefaultKey ? defaultKey : (item.key || defaultKey)).trim()
+      const routeId = buildHostRouteId(path, query)
+      if (!key || seen.has(key) || seenRouteIds.has(routeId)) return
+      seen.add(key)
+      seenRouteIds.add(routeId)
+      next.push({
+        key,
+        path,
+        query,
+        title: resolveHostTabTitle(path, query, item.title),
+        closable: key !== '/',
+        dot: item.dot || resolveHostTabDot(path),
+        routeId
+      })
+    })
+    if (!next.some((tab) => tab.key === '/')) {
+      next.unshift({ key: '/', path: '/', query: {}, title: '首页', closable: false, dot: 'home', routeId: '/' })
+    }
+    hostTabs.value = next
+  } catch (e) {}
+}
+
+const upsertHostTab = ({ key, path, query = {}, title = '' }) => {
+  const normalizedPath = normalizeHostPath(path)
+  const normalizedQuery = normalizeHostQuery(query)
+  const tabKey = String(key || buildDefaultTabKey(normalizedPath)).trim()
+  const routeId = buildHostRouteId(normalizedPath, normalizedQuery)
+  const next = {
+    key: tabKey,
+    path: normalizedPath,
+    query: normalizedQuery,
+    title: resolveHostTabTitle(normalizedPath, normalizedQuery, title),
+    closable: tabKey !== '/',
+    dot: resolveHostTabDot(normalizedPath),
+    routeId
+  }
+  const index = hostTabs.value.findIndex((tab) => tab.key === tabKey)
+  if (index >= 0) hostTabs.value[index] = { ...hostTabs.value[index], ...next }
+  else hostTabs.value.push(next)
+  persistHostTabs()
+  return next
+}
+
+const resolveTabByRoute = (path, query) => {
+  const routeId = buildHostRouteId(path, query)
+  return hostTabs.value.find((tab) => tab.routeId === routeId)
+    || hostTabs.value.find((tab) => tab.key === buildDefaultTabKey(path))
+}
+
+const syncHostTabsWithRoute = () => {
+  if (route.path === '/login') return
+  const path = normalizeHostPath(route.path)
+  const query = normalizeHostQuery(route.query)
+  const routeId = buildHostRouteId(path, query)
+  const alias = hostOpenTabAliasMap.get(routeId)
+  const existing = resolveTabByRoute(path, query)
+  const tab = existing || upsertHostTab({
+    key: alias?.key || buildDefaultTabKey(path),
+    path,
+    query,
+    title: alias?.title || resolveHostTabTitle(path, query)
+  })
+  activeHostTabKey.value = tab.key
+  persistHostTabs()
+}
+
+const switchHostTab = (tab) => {
+  if (!tab) return
+  activeHostTabKey.value = tab.key
+  const currentRouteId = buildHostRouteId(
+    normalizeHostPath(route.path),
+    normalizeHostQuery(route.query)
+  )
+  if (currentRouteId === tab.routeId) return
+  router.push({ path: tab.path, query: tab.query || {} }).catch(() => {})
+}
+
+const closeHostTab = (key) => {
+  if (!key || key === '/') return
+  const index = hostTabs.value.findIndex((tab) => tab.key === key)
+  if (index < 0) return
+  const closingActive = activeHostTabKey.value === key
+  hostTabs.value.splice(index, 1)
+  persistHostTabs()
+  if (!closingActive) return
+  const fallback = hostTabs.value[index - 1] || hostTabs.value[index] || hostTabs.value[0]
+  if (fallback) switchHostTab(fallback)
+}
+
+const handleOpenHostTab = (payload) => {
+  const detail = payload && typeof payload === 'object' ? payload : {}
+  const path = normalizeHostPath(detail.path)
+  if (!path) return
+  const query = normalizeHostQuery(detail.query)
+  const key = String(detail.tabKey || buildDefaultTabKey(path)).trim()
+  const title = resolveHostTabTitle(path, query, detail.tabTitle)
+  const routeId = buildHostRouteId(path, query)
+  hostOpenTabAliasMap.set(routeId, { key, title })
+  upsertHostTab({ key, path, query, title })
+  activeHostTabKey.value = key
+  router.push({ path, query }).catch(() => {})
+}
+
+const handleOpenHostTabEvent = (event) => {
+  handleOpenHostTab(event?.detail || {})
+}
+
+const handleOpenHostTabMessage = (event) => {
+  const data = event?.data || {}
+  if (data?.type !== 'eis:open-host-tab') return
+  handleOpenHostTab(data?.detail || {})
+}
+
+restoreHostTabs()
+watch(() => route.fullPath, syncHostTabsWithRoute, { immediate: true })
+onMounted(() => {
+  window.addEventListener('eis:open-host-tab', handleOpenHostTabEvent)
+  window.addEventListener('message', handleOpenHostTabMessage)
+})
+onUnmounted(() => {
+  window.removeEventListener('eis:open-host-tab', handleOpenHostTabEvent)
+  window.removeEventListener('message', handleOpenHostTabMessage)
+})
+
 const toggleCollapse = () => {
   isCollapse.value = !isCollapse.value
 }
@@ -487,7 +749,10 @@ const startGuide = () => { driverObj.drive(); }
     transition: background-color 0.3s;
 
     .header-left {
-      display: flex; align-items: center;
+      display: flex;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
 
       .collapse-btn {
         margin-right: 15px;
@@ -496,7 +761,86 @@ const startGuide = () => { driverObj.drive(); }
         align-items: center;
         &:hover { opacity: 0.7; }
       }
+
+      .host-tabs-wrap {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+      }
+
+      .host-tabs-scroll {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        white-space: nowrap;
+        padding-bottom: 2px;
+      }
+
+      .host-tab {
+        height: 34px;
+        max-width: 240px;
+        border-radius: 10px 10px 0 0;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        background: rgba(255, 255, 255, 0.68);
+        padding: 0 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        color: #2c3e50;
+        transition: all .2s ease;
+      }
+
+      .host-tab.active {
+        background: #ffffff;
+        border-color: rgba(64, 158, 255, 0.45);
+        box-shadow: 0 6px 14px rgba(64, 158, 255, 0.14);
+      }
+
+      .host-tab-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 16px;
+        font-weight: 600;
+      }
+
+      .host-tab-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        flex-shrink: 0;
+        background: #95a5a6;
+      }
+
+      .host-tab-dot.dot-home { background: #67c23a; }
+      .host-tab-dot.dot-materials { background: #409eff; }
+      .host-tab-dot.dot-hr { background: #e6a23c; }
+      .host-tab-dot.dot-apps { background: #8b5cf6; }
+
+      .host-tab-close {
+        color: #909399;
+        opacity: 0;
+        transition: opacity .2s ease;
+      }
+
+      .host-tab:hover .host-tab-close,
+      .host-tab.active .host-tab-close {
+        opacity: 1;
+      }
     }
+
+    .header-right {
+      margin-left: 12px;
+      flex-shrink: 0;
+    }
+  }
+
+  .main-container {
+    min-height: 0;      /* 关键：阻止 flex 子元素 min-height:auto 撑开容器 */
+    overflow: hidden;
   }
 
   .layout-main {
@@ -504,14 +848,19 @@ const startGuide = () => { driverObj.drive(); }
     padding: 0;
     position: relative;
     transition: background-color 0.3s;
+    overflow: hidden !important; /* 覆盖 el-main 默认 overflow:auto */
 
     #subapp-viewport {
       width: 100%;
       height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
     .subapp-viewport {
       width: 100%;
       height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
     }
   }
 

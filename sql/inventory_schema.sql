@@ -238,8 +238,7 @@ SELECT
 FROM scm.inventory_batches ib
 LEFT JOIN public.raw_materials m ON ib.material_id = m.id
 LEFT JOIN scm.warehouses w ON ib.warehouse_id = w.id
-WHERE ib.status IN ('正常', '锁定')
-  AND (ib.available_qty + ib.locked_qty) > 0;
+;
 
 COMMENT ON VIEW scm.v_inventory_current IS '实时库存查询视图';
 

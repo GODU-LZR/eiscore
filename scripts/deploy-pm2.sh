@@ -10,7 +10,7 @@ echo "🚀 部署 EISCore 应用中心（PM2 模式）"
 
 # Step 1: Check environment
 echo ""
-echo "📋 Step 1/7: 检查环境..."
+echo "📋 Step 1/9: 检查环境..."
 
 if [ ! -f .env ]; then
     echo "⚠️  未找到 .env 文件，从模板创建..."
@@ -37,12 +37,12 @@ echo "✅ 环境检查完成"
 
 # Step 2: Create logs directory
 echo ""
-echo "📁 Step 2/7: 创建日志目录..."
+echo "📁 Step 2/9: 创建日志目录..."
 mkdir -p logs
 
 # Step 3: Start Docker services
 echo ""
-echo "🐳 Step 3/7: 启动 Docker 服务..."
+echo "🐳 Step 3/9: 启动 Docker 服务..."
 docker-compose up -d db
 sleep 5
 
@@ -55,9 +55,24 @@ echo "   构建并启动 agent-runtime..."
 docker-compose build agent-runtime
 docker-compose up -d
 
-# Step 4: Install dependencies
 echo ""
-echo "📦 Step 4/7: 安装前端依赖..."
+echo "🧩 Step 4/9: 应用 Workflow 运行时补丁..."
+for patch in sql/workflow_runtime_patch.sql sql/patch_lightweight_ontology_runtime.sql; do
+    if [ ! -f "$patch" ]; then
+        echo "❌ 缺少补丁文件: $patch"
+        exit 1
+    fi
+    echo "   应用 $patch ..."
+    docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore < "$patch"
+done
+
+echo ""
+echo "🧪 Step 5/9: 执行本体语义 UTF-8 校验..."
+./scripts/apply-sql-patch-utf8.sh -p sql/patch_fix_ontology_semantic_chinese.sql
+
+# Step 6: Install dependencies
+echo ""
+echo "📦 Step 6/9: 安装前端依赖..."
 
 for app in eiscore-base eiscore-hr eiscore-materials eiscore-apps; do
     if [ -d "$app" ]; then
@@ -72,19 +87,19 @@ for app in eiscore-base eiscore-hr eiscore-materials eiscore-apps; do
     fi
 done
 
-# Step 5: Stop existing PM2 processes
+# Step 7: Stop existing PM2 processes
 echo ""
-echo "🛑 Step 5/7: 停止现有 PM2 进程..."
+echo "🛑 Step 7/9: 停止现有 PM2 进程..."
 pm2 delete all 2>/dev/null || true
 
-# Step 6: Start with PM2
+# Step 8: Start with PM2
 echo ""
-echo "▶️  Step 6/7: 使用 PM2 启动前端服务..."
+echo "▶️  Step 8/9: 使用 PM2 启动前端服务..."
 pm2 start ecosystem.config.js
 
-# Step 7: Save PM2 configuration
+# Step 9: Save PM2 configuration
 echo ""
-echo "💾 Step 7/7: 保存 PM2 配置..."
+echo "💾 Step 9/9: 保存 PM2 配置..."
 pm2 save
 
 echo ""

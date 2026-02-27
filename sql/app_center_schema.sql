@@ -139,6 +139,7 @@ DROP POLICY IF EXISTS "apps_delete_policy" ON app_center.apps;
 CREATE POLICY "apps_delete_policy" ON app_center.apps
     FOR DELETE USING (
         (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
+        AND COALESCE(config ->> 'systemApp', '') <> 'ontology_workbench'
     );
 
 -- Policy 5: Published routes are readable by all
