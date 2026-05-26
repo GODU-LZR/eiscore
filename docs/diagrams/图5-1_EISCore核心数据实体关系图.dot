@@ -1,0 +1,154 @@
+digraph G {
+  graph [
+    charset="UTF-8",
+    rankdir=TB,
+    splines=polyline,
+    nodesep=0.45,
+    ranksep=0.7,
+    pad=0.25,
+    bgcolor="white",
+    label="图5-1 EISCore 核心数据实体关系图",
+    labelloc="t",
+    fontsize=20,
+    fontname="Noto Sans CJK SC"
+  ];
+
+  node [
+    fontname="Noto Sans CJK SC",
+    fontsize=13,
+    color="#333333",
+    penwidth=1.2
+  ];
+
+  edge [
+    fontname="Noto Sans CJK SC",
+    fontsize=11,
+    color="#444444",
+    penwidth=1.0,
+    arrowsize=0.7
+  ];
+
+  // ========= organization and permission =========
+  dept     [shape=box,     label="部门"];
+  position [shape=box,     label="岗位"];
+  user     [shape=box,     label="用户"];
+  role     [shape=box,     label="角色"];
+  userrole [shape=diamond, label="拥有"];
+  belong1  [shape=diamond, label="隶属"];
+  belong2  [shape=diamond, label="设置"];
+
+  dept_name   [shape=ellipse, label="部门名称"];
+  dept_parent [shape=ellipse, label="父部门"];
+  pos_name    [shape=ellipse, label="岗位名称"];
+  user_name   [shape=ellipse, label="用户名"];
+  user_status [shape=ellipse, label="状态"];
+  role_code   [shape=ellipse, label="角色编码"];
+  role_name   [shape=ellipse, label="角色名称"];
+
+  { rank=same; dept; belong1; position; belong2; role; }
+  { rank=same; user; userrole; }
+
+  dept -> dept_name   [dir=none];
+  dept -> dept_parent [dir=none];
+  position -> pos_name [dir=none];
+  user -> user_name   [dir=none];
+  user -> user_status [dir=none];
+  role -> role_code   [dir=none];
+  role -> role_name   [dir=none];
+
+  dept     -> belong1 [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  belong1  -> position [dir=none];
+  dept     -> belong2 [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  belong2  -> role [dir=none];
+  user     -> userrole [dir=none, taillabel="n", headlabel="n", labeldistance=1.4];
+  userrole -> role [dir=none];
+
+  user_dept [shape=diamond, label="归属"];
+  position_user [shape=diamond, label="任职"];
+  dept -> user_dept [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  user_dept -> user [dir=none];
+  position -> position_user [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  position_user -> user [dir=none];
+
+  // ========= inventory =========
+  material [shape=box,     label="物料"];
+  warehouse [shape=box,    label="仓库"];
+  batch    [shape=box,     label="库存批次"];
+  tx       [shape=box,     label="库存流水"];
+  storein  [shape=diamond, label="存放"];
+  source1  [shape=diamond, label="形成"];
+  source2  [shape=diamond, label="记录"];
+
+  mat_name  [shape=ellipse, label="物料名称"];
+  mat_type  [shape=ellipse, label="物料分类"];
+  wh_name   [shape=ellipse, label="仓库名称"];
+  wh_level  [shape=ellipse, label="层级"];
+  batch_no  [shape=ellipse, label="批次号"];
+  batch_qty [shape=ellipse, label="可用数量"];
+  tx_type   [shape=ellipse, label="事务类型"];
+  tx_qty    [shape=ellipse, label="变动数量"];
+
+  { rank=same; material; storein; warehouse; }
+  { rank=same; batch; source1; tx; }
+
+  material -> mat_name [dir=none];
+  material -> mat_type [dir=none];
+  warehouse -> wh_name [dir=none];
+  warehouse -> wh_level [dir=none];
+  batch -> batch_no [dir=none];
+  batch -> batch_qty [dir=none];
+  tx -> tx_type [dir=none];
+  tx -> tx_qty [dir=none];
+
+  material -> source1 [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  source1 -> batch [dir=none];
+  warehouse -> storein [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  storein -> batch [dir=none];
+  batch -> source2 [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  source2 -> tx [dir=none];
+  material_tx [shape=diamond, label="对应"];
+  material -> material_tx [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  material_tx -> tx [dir=none];
+  warehouse_tx [shape=diamond, label="发生于"];
+  warehouse -> warehouse_tx [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  warehouse_tx -> tx [dir=none];
+
+  // ========= app and workflow =========
+  category   [shape=box,     label="应用分类"];
+  app        [shape=box,     label="应用"];
+  definition [shape=box,     label="流程定义"];
+  instance   [shape=box,     label="流程实例"];
+  statemap   [shape=box,     label="状态映射"];
+  classify   [shape=diamond, label="归类"];
+  bind1      [shape=diamond, label="绑定"];
+  runas      [shape=diamond, label="运行"];
+  writeback  [shape=diamond, label="写回"];
+
+  app_name   [shape=ellipse, label="应用名称"];
+  app_type   [shape=ellipse, label="应用类型"];
+  def_name   [shape=ellipse, label="流程名称"];
+  inst_state [shape=ellipse, label="实例状态"];
+  state_col  [shape=ellipse, label="状态字段"];
+
+  { rank=same; category; classify; app; bind1; definition; }
+  { rank=same; instance; writeback; statemap; }
+
+  app -> app_name [dir=none];
+  app -> app_type [dir=none];
+  definition -> def_name [dir=none];
+  instance -> inst_state [dir=none];
+  statemap -> state_col [dir=none];
+
+  category -> classify [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  classify -> app [dir=none];
+  app -> bind1 [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  bind1 -> definition [dir=none];
+  definition -> runas [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  runas -> instance [dir=none];
+  definition -> writeback [dir=none, taillabel="1", headlabel="n", labeldistance=1.4];
+  writeback -> statemap [dir=none];
+
+  // vertical ordering between clusters
+  user -> material [style=invis, weight=20];
+  tx -> category   [style=invis, weight=20];
+}

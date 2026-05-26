@@ -1,0 +1,108 @@
+@startuml
+title 图3-2 EISCore系统核心业务用例图
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 180
+skinparam defaultFontName Microsoft YaHei
+skinparam monochrome true
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor white
+  BorderColor black
+  ArrowColor black
+}
+skinparam actor {
+  BorderColor black
+  BackgroundColor white
+}
+
+left to right direction
+
+actor 销售人员 as Sales
+actor "PMC计划员" as PMC
+actor 采购人员 as Purchase
+actor 仓管员 as Warehouse
+actor "生产主管/\n车间主任" as Production
+actor 质检人员 as Quality
+actor 管理层 as Manager
+actor 系统管理员 as Admin
+
+rectangle EISCore {
+  usecase "客户档案维护" as UC1
+  usecase "销售合同管理" as UC2
+  usecase "销售订单管理" as UC3
+  usecase "订单状态查询" as UC4
+
+  usecase "生产订单下达" as UC5
+  usecase "物料需求分析" as UC6
+  usecase "采购需求生成" as UC7
+
+  usecase "采购订单管理" as UC8
+  usecase "到货跟踪" as UC9
+
+  usecase "采购入库" as UC10
+  usecase "生产领料/补料出库" as UC11
+  usecase "生产入库" as UC12
+  usecase "销售出库" as UC13
+  usecase "库存台账查询" as UC14
+
+  usecase "生产报工" as UC15
+  usecase "包装任务处理" as UC16
+
+  usecase "来料检验(IQC)" as UC17
+  usecase "过程检验(IPQC)" as UC18
+  usecase "出货检验(OQC)" as UC19
+  usecase "检验附件上传" as UC20
+
+  usecase "批次追溯查询" as UC21
+  usecase "发货与物流信息登记" as UC22
+  usecase "审批与经营查看" as UC25
+}
+
+Sales -- UC1
+Sales -- UC2
+Sales -- UC3
+Sales -- UC4
+Sales -- UC22
+
+PMC -- UC4
+PMC -- UC5
+PMC -- UC6
+PMC -- UC7
+PMC -- UC21
+
+Purchase -- UC8
+Purchase -- UC9
+
+Warehouse -- UC10
+Warehouse -- UC11
+Warehouse -- UC12
+Warehouse -- UC13
+Warehouse -- UC14
+Warehouse -- UC22
+
+Production -- UC11
+Production -- UC15
+Production -- UC16
+
+Quality -- UC17
+Quality -- UC18
+Quality -- UC19
+Quality -- UC20
+Quality -- UC21
+
+Manager -- UC4
+Manager -- UC21
+Manager -- UC25
+
+UC3 .> UC2 : <<include>>
+UC5 .> UC6 : <<include>>
+UC7 .> UC6 : <<include>>
+UC10 .> UC17 : <<extend>>
+UC13 .> UC19 : <<extend>>
+UC17 .> UC20 : <<extend>>
+UC18 .> UC20 : <<extend>>
+UC19 .> UC20 : <<extend>>
+
+@enduml

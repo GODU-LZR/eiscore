@@ -1,0 +1,27 @@
+@startuml
+title 图6-2 库存出库时序图
+
+actor 用户
+participant "库存出库页面" as Page
+participant "PostgREST" as Api
+participant "scm.stock_out" as StockOut
+database "scm.inventory_batches" as Batches
+database "scm.inventory_transactions" as Tx
+
+用户 -> Page : 选择批次并填写出库数量
+Page -> Api : POST /rpc/scm.stock_out
+Api -> StockOut : 调用出库函数
+StockOut -> Batches : 锁定批次记录并读取可用库存
+alt 库存不足
+StockOut --> Api : 抛出库存不足异常
+Api --> Page : 返回错误信息
+Page --> 用户 : 提示出库失败
+else 库存充足
+StockOut -> Batches : 扣减 available_qty
+StockOut -> Tx : 写入出库流水
+StockOut --> Api : 返回剩余数量与结果
+Api --> Page : 返回 JSON 结果
+Page --> 用户 : 刷新库存并提示成功
+end
+
+@enduml

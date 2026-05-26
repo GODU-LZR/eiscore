@@ -1,0 +1,35 @@
+@startuml
+top to bottom direction
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Microsoft YaHei
+title 图4-2 EISCore功能模块划分图
+
+rectangle "EISCore系统" as Root
+
+rectangle "基础平台模块\n组织、岗位、角色、用户、物料、单位、编码规则" as A
+rectangle "人事管理模块\n员工档案、组织结构、用户绑定、考勤" as B
+rectangle "物料管理模块\n仓库管理、库存台账、采购入库、领料补料、生产入库、销售出库、盘点" as C
+rectangle "应用中心模块\n数据应用配置、流程设计、审批中心、状态映射、闪念应用" as D
+rectangle "移动端模块\n盘点、扫码、仓库查询、标签打印、冷库模式" as E
+rectangle "数据与权限支撑\nPostgREST、RLS、批次规则、运行日志" as F
+rectangle "轻量化语义模块\n表级语义、列级语义、关系语义、本体关系工作台" as G
+
+Root --> A
+Root --> B
+Root --> C
+Root --> D
+Root --> E
+Root --> F
+Root --> G
+
+A --> B
+A --> C
+A --> D
+F --> B
+F --> C
+F --> D
+G --> D
+G --> F
+E --> C
+@enduml

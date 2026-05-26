@@ -1,0 +1,45 @@
+@startuml
+title 图6-4 权限控制时序图
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 220
+skinparam defaultFontName Microsoft YaHei
+skinparam monochrome true
+skinparam sequence {
+  LifeLineBorderColor black
+  LifeLineBackgroundColor white
+  ParticipantBorderColor black
+  ParticipantBackgroundColor white
+  ActorBorderColor black
+  ActorBackgroundColor white
+  ArrowColor black
+}
+
+actor 用户 as user
+participant 页面与路由 as page
+participant "userStore/\n权限函数" as store
+participant PostgREST as api
+participant "数据库函数/\nRLS策略" as db
+database "业务表/\n配置表" as table
+
+user -> page : 登录后进入受限页面
+page -> store : 读取当前用户、角色、菜单权限
+store --> page : 返回页面是否可见、按钮是否可用
+
+user -> page : 发起查询/新增/修改/审批操作
+page -> api : 发送请求并携带 JWT
+api -> db : 传入 request.jwt.claims
+db -> db : 判断角色、部门、对象类型
+db -> table : 读取或写入目标表
+
+alt 允许访问
+  table --> db : 返回结果
+  db --> api : 返回成功结果
+  api --> page : 刷新页面状态
+else 拒绝访问
+  db --> api : 返回无权限或越权错误
+  api --> page : 显示拒绝访问提示
+end
+
+@enduml

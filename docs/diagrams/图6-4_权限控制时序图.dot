@@ -1,0 +1,38 @@
+digraph G {
+  rankdir=LR;
+  graph [
+    fontname="Microsoft YaHei",
+    splines=ortho,
+    nodesep=0.45,
+    ranksep=1.00,
+    pad=0.25
+  ];
+  node [
+    shape=box,
+    style="rounded",
+    fontname="Microsoft YaHei",
+    fontsize=17,
+    margin="0.20,0.12"
+  ];
+  edge [
+    arrowsize=0.8,
+    penwidth=1.2
+  ];
+
+  user [label="用户"];
+  page [label="页面与路由\n登录页 / 守卫 / 按钮权限"];
+  store [label="前端状态层\nuserStore / 权限函数"];
+  api [label="接口层\nPostgREST + JWT"];
+  db [label="数据库裁决层\n数据库函数 / RLS策略"];
+  table [label="目标对象\n业务表 / 配置表 / 流程表"];
+  ok [label="允许访问\n返回结果并刷新页面"];
+  deny [label="拒绝访问\n返回越权或无权限提示"];
+
+  user -> page;
+  page -> store;
+  store -> api [label="发起查询/新增/审批"];
+  api -> db [label="传入 JWT 声明"];
+  db -> table [label="通过校验"];
+  table -> ok;
+  db -> deny [label="校验失败"];
+}

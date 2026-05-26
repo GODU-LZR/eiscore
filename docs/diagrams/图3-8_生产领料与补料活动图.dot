@@ -1,0 +1,33 @@
+digraph G {
+  rankdir=LR;
+  graph [fontname="Microsoft YaHei", splines=ortho, nodesep=0.35, ranksep=0.7, pad=0.2];
+  node [fontname="Microsoft YaHei", fontsize=15, style="rounded", shape=box, margin="0.16,0.10"];
+  edge [fontname="Microsoft YaHei", fontsize=12, arrowsize=0.8, penwidth=1.2];
+
+  s [label="PMC下达生产任务"];
+  a [label="系统生成工单用料需求"];
+  b [label="生产主管发起领料"];
+  c [label="仓管员按批次领料出库"];
+  d [shape=diamond, style="", label="是否需要补料?"];
+  e1 [label="车间提出补料申请"];
+  e2 [label="仓库校验可用批次与库存"];
+  e3 [shape=diamond, style="", label="库存充足?"];
+  e4 [label="执行补料出库"];
+  e5 [label="记录补料原因与数量"];
+  e6 [label="提示库存不足"];
+  f1 [label="按标准配方继续生产"];
+  g1 [label="生产报工"];
+  g2 [label="完工入库"];
+  end1 [label="形成领料/补料/报工/入库追溯链路"];
+
+  s -> a -> b -> c -> d;
+  d -> e1 [label="是"];
+  e1 -> e2 -> e3;
+  e3 -> e4 [label="是"];
+  e4 -> e5 -> g1;
+  e3 -> e6 [label="否"];
+  e6 -> g1;
+  d -> f1 [label="否"];
+  f1 -> g1;
+  g1 -> g2 -> end1;
+}

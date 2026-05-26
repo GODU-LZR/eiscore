@@ -1,0 +1,34 @@
+digraph G {
+  rankdir=TB;
+  graph [fontname="Microsoft YaHei", splines=ortho, nodesep=0.35, ranksep=0.55];
+  node [shape=box, style="rounded", fontname="Microsoft YaHei", fontsize=11, margin="0.14,0.08"];
+  edge [fontname="Microsoft YaHei", fontsize=10, arrowsize=0.75];
+
+  root [label="EISCore总体功能结构"];
+
+  a [label="基础平台与主数据\n组织、岗位、角色、用户、物料、单位、客户、供应商"];
+  b [label="人事管理\n员工档案、组织结构、用户绑定、考勤"];
+  c [label="物料与仓储\n仓库管理、库存台账、采购入库、领料补料、生产入库、销售出库、盘点"];
+  d [label="应用中心\n数据应用配置、流程设计、审批中心、状态映射、闪念应用"];
+  e [label="移动端\n盘点、扫码、仓库查询、标签打印、冷库模式"];
+  f [label="数据与权限支撑\nPostgREST、RLS、批次规则、运行日志"];
+  g [label="轻量化语义\n表级语义、列级语义、关系语义、本体关系工作台"];
+
+  root -> a;
+  root -> b;
+  root -> c;
+  root -> d;
+  root -> e;
+  root -> f;
+  root -> g;
+
+  a -> b;
+  a -> c;
+  a -> d;
+  f -> b;
+  f -> c;
+  f -> d;
+  g -> d;
+  g -> f;
+  e -> c;
+}

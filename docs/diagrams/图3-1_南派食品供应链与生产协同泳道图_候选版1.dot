@@ -1,0 +1,41 @@
+digraph G {
+  graph [
+    rankdir=TB,
+    splines=ortho,
+    nodesep=0.35,
+    ranksep=0.55,
+    pad=0.25,
+    margin=0.12,
+    bgcolor="white"
+  ];
+  node [
+    shape=box,
+    style="rounded",
+    fontname="Microsoft YaHei",
+    fontsize=18,
+    penwidth=1.6,
+    margin="0.16,0.12"
+  ];
+  edge [
+    arrowsize=0.75,
+    penwidth=1.4
+  ];
+
+  sales_plan [label="销售与计划\n销售合同 / 销售订单\n库存确认 / 计划下达"];
+  purchase_wh [label="采购与仓储\n缺料分析 / 采购订单\n到货登记 / 采购入库"];
+  production [label="生产执行\n领料 / 补料 / 报工\n完工入库"];
+  quality [label="质量控制\nIQC / IPQC / OQC\n检验附件补录"];
+  delivery [label="发货与交付\n发货通知 / 销售出库\n物流登记 / 客户交付"];
+
+  issue1 [label="现状问题1\n单据分散，状态依赖人工沟通"];
+  issue2 [label="现状问题2\n批次、保质期与库存台账容易脱节"];
+  issue3 [label="现状问题3\n质检、补料与流程状态联动不充分"];
+
+  { rank=same; sales_plan; purchase_wh; production; quality; delivery; }
+
+  sales_plan -> purchase_wh -> production -> quality -> delivery;
+
+  sales_plan -> issue1 [arrowhead=none, style=dashed];
+  purchase_wh -> issue2 [arrowhead=none, style=dashed];
+  quality -> issue3 [arrowhead=none, style=dashed];
+}

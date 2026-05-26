@@ -1,0 +1,45 @@
+digraph G {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    dpi=220,
+    nodesep=0.45,
+    ranksep=0.75,
+    splines=ortho,
+    pad=0.15
+  ];
+
+  node [
+    shape=box,
+    style="rounded",
+    color="black",
+    fontname="Microsoft YaHei",
+    fontsize=15,
+    margin="0.22,0.14",
+    width=2.6,
+    height=0.8
+  ];
+
+  edge [
+    color="black",
+    penwidth=1.1,
+    arrowsize=0.8
+  ];
+
+  { rank=same;
+    bg   [label="企业背景与现实约束\n湛江中小制造企业投入有限\n南派食品存在批次、权限和流程脱节问题"];
+    req  [label="需求分析\n围绕组织主数据、物料仓储、\n流程协同、语义解释与移动场景"];
+    arch [label="系统总体设计\n数据库中心架构\n微前端拆分核心模块"];
+    key  [label="关键技术路线\nPostgreSQL + PostgREST\nVue 3 + qiankun\nBPMN + 轻量语义增强"];
+  }
+
+  { rank=same;
+    impl   [label="系统实现\n人事、物料、应用中心、移动端\n闪念应用、Agent Runtime、冷库模式"];
+    verify [label="测试与验证\n登录鉴权、页面访问、库存链路\n流程读取与受控工具验证"];
+    thesis [label="论文形成\n绪论→需求分析→总体设计→数据库设计\n详细设计→系统实现→测试与总结"];
+  }
+
+  bg -> req -> arch -> key;
+  arch -> impl;
+  impl -> verify -> thesis;
+}

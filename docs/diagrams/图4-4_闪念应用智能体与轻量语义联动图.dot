@@ -1,0 +1,30 @@
+digraph G {
+  rankdir=TB;
+  graph [fontname="Microsoft YaHei", splines=ortho, nodesep=0.45, ranksep=0.65];
+  node [shape=box, style="rounded", fontname="Microsoft YaHei", fontsize=11, margin="0.14,0.08"];
+  edge [fontname="Microsoft YaHei", fontsize=10, arrowsize=0.75];
+
+  a [label="闪念应用构建器\n需求输入 / 草稿保存 / 预览 / 发布"];
+  b [label="Flash Draft\n草稿文本、附件、上下文变量\n发布前校验与回填"];
+  c [label="Agent Runtime\n识别对象类型\n选择受控工具与调用顺序"];
+  d [label="白名单工具集合\nflash.data.*\nflash.workflow.*\nflash.ontology.*"];
+  e [label="轻量化语义\n表级语义、列级语义、关系语义\n辅助字段解释与对象识别"];
+  f [label="数据表格应用\n动态表、字段配置、表单布局、表格填写"];
+  g [label="流程对象\n流程定义、流程实例、任务分派、状态映射"];
+  h [label="数据与应用 Schema\napp_center / workflow / app_data / scm"];
+  i [label="结果产出\n草稿回写、页面预览、应用发布\n流程联动与受控数据访问"];
+
+  a -> b [label="生成或编辑草稿"];
+  b -> c [label="提交意图与上下文"];
+  c -> d [label="按白名单选择工具"];
+  d -> e [label="解释表与字段语义"];
+  d -> f [label="读取动态表与字段结构"];
+  d -> g [label="读取流程定义与状态"];
+  e -> h;
+  f -> h;
+  g -> h;
+  e -> i [style=dashed, label="增强解释"];
+  f -> i [style=dashed, label="提供页面结构"];
+  g -> i [style=dashed, label="提供状态联动"];
+  c -> i [label="组织返回结果"];
+}

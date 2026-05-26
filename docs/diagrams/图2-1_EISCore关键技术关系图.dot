@@ -1,0 +1,35 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="white", dpi=180, nodesep=0.45, ranksep=0.7];
+  node [shape=box, style="rounded", color="black", fontname="Microsoft YaHei", fontsize=12];
+  edge [color="black", fontname="Microsoft YaHei", fontsize=11];
+
+  title [label="图2-1 EISCore关键技术关系图", shape=plain, fontsize=18];
+
+  frontend [label="前端组织\nVue 3 + Vite + qiankun"];
+  ui [label="界面与交互\nElement Plus / Vant / AG Grid"];
+  api [label="接口层\nPostgREST"];
+  db [label="数据底座\nPostgreSQL 16"];
+  sec [label="权限治理\nRLS / 用户角色 / 访问边界"];
+  flow [label="流程支撑\nBPMN / workflow"];
+  sem [label="语义增强\n表级语义 / 列级语义 / 本体关系"];
+  agent [label="辅助运行\nFlashBuilder / Agent Runtime"];
+  mobile [label="现场入口\n移动端 / 冷库模式"];
+  ops [label="运行环境\nDocker Compose / PM2"];
+
+  title -> frontend [arrowhead=none, style=invis];
+  frontend -> ui;
+  frontend -> api;
+  ui -> mobile;
+  api -> db;
+  db -> sec;
+  db -> flow;
+  db -> sem;
+  agent -> api;
+  agent -> flow;
+  agent -> sem;
+  mobile -> api;
+  ops -> frontend;
+  ops -> api;
+  ops -> db;
+  ops -> agent;
+}

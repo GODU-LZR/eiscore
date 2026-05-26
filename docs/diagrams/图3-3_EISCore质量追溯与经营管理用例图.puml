@@ -1,0 +1,46 @@
+@startuml
+left to right direction
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Microsoft YaHei
+skinparam packageStyle rectangle
+title 图3-3 EISCore质量追溯与经营管理用例图
+
+actor 质检员
+actor 审批人员
+actor 管理层
+actor 仓管员
+actor 销售文员
+
+rectangle EISCore {
+  usecase "来料检验 IQC" as UC1
+  usecase "过程检验 IPQC" as UC2
+  usecase "出货检验 OQC" as UC3
+  usecase "检验附件上传与补录" as UC4
+  usecase "审批中心待办处理" as UC5
+  usecase "流程状态写回业务表" as UC6
+  usecase "订单/批次正向追溯" as UC7
+  usecase "订单/批次反向追溯" as UC8
+  usecase "经营统计与驾驶舱查看" as UC9
+  usecase "物流信息登记" as UC10
+}
+
+质检员 -- UC1
+质检员 -- UC2
+质检员 -- UC3
+质检员 -- UC4
+审批人员 -- UC5
+审批人员 -- UC6
+仓管员 -- UC7
+仓管员 -- UC8
+销售文员 -- UC10
+管理层 -- UC5
+管理层 -- UC9
+
+UC1 .> UC4 : <<include>>
+UC2 .> UC4 : <<include>>
+UC3 .> UC4 : <<include>>
+UC5 .> UC6 : <<include>>
+UC7 .> UC10 : <<include>>
+UC8 .> UC10 : <<include>>
+@enduml

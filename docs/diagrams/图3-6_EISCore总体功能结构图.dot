@@ -1,0 +1,49 @@
+digraph G {
+  rankdir=TB;
+  graph [
+    fontname="Microsoft YaHei",
+    splines=ortho,
+    nodesep=0.7,
+    ranksep=0.75,
+    pad=0.2
+  ];
+  node [
+    shape=box,
+    style="rounded",
+    fontname="Microsoft YaHei",
+    fontsize=22,
+    margin="0.24,0.16"
+  ];
+  edge [
+    arrowsize=0.8,
+    penwidth=1.5
+  ];
+
+  root [label="EISCore系统"];
+  core [label="核心业务域"];
+  support [label="支撑能力域"];
+
+  hr [label="人事管理\n员工档案 / 组织结构 / 考勤"];
+  scm [label="物料与仓储\n物料主数据 / 库存 / 出入库 / 盘点"];
+  app [label="应用中心\n数据应用 / 流程设计 / 审批 / 闪念应用"];
+  mobile [label="移动端\n扫码 / 盘点 / 冷库模式"];
+
+  master [label="主数据与权限支撑\n组织 / 岗位 / 角色 / RLS"];
+  flow [label="流程与状态支撑\nBPMN / 审批联动 / 状态写回"];
+  semantic [label="轻量语义支撑\n表级语义 / 列级语义 / 关系语义"];
+
+  root -> core;
+  root -> support;
+
+  {rank=same; hr; scm; app; mobile}
+  {rank=same; master; flow; semantic}
+
+  core -> hr;
+  core -> scm;
+  core -> app;
+  core -> mobile;
+
+  support -> master;
+  support -> flow;
+  support -> semantic;
+}

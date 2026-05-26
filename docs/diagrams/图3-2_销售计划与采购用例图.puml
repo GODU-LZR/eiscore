@@ -1,0 +1,46 @@
+@startuml
+left to right direction
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Microsoft YaHei
+skinparam packageStyle rectangle
+title 图3-2（a）销售计划与采购用例图
+
+actor 销售文员
+actor "PMC计划员" as PMC
+actor 采购员
+actor 仓管员
+
+rectangle EISCore {
+  usecase "销售合同录入" as UC1
+  usecase "销售订单下推" as UC2
+  usecase "订单执行状态查询" as UC3
+  usecase "生产计划下达" as UC4
+  usecase "物料需求分析" as UC5
+  usecase "采购需求生成" as UC6
+  usecase "采购订单维护" as UC7
+  usecase "到货登记" as UC8
+  usecase "采购入库" as UC9
+}
+
+销售文员 -- UC1
+销售文员 -- UC2
+销售文员 -- UC3
+
+PMC -- UC3
+PMC -- UC4
+PMC -- UC5
+PMC -- UC6
+
+采购员 -- UC7
+采购员 -- UC8
+采购员 -- UC9
+
+仓管员 -- UC8
+仓管员 -- UC9
+
+UC2 .> UC1 : <<include>>
+UC4 .> UC5 : <<include>>
+UC7 .> UC6 : <<include>>
+UC9 .> UC8 : <<include>>
+@enduml

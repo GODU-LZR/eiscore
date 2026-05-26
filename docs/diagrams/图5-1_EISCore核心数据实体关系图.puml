@@ -1,0 +1,145 @@
+@startuml
+hide circle
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Microsoft YaHei
+title 图5-1 EISCore核心数据实体关系图
+
+entity "public.departments" as departments {
+  * id : uuid
+  --
+  name : text
+  parent_id : uuid
+}
+
+entity "public.positions" as positions {
+  * id : uuid
+  --
+  title : text
+  dept_id : uuid
+}
+
+entity "public.users" as users {
+  * id : integer
+  --
+  username : text
+  dept_id : uuid
+  position_id : uuid
+  status : text
+}
+
+entity "public.roles" as roles {
+  * id : uuid
+  --
+  code : text
+  name : text
+}
+
+entity "public.user_roles" as user_roles {
+  * id : uuid
+  --
+  user_id : integer
+  role_id : uuid
+}
+
+entity "public.raw_materials" as materials {
+  * id : uuid
+  --
+  name : text
+  category : text
+  properties : jsonb
+}
+
+entity "scm.warehouses" as warehouses {
+  * id : uuid
+  --
+  name : text
+  parent_id : uuid
+  level : integer
+}
+
+entity "scm.inventory_batches" as batches {
+  * id : uuid
+  --
+  material_id : uuid
+  warehouse_id : uuid
+  batch_no : text
+  available_qty : numeric
+  expiry_date : date
+}
+
+entity "scm.inventory_transactions" as tx {
+  * id : uuid
+  --
+  material_id : uuid
+  batch_id : uuid
+  warehouse_id : uuid
+  transaction_type : text
+  quantity : numeric
+}
+
+entity "app_center.categories" as categories {
+  * id : uuid
+  --
+  name : text
+}
+
+entity "app_center.apps" as apps {
+  * id : uuid
+  --
+  category_id : uuid
+  code : text
+  name : text
+}
+
+entity "workflow.definitions" as wf_defs {
+  * id : uuid
+  --
+  app_id : uuid
+  name : text
+}
+
+entity "workflow.instances" as wf_inst {
+  * id : uuid
+  --
+  definition_id : uuid
+  business_key : text
+  status : text
+}
+
+entity "workflow.task_assignments" as wf_task {
+  * id : uuid
+  --
+  instance_id : uuid
+  assignee_id : integer
+  task_status : text
+}
+
+entity "app_center.workflow_state_mappings" as state_map {
+  * id : uuid
+  --
+  app_id : uuid
+  workflow_definition_id : uuid
+  state_field : text
+}
+
+departments ||--o{ positions
+departments ||--o{ users
+positions ||--o{ users
+users ||--o{ user_roles
+roles ||--o{ user_roles
+
+materials ||--o{ batches
+warehouses ||--o{ batches
+materials ||--o{ tx
+batches ||--o{ tx
+warehouses ||--o{ tx
+
+categories ||--o{ apps
+apps ||--o{ wf_defs
+wf_defs ||--o{ wf_inst
+wf_inst ||--o{ wf_task
+users ||--o{ wf_task
+apps ||--o{ state_map
+wf_defs ||--o{ state_map
+@enduml

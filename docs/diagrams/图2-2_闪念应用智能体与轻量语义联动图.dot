@@ -1,0 +1,30 @@
+digraph G {
+  graph [rankdir=TB, bgcolor="white", dpi=180, nodesep=0.45, ranksep=0.7];
+  node [shape=box, style="rounded", color="black", fontname="Microsoft YaHei", fontsize=12];
+  edge [color="black", fontname="Microsoft YaHei", fontsize=11];
+
+  title [label="图2-2 闪念应用、智能体与轻量语义联动图", shape=plain, fontsize=18];
+
+  flash [label="闪念应用构建器\nFlashBuilder / 草稿 / 预览 / 发布"];
+  agent [label="Agent Runtime\n受控工具注册与调用编排"];
+  dataapp [label="数据表格应用\n动态表、字段配置、表格读写"];
+  flow [label="流程对象\n流程定义 / 流程实例 / 状态映射"];
+  sem [label="轻量化语义\n表级语义 / 列级语义 / 关系语义"];
+  tools [label="白名单工具\nflash.data.*\nflash.workflow.*\nflash.ontology.*"];
+  db [label="数据库与应用Schema\napp_center / workflow / app_data / scm"];
+  output [label="结果落点\n页面生成、对象解释、流程联动、\n受控数据访问"];
+
+  title -> flash [arrowhead=none, style=invis];
+  flash -> agent [label="提交草稿与意图"];
+  agent -> tools [label="选择允许调用的工具"];
+  tools -> dataapp [label="表结构与表格能力"];
+  tools -> flow [label="流程与状态读取"];
+  tools -> sem [label="对象语义解释"];
+  dataapp -> db;
+  flow -> db;
+  sem -> db;
+  agent -> output [label="组织结果"];
+  dataapp -> output [style=dashed];
+  flow -> output [style=dashed];
+  sem -> output [style=dashed];
+}

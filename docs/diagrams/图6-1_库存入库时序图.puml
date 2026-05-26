@@ -1,0 +1,25 @@
+@startuml
+title 图6-1 库存入库时序图
+
+actor 用户
+participant "库存入库页面" as Page
+participant "PostgREST" as Api
+participant "scm.stock_in" as StockIn
+database "scm.inventory_batches" as Batches
+database "scm.inventory_transactions" as Tx
+
+用户 -> Page : 录入物料、仓库、批次号、数量
+Page -> Api : POST /rpc/scm.stock_in
+Api -> StockIn : 调用入库函数
+StockIn -> Batches : 查询并锁定对应批次
+alt 批次不存在
+StockIn -> Batches : 创建新批次并写入初始库存
+else 批次已存在
+StockIn -> Batches : 累加 available_qty
+end
+StockIn -> Tx : 写入入库流水
+StockIn --> Api : 返回批次编号与结果
+Api --> Page : 返回 JSON 结果
+Page --> 用户 : 刷新台账并提示成功
+
+@enduml

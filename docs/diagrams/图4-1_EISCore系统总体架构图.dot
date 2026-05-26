@@ -1,0 +1,32 @@
+digraph G {
+  rankdir=TB;
+  graph [
+    fontname="Microsoft YaHei",
+    splines=ortho,
+    nodesep=0.45,
+    ranksep=0.7,
+    pad=0.18
+  ];
+  node [
+    shape=box,
+    style="rounded",
+    fontname="Microsoft YaHei",
+    fontsize=21,
+    margin="0.24,0.16"
+  ];
+  edge [
+    arrowsize=0.8,
+    penwidth=1.5
+  ];
+
+  u1 [label="用户访问层\n桌面端 / 现场端 / 移动端"];
+  f1 [label="前端表现层\n基座应用 / HMS / MMS / 应用中心 / 移动端"];
+  r1 [label="接口与运行层\nPostgREST / Workflow Runtime / Agent Runtime"];
+  d1 [label="数据与治理层\nPostgreSQL 16\npublic / hr / scm / app_center / workflow / app_data\nRLS / 轻量语义"];
+  e1 [label="支撑环境层\nDocker Compose / PM2"];
+
+  u1 -> f1;
+  f1 -> r1;
+  r1 -> d1;
+  e1 -> r1;
+}

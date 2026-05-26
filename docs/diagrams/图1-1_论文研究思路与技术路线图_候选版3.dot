@@ -1,0 +1,55 @@
+digraph G {
+  graph [
+    rankdir=TB,
+    splines=ortho,
+    nodesep=0.55,
+    ranksep=0.95,
+    pad=0.3,
+    margin=0.18,
+    bgcolor="white"
+  ];
+  node [
+    shape=box,
+    style="rounded",
+    fontname="Microsoft YaHei",
+    fontsize=22,
+    penwidth=1.8,
+    margin="0.22,0.16"
+  ];
+  edge [
+    arrowsize=0.85,
+    penwidth=1.6
+  ];
+
+  bg   [label="企业现实约束\n湛江中小制造企业预算有限\n南派食品存在批次追溯、权限、流程问题"];
+  req  [label="需求分析\n围绕人事、物料流转、流程状态\n语义解释与移动现场场景梳理需求"];
+  des  [label="系统概要设计\n以数据库中心组织核心数据\n以前端基座承载主要业务入口"];
+  tech [label="关键技术路线\nPostgreSQL + PostgREST\nVue 3 + qiankun\nBPMN + 轻量语义增强"];
+  impl [label="系统实现\n人事管理、物料管理、应用中心、移动端\n闪念应用、Agent Runtime、冷库模式"];
+  test [label="测试与验证\n登录鉴权、页面访问、库存链路\n流程读取、语义工具与受控运行"];
+  doc  [label="设计说明书成文\n设计总说明 -> 绪论 -> 需求分析 -> 概要设计\n数据库设计 -> 详细设计 -> 实现与测试"];
+
+  {
+    rank=same;
+    bg; req;
+  }
+  {
+    rank=same;
+    des; tech;
+  }
+  {
+    rank=same;
+    impl; test;
+  }
+
+  bg -> des;
+  req -> tech;
+  bg -> req [style=invis, weight=10];
+  des -> tech [style=invis, weight=10];
+  impl -> test [style=invis, weight=10];
+
+  des -> impl;
+  tech -> test;
+  impl -> doc;
+  test -> doc;
+}

@@ -1,0 +1,877 @@
+[
+  {
+    "idx": 1,
+    "text": "设计总说明",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 5,
+    "text": "Design Summary",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 9,
+    "text": "第一章 绪论",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 10,
+    "text": "1.1 研究背景与意义",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 16,
+    "text": "1.2 国内外研究现状",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 17,
+    "text": "1.2.1 国内研究现状",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 21,
+    "text": "1.2.2 国外研究现状",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 26,
+    "text": "1.2.3 现有研究存在的问题",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 30,
+    "text": "1.3 本设计主要研究内容",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 37,
+    "text": "1.4 本设计组织结构",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 40,
+    "text": "1.5 本设计的特点与创新点",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 43,
+    "text": "第二章 相关技术介绍",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 44,
+    "text": "2.1 前端开发框架",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 48,
+    "text": "2.2 微前端技术",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 51,
+    "text": "2.3 界面组件与交互支撑技术",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 55,
+    "text": "2.4 PostgreSQL 数据库技术",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 59,
+    "text": "2.5 PostgREST 与接口自动映射技术",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 63,
+    "text": "2.6 行级安全控制与权限治理技术",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 67,
+    "text": "2.7 BPMN 工作流建模技术",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 71,
+    "text": "2.8 轻量本体语义增强技术",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 75,
+    "text": "2.9 容器化部署与运行环境",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 79,
+    "text": "2.10 本章小结",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 81,
+    "text": "第三章 需求分析",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 82,
+    "text": "3.1 需求分析目标与方法",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 85,
+    "text": "3.2 企业现状与业务特点分析",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 89,
+    "text": "3.3 业务角色分析",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 93,
+    "text": "3.4 现有业务流程分析",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 97,
+    "text": "3.4.1 销售与计划协同流程",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 100,
+    "text": "3.4.2 生产准备与采购流程",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 103,
+    "text": "3.4.3 生产执行流程",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 107,
+    "text": "3.4.4 质量控制流程",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 110,
+    "text": "3.4.5 仓储与发货流程",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 113,
+    "text": "3.5 功能需求分析",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 129,
+    "text": "3.5.1 基础平台与主数据需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 132,
+    "text": "3.5.2 销售管理需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 135,
+    "text": "3.5.3 计划调度需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 138,
+    "text": "3.5.4 采购管理需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 140,
+    "text": "3.5.5 生产管理需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 143,
+    "text": "3.5.6 仓储管理需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 146,
+    "text": "3.5.7 质量管理需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 149,
+    "text": "3.5.8 权限与协同需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 152,
+    "text": "3.5.9 追溯与附件需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 155,
+    "text": "3.5.10 核心功能需求汇总",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 158,
+    "text": "3.5.11 代表性用例规约",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 178,
+    "text": "3.6 特殊业务场景需求分析",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 185,
+    "text": "3.7 非功能需求分析",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 187,
+    "text": "3.7.1 性能需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 189,
+    "text": "3.7.2 安全性需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 191,
+    "text": "3.7.3 可靠性需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 193,
+    "text": "3.7.4 可追溯性需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 195,
+    "text": "3.7.5 易用性需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 197,
+    "text": "3.7.6 可扩展性需求",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 201,
+    "text": "3.8 本章小结",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 203,
+    "text": "第四章 系统概要设计",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 204,
+    "text": "4.1 系统概要设计目标",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 207,
+    "text": "4.2 设计原则",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 208,
+    "text": "4.2.1 以业务为中心",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 210,
+    "text": "4.2.2 以数据库为中心",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 212,
+    "text": "4.2.3 模块化与可扩展",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 214,
+    "text": "4.2.4 渐进式落地",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 216,
+    "text": "4.3 系统架构设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 226,
+    "text": "4.4 关键设计思路",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 227,
+    "text": "4.4.1 微前端业务拆分",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 229,
+    "text": "4.4.2 数据接口自动映射",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 231,
+    "text": "4.4.3 流程与数据协同设计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 233,
+    "text": "4.4.4 语义增强兼容设计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 235,
+    "text": "4.4.5 关键技术组织关系",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 240,
+    "text": "4.4.6 闪念应用、智能体与语义联动设计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 245,
+    "text": "4.5 本章小结",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 247,
+    "text": "第五章 数据库设计",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 248,
+    "text": "5.1 数据库设计目标",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 251,
+    "text": "5.2 数据库总体结构设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 255,
+    "text": "5.3 核心数据实体关系设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 263,
+    "text": "5.4 组织与权限相关表设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 264,
+    "text": "5.4.1 部门表与岗位表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 267,
+    "text": "5.4.2 用户表、角色表与用户角色关联表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 270,
+    "text": "5.5 物料与仓储相关表设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 271,
+    "text": "5.5.1 物料主数据表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 273,
+    "text": "5.5.2 仓库表与仓库层级结构",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 275,
+    "text": "5.5.3 库存批次表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 277,
+    "text": "5.5.4 库存流水表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 280,
+    "text": "5.6 应用中心与流程相关表设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 281,
+    "text": "5.6.1 应用分类表与应用表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 284,
+    "text": "5.6.2 发布路由与状态映射表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 287,
+    "text": "5.6.3 流程定义表、实例表与任务分派表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 290,
+    "text": "5.7 数据安全与权限控制设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 293,
+    "text": "5.8 语义增强相关设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 296,
+    "text": "5.9 关键物理表结构设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 298,
+    "text": "5.9.1 用户表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 300,
+    "text": "5.9.2 角色表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 302,
+    "text": "5.9.3 用户角色关联表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 304,
+    "text": "5.9.4 物料主数据表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 306,
+    "text": "5.9.5 仓库表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 308,
+    "text": "5.9.6 库存批次表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 310,
+    "text": "5.9.7 库存流水表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 312,
+    "text": "5.9.8 应用注册表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 314,
+    "text": "5.9.9 流程实例表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 316,
+    "text": "5.9.10 小结说明",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 318,
+    "text": "5.10 本章小结",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 320,
+    "text": "第六章 详细设计",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 321,
+    "text": "6.1 详细设计概述",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 324,
+    "text": "6.1.1 数据库中心架构下的详细设计对象",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 328,
+    "text": "6.1.2 本章的表达方式",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 330,
+    "text": "6.2 用户与权限控制详细设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 331,
+    "text": "6.2.1 设计目标",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 333,
+    "text": "6.2.2 实现链路",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 336,
+    "text": "6.2.3 页面与接口协同过程",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 339,
+    "text": "6.2.4 数据库侧权限落点",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 343,
+    "text": "6.2.5 权限控制时序设计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 347,
+    "text": "6.2.6 本节小结",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 349,
+    "text": "6.3 库存处理链路详细设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 350,
+    "text": "6.3.1 设计目标",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 352,
+    "text": "6.3.2 页面输入与接口入口",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 355,
+    "text": "6.3.3 入库处理链路",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 358,
+    "text": "6.3.4 出库处理链路",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 361,
+    "text": "6.3.5 批次规则与流程绑定",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 364,
+    "text": "6.3.6 库存时序设计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 371,
+    "text": "6.3.7 本节小结",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 373,
+    "text": "6.4 流程审批与状态映射详细设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 374,
+    "text": "6.4.1 设计目标",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 376,
+    "text": "6.4.2 流程运行核心结构",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 385,
+    "text": "6.4.3 审批中心页面设计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 388,
+    "text": "6.4.4 流程实例启动与流转函数设计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 395,
+    "text": "6.4.5 状态映射设计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 398,
+    "text": "6.4.6 流程运行时序设计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 403,
+    "text": "6.4.7 本节小结",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 405,
+    "text": "6.5 轻量化语义模块详细设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 406,
+    "text": "6.5.1 设计目标",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 409,
+    "text": "6.5.2 模块定位",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 411,
+    "text": "6.5.3 本体关系工作台实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 414,
+    "text": "6.5.4 语义数据组织方式",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 417,
+    "text": "6.5.5 与应用中心和受控工具的联动",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 420,
+    "text": "6.5.6 本节小结",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 422,
+    "text": "6.6 本章小结",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 424,
+    "text": "第七章 系统实现",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 425,
+    "text": "7.1 系统实现概述",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 428,
+    "text": "7.2 基座与系统入口实现",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 432,
+    "text": "7.3 人事管理模块实现",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 433,
+    "text": "7.3.1 员工档案与组织管理实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 437,
+    "text": "7.3.2 考勤功能实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 440,
+    "text": "7.4 物料管理模块实现",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 441,
+    "text": "7.4.1 物料主数据与仓库管理实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 445,
+    "text": "7.4.2 库存台账与实时库存实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 449,
+    "text": "7.4.3 入库与出库功能实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 453,
+    "text": "7.4.4 盘点与批次规则实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 457,
+    "text": "7.5 应用中心模块实现",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 458,
+    "text": "7.5.1 应用中心首页与数据应用配置实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 462,
+    "text": "7.5.2 流程设计与审批中心实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 466,
+    "text": "7.5.3 本体关系工作台实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 470,
+    "text": "7.6 移动端模块实现",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 471,
+    "text": "7.6.1 移动端主页与仓库查询实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 475,
+    "text": "7.6.2 盘点、扫码与标签打印实现",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 479,
+    "text": "7.7 数据库中心架构实现",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 483,
+    "text": "7.8 本章小结",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 485,
+    "text": "第八章 系统测试",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 486,
+    "text": "8.1 测试目标",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 494,
+    "text": "8.2 测试环境",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 498,
+    "text": "8.3 测试方法",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 505,
+    "text": "8.4 测试结果概述",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 508,
+    "text": "8.5 黑盒测试用例",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 509,
+    "text": "8.5.1 登录与鉴权测试",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 512,
+    "text": "8.5.2 微前端页面访问测试",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 515,
+    "text": "8.5.3 核心数据接口测试",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 518,
+    "text": "8.5.4 辅助运行能力测试",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 521,
+    "text": "8.5.5 运行状态测试",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 524,
+    "text": "8.6 测试结果分析",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 532,
+    "text": "8.7 存在的问题与改进方向",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 538,
+    "text": "8.8 本章小结",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 540,
+    "text": "第九章 总结与展望",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 541,
+    "text": "9.1 全文工作总结",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 550,
+    "text": "9.2 主要成果",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 559,
+    "text": "9.3 存在的不足",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 566,
+    "text": "9.4 未来展望",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 574,
+    "text": "致谢",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 582,
+    "text": "参考文献",
+    "style": "Heading 1"
+  }
+]

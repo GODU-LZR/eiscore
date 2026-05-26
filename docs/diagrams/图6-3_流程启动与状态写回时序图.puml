@@ -1,0 +1,39 @@
+@startuml
+title 图6-3 流程启动与状态写回时序图
+
+actor 用户
+participant "业务页面/审批中心" as Page
+participant "PostgREST" as Api
+participant "workflow.start_workflow_instance" as StartFn
+participant "workflow.transition_workflow_instance" as TransitionFn
+participant "workflow.can_execute_task" as CheckFn
+database "workflow.instances" as Instances
+database "workflow.task_approvals" as Approvals
+database "app_center.workflow_state_mappings" as Mappings
+database "业务表/草稿表" as Biz
+
+用户 -> Page : 发起流程或执行审批
+Page -> Api : POST /rpc/workflow.start_workflow_instance
+Api -> StartFn : 创建流程实例
+StartFn -> Instances : 写入初始实例状态
+StartFn --> Api : 返回实例编号
+Api --> Page : 返回流程实例
+
+用户 -> Page : 提交审批意见/下一节点
+Page -> Api : POST /rpc/workflow.transition_workflow_instance
+Api -> TransitionFn : 推进流程实例
+TransitionFn -> CheckFn : 校验当前用户是否可执行任务
+CheckFn --> TransitionFn : 返回 true/false
+alt 无执行权限
+TransitionFn --> Api : 返回权限异常
+Api --> Page : 提示无权审批
+else 允许推进
+TransitionFn -> Instances : 更新 current_task_id/status
+TransitionFn -> Approvals : 写入审批记录
+TransitionFn -> Mappings : 读取节点到业务状态的映射
+TransitionFn -> Biz : 回写业务状态字段
+TransitionFn --> Api : 返回更新后的实例
+Api --> Page : 返回审批结果
+end
+
+@enduml

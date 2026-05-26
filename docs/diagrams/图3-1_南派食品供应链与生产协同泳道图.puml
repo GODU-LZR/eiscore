@@ -1,0 +1,111 @@
+@startuml
+title 图3-1 南派食品现有产销协同业务流程图
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 180
+skinparam defaultFontName Microsoft YaHei
+skinparam monochrome true
+skinparam ArrowColor black
+skinparam ActivityBorderColor black
+skinparam ActivityBackgroundColor white
+skinparam ActivityDiamondBackgroundColor white
+skinparam ActivityDiamondBorderColor black
+skinparam ActivityStartColor black
+skinparam ActivityEndColor black
+skinparam PartitionBorderColor #666666
+skinparam PartitionBackgroundColor white
+skinparam NoteBackgroundColor white
+skinparam NoteBorderColor #666666
+
+|销售部|
+start
+:接收客户需求与交付要求;
+:录入销售合同;
+:下推形成销售订单;
+
+|PMC计划员|
+:核对成品库存、交期与生产能力;
+if (现有库存可直接发货?) then (是)
+  |仓储部|
+  :准备成品与发货资料;
+else (否)
+  |研发部|
+  :提供 BOM、工艺模板与配比信息;
+  |PMC计划员|
+  :下达生产计划;
+  :执行物料需求分析;
+  if (原辅料不足?) then (是)
+    |采购部|
+    :生成采购需求;
+    :创建采购订单或采购合同;
+    :跟踪供应商到货;
+    |质检部|
+    :执行来料检验 IQC;
+    if (结果可立即出具?) then (是)
+      if (检验合格?) then (是)
+        |仓储部|
+        :办理采购入库;
+      else (否)
+        |采购部|
+        :退货、隔离或待处理;
+      endif
+    else (否)
+      |仓储部|
+      :按企业规则暂存待判物料;
+      |质检部|
+      :后续补录检验结果与附件;
+    endif
+  endif
+endif
+
+|生产部|
+:根据生产计划发起领料;
+|仓储部|
+:拣料、出库并登记批次;
+|生产部|
+:投料、加工、报工与包装;
+if (生产中发现配比不足?) then (是)
+  :发起补料申请;
+  |仓储部|
+  :办理补料出库;
+  |生产部|
+  :继续投料与生产;
+endif
+
+|质检部|
+:执行过程检验 IPQC;
+if (发现异常?) then (是)
+  |生产部|
+  :返工、调整或暂停处理;
+  |质检部|
+  :复检并记录结果;
+endif
+
+|仓储部|
+:办理生产入库;
+
+|PMC计划员|
+:确认完工状态并反馈销售;
+
+|销售部|
+:协调客户、车牌与物流信息;
+
+|质检部|
+:执行出货检验 OQC;
+if (允许先发货后补录?) then (是)
+  |仓储部|
+  :按规则办理销售出库;
+  |质检部|
+  :后续补录检验单与附件;
+else (否)
+  |仓储部|
+  :完成销售出库;
+endif
+
+|仓储部|
+:登记物流单号、车牌与附件;
+|销售部|
+:客户签收与交付完成;
+stop
+@enduml

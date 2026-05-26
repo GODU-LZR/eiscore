@@ -1,0 +1,1237 @@
+[
+  {
+    "idx": 130,
+    "text": "设计总说明",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 144,
+    "text": "Introduction",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 177,
+    "text": "绪论",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 178,
+    "text": "研究的目的和意义",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 181,
+    "text": "国内外研究水平与问题",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 183,
+    "text": "拟解决的关键问题",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 185,
+    "text": "相关技术",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 186,
+    "text": "Springboot",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 188,
+    "text": "Mybatis-Plus",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 191,
+    "text": "Spring Security",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 193,
+    "text": "Layui",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 195,
+    "text": "总体概述",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 196,
+    "text": "系统概述",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 199,
+    "text": "图2-1系统功能结构图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 200,
+    "text": "系统功能简介",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 201,
+    "text": "部门职位管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 203,
+    "text": "表2-1 部门职位管理简介表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 204,
+    "text": "人事信息管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 206,
+    "text": "表2-2 人事信息管理简介表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 207,
+    "text": "考勤管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 209,
+    "text": "表2-3 考勤管理简介表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 210,
+    "text": "工资计算管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 212,
+    "text": "表2-4 工资计算管理简介表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 213,
+    "text": "招聘管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 215,
+    "text": "表2-5 招聘管理简介表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 216,
+    "text": "系统管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 218,
+    "text": "表2-6 系统管理简介表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 219,
+    "text": "系统角色",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 221,
+    "text": "表2-7 系统角色权限表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 237,
+    "text": "系统需求分析",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 238,
+    "text": "部门职位管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 241,
+    "text": "图3-1 部门职位管理模块用例图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 242,
+    "text": "新建部门",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 244,
+    "text": "表3-1 新建部门用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 247,
+    "text": "图3-2 新建部门活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 248,
+    "text": "查看部门信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 250,
+    "text": "表3-2 查看部门信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 253,
+    "text": "图3-3 添加部门活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 254,
+    "text": "删除部门",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 256,
+    "text": "表3-3 删除部门用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 259,
+    "text": "图3-4 删除部门活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 260,
+    "text": "更改部门信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 262,
+    "text": "表3-4 更改部门信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 265,
+    "text": "图3-5 更改部门信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 266,
+    "text": "添加职位",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 268,
+    "text": "表3-5 添加职位信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 271,
+    "text": "图3-6 添加职位信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 272,
+    "text": "查看职位信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 274,
+    "text": "表3-6 查看职位信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 277,
+    "text": "图3-7 查看职位信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 278,
+    "text": "删除职位",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 280,
+    "text": "表3-7 删除职位用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 283,
+    "text": "图3-8 删除职位活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 284,
+    "text": "更改职位信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 286,
+    "text": "表3-8 更改部门信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 289,
+    "text": "图3-9 更改部门信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 290,
+    "text": "人事信息管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 293,
+    "text": "图3-10 人事信息管理用例图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 294,
+    "text": "录入员工信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 296,
+    "text": "表3-9 录入员工信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 300,
+    "text": "图3-11 录入员工信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 301,
+    "text": "查看员工信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 303,
+    "text": "表3-10 查看职位信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 307,
+    "text": "图3-12 查看职位信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 308,
+    "text": "删除员工信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 310,
+    "text": "表3-11 删除员工信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 313,
+    "text": "图3-13 删除员工信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 314,
+    "text": "更新员工信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 316,
+    "text": "表3-12 更新员工信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 319,
+    "text": "图3-14 更新员工信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 320,
+    "text": "考勤管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 323,
+    "text": "图3-15 考勤管理用例图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 324,
+    "text": "请假审批",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 326,
+    "text": "表3-13 请假审批用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 330,
+    "text": "图3-16 请假审批活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 331,
+    "text": "考勤标准设置",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 333,
+    "text": "表3-14 考勤标准设置用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 337,
+    "text": "图3-17 考勤标准设置活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 338,
+    "text": "查看员工打卡记录",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 340,
+    "text": "表3-15 查看员工打卡记录用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 343,
+    "text": "图3-18 查看员工打卡记录活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 344,
+    "text": "查看考勤每日统计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 346,
+    "text": "表3-16查看考勤每日统计用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 349,
+    "text": "图3-19 查看考勤每日统计活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 350,
+    "text": "查看考勤月统计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 352,
+    "text": "表3-17 查看考勤月统计用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 355,
+    "text": "图3-20 查看考勤月统计活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 356,
+    "text": "工资计算管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 359,
+    "text": "图3-21 工资计算管理用例图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 360,
+    "text": "设置职位基本工资",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 362,
+    "text": "表3-18 设置职位基本工资用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 366,
+    "text": "图3-22 设置职位基本工资活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 367,
+    "text": "查看工资信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 369,
+    "text": "表3-19 查看工资信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 373,
+    "text": "图3-23 查看工资信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 374,
+    "text": "添加奖金",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 376,
+    "text": "表3-20 添加奖金用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 379,
+    "text": "图3-24 添加奖金活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 380,
+    "text": "招聘管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 383,
+    "text": "图3-25 招聘管理用例图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 384,
+    "text": "发布招聘信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 386,
+    "text": "表3-21 发布招聘信息用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 390,
+    "text": "图3-26 发布招聘信息活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 391,
+    "text": "查看投递简历",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 393,
+    "text": "表3-22 查看投递简历用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 397,
+    "text": "图3-27 查看投递简历活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 398,
+    "text": "处理简历",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 400,
+    "text": "表3-23 处理简历用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 404,
+    "text": "图3-28 处理简历活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 406,
+    "text": "系统管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 409,
+    "text": "图3-29 系统管理用例图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 411,
+    "text": "发布公告",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 413,
+    "text": "表3-24 发布公告用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 416,
+    "text": "图3-30 发布公告活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 417,
+    "text": "查看公告",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 419,
+    "text": "表3-25 查看公告用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 422,
+    "text": "图3-31 查看公告活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 423,
+    "text": "删除公告",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 425,
+    "text": "表3-26 删除公告用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 429,
+    "text": "图3-32 删除公告活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 430,
+    "text": "修改公告",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 432,
+    "text": "表3-27 修改公告用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 435,
+    "text": "图3-33 修改公告活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 436,
+    "text": "查看登录日志",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 438,
+    "text": "表3-28 查看登录日志用例规约",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 441,
+    "text": "图3-34查看登录日志活动图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 455,
+    "text": "数据库设计",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 456,
+    "text": "E-R图",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 459,
+    "text": "图4-1 人力资源管理系统ER图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 461,
+    "text": "数据库表设计",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 462,
+    "text": "部门表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 464,
+    "text": "表4-1 部门表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 465,
+    "text": "职位表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 467,
+    "text": "表4-2 部门表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 468,
+    "text": "用户表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 470,
+    "text": "表4-3 用户表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 473,
+    "text": "考勤表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 475,
+    "text": "表4-4 考勤表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 476,
+    "text": "考勤设置表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 478,
+    "text": "表4-5 考勤设置表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 479,
+    "text": "考勤每日统计表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 481,
+    "text": "表4-6 考勤每日统计表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 482,
+    "text": "考勤月统计表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 484,
+    "text": "表4-7 考勤月统计表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 487,
+    "text": "请假表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 489,
+    "text": "表4-8 请假表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 490,
+    "text": "工资表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 492,
+    "text": "表4-9 工资表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 495,
+    "text": "招聘表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 497,
+    "text": "表4-10 工资表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 498,
+    "text": "简历表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 500,
+    "text": "表4-11 简历表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 502,
+    "text": "公告表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 504,
+    "text": "表4-12 公告表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 505,
+    "text": "登录日志表",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 507,
+    "text": "表4-13 工资表字段说明",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 521,
+    "text": "系统概要设计",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 522,
+    "text": "逻辑分层结构",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 525,
+    "text": "图5-1 系统架构图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 526,
+    "text": "类结构",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 527,
+    "text": "部门职位管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 531,
+    "text": "图5-2 部门管理类图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 534,
+    "text": "图5-3 职位管理类图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 535,
+    "text": "人事信息管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 538,
+    "text": "图5-4 人事信息管理类图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 539,
+    "text": "考勤管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 542,
+    "text": "图5-5 考勤管理类图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 543,
+    "text": "工资计算管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 546,
+    "text": "图5-6 工资计算管理类图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 547,
+    "text": "招聘管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 550,
+    "text": "图5-7 招聘管理类图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 552,
+    "text": "系统管理模块",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 556,
+    "text": "图5-8 公告管理类图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 559,
+    "text": "图5-9 登录日志管理类图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 561,
+    "text": "系统详细设计",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 562,
+    "text": "部门职位管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 563,
+    "text": "部门管理",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 565,
+    "text": "表6-1 部门管理文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 568,
+    "text": "图6-1 部门管理时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 570,
+    "text": "职位管理",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 572,
+    "text": "表6-2 职位管理文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 575,
+    "text": "图6-2 职位管理时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 576,
+    "text": "人事信息管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 578,
+    "text": "表6-3 人事信息管理文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 581,
+    "text": "图6-3 人事信息管理时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 582,
+    "text": "考勤管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 583,
+    "text": "考勤设置",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 585,
+    "text": "表6-4 考勤设置文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 589,
+    "text": "图6-4 考勤设置时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 590,
+    "text": "查看考勤记录",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 592,
+    "text": "表6-5 查看考勤记录文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 595,
+    "text": "图6-5\t查看考勤记录时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 596,
+    "text": "查看考勤每日统计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 598,
+    "text": "表6-6 查看考勤每日统计文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 601,
+    "text": "图6-6 查看考勤每日统计时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 602,
+    "text": "查看考勤月统计",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 604,
+    "text": "表6-7 考勤月统计文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 607,
+    "text": "图6-7 查看考勤月统计时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 608,
+    "text": "请假审批",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 610,
+    "text": "表6-8 请假审批文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 613,
+    "text": "图6-8 请假审批时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 614,
+    "text": "工资计算管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 615,
+    "text": "设置职位基本工资",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 617,
+    "text": "表6-9 设置职位基本工资文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 620,
+    "text": "图6-9设置职位基本信息时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 621,
+    "text": "工资信息管理",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 623,
+    "text": "表6-10 工资信息管理文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 627,
+    "text": "图6-10工资信息管理时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 628,
+    "text": "招聘管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 629,
+    "text": "发布招聘信息",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 631,
+    "text": "表6-11 发布招聘信息文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 634,
+    "text": "图6-11 发布招聘信息时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 635,
+    "text": "简历管理",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 637,
+    "text": "表6-12 简历管理文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 640,
+    "text": "图6-12 简历管理时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 642,
+    "text": "系统管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 643,
+    "text": "公告管理",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 645,
+    "text": "表6-13 公告管理文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 648,
+    "text": "图6-13 公告管理时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 649,
+    "text": "查看登录日志",
+    "style": "Heading 3"
+  },
+  {
+    "idx": 651,
+    "text": "表6-14 查看登录日志文件列表",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 654,
+    "text": "图6-14 查看登录日志时序图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 670,
+    "text": "系统实现",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 671,
+    "text": "部门职位管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 674,
+    "text": "图7-1 部门管理实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 677,
+    "text": "图7-2 职位管理实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 678,
+    "text": "人事信息管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 681,
+    "text": "图7-3 员工信息录入实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 683,
+    "text": "图7-4 员工个人信息维护实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 686,
+    "text": "图7-5 员工信息管理实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 687,
+    "text": "考勤管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 690,
+    "text": "图7-6 查看考勤记录实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 693,
+    "text": "图7-7 请假审批实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 696,
+    "text": "图7-8 考勤月统计实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 697,
+    "text": "工资计算管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 700,
+    "text": "图7-9 设置职位工资实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 703,
+    "text": "图7-10 查看员工工资信息实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 704,
+    "text": "招聘管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 707,
+    "text": "图7-11 发布招聘信息实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 710,
+    "text": "图7-12 简历处理实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 713,
+    "text": "图7-13 简历附件查看实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 714,
+    "text": "系统管理模块",
+    "style": "Heading 2"
+  },
+  {
+    "idx": 717,
+    "text": "图7-14 公告管理实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 720,
+    "text": "图7-15 登录日志管理实现图",
+    "style": "Heading 5"
+  },
+  {
+    "idx": 726,
+    "text": "鸣  谢",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 733,
+    "text": "参考文献",
+    "style": "Heading 1"
+  },
+  {
+    "idx": 765,
+    "text": "附  录",
+    "style": "Heading 1"
+  }
+]

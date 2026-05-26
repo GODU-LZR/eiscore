@@ -1,0 +1,53 @@
+@startuml
+top to bottom direction
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Microsoft YaHei
+skinparam packageStyle rectangle
+skinparam backgroundColor white
+skinparam dpi 180
+skinparam actorStyle stickman
+skinparam usecase {
+  BackgroundColor white
+  BorderColor black
+  FontSize 20
+}
+skinparam actor {
+  FontSize 18
+}
+skinparam rectangle {
+  BorderColor black
+  FontSize 18
+}
+
+title 图3-4 质量检验与审批用例图
+
+left to right direction
+
+actor 质检员 as QC
+actor 审批人员 as AP
+actor 管理层 as MG
+
+rectangle "EISCore质量检验与审批" as SYS {
+  usecase "来料检验\nIQC" as UC1
+  usecase "过程检验\nIPQC" as UC2
+  usecase "出货检验\nOQC" as UC3
+  usecase "检验附件上传与补录" as UC4
+  usecase "审批中心待办处理" as UC5
+  usecase "流程状态写回业务表" as UC6
+}
+
+QC -- UC1
+QC -- UC2
+QC -- UC3
+QC -- UC4
+
+AP -- UC5
+MG -- UC5
+
+UC1 ..> UC4 : <<include>>
+UC2 ..> UC4 : <<include>>
+UC3 ..> UC4 : <<include>>
+UC5 ..> UC6 : <<include>>
+
+@enduml

@@ -1,0 +1,39 @@
+digraph G {
+  graph [
+    rankdir=TB,
+    splines=ortho,
+    nodesep=0.55,
+    ranksep=0.85,
+    pad=0.25,
+    margin=0.15,
+    bgcolor="white"
+  ];
+  node [
+    shape=box,
+    style="rounded",
+    fontname="Microsoft YaHei",
+    fontsize=18,
+    penwidth=1.8,
+    margin="0.18,0.12"
+  ];
+  edge [
+    arrowsize=0.8,
+    penwidth=1.6
+  ];
+
+  top1 [label="企业现实约束\n湛江中小制造企业预算有限\n南派食品存在批次追溯、权限、流程问题"];
+  top2 [label="需求分析\n围绕人事、物料流转、流程状态\n语义解释与移动现场场景梳理需求"];
+  top3 [label="系统概要设计\n以数据库中心组织核心数据\n以前端基座承载主要业务入口"];
+  top4 [label="关键技术路线\nPostgreSQL + PostgREST\nVue 3 + qiankun\nBPMN + 轻量语义增强"];
+
+  bot1 [label="系统实现\n人事管理、物料管理、应用中心、移动端\n闪念应用、Agent Runtime、冷库模式"];
+  bot2 [label="测试与验证\n登录鉴权、页面访问、库存链路\n流程读取、语义工具与受控运行"];
+  bot3 [label="设计说明书成文\n设计总说明 -> 绪论 -> 需求分析 -> 概要设计\n数据库设计 -> 详细设计 -> 实现与测试"];
+
+  { rank=same; top1; top2; top3; top4; }
+  { rank=same; bot1; bot2; bot3; }
+
+  top1 -> top2 -> top3 -> top4;
+  top4 -> bot1;
+  bot1 -> bot2 -> bot3;
+}

@@ -1,0 +1,37 @@
+digraph G {
+  graph [
+    rankdir=TB,
+    splines=ortho,
+    nodesep=0.45,
+    ranksep=0.75,
+    pad=0.28,
+    margin=0.18,
+    bgcolor="white"
+  ];
+  node [
+    shape=box,
+    style="rounded",
+    fontname="Microsoft YaHei",
+    fontsize=20,
+    penwidth=1.7,
+    margin="0.20,0.14"
+  ];
+  edge [
+    arrowsize=0.8,
+    penwidth=1.5
+  ];
+
+  core [label="EISCore系统"];
+
+  base [label="基础平台与主数据\n组织架构、部门、岗位、用户、角色\n物料、单位、客户物料清单、编码规则"];
+  warehouse [label="仓储与库存作业\n仓库管理、库存台账、采购入库\n生产领料、补料、销售出库、盘点"];
+  app [label="应用中心与流程协同\n数据应用配置、流程设计、审批处理\n状态映射、草稿中心、闪念应用"];
+  mobile [label="移动端作业\n移动盘点、仓库查询、冷库模式\n标签打印、扫码入口"];
+  support [label="数据与权限支撑\nPostgreSQL、PostgREST、RLS\n轻量语义、流程运行、受控工具调用"];
+
+  core -> base;
+  core -> warehouse;
+  core -> app;
+  core -> mobile;
+  core -> support;
+}

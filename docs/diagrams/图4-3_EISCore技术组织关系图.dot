@@ -1,0 +1,32 @@
+digraph G {
+  rankdir=TB;
+  graph [fontname="Microsoft YaHei", splines=ortho, nodesep=0.45, ranksep=0.65];
+  node [shape=box, style="rounded", fontname="Microsoft YaHei", fontsize=11, margin="0.14,0.08"];
+  edge [fontname="Microsoft YaHei", fontsize=10, arrowsize=0.75];
+
+  a [label="运行环境\nDocker Compose 编排数据库/接口/运行时\nPM2 管理基座、子应用与移动端页面"];
+  b [label="前端组织\nVue 3 + Vite + qiankun\n统一承载基座、人事、物料、应用中心"];
+  c [label="界面交互支撑\nElement Plus / Vant / AG Grid\nMonaco Editor / ECharts"];
+  d [label="现场入口\n移动端盘点、扫码、仓库查询\n冷库弱网模式"];
+  e [label="辅助运行能力\nFlashBuilder / Agent Runtime\n受控工具调用与草稿处理"];
+  f [label="接口层\nPostgREST\n表、视图与函数自动映射"];
+  g [label="数据库底座\nPostgreSQL 16\n多 Schema 数据组织与事务处理"];
+  h [label="流程支撑\nBPMN / workflow definitions\ninstances / task assignments"];
+  i [label="轻量化语义\n表级语义 / 列级语义 / 关系语义\n本体关系工作台"];
+  j [label="权限治理\nRLS / JWT 声明 / 用户角色\n访问边界与状态写回"];
+
+  a -> b;
+  a -> e;
+  a -> g;
+  b -> c;
+  c -> d;
+  b -> f;
+  d -> f;
+  e -> f;
+  e -> h;
+  e -> i;
+  f -> g;
+  g -> h;
+  g -> i;
+  g -> j;
+}

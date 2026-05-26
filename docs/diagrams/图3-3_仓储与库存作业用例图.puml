@@ -1,0 +1,42 @@
+@startuml
+left to right direction
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName Microsoft YaHei
+skinparam packageStyle rectangle
+title 图3-2（b）仓储与库存作业用例图
+
+actor 仓管员
+actor "生产主管" as Prod
+actor 销售文员
+actor 系统管理员
+actor "PMC计划员" as PMC
+
+rectangle EISCore {
+  usecase "生产领料申请" as UC1
+  usecase "生产补料申请" as UC2
+  usecase "生产入库登记" as UC3
+  usecase "销售出库办理" as UC4
+  usecase "库存台账与批次查询" as UC5
+  usecase "批次号规则维护" as UC6
+}
+
+仓管员 -- UC1
+仓管员 -- UC2
+仓管员 -- UC3
+仓管员 -- UC4
+仓管员 -- UC5
+
+Prod -- UC1
+Prod -- UC2
+Prod -- UC3
+
+销售文员 -- UC4
+PMC -- UC5
+系统管理员 -- UC6
+
+UC2 .> UC1 : <<extend>>
+UC4 .> UC5 : <<include>>
+UC1 .> UC5 : <<include>>
+UC3 .> UC5 : <<include>>
+@enduml

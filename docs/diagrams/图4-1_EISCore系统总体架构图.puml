@@ -1,0 +1,94 @@
+@startuml
+title 图4-1 EISCore系统总体架构图
+
+skinparam backgroundColor white
+skinparam shadowing false
+skinparam dpi 180
+skinparam defaultFontName Microsoft YaHei
+skinparam monochrome true
+skinparam packageStyle rectangle
+skinparam rectangle {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam component {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam database {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam ArrowColor black
+
+top to bottom direction
+
+rectangle "用户访问层" {
+  actor "桌面端用户" as user1
+  actor "仓储/现场业务用户" as user2
+  actor "移动端 PDA 用户" as user3
+}
+
+rectangle "前端表现层" {
+  rectangle "EISCore基座应用" as base
+  rectangle "人事子应用\n员工、组织、用户、考勤" as hr
+  rectangle "物料子应用\n仓库、库存、入库、出库、盘点" as materials
+  rectangle "应用中心\n数据应用、流程配置、审批中心、语义工作台" as apps
+  rectangle "移动端页面\n盘点、扫码、仓库查询、标签打印、冷库模式" as mobile
+}
+
+rectangle "接口与运行层" {
+  rectangle "PostgREST 接口层" as postgrest
+  rectangle "Workflow Runtime" as workflow
+  rectangle "Agent Runtime" as agent
+  rectangle "白名单工具集合" as tools
+}
+
+rectangle "数据与治理层" {
+  database "PostgreSQL 16" as pg
+  rectangle "组织权限数据\npublic / hr" as auth_data
+  rectangle "物料仓储数据\nscm" as scm_data
+  rectangle "应用与流程数据\napp_center / workflow / app_data" as app_data
+  rectangle "轻量化语义与访问控制\nRLS / 表级语义 / 列级语义 / 关系语义" as semantic_data
+}
+
+rectangle "部署与运维层" {
+  rectangle "Docker Compose" as docker
+  rectangle "PM2" as pm2
+}
+
+user1 --> base
+user2 --> base
+user3 --> mobile
+
+base --> hr
+base --> materials
+base --> apps
+base --> postgrest
+
+mobile --> postgrest
+apps --> workflow
+apps --> agent
+agent --> tools
+
+postgrest --> pg
+workflow --> pg
+agent --> pg
+tools --> pg
+
+pg --> auth_data
+pg --> scm_data
+pg --> app_data
+pg --> semantic_data
+
+docker --> postgrest
+docker --> workflow
+docker --> agent
+docker --> pg
+
+pm2 --> base
+pm2 --> hr
+pm2 --> materials
+pm2 --> apps
+pm2 --> mobile
+@enduml

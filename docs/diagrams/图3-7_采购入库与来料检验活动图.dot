@@ -1,0 +1,31 @@
+digraph G {
+  rankdir=LR;
+  graph [fontname="Microsoft YaHei", splines=ortho, nodesep=0.35, ranksep=0.7, pad=0.2];
+  node [fontname="Microsoft YaHei", fontsize=15, style="rounded", shape=box, margin="0.16,0.10"];
+  edge [fontname="Microsoft YaHei", fontsize=12, arrowsize=0.8, penwidth=1.2];
+
+  s [label="到货登记"];
+  a [label="关联合同与采购单"];
+  b [label="质检人员发起来料检验"];
+  c [shape=diamond, style="", label="检验合格?"];
+  d1 [label="生成采购入库单"];
+  d2 [label="写入库存批次"];
+  d3 [label="写入库存流水"];
+  d4 [label="更新采购执行状态"];
+  e1 [label="记录不合格结果"];
+  e2 [label="保留附件与处理意见"];
+  e3 [shape=diamond, style="", label="允许后续补录?"];
+  e4 [label="保留待补录状态"];
+  e5 [label="终止正式入库"];
+  end1 [label="形成采购单—检验单—入库单关联"];
+
+  s -> a -> b -> c;
+  c -> d1 [label="是"];
+  d1 -> d2 -> d3 -> d4 -> end1;
+  c -> e1 [label="否"];
+  e1 -> e2 -> e3;
+  e3 -> e4 [label="是"];
+  e3 -> e5 [label="否"];
+  e4 -> end1;
+  e5 -> end1;
+}
