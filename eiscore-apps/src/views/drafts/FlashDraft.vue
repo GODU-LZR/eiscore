@@ -1,706 +1,438 @@
 <template>
-  <div class="pda-material-inbound">
-    <div class="header">
-      <h1>PDA 物料入库</h1>
-      <p>请填写入库信息</p>
-    </div>
+  <div class="flash-draft-page">
+    <section class="hero">
+      <div class="hero-badge">PDA出入库系统</div>
+      <h1>PDA库存管理系统</h1>
+      <p>使用PDA设备进行快速出入库操作，支持扫码录入和批量处理</p>
+    </section>
 
-    <div class="form-container">
-      <div class="form-group">
-        <label>物料</label>
-        <select v-model="formData.materialId" @change="handleMaterialChange">
-          <option value="">请选择物料</option>
-          <option v-for="material in materials" :key="material.id" :value="material.id">
-            {{ material.name }} ({{ material.batch_no }})
-          </option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>仓库</label>
-        <select v-model="formData.warehouseId">
-          <option value="">请选择仓库</option>
-          <option v-for="warehouse in warehouses" :key="warehouse.id" :value="warehouse.id">
-            {{ warehouse.code }} - {{ warehouse.name }}
-          </option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>数量</label>
-        <input 
-          type="number" 
-          v-model="formData.quantity" 
-          placeholder="请输入数量"
-          @input="handleQuantityInput"
+    <div class="container">
+      <!-- 操作模式选择 -->
+      <div class="mode-selector">
+        <button
+          class="mode-btn"
+          :class="{ active: currentMode === 'inbound' }"
+          @click="currentMode = 'inbound'"
         >
-      </div>
-
-      <div class="form-group">
-        <label>单位</label>
-        <input 
-          type="text" 
-          v-model="formData.unit" 
-          placeholder="请输入单位"
-          readonly
+          入库操作
+        </button>
+        <button
+          class="mode-btn"
+          :class="{ active: currentMode === 'outbound' }"
+          @click="currentMode = 'outbound'"
         >
-      </div>
-
-      <div class="form-group">
-        <label>批次号</label>
-        <div class="batch-no-container">
-          <input 
-            type="text" 
-            v-model="formData.batchNo" 
-            placeholder="请输入或生成批次号"
-          >
-          <button 
-            @click="generateBatchNo" 
-            :disabled="loading.generateBatchNo"
-            class="generate-btn"
-          >
-            {{ loading.generateBatchNo ? '生成中...' : '生成批次号' }}
-          </button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>备注</label>
-        <textarea 
-          v-model="formData.remarks" 
-          placeholder="请输入备注信息"
-          rows="3"
-        ></textarea>
-      </div>
-
-      <div class="button-group">
-        <button 
-          @click="saveDraft" 
-          :disabled="loading.saveDraft || !isFormValid"
-          class="save-btn"
-        >
-          {{ loading.saveDraft ? '保存中...' : '保存草稿' }}
+          出库操作
         </button>
       </div>
-    </div>
 
-    <div class="draft-history">
-      <h2>最近草稿记录</h2>
-      <div v-if="loading.draftHistory" class="loading">加载中...</div>
-      <div v-else-if="draftHistory.length === 0" class="empty">
-        暂无草稿记录
+      <!-- 入库表单 -->
+      <div v-if="currentMode === 'inbound'" class="form-container">
+        <h2>入库操作</h2>
+        <div class="form-group">
+          <label>物料编码</label>
+          <input
+            type="text"
+            v-model="inboundForm.materialCode"
+            placeholder="扫描或输入物料编码"
+            @keyup.enter="searchMaterial"
+          >
+        </div>
+        <div class="form-group">
+          <label>物料名称</label>
+          <input
+            type="text"
+            v-model="inboundForm.materialName"
+            placeholder="自动获取"
+            readonly
+          >
+        </div>
+        <div class="form-group">
+          <label>仓库</label>
+          <select v-model="inboundForm.warehouseId">
+            <option value="">选择仓库</option>
+            <option v-for="warehouse in warehouses" :key="warehouse.id" :value="warehouse.id">
+              {{ warehouse.name }}
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>数量</label>
+          <input
+            type="number"
+            v-model="inboundForm.quantity"
+            placeholder="输入数量"
+            min="1"
+          >
+        </div>
+        <div class="form-group">
+          <label>批次号</label>
+          <input
+            type="text"
+            v-model="inboundForm.batchNo"
+            placeholder="自动生成"
+            readonly
+          >
+          <button @click="generateBatchNo" class="batch-btn">生成批次号</button>
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <textarea
+            v-model="inboundForm.remarks"
+            placeholder="输入备注信息"
+            rows="3"
+          ></textarea>
+        </div>
+        <button @click="performInbound" class="submit-btn">确认入库</button>
       </div>
-      <div v-else class="draft-list">
-        <div 
-          v-for="draft in draftHistory" 
-          :key="draft.id" 
-          class="draft-item"
-          @click="loadDraft(draft)"
-        >
-          <div class="draft-header">
-            <span class="material">{{ draft.material_name }}</span>
-            <span class="warehouse">{{ draft.warehouse_code }}</span>
-            <span class="quantity">{{ draft.quantity }} {{ draft.unit }}</span>
-          </div>
-          <div class="draft-footer">
-            <span class="batch-no">{{ draft.batch_no }}</span>
-            <span class="time">{{ formatTime(draft.created_at) }}</span>
+
+      <!-- 出库表单 -->
+      <div v-if="currentMode === 'outbound'" class="form-container">
+        <h2>出库操作</h2>
+        <div class="form-group">
+          <label>物料编码</label>
+          <input
+            type="text"
+            v-model="outboundForm.materialCode"
+            placeholder="扫描或输入物料编码"
+            @keyup.enter="searchMaterial"
+          >
+        </div>
+        <div class="form-group">
+          <label>物料名称</label>
+          <input
+            type="text"
+            v-model="outboundForm.materialName"
+            placeholder="自动获取"
+            readonly
+          >
+        </div>
+        <div class="form-group">
+          <label>仓库</label>
+          <select v-model="outboundForm.warehouseId">
+            <option value="">选择仓库</option>
+            <option v-for="warehouse in warehouses" :key="warehouse.id" :value="warehouse.id">
+              {{ warehouse.name }}
+            </option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>数量</label>
+          <input
+            type="number"
+            v-model="outboundForm.quantity"
+            placeholder="输入数量"
+            min="1"
+          >
+        </div>
+        <div class="form-group">
+          <label>出库单号</label>
+          <input
+            type="text"
+            v-model="outboundForm.outboundOrder"
+            placeholder="输入出库单号"
+          >
+        </div>
+        <div class="form-group">
+          <label>备注</label>
+          <textarea
+            v-model="outboundForm.remarks"
+            placeholder="输入备注信息"
+            rows="3"
+          ></textarea>
+        </div>
+        <button @click="performOutbound" class="submit-btn">确认出库</button>
+      </div>
+
+      <!-- 操作记录 -->
+      <div class="history-section">
+        <h2>最近操作记录</h2>
+        <div class="history-list">
+          <div v-for="(record, index) in operationHistory" :key="index" class="history-item">
+            <div class="record-header">
+              <span class="record-type">{{ record.type }}</span>
+              <span class="record-time">{{ record.time }}</span>
+            </div>
+            <div class="record-details">
+              <span>{{ record.materialName }} - {{ record.quantity }} {{ record.unit }}</span>
+              <span class="record-warehouse">{{ record.warehouse }}</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- 错误提示 -->
-    <div v-if="error" class="error-message">
-      {{ error }}
-    </div>
-
-    <!-- 成功提示 -->
-    <div v-if="successMessage" class="success-message">
-      {{ successMessage }}
     </div>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 
 export default {
   name: 'FlashDraft',
   setup() {
-    const materials = ref([])
+    const currentMode = ref('inbound')
     const warehouses = ref([])
-    const batchRules = ref([])
-    const draftHistory = ref([])
-    const error = ref('')
-    const successMessage = ref('')
-    const loading = ref({
-      materials: false,
-      warehouses: false,
-      generateBatchNo: false,
-      saveDraft: false,
-      draftHistory: false
-    })
+    const operationHistory = ref([])
 
-    const formData = ref({
-      materialId: '',
+    // 表单数据
+    const inboundForm = ref({
+      materialCode: '',
+      materialName: '',
       warehouseId: '',
       quantity: '',
-      unit: '',
       batchNo: '',
       remarks: ''
     })
 
-    const resetMessages = () => {
-      error.value = ''
-      successMessage.value = ''
-    }
-
-    const showError = (message) => {
-      error.value = String(message || '操作失败')
-      successMessage.value = ''
-    }
-
-    const showSuccess = (message) => {
-      successMessage.value = String(message || '操作成功')
-      error.value = ''
-      setTimeout(() => {
-        if (successMessage.value === message) successMessage.value = ''
-      }, 2200)
-    }
-
-    const readAuthToken = () => {
-      const raw = localStorage.getItem('auth_token')
-      if (!raw) return ''
-      try {
-        const parsed = JSON.parse(raw)
-        return String(parsed?.token || '').trim() || String(raw).trim()
-      } catch {
-        return String(raw).trim()
-      }
-    }
-
-    const parseJsonOrThrow = (text, label) => {
-      try {
-        return JSON.parse(String(text || 'null'))
-      } catch {
-        const snippet = String(text || '').replace(/\s+/g, ' ').slice(0, 140)
-        throw new Error(`${label} 返回非JSON: ${snippet}`)
-      }
-    }
-
-    const normalizeList = (payload) => {
-      if (Array.isArray(payload)) return payload
-      if (payload && Array.isArray(payload.items)) return payload.items
-      if (payload && payload.data) return normalizeList(payload.data)
-      return []
-    }
-
-    const requestApi = async ({ url, method = 'GET', profile = '', contentProfile = '', body = null, extraHeaders = {} }) => {
-      const token = readAuthToken()
-      const isWrite = method !== 'GET' && method !== 'HEAD'
-      const headers = {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(profile ? { 'Accept-Profile': profile } : {}),
-        ...extraHeaders
-      }
-      if (isWrite) {
-        headers['Content-Type'] = 'application/json'
-        if (contentProfile || profile) headers['Content-Profile'] = contentProfile || profile
-      }
-
-      const response = await fetch(`/api${url}`, {
-        method,
-        headers,
-        body: isWrite && body ? JSON.stringify(body) : undefined
-      })
-      const text = await response.text()
-      const payload = parseJsonOrThrow(text, url)
-      if (!response.ok) {
-        const message = payload?.message || payload?.code || `${method} ${url} 失败`
-        throw new Error(message)
-      }
-      return payload
-    }
-
-    const callFlashTool = async (toolId, args = {}, confirmed = false) => {
-      const token = readAuthToken()
-      if (!token) throw new Error('缺少登录态，请重新登录')
-      const payload = {
-        tool_id: toolId,
-        arguments: args,
-        trace_id: `tr_${Date.now()}`
-      }
-      if (confirmed) {
-        payload.confirmed = true
-        payload.idempotency_key = `idem_${Date.now()}`
-      }
-
-      const response = await fetch('/agent/flash/tools/call', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-      const text = await response.text()
-      const result = parseJsonOrThrow(text, '/agent/flash/tools/call')
-      if (!response.ok || result?.ok === false) {
-        throw new Error(String(result?.message || result?.code || `tool call failed(${response.status})`))
-      }
-      return result
-    }
-
-    // 计算属性：表单是否有效
-    const isFormValid = computed(() => {
-      const qty = Number(formData.value.quantity)
-      return formData.value.materialId &&
-             formData.value.warehouseId &&
-             Number.isFinite(qty) &&
-             qty > 0 &&
-             formData.value.batchNo
+    const outboundForm = ref({
+      materialCode: '',
+      materialName: '',
+      warehouseId: '',
+      quantity: '',
+      outboundOrder: '',
+      remarks: ''
     })
 
-    // 页面加载时获取数据
-    onMounted(async () => {
-      await Promise.allSettled([loadMaterials(), loadWarehouses(), loadBatchRules()])
-      await loadDraftHistory()
-    })
-
-    // 加载物料列表
-    const loadMaterials = async () => {
-      loading.value.materials = true
-      resetMessages()
+    // 初始化仓库数据
+    const initWarehouses = async () => {
       try {
-        const data = await requestApi({
-          url: '/raw_materials?select=id,batch_no,name&order=batch_no.asc',
-          method: 'GET',
-          profile: 'public'
-        })
-        materials.value = normalizeList(data)
-      } catch (err) {
-        showError(`加载物料列表失败: ${err.message}`)
-      } finally {
-        loading.value.materials = false
+        const response = await window.flashSemanticTool('flash.warehouse.list', {})
+        warehouses.value = response.data || []
+      } catch (error) {
+        console.error('获取仓库列表失败:', error)
       }
     }
 
-    // 加载仓库列表
-    const loadWarehouses = async () => {
-      loading.value.warehouses = true
-      resetMessages()
+    // 搜索物料信息
+    const searchMaterial = async () => {
+      const materialCode = currentMode.value === 'inbound' ? inboundForm.value.materialCode : outboundForm.value.materialCode
+      if (!materialCode) return
+
       try {
-        const data = await requestApi({
-          url: '/warehouses?select=id,code,name,status&order=code.asc',
-          method: 'GET',
-          profile: 'scm'
+        const response = await window.flashSemanticTool('flash.material.master.list', {
+          params: { code: materialCode }
         })
-        warehouses.value = normalizeList(data).filter((item) => item?.status !== '停用')
-      } catch (err) {
-        showError(`加载仓库列表失败: ${err.message}`)
-      } finally {
-        loading.value.warehouses = false
-      }
-    }
-
-    const loadBatchRules = async () => {
-      try {
-        const data = await requestApi({
-          url: '/batch_no_rules?select=id,rule_name,status&order=created_at.desc&limit=20',
-          method: 'GET',
-          profile: 'scm'
-        })
-        batchRules.value = normalizeList(data).filter((item) => item?.status !== '停用')
-      } catch {
-        batchRules.value = []
-      }
-    }
-
-    // 加载草稿历史
-    const loadDraftHistory = async () => {
-      loading.value.draftHistory = true
-      resetMessages()
-      try {
-        const data = await requestApi({
-          url: '/v_inventory_drafts?limit=10&order=created_at.desc',
-          method: 'GET',
-          profile: 'scm'
-        })
-        draftHistory.value = normalizeList(data)
-      } catch (err) {
-        showError(`加载草稿历史失败: ${err.message}`)
-      } finally {
-        loading.value.draftHistory = false
-      }
-    }
-
-    // 处理物料选择变化
-    const handleMaterialChange = () => {
-      const material = materials.value.find((item) => String(item.id) === String(formData.value.materialId))
-      if (material) {
-        formData.value.unit = material.unit || formData.value.unit || '个'
-      }
-    }
-
-    // 处理数量输入
-    const handleQuantityInput = (e) => {
-      const value = e.target.value
-      if (value === '' || /^[\d.]+$/.test(value)) {
-        formData.value.quantity = value
+        const material = response.data?.[0]
+        if (material) {
+          if (currentMode.value === 'inbound') {
+            inboundForm.value.materialName = material.name
+          } else {
+            outboundForm.value.materialName = material.name
+          }
+        }
+      } catch (error) {
+        console.error('获取物料信息失败:', error)
       }
     }
 
     // 生成批次号
     const generateBatchNo = async () => {
-      if (loading.value.generateBatchNo) return
-      loading.value.generateBatchNo = true
-      resetMessages()
-
       try {
-        const materialId = Number.parseInt(String(formData.value.materialId || ''), 10)
-        if (!Number.isFinite(materialId) || materialId <= 0) {
-          throw new Error('请先选择物料')
-        }
-        const ruleId = batchRules.value[0]?.id
-        if (!ruleId) throw new Error('未找到可用批次规则')
-
-        const result = await callFlashTool('flash.inventory.batchno.generate', {
-          ruleId,
-          materialId
-        }, true)
-        const batchNo = String(result?.data?.batch_no || '').trim()
-        if (!batchNo) throw new Error('批次号为空')
-        formData.value.batchNo = batchNo
-      } catch (err) {
-        formData.value.batchNo = `BATCH-${Date.now()}`
-        showError(`批次号工具不可用，已使用本地批次号: ${err.message}`)
-      } finally {
-        loading.value.generateBatchNo = false
+        const response = await window.flashSemanticTool('flash.inventory.batchno.generate', {})
+        inboundForm.value.batchNo = response.data?.batchNo || 'BATCH' + Date.now()
+      } catch (error) {
+        console.error('生成批次号失败:', error)
+        inboundForm.value.batchNo = 'BATCH' + Date.now()
       }
     }
 
-    // 保存草稿
-    const saveDraft = async () => {
-      if (!isFormValid.value) {
-        showError('请填写所有必填字段')
-        return
-      }
-
-      loading.value.saveDraft = true
-      resetMessages()
+    // 执行入库操作
+    const performInbound = async () => {
+      if (!validateInboundForm()) return
 
       try {
         const payload = {
-          draft_type: 'in',
-          status: 'created',
-          io_type: 'in',
-          material_id: Number(formData.value.materialId),
-          warehouse_id: String(formData.value.warehouseId),
-          quantity: Number(formData.value.quantity),
-          unit: String(formData.value.unit || '个').trim() || '个',
-          batch_no: String(formData.value.batchNo || '').trim() || null,
-          remark: String(formData.value.remarks || '').trim() || null
+          material_code: inboundForm.value.materialCode,
+          warehouse_id: inboundForm.value.warehouseId,
+          quantity: parseInt(inboundForm.value.quantity),
+          batch_no: inboundForm.value.batchNo,
+          remarks: inboundForm.value.remarks
         }
 
-        await requestApi({
-          url: '/inventory_drafts',
-          method: 'POST',
-          profile: 'scm',
-          contentProfile: 'scm',
-          body: payload,
-          extraHeaders: { Prefer: 'return=representation' }
+        await window.flashSemanticTool('flash.inventory.stock.in', {
+          payload,
+          confirm: true
         })
 
-        showSuccess('草稿保存成功')
-        formData.value = {
-          materialId: '',
-          warehouseId: '',
-          quantity: '',
-          unit: '',
-          batchNo: '',
-          remarks: ''
+        addToHistory('入库', inboundForm.value.materialName, inboundForm.value.quantity, '个', warehouses.value.find(w => w.id === inboundForm.value.warehouseId)?.name)
+        resetInboundForm()
+        alert('入库操作成功！')
+      } catch (error) {
+        console.error('入库操作失败:', error)
+        alert('入库操作失败，请重试')
+      }
+    }
+
+    // 执行出库操作
+    const performOutbound = async () => {
+      if (!validateOutboundForm()) return
+
+      try {
+        const payload = {
+          material_code: outboundForm.value.materialCode,
+          warehouse_id: outboundForm.value.warehouseId,
+          quantity: parseInt(outboundForm.value.quantity),
+          outbound_order: outboundForm.value.outboundOrder,
+          remarks: outboundForm.value.remarks
         }
-        await loadDraftHistory()
-      } catch (err) {
-        showError(`保存草稿失败: ${err.message}`)
-      } finally {
-        loading.value.saveDraft = false
+
+        await window.flashSemanticTool('flash.inventory.stock.out', {
+          payload,
+          confirm: true
+        })
+
+        addToHistory('出库', outboundForm.value.materialName, outboundForm.value.quantity, '个', warehouses.value.find(w => w.id === outboundForm.value.warehouseId)?.name)
+        resetOutboundForm()
+        alert('出库操作成功！')
+      } catch (error) {
+        console.error('出库操作失败:', error)
+        alert('出库操作失败，请重试')
       }
     }
 
-    // 加载草稿到表单
-    const loadDraft = (draft) => {
-      formData.value = {
-        materialId: draft.material_id,
-        warehouseId: draft.warehouse_id,
-        quantity: draft.quantity != null ? String(draft.quantity) : '',
-        unit: draft.unit || '',
-        batchNo: draft.batch_no || '',
-        remarks: draft.remark || ''
+    // 验证入库表单
+    const validateInboundForm = () => {
+      if (!inboundForm.value.materialCode) {
+        alert('请输入物料编码')
+        return false
       }
+      if (!inboundForm.value.materialName) {
+        alert('请获取物料信息')
+        return false
+      }
+      if (!inboundForm.value.warehouseId) {
+        alert('请选择仓库')
+        return false
+      }
+      if (!inboundForm.value.quantity || parseInt(inboundForm.value.quantity) <= 0) {
+        alert('请输入有效数量')
+        return false
+      }
+      if (!inboundForm.value.batchNo) {
+        alert('请生成批次号')
+        return false
+      }
+      return true
     }
 
-    // 格式化时间
-    const formatTime = (timestamp) => {
-      if (!timestamp) return ''
-      const date = new Date(timestamp)
-      return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
+    // 验证出库表单
+    const validateOutboundForm = () => {
+      if (!outboundForm.value.materialCode) {
+        alert('请输入物料编码')
+        return false
+      }
+      if (!outboundForm.value.materialName) {
+        alert('请获取物料信息')
+        return false
+      }
+      if (!outboundForm.value.warehouseId) {
+        alert('请选择仓库')
+        return false
+      }
+      if (!outboundForm.value.quantity || parseInt(outboundForm.value.quantity) <= 0) {
+        alert('请输入有效数量')
+        return false
+      }
+      if (!outboundForm.value.outboundOrder) {
+        alert('请输入出库单号')
+        return false
+      }
+      return true
+    }
+
+    // 添加到操作历史
+    const addToHistory = (type, materialName, quantity, unit, warehouse) => {
+      const now = new Date()
+      const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`
+
+      operationHistory.value.unshift({
+        type,
+        materialName,
+        quantity,
+        unit,
+        warehouse,
+        time: timeStr
       })
+
+      // 保持最多10条记录
+      if (operationHistory.value.length > 10) {
+        operationHistory.value.pop()
+      }
     }
+
+    // 重置入库表单
+    const resetInboundForm = () => {
+      inboundForm.value = {
+        materialCode: '',
+        materialName: '',
+        warehouseId: '',
+        quantity: '',
+        batchNo: '',
+        remarks: ''
+      }
+    }
+
+    // 重置出库表单
+    const resetOutboundForm = () => {
+      outboundForm.value = {
+        materialCode: '',
+        materialName: '',
+        warehouseId: '',
+        quantity: '',
+        outboundOrder: '',
+        remarks: ''
+      }
+    }
+
+    onMounted(() => {
+      initWarehouses()
+    })
 
     return {
-      formData,
-      materials,
+      currentMode,
       warehouses,
-      draftHistory,
-      error,
-      successMessage,
-      loading,
-      isFormValid,
-      handleMaterialChange,
-      handleQuantityInput,
+      operationHistory,
+      inboundForm,
+      outboundForm,
+      searchMaterial,
       generateBatchNo,
-      saveDraft,
-      loadDraft,
-      formatTime
+      performInbound,
+      performOutbound
     }
   }
 }
 </script>
 
 <style scoped>
-.pda-material-inbound {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 20px;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-}
+.flash-draft-page { min-height: 100vh; padding: 36px; color: #0f172a; background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%); font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+.hero { max-width: 860px; margin: 0 auto; padding: 34px 30px; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 20px; background: rgba(255, 255, 255, 0.78); box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08); }
+.hero-badge { width: fit-content; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #1d4ed8; background: rgba(59, 130, 246, 0.14); border: 1px solid rgba(59, 130, 246, 0.22); }
+.hero h1 { margin: 14px 0 10px; font-size: 38px; line-height: 1.15; }
+.hero p { margin: 0; font-size: 17px; color: #475569; }
 
-.header {
-  text-align: center;
-  margin-bottom: 30px;
-}
+.container { max-width: 860px; margin: 30px auto; }
+.mode-selector { display: flex; gap: 20px; margin-bottom: 30px; }
+.mode-btn { padding: 12px 24px; border: 1px solid #d1d5db; border-radius: 8px; background: white; cursor: pointer; font-size: 16px; transition: all 0.3s; }
+.mode-btn:hover { background: #f3f4f6; }
+.mode-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
 
-.header h1 {
-  color: #1d4ed8;
-  margin: 0;
-  font-size: 24px;
-}
+.form-container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); margin-bottom: 30px; }
+.form-container h2 { margin-top: 0; margin-bottom: 24px; color: #1f2937; }
+.form-group { margin-bottom: 20px; }
+.form-group label { display: block; margin-bottom: 8px; font-weight: 500; color: #374151; }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
+.form-group textarea { resize: vertical; min-height: 80px; }
+.batch-btn { margin-left: 10px; padding: 8px 16px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; }
+.submit-btn { width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; margin-top: 10px; }
+.submit-btn:hover { background: #2563eb; }
 
-.header p {
-  color: #64748b;
-  margin: 8px 0 0;
-  font-size: 14px;
-}
-
-.form-container {
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 8px;
-  font-weight: 500;
-  color: #334155;
-  font-size: 14px;
-}
-
-.form-group select,
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 14px;
-  box-sizing: border-box;
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 80px;
-}
-
-.batch-no-container {
-  display: flex;
-  gap: 10px;
-}
-
-.batch-no-container input {
-  flex: 1;
-}
-
-.generate-btn {
-  padding: 10px 16px;
-  background: #3b82f6;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.generate-btn:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
-}
-
-.button-group {
-  display: flex;
-  justify-content: center;
-  margin-top: 24px;
-}
-
-.save-btn {
-  padding: 12px 24px;
-  background: #10b981;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.save-btn:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
-}
-
-.draft-history {
-  margin-top: 30px;
-}
-
-.draft-history h2 {
-  font-size: 18px;
-  margin-bottom: 16px;
-  color: #334155;
-}
-
-.loading, .empty {
-  text-align: center;
-  padding: 20px;
-  color: #64748b;
-}
-
-.draft-list {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.draft-item {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 10px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.draft-item:hover {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transform: translateY(-1px);
-}
-
-.draft-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
-.draft-header .material {
-  color: #1e40af;
-  font-weight: 500;
-}
-
-.draft-header .warehouse {
-  color: #059669;
-}
-
-.draft-header .quantity {
-  color: #7c3aed;
-  font-weight: 500;
-}
-
-.draft-footer {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.draft-footer .batch-no {
-  font-family: monospace;
-}
-
-.draft-footer .time {
-  color: #94a3b8;
-}
-
-.error-message {
-  background: #fee2e2;
-  color: #dc2626;
-  padding: 12px;
-  border-radius: 6px;
-  margin: 16px 0;
-  font-size: 14px;
-}
-
-.success-message {
-  background: #d1fae5;
-  color: #059669;
-  padding: 12px;
-  border-radius: 6px;
-  margin: 16px 0;
-  font-size: 14px;
-}
-
-/* 移动端适配 */
-@media (max-width: 480px) {
-  .pda-material-inbound {
-    padding: 10px;
-  }
-  
-  .header h1 {
-    font-size: 20px;
-  }
-  
-  .form-container {
-    padding: 15px;
-  }
-  
-  .form-group label {
-    font-size: 13px;
-  }
-  
-  .form-group select,
-  .form-group input,
-  .form-group textarea {
-    font-size: 13px;
-    padding: 8px;
-  }
-  
-  .generate-btn,
-  .save-btn {
-    font-size: 14px;
-    padding: 10px 20px;
-  }
-}
+.history-section { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); }
+.history-section h2 { margin-top: 0; margin-bottom: 20px; color: #1f2937; }
+.history-list { max-height: 300px; overflow-y: auto; }
+.history-item { padding: 16px; border-bottom: 1px solid #f3f4f6; }
+.history-item:last-child { border-bottom: none; }
+.record-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.record-type { font-weight: 500; color: #374151; }
+.record-time { color: #6b7280; font-size: 14px; }
+.record-details { display: flex; justify-content: space-between; }
+.record-warehouse { color: #6b7280; font-size: 14px; }
 </style>

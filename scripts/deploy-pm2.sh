@@ -65,6 +65,7 @@ for patch in sql/workflow_runtime_patch.sql sql/patch_lightweight_ontology_runti
     echo "   应用 $patch ..."
     docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore < "$patch"
 done
+docker exec -i eiscore-db psql -U postgres -d eiscore -c "NOTIFY pgrst, 'reload schema';" >/dev/null
 
 echo ""
 echo "🧪 Step 5/9: 执行本体语义 UTF-8 校验..."
@@ -74,7 +75,7 @@ echo "🧪 Step 5/9: 执行本体语义 UTF-8 校验..."
 echo ""
 echo "📦 Step 6/9: 安装前端依赖..."
 
-for app in eiscore-base eiscore-hr eiscore-materials eiscore-apps; do
+for app in eiscore-base eiscore-hr eiscore-materials eiscore-apps eiscore-sales eiscore-purchase eiscore-production; do
     if [ -d "$app" ]; then
         if [ ! -d "$app/node_modules" ]; then
             echo "   安装 $app 依赖..."
@@ -119,6 +120,9 @@ echo ""
 echo "🌐 访问地址："
 echo "   主应用：http://localhost:8080"
 echo "   应用中心：http://localhost:8080/apps"
+echo "   销售模块：http://localhost:8080/sales"
+echo "   采购模块：http://localhost:8080/purchase"
+echo "   生产模块：http://localhost:8080/production"
 echo ""
 echo "🐛 Docker 日志："
 echo "   docker-compose logs -f agent-runtime"

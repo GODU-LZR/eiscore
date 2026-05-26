@@ -3,6 +3,108 @@
 --   cat sql/patch_lightweight_ontology_runtime.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 
 -- -----------------------------------------------------------------------------
+-- 0) Workflow approval runtime schema guards
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS workflow.task_approvals (
+    id SERIAL PRIMARY KEY,
+    instance_id INT NOT NULL REFERENCES workflow.instances(id) ON DELETE CASCADE,
+    definition_id INT REFERENCES workflow.definitions(id) ON DELETE SET NULL,
+    task_id TEXT NOT NULL,
+    actor_username TEXT NOT NULL,
+    actor_role TEXT,
+    decision TEXT NOT NULL DEFAULT 'approved',
+    comment TEXT,
+    payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT task_approvals_decision_check CHECK (decision IN ('approved', 'rejected'))
+);
+
+ALTER TABLE workflow.task_assignments
+    ADD COLUMN IF NOT EXISTS approval_mode TEXT DEFAULT 'any';
+ALTER TABLE workflow.task_assignments
+    ADD COLUMN IF NOT EXISTS required_approvals INT DEFAULT 1;
+ALTER TABLE workflow.task_assignments
+    ADD COLUMN IF NOT EXISTS require_comment BOOLEAN DEFAULT false;
+
+CREATE INDEX IF NOT EXISTS idx_workflow_task_approvals_instance_task
+    ON workflow.task_approvals(instance_id, task_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_task_approvals_task_actor
+    ON workflow.task_approvals(definition_id, task_id, actor_username);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'task_assignments_approval_mode_check'
+          AND conrelid = 'workflow.task_assignments'::regclass
+    ) THEN
+        ALTER TABLE workflow.task_assignments
+            ADD CONSTRAINT task_assignments_approval_mode_check
+            CHECK (approval_mode IN ('any', 'quota', 'all'));
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'task_assignments_required_approvals_check'
+          AND conrelid = 'workflow.task_assignments'::regclass
+    ) THEN
+        ALTER TABLE workflow.task_assignments
+            ADD CONSTRAINT task_assignments_required_approvals_check
+            CHECK (required_approvals >= 1);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'task_approvals_instance_task_actor_key'
+          AND conrelid = 'workflow.task_approvals'::regclass
+    ) THEN
+        ALTER TABLE workflow.task_approvals
+            ADD CONSTRAINT task_approvals_instance_task_actor_key
+            UNIQUE (instance_id, task_id, actor_username);
+    END IF;
+END $$;
+
+UPDATE workflow.task_assignments
+SET approval_mode = 'any'
+WHERE approval_mode IS NULL OR btrim(approval_mode) = '';
+
+UPDATE workflow.task_assignments
+SET required_approvals = 1
+WHERE required_approvals IS NULL OR required_approvals < 1;
+
+ALTER TABLE workflow.task_approvals ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON workflow.task_approvals TO web_user;
+
+DROP POLICY IF EXISTS workflow_task_approvals_select ON workflow.task_approvals;
+CREATE POLICY workflow_task_approvals_select ON workflow.task_approvals
+    FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS workflow_task_approvals_insert ON workflow.task_approvals;
+CREATE POLICY workflow_task_approvals_insert ON workflow.task_approvals
+    FOR INSERT WITH CHECK (
+        COALESCE((NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'app_role') = 'super_admin', false)
+    );
+
+DROP POLICY IF EXISTS workflow_task_approvals_update ON workflow.task_approvals;
+CREATE POLICY workflow_task_approvals_update ON workflow.task_approvals
+    FOR UPDATE USING (
+        COALESCE((NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'app_role') = 'super_admin', false)
+    )
+    WITH CHECK (
+        COALESCE((NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'app_role') = 'super_admin', false)
+    );
+
+DROP POLICY IF EXISTS workflow_task_approvals_delete ON workflow.task_approvals;
+CREATE POLICY workflow_task_approvals_delete ON workflow.task_approvals
+    FOR DELETE USING (
+        COALESCE((NULLIF(current_setting('request.jwt.claims', true), '')::jsonb ->> 'app_role') = 'super_admin', false)
+    );
+
+-- -----------------------------------------------------------------------------
 -- 1) Ontology projection: parse permission codes to semantic fields
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE VIEW public.v_permission_ontology AS
@@ -647,6 +749,7 @@ DECLARE
     v_claims jsonb := workflow.current_claims();
     v_actor TEXT := NULLIF(btrim(v_claims ->> 'username'), '');
     v_actor_role TEXT := NULLIF(btrim(v_claims ->> 'app_role'), '');
+    v_actor_key TEXT := COALESCE(NULLIF(btrim(v_claims ->> 'username'), ''), '__unknown__');
     v_next_task_id TEXT := NULLIF(btrim(COALESCE(p_next_task_id, '')), '');
     v_complete BOOLEAN := COALESCE(p_complete, false);
     v_current workflow.instances%ROWTYPE;
@@ -659,6 +762,24 @@ DECLARE
     v_to_state TEXT;
     v_state_apply JSONB := '{}'::jsonb;
     v_event_id INT;
+    v_assignment workflow.task_assignments%ROWTYPE;
+    v_approval_mode TEXT := 'any';
+    v_required_approvals INT := 1;
+    v_require_comment BOOLEAN := false;
+    v_approval_comment TEXT := NULLIF(
+        btrim(
+            COALESCE(
+                p_variables ->> 'approval_comment',
+                p_variables ->> 'comment',
+                p_variables ->> 'opinion',
+                ''
+            )
+        ),
+        ''
+    );
+    v_approval_count INT := 0;
+    v_needs_quorum BOOLEAN := false;
+    v_payload JSONB := COALESCE(p_variables, '{}'::jsonb);
 BEGIN
     IF p_instance_id IS NULL THEN
         RAISE EXCEPTION 'instance_id is required' USING ERRCODE = '22023';
@@ -722,12 +843,126 @@ BEGIN
         END IF;
     END IF;
 
+    SELECT *
+    INTO v_assignment
+    FROM workflow.task_assignments ta
+    WHERE ta.definition_id = v_current.definition_id
+      AND ta.task_id = v_from_task
+    ORDER BY ta.id DESC
+    LIMIT 1;
+
+    IF FOUND THEN
+        v_approval_mode := lower(COALESCE(NULLIF(btrim(v_assignment.approval_mode), ''), 'any'));
+        IF v_approval_mode NOT IN ('any', 'quota', 'all') THEN
+            v_approval_mode := 'any';
+        END IF;
+        v_require_comment := COALESCE(v_assignment.require_comment, false);
+        v_required_approvals := GREATEST(COALESCE(v_assignment.required_approvals, 1), 1);
+        IF v_approval_mode = 'all' AND COALESCE(array_length(v_assignment.candidate_users, 1), 0) > 0 THEN
+            v_required_approvals := GREATEST(array_length(v_assignment.candidate_users, 1), 1);
+        END IF;
+    END IF;
+
+    IF v_require_comment AND v_approval_comment IS NULL THEN
+        RAISE EXCEPTION 'approval comment required' USING ERRCODE = '22023';
+    END IF;
+
+    IF v_from_task IS NOT NULL AND btrim(v_from_task) <> '' THEN
+        INSERT INTO workflow.task_approvals (
+            instance_id,
+            definition_id,
+            task_id,
+            actor_username,
+            actor_role,
+            decision,
+            comment,
+            payload,
+            created_at,
+            updated_at
+        )
+        VALUES (
+            v_current.id,
+            v_current.definition_id,
+            v_from_task,
+            v_actor_key,
+            v_actor_role,
+            'approved',
+            v_approval_comment,
+            v_payload,
+            NOW(),
+            NOW()
+        )
+        ON CONFLICT (instance_id, task_id, actor_username) DO UPDATE
+        SET actor_role = EXCLUDED.actor_role,
+            decision = EXCLUDED.decision,
+            comment = EXCLUDED.comment,
+            payload = EXCLUDED.payload,
+            updated_at = NOW();
+    END IF;
+
+    v_needs_quorum := v_approval_mode IN ('quota', 'all') AND v_required_approvals > 1;
+    IF v_needs_quorum AND v_from_task IS NOT NULL AND btrim(v_from_task) <> '' THEN
+        SELECT COUNT(*) INTO v_approval_count
+        FROM workflow.task_approvals ta
+        WHERE ta.instance_id = v_current.id
+          AND ta.task_id = v_from_task
+          AND ta.decision = 'approved';
+
+        IF v_approval_count < v_required_approvals THEN
+            UPDATE workflow.instances
+            SET variables = COALESCE(variables, '{}'::jsonb) || v_payload
+            WHERE id = p_instance_id
+            RETURNING * INTO v_updated;
+
+            INSERT INTO workflow.instance_events (
+                instance_id,
+                definition_id,
+                event_type,
+                from_task_id,
+                to_task_id,
+                actor_username,
+                actor_role,
+                payload
+            )
+            VALUES (
+                v_updated.id,
+                v_updated.definition_id,
+                'TASK_APPROVAL_RECORDED',
+                v_from_task,
+                v_from_task,
+                v_actor,
+                v_actor_role,
+                jsonb_build_object(
+                    'approval', jsonb_build_object(
+                        'mode', v_approval_mode,
+                        'required', v_required_approvals,
+                        'approved', v_approval_count,
+                        'comment', COALESCE(v_approval_comment, '')
+                    )
+                ) || v_payload
+            )
+            RETURNING id INTO v_event_id;
+
+            v_state_apply := workflow.apply_mapped_state_to_business(
+                v_updated.definition_id,
+                v_from_task,
+                v_updated.business_key
+            );
+
+            UPDATE workflow.instance_events
+            SET payload = COALESCE(payload, '{}'::jsonb) || jsonb_build_object('state_apply', v_state_apply)
+            WHERE id = v_event_id;
+
+            RETURN v_updated;
+        END IF;
+    END IF;
+
     IF v_complete THEN
         UPDATE workflow.instances
         SET current_task_id = NULL,
             status = 'COMPLETED',
             ended_at = COALESCE(ended_at, NOW()),
-            variables = COALESCE(p_variables, variables)
+            variables = COALESCE(variables, '{}'::jsonb) || v_payload
         WHERE id = p_instance_id
         RETURNING * INTO v_updated;
     ELSE
@@ -735,7 +970,7 @@ BEGIN
         SET current_task_id = v_next_task_id,
             status = 'ACTIVE',
             ended_at = NULL,
-            variables = COALESCE(p_variables, variables)
+            variables = COALESCE(variables, '{}'::jsonb) || v_payload
         WHERE id = p_instance_id
         RETURNING * INTO v_updated;
     END IF;
@@ -758,7 +993,14 @@ BEGIN
         v_updated.current_task_id,
         v_actor,
         v_actor_role,
-        COALESCE(p_variables, '{}'::jsonb)
+        jsonb_build_object(
+            'approval', jsonb_build_object(
+                'mode', v_approval_mode,
+                'required', v_required_approvals,
+                'approved', GREATEST(v_approval_count, 1),
+                'comment', COALESCE(v_approval_comment, '')
+            )
+        ) || v_payload
     )
     RETURNING id INTO v_event_id;
 
@@ -797,3 +1039,6 @@ REVOKE ALL ON FUNCTION workflow.start_workflow_instance(INT, TEXT, TEXT, JSONB) 
 REVOKE ALL ON FUNCTION workflow.transition_workflow_instance(INT, TEXT, BOOLEAN, JSONB) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION workflow.start_workflow_instance(INT, TEXT, TEXT, JSONB) TO web_user;
 GRANT EXECUTE ON FUNCTION workflow.transition_workflow_instance(INT, TEXT, BOOLEAN, JSONB) TO web_user;
+
+-- Ensure PostgREST refreshes schema cache after patching workflow runtime.
+NOTIFY pgrst, 'reload schema';

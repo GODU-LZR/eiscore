@@ -156,7 +156,7 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Setting, Plus, Delete } from '@element-plus/icons-vue'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
@@ -172,6 +172,7 @@ import {
 } from '@/utils/inventory-io-types'
 
 const router = useRouter()
+const route = useRoute()
 const gridRef = ref(null)
 const formRef = ref(null)
 const selectedRow = ref(null)
@@ -184,6 +185,55 @@ const loadedRows = ref([])
 
 const userStore = useUserStore()
 const operatorName = computed(() => userStore.userInfo?.username || 'Admin')
+const workflowContext = computed(() => {
+  const query = route.query || {}
+  const instanceId = String(query.wf_instance || '').trim()
+  const key = String(query.wf_key || '').trim()
+  return {
+    active: Boolean(instanceId && key),
+    instanceId,
+    key,
+    taskId: String(query.wf_task || '').trim(),
+    definitionId: String(query.wf_definition || '').trim(),
+    workflowAppId: String(query.wf_app || '').trim()
+  }
+})
+
+const buildWorkflowProps = (baseProps = {}) => {
+  const next = baseProps && typeof baseProps === 'object' && !Array.isArray(baseProps) ? { ...baseProps } : {}
+  const ctx = workflowContext.value
+  if (!ctx.active) return next
+  next.workflow_instance_id = ctx.instanceId
+  next.workflow_business_key = ctx.key
+  next.workflow_task_id = ctx.taskId || ''
+  next.workflow_definition_id = ctx.definitionId || ''
+  next.workflow_app_id = ctx.workflowAppId || ''
+  next.workflow_source = 'materials_inventory_stock_in'
+  return next
+}
+
+const ensureDraftWorkflowBinding = async (rowId) => {
+  const ctx = workflowContext.value
+  if (!ctx.active || !rowId) return
+  try {
+    const rows = await request({
+      url: `/inventory_drafts?id=eq.${rowId}&select=id,properties&limit=1`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' }
+    })
+    const row = Array.isArray(rows) ? rows[0] : null
+    if (!row?.id) return
+    const merged = buildWorkflowProps(row.properties)
+    await request({
+      url: `/inventory_drafts?id=eq.${rowId}`,
+      method: 'patch',
+      headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
+      data: { properties: merged }
+    })
+  } catch (e) {
+    console.warn('ensure draft workflow binding failed', e)
+  }
+}
 
 const unitOptions = ['个', '件', '箱', '吨', '千克', '克', '斤', '米']
 const unitSelectOptions = unitOptions.map(item => ({ label: item, value: item }))
@@ -792,7 +842,7 @@ const submitStockIn = async () => {
 
   drawer.loading = true
   try {
-    await request({
+    const created = await request({
       url: '/inventory_drafts',
       method: 'post',
       headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm', 'Prefer': 'return=representation' },
@@ -808,11 +858,21 @@ const submitStockIn = async () => {
         io_type: normalizeTypeName(io_type),
         production_date,
         remark,
-        operator: operatorName.value
+        operator: operatorName.value,
+        properties: buildWorkflowProps()
       }
     })
 
-    ElMessage.success('已创建入库草稿')
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (createdRow?.id) {
+      await ensureDraftWorkflowBinding(createdRow.id)
+    }
+
+    if (workflowContext.value.active) {
+      ElMessage.success(`已创建入库草稿并关联流程单号 ${workflowContext.value.instanceId}`)
+    } else {
+      ElMessage.success('已创建入库草稿')
+    }
     drawer.visible = false
     gridRef.value?.loadData?.()
   } catch (e) {
@@ -863,6 +923,7 @@ const handleCellValueChanged = async (params) => {
 
   if (field === 'status') {
     if (params.newValue !== 'active' || params.oldValue === 'active') return
+    await ensureDraftWorkflowBinding(row.id)
     if (!row.material_id || !row.warehouse_id || !row.quantity || !row.unit || !row.batch_no || !normalizeTypeName(row.io_type)) {
       ElMessage.warning('草稿信息不完整，无法生效')
       await request({

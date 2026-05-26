@@ -22,6 +22,9 @@ export default defineConfig({
           rawPath.startsWith('/materials') ||
           rawPath.startsWith('/hr') ||
           rawPath.startsWith('/apps') ||
+          rawPath.startsWith('/sales') ||
+          rawPath.startsWith('/purchase') ||
+          rawPath.startsWith('/production') ||
           rawPath.startsWith('/mobile')
         const isAppsDraftPreview =
           rawPath === '/apps/preview/flash-draft' ||
@@ -53,6 +56,9 @@ export default defineConfig({
           '/apps': '/apps/',
           '/hr': '/hr/',
           '/materials': '/materials/',
+          '/sales': '/sales/',
+          '/purchase': '/purchase/',
+          '/production': '/production/',
           '/mobile': '/mobile/'
         }
         const target = redirectMap[rawPath]
@@ -119,6 +125,39 @@ export default defineConfig({
             rawPath === '/apps/preview/flash-draft' ||
             rawPath.startsWith('/apps/preview/')
           if (isPreview) return undefined
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
+          return isDocument ? '/index.html' : undefined
+        }
+      },
+      '/sales': {
+        target: 'http://localhost:8085',
+        changeOrigin: true,
+        ws: true,
+        bypass: (req) => {
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
+          return isDocument ? '/index.html' : undefined
+        }
+      },
+      '/purchase': {
+        target: 'http://localhost:8088',
+        changeOrigin: true,
+        ws: true,
+        bypass: (req) => {
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
+          return isDocument ? '/index.html' : undefined
+        }
+      },
+      '/production': {
+        target: 'http://localhost:8087',
+        changeOrigin: true,
+        ws: true,
+        bypass: (req) => {
           const isDocument =
             req.headers['sec-fetch-dest'] === 'document' ||
             req.headers['sec-fetch-mode'] === 'navigate'

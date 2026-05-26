@@ -160,9 +160,6 @@ import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } 
 import { useRouter } from 'vue-router'
 import { getToken } from '@/utils/auth'
 import MarkdownIt from 'markdown-it'
-import * as echarts from 'echarts'
-import * as XLSX from 'xlsx'
-import mammoth from 'mammoth'
 
 const router = useRouter()
 
@@ -172,6 +169,33 @@ const MAX_SESSIONS = 10
 const MAX_MESSAGES = 40
 const HISTORY_WINDOW = 10
 const CODE_FENCE = '```'
+let echartsLib = null
+let xlsxLib = null
+let mammothLib = null
+
+const loadEcharts = async () => {
+  if (!echartsLib) {
+    echartsLib = await import('echarts')
+  }
+  return echartsLib
+}
+
+const getEchartsSync = () => echartsLib
+
+const loadXlsx = async () => {
+  if (!xlsxLib) {
+    xlsxLib = await import('xlsx')
+  }
+  return xlsxLib
+}
+
+const loadMammoth = async () => {
+  if (!mammothLib) {
+    const mod = await import('mammoth')
+    mammothLib = mod.default || mod
+  }
+  return mammothLib
+}
 
 const SYSTEM_PROMPT = `你是一名企业经营分析助手，具备全域数据查询和智能分析能力。你可以查询和分析以下业务数据：
 
@@ -438,6 +462,7 @@ const unobserveChartNode = (node) => {
 const renderEchartsNode = async (node, attempt = 0) => {
   const maxRetries = 8
   try {
+    const echarts = await loadEcharts()
     node.setAttribute('data-processed', 'true')
     node.classList.add('is-rendering')
     const jsonStr = decodeURIComponent(node.getAttribute('data-option') || '')
@@ -480,8 +505,9 @@ const parseFileContent = (file) => {
     const reader = new FileReader()
     if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
       reader.readAsArrayBuffer(file)
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         try {
+          const XLSX = await loadXlsx()
           const data = new Uint8Array(event.target.result)
           const workbook = XLSX.read(data, { type: 'array' })
           const firstSheetName = workbook.SheetNames[0]
@@ -497,7 +523,8 @@ const parseFileContent = (file) => {
       reader.onload = () => resolve(`[CSV数据: ${file.name}]\n${reader.result}\n`)
     } else if (file.name.endsWith('.docx')) {
       reader.readAsArrayBuffer(file)
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
+        const mammoth = await loadMammoth()
         mammoth.extractRawText({ arrayBuffer: event.target.result })
           .then(res => resolve(`[Word文档: ${file.name}]\n${res.value}\n`))
           .catch(() => resolve(`[解析错误] ${file.name}`))
@@ -625,20 +652,23 @@ const buildPrintableHtml = (messageIndex) => {
   stripReportLeadPreamble(printable)
 
   // 将 ECharts 实例转换为图片
+  const echarts = getEchartsSync()
   const printCharts = Array.from(printable.querySelectorAll('.echarts-chart'))
   const liveCharts = Array.from(row.querySelectorAll('.echarts-chart'))
-  printCharts.forEach((node, i) => {
-    const liveNode = liveCharts[i]
-    const instance = liveNode ? echarts.getInstanceByDom(liveNode) : null
-    if (!instance) return
-    const dataUrl = instance.getDataURL({ pixelRatio: 2, backgroundColor: '#ffffff' })
-    const img = document.createElement('img')
-    img.src = dataUrl
-    img.style.maxWidth = '100%'
-    img.style.display = 'block'
-    img.style.margin = '12px 0'
-    node.replaceWith(img)
-  })
+  if (echarts) {
+    printCharts.forEach((node, i) => {
+      const liveNode = liveCharts[i]
+      const instance = liveNode ? echarts.getInstanceByDom(liveNode) : null
+      if (!instance) return
+      const dataUrl = instance.getDataURL({ pixelRatio: 2, backgroundColor: '#ffffff' })
+      const img = document.createElement('img')
+      img.src = dataUrl
+      img.style.maxWidth = '100%'
+      img.style.display = 'block'
+      img.style.margin = '12px 0'
+      node.replaceWith(img)
+    })
+  }
   printable.querySelectorAll('.echarts-chart').forEach(n => n.remove())
 
   return printable.innerHTML
@@ -930,6 +960,8 @@ onMounted(() => {
           clearChartResizeTimer(node)
           const timer = setTimeout(() => {
             chartResizeTimers.delete(node)
+            const echarts = getEchartsSync()
+            if (!echarts) return
             const chart = echarts.getInstanceByDom(node)
             if (chart) requestAnimationFrame(() => { try { chart.resize() } catch {} })
           }, 80)
@@ -942,6 +974,8 @@ onMounted(() => {
 })
 
 const handleWindowResize = () => {
+  const echarts = getEchartsSync()
+  if (!echarts) return
   document.querySelectorAll('.echarts-chart[data-processed="true"]').forEach(node => {
     const chart = echarts.getInstanceByDom(node)
     if (chart) requestAnimationFrame(() => { try { chart.resize() } catch {} })
@@ -952,9 +986,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleWindowResize)
   chartResizeTimers.forEach(timer => clearTimeout(timer))
   chartResizeTimers.clear()
+  const echarts = getEchartsSync()
   document.querySelectorAll('.echarts-chart').forEach(node => {
     unobserveChartNode(node)
-    const chart = echarts.getInstanceByDom(node)
+    const chart = echarts ? echarts.getInstanceByDom(node) : null
     if (chart) chart.dispose()
   })
   if (chartResizeObserver) { chartResizeObserver.disconnect(); chartResizeObserver = null }

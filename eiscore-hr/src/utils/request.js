@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { getToken, clearAuthAndRedirect } from '@/utils/auth'
 
 // 创建 axios 实例
 const service = axios.create({
@@ -11,16 +12,8 @@ const service = axios.create({
 service.interceptors.request.use(
   config => {
     // 1. 获取 Token (从 localStorage)
-    const tokenStr = localStorage.getItem('auth_token')
-    if (tokenStr) {
-      // 兼容直接存字符串或存 JSON 的情况
-      let token = tokenStr
-      try {
-        const parsed = JSON.parse(tokenStr)
-        if (parsed.token) token = parsed.token
-      } catch (e) {
-        // 是纯字符串，不用处理
-      }
+    const token = getToken()
+    if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
     }
 
@@ -51,13 +44,7 @@ service.interceptors.response.use(
   error => {
     if (error.response && error.response.status === 401) {
       ElMessage.error('登录已过期，请重新登录')
-      try {
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('user_info')
-      } catch (e) {}
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login'
-      }
+      clearAuthAndRedirect('/login')
     } else {
       ElMessage.error(error.message || '请求失败')
     }

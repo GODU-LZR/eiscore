@@ -184,7 +184,13 @@ const stateMapping = ref({ target_table: '', state_field: '', state_value: '' })
 const mappingLoading = ref(false)
 const mappingSaving = ref(false)
 const autoRuleSaving = ref(false)
-const taskAssignment = ref({ candidate_roles: [], candidate_users: [] })
+const taskAssignment = ref({
+  candidate_roles: [],
+  candidate_users: [],
+  approval_mode: 'any',
+  required_approvals: 1,
+  require_comment: false
+})
 const assignmentLoading = ref(false)
 const assignmentSaving = ref(false)
 const roleOptions = ref([])
@@ -228,6 +234,12 @@ const WORKFLOW_STATE_OPTIONS = Object.freeze([
   { label: '创建', value: 'created' },
   { label: '生效', value: 'active' },
   { label: '锁定', value: 'locked' }
+])
+
+const APPROVAL_MODE_OPTIONS = Object.freeze([
+  { label: '单人通过', value: 'any' },
+  { label: '多人会签（按人数）', value: 'quota' },
+  { label: '全员会签（按指定用户）', value: 'all' }
 ])
 
 const LEGACY_BINDABLE_APP_OPTIONS = Object.freeze([
@@ -373,7 +385,10 @@ const BindFormPanel = defineComponent({
     mode: { type: String, default: 'simple' },
     businessAppOptions: { type: Array, default: () => [] },
     businessAppId: { type: String, default: '' },
-    taskAssignment: { type: Object, default: () => ({}) },
+    taskAssignment: {
+      type: Object,
+      default: () => ({ candidate_roles: [], candidate_users: [], approval_mode: 'any', required_approvals: 1, require_comment: false })
+    },
     assignmentLoading: { type: Boolean, default: false },
     assignmentSaving: { type: Boolean, default: false },
     roleOptions: { type: Array, default: () => [] },
@@ -497,6 +512,30 @@ const BindFormPanel = defineComponent({
                   label: item.label,
                   value: item.value
                 })))),
+                h(ElFormItem, { label: '审批模式' }, () => h(ElSelect, {
+                  modelValue: props.taskAssignment?.approval_mode || 'any',
+                  disabled: props.assignmentLoading,
+                  'onUpdate:modelValue': (value) => updateAssignmentField('approval_mode', normalizeApprovalMode(value))
+                }, () => APPROVAL_MODE_OPTIONS.map((item) => h(ElOption, {
+                  key: item.value,
+                  label: item.label,
+                  value: item.value
+                })))),
+                ...(normalizeApprovalMode(props.taskAssignment?.approval_mode) === 'quota'
+                  ? [h(ElFormItem, { label: '会签人数' }, () => h(ElInput, {
+                    modelValue: String(normalizeRequiredApprovals(props.taskAssignment?.required_approvals)),
+                    type: 'number',
+                    min: 1,
+                    placeholder: '至少 2',
+                    disabled: props.assignmentLoading,
+                    'onUpdate:modelValue': (value) => updateAssignmentField('required_approvals', normalizeRequiredApprovals(value))
+                  }))]
+                  : []),
+                h(ElFormItem, { label: '意见必填' }, () => h(ElSwitch, {
+                  modelValue: props.taskAssignment?.require_comment === true,
+                  disabled: props.assignmentLoading,
+                  'onUpdate:modelValue': (value) => updateAssignmentField('require_comment', value === true)
+                })),
                 h('div', { class: 'mapping-actions' }, [
                   h(ElButton, { type: 'primary', size: 'small', loading: props.mappingSaving, onClick: saveMapping }, () => '保存状态'),
                   h(ElButton, { type: 'primary', size: 'small', plain: true, loading: props.autoRuleSaving, onClick: saveAutoRule }, () => '保存推进'),
@@ -588,6 +627,30 @@ const BindFormPanel = defineComponent({
             label: item.label,
             value: item.value
           })))),
+          h(ElFormItem, { label: '审批模式' }, () => h(ElSelect, {
+            modelValue: props.taskAssignment?.approval_mode || 'any',
+            disabled: props.assignmentLoading,
+            'onUpdate:modelValue': (value) => updateAssignmentField('approval_mode', normalizeApprovalMode(value))
+          }, () => APPROVAL_MODE_OPTIONS.map((item) => h(ElOption, {
+            key: item.value,
+            label: item.label,
+            value: item.value
+          })))),
+          ...(normalizeApprovalMode(props.taskAssignment?.approval_mode) === 'quota'
+            ? [h(ElFormItem, { label: '会签人数' }, () => h(ElInput, {
+              modelValue: String(normalizeRequiredApprovals(props.taskAssignment?.required_approvals)),
+              type: 'number',
+              min: 1,
+              placeholder: '按审批模式生效',
+              disabled: props.assignmentLoading,
+              'onUpdate:modelValue': (value) => updateAssignmentField('required_approvals', normalizeRequiredApprovals(value))
+            }))]
+            : []),
+          h(ElFormItem, { label: '意见必填' }, () => h(ElSwitch, {
+            modelValue: props.taskAssignment?.require_comment === true,
+            disabled: props.assignmentLoading,
+            'onUpdate:modelValue': (value) => updateAssignmentField('require_comment', value === true)
+          })),
           h('div', { class: 'mapping-actions' }, [
             h(ElButton, { type: 'primary', size: 'small', loading: props.assignmentSaving, onClick: saveAssignment }, () => '保存分派')
           ])
@@ -669,8 +732,28 @@ const normalizeStringList = (value) => {
     .filter(Boolean)
 }
 
+const normalizeApprovalMode = (value) => {
+  const mode = String(value || '').trim().toLowerCase()
+  if (mode === 'quota' || mode === 'all') return mode
+  return 'any'
+}
+
+const normalizeRequiredApprovals = (value) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return 1
+  return Math.max(1, Math.floor(parsed))
+}
+
+const normalizeRequireComment = (value) => value === true
+
 const resetTaskAssignment = () => {
-  taskAssignment.value = { candidate_roles: [], candidate_users: [] }
+  taskAssignment.value = {
+    candidate_roles: [],
+    candidate_users: [],
+    approval_mode: 'any',
+    required_approvals: 1,
+    require_comment: false
+  }
 }
 
 const ensureWorkflowDefinitionId = async (token) => {
@@ -716,7 +799,10 @@ const syncTaskAssignment = async (element) => {
     const row = Array.isArray(response.data) ? response.data[0] : null
     taskAssignment.value = {
       candidate_roles: normalizeStringList(row?.candidate_roles),
-      candidate_users: normalizeStringList(row?.candidate_users)
+      candidate_users: normalizeStringList(row?.candidate_users),
+      approval_mode: normalizeApprovalMode(row?.approval_mode),
+      required_approvals: normalizeRequiredApprovals(row?.required_approvals),
+      require_comment: normalizeRequireComment(row?.require_comment)
     }
   } catch (error) {
     resetTaskAssignment()
@@ -862,7 +948,10 @@ const saveTaskAssignment = async () => {
       definition_id: definitionId,
       task_id: selectedElement.value.id,
       candidate_roles: normalizeStringList(taskAssignment.value.candidate_roles),
-      candidate_users: normalizeStringList(taskAssignment.value.candidate_users)
+      candidate_users: normalizeStringList(taskAssignment.value.candidate_users),
+      approval_mode: normalizeApprovalMode(taskAssignment.value.approval_mode),
+      required_approvals: normalizeRequiredApprovals(taskAssignment.value.required_approvals),
+      require_comment: normalizeRequireComment(taskAssignment.value.require_comment)
     }
     const headers = {
       ...getWorkflowHeaders(token),
@@ -962,6 +1051,7 @@ const loadAppData = async () => {
     appData.value = response.data[0]
     appData.value.config = toConfigObject(appData.value?.config)
     const appXml = normalizeBpmnXml(appData.value?.bpmn_xml || '')
+    const hasStoredXml = Boolean(String(appXml || '').trim())
     let resolvedXml = appXml
 
     if (!isBpmnXmlUsable(appXml)) {
@@ -969,10 +1059,14 @@ const loadAppData = async () => {
       const fallbackXml = await loadFallbackDefinitionXml(token, appId.value, configuredDefinitionId)
       if (isBpmnXmlUsable(fallbackXml)) {
         resolvedXml = fallbackXml
-        ElMessage.warning('检测到应用流程图异常，已自动回退到流程定义版本')
+        if (hasStoredXml) {
+          ElMessage.warning('检测到应用流程图异常，已自动回退到流程定义版本')
+        }
       } else {
         resolvedXml = defaultBpmnXml
-        ElMessage.warning('流程定义异常，已回退默认模板，请导入或重新绘制后保存')
+        if (hasStoredXml || configuredDefinitionId !== null) {
+          ElMessage.warning('流程定义异常，已回退默认模板，请导入或重新绘制后保存')
+        }
       }
     }
 

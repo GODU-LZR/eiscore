@@ -42,6 +42,7 @@ for patch in sql/workflow_runtime_patch.sql sql/patch_lightweight_ontology_runti
     echo "   应用 $patch ..."
     docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore < "$patch"
 done
+docker exec -i eiscore-db psql -U postgres -d eiscore -c "NOTIFY pgrst, 'reload schema';" >/dev/null
 
 echo ""
 echo "🧪 Step 4/7: 执行本体语义 UTF-8 校验..."
@@ -50,7 +51,7 @@ echo "🧪 Step 4/7: 执行本体语义 UTF-8 校验..."
 # Step 5: Install dependencies
 echo ""
 echo "📦 Step 5/7: 安装依赖..."
-for app in eiscore-apps eiscore-base eiscore-hr eiscore-materials; do
+for app in eiscore-apps eiscore-base eiscore-hr eiscore-materials eiscore-sales eiscore-purchase eiscore-production; do
     if [ -d "$app" ] && [ ! -d "$app/node_modules" ]; then
         echo "   安装 $app..."
         cd $app
@@ -68,6 +69,9 @@ pkill -f "vite.*8080" || true
 pkill -f "vite.*8081" || true  
 pkill -f "vite.*8082" || true
 pkill -f "vite.*8083" || true
+pkill -f "vite.*8085" || true
+pkill -f "vite.*8088" || true
+pkill -f "vite.*8087" || true
 
 # Start eiscore-apps
 cd /home/lzr/eiscore/eiscore-apps
@@ -91,7 +95,7 @@ docker-compose ps
 
 echo ""
 echo "   前端服务："
-ps aux | grep -E "vite.*(8080|8081|8082|8083)" | grep -v grep || echo "   检查 logs/eiscore-apps.log"
+ps aux | grep -E "vite.*(8080|8081|8082|8083|8085|8087|8088)" | grep -v grep || echo "   检查 logs/eiscore-apps.log"
 
 echo ""
 echo "🌐 访问地址："

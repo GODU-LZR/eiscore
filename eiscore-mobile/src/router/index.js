@@ -17,7 +17,9 @@ const router = createRouter({
     },
     {
       path: '/pda',
-      redirect: '/check'
+      name: 'PdaEntry',
+      component: () => import('@/views/pda/PdaEntry.vue'),
+      meta: { requiresAuth: true, title: 'PDA盘点' }
     },
     // 盘点模块
     {

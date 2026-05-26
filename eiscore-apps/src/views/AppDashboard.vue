@@ -26,7 +26,7 @@
             </div>
           </el-card>
         </el-col>
-        <el-col :xs="24" :sm="12" :md="8" :lg="6">
+        <el-col v-if="canManage" :xs="24" :sm="12" :md="8" :lg="6">
           <el-card class="app-card entry-card" shadow="hover" @click="showCreateDialog = true">
             <div class="app-card-body">
               <div class="app-icon tone-blue">
@@ -35,6 +35,22 @@
               <div class="app-info">
                 <div class="app-name">新建应用</div>
                 <div class="app-desc">创建流程/表格/闪念应用</div>
+              </div>
+            </div>
+            <div class="app-actions">
+              <span class="app-enter">进入</span>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col v-if="canManage" :xs="24" :sm="12" :md="8" :lg="6">
+          <el-card class="app-card entry-card" shadow="hover" @click="goApprovalCenter()">
+            <div class="app-card-body">
+              <div class="app-icon tone-orange">
+                <el-icon><List /></el-icon>
+              </div>
+              <div class="app-info">
+                <div class="app-name">审批中心</div>
+                <div class="app-desc">跨流程查看会签进度与审批意见</div>
               </div>
             </div>
             <div class="app-actions">
@@ -120,7 +136,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -160,12 +176,14 @@ import axios from 'axios'
 import { ensureAppAclConfig, ensureAppPermissions, resolveAppAclModule } from '@/utils/app-permissions'
 import { hasPerm } from '@/utils/permission'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
+import { getToken } from '@/utils/auth'
 
 const router = useRouter()
 
 const showCreateDialog = ref(false)
 const creating = ref(false)
 const apps = ref([])
+const canManage = computed(() => hasPerm('module:app') || hasPerm('module:apps'))
 
 const newAppForm = ref({
   name: '',
@@ -244,7 +262,7 @@ const toAppRouterPath = (routePath) => {
 
 const resolvePublishedRoutePath = async (app) => {
   if (!app?.id) return ''
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const response = await axios.get(
     toAbsoluteApiUrl(`${apiBase}/published_routes?app_id=eq.${app.id}&is_active=eq.true&order=id.desc&limit=1`),
     { headers: getAppCenterHeaders(token) }
@@ -288,7 +306,7 @@ async function createApp() {
 
   creating.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const categoryMap = {
       workflow: 1,
       data: 2,
@@ -405,7 +423,7 @@ async function openApp(app) {
 
 async function loadApps() {
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(toAbsoluteApiUrl(`${apiBase}/apps`), {
       headers: getAppCenterHeaders(token),
       params: { order: 'created_at.desc' }
@@ -424,6 +442,10 @@ async function loadApps() {
 function goConfigCenter(id) {
   const path = id ? `/config-center/${id}` : '/config-center'
   router.push(path)
+}
+
+function goApprovalCenter() {
+  router.push('/workflow-approval-center')
 }
 
 onMounted(loadApps)

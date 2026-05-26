@@ -65,6 +65,54 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
     {
+      name: 'eiscore-sales',
+      cwd: './eiscore-sales',
+      script: 'npm',
+      args: 'run dev',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8085
+      },
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '500M',
+      error_file: './logs/sales-error.log',
+      out_file: './logs/sales-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+    {
+      name: 'eiscore-purchase',
+      cwd: './eiscore-purchase',
+      script: 'npm',
+      args: 'run dev',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8088
+      },
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '500M',
+      error_file: './logs/purchase-error.log',
+      out_file: './logs/purchase-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+    {
+      name: 'eiscore-production',
+      cwd: './eiscore-production',
+      script: 'npm',
+      args: 'run dev',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8087
+      },
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '500M',
+      error_file: './logs/production-error.log',
+      out_file: './logs/production-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+    {
       name: 'eiscore-mobile',
       cwd: './eiscore-mobile',
       script: 'npm',

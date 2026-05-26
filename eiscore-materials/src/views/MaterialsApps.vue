@@ -9,7 +9,7 @@
 
     <el-row :gutter="20">
       <el-col
-        v-for="app in apps"
+        v-for="app in visibleApps"
         :key="app.key"
         :xs="24"
         :sm="12"
@@ -36,6 +36,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Box, Setting, OfficeBuilding, Notebook, Search, Monitor, Upload, Download } from '@element-plus/icons-vue'
 import { MATERIAL_APPS } from '@/utils/material-apps'
@@ -53,6 +54,8 @@ const iconMap = {
   Upload,
   Download
 }
+
+const visibleApps = computed(() => apps.filter((app) => !app.perm || hasPerm(app.perm)))
 
 const openApp = (app) => {
   if (!app?.route) return

@@ -1,17 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-
-const getAuthToken = () => {
-  const tokenStr = localStorage.getItem('auth_token')
-  if (!tokenStr) return ''
-  try {
-    const parsed = JSON.parse(tokenStr)
-    if (parsed?.token) return parsed.token
-  } catch (e) {
-    // ignore
-  }
-  return tokenStr
-}
+import { getToken, clearAuthAndRedirect } from '@/utils/auth'
 
 // 创建 axios 实例
 const service = axios.create({
@@ -24,7 +13,7 @@ const service = axios.create({
 service.interceptors.request.use(
   config => {
     // 如果有 token，可以在这里注入
-    const token = getAuthToken()
+    const token = getToken()
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`
     }
@@ -56,13 +45,7 @@ service.interceptors.response.use(
         // AI 接口为可选能力，401 不应影响主业务登录态
         if (!isAiEndpoint) {
           ElMessage.error('未授权，请重新登录')
-          try {
-            localStorage.removeItem('auth_token')
-            localStorage.removeItem('user_info')
-          } catch (e) {}
-          if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-            window.location.href = '/login'
-          }
+          clearAuthAndRedirect('/login')
         }
       } else if (status === 404) {
         // AI Bridge 有时会探测配置，404 不一定报错，留给调用方处理

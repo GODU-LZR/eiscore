@@ -9,6 +9,7 @@ import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { patchElMessage } from '@/utils/message-patch'
+import { hasPerm, getPermissions } from '@/utils/permission'
 
 import App from './App.vue'
 import routes from './router'
@@ -56,6 +57,20 @@ function render(props = {}) {
   router = createRouter({
     history,
     routes
+  })
+  const canAccessAppCenterManage = () => hasPerm('module:app') || hasPerm('module:apps')
+  const canAccessAppCenterEntry = () => {
+    if (canAccessAppCenterManage()) return true
+    return getPermissions().some((perm) => typeof perm === 'string' && perm.startsWith('app:app_'))
+  }
+  router.beforeEach((to, from, next) => {
+    if (to.meta?.requiresManage && !canAccessAppCenterManage()) {
+      return next('/')
+    }
+    if (to.meta?.requiresEntry && !canAccessAppCenterEntry()) {
+      return next('/')
+    }
+    next()
   })
 
   app = createApp(App)

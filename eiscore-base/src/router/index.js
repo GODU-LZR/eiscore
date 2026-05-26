@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { h } from 'vue'
 import Layout from '@/layout/index.vue'
+import { getToken, isTokenExpired, clearAuthStorage } from '@/utils/auth'
 
 const EmptyView = {
   render: () => h('div')
@@ -49,6 +50,21 @@ const router = createRouter({
           path: 'apps/:page(.*)*',
           name: 'apps',
           component: EmptyView
+        },
+        {
+          path: 'sales/:page(.*)*',
+          name: 'sales',
+          component: EmptyView
+        },
+        {
+          path: 'purchase/:page(.*)*',
+          name: 'purchase',
+          component: EmptyView
+        },
+        {
+          path: 'production/:page(.*)*',
+          name: 'production',
+          component: EmptyView
         }
       ]
     }
@@ -73,44 +89,10 @@ router.beforeEach((to, from, next) => {
     }
   }
 
-  const getAuthToken = () => {
-    const raw = localStorage.getItem('auth_token')
-    if (!raw) return ''
-    try {
-      const parsed = JSON.parse(raw)
-      if (parsed?.token) return parsed.token
-    } catch (e) {
-      // ignore
-    }
-    return raw
-  }
-
-  const parseJwtPayload = (token) => {
-    try {
-      const parts = String(token || '').split('.')
-      if (parts.length !== 3) return null
-      const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
-      const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
-      return JSON.parse(atob(padded))
-    } catch (e) {
-      return null
-    }
-  }
-
-  const isTokenExpired = (token) => {
-    if (!token) return true
-    const payload = parseJwtPayload(token)
-    if (!payload || typeof payload.exp !== 'number') return true
-    return Date.now() / 1000 >= payload.exp
-  }
-
-  const token = getAuthToken()
+  const token = getToken()
   const expired = isTokenExpired(token)
   if (to.meta.requiresAuth && (!token || expired)) {
-    try {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user_info')
-    } catch (e) {}
+    clearAuthStorage()
     next('/login')
   } else if (to.path === '/login' && token && !expired) {
     next('/')

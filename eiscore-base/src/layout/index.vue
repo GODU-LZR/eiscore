@@ -40,6 +40,18 @@
           <el-icon><Grid /></el-icon>
           <template #title>应用中心</template>
         </el-menu-item>
+        <el-menu-item v-if="canSales" index="/sales">
+          <el-icon><Sell /></el-icon>
+          <template #title>销售模块</template>
+        </el-menu-item>
+        <el-menu-item v-if="canPurchase" index="/purchase">
+          <el-icon><ShoppingCart /></el-icon>
+          <template #title>采购模块</template>
+        </el-menu-item>
+        <el-menu-item v-if="canProduction" index="/production">
+          <el-icon><Tools /></el-icon>
+          <template #title>生产模块</template>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -135,7 +147,7 @@ import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import { mix } from '@/utils/theme'
 import { hasPerm } from '@/utils/permission'
-import { House, Box, User, Grid, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
+import { House, Box, User, Grid, Sell, ShoppingCart, Tools, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import AiCopilot from '@/components/AiCopilot.vue'
 
 const isCollapse = ref(false)
@@ -440,12 +452,19 @@ const activeMenu = computed(() => {
   if (route.path.startsWith('/materials')) return '/materials'
   if (route.path.startsWith('/hr')) return '/hr'
   if (route.path.startsWith('/apps')) return '/apps/'
+  if (route.path.startsWith('/sales')) return '/sales'
+  if (route.path.startsWith('/purchase')) return '/purchase'
+  if (route.path.startsWith('/production')) return '/production'
   return route.path
 })
 
 const canHome = computed(() => hasPerm('module:home'))
 const canHr = computed(() => hasPerm('module:hr'))
 const canMms = computed(() => hasPerm('module:mms'))
+const isSuperAdmin = computed(() => userStore.userInfo?.role === 'super_admin')
+const canSales = computed(() => hasPerm('module:sales') || isSuperAdmin.value)
+const canPurchase = computed(() => hasPerm('module:purchase') || isSuperAdmin.value)
+const canProduction = computed(() => hasPerm('module:production') || isSuperAdmin.value)
 const hasAnyAppCenterEntryPerm = computed(() => {
   const perms = Array.isArray(userStore.userInfo?.permissions) ? userStore.userInfo.permissions : []
   return perms.some((perm) => typeof perm === 'string' && perm.startsWith('app:app_'))
@@ -454,7 +473,7 @@ const canApps = computed(() =>
   hasPerm('module:app') ||
   hasPerm('module:apps') ||
   hasAnyAppCenterEntryPerm.value ||
-  userStore.userInfo?.role === 'super_admin'
+  isSuperAdmin.value
 )
 
 const HOST_TABS_STORAGE_KEY = 'eis_host_nav_tabs_v1'
@@ -467,9 +486,15 @@ const normalizeHostPath = (value) => {
   if (raw === '/apps' || raw === '/apps/index.html') return '/apps/'
   if (raw === '/materials/apps' || raw === '/materials/apps/') return '/materials'
   if (raw === '/hr/apps' || raw === '/hr/apps/') return '/hr'
+  if (raw === '/sales/apps' || raw === '/sales/apps/') return '/sales'
+  if (raw === '/purchase/apps' || raw === '/purchase/apps/') return '/purchase'
+  if (raw === '/production/apps' || raw === '/production/apps/') return '/production'
   // Keep full child route for micro-app deep links (e.g. /materials/inventory-stock-in).
   if (raw === '/materials' || raw.startsWith('/materials/')) return raw
   if (raw === '/hr' || raw.startsWith('/hr/')) return raw
+  if (raw === '/sales' || raw.startsWith('/sales/')) return raw
+  if (raw === '/purchase' || raw.startsWith('/purchase/')) return raw
+  if (raw === '/production' || raw.startsWith('/production/')) return raw
   if (raw.startsWith('/apps/config-center')) return '/apps/config-center'
   if (raw.startsWith('/apps/')) return raw
   if (raw === '/settings') return '/settings'
@@ -510,6 +535,9 @@ const resolveHostTabDot = (path) => {
   if (path.startsWith('/materials')) return 'materials'
   if (path.startsWith('/hr')) return 'hr'
   if (path.startsWith('/apps')) return 'apps'
+  if (path.startsWith('/sales')) return 'sales'
+  if (path.startsWith('/purchase')) return 'purchase'
+  if (path.startsWith('/production')) return 'production'
   return 'default'
 }
 
@@ -518,8 +546,16 @@ const resolveHostTabTitle = (path, query = {}, fallback = '') => {
   if (preferred) return preferred
   if (path === '/') return '首页'
   if (path === '/materials') return '物料管理'
+  if (path.startsWith('/materials/')) return '物料管理'
   if (path === '/hr') return '人事管理'
+  if (path.startsWith('/hr/')) return '人事管理'
   if (path === '/apps/' || path === '/apps') return '应用中心'
+  if (path === '/sales') return '销售模块'
+  if (path === '/purchase') return '采购模块'
+  if (path === '/production') return '生产模块'
+  if (path.startsWith('/sales/')) return '销售模块'
+  if (path.startsWith('/purchase/')) return '采购模块'
+  if (path.startsWith('/production/')) return '生产模块'
   if (path === '/apps/config-center') return '应用配置中心'
   if (path.startsWith('/apps/workflow-designer/')) return '流程应用'
   if (path.startsWith('/apps/flash-builder/')) return '闪念应用'
@@ -533,9 +569,12 @@ const resolveHostTabTitle = (path, query = {}, fallback = '') => {
 
 const buildDefaultTabKey = (path) => {
   if (path === '/') return '/'
-  if (path === '/materials') return '/materials'
-  if (path === '/hr') return '/hr'
+  if (path === '/materials' || path.startsWith('/materials/')) return '/materials'
+  if (path === '/hr' || path.startsWith('/hr/')) return '/hr'
   if (path === '/apps/' || path === '/apps') return '/apps/'
+  if (path === '/sales' || path.startsWith('/sales/')) return '/sales'
+  if (path === '/purchase' || path.startsWith('/purchase/')) return '/purchase'
+  if (path === '/production' || path.startsWith('/production/')) return '/production'
   if (path === '/apps/config-center') return '/apps/config-center'
   if (path === '/settings') return '/settings'
   if (path.startsWith('/ai/enterprise')) return '/ai/enterprise'
@@ -573,8 +612,16 @@ const restoreHostTabs = () => {
       const forceDefaultKey =
         path === '/' ||
         path === '/materials' ||
+        path.startsWith('/materials/') ||
         path === '/hr' ||
+        path.startsWith('/hr/') ||
         path === '/apps/' ||
+        path === '/sales' ||
+        path.startsWith('/sales/') ||
+        path === '/purchase' ||
+        path.startsWith('/purchase/') ||
+        path === '/production' ||
+        path.startsWith('/production/') ||
         path === '/apps/config-center' ||
         path === '/settings' ||
         path.startsWith('/ai/enterprise')
@@ -819,6 +866,9 @@ const startGuide = () => { driverObj.drive(); }
       .host-tab-dot.dot-materials { background: #409eff; }
       .host-tab-dot.dot-hr { background: #e6a23c; }
       .host-tab-dot.dot-apps { background: #8b5cf6; }
+      .host-tab-dot.dot-sales { background: #f56c6c; }
+      .host-tab-dot.dot-purchase { background: #10b981; }
+      .host-tab-dot.dot-production { background: #22c55e; }
 
       .host-tab-close {
         color: #909399;

@@ -63,7 +63,14 @@ export function registerQiankun() {
     addErrorHandler((error) => {
       const message = String(error?.message || '')
       const appName = String(error?.appOrParcelName || '')
-      const target = ['eiscore-apps', 'eiscore-materials', 'eiscore-hr']
+      const target = [
+        'eiscore-apps',
+        'eiscore-materials',
+        'eiscore-hr',
+        'eiscore-sales',
+        'eiscore-purchase',
+        'eiscore-production'
+      ]
         .find((name) => appName === name || message.includes(name))
       if (!target) return
 

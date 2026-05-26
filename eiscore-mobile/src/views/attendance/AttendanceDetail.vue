@@ -116,11 +116,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  fetchDailyAttendance,
-  formatDate,
+  fetchEmployeeAttendance,
   formatTime
 } from '@/api/attendance'
-import { getToken } from '@/utils/auth'
 
 const route = useRoute()
 const employeeId = computed(() => route.params.id)
@@ -176,7 +174,7 @@ async function loadMonth() {
   loading.value = true
   errorMsg.value = ''
   try {
-    // 按月查全部日数据，然后前端过滤该员工
+    // 按员工 + 月范围查询日考勤
     const d = currentMonth.value
     const y = d.getFullYear()
     const m = d.getMonth() + 1
@@ -185,27 +183,7 @@ async function loadMonth() {
     const startDate = `${y}-${String(m).padStart(2, '0')}-01`
     const lastDay = new Date(y, m, 0).getDate()
     const endDate = `${y}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-
-    // 直接用 fetch 查指定员工的日考勤
-    const API_BASE = '/api'
-    const token = getToken()
-    const params = new URLSearchParams({
-      employee_id: `eq.${employeeId.value}`,
-      'att_date': `gte.${startDate}`,
-      order: 'att_date.asc'
-    })
-    // 添加 att_date 上限
-    params.append('att_date', `lte.${endDate}`)
-
-    const res = await fetch(`${API_BASE}/v_attendance_daily?${params.toString()}`, {
-      headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Accept-Profile': 'hr',
-        'Content-Profile': 'hr'
-      }
-    })
-    if (!res.ok) throw new Error(`请求失败 (${res.status})`)
-    const data = await res.json()
+    const data = await fetchEmployeeAttendance(employeeId.value, startDate, endDate)
     records.value = Array.isArray(data) ? data : []
 
     // 提取员工信息

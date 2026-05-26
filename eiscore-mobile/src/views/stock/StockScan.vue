@@ -251,7 +251,12 @@
             <h2>最近操作</h2>
             <p>本次会话的出入库记录</p>
           </div>
-          <button class="ghost-btn" @click="loadRecentTransactions">刷新</button>
+          <div class="section-actions">
+            <button class="ghost-btn" @click="loadRecentTransactions">刷新</button>
+            <button v-if="pendingItems.length" class="ghost-btn" @click="syncPendingItems">
+              重试待确认({{ pendingItems.length }})
+            </button>
+          </div>
         </div>
 
         <div v-if="recentTransactions.length === 0" class="state empty">暂无操作记录</div>
@@ -304,7 +309,7 @@ import { getUserInfo } from '@/utils/auth'
 import {
   fetchWarehouses, fetchLocationsByWarehouse,
   fetchMaterialByCode, searchMaterials,
-  fetchBatches, fetchBatchesByWarehouse,
+  fetchBatches,
   stockIn, stockOut,
   fetchRecentTransactions,
   buildInNo, buildOutNo,
@@ -312,6 +317,7 @@ import {
 } from '@/api/stock'
 
 const router = useRouter()
+const PENDING_KEY = 'eiscore_stock_pending_v1'
 
 /* ---------- 状态 ---------- */
 const pageLoading = ref(false)
@@ -362,6 +368,33 @@ const materialUnit = computed(() => {
 const targetWarehouseId = computed(() => {
   return form.value.locationId2 || form.value.locationId || form.value.warehouseId
 })
+
+function loadPendingItems() {
+  try {
+    const raw = localStorage.getItem(PENDING_KEY)
+    const list = raw ? JSON.parse(raw) : []
+    pendingItems.value = Array.isArray(list) ? list : []
+  } catch {
+    pendingItems.value = []
+  }
+}
+
+function savePendingItems() {
+  localStorage.setItem(PENDING_KEY, JSON.stringify(pendingItems.value))
+}
+
+function addPendingItem(entry) {
+  pendingItems.value.unshift(entry)
+  savePendingItems()
+}
+
+function isRetryableError(message) {
+  const msg = String(message || '')
+  if (!msg) return true
+  if (/INSUFFICIENT_QTY|BATCH_NOT_FOUND/i.test(msg)) return false
+  if (/请求失败 \(4\d{2}\)/.test(msg)) return false
+  return /Failed to fetch|NetworkError|network|timeout|请求失败 \(5\d{2}\)/i.test(msg)
+}
 
 /* ---------- 方法 ---------- */
 
@@ -567,6 +600,17 @@ async function handleSubmit() {
     let msg = e.message || `${actionText}失败`
     if (msg.includes('INSUFFICIENT_QTY')) msg = '库存不足，出库失败'
     if (msg.includes('BATCH_NOT_FOUND')) msg = '批次不存在，请重新选择'
+    if (isRetryableError(e.message)) {
+      addPendingItem({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        mode: mode.value,
+        actionText,
+        materialName: mat.name || '--',
+        payload,
+        createdAt: Date.now()
+      })
+      msg = `${msg}，已加入待确认`
+    }
     showToast({ message: msg, icon: 'fail' })
   } finally {
     submitting.value = false
@@ -586,8 +630,41 @@ function fmtQty(v) {
   return Number.isFinite(n) ? (Number.isInteger(n) ? n.toString() : n.toFixed(2)) : '--'
 }
 
+async function syncPendingItems() {
+  if (!pendingItems.value.length || submitting.value) return
+  pageLoading.value = true
+  loadingMsg.value = '正在重试待确认记录...'
+  let success = 0
+  const failed = []
+  for (const item of pendingItems.value) {
+    try {
+      if (item.mode === 'in') {
+        await stockIn(item.payload)
+      } else {
+        await stockOut(item.payload)
+      }
+      success++
+    } catch {
+      failed.push(item)
+    }
+  }
+  pendingItems.value = failed
+  savePendingItems()
+  pageLoading.value = false
+  if (success) {
+    todayCount.value += success
+    await loadRecentTransactions()
+  }
+  if (failed.length === 0) {
+    showToast({ message: `待确认记录已同步 (${success})`, icon: 'success' })
+    return
+  }
+  showToast({ message: `同步完成：成功 ${success}，失败 ${failed.length}`, icon: 'warning-o' })
+}
+
 /* ---------- 初始化 ---------- */
 onMounted(async () => {
+  loadPendingItems()
   loadWarehouses()
   loadRecentTransactions()
 })
@@ -709,6 +786,7 @@ onMounted(async () => {
 .section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .section-head h2{margin:0 0 4px;font-size:18px}
 .section-head p{margin:0;font-size:12px;color:var(--muted)}
+.section-actions{display:flex;align-items:center;gap:8px}
 .ghost-btn{border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:6px 14px;font-size:13px;color:var(--accent);cursor:pointer}
 .ghost-btn:active{background:#f7f9fc}
 

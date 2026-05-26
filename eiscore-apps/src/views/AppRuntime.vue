@@ -297,6 +297,9 @@
                   <template #default="{ row }">{{ formatTaskName(row?.to_task_id) }}</template>
                 </el-table-column>
                 <el-table-column prop="actor_username" label="执行人" min-width="100" />
+                <el-table-column label="审批意见" min-width="180">
+                  <template #default="{ row }">{{ formatEventComment(row) }}</template>
+                </el-table-column>
                 <el-table-column label="时间" min-width="170">
                   <template #default="{ row }">{{ formatDateTime(row?.created_at) }}</template>
                 </el-table-column>
@@ -327,6 +330,13 @@
                 <el-table-column label="候选用户" min-width="140">
                   <template #default="{ row }">{{ formatArrayCell(row?.candidate_users) }}</template>
                 </el-table-column>
+                <el-table-column label="审批模式" min-width="150">
+                  <template #default="{ row }">{{ formatApprovalMode(row?.approval_mode) }}</template>
+                </el-table-column>
+                <el-table-column prop="required_approvals" label="会签人数" min-width="100" />
+                <el-table-column label="意见必填" min-width="100">
+                  <template #default="{ row }">{{ row?.require_comment ? '是' : '否' }}</template>
+                </el-table-column>
               </el-table>
               <el-empty v-else description="未配置分派规则（默认不限制执行人）" />
 
@@ -343,6 +353,9 @@
                   <template #default="{ row }">{{ formatTaskName(row?.to_task_id) }}</template>
                 </el-table-column>
                 <el-table-column prop="actor_username" label="执行人" min-width="100" />
+                <el-table-column label="审批意见" min-width="180">
+                  <template #default="{ row }">{{ formatEventComment(row) }}</template>
+                </el-table-column>
                 <el-table-column label="时间" min-width="170">
                   <template #default="{ row }">{{ formatDateTime(row?.created_at) }}</template>
                 </el-table-column>
@@ -423,6 +436,20 @@
               </button>
             </div>
           </el-scrollbar>
+          <div class="next-task-picker-opinion">
+            <div class="picker-opinion-head">
+              <span>审批意见</span>
+              <el-tag v-if="nextTaskPickerRequireComment" size="small" type="danger" effect="plain">必填</el-tag>
+            </div>
+            <el-input
+              v-model="nextTaskPickerComment"
+              type="textarea"
+              :rows="3"
+              maxlength="500"
+              show-word-limit
+              placeholder="请输入审批意见（可选）"
+            />
+          </div>
           <template #footer>
             <el-button @click="closeNextTaskPicker">取消</el-button>
             <el-button type="primary" :disabled="!nextTaskPickerSelected" @click="applyNextTaskPicker">
@@ -613,10 +640,13 @@ const instanceLoading = ref(false)
 const instanceStarting = ref(false)
 const instanceTransitioningId = ref(null)
 const nextTaskSelections = reactive({})
+const nextTaskComments = reactive({})
 const nextTaskPickerVisible = ref(false)
 const nextTaskPickerRow = ref(null)
 const nextTaskPickerOptions = ref([])
 const nextTaskPickerSelected = ref('')
+const nextTaskPickerComment = ref('')
+const nextTaskPickerRequireComment = ref(false)
 const workflowBusinessProgressMap = reactive({})
 const currentActor = ref({ username: '', appRole: '' })
 const workflowViewTab = ref('employee')
@@ -640,6 +670,11 @@ const WORKFLOW_STATE_UI_MAP = Object.freeze({
   created: { tagType: 'info', icon: CirclePlusFilled, color: '#909399' },
   active: { tagType: 'success', icon: CircleCheckFilled, color: '#67c23a' },
   locked: { tagType: 'danger', icon: Lock, color: '#f56c6c' }
+})
+const APPROVAL_MODE_LABEL_MAP = Object.freeze({
+  any: '单人通过',
+  quota: '多人会签',
+  all: '全员会签'
 })
 const WORKFLOW_STATE_CANONICAL_MAP = Object.freeze({
   created: 'created',
@@ -835,6 +870,7 @@ const statusLabelMap = Object.freeze({
 const eventLabelMap = Object.freeze({
   INSTANCE_STARTED: '流程单已发起',
   TASK_TRANSITION: '任务已流转',
+  TASK_APPROVAL_RECORDED: '审批意见已记录',
   INSTANCE_COMPLETED: '流程单已完成'
 })
 
@@ -1040,7 +1076,8 @@ const formatWorkflowError = (fallback, error, rlsMessage = '') => {
       'workflow start permission required',
       'workflow transition permission required',
       'status transition permission required',
-      'current task is not assigned to current actor'
+      'current task is not assigned to current actor',
+      'approval comment required'
     ]
     if (msg && passthroughKeywords.some((keyword) => msg.includes(keyword))) {
       return msg
@@ -1053,6 +1090,35 @@ const formatWorkflowError = (fallback, error, rlsMessage = '') => {
 const formatArrayCell = (value) => {
   const list = normalizeStringList(value)
   return list.length ? list.join(', ') : '-'
+}
+
+const normalizeApprovalMode = (value) => {
+  const mode = String(value || '').trim().toLowerCase()
+  if (mode === 'quota' || mode === 'all') return mode
+  return 'any'
+}
+
+const normalizeRequiredApprovals = (value) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return 1
+  return Math.max(1, Math.floor(parsed))
+}
+
+const formatApprovalMode = (value) => {
+  const mode = normalizeApprovalMode(value)
+  return APPROVAL_MODE_LABEL_MAP[mode] || mode
+}
+
+const formatEventComment = (row) => {
+  const payload = parseJsonObject(row?.payload) || {}
+  const fromPayload = String(
+    payload?.approval_comment
+    || payload?.comment
+    || payload?.opinion
+    || payload?.approval?.comment
+    || ''
+  ).trim()
+  return fromPayload || '-'
 }
 
 const parseSchemaTable = (value) => {
@@ -1173,6 +1239,8 @@ const extractBusinessDocNo = (rowData) => {
   return ''
 }
 
+const isInventoryDraftTable = (schema, table) => schema === 'scm' && table === 'inventory_drafts'
+
 const fetchBusinessRecordFromRow = async (row, mapping) => {
   const businessKey = String(row?.business_key || '').trim()
   const instanceId = String(row?.id || '').trim()
@@ -1189,7 +1257,7 @@ const fetchBusinessRecordFromRow = async (row, mapping) => {
     'Content-Profile': schema
   }
   const selectPart = encodeURIComponent('*')
-  const isInventoryDrafts = schema === 'scm' && table === 'inventory_drafts'
+  const isInventoryDrafts = isInventoryDraftTable(schema, table)
   const taskBinding = resolveTaskBusinessBinding(String(row?.current_task_id || '').trim())
   const draftType = taskBinding === 'legacy:mms_inventory_stock_in'
     ? 'in'
@@ -1212,10 +1280,12 @@ const fetchBusinessRecordFromRow = async (row, mapping) => {
   }
 
   if (businessKey) {
-    const byId = await tryQuery(`id=eq.${encodeURIComponent(businessKey)}`)
-    if (byId) return byId
-    const byBusinessKey = await tryQuery(`business_key=eq.${encodeURIComponent(businessKey)}`)
-    if (byBusinessKey) return byBusinessKey
+    if (!isInventoryDrafts) {
+      const byId = await tryQuery(`id=eq.${encodeURIComponent(businessKey)}`)
+      if (byId) return byId
+      const byBusinessKey = await tryQuery(`business_key=eq.${encodeURIComponent(businessKey)}`)
+      if (byBusinessKey) return byBusinessKey
+    }
     const propKey = `${encodeURIComponent('properties->>workflow_business_key')}=eq.${encodeURIComponent(businessKey)}`
     const byPropKey = await tryQuery(propKey)
     if (byPropKey) return byPropKey
@@ -1225,8 +1295,10 @@ const fetchBusinessRecordFromRow = async (row, mapping) => {
     const propInstance = `${encodeURIComponent('properties->>workflow_instance_id')}=eq.${encodeURIComponent(instanceId)}`
     const byPropInstance = await tryQuery(propInstance)
     if (byPropInstance) return byPropInstance
-    const byWorkflowInstance = await tryQuery(`workflow_instance_id=eq.${encodeURIComponent(instanceId)}`)
-    if (byWorkflowInstance) return byWorkflowInstance
+    if (!isInventoryDrafts) {
+      const byWorkflowInstance = await tryQuery(`workflow_instance_id=eq.${encodeURIComponent(instanceId)}`)
+      if (byWorkflowInstance) return byWorkflowInstance
+    }
   }
 
   return null
@@ -1612,6 +1684,7 @@ const fetchBusinessStateFromRow = async (row, mapping) => {
 
   const { schema, table } = parseSchemaTable(tableRef)
   if (!schema || !table) return ''
+  const isInventoryDrafts = isInventoryDraftTable(schema, table)
 
   const token = getAuthToken()
   const headers = {
@@ -1620,81 +1693,51 @@ const fetchBusinessStateFromRow = async (row, mapping) => {
     'Content-Profile': schema
   }
   const selectPart = encodeURIComponent(fieldName)
+  const taskBinding = resolveTaskBusinessBinding(String(row?.current_task_id || '').trim())
+  const draftType = taskBinding === 'legacy:mms_inventory_stock_in'
+    ? 'in'
+    : (taskBinding === 'legacy:mms_inventory_stock_out' ? 'out' : '')
 
-  if (businessKey) {
-    try {
-      const byId = await axios.get(
-        `/api/${table}?select=${selectPart}&id=eq.${encodeURIComponent(businessKey)}&limit=1`,
-        { headers }
-      )
-      const rowData = Array.isArray(byId.data) ? byId.data[0] : null
-      if (rowData && Object.prototype.hasOwnProperty.call(rowData, fieldName)) {
-        return normalizeStateValue(rowData[fieldName])
-      }
-    } catch {
-      // try business_key fallback
+  const tryFetchState = async (query) => {
+    const conditions = [query]
+    if (isInventoryDrafts && draftType) {
+      conditions.push(`draft_type=eq.${encodeURIComponent(draftType)}`)
     }
-  }
-
-  if (businessKey) {
+    const where = conditions.filter(Boolean).join('&')
     try {
-      const byBusinessKey = await axios.get(
-        `/api/${table}?select=${selectPart}&business_key=eq.${encodeURIComponent(businessKey)}&limit=1`,
+      const res = await axios.get(
+        `/api/${table}?select=${selectPart}&${where}&order=updated_at.desc,id.desc&limit=1`,
         { headers }
       )
-      const rowData = Array.isArray(byBusinessKey.data) ? byBusinessKey.data[0] : null
+      const rowData = Array.isArray(res.data) ? res.data[0] : null
       if (rowData && Object.prototype.hasOwnProperty.call(rowData, fieldName)) {
         return normalizeStateValue(rowData[fieldName])
       }
     } catch {
       // ignore
     }
+    return ''
   }
 
   if (businessKey) {
-    try {
-      const keyFilter = `${encodeURIComponent('properties->>workflow_business_key')}=eq.${encodeURIComponent(businessKey)}`
-      const byPropertyKey = await axios.get(
-        `/api/${table}?select=${selectPart}&${keyFilter}&limit=1`,
-        { headers }
-      )
-      const rowData = Array.isArray(byPropertyKey.data) ? byPropertyKey.data[0] : null
-      if (rowData && Object.prototype.hasOwnProperty.call(rowData, fieldName)) {
-        return normalizeStateValue(rowData[fieldName])
-      }
-    } catch {
-      // ignore
+    if (!isInventoryDrafts) {
+      const byId = await tryFetchState(`id=eq.${encodeURIComponent(businessKey)}`)
+      if (byId) return byId
+      const byBusinessKey = await tryFetchState(`business_key=eq.${encodeURIComponent(businessKey)}`)
+      if (byBusinessKey) return byBusinessKey
     }
+    const keyFilter = `${encodeURIComponent('properties->>workflow_business_key')}=eq.${encodeURIComponent(businessKey)}`
+    const byPropertyKey = await tryFetchState(keyFilter)
+    if (byPropertyKey) return byPropertyKey
   }
 
   if (instanceId) {
-    try {
-      const instanceFilter = `${encodeURIComponent('properties->>workflow_instance_id')}=eq.${encodeURIComponent(instanceId)}`
-      const byPropertyInstance = await axios.get(
-        `/api/${table}?select=${selectPart}&${instanceFilter}&limit=1`,
-        { headers }
-      )
-      const rowData = Array.isArray(byPropertyInstance.data) ? byPropertyInstance.data[0] : null
-      if (rowData && Object.prototype.hasOwnProperty.call(rowData, fieldName)) {
-        return normalizeStateValue(rowData[fieldName])
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  if (instanceId) {
-    try {
-      const byWorkflowInstance = await axios.get(
-        `/api/${table}?select=${selectPart}&workflow_instance_id=eq.${encodeURIComponent(instanceId)}&limit=1`,
-        { headers }
-      )
-      const rowData = Array.isArray(byWorkflowInstance.data) ? byWorkflowInstance.data[0] : null
-      if (rowData && Object.prototype.hasOwnProperty.call(rowData, fieldName)) {
-        return normalizeStateValue(rowData[fieldName])
-      }
-    } catch {
-      // ignore
+    const instanceFilter = `${encodeURIComponent('properties->>workflow_instance_id')}=eq.${encodeURIComponent(instanceId)}`
+    const byPropertyInstance = await tryFetchState(instanceFilter)
+    if (byPropertyInstance) return byPropertyInstance
+    if (!isInventoryDrafts) {
+      const byWorkflowInstance = await tryFetchState(`workflow_instance_id=eq.${encodeURIComponent(instanceId)}`)
+      if (byWorkflowInstance) return byWorkflowInstance
     }
   }
   return ''
@@ -1714,22 +1757,24 @@ const isAutoAdvancing = (instanceId) => {
 
 const transitionWorkflowByChoice = async (row, choice, options = {}) => {
   if (!row?.id) return false
-  const { silent = false, auto = false } = options
+  const { silent = false, auto = false, comment = '' } = options
   const next = String(choice || '').trim()
   if (!next) return false
   const complete = next === '__complete__'
+  const approvalComment = String(comment || '').trim()
+  const variables = approvalComment ? { approval_comment: approvalComment } : null
 
   if (auto) markAutoAdvancing(row.id, true)
   instanceTransitioningId.value = row.id
   try {
     const token = localStorage.getItem('auth_token')
-    await axios.post(
+    const response = await axios.post(
       '/api/rpc/transition_workflow_instance',
       {
         p_instance_id: Number(row.id),
         p_next_task_id: complete ? null : next,
         p_complete: complete,
-        p_variables: null
+        p_variables: variables
       },
       {
         headers: {
@@ -1738,8 +1783,19 @@ const transitionWorkflowByChoice = async (row, choice, options = {}) => {
         }
       }
     )
+    const updated = unwrapSingleRow(response?.data) || response?.data
+    const currentTaskBefore = String(row?.current_task_id || '').trim()
+    const currentTaskAfter = String(updated?.current_task_id || '').trim()
+    const stillPendingSameTask = !complete
+      && currentTaskBefore
+      && currentTaskBefore === currentTaskAfter
+      && String(updated?.status || '').toUpperCase() === 'ACTIVE'
     if (!silent) {
-    ElMessage.success(complete ? '流程单已完成' : '流程单已推进')
+      if (stillPendingSameTask) {
+        ElMessage.success('已记录审批意见，等待其他审批人')
+      } else {
+        ElMessage.success(complete ? '流程单已完成' : '流程单已推进')
+      }
     }
     await refreshWorkflowData()
     return true
@@ -1765,6 +1821,8 @@ const autoAdvanceWorkflowInstances = async () => {
     if (!instanceId || isAutoAdvancing(instanceId)) continue
     if (instanceTransitioningId.value && Number(instanceTransitioningId.value) === Number(row?.id)) continue
     if (!canExecuteTask(row?.current_task_id)) continue
+    const approvalCfg = getTaskApprovalConfig(row?.current_task_id)
+    if (approvalCfg.mode !== 'any' && approvalCfg.required > 1) continue
 
     const taskRule = getTaskAutoRule(row?.current_task_id)
     if (!taskRule.enabled) continue
@@ -2084,6 +2142,18 @@ function canExecuteTask(taskId) {
   })
 }
 
+function getTaskApprovalConfig(taskId) {
+  const task = String(taskId || '').trim()
+  if (!task) return { mode: 'any', required: 1, requireComment: false }
+  const row = taskAssignments.value.find((item) => String(item?.task_id || '').trim() === task)
+  if (!row) return { mode: 'any', required: 1, requireComment: false }
+  return {
+    mode: normalizeApprovalMode(row?.approval_mode),
+    required: normalizeRequiredApprovals(row?.required_approvals),
+    requireComment: row?.require_comment === true
+  }
+}
+
 function getTaskAssignmentSummary(taskId) {
   const task = String(taskId || '').trim()
   if (!task) return { unrestricted: true, roles: [], users: [] }
@@ -2115,7 +2185,11 @@ function getTaskAssignmentSummary(taskId) {
 
 function formatTaskAssignmentHint(taskId) {
   const summary = getTaskAssignmentSummary(taskId)
-  if (summary.unrestricted) return '分派:不限'
+  const approvalCfg = getTaskApprovalConfig(taskId)
+  const approvalText = approvalCfg.mode === 'any'
+    ? '单人通过'
+    : `会签:${approvalCfg.required}`
+  if (summary.unrestricted) return `分派:不限｜${approvalText}`
 
   const pieces = []
   if (summary.roles.length) {
@@ -2124,7 +2198,8 @@ function formatTaskAssignmentHint(taskId) {
   if (summary.users.length) {
     pieces.push(`用户:${summary.users.join('/')}`)
   }
-  return `分派:${pieces.join('，') || '不限'}`
+  const assignText = pieces.join('，') || '不限'
+  return `分派:${assignText}｜${approvalText}`
 }
 
 function resolveNextTaskCandidatesByGraph(taskId) {
@@ -2226,6 +2301,8 @@ function openNextTaskPicker(row) {
   nextTaskPickerOptions.value = options
   nextTaskPickerRow.value = row
   nextTaskPickerSelected.value = String(nextTaskSelections[row.id] || '').trim()
+  nextTaskPickerComment.value = String(nextTaskComments[row.id] || '').trim()
+  nextTaskPickerRequireComment.value = getTaskApprovalConfig(row?.current_task_id).requireComment
   nextTaskPickerVisible.value = true
 }
 
@@ -2234,6 +2311,8 @@ function closeNextTaskPicker() {
   nextTaskPickerRow.value = null
   nextTaskPickerOptions.value = []
   nextTaskPickerSelected.value = ''
+  nextTaskPickerComment.value = ''
+  nextTaskPickerRequireComment.value = false
 }
 
 function applyNextTaskPicker() {
@@ -2247,7 +2326,13 @@ function applyNextTaskPicker() {
     ElMessage.warning('请先选择下一步')
     return
   }
+  const comment = String(nextTaskPickerComment.value || '').trim()
+  if (nextTaskPickerRequireComment.value && !comment) {
+    ElMessage.warning('当前节点要求填写审批意见')
+    return
+  }
   nextTaskSelections[row.id] = value
+  nextTaskComments[row.id] = comment
   closeNextTaskPicker()
 }
 
@@ -2362,11 +2447,24 @@ async function transitionWorkflowInstance(row) {
   const next = nextTaskSelections[row.id]
   if (!next) {
     ElMessage.warning('请选择下一步，或选择“结束当前流程单”')
+    openNextTaskPicker(row)
     return
   }
-  const done = await transitionWorkflowByChoice(row, next, { silent: false, auto: false })
+  const approvalCfg = getTaskApprovalConfig(row?.current_task_id)
+  const comment = String(nextTaskComments[row.id] || '').trim()
+  if (approvalCfg.requireComment && !comment) {
+    ElMessage.warning('当前节点要求填写审批意见')
+    openNextTaskPicker(row)
+    return
+  }
+  const done = await transitionWorkflowByChoice(row, next, {
+    silent: false,
+    auto: false,
+    comment
+  })
   if (done) {
     delete nextTaskSelections[row.id]
+    delete nextTaskComments[row.id]
   }
 }
 
@@ -3133,6 +3231,21 @@ function goBack() {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.next-task-picker-opinion {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.picker-opinion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 
 :deep(.workflow-instance-table .el-table__body-wrapper) {

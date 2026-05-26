@@ -75,12 +75,14 @@ export const fetchDailyAttendance = (date, dept) => {
 
 /** 查询某员工日期范围的考勤记录 */
 export const fetchEmployeeAttendance = (employeeId, startDate, endDate) => {
-  const params = {
-    employee_id: `eq.${employeeId}`,
-    att_date: `gte.${startDate}`,
-    order: 'att_date.desc'
+  const params = { employee_id: `eq.${employeeId}`, order: 'att_date.asc' }
+  if (startDate && endDate) {
+    params.and = `(att_date.gte.${startDate},att_date.lte.${endDate})`
+  } else if (startDate) {
+    params.att_date = `gte.${startDate}`
+  } else if (endDate) {
+    params.att_date = `lte.${endDate}`
   }
-  if (endDate) params['att_date'] = `gte.${startDate}&att_date=lte.${endDate}`
   return get('/v_attendance_daily', { params })
 }
 
