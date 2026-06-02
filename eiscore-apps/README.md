@@ -444,9 +444,13 @@ docs(readme): 更新部署文档
 
 ---
 
-## 📄 许可证
+## 📄 License
 
-UNLICENSED - 内部项目，禁止未授权分发
+This subproject is part of EISCore and is licensed under the GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later), consistent with the root LICENSE file.
+
+Copyright (c) 2026 林志荣.
+
+Commercial, proprietary, government product declaration, software copyright registration, customer delivery, SaaS/private deployment, or closed-source use that does not fully comply with AGPL-3.0-or-later requires separate written authorization from the copyright holder. See the root NOTICE, COPYRIGHT.md, and COMMERCIAL-LICENSE.md for details.
 
 ---
 

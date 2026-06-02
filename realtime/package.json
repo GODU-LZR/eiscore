@@ -4,7 +4,7 @@
   "private": true,
   "description": "AI Agent Runtime with Cline-like capabilities + WebSocket Relay",
   "main": "index.js",
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0-or-later",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "axios": "^1.7.9",
