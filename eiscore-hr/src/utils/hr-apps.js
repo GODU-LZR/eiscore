@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 export const BASE_STATIC_COLUMNS = [
   { label: '编号', prop: 'id', editable: false, width: 80 },
   { label: '姓名', prop: 'name', width: 120 },

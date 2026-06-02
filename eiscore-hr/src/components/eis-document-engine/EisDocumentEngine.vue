@@ -195,6 +195,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { watch } from 'vue'
 import { ElRow, ElCol, ElInput, ElDatePicker, ElInputNumber, ElTable, ElTableColumn, ElImage, ElSelect, ElOption, ElButton } from 'element-plus'
 

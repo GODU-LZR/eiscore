@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 export const documentSchemaExample = {
   docType: "employee_profile",
   title: "员工详细档案表",

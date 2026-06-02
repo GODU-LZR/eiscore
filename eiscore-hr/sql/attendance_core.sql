@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Attendance core tables (hr schema).
 -- Stores daily attendance with multi-punch times and per-day shift snapshot.
 

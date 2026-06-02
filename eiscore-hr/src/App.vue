@@ -3,6 +3,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 // 这里不需要任何逻辑，路由会接管一切
 </script>
 

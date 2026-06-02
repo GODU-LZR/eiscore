@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 扩展字段表：存储表单模板的额外字段值（public schema）
 create table if not exists public.form_values (
   id uuid primary key default gen_random_uuid(),

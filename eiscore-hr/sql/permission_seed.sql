@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 权限点标准化种子（module/app/op）
 -- 说明：以 code 作为唯一主键，name/module/action 为展示或分类字段。
 -- 执行方式（UTF-8）：cat permission_seed.sql | docker exec -i eiscore-db psql -U postgres -d eiscore

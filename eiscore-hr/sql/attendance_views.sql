@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Attendance views and helper functions.
 
 create or replace view hr.v_attendance_daily as

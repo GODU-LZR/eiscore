@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Realtime NOTIFY triggers for HR tables (safe to run multiple times)
 
 create or replace function public.notify_eis_events()

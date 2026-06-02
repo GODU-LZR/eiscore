@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- RLS template for HR archives (data scope by role)
 -- Note: PostgREST should set role=web_user and JWT contains app_role / username.
 -- This template assumes current_user permissions are already validated.

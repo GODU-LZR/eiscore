@@ -1,7 +1,13 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { createRouter, createWebHistory } from 'vue-router'
 // 1. 引入 qiankun 辅助变量 (用于判断是否在基座中运行)
 import { qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
 import { hasPerm } from '@/utils/permission'
+
+const ROUTER_BASE = '/hr'
+const APPS_PATH = '/apps'
 
 const router = createRouter({
   // 3. 🟢 关键配置：设置路由基础路径
@@ -10,15 +16,12 @@ const router = createRouter({
     (
       qiankunWindow.__POWERED_BY_QIANKUN__ ||
       (typeof window !== 'undefined' && window.location.pathname.startsWith('/hr'))
-    ) ? '/hr' : '/'
+    ) ? ROUTER_BASE : '/'
   ),
   routes: [
     {
       path: '/',
-      redirect: '/apps' // 默认跳转
-    },
-    {
-      path: '/apps',
+      alias: APPS_PATH,
       name: 'HrApps',
       component: () => import('../views/HrApps.vue')
     },
@@ -66,7 +69,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const perm = to.meta?.perm
   if (perm && !hasPerm(perm)) {
-    return next('/apps')
+    return next(APPS_PATH)
   }
   next()
 })

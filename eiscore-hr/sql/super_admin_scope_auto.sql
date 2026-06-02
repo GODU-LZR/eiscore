@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 超级管理员默认全公司数据范围
 -- 执行方式（UTF-8）：cat super_admin_scope_auto.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

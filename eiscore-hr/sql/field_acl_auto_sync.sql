@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 自动同步字段权限（监听 system_configs）
 -- 作用：任意应用新增列后自动补齐字段权限（默认可见/可编辑）
 -- 执行方式（UTF-8）：cat field_acl_auto_sync.sql | docker exec -i eiscore-db psql -U postgres -d eiscore

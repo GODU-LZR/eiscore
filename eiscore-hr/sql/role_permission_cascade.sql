@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Cascade revoke: module/app permission removal should revoke related app/op and field ACL
 -- 执行方式（UTF-8）：cat role_permission_cascade.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

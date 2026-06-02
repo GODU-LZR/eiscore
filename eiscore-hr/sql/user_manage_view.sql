@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 用户管理视图（users + user_roles）
 -- 执行方式（UTF-8）：cat user_manage_view.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

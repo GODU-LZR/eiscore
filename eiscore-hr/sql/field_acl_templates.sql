@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 字段级权限模板（示例：敏感字段默认控制）
 -- 说明：以 hr_employee 为样例，后续模块可参照扩展
 -- 执行方式（UTF-8）：cat field_acl_templates.sql | docker exec -i eiscore-db psql -U postgres -d eiscore

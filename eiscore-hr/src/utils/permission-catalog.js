@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { HR_APPS } from '@/utils/hr-apps'
 import { MODULE_LABELS, OP_ACTION_LABELS } from '@/utils/permission-spec'
 

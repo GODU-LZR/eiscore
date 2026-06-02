@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 字段权限同步 RPC：为模块下指定字段创建默认权限（可见/可编辑=true）
 -- 执行方式（UTF-8）：cat field_acl_sync_api.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

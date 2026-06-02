@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 字段中文覆盖表（用于历史字段或非表字段）
 -- 执行方式（UTF-8）：cat field_label_overrides.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

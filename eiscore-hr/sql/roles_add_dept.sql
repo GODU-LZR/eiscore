@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 角色绑定部门
 -- 执行方式（UTF-8）：cat roles_add_dept.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

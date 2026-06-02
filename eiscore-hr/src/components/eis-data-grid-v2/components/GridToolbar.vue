@@ -40,6 +40,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { computed } from 'vue'
 import { ElInput, ElButton, ElButtonGroup, ElIcon } from 'element-plus'
 import { Search, CirclePlus, Operation, Delete, Download } from '@element-plus/icons-vue'

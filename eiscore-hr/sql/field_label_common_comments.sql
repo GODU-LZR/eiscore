@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 通用字段中文注释（自动补全未设置的字段）
 -- 执行方式（UTF-8）：cat field_label_common_comments.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

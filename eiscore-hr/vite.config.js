@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -26,6 +29,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 8082, // 👈 端口 8081
+      hmr: false,
       cors: {
         origin: allowedOrigins.length ? allowedOrigins : ['http://localhost:8080']
       },

@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 角色数据范围矩阵（展示所有应用）
 -- 执行方式（UTF-8）：cat role_data_scopes_matrix_view.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

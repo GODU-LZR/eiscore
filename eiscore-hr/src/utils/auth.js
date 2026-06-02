@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 const AUTH_TOKEN_KEY = 'auth_token'
 const USER_INFO_KEY = 'user_info'
 

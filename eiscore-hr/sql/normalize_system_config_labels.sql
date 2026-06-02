@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 规范化动态列中文名：空/纯数字 -> 自定义字段N
 -- 执行方式（UTF-8）：cat normalize_system_config_labels.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

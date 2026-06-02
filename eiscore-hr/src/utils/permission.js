@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 export const getPermissions = () => {
   try {
     const raw = localStorage.getItem('user_info')

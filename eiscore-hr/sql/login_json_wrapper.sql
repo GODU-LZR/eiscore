@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- login(json) wrapper to accept single-object payloads
 -- 执行方式（UTF-8）：cat login_json_wrapper.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

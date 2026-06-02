@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 export const FIELD_LABELS = {
   hr_employee: {
     id: '编号',

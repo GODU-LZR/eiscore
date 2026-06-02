@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- AI/自动化权限落库接口（供 PostgREST RPC 调用）
 -- 约定：payload 为 JSON 数组，每项包含 code/name/module/action，可选 roles 绑定
 -- 示例：

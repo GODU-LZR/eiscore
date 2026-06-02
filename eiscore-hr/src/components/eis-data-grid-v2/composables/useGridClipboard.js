@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ElMessage } from 'element-plus'
 
 export function useGridClipboard(gridApi, historyHooks, selectionHooks) {

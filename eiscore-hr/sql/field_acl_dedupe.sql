@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 清理 sys_field_acl 重复记录，并补唯一约束
 -- 执行方式（UTF-8）：cat field_acl_dedupe.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 

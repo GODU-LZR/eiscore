@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 // 权限点规范：module / app / op / field
 // code 是唯一事实来源；module/action 仅用于展示或分类
 
