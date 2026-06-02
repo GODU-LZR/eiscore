@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { defineConfig } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
@@ -36,18 +39,16 @@ export default defineConfig({
   ],
   server: {
     port: 8083,
-    host: true,
+    host: '127.0.0.1',
     watch: enablePollingWatch
       ? {
         usePolling: true,
         interval: Number(process.env.VITE_FLASH_WATCH_POLLING_INTERVAL || 220)
       }
       : undefined,
-    hmr: {
-      // In iframe/srcdoc preview, Vite's built-in overlay can throw "Illegal constructor".
-      // Keep HMR active but suppress overlay to avoid breaking Flash preview rendering.
-      overlay: false
-    },
+    // Child-app HMR shares Vue's global HMR runtime inside the qiankun host.
+    // Disable it to avoid stale runtime maps when switching/unmounting micro apps.
+    hmr: false,
     cors: {
       origin: true,
       credentials: true
@@ -58,6 +59,24 @@ export default defineConfig({
       'Access-Control-Allow-Headers': '*',
       'Access-Control-Allow-Credentials': 'true',
       'Cross-Origin-Resource-Policy': 'cross-origin'
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        rewrite: (path) => (
+          path
+            .replace(/^\/api\/workflow\.definitions\b/, '/api/definitions')
+            .replace(/^\/api\/workflow\.instances\b/, '/api/instances')
+            .replace(/^\/api/, '')
+        )
+      },
+      '/agent': {
+        target: 'http://localhost:8078',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/agent/, ''),
+        ws: true
+      }
     }
   },
   build: {

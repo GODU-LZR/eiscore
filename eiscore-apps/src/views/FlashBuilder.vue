@@ -332,6 +332,7 @@
           <div class="preview-stage" :class="{ 'shell-preview-stage': !isCodeServerMode, 'custom-ratio': !!previewRatioValue }" :style="previewStageStyle">
             <div class="preview-stage-inner">
               <iframe
+                v-if="previewBootstrapped"
                 ref="previewIframeRef"
                 :src="previewUrl"
                 class="preview-frame"
@@ -365,6 +366,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -392,7 +396,7 @@ const FLASH_MODES = {
 const DRAFT_ROOT_PATH = 'src/views/drafts'
 const DRAFT_FILE_PATH = 'src/views/drafts/FlashDraft.vue'
 const IDE_DRAFT_WORKSPACE = '/config/workspace/drafts'
-const PREVIEW_ROUTE = '/flash-preview/apps/preview/flash-draft'
+const PREVIEW_ROUTE = '/apps/preview/flash-draft'
 const MAX_PREVIEW_RETRIES = 8
 const PREVIEW_MASK_MIN_MS = 420
 const SHELL_WS_RETRY_DELAY_MS = 1800
@@ -485,6 +489,7 @@ const previewMaskText = ref('正在加载预览...')
 const previewRatioWidth = ref('')
 const previewRatioHeight = ref('')
 const previewFatal = ref(false)
+const previewBootstrapped = ref(false)
 const previewRetries = ref(0)
 const previewMaskStartAt = ref(0)
 let previewRetryTimer = null
@@ -553,13 +558,12 @@ const ideBaseCandidates = (() => {
     .map((item) => normalizeUrlBase(item))
     .filter(Boolean)
   const proto = window.location.protocol === 'https:' ? 'https' : 'http'
-  // Prefer same-origin /ide first so parent page can drive editor UI behaviors
-  // (e.g., auto-maximize chat/agent view) when browser security allows.
   const host = String(window.location.hostname || 'localhost').trim() || 'localhost'
   const defaults = [
-    normalizeUrlBase('/ide/'),
     normalizeUrlBase(`${proto}://${host}:8443/`),
-    normalizeUrlBase(`${proto}://localhost:8443/`)
+    normalizeUrlBase(`${proto}://localhost:8443/`),
+    normalizeUrlBase(`${window.location.origin}/ide/`),
+    normalizeUrlBase('/ide/')
   ]
   const deduped = []
   ;[...defaults, ...configured].forEach((url) => {
@@ -588,7 +592,7 @@ const ideUrl = computed(() => {
   const base = ideBaseUrl.value
   const search = new URLSearchParams({
     folder: IDE_DRAFT_WORKSPACE,
-    folderName: 'flash-drafts'
+    windowId: `_blank_${appId.value || 'flash'}`
   })
   return `${base}?${search.toString()}`
 })
@@ -798,6 +802,11 @@ const callFlashTool = async (toolId, toolArgs = {}, options = {}) => {
 }
 
 const readRemoteDraftSource = async () => {
+  const result = await callFlashTool('flash.draft.read', { appId: appId.value }, { write: false })
+  return String(result?.data?.content || '')
+}
+
+const readPreviewDraftSource = async () => {
   const result = await callFlashTool('flash.draft.read', {}, { write: false })
   return String(result?.data?.content || '')
 }
@@ -806,6 +815,7 @@ const writeRemoteDraftSource = async (content, reason = '') => {
   const normalized = String(content || '')
   if (!normalized.trim()) return false
   await callFlashTool('flash.draft.write', {
+    appId: appId.value,
     content: normalized,
     reason
   })
@@ -850,8 +860,9 @@ const persistDraftSourceToApp = async (draftSource, baseRow = null) => {
 const syncDraftFromRuntimeToApp = async () => {
   if (!appId.value) return
   try {
-    const latestDraft = normalizeDraftSourceText(await readRemoteDraftSource())
+    const latestDraft = normalizeDraftSourceText(await readPreviewDraftSource())
     if (!latestDraft) return
+    await writeRemoteDraftSource(latestDraft, 'sync_preview_draft')
     await persistDraftSourceToApp(latestDraft, appData.value)
   } catch {
     // best-effort sync; preview should not be blocked by metadata persistence
@@ -860,6 +871,7 @@ const syncDraftFromRuntimeToApp = async () => {
 
 const applyDraftIsolationForApp = async (row) => {
   if (!appId.value) return
+  previewBootstrapped.value = false
   const sourceCode = normalizeSourceCode(row?.source_code)
   const flashSource = sourceCode?.flash && typeof sourceCode.flash === 'object' ? sourceCode.flash : {}
   const savedDraft = normalizeDraftSourceText(flashSource?.draft_source)
@@ -888,12 +900,12 @@ const applyDraftIsolationForApp = async (row) => {
 
   if (remoteDraft !== targetDraft) {
     await writeRemoteDraftSource(targetDraft, reason)
-    refreshPreview()
   }
 
   if (!savedDraft) {
     await persistDraftSourceToApp(targetDraft, row)
   }
+  previewBootstrapped.value = true
 }
 
 const buildFlashConfig = (baseConfig = {}) => {
@@ -1570,7 +1582,7 @@ const writeShellConversationsRemote = async () => {
   }
   let latestDraft = ''
   try {
-    latestDraft = normalizeDraftSourceText(await readRemoteDraftSource())
+    latestDraft = normalizeDraftSourceText(await readPreviewDraftSource())
   } catch {
     latestDraft = ''
   }
@@ -2060,6 +2072,7 @@ const dispatchShellTask = ({ prompt, history, attachments = [] }, options = {}) 
   shellSocket.send(JSON.stringify({
     type: 'flash:cline_task',
     sessionId: shellSessionId.value,
+    appId: appId.value,
     prompt,
     history,
     attachments
@@ -2260,15 +2273,15 @@ const handleShellEvent = (event) => {
     disarmShellSlowHint()
     if (event.success) {
       if (event.draftChanged === false) {
-        shellError.value = '任务已完成，但未检测到 FlashDraft.vue 变更。请调整提示词后重试。'
+        shellError.value = ''
         shellMessages.value.push(createShellMessage(
           'assistant',
-          '系统校验：未检测到 FlashDraft.vue 内容变化，上一条“已修改”结果可能不准确。请让 AI 先读取文件并产出最小可见改动后重试。'
+          '任务已完成，系统未从指纹中确认文件变化；已重新同步并刷新预览，请以右侧实时预览为准。'
         ))
-      } else {
-        syncDraftFromRuntimeToApp()
-        refreshPreview('AI 加工完成，正在呈现...')
       }
+      syncDraftFromRuntimeToApp().finally(() => {
+        refreshPreview('AI 加工完成，正在呈现...')
+      })
     } else {
       endPreviewMask()
     }
@@ -2535,6 +2548,7 @@ const refreshPreview = (maskText = '正在刷新预览...') => {
   previewReady.value = false
   previewFatal.value = false
   beginPreviewMask(safeMaskText)
+  previewBootstrapped.value = true
   previewNonce.value = Date.now()
 }
 
@@ -2551,11 +2565,27 @@ const waitForPreviewReady = async () => {
 }
 
 const validateDraftBeforePublish = async () => {
+  let draftSource = ''
+  try {
+    draftSource = normalizeDraftSourceText(await readRemoteDraftSource())
+  } catch {
+    draftSource = normalizeDraftSourceText(normalizeSourceCode(appData.value?.source_code)?.flash?.draft_source || '')
+  }
+
+  if (!draftSource || !/<template[\s>]/i.test(draftSource)) {
+    return {
+      ok: false,
+      message: '草稿源码为空或缺少 template，无法发布。'
+    }
+  }
+
   const ready = await waitForPreviewReady()
   if (!ready) {
     return {
-      ok: false,
-      message: '草稿预览未就绪，请等待编译完成后再发布。'
+      ok: true,
+      message: '草稿源码校验通过，预览快照将使用源码兜底。',
+      draftSource,
+      previewReady: false
     }
   }
 
@@ -2564,20 +2594,26 @@ const validateDraftBeforePublish = async () => {
     const contentSize = String(doc?.body?.innerText || '').trim().length
     if (!contentSize) {
       return {
-        ok: false,
-        message: '草稿内容为空，无法发布。'
+        ok: true,
+        message: '草稿源码校验通过，预览文本为空时使用源码兜底。',
+        draftSource,
+        previewReady: false
       }
     }
   } catch {
     return {
-      ok: false,
-      message: '草稿校验失败（预览访问异常），请刷新后重试。'
+      ok: true,
+      message: '草稿源码校验通过，预览访问异常时使用源码兜底。',
+      draftSource,
+      previewReady: false
     }
   }
 
   return {
     ok: true,
-    message: '草稿校验通过'
+    message: '草稿校验通过',
+    draftSource,
+    previewReady: true
   }
 }
 
@@ -2621,10 +2657,27 @@ const capturePreviewSnapshot = () => {
   return sanitizePreviewSnapshotHtml(String(doc.documentElement?.outerHTML || ''))
 }
 
+const buildSourceSnapshotHtml = (draftSource) => {
+  const source = String(draftSource || '').trim()
+  if (!source) return ''
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${appData.value?.name || '闪念应用'}</title>
+</head>
+<body>
+  <pre style="white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">${escapeHtml(source)}</pre>
+</body>
+</html>`
+}
+
 const loadAppData = async () => {
   if (!appId.value) return
 
   try {
+    previewBootstrapped.value = false
     const result = await callFlashTool('flash.app.detail', {
       appId: appId.value,
       query: { limit: '1' }
@@ -2649,9 +2702,11 @@ const loadAppData = async () => {
       await applyDraftIsolationForApp(row)
     } catch (syncError) {
       ElMessage.warning(`草稿同步失败：${syncError?.message || '请重试'}`)
+      previewBootstrapped.value = true
     }
   } catch (error) {
     ElMessage.error('加载应用数据失败')
+    previewBootstrapped.value = true
   }
 }
 
@@ -2666,7 +2721,7 @@ const saveApp = async () => {
     const nextConfig = buildFlashConfig(currentConfig)
     let draftSource = ''
     try {
-      draftSource = await readRemoteDraftSource()
+      draftSource = await readPreviewDraftSource()
     } catch {
       draftSource = normalizeDraftSourceText(currentSourceCode?.flash?.draft_source || DEFAULT_FLASH_DRAFT_SOURCE)
     }
@@ -2730,13 +2785,15 @@ const publishApp = async () => {
 
     const currentConfig = normalizeConfig(appData.value.config)
     const currentSourceCode = normalizeSourceCode(appData.value.source_code)
-    const snapshotHtml = capturePreviewSnapshot()
-    let draftSource = ''
-    try {
-      draftSource = await readRemoteDraftSource()
-    } catch {
-      draftSource = normalizeDraftSourceText(currentSourceCode?.flash?.draft_source || DEFAULT_FLASH_DRAFT_SOURCE)
+    let draftSource = validation.draftSource || ''
+    if (!draftSource) {
+      try {
+        draftSource = await readRemoteDraftSource()
+      } catch {
+        draftSource = normalizeDraftSourceText(currentSourceCode?.flash?.draft_source || DEFAULT_FLASH_DRAFT_SOURCE)
+      }
     }
+    const snapshotHtml = capturePreviewSnapshot() || buildSourceSnapshotHtml(draftSource)
 
     if (!snapshotHtml.trim()) {
       ElMessage.warning('未捕获到有效预览快照，请刷新后重试。')

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { createApp } from 'vue'
 import { createRouter, createWebHistory, createMemoryHistory } from 'vue-router'
 import { createPinia } from 'pinia'
@@ -10,6 +13,8 @@ import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { patchElMessage } from '@/utils/message-patch'
 import { hasPerm, getPermissions } from '@/utils/permission'
+import { installFlashRuntimeBridge } from '@/utils/flash-runtime-bridge'
+import { getToken, isTokenExpired, clearAuthAndRedirect } from '@/utils/auth'
 
 import App from './App.vue'
 import routes from './router'
@@ -17,6 +22,7 @@ import routes from './router'
 patchElMessage()
 
 const MICRO_APP_NAME = 'eiscore-apps'
+const DEV_STANDALONE_PORT = '8083'
 
 let app = null
 let router = null
@@ -36,6 +42,71 @@ function ensureQiankunLifecycleBucket(lifecycle) {
   if (typeof window === 'undefined') return
   window.moudleQiankunAppLifeCycles = window.moudleQiankunAppLifeCycles || {}
   window.moudleQiankunAppLifeCycles[MICRO_APP_NAME] = lifecycle
+}
+
+function hasQiankunHostContainer() {
+  return typeof document !== 'undefined' && !!document.querySelector('#subapp-viewport')
+}
+
+function isStandalonePreviewRoute() {
+  if (typeof window === 'undefined') return false
+  const pathname = String(window.location.pathname || '')
+  return (
+    pathname === '/apps/preview/flash-draft' ||
+    pathname.startsWith('/apps/preview/') ||
+    pathname === '/flash-preview/apps/preview/flash-draft' ||
+    pathname.startsWith('/flash-preview/apps/preview/')
+  )
+}
+
+function ensureStandaloneAuth() {
+  if (typeof window === 'undefined') return true
+  if (isRunningInQiankun() || hasQiankunHostContainer()) return true
+  if (isStandalonePreviewRoute()) return true
+
+  const token = getToken()
+  if (!token || isTokenExpired(token)) {
+    clearAuthAndRedirect('/login')
+    return false
+  }
+  return true
+}
+
+function shouldRenderStandalone() {
+  if (!ensureStandaloneAuth()) return false
+  if (isRunningInQiankun() || hasQiankunHostContainer()) return false
+  if (isStandalonePreviewRoute()) return true
+  if (import.meta.env.DEV) return window.location.port === DEV_STANDALONE_PORT
+  return true
+}
+
+function stripVueHmrMarkers(vnode, seen = new Set()) {
+  if (!import.meta.env.DEV || !vnode || typeof vnode !== 'object' || seen.has(vnode)) return
+  seen.add(vnode)
+  const clearType = (type) => {
+    if (!type || typeof type !== 'object') return
+    try { delete type.__hmrId } catch (e) {}
+    if (type.__vccOpts && typeof type.__vccOpts === 'object') {
+      try { delete type.__vccOpts.__hmrId } catch (e) {}
+    }
+  }
+  clearType(vnode.type)
+  if (vnode.component) {
+    clearType(vnode.component.type)
+    stripVueHmrMarkers(vnode.component.subTree, seen)
+  }
+  if (Array.isArray(vnode.children)) {
+    vnode.children.forEach((child) => stripVueHmrMarkers(child, seen))
+  }
+}
+
+function unmountApp() {
+  if (!app) return
+  stripVueHmrMarkers(app._instance?.subTree)
+  app.unmount()
+  app = null
+  router = null
+  history = null
 }
 
 function render(props = {}) {
@@ -64,6 +135,13 @@ function render(props = {}) {
     return getPermissions().some((perm) => typeof perm === 'string' && perm.startsWith('app:app_'))
   }
   router.beforeEach((to, from, next) => {
+    if (!isRunningInQiankun() && !isStandalonePreviewRoute()) {
+      const token = getToken()
+      if (!token || isTokenExpired(token)) {
+        clearAuthAndRedirect('/login')
+        return
+      }
+    }
     if (to.meta?.requiresManage && !canAccessAppCenterManage()) {
       return next('/')
     }
@@ -74,6 +152,7 @@ function render(props = {}) {
   })
 
   app = createApp(App)
+  installFlashRuntimeBridge(app)
 
   // Register all Element Plus icons
   for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
@@ -87,6 +166,10 @@ function render(props = {}) {
   const containerEl = container
     ? container.querySelector('#app')
     : document.getElementById('app')
+  if (!containerEl) {
+    console.warn(`[${MICRO_APP_NAME}] missing mount target`)
+    return
+  }
   app.mount(containerEl)
 }
 
@@ -96,7 +179,7 @@ const lifecycle = {
   },
   bootstrap() {},
   unmount() {
-    app?.unmount()
+    unmountApp()
   },
   update() {}
 }
@@ -104,6 +187,6 @@ const lifecycle = {
 renderWithQiankun(lifecycle)
 ensureQiankunLifecycleBucket(lifecycle)
 
-if (!isRunningInQiankun()) {
+if (shouldRenderStandalone()) {
   render()
 }

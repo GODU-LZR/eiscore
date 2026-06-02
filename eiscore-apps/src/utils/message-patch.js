@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ElMessage } from 'element-plus'
 
 const PATCH_FLAG = '__EIS_MESSAGE_PATCHED__'

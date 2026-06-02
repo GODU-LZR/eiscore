@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { getToken, clearAuthAndRedirect } from '@/utils/auth'

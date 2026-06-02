@@ -488,6 +488,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -583,7 +586,7 @@ const flashPublishedSrcdoc = computed(() => {
 
 const flashRuntimeUrl = computed(() => {
   if (!flashRuntimeReady.value || !runtimeAppId.value) return ''
-  return `/flash-preview/apps/preview/flash-draft?appId=${encodeURIComponent(runtimeAppId.value)}&_t=${flashRuntimeNonce.value}`
+  return `/apps/preview/flash-draft?appId=${encodeURIComponent(runtimeAppId.value)}&_t=${flashRuntimeNonce.value}`
 })
 
 const extractFlashRuntimeDraftSource = (row) => {
@@ -610,6 +613,7 @@ const prepareFlashRuntimeSource = async (row) => {
 
   try {
     const response = await axios.post('/agent/flash/draft', {
+      appId: row.id || runtimeAppId.value || '',
       content: runtimeDraft,
       reason: `runtime_open:${row.id || runtimeAppId.value || 'unknown'}`
     }, {
@@ -699,15 +703,23 @@ const LEGACY_BINDING_LABEL_MAP = Object.freeze({
   'legacy:mms_inventory_ledger': '库存台账（MMS）',
   'legacy:mms_inventory_stock_in': '入库（MMS）',
   'legacy:mms_inventory_stock_out': '出库（MMS）',
-  'legacy:mms_inventory_current': '库存查询（MMS）'
+  'legacy:mms_inventory_current': '库存查询（MMS）',
+  'legacy:mms_bom': 'BOM管理（MMS）',
+  'legacy:sales_order': '销售订单',
+  'legacy:purchase_demand': '采购需求',
+  'legacy:production_work_order': '生产工单'
 })
 const LEGACY_TABLE_BINDING_MAP = Object.freeze({
   'hr.archives': 'legacy:hr_employee',
   'hr.attendance_records': 'legacy:hr_attendance',
   'public.users': 'legacy:hr_user',
   'public.raw_materials': 'legacy:mms_ledger',
+  'public.sales_orders': 'legacy:sales_order',
+  'public.purchase_demands': 'legacy:purchase_demand',
+  'scm.boms': 'legacy:mms_bom',
   'scm.inventory_transactions': 'legacy:mms_inventory_ledger',
-  'scm.v_inventory_current': 'legacy:mms_inventory_current'
+  'scm.v_inventory_current': 'legacy:mms_inventory_current',
+  'scm.production_work_orders': 'legacy:production_work_order'
 })
 const LEGACY_BINDING_STATE_TARGET_MAP = Object.freeze({
   'legacy:hr_employee': { target_table: 'hr.archives', state_field: 'status' },
@@ -715,6 +727,9 @@ const LEGACY_BINDING_STATE_TARGET_MAP = Object.freeze({
   'legacy:hr_attendance': { target_table: 'hr.attendance_records', state_field: 'status' },
   'legacy:hr_change': { target_table: 'hr.employee_changes', state_field: 'status' },
   'legacy:mms_ledger': { target_table: 'public.raw_materials', state_field: 'status' },
+  'legacy:sales_order': { target_table: 'public.sales_orders', state_field: 'status' },
+  'legacy:purchase_demand': { target_table: 'public.purchase_demands', state_field: 'status' },
+  'legacy:production_work_order': { target_table: 'scm.production_work_orders', state_field: 'work_order_status' },
   'legacy:mms_inventory_stock_in': { target_table: 'scm.inventory_drafts', state_field: 'status' },
   'legacy:mms_inventory_stock_out': { target_table: 'scm.inventory_drafts', state_field: 'status' }
 })
@@ -944,6 +959,162 @@ const PASSTHROUGH_NODE_TYPE_SET = new Set([
   'bpmn:intermediateThrowEvent',
   'bpmn:intermediateCatchEvent'
 ])
+
+const DIAGRAM_NODE_TYPE_SET = new Set([
+  'startEvent',
+  'endEvent',
+  'userTask',
+  'task',
+  'serviceTask',
+  'manualTask',
+  'scriptTask',
+  'receiveTask',
+  'sendTask',
+  'callActivity',
+  'exclusiveGateway',
+  'parallelGateway',
+  'inclusiveGateway',
+  'intermediateThrowEvent',
+  'intermediateCatchEvent'
+])
+
+const sanitizeBpmnDiId = (value, fallback = 'Element') => {
+  const text = String(value || '').trim().replace(/[^A-Za-z0-9_.-]/g, '_')
+  return text || fallback
+}
+
+const getTagAttribute = (tag, name) => {
+  const pattern = new RegExp(`\\b${name}="([^"]*)"`, 'i')
+  return String(tag || '').match(pattern)?.[1] || ''
+}
+
+const getDiagramNodeBounds = (nodeType, index) => {
+  const compactTypes = new Set([
+    'startEvent',
+    'endEvent',
+    'intermediateThrowEvent',
+    'intermediateCatchEvent'
+  ])
+  const gatewayTypes = new Set(['exclusiveGateway', 'parallelGateway', 'inclusiveGateway'])
+  const x = 120 + index * 190
+  if (compactTypes.has(nodeType)) return { x, y: 210, width: 36, height: 36 }
+  if (gatewayTypes.has(nodeType)) return { x, y: 203, width: 50, height: 50 }
+  return { x, y: 188, width: 140, height: 80 }
+}
+
+const ensureBpmnDiagramXml = (raw) => {
+  let xml = normalizeBpmnXml(raw).trim()
+  if (!xml || /<bpmndi:BPMNDiagram\b/i.test(xml)) return xml
+
+  const definitionTag = xml.match(/<bpmn:definitions\b[^>]*>/i)?.[0] || ''
+  const processId = getTagAttribute(xml.match(/<bpmn:process\b[^>]*>/i)?.[0] || '', 'id') || 'Process_1'
+  if (!definitionTag || !processId || !/<\/bpmn:definitions>\s*$/i.test(xml)) return xml
+
+  const namespaces = [
+    ['xmlns:bpmndi', 'http://www.omg.org/spec/BPMN/20100524/DI'],
+    ['xmlns:dc', 'http://www.omg.org/spec/DD/20100524/DC'],
+    ['xmlns:di', 'http://www.omg.org/spec/DD/20100524/DI']
+  ]
+  let nextDefinitionTag = definitionTag
+  namespaces.forEach(([name, value]) => {
+    const hasNamespace = new RegExp(`\\b${name}=`, 'i').test(nextDefinitionTag)
+    if (!hasNamespace) {
+      nextDefinitionTag = nextDefinitionTag.replace(/>$/, ` ${name}="${value}">`)
+    }
+  })
+  xml = xml.replace(definitionTag, nextDefinitionTag)
+
+  const nodes = []
+  const nodeRegex = /<bpmn:([a-zA-Z0-9]+)\b[^>]*\bid="([^"]+)"/g
+  let nodeMatch = nodeRegex.exec(xml)
+  while (nodeMatch) {
+    const type = String(nodeMatch[1] || '').trim()
+    const id = String(nodeMatch[2] || '').trim()
+    if (id && DIAGRAM_NODE_TYPE_SET.has(type)) {
+      nodes.push({ id, type })
+    }
+    nodeMatch = nodeRegex.exec(xml)
+  }
+  if (!nodes.length) return xml
+
+  const flows = []
+  const flowRegex = /<bpmn:sequenceFlow\b[^>]*>/g
+  let flowMatch = flowRegex.exec(xml)
+  while (flowMatch) {
+    const tag = flowMatch[0] || ''
+    const id = getTagAttribute(tag, 'id')
+    const sourceRef = getTagAttribute(tag, 'sourceRef')
+    const targetRef = getTagAttribute(tag, 'targetRef')
+    if (id && sourceRef && targetRef) flows.push({ id, sourceRef, targetRef })
+    flowMatch = flowRegex.exec(xml)
+  }
+
+  const incomingSet = new Set(flows.map((item) => item.targetRef))
+  const outgoingMap = {}
+  flows.forEach((item) => {
+    if (!outgoingMap[item.sourceRef]) outgoingMap[item.sourceRef] = []
+    outgoingMap[item.sourceRef].push(item.targetRef)
+  })
+
+  const nodeMap = Object.fromEntries(nodes.map((item) => [item.id, item]))
+  const orderedIds = []
+  const visited = new Set()
+  const startIds = nodes
+    .filter((item) => item.type === 'startEvent' || !incomingSet.has(item.id))
+    .map((item) => item.id)
+  const queue = startIds.length ? [...startIds] : [nodes[0].id]
+  while (queue.length) {
+    const id = queue.shift()
+    if (!id || visited.has(id) || !nodeMap[id]) continue
+    visited.add(id)
+    orderedIds.push(id)
+    ;(outgoingMap[id] || []).forEach((targetId) => queue.push(targetId))
+  }
+  nodes.forEach((item) => {
+    if (!visited.has(item.id)) orderedIds.push(item.id)
+  })
+
+  const boundsMap = {}
+  const shapeXml = orderedIds.map((id, index) => {
+    const node = nodeMap[id]
+    const bounds = getDiagramNodeBounds(node?.type, index)
+    boundsMap[id] = bounds
+    const shapeId = sanitizeBpmnDiId(`Shape_${id}`)
+    return [
+      `      <bpmndi:BPMNShape id="${shapeId}" bpmnElement="${id}">`,
+      `        <dc:Bounds x="${bounds.x}" y="${bounds.y}" width="${bounds.width}" height="${bounds.height}" />`,
+      '      </bpmndi:BPMNShape>'
+    ].join('\n')
+  }).join('\n')
+
+  const edgeXml = flows.map((flow) => {
+    const source = boundsMap[flow.sourceRef]
+    const target = boundsMap[flow.targetRef]
+    if (!source || !target) return ''
+    const sourceX = source.x + source.width
+    const sourceY = source.y + source.height / 2
+    const targetX = target.x
+    const targetY = target.y + target.height / 2
+    const edgeId = sanitizeBpmnDiId(`Edge_${flow.id}`)
+    return [
+      `      <bpmndi:BPMNEdge id="${edgeId}" bpmnElement="${flow.id}">`,
+      `        <di:waypoint x="${sourceX}" y="${sourceY}" />`,
+      `        <di:waypoint x="${targetX}" y="${targetY}" />`,
+      '      </bpmndi:BPMNEdge>'
+    ].join('\n')
+  }).filter(Boolean).join('\n')
+
+  const diagramXml = [
+    `  <bpmndi:BPMNDiagram id="${sanitizeBpmnDiId(`BPMNDiagram_${processId}`)}">`,
+    `    <bpmndi:BPMNPlane id="${sanitizeBpmnDiId(`BPMNPlane_${processId}`)}" bpmnElement="${processId}">`,
+    shapeXml,
+    edgeXml,
+    '    </bpmndi:BPMNPlane>',
+    '  </bpmndi:BPMNDiagram>'
+  ].filter(Boolean).join('\n')
+
+  return xml.replace(/<\/bpmn:definitions>\s*$/i, `${diagramXml}\n</bpmn:definitions>`)
+}
 
 const parseBpmnGraph = (xmlRaw) => {
   const xml = normalizeBpmnXml(xmlRaw)
@@ -2050,7 +2221,7 @@ async function initializeBpmnViewer() {
     bpmnViewer = null
   }
   bpmnViewer = new NavigatedViewer({ container: bpmnCanvasRef.value })
-  const xml = normalizeBpmnXml(appData.value?.bpmn_xml)
+  const xml = ensureBpmnDiagramXml(appData.value?.bpmn_xml)
   if (!xml) return
   try {
     await bpmnViewer.importXML(xml)
@@ -2491,6 +2662,10 @@ function resolveLegacyBusinessRoute(bindingKey, businessKey) {
   if (key === 'legacy:mms_inventory_stock_in') return { path: '/materials/inventory-stock-in' }
   if (key === 'legacy:mms_inventory_stock_out') return { path: '/materials/inventory-stock-out' }
   if (key === 'legacy:mms_inventory_current') return { path: '/materials/inventory-current' }
+  if (key === 'legacy:mms_bom') return { path: '/materials/bom' }
+  if (key === 'legacy:sales_order') return { path: '/sales/app/orders' }
+  if (key === 'legacy:purchase_demand') return { path: '/purchase/app/demands' }
+  if (key === 'legacy:production_work_order') return { path: '/production/app/work_orders' }
   return null
 }
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 const getBaseActions = () => {
   if (typeof window === 'undefined') return null
   return window.__EIS_BASE_ACTIONS__ || null

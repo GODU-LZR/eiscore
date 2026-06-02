@@ -51,6 +51,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, computed, onMounted, onUnmounted, watch, defineComponent, h, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElEmpty, ElDivider, ElForm, ElFormItem, ElSelect, ElOption, ElInput, ElButton, ElSwitch, ElIcon } from 'element-plus'

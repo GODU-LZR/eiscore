@@ -136,6 +136,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -233,6 +236,7 @@ const iconMap = iconOptions.reduce((acc, item) => {
 const ONTOLOGY_SYSTEM_APP = 'ontology_workbench'
 const ONTOLOGY_READONLY_NAME = '本体关系工作台'
 const ONTOLOGY_READONLY_DESC = '可视化查看系统表关系与影响范围'
+const APP_RUNTIME_TITLE_STORAGE_KEY = 'eis_app_runtime_title_map_v1'
 
 const apiBase = '/api'
 const toAbsoluteApiUrl = (path) => {
@@ -296,6 +300,39 @@ const isOntologyReadonlyApp = (app) => {
   if (config.systemApp === ONTOLOGY_SYSTEM_APP) return true
   const name = String(app.name || '')
   return name === 'Ontology Workbench' || name === '本体关系工作台' || name === '本体工作台'
+}
+
+const getAppTabTitle = (app) => String(getDisplayName(app) || app?.name || '').trim()
+
+const rememberAppTabTitle = (app) => {
+  const id = String(app?.id || '').trim()
+  const title = getAppTabTitle(app)
+  if (!id || !title || typeof localStorage === 'undefined') return
+  try {
+    const raw = localStorage.getItem(APP_RUNTIME_TITLE_STORAGE_KEY)
+    const map = raw ? JSON.parse(raw) : {}
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+      map[id] = title
+      localStorage.setItem(APP_RUNTIME_TITLE_STORAGE_KEY, JSON.stringify(map))
+    }
+  } catch {
+    localStorage.setItem(APP_RUNTIME_TITLE_STORAGE_KEY, JSON.stringify({ [id]: title }))
+  }
+}
+
+const buildAppRouteQuery = (app) => {
+  const title = getAppTabTitle(app)
+  return title ? { appName: title } : {}
+}
+
+const pushAppRoute = (path, app) => {
+  const normalizedPath = String(path || '').trim()
+  if (!normalizedPath) return
+  rememberAppTabTitle(app)
+  router.push({
+    path: normalizedPath,
+    query: buildAppRouteQuery(app)
+  })
 }
 
 async function createApp() {
@@ -394,7 +431,7 @@ function navigateToBuilder(app) {
     custom: '/flash-builder/'
   }
   const base = routeMap[app.app_type] || '/workflow-designer/'
-  router.push(base + app.id)
+  pushAppRoute(base + app.id, app)
 }
 
 async function openApp(app) {
@@ -409,13 +446,13 @@ async function openApp(app) {
       try {
         const publishedPath = await resolvePublishedRoutePath(app)
         const resolved = toAppRouterPath(publishedPath || '')
-        router.push(resolved || `/app/${app.id}`)
+        pushAppRoute(resolved || `/app/${app.id}`, app)
       } catch (error) {
-        router.push(`/app/${app.id}`)
+        pushAppRoute(`/app/${app.id}`, app)
       }
       return
     }
-    router.push(`/app/${app.id}`)
+    pushAppRoute(`/app/${app.id}`, app)
     return
   }
   navigateToBuilder(app)
@@ -482,6 +519,7 @@ onMounted(loadApps)
 
 .cards-row {
   margin-bottom: 16px;
+  align-items: stretch;
 }
 
 .dashboard-content {
@@ -493,13 +531,28 @@ onMounted(loadApps)
   overflow: hidden;
 }
 
+.cards-row :deep(.el-col) {
+  display: flex;
+}
 
 .app-card {
+  width: 100%;
+  height: 132px;
+  display: flex;
   cursor: pointer;
   border-radius: 10px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   margin-bottom: 20px;
   position: relative;
+}
+
+.app-card :deep(.el-card__body) {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
 }
 
 .app-card:hover {
@@ -509,13 +562,15 @@ onMounted(loadApps)
 
 .app-card-body {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
+  min-width: 0;
 }
 
 .app-icon {
   width: 40px;
   height: 40px;
+  flex: 0 0 40px;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -536,6 +591,8 @@ onMounted(loadApps)
 .tone-purple { background: #8b5cf6; }
 
 .app-info {
+  min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -544,18 +601,29 @@ onMounted(loadApps)
 .app-name {
   font-size: 15px;
   font-weight: 600;
+  line-height: 20px;
   color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-desc {
   font-size: 12px;
+  line-height: 18px;
   color: #909399;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
 }
 
 .app-actions {
-  margin-top: 14px;
+  margin-top: 12px;
   display: flex;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .app-enter {

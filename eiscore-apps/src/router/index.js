@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 export default [
   {
     path: '/',
@@ -56,7 +59,7 @@ export default [
   {
     path: '/preview/flash-draft',
     name: 'FlashDraftPreview',
-    component: () => import('../views/drafts/FlashDraft.vue'),
+    component: () => import('../views/FlashDraftPreview.vue'),
     meta: { title: '闪念草稿预览' }
   },
   {

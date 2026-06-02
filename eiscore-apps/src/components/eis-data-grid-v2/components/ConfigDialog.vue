@@ -73,6 +73,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { ElDialog, ElTabs, ElTabPane, ElRadioGroup, ElRadio, ElInput, ElButton, ElTag } from 'element-plus'
 import { pushAiCommand, pushAiContext } from '@/utils/ai-context'

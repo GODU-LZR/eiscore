@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 export const DATA_APP_COLUMN_TYPES = [
   { label: '普通文字', value: 'text', hint: '文字/数字/日期' },
   { label: '下拉选项', value: 'select' },

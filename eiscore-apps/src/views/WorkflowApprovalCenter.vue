@@ -102,6 +102,20 @@
         <el-table-column label="最近时间" min-width="170">
           <template #default="{ row }">{{ formatDateTime(row.latestAt) }}</template>
         </el-table-column>
+        <el-table-column label="操作" fixed="right" min-width="110">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.myPending"
+              size="small"
+              type="primary"
+              :loading="approvalSubmitting && approvalDialog.row?.key === row.key"
+              @click="openApprovalDialog(row)"
+            >
+              处理
+            </el-button>
+            <span v-else class="muted-action">-</span>
+          </template>
+        </el-table-column>
       </el-table>
     </el-card>
 
@@ -126,10 +140,66 @@
         <el-table-column prop="commentText" label="审批意见" min-width="260" show-overflow-tooltip />
       </el-table>
     </el-card>
+
+    <el-dialog
+      v-model="approvalDialog.visible"
+      title="处理审批"
+      width="540px"
+      destroy-on-close
+      @closed="resetApprovalDialog"
+    >
+      <el-descriptions v-if="approvalDialog.row" :column="1" size="small" border>
+        <el-descriptions-item label="流程单号">{{ approvalDialog.row.instanceId }}</el-descriptions-item>
+        <el-descriptions-item label="流程定义">{{ approvalDialog.row.definitionName }}</el-descriptions-item>
+        <el-descriptions-item label="当前节点">{{ approvalDialog.row.taskName }}</el-descriptions-item>
+        <el-descriptions-item label="会签进度">
+          {{ approvalDialog.row.approvedCount }}/{{ approvalDialog.row.requiredApprovals }}
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <el-form class="approval-form" label-width="84px">
+        <el-form-item label="处理结果">
+          <el-radio-group v-model="approvalForm.decision">
+            <el-radio-button label="approved">同意</el-radio-button>
+            <el-radio-button label="rejected">驳回</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="approvalForm.decision === 'approved'" label="下一步">
+          <el-select v-model="approvalForm.nextTaskId" placeholder="请选择下一步" style="width: 100%">
+            <el-option
+              v-for="item in approvalNextOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="审批意见">
+          <el-input
+            v-model="approvalForm.comment"
+            type="textarea"
+            :rows="4"
+            maxlength="500"
+            show-word-limit
+            :placeholder="approvalDialog.row?.requireComment ? '当前节点要求填写审批意见' : '可填写审批意见'"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="approvalDialog.visible = false">取消</el-button>
+        <el-button type="primary" :loading="approvalSubmitting" @click="submitApproval">
+          提交
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -144,6 +214,18 @@ const instances = ref([])
 const assignments = ref([])
 const approvals = ref([])
 const currentActor = ref({ username: '', appRole: '' })
+const approvalSubmitting = ref(false)
+
+const approvalDialog = reactive({
+  visible: false,
+  row: null
+})
+
+const approvalForm = reactive({
+  decision: 'approved',
+  nextTaskId: '',
+  comment: ''
+})
 
 const filters = reactive({
   definitionId: '',
@@ -158,6 +240,26 @@ const APPROVAL_MODE_LABEL_MAP = Object.freeze({
   quota: '多人会签',
   all: '全员会签'
 })
+
+const TASK_NODE_TYPE_SET = new Set([
+  'bpmn:userTask',
+  'bpmn:task',
+  'bpmn:serviceTask',
+  'bpmn:manualTask',
+  'bpmn:scriptTask',
+  'bpmn:receiveTask',
+  'bpmn:sendTask',
+  'bpmn:callActivity'
+])
+
+const PASSTHROUGH_NODE_TYPE_SET = new Set([
+  'bpmn:startEvent',
+  'bpmn:exclusiveGateway',
+  'bpmn:parallelGateway',
+  'bpmn:inclusiveGateway',
+  'bpmn:intermediateThrowEvent',
+  'bpmn:intermediateCatchEvent'
+])
 
 const getWorkflowHeaders = (token) => ({
   Authorization: `Bearer ${token}`,
@@ -195,6 +297,67 @@ const parsePayloadObject = (payload) => {
   return payload
 }
 
+const getTimeValue = (value) => {
+  const time = Date.parse(String(value || ''))
+  return Number.isFinite(time) ? time : 0
+}
+
+const getTagAttribute = (tag, name) => {
+  const pattern = new RegExp(`${name}="([^"]*)"`, 'i')
+  return tag.match(pattern)?.[1] || ''
+}
+
+const decodeXmlText = (value) => String(value || '')
+  .replace(/&#x([0-9a-fA-F]+);/g, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+  .replace(/&#([0-9]+);/g, (_, code) => String.fromCodePoint(Number.parseInt(code, 10)))
+  .replace(/&quot;/g, '"')
+  .replace(/&#34;/g, '"')
+  .replace(/&apos;/g, "'")
+  .replace(/&#39;/g, "'")
+  .replace(/&lt;/g, '<')
+  .replace(/&gt;/g, '>')
+  .replace(/&amp;/g, '&')
+
+const parseBpmnTaskNameMap = (raw) => {
+  const xml = String(raw || '')
+  const map = {}
+  const regex = /<bpmn:(?:userTask|task|serviceTask|manualTask|scriptTask|receiveTask|sendTask|callActivity)\b[^>]*>/gi
+  let match
+  while ((match = regex.exec(xml)) !== null) {
+    const tag = match[0] || ''
+    const id = getTagAttribute(tag, 'id')
+    const name = getTagAttribute(tag, 'name')
+    if (id) map[id] = decodeXmlText(name) || id
+  }
+  return map
+}
+
+const parseBpmnGraph = (raw) => {
+  const xml = String(raw || '')
+  const nodeTypeMap = {}
+  const outgoingMap = {}
+  const nodeRegex = /<bpmn:([a-zA-Z0-9]+)\b[^>]*\bid="([^"]+)"/g
+  let nodeMatch
+  while ((nodeMatch = nodeRegex.exec(xml)) !== null) {
+    const type = String(nodeMatch[1] || '').trim()
+    const id = String(nodeMatch[2] || '').trim()
+    if (type && id) nodeTypeMap[id] = `bpmn:${type}`
+  }
+
+  const flowRegex = /<bpmn:sequenceFlow\b[^>]*>/gi
+  let flowMatch
+  while ((flowMatch = flowRegex.exec(xml)) !== null) {
+    const tag = flowMatch[0] || ''
+    const source = getTagAttribute(tag, 'sourceRef')
+    const target = getTagAttribute(tag, 'targetRef')
+    if (!source || !target) continue
+    if (!outgoingMap[source]) outgoingMap[source] = []
+    outgoingMap[source].push(target)
+  }
+
+  return { nodeTypeMap, outgoingMap }
+}
+
 const readCurrentActor = () => {
   try {
     const raw = localStorage.getItem('user_info')
@@ -230,6 +393,40 @@ const definitionNameMap = computed(() => {
   })
   return map
 })
+
+const definitionMap = computed(() => {
+  const map = {}
+  definitions.value.forEach((item) => {
+    const key = String(item?.id || '').trim()
+    if (key) map[key] = item
+  })
+  return map
+})
+
+const taskNameMapByDefinition = computed(() => {
+  const map = {}
+  definitions.value.forEach((item) => {
+    const key = String(item?.id || '').trim()
+    if (key) map[key] = parseBpmnTaskNameMap(item?.bpmn_xml)
+  })
+  return map
+})
+
+const workflowGraphByDefinition = computed(() => {
+  const map = {}
+  definitions.value.forEach((item) => {
+    const key = String(item?.id || '').trim()
+    if (key) map[key] = parseBpmnGraph(item?.bpmn_xml)
+  })
+  return map
+})
+
+const getTaskName = (definitionId, taskId) => {
+  const defKey = String(definitionId || '').trim()
+  const taskKey = String(taskId || '').trim()
+  if (!taskKey) return '-'
+  return taskNameMapByDefinition.value?.[defKey]?.[taskKey] || taskKey
+}
 
 const definitionOptions = computed(() => definitions.value.map((item) => ({
   value: String(item?.id || '').trim(),
@@ -272,13 +469,79 @@ const canActorExecuteByAssignment = (assignment) => {
   return roleOk && userOk
 }
 
+const resolveNextTaskCandidatesByGraph = (definitionId, taskId) => {
+  const current = String(taskId || '').trim()
+  if (!current) return []
+  const graph = workflowGraphByDefinition.value?.[String(definitionId || '').trim()] || {}
+  const nodeTypeMap = graph.nodeTypeMap || {}
+  const outgoingMap = graph.outgoingMap || {}
+  const firstTargets = Array.isArray(outgoingMap[current]) ? outgoingMap[current] : []
+  if (!firstTargets.length) return []
+
+  const queue = [...firstTargets]
+  const visited = new Set([current])
+  const candidates = []
+  let guard = 0
+
+  while (queue.length && guard < 300) {
+    guard += 1
+    const nodeId = String(queue.shift() || '').trim()
+    if (!nodeId || visited.has(nodeId)) continue
+    visited.add(nodeId)
+
+    const nodeType = String(nodeTypeMap[nodeId] || '').trim()
+    if (TASK_NODE_TYPE_SET.has(nodeType)) {
+      candidates.push(nodeId)
+      continue
+    }
+    if (nodeType === 'bpmn:endEvent') continue
+    if (!nodeType || PASSTHROUGH_NODE_TYPE_SET.has(nodeType)) {
+      const nextTargets = Array.isArray(outgoingMap[nodeId]) ? outgoingMap[nodeId] : []
+      nextTargets.forEach((nextId) => queue.push(nextId))
+    }
+  }
+
+  return Array.from(new Set(candidates))
+}
+
+const getTransitionOptions = (row) => {
+  const definitionId = String(row?.definitionId || '').trim()
+  const currentTaskId = String(row?.taskId || '').trim()
+  const graph = workflowGraphByDefinition.value?.[definitionId] || {}
+  const hasGraphOutgoing = Array.isArray(graph?.outgoingMap?.[currentTaskId])
+    && graph.outgoingMap[currentTaskId].length > 0
+  const graphCandidates = resolveNextTaskCandidatesByGraph(definitionId, currentTaskId)
+  const set = new Set(graphCandidates)
+
+  if (!set.size && hasGraphOutgoing) {
+    return [{ value: '__complete__', label: '结束当前流程单' }]
+  }
+
+  if (!set.size) {
+    assignments.value
+      .filter((item) => String(item?.definition_id || '').trim() === definitionId)
+      .map((item) => String(item?.task_id || '').trim())
+      .filter((taskId) => taskId && taskId !== currentTaskId)
+      .forEach((taskId) => set.add(taskId))
+  }
+
+  const options = Array.from(set).map((taskId) => ({
+    value: taskId,
+    label: getTaskName(definitionId, taskId)
+  }))
+
+  if (!options.length) {
+    options.push({ value: '__complete__', label: '结束当前流程单' })
+  }
+
+  return options
+}
+
+const approvalNextOptions = computed(() => getTransitionOptions(approvalDialog.row))
+
 const progressRows = computed(() => {
   const grouped = {}
-  approvals.value.forEach((item) => {
-    const instanceId = String(item?.instance_id || '').trim()
-    const definitionId = String(item?.definition_id || '').trim()
-    const taskId = String(item?.task_id || '').trim()
-    if (!instanceId || !definitionId || !taskId) return
+  const ensureBucket = (instanceId, definitionId, taskId) => {
     const key = `${instanceId}::${taskId}`
     if (!grouped[key]) {
       grouped[key] = {
@@ -288,18 +551,40 @@ const progressRows = computed(() => {
         taskId,
         latestAt: '',
         latestActor: '-',
-        approvedActorSet: new Set()
+        approvedActorSet: new Set(),
+        rejectedActorSet: new Set()
       }
     }
-    const bucket = grouped[key]
-    if (String(item?.decision || '').toLowerCase() !== 'rejected') {
-      const actor = String(item?.actor_username || '').trim()
-      if (actor) bucket.approvedActorSet.add(actor)
+    return grouped[key]
+  }
+
+  instances.value.forEach((item) => {
+    const instanceId = String(item?.id || '').trim()
+    const definitionId = String(item?.definition_id || '').trim()
+    const taskId = String(item?.current_task_id || '').trim()
+    const status = String(item?.status || '').toUpperCase()
+    if (!instanceId || !definitionId || !taskId || status === 'COMPLETED') return
+    const bucket = ensureBucket(instanceId, definitionId, taskId)
+    bucket.latestAt = String(item?.started_at || '').trim()
+  })
+
+  approvals.value.forEach((item) => {
+    const instanceId = String(item?.instance_id || '').trim()
+    const definitionId = String(item?.definition_id || '').trim()
+    const taskId = String(item?.task_id || '').trim()
+    if (!instanceId || !definitionId || !taskId) return
+    const bucket = ensureBucket(instanceId, definitionId, taskId)
+    const decision = String(item?.decision || '').toLowerCase()
+    const actor = String(item?.actor_username || '').trim()
+    if (decision === 'rejected') {
+      if (actor) bucket.rejectedActorSet.add(actor)
+    } else if (actor) {
+      bucket.approvedActorSet.add(actor)
     }
     const createdAt = String(item?.created_at || '').trim()
-    if (!bucket.latestAt || Date.parse(createdAt) > Date.parse(bucket.latestAt)) {
+    if (!bucket.latestAt || getTimeValue(createdAt) > getTimeValue(bucket.latestAt)) {
       bucket.latestAt = createdAt
-      bucket.latestActor = String(item?.actor_username || '').trim() || '-'
+      bucket.latestActor = actor || '-'
     }
   })
 
@@ -313,18 +598,20 @@ const progressRows = computed(() => {
         if (users.length) required = Math.max(required, users.length)
       }
       const approved = bucket.approvedActorSet.size
+      const rejected = bucket.rejectedActorSet.size > 0
       const instance = instanceMap.value[bucket.instanceId] || {}
       const currentTask = String(instance?.current_task_id || '').trim()
       const instanceStatus = String(instance?.status || '').toUpperCase()
       const movedOn = Boolean(currentTask) && currentTask !== bucket.taskId
       const isCompleted = instanceStatus === 'COMPLETED'
-      const pending = !isCompleted && !movedOn && approved < required
-      const progressText = isCompleted ? '流程已完成' : (movedOn ? '已流转' : (pending ? '待会签' : '可推进'))
+      const pending = !rejected && !isCompleted && !movedOn && approved < required
+      const progressText = rejected ? '已驳回' : (isCompleted ? '流程已完成' : (movedOn ? '已流转' : (pending ? '待会签' : '可推进')))
       const approvedActors = Array.from(bucket.approvedActorSet)
-      const actorApproved = approvedActors.includes(String(currentActor.value?.username || '').trim())
+      const reviewedActors = [...approvedActors, ...Array.from(bucket.rejectedActorSet)]
+      const actorReviewed = reviewedActors.includes(String(currentActor.value?.username || '').trim())
       const actorCanExecute = canActorExecuteByAssignment(assignment)
-      const myPending = pending && actorCanExecute && !actorApproved
-      const myRelated = actorCanExecute || actorApproved
+      const myPending = pending && actorCanExecute && !actorReviewed
+      const myRelated = actorCanExecute || actorReviewed
 
       return {
         key: bucket.key,
@@ -332,12 +619,14 @@ const progressRows = computed(() => {
         definitionId: bucket.definitionId,
         definitionName: definitionNameMap.value[bucket.definitionId] || `流程定义#${bucket.definitionId}`,
         taskId: bucket.taskId,
-        taskName: bucket.taskId,
+        taskName: getTaskName(bucket.definitionId, bucket.taskId),
         businessKey: String(instance?.business_key || '').trim() || '-',
         approvalMode: mode,
         approvalModeLabel: APPROVAL_MODE_LABEL_MAP[mode] || mode,
         approvedCount: approved,
         requiredApprovals: required,
+        requireComment: assignment?.require_comment === true,
+        rejected,
         pending,
         myPending,
         myRelated,
@@ -347,7 +636,7 @@ const progressRows = computed(() => {
         latestActor: bucket.latestActor
       }
     })
-    .sort((a, b) => Date.parse(b.latestAt || '') - Date.parse(a.latestAt || ''))
+    .sort((a, b) => getTimeValue(b.latestAt) - getTimeValue(a.latestAt))
 })
 
 const pendingProgressKeySet = computed(() => {
@@ -369,7 +658,7 @@ const approvalRows = computed(() => approvals.value.map((item) => {
     definitionId,
     definitionName: definitionNameMap.value[definitionId] || `流程定义#${definitionId}`,
     taskId,
-    taskName: taskId,
+    taskName: getTaskName(definitionId, taskId),
     actorUsername: String(item?.actor_username || '').trim() || '-',
     actorRole: String(item?.actor_role || '').trim() || '-',
     decision: String(item?.decision || '').trim().toLowerCase() || 'approved',
@@ -457,6 +746,7 @@ const summary = computed(() => {
 })
 
 const getProgressTagType = (row) => {
+  if (row?.rejected) return 'danger'
   if (row?.pending) return 'warning'
   if (String(row?.progressText || '') === '流程已完成') return 'info'
   return 'success'
@@ -464,13 +754,88 @@ const getProgressTagType = (row) => {
 
 const goBack = () => router.push('/')
 
+const resetApprovalDialog = () => {
+  approvalDialog.row = null
+  approvalForm.decision = 'approved'
+  approvalForm.nextTaskId = ''
+  approvalForm.comment = ''
+}
+
+const openApprovalDialog = (row) => {
+  approvalDialog.row = row
+  approvalForm.decision = 'approved'
+  approvalForm.comment = ''
+  approvalForm.nextTaskId = getTransitionOptions(row)?.[0]?.value || '__complete__'
+  approvalDialog.visible = true
+}
+
+const submitApproval = async () => {
+  const row = approvalDialog.row
+  if (!row?.instanceId) return
+
+  const comment = String(approvalForm.comment || '').trim()
+  if (row.requireComment && !comment) {
+    ElMessage.warning('当前节点要求填写审批意见')
+    return
+  }
+
+  approvalSubmitting.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    const headers = {
+      ...getWorkflowHeaders(token),
+      'Content-Type': 'application/json'
+    }
+    if (approvalForm.decision === 'rejected') {
+      await axios.post(
+        '/api/rpc/reject_workflow_task',
+        {
+          p_instance_id: Number(row.instanceId),
+          p_comment: comment || null,
+          p_variables: comment ? { approval_comment: comment } : {}
+        },
+        { headers }
+      )
+      ElMessage.success('已驳回流程单')
+    } else {
+      const nextTaskId = String(approvalForm.nextTaskId || '').trim()
+      if (!nextTaskId) {
+        ElMessage.warning('请选择下一步')
+        return
+      }
+      const complete = nextTaskId === '__complete__'
+      const response = await axios.post(
+        '/api/rpc/transition_workflow_instance',
+        {
+          p_instance_id: Number(row.instanceId),
+          p_next_task_id: complete ? null : nextTaskId,
+          p_complete: complete,
+          p_variables: comment ? { approval_comment: comment } : {}
+        },
+        { headers }
+      )
+      const updated = Array.isArray(response.data) ? response.data[0] : response.data
+      const stillPendingSameTask = !complete
+        && String(updated?.current_task_id || '').trim() === String(row.taskId || '').trim()
+        && String(updated?.status || '').toUpperCase() === 'ACTIVE'
+      ElMessage.success(stillPendingSameTask ? '已记录审批意见，等待其他审批人' : '流程单已推进')
+    }
+    approvalDialog.visible = false
+    await loadData()
+  } catch (error) {
+    ElMessage.error(`审批处理失败：${error?.response?.data?.message || error?.message || '未知错误'}`)
+  } finally {
+    approvalSubmitting.value = false
+  }
+}
+
 const loadData = async () => {
   loading.value = true
   try {
     const token = localStorage.getItem('auth_token')
     const headers = getWorkflowHeaders(token)
     const [definitionRes, instanceRes, assignmentRes, approvalRes] = await Promise.all([
-      axios.get('/api/definitions?select=id,name,app_id,updated_at&order=id.desc&limit=500', { headers }),
+      axios.get('/api/definitions?select=id,name,app_id,bpmn_xml,updated_at&order=id.desc&limit=500', { headers }),
       axios.get('/api/instances?select=id,definition_id,current_task_id,status,business_key,started_at,ended_at&order=id.desc&limit=2000', { headers }),
       axios.get('/api/task_assignments?select=id,definition_id,task_id,candidate_roles,candidate_users,approval_mode,required_approvals,require_comment&order=id.desc&limit=2000', { headers }),
       axios.get('/api/task_approvals?select=id,instance_id,definition_id,task_id,actor_username,actor_role,decision,comment,payload,created_at,updated_at&order=created_at.desc&limit=5000', { headers })
@@ -567,6 +932,14 @@ onMounted(() => {
   font-size: 14px;
   font-weight: 600;
   color: #303133;
+}
+
+.muted-action {
+  color: #c0c4cc;
+}
+
+.approval-form {
+  margin-top: 14px;
 }
 
 @media (max-width: 960px) {

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 export const DEFAULT_PERMISSION_MODE = 'compat'
 export const DEFAULT_SEMANTICS_MODE = 'ai_defined'
 export const NONE_SEMANTICS_MODE = 'none'

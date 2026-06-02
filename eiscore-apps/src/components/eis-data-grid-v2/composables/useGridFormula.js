@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { reactive, ref, computed, watch, nextTick } from 'vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
