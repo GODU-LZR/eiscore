@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { registerMicroApps, start, initGlobalState } from 'qiankun'
 import { setBootstrapMaxTime, setMountMaxTime, setUnmountMaxTime, addErrorHandler, unloadApplication } from 'single-spa'
 import apps from './apps'
@@ -148,8 +151,9 @@ export function registerQiankun() {
   // 4. 启动 Qiankun
   const useStyleIsolation = !import.meta.env.DEV
   start({
-    prefetch: 'all',
+    prefetch: false,
     singular: true,
+    urlRerouteOnly: true,
     sandbox: {
       experimentalStyleIsolation: useStyleIsolation
     }

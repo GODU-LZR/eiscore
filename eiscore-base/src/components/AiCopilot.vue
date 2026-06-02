@@ -188,7 +188,7 @@
                       :loading="workflowSaveState[msg.time] === 'saving'"
                       @click="saveWorkflowDefinition(getWorkflowInfo(msg), msg.time)"
                     >
-                      {{ workflowSaveState[msg.time] === 'saved' ? '已保存' : '保存到流程库' }}
+                      {{ workflowSaveState[msg.time] === 'saved' ? '已保存为流程应用' : '保存为流程应用' }}
                     </el-button>
                     <el-button
                       size="small"
@@ -267,6 +267,19 @@
               </div>
             </div>
 
+            <div v-if="quickActions.length" class="quick-actions">
+              <el-button
+                v-for="action in quickActions"
+                :key="action.key || action.label"
+                size="small"
+                plain
+                :disabled="state.isLoading"
+                @click="runQuickAction(action)"
+              >
+                {{ action.label }}
+              </el-button>
+            </div>
+
             <div class="input-box">
               <el-upload
                 action="#"
@@ -311,6 +324,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, computed, nextTick, watch, onMounted, onUpdated, onBeforeUnmount } from 'vue'
 import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
@@ -359,6 +375,13 @@ const containerClasses = computed(() => ({
   'is-fullscreen': isWorkerFullscreen.value && state.isOpen,
   'is-dark': isDark.value
 }))
+const quickActions = computed(() => {
+  const actions = state.currentContext?.aiQuickActions
+  if (!Array.isArray(actions)) return []
+  return actions
+    .filter((action) => action && action.label && action.prompt)
+    .slice(0, 6)
+})
 
 const FORM_TEMPLATE_BLOCKS = ['form-template', 'form_template', 'form-schema', 'form_schema']
 const FORMULA_BLOCKS = ['formula']
@@ -950,12 +973,34 @@ const getTemplateTableCount = (schema) => {
   return schema.layout.filter(item => item.type === 'table').length
 }
 
+const getCurrentTemplateLibraryKey = () => {
+  const key = state.currentContext?.templateLibraryKey || state.currentContext?.formTemplateKey
+  if (!key || typeof key !== 'string') return 'form_templates'
+  return key
+}
+
+const getCurrentTemplateScope = () => {
+  const scope = state.currentContext?.templateScope || state.currentContext?.formTemplateScope || null
+  return scope && typeof scope === 'object' ? scope : {}
+}
+
+const getTemplateRecordScope = (template) => {
+  const scope = template?.scope || template?.schema?.scope || null
+  return scope && typeof scope === 'object' ? scope : {}
+}
+
+const isSameTemplateScope = (left, right) => {
+  const keys = ['app', 'key', 'appId', 'configKey', 'apiUrl', 'templateLibraryKey']
+  return keys.every((key) => String(left?.[key] ?? '') === String(right?.[key] ?? ''))
+}
+
 const loadTemplateLibrary = async () => {
   try {
     const token = getAuthToken()
     const headers = { 'Accept': 'application/json', 'Accept-Profile': 'public' }
     if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch('/api/system_configs?key=eq.form_templates', {
+    const key = encodeURIComponent(getCurrentTemplateLibraryKey())
+    const res = await fetch(`/api/system_configs?key=eq.${key}`, {
       headers
     })
     if (!res.ok) return []
@@ -968,6 +1013,7 @@ const loadTemplateLibrary = async () => {
 
 const saveTemplateLibrary = async (templates) => {
   const token = getAuthToken()
+  const key = getCurrentTemplateLibraryKey()
   const headers = {
     'Content-Type': 'application/json',
     'Accept-Profile': 'public',
@@ -978,18 +1024,30 @@ const saveTemplateLibrary = async (templates) => {
   return fetch('/api/system_configs', {
     method: 'POST',
     headers,
-    body: JSON.stringify({ key: 'form_templates', value: templates })
+    body: JSON.stringify({ key, value: templates })
   })
 }
 
 const buildTemplateRecord = (schema) => {
   const now = new Date().toISOString()
+  const scope = {
+    ...getCurrentTemplateScope(),
+    templateLibraryKey: getCurrentTemplateLibraryKey()
+  }
+  const scopedSchema = {
+    ...schema,
+    scope: {
+      ...(schema.scope || {}),
+      ...scope
+    }
+  }
   const templateId = schema.templateId || schema.docType || `tpl_${Date.now()}`
   const name = schema.title || schema.name || 'AI生成模板'
   return {
     id: templateId,
     name,
-    schema,
+    schema: scopedSchema,
+    scope,
     source: 'ai',
     created_at: now,
     updated_at: now
@@ -1003,7 +1061,9 @@ const saveFormTemplate = async (schema, messageKey) => {
   try {
     const templates = await loadTemplateLibrary()
     const record = buildTemplateRecord(schema)
-    const idx = templates.findIndex(item => item.id === record.id)
+    const idx = templates.findIndex(item => (
+      item.id === record.id && isSameTemplateScope(getTemplateRecordScope(item), record.scope)
+    ))
     if (idx >= 0) {
       templates[idx] = { ...templates[idx], ...record, updated_at: new Date().toISOString() }
     } else {
@@ -1014,7 +1074,7 @@ const saveFormTemplate = async (schema, messageKey) => {
     templateSaveState.value[messageKey] = 'saved'
     ElMessage.success('模板已保存到模板库')
     window.dispatchEvent(new CustomEvent('eis-form-templates-updated', {
-      detail: { templates, record }
+      detail: { templates, record, templateLibraryKey: getCurrentTemplateLibraryKey(), templateScope: record.scope }
     }))
   } catch (e) {
     templateSaveState.value[messageKey] = 'error'
@@ -1042,6 +1102,110 @@ const applyAiFormula = (formula, messageKey) => {
   }
 }
 
+const isImportBlankValue = (value) => {
+  if (value === undefined || value === null) return true
+  return typeof value === 'string' && value.trim() === ''
+}
+
+const hasImportValue = (value) => {
+  if (isImportBlankValue(value)) return false
+  if (Array.isArray(value)) return value.some(hasImportValue)
+  if (typeof value === 'object') return Object.values(value).some(hasImportValue)
+  return true
+}
+
+const isMaterialsImportContext = (context, target) => {
+  const app = String(context?.app || '').toLowerCase()
+  const apiUrl = String(target?.apiUrl || context?.apiUrl || '')
+  return app === 'materials' || apiUrl.includes('/raw_materials')
+}
+
+const shouldAttachCurrentUser = (context) => {
+  const columns = Array.isArray(context?.columns) ? context.columns : []
+  const staticColumns = Array.isArray(context?.staticColumns) ? context.staticColumns : []
+  return columns.concat(staticColumns).some(col => col?.prop === 'created_by')
+}
+
+const getImportDefaultMap = (context, target) => ({
+  ...((context?.importDefaults && typeof context.importDefaults === 'object') ? context.importDefaults : {}),
+  ...((target?.defaults && typeof target.defaults === 'object') ? target.defaults : {})
+})
+
+const getImportRequiredFields = (context, target) => {
+  const fields = []
+  if (Array.isArray(context?.importRequiredFields)) fields.push(...context.importRequiredFields)
+  if (Array.isArray(target?.requiredFields)) fields.push(...target.requiredFields)
+  return Array.from(new Set(fields.filter(Boolean)))
+}
+
+const getImportGeneratedFields = (context, target) => {
+  const fields = []
+  if (Array.isArray(context?.importGeneratedFields)) fields.push(...context.importGeneratedFields)
+  if (Array.isArray(target?.generatedFields)) fields.push(...target.generatedFields)
+  return fields.filter(field => field?.prop)
+}
+
+const generateImportCode = (prefix, index) => {
+  const date = new Date()
+  const yyyy = String(date.getFullYear())
+  const mm = String(date.getMonth() + 1).padStart(2, '0')
+  const dd = String(date.getDate()).padStart(2, '0')
+  const hh = String(date.getHours()).padStart(2, '0')
+  const mi = String(date.getMinutes()).padStart(2, '0')
+  const ss = String(date.getSeconds()).padStart(2, '0')
+  const ms = String(date.getMilliseconds()).padStart(3, '0')
+  const seq = String(index + 1).padStart(4, '0')
+  return `${prefix || 'NO-'}${yyyy}${mm}${dd}${hh}${mi}${ss}${ms}-${seq}`
+}
+
+const normalizeImportRow = (row, context) => {
+  const labelToProp = new Map((context?.columns || []).map(col => [col.label, col.prop]))
+  const normalized = {}
+  Object.entries(row || {}).forEach(([key, value]) => {
+    if (key === 'properties') return
+    const prop = labelToProp.get(key) || key
+    if (hasImportValue(normalized[prop]) && prop !== key) return
+    normalized[prop] = value
+  })
+  if (row?.properties && typeof row.properties === 'object') {
+    normalized.properties = row.properties
+  }
+  return normalized
+}
+
+const prepareGenericImportRows = (rows, context, target) => {
+  const defaults = getImportDefaultMap(context, target)
+  const requiredFields = getImportRequiredFields(context, target)
+  const generatedFields = getImportGeneratedFields(context, target)
+  let skipped = 0
+  const cleanedRows = []
+
+  rows.forEach((row) => {
+    const normalizedRow = normalizeImportRow(row, context)
+    if (!Object.values(normalizedRow).some(hasImportValue)) {
+      skipped += 1
+      return
+    }
+
+    const nextRow = { ...defaults, ...normalizedRow }
+    generatedFields.forEach((field) => {
+      if (!hasImportValue(nextRow[field.prop])) {
+        nextRow[field.prop] = generateImportCode(field.prefix, cleanedRows.length)
+      }
+    })
+
+    const hasRequiredFields = requiredFields.every((field) => hasImportValue(nextRow[field]))
+    if (!hasRequiredFields) {
+      skipped += 1
+      return
+    }
+
+    cleanedRows.push(nextRow)
+  })
+
+  return { rows: cleanedRows, skipped }
+}
+
 const buildImportPayload = (rows, context) => {
   const staticProps = new Set((context?.staticColumns || []).map(col => col.prop))
   const labelToProp = new Map((context?.columns || []).map(col => [col.label, col.prop]))
@@ -1053,12 +1217,15 @@ const buildImportPayload = (rows, context) => {
     if (!row || typeof row !== 'object') return null
     const payload = { properties: {} }
     const rowProps = row.properties && typeof row.properties === 'object' ? row.properties : null
+    let hasValue = false
     Object.entries(row).forEach(([key, value]) => {
       if (key === 'properties') return
+      if (!hasImportValue(value)) return
       let prop = key
       if (!staticProps.has(prop) && labelToProp.has(prop)) {
         prop = labelToProp.get(prop)
       }
+      hasValue = true
       if (staticProps.has(prop)) {
         if (propertyFields.has(prop)) {
           payload.properties[prop] = value
@@ -1070,13 +1237,17 @@ const buildImportPayload = (rows, context) => {
       }
     })
     if (rowProps) {
-      payload.properties = { ...payload.properties, ...rowProps }
+      Object.entries(rowProps).forEach(([key, value]) => {
+        if (!hasImportValue(value)) return
+        payload.properties[key] = value
+        hasValue = true
+      })
     }
     if (staticProps.has('created_by') && currentUser) {
       payload.created_by = currentUser
     }
     if (Object.keys(payload.properties).length === 0) delete payload.properties
-    return payload
+    return hasValue ? payload : null
   }).filter(Boolean)
 }
 
@@ -1091,11 +1262,13 @@ const applyDataImport = async (info, messageKey) => {
   const token = getAuthToken()
   const tokenUsername = getTokenUsername(token)
   const currentUser = tokenUsername || context?.currentUser || ''
-  const rows = info?.rows || []
-  if (!rows.length) {
+  const rows = Array.isArray(info?.rows) ? info.rows : []
+  const sourceRows = rows.filter(row => row && typeof row === 'object')
+  if (!sourceRows.length) {
     ElMessage.warning('没有可导入的数据')
     return
   }
+  const isMaterialsImport = isMaterialsImportContext(context, target)
   const labelToProp = new Map((context?.columns || []).map(col => [col.label, col.prop]))
   const categories = Array.isArray(context?.materialsCategories) ? context.materialsCategories : []
   const categoryMap = new Map()
@@ -1154,35 +1327,53 @@ const applyDataImport = async (info, messageKey) => {
 
   let skipped = 0
   const cleanedRows = []
-  for (const row of rows) {
-    if (!row || typeof row !== 'object') continue
-    const name = getRowValue(row, 'name', ['物料名称', '名称'])
-    if (!name) {
-      skipped += 1
-      continue
-    }
-    const categoryRaw = getRowValue(row, 'category', ['物料分类', '物料分类编码'])
-    const categoryCode = typeof categoryRaw === 'string'
-      ? (categoryMap.get(categoryRaw.trim()) || categoryRaw.trim())
-      : categoryRaw
-    if (categoryCode) row.category = categoryCode
-    const batchNo = getRowValue(row, 'batch_no', ['物料编码'])
-    if (!batchNo) {
-      if (!categoryCode) {
+  if (isMaterialsImport) {
+    for (const row of sourceRows) {
+      const name = getRowValue(row, 'name', ['物料名称', '名称'])
+      if (!name) {
         skipped += 1
         continue
       }
-      row.batch_no = await fetchNextCode(categoryCode)
+      const categoryRaw = getRowValue(row, 'category', ['物料分类', '物料分类编码'])
+      const categoryCode = typeof categoryRaw === 'string'
+        ? (categoryMap.get(categoryRaw.trim()) || categoryRaw.trim())
+        : categoryRaw
+      if (categoryCode) row.category = categoryCode
+      const batchNo = getRowValue(row, 'batch_no', ['物料编码'])
+      if (!batchNo) {
+        if (!categoryCode) {
+          skipped += 1
+          continue
+        }
+        row.batch_no = await fetchNextCode(categoryCode)
+      }
+      if (currentUser) {
+        row.created_by = currentUser
+      }
+      row.name = name
+      cleanedRows.push(row)
     }
-    if (currentUser) {
-      row.created_by = currentUser
-    }
-    row.name = name
-    cleanedRows.push(row)
+  } else {
+    const genericImport = prepareGenericImportRows(sourceRows, context, target)
+    cleanedRows.push(...genericImport.rows)
+    skipped = genericImport.skipped
+  }
+
+  if (!cleanedRows.length) {
+    ElMessage.warning('导入数据格式不正确')
+    return
   }
 
   const payload = buildImportPayload(cleanedRows, context)
+  if (currentUser && shouldAttachCurrentUser(context)) {
+    payload.forEach((item) => {
+      if (!item.created_by) item.created_by = currentUser
+    })
+  }
   if (!payload.length) {
+    if (skipped === 0) {
+      skipped = sourceRows.length
+    }
     ElMessage.warning('导入数据格式不正确')
     return
   }
@@ -1203,9 +1394,6 @@ const applyDataImport = async (info, messageKey) => {
     }
     if (token) headers.Authorization = `Bearer ${token}`
     const url = target.apiUrl.startsWith('/api') ? target.apiUrl : `/api${target.apiUrl}`
-    if (currentUser) {
-      payload.forEach((item) => { item.created_by = currentUser })
-    }
     const res = await fetch(url, {
       method: 'POST',
       headers,
@@ -1218,7 +1406,8 @@ const applyDataImport = async (info, messageKey) => {
     }
     if (!res.ok) throw new Error(`导入失败: ${res.status}`)
     importState.value[messageKey] = 'done'
-    const extra = skipped > 0 ? `，跳过 ${skipped} 行（物料名称缺失）` : ''
+    const skippedReason = isMaterialsImport ? '物料名称或分类缺失' : '空行或无有效字段'
+    const extra = skipped > 0 ? `，跳过 ${skipped} 行（${skippedReason}）` : ''
     ElMessage.success(`已导入 ${payload.length} 行${extra}`)
     const event = new CustomEvent('eis-grid-imported', { detail: { viewId: target.viewId } })
     window.dispatchEvent(event)
@@ -1306,14 +1495,335 @@ const applyCategoryImport = async (info, messageKey) => {
 
 const resolveAssociatedTable = (meta = {}) => {
   const raw = meta?.associated_table || meta?.associatedTable || ''
-  if (raw) return String(raw)
+  if (raw) return normalizeWorkflowAssociatedTable(raw)
   const context = aiBridge.state.currentContext || {}
   const fallback = context?.workflowAssociatedTable || context?.associatedTable || ''
-  if (fallback) return String(fallback)
+  if (fallback) return normalizeWorkflowAssociatedTable(fallback)
   const apiUrl = context?.apiUrl || context?.importTarget?.apiUrl || ''
   if (!apiUrl) return ''
   const cleaned = String(apiUrl).replace(/^\/api/, '').replace(/^\//, '')
-  return cleaned ? `public.${cleaned}` : ''
+  return cleaned ? normalizeWorkflowAssociatedTable(`public.${cleaned}`) : ''
+}
+
+const WORKFLOW_TABLE_ALIASES = {
+  archives: 'hr.archives',
+  'hr_archives': 'hr.archives',
+  employee_changes: 'hr.employee_changes',
+  attendance_records: 'hr.attendance_records',
+  users: 'public.users',
+  raw_materials: 'public.raw_materials',
+  inventory_drafts: 'scm.inventory_drafts',
+  production_work_orders: 'scm.production_work_orders',
+  sales_orders: 'public.sales_orders',
+  purchase_demands: 'public.purchase_demands'
+}
+
+const WORKFLOW_TABLE_BINDINGS = {
+  'hr.archives': 'legacy:hr_employee',
+  'hr.employee_changes': 'legacy:hr_change',
+  'hr.attendance_records': 'legacy:hr_attendance',
+  'public.users': 'legacy:hr_user',
+  'public.raw_materials': 'legacy:mms_ledger',
+  'scm.inventory_drafts': 'legacy:mms_inventory_stock_in',
+  'scm.production_work_orders': 'legacy:production_work_order',
+  'public.sales_orders': 'legacy:sales_order',
+  'public.purchase_demands': 'legacy:purchase_demand'
+}
+
+const normalizeWorkflowAssociatedTable = (value) => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const withoutApi = raw.replace(/^\/api\//, '').replace(/^\/api/, '').replace(/^\//, '')
+  const table = withoutApi.includes('?') ? withoutApi.split('?')[0] : withoutApi
+  const normalized = table.replace(/\//g, '.').trim()
+  if (!normalized) return ''
+  const lower = normalized.toLowerCase()
+  if (WORKFLOW_TABLE_ALIASES[lower]) return WORKFLOW_TABLE_ALIASES[lower]
+  if (normalized.includes('.')) return normalized
+  return WORKFLOW_TABLE_ALIASES[lower] || `public.${normalized}`
+}
+
+const normalizeWorkflowList = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(item => String(item ?? '').trim()).filter(Boolean)
+  }
+  if (typeof value === 'string') {
+    return value.split(/[,\s，、;；]+/).map(item => item.trim()).filter(Boolean)
+  }
+  return []
+}
+
+const normalizeWorkflowBool = (value, fallback = false) => {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'string') {
+    const text = value.trim().toLowerCase()
+    if (['true', '1', 'yes', 'y', '是', '需要'].includes(text)) return true
+    if (['false', '0', 'no', 'n', '否', '不需要'].includes(text)) return false
+  }
+  return fallback
+}
+
+const toWorkflowArray = (value) => {
+  if (Array.isArray(value)) return value
+  if (value && typeof value === 'object') {
+    return Object.entries(value).map(([key, item]) => (
+      item && typeof item === 'object'
+        ? { ...item, task_id: item.task_id || item.taskId || item.bpmn_task_id || key }
+        : { task_id: key, value: item }
+    ))
+  }
+  return []
+}
+
+const normalizeWorkflowBindingValue = (value, associatedTable = '') => {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('legacy:')) return raw
+  if (raw.startsWith('table:')) {
+    const table = normalizeWorkflowAssociatedTable(raw.slice('table:'.length))
+    return table ? `table:${table}` : ''
+  }
+  const table = normalizeWorkflowAssociatedTable(raw)
+  return WORKFLOW_TABLE_BINDINGS[table] || raw
+}
+
+const inferWorkflowBusinessAppId = (meta = {}, associatedTable = '') => {
+  const explicit = meta.workflowBusinessAppId
+    || meta.workflow_business_app_id
+    || meta.business_app_id
+    || meta.businessAppId
+    || meta.binding
+  if (explicit) return normalizeWorkflowBindingValue(explicit, associatedTable)
+  const table = normalizeWorkflowAssociatedTable(associatedTable)
+  return WORKFLOW_TABLE_BINDINGS[table] || (table ? `table:${table}` : '')
+}
+
+const normalizeWorkflowTaskBindings = (meta = {}, globalBinding = '') => {
+  const source = meta.workflowTaskBusinessAppBindings
+    || meta.workflow_task_business_app_bindings
+    || meta.task_business_app_bindings
+    || meta.taskBusinessAppBindings
+    || {}
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return {}
+  const next = {}
+  Object.entries(source).forEach(([taskId, binding]) => {
+    const key = String(taskId || '').trim()
+    const value = normalizeWorkflowBindingValue(binding)
+    if (key && value && value !== globalBinding) next[key] = value
+  })
+  return next
+}
+
+const getWorkflowProfileHeaders = (token, prefer = '') => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Accept-Profile': 'workflow',
+    'Content-Profile': 'workflow'
+  }
+  if (prefer) headers.Prefer = prefer
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
+const getAppCenterProfileHeaders = (token, prefer = '') => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Accept-Profile': 'app_center',
+    'Content-Profile': 'app_center'
+  }
+  if (prefer) headers.Prefer = prefer
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
+const parseResponseJson = async (res) => {
+  try {
+    return await res.json()
+  } catch (e) {
+    return null
+  }
+}
+
+const assertWorkflowSaveResponse = async (res, label) => {
+  if (res.ok) return
+  let detail = ''
+  try {
+    detail = String(await res.text()).slice(0, 180)
+  } catch (e) {}
+  throw new Error(`${label}失败: ${res.status}${detail ? ` ${detail}` : ''}`)
+}
+
+const getFirstRow = (data) => Array.isArray(data) ? (data[0] || null) : (data || null)
+
+const buildWorkflowAclModule = (appId) => {
+  const raw = String(appId || '').replace(/-/g, '').trim()
+  return raw ? `app_${raw}` : ''
+}
+
+const buildWorkflowOps = (moduleKey) => {
+  if (!moduleKey) return {}
+  return {
+    create: `op:${moduleKey}.create`,
+    edit: `op:${moduleKey}.edit`,
+    delete: `op:${moduleKey}.delete`,
+    export: `op:${moduleKey}.export`,
+    config: `op:${moduleKey}.config`,
+    workflowStart: `op:${moduleKey}.workflow_start`,
+    workflowTransition: `op:${moduleKey}.workflow_transition`,
+    workflowComplete: `op:${moduleKey}.workflow_complete`
+  }
+}
+
+const createWorkflowAppFromAi = async ({ name, description, xml, associatedTable, businessAppId, taskBindings, meta, token, username }) => {
+  const now = new Date().toISOString()
+  const appPayload = {
+    name,
+    description,
+    category_id: 1,
+    app_type: 'workflow',
+    status: 'draft',
+    icon: '🔀',
+    version: '1.0.0',
+    bpmn_xml: xml,
+    source_code: {
+      ai: {
+        source: 'ai_copilot',
+        saved_at: now,
+        meta
+      }
+    },
+    config: {
+      table: associatedTable || null,
+      workflowBusinessAppId: businessAppId || null,
+      workflowTaskBusinessAppBindings: taskBindings || {},
+      workflowAutoAdvanceEnabled: normalizeWorkflowBool(meta?.workflowAutoAdvanceEnabled ?? meta?.workflow_auto_advance_enabled, false),
+      workflowDesignerPanelMode: 'simple',
+      aiGenerated: true
+    },
+    created_by: username || 'ai_copilot',
+    updated_by: username || 'ai_copilot',
+    created_at: now,
+    updated_at: now
+  }
+  const res = await fetch('/api/apps', {
+    method: 'POST',
+    headers: getAppCenterProfileHeaders(token, 'return=representation'),
+    body: JSON.stringify(appPayload)
+  })
+  await assertWorkflowSaveResponse(res, '创建流程应用')
+  return getFirstRow(await parseResponseJson(res))
+}
+
+const createWorkflowDefinitionForApp = async ({ appId, name, xml, associatedTable, token }) => {
+  const payload = {
+    name,
+    bpmn_xml: xml,
+    associated_table: associatedTable || null,
+    app_id: appId
+  }
+  const res = await fetch('/api/definitions', {
+    method: 'POST',
+    headers: getWorkflowProfileHeaders(token, 'return=representation'),
+    body: JSON.stringify(payload)
+  })
+  await assertWorkflowSaveResponse(res, '写入流程定义')
+  return getFirstRow(await parseResponseJson(res))
+}
+
+const patchWorkflowAppDefinitionId = async ({ appId, definitionId, xml, associatedTable, businessAppId, taskBindings, meta, token }) => {
+  const aclModule = buildWorkflowAclModule(appId)
+  const config = {
+    table: associatedTable || null,
+    workflowDefinitionId: definitionId || null,
+    workflowBusinessAppId: businessAppId || null,
+    workflowTaskBusinessAppBindings: taskBindings || {},
+    workflowAutoAdvanceEnabled: normalizeWorkflowBool(meta?.workflowAutoAdvanceEnabled ?? meta?.workflow_auto_advance_enabled, false),
+    workflowDesignerPanelMode: 'simple',
+    aiGenerated: true,
+    aclModule,
+    perm: aclModule ? `app:${aclModule}` : '',
+    ops: buildWorkflowOps(aclModule)
+  }
+  const res = await fetch(`/api/apps?id=eq.${encodeURIComponent(appId)}`, {
+    method: 'PATCH',
+    headers: getAppCenterProfileHeaders(token, 'return=representation'),
+    body: JSON.stringify({
+      bpmn_xml: xml,
+      config,
+      updated_at: new Date().toISOString()
+    })
+  })
+  await assertWorkflowSaveResponse(res, '回写流程应用配置')
+  return getFirstRow(await parseResponseJson(res))
+}
+
+const normalizeWorkflowAssignmentRows = (meta = {}, definitionId) => {
+  const source = meta.task_assignments || meta.taskAssignments || meta.assignments || []
+  return toWorkflowArray(source)
+    .map((item) => {
+      const taskId = String(item?.task_id || item?.taskId || item?.bpmn_task_id || item?.id || '').trim()
+      if (!taskId) return null
+      const approvalMode = String(item?.approval_mode || item?.approvalMode || 'any').trim().toLowerCase()
+      const requiredApprovals = Number(item?.required_approvals || item?.requiredApprovals || 1)
+      return {
+        definition_id: definitionId,
+        task_id: taskId,
+        candidate_roles: normalizeWorkflowList(item?.candidate_roles || item?.candidateRoles || item?.roles),
+        candidate_users: normalizeWorkflowList(item?.candidate_users || item?.candidateUsers || item?.users),
+        approval_mode: ['any', 'quota', 'all'].includes(approvalMode) ? approvalMode : 'any',
+        required_approvals: Number.isFinite(requiredApprovals) && requiredApprovals > 0 ? Math.floor(requiredApprovals) : 1,
+        require_comment: normalizeWorkflowBool(item?.require_comment ?? item?.requireComment, false)
+      }
+    })
+    .filter(Boolean)
+}
+
+const saveWorkflowAssignments = async ({ meta, definitionId, token }) => {
+  const rows = normalizeWorkflowAssignmentRows(meta, definitionId)
+  if (!rows.length) return 0
+  const res = await fetch('/api/task_assignments', {
+    method: 'POST',
+    headers: getWorkflowProfileHeaders(token, 'return=representation'),
+    body: JSON.stringify(rows)
+  })
+  await assertWorkflowSaveResponse(res, '写入任务分派')
+  const data = await parseResponseJson(res)
+  return Array.isArray(data) ? data.length : rows.length
+}
+
+const normalizeWorkflowStateMappingRows = (meta = {}, workflowAppId, associatedTable = '') => {
+  const source = meta.state_mappings || meta.stateMappings || meta.workflow_state_mappings || meta.workflowStateMappings || []
+  const fallbackTable = normalizeWorkflowAssociatedTable(associatedTable)
+  return toWorkflowArray(source)
+    .map((item) => {
+      const taskId = String(item?.bpmn_task_id || item?.bpmnTaskId || item?.task_id || item?.taskId || item?.id || '').trim()
+      const stateValue = String(item?.state_value ?? item?.stateValue ?? item?.status ?? item?.value ?? '').trim()
+      if (!taskId || !stateValue) return null
+      const targetTable = normalizeWorkflowAssociatedTable(item?.target_table || item?.targetTable || item?.table || fallbackTable)
+      return {
+        workflow_app_id: workflowAppId,
+        bpmn_task_id: taskId,
+        target_table: targetTable || fallbackTable || null,
+        state_field: String(item?.state_field || item?.stateField || 'status').trim() || 'status',
+        state_value: stateValue
+      }
+    })
+    .filter(item => item && item.target_table)
+}
+
+const saveWorkflowStateMappings = async ({ meta, workflowAppId, associatedTable, token }) => {
+  const rows = normalizeWorkflowStateMappingRows(meta, workflowAppId, associatedTable)
+  if (!rows.length) return 0
+  const res = await fetch('/api/workflow_state_mappings?on_conflict=workflow_app_id,bpmn_task_id', {
+    method: 'POST',
+    headers: getAppCenterProfileHeaders(token, 'resolution=merge-duplicates,return=representation'),
+    body: JSON.stringify(rows)
+  })
+  await assertWorkflowSaveResponse(res, '写入状态映射')
+  const data = await parseResponseJson(res)
+  return Array.isArray(data) ? data.length : rows.length
 }
 
 const saveWorkflowDefinition = async (info, messageKey) => {
@@ -1328,29 +1838,51 @@ const saveWorkflowDefinition = async (info, messageKey) => {
       return
     }
     const meta = info?.meta || {}
-    const name = meta?.name || meta?.title || 'AI流程'
+    const name = String(meta?.name || meta?.title || 'AI流程').trim() || 'AI流程'
     const associatedTable = resolveAssociatedTable(meta)
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Accept-Profile': 'workflow',
-      'Content-Profile': 'workflow',
-      'Prefer': 'return=representation'
-    }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const payload = {
+    const businessAppId = inferWorkflowBusinessAppId(meta, associatedTable)
+    const taskBindings = normalizeWorkflowTaskBindings(meta, businessAppId)
+    const username = getTokenUsername(token)
+    const app = await createWorkflowAppFromAi({
       name,
-      bpmn_xml: info.xml,
-      associated_table: associatedTable || null
-    }
-    const res = await fetch('/api/definitions', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload)
+      description: meta?.description || '由工作助手生成的流程应用',
+      xml: info.xml,
+      associatedTable,
+      businessAppId,
+      taskBindings,
+      meta,
+      token,
+      username
     })
-    if (!res.ok) throw new Error('保存失败')
+    const appId = app?.id
+    if (!appId) throw new Error('创建流程应用失败：未返回应用ID')
+    const definition = await createWorkflowDefinitionForApp({
+      appId,
+      name,
+      xml: info.xml,
+      associatedTable,
+      token
+    })
+    const definitionId = definition?.id || null
+    await patchWorkflowAppDefinitionId({
+      appId,
+      definitionId,
+      xml: info.xml,
+      associatedTable,
+      businessAppId,
+      taskBindings,
+      meta,
+      token
+    })
+    if (definitionId) {
+      await saveWorkflowAssignments({ meta, definitionId, token })
+    }
+    await saveWorkflowStateMappings({ meta, workflowAppId: appId, associatedTable, token })
     workflowSaveState.value[messageKey] = 'saved'
-    ElMessage.success('流程已保存到流程库')
+    ElMessage.success('流程已保存为应用中心流程应用')
+    window.dispatchEvent(new CustomEvent('eis-workflow-app-created', {
+      detail: { appId, definitionId, name, associatedTable, businessAppId }
+    }))
   } catch (e) {
     workflowSaveState.value[messageKey] = 'error'
     ElMessage.error(e?.message || '流程保存失败')
@@ -1755,6 +2287,20 @@ const handleSend = () => {
   aiBridge.sendMessage(text)
 }
 
+const runQuickAction = (action) => {
+  if (state.isLoading || !action?.prompt) return
+  aiBridge.setMode('worker')
+  aiBridge.openWindow()
+  const context = aiBridge.state.currentContext
+  if (context && action.scene) {
+    context.aiScene = action.scene
+    if (action.allowImport !== undefined) context.allowImport = !!action.allowImport
+    if (action.allowFormula !== undefined) context.allowFormula = !!action.allowFormula
+    if (action.allowFormulaOnce !== undefined) context.allowFormulaOnce = !!action.allowFormulaOnce
+  }
+  aiBridge.sendMessage(action.prompt)
+}
+
 const retryMessage = (index) => {
   aiBridge.retryMessageAt(index)
 }
@@ -2003,6 +2549,20 @@ $border-color: #e4e7ed;
         width: 14px; height: 14px; display: flex; align-items: center; justify-content: center;
         font-size: 10px; cursor: pointer;
       }
+    }
+  }
+
+  .quick-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+
+    :deep(.el-button) {
+      margin-left: 0;
+      border-radius: 999px;
+      background: #fff;
+      color: #606266;
     }
   }
 
@@ -2315,6 +2875,11 @@ $border-color: #e4e7ed;
 .ai-copilot-container.is-dark .input-section {
   background: #0f172a;
   border-top-color: #1f2937;
+}
+.ai-copilot-container.is-dark .quick-actions :deep(.el-button) {
+  background: #0b1220;
+  border-color: #1f2937;
+  color: #e5e7eb;
 }
 .ai-copilot-container.is-dark .input-box {
   background: #0b1220;

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { createRouter, createWebHistory } from 'vue-router'
 import { h } from 'vue'
 import Layout from '@/layout/index.vue'

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
@@ -13,7 +16,7 @@ export default defineConfig({
   ],
   server: {
     port: 8080,
-    host: '0.0.0.0',
+    host: '127.0.0.1',
     cors: true,
     configureServer(server) {
       server.middlewares.use((req, res, next) => {

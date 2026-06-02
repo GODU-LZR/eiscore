@@ -4,11 +4,12 @@
     <div class="home-header">
       <div class="header-left">
         <el-icon class="header-icon" :size="22">
-          <component :is="activeMode === 'twin' ? 'Service' : 'DataAnalysis'" />
+          <component :is="activeModeMeta.icon" />
         </el-icon>
-        <span class="header-title">{{ activeMode === 'twin' ? '我的数字分身' : '企业经营助手' }}</span>
+        <span class="header-title">{{ activeModeMeta.title }}</span>
         <el-tag v-if="activeMode === 'twin'" size="small" type="success" effect="plain">AI 助手</el-tag>
-        <el-tag v-else size="small" type="warning" effect="plain">经营分析</el-tag>
+        <el-tag v-else-if="activeMode === 'enterprise'" size="small" type="warning" effect="plain">经营分析</el-tag>
+        <el-tag v-else size="small" type="primary" effect="plain">单据流转</el-tag>
       </div>
       <div class="header-right">
         <!-- 管理员才显示模式切换 -->
@@ -186,30 +187,157 @@
       <AiCopilot mode="enterprise" :auto-open="true" />
     </div>
 
+    <div v-show="activeMode === 'flow'" class="flow-wrapper">
+      <BusinessFlowMap />
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick, watch, onBeforeUnmount } from 'vue'
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
+import { ref, reactive, computed, onMounted, nextTick, watch, onBeforeUnmount, onUpdated } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import AiCopilot from '@/components/AiCopilot.vue'
+import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
 import { aiBridge } from '@/utils/ai-bridge'
 import {
   Plus, Delete, Upload, Document, Position, Paperclip,
   CircleCheck, Loading, Operation, Service, UserFilled,
-  DataAnalysis, Search, User, List, FolderOpened, WarningFilled
+  DataAnalysis, Search, User, List, FolderOpened, WarningFilled, Share
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import markdownit from 'markdown-it'
 import * as XLSX from 'xlsx'
 import mammoth from 'mammoth'
+import * as echarts from 'echarts'
 
 // ── Markdown 渲染器 ──
 const md = markdownit({ html: false, linkify: true, typographer: true })
+const defaultFence = md.renderer.rules.fence
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  const info = token.info.trim().toLowerCase()
+  if (info === 'echarts') {
+    return `<div class="echarts-chart chart-pending" data-option="${encodeURIComponent(token.content)}"></div>`
+  }
+  if (defaultFence) return defaultFence(tokens, idx, options, env, self)
+  return self.renderToken(tokens, idx, options)
+}
 const renderMd = (text) => {
   if (!text) return ''
   return md.render(text)
+}
+
+const sanitizeJson = (jsonStr) => {
+  if (!jsonStr) return ''
+  return String(jsonStr)
+    .replace(/^\s*[^=]*=\s*/, '')
+    .replace(/,\s*([\]}])/g, '$1')
+    .replace(/\/\/.*(?=[\n\r])/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\bundefined\b/g, 'null')
+    .replace(/\bNaN\b/g, '0')
+    .trim()
+}
+
+const extractBalancedJson = (input) => {
+  const text = String(input || '')
+  const start = text.search(/[{[]/)
+  if (start < 0) return ''
+  const open = text[start]
+  const close = open === '{' ? '}' : ']'
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') {
+      inString = true
+      continue
+    }
+    if (ch === open) depth += 1
+    if (ch === close) depth -= 1
+    if (depth === 0) return text.slice(start, i + 1)
+  }
+  return ''
+}
+
+const normalizeEchartsOption = (option) => {
+  if (!option || typeof option !== 'object' || Array.isArray(option)) return null
+  const cloned = JSON.parse(JSON.stringify(option))
+  if (cloned.series && !Array.isArray(cloned.series)) cloned.series = [cloned.series]
+  if (!Array.isArray(cloned.series) || cloned.series.length === 0) return null
+  cloned.series = cloned.series
+    .filter(item => item && typeof item === 'object')
+    .map(item => ({ type: item.type || 'line', ...item }))
+  if (!cloned.series.length) return null
+  if (!cloned.tooltip) cloned.tooltip = { trigger: 'axis' }
+  if (!cloned.grid) cloned.grid = { left: 48, right: 24, top: 56, bottom: 40, containLabel: true }
+  return cloned
+}
+
+const parseEchartsOption = (raw) => {
+  const source = String(raw || '')
+  const candidates = [
+    source.trim(),
+    extractBalancedJson(source),
+    sanitizeJson(source),
+    extractBalancedJson(sanitizeJson(source))
+  ]
+  const seen = new Set()
+  for (const candidate of candidates) {
+    const key = String(candidate || '').trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    try {
+      const normalized = normalizeEchartsOption(JSON.parse(key))
+      if (normalized) return normalized
+    } catch {}
+  }
+  return null
+}
+
+const renderEchartsNode = (node) => {
+  if (!node || node.dataset.processed === 'true') return
+  node.dataset.processed = 'true'
+  const raw = decodeURIComponent(node.getAttribute('data-option') || '')
+  const option = parseEchartsOption(raw)
+  if (!option) {
+    node.classList.remove('chart-pending')
+    node.innerHTML = '<div class="chart-error">图表配置暂不可用</div>'
+    return
+  }
+  node.style.width = '100%'
+  node.style.height = '320px'
+  const previous = echarts.getInstanceByDom(node)
+  if (previous) previous.dispose()
+  try {
+    const chart = echarts.init(node)
+    chart.setOption(option, true)
+    node.classList.remove('chart-pending')
+    requestAnimationFrame(() => {
+      try { chart.resize() } catch {}
+    })
+  } catch {
+    node.classList.remove('chart-pending')
+    node.innerHTML = '<div class="chart-error">图表渲染失败</div>'
+  }
+}
+
+const renderCharts = async () => {
+  await nextTick()
+  const root = messagesRef.value || document
+  root.querySelectorAll?.('.echarts-chart:not([data-processed])').forEach(renderEchartsNode)
 }
 
 // ── Store & Auth ──
@@ -234,11 +362,19 @@ const getAuthHeaders = () => {
 }
 
 // ── 模式切换 ──
-const activeMode = ref('twin')
+const DEFAULT_WORKBENCH_MODE = 'flow'
+const activeMode = ref(DEFAULT_WORKBENCH_MODE)
 const modeOptions = [
   { label: '数字分身', value: 'twin' },
-  { label: '经营助手', value: 'enterprise' }
+  { label: '经营助手', value: 'enterprise' },
+  { label: '业务流程', value: 'flow' }
 ]
+
+const activeModeMeta = computed(() => {
+  if (activeMode.value === 'enterprise') return { title: '企业经营助手', icon: DataAnalysis }
+  if (activeMode.value === 'flow') return { title: '业务流程', icon: Share }
+  return { title: '我的数字分身', icon: Service }
+})
 
 watch(activeMode, (val) => {
   if (val === 'enterprise') {
@@ -246,7 +382,7 @@ watch(activeMode, (val) => {
     aiBridge.setMode('enterprise')
     aiBridge.openWindow()
   } else {
-    // 切回数字分身时关闭企业助手
+    // 切回其他工作台功能时关闭企业助手
     aiBridge.closeWindow()
   }
 })
@@ -256,6 +392,10 @@ onBeforeUnmount(() => {
   if (activeMode.value === 'enterprise') {
     aiBridge.closeWindow()
   }
+  document.querySelectorAll('.echarts-chart').forEach((node) => {
+    const chart = echarts.getInstanceByDom(node)
+    if (chart) chart.dispose()
+  })
 })
 
 // ── 数字分身状态 ──
@@ -289,7 +429,8 @@ const TOOL_NAME_MAP = {
   query_apps: '应用中心',
   get_my_info: '个人信息',
   search_knowledge: '知识库',
-  list_knowledge: '知识库文件'
+  list_knowledge: '知识库文件',
+  read_knowledge_file: '知识库文件内容'
 }
 const toolNameZh = (name) => TOOL_NAME_MAP[name] || name
 
@@ -575,6 +716,8 @@ const sendMessage = async () => {
             aiMsg.content += `\n[错误: ${parsed.message || '未知错误'}]`
           } else if (parsed.choices?.[0]?.delta?.content) {
             aiMsg.content += parsed.choices[0].delta.content
+          } else if (parsed.choices?.[0]?.message?.content) {
+            aiMsg.content += parsed.choices[0].message.content
           }
           scrollToBottom()
         } catch {
@@ -610,7 +753,10 @@ const scrollToBottom = () => {
 // ── 生命周期 ──
 onMounted(async () => {
   await Promise.all([loadSessions(), loadKnowledgeFiles()])
+  renderCharts()
 })
+
+onUpdated(renderCharts)
 </script>
 
 <style scoped lang="scss">
@@ -721,6 +867,13 @@ $border-color: var(--el-border-color, #dcdfe6);
   :deep(.ai-trigger-btn) {
     display: none !important;
   }
+}
+
+.flow-wrapper {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
 }
 
 .twin-body {
@@ -1070,6 +1223,24 @@ $border-color: var(--el-border-color, #dcdfe6);
     margin: 8px 0;
     th, td { border: 1px solid var(--el-border-color); padding: 4px 8px; font-size: 13px; }
     th { background: var(--el-fill-color-light); }
+  }
+  :deep(.echarts-chart) {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    min-height: 260px;
+    margin: 10px 0;
+  }
+  :deep(.echarts-chart.chart-pending) {
+    opacity: 0;
+  }
+  :deep(.chart-error) {
+    padding: 12px;
+    border: 1px dashed var(--el-border-color);
+    border-radius: 6px;
+    color: var(--el-text-color-secondary);
+    font-size: 13px;
   }
   :deep(img) { max-width: 100%; border-radius: 4px; }
 }

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 // src/utils/theme.js
 
 // 混合函数 (保持不变)

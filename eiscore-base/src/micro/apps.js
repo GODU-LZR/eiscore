@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 const hasQiankunContainer = () => {
   if (typeof document === 'undefined') return false
   return !!document.querySelector('#subapp-viewport')
@@ -16,13 +19,13 @@ const apps = [
   {
     name: 'eiscore-hr',
     // Keep sub-app entry same-origin to avoid CORS in host prefetch/runtime.
-    entry: '/hr/',
+    entry: '/hr/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/hr'),
   },
   {
     name: 'eiscore-materials',
-    entry: '/materials/',
+    entry: '/materials/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/materials'),
   },

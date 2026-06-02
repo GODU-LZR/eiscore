@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { setThemeColor } from '@/utils/theme' // 引入工具

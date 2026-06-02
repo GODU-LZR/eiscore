@@ -152,7 +152,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch, onUpdated } from 'vue'
 import { useUserStore } from '@/stores/user'
 import {
   Plus, Delete, Upload, Document, Promotion,
@@ -162,12 +165,131 @@ import { ElMessage } from 'element-plus'
 import markdownit from 'markdown-it'
 import * as XLSX from 'xlsx'
 import mammoth from 'mammoth'
+import * as echarts from 'echarts'
 
 // ── Markdown 渲染器 ──
 const md = markdownit({ html: false, linkify: true, typographer: true })
+const defaultFence = md.renderer.rules.fence
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  const info = token.info.trim().toLowerCase()
+  if (info === 'echarts') {
+    return `<div class="echarts-chart chart-pending" data-option="${encodeURIComponent(token.content)}"></div>`
+  }
+  if (defaultFence) return defaultFence(tokens, idx, options, env, self)
+  return self.renderToken(tokens, idx, options)
+}
 const renderMd = (text) => {
   if (!text) return ''
   return md.render(text)
+}
+
+const sanitizeJson = (jsonStr) => {
+  if (!jsonStr) return ''
+  return String(jsonStr)
+    .replace(/^\s*[^=]*=\s*/, '')
+    .replace(/,\s*([\]}])/g, '$1')
+    .replace(/\/\/.*(?=[\n\r])/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\bundefined\b/g, 'null')
+    .replace(/\bNaN\b/g, '0')
+    .trim()
+}
+
+const extractBalancedJson = (input) => {
+  const text = String(input || '')
+  const start = text.search(/[{[]/)
+  if (start < 0) return ''
+  const open = text[start]
+  const close = open === '{' ? '}' : ']'
+  let depth = 0
+  let inString = false
+  let escaped = false
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') {
+      inString = true
+      continue
+    }
+    if (ch === open) depth += 1
+    if (ch === close) depth -= 1
+    if (depth === 0) return text.slice(start, i + 1)
+  }
+  return ''
+}
+
+const normalizeEchartsOption = (option) => {
+  if (!option || typeof option !== 'object' || Array.isArray(option)) return null
+  const cloned = JSON.parse(JSON.stringify(option))
+  if (cloned.series && !Array.isArray(cloned.series)) cloned.series = [cloned.series]
+  if (!Array.isArray(cloned.series) || cloned.series.length === 0) return null
+  cloned.series = cloned.series
+    .filter(item => item && typeof item === 'object')
+    .map(item => ({ type: item.type || 'line', ...item }))
+  if (!cloned.series.length) return null
+  if (!cloned.tooltip) cloned.tooltip = { trigger: 'axis' }
+  if (!cloned.grid) cloned.grid = { left: 48, right: 24, top: 56, bottom: 40, containLabel: true }
+  return cloned
+}
+
+const parseEchartsOption = (raw) => {
+  const source = String(raw || '')
+  const candidates = [
+    source.trim(),
+    extractBalancedJson(source),
+    sanitizeJson(source),
+    extractBalancedJson(sanitizeJson(source))
+  ]
+  const seen = new Set()
+  for (const candidate of candidates) {
+    const key = String(candidate || '').trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    try {
+      const normalized = normalizeEchartsOption(JSON.parse(key))
+      if (normalized) return normalized
+    } catch {}
+  }
+  return null
+}
+
+const renderEchartsNode = (node) => {
+  if (!node || node.dataset.processed === 'true') return
+  node.dataset.processed = 'true'
+  const raw = decodeURIComponent(node.getAttribute('data-option') || '')
+  const option = parseEchartsOption(raw)
+  if (!option) {
+    node.classList.remove('chart-pending')
+    node.innerHTML = '<div class="chart-error">图表配置暂不可用</div>'
+    return
+  }
+  node.style.width = '100%'
+  node.style.height = '320px'
+  const previous = echarts.getInstanceByDom(node)
+  if (previous) previous.dispose()
+  try {
+    const chart = echarts.init(node)
+    chart.setOption(option, true)
+    node.classList.remove('chart-pending')
+    requestAnimationFrame(() => {
+      try { chart.resize() } catch {}
+    })
+  } catch {
+    node.classList.remove('chart-pending')
+    node.innerHTML = '<div class="chart-error">图表渲染失败</div>'
+  }
+}
+
+const renderCharts = async () => {
+  await nextTick()
+  const root = messagesRef.value || document
+  root.querySelectorAll?.('.echarts-chart:not([data-processed])').forEach(renderEchartsNode)
 }
 
 // ── Store & Auth ──
@@ -216,7 +338,8 @@ const TOOL_NAME_MAP = {
   query_apps: '应用中心',
   get_my_info: '个人信息',
   search_knowledge: '知识库',
-  list_knowledge: '知识库文件'
+  list_knowledge: '知识库文件',
+  read_knowledge_file: '知识库文件内容'
 }
 const toolNameZh = (name) => TOOL_NAME_MAP[name] || name
 
@@ -495,6 +618,8 @@ const sendMessage = async () => {
           } else if (parsed.choices?.[0]?.delta?.content) {
             // 标准 SSE 文本块
             aiMsg.content += parsed.choices[0].delta.content
+          } else if (parsed.choices?.[0]?.message?.content) {
+            aiMsg.content += parsed.choices[0].message.content
           }
 
           scrollToBottom()
@@ -532,6 +657,16 @@ const scrollToBottom = () => {
 // ── 生命周期 ──
 onMounted(async () => {
   await Promise.all([loadSessions(), loadKnowledgeFiles()])
+  renderCharts()
+})
+
+onUpdated(renderCharts)
+
+onUnmounted(() => {
+  document.querySelectorAll('.echarts-chart').forEach((node) => {
+    const chart = echarts.getInstanceByDom(node)
+    if (chart) chart.dispose()
+  })
 })
 </script>
 
@@ -899,6 +1034,24 @@ onMounted(async () => {
     :deep(table) { border-collapse: collapse; margin: 8px 0;
       th, td { border: 1px solid var(--el-border-color); padding: 4px 8px; font-size: 13px; }
       th { background: var(--el-fill-color-light); }
+    }
+    :deep(.echarts-chart) {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      min-height: 260px;
+      margin: 10px 0;
+    }
+    :deep(.echarts-chart.chart-pending) {
+      opacity: 0;
+    }
+    :deep(.chart-error) {
+      padding: 12px;
+      border: 1px dashed var(--el-border-color);
+      border-radius: 6px;
+      color: var(--el-text-color-secondary);
+      font-size: 13px;
     }
   }
 }
