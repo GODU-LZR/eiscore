@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 林志荣
+
 FILE=/tmp/sse-raw.txt
 
 echo "=== Lines with 'content' but NOT 'reasoning_content' ==="

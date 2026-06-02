@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 林志荣
+
 # Quick enterprise assistant test - save raw SSE chunks
 cd /home/lzr/eiscore
 TOKEN=$(node scripts/gen-test-token.js 2>/dev/null)

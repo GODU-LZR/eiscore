@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Patch: lightweight ontology runtime landing (compatible with existing permission codes)
 -- Execute:
 --   cat sql/patch_lightweight_ontology_runtime.sql | docker exec -i eiscore-db psql -U postgres -d eiscore

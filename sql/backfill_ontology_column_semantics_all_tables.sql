@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Backfill column-level ontology semantics for all active ontology tables.
 -- Safety:
 -- 1) Only writes public.ontology_column_semantics

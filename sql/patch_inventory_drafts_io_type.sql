@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Patch: add io_type to inventory drafts and refresh view.
 -- Apply after patch_inventory_drafts.sql / patch_inventory_drafts_rule_id.sql.
 

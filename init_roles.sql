@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 00_init_roles.sql
 -- 只负责创建角色，确保后续脚本能正常授权
 DO $$

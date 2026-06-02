@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 林志荣
+
 # ==============================================================================
 # 库存出入库端到端回滚演练脚本 (Inventory Rollback Drill)
 # 作用: 在事务内执行入库和出库操作，验证中文 io_type 写入、库存计算逻辑，

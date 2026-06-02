@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 为“出入库协同流程”创建/校验角色并按角色分派任务（幂等）
 -- 执行方式：
 --   cat sql/patch_assign_stock_io_workflow_roles.sql | docker exec -i eiscore-db psql -U postgres -d eiscore

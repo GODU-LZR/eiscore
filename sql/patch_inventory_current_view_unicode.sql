@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Patch: fix v_inventory_current status filter encoding
 -- Apply after inventory_schema.sql is loaded.
 

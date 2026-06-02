@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Batch normalize data app column field names in app_center.apps config
 
 create or replace function public.normalize_field_name(raw text)

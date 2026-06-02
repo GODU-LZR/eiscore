@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 创建/更新“出入库协同流程”应用（幂等）
 -- 执行方式：
 --   cat sql/patch_create_stock_io_workflow_app.sql | docker exec -i eiscore-db psql -U postgres -d eiscore

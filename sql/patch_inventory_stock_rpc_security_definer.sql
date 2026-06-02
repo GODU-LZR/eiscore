@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Patch: run stock_in/stock_out with definer privileges to bypass RLS on scm tables.
 -- Apply after inventory_schema.sql is loaded.
 

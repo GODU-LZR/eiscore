@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Enable write audit logs for app_center.execution_logs (super_admin only)
 -- Compatible with both request.jwt.claim.app_role and request.jwt.claims JSON.
 

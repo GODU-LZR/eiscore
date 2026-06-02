@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- ============================================================
 -- Employee Digital Twin Agent — 数据持久化 Schema
 -- 目标 schema: app_data（与现有业务数据共用 schema）

@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 林志荣
+
 # Test semantic context injection
 cd /home/lzr/eiscore
 TOKEN=$(node scripts/gen-test-token.js 2>/dev/null)

@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 将“出入库协同流程”的出库节点目标状态改为生效（active）
 -- 执行方式：
 --   cat sql/patch_stock_io_outbound_state_active.sql | docker exec -i eiscore-db psql -U postgres -d eiscore

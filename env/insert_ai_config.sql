@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 确保 system_configs 表存在 (根据之前的代码推断表结构)
 -- 如果表结构不同，请根据实际情况调整
 CREATE TABLE IF NOT EXISTS public.system_configs (

@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Patch: add io_type to inventory transactions and sync RPC/view.
 -- Apply after inventory_schema.sql and patch_inventory_stock_rpc_security_definer.sql.
 

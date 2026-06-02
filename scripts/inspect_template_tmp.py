@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 林志荣
+
 ﻿from docx import Document
 from pathlib import Path
 p = Path(r"C:/Users/Twist/Desktop/school_template_2015_design.docx")

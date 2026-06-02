@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Backfill missing semantic/permission config for historical app_center.apps rows.
 -- Rule:
 --   permission_mode -> compat (if missing)

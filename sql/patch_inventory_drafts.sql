@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Patch: add inventory draft table for staged stock in/out.
 -- Apply after inventory_schema.sql is loaded.
 

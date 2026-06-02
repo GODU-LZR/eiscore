@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 林志荣
+
 # Test PostgREST access to semantic tables
 TOKEN=$(node /home/lzr/eiscore/scripts/gen-test-token.js 2>/dev/null)
 

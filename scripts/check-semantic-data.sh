@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 林志荣
+
 echo "=== ontology_table_semantics columns ==="
 docker exec eiscore-db psql -U postgres -d eiscore -t -c "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='ontology_table_semantics' ORDER BY ordinal_position;"
 

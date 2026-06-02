@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Patch: complete RLS write policies for workflow-related app_center tables
 -- Execute:
 --   cat sql/workflow_rls_patch.sql | docker exec -i eiscore-db psql -U postgres -d eiscore

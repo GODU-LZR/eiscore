@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- ========================================
 -- 物料台账模块数据库架构
 -- 作者: EISCore Team

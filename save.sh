@@ -1,4 +1,7 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 林志荣
+
 
 # --- 配置区 ---
 DEFAULT_MSG="自动归档: 更新代码及数据库结构"

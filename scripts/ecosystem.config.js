@@ -1,10 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 module.exports = {
   apps: [
     {
       name: 'eiscore-base',
       cwd: './eiscore-base',
-      script: 'npm',
-      args: 'run dev',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8080 --host 0.0.0.0 --base / --micro-proxy',
       env: {
         NODE_ENV: 'development',
         PORT: 8080
@@ -19,8 +23,9 @@ module.exports = {
     {
       name: 'eiscore-hr',
       cwd: './eiscore-hr',
-      script: 'npm',
-      args: 'run dev',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8082 --host 127.0.0.1 --base /hr',
       env: {
         NODE_ENV: 'development',
         PORT: 8082
@@ -35,8 +40,9 @@ module.exports = {
     {
       name: 'eiscore-materials',
       cwd: './eiscore-materials',
-      script: 'npm',
-      args: 'run dev',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8081 --host 127.0.0.1 --base /materials',
       env: {
         NODE_ENV: 'development',
         PORT: 8081
@@ -51,8 +57,9 @@ module.exports = {
     {
       name: 'eiscore-apps',
       cwd: './eiscore-apps',
-      script: 'npm',
-      args: 'run dev',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8083 --host 127.0.0.1 --base /apps',
       env: {
         NODE_ENV: 'development',
         PORT: 8083
@@ -67,8 +74,9 @@ module.exports = {
     {
       name: 'eiscore-sales',
       cwd: './eiscore-sales',
-      script: 'npm',
-      args: 'run dev',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8085 --host 127.0.0.1 --base /sales',
       env: {
         NODE_ENV: 'development',
         PORT: 8085
@@ -83,8 +91,9 @@ module.exports = {
     {
       name: 'eiscore-purchase',
       cwd: './eiscore-purchase',
-      script: 'npm',
-      args: 'run dev',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8088 --host 127.0.0.1 --base /purchase',
       env: {
         NODE_ENV: 'development',
         PORT: 8088
@@ -99,8 +108,9 @@ module.exports = {
     {
       name: 'eiscore-production',
       cwd: './eiscore-production',
-      script: 'npm',
-      args: 'run dev',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8087 --host 127.0.0.1 --base /production',
       env: {
         NODE_ENV: 'development',
         PORT: 8087
@@ -115,8 +125,9 @@ module.exports = {
     {
       name: 'eiscore-mobile',
       cwd: './eiscore-mobile',
-      script: 'npm',
-      args: 'run dev',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8084 --host 127.0.0.1 --base /mobile',
       env: {
         NODE_ENV: 'development',
         PORT: 8084

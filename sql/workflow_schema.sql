@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 CREATE SCHEMA IF NOT EXISTS workflow;
 
 -- 1. 流程定义表 (存设计图)
