@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 林志荣
+
 """Heuristic paragraph-level AIGC risk scanner for Chinese thesis drafts.
 
 This tool uses open-source detector models from:
