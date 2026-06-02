@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- Add properties storage for dynamic columns in raw_materials
 ALTER TABLE public.raw_materials
   ADD COLUMN IF NOT EXISTS properties jsonb DEFAULT '{}'::jsonb,

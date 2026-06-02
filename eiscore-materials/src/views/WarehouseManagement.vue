@@ -42,6 +42,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref } from 'vue'
 import WarehouseTree from '@/components/WarehouseTree.vue'
 import WarehouseLayoutEditor from '@/components/WarehouseLayoutEditor.vue'

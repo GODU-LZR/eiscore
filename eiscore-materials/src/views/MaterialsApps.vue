@@ -36,9 +36,12 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Box, Setting, OfficeBuilding, Notebook, Search, Monitor, Upload, Download } from '@element-plus/icons-vue'
+import { Box, Connection, Setting, OfficeBuilding, Notebook, Search, Monitor, Upload, Download } from '@element-plus/icons-vue'
 import { MATERIAL_APPS } from '@/utils/material-apps'
 import { hasPerm } from '@/utils/permission'
 
@@ -46,6 +49,7 @@ const router = useRouter()
 const apps = MATERIAL_APPS
 const iconMap = {
   Box,
+  Connection,
   Setting,
   OfficeBuilding,
   Notebook,
@@ -126,6 +130,7 @@ const openApp = (app) => {
 .tone-indigo { background: #3f51b5; }
 .tone-teal { background: #26a69a; }
 .tone-red { background: #ef5350; }
+.tone-slate { background: #475569; }
 
 .app-info {
   display: flex;

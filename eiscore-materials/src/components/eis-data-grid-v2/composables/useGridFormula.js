@@ -1,7 +1,10 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { reactive, ref, computed, watch, nextTick } from 'vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
-import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
+import { evaluateFormulaExpression } from '@/utils/formula-eval'
 
 // 🟢 接收 columnLockState 参数
 export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, currentUser, hooks, columnLockState) {

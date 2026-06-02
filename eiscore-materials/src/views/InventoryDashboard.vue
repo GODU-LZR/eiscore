@@ -18,7 +18,9 @@
       </div>
       <div class="hdr-right">
         <div class="clock">{{ clock }}</div>
-        <button class="fs-btn" @click="toggleFs" title="\u5168\u5c4f">&#9974;</button>
+        <button class="fs-btn" @click="toggleFs" :title="isFullscreen ? '\u9000\u51fa\u5168\u5c4f' : '\u5168\u5c4f'">
+          {{ isFullscreen ? '\u9000\u51fa\u5168\u5c4f' : '\u5168\u5c4f' }}
+        </button>
       </div>
     </header>
 
@@ -164,6 +166,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import Konva from 'konva'
 import request from '@/utils/request'
@@ -504,12 +509,17 @@ const toggleFs = () => {
   if (isFullscreen.value) document.documentElement.requestFullscreen?.()
   else document.exitFullscreen?.()
 }
+const syncFullscreenState = () => {
+  isFullscreen.value = !!document.fullscreenElement
+  nextTick(renderCanvas)
+}
 
 watch(activeLayerId, async () => { if (layoutData.value) { await nextTick(); renderCanvas(); computeLocStats() } })
 
 onMounted(() => {
   updateClock()
   clockTimer = setInterval(updateClock, 1000)
+  document.addEventListener('fullscreenchange', syncFullscreenState)
   const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
   if (mq) mq.addEventListener('change', e => { isDark.value = e.matches; renderCanvas() })
   loadWarehouses()
@@ -519,6 +529,7 @@ onBeforeUnmount(() => {
   if (masterTimer) clearInterval(masterTimer)
   if (treeTimer) clearInterval(treeTimer)
   if (clockTimer) clearInterval(clockTimer)
+  document.removeEventListener('fullscreenchange', syncFullscreenState)
   if (stage) stage.destroy()
 })
 </script>
@@ -564,15 +575,23 @@ onBeforeUnmount(() => {
 }
 .hud {
   position: relative;
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   color: var(--text1);
   font-family: 'DIN Alternate','Helvetica Neue','PingFang SC',sans-serif;
 }
-.hud.fullscreen { position: fixed; inset: 0; z-index: 9999; }
+.hud.fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  width: 100vw;
+  height: 100vh;
+}
 .hud-bg {
   position: absolute; inset: 0; z-index: 0;
   background-color: var(--bg);
@@ -597,12 +616,12 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(12px);
   flex-shrink: 0;
 }
-.hdr-left { display: flex; flex-direction: column; justify-content: center; }
+.hdr-left { display: flex; flex-direction: column; justify-content: center; min-width: 0; }
 .hdr-title { font-size: 18px; font-weight: 900; color: var(--c-primary); letter-spacing: 2px; text-shadow: 0 0 10px var(--glow-strong); }
 .hdr-icon { font-size: 14px; margin-right: 6px; }
 .hdr-sub { font-size: 11px; color: var(--text3); letter-spacing: 4px; }
-.hdr-center { flex: 1; display: flex; justify-content: center; }
-.hdr-right { display: flex; align-items: center; gap: 16px; }
+.hdr-center { flex: 1; display: flex; justify-content: center; min-width: 0; }
+.hdr-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .carousel-badge {
   display: flex; align-items: center; gap: 10px;
   font-size: 15px; color: var(--c-primary);
@@ -617,9 +636,11 @@ onBeforeUnmount(() => {
 .carousel-counter { font-size: 12px; color: var(--text3); margin-left: 4px; }
 .clock { font-size: 18px; font-weight: 700; color: var(--c-primary); letter-spacing: 1px; }
 .fs-btn {
-  width: 32px; height: 32px;
+  min-width: 58px; height: 32px;
+  padding: 0 10px;
   background: transparent; border: 1px solid var(--border); color: var(--c-primary);
-  border-radius: 4px; cursor: pointer; font-size: 16px;
+  border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 700;
+  white-space: nowrap;
 }
 .fs-btn:hover { background: var(--glow); }
 .hud-body {

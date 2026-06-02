@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { FINANCE_ATTRIBUTE_SELECT_OPTIONS } from '@/constants/financeAttributes'
 
 const UNIT_SELECT_OPTIONS = [

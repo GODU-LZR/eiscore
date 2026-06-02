@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { reactive, ref } from 'vue'
 import { debounce } from 'lodash'
 import request from '@/utils/request'

@@ -48,8 +48,8 @@
             <div class="template-actions">
               <el-button size="small" plain @click="openTemplatePreview(scope.row)">预览</el-button>
               <el-button size="small" type="primary" @click="setCurrentTemplate(scope.row)">使用</el-button>
-              <el-button size="small" type="warning" plain @click="openTemplateRename(scope.row)">改名</el-button>
-              <el-button size="small" type="danger" @click="removeTemplate(scope.row)">删除</el-button>
+              <el-button size="small" type="warning" plain :disabled="scope.row.readonly" @click="openTemplateRename(scope.row)">改名</el-button>
+              <el-button size="small" type="danger" :disabled="scope.row.readonly" @click="removeTemplate(scope.row)">删除</el-button>
             </div>
           </template>
         </el-table-column>
@@ -85,6 +85,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -103,6 +106,7 @@ const props = defineProps(['id'])
 const loading = ref(false)
 const formData = ref(null)
 const templates = ref([])
+const templateLibrary = ref([])
 const selectedTemplateId = ref('')
 const extraValues = ref({})
 const dynamicColumns = ref([])
@@ -158,6 +162,25 @@ const supportsProperties = computed(() => detailConfig.value.supportsProperties 
 const staticColumns = computed(() => normalizeStaticColumns(detailConfig.value.staticColumns))
 
 const templateEditTitle = computed(() => (templateEditMode.value === 'rename' ? '修改模板名称' : '新增模板'))
+const templateScope = computed(() => ({
+  app: 'materials',
+  key: detailConfig.value.key || 'materials',
+  configKey: detailConfig.value.configKey || 'materials_table_cols',
+  apiUrl: detailConfig.value.apiUrl || '/raw_materials'
+}))
+const defaultTemplateId = computed(() => `default_${templateScope.value.app}_${templateScope.value.key}`)
+const defaultTemplateName = computed(() => `${detailConfig.value.name || '物料'}默认表单`)
+const detailFormValueKey = computed(() => {
+  const scope = templateScope.value
+  return [
+    'form_templates',
+    scope.app || '',
+    scope.key || '',
+    scope.configKey || '',
+    scope.apiUrl || '',
+    selectedTemplateId.value || ''
+  ].map(part => encodeURIComponent(String(part))).join(':')
+})
 
 const knownPropertyKeys = computed(() => {
   if (!supportsProperties.value) return new Set()
@@ -228,11 +251,20 @@ const buildFallbackSchema = () => {
   const layout = [baseSection, extraSection].filter(Boolean)
   if (!layout.length) return documentSchemaExample
   return {
-    docType: `${detailConfig.value.key || 'form'}_auto`,
-    title: detailConfig.value.name || '单据',
+    docType: defaultTemplateId.value,
+    title: defaultTemplateName.value,
     layout
   }
 }
+
+const buildDefaultTemplate = () => ({
+  id: defaultTemplateId.value,
+  name: defaultTemplateName.value,
+  schema: buildFallbackSchema(),
+  source: 'system',
+  readonly: true,
+  scope: templateScope.value
+})
 
 const activeSchema = computed(() => {
   const current = templates.value.find(item => item.id === selectedTemplateId.value)
@@ -272,14 +304,12 @@ const loadTemplates = async () => {
       headers: { 'Accept-Profile': 'public' }
     })
     const list = res && res.length > 0 ? (res[0].value || []) : []
-    templates.value = Array.isArray(list)
-      ? list.filter(item => item && item.schema && Array.isArray(item.schema.layout))
-      : []
-    if (!selectedTemplateId.value && templates.value.length > 0) {
-      selectedTemplateId.value = templates.value[0].id
-    }
+    templateLibrary.value = Array.isArray(list) ? list : []
+    applyTemplateList(list)
   } catch (e) {
-    templates.value = []
+    templateLibrary.value = []
+    templates.value = [buildDefaultTemplate()]
+    selectedTemplateId.value = defaultTemplateId.value
   }
 }
 
@@ -296,14 +326,88 @@ const saveTemplateLibrary = async (list) => {
   })
 }
 
+const persistCurrentTemplates = async (scopedList, preferredTemplateId = '') => {
+  const remaining = (templateLibrary.value || []).filter((item) => {
+    if (!item?.id) return true
+    if (item.id === defaultTemplateId.value) return false
+    return !isTemplateForCurrentScope(item)
+  })
+  const current = (scopedList || [])
+    .filter(item => item?.id && item.id !== defaultTemplateId.value && !item.readonly)
+    .map(withCurrentScope)
+  const next = [...current, ...remaining]
+  await saveTemplateLibrary(next)
+  templateLibrary.value = next
+  applyTemplateList(next)
+  if (preferredTemplateId && templates.value.some(item => item.id === preferredTemplateId)) {
+    selectedTemplateId.value = preferredTemplateId
+  }
+}
+
+const isLegacyMaterialTemplate = (template) => {
+  const docType = String(template?.schema?.docType || template?.docType || '').toLowerCase()
+  const key = String(templateScope.value.key || '').toLowerCase()
+  return [
+    `${key}_auto`,
+    'materials_auto',
+    'material_auto',
+    'mms_material',
+    'material_detail'
+  ].includes(docType)
+}
+
+const isTemplateForCurrentScope = (template) => {
+  if (!template?.schema || !Array.isArray(template.schema.layout)) return false
+  if (template.id === defaultTemplateId.value) return true
+  const scope = template.scope || template.schema.scope || {}
+  if (scope && typeof scope === 'object') {
+    if (scope.app && scope.app !== templateScope.value.app) return false
+    if (scope.key && scope.key !== templateScope.value.key) return false
+    if (scope.configKey && scope.configKey !== templateScope.value.configKey) return false
+    if (scope.apiUrl && scope.apiUrl !== templateScope.value.apiUrl) return false
+    if (scope.app || scope.key || scope.configKey || scope.apiUrl) return true
+  }
+  return isLegacyMaterialTemplate(template)
+}
+
+const withCurrentScope = (template) => ({
+  ...template,
+  scope: {
+    ...(template.scope || {}),
+    ...templateScope.value
+  },
+  schema: {
+    ...(template.schema || {}),
+    scope: {
+      ...((template.schema || {}).scope || {}),
+      ...templateScope.value
+    }
+  }
+})
+
+const applyTemplateList = (rawList) => {
+  const scoped = Array.isArray(rawList)
+    ? rawList
+      .filter(isTemplateForCurrentScope)
+      .map(item => (item.id === defaultTemplateId.value ? item : withCurrentScope(item)))
+    : []
+  const defaultTemplate = buildDefaultTemplate()
+  const merged = scoped.some(item => item.id === defaultTemplate.id)
+    ? scoped
+    : [defaultTemplate, ...scoped]
+  templates.value = merged
+  if (!merged.some(item => item.id === selectedTemplateId.value)) {
+    selectedTemplateId.value = defaultTemplate.id
+  }
+}
+
 const handleTemplatesUpdated = (event) => {
+  const eventKey = event?.detail?.templateLibraryKey || event?.detail?.key || 'form_templates'
+  if (eventKey !== 'form_templates') return
   const list = event?.detail?.templates
   if (Array.isArray(list)) {
-    const filtered = list.filter(item => item && item.schema && Array.isArray(item.schema.layout))
-    templates.value = filtered
-    if (!selectedTemplateId.value && filtered.length > 0) {
-      selectedTemplateId.value = filtered[0].id
-    }
+    templateLibrary.value = list
+    applyTemplateList(list)
   } else {
     loadTemplates()
   }
@@ -327,20 +431,25 @@ const loadDynamicColumns = async () => {
   }
 }
 
+const fetchFormValues = (rowId, templateId) => request({
+  url: `/form_values?row_id=eq.${encodeURIComponent(String(rowId))}&template_id=eq.${encodeURIComponent(String(templateId))}`,
+  method: 'get',
+  headers: {
+    'Accept-Profile': 'public',
+    'Content-Profile': 'public'
+  }
+})
+
 const loadFormValues = async () => {
   if (!formData.value?.id || !selectedTemplateId.value) {
     extraValues.value = {}
     return
   }
   try {
-    const res = await request({
-      url: `/form_values?row_id=eq.${formData.value.id}&template_id=eq.${selectedTemplateId.value}`,
-      method: 'get',
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public'
-      }
-    })
+    let res = await fetchFormValues(formData.value.id, detailFormValueKey.value)
+    if ((!Array.isArray(res) || res.length === 0) && detailFormValueKey.value !== selectedTemplateId.value) {
+      res = await fetchFormValues(formData.value.id, selectedTemplateId.value)
+    }
     if (res && res.length > 0) {
       extraValues.value = res[0].payload || {}
     } else {
@@ -399,8 +508,8 @@ const saveFormValues = async () => {
         'Prefer': 'resolution=merge-duplicates'
       },
       data: {
-        row_id: formData.value.id,
-        template_id: selectedTemplateId.value,
+        row_id: String(formData.value.id),
+        template_id: detailFormValueKey.value,
         payload: extraValues.value || {}
       }
     })
@@ -542,6 +651,8 @@ const syncAiContext = () => {
     rowId: formData.value?.id,
     columns,
     fileColumns,
+    templateScope: templateScope.value,
+    templateLibraryKey: 'form_templates',
     aiScene: 'form',
     allowFormula: false,
     allowImport: false
@@ -593,6 +704,10 @@ const openTemplateCreate = () => {
 }
 
 const openTemplateRename = (template) => {
+  if (template?.readonly) {
+    ElMessage.info('默认模板不能改名，可以新增一个自己的模板')
+    return
+  }
   templateEditMode.value = 'rename'
   templateEditForm.value = {
     id: template?.id || '',
@@ -620,28 +735,34 @@ const submitTemplateEdit = async () => {
     if (templateEditMode.value === 'rename') {
       const idx = list.findIndex(item => item.id === templateEditForm.value.id)
       if (idx >= 0) {
+        if (list[idx].readonly) {
+          ElMessage.info('默认模板不能改名，可以新增一个自己的模板')
+          return
+        }
         const nextSchema = list[idx].schema ? { ...list[idx].schema } : {}
         nextSchema.title = name
-        list[idx] = { ...list[idx], name, schema: nextSchema, updated_at: now }
+        list[idx] = withCurrentScope({ ...list[idx], name, schema: nextSchema, updated_at: now })
       }
     } else {
       const schema = JSON.parse(JSON.stringify(buildFallbackSchema()))
       schema.title = name
       const templateId = `tpl_${Date.now()}`
       schema.docType = templateId
-      const record = {
+      const record = withCurrentScope({
         id: templateId,
         name,
         schema,
         source: 'manual',
         created_at: now,
         updated_at: now
-      }
+      })
       list.unshift(record)
       selectedTemplateId.value = record.id
     }
-    await saveTemplateLibrary(list)
-    templates.value = list
+    const preferredTemplateId = templateEditMode.value === 'create'
+      ? selectedTemplateId.value
+      : templateEditForm.value.id
+    await persistCurrentTemplates(list, preferredTemplateId)
     templateEditVisible.value = false
     ElMessage.success('模板已保存')
   } catch (e) {
@@ -653,6 +774,10 @@ const submitTemplateEdit = async () => {
 
 const removeTemplate = async (template) => {
   if (!template?.id) return
+  if (template.readonly || template.id === defaultTemplateId.value) {
+    ElMessage.info('默认模板不能删除')
+    return
+  }
   try {
     await ElMessageBox.confirm('确定删除这个模板吗？删除后无法恢复。', '确认删除', {
       type: 'warning',
@@ -664,10 +789,9 @@ const removeTemplate = async (template) => {
   }
   try {
     const list = (templates.value || []).filter(item => item.id !== template.id)
-    await saveTemplateLibrary(list)
-    templates.value = list
+    await persistCurrentTemplates(list)
     if (selectedTemplateId.value === template.id) {
-      selectedTemplateId.value = list[0]?.id || ''
+      selectedTemplateId.value = defaultTemplateId.value
     }
     ElMessage.success('模板已删除')
   } catch (e) {
