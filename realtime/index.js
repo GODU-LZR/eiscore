@@ -1,5 +1,9 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 const http = require('http');
 const WebSocket = require('ws');
+const axios = require('axios');
 const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
 const path = require('path');
@@ -21,8 +25,13 @@ const workflowChannel = 'workflow_event';
 const enableWorkflowAutoTransition = envText(process.env.WORKFLOW_AUTO_TRANSITION, '0') === '1';
 const jwtSecret = envText(process.env.PGRST_JWT_SECRET, envText(process.env.JWT_SECRET, ''));
 const aiConfigKey = envText(process.env.AI_CONFIG_KEY, 'ai_glm_config') || 'ai_glm_config';
+const aiVisionConfigKey = envText(process.env.AI_VISION_CONFIG_KEY, 'ai_vision_config') || 'ai_vision_config';
 const aiConfigTtlMs = Number(process.env.AI_CONFIG_TTL_MS || 30 * 1000);
 const aiUpstreamTimeoutMs = Number(process.env.AI_UPSTREAM_TIMEOUT_MS || 120 * 1000);
+const aiHttpProxyUrl = envText(
+  process.env.AI_HTTP_PROXY_URL,
+  envText(process.env.HTTPS_PROXY, envText(process.env.HTTP_PROXY, ''))
+);
 const postgrestBaseUrl = envText(process.env.AGENT_POSTGREST_URL, 'http://api:3000').replace(/\/+$/, '');
 const flashToolCallTimeoutMs = Number(process.env.FLASH_TOOL_CALL_TIMEOUT_MS || 30 * 1000);
 const flashToolIdempotencyTtlMs = Number(process.env.FLASH_TOOL_IDEMPOTENCY_TTL_MS || 10 * 60 * 1000);
@@ -52,6 +61,7 @@ const flashSemanticCliScript = envText(process.env.FLASH_SEMANTIC_CLI_SCRIPT, '/
 const flashAgentBaseUrl = envText(process.env.FLASH_AGENT_BASE_URL, `http://127.0.0.1:${port}`).replace(/\/+$/, '');
 const runtimeNodeMajor = Number.parseInt(String(process.versions.node || '0').split('.')[0], 10) || 0;
 const flashCliRuntimeReady = runtimeNodeMajor >= 20;
+let activeFlashDraftAppId = '';
 
 const ensureBashCompat = () => {
   try {
@@ -121,13 +131,39 @@ const resolveFlashDraftFilePath = () => {
   return resolved;
 };
 
-const readFlashDraftFingerprintSafe = async () => {
+const normalizeFlashAppId = (value) => sanitizePathToken(value, '');
+
+const resolveFlashScopedDraftFilePath = (appId) => {
+  const normalizedAppId = normalizeFlashAppId(appId);
+  if (!normalizedAppId) return '';
+  const workdir = resolveFlashCliWorkdir();
+  const baseDir = path.resolve(workdir, '.app-drafts');
+  const resolved = path.resolve(baseDir, `${normalizedAppId}.vue`);
+  if (!resolved.startsWith(baseDir + path.sep)) {
+    throw new Error('Flash scoped draft path escapes workdir');
+  }
+  return resolved;
+};
+
+const syncScopedDraftToPreview = async (appId) => {
+  const scopedPath = resolveFlashScopedDraftFilePath(appId);
+  if (!scopedPath || !fs.existsSync(scopedPath)) return false;
+  const previewPath = resolveFlashDraftFilePath();
+  await ensureDir(path.dirname(previewPath));
+  await fs.promises.copyFile(scopedPath, previewPath);
+  activeFlashDraftAppId = normalizeFlashAppId(appId);
+  return true;
+};
+
+const readFlashFileFingerprintSafe = async (target, appId = '') => {
   try {
-    const target = resolveFlashDraftFilePath();
+    if (!target) return null;
     const stat = await fs.promises.stat(target);
     if (!stat?.isFile?.()) return null;
     const buffer = await fs.promises.readFile(target);
     return {
+      appId: normalizeFlashAppId(appId),
+      path: target,
       bytes: Number(stat.size || 0),
       mtimeMs: Number(stat.mtimeMs || 0),
       sha1: crypto.createHash('sha1').update(buffer).digest('hex')
@@ -135,6 +171,46 @@ const readFlashDraftFingerprintSafe = async () => {
   } catch {
     return null;
   }
+};
+
+const readFlashDraftFingerprintSafe = async (appId = '') => {
+  const normalizedAppId = normalizeFlashAppId(appId);
+  const scopedTarget = normalizedAppId ? resolveFlashScopedDraftFilePath(normalizedAppId) : '';
+  const target = scopedTarget && fs.existsSync(scopedTarget) ? scopedTarget : resolveFlashDraftFilePath();
+  return readFlashFileFingerprintSafe(target, normalizedAppId);
+};
+
+const readFlashDraftFingerprintsSafe = async (appId = '') => {
+  const normalizedAppId = normalizeFlashAppId(appId);
+  const previewPath = resolveFlashDraftFilePath();
+  const scopedPath = normalizedAppId ? resolveFlashScopedDraftFilePath(normalizedAppId) : '';
+  const [preview, scoped] = await Promise.all([
+    readFlashFileFingerprintSafe(previewPath, normalizedAppId),
+    scopedPath ? readFlashFileFingerprintSafe(scopedPath, normalizedAppId) : Promise.resolve(null)
+  ]);
+  return { preview, scoped };
+};
+
+const hasFlashFingerprintChanged = (before, after) => !!(
+  after
+  && (
+    !before
+    || before.sha1 !== after.sha1
+    || before.bytes !== after.bytes
+    || before.mtimeMs !== after.mtimeMs
+  )
+);
+
+const syncPreviewDraftToScoped = async (appId) => {
+  const normalizedAppId = normalizeFlashAppId(appId);
+  if (!normalizedAppId) return false;
+  const previewPath = resolveFlashDraftFilePath();
+  const scopedPath = resolveFlashScopedDraftFilePath(normalizedAppId);
+  if (!fs.existsSync(previewPath)) return false;
+  await ensureDir(path.dirname(scopedPath));
+  await fs.promises.copyFile(previewPath, scopedPath);
+  activeFlashDraftAppId = normalizedAppId;
+  return true;
 };
 
 // In proxy-based environments, Node fetch reads proxy vars when this flag is enabled.
@@ -148,6 +224,8 @@ let shuttingDown = false;
 let workflowEngine = null;
 let aiConfigCache = null;
 let aiConfigLoadedAt = 0;
+let aiVisionConfigCache = null;
+let aiVisionConfigLoadedAt = 0;
 const flashToolIdempotencyCache = new Map();
 
 const flashSemanticToolRegistryVersion = 'flash-tools-v2';
@@ -715,6 +793,25 @@ const normalizeAiText = (value) => {
   return String(value).trim();
 };
 
+const extractAiContentText = (value) => {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      if (!item) return '';
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object') {
+        return item.text || item.content || item.output_text || '';
+      }
+      return String(item);
+    }).filter(Boolean).join('\n').trim();
+  }
+  if (typeof value === 'object') {
+    return String(value.text || value.content || value.output_text || '').trim();
+  }
+  return String(value).trim();
+};
+
 const normalizeFlashCliError = (value) => {
   const text = normalizeAiText(value);
   if (!text) return '';
@@ -749,6 +846,52 @@ const normalizeMessageContent = (content) => {
     }
   }
   return parts.length > 0 ? parts : '';
+};
+
+const hasImageContent = (content) => {
+  if (!Array.isArray(content)) return false;
+  return content.some((part) => part?.type === 'image_url' && normalizeAiText(part?.image_url?.url || part?.url));
+};
+
+const extractImageUrlsFromMessages = (messages) => {
+  const urls = [];
+  if (!Array.isArray(messages)) return urls;
+  for (const message of messages) {
+    const content = message?.content;
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (part?.type !== 'image_url') continue;
+      const url = normalizeAiText(part?.image_url?.url || part?.url);
+      if (url) urls.push(url);
+    }
+  }
+  return urls;
+};
+
+const replaceImagesWithOcrText = (messages, ocrItems) => {
+  if (!Array.isArray(messages) || !Array.isArray(ocrItems) || ocrItems.length === 0) return messages;
+  let imageIndex = 0;
+  return messages.map((message) => {
+    if (!Array.isArray(message?.content) || !hasImageContent(message.content)) return message;
+    const parts = [];
+    for (const part of message.content) {
+      if (part?.type === 'text') {
+        const text = normalizeAiText(part?.text);
+        if (text) parts.push(text);
+        continue;
+      }
+      if (part?.type === 'image_url') {
+        const item = ocrItems[imageIndex];
+        imageIndex += 1;
+        const text = normalizeAiText(item?.text);
+        parts.push(text
+          ? `【图片${imageIndex} OCR识别结果】\n${text}`
+          : `【图片${imageIndex} OCR识别失败】${normalizeAiText(item?.error) || '未识别到文字'}`);
+      }
+    }
+    const content = parts.filter(Boolean).join('\n\n').trim();
+    return { ...message, content: content || normalizeAiText(message.content) };
+  });
 };
 
 const sanitizeConversationMessages = (messages) => {
@@ -959,6 +1102,7 @@ const buildAgentCatalog = (user, cfg) => {
 const buildAgentSystemPrompt = ({ agentId, context, user, intent }) => {
   const snapshot = context?.businessSnapshot;
   const semanticCtx = context?.semanticContext;
+  const hasImportTarget = !!(context?.importTarget && typeof context.importTarget === 'object' && context.importTarget.apiUrl);
   const ctxCopy = context ? { ...context } : {};
   delete ctxCopy.businessSnapshot;
   delete ctxCopy.injectBusinessData;
@@ -1028,14 +1172,18 @@ const buildAgentSystemPrompt = ({ agentId, context, user, intent }) => {
   }
 
   if (agentId === 'workflow_orchestrator') {
-    return `你是流程编排智能体。你的职责是把业务需求转换成可落地的流程定义。\n\n【硬性规则】\n1. 必须输出 Mermaid 流程图（\`\`\`mermaid）。\n2. 必须输出 BPMN XML（\`\`\`bpmn-xml）。\n3. 必须输出流程元信息（\`\`\`workflow-meta），包含 name 与 associated_table。\n4. 禁止输出经营分析图表（如 ECharts）和无关内容。\n5. 语气简洁，优先可执行结果。\n6. 利用【系统本体语义模型】中的表结构和关系来选择正确的 associated_table 和字段映射。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${contextBlock}`;
+    return `你是流程编排智能体。你的职责是把业务需求转换成可落地的流程定义。\n\n【硬性规则】\n1. 必须输出 Mermaid 流程图（\`\`\`mermaid）。\n2. 必须输出 BPMN XML（\`\`\`bpmn-xml）。\n3. 必须输出流程元信息（\`\`\`workflow-meta），包含 name、associated_table、workflowBusinessAppId、task_assignments、state_mappings。\n4. workflow-meta 必须是严格 JSON；BPMN userTask 的 id 必须与 task_assignments.task_id、state_mappings.bpmn_task_id 完全一致。\n5. 常用业务绑定：入职/员工档案用 associated_table=hr.archives 且 workflowBusinessAppId=legacy:hr_employee；出入库草稿用 associated_table=scm.inventory_drafts；物料台账用 associated_table=public.raw_materials。\n6. 禁止输出经营分析图表（如 ECharts）和无关内容。\n7. 语气简洁，优先可执行结果。\n8. 利用【系统本体语义模型】中的表结构和关系来选择正确的 associated_table、任务分派和状态映射。\n\nworkflow-meta 示例：\n\`\`\`workflow-meta\n{\n  \"name\": \"入职流程\",\n  \"description\": \"员工入职审批与账号开通\",\n  \"associated_table\": \"hr.archives\",\n  \"workflowBusinessAppId\": \"legacy:hr_employee\",\n  \"task_assignments\": [\n    { \"task_id\": \"Task_Submit\", \"candidate_roles\": [\"employee\", \"hr_clerk\"], \"candidate_users\": [], \"approval_mode\": \"any\", \"required_approvals\": 1, \"require_comment\": false }\n  ],\n  \"state_mappings\": [\n    { \"bpmn_task_id\": \"Task_Submit\", \"target_table\": \"hr.archives\", \"state_field\": \"status\", \"state_value\": \"待HR初审\" }\n  ]\n}\n\`\`\`\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${contextBlock}`;
   }
 
   if (agentId === 'enterprise_analyst') {
     return `你是企业经营分析智能体。你的职责是输出“专业但通俗易懂”的经营分析报告，并给出可执行建议。\n\n【表达风格】\n1. 用业务语言解释指标含义，尽量少术语；若必须用术语，紧跟一句白话解释。\n2. 先给一句结论，再给证据（数据/图表），最后给行动建议。\n3. 每条建议都要可落地（负责人/时点/目标方向）。\n\n【硬性规则】\n1. 回答开头禁止客套语（如“好的/收到/我将”），直接进入“经营分析报告”或“摘要”。\n2. 默认输出结构：摘要 -> 核心指标解读 -> 图表洞察 -> 风险与机会 -> 执行建议。\n3. 图文并茂：当有数据时，优先给 2-4 个图（趋势、结构、对比、相关性）。\n4. 输出 ECharts 时只允许 \`\`\`echarts 代码块，且必须是严格 JSON：双引号、无注释、无尾逗号、禁止函数（如 formatter/itemStyle.color function）。\n5. 严禁输出 BPMN XML、workflow-meta、流程编排内容，除非用户明确要求“流程编排/BPMN审批流设计”。\n6. 结论必须业务可执行，避免空话。\n7. 当系统提供了【企业实时数据快照】时，必须基于真实数据进行分析和图表生成，禁止编造或使用示例假数据。\n8. 利用【系统本体语义模型】理解数据表和字段的业务含义，用语义名称（中文）而非数据库原始字段名来呈现分析结果。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${snapshotBlock}${contextBlock}`;
   }
 
-  return `你是企业一线工作助手。你的职责是帮助用户整理数据、填表、导入、解释字段。\n\n【硬性规则】\n1. 用通俗语句分步骤回答。\n2. 默认不输出流程编排内容（BPMN/workflow-meta），除非用户明确提出流程编排需求。\n3. 当用户要求表单模板时，输出 form-template 代码块。\n4. 关注可直接录入系统的字段结果。\n5. 利用【系统本体语义模型】中的列语义信息帮助用户理解字段含义、正确填写表单。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${contextBlock}`;
+  const importRuleBlock = hasImportTarget
+    ? `\n【表格导入硬性规则】\n1. 当用户上传 Excel/CSV/表格，并要求录入、导入、填入当前表格、整理为系统数据时，必须输出 \`\`\`data-import 代码块。\n2. data-import 必须是严格 JSON，格式只能是：\n\`\`\`data-import\n{\n  "rows": [\n    { "name": "张三", "employee_no": "EMP001", "department": "生产部", "position": "操作员", "status": "试用" }\n  ]\n}\n\`\`\`\n3. 字段名优先使用【业务上下文】columns 中的 prop；可以根据列 label 映射，但最终 JSON key 尽量用 prop。\n4. 不要说“不支持导入”；当前页面已经提供导入上下文，前端会识别 data-import 并显示“导入到当前表格”按钮。\n5. 不要直接编造未在文件或用户文本中出现的员工数据；空白行不要输出。`
+    : `\n【表格导入规则】\n当前没有可导入的表格上下文。若用户要求导入，请提示先进入目标表格页面再打开工作助手。`;
+
+  return `你是企业一线工作助手。你的职责是帮助用户整理数据、填表、导入、解释字段。\n\n【硬性规则】\n1. 用通俗语句分步骤回答。\n2. 默认不输出流程编排内容（BPMN/workflow-meta），除非用户明确提出流程编排需求。\n3. 当用户要求表单模板时，输出 form-template 代码块。\n4. 关注可直接录入系统的字段结果。\n5. 利用【系统本体语义模型】中的列语义信息帮助用户理解字段含义、正确填写表单。${importRuleBlock}\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${contextBlock}`;
 };
 
 const resolveAgentRoute = ({ user, body, messages }) => {
@@ -1078,7 +1226,36 @@ const composeAgentMessages = ({ route, user, messages }) => {
 
 const extractCompletionText = (data) => {
   const choice = data?.choices?.[0] || {};
-  return normalizeAiText(choice?.message?.content || choice?.delta?.content || data?.output_text || '');
+  const candidates = [
+    choice?.message?.content,
+    choice?.message?.text,
+    choice?.delta?.content,
+    data?.output_text,
+    data?.text,
+    data?.content
+  ];
+  for (const candidate of candidates) {
+    const text = extractAiContentText(candidate);
+    if (text) return text;
+  }
+  return '';
+};
+
+const extractStreamDeltaText = (data) => {
+  const choice = data?.choices?.[0] || {};
+  const candidates = [
+    choice?.delta?.content,
+    choice?.message?.content,
+    data?.delta?.content,
+    data?.output_text,
+    data?.text,
+    data?.content
+  ];
+  for (const candidate of candidates) {
+    const text = extractAiContentText(candidate);
+    if (text) return text;
+  }
+  return '';
 };
 
 const cleanModelText = (text) => {
@@ -1157,6 +1334,22 @@ const getAiConfig = async () => {
   return aiConfigCache;
 };
 
+const getAiVisionConfig = async () => {
+  if (!pgClient) throw new Error('Database client not ready');
+  const now = Date.now();
+  if (aiVisionConfigCache && (now - aiVisionConfigLoadedAt) < aiConfigTtlMs) {
+    return aiVisionConfigCache;
+  }
+  const result = await pgClient.query(
+    'SELECT value FROM public.system_configs WHERE key = $1 LIMIT 1',
+    [aiVisionConfigKey]
+  );
+  const cfg = result?.rows?.[0]?.value;
+  aiVisionConfigCache = (cfg && typeof cfg === 'object') ? cfg : null;
+  aiVisionConfigLoadedAt = now;
+  return aiVisionConfigCache;
+};
+
 const getToolName = (tool) => {
   if (!tool || typeof tool !== 'object') return '';
   const value = tool?.function?.name || tool?.name || tool?.id || tool?.type || '';
@@ -1206,6 +1399,109 @@ const buildUpstreamPayload = (incoming, cfg, forceStream = false, agentRuntime =
   return payload;
 };
 
+const buildVisionPayload = (incoming, cfg) => {
+  const payload = (incoming && typeof incoming === 'object') ? { ...incoming } : {};
+  delete payload.api_key;
+  delete payload.api_url;
+  delete payload.provider;
+  if (!payload.model) payload.model = cfg?.model;
+  if (payload.stream === undefined) payload.stream = false;
+  if (payload.temperature === undefined && cfg?.temperature !== undefined) {
+    payload.temperature = cfg.temperature;
+  }
+  if (payload.max_tokens === undefined) {
+    payload.max_tokens = cfg?.max_tokens || 512;
+  }
+  return payload;
+};
+
+const buildAxiosProxyConfig = (proxyUrl) => {
+  const raw = envText(proxyUrl, '');
+  if (!raw) return undefined;
+  try {
+    const parsed = new URL(raw);
+    return {
+      protocol: parsed.protocol.replace(':', '') || 'http',
+      host: parsed.hostname,
+      port: parsed.port ? Number(parsed.port) : (parsed.protocol === 'https:' ? 443 : 80),
+      auth: parsed.username
+        ? {
+            username: decodeURIComponent(parsed.username),
+            password: decodeURIComponent(parsed.password || '')
+          }
+        : undefined
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+const aiAxiosProxy = buildAxiosProxyConfig(aiHttpProxyUrl);
+
+const callJsonHttp = async (url, payload, { apiKey, timeoutMs = aiUpstreamTimeoutMs } = {}) => {
+  const response = await axios.post(url, payload, {
+    timeout: timeoutMs,
+    responseType: 'text',
+    decompress: true,
+    proxy: aiAxiosProxy,
+    validateStatus: () => true,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    transitional: { forcedJSONParsing: false, silentJSONParsing: false }
+  });
+  const raw = typeof response.data === 'string'
+    ? response.data
+    : JSON.stringify(response.data || {});
+  return {
+    ok: response.status >= 200 && response.status < 300,
+    status: response.status,
+    data: raw
+  };
+};
+
+const callStreamHttp = async (url, payload, { apiKey, timeoutMs = aiUpstreamTimeoutMs } = {}) => {
+  const response = await axios.post(url, payload, {
+    timeout: timeoutMs,
+    responseType: 'stream',
+    decompress: true,
+    proxy: aiAxiosProxy,
+    validateStatus: () => true,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  return {
+    ok: response.status >= 200 && response.status < 300,
+    status: response.status,
+    stream: response.data
+  };
+};
+
+async function* iterateAiStreamChunks(body) {
+  if (!body) return;
+  if (typeof body.getReader === 'function') {
+    const reader = body.getReader();
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) yield value;
+      }
+    } finally {
+      try { reader.releaseLock(); } catch { /* ignore */ }
+    }
+    return;
+  }
+  if (typeof body[Symbol.asyncIterator] === 'function') {
+    for await (const chunk of body) {
+      if (chunk) yield chunk;
+    }
+  }
+}
+
 const readResponseText = async (response) => {
   try {
     return await response.text();
@@ -1238,21 +1534,55 @@ const callAiUpstream = async (incomingPayload, options = {}) => {
 
   const payload = buildUpstreamPayload(incomingPayload, cfg, forceStream, agentRuntime);
   const streamMode = !!payload.stream;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), aiUpstreamTimeoutMs);
-  let upstreamRes = null;
   try {
-    upstreamRes = await fetch(cfg.api_url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${cfg.api_key}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
+    if (streamMode) {
+      const streamRes = await callStreamHttp(cfg.api_url, payload, { apiKey: cfg.api_key });
+      if (!streamRes.ok) {
+        let detail = '';
+        try {
+          for await (const chunk of streamRes.stream) {
+            detail += Buffer.from(chunk).toString('utf8');
+            if (detail.length >= 2000) break;
+          }
+        } catch {
+          // ignore stream read errors on failed upstream responses
+        }
+        return {
+          ok: false,
+          status: streamRes.status || 502,
+          payload: {
+            code: 'AI_UPSTREAM_ERROR',
+            message: 'AI upstream request failed',
+            detail: detail.slice(0, 2000)
+          }
+        };
+      }
+      return { ok: true, stream: true, response: { body: streamRes.stream }, config: cfg, payload };
+    }
+
+    const jsonRes = await callJsonHttp(cfg.api_url, payload, { apiKey: cfg.api_key });
+    if (!jsonRes.ok) {
+      return {
+        ok: false,
+        status: jsonRes.status || 502,
+        payload: {
+          code: 'AI_UPSTREAM_ERROR',
+          message: 'AI upstream request failed',
+          detail: String(jsonRes.data || '').slice(0, 2000)
+        }
+      };
+    }
+    let data = {};
+    if (jsonRes.data) {
+      try {
+        data = JSON.parse(jsonRes.data);
+      } catch {
+        data = { raw: jsonRes.data };
+      }
+    }
+    return { ok: true, stream: false, data, config: cfg, payload };
   } catch (error) {
-    const isTimeout = error?.name === 'AbortError';
+    const isTimeout = error?.code === 'ECONNABORTED' || /timeout/i.test(String(error?.message || ''));
     const endpoint = normalizeAiText(cfg?.api_url || '').slice(0, 200);
     const errCode = normalizeAiText(error?.cause?.code || error?.code || '').slice(0, 64);
     console.warn('[ai-upstream] fetch failed:', JSON.stringify({
@@ -1272,37 +1602,7 @@ const callAiUpstream = async (incomingPayload, options = {}) => {
         detail: ''
       }
     };
-  } finally {
-    clearTimeout(timeout);
   }
-
-  if (!upstreamRes.ok) {
-    const detail = (await readResponseText(upstreamRes)).slice(0, 2000);
-    return {
-      ok: false,
-      status: upstreamRes.status || 502,
-      payload: {
-        code: 'AI_UPSTREAM_ERROR',
-        message: 'AI upstream request failed',
-        detail
-      }
-    };
-  }
-
-  if (!streamMode) {
-    const raw = await readResponseText(upstreamRes);
-    let data = {};
-    if (raw) {
-      try {
-        data = JSON.parse(raw);
-      } catch (e) {
-        data = { raw };
-      }
-    }
-    return { ok: true, stream: false, data, config: cfg, payload };
-  }
-
-  return { ok: true, stream: streamMode, response: upstreamRes, config: cfg, payload };
 };
 
 const callAiUpstreamWithRetry = async (incomingPayload, options = {}, retryConfig = {}) => {
@@ -1320,6 +1620,124 @@ const callAiUpstreamWithRetry = async (incomingPayload, options = {}, retryConfi
     result = await callAiUpstream(incomingPayload, options);
   }
   return result;
+};
+
+const callAiVisionUpstream = async (incomingPayload, options = {}) => {
+  const cfg = options?.cfg || await getAiVisionConfig();
+  if (!cfg?.api_url || !cfg?.api_key) {
+    return {
+      ok: false,
+      status: 503,
+      payload: { code: 'AI_VISION_CONFIG_MISSING', message: 'AI vision configuration is missing in system_configs.ai_vision_config' }
+    };
+  }
+
+  const payload = buildVisionPayload(incomingPayload, cfg);
+  try {
+    const jsonRes = await callJsonHttp(cfg.api_url, payload, { apiKey: cfg.api_key });
+    if (!jsonRes.ok) {
+      return {
+        ok: false,
+        status: jsonRes.status || 502,
+        payload: {
+          code: 'AI_VISION_UPSTREAM_ERROR',
+          message: 'AI vision upstream request failed',
+          detail: String(jsonRes.data || '').slice(0, 2000)
+        }
+      };
+    }
+
+    let data = {};
+    if (jsonRes.data) {
+      try {
+        data = JSON.parse(jsonRes.data);
+      } catch {
+        data = { raw: jsonRes.data };
+      }
+    }
+    return { ok: true, stream: false, data, config: cfg, payload };
+  } catch (error) {
+    const isTimeout = error?.code === 'ECONNABORTED' || /timeout/i.test(String(error?.message || ''));
+    return {
+      ok: false,
+      status: 502,
+      payload: {
+        code: 'AI_VISION_UPSTREAM_ERROR',
+        message: isTimeout
+          ? `AI vision upstream timeout after ${aiUpstreamTimeoutMs}ms`
+          : (error?.message || 'AI vision upstream request failed')
+      }
+    };
+  }
+};
+
+const callAiVisionUpstreamWithRetry = async (incomingPayload, options = {}, retryConfig = {}) => {
+  const maxRetries = Number(retryConfig.maxRetries);
+  const retries = Number.isFinite(maxRetries) && maxRetries > 0 ? Math.floor(maxRetries) : 1;
+  const baseDelayMs = Number(retryConfig.baseDelayMs);
+  const delay = Number.isFinite(baseDelayMs) && baseDelayMs > 0 ? Math.floor(baseDelayMs) : 420;
+
+  let attempt = 0;
+  let result = await callAiVisionUpstream(incomingPayload, options);
+  while (attempt < retries && shouldRetryUpstream(result)) {
+    attempt += 1;
+    const jitter = Math.floor(Math.random() * 120);
+    await waitMs(delay * attempt + jitter);
+    result = await callAiVisionUpstream(incomingPayload, options);
+  }
+  return result;
+};
+
+const runImageOcr = async (imageUrl, prompt = '') => {
+  const cfg = await getAiVisionConfig();
+  const ocrPrompt = normalizeAiText(prompt) ||
+    normalizeAiText(cfg?.ocr_prompt) ||
+    '请识别图片中的所有可见文字。只输出OCR文字内容，保持原有行顺序，不要解释。';
+  const upstream = await callAiVisionUpstreamWithRetry({
+    model: cfg?.model,
+    stream: false,
+    temperature: cfg?.temperature ?? 0,
+    max_tokens: cfg?.ocr_max_tokens || cfg?.max_tokens || 1024,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: ocrPrompt },
+          { type: 'image_url', image_url: { url: imageUrl } }
+        ]
+      }
+    ]
+  }, { cfg }, { maxRetries: 1, baseDelayMs: 480 });
+
+  if (!upstream.ok) {
+    return {
+      ok: false,
+      status: upstream.status,
+      error: upstream.payload?.detail || upstream.payload?.message || 'AI vision OCR failed'
+    };
+  }
+  return {
+    ok: true,
+    model: upstream.config?.model || cfg?.model || '',
+    text: cleanModelText(extractCompletionText(upstream.data))
+  };
+};
+
+const enrichMessagesWithOcr = async (messages) => {
+  const urls = extractImageUrlsFromMessages(messages).slice(0, 6);
+  if (urls.length === 0) return { messages, ocr: [] };
+  const ocr = [];
+  for (const url of urls) {
+    try {
+      const result = await runImageOcr(url);
+      ocr.push(result.ok
+        ? { ok: true, text: result.text, model: result.model }
+        : { ok: false, text: '', error: result.error, status: result.status });
+    } catch (error) {
+      ocr.push({ ok: false, text: '', error: error?.message || 'OCR failed' });
+    }
+  }
+  return { messages: replaceImagesWithOcrText(messages, ocr), ocr };
 };
 
 const sendWsJson = (ws, payload) => {
@@ -1437,12 +1855,42 @@ const runSpawnCapture = (command, args, options = {}) => {
   });
 };
 
-const buildFlashCliEnv = (token = '') => ({
-  ...process.env,
-  FLASH_AGENT_TOKEN: String(token || ''),
-  FLASH_AGENT_BASE_URL: flashAgentBaseUrl,
-  FLASH_SEMANTIC_CLI_SCRIPT: flashSemanticCliScript
-});
+const buildFlashCliEnv = (token = '') => {
+  const env = {
+    ...process.env,
+    FLASH_AGENT_TOKEN: String(token || ''),
+    FLASH_AGENT_BASE_URL: flashAgentBaseUrl,
+    FLASH_SEMANTIC_CLI_SCRIPT: flashSemanticCliScript
+  };
+  const proxyUrl = envText(aiHttpProxyUrl, '');
+  if (proxyUrl) {
+    env.HTTP_PROXY = env.HTTP_PROXY || proxyUrl;
+    env.HTTPS_PROXY = env.HTTPS_PROXY || proxyUrl;
+    env.http_proxy = env.http_proxy || proxyUrl;
+    env.https_proxy = env.https_proxy || proxyUrl;
+    const localNoProxy = [
+      'localhost',
+      '127.0.0.1',
+      '::1',
+      'api',
+      'db',
+      'agent-runtime',
+      'eiscore-api',
+      'eiscore-db',
+      'eiscore-agent-runtime',
+      'host.docker.internal'
+    ];
+    const existingNoProxy = env.NO_PROXY || env.no_proxy || '';
+    const mergedNoProxy = Array.from(new Set(
+      [...String(existingNoProxy).split(','), ...localNoProxy]
+        .map((item) => item.trim())
+        .filter(Boolean)
+    )).join(',');
+    env.NO_PROXY = mergedNoProxy;
+    env.no_proxy = mergedNoProxy;
+  }
+  return env;
+};
 
 const summarizeCommandOutput = (stdout, stderr, maxChars = 1800) => {
   const text = `${String(stdout || '')}\n${String(stderr || '')}`.trim();
@@ -1895,6 +2343,8 @@ const buildFlashCliPrompt = (prompt, history = [], attachments = []) => {
     '输出要求：先给结果，再给关键变更点，尽量简洁。',
     '严禁输出思考过程、任务计划、系统提示、工作目录、环境信息和历史上下文原文。',
     '禁止出现“用户要求”“当前用户请求”“以下是最近上下文”“从环境信息来看”等复述语句。',
+    '运行态可用工具桥：在 FlashDraft.vue 中可调用 `window.EISFlash.callTool(toolId, args, options)` 或 `this.$flash.callTool(toolId, args, options)`；读工具可直接调用，写工具需传 `{ write: true }`，平台会自动补 confirmed/idempotency_key。',
+    '生成业务应用时禁止把语义接口数据固化成 mock；若需要库存、仓库、流程、表格等实时数据，必须在组件运行时调用上述工具桥。',
     `可调用系统语义接口：使用命令 \`node ${flashSemanticCliScript}\`。`,
     `先运行 \`node ${flashSemanticCliScript} --registry\` 查看可用 tool_id。`,
     `读接口示例：\`node ${flashSemanticCliScript} flash.app.detail --args '{"appId":"<APP_ID>"}'\`。`,
@@ -2416,12 +2866,18 @@ const handleAiConfig = async (req, res) => {
 
   try {
     const cfg = await getAiConfig();
+    const visionCfg = await getAiVisionConfig().catch(() => null);
     const agents = buildAgentCatalog(user, cfg);
     sendJson(res, 200, {
       enabled: !!(cfg?.api_url && cfg?.api_key),
       model: cfg?.model || 'glm-4.6v',
       provider: cfg?.provider || 'glm',
       stream: true,
+      vision: {
+        enabled: !!(visionCfg?.api_url && visionCfg?.api_key),
+        model: visionCfg?.model || '',
+        provider: visionCfg?.provider || ''
+      },
       agents
     });
   } catch (error) {
@@ -2667,7 +3123,9 @@ const handleAiChat = async (req, res) => {
 
   try {
     const cfg = await getAiConfig();
-    const sanitizedMessages = sanitizeConversationMessages(body?.messages);
+    const rawMessages = sanitizeConversationMessages(body?.messages);
+    const ocrResult = await enrichMessagesWithOcr(rawMessages);
+    const sanitizedMessages = ocrResult.messages;
     const route = resolveAgentRoute({ user, body, messages: sanitizedMessages });
 
     // ── 所有 agent：注入本体语义上下文 ──
@@ -2706,6 +3164,7 @@ const handleAiChat = async (req, res) => {
       agent: route.agentId,
       model: agentRuntime.model,
       guard: requiresGuard,
+      ocrImages: ocrResult.ocr.length,
       sample: route.latestUserText.slice(0, 120)
     }));
 
@@ -2766,7 +3225,35 @@ const handleAiChat = async (req, res) => {
     if (typeof res.flushHeaders === 'function') res.flushHeaders();
 
     const stream = upstream.response.body;
-    if (!stream || typeof stream.getReader !== 'function') {
+    if (!stream) {
+      sendJson(res, 502, { code: 'AI_STREAM_FAILED', message: 'AI upstream stream is unavailable' });
+      return;
+    }
+
+    if (typeof stream.on === 'function') {
+      const abortStream = () => {
+        if (typeof stream.destroy === 'function') stream.destroy();
+      };
+      req.on('close', abortStream);
+      stream.on('data', (chunk) => {
+        if (!res.writableEnded) res.write(chunk);
+      });
+      stream.on('end', () => {
+        if (!res.writableEnded) res.end();
+      });
+      stream.on('error', () => {
+        if (!res.writableEnded) {
+          res.write('data: {"error":"stream_failed"}\n\n');
+          res.end();
+        }
+      });
+      stream.on('close', () => {
+        req.off('close', abortStream);
+      });
+      return;
+    }
+
+    if (typeof stream.getReader !== 'function') {
       sendJson(res, 502, { code: 'AI_STREAM_FAILED', message: 'AI upstream stream is unavailable' });
       return;
     }
@@ -2848,6 +3335,39 @@ const handleAiTranslate = async (req, res) => {
   }
 };
 
+const handleAiOcr = async (req, res) => {
+  const user = authorizeHttpRequest(req, res);
+  if (!user) return;
+
+  let body = {};
+  try {
+    body = await readJsonBody(req);
+  } catch (error) {
+    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
+    return;
+  }
+
+  const imageUrl = normalizeAiText(body?.imageUrl || body?.image_url);
+  if (!imageUrl) {
+    sendJson(res, 400, { code: 'IMAGE_REQUIRED', message: 'imageUrl is required' });
+    return;
+  }
+
+  try {
+    const result = await runImageOcr(imageUrl, body?.prompt);
+    if (!result.ok) {
+      sendJson(res, result.status || 502, {
+        code: 'AI_OCR_FAILED',
+        message: result.error || 'OCR failed'
+      });
+      return;
+    }
+    sendJson(res, 200, { text: result.text, model: result.model });
+  } catch (error) {
+    sendJson(res, 500, { code: 'AI_OCR_FAILED', message: error.message || 'OCR failed' });
+  }
+};
+
 const handleAiMapLocate = async (req, res) => {
   const user = authorizeHttpRequest(req, res);
   if (!user) return;
@@ -2872,10 +3392,12 @@ const handleAiMapLocate = async (req, res) => {
     `请根据地图截图上的中文地名，且以蓝色圆点为用户当前位置，找出离蓝点最近的街道级位置。输出严格格式的中文位置：“省-市-区/县/县级市-街道/乡镇”。必须包含街道级；如果无法确定街道，请用“某街道”或“附近街道”占位，但仍要输出四段。只输出位置，不要解释，不要多余的话。坐标：${lng},${lat}`;
 
   try {
-    const upstream = await callAiUpstreamWithRetry({
+    const cfg = await getAiVisionConfig();
+    const upstream = await callAiVisionUpstreamWithRetry({
       model: body?.model,
       stream: false,
-      thinking: body?.thinking || { type: 'disabled' },
+      temperature: cfg?.temperature ?? 0,
+      max_tokens: cfg?.max_tokens || 512,
       messages: [
         { role: 'system', content: '你是位置识别助手，只输出中文位置名称。' },
         {
@@ -2886,7 +3408,7 @@ const handleAiMapLocate = async (req, res) => {
           ]
         }
       ]
-    }, { forceStream: false }, { maxRetries: 1, baseDelayMs: 260 });
+    }, { cfg }, { maxRetries: 1, baseDelayMs: 360 });
 
     if (!upstream.ok) {
       sendJson(res, upstream.status, upstream.payload);
@@ -2924,17 +3446,26 @@ function requireNonEmptyText(value, fieldName) {
   return text;
 }
 
-async function readFlashDraftSource() {
-  const target = resolveFlashDraftFilePath();
+async function readFlashDraftSource(appId = '') {
+  const normalizedAppId = normalizeFlashAppId(appId);
+  if (normalizedAppId) {
+    await syncScopedDraftToPreview(normalizedAppId);
+  }
+  const scopedTarget = normalizedAppId ? resolveFlashScopedDraftFilePath(normalizedAppId) : '';
+  const target = scopedTarget && fs.existsSync(scopedTarget) ? scopedTarget : resolveFlashDraftFilePath();
   const content = await fs.promises.readFile(target, 'utf8');
   return {
-    path: normalizeProjectPath(`${flashCliProjectPath}/${flashDraftFileName}`),
+    appId: normalizedAppId,
+    activeAppId: activeFlashDraftAppId,
+    path: scopedTarget && target === scopedTarget
+      ? normalizeProjectPath(`${flashCliProjectPath}/.app-drafts/${normalizedAppId}.vue`)
+      : normalizeProjectPath(`${flashCliProjectPath}/${flashDraftFileName}`),
     content,
     bytes: Buffer.byteLength(content, 'utf8')
   };
 }
 
-async function writeFlashDraftSource(content, reason = '', user = null) {
+async function writeFlashDraftSource(content, reason = '', user = null, appId = '') {
   const text = String(content || '');
   if (!text.trim()) {
     throw new FlashToolError('VALIDATION_FAILED', 'content is required', { httpStatus: 400 });
@@ -2944,17 +3475,28 @@ async function writeFlashDraftSource(content, reason = '', user = null) {
     throw new FlashToolError('VALIDATION_FAILED', 'content exceeds 1MB limit', { httpStatus: 400 });
   }
 
-  const target = resolveFlashDraftFilePath();
-  await ensureDir(path.dirname(target));
-  await fs.promises.writeFile(target, text, 'utf8');
+  const normalizedAppId = normalizeFlashAppId(appId);
+  const previewTarget = resolveFlashDraftFilePath();
+  const scopedTarget = normalizedAppId ? resolveFlashScopedDraftFilePath(normalizedAppId) : '';
+  if (scopedTarget) {
+    await ensureDir(path.dirname(scopedTarget));
+    await fs.promises.writeFile(scopedTarget, text, 'utf8');
+  }
+  await ensureDir(path.dirname(previewTarget));
+  await fs.promises.writeFile(previewTarget, text, 'utf8');
+  if (normalizedAppId) activeFlashDraftAppId = normalizedAppId;
   if (user) {
     logAgentEvent('flash:draft_write', user, {
       bytes,
+      appId: normalizedAppId,
       reason: normalizeAiText(reason).slice(0, 80)
     });
   }
   return {
+    appId: normalizedAppId,
+    activeAppId: activeFlashDraftAppId,
     path: normalizeProjectPath(`${flashCliProjectPath}/${flashDraftFileName}`),
+    scopedPath: scopedTarget ? normalizeProjectPath(`${flashCliProjectPath}/.app-drafts/${normalizedAppId}.vue`) : '',
     bytes
   };
 }
@@ -3134,10 +3676,11 @@ async function executeFlashSemanticTool(toolId, args, user, callContext) {
       return { message: '发布路由查询成功', data: { items, item: items[0] || null }, rowsAffected: items.length };
     }
     case 'flash.data.grid.list': {
-      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const target = resolveDataTableTarget(requestArgs.table);
+      const { schema, table } = target;
       const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
       if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 50, 500);
-      const upstream = await callPostgrestWithUser(user, {
+      const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'GET',
         path: `/${table}`,
         query,
@@ -3148,12 +3691,13 @@ async function executeFlashSemanticTool(toolId, args, user, callContext) {
       return { message: '表格列表查询成功', data: { schema, table, items }, rowsAffected: items.length };
     }
     case 'flash.data.grid.detail': {
-      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const target = resolveDataTableTarget(requestArgs.table);
+      const { schema, table } = target;
       const recordId = requireNonEmptyText(requestArgs.id || requestArgs.recordId, 'id');
       const query = sanitizeQueryParams(requestArgs.query);
       query.id = `eq.${recordId}`;
       if (!query.limit) query.limit = '1';
-      const upstream = await callPostgrestWithUser(user, {
+      const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'GET',
         path: `/${table}`,
         query,
@@ -3164,11 +3708,12 @@ async function executeFlashSemanticTool(toolId, args, user, callContext) {
       return { message: item ? '表格详情查询成功' : '数据不存在', data: { schema, table, item }, rowsAffected: item ? 1 : 0 };
     }
     case 'flash.data.grid.export': {
-      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const target = resolveDataTableTarget(requestArgs.table);
+      const { schema, table } = target;
       const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
       if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 500, 5000);
       if (!query.order && requestArgs.order) query.order = String(requestArgs.order);
-      const upstream = await callPostgrestWithUser(user, {
+      const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'GET',
         path: `/${table}`,
         query,
@@ -3206,12 +3751,14 @@ async function executeFlashSemanticTool(toolId, args, user, callContext) {
       return { message: '数据应用表初始化成功', data: { table: normalizeAiText(tableFqn) }, rowsAffected: 1 };
     }
     case 'flash.data.grid.create': {
-      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const target = resolveDataTableTarget(requestArgs.table);
+      const { schema, table } = target;
       const payload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.record);
       if (!Object.keys(payload).length) {
         throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.data.grid.create', { httpStatus: 400 });
       }
-      const upstream = await callPostgrestWithUser(user, {
+      const ensureColumns = inferFlashDataColumnsFromPayload(payload);
+      const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'POST',
         path: `/${table}`,
         body: payload,
@@ -3219,18 +3766,20 @@ async function executeFlashSemanticTool(toolId, args, user, callContext) {
         contentProfile: schema,
         prefer: 'return=representation',
         traceId: callContext.traceId
-      });
+      }, ensureColumns);
       const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
       return { message: '表格记录创建成功', data: { schema, table, item }, rowsAffected: item ? 1 : 0 };
     }
     case 'flash.data.grid.update': {
-      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const target = resolveDataTableTarget(requestArgs.table);
+      const { schema, table } = target;
       const recordId = requireNonEmptyText(requestArgs.id || requestArgs.recordId, 'id');
       const payload = toPlainObject(requestArgs.payload || requestArgs.data || requestArgs.patch);
       if (!Object.keys(payload).length) {
         throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.data.grid.update', { httpStatus: 400 });
       }
-      const upstream = await callPostgrestWithUser(user, {
+      const ensureColumns = inferFlashDataColumnsFromPayload(payload);
+      const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'PATCH',
         path: `/${table}`,
         query: { id: `eq.${recordId}` },
@@ -3239,14 +3788,15 @@ async function executeFlashSemanticTool(toolId, args, user, callContext) {
         contentProfile: schema,
         prefer: 'return=representation',
         traceId: callContext.traceId
-      });
+      }, ensureColumns);
       const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
       return { message: '表格记录更新成功', data: { schema, table, item }, rowsAffected: item ? 1 : 0 };
     }
     case 'flash.data.grid.delete': {
-      const { schema, table } = resolveDataTableTarget(requestArgs.table);
+      const target = resolveDataTableTarget(requestArgs.table);
+      const { schema, table } = target;
       const recordId = requireNonEmptyText(requestArgs.id || requestArgs.recordId, 'id');
-      const upstream = await callPostgrestWithUser(user, {
+      const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'DELETE',
         path: `/${table}`,
         query: { id: `eq.${recordId}` },
@@ -3855,13 +4405,13 @@ async function executeFlashSemanticTool(toolId, args, user, callContext) {
       return { message: '本体语义已创建', data: { item }, rowsAffected: item ? 1 : 0 };
     }
     case 'flash.draft.read': {
-      const data = await readFlashDraftSource();
+      const data = await readFlashDraftSource(requestArgs.appId || requestArgs.app_id || callContext.appId);
       return { message: '草稿读取成功', data, rowsAffected: 1 };
     }
     case 'flash.draft.write': {
       const content = requestArgs.content;
       const reason = requestArgs.reason || callContext.context.reason || '';
-      const data = await writeFlashDraftSource(content, reason, user);
+      const data = await writeFlashDraftSource(content, reason, user, requestArgs.appId || requestArgs.app_id || callContext.appId);
       return { message: '草稿已保存', data, rowsAffected: 1 };
     }
     case 'flash.attachment.upload': {
@@ -4185,7 +4735,9 @@ const handleFlashDraftGet = async (req, res) => {
   const user = authorizeAgentHttpRequest(req, res);
   if (!user) return;
   try {
-    const data = await readFlashDraftSource();
+    const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    const appId = url.searchParams.get('appId') || url.searchParams.get('app_id') || '';
+    const data = await readFlashDraftSource(appId);
     sendJson(res, 200, data);
   } catch (error) {
     sendJson(res, 500, {
@@ -4208,7 +4760,7 @@ const handleFlashDraftWrite = async (req, res) => {
   }
 
   try {
-    const data = await writeFlashDraftSource(body?.content, body?.reason, user);
+    const data = await writeFlashDraftSource(body?.content, body?.reason, user, body?.appId || body?.app_id);
     sendJson(res, 200, { ok: true, ...data });
   } catch (error) {
     const status = error instanceof FlashToolError ? error.httpStatus : 500;
@@ -4349,6 +4901,7 @@ const handleTwinChat = async (req, res) => {
       const payload = {
         model: model || cfg.model || 'glm-4.6v',
         stream: false,
+        thinking: { type: 'disabled' },
         messages
       };
       const result = await callAiUpstreamWithRetry(
@@ -4389,6 +4942,7 @@ const handleTwinChat = async (req, res) => {
       const payload = {
         model: model || cfg.model || 'glm-4.6v',
         stream: true,
+        thinking: { type: 'disabled' },
         messages
       };
       const upstream = await callAiUpstreamWithRetry(
@@ -4415,11 +4969,10 @@ const handleTwinChat = async (req, res) => {
 
       // 真正的流式：逐 chunk 透传
       const upstreamBody = upstream.response.body;
-      if (!upstreamBody || typeof upstreamBody.getReader !== 'function') {
+      if (!upstreamBody || (typeof upstreamBody.getReader !== 'function' && typeof upstreamBody[Symbol.asyncIterator] !== 'function')) {
         throw new Error('AI upstream stream is unavailable');
       }
 
-      const reader = upstreamBody.getReader();
       const decoder = new TextDecoder();
       let fullText = '';
       let sseBuffer = '';
@@ -4427,14 +4980,13 @@ const handleTwinChat = async (req, res) => {
       // 安全超时：防止流式响应无限挂起
       const streamTimeout = setTimeout(() => {
         console.warn('[twin-stream] stream read timeout, cancelling');
-        try { reader.cancel(); } catch { /* ignore */ }
+        try { upstreamBody.destroy?.(); } catch { /* ignore */ }
+        try { upstreamBody.cancel?.(); } catch { /* ignore */ }
       }, aiUpstreamTimeoutMs || 60000);
 
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done || aborted) break;
-
+        for await (const value of iterateAiStreamChunks(upstreamBody)) {
+          if (aborted) break;
           sseBuffer += decoder.decode(value, { stream: true });
           const lines = sseBuffer.split('\n');
           sseBuffer = lines.pop() || '';
@@ -4447,7 +4999,7 @@ const handleTwinChat = async (req, res) => {
 
             try {
               const parsed = JSON.parse(jsonStr);
-              const delta = parsed?.choices?.[0]?.delta?.content || '';
+              const delta = extractStreamDeltaText(parsed);
               if (delta) {
                 fullText += delta;
                 if (!res.writableEnded) {
@@ -4459,7 +5011,6 @@ const handleTwinChat = async (req, res) => {
         }
       } finally {
         clearTimeout(streamTimeout);
-        try { reader.releaseLock(); } catch { /* ignore */ }
       }
 
       return fullText;
@@ -4679,6 +5230,11 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/ai/translate' && method === 'POST') {
     await handleAiTranslate(req, res);
+    return;
+  }
+
+  if (pathname === '/ai/ocr' && method === 'POST') {
+    await handleAiOcr(req, res);
     return;
   }
 
@@ -4910,6 +5466,92 @@ function resolveDataTableTarget(tableInput) {
     throw new FlashToolError('VALIDATION_FAILED', 'table is invalid', { httpStatus: 400 });
   }
   return { schema, table };
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isPostgrestSchemaCacheMiss(error) {
+  const text = `${error?.message || ''} ${JSON.stringify(error?.data || {})}`.toLowerCase();
+  return (
+    text.includes('schema cache') ||
+    text.includes('could not find the table') ||
+    text.includes('could not find the column') ||
+    text.includes('pgrst200') ||
+    text.includes('pgrst204') ||
+    text.includes('pgrst205')
+  );
+}
+
+function inferFlashDataColumnsFromPayload(payload = {}) {
+  const out = [];
+  for (const [key, value] of Object.entries(toPlainObject(payload))) {
+    if (!key || ['id', 'created_at', 'updated_at', 'properties'].includes(key)) continue;
+    let type = 'text';
+    if (typeof value === 'number') type = Number.isInteger(value) ? 'integer' : 'numeric';
+    if (typeof value === 'boolean') type = 'boolean';
+    if (value instanceof Date) type = 'timestamptz';
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}t/i.test(value)) type = 'timestamptz';
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) type = 'date';
+    out.push({ field: key, label: key, type });
+  }
+  return out;
+}
+
+async function reloadPostgrestSchemaCache(user, traceId = '') {
+  try {
+    await callPostgrestWithUser(user, {
+      method: 'POST',
+      path: '/rpc/reload_schema_cache',
+      acceptProfile: 'public',
+      contentProfile: 'public',
+      traceId,
+      timeoutMs: 5000
+    });
+  } catch {
+    // Not every database has the helper RPC; create_data_app_table already NOTIFYs pgrst.
+  }
+}
+
+async function ensureFlashDataTable(user, target, appId, columns = [], traceId = '') {
+  if (!target || target.schema !== 'app_data') return false;
+  const normalizedAppId = String(appId || '').trim();
+  if (!normalizedAppId) return false;
+  await callPostgrestWithUser(user, {
+    method: 'POST',
+    path: '/rpc/create_data_app_table',
+    body: {
+      app_id: normalizedAppId,
+      table_name: target.table,
+      columns: Array.isArray(columns) ? columns : []
+    },
+    acceptProfile: 'app_center',
+    contentProfile: 'app_center',
+    traceId,
+    timeoutMs: 20000
+  });
+  await reloadPostgrestSchemaCache(user, traceId);
+  await wait(450);
+  return true;
+}
+
+async function callPostgrestWithFlashTableEnsure(user, target, appId, options = {}, ensureColumns = []) {
+  try {
+    return await callPostgrestWithUser(user, options);
+  } catch (error) {
+    const ensured = await ensureFlashDataTable(user, target, appId, ensureColumns, options.traceId);
+    if (!ensured || !isPostgrestSchemaCacheMiss(error)) throw error;
+    let lastError = error;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        return await callPostgrestWithUser(user, options);
+      } catch (retryError) {
+        lastError = retryError;
+        if (!isPostgrestSchemaCacheMiss(retryError)) throw retryError;
+        await wait(350 + attempt * 250);
+      }
+    }
+    throw lastError;
+  }
 }
 
 function normalizeExecutionLogStatus(rawStatus = '') {
@@ -5305,6 +5947,7 @@ async function runFlashClineTask(ws, payload = {}) {
   }
 
   const sessionId = String(payload?.sessionId || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'default';
+  const taskAppId = normalizeFlashAppId(payload?.appId || payload?.app_id || '');
   try {
   if (!ws.flashCliSessions) ws.flashCliSessions = new Map();
   if (!ws.flashCliSessions.has(sessionId)) {
@@ -5347,6 +5990,9 @@ async function runFlashClineTask(ws, payload = {}) {
 
   await ensureDir(configDir);
   await ensureDir(taskWorkdir);
+  if (taskAppId) {
+    await syncScopedDraftToPreview(taskAppId);
+  }
 
   const baseUrl = deriveOpenAiBaseUrl(cfg.api_url);
   const authArgs = [
@@ -5390,7 +6036,7 @@ async function runFlashClineTask(ws, payload = {}) {
     prompt: composedPrompt,
     workdir: taskWorkdir
   });
-  const draftBefore = await readFlashDraftFingerprintSafe();
+  const draftBefore = await readFlashDraftFingerprintsSafe(taskAppId);
 
   const child = spawn(clineBin, taskArgs, {
     cwd: '/app',
@@ -5408,6 +6054,7 @@ async function runFlashClineTask(ws, payload = {}) {
 
   logAgentEvent('flash:cline_start', ws.user, {
     sessionId,
+    appId: taskAppId,
     model,
     workdir: taskWorkdir
   });
@@ -5533,16 +6180,17 @@ async function runFlashClineTask(ws, payload = {}) {
       let exitCode = Number(code || 0);
       const elapsedMs = Date.now() - startedAt;
       const summary = assistantChunks.filter(Boolean).join('\n\n').trim();
-      const draftAfter = await readFlashDraftFingerprintSafe();
-      const draftChanged = !!(
-        draftAfter
-        && (
-          !draftBefore
-          || draftBefore.sha1 !== draftAfter.sha1
-          || draftBefore.bytes !== draftAfter.bytes
-          || draftBefore.mtimeMs !== draftAfter.mtimeMs
-        )
-      );
+      let draftAfter = await readFlashDraftFingerprintsSafe(taskAppId);
+      let draftChanged = hasFlashFingerprintChanged(draftBefore.preview, draftAfter.preview)
+        || hasFlashFingerprintChanged(draftBefore.scoped, draftAfter.scoped);
+
+      if (taskAppId && hasFlashFingerprintChanged(draftBefore.preview, draftAfter.preview)) {
+        await syncPreviewDraftToScoped(taskAppId);
+        draftAfter = await readFlashDraftFingerprintsSafe(taskAppId);
+      } else if (taskAppId && hasFlashFingerprintChanged(draftBefore.scoped, draftAfter.scoped)) {
+        await syncScopedDraftToPreview(taskAppId);
+        draftAfter = await readFlashDraftFingerprintsSafe(taskAppId);
+      }
 
       if (summary) {
         sendWsJson(ws, {
@@ -5589,16 +6237,18 @@ async function runFlashClineTask(ws, payload = {}) {
         success,
         exitCode,
         elapsedMs,
+        appId: taskAppId,
         draftChanged,
-        draftFingerprint: draftAfter || null
+        draftFingerprint: draftAfter.scoped || draftAfter.preview || null
       });
       logAgentEvent('flash:cline_done', ws.user, {
         sessionId,
+        appId: taskAppId,
         success,
         exitCode,
         elapsedMs,
         draftChanged,
-        draftBytes: Number(draftAfter?.bytes || 0)
+        draftBytes: Number((draftAfter.scoped || draftAfter.preview)?.bytes || 0)
       });
     })().catch((error) => {
       session.running = false;

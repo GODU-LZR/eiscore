@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 /**
  * twin-tools.js — 员工数字分身工具集 + 持久化层
  *
@@ -18,6 +21,11 @@
 const MAX_RESULT_ROWS = 30;             // 工具单次最多返回行数
 const MAX_RESULT_CHARS = 6000;          // 工具输出最大字符数
 const KB_SEARCH_LIMIT = 8;             // 知识库搜索最大返回条目
+const KB_CONTENT_PREVIEW_CHARS = 1200;  // 搜索结果只返回轻量预览，完整内容走 read_knowledge_file
+const KB_READ_CONTENT_CHARS = 200000;   // 读取数据库内保存的完整知识库文本
+const KB_COMPACT_HEAD_LINES = 12;
+const KB_COMPACT_DATA_LINES = 36;
+const KB_COMPACT_IMPORTANT_LINES = 30;
 
 // ───────────────────── 工具结果截断 ──────────────────────
 
@@ -241,29 +249,45 @@ function createTwinTools(pgQuery, user) {
         if (!keyword) return { error: '请提供搜索关键词' };
 
         const limit = Math.min(Number(params.limit) || 5, KB_SEARCH_LIMIT);
-        // 使用 PostgREST full-text search
-        const res = await pgQuery({
+        const commonQuery = {
+          employee_id: `eq.${username}`,
+          select: 'id,file_name,file_type,tags,summary,content_text,created_at,updated_at',
+          limit: String(limit),
+          order: 'updated_at.desc'
+        };
+
+        // 优先按关键词搜索；如果用户泛指“知识库里的成本表”，空结果时回退到最近文件。
+        let res = await pgQuery({
           method: 'GET', path: '/twin_knowledge_files',
           query: {
-            employee_id: `eq.${username}`,
+            ...commonQuery,
             or: `(file_name.ilike.*${keyword}*,content_text.ilike.*${keyword}*)`,
-            select: 'id,file_name,file_type,tags,summary,content_text,created_at',
-            limit: String(limit),
-            order: 'updated_at.desc'
           },
           acceptProfile: 'app_data', timeoutMs: 8000
         });
 
-        const files = Array.isArray(res?.data) ? res.data : [];
-        // 截断 content_text 避免过大
+        let files = Array.isArray(res?.data) ? res.data : [];
+        if (files.length === 0 && /知识库|文件|文档|表|表格|分析|成本|报告|图文并茂/.test(keyword)) {
+          res = await pgQuery({
+            method: 'GET', path: '/twin_knowledge_files',
+            query: commonQuery,
+            acceptProfile: 'app_data', timeoutMs: 8000
+          });
+          files = Array.isArray(res?.data) ? res.data : [];
+        }
+
         return files.map(f => ({
           id: f.id,
           name: f.file_name,
           type: f.file_type,
           tags: f.tags,
           summary: f.summary || '',
-          content_preview: (f.content_text || '').slice(0, 1000),
-          created_at: f.created_at
+          content_preview: (f.content_text || '').slice(0, KB_CONTENT_PREVIEW_CHARS),
+          content_length: String(f.content_text || '').length,
+          truncated: String(f.content_text || '').length > KB_CONTENT_PREVIEW_CHARS,
+          next_step: '如需分析完整表格，请继续调用 read_knowledge_file，并使用该文件 id。',
+          created_at: f.created_at,
+          updated_at: f.updated_at
         }));
       }
     },
@@ -287,8 +311,141 @@ function createTwinTools(pgQuery, user) {
         });
         return limitRows(res?.data);
       }
+    },
+
+    // ──────── 知识库文件读取 ────────
+    read_knowledge_file: {
+      description: '读取个人知识库中某个文件的完整文本内容，用于分析表格、成本表、报告等文件',
+      parameters: {
+        id: '知识库文件 id（优先使用 search_knowledge 返回的 id）',
+        file_name: '(可选) 文件名关键词；没有 id 时可用',
+        max_chars: '(可选) 返回字符数上限，默认返回数据库内保存的完整文本；传 compact=true 时才做大表格摘录',
+        compact: '(可选) 是否返回大表格摘录，默认 false'
+      },
+      async execute(params) {
+        const id = String(params.id || '').trim();
+        const fileName = String(params.file_name || params.name || '').trim();
+        const maxChars = Math.min(Math.max(Number(params.max_chars) || KB_READ_CONTENT_CHARS, 1000), KB_READ_CONTENT_CHARS);
+        const compact = params.compact === true || String(params.compact || '').toLowerCase() === 'true';
+        if (!id && !fileName) return { error: '请提供知识库文件 id 或文件名' };
+
+        const query = {
+          employee_id: `eq.${username}`,
+          select: 'id,file_name,file_type,file_size,tags,summary,content_text,created_at,updated_at',
+          limit: '1',
+          order: 'updated_at.desc'
+        };
+        if (id) {
+          query.id = `eq.${id}`;
+        } else {
+          query.file_name = `ilike.*${fileName}*`;
+        }
+
+        const res = await pgQuery({
+          method: 'GET', path: '/twin_knowledge_files',
+          query,
+          acceptProfile: 'app_data', timeoutMs: 8000
+        });
+        const file = Array.isArray(res?.data) ? res.data[0] : null;
+        if (!file) return { error: '未找到匹配的知识库文件' };
+
+        const content = String(file.content_text || '');
+        const returnedContent = compact
+          ? compactKnowledgeContent(content, maxChars)
+          : content.slice(0, maxChars);
+        return {
+          id: file.id,
+          name: file.file_name,
+          type: file.file_type,
+          size: file.file_size,
+          tags: file.tags,
+          summary: file.summary || '',
+          content: returnedContent,
+          content_length: content.length,
+          returned_length: returnedContent.length,
+          truncated: content.length > returnedContent.length,
+          compacted: compact && content.length > returnedContent.length,
+          note: compact && content.length > returnedContent.length
+            ? '已按 compact=true 返回表头、有效数据、合计行和关键成本字段摘录。'
+            : '已返回数据库内保存的完整知识库文本；如 content_length 大于 returned_length，说明超出系统保存/读取上限。',
+          created_at: file.created_at,
+          updated_at: file.updated_at
+        };
+      }
     }
   };
+}
+
+function compactWhitespace(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function isMostlyInvalidSpreadsheetLine(line) {
+  const text = String(line || '');
+  if (!text.trim()) return true;
+  const cells = text.split(',');
+  const nonEmpty = cells.map((cell) => compactWhitespace(cell)).filter(Boolean);
+  if (nonEmpty.length <= 2) return true;
+  const invalidCells = nonEmpty.filter((cell) => (
+    cell === '0' ||
+    cell === '0.00' ||
+    cell === '-' ||
+    cell === '#DIV/0!' ||
+    cell === '1900/1/0'
+  )).length;
+  return /#DIV\/0!/.test(text) && /1900\/1\/0/.test(text) && invalidCells / Math.max(nonEmpty.length, 1) > 0.35;
+}
+
+function compactKnowledgeContent(content, maxChars = KB_READ_CONTENT_CHARS) {
+  const raw = String(content || '');
+  if (!raw || raw.length <= maxChars) return raw.slice(0, maxChars);
+
+  const lines = raw.split(/\r?\n/);
+  const selected = [];
+  const seen = new Set();
+  let dataCount = 0;
+  let importantCount = 0;
+
+  const addLine = (line, reason = '') => {
+    const text = String(line || '').trimEnd();
+    if (!text.trim()) return false;
+    const key = text.slice(0, 500);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    selected.push(reason ? `${text}` : text);
+    return true;
+  };
+
+  for (let i = 0; i < lines.length && selected.join('\n').length < maxChars; i += 1) {
+    const line = lines[i];
+    const text = String(line || '').trim();
+    if (!text) continue;
+
+    if (i < KB_COMPACT_HEAD_LINES || /^\[Sheet:/.test(text)) {
+      addLine(line);
+      continue;
+    }
+
+    if (isMostlyInvalidSpreadsheetLine(text)) continue;
+
+    const important = /(合计|小计|总计|总成本|成本合计|生产成本|固定成本|材料成本|人工成本|制造费用|销售费用|管理费用|财务费用|研发费用|税金|毛利率|利润率|吨均成本|单位成本)/.test(text);
+    const dataLike = /\b20\d{2}[/-]\d{1,2}[/-]\d{1,2}\b/.test(text) && text.split(',').filter((cell) => compactWhitespace(cell)).length >= 8;
+
+    if (dataLike && dataCount < KB_COMPACT_DATA_LINES) {
+      if (addLine(line)) dataCount += 1;
+      continue;
+    }
+
+    if (important && importantCount < KB_COMPACT_IMPORTANT_LINES) {
+      if (addLine(line)) importantCount += 1;
+    }
+  }
+
+  let compacted = selected.join('\n').slice(0, maxChars);
+  if (compacted.length < raw.length) {
+    compacted += `\n\n[系统提示] 原文件共 ${raw.length} 字符，以上为面向分析的大表格摘录：保留表头、有效数据行、合计行和关键成本字段，跳过空白/#DIV/0! 模板行。`;
+  }
+  return compacted;
 }
 
 // ───────────────────── System Prompt 构造器 ──────────────────────
@@ -349,7 +506,15 @@ function buildTwinSystemPrompt(user, semanticCtx) {
 - "仓库里还有多少钢材" → 调用 query_inventory
 - "我之前上传的那个方案文档说了什么" → 调用 search_knowledge
 - "帮我分析一下库存趋势" → 调用 query_inventory 后分析
-- "我是谁" → 调用 get_my_info${semanticBlock}`;
+- "请分析我知识库里的成本表，图文并茂" → 先调用 search_knowledge，query 可用"成本表"或"成本"；如果返回文件 id，再调用 read_knowledge_file 读取内容；最后基于文件内容输出分析和图表
+- "我是谁" → 调用 get_my_info
+
+【知识库分析规则】
+1. 用户提到“知识库/上传的文件/成本表/表格/文档”时，优先调用 search_knowledge 或 list_knowledge，不要直接说无法访问。
+2. search_knowledge 返回了 id 且用户要求分析文件内容时，继续调用 read_knowledge_file 读取完整文本，再生成答案；不要只根据 search_knowledge 的预览内容下结论。
+3. 分析表格时，先说明使用了哪个文件，再提炼关键指标、异常项、结构占比和改进建议。
+4. 用户要求“图文并茂/图表/可视化”时，至少输出 1-2 个 \`\`\`echarts 代码块；ECharts 必须是严格 JSON，不能包含注释、函数或 JS 变量包装。
+5. 如果知识库结果为空，明确说明没有检索到匹配文件，并建议用户确认文件名或重新上传。${semanticBlock}`;
 }
 
 // ───────────────────── 持久化接口 ──────────────────────

@@ -5,6 +5,9 @@
   "description": "AI Agent Runtime with Cline-like capabilities + WebSocket Relay",
   "main": "index.js",
   "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "test:twin-knowledge": "node test-twin-knowledge-cost.js"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
     "axios": "^1.7.9",

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 /**
  * twin-engine.js — Nanobot 极简推理循环引擎（Node.js 重写）
  *
@@ -19,6 +22,9 @@
 // ───────────────────── 默认配置 ──────────────────────
 const DEFAULT_MAX_TURNS = 8;
 const DEFAULT_TURN_DELAY_MS = 100;
+const TOOL_RESULT_MAX_CHARS = 220000;
+const MAX_HISTORY_MESSAGES = 10;
+const MAX_HISTORY_MESSAGE_CHARS = 2500;
 const TOOL_JSON_REGEX = /```json\s*\n([\s\S]*?)\n\s*```/g;
 
 // ───────────────────── 工具调用解析器 ──────────────────────
@@ -39,6 +45,7 @@ function parseToolCalls(text) {
     try {
       const parsed = JSON.parse(match[1].trim());
       if (parsed && parsed.tool) calls.push(parsed);
+      if (Array.isArray(parsed)) calls.push(...parsed.filter(item => item && item.tool));
     } catch { /* skip */ }
   }
   if (calls.length > 0) return calls;
@@ -65,10 +72,52 @@ function parseToolCalls(text) {
 /**
  * 从 OpenAI 兼容响应中提取文本
  */
+function normalizeContentText(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      if (!item) return '';
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object') {
+        return item.text || item.content || item.output_text || '';
+      }
+      return String(item);
+    }).filter(Boolean).join('\n').trim();
+  }
+  if (typeof value === 'object') {
+    return String(value.text || value.content || value.output_text || '').trim();
+  }
+  return String(value).trim();
+}
+
 function extractText(response) {
   if (!response) return '';
   const choice = response?.choices?.[0] || {};
-  return String(choice?.message?.content || response?.output_text || '').trim();
+  const candidates = [
+    choice?.message?.content,
+    choice?.message?.text,
+    choice?.delta?.content,
+    response?.output_text,
+    response?.text,
+    response?.content
+  ];
+  for (const candidate of candidates) {
+    const text = normalizeContentText(candidate);
+    if (text) return text;
+  }
+  return '';
+}
+
+function trimHistoryMessages(history = []) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && m.content)
+    .slice(-MAX_HISTORY_MESSAGES)
+    .map((m) => ({
+      role: m.role,
+      content: String(m.content || '').slice(0, MAX_HISTORY_MESSAGE_CHARS)
+    }));
 }
 
 // ───────────────────── ReAct 引擎 ──────────────────────
@@ -152,7 +201,7 @@ ${lines.join('\n')}
     // 拼装完整消息列表
     const messages = [
       { role: 'system', content: this.systemPrompt + toolsDesc },
-      ...history,
+      ...trimHistoryMessages(history),
       { role: 'user', content: userMessage }
     ];
 
@@ -201,23 +250,10 @@ ${lines.join('\n')}
 
       // 没有工具调用 → 这是最终回答
       if (toolCalls.length === 0) {
-        // 有工具调用历史 + streamingAiCaller → 用流式重新生成最终综合回答
-        if (toolLogs.length > 0 && this.streamingAiCaller) {
-          try {
-            usedStreamForFinal = true;
-            finalAnswer = await this.streamingAiCaller({
-              model: this.model,
-              messages
-            });
-          } catch (err) {
-            console.warn('[twin-engine] streaming final failed, falling back:', err?.message);
-            finalAnswer = assistantText;
-            usedStreamForFinal = false;
-          }
-        } else {
-          // 简单对话（无工具调用）→ 直接用已有回答，由外层分块推送
-          finalAnswer = assistantText;
-        }
+        // 直接使用本轮非流式结果；外层会用 SSE 小分块发送。
+        // 避免工具分析后再额外发起一次流式上游请求，降低 DeepSeek 连接中断风险。
+        finalAnswer = assistantText;
+        usedStreamForFinal = false;
         break;
       }
 
@@ -279,8 +315,8 @@ ${lines.join('\n')}
           ? r.output
           : JSON.stringify(r.output, null, 2);
         // 截断过大的结果
-        const truncated = outputStr.length > 4000
-          ? outputStr.slice(0, 4000) + '\n...(结果过长已截断)'
+        const truncated = outputStr.length > TOOL_RESULT_MAX_CHARS
+          ? outputStr.slice(0, TOOL_RESULT_MAX_CHARS) + '\n...(结果过长已截断)'
           : outputStr;
         return `[工具 ${r.tool}] 执行成功:\n${truncated}`;
       }).join('\n\n');

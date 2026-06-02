@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 /**
  * AI Agent Core Engine
  * Implements a headless Cline-like agent for file operations

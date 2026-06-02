@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 /**
  * Workflow Runtime Engine (Database-Centric)
  * Listens to workflow.instances changes and computes next task via BPMN engine
