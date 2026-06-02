@@ -32,5 +32,6 @@ docs/tmp_*.docx
 docs/_tmp_aigc_reports/
 docs/scan-output/
 docs/extracted_docx_v25/
+docs/private-review/
 scripts/_utf8_test.txt
 tools/plantuml.jar
