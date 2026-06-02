@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 /**
  * 考勤模块 API —— 移动端版本（基于 fetch，不依赖 axios）
  *

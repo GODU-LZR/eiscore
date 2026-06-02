@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 /**
  * 移动端鉴权工具
  * 与基座共用同一套 JWT Token / PostgREST 接口

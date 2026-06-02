@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'

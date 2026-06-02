@@ -156,6 +156,9 @@
 </template>
 
 <script setup>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { getToken } from '@/utils/auth'
