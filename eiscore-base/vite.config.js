@@ -28,6 +28,9 @@ export default defineConfig({
           rawPath.startsWith('/sales') ||
           rawPath.startsWith('/purchase') ||
           rawPath.startsWith('/production') ||
+          rawPath.startsWith('/quality') ||
+          rawPath.startsWith('/equipment') ||
+          rawPath.startsWith('/decision') ||
           rawPath.startsWith('/mobile')
         const isAppsDraftPreview =
           rawPath === '/apps/preview/flash-draft' ||
@@ -62,6 +65,9 @@ export default defineConfig({
           '/sales': '/sales/',
           '/purchase': '/purchase/',
           '/production': '/production/',
+          '/quality': '/quality/',
+          '/equipment': '/equipment/',
+          '/decision': '/decision/',
           '/mobile': '/mobile/'
         }
         const target = redirectMap[rawPath]
@@ -158,6 +164,39 @@ export default defineConfig({
       },
       '/production': {
         target: 'http://localhost:8087',
+        changeOrigin: true,
+        ws: true,
+        bypass: (req) => {
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
+          return isDocument ? '/index.html' : undefined
+        }
+      },
+      '/quality': {
+        target: 'http://localhost:8089',
+        changeOrigin: true,
+        ws: true,
+        bypass: (req) => {
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
+          return isDocument ? '/index.html' : undefined
+        }
+      },
+      '/equipment': {
+        target: 'http://localhost:8090',
+        changeOrigin: true,
+        ws: true,
+        bypass: (req) => {
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
+          return isDocument ? '/index.html' : undefined
+        }
+      },
+      '/decision': {
+        target: 'http://localhost:8091',
         changeOrigin: true,
         ws: true,
         bypass: (req) => {

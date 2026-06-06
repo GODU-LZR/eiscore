@@ -48,6 +48,24 @@ const apps = [
     activeRule: withContainerRule('/production'),
   },
   {
+    name: 'eiscore-quality',
+    entry: '/quality/index.html',
+    container: QIANKUN_CONTAINER,
+    activeRule: withContainerRule('/quality'),
+  },
+  {
+    name: 'eiscore-equipment',
+    entry: '/equipment/index.html',
+    container: QIANKUN_CONTAINER,
+    activeRule: withContainerRule('/equipment'),
+  },
+  {
+    name: 'eiscore-decision',
+    entry: '/decision/index.html',
+    container: QIANKUN_CONTAINER,
+    activeRule: withContainerRule('/decision'),
+  },
+  {
     name: 'eiscore-apps',
     // Use explicit html entry to avoid redirect chains that may jump to :8083.
     entry: '/apps/index.html',

@@ -123,6 +123,57 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
     {
+      name: 'eiscore-quality',
+      cwd: './eiscore-quality',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8089 --host 127.0.0.1 --base /quality',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8089
+      },
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '500M',
+      error_file: './logs/quality-error.log',
+      out_file: './logs/quality-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+    {
+      name: 'eiscore-equipment',
+      cwd: './eiscore-equipment',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8090 --host 127.0.0.1 --base /equipment',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8090
+      },
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '500M',
+      error_file: './logs/equipment-error.log',
+      out_file: './logs/equipment-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+    {
+      name: 'eiscore-decision',
+      cwd: './eiscore-decision',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8091 --host 127.0.0.1 --base /decision',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8091
+      },
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '300M',
+      error_file: './logs/decision-error.log',
+      out_file: './logs/decision-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+    {
       name: 'eiscore-mobile',
       cwd: './eiscore-mobile',
       script: '../scripts/static-spa-server.mjs',

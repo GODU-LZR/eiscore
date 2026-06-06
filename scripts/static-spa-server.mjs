@@ -1,7 +1,7 @@
+#!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-#!/usr/bin/env node
 import fs from 'node:fs'
 import http from 'node:http'
 import https from 'node:https'
@@ -56,6 +56,9 @@ const microTargets = [
   { prefix: '/materials', target: 'http://127.0.0.1:8081' },
   { prefix: '/sales', target: 'http://127.0.0.1:8085' },
   { prefix: '/purchase', target: 'http://127.0.0.1:8088' },
+  { prefix: '/quality', target: 'http://127.0.0.1:8089' },
+  { prefix: '/equipment', target: 'http://127.0.0.1:8090' },
+  { prefix: '/decision', target: 'http://127.0.0.1:8091' },
   { prefix: '/mobile', target: 'http://127.0.0.1:8084' }
 ]
 
@@ -132,7 +135,7 @@ function getApiProxy(rawPath) {
         .replace(/^\/production\/api\b/, '')
     }
   }
-  const moduleApiPrefix = rawPath.match(/^\/(hr|materials|sales|purchase|apps|mobile)\/api\b/)
+  const moduleApiPrefix = rawPath.match(/^\/(hr|materials|sales|purchase|quality|equipment|decision|apps|mobile)\/api\b/)
   if (moduleApiPrefix) {
     const moduleName = moduleApiPrefix[1]
     return {
@@ -155,7 +158,7 @@ function getApiProxy(rawPath) {
   if (rawPath === '/production/agent' || rawPath.startsWith('/production/agent/')) {
     return { target: 'http://127.0.0.1:8078', rewrite: (value) => value.replace(/^\/production\/agent\b/, '') || '/' }
   }
-  const moduleAgentPrefix = rawPath.match(/^\/(hr|materials|sales|purchase|apps|mobile)\/agent\b/)
+  const moduleAgentPrefix = rawPath.match(/^\/(hr|materials|sales|purchase|quality|equipment|decision|apps|mobile)\/agent\b/)
   if (moduleAgentPrefix) {
     const moduleName = moduleAgentPrefix[1]
     return { target: 'http://127.0.0.1:8078', rewrite: (value) => value.replace(new RegExp(`^/${moduleName}/agent\\b`), '') || '/' }

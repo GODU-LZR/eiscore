@@ -19,9 +19,10 @@
         :background-color="asideTheme.menuBg"
         :text-color="asideTheme.menuText"
         :active-text-color="asideTheme.menuActiveText"
-        :router="true"
+        :router="false"
         :collapse="isCollapse"
         :collapse-transition="false"
+        @select="handleMenuSelect"
         style="border-right: none;"
       >
         <el-menu-item v-if="canHome" index="/">
@@ -42,15 +43,27 @@
         </el-menu-item>
         <el-menu-item v-if="canSales" index="/sales">
           <el-icon><Sell /></el-icon>
-          <template #title>销售模块</template>
+          <template #title>销售管理</template>
         </el-menu-item>
         <el-menu-item v-if="canPurchase" index="/purchase">
           <el-icon><ShoppingCart /></el-icon>
-          <template #title>采购模块</template>
+          <template #title>采购管理</template>
         </el-menu-item>
         <el-menu-item v-if="canProduction" index="/production">
           <el-icon><Tools /></el-icon>
-          <template #title>生产模块</template>
+          <template #title>生产管理</template>
+        </el-menu-item>
+        <el-menu-item v-if="canQuality" index="/quality">
+          <el-icon><CircleCheck /></el-icon>
+          <template #title>质量管理</template>
+        </el-menu-item>
+        <el-menu-item v-if="canEquipment" index="/equipment">
+          <el-icon><Monitor /></el-icon>
+          <template #title>设备管理</template>
+        </el-menu-item>
+        <el-menu-item v-if="canDecision" index="/decision">
+          <el-icon><DataBoard /></el-icon>
+          <template #title>决策支持</template>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -150,7 +163,8 @@ import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import { mix } from '@/utils/theme'
 import { hasPerm } from '@/utils/permission'
-import { House, Box, User, Grid, Sell, ShoppingCart, Tools, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
+import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '@/utils/micro-path'
+import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import AiCopilot from '@/components/AiCopilot.vue'
 
 const isCollapse = ref(false)
@@ -213,8 +227,20 @@ const asideTheme = computed(() => {
   }
 })
 
+const WORKER_ASSISTANT_HIDDEN_ROUTES = [
+  '/materials/inventory-dashboard',
+  '/sales/cockpit',
+  '/purchase/dashboard',
+  '/quality/dashboard',
+  '/equipment/dashboard'
+]
+
+const isPathInRouteGroup = (path, prefix) => path === prefix || path.startsWith(`${prefix}/`)
+
 const showWorkerAssistant = computed(() => {
-  return route.path !== '/' && !route.path.startsWith('/ai/enterprise')
+  const path = route.path || '/'
+  if (path === '/' || path.startsWith('/ai/enterprise')) return false
+  return !WORKER_ASSISTANT_HIDDEN_ROUTES.some((item) => isPathInRouteGroup(path, item))
 })
 
 const getAuthHeader = () => {
@@ -225,6 +251,11 @@ const getAuthHeader = () => {
     const parsed = JSON.parse(tokenStr)
     if (parsed?.token) token = parsed.token
   } catch (e) {}
+  if (token && token.length > 8192) {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user_info')
+    return {}
+  }
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
@@ -458,6 +489,9 @@ const activeMenu = computed(() => {
   if (route.path.startsWith('/sales')) return '/sales'
   if (route.path.startsWith('/purchase')) return '/purchase'
   if (route.path.startsWith('/production')) return '/production'
+  if (route.path.startsWith('/quality')) return '/quality'
+  if (route.path.startsWith('/equipment')) return '/equipment'
+  if (route.path.startsWith('/decision')) return '/decision'
   return route.path
 })
 
@@ -468,6 +502,18 @@ const isSuperAdmin = computed(() => userStore.userInfo?.role === 'super_admin')
 const canSales = computed(() => hasPerm('module:sales') || isSuperAdmin.value)
 const canPurchase = computed(() => hasPerm('module:purchase') || isSuperAdmin.value)
 const canProduction = computed(() => hasPerm('module:production') || isSuperAdmin.value)
+const canQuality = computed(() => hasPerm('module:quality') || isSuperAdmin.value)
+const canEquipment = computed(() => hasPerm('module:equipment') || isSuperAdmin.value)
+const canDecision = computed(() =>
+  hasPerm('module:decision') ||
+  hasPerm('module:sales') ||
+  hasPerm('module:mms') ||
+  hasPerm('module:purchase') ||
+  hasPerm('module:production') ||
+  hasPerm('module:quality') ||
+  hasPerm('module:equipment') ||
+  isSuperAdmin.value
+)
 const hasAnyAppCenterEntryPerm = computed(() => {
   const perms = Array.isArray(userStore.userInfo?.permissions) ? userStore.userInfo.permissions : []
   return perms.some((perm) => typeof perm === 'string' && perm.startsWith('app:app_'))
@@ -491,9 +537,12 @@ const MODULE_ENTRY_TITLES = {
   '/materials': '物料管理',
   '/hr': '人事管理',
   '/apps/': '应用中心',
-  '/sales': '销售模块',
-  '/purchase': '采购模块',
-  '/production': '生产模块'
+  '/sales': '销售管理',
+  '/purchase': '采购管理',
+  '/production': '生产管理',
+  '/quality': '质量管理',
+  '/equipment': '设备管理',
+  '/decision': '决策支持'
 }
 
 const MODULE_APP_KEY_TITLES = {
@@ -522,6 +571,23 @@ const MODULE_APP_KEY_TITLES = {
     plans: '生产建议',
     work_orders: '生产工单',
     work_order_items: '领料跟进'
+  },
+  quality: {
+    inspections: '检验台账',
+    ncr: '质量异常',
+    actions: '整改任务',
+    audits: '质量审核',
+    standards: '检验标准',
+    dashboard: '质量总览'
+  },
+  equipment: {
+    assets: '设备台账',
+    checks: '点检记录',
+    issues: '设备异常',
+    work_orders: '维保工单',
+    plans: '巡检计划',
+    standards: '保养标准',
+    dashboard: '设备总览'
   }
 }
 
@@ -541,26 +607,33 @@ const MODULE_DIRECT_APP_ROUTES = [
   { path: '/hr/acl', title: '权限管理' },
   { path: '/hr/users', title: '用户管理' },
   { path: '/sales/cockpit', title: '销售驾驶舱' },
-  { path: '/sales/dashboard', title: '销售看板' },
   { path: '/purchase/dashboard', title: '采购驾驶舱' },
   { path: '/production/overview', title: '生产总览' },
-  { path: '/production/bom', title: '产品配方' }
+  { path: '/production/bom', title: '产品配方' },
+  { path: '/quality/dashboard', title: '质量总览' },
+  { path: '/equipment/dashboard', title: '设备总览' }
 ]
 
 const normalizeHostPath = (value) => {
-  const raw = String(value || '').trim() || '/'
+  const raw = canonicalizeMicroChainPath(ensureAbsoluteHostPath(value))
   if (raw === '/apps' || raw === '/apps/index.html') return '/apps/'
   if (raw === '/materials/' || raw === '/materials/index.html' || raw === '/materials/apps' || raw === '/materials/apps/') return '/materials'
   if (raw === '/hr/' || raw === '/hr/index.html' || raw === '/hr/apps' || raw === '/hr/apps/') return '/hr'
   if (raw === '/sales/' || raw === '/sales/index.html' || raw === '/sales/apps' || raw === '/sales/apps/') return '/sales'
   if (raw === '/purchase/' || raw === '/purchase/index.html' || raw === '/purchase/apps' || raw === '/purchase/apps/') return '/purchase'
   if (raw === '/production/' || raw === '/production/index.html' || raw === '/production/apps' || raw === '/production/apps/') return '/production'
+  if (raw === '/quality/' || raw === '/quality/index.html' || raw === '/quality/apps' || raw === '/quality/apps/') return '/quality'
+  if (raw === '/equipment/' || raw === '/equipment/index.html' || raw === '/equipment/apps' || raw === '/equipment/apps/') return '/equipment'
+  if (raw === '/decision/' || raw === '/decision/index.html' || raw === '/decision/apps' || raw === '/decision/apps/') return '/decision'
   // Keep full child route for micro-app deep links (e.g. /materials/inventory-stock-in).
   if (raw === '/materials' || raw.startsWith('/materials/')) return raw
   if (raw === '/hr' || raw.startsWith('/hr/')) return raw
   if (raw === '/sales' || raw.startsWith('/sales/')) return raw
   if (raw === '/purchase' || raw.startsWith('/purchase/')) return raw
   if (raw === '/production' || raw.startsWith('/production/')) return raw
+  if (raw === '/quality' || raw.startsWith('/quality/')) return raw
+  if (raw === '/equipment' || raw.startsWith('/equipment/')) return raw
+  if (raw === '/decision' || raw.startsWith('/decision/')) return raw
   if (raw.startsWith('/apps/config-center')) return '/apps/config-center'
   if (raw.startsWith('/apps/')) return raw
   if (raw === '/settings') return '/settings'
@@ -604,6 +677,9 @@ const resolveHostTabDot = (path) => {
   if (path.startsWith('/sales')) return 'sales'
   if (path.startsWith('/purchase')) return 'purchase'
   if (path.startsWith('/production')) return 'production'
+  if (path.startsWith('/quality')) return 'quality'
+  if (path.startsWith('/equipment')) return 'equipment'
+  if (path.startsWith('/decision')) return 'decision'
   return 'default'
 }
 
@@ -617,11 +693,14 @@ const isModuleEntryPath = (path) => {
     path === '/apps' ||
     path === '/sales' ||
     path === '/purchase' ||
-    path === '/production'
+    path === '/production' ||
+    path === '/quality' ||
+    path === '/equipment' ||
+    path === '/decision'
 }
 
 const getModuleAppKeyTitle = (path) => {
-  const match = String(path || '').match(/^\/(materials|hr|sales|purchase|production)\/app\/([^/?#]+)/)
+  const match = String(path || '').match(/^\/(materials|hr|sales|purchase|production|quality|equipment)\/app\/([^/?#]+)/)
   if (!match) return ''
   const moduleName = match[1]
   const appKey = decodeURIComponent(match[2] || '')
@@ -702,7 +781,7 @@ const buildDefaultTabKey = (path, query = {}) => {
   if (directAppRoute?.tabKey) return directAppRoute.tabKey
   if (directAppRoute) return directAppRoute.path
   if (isModuleAppPath(path, query)) {
-    const match = String(path || '').match(/^\/(materials|hr|sales|purchase|production)\/app\/([^/?#]+)/)
+    const match = String(path || '').match(/^\/(materials|hr|sales|purchase|production|quality|equipment)\/app\/([^/?#]+)/)
     if (match) return `/${match[1]}/app/${decodeURIComponent(match[2] || '')}`
   }
   if (path === '/apps/config-center') return '/apps/config-center'
@@ -872,6 +951,14 @@ const handleOpenHostTab = (payload) => {
   router.push({ path, query }).catch(() => {})
 }
 
+const handleMenuSelect = (index) => {
+  const path = normalizeHostPath(index)
+  if (!path) return
+  const currentPath = normalizeHostPath(route.path)
+  if (path === currentPath) return
+  router.push({ path }).catch(() => {})
+}
+
 const handleOpenHostTabEvent = (event) => {
   handleOpenHostTab(event?.detail || {})
 }
@@ -1013,6 +1100,8 @@ const startGuide = () => { driverObj.drive(); }
       .host-tab-dot.dot-sales { background: #f56c6c; }
       .host-tab-dot.dot-purchase { background: #10b981; }
       .host-tab-dot.dot-production { background: #22c55e; }
+      .host-tab-dot.dot-quality { background: #0ea5e9; }
+      .host-tab-dot.dot-equipment { background: #14b8a6; }
 
       .host-tab-close {
         color: #909399;
