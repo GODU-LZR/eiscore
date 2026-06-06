@@ -1,8 +1,10 @@
 <template>
-  <div class="hud" :class="{ fullscreen: isFullscreen }">
+  <div ref="rootRef" class="hud" :class="{ fullscreen: isFullscreen }" :style="dashboardScaleVars">
     <div class="hud-bg"></div>
     <div class="scan-line"></div>
 
+    <div class="screen-stage">
+      <section ref="screenRef" class="screen-shell">
     <header class="hud-header">
       <div class="hdr-left">
         <div class="hdr-title"><span class="hdr-icon">&#9672;</span> &#26234;&#33021;&#24211;&#23384;&#30417;&#25511;&#20013;&#26530;</div>
@@ -85,7 +87,7 @@
             <span class="live-tag"><span class="blink-dot">&#9679;</span> &#23454;&#26102;</span>
           </div>
           <div class="canvas-body" ref="canvasRef">
-            <div id="dashboard-konva-stage"></div>
+            <div ref="stageHostRef" class="dashboard-konva-stage"></div>
           </div>
           <div class="legend-bar">
             <div class="legend-item"><span class="legend-dot" style="background:#10b981"></span> &lt;50% &#31354;&#38386;</div>
@@ -101,25 +103,52 @@
       <div class="col col-right">
         <section class="box tree-box">
           <div class="box-hdr">&#20179;&#24211;&#32467;&#26500;<span class="carousel-counter">{{ treeIdx + 1 }}/{{ topWarehouses.length || 1 }}</span></div>
-          <div class="tree-content">
-            <div v-for="wh in currentTreeGroup" :key="wh.id" class="tree-node" :class="{ active: wh.id === currentWarehouse?.id }" :style="{ paddingLeft: (wh.level - 1) * 16 + 8 + 'px' }">
-              <span class="tree-icon">{{ wh.level === 1 ? '\u25C6' : wh.level === 2 ? '\u25C7' : '\u00B7' }}</span>
-              <span class="tree-name">{{ wh.name }}</span>
-              <span class="tree-status" :class="'st-' + (wh.status === '\u542F\u7528' ? 'on' : 'off')">{{ wh.status }}</span>
+          <div class="tree-content roll-viewport">
+            <div v-if="currentTreeGroup.length" class="roll-content" :class="{ rolling: shouldAutoRoll(currentTreeGroup, 4) }" :style="{ '--roll-duration': rollDuration(currentTreeGroup, 3.8) }">
+              <div class="roll-track">
+                <div v-for="wh in currentTreeGroup" :key="'tree-a-' + wh.id" class="tree-node" :class="{ active: wh.id === currentWarehouse?.id }" :style="{ paddingLeft: (wh.level - 1) * 16 + 8 + 'px' }">
+                  <span class="tree-icon">{{ wh.level === 1 ? '\u25C6' : wh.level === 2 ? '\u25C7' : '\u00B7' }}</span>
+                  <span class="tree-name">{{ wh.name }}</span>
+                  <span class="tree-status" :class="'st-' + (wh.status === '\u542F\u7528' ? 'on' : 'off')">{{ wh.status }}</span>
+                </div>
+              </div>
+              <div v-if="shouldAutoRoll(currentTreeGroup, 4)" class="roll-track" aria-hidden="true">
+                <div v-for="wh in currentTreeGroup" :key="'tree-b-' + wh.id" class="tree-node" :class="{ active: wh.id === currentWarehouse?.id }" :style="{ paddingLeft: (wh.level - 1) * 16 + 8 + 'px' }">
+                  <span class="tree-icon">{{ wh.level === 1 ? '\u25C6' : wh.level === 2 ? '\u25C7' : '\u00B7' }}</span>
+                  <span class="tree-name">{{ wh.name }}</span>
+                  <span class="tree-status" :class="'st-' + (wh.status === '\u542F\u7528' ? 'on' : 'off')">{{ wh.status }}</span>
+                </div>
+              </div>
             </div>
+            <div v-if="currentTreeGroup.length === 0" class="empty-tip">&#26242;&#26080;&#25968;&#25454;</div>
           </div>
         </section>
 
         <section class="box heat-box">
           <div class="box-hdr">&#21344;&#29992;&#29575;</div>
-          <div class="heat-content">
-            <div v-for="loc in locStats" :key="loc.code" class="heat-cell">
-              <div class="heat-top">
-                <span class="heat-code">{{ loc.code }}</span>
-                <span class="heat-pct" :style="{ color: usageColor(loc.usage) }">{{ loc.usage }}%</span>
+          <div class="heat-content roll-viewport">
+            <div v-if="locStats.length" class="roll-content" :class="{ rolling: shouldAutoRoll(locStats, 5) }" :style="{ '--roll-duration': rollDuration(locStats, 4) }">
+              <div class="roll-track">
+                <div v-for="loc in locStats" :key="'heat-a-' + loc.code" class="heat-cell">
+                  <div class="heat-top">
+                    <span class="heat-code">{{ loc.code }}</span>
+                    <span class="heat-pct" :style="{ color: usageColor(loc.usage) }">{{ loc.usage }}%</span>
+                  </div>
+                  <div class="heat-bar-track">
+                    <div class="heat-bar-fill" :style="{ width: loc.usage + '%', background: usageColor(loc.usage) }"></div>
+                  </div>
+                </div>
               </div>
-              <div class="heat-bar-track">
-                <div class="heat-bar-fill" :style="{ width: loc.usage + '%', background: usageColor(loc.usage) }"></div>
+              <div v-if="shouldAutoRoll(locStats, 5)" class="roll-track" aria-hidden="true">
+                <div v-for="loc in locStats" :key="'heat-b-' + loc.code" class="heat-cell">
+                  <div class="heat-top">
+                    <span class="heat-code">{{ loc.code }}</span>
+                    <span class="heat-pct" :style="{ color: usageColor(loc.usage) }">{{ loc.usage }}%</span>
+                  </div>
+                  <div class="heat-bar-track">
+                    <div class="heat-bar-fill" :style="{ width: loc.usage + '%', background: usageColor(loc.usage) }"></div>
+                  </div>
+                </div>
               </div>
             </div>
             <div v-if="locStats.length === 0" class="empty-tip">&#26242;&#26080;&#25968;&#25454;</div>
@@ -162,6 +191,8 @@
         </section>
       </div>
     </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -174,9 +205,29 @@ import Konva from 'konva'
 import request from '@/utils/request'
 
 const isFullscreen = ref(false)
+const rootRef = ref(null)
+const screenRef = ref(null)
 const canvasRef = ref(null)
+const stageHostRef = ref(null)
 const clock = ref('')
 let clockTimer = null
+let resizeObserver = null
+let resizeFrame = 0
+const dashboardDesignWidth = 1600
+const dashboardDesignHeight = 900
+const dashboardFrame = ref({
+  scale: 1,
+  width: dashboardDesignWidth,
+  height: dashboardDesignHeight
+})
+
+const dashboardScaleVars = computed(() => ({
+  '--screen-width': `${dashboardDesignWidth}px`,
+  '--screen-height': `${dashboardDesignHeight}px`,
+  '--stage-width': `${dashboardFrame.value.width}px`,
+  '--stage-height': `${dashboardFrame.value.height}px`,
+  '--dashboard-scale': dashboardFrame.value.scale
+}))
 
 const isDark = ref(window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false)
 
@@ -316,14 +367,41 @@ const startCarousel = () => {
   }, 6000)
 }
 
+const updateDashboardScale = () => {
+  const root = rootRef.value
+  if (!root) return
+  const style = window.getComputedStyle(root)
+  const paddingX = parseFloat(style.paddingLeft || 0) + parseFloat(style.paddingRight || 0)
+  const paddingY = parseFloat(style.paddingTop || 0) + parseFloat(style.paddingBottom || 0)
+  const availableWidth = Math.max(root.clientWidth - paddingX, 320)
+  const availableHeight = Math.max(root.clientHeight - paddingY, 180)
+  const scale = Math.min(availableWidth / dashboardDesignWidth, availableHeight / dashboardDesignHeight)
+  const nextScale = Math.max(0.2, Number(scale.toFixed(4)))
+  dashboardFrame.value = {
+    scale: nextScale,
+    width: Math.round(dashboardDesignWidth * nextScale),
+    height: Math.round(dashboardDesignHeight * nextScale)
+  }
+}
+
+const scheduleDashboardResize = () => {
+  if (resizeFrame) cancelAnimationFrame(resizeFrame)
+  resizeFrame = requestAnimationFrame(async () => {
+    resizeFrame = 0
+    updateDashboardScale()
+    await nextTick()
+    renderCanvas()
+  })
+}
+
 const renderCanvas = () => {
-  if (!canvasRef.value) return
+  if (!canvasRef.value || !stageHostRef.value) return
   if (stage) stage.destroy()
   const w = canvasRef.value.clientWidth
   const h = canvasRef.value.clientHeight
   if (w < 10 || h < 10) return
 
-  stage = new Konva.Stage({ container: 'dashboard-konva-stage', width: w, height: h })
+  stage = new Konva.Stage({ container: stageHostRef.value, width: w, height: h })
   konvaLayer = new Konva.Layer()
   stage.add(konvaLayer)
 
@@ -502,16 +580,29 @@ const computeAlerts = () => {
 }
 
 const usageColor = (u) => u < 50 ? 'var(--c-green)' : u < 80 ? 'var(--c-amber)' : 'var(--c-red)'
+const shouldAutoRoll = (rows, threshold = 4) => Array.isArray(rows) && rows.length > threshold
+const rollDuration = (rows, secondsPerItem = 4) => Math.max((Array.isArray(rows) ? rows.length : 0) * secondsPerItem, 18) + 's'
 const fmtTime = (s) => { if (!s) return ''; const d = new Date(s); return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0') }
 const updateClock = () => { clock.value = new Date().toLocaleString('zh-CN', { hour12: false }) }
 const toggleFs = () => {
-  isFullscreen.value = !isFullscreen.value
-  if (isFullscreen.value) document.documentElement.requestFullscreen?.()
-  else document.exitFullscreen?.()
+  const target = rootRef.value || screenRef.value || document.documentElement
+  try {
+    if (!document.fullscreenElement) {
+      const result = target.requestFullscreen?.()
+      if (result?.catch) result.catch(() => {})
+    } else {
+      const result = document.exitFullscreen?.()
+      if (result?.catch) result.catch(() => {})
+    }
+  } catch (e) {
+    // 浏览器或嵌入容器拒绝全屏时保持大屏布局，不打断页面操作。
+  } finally {
+    isFullscreen.value = Boolean(document.fullscreenElement)
+  }
 }
 const syncFullscreenState = () => {
   isFullscreen.value = !!document.fullscreenElement
-  nextTick(renderCanvas)
+  scheduleDashboardResize()
 }
 
 watch(activeLayerId, async () => { if (layoutData.value) { await nextTick(); renderCanvas(); computeLocStats() } })
@@ -520,8 +611,18 @@ onMounted(() => {
   updateClock()
   clockTimer = setInterval(updateClock, 1000)
   document.addEventListener('fullscreenchange', syncFullscreenState)
+  window.addEventListener('resize', scheduleDashboardResize)
+  if (window.ResizeObserver && rootRef.value) {
+    resizeObserver = new ResizeObserver(scheduleDashboardResize)
+    resizeObserver.observe(rootRef.value)
+  }
+  if (window.ResizeObserver && canvasRef.value) {
+    resizeObserver = resizeObserver || new ResizeObserver(scheduleDashboardResize)
+    resizeObserver.observe(canvasRef.value)
+  }
   const mq = window.matchMedia?.('(prefers-color-scheme: dark)')
   if (mq) mq.addEventListener('change', e => { isDark.value = e.matches; renderCanvas() })
+  scheduleDashboardResize()
   loadWarehouses()
 })
 
@@ -529,6 +630,9 @@ onBeforeUnmount(() => {
   if (masterTimer) clearInterval(masterTimer)
   if (treeTimer) clearInterval(treeTimer)
   if (clockTimer) clearInterval(clockTimer)
+  if (resizeObserver) resizeObserver.disconnect()
+  if (resizeFrame) cancelAnimationFrame(resizeFrame)
+  window.removeEventListener('resize', scheduleDashboardResize)
   document.removeEventListener('fullscreenchange', syncFullscreenState)
   if (stage) stage.destroy()
 })
@@ -552,6 +656,11 @@ onBeforeUnmount(() => {
   --grid-line: rgba(14,165,233,0.06);
   --shelf-empty: #e2e8f0;
   --scan-color: rgba(14,165,233,0.04);
+  --screen-width: 1600px;
+  --screen-height: 900px;
+  --stage-width: 1600px;
+  --stage-height: 900px;
+  --dashboard-scale: 1;
 }
 @media (prefers-color-scheme: dark) {
   .hud {
@@ -575,14 +684,18 @@ onBeforeUnmount(() => {
 }
 .hud {
   position: relative;
-  height: 100%;
-  min-height: 0;
   width: 100%;
   min-width: 0;
+  height: 100%;
+  min-height: min(720px, 100vh);
+  box-sizing: border-box;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
+  padding: 12px;
   color: var(--text1);
+  background: var(--bg);
   font-family: 'DIN Alternate','Helvetica Neue','PingFang SC',sans-serif;
 }
 .hud.fullscreen {
@@ -591,6 +704,37 @@ onBeforeUnmount(() => {
   z-index: 9999;
   width: 100vw;
   height: 100vh;
+  min-height: 0;
+  padding: 0;
+}
+.hud:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  padding: 12px;
+  background: var(--bg);
+}
+.screen-stage {
+  position: relative;
+  z-index: 2;
+  width: var(--stage-width);
+  height: var(--stage-height);
+  flex: 0 0 auto;
+  overflow: visible;
+}
+.screen-shell {
+  position: relative;
+  width: var(--screen-width);
+  height: var(--screen-height);
+  aspect-ratio: 16 / 9;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scale(var(--dashboard-scale));
+  transform-origin: top left;
+  background: var(--bg);
+  box-shadow: 0 0 36px var(--glow-strong);
 }
 .hud-bg {
   position: absolute; inset: 0; z-index: 0;
@@ -718,7 +862,7 @@ onBeforeUnmount(() => {
 .text-amber { color: var(--c-amber) !important; }
 .empty-tip { color: var(--text3); font-size: 12px; text-align: center; padding: 12px 0; }
 .canvas-body { flex: 1; position: relative; overflow: hidden; background: radial-gradient(circle at center, var(--glow) 0%, transparent 70%); min-height: 0; }
-#dashboard-konva-stage { width: 100%; height: 100%; }
+.dashboard-konva-stage { width: 100%; height: 100%; }
 .live-tag { font-size: 10px; color: var(--c-red); letter-spacing: 1px; }
 .blink-dot { animation: blink 1s infinite; }
 @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
@@ -729,7 +873,13 @@ onBeforeUnmount(() => {
 }
 .legend-item { display: flex; align-items: center; gap: 3px; }
 .legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-.tree-content { flex: 1; padding: 4px 6px; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+.tree-content { flex: 1; padding: 4px 6px; overflow: hidden; min-height: 0; }
+.roll-viewport { position: relative; }
+.roll-content { display: flex; flex-direction: column; gap: 2px; }
+.roll-content.rolling { animation: rollUp var(--roll-duration, 24s) linear infinite; will-change: transform; }
+.roll-content.rolling:hover { animation-play-state: paused; }
+.roll-track { display: flex; flex-direction: column; gap: 2px; }
+@keyframes rollUp { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
 .tree-node { display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
 .tree-node.active { background: var(--glow-strong); border: 1px solid var(--border); }
 .tree-icon { font-size: 10px; color: var(--c-primary); flex-shrink: 0; }
@@ -738,7 +888,7 @@ onBeforeUnmount(() => {
 .tree-status { font-size: 9px; padding: 1px 4px; border-radius: 2px; flex-shrink: 0; }
 .st-on { background: rgba(16,185,129,0.15); color: var(--c-green); }
 .st-off { background: rgba(239,68,68,0.15); color: var(--c-red); }
-.heat-content { flex: 1; padding: 6px; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+.heat-content { flex: 1; padding: 6px; overflow: hidden; min-height: 0; }
 .heat-cell { background: var(--glow); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; }
 .heat-top { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 3px; }
 .heat-code { color: var(--text1); font-weight: 500; }

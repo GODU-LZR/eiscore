@@ -110,13 +110,19 @@ class AiBridge {
   getAuthToken() {
     const tokenStr = localStorage.getItem('auth_token')
     if (!tokenStr) return ''
+    let token = tokenStr
     try {
       const parsed = JSON.parse(tokenStr)
-      if (parsed?.token) return parsed.token
+      if (parsed?.token) token = parsed.token
     } catch (e) {
       // ignore
     }
-    return tokenStr
+    if (token && token.length > 8192) {
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('user_info')
+      return ''
+    }
+    return token
   }
 
   buildAuthHeaders() {

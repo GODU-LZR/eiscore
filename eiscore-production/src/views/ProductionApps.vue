@@ -52,7 +52,7 @@ import { hasPerm } from '@/utils/permission'
 const router = useRouter()
 const iconMap = { Calendar, Connection, DataBoard, List, Tickets }
 
-const visibleApps = computed(() => PRODUCTION_APPS.filter((app) => !app.perm || hasPerm(app.perm)))
+const visibleApps = computed(() => PRODUCTION_APPS.filter((app) => app.key !== 'overview' && (!app.perm || hasPerm(app.perm))))
 
 const openApp = async (app) => {
   if (!app?.route) return

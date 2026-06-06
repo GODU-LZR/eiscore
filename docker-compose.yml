@@ -56,7 +56,7 @@ services:
       - "80:80"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/html:/usr/share/nginx/html
+      - ./eiscore-base/dist:/usr/share/nginx/html:ro
     depends_on:
       - api
       - swagger
@@ -78,6 +78,7 @@ services:
       PGDATABASE: eiscore
       CHANNEL: eis_events
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:-my_super_secret_key_for_eiscore_system_2025}"
+      AI_HTTP_PROXY_URL: "${AI_HTTP_PROXY_URL:-http://host.docker.internal:7897}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       FLASH_CLINE_ENABLED: "${FLASH_CLINE_ENABLED:-true}"
       FLASH_CLINE_COMMAND: "${FLASH_CLINE_COMMAND:-/app/node_modules/.bin/cline}"
@@ -94,6 +95,7 @@ services:
       - ./eiscore-hr:/workspace/eiscore-hr
       - ./eiscore-materials:/workspace/eiscore-materials
       - ./eiscore-apps:/workspace/eiscore-apps
+      - ./eiscore-equipment:/workspace/eiscore-equipment
     depends_on:
       - db
 

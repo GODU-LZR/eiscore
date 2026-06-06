@@ -132,14 +132,17 @@ async function handleLogin() {
 
     // 解析 JWT 获取用户信息
     const payload = parseJwt(token)
+    const permissions = Array.isArray(data.permissions)
+      ? data.permissions
+      : (Array.isArray(payload?.permissions) ? payload.permissions : [])
 
     // 尝试获取用户详细信息
     let userInfo = {
       username: payload?.username || form.username,
       full_name: '',
       avatar: '',
-      role: payload?.app_role || '',
-      permissions: []
+      role: data.app_role || payload?.app_role || '',
+      permissions
     }
 
     try {

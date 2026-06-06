@@ -212,12 +212,15 @@ const handleLogin = async () => {
       if (!realToken) throw new Error('服务器未返回有效 Token')
 
       const payload = parseJwt(realToken)
+      const permissions = Array.isArray(data.permissions)
+        ? data.permissions
+        : (Array.isArray(payload.permissions) ? payload.permissions : [])
       let roleId = ''
       let avatarUrl = ''
 
-      if (payload.app_role) {
+      if (data.app_role || payload.app_role) {
         try {
-          const roleRes = await fetch(`/api/roles?code=eq.${payload.app_role}`, {
+          const roleRes = await fetch(`/api/roles?code=eq.${data.app_role || payload.app_role}`, {
             method: 'GET',
             headers: {
               'Accept-Profile': 'public',
@@ -294,10 +297,10 @@ const handleLogin = async () => {
           id: payload.username,
           name: payload.username,
           username: payload.username,
-          role: payload.app_role || payload.role || 'user',
+          role: data.app_role || payload.app_role || payload.role || 'user',
           role_id: roleId,
           dbRole: payload.role || 'web_user',
-          permissions: payload.permissions || [],
+          permissions,
           avatar: avatarUrl || payload.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
         }
       }

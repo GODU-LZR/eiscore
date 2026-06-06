@@ -107,11 +107,17 @@ export const useSystemStore = defineStore('system', () => {
   const getAuthToken = () => {
     const raw = localStorage.getItem('auth_token')
     if (!raw) return ''
+    let token = raw
     try {
       const parsed = JSON.parse(raw)
-      if (parsed?.token) return parsed.token
+      if (parsed?.token) token = parsed.token
     } catch (e) {}
-    return raw
+    if (token && token.length > 8192) {
+      localStorage.removeItem('auth_token')
+      localStorage.removeItem('user_info')
+      return ''
+    }
+    return token
   }
 
   // 2. 定义动作

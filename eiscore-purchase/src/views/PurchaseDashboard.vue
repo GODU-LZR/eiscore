@@ -1,10 +1,11 @@
 <template>
-  <div class="purchase-cockpit" :class="{ fullscreen: isFullscreen }">
+  <div ref="rootRef" class="purchase-cockpit" :class="{ fullscreen: isFullscreen }" :style="dashboardScaleVars">
     <div class="cockpit-bg"></div>
     <div class="scan-layer"></div>
 
-    <main class="screen">
-      <header class="screen-header">
+    <div class="screen-stage">
+      <main ref="screenRef" class="screen">
+        <header class="screen-header">
         <div class="header-left">
           <div class="title"><span class="title-mark"></span>采购驾驶舱</div>
           <div class="subtitle">PURCHASE COMMAND CENTER</div>
@@ -147,8 +148,9 @@
             </div>
           </section>
         </aside>
-      </section>
-    </main>
+        </section>
+      </main>
+    </div>
   </div>
 </template>
 
@@ -162,6 +164,8 @@ import request from '@/utils/request'
 
 const router = useRouter()
 
+const rootRef = ref(null)
+const screenRef = ref(null)
 const loading = ref(false)
 const isFullscreen = ref(false)
 const clock = ref('')
@@ -172,6 +176,23 @@ const arrivals = ref([])
 
 let clockTimer = null
 let refreshTimer = null
+let resizeObserver = null
+let resizeFrame = 0
+const dashboardDesignWidth = 1600
+const dashboardDesignHeight = 900
+const dashboardFrame = ref({
+  scale: 1,
+  width: dashboardDesignWidth,
+  height: dashboardDesignHeight
+})
+
+const dashboardScaleVars = computed(() => ({
+  '--screen-width': `${dashboardDesignWidth}px`,
+  '--screen-height': `${dashboardDesignHeight}px`,
+  '--stage-width': `${dashboardFrame.value.width}px`,
+  '--stage-height': `${dashboardFrame.value.height}px`,
+  '--dashboard-scale': dashboardFrame.value.scale
+}))
 
 const statusColors = {
   ok: 'var(--c-green)',
@@ -380,10 +401,51 @@ const updateClock = () => {
   clock.value = new Date().toLocaleString('zh-CN', { hour12: false })
 }
 
+const updateDashboardScale = () => {
+  const root = rootRef.value
+  if (!root) return
+  const style = window.getComputedStyle(root)
+  const paddingX = parseFloat(style.paddingLeft || 0) + parseFloat(style.paddingRight || 0)
+  const paddingY = parseFloat(style.paddingTop || 0) + parseFloat(style.paddingBottom || 0)
+  const availableWidth = Math.max(root.clientWidth - paddingX, 320)
+  const availableHeight = Math.max(root.clientHeight - paddingY, 180)
+  const scale = Math.min(availableWidth / dashboardDesignWidth, availableHeight / dashboardDesignHeight)
+  const nextScale = Math.max(0.2, Number(scale.toFixed(4)))
+  dashboardFrame.value = {
+    scale: nextScale,
+    width: Math.round(dashboardDesignWidth * nextScale),
+    height: Math.round(dashboardDesignHeight * nextScale)
+  }
+}
+
+const scheduleDashboardScale = () => {
+  if (resizeFrame) cancelAnimationFrame(resizeFrame)
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = 0
+    updateDashboardScale()
+  })
+}
+
 const toggleFullscreen = () => {
-  isFullscreen.value = !isFullscreen.value
-  if (isFullscreen.value) document.documentElement.requestFullscreen?.()
-  else document.exitFullscreen?.()
+  const target = rootRef.value || screenRef.value || document.documentElement
+  try {
+    if (!document.fullscreenElement) {
+      const result = target.requestFullscreen?.()
+      if (result?.catch) result.catch(() => {})
+    } else {
+      const result = document.exitFullscreen?.()
+      if (result?.catch) result.catch(() => {})
+    }
+  } catch (e) {
+    // 浏览器或嵌入容器拒绝全屏时保持大屏布局，不打断页面操作。
+  } finally {
+    isFullscreen.value = Boolean(document.fullscreenElement)
+  }
+}
+
+const handleFullscreenChange = () => {
+  isFullscreen.value = Boolean(document.fullscreenElement)
+  scheduleDashboardScale()
 }
 
 const goApps = () => {
@@ -393,6 +455,13 @@ const goApps = () => {
 onMounted(() => {
   updateClock()
   clockTimer = setInterval(updateClock, 1000)
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
+  window.addEventListener('resize', scheduleDashboardScale)
+  if (window.ResizeObserver && rootRef.value) {
+    resizeObserver = new ResizeObserver(scheduleDashboardScale)
+    resizeObserver.observe(rootRef.value)
+  }
+  scheduleDashboardScale()
   loadData()
   refreshTimer = setInterval(loadData, 30000)
 })
@@ -400,6 +469,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (clockTimer) clearInterval(clockTimer)
   if (refreshTimer) clearInterval(refreshTimer)
+  if (resizeObserver) resizeObserver.disconnect()
+  if (resizeFrame) cancelAnimationFrame(resizeFrame)
+  window.removeEventListener('resize', scheduleDashboardScale)
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
 })
 </script>
 
@@ -418,11 +491,16 @@ onBeforeUnmount(() => {
   --c-green: #34d399;
   --c-amber: #fbbf24;
   --c-red: #fb7185;
+  --screen-width: 1600px;
+  --screen-height: 900px;
+  --stage-width: 1600px;
+  --stage-height: 900px;
+  --dashboard-scale: 1;
   position: relative;
   width: 100%;
   min-width: 0;
   height: 100%;
-  min-height: 0;
+  min-height: min(720px, 100vh);
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -440,6 +518,16 @@ onBeforeUnmount(() => {
   z-index: 9999;
   width: 100vw;
   height: 100vh;
+  min-height: 0;
+  padding: 0;
+}
+
+.purchase-cockpit:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  padding: 12px;
+  background: var(--bg);
 }
 
 .cockpit-bg,
@@ -462,25 +550,29 @@ onBeforeUnmount(() => {
   background: repeating-linear-gradient(0deg, transparent 0, transparent 5px, rgba(125, 211, 252, 0.035) 6px);
 }
 
-.screen {
+.screen-stage {
   position: relative;
   z-index: 2;
-  width: min(calc(100% - 24px), calc((100% - 24px) * 16 / 9));
+  width: var(--stage-width);
+  height: var(--stage-height);
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.screen {
+  position: relative;
+  width: var(--screen-width);
+  height: var(--screen-height);
   aspect-ratio: 16 / 9;
-  max-width: calc(100% - 24px);
-  max-height: calc(100% - 24px);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transform: scale(var(--dashboard-scale));
+  transform-origin: top left;
   border: 1px solid var(--border);
   background: rgba(2, 6, 23, 0.58);
   box-shadow: 0 0 36px rgba(34, 211, 238, 0.18);
-}
-
-.purchase-cockpit.fullscreen .screen {
-  width: min(calc(100vw - 24px), calc((100vh - 24px) * 16 / 9));
-  max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 24px);
 }
 
 .screen-header {

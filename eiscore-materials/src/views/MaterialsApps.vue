@@ -59,7 +59,7 @@ const iconMap = {
   Download
 }
 
-const visibleApps = computed(() => apps.filter((app) => !app.perm || hasPerm(app.perm)))
+const visibleApps = computed(() => apps.filter((app) => app.key !== 'inventory-dashboard' && (!app.perm || hasPerm(app.perm))))
 
 const openApp = (app) => {
   if (!app?.route) return

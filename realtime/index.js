@@ -6290,15 +6290,15 @@ async function runFlashClineTask(ws, payload = {}) {
 }
 
 function extractPayloadMeta(rawPayload) {
-  if (!rawPayload) return { id: null, targets: [], roles: [] };
+  if (!rawPayload) return { id: null, targets: [], roles: [], payload: null };
   try {
     const parsed = JSON.parse(rawPayload);
     const id = parsed?.id ?? parsed?.record_id ?? parsed?.primary_key ?? null;
     const targets = normalizeStringList(parsed?.targets || parsed?.user_ids || parsed?.users);
     const roles = normalizeStringList(parsed?.roles || parsed?.role || parsed?.app_role);
-    return { id, targets, roles };
+    return { id, targets, roles, payload: parsed };
   } catch {
-    return { id: null, targets: [], roles: [] };
+    return { id: null, targets: [], roles: [], payload: null };
   }
 }
 
@@ -6355,6 +6355,7 @@ async function connectPg() {
         type: 'db_notify',
         channel: msg.channel,
         id: meta.id,
+        payload: meta.payload,
         ts: new Date().toISOString()
       },
       meta

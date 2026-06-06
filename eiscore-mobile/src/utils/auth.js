@@ -31,13 +31,19 @@ export function parseJwt(token) {
 export function getToken() {
   const raw = localStorage.getItem(TOKEN_KEY)
   if (!raw) return ''
+  let token = ''
   try {
     const parsed = JSON.parse(raw)
-    if (parsed?.token) return parsed.token
+    if (parsed?.token) token = parsed.token
   } catch {
     // ignore
   }
-  return raw
+  if (!token) token = raw
+  if (token && token.length > 8192) {
+    clearAuth()
+    return ''
+  }
+  return token
 }
 
 /** token 是否已过期 */

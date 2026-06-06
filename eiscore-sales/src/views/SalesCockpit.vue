@@ -1,9 +1,10 @@
 <template>
-  <div class="sales-cockpit" :class="{ fullscreen: isFullscreen }">
+  <div ref="rootRef" class="sales-cockpit" :class="{ fullscreen: isFullscreen }" :style="cockpitScaleVars">
     <div class="hud-bg"></div>
     <div class="scan-line"></div>
 
-    <section ref="screenRef" class="screen-shell">
+    <div class="screen-stage">
+      <section ref="screenRef" class="screen-shell">
       <header class="hud-header">
         <div class="hdr-left">
           <div class="hdr-title"><span class="hdr-icon">◆</span>销售经营驾驶舱</div>
@@ -12,8 +13,10 @@
         <div class="hdr-center">
           <div class="live-badge">
             <span class="pulse-dot"></span>
-            <span>{{ loading ? '数据刷新中' : '经营实时监控' }}</span>
+            <span>{{ loading ? '数据刷新中' : '实时经营监控' }}</span>
             <span class="live-count">{{ stats.orderCount }} 笔订单</span>
+            <span class="live-count live-freshness">更新 {{ lastUpdatedText }}</span>
+            <span class="live-count live-freshness">{{ refreshCountdown }}s 后刷新</span>
           </div>
         </div>
         <div class="hdr-right">
@@ -76,7 +79,7 @@
               <span>{{ salesEvents.length }} 条</span>
             </div>
             <div class="marquee-container">
-              <div class="marquee-content" :class="{ scrolling: salesEvents.length > 5 }" :style="{ animationDuration: Math.max(salesEvents.length * 3, 14) + 's' }">
+              <div class="marquee-content" :class="{ scrolling: salesEvents.length > 5 }" :style="{ animationDuration: Math.max(salesEvents.length * 4, 18) + 's' }">
                 <div class="event-track">
                   <button v-for="event in salesEvents" :key="'a-' + event.key" type="button" class="event-row" @click="openApp(event.appKey)">
                     <span class="event-time">{{ event.time }}</span>
@@ -181,16 +184,31 @@
               负责人业绩
               <span>{{ ownerRanking.length }} 人</span>
             </div>
-            <div class="rank-list">
-              <button v-for="owner in ownerRanking" :key="owner.owner" type="button" class="rank-row" @click="openApp('orders')">
-                <span class="rank-no">{{ owner.rank }}</span>
-                <div>
-                  <strong>{{ owner.owner }}</strong>
-                  <span>{{ owner.orderCount }} 笔订单 / {{ owner.opportunityCount }} 个商机</span>
-                  <i :style="{ width: owner.rate + '%' }"></i>
+            <div class="rank-list roll-viewport" :class="{ 'is-rolling': shouldAutoScroll(ownerRanking, 3) }">
+              <div v-if="ownerRanking.length" class="roll-content" :class="{ rolling: shouldAutoScroll(ownerRanking, 3) }" :style="{ '--roll-duration': scrollDuration(ownerRanking, 6) }">
+                <div class="roll-track">
+                  <button v-for="owner in ownerRanking" :key="owner.owner" type="button" class="rank-row" @click="openApp('orders')">
+                    <span class="rank-no">{{ owner.rank }}</span>
+                    <div>
+                      <strong>{{ owner.owner }}</strong>
+                      <span>{{ owner.orderCount }} 笔订单 / {{ owner.opportunityCount }} 个商机</span>
+                      <i :style="{ width: owner.rate + '%' }"></i>
+                    </div>
+                    <em>{{ formatCurrency(owner.orderAmount) }}</em>
+                  </button>
                 </div>
-                <em>{{ formatCurrency(owner.orderAmount) }}</em>
-              </button>
+                <div v-if="shouldAutoScroll(ownerRanking, 3)" class="roll-track" aria-hidden="true">
+                  <button v-for="owner in ownerRanking" :key="'loop-' + owner.owner" type="button" class="rank-row" tabindex="-1" @click="openApp('orders')">
+                    <span class="rank-no">{{ owner.rank }}</span>
+                    <div>
+                      <strong>{{ owner.owner }}</strong>
+                      <span>{{ owner.orderCount }} 笔订单 / {{ owner.opportunityCount }} 个商机</span>
+                      <i :style="{ width: owner.rate + '%' }"></i>
+                    </div>
+                    <em>{{ formatCurrency(owner.orderAmount) }}</em>
+                  </button>
+                </div>
+              </div>
               <div v-if="ownerRanking.length === 0" class="empty-tip">暂无负责人数据</div>
             </div>
           </section>
@@ -200,14 +218,27 @@
               风险预警
               <span>{{ riskItems.length }} 项</span>
             </div>
-            <div class="alert-list">
-              <button v-for="item in riskItems" :key="item.key" type="button" class="alert-row" :class="`alert-${item.type}`" @click="openApp(item.appKey)">
-                <span class="alert-icon">{{ item.type === 'danger' ? '!' : '△' }}</span>
-                <div>
-                  <strong>{{ item.label }} · {{ item.title }}</strong>
-                  <span>{{ item.desc }}</span>
+            <div class="alert-list roll-viewport" :class="{ 'is-rolling': shouldAutoScroll(riskItems, 2) }">
+              <div v-if="riskItems.length" class="roll-content" :class="{ rolling: shouldAutoScroll(riskItems, 2) }" :style="{ '--roll-duration': scrollDuration(riskItems, 7) }">
+                <div class="roll-track">
+                  <button v-for="item in riskItems" :key="item.key" type="button" class="alert-row" :class="`alert-${item.type}`" @click="openApp(item.appKey)">
+                    <span class="alert-icon">{{ item.type === 'danger' ? '!' : '△' }}</span>
+                    <div>
+                      <strong>{{ item.label }} · {{ item.title }}</strong>
+                      <span>{{ item.desc }}</span>
+                    </div>
+                  </button>
                 </div>
-              </button>
+                <div v-if="shouldAutoScroll(riskItems, 2)" class="roll-track" aria-hidden="true">
+                  <button v-for="item in riskItems" :key="'loop-' + item.key" type="button" class="alert-row" :class="`alert-${item.type}`" tabindex="-1" @click="openApp(item.appKey)">
+                    <span class="alert-icon">{{ item.type === 'danger' ? '!' : '△' }}</span>
+                    <div>
+                      <strong>{{ item.label }} · {{ item.title }}</strong>
+                      <span>{{ item.desc }}</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
               <div v-if="riskItems.length === 0" class="system-ok"><span>✓</span> 经营风险正常</div>
             </div>
           </section>
@@ -217,17 +248,33 @@
               应收排行
               <span>{{ receivableCustomers.length }} 家</span>
             </div>
-            <div class="heat-list">
-              <button v-for="customer in receivableCustomers" :key="customer.id || customer.customer_no" type="button" class="heat-row" @click="openApp('customers')">
-                <div class="heat-top">
-                  <span>{{ customer.name }}</span>
-                  <strong>{{ formatCurrency(customer.receivable_balance) }}</strong>
+            <div class="heat-list roll-viewport" :class="{ 'is-rolling': shouldAutoScroll(receivableCustomers, 3) }">
+              <div v-if="receivableCustomers.length" class="roll-content" :class="{ rolling: shouldAutoScroll(receivableCustomers, 3) }" :style="{ '--roll-duration': scrollDuration(receivableCustomers, 6) }">
+                <div class="roll-track">
+                  <button v-for="customer in receivableCustomers" :key="customer.id || customer.customer_no" type="button" class="heat-row" @click="openApp('customers')">
+                    <div class="heat-top">
+                      <span>{{ customer.name }}</span>
+                      <strong>{{ formatCurrency(customer.receivable_balance) }}</strong>
+                    </div>
+                    <div class="heat-track">
+                      <i :style="{ width: receivableRate(customer) + '%' }"></i>
+                    </div>
+                    <em>{{ customer.owner_name || '-' }} / 额度 {{ formatCurrency(customer.credit_limit) }}</em>
+                  </button>
                 </div>
-                <div class="heat-track">
-                  <i :style="{ width: receivableRate(customer) + '%' }"></i>
+                <div v-if="shouldAutoScroll(receivableCustomers, 3)" class="roll-track" aria-hidden="true">
+                  <button v-for="customer in receivableCustomers" :key="'loop-' + (customer.id || customer.customer_no)" type="button" class="heat-row" tabindex="-1" @click="openApp('customers')">
+                    <div class="heat-top">
+                      <span>{{ customer.name }}</span>
+                      <strong>{{ formatCurrency(customer.receivable_balance) }}</strong>
+                    </div>
+                    <div class="heat-track">
+                      <i :style="{ width: receivableRate(customer) + '%' }"></i>
+                    </div>
+                    <em>{{ customer.owner_name || '-' }} / 额度 {{ formatCurrency(customer.credit_limit) }}</em>
+                  </button>
                 </div>
-                <em>{{ customer.owner_name || '-' }} / 额度 {{ formatCurrency(customer.credit_limit) }}</em>
-              </button>
+              </div>
               <div v-if="receivableCustomers.length === 0" class="empty-tip">暂无应收客户</div>
             </div>
           </section>
@@ -237,20 +284,34 @@
               本周行动
               <span>{{ actionItems.length }} 项</span>
             </div>
-            <div class="action-list">
-              <button v-for="item in actionItems" :key="item.key" type="button" class="action-row" @click="openApp(item.appKey)">
-                <span>{{ item.label }}</span>
-                <div>
-                  <strong>{{ item.title }}</strong>
-                  <em>{{ item.desc }}</em>
+            <div class="action-list roll-viewport" :class="{ 'is-rolling': shouldAutoScroll(actionItems, 2) }">
+              <div v-if="actionItems.length" class="roll-content" :class="{ rolling: shouldAutoScroll(actionItems, 2) }" :style="{ '--roll-duration': scrollDuration(actionItems, 7) }">
+                <div class="roll-track">
+                  <button v-for="item in actionItems" :key="item.key" type="button" class="action-row" @click="openApp(item.appKey)">
+                    <span>{{ item.label }}</span>
+                    <div>
+                      <strong>{{ item.title }}</strong>
+                      <em>{{ item.desc }}</em>
+                    </div>
+                  </button>
                 </div>
-              </button>
+                <div v-if="shouldAutoScroll(actionItems, 2)" class="roll-track" aria-hidden="true">
+                  <button v-for="item in actionItems" :key="'loop-' + item.key" type="button" class="action-row" tabindex="-1" @click="openApp(item.appKey)">
+                    <span>{{ item.label }}</span>
+                    <div>
+                      <strong>{{ item.title }}</strong>
+                      <em>{{ item.desc }}</em>
+                    </div>
+                  </button>
+                </div>
+              </div>
               <div v-if="actionItems.length === 0" class="empty-tip">暂无行动事项</div>
             </div>
           </section>
         </aside>
       </main>
-    </section>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -264,10 +325,13 @@ import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
 
 const router = useRouter()
+const rootRef = ref(null)
 const loading = ref(false)
 const isFullscreen = ref(false)
 const screenRef = ref(null)
 const clock = ref('')
+const lastUpdatedAt = ref('')
+const refreshCountdown = ref(60)
 const customers = ref([])
 const orders = ref([])
 const opportunities = ref([])
@@ -276,6 +340,24 @@ const followUps = ref([])
 
 let clockTimer = null
 let refreshTimer = null
+let resizeObserver = null
+let resizeFrame = 0
+const refreshIntervalSeconds = 60
+const cockpitDesignWidth = 1600
+const cockpitDesignHeight = 900
+const cockpitFrame = ref({
+  scale: 1,
+  width: cockpitDesignWidth,
+  height: cockpitDesignHeight
+})
+
+const cockpitScaleVars = computed(() => ({
+  '--screen-width': `${cockpitDesignWidth}px`,
+  '--screen-height': `${cockpitDesignHeight}px`,
+  '--stage-width': `${cockpitFrame.value.width}px`,
+  '--stage-height': `${cockpitFrame.value.height}px`,
+  '--cockpit-scale': cockpitFrame.value.scale
+}))
 
 const toRows = (value) => (Array.isArray(value) ? value : [])
 const toAmount = (value) => {
@@ -289,6 +371,10 @@ const getDateTime = (value) => {
   return Number.isFinite(time) ? time : 0
 }
 const formatDate = (value) => value ? String(value).slice(0, 10) : '-'
+const formatRefreshTime = (value) => {
+  if (!value) return '等待首次刷新'
+  return new Date(value).toLocaleTimeString('zh-CN', { hour12: false })
+}
 const formatTime = (value) => {
   if (!value) return '--:--'
   const date = new Date(value)
@@ -304,12 +390,15 @@ const formatAmount = (value) => {
 }
 const formatCurrency = (value) => `¥${formatAmount(value)}`
 const clampRate = (value) => Math.max(0, Math.min(100, Math.round(toAmount(value))))
+const shouldAutoScroll = (rows, threshold = 4) => Array.isArray(rows) && rows.length > threshold
+const scrollDuration = (rows, secondsPerItem = 6) => `${Math.max(toRows(rows).length * secondsPerItem, 18)}s`
 
 const activeCustomers = computed(() => customers.value.filter((row) => row?.status !== 'deleted'))
 const activeOrders = computed(() => orders.value.filter((row) => row?.status !== 'deleted' && row?.order_status !== '已取消'))
 const activePayments = computed(() => payments.value.filter((row) => row?.status !== 'deleted'))
 const activeOpportunities = computed(() => opportunities.value.filter((row) => row?.status !== 'deleted' && !['输单', '搁置'].includes(row?.stage)))
 const activeFollowUps = computed(() => followUps.value.filter((row) => row?.status !== 'deleted'))
+const lastUpdatedText = computed(() => formatRefreshTime(lastUpdatedAt.value))
 
 const totalCreditLimit = computed(() => sumBy(activeCustomers.value, 'credit_limit'))
 const creditUsageRate = computed(() => {
@@ -579,6 +668,31 @@ const syncCockpitContext = () => {
   pushAiContext(buildCockpitContext())
 }
 
+const updateCockpitScale = () => {
+  const root = rootRef.value
+  if (!root) return
+  const style = window.getComputedStyle(root)
+  const paddingX = parseFloat(style.paddingLeft || 0) + parseFloat(style.paddingRight || 0)
+  const paddingY = parseFloat(style.paddingTop || 0) + parseFloat(style.paddingBottom || 0)
+  const availableWidth = Math.max(root.clientWidth - paddingX, 320)
+  const availableHeight = Math.max(root.clientHeight - paddingY, 180)
+  const scale = Math.min(availableWidth / cockpitDesignWidth, availableHeight / cockpitDesignHeight)
+  const nextScale = Math.max(0.2, Number(scale.toFixed(4)))
+  cockpitFrame.value = {
+    scale: nextScale,
+    width: Math.round(cockpitDesignWidth * nextScale),
+    height: Math.round(cockpitDesignHeight * nextScale)
+  }
+}
+
+const scheduleCockpitScale = () => {
+  if (resizeFrame) cancelAnimationFrame(resizeFrame)
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = 0
+    updateCockpitScale()
+  })
+}
+
 const loadCockpitData = async () => {
   loading.value = true
   try {
@@ -594,6 +708,8 @@ const loadCockpitData = async () => {
     opportunities.value = toRows(opportunityRows)
     payments.value = toRows(paymentRows)
     followUps.value = toRows(followRows)
+    lastUpdatedAt.value = new Date().toISOString()
+    refreshCountdown.value = refreshIntervalSeconds
   } catch (error) {
     console.warn('加载销售驾驶舱失败', error)
   } finally {
@@ -612,10 +728,11 @@ const goApps = () => {
 
 const updateClock = () => {
   clock.value = new Date().toLocaleString('zh-CN', { hour12: false })
+  refreshCountdown.value = Math.max(refreshCountdown.value - 1, 0)
 }
 
 const toggleFullscreen = () => {
-  const target = screenRef.value || document.documentElement
+  const target = rootRef.value || screenRef.value || document.documentElement
   try {
     if (!document.fullscreenElement) {
       const result = target.requestFullscreen?.()
@@ -633,20 +750,30 @@ const toggleFullscreen = () => {
 
 const handleFullscreenChange = () => {
   isFullscreen.value = Boolean(document.fullscreenElement)
+  scheduleCockpitScale()
 }
 
 onMounted(() => {
   updateClock()
   clockTimer = setInterval(updateClock, 1000)
   document.addEventListener('fullscreenchange', handleFullscreenChange)
+  window.addEventListener('resize', scheduleCockpitScale)
+  if (window.ResizeObserver && rootRef.value) {
+    resizeObserver = new ResizeObserver(scheduleCockpitScale)
+    resizeObserver.observe(rootRef.value)
+  }
+  scheduleCockpitScale()
   syncCockpitContext()
   loadCockpitData()
-  refreshTimer = setInterval(loadCockpitData, 60000)
+  refreshTimer = setInterval(loadCockpitData, refreshIntervalSeconds * 1000)
 })
 
 onBeforeUnmount(() => {
   if (clockTimer) clearInterval(clockTimer)
   if (refreshTimer) clearInterval(refreshTimer)
+  if (resizeObserver) resizeObserver.disconnect()
+  if (resizeFrame) cancelAnimationFrame(resizeFrame)
+  window.removeEventListener('resize', scheduleCockpitScale)
   document.removeEventListener('fullscreenchange', handleFullscreenChange)
 })
 
@@ -674,13 +801,22 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   --track: rgba(148, 163, 184, 0.18);
   --grid-line: rgba(56, 189, 248, 0.06);
   --scan-color: rgba(56, 189, 248, 0.035);
+  --screen-width: 1600px;
+  --screen-height: 900px;
+  --stage-width: 1600px;
+  --stage-height: 900px;
+  --cockpit-scale: 1;
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  min-width: 0;
+  min-height: min(720px, 100vh);
+  height: 100%;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  padding: 12px;
   color: var(--text1);
   background: var(--bg);
   font-family: "DIN Alternate", "Helvetica Neue", "PingFang SC", sans-serif;
@@ -690,6 +826,20 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   position: fixed;
   inset: 0;
   z-index: 9999;
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.sales-cockpit:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px;
+  background: var(--bg);
 }
 
 .hud-bg {
@@ -713,19 +863,39 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   background: repeating-linear-gradient(0deg, transparent 0, var(--scan-color) 2px, transparent 4px);
 }
 
-.screen-shell {
+.screen-stage {
   position: relative;
   z-index: 2;
-  width: min(100vw, calc(100vh * 16 / 9));
-  height: min(100vh, calc(100vw * 9 / 16));
+  width: var(--stage-width);
+  height: var(--stage-height);
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.screen-shell {
+  position: relative;
+  width: var(--screen-width);
+  height: var(--screen-height);
   aspect-ratio: 16 / 9;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transform: scale(var(--cockpit-scale));
+  transform-origin: top left;
   background:
     linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.96)),
     radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.13), transparent 55%);
   box-shadow: 0 0 44px rgba(14, 165, 233, 0.18);
+}
+
+.screen-shell:fullscreen {
+  width: var(--screen-width);
+  height: var(--screen-height);
+  aspect-ratio: 16 / 9;
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.98)),
+    radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.13), transparent 55%);
 }
 
 .hud-header {
@@ -819,6 +989,10 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   font-weight: 500;
 }
 
+.live-freshness {
+  color: rgba(203, 213, 225, 0.84);
+}
+
 .hdr-right {
   width: 380px;
   justify-content: flex-end;
@@ -875,7 +1049,7 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
 }
 
 .col-left {
-  width: 23%;
+  width: 360px;
   flex-shrink: 0;
 }
 
@@ -885,7 +1059,7 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
 }
 
 .col-right {
-  width: 28%;
+  width: 430px;
   flex-shrink: 0;
 }
 
@@ -1121,6 +1295,10 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
 
 .scrolling {
   animation: scrollUp linear infinite;
+}
+
+.marquee-container:hover .scrolling {
+  animation-play-state: paused;
 }
 
 .event-track {
@@ -1451,11 +1629,44 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
 .action-list {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  padding: 7px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.38) rgba(15, 23, 42, 0.3);
+}
+
+.rank-list::-webkit-scrollbar,
+.alert-list::-webkit-scrollbar,
+.heat-list::-webkit-scrollbar,
+.action-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.rank-list::-webkit-scrollbar-thumb,
+.alert-list::-webkit-scrollbar-thumb,
+.heat-list::-webkit-scrollbar-thumb,
+.action-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.36);
+}
+
+.roll-viewport.is-rolling {
+  overflow: hidden;
+}
+
+.roll-content,
+.roll-track {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  overflow: hidden;
-  padding: 7px;
+}
+
+.roll-content.rolling {
+  animation: rollList var(--roll-duration, 28s) linear infinite;
+}
+
+.roll-viewport:hover .roll-content.rolling {
+  animation-play-state: paused;
 }
 
 .rank-row,
@@ -1512,7 +1723,8 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
 .heat-row em {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .rank-row strong,
@@ -1521,6 +1733,7 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   display: block;
   color: var(--text1);
   font-size: 12px;
+  line-height: 1.35;
 }
 
 .rank-row span,
@@ -1532,6 +1745,7 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   color: var(--text2);
   font-size: 10px;
   font-style: normal;
+  line-height: 1.35;
 }
 
 .rank-row i {
@@ -1540,7 +1754,7 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
 }
 
 .rank-row em {
-  max-width: 76px;
+  width: 86px;
   flex-shrink: 0;
   color: var(--c-green);
   font-size: 12px;
@@ -1602,10 +1816,11 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
 }
 
 .heat-top strong {
-  max-width: 86px;
+  width: 92px;
   flex-shrink: 0;
   color: var(--c-red);
   font-size: 12px;
+  text-align: right;
 }
 
 .heat-track {
@@ -1691,6 +1906,11 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   100% { transform: translateY(-50%); }
 }
 
+@keyframes rollList {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
@@ -1730,6 +1950,20 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   .command-main,
   .center-bottom {
     grid-template-columns: minmax(0, 1fr) 180px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-bg,
+  .pulse-dot,
+  .scrolling,
+  .roll-content.rolling,
+  .blink-dot {
+    animation: none !important;
+  }
+
+  .gauge-fill {
+    transition: none;
   }
 }
 </style>

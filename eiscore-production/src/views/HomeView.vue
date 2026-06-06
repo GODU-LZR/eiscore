@@ -624,6 +624,11 @@ const parseStoredToken = (raw) => {
 const getAuthHeader = () => {
   if (typeof localStorage === 'undefined') return {}
   const token = parseStoredToken(localStorage.getItem('auth_token'))
+  if (token && token.length > 8192) {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user_info')
+    return {}
+  }
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 

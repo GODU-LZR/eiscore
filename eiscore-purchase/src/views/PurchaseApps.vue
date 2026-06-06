@@ -63,7 +63,7 @@ const iconMap = { Box, Memo, Monitor, OfficeBuilding, Tickets }
 const appCounts = reactive({})
 const loadingCounts = reactive({})
 
-const visibleApps = computed(() => PURCHASE_APPS.filter((app) => !app.perm || hasPerm(app.perm)))
+const visibleApps = computed(() => PURCHASE_APPS.filter((app) => app.key !== 'dashboard' && (!app.perm || hasPerm(app.perm))))
 
 const moduleTips = [
   '供应商档案用于维护供应商等级、联系人、付款条件和交期。',

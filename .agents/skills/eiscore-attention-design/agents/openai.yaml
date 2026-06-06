@@ -1,0 +1,4 @@
+interface:
+  display_name: "EISCore Attention Design"
+  short_description: "Productize EISCore frontend pages with attention design."
+  default_prompt: "Use $eiscore-attention-design to identify the page task, build an attention map, implement priority-driven UI focus, and verify the result."

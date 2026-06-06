@@ -759,13 +759,19 @@ const workflowSaveState = ref({})
 const getAuthToken = () => {
   const tokenStr = localStorage.getItem('auth_token')
   if (!tokenStr) return ''
+  let token = tokenStr
   try {
     const parsed = JSON.parse(tokenStr)
-    if (parsed && parsed.token) return parsed.token
+    if (parsed && parsed.token) token = parsed.token
   } catch (e) {
-    return tokenStr
+    token = tokenStr
   }
-  return tokenStr
+  if (token && token.length > 8192) {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user_info')
+    return ''
+  }
+  return token
 }
 
 const parseJwtPayload = (token) => {

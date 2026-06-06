@@ -1,5 +1,10 @@
--- Fix JWT role claim to always use database role "web_user"
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
+-- Fix JWT role claim to always use database role "web_user".
 -- Keep app-level role in app_role for UI authorization.
+-- Keep JWT small: return permissions in the login JSON body instead of
+-- embedding all permission codes in the Authorization header.
 
 create or replace function public.login(username text, password text)
 returns json
@@ -10,7 +15,7 @@ declare
   _app_role text;
   _permissions text[];
   _user_id integer;
-  result json;
+  token_claims json;
   _secret text := 'my_super_secret_key_for_eiscore_system_2025';
 begin
   select u.id
@@ -54,15 +59,20 @@ begin
     where u.id = _user_id;
   end if;
 
-  result := json_build_object(
+  token_claims := json_build_object(
     'role', 'web_user',
     'app_role', _app_role,
     'username', username,
-    'permissions', coalesce(_permissions, ARRAY[]::text[]),
     'exp', extract(epoch from now() + interval '2 hours')::integer
   );
 
-  return json_build_object('token', public.sign(result, _secret));
+  return json_build_object(
+    'token', public.sign(token_claims, _secret),
+    'role', 'web_user',
+    'app_role', _app_role,
+    'username', username,
+    'permissions', coalesce(_permissions, ARRAY[]::text[])
+  );
 end;
 $$;
 

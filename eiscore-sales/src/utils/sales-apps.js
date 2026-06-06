@@ -393,16 +393,6 @@ export const SALES_APPS = [
   }
 ]
 
-export const SALES_DASHBOARD_APP = {
-  key: 'dashboard',
-  name: '销售看板',
-  desc: '销售指标、风险事项、订单回款概览',
-  route: '/dashboard',
-  perm: 'app:sales_dashboard',
-  icon: 'DataAnalysis',
-  tone: 'purple'
-}
-
 export const SALES_COCKPIT_APP = {
   key: 'cockpit',
   name: '销售驾驶舱',

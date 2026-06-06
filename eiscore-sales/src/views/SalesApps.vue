@@ -50,7 +50,7 @@
 import { computed, nextTick, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChatLineSquare, DataAnalysis, DataBoard, Money, Tickets, TrendCharts, User } from '@element-plus/icons-vue'
-import { SALES_APPS, SALES_COCKPIT_APP, SALES_DASHBOARD_APP } from '@/utils/sales-apps'
+import { SALES_APPS } from '@/utils/sales-apps'
 import { hasPerm } from '@/utils/permission'
 import { pushAiContext } from '@/utils/ai-context'
 
@@ -58,8 +58,7 @@ const router = useRouter()
 const iconMap = { ChatLineSquare, DataAnalysis, DataBoard, Money, Tickets, TrendCharts, User }
 
 const visibleApps = computed(() => {
-  const apps = [SALES_COCKPIT_APP, SALES_DASHBOARD_APP, ...SALES_APPS]
-  return apps.filter((app) => !app.perm || hasPerm(app.perm))
+  return SALES_APPS.filter((app) => !app.perm || hasPerm(app.perm))
 })
 
 const buildSalesAppsContext = () => {
@@ -93,7 +92,6 @@ const buildSalesAppsContext = () => {
     },
     moduleTips: [
       '销售驾驶舱用于查看经营指标、销售漏斗、回款进度和风险预警。',
-      '销售看板用于查看销售指标、风险事项、订单回款概览。',
       '客户档案用于维护客户基础资料、信用额度、应收余额和销售负责人。',
       '客户跟进用于维护客户沟通纪要、跟进结果和下次行动计划。',
       '销售商机用于维护客户需求、预计金额、销售阶段和成交概率。',

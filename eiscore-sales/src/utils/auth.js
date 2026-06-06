@@ -19,7 +19,12 @@ export const parseStoredToken = (raw) => {
 
 export const getToken = () => {
   if (typeof localStorage === 'undefined') return ''
-  return parseStoredToken(localStorage.getItem(AUTH_TOKEN_KEY))
+  const token = parseStoredToken(localStorage.getItem(AUTH_TOKEN_KEY))
+  if (token && token.length > 8192) {
+    clearAuthStorage()
+    return ''
+  }
+  return token
 }
 
 export const getAuthHeader = () => {

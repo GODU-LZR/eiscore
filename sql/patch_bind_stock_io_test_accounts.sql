@@ -1,3 +1,6 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (c) 2026 林志荣
+
 -- 绑定出入库流程测试账号（幂等）
 -- 执行方式：
 --   cat sql/patch_bind_stock_io_test_accounts.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
