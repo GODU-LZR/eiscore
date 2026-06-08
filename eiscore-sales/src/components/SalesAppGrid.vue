@@ -31,6 +31,10 @@
         :extra-columns="extraColumns"
         :summary="summaryConfig"
         :acl-module="app.aclModule"
+        :attention-resolver="resolveAttention"
+        :row-action-resolver="resolveRowActions"
+        :row-filter="rowAttentionFilter"
+        :summary-scope="summaryScope"
         :can-create="canCreate"
         :can-edit="canEdit"
         :can-delete="canDelete"
@@ -39,10 +43,21 @@
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
+        @row-action="handleRowAction"
+        @data-load-error="handleDataLoadError"
         @data-loaded="handleDataLoaded"
         @cell-value-changed="handleSalesCellValueChanged"
       >
         <template #toolbar>
+          <el-radio-group v-model="attentionFilter" class="attention-filter">
+            <el-radio-button
+              v-for="option in attentionFilterOptions"
+              :key="option.value"
+              :label="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
           <el-button
             v-if="app.key === 'customers' && canEdit"
             type="primary"
@@ -71,6 +86,16 @@
             @click="openBatchPushFlowDialog"
           >
             下推采购需求
+          </el-button>
+          <el-button
+            v-if="['orders', 'shipment_requests'].includes(app.key) && canCreate"
+            type="warning"
+            plain
+            icon="Promotion"
+            :loading="flowActionLoading"
+            @click="openBatchShipmentFlowDialog"
+          >
+            {{ app.key === 'shipment_requests' ? '下推销售出库' : '下推出货/出库' }}
           </el-button>
           <el-button
             v-if="app.key === 'opportunities' && canCreate"
@@ -434,6 +459,8 @@
           </div>
           <el-radio-group v-model="flowNextStep" size="small">
             <el-radio-button label="purchase_demand">采购需求</el-radio-button>
+            <el-radio-button label="shipment_request">出货申请</el-radio-button>
+            <el-radio-button label="sales_outbound">销售出库</el-radio-button>
           </el-radio-group>
         </div>
         <div class="flow-chain">
@@ -449,7 +476,7 @@
           </div>
         </div>
         <div class="flow-actions">
-          <el-button type="success" :loading="flowActionLoading" @click="pushOrderToPurchaseDemand">
+          <el-button :type="flowConfirmButtonType" :loading="flowActionLoading" @click="confirmSalesFlowPush">
             确认下推并跳转
           </el-button>
           <el-button type="warning" :disabled="!canReverseSalesDemand" :loading="flowActionLoading" @click="reverseSalesDemandLink">
@@ -475,9 +502,9 @@
             <small>批量下推的链路起点</small>
           </div>
           <div class="flow-doc-card">
-            <span>下游采购需求</span>
-            <strong>{{ salesFlowDocs.purchaseDemand?.demand_no || '未生成' }}</strong>
-            <small>{{ salesFlowDocs.purchaseDemand?.demand_status || '可下推生成' }}</small>
+            <span>{{ salesDownstreamLabel }}</span>
+            <strong>{{ salesDownstreamDocNo }}</strong>
+            <small>{{ salesDownstreamStatus }}</small>
           </div>
         </div>
       </div>
@@ -770,7 +797,13 @@ import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
+import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import { findSalesApp, CUSTOMER_COLUMNS } from '@/utils/sales-apps'
+import {
+  buildSalesAttentionSummary,
+  getSalesRecordAttention,
+  matchesSalesAttentionFilter
+} from '@/utils/sales-attention'
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
 
@@ -783,6 +816,8 @@ const router = useRouter()
 const gridRef = ref(null)
 const lastLoadedRows = ref([])
 const lastSearchText = ref('')
+const lastGridLoadState = ref(buildGridLoadState())
+const attentionFilter = ref('all')
 const colConfigVisible = ref(false)
 const detailDrawerVisible = ref(false)
 const selectedDetailRow = ref(null)
@@ -812,6 +847,7 @@ let fieldLabelRetryTimer = null
 let fieldLabelWarned = false
 
 const todayText = () => new Date().toISOString().slice(0, 10)
+const nextDocNo = (prefix) => `${prefix}${Date.now().toString().slice(-8)}${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`
 const addDaysText = (days) => {
   const date = new Date()
   date.setDate(date.getDate() + days)
@@ -829,13 +865,18 @@ const DOC_TYPES = Object.freeze({
   PURCHASE_DEMAND: 'purchase_demand',
   PURCHASE_ORDER: 'purchase_order',
   PURCHASE_ARRIVAL: 'purchase_arrival',
-  INVENTORY_INBOUND: 'inventory_inbound'
+  INVENTORY_INBOUND: 'inventory_inbound',
+  SALES_SHIPMENT: 'sales_shipment',
+  INVENTORY_OUTBOUND: 'inventory_outbound'
 })
 const RELATION_TYPES = Object.freeze({
   SALES_TO_PURCHASE_DEMAND: 'sales_to_purchase_demand',
   DEMAND_TO_ORDER: 'demand_to_order',
   ORDER_TO_ARRIVAL: 'order_to_arrival',
-  ARRIVAL_TO_INBOUND: 'arrival_to_inbound'
+  ARRIVAL_TO_INBOUND: 'arrival_to_inbound',
+  SALES_TO_SHIPMENT_REQUEST: 'sales_to_shipment_request',
+  SHIPMENT_REQUEST_TO_SALES_OUTBOUND: 'shipment_request_to_sales_outbound',
+  SALES_TO_OUTBOUND: 'sales_to_outbound'
 })
 
 const orderForm = reactive({
@@ -904,6 +945,56 @@ const canEdit = computed(() => hasPerm(opPerms.value.edit))
 const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
 const canConfig = computed(() => hasPerm(opPerms.value.config))
+const attentionRows = computed(() => lastLoadedRows.value)
+const attentionSummary = computed(() => buildSalesAttentionSummary(app.value?.key, attentionRows.value))
+const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesSalesAttentionFilter(app.value?.key, row, 'todo')).length)
+const attentionFilterOptions = computed(() => [
+  { value: 'all', label: `全部 ${attentionSummary.value.total}` },
+  { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical}` },
+  { value: 'warning', label: `预警 ${attentionSummary.value.counts.warning}` },
+  { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus}` },
+  { value: 'todo', label: `待处理 ${attentionTodoCount.value}` }
+])
+const resolveAttention = (row) => getSalesRecordAttention(app.value?.key, row, {
+  role: 'sales',
+  page: app.value?.key,
+  device: 'desktop',
+  task: 'monitor'
+})
+const rowAttentionFilter = (row) => matchesSalesAttentionFilter(app.value?.key, row, attentionFilter.value)
+const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
+const resolveRowActions = (row) => {
+  if (!row) return []
+  if (app.value.key === 'customers') {
+    const actions = []
+    if (canCreate.value) {
+      actions.push({ key: 'create-order', label: '建订单', type: 'success', icon: 'Tickets' })
+      actions.push({ key: 'create-follow', label: '跟进', type: 'primary', icon: 'ChatLineSquare' })
+      actions.push({ key: 'create-opportunity', label: '商机', type: 'primary', icon: 'TrendCharts' })
+    }
+    return actions
+  }
+  if (app.value.key === 'orders') {
+    const actions = []
+    if (canCreate.value) {
+      actions.push({ key: 'create-payment', label: '回款', type: 'warning', icon: 'Money' })
+      actions.push({ key: 'push-purchase', label: '采购', type: 'success', icon: 'Position' })
+      actions.push({ key: 'push-shipment', label: '出货', type: 'warning', icon: 'Promotion' })
+    }
+    return actions
+  }
+  if (app.value.key === 'shipment_requests') {
+    return canCreate.value
+      ? [{ key: 'push-outbound', label: '出库', type: 'warning', icon: 'Promotion' }]
+      : []
+  }
+  if (app.value.key === 'opportunities') {
+    return canCreate.value
+      ? [{ key: 'create-order', label: '转订单', type: 'success', icon: 'Tickets' }]
+      : []
+  }
+  return []
+}
 const quickDialogTitle = computed(() => {
   if (quickMode.value === 'order') return '从客户新建销售订单'
   if (quickMode.value === 'payment') return '登记销售回款'
@@ -955,8 +1046,28 @@ const salesFlowNodes = computed(() => {
     { key: 'pr', type: '采购需求', docNo: docs.purchaseDemand?.demand_no, status: docs.purchaseDemand?.demand_status },
     { key: 'po', type: '采购订单', docNo: docs.purchaseOrder?.order_no, status: docs.purchaseOrder?.order_status },
     { key: 'pa', type: '到货/检验', docNo: docs.purchaseArrival?.arrival_no, status: docs.purchaseArrival?.arrival_status },
-    { key: 'in', type: '采购入库', docNo: docs.inventoryInbound?.inbound_no || docs.inventoryInbound?.docNo, status: docs.inventoryInbound?.status }
+    { key: 'in', type: '采购入库', docNo: docs.inventoryInbound?.inbound_no || docs.inventoryInbound?.docNo, status: docs.inventoryInbound?.status },
+    { key: 'ship', type: '出货申请', docNo: docs.salesShipment?.shipment_no || docs.salesShipment?.docNo, status: docs.salesShipment?.status },
+    { key: 'out', type: '销售出库', docNo: docs.salesOutbound?.outbound_no || docs.salesOutbound?.docNo, status: docs.salesOutbound?.status }
   ]
+})
+const flowConfirmButtonType = computed(() => (flowNextStep.value === 'purchase_demand' ? 'success' : 'warning'))
+const salesDownstreamLabel = computed(() => {
+  if (flowNextStep.value === 'shipment_request') return '下游出货申请'
+  if (flowNextStep.value === 'sales_outbound') return '下游销售出库'
+  return '下游采购需求'
+})
+const salesDownstreamDocNo = computed(() => {
+  const docs = salesFlowDocs.value || {}
+  if (flowNextStep.value === 'shipment_request') return docs.salesShipment?.shipment_no || docs.salesShipment?.docNo || '未生成'
+  if (flowNextStep.value === 'sales_outbound') return docs.salesOutbound?.outbound_no || docs.salesOutbound?.docNo || '未生成'
+  return docs.purchaseDemand?.demand_no || '未生成'
+})
+const salesDownstreamStatus = computed(() => {
+  const docs = salesFlowDocs.value || {}
+  if (flowNextStep.value === 'shipment_request') return docs.salesShipment?.status || '可下推生成'
+  if (flowNextStep.value === 'sales_outbound') return docs.salesOutbound?.status || '可生成出库链路'
+  return docs.purchaseDemand?.demand_status || '可下推生成'
 })
 const canReverseSalesDemand = computed(() => {
   return flowSelectedRows.value.length === 1
@@ -1315,16 +1426,34 @@ const saveStaticColumnsConfig = async () => {
 }
 
 const handleDataLoaded = (payload) => {
-  const rows = Array.isArray(payload?.rows) ? payload.rows : []
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
   lastLoadedRows.value = rows.filter(isRowActive)
   lastSearchText.value = payload?.searchText || ''
-  syncAiContext(lastLoadedRows.value, { searchText: lastSearchText.value })
+  lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
+  syncAiContext(visibleRows.filter(isRowActive), { searchText: lastSearchText.value })
+}
+
+const handleDataLoadError = () => {
+  lastLoadedRows.value = []
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], { searchText: lastSearchText.value })
 }
 
 const handleSalesCellValueChanged = (params) => {
   const row = params?.data || params?.node?.data
   const field = params?.colDef?.field || ''
   if (!row) return
+  if (row?.id) {
+    const index = lastLoadedRows.value.findIndex((item) => String(item?.id) === String(row.id))
+    if (index >= 0) {
+      const next = [...lastLoadedRows.value]
+      next.splice(index, 1, row)
+      lastLoadedRows.value = next
+    }
+  }
   if (app.value.key === 'orders') {
     if (['quantity', 'unit_price', 'total_amount', 'order_status', 'customer_id', 'customer_name'].includes(field)) {
       setTimeout(() => syncCustomerReceivableFromRow(row), 350)
@@ -1976,6 +2105,16 @@ const resetBusinessFlowDialog = () => {
   flowActionLoading.value = false
 }
 
+const findActiveDocumentLink = async ({ sourceType, sourceId, sourceNo, relationType }) => {
+  const rows = await request({
+    url: `/document_links?${activeLinkQuery(sourceType, sourceId, sourceNo)}&relation_type=eq.${safeEq(relationType)}&select=*&limit=1`,
+    method: 'get',
+    headers: { 'Accept-Profile': 'public' },
+    silentError: true
+  }).catch(() => [])
+  return Array.isArray(rows) && rows.length ? rows[0] : null
+}
+
 const loadSalesBusinessFlow = async (sourceOrder = null) => {
   const order = sourceOrder || flowPrimaryOrder.value
   if (!order?.id && !order?.order_no) return
@@ -1987,21 +2126,29 @@ const loadSalesBusinessFlow = async (sourceOrder = null) => {
       headers: { 'Accept-Profile': 'public' },
       silentError: true
     }).catch(() => [])
-    const firstSalesDemandLink = Array.isArray(salesDemandLinks) ? salesDemandLinks[0] : null
+    const purchaseDemandLinks = Array.isArray(salesDemandLinks)
+      ? salesDemandLinks.filter((link) => link.relation_type === RELATION_TYPES.SALES_TO_PURCHASE_DEMAND)
+      : []
+    const firstSalesDemandLink = purchaseDemandLinks[0] || null
     const demands = await loadRowsByIdsOrNos({
       table: 'purchase_demands',
       noField: 'demand_no',
-      ids: (salesDemandLinks || []).map((link) => link.target_doc_id),
-      nos: (salesDemandLinks || []).map((link) => link.target_doc_no)
+      ids: purchaseDemandLinks.map((link) => link.target_doc_id),
+      nos: purchaseDemandLinks.map((link) => link.target_doc_no)
     })
     const purchaseDemand = pickFirstByLinkTarget(demands, firstSalesDemandLink, 'demand_no')
 
     let purchaseOrder = null
     let purchaseArrival = null
     let inventoryInbound = null
+    let salesShipment = null
+    let salesOutbound = null
     let demandOrderLinks = []
     let orderArrivalLinks = []
     let arrivalInboundLinks = []
+    let salesShipmentLinks = []
+    let shipmentOutboundLinks = []
+    let directOutboundLinks = []
 
     if (purchaseDemand) {
       demandOrderLinks = await request({
@@ -2053,12 +2200,57 @@ const loadSalesBusinessFlow = async (sourceOrder = null) => {
       }
     }
 
-    salesFlowDocs.value = { purchaseDemand, purchaseOrder, purchaseArrival, inventoryInbound }
+    salesShipmentLinks = Array.isArray(salesDemandLinks)
+      ? salesDemandLinks.filter((link) => link.relation_type === RELATION_TYPES.SALES_TO_SHIPMENT_REQUEST)
+      : []
+    const shipmentLink = salesShipmentLinks[0]
+    if (shipmentLink) {
+      salesShipment = {
+        id: shipmentLink.target_doc_id,
+        shipment_no: shipmentLink.target_doc_no,
+        docNo: shipmentLink.target_doc_no,
+        status: shipmentLink.payload?.status || '待仓储确认',
+        payload: shipmentLink.payload || {}
+      }
+      shipmentOutboundLinks = await request({
+        url: `/document_links?${activeLinkQuery(DOC_TYPES.SALES_SHIPMENT, shipmentLink.target_doc_id, shipmentLink.target_doc_no)}&select=*`,
+        method: 'get',
+        headers: { 'Accept-Profile': 'public' },
+        silentError: true
+      }).catch(() => [])
+      const outboundLink = Array.isArray(shipmentOutboundLinks)
+        ? shipmentOutboundLinks.find((link) => link.relation_type === RELATION_TYPES.SHIPMENT_REQUEST_TO_SALES_OUTBOUND)
+        : null
+      if (outboundLink) {
+        salesOutbound = {
+          id: outboundLink.target_doc_id,
+          outbound_no: outboundLink.target_doc_no,
+          docNo: outboundLink.target_doc_no,
+          status: outboundLink.payload?.status || '待仓储补录'
+        }
+      }
+    }
+    directOutboundLinks = Array.isArray(salesDemandLinks)
+      ? salesDemandLinks.filter((link) => link.relation_type === RELATION_TYPES.SALES_TO_OUTBOUND)
+      : []
+    if (!salesOutbound && directOutboundLinks[0]) {
+      salesOutbound = {
+        id: directOutboundLinks[0].target_doc_id,
+        outbound_no: directOutboundLinks[0].target_doc_no,
+        docNo: directOutboundLinks[0].target_doc_no,
+        status: directOutboundLinks[0].payload?.status || '待仓储补录'
+      }
+    }
+
+    salesFlowDocs.value = { purchaseDemand, purchaseOrder, purchaseArrival, inventoryInbound, salesShipment, salesOutbound }
     salesFlowRelationLinks.value = [
       ...(salesDemandLinks || []),
       ...(demandOrderLinks || []),
       ...(orderArrivalLinks || []),
-      ...(arrivalInboundLinks || [])
+      ...(arrivalInboundLinks || []),
+      ...(salesShipmentLinks || []),
+      ...(shipmentOutboundLinks || []),
+      ...(directOutboundLinks || [])
     ]
   } catch (e) {
     console.warn('load sales business flow failed', e)
@@ -2094,6 +2286,38 @@ const openBatchPushFlowDialog = async () => {
   flowSelectedRows.value = rows
   businessFlowVisible.value = true
   await loadSalesBusinessFlow(rows[0])
+}
+
+const openBatchShipmentFlowDialog = async () => {
+  const rows = getSelectedSalesOrders()
+  if (!rows.length) {
+    ElMessage.warning('请先在表格中选择要下推出货的销售订单')
+    return
+  }
+  const invalidRows = rows.filter((row) => !isOrderActive(row))
+  if (invalidRows.length) {
+    ElMessage.warning('已取消或已删除的销售订单不能下推出货')
+    return
+  }
+  flowSelectedRows.value = rows
+  flowNextStep.value = app.value.key === 'shipment_requests' ? 'sales_outbound' : 'shipment_request'
+  businessFlowVisible.value = true
+  await loadSalesBusinessFlow(rows[0])
+}
+
+const openSalesFlowDialogForRow = async (row, nextStep = 'purchase_demand') => {
+  if (!row?.id && !row?.order_no) {
+    ElMessage.warning('该销售订单缺少业务编号，不能下推')
+    return
+  }
+  if (!isOrderActive(row)) {
+    ElMessage.warning('已取消或已删除的销售订单不能下推')
+    return
+  }
+  flowSelectedRows.value = [row]
+  flowNextStep.value = nextStep
+  businessFlowVisible.value = true
+  await loadSalesBusinessFlow(row)
 }
 
 const createDocumentLink = async ({ source, target, relationType, quantity = null, amount = null, payload = {} }) => {
@@ -2327,6 +2551,183 @@ const findExistingPurchaseDemandForOrder = async (order) => {
   return pickFirstByLinkTarget(demands, demandLink, 'demand_no')
 }
 
+const getSalesOrderSourceDoc = (order) => ({
+  docType: DOC_TYPES.SALES_ORDER,
+  docId: order?.id || null,
+  docNo: order?.order_no || ''
+})
+
+const findExistingShipmentForOrder = async (order) => {
+  const link = await findActiveDocumentLink({
+    sourceType: DOC_TYPES.SALES_ORDER,
+    sourceId: order.id,
+    sourceNo: order.order_no,
+    relationType: RELATION_TYPES.SALES_TO_SHIPMENT_REQUEST
+  })
+  if (!link) return null
+  return {
+    id: link.target_doc_id,
+    shipment_no: link.target_doc_no,
+    docNo: link.target_doc_no,
+    status: link.payload?.status || '待仓储确认',
+    payload: link.payload || {}
+  }
+}
+
+const findExistingOutboundForOrder = async (order, shipment = null) => {
+  if (shipment?.id || shipment?.shipment_no || shipment?.docNo) {
+    const shipmentLink = await findActiveDocumentLink({
+      sourceType: DOC_TYPES.SALES_SHIPMENT,
+      sourceId: shipment.id,
+      sourceNo: shipment.shipment_no || shipment.docNo,
+      relationType: RELATION_TYPES.SHIPMENT_REQUEST_TO_SALES_OUTBOUND
+    })
+    if (shipmentLink) {
+      return {
+        id: shipmentLink.target_doc_id,
+        outbound_no: shipmentLink.target_doc_no,
+        docNo: shipmentLink.target_doc_no,
+        status: shipmentLink.payload?.status || '待仓储补录'
+      }
+    }
+  }
+  const directLink = await findActiveDocumentLink({
+    sourceType: DOC_TYPES.SALES_ORDER,
+    sourceId: order.id,
+    sourceNo: order.order_no,
+    relationType: RELATION_TYPES.SALES_TO_OUTBOUND
+  })
+  if (!directLink) return null
+  return {
+    id: directLink.target_doc_id,
+    outbound_no: directLink.target_doc_no,
+    docNo: directLink.target_doc_no,
+    status: directLink.payload?.status || '待仓储补录'
+  }
+}
+
+const patchSalesOrderProperties = async (order, nextProperties, nextStatus = null) => {
+  const data = {
+    properties: {
+      ...(order.properties || {}),
+      ...nextProperties
+    }
+  }
+  if (nextStatus) data.order_status = nextStatus
+  await request({
+    url: `/sales_orders?id=eq.${safeEq(order.id)}`,
+    method: 'patch',
+    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+    data,
+    silentError: true
+  }).catch(() => null)
+}
+
+const pushSingleOrderToShipmentRequest = async (order) => {
+  if (!order?.id) throw new Error('销售订单缺少主键，不能下推出货申请')
+  if (!isOrderActive(order)) throw new Error(`销售订单 ${order.order_no || order.id} 已取消或已删除`)
+  const existingShipment = await findExistingShipmentForOrder(order)
+  if (existingShipment) return { skipped: true, shipment: existingShipment }
+  const quantity = toAmount(order.quantity)
+  if (quantity <= 0) throw new Error(`销售订单 ${order.order_no || order.id} 数量必须大于 0`)
+  const shipmentNo = nextDocNo('SHIP')
+  const sourceDoc = getSalesOrderSourceDoc(order)
+  const targetDoc = { docType: DOC_TYPES.SALES_SHIPMENT, docId: null, docNo: shipmentNo }
+  await createDocumentLink({
+    source: sourceDoc,
+    target: targetDoc,
+    relationType: RELATION_TYPES.SALES_TO_SHIPMENT_REQUEST,
+    quantity,
+    amount: toAmount(order.total_amount),
+    payload: {
+      status: '待仓储确认',
+      customer_name: order.customer_name || '',
+      product_name: order.product_name || '',
+      product_material_id: order.product_material_id || order.properties?.product_material_id || null,
+      product_material_code: order.properties?.product_material_code || '',
+      unit: order.unit || '',
+      delivery_date: order.delivery_date || null
+    }
+  })
+  await writeDocumentAudit({
+    actionType: 'push_sales_order_to_shipment_request',
+    source: sourceDoc,
+    target: targetDoc,
+    payload: { quantity, customer_name: order.customer_name || '', product_name: order.product_name || '' }
+  })
+  await patchSalesOrderProperties(order, {
+    shipment_no: shipmentNo,
+    shipment_status: '待仓储确认',
+    shipment_pushed_at: new Date().toISOString(),
+    workflow_status: 'running',
+    workflow_key: 'sales_to_shipment_outbound'
+  })
+  return { skipped: false, shipment: { shipment_no: shipmentNo, status: '待仓储确认' } }
+}
+
+const pushSingleOrderToSalesOutbound = async (order) => {
+  if (!order?.id) throw new Error('销售订单缺少主键，不能下推销售出库')
+  if (!isOrderActive(order)) throw new Error(`销售订单 ${order.order_no || order.id} 已取消或已删除`)
+  const shipmentResult = await pushSingleOrderToShipmentRequest(order)
+  const shipment = shipmentResult.shipment
+  const existingOutbound = await findExistingOutboundForOrder(order, shipment)
+  if (existingOutbound) return { skipped: true, outbound: existingOutbound }
+  const quantity = toAmount(order.quantity)
+  if (quantity <= 0) throw new Error(`销售订单 ${order.order_no || order.id} 数量必须大于 0`)
+  const outboundNo = nextDocNo('SOUT')
+  const sourceDoc = {
+    docType: DOC_TYPES.SALES_SHIPMENT,
+    docId: shipment?.id || null,
+    docNo: shipment?.shipment_no || shipment?.docNo || ''
+  }
+  const targetDoc = { docType: DOC_TYPES.INVENTORY_OUTBOUND, docId: null, docNo: outboundNo }
+  await createDocumentLink({
+    source: sourceDoc,
+    target: targetDoc,
+    relationType: RELATION_TYPES.SHIPMENT_REQUEST_TO_SALES_OUTBOUND,
+    quantity,
+    amount: toAmount(order.total_amount),
+    payload: {
+      status: '待仓储补录',
+      io_type: '销售出库',
+      sales_order_id: order.id,
+      sales_order_no: order.order_no || '',
+      customer_name: order.customer_name || '',
+      product_name: order.product_name || '',
+      product_material_id: order.product_material_id || order.properties?.product_material_id || null,
+      product_material_code: order.properties?.product_material_code || '',
+      unit: order.unit || ''
+    }
+  })
+  await createDocumentLink({
+    source: getSalesOrderSourceDoc(order),
+    target: targetDoc,
+    relationType: RELATION_TYPES.SALES_TO_OUTBOUND,
+    quantity,
+    amount: toAmount(order.total_amount),
+    payload: {
+      status: '待仓储补录',
+      io_type: '销售出库',
+      shipment_no: shipment?.shipment_no || shipment?.docNo || ''
+    }
+  })
+  await writeDocumentAudit({
+    actionType: 'push_sales_order_to_sales_outbound',
+    source: getSalesOrderSourceDoc(order),
+    target: targetDoc,
+    payload: { quantity, io_type: '销售出库', customer_name: order.customer_name || '', product_name: order.product_name || '' }
+  })
+  await patchSalesOrderProperties(order, {
+    shipment_no: shipment?.shipment_no || shipment?.docNo || '',
+    sales_outbound_no: outboundNo,
+    sales_outbound_status: '待仓储补录',
+    sales_outbound_pushed_at: new Date().toISOString(),
+    workflow_status: 'running',
+    workflow_key: 'sales_to_shipment_outbound'
+  }, order.order_status === '草稿' ? '已确认' : null)
+  return { skipped: false, outbound: { outbound_no: outboundNo, status: '待仓储补录' } }
+}
+
 const pushSingleOrderToPurchaseDemand = async (order) => {
   if (!order?.id) throw new Error('销售订单缺少主键，不能下推')
   if (!isOrderActive(order)) throw new Error(`销售订单 ${order.order_no || order.id} 已取消或已删除`)
@@ -2408,6 +2809,14 @@ const jumpToPurchaseDemandPage = () => {
   window.location.href = '/purchase/app/demands'
 }
 
+const jumpToShipmentPage = () => {
+  window.location.href = '/sales/app/shipment_requests'
+}
+
+const jumpToSalesOutboundPage = () => {
+  window.location.href = '/materials/inventory-stock-out?ioType=销售出库'
+}
+
 const pushOrderToPurchaseDemand = async () => {
   if (flowNextStep.value !== 'purchase_demand') {
     ElMessage.warning('请选择要下推的下一流程')
@@ -2447,6 +2856,90 @@ const pushOrderToPurchaseDemand = async () => {
   } finally {
     flowActionLoading.value = false
   }
+}
+
+const pushOrdersToShipmentRequest = async () => {
+  if (flowNextStep.value !== 'shipment_request') {
+    ElMessage.warning('请选择要下推的下一流程')
+    return
+  }
+  const rows = flowSelectedRows.value.length ? flowSelectedRows.value : getSelectedSalesOrders()
+  if (!rows.length) {
+    ElMessage.warning('请先在表格中选择要下推的销售订单')
+    return
+  }
+  flowActionLoading.value = true
+  let createdCount = 0
+  let skippedCount = 0
+  const errors = []
+  try {
+    for (const row of rows) {
+      try {
+        const result = await pushSingleOrderToShipmentRequest(row)
+        if (result.skipped) skippedCount += 1
+        else createdCount += 1
+      } catch (error) {
+        errors.push(getErrorMessage(error, `销售订单 ${row.order_no || row.id} 下推失败`))
+      }
+    }
+    await gridRef.value?.loadData?.()
+    if (flowPrimaryOrder.value) await loadSalesBusinessFlow(flowPrimaryOrder.value)
+    if (errors.length) {
+      ElMessage.warning(`下推完成 ${createdCount} 单，跳过 ${skippedCount} 单，失败 ${errors.length} 单`)
+      console.warn('batch push sales shipments failed', errors)
+      return
+    }
+    ElMessage.success(`已下推出货申请 ${createdCount} 单，跳过 ${skippedCount} 单`)
+    businessFlowVisible.value = false
+    jumpToShipmentPage()
+  } finally {
+    flowActionLoading.value = false
+  }
+}
+
+const pushOrdersToSalesOutbound = async () => {
+  if (flowNextStep.value !== 'sales_outbound') {
+    ElMessage.warning('请选择要下推的下一流程')
+    return
+  }
+  const rows = flowSelectedRows.value.length ? flowSelectedRows.value : getSelectedSalesOrders()
+  if (!rows.length) {
+    ElMessage.warning('请先在表格中选择要下推的销售订单')
+    return
+  }
+  flowActionLoading.value = true
+  let createdCount = 0
+  let skippedCount = 0
+  const errors = []
+  try {
+    for (const row of rows) {
+      try {
+        const result = await pushSingleOrderToSalesOutbound(row)
+        if (result.skipped) skippedCount += 1
+        else createdCount += 1
+      } catch (error) {
+        errors.push(getErrorMessage(error, `销售订单 ${row.order_no || row.id} 下推失败`))
+      }
+    }
+    await gridRef.value?.loadData?.()
+    if (flowPrimaryOrder.value) await loadSalesBusinessFlow(flowPrimaryOrder.value)
+    if (errors.length) {
+      ElMessage.warning(`下推完成 ${createdCount} 单，跳过 ${skippedCount} 单，失败 ${errors.length} 单`)
+      console.warn('batch push sales outbound failed', errors)
+      return
+    }
+    ElMessage.success(`已生成销售出库链路 ${createdCount} 单，跳过 ${skippedCount} 单`)
+    businessFlowVisible.value = false
+    jumpToSalesOutboundPage()
+  } finally {
+    flowActionLoading.value = false
+  }
+}
+
+const confirmSalesFlowPush = () => {
+  if (flowNextStep.value === 'shipment_request') return pushOrdersToShipmentRequest()
+  if (flowNextStep.value === 'sales_outbound') return pushOrdersToSalesOutbound()
+  return pushOrderToPurchaseDemand()
 }
 
 const reverseSalesDemandLink = async () => {
@@ -2830,15 +3323,25 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     cascaderOptions: col.cascaderOptions || null,
     expression: col.expression || ''
   }))
-  const dataStats = buildDataStats(rows)
+  const dataStats = enrichLoadedDataStats(buildDataStats(rows), lastGridLoadState.value, rows)
   const dataSample = buildDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
   const importMeta = buildImportMeta()
+  const apiUrl = app.value.writeUrl || normalizeApiBaseUrl(app.value.apiUrl)
+  const dataScope = (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
+  const importTarget = {
+    apiUrl,
+    profile: 'public',
+    viewId: app.value.viewId,
+    requiredFields: importMeta.importRequiredFields || [],
+    defaults: importMeta.importDefaults || {},
+    generatedFields: importMeta.importGeneratedFields || []
+  }
   pushAiContext({
     app: 'sales',
     view: app.value.key,
     viewId: app.value.viewId,
-    apiUrl: app.value.writeUrl || normalizeApiBaseUrl(app.value.apiUrl),
+    apiUrl,
     profile: 'public',
     columns,
     staticColumns: allStaticColumns,
@@ -2849,21 +3352,34 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     dataStats,
     dataSample,
     aiQuickActions: buildAiQuickActions(),
-    dataScope: (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据',
+    dataScope,
     searchText: overrides.searchText ?? lastSearchText.value ?? '',
+    gridAgent: buildGridAgentContext({
+      app: 'sales',
+      view: app.value.key,
+      viewId: app.value.viewId,
+      apiUrl,
+      writeUrl: apiUrl,
+      profile: 'public',
+      contentProfile: 'public',
+      defaultOrder: app.value.defaultOrder || 'id.desc',
+      columns,
+      staticColumns: allStaticColumns,
+      extraColumns: extraColumns.value,
+      summaryConfig: summaryConfig.value,
+      searchText: overrides.searchText ?? lastSearchText.value ?? '',
+      dataScope,
+      loadState: lastGridLoadState.value,
+      allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
+      importTarget,
+      summaryScope: summaryScope.value
+    }),
     aiScene: overrides.aiScene || 'grid_chat',
     allowFormula: !!overrides.allowFormula,
     allowFormulaOnce: !!overrides.allowFormulaOnce,
     allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
     ...importMeta,
-    importTarget: {
-      apiUrl: app.value.writeUrl || normalizeApiBaseUrl(app.value.apiUrl),
-      profile: 'public',
-      viewId: app.value.viewId,
-      requiredFields: importMeta.importRequiredFields || [],
-      defaults: importMeta.importDefaults || {},
-      generatedFields: importMeta.importGeneratedFields || []
-    }
+    importTarget
   })
 }
 
@@ -3058,6 +3574,37 @@ const handleViewDocument = (row) => {
   detailDrawerVisible.value = true
   loadDetailRelations(row)
   syncAiContext(lastLoadedRows.value, { aiScene: 'record_detail', allowImport: false })
+}
+
+const handleRowAction = ({ action, row }) => {
+  if (!action || action.disabled || !row) return
+  if (action.key === 'create-order') {
+    openOrderDialog(row)
+    return
+  }
+  if (action.key === 'create-follow') {
+    openFollowDialog(row)
+    return
+  }
+  if (action.key === 'create-opportunity') {
+    openOpportunityDialog(row)
+    return
+  }
+  if (action.key === 'create-payment') {
+    openPaymentDialog(row)
+    return
+  }
+  if (action.key === 'push-purchase') {
+    openSalesFlowDialogForRow(row, 'purchase_demand')
+    return
+  }
+  if (action.key === 'push-shipment') {
+    openSalesFlowDialogForRow(row, 'shipment_request')
+    return
+  }
+  if (action.key === 'push-outbound') {
+    openSalesFlowDialogForRow(row, 'sales_outbound')
+  }
 }
 
 const openDetailAssistant = () => {
@@ -3417,6 +3964,10 @@ watch(() => paymentForm.amount, (amount) => {
   const totalAfterPayment = selectedQuickOrderPaidAmount.value + toAmount(amount)
   paymentForm.verify_status = totalAfterPayment >= toAmount(order.total_amount) ? '已核销' : '部分核销'
 })
+
+watch(attentionFilter, () => {
+  gridRef.value?.loadData?.()
+})
  
 onMounted(() => {
   loadStaticColumnsConfig().then(loadColumnsConfig)
@@ -3497,6 +4048,18 @@ onUnmounted(() => {
   margin: 0;
   font-size: 12px;
   color: #909399;
+}
+
+.attention-filter {
+  flex: 0 0 auto;
+}
+
+.attention-filter :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  line-height: 1;
 }
 
 .grid-card {

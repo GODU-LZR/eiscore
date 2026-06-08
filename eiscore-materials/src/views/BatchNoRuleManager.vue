@@ -1,6 +1,14 @@
 <template>
-  <div class="batch-rule-manager">
-    <el-card class="rule-list" shadow="never">
+  <div class="batch-rule-manager app-container">
+    <div class="app-header">
+      <div class="header-text">
+        <h2>批次号规则</h2>
+        <p>配置物料批次号生成规则</p>
+      </div>
+      <el-button type="primary" plain @click="goApps">返回应用列表</el-button>
+    </div>
+
+    <div class="rule-list">
       <AppCenterGrid
         ref="gridRef"
         :app-data="appData"
@@ -8,7 +16,7 @@
         create-mode="dialog"
         @create="openCreateDialog"
       />
-    </el-card>
+    </div>
 
     <el-dialog
       v-model="createVisible"
@@ -79,11 +87,13 @@
 // Copyright (c) 2026 林志荣
 
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import AppCenterGrid from '@/components/AppCenterGrid.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 
+const router = useRouter()
 const gridRef = ref(null)
 const createVisible = ref(false)
 const saving = ref(false)
@@ -98,6 +108,10 @@ const createForm = ref({
   status: '启用',
   description: ''
 })
+
+const goApps = () => {
+  router.push('/apps')
+}
 const appData = computed(() => ({
   name: '批次号规则配置',
   desc: '配置物料批次号生成规则',
@@ -280,55 +294,76 @@ const submitCreate = async () => {
 </style>
 
 <style scoped>
-.batch-rule-manager {
-  height: 100%;
-  width: 100%;
+.app-container {
+  height: 100vh;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px;
+  padding: 20px;
   box-sizing: border-box;
   background: #f5f7fb;
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.header-text h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.header-text p {
+  margin: 0;
+  font-size: 12px;
+  color: #909399;
 }
 
 .rule-list {
-  border-radius: 12px;
-  background: #ffffff;
   flex: 1;
-  min-height: 320px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.rule-list :deep(.el-card__body) {
-  flex: 1;
-  display: flex;
-  padding: 0;
 }
 
 .rule-list :deep(.app-container) {
   flex: 1;
-  min-height: 360px;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.rule-list :deep(.app-header) {
+  display: none;
 }
 
 .rule-list :deep(.grid-card) {
   flex: 1;
-  min-height: 360px;
+  min-height: 0;
 }
 
 .rule-list :deep(.eis-grid-wrapper) {
   height: 100%;
-  min-height: 360px;
+  min-height: 0;
 }
 
 .rule-list :deep(.eis-grid-container) {
-  min-height: 560px;
-  height: 680px;
+  flex: 1;
+  min-height: 0;
 }
 
+.rule-list :deep(.ag-theme-alpine),
 .rule-list :deep(.ag-root-wrapper),
 .rule-list :deep(.ag-root-wrapper-body),
 .rule-list :deep(.ag-root) {
-  min-height: 560px;
+  height: 100%;
+  min-height: 480px;
 }
 </style>

@@ -140,6 +140,17 @@ const manualAttention = (appKey, row, level) => {
   })
 }
 
+const hasLinkedWorkOrder = (row = {}) => {
+  return Boolean(
+    row?.properties?.work_order_no ||
+    row?.properties?.work_order_id ||
+    row?.properties?.issue_no ||
+    row?.properties?.issue_id ||
+    row?.work_order_no ||
+    row?.issue_no
+  )
+}
+
 function assetAttention(row) {
   const candidates = []
   const health = numberValue(row.health_score)
@@ -178,11 +189,21 @@ function assetAttention(row) {
 
 function checkAttention(row) {
   const abnormal = numberValue(row.abnormal_count)
+  const linkedWorkOrder = hasLinkedWorkOrder(row)
   const candidates = []
-  if (row.check_result === '停机') {
+  if (row.check_result === '停机' && linkedWorkOrder) {
+    candidates.push({ score: 78, level: 'warning', reason: '停机点检已生成工单', action: '跟踪工单' })
+  } else if (row.check_result === '停机') {
     candidates.push({ score: 95, level: 'critical', reason: '点检结果触发停机', action: '转异常工单' })
   }
-  if (row.check_result === '异常' || abnormal > 0) {
+  if ((row.check_result === '异常' || abnormal > 0) && linkedWorkOrder) {
+    candidates.push({
+      score: abnormal >= 2 ? 72 : 62,
+      level: abnormal >= 2 ? 'warning' : 'focus',
+      reason: abnormal > 0 ? `${abnormal} 个异常项已生成工单` : '点检异常已生成工单',
+      action: '跟踪工单'
+    })
+  } else if (row.check_result === '异常' || abnormal > 0) {
     candidates.push({
       score: abnormal >= 2 ? 80 : 72,
       level: 'warning',

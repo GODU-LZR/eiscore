@@ -148,6 +148,17 @@ export const PRODUCTION_APPS = [
     aclModule: 'mms_bom'
   },
   {
+    key: 'process_templates',
+    name: '工艺模板',
+    desc: '以产品配方工作台承载当前工艺与配方维护入口',
+    route: '/bom',
+    perm: 'app:mms_bom',
+    icon: 'Connection',
+    tone: 'slate',
+    appType: 'bom',
+    aclModule: 'mms_bom'
+  },
+  {
     key: 'bom_list',
     name: '配方清单',
     desc: '用表格快速查看和维护产品配方主信息',
@@ -242,6 +253,24 @@ export const PRODUCTION_APPS = [
       export: 'op:production_work_order.export',
       config: 'op:production_work_order.edit'
     }
+  },
+  {
+    key: 'work_reports',
+    name: '订单/工单报工',
+    desc: '通过生产工单跟进生产进度、状态和完工信息',
+    route: '/app/work_orders',
+    perm: 'app:production_work_order',
+    icon: 'Tickets',
+    tone: 'green'
+  },
+  {
+    key: 'picking_orders',
+    name: '生产领料单',
+    desc: '进入工单用料清单，跟进领料、缺料和齐套状态',
+    route: '/app/work_order_items',
+    perm: 'app:production_work_order',
+    icon: 'List',
+    tone: 'orange'
   },
   {
     key: 'work_order_items',

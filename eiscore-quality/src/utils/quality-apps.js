@@ -242,8 +242,46 @@ export const QUALITY_APPS = [
         remark: '',
         status: 'active',
         properties: { standard: '成品放行标准', disposition: '放行' }
+      },
+      {
+        id: 'demo-qc-3',
+        doc_no: 'QI-20260604-009',
+        inspection_type: '过程巡检',
+        source_doc_no: 'WO-20260604-003',
+        item_code: 'LINE-L2',
+        item_name: '灌装线 L2',
+        source_name: '灌装车间',
+        batch_no: 'CAP20260604-02',
+        sample_qty: 45,
+        defect_qty: 5,
+        result: '不合格',
+        inspector: '刘铭',
+        inspection_date: '2026-06-04',
+        remark: '瓶盖扭矩偏低',
+        status: 'active',
+        properties: { standard: '灌装线过程巡检标准', disposition: '返工' }
       }
     ]
+  },
+  {
+    key: 'inspection_orders',
+    name: '检验单',
+    desc: '进入检验台账处理来料、过程和成品检验单',
+    route: '/app/inspection_orders',
+    perm: 'app:quality_inspection',
+    icon: 'Search',
+    tone: 'blue',
+    sourceAppKey: 'inspections'
+  },
+  {
+    key: 'production_inspections',
+    name: '生产检验',
+    desc: '面向生产过程和成品放行的检验记录入口',
+    route: '/app/production_inspections',
+    perm: 'app:quality_inspection',
+    icon: 'Search',
+    tone: 'cyan',
+    sourceAppKey: 'inspections'
   },
   {
     key: 'ncr',
@@ -468,6 +506,23 @@ export const QUALITY_APPS = [
   }
 ]
 
-export const findQualityApp = (key) => QUALITY_APPS.find((app) => app.key === key)
+export const findQualityApp = (key) => {
+  const matched = QUALITY_APPS.find((app) => app.key === key)
+  if (!matched?.sourceAppKey) return matched
+  const source = QUALITY_APPS.find((app) => app.key === matched.sourceAppKey)
+  if (!source) return matched
+  const queryFilter = key === 'production_inspections'
+    ? '&inspection_type=in.(过程巡检,首件检验,成品抽检)'
+    : ''
+  return {
+    ...source,
+    ...matched,
+    key,
+    route: matched.route,
+    apiUrl: `${source.apiUrl}${queryFilter}`,
+    viewId: `quality_${key}`,
+    configKey: `quality_${key}_cols`
+  }
+}
 
 export const QUALITY_GRID_APPS = QUALITY_APPS.filter((app) => app.appType !== 'dashboard')

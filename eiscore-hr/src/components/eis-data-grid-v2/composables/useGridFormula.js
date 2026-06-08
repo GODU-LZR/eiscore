@@ -3,16 +3,28 @@
 
 import { reactive, ref, computed, watch, nextTick } from 'vue'
 import request from '@/utils/request'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
+import { buildSearchQuery } from '@/utils/grid-query'
+import { loadServerSummary } from '@shared/eis-grid-server-summary'
+import {
+  buildFormulaRecalculatePayload,
+  getFormulaColumns,
+  recalculateFormulaBatch
+} from '@shared/eis-grid-formula-recalculate'
 
 // 🟢 接收 columnLockState 参数
 export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, currentUser, hooks, columnLockState) {
   const pinnedBottomRowData = ref([])
   const isSavingConfig = ref(false)
   const configDialog = reactive({ visible: false, title: '', type: null, colId: null, tempValue: '', expression: '', cellLabel: '' })
+  const serverSummaryState = reactive({ loading: false, available: false, error: '' })
+  const formulaRecalculateState = reactive({ loading: false, current: '', updated: 0, scanned: 0, error: '' })
+  let summarySeq = 0
 
   const availableColumns = computed(() => [...props.staticColumns, ...props.extraColumns].map(c => ({ label: c.label, prop: c.prop })))
+  const formulaColumns = computed(() => getFormulaColumns(props.extraColumns))
+  const canRecalculateFormulas = computed(() => formulaColumns.value.length > 0)
 
   // 加载配置 (包含列锁)
   const loadGridConfig = async () => {
@@ -38,7 +50,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
              Object.assign(columnLockState, remoteConfig.column_locks)
            }
           
-          pinnedBottomRowData.value = calculateTotals(gridData.value)
+          refreshTotals()
           
           if (gridApi.value) {
              gridApi.value.refreshCells({ force: true })
@@ -150,6 +162,113 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     return [totalRow]
   }
 
+  const setPinnedBottomRows = (rows) => {
+    const nextRows = Array.isArray(rows) ? rows : []
+    pinnedBottomRowData.value = nextRows
+    const api = gridApi.value
+    if (!api) return
+    if (typeof api.setGridOption === 'function') {
+      api.setGridOption('pinnedBottomRowData', nextRows)
+    } else if (typeof api.setPinnedBottomRowData === 'function') {
+      api.setPinnedBottomRowData(nextRows)
+    }
+    api.refreshCells?.({ force: true })
+  }
+
+  const refreshTotals = async () => {
+    const seq = ++summarySeq
+    setPinnedBottomRows(calculateTotals(gridData.value))
+    serverSummaryState.loading = true
+    serverSummaryState.error = ''
+    try {
+      const serverRows = await loadServerSummary({
+        request,
+        props,
+        summaryConfig: activeSummaryConfig,
+        searchText: hooks.searchText?.value || '',
+        buildSearchQuery,
+        evaluateFormulaExpression
+      })
+      if (seq !== summarySeq) return
+      if (serverRows) {
+        setPinnedBottomRows(serverRows)
+        serverSummaryState.available = true
+      } else {
+        serverSummaryState.available = false
+      }
+    } catch (e) {
+      if (seq !== summarySeq) return
+      serverSummaryState.available = false
+      serverSummaryState.error = e?.response?.data?.message || e?.response?.data?.details || e?.message || 'server summary unavailable'
+    } finally {
+      if (seq === summarySeq) serverSummaryState.loading = false
+    }
+  }
+
+  const recalculateServerFormulas = async () => {
+    if (!canRecalculateFormulas.value || formulaRecalculateState.loading) return
+    if (props.summaryScope && props.summaryScope !== 'server') {
+      ElMessage.warning('当前处于前端筛选范围，服务端无法精确重算。请切换到“全部”后再重算公式列。')
+      return
+    }
+
+    const columnText = formulaColumns.value.map(col => col.label || col.prop).join('、')
+    try {
+      await ElMessageBox.confirm(
+        `将按服务端批处理重算当前表格的公式列：${columnText}。如当前存在搜索词，仅处理搜索结果范围。是否继续？`,
+        '重算公式列',
+        { type: 'warning', confirmButtonText: '开始重算', cancelButtonText: '取消' }
+      )
+    } catch (e) {
+      return
+    }
+
+    formulaRecalculateState.loading = true
+    formulaRecalculateState.current = ''
+    formulaRecalculateState.updated = 0
+    formulaRecalculateState.scanned = 0
+    formulaRecalculateState.error = ''
+
+    try {
+      for (const col of formulaColumns.value) {
+        formulaRecalculateState.current = col.label || col.prop
+        let cursorId = ''
+        let hasMore = true
+        while (hasMore) {
+          const payload = buildFormulaRecalculatePayload({
+            props,
+            targetColumn: col,
+            searchText: hooks.searchText?.value || '',
+            buildSearchQuery,
+            batchSize: 5000,
+            precision: 2
+          })
+          if (!payload) throw new Error('无法构造公式重算请求')
+          if (cursorId) payload.cursor_id = cursorId
+          const res = await recalculateFormulaBatch({ request, payload })
+          const scanned = Number(res?.scanned || 0)
+          const updated = Number(res?.updated || 0)
+          formulaRecalculateState.scanned += scanned
+          formulaRecalculateState.updated += updated
+          cursorId = res?.next_cursor || ''
+          hasMore = !!res?.has_more && scanned > 0 && !!cursorId
+          if (scanned === 0) hasMore = false
+        }
+      }
+      await refreshTotals()
+      if (hooks.reloadData) await hooks.reloadData()
+      else if (gridApi.value) gridApi.value.refreshCells({ force: true })
+      ElMessage.success(`公式重算完成，扫描 ${formulaRecalculateState.scanned} 行，更新 ${formulaRecalculateState.updated} 行`)
+    } catch (e) {
+      const detail = e?.response?.data?.message || e?.response?.data?.details || e?.message || '公式重算失败'
+      formulaRecalculateState.error = detail
+      ElMessage.error(detail)
+    } finally {
+      formulaRecalculateState.loading = false
+      formulaRecalculateState.current = ''
+    }
+  }
+
   const openConfigDialog = (colName, colId, isAdmin) => {
     if (!isAdmin) { ElMessage.warning('只有管理员可以配置合计规则'); return }
     if (colId === '_status' || colId === 'rowCheckbox') {
@@ -176,7 +295,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
         if (formData.cellLabel && formData.cellLabel.trim()) activeSummaryConfig.cellLabels[field] = formData.cellLabel.trim()
         else delete activeSummaryConfig.cellLabels[field]
     }
-    pinnedBottomRowData.value = calculateTotals(gridData.value)
+    refreshTotals()
     if(gridApi.value) {
         gridApi.value.refreshCells({ rowNodes: [gridApi.value.getPinnedBottomRow(0)], force: true })
     }
@@ -234,7 +353,17 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
       }
   }, { deep: true })
 
-  watch(gridData, (newData) => pinnedBottomRowData.value = calculateTotals(newData), { immediate: true })
+  watch(
+    [
+      gridData,
+      () => props.summaryScope,
+      () => props.rowFilter,
+      () => props.apiUrl,
+      () => props.acceptProfile
+    ],
+    () => refreshTotals(),
+    { immediate: true }
+  )
   
   watch(() => props.extraColumns, async () => {
     await nextTick()
@@ -243,13 +372,14 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
     gridApi.value.forEachNode(node => { if (calculateRowFormulas(node)) hasGlobalChanges = true })
     if (hasGlobalChanges) {
       gridApi.value.refreshCells()
-      pinnedBottomRowData.value = calculateTotals(gridData.value)
+      refreshTotals()
       if(hooks.triggerSave) hooks.triggerSave()
     }
   }, { deep: true })
 
   return {
-    pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
+    pinnedBottomRowData, calculateRowFormulas, calculateTotals, refreshTotals, serverSummaryState,
+    formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas,
     configDialog, isSavingConfig, availableColumns, 
     openConfigDialog, saveConfig, loadGridConfig
   }

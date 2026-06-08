@@ -8,29 +8,6 @@
       <el-button type="primary" plain @click="goApps">返回应用列表</el-button>
     </div>
 
-    <section class="attention-strip" :class="`attention-${attentionSummary.level}`">
-      <div class="attention-main">
-        <span>当前关注</span>
-        <strong>{{ attentionSummary.primary.title || app.name }}</strong>
-        <small>{{ attentionSummary.primary.reason }}</small>
-      </div>
-      <div class="attention-counts">
-        <div
-          v-for="item in attentionCountItems"
-          :key="item.key"
-          class="attention-count"
-          :class="`count-${item.key}`"
-        >
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-        </div>
-      </div>
-      <div class="attention-next">
-        <el-tag :type="attentionSummary.primary.tagType" effect="plain">{{ attentionSummary.primary.label }}</el-tag>
-        <span>{{ attentionSummary.primary.action }}</span>
-      </div>
-    </section>
-
     <el-card
       shadow="never"
       class="grid-card"
@@ -58,16 +35,20 @@
         :can-export="canExport"
         :can-config="canConfig"
         :attention-resolver="resolveAttention"
+        :row-action-resolver="resolveRowActions"
         :row-filter="rowAttentionFilter"
+        :summary-scope="summaryScope"
+        :initial-search="initialSearch"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
+        @row-action="handleRowAction"
         @data-loaded="handleDataLoaded"
         @data-load-error="handleDataLoadError"
         @cell-value-changed="handleGridCellValueChanged"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" size="small" class="attention-filter">
+          <el-radio-group v-model="attentionFilter" class="attention-filter">
             <el-radio-button
               v-for="option in attentionFilterOptions"
               :key="option.value"
@@ -82,7 +63,7 @@
       <div v-else class="fallback-grid">
         <div class="fallback-toolbar">
           <el-input v-model="fallbackSearch" clearable placeholder="搜索演示数据" style="width: 260px" />
-          <el-radio-group v-model="attentionFilter" size="small" class="attention-filter">
+          <el-radio-group v-model="attentionFilter" class="attention-filter">
             <el-radio-button
               v-for="option in attentionFilterOptions"
               :key="option.value"
@@ -109,8 +90,18 @@
             :width="col.width"
             :min-width="col.minWidth"
           />
-          <el-table-column label="操作" width="110" fixed="right">
+          <el-table-column label="操作" width="190" fixed="right">
             <template #default="{ row }">
+              <el-button
+                v-for="action in resolveRowActions(row)"
+                :key="action.key"
+                link
+                :type="action.type || 'primary'"
+                :disabled="action.disabled"
+                @click="handleRowAction({ action, row })"
+              >
+                {{ action.label }}
+              </el-button>
               <el-button link type="primary" @click="handleViewDocument(row)">表单</el-button>
             </template>
           </el-table-column>
@@ -228,13 +219,21 @@
 // Copyright (c) 2026 林志荣
 
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
+import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import { findEquipmentApp } from '@/utils/equipment-apps'
 import { hasPerm } from '@/utils/permission'
+import {
+  buildIssuePayloadFromCheck,
+  buildWorkOrderPayloadFromIssue,
+  canGenerateIssueFromCheck,
+  getCheckIssueLink,
+  isCheckIssueLinked
+} from '@/utils/equipment-workflow'
 import {
   buildEquipmentAttentionSummary,
   getEquipmentRecordAttention,
@@ -247,6 +246,7 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const route = useRoute()
 const gridRef = ref(null)
 const colConfigVisible = ref(false)
 const addTab = ref('text')
@@ -254,7 +254,9 @@ const extraColumns = ref([])
 const fallbackMode = ref(false)
 const fallbackSearch = ref('')
 const loadedRows = ref([])
+const lastGridLoadState = ref(buildGridLoadState())
 const attentionFilter = ref('all')
+const generatingWorkOrderRows = ref(new Set())
 
 const currentCol = reactive({
   label: '',
@@ -271,6 +273,7 @@ const currentCol = reactive({
 const cascaderInputMap = reactive({})
 
 const app = computed(() => props.appConfig || findEquipmentApp(props.appKey) || findEquipmentApp('assets'))
+const initialSearch = computed(() => String(route.query.q || ''))
 const staticColumns = computed(() => app.value?.staticColumns || [])
 const summaryConfig = computed(() => app.value?.summaryConfig || { label: '总计', rules: {}, expressions: {}, cellLabels: {} })
 const requiredFields = computed(() => (app.value?.staticColumns || []).filter((col) => col.editable === false).map((col) => col.prop).filter(Boolean))
@@ -289,15 +292,18 @@ const canEdit = computed(() => hasPerm(opPerms.value.edit))
 const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
 const canConfig = computed(() => hasPerm(opPerms.value.config))
+const canGenerateWorkOrder = computed(() => {
+  return app.value?.key === 'checks'
+    && canEdit.value
+    && hasPerm('op:equipment_issue.create')
+    && hasPerm('op:equipment_work_order.create')
+    && hasPerm('app:equipment_issue')
+    && hasPerm('app:equipment_work_order')
+})
 
 const attentionRows = computed(() => loadedRows.value.length ? loadedRows.value : (app.value?.fallbackRows || []))
 const attentionSummary = computed(() => buildEquipmentAttentionSummary(app.value?.key, attentionRows.value))
 const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesEquipmentAttentionFilter(app.value?.key, row, 'todo')).length)
-const attentionCountItems = computed(() => [
-  { key: 'critical', label: '紧急', value: attentionSummary.value.counts.critical },
-  { key: 'warning', label: '预警', value: attentionSummary.value.counts.warning },
-  { key: 'focus', label: '重点', value: attentionSummary.value.counts.focus }
-])
 const attentionFilterOptions = computed(() => [
   { value: 'all', label: `全部 ${attentionSummary.value.total}` },
   { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical}` },
@@ -314,10 +320,47 @@ const resolveAttention = (row) => getEquipmentRecordAttention(app.value?.key, ro
 })
 
 const rowAttentionFilter = (row) => matchesEquipmentAttentionFilter(app.value?.key, row, attentionFilter.value)
+const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
+
+const getRowActionKey = (row) => String(row?.id || row?.check_no || '')
+const isGeneratingWorkOrder = (row) => generatingWorkOrderRows.value.has(getRowActionKey(row))
+const setGeneratingWorkOrder = (row, active) => {
+  const key = getRowActionKey(row)
+  if (!key) return
+  const next = new Set(generatingWorkOrderRows.value)
+  if (active) next.add(key)
+  else next.delete(key)
+  generatingWorkOrderRows.value = next
+}
+
+const resolveRowActions = (row) => {
+  if (app.value?.key !== 'checks' || !row) return []
+  const link = getCheckIssueLink(row)
+  if (isCheckIssueLinked(row)) {
+    return [{
+      key: 'open-work-order',
+      label: '已生成',
+      type: 'success',
+      icon: 'CircleCheck',
+      title: link.workOrderNo || link.issueNo || '已生成设备异常和工单'
+    }]
+  }
+  if (!canGenerateWorkOrder.value || !canGenerateIssueFromCheck(row)) return []
+  const generating = isGeneratingWorkOrder(row)
+  return [{
+    key: 'generate-work-order',
+    label: generating ? '生成中' : '生成工单',
+    type: 'danger',
+    icon: 'Tools',
+    title: '将点检异常转为设备异常和维保工单',
+    disabled: generating
+  }]
+}
 
 const filteredFallbackRows = computed(() => {
   const text = fallbackSearch.value.trim().toLowerCase()
-  const rows = (app.value?.fallbackRows || []).filter(rowAttentionFilter)
+  const sourceRows = loadedRows.value.length ? loadedRows.value : (app.value?.fallbackRows || [])
+  const rows = sourceRows.filter(rowAttentionFilter)
   if (!text) return rows
   return rows.filter((row) => Object.values(row).some((value) => String(value || '').toLowerCase().includes(text)))
 })
@@ -390,8 +433,13 @@ const saveColumnsConfig = async () => {
 }
 
 const handleDataLoaded = (payload) => {
-  loadedRows.value = payload?.rawRows || payload?.rows || []
-  syncAiContext(payload?.rows || [])
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  loadedRows.value = rows
+  lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
+  syncAiContext(visibleRows)
 }
 
 const handleDataLoadError = () => {
@@ -399,8 +447,10 @@ const handleDataLoadError = () => {
     fallbackMode.value = true
     ElMessage.warning('设备数据表暂未接入，已切换演示数据')
   }
-  loadedRows.value = app.value?.fallbackRows || []
-  syncAiContext(app.value?.fallbackRows || [])
+  const fallbackRows = app.value?.fallbackRows || []
+  loadedRows.value = fallbackRows
+  lastGridLoadState.value = buildGridLoadState({}, fallbackRows, fallbackRows)
+  syncAiContext(fallbackRows)
 }
 
 const handleGridCellValueChanged = (params) => {
@@ -413,6 +463,157 @@ const handleGridCellValueChanged = (params) => {
     loadedRows.value = next
   }
   syncAiContext(loadedRows.value)
+}
+
+const refreshRowInMemory = (rowId, patch) => {
+  if (!rowId) return
+  const index = loadedRows.value.findIndex((item) => String(item?.id) === String(rowId))
+  if (index < 0) return
+  const current = loadedRows.value[index]
+  const next = {
+    ...current,
+    ...patch,
+    properties: {
+      ...(current.properties || {}),
+      ...(patch.properties || {})
+    }
+  }
+  const rows = [...loadedRows.value]
+  rows.splice(index, 1, next)
+  loadedRows.value = rows
+}
+
+const findExistingIssue = async (row) => {
+  if (!row?.check_no) return null
+  const checkNoField = encodeURIComponent('properties->>check_no')
+  const res = await request({
+    url: `/equipment_issues?${checkNoField}=eq.${encodeURIComponent(row.check_no)}&status=neq.deleted&limit=1`,
+    method: 'get',
+    headers: { 'Accept-Profile': 'public' }
+  })
+  return Array.isArray(res) && res.length > 0 ? res[0] : null
+}
+
+const findExistingWorkOrder = async (issue) => {
+  if (!issue?.issue_no) return null
+  const res = await request({
+    url: `/equipment_work_orders?issue_no=eq.${encodeURIComponent(issue.issue_no)}&status=neq.deleted&limit=1`,
+    method: 'get',
+    headers: { 'Accept-Profile': 'public' }
+  })
+  return Array.isArray(res) && res.length > 0 ? res[0] : null
+}
+
+const createIssueFromCheck = async (row) => {
+  const payload = buildIssuePayloadFromCheck(row)
+  const res = await request({
+    url: '/equipment_issues',
+    method: 'post',
+    headers: {
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public',
+      Prefer: 'return=representation'
+    },
+    data: payload
+  })
+  return Array.isArray(res) && res.length > 0 ? res[0] : { ...payload }
+}
+
+const createWorkOrderFromIssue = async (issue, row) => {
+  const payload = buildWorkOrderPayloadFromIssue(issue, row)
+  const res = await request({
+    url: '/equipment_work_orders',
+    method: 'post',
+    headers: {
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public',
+      Prefer: 'return=representation'
+    },
+    data: payload
+  })
+  return Array.isArray(res) && res.length > 0 ? res[0] : { ...payload }
+}
+
+const bindCheckWorkOrder = async (row, issue, workOrder) => {
+  const nextProperties = {
+    ...(row.properties || {}),
+    issue_id: issue.id || '',
+    issue_no: issue.issue_no || '',
+    work_order_id: workOrder.id || '',
+    work_order_no: workOrder.work_order_no || '',
+    work_order_generated_at: new Date().toISOString()
+  }
+  if (!fallbackMode.value && !String(row.id || '').startsWith('demo-')) {
+    await request({
+      url: `/equipment_checks?id=eq.${encodeURIComponent(row.id)}`,
+      method: 'patch',
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public',
+        Prefer: 'return=representation'
+      },
+      data: { properties: nextProperties }
+    })
+  }
+  row.properties = nextProperties
+  refreshRowInMemory(row.id, { properties: nextProperties })
+}
+
+const handleGenerateWorkOrder = async (row) => {
+  if (!row) return
+  if (isGeneratingWorkOrder(row)) return
+  if (!canGenerateWorkOrder.value) {
+    ElMessage.warning('当前账号没有生成设备异常和维保工单的权限')
+    return
+  }
+  if (isCheckIssueLinked(row)) {
+    const link = getCheckIssueLink(row)
+    ElMessage.info(link.workOrderNo ? `已关联工单 ${link.workOrderNo}` : '该点检记录已生成设备异常')
+    return
+  }
+  if (!canGenerateIssueFromCheck(row)) {
+    ElMessage.warning('只有异常或停机点检记录需要生成工单')
+    return
+  }
+  setGeneratingWorkOrder(row, true)
+  try {
+    if (String(row.id || '').startsWith('demo-') || fallbackMode.value) {
+      const issue = { ...buildIssuePayloadFromCheck(row), id: `demo-issue-${Date.now()}` }
+      const workOrder = { ...buildWorkOrderPayloadFromIssue(issue, row), id: `demo-work-${Date.now()}` }
+      await bindCheckWorkOrder(row, issue, workOrder)
+      ElMessage.success(`已生成演示工单 ${workOrder.work_order_no}`)
+      return
+    }
+    const issue = await findExistingIssue(row) || await createIssueFromCheck(row)
+    const workOrder = await findExistingWorkOrder(issue) || await createWorkOrderFromIssue(issue, row)
+    await bindCheckWorkOrder(row, issue, workOrder)
+    await gridRef.value?.loadData?.()
+    ElMessage.success(`已生成工单 ${workOrder.work_order_no}`)
+  } catch (error) {
+    const detail = error?.response?.data?.message || error?.response?.data?.details || error?.message
+    ElMessage.error(detail || '生成设备工单失败')
+  } finally {
+    setGeneratingWorkOrder(row, false)
+  }
+}
+
+const openLinkedWorkOrder = (row) => {
+  const link = getCheckIssueLink(row)
+  router.push({
+    name: 'EquipmentAppView',
+    params: { key: 'work_orders' },
+    query: link.workOrderNo ? { q: link.workOrderNo } : {}
+  })
+}
+
+const handleRowAction = ({ action, row }) => {
+  if (action?.key === 'generate-work-order') {
+    handleGenerateWorkOrder(row)
+    return
+  }
+  if (action?.key === 'open-work-order') {
+    openLinkedWorkOrder(row)
+  }
 }
 
 const fallbackRowClassName = ({ row }) => {
@@ -428,6 +629,14 @@ const syncAiContext = (rows = []) => {
     options: col.options || [],
     expression: col.expression || ''
   }))
+  const fileColumns = columns.filter(col => col.type === 'file')
+  const dataScope = fallbackMode.value ? '演示数据' : '当前列表数据'
+  const dataStats = enrichLoadedDataStats({ totalCount: rows.length, sampleSize: rows.length }, lastGridLoadState.value, rows)
+  const importTarget = {
+    apiUrl: app.value?.writeUrl || app.value?.apiUrl,
+    profile: app.value?.contentProfile || 'public',
+    viewId: app.value?.viewId
+  }
   pushAiContext({
     app: 'equipment',
     view: app.value?.key,
@@ -438,14 +647,33 @@ const syncAiContext = (rows = []) => {
     staticColumns: staticColumns.value,
     extraColumns: extraColumns.value,
     summaryConfig: summaryConfig.value,
+    fileColumns,
+    dataStats,
     dataSample: rows.slice(0, 30),
+    dataScope,
+    gridAgent: buildGridAgentContext({
+      app: 'equipment',
+      view: app.value?.key,
+      viewId: app.value?.viewId,
+      apiUrl: app.value?.apiUrl,
+      writeUrl: app.value?.writeUrl || app.value?.apiUrl,
+      profile: app.value?.acceptProfile || 'public',
+      contentProfile: app.value?.contentProfile || 'public',
+      defaultOrder: app.value?.defaultOrder || 'id.desc',
+      columns,
+      staticColumns: staticColumns.value,
+      extraColumns: extraColumns.value,
+      summaryConfig: summaryConfig.value,
+      dataScope,
+      loadState: lastGridLoadState.value,
+      sampleLimit: 30,
+      allowImport: true,
+      importTarget,
+      summaryScope: summaryScope.value
+    }),
     aiScene: 'grid_chat',
     allowImport: true,
-    importTarget: {
-      apiUrl: app.value?.writeUrl || app.value?.apiUrl,
-      profile: app.value?.contentProfile || 'public',
-      viewId: app.value?.viewId
-    }
+    importTarget
   })
 }
 
@@ -573,155 +801,16 @@ watch(attentionFilter, () => {
   margin-bottom: 12px;
 }
 
-.attention-strip {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.9fr) minmax(190px, 0.55fr);
-  align-items: stretch;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border: 1px solid #e5e7eb;
-  border-left: 4px solid #2563eb;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.attention-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.attention-main span,
-.attention-next span,
-.attention-count span {
-  font-size: 12px;
-  color: #64748b;
-}
-
-.attention-main strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 17px;
-  color: #111827;
-}
-
-.attention-main small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  color: #475569;
-}
-
-.attention-counts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.attention-count {
-  min-width: 0;
-  height: 58px;
-  padding: 8px 10px;
-  box-sizing: border-box;
-  border-radius: 8px;
-  background: #f8fafc;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-}
-
-.attention-count strong {
-  font-size: 20px;
-  line-height: 1;
-  color: #111827;
-}
-
-.count-critical strong {
-  color: #dc2626;
-}
-
-.count-warning strong {
-  color: #d97706;
-}
-
-.count-focus strong {
-  color: #2563eb;
-}
-
-.attention-next {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.attention-next span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.attention-critical {
-  border-left-color: #dc2626;
-}
-
-.attention-warning {
-  border-left-color: #d97706;
-}
-
-.attention-focus {
-  border-left-color: #2563eb;
-}
-
-.attention-normal,
-.attention-silent {
-  border-left-color: #16a34a;
-}
-
-.header-text h2 {
-  margin: 0 0 6px;
-  font-size: 20px;
-  font-weight: 700;
-  color: #303133;
-}
-
-.header-text p {
-  margin: 0;
-  font-size: 12px;
-  color: #909399;
-}
-
-.grid-card {
-  flex: 1;
-  min-height: 0;
-}
-
-.fallback-grid {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.fallback-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
 .attention-filter {
   flex: 0 0 auto;
+}
+
+.attention-filter :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  line-height: 1;
 }
 
 .fallback-grid :deep(.fallback-attention-row.attention-row-critical) {
@@ -801,37 +890,12 @@ watch(attentionFilter, () => {
 }
 
 :global(#app.dark) .grid-card,
-:global(#app.dark) .col-item,
-:global(#app.dark) .attention-strip {
+:global(#app.dark) .col-item {
   background: #111827;
   border-color: #1f2937;
 }
 
-:global(#app.dark) .attention-main strong,
-:global(#app.dark) .attention-count strong {
-  color: #f9fafb;
-}
-
-:global(#app.dark) .attention-main span,
-:global(#app.dark) .attention-main small,
-:global(#app.dark) .attention-next span,
-:global(#app.dark) .attention-count span {
-  color: #cbd5e1;
-}
-
-:global(#app.dark) .attention-count {
-  background: #0f172a;
-}
-
 @media (max-width: 1100px) {
-  .attention-strip {
-    grid-template-columns: 1fr;
-  }
-
-  .attention-next {
-    justify-content: flex-start;
-  }
-
   .fallback-toolbar {
     flex-wrap: wrap;
   }

@@ -23,6 +23,9 @@
         :extra-columns="extraColumns"
         :summary="summaryConfig"
         :can-create="canCreate"
+        :attention-resolver="resolveAttention"
+        :row-filter="rowAttentionFilter"
+        :summary-scope="summaryScope"
         :can-edit="canEdit"
         :can-delete="canDelete"
         :can-export="canExport"
@@ -32,8 +35,22 @@
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
         @view-label="handleViewLabel"
+        @data-load-error="handleDataLoadError"
         @data-loaded="handleDataLoaded"
-      />
+        @cell-value-changed="handleMaterialCellValueChanged"
+      >
+        <template #toolbar>
+          <el-radio-group v-model="attentionFilter" class="attention-filter">
+            <el-radio-button
+              v-for="option in attentionFilterOptions"
+              :key="option.value"
+              :label="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
+        </template>
+      </eis-data-grid>
 
       <el-dialog v-model="colConfigVisible" title="列管理" width="600px" append-to-body destroy-on-close @closed="resetForm">
         <div class="column-manager">
@@ -246,10 +263,16 @@ import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
+import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import { findMaterialApp, BASE_STATIC_COLUMNS } from '@/utils/material-apps'
 import { useUserStore } from '@/stores/user'
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
+import {
+  buildMaterialAttentionSummary,
+  getMaterialRecordAttention,
+  matchesMaterialAttentionFilter
+} from '@/utils/material-attention'
 
 const props = defineProps({
   appKey: { type: String, default: 'a' },
@@ -261,6 +284,8 @@ const router = useRouter()
 const gridRef = ref(null)
 const lastLoadedRows = ref([])
 const lastSearchText = ref('')
+const lastGridLoadState = ref(buildGridLoadState())
+const attentionFilter = ref('all')
 const colConfigVisible = ref(false)
 const addTab = ref('text') 
 let realtimeUnsub = null
@@ -296,6 +321,24 @@ const canEdit = computed(() => hasPerm(opPerms.value.edit))
 const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
 const canConfig = computed(() => true)
+const attentionRows = computed(() => lastLoadedRows.value)
+const attentionSummary = computed(() => buildMaterialAttentionSummary(app.value?.key, attentionRows.value))
+const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesMaterialAttentionFilter(app.value?.key, row, 'todo')).length)
+const attentionFilterOptions = computed(() => [
+  { value: 'all', label: `全部 ${attentionSummary.value.total}` },
+  { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical}` },
+  { value: 'warning', label: `预警 ${attentionSummary.value.counts.warning}` },
+  { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus}` },
+  { value: 'todo', label: `待处理 ${attentionTodoCount.value}` }
+])
+const resolveAttention = (row) => getMaterialRecordAttention(app.value?.key, row, {
+  role: 'warehouse',
+  page: app.value?.key,
+  device: 'desktop',
+  task: 'monitor'
+})
+const rowAttentionFilter = (row) => matchesMaterialAttentionFilter(app.value?.key, row, attentionFilter.value)
+const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
 
 const staticHidden = ref([])
 const staticColumnsAll = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
@@ -565,12 +608,34 @@ const applyWorkflowBinding = async (rows) => {
 }
 
 const handleDataLoaded = async (payload) => {
-  const rows = Array.isArray(payload?.rows) ? payload.rows : []
-  lastLoadedRows.value = rows
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  lastLoadedRows.value = rows.filter(isRowActive)
   lastSearchText.value = payload?.searchText || ''
-  syncAiContext(rows, { searchText: lastSearchText.value })
-  await applyWorkflowBinding(rows)
+  lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
+  syncAiContext(visibleRows.filter(isRowActive), { searchText: lastSearchText.value })
+  await applyWorkflowBinding(visibleRows)
 }
+
+const handleDataLoadError = () => {
+  lastLoadedRows.value = []
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], { searchText: lastSearchText.value })
+}
+
+const handleMaterialCellValueChanged = (params) => {
+  const row = params?.data || params?.node?.data
+  if (!row?.id) return
+  const index = lastLoadedRows.value.findIndex((item) => String(item?.id) === String(row.id))
+  if (index < 0) return
+  const next = [...lastLoadedRows.value]
+  next.splice(index, 1, row)
+  lastLoadedRows.value = next
+}
+
+const isRowActive = (row) => row?.status !== 'deleted'
 
 const buildDataStats = (rows) => {
   const stats = { totalCount: 0, sampleSize: 0, categoryCounts: {}, creatorCounts: {} }
@@ -623,14 +688,22 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
   const propertyFields = columns
     .filter(col => col.storeInProperties)
     .map(col => col.prop)
-  const dataStats = buildDataStats(rows)
+  const dataStats = enrichLoadedDataStats(buildDataStats(rows), lastGridLoadState.value, rows)
   const dataSample = buildDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
+  const apiUrl = app.value.apiUrl || '/raw_materials'
+  const writeUrl = app.value.writeUrl || apiUrl.split('?')[0]
+  const dataScope = (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
+  const importTarget = {
+    apiUrl: writeUrl,
+    profile: appProfile.value,
+    viewId: app.value.viewId
+  }
   pushAiContext({
     app: 'materials',
     view: app.value.key,
     viewId: app.value.viewId,
-    apiUrl: app.value.apiUrl || '/raw_materials',
+    apiUrl,
     currentUser: currentUser.value,
     profile: appProfile.value,
     columns,
@@ -641,19 +714,35 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     fileColumns,
     dataStats,
     dataSample,
-    dataScope: (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据',
+    dataScope,
     searchText: overrides.searchText ?? lastSearchText.value ?? '',
+    gridAgent: buildGridAgentContext({
+      app: 'materials',
+      view: app.value.key,
+      viewId: app.value.viewId,
+      apiUrl,
+      writeUrl,
+      profile: appProfile.value,
+      contentProfile: appProfile.value,
+      defaultOrder: app.value.defaultOrder || 'id.desc',
+      columns,
+      staticColumns: staticColumns.value,
+      extraColumns: extraColumns.value,
+      summaryConfig: summaryConfig.value,
+      searchText: overrides.searchText ?? lastSearchText.value ?? '',
+      dataScope,
+      loadState: lastGridLoadState.value,
+      allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
+      importTarget,
+      summaryScope: summaryScope.value
+    }),
     materialsCategories: materialsCategories.value,
     materialsCategoryDepth: materialsCategoryDepth.value,
     aiScene: overrides.aiScene || 'grid_chat',
     allowFormula: !!overrides.allowFormula,
     allowFormulaOnce: !!overrides.allowFormulaOnce,
     allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
-    importTarget: {
-      apiUrl: app.value.writeUrl || (app.value.apiUrl || '/raw_materials').split('?')[0],
-      profile: appProfile.value,
-      viewId: app.value.viewId
-    }
+    importTarget
   })
 }
 
@@ -1104,6 +1193,10 @@ const handleImportDone = (event) => {
   }
 }
 
+watch(attentionFilter, () => {
+  gridRef.value?.loadData?.()
+})
+
 defineExpose({
   loadData: () => gridRef.value?.loadData?.(),
   reload: () => gridRef.value?.loadData?.()
@@ -1138,6 +1231,18 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+.attention-filter {
+  flex: 0 0 auto;
+}
+
+.attention-filter :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  line-height: 1;
 }
 
 .grid-card {
@@ -1259,4 +1364,10 @@ onUnmounted(() => {
 .cursor-pointer:hover { opacity: 0.8; transform: translateY(-1px); transition: transform 0.1s; }
 
 .hint-text { font-size: 12px; color: #909399; margin-top: 8px; line-height: 1.4; }
+
+@media (max-width: 760px) {
+  .form-row {
+    flex-direction: column;
+  }
+}
 </style>

@@ -1,7 +1,9 @@
 <template>
-  <div class="grid-toolbar">
-    <div class="left-tools">
+  <div class="grid-toolbar" data-guide="grid-toolbar">
+    <div class="left-tools" data-guide="grid-table-tools">
       <el-input 
+        class="toolbar-search"
+        data-guide="grid-search"
         :model-value="search"
         @update:modelValue="$emit('update:search', $event)"
         placeholder="搜索全表..." 
@@ -12,11 +14,23 @@
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
       
-      <el-button-group class="ml-2">
-        <el-button v-if="canCreate" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
-        <el-button v-if="canConfig" type="primary" plain icon="Operation" @click="$emit('config-columns')">列管理</el-button>
+      <el-button-group class="ml-2" data-guide="grid-actions">
+        <el-button v-if="canCreate" data-guide="grid-create" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
+        <el-button v-if="canConfig" data-guide="grid-config" type="primary" plain icon="Operation" @click="$emit('config-columns')">列管理</el-button>
+        <el-button
+          v-if="canRecalculateFormulas"
+          data-guide="grid-recalculate"
+          type="warning"
+          plain
+          icon="Refresh"
+          :loading="formulaRecalculating"
+          @click="$emit('recalculate-formulas')"
+        >
+          重算公式
+        </el-button>
         <el-button
           v-if="canDelete"
+          data-guide="grid-delete"
           type="danger"
           plain
           icon="Delete"
@@ -25,7 +39,7 @@
         >
           删除选中 ({{ selectedCount }})
         </el-button>
-        <el-button v-if="canExport" plain icon="Download" @click="$emit('export')">导出</el-button>
+        <el-button v-if="canExport" data-guide="grid-export" plain icon="Download" @click="$emit('export')">导出</el-button>
       </el-button-group>
 
       <div class="tip-text" v-if="rangeInfo.active">
@@ -33,7 +47,7 @@
       </div>
     </div>
     
-    <div class="toolbar-actions">
+    <div class="toolbar-actions" data-guide="grid-business-actions">
       <slot></slot>
     </div>
   </div>
@@ -45,7 +59,7 @@
 
 import { computed } from 'vue'
 import { ElInput, ElButton, ElButtonGroup, ElIcon } from 'element-plus'
-import { Search, CirclePlus, Operation, Delete, Download } from '@element-plus/icons-vue'
+import { Search, CirclePlus, Operation, Delete, Download, Refresh } from '@element-plus/icons-vue'
 
 const props = defineProps([
   'search',
@@ -55,9 +69,11 @@ const props = defineProps([
   'canCreate',
   'canConfig',
   'canDelete',
-  'canExport'
+  'canExport',
+  'canRecalculateFormulas',
+  'formulaRecalculating'
 ])
-const emit = defineEmits(['update:search', 'search', 'create', 'config-columns', 'delete', 'export'])
+const emit = defineEmits(['update:search', 'search', 'create', 'config-columns', 'recalculate-formulas', 'delete', 'export'])
 
 const getColIndex = (colId) => {
   if (!props.gridApi) return -1

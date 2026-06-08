@@ -3,33 +3,8 @@
     <div class="app-header">
       <div class="header-text">
         <h2>{{ app.name }}</h2>
-        <p>{{ app.desc }}</p>
       </div>
-      <el-button type="primary" plain @click="goApps">返回应用列表</el-button>
     </div>
-
-    <section class="attention-strip" :class="`attention-${attentionSummary.level}`">
-      <div class="attention-main">
-        <span>当前关注</span>
-        <strong>{{ attentionSummary.primary.title || app.name }}</strong>
-        <small>{{ attentionSummary.primary.reason }}</small>
-      </div>
-      <div class="attention-counts">
-        <div
-          v-for="item in attentionCountItems"
-          :key="item.key"
-          class="attention-count"
-          :class="`count-${item.key}`"
-        >
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-        </div>
-      </div>
-      <div class="attention-next">
-        <el-tag :type="attentionSummary.primary.tagType" effect="plain">{{ attentionSummary.primary.label }}</el-tag>
-        <span>{{ attentionSummary.primary.action }}</span>
-      </div>
-    </section>
 
     <el-card
       shadow="never"
@@ -58,16 +33,20 @@
         :can-export="canExport"
         :can-config="canConfig"
         :attention-resolver="resolveAttention"
+        :row-action-resolver="resolveRowActions"
         :row-filter="rowAttentionFilter"
+        :summary-scope="summaryScope"
+        :initial-search="initialSearch"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
+        @row-action="handleRowAction"
         @data-loaded="handleDataLoaded"
         @data-load-error="handleDataLoadError"
         @cell-value-changed="handleGridCellValueChanged"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" size="small" class="attention-filter">
+          <el-radio-group v-model="attentionFilter" class="attention-filter">
             <el-radio-button
               v-for="option in attentionFilterOptions"
               :key="option.value"
@@ -82,7 +61,7 @@
       <div v-else class="fallback-grid">
         <div class="fallback-toolbar">
           <el-input v-model="fallbackSearch" clearable placeholder="搜索演示数据" style="width: 260px" />
-          <el-radio-group v-model="attentionFilter" size="small" class="attention-filter">
+          <el-radio-group v-model="attentionFilter" class="attention-filter">
             <el-radio-button
               v-for="option in attentionFilterOptions"
               :key="option.value"
@@ -109,8 +88,18 @@
             :width="col.width"
             :min-width="col.minWidth"
           />
-          <el-table-column label="操作" width="110" fixed="right">
+          <el-table-column label="操作" width="190" fixed="right">
             <template #default="{ row }">
+              <el-button
+                v-for="action in resolveRowActions(row)"
+                :key="action.key"
+                link
+                :type="action.type || 'primary'"
+                :disabled="action.disabled"
+                @click="handleRowAction({ action, row })"
+              >
+                {{ action.label }}
+              </el-button>
               <el-button link type="primary" @click="handleViewDocument(row)">表单</el-button>
             </template>
           </el-table-column>
@@ -228,13 +217,20 @@
 // Copyright (c) 2026 林志荣
 
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
+import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import { findQualityApp } from '@/utils/quality-apps'
 import { hasPerm } from '@/utils/permission'
+import {
+  buildNcrPayloadFromInspection,
+  canGenerateNcrFromInspection,
+  getInspectionNcrLink,
+  isInspectionNcrLinked
+} from '@/utils/quality-ncr'
 import {
   buildQualityAttentionSummary,
   getQualityRecordAttention
@@ -246,6 +242,7 @@ const props = defineProps({
 })
 
 const router = useRouter()
+const route = useRoute()
 const gridRef = ref(null)
 const colConfigVisible = ref(false)
 const addTab = ref('text')
@@ -253,7 +250,9 @@ const extraColumns = ref([])
 const fallbackMode = ref(false)
 const fallbackSearch = ref('')
 const loadedRows = ref([])
+const lastGridLoadState = ref(buildGridLoadState())
 const attentionFilter = ref('all')
+const generatingNcrRows = ref(new Set())
 
 const currentCol = reactive({
   label: '',
@@ -270,6 +269,7 @@ const currentCol = reactive({
 const cascaderInputMap = reactive({})
 
 const app = computed(() => props.appConfig || findQualityApp(props.appKey) || findQualityApp('inspections'))
+const initialSearch = computed(() => String(route.query.q || ''))
 const staticColumns = computed(() => app.value?.staticColumns || [])
 const summaryConfig = computed(() => app.value?.summaryConfig || { label: '总计', rules: {}, expressions: {}, cellLabels: {} })
 const requiredFields = computed(() => (app.value?.staticColumns || []).filter((col) => col.editable === false).map((col) => col.prop).filter(Boolean))
@@ -288,14 +288,16 @@ const canEdit = computed(() => hasPerm(opPerms.value.edit))
 const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
 const canConfig = computed(() => hasPerm(opPerms.value.config))
+const isInspectionApp = computed(() => app.value?.sourceAppKey === 'inspections' || app.value?.key === 'inspections')
+const canGenerateNcr = computed(() => {
+  return isInspectionApp.value
+    && canEdit.value
+    && hasPerm('op:quality_ncr.create')
+    && hasPerm('app:quality_ncr')
+})
 
 const attentionRows = computed(() => loadedRows.value.length ? loadedRows.value : (app.value?.fallbackRows || []))
 const attentionSummary = computed(() => buildQualityAttentionSummary(app.value?.key, attentionRows.value))
-const attentionCountItems = computed(() => [
-  { key: 'critical', label: '紧急', value: attentionSummary.value.counts.critical },
-  { key: 'warning', label: '预警', value: attentionSummary.value.counts.warning },
-  { key: 'focus', label: '重点', value: attentionSummary.value.counts.focus }
-])
 const attentionFilterOptions = computed(() => [
   { value: 'all', label: `全部 ${attentionSummary.value.total}` },
   { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical}` },
@@ -316,7 +318,7 @@ const matchesAttentionFilter = (row, filter) => {
   if (filter === 'warning') return attention.level === 'warning'
   if (filter === 'focus') return attention.level === 'focus'
   if (filter !== 'todo') return true
-  if (app.value?.key === 'inspections') return row.result !== '合格'
+  if (isInspectionApp.value) return row.result !== '合格'
   if (app.value?.key === 'ncr') return row.ncr_status !== '已关闭'
   if (app.value?.key === 'actions') return row.action_status !== '已完成'
   if (app.value?.key === 'audits') return row.audit_status !== '已关闭'
@@ -324,11 +326,48 @@ const matchesAttentionFilter = (row, filter) => {
   return ['critical', 'warning', 'focus'].includes(attention.level)
 }
 const rowAttentionFilter = (row) => matchesAttentionFilter(row, attentionFilter.value)
+const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
 const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesAttentionFilter(row, 'todo')).length)
+
+const getRowActionKey = (row) => String(row?.id || row?.doc_no || '')
+const isGeneratingNcr = (row) => generatingNcrRows.value.has(getRowActionKey(row))
+const setGeneratingNcr = (row, active) => {
+  const key = getRowActionKey(row)
+  if (!key) return
+  const next = new Set(generatingNcrRows.value)
+  if (active) next.add(key)
+  else next.delete(key)
+  generatingNcrRows.value = next
+}
+
+const resolveRowActions = (row) => {
+  if (!isInspectionApp.value || !row) return []
+  const link = getInspectionNcrLink(row)
+  if (isInspectionNcrLinked(row)) {
+    return [{
+      key: 'open-ncr',
+      label: '已生成',
+      type: 'success',
+      icon: 'CircleCheck',
+      title: link.docNo || '已生成质量异常'
+    }]
+  }
+  if (!canGenerateNcr.value || !canGenerateNcrFromInspection(row)) return []
+  const generating = isGeneratingNcr(row)
+  return [{
+    key: 'generate-ncr',
+    label: generating ? '生成中' : '生成异常单',
+    type: 'danger',
+    icon: 'Warning',
+    title: '将该检验记录立案为质量异常',
+    disabled: generating
+  }]
+}
 
 const filteredFallbackRows = computed(() => {
   const text = fallbackSearch.value.trim().toLowerCase()
-  const rows = (app.value?.fallbackRows || []).filter(rowAttentionFilter)
+  const sourceRows = loadedRows.value.length ? loadedRows.value : (app.value?.fallbackRows || [])
+  const rows = sourceRows.filter(rowAttentionFilter)
   if (!text) return rows
   return rows.filter((row) => Object.values(row).some((value) => String(value || '').toLowerCase().includes(text)))
 })
@@ -401,8 +440,13 @@ const saveColumnsConfig = async () => {
 }
 
 const handleDataLoaded = (payload) => {
-  loadedRows.value = payload?.rawRows || payload?.rows || []
-  syncAiContext(payload?.rows || [])
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  loadedRows.value = rows
+  lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
+  syncAiContext(visibleRows)
 }
 
 const handleDataLoadError = () => {
@@ -410,8 +454,10 @@ const handleDataLoadError = () => {
     fallbackMode.value = true
     ElMessage.warning('质量数据表暂未接入，已切换演示数据')
   }
-  loadedRows.value = app.value?.fallbackRows || []
-  syncAiContext(app.value?.fallbackRows || [])
+  const fallbackRows = app.value?.fallbackRows || []
+  loadedRows.value = fallbackRows
+  lastGridLoadState.value = buildGridLoadState({}, fallbackRows, fallbackRows)
+  syncAiContext(fallbackRows)
 }
 
 const handleGridCellValueChanged = (params) => {
@@ -424,6 +470,128 @@ const handleGridCellValueChanged = (params) => {
     loadedRows.value = next
   }
   syncAiContext(loadedRows.value)
+}
+
+const refreshRowInMemory = (rowId, patch) => {
+  if (!rowId) return
+  const index = loadedRows.value.findIndex((item) => String(item?.id) === String(rowId))
+  if (index < 0) return
+  const current = loadedRows.value[index]
+  const next = {
+    ...current,
+    ...patch,
+    properties: {
+      ...(current.properties || {}),
+      ...(patch.properties || {})
+    }
+  }
+  const rows = [...loadedRows.value]
+  rows.splice(index, 1, next)
+  loadedRows.value = rows
+}
+
+const findExistingNcr = async (row) => {
+  if (!row?.doc_no) return null
+  const res = await request({
+    url: `/quality_ncrs?source_doc_no=eq.${encodeURIComponent(row.doc_no)}&status=neq.deleted&limit=1`,
+    method: 'get',
+    headers: { 'Accept-Profile': 'public' }
+  })
+  return Array.isArray(res) && res.length > 0 ? res[0] : null
+}
+
+const createNcrFromInspection = async (row) => {
+  const payload = buildNcrPayloadFromInspection(row)
+  const res = await request({
+    url: '/quality_ncrs',
+    method: 'post',
+    headers: {
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public',
+      Prefer: 'return=representation'
+    },
+    data: payload
+  })
+  return Array.isArray(res) && res.length > 0 ? res[0] : { ...payload }
+}
+
+const bindInspectionNcr = async (row, ncr) => {
+  const nextProperties = {
+    ...(row.properties || {}),
+    ncr_id: ncr.id || '',
+    ncr_doc_no: ncr.doc_no || '',
+    ncr_generated_at: new Date().toISOString()
+  }
+  if (!fallbackMode.value && !String(row.id || '').startsWith('demo-')) {
+    await request({
+      url: `/quality_inspections?id=eq.${encodeURIComponent(row.id)}`,
+      method: 'patch',
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public',
+        Prefer: 'return=representation'
+      },
+      data: { properties: nextProperties }
+    })
+  }
+  row.properties = nextProperties
+  refreshRowInMemory(row.id, { properties: nextProperties })
+}
+
+const handleGenerateNcr = async (row) => {
+  if (!row) return
+  if (isGeneratingNcr(row)) return
+  if (!canGenerateNcr.value) {
+    ElMessage.warning('当前账号没有生成质量异常的权限')
+    return
+  }
+  if (isInspectionNcrLinked(row)) {
+    const link = getInspectionNcrLink(row)
+    ElMessage.info(link.docNo ? `已关联异常单 ${link.docNo}` : '该检验记录已生成异常单')
+    return
+  }
+  if (!canGenerateNcrFromInspection(row)) {
+    ElMessage.warning('只有不合格或存在不良数的检验记录需要生成异常单')
+    return
+  }
+  setGeneratingNcr(row, true)
+  try {
+    if (String(row.id || '').startsWith('demo-') || fallbackMode.value) {
+      const demoNcr = buildNcrPayloadFromInspection(row)
+      await bindInspectionNcr(row, { ...demoNcr, id: `demo-ncr-${Date.now()}` })
+      ElMessage.success(`已生成演示异常单 ${demoNcr.doc_no}`)
+      return
+    }
+    const existing = await findExistingNcr(row)
+    const ncr = existing || await createNcrFromInspection(row)
+    await bindInspectionNcr(row, ncr)
+    await gridRef.value?.loadData?.()
+    ElMessage.success(existing ? `已绑定已有异常单 ${ncr.doc_no}` : `已生成异常单 ${ncr.doc_no}`)
+  } catch (error) {
+    const detail = error?.response?.data?.message || error?.response?.data?.details || error?.message
+    ElMessage.error(detail || '生成质量异常失败')
+  } finally {
+    setGeneratingNcr(row, false)
+  }
+}
+
+const openLinkedNcr = (row) => {
+  const link = getInspectionNcrLink(row)
+  router.push({
+    name: 'QualityAppView',
+    params: { key: 'ncr' },
+    query: link.docNo ? { q: link.docNo } : {}
+  })
+}
+
+const handleRowAction = ({ action, row }) => {
+  if (action?.key === 'generate-ncr') {
+    handleGenerateNcr(row)
+    return
+  }
+  if (action?.key === 'open-ncr') {
+    openLinkedNcr(row)
+  }
 }
 
 const fallbackRowClassName = ({ row }) => {
@@ -439,6 +607,14 @@ const syncAiContext = (rows = []) => {
     options: col.options || [],
     expression: col.expression || ''
   }))
+  const fileColumns = columns.filter(col => col.type === 'file')
+  const dataScope = fallbackMode.value ? '演示数据' : '当前列表数据'
+  const dataStats = enrichLoadedDataStats({ totalCount: rows.length, sampleSize: rows.length }, lastGridLoadState.value, rows)
+  const importTarget = {
+    apiUrl: app.value?.writeUrl || app.value?.apiUrl,
+    profile: app.value?.contentProfile || 'public',
+    viewId: app.value?.viewId
+  }
   pushAiContext({
     app: 'quality',
     view: app.value?.key,
@@ -449,14 +625,33 @@ const syncAiContext = (rows = []) => {
     staticColumns: staticColumns.value,
     extraColumns: extraColumns.value,
     summaryConfig: summaryConfig.value,
+    fileColumns,
+    dataStats,
     dataSample: rows.slice(0, 30),
+    dataScope,
+    gridAgent: buildGridAgentContext({
+      app: 'quality',
+      view: app.value?.key,
+      viewId: app.value?.viewId,
+      apiUrl: app.value?.apiUrl,
+      writeUrl: app.value?.writeUrl || app.value?.apiUrl,
+      profile: app.value?.acceptProfile || 'public',
+      contentProfile: app.value?.contentProfile || 'public',
+      defaultOrder: app.value?.defaultOrder || 'id.desc',
+      columns,
+      staticColumns: staticColumns.value,
+      extraColumns: extraColumns.value,
+      summaryConfig: summaryConfig.value,
+      dataScope,
+      loadState: lastGridLoadState.value,
+      sampleLimit: 30,
+      allowImport: true,
+      importTarget,
+      summaryScope: summaryScope.value
+    }),
     aiScene: 'grid_chat',
     allowImport: true,
-    importTarget: {
-      apiUrl: app.value?.writeUrl || app.value?.apiUrl,
-      profile: app.value?.contentProfile || 'public',
-      viewId: app.value?.viewId
-    }
+    importTarget
   })
 }
 
@@ -553,10 +748,6 @@ const resetColumnForm = () => {
   addTab.value = 'text'
 }
 
-const goApps = () => {
-  router.push('/')
-}
-
 onMounted(() => {
   loadedRows.value = app.value?.fallbackRows || []
   loadColumnsConfig()
@@ -585,159 +776,22 @@ watch(attentionFilter, () => {
 }
 
 .header-text h2 {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 20px;
   font-weight: 700;
   color: #303133;
 }
 
-.header-text p {
-  margin: 0;
-  font-size: 12px;
-  color: #909399;
-}
-
-.attention-strip {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.9fr) minmax(190px, 0.55fr);
-  align-items: stretch;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 12px 14px;
-  border: 1px solid #e5e7eb;
-  border-left: 4px solid #2563eb;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.attention-main {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.attention-main span,
-.attention-next span,
-.attention-count span {
-  font-size: 12px;
-  color: #64748b;
-}
-
-.attention-main strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 17px;
-  color: #111827;
-}
-
-.attention-main small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  color: #475569;
-}
-
-.attention-counts {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.attention-count {
-  min-width: 0;
-  height: 58px;
-  padding: 8px 10px;
-  box-sizing: border-box;
-  border-radius: 8px;
-  background: #f8fafc;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-}
-
-.attention-count strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 20px;
-  color: #111827;
-}
-
-.count-critical strong {
-  color: #dc2626;
-}
-
-.count-warning strong {
-  color: #d97706;
-}
-
-.count-focus strong {
-  color: #2563eb;
-}
-
-.attention-next {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 8px;
-}
-
-.attention-next span {
-  min-width: 0;
-  width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.attention-critical {
-  border-left-color: #dc2626;
-}
-
-.attention-warning {
-  border-left-color: #f59e0b;
-}
-
-.attention-focus {
-  border-left-color: #2563eb;
-}
-
-.attention-normal,
-.attention-silent {
-  border-left-color: #94a3b8;
-}
-
-.grid-card {
-  flex: 1;
-  min-height: 0;
-}
-
-.fallback-grid {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.fallback-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
 .attention-filter {
   flex: 0 0 auto;
+}
+
+.attention-filter :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  line-height: 1;
 }
 
 .fallback-grid :deep(.fallback-attention-row.attention-row-critical) {
@@ -817,37 +871,12 @@ watch(attentionFilter, () => {
 }
 
 :global(#app.dark) .grid-card,
-:global(#app.dark) .col-item,
-:global(#app.dark) .attention-strip {
+:global(#app.dark) .col-item {
   background: #111827;
   border-color: #1f2937;
 }
 
-:global(#app.dark) .attention-main strong,
-:global(#app.dark) .attention-count strong {
-  color: #f3f4f6;
-}
-
-:global(#app.dark) .attention-main span,
-:global(#app.dark) .attention-main small,
-:global(#app.dark) .attention-next span,
-:global(#app.dark) .attention-count span {
-  color: #9ca3af;
-}
-
-:global(#app.dark) .attention-count {
-  background: #0f172a;
-}
-
 @media (max-width: 900px) {
-  .attention-strip {
-    grid-template-columns: 1fr;
-  }
-
-  .attention-next {
-    align-items: stretch;
-  }
-
   .fallback-toolbar {
     flex-wrap: wrap;
   }

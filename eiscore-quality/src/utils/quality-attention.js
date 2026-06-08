@@ -133,13 +133,20 @@ const manualAttention = (appKey, row, level) => {
   })
 }
 
+const hasLinkedNcr = (row = {}) => {
+  return Boolean(row?.properties?.ncr_doc_no || row?.properties?.ncr_id || row?.ncr_doc_no || row?.ncr_id)
+}
+
 function inspectionAttention(row) {
   const sample = numberValue(row.sample_qty)
   const defect = numberValue(row.defect_qty)
   const defectRate = sample > 0 ? (defect / sample) * 100 : 0
+  const linkedNcr = hasLinkedNcr(row)
   const candidates = []
 
-  if (row.result === '不合格') {
+  if (row.result === '不合格' && linkedNcr) {
+    candidates.push({ score: 74, level: 'warning', reason: '不合格已生成异常单', action: '跟踪整改' })
+  } else if (row.result === '不合格') {
     candidates.push({ score: 90, level: 'critical', reason: '检验结果不合格，阻塞放行', action: '发起异常' })
   }
   if (row.result === '待判定') {

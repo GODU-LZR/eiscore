@@ -1,5 +1,5 @@
 <template>
-  <div class="eis-grid-wrapper">
+  <div class="eis-grid-wrapper" data-guide="grid-wrapper">
     <GridToolbar
       v-model:search="searchText"
       :selected-count="selectedRowsCount"
@@ -9,16 +9,19 @@
       :can-config="canConfig"
       :can-delete="canDelete"
       :can-export="canExport"
+      :can-recalculate-formulas="canConfig && canRecalculateFormulas"
+      :formula-recalculating="formulaRecalculateState.loading"
       @search="loadData"
       @create="$emit('create')"
       @config-columns="$emit('config-columns')"
       @delete="deleteSelectedRows"
       @export="gridApi && gridApi.exportDataAsCsv({ fileName: '导出数据.csv' })"
+      @recalculate-formulas="recalculateServerFormulas"
     >
       <slot name="toolbar"></slot>
     </GridToolbar>
 
-    <div class="eis-grid-container" @mouseleave="onGridMouseLeave">
+    <div class="eis-grid-container" data-guide="grid-body" @mouseleave="onGridMouseLeave">
       <ag-grid-vue
         ref="agGridRef"
         style="width: 100%; height: 100%;"
@@ -48,6 +51,7 @@
         :rowClassRules="rowClassRules" 
         
         @grid-ready="onGridReady"
+        @body-scroll="handleGridBodyScroll"
         @cell-value-changed="handleCellValueChanged"
         @cell-key-down="onCellKeyDown"
         @selection-changed="onSelectionChanged"
@@ -151,11 +155,15 @@ const props = defineProps({
   canExport: { type: Boolean, default: true },
   canConfig: { type: Boolean, default: true },
   enableColumnLock: { type: Boolean, default: true },
-  showStatusCol: { type: Boolean, default: true }
+  showStatusCol: { type: Boolean, default: true },
+  enableInfiniteScroll: { type: Boolean, default: true },
+  pageSize: { type: Number, default: 200 },
+  maxClientRows: { type: Number, default: 5000 },
+  summaryScope: { type: String, default: 'server' }
 })
 
 // 🟢 声明事件：增加 view-document
-const emit = defineEmits(['create', 'config-columns', 'view-document', 'data-loaded', 'cell-value-changed'])
+const emit = defineEmits(['create', 'config-columns', 'view-document', 'data-loaded', 'data-load-error', 'cell-value-changed'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = String(currentUser).toLowerCase() === 'admin'
@@ -180,8 +188,9 @@ const {
 const activeSummaryConfig = reactive({ label: '合计', rules: {}, expressions: {}, ...props.summary })
 const workflowBinding = ref(null)
 const { 
-  gridData, gridColumns, context, gridComponents, searchText, isLoading, 
-  loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
+  gridData, gridColumns, context, gridComponents, searchText, isLoading,
+  isLoadingMore, hasMoreRows, loadData, loadNextPage,
+  handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
   columnLockState, setWorkflowBinding
 } = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit, workflowBinding) // 🟢 关键修复：共享 gridApi
 
@@ -200,13 +209,14 @@ context.componentParent.onHeaderLabelClick = (params, event) => {
 // 3. Formula
 const formulaDependencyHooks = {} 
 const { 
-  pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
+  pinnedBottomRowData, calculateRowFormulas, calculateTotals, refreshTotals,
+  formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas,
   configDialog, isSavingConfig, availableColumns, 
   openConfigDialog, saveConfig, loadGridConfig 
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState)
 
 // 4. History
-const historyHooks = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData })
+const historyHooks = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals })
 const { 
   history, isSystemOperation, 
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,
@@ -226,6 +236,8 @@ const prependRow = (row) => {
 // 注入公式依赖，解决循环依赖问题
 formulaDependencyHooks.pushPendingChange = pushPendingChange
 formulaDependencyHooks.triggerSave = debouncedSave
+formulaDependencyHooks.searchText = searchText
+formulaDependencyHooks.reloadData = loadData
 
 // 5. Clipboard (修复参数传递)
 const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, historyHooks, selectionHooks)
@@ -258,6 +270,23 @@ const onGridReady = (params) => {
   loadGridConfig();
 }
 
+let scrollLoadFrame = 0
+const handleGridBodyScroll = (event) => {
+  if (event?.direction && event.direction !== 'vertical') return
+  if (scrollLoadFrame) return
+  scrollLoadFrame = window.requestAnimationFrame(() => {
+    scrollLoadFrame = 0
+    const api = event?.api || gridApi.value
+    if (!api || !hasMoreRows.value || isLoading.value || isLoadingMore.value) return
+    const lastDisplayed = api.getLastDisplayedRowIndex?.()
+    const displayedCount = api.getDisplayedRowCount?.()
+    if (!Number.isFinite(lastDisplayed) || !Number.isFinite(displayedCount)) return
+    if (displayedCount - lastDisplayed <= 24) {
+      loadNextPage()
+    }
+  })
+}
+
 watch(
   () => props.apiUrl,
   (next, prev) => {
@@ -279,6 +308,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (scrollLoadFrame) {
+    window.cancelAnimationFrame(scrollLoadFrame)
+    scrollLoadFrame = 0
+  }
   if (themeObserver) {
     themeObserver.disconnect()
     themeObserver = null
@@ -358,7 +391,7 @@ onUnmounted(() => {
   document.removeEventListener('paste', handleGlobalPaste)
 })
 
-defineExpose({ loadData, setWorkflowBinding, prependRow })
+defineExpose({ loadData, loadNextPage, setWorkflowBinding, prependRow, recalculateServerFormulas })
 </script>
 
 <style scoped lang="scss">

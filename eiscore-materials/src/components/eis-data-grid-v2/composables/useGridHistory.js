@@ -13,6 +13,14 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const isSystemOperation = ref(false) // 使用 ref 以保持响应性引用
 
   const selectedRowsCount = ref(0)
+  const refreshSummaryTotals = () => {
+    if (typeof formulaHooks.refreshTotals === 'function') {
+      formulaHooks.refreshTotals()
+    } else {
+      formulaHooks.pinnedBottomRowData.value = formulaHooks.calculateTotals(gridData.value)
+    }
+  }
+
   const includeProperties = props.includeProperties !== false
   const getWriteMode = () => props.writeMode || 'upsert'
   const fieldDefaults = props.fieldDefaults || {}
@@ -272,7 +280,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const onCellValueChanged = (event) => {
     if (isSystemOperation.value) {
         formulaHooks.calculateRowFormulas(event.node)
-        formulaHooks.pinnedBottomRowData.value = formulaHooks.calculateTotals(gridData.value)
+        refreshSummaryTotals()
         debouncedSave()
         return
     }
@@ -294,7 +302,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     }
 
     formulaHooks.calculateRowFormulas(event.node)
-    formulaHooks.pinnedBottomRowData.value = formulaHooks.calculateTotals(gridData.value)
+    refreshSummaryTotals()
 
     history.redoStack = [] 
     history.undoStack.push({
@@ -352,7 +360,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
           }
         })
         gridApi.value.applyTransaction({ remove: selectedNodes.map(node => node.data) })
-        formulaHooks.pinnedBottomRowData.value = formulaHooks.calculateTotals(gridData.value)
+        refreshSummaryTotals()
         ElMessage.success('删除成功'); selectedRowsCount.value = 0; history.undoStack = []; history.redoStack = []
     } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }
   }

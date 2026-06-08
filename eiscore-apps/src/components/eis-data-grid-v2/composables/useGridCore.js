@@ -5,6 +5,7 @@ import { ref, reactive, computed, markRaw, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 import { buildSearchQuery } from '@/utils/grid-query'
+import { createPagedGridLoader } from '@shared/eis-data-grid-paging'
 import StatusRenderer from '../components/renderers/StatusRenderer.vue'
 import StatusEditor from '../components/renderers/StatusEditor.vue'
 import SelectRenderer from '../components/renderers/SelectRenderer.vue'
@@ -601,7 +602,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, cellEditorPopupPosition: 'under',
       cellClassRules: cellClassRules,
       valueGetter: params => {
-        if (params.node.rowPinned) return activeSummaryConfig.label
+        if (params.node.rowPinned) return params.data?._status || activeSummaryConfig.label
         if (params.data?.properties?.row_locked_by) return 'locked'
         const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
         const raw = hasStatus ? params.data?.status : params.data?.properties?.status
@@ -675,57 +676,23 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     }
   })
 
-  const loadData = async () => {
-    await loadFieldAcl()
-    if (!props.apiUrl || !String(props.apiUrl).trim()) {
-      gridData.value = []
-      if (eventEmitter) {
-        eventEmitter('data-loaded', {
-          rows: [],
-          searchText: searchText.value || ''
-        })
-      }
-      return
-    }
-    isLoading.value = true 
-    try {
-      let url = String(props.apiUrl).trim()
-      const orderClause = props.defaultOrder
-      if (orderClause) {
-        url = `${url}${url.includes('?') ? '&' : '?'}order=${orderClause}`
-      }
-      if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
-      const res = await request({ 
-        url, 
-        method: 'get',
-        headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr' }
-      })
-      const rows = Array.isArray(res) ? res : []
-      gridData.value = rows
-      if (eventEmitter) {
-        eventEmitter('data-loaded', {
-          rows,
-          searchText: searchText.value || ''
-        })
-      }
-      if (props.autoSizeColumns !== false) {
-        setTimeout(() => { 
-          if (gridApi.value) {
-            const cols = gridApi.value.getAllGridColumns?.() || gridApi.value.getColumns?.() || []
-            if (cols.length) {
-              const allColIds = cols.map(c => c.getColId())
-              gridApi.value.autoSizeColumns(allColIds, false)
-            }
-          }
-        }, 100)
-      }
-    } catch (e) { ElMessage.error('数据加载失败') } 
-    finally { isLoading.value = false }
-  }
+  const { isLoadingMore, hasMoreRows, loadData, loadNextPage } = createPagedGridLoader({
+    props,
+    gridData,
+    searchText,
+    isLoading,
+    gridApi,
+    eventEmitter,
+    loadFieldAcl,
+    request,
+    buildSearchQuery,
+    ElMessage,
+    defaultProfile: 'hr'
+  })
 
   return {
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
-    loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState,
+    isLoadingMore, hasMoreRows, loadData, loadNextPage, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState,
     setWorkflowBinding
   }
 }

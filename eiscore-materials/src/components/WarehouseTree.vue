@@ -348,8 +348,9 @@ onMounted(() => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f7f4f4;
-  border: none;
+  background: #fff;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
 }
 
 .tree-header {
@@ -360,9 +361,9 @@ onMounted(() => {
 }
 
 .tree-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  color: #1f2d3d;
+  color: #303133;
 }
 
 .tree-actions {
@@ -422,10 +423,11 @@ onMounted(() => {
 }
 
 :deep(.el-tree-node__content:hover) {
-  background: #f3eceb;
+  background: #f5f7fa;
 }
 
 :deep(.el-tree--highlight-current .el-tree-node.is-current > .el-tree-node__content) {
-  background: #efe6e5;
+  background: #ecf5ff;
+  color: #409eff;
 }
 </style>

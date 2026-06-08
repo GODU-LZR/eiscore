@@ -55,10 +55,12 @@
         :can-delete="canDelete"
         :can-export="canExport"
         :can-config="canConfig"
+        :summary-scope="summaryScope"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
         @data-loaded="handleDataLoaded"
+        @data-load-error="handleDataLoadError"
       />
 
       <el-dialog v-model="colConfigVisible" title="列管理" width="600px" append-to-body destroy-on-close @closed="resetForm">
@@ -275,6 +277,7 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
+import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import { hasPerm } from '@/utils/permission'
 import { getRealtimeClient } from '@/utils/realtime'
 import { buildDefaultOps, ensureAppAclConfig, ensureAppPermissions } from '@/utils/app-permissions'
@@ -293,6 +296,8 @@ const colConfigVisible = ref(false)
 const addTab = ref('text')
 const lastLoadedRows = ref([])
 const lastSearchText = ref('')
+const lastGridLoadState = ref(buildGridLoadState())
+const summaryScope = computed(() => 'server')
 let fieldLabelRetryTimer = null
 let fieldLabelRetrying = false
 let fieldLabelWarned = false
@@ -940,9 +945,15 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     expression: col.expression || ''
   }))
   const propertyFields = extraColumns.value.map(col => col.prop).filter(Boolean)
-  const dataStats = buildDataStats(rows)
+  const dataStats = enrichLoadedDataStats(buildDataStats(rows), lastGridLoadState.value, rows)
   const dataSample = buildDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
+  const dataScope = (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
+  const importTarget = {
+    apiUrl: apiUrl.value ? apiUrl.value.split('?')[0] : '',
+    profile: schemaName.value,
+    viewId: app.value?.viewId
+  }
   pushAiContext({
     app: 'app_center',
     view: app.value?.viewId || props.appId || 'data_app',
@@ -958,25 +969,51 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     fileColumns,
     dataStats,
     dataSample,
-    dataScope: (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据',
+    dataScope,
     searchText: overrides.searchText ?? lastSearchText.value ?? '',
+    gridAgent: buildGridAgentContext({
+      app: 'app_center',
+      view: app.value?.viewId || props.appId || 'data_app',
+      viewId: app.value?.viewId,
+      apiUrl: apiUrl.value,
+      writeUrl: apiUrl.value,
+      profile: schemaName.value,
+      contentProfile: schemaName.value,
+      defaultOrder: defaultOrder.value,
+      columns,
+      staticColumns: staticColumns.value,
+      extraColumns: extraColumns.value,
+      summaryConfig: summaryConfig.value,
+      searchText: overrides.searchText ?? lastSearchText.value ?? '',
+      dataScope,
+      loadState: lastGridLoadState.value,
+      allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
+      importTarget,
+      summaryScope: summaryScope.value
+    }),
     aiScene: overrides.aiScene || 'grid_chat',
     allowFormula: !!overrides.allowFormula,
     allowFormulaOnce: !!overrides.allowFormulaOnce,
     allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
-    importTarget: {
-      apiUrl: apiUrl.value ? apiUrl.value.split('?')[0] : '',
-      profile: schemaName.value,
-      viewId: app.value?.viewId
-    }
+    importTarget
   })
 }
 
 const handleDataLoaded = (payload) => {
-  const rows = Array.isArray(payload?.rows) ? payload.rows : []
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
   lastLoadedRows.value = rows
   lastSearchText.value = payload?.searchText || ''
-  syncAiContext(rows, { searchText: lastSearchText.value })
+  lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
+  syncAiContext(visibleRows, { searchText: lastSearchText.value })
+}
+
+const handleDataLoadError = () => {
+  lastLoadedRows.value = []
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], { searchText: lastSearchText.value })
 }
 
 const buildFormulaPrompt = () => {

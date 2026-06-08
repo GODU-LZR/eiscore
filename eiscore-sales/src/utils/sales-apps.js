@@ -353,6 +353,15 @@ export const SALES_APPS = [
     })
   },
   {
+    key: 'shipment_requests',
+    name: '销售出货申请',
+    desc: '基于销售订单跟进交付、下推和出货申请处理',
+    route: '/app/orders',
+    perm: 'app:sales_order',
+    icon: 'Tickets',
+    tone: 'purple'
+  },
+  {
     key: 'payments',
     name: '回款记录',
     desc: '订单回款、核销状态与资金到账跟踪',
@@ -404,5 +413,21 @@ export const SALES_COCKPIT_APP = {
 }
 
 export const findSalesApp = (key) => {
-  return SALES_APPS.find((app) => app.key === key)
+  const found = SALES_APPS.find((app) => app.key === key)
+  if (found?.apiUrl) return found
+  if (key === 'shipment_requests') {
+    const source = SALES_APPS.find((app) => app.key === 'orders')
+    return source
+      ? {
+        ...source,
+        key: 'shipment_requests',
+        name: '销售出货申请',
+        desc: '基于销售订单跟进交付、下推和出货申请处理',
+        route: '/app/shipment_requests',
+        viewId: 'sales_shipment_requests',
+        configKey: 'sales_shipment_requests_cols'
+      }
+      : found
+  }
+  return found
 }

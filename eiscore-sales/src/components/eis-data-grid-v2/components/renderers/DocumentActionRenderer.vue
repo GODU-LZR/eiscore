@@ -1,5 +1,20 @@
 <template>
   <div class="action-cell-wrapper" @mousedown.stop>
+    <el-button
+      v-for="action in rowActions"
+      :key="action.key"
+      link
+      :type="action.type || 'primary'"
+      size="small"
+      class="action-btn"
+      :disabled="action.disabled"
+      @click.stop="onRowAction(action)"
+    >
+      <el-icon v-if="resolveIcon(action.icon)" :size="14" style="margin-right: 4px; vertical-align: middle;">
+        <component :is="resolveIcon(action.icon)" />
+      </el-icon>
+      <span style="vertical-align: middle;">{{ action.label }}</span>
+    </el-button>
     <el-button 
       v-if="!isPinned"
       link 
@@ -20,11 +35,40 @@
 
 import { computed } from 'vue'
 import { ElButton, ElIcon } from 'element-plus'
-import { Document } from '@element-plus/icons-vue'
+import { ChatLineSquare, Document, Money, Position, Promotion, Tickets, TrendCharts } from '@element-plus/icons-vue'
 
 const props = defineProps(['params'])
 
 const isPinned = computed(() => !!props.params?.node?.rowPinned)
+const rowActions = computed(() => {
+  if (isPinned.value) return []
+  const resolver = props.params?.context?.componentParent?.resolveRowActions
+  if (typeof resolver !== 'function') return []
+  const actions = resolver(props.params?.data)
+  return Array.isArray(actions) ? actions : []
+})
+
+const iconMap = {
+  ChatLineSquare,
+  Document,
+  Money,
+  Position,
+  Promotion,
+  Tickets,
+  TrendCharts
+}
+
+const resolveIcon = (icon) => iconMap[icon] || null
+
+const onRowAction = (action) => {
+  if (isPinned.value || action?.disabled) return
+  const handler = props.params?.context?.componentParent?.rowAction
+  if (typeof handler === 'function') {
+    handler(action, props.params.data)
+  } else {
+    console.warn('rowAction method not found on componentParent')
+  }
+}
 
 const onViewForm = () => {
   if (isPinned.value) return
@@ -42,14 +86,16 @@ const onViewForm = () => {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  gap: 4px;
   height: 100%;
   width: 100%;
 }
 .action-btn {
-  padding: 4px 8px;
+  padding: 4px 6px;
   display: flex;
   align-items: center;
   font-weight: 500;
+  white-space: nowrap;
 }
 .action-btn:hover {
   background-color: var(--el-color-primary-light-9);

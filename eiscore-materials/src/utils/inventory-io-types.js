@@ -7,9 +7,11 @@ export const INVENTORY_IO_TYPE_CONFIG_KEY = 'inventory_io_types'
 
 export const DEFAULT_INVENTORY_IO_TYPES = [
   { id: 'in_purchase', draft_type: 'in', name: '采购入库' },
+  { id: 'in_production', draft_type: 'in', name: '生产入库' },
   { id: 'in_return', draft_type: 'in', name: '退货入库' },
   { id: 'in_adjust', draft_type: 'in', name: '盘盈入库' },
   { id: 'out_sale', draft_type: 'out', name: '销售出库' },
+  { id: 'out_production_issue', draft_type: 'out', name: '生产领料' },
   { id: 'out_transfer', draft_type: 'out', name: '调拨出库' },
   { id: 'out_adjust', draft_type: 'out', name: '盘亏出库' }
 ]

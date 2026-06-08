@@ -32,8 +32,11 @@
         :can-export="canExport"
         :can-config="canConfig"
         :enable-actions="enableActions"
+        :summary-scope="summaryScope"
         @create="handleCreate"
         @config-columns="openColumnConfig"
+        @data-loaded="handleDataLoaded"
+        @data-load-error="handleDataLoadError"
       />
 
       <el-dialog v-model="colConfigVisible" title="列管理" width="600px" append-to-body destroy-on-close @closed="resetForm">
@@ -231,6 +234,8 @@ import { useUserStore } from '@/stores/user'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { hasPerm } from '@/utils/permission'
 import { getRealtimeClient } from '@/utils/realtime'
+import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
+import { buildGridLoadState } from '@shared/eis-grid-agent-context'
 
 const props = defineProps({
   appData: { type: Object, default: null },
@@ -245,6 +250,8 @@ const gridRef = ref(null)
 const colConfigVisible = ref(false)
 const addTab = ref('text')
 const isHydrating = ref(true)
+const lastGridLoadState = ref(buildGridLoadState())
+const lastSearchText = ref('')
 
 const staticHidden = ref([])
 const extraColumns = ref([])
@@ -305,6 +312,7 @@ const apiUrl = computed(() => {
 })
 
 const summaryConfig = computed(() => configRef.value.summary || { label: '合计', rules: {}, expressions: {} })
+const summaryScope = computed(() => 'server')
 
 const staticColumns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
@@ -731,43 +739,44 @@ const initRealtime = () => {
   realtimeUnsub = client.subscribe({ schema: schemaName.value, table: configRef.value.table?.split('.').pop() }, handleRealtimeEvent)
 }
 
-const syncAiContext = (rows = []) => {
-  const columns = [...staticColumns.value, ...extraColumns.value].map(col => ({
-    label: col.label,
-    prop: col.prop,
-    type: col.type || 'text',
-    options: col.options || [],
-    dependsOn: col.dependsOn || '',
-    cascaderOptions: col.cascaderOptions || null,
-    expression: col.expression || '',
-    storeInProperties: col.storeInProperties === true
-  }))
-  pushAiContext({
+const syncAiContext = (rows = [], payload = null) => {
+  lastGridLoadState.value = pushStandardGridAgentContext({
+    pushAiContext,
     app: 'app_center',
     view: app.value?.viewId || props.appId || 'data_app',
     viewId: app.value.viewId,
     apiUrl: apiUrl.value,
+    writeUrl: apiUrl.value,
     profile: schemaName.value,
-    columns,
-    dataStats: {
-      totalCount: rows.length,
-      sampleSize: Math.min(rows.length, 40)
-    },
-    dataSample: rows.slice(0, 40),
-    dataScope: '当前列表数据',
-    aiScene: 'grid_chat',
+    contentProfile: schemaName.value,
+    staticColumns: staticColumns.value,
+    extraColumns: extraColumns.value,
+    summaryConfig: summaryConfig.value,
+    rows,
+    visibleRows: rows,
+    payload,
+    previousLoadState: lastGridLoadState.value,
+    searchText: lastSearchText.value,
+    summaryScope: summaryScope.value,
     allowImport: true,
-    importTarget: {
-      apiUrl: apiUrl.value,
-      profile: schemaName.value,
-      viewId: app.value.viewId
+    additionalContext: {
+      currentUser: userStore.userInfo?.username || 'Admin'
     }
   })
 }
 
-const onGridDataLoaded = (payload) => {
-  const rows = Array.isArray(payload?.rows) ? payload.rows : []
-  syncAiContext(rows)
+const handleDataLoaded = (payload) => {
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  lastSearchText.value = payload?.searchText || ''
+  syncAiContext(visibleRows, payload)
+}
+
+const handleDataLoadError = () => {
+  lastSearchText.value = ''
+  syncAiContext([], {})
 }
 
 const createTableIfNotExists = async () => {

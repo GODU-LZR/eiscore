@@ -1,15 +1,11 @@
 <template>
-  <div class="inventory-stock">
-    <div class="page-header">
+  <div class="inventory-stock app-container">
+    <div class="app-header">
       <div class="header-text">
         <h2>出库</h2>
         <p>选择批次号并登记出库流水</p>
       </div>
-      <div class="header-actions">
-        <el-button plain @click="goBatchRules">批次号规则</el-button>
-        <el-button :icon="Setting" circle @click="openTypeManager" title="管理出库类型" />
-        <el-button type="primary" @click="openDrawer">出库登记</el-button>
-      </div>
+      <el-button type="primary" plain @click="goApps">返回应用列表</el-button>
     </div>
 
     <!-- 物料库存信息栏 -->
@@ -28,34 +24,59 @@
       </div>
     </div>
 
-    <EisDataGrid
-      ref="gridRef"
-      class="stock-grid"
-      :view-id="gridConfig.viewId"
-      :api-url="gridConfig.apiUrl"
-      :write-url="gridConfig.writeUrl"
-      :include-properties="false"
-      write-mode="patch"
-      :default-order="gridConfig.defaultOrder"
-      :acl-module="gridConfig.aclModule"
-      :profile="gridConfig.schema"
-      :accept-profile="gridConfig.schema"
-      :content-profile="gridConfig.schema"
-      :static-columns="gridConfig.staticColumns"
-      :extra-columns="[]"
-      :summary="gridConfig.summaryConfig"
-      :show-status-col="false"
-      :can-create="canCreate"
-      :can-edit="canEdit"
-      :can-delete="false"
-      :can-export="canExport"
-      :can-config="canConfig"
-      @create="openDrawer"
-      @view-document="handleViewDocument"
-      @cell-value-changed="handleCellValueChanged"
-      @selection-changed="handleSelection"
-      @data-loaded="handleDataLoaded"
-    />
+    <el-card
+      shadow="never"
+      class="grid-card"
+      :body-style="{ height: '100%', display: 'flex', flexDirection: 'column', padding: '0' }"
+    >
+      <EisDataGrid
+        ref="gridRef"
+        class="stock-grid"
+        :view-id="gridConfig.viewId"
+        :api-url="gridConfig.apiUrl"
+        :write-url="gridConfig.writeUrl"
+        :include-properties="false"
+        write-mode="patch"
+        :default-order="gridConfig.defaultOrder"
+        :acl-module="gridConfig.aclModule"
+        :profile="gridConfig.schema"
+        :accept-profile="gridConfig.schema"
+        :content-profile="gridConfig.schema"
+        :static-columns="gridConfig.staticColumns"
+        :extra-columns="[]"
+        :summary="gridConfig.summaryConfig"
+        :summary-scope="summaryScope"
+        :show-status-col="false"
+        :can-create="canCreate"
+        :can-edit="canEdit"
+        :can-delete="false"
+        :can-export="canExport"
+        :can-config="canConfig"
+        :attention-resolver="resolveAttention"
+        :row-filter="rowAttentionFilter"
+        @create="openDrawer"
+        @view-document="handleViewDocument"
+        @cell-value-changed="handleCellValueChanged"
+        @selection-changed="handleSelection"
+        @data-loaded="handleDataLoaded"
+        @data-load-error="handleDataLoadError"
+      >
+        <template #toolbar>
+          <el-radio-group v-model="attentionFilter" class="attention-filter">
+            <el-radio-button
+              v-for="option in attentionFilterOptions"
+              :key="option.value"
+              :label="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
+          <el-button plain @click="goBatchRules">批次号规则</el-button>
+          <el-button :icon="Setting" circle @click="openTypeManager" title="管理出库类型" />
+          <el-button type="primary" @click="openDrawer">出库登记</el-button>
+        </template>
+      </EisDataGrid>
+    </el-card>
 
     <el-drawer v-model="drawer.visible" title="出库登记" size="520px" direction="rtl">
       <div class="selection-tip" v-if="selectedRow">
@@ -192,6 +213,9 @@ import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { hasPerm } from '@/utils/permission'
 import { useUserStore } from '@/stores/user'
+import { pushAiContext } from '@/utils/ai-context'
+import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
+import { buildGridLoadState } from '@shared/eis-grid-agent-context'
 import {
   DEFAULT_INVENTORY_IO_TYPES,
   loadInventoryIoTypes,
@@ -199,6 +223,11 @@ import {
   getInventoryIoTypesByDraft,
   buildInventoryIoTypeOptions
 } from '@/utils/inventory-io-types'
+import {
+  buildMaterialAttentionSummary,
+  getMaterialRecordAttention,
+  matchesMaterialAttentionFilter
+} from '@/utils/material-attention'
 
 const router = useRouter()
 const route = useRoute()
@@ -211,6 +240,9 @@ const warehouseFlat = ref([])
 const warehouseIndex = ref({})
 const batchOptions = ref([])
 const loadedRows = ref([])
+const attentionFilter = ref('all')
+const lastGridLoadState = ref(buildGridLoadState())
+const lastSearchText = ref('')
 
 const userStore = useUserStore()
 const operatorName = computed(() => userStore.userInfo?.username || 'Admin')
@@ -340,6 +372,26 @@ const canEditField = (params, field) => {
   return false
 }
 
+const isRowActive = (row) => row?.status !== 'deleted'
+const attentionRows = computed(() => loadedRows.value)
+const attentionSummary = computed(() => buildMaterialAttentionSummary('inventory-stock-out', attentionRows.value))
+const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesMaterialAttentionFilter('inventory-stock-out', row, 'todo')).length)
+const attentionFilterOptions = computed(() => [
+  { value: 'all', label: `全部 ${attentionSummary.value.total}` },
+  { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical}` },
+  { value: 'warning', label: `预警 ${attentionSummary.value.counts.warning}` },
+  { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus}` },
+  { value: 'todo', label: `待处理 ${attentionTodoCount.value}` }
+])
+const resolveAttention = (row) => getMaterialRecordAttention('inventory-stock-out', row, {
+  role: 'warehouse',
+  page: 'inventory-stock-out',
+  device: 'desktop',
+  task: 'execute'
+})
+const rowAttentionFilter = (row) => matchesMaterialAttentionFilter('inventory-stock-out', row, attentionFilter.value)
+const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
+
 const parseNonNegative = (value) => {
   const num = Number(value)
   if (Number.isNaN(num) || num < 0) return null
@@ -393,6 +445,35 @@ const buildBatchLabel = (batch) => {
   const whName = batch.warehouse_path || batch.warehouse_name || ''
   const qty = batch.available_qty != null ? `(${batch.available_qty})` : ''
   return [no, matName, whName, qty].filter(Boolean).join(' | ')
+}
+
+const syncAiContext = (rows = [], payload = null) => {
+  lastGridLoadState.value = pushStandardGridAgentContext({
+    pushAiContext,
+    app: 'materials',
+    view: 'inventory-stock-out',
+    viewId: gridConfig.viewId,
+    apiUrl: gridConfig.apiUrl,
+    writeUrl: gridConfig.writeUrl,
+    profile: gridConfig.schema,
+    contentProfile: gridConfig.schema,
+    defaultOrder: gridConfig.defaultOrder,
+    staticColumns: gridConfig.staticColumns,
+    extraColumns: [],
+    summaryConfig: gridConfig.summaryConfig,
+    rows,
+    visibleRows: rows,
+    payload,
+    previousLoadState: lastGridLoadState.value,
+    searchText: lastSearchText.value,
+    summaryScope: summaryScope.value,
+    allowImport: false,
+    additionalContext: {
+      operator: operatorName.value,
+      attentionFilter: attentionFilter.value,
+      workflowActive: workflowContext.value.active
+    }
+  })
 }
 
 /* ── Grid 配置 ── */
@@ -558,9 +639,26 @@ const drawerStockHints = computed(() => {
 
 const goBatchRules = () => router.push('/batch-rules')
 
+const goApps = () => {
+  router.push('/apps')
+}
+
+const normalizeTypeName = (value) => String(value || '').trim()
+
+const preferredIoType = computed(() => normalizeTypeName(route.query.ioType || route.query.io_type))
+
+const getDefaultIoType = () => {
+  const preferred = preferredIoType.value
+  if (preferred) {
+    ensureIoTypeOption(preferred)
+    return preferred
+  }
+  return ioTypeSelectOptions[0]?.value || ''
+}
+
 const openDrawer = () => {
   drawer.visible = true
-  const defaultIoType = ioTypeSelectOptions[0]?.value || ''
+  const defaultIoType = getDefaultIoType()
   drawer.form = {
     material_id: null,
     warehouse_id: null,
@@ -576,8 +674,6 @@ const openDrawer = () => {
   }
 }
 
-const normalizeTypeName = (value) => String(value || '').trim()
-
 const syncIoTypeOptions = (list) => {
   ioTypeList.value = getInventoryIoTypesByDraft(list, 'out')
   ioTypeSelectOptions.splice(0, ioTypeSelectOptions.length, ...buildInventoryIoTypeOptions(list, 'out'))
@@ -590,7 +686,9 @@ const syncIoTypeOptions = (list) => {
     ioTypeList.value = fallback
     ioTypeSelectOptions.splice(0, ioTypeSelectOptions.length, ...fallback.map(item => ({ label: item.name, value: item.name })))
   }
-  gridConfig.fieldDefaults.io_type = ioTypeSelectOptions[0]?.value || ''
+  const preferred = preferredIoType.value
+  if (preferred) ensureIoTypeOption(preferred)
+  gridConfig.fieldDefaults.io_type = getDefaultIoType()
 }
 
 const ensureIoTypeOption = (value) => {
@@ -808,6 +906,7 @@ const handleCellValueChanged = async (params) => {
   const field = params.colDef.field
   const row = params.data
   if (!row?.id) return
+  syncAttentionRow(row)
 
   if (field === 'batch_id' && row.status === 'created') {
     const batch = batchOptions.value.find(b => b.id === row.batch_id)
@@ -907,11 +1006,31 @@ const handleViewDocument = (row) => {
 }
 
 const handleDataLoaded = (payload) => {
-  const rows = Array.isArray(payload?.rows) ? payload.rows : []
-  loadedRows.value = rows
-  rows.forEach((row) => ensureIoTypeOption(row?.io_type))
-  if (rows.length === 0) return
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  loadedRows.value = rows.filter(isRowActive)
+  lastSearchText.value = payload?.searchText || ''
+  syncAiContext(visibleRows.filter(isRowActive), payload)
+  visibleRows.forEach((row) => ensureIoTypeOption(row?.io_type))
+  if (visibleRows.length === 0) return
   gridRef.value?.refreshCells?.({ force: true })
+}
+
+const handleDataLoadError = () => {
+  loadedRows.value = []
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], {})
+}
+
+const syncAttentionRow = (row) => {
+  if (!row?.id) return
+  const index = loadedRows.value.findIndex((item) => String(item?.id) === String(row.id))
+  if (index < 0) return
+  const next = [...loadedRows.value]
+  next.splice(index, 1, row)
+  loadedRows.value = next.filter(isRowActive)
 }
 
 const applySelectedRow = () => {
@@ -1026,32 +1145,35 @@ watch(
     }
   }
 )
+
+watch(attentionFilter, () => {
+  gridRef.value?.loadData?.()
+})
 </script>
 
 <style scoped>
-.inventory-stock {
-  min-height: 100vh;
+.app-container {
+  height: 100vh;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  padding: 20px;
   box-sizing: border-box;
   background: #f5f7fb;
+  overflow: hidden;
 }
 
-.page-header {
+.app-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .header-text h2 {
   margin: 0 0 6px;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
   color: #303133;
 }
@@ -1062,9 +1184,30 @@ watch(
   color: #909399;
 }
 
-.header-actions {
+.attention-filter {
+  flex: 0 0 auto;
+}
+
+.attention-filter :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  line-height: 1;
+}
+
+.grid-card {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.grid-card :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
 }
 
 .stock-grid {
@@ -1192,4 +1335,6 @@ watch(
 .drawer-stock-hint-item strong {
   color: #67c23a;
 }
+
+@media (max-width: 760px) {}
 </style>

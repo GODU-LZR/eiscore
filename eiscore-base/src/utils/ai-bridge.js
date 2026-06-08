@@ -5,6 +5,11 @@ import { reactive, watch } from 'vue'
 import request from '@/utils/request'
 import * as XLSX from 'xlsx'
 import mammoth from 'mammoth'
+import {
+  buildGridAgentQueryPayload,
+  formatGridAgentQueryResultForPrompt,
+  shouldPrefetchGridAgentQuery
+} from '@shared/eis-grid-agent-query'
 
 const STORAGE_KEY = 'eis_ai_history_v5'
 const MAX_SESSIONS = 20
@@ -130,6 +135,32 @@ class AiBridge {
     const token = this.getAuthToken()
     if (token) headers.Authorization = `Bearer ${token}`
     return headers
+  }
+
+  async prefetchGridAgentQuery(userText, context) {
+    if (!shouldPrefetchGridAgentQuery(userText, context)) return null
+    const payload = buildGridAgentQueryPayload({ context, userText })
+    if (!payload) return null
+
+    try {
+      const response = await fetch('/api/rpc/eis_grid_agent_query', {
+        method: 'POST',
+        headers: {
+          ...this.buildAuthHeaders(),
+          'Accept-Profile': 'public',
+          'Content-Profile': 'public'
+        },
+        body: JSON.stringify({ payload })
+      })
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        throw new Error(`EISGrid server query failed: ${response.status}${text ? ` ${text.slice(0, 160)}` : ''}`)
+      }
+      return await response.json()
+    } catch (e) {
+      console.warn('[AiBridge] EISGrid server query skipped', e)
+      return null
+    }
   }
 
   loadFromStorage() {
@@ -279,8 +310,10 @@ class AiBridge {
         ? `\n补充说明：${context.importTips.join('；')}。`
         : ''
 
+      const gridAgent = context?.gridAgent || null
+      const loadedOnly = context?.dataStats?.scope === 'loaded_rows' || context?.dataStats?.totalCountIsFull === false || gridAgent?.dataAccess?.sampleScope === 'frontend-loaded-rows-only'
       const dataRuleBlock = context?.dataStats
-        ? `【数据回答规则】\n1. 当用户问“数量/条数/统计/汇总”时，必须用上下文 dataStats 直接给答案。\n2. 不要用公式代替结果，不要只给计算方法。\n3. 如果 dataStats 有 totalCount，直接回答“当前记录数 = totalCount”。\n4. 可以结合 statusCounts / departmentCounts / ownerCounts / regionCounts 说明分布。\n`
+        ? `【数据回答规则】\n1. 当用户问“数量/条数/人数/统计/汇总”时，必须先判断是否存在 gridAgentServerResult。\n2. 如果 gridAgentServerResult.scope=server 且 totalCount 是数字，必须优先使用 totalCount 回答全量数量。\n3. 如果没有 gridAgentServerResult，且 dataStats.scope=loaded_rows 或 totalCountIsFull=false，只能回答“当前前端已加载记录数 = ${context?.dataStats?.loadedCount ?? context?.dataStats?.totalCount ?? 0}”，不要说成数据库全量。\n4. dataSample 只是前端样本，不代表全表；如果 gridAgent.dataAccess.hasMore=true，说明还有分页数据未加载。\n5. 涉及百万行、全表数量、全表汇总、分布统计时，应提示使用 EISGrid 服务端汇总/受控后端工具，不要根据样本编造结论。\n6. 可以结合 statusCounts / departmentCounts / ownerCounts / regionCounts 说明“已加载数据”的分布。${loadedOnly ? '\n7. 当前上下文不是全量统计，除非同时提供了 gridAgentServerResult。' : ''}\n`
         : `【数据回答规则】\n如果用户问数量或统计，但上下文没有 dataStats，请说明“当前没有统计数据”，提示用户刷新表格或重新进入页面后再问。\n`
       const salesRuleBlock = context?.app === 'sales'
         ? `【销售场景规则】\n当前是销售模块。回答时优先使用上下文里的销售统计字段：totalAmount、totalQuantity、totalReceivableBalance、totalCreditLimit、levelCounts、ownerCounts、regionCounts、methodCounts、handlerCounts、deliveryRiskCounts。不要把客户、订单、回款称为“人数”。\n`
@@ -433,10 +466,24 @@ class AiBridge {
     if (!this.config) await this.loadConfig()
     let silentRetryNeeded = false
     try {
+      const serverGridResult = await this.prefetchGridAgentQuery(effectiveUserText, context)
+      const serverGridText = formatGridAgentQueryResultForPrompt(serverGridResult)
       const historyWindow = await this.buildPayloadMessages(session.messages)
+      if (serverGridText && historyWindow.length) {
+        const lastMessage = historyWindow[historyWindow.length - 1]
+        if (Array.isArray(lastMessage?.content)) {
+          lastMessage.content.push({ type: 'text', text: serverGridText })
+        }
+      }
       const contextPayload = this.state.currentContext
+        ? {
+            ...this.state.currentContext,
+            ...(serverGridResult ? { gridAgentServerResult: serverGridResult } : {})
+          }
+        : (serverGridResult ? { gridAgentServerResult: serverGridResult } : null)
       if (contextPayload?.allowFormulaOnce) {
         contextPayload.allowFormulaOnce = false
+        if (this.state.currentContext) this.state.currentContext.allowFormulaOnce = false
       }
 
       const payload = {

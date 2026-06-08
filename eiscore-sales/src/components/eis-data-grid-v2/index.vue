@@ -1,5 +1,5 @@
 <template>
-  <div class="eis-grid-wrapper">
+  <div class="eis-grid-wrapper" data-guide="grid-wrapper">
     <GridToolbar
       v-model:search="searchText"
       :selected-count="selectedRowsCount"
@@ -9,16 +9,22 @@
       :can-config="canConfig"
       :can-delete="canDelete"
       :can-export="canExport"
+      :can-recalculate-formulas="canConfig && canRecalculateFormulas"
+      :formula-recalculating="formulaRecalculateState.loading"
       @search="loadData"
       @create="$emit('create')"
       @config-columns="$emit('config-columns')"
       @delete="deleteSelectedRows"
       @export="gridApi && gridApi.exportDataAsCsv({ fileName: '导出数据.csv' })"
+      @recalculate-formulas="recalculateServerFormulas"
     >
       <slot name="toolbar"></slot>
+      <template #table-tools>
+        <slot name="table-toolbar"></slot>
+      </template>
     </GridToolbar>
 
-    <div class="eis-grid-container" @mouseleave="onGridMouseLeave">
+    <div class="eis-grid-container" data-guide="grid-body" @mouseleave="onGridMouseLeave">
       <ag-grid-vue
         ref="agGridRef"
         style="width: 100%; height: 100%;"
@@ -48,6 +54,7 @@
         :rowClassRules="rowClassRules" 
         
         @grid-ready="onGridReady"
+        @body-scroll="handleGridBodyScroll"
         @cell-value-changed="handleCellValueChanged"
         @cell-key-down="onCellKeyDown"
         @selection-changed="onSelectionChanged"
@@ -93,7 +100,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive } from 'vue'
+import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive, watch } from 'vue'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
@@ -151,11 +158,19 @@ const props = defineProps({
   canExport: { type: Boolean, default: true },
   canConfig: { type: Boolean, default: true },
   enableColumnLock: { type: Boolean, default: true },
-  showStatusCol: { type: Boolean, default: true }
+  showStatusCol: { type: Boolean, default: true },
+  attentionResolver: { type: Function, default: null },
+  rowActionResolver: { type: Function, default: null },
+  rowFilter: { type: Function, default: null },
+  initialSearch: { type: String, default: '' },
+  enableInfiniteScroll: { type: Boolean, default: true },
+  pageSize: { type: Number, default: 200 },
+  maxClientRows: { type: Number, default: 5000 },
+  summaryScope: { type: String, default: 'server' }
 })
 
 // 🟢 声明事件：增加 view-document
-const emit = defineEmits(['create', 'config-columns', 'view-document', 'data-loaded', 'cell-value-changed'])
+const emit = defineEmits(['create', 'config-columns', 'view-document', 'row-action', 'data-loaded', 'data-load-error', 'cell-value-changed'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = String(currentUser).toLowerCase() === 'admin'
@@ -171,7 +186,7 @@ let themeObserver = null
 // 1. Selection
 const selectionHooks = useGridSelection(gridApi, selectedRowsCount, agGridRef)
 const { 
-  rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
+  rangeSelection, isDragging, onCellMouseDown: handleSelectionCellMouseDown, onCellMouseOver, onSelectionChanged,
   onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection,
   selectColumnRange, selectRowRange
 } = selectionHooks
@@ -180,8 +195,9 @@ const {
 const activeSummaryConfig = reactive({ label: '合计', rules: {}, expressions: {}, ...props.summary })
 const workflowBinding = ref(null)
 const { 
-  gridData, gridColumns, context, gridComponents, searchText, isLoading, 
-  loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
+  gridData, gridColumns, context, gridComponents, searchText, isLoading,
+  isLoadingMore, hasMoreRows, loadData, loadNextPage,
+  handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
   columnLockState, setWorkflowBinding
 } = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit, workflowBinding) // 🟢 关键修复：共享 gridApi
 
@@ -200,13 +216,14 @@ context.componentParent.onHeaderLabelClick = (params, event) => {
 // 3. Formula
 const formulaDependencyHooks = {} 
 const { 
-  pinnedBottomRowData, calculateRowFormulas, calculateTotals, 
+  pinnedBottomRowData, calculateRowFormulas, calculateTotals, refreshTotals,
+  formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas,
   configDialog, isSavingConfig, availableColumns, 
   openConfigDialog, saveConfig, loadGridConfig 
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState)
 
 // 4. History
-const historyHooks = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData })
+const historyHooks = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals })
 const { 
   history, isSystemOperation, 
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,
@@ -215,12 +232,17 @@ const {
 
 const handleCellValueChanged = (params) => {
   onCellValueChanged(params)
+  if (props.attentionResolver && params?.node && !params.node.rowPinned) {
+    gridApi.value?.redrawRows?.({ rowNodes: [params.node] })
+  }
   emit('cell-value-changed', params)
 }
 
 // 注入公式依赖，解决循环依赖问题
 formulaDependencyHooks.pushPendingChange = pushPendingChange
 formulaDependencyHooks.triggerSave = debouncedSave
+formulaDependencyHooks.searchText = searchText
+formulaDependencyHooks.reloadData = loadData
 
 // 5. Clipboard (修复参数传递)
 const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, historyHooks, selectionHooks)
@@ -249,9 +271,33 @@ const getRowId = (params) => {
 
 const onGridReady = (params) => { 
   gridApi.value = params.api; 
+  if (props.initialSearch && !searchText.value) searchText.value = props.initialSearch
   loadData();
   loadGridConfig();
 }
+
+let scrollLoadFrame = 0
+const handleGridBodyScroll = (event) => {
+  if (event?.direction && event.direction !== 'vertical') return
+  if (scrollLoadFrame) return
+  scrollLoadFrame = window.requestAnimationFrame(() => {
+    scrollLoadFrame = 0
+    const api = event?.api || gridApi.value
+    if (!api || !hasMoreRows.value || isLoading.value || isLoadingMore.value) return
+    const lastDisplayed = api.getLastDisplayedRowIndex?.()
+    const displayedCount = api.getDisplayedRowCount?.()
+    if (!Number.isFinite(lastDisplayed) || !Number.isFinite(displayedCount)) return
+    if (displayedCount - lastDisplayed <= 24) {
+      loadNextPage()
+    }
+  })
+}
+
+watch(() => props.initialSearch, (value) => {
+  if (value === searchText.value) return
+  searchText.value = value || ''
+  if (gridApi.value) loadData()
+})
 
 const syncTheme = () => {
   isDark.value = document.documentElement.classList.contains('dark')
@@ -264,6 +310,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (scrollLoadFrame) {
+    window.cancelAnimationFrame(scrollLoadFrame)
+    scrollLoadFrame = 0
+  }
   if (themeObserver) {
     themeObserver.disconnect()
     themeObserver = null
@@ -271,8 +321,30 @@ onUnmounted(() => {
 })
 
 const onGridMouseLeave = () => {}
+const onCellMouseDown = (params) => {
+  if (params?.colDef?.isAttentionColumn && !params.node?.rowPinned) {
+    params.api?.startEditingCell?.({
+      rowIndex: params.node.rowIndex,
+      colKey: params.column.getColId()
+    })
+    return
+  }
+  handleSelectionCellMouseDown(params)
+}
+
 const onCellDoubleClicked = (params) => {
   if (!params) return
+  if (params.column?.getColId?.() === 'rowCheckbox' || params.colDef?.checkboxSelection) {
+    gridApi.value?.stopEditing?.(true)
+    return
+  }
+  if (params.colDef?.isAttentionColumn) {
+    params.api?.startEditingCell?.({
+      rowIndex: params.node.rowIndex,
+      colKey: params.column.getColId()
+    })
+    return
+  }
   if (params.node?.rowPinned === 'bottom') {
     if (!isAdmin) return
     const colId = params.column.colId
@@ -345,7 +417,7 @@ onUnmounted(() => {
 
 const getSelectedRows = () => gridApi.value?.getSelectedRows?.() || []
 
-defineExpose({ loadData, setWorkflowBinding, getSelectedRows })
+defineExpose({ loadData, loadNextPage, setWorkflowBinding, getSelectedRows, recalculateServerFormulas })
 </script>
 
 <style scoped lang="scss">
@@ -370,6 +442,25 @@ defineExpose({ loadData, setWorkflowBinding, getSelectedRows })
 .custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }
 .cell-locked-pattern { background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px); color: #a8abb2; cursor: not-allowed; }
 .row-locked-bg { background-color: #fafafa !important; }
+.ag-theme-alpine .attention-row-critical.ag-row,
+.ag-theme-alpine .attention-row-critical.ag-row-odd,
+.ag-theme-alpine .attention-row-critical.ag-row-even {
+  background: #fff5f5;
+}
+.ag-theme-alpine .attention-row-warning.ag-row,
+.ag-theme-alpine .attention-row-warning.ag-row-odd,
+.ag-theme-alpine .attention-row-warning.ag-row-even {
+  background: #fffbeb;
+}
+.ag-theme-alpine .attention-row-focus.ag-row,
+.ag-theme-alpine .attention-row-focus.ag-row-odd,
+.ag-theme-alpine .attention-row-focus.ag-row-even {
+  background: #eff6ff;
+}
+.attention-cell-critical { color: #dc2626; font-weight: 700; }
+.attention-cell-warning { color: #d97706; font-weight: 700; }
+.attention-cell-focus { color: #2563eb; font-weight: 700; }
+.attention-cell-normal { color: #64748b; }
 
 .custom-header-wrapper { display: flex !important; align-items: flex-start !important; width: 100%; height: 100%; justify-content: space-between; overflow: visible; }
 .custom-header-main { display: flex !important; align-items: flex-start !important; flex: 1; overflow: visible; cursor: pointer; padding-right: 8px; min-width: 0; }
@@ -416,6 +507,25 @@ defineExpose({ loadData, setWorkflowBinding, getSelectedRows })
 .ag-theme-alpine.ag-theme-dark .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover {
   background-color: rgba(148, 163, 184, 0.7);
 }
+.ag-theme-alpine.ag-theme-dark .attention-row-critical.ag-row,
+.ag-theme-alpine.ag-theme-dark .attention-row-critical.ag-row-odd,
+.ag-theme-alpine.ag-theme-dark .attention-row-critical.ag-row-even {
+  background: rgba(127, 29, 29, 0.34);
+}
+.ag-theme-alpine.ag-theme-dark .attention-row-warning.ag-row,
+.ag-theme-alpine.ag-theme-dark .attention-row-warning.ag-row-odd,
+.ag-theme-alpine.ag-theme-dark .attention-row-warning.ag-row-even {
+  background: rgba(120, 53, 15, 0.3);
+}
+.ag-theme-alpine.ag-theme-dark .attention-row-focus.ag-row,
+.ag-theme-alpine.ag-theme-dark .attention-row-focus.ag-row-odd,
+.ag-theme-alpine.ag-theme-dark .attention-row-focus.ag-row-even {
+  background: rgba(30, 64, 175, 0.25);
+}
+.ag-theme-alpine.ag-theme-dark .attention-cell-critical { color: #fca5a5; }
+.ag-theme-alpine.ag-theme-dark .attention-cell-warning { color: #fbbf24; }
+.ag-theme-alpine.ag-theme-dark .attention-cell-focus { color: #93c5fd; }
+.ag-theme-alpine.ag-theme-dark .attention-cell-normal { color: #cbd5e1; }
 
 .status-editor-popup { background-color: #fff; border-radius: 4px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); border: 1px solid #e4e7ed; overflow: hidden; padding: 4px 0; z-index: 9999; }
 .status-editor-popup.select-editor-popup { max-height: 120px; overflow-y: auto; overflow-x: hidden; }

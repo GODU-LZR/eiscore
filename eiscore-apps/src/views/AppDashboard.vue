@@ -1,6 +1,6 @@
 <template>
-  <div class="app-dashboard">
-    <div class="dashboard-header">
+  <div class="app-dashboard" data-guide="app-list-page">
+    <div class="dashboard-header" data-guide="app-list-header">
       <div class="header-text">
         <h2>应用中心</h2>
         <p>选择一个应用进入管理</p>
@@ -8,75 +8,85 @@
     </div>
 
     <div class="dashboard-content">
-      <!-- Entry + Apps Cards -->
       <el-row :gutter="20" class="cards-row">
-        <el-col :xs="24" :sm="12" :md="8" :lg="6">
-          <el-card class="app-card entry-card" shadow="hover" @click="goConfigCenter()">
+        <el-col
+          v-for="entry in entryCards"
+          :key="entry.key"
+          :xs="24"
+          :sm="12"
+          :md="12"
+          :lg="8"
+          :xl="8"
+        >
+          <el-card
+            class="app-card entry-card"
+            data-guide="app-card"
+            :data-guide-key="entry.key"
+            :class="`attention-${entry.card.attentionLevel || 'normal'}`"
+            shadow="hover"
+            @click="openEntryCard(entry)"
+          >
             <div class="app-card-body">
-              <div class="app-icon tone-purple">
-                <el-icon><Setting /></el-icon>
+              <div class="app-icon" :class="`tone-${entry.tone}`">
+                <el-icon><component :is="getIconComponent(entry.icon)" /></el-icon>
               </div>
               <div class="app-info">
-                <div class="app-name">配置中心</div>
-                <div class="app-desc">统一管理流程/表格/闪念配置</div>
+                <div class="app-title-line">
+                  <div class="app-name">{{ entry.name }}</div>
+                  <span class="app-status" data-guide="app-card-status" :class="`status-${entry.card.status}`">{{ entry.card.statusText }}</span>
+                </div>
+                <div class="app-desc">{{ entry.desc }}</div>
               </div>
             </div>
-            <div class="app-actions">
-              <span class="app-enter">进入</span>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col v-if="canManage" :xs="24" :sm="12" :md="8" :lg="6">
-          <el-card class="app-card entry-card" shadow="hover" @click="showCreateDialog = true">
-            <div class="app-card-body">
-              <div class="app-icon tone-blue">
-                <el-icon><Plus /></el-icon>
-              </div>
-              <div class="app-info">
-                <div class="app-name">新建应用</div>
-                <div class="app-desc">创建流程/表格/闪念应用</div>
+            <div class="app-metrics" data-guide="app-card-metrics">
+              <div v-for="metric in entry.card.metrics" :key="metric.label" class="metric-item">
+                <span>{{ metric.label }}</span>
+                <strong>{{ metric.value }}</strong>
               </div>
             </div>
-            <div class="app-actions">
-              <span class="app-enter">进入</span>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col v-if="canManage" :xs="24" :sm="12" :md="8" :lg="6">
-          <el-card class="app-card entry-card" shadow="hover" @click="goApprovalCenter()">
-            <div class="app-card-body">
-              <div class="app-icon tone-orange">
-                <el-icon><List /></el-icon>
-              </div>
-              <div class="app-info">
-                <div class="app-name">审批中心</div>
-                <div class="app-desc">跨流程查看会签进度与审批意见</div>
-              </div>
-            </div>
-            <div class="app-actions">
+            <div class="app-actions" data-guide="app-card-enter">
+              <span class="app-brief">{{ entry.card.brief }}</span>
               <span class="app-enter">进入</span>
             </div>
           </el-card>
         </el-col>
         <el-col
-          v-for="app in apps"
+          v-for="app in attentionApps"
           :key="app.id"
           :xs="24"
           :sm="12"
-          :md="8"
-          :lg="6"
+          :md="12"
+          :lg="8"
+          :xl="8"
         >
-          <el-card class="app-card" shadow="hover" @click="openApp(app)">
+          <el-card
+            class="app-card"
+            data-guide="app-card"
+            :data-guide-key="app.id"
+            :class="`attention-${app.card.attentionLevel || 'normal'}`"
+            shadow="hover"
+            @click="openApp(app)"
+          >
             <div class="app-card-body">
               <div class="app-icon" :class="`tone-${getTone(app)}`">
                 <el-icon><component :is="getIconComponent(app.icon)" /></el-icon>
               </div>
               <div class="app-info">
-                <div class="app-name">{{ getDisplayName(app) }}</div>
+                <div class="app-title-line">
+                  <div class="app-name">{{ getDisplayName(app) }}</div>
+                  <span class="app-status" data-guide="app-card-status" :class="`status-${app.card.status}`">{{ app.card.statusText }}</span>
+                </div>
                 <div class="app-desc">{{ getDisplayDescription(app) }}</div>
               </div>
             </div>
-            <div class="app-actions">
+            <div class="app-metrics" data-guide="app-card-metrics">
+              <div v-for="metric in app.card.metrics" :key="metric.label" class="metric-item">
+                <span>{{ metric.label }}</span>
+                <strong>{{ metric.value }}</strong>
+              </div>
+            </div>
+            <div class="app-actions" data-guide="app-card-enter">
+              <span class="app-brief">{{ app.card.brief }}</span>
               <span class="app-enter">进入</span>
             </div>
           </el-card>
@@ -180,6 +190,7 @@ import { ensureAppAclConfig, ensureAppPermissions, resolveAppAclModule } from '@
 import { hasPerm } from '@/utils/permission'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
 import { getToken } from '@/utils/auth'
+import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
 
 const router = useRouter()
 
@@ -232,6 +243,19 @@ const iconMap = iconOptions.reduce((acc, item) => {
   acc[item.value] = item.component
   return acc
 }, {})
+
+const statusTextMap = {
+  draft: '草稿',
+  published: '已发布',
+  archived: '已归档'
+}
+
+const typeTextMap = {
+  workflow: '流程',
+  data: '数据',
+  flash: '闪念',
+  custom: '自定义'
+}
 
 const ONTOLOGY_SYSTEM_APP = 'ontology_workbench'
 const ONTOLOGY_READONLY_NAME = '本体关系工作台'
@@ -301,6 +325,100 @@ const isOntologyReadonlyApp = (app) => {
   const name = String(app.name || '')
   return name === 'Ontology Workbench' || name === '本体关系工作台' || name === '本体工作台'
 }
+
+const appStats = computed(() => {
+  const list = apps.value || []
+  return {
+    total: list.length,
+    draft: list.filter((app) => app.status === 'draft').length,
+    published: list.filter((app) => app.status === 'published').length,
+    archived: list.filter((app) => app.status === 'archived').length,
+    workflow: list.filter((app) => app.app_type === 'workflow').length,
+    data: list.filter((app) => app.app_type === 'data').length,
+    flash: list.filter((app) => ['flash', 'custom'].includes(app.app_type)).length
+  }
+})
+
+const entryCards = computed(() => {
+  const stats = appStats.value
+  return [
+    {
+      key: 'config',
+      name: '配置中心',
+      desc: '统一管理流程/表格/闪念配置',
+      icon: 'Setting',
+      tone: 'purple',
+      card: cardFromScore({
+        score: stats.draft > 0 ? 50 : 28,
+        metrics: [
+          { label: '应用数', value: `${stats.total}` },
+          { label: '草稿/发布', value: `${stats.draft}/${stats.published}` }
+        ],
+        brief: stats.draft > 0 ? '优先完善草稿配置' : '配置状态稳定'
+      })
+    },
+    {
+      key: 'create',
+      name: '新建应用',
+      desc: '创建流程/表格/闪念应用',
+      icon: 'Plus',
+      tone: 'blue',
+      visible: canManage.value,
+      card: cardFromScore({
+        score: stats.draft >= 5 ? 62 : 34,
+        metrics: [
+          { label: '草稿数', value: `${stats.draft}` },
+          { label: '类型数', value: `${Number(stats.workflow > 0) + Number(stats.data > 0) + Number(stats.flash > 0)}` }
+        ],
+        brief: stats.draft >= 5 ? '先收敛草稿再新建' : '按业务场景创建'
+      })
+    },
+    {
+      key: 'approval',
+      name: '审批中心',
+      desc: '跨流程查看会签进度与审批意见',
+      icon: 'List',
+      tone: 'orange',
+      visible: canManage.value,
+      card: cardFromScore({
+        score: stats.workflow > 0 ? 44 : 24,
+        metrics: [
+          { label: '流程应用', value: `${stats.workflow}` },
+          { label: '已发布', value: `${stats.published}` }
+        ],
+        brief: stats.workflow > 0 ? '查看流程审批态势' : '暂无流程应用'
+      })
+    }
+  ].filter((entry) => entry.visible !== false)
+})
+
+const getAppAttentionCard = (app) => {
+  const status = String(app?.status || 'draft')
+  const config = parseAppConfig(app?.config)
+  const configKeys = config && typeof config === 'object' ? Object.keys(config).length : 0
+  const isSystem = isOntologyReadonlyApp(app)
+  const score = status === 'draft'
+    ? 58
+    : (status === 'archived' ? 12 : (configKeys === 0 && !isSystem ? 46 : 28))
+
+  return cardFromScore({
+    score,
+    metrics: [
+      { label: '类型', value: typeTextMap[app?.app_type] || '应用' },
+      { label: '状态', value: statusTextMap[status] || status }
+    ],
+    brief: status === 'draft'
+      ? '完善配置后发布'
+      : (status === 'archived' ? '归档应用仅作追溯' : (isSystem ? '系统只读工作台' : '可进入运行'))
+  })
+}
+
+const attentionApps = computed(() => apps.value
+  .map((app) => ({
+    ...app,
+    card: getAppAttentionCard(app)
+  }))
+  .sort(sortByAttention))
 
 const getAppTabTitle = (app) => String(getDisplayName(app) || app?.name || '').trim()
 
@@ -422,6 +540,16 @@ function getTone(app) {
   return map[app?.app_type] || 'blue'
 }
 
+function openEntryCard(entry) {
+  if (!entry) return
+  if (entry.key === 'config') return goConfigCenter()
+  if (entry.key === 'create') {
+    showCreateDialog.value = true
+    return
+  }
+  if (entry.key === 'approval') return goApprovalCenter()
+}
+
 function navigateToBuilder(app) {
   if (!app) return
   const routeMap = {
@@ -537,10 +665,11 @@ onMounted(loadApps)
 
 .app-card {
   width: 100%;
-  height: 132px;
+  height: 168px;
   display: flex;
   cursor: pointer;
-  border-radius: 10px;
+  border-radius: 8px;
+  overflow: hidden;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   margin-bottom: 20px;
   position: relative;
@@ -553,6 +682,8 @@ onMounted(loadApps)
   flex-direction: column;
   justify-content: space-between;
   box-sizing: border-box;
+  overflow: hidden;
+  padding: 14px;
 }
 
 .app-card:hover {
@@ -565,13 +696,14 @@ onMounted(loadApps)
   align-items: flex-start;
   gap: 12px;
   min-width: 0;
+  min-height: 48px;
 }
 
 .app-icon {
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  border-radius: 10px;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -595,10 +727,19 @@ onMounted(loadApps)
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+}
+
+.app-title-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .app-name {
+  min-width: 0;
   font-size: 15px;
   font-weight: 600;
   line-height: 20px;
@@ -619,17 +760,121 @@ onMounted(loadApps)
   word-break: break-word;
 }
 
-.app-actions {
+.app-status {
+  flex: 0 0 auto;
+  min-width: 48px;
+  max-width: 58px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  background: #eef2ff;
+  color: #475569;
+}
+
+.status-ok {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.status-warn {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-danger {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.status-info {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.app-metrics {
   margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric-item {
+  min-width: 0;
+  height: 42px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: #f6f8fb;
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px;
+}
+
+.metric-item strong {
+  min-width: 52px;
+  overflow: visible;
+  color: #303133;
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.metric-item span {
+  min-width: 0;
+  flex: 1;
+  color: #909399;
+  font-size: 11px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-actions {
+  margin-top: auto;
+  padding-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   flex-shrink: 0;
 }
 
+.app-brief {
+  min-width: 0;
+  overflow: hidden;
+  color: #909399;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .app-enter {
+  flex: 0 0 auto;
   font-size: 12px;
   color: #409eff;
   cursor: pointer;
+}
+
+.attention-critical {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.attention-warning {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.attention-focus {
+  border-color: rgba(14, 165, 233, 0.36);
 }
 
 
@@ -647,5 +892,18 @@ onMounted(loadApps)
 :global(#app.dark) .app-desc,
 :global(#app.dark) .app-enter {
   color: #f3f4f6;
+}
+
+:global(#app.dark) .metric-item {
+  background: #0f172a;
+}
+
+:global(#app.dark) .metric-item strong,
+:global(#app.dark) .app-brief {
+  color: #f3f4f6;
+}
+
+:global(#app.dark) .metric-item span {
+  color: #9ca3af;
 }
 </style>

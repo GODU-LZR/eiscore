@@ -344,6 +344,16 @@ export const EQUIPMENT_APPS = [
     ]
   },
   {
+    key: 'equipment_patrols',
+    name: '设备巡检',
+    desc: '进入点检记录处理日常巡检、班前点检和专项检查',
+    route: '/app/equipment_patrols',
+    perm: 'app:equipment_check',
+    icon: 'Search',
+    tone: 'cyan',
+    sourceAppKey: 'checks'
+  },
+  {
     key: 'issues',
     name: '设备异常',
     desc: '登记故障、异常来源、责任归属和处理状态',
@@ -582,6 +592,11 @@ export const EQUIPMENT_APPS = [
   }
 ]
 
-export const findEquipmentApp = (key) => EQUIPMENT_APPS.find((app) => app.key === key)
+export const findEquipmentApp = (key) => {
+  const matched = EQUIPMENT_APPS.find((app) => app.key === key)
+  if (!matched?.sourceAppKey) return matched
+  const source = EQUIPMENT_APPS.find((app) => app.key === matched.sourceAppKey)
+  return source ? { ...source, ...matched, key: source.key, route: source.route } : matched
+}
 
 export const EQUIPMENT_GRID_APPS = EQUIPMENT_APPS.filter((app) => app.appType !== 'dashboard')

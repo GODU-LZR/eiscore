@@ -66,10 +66,13 @@
         :static-columns="activeColumns"
         :extra-columns="[]"
         :summary="summaryConfig"
+        summary-scope="server"
         :default-order="defaultOrder"
         @create="handleCreate"
         @config-columns="handleConfigColumns"
         @view-document="handleViewDocument"
+        @data-loaded="handleDataLoaded"
+        @data-load-error="handleDataLoadError"
       />
     </el-card>
 
@@ -158,6 +161,9 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { getRealtimeClient } from '@/utils/realtime'
+import { pushAiContext } from '@/utils/ai-context'
+import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
+import { buildGridLoadState } from '@shared/eis-grid-agent-context'
 
 const router = useRouter()
 const gridRef = ref(null)
@@ -172,6 +178,8 @@ const shiftManager = ref({ visible: false })
 const editingShiftId = ref(null)
 const initCache = new Set()
 const shiftDialog = ref({ visible: false, saving: false })
+const lastGridLoadState = ref(buildGridLoadState())
+const lastSearchText = ref('')
 const shiftForm = ref({
   name: '',
   start_time: '08:30',
@@ -603,6 +611,49 @@ const monthColumns = computed(() => [
 ])
 
 const activeColumns = computed(() => (mode.value === 'day' ? dayColumns.value : monthColumns.value))
+
+const syncAiContext = (rows = [], payload = null) => {
+  lastGridLoadState.value = pushStandardGridAgentContext({
+    pushAiContext,
+    app: 'hr',
+    view: mode.value === 'day' ? 'attendance-day' : 'attendance-month',
+    viewId: gridViewId.value,
+    apiUrl: gridApiUrl.value,
+    writeUrl: writeUrl.value,
+    profile: 'hr',
+    contentProfile: 'hr',
+    defaultOrder: defaultOrder.value,
+    staticColumns: activeColumns.value,
+    extraColumns: [],
+    summaryConfig,
+    rows,
+    visibleRows: rows,
+    payload,
+    previousLoadState: lastGridLoadState.value,
+    searchText: lastSearchText.value,
+    summaryScope: 'server',
+    allowImport: false,
+    additionalContext: {
+      mode: mode.value,
+      date: mode.value === 'day' ? currentDay.value : currentMonth.value,
+      department: deptValue.value || ''
+    }
+  })
+}
+
+const handleDataLoaded = (payload) => {
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  lastSearchText.value = payload?.searchText || ''
+  syncAiContext(visibleRows, payload)
+}
+
+const handleDataLoadError = () => {
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], {})
+}
 
 const fetchDepartments = async () => {
   try {

@@ -1099,6 +1099,75 @@ const buildAgentCatalog = (user, cfg) => {
   });
 };
 
+const compactColumnsForPrompt = (columns, limit = 60) => {
+  if (!Array.isArray(columns)) return [];
+  return columns.slice(0, limit).map((col) => ({
+    label: col?.label || col?.prop || '',
+    prop: col?.prop || '',
+    type: col?.type || 'text',
+    expression: col?.expression || ''
+  }));
+};
+
+const compactAiContextForPrompt = (context) => {
+  if (!context || typeof context !== 'object') return null;
+  const compact = {};
+  [
+    'app',
+    'view',
+    'viewId',
+    'apiUrl',
+    'profile',
+    'currentUser',
+    'dataScope',
+    'searchText',
+    'aiScene',
+    'allowImport',
+    'allowFormula',
+    'allowFormulaOnce'
+  ].forEach((key) => {
+    if (context[key] !== undefined) compact[key] = context[key];
+  });
+  if (context.gridAgent && typeof context.gridAgent === 'object') compact.gridAgent = context.gridAgent;
+  if (context.gridAgentServerResult && typeof context.gridAgentServerResult === 'object') {
+    compact.gridAgentServerResult = context.gridAgentServerResult;
+  }
+  if (context.dataStats && typeof context.dataStats === 'object') compact.dataStats = context.dataStats;
+  if (Array.isArray(context.columns)) compact.columns = compactColumnsForPrompt(context.columns, 80);
+  if (Array.isArray(context.dataSample)) compact.dataSample = context.dataSample.slice(0, 12);
+  if (context.summaryConfig && typeof context.summaryConfig === 'object') compact.summaryConfig = context.summaryConfig;
+  if (Array.isArray(context.fileColumns) && context.fileColumns.length) {
+    compact.fileColumns = compactColumnsForPrompt(context.fileColumns, 20);
+  }
+  if (context.importTarget && typeof context.importTarget === 'object') compact.importTarget = context.importTarget;
+  [
+    'importRequiredFields',
+    'importDefaults',
+    'importGeneratedFields',
+    'importTips',
+    'materialsCategories',
+    'materialsCategoryDepth'
+  ].forEach((key) => {
+    if (context[key] !== undefined) compact[key] = context[key];
+  });
+  return compact;
+};
+
+const buildGridAgentRuleBlock = (context) => {
+  const gridAgent = context?.gridAgent;
+  if (!gridAgent || typeof gridAgent !== 'object') return '';
+  const access = gridAgent.dataAccess || {};
+  const capabilities = gridAgent.capabilities || {};
+  const serverResult = context?.gridAgentServerResult;
+  const tools = Array.isArray(gridAgent.serverTools)
+    ? gridAgent.serverTools.map((tool) => tool?.name).filter(Boolean).join('、')
+    : '';
+  const serverResultLine = serverResult && typeof serverResult === 'object'
+    ? `\n5. 当前上下文已包含 gridAgentServerResult，它来自服务端受控只读查询，scope=server；回答全量数量、分布、汇总时优先使用该结果。`
+    : '';
+  return `\n\n【EISGrid 表格/Agent 对接规则】\n1. 当前表格上下文包含 gridAgent，说明这是 EISGrid v2 表格场景。\n2. 当用户问数量、条数、人数、统计、分布或汇总时，若 gridAgentServerResult.scope=server 且 totalCount 是数字，必须优先使用该服务端结果回答全量数量。\n3. 如果没有 gridAgentServerResult，dataSample 只是前端样本；dataStats.scope=loaded_rows 或 totalCountIsFull=false 时，只能回答“当前已加载 ${access.loadedCount ?? 0} 行”，不能说成数据库全量。\n4. 如果 access.hasMore=true，说明表格还有更多分页数据未加载；涉及百万行、全表数量、全表汇总、分布统计时，必须说明需要服务端汇总/受控后端工具，不能根据样本编造。\n5. 当前服务端能力：serverAgentQuery=${capabilities.serverAgentQuery === true ? '可用' : '不可用'}，serverSummary=${capabilities.serverSummary === true ? '可用' : '不可用'}，serverFormulaRecalculate=${capabilities.serverFormulaRecalculate === true ? '可用' : '不可用'}${tools ? `，工具：${tools}` : ''}。${serverResultLine}\n6. 生成公式时只能引用 columns/gridAgent.searchableColumns 中存在的字段；不要生成任意 SQL，不要要求用户把百万行导入浏览器。`;
+};
+
 const buildAgentSystemPrompt = ({ agentId, context, user, intent }) => {
   const snapshot = context?.businessSnapshot;
   const semanticCtx = context?.semanticContext;
@@ -1108,13 +1177,15 @@ const buildAgentSystemPrompt = ({ agentId, context, user, intent }) => {
   delete ctxCopy.injectBusinessData;
   delete ctxCopy.semanticContext;
 
-  const safeContext = ctxCopy && typeof ctxCopy === 'object' && Object.keys(ctxCopy).length
-    ? JSON.stringify(ctxCopy, null, 2).slice(0, 3000)
+  const promptContext = compactAiContextForPrompt(ctxCopy);
+  const safeContext = promptContext && typeof promptContext === 'object' && Object.keys(promptContext).length
+    ? JSON.stringify(promptContext, null, 2).slice(0, 9000)
     : '';
 
   const contextBlock = safeContext
     ? `\n\n【业务上下文】\n${safeContext}`
     : '';
+  const gridAgentRuleBlock = buildGridAgentRuleBlock(context);
 
   const snapshotBlock = snapshot && typeof snapshot === 'object'
     ? `\n\n【企业实时数据快照（${snapshot.snapshotTime || '最新'}）】\n以下是从系统数据库查询到的真实业务数据，请基于这些真实数据进行分析，不要编造数据：\n${JSON.stringify(snapshot, null, 2).slice(0, 8000)}`
@@ -1172,18 +1243,18 @@ const buildAgentSystemPrompt = ({ agentId, context, user, intent }) => {
   }
 
   if (agentId === 'workflow_orchestrator') {
-    return `你是流程编排智能体。你的职责是把业务需求转换成可落地的流程定义。\n\n【硬性规则】\n1. 必须输出 Mermaid 流程图（\`\`\`mermaid）。\n2. 必须输出 BPMN XML（\`\`\`bpmn-xml）。\n3. 必须输出流程元信息（\`\`\`workflow-meta），包含 name、associated_table、workflowBusinessAppId、task_assignments、state_mappings。\n4. workflow-meta 必须是严格 JSON；BPMN userTask 的 id 必须与 task_assignments.task_id、state_mappings.bpmn_task_id 完全一致。\n5. 常用业务绑定：入职/员工档案用 associated_table=hr.archives 且 workflowBusinessAppId=legacy:hr_employee；出入库草稿用 associated_table=scm.inventory_drafts；物料台账用 associated_table=public.raw_materials。\n6. 禁止输出经营分析图表（如 ECharts）和无关内容。\n7. 语气简洁，优先可执行结果。\n8. 利用【系统本体语义模型】中的表结构和关系来选择正确的 associated_table、任务分派和状态映射。\n\nworkflow-meta 示例：\n\`\`\`workflow-meta\n{\n  \"name\": \"入职流程\",\n  \"description\": \"员工入职审批与账号开通\",\n  \"associated_table\": \"hr.archives\",\n  \"workflowBusinessAppId\": \"legacy:hr_employee\",\n  \"task_assignments\": [\n    { \"task_id\": \"Task_Submit\", \"candidate_roles\": [\"employee\", \"hr_clerk\"], \"candidate_users\": [], \"approval_mode\": \"any\", \"required_approvals\": 1, \"require_comment\": false }\n  ],\n  \"state_mappings\": [\n    { \"bpmn_task_id\": \"Task_Submit\", \"target_table\": \"hr.archives\", \"state_field\": \"status\", \"state_value\": \"待HR初审\" }\n  ]\n}\n\`\`\`\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${contextBlock}`;
+    return `你是流程编排智能体。你的职责是把业务需求转换成可落地的流程定义。\n\n【硬性规则】\n1. 必须输出 Mermaid 流程图（\`\`\`mermaid）。\n2. 必须输出 BPMN XML（\`\`\`bpmn-xml）。\n3. 必须输出流程元信息（\`\`\`workflow-meta），包含 name、associated_table、workflowBusinessAppId、task_assignments、state_mappings。\n4. workflow-meta 必须是严格 JSON；BPMN userTask 的 id 必须与 task_assignments.task_id、state_mappings.bpmn_task_id 完全一致。\n5. 常用业务绑定：入职/员工档案用 associated_table=hr.archives 且 workflowBusinessAppId=legacy:hr_employee；出入库草稿用 associated_table=scm.inventory_drafts；物料台账用 public.raw_materials。\n6. 禁止输出经营分析图表（如 ECharts）和无关内容。\n7. 语气简洁，优先可执行结果。\n8. 利用【系统本体语义模型】中的表结构和关系来选择正确的 associated_table、任务分派和状态映射。\n\nworkflow-meta 示例：\n\`\`\`workflow-meta\n{\n  \"name\": \"入职流程\",\n  \"description\": \"员工入职审批与账号开通\",\n  \"associated_table\": \"hr.archives\",\n  \"workflowBusinessAppId\": \"legacy:hr_employee\",\n  \"task_assignments\": [\n    { \"task_id\": \"Task_Submit\", \"candidate_roles\": [\"employee\", \"hr_clerk\"], \"candidate_users\": [], \"approval_mode\": \"any\", \"required_approvals\": 1, \"require_comment\": false }\n  ],\n  \"state_mappings\": [\n    { \"bpmn_task_id\": \"Task_Submit\", \"target_table\": \"hr.archives\", \"state_field\": \"status\", \"state_value\": \"待HR初审\" }\n  ]\n}\n\`\`\`\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${gridAgentRuleBlock}${contextBlock}`;
   }
 
   if (agentId === 'enterprise_analyst') {
-    return `你是企业经营分析智能体。你的职责是输出“专业但通俗易懂”的经营分析报告，并给出可执行建议。\n\n【表达风格】\n1. 用业务语言解释指标含义，尽量少术语；若必须用术语，紧跟一句白话解释。\n2. 先给一句结论，再给证据（数据/图表），最后给行动建议。\n3. 每条建议都要可落地（负责人/时点/目标方向）。\n\n【硬性规则】\n1. 回答开头禁止客套语（如“好的/收到/我将”），直接进入“经营分析报告”或“摘要”。\n2. 默认输出结构：摘要 -> 核心指标解读 -> 图表洞察 -> 风险与机会 -> 执行建议。\n3. 图文并茂：当有数据时，优先给 2-4 个图（趋势、结构、对比、相关性）。\n4. 输出 ECharts 时只允许 \`\`\`echarts 代码块，且必须是严格 JSON：双引号、无注释、无尾逗号、禁止函数（如 formatter/itemStyle.color function）。\n5. 严禁输出 BPMN XML、workflow-meta、流程编排内容，除非用户明确要求“流程编排/BPMN审批流设计”。\n6. 结论必须业务可执行，避免空话。\n7. 当系统提供了【企业实时数据快照】时，必须基于真实数据进行分析和图表生成，禁止编造或使用示例假数据。\n8. 利用【系统本体语义模型】理解数据表和字段的业务含义，用语义名称（中文）而非数据库原始字段名来呈现分析结果。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${snapshotBlock}${contextBlock}`;
+    return `你是企业经营分析智能体。你的职责是输出“专业但通俗易懂”的经营分析报告，并给出可执行建议。\n\n【表达风格】\n1. 用业务语言解释指标含义，尽量少术语；若必须用术语，紧跟一句白话解释。\n2. 先给一句结论，再给证据（数据/图表），最后给行动建议。\n3. 每条建议都要可落地（负责人/时点/目标方向）。\n\n【硬性规则】\n1. 回答开头禁止客套语（如“好的/收到/我将”），直接进入“经营分析报告”或“摘要”。\n2. 默认输出结构：摘要 -> 核心指标解读 -> 图表洞察 -> 风险与机会 -> 执行建议。\n3. 图文并茂：当有数据时，优先给 2-4 个图（趋势、结构、对比、相关性）。\n4. 输出 ECharts 时只允许 \`\`\`echarts 代码块，且必须是严格 JSON：双引号、无注释、无尾逗号、禁止函数（如 formatter/itemStyle.color function）。\n5. 严禁输出 BPMN XML、workflow-meta、流程编排内容，除非用户明确要求“流程编排/BPMN审批流设计”。\n6. 结论必须业务可执行，避免空话。\n7. 当系统提供了【企业实时数据快照】时，必须基于真实数据进行分析和图表生成，禁止编造或使用示例假数据。\n8. 利用【系统本体语义模型】理解数据表和字段的业务含义，用语义名称（中文）而非数据库原始字段名来呈现分析结果。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${snapshotBlock}${gridAgentRuleBlock}${contextBlock}`;
   }
 
   const importRuleBlock = hasImportTarget
     ? `\n【表格导入硬性规则】\n1. 当用户上传 Excel/CSV/表格，并要求录入、导入、填入当前表格、整理为系统数据时，必须输出 \`\`\`data-import 代码块。\n2. data-import 必须是严格 JSON，格式只能是：\n\`\`\`data-import\n{\n  "rows": [\n    { "name": "张三", "employee_no": "EMP001", "department": "生产部", "position": "操作员", "status": "试用" }\n  ]\n}\n\`\`\`\n3. 字段名优先使用【业务上下文】columns 中的 prop；可以根据列 label 映射，但最终 JSON key 尽量用 prop。\n4. 不要说“不支持导入”；当前页面已经提供导入上下文，前端会识别 data-import 并显示“导入到当前表格”按钮。\n5. 不要直接编造未在文件或用户文本中出现的员工数据；空白行不要输出。`
     : `\n【表格导入规则】\n当前没有可导入的表格上下文。若用户要求导入，请提示先进入目标表格页面再打开工作助手。`;
 
-  return `你是企业一线工作助手。你的职责是帮助用户整理数据、填表、导入、解释字段。\n\n【硬性规则】\n1. 用通俗语句分步骤回答。\n2. 默认不输出流程编排内容（BPMN/workflow-meta），除非用户明确提出流程编排需求。\n3. 当用户要求表单模板时，输出 form-template 代码块。\n4. 关注可直接录入系统的字段结果。\n5. 利用【系统本体语义模型】中的列语义信息帮助用户理解字段含义、正确填写表单。${importRuleBlock}\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${contextBlock}`;
+  return `你是企业一线工作助手。你的职责是帮助用户整理数据、填表、导入、解释字段。\n\n【硬性规则】\n1. 用通俗语句分步骤回答。\n2. 默认不输出流程编排内容（BPMN/workflow-meta），除非用户明确提出流程编排需求。\n3. 当用户要求表单模板时，输出 form-template 代码块。\n4. 关注可直接录入系统的字段结果。\n5. 利用【系统本体语义模型】中的列语义信息帮助用户理解字段含义、正确填写表单。${importRuleBlock}\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${gridAgentRuleBlock}${contextBlock}`;
 };
 
 const resolveAgentRoute = ({ user, body, messages }) => {

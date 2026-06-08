@@ -45,27 +45,27 @@ const flowNodes = [
   { key: 'start', label: '开始', x: 105, y: 78, w: 150, h: 70, variant: 'start' },
   { key: 'sales_order', label: '销售订单', x: 345, y: 78, w: 195, h: 70, route: '/sales/app/orders' },
   { key: 'bom', label: 'BOM', x: 585, y: 78, w: 195, h: 70, route: '/production/app/bom_list' },
-  { key: 'process_template', label: '工艺模板', x: 825, y: 78, w: 195, h: 70, disabled: true },
-  { key: 'equipment_check', label: '设备巡检', x: 1065, y: 78, w: 195, h: 70, disabled: true },
+  { key: 'process_template', label: '工艺模板', x: 825, y: 78, w: 195, h: 70, route: '/production/bom' },
+  { key: 'equipment_check', label: '设备巡检', x: 1065, y: 78, w: 195, h: 70, route: '/equipment/app/equipment_patrols' },
 
   { key: 'purchase_order', label: '采购订单', x: 105, y: 220, w: 195, h: 70, route: '/purchase/app/orders' },
   { key: 'production_order', label: '生产订单', x: 345, y: 220, w: 195, h: 70, route: '/production/app/plans' },
-  { key: 'inspection_order', label: '检验单', x: 825, y: 220, w: 195, h: 70, disabled: true },
-  { key: 'shipment_request', label: '销售出货申请', x: 1065, y: 220, w: 195, h: 70, disabled: true },
+  { key: 'inspection_order', label: '检验单', x: 825, y: 220, w: 195, h: 70, route: '/quality/app/inspection_orders' },
+  { key: 'shipment_request', label: '销售出货申请', x: 1065, y: 220, w: 195, h: 70, route: '/sales/app/shipment_requests' },
 
-  { key: 'purchase_inbound', label: '采购入库', x: 105, y: 360, w: 195, h: 70, route: '/materials/inventory-stock-in' },
+  { key: 'purchase_inbound', label: '采购入库', x: 105, y: 360, w: 195, h: 70, route: '/materials/inventory-stock-in?ioType=采购入库' },
   { key: 'production_materials', label: '生产订单用料清单', x: 345, y: 360, w: 195, h: 70, route: '/production/app/work_order_items' },
   { key: 'work_order', label: '生产工单', x: 585, y: 360, w: 195, h: 70, route: '/production/app/work_orders' },
-  { key: 'production_inspection', label: '生产检验', x: 825, y: 360, w: 195, h: 70, variant: 'light', disabled: true },
-  { key: 'shipment_order', label: '销售出库单', x: 1065, y: 360, w: 195, h: 70, disabled: true },
+  { key: 'production_inspection', label: '生产检验', x: 825, y: 360, w: 195, h: 70, variant: 'light', route: '/quality/app/production_inspections' },
+  { key: 'shipment_order', label: '销售出库单', x: 1065, y: 360, w: 195, h: 70, route: '/materials/inventory-stock-out?ioType=销售出库' },
 
   { key: 'purchase_inventory', label: '库存信息', x: 105, y: 500, w: 195, h: 70, variant: 'outline', route: '/materials/inventory-current' },
-  { key: 'picking_order', label: '生产领料单', x: 345, y: 500, w: 195, h: 70, disabled: true },
-  { key: 'report_order', label: '订单/工单报工', x: 585, y: 500, w: 195, h: 70, variant: 'light', disabled: true },
+  { key: 'picking_order', label: '生产领料单', x: 345, y: 500, w: 195, h: 70, route: '/materials/inventory-stock-out?ioType=生产领料' },
+  { key: 'report_order', label: '订单/工单报工', x: 585, y: 500, w: 195, h: 70, variant: 'light', route: '/production/app/work_orders' },
   { key: 'sales_inventory', label: '库存信息', x: 1065, y: 500, w: 195, h: 70, variant: 'outline', route: '/materials/inventory-current' },
 
   { key: 'material_inventory', label: '库存信息', x: 345, y: 640, w: 195, h: 70, variant: 'outline', route: '/materials/inventory-current' },
-  { key: 'production_inbound', label: '生产入库单', x: 585, y: 640, w: 195, h: 70, disabled: true },
+  { key: 'production_inbound', label: '生产入库单', x: 585, y: 640, w: 195, h: 70, route: '/materials/inventory-stock-in?ioType=生产入库' },
   { key: 'finished_inventory', label: '库存信息', x: 585, y: 780, w: 195, h: 70, variant: 'outline', route: '/materials/inventory-current' }
 ]
 
@@ -107,9 +107,16 @@ const openNode = (node) => {
 
 <style scoped lang="scss">
 .business-flow {
+  --flow-primary: var(--el-color-primary, #409eff);
+  --flow-primary-dark: var(--el-color-primary-dark-2, #337ecc);
+  --flow-primary-light: var(--el-color-primary-light-3, #79bbff);
+  --flow-primary-soft: var(--el-color-primary-light-8, #d9ecff);
+  --flow-primary-faint: var(--el-color-primary-light-9, #ecf5ff);
+  --flow-node-shadow: color-mix(in srgb, var(--flow-primary) 22%, transparent);
+  --flow-node-shadow-hover: color-mix(in srgb, var(--flow-primary) 34%, transparent);
   height: 100%;
   min-height: 0;
-  background: #f4f7ff;
+  background: var(--page-bg-tint, var(--flow-primary-faint));
   overflow: auto;
   padding: 14px;
 }
@@ -119,8 +126,8 @@ const openNode = (node) => {
   height: 642px;
   margin: 0 auto;
   border-radius: 28px;
-  background: #eef4ff;
-  box-shadow: inset 0 0 0 1px #e3ebfb;
+  background: var(--card-bg-tint, #fff);
+  box-shadow: inset 0 0 0 1px var(--flow-primary-soft);
   padding: 24px;
 }
 
@@ -140,13 +147,13 @@ const openNode = (node) => {
   pointer-events: none;
 
   marker path {
-    fill: #2f6df6;
+    fill: var(--flow-primary);
   }
 }
 
 .flow-line {
   fill: none;
-  stroke: #2f6df6;
+  stroke: var(--flow-primary);
   stroke-width: 3.5;
   marker-end: url(#flow-arrow);
 }
@@ -156,12 +163,12 @@ const openNode = (node) => {
   z-index: 2;
   border: 0;
   border-radius: 10px;
-  background: #2f6df6;
+  background: var(--flow-primary);
   color: #fff;
   font-size: 20px;
   font-weight: 700;
   letter-spacing: 0;
-  box-shadow: 0 10px 24px rgba(47, 109, 246, 0.12);
+  box-shadow: 0 10px 24px var(--flow-node-shadow);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -194,25 +201,25 @@ const openNode = (node) => {
 
   &:hover {
     transform: translateY(-2px);
-    background: #1f5ee8;
-    box-shadow: 0 16px 30px rgba(47, 109, 246, 0.24);
+    background: var(--flow-primary-dark);
+    box-shadow: 0 16px 30px var(--flow-node-shadow-hover);
   }
 }
 
 .node-start {
   border-radius: 35px;
-  background: #258fd4;
+  background: var(--flow-primary-dark);
 }
 
 .node-light {
-  background: #7f9ef5;
+  background: var(--flow-primary-light);
 }
 
 .node-outline {
-  background: #fff;
-  color: #2f6df6;
-  border: 3px solid #2f6df6;
-  box-shadow: none;
+  background: #111827;
+  color: #fff;
+  border: 0;
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.18);
 }
 
 .flow-node.disabled {

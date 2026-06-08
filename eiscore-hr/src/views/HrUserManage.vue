@@ -27,9 +27,12 @@
         :can-delete="canDelete"
         :can-export="canExport"
         :can-config="canConfig"
+        summary-scope="server"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @cell-value-changed="handleCellChanged"
+        @data-loaded="handleDataLoaded"
+        @data-load-error="handleDataLoadError"
       />
     </el-card>
 
@@ -70,12 +73,17 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { hasPerm } from '@/utils/permission'
 import { useUserStore } from '@/stores/user'
+import { pushAiContext } from '@/utils/ai-context'
+import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
+import { buildGridLoadState } from '@shared/eis-grid-agent-context'
 
 const router = useRouter()
 const gridRef = ref(null)
 const roleOptions = ref([])
 const deptOptions = ref([])
 const userStore = useUserStore()
+const lastGridLoadState = ref(buildGridLoadState())
+const lastSearchText = ref('')
 
 const colConfigVisible = ref(false)
 const staticHidden = ref([])
@@ -93,6 +101,9 @@ const staticColumnsAll = computed(() => ([
 
 const columns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
+)
+const agentColumns = computed(() =>
+  columns.value.filter(col => !['password', 'phone', 'email', 'avatar'].includes(col.prop))
 )
 
 const opPerms = {
@@ -155,6 +166,46 @@ const toggleStaticColumn = async (prop, visible) => {
     staticHidden.value = [...staticHidden.value, prop]
   }
   await saveStaticColumnsConfig()
+}
+
+const syncAiContext = (rows = [], payload = null) => {
+  lastGridLoadState.value = pushStandardGridAgentContext({
+    pushAiContext,
+    app: 'hr',
+    view: 'user-manage',
+    viewId: 'hr_user_manage',
+    apiUrl: '/v_users_manage?order=id.asc',
+    writeUrl: '/v_users_manage',
+    profile: 'public',
+    contentProfile: 'public',
+    staticColumns: agentColumns.value,
+    extraColumns: [],
+    summaryConfig: { label: '合计', rules: {}, expressions: {} },
+    rows,
+    visibleRows: rows,
+    payload,
+    previousLoadState: lastGridLoadState.value,
+    searchText: lastSearchText.value,
+    summaryScope: 'server',
+    allowImport: false,
+    additionalContext: {
+      currentUser: userStore.userInfo?.username || ''
+    }
+  })
+}
+
+const handleDataLoaded = (payload) => {
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  lastSearchText.value = payload?.searchText || ''
+  syncAiContext(visibleRows, payload)
+}
+
+const handleDataLoadError = () => {
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], {})
 }
 
 const loadRoles = async () => {

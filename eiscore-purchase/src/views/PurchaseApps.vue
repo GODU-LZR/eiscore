@@ -1,6 +1,6 @@
 <template>
-  <div class="purchase-apps">
-    <div class="apps-header">
+  <div class="purchase-apps" data-guide="app-list-page">
+    <div class="apps-header" data-guide="app-list-header">
       <div class="header-text">
         <h2>采购应用</h2>
         <p>选择一个应用进入管理</p>
@@ -13,8 +13,9 @@
         :key="app.key"
         :xs="24"
         :sm="12"
-        :md="8"
-        :lg="6"
+        :md="12"
+        :lg="8"
+        :xl="8"
       >
         <router-link :to="app.route" custom v-slot="{ href, navigate }">
           <a
@@ -22,7 +23,13 @@
             :href="href"
             @click="handleNavigate($event, navigate, app)"
           >
-            <el-card class="app-card" shadow="hover">
+            <el-card
+              class="app-card"
+              data-guide="app-card"
+              :data-guide-key="app.key"
+              :class="`attention-${app.card.attentionLevel || 'normal'}`"
+              shadow="hover"
+            >
               <div class="app-card-body">
                 <div class="app-icon" :class="`tone-${app.tone}`">
                   <el-icon size="20">
@@ -30,13 +37,22 @@
                   </el-icon>
                 </div>
                 <div class="app-info">
-                  <div class="app-name">{{ app.name }}</div>
+                  <div class="app-title-line">
+                    <div class="app-name">{{ app.name }}</div>
+                    <span class="app-status" data-guide="app-card-status" :class="`status-${app.card.status}`">{{ app.card.statusText }}</span>
+                  </div>
                   <div class="app-desc">{{ app.desc }}</div>
                 </div>
               </div>
-              <div class="app-card-footer">
-                <span class="app-count">{{ getAppCountText(app) }}</span>
-                <span class="app-enter">进入</span>
+              <div class="app-metrics" data-guide="app-card-metrics">
+                <div v-for="metric in app.card.metrics" :key="metric.label" class="metric-item">
+                  <span>{{ metric.label }}</span>
+                  <strong>{{ metric.value }}</strong>
+                </div>
+              </div>
+              <div class="app-enter" data-guide="app-card-enter">
+                <span>{{ app.card.brief }}</span>
+                <span>进入</span>
               </div>
             </el-card>
           </a>
@@ -50,20 +66,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { computed, nextTick, onMounted, reactive, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { Box, Memo, Monitor, OfficeBuilding, Tickets } from '@element-plus/icons-vue'
 import { PURCHASE_APPS } from '@/utils/purchase-apps'
 import { hasPerm } from '@/utils/permission'
 import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
+import {
+  appendQuery,
+  buildGenericCard,
+  cardFromScore,
+  daysBetween,
+  moneyText,
+  numberValue,
+  sortByAttention
+} from '@shared/app-card-attention'
 
 const router = useRouter()
 const iconMap = { Box, Memo, Monitor, OfficeBuilding, Tickets }
-const appCounts = reactive({})
-const loadingCounts = reactive({})
+const appRows = ref(Object.fromEntries(PURCHASE_APPS.map((app) => [app.key, []])))
+const cardLoading = ref(false)
 
-const visibleApps = computed(() => PURCHASE_APPS.filter((app) => app.key !== 'dashboard' && (!app.perm || hasPerm(app.perm))))
+const rowsOf = (key) => appRows.value[key] || []
+const sourceKeyOf = (app) => app.sourceAppKey || app.key
+const isClosedOrder = (row) => ['已完成', '已取消'].includes(String(row.order_status || '').trim())
+const isClosedDemand = (row) => ['已下单', '已关闭'].includes(String(row.demand_status || '').trim())
 
 const moduleTips = [
   '供应商档案用于维护供应商等级、联系人、付款条件和交期。',
@@ -80,8 +108,9 @@ const buildPurchaseOverviewContext = () => {
     route: `/purchase${app.route}`,
     viewId: app.viewId,
     apiUrl: app.apiUrl,
-    recordCount: appCounts[app.key] ?? null,
-      columns: (app.staticColumns || []).map((col) => ({
+    recordCount: rowsOf(sourceKeyOf(app)).length,
+    attention: app.card || null,
+    columns: (app.staticColumns || []).map((col) => ({
       label: col.label,
       prop: col.prop,
       type: col.type || 'text',
@@ -114,34 +143,108 @@ const syncPurchaseOverviewContext = () => {
   pushAiContext(buildPurchaseOverviewContext())
 }
 
-const loadAppCounts = async () => {
-  await Promise.all(visibleApps.value.map(async (app) => {
-    loadingCounts[app.key] = true
-    try {
-      if (!app.apiUrl) {
-        appCounts[app.key] = null
-        return
+const loadCardData = async () => {
+  if (cardLoading.value) return
+  cardLoading.value = true
+  try {
+    const apps = PURCHASE_APPS.filter((app) => app.apiUrl)
+    const results = await Promise.allSettled(apps.map((app) => request({
+      url: appendQuery(app.apiUrl, { status: app.apiUrl.includes('status=') ? undefined : 'neq.deleted', limit: 200 }),
+      method: 'get',
+      headers: { 'Accept-Profile': 'public' },
+      silentError: true,
+      suppressErrorMessage: true
+    })))
+    const next = { ...appRows.value }
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled' && Array.isArray(result.value)) {
+        next[apps[index].key] = result.value
       }
-      const rows = await request({
-        url: `${app.apiUrl}?select=id&status=neq.deleted&limit=1000`,
-        method: 'get',
-        headers: { 'Accept-Profile': 'public' }
-      })
-      appCounts[app.key] = Array.isArray(rows) ? rows.length : 0
-    } catch (e) {
-      appCounts[app.key] = null
-    } finally {
-      loadingCounts[app.key] = false
-    }
-  }))
-  syncPurchaseOverviewContext()
+    })
+    appRows.value = next
+    syncPurchaseOverviewContext()
+  } finally {
+    cardLoading.value = false
+  }
 }
 
-const getAppCountText = (app) => {
-  if (loadingCounts[app.key]) return '加载中'
-  if (appCounts[app.key] === null || appCounts[app.key] === undefined) return '暂无统计'
-  return `${appCounts[app.key]} 条记录`
-}
+const cardMap = computed(() => {
+  const suppliers = rowsOf('suppliers')
+  const demands = rowsOf('demands')
+  const orders = rowsOf('orders')
+  const arrivals = rowsOf('arrivals')
+
+  const pendingSuppliers = suppliers.filter((row) => row.supplier_status === '待评审').length
+  const pausedSuppliers = suppliers.filter((row) => row.supplier_status === '暂停合作').length
+  const longLeadSuppliers = suppliers.filter((row) => numberValue(row.lead_time_days) >= 15).length
+  const pendingDemands = demands.filter((row) => row.demand_status === '待采购').length
+  const overdueDemands = demands.filter((row) => {
+    const delta = daysBetween(row.required_date)
+    return delta !== null && delta < 0 && !isClosedDemand(row)
+  }).length
+  const dueDemands = demands.filter((row) => {
+    const delta = daysBetween(row.required_date)
+    return delta !== null && delta >= 0 && delta <= 2 && !isClosedDemand(row)
+  }).length
+  const openOrders = orders.filter((row) => !isClosedOrder(row)).length
+  const overdueOrders = orders.filter((row) => {
+    const delta = daysBetween(row.expected_arrival_date)
+    return delta !== null && delta < 0 && !isClosedOrder(row) && numberValue(row.pending_quantity || row.quantity) > 0
+  }).length
+  const dueOrders = orders.filter((row) => {
+    const delta = daysBetween(row.expected_arrival_date)
+    return delta !== null && delta >= 0 && delta <= 3 && !isClosedOrder(row) && numberValue(row.pending_quantity || row.quantity) > 0
+  }).length
+  const orderAmount = orders.reduce((sum, row) => sum + numberValue(row.total_amount), 0)
+  const rejectedArrivals = arrivals.filter((row) => row.iqc_status === '不合格' || row.arrival_status === '异常').length
+  const pendingIqc = arrivals.filter((row) => ['待检', '待检验'].includes(row.iqc_status) || row.arrival_status === '待检验').length
+  const inboundPending = arrivals.filter((row) => !row.inbound_no && ['合格', '让步接收'].includes(row.iqc_status)).length
+
+  return {
+    suppliers: cardFromScore({
+      score: pausedSuppliers > 0 ? 66 : (pendingSuppliers > 0 ? 48 : 26),
+      metrics: [
+        { label: '待评审', value: `${pendingSuppliers}` },
+        { label: '长交期', value: `${longLeadSuppliers}` }
+      ],
+      brief: pausedSuppliers > 0 ? `${pausedSuppliers} 个暂停合作` : (pendingSuppliers > 0 ? '先完成供应商评审' : '维护供应商健康')
+    }),
+    demands: cardFromScore({
+      score: overdueDemands > 0 ? 78 : (pendingDemands > 0 || dueDemands > 0 ? 56 : 26),
+      metrics: [
+        { label: '待采购', value: `${pendingDemands}` },
+        { label: '临/逾需求', value: `${dueDemands}/${overdueDemands}` }
+      ],
+      brief: overdueDemands > 0 ? '优先处理逾期需求' : (pendingDemands > 0 ? '下推采购订单' : '维护采购需求')
+    }),
+    orders: cardFromScore({
+      score: overdueOrders > 0 ? 86 : (dueOrders > 0 ? 66 : (openOrders > 0 ? 42 : 26)),
+      metrics: [
+        { label: '未完成', value: `${openOrders}` },
+        { label: '临/逾到货', value: `${dueOrders}/${overdueOrders}` }
+      ],
+      brief: overdueOrders > 0 ? '催办延期采购订单' : (dueOrders > 0 ? '跟进近期到货' : `采购额 ${moneyText(orderAmount)}`)
+    }),
+    arrivals: cardFromScore({
+      score: rejectedArrivals > 0 ? 88 : (pendingIqc > 0 ? 64 : (inboundPending > 0 ? 46 : 26)),
+      metrics: [
+        { label: '待检', value: `${pendingIqc}` },
+        { label: '异常', value: `${rejectedArrivals}` }
+      ],
+      brief: rejectedArrivals > 0 ? '先处理到货异常/IQC' : (pendingIqc > 0 ? '安排来料检验' : `${inboundPending} 单待入库`)
+    })
+  }
+})
+
+const visibleApps = computed(() => PURCHASE_APPS
+  .filter((app) => app.key !== 'dashboard' && (!app.perm || hasPerm(app.perm)))
+  .map((app) => ({
+    ...app,
+    card: cardLoading.value && !rowsOf(sourceKeyOf(app)).length
+      ? buildGenericCard(app, rowsOf(sourceKeyOf(app)), true)
+      : (cardMap.value[sourceKeyOf(app)] || buildGenericCard(app, rowsOf(sourceKeyOf(app)), cardLoading.value))
+  }))
+  .sort(sortByAttention))
 
 const openApp = async (app) => {
   if (!app?.route) return
@@ -165,12 +268,11 @@ const handleNavigate = async (event, navigate, app) => {
 
 onMounted(() => {
   syncPurchaseOverviewContext()
-  loadAppCounts()
+  loadCardData()
 })
 
 watch(visibleApps, () => {
   syncPurchaseOverviewContext()
-  loadAppCounts()
 })
 </script>
 
@@ -212,10 +314,11 @@ watch(visibleApps, () => {
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 136px;
+  height: 168px;
   margin-bottom: 20px;
   cursor: pointer;
-  border-radius: 10px;
+  border-radius: 8px;
+  overflow: hidden;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -224,6 +327,8 @@ watch(visibleApps, () => {
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
+  padding: 14px;
 }
 
 .app-card:hover {
@@ -233,19 +338,20 @@ watch(visibleApps, () => {
 
 .app-card-body {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  min-height: 56px;
+  min-height: 48px;
 }
 
 .app-icon {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
+  flex-shrink: 0;
 }
 
 .tone-blue { background: #409eff; }
@@ -258,10 +364,23 @@ watch(visibleApps, () => {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  flex: 1;
+}
+
+.app-title-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .app-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 15px;
   font-weight: 600;
   color: #303133;
@@ -274,28 +393,120 @@ watch(visibleApps, () => {
   color: #909399;
   line-height: 18px;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
 }
 
-.app-card-footer {
+.app-status {
+  flex: 0 0 auto;
+  min-width: 48px;
+  max-width: 58px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  background: #eef2ff;
+  color: #475569;
+}
+
+.status-ok {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.status-warn {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-danger {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.status-info {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.app-metrics {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric-item {
+  min-width: 0;
+  height: 42px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: #f6f8fb;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: auto;
-  padding-top: 14px;
+  gap: 12px;
 }
 
-.app-count,
+.metric-item strong {
+  min-width: 52px;
+  overflow: visible;
+  color: #303133;
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.metric-item span {
+  min-width: 0;
+  flex: 1;
+  color: #909399;
+  font-size: 11px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .app-enter {
+  margin-top: auto;
+  padding-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 12px;
+  color: #409eff;
 }
 
-.app-count {
+.app-enter span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: #909399;
 }
 
-.app-enter {
-  color: #409eff;
+.app-enter span:last-child {
+  flex: 0 0 auto;
+}
+
+.attention-critical {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.attention-warning {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.attention-focus {
+  border-color: rgba(14, 165, 233, 0.36);
 }
 
 :global(#app.dark) .purchase-apps {
@@ -313,5 +524,18 @@ watch(visibleApps, () => {
 :global(#app.dark) .app-card {
   background-color: #111827;
   border-color: #1f2937;
+}
+
+:global(#app.dark) .metric-item {
+  background: #0f172a;
+}
+
+:global(#app.dark) .metric-item strong,
+:global(#app.dark) .app-enter span:first-child {
+  color: #f3f4f6;
+}
+
+:global(#app.dark) .metric-item span {
+  color: #9ca3af;
 }
 </style>

@@ -52,12 +52,45 @@
         </el-form-item>
 
         <el-divider content-position="left">登录门户品牌信息</el-divider>
+        <el-form-item label="企业 Logo">
+          <div class="logo-config">
+            <div class="upload-row">
+              <el-input v-model="form.loginBranding.logo" placeholder="可填 Logo URL，或使用右侧上传" />
+              <el-upload
+                accept="image/*"
+                :show-file-list="false"
+                :auto-upload="false"
+                :on-change="(file) => handleLogoUpload(file)"
+              >
+                <el-button>上传</el-button>
+              </el-upload>
+            </div>
+            <div v-if="form.loginBranding.logo" class="logo-preview">
+              <span class="logo-preview__frame">
+                <img :src="form.loginBranding.logo" alt="企业 Logo 预览" />
+              </span>
+              <div>
+                <strong>当前登录页 Logo</strong>
+                <p>默认取自南派企业官网页面 Logo，可在这里替换为企业自有图片地址或上传图片。</p>
+              </div>
+            </div>
+          </div>
+        </el-form-item>
+
         <el-form-item label="企业名称">
           <el-input v-model="form.loginBranding.companyName" placeholder="例如：XX集团有限公司" />
         </el-form-item>
 
+        <el-form-item label="站点标识">
+          <el-input v-model="form.loginBranding.siteTag" placeholder="例如：Enterprise Digital Portal" />
+        </el-form-item>
+
+        <el-form-item label="首屏提示">
+          <el-input v-model="form.loginBranding.announcement" placeholder="例如：员工与合作伙伴入口" />
+        </el-form-item>
+
         <el-form-item label="主宣传语">
-          <el-input v-model="form.loginBranding.slogan" placeholder="例如：数字驱动业务增长" />
+          <el-input v-model="form.loginBranding.slogan" placeholder="例如：深耕热带水果全产业链" />
         </el-form-item>
 
         <el-form-item label="企业介绍">
@@ -85,6 +118,157 @@
             >
               <el-button>上传</el-button>
             </el-upload>
+          </div>
+        </el-form-item>
+
+        <el-divider content-position="left">独立站首屏配置</el-divider>
+        <el-form-item label="顶部登录按钮">
+          <el-input v-model="form.loginBranding.headerLoginText" placeholder="例如：员工通道" />
+        </el-form-item>
+
+        <el-form-item label="登录框标题">
+          <div class="double-row">
+            <el-input v-model="form.loginBranding.authKicker" placeholder="小标题，例如：员工入口" />
+            <el-input v-model="form.loginBranding.authTitle" placeholder="主标题，例如：账号登录" />
+          </div>
+        </el-form-item>
+
+        <el-form-item label="登录框提示">
+          <div class="double-row">
+            <el-input v-model="form.loginBranding.authSafeNote" placeholder="表单提示，例如：账号由管理员统一分配" />
+            <el-input v-model="form.loginBranding.authFootnote" placeholder="底部提示，例如：该入口仅供授权人员使用" />
+          </div>
+        </el-form-item>
+
+        <el-form-item label="主按钮文案">
+          <el-input v-model="form.loginBranding.primaryActionText" placeholder="例如：员工登录" />
+        </el-form-item>
+
+        <el-form-item label="副按钮">
+          <div class="double-row">
+            <el-input v-model="form.loginBranding.secondaryActionText" placeholder="按钮文案，例如：了解平台" />
+            <el-input v-model="form.loginBranding.secondaryActionUrl" placeholder="跳转地址，例如：/eiscore 或 https://..." />
+          </div>
+        </el-form-item>
+
+        <el-form-item label="顶部导航">
+          <div class="dynamic-panel">
+            <div
+              v-for="(item, index) in form.loginBranding.navItems"
+              :key="`nav-${index}`"
+              class="inline-item"
+            >
+              <el-input v-model="item.label" placeholder="导航名称，例如：企业概况" />
+              <el-input v-model="item.anchor" placeholder="锚点：overview / capabilities / metrics" />
+              <el-button type="danger" plain @click="removeNavItem(index)">删除</el-button>
+            </div>
+            <el-button class="add-btn" @click="addNavItem">新增导航</el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="核心指标">
+          <div class="dynamic-panel">
+            <div
+              v-for="(item, index) in form.loginBranding.metrics"
+              :key="`metric-${index}`"
+              class="inline-item"
+            >
+              <el-input v-model="item.value" placeholder="指标值，例如：2009" />
+              <el-input v-model="item.label" placeholder="指标名称，例如：成立时间" />
+              <el-button type="danger" plain @click="removeMetric(index)">删除</el-button>
+            </div>
+            <el-button class="add-btn" @click="addMetric">新增指标</el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="信任标签">
+          <div class="dynamic-panel">
+            <div
+              v-for="(item, index) in form.loginBranding.trustBadges"
+              :key="`trust-${index}`"
+              class="inline-item compact-inline"
+            >
+              <el-input v-model="item.label" placeholder="例如：全链路追溯" />
+              <el-button type="danger" plain @click="removeTrustBadge(index)">删除</el-button>
+            </div>
+            <el-button class="add-btn" @click="addTrustBadge">新增标签</el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="企业服务链路">
+          <div class="dynamic-panel">
+            <div
+              v-for="(item, index) in form.loginBranding.businessChain"
+              :key="`chain-${index}`"
+              class="dynamic-item"
+            >
+              <div class="double-row">
+                <el-input v-model="item.title" placeholder="链路标题，例如：仓储生产" />
+                <el-input v-model="item.status" placeholder="状态标签，例如：实时同步" />
+              </div>
+              <el-input
+                v-model="item.description"
+                type="textarea"
+                :rows="2"
+                maxlength="180"
+                show-word-limit
+                placeholder="链路说明"
+              />
+              <el-button type="danger" plain @click="removeBusinessChain(index)">删除链路</el-button>
+            </div>
+            <el-button class="add-btn" @click="addBusinessChain">新增服务链路</el-button>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="能力卡片">
+          <div class="dynamic-panel">
+            <div
+              v-for="(item, index) in form.loginBranding.capabilities"
+              :key="`capability-${index}`"
+              class="dynamic-item"
+            >
+              <el-input v-model="item.title" placeholder="能力标题，例如：热带水果制品" />
+              <el-input
+                v-model="item.description"
+                type="textarea"
+                :rows="2"
+                maxlength="180"
+                show-word-limit
+                placeholder="能力说明"
+              />
+              <el-button type="danger" plain @click="removeCapability(index)">删除能力</el-button>
+            </div>
+            <el-button class="add-btn" @click="addCapability">新增能力卡片</el-button>
+          </div>
+        </el-form-item>
+
+        <el-divider content-position="left">页面区块标题</el-divider>
+        <el-form-item label="下滑提示">
+          <el-input v-model="form.loginBranding.scrollCueText" placeholder="例如：向下了解企业" />
+        </el-form-item>
+
+        <el-form-item label="指标区块">
+          <div class="double-row">
+            <el-input v-model="form.loginBranding.metricsSectionKicker" placeholder="小标题，例如：企业实力" />
+            <el-input v-model="form.loginBranding.metricsSectionTitle" placeholder="标题，例如：多年深耕热带水果产业" />
+          </div>
+        </el-form-item>
+
+        <el-form-item label="介绍区块">
+          <el-input v-model="form.loginBranding.aboutSectionKicker" placeholder="例如：关于企业" />
+        </el-form-item>
+
+        <el-form-item label="服务区块">
+          <div class="double-row">
+            <el-input v-model="form.loginBranding.capabilitiesSectionKicker" placeholder="小标题，例如：产品与服务" />
+            <el-input v-model="form.loginBranding.capabilitiesSectionTitle" placeholder="标题，例如：从产地原料到客户应用的完整服务" />
+          </div>
+        </el-form-item>
+
+        <el-form-item label="团队区块">
+          <div class="double-row">
+            <el-input v-model="form.loginBranding.leadersSectionKicker" placeholder="小标题，例如：管理团队" />
+            <el-input v-model="form.loginBranding.leadersSectionTitle" placeholder="标题，例如：管理团队" />
           </div>
         </el-form-item>
 
@@ -148,8 +332,18 @@
           </div>
         </el-form-item>
 
+        <el-divider content-position="left">页脚信息</el-divider>
+        <el-form-item label="版权文本">
+          <el-input v-model="form.loginBranding.footerText" placeholder="例如：Copyright © XX集团" />
+        </el-form-item>
+
+        <el-form-item label="备案信息">
+          <el-input v-model="form.loginBranding.icpText" placeholder="例如：粤ICP备xxxxxxxx号" />
+        </el-form-item>
+
         <el-form-item v-if="canManage">
           <el-button type="primary" @click="saveSettings">保存并生效</el-button>
+          <el-button @click="previewLoginPage">预览登录页</el-button>
           <el-button @click="resetSettings">重置默认</el-button>
         </el-form-item>
       </el-form>
@@ -179,6 +373,8 @@ const predefineColors = [
   '#4f46e5'
 ]
 
+const NANPAI_LOGO_URL = 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg'
+
 const defaultForm = () => ({
   title: '海边姑娘管理系统',
   themeColor: '#409EFF',
@@ -188,7 +384,52 @@ const defaultForm = () => ({
     companyName: '广东南派食品有限公司',
     slogan: '深耕热带水果全产业链，打造高品质水果制品方案',
     description: '根据企业官网公开信息：公司成立于 2009 年，注册资金 1000 万元，总部位于中国雷州半岛；拥有湛江、广西两大加工基地和多条水果加工生产线，面向茶饮、烘焙、饮料与生鲜客户提供一站式水果制品解决方案。',
+    logo: NANPAI_LOGO_URL,
+    siteTag: '热带水果制品解决方案提供商',
+    announcement: '员工与合作伙伴入口',
+    headerLoginText: '员工通道',
+    authKicker: '员工入口',
+    authTitle: '账号登录',
+    authSafeNote: '账号由管理员统一分配',
+    authFootnote: '该入口仅供授权人员使用',
+    primaryActionText: '员工登录',
+    secondaryActionText: '了解平台',
+    secondaryActionUrl: '/eiscore',
+    scrollCueText: '向下了解企业',
+    metricsSectionKicker: '企业实力',
+    metricsSectionTitle: '多年深耕热带水果产业',
+    aboutSectionKicker: '关于企业',
+    capabilitiesSectionKicker: '产品与服务',
+    capabilitiesSectionTitle: '从产地原料到客户应用的完整服务',
+    leadersSectionKicker: '管理团队',
+    leadersSectionTitle: '管理团队',
     backgroundImage: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgx6CtnwYoh8fKtgcwgA84vAU!1500x1500.jpg',
+    navItems: [
+      { label: '企业概况', anchor: 'overview' },
+      { label: '关于企业', anchor: 'about' },
+      { label: '产品服务', anchor: 'capabilities' },
+      { label: '企业实力', anchor: 'metrics' }
+    ],
+    metrics: [
+      { label: '成立时间', value: '2009' },
+      { label: '加工基地', value: '2' },
+      { label: '注册资金', value: '1000万' }
+    ],
+    trustBadges: [
+      { label: '雷州半岛产地优势' },
+      { label: '双加工基地' },
+      { label: '多场景客户服务' }
+    ],
+    businessChain: [
+      { title: '原料甄选', description: '依托热带水果产区资源，关注原料风味、成熟度与稳定供应。', status: '产地直采' },
+      { title: '加工制造', description: '围绕果浆、果粒、果酱等产品形态，支持规模化与定制化生产。', status: '稳定交付' },
+      { title: '客户服务', description: '面向茶饮、烘焙、饮料与生鲜渠道，提供产品方案和交付支持。', status: '多场景适配' }
+    ],
+    capabilities: [
+      { title: '热带水果制品', description: '围绕芒果、菠萝、百香果等热带水果，提供多形态原料产品。' },
+      { title: '规模化加工', description: '依托湛江、广西加工基地，保障稳定产能与产品一致性。' },
+      { title: '应用方案支持', description: '结合茶饮、烘焙、饮料等使用场景，提供选型与应用建议。' }
+    ],
     carouselImages: [
       {
         url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg5uqnnwYoiNO9CjDcCziIBQ.jpg',
@@ -206,7 +447,9 @@ const defaultForm = () => ({
         subtitle: '服务茶饮、烘焙、饮料与生鲜渠道'
       }
     ],
-    leaders: []
+    leaders: [],
+    footerText: 'Copyright © EISCore',
+    icpText: ''
   }
 })
 
@@ -239,7 +482,56 @@ const syncFromStore = (cfg) => {
   form.loginBranding.companyName = String(branding.companyName || next.loginBranding.companyName)
   form.loginBranding.slogan = String(branding.slogan || next.loginBranding.slogan)
   form.loginBranding.description = String(branding.description || next.loginBranding.description)
+  form.loginBranding.logo = String(branding.logo || next.loginBranding.logo)
+  form.loginBranding.siteTag = String(branding.siteTag || next.loginBranding.siteTag)
+  form.loginBranding.announcement = String(branding.announcement || next.loginBranding.announcement)
+  form.loginBranding.headerLoginText = String(branding.headerLoginText || next.loginBranding.headerLoginText)
+  form.loginBranding.authKicker = String(branding.authKicker || next.loginBranding.authKicker)
+  form.loginBranding.authTitle = String(branding.authTitle || next.loginBranding.authTitle)
+  form.loginBranding.authSafeNote = String(branding.authSafeNote || next.loginBranding.authSafeNote)
+  form.loginBranding.authFootnote = String(branding.authFootnote || next.loginBranding.authFootnote)
+  form.loginBranding.primaryActionText = String(branding.primaryActionText || next.loginBranding.primaryActionText)
+  form.loginBranding.secondaryActionText = String(branding.secondaryActionText || next.loginBranding.secondaryActionText)
+  form.loginBranding.secondaryActionUrl = String(branding.secondaryActionUrl || next.loginBranding.secondaryActionUrl)
+  form.loginBranding.scrollCueText = String(branding.scrollCueText || next.loginBranding.scrollCueText)
+  form.loginBranding.metricsSectionKicker = String(branding.metricsSectionKicker || next.loginBranding.metricsSectionKicker)
+  form.loginBranding.metricsSectionTitle = String(branding.metricsSectionTitle || next.loginBranding.metricsSectionTitle)
+  form.loginBranding.aboutSectionKicker = String(branding.aboutSectionKicker || next.loginBranding.aboutSectionKicker)
+  form.loginBranding.capabilitiesSectionKicker = String(branding.capabilitiesSectionKicker || next.loginBranding.capabilitiesSectionKicker)
+  form.loginBranding.capabilitiesSectionTitle = String(branding.capabilitiesSectionTitle || next.loginBranding.capabilitiesSectionTitle)
+  form.loginBranding.leadersSectionKicker = String(branding.leadersSectionKicker || next.loginBranding.leadersSectionKicker)
+  form.loginBranding.leadersSectionTitle = String(branding.leadersSectionTitle || next.loginBranding.leadersSectionTitle)
   form.loginBranding.backgroundImage = String(branding.backgroundImage || '')
+  form.loginBranding.navItems = Array.isArray(branding.navItems)
+    ? branding.navItems.map((item) => ({
+      label: String(item?.label || ''),
+      anchor: String(item?.anchor || '')
+    })).filter((item) => item.label)
+    : next.loginBranding.navItems.map((item) => ({ ...item }))
+  form.loginBranding.metrics = Array.isArray(branding.metrics)
+    ? branding.metrics.map((item) => ({
+      label: String(item?.label || ''),
+      value: String(item?.value || '')
+    })).filter((item) => item.label || item.value)
+    : next.loginBranding.metrics.map((item) => ({ ...item }))
+  form.loginBranding.trustBadges = Array.isArray(branding.trustBadges)
+    ? branding.trustBadges.map((item) => ({
+      label: typeof item === 'string' ? item : String(item?.label || '')
+    })).filter((item) => item.label)
+    : next.loginBranding.trustBadges.map((item) => ({ ...item }))
+  form.loginBranding.businessChain = Array.isArray(branding.businessChain)
+    ? branding.businessChain.map((item) => ({
+      title: String(item?.title || ''),
+      description: String(item?.description || ''),
+      status: String(item?.status || '')
+    })).filter((item) => item.title || item.description)
+    : next.loginBranding.businessChain.map((item) => ({ ...item }))
+  form.loginBranding.capabilities = Array.isArray(branding.capabilities)
+    ? branding.capabilities.map((item) => ({
+      title: String(item?.title || ''),
+      description: String(item?.description || '')
+    })).filter((item) => item.title || item.description)
+    : next.loginBranding.capabilities.map((item) => ({ ...item }))
   form.loginBranding.carouselImages = Array.isArray(branding.carouselImages)
     ? branding.carouselImages.map((item) => ({
       url: String(item?.url || ''),
@@ -255,6 +547,8 @@ const syncFromStore = (cfg) => {
       avatar: String(item?.avatar || '')
     })).filter((item) => item.name)
     : []
+  form.loginBranding.footerText = String(branding.footerText || next.loginBranding.footerText)
+  form.loginBranding.icpText = String(branding.icpText || '')
 }
 
 onMounted(() => {
@@ -277,6 +571,11 @@ const handleBackgroundUpload = async (uploadFile) => {
   form.loginBranding.backgroundImage = await toDataUrl(uploadFile.raw)
 }
 
+const handleLogoUpload = async (uploadFile) => {
+  if (!uploadFile?.raw) return
+  form.loginBranding.logo = await toDataUrl(uploadFile.raw)
+}
+
 const handleCarouselUpload = async (uploadFile, index) => {
   if (!uploadFile?.raw || !form.loginBranding.carouselImages[index]) return
   form.loginBranding.carouselImages[index].url = await toDataUrl(uploadFile.raw)
@@ -293,6 +592,46 @@ const addCarousel = () => {
 
 const removeCarousel = (index) => {
   form.loginBranding.carouselImages.splice(index, 1)
+}
+
+const addNavItem = () => {
+  form.loginBranding.navItems.push({ label: '', anchor: '' })
+}
+
+const removeNavItem = (index) => {
+  form.loginBranding.navItems.splice(index, 1)
+}
+
+const addMetric = () => {
+  form.loginBranding.metrics.push({ label: '', value: '' })
+}
+
+const removeMetric = (index) => {
+  form.loginBranding.metrics.splice(index, 1)
+}
+
+const addTrustBadge = () => {
+  form.loginBranding.trustBadges.push({ label: '' })
+}
+
+const removeTrustBadge = (index) => {
+  form.loginBranding.trustBadges.splice(index, 1)
+}
+
+const addBusinessChain = () => {
+  form.loginBranding.businessChain.push({ title: '', description: '', status: '' })
+}
+
+const removeBusinessChain = (index) => {
+  form.loginBranding.businessChain.splice(index, 1)
+}
+
+const addCapability = () => {
+  form.loginBranding.capabilities.push({ title: '', description: '' })
+}
+
+const removeCapability = (index) => {
+  form.loginBranding.capabilities.splice(index, 1)
 }
 
 const addLeader = () => {
@@ -314,14 +653,44 @@ const saveSettings = async () => {
       companyName: form.loginBranding.companyName,
       slogan: form.loginBranding.slogan,
       description: form.loginBranding.description,
+      logo: form.loginBranding.logo,
+      siteTag: form.loginBranding.siteTag,
+      announcement: form.loginBranding.announcement,
+      headerLoginText: form.loginBranding.headerLoginText,
+      authKicker: form.loginBranding.authKicker,
+      authTitle: form.loginBranding.authTitle,
+      authSafeNote: form.loginBranding.authSafeNote,
+      authFootnote: form.loginBranding.authFootnote,
+      primaryActionText: form.loginBranding.primaryActionText,
+      secondaryActionText: form.loginBranding.secondaryActionText,
+      secondaryActionUrl: form.loginBranding.secondaryActionUrl,
+      scrollCueText: form.loginBranding.scrollCueText,
+      metricsSectionKicker: form.loginBranding.metricsSectionKicker,
+      metricsSectionTitle: form.loginBranding.metricsSectionTitle,
+      aboutSectionKicker: form.loginBranding.aboutSectionKicker,
+      capabilitiesSectionKicker: form.loginBranding.capabilitiesSectionKicker,
+      capabilitiesSectionTitle: form.loginBranding.capabilitiesSectionTitle,
+      leadersSectionKicker: form.loginBranding.leadersSectionKicker,
+      leadersSectionTitle: form.loginBranding.leadersSectionTitle,
       backgroundImage: form.loginBranding.backgroundImage,
+      navItems: form.loginBranding.navItems.filter((item) => item.label),
+      metrics: form.loginBranding.metrics.filter((item) => item.label || item.value),
+      trustBadges: form.loginBranding.trustBadges.filter((item) => item.label),
+      businessChain: form.loginBranding.businessChain.filter((item) => item.title || item.description),
+      capabilities: form.loginBranding.capabilities.filter((item) => item.title || item.description),
       carouselImages: form.loginBranding.carouselImages.filter((item) => item.url),
-      leaders: form.loginBranding.leaders.filter((item) => item.name)
+      leaders: form.loginBranding.leaders.filter((item) => item.name),
+      footerText: form.loginBranding.footerText,
+      icpText: form.loginBranding.icpText
     }
   }
   const ok = await systemStore.saveConfig(payload)
   if (ok) ElMessage.success('设置已保存并生效')
   else ElMessage.error('保存失败，请稍后重试')
+}
+
+const previewLoginPage = () => {
+  window.open('/login', '_blank', 'noopener,noreferrer')
 }
 
 const resetSettings = () => {
@@ -333,9 +702,35 @@ const resetSettings = () => {
   form.loginBranding.companyName = next.loginBranding.companyName
   form.loginBranding.slogan = next.loginBranding.slogan
   form.loginBranding.description = next.loginBranding.description
+  form.loginBranding.logo = next.loginBranding.logo
+  form.loginBranding.siteTag = next.loginBranding.siteTag
+  form.loginBranding.announcement = next.loginBranding.announcement
+  form.loginBranding.headerLoginText = next.loginBranding.headerLoginText
+  form.loginBranding.authKicker = next.loginBranding.authKicker
+  form.loginBranding.authTitle = next.loginBranding.authTitle
+  form.loginBranding.authSafeNote = next.loginBranding.authSafeNote
+  form.loginBranding.authFootnote = next.loginBranding.authFootnote
+  form.loginBranding.primaryActionText = next.loginBranding.primaryActionText
+  form.loginBranding.secondaryActionText = next.loginBranding.secondaryActionText
+  form.loginBranding.secondaryActionUrl = next.loginBranding.secondaryActionUrl
+  form.loginBranding.scrollCueText = next.loginBranding.scrollCueText
+  form.loginBranding.metricsSectionKicker = next.loginBranding.metricsSectionKicker
+  form.loginBranding.metricsSectionTitle = next.loginBranding.metricsSectionTitle
+  form.loginBranding.aboutSectionKicker = next.loginBranding.aboutSectionKicker
+  form.loginBranding.capabilitiesSectionKicker = next.loginBranding.capabilitiesSectionKicker
+  form.loginBranding.capabilitiesSectionTitle = next.loginBranding.capabilitiesSectionTitle
+  form.loginBranding.leadersSectionKicker = next.loginBranding.leadersSectionKicker
+  form.loginBranding.leadersSectionTitle = next.loginBranding.leadersSectionTitle
   form.loginBranding.backgroundImage = next.loginBranding.backgroundImage
+  form.loginBranding.navItems = next.loginBranding.navItems.map((item) => ({ ...item }))
+  form.loginBranding.metrics = next.loginBranding.metrics.map((item) => ({ ...item }))
+  form.loginBranding.trustBadges = next.loginBranding.trustBadges.map((item) => ({ ...item }))
+  form.loginBranding.businessChain = next.loginBranding.businessChain.map((item) => ({ ...item }))
+  form.loginBranding.capabilities = next.loginBranding.capabilities.map((item) => ({ ...item }))
   form.loginBranding.carouselImages = next.loginBranding.carouselImages.map((item) => ({ ...item }))
   form.loginBranding.leaders = next.loginBranding.leaders.map((item) => ({ ...item }))
+  form.loginBranding.footerText = next.loginBranding.footerText
+  form.loginBranding.icpText = next.loginBranding.icpText
   saveSettings()
 }
 </script>
@@ -392,6 +787,61 @@ const resetSettings = () => {
   width: 100%;
 }
 
+.logo-config {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.logo-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.logo-preview__frame {
+  width: 64px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 6px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.logo-preview__frame img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.logo-preview strong {
+  display: block;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.logo-preview p {
+  margin: 4px 0 0;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+}
+
+.double-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.38fr) minmax(260px, 0.62fr);
+  gap: 12px;
+  width: 100%;
+}
+
 .dynamic-panel {
   display: grid;
   gap: 12px;
@@ -411,6 +861,21 @@ const resetSettings = () => {
   background: color-mix(in srgb, var(--el-color-primary) 6%, #ffffff);
 }
 
+.inline-item {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.35fr) minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--el-border-color);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.compact-inline {
+  grid-template-columns: minmax(220px, 1fr) auto;
+}
+
 .item-actions {
   display: flex;
   gap: 10px;
@@ -421,8 +886,14 @@ const resetSettings = () => {
 }
 
 @media (max-width: 768px) {
-  .upload-row {
+  .upload-row,
+  .double-row,
+  .inline-item {
     grid-template-columns: 1fr;
+  }
+
+  .logo-preview {
+    align-items: flex-start;
   }
 }
 </style>

@@ -1,30 +1,47 @@
 <template>
-  <div class="inventory-ledger">
-    <EisDataGrid
-      ref="gridRef"
-      class="ledger-grid"
-      :view-id="appConfig.viewId"
-      :api-url="appConfig.apiUrl"
-      :write-url="appConfig.writeUrl || ''"
-      :include-properties="appConfig.includeProperties !== false"
-      :write-mode="appConfig.writeMode || 'upsert'"
-      :patch-required-fields="appConfig.patchRequiredFields || []"
-      :field-defaults="appConfig.fieldDefaults || {}"
-      :default-order="appConfig.defaultOrder || 'id.desc'"
-      :acl-module="appConfig.aclModule"
-      :profile="appProfile"
-      :accept-profile="appProfile"
-      :content-profile="appProfile"
-      :static-columns="staticColumns"
-      :extra-columns="extraColumns"
-      :summary="summaryConfig"
-      :can-create="canCreate"
-      :can-edit="canEdit"
-      :can-delete="canDelete"
-      :can-export="canExport"
-      :can-config="canConfig"
-      @create="openStockInDialog"
-    />
+  <div class="inventory-ledger app-container">
+    <div class="app-header">
+      <div class="header-text">
+        <h2>库存台账</h2>
+        <p>查看入库、出库与调整流水记录</p>
+      </div>
+      <el-button type="primary" plain @click="goApps">返回应用列表</el-button>
+    </div>
+
+    <el-card
+      shadow="never"
+      class="grid-card"
+      :body-style="{ height: '100%', display: 'flex', flexDirection: 'column', padding: '0' }"
+    >
+      <EisDataGrid
+        ref="gridRef"
+        class="ledger-grid"
+        :view-id="appConfig.viewId"
+        :api-url="appConfig.apiUrl"
+        :write-url="appConfig.writeUrl || ''"
+        :include-properties="appConfig.includeProperties !== false"
+        :write-mode="appConfig.writeMode || 'upsert'"
+        :patch-required-fields="appConfig.patchRequiredFields || []"
+        :field-defaults="appConfig.fieldDefaults || {}"
+        :default-order="appConfig.defaultOrder || 'id.desc'"
+        :acl-module="appConfig.aclModule"
+        :profile="appProfile"
+        :accept-profile="appProfile"
+        :content-profile="appProfile"
+        :static-columns="staticColumns"
+        :extra-columns="extraColumns"
+        :summary="summaryConfig"
+        summary-scope="server"
+        :can-create="canCreate"
+        :can-edit="canEdit"
+        :can-delete="canDelete"
+        :can-export="canExport"
+        :can-config="canConfig"
+        @create="openStockInDialog"
+        @data-loaded="handleDataLoaded"
+        @data-load-error="handleDataLoadError"
+      />
+    </el-card>
     
     <!-- 入库对话框 -->
     <el-dialog v-model="stockInDialog.visible" title="入库" width="600px" append-to-body>
@@ -99,11 +116,16 @@
 // Copyright (c) 2026 林志荣
 
 import { ref, computed, onMounted, reactive, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { hasPerm } from '@/utils/permission'
+import { pushAiContext } from '@/utils/ai-context'
+import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
+import { buildGridLoadState } from '@shared/eis-grid-agent-context'
 
+const router = useRouter()
 const gridRef = ref(null)
 const materials = ref([])
 const warehouseOptions = ref([])
@@ -111,6 +133,8 @@ const warehouseFlat = ref([])
 const warehouseIndex = ref({})
 const batchRules = ref([])
 const stockInFormRef = ref(null)
+const lastGridLoadState = ref(buildGridLoadState())
+const lastSearchText = ref('')
 
 const stockInDialog = reactive({
   visible: false,
@@ -126,6 +150,10 @@ const stockInDialog = reactive({
     remark: ''
   }
 })
+
+const goApps = () => {
+  router.push('/apps')
+}
 
 const appConfig = computed(() => ({
   key: 'inventory-ledger',
@@ -286,6 +314,44 @@ const canEdit = computed(() => hasPerm(opPerms.value.edit))
 const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
 const canConfig = computed(() => hasPerm(opPerms.value.config))
+
+const syncAiContext = (rows = [], payload = null) => {
+  lastGridLoadState.value = pushStandardGridAgentContext({
+    pushAiContext,
+    app: 'materials',
+    view: 'inventory-ledger',
+    viewId: appConfig.value.viewId,
+    apiUrl: appConfig.value.apiUrl,
+    writeUrl: appConfig.value.writeUrl || '',
+    profile: appProfile.value,
+    contentProfile: appProfile.value,
+    defaultOrder: appConfig.value.defaultOrder || 'id.desc',
+    staticColumns: staticColumns.value,
+    extraColumns: extraColumns.value,
+    summaryConfig: summaryConfig.value,
+    rows,
+    visibleRows: rows,
+    payload,
+    previousLoadState: lastGridLoadState.value,
+    searchText: lastSearchText.value,
+    summaryScope: 'server',
+    allowImport: false
+  })
+}
+
+const handleDataLoaded = (payload) => {
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  lastSearchText.value = payload?.searchText || ''
+  syncAiContext(visibleRows, payload)
+}
+
+const handleDataLoadError = () => {
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], {})
+}
 
 const loadMaterials = async () => {
   try {
@@ -477,14 +543,50 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.inventory-ledger {
-  min-height: 100vh;
-  width: 100%;
+.app-container {
+  height: 100vh;
   display: flex;
   flex-direction: column;
   padding: 16px;
   box-sizing: border-box;
   background: #f5f7fb;
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.header-text h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.header-text p {
+  margin: 0;
+  font-size: 12px;
+  color: #909399;
+}
+
+.grid-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.grid-card :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
 }
 
 .ledger-grid {

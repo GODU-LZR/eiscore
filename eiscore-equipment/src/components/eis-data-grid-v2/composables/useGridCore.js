@@ -5,6 +5,7 @@ import { ref, reactive, computed, markRaw, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 import { buildSearchQuery } from '@/utils/grid-query'
+import { createPagedGridLoader } from '@shared/eis-data-grid-paging'
 import StatusRenderer from '../components/renderers/StatusRenderer.vue'
 import StatusEditor from '../components/renderers/StatusEditor.vue'
 import SelectRenderer from '../components/renderers/SelectRenderer.vue'
@@ -451,11 +452,28 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (eventEmitter) eventEmitter('view-document', rowData)
   }
 
+  const resolveRowActions = (rowData) => {
+    if (!props.rowActionResolver || typeof props.rowActionResolver !== 'function') return []
+    try {
+      const actions = props.rowActionResolver(rowData)
+      return Array.isArray(actions) ? actions.filter(Boolean) : []
+    } catch (e) {
+      return []
+    }
+  }
+
+  const handleRowAction = (action, rowData) => {
+    if (!action || action.disabled) return
+    if (eventEmitter) eventEmitter('row-action', { action, row: rowData })
+  }
+
   const context = reactive({ 
     componentParent: { 
         toggleColumnLock: handleToggleColumnLock, 
         columnLockState,
-        viewDocument: handleViewDocument 
+        viewDocument: handleViewDocument,
+        resolveRowActions,
+        rowAction: handleRowAction
     } 
   })
 
@@ -543,10 +561,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       return {
         ...colDef,
         cellRenderer: 'CheckRenderer',
-        cellEditor: 'CheckEditor',
-        cellEditorPopup: false,
-        editable: (params) => !isCellReadOnly(params),
+        editable: false,
+        checkEditable: (params) => !isCellReadOnly(params),
         suppressClickEdit: true,
+        suppressDoubleClickEdit: true,
+        suppressKeyboardEvent: () => true,
         valueParser: (params) => {
           return parseCheckValue(params.newValue)
         },
@@ -615,6 +634,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       resizable: false, sortable: false, filter: false, suppressHeaderMenuButton: true, 
       editable: false,
       suppressClickEdit: true,
+      suppressDoubleClickEdit: true,
       suppressKeyboardEvent: () => true,
       suppressNavigable: true,
       valueGetter: () => '',
@@ -629,7 +649,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, cellEditorPopupPosition: 'under',
       cellClassRules: cellClassRules,
       valueGetter: params => {
-        if (params.node.rowPinned) return activeSummaryConfig.label
+        if (params.node.rowPinned) return params.data?._status || activeSummaryConfig.label
         if (params.data?.properties?.row_locked_by) return 'locked'
         const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
         const raw = hasStatus ? params.data?.status : params.data?.properties?.status
@@ -680,6 +700,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       filter: true,
       resizable: false,
       editable: (params) => !params.node.rowPinned && !isCellReadOnly(params),
+      singleClickEdit: true,
       suppressHeaderMenuButton: false,
       cellRenderer: 'SelectRenderer',
       cellEditor: 'SelectEditor',
@@ -720,8 +741,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const actionCol = {
       headerName: '操作',
       field: '_actions',
-      width: 100, // 稍微加宽一点以容纳文字
-      minWidth: 100,
+      width: props.rowActionResolver ? 190 : 100,
+      minWidth: props.rowActionResolver ? 160 : 100,
       pinned: 'right', // 固定在右侧
       sortable: false,
       filter: false,
@@ -756,62 +777,23 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     }
   })
 
-  const loadData = async () => {
-    await loadFieldAcl()
-    isLoading.value = true 
-    try {
-      let url = props.apiUrl
-      const orderClause = props.defaultOrder
-      if (orderClause) {
-        url = `${url}${url.includes('?') ? '&' : '?'}order=${orderClause}`
-      }
-      if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
-      const res = await request({ 
-        url, 
-        method: 'get',
-        headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr' }
-      })
-      const rows = Array.isArray(res) ? res : []
-      const visibleRows = typeof props.rowFilter === 'function'
-        ? rows.filter((row) => {
-          try {
-            return props.rowFilter(row)
-          } catch (e) {
-            return true
-          }
-        })
-        : rows
-      gridData.value = visibleRows
-      if (eventEmitter) {
-        eventEmitter('data-loaded', {
-          rows: visibleRows,
-          rawRows: rows,
-          searchText: searchText.value || ''
-        })
-      }
-      if (props.autoSizeColumns !== false) {
-        setTimeout(() => { 
-          if (gridApi.value) {
-            const cols = gridApi.value.getAllGridColumns?.() || gridApi.value.getColumns?.() || []
-            if (cols.length) {
-              const allColIds = cols.map(c => c.getColId())
-              gridApi.value.autoSizeColumns(allColIds, false)
-            }
-          }
-        }, 100)
-      }
-    } catch (e) {
-      ElMessage.error('数据加载失败')
-      if (eventEmitter) {
-        eventEmitter('data-load-error', e)
-      }
-    }
-    finally { isLoading.value = false }
-  }
+  const { isLoadingMore, hasMoreRows, loadData, loadNextPage } = createPagedGridLoader({
+    props,
+    gridData,
+    searchText,
+    isLoading,
+    gridApi,
+    eventEmitter,
+    loadFieldAcl,
+    request,
+    buildSearchQuery,
+    ElMessage,
+    defaultProfile: 'hr'
+  })
 
   return {
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
-    loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState,
+    isLoadingMore, hasMoreRows, loadData, loadNextPage, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState,
     setWorkflowBinding
   }
 }

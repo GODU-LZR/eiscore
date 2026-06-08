@@ -35,11 +35,13 @@
         :can-delete="canDelete"
         :can-export="canExport"
         :can-config="canConfig"
+        :summary-scope="summaryScope"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
         @view-label="handleViewLabel"
         @data-loaded="handleDataLoaded"
+        @data-load-error="handleDataLoadError"
       />
 
       <el-dialog v-model="colConfigVisible" title="列管理" width="600px" append-to-body destroy-on-close @closed="resetForm">
@@ -253,6 +255,7 @@ import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
+import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import { findMaterialApp, BASE_STATIC_COLUMNS } from '@/utils/material-apps'
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
@@ -268,6 +271,7 @@ const router = useRouter()
 const gridRef = ref(null)
 const lastLoadedRows = ref([])
 const lastSearchText = ref('')
+const lastGridLoadState = ref(buildGridLoadState())
 const colConfigVisible = ref(false)
 const addTab = ref('text')
 let realtimeUnsub = null
@@ -304,6 +308,7 @@ const staticColumns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
 )
 const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
+const summaryScope = computed(() => 'server')
 
 const extraColumns = ref([])
 const hasSyncedFieldAcl = ref(false)
@@ -463,10 +468,20 @@ const saveStaticColumnsConfig = async () => {
 }
 
 const handleDataLoaded = (payload) => {
-  const rows = Array.isArray(payload?.rows) ? payload.rows : []
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
   lastLoadedRows.value = rows
   lastSearchText.value = payload?.searchText || ''
-  syncAiContext(rows, { searchText: lastSearchText.value })
+  lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
+  syncAiContext(visibleRows, { searchText: lastSearchText.value })
+}
+
+const handleDataLoadError = () => {
+  lastLoadedRows.value = []
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], { searchText: lastSearchText.value })
 }
 
 const buildDataStats = (rows) => {
@@ -514,11 +529,17 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     cascaderOptions: col.cascaderOptions || null,
     expression: col.expression || ''
   }))
-  const dataStats = buildDataStats(rows)
+  const dataStats = enrichLoadedDataStats(buildDataStats(rows), lastGridLoadState.value, rows)
   const dataSample = buildDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
   const apiUrl = app.value.apiUrl || '/raw_materials'
   const writeUrl = app.value.writeUrl || apiUrl.split('?')[0]
+  const dataScope = (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
+  const importTarget = {
+    apiUrl: writeUrl,
+    profile: appProfile.value,
+    viewId: app.value.viewId
+  }
   pushAiContext({
     app: 'materials',
     view: app.value.key,
@@ -532,17 +553,33 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     fileColumns,
     dataStats,
     dataSample,
-    dataScope: (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据',
+    dataScope,
     searchText: overrides.searchText ?? lastSearchText.value ?? '',
+    gridAgent: buildGridAgentContext({
+      app: 'materials',
+      view: app.value.key,
+      viewId: app.value.viewId,
+      apiUrl,
+      writeUrl,
+      profile: appProfile.value,
+      contentProfile: appProfile.value,
+      defaultOrder: app.value.defaultOrder || 'id.desc',
+      columns,
+      staticColumns: staticColumns.value,
+      extraColumns: extraColumns.value,
+      summaryConfig: summaryConfig.value,
+      searchText: overrides.searchText ?? lastSearchText.value ?? '',
+      dataScope,
+      loadState: lastGridLoadState.value,
+      allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
+      importTarget,
+      summaryScope: summaryScope.value
+    }),
     aiScene: overrides.aiScene || 'grid_chat',
     allowFormula: !!overrides.allowFormula,
     allowFormulaOnce: !!overrides.allowFormulaOnce,
     allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
-    importTarget: {
-      apiUrl: writeUrl,
-      profile: appProfile.value,
-      viewId: app.value.viewId
-    }
+    importTarget
   })
 }
 

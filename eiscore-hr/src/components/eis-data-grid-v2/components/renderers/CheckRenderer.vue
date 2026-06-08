@@ -21,9 +21,9 @@ const toggleValue = () => {
   if (isPinned.value) return
   const params = props.params
   const colDef = params?.colDef || {}
-  const editable = typeof colDef.editable === 'function'
-    ? colDef.editable(params)
-    : colDef.editable !== false
+  const editable = typeof colDef.checkEditable === 'function'
+    ? colDef.checkEditable(params)
+    : (typeof colDef.editable === 'function' ? colDef.editable(params) : colDef.editable !== false)
   if (!editable) return
   const field = colDef.field
   if (!field) return

@@ -1,5 +1,13 @@
 <template>
-  <div class="inventory-current-page">
+  <div class="inventory-current-page app-container">
+    <div class="app-header">
+      <div class="header-text">
+        <h2>库存查询</h2>
+        <p>按仓库、物料类型与批次实时查询库存汇总</p>
+      </div>
+      <el-button type="primary" plain @click="goApps">返回应用列表</el-button>
+    </div>
+
     <el-card shadow="never" class="query-card">
       <el-form :inline="true" :model="filters" class="query-form" @submit.prevent>
         <el-form-item label="仓库/库区/库位">
@@ -54,9 +62,11 @@
 // Copyright (c) 2026 林志荣
 
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import MaterialAppGrid from '@/components/MaterialAppGrid.vue'
 import request from '@/utils/request'
 
+const router = useRouter()
 const filters = reactive({
   warehouseId: null,
   materialCategoryCode: '',
@@ -68,6 +78,10 @@ const appliedFilters = reactive({
   materialCategoryCode: '',
   keyword: ''
 })
+
+const goApps = () => {
+  router.push('/apps')
+}
 
 const queryVersion = ref(0)
 const warehouseOptions = ref([])
@@ -421,15 +435,36 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.inventory-current-page {
+.app-container {
   height: 100vh;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
+  padding: 20px;
   box-sizing: border-box;
   background: #f5f7fb;
   overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.header-text h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #303133;
+}
+
+.header-text p {
+  margin: 0;
+  font-size: 12px;
+  color: #909399;
 }
 
 .query-card {

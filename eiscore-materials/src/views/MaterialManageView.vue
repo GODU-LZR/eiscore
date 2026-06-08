@@ -1,6 +1,6 @@
 <template>
   <div class="materials-layout">
-    <div class="page-header">
+    <div class="app-header">
       <div class="header-text">
         <h2>{{ app.name }}</h2>
         <p>{{ app.desc }}</p>
@@ -83,22 +83,22 @@ const goApps = () => {
 
 <style scoped>
 .materials-layout {
-  padding: 20px;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   background: #f5f7fa;
+  padding: 20px;
+  overflow: hidden;
 }
 
-.page-header {
+.app-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  background: #fff;
-  padding: 12px 16px;
-  border-radius: 6px;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .header-text h2 {

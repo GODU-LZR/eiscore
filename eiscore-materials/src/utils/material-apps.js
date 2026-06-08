@@ -150,10 +150,37 @@ export const MATERIAL_APPS = [
     tone: 'teal'
   },
   {
+    key: 'production-stock-in',
+    name: '生产入库单',
+    desc: '生产完工后的成品入库草稿入口',
+    route: '/inventory-stock-in?ioType=生产入库',
+    perm: 'app:mms_inventory',
+    icon: 'Upload',
+    tone: 'teal'
+  },
+  {
     key: 'inventory-stock-out',
     name: '出库',
     desc: '批次出库与库存扣减',
     route: '/inventory-stock-out',
+    perm: 'app:mms_inventory',
+    icon: 'Download',
+    tone: 'red'
+  },
+  {
+    key: 'production-picking',
+    name: '生产领料单',
+    desc: '按工单用料进行生产领料出库',
+    route: '/inventory-stock-out?ioType=生产领料',
+    perm: 'app:mms_inventory',
+    icon: 'Download',
+    tone: 'orange'
+  },
+  {
+    key: 'sales-stock-out',
+    name: '销售出库单',
+    desc: '销售发货对应的成品出库草稿入口',
+    route: '/inventory-stock-out?ioType=销售出库',
     perm: 'app:mms_inventory',
     icon: 'Download',
     tone: 'red'

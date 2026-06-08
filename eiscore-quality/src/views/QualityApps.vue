@@ -1,6 +1,6 @@
 <template>
-  <div class="quality-apps">
-    <div class="apps-header">
+  <div class="quality-apps" data-guide="app-list-page">
+    <div class="apps-header" data-guide="app-list-header">
       <div class="header-text">
         <h2>质量应用</h2>
         <p>选择一个质量应用进入管理</p>
@@ -19,6 +19,8 @@
       >
         <el-card
           class="app-card"
+          data-guide="app-card"
+          :data-guide-key="app.key"
           :class="`attention-${app.card.attentionLevel || 'normal'}`"
           shadow="hover"
           @click="openApp(app)"
@@ -32,18 +34,18 @@
             <div class="app-info">
               <div class="app-title-line">
                 <div class="app-name">{{ app.name }}</div>
-                <span class="app-status" :class="`status-${app.card.status}`">{{ app.card.statusText }}</span>
+                <span class="app-status" data-guide="app-card-status" :class="`status-${app.card.status}`">{{ app.card.statusText }}</span>
               </div>
               <div class="app-desc">{{ app.desc }}</div>
             </div>
           </div>
-          <div class="app-metrics">
+          <div class="app-metrics" data-guide="app-card-metrics">
             <div v-for="metric in app.card.metrics" :key="metric.label" class="metric-item">
               <span>{{ metric.label }}</span>
               <strong>{{ metric.value }}</strong>
             </div>
           </div>
-          <div class="app-enter">
+          <div class="app-enter" data-guide="app-card-enter">
             <span>{{ app.card.brief }}</span>
             <span>进入</span>
           </div>
@@ -70,6 +72,7 @@ import {
   numberValue,
   percentText
 } from '@/utils/quality-attention'
+import { sortByAttention } from '@shared/app-card-attention'
 
 const router = useRouter()
 const iconMap = { CircleCheck, DataBoard, DocumentChecked, Search, Tickets, Warning }
@@ -78,6 +81,7 @@ const appRows = ref(Object.fromEntries(QUALITY_APPS.map((app) => [app.key, app.f
 const cardLoading = ref(false)
 
 const rowsOf = (key) => appRows.value[key] || []
+const sourceKeyOf = (app) => app.sourceAppKey || app.key
 
 const appendLimit = (url, limit = 200) => `${url}${url.includes('?') ? '&' : '?'}limit=${limit}`
 
@@ -197,21 +201,18 @@ const visibleApps = computed(() => QUALITY_APPS
   .filter((app) => app.key !== 'dashboard' && (!app.perm || hasPerm(app.perm)))
   .map((app) => ({
     ...app,
-    card: cardMap.value[app.key] || {
+    card: cardMap.value[sourceKeyOf(app)] || {
       status: 'info',
       statusText: '应用',
       attentionLevel: 'normal',
       metrics: [
-        { label: '记录数', value: `${rowsOf(app.key).length}` },
+        { label: '记录数', value: `${rowsOf(sourceKeyOf(app)).length}` },
         { label: '状态', value: '可用' }
       ],
       brief: app.desc
     }
   }))
-  .sort((a, b) => {
-    const rank = { critical: 5, warning: 4, focus: 3, normal: 2, silent: 1 }
-    return (rank[b.card.attentionLevel] || 0) - (rank[a.card.attentionLevel] || 0)
-  }))
+  .sort(sortByAttention))
 
 const openApp = (app) => {
   if (!app?.route) return

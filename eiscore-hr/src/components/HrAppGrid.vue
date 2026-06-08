@@ -24,6 +24,9 @@
         :extra-columns="extraColumns"
         :summary="summaryConfig"
         :acl-module="app.aclModule"
+        :attention-resolver="resolveAttention"
+        :row-filter="rowAttentionFilter"
+        :summary-scope="summaryScope"
         :can-create="canCreate"
         :can-edit="canEdit"
         :can-delete="canDelete"
@@ -32,8 +35,22 @@
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
+        @data-load-error="handleDataLoadError"
         @data-loaded="handleDataLoaded"
-      />
+        @cell-value-changed="handleHrCellValueChanged"
+      >
+        <template #toolbar>
+          <el-radio-group v-model="attentionFilter" class="attention-filter">
+            <el-radio-button
+              v-for="option in attentionFilterOptions"
+              :key="option.value"
+              :label="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
+        </template>
+      </eis-data-grid>
 
       <el-dialog v-model="colConfigVisible" title="列管理" width="600px" append-to-body destroy-on-close @closed="resetForm">
         <div class="column-manager">
@@ -246,9 +263,15 @@ import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
+import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import { findHrApp, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
+import {
+  buildHrAttentionSummary,
+  getHrRecordAttention,
+  matchesHrAttentionFilter
+} from '@/utils/hr-attention'
 
 const props = defineProps({
   appKey: { type: String, default: 'a' },
@@ -259,6 +282,8 @@ const router = useRouter()
 const gridRef = ref(null)
 const lastLoadedRows = ref([])
 const lastSearchText = ref('')
+const lastGridLoadState = ref(buildGridLoadState())
+const attentionFilter = ref('all')
 const colConfigVisible = ref(false)
 const addTab = ref('text') 
 let realtimeUnsub = null
@@ -293,6 +318,24 @@ const canEdit = computed(() => hasPerm(opPerms.value.edit))
 const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
 const canConfig = computed(() => hasPerm(opPerms.value.config))
+const attentionRows = computed(() => lastLoadedRows.value)
+const attentionSummary = computed(() => buildHrAttentionSummary(app.value?.key, attentionRows.value))
+const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesHrAttentionFilter(app.value?.key, row, 'todo')).length)
+const attentionFilterOptions = computed(() => [
+  { value: 'all', label: `全部 ${attentionSummary.value.total}` },
+  { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical}` },
+  { value: 'warning', label: `预警 ${attentionSummary.value.counts.warning}` },
+  { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus}` },
+  { value: 'todo', label: `待处理 ${attentionTodoCount.value}` }
+])
+const resolveAttention = (row) => getHrRecordAttention(app.value?.key, row, {
+  role: 'hr',
+  page: app.value?.key,
+  device: 'desktop',
+  task: 'monitor'
+})
+const rowAttentionFilter = (row) => matchesHrAttentionFilter(app.value?.key, row, attentionFilter.value)
+const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
 
 const staticHidden = ref([])
 const staticColumnsAll = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
@@ -459,11 +502,33 @@ const saveStaticColumnsConfig = async () => {
 }
 
 const handleDataLoaded = (payload) => {
-  const rows = Array.isArray(payload?.rows) ? payload.rows : []
-  lastLoadedRows.value = rows
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  lastLoadedRows.value = rows.filter(isRowActive)
   lastSearchText.value = payload?.searchText || ''
-  syncAiContext(rows, { searchText: lastSearchText.value })
+  lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
+  syncAiContext(visibleRows.filter(isRowActive), { searchText: lastSearchText.value })
 }
+
+const handleDataLoadError = () => {
+  lastLoadedRows.value = []
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], { searchText: lastSearchText.value })
+}
+
+const handleHrCellValueChanged = (params) => {
+  const row = params?.data || params?.node?.data
+  if (!row?.id) return
+  const index = lastLoadedRows.value.findIndex((item) => String(item?.id) === String(row.id))
+  if (index < 0) return
+  const next = [...lastLoadedRows.value]
+  next.splice(index, 1, row)
+  lastLoadedRows.value = next
+}
+
+const isRowActive = (row) => row?.status !== 'deleted'
 
 const buildDataStats = (rows) => {
   const stats = { totalCount: 0, sampleSize: 0, statusCounts: {}, departmentCounts: {} }
@@ -510,9 +575,15 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     cascaderOptions: col.cascaderOptions || null,
     expression: col.expression || ''
   }))
-  const dataStats = buildDataStats(rows)
+  const dataStats = enrichLoadedDataStats(buildDataStats(rows), lastGridLoadState.value, rows)
   const dataSample = buildDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
+  const dataScope = (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
+  const importTarget = {
+    apiUrl: '/archives',
+    profile: 'hr',
+    viewId: app.value.viewId
+  }
   pushAiContext({
     app: 'hr',
     view: app.value.key,
@@ -526,17 +597,33 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     fileColumns,
     dataStats,
     dataSample,
-    dataScope: (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据',
+    dataScope,
     searchText: overrides.searchText ?? lastSearchText.value ?? '',
+    gridAgent: buildGridAgentContext({
+      app: 'hr',
+      view: app.value.key,
+      viewId: app.value.viewId,
+      apiUrl: '/archives',
+      writeUrl: '/archives',
+      profile: 'hr',
+      contentProfile: 'hr',
+      defaultOrder: app.value.defaultOrder || 'id.desc',
+      columns,
+      staticColumns: staticColumns.value,
+      extraColumns: extraColumns.value,
+      summaryConfig: summaryConfig.value,
+      searchText: overrides.searchText ?? lastSearchText.value ?? '',
+      dataScope,
+      loadState: lastGridLoadState.value,
+      allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
+      importTarget,
+      summaryScope: summaryScope.value
+    }),
     aiScene: overrides.aiScene || 'grid_chat',
     allowFormula: !!overrides.allowFormula,
     allowFormulaOnce: !!overrides.allowFormulaOnce,
     allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
-    importTarget: {
-      apiUrl: '/archives',
-      profile: 'hr',
-      viewId: app.value.viewId
-    }
+    importTarget
   })
 }
 
@@ -938,6 +1025,10 @@ const handleImportDone = (event) => {
   }
 }
 
+watch(attentionFilter, () => {
+  gridRef.value?.loadData?.()
+})
+
 onMounted(() => {
   window.addEventListener('eis-ai-apply-formula', handleApplyFormula)
   window.addEventListener('eis-grid-imported', handleImportDone)
@@ -986,6 +1077,18 @@ onUnmounted(() => {
   margin: 0;
   font-size: 12px;
   color: #909399;
+}
+
+.attention-filter {
+  flex: 0 0 auto;
+}
+
+.attention-filter :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  line-height: 1;
 }
 
 .grid-card {
@@ -1107,4 +1210,20 @@ onUnmounted(() => {
 .cursor-pointer:hover { opacity: 0.8; transform: translateY(-1px); transition: transform 0.1s; }
 
 .hint-text { font-size: 12px; color: #909399; margin-top: 8px; line-height: 1.4; }
+
+@media (max-width: 760px) {
+  .app-container {
+    padding: 12px;
+  }
+
+  .app-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .form-row {
+    flex-direction: column;
+  }
+}
 </style>

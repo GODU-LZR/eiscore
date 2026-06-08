@@ -29,6 +29,10 @@
         :extra-columns="policyExtraColumns"
         :summary="summaryConfig"
         :acl-module="app.aclModule"
+        :attention-resolver="resolveAttention"
+        :row-action-resolver="resolveRowActions"
+        :row-filter="rowAttentionFilter"
+        :summary-scope="summaryScope"
         :can-create="canCreate"
         :can-edit="canEdit"
         :can-delete="canDelete"
@@ -37,9 +41,21 @@
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
+        @row-action="handleRowAction"
+        @data-load-error="handleDataLoadError"
         @data-loaded="handleDataLoaded"
+        @cell-value-changed="handlePurchaseCellValueChanged"
       >
         <template #toolbar>
+          <el-radio-group v-model="attentionFilter" class="attention-filter">
+            <el-radio-button
+              v-for="option in attentionFilterOptions"
+              :key="option.value"
+              :label="option.value"
+            >
+              {{ option.label }}
+            </el-radio-button>
+          </el-radio-group>
           <el-button
             v-if="app.key === 'demands' && canPushDemandToOrder"
             type="success"
@@ -349,10 +365,16 @@ import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
+import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import { findPurchaseApp, SUPPLIER_COLUMNS } from '@/utils/purchase-apps'
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
 import { applyPurchaseColumnPolicies } from '@/utils/business-status'
+import {
+  buildPurchaseAttentionSummary,
+  getPurchaseRecordAttention,
+  matchesPurchaseAttentionFilter
+} from '@/utils/purchase-attention'
 import {
   DOC_TYPES,
   RELATION_TYPES,
@@ -370,6 +392,8 @@ const router = useRouter()
 const gridRef = ref(null)
 const lastLoadedRows = ref([])
 const lastSearchText = ref('')
+const lastGridLoadState = ref(buildGridLoadState())
+const attentionFilter = ref('all')
 const colConfigVisible = ref(false)
 const flowDialogVisible = ref(false)
 const flowLoading = ref(false)
@@ -409,6 +433,45 @@ const canConfig = computed(() => hasPerm(opPerms.value.config))
 const canPushDemandToOrder = computed(() => hasPerm(app.value?.businessOps?.createOrder || 'op:purchase_demand.create_order'))
 const canPushOrderToArrival = computed(() => hasPerm(app.value?.businessOps?.registerArrival || 'op:purchase_order.register_arrival'))
 const canPushArrivalToInbound = computed(() => hasPerm(app.value?.businessOps?.confirmInbound || 'op:purchase_arrival.confirm_inbound'))
+const attentionRows = computed(() => lastLoadedRows.value)
+const attentionSummary = computed(() => buildPurchaseAttentionSummary(app.value?.key, attentionRows.value))
+const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesPurchaseAttentionFilter(app.value?.key, row, 'todo')).length)
+const attentionFilterOptions = computed(() => [
+  { value: 'all', label: `全部 ${attentionSummary.value.total}` },
+  { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical}` },
+  { value: 'warning', label: `预警 ${attentionSummary.value.counts.warning}` },
+  { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus}` },
+  { value: 'todo', label: `待处理 ${attentionTodoCount.value}` }
+])
+const resolveAttention = (row) => getPurchaseRecordAttention(app.value?.key, row, {
+  role: 'procurement',
+  page: app.value?.key,
+  device: 'desktop',
+  task: 'monitor'
+})
+const rowAttentionFilter = (row) => matchesPurchaseAttentionFilter(app.value?.key, row, attentionFilter.value)
+const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
+const resolveRowActions = (row) => {
+  if (!row) return []
+  if (app.value.key === 'demands') {
+    return canPushDemandToOrder.value && isDemandPushable(row)
+      ? [{ key: 'push-demand-order', label: '下单', type: 'success', icon: 'Position' }]
+      : []
+  }
+  if (app.value.key === 'orders') {
+    return canPushOrderToArrival.value && isOrderPushable(row)
+      ? [{ key: 'push-order-arrival', label: '到货', type: 'success', icon: 'Position' }]
+      : []
+  }
+  if (app.value.key === 'arrivals') {
+    const actions = []
+    if (canPushArrivalToInbound.value && isArrivalPushable(row)) {
+      actions.push({ key: 'push-arrival-inbound', label: '入库', type: 'warning', icon: 'Box' })
+    }
+    return actions
+  }
+  return []
+}
 const primaryDemand = computed(() => selectedDemandRows.value[0] || null)
 const primaryOrder = computed(() => selectedOrderRows.value[0] || null)
 const primaryArrival = computed(() => selectedArrivalRows.value[0] || null)
@@ -657,10 +720,30 @@ const saveStaticColumnsConfig = async () => {
 }
 
 const handleDataLoaded = (payload) => {
-  const rows = Array.isArray(payload?.rows) ? payload.rows : []
-  lastLoadedRows.value = rows
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  lastLoadedRows.value = rows.filter(isRowActive)
   lastSearchText.value = payload?.searchText || ''
-  syncAiContext(rows, { searchText: lastSearchText.value })
+  lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
+  syncAiContext(visibleRows.filter(isRowActive), { searchText: lastSearchText.value })
+}
+
+const handleDataLoadError = () => {
+  lastLoadedRows.value = []
+  lastGridLoadState.value = buildGridLoadState()
+  syncAiContext([], { searchText: lastSearchText.value })
+}
+
+const handlePurchaseCellValueChanged = (params) => {
+  const row = params?.data || params?.node?.data
+  if (!row?.id) return
+  const index = lastLoadedRows.value.findIndex((item) => String(item?.id) === String(row.id))
+  if (index < 0) return
+  const next = [...lastLoadedRows.value]
+  next.splice(index, 1, row)
+  lastLoadedRows.value = next
 }
 
 const buildDataStats = (rows) => {
@@ -712,14 +795,21 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     cascaderOptions: col.cascaderOptions || null,
     expression: col.expression || ''
   }))
-  const dataStats = buildDataStats(rows)
+  const dataStats = enrichLoadedDataStats(buildDataStats(rows), lastGridLoadState.value, rows)
   const dataSample = buildDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
+  const apiUrl = app.value.writeUrl || app.value.apiUrl
+  const dataScope = (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
+  const importTarget = {
+    apiUrl,
+    profile: 'public',
+    viewId: app.value.viewId
+  }
   pushAiContext({
     app: 'purchase',
     view: app.value.key,
     viewId: app.value.viewId,
-    apiUrl: app.value.apiUrl,
+    apiUrl,
     profile: 'public',
     columns,
     staticColumns: staticColumns.value,
@@ -728,17 +818,33 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     fileColumns,
     dataStats,
     dataSample,
-    dataScope: (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据',
+    dataScope,
     searchText: overrides.searchText ?? lastSearchText.value ?? '',
+    gridAgent: buildGridAgentContext({
+      app: 'purchase',
+      view: app.value.key,
+      viewId: app.value.viewId,
+      apiUrl,
+      writeUrl: apiUrl,
+      profile: 'public',
+      contentProfile: 'public',
+      defaultOrder: app.value.defaultOrder || 'id.desc',
+      columns,
+      staticColumns: staticColumns.value,
+      extraColumns: extraColumns.value,
+      summaryConfig: summaryConfig.value,
+      searchText: overrides.searchText ?? lastSearchText.value ?? '',
+      dataScope,
+      loadState: lastGridLoadState.value,
+      allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
+      importTarget,
+      summaryScope: summaryScope.value
+    }),
     aiScene: overrides.aiScene || 'grid_chat',
     allowFormula: !!overrides.allowFormula,
     allowFormulaOnce: !!overrides.allowFormulaOnce,
     allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
-    importTarget: {
-      apiUrl: app.value.apiUrl,
-      profile: 'public',
-      viewId: app.value.viewId
-    }
+    importTarget
   })
 }
 
@@ -854,6 +960,7 @@ const handleViewDocument = (row) => {
 const todayText = () => new Date().toISOString().slice(0, 10)
 const nextDocNo = (prefix) => `${prefix}${Date.now().toString().slice(-8)}${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`
 const safeEq = (value) => encodeURIComponent(String(value ?? ''))
+const isRowActive = (row) => row?.status !== 'deleted'
 
 const isDemandPushable = (row) => {
   if (!row?.id) return false
@@ -1168,6 +1275,70 @@ const openArrivalPushFlowDialog = async () => {
   flowNextStep.value = 'inventory_inbound'
   flowDialogVisible.value = true
   await loadArrivalBusinessFlow(rows[0])
+}
+
+const openPurchaseFlowDialogForRow = async (row, nextStep) => {
+  if (!row) return
+  resetFlowDialog()
+  if (nextStep === 'purchase_order') {
+    if (!canPushDemandToOrder.value) {
+      ElMessage.warning('当前账号没有下推采购订单权限')
+      return
+    }
+    if (!isDemandPushable(row)) {
+      ElMessage.warning('已下单、已关闭或已锁定的采购需求不能下推采购订单')
+      return
+    }
+    selectedDemandRows.value = [row]
+    flowNextStep.value = 'purchase_order'
+    flowDialogVisible.value = true
+    await loadDemandBusinessFlow(row)
+    return
+  }
+  if (nextStep === 'purchase_arrival') {
+    if (!canPushOrderToArrival.value) {
+      ElMessage.warning('当前账号没有登记到货权限')
+      return
+    }
+    if (!isOrderPushable(row)) {
+      ElMessage.warning('该采购订单当前状态不能登记到货')
+      return
+    }
+    selectedOrderRows.value = [row]
+    flowNextStep.value = 'purchase_arrival'
+    flowDialogVisible.value = true
+    await loadOrderBusinessFlow(row)
+    return
+  }
+  if (nextStep === 'inventory_inbound') {
+    if (!canPushArrivalToInbound.value) {
+      ElMessage.warning('当前账号没有确认采购入库权限')
+      return
+    }
+    if (!isArrivalPushable(row)) {
+      ElMessage.warning('该到货单已入库、异常或不合格，不能直接入库')
+      return
+    }
+    selectedArrivalRows.value = [row]
+    flowNextStep.value = 'inventory_inbound'
+    flowDialogVisible.value = true
+    await loadArrivalBusinessFlow(row)
+  }
+}
+
+const handleRowAction = ({ action, row }) => {
+  if (!action || action.disabled || !row) return
+  if (action.key === 'push-demand-order') {
+    openPurchaseFlowDialogForRow(row, 'purchase_order')
+    return
+  }
+  if (action.key === 'push-order-arrival') {
+    openPurchaseFlowDialogForRow(row, 'purchase_arrival')
+    return
+  }
+  if (action.key === 'push-arrival-inbound') {
+    openPurchaseFlowDialogForRow(row, 'inventory_inbound')
+  }
 }
 
 const writeFlowAudit = async ({ actionType, source, target, reason = '', payload = {} }) => {
@@ -1859,6 +2030,10 @@ const handleImportDone = (event) => {
   }
 }
 
+watch(attentionFilter, () => {
+  gridRef.value?.loadData?.()
+})
+
 onMounted(() => {
   window.addEventListener('eis-ai-apply-formula', handleApplyFormula)
   window.addEventListener('eis-grid-imported', handleImportDone)
@@ -1907,6 +2082,18 @@ onUnmounted(() => {
   margin: 0;
   font-size: 12px;
   color: #909399;
+}
+
+.attention-filter {
+  flex: 0 0 auto;
+}
+
+.attention-filter :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  line-height: 1;
 }
 
 .grid-card {
@@ -2181,5 +2368,26 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .app-container {
+    padding: 12px;
+  }
+
+  .app-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .flow-chain,
+  .flow-doc-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    flex-direction: column;
+  }
 }
 </style>

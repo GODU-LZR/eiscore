@@ -5,6 +5,7 @@ import { ref, reactive, computed, markRaw, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 import { buildSearchQuery } from '@/utils/grid-query'
+import { createPagedGridLoader } from '@shared/eis-data-grid-paging'
 import StatusRenderer from '../components/renderers/StatusRenderer.vue'
 import StatusEditor from '../components/renderers/StatusEditor.vue'
 import SelectRenderer from '../components/renderers/SelectRenderer.vue'
@@ -18,6 +19,12 @@ import DocumentActionRenderer from '../components/renderers/DocumentActionRender
 import CheckRenderer from '../components/renderers/CheckRenderer.vue'
 import CheckEditor from '../components/renderers/CheckEditor.vue'
 import { useUserStore } from '@/stores/user'
+import {
+  SALES_ATTENTION_LEVEL_OPTIONS,
+  attentionLevelRank,
+  getManualAttentionLevel,
+  normalizeAttentionLevel
+} from '@/utils/sales-attention'
 
 export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit, workflowBindingRef) {
   const hasGridRef = gridApiRef && typeof gridApiRef === 'object' && 'value' in gridApiRef
@@ -223,8 +230,9 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
   // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
-    const colId = params.colDef.field
+    const colId = params.colDef.colId || params.colDef.field
     if (props.canEdit === false && !params.node.rowPinned) return true
+    if (colId === 'rowCheckbox' || params.colDef.checkboxSelection) return true
     if (colId === '_status') {
       const currentStatus = params.data?.properties?.status ?? params.data?.status
       return !hasOutgoingTransitionPermission(currentStatus)
@@ -255,12 +263,27 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     'status-cell': (params) => params.colDef.field === '_status'
   }
 
-  const rowClassRules = { 'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by }
+  const resolveAttention = (row) => {
+    if (!props.attentionResolver || !row || typeof props.attentionResolver !== 'function') return null
+    try {
+      return props.attentionResolver(row) || null
+    } catch (e) {
+      return null
+    }
+  }
+
+  const rowClassRules = {
+    'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by,
+    'attention-row-critical': (params) => resolveAttention(params.data)?.level === 'critical',
+    'attention-row-warning': (params) => resolveAttention(params.data)?.level === 'warning',
+    'attention-row-focus': (params) => resolveAttention(params.data)?.level === 'focus'
+  }
 
   const getCellStyle = (params) => {
     const base = { 'line-height': '34px' }
     if (params.node.rowPinned) return { ...base, backgroundColor: '#ecf5ff', color: '#409EFF', fontWeight: 'bold', borderTop: '2px solid var(--el-color-primary-light-5)' }
     if (params.colDef.field === '_status') return { ...base, cursor: 'pointer' }
+    if (params.colDef.isAttentionColumn) return { ...base, cursor: 'pointer' }
     if (params.data?.properties?.row_locked_by) return base
     const acl = getFieldAcl(params.colDef)
     if (acl?.canView === false) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
@@ -429,11 +452,28 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (eventEmitter) eventEmitter('view-document', rowData)
   }
 
+  const resolveRowActions = (rowData) => {
+    if (!props.rowActionResolver || typeof props.rowActionResolver !== 'function') return []
+    try {
+      const actions = props.rowActionResolver(rowData)
+      return Array.isArray(actions) ? actions.filter(Boolean) : []
+    } catch (e) {
+      return []
+    }
+  }
+
+  const handleRowAction = (action, rowData) => {
+    if (!action || action.disabled) return
+    if (eventEmitter) eventEmitter('row-action', { action, row: rowData })
+  }
+
   const context = reactive({ 
     componentParent: { 
         toggleColumnLock: handleToggleColumnLock, 
         columnLockState,
-        viewDocument: handleViewDocument 
+        viewDocument: handleViewDocument,
+        resolveRowActions,
+        rowAction: handleRowAction
     } 
   })
 
@@ -521,10 +561,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       return {
         ...colDef,
         cellRenderer: 'CheckRenderer',
-        cellEditor: 'CheckEditor',
-        cellEditorPopup: false,
-        editable: (params) => !isCellReadOnly(params),
+        editable: false,
+        checkEditable: (params) => !isCellReadOnly(params),
         suppressClickEdit: true,
+        suppressDoubleClickEdit: true,
+        suppressKeyboardEvent: () => true,
         valueParser: (params) => {
           return parseCheckValue(params.newValue)
         },
@@ -591,6 +632,13 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       colId: 'rowCheckbox', headerCheckboxSelection: true, checkboxSelection: true, 
       width: 40, minWidth: 40, maxWidth: 40, pinned: 'left', 
       resizable: false, sortable: false, filter: false, suppressHeaderMenuButton: true, 
+      editable: false,
+      suppressClickEdit: true,
+      suppressDoubleClickEdit: true,
+      suppressKeyboardEvent: () => true,
+      suppressNavigable: true,
+      valueGetter: () => '',
+      valueSetter: () => false,
       cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' } 
     }
     
@@ -601,7 +649,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, cellEditorPopupPosition: 'under',
       cellClassRules: cellClassRules,
       valueGetter: params => {
-        if (params.node.rowPinned) return activeSummaryConfig.label
+        if (params.node.rowPinned) return params.data?._status || activeSummaryConfig.label
         if (params.data?.properties?.row_locked_by) return 'locked'
         const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
         const raw = hasStatus ? params.data?.status : params.data?.properties?.status
@@ -643,8 +691,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const actionCol = {
       headerName: '操作',
       field: '_actions',
-      width: 100, // 稍微加宽一点以容纳文字
-      minWidth: 100,
+      width: props.rowActionResolver ? 210 : 100,
+      minWidth: props.rowActionResolver ? 180 : 100,
       pinned: 'right', // 固定在右侧
       sortable: false,
       filter: false,
@@ -656,12 +704,64 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       cellStyle: { padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center' }
     }
 
+    const attentionCol = {
+      headerName: '关注',
+      field: 'properties.attention_level',
+      colId: '_attention',
+      type: 'select',
+      isAttentionColumn: true,
+      width: 96,
+      minWidth: 96,
+      pinned: 'left',
+      sortable: true,
+      filter: true,
+      resizable: false,
+      editable: (params) => !params.node.rowPinned && !isCellReadOnly(params),
+      singleClickEdit: true,
+      suppressHeaderMenuButton: false,
+      cellRenderer: 'SelectRenderer',
+      cellEditor: 'SelectEditor',
+      cellEditorPopup: true,
+      cellEditorPopupPosition: 'under',
+      options: SALES_ATTENTION_LEVEL_OPTIONS,
+      allowClear: false,
+      valueGetter: params => {
+        if (params.node.rowPinned) return ''
+        return getManualAttentionLevel(params.data) || resolveAttention(params.data)?.level || 'normal'
+      },
+      valueParser: params => normalizeAttentionLevel(params.newValue) || null,
+      valueSetter: params => {
+        if (params.node.rowPinned) return false
+        const nextLevel = normalizeAttentionLevel(params.newValue)
+        if (!params.data.properties || typeof params.data.properties !== 'object') {
+          params.data.properties = {}
+        }
+        const currentLevel = normalizeAttentionLevel(params.data.properties.attention_level)
+        if (currentLevel === nextLevel) return false
+        if (nextLevel) params.data.properties.attention_level = nextLevel
+        else delete params.data.properties.attention_level
+        return true
+      },
+      comparator: (a, b) => attentionLevelRank(normalizeAttentionLevel(a) || 'normal') - attentionLevelRank(normalizeAttentionLevel(b) || 'normal'),
+      cellClassRules: {
+        'attention-cell-critical': (params) => resolveAttention(params.data)?.level === 'critical',
+        'attention-cell-warning': (params) => resolveAttention(params.data)?.level === 'warning',
+        'attention-cell-focus': (params) => resolveAttention(params.data)?.level === 'focus',
+        'attention-cell-normal': (params) => ['normal', 'silent'].includes(resolveAttention(params.data)?.level)
+      },
+      cellStyle: (params) => ({ ...getCellStyle(params), display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' })
+    }
+
     const staticCols = props.staticColumns.map(col => createColDef(col, false))
     const dynamicCols = props.extraColumns.map(col => createColDef(col, true))
 
+    const prefixCols = props.attentionResolver
+      ? [checkboxCol, attentionCol]
+      : [checkboxCol]
+
     const baseCols = props.showStatusCol === false
-      ? [checkboxCol, ...staticCols, ...dynamicCols]
-      : [checkboxCol, statusCol, ...staticCols, ...dynamicCols]
+      ? [...prefixCols, ...staticCols, ...dynamicCols]
+      : [...prefixCols, statusCol, ...staticCols, ...dynamicCols]
 
     return props.showActionCol === false
       ? baseCols
@@ -675,50 +775,23 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     }
   })
 
-  const loadData = async () => {
-    await loadFieldAcl()
-    isLoading.value = true 
-    try {
-      let url = props.apiUrl
-      const orderClause = props.defaultOrder
-      if (orderClause) {
-        url = `${url}${url.includes('?') ? '&' : '?'}order=${orderClause}`
-      }
-      if (searchText.value) url += buildSearchQuery(searchText.value, props.staticColumns, props.extraColumns)
-      const res = await request({ 
-        url, 
-        method: 'get',
-        headers: { 'Accept-Profile': props.acceptProfile || 'public', 'Content-Profile': props.contentProfile || 'public' }
-      })
-      const rows = Array.isArray(res) ? res : []
-      gridData.value = rows
-      if (eventEmitter) {
-        eventEmitter('data-loaded', {
-          rows,
-          searchText: searchText.value || ''
-        })
-      }
-      if (props.autoSizeColumns !== false) {
-        setTimeout(() => { 
-          if (gridApi.value) {
-            const cols = gridApi.value.getAllGridColumns?.() || gridApi.value.getColumns?.() || []
-            if (cols.length) {
-              const allColIds = cols.map(c => c.getColId())
-              gridApi.value.autoSizeColumns(allColIds, false)
-            }
-          }
-        }, 100)
-      }
-    } catch (e) {
-      const detail = e?.response?.data?.message || e?.response?.data?.details || e?.message
-      ElMessage.error(detail ? `数据加载失败：${detail}` : '数据加载失败')
-    } 
-    finally { isLoading.value = false }
-  }
+  const { isLoadingMore, hasMoreRows, loadData, loadNextPage } = createPagedGridLoader({
+    props,
+    gridData,
+    searchText,
+    isLoading,
+    gridApi,
+    eventEmitter,
+    loadFieldAcl,
+    request,
+    buildSearchQuery,
+    ElMessage,
+    defaultProfile: 'public'
+  })
 
   return {
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
-    loadData, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState,
+    isLoadingMore, hasMoreRows, loadData, loadNextPage, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState,
     setWorkflowBinding
   }
 }

@@ -1,22 +1,43 @@
 <template>
-  <div class="grid-toolbar">
-    <div class="left-tools">
+  <div class="grid-toolbar" data-guide="grid-toolbar">
+    <div class="toolbar-business-row" data-guide="grid-business-actions">
+      <slot></slot>
+    </div>
+
+    <div class="toolbar-table-row">
       <el-input 
+        class="toolbar-search"
+        data-guide="grid-search"
         :model-value="search"
         @update:modelValue="$emit('update:search', $event)"
         placeholder="搜索全表..." 
-        style="width: 240px" 
         clearable
         @input="$emit('search')"
       >
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
-      
-      <el-button-group class="ml-2">
-        <el-button v-if="canCreate" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
-        <el-button v-if="canConfig" type="primary" plain icon="Operation" @click="$emit('config-columns')">列管理</el-button>
+
+      <div class="toolbar-table-extra" data-guide="grid-table-tools">
+        <slot name="table-tools"></slot>
+      </div>
+
+      <div class="table-actions" data-guide="grid-actions">
+        <el-button v-if="canCreate" data-guide="grid-create" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
+        <el-button v-if="canConfig" data-guide="grid-config" type="primary" plain icon="Operation" @click="$emit('config-columns')">列管理</el-button>
+        <el-button
+          v-if="canRecalculateFormulas"
+          data-guide="grid-recalculate"
+          type="warning"
+          plain
+          icon="Refresh"
+          :loading="formulaRecalculating"
+          @click="$emit('recalculate-formulas')"
+        >
+          重算公式
+        </el-button>
         <el-button
           v-if="canDelete"
+          data-guide="grid-delete"
           type="danger"
           plain
           icon="Delete"
@@ -25,16 +46,12 @@
         >
           删除选中 ({{ selectedCount }})
         </el-button>
-        <el-button v-if="canExport" plain icon="Download" @click="$emit('export')">导出</el-button>
-      </el-button-group>
+        <el-button v-if="canExport" data-guide="grid-export" plain icon="Download" @click="$emit('export')">导出</el-button>
+      </div>
 
       <div class="tip-text" v-if="rangeInfo.active">
         已选中: {{ realRangeRowCount }} 行 x {{ realRangeColCount }} 列
       </div>
-    </div>
-    
-    <div class="toolbar-actions">
-      <slot></slot>
     </div>
   </div>
 </template>
@@ -44,8 +61,8 @@
 // Copyright (c) 2026 林志荣
 
 import { computed } from 'vue'
-import { ElInput, ElButton, ElButtonGroup, ElIcon } from 'element-plus'
-import { Search, CirclePlus, Operation, Delete, Download } from '@element-plus/icons-vue'
+import { ElInput, ElButton, ElIcon } from 'element-plus'
+import { Search, CirclePlus, Operation, Delete, Download, Refresh } from '@element-plus/icons-vue'
 
 const props = defineProps([
   'search',
@@ -55,9 +72,11 @@ const props = defineProps([
   'canCreate',
   'canConfig',
   'canDelete',
-  'canExport'
+  'canExport',
+  'canRecalculateFormulas',
+  'formulaRecalculating'
 ])
-const emit = defineEmits(['update:search', 'search', 'create', 'config-columns', 'delete', 'export'])
+const emit = defineEmits(['update:search', 'search', 'create', 'config-columns', 'recalculate-formulas', 'delete', 'export'])
 
 const getColIndex = (colId) => {
   if (!props.gridApi) return -1
@@ -80,11 +99,85 @@ const realRangeColCount = computed(() => {
 </script>
 
 <style scoped>
-.grid-toolbar { padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--el-border-color-light); background-color: #f8f9fa; }
-.left-tools { display: flex; align-items: center; }
-.ml-2 { margin-left: 8px; }
-.tip-text { margin-left: 12px; font-size: 12px; color: #909399; font-family: monospace; }
-.toolbar-actions { display: flex; gap: 12px; }
+.grid-toolbar {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  border-bottom: 1px solid var(--el-border-color-light);
+  background-color: #f8f9fa;
+}
+
+.toolbar-business-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.toolbar-business-row:empty {
+  display: none;
+}
+
+.toolbar-table-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.toolbar-search {
+  width: 240px;
+  max-width: 100%;
+  flex: 0 1 240px;
+}
+
+.toolbar-table-extra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.toolbar-table-extra:empty {
+  display: none;
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tip-text {
+  font-size: 12px;
+  color: #909399;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+.toolbar-business-row :deep(.el-button + .el-button),
+.toolbar-table-extra :deep(.el-button + .el-button),
+.table-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+@media (max-width: 768px) {
+  .toolbar-search {
+    flex-basis: 100%;
+    width: 100%;
+  }
+}
 
 :global(#app.dark) .grid-toolbar {
   background-color: #0b0f14;
@@ -114,9 +207,6 @@ const realRangeColCount = computed(() => {
 :global(#app.dark) .grid-toolbar :deep(.el-button.is-disabled) {
   background-color: #0b0f14;
   color: #6b7280;
-}
-:global(#app.dark) .grid-toolbar :deep(.el-button-group .el-button) {
-  border-color: #1f2937;
 }
 :global(#app.dark) .grid-toolbar .tip-text {
   color: #f3f4f6;

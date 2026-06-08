@@ -29,8 +29,11 @@
             :auto-size-columns="false"
             :enable-column-lock="false"
             default-order=""
+            summary-scope="server"
             @create="handleCreate('roles')"
             @config-columns="handleConfigColumns"
+            @data-loaded="handleGridDataLoaded('roles', $event)"
+            @data-load-error="handleGridDataLoadError('roles')"
           />
         </div>
       </el-tab-pane>
@@ -55,8 +58,11 @@
             :enable-column-lock="false"
             default-order=""
             :can-create="false"
+            summary-scope="server"
             @config-columns="handleConfigColumns"
             @cell-value-changed="handlePermissionChanged"
+            @data-loaded="handleGridDataLoaded('perm-module', $event)"
+            @data-load-error="handleGridDataLoadError('perm-module')"
           />
         </div>
       </el-tab-pane>
@@ -91,8 +97,11 @@
             :enable-column-lock="false"
             default-order=""
             :can-create="false"
+            summary-scope="server"
             @config-columns="handleConfigColumns"
             @cell-value-changed="handlePermissionChanged"
+            @data-loaded="handleGridDataLoaded('perm-app', $event)"
+            @data-load-error="handleGridDataLoadError('perm-app')"
           />
         </div>
       </el-tab-pane>
@@ -127,8 +136,11 @@
             :enable-column-lock="false"
             default-order=""
             :can-create="false"
+            summary-scope="server"
             @config-columns="handleConfigColumns"
             @cell-value-changed="handlePermissionChanged"
+            @data-loaded="handleGridDataLoaded('perm-op', $event)"
+            @data-load-error="handleGridDataLoadError('perm-op')"
           />
         </div>
       </el-tab-pane>
@@ -162,9 +174,12 @@
             :auto-size-columns="false"
             :enable-column-lock="false"
             default-order=""
+            summary-scope="server"
             @create="handleCreate('fields')"
             @config-columns="handleConfigColumns"
             @cell-value-changed="handleFieldAclChanged"
+            @data-loaded="handleGridDataLoaded('field', $event)"
+            @data-load-error="handleGridDataLoadError('field')"
           />
         </div>
       </el-tab-pane>
@@ -198,8 +213,11 @@
             :auto-size-columns="false"
             :enable-column-lock="false"
             default-order=""
+            summary-scope="server"
             @create="handleCreate('scopes')"
             @config-columns="handleConfigColumns"
+            @data-loaded="handleGridDataLoaded('scope', $event)"
+            @data-load-error="handleGridDataLoadError('scope')"
           />
         </div>
       </el-tab-pane>
@@ -218,6 +236,9 @@ import { ElMessage } from 'element-plus'
 import { formatPermissionName, PERMISSION_ACTION_OPTIONS, parsePermissionCode, MODULE_LABELS, APP_LABELS } from '@/utils/permission-spec'
 import { FIELD_LABELS } from '@/utils/field-labels'
 import { HR_APPS, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
+import { pushAiContext } from '@/utils/ai-context'
+import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
+import { buildGridLoadState } from '@shared/eis-grid-agent-context'
 
 const roles = ref([])
 const baseModules = ['hr_employee', 'hr_org', 'hr_attendance', 'hr_change', 'hr_acl', 'hr_user', 'mms_ledger']
@@ -259,6 +280,8 @@ const permsAppGridRef = ref(null)
 const permsOpGridRef = ref(null)
 const scopeGridRef = ref(null)
 const fieldGridRef = ref(null)
+const lastGridLoadStateMap = ref({})
+const lastSearchTextMap = ref({})
 
 const emptySummary = { label: '合计', rules: {}, expressions: {} }
 
@@ -432,6 +455,105 @@ const permColumnsModule = computed(() => {
 })
 const permColumnsApp = computed(() => permColumns.filter(col => col.prop !== 'code'))
 const permColumnsOp = computed(() => permColumns.filter(col => col.prop !== 'code'))
+
+const aclGridContextConfig = computed(() => ({
+  roles: {
+    view: 'acl-roles',
+    viewId: 'hr_acl_roles',
+    apiUrl: '/v_roles_manage?order=sort.asc',
+    writeUrl: '/v_roles_manage',
+    columns: roleColumnsDisplay.value
+  },
+  'perm-module': {
+    view: 'acl-permissions-module',
+    viewId: 'hr_acl_permissions_module',
+    apiUrl: permModuleApiUrl.value,
+    writeUrl: '/v_role_permissions_matrix',
+    columns: permColumnsModule.value
+  },
+  'perm-app': {
+    view: 'acl-permissions-app',
+    viewId: 'hr_acl_permissions_app',
+    apiUrl: permAppApiUrl.value,
+    writeUrl: '/v_role_permissions_matrix',
+    columns: permColumnsApp.value
+  },
+  'perm-op': {
+    view: 'acl-permissions-operation',
+    viewId: 'hr_acl_permissions_op',
+    apiUrl: permOpApiUrl.value,
+    writeUrl: '/v_role_permissions_matrix',
+    columns: permColumnsOp.value
+  },
+  field: {
+    view: 'acl-fields',
+    viewId: 'hr_acl_fields',
+    apiUrl: fieldApiUrl.value,
+    writeUrl: '/sys_field_acl',
+    columns: fieldColumnsDisplay.value
+  },
+  scope: {
+    view: 'acl-scopes',
+    viewId: 'hr_acl_scopes',
+    apiUrl: scopeApiUrl.value,
+    writeUrl: '/v_role_data_scopes_matrix',
+    columns: scopeColumnsDisplay.value
+  }
+}))
+
+const syncAclGridAiContext = (key, rows = [], payload = null) => {
+  const cfg = aclGridContextConfig.value[key]
+  if (!cfg) return
+  const previous = lastGridLoadStateMap.value[key] || buildGridLoadState()
+  const searchText = lastSearchTextMap.value[key] || ''
+  lastGridLoadStateMap.value = {
+    ...lastGridLoadStateMap.value,
+    [key]: pushStandardGridAgentContext({
+      pushAiContext,
+      app: 'hr',
+      view: cfg.view,
+      viewId: cfg.viewId,
+      apiUrl: cfg.apiUrl,
+      writeUrl: cfg.writeUrl,
+      profile: 'public',
+      contentProfile: 'public',
+      staticColumns: cfg.columns,
+      extraColumns: [],
+      summaryConfig: emptySummary,
+      rows,
+      visibleRows: rows,
+      payload,
+      previousLoadState: previous,
+      searchText,
+      summaryScope: 'server',
+      allowImport: false,
+      additionalContext: {
+        activeTab: key,
+        currentRoleId: currentRoleId.value || ''
+      }
+    })
+  }
+}
+
+const handleGridDataLoaded = (key, payload) => {
+  const rows = Array.isArray(payload?.rawRows)
+    ? payload.rawRows
+    : (Array.isArray(payload?.rows) ? payload.rows : [])
+  const visibleRows = Array.isArray(payload?.rows) ? payload.rows : rows
+  lastSearchTextMap.value = {
+    ...lastSearchTextMap.value,
+    [key]: payload?.searchText || ''
+  }
+  syncAclGridAiContext(key, visibleRows, payload)
+}
+
+const handleGridDataLoadError = (key) => {
+  lastGridLoadStateMap.value = {
+    ...lastGridLoadStateMap.value,
+    [key]: buildGridLoadState()
+  }
+  syncAclGridAiContext(key, [], {})
+}
 
 let permissionReloadTimer = null
 const handlePermissionChanged = () => {

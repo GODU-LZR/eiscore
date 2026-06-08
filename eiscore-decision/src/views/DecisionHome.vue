@@ -1,6 +1,6 @@
 <template>
-  <div class="decision-apps">
-    <div class="apps-header">
+  <div class="decision-apps" data-guide="app-list-page">
+    <div class="apps-header" data-guide="app-list-header">
       <div class="header-text">
         <h2>决策支持</h2>
         <p>选择一个驾驶舱进入跨模块经营态势分析</p>
@@ -13,12 +13,15 @@
         :key="card.key"
         :xs="24"
         :sm="12"
-        :md="8"
-        :lg="6"
+        :md="12"
+        :lg="8"
+        :xl="8"
       >
         <el-card
           class="app-card"
-          :class="{ disabled: card.disabled }"
+          data-guide="app-card"
+          :data-guide-key="card.key"
+          :class="[`attention-${card.card.attentionLevel || 'normal'}`, { disabled: card.disabled }]"
           shadow="hover"
           @click="openDashboard(card)"
         >
@@ -29,12 +32,21 @@
               </el-icon>
             </div>
             <div class="app-info">
-              <div class="app-name">{{ card.title }}</div>
+              <div class="app-title-line">
+                <div class="app-name">{{ card.title }}</div>
+                <span class="app-status" data-guide="app-card-status" :class="`status-${card.card.status}`">{{ card.card.statusText }}</span>
+              </div>
               <div class="app-desc">{{ card.desc }}</div>
             </div>
           </div>
-          <div class="app-card-footer">
-            <span class="app-tag">{{ card.badge }}</span>
+          <div class="app-metrics" data-guide="app-card-metrics">
+            <div v-for="metric in card.card.metrics" :key="metric.label" class="metric-item">
+              <span>{{ metric.label }}</span>
+              <strong>{{ metric.value }}</strong>
+            </div>
+          </div>
+          <div class="app-card-footer" data-guide="app-card-enter">
+            <span class="app-tag">{{ card.card.brief }}</span>
             <span class="app-enter">进入</span>
           </div>
         </el-card>
@@ -47,7 +59,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
 import {
   Box,
@@ -58,6 +70,7 @@ import {
   TrendCharts
 } from '@element-plus/icons-vue'
 import { pushAiContext } from '@/utils/ai-context'
+import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
 
 const iconMap = {
   Box,
@@ -68,7 +81,7 @@ const iconMap = {
   TrendCharts
 }
 
-const dashboardCards = [
+const baseDashboardCards = [
   {
     key: 'inventory',
     group: 'supply',
@@ -149,6 +162,30 @@ const dashboardCards = [
   }
 ]
 
+const dashboardCards = computed(() => baseDashboardCards
+  .map((card) => {
+    const scoreMap = {
+      production: 72,
+      quality: 70,
+      equipment: 68,
+      inventory: 60,
+      purchase: 54,
+      sales: 50
+    }
+    return {
+      ...card,
+      card: cardFromScore({
+        score: scoreMap[card.key] || 30,
+        metrics: [
+          { label: '状态', value: card.statusText || '已接入' },
+          { label: '场景数', value: `${card.scenarios?.length || 0}` }
+        ],
+        brief: (card.scenarios || []).slice(0, 2).join(' / ') || card.badge
+      })
+    }
+  })
+  .sort(sortByAttention))
+
 const isRunningInQiankun = () => {
   if (typeof window === 'undefined') return false
   return Boolean(
@@ -197,7 +234,7 @@ const syncAiContext = () => {
     aiScene: 'decision_support',
     allowImport: false,
     allowFormula: false,
-    dashboards: dashboardCards.map((card) => ({
+    dashboards: dashboardCards.value.map((card) => ({
       key: card.key,
       title: card.title,
       route: card.route,
@@ -244,11 +281,14 @@ onMounted(syncAiContext)
 }
 
 .app-card {
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  min-height: 136px;
+  height: 168px;
   margin-bottom: 20px;
   cursor: pointer;
-  border-radius: 10px;
+  border-radius: 8px;
+  overflow: hidden;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -264,25 +304,28 @@ onMounted(syncAiContext)
 
 .app-card :deep(.el-card__body) {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  min-height: 104px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 14px;
 }
 
 .app-card-body {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  min-height: 56px;
+  min-height: 48px;
 }
 
 .app-icon {
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 8px;
   color: #fff;
 }
 
@@ -290,19 +333,115 @@ onMounted(syncAiContext)
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  flex: 1;
+}
+
+.app-title-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .app-name {
+  min-width: 0;
+  overflow: hidden;
   color: #303133;
   font-size: 15px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-desc {
+  display: -webkit-box;
+  overflow: hidden;
   color: #909399;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.app-status {
+  flex: 0 0 auto;
+  min-width: 48px;
+  max-width: 58px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  background: #eef2ff;
+  color: #475569;
+}
+
+.status-ok {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.status-warn {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-danger {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.status-info {
+  background: #e0f2fe;
+  color: #0284c7;
+}
+
+.app-metrics {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metric-item {
+  min-width: 0;
+  height: 42px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: #f6f8fb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.metric-item strong {
+  min-width: 52px;
+  overflow: visible;
+  color: #303133;
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.metric-item span {
+  min-width: 0;
+  flex: 1;
+  color: #909399;
+  font-size: 11px;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-card-footer {
@@ -310,7 +449,8 @@ onMounted(syncAiContext)
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 14px;
+  margin-top: auto;
+  padding-top: 10px;
 }
 
 .app-tag {
@@ -326,6 +466,18 @@ onMounted(syncAiContext)
   flex-shrink: 0;
   color: #409eff;
   font-size: 12px;
+}
+
+.attention-critical {
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+.attention-warning {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+
+.attention-focus {
+  border-color: rgba(14, 165, 233, 0.36);
 }
 
 .tone-blue { background: #409eff; }
@@ -353,5 +505,18 @@ onMounted(syncAiContext)
 :global(#app.dark) .app-card {
   background: #111827;
   border-color: #1f2937;
+}
+
+:global(#app.dark) .metric-item {
+  background: #0f172a;
+}
+
+:global(#app.dark) .metric-item strong,
+:global(#app.dark) .app-tag {
+  color: #f3f4f6;
+}
+
+:global(#app.dark) .metric-item span {
+  color: #9ca3af;
 }
 </style>

@@ -232,6 +232,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)), // 🟢 修复：这里加了逗号
+      '@shared': fileURLToPath(new URL('../shared', import.meta.url)),
       'vue': 'vue/dist/vue.esm-bundler.js'
     },
   },

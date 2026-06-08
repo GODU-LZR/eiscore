@@ -56,9 +56,10 @@
 
         <div class="app-grid">
           <article
-            v-for="(app, index) in apps"
+            v-for="(app, index) in attentionApps"
             :key="app.key"
             class="app-card"
+            :class="`attention-${app.card.attentionLevel || 'normal'}`"
             :style="{ animationDelay: `${index * 0.06}s` }"
             @click="openApp(app)"
           >
@@ -67,13 +68,16 @@
                 <component :is="app.icon" class="el-icon-svg" />
               </div>
               <div class="app-info">
-                <div class="app-name">{{ app.label }}</div>
+                <div class="app-title-line">
+                  <div class="app-name">{{ app.label }}</div>
+                  <span class="app-attention">{{ app.card.statusText }}</span>
+                </div>
                 <div class="app-desc">{{ app.desc }}</div>
               </div>
             </div>
             <div class="app-bottom">
               <span v-if="app.badge" class="badge coming">{{ app.badge }}</span>
-              <span v-else class="badge ready">可用</span>
+              <span v-else class="badge ready">{{ app.card.brief }}</span>
               <i class="chevron" />
             </div>
           </article>
@@ -179,6 +183,7 @@ import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { getUserInfo, clearAuth } from '@/utils/auth'
 import { Box, OfficeBuilding, CircleCheck, DataLine, Bell, User, List, Monitor, SwitchButton, Upload, Printer, ChatDotRound, TrendCharts, Clock } from '@element-plus/icons-vue'
+import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
 
 const router = useRouter()
 const showSettings = ref(false)
@@ -313,6 +318,45 @@ const apps = [
     badge: '即将上线'
   }
 ]
+
+const mobileAttentionScoreMap = {
+  pda: 62,
+  stock: 58,
+  attendance: 52,
+  warehouse: 46,
+  printing: 40,
+  assistant: 38,
+  enterprise: 34,
+  report: 32,
+  approve: 18,
+  notice: 16,
+  contacts: 14
+}
+
+const mobileAttentionBriefMap = {
+  pda: '优先执行',
+  stock: '快速登记',
+  attendance: '今日处理',
+  warehouse: '随手查询',
+  printing: '现场打印',
+  assistant: '查询分析',
+  enterprise: '经营分析',
+  report: '查看报表',
+  approve: '待上线',
+  notice: '待上线',
+  contacts: '待上线'
+}
+
+const attentionApps = computed(() => apps
+  .map((app) => ({
+    ...app,
+    card: cardFromScore({
+      score: app.badge ? (mobileAttentionScoreMap[app.key] || 12) : (mobileAttentionScoreMap[app.key] || 28),
+      metrics: [],
+      brief: mobileAttentionBriefMap[app.key] || '进入处理'
+    })
+  }))
+  .sort(sortByAttention))
 
 function openApp(app) {
   if (!app) return
@@ -575,6 +619,15 @@ async function onSettingsSelect(action) {
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   animation: riseIn 0.5s ease both;
 }
+.app-card.attention-critical {
+  border-color: rgba(239, 68, 68, 0.42);
+}
+.app-card.attention-warning {
+  border-color: rgba(245, 158, 11, 0.42);
+}
+.app-card.attention-focus {
+  border-color: rgba(27, 109, 255, 0.34);
+}
 .app-card:active {
   transform: translateY(1px);
 }
@@ -601,14 +654,43 @@ async function onSettingsSelect(action) {
   flex: 1;
   min-width: 0;
 }
+.app-title-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .app-name {
+  min-width: 0;
+  overflow: hidden;
   font-size: 15px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-attention {
+  flex: 0 0 auto;
+  min-width: 42px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(27, 109, 255, 0.1);
+  color: #1b6dff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 .app-desc {
+  overflow: hidden;
   font-size: 12px;
   color: var(--muted);
   margin-top: 3px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .app-bottom {
   display: flex;
@@ -621,10 +703,14 @@ async function onSettingsSelect(action) {
 .badge {
   display: inline-flex;
   align-items: center;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
   padding: 3px 10px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .badge.ready {
   background: rgba(33, 193, 137, 0.12);
