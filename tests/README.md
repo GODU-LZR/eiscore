@@ -28,6 +28,12 @@ Run the local business smoke test against a running EISCore stack:
 npm run test:smoke
 ```
 
+Run the full business chain close-loop test against a running EISCore stack:
+
+```bash
+npm run test:business-chain
+```
+
 Install the Chromium browser used by Playwright:
 
 ```bash
@@ -50,6 +56,12 @@ Run the browser E2E suite against the Nanpai remote environment:
 
 ```bash
 npm run test:e2e:remote
+```
+
+Run the full business chain close-loop test against the Nanpai remote environment:
+
+```bash
+npm run test:business-chain:remote
 ```
 
 ## Smoke Test Environment
@@ -89,6 +101,43 @@ npm run test:smoke
 Use `EISCORE_SMOKE_SKIP_AI=1` or `EISCORE_SMOKE_SKIP_WS=1` when validating a partial
 local stack.
 
+## Full Business Chain Environment
+
+`tests/business/full-chain.mjs` verifies authenticated write/read/update/delete
+loops across app center, dynamic data apps, workflow runtime state writeback, HR,
+and SCM warehouse management.
+
+Defaults:
+
+| Variable | Default |
+|---|---|
+| `EISCORE_CHAIN_BASE_URL` | `EISCORE_BASE_URL` or `http://localhost:8080` |
+| `EISCORE_CHAIN_USERNAME` | `EISCORE_SMOKE_USERNAME` or `admin` |
+| `EISCORE_CHAIN_PASSWORD` | `EISCORE_SMOKE_PASSWORD` or `123456` |
+| `EISCORE_CHAIN_RESULT` | unset |
+| `EISCORE_CHAIN_TABLE` | `eiscore_chain_test_records` |
+| `EISCORE_CHAIN_KEEP_DATA` | unset |
+| `EISCORE_CHAIN_TIMEOUT_MS` | `15000` |
+
+Example:
+
+```bash
+EISCORE_CHAIN_RESULT=tests/.artifacts/full-chain-result.json npm run test:business-chain
+```
+
+Remote Nanpai environment:
+
+```bash
+EISCORE_CHAIN_BASE_URL=https://nanpai.eissys.top \
+EISCORE_CHAIN_RESULT=tests/.artifacts/nanpai-full-chain-result.json \
+npm run test:business-chain
+```
+
+The test creates a reusable dynamic table named `app_data.eiscore_chain_test_records`
+when it does not already exist. Per-run records, generated apps, workflow
+definitions, workflow instances, HR archives, and SCM warehouses are cleaned up
+automatically unless `EISCORE_CHAIN_KEEP_DATA=1` is set for debugging.
+
 ## Browser E2E Environment
 
 `tests/e2e/nanpai-shell.spec.mjs` uses Playwright to verify the public login page,
@@ -121,6 +170,8 @@ Ubuntu releases).
 - `build:frontends` verifies all Vue/Vite micro-frontends compile.
 - `test:smoke` verifies login, deep-link routing, PostgREST profiles, agent health,
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
+- `test:business-chain` verifies create/read/update/delete loops and workflow
+  status writeback against writable business APIs.
 - `test:e2e` verifies that the app actually renders in Chromium and catches blank
   screens in the login page, host shell, and selected micro-frontend deep links.
 

@@ -8,6 +8,8 @@
     "build:frontends": "node scripts/run-package-script.mjs build --group=frontends",
     "test:unit": "npm --prefix realtime run test:twin-knowledge",
     "test:smoke": "node tests/smoke/business-smoke.mjs",
+    "test:business-chain": "node tests/business/full-chain.mjs",
+    "test:business-chain:remote": "EISCORE_CHAIN_BASE_URL=https://nanpai.eissys.top node tests/business/full-chain.mjs",
     "test:e2e": "playwright test",
     "test:e2e:remote": "EISCORE_E2E_BASE_URL=https://nanpai.eissys.top playwright test",
     "e2e:install": "playwright install chromium",

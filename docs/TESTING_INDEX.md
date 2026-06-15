@@ -1,6 +1,6 @@
 # EISCore 测试资料索引
 
-更新时间：2026-06-15
+更新时间：2026-06-16
 
 本文档用于集中说明 EISCore 现有测试资料、自动化入口和后续测试资产沉淀规则。
 
@@ -14,6 +14,7 @@
 | 包脚本执行器 | `scripts/run-package-script.mjs` | 按分组批量执行各子项目的 npm script。 |
 | 依赖安装器 | `scripts/install-packages.mjs` | CI 中按分组执行 `npm ci` 或 `npm install`。 |
 | 业务冒烟测试 | `tests/smoke/business-smoke.mjs` | 覆盖登录、路由、PostgREST、智能体、SSE 和 WebSocket。 |
+| 全业务链路闭环测试 | `tests/business/full-chain.mjs` | 覆盖应用中心、动态数据表、Workflow 状态回写、HR 档案、SCM 仓库的写读改删闭环。 |
 | GitHub Actions | `.github/workflows/ci.yml` | 在 push、PR 和手动触发时执行离线回归与前端构建。 |
 
 ## 二、推荐执行命令
@@ -23,6 +24,7 @@ npm run test:unit
 npm run build:frontends
 npm run test:ci
 npm run test:smoke
+npm run test:business-chain
 ```
 
 远端业务冒烟测试示例：
@@ -32,6 +34,14 @@ EISCORE_BASE_URL=https://nanpai.eissys.top \
 EISCORE_AGENT_WS_URL=wss://nanpai.eissys.top/agent/ws \
 EISCORE_SMOKE_RESULT=tests/.artifacts/nanpai-smoke-result.json \
 npm run test:smoke
+```
+
+远端全业务链路闭环测试示例：
+
+```bash
+EISCORE_CHAIN_BASE_URL=https://nanpai.eissys.top \
+EISCORE_CHAIN_RESULT=tests/.artifacts/nanpai-full-chain-result.json \
+npm run test:business-chain
 ```
 
 `tests/.artifacts/` 为本地测试产物目录，已经加入 `.gitignore`，可用于保存 JSON 结果、截图或临时日志。
@@ -49,6 +59,7 @@ npm run test:smoke
 | `docs/TEST_AUTOMATION_REPORT_2026-06-15.md` | 自动化工程启动报告 | 记录自动化入口、CI、首次远端 smoke 22/23 结果。 | 作为自动化建设第一版基线。 |
 | `docs/TEST_AUTOMATION_REPORT_2026-06-16.md` | 远端修复验证报告 | 记录远端 Nginx workflow definitions 别名修复和 23/23 结果。 | 作为 P0 缺陷关闭依据。 |
 | `docs/TEST_E2E_REPORT_2026-06-16.md` | 浏览器 E2E 验证报告 | 记录 Playwright 登录页、主站、关键微应用深链 5/5 结果。 | 作为浏览器级验收第一版基线。 |
+| `docs/TEST_FULL_CHAIN_REPORT_2026-06-16.md` | 全业务链路闭环报告 | 记录应用中心、动态数据、流程状态回写、HR、SCM 仓库 22/22 结果。 | 作为写操作闭环测试第一版基线。 |
 
 ## 四、资料沉淀规则
 
@@ -63,6 +74,7 @@ npm run test:smoke
 |---|---|---|---|
 | P0 | 已修复 | 远端 `/api/workflow.definitions` 别名返回 404 | 2026-06-16 已在远端 Nginx 增加精确匹配别名，远端 smoke 达到 23/23 PASS。 |
 | P1 | 第一版已完成 | 缺少浏览器级 E2E | 已增加 Playwright，覆盖登录、主站、材料、人事、应用中心深链无白屏；后续扩展更多业务操作。 |
+| P1 | 第一版已完成 | 缺少全业务链路闭环测试 | 已增加 `test:business-chain`，覆盖 API 级写读改删与 Workflow 状态回写闭环。 |
 | P1 | 未开始 | 智能体语义用例未自动执行 | 基于 `docs/agent/zh-query-testset.v1.json` 增加语义回归脚本。 |
 | P2 | 未开始 | 前端共享组件缺少单元测试 | 对 grid runtime、状态列、权限控制等共享逻辑补 Vitest。 |
 | P2 | 未开始 | 性能与可用性无基线 | 为首页、子应用首屏、AI 接口建立响应时间门槛。 |
