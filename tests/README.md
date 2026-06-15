@@ -44,7 +44,7 @@ Defaults:
 | `EISCORE_SMOKE_RESULT` | unset |
 | `EISCORE_SMOKE_SKIP_AI` | unset |
 | `EISCORE_SMOKE_SKIP_WS` | unset |
-| `EISCORE_AI_MODEL` | model returned by `/agent/ai/config` |
+| `EISCORE_SMOKE_AI_MODEL` | model returned by `/agent/ai/config` |
 | `EISCORE_SMOKE_AI_TIMEOUT_MS` | `60000` |
 
 Example:
