@@ -1,0 +1,65 @@
+# EISCore 测试资料索引
+
+更新时间：2026-06-15
+
+本文档用于集中说明 EISCore 现有测试资料、自动化入口和后续测试资产沉淀规则。
+
+## 一、当前自动化入口
+
+| 入口 | 文件 | 用途 |
+|---|---|---|
+| 自动化说明 | `tests/README.md` | 说明本地单元测试、前端构建、业务冒烟测试和环境变量。 |
+| 根脚本 | `package.json` | 提供 `test:unit`、`build:frontends`、`test:smoke`、`test:ci` 等统一命令。 |
+| 包清单 | `scripts/eiscore-packages.mjs` | 维护前端微应用、运行时服务的包分组。 |
+| 包脚本执行器 | `scripts/run-package-script.mjs` | 按分组批量执行各子项目的 npm script。 |
+| 依赖安装器 | `scripts/install-packages.mjs` | CI 中按分组执行 `npm ci` 或 `npm install`。 |
+| 业务冒烟测试 | `tests/smoke/business-smoke.mjs` | 覆盖登录、路由、PostgREST、智能体、SSE 和 WebSocket。 |
+| GitHub Actions | `.github/workflows/ci.yml` | 在 push、PR 和手动触发时执行离线回归与前端构建。 |
+
+## 二、推荐执行命令
+
+```bash
+npm run test:unit
+npm run build:frontends
+npm run test:ci
+npm run test:smoke
+```
+
+远端业务冒烟测试示例：
+
+```bash
+EISCORE_BASE_URL=https://nanpai.eissys.top \
+EISCORE_AGENT_WS_URL=wss://nanpai.eissys.top/agent/ws \
+EISCORE_SMOKE_RESULT=tests/.artifacts/nanpai-smoke-result.json \
+npm run test:smoke
+```
+
+`tests/.artifacts/` 为本地测试产物目录，已经加入 `.gitignore`，可用于保存 JSON 结果、截图或临时日志。
+
+## 三、历史测试资料整理
+
+| 文件 | 类型 | 当前价值 | 建议去向 |
+|---|---|---|---|
+| `docs/BUSINESS_TEST_REPORT_2026-02-09.md` | 历史业务冒烟报告 | 记录 23 项本地业务链路检查，适合作为当前 smoke 脚本的用例来源。 | 保留为历史基线；后续自动化报告引用其用例口径。 |
+| `docs/PROJECT_COMPLETION_INTEGRATED_2026-02-27.md` | 项目完成度评估 | 明确指出测试、CI、性能基线曾是薄弱项。 | 作为自动化工程建设的背景依据。 |
+| `docs/WORKFLOW_ROLE_SMOKE_TEST_CHECKLIST.md` | 流程/角色手工冒烟清单 | 覆盖流程发起、任务可见性、状态迁移、自动推进等高风险链路。 | 后续拆成 Playwright E2E 与接口测试用例。 |
+| `docs/ROLE_TEST_RECORD_TEMPLATE.md` | 角色测试记录模板 | 适合手工验收、业务验收和缺陷留痕。 | 保留为人工验收模板。 |
+| `docs/第八章_系统测试初稿_2026-03-14.md` | 论文/交付型系统测试章节 | 可复用测试目标、测试环境、测试范围等描述。 | 与自动化结果交叉引用，避免只保留静态说明。 |
+| `docs/agent/zh-query-testset.v1.json` | 智能体中文查询测试集 | 含 100 条中文查询意图与工具匹配样例。 | 后续建设智能体语义回归 runner。 |
+
+## 四、资料沉淀规则
+
+1. 每次正式自动化执行报告放在 `docs/TEST_AUTOMATION_REPORT_YYYY-MM-DD.md`。
+2. 临时 JSON、截图、日志放在 `tests/.artifacts/`，不提交到远端。
+3. 角色/流程手工验收记录可以从 `docs/ROLE_TEST_RECORD_TEMPLATE.md` 复制生成，文件名建议使用 `ROLE_TEST_RECORD_YYYY-MM-DD_<模块>.md`。
+4. 远端服务器访问方式只记录在 `docs/private-review/`，该目录不进入 GitHub，不保存明文密码。
+
+## 五、当前缺口
+
+| 优先级 | 缺口 | 建议 |
+|---|---|---|
+| P0 | 远端 `/api/workflow.definitions` 别名返回 404 | 修复 Nginx 或 API rewrite，使别名与 `/api/definitions` 行为一致。 |
+| P1 | 缺少浏览器级 E2E | 增加 Playwright，覆盖登录、qiankun 子应用加载、关键页面无白屏。 |
+| P1 | 智能体语义用例未自动执行 | 基于 `docs/agent/zh-query-testset.v1.json` 增加语义回归脚本。 |
+| P2 | 前端共享组件缺少单元测试 | 对 grid runtime、状态列、权限控制等共享逻辑补 Vitest。 |
+| P2 | 性能与可用性无基线 | 为首页、子应用首屏、AI 接口建立响应时间门槛。 |

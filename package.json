@@ -1,0 +1,17 @@
+{
+  "name": "eiscore",
+  "version": "0.1.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "ci:install": "node scripts/install-packages.mjs --group=ci",
+    "build:frontends": "node scripts/run-package-script.mjs build --group=frontends",
+    "test:unit": "npm --prefix realtime run test:twin-knowledge",
+    "test:smoke": "node tests/smoke/business-smoke.mjs",
+    "test:ci": "npm run test:unit && npm run build:frontends"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0",
+    "npm": ">=10"
+  }
+}

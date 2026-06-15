@@ -35,3 +35,4 @@ docs/extracted_docx_v25/
 docs/private-review/
 scripts/_utf8_test.txt
 tools/plantuml.jar
+tests/.artifacts/
