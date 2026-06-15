@@ -28,6 +28,30 @@ Run the local business smoke test against a running EISCore stack:
 npm run test:smoke
 ```
 
+Install the Chromium browser used by Playwright:
+
+```bash
+npm run e2e:install
+```
+
+Install Chromium plus Linux system dependencies when the environment allows apt/sudo:
+
+```bash
+npm run e2e:install:with-deps
+```
+
+Run the browser E2E suite:
+
+```bash
+npm run test:e2e
+```
+
+Run the browser E2E suite against the Nanpai remote environment:
+
+```bash
+npm run test:e2e:remote
+```
+
 ## Smoke Test Environment
 
 `tests/smoke/business-smoke.mjs` requires the host app, PostgREST API, agent runtime,
@@ -65,12 +89,40 @@ npm run test:smoke
 Use `EISCORE_SMOKE_SKIP_AI=1` or `EISCORE_SMOKE_SKIP_WS=1` when validating a partial
 local stack.
 
+## Browser E2E Environment
+
+`tests/e2e/nanpai-shell.spec.mjs` uses Playwright to verify the public login page,
+the authenticated host shell, and key qiankun sub-application deep links.
+
+Defaults:
+
+| Variable | Default |
+|---|---|
+| `EISCORE_E2E_BASE_URL` | `EISCORE_BASE_URL` or `http://localhost:8080` |
+| `EISCORE_E2E_USERNAME` | `EISCORE_SMOKE_USERNAME` or `admin` |
+| `EISCORE_E2E_PASSWORD` | `EISCORE_SMOKE_PASSWORD` or `123456` |
+
+Artifacts:
+
+| Output | Path |
+|---|---|
+| JSON result | `tests/.artifacts/playwright-result.json` |
+| HTML report | `tests/.artifacts/playwright-report/` |
+| Traces/screenshots/videos | `tests/.artifacts/playwright-results/` |
+
+If Chromium fails to launch with missing shared libraries such as `libnspr4.so`,
+install the browser dependencies with `npm run e2e:install:with-deps` or install
+the equivalent system packages (`libnspr4`, `libnss3`, `libasound2t64` on current
+Ubuntu releases).
+
 ## Current Scope
 
 - `test:unit` is service-free and deterministic.
 - `build:frontends` verifies all Vue/Vite micro-frontends compile.
 - `test:smoke` verifies login, deep-link routing, PostgREST profiles, agent health,
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
+- `test:e2e` verifies that the app actually renders in Chromium and catches blank
+  screens in the login page, host shell, and selected micro-frontend deep links.
 
-The next layer should add component/unit tests for shared grid utilities and a
-Playwright E2E suite for login plus qiankun sub-application loading.
+The next layer should add component/unit tests for shared grid utilities and an
+agent semantic regression runner for the Chinese query test set.

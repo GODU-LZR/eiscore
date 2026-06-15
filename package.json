@@ -8,10 +8,17 @@
     "build:frontends": "node scripts/run-package-script.mjs build --group=frontends",
     "test:unit": "npm --prefix realtime run test:twin-knowledge",
     "test:smoke": "node tests/smoke/business-smoke.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:remote": "EISCORE_E2E_BASE_URL=https://nanpai.eissys.top playwright test",
+    "e2e:install": "playwright install chromium",
+    "e2e:install:with-deps": "playwright install --with-deps chromium",
     "test:ci": "npm run test:unit && npm run build:frontends"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0",
     "npm": ">=10"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.0"
   }
 }
