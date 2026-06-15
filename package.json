@@ -14,6 +14,8 @@
     "test:e2e:remote": "EISCORE_E2E_BASE_URL=https://nanpai.eissys.top playwright test",
     "test:e2e:clicks": "playwright test tests/e2e/ui-clicks.spec.mjs",
     "test:e2e:clicks:remote": "EISCORE_E2E_BASE_URL=https://nanpai.eissys.top playwright test tests/e2e/ui-clicks.spec.mjs",
+    "test:e2e:business-chain": "playwright test tests/e2e/ui-business-chain.spec.mjs",
+    "test:e2e:business-chain:remote": "EISCORE_E2E_BASE_URL=https://nanpai.eissys.top playwright test tests/e2e/ui-business-chain.spec.mjs",
     "e2e:install": "playwright install chromium",
     "e2e:install:with-deps": "playwright install --with-deps chromium",
     "test:ci": "npm run test:unit && npm run build:frontends"

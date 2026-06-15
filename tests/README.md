@@ -70,6 +70,18 @@ Run only the daily UI click tour against the Nanpai remote environment:
 npm run test:e2e:clicks:remote
 ```
 
+Run the UI full business chain close-loop test:
+
+```bash
+npm run test:e2e:business-chain
+```
+
+Run the UI full business chain close-loop test against the Nanpai remote environment:
+
+```bash
+npm run test:e2e:business-chain:remote
+```
+
 Run the full business chain close-loop test against the Nanpai remote environment:
 
 ```bash
@@ -157,6 +169,10 @@ the authenticated host shell, and key qiankun sub-application deep links.
 `tests/e2e/ui-clicks.spec.mjs` simulates ordinary user clicking across the login
 form, shell header, side navigation, app cards, grid search/config/export controls,
 and app center dialogs.
+`tests/e2e/ui-business-chain.spec.mjs` combines isolated API setup/cleanup with
+real UI navigation, search, refresh, and tree clicks to verify the app center,
+dynamic data app, workflow status writeback, HR archive, and SCM warehouse loops
+from a user's browser.
 
 Defaults:
 
@@ -165,6 +181,8 @@ Defaults:
 | `EISCORE_E2E_BASE_URL` | `EISCORE_BASE_URL` or `http://localhost:8080` |
 | `EISCORE_E2E_USERNAME` | `EISCORE_SMOKE_USERNAME` or `admin` |
 | `EISCORE_E2E_PASSWORD` | `EISCORE_SMOKE_PASSWORD` or `123456` |
+| `EISCORE_E2E_CHAIN_TABLE` | `EISCORE_CHAIN_TABLE` or `eiscore_chain_test_records` |
+| `EISCORE_E2E_CHAIN_KEEP_DATA` | unset |
 
 Artifacts:
 
@@ -189,9 +207,14 @@ Ubuntu releases).
   status writeback against writable business APIs.
 - `test:e2e` verifies that the app actually renders in Chromium, catches blank
   screens in the login page, host shell, and selected micro-frontend deep links,
-  and exercises daily UI clicks that ordinary users rely on.
+  and exercises daily UI clicks plus the UI business chain close-loop that
+  ordinary users rely on.
 - `test:e2e:clicks` runs only the daily UI click tour when fast interaction
   validation is needed.
+- `test:e2e:business-chain` runs only the browser-level full business chain:
+  generated app center data app, workflow state writeback, HR archive CRUD, and
+  SCM warehouse CRUD, with per-run artifacts cleaned up automatically unless
+  `EISCORE_E2E_CHAIN_KEEP_DATA=1` is set.
 
 The next layer should add component/unit tests for shared grid utilities and an
 agent semantic regression runner for the Chinese query test set.

@@ -16,6 +16,7 @@
 | 业务冒烟测试 | `tests/smoke/business-smoke.mjs` | 覆盖登录、路由、PostgREST、智能体、SSE 和 WebSocket。 |
 | 全业务链路闭环测试 | `tests/business/full-chain.mjs` | 覆盖应用中心、动态数据表、Workflow 状态回写、HR 档案、SCM 仓库的写读改删闭环。 |
 | UI 点击巡检 | `tests/e2e/ui-clicks.spec.mjs` | 模拟普通用户登录、侧边菜单、应用卡片、网格搜索/列管理/导出、应用中心弹窗点击。 |
+| UI 全业务链路闭环 | `tests/e2e/ui-business-chain.spec.mjs` | API 隔离准备/清理测试数据，浏览器 UI 核验应用中心、动态数据、流程状态回写、HR 档案和 SCM 仓库闭环。 |
 | GitHub Actions | `.github/workflows/ci.yml` | 在 push、PR 和手动触发时执行离线回归与前端构建。 |
 
 ## 二、推荐执行命令
@@ -28,6 +29,7 @@ npm run test:smoke
 npm run test:business-chain
 npm run test:e2e
 npm run test:e2e:clicks
+npm run test:e2e:business-chain
 ```
 
 远端业务冒烟测试示例：
@@ -54,6 +56,13 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top \
 npm run test:e2e:clicks
 ```
 
+远端 UI 全业务链路闭环示例：
+
+```bash
+EISCORE_E2E_BASE_URL=https://nanpai.eissys.top \
+npm run test:e2e:business-chain
+```
+
 `tests/.artifacts/` 为本地测试产物目录，已经加入 `.gitignore`，可用于保存 JSON 结果、截图或临时日志。
 
 ## 三、历史测试资料整理
@@ -68,9 +77,10 @@ npm run test:e2e:clicks
 | `docs/agent/zh-query-testset.v1.json` | 智能体中文查询测试集 | 含 100 条中文查询意图与工具匹配样例。 | 后续建设智能体语义回归 runner。 |
 | `docs/TEST_AUTOMATION_REPORT_2026-06-15.md` | 自动化工程启动报告 | 记录自动化入口、CI、首次远端 smoke 22/23 结果。 | 作为自动化建设第一版基线。 |
 | `docs/TEST_AUTOMATION_REPORT_2026-06-16.md` | 远端修复验证报告 | 记录远端 Nginx workflow definitions 别名修复和 23/23 结果。 | 作为 P0 缺陷关闭依据。 |
-| `docs/TEST_E2E_REPORT_2026-06-16.md` | 浏览器 E2E 验证报告 | 记录 Playwright 登录页、主站、关键微应用深链 5/5 结果。 | 作为浏览器级验收第一版基线。 |
+| `docs/TEST_E2E_REPORT_2026-06-16.md` | 浏览器 E2E 验证报告 | 记录 Playwright 登录页、主站、关键微应用深链、UI 点击和 UI 业务闭环 10/10 结果。 | 作为浏览器级验收第一版基线。 |
 | `docs/TEST_FULL_CHAIN_REPORT_2026-06-16.md` | 全业务链路闭环报告 | 记录应用中心、动态数据、流程状态回写、HR、SCM 仓库 22/22 结果。 | 作为写操作闭环测试第一版基线。 |
-| `docs/TEST_UI_CLICK_REPORT_2026-06-16.md` | UI 点击巡检报告 | 记录普通用户日常点击路径 4/4、完整浏览器 E2E 9/9 结果。 | 作为交互级验收第一版基线。 |
+| `docs/TEST_UI_CLICK_REPORT_2026-06-16.md` | UI 点击巡检报告 | 记录普通用户日常点击路径 4/4、完整浏览器 E2E 10/10 结果。 | 作为交互级验收第一版基线。 |
+| `docs/TEST_UI_BUSINESS_CHAIN_REPORT_2026-06-16.md` | UI 全业务链路闭环报告 | 记录浏览器 UI 对应用中心、动态数据、流程状态回写、HR、仓库闭环的核验结果。 | 作为 UI 业务闭环验收基线。 |
 
 ## 四、资料沉淀规则
 
@@ -87,6 +97,7 @@ npm run test:e2e:clicks
 | P1 | 第一版已完成 | 缺少浏览器级 E2E | 已增加 Playwright，覆盖登录、主站、材料、人事、应用中心深链无白屏。 |
 | P1 | 第一版已完成 | 缺少 UI 点击巡检 | 已增加 `test:e2e:clicks`，覆盖普通用户登录、侧边导航、应用卡片、网格工具栏和应用中心弹窗点击。 |
 | P1 | 第一版已完成 | 缺少全业务链路闭环测试 | 已增加 `test:business-chain`，覆盖 API 级写读改删与 Workflow 状态回写闭环。 |
+| P1 | 第一版已完成 | 缺少 UI 层全业务链路闭环 | 已增加 `test:e2e:business-chain`，通过浏览器 UI 核验写入数据、流程回写、HR 和 SCM 仓库闭环。 |
 | P1 | 未开始 | 智能体语义用例未自动执行 | 基于 `docs/agent/zh-query-testset.v1.json` 增加语义回归脚本。 |
 | P2 | 未开始 | 前端共享组件缺少单元测试 | 对 grid runtime、状态列、权限控制等共享逻辑补 Vitest。 |
 | P2 | 未开始 | 性能与可用性无基线 | 为首页、子应用首屏、AI 接口建立响应时间门槛。 |
