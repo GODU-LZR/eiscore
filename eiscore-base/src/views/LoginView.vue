@@ -480,6 +480,7 @@ const handleLogin = async () => {
         : (Array.isArray(payload.permissions) ? payload.permissions : [])
       let roleId = ''
       let avatarUrl = ''
+      let sopRole = ''
 
       if (data.app_role || payload.app_role) {
         try {
@@ -521,35 +522,28 @@ const handleLogin = async () => {
       }
 
       try {
-        const userRes = await fetch(`/api/v_users_manage?username=eq.${payload.username}&select=username,full_name,avatar,role_id`, {
-          method: 'GET',
-          headers: {
-            'Accept-Profile': 'public',
-            'Content-Profile': 'public',
-            Authorization: `Bearer ${realToken}`
-          }
-        })
-
-        if (userRes.ok) {
-          let userList = await userRes.json()
-          let row = Array.isArray(userList) ? userList[0] : null
-          if (!row) {
-            const fallback = await fetch(`/api/users?username=eq.${payload.username}&select=username,full_name,avatar,role`, {
-              method: 'GET',
-              headers: {
-                'Accept-Profile': 'public',
-                'Content-Profile': 'public',
-                Authorization: `Bearer ${realToken}`
-              }
-            })
-            if (fallback.ok) {
-              const fallbackList = await fallback.json()
-              row = Array.isArray(fallbackList) ? fallbackList[0] : null
-            }
-          }
+        const encodedUsername = encodeURIComponent(payload.username)
+        const headers = {
+          'Accept-Profile': 'public',
+          'Content-Profile': 'public',
+          Authorization: `Bearer ${realToken}`
+        }
+        const urls = [
+          `/api/v_users_manage?username=eq.${encodedUsername}&select=username,full_name,avatar,role_id,sop_role`,
+          `/api/v_users_manage?username=eq.${encodedUsername}&select=username,full_name,avatar,role_id`,
+          `/api/users?username=eq.${encodedUsername}&select=username,full_name,avatar,role,sop_role`,
+          `/api/users?username=eq.${encodedUsername}&select=username,full_name,avatar,role`
+        ]
+        for (const url of urls) {
+          const userRes = await fetch(url, { method: 'GET', headers })
+          if (!userRes.ok) continue
+          const userList = await userRes.json()
+          const row = Array.isArray(userList) ? userList[0] : null
           if (row) {
             avatarUrl = await resolveAvatarUrl(row.avatar || '', realToken)
             if (!roleId && row.role_id) roleId = row.role_id
+            sopRole = row.sop_role || row.sopRole || ''
+            break
           }
         }
       } catch (e) {}
@@ -564,7 +558,9 @@ const handleLogin = async () => {
           role_id: roleId,
           dbRole: payload.role || 'web_user',
           permissions,
-          avatar: avatarUrl || payload.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
+          avatar: avatarUrl || payload.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
+          sop_role: sopRole || payload.sop_role || payload.sopRole || '',
+          sopRole: sopRole || payload.sop_role || payload.sopRole || ''
         }
       }
 

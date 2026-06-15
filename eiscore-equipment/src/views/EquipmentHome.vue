@@ -662,13 +662,37 @@ const updateClock = () => {
 const realtimeStatusText = computed(() => realtimeReady.value ? '实时传输' : '轮询传输')
 const lastSyncText = computed(() => lastSyncAt.value ? `同步 ${formatClockTime(lastSyncAt.value)}` : '等待同步')
 
+const signatureValue = (value) => {
+  if (value === null || value === undefined) return ''
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+const rowSignature = (row) => {
+  if (!row || typeof row !== 'object') return signatureValue(row)
+  return Object.keys(row)
+    .sort()
+    .map((key) => `${key}:${signatureValue(row[key])}`)
+    .join('\u001f')
+}
+
+const rowsSignature = (rows) => (Array.isArray(rows) ? rows.map(rowSignature).join('\u001e') : '')
+
+const assignRowsIfChanged = (target, rows) => {
+  const nextRows = Array.isArray(rows) ? rows : []
+  if (rowsSignature(target.value) !== rowsSignature(nextRows)) {
+    target.value = nextRows
+  }
+}
+
 const applyFallbackData = () => {
-  assets.value = fallbackAssets
-  checks.value = fallbackChecks
-  issues.value = fallbackIssues
-  workOrders.value = fallbackWorkOrders
-  plans.value = fallbackPlans
-  standards.value = fallbackStandards
+  assignRowsIfChanged(assets, fallbackAssets)
+  assignRowsIfChanged(checks, fallbackChecks)
+  assignRowsIfChanged(issues, fallbackIssues)
+  assignRowsIfChanged(workOrders, fallbackWorkOrders)
+  assignRowsIfChanged(plans, fallbackPlans)
+  assignRowsIfChanged(standards, fallbackStandards)
 }
 
 const loadData = async (options = {}) => {
@@ -684,12 +708,12 @@ const loadData = async (options = {}) => {
       request({ url: '/equipment_maintenance_plans?status=neq.deleted&order=next_execute_date.asc&limit=300', method: 'get' }),
       request({ url: '/equipment_standards?status=neq.deleted&order=effective_date.desc&limit=300', method: 'get' })
     ])
-    assets.value = Array.isArray(assetRows) ? assetRows : []
-    checks.value = Array.isArray(checkRows) ? checkRows : []
-    issues.value = Array.isArray(issueRows) ? issueRows : []
-    workOrders.value = Array.isArray(workRows) ? workRows : []
-    plans.value = Array.isArray(planRows) ? planRows : []
-    standards.value = Array.isArray(standardRows) ? standardRows : []
+    assignRowsIfChanged(assets, assetRows)
+    assignRowsIfChanged(checks, checkRows)
+    assignRowsIfChanged(issues, issueRows)
+    assignRowsIfChanged(workOrders, workRows)
+    assignRowsIfChanged(plans, planRows)
+    assignRowsIfChanged(standards, standardRows)
     lastSyncAt.value = new Date()
   } catch (error) {
     if (!assets.value.length && !checks.value.length && !issues.value.length && !workOrders.value.length && !plans.value.length && !standards.value.length) {
@@ -1044,7 +1068,9 @@ onMounted(() => {
   updateClock()
   loadData()
   clockTimer = window.setInterval(updateClock, 1000)
-  refreshTimer = window.setInterval(() => loadData({ silent: true }), 12000)
+  refreshTimer = window.setInterval(() => {
+    if (!document.hidden) loadData({ silent: true })
+  }, 30000)
   try {
     realtimeUnsub = getRealtimeClient().subscribe(handleRealtimeEvent)
     realtimeReady.value = true
@@ -1778,6 +1804,9 @@ onBeforeUnmount(() => {
 
 .scroll-content.scrolling {
   animation: scrollY linear infinite;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
 }
 
 .scroll-content.scrolling:hover {
@@ -1785,8 +1814,8 @@ onBeforeUnmount(() => {
 }
 
 @keyframes scrollY {
-  from { transform: translateY(0); }
-  to { transform: translateY(-50%); }
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, -50%, 0); }
 }
 
 .scroll-track {

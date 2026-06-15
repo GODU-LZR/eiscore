@@ -1,14 +1,14 @@
 <template>
-  <div class="eis-document-paper">
-    <div v-if="schema.title" class="doc-header">
+  <div class="eis-document-paper" data-guide="document-paper">
+    <div v-if="schema.title" class="doc-header" data-guide="document-header">
       <h1 class="doc-title">{{ schema.title }}</h1>
       <div v-if="schema.docNo" class="doc-no">单据编号: {{ resolveValue(schema.docNo) || '自动生成' }}</div>
     </div>
 
-    <div class="doc-body">
+    <div class="doc-body" data-guide="form-fields">
       <template v-for="(section, index) in schema.layout" :key="index">
         
-        <div v-if="section.type === 'section'" class="doc-section">
+        <div v-if="section.type === 'section'" class="doc-section" data-guide="document-section">
           <div v-if="section.title" class="section-title">{{ section.title }}</div>
           <el-row class="grid-row">
             <el-col 
@@ -129,10 +129,17 @@
           </el-row>
         </div>
 
-        <div v-else-if="section.type === 'table'" class="doc-table-section">
+        <div v-else-if="section.type === 'table'" class="doc-table-section" data-guide="document-table-section">
           <div v-if="section.title" class="section-title">{{ section.title }}</div>
-          <div v-if="section.allowAdd !== false" class="table-toolbar">
-            <el-button size="small" @click="addTableRow(section)">新增一行</el-button>
+          <div v-if="section.allowAdd !== false" class="table-toolbar" data-guide="document-table-toolbar">
+            <el-button
+              size="small"
+              data-sop-action="document-add-table-row"
+              data-sop-title="单据明细新增一行"
+              data-sop-desc="在当前单据明细表中新增一行，适用于物料明细、检验明细、设备项目或费用明细。"
+              data-sop-steps="先确认当前明细表标题|点击新增一行|从左到右填写物料、批次、数量、日期或检验项|保存前复核新增行是否完整"
+              @click="addTableRow(section)"
+            >新增一行</el-button>
           </div>
           <el-table 
             :data="resolveTableData(section.field)" 
@@ -181,7 +188,16 @@
               align="center"
             >
               <template #default="scope">
-                <el-button size="small" type="danger" link @click="removeTableRow(section.field, scope.$index)">
+                <el-button
+                  size="small"
+                  type="danger"
+                  link
+                  data-sop-action="document-remove-table-row"
+                  data-sop-title="单据明细删除一行"
+                  data-sop-desc="从当前单据明细表删除错误行，删除前必须确认该行不是已流转或需要留痕的业务明细。"
+                  data-sop-steps="先确认要删除的是当前明细表中的错误行|复核物料、批次、数量或检验项|点击删除|保存前确认下游业务不会依赖该明细"
+                  @click="removeTableRow(section.field, scope.$index)"
+                >
                   删除
                 </el-button>
               </template>

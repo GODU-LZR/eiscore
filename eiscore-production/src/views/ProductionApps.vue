@@ -76,13 +76,25 @@ import {
   numberValue,
   sortByAttention
 } from '@shared/app-card-attention'
+import {
+  combineQueryParts,
+  countStat,
+  filterPart,
+  loadAppsCardStats,
+  statNumber,
+  sumStat
+} from '@shared/app-card-server-stats'
+import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
+const { visibility: displayVisibility } = useDisplayVisibility()
 const iconMap = { Calendar, Connection, DataBoard, List, Tickets }
 const appRows = ref(Object.fromEntries(PRODUCTION_APPS.map((app) => [app.key, []])))
+const serverStats = ref({})
 const cardLoading = ref(false)
 
 const rowsOf = (key) => appRows.value[key] || []
+const statsOf = (key) => serverStats.value[key] || {}
 const sourceKeyOf = (app) => {
   if (['bom', 'process_templates'].includes(app.key)) return 'bom_list'
   if (app.key === 'work_reports') return 'work_orders'
@@ -90,19 +102,84 @@ const sourceKeyOf = (app) => {
   return app.sourceAppKey || app.key
 }
 const isClosedWorkOrder = (row) => ['已完工', '已取消'].includes(String(row.work_order_status || '').trim())
+const today = () => new Date().toISOString().slice(0, 10)
+const offsetDate = (days) => {
+  const next = new Date()
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
+}
+
+const productionCardStatsSpec = (app) => {
+  if (app.key === 'bom_list') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('active', filterPart('status', 'eq', '启用')),
+        countStat('draft', filterPart('status', 'eq', '草稿')),
+        countStat('inactive', filterPart('status', 'in', ['停用', '作废'])),
+        sumStat('itemCount', 'item_count')
+      ]
+    }
+  }
+  if (app.key === 'plans') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('pending', combineQueryParts(filterPart('planned_qty', 'gt', 0), filterPart('plan_status', 'eq', '待生成工单'))),
+        countStat('overdue', combineQueryParts(filterPart('earliest_delivery_date', 'lt', today()), filterPart('planned_qty', 'gt', 0), filterPart('plan_status', 'neq', '成品库存满足'))),
+        sumStat('plannedQty', 'planned_qty'),
+        sumStat('openWorkOrders', 'open_work_order_count')
+      ]
+    }
+  }
+  if (app.key === 'work_orders') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('active', filterPart('work_order_status', 'not.in', ['已完工', '已取消'])),
+        countStat('urgent', combineQueryParts(filterPart('priority', 'eq', '紧急'), filterPart('work_order_status', 'not.in', ['已完工', '已取消']))),
+        countStat('shortage', combineQueryParts(filterPart('shortage_item_count', 'gt', 0), filterPart('work_order_status', 'not.in', ['已完工', '已取消']))),
+        countStat('due', combineQueryParts(filterPart('planned_finish_date', 'gte', today()), filterPart('planned_finish_date', 'lte', offsetDate(2)), filterPart('work_order_status', 'not.in', ['已完工', '已取消']))),
+        countStat('overdue', combineQueryParts(filterPart('planned_finish_date', 'lt', today()), filterPart('work_order_status', 'not.in', ['已完工', '已取消']))),
+        sumStat('plannedQty', 'planned_qty')
+      ]
+    }
+  }
+  if (app.key === 'work_order_items') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('shortage', filterPart('shortage_qty', 'gt', 0)),
+        countStat('unissued', filterPart('issue_status', 'eq', '未领料')),
+        countStat('partial', filterPart('issue_status', 'eq', '部分领料')),
+        sumStat('requiredQty', 'required_qty'),
+        sumStat('shortageQty', 'shortage_qty')
+      ]
+    }
+  }
+  return { stats: [countStat('total')] }
+}
 
 const loadCardData = async () => {
   if (cardLoading.value) return
   cardLoading.value = true
   try {
     const apps = PRODUCTION_APPS.filter((app) => app.apiUrl)
-    const results = await Promise.allSettled(apps.map((app) => request({
-      url: appendQuery(app.apiUrl, { limit: 200 }),
-      method: 'get',
-      headers: { 'Accept-Profile': 'scm' },
-      silentError: true,
-      suppressErrorMessage: true
-    })))
+    const [statsResult, results] = await Promise.all([
+      loadAppsCardStats({
+        request,
+        apps,
+        profile: 'scm',
+        getStats: productionCardStatsSpec
+      }).catch(() => ({})),
+      Promise.allSettled(apps.map((app) => request({
+        url: appendQuery(app.apiUrl, { limit: 200 }),
+        method: 'get',
+        headers: { 'Accept-Profile': 'scm' },
+        silentError: true,
+        suppressErrorMessage: true
+      })))
+    ])
     const next = { ...appRows.value }
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && Array.isArray(result.value)) {
@@ -110,6 +187,7 @@ const loadCardData = async () => {
       }
     })
     appRows.value = next
+    serverStats.value = { ...serverStats.value, ...statsResult }
   } finally {
     cardLoading.value = false
   }
@@ -120,30 +198,37 @@ const cardMap = computed(() => {
   const plans = rowsOf('plans')
   const workOrders = rowsOf('work_orders')
   const items = rowsOf('work_order_items')
+  const bomStats = statsOf('bom_list')
+  const planStats = statsOf('plans')
+  const workStats = statsOf('work_orders')
+  const itemStats = statsOf('work_order_items')
 
-  const activeBoms = boms.filter((row) => row.status === '启用').length
-  const draftBoms = boms.filter((row) => row.status === '草稿').length
-  const inactiveBoms = boms.filter((row) => ['停用', '作废'].includes(row.status)).length
-  const pendingPlans = plans.filter((row) => numberValue(row.planned_qty) > 0 && row.plan_status === '待生成工单').length
-  const openPlanWorkOrders = plans.reduce((sum, row) => sum + numberValue(row.open_work_order_count), 0)
-  const overduePlans = plans.filter((row) => {
+  const activeBoms = statNumber(bomStats, 'active', boms.filter((row) => row.status === '启用').length)
+  const draftBoms = statNumber(bomStats, 'draft', boms.filter((row) => row.status === '草稿').length)
+  const inactiveBoms = statNumber(bomStats, 'inactive', boms.filter((row) => ['停用', '作废'].includes(row.status)).length)
+  const pendingPlans = statNumber(planStats, 'pending', plans.filter((row) => numberValue(row.planned_qty) > 0 && row.plan_status === '待生成工单').length)
+  const openPlanWorkOrders = statNumber(planStats, 'openWorkOrders', plans.reduce((sum, row) => sum + numberValue(row.open_work_order_count), 0))
+  const overduePlansFallback = plans.filter((row) => {
     const delta = daysBetween(row.earliest_delivery_date)
     return delta !== null && delta < 0 && numberValue(row.planned_qty) > 0 && row.plan_status !== '成品库存满足'
   }).length
-  const activeWorkOrders = workOrders.filter((row) => !isClosedWorkOrder(row)).length
-  const urgentWorkOrders = workOrders.filter((row) => !isClosedWorkOrder(row) && row.priority === '紧急').length
-  const shortageWorkOrders = workOrders.filter((row) => !isClosedWorkOrder(row) && numberValue(row.shortage_item_count) > 0).length
-  const dueWorkOrders = workOrders.filter((row) => {
+  const overduePlans = statNumber(planStats, 'overdue', overduePlansFallback)
+  const activeWorkOrders = statNumber(workStats, 'active', workOrders.filter((row) => !isClosedWorkOrder(row)).length)
+  const urgentWorkOrders = statNumber(workStats, 'urgent', workOrders.filter((row) => !isClosedWorkOrder(row) && row.priority === '紧急').length)
+  const shortageWorkOrders = statNumber(workStats, 'shortage', workOrders.filter((row) => !isClosedWorkOrder(row) && numberValue(row.shortage_item_count) > 0).length)
+  const dueWorkOrdersFallback = workOrders.filter((row) => {
     const delta = daysBetween(row.planned_finish_date)
     return delta !== null && delta >= 0 && delta <= 2 && !isClosedWorkOrder(row)
   }).length
-  const overdueWorkOrders = workOrders.filter((row) => {
+  const overdueWorkOrdersFallback = workOrders.filter((row) => {
     const delta = daysBetween(row.planned_finish_date)
     return delta !== null && delta < 0 && !isClosedWorkOrder(row)
   }).length
-  const shortageItems = items.filter((row) => numberValue(row.shortage_qty) > 0).length
-  const unissuedItems = items.filter((row) => row.issue_status === '未领料').length
-  const partialItems = items.filter((row) => row.issue_status === '部分领料').length
+  const dueWorkOrders = statNumber(workStats, 'due', dueWorkOrdersFallback)
+  const overdueWorkOrders = statNumber(workStats, 'overdue', overdueWorkOrdersFallback)
+  const shortageItems = statNumber(itemStats, 'shortage', items.filter((row) => numberValue(row.shortage_qty) > 0).length)
+  const unissuedItems = statNumber(itemStats, 'unissued', items.filter((row) => row.issue_status === '未领料').length)
+  const partialItems = statNumber(itemStats, 'partial', items.filter((row) => row.issue_status === '部分领料').length)
 
   const bomCard = cardFromScore({
     score: activeBoms ? (draftBoms > 0 ? 40 : 28) : 62,
@@ -190,6 +275,7 @@ const cardMap = computed(() => {
 })
 
 const visibleApps = computed(() => PRODUCTION_APPS
+  .filter((app) => isAppVisible(displayVisibility.value, 'production', app.key))
   .filter((app) => app.key !== 'overview' && (!app.perm || hasPerm(app.perm)))
   .map((app) => ({
     ...app,
@@ -226,6 +312,7 @@ onMounted(() => {
 
 <style scoped>
 .production-apps {
+  position: relative;
   min-height: 100vh;
   box-sizing: border-box;
   padding: 20px;
@@ -260,6 +347,7 @@ onMounted(() => {
 }
 
 .app-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -282,7 +370,7 @@ onMounted(() => {
 
 .app-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.15);
 }
 
 .app-card-body {
@@ -303,7 +391,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.tone-blue { background: #409eff; }
+.tone-blue { background: var(--el-color-primary); }
 .tone-green { background: #67c23a; }
 .tone-orange { background: #e6a23c; }
 .tone-dark { background: #111827; }
@@ -431,7 +519,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 
 .app-enter span:first-child {

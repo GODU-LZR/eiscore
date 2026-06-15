@@ -3,6 +3,7 @@
 
 const DEFAULT_PORT = 8078
 const DEFAULT_PATH = '/ws'
+const PROXY_WS_PATH = '/agent/ws'
 
 let client = null
 
@@ -27,6 +28,10 @@ const createClient = () => {
   const buildUrl = () => {
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
     const host = window.location.hostname || 'localhost'
+    const port = window.location.port ? `:${window.location.port}` : ''
+    if (window.location.protocol === 'https:' || window.location.hostname !== 'localhost') {
+      return `${proto}://${host}${port}${PROXY_WS_PATH}`
+    }
     return `${proto}://${host}:${DEFAULT_PORT}${DEFAULT_PATH}`
   }
 

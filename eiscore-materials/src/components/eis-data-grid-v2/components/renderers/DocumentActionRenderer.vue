@@ -6,6 +6,11 @@
       type="primary" 
       size="small" 
       class="action-btn"
+      data-sop-action="open-row-form"
+      data-sop-title="打开表单"
+      data-sop-desc="查看或维护当前行的完整业务表单。"
+      data-sop-steps="先确认当前行是要处理的记录|点击表单打开详情|按表单字段从上到下复核并补齐信息|保存前检查状态、数量、日期、负责人和附件"
+      data-sop-risk="表单保存后会影响当前记录，保存前要确认不是误选行。"
       @click.stop="onViewForm"
     >
       <el-icon :size="14" style="margin-right: 4px; vertical-align: middle;"><Document /></el-icon>

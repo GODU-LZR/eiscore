@@ -73,7 +73,8 @@ BEGIN
     output_data,
     error_message,
     executed_by,
-    executed_at
+    executed_at,
+    operation_location
   )
   VALUES (
     app_id,
@@ -83,7 +84,20 @@ BEGIN
     COALESCE(output_data, '{}'::jsonb),
     error_message,
     actor_username,
-    now()
+    now(),
+    jsonb_build_object(
+      'address',
+      concat_ws(
+        ' / ',
+        '模块:应用中心',
+        CASE WHEN app_id IS NULL THEN NULL ELSE '应用ID:' || app_id::text END,
+        '操作:' || LEFT(COALESCE(task_id, 'semantic_auto_enrich'), 100)
+      ),
+      'module', '应用中心',
+      'app_id', COALESCE(app_id::text, ''),
+      'action', LEFT(COALESCE(task_id, 'semantic_auto_enrich'), 100),
+      'source', 'semantic_event'
+    )
   );
 EXCEPTION WHEN OTHERS THEN
   -- audit must not block main business path

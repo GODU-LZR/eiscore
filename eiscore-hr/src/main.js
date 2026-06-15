@@ -16,6 +16,7 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 // 引入图标 (如果用到了 Icon)
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { patchElMessage } from '@/utils/message-patch'
+import { installEisThemeSync } from '@shared/eis-theme-sync'
 // BPMN 样式与字体（用于部门架构图）
 import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-js.css'
@@ -27,7 +28,7 @@ const MICRO_APP_NAME = 'eiscore-hr'
 const DEV_STANDALONE_PORT = '8082'
 
 let app
-let themeObserver = null
+let themeDispose = null
 
 function isRunningInQiankun() {
   if (typeof window === 'undefined') return false
@@ -85,9 +86,9 @@ function stripVueHmrMarkers(vnode, seen = new Set()) {
 }
 
 function unmountApp() {
-  if (themeObserver) {
-    themeObserver.disconnect()
-    themeObserver = null
+  if (themeDispose) {
+    themeDispose()
+    themeDispose = null
   }
   if (!app) return
   stripVueHmrMarkers(app._instance?.subTree)
@@ -135,14 +136,7 @@ function render(props = {}) {
 
   const target = resolveMountTarget(container)
   if (!target) return
-  if (target) {
-    const syncTheme = () => {
-      target.classList.toggle('dark', document.documentElement.classList.contains('dark'))
-    }
-    syncTheme()
-    themeObserver = new MutationObserver(syncTheme)
-    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
-  }
+  themeDispose = installEisThemeSync(target, { container })
   app.mount(target)
 }
 

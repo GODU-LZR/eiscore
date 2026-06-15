@@ -563,6 +563,8 @@ const dayColumns = computed(() => [
   {
     label: '打卡记录',
     prop: 'punch_times',
+    type: 'array',
+    searchable: false,
     minWidth: 220,
     formatter: formatPunchTimes,
     valueParser: punchTimesValueParser,
@@ -583,9 +585,11 @@ const dayColumns = computed(() => [
   },
   {
     label: '打卡次数',
-    prop: 'punch_times',
+    prop: 'punch_count',
     width: 90,
     editable: false,
+    searchable: false,
+    skipSave: true,
     valueGetter: (p) => normalizePunchTimes(p.data?.punch_times).length
   },
   { label: '迟到', prop: 'late_flag', width: 80, type: 'select', options: yesNoOptions, allowClear: false },

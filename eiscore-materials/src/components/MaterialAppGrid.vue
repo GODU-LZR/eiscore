@@ -8,7 +8,7 @@
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="app.apiUrl || '/raw_materials'"
+        :api-url="gridApiUrl"
         :write-url="app.writeUrl || ''"
         :include-properties="app.includeProperties !== false"
         :write-mode="app.writeMode || 'upsert'"
@@ -31,6 +31,12 @@
         :can-export="canExport"
         :can-config="canConfig"
         :show-status-col="app.showStatusCol !== false"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
@@ -40,15 +46,25 @@
         @cell-value-changed="handleMaterialCellValueChanged"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" class="attention-filter">
-            <el-radio-button
-              v-for="option in attentionFilterOptions"
-              :key="option.value"
-              :label="option.value"
-            >
-              {{ option.label }}
-            </el-radio-button>
-          </el-radio-group>
+          <slot name="toolbar"></slot>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            v-model:attention-filter="attentionFilter"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :attention-options="attentionFilterOptions"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
         </template>
       </eis-data-grid>
 
@@ -264,6 +280,8 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import { findMaterialApp, BASE_STATIC_COLUMNS } from '@/utils/material-apps'
 import { useUserStore } from '@/stores/user'
 import { getRealtimeClient } from '@/utils/realtime'
@@ -338,13 +356,38 @@ const resolveAttention = (row) => getMaterialRecordAttention(app.value?.key, row
   task: 'monitor'
 })
 const rowAttentionFilter = (row) => matchesMaterialAttentionFilter(app.value?.key, row, attentionFilter.value)
-const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
 
 const staticHidden = ref([])
 const staticColumnsAll = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
 const staticColumns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
 )
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app,
+  staticColumns: staticColumnsAll,
+  moduleName: 'materials',
+  fallbackApiUrl: '/raw_materials',
+  attentionFilter,
+  attentionFilterOptions
+})
+const summaryScope = computed(() => attentionFilter.value === 'all' && gridTimeMode.value === 'infinite' ? 'server' : 'loaded')
 const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
 
 const extraColumns = ref([])
@@ -1193,7 +1236,7 @@ const handleImportDone = (event) => {
   }
 }
 
-watch(attentionFilter, () => {
+watch([attentionFilter, gridApiUrl], () => {
   gridRef.value?.loadData?.()
 })
 

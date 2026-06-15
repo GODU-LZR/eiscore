@@ -18,7 +18,7 @@
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="app.apiUrl"
+        :api-url="gridApiUrl"
         :write-url="app.writeUrl || ''"
         :include-properties="app.includeProperties !== false"
         :write-mode="app.writeMode || 'patch'"
@@ -43,6 +43,12 @@
         :can-delete="canDeleteRows"
         :can-export="canExport"
         :can-config="canConfig"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
@@ -53,17 +59,31 @@
         @selection-changed="handleSelectionChanged"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" class="attention-filter">
-            <el-radio-button
-              v-for="option in attentionFilterOptions"
-              :key="option.value"
-              :label="option.value"
-            >
-              {{ option.label }}
-            </el-radio-button>
-          </el-radio-group>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            v-model:attention-filter="attentionFilter"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :attention-options="attentionFilterOptions"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
           <el-button
             v-if="app.key === 'bom_list'"
+            data-sop-action="production-open-bom-workbench"
+            data-sop-title="打开配方工作台"
+            data-sop-desc="进入配方工作台维护产品 BOM、用量和工艺相关资料。"
+            data-sop-steps="先确认当前应用是产品配方|点击打开配方工作台|选择产品或配方版本|维护物料用量、单位、损耗和备注|保存后回到生产建议或工单复核用料"
+            data-sop-risk="配方错误会影响领料、成本和生产数量，保存前必须复核版本和物料编码。"
             type="primary"
             plain
             icon="Connection"
@@ -73,6 +93,11 @@
           </el-button>
           <el-button
             v-if="app.key === 'plans' && canGenerateWorkOrder"
+            data-sop-action="production-generate-work-orders"
+            data-sop-title="生产建议生成生产工单"
+            data-sop-desc="把生产建议批量生成或更新生产工单。"
+            data-sop-steps="先筛选待生成工单或紧急生产建议|复核产品、计划数量、交付日期、BOM 和优先级|点击生成/更新生产工单|生成后进入生产工单应用搜索并复核工单状态"
+            data-sop-risk="工单会驱动领料、生产检验和入库。数量、BOM 或交期错误会影响后续全流程。"
             type="success"
             plain
             icon="Plus"
@@ -83,6 +108,11 @@
           </el-button>
           <el-button
             v-if="app.key === 'work_orders' && canEditRows"
+            data-sop-action="production-edit-work-order"
+            data-sop-title="处理生产工单"
+            data-sop-desc="打开生产工单处理抽屉，维护状态、优先级、计划数量和排产日期。"
+            data-sop-steps="先只选中一张生产工单|复核工单号、产品、计划数量、优先级和交期|点击处理工单打开抽屉|维护工单状态、计划日期和备注|保存后检查关注等级是否下降"
+            data-sop-risk="工单状态会影响生产执行、领料、检验和入库，不要批量误改。"
             type="primary"
             plain
             icon="Edit"
@@ -93,6 +123,11 @@
           </el-button>
           <el-button
             v-if="app.key === 'work_orders' && canEditRows"
+            data-sop-action="production-push-work-order"
+            data-sop-title="生产工单业务下推"
+            data-sop-desc="把生产工单下推到生产检验或生产入库等后续环节。"
+            data-sop-steps="先勾选需要下推的生产工单|复核工单状态、计划数量、完工数量和质量要求|点击业务下推打开确认窗|选择下一环节并确认|跳转后复核生成单据"
+            data-sop-risk="业务下推会生成后续单据。未生产、未检验或数量不正确的工单不要直接下推。"
             type="success"
             plain
             icon="Position"
@@ -104,6 +139,11 @@
           </el-button>
           <el-button
             v-if="app.key === 'work_order_items' && canEditRows"
+            data-sop-action="production-register-issue"
+            data-sop-title="登记领料"
+            data-sop-desc="打开领料登记抽屉，记录工单用料实际领用数量。"
+            data-sop-steps="先只选中一条工单用料明细|复核物料编码、需求数量、已领数量和库存情况|点击登记领料打开抽屉|填写本次领料数量和备注|保存后复核缺料数量和领料状态"
+            data-sop-risk="领料数量会影响库存和生产成本。批次、数量或物料错误会造成账实不符。"
             type="primary"
             plain
             icon="EditPen"
@@ -114,6 +154,11 @@
           </el-button>
           <el-button
             v-if="app.key === 'work_order_items' && canEditRows"
+            data-sop-action="production-push-issue-outbound"
+            data-sop-title="领料明细下推出库"
+            data-sop-desc="把已确认的工单用料明细下推到仓储出库。"
+            data-sop-steps="先勾选需要出库的工单用料明细|复核物料、需求数量、已领数量、缺料数量、仓库和批次|点击下推领料出库打开确认窗|确认后跳转仓储出库复核出库单"
+            data-sop-risk="出库会影响库存账。缺料、批次不清或数量未确认时不要直接下推。"
             type="warning"
             plain
             icon="Position"
@@ -328,13 +373,13 @@
         append-to-body
         destroy-on-close
       >
-        <div v-if="activeWorkOrder" class="business-drawer">
+        <div v-if="activeWorkOrder" class="business-drawer" data-guide="form-wrapper">
           <div class="drawer-summary">
             <span>当前工单</span>
             <strong>{{ activeWorkOrder.work_order_no }}</strong>
             <em>{{ activeWorkOrder.product_material_name || activeWorkOrder.product_material_code }}</em>
           </div>
-          <el-form :model="workOrderDrawer.form" label-width="96px" class="business-form">
+          <el-form :model="workOrderDrawer.form" label-width="96px" class="business-form" data-guide="form-fields">
             <el-form-item label="工单状态">
               <el-select v-model="workOrderDrawer.form.work_order_status" style="width: 100%">
                 <el-option v-for="item in workOrderStatusOptions" :key="item.value" :label="item.label" :value="item.value" />
@@ -363,10 +408,12 @@
           </el-form>
         </div>
         <template #footer>
+          <div data-guide="form-actions">
           <el-button @click="workOrderDrawer.visible = false">取消</el-button>
           <el-button type="primary" :loading="workOrderDrawer.saving" @click="saveWorkOrder">
             保存工单
           </el-button>
+          </div>
         </template>
       </el-drawer>
 
@@ -377,13 +424,13 @@
         append-to-body
         destroy-on-close
       >
-        <div v-if="activeIssueRow" class="business-drawer">
+        <div v-if="activeIssueRow" class="business-drawer" data-guide="form-wrapper">
           <div class="drawer-summary">
             <span>当前用料</span>
             <strong>{{ activeIssueRow.component_material_name || activeIssueRow.component_material_code }}</strong>
             <em>{{ activeIssueRow.work_order_no }} · 需求 {{ formatQty(activeIssueRow.required_qty) }} {{ activeIssueRow.unit }}</em>
           </div>
-          <el-form :model="issueDrawer.form" label-width="96px" class="business-form">
+          <el-form :model="issueDrawer.form" label-width="96px" class="business-form" data-guide="form-fields">
             <el-form-item label="需求数量">
               <el-input :model-value="`${formatQty(activeIssueRow.required_qty)} ${activeIssueRow.unit || ''}`" disabled />
             </el-form-item>
@@ -404,10 +451,12 @@
           </el-form>
         </div>
         <template #footer>
+          <div data-guide="form-actions">
           <el-button @click="issueDrawer.visible = false">取消</el-button>
           <el-button type="primary" :loading="issueDrawer.saving" @click="saveIssue">
             保存领料
           </el-button>
+          </div>
         </template>
       </el-drawer>
 
@@ -419,8 +468,17 @@
         destroy-on-close
         @closed="resetFlowDialog"
       >
-        <div class="business-flow-dialog" v-loading="flowLoading">
-          <div class="flow-push-header">
+        <div
+          class="business-flow-dialog"
+          data-guide="flow-wrapper"
+          data-sop-flow="production-flow-push"
+          data-sop-title="生产业务下推流程"
+          data-sop-desc="按生产工单、质量检验、生产入库、领料出库的链路完成生产单据流转。"
+          data-sop-steps="先勾选可流转的生产工单或领料明细|确认下一环节和已选数量|检查单据链路是否已有下游记录|阅读库存和质检限制|点击确认下推并跳转|到下游应用搜索单号复核状态"
+          data-sop-risk="生产下推会影响质量检验、库存出入库和生产闭环。未生产、未检验、数量不清或批次不清时不要直接下推。"
+          v-loading="flowLoading"
+        >
+          <div class="flow-push-header" data-guide="flow-selection">
             <div>
               <span>{{ flowSelectedLabel }}</span>
               <strong>{{ flowSelectedRows.length }}</strong>
@@ -436,7 +494,7 @@
             </el-radio-group>
           </div>
 
-          <div class="flow-chain">
+          <div class="flow-chain" data-guide="flow-chain">
             <div
               v-for="node in productionFlowNodes"
               :key="node.key"
@@ -451,14 +509,25 @@
 
           <el-alert
             class="flow-tip"
+            data-guide="flow-risk"
             title="生产检验会创建质量检验单；生产领料和生产入库先生成跨模块链路，实际库存过账仍需在仓储单据补充仓库、库位和批次后执行。"
             type="info"
             show-icon
             :closable="false"
           />
 
-          <div class="flow-actions">
-            <el-button type="success" :loading="flowActionLoading" @click="confirmProductionPush">
+          <div class="flow-actions" data-guide="flow-actions">
+            <el-button
+              data-guide="flow-confirm"
+              data-sop-action="production-confirm-flow-push"
+              data-sop-title="确认生产下推并跳转"
+              data-sop-desc="确认当前生产单据链路，并生成质量检验、生产入库或领料出库链路。"
+              data-sop-steps="复核已选工单或用料明细数量|确认下一环节是否正确|查看链路中是否已有下游单据|点击确认下推并跳转|跳转后搜索新单据并复核状态"
+              data-sop-risk="确认后会生成或关联下游单据，错误下推会影响质量检验、库存出入库和生产闭环。"
+              type="success"
+              :loading="flowActionLoading"
+              @click="confirmProductionPush"
+            >
               确认下推并跳转
             </el-button>
           </div>
@@ -497,6 +566,8 @@ import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { pushAiCommand, pushAiContext } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import {
   findProductionApp,
   ISSUE_STATUS_OPTIONS,
@@ -690,6 +761,31 @@ const attentionFilterOptions = computed(() => [
   { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus}` },
   { value: 'todo', label: `待处理 ${attentionTodoCount.value}` }
 ])
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app,
+  staticColumns: staticColumnsAll,
+  moduleName: 'production',
+  fallbackApiUrl: '/v_production_work_orders',
+  attentionFilter,
+  attentionFilterOptions
+})
 const resolveAttention = (row) => getProductionRecordAttention(app.value?.key, row, {
   role: 'production_supervisor',
   page: app.value?.key,
@@ -697,7 +793,7 @@ const resolveAttention = (row) => getProductionRecordAttention(app.value?.key, r
   task: 'monitor'
 })
 const rowAttentionFilter = (row) => matchesProductionAttentionFilter(app.value?.key, row, attentionFilter.value)
-const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
+const summaryScope = computed(() => attentionFilter.value === 'all' && gridTimeMode.value === 'infinite' ? 'server' : 'loaded')
 const resolveRowActions = (row) => {
   if (!row) return []
   if (app.value?.key === 'work_orders') {
@@ -708,7 +804,17 @@ const resolveRowActions = (row) => {
         label: '处理',
         type: 'primary',
         icon: 'Edit',
-        title: '处理生产工单'
+        title: '处理生产工单',
+        sopAction: 'production-row-edit-work-order',
+        sopTitle: '单行处理生产工单',
+        sopDesc: '打开当前生产工单的处理抽屉。',
+        sopSteps: [
+          '确认当前行是要处理的生产工单。',
+          '点击“处理”打开工单处理抽屉。',
+          '复核工单状态、优先级、计划数量、开始日期和完成日期。',
+          '保存后检查表格关注等级、工单状态和计划日期是否正确。'
+        ],
+        sopRisk: '工单状态会影响领料、生产检验和入库，不要误改其他工单。'
       })
     }
     if (canPushWorkOrder.value) {
@@ -717,7 +823,17 @@ const resolveRowActions = (row) => {
         label: '下推',
         type: 'success',
         icon: 'Position',
-        title: '下推生产检验或生产入库'
+        title: '下推生产检验或生产入库',
+        sopAction: 'production-row-push-work-order',
+        sopTitle: '单行生产工单下推',
+        sopDesc: '把当前生产工单下推到生产检验或生产入库。',
+        sopSteps: [
+          '确认当前行是要流转的生产工单。',
+          '复核工单状态、数量、完工情况和质量要求。',
+          '点击“下推”打开业务流转确认窗。',
+          '选择下一环节并确认，跳转后复核生成单据。'
+        ],
+        sopRisk: '未生产、未检验或数量错误的工单不能直接下推。'
       })
     }
     return actions
@@ -730,7 +846,17 @@ const resolveRowActions = (row) => {
         label: '领料',
         type: 'primary',
         icon: 'Edit',
-        title: '登记生产领料'
+        title: '登记生产领料',
+        sopAction: 'production-row-register-issue',
+        sopTitle: '单行登记领料',
+        sopDesc: '登记当前工单用料明细的实际领料情况。',
+        sopSteps: [
+          '确认当前行是要领料的物料明细。',
+          '复核物料编码、需求数量、已领数量和库存情况。',
+          '点击“领料”打开登记抽屉。',
+          '填写本次领料数量和备注，保存后复核缺料数量。'
+        ],
+        sopRisk: '领料数量会影响库存和成本，不能登记到错误物料或错误工单。'
       })
     }
     if (canPushIssue.value) {
@@ -739,7 +865,17 @@ const resolveRowActions = (row) => {
         label: '下推',
         type: 'warning',
         icon: 'Position',
-        title: '下推生产领料出库'
+        title: '下推生产领料出库',
+        sopAction: 'production-row-push-issue-outbound',
+        sopTitle: '单行领料下推出库',
+        sopDesc: '把当前工单用料明细下推到仓储出库。',
+        sopSteps: [
+          '确认当前行是要出库的领料明细。',
+          '复核物料、需求数量、已领数量、仓库和批次。',
+          '点击“下推”打开业务流转确认窗。',
+          '确认后跳转仓储出库，复核出库单和库存影响。'
+        ],
+        sopRisk: '出库会影响库存账，缺料或批次不清时不要直接下推。'
       })
     }
     return actions
@@ -2031,7 +2167,7 @@ onMounted(() => {
   window.addEventListener('eis-ai-apply-formula', handleApplyFormula)
 })
 
-watch(attentionFilter, () => {
+watch([attentionFilter, gridApiUrl], () => {
   gridRef.value?.loadData?.()
 })
 

@@ -1,17 +1,18 @@
 <template>
-  <div class="detail-page">
-    <div class="page-header">
-      <el-button :icon="ArrowLeft" @click="goBack">返回列表</el-button>
+  <div class="detail-page" data-guide="detail-page">
+    <div class="page-header" data-guide="detail-header">
+      <el-button :icon="ArrowLeft" data-guide="detail-back" @click="goBack">返回列表</el-button>
       <div class="header-title">
         <h2>{{ pageTitle }}</h2>
         <el-tag size="small" :type="statusTagType">{{ statusText }}</el-tag>
       </div>
-      <div class="header-actions">
+      <div class="header-actions" data-guide="detail-actions">
         <el-select
           v-model="selectedTemplateId"
           size="small"
           placeholder="选择模板"
           style="width: 220px;"
+          data-guide="template-select"
         >
           <el-option
             v-for="tpl in templates"
@@ -20,11 +21,49 @@
             :value="tpl.id"
           />
         </el-select>
-        <el-button @click="openTemplateManager">模板库</el-button>
-        <el-button @click="reload" :loading="loading">刷新</el-button>
-        <el-button type="primary" @click="saveDraft" :loading="saving" :disabled="!draft">保存</el-button>
+        <el-button
+          data-sop-action="detail-template-library"
+          data-sop-title="维护库存单据模板库"
+          data-sop-desc="管理入库、出库草稿单据模板，可新增、预览、改名或删除模板。"
+          data-sop-steps="先确认当前是入库还是出库草稿|打开模板库|预览或选择模板|只删除确认废弃的模板|回到单据页重新选择模板并复核显示效果"
+          @click="openTemplateManager"
+        >模板库</el-button>
+        <el-button
+          type="primary"
+          plain
+          data-sop-action="detail-ai-form"
+          data-sop-title="AI生成表单"
+          data-sop-desc="用 AI 辅助生成库存草稿表单模板或字段建议，生成后必须人工复核。"
+          data-sop-steps="先确认当前是入库还是出库草稿|点击 AI生成表单|检查字段是否符合物料、仓库、批次、数量和追溯要求|删除不需要的字段并补齐关键项|保存前由仓储负责人复核"
+          data-sop-risk="AI 只能辅助生成模板，不能代替库存数量、批次号和仓库位置复核。"
+          @click="openAiFormAssistant"
+        >AI生成表单</el-button>
+        <el-button
+          data-sop-action="inventory-draft-reload"
+          data-sop-title="刷新库存草稿"
+          data-sop-desc="重新加载当前库存草稿及相关物料、仓库、批次数据。"
+          data-sop-steps="先确认当前没有未保存修改|点击刷新|等待加载完成|复核物料、仓库、批次和数量是否更新"
+          @click="reload"
+          :loading="loading"
+        >刷新</el-button>
+        <el-button
+          type="primary"
+          data-sop-action="inventory-draft-save"
+          data-sop-title="保存库存草稿"
+          data-sop-desc="保存当前入库或出库草稿，但不立即影响正式库存。"
+          data-sop-steps="先复核物料、仓库、批次、数量、单位和备注|检查必填项和风险提示|点击保存|保存后确认状态仍为草稿或待生效"
+          data-sop-risk="保存草稿不等于库存生效，后续仍需要点击生效完成正式库存变更。"
+          @click="saveDraft"
+          :loading="saving"
+          :disabled="!draft"
+        >保存</el-button>
         <el-button
           type="success"
+          data-sop-action="inventory-draft-activate"
+          data-sop-title="库存草稿生效"
+          data-sop-desc="让当前入库或出库草稿正式影响库存数量和批次。"
+          data-sop-steps="先确认物料、仓库、批次、数量、单位和操作人|入库要确认批次号，出库要确认可用批次和可用数量|点击生效|回到库存台账或库存查询复核库存变化"
+          data-sop-risk="生效会正式改变库存数量。数量、批次或仓库错误会影响后续采购、生产、销售和盘点。"
           @click="activateDraft"
           :loading="activating"
           :disabled="!canActivate"
@@ -34,7 +73,7 @@
       </div>
     </div>
 
-    <div class="form-container" v-loading="loading">
+    <div class="form-container" v-loading="loading" data-guide="form-wrapper">
       <el-empty v-if="!draft" description="暂无数据" />
 
       <template v-else>
@@ -64,14 +103,24 @@
           </el-form>
         </div>
 
-        <div v-if="isEditable && draftType === 'in'" class="batch-generate-bar">
-          <el-button type="primary" plain @click="generateBatchNo" :disabled="!form.rule_id || !form.material_id">
+        <div v-if="isEditable && draftType === 'in'" class="batch-generate-bar" data-guide="detail-business-actions">
+          <el-button
+            type="primary"
+            plain
+            data-sop-action="inventory-draft-generate-batch"
+            data-sop-title="生成入库批次号"
+            data-sop-desc="按物料和批次号规则生成当前入库草稿的批次号。"
+            data-sop-steps="先选择正确物料|选择适用的批次号规则|点击生成批次号|复核批次号格式和生产日期|保存并生效前再次确认"
+            data-sop-risk="批次号用于库存追溯，生成前必须确认物料和规则正确。"
+            @click="generateBatchNo"
+            :disabled="!form.rule_id || !form.material_id"
+          >
             生成批次号
           </el-button>
           <span class="batch-generate-tip">需要先选择物料与批次号规则</span>
         </div>
 
-        <div class="doc-engine-wrap">
+        <div class="doc-engine-wrap" data-guide="form-fields">
           <EisDocumentEngine
             v-if="activeSchema"
             :model-value="formModel"
@@ -148,6 +197,12 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 import { useUserStore } from '@/stores/user'
+import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
+import {
+  applyDocumentFormulaUpdates,
+  buildDocumentAgentContext,
+  buildDocumentFormPrompt
+} from '@shared/eis-document-agent-context'
 
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
 
@@ -385,6 +440,58 @@ const allColumns = computed(() => {
   ]
 })
 
+const applyFormulaUpdates = () => {
+  const rowData = {
+    ...form,
+    properties: { ...(extraValues.value || {}) }
+  }
+  applyDocumentFormulaUpdates({
+    rowData,
+    staticColumns: [],
+    dynamicColumns: allColumns.value
+  })
+  Object.keys(form).forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(rowData, key)) form[key] = rowData[key]
+  })
+  extraValues.value = rowData.properties || extraValues.value || {}
+}
+
+const syncAiContext = () => {
+  pushAiContext(buildDocumentAgentContext({
+    app: 'materials',
+    view: templateScope.value.key,
+    viewName: pageTitle.value || '库存单据',
+    apiUrl: '/inventory_drafts',
+    writeUrl: '/inventory_drafts',
+    rowId: draft.value?.id || props.id,
+    rowData: formModel.value,
+    columns: allColumns.value,
+    staticColumns: allColumns.value,
+    dynamicColumns: [],
+    templateScope: templateScope.value,
+    templateLibraryKey: 'form_templates',
+    aiScene: 'form',
+    allowImport: false
+  }))
+}
+
+const openAiFormAssistant = () => {
+  if (!draft.value) {
+    ElMessage.warning('请先加载库存单据')
+    return
+  }
+  syncAiContext()
+  pushAiCommand({
+    id: `inventory_draft_form_${Date.now()}`,
+    type: 'open-worker',
+    prompt: buildDocumentFormPrompt({
+      title: pageTitle.value || '库存单据',
+      columns: allColumns.value,
+      rowData: formModel.value
+    })
+  })
+}
+
 const canActivate = computed(() => {
   if (!draft.value) return false
   if (!isEditable.value) return false
@@ -483,6 +590,7 @@ const handleFormUpdate = (nextValue) => {
     if (key in nextValue) form[key] = nextValue[key]
   })
   extraValues.value = nextValue.properties || {}
+  applyFormulaUpdates()
 }
 
 const loadMaterials = async () => {
@@ -1099,6 +1207,10 @@ watch(() => form.warehouse_id, () => {
 watch([selectedTemplateId, () => draft.value?.id], () => {
   loadFormValues()
 })
+
+watch([() => formModel.value, () => allColumns.value], () => {
+  syncAiContext()
+}, { deep: true })
 </script>
 
 <style scoped>

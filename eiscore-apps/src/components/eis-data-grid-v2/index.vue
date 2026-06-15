@@ -11,6 +11,7 @@
       :can-export="canExport"
       :can-recalculate-formulas="canConfig && canRecalculateFormulas"
       :formula-recalculating="formulaRecalculateState.loading"
+      :calculation-state="calculationState"
       @search="loadData"
       @create="$emit('create')"
       @config-columns="$emit('config-columns')"
@@ -30,11 +31,13 @@
         :rowData="gridData"
         :pinnedBottomRowData="pinnedBottomRowData"
         :defaultColDef="defaultColDef"
+        :columnTypes="columnTypes"
         :localeText="AG_GRID_LOCALE_CN"
         :theme="'legacy'" 
         :rowSelection="rowSelectionConfig"
         :animateRows="true"
         :getRowId="getRowId"
+        :getRowHeight="getRowHeight"
         
         :context="context" 
         :components="gridComponents"
@@ -56,6 +59,7 @@
         @cell-key-down="onCellKeyDown"
         @selection-changed="onSelectionChanged"
         @column-header-clicked="onColumnHeaderClicked"
+        @column-resized="handleColumnResized"
         @row-selected="onRowSelected"
         
         @cell-mouse-down="onCellMouseDown"
@@ -111,8 +115,73 @@ import ConfigDialog from './components/ConfigDialog.vue'
 import GeoDialog from './components/GeoDialog.vue'
 import FileDialog from './components/FileDialog.vue'
 
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
-ModuleRegistry.registerModules([ AllCommunityModule ])
+import {
+  CellApiModule,
+  CellStyleModule,
+  CheckboxEditorModule,
+  CustomEditorModule,
+  ClientSideRowModelApiModule,
+  ClientSideRowModelModule,
+  ColumnApiModule,
+  ColumnAutoSizeModule,
+  CsvExportModule,
+  DateEditorModule,
+  DateFilterModule,
+  EventApiModule,
+  GridStateModule,
+  HighlightChangesModule,
+  LargeTextEditorModule,
+  LocaleModule,
+  ModuleRegistry,
+  NumberEditorModule,
+  NumberFilterModule,
+  PinnedRowModule,
+  QuickFilterModule,
+  RenderApiModule,
+  RowApiModule,
+  RowAutoHeightModule,
+  RowSelectionModule,
+  RowStyleModule,
+  ScrollApiModule,
+  SelectEditorModule,
+  TextEditorModule,
+  TextFilterModule,
+  TooltipModule,
+  ValueCacheModule
+} from 'ag-grid-community'
+ModuleRegistry.registerModules([
+  CellApiModule,
+  CellStyleModule,
+  CheckboxEditorModule,
+  CustomEditorModule,
+  ClientSideRowModelApiModule,
+  ClientSideRowModelModule,
+  ColumnApiModule,
+  ColumnAutoSizeModule,
+  CsvExportModule,
+  DateEditorModule,
+  DateFilterModule,
+  EventApiModule,
+  GridStateModule,
+  HighlightChangesModule,
+  LargeTextEditorModule,
+  LocaleModule,
+  NumberEditorModule,
+  NumberFilterModule,
+  PinnedRowModule,
+  QuickFilterModule,
+  RenderApiModule,
+  RowApiModule,
+  RowAutoHeightModule,
+  RowSelectionModule,
+  RowStyleModule,
+  ScrollApiModule,
+  SelectEditorModule,
+  TextEditorModule,
+  TextFilterModule,
+  TooltipModule,
+  ValueCacheModule
+])
 
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
@@ -159,7 +228,12 @@ const props = defineProps({
   enableInfiniteScroll: { type: Boolean, default: true },
   pageSize: { type: Number, default: 200 },
   maxClientRows: { type: Number, default: 5000 },
-  summaryScope: { type: String, default: 'server' }
+  summaryScope: { type: String, default: 'server' },
+  localLayoutKey: { type: String, default: '' },
+  enableRowHeightResize: { type: Boolean, default: false },
+  defaultRowHeight: { type: Number, default: 35 },
+  minRowHeight: { type: Number, default: 32 },
+  maxRowHeight: { type: Number, default: 180 }
 })
 
 // 🟢 声明事件：增加 view-document
@@ -179,7 +253,7 @@ let themeObserver = null
 // 1. Selection
 const selectionHooks = useGridSelection(gridApi, selectedRowsCount, agGridRef)
 const { 
-  rangeSelection, isDragging, onCellMouseDown, onCellMouseOver, onSelectionChanged, 
+  rangeSelection, isDragging, onCellMouseDown: handleSelectionCellMouseDown, onCellMouseOver, onSelectionChanged,
   onGlobalMouseMove, onGlobalMouseUp, getColIndex, isCellInSelection,
   selectColumnRange, selectRowRange
 } = selectionHooks
@@ -191,7 +265,8 @@ const {
   gridData, gridColumns, context, gridComponents, searchText, isLoading,
   isLoadingMore, hasMoreRows, loadData, loadNextPage,
   handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
-  columnLockState, setWorkflowBinding
+  columnLockState, setWorkflowBinding, getRowHeight, handleColumnResized,
+  onGridReadyLayout, stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
 } = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit, workflowBinding) // 🟢 关键修复：共享 gridApi
 
 const openFileDialog = (params) => {
@@ -210,7 +285,7 @@ context.componentParent.onHeaderLabelClick = (params, event) => {
 const formulaDependencyHooks = {} 
 const { 
   pinnedBottomRowData, calculateRowFormulas, calculateTotals, refreshTotals,
-  formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas,
+  formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas, calculationState,
   configDialog, isSavingConfig, availableColumns, 
   openConfigDialog, saveConfig, loadGridConfig 
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState)
@@ -253,19 +328,47 @@ const defaultColDef = {
     return false;
   }
 }
+
+const columnTypes = {
+  text: {},
+  textarea: {},
+  longtext: {},
+  number: {},
+  decimal: {},
+  currency: {},
+  percent: {},
+  date: {},
+  datetime: {},
+  time: {},
+  select: {},
+  status: {},
+  check: {},
+  cascader: {},
+  geo: {},
+  file: {},
+  formula: {}
+}
 const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
+const fallbackRowIds = new WeakMap()
+let fallbackRowSeq = 0
 const getRowId = (params) => {
   const data = params.data || {}
-  if (data.id !== undefined && data.id !== null) return String(data.id)
+  const id = String(data.id ?? '').trim()
+  if (id) return id
   if (data.att_month && (data.employee_id || data.temp_phone || data.temp_name)) {
     const key = data.employee_id || data.temp_phone || data.temp_name
     return `${data.att_month}-${key}`
   }
-  return String(params.rowIndex ?? '')
+  if (data && typeof data === 'object') {
+    if (!fallbackRowIds.has(data)) fallbackRowIds.set(data, `row-${fallbackRowSeq += 1}`)
+    return fallbackRowIds.get(data)
+  }
+  return `row-${fallbackRowSeq += 1}`
 }
 
 const onGridReady = (params) => { 
   gridApi.value = params.api; 
+  onGridReadyLayout()
   loadData();
   loadGridConfig();
 }
@@ -308,6 +411,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  stopRowHeightResize?.()
   if (scrollLoadFrame) {
     window.cancelAnimationFrame(scrollLoadFrame)
     scrollLoadFrame = 0
@@ -319,8 +423,20 @@ onUnmounted(() => {
 })
 
 const onGridMouseLeave = () => {}
+const onCellMouseDown = (params) => {
+  if (isRowHeightEdgeResizeEvent?.(params)) {
+    startRowHeightResize?.(params, params.event)
+    return
+  }
+  handleSelectionCellMouseDown(params)
+}
+
 const onCellDoubleClicked = (params) => {
   if (!params) return
+  if (params.column?.getColId?.() === '_rowHeight' || (params.event?.altKey && !params.node?.rowPinned)) {
+    resetRowHeight?.(params)
+    return
+  }
   if (params.node?.rowPinned === 'bottom') {
     if (!isAdmin) return
     const colId = params.column.colId
@@ -401,6 +517,25 @@ defineExpose({ loadData, loadNextPage, setWorkflowBinding, prependRow, recalcula
 
 <style lang="scss">
 /* 🟢 确保之前的全局样式修复保留 */
+.ag-theme-alpine .row-height-handle-cell {
+  cursor: ns-resize;
+  border-right: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.ag-theme-alpine .row-height-handle-cell.ag-cell-focus {
+  border-color: #e5e7eb;
+}
+
+body.is-resizing-grid-row {
+  cursor: ns-resize !important;
+  user-select: none;
+}
+
+body.is-resizing-grid-row * {
+  cursor: ns-resize !important;
+}
+
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar { width: 16px; height: 16px; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb { background-color: var(--el-color-primary-light-5); border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
 .ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb:hover, .ag-theme-alpine .ag-body-horizontal-scroll-viewport::-webkit-scrollbar-thumb:hover { background-color: var(--el-color-primary); }

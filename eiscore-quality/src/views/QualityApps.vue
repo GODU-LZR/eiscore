@@ -73,17 +73,35 @@ import {
   percentText
 } from '@/utils/quality-attention'
 import { sortByAttention } from '@shared/app-card-attention'
+import {
+  combineQueryParts,
+  countStat,
+  filterPart,
+  loadAppsCardStats,
+  statNumber,
+  sumStat
+} from '@shared/app-card-server-stats'
+import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
+const { visibility: displayVisibility } = useDisplayVisibility()
 const iconMap = { CircleCheck, DataBoard, DocumentChecked, Search, Tickets, Warning }
 
 const appRows = ref(Object.fromEntries(QUALITY_APPS.map((app) => [app.key, app.fallbackRows || []])))
+const serverStats = ref({})
 const cardLoading = ref(false)
 
 const rowsOf = (key) => appRows.value[key] || []
+const statsOf = (key) => serverStats.value[key] || {}
 const sourceKeyOf = (app) => app.sourceAppKey || app.key
 
 const appendLimit = (url, limit = 200) => `${url}${url.includes('?') ? '&' : '?'}limit=${limit}`
+const today = () => new Date().toISOString().slice(0, 10)
+const offsetDate = (days) => {
+  const next = new Date()
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
+}
 
 const ratio = (part, total) => {
   const denominator = numberValue(total)
@@ -91,12 +109,73 @@ const ratio = (part, total) => {
   return Math.max(0, Math.min(100, (numberValue(part) / denominator) * 100))
 }
 
+const qualityCardStatsSpec = (app) => {
+  if (app.key === 'inspections') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('pending', filterPart('result', 'eq', '待判定')),
+        countStat('pass', filterPart('result', 'in', ['合格', '让步接收'])),
+        sumStat('sampleQty', 'sample_qty'),
+        sumStat('defectQty', 'defect_qty')
+      ]
+    }
+  }
+  if (app.key === 'ncr') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('open', filterPart('ncr_status', 'neq', '已关闭')),
+        countStat('severe', combineQueryParts(filterPart('ncr_status', 'neq', '已关闭'), filterPart('severity', 'in', ['关键', '严重']))),
+        countStat('overdue', combineQueryParts(filterPart('ncr_status', 'neq', '已关闭'), filterPart('deadline', 'lt', today())))
+      ]
+    }
+  }
+  if (app.key === 'actions') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('active', filterPart('action_status', 'neq', '已完成')),
+        countStat('overdue', combineQueryParts(filterPart('action_status', 'neq', '已完成'), filterPart('due_date', 'lt', today()))),
+        countStat('due', combineQueryParts(filterPart('action_status', 'neq', '已完成'), filterPart('due_date', 'gte', today()), filterPart('due_date', 'lte', offsetDate(1))))
+      ]
+    }
+  }
+  if (app.key === 'audits') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('open', filterPart('audit_status', 'neq', '已关闭')),
+        sumStat('findings', 'finding_count')
+      ]
+    }
+  }
+  if (app.key === 'standards') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('active', filterPart('standard_status', 'eq', '生效')),
+        countStat('draft', filterPart('standard_status', 'in', ['草稿', '修订中']))
+      ]
+    }
+  }
+  return { stats: [countStat('total')] }
+}
+
 const loadCardData = async () => {
   if (cardLoading.value) return
   cardLoading.value = true
   try {
     const apps = QUALITY_APPS.filter((app) => app.apiUrl)
-    const results = await Promise.allSettled(apps.map((app) => request({ url: appendLimit(app.apiUrl), method: 'get' })))
+    const [statsResult, results] = await Promise.all([
+      loadAppsCardStats({
+        request,
+        apps,
+        profile: 'public',
+        getStats: qualityCardStatsSpec
+      }).catch(() => ({})),
+      Promise.allSettled(apps.map((app) => request({ url: appendLimit(app.apiUrl), method: 'get' })))
+    ])
     const next = { ...appRows.value }
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && Array.isArray(result.value)) {
@@ -104,6 +183,7 @@ const loadCardData = async () => {
       }
     })
     appRows.value = next
+    serverStats.value = { ...serverStats.value, ...statsResult }
   } finally {
     cardLoading.value = false
   }
@@ -115,31 +195,38 @@ const cardMap = computed(() => {
   const actions = rowsOf('actions')
   const audits = rowsOf('audits')
   const standards = rowsOf('standards')
+  const inspectionStats = statsOf('inspections')
+  const ncrStats = statsOf('ncr')
+  const actionStats = statsOf('actions')
+  const auditStats = statsOf('audits')
+  const standardStats = statsOf('standards')
   const inspectionAttention = getQualityAppAttention('inspections', inspections)
   const ncrAttention = getQualityAppAttention('ncr', ncrs)
   const actionAttention = getQualityAppAttention('actions', actions)
   const auditAttention = getQualityAppAttention('audits', audits)
   const standardAttention = getQualityAppAttention('standards', standards)
 
-  const sampleQty = inspections.reduce((sum, row) => sum + numberValue(row.sample_qty), 0)
-  const defectQty = inspections.reduce((sum, row) => sum + numberValue(row.defect_qty), 0)
-  const passCount = inspections.filter((row) => ['合格', '让步接收'].includes(row.result)).length
-  const pendingInspections = inspections.filter((row) => row.result === '待判定').length
+  const sampleQty = statNumber(inspectionStats, 'sampleQty', inspections.reduce((sum, row) => sum + numberValue(row.sample_qty), 0))
+  const defectQty = statNumber(inspectionStats, 'defectQty', inspections.reduce((sum, row) => sum + numberValue(row.defect_qty), 0))
+  const inspectionTotal = statNumber(inspectionStats, 'total', inspections.length)
+  const passCount = statNumber(inspectionStats, 'pass', inspections.filter((row) => ['合格', '让步接收'].includes(row.result)).length)
+  const pendingInspections = statNumber(inspectionStats, 'pending', inspections.filter((row) => row.result === '待判定').length)
   const defectRate = ratio(defectQty, sampleQty)
-  const passRate = ratio(passCount, inspections.length)
-  const openNcrs = ncrs.filter((row) => row.ncr_status !== '已关闭').length
-  const severeNcrs = ncrs.filter((row) => row.ncr_status !== '已关闭' && ['关键', '严重'].includes(row.severity)).length
-  const overdueNcrs = ncrs.filter((row) => row.ncr_status !== '已关闭' && daysBetween(row.deadline) < 0).length
-  const activeActions = actions.filter((row) => row.action_status !== '已完成').length
-  const overdueActions = actions.filter((row) => row.action_status !== '已完成' && daysBetween(row.due_date) < 0).length
-  const dueActions = actions.filter((row) => {
+  const passRate = ratio(passCount, inspectionTotal)
+  const openNcrs = statNumber(ncrStats, 'open', ncrs.filter((row) => row.ncr_status !== '已关闭').length)
+  const severeNcrs = statNumber(ncrStats, 'severe', ncrs.filter((row) => row.ncr_status !== '已关闭' && ['关键', '严重'].includes(row.severity)).length)
+  const overdueNcrs = statNumber(ncrStats, 'overdue', ncrs.filter((row) => row.ncr_status !== '已关闭' && daysBetween(row.deadline) < 0).length)
+  const activeActions = statNumber(actionStats, 'active', actions.filter((row) => row.action_status !== '已完成').length)
+  const overdueActions = statNumber(actionStats, 'overdue', actions.filter((row) => row.action_status !== '已完成' && daysBetween(row.due_date) < 0).length)
+  const dueActionsFallback = actions.filter((row) => {
     const delta = daysBetween(row.due_date)
     return row.action_status !== '已完成' && delta !== null && delta >= 0 && delta <= 1
   }).length
-  const openAudits = audits.filter((row) => row.audit_status !== '已关闭').length
-  const auditFindings = audits.reduce((sum, row) => sum + numberValue(row.finding_count), 0)
-  const activeStandards = standards.filter((row) => row.standard_status === '生效').length
-  const draftStandards = standards.filter((row) => ['草稿', '修订中'].includes(row.standard_status)).length
+  const dueActions = statNumber(actionStats, 'due', dueActionsFallback)
+  const openAudits = statNumber(auditStats, 'open', audits.filter((row) => row.audit_status !== '已关闭').length)
+  const auditFindings = statNumber(auditStats, 'findings', audits.reduce((sum, row) => sum + numberValue(row.finding_count), 0))
+  const activeStandards = statNumber(standardStats, 'active', standards.filter((row) => row.standard_status === '生效').length)
+  const draftStandards = statNumber(standardStats, 'draft', standards.filter((row) => ['草稿', '修订中'].includes(row.standard_status)).length)
   const latestInspection = inspections.slice().sort((a, b) => String(b.inspection_date || '').localeCompare(String(a.inspection_date || '')))[0]
   const latestStandard = standards.slice().sort((a, b) => String(b.effective_date || '').localeCompare(String(a.effective_date || '')))[0]
 
@@ -198,6 +285,7 @@ const cardMap = computed(() => {
 })
 
 const visibleApps = computed(() => QUALITY_APPS
+  .filter((app) => isAppVisible(displayVisibility.value, 'quality', app.key))
   .filter((app) => app.key !== 'dashboard' && (!app.perm || hasPerm(app.perm)))
   .map((app) => ({
     ...app,
@@ -226,6 +314,7 @@ onMounted(() => {
 
 <style scoped>
 .quality-apps {
+  position: relative;
   min-height: 100vh;
   padding: 20px;
   box-sizing: border-box;
@@ -253,6 +342,7 @@ onMounted(() => {
 }
 
 .app-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -275,7 +365,7 @@ onMounted(() => {
 
 .app-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.15);
 }
 
 .app-card-body {
@@ -297,7 +387,7 @@ onMounted(() => {
 }
 
 .tone-blue {
-  background: #0ea5e9;
+  background: var(--el-color-primary);
 }
 
 .tone-red {
@@ -442,7 +532,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 
 .app-enter span:first-child {

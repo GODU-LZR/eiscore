@@ -17,7 +17,7 @@
         ref="gridRef"
         class="ledger-grid"
         :view-id="appConfig.viewId"
-        :api-url="appConfig.apiUrl"
+        :api-url="gridApiUrl"
         :write-url="appConfig.writeUrl || ''"
         :include-properties="appConfig.includeProperties !== false"
         :write-mode="appConfig.writeMode || 'upsert'"
@@ -31,16 +31,41 @@
         :static-columns="staticColumns"
         :extra-columns="extraColumns"
         :summary="summaryConfig"
-        summary-scope="server"
+        :summary-scope="summaryScope"
         :can-create="canCreate"
         :can-edit="canEdit"
         :can-delete="canDelete"
         :can-export="canExport"
         :can-config="canConfig"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="openStockInDialog"
         @data-loaded="handleDataLoaded"
         @data-load-error="handleDataLoadError"
-      />
+      >
+        <template #toolbar>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
+        </template>
+      </EisDataGrid>
     </el-card>
     
     <!-- 入库对话框 -->
@@ -115,7 +140,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { ref, computed, onMounted, reactive, nextTick } from 'vue'
+import { ref, computed, onMounted, reactive, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
@@ -124,6 +149,8 @@ import { hasPerm } from '@/utils/permission'
 import { pushAiContext } from '@/utils/ai-context'
 import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
 import { buildGridLoadState } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 
 const router = useRouter()
 const gridRef = ref(null)
@@ -221,6 +248,7 @@ const appConfig = computed(() => ({
       prop: 'warehouse_area',
       width: 140,
       editable: false,
+      searchable: false,
       valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 2)
     },
     {
@@ -228,6 +256,7 @@ const appConfig = computed(() => ({
       prop: 'warehouse_slot',
       width: 140,
       editable: false,
+      searchable: false,
       valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 3)
     },
     {
@@ -307,6 +336,30 @@ const appProfile = computed(() => appConfig.value.schema || 'public')
 const staticColumns = computed(() => appConfig.value.staticColumns || [])
 const extraColumns = computed(() => appConfig.value.defaultExtraColumns || [])
 const summaryConfig = computed(() => appConfig.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app: appConfig,
+  staticColumns,
+  moduleName: 'materials',
+  fallbackApiUrl: '/v_inventory_transactions'
+})
+const summaryScope = computed(() => (gridTimeMode.value === 'infinite' ? 'server' : 'loaded'))
 
 const opPerms = computed(() => appConfig.value?.ops || {})
 const canCreate = computed(() => hasPerm(opPerms.value.create))
@@ -321,7 +374,7 @@ const syncAiContext = (rows = [], payload = null) => {
     app: 'materials',
     view: 'inventory-ledger',
     viewId: appConfig.value.viewId,
-    apiUrl: appConfig.value.apiUrl,
+    apiUrl: gridApiUrl.value,
     writeUrl: appConfig.value.writeUrl || '',
     profile: appProfile.value,
     contentProfile: appProfile.value,
@@ -334,7 +387,7 @@ const syncAiContext = (rows = [], payload = null) => {
     payload,
     previousLoadState: lastGridLoadState.value,
     searchText: lastSearchText.value,
-    summaryScope: 'server',
+    summaryScope: summaryScope.value,
     allowImport: false
   })
 }
@@ -538,6 +591,10 @@ onMounted(async () => {
   loadWarehouses()
   loadBatchRules()
   await nextTick()
+  gridRef.value?.loadData?.()
+})
+
+watch(gridApiUrl, () => {
   gridRef.value?.loadData?.()
 })
 </script>

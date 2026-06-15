@@ -241,12 +241,19 @@ const nodeRectMap = computed(() => {
 })
 
 const getExitDistance = (ux, uy) => {
+  if (!Number.isFinite(ux) || !Number.isFinite(uy)) return 0
   const halfW = NODE_WIDTH / 2
   const halfH = NODE_HEIGHT / 2
   const dxLimit = Math.abs(ux) < 1e-6 ? Number.POSITIVE_INFINITY : halfW / Math.abs(ux)
   const dyLimit = Math.abs(uy) < 1e-6 ? Number.POSITIVE_INFINITY : halfH / Math.abs(uy)
   return Math.min(dxLimit, dyLimit)
 }
+
+const isFinitePoint = (point) => (
+  point &&
+  Number.isFinite(point.x) &&
+  Number.isFinite(point.y)
+)
 
 const intersectsNodeRect = (box) => {
   const rects = Object.values(nodeRectMap.value)
@@ -279,10 +286,12 @@ const graphEdges = computed(() => {
   relations.forEach((item) => {
     const from = layout.value.positions[item.subject_table]
     const to = layout.value.positions[item.object_table]
-    if (!from || !to) return
+    if (!isFinitePoint(from) || !isFinitePoint(to)) return
     const dx = to.x - from.x
     const dy = to.y - from.y
-    const distance = Math.max(1, Math.sqrt(dx * dx + dy * dy))
+    const rawDistance = Math.sqrt(dx * dx + dy * dy)
+    if (!Number.isFinite(rawDistance) || rawDistance < 1) return
+    const distance = rawDistance
     const ux = dx / distance
     const uy = dy / distance
     const startOffset = getExitDistance(ux, uy) + NODE_EDGE_GAP

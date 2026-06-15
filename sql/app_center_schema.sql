@@ -87,10 +87,14 @@ CREATE TABLE IF NOT EXISTS app_center.execution_logs (
     output_data JSONB,
     error_message TEXT,
     executed_by TEXT,
-    executed_at TIMESTAMPTZ DEFAULT NOW()
+    executed_at TIMESTAMPTZ DEFAULT NOW(),
+    operation_location JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 COMMENT ON TABLE app_center.execution_logs IS 'Runtime execution logs for workflows';
+COMMENT ON COLUMN app_center.execution_logs.operation_location IS 'Operation context displayed by the grid geo/location column. address records module/app/action.';
 
 -- ========================================
 -- Row Level Security (RLS)
@@ -109,7 +113,7 @@ GRANT SELECT ON app_center.apps TO web_anon;
 GRANT SELECT ON app_center.categories TO web_anon, web_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON app_center.published_routes TO web_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON app_center.workflow_state_mappings TO web_user;
-GRANT SELECT ON app_center.execution_logs TO web_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON app_center.execution_logs TO web_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA app_center TO web_user;
 ALTER DEFAULT PRIVILEGES IN SCHEMA app_center GRANT USAGE, SELECT ON SEQUENCES TO web_user;
 
@@ -204,11 +208,42 @@ CREATE POLICY "workflow_mappings_delete_policy" ON app_center.workflow_state_map
         (current_setting('request.jwt.claims', true)::json ->> 'app_role') = 'super_admin'
     );
 
--- Policy 7: Execution logs readable by app creator or executor
-DROP POLICY IF EXISTS "execution_logs_select_policy" ON app_center.execution_logs;
-CREATE POLICY "execution_logs_select_policy" ON app_center.execution_logs
+-- Policy 7: Execution logs are visible and writable by super admin only
+DROP POLICY IF EXISTS execution_logs_select_policy ON app_center.execution_logs;
+CREATE POLICY execution_logs_select_policy ON app_center.execution_logs
     FOR SELECT USING (
-        current_setting('request.jwt.claim.app_role', true) = 'super_admin'
+        COALESCE(
+            NULLIF(current_setting('request.jwt.claim.app_role', true), ''),
+            NULLIF((COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::json ->> 'app_role'), '')
+        ) = 'super_admin'
+    );
+
+DROP POLICY IF EXISTS execution_logs_insert_policy ON app_center.execution_logs;
+CREATE POLICY execution_logs_insert_policy ON app_center.execution_logs
+    FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS execution_logs_update_policy ON app_center.execution_logs;
+CREATE POLICY execution_logs_update_policy ON app_center.execution_logs
+    FOR UPDATE USING (
+        COALESCE(
+            NULLIF(current_setting('request.jwt.claim.app_role', true), ''),
+            NULLIF((COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::json ->> 'app_role'), '')
+        ) = 'super_admin'
+    )
+    WITH CHECK (
+        COALESCE(
+            NULLIF(current_setting('request.jwt.claim.app_role', true), ''),
+            NULLIF((COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::json ->> 'app_role'), '')
+        ) = 'super_admin'
+    );
+
+DROP POLICY IF EXISTS execution_logs_delete_policy ON app_center.execution_logs;
+CREATE POLICY execution_logs_delete_policy ON app_center.execution_logs
+    FOR DELETE USING (
+        COALESCE(
+            NULLIF(current_setting('request.jwt.claim.app_role', true), ''),
+            NULLIF((COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::json ->> 'app_role'), '')
+        ) = 'super_admin'
     );
 
 -- ========================================
@@ -235,6 +270,91 @@ INSERT INTO app_center.apps (name, description, category_id, app_type, status, i
 SELECT '示例闪搭', 'AI 生成应用示例', 3, 'flash', 'draft', '⚡', '1.0.0', 'system', 'system'
 WHERE NOT EXISTS (SELECT 1 FROM app_center.apps WHERE name = '示例闪搭');
 
+DO $$
+DECLARE
+  v_module_key TEXT := 'app_operation_logs';
+  v_columns JSONB;
+  v_config JSONB;
+BEGIN
+  v_columns := jsonb_build_array(
+    jsonb_build_object('field', 'executed_by', 'label', '操作人', 'type', 'text', 'isStatic', true),
+    jsonb_build_object('field', 'executed_at', 'label', '操作时间', 'type', 'datetime', 'isStatic', true),
+    jsonb_build_object('field', 'operation_location', 'label', '操作位置', 'type', 'geo', 'geoAddress', true, 'isStatic', true),
+    jsonb_build_object('field', 'task_id', 'label', '操作事项', 'type', 'text', 'isStatic', true),
+    jsonb_build_object(
+      'field', 'status',
+      'label', '状态',
+      'type', 'select',
+      'isStatic', true,
+      'options', jsonb_build_array(
+        jsonb_build_object('label', '待处理', 'value', 'pending'),
+        jsonb_build_object('label', '运行中', 'value', 'running'),
+        jsonb_build_object('label', '已完成', 'value', 'completed'),
+        jsonb_build_object('label', '失败', 'value', 'failed')
+      )
+    ),
+    jsonb_build_object('field', 'app_id', 'label', '应用ID', 'type', 'text', 'isStatic', true),
+    jsonb_build_object('field', 'error_message', 'label', '错误信息', 'type', 'text', 'isStatic', true),
+    jsonb_build_object('field', 'created_at', 'label', '创建日期', 'type', 'datetime', 'isStatic', true),
+    jsonb_build_object('field', 'updated_at', 'label', '更新日期', 'type', 'datetime', 'isStatic', true),
+    jsonb_build_object('field', 'execution_id', 'label', '执行ID', 'type', 'text', 'isStatic', true),
+    jsonb_build_object('field', 'input_data', 'label', '操作参数', 'type', 'text', 'isStatic', true),
+    jsonb_build_object('field', 'output_data', 'label', '操作结果', 'type', 'text', 'isStatic', true)
+  );
+
+  v_config := jsonb_build_object(
+    'systemApp', 'operation_logs',
+    'table', 'app_center.execution_logs',
+    'columns', v_columns,
+    'staticHidden', jsonb_build_array('execution_id', 'input_data', 'output_data'),
+    'summary', jsonb_build_object('label', '合计', 'rules', jsonb_build_object(), 'expressions', jsonb_build_object()),
+    'includeProperties', false,
+    'createTable', false,
+    'writeMode', 'patch',
+    'primaryKey', 'id',
+    'defaultOrder', 'executed_at.desc',
+    'aclModule', v_module_key,
+    'perm', format('app:%s', v_module_key),
+    'ops', jsonb_build_object(
+      'create', format('op:%s.create', v_module_key),
+      'edit', format('op:%s.edit', v_module_key),
+      'delete', format('op:%s.delete', v_module_key),
+      'export', format('op:%s.export', v_module_key),
+      'config', format('op:%s.config', v_module_key)
+    ),
+    'canCreate', false,
+    'canEdit', false,
+    'canDelete', false,
+    'canExport', true,
+    'canConfig', false,
+    'showStatusCol', false,
+    'enableRealtime', true,
+    'semantics_mode', 'system_defined',
+    'permission_mode', 'compat'
+  );
+
+  INSERT INTO app_center.apps (
+    name, description, category_id, app_type, status, icon, version, config, created_by, updated_by
+  )
+  SELECT
+    '日志记录',
+    '记录系统操作的人员、时间、模块、应用与执行结果',
+    2,
+    'data',
+    'published',
+    'Notebook',
+    '1.0.0',
+    v_config,
+    'system',
+    'system'
+  WHERE NOT EXISTS (
+    SELECT 1
+      FROM app_center.apps
+     WHERE app_type = 'data'
+       AND (name = '日志记录' OR COALESCE(config ->> 'systemApp', '') = 'operation_logs')
+  );
+END $$;
+
 -- ========================================
 -- Helper Functions
 -- ========================================
@@ -257,6 +377,12 @@ CREATE TRIGGER apps_update_timestamp
 DROP TRIGGER IF EXISTS categories_update_timestamp ON app_center.categories;
 CREATE TRIGGER categories_update_timestamp
     BEFORE UPDATE ON app_center.categories
+    FOR EACH ROW
+    EXECUTE FUNCTION app_center.update_timestamp();
+
+DROP TRIGGER IF EXISTS execution_logs_update_timestamp ON app_center.execution_logs;
+CREATE TRIGGER execution_logs_update_timestamp
+    BEFORE UPDATE ON app_center.execution_logs
     FOR EACH ROW
     EXECUTE FUNCTION app_center.update_timestamp();
 

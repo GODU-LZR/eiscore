@@ -1,0 +1,96 @@
+services:
+  db:
+    image: postgres:16
+    container_name: eiscore-db
+    restart: unless-stopped
+    env_file:
+      - ./env/.env
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres123}"
+      POSTGRES_DB: eiscore
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./env/init_roles.sql:/docker-entrypoint-initdb.d/00_init_roles.sql:ro
+      - ./env/db_schema_and_data.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d eiscore"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  api:
+    image: postgrest/postgrest
+    container_name: eiscore-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - ./env/.env
+    environment:
+      PGRST_DB_URI: "postgres://postgres:${POSTGRES_PASSWORD:-postgres123}@db:5432/eiscore"
+      PGRST_DB_SCHEMAS: "public,hr,scm,app_center,workflow,app_data"
+      PGRST_DB_ANON_ROLE: "web_anon"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:-my_super_secret_key_for_eiscore_system_2025}"
+      PGRST_OPENAPI_SERVER_PROXY_URI: "https://nanpai.eissys.top/api"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  swagger:
+    image: swaggerapi/swagger-ui
+    container_name: eiscore-swagger
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8079:8080"
+    environment:
+      BASE_URL: /doc
+      API_URL: /api/
+    depends_on:
+      - api
+
+  agent-runtime:
+    build:
+      context: ./realtime
+      dockerfile: Dockerfile.prod
+    container_name: eiscore-agent-runtime
+    restart: unless-stopped
+    command: ["node", "index.js"]
+    ports:
+      - "127.0.0.1:8078:8078"
+    env_file:
+      - ./env/.env
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: "${POSTGRES_PASSWORD:-postgres123}"
+      PGDATABASE: eiscore
+      CHANNEL: eis_events
+      AGENT_POSTGREST_URL: "http://api:3000"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:-my_super_secret_key_for_eiscore_system_2025}"
+      AI_HTTP_PROXY_URL: "${AI_HTTP_PROXY_URL:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      FLASH_CLINE_ENABLED: "${FLASH_CLINE_ENABLED:-true}"
+      FLASH_CLINE_COMMAND: "${FLASH_CLINE_COMMAND:-/app/node_modules/.bin/cline}"
+      FLASH_CLINE_PROJECT_PATH: "${FLASH_CLINE_PROJECT_PATH:-eiscore-apps/src/views/drafts}"
+      FLASH_CLINE_WORKDIR: "${FLASH_CLINE_WORKDIR:-/workspace/eiscore-apps/src/views/drafts}"
+      FLASH_CLINE_CONFIG_ROOT: "${FLASH_CLINE_CONFIG_ROOT:-/tmp/flash-cline}"
+      FLASH_CLINE_PROVIDER: "${FLASH_CLINE_PROVIDER:-openai}"
+      FLASH_CLINE_TASK_TIMEOUT_MS: "${FLASH_CLINE_TASK_TIMEOUT_MS:-480000}"
+    volumes:
+      - ./eiscore-base:/workspace/eiscore-base
+      - ./eiscore-hr:/workspace/eiscore-hr
+      - ./eiscore-materials:/workspace/eiscore-materials
+      - ./eiscore-apps:/workspace/eiscore-apps
+      - ./eiscore-equipment:/workspace/eiscore-equipment
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+volumes:
+  pgdata:

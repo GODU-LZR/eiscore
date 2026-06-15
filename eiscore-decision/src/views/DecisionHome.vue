@@ -71,6 +71,7 @@ import {
 } from '@element-plus/icons-vue'
 import { pushAiContext } from '@/utils/ai-context'
 import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
+import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const iconMap = {
   Box,
@@ -80,6 +81,7 @@ const iconMap = {
   Tools,
   TrendCharts
 }
+const { visibility: displayVisibility } = useDisplayVisibility()
 
 const baseDashboardCards = [
   {
@@ -163,6 +165,7 @@ const baseDashboardCards = [
 ]
 
 const dashboardCards = computed(() => baseDashboardCards
+  .filter((card) => isAppVisible(displayVisibility.value, 'decision', card.key))
   .map((card) => {
     const scoreMap = {
       production: 72,

@@ -18,6 +18,7 @@ import LockHeader from '../components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
 import CheckRenderer from '../components/renderers/CheckRenderer.vue'
 import CheckEditor from '../components/renderers/CheckEditor.vue'
+import RowHeightHandleRenderer from '../components/renderers/RowHeightHandleRenderer.vue'
 import { useUserStore } from '@/stores/user'
 import {
   HR_ATTENTION_LEVEL_OPTIONS,
@@ -41,6 +42,45 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const aclRoleId = computed(() => userStore.userInfo?.role_id || userStore.userInfo?.roleId || resolvedRoleId.value || '')
   const aclModule = computed(() => props.aclModule || '')
   const STATUS_TRANSITION_ACTION = 'status_transition'
+  const defaultRowHeight = computed(() => Math.max(28, Math.min(120, Number(props.defaultRowHeight) || 35)))
+  const rowHeightConfig = computed(() => ({
+    enabled: props.enableRowHeightResize === true && !!props.localLayoutKey,
+    min: Math.max(28, Math.min(120, Number(props.minRowHeight) || 32)),
+    max: Math.max(48, Math.min(260, Number(props.maxRowHeight) || 160))
+  }))
+  const layoutStorageKey = computed(() => props.localLayoutKey ? `eis-grid-layout:${props.localLayoutKey}` : '')
+  const localLayoutState = reactive({ columns: {}, rows: {} })
+  let rowResizeState = null
+  const ROW_HEIGHT_EDGE_HIT_SIZE = 10
+  let saveColumnLayoutTimer = null
+  const clampRowHeight = (value) => {
+    const num = Number(value)
+    if (!Number.isFinite(num)) return defaultRowHeight.value
+    return Math.max(rowHeightConfig.value.min, Math.min(rowHeightConfig.value.max, Math.round(num)))
+  }
+  const safeReadLocalLayout = () => {
+    if (!layoutStorageKey.value || typeof window === 'undefined') return
+    try {
+      const raw = window.localStorage.getItem(layoutStorageKey.value)
+      const parsed = raw ? JSON.parse(raw) : {}
+      localLayoutState.columns = parsed && typeof parsed.columns === 'object' ? parsed.columns : {}
+      localLayoutState.rows = parsed && typeof parsed.rows === 'object' ? parsed.rows : {}
+    } catch (e) {
+      localLayoutState.columns = {}
+      localLayoutState.rows = {}
+    }
+  }
+  const safeWriteLocalLayout = () => {
+    if (!layoutStorageKey.value || typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(layoutStorageKey.value, JSON.stringify({
+        version: 1,
+        columns: localLayoutState.columns,
+        rows: localLayoutState.rows
+      }))
+    } catch (e) {}
+  }
+  safeReadLocalLayout()
 
   const getUserInfoSnapshot = () => {
     const info = userStore.userInfo
@@ -125,7 +165,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     LockHeader: markRaw(LockHeader),
     DocumentActionRenderer: markRaw(DocumentActionRenderer),
     CheckRenderer: markRaw(CheckRenderer),
-    CheckEditor: markRaw(CheckEditor)
+    CheckEditor: markRaw(CheckEditor),
+    RowHeightHandleRenderer: markRaw(RowHeightHandleRenderer)
   }
 
   const dictOptions = reactive({})
@@ -452,19 +493,238 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (eventEmitter) eventEmitter('view-document', rowData)
   }
 
+  const getLayoutRowKey = (rowData) => {
+    if (!rowData) return ''
+    if (rowData.id !== undefined && rowData.id !== null) return String(rowData.id)
+    if (rowData.employee_no) return String(rowData.employee_no)
+    return ''
+  }
+
+  const getStoredRowHeight = (rowData) => {
+    if (!rowHeightConfig.value.enabled) return undefined
+    const key = getLayoutRowKey(rowData)
+    if (!key) return undefined
+    const height = Number(localLayoutState.rows?.[key])
+    return Number.isFinite(height) ? clampRowHeight(height) : undefined
+  }
+
+  const applyRowHeight = (rowNode, height, persist = true) => {
+    if (!rowHeightConfig.value.enabled || !rowNode || rowNode.rowPinned) return
+    const nextHeight = clampRowHeight(height)
+    rowNode.setRowHeight?.(nextHeight)
+    gridApi.value?.onRowHeightChanged?.()
+    if (persist) {
+      const rowKey = getLayoutRowKey(rowNode.data)
+      if (rowKey) {
+        localLayoutState.rows = {
+          ...localLayoutState.rows,
+          [rowKey]: nextHeight
+        }
+        safeWriteLocalLayout()
+      }
+    }
+  }
+
+  const resetRowHeight = (params) => {
+    if (!rowHeightConfig.value.enabled || !params?.node) return
+    stopRowHeightResize()
+    const rowKey = getLayoutRowKey(params.node.data)
+    if (rowKey && localLayoutState.rows?.[rowKey] !== undefined) {
+      const nextRows = { ...localLayoutState.rows }
+      delete nextRows[rowKey]
+      localLayoutState.rows = nextRows
+      safeWriteLocalLayout()
+    }
+    params.node.__eisDefaultRowHeight = defaultRowHeight.value
+    params.node.setRowHeight?.(defaultRowHeight.value)
+    const api = params.api || gridApi.value
+    api?.onRowHeightChanged?.()
+    api?.redrawRows?.({ rowNodes: [params.node] })
+  }
+
+  const stopRowHeightResize = () => {
+    if (!rowResizeState) return
+    document.removeEventListener('mousemove', handleRowHeightResizeMove)
+    document.removeEventListener('mouseup', handleRowHeightResizeEnd)
+    document.body.classList.remove('is-resizing-grid-row')
+    rowResizeState = null
+  }
+
+  function handleRowHeightResizeMove(event) {
+    if (!rowResizeState?.node) return
+    const delta = event.clientY - rowResizeState.startY
+    applyRowHeight(rowResizeState.node, rowResizeState.startHeight + delta, false)
+  }
+
+  function handleRowHeightResizeEnd() {
+    if (rowResizeState?.node) {
+      const height = rowResizeState.node.rowHeight || defaultRowHeight.value
+      applyRowHeight(rowResizeState.node, height, true)
+    }
+    stopRowHeightResize()
+  }
+
+  const startRowHeightResize = (params, event) => {
+    if (!rowHeightConfig.value.enabled || !params?.node || params.node.rowPinned) return
+    event?.preventDefault?.()
+    const startHeight = params.node.rowHeight || getStoredRowHeight(params.data) || defaultRowHeight.value
+    rowResizeState = {
+      node: params.node,
+      startY: event.clientY,
+      startHeight
+    }
+    document.body.classList.add('is-resizing-grid-row')
+    document.addEventListener('mousemove', handleRowHeightResizeMove)
+    document.addEventListener('mouseup', handleRowHeightResizeEnd, { once: true })
+  }
+
+  const isRowHeightEdgeResizeEvent = (params) => {
+    if (!rowHeightConfig.value.enabled || !params?.event || params?.node?.rowPinned) return false
+    if (params.event.altKey) return true
+    if (params.column?.getColId?.() === '_rowHeight') return true
+    const target = params.event.target
+    if (!target?.closest) return false
+    const cell = target.closest('.ag-cell')
+    if (!cell?.getBoundingClientRect) return false
+    const rect = cell.getBoundingClientRect()
+    const distanceToBottom = rect.bottom - params.event.clientY
+    return distanceToBottom >= 0 && distanceToBottom <= ROW_HEIGHT_EDGE_HIT_SIZE
+  }
+
+  const applyStoredColumnWidths = () => {
+    if (!gridApi.value || !props.localLayoutKey) return
+    const state = Object.entries(localLayoutState.columns || {})
+      .map(([colId, width]) => ({
+        colId,
+        width: Number(width)
+      }))
+      .filter(item => item.colId && Number.isFinite(item.width) && item.width >= 40)
+    if (!state.length) return
+    try {
+      gridApi.value.applyColumnState?.({
+        state,
+        applyOrder: false
+      })
+    } catch (e) {}
+  }
+
+  const saveColumnLayout = () => {
+    if (!gridApi.value || !props.localLayoutKey) return
+    const state = gridApi.value.getColumnState?.()
+    if (!Array.isArray(state)) return
+    const nextColumns = {}
+    state.forEach((item) => {
+      if (!item?.colId || !Number.isFinite(Number(item.width))) return
+      nextColumns[item.colId] = Math.round(Number(item.width))
+    })
+    localLayoutState.columns = nextColumns
+    safeWriteLocalLayout()
+  }
+
+  const handleColumnResized = (event) => {
+    if (!props.localLayoutKey || event?.finished !== true) return
+    if (saveColumnLayoutTimer) window.clearTimeout(saveColumnLayoutTimer)
+    saveColumnLayoutTimer = window.setTimeout(() => {
+      saveColumnLayoutTimer = null
+      saveColumnLayout()
+    }, 120)
+  }
+
   const context = reactive({ 
     componentParent: { 
         toggleColumnLock: handleToggleColumnLock, 
         columnLockState,
-        viewDocument: handleViewDocument 
+        viewDocument: handleViewDocument,
+        startRowHeightResize,
+        resetRowHeight
     } 
   })
+  const SYSTEM_RELATION_TYPE_OPTIONS = [
+    { label: '无源新增', value: '无源新增' },
+    { label: '销售关联', value: '销售关联' },
+    { label: '采购关联', value: '采购关联' },
+    { label: '生产关联', value: '生产关联' },
+    { label: '库存关联', value: '库存关联' },
+    { label: '质量关联', value: '质量关联' },
+    { label: '设备关联', value: '设备关联' },
+    { label: '流程关联', value: '流程关联' },
+    { label: '系统生成', value: '系统生成' }
+  ]
+
+  const formatAuditDate = (value) => {
+    if (value === null || value === undefined || value === '') return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return String(value)
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+  }
+
+  const getConfiguredColumnProps = () => new Set(
+    [...(props.staticColumns || []), ...(props.extraColumns || [])]
+      .map((col) => String(col?.prop || col?.field || '').trim())
+      .filter(Boolean)
+  )
+
+  const getSystemStaticColumns = () => {
+    const propsSet = getConfiguredColumnProps()
+    const cols = []
+    if (!propsSet.has('created_at')) {
+      cols.push({
+        label: '创建日期',
+        prop: 'created_at',
+        type: 'datetime',
+        editable: false,
+        width: 170,
+        minWidth: 150,
+        formatter: (params) => formatAuditDate(params.value)
+      })
+    }
+    if (!propsSet.has('updated_at')) {
+      cols.push({
+        label: '更新日期',
+        prop: 'updated_at',
+        type: 'datetime',
+        editable: false,
+        width: 170,
+        minWidth: 150,
+        formatter: (params) => formatAuditDate(params.value)
+      })
+    }
+    return cols
+  }
+
+  const getSystemDynamicColumns = () => {
+    if (props.includeProperties === false) return []
+    const propsSet = getConfiguredColumnProps()
+    if (propsSet.has('relation_type')) return []
+    return [{
+      label: '关联类型',
+      prop: 'relation_type',
+      type: 'select',
+      options: SYSTEM_RELATION_TYPE_OPTIONS,
+      width: 130,
+      minWidth: 120,
+      tag: true,
+      isSystem: true
+    }]
+  }
+
 
   const createColDef = (col, isDynamic) => {
     const field = isDynamic ? `properties.${col.prop}` : col.prop
+    const colId = isDynamic ? `properties.${col.prop}` : col.prop
     const minWidth = col.minWidth ?? 150
-    const widthConfig = col.width 
-      ? { width: col.width, minWidth, suppressSizeToFit: true } 
+    const storedWidth = Number(localLayoutState.columns?.[colId])
+    const configuredWidth = Number.isFinite(storedWidth) && storedWidth >= 40 ? storedWidth : col.width
+    const widthConfig = configuredWidth
+      ? { width: configuredWidth, minWidth, suppressSizeToFit: true }
       : { flex: 1, minWidth }
 
     const extraColDef = {}
@@ -480,6 +740,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const colDef = {
       headerName: col.label,
       field: field,
+      colId,
       type: col.type,
       editable: col.editable !== false && ((params) => !isCellReadOnly(params)),
       cellStyle: getCellStyle,
@@ -624,6 +885,27 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       valueSetter: () => false,
       cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' } 
     }
+
+    const rowHeightCol = {
+      headerName: '',
+      field: '_rowHeight',
+      colId: '_rowHeight',
+      width: 32,
+      minWidth: 32,
+      maxWidth: 32,
+      pinned: 'left',
+      sortable: false,
+      filter: false,
+      resizable: false,
+      editable: false,
+      suppressHeaderMenuButton: true,
+      suppressRowClickSelection: true,
+      suppressNavigable: true,
+      valueGetter: () => '',
+      valueSetter: () => false,
+      cellRenderer: 'RowHeightHandleRenderer',
+      cellStyle: { padding: '0', display: 'flex', alignItems: 'stretch', justifyContent: 'center' }
+    }
     
     const statusCol = { 
       headerName: '状态', field: '_status', width: 100, minWidth: 100, pinned: 'left', 
@@ -735,12 +1017,14 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       cellStyle: (params) => ({ ...getCellStyle(params), display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px' })
     }
 
-    const staticCols = props.staticColumns.map(col => createColDef(col, false))
-    const dynamicCols = props.extraColumns.map(col => createColDef(col, true))
+    const staticCols = [...props.staticColumns, ...getSystemStaticColumns()].map(col => createColDef(col, false))
+    const dynamicCols = [...getSystemDynamicColumns(), ...props.extraColumns].map(col => createColDef(col, true))
 
-    const prefixCols = props.attentionResolver
-      ? [checkboxCol, attentionCol]
-      : [checkboxCol]
+    const prefixCols = [
+      checkboxCol,
+      ...(rowHeightConfig.value.enabled ? [rowHeightCol] : []),
+      ...(props.attentionResolver ? [attentionCol] : [])
+    ]
 
     const baseCols = props.showStatusCol === false
       ? [...prefixCols, ...staticCols, ...dynamicCols]
@@ -757,6 +1041,24 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       gridApi.value.refreshCells({ force: true })
     }
   })
+
+  const getRowHeight = (params) => {
+    if (params?.node?.rowPinned) return defaultRowHeight.value
+    if (params?.node?.__eisDefaultRowHeight) {
+      const height = params.node.__eisDefaultRowHeight
+      delete params.node.__eisDefaultRowHeight
+      return height
+    }
+    return getStoredRowHeight(params?.data) || defaultRowHeight.value
+  }
+
+  const onGridReadyLayout = () => {
+    safeReadLocalLayout()
+    nextTick(() => {
+      applyStoredColumnWidths()
+      gridApi.value?.resetRowHeights?.()
+    })
+  }
 
   const { isLoadingMore, hasMoreRows, loadData, loadNextPage } = createPagedGridLoader({
     props,
@@ -776,6 +1078,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
     isLoadingMore, hasMoreRows, loadData, loadNextPage,
     handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState,
-    setWorkflowBinding
+    setWorkflowBinding, getRowHeight, handleColumnResized, onGridReadyLayout,
+    stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
   }
 }

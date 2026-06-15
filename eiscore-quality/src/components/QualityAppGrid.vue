@@ -15,7 +15,7 @@
         v-if="!fallbackMode"
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="app.apiUrl"
+        :api-url="gridApiUrl"
         :write-url="app.writeUrl"
         :write-mode="app.writeMode || 'patch'"
         :include-properties="app.includeProperties !== false"
@@ -37,6 +37,12 @@
         :row-filter="rowAttentionFilter"
         :summary-scope="summaryScope"
         :initial-search="initialSearch"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
@@ -46,15 +52,24 @@
         @cell-value-changed="handleGridCellValueChanged"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" class="attention-filter">
-            <el-radio-button
-              v-for="option in attentionFilterOptions"
-              :key="option.value"
-              :label="option.value"
-            >
-              {{ option.label }}
-            </el-radio-button>
-          </el-radio-group>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            v-model:attention-filter="attentionFilter"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :attention-options="attentionFilterOptions"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
         </template>
       </eis-data-grid>
 
@@ -65,7 +80,7 @@
             <el-radio-button
               v-for="option in attentionFilterOptions"
               :key="option.value"
-              :label="option.value"
+              :value="option.value"
             >
               {{ option.label }}
             </el-radio-button>
@@ -223,6 +238,8 @@ import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import { findQualityApp } from '@/utils/quality-apps'
 import { hasPerm } from '@/utils/permission'
 import {
@@ -326,8 +343,33 @@ const matchesAttentionFilter = (row, filter) => {
   return ['critical', 'warning', 'focus'].includes(attention.level)
 }
 const rowAttentionFilter = (row) => matchesAttentionFilter(row, attentionFilter.value)
-const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
 const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesAttentionFilter(row, 'todo')).length)
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app,
+  staticColumns,
+  moduleName: 'quality',
+  fallbackApiUrl: '/quality_inspections',
+  attentionFilter,
+  attentionFilterOptions
+})
+const summaryScope = computed(() => attentionFilter.value === 'all' && gridTimeMode.value === 'infinite' ? 'server' : 'loaded')
 
 const getRowActionKey = (row) => String(row?.id || row?.doc_no || '')
 const isGeneratingNcr = (row) => generatingNcrRows.value.has(getRowActionKey(row))
@@ -349,7 +391,27 @@ const resolveRowActions = (row) => {
       label: '已生成',
       type: 'success',
       icon: 'CircleCheck',
-      title: link.docNo || '已生成质量异常'
+      title: link.docNo || '已生成质量异常',
+      sopFlow: 'quality-ncr-flow',
+      sopFlowTitle: '质量不合格生成 NCR 流程',
+      sopFlowDesc: '从不合格质检记录生成质量异常 NCR，并回写来源质检单，形成整改闭环。',
+      sopFlowSteps: [
+        '先筛选紧急、预警或待处理的质检记录。',
+        '复核检验单号、产品或物料、批次、供应商或工单、缺陷描述和检验结果。',
+        '系统执行查重，避免同一质检单重复生成 NCR。',
+        '生成或绑定 NCR 后回写异常单号和生成时间。',
+        '跳转质量异常应用，搜索异常单号并复核责任部门、整改期限和处理状态。'
+      ],
+      sopFlowRisk: 'NCR 会进入质量整改闭环。错误生成会影响放行、责任追踪和质量统计，必须确认质检结论确实不合格。',
+      sopAction: 'quality-open-ncr',
+      sopTitle: '查看已生成 NCR',
+      sopDesc: '从质检记录跳转查看已生成的质量异常单。',
+      sopSteps: [
+        '确认当前检验记录已经显示“已生成”，说明系统已完成去重和回写。',
+        '点击后系统会跳转到质量异常应用，并用异常单号自动搜索。',
+        '进入 NCR 后复核来源单号、异常描述、责任部门、整改期限和处理状态。'
+      ],
+      sopRisk: '如果搜索不到 NCR，先检查权限和质量异常应用是否可见，不要重复从质检单再次生成。'
     }]
   }
   if (!canGenerateNcr.value || !canGenerateNcrFromInspection(row)) return []
@@ -360,6 +422,27 @@ const resolveRowActions = (row) => {
     type: 'danger',
     icon: 'Warning',
     title: '将该检验记录立案为质量异常',
+    sopFlow: 'quality-ncr-flow',
+    sopFlowTitle: '质量不合格生成 NCR 流程',
+    sopFlowDesc: '从不合格质检记录生成质量异常 NCR，并回写来源质检单，形成整改闭环。',
+    sopFlowSteps: [
+      '先筛选紧急、预警或待处理的质检记录。',
+      '复核检验单号、产品或物料、批次、供应商或工单、缺陷描述和检验结果。',
+      '系统执行查重，避免同一质检单重复生成 NCR。',
+      '生成或绑定 NCR 后回写异常单号和生成时间。',
+      '跳转质量异常应用，搜索异常单号并复核责任部门、整改期限和处理状态。'
+    ],
+    sopFlowRisk: 'NCR 会进入质量整改闭环。错误生成会影响放行、责任追踪和质量统计，必须确认质检结论确实不合格。',
+    sopAction: 'quality-generate-ncr',
+    sopTitle: '从质检单生成 NCR',
+    sopDesc: '把不合格质检记录一键生成质量异常单，并回写来源质检单。',
+    sopSteps: [
+      '先筛选“紧急、预警、待处理”，确认只处理不合格或需整改的检验记录。',
+      '复核检验单号、产品/物料、批次、供应商或工单、缺陷描述和检验结果。',
+      '点击“生成异常单”，系统会先查重，避免同一质检单重复生成 NCR。',
+      '生成后系统回写 NCR 单号和生成时间，并可通过“已生成”跳转查看。'
+    ],
+    sopRisk: 'NCR 会进入整改闭环，错误生成会影响放行、责任追踪和质量统计。生成前必须确认质检结论确实不合格。',
     disabled: generating
   }]
 }
@@ -753,7 +836,7 @@ onMounted(() => {
   loadColumnsConfig()
 })
 
-watch(attentionFilter, () => {
+watch([attentionFilter, gridApiUrl], () => {
   if (!fallbackMode.value) gridRef.value?.loadData?.()
 })
 </script>
@@ -792,6 +875,28 @@ watch(attentionFilter, () => {
   justify-content: center;
   height: 32px;
   line-height: 1;
+}
+
+.grid-card {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.fallback-grid {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fallback-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .fallback-grid :deep(.fallback-attention-row.attention-row-critical) {

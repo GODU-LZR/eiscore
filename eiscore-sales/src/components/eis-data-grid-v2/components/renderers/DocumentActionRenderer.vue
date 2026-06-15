@@ -7,6 +7,16 @@
       :type="action.type || 'primary'"
       size="small"
       class="action-btn"
+      :data-sop-action="action.sopAction || action.key"
+      :data-sop-title="action.sopTitle || action.title || action.label"
+      :data-sop-desc="action.sopDesc || action.title || ''"
+      :data-sop-steps="formatSopSteps(action.sopSteps)"
+      :data-sop-risk="action.sopRisk || ''"
+      :data-sop-flow="action.sopFlow || null"
+      :data-sop-flow-title="action.sopFlowTitle || null"
+      :data-sop-flow-desc="action.sopFlowDesc || null"
+      :data-sop-flow-steps="formatSopSteps(action.sopFlowSteps)"
+      :data-sop-flow-risk="action.sopFlowRisk || null"
       :disabled="action.disabled"
       @click.stop="onRowAction(action)"
     >
@@ -21,6 +31,11 @@
       type="primary" 
       size="small" 
       class="action-btn"
+      data-sop-action="open-row-form"
+      data-sop-title="打开表单"
+      data-sop-desc="查看或维护当前行的完整业务表单。"
+      data-sop-steps="先确认当前行是要处理的记录|点击表单打开详情|按表单字段从上到下复核并补齐信息|保存前检查状态、数量、日期、负责人和附件"
+      data-sop-risk="表单保存后会影响当前记录，保存前要确认不是误选行。"
       @click.stop="onViewForm"
     >
       <el-icon :size="14" style="margin-right: 4px; vertical-align: middle;"><Document /></el-icon>
@@ -60,6 +75,8 @@ const iconMap = {
 
 const resolveIcon = (icon) => iconMap[icon] || null
 
+const formatSopSteps = (steps) => Array.isArray(steps) ? steps.filter(Boolean).join('|') : (steps || '')
+
 const onRowAction = (action) => {
   if (isPinned.value || action?.disabled) return
   const handler = props.params?.context?.componentParent?.rowAction
@@ -85,17 +102,21 @@ const onViewForm = () => {
 .action-cell-wrapper {
   display: flex !important;
   align-items: center !important;
-  justify-content: center !important;
-  gap: 4px;
+  justify-content: flex-start !important;
+  gap: 0;
   height: 100%;
   width: 100%;
+  overflow: visible;
 }
 .action-btn {
-  padding: 4px 6px;
-  display: flex;
+  margin: 0 !important;
+  padding: 2px 3px;
+  display: inline-flex;
   align-items: center;
+  flex: 0 0 auto;
   font-weight: 500;
   white-space: nowrap;
+  min-width: 0;
 }
 .action-btn:hover {
   background-color: var(--el-color-primary-light-9);

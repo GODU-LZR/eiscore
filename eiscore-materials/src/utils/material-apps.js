@@ -23,14 +23,15 @@ export const BASE_STATIC_COLUMNS = [
   { label: '物料编码', prop: 'batch_no', editable: false, width: 160 },
   { label: '物料名称', prop: 'name', width: 160 },
   { label: '物料分类编码', prop: 'category', editable: false, width: 160 },
-  { label: '规格', prop: 'spec', width: 160, storeInProperties: true },
+  { label: '规格', prop: 'spec', width: 160, storeInProperties: true, searchable: true },
   {
     label: '单位',
     prop: 'unit',
     type: 'select',
     options: UNIT_SELECT_OPTIONS,
     width: 120,
-    storeInProperties: true
+    storeInProperties: true,
+    searchable: true
   },
   {
     label: '计量单位',
@@ -38,14 +39,16 @@ export const BASE_STATIC_COLUMNS = [
     type: 'select',
     options: UNIT_SELECT_OPTIONS,
     width: 120,
-    storeInProperties: true
+    storeInProperties: true,
+    searchable: true
   },
   {
     label: '换算比例',
     prop: 'conversion_ratio',
     type: 'number',
     width: 120,
-    storeInProperties: true
+    storeInProperties: true,
+    searchable: true
   },
   {
     label: '换算关系',
@@ -53,6 +56,7 @@ export const BASE_STATIC_COLUMNS = [
     editable: false,
     width: 180,
     storeInProperties: true,
+    searchable: true,
     valueGetter: (params) => {
       const unit = params?.data?.properties?.unit || ''
       const measureUnit = params?.data?.properties?.measure_unit || ''
@@ -72,7 +76,8 @@ export const BASE_STATIC_COLUMNS = [
     type: 'select',
     options: FINANCE_ATTRIBUTE_SELECT_OPTIONS,
     width: 200,
-    storeInProperties: true
+    storeInProperties: true,
+    searchable: true
   },
   { label: '创建人', prop: 'created_by', editable: false, width: 120 }
 ]

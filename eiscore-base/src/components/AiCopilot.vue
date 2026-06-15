@@ -333,8 +333,6 @@ import { aiBridge } from '@/utils/ai-bridge'
 import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
-import mermaid from 'mermaid'
-import * as echarts from 'echarts'
 import { useRouter } from 'vue-router'
 
 const FULLSCREEN_KEY = 'eis_ai_worker_fullscreen'
@@ -358,6 +356,25 @@ const chartResizeTimers = new Map()
 const router = useRouter()
 const isFullscreen = ref(false)
 const isDark = useDark({ storageKey: 'eis_theme_global' })
+
+let echartsModulePromise = null
+const loadEcharts = async () => {
+  echartsModulePromise ||= import('echarts')
+  return echartsModulePromise
+}
+
+let mermaidModulePromise = null
+let mermaidInitialized = false
+const loadMermaid = async () => {
+  mermaidModulePromise ||= import('mermaid')
+  const module = await mermaidModulePromise
+  const mermaid = module.default || module
+  if (!mermaidInitialized) {
+    mermaid.initialize({ startOnLoad: false, theme: 'default' })
+    mermaidInitialized = true
+  }
+  return mermaid
+}
 
 const currentSession = computed(() => aiBridge.getCurrentSession())
 const isWorker = computed(() => props.mode === 'worker')
@@ -535,8 +552,6 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   }
   return self.renderToken(tokens, idx, options)
 }
-
-mermaid.initialize({ startOnLoad: false, theme: 'default' })
 
 const renderMarkdown = (text, env = {}) => {
   if (!text) return ''
@@ -1973,7 +1988,7 @@ const stripReportLeadPreamble = (bubbleNode) => {
   }
 }
 
-const buildPrintableHtmlForMessage = (messageIndex) => {
+const buildPrintableHtmlForMessage = async (messageIndex) => {
   const sourceRow = messagesRef.value
     ? messagesRef.value.querySelector(`.message-row[data-message-index="${messageIndex}"]`)
     : null
@@ -1989,24 +2004,27 @@ const buildPrintableHtmlForMessage = (messageIndex) => {
 
   const printableCharts = Array.from(printableBubble.querySelectorAll('.echarts-chart'))
   const sourceCharts = Array.from(sourceBubble.querySelectorAll('.echarts-chart'))
-  printableCharts.forEach((node, index) => {
-    const liveNode = sourceCharts[index]
-    const instance = liveNode ? echarts.getInstanceByDom(liveNode) : null
-    if (!instance) return
-    const dataUrl = instance.getDataURL({ pixelRatio: 2, backgroundColor: '#ffffff' })
-    const img = document.createElement('img')
-    img.src = dataUrl
-    img.style.maxWidth = '100%'
-    img.style.display = 'block'
-    node.replaceWith(img)
-  })
+  if (printableCharts.length && echartsModulePromise) {
+    const echarts = await echartsModulePromise
+    printableCharts.forEach((node, index) => {
+      const liveNode = sourceCharts[index]
+      const instance = liveNode ? echarts.getInstanceByDom(liveNode) : null
+      if (!instance) return
+      const dataUrl = instance.getDataURL({ pixelRatio: 2, backgroundColor: '#ffffff' })
+      const img = document.createElement('img')
+      img.src = dataUrl
+      img.style.maxWidth = '100%'
+      img.style.display = 'block'
+      node.replaceWith(img)
+    })
+  }
   printableBubble.querySelectorAll('.echarts-chart, .mermaid-chart').forEach((node) => node.remove())
 
   return printableBubble.innerHTML
 }
 
-const exportMessageReportAsPdf = (messageIndex) => {
-  const html = buildPrintableHtmlForMessage(messageIndex)
+const exportMessageReportAsPdf = async (messageIndex) => {
+  const html = await buildPrintableHtmlForMessage(messageIndex)
   if (!html) {
     ElMessage.warning('当前消息没有可导出的报告内容')
     return
@@ -2050,6 +2068,7 @@ const openLightbox = async (type, payload) => {
     if (lightboxChart) {
       lightboxChart.dispose()
     }
+    const echarts = await loadEcharts()
     lightboxChart = echarts.init(lightboxChartRef.value)
     lightboxChart.setOption(payload)
   }
@@ -2085,16 +2104,18 @@ const queueNodeChartResize = (node, delay = 60) => {
   const timer = setTimeout(() => {
     clearChartResizeTimer(node)
     if (shouldSkipChartResize(node)) return
-    const chart = echarts.getInstanceByDom(node)
-    if (!chart) return
-    requestAnimationFrame(() => {
-      try {
-        chart.resize()
-      } catch (e) {
-        if (typeof window !== 'undefined' && window.__EIS_DEBUG__) {
-          console.warn('[AiCopilot] chart.resize skipped', e)
+    void loadEcharts().then((echarts) => {
+      const chart = echarts.getInstanceByDom(node)
+      if (!chart) return
+      requestAnimationFrame(() => {
+        try {
+          chart.resize()
+        } catch (e) {
+          if (typeof window !== 'undefined' && window.__EIS_DEBUG__) {
+            console.warn('[AiCopilot] chart.resize skipped', e)
+          }
         }
-      }
+      })
     })
   }, Math.max(20, delay))
   chartResizeTimers.set(node, timer)
@@ -2161,6 +2182,7 @@ const toggleFullscreen = () => {
 }
 
 const renderFallbackEcharts = async (node) => {
+  const echarts = await loadEcharts()
   const previous = echarts.getInstanceByDom(node)
   if (previous) previous.dispose()
   unobserveChartNode(node)
@@ -2176,6 +2198,7 @@ const renderMermaidNode = async (node) => {
     node.setAttribute('data-processed', 'true')
     node.classList.add('is-rendering')
     const text = decodeURIComponent(node.getAttribute('data-raw') || '')
+    const mermaid = await loadMermaid()
     await mermaid.parse(text)
     const id = `mermaid-${Date.now()}-${mermaidRenderSeed++}`
     const { svg } = await mermaid.render(id, text)
@@ -2217,6 +2240,7 @@ const renderEchartsNode = async (node, attempt = 0) => {
       await renderFallbackEcharts(node)
       return
     }
+    const echarts = await loadEcharts()
     const previous = echarts.getInstanceByDom(node)
     if (previous) previous.dispose()
     unobserveChartNode(node)
@@ -2347,11 +2371,15 @@ onBeforeUnmount(() => {
   Array.from(chartResizeTimers.keys()).forEach((node) => {
     clearChartResizeTimer(node)
   })
-  document.querySelectorAll('.echarts-chart').forEach((node) => {
-    unobserveChartNode(node)
-    const chart = echarts.getInstanceByDom(node)
-    if (chart) chart.dispose()
-  })
+  if (echartsModulePromise) {
+    void echartsModulePromise.then((echarts) => {
+      document.querySelectorAll('.echarts-chart').forEach((node) => {
+        unobserveChartNode(node)
+        const chart = echarts.getInstanceByDom(node)
+        if (chart) chart.dispose()
+      })
+    })
+  }
   if (chartResizeObserver) {
     chartResizeObserver.disconnect()
     chartResizeObserver = null

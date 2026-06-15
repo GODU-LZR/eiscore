@@ -5633,9 +5633,48 @@ function normalizeExecutionLogStatus(rawStatus = '') {
   return '';
 }
 
+function firstNonEmptyText(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return '';
+}
+
 function toJsonObjectOrNull(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value;
   return null;
+}
+
+function normalizeOperationLocation(src = {}, callContext = {}) {
+  const explicit = toJsonObjectOrNull(src.operation_location) || toJsonObjectOrNull(src.operationLocation);
+  if (explicit) return explicit;
+
+  const moduleName = firstNonEmptyText(src.module_name, src.moduleName, src.module, callContext.context?.module_name, callContext.context?.moduleName, callContext.context?.module);
+  const appName = firstNonEmptyText(src.app_name, src.appName, src.app, callContext.context?.app_name, callContext.context?.appName, callContext.context?.app);
+  const actionName = firstNonEmptyText(src.action_name, src.actionName, src.action, src.event_message, src.eventMessage, src.event_type, src.eventType, src.task_id);
+  const appId = firstNonEmptyText(src.app_id, src.appId, callContext.appId);
+  const routePath = firstNonEmptyText(src.route_path, src.routePath, src.path, callContext.context?.route_path, callContext.context?.routePath, callContext.context?.path);
+
+  const parts = [];
+  if (moduleName) parts.push(`模块:${moduleName}`);
+  if (appName) parts.push(`应用:${appName}`);
+  if (actionName) parts.push(`操作:${actionName}`);
+  if (!parts.length && appId) parts.push(`应用ID:${appId}`);
+  if (!parts.length && routePath) parts.push(`路径:${routePath}`);
+  if (!parts.length) return null;
+
+  const out = {
+    address: parts.join(' / '),
+    module: moduleName || '',
+    app: appName || '',
+    action: actionName || '',
+    app_id: appId || '',
+    route_path: routePath || '',
+    source: 'system_audit'
+  };
+  return out;
 }
 
 function normalizeExecutionLogPayload(rawPayload = {}, callContext = {}, user = null) {
@@ -5652,9 +5691,15 @@ function normalizeExecutionLogPayload(rawPayload = {}, callContext = {}, user = 
   if (src.error_message !== undefined) out.error_message = src.error_message;
   if (src.executed_by !== undefined) out.executed_by = src.executed_by;
   if (src.executed_at !== undefined) out.executed_at = src.executed_at;
+  if (src.operation_location !== undefined) out.operation_location = src.operation_location;
+  else if (src.operationLocation !== undefined) out.operation_location = src.operationLocation;
 
   if (!out.app_id) out.app_id = src.appId || callContext.appId || '';
   if (!out.task_id) out.task_id = src.event_type || src.eventType || 'flash.audit.write';
+  if (!out.operation_location) {
+    const location = normalizeOperationLocation(src, callContext);
+    if (location) out.operation_location = location;
+  }
 
   const normalizedStatus = normalizeExecutionLogStatus(out.status);
   if (normalizedStatus) {

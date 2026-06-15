@@ -4,18 +4,22 @@
 -- 用户管理视图（users + user_roles）
 -- 执行方式（UTF-8）：cat user_manage_view.sql | docker exec -i eiscore-db psql -U postgres -d eiscore
 
+alter table public.users add column if not exists sop_role text;
+
 create or replace view public.v_users_manage as
 select u.id,
        u.username,
        u.full_name,
        u.phone,
        u.email,
+       u.dept_id,
        u.status,
        ur.role_id,
        r.code as role_code,
        r.name as role_name,
        u.password,
-       u.avatar
+       u.avatar,
+       u.sop_role
 from public.users u
 left join lateral (
   select role_id
@@ -26,6 +30,7 @@ left join lateral (
 ) ur on true
 left join public.roles r on r.id = ur.role_id;
 
+grant select on public.v_users_manage to web_anon;
 grant select, insert, update, delete on public.v_users_manage to web_user;
 
 create or replace function public.tg_v_users_manage_insert()
@@ -33,14 +38,15 @@ returns trigger language plpgsql as $$
 declare
   _user_id integer;
 begin
-  insert into public.users (username, password, full_name, phone, email, status)
+  insert into public.users (username, password, full_name, phone, email, status, sop_role)
   values (
     coalesce(new.username, 'user_' || to_char(now(), 'HH24MISS')),
     coalesce(new.password, '123456'),
     new.full_name,
     new.phone,
     new.email,
-    coalesce(new.status, 'active')
+    coalesce(new.status, 'active'),
+    nullif(new.sop_role, '')
   )
   returning id into _user_id;
 
@@ -68,6 +74,7 @@ begin
       phone = new.phone,
       email = new.email,
       status = coalesce(new.status, old.status),
+      sop_role = nullif(new.sop_role, ''),
       avatar = new.avatar,
       updated_at = now()
   where id = old.id;

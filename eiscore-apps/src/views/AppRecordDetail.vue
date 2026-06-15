@@ -1,9 +1,9 @@
 <template>
-  <div class="detail-page">
-    <div class="page-header">
-      <el-button icon="ArrowLeft" @click="goBack">返回列表</el-button>
-      <div class="header-actions">
-        <el-select v-model="selectedTemplateId" size="small" placeholder="选择模板" style="width: 220px;">
+  <div class="detail-page" data-guide="detail-page">
+    <div class="page-header" data-guide="detail-header">
+      <el-button icon="ArrowLeft" data-guide="detail-back" @click="goBack">返回列表</el-button>
+      <div class="header-actions" data-guide="detail-actions">
+        <el-select v-model="selectedTemplateId" size="small" placeholder="选择模板" style="width: 220px;" data-guide="template-select">
           <el-option
             v-for="tpl in templates"
             :key="tpl.id"
@@ -11,14 +11,44 @@
             :value="tpl.id"
           />
         </el-select>
-        <el-button @click="openTemplateManager">模板库</el-button>
-        <el-button type="primary" @click="openAiFormAssistant">AI生成表单</el-button>
-        <el-button type="primary" plain @click="printDoc">打印单据</el-button>
-        <el-button type="success" @click="saveDoc">保存修改</el-button>
+        <el-button
+          data-sop-action="detail-template-library"
+          data-sop-title="维护单据模板库"
+          data-sop-desc="管理当前低代码应用的单据模板，可新增、预览、改名或删除模板。"
+          data-sop-steps="先确认当前应用和记录类型|打开模板库|预览或选择模板|只删除确认废弃的模板|回到单据页重新选择模板并复核显示效果"
+          @click="openTemplateManager"
+        >模板库</el-button>
+        <el-button
+          type="primary"
+          data-sop-action="detail-ai-form"
+          data-sop-title="AI生成表单"
+          data-sop-desc="用 AI 辅助生成当前低代码应用表单模板或字段建议，生成后必须人工复核。"
+          data-sop-steps="先确认当前应用和记录类型|点击 AI生成表单|检查生成字段是否符合业务场景|删除不需要的字段并补齐关键项|保存前由应用管理员复核"
+          data-sop-risk="AI 只能辅助生成模板，不能代替字段权限、业务规则和审批留痕设计。"
+          @click="openAiFormAssistant"
+        >AI生成表单</el-button>
+        <el-button
+          type="primary"
+          plain
+          data-sop-action="detail-print-doc"
+          data-sop-title="打印单据"
+          data-sop-desc="按当前模板打印或导出当前应用记录。"
+          data-sop-steps="先确认模板、记录对象和正文内容|点击打印单据|检查打印预览中的页边距、字段和签字栏|打印或导出 PDF 后按制度留档"
+          @click="printDoc"
+        >打印单据</el-button>
+        <el-button
+          type="success"
+          data-sop-action="detail-save-doc"
+          data-sop-title="保存单据修改"
+          data-sop-desc="保存当前低代码应用记录正文、扩展字段和附件，保存前必须复核关键业务字段。"
+          data-sop-steps="先复核记录对象、状态、数量、日期、负责人和业务来源|检查必填项和风险提示|确认附件已上传且内容正确|点击保存修改|保存后回到表格搜索该记录复核状态"
+          data-sop-risk="保存后请回到应用表格搜索该记录，确认状态、字段和附件都正确。"
+          @click="saveDoc"
+        >保存修改</el-button>
       </div>
     </div>
 
-    <div class="form-container" v-loading="loading" ref="docContainerRef">
+    <div class="form-container" v-loading="loading" ref="docContainerRef" data-guide="form-wrapper">
       <EisDocumentEngine
         v-if="formData && activeSchema"
         :model-value="formModel"
@@ -94,7 +124,11 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
-import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
+import {
+  applyDocumentFormulaUpdates,
+  buildDocumentAgentContext,
+  buildDocumentFormPrompt
+} from '@shared/eis-document-agent-context'
 
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
 import { documentSchemaExample } from '@/components/eis-document-engine/documentSchemaExample'
@@ -605,32 +639,10 @@ const sanitizeCascaderValues = (rowData) => {
 }
 
 const applyFormulaUpdates = (rowData) => {
-  if (!rowData) return
-  const formulaColumns = dynamicColumns.value.filter(col => col?.type === 'formula' && col.expression)
-  if (formulaColumns.length === 0) return
-
-  const rowDataMap = {}
-  allColumns.value.forEach(col => {
-    const val = getRowValueByProp(rowData, col.prop)
-    rowDataMap[col.prop] = val
-    rowDataMap[col.label] = val
-  })
-
-  formulaColumns.forEach(col => {
-    try {
-      const evalExpr = col.expression.replace(/\{(.+?)\}/g, (match, key) => {
-        const val = rowDataMap[key]
-        const num = parseFloat(val)
-        return Number.isFinite(num) ? num : 0
-      })
-      const result = evaluateFormulaExpression(evalExpr)
-      if (result !== undefined && !isNaN(result) && isFinite(result)) {
-        const finalVal = Number(result.toFixed(2))
-        setRowValueByProp(rowData, col.prop, finalVal)
-      }
-    } catch {
-      // ignore
-    }
+  applyDocumentFormulaUpdates({
+    rowData,
+    staticColumns: staticColumns.value,
+    dynamicColumns: dynamicColumns.value
   })
 }
 
@@ -681,21 +693,22 @@ const buildAiFormPrompt = () => {
 
 const syncAiContext = () => {
   const columns = getAllColumns()
-  const fileColumns = columns.filter(col => col.type === 'file')
-  pushAiContext({
+  pushAiContext(buildDocumentAgentContext({
     app: 'app_center',
     view: `app_${appId.value || 'data'}`,
     viewName: appName.value || '',
     apiUrl: apiUrl.value || '',
+    writeUrl: apiUrl.value || '',
     rowId: rowId.value,
+    rowData: formModel.value || formData.value,
     columns,
-    fileColumns,
+    staticColumns: staticColumns.value,
+    dynamicColumns: dynamicColumns.value,
     templateScope: templateScope.value,
     templateLibraryKey: 'form_templates',
     aiScene: 'form',
-    allowFormula: false,
     allowImport: false
-  })
+  }))
 }
 
 const openAiFormAssistant = () => {
@@ -709,7 +722,11 @@ const openAiFormAssistant = () => {
     return
   }
   syncAiContext()
-  const prompt = buildAiFormPrompt()
+  const prompt = buildDocumentFormPrompt({
+    title: appName.value || '数据应用',
+    columns,
+    rowData: formModel.value || formData.value
+  })
   pushAiCommand({
     id: `form_${Date.now()}`,
     type: 'open-worker',

@@ -33,7 +33,7 @@
         ref="gridRef"
         class="stock-grid"
         :view-id="gridConfig.viewId"
-        :api-url="gridConfig.apiUrl"
+        :api-url="gridApiUrl"
         :write-url="gridConfig.writeUrl"
         :include-properties="false"
         write-mode="patch"
@@ -54,6 +54,12 @@
         :can-config="canConfig"
         :attention-resolver="resolveAttention"
         :row-filter="rowAttentionFilter"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="openDrawer"
         @view-document="handleViewDocument"
         @cell-value-changed="handleCellValueChanged"
@@ -62,15 +68,24 @@
         @data-load-error="handleDataLoadError"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" class="attention-filter">
-            <el-radio-button
-              v-for="option in attentionFilterOptions"
-              :key="option.value"
-              :label="option.value"
-            >
-              {{ option.label }}
-            </el-radio-button>
-          </el-radio-group>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            v-model:attention-filter="attentionFilter"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :attention-options="attentionFilterOptions"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
           <el-button plain @click="goBatchRules">批次号规则</el-button>
           <el-button :icon="Setting" circle @click="openTypeManager" title="管理出库类型" />
           <el-button type="primary" @click="openDrawer">出库登记</el-button>
@@ -216,6 +231,8 @@ import { useUserStore } from '@/stores/user'
 import { pushAiContext } from '@/utils/ai-context'
 import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
 import { buildGridLoadState } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import {
   DEFAULT_INVENTORY_IO_TYPES,
   loadInventoryIoTypes,
@@ -390,7 +407,6 @@ const resolveAttention = (row) => getMaterialRecordAttention('inventory-stock-ou
   task: 'execute'
 })
 const rowAttentionFilter = (row) => matchesMaterialAttentionFilter('inventory-stock-out', row, attentionFilter.value)
-const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
 
 const parseNonNegative = (value) => {
   const num = Number(value)
@@ -453,7 +469,7 @@ const syncAiContext = (rows = [], payload = null) => {
     app: 'materials',
     view: 'inventory-stock-out',
     viewId: gridConfig.viewId,
-    apiUrl: gridConfig.apiUrl,
+    apiUrl: gridApiUrl.value,
     writeUrl: gridConfig.writeUrl,
     profile: gridConfig.schema,
     contentProfile: gridConfig.schema,
@@ -548,6 +564,7 @@ const gridConfig = {
       prop: 'warehouse_area',
       width: 120,
       editable: false,
+      searchable: false,
       valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 2)
     },
     {
@@ -555,6 +572,7 @@ const gridConfig = {
       prop: 'warehouse_slot',
       width: 120,
       editable: false,
+      searchable: false,
       valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 3)
     },
     {
@@ -596,6 +614,42 @@ const gridConfig = {
     { label: '创建时间', prop: 'created_at', width: 160, editable: false }
   ]
 }
+
+const gridApp = computed(() => ({
+  key: 'inventory-stock-out',
+  viewId: gridConfig.viewId,
+  apiUrl: gridConfig.apiUrl,
+  timeField: 'created_at'
+}))
+const gridStaticColumns = computed(() => gridConfig.staticColumns || [])
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app: gridApp,
+  staticColumns: gridStaticColumns,
+  moduleName: 'materials',
+  fallbackApiUrl: gridConfig.apiUrl,
+  attentionFilter,
+  attentionFilterOptions
+})
+const summaryScope = computed(() => (
+  attentionFilter.value === 'all' && gridTimeMode.value === 'infinite' ? 'server' : 'loaded'
+))
 
 /* ── 权限 ── */
 const canCreate = computed(() => hasPerm('op:mms_inventory.stock_out'))
@@ -1147,6 +1201,10 @@ watch(
 )
 
 watch(attentionFilter, () => {
+  gridRef.value?.loadData?.()
+})
+
+watch(gridApiUrl, () => {
   gridRef.value?.loadData?.()
 })
 </script>

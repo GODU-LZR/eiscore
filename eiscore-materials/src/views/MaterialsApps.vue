@@ -73,9 +73,18 @@ import {
   numberValue,
   sortByAttention
 } from '@shared/app-card-attention'
+import {
+  combineQueryParts,
+  countStat,
+  filterPart,
+  loadAppCardStats,
+  statNumber
+} from '@shared/app-card-server-stats'
+import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
 const apps = MATERIAL_APPS
+const { visibility: displayVisibility } = useDisplayVisibility()
 const iconMap = {
   Box,
   Connection,
@@ -97,10 +106,18 @@ const appRows = ref({
   'inventory-stock-out': [],
   'inventory-current': []
 })
+const serverStats = ref({})
 const cardLoading = ref(false)
 
 const rowsOf = (key) => appRows.value[key] || []
+const statsOf = (key) => serverStats.value[key] || {}
 const sourceKeyOf = (app) => app.sourceAppKey || app.key
+const today = () => new Date().toISOString().slice(0, 10)
+const offsetDate = (days) => {
+  const next = new Date()
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
+}
 
 const requestList = async (key, url, schema = 'public') => {
   try {
@@ -121,7 +138,9 @@ const loadCardData = async () => {
   if (cardLoading.value) return
   cardLoading.value = true
   try {
-    const results = await Promise.all([
+    const [statsResult, results] = await Promise.all([
+      loadMaterialCardStats().catch(() => ({})),
+      Promise.all([
       requestList('a', '/raw_materials?order=id.desc', 'public'),
       requestList('batch-rules', '/batch_no_rules?order=created_at.desc', 'scm'),
       requestList('warehouses', '/warehouses?order=code.asc', 'scm'),
@@ -129,11 +148,13 @@ const loadCardData = async () => {
       requestList('inventory-stock-in', '/v_inventory_drafts?draft_type=eq.in&order=created_at.desc', 'scm'),
       requestList('inventory-stock-out', '/v_inventory_drafts?draft_type=eq.out&order=created_at.desc', 'scm'),
       requestList('inventory-current', '/v_inventory_current?order=last_transaction_at.desc', 'scm')
+      ])
     ])
     appRows.value = results.reduce((acc, [key, rows]) => {
       acc[key] = rows
       return acc
     }, { ...appRows.value })
+    serverStats.value = { ...serverStats.value, ...statsResult }
   } finally {
     cardLoading.value = false
   }
@@ -155,6 +176,89 @@ const isOpenDraft = (row) => ![
 ].includes(normalizeDraftStatus(row))
 const hasNumericValue = (value) => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value))
 
+const loadMaterialCardStats = async () => {
+  const entries = await Promise.allSettled([
+    loadAppCardStats({
+      request,
+      profile: 'public',
+      apiUrl: '/raw_materials',
+      viewId: 'materials_list',
+      stats: [countStat('total')]
+    }).then((value) => ['a', value]),
+    loadAppCardStats({
+      request,
+      profile: 'scm',
+      apiUrl: '/batch_no_rules',
+      viewId: 'batch_no_rules',
+      stats: [
+        countStat('total'),
+        countStat('active', filterPart('status', 'eq', '启用'))
+      ]
+    }).then((value) => ['batch-rules', value]),
+    loadAppCardStats({
+      request,
+      profile: 'scm',
+      apiUrl: '/warehouses',
+      viewId: 'warehouses',
+      stats: [
+        countStat('total'),
+        countStat('top', filterPart('level', 'eq', 1))
+      ]
+    }).then((value) => ['warehouses', value]),
+    loadAppCardStats({
+      request,
+      profile: 'scm',
+      apiUrl: '/v_inventory_transactions',
+      viewId: 'inventory-ledger',
+      stats: [
+        countStat('total'),
+        countStat('todayMoves', combineQueryParts(filterPart('transaction_date', 'gte', today()), filterPart('transaction_date', 'lte', today())))
+      ]
+    }).then((value) => ['inventory-ledger', value]),
+    loadAppCardStats({
+      request,
+      profile: 'scm',
+      apiUrl: '/v_inventory_drafts?draft_type=eq.in',
+      viewId: 'inventory-stock-in',
+      stats: [
+        countStat('total'),
+        countStat('open', filterPart('status', 'not.in', ['active', 'locked', 'completed', 'done', 'void', 'deleted', 'cancelled', 'canceled', '已完成', '已生效', '已取消']))
+      ]
+    }).then((value) => ['inventory-stock-in', value]),
+    loadAppCardStats({
+      request,
+      profile: 'scm',
+      apiUrl: '/v_inventory_drafts?draft_type=eq.out',
+      viewId: 'inventory-stock-out',
+      stats: [
+        countStat('total'),
+        countStat('open', filterPart('status', 'not.in', ['active', 'locked', 'completed', 'done', 'void', 'deleted', 'cancelled', 'canceled', '已完成', '已生效', '已取消']))
+      ]
+    }).then((value) => ['inventory-stock-out', value]),
+    loadAppCardStats({
+      request,
+      profile: 'scm',
+      apiUrl: '/v_inventory_current',
+      viewId: 'inventory-current',
+      stats: [
+        countStat('total'),
+        countStat('zeroStock', filterPart('available_qty', 'lte', 0)),
+        countStat('lowStock', combineQueryParts(filterPart('available_qty', 'gt', 0), filterPart('available_qty', 'lte', 10))),
+        countStat('expiring', combineQueryParts(filterPart('expiry_date', 'gte', today()), filterPart('expiry_date', 'lte', offsetDate(30)))),
+        countStat('expired', filterPart('expiry_date', 'lt', today()))
+      ]
+    }).then((value) => ['inventory-current', value])
+  ])
+
+  return entries.reduce((acc, item) => {
+    if (item.status === 'fulfilled') {
+      const [key, value] = item.value
+      acc[key] = value || {}
+    }
+    return acc
+  }, {})
+}
+
 const cardMap = computed(() => {
   const materials = rowsOf('a')
   const batchRules = rowsOf('batch-rules')
@@ -163,60 +267,75 @@ const cardMap = computed(() => {
   const stockIn = rowsOf('inventory-stock-in')
   const stockOut = rowsOf('inventory-stock-out')
   const current = rowsOf('inventory-current')
+  const materialStats = statsOf('a')
+  const batchRuleStats = statsOf('batch-rules')
+  const warehouseStats = statsOf('warehouses')
+  const ledgerStats = statsOf('inventory-ledger')
+  const stockInStats = statsOf('inventory-stock-in')
+  const stockOutStats = statsOf('inventory-stock-out')
+  const currentStats = statsOf('inventory-current')
 
-  const zeroStock = current.filter((row) => numberValue(row.available_qty) <= 0).length
-  const lowStock = current.filter((row) => {
+  const materialTotal = statNumber(materialStats, 'total', materials.length)
+  const zeroStock = statNumber(currentStats, 'zeroStock', current.filter((row) => numberValue(row.available_qty) <= 0).length)
+  const lowStockFallback = current.filter((row) => {
     const qty = numberValue(row.available_qty)
     return qty > 0 && qty <= 10
   }).length
-  const expiring = current.filter((row) => {
+  const lowStock = statNumber(currentStats, 'lowStock', lowStockFallback)
+  const expiringFallback = current.filter((row) => {
     const delta = daysBetween(row.expiry_date)
     return delta !== null && delta >= 0 && delta <= 30
   }).length
-  const expired = current.filter((row) => {
+  const expiredFallback = current.filter((row) => {
     const delta = daysBetween(row.expiry_date)
     return delta !== null && delta < 0
   }).length
-  const openIn = stockIn.filter(isOpenDraft).length
-  const openOut = stockOut.filter(isOpenDraft).length
+  const expiring = statNumber(currentStats, 'expiring', expiringFallback)
+  const expired = statNumber(currentStats, 'expired', expiredFallback)
+  const openIn = statNumber(stockInStats, 'open', stockIn.filter(isOpenDraft).length)
+  const openOut = statNumber(stockOutStats, 'open', stockOut.filter(isOpenDraft).length)
   const outShortage = stockOut.filter((row) => (
     isOpenDraft(row)
     && hasNumericValue(row.available_qty)
     && numberValue(row.quantity) > numberValue(row.available_qty)
   )).length
-  const activeRules = batchRules.filter((row) => String(row.status || '') === '启用').length
-  const topWarehouses = warehouses.filter((row) => Number(row.level) === 1).length
-  const todayMoves = ledger.filter((row) => daysBetween(row.transaction_date || row.created_at || row.updated_at) === 0).length
+  const activeRules = statNumber(batchRuleStats, 'active', batchRules.filter((row) => String(row.status || '') === '启用').length)
+  const batchRuleTotal = statNumber(batchRuleStats, 'total', batchRules.length)
+  const topWarehouses = statNumber(warehouseStats, 'top', warehouses.filter((row) => Number(row.level) === 1).length)
+  const warehouseTotal = statNumber(warehouseStats, 'total', warehouses.length)
+  const ledgerTotal = statNumber(ledgerStats, 'total', ledger.length)
+  const todayMoves = statNumber(ledgerStats, 'todayMoves', ledger.filter((row) => daysBetween(row.transaction_date || row.created_at || row.updated_at) === 0).length)
+  const stockInTotal = statNumber(stockInStats, 'total', stockIn.length)
 
   return {
     a: cardFromScore({
-      score: materials.length ? 25 : 18,
+      score: materialTotal ? 25 : 18,
       metrics: [
-        { label: '物料数', value: `${materials.length}` },
+        { label: '物料数', value: `${materialTotal}` },
         { label: '分类数', value: `${new Set(materials.map((row) => row.category).filter(Boolean)).size}` }
       ],
-      brief: materials.length ? '维护物料主数据' : '先建立物料档案'
+      brief: materialTotal ? '维护物料主数据' : '先建立物料档案'
     }),
     'batch-rules': cardFromScore({
       score: activeRules ? 25 : 42,
       metrics: [
         { label: '启用规则', value: `${activeRules}` },
-        { label: '规则总数', value: `${batchRules.length}` }
+        { label: '规则总数', value: `${batchRuleTotal}` }
       ],
       brief: activeRules ? '批次规则可用' : '需要配置批次规则'
     }),
     warehouses: cardFromScore({
-      score: warehouses.length ? 25 : 45,
+      score: warehouseTotal ? 25 : 45,
       metrics: [
-        { label: '仓库', value: `${topWarehouses || warehouses.length}` },
-        { label: '库位节点', value: `${warehouses.length}` }
+        { label: '仓库', value: `${topWarehouses || warehouseTotal}` },
+        { label: '库位节点', value: `${warehouseTotal}` }
       ],
-      brief: warehouses.length ? '维护仓库库区库位' : '先建立仓库结构'
+      brief: warehouseTotal ? '维护仓库库区库位' : '先建立仓库结构'
     }),
     'inventory-ledger': cardFromScore({
       score: todayMoves > 0 ? 35 : 22,
       metrics: [
-        { label: '流水数', value: `${ledger.length}` },
+        { label: '流水数', value: `${ledgerTotal}` },
         { label: '今日流转', value: `${todayMoves}` }
       ],
       brief: todayMoves > 0 ? '关注今日库存流转' : '查看库存流水'
@@ -225,7 +344,7 @@ const cardMap = computed(() => {
       score: openIn > 0 ? 48 : 24,
       metrics: [
         { label: '待入库', value: `${openIn}` },
-        { label: '草稿数', value: `${stockIn.length}` }
+        { label: '草稿数', value: `${stockInTotal}` }
       ],
       brief: openIn > 0 ? '处理待完成入库单' : '登记物料入库'
     }),
@@ -273,6 +392,7 @@ const cardMap = computed(() => {
 })
 
 const visibleApps = computed(() => apps
+  .filter((app) => isAppVisible(displayVisibility.value, 'materials', app.key))
   .filter((app) => app.key !== 'inventory-dashboard' && (!app.perm || hasPerm(app.perm)))
   .map((app) => ({
     ...app,
@@ -294,6 +414,7 @@ onMounted(() => {
 
 <style scoped>
 .materials-apps {
+  position: relative;
   padding: 20px;
   min-height: 100vh;
   box-sizing: border-box;
@@ -321,6 +442,7 @@ onMounted(() => {
 }
 
 .app-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -343,7 +465,7 @@ onMounted(() => {
 
 .app-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.15);
 }
 
 .app-card-body {
@@ -364,7 +486,7 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.tone-blue { background: #409eff; }
+.tone-blue { background: var(--el-color-primary); }
 .tone-orange { background: #e6a23c; }
 .tone-green { background: #67c23a; }
 .tone-purple { background: #9c27b0; }
@@ -496,7 +618,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 
 .app-enter span:first-child {

@@ -8,51 +8,51 @@
       <el-button type="primary" plain @click="goApps">返回应用列表</el-button>
     </div>
 
-    <el-card shadow="never" class="query-card">
-      <el-form :inline="true" :model="filters" class="query-form" @submit.prevent>
-        <el-form-item label="仓库/库区/库位">
-          <el-cascader
-            v-model="filters.warehouseId"
-            :options="warehouseOptions"
-            :props="warehouseCascaderProps"
-            placeholder="请选择仓库层级"
-            clearable
-            filterable
-            style="width: 280px"
-          />
-        </el-form-item>
-
-        <el-form-item label="物料类型">
-          <el-cascader
-            v-model="filters.materialCategoryCode"
-            :options="materialCategoryOptions"
-            :props="materialCategoryCascaderProps"
-            placeholder="全部类型"
-            clearable
-            filterable
-            style="width: 260px"
-          />
-        </el-form-item>
-
-        <el-form-item label="物料查询">
-          <el-input
-            v-model.trim="filters.keyword"
-            placeholder="输入物料编码/名称/批次号"
-            clearable
-            style="width: 260px"
-            @keyup.enter="applyFilters"
-          />
-        </el-form-item>
-
-        <el-form-item>
-          <el-button type="primary" @click="applyFilters">查询</el-button>
-          <el-button @click="resetFilters">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
-
     <div class="grid-wrap">
-      <MaterialAppGrid :key="gridKey" :app-config="appConfig" />
+      <MaterialAppGrid :key="gridKey" :app-config="appConfig">
+        <template #toolbar>
+          <el-form :inline="true" :model="filters" class="query-form query-form-inline" size="small" @submit.prevent>
+            <el-form-item label="仓库">
+              <el-cascader
+                v-model="filters.warehouseId"
+                :options="warehouseOptions"
+                :props="warehouseCascaderProps"
+                placeholder="仓库/库区/库位"
+                clearable
+                filterable
+                class="query-control query-control-warehouse"
+              />
+            </el-form-item>
+
+            <el-form-item label="类型">
+              <el-cascader
+                v-model="filters.materialCategoryCode"
+                :options="materialCategoryOptions"
+                :props="materialCategoryCascaderProps"
+                placeholder="物料类型"
+                clearable
+                filterable
+                class="query-control query-control-category"
+              />
+            </el-form-item>
+
+            <el-form-item label="物料">
+              <el-input
+                v-model.trim="filters.keyword"
+                placeholder="编码/名称/批次"
+                clearable
+                class="query-control query-control-keyword"
+                @keyup.enter="applyFilters"
+              />
+            </el-form-item>
+
+            <el-form-item class="query-actions">
+              <el-button type="primary" @click="applyFilters">查询</el-button>
+              <el-button @click="resetFilters">重置</el-button>
+            </el-form-item>
+          </el-form>
+        </template>
+      </MaterialAppGrid>
     </div>
   </div>
 </template>
@@ -436,7 +436,8 @@ onMounted(async () => {
 
 <style scoped>
 .app-container {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -467,15 +468,35 @@ onMounted(async () => {
   color: #909399;
 }
 
-.query-card {
-  border-radius: 8px;
-  flex-shrink: 0;
-}
-
 .query-form {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 8px;
+  gap: 4px 6px;
+}
+
+.query-form-inline {
+  align-items: center;
+  min-width: 0;
+}
+
+.query-form-inline :deep(.el-form-item) {
+  margin: 0;
+}
+
+.query-control {
+  width: 180px;
+}
+
+.query-control-warehouse {
+  width: 210px;
+}
+
+.query-control-keyword {
+  width: 190px;
+}
+
+.query-actions :deep(.el-button + .el-button) {
+  margin-left: 4px;
 }
 
 .grid-wrap {

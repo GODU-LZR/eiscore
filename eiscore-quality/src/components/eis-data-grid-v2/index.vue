@@ -11,6 +11,7 @@
       :can-export="canExport"
       :can-recalculate-formulas="canConfig && canRecalculateFormulas"
       :formula-recalculating="formulaRecalculateState.loading"
+      :calculation-state="calculationState"
       @search="loadData"
       @create="$emit('create')"
       @config-columns="$emit('config-columns')"
@@ -33,11 +34,13 @@
         :rowData="gridData"
         :pinnedBottomRowData="pinnedBottomRowData"
         :defaultColDef="defaultColDef"
+        :columnTypes="columnTypes"
         :localeText="AG_GRID_LOCALE_CN"
         :theme="'legacy'" 
         :rowSelection="rowSelectionConfig"
         :animateRows="true"
         :getRowId="getRowId"
+        :getRowHeight="getRowHeight"
         
         :context="context" 
         :components="gridComponents"
@@ -59,6 +62,7 @@
         @cell-key-down="onCellKeyDown"
         @selection-changed="onSelectionChanged"
         @column-header-clicked="onColumnHeaderClicked"
+        @column-resized="handleColumnResized"
         @row-selected="onRowSelected"
         
         @cell-mouse-down="onCellMouseDown"
@@ -114,8 +118,73 @@ import ConfigDialog from './components/ConfigDialog.vue'
 import GeoDialog from './components/GeoDialog.vue'
 import FileDialog from './components/FileDialog.vue'
 
-import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community'
-ModuleRegistry.registerModules([ AllCommunityModule ])
+import {
+  CellApiModule,
+  CellStyleModule,
+  CheckboxEditorModule,
+  CustomEditorModule,
+  ClientSideRowModelApiModule,
+  ClientSideRowModelModule,
+  ColumnApiModule,
+  ColumnAutoSizeModule,
+  CsvExportModule,
+  DateEditorModule,
+  DateFilterModule,
+  EventApiModule,
+  GridStateModule,
+  HighlightChangesModule,
+  LargeTextEditorModule,
+  LocaleModule,
+  ModuleRegistry,
+  NumberEditorModule,
+  NumberFilterModule,
+  PinnedRowModule,
+  QuickFilterModule,
+  RenderApiModule,
+  RowApiModule,
+  RowAutoHeightModule,
+  RowSelectionModule,
+  RowStyleModule,
+  ScrollApiModule,
+  SelectEditorModule,
+  TextEditorModule,
+  TextFilterModule,
+  TooltipModule,
+  ValueCacheModule
+} from 'ag-grid-community'
+ModuleRegistry.registerModules([
+  CellApiModule,
+  CellStyleModule,
+  CheckboxEditorModule,
+  CustomEditorModule,
+  ClientSideRowModelApiModule,
+  ClientSideRowModelModule,
+  ColumnApiModule,
+  ColumnAutoSizeModule,
+  CsvExportModule,
+  DateEditorModule,
+  DateFilterModule,
+  EventApiModule,
+  GridStateModule,
+  HighlightChangesModule,
+  LargeTextEditorModule,
+  LocaleModule,
+  NumberEditorModule,
+  NumberFilterModule,
+  PinnedRowModule,
+  QuickFilterModule,
+  RenderApiModule,
+  RowApiModule,
+  RowAutoHeightModule,
+  RowSelectionModule,
+  RowStyleModule,
+  ScrollApiModule,
+  SelectEditorModule,
+  TextEditorModule,
+  TextFilterModule,
+  TooltipModule,
+  ValueCacheModule
+])
 
 import "ag-grid-community/styles/ag-grid.css"
 import "ag-grid-community/styles/ag-theme-alpine.css"
@@ -166,7 +235,12 @@ const props = defineProps({
   enableInfiniteScroll: { type: Boolean, default: true },
   pageSize: { type: Number, default: 200 },
   maxClientRows: { type: Number, default: 5000 },
-  summaryScope: { type: String, default: 'server' }
+  summaryScope: { type: String, default: 'server' },
+  localLayoutKey: { type: String, default: '' },
+  enableRowHeightResize: { type: Boolean, default: false },
+  defaultRowHeight: { type: Number, default: 35 },
+  minRowHeight: { type: Number, default: 32 },
+  maxRowHeight: { type: Number, default: 180 }
 })
 
 // 🟢 声明事件：增加 view-document
@@ -198,7 +272,8 @@ const {
   gridData, gridColumns, context, gridComponents, searchText, isLoading,
   isLoadingMore, hasMoreRows, loadData, loadNextPage,
   handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
-  columnLockState, setWorkflowBinding
+  columnLockState, setWorkflowBinding, getRowHeight, handleColumnResized,
+  onGridReadyLayout, stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
 } = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit, workflowBinding) // 🟢 关键修复：共享 gridApi
 
 const openFileDialog = (params) => {
@@ -217,7 +292,7 @@ context.componentParent.onHeaderLabelClick = (params, event) => {
 const formulaDependencyHooks = {} 
 const { 
   pinnedBottomRowData, calculateRowFormulas, calculateTotals, refreshTotals,
-  formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas,
+  formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas, calculationState,
   configDialog, isSavingConfig, availableColumns, 
   openConfigDialog, saveConfig, loadGridConfig 
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState)
@@ -258,19 +333,47 @@ const defaultColDef = {
     return false;
   }
 }
+
+const columnTypes = {
+  text: {},
+  textarea: {},
+  longtext: {},
+  number: {},
+  decimal: {},
+  currency: {},
+  percent: {},
+  date: {},
+  datetime: {},
+  time: {},
+  select: {},
+  status: {},
+  check: {},
+  cascader: {},
+  geo: {},
+  file: {},
+  formula: {}
+}
 const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
+const fallbackRowIds = new WeakMap()
+let fallbackRowSeq = 0
 const getRowId = (params) => {
   const data = params.data || {}
-  if (data.id !== undefined && data.id !== null) return String(data.id)
+  const id = String(data.id ?? '').trim()
+  if (id) return id
   if (data.att_month && (data.employee_id || data.temp_phone || data.temp_name)) {
     const key = data.employee_id || data.temp_phone || data.temp_name
     return `${data.att_month}-${key}`
   }
-  return String(params.rowIndex ?? '')
+  if (data && typeof data === 'object') {
+    if (!fallbackRowIds.has(data)) fallbackRowIds.set(data, `row-${fallbackRowSeq += 1}`)
+    return fallbackRowIds.get(data)
+  }
+  return `row-${fallbackRowSeq += 1}`
 }
 
 const onGridReady = (params) => { 
   gridApi.value = params.api; 
+  onGridReadyLayout()
   if (props.initialSearch && !searchText.value) searchText.value = props.initialSearch
   loadData();
   loadGridConfig();
@@ -322,6 +425,10 @@ onUnmounted(() => {
 
 const onGridMouseLeave = () => {}
 const onCellMouseDown = (params) => {
+  if (isRowHeightEdgeResizeEvent?.(params)) {
+    startRowHeightResize?.(params, params.event)
+    return
+  }
   if (params?.colDef?.isAttentionColumn && !params.node?.rowPinned) {
     params.api?.startEditingCell?.({
       rowIndex: params.node.rowIndex,
@@ -334,6 +441,10 @@ const onCellMouseDown = (params) => {
 
 const onCellDoubleClicked = (params) => {
   if (!params) return
+  if (params.column?.getColId?.() === '_rowHeight' || (params.event?.altKey && !params.node?.rowPinned)) {
+    resetRowHeight?.(params)
+    return
+  }
   if (params.column?.getColId?.() === 'rowCheckbox' || params.colDef?.checkboxSelection) {
     gridApi.value?.stopEditing?.(true)
     return
@@ -413,6 +524,7 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', onGlobalMouseUp)
   document.removeEventListener('mousemove', onGlobalMouseMove)
   document.removeEventListener('paste', handleGlobalPaste)
+  stopRowHeightResize?.()
 })
 
 defineExpose({ loadData, loadNextPage, setWorkflowBinding, recalculateServerFormulas })
@@ -436,6 +548,34 @@ defineExpose({ loadData, loadNextPage, setWorkflowBinding, recalculateServerForm
 .ag-theme-alpine .dynamic-header { font-weight: 600; }
 .ag-theme-alpine .ag-cell { border-right: 1px solid var(--ag-border-color); }
 .ag-root-wrapper { border: 1px solid var(--el-border-color-light) !important; }
+
+.ag-theme-alpine .ag-row .ag-cell {
+  display: flex;
+  align-items: center;
+}
+
+.ag-theme-alpine .ag-cell[col-id="_rowHeight"] {
+  padding: 0 !important;
+  background-color: #f8fafc;
+  border-right-color: #cbd5e1;
+}
+
+.ag-theme-alpine .ag-cell[col-id="_rowHeight"]:hover {
+  background-color: #eef6ff;
+}
+
+.ag-theme-alpine .ag-row:hover .ag-cell:not([col-id="_rowHeight"]) {
+  background-image: linear-gradient(to bottom, transparent calc(100% - 8px), rgba(64, 158, 255, 0.08) calc(100% - 8px));
+}
+
+.ag-theme-alpine .ag-row:hover .ag-cell[col-id="_rowHeight"] {
+  cursor: ns-resize;
+}
+
+:global(body.is-resizing-grid-row) {
+  cursor: ns-resize !important;
+  user-select: none !important;
+}
 
 .custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }
 .cell-locked-pattern { background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px); color: #a8abb2; cursor: not-allowed; }

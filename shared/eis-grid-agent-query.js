@@ -39,6 +39,29 @@ const normalizeBaseUrl = (url) => {
   return baseUrl || clean
 }
 
+const safeDecodeQueryPart = (value) => {
+  try {
+    return decodeURIComponent(String(value || ''))
+  } catch (e) {
+    return String(value || '')
+  }
+}
+
+const extractApiFilterQuery = (url = '') => {
+  const [, rawQuery = ''] = String(url || '').split('?')
+  if (!rawQuery) return ''
+  const ignored = new Set(['select', 'order', 'limit', 'offset'])
+  return rawQuery
+    .split('&')
+    .map((item) => safeDecodeQueryPart(item.trim()))
+    .filter(Boolean)
+    .filter((item) => {
+      const key = (item.split('=')[0] || '').trim()
+      return key && !ignored.has(key)
+    })
+    .join('&')
+}
+
 const sanitizeSearchText = (value) => String(value || '')
   .trim()
   .replace(/[(),]/g, ' ')
@@ -162,7 +185,8 @@ export function buildGridAgentQueryPayload({ context = {}, userText = '' } = {})
     operation,
     api_url: apiUrl,
     accept_profile: relation.acceptProfile || context.profile || 'public',
-    search_query: buildGridAgentSearchQuery(searchText, normalizedColumns),
+    base_query: relation.baseQuery || extractApiFilterQuery(context.apiUrl || ''),
+    search_query: safeDecodeQueryPart(buildGridAgentSearchQuery(searchText, normalizedColumns)),
     group_by: groupColumn?.prop || '',
     sample_limit: operation === 'sample' ? 20 : 8,
     group_limit: 12,

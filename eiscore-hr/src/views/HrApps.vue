@@ -73,9 +73,19 @@ import {
   numberValue,
   sortByAttention
 } from '@shared/app-card-attention'
+import {
+  combineQueryParts,
+  countStat,
+  filterPart,
+  loadAppCardStats,
+  orFilter,
+  statNumber
+} from '@shared/app-card-server-stats'
+import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
 const apps = HR_APPS
+const { visibility: displayVisibility } = useDisplayVisibility()
 const iconMap = { User, Document, Calendar, OfficeBuilding }
 const appRows = ref({
   archives: [],
@@ -85,9 +95,17 @@ const appRows = ref({
   roles: [],
   userRoles: []
 })
+const serverStats = ref({})
 const cardLoading = ref(false)
 
 const rowsOf = (key) => appRows.value[key] || []
+const statsOf = (key) => serverStats.value[key] || {}
+const today = () => new Date().toISOString().slice(0, 10)
+const offsetDate = (days) => {
+  const next = new Date()
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
+}
 
 const requestList = async (key, url, schema = 'hr') => {
   try {
@@ -108,21 +126,110 @@ const loadCardData = async () => {
   if (cardLoading.value) return
   cardLoading.value = true
   try {
-    const results = await Promise.all([
-      requestList('archives', '/archives?order=updated_at.desc', 'hr'),
-      requestList('attendance', '/attendance_records?order=att_date.desc', 'hr'),
-      requestList('departments', '/departments?order=name.asc', 'public'),
-      requestList('users', '/users?order=id.desc', 'public'),
-      requestList('roles', '/roles?order=sort.asc', 'public'),
-      requestList('userRoles', '/user_roles?order=user_id.asc', 'public')
+    const [statsResult, results] = await Promise.all([
+      loadHrCardStats().catch(() => ({})),
+      Promise.all([
+        requestList('archives', '/archives?order=updated_at.desc', 'hr'),
+        requestList('attendance', '/attendance_records?order=att_date.desc', 'hr'),
+        requestList('departments', '/departments?order=name.asc', 'public'),
+        requestList('users', '/users?order=id.desc', 'public'),
+        requestList('roles', '/roles?order=sort.asc', 'public'),
+        requestList('userRoles', '/user_roles?order=user_id.asc', 'public')
+      ])
     ])
     appRows.value = results.reduce((acc, [key, rows]) => {
       acc[key] = rows
       return acc
     }, { ...appRows.value })
+    serverStats.value = { ...serverStats.value, ...statsResult }
   } finally {
     cardLoading.value = false
   }
+}
+
+const loadHrCardStats = async () => {
+  const entries = await Promise.allSettled([
+    request({
+      url: '/rpc/eis_app_card_stats',
+      method: 'post',
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      data: { payload: { stat_key: 'hr_overview' } },
+      silentError: true,
+      suppressErrorMessage: true
+    }).then((value) => ['hrOverview', value || {}]),
+    loadAppCardStats({
+      request,
+      profile: 'hr',
+      apiUrl: '/archives',
+      viewId: 'employee_list',
+      stats: [
+        countStat('total'),
+        countStat('active', filterPart('status', 'in', ['在职', '待开通账号', '待入职', 'active'])),
+        countStat('onboarding', filterPart('status', 'in', ['待开通账号', '待入职'])),
+        countStat('recentJoin', combineQueryParts(filterPart('entry_date', 'gte', offsetDate(-30)), filterPart('entry_date', 'lte', today())))
+      ]
+    }).then((value) => ['archives', value]),
+    loadAppCardStats({
+      request,
+      profile: 'hr',
+      apiUrl: '/attendance_records',
+      viewId: 'hr_attendance',
+      stats: [
+        countStat('total'),
+        countStat('todayTotal', filterPart('att_date', 'eq', today())),
+        countStat('abnormal', orFilter(filterPart('late_flag', 'eq', true), filterPart('early_flag', 'eq', true), filterPart('leave_flag', 'eq', true), filterPart('absent_flag', 'eq', true)))
+      ]
+    }).then((value) => ['attendance', value]),
+    loadAppCardStats({
+      request,
+      profile: 'hr',
+      apiUrl: '/attendance_records',
+      viewId: 'hr_attendance_today',
+      stats: [
+        countStat('todayAbnormal', orFilter(filterPart('late_flag', 'eq', true), filterPart('early_flag', 'eq', true), filterPart('leave_flag', 'eq', true), filterPart('absent_flag', 'eq', true)))
+      ],
+      baseFilter: filterPart('att_date', 'eq', today())
+    }).then((value) => ['attendanceToday', value]),
+    loadAppCardStats({
+      request,
+      profile: 'public',
+      apiUrl: '/departments',
+      viewId: 'departments',
+      stats: [countStat('total')]
+    }).then((value) => ['departments', value]),
+    loadAppCardStats({
+      request,
+      profile: 'public',
+      apiUrl: '/users',
+      viewId: 'users',
+      stats: [
+        countStat('total'),
+        countStat('disabled', filterPart('status', 'in', ['disabled', 'locked', '停用', '禁用']))
+      ]
+    }).then((value) => ['users', value]),
+    loadAppCardStats({
+      request,
+      profile: 'public',
+      apiUrl: '/roles',
+      viewId: 'roles',
+      stats: [countStat('total')]
+    }).then((value) => ['roles', value]),
+    loadAppCardStats({
+      request,
+      profile: 'public',
+      apiUrl: '/user_roles',
+      viewId: 'user_roles',
+      stats: [countStat('total')]
+    }).then((value) => ['userRoles', value])
+  ])
+
+  return entries.reduce((acc, item) => {
+    if (item.status === 'fulfilled') {
+      const [key, value] = item.value
+      acc[key] = value || {}
+    }
+    return acc
+  }, {})
 }
 
 const cardMap = computed(() => {
@@ -132,26 +239,37 @@ const cardMap = computed(() => {
   const users = rowsOf('users')
   const roles = rowsOf('roles')
   const userRoles = rowsOf('userRoles')
+  const archiveStats = statsOf('archives')
+  const attendanceStats = statsOf('attendance')
+  const attendanceTodayStats = statsOf('attendanceToday')
+  const departmentStats = statsOf('departments')
+  const userStats = statsOf('users')
+  const roleStats = statsOf('roles')
+  const hrOverviewStats = statsOf('hrOverview')
 
-  const activeEmployees = archives.filter((row) => ['在职', '待开通账号', '待入职', 'active'].includes(String(row.status || '').trim())).length
-  const onboarding = archives.filter((row) => ['待开通账号', '待入职'].includes(String(row.status || '').trim())).length
-  const missingDept = archives.filter((row) => !String(row.department || '').trim()).length
-  const recentJoin = archives.filter((row) => {
+  const activeEmployees = statNumber(archiveStats, 'active', archives.filter((row) => ['在职', '待开通账号', '待入职', 'active'].includes(String(row.status || '').trim())).length)
+  const onboarding = statNumber(archiveStats, 'onboarding', archives.filter((row) => ['待开通账号', '待入职'].includes(String(row.status || '').trim())).length)
+  const missingDept = statNumber(hrOverviewStats, 'missingDept', archives.filter((row) => !String(row.department || '').trim()).length)
+  const recentJoinFallback = archives.filter((row) => {
     const delta = daysBetween(row.entry_date)
     return delta !== null && delta >= -30 && delta <= 0
   }).length
+  const recentJoin = statNumber(archiveStats, 'recentJoin', recentJoinFallback)
   const todayAttendance = attendance.filter((row) => daysBetween(row.att_date) === 0)
-  const attendanceAbnormal = attendance.filter((row) => row.late_flag || row.early_flag || row.leave_flag || row.absent_flag).length
-  const todayAbnormal = todayAttendance.filter((row) => row.late_flag || row.early_flag || row.leave_flag || row.absent_flag).length
+  const attendanceAbnormal = statNumber(attendanceStats, 'abnormal', attendance.filter((row) => row.late_flag || row.early_flag || row.leave_flag || row.absent_flag).length)
+  const todayAbnormal = statNumber(attendanceTodayStats, 'todayAbnormal', todayAttendance.filter((row) => row.late_flag || row.early_flag || row.leave_flag || row.absent_flag).length)
   const roleCodes = new Set(roles.map((row) => row.id).filter(Boolean))
-  const usersWithoutRole = users.filter((row) => {
+  const usersWithoutRoleFallback = users.filter((row) => {
     const userId = row.id
     if (!userId) return false
     return !userRoles.some((rel) => rel.user_id === userId && (!rel.role_id || roleCodes.has(rel.role_id)))
   }).length
-  const disabledUsers = users.filter((row) => ['disabled', 'locked', '停用', '禁用'].includes(String(row.status || '').trim())).length
-  const departmentCount = departments.length || new Set(archives.map((row) => row.department).filter(Boolean)).size
-  const positionCount = new Set(archives.map((row) => row.position).filter(Boolean)).size
+  const usersWithoutRole = statNumber(hrOverviewStats, 'usersWithoutRole', usersWithoutRoleFallback)
+  const disabledUsers = statNumber(userStats, 'disabled', users.filter((row) => ['disabled', 'locked', '停用', '禁用'].includes(String(row.status || '').trim())).length)
+  const userTotal = statNumber(userStats, 'total', users.length)
+  const roleTotal = statNumber(roleStats, 'total', roles.length)
+  const departmentCount = statNumber(departmentStats, 'total', departments.length || new Set(archives.map((row) => row.department).filter(Boolean)).size)
+  const positionCount = statNumber(hrOverviewStats, 'positionCount', new Set(archives.map((row) => row.position).filter(Boolean)).size)
 
   return {
     a: cardFromScore({
@@ -173,7 +291,7 @@ const cardMap = computed(() => {
     acl: cardFromScore({
       score: usersWithoutRole > 0 ? 78 : (roles.length ? 30 : 55),
       metrics: [
-        { label: '角色数', value: `${roles.length}` },
+        { label: '角色数', value: `${roleTotal}` },
         { label: '未绑角色', value: `${usersWithoutRole}` }
       ],
       brief: usersWithoutRole > 0 ? '优先处理无角色用户' : '维护权限与数据范围'
@@ -181,7 +299,7 @@ const cardMap = computed(() => {
     user: cardFromScore({
       score: usersWithoutRole > 0 ? 72 : (disabledUsers > 0 ? 42 : 28),
       metrics: [
-        { label: '用户数', value: `${users.length}` },
+        { label: '用户数', value: `${userTotal}` },
         { label: '停用/无角', value: `${disabledUsers}/${usersWithoutRole}` }
       ],
       brief: usersWithoutRole > 0 ? '为用户绑定角色' : '维护账号状态'
@@ -206,6 +324,7 @@ const cardMap = computed(() => {
 })
 
 const visibleApps = computed(() => apps
+  .filter((app) => isAppVisible(displayVisibility.value, 'hr', app.key))
   .filter(app => !app.perm || hasPerm(app.perm))
   .map((app) => ({
     ...app,
@@ -225,6 +344,7 @@ onMounted(loadCardData)
 
 <style scoped>
 .hr-apps {
+  position: relative;
   padding: 20px;
   min-height: 100vh;
   box-sizing: border-box;
@@ -252,6 +372,7 @@ onMounted(loadCardData)
 }
 
 .app-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -274,7 +395,7 @@ onMounted(loadCardData)
 
 .app-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.15);
 }
 
 .app-card-body {
@@ -295,7 +416,7 @@ onMounted(loadCardData)
   flex-shrink: 0;
 }
 
-.tone-blue { background: #409eff; }
+.tone-blue { background: var(--el-color-primary); }
 .tone-orange { background: #e6a23c; }
 .tone-green { background: #67c23a; }
 
@@ -421,7 +542,7 @@ onMounted(loadCardData)
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 
 .app-enter span:first-child {

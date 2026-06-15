@@ -17,7 +17,7 @@
         v-if="!fallbackMode"
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="app.apiUrl"
+        :api-url="gridApiUrl"
         :write-url="app.writeUrl"
         :write-mode="app.writeMode || 'patch'"
         :include-properties="app.includeProperties !== false"
@@ -39,6 +39,12 @@
         :row-filter="rowAttentionFilter"
         :summary-scope="summaryScope"
         :initial-search="initialSearch"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
@@ -48,15 +54,24 @@
         @cell-value-changed="handleGridCellValueChanged"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" class="attention-filter">
-            <el-radio-button
-              v-for="option in attentionFilterOptions"
-              :key="option.value"
-              :label="option.value"
-            >
-              {{ option.label }}
-            </el-radio-button>
-          </el-radio-group>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            v-model:attention-filter="attentionFilter"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :attention-options="attentionFilterOptions"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
         </template>
       </eis-data-grid>
 
@@ -67,7 +82,7 @@
             <el-radio-button
               v-for="option in attentionFilterOptions"
               :key="option.value"
-              :label="option.value"
+              :value="option.value"
             >
               {{ option.label }}
             </el-radio-button>
@@ -225,6 +240,8 @@ import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import { findEquipmentApp } from '@/utils/equipment-apps'
 import { hasPerm } from '@/utils/permission'
 import {
@@ -320,7 +337,32 @@ const resolveAttention = (row) => getEquipmentRecordAttention(app.value?.key, ro
 })
 
 const rowAttentionFilter = (row) => matchesEquipmentAttentionFilter(app.value?.key, row, attentionFilter.value)
-const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app,
+  staticColumns,
+  moduleName: 'equipment',
+  fallbackApiUrl: '/equipment_assets',
+  attentionFilter,
+  attentionFilterOptions
+})
+const summaryScope = computed(() => attentionFilter.value === 'all' && gridTimeMode.value === 'infinite' ? 'server' : 'loaded')
 
 const getRowActionKey = (row) => String(row?.id || row?.check_no || '')
 const isGeneratingWorkOrder = (row) => generatingWorkOrderRows.value.has(getRowActionKey(row))
@@ -342,7 +384,27 @@ const resolveRowActions = (row) => {
       label: '已生成',
       type: 'success',
       icon: 'CircleCheck',
-      title: link.workOrderNo || link.issueNo || '已生成设备异常和工单'
+      title: link.workOrderNo || link.issueNo || '已生成设备异常和工单',
+      sopFlow: 'equipment-work-order-flow',
+      sopFlowTitle: '点检异常生成设备工单流程',
+      sopFlowDesc: '从异常或停机点检记录生成设备异常和维保工单，并回写来源点检记录。',
+      sopFlowSteps: [
+        '先筛选紧急、预警或待处理的点检记录。',
+        '复核设备编号、设备名称、点检结果、异常项数、点检人和点检时间。',
+        '系统执行异常单和维保工单查重，避免重复创建。',
+        '生成或绑定后回写异常单号、工单号和生成时间。',
+        '跳转维保工单应用，搜索工单号并复核紧急程度、责任人、计划时间和处理状态。'
+      ],
+      sopFlowRisk: '设备工单会影响维修排程、停机风险和维保统计。生成前必须确认该点检异常确实需要维修闭环。',
+      sopAction: 'equipment-open-work-order',
+      sopTitle: '查看已生成维保工单',
+      sopDesc: '从点检记录跳转查看已生成的设备异常或维保工单。',
+      sopSteps: [
+        '确认点检记录已经显示“已生成”，说明系统已完成异常单、工单查重和回写。',
+        '点击后系统会跳转到维保工单应用，并用工单号自动搜索。',
+        '进入工单后复核设备、异常来源、紧急程度、责任人、计划时间和处理状态。'
+      ],
+      sopRisk: '如果未找到工单，先检查权限和设备工单应用是否可见，不要重复生成。'
     }]
   }
   if (!canGenerateWorkOrder.value || !canGenerateIssueFromCheck(row)) return []
@@ -353,6 +415,27 @@ const resolveRowActions = (row) => {
     type: 'danger',
     icon: 'Tools',
     title: '将点检异常转为设备异常和维保工单',
+    sopFlow: 'equipment-work-order-flow',
+    sopFlowTitle: '点检异常生成设备工单流程',
+    sopFlowDesc: '从异常或停机点检记录生成设备异常和维保工单，并回写来源点检记录。',
+    sopFlowSteps: [
+      '先筛选紧急、预警或待处理的点检记录。',
+      '复核设备编号、设备名称、点检结果、异常项数、点检人和点检时间。',
+      '系统执行异常单和维保工单查重，避免重复创建。',
+      '生成或绑定后回写异常单号、工单号和生成时间。',
+      '跳转维保工单应用，搜索工单号并复核紧急程度、责任人、计划时间和处理状态。'
+    ],
+    sopFlowRisk: '设备工单会影响维修排程、停机风险和维保统计。生成前必须确认该点检异常确实需要维修闭环。',
+    sopAction: 'equipment-generate-work-order',
+    sopTitle: '点检异常生成设备工单',
+    sopDesc: '把异常或停机点检记录一键生成设备异常和维保工单。',
+    sopSteps: [
+      '先筛选“紧急、预警、待处理”，确认只处理异常或停机点检记录。',
+      '复核设备编号、设备名称、点检结果、异常项数、点检人和点检时间。',
+      '点击“生成工单”，系统会先查找已有设备异常和维保工单，避免重复创建。',
+      '生成后系统回写异常单号、工单号和生成时间，并可通过“已生成”跳转查看。'
+    ],
+    sopRisk: '设备工单会影响维修排程和停机风险统计。生成前必须确认该点检异常需要维修闭环。',
     disabled: generating
   }]
 }
@@ -779,14 +862,15 @@ onMounted(() => {
   loadColumnsConfig()
 })
 
-watch(attentionFilter, () => {
+watch([attentionFilter, gridApiUrl], () => {
   if (!fallbackMode.value) gridRef.value?.loadData?.()
 })
 </script>
 
 <style scoped>
 .app-container {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   padding: 20px;
   box-sizing: border-box;
   display: flex;
@@ -811,6 +895,28 @@ watch(attentionFilter, () => {
   justify-content: center;
   height: 32px;
   line-height: 1;
+}
+
+.grid-card {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.fallback-grid {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fallback-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .fallback-grid :deep(.fallback-attention-row.attention-row-critical) {

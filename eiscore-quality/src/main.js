@@ -12,6 +12,7 @@ import 'element-plus/theme-chalk/dark/css-vars.css'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { patchElMessage } from '@/utils/message-patch'
+import { installEisThemeSync } from '@shared/eis-theme-sync'
 
 patchElMessage()
 
@@ -19,7 +20,7 @@ const MICRO_APP_NAME = 'eiscore-quality'
 const DEV_STANDALONE_PORT = '8089'
 
 let app = null
-let themeObserver = null
+let themeDispose = null
 
 function isRunningInQiankun() {
   if (typeof window === 'undefined') return false
@@ -77,9 +78,9 @@ function stripVueHmrMarkers(vnode, seen = new Set()) {
 }
 
 function unmountApp() {
-  if (themeObserver) {
-    themeObserver.disconnect()
-    themeObserver = null
+  if (themeDispose) {
+    themeDispose()
+    themeDispose = null
   }
   if (!app) return
   stripVueHmrMarkers(app._instance?.subTree)
@@ -104,12 +105,7 @@ function render(props = {}) {
 
   const mountPoint = resolveMountTarget(container)
   if (!mountPoint) return
-  const syncTheme = () => {
-    mountPoint.classList.toggle('dark', document.documentElement.classList.contains('dark'))
-  }
-  syncTheme()
-  themeObserver = new MutationObserver(syncTheme)
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  themeDispose = installEisThemeSync(mountPoint, { container })
   app.mount(mountPoint)
 }
 

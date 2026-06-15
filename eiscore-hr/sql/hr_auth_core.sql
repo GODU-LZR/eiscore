@@ -72,6 +72,7 @@ alter table public.users add column if not exists phone text;
 alter table public.users add column if not exists email text;
 alter table public.users add column if not exists dept_id uuid references public.departments(id) on delete set null;
 alter table public.users add column if not exists position_id uuid references public.positions(id) on delete set null;
+alter table public.users add column if not exists sop_role text;
 alter table public.users add column if not exists status text default 'active';
 alter table public.users add column if not exists created_at timestamptz not null default now();
 alter table public.users add column if not exists updated_at timestamptz not null default now();

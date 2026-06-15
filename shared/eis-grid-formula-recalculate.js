@@ -19,6 +19,29 @@ const normalizeBaseUrl = (url) => {
   return baseUrl || clean
 }
 
+const safeDecodeQueryPart = (value) => {
+  try {
+    return decodeURIComponent(String(value || ''))
+  } catch (e) {
+    return String(value || '')
+  }
+}
+
+function extractApiFilterQuery(url = '') {
+  const [, rawQuery = ''] = String(url || '').split('?')
+  if (!rawQuery) return ''
+  const ignored = new Set(['select', 'order', 'limit', 'offset'])
+  return rawQuery
+    .split('&')
+    .map((item) => safeDecodeQueryPart(item.trim()))
+    .filter(Boolean)
+    .filter((item) => {
+      const key = (item.split('=')[0] || '').trim()
+      return key && !ignored.has(key)
+    })
+    .join('&')
+}
+
 const isDigit = (ch) => ch >= '0' && ch <= '9'
 
 function buildColumnLookup(staticColumns = [], extraColumns = []) {
@@ -210,7 +233,7 @@ export function buildFormulaRecalculatePayload({
   let searchQuery = ''
   const text = String(searchText || '').trim()
   if (text && typeof buildSearchQuery === 'function') {
-    searchQuery = buildSearchQuery(text, props.staticColumns || [], props.extraColumns || [])
+    searchQuery = safeDecodeQueryPart(buildSearchQuery(text, props.staticColumns || [], props.extraColumns || []))
   }
 
   return {
@@ -219,6 +242,7 @@ export function buildFormulaRecalculatePayload({
     write_url: relationUrl,
     accept_profile: props.acceptProfile || props.profile || 'public',
     content_profile: props.contentProfile || props.profile || props.acceptProfile || 'public',
+    base_query: extractApiFilterQuery(props.apiUrl || ''),
     search_query: searchQuery,
     target: {
       prop: targetColumn.prop,

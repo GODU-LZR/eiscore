@@ -83,28 +83,110 @@ import {
   percentText,
   sortByAttention
 } from '@shared/app-card-attention'
+import {
+  combineQueryParts,
+  countStat,
+  filterPart,
+  loadAppsCardStats,
+  statNumber,
+  sumStat
+} from '@shared/app-card-server-stats'
+import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
+const { visibility: displayVisibility } = useDisplayVisibility()
 const iconMap = { ChatLineSquare, DataAnalysis, DataBoard, Money, Tickets, TrendCharts, User }
 const appRows = ref(Object.fromEntries(SALES_APPS.map((app) => [app.key, []])))
+const serverStats = ref({})
 const cardLoading = ref(false)
 
 const rowsOf = (key) => appRows.value[key] || []
+const statsOf = (key) => serverStats.value[key] || {}
 const sourceKeyOf = (app) => app.sourceAppKey || (app.key === 'shipment_requests' ? 'orders' : app.key)
 const isClosedOrder = (row) => ['已完成', '已取消'].includes(String(row.order_status || '').trim())
 const isClosedOpportunity = (row) => ['赢单', '输单', '搁置'].includes(String(row.stage || '').trim())
+const today = () => new Date().toISOString().slice(0, 10)
+const offsetDate = (days) => {
+  const next = new Date()
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
+}
+
+const salesCardStatsSpec = (app) => {
+  if (app.key === 'customers') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('paused', filterPart('customer_status', 'eq', '暂停合作')),
+        sumStat('receivable', 'receivable_balance')
+      ]
+    }
+  }
+  if (app.key === 'follow_ups') {
+    const closed = filterPart('follow_result', 'in', ['已成交', '无效', '暂缓'])
+    return {
+      stats: [
+        countStat('total'),
+        countStat('due', combineQueryParts(filterPart('next_follow_at', 'gte', today()), filterPart('next_follow_at', 'lte', offsetDate(1)), filterPart('follow_result', 'neq', '已成交'))),
+        countStat('overdue', combineQueryParts(filterPart('next_follow_at', 'lt', today()), filterPart('follow_result', 'neq', '已成交'))),
+        countStat('closed', closed)
+      ]
+    }
+  }
+  if (app.key === 'opportunities') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('active', filterPart('stage', 'not.in', ['赢单', '输单', '搁置'])),
+        countStat('won', filterPart('stage', 'eq', '赢单')),
+        countStat('overdue', combineQueryParts(filterPart('expected_close_date', 'lt', today()), filterPart('stage', 'not.in', ['赢单', '输单', '搁置']))),
+        countStat('highValue', combineQueryParts(filterPart('expected_amount', 'gte', 100000), filterPart('stage', 'not.in', ['赢单', '输单', '搁置']))),
+        sumStat('expectedAmount', 'expected_amount')
+      ]
+    }
+  }
+  if (app.key === 'orders') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('open', filterPart('order_status', 'not.in', ['已完成', '已取消'])),
+        countStat('overdue', combineQueryParts(filterPart('delivery_date', 'lt', today()), filterPart('order_status', 'not.in', ['已完成', '已取消']))),
+        countStat('due', combineQueryParts(filterPart('delivery_date', 'gte', today()), filterPart('delivery_date', 'lte', offsetDate(3)), filterPart('order_status', 'not.in', ['已完成', '已取消']))),
+        sumStat('orderAmount', 'total_amount')
+      ]
+    }
+  }
+  if (app.key === 'payments') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('unverified', filterPart('verify_status', 'neq', '已核销')),
+        sumStat('paymentAmount', 'amount')
+      ]
+    }
+  }
+  return { stats: [countStat('total')] }
+}
 
 const loadCardData = async () => {
   if (cardLoading.value) return
   cardLoading.value = true
   try {
     const apps = SALES_APPS.filter((app) => app.apiUrl)
-    const results = await Promise.allSettled(apps.map((app) => request({
-      url: appendQuery(app.apiUrl, { limit: 200 }),
-      method: 'get',
-      silentError: true,
-      suppressErrorMessage: true
-    })))
+    const [statsResult, results] = await Promise.all([
+      loadAppsCardStats({
+        request,
+        apps,
+        profile: 'public',
+        getStats: salesCardStatsSpec
+      }).catch(() => ({})),
+      Promise.allSettled(apps.map((app) => request({
+        url: appendQuery(app.apiUrl, { limit: 200 }),
+        method: 'get',
+        silentError: true,
+        suppressErrorMessage: true
+      })))
+    ])
     const next = { ...appRows.value }
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && Array.isArray(result.value)) {
@@ -112,6 +194,7 @@ const loadCardData = async () => {
       }
     })
     appRows.value = next
+    serverStats.value = { ...serverStats.value, ...statsResult }
   } finally {
     cardLoading.value = false
   }
@@ -123,45 +206,61 @@ const cardMap = computed(() => {
   const opportunities = rowsOf('opportunities')
   const orders = rowsOf('orders')
   const payments = rowsOf('payments')
+  const customerStats = statsOf('customers')
+  const followStats = statsOf('follow_ups')
+  const oppStats = statsOf('opportunities')
+  const orderStats = statsOf('orders')
+  const paymentStats = statsOf('payments')
 
-  const pausedCustomers = customers.filter((row) => row.customer_status === '暂停合作').length
-  const receivable = customers.reduce((sum, row) => sum + numberValue(row.receivable_balance), 0)
+  const pausedCustomers = statNumber(customerStats, 'paused', customers.filter((row) => row.customer_status === '暂停合作').length)
+  const customerTotal = statNumber(customerStats, 'total', customers.length)
+  const receivable = statNumber(customerStats, 'receivable', customers.reduce((sum, row) => sum + numberValue(row.receivable_balance), 0))
   const overCredit = customers.filter((row) => numberValue(row.receivable_balance) > numberValue(row.credit_limit) && numberValue(row.credit_limit) > 0).length
-  const overdueFollow = followUps.filter((row) => {
+  const overdueFollowFallback = followUps.filter((row) => {
     const delta = daysBetween(row.next_follow_at)
     return delta !== null && delta < 0 && !['已成交', '无效', '暂缓'].includes(row.follow_result)
   }).length
-  const dueFollow = followUps.filter((row) => {
+  const dueFollowFallback = followUps.filter((row) => {
     const delta = daysBetween(row.next_follow_at)
     return delta !== null && delta >= 0 && delta <= 1 && !['已成交', '无效', '暂缓'].includes(row.follow_result)
   }).length
-  const activeOpp = opportunities.filter((row) => !isClosedOpportunity(row)).length
-  const overdueOpp = opportunities.filter((row) => {
+  const overdueFollow = statNumber(followStats, 'overdue', overdueFollowFallback)
+  const dueFollow = statNumber(followStats, 'due', dueFollowFallback)
+  const activeOppFallback = opportunities.filter((row) => !isClosedOpportunity(row)).length
+  const activeOpp = statNumber(oppStats, 'active', activeOppFallback)
+  const overdueOppFallback = opportunities.filter((row) => {
     const delta = daysBetween(row.expected_close_date)
     return delta !== null && delta < 0 && !isClosedOpportunity(row)
   }).length
-  const highValueOpp = opportunities.filter((row) => !isClosedOpportunity(row) && numberValue(row.expected_amount) >= 100000).length
-  const winRate = opportunities.length
-    ? (opportunities.filter((row) => row.stage === '赢单').length / opportunities.length) * 100
+  const highValueOppFallback = opportunities.filter((row) => !isClosedOpportunity(row) && numberValue(row.expected_amount) >= 100000).length
+  const overdueOpp = statNumber(oppStats, 'overdue', overdueOppFallback)
+  const highValueOpp = statNumber(oppStats, 'highValue', highValueOppFallback)
+  const oppTotal = statNumber(oppStats, 'total', opportunities.length)
+  const wonOpp = statNumber(oppStats, 'won', opportunities.filter((row) => row.stage === '赢单').length)
+  const winRate = oppTotal
+    ? (wonOpp / oppTotal) * 100
     : 0
-  const openOrders = orders.filter((row) => !isClosedOrder(row)).length
-  const overdueOrders = orders.filter((row) => {
+  const openOrdersFallback = orders.filter((row) => !isClosedOrder(row)).length
+  const overdueOrdersFallback = orders.filter((row) => {
     const delta = daysBetween(row.delivery_date)
     return delta !== null && delta < 0 && !isClosedOrder(row)
   }).length
-  const dueOrders = orders.filter((row) => {
+  const dueOrdersFallback = orders.filter((row) => {
     const delta = daysBetween(row.delivery_date)
     return delta !== null && delta >= 0 && delta <= 3 && !isClosedOrder(row)
   }).length
-  const orderAmount = orders.reduce((sum, row) => sum + numberValue(row.total_amount), 0)
-  const unverifiedPayments = payments.filter((row) => row.verify_status !== '已核销').length
-  const paymentAmount = payments.reduce((sum, row) => sum + numberValue(row.amount), 0)
+  const openOrders = statNumber(orderStats, 'open', openOrdersFallback)
+  const overdueOrders = statNumber(orderStats, 'overdue', overdueOrdersFallback)
+  const dueOrders = statNumber(orderStats, 'due', dueOrdersFallback)
+  const orderAmount = statNumber(orderStats, 'orderAmount', orders.reduce((sum, row) => sum + numberValue(row.total_amount), 0))
+  const unverifiedPayments = statNumber(paymentStats, 'unverified', payments.filter((row) => row.verify_status !== '已核销').length)
+  const paymentAmount = statNumber(paymentStats, 'paymentAmount', payments.reduce((sum, row) => sum + numberValue(row.amount), 0))
 
   return {
     customers: cardFromScore({
       score: overCredit > 0 ? 78 : (pausedCustomers > 0 ? 50 : 28),
       metrics: [
-        { label: '客户数', value: `${customers.length}` },
+        { label: '客户数', value: `${customerTotal}` },
         { label: '应收', value: moneyText(receivable) }
       ],
       brief: overCredit > 0 ? `${overCredit} 个客户超信用` : (pausedCustomers > 0 ? `${pausedCustomers} 个暂停合作` : '维护客户与信用')
@@ -210,6 +309,7 @@ const cardMap = computed(() => {
 })
 
 const visibleApps = computed(() => SALES_APPS
+  .filter((app) => isAppVisible(displayVisibility.value, 'sales', app.key))
   .filter((app) => !app.perm || hasPerm(app.perm))
   .map((app) => ({
     ...app,
@@ -290,6 +390,7 @@ watch(visibleApps, syncSalesAppsContext)
 
 <style scoped>
 .sales-apps {
+  position: relative;
   min-height: 100vh;
   box-sizing: border-box;
   padding: 20px;
@@ -324,6 +425,7 @@ watch(visibleApps, syncSalesAppsContext)
 }
 
 .app-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -346,7 +448,7 @@ watch(visibleApps, syncSalesAppsContext)
 
 .app-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.15);
 }
 
 .app-card-body {
@@ -367,7 +469,7 @@ watch(visibleApps, syncSalesAppsContext)
   flex-shrink: 0;
 }
 
-.tone-blue { background: #409eff; }
+.tone-blue { background: var(--el-color-primary); }
 .tone-cyan { background: #14b8a6; }
 .tone-green { background: #67c23a; }
 .tone-indigo { background: #6366f1; }
@@ -497,7 +599,7 @@ watch(visibleApps, syncSalesAppsContext)
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 
 .app-enter span:first-child {

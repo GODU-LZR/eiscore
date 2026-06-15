@@ -1,19 +1,30 @@
 <template>
-  <div class="org-view">
-    <div class="view-header">
+  <div class="org-view" data-guide="detail-page">
+    <div class="view-header" data-guide="detail-header">
       <div class="title-block">
         <h2>部门架构图</h2>
         <p>拖拽显示虚线预览，松开后按预览结果调整层级或顺序</p>
       </div>
-      <div class="header-actions">
-        <el-button type="primary" plain @click="openDeptDialog()">新增部门</el-button>
+      <div class="header-actions" data-guide="detail-actions">
+        <el-button
+          type="primary"
+          plain
+          data-sop-action="hr-org-create-dept"
+          data-sop-title="新增部门"
+          data-sop-desc="在人事组织中新增一个部门节点，新增后需要设置上级部门、负责人和状态。"
+          data-sop-steps="先确认新增部门属于哪个上级部门|点击新增部门|填写部门名称、上级部门、负责人和状态|保存后在部门架构图中确认层级正确"
+          data-sop-risk="部门层级会影响员工归属、数据范围和审批责任，保存前要确认不是重复部门。"
+          @click="openDeptDialog()"
+        >
+          新增部门
+        </el-button>
         <el-button @click="reloadAll">刷新</el-button>
       </div>
     </div>
 
     <el-row :gutter="16" class="org-body">
       <el-col :span="18" class="diagram-col">
-        <el-card shadow="never" class="diagram-card">
+        <el-card shadow="never" class="diagram-card" data-guide="org-diagram">
           <div class="zoom-controls">
             <el-button size="small" @click="zoomOut">-</el-button>
             <span class="zoom-label">{{ Math.round(zoom * 100) }}%</span>
@@ -80,10 +91,10 @@
         </el-card>
       </el-col>
       <el-col :span="6" class="side-col">
-        <el-card shadow="never" class="side-card">
+        <el-card shadow="never" class="side-card" data-guide="form-wrapper">
           <div class="side-section">
             <div class="section-title">部门信息</div>
-            <el-form label-width="80px" class="dept-form">
+            <el-form label-width="80px" class="dept-form" data-guide="form-fields">
               <el-form-item label="部门名称">
                 <el-input v-model="deptForm.name" placeholder="请输入部门名称" />
               </el-form-item>
@@ -104,9 +115,32 @@
                 </el-select>
               </el-form-item>
             </el-form>
-            <div class="side-actions">
-              <el-button type="primary" @click="saveDept" :disabled="!deptForm.id">保存</el-button>
-              <el-button type="danger" plain @click="deleteDept" :disabled="!deptForm.id">删除</el-button>
+            <div class="side-actions" data-guide="form-actions">
+              <el-button
+                type="primary"
+                data-sop-action="hr-org-save-dept"
+                data-sop-title="保存部门信息"
+                data-sop-desc="保存当前选中部门的名称、上级部门、负责人和启停状态。"
+                data-sop-steps="先在组织图中选中正确部门|复核部门名称、上级部门、负责人和状态|点击保存|保存后刷新或重新选中节点确认信息已生效"
+                data-sop-risk="调整上级部门会影响组织层级和成员归属，保存前要确认部门没有选错。"
+                @click="saveDept"
+                :disabled="!deptForm.id"
+              >
+                保存
+              </el-button>
+              <el-button
+                type="danger"
+                plain
+                data-sop-action="hr-org-delete-dept"
+                data-sop-title="删除部门"
+                data-sop-desc="删除当前选中部门，只适合确认废弃且没有继续使用的部门。"
+                data-sop-steps="先确认选中的是要删除的部门|确认部门成员、角色和下级部门已处理|点击删除|删除后刷新组织图复核"
+                data-sop-risk="删除部门会影响员工归属和权限范围，有成员或下级部门时不要直接删除。"
+                @click="deleteDept"
+                :disabled="!deptForm.id"
+              >
+                删除
+              </el-button>
             </div>
           </div>
 

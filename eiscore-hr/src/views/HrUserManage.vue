@@ -88,6 +88,17 @@ const lastSearchText = ref('')
 const colConfigVisible = ref(false)
 const staticHidden = ref([])
 
+const sopRoleOptions = [
+  { label: '仓管员', value: 'warehouse' },
+  { label: '销售员', value: 'sales' },
+  { label: '采购员', value: 'purchase' },
+  { label: '生产主管', value: 'production' },
+  { label: '质检员', value: 'quality' },
+  { label: '设备员', value: 'equipment' },
+  { label: '人事管理员', value: 'hr_admin' },
+  { label: '经营管理者', value: 'manager' }
+]
+
 const staticColumnsAll = computed(() => ([
   { label: '用户名', prop: 'username', width: 140 },
   { label: '登录密码', prop: 'password', width: 140, valueFormatter: (params) => (params.value ? '******' : '') },
@@ -95,6 +106,7 @@ const staticColumnsAll = computed(() => ([
   { label: '手机号', prop: 'phone', width: 140 },
   { label: '邮箱', prop: 'email', width: 180 },
   { label: '部门', prop: 'dept_id', width: 160, type: 'select', options: deptOptions.value },
+  { label: 'SOP岗位', prop: 'sop_role', width: 150, type: 'select', options: sopRoleOptions },
   { label: '头像', prop: 'avatar', width: 120, type: 'file', fileMaxCount: 1, fileMaxSizeMb: 2, fileAccept: 'image/*', fileStoreMode: 'url' },
   { label: '角色', prop: 'role_id', width: 160, type: 'select', options: roleOptions.value }
 ]))
@@ -189,7 +201,8 @@ const syncAiContext = (rows = [], payload = null) => {
     summaryScope: 'server',
     allowImport: false,
     additionalContext: {
-      currentUser: userStore.userInfo?.username || ''
+      currentUser: userStore.userInfo?.username || '',
+      currentSopRole: userStore.userInfo?.sop_role || userStore.userInfo?.sopRole || ''
     }
   })
 }
@@ -291,65 +304,80 @@ const resolveAvatarValue = async (value) => {
   }
 }
 
+const normalizeFileValue = async (raw) => {
+  let value = raw
+  if (Array.isArray(raw)) {
+    if (raw.length === 0) {
+      value = ''
+    } else {
+      const first = raw[0]
+      value = first?.url || first?.dataUrl || first?.name || ''
+    }
+  } else if (raw && typeof raw === 'object') {
+    value = raw.url || raw.dataUrl || raw.name || ''
+  }
+  if (typeof value === 'string' && value.startsWith('file:')) {
+    value = await resolveAvatarValue(value)
+  }
+  return value || ''
+}
+
+const notifyUserInfoUpdated = (info) => {
+  localStorage.setItem('user_info', JSON.stringify(info))
+  userStore.userInfo = info
+  const payload = { type: 'user-info-updated', user_info: info, user: info }
+  const fire = (target) => {
+    try { target?.dispatchEvent?.(new CustomEvent('user-info-updated')) } catch (_) {}
+  }
+  fire(window)
+  fire(document)
+  if (window.parent && window.parent !== window) fire(window.parent)
+  if (window.top && window.top !== window && window.top !== window.parent) fire(window.top)
+  ;[window, window.parent, window.top].forEach((target) => {
+    try { target?.postMessage?.(payload, '*') } catch (_) {}
+  })
+  const storageEventInit = { key: 'user_info', newValue: JSON.stringify(info), storageArea: localStorage }
+  try { window.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}
+  if (window.parent && window.parent !== window) {
+    try { window.parent.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}
+  }
+  if (window.top && window.top !== window && window.top !== window.parent) {
+    try { window.top.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}
+  }
+  if (window.__EIS_BASE_ACTIONS__?.setGlobalState) {
+    console.info('[HR] setGlobalState user-info-updated')
+    window.__EIS_BASE_ACTIONS__.setGlobalState({ user_info: info, user: info })
+  }
+}
+
 const handleCellChanged = async (event) => {
   if (!event?.data) return
-  if (event.colDef?.field !== 'avatar') return
+  const field = event.colDef?.field || ''
+  if (!['avatar', 'sop_role'].includes(field)) return
   const current = userStore.userInfo?.username
   if (!current || event.data.username !== current) return
   const hasNewValue = Object.prototype.hasOwnProperty.call(event, 'newValue')
-  const raw = hasNewValue ? event.newValue : (event.data.avatar ?? '')
-  let newAvatar = raw
-  if (Array.isArray(raw)) {
-    if (raw.length === 0) {
-      newAvatar = ''
-    } else {
-      const first = raw[0]
-      newAvatar = first?.url || first?.dataUrl || first?.name || ''
-    }
-  } else if (raw && typeof raw === 'object') {
-    newAvatar = raw.url || raw.dataUrl || raw.name || ''
-  }
-  if (typeof newAvatar === 'string' && newAvatar.startsWith('file:')) {
-    newAvatar = await resolveAvatarValue(newAvatar)
-  }
   const stored = localStorage.getItem('user_info')
   if (!stored) return
   try {
     const info = JSON.parse(stored)
-    info.avatar = newAvatar || ''
-    localStorage.setItem('user_info', JSON.stringify(info))
-    userStore.userInfo = info
-    // 通知基座 & 其他子应用刷新用户头像（多通道保障）
-    const payload = { type: 'user-info-updated', user_info: info, user: info }
-    // 本窗口
-    const fire = (t) => { try { t?.dispatchEvent?.(new CustomEvent('user-info-updated')) } catch (_) {} }
-    fire(window)
-    fire(document)
-    if (window.parent && window.parent !== window) fire(window.parent)
-    if (window.top && window.top !== window && window.top !== window.parent) fire(window.top)
-    ;[window, window.parent, window.top].forEach((t) => {
-      try { t?.postMessage?.(payload, '*') } catch (_) {}
-    })
-    // 额外触发 storage 事件，保证基座监听 storage 时也能收到
-    const storageEventInit = { key: 'user_info', newValue: JSON.stringify(info), storageArea: localStorage }
-    try { window.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}
-    if (window.parent && window.parent !== window) {
-      try { window.parent.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}
+    if (field === 'avatar') {
+      const raw = hasNewValue ? event.newValue : (event.data.avatar ?? '')
+      info.avatar = await normalizeFileValue(raw)
     }
-    if (window.top && window.top !== window && window.top !== window.parent) {
-      try { window.top.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}
+    if (field === 'sop_role') {
+      const raw = hasNewValue ? event.newValue : (event.data.sop_role ?? '')
+      info.sop_role = raw || ''
+      info.sopRole = raw || ''
     }
-    if (window.__EIS_BASE_ACTIONS__?.setGlobalState) {
-      console.info('[HR] setGlobalState user-info-updated')
-      window.__EIS_BASE_ACTIONS__.setGlobalState({ user_info: info, user: info })
-    }
+    notifyUserInfoUpdated(info)
   } catch (e) {
-    console.warn('update user_info avatar failed', e)
+    console.warn('update user_info failed', e)
   }
 }
 
 const syncFieldAcl = async () => {
-  const fieldCodes = ['username', 'password', 'full_name', 'phone', 'email', 'dept_id', 'avatar', 'role_id']
+  const fieldCodes = ['username', 'password', 'full_name', 'phone', 'email', 'dept_id', 'sop_role', 'avatar', 'role_id']
   try {
     await request({
       url: '/rpc/ensure_field_acl',
@@ -387,6 +415,8 @@ onMounted(async () => {
   await loadRoles()
   await loadDepartments()
   await loadStaticColumnsConfig()
+  syncFieldAcl()
+  syncFieldLabels()
 })
 </script>
 

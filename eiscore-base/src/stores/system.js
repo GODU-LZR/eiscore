@@ -4,6 +4,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { setThemeColor } from '@/utils/theme' // 引入工具
+import { normalizeDisplayVisibility } from '@shared/eis-display-control'
 
 const NANPAI_LOGO_URL = 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg'
 
@@ -242,6 +243,7 @@ const normalizeConfig = (input = {}) => {
     themeColor: String(source.themeColor || '#409EFF'),
     notifications: source.notifications !== false,
     materialsCategoryDepth: depth === 3 ? 3 : 2,
+    visibility: normalizeDisplayVisibility(source.visibility),
     loginBranding: normalizeLoginBranding(source.loginBranding)
   }
 }

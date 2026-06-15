@@ -1,9 +1,9 @@
 <template>
-  <div class="detail-page">
-    <div class="page-header">
-      <el-button icon="ArrowLeft" @click="$router.back()">返回列表</el-button>
-      <div class="header-actions">
-        <el-select v-model="selectedTemplateId" size="small" placeholder="选择模板" style="width: 220px;">
+  <div class="detail-page" data-guide="detail-page">
+    <div class="page-header" data-guide="detail-header">
+      <el-button icon="ArrowLeft" data-guide="detail-back" @click="$router.back()">返回列表</el-button>
+      <div class="header-actions" data-guide="detail-actions">
+        <el-select v-model="selectedTemplateId" size="small" placeholder="选择模板" style="width: 220px;" data-guide="template-select">
           <el-option
             v-for="tpl in templates"
             :key="tpl.id"
@@ -11,14 +11,44 @@
             :value="tpl.id"
           />
         </el-select>
-        <el-button @click="openTemplateManager">模板库</el-button>
-        <el-button type="primary" @click="openAiFormAssistant">AI生成表单</el-button>
-        <el-button type="primary" plain @click="printDoc">打印单据</el-button>
-        <el-button type="success" @click="saveDoc">保存修改</el-button>
+        <el-button
+          data-sop-action="detail-template-library"
+          data-sop-title="维护单据模板库"
+          data-sop-desc="管理当前仓储单据模板，可新增、预览、改名或删除模板。"
+          data-sop-steps="先确认当前仓储应用类型|打开模板库|预览或选择模板|只删除确认废弃的模板|回到单据页重新选择模板并复核显示效果"
+          @click="openTemplateManager"
+        >模板库</el-button>
+        <el-button
+          type="primary"
+          data-sop-action="detail-ai-form"
+          data-sop-title="AI生成表单"
+          data-sop-desc="用 AI 辅助生成当前仓储单据模板或字段建议，生成后必须人工复核。"
+          data-sop-steps="先确认当前物料或仓储业务类型|点击 AI生成表单|检查生成字段是否符合物料、批次、仓库和库存追溯要求|删除不需要的字段并补齐关键项|保存前由仓储负责人复核"
+          data-sop-risk="AI 只能辅助生成模板，不能代替物料编码、批次规则和库存数量复核。"
+          @click="openAiFormAssistant"
+        >AI生成表单</el-button>
+        <el-button
+          type="primary"
+          plain
+          data-sop-action="detail-print-doc"
+          data-sop-title="打印单据"
+          data-sop-desc="按当前模板打印或导出当前仓储单据。"
+          data-sop-steps="先确认模板、物料、批次、仓库和数量|点击打印单据|检查打印预览中的页边距、字段和签字栏|打印或导出 PDF 后按制度留档"
+          @click="printDoc"
+        >打印单据</el-button>
+        <el-button
+          type="success"
+          data-sop-action="detail-save-doc"
+          data-sop-title="保存单据修改"
+          data-sop-desc="保存当前仓储单据正文、扩展字段和附件，保存前必须复核物料、批次、仓库、数量和单位。"
+          data-sop-steps="先复核物料编码、批次、仓库、数量、单位和负责人|检查必填项和风险提示|确认附件已上传且内容正确|点击保存修改|保存后回到表格搜索该记录复核状态"
+          data-sop-risk="保存后请回到仓储表格搜索该记录，确认物料、批次、仓库和库存影响都正确。"
+          @click="saveDoc"
+        >保存修改</el-button>
       </div>
     </div>
     
-    <div class="form-container" v-loading="loading" ref="docContainerRef">
+    <div class="form-container" v-loading="loading" ref="docContainerRef" data-guide="form-wrapper">
       <EisDocumentEngine 
         v-if="formData && activeSchema"
         :model-value="formModel"
@@ -95,7 +125,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import request from '@/utils/request'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { findMaterialApp, BASE_STATIC_COLUMNS } from '@/utils/material-apps'
-import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
+import {
+  applyDocumentFormulaUpdates,
+  buildDocumentAgentContext,
+  buildDocumentFormPrompt
+} from '@shared/eis-document-agent-context'
 
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
 import { documentSchemaExample } from '@/components/eis-document-engine/documentSchemaExample'
@@ -555,37 +589,10 @@ const setRowValueByProp = (rowData, prop, value) => {
 }
 
 const applyFormulaUpdates = (rowData) => {
-  if (!rowData) return
-  const formulaColumns = dynamicColumns.value.filter(col => col?.type === 'formula' && col.expression)
-  if (formulaColumns.length === 0) return
-
-  const rowDataMap = {}
-  staticColumns.value.forEach(col => {
-    const val = getRowValueByProp(rowData, col.prop)
-    rowDataMap[col.prop] = val
-    rowDataMap[col.label] = val
-  })
-  dynamicColumns.value.forEach(col => {
-    const val = getRowValueByProp(rowData, col.prop)
-    rowDataMap[col.prop] = val
-    rowDataMap[col.label] = val
-  })
-
-  formulaColumns.forEach(col => {
-    try {
-      const evalExpr = col.expression.replace(/\{(.+?)\}/g, (match, key) => {
-        const val = rowDataMap[key]
-        const num = parseFloat(val)
-        return Number.isFinite(num) ? num : 0
-      })
-      const result = evaluateFormulaExpression(evalExpr)
-      if (result !== undefined && !isNaN(result) && isFinite(result)) {
-        const finalVal = Number(result.toFixed(2))
-        setRowValueByProp(rowData, col.prop, finalVal)
-      }
-    } catch (e) {
-      // ignore formula errors
-    }
+  applyDocumentFormulaUpdates({
+    rowData,
+    staticColumns: staticColumns.value,
+    dynamicColumns: dynamicColumns.value
   })
 }
 
@@ -642,21 +649,22 @@ const buildAiFormPrompt = () => {
 
 const syncAiContext = () => {
   const columns = getAllColumns()
-  const fileColumns = columns.filter(col => col.type === 'file')
-  pushAiContext({
+  pushAiContext(buildDocumentAgentContext({
     app: 'materials',
     view: detailConfig.value.key || 'materials_detail',
     viewName: detailConfig.value.name || '',
     apiUrl: detailConfig.value.apiUrl || '/raw_materials',
+    writeUrl: detailConfig.value.writeUrl || detailConfig.value.apiUrl || '/raw_materials',
     rowId: formData.value?.id,
+    rowData: formModel.value || formData.value,
     columns,
-    fileColumns,
+    staticColumns: staticColumns.value,
+    dynamicColumns: dynamicColumns.value,
     templateScope: templateScope.value,
     templateLibraryKey: 'form_templates',
     aiScene: 'form',
-    allowFormula: false,
     allowImport: false
-  })
+  }))
 }
 
 const openAiFormAssistant = () => {
@@ -670,7 +678,11 @@ const openAiFormAssistant = () => {
     return
   }
   syncAiContext()
-  const prompt = buildAiFormPrompt()
+  const prompt = buildDocumentFormPrompt({
+    title: detailConfig.value.name || '物料单据',
+    columns,
+    rowData: formModel.value || formData.value
+  })
   pushAiCommand({
     id: `form_${Date.now()}`,
     type: 'open-worker',

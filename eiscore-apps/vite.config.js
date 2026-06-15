@@ -5,6 +5,7 @@ import { defineConfig } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import qiankun from 'vite-plugin-qiankun'
+import { createBuildOptions } from '../scripts/vite-build-config.mjs'
 
 const useDevMode = true
 const enablePollingWatch = String(process.env.VITE_FLASH_WATCH_POLLING || 'true').toLowerCase() !== 'false'
@@ -79,13 +80,8 @@ export default defineConfig({
       }
     }
   },
-  build: {
+  build: createBuildOptions({
     target: 'es2015',
-    cssCodeSplit: false,
-    rollupOptions: {
-      output: {
-        manualChunks: undefined
-      }
-    }
-  }
+    cssCodeSplit: true
+  })
 })

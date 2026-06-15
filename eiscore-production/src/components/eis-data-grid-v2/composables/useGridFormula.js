@@ -12,6 +12,11 @@ import {
   getFormulaColumns,
   recalculateFormulaBatch
 } from '@shared/eis-grid-formula-recalculate'
+import {
+  buildGridCalculationState,
+  shouldCalculateLoadedSummary,
+  shouldRecalculateLoadedRowFormulas
+} from '@shared/eis-grid-calculation-policy'
 
 // 🟢 接收 columnLockState 参数
 export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, currentUser, hooks, columnLockState) {
@@ -25,6 +30,13 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
   const availableColumns = computed(() => [...props.staticColumns, ...props.extraColumns].map(c => ({ label: c.label, prop: c.prop })))
   const formulaColumns = computed(() => getFormulaColumns(props.extraColumns))
   const canRecalculateFormulas = computed(() => formulaColumns.value.length > 0)
+  const calculationState = computed(() => buildGridCalculationState({
+    props,
+    rowCount: gridData.value.length,
+    serverSummaryState,
+    formulaRecalculateState,
+    canRecalculateFormulas: canRecalculateFormulas.value
+  }))
 
   // 加载配置 (包含列锁)
   const loadGridConfig = async () => {
@@ -177,7 +189,11 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
 
   const refreshTotals = async () => {
     const seq = ++summarySeq
-    setPinnedBottomRows(calculateTotals(gridData.value))
+    if (shouldCalculateLoadedSummary(props, gridData.value.length)) {
+      setPinnedBottomRows(calculateTotals(gridData.value))
+    } else {
+      setPinnedBottomRows([])
+    }
     serverSummaryState.loading = true
     serverSummaryState.error = ''
     try {
@@ -368,6 +384,10 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
   watch(() => props.extraColumns, async () => {
     await nextTick()
     if (!gridApi.value) return
+    if (!shouldRecalculateLoadedRowFormulas(props, gridData.value.length)) {
+      refreshTotals()
+      return
+    }
     let hasGlobalChanges = false
     gridApi.value.forEachNode(node => { if (calculateRowFormulas(node)) hasGlobalChanges = true })
     if (hasGlobalChanges) {
@@ -379,7 +399,7 @@ export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, cu
 
   return {
     pinnedBottomRowData, calculateRowFormulas, calculateTotals, refreshTotals, serverSummaryState,
-    formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas,
+    formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas, calculationState,
     configDialog, isSavingConfig, availableColumns, 
     openConfigDialog, saveConfig, loadGridConfig
   }

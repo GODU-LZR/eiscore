@@ -37,7 +37,7 @@
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="apiUrl"
+        :api-url="gridApiUrl"
         :write-url="apiUrl"
         :accept-profile="schemaName"
         :content-profile="schemaName"
@@ -56,12 +56,37 @@
         :can-export="canExport"
         :can-config="canConfig"
         :summary-scope="summaryScope"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
         @data-loaded="handleDataLoaded"
         @data-load-error="handleDataLoadError"
-      />
+      >
+        <template #toolbar>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
+        </template>
+      </eis-data-grid>
 
       <el-dialog v-model="colConfigVisible" title="列管理" width="600px" append-to-body destroy-on-close @closed="resetForm">
         <div class="column-manager">
@@ -278,6 +303,8 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import { hasPerm } from '@/utils/permission'
 import { getRealtimeClient } from '@/utils/realtime'
 import { buildDefaultOps, ensureAppAclConfig, ensureAppPermissions } from '@/utils/app-permissions'
@@ -297,7 +324,6 @@ const addTab = ref('text')
 const lastLoadedRows = ref([])
 const lastSearchText = ref('')
 const lastGridLoadState = ref(buildGridLoadState())
-const summaryScope = computed(() => 'server')
 let fieldLabelRetryTimer = null
 let fieldLabelRetrying = false
 let fieldLabelWarned = false
@@ -385,6 +411,36 @@ const summaryConfig = computed(() => configRef.value.summary || { label: '合计
 const staticColumns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
 )
+const gridFilterApp = computed(() => ({
+  ...app.value,
+  key: props.appId || app.value.viewId,
+  apiUrl: apiUrl.value,
+  configKey: configRef.value.table || app.value.viewId
+}))
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app: gridFilterApp,
+  staticColumns,
+  moduleName: 'apps',
+  fallbackApiUrl: ''
+})
+const summaryScope = computed(() => gridTimeMode.value === 'infinite' ? 'server' : 'loaded')
 const allConfiguredFieldSet = computed(() => {
   const set = new Set()
   ;[...staticColumnsAll.value, ...extraColumns.value].forEach((col) => {
@@ -399,11 +455,12 @@ const opPerms = computed(() => {
   if (props.appData?.ops) return props.appData.ops
   return buildDefaultOps(aclModule.value)
 })
-const canCreate = computed(() => hasPerm(opPerms.value.create))
-const canEdit = computed(() => hasPerm(opPerms.value.edit))
-const canDelete = computed(() => hasPerm(opPerms.value.delete))
-const canExport = computed(() => hasPerm(opPerms.value.export))
-const canConfig = computed(() => hasPerm(opPerms.value.config))
+const isEnabledByConfig = (key) => configRef.value?.[key] !== false
+const canCreate = computed(() => isEnabledByConfig('canCreate') && hasPerm(opPerms.value.create))
+const canEdit = computed(() => isEnabledByConfig('canEdit') && hasPerm(opPerms.value.edit))
+const canDelete = computed(() => isEnabledByConfig('canDelete') && hasPerm(opPerms.value.delete))
+const canExport = computed(() => isEnabledByConfig('canExport') && hasPerm(opPerms.value.export))
+const canConfig = computed(() => isEnabledByConfig('canConfig') && hasPerm(opPerms.value.config))
 
 const includeProperties = computed(() => configRef.value.includeProperties !== false)
 const writeMode = computed(() => configRef.value.writeMode || 'upsert')
@@ -1319,8 +1376,13 @@ const handleRealtimeEvent = (event) => {
   }
 }
 
-const ensureDataTable = async (columnsPayload) => {
+async function ensureDataTable(columnsPayload) {
   const current = configRef.value.table?.trim()
+  if (configRef.value.createTable === false) return current || ''
+  if (current && current.includes('.')) {
+    const [schema] = current.split('.')
+    if (schema && schema !== 'app_data') return current
+  }
   const fallback = `data_app_${String(props.appId).replace(/-/g, '').slice(0, 8)}`
   const tableName = current ? current.split('.').pop() : fallback
   const res = await request({
@@ -1338,7 +1400,7 @@ const ensureDataTable = async (columnsPayload) => {
   return `app_data.${tableName}`
 }
 
-const saveAppConfig = async (nextConfig) => {
+async function saveAppConfig(nextConfig) {
   if (!props.appId) return
   await request({
     url: `/apps?id=eq.${props.appId}`,

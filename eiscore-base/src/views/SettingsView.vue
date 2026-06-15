@@ -5,7 +5,7 @@
         <div class="card-header">
           <div>
             <h2>系统全局设置</h2>
-            <p>主题色与登录门户展示内容</p>
+            <p>主题色、登录门户与 AI Agent 接入配置</p>
           </div>
         </div>
       </template>
@@ -18,40 +18,44 @@
         style="margin-bottom: 16px;"
       />
 
-      <el-form label-width="140px" class="settings-form" :disabled="!canManage">
-        <el-divider content-position="left">基础配置</el-divider>
-        <el-form-item label="系统标题">
-          <el-input v-model="form.title" placeholder="请输入左上角显示标题" />
-        </el-form-item>
+      <el-form v-if="canManage" label-width="140px" class="settings-form">
+        <el-tabs v-model="activeTab" class="settings-tabs">
+          <el-tab-pane label="基础设置" name="basic">
+            <el-divider content-position="left">基础配置</el-divider>
+            <el-form-item label="系统标题">
+              <el-input v-model="form.title" placeholder="请输入左上角显示标题" />
+            </el-form-item>
 
-        <el-form-item label="主题颜色">
-          <div class="theme-row">
-            <el-color-picker v-model="form.themeColor" />
-            <div class="preset-colors">
-              <button
-                v-for="color in predefineColors"
-                :key="color"
-                type="button"
-                class="color-block"
-                :style="{ backgroundColor: color }"
-                @click="form.themeColor = color"
-              />
-            </div>
-          </div>
-        </el-form-item>
+            <el-form-item label="主题颜色">
+              <div class="theme-row">
+                <el-color-picker v-model="form.themeColor" />
+                <div class="preset-colors">
+                  <button
+                    v-for="color in predefineColors"
+                    :key="color"
+                    type="button"
+                    class="color-block"
+                    :style="{ backgroundColor: color }"
+                    @click="form.themeColor = color"
+                  />
+                </div>
+              </div>
+            </el-form-item>
 
-        <el-form-item label="开启通知">
-          <el-switch v-model="form.notifications" />
-        </el-form-item>
+            <el-form-item label="开启通知">
+              <el-switch v-model="form.notifications" />
+            </el-form-item>
 
-        <el-form-item label="物料分类层级">
-          <el-radio-group v-model="form.materialsCategoryDepth">
-            <el-radio :label="2">二级</el-radio>
-            <el-radio :label="3">三级</el-radio>
-          </el-radio-group>
-        </el-form-item>
+            <el-form-item label="物料分类层级">
+              <el-radio-group v-model="form.materialsCategoryDepth">
+                <el-radio :label="2">二级</el-radio>
+                <el-radio :label="3">三级</el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-tab-pane>
 
-        <el-divider content-position="left">登录门户品牌信息</el-divider>
+          <el-tab-pane label="登录门户" name="login">
+            <el-divider content-position="left">登录门户品牌信息</el-divider>
         <el-form-item label="企业 Logo">
           <div class="logo-config">
             <div class="upload-row">
@@ -341,8 +345,107 @@
           <el-input v-model="form.loginBranding.icpText" placeholder="例如：粤ICP备xxxxxxxx号" />
         </el-form-item>
 
-        <el-form-item v-if="canManage">
-          <el-button type="primary" @click="saveSettings">保存并生效</el-button>
+          </el-tab-pane>
+
+          <el-tab-pane label="AI Agent" name="agent">
+            <el-divider content-position="left">Agent 接入配置</el-divider>
+            <el-alert
+              title="该配置会写入 system_configs.ai_glm_config，Agent Runtime 将读取 api_url 与 api_key。"
+              type="info"
+              show-icon
+              :closable="false"
+              class="section-alert"
+            />
+            <el-form-item label="Base URL">
+              <el-input
+                v-model="agentConfig.apiUrl"
+                clearable
+                @input="markAgentConfigDirty"
+                placeholder="例如：https://open.bigmodel.cn/api/paas/v4/chat/completions"
+              />
+            </el-form-item>
+            <el-form-item label="API Key">
+              <el-input
+                v-model="agentConfig.apiKey"
+                type="password"
+                show-password
+                clearable
+                autocomplete="off"
+                @input="markAgentConfigDirty"
+                placeholder="请输入 Agent/大模型服务 API Key"
+              />
+            </el-form-item>
+            <el-form-item label="状态">
+              <el-tag :type="agentConfig.apiUrl && agentConfig.apiKey ? 'success' : 'warning'">
+                {{ agentConfig.apiUrl && agentConfig.apiKey ? '已配置' : '待配置' }}
+              </el-tag>
+            </el-form-item>
+          </el-tab-pane>
+
+          <el-tab-pane label="功能展示" name="visibility">
+            <el-divider content-position="left">模块与应用卡片展示控制</el-divider>
+            <el-alert
+              title="这里仅控制侧边栏模块入口和应用卡片是否展示，不替代权限、接口鉴权或数据库 RLS。"
+              type="warning"
+              show-icon
+              :closable="false"
+              class="section-alert"
+            />
+
+            <el-form-item label="搜索模块/应用">
+              <el-input
+                v-model="moduleFilterText"
+                clearable
+                placeholder="输入模块名、应用名或说明"
+              />
+            </el-form-item>
+
+            <div class="visibility-panel">
+              <div
+                v-for="module in filteredDisplayModules"
+                :key="module.key"
+                class="visibility-module"
+              >
+                <div class="visibility-module__header">
+                  <div>
+                    <strong>{{ module.label }}</strong>
+                    <span>{{ module.route }}</span>
+                  </div>
+                  <el-switch
+                    :model-value="isVisibilityModuleShown(module.key)"
+                    active-text="显示模块"
+                    inactive-text="隐藏模块"
+                    @change="setVisibilityModuleShown(module.key, $event)"
+                  />
+                </div>
+
+                <div v-if="module.apps.length" class="visibility-apps">
+                  <div
+                    v-for="app in module.apps"
+                    :key="`${module.key}-${app.key}`"
+                    class="visibility-app"
+                  >
+                    <div>
+                      <span class="visibility-app__name">{{ app.name }}</span>
+                      <small>{{ app.desc }}</small>
+                    </div>
+                    <el-switch
+                      :model-value="isVisibilityAppShown(module.key, app.key)"
+                      :disabled="!isVisibilityModuleShown(module.key)"
+                      active-text="显示"
+                      inactive-text="隐藏"
+                      @change="setVisibilityAppShown(module.key, app.key, $event)"
+                    />
+                  </div>
+                </div>
+                <div v-else class="visibility-empty">该模块当前没有独立应用卡片。</div>
+              </div>
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+
+        <el-form-item v-if="canManage" class="settings-actions">
+          <el-button type="primary" :loading="savingSettings" @click="saveSettings">保存并生效</el-button>
           <el-button @click="previewLoginPage">预览登录页</el-button>
           <el-button @click="resetSettings">重置默认</el-button>
         </el-form-item>
@@ -355,13 +458,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { reactive, onMounted, computed, watch } from 'vue'
+import { reactive, ref, onMounted, computed, watch } from 'vue'
 import { useSystemStore } from '@/stores/system'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
+import {
+  DISPLAY_MODULE_CATALOG,
+  normalizeDisplayVisibility,
+  saveStoredDisplayVisibility
+} from '@shared/eis-display-control'
 
 const systemStore = useSystemStore()
 const userStore = useUserStore()
+const activeTab = ref('basic')
+const savingSettings = ref(false)
+const agentConfig = reactive({
+  apiUrl: '',
+  apiKey: ''
+})
+const agentRawConfig = ref({})
+const agentConfigLoaded = ref(false)
+const agentConfigDirty = ref(false)
+const AI_AGENT_CONFIG_KEY = 'ai_glm_config'
+const moduleFilterText = ref('')
+const visibilityForm = reactive(normalizeDisplayVisibility())
+const appCenterDynamicApps = ref([])
 
 const predefineColors = [
   '#409EFF',
@@ -380,6 +501,7 @@ const defaultForm = () => ({
   themeColor: '#409EFF',
   notifications: true,
   materialsCategoryDepth: 2,
+  visibility: normalizeDisplayVisibility(),
   loginBranding: {
     companyName: '广东南派食品有限公司',
     slogan: '深耕热带水果全产业链，打造高品质水果制品方案',
@@ -456,16 +578,210 @@ const defaultForm = () => ({
 const form = reactive(defaultForm())
 
 const canManage = computed(() => {
-  const role = String(userStore.userInfo?.role || '').toLowerCase()
-  const dbRole = String(userStore.userInfo?.dbRole || '').toLowerCase()
-  const username = String(userStore.userInfo?.username || '').toLowerCase()
-  return role === 'super_admin'
-    || role === 'admin'
-    || role === '超级管理员'
-    || dbRole === 'super_admin'
-    || dbRole === 'admin'
-    || username === 'admin'
+  const info = userStore.userInfo || {}
+  const roleValues = [
+    info.app_role,
+    info.appRole,
+    info.role,
+    info.role_code,
+    info.roleCode,
+    info.dbRole,
+    info.db_role
+  ].map((value) => String(value || '').trim().toLowerCase())
+  return roleValues.includes('super_admin') || roleValues.includes('超级管理员')
 })
+
+const displayModules = computed(() => DISPLAY_MODULE_CATALOG.map((module) => {
+  if (module.key !== 'apps') return module
+  return {
+    ...module,
+    apps: [
+      ...module.apps,
+      ...appCenterDynamicApps.value
+    ]
+  }
+}))
+
+const filteredDisplayModules = computed(() => {
+  const keyword = moduleFilterText.value.trim().toLowerCase()
+  if (!keyword) return displayModules.value
+  return displayModules.value
+    .map((module) => ({
+      ...module,
+      apps: module.apps.filter((app) => [
+        app.key,
+        app.name,
+        app.desc
+      ].some((value) => String(value || '').toLowerCase().includes(keyword)))
+    }))
+    .filter((module) => (
+      module.key.toLowerCase().includes(keyword) ||
+      module.label.toLowerCase().includes(keyword) ||
+      String(module.route || '').toLowerCase().includes(keyword) ||
+      module.apps.length > 0
+    ))
+})
+
+const applyVisibility = (next) => {
+  const normalized = normalizeDisplayVisibility(next)
+  visibilityForm.hiddenModules = normalized.hiddenModules
+  visibilityForm.hiddenApps = normalized.hiddenApps
+}
+
+const updateKeyInArray = (arr, key, enabled) => {
+  const normalizedKey = String(key || '').trim()
+  if (!normalizedKey) return arr
+  const set = new Set(Array.isArray(arr) ? arr : [])
+  if (enabled) set.delete(normalizedKey)
+  else set.add(normalizedKey)
+  return Array.from(set)
+}
+
+const isVisibilityModuleShown = (moduleKey) => {
+  return !visibilityForm.hiddenModules.includes(moduleKey)
+}
+
+const setVisibilityModuleShown = (moduleKey, shown) => {
+  visibilityForm.hiddenModules = updateKeyInArray(visibilityForm.hiddenModules, moduleKey, shown)
+}
+
+const isVisibilityAppShown = (moduleKey, appKey) => {
+  const list = visibilityForm.hiddenApps[moduleKey] || []
+  return !list.includes(appKey)
+}
+
+const setVisibilityAppShown = (moduleKey, appKey, shown) => {
+  visibilityForm.hiddenApps = {
+    ...visibilityForm.hiddenApps,
+    [moduleKey]: updateKeyInArray(visibilityForm.hiddenApps[moduleKey], appKey, shown)
+  }
+}
+
+const markAgentConfigDirty = () => {
+  agentConfigDirty.value = true
+}
+
+const parseConfigValue = (value) => {
+  if (!value) return {}
+  if (typeof value === 'object') return value
+  if (typeof value !== 'string') return {}
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch (e) {
+    return {}
+  }
+}
+
+const getAuthToken = () => {
+  const raw = localStorage.getItem('auth_token')
+  if (!raw) return ''
+  let token = raw
+  try {
+    const parsed = JSON.parse(raw)
+    if (parsed?.token) token = parsed.token
+  } catch (e) {}
+  if (token && token.length > 8192) {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('user_info')
+    return ''
+  }
+  return token
+}
+
+const systemConfigHeaders = (withJson = false) => {
+  const headers = {
+    Accept: 'application/json',
+    'Accept-Profile': 'public'
+  }
+  if (withJson) {
+    headers['Content-Type'] = 'application/json'
+    headers['Content-Profile'] = 'public'
+    headers.Prefer = 'resolution=merge-duplicates'
+  }
+  const token = getAuthToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
+const appCenterHeaders = () => {
+  const headers = {
+    Accept: 'application/json',
+    'Accept-Profile': 'app_center',
+    'Content-Profile': 'app_center'
+  }
+  const token = getAuthToken()
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
+const loadAppCenterDynamicApps = async () => {
+  if (!canManage.value) return
+  try {
+    const res = await fetch('/api/apps?select=id,name,description,app_type,status&order=created_at.desc', {
+      headers: appCenterHeaders()
+    })
+    if (!res.ok) return
+    const list = await res.json()
+    appCenterDynamicApps.value = Array.isArray(list)
+      ? list
+        .map((app) => ({
+          key: `app:${app.id}`,
+          name: String(app.name || '未命名应用'),
+          desc: `自建应用 · ${app.app_type || 'custom'} · ${app.status || 'draft'}${app.description ? `｜${app.description}` : ''}`
+        }))
+        .filter((app) => app.key !== 'app:')
+      : []
+  } catch (e) {
+    appCenterDynamicApps.value = []
+  }
+}
+
+const loadAgentConfig = async () => {
+  if (!canManage.value) return
+  try {
+    const key = encodeURIComponent(AI_AGENT_CONFIG_KEY)
+    const res = await fetch(`/api/system_configs?key=eq.${key}`, {
+      headers: systemConfigHeaders()
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    const row = Array.isArray(data) ? data[0] : null
+    const value = parseConfigValue(row?.value)
+    agentRawConfig.value = { ...value }
+    agentConfig.apiUrl = String(value.api_url || '')
+    agentConfig.apiKey = String(value.api_key || '')
+    agentConfigLoaded.value = true
+    agentConfigDirty.value = false
+  } catch (e) {
+    agentConfigLoaded.value = false
+    ElMessage.warning('Agent 配置读取失败，请检查系统配置权限或服务状态')
+  }
+}
+
+const saveAgentConfig = async () => {
+  if (!canManage.value) return true
+  if (!agentConfigDirty.value) return true
+  const value = {
+    ...(agentRawConfig.value || {}),
+    api_url: String(agentConfig.apiUrl || '').trim(),
+    api_key: String(agentConfig.apiKey || '').trim()
+  }
+  const res = await fetch('/api/system_configs', {
+    method: 'POST',
+    headers: systemConfigHeaders(true),
+    body: JSON.stringify({
+      key: AI_AGENT_CONFIG_KEY,
+      value,
+      description: 'AI Agent 接入配置'
+    })
+  })
+  if (!res.ok) return false
+  agentRawConfig.value = { ...value }
+  agentConfigLoaded.value = true
+  agentConfigDirty.value = false
+  return true
+}
 
 const syncFromStore = (cfg) => {
   const source = cfg && typeof cfg === 'object' ? cfg : {}
@@ -478,6 +794,7 @@ const syncFromStore = (cfg) => {
   form.themeColor = String(source.themeColor || next.themeColor)
   form.notifications = source.notifications !== false
   form.materialsCategoryDepth = Number(source.materialsCategoryDepth) === 3 ? 3 : 2
+  applyVisibility(source.visibility || next.visibility)
 
   form.loginBranding.companyName = String(branding.companyName || next.loginBranding.companyName)
   form.loginBranding.slogan = String(branding.slogan || next.loginBranding.slogan)
@@ -553,11 +870,22 @@ const syncFromStore = (cfg) => {
 
 onMounted(() => {
   syncFromStore(systemStore.config)
+  loadAgentConfig()
+  loadAppCenterDynamicApps()
 })
 
 watch(() => systemStore.config, (val) => {
   syncFromStore(val)
 }, { deep: true })
+
+watch(canManage, (allowed) => {
+  if (allowed && !agentConfigLoaded.value) {
+    loadAgentConfig()
+  }
+  if (allowed && appCenterDynamicApps.value.length === 0) {
+    loadAppCenterDynamicApps()
+  }
+})
 
 const toDataUrl = (rawFile) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -644,11 +972,13 @@ const removeLeader = (index) => {
 
 const saveSettings = async () => {
   if (!canManage.value) return
+  savingSettings.value = true
   const payload = {
     title: form.title,
     themeColor: form.themeColor,
     notifications: form.notifications,
     materialsCategoryDepth: form.materialsCategoryDepth === 3 ? 3 : 2,
+    visibility: normalizeDisplayVisibility(visibilityForm),
     loginBranding: {
       companyName: form.loginBranding.companyName,
       slogan: form.loginBranding.slogan,
@@ -684,9 +1014,24 @@ const saveSettings = async () => {
       icpText: form.loginBranding.icpText
     }
   }
-  const ok = await systemStore.saveConfig(payload)
-  if (ok) ElMessage.success('设置已保存并生效')
-  else ElMessage.error('保存失败，请稍后重试')
+  try {
+    const appOk = await systemStore.saveConfig(payload)
+    if (!appOk) {
+      ElMessage.error('系统设置保存失败，请稍后重试')
+      return
+    }
+    const agentOk = await saveAgentConfig()
+    if (!agentOk) {
+      ElMessage.error('系统设置已保存，但 Agent 配置保存失败')
+      return
+    }
+    saveStoredDisplayVisibility(payload.visibility)
+    ElMessage.success('设置已保存并生效')
+  } catch (e) {
+    ElMessage.error('保存失败，请稍后重试')
+  } finally {
+    savingSettings.value = false
+  }
 }
 
 const previewLoginPage = () => {
@@ -699,6 +1044,7 @@ const resetSettings = () => {
   form.themeColor = next.themeColor
   form.notifications = next.notifications
   form.materialsCategoryDepth = next.materialsCategoryDepth
+  applyVisibility(next.visibility)
   form.loginBranding.companyName = next.loginBranding.companyName
   form.loginBranding.slogan = next.loginBranding.slogan
   form.loginBranding.description = next.loginBranding.description
@@ -759,6 +1105,18 @@ const resetSettings = () => {
 
 .settings-form {
   max-width: 980px;
+}
+
+.settings-tabs {
+  width: 100%;
+}
+
+.section-alert {
+  margin-bottom: 16px;
+}
+
+.settings-actions {
+  margin-top: 18px;
 }
 
 .theme-row {

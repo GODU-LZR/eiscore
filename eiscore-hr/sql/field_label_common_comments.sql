@@ -28,6 +28,7 @@ declare
     "email":"邮箱",
     "role":"角色",
     "role_id":"角色",
+    "sop_role":"SOP岗位",
     "position_id":"岗位ID",
     "avatar":"头像",
     "permissions":"权限集合",

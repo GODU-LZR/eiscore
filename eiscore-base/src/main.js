@@ -14,9 +14,6 @@ import 'element-plus/theme-chalk/dark/css-vars.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { patchElMessage } from '@/utils/message-patch'
 
-// 🟢 确保这里是命名导入，对应 micro/index.js 的 export function
-import { registerQiankun } from './micro'
-
 patchElMessage()
 
 const app = createApp(App)
@@ -55,8 +52,57 @@ if (typeof window !== 'undefined' && window.fetch) {
   }
 }
 
-// Start qiankun only after router is ready and layout container can render.
-// This avoids intermittent "Target container #subapp-viewport not existed".
+let qiankunStartObserver = null
+let qiankunModulePromise = null
+
+const loadQiankunModule = () => {
+  if (!qiankunModulePromise) {
+    qiankunModulePromise = import('./micro')
+      .catch((error) => {
+        qiankunModulePromise = null
+        throw error
+      })
+  }
+  return qiankunModulePromise
+}
+
+const stopQiankunStartObserver = () => {
+  if (!qiankunStartObserver) return
+  qiankunStartObserver.disconnect()
+  qiankunStartObserver = null
+}
+
+const startQiankunWhenContainerReady = () => {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return
+  if (window.__EIS_QIANKUN_STARTED__ || window.__EIS_QIANKUN_STARTING__) return
+
+  const tryStart = () => {
+    if (window.__EIS_QIANKUN_STARTED__ || window.__EIS_QIANKUN_STARTING__) {
+      stopQiankunStartObserver()
+      return true
+    }
+    if (!document.querySelector('#subapp-viewport')) return false
+    stopQiankunStartObserver()
+    loadQiankunModule()
+      .then(({ registerQiankun }) => registerQiankun())
+      .catch((error) => {
+        console.error('[Qiankun] load micro runtime failed', error)
+      })
+    return true
+  }
+
+  if (tryStart() || qiankunStartObserver || !document.body) return
+
+  qiankunStartObserver = new MutationObserver(() => {
+    tryStart()
+  })
+  qiankunStartObserver.observe(document.body, { childList: true, subtree: true })
+}
+
+// Start qiankun only after the authenticated layout has rendered its sub-app mount point.
 router.isReady().then(() => {
-  registerQiankun()
+  window.requestAnimationFrame(startQiankunWhenContainerReady)
+  router.afterEach(() => {
+    window.requestAnimationFrame(startQiankunWhenContainerReady)
+  })
 })

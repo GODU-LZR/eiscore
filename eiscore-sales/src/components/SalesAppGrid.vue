@@ -18,7 +18,7 @@
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="app.apiUrl"
+        :api-url="gridApiUrl"
         :write-url="app.writeUrl || ''"
         :include-properties="app.includeProperties !== false"
         write-mode="patch"
@@ -40,6 +40,12 @@
         :can-delete="canDelete"
         :can-export="canExport"
         :can-config="canConfig"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
@@ -49,15 +55,24 @@
         @cell-value-changed="handleSalesCellValueChanged"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" class="attention-filter">
-            <el-radio-button
-              v-for="option in attentionFilterOptions"
-              :key="option.value"
-              :label="option.value"
-            >
-              {{ option.label }}
-            </el-radio-button>
-          </el-radio-group>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            v-model:attention-filter="attentionFilter"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :attention-options="attentionFilterOptions"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
           <el-button
             v-if="app.key === 'customers' && canEdit"
             type="primary"
@@ -451,8 +466,17 @@
       destroy-on-close
       @closed="resetBusinessFlowDialog"
     >
-      <div class="business-flow-dialog" v-loading="flowLoading">
-        <div class="flow-push-header">
+      <div
+        class="business-flow-dialog"
+        data-guide="flow-wrapper"
+        data-sop-flow="sales-flow-push"
+        data-sop-title="销售订单业务下推流程"
+        data-sop-desc="按销售订单、采购需求、出货申请、销售出库的链路完成销售订单下推。"
+        data-sop-steps="先选择可流转的销售订单|确认下一环节是采购需求、出货申请还是销售出库|检查单据链路是否已有下游记录|点击确认下推并跳转|到下游应用搜索单号复核状态"
+        data-sop-risk="销售下推会影响采购需求、出货计划和库存出库。已取消、已删除、已下推或数量异常的订单不要重复下推。"
+        v-loading="flowLoading"
+      >
+        <div class="flow-push-header" data-guide="flow-selection">
           <div>
             <span>已选择销售订单</span>
             <strong>{{ flowSelectedRows.length }}</strong>
@@ -463,7 +487,7 @@
             <el-radio-button label="sales_outbound">销售出库</el-radio-button>
           </el-radio-group>
         </div>
-        <div class="flow-chain">
+        <div class="flow-chain" data-guide="flow-chain">
           <div
             v-for="node in salesFlowNodes"
             :key="node.key"
@@ -475,22 +499,43 @@
             <small>{{ node.status || '待流转' }}</small>
           </div>
         </div>
-        <div class="flow-actions">
-          <el-button :type="flowConfirmButtonType" :loading="flowActionLoading" @click="confirmSalesFlowPush">
+        <div class="flow-actions" data-guide="flow-actions">
+          <el-button
+            data-guide="flow-confirm"
+            data-sop-action="sales-confirm-flow-push"
+            data-sop-title="确认销售下推并跳转"
+            data-sop-desc="确认当前销售订单链路，并生成采购需求、出货申请或销售出库链路。"
+            data-sop-steps="复核已选销售订单数量|确认下一环节是否正确|查看链路中是否已有下游单据|点击确认下推并跳转|跳转后搜索新单据并复核状态"
+            data-sop-risk="确认后会生成或关联下游单据，错误下推会影响采购、出货和库存。"
+            :type="flowConfirmButtonType"
+            :loading="flowActionLoading"
+            @click="confirmSalesFlowPush"
+          >
             确认下推并跳转
           </el-button>
-          <el-button type="warning" :disabled="!canReverseSalesDemand" :loading="flowActionLoading" @click="reverseSalesDemandLink">
+          <el-button
+            type="warning"
+            data-sop-action="sales-reverse-flow-push"
+            data-sop-title="反审核或撤销销售下推"
+            data-sop-desc="撤销销售订单到采购需求的链路，仅在下游未继续生成单据时允许。"
+            data-sop-steps="先确认下游采购需求没有继续生成采购订单、到货或入库|点击反审核/撤销下推|等待系统解除链路|回到销售订单和采购需求复核状态"
+            data-sop-risk="已有采购订单、到货或入库时不能直接撤销，需要从下游逐级反审核。"
+            :disabled="!canReverseSalesDemand"
+            :loading="flowActionLoading"
+            @click="reverseSalesDemandLink"
+          >
             反审核/撤销下推
           </el-button>
         </div>
         <el-alert
           v-if="!canReverseSalesDemand && salesFlowDocs.purchaseDemand"
+          data-guide="flow-risk"
           title="采购需求已生成下游单据时不能直接撤销，需要先从采购订单、到货、入库逐级反审核。"
           type="warning"
           show-icon
           :closable="false"
         />
-        <div class="flow-doc-panel">
+        <div class="flow-doc-panel" data-guide="flow-risk">
           <div class="flow-doc-card">
             <span>首个待下推单据</span>
             <strong>{{ flowPrimaryOrder?.order_no || flowPrimaryOrder?.id || '-' }}</strong>
@@ -798,6 +843,8 @@ import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import { findSalesApp, CUSTOMER_COLUMNS } from '@/utils/sales-apps'
 import {
   buildSalesAttentionSummary,
@@ -962,7 +1009,6 @@ const resolveAttention = (row) => getSalesRecordAttention(app.value?.key, row, {
   task: 'monitor'
 })
 const rowAttentionFilter = (row) => matchesSalesAttentionFilter(app.value?.key, row, attentionFilter.value)
-const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
 const resolveRowActions = (row) => {
   if (!row) return []
   if (app.value.key === 'customers') {
@@ -1081,6 +1127,32 @@ const staticColumnsAll = computed(() => app.value.staticColumns || CUSTOMER_COLU
 const staticColumns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
 )
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app,
+  staticColumns: staticColumnsAll,
+  moduleName: 'sales',
+  fallbackApiUrl: '/sales_customers',
+  attentionFilter,
+  attentionFilterOptions
+})
+const summaryScope = computed(() => attentionFilter.value === 'all' && gridTimeMode.value === 'infinite' ? 'server' : 'loaded')
 const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
 const detailColumns = computed(() => {
   const seen = new Set()
@@ -3965,7 +4037,7 @@ watch(() => paymentForm.amount, (amount) => {
   paymentForm.verify_status = totalAfterPayment >= toAmount(order.total_amount) ? '已核销' : '部分核销'
 })
 
-watch(attentionFilter, () => {
+watch([attentionFilter, gridApiUrl], () => {
   gridRef.value?.loadData?.()
 })
  
@@ -4016,7 +4088,8 @@ onUnmounted(() => {
 <style scoped>
 .app-container {
   padding: 20px;
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -4064,6 +4137,7 @@ onUnmounted(() => {
 
 .grid-card {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -4361,13 +4435,13 @@ onUnmounted(() => {
   right: -18px;
   top: 50%;
   transform: translateY(-50%);
-  color: #409eff;
+  color: var(--el-color-primary);
   font-weight: 700;
 }
 
 .flow-step.active {
-  border-color: #409eff;
-  background: #eef6ff;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
 }
 
 .flow-step.current {

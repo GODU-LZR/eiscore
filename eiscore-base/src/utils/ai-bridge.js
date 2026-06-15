@@ -3,8 +3,6 @@
 
 import { reactive, watch } from 'vue'
 import request from '@/utils/request'
-import * as XLSX from 'xlsx'
-import mammoth from 'mammoth'
 import {
   buildGridAgentQueryPayload,
   formatGridAgentQueryResultForPrompt,
@@ -16,6 +14,19 @@ const MAX_SESSIONS = 20
 const MAX_MESSAGES_PER_SESSION = 50
 const HISTORY_WINDOW = 8
 const CODE_FENCE = '```'
+
+let xlsxModulePromise = null
+const loadXlsx = async () => {
+  xlsxModulePromise ||= import('xlsx')
+  return xlsxModulePromise
+}
+
+let mammothModulePromise = null
+const loadMammoth = async () => {
+  mammothModulePromise ||= import('mammoth')
+  const module = await mammothModulePromise
+  return module.default || module
+}
 
 /**
  * AI Bridge - 智能文件解析与多模态总线
@@ -55,7 +66,7 @@ class AiBridge {
     this.bindWindowEvents()
   }
 
-  initActions(actions) {
+  initActions(actions, onStateChange) {
     this.actions = actions
     if (this.actions) {
       this.actions.onGlobalStateChange((state) => {
@@ -64,6 +75,9 @@ class AiBridge {
         }
         if (state && state.command) {
           this.handleCommand(state.command)
+        }
+        if (typeof onStateChange === 'function') {
+          onStateChange(state)
         }
       }, true)
     }
@@ -349,8 +363,9 @@ class AiBridge {
       const reader = new FileReader()
       if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
         reader.readAsArrayBuffer(file)
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
           try {
+            const XLSX = await loadXlsx()
             const data = new Uint8Array(event.target.result)
             const workbook = XLSX.read(data, { type: 'array' })
             const firstSheetName = workbook.SheetNames[0]
@@ -363,7 +378,8 @@ class AiBridge {
         }
       } else if (file.name.endsWith('.docx')) {
         reader.readAsArrayBuffer(file)
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
+          const mammoth = await loadMammoth()
           mammoth.extractRawText({ arrayBuffer: event.target.result })
             .then(res => resolve(`[Word文档: ${file.name}]\n${res.value}\n`))
             .catch(() => resolve(`[解析错误] ${file.name}`))

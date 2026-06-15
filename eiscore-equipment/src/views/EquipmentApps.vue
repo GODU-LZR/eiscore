@@ -72,11 +72,24 @@ import {
   numberValue
 } from '@/utils/equipment-attention'
 import { sortByAttention } from '@shared/app-card-attention'
+import {
+  avgStat,
+  combineQueryParts,
+  countStat,
+  filterPart,
+  loadAppsCardStats,
+  orFilter,
+  statNumber,
+  sumStat
+} from '@shared/app-card-server-stats'
+import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
+const { visibility: displayVisibility } = useDisplayVisibility()
 const iconMap = { Calendar, DataBoard, DocumentChecked, Monitor, Search, Tools, Warning }
 
 const appRows = ref(Object.fromEntries(EQUIPMENT_APPS.map((app) => [app.key, app.fallbackRows || []])))
+const serverStats = ref({})
 const cardLoading = ref(false)
 
 const numberText = (value) => {
@@ -91,16 +104,92 @@ const avg = (rows, key) => {
 }
 
 const rowsOf = (key) => appRows.value[key] || []
+const statsOf = (key) => serverStats.value[key] || {}
 const sourceKeyOf = (app) => app.sourceAppKey || app.key
 
 const appendLimit = (url, limit = 200) => `${url}${url.includes('?') ? '&' : '?'}limit=${limit}`
+const today = () => new Date().toISOString().slice(0, 10)
+const offsetDate = (days) => {
+  const next = new Date()
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
+}
+
+const equipmentCardStatsSpec = (app) => {
+  if (app.key === 'assets') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('running', filterPart('run_status', 'eq', '运行')),
+        countStat('down', filterPart('run_status', 'in', ['停机', '维修中'])),
+        avgStat('health', 'health_score')
+      ]
+    }
+  }
+  if (app.key === 'checks') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('abnormal', orFilter(filterPart('check_result', 'eq', '异常'), filterPart('check_result', 'eq', '停机'), filterPart('abnormal_count', 'gt', 0))),
+        sumStat('abnormalCount', 'abnormal_count')
+      ]
+    }
+  }
+  if (app.key === 'issues') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('open', filterPart('issue_status', 'neq', '已关闭')),
+        countStat('urgent', combineQueryParts(filterPart('issue_status', 'neq', '已关闭'), filterPart('issue_level', 'in', ['紧急', '严重']))),
+        countStat('overdue', combineQueryParts(filterPart('issue_status', 'neq', '已关闭'), filterPart('deadline', 'lt', today())))
+      ]
+    }
+  }
+  if (app.key === 'work_orders') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('active', filterPart('work_status', 'neq', '已完成')),
+        countStat('completed', filterPart('work_status', 'eq', '已完成')),
+        sumStat('downtime', 'downtime_hours')
+      ]
+    }
+  }
+  if (app.key === 'plans') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('overdue', combineQueryParts(filterPart('plan_status', 'neq', '已完成'), filterPart('next_execute_date', 'lt', today()))),
+        countStat('due', combineQueryParts(filterPart('plan_status', 'neq', '已完成'), filterPart('next_execute_date', 'gte', today()), filterPart('next_execute_date', 'lte', offsetDate(3)))),
+        avgStat('completion', 'completion_rate')
+      ]
+    }
+  }
+  if (app.key === 'standards') {
+    return {
+      stats: [
+        countStat('total'),
+        countStat('effective', filterPart('standard_status', 'eq', '生效'))
+      ]
+    }
+  }
+  return { stats: [countStat('total')] }
+}
 
 const loadCardData = async () => {
   if (cardLoading.value) return
   cardLoading.value = true
   try {
     const apps = EQUIPMENT_APPS.filter((app) => app.apiUrl)
-    const results = await Promise.allSettled(apps.map((app) => request({ url: appendLimit(app.apiUrl), method: 'get' })))
+    const [statsResult, results] = await Promise.all([
+      loadAppsCardStats({
+        request,
+        apps,
+        profile: 'public',
+        getStats: equipmentCardStatsSpec
+      }).catch(() => ({})),
+      Promise.allSettled(apps.map((app) => request({ url: appendLimit(app.apiUrl), method: 'get' })))
+    ])
     const next = { ...appRows.value }
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && Array.isArray(result.value)) {
@@ -108,6 +197,7 @@ const loadCardData = async () => {
       }
     })
     appRows.value = next
+    serverStats.value = { ...serverStats.value, ...statsResult }
   } finally {
     cardLoading.value = false
   }
@@ -120,6 +210,12 @@ const cardMap = computed(() => {
   const workOrders = rowsOf('work_orders')
   const plans = rowsOf('plans')
   const standards = rowsOf('standards')
+  const assetStats = statsOf('assets')
+  const checkStats = statsOf('checks')
+  const issueStats = statsOf('issues')
+  const workStats = statsOf('work_orders')
+  const planStats = statsOf('plans')
+  const standardStats = statsOf('standards')
   const assetAttention = getEquipmentAppAttention('assets', assets)
   const checkAttention = getEquipmentAppAttention('checks', checks)
   const issueAttention = getEquipmentAppAttention('issues', issues)
@@ -127,22 +223,29 @@ const cardMap = computed(() => {
   const planAttention = getEquipmentAppAttention('plans', plans)
   const standardAttention = getEquipmentAppAttention('standards', standards)
 
-  const running = assets.filter((row) => row.run_status === '运行').length
-  const down = assets.filter((row) => ['停机', '维修中'].includes(row.run_status)).length
-  const health = avg(assets, 'health_score')
-  const abnormalChecks = checks.filter((row) => row.check_result === '异常' || row.check_result === '停机' || numberValue(row.abnormal_count) > 0).length
-  const openIssues = issues.filter((row) => row.issue_status !== '已关闭').length
-  const urgentIssues = issues.filter((row) => row.issue_status !== '已关闭' && ['紧急', '严重'].includes(row.issue_level)).length
-  const activeWork = workOrders.filter((row) => row.work_status !== '已完成').length
-  const downtime = workOrders.reduce((sum, row) => sum + numberValue(row.downtime_hours), 0)
-  const completedWork = workOrders.filter((row) => row.work_status === '已完成').length
-  const avgCompletion = avg(plans, 'completion_rate')
-  const overduePlans = plans.filter((row) => row.plan_status !== '已完成' && daysBetween(row.next_execute_date) < 0).length
-  const duePlans = plans.filter((row) => {
+  const assetTotal = statNumber(assetStats, 'total', assets.length)
+  const running = statNumber(assetStats, 'running', assets.filter((row) => row.run_status === '运行').length)
+  const down = statNumber(assetStats, 'down', assets.filter((row) => ['停机', '维修中'].includes(row.run_status)).length)
+  const health = Math.round(statNumber(assetStats, 'health', avg(assets, 'health_score')))
+  const abnormalChecks = statNumber(
+    checkStats,
+    'abnormal',
+    checks.filter((row) => row.check_result === '异常' || row.check_result === '停机' || numberValue(row.abnormal_count) > 0).length
+  )
+  const openIssues = statNumber(issueStats, 'open', issues.filter((row) => row.issue_status !== '已关闭').length)
+  const urgentIssues = statNumber(issueStats, 'urgent', issues.filter((row) => row.issue_status !== '已关闭' && ['紧急', '严重'].includes(row.issue_level)).length)
+  const activeWork = statNumber(workStats, 'active', workOrders.filter((row) => row.work_status !== '已完成').length)
+  const downtime = statNumber(workStats, 'downtime', workOrders.reduce((sum, row) => sum + numberValue(row.downtime_hours), 0))
+  const completedWork = statNumber(workStats, 'completed', workOrders.filter((row) => row.work_status === '已完成').length)
+  const avgCompletion = Math.round(statNumber(planStats, 'completion', avg(plans, 'completion_rate')))
+  const overduePlans = statNumber(planStats, 'overdue', plans.filter((row) => row.plan_status !== '已完成' && daysBetween(row.next_execute_date) < 0).length)
+  const duePlansFallback = plans.filter((row) => {
     const delta = daysBetween(row.next_execute_date)
     return row.plan_status !== '已完成' && delta !== null && delta >= 0 && delta <= 3
   }).length
-  const effectiveStandards = standards.filter((row) => row.standard_status === '生效').length
+  const duePlans = statNumber(planStats, 'due', duePlansFallback)
+  const effectiveStandards = statNumber(standardStats, 'effective', standards.filter((row) => row.standard_status === '生效').length)
+  const standardTotal = statNumber(standardStats, 'total', standards.length)
   const latestCheck = checks.slice().sort((a, b) => String(b.check_date || '').localeCompare(String(a.check_date || '')))[0]
   const latestStandard = standards.slice().sort((a, b) => String(b.effective_date || '').localeCompare(String(a.effective_date || '')))[0]
   const riskIndex = Math.min(99, down * 16 + openIssues * 12 + urgentIssues * 10 + activeWork * 8 + overduePlans * 14 + abnormalChecks * 6)
@@ -156,14 +259,14 @@ const cardMap = computed(() => {
         { label: '健康评分', value: `${health}` },
         { label: '风险指数', value: `${riskIndex}` }
       ],
-      brief: `设备 ${assets.length} 台 · 工单 ${activeWork} 个`
+      brief: `设备 ${assetTotal} 台 · 工单 ${activeWork} 个`
     },
     assets: {
       status: assetAttention.status,
       statusText: assetAttention.statusText,
       attentionLevel: assetAttention.level,
       metrics: [
-        { label: '设备总数', value: `${assets.length}` },
+        { label: '设备总数', value: `${assetTotal}` },
         { label: '运行设备', value: `${running}` }
       ],
       brief: assetAttention.primary.reason || `停机/维修 ${down} 台`
@@ -206,7 +309,7 @@ const cardMap = computed(() => {
         { label: '完成率', value: `${avgCompletion}%` },
         { label: '临/逾', value: `${duePlans}/${overduePlans}` }
       ],
-      brief: planAttention.primary.reason || `${plans.length} 个巡检保养计划`
+      brief: planAttention.primary.reason || `${statNumber(planStats, 'total', plans.length)} 个巡检保养计划`
     },
     standards: {
       status: standardAttention.status,
@@ -214,7 +317,7 @@ const cardMap = computed(() => {
       attentionLevel: standardAttention.level,
       metrics: [
         { label: '生效标准', value: `${effectiveStandards}` },
-        { label: '标准总数', value: `${standards.length}` }
+        { label: '标准总数', value: `${standardTotal}` }
       ],
       brief: standardAttention.primary.reason || `最新 ${latestStandard?.version || latestStandard?.standard_no || '--'}`
     }
@@ -222,6 +325,7 @@ const cardMap = computed(() => {
 })
 
 const visibleApps = computed(() => EQUIPMENT_APPS
+  .filter((app) => isAppVisible(displayVisibility.value, 'equipment', app.key))
   .filter((app) => app.key !== 'dashboard' && (!app.perm || hasPerm(app.perm)))
   .map((app) => ({
     ...app,
@@ -250,6 +354,7 @@ onMounted(() => {
 
 <style scoped>
 .equipment-apps {
+  position: relative;
   min-height: 100vh;
   padding: 20px;
   box-sizing: border-box;
@@ -277,6 +382,7 @@ onMounted(() => {
 }
 
 .app-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -299,7 +405,7 @@ onMounted(() => {
 
 .app-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.15);
 }
 
 .app-card-body {
@@ -321,7 +427,7 @@ onMounted(() => {
 }
 
 .tone-blue {
-  background: #0ea5e9;
+  background: var(--el-color-primary);
 }
 
 .tone-red {
@@ -470,7 +576,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 
 .app-enter span:first-child {

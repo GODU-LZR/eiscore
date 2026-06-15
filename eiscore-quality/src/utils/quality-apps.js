@@ -377,7 +377,7 @@ export const QUALITY_APPS = [
       due_date: today(),
       action_status: '待处理',
       verify_owner: '',
-      verify_date: '',
+      verify_date: null,
       verify_result: '',
       status: 'active',
       properties: {}

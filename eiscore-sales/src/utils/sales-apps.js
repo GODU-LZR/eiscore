@@ -263,7 +263,7 @@ export const SALES_APPS = [
       follow_date: new Date().toISOString().slice(0, 10),
       follow_type: '电话沟通',
       follow_result: '待跟进',
-      next_follow_at: '',
+      next_follow_at: null,
       owner_name: '',
       follow_content: '',
       properties: {}
@@ -303,7 +303,7 @@ export const SALES_APPS = [
       expected_amount: 0,
       stage: '初步接洽',
       probability: 20,
-      expected_close_date: '',
+      expected_close_date: null,
       owner_name: '',
       next_action: '',
       remark: '',
@@ -346,7 +346,7 @@ export const SALES_APPS = [
       unit_price: 0,
       total_amount: 0,
       order_date: new Date().toISOString().slice(0, 10),
-      delivery_date: '',
+      delivery_date: null,
       order_status: '草稿',
       owner_name: '',
       properties: {}

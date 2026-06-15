@@ -16,7 +16,7 @@
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="app.apiUrl"
+        :api-url="gridApiUrl"
         :write-url="app.writeUrl || ''"
         :include-properties="app.includeProperties !== false"
         :write-mode="app.writeMode || 'patch'"
@@ -38,6 +38,12 @@
         :can-delete="canDelete"
         :can-export="canExport"
         :can-config="canConfig"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
@@ -47,17 +53,31 @@
         @cell-value-changed="handlePurchaseCellValueChanged"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" class="attention-filter">
-            <el-radio-button
-              v-for="option in attentionFilterOptions"
-              :key="option.value"
-              :label="option.value"
-            >
-              {{ option.label }}
-            </el-radio-button>
-          </el-radio-group>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            v-model:attention-filter="attentionFilter"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :attention-options="attentionFilterOptions"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
           <el-button
             v-if="app.key === 'demands' && canPushDemandToOrder"
+            data-sop-action="purchase-push-demand-order"
+            data-sop-title="采购需求下推采购订单"
+            data-sop-desc="把选中的采购需求生成采购订单，并建立单据链路。"
+            data-sop-steps="先勾选需要下推的采购需求|确认供应商、物料、数量、需求日期和状态可以下单|点击下推采购订单打开业务流转确认窗|确认生成后跳转到采购订单查看结果"
+            data-sop-risk="下推会生成采购订单。供应商、数量或需求日期错误会影响采购执行和库存计划。"
             type="success"
             plain
             icon="Position"
@@ -68,6 +88,11 @@
           </el-button>
           <el-button
             v-if="app.key === 'orders' && canPushOrderToArrival"
+            data-sop-action="purchase-push-order-arrival"
+            data-sop-title="采购订单下推到货跟踪"
+            data-sop-desc="把选中的采购订单生成到货跟踪记录，进入收货准备环节。"
+            data-sop-steps="先勾选需要跟踪到货的采购订单|复核订单号、供应商、物料、订单数量和预计到货日期|点击下推到货跟踪打开业务流转确认窗|确认后跳转到到货跟踪应用复核到货状态"
+            data-sop-risk="到货跟踪会影响收货计划和质检准备。已关闭、取消或异常订单不要下推。"
             type="success"
             plain
             icon="Position"
@@ -78,6 +103,11 @@
           </el-button>
           <el-button
             v-if="app.key === 'arrivals' && canPushArrivalToInbound"
+            data-sop-action="purchase-push-arrival-inbound"
+            data-sop-title="到货跟踪下推采购入库"
+            data-sop-desc="把合格可入库的到货记录下推到仓储入库。"
+            data-sop-steps="先勾选可入库的到货记录|复核到货数量、质检状态、批次、仓库和库位|点击下推采购入库打开业务流转确认窗|确认后跳转仓储入库，检查入库单和库存影响"
+            data-sop-risk="入库会影响库存账。异常、不合格或数量未确认的到货记录不要直接入库。"
             type="warning"
             plain
             icon="Position"
@@ -97,8 +127,17 @@
         destroy-on-close
         @closed="resetFlowDialog"
       >
-        <div class="business-flow-dialog" v-loading="flowLoading">
-          <div class="flow-push-header">
+        <div
+          class="business-flow-dialog"
+          data-guide="flow-wrapper"
+          data-sop-flow="purchase-flow-push"
+          data-sop-title="采购业务下推流程"
+          data-sop-desc="按采购需求、采购订单、到货跟踪、采购入库的链路完成采购单据下推。"
+          data-sop-steps="先勾选可流转的采购记录|确认下一环节和已选数量|检查单据链路是否已有下游记录|点击确认下推并跳转|到下游应用搜索单号复核状态"
+          data-sop-risk="采购下推会生成或关联下游单据，错误供应商、数量、质检状态或仓库信息会影响采购执行和库存账。"
+          v-loading="flowLoading"
+        >
+          <div class="flow-push-header" data-guide="flow-selection">
             <div>
               <span>{{ flowSelectedLabel }}</span>
               <strong>{{ selectedFlowCount }}</strong>
@@ -114,7 +153,7 @@
             </el-radio-group>
           </div>
 
-          <div class="flow-chain">
+          <div class="flow-chain" data-guide="flow-chain">
             <div
               v-for="node in purchaseFlowNodes"
               :key="node.key"
@@ -127,13 +166,23 @@
             </div>
           </div>
 
-          <div class="flow-actions">
-            <el-button :type="flowConfirmButtonType" :loading="flowActionLoading" @click="confirmCurrentPush">
+          <div class="flow-actions" data-guide="flow-actions">
+            <el-button
+              data-guide="flow-confirm"
+              data-sop-action="purchase-confirm-flow-push"
+              data-sop-title="确认采购下推并跳转"
+              data-sop-desc="确认当前采购单据链路，并生成下一环节单据。"
+              data-sop-steps="复核已选单据数量|确认下一环节是否正确|查看单据链路中是否已有下游单据|点击确认下推并跳转|跳转后搜索新单据并复核状态"
+              data-sop-risk="确认后会生成或关联下游单据，错误下推会影响采购、到货和库存。"
+              :type="flowConfirmButtonType"
+              :loading="flowActionLoading"
+              @click="confirmCurrentPush"
+            >
               确认下推并跳转
             </el-button>
           </div>
 
-          <div class="flow-doc-panel">
+          <div class="flow-doc-panel" data-guide="flow-risk">
             <div class="flow-doc-card">
               <span>{{ primaryDocLabel }}</span>
               <strong>{{ primaryDocNo }}</strong>
@@ -366,6 +415,8 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import { findPurchaseApp, SUPPLIER_COLUMNS } from '@/utils/purchase-apps'
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
@@ -450,23 +501,67 @@ const resolveAttention = (row) => getPurchaseRecordAttention(app.value?.key, row
   task: 'monitor'
 })
 const rowAttentionFilter = (row) => matchesPurchaseAttentionFilter(app.value?.key, row, attentionFilter.value)
-const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
 const resolveRowActions = (row) => {
   if (!row) return []
   if (app.value.key === 'demands') {
     return canPushDemandToOrder.value && isDemandPushable(row)
-      ? [{ key: 'push-demand-order', label: '下单', type: 'success', icon: 'Position' }]
+      ? [{
+          key: 'push-demand-order',
+          label: '下单',
+          type: 'success',
+          icon: 'Position',
+          sopAction: 'purchase-row-push-demand-order',
+          sopTitle: '单行需求下单',
+          sopDesc: '把当前这一条采购需求下推为采购订单。',
+          sopSteps: [
+            '先确认当前行是要下单的采购需求。',
+            '复核供应商、物料、数量、需求日期和需求状态。',
+            '点击“下单”打开业务流转确认窗。',
+            '确认后跳转采购订单并搜索新生成或已关联订单。'
+          ],
+          sopRisk: '单行下推仍会创建采购订单，不能用错供应商或数量。'
+        }]
       : []
   }
   if (app.value.key === 'orders') {
     return canPushOrderToArrival.value && isOrderPushable(row)
-      ? [{ key: 'push-order-arrival', label: '到货', type: 'success', icon: 'Position' }]
+      ? [{
+          key: 'push-order-arrival',
+          label: '到货',
+          type: 'success',
+          icon: 'Position',
+          sopAction: 'purchase-row-push-order-arrival',
+          sopTitle: '单行订单到货',
+          sopDesc: '把当前采购订单下推为到货跟踪记录。',
+          sopSteps: [
+            '先确认当前行是要跟踪到货的采购订单。',
+            '复核订单号、供应商、物料、订单数量和预计到货日期。',
+            '点击“到货”打开业务流转确认窗。',
+            '确认后跳转到货跟踪并复核到货状态。'
+          ],
+          sopRisk: '错误下推会影响收货计划和后续质检。'
+        }]
       : []
   }
   if (app.value.key === 'arrivals') {
     const actions = []
     if (canPushArrivalToInbound.value && isArrivalPushable(row)) {
-      actions.push({ key: 'push-arrival-inbound', label: '入库', type: 'warning', icon: 'Box' })
+      actions.push({
+        key: 'push-arrival-inbound',
+        label: '入库',
+        type: 'warning',
+        icon: 'Box',
+        sopAction: 'purchase-row-push-arrival-inbound',
+        sopTitle: '单行到货入库',
+        sopDesc: '把当前到货记录下推为采购入库。',
+        sopSteps: [
+          '先确认当前到货记录可以入库。',
+          '复核到货数量、质检状态、批次、仓库和库位。',
+          '点击“入库”打开业务流转确认窗。',
+          '确认后跳转仓储入库，检查库存影响。'
+        ],
+        sopRisk: '入库会影响库存账，异常、不合格或数量未确认记录不能直接入库。'
+      })
     }
     return actions
   }
@@ -557,6 +652,32 @@ const staticColumns = computed(() =>
     staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
   )
 )
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app,
+  staticColumns: staticColumnsAll,
+  moduleName: 'purchase',
+  fallbackApiUrl: '/purchase_suppliers',
+  attentionFilter,
+  attentionFilterOptions
+})
+const summaryScope = computed(() => attentionFilter.value === 'all' && gridTimeMode.value === 'infinite' ? 'server' : 'loaded')
 const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
 
 const extraColumns = ref([])
@@ -2030,7 +2151,7 @@ const handleImportDone = (event) => {
   }
 }
 
-watch(attentionFilter, () => {
+watch([attentionFilter, gridApiUrl], () => {
   gridRef.value?.loadData?.()
 })
 
@@ -2303,13 +2424,13 @@ onUnmounted(() => {
   right: -18px;
   top: 50%;
   transform: translateY(-50%);
-  color: #409eff;
+  color: var(--el-color-primary);
   font-weight: 700;
 }
 
 .flow-step.active {
-  border-color: #409eff;
-  background: #eef6ff;
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
 }
 
 .flow-step.current {

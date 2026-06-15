@@ -5,6 +5,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import qiankun from 'vite-plugin-qiankun' // 引入插件
+import { createBuildOptions } from '../scripts/vite-build-config.mjs'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -71,6 +72,7 @@ export default defineConfig(({ mode }) => {
           ws: true
         }
       }
-    }
+    },
+    build: createBuildOptions()
   }
 })

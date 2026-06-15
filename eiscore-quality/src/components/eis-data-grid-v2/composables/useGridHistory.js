@@ -5,6 +5,8 @@ import { reactive, ref } from 'vue'
 import { debounce } from 'lodash'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { shouldCalculateLoadedSummary } from '@shared/eis-grid-calculation-policy'
+import { writeGridOperationLog } from '@shared/eis-grid-operation-audit'
 
 export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const history = reactive({ undoStack: [], redoStack: [] })
@@ -16,8 +18,10 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const refreshSummaryTotals = () => {
     if (typeof formulaHooks.refreshTotals === 'function') {
       formulaHooks.refreshTotals()
-    } else {
+    } else if (shouldCalculateLoadedSummary(props, gridData.value.length)) {
       formulaHooks.pinnedBottomRowData.value = formulaHooks.calculateTotals(gridData.value)
+    } else if (formulaHooks.pinnedBottomRowData) {
+      formulaHooks.pinnedBottomRowData.value = []
     }
   }
 
@@ -82,6 +86,9 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
         payload[field] = rowValue !== undefined ? applyFieldDefaults(field, rowValue) : applyFieldDefaults(field, null)
       }
     })
+    if (entry.rowNode?.data && Object.prototype.hasOwnProperty.call(entry.rowNode.data, 'updated_at') && !Object.prototype.hasOwnProperty.call(payload, 'updated_at')) {
+      payload.updated_at = new Date().toISOString()
+    }
     return payload
   }
 
@@ -153,6 +160,13 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                 })
               }))
               gridApi.value.refreshCells({ rowNodes: entries.map(i => i.rowNode), force: false })
+              writeGridOperationLog({
+                request,
+                props,
+                action: '表格编辑',
+                rowIds: entries.map((entry) => entry.rowNode?.data?.id),
+                fields: entries.flatMap((entry) => Object.keys(entry.payload || {}))
+              })
               if (!isSystemOperation.value) ElMessage.success(`已保存 ${entries.length} 行变更`)
             } else {
               const apiPayload = entries.map(g => {
@@ -175,6 +189,13 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                 if (newVer !== null) node.data.version = newVer
               })
               gridApi.value.refreshCells({ rowNodes: affectedNodes.map(i => i.node), force: false })
+              writeGridOperationLog({
+                request,
+                props,
+                action: '表格保存',
+                rowIds: affectedNodes.map((item) => item.node?.data?.id),
+                fields: apiPayload.flatMap((item) => Object.keys(item || {}))
+              })
               if (!isSystemOperation.value) ElMessage.success(`已保存 ${apiPayload.length} 行变更`)
             }
         }
@@ -345,6 +366,12 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
         const deleteUrl = appendQuery(resolveWriteUrl(), `id=in.(${ids.join(',')})`)
         await request({ url: deleteUrl, method: 'delete', headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr' } })
         gridApi.value.applyTransaction({ remove: selectedNodes.map(node => node.data) })
+        writeGridOperationLog({
+          request,
+          props,
+          action: '表格删除',
+          rowIds: selectedNodes.map((node) => node.data?.id)
+        })
         refreshSummaryTotals()
         ElMessage.success('删除成功'); selectedRowsCount.value = 0; history.undoStack = []; history.redoStack = []
     } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }

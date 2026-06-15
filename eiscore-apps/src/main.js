@@ -15,6 +15,7 @@ import { patchElMessage } from '@/utils/message-patch'
 import { hasPerm, getPermissions } from '@/utils/permission'
 import { installFlashRuntimeBridge } from '@/utils/flash-runtime-bridge'
 import { getToken, isTokenExpired, clearAuthAndRedirect } from '@/utils/auth'
+import { installEisThemeSync } from '@shared/eis-theme-sync'
 
 import App from './App.vue'
 import routes from './router'
@@ -27,6 +28,7 @@ const DEV_STANDALONE_PORT = '8083'
 let app = null
 let router = null
 let history = null
+let themeDispose = null
 
 function isRunningInQiankun() {
   if (typeof window === 'undefined') return false
@@ -101,6 +103,10 @@ function stripVueHmrMarkers(vnode, seen = new Set()) {
 }
 
 function unmountApp() {
+  if (themeDispose) {
+    themeDispose()
+    themeDispose = null
+  }
   if (!app) return
   stripVueHmrMarkers(app._instance?.subTree)
   app.unmount()
@@ -170,6 +176,7 @@ function render(props = {}) {
     console.warn(`[${MICRO_APP_NAME}] missing mount target`)
     return
   }
+  themeDispose = installEisThemeSync(containerEl, { container })
   app.mount(containerEl)
 }
 

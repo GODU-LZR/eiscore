@@ -5,6 +5,7 @@ import { registerMicroApps, start, initGlobalState } from 'qiankun'
 import { setBootstrapMaxTime, setMountMaxTime, setUnmountMaxTime, addErrorHandler, unloadApplication } from 'single-spa'
 import apps from './apps'
 import { aiBridge } from '@/utils/ai-bridge' 
+import { syncEisThemeScopes } from '@shared/eis-theme-sync'
 
 /**
  * 初始化微前端架构
@@ -12,6 +13,8 @@ import { aiBridge } from '@/utils/ai-bridge'
  */
 export function registerQiankun() {
   if (window.__EIS_QIANKUN_STARTED__) return
+  if (window.__EIS_QIANKUN_STARTING__) return
+  window.__EIS_QIANKUN_STARTING__ = true
   const MAX_AUTO_RECOVERY = 2
   const RECOVERY_WINDOW_MS = 12000
   const retryMap = window.__EIS_QIANKUN_RETRY_MAP__ || {}
@@ -46,7 +49,7 @@ export function registerQiankun() {
 
   waitForContainer('#subapp-viewport').then((containerEl) => {
     if (!containerEl) {
-      console.error('[Qiankun] container #subapp-viewport not ready, retry start later')
+      window.__EIS_QIANKUN_STARTING__ = false
       if (!window.__EIS_QIANKUN_RETRY_TIMER__) {
         window.__EIS_QIANKUN_RETRY_TIMER__ = window.setTimeout(() => {
           window.__EIS_QIANKUN_RETRY_TIMER__ = null
@@ -106,13 +109,16 @@ export function registerQiankun() {
   registerMicroApps(apps, {
     beforeLoad: app => {
       window.dispatchEvent(new CustomEvent('eis:micro-loading', { detail: { app: app?.name || '', loading: true } }))
+      syncEisThemeScopes()
     },
     beforeMount: [
       app => {
+        syncEisThemeScopes()
       }
     ],
     afterMount: [
       app => {
+        syncEisThemeScopes()
         window.dispatchEvent(new CustomEvent('eis:micro-loading', { detail: { app: app?.name || '', loading: false } }))
       }
     ],
@@ -134,14 +140,7 @@ export function registerQiankun() {
 
   // 3. 将 actions 交给 AI Bridge 托管
   // 这样 AiBridge 就能监听到子应用发来的 Context，也能向子应用发送指令
-  if (aiBridge && typeof aiBridge.initActions === 'function') {
-    aiBridge.initActions(actions)
-  } else {
-    console.error('[Micro] aiBridge initActions method missing! Please check utils/ai-bridge.js')
-  }
-
-  // 监听状态变更（可选，用于调试通讯链路）
-  actions.onGlobalStateChange((state, prev) => {
+  const syncUserInfo = (state) => {
     const incoming = state?.user_info || state?.user || null
     if (incoming && typeof incoming === 'object') {
       try {
@@ -149,7 +148,13 @@ export function registerQiankun() {
         window.dispatchEvent(new CustomEvent('user-info-updated'))
       } catch (e) {}
     }
-  })
+  }
+
+  if (aiBridge && typeof aiBridge.initActions === 'function') {
+    aiBridge.initActions(actions, syncUserInfo)
+  } else {
+    console.error('[Micro] aiBridge initActions method missing! Please check utils/ai-bridge.js')
+  }
 
   // 4. 启动 Qiankun
   const useStyleIsolation = !import.meta.env.DEV
@@ -162,5 +167,6 @@ export function registerQiankun() {
     }
   })
   window.__EIS_QIANKUN_STARTED__ = true
+  window.__EIS_QIANKUN_STARTING__ = false
   })
 }

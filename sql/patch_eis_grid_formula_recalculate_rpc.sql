@@ -123,6 +123,7 @@ as $$
 declare
   write_url text := coalesce(nullif(payload->>'write_url', ''), payload->>'api_url', '');
   profile text := coalesce(nullif(payload->>'content_profile', ''), nullif(payload->>'accept_profile', ''), 'public');
+  base_query text := coalesce(payload->>'base_query', '');
   search_query text := coalesce(payload->>'search_query', '');
   cursor_id text := payload->>'cursor_id';
   target_prop text := payload->'target'->>'prop';
@@ -136,13 +137,16 @@ declare
   conditions text := '';
   batch_conditions text := '';
   condition_text text;
+  filter_text text;
   condition_parts text[];
   part text;
+  condition_prop text;
   condition_sql text;
   token jsonb;
   field_prop text;
   field_source text;
   id_type text;
+  has_properties_column boolean := false;
   updated_count int := 0;
   scanned_count int := 0;
   started_at timestamptz := clock_timestamp();
@@ -211,6 +215,7 @@ begin
   ) then
     raise exception 'relation %.% must have properties jsonb column', rel_schema, rel_name;
   end if;
+  has_properties_column := true;
 
   for token in select * from jsonb_array_elements(tokens) loop
     if token->>'type' = 'operator' then
@@ -244,26 +249,74 @@ begin
     end if;
   end loop;
 
-  if search_query <> '' then
-    condition_text := regexp_replace(search_query, '^[?&]*or=\(', '');
-    condition_text := regexp_replace(condition_text, '\)$', '');
-    if condition_text <> '' then
-      condition_parts := string_to_array(condition_text, ',');
+  if base_query <> '' then
+    filter_text := regexp_replace(base_query, '^[?&]*', '');
+    if filter_text <> '' then
+      condition_parts := string_to_array(filter_text, '&');
       foreach part in array condition_parts loop
+        part := regexp_replace(part, '=', '.');
         condition_sql := null;
-        if part ~ '^[A-Za-z_][A-Za-z0-9_]*\.eq\.-?[0-9]+(\.[0-9]+)?$' then
-          condition_sql := format(
-            '%I = %L',
-            split_part(part, '.', 1),
-            regexp_replace(part, '^[^.]+\.eq\.', '')
-          );
+        if part ~ '^[A-Za-z_][A-Za-z0-9_]*\.eq\.[^,()]+$' then
+          condition_prop := split_part(part, '.', 1);
+          if exists (
+            select 1
+            from information_schema.columns
+            where table_schema = rel_schema
+              and table_name = rel_name
+              and column_name = condition_prop
+          ) then
+            condition_sql := format(
+              '%I = %L',
+              condition_prop,
+              regexp_replace(part, '^[^.]+\.eq\.', '')
+            );
+          end if;
+        elsif part ~ '^[A-Za-z_][A-Za-z0-9_]*\.neq\.[^,()]+$' then
+          condition_prop := split_part(part, '.', 1);
+          if exists (
+            select 1
+            from information_schema.columns
+            where table_schema = rel_schema
+              and table_name = rel_name
+              and column_name = condition_prop
+          ) then
+            condition_sql := format(
+              '%I <> %L',
+              condition_prop,
+              regexp_replace(part, '^[^.]+\.neq\.', '')
+            );
+          end if;
+        elsif part ~ '^[A-Za-z_][A-Za-z0-9_]*\.is\.(true|false|null)$' then
+          condition_prop := split_part(part, '.', 1);
+          if exists (
+            select 1
+            from information_schema.columns
+            where table_schema = rel_schema
+              and table_name = rel_name
+              and column_name = condition_prop
+          ) then
+            condition_sql := format(
+              '%I is %s',
+              condition_prop,
+              regexp_replace(part, '^[^.]+\.is\.', '')
+            );
+          end if;
         elsif part ~ '^[A-Za-z_][A-Za-z0-9_]*\.ilike\.\*.*\*$' then
-          condition_sql := format(
-            '%I::text ilike %L',
-            split_part(part, '.', 1),
-            '%' || regexp_replace(regexp_replace(part, '^[^.]+\.ilike\.\*', ''), '\*$', '') || '%'
-          );
-        elsif part ~ '^properties->>[A-Za-z_][A-Za-z0-9_]*\.ilike\.\*.*\*$' then
+          condition_prop := split_part(part, '.', 1);
+          if exists (
+            select 1
+            from information_schema.columns
+            where table_schema = rel_schema
+              and table_name = rel_name
+              and column_name = condition_prop
+          ) then
+            condition_sql := format(
+              '%I::text ilike %L',
+              condition_prop,
+              '%' || regexp_replace(regexp_replace(part, '^[^.]+\.ilike\.\*', ''), '\*$', '') || '%'
+            );
+          end if;
+        elsif has_properties_column and part ~ '^properties->>[A-Za-z_][A-Za-z0-9_]*\.ilike\.\*.*\*$' then
           condition_sql := format(
             '(properties->>%L) ilike %L',
             regexp_replace(split_part(part, '.', 1), '^properties->>', ''),
@@ -272,13 +325,88 @@ begin
         end if;
 
         if condition_sql is not null then
-          conditions := conditions || case when conditions = '' then '' else ' or ' end || condition_sql;
+          conditions := conditions || case when conditions = '' then '' else ' and ' end || condition_sql;
         end if;
       end loop;
       if conditions <> '' then
-        conditions := ' where (' || conditions || ')';
+        conditions := '(' || conditions || ')';
       end if;
     end if;
+  end if;
+
+  if search_query <> '' then
+    condition_text := regexp_replace(search_query, '^[?&]*or=\(', '');
+    condition_text := regexp_replace(condition_text, '\)$', '');
+    if condition_text <> '' then
+      filter_text := '';
+      condition_parts := string_to_array(condition_text, ',');
+      foreach part in array condition_parts loop
+        condition_sql := null;
+        if part ~ '^[A-Za-z_][A-Za-z0-9_]*\.eq\.-?[0-9]+(\.[0-9]+)?$' then
+          condition_prop := split_part(part, '.', 1);
+          if exists (
+            select 1
+            from information_schema.columns
+            where table_schema = rel_schema
+              and table_name = rel_name
+              and column_name = condition_prop
+          ) then
+            condition_sql := format(
+              '%I = %L',
+              condition_prop,
+              regexp_replace(part, '^[^.]+\.eq\.', '')
+            );
+          end if;
+        elsif part ~ '^[A-Za-z_][A-Za-z0-9_]*\.eq\.[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}$' then
+          condition_prop := split_part(part, '.', 1);
+          if exists (
+            select 1
+            from information_schema.columns
+            where table_schema = rel_schema
+              and table_name = rel_name
+              and column_name = condition_prop
+          ) then
+            condition_sql := format(
+              '%I::text = %L',
+              condition_prop,
+              regexp_replace(part, '^[^.]+\.eq\.', '')
+            );
+          end if;
+        elsif part ~ '^[A-Za-z_][A-Za-z0-9_]*\.ilike\.\*.*\*$' then
+          condition_prop := split_part(part, '.', 1);
+          if exists (
+            select 1
+            from information_schema.columns
+            where table_schema = rel_schema
+              and table_name = rel_name
+              and column_name = condition_prop
+          ) then
+            condition_sql := format(
+              '%I::text ilike %L',
+              condition_prop,
+              '%' || regexp_replace(regexp_replace(part, '^[^.]+\.ilike\.\*', ''), '\*$', '') || '%'
+            );
+          end if;
+        elsif has_properties_column and part ~ '^properties->>[A-Za-z_][A-Za-z0-9_]*\.ilike\.\*.*\*$' then
+          condition_sql := format(
+            '(properties->>%L) ilike %L',
+            regexp_replace(split_part(part, '.', 1), '^properties->>', ''),
+            '%' || regexp_replace(regexp_replace(part, '^properties->>[^.]+\.ilike\.\*', ''), '\*$', '') || '%'
+          );
+        end if;
+
+        if condition_sql is not null then
+          filter_text := filter_text || case when filter_text = '' then '' else ' or ' end || condition_sql;
+        end if;
+      end loop;
+      if filter_text <> '' then
+        conditions := conditions || case when conditions = '' then '' else ' and ' end || '(' || filter_text || ')';
+      end if;
+    end if;
+  end if;
+
+  if conditions <> '' then
+    conditions := ' where ' || conditions;
   end if;
 
   batch_conditions := conditions;

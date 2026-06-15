@@ -1,8 +1,8 @@
 <template>
-  <div class="detail-page">
-    <div class="page-header">
+  <div class="detail-page" data-guide="detail-page">
+    <div class="page-header" data-guide="detail-header">
       <div class="header-main">
-        <el-button icon="ArrowLeft" @click="goBack">返回列表</el-button>
+        <el-button icon="ArrowLeft" data-guide="detail-back" @click="goBack">返回列表</el-button>
         <div class="title-block">
           <h2>{{ pageTitle }}</h2>
           <div class="doc-meta">
@@ -12,8 +12,8 @@
         </div>
       </div>
 
-      <div class="header-actions">
-        <el-select v-model="selectedTemplateId" size="small" placeholder="选择模板" style="width: 220px;">
+      <div class="header-actions" data-guide="detail-actions">
+        <el-select v-model="selectedTemplateId" size="small" placeholder="选择模板" style="width: 220px;" data-guide="template-select">
           <el-option
             v-for="tpl in templates"
             :key="tpl.id"
@@ -21,28 +21,72 @@
             :value="tpl.id"
           />
         </el-select>
-        <el-button @click="openTemplateManager">模板库</el-button>
-        <el-button type="primary" @click="openAiFormAssistant">AI生成表单</el-button>
-        <el-button type="primary" plain @click="printDoc">打印单据</el-button>
-        <el-button type="primary" plain @click="openBusinessFlowDialog">业务流程</el-button>
-        <el-button type="success" :loading="saving" @click="saveDoc">保存修改</el-button>
+        <el-button
+          data-sop-action="detail-template-library"
+          data-sop-title="维护单据模板库"
+          data-sop-desc="管理当前采购应用的单据模板，可新增、预览、改名或删除模板。"
+          data-sop-steps="先确认当前采购应用类型|打开模板库|预览或选择模板|只删除确认废弃的模板|回到单据页重新选择模板并复核显示效果"
+          @click="openTemplateManager"
+        >模板库</el-button>
+        <el-button
+          type="primary"
+          data-sop-action="detail-ai-form"
+          data-sop-title="AI生成表单"
+          data-sop-desc="用 AI 辅助生成当前采购单据模板或字段建议，生成后必须人工复核。"
+          data-sop-steps="先确认当前应用是供应商、需求、订单还是到货|点击 AI生成表单|检查生成字段是否符合采购业务|删除不需要的字段并补齐关键项|保存前由采购负责人复核"
+          data-sop-risk="AI 只能辅助生成模板，不能代替采购审批、供应商评审和入库质检判断。"
+          @click="openAiFormAssistant"
+        >AI生成表单</el-button>
+        <el-button
+          type="primary"
+          plain
+          data-sop-action="detail-print-doc"
+          data-sop-title="打印单据"
+          data-sop-desc="按当前模板打印或导出当前采购单据。"
+          data-sop-steps="先确认模板、供应商、物料、数量、价格和交期|点击打印单据|检查打印预览中的页边距、字段和签字栏|打印或导出 PDF 后按制度留档"
+          @click="printDoc"
+        >打印单据</el-button>
+        <el-button
+          type="primary"
+          plain
+          data-sop-action="detail-business-flow"
+          data-sop-title="查看采购业务流程"
+          data-sop-desc="查看当前采购单据与销售订单、采购需求、采购订单、到货和入库之间的链路。"
+          data-sop-steps="先确认当前单据对象|点击业务流程|查看上游、当前和下游单据状态|已有下游单据时优先查看不要重复生成|需要撤销时先确认下游是否已处理"
+          @click="openBusinessFlowDialog"
+        >业务流程</el-button>
+        <el-button
+          type="success"
+          :loading="saving"
+          data-sop-action="detail-save-doc"
+          data-sop-title="保存单据修改"
+          data-sop-desc="保存当前采购单据正文、扩展字段和附件，保存前必须复核供应商、物料、数量、价格、交期和状态。"
+          data-sop-steps="先复核供应商、物料、数量、价格、交期、状态和负责人|检查必填项和风险提示|确认附件已上传且内容正确|点击保存修改|保存后回到表格搜索该记录复核状态"
+          data-sop-risk="保存后请回到采购表格搜索该单据，确认业务状态、单据链路和下游处理结果都正确。"
+          @click="saveDoc"
+        >保存修改</el-button>
       </div>
     </div>
 
-    <div v-if="businessActions.length" class="action-strip">
+    <div v-if="businessActions.length" class="action-strip" data-guide="detail-business-actions">
       <el-button
         v-for="action in businessActions"
         :key="action.key"
         :type="action.type || 'primary'"
         :plain="action.plain !== false"
         :loading="detailActionLoading"
+        :data-sop-action="action.sopAction"
+        :data-sop-title="action.sopTitle"
+        :data-sop-desc="action.sopDesc"
+        :data-sop-steps="action.sopSteps"
+        :data-sop-risk="action.sopRisk"
         @click="action.handler"
       >
         {{ action.label }}
       </el-button>
     </div>
 
-    <div class="form-container" v-loading="loading" ref="docContainerRef">
+    <div class="form-container" v-loading="loading" ref="docContainerRef" data-guide="form-wrapper">
       <EisDocumentEngine
         v-if="formData && activeSchema"
         :model-value="formModel"
@@ -114,8 +158,17 @@
       destroy-on-close
       @closed="resetBusinessFlowDialog"
     >
-      <div class="business-flow-dialog" v-loading="flowLoading">
-        <div class="flow-chain">
+      <div
+        class="business-flow-dialog"
+        data-guide="flow-wrapper"
+        data-sop-flow="purchase-detail-flow"
+        data-sop-title="采购单据链路查看流程"
+        data-sop-desc="查看当前采购单据与销售订单、采购需求、采购订单、到货和入库之间的上下游链路。"
+        data-sop-steps="先确认当前采购单据对象|查看链路中每个节点是否已有单号|已有下游单据时优先查看下游结果|需要撤销时先确认下游没有继续生成单据|撤销后回到上下游应用分别复核状态"
+        data-sop-risk="采购链路撤销必须从下游逐级反审核，不能在已有采购订单、到货或入库后直接撤销上游销售下推。"
+        v-loading="flowLoading"
+      >
+        <div class="flow-chain" data-guide="flow-chain">
           <div
             v-for="node in purchaseFlowNodes"
             :key="node.key"
@@ -127,19 +180,31 @@
             <small>{{ node.status || '待流转' }}</small>
           </div>
         </div>
-        <div class="flow-actions">
-          <el-button type="warning" :disabled="!canReverseSalesDemandFlow" :loading="flowActionLoading" @click="reverseSalesDemandFromPurchase">
+        <div class="flow-actions" data-guide="flow-actions">
+          <el-button
+            type="warning"
+            data-guide="flow-confirm"
+            data-sop-action="purchase-detail-reverse-sales-flow"
+            data-sop-title="撤销销售下推"
+            data-sop-desc="从采购需求详情撤销销售订单下推关系，仅在未生成下游采购订单时允许。"
+            data-sop-steps="先检查链路中是否已有采购订单、到货或入库|确认允许撤销后点击反审核/撤销销售下推|等待系统解除来源关系|回到销售订单和采购需求分别复核状态"
+            data-sop-risk="已有下游单据时不能直接撤销，必须从采购入库、到货、采购订单逐级反审核。"
+            :disabled="!canReverseSalesDemandFlow"
+            :loading="flowActionLoading"
+            @click="reverseSalesDemandFromPurchase"
+          >
             反审核/撤销销售下推
           </el-button>
         </div>
         <el-alert
           v-if="!canReverseSalesDemandFlow && purchaseFlowDocs.salesOrder"
+          data-guide="flow-risk"
           title="当前采购需求已生成下游采购订单时，需先反审核下游单据后才能撤销销售下推。"
           type="warning"
           show-icon
           :closable="false"
         />
-        <div class="flow-doc-panel">
+        <div class="flow-doc-panel" data-guide="flow-risk">
           <div class="flow-doc-card">
             <span>上一个应用单据</span>
             <strong>{{ purchaseFlowDocs.salesOrder?.order_no || '无' }}</strong>
@@ -173,7 +238,11 @@ import request from '@/utils/request'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { findPurchaseApp, SUPPLIER_COLUMNS } from '@/utils/purchase-apps'
 import { hasPerm } from '@/utils/permission'
-import { evaluateFormulaExpression } from '@/utils/formula-eval'
+import {
+  applyDocumentFormulaUpdates,
+  buildDocumentAgentContext,
+  buildDocumentFormPrompt
+} from '@shared/eis-document-agent-context'
 import { applyPurchaseColumnPolicies } from '@/utils/business-status'
 import {
   DOC_TYPES,
@@ -415,6 +484,106 @@ const canMarkArrivalException = computed(() => detailConfig.value.key === 'arriv
 const canGoRelatedApp = computed(() => ['demands', 'orders'].includes(detailConfig.value.key))
 const relatedAppButtonText = computed(() => detailConfig.value.key === 'demands' ? '查看采购订单' : '查看到货跟踪')
 
+const detailBusinessActionSopMap = {
+  reviewSupplier: {
+    title: '供应商完成评审',
+    desc: '把待评审供应商标记为已评审，进入可合作状态。',
+    steps: ['确认供应商名称、联系人、资质和风险信息', '检查附件和评审意见是否完整', '点击完成评审', '回到供应商表格复核供应商状态'],
+    risk: '评审后供应商可能进入采购使用范围，请确认资质、风险和审批记录都已留档。'
+  },
+  pauseSupplier: {
+    title: '暂停供应商合作',
+    desc: '暂停当前供应商，避免继续下单或错误使用。',
+    steps: ['确认暂停原因和影响范围', '检查是否存在未完成订单或到货', '点击暂停合作', '通知采购相关人员并复核供应商状态'],
+    risk: '暂停供应商可能影响未完成采购，请先确认订单、到货和替代供应商。'
+  },
+  resumeSupplier: {
+    title: '恢复供应商合作',
+    desc: '恢复暂停供应商，使其重新进入可用范围。',
+    steps: ['确认供应商整改或资质恢复完成', '检查风险记录和附件', '点击恢复合作', '回到供应商表格复核状态'],
+    risk: '恢复前必须确认暂停原因已经关闭，否则会把风险重新带入采购链路。'
+  },
+  submitDemand: {
+    title: '提交采购需求',
+    desc: '把草稿采购需求提交到采购处理状态。',
+    steps: ['确认物料、数量、需求日期和申请人', '检查是否重复需求或库存已有满足', '点击提交采购', '回到采购需求表格复核状态'],
+    risk: '提交后会进入采购执行范围，请避免重复需求和错误数量。'
+  },
+  createOrder: {
+    title: '采购需求生成采购订单',
+    desc: '从当前采购需求生成下游采购订单。',
+    steps: ['确认需求未关闭且尚未下单', '复核供应商、物料、数量、价格和交期', '点击生成采购订单', '跳转或回到采购订单应用搜索新订单复核'],
+    risk: '生成订单前要确认供应商和数量，否则会导致错误下单或重复下单。'
+  },
+  closeDemand: {
+    title: '关闭采购需求',
+    desc: '关闭不再执行的采购需求。',
+    steps: ['确认需求确实不再采购', '检查是否已有采购订单或到货', '点击关闭需求', '回到采购需求表格复核关闭状态'],
+    risk: '关闭需求会影响采购计划和生产供料，请确认业务方已同意。'
+  },
+  reopenDemand: {
+    title: '重新打开采购需求',
+    desc: '把已关闭采购需求恢复为可继续处理。',
+    steps: ['确认重新采购的原因', '复核物料、数量和需求日期是否仍有效', '点击重新打开', '回到采购需求表格复核状态'],
+    risk: '重新打开旧需求前要确认没有新需求替代，避免重复采购。'
+  },
+  confirmOrder: {
+    title: '确认采购订单下单',
+    desc: '确认草稿采购订单已正式下单。',
+    steps: ['确认供应商、物料、数量、价格、税率和预计到货日期', '检查合同或报价附件', '点击确认下单', '回到采购订单表格复核订单状态'],
+    risk: '确认下单后会影响到货跟踪和应付对账，请确保价格、数量和交期正确。'
+  },
+  cancelOrder: {
+    title: '取消采购订单',
+    desc: '取消尚未完成或尚未到货的采购订单。',
+    steps: ['确认取消原因和供应商沟通结果', '检查是否已有到货或入库', '点击取消订单', '回到采购订单表格复核状态'],
+    risk: '取消订单可能影响生产供料和库存计划，请确认没有下游到货或入库依赖。'
+  },
+  registerArrival: {
+    title: '采购订单登记到货',
+    desc: '从采购订单登记到货跟踪记录。',
+    steps: ['确认订单处于可到货状态', '复核供应商、物料、订单数量和本次到货数量', '点击登记到货', '到到货跟踪应用搜索并复核记录'],
+    risk: '登记到货前请确认实物、送货单和订单一致，避免影响质检和入库。'
+  },
+  linkArrival: {
+    title: '到货记录关联采购订单',
+    desc: '把未关联订单的到货记录关联到正确采购订单。',
+    steps: ['确认到货记录的供应商、物料和数量', '查找正确采购订单', '点击关联采购订单', '复核到货记录的订单来源'],
+    risk: '关联错误订单会影响订单到货进度、质检和入库追溯。'
+  },
+  confirmInbound: {
+    title: '确认采购到货入库',
+    desc: '确认合格到货记录进入入库处理。',
+    steps: ['确认质检状态不是不合格', '复核到货数量、批次、仓库和库位', '点击确认入库', '跳转或回到仓储入库复核库存影响'],
+    risk: '入库会影响库存，请确认质检、批次、仓库和数量都正确。'
+  },
+  markException: {
+    title: '标记采购到货异常',
+    desc: '把当前到货记录标记为异常，阻止错误入库。',
+    steps: ['确认异常原因，如数量不符、质检不合格或资料缺失', '补充异常说明和附件', '点击标记异常', '回到到货跟踪表格复核异常状态'],
+    risk: '异常标记会阻止正常入库，并可能触发质量或供应商处理流程。'
+  },
+  related: {
+    title: '查看采购关联应用',
+    desc: '跳转到当前单据的下游应用查看处理结果。',
+    steps: ['确认当前单据已经生成或关联下游记录', '点击查看关联应用', '在下游应用用单号搜索', '复核状态、来源、数量和责任人'],
+    risk: '跳转后请用单号复核，不能只凭页面跳转判断下游单据已经正确生成。'
+  }
+}
+
+const withDetailBusinessSop = (action) => {
+  const sop = detailBusinessActionSopMap[action.key] || {}
+  const steps = Array.isArray(sop.steps) ? sop.steps.join('|') : (sop.steps || '')
+  return {
+    ...action,
+    sopAction: `purchase-detail-${action.key}`,
+    sopTitle: sop.title || action.label,
+    sopDesc: sop.desc || `按标准步骤执行“${action.label}”。`,
+    sopSteps: steps,
+    sopRisk: sop.risk || '动作完成后请回到相关应用搜索单号，复核状态、来源、数量、责任人和下游链路。'
+  }
+}
+
 const businessActions = computed(() => {
   const actions = []
   if (canReviewSupplier.value) actions.push({ key: 'reviewSupplier', label: '完成评审', handler: reviewSupplier, type: 'primary', plain: false })
@@ -431,7 +600,7 @@ const businessActions = computed(() => {
   if (canConfirmInbound.value) actions.push({ key: 'confirmInbound', label: '确认入库', handler: confirmArrivalInbound, type: 'warning' })
   if (canMarkArrivalException.value) actions.push({ key: 'markException', label: '标记异常', handler: markArrivalException, type: 'danger' })
   if (canGoRelatedApp.value) actions.push({ key: 'related', label: relatedAppButtonText.value, handler: goRelatedApp, type: 'primary' })
-  return actions
+  return actions.map(withDetailBusinessSop)
 })
 
 const normalizeSchemaColumns = (cols) => (
@@ -1005,31 +1174,10 @@ const sanitizeCascaderValues = (rowData) => {
 }
 
 const applyFormulaUpdates = (rowData) => {
-  if (!rowData) return
-  const formulaColumns = dynamicColumns.value.filter(col => col?.type === 'formula' && col.expression)
-  if (!formulaColumns.length) return
-
-  const rowDataMap = {}
-  allColumns.value.forEach(col => {
-    const val = getRowValueByProp(rowData, col.prop)
-    rowDataMap[col.prop] = val
-    rowDataMap[col.label] = val
-  })
-
-  formulaColumns.forEach(col => {
-    try {
-      const evalExpr = col.expression.replace(/\{(.+?)\}/g, (match, key) => {
-        const val = rowDataMap[key]
-        const num = parseFloat(val)
-        return Number.isFinite(num) ? num : 0
-      })
-      const result = evaluateFormulaExpression(evalExpr)
-      if (result !== undefined && result !== null && !isNaN(result) && isFinite(result)) {
-        setRowValueByProp(rowData, col.prop, Number(result.toFixed(2)))
-      }
-    } catch (e) {
-      // ignore invalid custom formula
-    }
+  applyDocumentFormulaUpdates({
+    rowData,
+    staticColumns: staticColumns.value,
+    dynamicColumns: dynamicColumns.value
   })
 }
 
@@ -1084,21 +1232,22 @@ const buildAiFormPrompt = () => {
 
 const syncAiContext = () => {
   const columns = getAllColumns()
-  const fileColumns = columns.filter(col => col.type === 'file')
-  pushAiContext({
+  pushAiContext(buildDocumentAgentContext({
     app: 'purchase',
     view: detailConfig.value.key || 'purchase_document',
     viewName: detailConfig.value.name || '',
     apiUrl: detailConfig.value.apiUrl,
+    writeUrl: detailConfig.value.writeUrl || detailConfig.value.apiUrl,
     rowId: formData.value?.id,
+    rowData: formModel.value || formData.value,
     columns,
-    fileColumns,
+    staticColumns: staticColumns.value,
+    dynamicColumns: dynamicColumns.value,
     templateScope: templateScope.value,
     templateLibraryKey: templateLibraryKey.value,
     aiScene: 'form',
-    allowFormula: false,
     allowImport: false
-  })
+  }))
 }
 
 const openAiFormAssistant = () => {
@@ -1114,7 +1263,11 @@ const openAiFormAssistant = () => {
   pushAiCommand({
     id: `purchase_form_${Date.now()}`,
     type: 'open-worker',
-    prompt: buildAiFormPrompt()
+    prompt: buildDocumentFormPrompt({
+      title: detailConfig.value.name || '采购单据',
+      columns: getAllColumns(),
+      rowData: formModel.value || formData.value
+    })
   })
 }
 

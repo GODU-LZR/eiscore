@@ -288,6 +288,32 @@ const txSummary = computed(() => {
 const locStats = ref([])
 const alertList = ref([])
 
+const signatureValue = (value) => {
+  if (value === null || value === undefined) return ''
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+const rowSignature = (row) => {
+  if (!row || typeof row !== 'object') return signatureValue(row)
+  return Object.keys(row)
+    .sort()
+    .map((key) => `${key}:${signatureValue(row[key])}`)
+    .join('\u001f')
+}
+
+const rowsSignature = (rows) => (Array.isArray(rows) ? rows.map(rowSignature).join('\u001e') : '')
+
+const assignRowsIfChanged = (target, rows) => {
+  const nextRows = Array.isArray(rows) ? rows : []
+  if (rowsSignature(target.value) !== rowsSignature(nextRows)) {
+    target.value = nextRows
+    return true
+  }
+  return false
+}
+
 const gaugeTrackColor = computed(() => isDark.value ? '#1e293b' : '#e2e8f0')
 const gaugeColor = computed(() => usageColor(capacityPct.value))
 const gaugeDash = computed(() => {
@@ -335,19 +361,19 @@ const loadLayout = async () => {
 const loadInventory = async () => {
   try {
     const res = await request({ url: '/v_inventory_current?warehouse_code=like.' + currentWarehouse.value.code + '*', headers: { 'Accept-Profile': 'scm' } }) || []
-    inventoryData.value = res
+    const changed = assignRowsIfChanged(inventoryData, res)
     invIndex.value = buildInvIndex(res)
     computeStats()
     computeLocStats()
     computeAlerts()
-    if (layoutData.value) { await nextTick(); renderCanvas() }
+    if (changed && layoutData.value) { await nextTick(); renderCanvas() }
   } catch (e) { console.error('loadInventory:', e) }
 }
 
 const loadTransactions = async () => {
   try {
     const res = await request({ url: '/v_inventory_transactions?warehouse_code=like.' + currentWarehouse.value.code + '*&order=transaction_date.desc&limit=20', headers: { 'Accept-Profile': 'scm' } }) || []
-    txList.value = res
+    assignRowsIfChanged(txList, res)
   } catch (e) { console.error('loadTransactions:', e) }
 }
 
@@ -561,11 +587,12 @@ const computeStats = () => {
 }
 
 const computeLocStats = () => {
-  locStats.value = activeShapes.value.map(s => {
+  const rows = activeShapes.value.map(s => {
     const inv = getInv(s)
     const name = (s.code && whIndex.value.byCode[s.code]?.name) || s.name || s.code || '?'
     return { code: name, usage: inv.capacity > 0 ? Math.min(Math.round(inv.totalQty / inv.capacity * 100), 100) : 0 }
   })
+  assignRowsIfChanged(locStats, rows)
 }
 
 const computeAlerts = () => {
@@ -576,7 +603,7 @@ const computeAlerts = () => {
     if (days < 0) a.push({ id: 'e' + inv.material_id, level: 'danger', message: inv.material_name + ' \u5DF2\u8FC7\u671F' })
     else if (days < 7) a.push({ id: 'w' + inv.material_id, level: 'warning', message: inv.material_name + ' ' + Math.ceil(days) + '\u5929\u540E\u8FC7\u671F' })
   })
-  alertList.value = a
+  assignRowsIfChanged(alertList, a)
 }
 
 const usageColor = (u) => u < 50 ? 'var(--c-green)' : u < 80 ? 'var(--c-amber)' : 'var(--c-red)'
@@ -842,8 +869,13 @@ onBeforeUnmount(() => {
 .gauge-fill { transition: stroke-dasharray 1s ease; }
 .marquee-container { flex: 1; overflow: hidden; position: relative; padding: 6px; min-height: 0; }
 .marquee-content { display: flex; flex-direction: column; }
-.scrolling { animation: scrollUp linear infinite; }
-@keyframes scrollUp { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
+.scrolling {
+  animation: scrollUp linear infinite;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+@keyframes scrollUp { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(0, -50%, 0); } }
 .tx-track { display: flex; flex-direction: column; gap: 4px; }
 .tx-row {
   display: flex; align-items: center; gap: 6px;
@@ -876,10 +908,15 @@ onBeforeUnmount(() => {
 .tree-content { flex: 1; padding: 4px 6px; overflow: hidden; min-height: 0; }
 .roll-viewport { position: relative; }
 .roll-content { display: flex; flex-direction: column; gap: 2px; }
-.roll-content.rolling { animation: rollUp var(--roll-duration, 24s) linear infinite; will-change: transform; }
+.roll-content.rolling {
+  animation: rollUp var(--roll-duration, 24s) linear infinite;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
 .roll-content.rolling:hover { animation-play-state: paused; }
 .roll-track { display: flex; flex-direction: column; gap: 2px; }
-@keyframes rollUp { 0% { transform: translateY(0); } 100% { transform: translateY(-50%); } }
+@keyframes rollUp { 0% { transform: translate3d(0, 0, 0); } 100% { transform: translate3d(0, -50%, 0); } }
 .tree-node { display: flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 3px; font-size: 12px; }
 .tree-node.active { background: var(--glow-strong); border: 1px solid var(--border); }
 .tree-icon { font-size: 10px; color: var(--c-primary); flex-shrink: 0; }

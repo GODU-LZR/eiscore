@@ -6,6 +6,29 @@ export const SERVER_SUMMARY_SCOPE_LOADED = 'loaded'
 
 const trimApiPrefix = (url) => String(url || '').replace(/^\/api\b/, '')
 
+const safeDecodeQueryPart = (value) => {
+  try {
+    return decodeURIComponent(String(value || ''))
+  } catch (e) {
+    return String(value || '')
+  }
+}
+
+export function extractApiFilterQuery(url = '') {
+  const [, rawQuery = ''] = String(url || '').split('?')
+  if (!rawQuery) return ''
+  const ignored = new Set(['select', 'order', 'limit', 'offset'])
+  const parts = rawQuery
+    .split('&')
+    .map((item) => safeDecodeQueryPart(item.trim()))
+    .filter(Boolean)
+    .filter((item) => {
+      const key = (item.split('=')[0] || '').trim()
+      return key && !ignored.has(key)
+    })
+  return parts.join('&')
+}
+
 export function normalizeSummaryScope(value) {
   return value === SERVER_SUMMARY_SCOPE_LOADED ? SERVER_SUMMARY_SCOPE_LOADED : SERVER_SUMMARY_SCOPE_SERVER
 }
@@ -41,13 +64,14 @@ export function buildServerSummaryPayload({ props, summaryConfig, searchText, bu
   let searchQuery = ''
   const text = String(searchText || '').trim()
   if (text && typeof buildSearchQuery === 'function') {
-    searchQuery = buildSearchQuery(text, props.staticColumns || [], props.extraColumns || [])
+    searchQuery = safeDecodeQueryPart(buildSearchQuery(text, props.staticColumns || [], props.extraColumns || []))
   }
 
   return {
     view_id: props.viewId,
     api_url: baseUrl || apiUrl,
     accept_profile: props.acceptProfile || props.profile || 'public',
+    base_query: extractApiFilterQuery(apiUrl),
     search_query: searchQuery,
     columns: requestedColumns
   }

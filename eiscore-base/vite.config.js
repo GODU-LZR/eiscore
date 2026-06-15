@@ -5,15 +5,16 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
+import { createBuildOptions } from '../scripts/vite-build-config.mjs'
 
 const ideProxyTarget = process.env.VITE_FLASH_IDE_PROXY_TARGET || 'http://localhost:8443'
 
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [
     vue(),
-    vueDevTools(),
-  ],
+    command === 'serve' ? vueDevTools() : null,
+  ].filter(Boolean),
   server: {
     port: 8080,
     host: '127.0.0.1',
@@ -236,4 +237,5 @@ export default defineConfig({
       'vue': 'vue/dist/vue.esm-bundler.js'
     },
   },
-})
+  build: createBuildOptions()
+}))

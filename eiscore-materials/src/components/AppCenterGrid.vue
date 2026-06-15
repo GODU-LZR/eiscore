@@ -16,7 +16,7 @@
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="apiUrl"
+        :api-url="gridApiUrl"
         :write-url="apiUrl"
         :profile="schemaName"
         :accept-profile="schemaName"
@@ -33,11 +33,36 @@
         :can-config="canConfig"
         :enable-actions="enableActions"
         :summary-scope="summaryScope"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @data-loaded="handleDataLoaded"
         @data-load-error="handleDataLoadError"
-      />
+      >
+        <template #toolbar>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
+        </template>
+      </eis-data-grid>
 
       <el-dialog v-model="colConfigVisible" title="列管理" width="600px" append-to-body destroy-on-close @closed="resetForm">
         <div class="column-manager">
@@ -236,6 +261,8 @@ import { hasPerm } from '@/utils/permission'
 import { getRealtimeClient } from '@/utils/realtime'
 import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
 import { buildGridLoadState } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 
 const props = defineProps({
   appData: { type: Object, default: null },
@@ -246,6 +273,7 @@ const props = defineProps({
 const emit = defineEmits(['create'])
 
 const router = useRouter()
+const userStore = useUserStore()
 const gridRef = ref(null)
 const colConfigVisible = ref(false)
 const addTab = ref('text')
@@ -312,11 +340,38 @@ const apiUrl = computed(() => {
 })
 
 const summaryConfig = computed(() => configRef.value.summary || { label: '合计', rules: {}, expressions: {} })
-const summaryScope = computed(() => 'server')
 
 const staticColumns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
 )
+const gridFilterApp = computed(() => ({
+  ...app.value,
+  apiUrl: apiUrl.value
+}))
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app: gridFilterApp,
+  staticColumns,
+  moduleName: 'materials-app-center',
+  fallbackApiUrl: ''
+})
+const summaryScope = computed(() => (gridTimeMode.value === 'infinite' ? 'server' : 'loaded'))
 
 const normalizeColumns = (raw) => {
   if (!raw) return []
@@ -745,7 +800,7 @@ const syncAiContext = (rows = [], payload = null) => {
     app: 'app_center',
     view: app.value?.viewId || props.appId || 'data_app',
     viewId: app.value.viewId,
-    apiUrl: apiUrl.value,
+    apiUrl: gridApiUrl.value,
     writeUrl: apiUrl.value,
     profile: schemaName.value,
     contentProfile: schemaName.value,
@@ -816,6 +871,10 @@ watch(() => configRef.value.table, () => {
 })
 
 watch(() => apiUrl.value, () => {
+  if (gridRef.value?.loadData) gridRef.value.loadData()
+})
+
+watch(() => gridApiUrl.value, () => {
   if (gridRef.value?.loadData) gridRef.value.loadData()
 })
 

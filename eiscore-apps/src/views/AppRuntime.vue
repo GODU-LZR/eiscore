@@ -491,7 +491,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { defineAsyncComponent, ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -506,13 +506,10 @@ import {
   Promotion
 } from '@element-plus/icons-vue'
 import axios from 'axios'
-import NavigatedViewer from 'bpmn-js/lib/NavigatedViewer'
-import AppCenterGrid from '@/components/AppCenterGrid.vue'
 import { hasPerm } from '@/utils/permission'
 import { resolveAppAclModule } from '@/utils/app-permissions'
 
-import 'bpmn-js/dist/assets/diagram-js.css'
-import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css'
+const AppCenterGrid = defineAsyncComponent(() => import('@/components/AppCenterGrid.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -659,6 +656,7 @@ const workflowSideCollapsed = ref(false)
 const workflowSideWidth = ref(620)
 const WORKFLOW_SIDE_ANIM_MS = 260
 let bpmnViewer = null
+let bpmnViewerLoader = null
 let sideResizeMoveHandler = null
 let sideResizeUpHandler = null
 let autoAdvanceTimer = null
@@ -2220,6 +2218,14 @@ async function initializeBpmnViewer() {
     bpmnViewer.destroy()
     bpmnViewer = null
   }
+  if (!bpmnViewerLoader) {
+    bpmnViewerLoader = Promise.all([
+      import('bpmn-js/lib/NavigatedViewer'),
+      import('bpmn-js/dist/assets/diagram-js.css'),
+      import('bpmn-js/dist/assets/bpmn-font/css/bpmn.css')
+    ]).then(([viewerModule]) => viewerModule.default || viewerModule)
+  }
+  const NavigatedViewer = await bpmnViewerLoader
   bpmnViewer = new NavigatedViewer({ container: bpmnCanvasRef.value })
   const xml = ensureBpmnDiagramXml(appData.value?.bpmn_xml)
   if (!xml) return

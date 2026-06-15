@@ -16,7 +16,7 @@
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
-        api-url="/archives"
+        :api-url="gridApiUrl"
         write-mode="patch"
         :patch-required-fields="requiredFields"
         :field-defaults="fieldDefaults"
@@ -32,6 +32,12 @@
         :can-delete="canDelete"
         :can-export="canExport"
         :can-config="canConfig"
+        :auto-size-columns="false"
+        :local-layout-key="gridLocalLayoutKey"
+        :enable-row-height-resize="!!gridLocalLayoutKey"
+        :default-row-height="35"
+        :min-row-height="32"
+        :max-row-height="180"
         @create="handleCreate"
         @config-columns="openColumnConfig"
         @view-document="handleViewDocument"
@@ -40,15 +46,24 @@
         @cell-value-changed="handleHrCellValueChanged"
       >
         <template #toolbar>
-          <el-radio-group v-model="attentionFilter" class="attention-filter">
-            <el-radio-button
-              v-for="option in attentionFilterOptions"
-              :key="option.value"
-              :label="option.value"
-            >
-              {{ option.label }}
-            </el-radio-button>
-          </el-radio-group>
+          <GridCompactFilter
+            v-model:time-mode="gridTimeMode"
+            v-model:day="gridDay"
+            v-model:month="gridMonth"
+            v-model:year="gridYear"
+            v-model:custom-range="gridCustomRange"
+            v-model:attention-filter="attentionFilter"
+            :time-options="gridTimeModeOptions"
+            :time-field="gridTimeField"
+            :time-field-label="gridTimeFieldLabel"
+            :time-scope-label="gridTimeScopeLabel"
+            :attention-options="attentionFilterOptions"
+            :filter-summary="gridFilterSummary"
+            :has-active-filters="hasActiveGridFilters"
+            @shift-period="shiftGridPeriod"
+            @reset-period="resetGridPeriod"
+            @reset-filters="resetGridFilters"
+          />
         </template>
       </eis-data-grid>
 
@@ -264,6 +279,8 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
+import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
+import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import { findHrApp, BASE_STATIC_COLUMNS } from '@/utils/hr-apps'
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
@@ -285,7 +302,7 @@ const lastSearchText = ref('')
 const lastGridLoadState = ref(buildGridLoadState())
 const attentionFilter = ref('all')
 const colConfigVisible = ref(false)
-const addTab = ref('text') 
+const addTab = ref('text')
 let realtimeUnsub = null
 let realtimeTimer = null
 let fieldLabelRetryTimer = null
@@ -298,7 +315,29 @@ const fieldDefaults = {
   employee_no: '',
   department: ''
 }
-
+const rosterTimeModeOptions = [
+  { value: 'infinite', label: '无限滚动' },
+  { value: 'day', label: '按天' },
+  { value: 'month', label: '按月' },
+  { value: 'year', label: '按年' },
+  { value: 'custom', label: '自定义' }
+]
+const pad2 = (value) => String(value).padStart(2, '0')
+const formatDate = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+const formatMonth = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`
+const formatYear = (date) => `${date.getFullYear()}`
+const parseLocalDate = (value, fallback = new Date()) => {
+  const text = String(value || '')
+  const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (!match) return new Date(fallback)
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+}
+const rosterTimeMode = ref('infinite')
+const today = new Date()
+const rosterDay = ref(formatDate(today))
+const rosterMonth = ref(formatMonth(today))
+const rosterYear = ref(formatYear(today))
+const rosterCustomRange = ref([formatDate(new Date(today.getFullYear(), today.getMonth(), 1)), formatDate(today)])
 const app = computed(() => props.appConfig || findHrApp(props.appKey) || {
   key: 'a',
   name: '人事花名册',
@@ -310,6 +349,77 @@ const app = computed(() => props.appConfig || findHrApp(props.appKey) || {
   summaryConfig: { label: '总计', rules: {}, expressions: {} },
   defaultExtraColumns: []
 })
+const hrGridApp = computed(() => ({
+  ...app.value,
+  apiUrl: app.value?.apiUrl || '/archives',
+  timeField: app.value?.timeField || (app.value?.viewId === 'employee_list' ? 'entry_date' : '')
+}))
+const isRosterApp = computed(() => app.value?.key === 'a' || app.value?.viewId === 'employee_list')
+const appendApiQuery = (url, query) => {
+  const cleanQuery = String(query || '').replace(/^[?&]+/, '')
+  if (!cleanQuery) return url
+  return `${url}${String(url).includes('?') ? '&' : '?'}${cleanQuery}`
+}
+const addDays = (date, days) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+const addMonths = (date, months) => {
+  const next = new Date(date)
+  next.setMonth(next.getMonth() + months)
+  return next
+}
+const addYears = (date, years) => {
+  const next = new Date(date)
+  next.setFullYear(next.getFullYear() + years)
+  return next
+}
+const getMonthRange = (value) => {
+  const [year, month] = String(value || formatMonth(today)).split('-').map(Number)
+  const start = new Date(year, month - 1, 1)
+  const end = new Date(year, month, 1)
+  return [formatDate(start), formatDate(end)]
+}
+const getYearRange = (value) => {
+  const year = Number(value) || today.getFullYear()
+  return [`${year}-01-01`, `${year + 1}-01-01`]
+}
+const rosterTimeRange = computed(() => {
+  if (!isRosterApp.value || rosterTimeMode.value === 'infinite') return null
+  if (rosterTimeMode.value === 'day') {
+    const start = rosterDay.value || formatDate(today)
+    return { start, end: formatDate(addDays(parseLocalDate(start), 1)) }
+  }
+  if (rosterTimeMode.value === 'month') {
+    const [start, end] = getMonthRange(rosterMonth.value)
+    return { start, end }
+  }
+  if (rosterTimeMode.value === 'year') {
+    const [start, end] = getYearRange(rosterYear.value)
+    return { start, end }
+  }
+  const range = Array.isArray(rosterCustomRange.value) ? rosterCustomRange.value : []
+  if (!range[0] || !range[1]) return null
+  return { start: range[0], end: formatDate(addDays(parseLocalDate(range[1]), 1)) }
+})
+const rosterTimeScopeLabel = computed(() => {
+  if (!isRosterApp.value || rosterTimeMode.value === 'infinite') return '全量滚动加载'
+  if (rosterTimeMode.value === 'day') return `入职日：${rosterDay.value}`
+  if (rosterTimeMode.value === 'month') return `入职月份：${rosterMonth.value}`
+  if (rosterTimeMode.value === 'year') return `入职年份：${rosterYear.value}`
+  const range = Array.isArray(rosterCustomRange.value) ? rosterCustomRange.value : []
+  return range[0] && range[1] ? `入职范围：${range[0]} 至 ${range[1]}` : '请选择入职范围'
+})
+const rosterDataApiUrl = computed(() => {
+  if (!isRosterApp.value) return '/archives'
+  const range = rosterTimeRange.value
+  if (!range?.start || !range?.end) return '/archives'
+  return appendApiQuery('/archives', `entry_date=gte.${range.start}&entry_date=lt.${range.end}`)
+})
+const rosterLocalLayoutKey = computed(() => (
+  isRosterApp.value ? `hr:${app.value.viewId || 'employee_list'}:roster-grid` : ''
+))
 
 const opPerms = computed(() => app.value?.ops || {})
 const enableRealtime = computed(() => app.value?.enableRealtime === true)
@@ -335,7 +445,6 @@ const resolveAttention = (row) => getHrRecordAttention(app.value?.key, row, {
   task: 'monitor'
 })
 const rowAttentionFilter = (row) => matchesHrAttentionFilter(app.value?.key, row, attentionFilter.value)
-const summaryScope = computed(() => attentionFilter.value === 'all' ? 'server' : 'loaded')
 
 const staticHidden = ref([])
 const staticColumnsAll = computed(() => app.value.staticColumns || BASE_STATIC_COLUMNS)
@@ -343,6 +452,36 @@ const staticColumns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
 )
 const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计', rules: {}, expressions: {} })
+const {
+  gridTimeModeOptions,
+  gridTimeMode,
+  gridDay,
+  gridMonth,
+  gridYear,
+  gridCustomRange,
+  gridTimeField,
+  gridTimeFieldLabel,
+  gridTimeScopeLabel,
+  gridApiUrl,
+  gridLocalLayoutKey,
+  hasActiveGridFilters,
+  gridFilterSummary,
+  resetGridPeriod,
+  resetGridFilters,
+  shiftGridPeriod
+} = useEisGridAppFilters({
+  app: hrGridApp,
+  staticColumns,
+  moduleName: 'hr',
+  fallbackApiUrl: '/archives',
+  attentionFilter,
+  attentionFilterOptions
+})
+const summaryScope = computed(() => (
+  attentionFilter.value === 'all' && gridTimeMode.value === 'infinite'
+    ? 'server'
+    : 'loaded'
+))
 
 const extraColumns = ref([])
 const hasSyncedFieldAcl = ref(false)
@@ -566,6 +705,7 @@ const buildDataSample = (rows, columns, limit = 50) => {
 }
 
 const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
+  const currentApiUrl = gridApiUrl.value
   const columns = [...staticColumns.value, ...extraColumns.value].map(col => ({
     label: col.label,
     prop: col.prop,
@@ -578,7 +718,11 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
   const dataStats = enrichLoadedDataStats(buildDataStats(rows), lastGridLoadState.value, rows)
   const dataSample = buildDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
-  const dataScope = (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
+  const timeScope = gridTimeMode.value !== 'infinite' ? gridTimeScopeLabel.value : ''
+  const dataScope = [
+    timeScope,
+    (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
+  ].filter(Boolean).join('，')
   const importTarget = {
     apiUrl: '/archives',
     profile: 'hr',
@@ -588,7 +732,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     app: 'hr',
     view: app.value.key,
     viewId: app.value.viewId,
-    apiUrl: '/archives',
+    apiUrl: currentApiUrl,
     profile: 'hr',
     columns,
     staticColumns: staticColumns.value,
@@ -603,7 +747,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
       app: 'hr',
       view: app.value.key,
       viewId: app.value.viewId,
-      apiUrl: '/archives',
+      apiUrl: currentApiUrl,
       writeUrl: '/archives',
       profile: 'hr',
       contentProfile: 'hr',
@@ -719,6 +863,39 @@ const openAiFormula = () => {
     type: 'open-worker',
     prompt: buildFormulaPrompt()
   })
+}
+
+const reloadRosterGrid = () => {
+  if (!gridRef.value || typeof gridRef.value.loadData !== 'function') return
+  gridRef.value.loadData()
+}
+
+const shiftRosterPeriod = (step) => {
+  if (rosterTimeMode.value === 'day') {
+    rosterDay.value = formatDate(addDays(parseLocalDate(rosterDay.value, today), step))
+    return
+  }
+  if (rosterTimeMode.value === 'month') {
+    const [year, month] = String(rosterMonth.value || formatMonth(today)).split('-').map(Number)
+    rosterMonth.value = formatMonth(addMonths(new Date(year, month - 1, 1), step))
+    return
+  }
+  if (rosterTimeMode.value === 'year') {
+    rosterYear.value = formatYear(addYears(new Date(Number(rosterYear.value) || today.getFullYear(), 0, 1), step))
+  }
+}
+
+const resetRosterPeriod = () => {
+  rosterDay.value = formatDate(today)
+  rosterMonth.value = formatMonth(today)
+  rosterYear.value = formatYear(today)
+}
+
+const resetRosterFilters = () => {
+  rosterTimeMode.value = 'infinite'
+  attentionFilter.value = 'all'
+  resetRosterPeriod()
+  rosterCustomRange.value = [formatDate(new Date(today.getFullYear(), today.getMonth(), 1)), formatDate(today)]
 }
 
 const addSelectOption = () => {
@@ -1029,6 +1206,10 @@ watch(attentionFilter, () => {
   gridRef.value?.loadData?.()
 })
 
+watch(() => gridApiUrl.value, () => {
+  reloadRosterGrid()
+})
+
 onMounted(() => {
   window.addEventListener('eis-ai-apply-formula', handleApplyFormula)
   window.addEventListener('eis-grid-imported', handleImportDone)
@@ -1079,6 +1260,94 @@ onUnmounted(() => {
   color: #909399;
 }
 
+.compact-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.filter-summary-tag {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-section + .filter-section {
+  padding-top: 12px;
+  border-top: 1px solid #ebeef5;
+}
+
+.filter-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #606266;
+  white-space: nowrap;
+}
+
+.filter-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.filter-radio-group :deep(.el-radio-button) {
+  margin-right: 0;
+}
+
+.filter-radio-group :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  line-height: 1;
+  border-left: 1px solid var(--el-border-color);
+  border-radius: 4px;
+}
+
+.time-pager-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.time-pager-control :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+.time-picker {
+  width: 152px;
+}
+
+.time-picker-year {
+  width: 120px;
+}
+
+.time-range-picker {
+  width: 100%;
+}
+
+.filter-scope-line {
+  font-size: 12px;
+  color: #909399;
+}
+
 .attention-filter {
   flex: 0 0 auto;
 }
@@ -1095,6 +1364,25 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 900px) {
+  .compact-filter,
+  .time-pager-control,
+  .attention-filter {
+    width: 100%;
+  }
+
+  .filter-summary-tag {
+    max-width: 100%;
+  }
+
+  .time-picker,
+  .time-picker-year,
+  .time-range-picker {
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 .column-manager { padding: 0 5px; }

@@ -12,6 +12,29 @@ const normalizeBaseUrl = (url) => {
   return baseUrl || clean
 }
 
+const safeDecodeQueryPart = (value) => {
+  try {
+    return decodeURIComponent(String(value || ''))
+  } catch (e) {
+    return String(value || '')
+  }
+}
+
+const extractApiFilterQuery = (url = '') => {
+  const [, rawQuery = ''] = String(url || '').split('?')
+  if (!rawQuery) return ''
+  const ignored = new Set(['select', 'order', 'limit', 'offset'])
+  return rawQuery
+    .split('&')
+    .map((item) => safeDecodeQueryPart(item.trim()))
+    .filter(Boolean)
+    .filter((item) => {
+      const key = (item.split('=')[0] || '').trim()
+      return key && !ignored.has(key)
+    })
+    .join('&')
+}
+
 const toSafeNumber = (value, fallback = 0) => {
   const num = Number(value)
   return Number.isFinite(num) ? num : fallback
@@ -137,7 +160,8 @@ export function buildGridAgentContext({
       writeUrl: normalizedWriteUrl,
       acceptProfile: profile || 'public',
       contentProfile: contentProfile || profile || 'public',
-      defaultOrder
+      defaultOrder,
+      baseQuery: extractApiFilterQuery(apiUrl)
     },
     dataAccess: {
       mode: 'paged-server-backed',

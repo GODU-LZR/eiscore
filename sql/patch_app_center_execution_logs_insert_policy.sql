@@ -21,12 +21,7 @@ CREATE POLICY execution_logs_select_policy ON app_center.execution_logs
 DROP POLICY IF EXISTS execution_logs_insert_policy ON app_center.execution_logs;
 CREATE POLICY execution_logs_insert_policy ON app_center.execution_logs
   FOR INSERT
-  WITH CHECK (
-    COALESCE(
-      NULLIF(current_setting('request.jwt.claim.app_role', true), ''),
-      NULLIF((COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::json ->> 'app_role'), '')
-    ) = 'super_admin'
-  );
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS execution_logs_update_policy ON app_center.execution_logs;
 CREATE POLICY execution_logs_update_policy ON app_center.execution_logs

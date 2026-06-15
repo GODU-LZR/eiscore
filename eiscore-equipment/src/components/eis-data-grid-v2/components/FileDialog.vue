@@ -7,14 +7,28 @@
     destroy-on-close
     @close="closeDialog"
   >
-    <div class="file-dialog-body">
+    <div class="file-dialog-body" data-guide="file-dialog">
       <div class="file-panel">
-        <div class="file-toolbar">
-          <el-button type="primary" @click="triggerSelect">上传文件</el-button>
-          <el-button @click="clearFiles" :disabled="files.length === 0">清空</el-button>
+        <div class="file-toolbar" data-guide="file-toolbar">
+          <el-button
+            type="primary"
+            data-sop-action="file-upload"
+            data-sop-title="上传附件"
+            data-sop-desc="把当前业务字段需要的合同、照片、报告或凭证上传到附件列表。"
+            data-sop-steps="先确认当前记录和附件字段|检查允许的文件类型、大小和数量|点击上传文件并选择本地文件|上传后在列表和预览区复核内容"
+            @click="triggerSelect"
+          >上传文件</el-button>
+          <el-button
+            data-sop-action="file-clear"
+            data-sop-title="清空附件"
+            data-sop-desc="移除当前字段的全部附件，通常只在确认需要重新上传时使用。"
+            data-sop-steps="先确认当前字段所有附件都不再需要|点击清空|重新上传正确附件|回到表单保存记录"
+            @click="clearFiles"
+            :disabled="files.length === 0"
+          >清空</el-button>
           <span class="file-limit">最多 {{ maxCount }} 个，单个不超过 {{ maxSizeMb }}MB</span>
         </div>
-        <div class="file-list">
+        <div class="file-list" data-guide="file-list">
           <div v-if="files.length === 0" class="file-empty">暂无文件</div>
           <div
             v-for="item in files"
@@ -30,20 +44,36 @@
               </div>
             </div>
             <div class="file-actions">
-              <el-button link type="primary" @click="downloadFile(item)">下载</el-button>
-              <el-button link type="danger" @click="removeFile(item.id)">删除</el-button>
+              <el-button
+                link
+                type="primary"
+                data-sop-action="file-download"
+                data-sop-title="下载附件"
+                data-sop-desc="下载当前附件做离线查看、复核或留档。"
+                data-sop-steps="先在附件列表选中目标文件|点击下载|打开文件核对内容|如发现错误回到附件列表删除后重传"
+                @click="downloadFile(item)"
+              >下载</el-button>
+              <el-button
+                link
+                type="danger"
+                data-sop-action="file-delete"
+                data-sop-title="删除附件"
+                data-sop-desc="删除当前字段中的错误附件。删除前要确认该附件不是审批、质检、维修或对账所需证据。"
+                data-sop-steps="先确认要删除的是错误文件|点击删除|检查列表剩余附件是否完整|回到表单保存记录"
+                @click="removeFile(item.id)"
+              >删除</el-button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="file-preview">
+      <div class="file-preview" data-guide="file-preview">
         <div v-if="activeFile" class="file-preview-body">
-          <img v-if="isImage(activeFile)" :src="previewUrl(activeFile)" alt="预览" class="file-preview-img" />
-          <iframe v-else-if="isPdf(activeFile)" :src="previewUrl(activeFile)" class="file-preview-pdf"></iframe>
-          <video v-else-if="isVideo(activeFile)" :src="previewUrl(activeFile)" class="file-preview-media" controls />
-          <audio v-else-if="isAudio(activeFile)" :src="previewUrl(activeFile)" class="file-preview-audio" controls />
-          <iframe v-else-if="isDoc(activeFile)" :src="previewUrl(activeFile)" class="file-preview-doc"></iframe>
+          <img v-if="canPreview(activeFile) && isImage(activeFile)" :src="previewUrl(activeFile)" alt="预览" class="file-preview-img" />
+          <iframe v-else-if="canPreview(activeFile) && isPdf(activeFile)" :src="previewUrl(activeFile)" class="file-preview-pdf"></iframe>
+          <video v-else-if="canPreview(activeFile) && isVideo(activeFile)" :src="previewUrl(activeFile)" class="file-preview-media" controls />
+          <audio v-else-if="canPreview(activeFile) && isAudio(activeFile)" :src="previewUrl(activeFile)" class="file-preview-audio" controls />
+          <iframe v-else-if="canPreview(activeFile) && isDoc(activeFile)" :src="previewUrl(activeFile)" class="file-preview-doc"></iframe>
           <div v-else class="file-preview-empty">
             <div class="file-preview-text">暂不支持预览</div>
             <el-button type="primary" @click="downloadFile(activeFile)">下载查看</el-button>
@@ -284,7 +314,21 @@ const isDoc = (item) => {
   return String(ext).toLowerCase() === 'doc'
 }
 
-const previewUrl = (item) => item.dataUrl || item.url || ''
+const isSafeResourceUrl = (value) => {
+  const url = String(value || '').trim()
+  if (!url) return false
+  if (/^(?:data|blob):/i.test(url)) return true
+  if (/^https?:\/\//i.test(url)) return true
+  if (url.startsWith('/')) return true
+  return false
+}
+
+const previewUrl = (item) => {
+  const url = item?.dataUrl || item?.url || ''
+  return isSafeResourceUrl(url) ? url : ''
+}
+
+const canPreview = (item) => !!previewUrl(item)
 
 const formatSize = (size) => {
   const value = Number(size)
@@ -492,7 +536,7 @@ const clearFiles = () => {
 
 const downloadFile = (item) => {
   const url = item.dataUrl || item.url
-  if (!url) {
+  if (!isSafeResourceUrl(url)) {
     ElMessage.warning('当前文件无法下载')
     return
   }

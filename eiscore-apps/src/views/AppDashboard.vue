@@ -1,5 +1,5 @@
 <template>
-  <div class="app-dashboard" data-guide="app-list-page">
+  <div class="app-dashboard" data-guide="app-list-page" :class="{ 'is-navigating': navigating }">
     <div class="dashboard-header" data-guide="app-list-header">
       <div class="header-text">
         <h2>应用中心</h2>
@@ -22,10 +22,16 @@
             class="app-card entry-card"
             data-guide="app-card"
             :data-guide-key="entry.key"
-            :class="`attention-${entry.card.attentionLevel || 'normal'}`"
+            :class="[
+              `attention-${entry.card.attentionLevel || 'normal'}`,
+              { 'is-loading': navigatingTarget === `entry:${entry.key}` }
+            ]"
             shadow="hover"
             @click="openEntryCard(entry)"
           >
+            <div v-if="navigatingTarget === `entry:${entry.key}`" class="card-loading-mask" aria-hidden="true">
+              <span class="card-loading-ring"></span>
+            </div>
             <div class="app-card-body">
               <div class="app-icon" :class="`tone-${entry.tone}`">
                 <el-icon><component :is="getIconComponent(entry.icon)" /></el-icon>
@@ -63,10 +69,16 @@
             class="app-card"
             data-guide="app-card"
             :data-guide-key="app.id"
-            :class="`attention-${app.card.attentionLevel || 'normal'}`"
+            :class="[
+              `attention-${app.card.attentionLevel || 'normal'}`,
+              { 'is-loading': navigatingTarget === `app:${app.id}` }
+            ]"
             shadow="hover"
             @click="openApp(app)"
           >
+            <div v-if="navigatingTarget === `app:${app.id}`" class="card-loading-mask" aria-hidden="true">
+              <span class="card-loading-ring"></span>
+            </div>
             <div class="app-card-body">
               <div class="app-icon" :class="`tone-${getTone(app)}`">
                 <el-icon><component :is="getIconComponent(app.icon)" /></el-icon>
@@ -142,6 +154,11 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <div v-if="navigating" class="app-navigation-mask" role="status" aria-live="polite">
+      <span class="app-navigation-ring"></span>
+      <span>{{ navigatingText }}</span>
+    </div>
   </div>
 </template>
 
@@ -149,7 +166,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -191,12 +208,19 @@ import { hasPerm } from '@/utils/permission'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
 import { getToken } from '@/utils/auth'
 import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
+import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
 
 const showCreateDialog = ref(false)
 const creating = ref(false)
 const apps = ref([])
+const navigating = ref(false)
+const navigatingTarget = ref('')
+const navigatingText = ref('正在加载应用')
+let navigatingTimer = null
+let removeRouteAfterEach = null
+const { visibility: displayVisibility } = useDisplayVisibility()
 const canManage = computed(() => hasPerm('module:app') || hasPerm('module:apps'))
 
 const newAppForm = ref({
@@ -263,6 +287,8 @@ const ONTOLOGY_READONLY_DESC = '可视化查看系统表关系与影响范围'
 const APP_RUNTIME_TITLE_STORAGE_KEY = 'eis_app_runtime_title_map_v1'
 
 const apiBase = '/api'
+let appRouteWarmTimer = null
+let appRouteWarmDone = false
 const toAbsoluteApiUrl = (path) => {
   const normalized = String(path || '').startsWith('/') ? String(path || '') : `/${String(path || '')}`
   if (typeof window !== 'undefined' && /^https?:$/i.test(window.location?.protocol || '')) {
@@ -324,6 +350,45 @@ const isOntologyReadonlyApp = (app) => {
   if (config.systemApp === ONTOLOGY_SYSTEM_APP) return true
   const name = String(app.name || '')
   return name === 'Ontology Workbench' || name === '本体关系工作台' || name === '本体工作台'
+}
+
+const runWhenIdle = (callback, timeout = 2500) => {
+  if (typeof window === 'undefined') return
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(callback, { timeout })
+    return
+  }
+  window.setTimeout(callback, Math.min(timeout, 1600))
+}
+
+const warmAppRouteAssets = () => {
+  if (appRouteWarmDone || typeof window === 'undefined') return
+  if (appRouteWarmTimer) window.clearTimeout(appRouteWarmTimer)
+  appRouteWarmTimer = window.setTimeout(() => {
+    appRouteWarmTimer = null
+    runWhenIdle(async () => {
+      try {
+        const response = await fetch(`/asset-manifest.json?t=${Date.now()}`, { cache: 'no-store' })
+        if (!response.ok) return
+        const manifest = await response.json()
+        const urls = (Array.isArray(manifest.urls) ? manifest.urls : [])
+          .filter((url) => /^\/apps\/assets\/(?:AppRuntime|AppRuntime-.*\.css|AppConfigCenter|AppConfigCenter-.*\.css|DataApp|DataApp-.*\.css|AppRecordDetail|AppRecordDetail-.*\.css|WorkflowApprovalCenter|WorkflowApprovalCenter-.*\.css|request|app-permissions|data-app-columns)-/.test(url))
+          .slice(0, 16)
+        let cursor = 0
+        const worker = async () => {
+          while (cursor < urls.length) {
+            const url = urls[cursor]
+            cursor += 1
+            try {
+              await fetch(url, { cache: 'force-cache', credentials: 'same-origin' })
+            } catch {}
+          }
+        }
+        await Promise.all(Array.from({ length: Math.min(3, urls.length) }, worker))
+        appRouteWarmDone = true
+      } catch {}
+    }, 3000)
+  }, 1200)
 }
 
 const appStats = computed(() => {
@@ -390,6 +455,7 @@ const entryCards = computed(() => {
       })
     }
   ].filter((entry) => entry.visible !== false)
+    .filter((entry) => isAppVisible(displayVisibility.value, 'apps', entry.key))
 })
 
 const getAppAttentionCard = (app) => {
@@ -414,6 +480,7 @@ const getAppAttentionCard = (app) => {
 }
 
 const attentionApps = computed(() => apps.value
+  .filter((app) => isAppVisible(displayVisibility.value, 'apps', `app:${app.id}`))
   .map((app) => ({
     ...app,
     card: getAppAttentionCard(app)
@@ -450,7 +517,7 @@ const pushAppRoute = (path, app) => {
   router.push({
     path: normalizedPath,
     query: buildAppRouteQuery(app)
-  })
+  }).catch(() => clearNavigationLoading())
 }
 
 async function createApp() {
@@ -540,14 +607,41 @@ function getTone(app) {
   return map[app?.app_type] || 'blue'
 }
 
+const clearNavigationLoading = () => {
+  if (navigatingTimer) {
+    window.clearTimeout(navigatingTimer)
+    navigatingTimer = null
+  }
+  navigating.value = false
+  navigatingTarget.value = ''
+}
+
+const startNavigationLoading = (target, label = '正在加载应用') => {
+  if (navigating.value) return false
+  navigating.value = true
+  navigatingTarget.value = target
+  navigatingText.value = label
+  if (navigatingTimer) window.clearTimeout(navigatingTimer)
+  navigatingTimer = window.setTimeout(() => {
+    clearNavigationLoading()
+  }, 8000)
+  return true
+}
+
 function openEntryCard(entry) {
   if (!entry) return
-  if (entry.key === 'config') return goConfigCenter()
+  if (entry.key === 'config') {
+    if (!startNavigationLoading(`entry:${entry.key}`, '正在打开配置中心')) return
+    return goConfigCenter()
+  }
   if (entry.key === 'create') {
     showCreateDialog.value = true
     return
   }
-  if (entry.key === 'approval') return goApprovalCenter()
+  if (entry.key === 'approval') {
+    if (!startNavigationLoading(`entry:${entry.key}`, '正在打开审批中心')) return
+    return goApprovalCenter()
+  }
 }
 
 function navigateToBuilder(app) {
@@ -564,8 +658,10 @@ function navigateToBuilder(app) {
 
 async function openApp(app) {
   if (!app) return
+  if (!startNavigationLoading(`app:${app.id}`, `正在打开${getDisplayName(app) || '应用'}`)) return
   const moduleKey = resolveAppAclModule(app, app?.config, app?.id)
   if (moduleKey && !hasPerm(`app:${moduleKey}`)) {
+    clearNavigationLoading()
     ElMessage.warning('暂无权限进入该应用')
     return
   }
@@ -599,6 +695,7 @@ async function loadApps() {
       if (!moduleKey) return true
       return hasPerm(`app:${moduleKey}`)
     })
+    warmAppRouteAssets()
   } catch (error) {
     ElMessage.error('加载应用失败: ' + error.message)
   }
@@ -606,14 +703,34 @@ async function loadApps() {
 
 function goConfigCenter(id) {
   const path = id ? `/config-center/${id}` : '/config-center'
-  router.push(path)
+  router.push(path).catch(() => clearNavigationLoading())
 }
 
 function goApprovalCenter() {
-  router.push('/workflow-approval-center')
+  router.push('/workflow-approval-center').catch(() => clearNavigationLoading())
 }
 
-onMounted(loadApps)
+onMounted(() => {
+  loadApps()
+  removeRouteAfterEach = router.afterEach((to, from) => {
+    if (!navigating.value) return
+    if (to.fullPath !== from.fullPath) {
+      window.setTimeout(clearNavigationLoading, 180)
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (appRouteWarmTimer) {
+    window.clearTimeout(appRouteWarmTimer)
+    appRouteWarmTimer = null
+  }
+  if (removeRouteAfterEach) {
+    removeRouteAfterEach()
+    removeRouteAfterEach = null
+  }
+  clearNavigationLoading()
+})
 
 </script>
 
@@ -623,6 +740,7 @@ onMounted(loadApps)
   min-height: 100vh;
   box-sizing: border-box;
   background-color: var(--el-bg-color-page);
+  position: relative;
 }
 
 .dashboard-header {
@@ -675,6 +793,57 @@ onMounted(loadApps)
   position: relative;
 }
 
+.app-dashboard.is-navigating .app-card {
+  pointer-events: none;
+}
+
+.app-card.is-loading {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(var(--el-color-primary-rgb), 0.18);
+}
+
+.card-loading-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(1px);
+}
+
+.card-loading-ring,
+.app-navigation-ring {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid rgba(var(--el-color-primary-rgb), 0.18);
+  border-top-color: var(--el-color-primary);
+  animation: app-loading-spin 0.85s linear infinite;
+}
+
+.app-navigation-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(245, 247, 251, 0.72);
+  color: var(--el-color-primary);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: wait;
+  backdrop-filter: blur(2px);
+}
+
+@keyframes app-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
 .app-card :deep(.el-card__body) {
   width: 100%;
   min-width: 0;
@@ -688,7 +857,7 @@ onMounted(loadApps)
 
 .app-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.15);
 }
 
 .app-card-body {
@@ -717,7 +886,7 @@ onMounted(loadApps)
   gap: 8px;
 }
 
-.tone-blue { background: #409eff; }
+.tone-blue { background: var(--el-color-primary); }
 .tone-orange { background: #e6a23c; }
 .tone-green { background: #67c23a; }
 .tone-purple { background: #8b5cf6; }
@@ -861,7 +1030,7 @@ onMounted(loadApps)
 .app-enter {
   flex: 0 0 auto;
   font-size: 12px;
-  color: #409eff;
+  color: var(--el-color-primary);
   cursor: pointer;
 }
 

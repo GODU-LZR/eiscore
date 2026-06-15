@@ -5,6 +5,95 @@
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EISCore</title>
+    <script>
+      (function () {
+        if (!('serviceWorker' in navigator)) return
+        if (location.protocol !== 'https:' && location.hostname !== 'localhost') return
+
+        var RELEASE_VERSION = '20260612224947'
+        var CACHE_PREFIX = 'eiscore-client-assets-v' + RELEASE_VERSION + '-'
+        var VERSION_KEY = 'eiscore-client-version'
+        var RELOAD_KEY = 'eiscore-client-reloaded-version'
+
+        var schedule = window.requestIdleCallback || function (callback, options) {
+          return window.setTimeout(callback, (options && options.timeout) || 12000)
+        }
+
+        function readManifest() {
+          return fetch('/asset-manifest.json?v=' + encodeURIComponent(RELEASE_VERSION) + '&t=' + Date.now(), { cache: 'no-store' })
+            .then(function (response) {
+              if (!response.ok) throw new Error('manifest ' + response.status)
+              return response.json()
+            })
+            .catch(function () { return null })
+        }
+
+        function cleanupOldCaches(version) {
+          if (!version || !('caches' in window)) return Promise.resolve(false)
+          var current = CACHE_PREFIX + version
+          return caches.keys()
+            .then(function (keys) {
+              var oldKeys = keys.filter(function (key) {
+                return key.indexOf(CACHE_PREFIX) === 0 && key !== current
+              })
+              if (!oldKeys.length) return false
+              return Promise.all(oldKeys.map(function (key) { return caches.delete(key) }))
+                .then(function (results) { return results.some(Boolean) })
+            })
+            .catch(function () { return false })
+        }
+
+        function reloadOnce(version) {
+          try {
+            if (sessionStorage.getItem(RELOAD_KEY) === version) return
+            sessionStorage.setItem(RELOAD_KEY, version)
+          } catch (e) {}
+          location.reload()
+        }
+
+        function checkClientVersion() {
+          readManifest().then(function (manifest) {
+            var version = manifest && manifest.version
+            if (!version) return
+
+            var previous = ''
+            try { previous = localStorage.getItem(VERSION_KEY) || '' } catch (e) {}
+
+            cleanupOldCaches(version).then(function (deletedOldCaches) {
+              try { localStorage.setItem(VERSION_KEY, version) } catch (e) {}
+              if ((previous && previous !== version) || deletedOldCaches) {
+                reloadOnce(version)
+              }
+            })
+          })
+        }
+
+        navigator.serviceWorker.addEventListener('message', function (event) {
+          if (event.data && event.data.type === 'EIS_CLIENT_CACHE_READY' && event.data.version) {
+            checkClientVersion()
+          }
+        })
+
+        checkClientVersion()
+
+        window.addEventListener('load', function () {
+          schedule(function () {
+            navigator.serviceWorker.register('/sw.js')
+              .then(function () { return navigator.serviceWorker.ready })
+              .then(function (registration) {
+                if (registration && typeof registration.update === 'function') {
+                  registration.update().catch(function () {})
+                }
+                window.setTimeout(function () {
+                  var worker = registration.active || registration.waiting || registration.installing
+                  if (worker) worker.postMessage({ type: 'PRECACHE_CLIENT_ASSETS', mode: 'background' })
+                }, 18000)
+              })
+              .catch(function () {})
+          }, { timeout: 12000 })
+        })
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

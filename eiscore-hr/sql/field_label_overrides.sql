@@ -55,5 +55,6 @@ values
   ('hr_attendance', 'check_out', '签退时间'),
   ('hr_attendance', 'att_note', '备注'),
   ('hr_attendance', 'ot_hours', '加班时长'),
-  ('hr_user', 'role_id', '角色')
+  ('hr_user', 'role_id', '角色'),
+  ('hr_user', 'sop_role', 'SOP岗位')
 on conflict (module, field_code) do update set field_label = excluded.field_label;

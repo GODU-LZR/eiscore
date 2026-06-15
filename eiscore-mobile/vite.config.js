@@ -6,6 +6,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from '@vant/auto-import-resolver'
+import { createBuildOptions } from '../scripts/vite-build-config.mjs'
 
 export default defineConfig({
   base: '/mobile/',
@@ -36,5 +37,6 @@ export default defineConfig({
         changeOrigin: true
       }
     }
-  }
+  },
+  build: createBuildOptions()
 })

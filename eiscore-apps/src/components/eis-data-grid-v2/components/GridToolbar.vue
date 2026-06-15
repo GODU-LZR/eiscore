@@ -13,6 +13,20 @@
       >
         <template #prefix><el-icon><Search /></el-icon></template>
       </el-input>
+
+      <el-tooltip
+        v-if="calculationState"
+        :content="calculationState.detail"
+        placement="top"
+      >
+        <el-tag
+          class="calculation-tag"
+          :type="calculationState.type || 'info'"
+          effect="plain"
+        >
+          {{ calculationState.label }}
+        </el-tag>
+      </el-tooltip>
       
       <el-button-group class="ml-2" data-guide="grid-actions">
         <el-button v-if="canCreate" data-guide="grid-create" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
@@ -58,7 +72,7 @@
 // Copyright (c) 2026 林志荣
 
 import { computed } from 'vue'
-import { ElInput, ElButton, ElButtonGroup, ElIcon } from 'element-plus'
+import { ElInput, ElButton, ElButtonGroup, ElIcon, ElTag, ElTooltip } from 'element-plus'
 import { Search, CirclePlus, Operation, Delete, Download, Refresh } from '@element-plus/icons-vue'
 
 const props = defineProps([
@@ -71,7 +85,8 @@ const props = defineProps([
   'canDelete',
   'canExport',
   'canRecalculateFormulas',
-  'formulaRecalculating'
+  'formulaRecalculating',
+  'calculationState'
 ])
 const emit = defineEmits(['update:search', 'search', 'create', 'config-columns', 'recalculate-formulas', 'delete', 'export'])
 
@@ -101,6 +116,13 @@ const realRangeColCount = computed(() => {
 .ml-2 { margin-left: 8px; }
 .tip-text { margin-left: 12px; font-size: 12px; color: #909399; font-family: monospace; }
 .toolbar-actions { display: flex; gap: 12px; }
+.calculation-tag {
+  max-width: 180px;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 :global(#app.dark) .grid-toolbar {
   background-color: #0b0f14;

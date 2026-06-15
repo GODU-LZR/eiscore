@@ -150,23 +150,25 @@
               计划队列
               <span class="panel-sub">{{ planRows.length }} 条计划</span>
             </div>
-            <div class="plan-list">
-              <button
-                v-for="plan in planQueueRows"
-                :key="plan.row_no || plan.product_material_id"
-                class="plan-row"
-                type="button"
-                @click="selectWorkOrderByPlan(plan)"
-              >
-                <span class="plan-date">{{ formatShortDate(plan.earliest_delivery_date) }}</span>
-                <span class="plan-main">
-                  <strong>{{ plan.product_material_name || plan.product_material_code }}</strong>
-                  <span>{{ plan.product_material_code }} · {{ plan.source_order_nos || '无来源订单' }}</span>
-                </span>
-                <span class="plan-qty">{{ numberText(plan.planned_qty) }} {{ plan.unit }}</span>
-                <span class="mini-tag" :class="getPlanStatusClass(plan.plan_status)">{{ plan.plan_status }}</span>
-              </button>
-              <div v-if="planQueueRows.length === 0" class="empty-state">暂无生产计划</div>
+            <div class="plan-list auto-scroll-list">
+              <div class="auto-scroll-track">
+                <button
+                  v-for="plan in planQueueRows"
+                  :key="plan.row_no || plan.product_material_id"
+                  class="plan-row"
+                  type="button"
+                  @click="selectWorkOrderByPlan(plan)"
+                >
+                  <span class="plan-date">{{ formatShortDate(plan.earliest_delivery_date) }}</span>
+                  <span class="plan-main">
+                    <strong>{{ plan.product_material_name || plan.product_material_code }}</strong>
+                    <span>{{ plan.product_material_code }} · {{ plan.source_order_nos || '无来源订单' }}</span>
+                  </span>
+                  <span class="plan-qty">{{ numberText(plan.planned_qty) }} {{ plan.unit }}</span>
+                  <span class="mini-tag" :class="getPlanStatusClass(plan.plan_status)">{{ plan.plan_status }}</span>
+                </button>
+                <div v-if="planQueueRows.length === 0" class="empty-state">暂无生产计划</div>
+              </div>
             </div>
           </section>
 
@@ -187,12 +189,14 @@
         <aside class="side-col right-col">
           <section class="panel alert-panel">
             <div class="panel-hd">风险预警</div>
-            <div class="alert-list">
-              <div v-for="alert in alertList" :key="alert.id" class="alert-row" :class="`alert-${alert.level}`">
-                <span class="alert-type">{{ alert.type }}</span>
-                <span class="alert-msg">{{ alert.message }}</span>
+            <div class="alert-list auto-scroll-list">
+              <div class="auto-scroll-track">
+                <div v-for="alert in alertList" :key="alert.id" class="alert-row" :class="`alert-${alert.level}`">
+                  <span class="alert-type">{{ alert.type }}</span>
+                  <span class="alert-msg">{{ alert.message }}</span>
+                </div>
+                <div v-if="alertList.length === 0" class="empty-state">暂无风险</div>
               </div>
-              <div v-if="alertList.length === 0" class="empty-state">暂无风险</div>
             </div>
           </section>
 
@@ -201,33 +205,35 @@
               工单看板
               <span class="panel-sub">{{ workOrders.length }} 张</span>
             </div>
-            <div class="order-list">
-              <div
-                v-for="order in visibleWorkOrders"
-                :key="order.id"
-                class="order-row"
-                :class="{ active: order.id === selectedWorkOrderId }"
-                role="button"
-                tabindex="0"
-                @click="selectWorkOrder(order)"
-                @keydown.enter.prevent="selectWorkOrder(order)"
-                @keydown.space.prevent="selectWorkOrder(order)"
-              >
-                <span class="order-main">
-                  <strong>{{ order.work_order_no }}</strong>
-                  <span>{{ order.product_material_name || order.product_material_code }}</span>
-                </span>
-                <span class="order-meta">{{ numberText(order.planned_qty) }} {{ order.unit }}</span>
-                <select
-                  class="status-select"
-                  :value="order.work_order_status"
-                  @click.stop
-                  @change="updateWorkOrderStatus(order, $event.target.value)"
+            <div class="order-list auto-scroll-list">
+              <div class="auto-scroll-track">
+                <div
+                  v-for="order in visibleWorkOrders"
+                  :key="order.id"
+                  class="order-row"
+                  :class="{ active: order.id === selectedWorkOrderId }"
+                  role="button"
+                  tabindex="0"
+                  @click="selectWorkOrder(order)"
+                  @keydown.enter.prevent="selectWorkOrder(order)"
+                  @keydown.space.prevent="selectWorkOrder(order)"
                 >
-                  <option v-for="status in workOrderStatuses" :key="status" :value="status">{{ status }}</option>
-                </select>
+                  <span class="order-main">
+                    <strong>{{ order.work_order_no }}</strong>
+                    <span>{{ order.product_material_name || order.product_material_code }}</span>
+                  </span>
+                  <span class="order-meta">{{ numberText(order.planned_qty) }} {{ order.unit }}</span>
+                  <select
+                    class="status-select"
+                    :value="order.work_order_status"
+                    @click.stop
+                    @change="updateWorkOrderStatus(order, $event.target.value)"
+                  >
+                    <option v-for="status in workOrderStatuses" :key="status" :value="status">{{ status }}</option>
+                  </select>
+                </div>
+                <div v-if="visibleWorkOrders.length === 0" class="empty-state">暂无生产工单</div>
               </div>
-              <div v-if="visibleWorkOrders.length === 0" class="empty-state">暂无生产工单</div>
             </div>
           </section>
 
@@ -238,34 +244,38 @@
                 {{ selectedWorkOrder ? (selectedWorkOrder.shortage_item_count > 0 ? '存在缺料' : '齐套') : '未选择' }}
               </span>
             </div>
-            <div class="material-list">
-              <div v-if="selectedWorkOrder" class="selected-order">
-                <strong>{{ selectedWorkOrder.product_material_name }}</strong>
-                <span>{{ selectedWorkOrder.work_order_no }} · {{ formatDate(selectedWorkOrder.planned_finish_date) }}</span>
+            <div class="material-list auto-scroll-list">
+              <div class="auto-scroll-track">
+                <div v-if="selectedWorkOrder" class="selected-order">
+                  <strong>{{ selectedWorkOrder.product_material_name }}</strong>
+                  <span>{{ selectedWorkOrder.work_order_no }} · {{ formatDate(selectedWorkOrder.planned_finish_date) }}</span>
+                </div>
+                <div v-if="itemsLoading" class="empty-state">用料同步中</div>
+                <div v-for="item in selectedMaterialRows" :key="item.id" class="material-row">
+                  <span class="material-main">
+                    <strong>{{ item.component_material_name || item.component_material_code }}</strong>
+                    <span>{{ item.component_material_code }} · 需 {{ numberText(item.required_qty) }} {{ item.unit }}</span>
+                  </span>
+                  <span class="shortage-value" :class="{ danger: numberValue(item.shortage_qty) > 0 }">
+                    缺 {{ numberText(item.shortage_qty) }}
+                  </span>
+                </div>
+                <div v-if="!itemsLoading && selectedMaterialRows.length === 0" class="empty-state">暂无用料明细</div>
               </div>
-              <div v-if="itemsLoading" class="empty-state">用料同步中</div>
-              <div v-for="item in selectedMaterialRows" :key="item.id" class="material-row">
-                <span class="material-main">
-                  <strong>{{ item.component_material_name || item.component_material_code }}</strong>
-                  <span>{{ item.component_material_code }} · 需 {{ numberText(item.required_qty) }} {{ item.unit }}</span>
-                </span>
-                <span class="shortage-value" :class="{ danger: numberValue(item.shortage_qty) > 0 }">
-                  缺 {{ numberText(item.shortage_qty) }}
-                </span>
-              </div>
-              <div v-if="!itemsLoading && selectedMaterialRows.length === 0" class="empty-state">暂无用料明细</div>
             </div>
           </section>
 
           <section class="panel shortage-panel">
             <div class="panel-hd">缺料 TOP</div>
-            <div class="rank-list">
-              <div v-for="(item, index) in topShortageMaterials" :key="item.code" class="rank-row">
-                <span class="rank-no">{{ index + 1 }}</span>
-                <span class="rank-name">{{ item.name }}</span>
-                <span class="rank-amount">{{ numberText(item.qty) }} {{ item.unit }}</span>
+            <div class="rank-list auto-scroll-list">
+              <div class="auto-scroll-track">
+                <div v-for="(item, index) in topShortageMaterials" :key="item.code" class="rank-row">
+                  <span class="rank-no">{{ index + 1 }}</span>
+                  <span class="rank-name">{{ item.name }}</span>
+                  <span class="rank-amount">{{ numberText(item.qty) }} {{ item.unit }}</span>
+                </div>
+                <div v-if="topShortageMaterials.length === 0" class="empty-state">暂无缺料</div>
               </div>
-              <div v-if="topShortageMaterials.length === 0" class="empty-state">暂无缺料</div>
             </div>
           </section>
         </aside>
@@ -279,7 +289,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
@@ -309,6 +319,13 @@ let clockTimer = null
 let refreshTimer = null
 let resizeObserver = null
 let resizeFrame = 0
+let autoScrollFrame = 0
+let autoScrollLastTime = 0
+let autoScrollRefreshFrame = 0
+
+const autoScrollTargets = new Map()
+const autoScrollSpeed = 22
+const autoScrollPauseMs = 900
 
 const dashboardDesignWidth = 1600
 const dashboardDesignHeight = 900
@@ -508,7 +525,6 @@ const planQueueRows = computed(() => {
       if (statusA !== statusB) return statusA - statusB
       return String(a.earliest_delivery_date || '9999').localeCompare(String(b.earliest_delivery_date || '9999'))
     })
-    .slice(0, 6)
 })
 
 const finishBuckets = computed(() => {
@@ -570,7 +586,7 @@ const alertList = computed(() => {
     rows.push({ id: 'no-work-orders', level: 'warning', type: '工单', message: '已有生产计划但尚未生成生产工单' })
   }
 
-  return rows.slice(0, 8)
+  return rows
 })
 
 const visibleWorkOrders = computed(() => {
@@ -581,13 +597,11 @@ const visibleWorkOrders = computed(() => {
       if (shortageA !== shortageB) return shortageA - shortageB
       return String(b.created_at || '').localeCompare(String(a.created_at || ''))
     })
-    .slice(0, 7)
 })
 
 const selectedMaterialRows = computed(() => {
   return [...workOrderItems.value]
     .sort((a, b) => numberValue(b.shortage_qty) - numberValue(a.shortage_qty))
-    .slice(0, 6)
 })
 
 const topShortageMaterials = computed(() => {
@@ -607,7 +621,7 @@ const topShortageMaterials = computed(() => {
     if (!current.unit && item.unit) current.unit = item.unit
     map.set(code, current)
   })
-  return Array.from(map.values()).sort((a, b) => b.qty - a.qty).slice(0, 5)
+  return Array.from(map.values()).sort((a, b) => b.qty - a.qty)
 })
 
 const parseStoredToken = (raw) => {
@@ -716,6 +730,7 @@ const loadAll = async () => {
     ElMessage.error(error.message || '生产数据加载失败')
   } finally {
     loading.value = false
+    scheduleAutoScrollRefresh()
   }
 }
 
@@ -723,6 +738,7 @@ const selectWorkOrder = async (row) => {
   if (!row?.id || selectedWorkOrderId.value === row.id) return
   selectedWorkOrderId.value = row.id
   await loadWorkOrderItems()
+  scheduleAutoScrollRefresh()
 }
 
 const selectWorkOrderByPlan = async (plan) => {
@@ -757,9 +773,11 @@ const updateWorkOrderStatus = async (row, status) => {
     })
     ElMessage.success('工单状态已更新')
     await loadWorkOrders()
+    scheduleAutoScrollRefresh()
   } catch (error) {
     ElMessage.error(error.message || '工单状态更新失败')
     await loadWorkOrders()
+    scheduleAutoScrollRefresh()
   }
 }
 
@@ -796,7 +814,96 @@ const scheduleDashboardScale = () => {
   resizeFrame = requestAnimationFrame(() => {
     resizeFrame = 0
     updateDashboardScale()
+    scheduleAutoScrollRefresh()
   })
+}
+
+const refreshAutoScrollTargets = () => {
+  const root = screenRef.value
+  if (!root) return
+  const nodes = Array.from(root.querySelectorAll('.auto-scroll-list'))
+  const currentTime = performance.now()
+  nodes.forEach((container) => {
+    const track = container.querySelector('.auto-scroll-track')
+    if (!track) return
+    const maxOffset = Math.max(0, track.scrollHeight - container.clientHeight)
+    if (maxOffset <= 2) {
+      track.style.transform = ''
+      autoScrollTargets.delete(container)
+      return
+    }
+
+    const current = autoScrollTargets.get(container)
+    autoScrollTargets.set(container, {
+      track,
+      offset: Math.min(current?.offset || 0, maxOffset),
+      maxOffset,
+      pauseUntil: current?.pauseUntil || currentTime + autoScrollPauseMs,
+      resetNext: current?.resetNext || false
+    })
+  })
+  Array.from(autoScrollTargets.keys()).forEach((container) => {
+    if (!nodes.includes(container)) {
+      const state = autoScrollTargets.get(container)
+      if (state?.track) state.track.style.transform = ''
+      autoScrollTargets.delete(container)
+    }
+  })
+  if (!autoScrollFrame && typeof window !== 'undefined') {
+    autoScrollFrame = requestAnimationFrame(runAutoScroll)
+  }
+}
+
+const scheduleAutoScrollRefresh = () => {
+  if (typeof window === 'undefined') return
+  if (autoScrollRefreshFrame) cancelAnimationFrame(autoScrollRefreshFrame)
+  autoScrollRefreshFrame = requestAnimationFrame(() => {
+    autoScrollRefreshFrame = 0
+    nextTick(refreshAutoScrollTargets)
+  })
+}
+
+const runAutoScroll = (time) => {
+  if (typeof document !== 'undefined' && document.hidden) {
+    autoScrollLastTime = time
+    autoScrollFrame = requestAnimationFrame(runAutoScroll)
+    return
+  }
+
+  const delta = autoScrollLastTime ? Math.min(time - autoScrollLastTime, 120) : 0
+  autoScrollLastTime = time
+
+  autoScrollTargets.forEach((state, container) => {
+    const { track } = state
+    const maxOffset = Math.max(0, track.scrollHeight - container.clientHeight)
+    if (maxOffset <= 2) {
+      state.offset = 0
+      track.style.transform = ''
+      return
+    }
+    state.maxOffset = maxOffset
+    if (time < state.pauseUntil) return
+    if (state.resetNext) {
+      state.offset = 0
+      track.style.transform = 'translate3d(0, 0, 0)'
+      state.resetNext = false
+      state.pauseUntil = time + autoScrollPauseMs
+      return
+    }
+
+    const nextOffset = state.offset + (autoScrollSpeed * delta) / 1000
+    if (nextOffset >= maxOffset - 1) {
+      state.offset = maxOffset
+      track.style.transform = `translate3d(0, -${maxOffset}px, 0)`
+      state.resetNext = true
+      state.pauseUntil = time + autoScrollPauseMs
+      return
+    }
+    state.offset = nextOffset
+    track.style.transform = `translate3d(0, -${nextOffset}px, 0)`
+  })
+
+  autoScrollFrame = requestAnimationFrame(runAutoScroll)
 }
 
 const toggleFullscreen = () => {
@@ -839,6 +946,7 @@ onMounted(() => {
     resizeObserver.observe(rootRef.value)
   }
   scheduleDashboardScale()
+  scheduleAutoScrollRefresh()
 })
 
 onBeforeUnmount(() => {
@@ -846,6 +954,9 @@ onBeforeUnmount(() => {
   if (refreshTimer) clearInterval(refreshTimer)
   if (resizeObserver) resizeObserver.disconnect()
   if (resizeFrame) cancelAnimationFrame(resizeFrame)
+  if (autoScrollFrame) cancelAnimationFrame(autoScrollFrame)
+  if (autoScrollRefreshFrame) cancelAnimationFrame(autoScrollRefreshFrame)
+  autoScrollTargets.clear()
   window.removeEventListener('resize', scheduleDashboardScale)
   document.removeEventListener('fullscreenchange', syncFullscreenState)
 })
@@ -1491,19 +1602,31 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: hidden;
   padding: 10px;
+  overscroll-behavior: contain;
 }
 
-.plan-list,
-.order-list {
+.auto-scroll-track {
+  will-change: transform;
+}
+
+.plan-list .auto-scroll-track,
+.order-list .auto-scroll-track {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.alert-list .auto-scroll-track,
+.material-list .auto-scroll-track,
+.rank-list .auto-scroll-track {
+  display: block;
 }
 
 .plan-row,
 .order-row {
   min-width: 0;
   width: 100%;
+  flex: 0 0 auto;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.045);
   color: inherit;

@@ -183,7 +183,7 @@
     </div>
 
     <!-- 企业经营助手（内联嵌入） -->
-    <div v-show="activeMode === 'enterprise'" class="enterprise-wrapper">
+    <div v-if="activeMode === 'enterprise'" class="enterprise-wrapper">
       <AiCopilot mode="enterprise" :auto-open="true" />
     </div>
 
@@ -198,10 +198,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { ref, reactive, computed, onMounted, nextTick, watch, onBeforeUnmount, onUpdated } from 'vue'
+import { defineAsyncComponent, ref, reactive, computed, onMounted, nextTick, watch, onBeforeUnmount, onUpdated } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import AiCopilot from '@/components/AiCopilot.vue'
 import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
 import { aiBridge } from '@/utils/ai-bridge'
 import {
@@ -211,9 +210,27 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import markdownit from 'markdown-it'
-import * as XLSX from 'xlsx'
-import mammoth from 'mammoth'
-import * as echarts from 'echarts'
+
+const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
+
+let echartsModulePromise = null
+const loadEcharts = async () => {
+  echartsModulePromise ||= import('echarts')
+  return echartsModulePromise
+}
+
+let xlsxModulePromise = null
+const loadXlsx = async () => {
+  xlsxModulePromise ||= import('xlsx')
+  return xlsxModulePromise
+}
+
+let mammothModulePromise = null
+const loadMammoth = async () => {
+  mammothModulePromise ||= import('mammoth')
+  const module = await mammothModulePromise
+  return module.default || module
+}
 
 // ── Markdown 渲染器 ──
 const md = markdownit({ html: false, linkify: true, typographer: true })
@@ -307,7 +324,7 @@ const parseEchartsOption = (raw) => {
   return null
 }
 
-const renderEchartsNode = (node) => {
+const renderEchartsNode = async (node) => {
   if (!node || node.dataset.processed === 'true') return
   node.dataset.processed = 'true'
   const raw = decodeURIComponent(node.getAttribute('data-option') || '')
@@ -319,6 +336,7 @@ const renderEchartsNode = (node) => {
   }
   node.style.width = '100%'
   node.style.height = '320px'
+  const echarts = await loadEcharts()
   const previous = echarts.getInstanceByDom(node)
   if (previous) previous.dispose()
   try {
@@ -337,7 +355,9 @@ const renderEchartsNode = (node) => {
 const renderCharts = async () => {
   await nextTick()
   const root = messagesRef.value || document
-  root.querySelectorAll?.('.echarts-chart:not([data-processed])').forEach(renderEchartsNode)
+  root.querySelectorAll?.('.echarts-chart:not([data-processed])').forEach((node) => {
+    void renderEchartsNode(node)
+  })
 }
 
 // ── Store & Auth ──
@@ -392,10 +412,14 @@ onBeforeUnmount(() => {
   if (activeMode.value === 'enterprise') {
     aiBridge.closeWindow()
   }
-  document.querySelectorAll('.echarts-chart').forEach((node) => {
-    const chart = echarts.getInstanceByDom(node)
-    if (chart) chart.dispose()
-  })
+  if (echartsModulePromise) {
+    void echartsModulePromise.then((echarts) => {
+      document.querySelectorAll('.echarts-chart').forEach((node) => {
+        const chart = echarts.getInstanceByDom(node)
+        if (chart) chart.dispose()
+      })
+    })
+  }
 })
 
 // ── 数字分身状态 ──
@@ -599,8 +623,9 @@ const readFileAsBase64 = (file) => new Promise((resolve) => {
 
 const parseExcel = (file) => new Promise((resolve) => {
   const reader = new FileReader()
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
+      const XLSX = await loadXlsx()
       const data = new Uint8Array(e.target.result)
       const workbook = XLSX.read(data, { type: 'array' })
       const sheets = workbook.SheetNames.map(name => {
@@ -617,7 +642,8 @@ const parseExcel = (file) => new Promise((resolve) => {
 
 const parseDocx = (file) => new Promise((resolve) => {
   const reader = new FileReader()
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
+    const mammoth = await loadMammoth()
     mammoth.extractRawText({ arrayBuffer: e.target.result })
       .then(res => resolve(res.value || ''))
       .catch(() => resolve(`[解析失败: ${file.name}]`))

@@ -1,17 +1,43 @@
 <template>
-  <div class="detail-page">
-    <div class="page-header">
-      <el-button icon="ArrowLeft" @click="$router.back()">返回列表</el-button>
-      <div class="header-actions">
-        <el-select v-model="selectedTemplateId" size="small" placeholder="选择模板" style="width: 220px">
+  <div class="detail-page" data-guide="detail-page">
+    <div class="page-header" data-guide="detail-header">
+      <el-button icon="ArrowLeft" data-guide="detail-back" @click="$router.back()">返回列表</el-button>
+      <div class="header-actions" data-guide="detail-actions">
+        <el-select v-model="selectedTemplateId" size="small" placeholder="选择模板" style="width: 220px" data-guide="template-select">
           <el-option v-for="tpl in templates" :key="tpl.id" :label="tpl.name" :value="tpl.id" />
         </el-select>
-        <el-button type="primary" plain @click="printDoc">打印单据</el-button>
-        <el-button type="success" :disabled="isDemo" @click="saveDoc">保存修改</el-button>
+        <el-button
+          type="primary"
+          data-sop-action="detail-ai-form"
+          data-sop-title="AI生成表单"
+          data-sop-desc="用 AI 辅助生成当前质量单据模板或字段建议，生成后必须人工复核。"
+          data-sop-steps="先确认当前应用和单据类型|点击 AI生成表单|检查生成字段是否符合质检、NCR 或整改场景|删除不需要的字段并补齐关键项|保存前由业务人员复核"
+          data-sop-risk="AI 只能辅助生成模板，不能代替质检结论、责任判定和审批留痕。"
+          @click="openAiFormAssistant"
+        >AI生成表单</el-button>
+        <el-button
+          type="primary"
+          plain
+          data-sop-action="detail-print-doc"
+          data-sop-title="打印单据"
+          data-sop-desc="按当前模板打印或导出当前质量单据。"
+          data-sop-steps="先确认模板、单号和正文内容|点击打印单据|检查打印预览中的页边距、字段和签字栏|打印或导出 PDF 后按制度留档"
+          @click="printDoc"
+        >打印单据</el-button>
+        <el-button
+          type="success"
+          :disabled="isDemo"
+          data-sop-action="detail-save-doc"
+          data-sop-title="保存单据修改"
+          data-sop-desc="保存当前质量单据正文、扩展字段和附件，保存前必须复核关键业务字段。"
+          data-sop-steps="先复核单号、对象、数量、日期、状态和负责人|检查必填项和风险提示|确认附件已上传且内容正确|点击保存修改|保存后回到表格搜索该记录复核状态"
+          data-sop-risk="保存后请回到质量表格搜索该单据，确认结果、不合格状态、NCR 关联和整改责任人都正确。"
+          @click="saveDoc"
+        >保存修改</el-button>
       </div>
     </div>
 
-    <div class="form-container" v-loading="loading" ref="docContainerRef">
+    <div class="form-container" v-loading="loading" ref="docContainerRef" data-guide="form-wrapper">
       <EisDocumentEngine
         v-if="formModel && activeSchema"
         :model-value="formModel"
@@ -28,12 +54,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
+import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { findQualityApp } from '@/utils/quality-apps'
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
+import {
+  applyDocumentFormulaUpdates,
+  buildDocumentAgentContext,
+  buildDocumentFormPrompt
+} from '@shared/eis-document-agent-context'
 
 const route = useRoute()
 const props = defineProps({
@@ -43,6 +75,7 @@ const props = defineProps({
 const loading = ref(false)
 const formData = ref(null)
 const dynamicColumns = ref([])
+const templateLibrary = ref([])
 const selectedTemplateId = ref('')
 const docContainerRef = ref(null)
 
@@ -58,7 +91,25 @@ const defaultTemplate = computed(() => ({
   schema: buildDefaultSchema()
 }))
 
-const templates = computed(() => [defaultTemplate.value])
+const getTemplateRecordScope = (template) => template?.scope || template?.schema?.scope || {}
+
+const isTemplateForCurrentScope = (template) => {
+  if (!template?.schema || !Array.isArray(template.schema.layout)) return false
+  const scope = getTemplateRecordScope(template)
+  if (!scope || typeof scope !== 'object') return false
+  if (scope.app && scope.app !== templateScope.value.app) return false
+  if (scope.key && scope.key !== templateScope.value.key) return false
+  if (scope.configKey && scope.configKey !== templateScope.value.configKey) return false
+  if (scope.apiUrl && scope.apiUrl !== templateScope.value.apiUrl) return false
+  return !!(scope.app || scope.key || scope.configKey || scope.apiUrl)
+}
+
+const templates = computed(() => {
+  const scoped = (templateLibrary.value || [])
+    .filter(isTemplateForCurrentScope)
+    .filter(item => item.id !== defaultTemplate.value.id)
+  return [defaultTemplate.value, ...scoped]
+})
 const activeSchema = computed(() => templates.value.find((tpl) => tpl.id === selectedTemplateId.value)?.schema || defaultTemplate.value.schema)
 
 const formModel = computed(() => {
@@ -68,6 +119,13 @@ const formModel = computed(() => {
     properties: formData.value.properties || {}
   }
 })
+
+const templateScope = computed(() => ({
+  app: 'quality',
+  key: app.value?.key || appKey.value || 'quality_document',
+  configKey: app.value?.configKey || '',
+  apiUrl: (app.value?.writeUrl || app.value?.apiUrl || '').split('?')[0]
+}))
 
 const docNoField = computed(() => {
   const columns = staticColumns.value
@@ -141,6 +199,28 @@ const loadDynamicColumns = async () => {
   }
 }
 
+const loadTemplates = async () => {
+  try {
+    const res = await request({
+      url: '/system_configs?key=eq.form_templates',
+      method: 'get',
+      headers: { 'Accept-Profile': 'public' }
+    })
+    const list = Array.isArray(res) && res.length > 0 ? (res[0].value || []) : []
+    templateLibrary.value = Array.isArray(list) ? list : []
+  } catch {
+    templateLibrary.value = []
+  }
+}
+
+const handleTemplatesUpdated = (event) => {
+  const eventKey = event?.detail?.templateLibraryKey || event?.detail?.key || 'form_templates'
+  if (eventKey !== 'form_templates') return
+  const list = event?.detail?.templates
+  if (Array.isArray(list)) templateLibrary.value = list
+  else loadTemplates()
+}
+
 const loadData = async () => {
   loading.value = true
   try {
@@ -174,6 +254,50 @@ const handleFormUpdate = (nextValue) => {
     ...(formData.value.properties || {}),
     ...nextProps
   }
+  applyFormulaUpdates(formData.value)
+}
+
+const applyFormulaUpdates = (rowData) => {
+  applyDocumentFormulaUpdates({
+    rowData,
+    staticColumns: staticColumns.value,
+    dynamicColumns: dynamicColumns.value
+  })
+}
+
+const syncAiContext = () => {
+  pushAiContext(buildDocumentAgentContext({
+    app: 'quality',
+    view: app.value?.key || appKey.value || 'quality_document',
+    viewName: app.value?.name || '质量单据',
+    apiUrl: (app.value?.apiUrl || '').split('?')[0],
+    writeUrl: (app.value?.writeUrl || app.value?.apiUrl || '').split('?')[0],
+    rowId: props.id,
+    rowData: formModel.value || formData.value,
+    staticColumns: staticColumns.value,
+    dynamicColumns: dynamicColumns.value,
+    templateScope: templateScope.value,
+    templateLibraryKey: 'form_templates',
+    aiScene: 'form',
+    allowImport: false
+  }))
+}
+
+const openAiFormAssistant = () => {
+  if (!formData.value) {
+    ElMessage.warning('请先加载质量单据')
+    return
+  }
+  syncAiContext()
+  pushAiCommand({
+    id: `quality_form_${Date.now()}`,
+    type: 'open-worker',
+    prompt: buildDocumentFormPrompt({
+      title: app.value?.name || '质量单据',
+      columns: allColumns.value,
+      rowData: formModel.value || formData.value
+    })
+  })
 }
 
 const saveDoc = async () => {
@@ -216,7 +340,18 @@ watch(defaultTemplate, (tpl) => {
 
 onMounted(async () => {
   await loadDynamicColumns()
+  await loadTemplates()
   await loadData()
+  window.addEventListener('eis-form-templates-updated', handleTemplatesUpdated)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('eis-form-templates-updated', handleTemplatesUpdated)
+})
+
+watch([() => dynamicColumns.value, () => formData.value?.id], () => {
+  if (formData.value) applyFormulaUpdates(formData.value)
+  syncAiContext()
 })
 </script>
 

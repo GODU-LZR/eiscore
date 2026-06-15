@@ -82,16 +82,35 @@ import {
   numberValue,
   sortByAttention
 } from '@shared/app-card-attention'
+import {
+  combineQueryParts,
+  countStat,
+  filterPart,
+  loadAppsCardStats,
+  orFilter,
+  statNumber,
+  sumStat
+} from '@shared/app-card-server-stats'
+import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
+const { visibility: displayVisibility } = useDisplayVisibility()
 const iconMap = { Box, Memo, Monitor, OfficeBuilding, Tickets }
 const appRows = ref(Object.fromEntries(PURCHASE_APPS.map((app) => [app.key, []])))
+const serverStats = ref({})
 const cardLoading = ref(false)
 
 const rowsOf = (key) => appRows.value[key] || []
+const statsOf = (key) => serverStats.value[key] || {}
 const sourceKeyOf = (app) => app.sourceAppKey || app.key
 const isClosedOrder = (row) => ['已完成', '已取消'].includes(String(row.order_status || '').trim())
 const isClosedDemand = (row) => ['已下单', '已关闭'].includes(String(row.demand_status || '').trim())
+const today = () => new Date().toISOString().slice(0, 10)
+const offsetDate = (days) => {
+  const next = new Date()
+  next.setDate(next.getDate() + days)
+  return next.toISOString().slice(0, 10)
+}
 
 const moduleTips = [
   '供应商档案用于维护供应商等级、联系人、付款条件和交期。',
@@ -143,18 +162,78 @@ const syncPurchaseOverviewContext = () => {
   pushAiContext(buildPurchaseOverviewContext())
 }
 
+const purchaseCardStatsSpec = (app) => {
+  const baseFilter = app.apiUrl?.includes('status=') ? '' : 'status=neq.deleted'
+  if (app.key === 'suppliers') {
+    return {
+      baseFilter,
+      stats: [
+        countStat('total'),
+        countStat('pending', filterPart('supplier_status', 'eq', '待评审')),
+        countStat('paused', filterPart('supplier_status', 'eq', '暂停合作')),
+        countStat('longLead', filterPart('lead_time_days', 'gte', 15))
+      ]
+    }
+  }
+  if (app.key === 'demands') {
+    return {
+      baseFilter,
+      stats: [
+        countStat('total'),
+        countStat('pending', filterPart('demand_status', 'eq', '待采购')),
+        countStat('overdue', combineQueryParts(filterPart('required_date', 'lt', today()), filterPart('demand_status', 'not.in', ['已下单', '已关闭']))),
+        countStat('due', combineQueryParts(filterPart('required_date', 'gte', today()), filterPart('required_date', 'lte', offsetDate(2)), filterPart('demand_status', 'not.in', ['已下单', '已关闭']))),
+        sumStat('quantity', 'quantity')
+      ]
+    }
+  }
+  if (app.key === 'orders') {
+    return {
+      baseFilter,
+      stats: [
+        countStat('total'),
+        countStat('open', filterPart('order_status', 'not.in', ['已完成', '已取消'])),
+        countStat('overdue', combineQueryParts(filterPart('expected_arrival_date', 'lt', today()), filterPart('order_status', 'not.in', ['已完成', '已取消']))),
+        countStat('due', combineQueryParts(filterPart('expected_arrival_date', 'gte', today()), filterPart('expected_arrival_date', 'lte', offsetDate(3)), filterPart('order_status', 'not.in', ['已完成', '已取消']))),
+        sumStat('orderAmount', 'total_amount')
+      ]
+    }
+  }
+  if (app.key === 'arrivals') {
+    return {
+      baseFilter,
+      stats: [
+        countStat('total'),
+        countStat('pendingIqc', orFilter(filterPart('iqc_status', 'eq', '待检'), filterPart('iqc_status', 'eq', '待检验'), filterPart('arrival_status', 'eq', '待检验'))),
+        countStat('rejected', orFilter(filterPart('iqc_status', 'eq', '不合格'), filterPart('arrival_status', 'eq', '异常'))),
+        countStat('inboundQualified', filterPart('iqc_status', 'in', ['合格', '让步接收'])),
+        sumStat('arrivalQty', 'arrival_quantity')
+      ]
+    }
+  }
+  return { baseFilter, stats: [countStat('total')] }
+}
+
 const loadCardData = async () => {
   if (cardLoading.value) return
   cardLoading.value = true
   try {
     const apps = PURCHASE_APPS.filter((app) => app.apiUrl)
-    const results = await Promise.allSettled(apps.map((app) => request({
-      url: appendQuery(app.apiUrl, { status: app.apiUrl.includes('status=') ? undefined : 'neq.deleted', limit: 200 }),
-      method: 'get',
-      headers: { 'Accept-Profile': 'public' },
-      silentError: true,
-      suppressErrorMessage: true
-    })))
+    const [statsResult, results] = await Promise.all([
+      loadAppsCardStats({
+        request,
+        apps,
+        profile: 'public',
+        getStats: purchaseCardStatsSpec
+      }).catch(() => ({})),
+      Promise.allSettled(apps.map((app) => request({
+        url: appendQuery(app.apiUrl, { status: app.apiUrl.includes('status=') ? undefined : 'neq.deleted', limit: 200 }),
+        method: 'get',
+        headers: { 'Accept-Profile': 'public' },
+        silentError: true,
+        suppressErrorMessage: true
+      })))
+    ])
     const next = { ...appRows.value }
     results.forEach((result, index) => {
       if (result.status === 'fulfilled' && Array.isArray(result.value)) {
@@ -162,6 +241,7 @@ const loadCardData = async () => {
       }
     })
     appRows.value = next
+    serverStats.value = { ...serverStats.value, ...statsResult }
     syncPurchaseOverviewContext()
   } finally {
     cardLoading.value = false
@@ -173,31 +253,40 @@ const cardMap = computed(() => {
   const demands = rowsOf('demands')
   const orders = rowsOf('orders')
   const arrivals = rowsOf('arrivals')
+  const supplierStats = statsOf('suppliers')
+  const demandStats = statsOf('demands')
+  const orderStats = statsOf('orders')
+  const arrivalStats = statsOf('arrivals')
 
-  const pendingSuppliers = suppliers.filter((row) => row.supplier_status === '待评审').length
-  const pausedSuppliers = suppliers.filter((row) => row.supplier_status === '暂停合作').length
-  const longLeadSuppliers = suppliers.filter((row) => numberValue(row.lead_time_days) >= 15).length
-  const pendingDemands = demands.filter((row) => row.demand_status === '待采购').length
-  const overdueDemands = demands.filter((row) => {
+  const pendingSuppliers = statNumber(supplierStats, 'pending', suppliers.filter((row) => row.supplier_status === '待评审').length)
+  const pausedSuppliers = statNumber(supplierStats, 'paused', suppliers.filter((row) => row.supplier_status === '暂停合作').length)
+  const longLeadSuppliers = statNumber(supplierStats, 'longLead', suppliers.filter((row) => numberValue(row.lead_time_days) >= 15).length)
+  const pendingDemands = statNumber(demandStats, 'pending', demands.filter((row) => row.demand_status === '待采购').length)
+  const overdueDemandsFallback = demands.filter((row) => {
     const delta = daysBetween(row.required_date)
     return delta !== null && delta < 0 && !isClosedDemand(row)
   }).length
-  const dueDemands = demands.filter((row) => {
+  const dueDemandsFallback = demands.filter((row) => {
     const delta = daysBetween(row.required_date)
     return delta !== null && delta >= 0 && delta <= 2 && !isClosedDemand(row)
   }).length
-  const openOrders = orders.filter((row) => !isClosedOrder(row)).length
-  const overdueOrders = orders.filter((row) => {
+  const overdueDemands = statNumber(demandStats, 'overdue', overdueDemandsFallback)
+  const dueDemands = statNumber(demandStats, 'due', dueDemandsFallback)
+  const openOrdersFallback = orders.filter((row) => !isClosedOrder(row)).length
+  const overdueOrdersFallback = orders.filter((row) => {
     const delta = daysBetween(row.expected_arrival_date)
     return delta !== null && delta < 0 && !isClosedOrder(row) && numberValue(row.pending_quantity || row.quantity) > 0
   }).length
-  const dueOrders = orders.filter((row) => {
+  const dueOrdersFallback = orders.filter((row) => {
     const delta = daysBetween(row.expected_arrival_date)
     return delta !== null && delta >= 0 && delta <= 3 && !isClosedOrder(row) && numberValue(row.pending_quantity || row.quantity) > 0
   }).length
-  const orderAmount = orders.reduce((sum, row) => sum + numberValue(row.total_amount), 0)
-  const rejectedArrivals = arrivals.filter((row) => row.iqc_status === '不合格' || row.arrival_status === '异常').length
-  const pendingIqc = arrivals.filter((row) => ['待检', '待检验'].includes(row.iqc_status) || row.arrival_status === '待检验').length
+  const openOrders = statNumber(orderStats, 'open', openOrdersFallback)
+  const overdueOrders = statNumber(orderStats, 'overdue', overdueOrdersFallback)
+  const dueOrders = statNumber(orderStats, 'due', dueOrdersFallback)
+  const orderAmount = statNumber(orderStats, 'orderAmount', orders.reduce((sum, row) => sum + numberValue(row.total_amount), 0))
+  const rejectedArrivals = statNumber(arrivalStats, 'rejected', arrivals.filter((row) => row.iqc_status === '不合格' || row.arrival_status === '异常').length)
+  const pendingIqc = statNumber(arrivalStats, 'pendingIqc', arrivals.filter((row) => ['待检', '待检验'].includes(row.iqc_status) || row.arrival_status === '待检验').length)
   const inboundPending = arrivals.filter((row) => !row.inbound_no && ['合格', '让步接收'].includes(row.iqc_status)).length
 
   return {
@@ -237,6 +326,7 @@ const cardMap = computed(() => {
 })
 
 const visibleApps = computed(() => PURCHASE_APPS
+  .filter((app) => isAppVisible(displayVisibility.value, 'purchase', app.key))
   .filter((app) => app.key !== 'dashboard' && (!app.perm || hasPerm(app.perm)))
   .map((app) => ({
     ...app,
@@ -278,6 +368,7 @@ watch(visibleApps, () => {
 
 <style scoped>
 .purchase-apps {
+  position: relative;
   min-height: 100vh;
   box-sizing: border-box;
   padding: 20px;
@@ -311,6 +402,7 @@ watch(visibleApps, () => {
 }
 
 .app-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -333,7 +425,7 @@ watch(visibleApps, () => {
 
 .app-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 8px 18px rgba(var(--el-color-primary-rgb), 0.15);
 }
 
 .app-card-body {
@@ -354,7 +446,7 @@ watch(visibleApps, () => {
   flex-shrink: 0;
 }
 
-.tone-blue { background: #409eff; }
+.tone-blue { background: var(--el-color-primary); }
 .tone-green { background: #67c23a; }
 .tone-orange { background: #e6a23c; }
 .tone-teal { background: #14b8a6; }
@@ -482,7 +574,7 @@ watch(visibleApps, () => {
   justify-content: space-between;
   gap: 8px;
   font-size: 12px;
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 
 .app-enter span:first-child {
