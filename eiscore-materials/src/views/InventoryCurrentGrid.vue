@@ -261,6 +261,7 @@ const appConfig = computed(() => ({
       prop: 'warehouse_lv1_name',
       width: 140,
       editable: false,
+      searchable: false,
       valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 1)
     },
     {
@@ -268,6 +269,7 @@ const appConfig = computed(() => ({
       prop: 'warehouse_lv2_name',
       width: 140,
       editable: false,
+      searchable: false,
       valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 2)
     },
     {
@@ -275,6 +277,7 @@ const appConfig = computed(() => ({
       prop: 'warehouse_lv3_name',
       width: 140,
       editable: false,
+      searchable: false,
       valueGetter: (params) => resolveWarehouseNameByLevel(params.data?.warehouse_id, 3)
     },
     {

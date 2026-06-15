@@ -82,6 +82,18 @@ Run the UI full business chain close-loop test against the Nanpai remote environ
 npm run test:e2e:business-chain:remote
 ```
 
+Run the full 67 function point UI acceptance suite:
+
+```bash
+npm run test:e2e:functions67
+```
+
+Run the full 67 function point UI acceptance suite against the Nanpai remote environment:
+
+```bash
+npm run test:e2e:functions67:remote
+```
+
 Run the full business chain close-loop test against the Nanpai remote environment:
 
 ```bash
@@ -173,6 +185,9 @@ and app center dialogs.
 real UI navigation, search, refresh, and tree clicks to verify the app center,
 dynamic data app, workflow status writeback, HR archive, and SCM warehouse loops
 from a user's browser.
+`tests/e2e/function-points-67.spec.mjs` verifies the complete 67 function point
+matrix from the legacy full UI report, including desktop modules, dashboards,
+special workbenches, stock forms, app center pages, and the mobile entrance.
 
 Defaults:
 
@@ -215,6 +230,10 @@ Ubuntu releases).
   generated app center data app, workflow state writeback, HR archive CRUD, and
   SCM warehouse CRUD, with per-run artifacts cleaned up automatically unless
   `EISCORE_E2E_CHAIN_KEEP_DATA=1` is set.
+- `test:e2e:functions67` runs the full 67 function point UI acceptance matrix
+  with one worker to keep remote micro-frontend loading stable and reports any
+  blank page, key text mismatch, missing interaction surface, browser error, or
+  HTTP 4xx/5xx as a failure.
 
 The next layer should add component/unit tests for shared grid utilities and an
 agent semantic regression runner for the Chinese query test set.

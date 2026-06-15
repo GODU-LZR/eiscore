@@ -17,6 +17,7 @@
 | 全业务链路闭环测试 | `tests/business/full-chain.mjs` | 覆盖应用中心、动态数据表、Workflow 状态回写、HR 档案、SCM 仓库的写读改删闭环。 |
 | UI 点击巡检 | `tests/e2e/ui-clicks.spec.mjs` | 模拟普通用户登录、侧边菜单、应用卡片、网格搜索/列管理/导出、应用中心弹窗点击。 |
 | UI 全业务链路闭环 | `tests/e2e/ui-business-chain.spec.mjs` | API 隔离准备/清理测试数据，浏览器 UI 核验应用中心、动态数据、流程状态回写、HR 档案和 SCM 仓库闭环。 |
+| 67 功能点 UI 验收 | `tests/e2e/function-points-67.spec.mjs` | 按完整 67 个功能点逐页验证路由、非白屏、关键文案、交互面、浏览器错误和 HTTP 4xx/5xx。 |
 | GitHub Actions | `.github/workflows/ci.yml` | 在 push、PR 和手动触发时执行离线回归与前端构建。 |
 
 ## 二、推荐执行命令
@@ -30,6 +31,7 @@ npm run test:business-chain
 npm run test:e2e
 npm run test:e2e:clicks
 npm run test:e2e:business-chain
+npm run test:e2e:functions67
 ```
 
 远端业务冒烟测试示例：
@@ -63,6 +65,13 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top \
 npm run test:e2e:business-chain
 ```
 
+远端 67 功能点 UI 验收示例：
+
+```bash
+EISCORE_E2E_BASE_URL=https://nanpai.eissys.top \
+npm run test:e2e:functions67
+```
+
 `tests/.artifacts/` 为本地测试产物目录，已经加入 `.gitignore`，可用于保存 JSON 结果、截图或临时日志。
 
 ## 三、历史测试资料整理
@@ -81,6 +90,7 @@ npm run test:e2e:business-chain
 | `docs/TEST_FULL_CHAIN_REPORT_2026-06-16.md` | 全业务链路闭环报告 | 记录应用中心、动态数据、流程状态回写、HR、SCM 仓库 22/22 结果。 | 作为写操作闭环测试第一版基线。 |
 | `docs/TEST_UI_CLICK_REPORT_2026-06-16.md` | UI 点击巡检报告 | 记录普通用户日常点击路径 4/4、完整浏览器 E2E 10/10 结果。 | 作为交互级验收第一版基线。 |
 | `docs/TEST_UI_BUSINESS_CHAIN_REPORT_2026-06-16.md` | UI 全业务链路闭环报告 | 记录浏览器 UI 对应用中心、动态数据、流程状态回写、HR、仓库闭环的核验结果。 | 作为 UI 业务闭环验收基线。 |
+| `docs/TEST_67_FUNCTION_POINTS_REPORT_2026-06-16.md` | 67 功能点 UI 验收报告 | 记录远端 67 点 Playwright 验收 67/67 结果，并留存 FP20 库存查询搜索 400 的修复过程。 | 作为全功能点自动化验收基线。 |
 
 ## 四、资料沉淀规则
 
@@ -98,6 +108,7 @@ npm run test:e2e:business-chain
 | P1 | 第一版已完成 | 缺少 UI 点击巡检 | 已增加 `test:e2e:clicks`，覆盖普通用户登录、侧边导航、应用卡片、网格工具栏和应用中心弹窗点击。 |
 | P1 | 第一版已完成 | 缺少全业务链路闭环测试 | 已增加 `test:business-chain`，覆盖 API 级写读改删与 Workflow 状态回写闭环。 |
 | P1 | 第一版已完成 | 缺少 UI 层全业务链路闭环 | 已增加 `test:e2e:business-chain`，通过浏览器 UI 核验写入数据、流程回写、HR 和 SCM 仓库闭环。 |
+| P1 | 已完成 | 缺少 67 功能点全量 UI 验收 | 已增加 `test:e2e:functions67`，远端 67/67 PASS；FP20 库存查询搜索 400 已修复、部署并复测通过。 |
 | P1 | 未开始 | 智能体语义用例未自动执行 | 基于 `docs/agent/zh-query-testset.v1.json` 增加语义回归脚本。 |
 | P2 | 未开始 | 前端共享组件缺少单元测试 | 对 grid runtime、状态列、权限控制等共享逻辑补 Vitest。 |
 | P2 | 未开始 | 性能与可用性无基线 | 为首页、子应用首屏、AI 接口建立响应时间门槛。 |
