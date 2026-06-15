@@ -44,13 +44,22 @@ Defaults:
 | `EISCORE_SMOKE_RESULT` | unset |
 | `EISCORE_SMOKE_SKIP_AI` | unset |
 | `EISCORE_SMOKE_SKIP_WS` | unset |
-| `EISCORE_SMOKE_AI_MODEL` | model returned by `/agent/ai/config` |
+| `EISCORE_AI_MODEL` | model returned by `/agent/ai/config` |
 | `EISCORE_SMOKE_AI_TIMEOUT_MS` | `60000` |
 
 Example:
 
 ```bash
 EISCORE_SMOKE_RESULT=tests/.artifacts/business-smoke-result.json npm run test:smoke
+```
+
+Remote Nanpai environment:
+
+```bash
+EISCORE_BASE_URL=https://nanpai.eissys.top \
+EISCORE_AGENT_WS_URL=wss://nanpai.eissys.top/agent/ws \
+EISCORE_SMOKE_RESULT=tests/.artifacts/nanpai-smoke-result.json \
+npm run test:smoke
 ```
 
 Use `EISCORE_SMOKE_SKIP_AI=1` or `EISCORE_SMOKE_SKIP_WS=1` when validating a partial

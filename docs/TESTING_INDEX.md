@@ -46,6 +46,8 @@ npm run test:smoke
 | `docs/ROLE_TEST_RECORD_TEMPLATE.md` | 角色测试记录模板 | 适合手工验收、业务验收和缺陷留痕。 | 保留为人工验收模板。 |
 | `docs/第八章_系统测试初稿_2026-03-14.md` | 论文/交付型系统测试章节 | 可复用测试目标、测试环境、测试范围等描述。 | 与自动化结果交叉引用，避免只保留静态说明。 |
 | `docs/agent/zh-query-testset.v1.json` | 智能体中文查询测试集 | 含 100 条中文查询意图与工具匹配样例。 | 后续建设智能体语义回归 runner。 |
+| `docs/TEST_AUTOMATION_REPORT_2026-06-15.md` | 自动化工程启动报告 | 记录自动化入口、CI、首次远端 smoke 22/23 结果。 | 作为自动化建设第一版基线。 |
+| `docs/TEST_AUTOMATION_REPORT_2026-06-16.md` | 远端修复验证报告 | 记录远端 Nginx workflow definitions 别名修复和 23/23 结果。 | 作为 P0 缺陷关闭依据。 |
 
 ## 四、资料沉淀规则
 
@@ -54,12 +56,12 @@ npm run test:smoke
 3. 角色/流程手工验收记录可以从 `docs/ROLE_TEST_RECORD_TEMPLATE.md` 复制生成，文件名建议使用 `ROLE_TEST_RECORD_YYYY-MM-DD_<模块>.md`。
 4. 远端服务器访问方式只记录在 `docs/private-review/`，该目录不进入 GitHub，不保存明文密码。
 
-## 五、当前缺口
+## 五、当前缺口与状态
 
-| 优先级 | 缺口 | 建议 |
-|---|---|---|
-| P0 | 远端 `/api/workflow.definitions` 别名返回 404 | 修复 Nginx 或 API rewrite，使别名与 `/api/definitions` 行为一致。 |
-| P1 | 缺少浏览器级 E2E | 增加 Playwright，覆盖登录、qiankun 子应用加载、关键页面无白屏。 |
-| P1 | 智能体语义用例未自动执行 | 基于 `docs/agent/zh-query-testset.v1.json` 增加语义回归脚本。 |
-| P2 | 前端共享组件缺少单元测试 | 对 grid runtime、状态列、权限控制等共享逻辑补 Vitest。 |
-| P2 | 性能与可用性无基线 | 为首页、子应用首屏、AI 接口建立响应时间门槛。 |
+| 优先级 | 状态 | 缺口 | 建议 |
+|---|---|---|---|
+| P0 | 已修复 | 远端 `/api/workflow.definitions` 别名返回 404 | 2026-06-16 已在远端 Nginx 增加精确匹配别名，远端 smoke 达到 23/23 PASS。 |
+| P1 | 未开始 | 缺少浏览器级 E2E | 增加 Playwright，覆盖登录、qiankun 子应用加载、关键页面无白屏。 |
+| P1 | 未开始 | 智能体语义用例未自动执行 | 基于 `docs/agent/zh-query-testset.v1.json` 增加语义回归脚本。 |
+| P2 | 未开始 | 前端共享组件缺少单元测试 | 对 grid runtime、状态列、权限控制等共享逻辑补 Vitest。 |
+| P2 | 未开始 | 性能与可用性无基线 | 为首页、子应用首屏、AI 接口建立响应时间门槛。 |
