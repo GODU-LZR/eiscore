@@ -58,6 +58,18 @@ Run the browser E2E suite against the Nanpai remote environment:
 npm run test:e2e:remote
 ```
 
+Run only the daily UI click tour:
+
+```bash
+npm run test:e2e:clicks
+```
+
+Run only the daily UI click tour against the Nanpai remote environment:
+
+```bash
+npm run test:e2e:clicks:remote
+```
+
 Run the full business chain close-loop test against the Nanpai remote environment:
 
 ```bash
@@ -142,6 +154,9 @@ automatically unless `EISCORE_CHAIN_KEEP_DATA=1` is set for debugging.
 
 `tests/e2e/nanpai-shell.spec.mjs` uses Playwright to verify the public login page,
 the authenticated host shell, and key qiankun sub-application deep links.
+`tests/e2e/ui-clicks.spec.mjs` simulates ordinary user clicking across the login
+form, shell header, side navigation, app cards, grid search/config/export controls,
+and app center dialogs.
 
 Defaults:
 
@@ -172,8 +187,11 @@ Ubuntu releases).
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
 - `test:business-chain` verifies create/read/update/delete loops and workflow
   status writeback against writable business APIs.
-- `test:e2e` verifies that the app actually renders in Chromium and catches blank
-  screens in the login page, host shell, and selected micro-frontend deep links.
+- `test:e2e` verifies that the app actually renders in Chromium, catches blank
+  screens in the login page, host shell, and selected micro-frontend deep links,
+  and exercises daily UI clicks that ordinary users rely on.
+- `test:e2e:clicks` runs only the daily UI click tour when fast interaction
+  validation is needed.
 
 The next layer should add component/unit tests for shared grid utilities and an
 agent semantic regression runner for the Chinese query test set.
