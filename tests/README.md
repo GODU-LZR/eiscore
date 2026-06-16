@@ -285,7 +285,9 @@ Ubuntu releases).
 - `test:smoke` verifies login, deep-link routing, PostgREST profiles, agent health,
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
 - `test:business-chain` verifies create/read/update/delete loops and workflow
-  status writeback against writable business APIs.
+  status writeback against writable business APIs. It also checks ontology
+  projections and coverage audit views before mutating data, so semantic-layer
+  gaps fail fast.
 - `test:e2e` verifies that the app actually renders in Chromium, catches blank
   screens in the login page, host shell, and selected micro-frontend deep links,
   and exercises daily UI clicks plus the UI business chain close-loop that

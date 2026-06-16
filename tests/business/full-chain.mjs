@@ -222,6 +222,40 @@ await step('02b V2 role permission view is readable', async () => {
   return { detail: `rows=${out.data.length}`, statusCode: out.status }
 })
 
+await step('02c ontology projections cover forms and roles', async () => {
+  const forms = await api('/api/v_app_form_ontology?select=app_id,app_name,semantic_class,semantic_domain,qualified_table&order=updated_at.desc&limit=5', {
+    headers: profileHeaders('public')
+  })
+  ensure(Array.isArray(forms.data), 'v_app_form_ontology response should be an array')
+  ensure(forms.data.length > 0, 'v_app_form_ontology should expose app forms')
+  ensure(forms.data.some((row) => row?.semantic_class === 'workflow_app'), 'workflow apps should be semanticized')
+
+  const roles = await api('/api/v_role_ontology?role_code=in.(employee,hr_clerk,hr_admin,dept_manager)&select=role_code,semantic_class,semantic_name,permission_count', {
+    headers: profileHeaders('public')
+  })
+  ensure(Array.isArray(roles.data), 'v_role_ontology response should be an array')
+  ensure(roles.data.length > 0, 'v_role_ontology should expose role entities')
+  ensure(roles.data.every((row) => row?.semantic_class === 'role'), 'each role ontology row should be a role semantic entity')
+  ensure(roles.data.every((row) => Number(row?.permission_count || 0) > 0), 'role ontology rows should expose granted permission counts')
+  return { detail: `forms=${forms.data.length}, roles=${roles.data.length}`, statusCode: roles.status }
+})
+
+await step('02d ontology coverage audit has no gaps', async () => {
+  const out = await api('/api/v_ontology_coverage_audit?select=api_relations,semanticized_relations,missing_relation_semantics,ontology_columns,semanticized_columns,missing_column_semantics,app_rows,app_form_ontology_rows,role_rows,role_ontology_rows,permission_rows,permission_ontology_rows', {
+    headers: profileHeaders('public')
+  })
+  const audit = rowOf(out.data)
+  ensure(audit, 'ontology coverage audit row should exist')
+  ensure(Number(audit.missing_relation_semantics || 0) === 0, 'ontology relation coverage should have no missing relation semantics')
+  ensure(Number(audit.missing_column_semantics || 0) === 0, 'ontology column coverage should have no missing column semantics')
+  ensure(Number(audit.api_relations || 0) === Number(audit.semanticized_relations || 0), 'all API relations should be semanticized')
+  ensure(Number(audit.ontology_columns || 0) === Number(audit.semanticized_columns || 0), 'all ontology columns should be semanticized')
+  ensure(Number(audit.app_rows || 0) === Number(audit.app_form_ontology_rows || 0), 'all App Center apps should be projected into app form ontology')
+  ensure(Number(audit.role_rows || 0) === Number(audit.role_ontology_rows || 0), 'all roles should be projected into role ontology')
+  ensure(Number(audit.permission_rows || 0) === Number(audit.permission_ontology_rows || 0), 'all permissions should be projected into permission ontology')
+  return { detail: `relations=${audit.semanticized_relations}/${audit.api_relations}, columns=${audit.semanticized_columns}/${audit.ontology_columns}`, statusCode: out.status }
+})
+
 await step('03 HR archive baseline is readable', async () => {
   const out = await api('/api/archives?select=id,name,employee_no&order=id.desc&limit=3', {
     headers: profileHeaders('hr')

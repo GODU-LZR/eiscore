@@ -33,6 +33,15 @@
    - 支持在就绪检查通过后显式切换 strict：启用任务分派、流程操作、状态迁移校验，并关闭旧码兜底。
    - 若后端尚未应用 V2 SQL 补丁，前端回落显示默认 `compat`，不阻断流程运行。
 
+3. 本体覆盖补丁：`sql/patch_ontology_semantic_coverage_v2.sql`
+   - 补齐新增业务表单的表级语义：销售、采购、单据流转、SOP 学习、数字孪生数据表。
+   - 补齐 V2 工作流策略表、迁移规则表、任务审批表的语义。
+   - 新增 `public.v_app_form_ontology`，把 `app_center.apps` 中的业务表单/流程应用投影为一等语义实体。
+   - 新增 `public.v_role_ontology`，把每个角色、授权集合和数据范围投影为一等语义实体。
+   - 新增 `public.v_role_permission_ontology`，显式表达角色到权限的 `acl:grantsPermission` 关系。
+   - 新增 `public.v_ontology_coverage_audit`，通过 API 返回关系对象、字段、业务表单、角色、权限的本体覆盖率审计结果。
+   - 对 API schema 下的表和视图做表级语义兜底，对已激活本体对象做字段级语义兜底，并授权 `web_user` 通过 PostgREST 读取。
+
 ## 默认策略
 
 默认策略保持旧行为：
@@ -68,6 +77,18 @@ PowerShell UTF-8 安全方式：
 Get-Content sql/patch_workflow_policy_v2.sql -Raw -Encoding UTF8 | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
 ```
 
+本体覆盖补丁：
+
+```bash
+cat sql/patch_ontology_semantic_coverage_v2.sql | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
+```
+
+PowerShell UTF-8 安全方式：
+
+```powershell
+Get-Content sql/patch_ontology_semantic_coverage_v2.sql -Raw -Encoding UTF8 | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
+```
+
 ## 后续建议
 
 1. 先在一个低风险流程应用插入 `workflow_transition_rules`，保持 `compat` 验证事件日志。
@@ -92,3 +113,6 @@ EISCORE_CHAIN_BASE_URL=http://localhost npm run test:business-chain
 1. 流程启动后切换测试应用策略为 `strict` 且关闭旧码兜底。
 2. 在没有显式 `workflow_transition_rules` 时尝试 `Task_Review -> Task_Done`，预期返回 403，业务状态保持 `FLOW_REVIEW`。
 3. 插入显式状态迁移规则后再次推进，预期迁移成功并写回 `FLOW_DONE`。
+4. 在链路前置检查中读取 `public.v_role_permissions`，确保 strict 就绪检查所需的角色授权视图对运行账号可读。
+5. 在链路前置检查中读取 `public.v_app_form_ontology` 和 `public.v_role_ontology`，确保新增业务表单与角色实体已经进入本体语义投影。
+6. 在链路前置检查中读取 `public.v_ontology_coverage_audit`，确保 API 关系对象、字段、业务表单、角色、权限的语义覆盖缺口均为 0。

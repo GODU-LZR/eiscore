@@ -15,7 +15,7 @@
 | 工程 HTTP 客户端 | PASS | `npm run test:http-client` 通过，覆盖远端重试、非幂等写请求保护、超时归一化和原生 body 透传。 |
 | 全前端构建 | PASS | `npm run build:frontends`，11 个前端包全部构建成功。 |
 | 远端 smoke | PASS | V2 patch 前后均为 23/23 PASS。 |
-| 远端业务闭环 | PASS | V2 patch 后最新为 25/25 PASS，包含角色授权视图、严格策略和显式状态迁移规则。 |
+| 远端业务闭环 | PASS | V2 + 本体覆盖 patch 后最新为 27/27 PASS，包含角色授权视图、本体投影覆盖审计、严格策略和显式状态迁移规则。 |
 | 远端工程套件 | PASS | 新增 `npm run test:engineering:remote`，smoke + business-chain + browser E2E 三层 3/3 PASS。 |
 | 67 功能点 UI | PASS | 67 点已整体通过；本轮 FP01/FP28/FP39 单点复测通过，最终全量浏览器回归 77/77 PASS。 |
 | UI 业务闭环 | PASS | 单点复测 1/1 PASS。 |
@@ -137,7 +137,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 时间 | 命令 | 结果 | 说明 |
 |---|---|---:|---|
 | 2026-06-16 | `npm run test:engineering:remote` | PASS | smoke 23/23、business-chain 24/24、browser E2E 77/77，用时约 11.9 分钟。 |
-| 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 25/25；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T13-58-40-107Z.md`。 |
+| 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 27/27；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T14-24-56-371Z.md`。 |
 | 2026-06-16 | `npm run test:ci` | PASS | 语法门禁、单元回归、Smart BI、EISGrid agent 语义、共享 grid 工具和工程 HTTP 客户端回归通过，11 个前端包全部构建成功。 |
 | 2026-06-16 | `npm run test:syntax` | PASS | 24 个 Node 脚本入口语法检查通过；同步修复 `scripts/windows-lan-relay.cjs` shebang 位置。 |
 | 2026-06-16 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、指标口径、图表模板、风险规则、风险状态、卡片报告请求、概览卡片和常用问题提示均通过。 |
@@ -145,6 +145,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 2026-06-16 | `npm run test:grid-utils` | PASS | 新增共享 grid 工具鲁棒性回归，验证非法日期、hash URL、分页钳制、服务端汇总 payload 和合计行。 |
 | 2026-06-16 | `npm run test:http-client` | PASS | 新增工程 HTTP 客户端回归，验证远端请求重试、安全方法策略、POST 默认不重试和原生 body 透传。 |
 | 2026-06-16 | 远端 DB 最小授权修复 | PASS | 对 `public.v_role_permissions` 执行 `GRANT SELECT ... TO web_user` 并触发 PostgREST schema reload；business-chain 前置检查返回 4 个角色授权行。 |
+| 2026-06-16 | `sql/patch_ontology_semantic_coverage_v2.sql` | PASS | 远端应用本体覆盖补丁；语义覆盖审计为关系 119/119、字段 1590/1590，业务链路中 PostgREST 审计视图返回 119/119、1561/1561。 |
 | 2026-06-16 | `node --check tests/engineering/run-remote-suite.mjs tests/smoke/business-smoke.mjs` | PASS | 新增工程套件与 smoke 重试逻辑语法通过。 |
 
 新增工程化能力：
@@ -156,6 +157,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 5. `tests/grid-agent/query-regression.mjs` 将 EISGrid agent 中文数据查询语义和受控查询 payload 纳入离线单元回归。
 6. `tests/grid-utils/shared-regression.mjs` 将共享 grid 分页、时间过滤和服务端汇总边界纳入离线单元回归。
 7. `tests/engineering/http-client.mjs` 统一远端 smoke/business-chain 的超时、重试和 JSON/text 解析；business-chain 默认只重试安全方法，避免重复写入。
+8. `sql/patch_ontology_semantic_coverage_v2.sql` 将业务表单、角色、角色授权和本体覆盖审计视图纳入 PostgREST 可读语义投影；`test:business-chain` 增加 `02c/02d` 前置检查，防止语义层缺口静默回归。
 
 ## 六、当前风险
 
