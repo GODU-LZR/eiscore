@@ -4,6 +4,12 @@ This directory contains the formal test automation entrypoints for EISCore.
 
 ## Commands
 
+Run the Node script syntax gate:
+
+```bash
+npm run test:syntax
+```
+
 Run the offline runtime regression test:
 
 ```bash
@@ -243,6 +249,8 @@ Ubuntu releases).
 
 ## Current Scope
 
+- `test:syntax` checks Node-executed scripts under `scripts/`, `tests/`, the
+  Playwright config, and the realtime runtime entrypoint before heavier tests run.
 - `test:unit` is service-free and deterministic.
 - `test:smart-bi` verifies Smart BI domain routing, output sections, workbench
   cards, and common question prompts.

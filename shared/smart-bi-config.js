@@ -95,6 +95,39 @@ export const SMART_BI_DOMAINS = [
   }
 ]
 
+export const SMART_BI_METRIC_DEFINITIONS = {
+  sales: [
+    { key: 'order_amount', label: '销售额', formula: '销售订单 total_amount 汇总', chart: '按订单日期生成销售趋势柱线图', riskRule: '订单金额下降或交付延期增加时预警', owner: '销售负责人' },
+    { key: 'receivable_balance', label: '应收余额', formula: '客户 receivable_balance 汇总', chart: '按客户生成应收风险排行', riskRule: '应收余额超过授信额度或持续上升时预警', owner: '销售/财务负责人' },
+    { key: 'opportunity_amount', label: '商机金额', formula: '销售商机 expected_amount 汇总，并按 stage 分组', chart: '生成商机阶段漏斗', riskRule: '高金额商机长期停留在早期阶段时预警', owner: '销售负责人' }
+  ],
+  purchase: [
+    { key: 'purchase_amount', label: '采购金额', formula: '采购订单 total_amount 汇总', chart: '按订单日期生成采购金额趋势', riskRule: '采购金额异常放大或集中于单一供应商时预警', owner: '采购负责人' },
+    { key: 'arrival_acceptance_rate', label: '到货合格率', formula: 'accepted_quantity / arrival_quantity * 100%', chart: '生成到货数量与合格数量对比图', riskRule: '到货合格率低于 95% 时预警', owner: '采购/IQC 负责人' },
+    { key: 'pending_arrivals', label: '待跟到货', formula: '采购订单中未到货、未关闭、未取消的订单数量', chart: '按供应商或预计到货日生成待跟排行', riskRule: '预计到货日临近或逾期仍未到货时预警', owner: '采购负责人' }
+  ],
+  inventory: [
+    { key: 'available_qty', label: '实时库存数量', formula: '库存视图 available_qty 汇总', chart: '按仓库生成库存分布柱状图', riskRule: '库存过高占用或库存不足时预警', owner: '仓储负责人' },
+    { key: 'material_count', label: '物料数', formula: '按 material_code 去重统计', chart: '按物料分类生成结构占比图', riskRule: '关键物料缺失或分类异常集中时预警', owner: '仓储/计划负责人' },
+    { key: 'inventory_check_diff', label: '盘点差异', formula: '盘点单 diff_count 与状态汇总', chart: '生成盘点状态分布和差异排行', riskRule: '盘亏盘盈差异持续出现时预警', owner: '仓储负责人' }
+  ],
+  production: [
+    { key: 'planned_qty', label: '计划生产数量', formula: '生产工单 planned_qty 汇总', chart: '按产品生成计划数量排行', riskRule: '计划集中但缺料项较多时预警', owner: '生产计划负责人' },
+    { key: 'work_order_status', label: '工单状态', formula: '按 work_order_status 汇总工单数量', chart: '生成工单状态分布图', riskRule: '待排产/生产中积压过多时预警', owner: '生产负责人' },
+    { key: 'shortage_order_count', label: '缺料工单', formula: 'shortage_item_count > 0 的工单数量', chart: '生成缺料工单排行', riskRule: '缺料工单数大于 0 且临近计划完工日时预警', owner: '计划/仓储负责人' }
+  ],
+  quality: [
+    { key: 'pass_rate', label: '检验合格率', formula: '合格或让步接收检验批次 / 检验总批次 * 100%', chart: '生成检验结果分布图', riskRule: '合格率低于 98% 时预警', owner: '质量负责人' },
+    { key: 'defect_rate', label: '不良率', formula: 'defect_qty / sample_qty * 100%', chart: '生成不良率趋势或物料排行', riskRule: '不良率超过 2% 时预警', owner: '质量负责人' },
+    { key: 'open_ncrs', label: '未关闭异常', formula: '质量异常中 ncr_status 不等于已关闭的数量', chart: '按严重等级生成异常分布图', riskRule: '严重/关键异常未闭环时预警', owner: '质量/责任部门负责人' }
+  ],
+  equipment: [
+    { key: 'avg_health_score', label: '设备健康评分', formula: '设备台账 health_score 平均值', chart: '生成设备健康评分排行', riskRule: '平均评分低于 80 或关键设备低于 80 时预警', owner: '设备负责人' },
+    { key: 'open_issue_count', label: '未关闭设备异常', formula: '设备异常中 issue_status 不等于已关闭的数量', chart: '按异常等级生成分布图', riskRule: '紧急异常未关闭或停机设备存在时预警', owner: '设备负责人' },
+    { key: 'downtime_hours', label: '停机时长', formula: '维保工单 downtime_hours 汇总', chart: '按设备生成停机时长排行', riskRule: '停机时长持续增加时预警', owner: '设备/生产负责人' }
+  ]
+}
+
 export const SMART_BI_COMMON_QUESTIONS = [
   { key: 'overview', label: '经营总览', prompt: '生成一份企业经营总览，覆盖销售、采购、库存、生产、质量和设备，必须包含关键指标、图表、风险和建议。' },
   { key: 'sales', label: '销售分析', prompt: '销售现在怎么样？请分析销售额、订单、客户、商机、回款和应收风险，并生成图表。' },
@@ -121,6 +154,23 @@ const countSnapshotSections = (snapshot = {}) => SMART_BI_DOMAINS
   .filter((domain) => snapshot?.[domain.key] || (domain.key === 'inventory' && snapshot?.inventory))
   .length
 
+export const getSmartBiMetricDefinitions = (domainKey = 'overview') => {
+  if (domainKey && domainKey !== 'overview') return SMART_BI_METRIC_DEFINITIONS[domainKey] || []
+  return SMART_BI_DOMAINS.flatMap((domain) => SMART_BI_METRIC_DEFINITIONS[domain.key] || [])
+}
+
+const SMART_BI_OVERVIEW_CARD_METRIC = {
+  formula: '已接入销售、采购、库存、生产、质量、设备六大领域快照数量',
+  chart: '生成六大领域经营健康概览图',
+  riskRule: '领域数据缺失或关键风险集中时预警',
+  owner: '经营管理层'
+}
+
+const getPrimarySmartBiMetric = (domainKey) => {
+  if (domainKey === 'overview') return SMART_BI_OVERVIEW_CARD_METRIC
+  return getSmartBiMetricDefinitions(domainKey)[0] || null
+}
+
 export const getSmartBiWorkbenchCards = (snapshot = {}) => {
   const sales = snapshot?.sales || {}
   const purchase = snapshot?.purchase || {}
@@ -129,9 +179,19 @@ export const getSmartBiWorkbenchCards = (snapshot = {}) => {
   const quality = snapshot?.quality || {}
   const equipment = snapshot?.equipment || {}
   const overviewCount = countSnapshotSections(snapshot)
+  const attachMetric = (key, card) => {
+    const metric = getPrimarySmartBiMetric(key)
+    return {
+      ...card,
+      metricDefinition: metric?.formula || '按系统当前业务快照统计',
+      chartTemplate: metric?.chart || '按业务场景生成结构/趋势图',
+      riskRule: metric?.riskRule || '按异常变化和业务风险提示',
+      owner: metric?.owner || '业务负责人'
+    }
+  }
 
   return [
-    {
+    attachMetric('overview', {
       key: 'overview',
       label: '经营总览',
       desc: '跨销售、采购、库存、生产、质量、设备看经营状态',
@@ -142,8 +202,8 @@ export const getSmartBiWorkbenchCards = (snapshot = {}) => {
       riskLabel: '入口',
       riskValue: '全局分析',
       prompt: getQuestionPrompt('overview')
-    },
-    {
+    }),
+    attachMetric('sales', {
       key: 'sales',
       label: '销售分析',
       desc: '销售额、订单、客户、商机、回款和应收风险',
@@ -154,8 +214,8 @@ export const getSmartBiWorkbenchCards = (snapshot = {}) => {
       riskLabel: '应收余额',
       riskValue: formatCompactNumber(sales.receivableBalance),
       prompt: getQuestionPrompt('sales')
-    },
-    {
+    }),
+    attachMetric('purchase', {
       key: 'purchase',
       label: '采购分析',
       desc: '采购需求、订单履约、到货、供应商和 IQC',
@@ -166,8 +226,8 @@ export const getSmartBiWorkbenchCards = (snapshot = {}) => {
       riskLabel: '待跟到货',
       riskValue: formatCompactNumber(purchase.pendingArrivals?.length || 0, '单'),
       prompt: getQuestionPrompt('purchase')
-    },
-    {
+    }),
+    attachMetric('inventory', {
       key: 'inventory',
       label: '库存风险',
       desc: '库存占用、物料结构、出入库、盘点和效期风险',
@@ -178,8 +238,8 @@ export const getSmartBiWorkbenchCards = (snapshot = {}) => {
       riskLabel: '仓库数',
       riskValue: formatCompactNumber(inventory.warehouseNames?.length || 0, '个'),
       prompt: getQuestionPrompt('inventory')
-    },
-    {
+    }),
+    attachMetric('production', {
       key: 'production',
       label: '生产进度',
       desc: '工单状态、计划数量、齐套缺料和交付风险',
@@ -190,8 +250,8 @@ export const getSmartBiWorkbenchCards = (snapshot = {}) => {
       riskLabel: '缺料工单',
       riskValue: formatCompactNumber(production.shortageOrderCount, '单'),
       prompt: getQuestionPrompt('production')
-    },
-    {
+    }),
+    attachMetric('quality', {
       key: 'quality',
       label: '质量异常',
       desc: '检验结果、不良率、异常、整改闭环和审核',
@@ -202,8 +262,8 @@ export const getSmartBiWorkbenchCards = (snapshot = {}) => {
       riskLabel: '不良率',
       riskValue: Number.isFinite(Number(quality.defectRate)) ? `${quality.defectRate}%` : '--',
       prompt: getQuestionPrompt('quality')
-    },
-    {
+    }),
+    attachMetric('equipment', {
       key: 'equipment',
       label: '设备健康',
       desc: '运行状态、点检异常、故障维修、停机和保养',
@@ -214,7 +274,7 @@ export const getSmartBiWorkbenchCards = (snapshot = {}) => {
       riskLabel: '未关闭异常',
       riskValue: formatCompactNumber(equipment.openIssueCount, '条'),
       prompt: getQuestionPrompt('equipment')
-    }
+    })
   ]
 }
 
@@ -254,16 +314,25 @@ export const routeSmartBiQuestion = (text = '') => {
 export const buildSmartBiContext = (text = '') => {
   const route = routeSmartBiQuestion(text)
   const domain = findSmartBiDomain(route.key)
+  const metricDefinitions = getSmartBiMetricDefinitions(route.key)
   return {
     route,
     metricCatalog: domain ? [domain] : SMART_BI_DOMAINS,
+    metricDefinitions,
     outputSections: SMART_BI_OUTPUT_SECTIONS,
-    outputTemplate: '每次回答必须稳定包含：关键指标、指标图表、风险提醒、行动建议。关键指标要给数值/口径/结论；图表优先输出 ECharts JSON；风险要分级；建议要包含负责人方向、时间节点和目标。'
+    outputTemplate: '每次回答必须稳定包含：关键指标、指标图表、风险提醒、行动建议。关键指标要给数值/口径/结论；图表优先按默认图表模板输出 ECharts JSON；风险要按阈值和业务影响分级；建议要包含负责人方向、时间节点和目标。'
   }
 }
 
 export const formatSmartBiCatalogForPrompt = () => SMART_BI_DOMAINS
   .map((domain) => `【${domain.label}】核心指标：${domain.metrics.join('、')}。常用图表：${domain.charts.join('、')}。问题关键词：${domain.aliases.join('、')}。`)
   .join('\n')
+
+export const formatSmartBiMetricDefinitionsForPrompt = (domainKey = 'overview') => {
+  const definitions = getSmartBiMetricDefinitions(domainKey)
+  return definitions
+    .map((item) => `- ${item.label}：口径=${item.formula}；默认图表=${item.chart}；风险阈值=${item.riskRule}；负责方向=${item.owner}`)
+    .join('\n')
+}
 
 export const getSmartBiCommonQuestions = () => SMART_BI_COMMON_QUESTIONS.map((item) => item.prompt)

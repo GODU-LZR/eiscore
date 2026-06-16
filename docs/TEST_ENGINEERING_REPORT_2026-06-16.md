@@ -8,6 +8,7 @@
 
 | 测试层 | 结果 | 说明 |
 |---|---:|---|
+| Node 脚本语法门禁 | PASS | `npm run test:syntax` 通过，覆盖 tests/scripts/playwright/realtime 的 20 个入口。 |
 | 离线单元/回归 | PASS | `npm run test:unit` 通过，包含数字分身成本表回归与 Smart BI 配置路由回归。 |
 | 全前端构建 | PASS | `npm run build:frontends`，11 个前端包全部构建成功。 |
 | 远端 smoke | PASS | V2 patch 前后均为 23/23 PASS。 |
@@ -24,6 +25,7 @@
 
 | 命令 | 结果 | 备注 |
 |---|---|---|
+| `npm run test:syntax` | PASS | Node 脚本语法门禁通过。 |
 | `npm run test:unit` | PASS | `twin knowledge cost-table analysis regression` 通过。 |
 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、输出章节、工作台卡片和常用问题回归通过。 |
 | `npm run build:frontends` | PASS | 11 个前端包构建成功。 |
@@ -129,9 +131,10 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 时间 | 命令 | 结果 | 说明 |
 |---|---|---:|---|
 | 2026-06-16 | `npm run test:engineering:remote` | PASS | smoke 23/23、business-chain 24/24、browser E2E 77/77，用时约 11.9 分钟。 |
-| 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 24/24。 |
+| 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 24/24；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T07-38-32-905Z.md`。 |
 | 2026-06-16 | `npm run test:ci` | PASS | 单元回归通过，11 个前端包全部构建成功。 |
-| 2026-06-16 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、概览卡片、指标卡片和常用问题提示均通过。 |
+| 2026-06-16 | `npm run test:syntax` | PASS | 20 个 Node 脚本入口语法检查通过；同步修复 `scripts/windows-lan-relay.cjs` shebang 位置。 |
+| 2026-06-16 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、指标口径、图表模板、风险规则、概览卡片和常用问题提示均通过。 |
 | 2026-06-16 | `node --check tests/engineering/run-remote-suite.mjs tests/smoke/business-smoke.mjs` | PASS | 新增工程套件与 smoke 重试逻辑语法通过。 |
 
 新增工程化能力：
@@ -156,6 +159,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 
 ```bash
 npm run test:unit
+npm run test:syntax
 npm run build:frontends
 EISCORE_BASE_URL=https://nanpai.eissys.top \
 EISCORE_AGENT_WS_URL=wss://nanpai.eissys.top/agent/ws \

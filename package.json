@@ -6,6 +6,7 @@
   "scripts": {
     "ci:install": "node scripts/install-packages.mjs --group=ci",
     "build:frontends": "node scripts/run-package-script.mjs build --group=frontends",
+    "test:syntax": "node tests/engineering/check-node-syntax.mjs",
     "test:unit": "npm --prefix realtime run test:twin-knowledge && npm run test:smart-bi",
     "test:smart-bi": "node tests/smart-bi/config-regression.mjs",
     "test:smoke": "node tests/smoke/business-smoke.mjs",
@@ -23,7 +24,7 @@
     "test:engineering:remote:api": "node tests/engineering/run-remote-suite.mjs --skip-e2e",
     "e2e:install": "playwright install chromium",
     "e2e:install:with-deps": "playwright install --with-deps chromium",
-    "test:ci": "npm run test:unit && npm run build:frontends"
+    "test:ci": "npm run test:syntax && npm run test:unit && npm run build:frontends"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0",

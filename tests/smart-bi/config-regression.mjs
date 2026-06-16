@@ -16,7 +16,9 @@ const {
   getSmartBiWorkbenchCards,
   routeSmartBiQuestion,
   buildSmartBiContext,
-  getSmartBiCommonQuestions
+  getSmartBiCommonQuestions,
+  getSmartBiMetricDefinitions,
+  formatSmartBiMetricDefinitionsForPrompt
 } = smartBi
 
 assert.equal(SMART_BI_DOMAINS.length, 6, 'smart BI should keep six core business domains')
@@ -42,10 +44,13 @@ const equipmentContext = buildSmartBiContext('设备点检异常和停机风险'
 assert.equal(equipmentContext.route.key, 'equipment', 'equipment question should build equipment context')
 assert.equal(equipmentContext.metricCatalog.length, 1, 'domain context should only include the routed domain')
 assert.equal(equipmentContext.metricCatalog[0].key, 'equipment', 'equipment context should expose equipment metrics')
+assert.equal(equipmentContext.metricDefinitions.length, 3, 'domain context should expose fixed metric definitions')
+assert.ok(equipmentContext.outputTemplate.includes('默认图表模板'), 'output template should require chart templates')
 
 const overviewContext = buildSmartBiContext('')
 assert.equal(overviewContext.route.key, 'overview', 'empty context should route to overview')
 assert.equal(overviewContext.metricCatalog.length, 6, 'overview context should expose all domains')
+assert.equal(overviewContext.metricDefinitions.length, 18, 'overview context should expose all domain metric definitions')
 
 const cards = getSmartBiWorkbenchCards({
   snapshotTime: '2026-06-16T00:00:00.000Z',
@@ -60,7 +65,23 @@ const cards = getSmartBiWorkbenchCards({
 assert.equal(cards.length, 7, 'workbench should include overview plus six domain cards')
 assert.equal(cards[0].key, 'overview', 'first card should be overview')
 assert.equal(cards[0].metricValue, '6/6', 'overview card should count connected domains')
+assert.ok(cards[0].metricDefinition.includes('六大领域'), 'overview card should use overview-specific metric definition')
 assert.ok(cards.every((card) => card.prompt && card.metricLabel && card.metricValue), 'each card should be actionable and display metrics')
+assert.ok(
+  cards.every((card) => card.metricDefinition && card.chartTemplate && card.riskRule && card.owner),
+  'each card should carry fixed metric definition, chart template, risk rule, and owner'
+)
+
+for (const domain of SMART_BI_DOMAINS) {
+  const definitions = getSmartBiMetricDefinitions(domain.key)
+  assert.equal(definitions.length, 3, `${domain.key} should keep three fixed metric definitions`)
+  assert.ok(definitions.every((item) => item.key && item.label && item.formula && item.chart && item.riskRule && item.owner), `${domain.key} metric definitions should be complete`)
+}
+
+const metricPrompt = formatSmartBiMetricDefinitionsForPrompt('sales')
+assert.ok(metricPrompt.includes('销售额'), 'metric prompt should include sales metric labels')
+assert.ok(metricPrompt.includes('风险阈值'), 'metric prompt should include risk thresholds')
+assert.ok(metricPrompt.includes('负责方向'), 'metric prompt should include ownership direction')
 
 const commonQuestions = getSmartBiCommonQuestions()
 assert.ok(commonQuestions.length >= 7, 'common questions should cover common BI entry points')

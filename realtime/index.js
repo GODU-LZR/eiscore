@@ -1193,6 +1193,44 @@ const SMART_BI_DOMAINS = [
   }
 ];
 
+const SMART_BI_METRIC_DEFINITIONS = {
+  sales: [
+    { label: '销售额', formula: '销售订单 total_amount 汇总', chart: '按订单日期生成销售趋势柱线图', riskRule: '订单金额下降或交付延期增加时预警', owner: '销售负责人' },
+    { label: '应收余额', formula: '客户 receivable_balance 汇总', chart: '按客户生成应收风险排行', riskRule: '应收余额超过授信额度或持续上升时预警', owner: '销售/财务负责人' },
+    { label: '商机金额', formula: '销售商机 expected_amount 汇总，并按 stage 分组', chart: '生成商机阶段漏斗', riskRule: '高金额商机长期停留在早期阶段时预警', owner: '销售负责人' }
+  ],
+  purchase: [
+    { label: '采购金额', formula: '采购订单 total_amount 汇总', chart: '按订单日期生成采购金额趋势', riskRule: '采购金额异常放大或集中于单一供应商时预警', owner: '采购负责人' },
+    { label: '到货合格率', formula: 'accepted_quantity / arrival_quantity * 100%', chart: '生成到货数量与合格数量对比图', riskRule: '到货合格率低于 95% 时预警', owner: '采购/IQC 负责人' },
+    { label: '待跟到货', formula: '采购订单中未到货、未关闭、未取消的订单数量', chart: '按供应商或预计到货日生成待跟排行', riskRule: '预计到货日临近或逾期仍未到货时预警', owner: '采购负责人' }
+  ],
+  inventory: [
+    { label: '实时库存数量', formula: '库存视图 available_qty 汇总', chart: '按仓库生成库存分布柱状图', riskRule: '库存过高占用或库存不足时预警', owner: '仓储负责人' },
+    { label: '物料数', formula: '按 material_code 去重统计', chart: '按物料分类生成结构占比图', riskRule: '关键物料缺失或分类异常集中时预警', owner: '仓储/计划负责人' },
+    { label: '盘点差异', formula: '盘点单 diff_count 与状态汇总', chart: '生成盘点状态分布和差异排行', riskRule: '盘亏盘盈差异持续出现时预警', owner: '仓储负责人' }
+  ],
+  production: [
+    { label: '计划生产数量', formula: '生产工单 planned_qty 汇总', chart: '按产品生成计划数量排行', riskRule: '计划集中但缺料项较多时预警', owner: '生产计划负责人' },
+    { label: '工单状态', formula: '按 work_order_status 汇总工单数量', chart: '生成工单状态分布图', riskRule: '待排产/生产中积压过多时预警', owner: '生产负责人' },
+    { label: '缺料工单', formula: 'shortage_item_count > 0 的工单数量', chart: '生成缺料工单排行', riskRule: '缺料工单数大于 0 且临近计划完工日时预警', owner: '计划/仓储负责人' }
+  ],
+  quality: [
+    { label: '检验合格率', formula: '合格或让步接收检验批次 / 检验总批次 * 100%', chart: '生成检验结果分布图', riskRule: '合格率低于 98% 时预警', owner: '质量负责人' },
+    { label: '不良率', formula: 'defect_qty / sample_qty * 100%', chart: '生成不良率趋势或物料排行', riskRule: '不良率超过 2% 时预警', owner: '质量负责人' },
+    { label: '未关闭异常', formula: '质量异常中 ncr_status 不等于已关闭的数量', chart: '按严重等级生成异常分布图', riskRule: '严重/关键异常未闭环时预警', owner: '质量/责任部门负责人' }
+  ],
+  equipment: [
+    { label: '设备健康评分', formula: '设备台账 health_score 平均值', chart: '生成设备健康评分排行', riskRule: '平均评分低于 80 或关键设备低于 80 时预警', owner: '设备负责人' },
+    { label: '未关闭设备异常', formula: '设备异常中 issue_status 不等于已关闭的数量', chart: '按异常等级生成分布图', riskRule: '紧急异常未关闭或停机设备存在时预警', owner: '设备负责人' },
+    { label: '停机时长', formula: '维保工单 downtime_hours 汇总', chart: '按设备生成停机时长排行', riskRule: '停机时长持续增加时预警', owner: '设备/生产负责人' }
+  ]
+};
+
+const getSmartBiMetricDefinitions = (domainKey = 'overview') => {
+  if (domainKey && domainKey !== 'overview') return SMART_BI_METRIC_DEFINITIONS[domainKey] || [];
+  return SMART_BI_DOMAINS.flatMap((domain) => SMART_BI_METRIC_DEFINITIONS[domain.key] || []);
+};
+
 const resolveSmartBiQuestionRoute = (text = '') => {
   const normalized = String(text || '').toLowerCase();
   const scored = SMART_BI_DOMAINS.map((domain) => {
@@ -1216,8 +1254,12 @@ const buildSmartBiPromptBlock = (smartBi, latestUserText = '') => {
   const catalog = Array.isArray(smartBi?.metricCatalog) && smartBi.metricCatalog.length
     ? smartBi.metricCatalog
     : (route.key === 'overview' ? SMART_BI_DOMAINS : SMART_BI_DOMAINS.filter((domain) => domain.key === route.key));
+  const metricDefinitions = Array.isArray(smartBi?.metricDefinitions) && smartBi.metricDefinitions.length
+    ? smartBi.metricDefinitions
+    : getSmartBiMetricDefinitions(route.key);
   const catalogLines = catalog.map((domain) => `- ${domain.label}：${domain.metrics.join('、')}`).join('\n');
-  return `\n\n【智能 BI 指标目录与问题路由】\n当前问题路由：${route.label || '经营总览'}（${route.key || 'overview'}，置信度：${route.confidence || 'auto'}）。${route.matchedKeywords?.length ? `命中关键词：${route.matchedKeywords.join('、')}。` : ''}\n内置指标目录：\n${catalogLines}\n标准输出模板：每次回答必须稳定包含“关键指标、指标图表、风险提醒、行动建议”。关键指标要说明口径和值；指标图表优先输出 ECharts JSON；风险要分级并指出影响对象；建议要包含负责方向、时间节点和目标。`;
+  const metricLines = metricDefinitions.map((item) => `- ${item.label}：口径=${item.formula}；默认图表=${item.chart}；风险阈值=${item.riskRule}；负责方向=${item.owner}`).join('\n');
+  return `\n\n【智能 BI 指标目录与问题路由】\n当前问题路由：${route.label || '经营总览'}（${route.key || 'overview'}，置信度：${route.confidence || 'auto'}）。${route.matchedKeywords?.length ? `命中关键词：${route.matchedKeywords.join('、')}。` : ''}\n内置指标目录：\n${catalogLines}\n\n【固定指标口径/图表模板/风险阈值】\n${metricLines}\n标准输出模板：每次回答必须稳定包含“关键指标、指标图表、风险提醒、行动建议”。关键指标要说明口径和值；指标图表优先按默认图表模板输出 ECharts JSON；风险要按阈值和业务影响分级并指出影响对象；建议要包含负责方向、时间节点和目标。`;
 };
 
 const buildGridAgentRuleBlock = (context) => {

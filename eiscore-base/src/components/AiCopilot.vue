@@ -80,6 +80,10 @@
                   </div>
                   <div class="card-value">{{ card.metricValue }}</div>
                   <div class="card-metric">{{ card.metricLabel }}</div>
+                  <div class="card-rule">
+                    <span>口径：{{ card.metricDefinition }}</span>
+                    <span>图表：{{ card.chartTemplate }}</span>
+                  </div>
                   <div class="card-foot">
                     <span>{{ card.subLabel }}：{{ card.subValue }}</span>
                     <span>{{ card.riskLabel }}：{{ card.riskValue }}</span>
@@ -2670,7 +2674,7 @@ $border-color: #e4e7ed;
   padding: 14px;
   text-align: left;
   cursor: pointer;
-  min-height: 136px;
+  min-height: 162px;
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -2713,6 +2717,21 @@ $border-color: #e4e7ed;
   .card-foot {
     color: #606266;
     font-size: 12px;
+  }
+
+  .card-rule {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    color: #909399;
+    font-size: 11px;
+    line-height: 1.35;
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 
   .card-foot {
@@ -3144,6 +3163,7 @@ $border-color: #e4e7ed;
 .ai-copilot-container.is-dark .smart-bi-card .card-metric {
   color: #cbd5e1;
 }
+.ai-copilot-container.is-dark .smart-bi-card .card-rule,
 .ai-copilot-container.is-dark .smart-bi-card .card-foot,
 .ai-copilot-container.is-dark .smart-bi-meta {
   color: #94a3b8;
