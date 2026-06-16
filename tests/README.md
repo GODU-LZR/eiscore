@@ -140,8 +140,8 @@ local stack.
 ## Full Business Chain Environment
 
 `tests/business/full-chain.mjs` verifies authenticated write/read/update/delete
-loops across app center, dynamic data apps, workflow runtime state writeback, HR,
-and SCM warehouse management.
+loops across app center, dynamic data apps, workflow runtime state writeback,
+workflow V2 strict transition rules, HR, and SCM warehouse management.
 
 Defaults:
 
@@ -158,7 +158,9 @@ Defaults:
 Example:
 
 ```bash
-EISCORE_CHAIN_RESULT=tests/.artifacts/full-chain-result.json npm run test:business-chain
+EISCORE_CHAIN_BASE_URL=http://localhost \
+EISCORE_CHAIN_RESULT=tests/.artifacts/full-chain-result.json \
+npm run test:business-chain
 ```
 
 Remote Nanpai environment:
@@ -171,8 +173,9 @@ npm run test:business-chain
 
 The test creates a reusable dynamic table named `app_data.eiscore_chain_test_records`
 when it does not already exist. Per-run records, generated apps, workflow
-definitions, workflow instances, HR archives, and SCM warehouses are cleaned up
-automatically unless `EISCORE_CHAIN_KEEP_DATA=1` is set for debugging.
+definitions, workflow instances, V2 workflow policies/rules, HR archives, and SCM
+warehouses are cleaned up automatically unless `EISCORE_CHAIN_KEEP_DATA=1` is set
+for debugging.
 
 ## Browser E2E Environment
 
@@ -198,6 +201,11 @@ Defaults:
 | `EISCORE_E2E_PASSWORD` | `EISCORE_SMOKE_PASSWORD` or `123456` |
 | `EISCORE_E2E_CHAIN_TABLE` | `EISCORE_CHAIN_TABLE` or `eiscore_chain_test_records` |
 | `EISCORE_E2E_CHAIN_KEEP_DATA` | unset |
+| `EISCORE_E2E_RETRIES` | remote targets: `1`; local targets: `0` |
+| `EISCORE_E2E_WORKERS` | remote targets: `1`; local targets: Playwright default |
+| `EISCORE_E2E_LOGIN_ATTEMPTS` | remote targets: `5`; local targets: `3` |
+| `EISCORE_E2E_GOTO_ATTEMPTS` | remote targets: `3`; local targets: `2` |
+| `EISCORE_E2E_API_TIMEOUT_MS` | `45000` |
 
 Artifacts:
 
@@ -234,6 +242,9 @@ Ubuntu releases).
   with one worker to keep remote micro-frontend loading stable and reports any
   blank page, key text mismatch, missing interaction surface, browser error, or
   HTTP 4xx/5xx as a failure.
+- Remote browser runs default to one worker, one retry, and longer login/goto/API
+  waits so the full suite can distinguish business regressions from transient
+  network or DNS jitter.
 
 The next layer should add component/unit tests for shared grid utilities and an
 agent semantic regression runner for the Chinese query test set.

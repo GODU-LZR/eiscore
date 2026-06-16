@@ -5,6 +5,10 @@ import { expect } from '@playwright/test'
 
 export const USERNAME = process.env.EISCORE_E2E_USERNAME || process.env.EISCORE_SMOKE_USERNAME || 'admin'
 export const PASSWORD = process.env.EISCORE_E2E_PASSWORD || process.env.EISCORE_SMOKE_PASSWORD || '123456'
+const E2E_BASE_URL = process.env.EISCORE_E2E_BASE_URL || process.env.EISCORE_BASE_URL || 'http://localhost:8080'
+const IS_REMOTE_TARGET = !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(E2E_BASE_URL)
+const LOGIN_ATTEMPTS = Number(process.env.EISCORE_E2E_LOGIN_ATTEMPTS || (IS_REMOTE_TARGET ? 5 : 3))
+const GOTO_ATTEMPTS = Number(process.env.EISCORE_E2E_GOTO_ATTEMPTS || (IS_REMOTE_TARGET ? 3 : 2))
 
 const ignoredConsoleErrorPatterns = [
   /ResizeObserver loop completed with undelivered notifications/i,
@@ -24,11 +28,31 @@ export function parseJwtPayload(token) {
   }
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 export async function loginByApi(request) {
-  const response = await request.post('/api/rpc/login', {
-    data: { username: USERNAME, password: PASSWORD }
-  })
-  expect(response.ok(), `login failed with status ${response.status()}`).toBeTruthy()
+  let response = null
+  let lastError = null
+  for (let attempt = 1; attempt <= LOGIN_ATTEMPTS; attempt += 1) {
+    try {
+      response = await request.post('/api/rpc/login', {
+        data: { username: USERNAME, password: PASSWORD }
+      })
+      if (response.ok()) break
+      const text = await response.text().catch(() => '')
+      lastError = new Error(`login failed with status ${response.status()}: ${text.slice(0, 200)}`)
+      if (response.status() < 500) break
+    } catch (error) {
+      lastError = error
+    }
+    if (attempt < LOGIN_ATTEMPTS) await wait(500 * attempt)
+  }
+
+  if (!response || !response.ok()) {
+    throw lastError || new Error('login failed without response')
+  }
 
   const data = await response.json()
   const token = String(data.token || '')
@@ -64,7 +88,7 @@ export async function seedAuth(page, auth) {
 }
 
 export async function gotoWithRetry(page, url, options = {}) {
-  const attempts = Number(options.attempts || 2)
+  const attempts = Number(options.attempts || GOTO_ATTEMPTS)
   const waitUntil = options.waitUntil || 'domcontentloaded'
   const timeout = Number(options.timeout || 60_000)
   let lastError = null
@@ -74,7 +98,7 @@ export async function gotoWithRetry(page, url, options = {}) {
     } catch (error) {
       lastError = error
       if (index === attempts - 1) break
-      await page.waitForTimeout(1_000)
+      await page.waitForTimeout(1_000 * (index + 1))
     }
   }
   throw lastError

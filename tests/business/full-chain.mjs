@@ -173,6 +173,10 @@ async function cleanupArtifacts() {
   if (created.appId) {
     const mappings = await cleanupPath(`/api/workflow_state_mappings?workflow_app_id=eq.${filterValue(created.appId)}`, 'app_center', 'workflow state mappings')
     if (mappings) completed.push(mappings.description)
+    const transitionRules = await cleanupPath(`/api/workflow_transition_rules?workflow_app_id=eq.${filterValue(created.appId)}`, 'app_center', 'workflow transition rules')
+    if (transitionRules) completed.push(transitionRules.description)
+    const permissionPolicy = await cleanupPath(`/api/workflow_permission_policies?workflow_app_id=eq.${filterValue(created.appId)}`, 'app_center', 'workflow permission policy')
+    if (permissionPolicy) completed.push(permissionPolicy.description)
   }
   if (created.routeId) {
     const route = await cleanupPath(`/api/published_routes?id=eq.${filterValue(created.routeId)}`, 'app_center', 'published route')
@@ -444,7 +448,60 @@ await step('16 start workflow and verify state writeback', async () => {
   return { detail: `instance_id=${created.workflowInstanceId}, record_status=${record.status}`, statusCode: out.status }
 })
 
-await step('17 transition workflow and verify state writeback', async () => {
+await step('17 strict policy rejects missing transition rule', async () => {
+  const policy = await api('/api/workflow_permission_policies?on_conflict=workflow_app_id', {
+    method: 'POST',
+    headers: profileHeaders('app_center', { Prefer: 'resolution=merge-duplicates,return=representation' }),
+    body: {
+      workflow_app_id: created.appId,
+      acl_module: 'chain_test',
+      permission_mode: 'strict',
+      enforce_assignment: true,
+      enforce_workflow_op_perm: true,
+      enforce_status_transition_perm: true,
+      legacy_fallback_enabled: false
+    }
+  })
+  const policyRow = rowOf(policy.data)
+  ensure(policyRow?.permission_mode === 'strict', `expected strict policy, got ${policyRow?.permission_mode}`)
+
+  const out = await request('/api/rpc/transition_workflow_instance', {
+    method: 'POST',
+    headers: profileHeaders('workflow'),
+    body: {
+      p_instance_id: created.workflowInstanceId,
+      p_next_task_id: 'Task_Done',
+      p_complete: false,
+      p_variables: { approval_comment: 'strict missing rule probe', runId }
+    }
+  })
+  ensure(out.status === 403, `expected 403, got ${out.status}: ${String(out.text).slice(0, 200)}`)
+  ensure(String(out.text).includes('status transition rule required'), `expected missing rule message, got ${String(out.text).slice(0, 200)}`)
+  const record = await fetchDataRecord()
+  ensure(record.status === 'FLOW_REVIEW', `expected FLOW_REVIEW after rejected transition, got ${record.status}`)
+  return { detail: `blocked=${out.status}, record_status=${record.status}`, statusCode: out.status }
+})
+
+await step('18 create explicit strict transition rule', async () => {
+  const out = await api('/api/workflow_transition_rules', {
+    method: 'POST',
+    headers: profileHeaders('app_center', { Prefer: 'return=representation' }),
+    body: {
+      workflow_app_id: created.appId,
+      from_task_id: 'Task_Review',
+      to_task_id: 'Task_Done',
+      from_state: 'FLOW_REVIEW',
+      to_state: 'FLOW_DONE',
+      required_permission: 'op:chain_test.status_transition.flow_review_flow_done',
+      is_active: true
+    }
+  })
+  const rule = rowOf(out.data)
+  ensure(rule?.id, 'workflow transition rule id missing')
+  return { detail: `rule_id=${rule.id}`, statusCode: out.status }
+})
+
+await step('19 transition workflow and verify state writeback', async () => {
   const out = await api('/api/rpc/transition_workflow_instance', {
     method: 'POST',
     headers: profileHeaders('workflow'),
@@ -462,7 +519,7 @@ await step('17 transition workflow and verify state writeback', async () => {
   return { detail: `current_task=${instance.current_task_id}, record_status=${record.status}`, statusCode: out.status }
 })
 
-await step('18 complete workflow and verify final state', async () => {
+await step('20 complete workflow and verify final state', async () => {
   const out = await api('/api/rpc/transition_workflow_instance', {
     method: 'POST',
     headers: profileHeaders('workflow'),
@@ -480,7 +537,7 @@ await step('18 complete workflow and verify final state', async () => {
   return { detail: `instance_status=${instance.status}, record_status=${record.status}`, statusCode: out.status }
 })
 
-await step('19 workflow event audit trail is readable', async () => {
+await step('21 workflow event audit trail is readable', async () => {
   const out = await api(`/api/instance_events?instance_id=eq.${filterValue(created.workflowInstanceId)}&select=id,event_type,from_task_id,to_task_id&order=id.asc`, {
     headers: profileHeaders('workflow')
   })
@@ -492,7 +549,7 @@ await step('19 workflow event audit trail is readable', async () => {
   return { detail: `events=${eventTypes}`, statusCode: out.status }
 })
 
-await step('20 HR archive create-update-delete closes loop', async () => {
+await step('22 HR archive create-update-delete closes loop', async () => {
   const create = await api('/api/archives', {
     method: 'POST',
     headers: profileHeaders('hr', { Prefer: 'return=representation' }),
@@ -530,7 +587,7 @@ await step('20 HR archive create-update-delete closes loop', async () => {
   return `archive_id=${deletedId} deleted`
 })
 
-await step('21 SCM warehouse create-update-delete closes loop', async () => {
+await step('23 SCM warehouse create-update-delete closes loop', async () => {
   const create = await api('/api/warehouses', {
     method: 'POST',
     headers: profileHeaders('scm', { Prefer: 'return=representation' }),

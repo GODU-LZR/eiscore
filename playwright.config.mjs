@@ -5,6 +5,11 @@ import { defineConfig, devices } from '@playwright/test'
 
 const baseURL = (process.env.EISCORE_E2E_BASE_URL || process.env.EISCORE_BASE_URL || 'http://localhost:8080')
   .replace(/\/+$/, '')
+const isRemoteTarget = !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(baseURL)
+const configuredRetries = process.env.EISCORE_E2E_RETRIES
+const configuredWorkers = process.env.EISCORE_E2E_WORKERS
+const retries = configuredRetries === undefined ? (isRemoteTarget ? 1 : 0) : Number(configuredRetries)
+const workers = configuredWorkers === undefined ? (isRemoteTarget ? 1 : undefined) : Number(configuredWorkers)
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -12,6 +17,8 @@ export default defineConfig({
   expect: {
     timeout: 15_000
   },
+  retries,
+  workers,
   fullyParallel: false,
   reporter: [
     ['list'],

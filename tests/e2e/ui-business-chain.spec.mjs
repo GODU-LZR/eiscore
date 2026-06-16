@@ -16,6 +16,7 @@ test.setTimeout(420_000)
 const KEEP_DATA = process.env.EISCORE_E2E_CHAIN_KEEP_DATA === '1'
 const DATA_TABLE = process.env.EISCORE_E2E_CHAIN_TABLE || process.env.EISCORE_CHAIN_TABLE || 'eiscore_chain_test_records'
 const DATA_TABLE_QUALIFIED = `app_data.${DATA_TABLE}`
+const API_TIMEOUT_MS = Number(process.env.EISCORE_E2E_API_TIMEOUT_MS || 45_000)
 
 const dataColumns = [
   { field: 'title', label: 'Title', type: 'text' },
@@ -46,7 +47,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function api(request, auth, path, { method = 'GET', schema = 'public', data, headers = {}, timeout = 20_000 } = {}) {
+async function api(request, auth, path, { method = 'GET', schema = 'public', data, headers = {}, timeout = API_TIMEOUT_MS } = {}) {
   const response = await request.fetch(path, {
     method,
     headers: profileHeaders(auth.token, schema, headers),

@@ -308,6 +308,99 @@
             </div>
 
             <div v-else class="workflow-panel">
+              <el-divider content-position="left">V2 策略</el-divider>
+              <div class="workflow-config-toolbar">
+                <el-button type="primary" plain size="small" @click="openWorkflowPolicyDialog">
+                  <el-icon><Edit /></el-icon>
+                  <span>编辑策略</span>
+                </el-button>
+                <el-button size="small" @click="openWorkflowRuleDialog()">
+                  <el-icon><CirclePlusFilled /></el-icon>
+                  <span>新增规则</span>
+                </el-button>
+                <el-button
+                  size="small"
+                  :loading="workflowRuleGenerating"
+                  :disabled="!stateMappings.length"
+                  @click="generateWorkflowTransitionRules"
+                >
+                  <el-icon><Document /></el-icon>
+                  <span>生成规则</span>
+                </el-button>
+                <el-button size="small" @click="refreshWorkflowData">
+                  <el-icon><Refresh /></el-icon>
+                  <span>刷新</span>
+                </el-button>
+              </div>
+              <div class="workflow-policy-grid">
+                <div class="workflow-policy-item">
+                  <span>权限模式</span>
+                  <el-tag size="small" :type="workflowPolicyModeTagType">
+                    {{ workflowPolicyModeLabel }}
+                  </el-tag>
+                </div>
+                <div class="workflow-policy-item">
+                  <span>权限域</span>
+                  <strong>{{ workflowPolicyEffective.acl_module || '-' }}</strong>
+                </div>
+                <div class="workflow-policy-item">
+                  <span>任务分派</span>
+                  <strong>{{ formatPolicyBool(workflowPolicyEffective.enforce_assignment) }}</strong>
+                </div>
+                <div class="workflow-policy-item">
+                  <span>流程权限</span>
+                  <strong>{{ formatPolicyBool(workflowPolicyEffective.enforce_workflow_op_perm) }}</strong>
+                </div>
+                <div class="workflow-policy-item">
+                  <span>状态迁移</span>
+                  <strong>{{ formatPolicyBool(workflowPolicyEffective.enforce_status_transition_perm) }}</strong>
+                </div>
+                <div class="workflow-policy-item">
+                  <span>旧码兜底</span>
+                  <strong>{{ workflowPolicyEffective.legacy_fallback_enabled ? '允许' : '关闭' }}</strong>
+                </div>
+              </div>
+              <el-table v-if="workflowTransitionRules.length" :data="workflowTransitionRules" size="small" border>
+                <el-table-column label="来源任务" min-width="120">
+                  <template #default="{ row }">{{ formatTaskName(row?.from_task_id) }}</template>
+                </el-table-column>
+                <el-table-column label="目标任务" min-width="120">
+                  <template #default="{ row }">{{ formatTaskName(row?.to_task_id) }}</template>
+                </el-table-column>
+                <el-table-column label="状态迁移" min-width="150">
+                  <template #default="{ row }">
+                    {{ formatTransitionStatePair(row?.from_state, row?.to_state) }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="required_permission" label="必需权限" min-width="220" show-overflow-tooltip />
+                <el-table-column label="状态" width="86">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row?.is_active === false ? 'info' : 'success'">
+                      {{ row?.is_active === false ? '停用' : '启用' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="170" fixed="right">
+                  <template #default="{ row }">
+                    <el-button link type="primary" size="small" @click="openWorkflowRuleDialog(row)">
+                      编辑
+                    </el-button>
+                    <el-button
+                      link
+                      :type="row?.is_active === false ? 'success' : 'warning'"
+                      size="small"
+                      @click="toggleWorkflowTransitionRule(row)"
+                    >
+                      {{ row?.is_active === false ? '启用' : '停用' }}
+                    </el-button>
+                    <el-button link type="danger" size="small" @click="deleteWorkflowTransitionRule(row)">
+                      删除
+                    </el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-else description="暂无显式迁移规则" />
+
               <el-divider content-position="left">状态映射</el-divider>
               <el-table v-if="stateMappings.length" :data="stateMappings" size="small" border>
                 <el-table-column label="任务" min-width="160">
@@ -458,6 +551,143 @@
           </template>
         </el-dialog>
 
+        <el-dialog
+          v-if="appData.app_type === 'workflow'"
+          v-model="workflowPolicyDialogVisible"
+          title="V2 策略"
+          width="560px"
+          append-to-body
+          destroy-on-close
+        >
+          <el-form class="workflow-config-form" label-position="top">
+            <el-form-item label="权限域">
+              <el-input v-model="workflowPolicyDraft.acl_module" maxlength="80" />
+            </el-form-item>
+            <el-form-item label="权限模式">
+              <el-radio-group v-model="workflowPolicyDraft.permission_mode">
+                <el-radio-button label="compat">compat</el-radio-button>
+                <el-radio-button label="strict">strict</el-radio-button>
+              </el-radio-group>
+            </el-form-item>
+            <div class="workflow-switch-grid">
+              <el-form-item label="任务分派">
+                <el-switch v-model="workflowPolicyDraft.enforce_assignment" />
+              </el-form-item>
+              <el-form-item label="流程权限">
+                <el-switch v-model="workflowPolicyDraft.enforce_workflow_op_perm" />
+              </el-form-item>
+              <el-form-item label="状态迁移">
+                <el-switch v-model="workflowPolicyDraft.enforce_status_transition_perm" />
+              </el-form-item>
+              <el-form-item label="旧码兜底">
+                <el-switch v-model="workflowPolicyDraft.legacy_fallback_enabled" />
+              </el-form-item>
+            </div>
+          </el-form>
+          <template #footer>
+            <el-button @click="workflowPolicyDialogVisible = false">取消</el-button>
+            <el-button type="primary" :loading="workflowPolicySaving" @click="saveWorkflowPolicy">
+              保存
+            </el-button>
+          </template>
+        </el-dialog>
+
+        <el-dialog
+          v-if="appData.app_type === 'workflow'"
+          v-model="workflowRuleDialogVisible"
+          :title="workflowRuleDialogTitle"
+          width="680px"
+          append-to-body
+          destroy-on-close
+        >
+          <el-form class="workflow-config-form" label-position="top">
+            <div class="workflow-rule-grid">
+              <el-form-item label="来源任务">
+                <el-select
+                  v-model="workflowRuleDraft.from_task_id"
+                  filterable
+                  allow-create
+                  default-first-option
+                  clearable
+                >
+                  <el-option
+                    v-for="item in workflowTaskOptions"
+                    :key="`from-${item.value}`"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="目标任务">
+                <el-select
+                  v-model="workflowRuleDraft.to_task_id"
+                  filterable
+                  allow-create
+                  default-first-option
+                  clearable
+                >
+                  <el-option
+                    v-for="item in workflowTaskOptions"
+                    :key="`to-${item.value}`"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="来源状态">
+                <el-select
+                  v-model="workflowRuleDraft.from_state"
+                  filterable
+                  allow-create
+                  default-first-option
+                  clearable
+                  @change="syncWorkflowRulePermission()"
+                >
+                  <el-option
+                    v-for="item in workflowStateOptions"
+                    :key="`from-state-${item.value}`"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="目标状态">
+                <el-select
+                  v-model="workflowRuleDraft.to_state"
+                  filterable
+                  allow-create
+                  default-first-option
+                  clearable
+                  @change="syncWorkflowRulePermission()"
+                >
+                  <el-option
+                    v-for="item in workflowStateOptions"
+                    :key="`to-state-${item.value}`"
+                    :label="item.label"
+                    :value="item.value"
+                  />
+                </el-select>
+              </el-form-item>
+            </div>
+            <el-form-item label="必需权限">
+              <el-input v-model="workflowRuleDraft.required_permission" maxlength="180">
+                <template #append>
+                  <el-button @click="syncWorkflowRulePermission(true)">生成</el-button>
+                </template>
+              </el-input>
+            </el-form-item>
+            <el-form-item label="启用状态">
+              <el-switch v-model="workflowRuleDraft.is_active" />
+            </el-form-item>
+          </el-form>
+          <template #footer>
+            <el-button @click="workflowRuleDialogVisible = false">取消</el-button>
+            <el-button type="primary" :loading="workflowRuleSaving" @click="saveWorkflowRule">
+              保存
+            </el-button>
+          </template>
+        </el-dialog>
+
         <div v-else-if="appData.app_type === 'flash'" class="flash-runtime">
           <iframe
             v-if="flashRuntimeUrl"
@@ -493,7 +723,7 @@
 
 import { defineAsyncComponent, ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   CirclePlusFilled,
   CircleCheckFilled,
@@ -503,7 +733,8 @@ import {
   Document,
   Refresh,
   Pointer,
-  Promotion
+  Promotion,
+  Edit
 } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { hasPerm } from '@/utils/permission'
@@ -632,6 +863,31 @@ const prepareFlashRuntimeSource = async (row) => {
 
 const stateMappings = ref([])
 const taskAssignments = ref([])
+const workflowPolicy = ref(null)
+const workflowTransitionRules = ref([])
+const workflowPolicyDialogVisible = ref(false)
+const workflowPolicySaving = ref(false)
+const workflowPolicyDraft = reactive({
+  acl_module: '',
+  permission_mode: 'compat',
+  enforce_assignment: true,
+  enforce_workflow_op_perm: true,
+  enforce_status_transition_perm: true,
+  legacy_fallback_enabled: true
+})
+const workflowRuleDialogVisible = ref(false)
+const workflowRuleSaving = ref(false)
+const workflowRuleGenerating = ref(false)
+const workflowRuleEditingId = ref(null)
+const workflowRuleLastSuggestedPermission = ref('')
+const workflowRuleDraft = reactive({
+  from_task_id: '',
+  to_task_id: '',
+  from_state: '',
+  to_state: '',
+  required_permission: '',
+  is_active: true
+})
 const workflowDefinitionId = ref(null)
 const workflowInstances = ref([])
 const workflowStarterMap = ref({})
@@ -810,6 +1066,60 @@ const workflowBusinessAppName = computed(() => {
   const tableName = String(cfg.table || '').trim()
   return tableName ? `业务应用：${matched.name}（${tableName}）` : `业务应用：${matched.name}`
 })
+const workflowPolicyEffective = computed(() => {
+  const cfg = appData.value?.config && typeof appData.value.config === 'object' ? appData.value.config : {}
+  const policy = workflowPolicy.value && typeof workflowPolicy.value === 'object' ? workflowPolicy.value : {}
+  const fallbackModule = resolveAppAclModule(appData.value, cfg, runtimeAppId.value)
+  return {
+    acl_module: String(policy.acl_module || cfg.aclModule || fallbackModule || '').trim(),
+    permission_mode: String(policy.permission_mode || cfg.permission_mode || 'compat').trim().toLowerCase(),
+    enforce_assignment: normalizePolicyBool(policy.enforce_assignment, true),
+    enforce_workflow_op_perm: normalizePolicyBool(policy.enforce_workflow_op_perm, true),
+    enforce_status_transition_perm: normalizePolicyBool(policy.enforce_status_transition_perm, true),
+    legacy_fallback_enabled: normalizePolicyBool(policy.legacy_fallback_enabled, true),
+    source: workflowPolicy.value ? 'policy' : 'default'
+  }
+})
+const workflowPolicyModeLabel = computed(() => (
+  workflowPolicyEffective.value.permission_mode === 'strict' ? 'strict' : 'compat'
+))
+const workflowPolicyModeTagType = computed(() => (
+  workflowPolicyEffective.value.permission_mode === 'strict' ? 'danger' : 'success'
+))
+const workflowTaskOptions = computed(() => {
+  const ids = new Set()
+  Object.keys(taskNameMap.value || {}).forEach((id) => ids.add(String(id || '').trim()))
+  stateMappings.value.forEach((item) => ids.add(String(item?.bpmn_task_id || '').trim()))
+  taskAssignments.value.forEach((item) => ids.add(String(item?.task_id || '').trim()))
+  workflowTransitionRules.value.forEach((item) => {
+    ids.add(String(item?.from_task_id || '').trim())
+    ids.add(String(item?.to_task_id || '').trim())
+  })
+  return Array.from(ids)
+    .filter(Boolean)
+    .map((id) => ({ value: id, label: formatTaskName(id) }))
+    .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'zh-Hans-CN'))
+})
+const workflowStateOptions = computed(() => {
+  const values = new Set(WORKFLOW_STATUS_ORDER)
+  stateMappings.value.forEach((item) => {
+    values.add(String(item?.from_state || '').trim())
+    values.add(String(item?.state_value || '').trim())
+  })
+  workflowTransitionRules.value.forEach((item) => {
+    values.add(String(item?.from_state || '').trim())
+    values.add(String(item?.to_state || '').trim())
+  })
+  return Array.from(values)
+    .filter(Boolean)
+    .map((value) => ({ value, label: getWorkflowStateLabel(value) }))
+    .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'zh-Hans-CN'))
+})
+const workflowRuleDialogTitle = computed(() => (workflowRuleEditingId.value ? '编辑迁移规则' : '新增迁移规则'))
+const workflowRuleSuggestedPermission = computed(() => buildWorkflowTransitionPermission(
+  workflowRuleDraft.from_state,
+  workflowRuleDraft.to_state
+))
 
 const resolveTaskBusinessBinding = (taskId) => {
   const key = String(taskId || '').trim()
@@ -1244,6 +1554,8 @@ const formatWorkflowError = (fallback, error, rlsMessage = '') => {
       '任务未分配',
       'workflow start permission required',
       'workflow transition permission required',
+      'status transition rule required',
+      'status transition state mapping required',
       'status transition permission required',
       'current task is not assigned to current actor',
       'approval comment required'
@@ -1276,6 +1588,107 @@ const normalizeRequiredApprovals = (value) => {
 const formatApprovalMode = (value) => {
   const mode = normalizeApprovalMode(value)
   return APPROVAL_MODE_LABEL_MAP[mode] || mode
+}
+
+const normalizePolicyBool = (value, fallback = true) => {
+  if (value === true || value === false) return value
+  if (value === null || value === undefined || value === '') return fallback
+  const raw = String(value).trim().toLowerCase()
+  if (['true', '1', 'yes', 'on'].includes(raw)) return true
+  if (['false', '0', 'no', 'off'].includes(raw)) return false
+  return fallback
+}
+
+const formatPolicyBool = (value) => (value ? '开启' : '关闭')
+
+const formatTransitionStatePair = (fromState, toState) => {
+  const fromText = getWorkflowStateLabel(fromState)
+  const toText = getWorkflowStateLabel(toState)
+  if (fromText === '-' && toText === '-') return '-'
+  return `${fromText} -> ${toText}`
+}
+
+const normalizeStatusTokenForPermission = (value) => {
+  const raw = String(value || '').trim().toLowerCase()
+  if (!raw) return ''
+  const parts = []
+  for (const char of raw) {
+    if (/^[a-z0-9]$/.test(char)) {
+      parts.push(char)
+    } else if (/^[\s_.:-]$/.test(char)) {
+      parts.push('_')
+    } else {
+      parts.push(`_u${char.codePointAt(0).toString(16)}_`)
+    }
+  }
+  return parts.join('').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
+}
+
+const buildWorkflowTransitionPermission = (fromState, toState, appKeyOverride = '') => {
+  const appKey = String(
+    appKeyOverride
+    || (workflowPolicyDialogVisible.value ? workflowPolicyDraft.acl_module : '')
+    || workflowPolicyEffective.value.acl_module
+    || ''
+  ).trim()
+  const fromToken = normalizeStatusTokenForPermission(fromState)
+  const toToken = normalizeStatusTokenForPermission(toState)
+  if (!appKey || !fromToken || !toToken || fromToken === toToken) return ''
+  return `op:${appKey}.status_transition.${fromToken}_${toToken}`
+}
+
+const getWorkflowTransitionRuleKey = (row = {}) => ([
+  String(row?.from_task_id || '').trim(),
+  String(row?.to_task_id || '').trim(),
+  String(row?.from_state || '').trim(),
+  String(row?.to_state || '').trim()
+].join('\u001f'))
+
+const getStateMappingByTaskId = (taskId) => {
+  const key = String(taskId || '').trim()
+  if (!key) return null
+  return stateMappings.value.find((item) => String(item?.bpmn_task_id || '').trim() === key) || null
+}
+
+const buildGeneratedWorkflowTransitionRule = (fromTaskId, toTaskId, appKey = '') => {
+  const fromTask = String(fromTaskId || '').trim()
+  const toTask = String(toTaskId || '').trim()
+  if (!fromTask || !toTask || fromTask === toTask) return null
+  const fromMapping = getStateMappingByTaskId(fromTask)
+  const toMapping = getStateMappingByTaskId(toTask)
+  const fromState = String(fromMapping?.state_value || '').trim()
+  const toState = String(toMapping?.state_value || '').trim()
+  if (!fromState || !toState) return null
+  if (normalizeStatusTokenForPermission(fromState) === normalizeStatusTokenForPermission(toState)) return null
+  return {
+    workflow_app_id: runtimeAppId.value,
+    from_task_id: fromTask,
+    to_task_id: toTask,
+    from_state: fromState,
+    to_state: toState,
+    required_permission: buildWorkflowTransitionPermission(fromState, toState, appKey) || null,
+    is_active: true
+  }
+}
+
+const getGeneratedWorkflowTransitionRuleCandidates = () => {
+  const appKey = String(workflowPolicyEffective.value.acl_module || '').trim()
+  const seen = new Set()
+  const candidates = []
+  stateMappings.value.forEach((mapping) => {
+    const fromTask = String(mapping?.bpmn_task_id || '').trim()
+    if (!fromTask) return
+    const nextTasks = resolveNextTaskCandidatesByGraph(fromTask)
+    nextTasks.forEach((toTask) => {
+      const candidate = buildGeneratedWorkflowTransitionRule(fromTask, toTask, appKey)
+      if (!candidate) return
+      const key = getWorkflowTransitionRuleKey(candidate)
+      if (seen.has(key)) return
+      seen.add(key)
+      candidates.push(candidate)
+    })
+  })
+  return candidates
 }
 
 const formatEventComment = (row) => {
@@ -2188,12 +2601,16 @@ async function loadRuntimeData() {
     await loadWorkflowBusinessApps()
     await initializeBpmnViewer()
     await loadStateMappings()
+    await loadWorkflowPolicy()
+    await loadWorkflowTransitionRules()
     await ensureWorkflowDefinitionId()
     await refreshWorkflowData()
   }
 }
 
 async function refreshWorkflowData() {
+  await loadWorkflowPolicy()
+  await loadWorkflowTransitionRules()
   await loadTaskAssignments()
   await loadWorkflowInstances()
   await refreshWorkflowBusinessProgress()
@@ -2251,6 +2668,304 @@ async function loadStateMappings() {
     stateMappings.value = Array.isArray(response.data) ? response.data : []
   } catch {
     ElMessage.error('加载状态映射失败')
+  }
+}
+
+async function loadWorkflowPolicy() {
+  if (!runtimeAppId.value) {
+    workflowPolicy.value = null
+    return
+  }
+  try {
+    const token = localStorage.getItem('auth_token')
+    const response = await axios.get(
+      `/api/workflow_permission_policies?workflow_app_id=eq.${runtimeAppId.value}&limit=1`,
+      { headers: getAppCenterHeaders(token) }
+    )
+    workflowPolicy.value = Array.isArray(response.data) ? (response.data[0] || null) : null
+  } catch {
+    workflowPolicy.value = null
+  }
+}
+
+async function loadWorkflowTransitionRules() {
+  if (!runtimeAppId.value) {
+    workflowTransitionRules.value = []
+    return
+  }
+  try {
+    const token = localStorage.getItem('auth_token')
+    const response = await axios.get(
+      `/api/workflow_transition_rules?workflow_app_id=eq.${runtimeAppId.value}&order=is_active.desc,id.asc`,
+      { headers: getAppCenterHeaders(token) }
+    )
+    workflowTransitionRules.value = Array.isArray(response.data) ? response.data : []
+  } catch {
+    workflowTransitionRules.value = []
+  }
+}
+
+function resetWorkflowPolicyDraft() {
+  const policy = workflowPolicyEffective.value
+  workflowPolicyDraft.acl_module = String(policy.acl_module || '').trim()
+  workflowPolicyDraft.permission_mode = policy.permission_mode === 'strict' ? 'strict' : 'compat'
+  workflowPolicyDraft.enforce_assignment = normalizePolicyBool(policy.enforce_assignment, true)
+  workflowPolicyDraft.enforce_workflow_op_perm = normalizePolicyBool(policy.enforce_workflow_op_perm, true)
+  workflowPolicyDraft.enforce_status_transition_perm = normalizePolicyBool(policy.enforce_status_transition_perm, true)
+  workflowPolicyDraft.legacy_fallback_enabled = normalizePolicyBool(policy.legacy_fallback_enabled, true)
+}
+
+function openWorkflowPolicyDialog() {
+  resetWorkflowPolicyDraft()
+  workflowPolicyDialogVisible.value = true
+}
+
+async function saveWorkflowPolicy() {
+  if (!runtimeAppId.value) return
+  const aclModule = String(workflowPolicyDraft.acl_module || '').trim()
+  if (!aclModule) {
+    ElMessage.warning('请填写权限域')
+    return
+  }
+  workflowPolicySaving.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    const response = await axios.post(
+      '/api/workflow_permission_policies?on_conflict=workflow_app_id',
+      {
+        workflow_app_id: runtimeAppId.value,
+        acl_module: aclModule,
+        permission_mode: workflowPolicyDraft.permission_mode === 'strict' ? 'strict' : 'compat',
+        enforce_assignment: Boolean(workflowPolicyDraft.enforce_assignment),
+        enforce_workflow_op_perm: Boolean(workflowPolicyDraft.enforce_workflow_op_perm),
+        enforce_status_transition_perm: Boolean(workflowPolicyDraft.enforce_status_transition_perm),
+        legacy_fallback_enabled: Boolean(workflowPolicyDraft.legacy_fallback_enabled)
+      },
+      {
+        headers: {
+          ...getAppCenterHeaders(token),
+          Prefer: 'resolution=merge-duplicates,return=representation'
+        }
+      }
+    )
+    workflowPolicy.value = unwrapSingleRow(response.data)
+    workflowPolicyDialogVisible.value = false
+    ElMessage.success('V2 策略已保存')
+    await loadWorkflowPolicy()
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('保存 V2 策略失败', error))
+  } finally {
+    workflowPolicySaving.value = false
+  }
+}
+
+function resetWorkflowRuleDraft(row = null) {
+  workflowRuleEditingId.value = row?.id || null
+  workflowRuleDraft.from_task_id = String(row?.from_task_id || '').trim()
+  workflowRuleDraft.to_task_id = String(row?.to_task_id || '').trim()
+  workflowRuleDraft.from_state = String(row?.from_state || '').trim()
+  workflowRuleDraft.to_state = String(row?.to_state || '').trim()
+  workflowRuleDraft.required_permission = String(row?.required_permission || '').trim()
+  workflowRuleDraft.is_active = row ? row?.is_active !== false : true
+  workflowRuleLastSuggestedPermission.value = buildWorkflowTransitionPermission(
+    workflowRuleDraft.from_state,
+    workflowRuleDraft.to_state
+  )
+  if (!row && workflowRuleLastSuggestedPermission.value) {
+    workflowRuleDraft.required_permission = workflowRuleLastSuggestedPermission.value
+  }
+}
+
+function openWorkflowRuleDialog(row = null) {
+  resetWorkflowRuleDraft(row)
+  workflowRuleDialogVisible.value = true
+}
+
+function syncWorkflowRulePermission(force = false) {
+  const suggested = workflowRuleSuggestedPermission.value
+  if (!suggested) return
+  const current = String(workflowRuleDraft.required_permission || '').trim()
+  if (force || !current || current === workflowRuleLastSuggestedPermission.value) {
+    workflowRuleDraft.required_permission = suggested
+  }
+  workflowRuleLastSuggestedPermission.value = suggested
+}
+
+function buildWorkflowRulePayload() {
+  const fromTask = String(workflowRuleDraft.from_task_id || '').trim()
+  const toTask = String(workflowRuleDraft.to_task_id || '').trim()
+  const fromState = String(workflowRuleDraft.from_state || '').trim()
+  const toState = String(workflowRuleDraft.to_state || '').trim()
+  if (!fromTask || !toTask) {
+    ElMessage.warning('请选择来源任务和目标任务')
+    return null
+  }
+  if (!fromState || !toState) {
+    ElMessage.warning('请选择来源状态和目标状态')
+    return null
+  }
+  if (normalizeStatusTokenForPermission(fromState) === normalizeStatusTokenForPermission(toState)) {
+    ElMessage.warning('来源状态和目标状态不能相同')
+    return null
+  }
+  if (!String(workflowRuleDraft.required_permission || '').trim()) {
+    syncWorkflowRulePermission(true)
+  }
+  return {
+    workflow_app_id: runtimeAppId.value,
+    from_task_id: fromTask,
+    to_task_id: toTask,
+    from_state: fromState,
+    to_state: toState,
+    required_permission: String(workflowRuleDraft.required_permission || '').trim() || null,
+    is_active: Boolean(workflowRuleDraft.is_active)
+  }
+}
+
+async function saveWorkflowRule() {
+  if (!runtimeAppId.value) return
+  const payload = buildWorkflowRulePayload()
+  if (!payload) return
+  workflowRuleSaving.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    const id = workflowRuleEditingId.value
+    const response = id
+      ? await axios.patch(
+        `/api/workflow_transition_rules?id=eq.${encodeURIComponent(String(id))}`,
+        payload,
+        { headers: { ...getAppCenterHeaders(token), Prefer: 'return=representation' } }
+      )
+      : await axios.post(
+        '/api/workflow_transition_rules',
+        payload,
+        { headers: { ...getAppCenterHeaders(token), Prefer: 'return=representation' } }
+      )
+    const saved = unwrapSingleRow(response.data)
+    if (saved?.id) {
+      const index = workflowTransitionRules.value.findIndex((item) => String(item?.id) === String(saved.id))
+      if (index >= 0) workflowTransitionRules.value.splice(index, 1, saved)
+      else workflowTransitionRules.value.push(saved)
+    }
+    workflowRuleDialogVisible.value = false
+    ElMessage.success('迁移规则已保存')
+    await loadWorkflowTransitionRules()
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('保存迁移规则失败', error))
+  } finally {
+    workflowRuleSaving.value = false
+  }
+}
+
+async function toggleWorkflowTransitionRule(row) {
+  if (!row?.id) return
+  try {
+    const token = localStorage.getItem('auth_token')
+    const nextActive = row?.is_active === false
+    await axios.patch(
+      `/api/workflow_transition_rules?id=eq.${encodeURIComponent(String(row.id))}`,
+      { is_active: nextActive },
+      { headers: { ...getAppCenterHeaders(token), Prefer: 'return=representation' } }
+    )
+    ElMessage.success(nextActive ? '迁移规则已启用' : '迁移规则已停用')
+    await loadWorkflowTransitionRules()
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('更新迁移规则失败', error))
+  }
+}
+
+async function deleteWorkflowTransitionRule(row) {
+  if (!row?.id) return
+  try {
+    await ElMessageBox.confirm('确定删除这条迁移规则吗？', '确认删除', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    })
+  } catch {
+    return
+  }
+  try {
+    const token = localStorage.getItem('auth_token')
+    await axios.delete(
+      `/api/workflow_transition_rules?id=eq.${encodeURIComponent(String(row.id))}`,
+      { headers: getAppCenterHeaders(token) }
+    )
+    ElMessage.success('迁移规则已删除')
+    await loadWorkflowTransitionRules()
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('删除迁移规则失败', error))
+  }
+}
+
+async function generateWorkflowTransitionRules() {
+  if (!runtimeAppId.value) return
+  const candidates = getGeneratedWorkflowTransitionRuleCandidates()
+  if (!candidates.length) {
+    ElMessage.warning('没有可生成的迁移规则，请先确认流程连线和状态映射')
+    return
+  }
+
+  const existingMap = new Map()
+  workflowTransitionRules.value.forEach((row) => {
+    const key = getWorkflowTransitionRuleKey(row)
+    if (key) existingMap.set(key, row)
+  })
+  const toCreate = []
+  const toReactivate = []
+  candidates.forEach((candidate) => {
+    const existing = existingMap.get(getWorkflowTransitionRuleKey(candidate))
+    if (!existing) {
+      toCreate.push(candidate)
+      return
+    }
+    if (existing?.is_active === false) {
+      toReactivate.push({ existing, candidate })
+    }
+  })
+
+  if (!toCreate.length && !toReactivate.length) {
+    ElMessage.success('显式迁移规则已齐备')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将新增 ${toCreate.length} 条规则，并启用 ${toReactivate.length} 条停用规则。`,
+      '生成迁移规则',
+      {
+        type: 'info',
+        confirmButtonText: '生成',
+        cancelButtonText: '取消'
+      }
+    )
+  } catch {
+    return
+  }
+
+  workflowRuleGenerating.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    const headers = {
+      ...getAppCenterHeaders(token),
+      Prefer: 'return=representation'
+    }
+    if (toCreate.length) {
+      await axios.post('/api/workflow_transition_rules', toCreate, { headers })
+    }
+    for (const item of toReactivate) {
+      await axios.patch(
+        `/api/workflow_transition_rules?id=eq.${encodeURIComponent(String(item.existing.id))}`,
+        item.candidate,
+        { headers }
+      )
+    }
+    ElMessage.success(`迁移规则已生成：新增 ${toCreate.length} 条，启用 ${toReactivate.length} 条`)
+    await loadWorkflowTransitionRules()
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('生成迁移规则失败', error))
+  } finally {
+    workflowRuleGenerating.value = false
   }
 }
 
@@ -3156,6 +3871,62 @@ function goBack() {
   color: var(--el-text-color-secondary);
 }
 
+.workflow-config-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.workflow-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workflow-policy-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.workflow-policy-item span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.workflow-policy-item strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workflow-config-form {
+  min-width: 0;
+}
+
+.workflow-switch-grid,
+.workflow-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+}
+
+.workflow-config-form :deep(.el-select) {
+  width: 100%;
+}
+
 .instance-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -3493,6 +4264,12 @@ function goBack() {
     width: 0;
     max-height: 0;
     border-width: 0;
+  }
+
+  .workflow-policy-grid,
+  .workflow-switch-grid,
+  .workflow-rule-grid {
+    grid-template-columns: 1fr;
   }
 
   .task-card-meta {
