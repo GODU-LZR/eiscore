@@ -16,6 +16,7 @@ const {
   getSmartBiWorkbenchCards,
   routeSmartBiQuestion,
   buildSmartBiContext,
+  buildSmartBiReportRequest,
   getSmartBiCommonQuestions,
   getSmartBiMetricDefinitions,
   formatSmartBiMetricDefinitionsForPrompt,
@@ -77,6 +78,18 @@ assert.ok(
   'each card should carry computed risk state'
 )
 assert.equal(cards[0].riskLevel, 'warning', 'overview should aggregate warning domain risk')
+
+const salesReportRequest = buildSmartBiReportRequest(cards.find((card) => card.key === 'sales'), {
+  snapshotTime: '2026-06-16T00:00:00.000Z',
+  sales: { orderAmount: 128000, ordersTotal: 7, receivableBalance: 32000 }
+})
+assert.equal(salesReportRequest.displayText, '智能 BI：销售分析', 'card report request should expose a compact display text')
+assert.equal(salesReportRequest.context.reportMode, 'workbench_card', 'card report request should mark report mode')
+assert.equal(salesReportRequest.context.route.key, 'sales', 'card report request should pin the routed domain')
+assert.equal(salesReportRequest.context.selectedCard.key, 'sales', 'card report request should carry selected card context')
+assert.ok(salesReportRequest.prompt.includes('智能 BI 标准分析报告'), 'card report request should ask for a standard report')
+assert.ok(salesReportRequest.prompt.includes('当前前端快照摘要'), 'card report request should carry a snapshot excerpt')
+assert.ok(salesReportRequest.prompt.includes('ECharts JSON'), 'card report request should require charts')
 
 const emptyRisk = getSmartBiCardRisk('sales')
 assert.equal(emptyRisk.riskLevel, 'focus', 'empty snapshot should wait for realtime data')

@@ -22,6 +22,12 @@ Run only the Smart BI config and routing regression:
 npm run test:smart-bi
 ```
 
+Run only the EISGrid agent Chinese query semantic regression:
+
+```bash
+npm run test:grid-agent
+```
+
 Build all frontend applications:
 
 ```bash
@@ -253,7 +259,10 @@ Ubuntu releases).
   Playwright config, and the realtime runtime entrypoint before heavier tests run.
 - `test:unit` is service-free and deterministic.
 - `test:smart-bi` verifies Smart BI domain routing, output sections, workbench
-  cards, and common question prompts.
+  cards, risk state, workbench card report requests, and common question prompts.
+- `test:grid-agent` verifies Chinese data-query intent routing, grouped-count
+  inference, PostgREST payload construction, and controlled query prompt
+  formatting for EISGrid agent answers.
 - `build:frontends` verifies all Vue/Vite micro-frontends compile.
 - `test:smoke` verifies login, deep-link routing, PostgREST profiles, agent health,
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
@@ -280,5 +289,5 @@ Ubuntu releases).
   one repeatable remote acceptance suite. Use `test:engineering:remote:api` when
   validating backend/API behavior without the longer browser pass.
 
-The next layer should add component/unit tests for shared grid utilities and an
-agent semantic regression runner for the Chinese query test set.
+The next layer should add component/unit tests for shared grid visual utilities
+and broaden the Chinese semantic query set with production user questions.

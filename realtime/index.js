@@ -1259,7 +1259,16 @@ const buildSmartBiPromptBlock = (smartBi, latestUserText = '') => {
     : getSmartBiMetricDefinitions(route.key);
   const catalogLines = catalog.map((domain) => `- ${domain.label}：${domain.metrics.join('、')}`).join('\n');
   const metricLines = metricDefinitions.map((item) => `- ${item.label}：口径=${item.formula}；默认图表=${item.chart}；风险阈值=${item.riskRule}；负责方向=${item.owner}`).join('\n');
-  return `\n\n【智能 BI 指标目录与问题路由】\n当前问题路由：${route.label || '经营总览'}（${route.key || 'overview'}，置信度：${route.confidence || 'auto'}）。${route.matchedKeywords?.length ? `命中关键词：${route.matchedKeywords.join('、')}。` : ''}\n内置指标目录：\n${catalogLines}\n\n【固定指标口径/图表模板/风险阈值】\n${metricLines}\n标准输出模板：每次回答必须稳定包含“关键指标、指标图表、风险提醒、行动建议”。关键指标要说明口径和值；指标图表优先按默认图表模板输出 ECharts JSON；风险要按阈值和业务影响分级并指出影响对象；建议要包含负责方向、时间节点和目标。`;
+  const selectedCard = smartBi?.selectedCard && typeof smartBi.selectedCard === 'object'
+    ? smartBi.selectedCard
+    : null;
+  const selectedCardBlock = selectedCard
+    ? `\n\n【当前智能 BI 指标卡】\n- 卡片：${selectedCard.label || route.label || '经营总览'}\n- 业务说明：${selectedCard.desc || ''}\n- 主指标：${selectedCard.metricLabel || '核心指标'} = ${selectedCard.metricValue || '--'}\n- 辅助指标：${selectedCard.subLabel || '辅助指标'} = ${selectedCard.subValue || '--'}\n- 风险指标：${selectedCard.riskLabel || '风险指标'} = ${selectedCard.riskValue || '--'}\n- 风险状态：${selectedCard.riskStatusLabel || '--'}（${selectedCard.riskLevel || 'auto'}）\n- 风险原因：${selectedCard.riskReason || '暂无'}\n- 指标口径：${selectedCard.metricDefinition || '按系统当前业务快照统计'}\n- 默认图表：${selectedCard.chartTemplate || '按业务场景生成结构/趋势图'}\n- 负责方向：${selectedCard.owner || '业务负责人'}`
+    : '';
+  const reportModeLine = smartBi?.reportMode === 'workbench_card'
+    ? '\n当前请求来自智能 BI 工作台指标卡点击。请按标准 BI 报告输出，不要只回答一句话。'
+    : '';
+  return `\n\n【智能 BI 指标目录与问题路由】\n当前问题路由：${route.label || '经营总览'}（${route.key || 'overview'}，置信度：${route.confidence || 'auto'}）。${route.matchedKeywords?.length ? `命中关键词：${route.matchedKeywords.join('、')}。` : ''}${reportModeLine}\n内置指标目录：\n${catalogLines}${selectedCardBlock}\n\n【固定指标口径/图表模板/风险阈值】\n${metricLines}\n标准输出模板：每次回答必须稳定包含“关键指标、指标图表、风险提醒、行动建议”。关键指标要说明口径和值；指标图表优先按默认图表模板输出 ECharts JSON；风险要按阈值和业务影响分级并指出影响对象；建议要包含负责方向、时间节点和目标。`;
 };
 
 const buildGridAgentRuleBlock = (context) => {

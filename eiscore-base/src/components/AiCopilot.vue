@@ -378,6 +378,7 @@ import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
 import {
   SMART_BI_COMMON_QUESTIONS,
+  buildSmartBiReportRequest,
   getSmartBiWorkbenchCards
 } from '@shared/smart-bi-config'
 import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
@@ -2417,10 +2418,13 @@ const loadSmartBiSnapshot = async (force = false) => {
 }
 
 const runSmartBiCard = (card) => {
+  const request = buildSmartBiReportRequest(card, smartBiSnapshot.value || {})
   runQuickAction({
     key: `smart_bi_workbench_${card.key}`,
     label: card.label,
-    prompt: card.prompt,
+    prompt: request.prompt,
+    displayText: request.displayText,
+    smartBiContext: request.context,
     mode: 'enterprise'
   })
 }
@@ -2436,7 +2440,10 @@ const runQuickAction = (action) => {
     if (action.allowFormula !== undefined) context.allowFormula = !!action.allowFormula
     if (action.allowFormulaOnce !== undefined) context.allowFormulaOnce = !!action.allowFormulaOnce
   }
-  aiBridge.sendMessage(action.prompt)
+  aiBridge.sendMessage(action.displayText || action.prompt, {
+    payloadText: action.prompt,
+    smartBiContext: action.smartBiContext || null
+  })
 }
 
 const retryMessage = (index) => {

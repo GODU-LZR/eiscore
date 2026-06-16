@@ -20,6 +20,22 @@ const MAX_MESSAGES_PER_SESSION = 50
 const HISTORY_WINDOW = 8
 const CODE_FENCE = '```'
 
+const replaceLatestUserPayloadText = (messages, text) => {
+  if (!text) return false
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i]
+    if (message?.role !== 'user') continue
+    if (Array.isArray(message.content)) {
+      const nonTextParts = message.content.filter((part) => part?.type && part.type !== 'text')
+      message.content = [...nonTextParts, { type: 'text', text }]
+    } else {
+      message.content = text
+    }
+    return true
+  }
+  return false
+}
+
 let xlsxModulePromise = null
 const loadXlsx = async () => {
   xlsxModulePromise ||= import('xlsx')
@@ -267,7 +283,11 @@ class AiBridge {
     if (!session || !target || target.role !== 'user') return
 
     session.messages.splice(index + 1)
-    this.sendMessage(target.content, { isRetry: true })
+    this.sendMessage(target.content, {
+      isRetry: true,
+      payloadText: target.payloadText || '',
+      smartBiContext: target.smartBiContext || null
+    })
   }
 
   toggleWindow() {
@@ -451,7 +471,7 @@ class AiBridge {
     }))
   }
 
-  async sendMessage(userText, { isRetry = false, silentRetryCount = 0 } = {}) {
+  async sendMessage(userText, { isRetry = false, silentRetryCount = 0, payloadText = '', smartBiContext = null } = {}) {
     if ((!userText && this.state.selectedFiles.length === 0) && !isRetry) return
     if (this.state.isLoading) return
 
@@ -464,6 +484,7 @@ class AiBridge {
     const effectiveUserText = (!normalizedUserText && this.state.assistantMode === 'worker' && hasImportFile && context?.importTarget)
       ? '请读取我上传的表格文件，整理成当前表格可以导入的数据，并输出 data-import。'
       : userText
+    const effectivePayloadText = String(payloadText || effectiveUserText || '').trim()
 
     if (!isRetry) {
       const userMsg = {
@@ -471,6 +492,12 @@ class AiBridge {
         content: effectiveUserText,
         files: selectedFiles,
         time: Date.now()
+      }
+      if (effectivePayloadText && effectivePayloadText !== String(effectiveUserText || '').trim()) {
+        Object.defineProperty(userMsg, 'payloadText', { value: effectivePayloadText, enumerable: false })
+      }
+      if (smartBiContext) {
+        Object.defineProperty(userMsg, 'smartBiContext', { value: smartBiContext, enumerable: false })
       }
       session.messages.push(userMsg)
       if (session.messages.length <= 3) {
@@ -489,17 +516,20 @@ class AiBridge {
     if (!this.config) await this.loadConfig()
     let silentRetryNeeded = false
     try {
-      const serverGridResult = await this.prefetchGridAgentQuery(effectiveUserText, context)
+      const serverGridResult = await this.prefetchGridAgentQuery(effectivePayloadText || effectiveUserText, context)
       const serverGridText = formatGridAgentQueryResultForPrompt(serverGridResult)
       const historyWindow = await this.buildPayloadMessages(session.messages)
+      if (effectivePayloadText && effectivePayloadText !== String(effectiveUserText || '').trim()) {
+        replaceLatestUserPayloadText(historyWindow, effectivePayloadText)
+      }
       if (serverGridText && historyWindow.length) {
         const lastMessage = historyWindow[historyWindow.length - 1]
         if (Array.isArray(lastMessage?.content)) {
           lastMessage.content.push({ type: 'text', text: serverGridText })
         }
       }
-      const smartBiContext = this.state.assistantMode === 'enterprise'
-        ? buildSmartBiContext(effectiveUserText)
+      const smartBiContextPayload = this.state.assistantMode === 'enterprise'
+        ? (smartBiContext || buildSmartBiContext(effectivePayloadText || effectiveUserText))
         : null
       let contextPayload = this.state.currentContext
         ? {
@@ -507,10 +537,10 @@ class AiBridge {
             ...(serverGridResult ? { gridAgentServerResult: serverGridResult } : {})
           }
         : (serverGridResult ? { gridAgentServerResult: serverGridResult } : null)
-      if (smartBiContext) {
+      if (smartBiContextPayload) {
         contextPayload = {
           ...(contextPayload || {}),
-          smartBi: smartBiContext
+          smartBi: smartBiContextPayload
         }
       }
       if (contextPayload?.allowFormulaOnce) {
@@ -602,7 +632,12 @@ class AiBridge {
     if (silentRetryNeeded) {
       const waitMs = 220 * (silentRetryCount + 1)
       await new Promise((resolve) => setTimeout(resolve, waitMs))
-      return this.sendMessage(effectiveUserText, { isRetry: true, silentRetryCount: silentRetryCount + 1 })
+      return this.sendMessage(effectiveUserText, {
+        isRetry: true,
+        silentRetryCount: silentRetryCount + 1,
+        payloadText: effectivePayloadText,
+        smartBiContext
+      })
     }
   }
 

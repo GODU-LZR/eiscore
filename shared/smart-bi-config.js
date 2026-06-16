@@ -181,6 +181,47 @@ const buildRiskState = (level = 'normal', reason = '暂无明显异常', label =
   }
 }
 
+const compactSmartBiCardForPrompt = (card = {}) => ({
+  key: card.key || 'overview',
+  label: card.label || '经营总览',
+  desc: card.desc || '',
+  metricLabel: card.metricLabel || '',
+  metricValue: card.metricValue || '',
+  subLabel: card.subLabel || '',
+  subValue: card.subValue || '',
+  riskLabel: card.riskLabel || '',
+  riskValue: card.riskValue || '',
+  riskLevel: card.riskLevel || '',
+  riskStatusLabel: card.riskStatusLabel || '',
+  riskReason: card.riskReason || '',
+  metricDefinition: card.metricDefinition || '',
+  chartTemplate: card.chartTemplate || '',
+  riskRule: card.riskRule || '',
+  owner: card.owner || ''
+})
+
+const stringifySmartBiSnapshotExcerpt = (domainKey = 'overview', snapshot = {}, maxLength = 4200) => {
+  if (!snapshot || typeof snapshot !== 'object' || Object.keys(snapshot).length === 0) {
+    return '暂无前端快照摘要，若系统已注入企业实时数据快照，请以系统快照为准。'
+  }
+
+  const picked = { snapshotTime: snapshot.snapshotTime || '' }
+  if (domainKey === 'overview') {
+    SMART_BI_DOMAINS.forEach((domain) => {
+      if (snapshot[domain.key]) picked[domain.key] = snapshot[domain.key]
+    })
+  } else if (snapshot[domainKey]) {
+    picked[domainKey] = snapshot[domainKey]
+  }
+
+  try {
+    const text = JSON.stringify(picked, null, 2)
+    return text.length > maxLength ? `${text.slice(0, maxLength)}\n...（快照摘要已截断，完整快照以系统注入为准）` : text
+  } catch {
+    return '快照摘要序列化失败，请以系统注入的企业实时数据快照为准。'
+  }
+}
+
 export const getSmartBiCardRisk = (key, snapshot = {}) => {
   if (!snapshot?.snapshotTime && Object.keys(snapshot || {}).length === 0) {
     return buildRiskState('focus', '等待企业实时数据快照', '待刷新')
@@ -453,16 +494,78 @@ export const routeSmartBiQuestion = (text = '') => {
   }
 }
 
-export const buildSmartBiContext = (text = '') => {
-  const route = routeSmartBiQuestion(text)
+export const buildSmartBiContext = (text = '', options = {}) => {
+  const selectedCard = options?.selectedCard ? compactSmartBiCardForPrompt(options.selectedCard) : null
+  const route = selectedCard
+    ? {
+        key: selectedCard.key,
+        label: selectedCard.label,
+        confidence: 'high',
+        matchedKeywords: [selectedCard.label].filter(Boolean)
+      }
+    : routeSmartBiQuestion(text)
   const domain = findSmartBiDomain(route.key)
   const metricDefinitions = getSmartBiMetricDefinitions(route.key)
   return {
     route,
+    reportMode: options?.reportMode || '',
+    selectedCard,
+    snapshotTime: options?.snapshot?.snapshotTime || '',
     metricCatalog: domain ? [domain] : SMART_BI_DOMAINS,
     metricDefinitions,
     outputSections: SMART_BI_OUTPUT_SECTIONS,
     outputTemplate: '每次回答必须稳定包含：关键指标、指标图表、风险提醒、行动建议。关键指标要给数值/口径/结论；图表优先按默认图表模板输出 ECharts JSON；风险要按阈值和业务影响分级；建议要包含负责人方向、时间节点和目标。'
+  }
+}
+
+export const buildSmartBiReportRequest = (cardOrKey = 'overview', snapshot = {}) => {
+  const key = typeof cardOrKey === 'string' ? cardOrKey : (cardOrKey?.key || 'overview')
+  const cardFromSnapshot = getSmartBiWorkbenchCards(snapshot).find((item) => item.key === key)
+  const card = compactSmartBiCardForPrompt({
+    ...(cardFromSnapshot || {}),
+    ...(typeof cardOrKey === 'object' && cardOrKey ? cardOrKey : {})
+  })
+  const metricDefinitions = getSmartBiMetricDefinitions(card.key)
+  const metricLines = metricDefinitions.length
+    ? metricDefinitions.map((item) => `- ${item.label}：口径=${item.formula}；默认图表=${item.chart}；风险阈值=${item.riskRule}；负责方向=${item.owner}`).join('\n')
+    : '- 当前入口以跨领域总览为主，请覆盖销售、采购、库存、生产、质量、设备的核心经营指标。'
+  const snapshotExcerpt = stringifySmartBiSnapshotExcerpt(card.key, snapshot)
+
+  const prompt = `请生成【${card.label}】智能 BI 标准分析报告。
+
+【用户点击入口】
+- 指标卡：${card.label}
+- 业务说明：${card.desc || '经营指标分析'}
+- 主指标：${card.metricLabel || '核心指标'} = ${card.metricValue || '--'}
+- 辅助指标：${card.subLabel || '辅助指标'} = ${card.subValue || '--'}
+- 风险指标：${card.riskLabel || '风险指标'} = ${card.riskValue || '--'}
+- 当前风险状态：${card.riskStatusLabel || '--'}（${card.riskLevel || 'auto'}）
+- 风险原因：${card.riskReason || '暂无明确风险原因'}
+- 负责方向：${card.owner || '业务负责人'}
+
+【固定指标口径与图表模板】
+${metricLines}
+
+【当前前端快照摘要】
+${snapshotExcerpt}
+
+【输出要求】
+1. 开头直接给“经营分析报告”或“摘要”，不要客套。
+2. 必须稳定包含：摘要、关键指标、指标图表、风险提醒、行动建议。
+3. 关键指标必须写清数值、口径、结论；没有数据时说明缺口，不要编造。
+4. 指标图表必须至少输出 1 个 ECharts JSON 代码块；经营总览输出 2-4 个图，单领域分析输出 1-3 个图。
+5. 图表只能使用企业实时快照或当前前端快照中存在的真实字段和值。
+6. 风险提醒要以当前风险状态为起点，并按严重/预警/关注/正常分级说明业务影响。
+7. 行动建议必须包含负责方向、时间节点和目标。`
+
+  return {
+    prompt,
+    displayText: `智能 BI：${card.label}`,
+    context: buildSmartBiContext(prompt, {
+      reportMode: 'workbench_card',
+      selectedCard: card,
+      snapshot
+    })
   }
 }
 

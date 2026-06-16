@@ -67,7 +67,7 @@
             class="bi-card"
             :class="`risk-${card.riskLevel || 'normal'}`"
             :data-risk="card.riskLevel"
-            @click="sendSuggestion(card.prompt)"
+            @click="runWorkbenchCard(card)"
           >
             <div class="bi-card-top">
               <span class="bi-card-label">{{ card.label }}</span>
@@ -200,6 +200,7 @@ import MarkdownIt from 'markdown-it'
 import {
   SMART_BI_COMMON_QUESTIONS,
   buildSmartBiContext,
+  buildSmartBiReportRequest,
   formatSmartBiCatalogForPrompt,
   formatSmartBiMetricDefinitionsForPrompt,
   getSmartBiWorkbenchCards
@@ -895,12 +896,29 @@ const buildPayloadMessages = async () => {
   }))
 }
 
-const sendMessage = async (text) => {
+const replaceLatestUserPayloadText = (messages, text) => {
+  if (!text) return
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i]
+    if (message?.role !== 'user') continue
+    if (Array.isArray(message.content)) {
+      const nonTextParts = message.content.filter(part => part?.type && part.type !== 'text')
+      message.content = [...nonTextParts, { type: 'text', text }]
+    } else {
+      message.content = text
+    }
+    return
+  }
+}
+
+const sendMessage = async (text, options = {}) => {
   const content = (text || '').trim()
   if ((!content && selectedFiles.length === 0) || isLoading.value) return
 
   const session = currentSession.value
   if (!session) return
+  const payloadText = String(options.payloadText || content).trim()
+  const smartBiContext = options.smartBiContext || null
 
   // 推入用户消息（包含附件）
   const userMsg = {
@@ -908,6 +926,12 @@ const sendMessage = async (text) => {
     content,
     files: selectedFiles.length ? [...selectedFiles] : undefined,
     time: Date.now()
+  }
+  if (payloadText && payloadText !== content) {
+    Object.defineProperty(userMsg, 'payloadText', { value: payloadText, enumerable: false })
+  }
+  if (smartBiContext) {
+    Object.defineProperty(userMsg, 'smartBiContext', { value: smartBiContext, enumerable: false })
   }
   session.messages.push(userMsg)
   // 更新标题
@@ -926,6 +950,10 @@ const sendMessage = async (text) => {
   session.messages.push(aiMsg)
 
   try {
+    const payloadMessages = await buildPayloadMessages()
+    if (payloadText && payloadText !== content) {
+      replaceLatestUserPayloadText(payloadMessages, payloadText)
+    }
     const payload = {
       stream: true,
       assistant_mode: 'enterprise',
@@ -933,11 +961,11 @@ const sendMessage = async (text) => {
         scene: 'enterprise_analyst',
         readOnly: true,
         injectBusinessData: true,
-        smartBi: buildSmartBiContext(content)
+        smartBi: smartBiContext || buildSmartBiContext(payloadText || content)
       },
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        ...(await buildPayloadMessages())
+        ...payloadMessages
       ]
     }
 
@@ -995,12 +1023,22 @@ const sendMessage = async (text) => {
 
 const handleSend = () => sendMessage(inputText.value)
 const sendSuggestion = (q) => sendMessage(q)
+const runWorkbenchCard = (card) => {
+  const request = buildSmartBiReportRequest(card, businessSnapshot.value || {})
+  sendMessage(request.displayText, {
+    payloadText: request.prompt,
+    smartBiContext: request.context
+  })
+}
 const retryMessage = (index) => {
   const session = currentSession.value
   const target = session?.messages[index]
   if (!session || !target || target.role !== 'user') return
   session.messages.splice(index + 1)
-  sendMessage(target.content)
+  sendMessage(target.content, {
+    payloadText: target.payloadText || '',
+    smartBiContext: target.smartBiContext || null
+  })
 }
 
 // ── 工具函数 ──────────────────────────────────────────

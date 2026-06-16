@@ -3,7 +3,7 @@
 
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 
-const DATA_QUERY_RE = /(全量|全表|全部|总数|条数|数量|人数|员工数|多少条|多少个|多少人|有多少|几个|一共有|统计|汇总|合计|平均|最大|最小|分布|占比|排行|排名|按.+分组|分类统计|抽样|样本|最近|列出|有哪些|分析|overview|count|total|summary|aggregate|distribution|group|sample|top|average|avg|sum|max|min)/i
+const DATA_QUERY_RE = /(全量|全表|全部|总数|条数|数量|人数|员工数|多少条|多少个|多少人|有多少|几个|一共有|统计|汇总|合计|平均|最大|最小|分布|占比|排行|排名|按.+分组|分类统计|抽样|样本|最近|列出|有哪些|明细|详情|分析|overview|count|total|summary|aggregate|distribution|group|sample|top|average|avg|sum|max|min)/i
 const SKIP_QUERY_RE = /(导入|上传|生成公式|公式|计算列|新增|创建|修改|删除|保存|审批|流程图|bpmn|import|formula|create|update|delete|workflow)/i
 
 const GROUP_HINTS = [
@@ -82,6 +82,24 @@ const normalizeColumn = (col) => {
   }
 }
 
+const collectGridAgentColumns = (context = {}) => {
+  const gridColumns = context?.gridAgent?.searchableColumns
+  if (Array.isArray(gridColumns) && gridColumns.length) return gridColumns
+  return Array.isArray(context?.columns) ? context.columns : []
+}
+
+const mentionsGroupColumn = (text = '', columns = []) => {
+  const normalizedText = String(text || '').toLowerCase()
+  return columns
+    .map(normalizeColumn)
+    .filter((col) => col && !NUMERIC_TYPES.has(col.type))
+    .some((col) => {
+      const label = String(col.label || '').toLowerCase()
+      const prop = String(col.prop || '').toLowerCase()
+      return (label && normalizedText.includes(label)) || (prop && normalizedText.includes(prop))
+    })
+}
+
 export function shouldPrefetchGridAgentQuery(userText, context = {}) {
   const text = String(userText || '').trim()
   if (!text || !context?.gridAgent) return false
@@ -97,9 +115,13 @@ export function inferGridAgentQueryOperation(userText, context = {}) {
   const hasNumeric = /(汇总|合计|总金额|金额|平均|最大|最小|sum|avg|average|max|min|numeric|aggregate)/i.test(text)
   const hasSample = /(抽样|样本|最近|列出|有哪些|明细|sample|list|recent)/i.test(text)
   const hasCount = /(总数|条数|数量|人数|员工数|多少条|多少个|多少人|有多少|几个|一共有|count|total)/i.test(text)
+  const hasColumnGroupingIntent = /(各|每个|每一|每类|分别|按).*(统计|数量|人数|条数|个数|多少|汇总)|(分组|分部门|分状态|分仓库|分类).*(统计|数量|人数|条数|个数|多少|汇总)?|统计.*(各|每个|每一|每类|分别|按|分组|分部门|分状态|分仓库|分类)/i.test(text)
+  const hasExplicitGroupColumn = mentionsGroupColumn(text, collectGridAgentColumns(context))
+  const shouldGroupCount = hasGroup || ((hasCount || /统计/.test(text)) && (hasColumnGroupingIntent || hasExplicitGroupColumn))
 
-  if ((hasGroup && hasNumeric) || /(分析|统计|overview|summary)/i.test(text)) return 'overview'
-  if (hasGroup) return 'group_count'
+  if (shouldGroupCount && hasNumeric) return 'overview'
+  if (shouldGroupCount) return 'group_count'
+  if (/(分析|统计|overview|summary)/i.test(text)) return 'overview'
   if (hasNumeric) return 'numeric_summary'
   if (hasSample) return 'sample'
   if (hasCount || context?.gridAgent?.dataAccess?.hasMore === true) return 'count'
