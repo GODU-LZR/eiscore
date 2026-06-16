@@ -154,6 +154,147 @@ const countSnapshotSections = (snapshot = {}) => SMART_BI_DOMAINS
   .filter((domain) => snapshot?.[domain.key] || (domain.key === 'inventory' && snapshot?.inventory))
   .length
 
+const SMART_BI_RISK_META = {
+  normal: { label: '正常' },
+  focus: { label: '关注' },
+  warning: { label: '预警' },
+  critical: { label: '严重' }
+}
+
+const toFiniteNumber = (value) => {
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+const getGroupCount = (group = {}, names = []) => names.reduce((sum, name) => {
+  const value = group?.[name]
+  const numeric = Number(value)
+  return sum + (Number.isFinite(numeric) ? numeric : 0)
+}, 0)
+
+const buildRiskState = (level = 'normal', reason = '暂无明显异常', label = '') => {
+  const safeLevel = SMART_BI_RISK_META[level] ? level : 'normal'
+  return {
+    riskLevel: safeLevel,
+    riskStatusLabel: label || SMART_BI_RISK_META[safeLevel].label,
+    riskReason: reason
+  }
+}
+
+export const getSmartBiCardRisk = (key, snapshot = {}) => {
+  if (!snapshot?.snapshotTime && Object.keys(snapshot || {}).length === 0) {
+    return buildRiskState('focus', '等待企业实时数据快照', '待刷新')
+  }
+
+  if (key === 'overview') {
+    const overviewCount = countSnapshotSections(snapshot)
+    const domainRisks = SMART_BI_DOMAINS.map((domain) => ({
+      ...domain,
+      risk: getSmartBiCardRisk(domain.key, snapshot)
+    }))
+    const criticalDomains = domainRisks.filter((item) => item.risk.riskLevel === 'critical')
+    const warningDomains = domainRisks.filter((item) => item.risk.riskLevel === 'warning')
+    const focusDomains = domainRisks.filter((item) => item.risk.riskLevel === 'focus')
+
+    if (criticalDomains.length) {
+      return buildRiskState('critical', `${criticalDomains.map((item) => item.label).join('、')}存在严重风险`)
+    }
+    if (warningDomains.length) {
+      return buildRiskState('warning', `${warningDomains.map((item) => item.label).join('、')}需要优先跟进`)
+    }
+    if (overviewCount < SMART_BI_DOMAINS.length) {
+      return buildRiskState('focus', `已接入 ${overviewCount}/${SMART_BI_DOMAINS.length} 个领域，建议补齐数据`)
+    }
+    if (focusDomains.length) {
+      return buildRiskState('focus', `${focusDomains.map((item) => item.label).join('、')}需要继续观察`)
+    }
+    return buildRiskState('normal', '六大领域暂无明显异常')
+  }
+
+  const domainLabel = SMART_BI_DOMAINS.find((domain) => domain.key === key)?.label || '业务'
+  const section = snapshot?.[key]
+  if (!section) return buildRiskState('focus', `暂无${domainLabel}数据快照`, '待接入')
+
+  if (key === 'sales') {
+    const orderAmount = toFiniteNumber(section.orderAmount) || 0
+    const receivableBalance = toFiniteNumber(section.receivableBalance) || 0
+    const overCreditCount = Array.isArray(section.receivableRisk)
+      ? section.receivableRisk.filter((item) => item?.overCredit).length
+      : 0
+    if (overCreditCount > 0) return buildRiskState('critical', `${overCreditCount} 个客户应收超授信`)
+    if (orderAmount > 0 && receivableBalance > orderAmount * 0.3) {
+      return buildRiskState('warning', `应收余额约为订单金额的 ${Math.round((receivableBalance / orderAmount) * 100)}%`)
+    }
+    if (receivableBalance > 0) return buildRiskState('focus', `存在 ${formatCompactNumber(receivableBalance)} 应收余额`)
+    return buildRiskState('normal', '销售应收暂无明显风险')
+  }
+
+  if (key === 'purchase') {
+    const arrivalQty = toFiniteNumber(section.arrivalQty) || 0
+    const acceptanceRate = toFiniteNumber(section.acceptanceRate)
+    const pendingCount = Array.isArray(section.pendingArrivals) ? section.pendingArrivals.length : 0
+    if (arrivalQty > 0 && acceptanceRate !== null && acceptanceRate < 90) {
+      return buildRiskState('critical', `到货合格率 ${acceptanceRate}% 低于 90%`)
+    }
+    if (arrivalQty > 0 && acceptanceRate !== null && acceptanceRate < 95) {
+      return buildRiskState('warning', `到货合格率 ${acceptanceRate}% 低于 95%`)
+    }
+    if (pendingCount > 0) return buildRiskState('focus', `${pendingCount} 单到货需要跟进`)
+    return buildRiskState('normal', '采购履约暂无明显异常')
+  }
+
+  if (key === 'inventory') {
+    const totalRecords = toFiniteNumber(section.totalRecords) || 0
+    const totalQty = toFiniteNumber(section.totalQty) || 0
+    const materialCount = toFiniteNumber(section.materialCount) || 0
+    const warehouseCount = Array.isArray(section.warehouseNames) ? section.warehouseNames.length : 0
+    if (totalRecords === 0) return buildRiskState('focus', '暂无实时库存记录')
+    if (totalQty <= 0) return buildRiskState('warning', '库存数量为 0，需确认是否漏同步')
+    if (materialCount === 0 || warehouseCount === 0) return buildRiskState('focus', '物料或仓库维度不完整')
+    return buildRiskState('normal', '库存快照暂无明显异常')
+  }
+
+  if (key === 'production') {
+    const shortageOrderCount = toFiniteNumber(section.shortageOrderCount) || 0
+    const shortageItemCount = toFiniteNumber(section.shortageItemCount) || 0
+    if (shortageOrderCount >= 5 || shortageItemCount >= 20) {
+      return buildRiskState('critical', `${formatCompactNumber(shortageOrderCount, '单')}工单存在缺料`)
+    }
+    if (shortageOrderCount > 0) return buildRiskState('warning', `${formatCompactNumber(shortageOrderCount, '单')}工单存在缺料`)
+    return buildRiskState('normal', '生产缺料暂无明显风险')
+  }
+
+  if (key === 'quality') {
+    const passRate = toFiniteNumber(section.passRate)
+    const defectRate = toFiniteNumber(section.defectRate)
+    const severeNcrCount = getGroupCount(section.byNcrSeverity, ['严重', '重大', '关键', '高'])
+    const openNcrCount = Array.isArray(section.openNcrs) ? section.openNcrs.length : 0
+    if (severeNcrCount > 0) return buildRiskState('critical', `${severeNcrCount} 条严重质量异常未闭环`)
+    if (defectRate !== null && defectRate > 5) return buildRiskState('critical', `不良率 ${defectRate}% 超过 5%`)
+    if (passRate !== null && passRate < 95) return buildRiskState('critical', `检验合格率 ${passRate}% 低于 95%`)
+    if (defectRate !== null && defectRate > 2) return buildRiskState('warning', `不良率 ${defectRate}% 超过 2%`)
+    if (passRate !== null && passRate < 98) return buildRiskState('warning', `检验合格率 ${passRate}% 低于 98%`)
+    if (openNcrCount > 0) return buildRiskState('focus', `${openNcrCount} 条质量异常待闭环`)
+    return buildRiskState('normal', '质量指标暂无明显异常')
+  }
+
+  if (key === 'equipment') {
+    const avgHealthScore = toFiniteNumber(section.avgHealthScore)
+    const openIssueCount = toFiniteNumber(section.openIssueCount) || 0
+    const urgentIssueCount = getGroupCount(section.byIssueLevel, ['紧急', '严重', '重大', '关键', '高'])
+    const stoppedCount = getGroupCount(section.byRunStatus, ['停机', '故障', '维修中'])
+    if (urgentIssueCount > 0 || stoppedCount > 0) {
+      return buildRiskState('critical', `存在 ${urgentIssueCount + stoppedCount} 项设备高风险状态`)
+    }
+    if (avgHealthScore !== null && avgHealthScore < 70) return buildRiskState('critical', `平均健康评分 ${avgHealthScore} 低于 70`)
+    if (avgHealthScore !== null && avgHealthScore < 80) return buildRiskState('warning', `平均健康评分 ${avgHealthScore} 低于 80`)
+    if (openIssueCount > 0) return buildRiskState('warning', `${formatCompactNumber(openIssueCount, '条')}设备异常未关闭`)
+    return buildRiskState('normal', '设备健康暂无明显异常')
+  }
+
+  return buildRiskState('normal', '暂无明显异常')
+}
+
 export const getSmartBiMetricDefinitions = (domainKey = 'overview') => {
   if (domainKey && domainKey !== 'overview') return SMART_BI_METRIC_DEFINITIONS[domainKey] || []
   return SMART_BI_DOMAINS.flatMap((domain) => SMART_BI_METRIC_DEFINITIONS[domain.key] || [])
@@ -186,7 +327,8 @@ export const getSmartBiWorkbenchCards = (snapshot = {}) => {
       metricDefinition: metric?.formula || '按系统当前业务快照统计',
       chartTemplate: metric?.chart || '按业务场景生成结构/趋势图',
       riskRule: metric?.riskRule || '按异常变化和业务风险提示',
-      owner: metric?.owner || '业务负责人'
+      owner: metric?.owner || '业务负责人',
+      ...getSmartBiCardRisk(key, snapshot)
     }
   }
 

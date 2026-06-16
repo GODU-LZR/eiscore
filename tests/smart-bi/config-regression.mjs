@@ -18,7 +18,8 @@ const {
   buildSmartBiContext,
   getSmartBiCommonQuestions,
   getSmartBiMetricDefinitions,
-  formatSmartBiMetricDefinitionsForPrompt
+  formatSmartBiMetricDefinitionsForPrompt,
+  getSmartBiCardRisk
 } = smartBi
 
 assert.equal(SMART_BI_DOMAINS.length, 6, 'smart BI should keep six core business domains')
@@ -71,6 +72,27 @@ assert.ok(
   cards.every((card) => card.metricDefinition && card.chartTemplate && card.riskRule && card.owner),
   'each card should carry fixed metric definition, chart template, risk rule, and owner'
 )
+assert.ok(
+  cards.every((card) => card.riskLevel && card.riskStatusLabel && card.riskReason),
+  'each card should carry computed risk state'
+)
+assert.equal(cards[0].riskLevel, 'warning', 'overview should aggregate warning domain risk')
+
+const emptyRisk = getSmartBiCardRisk('sales')
+assert.equal(emptyRisk.riskLevel, 'focus', 'empty snapshot should wait for realtime data')
+assert.equal(emptyRisk.riskStatusLabel, '待刷新', 'empty snapshot should display waiting status')
+
+const salesCriticalRisk = getSmartBiCardRisk('sales', {
+  snapshotTime: '2026-06-16T00:00:00.000Z',
+  sales: { orderAmount: 100000, receivableBalance: 20000, receivableRisk: [{ overCredit: true }] }
+})
+assert.equal(salesCriticalRisk.riskLevel, 'critical', 'sales over-credit receivables should be critical')
+
+const productionWarningRisk = getSmartBiCardRisk('production', {
+  snapshotTime: '2026-06-16T00:00:00.000Z',
+  production: { shortageOrderCount: 2, shortageItemCount: 4 }
+})
+assert.equal(productionWarningRisk.riskLevel, 'warning', 'production shortages should be warning risk')
 
 for (const domain of SMART_BI_DOMAINS) {
   const definitions = getSmartBiMetricDefinitions(domain.key)

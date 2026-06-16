@@ -65,13 +65,19 @@
             v-for="card in workbenchCards"
             :key="card.key"
             class="bi-card"
+            :class="`risk-${card.riskLevel || 'normal'}`"
+            :data-risk="card.riskLevel"
             @click="sendSuggestion(card.prompt)"
           >
-            <span class="bi-card-label">{{ card.label }}</span>
+            <div class="bi-card-top">
+              <span class="bi-card-label">{{ card.label }}</span>
+              <span class="bi-card-status" :data-risk="card.riskLevel">{{ card.riskStatusLabel }}</span>
+            </div>
             <strong>{{ card.metricValue }}</strong>
             <span>{{ card.metricLabel }}</span>
             <em>口径：{{ card.metricDefinition }}</em>
             <small>{{ card.riskLabel }}：{{ card.riskValue }}</small>
+            <small class="bi-card-risk">{{ card.riskReason }}</small>
           </button>
         </div>
       </section>
@@ -1315,8 +1321,9 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 .bi-card {
-  min-height: 124px;
+  min-height: 142px;
   border: 1px solid rgba(227, 233, 242, 0.9);
+  border-left-width: 3px;
   border-radius: 8px;
   background: #fff;
   padding: 10px;
@@ -1329,10 +1336,62 @@ onBeforeUnmount(() => {
 .bi-card:active {
   transform: translateY(1px);
 }
+.bi-card.risk-normal {
+  border-left-color: #21c189;
+}
+.bi-card.risk-focus {
+  border-left-color: #1b6dff;
+}
+.bi-card.risk-warning {
+  border-left-color: #e6a23c;
+}
+.bi-card.risk-critical {
+  border-left-color: #f56c6c;
+}
+.bi-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
 .bi-card-label {
   font-size: 13px;
   color: var(--ink);
   font-weight: 700;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bi-card-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  min-width: 38px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(33, 193, 137, 0.24);
+  background: rgba(33, 193, 137, 0.1);
+  color: #14966b;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.bi-card-status[data-risk='focus'] {
+  border-color: rgba(27, 109, 255, 0.24);
+  background: rgba(27, 109, 255, 0.1);
+  color: #1b6dff;
+}
+.bi-card-status[data-risk='warning'] {
+  border-color: rgba(230, 162, 60, 0.28);
+  background: rgba(230, 162, 60, 0.12);
+  color: #b88230;
+}
+.bi-card-status[data-risk='critical'] {
+  border-color: rgba(245, 108, 108, 0.28);
+  background: rgba(245, 108, 108, 0.12);
+  color: #c45656;
 }
 .bi-card strong {
   color: #1f2d3d;
@@ -1343,6 +1402,23 @@ onBeforeUnmount(() => {
 .bi-card small {
   color: var(--muted);
   font-size: 11px;
+}
+.bi-card .bi-card-label {
+  color: var(--ink);
+  font-size: 13px;
+}
+.bi-card .bi-card-status {
+  color: #14966b;
+  font-size: 10px;
+}
+.bi-card .bi-card-status[data-risk='focus'] {
+  color: #1b6dff;
+}
+.bi-card .bi-card-status[data-risk='warning'] {
+  color: #b88230;
+}
+.bi-card .bi-card-status[data-risk='critical'] {
+  color: #c45656;
 }
 .bi-card em {
   color: var(--muted);
@@ -1355,6 +1431,16 @@ onBeforeUnmount(() => {
 }
 .bi-card small {
   margin-top: auto;
+}
+.bi-card small:not(.bi-card-risk) {
+  margin-top: 0;
+}
+.bi-card .bi-card-risk {
+  display: block;
+  margin-top: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ===== Messages ===== */

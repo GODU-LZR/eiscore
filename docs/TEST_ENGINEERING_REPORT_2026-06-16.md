@@ -27,7 +27,7 @@
 |---|---|---|
 | `npm run test:syntax` | PASS | Node 脚本语法门禁通过。 |
 | `npm run test:unit` | PASS | `twin knowledge cost-table analysis regression` 通过。 |
-| `npm run test:smart-bi` | PASS | Smart BI 领域路由、输出章节、工作台卡片和常用问题回归通过。 |
+| `npm run test:smart-bi` | PASS | Smart BI 领域路由、输出章节、指标口径、风险状态、工作台卡片和常用问题回归通过。 |
 | `npm run build:frontends` | PASS | 11 个前端包构建成功。 |
 | `node --check playwright.config.mjs tests/e2e/helpers.mjs tests/e2e/ui-business-chain.spec.mjs realtime/index.js` | PASS | Playwright 配置、E2E helper、UI 业务链路、realtime 后端语法通过。 |
 
@@ -134,7 +134,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 24/24；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T07-38-32-905Z.md`。 |
 | 2026-06-16 | `npm run test:ci` | PASS | 单元回归通过，11 个前端包全部构建成功。 |
 | 2026-06-16 | `npm run test:syntax` | PASS | 20 个 Node 脚本入口语法检查通过；同步修复 `scripts/windows-lan-relay.cjs` shebang 位置。 |
-| 2026-06-16 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、指标口径、图表模板、风险规则、概览卡片和常用问题提示均通过。 |
+| 2026-06-16 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、指标口径、图表模板、风险规则、风险状态、概览卡片和常用问题提示均通过。 |
 | 2026-06-16 | `node --check tests/engineering/run-remote-suite.mjs tests/smoke/business-smoke.mjs` | PASS | 新增工程套件与 smoke 重试逻辑语法通过。 |
 
 新增工程化能力：

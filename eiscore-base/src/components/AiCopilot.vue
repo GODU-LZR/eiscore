@@ -72,11 +72,13 @@
                   :key="card.key"
                   type="button"
                   class="smart-bi-card"
+                  :class="`risk-${card.riskLevel || 'normal'}`"
+                  :data-risk="card.riskLevel"
                   @click="runSmartBiCard(card)"
                 >
                   <div class="card-top">
                     <span class="card-label">{{ card.label }}</span>
-                    <span class="card-action">分析</span>
+                    <span class="card-status" :data-risk="card.riskLevel">{{ card.riskStatusLabel }}</span>
                   </div>
                   <div class="card-value">{{ card.metricValue }}</div>
                   <div class="card-metric">{{ card.metricLabel }}</div>
@@ -84,6 +86,7 @@
                     <span>口径：{{ card.metricDefinition }}</span>
                     <span>图表：{{ card.chartTemplate }}</span>
                   </div>
+                  <div class="card-risk">状态：{{ card.riskReason }}</div>
                   <div class="card-foot">
                     <span>{{ card.subLabel }}：{{ card.subValue }}</span>
                     <span>{{ card.riskLabel }}：{{ card.riskValue }}</span>
@@ -2669,6 +2672,7 @@ $border-color: #e4e7ed;
 .smart-bi-card {
   appearance: none;
   border: 1px solid #e4e7ed;
+  border-left-width: 3px;
   background: #fff;
   border-radius: 8px;
   padding: 14px;
@@ -2700,10 +2704,38 @@ $border-color: #e4e7ed;
     font-weight: 650;
   }
 
-  .card-action {
-    color: var(--el-color-primary, #409eff);
+  .card-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(103, 194, 58, 0.28);
+    background: rgba(103, 194, 58, 0.1);
+    color: #529b2e;
     font-size: 12px;
+    font-weight: 650;
     flex-shrink: 0;
+  }
+
+  .card-status[data-risk='focus'] {
+    border-color: rgba(64, 158, 255, 0.28);
+    background: rgba(64, 158, 255, 0.1);
+    color: #337ecc;
+  }
+
+  .card-status[data-risk='warning'] {
+    border-color: rgba(230, 162, 60, 0.3);
+    background: rgba(230, 162, 60, 0.12);
+    color: #b88230;
+  }
+
+  .card-status[data-risk='critical'] {
+    border-color: rgba(245, 108, 108, 0.3);
+    background: rgba(245, 108, 108, 0.12);
+    color: #c45656;
   }
 
   .card-value {
@@ -2734,10 +2766,51 @@ $border-color: #e4e7ed;
     }
   }
 
+  .card-risk {
+    color: #606266;
+    font-size: 11px;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .card-foot {
     margin-top: auto;
     color: #909399;
   }
+}
+
+.smart-bi-card.risk-normal {
+  border-left-color: #67c23a;
+}
+
+.smart-bi-card.risk-normal:hover {
+  border-left-color: #67c23a;
+}
+
+.smart-bi-card.risk-focus {
+  border-left-color: #409eff;
+}
+
+.smart-bi-card.risk-focus:hover {
+  border-left-color: #409eff;
+}
+
+.smart-bi-card.risk-warning {
+  border-left-color: #e6a23c;
+}
+
+.smart-bi-card.risk-warning:hover {
+  border-left-color: #e6a23c;
+}
+
+.smart-bi-card.risk-critical {
+  border-left-color: #f56c6c;
+}
+
+.smart-bi-card.risk-critical:hover {
+  border-left-color: #f56c6c;
 }
 
 .message-row {
@@ -3160,13 +3233,46 @@ $border-color: #e4e7ed;
   background: #1f2937;
   border-color: rgba(148, 163, 184, 0.22);
 }
+.ai-copilot-container.is-dark .smart-bi-card.risk-normal {
+  border-left-color: #22c55e;
+}
+.ai-copilot-container.is-dark .smart-bi-card.risk-focus {
+  border-left-color: #60a5fa;
+}
+.ai-copilot-container.is-dark .smart-bi-card.risk-warning {
+  border-left-color: #f59e0b;
+}
+.ai-copilot-container.is-dark .smart-bi-card.risk-critical {
+  border-left-color: #f87171;
+}
 .ai-copilot-container.is-dark .smart-bi-card .card-metric {
   color: #cbd5e1;
 }
 .ai-copilot-container.is-dark .smart-bi-card .card-rule,
+.ai-copilot-container.is-dark .smart-bi-card .card-risk,
 .ai-copilot-container.is-dark .smart-bi-card .card-foot,
 .ai-copilot-container.is-dark .smart-bi-meta {
   color: #94a3b8;
+}
+.ai-copilot-container.is-dark .smart-bi-card .card-status {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.24);
+  color: #86efac;
+}
+.ai-copilot-container.is-dark .smart-bi-card .card-status[data-risk='focus'] {
+  background: rgba(96, 165, 250, 0.14);
+  border-color: rgba(96, 165, 250, 0.24);
+  color: #93c5fd;
+}
+.ai-copilot-container.is-dark .smart-bi-card .card-status[data-risk='warning'] {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.24);
+  color: #fcd34d;
+}
+.ai-copilot-container.is-dark .smart-bi-card .card-status[data-risk='critical'] {
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.24);
+  color: #fca5a5;
 }
 .ai-copilot-container.is-dark .input-box {
   background: #0b1220;
