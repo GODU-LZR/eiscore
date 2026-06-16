@@ -8,13 +8,14 @@
 
 | 测试层 | 结果 | 说明 |
 |---|---:|---|
-| Node 脚本语法门禁 | PASS | `npm run test:syntax` 通过，覆盖 tests/scripts/playwright/realtime 的 22 个入口。 |
-| 离线单元/回归 | PASS | `npm run test:unit` 通过，包含数字分身成本表、Smart BI 工作台报告请求、EISGrid agent 中文语义和共享 grid 工具回归。 |
+| Node 脚本语法门禁 | PASS | `npm run test:syntax` 通过，覆盖 tests/scripts/playwright/realtime 的 24 个入口。 |
+| 离线单元/回归 | PASS | `npm run test:unit` 通过，包含数字分身成本表、Smart BI 工作台报告请求、EISGrid agent 中文语义、共享 grid 工具和工程 HTTP 客户端回归。 |
 | EISGrid agent 语义 | PASS | `npm run test:grid-agent` 通过，覆盖中文分组统计、明细抽样、金额汇总和受控查询 payload。 |
 | 共享 grid 工具 | PASS | `npm run test:grid-utils` 通过，覆盖分页、时间过滤、hash URL 拼接、服务端汇总 payload 和全量合计行。 |
+| 工程 HTTP 客户端 | PASS | `npm run test:http-client` 通过，覆盖远端重试、非幂等写请求保护、超时归一化和原生 body 透传。 |
 | 全前端构建 | PASS | `npm run build:frontends`，11 个前端包全部构建成功。 |
 | 远端 smoke | PASS | V2 patch 前后均为 23/23 PASS。 |
-| 远端业务闭环 | PASS | V2 patch 后 24/24 PASS，包含严格策略和显式状态迁移规则。 |
+| 远端业务闭环 | PASS | V2 patch 后最新为 25/25 PASS，包含角色授权视图、严格策略和显式状态迁移规则。 |
 | 远端工程套件 | PASS | 新增 `npm run test:engineering:remote`，smoke + business-chain + browser E2E 三层 3/3 PASS。 |
 | 67 功能点 UI | PASS | 67 点已整体通过；本轮 FP01/FP28/FP39 单点复测通过，最终全量浏览器回归 77/77 PASS。 |
 | UI 业务闭环 | PASS | 单点复测 1/1 PASS。 |
@@ -32,6 +33,7 @@
 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、输出章节、指标口径、风险状态、工作台卡片、卡片报告请求和常用问题回归通过。 |
 | `npm run test:grid-agent` | PASS | EISGrid agent 中文查询语义、分组推断、PostgREST payload 和 prompt 格式化回归通过。 |
 | `npm run test:grid-utils` | PASS | 共享 grid 分页、时间过滤、服务端汇总和 hash URL 边界回归通过。 |
+| `npm run test:http-client` | PASS | 工程 HTTP 客户端远端重试、安全方法策略、JSON/text 解析和原生 body 透传回归通过。 |
 | `npm run build:frontends` | PASS | 11 个前端包构建成功。 |
 | `node --check playwright.config.mjs tests/e2e/helpers.mjs tests/e2e/ui-business-chain.spec.mjs realtime/index.js` | PASS | Playwright 配置、E2E helper、UI 业务链路、realtime 后端语法通过。 |
 
@@ -135,12 +137,14 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 时间 | 命令 | 结果 | 说明 |
 |---|---|---:|---|
 | 2026-06-16 | `npm run test:engineering:remote` | PASS | smoke 23/23、business-chain 24/24、browser E2E 77/77，用时约 11.9 分钟。 |
-| 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 24/24；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T13-16-39-150Z.md`。 |
-| 2026-06-16 | `npm run test:ci` | PASS | 语法门禁、单元回归、Smart BI、EISGrid agent 语义、共享 grid 工具回归通过，11 个前端包全部构建成功。 |
-| 2026-06-16 | `npm run test:syntax` | PASS | 22 个 Node 脚本入口语法检查通过；同步修复 `scripts/windows-lan-relay.cjs` shebang 位置。 |
+| 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 25/25；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T13-58-40-107Z.md`。 |
+| 2026-06-16 | `npm run test:ci` | PASS | 语法门禁、单元回归、Smart BI、EISGrid agent 语义、共享 grid 工具和工程 HTTP 客户端回归通过，11 个前端包全部构建成功。 |
+| 2026-06-16 | `npm run test:syntax` | PASS | 24 个 Node 脚本入口语法检查通过；同步修复 `scripts/windows-lan-relay.cjs` shebang 位置。 |
 | 2026-06-16 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、指标口径、图表模板、风险规则、风险状态、卡片报告请求、概览卡片和常用问题提示均通过。 |
 | 2026-06-16 | `npm run test:grid-agent` | PASS | 新增 EISGrid agent 中文语义回归，验证“每个部门多少人/状态统计/最近明细/金额汇总”等查询意图。 |
 | 2026-06-16 | `npm run test:grid-utils` | PASS | 新增共享 grid 工具鲁棒性回归，验证非法日期、hash URL、分页钳制、服务端汇总 payload 和合计行。 |
+| 2026-06-16 | `npm run test:http-client` | PASS | 新增工程 HTTP 客户端回归，验证远端请求重试、安全方法策略、POST 默认不重试和原生 body 透传。 |
+| 2026-06-16 | 远端 DB 最小授权修复 | PASS | 对 `public.v_role_permissions` 执行 `GRANT SELECT ... TO web_user` 并触发 PostgREST schema reload；business-chain 前置检查返回 4 个角色授权行。 |
 | 2026-06-16 | `node --check tests/engineering/run-remote-suite.mjs tests/smoke/business-smoke.mjs` | PASS | 新增工程套件与 smoke 重试逻辑语法通过。 |
 
 新增工程化能力：
@@ -151,12 +155,13 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 4. `tests/smart-bi/config-regression.mjs` 将 Smart BI 的六大领域路由、输出章节、工作台卡片、卡片报告请求和常用问题纳入离线单元回归。
 5. `tests/grid-agent/query-regression.mjs` 将 EISGrid agent 中文数据查询语义和受控查询 payload 纳入离线单元回归。
 6. `tests/grid-utils/shared-regression.mjs` 将共享 grid 分页、时间过滤和服务端汇总边界纳入离线单元回归。
+7. `tests/engineering/http-client.mjs` 统一远端 smoke/business-chain 的超时、重试和 JSON/text 解析；business-chain 默认只重试安全方法，避免重复写入。
 
 ## 六、当前风险
 
 | 风险 | 级别 | 说明 | 建议 |
 |---|---|---|---|
-| 远端 DNS/连接偶发中断 | P2 | 长时间 Playwright 全量回归中曾出现 `EAI_AGAIN`、`ERR_CONNECTION_CLOSED`、`socket hang up`。E2E 和 smoke 均加入远端重试后已通过，但仍建议持续观察。 | 保持远端 E2E 默认单 worker 和 retry；必要时检查本地代理/DNS 与服务器连接稳定性。 |
+| 远端 DNS/连接偶发中断 | P2 | 长时间 Playwright 全量回归中曾出现 `EAI_AGAIN`、`ERR_CONNECTION_CLOSED`、`socket hang up`。E2E、smoke 和 business-chain 安全读请求均加入远端重试后已通过，但仍建议持续观察。 | 保持远端 E2E 默认单 worker 和 retry；必要时检查本地代理/DNS 与服务器连接稳定性。 |
 | 静态资源发布删除旧 hash | P1 | 微前端动态 import 可能在缓存窗口请求旧 chunk。 | 使用 `scripts/sync-spa-dist-preserve-assets.sh` 发布，或采用整站原子发布；定期清理超过保留窗口的旧 hash。 |
 | 本地 Node 版本低于 CI | P2 | 本机 Node 20.18.1，CI 为 20.19.0。 | WSL Node 升级到 20.19+，减少 Vite 环境差异。 |
 | 前端大 chunk / manual chunk 循环 | P2 | 不阻断构建，但影响性能和缓存效率。 | 后续建立 bundle size 基线，优化 chunk 策略。 |
@@ -169,6 +174,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 npm run test:unit
 npm run test:grid-agent
 npm run test:grid-utils
+npm run test:http-client
 npm run test:syntax
 npm run build:frontends
 EISCORE_BASE_URL=https://nanpai.eissys.top \

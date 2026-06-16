@@ -34,6 +34,12 @@ Run only the shared EISGrid utility regression:
 npm run test:grid-utils
 ```
 
+Run only the engineering HTTP client regression:
+
+```bash
+npm run test:http-client
+```
+
 Build all frontend applications:
 
 ```bash
@@ -272,6 +278,9 @@ Ubuntu releases).
 - `test:grid-utils` verifies shared grid paging, time filters, URL query
   composition, server-summary payloads, and total-row formatting against edge
   cases such as hash URLs and invalid dates.
+- `test:http-client` verifies the shared engineering HTTP client used by remote
+  smoke/business-chain tests, including timeout normalization, safe-method
+  retries, and native request bodies.
 - `build:frontends` verifies all Vue/Vite micro-frontends compile.
 - `test:smoke` verifies login, deep-link routing, PostgREST profiles, agent health,
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
@@ -294,6 +303,9 @@ Ubuntu releases).
 - Remote browser runs default to one worker, one retry, and longer login/goto/API
   waits so the full suite can distinguish business regressions from transient
   network or DNS jitter.
+- Remote smoke and business-chain API tests share the engineering HTTP client;
+  remote targets default to three attempts, while business-chain only retries
+  safe request methods to avoid duplicate writes.
 - `test:engineering:remote` runs smoke, full business chain, and browser E2E as
   one repeatable remote acceptance suite. Use `test:engineering:remote:api` when
   validating backend/API behavior without the longer browser pass.

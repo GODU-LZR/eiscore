@@ -4,6 +4,7 @@
 import { createRequire } from 'node:module'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { createHttpClient, isRemoteTarget, normalizePositiveInteger } from '../engineering/http-client.mjs'
 
 const require = createRequire(import.meta.url)
 
@@ -14,9 +15,19 @@ const PASSWORD = process.env.EISCORE_SMOKE_PASSWORD || '123456'
 const RESULT_FILE = process.env.EISCORE_SMOKE_RESULT || ''
 const SKIP_AI = process.env.EISCORE_SMOKE_SKIP_AI === '1'
 const SKIP_WS = process.env.EISCORE_SMOKE_SKIP_WS === '1'
-const AI_TIMEOUT_MS = Number(process.env.EISCORE_SMOKE_AI_TIMEOUT_MS || 60000)
-const IS_REMOTE_TARGET = !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(BASE_URL)
-const REQUEST_ATTEMPTS = Number(process.env.EISCORE_SMOKE_REQUEST_ATTEMPTS || (IS_REMOTE_TARGET ? 3 : 1))
+const AI_TIMEOUT_MS = normalizePositiveInteger(process.env.EISCORE_SMOKE_AI_TIMEOUT_MS, 60000, { min: 1000, max: 180000 })
+const IS_REMOTE_TARGET = isRemoteTarget(BASE_URL)
+const REQUEST_ATTEMPTS = normalizePositiveInteger(
+  process.env.EISCORE_SMOKE_REQUEST_ATTEMPTS,
+  IS_REMOTE_TARGET ? 3 : 1,
+  { min: 1, max: 8 }
+)
+const http = createHttpClient({
+  baseUrl: BASE_URL,
+  requestAttempts: REQUEST_ATTEMPTS,
+  timeoutMs: 15000,
+  retryUnsafeMethods: true
+})
 
 const generatedAt = new Date().toISOString()
 const results = []
@@ -36,38 +47,8 @@ function loadWebSocketClient() {
   }
 }
 
-async function withTimeout(fn, ms = 15000) {
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), ms)
-  try {
-    return await fn(ctrl.signal)
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-function sleep(ms) {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms))
-}
-
 async function request(path, { method = 'GET', headers = {}, body, timeout = 15000 } = {}) {
-  let lastError = null
-  let lastResponse = null
-  for (let attempt = 1; attempt <= REQUEST_ATTEMPTS; attempt += 1) {
-    try {
-      lastResponse = await withTimeout(
-        (signal) => fetch(`${BASE_URL}${path}`, { method, headers, body, signal }),
-        timeout
-      )
-      if (lastResponse.status < 500 || attempt === REQUEST_ATTEMPTS) return lastResponse
-      lastError = new Error(`HTTP ${lastResponse.status}`)
-    } catch (error) {
-      lastError = error
-    }
-    if (attempt < REQUEST_ATTEMPTS) await sleep(500 * attempt)
-  }
-  if (lastResponse) return lastResponse
-  throw lastError || new Error(`Request failed: ${method} ${path}`)
+  return http.requestResponse(path, { method, headers, body, timeout })
 }
 
 async function expect(name, fn) {

@@ -3,15 +3,27 @@
 
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { createHttpClient, isRemoteTarget, normalizePositiveInteger, sleep } from '../engineering/http-client.mjs'
 
 const BASE_URL = (process.env.EISCORE_CHAIN_BASE_URL || process.env.EISCORE_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '')
 const USERNAME = process.env.EISCORE_CHAIN_USERNAME || process.env.EISCORE_SMOKE_USERNAME || 'admin'
 const PASSWORD = process.env.EISCORE_CHAIN_PASSWORD || process.env.EISCORE_SMOKE_PASSWORD || '123456'
 const RESULT_FILE = process.env.EISCORE_CHAIN_RESULT || ''
 const KEEP_DATA = process.env.EISCORE_CHAIN_KEEP_DATA === '1'
-const REQUEST_TIMEOUT_MS = Number(process.env.EISCORE_CHAIN_TIMEOUT_MS || 15000)
+const REQUEST_TIMEOUT_MS = normalizePositiveInteger(process.env.EISCORE_CHAIN_TIMEOUT_MS, 15000, { min: 1000, max: 180000 })
+const IS_REMOTE_TARGET = isRemoteTarget(BASE_URL)
+const REQUEST_ATTEMPTS = normalizePositiveInteger(
+  process.env.EISCORE_CHAIN_REQUEST_ATTEMPTS,
+  IS_REMOTE_TARGET ? 3 : 1,
+  { min: 1, max: 8 }
+)
 const DATA_TABLE = process.env.EISCORE_CHAIN_TABLE || 'eiscore_chain_test_records'
 const DATA_TABLE_QUALIFIED = `app_data.${DATA_TABLE}`
+const http = createHttpClient({
+  baseUrl: BASE_URL,
+  requestAttempts: REQUEST_ATTEMPTS,
+  timeoutMs: REQUEST_TIMEOUT_MS
+})
 
 const generatedAt = new Date().toISOString()
 const runId = `chain_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`
@@ -62,35 +74,8 @@ function filterValue(value) {
   return encodeURIComponent(String(value))
 }
 
-function sleep(ms) {
-  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms))
-}
-
-async function withTimeout(fn, ms = REQUEST_TIMEOUT_MS) {
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), ms)
-  try {
-    return await fn(ctrl.signal)
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
 async function request(path, { method = 'GET', headers = {}, body, timeout = REQUEST_TIMEOUT_MS } = {}) {
-  return withTimeout(async (signal) => {
-    const init = { method, headers, signal }
-    if (body !== undefined) init.body = typeof body === 'string' ? body : JSON.stringify(body)
-
-    const res = await fetch(`${BASE_URL}${path}`, init)
-    const text = await res.text()
-    let data = null
-    try {
-      data = text ? JSON.parse(text) : null
-    } catch {
-      data = text
-    }
-    return { res, status: res.status, ok: res.ok, data, text }
-  }, timeout)
+  return http.requestJson(path, { method, headers, body, timeout })
 }
 
 async function api(path, options = {}) {
@@ -223,6 +208,17 @@ await step('02 app center baseline is readable', async () => {
     headers: profileHeaders('app_center')
   })
   ensure(Array.isArray(out.data), 'apps response should be an array')
+  return { detail: `rows=${out.data.length}`, statusCode: out.status }
+})
+
+await step('02b V2 role permission view is readable', async () => {
+  const out = await api('/api/v_role_permissions?role_code=in.(employee,hr_clerk,hr_admin,dept_manager)&select=role_code,permissions', {
+    headers: profileHeaders('public')
+  })
+  ensure(Array.isArray(out.data), 'v_role_permissions response should be an array')
+  ensure(out.data.length > 0, 'v_role_permissions should return candidate roles')
+  const readableRows = out.data.filter((row) => Array.isArray(row?.permissions)).length
+  ensure(readableRows === out.data.length, 'each role permission row should expose permissions array')
   return { detail: `rows=${out.data.length}`, statusCode: out.status }
 })
 
