@@ -79,6 +79,7 @@ END $$;
 GRANT SELECT, INSERT, UPDATE, DELETE ON app_center.workflow_permission_policies TO web_user;
 GRANT SELECT, INSERT, UPDATE, DELETE ON app_center.workflow_transition_rules TO web_user;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA app_center TO web_user;
+GRANT SELECT ON public.v_role_permissions TO web_user;
 
 ALTER TABLE app_center.workflow_permission_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE app_center.workflow_transition_rules ENABLE ROW LEVEL SECURITY;

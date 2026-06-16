@@ -18,6 +18,7 @@
    - 重定义 `workflow.check_state_transition_permission(...)`
    - 重定义 `workflow.start_workflow_instance(...)`
    - 重定义 `workflow.transition_workflow_instance(...)`
+   - 授权 `web_user` 读取 `public.v_role_permissions`，支撑 strict 就绪检查中的角色授权缺口分析。
 
 2. 前端配置入口：`eiscore-apps/src/views/AppRuntime.vue`
    - 流程配置页签展示当前 V2 策略。
