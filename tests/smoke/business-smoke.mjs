@@ -15,6 +15,8 @@ const RESULT_FILE = process.env.EISCORE_SMOKE_RESULT || ''
 const SKIP_AI = process.env.EISCORE_SMOKE_SKIP_AI === '1'
 const SKIP_WS = process.env.EISCORE_SMOKE_SKIP_WS === '1'
 const AI_TIMEOUT_MS = Number(process.env.EISCORE_SMOKE_AI_TIMEOUT_MS || 60000)
+const IS_REMOTE_TARGET = !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(BASE_URL)
+const REQUEST_ATTEMPTS = Number(process.env.EISCORE_SMOKE_REQUEST_ATTEMPTS || (IS_REMOTE_TARGET ? 3 : 1))
 
 const generatedAt = new Date().toISOString()
 const results = []
@@ -44,11 +46,28 @@ async function withTimeout(fn, ms = 15000) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms))
+}
+
 async function request(path, { method = 'GET', headers = {}, body, timeout = 15000 } = {}) {
-  return withTimeout(
-    (signal) => fetch(`${BASE_URL}${path}`, { method, headers, body, signal }),
-    timeout
-  )
+  let lastError = null
+  let lastResponse = null
+  for (let attempt = 1; attempt <= REQUEST_ATTEMPTS; attempt += 1) {
+    try {
+      lastResponse = await withTimeout(
+        (signal) => fetch(`${BASE_URL}${path}`, { method, headers, body, signal }),
+        timeout
+      )
+      if (lastResponse.status < 500 || attempt === REQUEST_ATTEMPTS) return lastResponse
+      lastError = new Error(`HTTP ${lastResponse.status}`)
+    } catch (error) {
+      lastError = error
+    }
+    if (attempt < REQUEST_ATTEMPTS) await sleep(500 * attempt)
+  }
+  if (lastResponse) return lastResponse
+  throw lastError || new Error(`Request failed: ${method} ${path}`)
 }
 
 async function expect(name, fn) {

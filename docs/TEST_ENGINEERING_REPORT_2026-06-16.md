@@ -12,6 +12,7 @@
 | 全前端构建 | PASS | `npm run build:frontends`，11 个前端包全部构建成功。 |
 | 远端 smoke | PASS | V2 patch 前后均为 23/23 PASS。 |
 | 远端业务闭环 | PASS | V2 patch 后 24/24 PASS，包含严格策略和显式状态迁移规则。 |
+| 远端工程套件 | PASS | 新增 `npm run test:engineering:remote`，smoke + business-chain + browser E2E 三层 3/3 PASS。 |
 | 67 功能点 UI | PASS | 67 点已整体通过；本轮 FP01/FP28/FP39 单点复测通过，最终全量浏览器回归 77/77 PASS。 |
 | UI 业务闭环 | PASS | 单点复测 1/1 PASS。 |
 | UI 点击巡检 | PASS | 静态资源兼容修复后，失败点击项单点复测通过。 |
@@ -98,6 +99,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | E2E 登录接口偶发 `socket hang up` | `tests/e2e/helpers.mjs` 的 `loginByApi` 增加远端默认 5 次短重试，支持 `EISCORE_E2E_LOGIN_ATTEMPTS` 覆盖。 | FP28/FP39 单点复测通过；最终全量 77/77 PASS。 |
 | 仓储侧边栏点击出现旧 hash 资源 404 | 将远端备份中的旧 `materials/assets` 合并回当前目录，保留新旧 hash 资源。 | 旧/新仓储资源均 HTTP 200；侧边栏点击复测通过。 |
 | 远端浏览器长跑连接抖动 | `playwright.config.mjs` 对远端目标默认 `workers=1`、`retries=1`，并允许环境变量覆盖；`gotoWithRetry` 远端默认 3 次跳转重试。 | `npm run test:e2e:remote` 全量通过。 |
+| Smoke 首页 fetch 偶发失败 | `tests/smoke/business-smoke.mjs` 增加远端默认 3 次请求重试，支持 `EISCORE_SMOKE_REQUEST_ATTEMPTS` 覆盖。 | `npm run test:engineering:remote` 中 smoke 23/23 PASS。 |
 | 业务链路 API 偶发慢响应 | `tests/e2e/ui-business-chain.spec.mjs` 默认 API timeout 从 20s 提高到 45s，支持 `EISCORE_E2E_API_TIMEOUT_MS` 覆盖。 | UI 业务闭环和全量 E2E 通过。 |
 | 发布脚本可能删除旧 hash | 新增 `scripts/sync-spa-dist-preserve-assets.sh`，发布 SPA root 文件时可删除，发布 `assets/` 时保留历史 hash，并自动备份目标目录。 | `bash -n` 与远端 `--dry-run` 通过。 |
 
@@ -119,17 +121,32 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | UI 点击：交互登录 | PASS |
 | UI 点击：侧边栏导航 | PASS |
 | 完整远端浏览器套件 | PASS，77/77 |
+| 完整远端工程套件 | PASS，3/3 |
 
-## 五、当前风险
+## 五、续测记录
+
+| 时间 | 命令 | 结果 | 说明 |
+|---|---|---:|---|
+| 2026-06-16 | `npm run test:engineering:remote` | PASS | smoke 23/23、business-chain 24/24、browser E2E 77/77，用时约 11.9 分钟。 |
+| 2026-06-16 | `npm run test:ci` | PASS | 单元回归通过，11 个前端包全部构建成功。 |
+| 2026-06-16 | `node --check tests/engineering/run-remote-suite.mjs tests/smoke/business-smoke.mjs` | PASS | 新增工程套件与 smoke 重试逻辑语法通过。 |
+
+新增工程化能力：
+
+1. `tests/engineering/run-remote-suite.mjs` 将远端 smoke、业务闭环、浏览器 E2E 串成一个可重复执行的工程验收套件。
+2. `npm run test:engineering:remote:api` 支持只跑远端 smoke + business-chain，适合接口侧快速验证。
+3. `.nvmrc` 固定为 `20.19.0`，与 GitHub Actions Node 版本一致。
+
+## 六、当前风险
 
 | 风险 | 级别 | 说明 | 建议 |
 |---|---|---|---|
-| 远端 DNS/连接偶发中断 | P2 | 长时间 Playwright 全量回归中曾出现 `EAI_AGAIN`、`ERR_CONNECTION_CLOSED`、`socket hang up`。配置远端单 worker/retry 后已通过，但仍建议持续观察。 | 保持远端 E2E 默认单 worker 和 retry；必要时检查本地代理/DNS 与服务器连接稳定性。 |
+| 远端 DNS/连接偶发中断 | P2 | 长时间 Playwright 全量回归中曾出现 `EAI_AGAIN`、`ERR_CONNECTION_CLOSED`、`socket hang up`。E2E 和 smoke 均加入远端重试后已通过，但仍建议持续观察。 | 保持远端 E2E 默认单 worker 和 retry；必要时检查本地代理/DNS 与服务器连接稳定性。 |
 | 静态资源发布删除旧 hash | P1 | 微前端动态 import 可能在缓存窗口请求旧 chunk。 | 使用 `scripts/sync-spa-dist-preserve-assets.sh` 发布，或采用整站原子发布；定期清理超过保留窗口的旧 hash。 |
 | 本地 Node 版本低于 CI | P2 | 本机 Node 20.18.1，CI 为 20.19.0。 | WSL Node 升级到 20.19+，减少 Vite 环境差异。 |
 | 前端大 chunk / manual chunk 循环 | P2 | 不阻断构建，但影响性能和缓存效率。 | 后续建立 bundle size 基线，优化 chunk 策略。 |
 
-## 六、建议的工程门禁
+## 七、建议的工程门禁
 
 短回归：
 
@@ -144,10 +161,7 @@ npm run test:smoke
 上线验收：
 
 ```bash
-EISCORE_CHAIN_BASE_URL=https://nanpai.eissys.top npm run test:business-chain
-LD_LIBRARY_PATH=$PWD/tests/.artifacts/playwright-libs/root/usr/lib/x86_64-linux-gnu \
-EISCORE_E2E_BASE_URL=https://nanpai.eissys.top \
-npm run test:e2e:remote
+npm run test:engineering:remote
 ```
 
 发布要求：

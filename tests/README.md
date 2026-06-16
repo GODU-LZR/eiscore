@@ -100,6 +100,18 @@ Run the full business chain close-loop test against the Nanpai remote environmen
 npm run test:business-chain:remote
 ```
 
+Run the complete Nanpai remote engineering suite:
+
+```bash
+npm run test:engineering:remote
+```
+
+Run only the Nanpai remote smoke and business-chain API layers:
+
+```bash
+npm run test:engineering:remote:api
+```
+
 ## Smoke Test Environment
 
 `tests/smoke/business-smoke.mjs` requires the host app, PostgREST API, agent runtime,
@@ -118,6 +130,7 @@ Defaults:
 | `EISCORE_SMOKE_SKIP_WS` | unset |
 | `EISCORE_SMOKE_AI_MODEL` | model returned by `/agent/ai/config` |
 | `EISCORE_SMOKE_AI_TIMEOUT_MS` | `60000` |
+| `EISCORE_SMOKE_REQUEST_ATTEMPTS` | remote targets: `3`; local targets: `1` |
 
 Example:
 
@@ -214,6 +227,8 @@ Artifacts:
 | JSON result | `tests/.artifacts/playwright-result.json` |
 | HTML report | `tests/.artifacts/playwright-report/` |
 | Traces/screenshots/videos | `tests/.artifacts/playwright-results/` |
+| Remote engineering suite summary | `tests/.artifacts/nanpai-engineering-suite-*.json` |
+| Remote engineering suite report | `tests/.artifacts/nanpai-engineering-suite-*.md` |
 
 If Chromium fails to launch with missing shared libraries such as `libnspr4.so`,
 install the browser dependencies with `npm run e2e:install:with-deps` or install
@@ -245,6 +260,9 @@ Ubuntu releases).
 - Remote browser runs default to one worker, one retry, and longer login/goto/API
   waits so the full suite can distinguish business regressions from transient
   network or DNS jitter.
+- `test:engineering:remote` runs smoke, full business chain, and browser E2E as
+  one repeatable remote acceptance suite. Use `test:engineering:remote:api` when
+  validating backend/API behavior without the longer browser pass.
 
 The next layer should add component/unit tests for shared grid utilities and an
 agent semantic regression runner for the Chinese query test set.
