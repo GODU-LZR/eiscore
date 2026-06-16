@@ -39,11 +39,32 @@ export const formatDate = (date) => `${date.getFullYear()}-${pad2(date.getMonth(
 export const formatMonth = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}`
 export const formatYear = (date) => `${date.getFullYear()}`
 
+const normalizeFallbackDate = (fallback) => {
+  const date = fallback instanceof Date ? fallback : new Date(fallback)
+  return Number.isNaN(date.getTime()) ? new Date() : date
+}
+
+const isValidLocalDateParts = (year, month, day) => {
+  const date = new Date(year, month - 1, day)
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+}
+
+const isValidLocalDateText = (value) => {
+  const match = String(value || '').match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (!match) return false
+  return isValidLocalDateParts(Number(match[1]), Number(match[2]), Number(match[3]))
+}
+
 export function parseLocalDate(value, fallback = new Date()) {
+  const fallbackDate = normalizeFallbackDate(fallback)
   const text = String(value || '')
   const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
-  if (!match) return new Date(fallback)
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  if (!match) return new Date(fallbackDate)
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (!isValidLocalDateParts(year, month, day)) return new Date(fallbackDate)
+  return new Date(year, month - 1, day)
 }
 
 export function addDays(date, days) {
@@ -67,18 +88,28 @@ export function addYears(date, years) {
 export function appendQuery(url, query) {
   const cleanQuery = String(query || '').replace(/^[?&]+/, '')
   if (!cleanQuery) return url
-  return `${url}${String(url).includes('?') ? '&' : '?'}${cleanQuery}`
+  const text = String(url || '')
+  const hashIndex = text.indexOf('#')
+  const base = hashIndex >= 0 ? text.slice(0, hashIndex) : text
+  const hash = hashIndex >= 0 ? text.slice(hashIndex) : ''
+  return `${base}${base.includes('?') ? '&' : '?'}${cleanQuery}${hash}`
 }
 
 export function getMonthRange(value, fallbackDate = new Date()) {
-  const [year, month] = String(value || formatMonth(fallbackDate)).split('-').map(Number)
+  const fallback = normalizeFallbackDate(fallbackDate)
+  const text = String(value || formatMonth(fallback))
+  const match = text.match(/^(\d{4})-(\d{1,2})$/)
+  const year = match ? Number(match[1]) : fallback.getFullYear()
+  const month = match ? Number(match[2]) : fallback.getMonth() + 1
+  if (month < 1 || month > 12) return getMonthRange(formatMonth(fallback), fallback)
   const start = new Date(year, month - 1, 1)
   const end = new Date(year, month, 1)
   return [formatDate(start), formatDate(end)]
 }
 
 export function getYearRange(value, fallbackDate = new Date()) {
-  const year = Number(value) || fallbackDate.getFullYear()
+  const fallback = normalizeFallbackDate(fallbackDate)
+  const year = Number(value) || fallback.getFullYear()
   return [`${year}-01-01`, `${year + 1}-01-01`]
 }
 
@@ -100,7 +131,7 @@ export function resolveGridTimeField(app, staticColumns = []) {
 export function buildGridTimeRange({ mode, day, month, year, customRange, today = new Date() }) {
   if (mode === 'infinite') return null
   if (mode === 'day') {
-    const start = day || formatDate(today)
+    const start = isValidLocalDateText(day) ? day : formatDate(normalizeFallbackDate(today))
     return { start, end: formatDate(addDays(parseLocalDate(start, today), 1)) }
   }
   if (mode === 'month') {
@@ -113,6 +144,7 @@ export function buildGridTimeRange({ mode, day, month, year, customRange, today 
   }
   const range = Array.isArray(customRange) ? customRange : []
   if (!range[0] || !range[1]) return null
+  if (!isValidLocalDateText(range[0]) || !isValidLocalDateText(range[1])) return null
   return { start: range[0], end: formatDate(addDays(parseLocalDate(range[1], today), 1)) }
 }
 

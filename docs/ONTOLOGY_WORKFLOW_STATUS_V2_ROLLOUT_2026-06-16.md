@@ -27,6 +27,7 @@
    - 支持新增、编辑、停用、启用、删除显式迁移规则。
    - 支持按 BPMN 连线和状态映射一键生成显式迁移规则，便于从 `compat` 迁移到 `strict`。
    - 支持 strict 就绪检查，展示缺失迁移规则、缺失权限定义与候选角色授权缺口。
+   - 支持从就绪检查结果补齐缺失的 `workflow_transition_rules`，并重新启用同名停用规则。
    - 支持从就绪检查结果补齐缺失的 `permissions` 定义；该动作不会写入 `role_permissions`。
    - 支持从就绪检查结果补齐候选角色缺失的 `role_permissions` 授权关系；该动作只覆盖当前报告中的角色与权限码。
    - 支持在就绪检查通过后显式切换 strict：启用任务分派、流程操作、状态迁移校验，并关闭旧码兜底。
@@ -76,7 +77,7 @@ Get-Content sql/patch_workflow_policy_v2.sql -Raw -Encoding UTF8 | docker exec -
 
 在流程配置页签中，可先使用“生成规则”从现有 BPMN 连线和状态映射批量生成 `workflow_transition_rules`；系统会跳过已存在的同名规则，并重新启用已停用的同名规则。中文状态会生成稳定的 ASCII `required_permission`，便于后续给角色授予精确权限。
 
-切换 `strict` 前，先执行“就绪检查”。该检查本身只读，不会修改数据库；它会汇总当前应用还缺少的显式迁移规则、`permissions` 定义，以及任务候选角色在 `v_role_permissions` 中缺少的授权码。若只缺 `permissions` 定义，可在检查结果里点击“补齐权限定义”批量 upsert 到 `public.permissions`。权限定义齐备后，可再点击“补齐角色授权”写入 `public.role_permissions`；该动作只给当前报告中的候选角色补齐当前报告中的缺失权限，不会创建角色、不会创建权限定义。所有缺口清零后，“切换 strict”会把该流程应用策略写为 `permission_mode='strict'`、`legacy_fallback_enabled=false`，并启用任务分派、流程操作、状态迁移三类校验。
+切换 `strict` 前，先执行“就绪检查”。该检查本身只读，不会修改数据库；它会汇总当前应用还缺少的显式迁移规则、`permissions` 定义，以及任务候选角色在 `v_role_permissions` 中缺少的授权码。若缺显式迁移规则，可在检查结果里点击“补齐迁移规则”写入 `app_center.workflow_transition_rules`，并重新启用同名停用规则。若只缺 `permissions` 定义，可点击“补齐权限定义”批量 upsert 到 `public.permissions`。权限定义齐备后，可再点击“补齐角色授权”写入 `public.role_permissions`；该动作只给当前报告中的候选角色补齐当前报告中的缺失权限，不会创建角色、不会创建权限定义。所有缺口清零后，“切换 strict”会把该流程应用策略写为 `permission_mode='strict'`、`legacy_fallback_enabled=false`，并启用任务分派、流程操作、状态迁移三类校验。
 
 ## 回归覆盖
 

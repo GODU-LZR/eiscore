@@ -28,6 +28,12 @@ Run only the EISGrid agent Chinese query semantic regression:
 npm run test:grid-agent
 ```
 
+Run only the shared EISGrid utility regression:
+
+```bash
+npm run test:grid-utils
+```
+
 Build all frontend applications:
 
 ```bash
@@ -263,6 +269,9 @@ Ubuntu releases).
 - `test:grid-agent` verifies Chinese data-query intent routing, grouped-count
   inference, PostgREST payload construction, and controlled query prompt
   formatting for EISGrid agent answers.
+- `test:grid-utils` verifies shared grid paging, time filters, URL query
+  composition, server-summary payloads, and total-row formatting against edge
+  cases such as hash URLs and invalid dates.
 - `build:frontends` verifies all Vue/Vite micro-frontends compile.
 - `test:smoke` verifies login, deep-link routing, PostgREST profiles, agent health,
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
@@ -289,5 +298,5 @@ Ubuntu releases).
   one repeatable remote acceptance suite. Use `test:engineering:remote:api` when
   validating backend/API behavior without the longer browser pass.
 
-The next layer should add component/unit tests for shared grid visual utilities
-and broaden the Chinese semantic query set with production user questions.
+The next layer should broaden component tests around grid interaction widgets
+and expand the Chinese semantic query set with production user questions.

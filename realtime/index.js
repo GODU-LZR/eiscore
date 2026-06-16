@@ -33,6 +33,10 @@ const aiHttpProxyUrl = envText(
   envText(process.env.HTTPS_PROXY, envText(process.env.HTTP_PROXY, ''))
 );
 const postgrestBaseUrl = envText(process.env.AGENT_POSTGREST_URL, 'http://api:3000').replace(/\/+$/, '');
+const postgrestUserRole = envText(
+  process.env.AGENT_POSTGREST_ROLE,
+  envText(process.env.PGRST_DB_USER_ROLE, 'web_user')
+) || 'web_user';
 const flashToolCallTimeoutMs = Number(process.env.FLASH_TOOL_CALL_TIMEOUT_MS || 30 * 1000);
 const flashToolIdempotencyTtlMs = Number(process.env.FLASH_TOOL_IDEMPOTENCY_TTL_MS || 10 * 60 * 1000);
 const flashCliEnabled = envText(process.env.FLASH_CLINE_ENABLED, 'true').toLowerCase() !== 'false';
@@ -1385,9 +1389,13 @@ const resolveAgentRoute = ({ user, body, messages }) => {
   const intent = detectIntent(latestUserText, context);
   const fallbackMode = resolveDefaultModeByRole(user);
   const mode = requestedMode || fallbackMode;
+  const isSmartBiRequest = !!(context?.smartBi && typeof context.smartBi === 'object');
+  const needsBusinessData = context?.injectBusinessData === true || isSmartBiRequest;
 
   let agentId = mode === 'worker' ? 'worker_assistant' : 'enterprise_analyst';
-  if (intent === 'workflow') {
+  if (isSmartBiRequest || needsBusinessData) {
+    agentId = 'enterprise_analyst';
+  } else if (intent === 'workflow') {
     agentId = canUseWorkflowAgent(user) ? 'workflow_orchestrator' : agentId;
   } else if (mode === 'workflow') {
     agentId = canUseWorkflowAgent(user) ? 'workflow_orchestrator' : 'enterprise_analyst';
@@ -3548,10 +3556,6 @@ const fetchBusinessSnapshot = async (user) => {
 const handleAiBusinessSnapshot = async (req, res) => {
   const user = authorizeHttpRequest(req, res);
   if (!user) return;
-  if (!canAccessAi(user)) {
-    sendJson(res, 403, { code: 'FORBIDDEN', message: 'AI access denied for current role' });
-    return;
-  }
 
   try {
     const snapshot = await fetchBusinessSnapshot(user);
@@ -6160,12 +6164,28 @@ function buildPostgrestPath(pathname = '/', query = {}) {
   return queryString ? `${basePath}?${queryString}` : basePath;
 }
 
+function buildPostgrestUserToken(user) {
+  if (!jwtSecret || !postgrestUserRole) return user?.token || '';
+  const payload = {
+    sub: String(user?.id || user?.username || ''),
+    username: String(user?.username || ''),
+    role: postgrestUserRole,
+    app_role: String(user?.role || ''),
+    permissions: Array.isArray(user?.permissions) ? user.permissions : []
+  };
+  try {
+    return jwt.sign(payload, jwtSecret, { expiresIn: '15m' });
+  } catch {
+    return user?.token || '';
+  }
+}
+
 async function callPostgrestWithUser(user, options = {}) {
   const method = String(options.method || 'GET').toUpperCase();
   const requestPath = buildPostgrestPath(options.path, options.query);
   const url = `${postgrestBaseUrl}${requestPath}`;
   const headers = {
-    Authorization: `Bearer ${user?.token || ''}`,
+    Authorization: `Bearer ${buildPostgrestUserToken(user)}`,
     Accept: 'application/json'
   };
   if (options.acceptProfile) headers['Accept-Profile'] = options.acceptProfile;

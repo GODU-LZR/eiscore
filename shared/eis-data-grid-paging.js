@@ -8,18 +8,22 @@ export const DEFAULT_GRID_MAX_CLIENT_ROWS = 5000
 
 export function normalizePageSize(value, fallback = DEFAULT_GRID_PAGE_SIZE) {
   const num = Number(value)
-  if (!Number.isFinite(num) || num <= 0) return fallback
+  const fallbackNum = Number(fallback)
+  const safeFallback = Number.isFinite(fallbackNum) && fallbackNum > 0 ? fallbackNum : DEFAULT_GRID_PAGE_SIZE
+  if (!Number.isFinite(num) || num <= 0) return Math.max(50, Math.min(1000, Math.floor(safeFallback)))
   return Math.max(50, Math.min(1000, Math.floor(num)))
 }
 
 export function normalizeMaxClientRows(value, fallback = DEFAULT_GRID_MAX_CLIENT_ROWS) {
   const num = Number(value)
-  if (!Number.isFinite(num) || num <= 0) return fallback
+  const fallbackNum = Number(fallback)
+  const safeFallback = Number.isFinite(fallbackNum) && fallbackNum > 0 ? fallbackNum : DEFAULT_GRID_MAX_CLIENT_ROWS
+  if (!Number.isFinite(num) || num <= 0) return Math.max(1000, Math.floor(safeFallback))
   return Math.max(1000, Math.floor(num))
 }
 
 export function hasExplicitPaging(url) {
-  const text = String(url || '')
+  const text = String(url || '').split('#')[0]
   return /(?:[?&])(limit|offset)=/i.test(text)
 }
 
@@ -27,7 +31,11 @@ export function appendQuery(url, paramText) {
   if (!paramText) return url
   const cleanParam = String(paramText).replace(/^[?&]+/, '')
   if (!cleanParam) return url
-  return `${url}${String(url).includes('?') ? '&' : '?'}${cleanParam}`
+  const text = String(url || '')
+  const hashIndex = text.indexOf('#')
+  const base = hashIndex >= 0 ? text.slice(0, hashIndex) : text
+  const hash = hashIndex >= 0 ? text.slice(hashIndex) : ''
+  return `${base}${base.includes('?') ? '&' : '?'}${cleanParam}${hash}`
 }
 
 export function buildPagedUrl({
@@ -44,7 +52,7 @@ export function buildPagedUrl({
   let url = String(baseUrl || '').trim()
   if (!url) return ''
 
-  if (defaultOrder && !/(?:[?&])order=/i.test(url)) {
+  if (defaultOrder && !/(?:[?&])order=/i.test(String(url || '').split('#')[0])) {
     url = appendQuery(url, `order=${defaultOrder}`)
   }
 
@@ -52,8 +60,10 @@ export function buildPagedUrl({
     url = appendQuery(url, buildSearchQuery(searchText, staticColumns, extraColumns))
   }
 
-  if (enablePaging) {
-    url = appendQuery(url, `limit=${limit}&offset=${offset}`)
+  if (enablePaging && !hasExplicitPaging(url)) {
+    const safeLimit = normalizePageSize(limit, DEFAULT_GRID_PAGE_SIZE)
+    const safeOffset = Math.max(0, Math.floor(Number(offset) || 0))
+    url = appendQuery(url, `limit=${safeLimit}&offset=${safeOffset}`)
   }
 
   return url

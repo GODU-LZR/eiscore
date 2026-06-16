@@ -780,6 +780,15 @@
           <template #footer>
             <el-button @click="workflowReadinessDialogVisible = false">关闭</el-button>
             <el-button
+              type="success"
+              plain
+              :loading="workflowRuleGenerating"
+              :disabled="workflowReadinessReport.missingRules.length === 0"
+              @click="createMissingWorkflowTransitionRules"
+            >
+              补齐迁移规则
+            </el-button>
+            <el-button
               type="primary"
               plain
               :loading="workflowPermissionDefSaving"
@@ -3154,14 +3163,7 @@ async function deleteWorkflowTransitionRule(row) {
   }
 }
 
-async function generateWorkflowTransitionRules() {
-  if (!runtimeAppId.value) return
-  const candidates = getGeneratedWorkflowTransitionRuleCandidates()
-  if (!candidates.length) {
-    ElMessage.warning('没有可生成的迁移规则，请先确认流程连线和状态映射')
-    return
-  }
-
+const resolveWorkflowRuleUpsertPlan = (candidates) => {
   const existingMap = new Map()
   workflowTransitionRules.value.forEach((row) => {
     const key = getWorkflowTransitionRuleKey(row)
@@ -3179,6 +3181,37 @@ async function generateWorkflowTransitionRules() {
       toReactivate.push({ existing, candidate })
     }
   })
+  return { toCreate, toReactivate }
+}
+
+async function persistWorkflowTransitionRulePlan(toCreate, toReactivate) {
+  const token = localStorage.getItem('auth_token')
+  const headers = {
+    ...getAppCenterHeaders(token),
+    Prefer: 'return=representation'
+  }
+  if (toCreate.length) {
+    await axios.post('/api/workflow_transition_rules', toCreate, { headers })
+  }
+  for (const item of toReactivate) {
+    await axios.patch(
+      `/api/workflow_transition_rules?id=eq.${encodeURIComponent(String(item.existing.id))}`,
+      item.candidate,
+      { headers }
+    )
+  }
+  await loadWorkflowTransitionRules()
+}
+
+async function generateWorkflowTransitionRules() {
+  if (!runtimeAppId.value) return
+  const candidates = getGeneratedWorkflowTransitionRuleCandidates()
+  if (!candidates.length) {
+    ElMessage.warning('没有可生成的迁移规则，请先确认流程连线和状态映射')
+    return
+  }
+
+  const { toCreate, toReactivate } = resolveWorkflowRuleUpsertPlan(candidates)
 
   if (!toCreate.length && !toReactivate.length) {
     ElMessage.success('显式迁移规则已齐备')
@@ -3201,25 +3234,53 @@ async function generateWorkflowTransitionRules() {
 
   workflowRuleGenerating.value = true
   try {
-    const token = localStorage.getItem('auth_token')
-    const headers = {
-      ...getAppCenterHeaders(token),
-      Prefer: 'return=representation'
-    }
-    if (toCreate.length) {
-      await axios.post('/api/workflow_transition_rules', toCreate, { headers })
-    }
-    for (const item of toReactivate) {
-      await axios.patch(
-        `/api/workflow_transition_rules?id=eq.${encodeURIComponent(String(item.existing.id))}`,
-        item.candidate,
-        { headers }
-      )
-    }
+    await persistWorkflowTransitionRulePlan(toCreate, toReactivate)
     ElMessage.success(`迁移规则已生成：新增 ${toCreate.length} 条，启用 ${toReactivate.length} 条`)
-    await loadWorkflowTransitionRules()
   } catch (error) {
     ElMessage.error(formatWorkflowError('生成迁移规则失败', error))
+  } finally {
+    workflowRuleGenerating.value = false
+  }
+}
+
+async function createMissingWorkflowTransitionRules() {
+  if (!runtimeAppId.value || workflowRuleGenerating.value) return
+  const candidates = Array.isArray(workflowReadinessReport.missingRules)
+    ? workflowReadinessReport.missingRules
+    : []
+  if (!candidates.length) {
+    ElMessage.success('显式迁移规则已齐备')
+    return
+  }
+
+  const { toCreate, toReactivate } = resolveWorkflowRuleUpsertPlan(candidates)
+  if (!toCreate.length && !toReactivate.length) {
+    ElMessage.success('显式迁移规则已齐备')
+    await runWorkflowReadinessCheck()
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将补齐当前检查报告中的迁移规则：新增 ${toCreate.length} 条，启用 ${toReactivate.length} 条停用规则。`,
+      '补齐迁移规则',
+      {
+        type: 'warning',
+        confirmButtonText: '补齐',
+        cancelButtonText: '取消'
+      }
+    )
+  } catch {
+    return
+  }
+
+  workflowRuleGenerating.value = true
+  try {
+    await persistWorkflowTransitionRulePlan(toCreate, toReactivate)
+    ElMessage.success(`已补齐迁移规则：新增 ${toCreate.length} 条，启用 ${toReactivate.length} 条`)
+    await runWorkflowReadinessCheck()
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('补齐迁移规则失败', error))
   } finally {
     workflowRuleGenerating.value = false
   }

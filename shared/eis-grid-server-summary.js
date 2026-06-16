@@ -4,7 +4,9 @@
 export const SERVER_SUMMARY_SCOPE_SERVER = 'server'
 export const SERVER_SUMMARY_SCOPE_LOADED = 'loaded'
 
-const trimApiPrefix = (url) => String(url || '').replace(/^\/api\b/, '')
+const stripHash = (url) => String(url || '').split('#')[0]
+
+const trimApiPrefix = (url) => stripHash(url).replace(/^\/api\b/, '')
 
 const safeDecodeQueryPart = (value) => {
   try {
@@ -14,8 +16,10 @@ const safeDecodeQueryPart = (value) => {
   }
 }
 
+const normalizeQueryPart = (value) => safeDecodeQueryPart(value).replace(/^[?&]+/, '')
+
 export function extractApiFilterQuery(url = '') {
-  const [, rawQuery = ''] = String(url || '').split('?')
+  const [, rawQuery = ''] = stripHash(url).split('?')
   if (!rawQuery) return ''
   const ignored = new Set(['select', 'order', 'limit', 'offset'])
   const parts = rawQuery
@@ -64,7 +68,7 @@ export function buildServerSummaryPayload({ props, summaryConfig, searchText, bu
   let searchQuery = ''
   const text = String(searchText || '').trim()
   if (text && typeof buildSearchQuery === 'function') {
-    searchQuery = safeDecodeQueryPart(buildSearchQuery(text, props.staticColumns || [], props.extraColumns || []))
+    searchQuery = normalizeQueryPart(buildSearchQuery(text, props.staticColumns || [], props.extraColumns || []))
   }
 
   return {
