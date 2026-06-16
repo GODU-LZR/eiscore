@@ -57,7 +57,19 @@
    - 支持读取/刷新推理事实，事实表默认优先展示推理生成事实，再展示种子事实。
    - 支持按谓词和关键词筛选推理事实，便于查看 `acl:canAccessApp`、`acl:canAccessTable`、`risk:canAccessSensitiveColumn` 等边。
    - 支持从角色/表/应用/权限出发调用 `public.explain_ontology_path(...)` 做路径解释。
+   - 新增“推理洞察”面板，读取 `v_ontology_reasoning_health`、角色风险、表影响、规则统计和敏感路径视图。
+   - 支持从角色编码调用 `public.explain_role_ontology_access(...)`，展示角色到应用、业务表、应用动作、敏感字段的可解释链路。
+   - 开发态基座验证入口：`http://127.0.0.1:8080/apps/ontology-relations/8abc144b-edf0-424a-bdb0-4fbe4c09ddb6`。
    - 修复子应用独立预览时 qiankun dev 生命周期误注册导致的 `window.proxy.vitemount` 噪音。
+
+6. 推理洞察层：`sql/patch_ontology_reasoning_insights_v1.sql`
+   - 新增 `public.v_ontology_reasoning_rule_stats`，按规则统计事实数量、推理事实、谓词集合和最近运行状态。
+   - 新增 `public.v_ontology_role_access_insights`，按角色聚合可访问应用、业务表、可操作表和敏感字段暴露。
+   - 新增 `public.v_ontology_sensitive_access_paths`，展开角色到敏感字段的可达路径和证据。
+   - 新增 `public.v_ontology_table_dependency_paths` 与 `public.v_ontology_table_impact_insights`，用于表依赖路径和表影响面分析。
+   - 新增 `public.v_ontology_reasoning_health`，合并推理运行状态与语义覆盖审计，输出 `is_healthy/health_code`。
+   - 新增 `public.explain_role_ontology_access(...)`，提供角色中心的只读访问解释。
+   - 洞察视图本身已纳入本体语义覆盖；API 运行态审计为关系 `133/133`、字段 `1692/1692`、缺口 0；数据库管理员全量审计为字段 `1721/1721`、缺口 0。
 
 ## 默认策略
 
@@ -118,6 +130,18 @@ PowerShell UTF-8 安全方式：
 Get-Content sql/patch_ontology_reasoning_engine_v1.sql -Raw -Encoding UTF8 | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
 ```
 
+知识图谱推理洞察补丁：
+
+```bash
+cat sql/patch_ontology_reasoning_insights_v1.sql | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
+```
+
+PowerShell UTF-8 安全方式：
+
+```powershell
+Get-Content sql/patch_ontology_reasoning_insights_v1.sql -Raw -Encoding UTF8 | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
+```
+
 手动刷新推理事实：
 
 ```sql
@@ -133,6 +157,7 @@ SELECT * FROM public.refresh_ontology_inferences(4);
 | `active_rules` | 16 |
 | `role_app_access_facts` | 27 |
 | `sensitive_exposure_facts` | 18 |
+| `reasoning_health` | healthy |
 
 ## 后续建议
 
@@ -162,3 +187,5 @@ EISCORE_CHAIN_BASE_URL=http://localhost npm run test:business-chain
 5. 在链路前置检查中读取 `public.v_app_form_ontology` 和 `public.v_role_ontology`，确保新增业务表单与角色实体已经进入本体语义投影。
 6. 在链路前置检查中读取 `public.v_ontology_coverage_audit`，确保 API 关系对象、字段、业务表单、角色、权限的语义覆盖缺口均为 0。
 7. 在链路前置检查中读取 `public.v_ontology_reasoning_summary` 和 `public.v_ontology_reasoning_facts`，确保推理引擎已经生成种子事实与推理事实，且角色访问应用、角色访问业务表、传递依赖等规则可读。
+8. 在链路前置检查中读取 `public.v_ontology_reasoning_health`、`public.v_ontology_role_access_insights` 与 `public.v_ontology_table_impact_insights`，确保洞察层健康、角色风险面和表影响面可读。
+9. 在链路前置检查中调用 `public.explain_role_ontology_access(...)`，确保角色中心的敏感字段路径和表访问路径可解释。

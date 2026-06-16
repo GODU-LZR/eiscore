@@ -15,14 +15,14 @@
 | 工程 HTTP 客户端 | PASS | `npm run test:http-client` 通过，覆盖远端重试、非幂等写请求保护、超时归一化和原生 body 透传。 |
 | 全前端构建 | PASS | `npm run build:frontends`，11 个前端包全部构建成功。 |
 | 远端 smoke | PASS | V2 patch 前后均为 23/23 PASS。 |
-| 远端业务闭环 | PASS | V2 + 本体覆盖 + 本体推理后最新为 28/28 PASS，包含角色授权视图、本体投影覆盖审计、推理事实、严格策略和显式状态迁移规则。 |
-| 远端工程 API 套件 | PASS | `npm run test:engineering:remote:api` 最新 smoke 23/23、business-chain 28/28。 |
+| 远端业务闭环 | PASS | V2 + 本体覆盖 + 本体推理 + 推理洞察后最新为 30/30 PASS，包含角色授权视图、本体投影覆盖审计、推理事实、洞察健康、角色访问解释、严格策略和显式状态迁移规则。 |
+| 远端工程 API 套件 | PASS | `npm run test:engineering:remote:api` 最新 smoke 23/23、business-chain 30/30。 |
 | 67 功能点 UI | PASS | `npm run test:e2e:functions67:remote` 最新 67/67 PASS，覆盖完整功能点矩阵。 |
 | UI 业务闭环 | PASS | `npm run test:e2e:business-chain:remote` 最新 1/1 PASS。 |
 | UI 点击巡检 | PASS | `npm run test:e2e:clicks:remote` 最新 4/4 PASS；已修复直跑 Playwright 时缺少本地 Linux 依赖路径的问题。 |
 | 完整 77 浏览器长跑 | PASS | 历史 `npm run test:e2e:remote` 最终 77/77 PASS；本轮拆分 UI 点击、业务闭环和 67 功能点均已通过。 |
 
-总体判断：工程主链路可用，远端业务、语义本体、推理引擎和 UI 点击功能均已通过自动化验证。当前剩余风险主要是历史观察到的远端长时间回归偶发 DNS/连接抖动，以及静态资源发布时删除旧 hash 资源会影响缓存窗口内的微前端动态加载。
+总体判断：工程主链路可用，远端业务、语义本体、推理引擎、推理洞察和 UI 点击功能均已通过自动化验证。当前剩余风险主要是历史观察到的远端长时间回归偶发 DNS/连接抖动、当前本机 WSL 偶发 `E_UNEXPECTED` 运行时中断，以及静态资源发布时删除旧 hash 资源会影响缓存窗口内的微前端动态加载。
 
 ## 二、本地工程基线
 
@@ -136,6 +136,12 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 
 | 时间 | 命令 | 结果 | 说明 |
 |---|---|---:|---|
+| 2026-06-16 | `sql/patch_ontology_reasoning_insights_v1.sql` | PASS | 远端应用知识图谱推理洞察补丁；schema 执行前备份到 `tests/.artifacts/eiscore_ontology_reasoning_insights_v1_schema_before_20260616_2328.sql`。补丁新增规则统计、角色访问洞察、敏感路径、表依赖路径、表影响面、推理健康视图和 `explain_role_ontology_access(...)`。 |
+| 2026-06-16 | `npm run test:business-chain:remote` | PASS | business-chain 30/30；新增 `02f` 洞察健康/影响面检查与 `02g` 角色访问解释 RPC 检查。测试从实际洞察数据动态选择候选角色，避免固定演示角色不存在导致误报。 |
+| 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 30/30；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T15-32-59-513Z.md`。 |
+| 2026-06-16 | `npm run test:e2e:clicks:remote` | PASS | 远端普通用户 UI 点击巡检 4/4 PASS。 |
+| 2026-06-16 | `npm run test:syntax && npm run test:unit` | PASS | Node 语法门禁 24 个入口通过；离线单元/回归全绿。期间观察到一次 WSL `E_UNEXPECTED` 后单测重跑通过。 |
+| 2026-06-16 | `npm --prefix eiscore-base run build && npm --prefix eiscore-apps run build` | PASS | 受影响前端包构建通过，覆盖 AI Copilot/首页历史联动、本体工作台洞察面板和 qiankun 生命周期保护。 |
 | 2026-06-16 | `sql/patch_ontology_reasoning_engine_v1.sql` | PASS | 远端应用知识图谱推理引擎补丁；schema 执行前备份到 `tests/.artifacts/eiscore_ontology_reasoning_engine_v1_schema_before_20260616_2235.sql`。最新摘要：facts 3052、seed 2990、inferred 62、active rules 16、角色访问应用 3、角色访问业务表 2、传递依赖 37。 |
 | 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 28/28；新增 `02e ontology reasoning engine exposes inferred facts`，最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T14-43-32-197Z.md`。 |
 | 2026-06-16 | `npm --prefix eiscore-apps run build && npm --prefix eiscore-base run build` | PASS | 受影响前端包构建通过，覆盖本体工作台推理面板和 AI Copilot 历史侧栏改动。 |
@@ -166,6 +172,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 8. `sql/patch_ontology_semantic_coverage_v2.sql` 将业务表单、角色、角色授权和本体覆盖审计视图纳入 PostgREST 可读语义投影；`test:business-chain` 增加 `02c/02d` 前置检查，防止语义层缺口静默回归。
 9. `sql/patch_ontology_reasoning_engine_v1.sql` 将本体推理规则、推理事实、推理运行批次、推理摘要和路径解释纳入数据库侧工程能力；`test:business-chain` 增加 `02e` 前置检查，防止推理层不可读或无推理事实。
 10. `playwright.config.mjs` 自动加载 `tests/.artifacts/playwright-libs/root/usr/lib/x86_64-linux-gnu` 下的缓存 Linux 共享库，使 `test:e2e:*:remote` 单独直跑时也能稳定启动 Chromium。
+11. `sql/patch_ontology_reasoning_insights_v1.sql` 将推理规则统计、角色访问洞察、敏感字段路径、表依赖路径、表影响面和推理健康纳入 PostgREST 可读洞察层；`test:business-chain` 增加 `02f/02g`，并动态选择实际存在的角色验证解释函数，避免硬编码角色码造成误报。
 
 ## 六、当前风险
 
@@ -175,6 +182,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 静态资源发布删除旧 hash | P1 | 微前端动态 import 可能在缓存窗口请求旧 chunk。 | 使用 `scripts/sync-spa-dist-preserve-assets.sh` 发布，或采用整站原子发布；定期清理超过保留窗口的旧 hash。 |
 | 本地 Node 版本低于 CI | P2 | 本机 Node 20.18.1，CI 为 20.19.0。 | WSL Node 升级到 20.19+，减少 Vite 环境差异。 |
 | 前端大 chunk / manual chunk 循环 | P2 | 不阻断构建，但影响性能和缓存效率。 | 后续建立 bundle size 基线，优化 chunk 策略。 |
+| 本机 WSL 偶发 `E_UNEXPECTED` | P2 | 本轮在并发 WSL 命令和一次远端 API 套件启动时观察到 WSL 运行时中断，重试后测试通过。 | 工程测试尽量串行跑 WSL 重负载命令；若复现频繁，重启 WSL 服务或迁移到 CI/Linux runner 执行长回归。 |
 
 ## 七、建议的工程门禁
 

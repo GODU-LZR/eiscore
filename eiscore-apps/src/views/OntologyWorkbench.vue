@@ -156,6 +156,139 @@
           </el-table>
           <div v-else class="column-empty-tip">暂无路径结果</div>
         </div>
+
+        <div class="insight-panel">
+          <div class="insight-header">
+            <div class="detail-title">推理洞察</div>
+            <div class="header-controls">
+              <el-tag :type="reasoningHealthTagType" effect="plain">
+                {{ reasoningHealth.health_code || 'unknown' }}
+              </el-tag>
+              <el-button size="small" text :loading="insightLoading" @click="loadReasoningInsights">
+                读取洞察
+              </el-button>
+            </div>
+          </div>
+
+          <div class="insight-metrics">
+            <div v-for="item in insightMetricCards" :key="item.key" class="insight-metric">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </div>
+          </div>
+
+          <el-tabs class="insight-tabs">
+            <el-tab-pane label="角色风险">
+              <el-table :data="roleAccessInsights" size="small" border stripe max-height="260">
+                <el-table-column label="角色" min-width="150">
+                  <template #default="{ row }">
+                    <div>{{ row.role_name || row.role_code }}</div>
+                    <div class="table-raw">{{ row.role_code }}</div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="accessible_apps" label="应用" width="76" />
+                <el-table-column prop="accessible_tables" label="表" width="76" />
+                <el-table-column prop="operable_tables" label="可操作表" width="96" />
+                <el-table-column prop="sensitive_columns" label="敏感字段" width="96" />
+                <el-table-column prop="sensitive_tables" label="敏感表" width="88" />
+              </el-table>
+            </el-tab-pane>
+
+            <el-tab-pane label="表影响">
+              <el-table :data="tableImpactInsights" size="small" border stripe max-height="260">
+                <el-table-column label="表" min-width="210">
+                  <template #default="{ row }">
+                    <div>{{ row.table_label || row.table_id }}</div>
+                    <div class="table-raw">{{ row.table_id }}</div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="sensitive_columns" label="敏感字段" width="96" />
+                <el-table-column prop="roles_can_access" label="可访问角色" width="104" />
+                <el-table-column prop="roles_can_operate" label="可操作角色" width="104" />
+                <el-table-column prop="transitive_dependent_tables" label="传递影响" width="96" />
+                <el-table-column prop="depends_on_tables" label="依赖数" width="88" />
+              </el-table>
+            </el-tab-pane>
+
+            <el-tab-pane label="规则统计">
+              <el-table :data="ruleStats" size="small" border stripe max-height="260">
+                <el-table-column label="规则" min-width="220">
+                  <template #default="{ row }">
+                    <div>{{ cleanDisplayText(row.rule_name) || row.rule_code }}</div>
+                    <div class="table-raw">{{ row.rule_code }}</div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="declared_predicate" label="谓词" min-width="150">
+                  <template #default="{ row }">{{ predicateLabel(row.declared_predicate) }}</template>
+                </el-table-column>
+                <el-table-column prop="facts_total" label="事实" width="76" />
+                <el-table-column prop="inferred_facts" label="推理" width="76" />
+                <el-table-column prop="predicate_count" label="谓词数" width="88" />
+                <el-table-column prop="is_active" label="状态" width="82">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="row.is_active ? 'success' : 'info'" effect="plain">
+                      {{ row.is_active ? '启用' : '停用' }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+
+            <el-tab-pane label="敏感路径">
+              <el-table :data="sensitiveAccessPaths" size="small" border stripe max-height="260">
+                <el-table-column label="角色" min-width="130">
+                  <template #default="{ row }">
+                    <div>{{ row.role_name || row.role_code }}</div>
+                    <div class="table-raw">{{ row.role_code }}</div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="字段" min-width="220">
+                  <template #default="{ row }">
+                    <div>{{ row.column_label || row.column_name }}</div>
+                    <div class="table-raw">{{ row.column_id }}</div>
+                  </template>
+                </el-table-column>
+                <el-table-column label="表" min-width="180">
+                  <template #default="{ row }">
+                    <div>{{ row.table_label || row.table_id }}</div>
+                    <div class="table-raw">{{ row.table_id }}</div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="access_rule" label="访问证据" min-width="170" show-overflow-tooltip />
+              </el-table>
+            </el-tab-pane>
+          </el-tabs>
+
+          <div class="role-explain-panel">
+            <div class="role-explain-toolbar">
+              <span class="role-explain-label">角色访问解释</span>
+              <el-input v-model="roleExplainCode" clearable size="small" class="path-input" placeholder="角色编码" />
+              <el-button size="small" :loading="roleExplainLoading" @click="explainRoleAccess">解释角色</el-button>
+              <el-tag effect="plain">路径 {{ roleExplainRows.length }} 条</el-tag>
+            </div>
+            <el-table
+              v-if="roleExplainRows.length"
+              :data="roleExplainRows"
+              size="small"
+              border
+              stripe
+              max-height="260"
+            >
+              <el-table-column label="目标" min-width="220">
+                <template #default="{ row }">
+                  <div>{{ row.target_label || row.target_id }}</div>
+                  <div class="table-raw">{{ row.target_type }}:{{ row.target_id }}</div>
+                </template>
+              </el-table-column>
+              <el-table-column label="谓词" min-width="170">
+                <template #default="{ row }">{{ predicateLabel(row.predicate) }}</template>
+              </el-table-column>
+              <el-table-column prop="permission_code" label="权限证据" min-width="220" show-overflow-tooltip />
+              <el-table-column prop="path_text" label="解释链" min-width="360" show-overflow-tooltip />
+            </el-table>
+            <div v-else class="column-empty-tip">暂无角色解释结果</div>
+          </div>
+        </div>
       </el-card>
     </section>
 
@@ -380,6 +513,15 @@ const reasoningSummary = ref({})
 const reasoningFacts = ref([])
 const reasoningPredicate = ref('')
 const reasoningSearchText = ref('')
+const insightLoading = ref(false)
+const reasoningHealth = ref({})
+const roleAccessInsights = ref([])
+const tableImpactInsights = ref([])
+const ruleStats = ref([])
+const sensitiveAccessPaths = ref([])
+const roleExplainLoading = ref(false)
+const roleExplainCode = ref('sales_manager')
+const roleExplainRows = ref([])
 const pathLoading = ref(false)
 const pathSubjectType = ref('role')
 const pathSubjectId = ref('sales_manager')
@@ -401,6 +543,12 @@ const STATIC_TABLE_LABELS = {
   'public.v_ontology_reasoning_facts': '本体推理事实视图',
   'public.v_ontology_reasoning_edges': '本体推理边视图',
   'public.v_ontology_reasoning_summary': '本体推理摘要',
+  'public.v_ontology_reasoning_rule_stats': '本体推理规则统计',
+  'public.v_ontology_role_access_insights': '角色访问洞察',
+  'public.v_ontology_sensitive_access_paths': '敏感字段访问路径',
+  'public.v_ontology_table_dependency_paths': '表依赖路径',
+  'public.v_ontology_table_impact_insights': '表影响洞察',
+  'public.v_ontology_reasoning_health': '本体推理健康状态',
   'workflow.definitions': '流程定义',
   'workflow.instances': '流程实例',
   'workflow.task_assignments': '任务分派',
@@ -442,7 +590,10 @@ const SEMANTIC_CLASS_LABELS = {
   file_attribute: '文件属性',
   derived_metric: '派生指标',
   time_attribute: '时间属性',
-  json_attribute: 'JSON属性'
+  json_attribute: 'JSON属性',
+  identifier: '标识',
+  reference_attribute: '引用属性',
+  boolean_attribute: '布尔属性'
 }
 
 const normalizedSearch = computed(() => String(searchText.value || '').trim().toLowerCase())
@@ -521,6 +672,29 @@ const reasoningMetricCards = computed(() => ([
   { key: 'dependency', label: '传递依赖', value: reasoningSummary.value.transitive_dependency_facts || 0 }
 ]))
 
+const reasoningHealthTagType = computed(() => {
+  if (reasoningHealth.value.is_healthy === true) return 'success'
+  if (reasoningHealth.value.health_code) return 'danger'
+  return 'info'
+})
+
+const insightMetricCards = computed(() => ([
+  {
+    key: 'relations',
+    label: '关系覆盖',
+    value: `${reasoningHealth.value.semanticized_relations || 0}/${reasoningHealth.value.api_relations || 0}`
+  },
+  {
+    key: 'columns',
+    label: '字段覆盖',
+    value: `${reasoningHealth.value.semanticized_columns || 0}/${reasoningHealth.value.ontology_columns || 0}`
+  },
+  { key: 'roles', label: '角色洞察', value: roleAccessInsights.value.length },
+  { key: 'tables', label: '影响表', value: tableImpactInsights.value.length },
+  { key: 'sensitive', label: '敏感路径', value: sensitiveAccessPaths.value.length },
+  { key: 'rules', label: '规则统计', value: ruleStats.value.length }
+]))
+
 const filteredReasoningFacts = computed(() => {
   const keyword = String(reasoningSearchText.value || '').trim().toLowerCase()
   if (!keyword) return reasoningFacts.value
@@ -558,6 +732,12 @@ const semanticsModeLabel = (value) => {
 }
 
 const predicateLabel = (value) => PREDICATE_LABELS[value] || value || '-'
+
+const cleanDisplayText = (value) => {
+  const text = String(value || '').trim()
+  if (!text || text.includes('?')) return ''
+  return text
+}
 
 const formatColumn = (value) => (value ? `.${value}` : '')
 
@@ -691,6 +871,70 @@ const loadReasoning = async () => {
   }
 }
 
+const loadReasoningInsights = async () => {
+  insightLoading.value = true
+  try {
+    const [
+      healthRows,
+      roleRows,
+      tableRows,
+      ruleRows,
+      sensitiveRows
+    ] = await Promise.all([
+      request({
+        url: '/v_ontology_reasoning_health?select=id,is_healthy,health_code,facts_total,inferred_facts,api_relations,semanticized_relations,ontology_columns,semanticized_columns,missing_relation_semantics,missing_column_semantics,last_run_status,last_finished_at&limit=1',
+        method: 'get',
+        headers: {
+          'Accept-Profile': 'public',
+          'Content-Profile': 'public'
+        }
+      }),
+      request({
+        url: '/v_ontology_role_access_insights?select=role_code,role_name,accessible_apps,accessible_tables,operable_tables,sensitive_columns,sensitive_tables,inferred_permission_paths&order=sensitive_columns.desc,accessible_apps.desc,role_code.asc&limit=50',
+        method: 'get',
+        headers: {
+          'Accept-Profile': 'public',
+          'Content-Profile': 'public'
+        }
+      }),
+      request({
+        url: '/v_ontology_table_impact_insights?select=table_id,table_label,sensitive_columns,roles_can_access,roles_can_operate,direct_dependent_tables,transitive_dependent_tables,depends_on_tables,has_reasoning_impact&has_reasoning_impact=eq.true&order=transitive_dependent_tables.desc,roles_can_access.desc,table_id.asc&limit=50',
+        method: 'get',
+        headers: {
+          'Accept-Profile': 'public',
+          'Content-Profile': 'public'
+        }
+      }),
+      request({
+        url: '/v_ontology_reasoning_rule_stats?select=rule_code,rule_name,declared_predicate,facts_total,seed_facts,inferred_facts,predicate_count,is_active,min_depth,max_depth&order=inferred_facts.desc,facts_total.desc,rule_code.asc&limit=50',
+        method: 'get',
+        headers: {
+          'Accept-Profile': 'public',
+          'Content-Profile': 'public'
+        }
+      }),
+      request({
+        url: '/v_ontology_sensitive_access_paths?select=role_code,role_name,table_id,table_label,column_id,column_name,column_label,access_rule,access_predicate,inference_rule,rule_name&order=role_code.asc,table_id.asc,column_name.asc&limit=50',
+        method: 'get',
+        headers: {
+          'Accept-Profile': 'public',
+          'Content-Profile': 'public'
+        }
+      })
+    ])
+    reasoningHealth.value = firstRow(healthRows) || {}
+    roleAccessInsights.value = Array.isArray(roleRows) ? roleRows : []
+    tableImpactInsights.value = Array.isArray(tableRows) ? tableRows : []
+    ruleStats.value = Array.isArray(ruleRows) ? ruleRows : []
+    sensitiveAccessPaths.value = Array.isArray(sensitiveRows) ? sensitiveRows : []
+    await explainRoleAccess(true)
+  } catch {
+    ElMessage.error('加载推理洞察失败')
+  } finally {
+    insightLoading.value = false
+  }
+}
+
 const refreshReasoning = async () => {
   reasoningRefreshLoading.value = true
   try {
@@ -703,12 +947,40 @@ const refreshReasoning = async () => {
         'Content-Profile': 'public'
       }
     })
-    await loadReasoning()
+    await Promise.all([loadReasoning(), loadReasoningInsights()])
     ElMessage.success('推理刷新完成')
   } catch {
     ElMessage.error('刷新推理失败')
   } finally {
     reasoningRefreshLoading.value = false
+  }
+}
+
+const explainRoleAccess = async (silent = false) => {
+  const roleCode = String(roleExplainCode.value || '').trim()
+  if (!roleCode) {
+    if (!silent) ElMessage.warning('请填写角色编码')
+    return
+  }
+  roleExplainLoading.value = true
+  try {
+    const rows = await request({
+      url: '/rpc/explain_role_ontology_access',
+      method: 'post',
+      data: {
+        p_role_code: roleCode,
+        p_limit: 50
+      },
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
+      }
+    })
+    roleExplainRows.value = Array.isArray(rows) ? rows : []
+  } catch {
+    if (!silent) ElMessage.error('角色访问解释失败')
+  } finally {
+    roleExplainLoading.value = false
   }
 }
 
@@ -841,7 +1113,7 @@ const reload = async () => {
 }
 
 const reloadAll = async () => {
-  await Promise.all([reload(), loadReasoning()])
+  await Promise.all([reload(), loadReasoning(), loadReasoningInsights()])
 }
 
 const goBack = () => {
@@ -1029,6 +1301,75 @@ onBeforeUnmount(() => {
   border: 1px solid var(--el-border-color-light);
   background: var(--el-fill-color-extra-light);
   padding: 10px;
+}
+
+.insight-panel {
+  margin-top: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-blank);
+  padding: 10px;
+}
+
+.insight-header,
+.role-explain-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.insight-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.insight-metric {
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-extra-light);
+  padding: 8px 10px;
+}
+
+.insight-metric span {
+  display: block;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.insight-metric strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--el-text-color-primary);
+  font-size: 18px;
+  line-height: 1;
+  word-break: break-all;
+}
+
+.insight-tabs {
+  margin-top: 2px;
+}
+
+.role-explain-panel {
+  margin-top: 10px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 10px;
+}
+
+.role-explain-toolbar {
+  justify-content: flex-start;
+}
+
+.role-explain-label {
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .path-input {

@@ -30,6 +30,7 @@ const runId = `chain_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`
 const results = []
 const cleanupErrors = []
 let token = ''
+let ontologyInsightRoleCode = ''
 
 const created = {
   appId: '',
@@ -275,6 +276,56 @@ await step('02e ontology reasoning engine exposes inferred facts', async () => {
   ensure(Array.isArray(factsOut.data), 'reasoning facts response should be an array')
   ensure(factsOut.data.length > 0, 'reasoning facts should include role app access facts')
   return { detail: `facts=${summary.facts_total}, inferred=${summary.inferred_facts}`, statusCode: factsOut.status }
+})
+
+await step('02f ontology reasoning insights expose health and impact', async () => {
+  const healthOut = await api('/api/v_ontology_reasoning_health?select=is_healthy,health_code,facts_total,inferred_facts,missing_relation_semantics,missing_column_semantics', {
+    headers: profileHeaders('public')
+  })
+  const health = rowOf(healthOut.data)
+  ensure(health, 'ontology reasoning health row should exist')
+  ensure(health.is_healthy === true, `ontology reasoning health should be healthy, got ${health.health_code}`)
+  ensure(Number(health.missing_relation_semantics || 0) === 0, 'reasoning insight views should be table-semanticized')
+  ensure(Number(health.missing_column_semantics || 0) === 0, 'reasoning insight view columns should be semanticized')
+
+  const roleOut = await api('/api/v_ontology_role_access_insights?select=role_code,accessible_apps,accessible_tables,operable_tables,sensitive_columns,sensitive_tables&or=(accessible_apps.gt.0,accessible_tables.gt.0,operable_tables.gt.0,sensitive_columns.gt.0)&order=accessible_apps.desc&limit=1', {
+    headers: profileHeaders('public')
+  })
+  const role = rowOf(roleOut.data)
+  ensure(role, 'role access insight should expose at least one role with inferred access')
+  ontologyInsightRoleCode = role.role_code
+  const roleAccessCount = Number(role.accessible_apps || 0) + Number(role.accessible_tables || 0) + Number(role.operable_tables || 0)
+  ensure(roleAccessCount > 0, 'role access insight should include app/table access')
+  ensure(Number(role.sensitive_columns || 0) >= 0, 'role access insight should include sensitive exposure count')
+
+  const tableOut = await api('/api/v_ontology_table_impact_insights?has_reasoning_impact=eq.true&select=table_id,roles_can_access,transitive_dependent_tables,sensitive_columns&limit=3', {
+    headers: profileHeaders('public')
+  })
+  ensure(Array.isArray(tableOut.data), 'table impact insight response should be an array')
+  ensure(tableOut.data.length > 0, 'table impact insights should expose impacted tables')
+  return {
+    detail: `health=${health.health_code}, role=${role.role_code}, role_access=${roleAccessCount}, impacted_tables=${tableOut.data.length}`,
+    statusCode: tableOut.status
+  }
+})
+
+await step('02g ontology role access explanation is callable', async () => {
+  if (!ontologyInsightRoleCode) {
+    const roleOut = await api('/api/v_ontology_role_access_insights?select=role_code&or=(accessible_apps.gt.0,accessible_tables.gt.0,operable_tables.gt.0,sensitive_columns.gt.0)&order=accessible_apps.desc&limit=1', {
+      headers: profileHeaders('public')
+    })
+    ontologyInsightRoleCode = rowOf(roleOut.data)?.role_code || ''
+  }
+  ensure(ontologyInsightRoleCode, 'role access explanation should have a candidate role code')
+  const out = await api('/api/rpc/explain_role_ontology_access', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: { p_role_code: ontologyInsightRoleCode, p_limit: 8 }
+  })
+  ensure(Array.isArray(out.data), 'role access explanation response should be an array')
+  ensure(out.data.length > 0, 'role access explanation should return rows')
+  ensure(out.data.some((row) => ['acl:canAccessApp', 'acl:canAccessTable', 'acl:canOperateTable', 'risk:canAccessSensitiveColumn'].includes(row.predicate)), 'role access explanation should include access paths')
+  return { detail: `role=${ontologyInsightRoleCode}, paths=${out.data.length}`, statusCode: out.status }
 })
 
 await step('03 HR archive baseline is readable', async () => {

@@ -185,8 +185,9 @@ local stack.
 `tests/business/full-chain.mjs` verifies authenticated write/read/update/delete
 loops across app center, dynamic data apps, workflow runtime state writeback,
 workflow V2 strict transition rules, HR, and SCM warehouse management.
-It also fails fast when ontology projections, semantic coverage, or ontology
-reasoning facts are not readable through the remote API.
+It also fails fast when ontology projections, semantic coverage, ontology
+reasoning facts, reasoning health, or role/table insight views are not readable
+through the remote API.
 
 Defaults:
 
@@ -290,8 +291,10 @@ such as `libnspr4.so`, install the browser dependencies with
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
 - `test:business-chain` verifies create/read/update/delete loops and workflow
   status writeback against writable business APIs. It also checks ontology
-  projections, coverage audit views, and ontology reasoning summary/facts before
-  mutating data, so semantic-layer and inference-layer gaps fail fast.
+  projections, coverage audit views, ontology reasoning summary/facts, reasoning
+  health, role access insights, table impact insights, and role access
+  explanation RPC before mutating data, so semantic-layer and inference-layer
+  gaps fail fast.
 - `test:e2e` verifies that the app actually renders in Chromium, catches blank
   screens in the login page, host shell, and selected micro-frontend deep links,
   and exercises daily UI clicks plus the UI business chain close-loop that

@@ -42,6 +42,7 @@ function isRunningInQiankun() {
 
 function ensureQiankunLifecycleBucket(lifecycle) {
   if (typeof window === 'undefined') return
+  if (!isRunningInQiankun()) return
   window.moudleQiankunAppLifeCycles = window.moudleQiankunAppLifeCycles || {}
   window.moudleQiankunAppLifeCycles[MICRO_APP_NAME] = lifecycle
 }
