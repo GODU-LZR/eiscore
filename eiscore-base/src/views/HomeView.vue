@@ -8,7 +8,7 @@
         </el-icon>
         <span class="header-title">{{ activeModeMeta.title }}</span>
         <el-tag v-if="activeMode === 'twin'" size="small" type="success" effect="plain">AI 助手</el-tag>
-        <el-tag v-else-if="activeMode === 'enterprise'" size="small" type="warning" effect="plain">经营分析</el-tag>
+        <el-tag v-else-if="activeMode === 'enterprise'" size="small" type="warning" effect="plain">智能 BI</el-tag>
         <el-tag v-else size="small" type="primary" effect="plain">单据流转</el-tag>
       </div>
       <div class="header-right">
@@ -182,7 +182,7 @@
       </div>
     </div>
 
-    <!-- 企业经营助手（内联嵌入） -->
+    <!-- 智能 BI（内联嵌入） -->
     <div v-if="activeMode === 'enterprise'" class="enterprise-wrapper">
       <AiCopilot mode="enterprise" :auto-open="true" />
     </div>
@@ -386,19 +386,19 @@ const DEFAULT_WORKBENCH_MODE = 'flow'
 const activeMode = ref(DEFAULT_WORKBENCH_MODE)
 const modeOptions = [
   { label: '数字分身', value: 'twin' },
-  { label: '经营助手', value: 'enterprise' },
+  { label: '智能 BI', value: 'enterprise' },
   { label: '业务流程', value: 'flow' }
 ]
 
 const activeModeMeta = computed(() => {
-  if (activeMode.value === 'enterprise') return { title: '企业经营助手', icon: DataAnalysis }
+  if (activeMode.value === 'enterprise') return { title: '智能 BI', icon: DataAnalysis }
   if (activeMode.value === 'flow') return { title: '业务流程', icon: Share }
   return { title: '我的数字分身', icon: Service }
 })
 
 watch(activeMode, (val) => {
   if (val === 'enterprise') {
-    // 内联显示企业经营助手
+    // 内联显示智能 BI
     aiBridge.setMode('enterprise')
     aiBridge.openWindow()
   } else {
@@ -408,7 +408,7 @@ watch(activeMode, (val) => {
 })
 
 onBeforeUnmount(() => {
-  // 离开首页时关闭企业助手窗口
+  // 离开首页时关闭智能 BI 窗口
   if (activeMode.value === 'enterprise') {
     aiBridge.closeWindow()
   }
@@ -858,7 +858,7 @@ $border-color: var(--el-border-color, #dcdfe6);
   flex-direction: column;
 }
 
-// ── 企业经营助手内联容器 ──
+// ── 智能 BI 内联容器 ──
 .enterprise-wrapper {
   flex: 1;
   min-height: 0;

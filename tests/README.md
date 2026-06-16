@@ -10,6 +10,12 @@ Run the offline runtime regression test:
 npm run test:unit
 ```
 
+Run only the Smart BI config and routing regression:
+
+```bash
+npm run test:smart-bi
+```
+
 Build all frontend applications:
 
 ```bash
@@ -238,6 +244,8 @@ Ubuntu releases).
 ## Current Scope
 
 - `test:unit` is service-free and deterministic.
+- `test:smart-bi` verifies Smart BI domain routing, output sections, workbench
+  cards, and common question prompts.
 - `build:frontends` verifies all Vue/Vite micro-frontends compile.
 - `test:smoke` verifies login, deep-link routing, PostgREST profiles, agent health,
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.

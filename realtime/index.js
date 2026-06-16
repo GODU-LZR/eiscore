@@ -1136,6 +1136,7 @@ const compactAiContextForPrompt = (context) => {
   if (Array.isArray(context.columns)) compact.columns = compactColumnsForPrompt(context.columns, 80);
   if (Array.isArray(context.dataSample)) compact.dataSample = context.dataSample.slice(0, 12);
   if (context.summaryConfig && typeof context.summaryConfig === 'object') compact.summaryConfig = context.summaryConfig;
+  if (context.smartBi && typeof context.smartBi === 'object') compact.smartBi = context.smartBi;
   if (Array.isArray(context.fileColumns) && context.fileColumns.length) {
     compact.fileColumns = compactColumnsForPrompt(context.fileColumns, 20);
   }
@@ -1153,6 +1154,72 @@ const compactAiContextForPrompt = (context) => {
   return compact;
 };
 
+const SMART_BI_DOMAINS = [
+  {
+    key: 'sales',
+    label: '销售',
+    aliases: ['销售', '客户', '订单', '回款', '应收', '商机', '成交', '发货', '收入', '业绩'],
+    metrics: ['销售额/订单金额', '订单数量与状态', '客户数量与分层', '商机金额与阶段', '回款金额与应收余额', '交付延期与跟进风险']
+  },
+  {
+    key: 'purchase',
+    label: '采购',
+    aliases: ['采购', '供应商', '到货', '采购订单', '采购需求', '来料', 'iqc', '供应', '交期'],
+    metrics: ['采购金额', '采购需求状态', '采购订单履约', '到货达成', 'IQC 检验状态', '供应商交期风险']
+  },
+  {
+    key: 'inventory',
+    label: '库存',
+    aliases: ['库存', '仓库', '物料', '批次', '低库存', '呆滞', '效期', '出入库', '盘点', '库位'],
+    metrics: ['实时库存数量', '物料数量与分类', '仓库库存分布', '近期出入库', '盘点差异', '低库存/效期/呆滞风险']
+  },
+  {
+    key: 'production',
+    label: '生产',
+    aliases: ['生产', '工单', '排产', '齐套', '缺料', '领料', '完工', '产能', '计划', 'bom'],
+    metrics: ['生产工单数量', '计划生产数量', '工单状态', '齐套率/缺料项', '领料状态', '计划完工风险']
+  },
+  {
+    key: 'quality',
+    label: '质量',
+    aliases: ['质量', '质检', '检验', '不良', '合格率', '不合格', '整改', '异常', '审核', 'ncr'],
+    metrics: ['检验批次数', '合格率/不良率', '质量异常数量与等级', '整改闭环状态', '审核发现项', '待判定/待整改/待验证风险']
+  },
+  {
+    key: 'equipment',
+    label: '设备',
+    aliases: ['设备', '点检', '巡检', '保养', '维保', '维修', '故障', '停机', '健康', '稼动'],
+    metrics: ['设备总数与运行状态', '设备健康评分', '点检异常', '故障/异常数量', '维保工单与停机时长', '保养计划达成']
+  }
+];
+
+const resolveSmartBiQuestionRoute = (text = '') => {
+  const normalized = String(text || '').toLowerCase();
+  const scored = SMART_BI_DOMAINS.map((domain) => {
+    const matchedKeywords = domain.aliases.filter((keyword) => normalized.includes(String(keyword).toLowerCase()));
+    return { key: domain.key, label: domain.label, score: matchedKeywords.length, matchedKeywords };
+  }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score);
+  const top = scored[0];
+  if (!top) return { key: 'overview', label: '经营总览', confidence: 'low', matchedKeywords: [] };
+  return {
+    key: top.key,
+    label: top.label,
+    confidence: top.score >= 2 ? 'high' : 'medium',
+    matchedKeywords: top.matchedKeywords
+  };
+};
+
+const buildSmartBiPromptBlock = (smartBi, latestUserText = '') => {
+  const route = smartBi?.route && typeof smartBi.route === 'object'
+    ? smartBi.route
+    : resolveSmartBiQuestionRoute(latestUserText);
+  const catalog = Array.isArray(smartBi?.metricCatalog) && smartBi.metricCatalog.length
+    ? smartBi.metricCatalog
+    : (route.key === 'overview' ? SMART_BI_DOMAINS : SMART_BI_DOMAINS.filter((domain) => domain.key === route.key));
+  const catalogLines = catalog.map((domain) => `- ${domain.label}：${domain.metrics.join('、')}`).join('\n');
+  return `\n\n【智能 BI 指标目录与问题路由】\n当前问题路由：${route.label || '经营总览'}（${route.key || 'overview'}，置信度：${route.confidence || 'auto'}）。${route.matchedKeywords?.length ? `命中关键词：${route.matchedKeywords.join('、')}。` : ''}\n内置指标目录：\n${catalogLines}\n标准输出模板：每次回答必须稳定包含“关键指标、指标图表、风险提醒、行动建议”。关键指标要说明口径和值；指标图表优先输出 ECharts JSON；风险要分级并指出影响对象；建议要包含负责方向、时间节点和目标。`;
+};
+
 const buildGridAgentRuleBlock = (context) => {
   const gridAgent = context?.gridAgent;
   if (!gridAgent || typeof gridAgent !== 'object') return '';
@@ -1168,7 +1235,7 @@ const buildGridAgentRuleBlock = (context) => {
   return `\n\n【EISGrid 表格/Agent 对接规则】\n1. 当前表格上下文包含 gridAgent，说明这是 EISGrid v2 表格场景。\n2. 当用户问数量、条数、人数、统计、分布或汇总时，若 gridAgentServerResult.scope=server 且 totalCount 是数字，必须优先使用该服务端结果回答全量数量。\n3. 如果没有 gridAgentServerResult，dataSample 只是前端样本；dataStats.scope=loaded_rows 或 totalCountIsFull=false 时，只能回答“当前已加载 ${access.loadedCount ?? 0} 行”，不能说成数据库全量。\n4. 如果 access.hasMore=true，说明表格还有更多分页数据未加载；涉及百万行、全表数量、全表汇总、分布统计时，必须说明需要服务端汇总/受控后端工具，不能根据样本编造。\n5. 当前服务端能力：serverAgentQuery=${capabilities.serverAgentQuery === true ? '可用' : '不可用'}，serverSummary=${capabilities.serverSummary === true ? '可用' : '不可用'}，serverFormulaRecalculate=${capabilities.serverFormulaRecalculate === true ? '可用' : '不可用'}${tools ? `，工具：${tools}` : ''}。${serverResultLine}\n6. 生成公式时只能引用 columns/gridAgent.searchableColumns 中存在的字段；不要生成任意 SQL，不要要求用户把百万行导入浏览器。`;
 };
 
-const buildAgentSystemPrompt = ({ agentId, context, user, intent }) => {
+const buildAgentSystemPrompt = ({ agentId, context, user, intent, latestUserText }) => {
   const snapshot = context?.businessSnapshot;
   const semanticCtx = context?.semanticContext;
   const hasImportTarget = !!(context?.importTarget && typeof context.importTarget === 'object' && context.importTarget.apiUrl);
@@ -1186,9 +1253,12 @@ const buildAgentSystemPrompt = ({ agentId, context, user, intent }) => {
     ? `\n\n【业务上下文】\n${safeContext}`
     : '';
   const gridAgentRuleBlock = buildGridAgentRuleBlock(context);
+  const smartBiBlock = agentId === 'enterprise_analyst'
+    ? buildSmartBiPromptBlock(context?.smartBi, latestUserText)
+    : '';
 
   const snapshotBlock = snapshot && typeof snapshot === 'object'
-    ? `\n\n【企业实时数据快照（${snapshot.snapshotTime || '最新'}）】\n以下是从系统数据库查询到的真实业务数据，请基于这些真实数据进行分析，不要编造数据：\n${JSON.stringify(snapshot, null, 2).slice(0, 8000)}`
+    ? `\n\n【企业实时数据快照（${snapshot.snapshotTime || '最新'}）】\n以下是从系统数据库查询到的真实业务数据，请基于这些真实数据进行分析，不要编造数据：\n${JSON.stringify(snapshot, null, 2).slice(0, 16000)}`
     : '';
 
   // ── 构建语义上下文块（所有 agent 通用） ──
@@ -1247,7 +1317,7 @@ const buildAgentSystemPrompt = ({ agentId, context, user, intent }) => {
   }
 
   if (agentId === 'enterprise_analyst') {
-    return `你是企业经营分析智能体。你的职责是输出“专业但通俗易懂”的经营分析报告，并给出可执行建议。\n\n【表达风格】\n1. 用业务语言解释指标含义，尽量少术语；若必须用术语，紧跟一句白话解释。\n2. 先给一句结论，再给证据（数据/图表），最后给行动建议。\n3. 每条建议都要可落地（负责人/时点/目标方向）。\n\n【硬性规则】\n1. 回答开头禁止客套语（如“好的/收到/我将”），直接进入“经营分析报告”或“摘要”。\n2. 默认输出结构：摘要 -> 核心指标解读 -> 图表洞察 -> 风险与机会 -> 执行建议。\n3. 图文并茂：当有数据时，优先给 2-4 个图（趋势、结构、对比、相关性）。\n4. 输出 ECharts 时只允许 \`\`\`echarts 代码块，且必须是严格 JSON：双引号、无注释、无尾逗号、禁止函数（如 formatter/itemStyle.color function）。\n5. 严禁输出 BPMN XML、workflow-meta、流程编排内容，除非用户明确要求“流程编排/BPMN审批流设计”。\n6. 结论必须业务可执行，避免空话。\n7. 当系统提供了【企业实时数据快照】时，必须基于真实数据进行分析和图表生成，禁止编造或使用示例假数据。\n8. 利用【系统本体语义模型】理解数据表和字段的业务含义，用语义名称（中文）而非数据库原始字段名来呈现分析结果。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${semanticBlock}${snapshotBlock}${gridAgentRuleBlock}${contextBlock}`;
+    return `你是企业经营分析智能体。你的职责是输出“专业但通俗易懂”的经营分析报告，并给出可执行建议。\n\n【表达风格】\n1. 用业务语言解释指标含义，尽量少术语；若必须用术语，紧跟一句白话解释。\n2. 先给一句结论，再给证据（数据/图表），最后给行动建议。\n3. 每条建议都要可落地（负责人/时点/目标方向）。\n\n【硬性规则】\n1. 回答开头禁止客套语（如“好的/收到/我将”），直接进入“经营分析报告”或“摘要”。\n2. 默认输出结构：摘要 -> 关键指标 -> 指标图表 -> 风险提醒 -> 行动建议。\n3. 图文并茂：当有数据时，优先给 2-4 个图（趋势、结构、对比、排行）。\n4. 输出 ECharts 时只允许 \`\`\`echarts 代码块，且必须是严格 JSON：双引号、无注释、无尾逗号、禁止函数（如 formatter/itemStyle.color function）。\n5. 严禁输出 BPMN XML、workflow-meta、流程编排内容，除非用户明确要求“流程编排/BPMN审批流设计”。\n6. 结论必须业务可执行，避免空话。\n7. 当系统提供了【企业实时数据快照】时，必须基于真实数据进行分析和图表生成，禁止编造或使用示例假数据。\n8. 利用【系统本体语义模型】理解数据表和字段的业务含义，用语义名称（中文）而非数据库原始字段名来呈现分析结果。\n9. 用户问题很短时必须自动按智能 BI 路由选择指标，例如“销售怎么样”走销售指标，“库存风险”走库存指标。\n\n【当前角色】${user?.role || 'unknown'}\n【识别意图】${intent}${smartBiBlock}${semanticBlock}${snapshotBlock}${gridAgentRuleBlock}${contextBlock}`;
   }
 
   const importRuleBlock = hasImportTarget
@@ -1290,7 +1360,8 @@ const composeAgentMessages = ({ route, user, messages }) => {
     agentId: route.agentId,
     context: route.context,
     user,
-    intent: route.intent
+    intent: route.intent,
+    latestUserText: route.latestUserText
   });
   return [{ role: 'system', content: systemPrompt }, ...messages];
 };
@@ -3074,6 +3145,26 @@ const fetchBusinessSnapshot = async (user) => {
       return null;
     }
   };
+  const toNumber = (value) => Number(value) || 0;
+  const sumBy = (rows, field) => (Array.isArray(rows) ? rows.reduce((sum, row) => sum + toNumber(row?.[field]), 0) : 0);
+  const avgBy = (rows, field) => {
+    if (!Array.isArray(rows) || !rows.length) return 0;
+    return Math.round((sumBy(rows, field) / rows.length) * 100) / 100;
+  };
+  const countBy = (rows, field, fallback = '未知') => {
+    const counts = {};
+    if (!Array.isArray(rows)) return counts;
+    rows.forEach((row) => {
+      const key = row?.[field] || fallback;
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  };
+  const percent = (part, total) => {
+    const denominator = toNumber(total);
+    if (!denominator) return 0;
+    return Math.round((toNumber(part) / denominator) * 10000) / 100;
+  };
 
   // 1. 仓库列表（含全级别，按 level+sort 排序）
   const warehouses = await safeQuery('warehouses', {
@@ -3157,7 +3248,230 @@ const fetchBusinessSnapshot = async (user) => {
     snapshot.inventoryChecks = { total: checks.length, byStatus: statusCount };
   }
 
-  // 7. 应用列表
+  // 7. 销售快照
+  const salesCustomers = await safeQuery('salesCustomers', {
+    method: 'GET', path: '/sales_customers',
+    query: { select: 'id,name,level,region,owner_name,customer_status,credit_limit,receivable_balance,last_follow_up_at,status', status: 'neq.deleted', order: 'created_at.desc', limit: '300' },
+    acceptProfile: 'public'
+  });
+  const salesOrders = await safeQuery('salesOrders', {
+    method: 'GET', path: '/sales_orders',
+    query: { select: 'id,order_no,customer_name,product_name,quantity,total_amount,order_date,delivery_date,order_status,owner_name,status', status: 'neq.deleted', order: 'order_date.desc', limit: '300' },
+    acceptProfile: 'public'
+  });
+  const salesOpportunities = await safeQuery('salesOpportunities', {
+    method: 'GET', path: '/sales_opportunities',
+    query: { select: 'id,opportunity_no,opportunity_name,customer_name,expected_amount,stage,probability,expected_close_date,owner_name,status', status: 'neq.deleted', order: 'expected_close_date.asc', limit: '200' },
+    acceptProfile: 'public'
+  });
+  const salesPayments = await safeQuery('salesPayments', {
+    method: 'GET', path: '/sales_payments',
+    query: { select: 'id,payment_no,order_no,customer_name,amount,payment_date,payment_method,verify_status,handler_name,status', status: 'neq.deleted', order: 'payment_date.desc', limit: '200' },
+    acceptProfile: 'public'
+  });
+  if ([salesCustomers, salesOrders, salesOpportunities, salesPayments].some(Array.isArray)) {
+    const customers = Array.isArray(salesCustomers) ? salesCustomers : [];
+    const orders = Array.isArray(salesOrders) ? salesOrders : [];
+    const opportunities = Array.isArray(salesOpportunities) ? salesOpportunities : [];
+    const payments = Array.isArray(salesPayments) ? salesPayments : [];
+    const receivableRisk = customers
+      .filter((c) => toNumber(c.receivable_balance) > 0)
+      .sort((a, b) => toNumber(b.receivable_balance) - toNumber(a.receivable_balance))
+      .slice(0, 8)
+      .map((c) => ({
+        customer: c.name,
+        receivable: c.receivable_balance,
+        creditLimit: c.credit_limit,
+        overCredit: toNumber(c.credit_limit) > 0 && toNumber(c.receivable_balance) > toNumber(c.credit_limit)
+      }));
+    snapshot.sales = {
+      customersTotal: customers.length,
+      ordersTotal: orders.length,
+      orderAmount: sumBy(orders, 'total_amount'),
+      paidAmount: sumBy(payments, 'amount'),
+      receivableBalance: sumBy(customers, 'receivable_balance'),
+      opportunityAmount: sumBy(opportunities, 'expected_amount'),
+      byOrderStatus: countBy(orders, 'order_status'),
+      byOpportunityStage: countBy(opportunities, 'stage'),
+      byCustomerLevel: countBy(customers, 'level'),
+      receivableRisk,
+      latestOrders: orders.slice(0, 8).map((o) => ({ orderNo: o.order_no, customer: o.customer_name, product: o.product_name, amount: o.total_amount, status: o.order_status, deliveryDate: o.delivery_date }))
+    };
+  }
+
+  // 8. 采购快照
+  const purchaseSuppliers = await safeQuery('purchaseSuppliers', {
+    method: 'GET', path: '/purchase_suppliers',
+    query: { select: 'id,name,level,category,lead_time_days,buyer_name,supplier_status,status', status: 'neq.deleted', order: 'created_at.desc', limit: '200' },
+    acceptProfile: 'public'
+  });
+  const purchaseDemands = await safeQuery('purchaseDemands', {
+    method: 'GET', path: '/purchase_demands',
+    query: { select: 'id,demand_no,material_name,quantity,unit,required_date,source_dept,preferred_supplier,demand_status,status', status: 'neq.deleted', order: 'required_date.asc', limit: '250' },
+    acceptProfile: 'public'
+  });
+  const purchaseOrders = await safeQuery('purchaseOrders', {
+    method: 'GET', path: '/purchase_orders',
+    query: { select: 'id,order_no,supplier_name,material_name,quantity,unit,total_amount,order_date,expected_arrival_date,buyer_name,order_status,status', status: 'neq.deleted', order: 'order_date.desc', limit: '250' },
+    acceptProfile: 'public'
+  });
+  const purchaseArrivals = await safeQuery('purchaseArrivals', {
+    method: 'GET', path: '/purchase_arrivals',
+    query: { select: 'id,arrival_no,order_no,supplier_name,material_name,arrival_quantity,accepted_quantity,unit,arrival_date,iqc_status,arrival_status,status', status: 'neq.deleted', order: 'arrival_date.desc', limit: '250' },
+    acceptProfile: 'public'
+  });
+  if ([purchaseSuppliers, purchaseDemands, purchaseOrders, purchaseArrivals].some(Array.isArray)) {
+    const suppliers = Array.isArray(purchaseSuppliers) ? purchaseSuppliers : [];
+    const demands = Array.isArray(purchaseDemands) ? purchaseDemands : [];
+    const orders = Array.isArray(purchaseOrders) ? purchaseOrders : [];
+    const arrivals = Array.isArray(purchaseArrivals) ? purchaseArrivals : [];
+    snapshot.purchase = {
+      suppliersTotal: suppliers.length,
+      demandsTotal: demands.length,
+      ordersTotal: orders.length,
+      purchaseAmount: sumBy(orders, 'total_amount'),
+      arrivalQty: sumBy(arrivals, 'arrival_quantity'),
+      acceptedQty: sumBy(arrivals, 'accepted_quantity'),
+      acceptanceRate: percent(sumBy(arrivals, 'accepted_quantity'), sumBy(arrivals, 'arrival_quantity')),
+      avgSupplierLeadTimeDays: avgBy(suppliers, 'lead_time_days'),
+      byDemandStatus: countBy(demands, 'demand_status'),
+      byOrderStatus: countBy(orders, 'order_status'),
+      byIqcStatus: countBy(arrivals, 'iqc_status'),
+      pendingArrivals: orders
+        .filter((o) => !['已到货', '已关闭', '已取消'].includes(o.order_status))
+        .slice(0, 8)
+        .map((o) => ({ orderNo: o.order_no, supplier: o.supplier_name, material: o.material_name, amount: o.total_amount, expectedArrivalDate: o.expected_arrival_date, status: o.order_status }))
+    };
+  }
+
+  // 9. 生产快照
+  const productionOrders = await safeQuery('productionOrders', {
+    method: 'GET', path: '/v_production_work_orders',
+    query: { select: 'work_order_no,product_material_code,product_material_name,planned_qty,unit,planned_start_date,planned_finish_date,work_order_status,priority,item_count,shortage_item_count,source_order_nos', order: 'planned_finish_date.asc', limit: '250' },
+    acceptProfile: 'scm'
+  });
+  if (Array.isArray(productionOrders)) {
+    const allShortageOrders = productionOrders
+      .filter((o) => toNumber(o.shortage_item_count) > 0)
+    const shortageOrders = allShortageOrders
+      .sort((a, b) => toNumber(b.shortage_item_count) - toNumber(a.shortage_item_count))
+      .slice(0, 8)
+      .map((o) => ({ workOrderNo: o.work_order_no, product: o.product_material_name, plannedQty: o.planned_qty, shortageItems: o.shortage_item_count, status: o.work_order_status, finishDate: o.planned_finish_date }));
+    snapshot.production = {
+      workOrdersTotal: productionOrders.length,
+      plannedQty: sumBy(productionOrders, 'planned_qty'),
+      itemCount: sumBy(productionOrders, 'item_count'),
+      shortageItemCount: sumBy(productionOrders, 'shortage_item_count'),
+      shortageOrderCount: allShortageOrders.length,
+      byWorkOrderStatus: countBy(productionOrders, 'work_order_status'),
+      byPriority: countBy(productionOrders, 'priority'),
+      shortageOrders,
+      latestPlans: productionOrders.slice(0, 8).map((o) => ({ workOrderNo: o.work_order_no, product: o.product_material_name, plannedQty: o.planned_qty, status: o.work_order_status, priority: o.priority, finishDate: o.planned_finish_date }))
+    };
+  }
+
+  // 10. 质量快照
+  const qualityInspections = await safeQuery('qualityInspections', {
+    method: 'GET', path: '/quality_inspections',
+    query: { select: 'id,doc_no,inspection_type,item_name,sample_qty,defect_qty,result,inspector,inspection_date,status', status: 'neq.deleted', order: 'inspection_date.desc', limit: '250' },
+    acceptProfile: 'public'
+  });
+  const qualityNcrs = await safeQuery('qualityNcrs', {
+    method: 'GET', path: '/quality_ncrs',
+    query: { select: 'id,doc_no,source_type,issue_desc,severity,owner_dept,owner_name,deadline,ncr_status,status', status: 'neq.deleted', order: 'created_at.desc', limit: '200' },
+    acceptProfile: 'public'
+  });
+  const qualityActions = await safeQuery('qualityActions', {
+    method: 'GET', path: '/quality_corrective_actions',
+    query: { select: 'id,action_no,ncr_doc_no,action_type,owner_dept,owner_name,due_date,action_status,status', status: 'neq.deleted', order: 'due_date.asc', limit: '200' },
+    acceptProfile: 'public'
+  });
+  const qualityAudits = await safeQuery('qualityAudits', {
+    method: 'GET', path: '/quality_audits',
+    query: { select: 'id,audit_no,audit_type,audit_scope,plan_date,auditor,finding_count,audit_status,status', status: 'neq.deleted', order: 'plan_date.desc', limit: '120' },
+    acceptProfile: 'public'
+  });
+  if ([qualityInspections, qualityNcrs, qualityActions, qualityAudits].some(Array.isArray)) {
+    const inspections = Array.isArray(qualityInspections) ? qualityInspections : [];
+    const ncrs = Array.isArray(qualityNcrs) ? qualityNcrs : [];
+    const actions = Array.isArray(qualityActions) ? qualityActions : [];
+    const audits = Array.isArray(qualityAudits) ? qualityAudits : [];
+    const sampleQty = sumBy(inspections, 'sample_qty');
+    const defectQty = sumBy(inspections, 'defect_qty');
+    snapshot.quality = {
+      inspectionsTotal: inspections.length,
+      sampleQty,
+      defectQty,
+      defectRate: percent(defectQty, sampleQty),
+      passRate: percent(inspections.filter((i) => ['合格', '让步接收'].includes(i.result)).length, inspections.length),
+      ncrsTotal: ncrs.length,
+      actionsTotal: actions.length,
+      auditFindingCount: sumBy(audits, 'finding_count'),
+      byInspectionResult: countBy(inspections, 'result'),
+      byNcrSeverity: countBy(ncrs, 'severity'),
+      byActionStatus: countBy(actions, 'action_status'),
+      openNcrs: ncrs
+        .filter((n) => n.ncr_status !== '已关闭')
+        .slice(0, 8)
+        .map((n) => ({ docNo: n.doc_no, issue: n.issue_desc, severity: n.severity, owner: n.owner_name || n.owner_dept, deadline: n.deadline, status: n.ncr_status }))
+    };
+  }
+
+  // 11. 设备快照
+  const equipmentAssets = await safeQuery('equipmentAssets', {
+    method: 'GET', path: '/equipment_assets',
+    query: { select: 'id,asset_no,asset_name,asset_type,location_name,asset_level,run_status,owner_dept,owner_name,next_maint_date,health_score,status', status: 'neq.deleted', order: 'created_at.desc', limit: '250' },
+    acceptProfile: 'public'
+  });
+  const equipmentChecks = await safeQuery('equipmentChecks', {
+    method: 'GET', path: '/equipment_checks',
+    query: { select: 'id,check_no,asset_no,asset_name,check_type,check_item_count,abnormal_count,check_result,checker,check_date,status', status: 'neq.deleted', order: 'check_date.desc', limit: '250' },
+    acceptProfile: 'public'
+  });
+  const equipmentIssues = await safeQuery('equipmentIssues', {
+    method: 'GET', path: '/equipment_issues',
+    query: { select: 'id,issue_no,asset_no,asset_name,issue_level,owner_dept,owner_name,occurred_date,deadline,issue_status,status', status: 'neq.deleted', order: 'occurred_date.desc', limit: '200' },
+    acceptProfile: 'public'
+  });
+  const equipmentWorkOrders = await safeQuery('equipmentWorkOrders', {
+    method: 'GET', path: '/equipment_work_orders',
+    query: { select: 'id,work_order_no,issue_no,asset_no,asset_name,work_type,maintainer,plan_date,finish_date,downtime_hours,work_status,status', status: 'neq.deleted', order: 'plan_date.desc', limit: '200' },
+    acceptProfile: 'public'
+  });
+  const equipmentPlans = await safeQuery('equipmentPlans', {
+    method: 'GET', path: '/equipment_maintenance_plans',
+    query: { select: 'id,plan_no,plan_name,asset_scope,plan_type,next_execute_date,owner_name,plan_status,completion_rate,status', status: 'neq.deleted', order: 'next_execute_date.asc', limit: '120' },
+    acceptProfile: 'public'
+  });
+  if ([equipmentAssets, equipmentChecks, equipmentIssues, equipmentWorkOrders, equipmentPlans].some(Array.isArray)) {
+    const assets = Array.isArray(equipmentAssets) ? equipmentAssets : [];
+    const checksList = Array.isArray(equipmentChecks) ? equipmentChecks : [];
+    const issues = Array.isArray(equipmentIssues) ? equipmentIssues : [];
+    const workOrders = Array.isArray(equipmentWorkOrders) ? equipmentWorkOrders : [];
+    const plans = Array.isArray(equipmentPlans) ? equipmentPlans : [];
+    const abnormalChecks = checksList.filter((c) => toNumber(c.abnormal_count) > 0 || ['异常', '停机'].includes(c.check_result));
+    snapshot.equipment = {
+      assetsTotal: assets.length,
+      avgHealthScore: avgBy(assets, 'health_score'),
+      checksTotal: checksList.length,
+      abnormalCheckCount: abnormalChecks.length,
+      issuesTotal: issues.length,
+      openIssueCount: issues.filter((i) => i.issue_status !== '已关闭').length,
+      workOrdersTotal: workOrders.length,
+      downtimeHours: sumBy(workOrders, 'downtime_hours'),
+      maintenancePlansTotal: plans.length,
+      avgPlanCompletionRate: avgBy(plans, 'completion_rate'),
+      byRunStatus: countBy(assets, 'run_status'),
+      byIssueLevel: countBy(issues, 'issue_level'),
+      byWorkStatus: countBy(workOrders, 'work_status'),
+      riskAssets: assets
+        .filter((a) => a.run_status !== '运行' || toNumber(a.health_score) < 80)
+        .slice(0, 8)
+        .map((a) => ({ assetNo: a.asset_no, asset: a.asset_name, runStatus: a.run_status, healthScore: a.health_score, owner: a.owner_name || a.owner_dept, nextMaintDate: a.next_maint_date }))
+    };
+  }
+
+  // 12. 应用列表
   const apps = await safeQuery('apps', {
     method: 'GET', path: '/apps',
     query: { select: 'id,name,app_type,status', order: 'created_at.desc', limit: '50' },
@@ -3178,6 +3492,23 @@ const fetchBusinessSnapshot = async (user) => {
   console.log(`[biz-snapshot] user=${user?.username || '?'} => ${summary}`);
 
   return snapshot;
+};
+
+const handleAiBusinessSnapshot = async (req, res) => {
+  const user = authorizeHttpRequest(req, res);
+  if (!user) return;
+  if (!canAccessAi(user)) {
+    sendJson(res, 403, { code: 'FORBIDDEN', message: 'AI access denied for current role' });
+    return;
+  }
+
+  try {
+    const snapshot = await fetchBusinessSnapshot(user);
+    sendJson(res, 200, { ok: true, snapshot });
+  } catch (error) {
+    console.error('[ai-business-snapshot] failed:', error?.message || error);
+    sendJson(res, 500, { code: 'AI_BUSINESS_SNAPSHOT_FAILED', message: error.message || 'Failed to load business snapshot' });
+  }
 };
 
 const handleAiChat = async (req, res) => {
@@ -5291,6 +5622,11 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/ai/agents' && method === 'GET') {
     await handleAiAgents(req, res);
+    return;
+  }
+
+  if (pathname === '/ai/business-snapshot' && method === 'GET') {
+    await handleAiBusinessSnapshot(req, res);
     return;
   }
 

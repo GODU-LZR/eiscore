@@ -128,8 +128,8 @@
           <div class="quick-card" @click="openApp(apps.find(a => a.key === 'enterprise'))">
             <div class="quick-icon enterprise-bg"><TrendCharts class="el-icon-svg" /></div>
             <div class="quick-info">
-              <div class="quick-name">经营助手</div>
-              <div class="quick-desc">AI 全域经营分析与决策洞察</div>
+              <div class="quick-name">智能 BI</div>
+              <div class="quick-desc">自动问数、指标图表与风险建议</div>
             </div>
             <i class="chevron" />
           </div>
@@ -265,10 +265,10 @@ const apps = [
   },
   {
     key: 'enterprise',
-    label: '经营助手',
+    label: '智能 BI',
     icon: markRaw(TrendCharts),
     bg: 'rgba(108, 59, 255, 0.12)',
-    desc: 'AI 全域经营分析与洞察',
+    desc: '自动问数、指标图表与洞察',
     route: '/enterprise',
     badge: ''
   },
@@ -340,7 +340,7 @@ const mobileAttentionBriefMap = {
   warehouse: '随手查询',
   printing: '现场打印',
   assistant: '查询分析',
-  enterprise: '经营分析',
+  enterprise: '智能 BI',
   report: '查看报表',
   approve: '待上线',
   notice: '待上线',

@@ -80,12 +80,12 @@ const router = createRouter({
       component: () => import('@/views/assistant/WarehouseAssistant.vue'),
       meta: { requiresAuth: true, title: '仓储助手' }
     },
-    // 企业经营助手模块
+    // 智能 BI 模块
     {
       path: '/enterprise',
       name: 'EnterpriseAssistant',
       component: () => import('@/views/assistant/EnterpriseAssistant.vue'),
-      meta: { requiresAuth: true, title: '经营助手' }
+      meta: { requiresAuth: true, title: '智能 BI' }
     },
     // 考勤模块
     {

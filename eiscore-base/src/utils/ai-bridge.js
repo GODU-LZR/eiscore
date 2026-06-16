@@ -8,6 +8,10 @@ import {
   formatGridAgentQueryResultForPrompt,
   shouldPrefetchGridAgentQuery
 } from '@shared/eis-grid-agent-query'
+import {
+  buildSmartBiContext,
+  formatSmartBiCatalogForPrompt
+} from '@shared/smart-bi-config'
 
 const STORAGE_KEY = 'eis_ai_history_v5'
 const MAX_SESSIONS = 20
@@ -348,14 +352,15 @@ class AiBridge {
       return `你是企业一线员工的工作助手，帮助他们把杂乱的数据整理成能录入系统的内容，并用通俗易懂的语言解释。请避免复杂术语，回答要简单、清晰、一步一步。\n\n【工作目标】\n1. 帮用户整理表格、图片、文字里的数据，输出规范字段。\n2. 帮用户查询/解释表格数据，直接给结论和下一步操作。\n3. 如果用户要填表，请给出清晰的字段清单和示例。\n4. 默认不输出图表，只有在用户明确要求图表时才输出。\n\n${dataRuleBlock}\n${salesRuleBlock}\n${materialsRuleBlock}\n${workflowRuleBlock}\n【表单模板输出规则】\n当用户要求“生成表单/模板/单据/拍照识别表单”等需求时，你必须输出模板 JSON，并放在 ${fence}form-template${fence} 代码块中。不要添加多余说明。\n模板 JSON 结构要求：\n${fence}form-template\n{\n  \"docType\": \"employee_profile\",\n  \"title\": \"员工详细档案表\",\n  \"docNo\": \"employee_no\",\n  \"layout\": [\n    {\n      \"type\": \"section\",\n      \"title\": \"基本信息\",\n      \"cols\": 2,\n      \"children\": [\n        { \"label\": \"姓名\", \"field\": \"name\", \"widget\": \"input\" },\n        { \"label\": \"身份证号\", \"field\": \"id_card\", \"widget\": \"input\" },\n        { \"label\": \"照片\", \"field\": \"id_photo\", \"widget\": \"image\", \"fileSource\": \"field_1001\" }\n      ]\n    },\n    {\n      \"type\": \"table\",\n      \"title\": \"工作履历\",\n      \"field\": \"work_history\",\n      \"columns\": [\n        { \"label\": \"公司名称\", \"field\": \"company\" },\n        { \"label\": \"职位\", \"field\": \"position\" },\n        { \"label\": \"开始时间\", \"field\": \"start_date\" },\n        { \"label\": \"结束时间\", \"field\": \"end_date\" }\n      ]\n    }\n  ]\n}\n${fence}\n字段说明：\n- widget 可选：text/input/textarea/date/number/image/select/cascader。\n- 当字段类型是 select/cascader 时，优先使用对应 widget，并可附带 options / cascaderOptions。\n- image 字段可选 fileSource，值为文件列 prop，用于提示从哪个文件列选图。\n- table 用于多行表格区，field 对应一个数组字段。\n- 若表单字段在系统列里不存在，请仍给出 field（后端会保存到扩展字段表）。\n- 所有 label 必须中文，输出内容要正规、简洁。\n\n${formulaRuleBlock}\n${importRuleBlock}\n【回答风格】\n- 用短句、通俗话。\n- 能一步一步引导最好。\n- 不要使用专业或学术术语。`
     }
 
-    return `你是一名面向中小企业的经营分析助手，精通业务流程梳理、经营指标诊断与数据可视化。你需要输出专业、简洁、结构化的经营报告，并提供可直接渲染的图表或流程图。\n\n【强制输出规则】\n1. 当用户需要统计图表时，必须输出 ECharts JSON 配置，并放在 ${fence}echarts${fence} 代码块内。\n2. 当用户需要流程图时，必须输出 Mermaid 语法，并放在 ${fence}mermaid${fence} 代码块内。\n3. 当用户需要“流程落地/审批流/业务流程”时，必须额外输出 ${fence}bpmn-xml${fence} 与 ${fence}workflow-meta${fence} 代码块。\n4. 禁止输出任何 JavaScript 变量或包装（例如 \"var option =\"、\"option =\"）。只允许纯 JSON。\n5. 图表/流程图代码块之外，必须给出业务结论与改进建议。\n6. 输出结构建议：摘要 → 关键指标 → 图表 → 结论 → 建议。\n\n【ECharts 示例】\n${fence}echarts\n{\n  \"title\": { \"text\": \"月度收入与成本\" },\n  \"tooltip\": { \"trigger\": \"axis\" },\n  \"legend\": { \"data\": [\"收入\", \"成本\"] },\n  \"xAxis\": { \"type\": \"category\", \"data\": [\"1月\", \"2月\", \"3月\"] },\n  \"yAxis\": { \"type\": \"value\" },\n  \"series\": [\n    { \"name\": \"收入\", \"type\": \"bar\", \"data\": [120, 132, 150] },\n    { \"name\": \"成本\", \"type\": \"bar\", \"data\": [80, 95, 110] }\n  ]\n}\n${fence}\n\n【Mermaid 示例】\n${fence}mermaid\ngraph TD\n  A[数据采集] --> B[清洗与校验]\n  B --> C[指标计算]\n  C --> D[经营分析]\n  D --> E[报告生成]\n${fence}\n\n请严格遵循以上规则。`
+    const smartBiCatalogBlock = formatSmartBiCatalogForPrompt()
+    return `你是一名面向中小企业的智能 BI 分析助手，负责把用户的自然语言经营问题自动转成指标解读、图表洞察和行动建议。用户不需要自己拖拽字段、编排报表或理解数据库结构。\n\n【内置指标目录与问题路由】\n${smartBiCatalogBlock}\n\n【强制输出规则】\n1. 当用户需要统计图表时，必须输出 ECharts JSON 配置，并放在 ${fence}echarts${fence} 代码块内。\n2. 当用户需要流程图时，必须输出 Mermaid 语法，并放在 ${fence}mermaid${fence} 代码块内。\n3. 当用户需要“流程落地/审批流/业务流程”时，必须额外输出 ${fence}bpmn-xml${fence} 与 ${fence}workflow-meta${fence} 代码块。\n4. 禁止输出任何 JavaScript 变量或包装（例如 \"var option =\"、\"option =\"）。只允许纯 JSON。\n5. 每次回答必须稳定包含：关键指标、指标图表、风险提醒、行动建议。\n6. 用户问题很短时自动路由：问“销售怎么样”走销售指标；问“库存风险”走库存指标；问“生产/质量/设备/采购”分别走对应指标。\n\n【ECharts 示例】\n${fence}echarts\n{\n  \"title\": { \"text\": \"月度收入与成本\" },\n  \"tooltip\": { \"trigger\": \"axis\" },\n  \"legend\": { \"data\": [\"收入\", \"成本\"] },\n  \"xAxis\": { \"type\": \"category\", \"data\": [\"1月\", \"2月\", \"3月\"] },\n  \"yAxis\": { \"type\": \"value\" },\n  \"series\": [\n    { \"name\": \"收入\", \"type\": \"bar\", \"data\": [120, 132, 150] },\n    { \"name\": \"成本\", \"type\": \"bar\", \"data\": [80, 95, 110] }\n  ]\n}\n${fence}\n\n【Mermaid 示例】\n${fence}mermaid\ngraph TD\n  A[数据采集] --> B[清洗与校验]\n  B --> C[指标计算]\n  C --> D[经营分析]\n  D --> E[报告生成]\n${fence}\n\n请严格遵循以上规则。`
   }
 
   getWelcomeMessage() {
     if (this.state.assistantMode === 'worker') {
       return '你好！我是企业工作助手。把数据、表格或图片发给我，我会帮你整理成能录入系统的内容。'
     }
-    return '您好！我是企业经营助手。请上传数据文件，我可以为您生成可视化报表和经营报告。'
+    return '您好！我是智能 BI。直接问经营问题，或上传数据文件，我会自动生成指标图表、风险解读和行动建议。'
   }
 
   async parseFileContent(file) {
@@ -491,12 +496,21 @@ class AiBridge {
           lastMessage.content.push({ type: 'text', text: serverGridText })
         }
       }
-      const contextPayload = this.state.currentContext
+      const smartBiContext = this.state.assistantMode === 'enterprise'
+        ? buildSmartBiContext(effectiveUserText)
+        : null
+      let contextPayload = this.state.currentContext
         ? {
             ...this.state.currentContext,
             ...(serverGridResult ? { gridAgentServerResult: serverGridResult } : {})
           }
         : (serverGridResult ? { gridAgentServerResult: serverGridResult } : null)
+      if (smartBiContext) {
+        contextPayload = {
+          ...(contextPayload || {}),
+          smartBi: smartBiContext
+        }
+      }
       if (contextPayload?.allowFormulaOnce) {
         contextPayload.allowFormulaOnce = false
         if (this.state.currentContext) this.state.currentContext.allowFormulaOnce = false

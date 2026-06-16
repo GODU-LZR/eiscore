@@ -49,6 +49,45 @@
 
         <div class="chat-area" @click="showHistory = false">
           <div class="messages-container" ref="messagesRef">
+            <div v-if="showSmartBiWorkbench" class="smart-bi-workbench">
+              <div class="smart-bi-head">
+                <div>
+                  <div class="smart-bi-title">经营指标工作台</div>
+                  <div class="smart-bi-meta">
+                    {{ smartBiSnapshotLoading ? '快照刷新中' : (smartBiSnapshotError || smartBiSnapshotTimeText) }}
+                  </div>
+                </div>
+                <el-button
+                  size="small"
+                  plain
+                  :loading="smartBiSnapshotLoading"
+                  @click.stop="loadSmartBiSnapshot(true)"
+                >
+                  刷新
+                </el-button>
+              </div>
+              <div class="smart-bi-card-grid">
+                <button
+                  v-for="card in smartBiWorkbenchCards"
+                  :key="card.key"
+                  type="button"
+                  class="smart-bi-card"
+                  @click="runSmartBiCard(card)"
+                >
+                  <div class="card-top">
+                    <span class="card-label">{{ card.label }}</span>
+                    <span class="card-action">分析</span>
+                  </div>
+                  <div class="card-value">{{ card.metricValue }}</div>
+                  <div class="card-metric">{{ card.metricLabel }}</div>
+                  <div class="card-foot">
+                    <span>{{ card.subLabel }}：{{ card.subValue }}</span>
+                    <span>{{ card.riskLabel }}：{{ card.riskValue }}</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
             <template v-if="currentSession">
               <div
                 v-for="(msg, index) in currentSession.messages"
@@ -330,6 +369,10 @@
 import { ref, computed, nextTick, watch, onMounted, onUpdated, onBeforeUnmount } from 'vue'
 import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
+import {
+  SMART_BI_COMMON_QUESTIONS,
+  getSmartBiWorkbenchCards
+} from '@shared/smart-bi-config'
 import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
@@ -348,6 +391,9 @@ const showHistory = ref(false)
 const messagesRef = ref(null)
 const lightboxChartRef = ref(null)
 const lightbox = ref({ visible: false, type: '', payload: null })
+const smartBiSnapshot = ref(null)
+const smartBiSnapshotLoading = ref(false)
+const smartBiSnapshotError = ref('')
 let lightboxChart = null
 let chartResizeObserver = null
 let resizeRafId = 0
@@ -380,11 +426,11 @@ const currentSession = computed(() => aiBridge.getCurrentSession())
 const isWorker = computed(() => props.mode === 'worker')
 const isEnterprise = computed(() => props.mode === 'enterprise')
 const isWorkerFullscreen = computed(() => isWorker.value && isFullscreen.value)
-const assistantTitle = computed(() => (isWorker.value ? '企业工作助手' : '企业经营助手'))
+const assistantTitle = computed(() => (isWorker.value ? '企业工作助手' : '智能 BI'))
 const inputPlaceholder = computed(() => (
   isWorker.value
     ? '把数据或问题告诉我，我帮你整理成能录入系统的格式...'
-    : '输入消息，或上传图片/文档分析...'
+    : '直接问经营数据，或上传表格生成指标图表...'
 ))
 const containerClasses = computed(() => ({
   'is-open': state.isOpen,
@@ -394,10 +440,35 @@ const containerClasses = computed(() => ({
 }))
 const quickActions = computed(() => {
   const actions = state.currentContext?.aiQuickActions
-  if (!Array.isArray(actions)) return []
-  return actions
+  const contextActions = Array.isArray(actions) ? actions : []
+  const normalizedActions = contextActions
     .filter((action) => action && action.label && action.prompt)
     .slice(0, 6)
+  if (normalizedActions.length) return normalizedActions
+  if (!isEnterprise.value) return []
+  return SMART_BI_COMMON_QUESTIONS
+    .filter((item) => item.key !== 'upload')
+    .slice(0, 6)
+    .map((item) => ({
+      key: `smart_bi_${item.key}`,
+      label: item.label,
+      prompt: item.prompt,
+      mode: 'enterprise'
+    }))
+})
+const smartBiWorkbenchCards = computed(() => getSmartBiWorkbenchCards(smartBiSnapshot.value || {}))
+const showSmartBiWorkbench = computed(() => {
+  if (!isEnterprise.value || !currentSession.value) return false
+  return !currentSession.value.messages.some((message) => message.role === 'user')
+})
+const smartBiSnapshotTimeText = computed(() => {
+  const snapshotTime = smartBiSnapshot.value?.snapshotTime
+  if (!snapshotTime) return '等待数据快照'
+  try {
+    return `快照时间 ${new Date(snapshotTime).toLocaleString('zh-CN', { hour12: false })}`
+  } catch {
+    return '快照已加载'
+  }
 })
 
 const FORM_TEMPLATE_BLOCKS = ['form-template', 'form_template', 'form-schema', 'form_schema']
@@ -1927,8 +1998,8 @@ const validateEchartsOption = (option) => {
   return ''
 }
 
-const REPORT_FILLER_LINE_RE = /^(好的|当然|收到|已收到|明白|了解|下面|以下|我将|我会|请查看|这里是|先给出|先汇总).{0,120}(经营分析|经营报告|分析报告|报告|图表|洞察|结论)/
-const REPORT_FILLER_SENTENCE_RE = /(好的|当然|收到|已收到|明白|了解)[，,。！!\s].{0,100}(经营分析|经营报告|分析报告|报告)/
+const REPORT_FILLER_LINE_RE = /^(好的|当然|收到|已收到|明白|了解|下面|以下|我将|我会|请查看|这里是|先给出|先汇总).{0,120}(智能\s*BI|经营分析|经营报告|分析报告|报告|图表|洞察|结论)/
+const REPORT_FILLER_SENTENCE_RE = /(好的|当然|收到|已收到|明白|了解)[，,。！!\s].{0,100}(智能\s*BI|经营分析|经营报告|分析报告|报告)/
 
 const shouldShowReportDownload = (msg, index) => {
   if (!isEnterprise.value) return false
@@ -2036,7 +2107,7 @@ const exportMessageReportAsPdf = async (messageIndex) => {
   printWindow.document.write(`<!DOCTYPE html>
     <html>
       <head>
-        <title>企业经营报告</title>
+        <title>智能 BI 报告</title>
         <style>
           body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #303133; }
           .report-content { background: #fff; }
@@ -2048,7 +2119,7 @@ const exportMessageReportAsPdf = async (messageIndex) => {
         </style>
       </head>
       <body>
-        <h2>企业经营报告</h2>
+        <h2>智能 BI 报告</h2>
         <div class="report-content">${html}</div>
       </body>
     </html>`)
@@ -2317,9 +2388,39 @@ const handleSend = () => {
   aiBridge.sendMessage(text)
 }
 
+const loadSmartBiSnapshot = async (force = false) => {
+  if (!isEnterprise.value) return
+  if (smartBiSnapshotLoading.value) return
+  if (!force && smartBiSnapshot.value?.snapshotTime) return
+  smartBiSnapshotLoading.value = true
+  smartBiSnapshotError.value = ''
+  try {
+    const res = await fetch('/agent/ai/business-snapshot', {
+      method: 'GET',
+      headers: aiBridge.buildAuthHeaders()
+    })
+    if (!res.ok) throw new Error(`快照读取失败 (${res.status})`)
+    const data = await res.json()
+    smartBiSnapshot.value = data?.snapshot || {}
+  } catch (error) {
+    smartBiSnapshotError.value = error?.message || '快照读取失败'
+  } finally {
+    smartBiSnapshotLoading.value = false
+  }
+}
+
+const runSmartBiCard = (card) => {
+  runQuickAction({
+    key: `smart_bi_workbench_${card.key}`,
+    label: card.label,
+    prompt: card.prompt,
+    mode: 'enterprise'
+  })
+}
+
 const runQuickAction = (action) => {
   if (state.isLoading || !action?.prompt) return
-  aiBridge.setMode('worker')
+  aiBridge.setMode(action.mode || 'worker')
   aiBridge.openWindow()
   const context = aiBridge.state.currentContext
   if (context && action.scene) {
@@ -2351,6 +2452,9 @@ onMounted(() => {
   if (props.autoOpen) {
     aiBridge.openWindow()
   }
+  if (isEnterprise.value) {
+    void loadSmartBiSnapshot()
+  }
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', scheduleResizeAllCharts)
   }
@@ -2358,6 +2462,7 @@ onMounted(() => {
 
 watch(() => props.mode, (val) => {
   aiBridge.setMode(val)
+  if (val === 'enterprise') void loadSmartBiSnapshot()
 })
 
 onBeforeUnmount(() => {
@@ -2522,6 +2627,98 @@ $border-color: #e4e7ed;
   flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 18px;
   scrollbar-width: none; -ms-overflow-style: none;
   &::-webkit-scrollbar { display: none; }
+}
+
+.smart-bi-workbench {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(100%, 1180px);
+  align-self: center;
+}
+
+.smart-bi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.smart-bi-title {
+  font-size: 16px;
+  font-weight: 650;
+  color: #1f2d3d;
+}
+
+.smart-bi-meta {
+  margin-top: 3px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.smart-bi-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.smart-bi-card {
+  appearance: none;
+  border: 1px solid #e4e7ed;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  min-height: 136px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+
+  &:hover {
+    border-color: var(--el-color-primary-light-5, #a0cfff);
+    box-shadow: 0 8px 22px rgba(31, 45, 61, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .card-top,
+  .card-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .card-label {
+    color: #303133;
+    font-size: 14px;
+    font-weight: 650;
+  }
+
+  .card-action {
+    color: var(--el-color-primary, #409eff);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .card-value {
+    color: #1f2d3d;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.15;
+  }
+
+  .card-metric,
+  .card-foot {
+    color: #606266;
+    font-size: 12px;
+  }
+
+  .card-foot {
+    margin-top: auto;
+    color: #909399;
+  }
 }
 
 .message-row {
@@ -2856,6 +3053,26 @@ $border-color: #e4e7ed;
 @keyframes blink { 50% { opacity: 0; } }
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
+@media (max-width: 1180px) {
+  .smart-bi-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .messages-container {
+    padding: 18px 14px;
+  }
+
+  .smart-bi-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .smart-bi-head {
+    align-items: flex-start;
+  }
+}
+
 .ai-copilot-container.is-dark .ai-window {
   background: #0f172a;
   border-color: #1f2937;
@@ -2914,6 +3131,22 @@ $border-color: #e4e7ed;
   background: #0b1220;
   border-color: #1f2937;
   color: #e5e7eb;
+}
+.ai-copilot-container.is-dark .smart-bi-title,
+.ai-copilot-container.is-dark .smart-bi-card .card-label,
+.ai-copilot-container.is-dark .smart-bi-card .card-value {
+  color: #e5edf7;
+}
+.ai-copilot-container.is-dark .smart-bi-card {
+  background: #1f2937;
+  border-color: rgba(148, 163, 184, 0.22);
+}
+.ai-copilot-container.is-dark .smart-bi-card .card-metric {
+  color: #cbd5e1;
+}
+.ai-copilot-container.is-dark .smart-bi-card .card-foot,
+.ai-copilot-container.is-dark .smart-bi-meta {
+  color: #94a3b8;
 }
 .ai-copilot-container.is-dark .input-box {
   background: #0b1220;

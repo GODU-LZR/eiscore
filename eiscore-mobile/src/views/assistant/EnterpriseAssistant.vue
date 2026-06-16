@@ -5,7 +5,7 @@
       <span class="back-btn" @click="$router.back()">
         <i class="back-icon" />
       </span>
-      <p>经营助手</p>
+      <p>智能 BI</p>
       <span class="header-action" @click="showHistory = !showHistory">
         <i class="history-icon" />
       </span>
@@ -15,9 +15,9 @@
       <!-- Hero 区域 -->
       <section class="hero">
         <div class="hero-copy">
-          <span class="hero-badge">Enterprise AI</span>
-          <h1>企业经营助手</h1>
-          <p>全域数据分析：库存、物料、人事、业务，图表可视化一站呈现。</p>
+          <span class="hero-badge">Smart BI</span>
+          <h1>智能 BI</h1>
+          <p>自然语言问经营数据，自动生成指标图表、风险提醒和行动建议。</p>
         </div>
       </section>
 
@@ -47,6 +47,33 @@
           </div>
         </div>
       </transition>
+
+      <section v-if="currentMessages.length <= 1" class="bi-workbench">
+        <div class="bi-workbench-head">
+          <div>
+            <div class="bi-workbench-title">经营指标</div>
+            <div class="bi-workbench-meta">
+              {{ snapshotLoading ? '快照刷新中' : (snapshotError || snapshotTimeText) }}
+            </div>
+          </div>
+          <button class="bi-refresh-btn" :disabled="snapshotLoading" @click="loadBusinessSnapshot(true)">
+            刷新
+          </button>
+        </div>
+        <div class="bi-card-grid">
+          <button
+            v-for="card in workbenchCards"
+            :key="card.key"
+            class="bi-card"
+            @click="sendSuggestion(card.prompt)"
+          >
+            <span class="bi-card-label">{{ card.label }}</span>
+            <strong>{{ card.metricValue }}</strong>
+            <span>{{ card.metricLabel }}</span>
+            <small>{{ card.riskLabel }}：{{ card.riskValue }}</small>
+          </button>
+        </div>
+      </section>
 
       <!-- 消息区域 -->
       <section ref="messagesRef" class="messages-area">
@@ -104,10 +131,10 @@
         <div class="suggest-grid">
           <button
             v-for="(q, i) in suggestQuestions"
-            :key="i"
+            :key="q.key || i"
             class="suggest-card"
-            @click="sendSuggestion(q)"
-          >{{ q }}</button>
+            @click="sendSuggestion(q.prompt || q)"
+          >{{ q.label || q }}</button>
         </div>
       </section>
     </div>
@@ -138,7 +165,7 @@
         <textarea
           v-model="inputText"
           class="input-field"
-          placeholder="输入经营分析问题，或上传数据文件"
+          placeholder="输入经营问题，或上传数据文件生成图表"
           rows="1"
           @keydown.enter.exact.prevent="handleSend"
         />
@@ -163,6 +190,12 @@ import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } 
 import { useRouter } from 'vue-router'
 import { getToken } from '@/utils/auth'
 import MarkdownIt from 'markdown-it'
+import {
+  SMART_BI_COMMON_QUESTIONS,
+  buildSmartBiContext,
+  formatSmartBiCatalogForPrompt,
+  getSmartBiWorkbenchCards
+} from '@shared/smart-bi-config'
 
 const router = useRouter()
 
@@ -200,7 +233,9 @@ const loadMammoth = async () => {
   return mammothLib
 }
 
-const SYSTEM_PROMPT = `你是一名企业经营分析助手，具备全域数据查询和智能分析能力。你可以查询和分析以下业务数据：
+const SMART_BI_CATALOG_PROMPT = formatSmartBiCatalogForPrompt()
+
+const SYSTEM_PROMPT = `你是一名面向中小企业的智能 BI 分析助手，负责把自然语言经营问题自动转成指标解读、图表洞察和行动建议。用户不需要自己拖拽字段、编排报表或理解数据库结构。你可以查询和分析以下业务数据：
 
 【可查数据范围】
 1. 仓储数据：仓库列表、库位信息、仓库状态
@@ -212,12 +247,16 @@ const SYSTEM_PROMPT = `你是一名企业经营分析助手，具备全域数据
 7. 应用数据：已注册应用列表与使用情况
 8. 批次信息：物料批次、批次库存、效期管理
 
+【内置指标目录与问题路由】
+${SMART_BI_CATALOG_PROMPT}
+用户问“销售怎么样”时自动走销售指标；问“库存风险”时自动走库存指标；问“生产/质量/设备/采购”时分别走对应领域指标；用户问“经营总览”时覆盖六大领域。
+
 【强制输出规则】
 1. 当用户需要统计图表时，必须输出 ECharts JSON 配置，并放在 ${CODE_FENCE}echarts${CODE_FENCE} 代码块内。
 2. 禁止输出任何 JavaScript 变量或包装（例如 "var option ="、"option ="）。只允许纯 JSON。
 3. ECharts JSON 必须严格：双引号、无注释、无尾逗号、禁止函数（如 formatter/itemStyle.color function）。
-4. 图表之外，必须给出数据说明与分析结论。
-5. 输出结构：摘要 → 核心指标 → 图表（如需）→ 风险与建议。
+4. 每次回答必须稳定包含：关键指标、指标图表、风险提醒、行动建议。
+5. 输出结构：摘要 → 关键指标 → 指标图表 → 风险提醒 → 行动建议。
 6. 先给结论，再给证据（数据/图表），最后给行动建议。
 7. 每条建议都要可落地：包含负责方向、时间节点、目标。
 8. 你只能查询信息，不能执行任何写入、修改、删除操作。
@@ -274,17 +313,21 @@ const currentSessionId = ref(null)
 
 const currentSession = computed(() => sessions.find(s => s.id === currentSessionId.value))
 const currentMessages = computed(() => currentSession.value?.messages || [])
+const businessSnapshot = ref(null)
+const snapshotLoading = ref(false)
+const snapshotError = ref('')
+const workbenchCards = computed(() => getSmartBiWorkbenchCards(businessSnapshot.value || {}))
+const snapshotTimeText = computed(() => {
+  const snapshotTime = businessSnapshot.value?.snapshotTime
+  if (!snapshotTime) return '等待数据快照'
+  try {
+    return `快照 ${new Date(snapshotTime).toLocaleString('zh-CN', { hour12: false })}`
+  } catch {
+    return '快照已加载'
+  }
+})
 
-const suggestQuestions = [
-  '各仓库当前库存总量对比分析',
-  '物料分类库存分布与占比',
-  '近期出入库趋势分析',
-  '员工部门分布与人员结构',
-  '盘点任务执行情况汇总',
-  '库存周转与物料消耗排名',
-  '各仓库库位使用率对比',
-  '企业经营数据总览'
-]
+const suggestQuestions = SMART_BI_COMMON_QUESTIONS
 
 // ── ECharts 管理 ────────────────────────────────────────
 let chartResizeObserver = null
@@ -591,8 +634,8 @@ const normalizeFileForPayload = async (file) => {
 }
 
 // ── 报告下载 ────────────────────────────────────────────
-const REPORT_FILLER_LINE_RE = /^(好的|当然|收到|已收到|明白|了解|下面|以下|我将|我会|请查看|这里是|先给出|先汇总).{0,120}(经营分析|经营报告|分析报告|报告|图表|洞察|结论)/
-const REPORT_FILLER_SENTENCE_RE = /(好的|当然|收到|已收到|明白|了解)[，,。！!\s].{0,100}(经营分析|经营报告|分析报告|报告)/
+const REPORT_FILLER_LINE_RE = /^(好的|当然|收到|已收到|明白|了解|下面|以下|我将|我会|请查看|这里是|先给出|先汇总).{0,120}(智能\s*BI|经营分析|经营报告|分析报告|报告|图表|洞察|结论)/
+const REPORT_FILLER_SENTENCE_RE = /(好的|当然|收到|已收到|明白|了解)[，,。！!\s].{0,100}(智能\s*BI|经营分析|经营报告|分析报告|报告)/
 
 const shouldShowReportDownload = (msg, index) => {
   if (msg?.role !== 'assistant') return false
@@ -690,7 +733,7 @@ const exportMessageReportAsPdf = (messageIndex) => {
   printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
-  <title>企业经营报告 - ${dateStr}</title>
+  <title>智能 BI 报告 - ${dateStr}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -714,7 +757,7 @@ const exportMessageReportAsPdf = (messageIndex) => {
   </style>
 </head>
 <body>
-  <h1>企业经营报告</h1>
+  <h1>智能 BI 报告</h1>
   <div class="report-date">${dateStr}</div>
   <div class="report-content">${html}</div>
   <script>
@@ -763,7 +806,7 @@ const createNewSession = () => {
     id: Date.now().toString(),
     title: '新对话',
     messages: [
-      { role: 'assistant', content: '你好！我是企业经营助手，可以帮你分析全域业务数据——库存、物料、人事、出入库等，并以图表呈现洞察结论。有什么需要分析的？', time: Date.now() }
+      { role: 'assistant', content: '你好！我是智能 BI。直接问经营问题，或上传数据文件，我会自动生成指标图表、风险解读和行动建议。', time: Date.now() }
     ],
     updatedAt: Date.now()
   }
@@ -798,6 +841,26 @@ const buildAuthHeaders = () => {
   const headers = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
   return headers
+}
+
+const loadBusinessSnapshot = async (force = false) => {
+  if (snapshotLoading.value) return
+  if (!force && businessSnapshot.value?.snapshotTime) return
+  snapshotLoading.value = true
+  snapshotError.value = ''
+  try {
+    const response = await fetch('/agent/ai/business-snapshot', {
+      method: 'GET',
+      headers: buildAuthHeaders()
+    })
+    if (!response.ok) throw new Error(`快照读取失败 (${response.status})`)
+    const data = await response.json()
+    businessSnapshot.value = data?.snapshot || {}
+  } catch (error) {
+    snapshotError.value = error?.message || '快照读取失败'
+  } finally {
+    snapshotLoading.value = false
+  }
 }
 
 const buildPayloadMessages = async () => {
@@ -857,7 +920,8 @@ const sendMessage = async (text) => {
       context: {
         scene: 'enterprise_analyst',
         readOnly: true,
-        injectBusinessData: true
+        injectBusinessData: true,
+        smartBi: buildSmartBiContext(content)
       },
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -955,6 +1019,7 @@ onMounted(() => {
   loadSessions()
   if (sessions.length === 0) createNewSession()
   if (!currentSessionId.value && sessions.length) currentSessionId.value = sessions[0].id
+  void loadBusinessSnapshot()
 
   chartResizeObserver = typeof ResizeObserver !== 'undefined'
     ? new ResizeObserver(entries => {
@@ -1202,6 +1267,79 @@ onBeforeUnmount(() => {
 .slide-leave-to {
   transform: translateY(-10px);
   opacity: 0;
+}
+
+/* ===== BI Workbench ===== */
+.bi-workbench {
+  padding: 0 12px 12px;
+  flex-shrink: 0;
+}
+.bi-workbench-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.bi-workbench-title {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 700;
+}
+.bi-workbench-meta {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.bi-refresh-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(227, 233, 242, 0.9);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--accent);
+  font-size: 12px;
+}
+.bi-refresh-btn:disabled {
+  color: var(--muted);
+}
+.bi-card-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.bi-card {
+  min-height: 112px;
+  border: 1px solid rgba(227, 233, 242, 0.9);
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px;
+  text-align: left;
+  box-shadow: 0 4px 12px rgba(20, 37, 90, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bi-card:active {
+  transform: translateY(1px);
+}
+.bi-card-label {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 700;
+}
+.bi-card strong {
+  color: #1f2d3d;
+  font-size: 20px;
+  line-height: 1.15;
+}
+.bi-card span,
+.bi-card small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.bi-card small {
+  margin-top: auto;
 }
 
 /* ===== Messages ===== */

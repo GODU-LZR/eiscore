@@ -8,7 +8,7 @@
 
 | 测试层 | 结果 | 说明 |
 |---|---:|---|
-| 离线单元/回归 | PASS | `npm run test:unit` 通过。 |
+| 离线单元/回归 | PASS | `npm run test:unit` 通过，包含数字分身成本表回归与 Smart BI 配置路由回归。 |
 | 全前端构建 | PASS | `npm run build:frontends`，11 个前端包全部构建成功。 |
 | 远端 smoke | PASS | V2 patch 前后均为 23/23 PASS。 |
 | 远端业务闭环 | PASS | V2 patch 后 24/24 PASS，包含严格策略和显式状态迁移规则。 |
@@ -25,8 +25,9 @@
 | 命令 | 结果 | 备注 |
 |---|---|---|
 | `npm run test:unit` | PASS | `twin knowledge cost-table analysis regression` 通过。 |
+| `npm run test:smart-bi` | PASS | Smart BI 领域路由、输出章节、工作台卡片和常用问题回归通过。 |
 | `npm run build:frontends` | PASS | 11 个前端包构建成功。 |
-| `node --check playwright.config.mjs tests/e2e/helpers.mjs tests/e2e/ui-business-chain.spec.mjs` | PASS | Playwright 配置、E2E helper、UI 业务链路语法通过。 |
+| `node --check playwright.config.mjs tests/e2e/helpers.mjs tests/e2e/ui-business-chain.spec.mjs realtime/index.js` | PASS | Playwright 配置、E2E helper、UI 业务链路、realtime 后端语法通过。 |
 
 构建警告记录：
 
@@ -128,7 +129,9 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 时间 | 命令 | 结果 | 说明 |
 |---|---|---:|---|
 | 2026-06-16 | `npm run test:engineering:remote` | PASS | smoke 23/23、business-chain 24/24、browser E2E 77/77，用时约 11.9 分钟。 |
+| 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 24/24。 |
 | 2026-06-16 | `npm run test:ci` | PASS | 单元回归通过，11 个前端包全部构建成功。 |
+| 2026-06-16 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、概览卡片、指标卡片和常用问题提示均通过。 |
 | 2026-06-16 | `node --check tests/engineering/run-remote-suite.mjs tests/smoke/business-smoke.mjs` | PASS | 新增工程套件与 smoke 重试逻辑语法通过。 |
 
 新增工程化能力：
@@ -136,6 +139,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 1. `tests/engineering/run-remote-suite.mjs` 将远端 smoke、业务闭环、浏览器 E2E 串成一个可重复执行的工程验收套件。
 2. `npm run test:engineering:remote:api` 支持只跑远端 smoke + business-chain，适合接口侧快速验证。
 3. `.nvmrc` 固定为 `20.19.0`，与 GitHub Actions Node 版本一致。
+4. `tests/smart-bi/config-regression.mjs` 将 Smart BI 的六大领域路由、输出章节、工作台卡片和常用问题纳入离线单元回归。
 
 ## 六、当前风险
 
