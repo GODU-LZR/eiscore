@@ -256,6 +256,27 @@ await step('02d ontology coverage audit has no gaps', async () => {
   return { detail: `relations=${audit.semanticized_relations}/${audit.api_relations}, columns=${audit.semanticized_columns}/${audit.ontology_columns}`, statusCode: out.status }
 })
 
+await step('02e ontology reasoning engine exposes inferred facts', async () => {
+  const summaryOut = await api('/api/v_ontology_reasoning_summary?select=facts_total,seed_facts,inferred_facts,active_rules,role_app_access_facts,role_table_access_facts,sensitive_exposure_facts,transitive_dependency_facts', {
+    headers: profileHeaders('public')
+  })
+  const summary = rowOf(summaryOut.data)
+  ensure(summary, 'ontology reasoning summary should exist')
+  ensure(Number(summary.facts_total || 0) > 0, 'reasoning engine should expose facts')
+  ensure(Number(summary.inferred_facts || 0) > 0, 'reasoning engine should expose inferred facts')
+  ensure(Number(summary.active_rules || 0) >= 10, 'reasoning engine should have active rules')
+  ensure(Number(summary.role_app_access_facts || 0) > 0, 'reasoning engine should infer role app access')
+  ensure(Number(summary.role_table_access_facts || 0) > 0, 'reasoning engine should infer role table access')
+  ensure(Number(summary.transitive_dependency_facts || 0) > 0, 'reasoning engine should infer transitive dependencies')
+
+  const factsOut = await api(`/api/v_ontology_reasoning_facts?predicate=eq.${filterValue('acl:canAccessApp')}&select=subject_id,predicate,object_id,inference_rule&limit=3`, {
+    headers: profileHeaders('public')
+  })
+  ensure(Array.isArray(factsOut.data), 'reasoning facts response should be an array')
+  ensure(factsOut.data.length > 0, 'reasoning facts should include role app access facts')
+  return { detail: `facts=${summary.facts_total}, inferred=${summary.inferred_facts}`, statusCode: factsOut.status }
+})
+
 await step('03 HR archive baseline is readable', async () => {
   const out = await api('/api/archives?select=id,name,employee_no&order=id.desc&limit=3', {
     headers: profileHeaders('hr')

@@ -129,7 +129,7 @@ DECLARE
   claims JSONB := COALESCE(NULLIF(current_setting('request.jwt.claims', true), ''), '{}')::jsonb;
   actor_username TEXT := COALESCE(NULLIF(claims ->> 'username', ''), NULLIF(current_setting('request.jwt.claim.username', true), ''), 'unknown');
   audit_input JSONB;
-  touched_columns TEXT[] := ARRAY[]::TEXT[];
+  touched_columns TEXT[] := ARRAY['id', 'created_at', 'updated_at', 'properties']::TEXT[];
 BEGIN
   IF table_name IS NULL OR length(trim(table_name)) = 0 THEN
     final_name := 'data_app_' || substring(app_id::TEXT FROM 1 FOR 8);
@@ -190,6 +190,62 @@ BEGIN
     jsonb_build_object('stage', 'started', 'semantics_mode', app_semantics_mode),
     NULL
   );
+
+  IF to_regclass('public.ontology_column_semantics') IS NOT NULL THEN
+    INSERT INTO public.ontology_column_semantics (
+      table_schema,
+      table_name,
+      column_name,
+      semantic_class,
+      semantic_name,
+      semantic_description,
+      data_type,
+      ui_type,
+      is_sensitive,
+      source,
+      tags,
+      is_active,
+      updated_at
+    )
+    SELECT
+      'app_data',
+      final_name,
+      sys_col.column_name,
+      sys_col.semantic_class,
+      sys_col.semantic_name,
+      format('动态业务表单系统字段“%s”自动语义标注', sys_col.semantic_name),
+      sys_col.data_type,
+      sys_col.ui_type,
+      false,
+      'system_column_default',
+      jsonb_build_array(
+        'app_data',
+        'column',
+        'system',
+        format('semantics:%s', app_semantics_mode),
+        app_id::text
+      ),
+      true,
+      now()
+    FROM (
+      VALUES
+        ('id', 'business_attribute', '主键标识', 'uuid', 'uuid'),
+        ('created_at', 'time_attribute', '创建时间', 'timestamp with time zone', 'datetime'),
+        ('updated_at', 'time_attribute', '更新时间', 'timestamp with time zone', 'datetime'),
+        ('properties', 'json_attribute', '扩展属性', 'jsonb', 'json')
+    ) AS sys_col(column_name, semantic_class, semantic_name, data_type, ui_type)
+    ON CONFLICT ON CONSTRAINT ontology_column_semantics_pkey DO UPDATE
+    SET semantic_class = EXCLUDED.semantic_class,
+        semantic_name = EXCLUDED.semantic_name,
+        semantic_description = EXCLUDED.semantic_description,
+        data_type = EXCLUDED.data_type,
+        ui_type = EXCLUDED.ui_type,
+        is_sensitive = EXCLUDED.is_sensitive,
+        source = EXCLUDED.source,
+        tags = EXCLUDED.tags,
+        is_active = true,
+        updated_at = now();
+  END IF;
 
   IF columns IS NULL OR jsonb_typeof(columns) <> 'array' THEN
     PERFORM app_center.log_semantic_event(

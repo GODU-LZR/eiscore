@@ -7,7 +7,7 @@
       </div>
       <div class="hero-actions">
         <el-tag effect="dark" type="info">已加载 {{ filteredRelations.length }} 条关系</el-tag>
-        <el-button :loading="loading" type="primary" @click="reload">刷新数据</el-button>
+        <el-button :loading="loading || reasoningLoading" type="primary" @click="reloadAll">刷新数据</el-button>
         <el-button @click="goBack">返回应用中心</el-button>
       </div>
     </section>
@@ -28,6 +28,134 @@
       <el-card shadow="never" class="wb-card metric-line-item">
         <div class="metric-label">外键关系</div>
         <div class="metric-value">{{ foreignKeyCount }}</div>
+      </el-card>
+      <el-card shadow="never" class="wb-card metric-line-item">
+        <div class="metric-label">推理事实</div>
+        <div class="metric-value">{{ reasoningSummary.facts_total || 0 }}</div>
+      </el-card>
+      <el-card shadow="never" class="wb-card metric-line-item">
+        <div class="metric-label">推理规则</div>
+        <div class="metric-value">{{ reasoningSummary.active_rules || 0 }}</div>
+      </el-card>
+    </section>
+
+    <section class="reasoning-section">
+      <el-card shadow="never" class="wb-card reasoning-card">
+        <template #header>
+          <div class="card-header">
+            <span>知识图谱推理</span>
+            <div class="header-controls">
+              <el-tag :type="reasoningSummary.last_run_status === 'completed' ? 'success' : 'warning'" effect="plain">
+                {{ reasoningSummary.last_run_status || '未刷新' }}
+              </el-tag>
+              <el-button size="small" text :loading="reasoningLoading" @click="loadReasoning">
+                读取推理
+              </el-button>
+              <el-button size="small" type="primary" plain :loading="reasoningRefreshLoading" @click="refreshReasoning">
+                刷新推理
+              </el-button>
+            </div>
+          </div>
+        </template>
+
+        <div class="reasoning-metrics">
+          <div v-for="item in reasoningMetricCards" :key="item.key" class="reasoning-metric">
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </div>
+        </div>
+
+        <div class="reasoning-toolbar">
+          <el-select v-model="reasoningPredicate" size="small" style="width: 210px" @change="loadReasoningFacts">
+            <el-option label="全部推理边" value="" />
+            <el-option label="角色访问应用" value="acl:canAccessApp" />
+            <el-option label="角色访问业务表" value="acl:canAccessTable" />
+            <el-option label="角色操作业务表" value="acl:canOperateTable" />
+            <el-option label="传递依赖" value="ontology:transitivelyDependsOn" />
+            <el-option label="敏感字段可达" value="risk:canAccessSensitiveColumn" />
+          </el-select>
+          <el-input
+            v-model="reasoningSearchText"
+            clearable
+            size="small"
+            class="reasoning-search"
+            placeholder="筛选主体/客体/规则"
+          />
+          <el-tag effect="plain">事实 {{ filteredReasoningFacts.length }} 条</el-tag>
+        </div>
+
+        <el-table
+          :data="filteredReasoningFacts"
+          size="small"
+          border
+          stripe
+          :loading="reasoningLoading"
+          max-height="300"
+        >
+          <el-table-column label="主体" min-width="180">
+            <template #default="{ row }">
+              <div>{{ row.subject_label || row.subject_id }}</div>
+              <div class="table-raw">{{ row.subject_type }}:{{ row.subject_id }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="谓词" min-width="170">
+            <template #default="{ row }">{{ predicateLabel(row.predicate) }}</template>
+          </el-table-column>
+          <el-table-column label="客体" min-width="180">
+            <template #default="{ row }">
+              <div>{{ row.object_label || row.object_id }}</div>
+              <div class="table-raw">{{ row.object_type }}:{{ row.object_id }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="rule_name" label="规则" min-width="150" />
+          <el-table-column prop="inference_depth" label="深度" width="76" />
+          <el-table-column prop="is_inferred" label="类型" width="88">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.is_inferred ? 'success' : 'info'" effect="plain">
+                {{ row.is_inferred ? '推理' : '种子' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="path-panel">
+          <div class="detail-title">路径解释</div>
+          <div class="path-toolbar">
+            <el-select v-model="pathSubjectType" size="small" style="width: 120px">
+              <el-option label="角色" value="role" />
+              <el-option label="表" value="table" />
+              <el-option label="应用" value="app" />
+              <el-option label="权限" value="permission" />
+            </el-select>
+            <el-input v-model="pathSubjectId" size="small" class="path-input" placeholder="主体标识" />
+            <el-select v-model="pathObjectType" clearable size="small" style="width: 120px">
+              <el-option label="应用" value="app" />
+              <el-option label="表" value="table" />
+              <el-option label="权限" value="permission" />
+              <el-option label="字段" value="column" />
+            </el-select>
+            <el-input v-model="pathObjectId" clearable size="small" class="path-input" placeholder="目标标识" />
+            <el-button size="small" :loading="pathLoading" @click="explainPath">解释路径</el-button>
+          </div>
+          <el-table
+            v-if="pathRows.length"
+            :data="pathRows"
+            size="small"
+            border
+            stripe
+            max-height="220"
+          >
+            <el-table-column prop="depth" label="深度" width="76" />
+            <el-table-column label="终点" min-width="180">
+              <template #default="{ row }">
+                <div>{{ row.terminal_label || row.terminal_id }}</div>
+                <div class="table-raw">{{ row.terminal_type }}:{{ row.terminal_id }}</div>
+              </template>
+            </el-table-column>
+            <el-table-column prop="path_text" label="解释链" min-width="420" show-overflow-tooltip />
+          </el-table>
+          <div v-else class="column-empty-tip">暂无路径结果</div>
+        </div>
       </el-card>
     </section>
 
@@ -246,6 +374,18 @@ const listPanelExpanded = ref(false)
 const graphZoom = ref(1)
 const columnSemanticsLoading = ref(false)
 const columnSemanticsCache = ref({})
+const reasoningLoading = ref(false)
+const reasoningRefreshLoading = ref(false)
+const reasoningSummary = ref({})
+const reasoningFacts = ref([])
+const reasoningPredicate = ref('')
+const reasoningSearchText = ref('')
+const pathLoading = ref(false)
+const pathSubjectType = ref('role')
+const pathSubjectId = ref('sales_manager')
+const pathObjectType = ref('app')
+const pathObjectId = ref('')
+const pathRows = ref([])
 let graphResizeObserver = null
 
 const STATIC_TABLE_LABELS = {
@@ -255,6 +395,12 @@ const STATIC_TABLE_LABELS = {
   'public.user_roles': '用户角色关系',
   'public.role_permissions': '角色权限关系',
   'public.v_permission_ontology': '权限语义视图',
+  'public.ontology_inference_rules': '本体推理规则',
+  'public.ontology_inferred_facts': '本体推理事实',
+  'public.ontology_reasoning_runs': '本体推理运行',
+  'public.v_ontology_reasoning_facts': '本体推理事实视图',
+  'public.v_ontology_reasoning_edges': '本体推理边视图',
+  'public.v_ontology_reasoning_summary': '本体推理摘要',
   'workflow.definitions': '流程定义',
   'workflow.instances': '流程实例',
   'workflow.task_assignments': '任务分派',
@@ -272,7 +418,20 @@ const PREDICATE_LABELS = {
   'wf:mapsToStatus': '流程节点映射业务状态',
   'eiscore:linkedApp': '流程关联应用',
   'ontology:semanticProjection': '权限语义投影',
-  'ontology:dependsOn': '业务依赖关系'
+  'ontology:dependsOn': '业务依赖关系',
+  'ontology:transitivelyDependsOn': '传递依赖',
+  'ontology:belongsTo': '字段属于表',
+  'ontology:hasDomain': '所属业务域',
+  'app:usesTable': '应用使用业务表',
+  'acl:requiresPermission': '需要权限',
+  'acl:canAccessApp': '可访问应用',
+  'acl:canOperateAppAction': '可执行应用动作',
+  'acl:canAccessTable': '可访问业务表',
+  'acl:canOperateTable': '可操作业务表',
+  'wf:canPerformTransition': '可执行流程迁移',
+  'data:hasSensitiveColumn': '包含敏感字段',
+  'risk:canAccessSensitiveColumn': '可达敏感字段',
+  'rdf:type': '类型'
 }
 
 const SEMANTIC_CLASS_LABELS = {
@@ -281,7 +440,9 @@ const SEMANTIC_CLASS_LABELS = {
   hierarchy_attribute: '层级属性',
   geo_attribute: '地理属性',
   file_attribute: '文件属性',
-  derived_metric: '派生指标'
+  derived_metric: '派生指标',
+  time_attribute: '时间属性',
+  json_attribute: 'JSON属性'
 }
 
 const normalizedSearch = computed(() => String(searchText.value || '').trim().toLowerCase())
@@ -350,6 +511,36 @@ const currentColumnRows = computed(() => {
     return rows.map((row) => ({ ...row, table_key: tableKey }))
   })
 })
+
+const reasoningMetricCards = computed(() => ([
+  { key: 'facts', label: '事实总数', value: reasoningSummary.value.facts_total || 0 },
+  { key: 'inferred', label: '推理事实', value: reasoningSummary.value.inferred_facts || 0 },
+  { key: 'app', label: '角色-应用', value: reasoningSummary.value.role_app_access_facts || 0 },
+  { key: 'table', label: '角色-业务表', value: reasoningSummary.value.role_table_access_facts || 0 },
+  { key: 'sensitive', label: '敏感可达', value: reasoningSummary.value.sensitive_exposure_facts || 0 },
+  { key: 'dependency', label: '传递依赖', value: reasoningSummary.value.transitive_dependency_facts || 0 }
+]))
+
+const filteredReasoningFacts = computed(() => {
+  const keyword = String(reasoningSearchText.value || '').trim().toLowerCase()
+  if (!keyword) return reasoningFacts.value
+  return reasoningFacts.value.filter((item) => {
+    const haystack = [
+      item.subject_type,
+      item.subject_id,
+      item.subject_label,
+      item.predicate,
+      item.object_type,
+      item.object_id,
+      item.object_label,
+      item.inference_rule,
+      item.rule_name
+    ].join(' ').toLowerCase()
+    return haystack.includes(keyword)
+  })
+})
+
+const firstRow = (value) => (Array.isArray(value) ? value[0] : value)
 
 const relationTypeLabel = (value) => {
   if (value === 'ontology') return '本体关系'
@@ -462,6 +653,96 @@ const reloadColumnSemantics = async () => {
   await ensureColumnSemanticsLoaded(columnTablesForDisplay.value, true)
 }
 
+const fetchReasoningSummary = async () => {
+  const rows = await request({
+    url: '/v_ontology_reasoning_summary?select=last_run_status,facts_total,seed_facts,inferred_facts,active_rules,role_app_access_facts,role_table_access_facts,workflow_transition_facts,sensitive_exposure_facts,transitive_dependency_facts,last_finished_at&limit=1',
+    method: 'get',
+    headers: {
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public'
+    }
+  })
+  reasoningSummary.value = firstRow(rows) || {}
+}
+
+const loadReasoningFacts = async () => {
+  const predicateFilter = reasoningPredicate.value
+    ? `&predicate=eq.${encodeURIComponent(reasoningPredicate.value)}`
+    : ''
+  const rows = await request({
+    url: `/v_ontology_reasoning_facts?select=id,subject_type,subject_id,subject_label,predicate,object_type,object_id,object_label,inference_rule,rule_name,inference_depth,is_inferred,evidence${predicateFilter}&order=is_inferred.desc,inference_depth.asc,id.asc&limit=200`,
+    method: 'get',
+    headers: {
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public'
+    }
+  })
+  reasoningFacts.value = Array.isArray(rows) ? rows : []
+}
+
+const loadReasoning = async () => {
+  reasoningLoading.value = true
+  try {
+    await Promise.all([fetchReasoningSummary(), loadReasoningFacts()])
+  } catch {
+    ElMessage.error('加载推理数据失败')
+  } finally {
+    reasoningLoading.value = false
+  }
+}
+
+const refreshReasoning = async () => {
+  reasoningRefreshLoading.value = true
+  try {
+    await request({
+      url: '/rpc/refresh_ontology_inferences',
+      method: 'post',
+      data: { p_max_depth: 4 },
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
+      }
+    })
+    await loadReasoning()
+    ElMessage.success('推理刷新完成')
+  } catch {
+    ElMessage.error('刷新推理失败')
+  } finally {
+    reasoningRefreshLoading.value = false
+  }
+}
+
+const explainPath = async () => {
+  const subjectId = String(pathSubjectId.value || '').trim()
+  if (!subjectId) {
+    ElMessage.warning('请填写主体标识')
+    return
+  }
+  pathLoading.value = true
+  try {
+    const rows = await request({
+      url: '/rpc/explain_ontology_path',
+      method: 'post',
+      data: {
+        p_subject_type: pathSubjectType.value,
+        p_subject_id: subjectId,
+        p_object_type: pathObjectType.value || null,
+        p_object_id: String(pathObjectId.value || '').trim() || null,
+        p_max_depth: 4
+      },
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
+      }
+    })
+    pathRows.value = Array.isArray(rows) ? rows : []
+  } catch {
+    ElMessage.error('路径解释失败')
+  } finally {
+    pathLoading.value = false
+  }
+}
+
 const toggleTableFocus = (table) => {
   if (!table) {
     selectedTable.value = ''
@@ -559,6 +840,10 @@ const reload = async () => {
   }
 }
 
+const reloadAll = async () => {
+  await Promise.all([reload(), loadReasoning()])
+}
+
 const goBack = () => {
   router.push('/')
 }
@@ -572,7 +857,7 @@ watch(columnTablesForDisplay, (tables) => {
 }, { immediate: true })
 
 onMounted(() => {
-  reload()
+  reloadAll()
   nextTick(() => bindGraphResizeObserver())
 })
 
@@ -632,7 +917,7 @@ onBeforeUnmount(() => {
 
 .wb-metric-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -685,6 +970,69 @@ onBeforeUnmount(() => {
 
 .relation-card {
   margin-bottom: 12px;
+}
+
+.reasoning-section {
+  margin-bottom: 12px;
+}
+
+.reasoning-card :deep(.el-card__body) {
+  padding-top: 12px;
+}
+
+.reasoning-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.reasoning-metric {
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-extra-light);
+  padding: 9px 10px;
+}
+
+.reasoning-metric span {
+  display: block;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.reasoning-metric strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--el-text-color-primary);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.reasoning-toolbar,
+.path-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.reasoning-search {
+  width: min(320px, 100%);
+}
+
+.path-panel {
+  margin-top: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-extra-light);
+  padding: 10px;
+}
+
+.path-input {
+  width: min(260px, 100%);
 }
 
 .graph-toolbar {
@@ -818,7 +1166,8 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 1200px) {
-  .wb-metric-row {
+  .wb-metric-row,
+  .reasoning-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -829,7 +1178,8 @@ onBeforeUnmount(() => {
     align-items: flex-start;
   }
 
-  .wb-metric-row {
+  .wb-metric-row,
+  .reasoning-metrics {
     grid-template-columns: 1fr;
   }
 

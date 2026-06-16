@@ -1,7 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+import { existsSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, devices } from '@playwright/test'
+
+const repoRoot = dirname(fileURLToPath(import.meta.url))
+const playwrightLibPath = resolve(repoRoot, 'tests/.artifacts/playwright-libs/root/usr/lib/x86_64-linux-gnu')
+
+if (existsSync(playwrightLibPath)) {
+  process.env.LD_LIBRARY_PATH = process.env.LD_LIBRARY_PATH
+    ? `${playwrightLibPath}:${process.env.LD_LIBRARY_PATH}`
+    : playwrightLibPath
+}
 
 const baseURL = (process.env.EISCORE_E2E_BASE_URL || process.env.EISCORE_BASE_URL || 'http://localhost:8080')
   .replace(/\/+$/, '')

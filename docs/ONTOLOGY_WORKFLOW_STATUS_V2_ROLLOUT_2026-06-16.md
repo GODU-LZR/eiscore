@@ -42,6 +42,23 @@
    - 新增 `public.v_ontology_coverage_audit`，通过 API 返回关系对象、字段、业务表单、角色、权限的本体覆盖率审计结果。
    - 对 API schema 下的表和视图做表级语义兜底，对已激活本体对象做字段级语义兜底，并授权 `web_user` 通过 PostgREST 读取。
 
+4. 知识图谱推理引擎 V1：`sql/patch_ontology_reasoning_engine_v1.sql`
+   - 新增 `public.ontology_inference_rules`，保存可启停的推理规则。
+   - 新增 `public.ontology_inferred_facts`，保存推理刷新生成的知识图谱事实边。
+   - 新增 `public.ontology_reasoning_runs`，记录推理刷新批次、状态、深度和事实数量。
+   - 新增 `public.refresh_ontology_inferences(depth)`，按规则刷新推理事实；该函数只写推理表，不写业务表。
+   - 新增 `public.v_ontology_reasoning_facts`、`public.v_ontology_reasoning_edges`、`public.v_ontology_reasoning_summary`，用于读取推理事实、图边和摘要。
+   - 新增 `public.explain_ontology_path(...)`，用于解释一个语义主体到目标对象之间的推理路径。
+   - 当前内置规则覆盖：表/字段语义种子、表间关系种子、应用表单到业务表、角色到权限、角色可访问应用、角色可访问/操作业务表、流程迁移授权、敏感字段可达性、表间传递依赖闭包。
+   - 安全边界：不修改业务表、不修改 RLS、不改变工作流执行函数、不改变 ACL 裁决；推理刷新是旁路批处理，业务请求不会自动触发。
+
+5. 本体关系工作台推理入口：`eiscore-apps/src/views/OntologyWorkbench.vue`
+   - 新增“知识图谱推理”面板，展示事实总数、推理事实、角色-应用、角色-业务表、敏感可达、传递依赖等摘要。
+   - 支持读取/刷新推理事实，事实表默认优先展示推理生成事实，再展示种子事实。
+   - 支持按谓词和关键词筛选推理事实，便于查看 `acl:canAccessApp`、`acl:canAccessTable`、`risk:canAccessSensitiveColumn` 等边。
+   - 支持从角色/表/应用/权限出发调用 `public.explain_ontology_path(...)` 做路径解释。
+   - 修复子应用独立预览时 qiankun dev 生命周期误注册导致的 `window.proxy.vitemount` 噪音。
+
 ## 默认策略
 
 默认策略保持旧行为：
@@ -89,6 +106,34 @@ PowerShell UTF-8 安全方式：
 Get-Content sql/patch_ontology_semantic_coverage_v2.sql -Raw -Encoding UTF8 | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
 ```
 
+知识图谱推理引擎补丁：
+
+```bash
+cat sql/patch_ontology_reasoning_engine_v1.sql | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
+```
+
+PowerShell UTF-8 安全方式：
+
+```powershell
+Get-Content sql/patch_ontology_reasoning_engine_v1.sql -Raw -Encoding UTF8 | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
+```
+
+手动刷新推理事实：
+
+```sql
+SELECT * FROM public.refresh_ontology_inferences(4);
+```
+
+当前本地推理摘要：
+
+| 指标 | 数值 |
+|---|---:|
+| `facts_total` | 5004 |
+| `inferred_facts` | 658 |
+| `active_rules` | 16 |
+| `role_app_access_facts` | 27 |
+| `sensitive_exposure_facts` | 18 |
+
 ## 后续建议
 
 1. 先在一个低风险流程应用插入 `workflow_transition_rules`，保持 `compat` 验证事件日志。
@@ -116,3 +161,4 @@ EISCORE_CHAIN_BASE_URL=http://localhost npm run test:business-chain
 4. 在链路前置检查中读取 `public.v_role_permissions`，确保 strict 就绪检查所需的角色授权视图对运行账号可读。
 5. 在链路前置检查中读取 `public.v_app_form_ontology` 和 `public.v_role_ontology`，确保新增业务表单与角色实体已经进入本体语义投影。
 6. 在链路前置检查中读取 `public.v_ontology_coverage_audit`，确保 API 关系对象、字段、业务表单、角色、权限的语义覆盖缺口均为 0。
+7. 在链路前置检查中读取 `public.v_ontology_reasoning_summary` 和 `public.v_ontology_reasoning_facts`，确保推理引擎已经生成种子事实与推理事实，且角色访问应用、角色访问业务表、传递依赖等规则可读。

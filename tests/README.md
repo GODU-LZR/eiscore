@@ -185,6 +185,8 @@ local stack.
 `tests/business/full-chain.mjs` verifies authenticated write/read/update/delete
 loops across app center, dynamic data apps, workflow runtime state writeback,
 workflow V2 strict transition rules, HR, and SCM warehouse management.
+It also fails fast when ontology projections, semantic coverage, or ontology
+reasoning facts are not readable through the remote API.
 
 Defaults:
 
@@ -260,10 +262,12 @@ Artifacts:
 | Remote engineering suite summary | `tests/.artifacts/nanpai-engineering-suite-*.json` |
 | Remote engineering suite report | `tests/.artifacts/nanpai-engineering-suite-*.md` |
 
-If Chromium fails to launch with missing shared libraries such as `libnspr4.so`,
-install the browser dependencies with `npm run e2e:install:with-deps` or install
-the equivalent system packages (`libnspr4`, `libnss3`, `libasound2t64` on current
-Ubuntu releases).
+`playwright.config.mjs` automatically appends the cached Linux shared libraries
+under `tests/.artifacts/playwright-libs/root/usr/lib/x86_64-linux-gnu` when that
+directory exists. If Chromium still fails to launch with missing shared libraries
+such as `libnspr4.so`, install the browser dependencies with
+`npm run e2e:install:with-deps` or install the equivalent system packages
+(`libnspr4`, `libnss3`, `libasound2t64` on current Ubuntu releases).
 
 ## Current Scope
 
@@ -286,8 +290,8 @@ Ubuntu releases).
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
 - `test:business-chain` verifies create/read/update/delete loops and workflow
   status writeback against writable business APIs. It also checks ontology
-  projections and coverage audit views before mutating data, so semantic-layer
-  gaps fail fast.
+  projections, coverage audit views, and ontology reasoning summary/facts before
+  mutating data, so semantic-layer and inference-layer gaps fail fast.
 - `test:e2e` verifies that the app actually renders in Chromium, catches blank
   screens in the login page, host shell, and selected micro-frontend deep links,
   and exercises daily UI clicks plus the UI business chain close-loop that

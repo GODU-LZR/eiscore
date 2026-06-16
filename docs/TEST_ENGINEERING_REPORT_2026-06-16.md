@@ -15,14 +15,14 @@
 | 工程 HTTP 客户端 | PASS | `npm run test:http-client` 通过，覆盖远端重试、非幂等写请求保护、超时归一化和原生 body 透传。 |
 | 全前端构建 | PASS | `npm run build:frontends`，11 个前端包全部构建成功。 |
 | 远端 smoke | PASS | V2 patch 前后均为 23/23 PASS。 |
-| 远端业务闭环 | PASS | V2 + 本体覆盖 patch 后最新为 27/27 PASS，包含角色授权视图、本体投影覆盖审计、严格策略和显式状态迁移规则。 |
-| 远端工程套件 | PASS | 新增 `npm run test:engineering:remote`，smoke + business-chain + browser E2E 三层 3/3 PASS。 |
-| 67 功能点 UI | PASS | 67 点已整体通过；本轮 FP01/FP28/FP39 单点复测通过，最终全量浏览器回归 77/77 PASS。 |
-| UI 业务闭环 | PASS | 单点复测 1/1 PASS。 |
-| UI 点击巡检 | PASS | 静态资源兼容修复后，失败点击项单点复测通过。 |
-| 完整 77 浏览器长跑 | PASS | `npm run test:e2e:remote` 最终 77/77 PASS，用时约 7.5 分钟。 |
+| 远端业务闭环 | PASS | V2 + 本体覆盖 + 本体推理后最新为 28/28 PASS，包含角色授权视图、本体投影覆盖审计、推理事实、严格策略和显式状态迁移规则。 |
+| 远端工程 API 套件 | PASS | `npm run test:engineering:remote:api` 最新 smoke 23/23、business-chain 28/28。 |
+| 67 功能点 UI | PASS | `npm run test:e2e:functions67:remote` 最新 67/67 PASS，覆盖完整功能点矩阵。 |
+| UI 业务闭环 | PASS | `npm run test:e2e:business-chain:remote` 最新 1/1 PASS。 |
+| UI 点击巡检 | PASS | `npm run test:e2e:clicks:remote` 最新 4/4 PASS；已修复直跑 Playwright 时缺少本地 Linux 依赖路径的问题。 |
+| 完整 77 浏览器长跑 | PASS | 历史 `npm run test:e2e:remote` 最终 77/77 PASS；本轮拆分 UI 点击、业务闭环和 67 功能点均已通过。 |
 
-总体判断：工程主链路可用，远端业务和 UI 功能本身通过；远端浏览器自动化已完成全量通过。当前剩余风险主要是历史观察到的远端长时间回归偶发 DNS/连接抖动，以及静态资源发布时删除旧 hash 资源会影响缓存窗口内的微前端动态加载。
+总体判断：工程主链路可用，远端业务、语义本体、推理引擎和 UI 点击功能均已通过自动化验证。当前剩余风险主要是历史观察到的远端长时间回归偶发 DNS/连接抖动，以及静态资源发布时删除旧 hash 资源会影响缓存窗口内的微前端动态加载。
 
 ## 二、本地工程基线
 
@@ -136,6 +136,12 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 
 | 时间 | 命令 | 结果 | 说明 |
 |---|---|---:|---|
+| 2026-06-16 | `sql/patch_ontology_reasoning_engine_v1.sql` | PASS | 远端应用知识图谱推理引擎补丁；schema 执行前备份到 `tests/.artifacts/eiscore_ontology_reasoning_engine_v1_schema_before_20260616_2235.sql`。最新摘要：facts 3052、seed 2990、inferred 62、active rules 16、角色访问应用 3、角色访问业务表 2、传递依赖 37。 |
+| 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 28/28；新增 `02e ontology reasoning engine exposes inferred facts`，最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T14-43-32-197Z.md`。 |
+| 2026-06-16 | `npm --prefix eiscore-apps run build && npm --prefix eiscore-base run build` | PASS | 受影响前端包构建通过，覆盖本体工作台推理面板和 AI Copilot 历史侧栏改动。 |
+| 2026-06-16 | `npm run test:e2e:clicks:remote` | PASS | 远端普通用户 UI 点击巡检 4/4 PASS。首次直跑因 Chromium 缺 `libnspr4.so` 等共享库失败，已在 `playwright.config.mjs` 自动加载缓存依赖后复测通过。 |
+| 2026-06-16 | `npm run test:e2e:business-chain:remote` | PASS | 远端 UI 全业务链路闭环 1/1 PASS，覆盖应用中心、工作流状态写回、HR、仓库。 |
+| 2026-06-16 | `npm run test:e2e:functions67:remote` | PASS | 远端 67 个功能点全量 UI 验收 67/67 PASS，用时约 9.2 分钟。 |
 | 2026-06-16 | `npm run test:engineering:remote` | PASS | smoke 23/23、business-chain 24/24、browser E2E 77/77，用时约 11.9 分钟。 |
 | 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 27/27；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T14-24-56-371Z.md`。 |
 | 2026-06-16 | `npm run test:ci` | PASS | 语法门禁、单元回归、Smart BI、EISGrid agent 语义、共享 grid 工具和工程 HTTP 客户端回归通过，11 个前端包全部构建成功。 |
@@ -158,6 +164,8 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 6. `tests/grid-utils/shared-regression.mjs` 将共享 grid 分页、时间过滤和服务端汇总边界纳入离线单元回归。
 7. `tests/engineering/http-client.mjs` 统一远端 smoke/business-chain 的超时、重试和 JSON/text 解析；business-chain 默认只重试安全方法，避免重复写入。
 8. `sql/patch_ontology_semantic_coverage_v2.sql` 将业务表单、角色、角色授权和本体覆盖审计视图纳入 PostgREST 可读语义投影；`test:business-chain` 增加 `02c/02d` 前置检查，防止语义层缺口静默回归。
+9. `sql/patch_ontology_reasoning_engine_v1.sql` 将本体推理规则、推理事实、推理运行批次、推理摘要和路径解释纳入数据库侧工程能力；`test:business-chain` 增加 `02e` 前置检查，防止推理层不可读或无推理事实。
+10. `playwright.config.mjs` 自动加载 `tests/.artifacts/playwright-libs/root/usr/lib/x86_64-linux-gnu` 下的缓存 Linux 共享库，使 `test:e2e:*:remote` 单独直跑时也能稳定启动 Chromium。
 
 ## 六、当前风险
 
