@@ -327,6 +327,10 @@
                   <el-icon><Document /></el-icon>
                   <span>生成规则</span>
                 </el-button>
+                <el-button size="small" :loading="workflowReadinessLoading" @click="openWorkflowReadinessDialog">
+                  <el-icon><CircleCheckFilled /></el-icon>
+                  <span>就绪检查</span>
+                </el-button>
                 <el-button size="small" @click="refreshWorkflowData">
                   <el-icon><Refresh /></el-icon>
                   <span>刷新</span>
@@ -688,6 +692,124 @@
           </template>
         </el-dialog>
 
+        <el-dialog
+          v-if="appData.app_type === 'workflow'"
+          v-model="workflowReadinessDialogVisible"
+          title="V2 strict 就绪检查"
+          width="820px"
+          append-to-body
+          destroy-on-close
+        >
+          <div class="workflow-readiness" v-loading="workflowReadinessLoading">
+            <div class="workflow-readiness-grid">
+              <div class="workflow-readiness-item">
+                <span>策略模式</span>
+                <strong>{{ workflowPolicyModeLabel }}</strong>
+              </div>
+              <div class="workflow-readiness-item">
+                <span>需授权码</span>
+                <strong>{{ workflowReadinessReport.requiredPermissions.length }}</strong>
+              </div>
+              <div class="workflow-readiness-item">
+                <span>缺规则</span>
+                <strong>{{ workflowReadinessReport.missingRules.length }}</strong>
+              </div>
+              <div class="workflow-readiness-item">
+                <span>缺授权</span>
+                <strong>{{ workflowReadinessReport.roleGrantGaps.length }}</strong>
+              </div>
+            </div>
+
+            <el-alert
+              v-if="workflowReadinessReport.ready"
+              title="当前配置已具备 strict 切换的基础条件。"
+              type="success"
+              :closable="false"
+              show-icon
+            />
+            <el-alert
+              v-else
+              title="切换 strict 前仍有缺口，请先补齐规则、权限定义或角色授权。"
+              type="warning"
+              :closable="false"
+              show-icon
+            />
+            <el-alert
+              v-if="workflowReadinessReport.warnings.length"
+              class="workflow-readiness-warning"
+              type="info"
+              :closable="false"
+              show-icon
+            >
+              <template #title>
+                {{ workflowReadinessReport.warnings.join('；') }}
+              </template>
+            </el-alert>
+
+            <el-divider content-position="left">缺失迁移规则</el-divider>
+            <el-table v-if="workflowReadinessReport.missingRules.length" :data="workflowReadinessReport.missingRules" size="small" border>
+              <el-table-column label="来源任务" min-width="130">
+                <template #default="{ row }">{{ formatTaskName(row?.from_task_id) }}</template>
+              </el-table-column>
+              <el-table-column label="目标任务" min-width="130">
+                <template #default="{ row }">{{ formatTaskName(row?.to_task_id) }}</template>
+              </el-table-column>
+              <el-table-column label="状态迁移" min-width="160">
+                <template #default="{ row }">{{ formatTransitionStatePair(row?.from_state, row?.to_state) }}</template>
+              </el-table-column>
+              <el-table-column prop="required_permission" label="建议权限码" min-width="260" show-overflow-tooltip />
+            </el-table>
+            <el-empty v-else description="显式迁移规则已齐备" />
+
+            <el-divider content-position="left">缺失权限定义</el-divider>
+            <el-table v-if="workflowReadinessReport.missingPermissionDefs.length" :data="workflowReadinessReport.missingPermissionDefs" size="small" border>
+              <el-table-column prop="code" label="权限码" min-width="300" show-overflow-tooltip />
+              <el-table-column prop="source" label="来源" width="110" />
+            </el-table>
+            <el-empty v-else :description="workflowReadinessReport.warnings.some((item) => item.includes('权限定义')) ? '权限定义未检查' : '权限定义已齐备'" />
+
+            <el-divider content-position="left">角色授权缺口</el-divider>
+            <el-table v-if="workflowReadinessReport.roleGrantGaps.length" :data="workflowReadinessReport.roleGrantGaps" size="small" border>
+              <el-table-column prop="role_code" label="角色" width="130" />
+              <el-table-column label="缺少权限" min-width="360" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.missing_permissions.join(', ') }}</template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-else :description="workflowReadinessReport.warnings.some((item) => item.includes('角色授权')) ? '角色授权未检查' : '候选角色授权已齐备'" />
+          </div>
+          <template #footer>
+            <el-button @click="workflowReadinessDialogVisible = false">关闭</el-button>
+            <el-button
+              type="primary"
+              plain
+              :loading="workflowPermissionDefSaving"
+              :disabled="workflowReadinessReport.missingPermissionDefs.length === 0"
+              @click="createMissingWorkflowPermissionDefs"
+            >
+              补齐权限定义
+            </el-button>
+            <el-button
+              type="warning"
+              plain
+              :loading="workflowRoleGrantSaving"
+              :disabled="workflowReadinessReport.roleGrantGaps.length === 0"
+              @click="createMissingWorkflowRoleGrants"
+            >
+              补齐角色授权
+            </el-button>
+            <el-button
+              type="danger"
+              plain
+              :loading="workflowStrictSwitching"
+              :disabled="!workflowReadinessReport.ready || workflowStrictAlreadyEnabled"
+              @click="enableWorkflowStrictPolicy"
+            >
+              {{ workflowStrictAlreadyEnabled ? 'strict 已启用' : '切换 strict' }}
+            </el-button>
+            <el-button :loading="workflowReadinessLoading" @click="runWorkflowReadinessCheck">重新检查</el-button>
+          </template>
+        </el-dialog>
+
         <div v-else-if="appData.app_type === 'flash'" class="flash-runtime">
           <iframe
             v-if="flashRuntimeUrl"
@@ -878,6 +1000,11 @@ const workflowPolicyDraft = reactive({
 const workflowRuleDialogVisible = ref(false)
 const workflowRuleSaving = ref(false)
 const workflowRuleGenerating = ref(false)
+const workflowReadinessDialogVisible = ref(false)
+const workflowReadinessLoading = ref(false)
+const workflowPermissionDefSaving = ref(false)
+const workflowRoleGrantSaving = ref(false)
+const workflowStrictSwitching = ref(false)
 const workflowRuleEditingId = ref(null)
 const workflowRuleLastSuggestedPermission = ref('')
 const workflowRuleDraft = reactive({
@@ -887,6 +1014,14 @@ const workflowRuleDraft = reactive({
   to_state: '',
   required_permission: '',
   is_active: true
+})
+const workflowReadinessReport = reactive({
+  ready: false,
+  requiredPermissions: [],
+  missingRules: [],
+  missingPermissionDefs: [],
+  roleGrantGaps: [],
+  warnings: []
 })
 const workflowDefinitionId = ref(null)
 const workflowInstances = ref([])
@@ -1086,6 +1221,13 @@ const workflowPolicyModeLabel = computed(() => (
 const workflowPolicyModeTagType = computed(() => (
   workflowPolicyEffective.value.permission_mode === 'strict' ? 'danger' : 'success'
 ))
+const workflowStrictAlreadyEnabled = computed(() => (
+  workflowPolicyEffective.value.permission_mode === 'strict'
+  && workflowPolicyEffective.value.legacy_fallback_enabled === false
+  && workflowPolicyEffective.value.enforce_assignment !== false
+  && workflowPolicyEffective.value.enforce_workflow_op_perm !== false
+  && workflowPolicyEffective.value.enforce_status_transition_perm !== false
+))
 const workflowTaskOptions = computed(() => {
   const ids = new Set()
   Object.keys(taskNameMap.value || {}).forEach((id) => ids.add(String(id || '').trim()))
@@ -1149,6 +1291,18 @@ const getWorkflowHeaders = (token) => ({
   'Accept-Profile': 'workflow',
   'Content-Profile': 'workflow'
 })
+
+const getPublicHeaders = (token) => ({
+  Authorization: `Bearer ${token}`,
+  'Accept-Profile': 'public',
+  'Content-Profile': 'public'
+})
+
+const buildPostgrestInFilter = (values) => (Array.isArray(values) ? values : [])
+  .map((item) => String(item || '').trim())
+  .filter(Boolean)
+  .map((item) => encodeURIComponent(item))
+  .join(',')
 
 const parseDefinitionId = (value) => {
   if (value === null || value === undefined || value === '') return null
@@ -1689,6 +1843,103 @@ const getGeneratedWorkflowTransitionRuleCandidates = () => {
     })
   })
   return candidates
+}
+
+const getActiveWorkflowTransitionRules = () => workflowTransitionRules.value
+  .filter((row) => row?.is_active !== false)
+
+const getWorkflowCandidateRoleCodes = () => {
+  const roles = new Set()
+  taskAssignments.value.forEach((item) => {
+    normalizeStringList(item?.candidate_roles).forEach((role) => {
+      if (role !== 'super_admin') roles.add(role)
+    })
+  })
+  return Array.from(roles).sort((a, b) => String(a).localeCompare(String(b), 'zh-Hans-CN'))
+}
+
+const getWorkflowCorePermissionEntries = () => {
+  const appKey = String(workflowPolicyEffective.value.acl_module || '').trim()
+  if (!appKey) return []
+  return [
+    { code: `op:${appKey}.workflow_start`, source: '流程发起' },
+    { code: `op:${appKey}.workflow_transition`, source: '流程推进' },
+    { code: `op:${appKey}.workflow_complete`, source: '流程完结' }
+  ]
+}
+
+const getRequiredWorkflowPermissionEntries = (missingRules = []) => {
+  const entries = [...getWorkflowCorePermissionEntries()]
+  const pushRulePermission = (rule, source) => {
+    const code = String(rule?.required_permission || '').trim()
+    if (code) entries.push({ code, source })
+  }
+  getActiveWorkflowTransitionRules().forEach((rule) => pushRulePermission(rule, '迁移规则'))
+  missingRules.forEach((rule) => pushRulePermission(rule, '建议规则'))
+
+  const seen = new Set()
+  return entries.filter((item) => {
+    if (!item.code || seen.has(item.code)) return false
+    seen.add(item.code)
+    return true
+  })
+}
+
+const getMissingGeneratedWorkflowRules = () => {
+  const activeKeys = new Set(getActiveWorkflowTransitionRules().map((row) => getWorkflowTransitionRuleKey(row)))
+  return getGeneratedWorkflowTransitionRuleCandidates()
+    .filter((candidate) => !activeKeys.has(getWorkflowTransitionRuleKey(candidate)))
+}
+
+const resetWorkflowReadinessReport = () => {
+  workflowReadinessReport.ready = false
+  workflowReadinessReport.requiredPermissions = []
+  workflowReadinessReport.missingRules = []
+  workflowReadinessReport.missingPermissionDefs = []
+  workflowReadinessReport.roleGrantGaps = []
+  workflowReadinessReport.warnings = []
+}
+
+const assignWorkflowReadinessReport = (next) => {
+  workflowReadinessReport.requiredPermissions = next.requiredPermissions || []
+  workflowReadinessReport.missingRules = next.missingRules || []
+  workflowReadinessReport.missingPermissionDefs = next.missingPermissionDefs || []
+  workflowReadinessReport.roleGrantGaps = next.roleGrantGaps || []
+  workflowReadinessReport.warnings = next.warnings || []
+  workflowReadinessReport.ready = workflowReadinessReport.missingRules.length === 0
+    && workflowReadinessReport.missingPermissionDefs.length === 0
+    && workflowReadinessReport.roleGrantGaps.length === 0
+    && workflowReadinessReport.warnings.length === 0
+}
+
+const resolveWorkflowPermissionDefMeta = (code, source = '') => {
+  if (code.includes('.workflow_start')) {
+    return { suffix: '流程发起', action: 'workflow_start' }
+  }
+  if (code.includes('.workflow_transition')) {
+    return { suffix: '流程推进', action: 'workflow_transition' }
+  }
+  if (code.includes('.workflow_complete')) {
+    return { suffix: '流程完结', action: 'workflow_complete' }
+  }
+  if (code.includes('.status_transition.')) {
+    return { suffix: '状态流转', action: 'status_transition' }
+  }
+  const fallback = String(source || '流程权限').trim() || '流程权限'
+  return { suffix: fallback, action: 'workflow_permission' }
+}
+
+const buildWorkflowPermissionDefPayload = (item) => {
+  const code = String(item?.code || '').trim()
+  const moduleName = String(workflowPolicyEffective.value.acl_module || appData.value?.name || 'workflow').trim()
+  const displayName = String(appData.value?.name || moduleName || '流程应用').trim()
+  const meta = resolveWorkflowPermissionDefMeta(code, item?.source)
+  return {
+    code,
+    name: `${displayName}-${meta.suffix}`,
+    module: moduleName,
+    action: meta.action
+  }
 }
 
 const formatEventComment = (row) => {
@@ -2720,6 +2971,23 @@ function openWorkflowPolicyDialog() {
   workflowPolicyDialogVisible.value = true
 }
 
+async function upsertWorkflowPolicy(payload) {
+  const token = localStorage.getItem('auth_token')
+  const response = await axios.post(
+    '/api/workflow_permission_policies?on_conflict=workflow_app_id',
+    payload,
+    {
+      headers: {
+        ...getAppCenterHeaders(token),
+        Prefer: 'resolution=merge-duplicates,return=representation'
+      }
+    }
+  )
+  workflowPolicy.value = unwrapSingleRow(response.data)
+  await loadWorkflowPolicy()
+  return workflowPolicy.value
+}
+
 async function saveWorkflowPolicy() {
   if (!runtimeAppId.value) return
   const aclModule = String(workflowPolicyDraft.acl_module || '').trim()
@@ -2729,29 +2997,17 @@ async function saveWorkflowPolicy() {
   }
   workflowPolicySaving.value = true
   try {
-    const token = localStorage.getItem('auth_token')
-    const response = await axios.post(
-      '/api/workflow_permission_policies?on_conflict=workflow_app_id',
-      {
-        workflow_app_id: runtimeAppId.value,
-        acl_module: aclModule,
-        permission_mode: workflowPolicyDraft.permission_mode === 'strict' ? 'strict' : 'compat',
-        enforce_assignment: Boolean(workflowPolicyDraft.enforce_assignment),
-        enforce_workflow_op_perm: Boolean(workflowPolicyDraft.enforce_workflow_op_perm),
-        enforce_status_transition_perm: Boolean(workflowPolicyDraft.enforce_status_transition_perm),
-        legacy_fallback_enabled: Boolean(workflowPolicyDraft.legacy_fallback_enabled)
-      },
-      {
-        headers: {
-          ...getAppCenterHeaders(token),
-          Prefer: 'resolution=merge-duplicates,return=representation'
-        }
-      }
-    )
-    workflowPolicy.value = unwrapSingleRow(response.data)
+    await upsertWorkflowPolicy({
+      workflow_app_id: runtimeAppId.value,
+      acl_module: aclModule,
+      permission_mode: workflowPolicyDraft.permission_mode === 'strict' ? 'strict' : 'compat',
+      enforce_assignment: Boolean(workflowPolicyDraft.enforce_assignment),
+      enforce_workflow_op_perm: Boolean(workflowPolicyDraft.enforce_workflow_op_perm),
+      enforce_status_transition_perm: Boolean(workflowPolicyDraft.enforce_status_transition_perm),
+      legacy_fallback_enabled: Boolean(workflowPolicyDraft.legacy_fallback_enabled)
+    })
     workflowPolicyDialogVisible.value = false
     ElMessage.success('V2 策略已保存')
-    await loadWorkflowPolicy()
   } catch (error) {
     ElMessage.error(formatWorkflowError('保存 V2 策略失败', error))
   } finally {
@@ -2966,6 +3222,320 @@ async function generateWorkflowTransitionRules() {
     ElMessage.error(formatWorkflowError('生成迁移规则失败', error))
   } finally {
     workflowRuleGenerating.value = false
+  }
+}
+
+async function openWorkflowReadinessDialog() {
+  workflowReadinessDialogVisible.value = true
+  await runWorkflowReadinessCheck()
+}
+
+async function runWorkflowReadinessCheck() {
+  if (!runtimeAppId.value) return
+  workflowReadinessLoading.value = true
+  resetWorkflowReadinessReport()
+  let missingRules = []
+  let requiredPermissions = []
+  try {
+    await loadWorkflowTransitionRules()
+    await loadTaskAssignments()
+
+    missingRules = getMissingGeneratedWorkflowRules()
+    requiredPermissions = getRequiredWorkflowPermissionEntries(missingRules)
+    const permissionCodes = requiredPermissions.map((item) => item.code)
+    const token = localStorage.getItem('auth_token')
+    const publicHeaders = getPublicHeaders(token)
+    const warnings = []
+
+    const permissionDefSet = new Set()
+    const permissionFilter = buildPostgrestInFilter(permissionCodes)
+    if (permissionFilter) {
+      try {
+        const response = await axios.get(
+          `/api/permissions?code=in.(${permissionFilter})&select=code`,
+          { headers: publicHeaders }
+        )
+        ;(Array.isArray(response.data) ? response.data : []).forEach((row) => {
+          const code = String(row?.code || '').trim()
+          if (code) permissionDefSet.add(code)
+        })
+      } catch {
+        warnings.push('当前账号无法读取权限定义，已跳过 permissions 完整性检查')
+      }
+    }
+    const missingPermissionDefs = warnings.some((item) => item.includes('权限定义'))
+      ? []
+      : requiredPermissions
+        .filter((item) => !permissionDefSet.has(item.code))
+        .map((item) => ({ code: item.code, source: item.source }))
+
+    const roleGrantGaps = []
+    const roleCodes = getWorkflowCandidateRoleCodes()
+    const roleFilter = buildPostgrestInFilter(roleCodes)
+    if (roleFilter && permissionCodes.length) {
+      try {
+        const response = await axios.get(
+          `/api/v_role_permissions?role_code=in.(${roleFilter})`,
+          { headers: publicHeaders }
+        )
+        const grantMap = new Map()
+        ;(Array.isArray(response.data) ? response.data : []).forEach((row) => {
+          const roleCode = String(row?.role_code || '').trim()
+          const permissions = Array.isArray(row?.permissions) ? row.permissions : []
+          grantMap.set(roleCode, new Set(permissions.map((item) => String(item || '').trim()).filter(Boolean)))
+        })
+        roleCodes.forEach((roleCode) => {
+          const granted = grantMap.get(roleCode) || new Set()
+          const missing = permissionCodes.filter((code) => !granted.has(code))
+          if (missing.length) {
+            roleGrantGaps.push({ role_code: roleCode, missing_permissions: missing })
+          }
+        })
+      } catch {
+        warnings.push('当前账号无法读取角色授权视图，已跳过 v_role_permissions 授权检查')
+      }
+    }
+
+    assignWorkflowReadinessReport({
+      requiredPermissions,
+      missingRules,
+      missingPermissionDefs,
+      roleGrantGaps,
+      warnings
+    })
+  } catch (error) {
+    assignWorkflowReadinessReport({
+      requiredPermissions,
+      missingRules,
+      missingPermissionDefs: [],
+      roleGrantGaps: [],
+      warnings: ['就绪检查未完整完成，请查看错误提示后重试']
+    })
+    ElMessage.error(formatWorkflowError('V2 strict 就绪检查失败', error))
+  } finally {
+    workflowReadinessLoading.value = false
+  }
+}
+
+async function createMissingWorkflowPermissionDefs() {
+  if (workflowPermissionDefSaving.value) return
+  const seen = new Set()
+  const rows = workflowReadinessReport.missingPermissionDefs
+    .map((item) => buildWorkflowPermissionDefPayload(item))
+    .filter((row) => {
+      if (!row.code || seen.has(row.code)) return false
+      seen.add(row.code)
+      return true
+    })
+  if (!rows.length) {
+    ElMessage.success('权限定义已齐备')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将新增或更新 ${rows.length} 条 permissions 定义，不会授予任何角色权限。`,
+      '补齐权限定义',
+      {
+        confirmButtonText: '补齐',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
+  workflowPermissionDefSaving.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    await axios.post('/api/permissions?on_conflict=code', rows, {
+      headers: {
+        ...getPublicHeaders(token),
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates,return=minimal'
+      }
+    })
+    ElMessage.success(`已补齐 ${rows.length} 条权限定义`)
+    await runWorkflowReadinessCheck()
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('补齐权限定义失败', error))
+  } finally {
+    workflowPermissionDefSaving.value = false
+  }
+}
+
+const getWorkflowRoleGrantGapEntries = () => {
+  const seen = new Set()
+  const entries = []
+  workflowReadinessReport.roleGrantGaps.forEach((row) => {
+    const roleCode = String(row?.role_code || '').trim()
+    const permissions = Array.isArray(row?.missing_permissions) ? row.missing_permissions : []
+    permissions.forEach((permission) => {
+      const permissionCode = String(permission || '').trim()
+      const key = `${roleCode}\u0000${permissionCode}`
+      if (!roleCode || !permissionCode || seen.has(key)) return
+      seen.add(key)
+      entries.push({ roleCode, permissionCode })
+    })
+  })
+  return entries
+}
+
+const summarizeWorkflowCodes = (codes) => {
+  const list = (Array.isArray(codes) ? codes : []).map((item) => String(item || '').trim()).filter(Boolean)
+  if (list.length <= 5) return list.join(', ')
+  return `${list.slice(0, 5).join(', ')} 等 ${list.length} 项`
+}
+
+async function createMissingWorkflowRoleGrants() {
+  if (workflowRoleGrantSaving.value) return
+  if (workflowReadinessReport.missingPermissionDefs.length) {
+    ElMessage.warning('请先补齐权限定义，再补齐角色授权')
+    return
+  }
+
+  const entries = getWorkflowRoleGrantGapEntries()
+  if (!entries.length) {
+    ElMessage.success('候选角色授权已齐备')
+    return
+  }
+
+  const roleCodes = Array.from(new Set(entries.map((item) => item.roleCode))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+  const permissionCodes = Array.from(new Set(entries.map((item) => item.permissionCode))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+  try {
+    await ElMessageBox.confirm(
+      `将为 ${roleCodes.length} 个候选角色新增最多 ${entries.length} 条 role_permissions 关系。该操作只补齐当前检查报告中的缺口。`,
+      '补齐角色授权',
+      {
+        confirmButtonText: '补齐',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
+  workflowRoleGrantSaving.value = true
+  try {
+    const token = localStorage.getItem('auth_token')
+    const publicHeaders = getPublicHeaders(token)
+    const roleFilter = buildPostgrestInFilter(roleCodes)
+    const permissionFilter = buildPostgrestInFilter(permissionCodes)
+    if (!roleFilter || !permissionFilter) {
+      ElMessage.warning('没有可补齐的角色授权缺口')
+      return
+    }
+
+    const [rolesResponse, permissionsResponse] = await Promise.all([
+      axios.get(`/api/roles?code=in.(${roleFilter})&select=id,code`, { headers: publicHeaders }),
+      axios.get(`/api/permissions?code=in.(${permissionFilter})&select=id,code`, { headers: publicHeaders })
+    ])
+    const roleMap = new Map()
+    ;(Array.isArray(rolesResponse.data) ? rolesResponse.data : []).forEach((row) => {
+      const code = String(row?.code || '').trim()
+      const id = String(row?.id || '').trim()
+      if (code && id) roleMap.set(code, id)
+    })
+    const permissionMap = new Map()
+    ;(Array.isArray(permissionsResponse.data) ? permissionsResponse.data : []).forEach((row) => {
+      const code = String(row?.code || '').trim()
+      const id = String(row?.id || '').trim()
+      if (code && id) permissionMap.set(code, id)
+    })
+
+    const missingRoles = roleCodes.filter((code) => !roleMap.has(code))
+    const missingPermissions = permissionCodes.filter((code) => !permissionMap.has(code))
+    if (missingRoles.length || missingPermissions.length) {
+      const parts = []
+      if (missingRoles.length) parts.push(`角色不存在：${summarizeWorkflowCodes(missingRoles)}`)
+      if (missingPermissions.length) parts.push(`权限定义不存在：${summarizeWorkflowCodes(missingPermissions)}`)
+      ElMessage.error(`补齐角色授权失败，${parts.join('；')}`)
+      return
+    }
+
+    const rowSeen = new Set()
+    const rows = entries
+      .map((item) => ({
+        role_id: roleMap.get(item.roleCode),
+        permission_id: permissionMap.get(item.permissionCode)
+      }))
+      .filter((row) => {
+        const key = `${row.role_id}\u0000${row.permission_id}`
+        if (!row.role_id || !row.permission_id || rowSeen.has(key)) return false
+        rowSeen.add(key)
+        return true
+      })
+    if (!rows.length) {
+      ElMessage.success('候选角色授权已齐备')
+      return
+    }
+
+    await axios.post('/api/role_permissions?on_conflict=role_id,permission_id', rows, {
+      headers: {
+        ...publicHeaders,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=ignore-duplicates,return=minimal'
+      }
+    })
+    ElMessage.success(`已补齐 ${rows.length} 条角色授权`)
+    await runWorkflowReadinessCheck()
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('补齐角色授权失败', error))
+  } finally {
+    workflowRoleGrantSaving.value = false
+  }
+}
+
+async function enableWorkflowStrictPolicy() {
+  if (!runtimeAppId.value || workflowStrictSwitching.value) return
+  if (workflowStrictAlreadyEnabled.value) {
+    ElMessage.success('strict 已启用')
+    return
+  }
+  if (!workflowReadinessReport.ready) {
+    ElMessage.warning('请先通过 V2 strict 就绪检查')
+    return
+  }
+
+  const aclModule = String(workflowPolicyEffective.value.acl_module || '').trim()
+  if (!aclModule) {
+    ElMessage.warning('请先配置权限域')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `将把当前流程应用切换为 strict，并启用任务分派、流程操作、状态迁移校验，同时关闭旧码兜底。权限域：${aclModule}`,
+      '切换 strict',
+      {
+        confirmButtonText: '切换',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
+  workflowStrictSwitching.value = true
+  try {
+    await upsertWorkflowPolicy({
+      workflow_app_id: runtimeAppId.value,
+      acl_module: aclModule,
+      permission_mode: 'strict',
+      enforce_assignment: true,
+      enforce_workflow_op_perm: true,
+      enforce_status_transition_perm: true,
+      legacy_fallback_enabled: false
+    })
+    ElMessage.success('已切换为 strict')
+    await runWorkflowReadinessCheck()
+  } catch (error) {
+    ElMessage.error(formatWorkflowError('切换 strict 失败', error))
+  } finally {
+    workflowStrictSwitching.value = false
   }
 }
 
@@ -3927,6 +4497,39 @@ function goBack() {
   width: 100%;
 }
 
+.workflow-readiness {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workflow-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workflow-readiness-item {
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-lighter);
+}
+
+.workflow-readiness-item span {
+  display: block;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.workflow-readiness-item strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--el-text-color-primary);
+  font-size: 16px;
+}
+
 .instance-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -4268,7 +4871,8 @@ function goBack() {
 
   .workflow-policy-grid,
   .workflow-switch-grid,
-  .workflow-rule-grid {
+  .workflow-rule-grid,
+  .workflow-readiness-grid {
     grid-template-columns: 1fr;
   }
 
