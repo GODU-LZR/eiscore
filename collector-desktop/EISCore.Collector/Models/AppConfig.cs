@@ -14,7 +14,27 @@ public sealed class AppConfig
     public string ClientVersion { get; set; } = "0.1.0";
     public List<WatchFolderConfig> WatchFolders { get; set; } = new();
     public bool AutoStartEnabled { get; set; }
+    public string RemoteConfigVersion { get; set; } = "";
+    public long MaxUploadBytes { get; set; } = 256L * 1024 * 1024;
+    public int ChunkSizeBytes { get; set; } = 8 * 1024 * 1024;
+    public int UploadRetryIntervalSeconds { get; set; } = 15;
+    public int UploadMaxRetryCount { get; set; } = 10;
+    public List<string> AllowedExtensions { get; set; } = new();
+    public int LogBatchSize { get; set; } = 100;
+    public int LogFlushIntervalSeconds { get; set; } = 30;
+    public int LogRetentionDays { get; set; } = 30;
+    public bool HighPriorityLogImmediate { get; set; } = true;
+    public int HeartbeatIntervalSeconds { get; set; } = 60;
+    public bool AutoUpdateEnabled { get; set; }
+    public string UpdateManifestUrl { get; set; } = "";
+    public int UpdateCheckIntervalHours { get; set; } = 24;
+    public bool AutoUpdateInstallEnabled { get; set; }
+    public string UpdateInstallerArguments { get; set; } = "";
+    public string PendingUpdateVersion { get; set; } = "";
+    public string PendingUpdateInstallerPath { get; set; } = "";
     public DateTimeOffset? LastBoundAt { get; set; }
+    public DateTimeOffset? LastRemoteConfigAt { get; set; }
+    public DateTimeOffset? LastUpdateCheckAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.Now;
 }
 

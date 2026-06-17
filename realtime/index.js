@@ -5743,6 +5743,21 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/document-intake/assets/chunks/init' && method === 'POST') {
+    await documentIntakeHandlers.handleInitChunkUpload(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/assets/chunks/upload' && method === 'POST') {
+    await documentIntakeHandlers.handleUploadChunk(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/assets/chunks/complete' && method === 'POST') {
+    await documentIntakeHandlers.handleCompleteChunkUpload(req, res);
+    return;
+  }
+
   if (pathname === '/document-intake/client-logs/batch' && method === 'POST') {
     await documentIntakeHandlers.handleLogBatch(req, res);
     return;

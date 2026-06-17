@@ -23,6 +23,11 @@ const maxUploadBytes = positiveInteger(
   256 * 1024 * 1024,
   { min: 1024 * 1024, max: 1024 * 1024 * 1024 }
 );
+const maxChunkBytes = positiveInteger(
+  process.env.DOCUMENT_INTAKE_MAX_CHUNK_BYTES,
+  8 * 1024 * 1024,
+  { min: 256 * 1024, max: 64 * 1024 * 1024 }
+);
 
 const pool = new Pool({
   host: process.env.PGHOST || 'localhost',
@@ -34,7 +39,9 @@ const pool = new Pool({
 });
 
 function sha256(value) {
-  return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+  const hash = crypto.createHash('sha256');
+  hash.update(Buffer.isBuffer(value) ? value : String(value || ''));
+  return hash.digest('hex');
 }
 
 function randomToken() {
@@ -80,6 +87,10 @@ function toUuidOrNull(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
     ? text
     : null;
+}
+
+function isUuid(value) {
+  return !!toUuidOrNull(value);
 }
 
 function toIsoOrNull(value) {
@@ -206,6 +217,183 @@ function buildStoragePath(deviceId, fileHash, originalFilename) {
   return { dir, fullPath: path.join(dir, basename) };
 }
 
+function buildChunkPath(deviceId, sessionId, chunkIndex) {
+  const devicePart = normalizeFilename(deviceId || 'unknown-device').slice(0, 80);
+  const sessionPart = normalizeFilename(sessionId || 'unknown-session').slice(0, 80);
+  const dir = path.join(storageRoot, 'chunks', devicePart, sessionPart);
+  return { dir, fullPath: path.join(dir, `${String(chunkIndex).padStart(8, '0')}.part`) };
+}
+
+function isSha256Hex(value) {
+  return /^[a-f0-9]{64}$/i.test(normalizeText(value, 80));
+}
+
+function normalizePositiveNumber(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(numeric)));
+}
+
+async function hashFile(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (chunk) => hash.update(chunk));
+    stream.on('error', reject);
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
+}
+
+async function assembleChunks(chunkRows, targetPath) {
+  await ensureDirectory(path.dirname(targetPath));
+  await new Promise((resolve, reject) => {
+    const out = fs.createWriteStream(targetPath, { flags: 'w' });
+    out.on('error', reject);
+    out.on('finish', resolve);
+
+    const pipeOne = (index) => {
+      if (index >= chunkRows.length) {
+        out.end();
+        return;
+      }
+      const input = fs.createReadStream(chunkRows[index].storage_path);
+      input.on('error', reject);
+      input.on('end', () => pipeOne(index + 1));
+      input.pipe(out, { end: false });
+    };
+
+    pipeOne(0);
+  });
+}
+
+async function findExistingAssetByHash(client, fileHash) {
+  const duplicateResult = await client.query(
+    `select id, storage_path
+       from public.document_assets
+      where file_hash = $1
+        and status <> 'duplicate'
+      order by created_at asc
+      limit 1`,
+    [fileHash]
+  );
+  return duplicateResult.rows[0] || null;
+}
+
+async function createUploadAssetRecords(client, { device, metadata, originalFilename, fileHash, mimeType, fileSize, uploadSource, storagePath, duplicateOf = null, uploadMode = 'multipart' }) {
+  const duplicate = !!duplicateOf;
+  const batchResult = await client.query(
+    `insert into public.document_import_batches (
+       device_id, uploaded_by_user_id, source, file_count, success_count,
+       duplicate_count, status, started_at, finished_at, metadata
+     ) values ($1,$2,$3,1,$4,$5,$6,now(),now(),$7)
+     returning id, batch_no`,
+    [
+      device.id,
+      normalizeText(metadata.uploaded_by_user_id || device.default_user_id || '', 120),
+      uploadSource,
+      duplicate ? 0 : 1,
+      duplicate ? 1 : 0,
+      duplicate ? 'completed' : 'uploaded',
+      {
+        client_queue_id: metadata.client_queue_id || null,
+        uploaded_by_username: metadata.uploaded_by_username || device.default_username || '',
+        operator_source: metadata.operator_source || '',
+        windows_username: metadata.windows_username || '',
+        upload_mode: uploadMode
+      }
+    ]
+  );
+  const batch = batchResult.rows[0];
+
+  const assetResult = await client.query(
+    `insert into public.document_assets (
+       batch_id, device_id, uploaded_by_user_id, uploaded_by_username, operator_source,
+       original_filename, storage_path, mime_type, file_ext, file_size, file_hash,
+       upload_source, status, duplicate_of_asset_id, metadata
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+     returning id, status`,
+    [
+      batch.id,
+      device.id,
+      normalizeText(metadata.uploaded_by_user_id || device.default_user_id || '', 120),
+      normalizeText(metadata.uploaded_by_username || device.default_username || '', 160),
+      normalizeText(metadata.operator_source || 'device_default_user', 80),
+      originalFilename,
+      duplicate ? duplicateOf.storage_path : storagePath,
+      mimeType,
+      path.extname(originalFilename).slice(0, 40),
+      fileSize,
+      fileHash,
+      uploadSource,
+      duplicate ? 'duplicate' : 'uploaded',
+      duplicateOf?.id || null,
+      {
+        ...asJsonObject(metadata),
+        source_device_code: device.device_code,
+        source_device_name: device.device_name,
+        upload_mode: uploadMode
+      }
+    ]
+  );
+  const asset = assetResult.rows[0];
+
+  if (!duplicate) {
+    await client.query(
+      `insert into public.document_parse_jobs (asset_id, batch_id, status, metadata)
+       values ($1, $2, 'pending', $3)`,
+      [asset.id, batch.id, { reason: 'created_after_upload', upload_mode: uploadMode }]
+    );
+  }
+
+  return { asset, batch, duplicate };
+}
+
+async function getUploadSessionForUpdate(client, sessionId, deviceId) {
+  const result = await client.query(
+    `select *
+       from public.document_upload_sessions
+      where id = $1
+        and device_id = $2
+      for update`,
+    [sessionId, deviceId]
+  );
+  return result.rows[0] || null;
+}
+
+async function countUploadedChunks(client, sessionId) {
+  const result = await client.query(
+    `select count(*)::integer as uploaded_chunks
+       from public.document_upload_chunks
+      where session_id = $1`,
+    [sessionId]
+  );
+  return Number(result.rows[0]?.uploaded_chunks || 0);
+}
+
+async function markUploadSession(client, sessionId, status, extra = {}) {
+  const result = await client.query(
+    `update public.document_upload_sessions
+        set status = $2,
+            uploaded_chunks = coalesce($3::integer, uploaded_chunks),
+            storage_path = coalesce($4::text, storage_path),
+            last_error = $5::text,
+            metadata = coalesce(metadata, '{}'::jsonb) || $6::jsonb,
+            completed_at = case when $2 in ('completed','duplicate','failed') then now() else completed_at end,
+            updated_at = now()
+      where id = $1
+      returning *`,
+    [
+      sessionId,
+      status,
+      Number.isFinite(Number(extra.uploadedChunks)) ? Number(extra.uploadedChunks) : null,
+      extra.storagePath || null,
+      extra.lastError || '',
+      extra.metadata || {}
+    ]
+  );
+  return result.rows[0] || null;
+}
+
 async function query(sql, params = []) {
   return pool.query(sql, params);
 }
@@ -274,6 +462,7 @@ function buildDeviceConfig(device, watchFolderRows = []) {
   const remote = asJsonObject(metadata.remote_config || metadata.remoteConfig);
   const upload = asJsonObject(remote.upload);
   const logs = asJsonObject(remote.logs);
+  const update = asJsonObject(remote.update);
   const remoteWatchFolders = normalizeWatchFolders(firstDefined(remote.watchFolders, remote.watch_folders));
   const storedWatchFolders = normalizeWatchFolders(watchFolderRows);
   const watchFolders = remoteWatchFolders.length ? remoteWatchFolders : storedWatchFolders;
@@ -308,6 +497,7 @@ function buildDeviceConfig(device, watchFolderRows = []) {
       watchFolders,
       upload: {
         maxFileBytes: positiveInteger(upload.maxFileBytes || upload.max_file_bytes, maxUploadBytes, { min: 1024 * 1024, max: 1024 * 1024 * 1024 }),
+        chunkSizeBytes: positiveInteger(upload.chunkSizeBytes || upload.chunk_size_bytes, maxChunkBytes, { min: 256 * 1024, max: maxChunkBytes }),
         retryIntervalSeconds: positiveInteger(upload.retryIntervalSeconds || upload.retry_interval_seconds, 15, { min: 5, max: 60 * 60 }),
         maxRetryCount: positiveInteger(upload.maxRetryCount || upload.max_retry_count, 10, { min: 1, max: 100 }),
         allowedExtensions: asJsonArray(upload.allowedExtensions || upload.allowed_extensions)
@@ -320,6 +510,13 @@ function buildDeviceConfig(device, watchFolderRows = []) {
         flushIntervalSeconds: positiveInteger(logs.flushIntervalSeconds || logs.flush_interval_seconds, 30, { min: 5, max: 60 * 60 }),
         retentionDays: positiveInteger(logs.retentionDays || logs.retention_days, 30, { min: 1, max: 3650 }),
         highPriorityImmediate: normalizeBoolean(highPriorityImmediate, true)
+      },
+      update: {
+        enabled: normalizeBoolean(update.enabled, false),
+        manifestUrl: normalizeText(update.manifestUrl || update.manifest_url || '', 1000),
+        checkIntervalHours: positiveInteger(update.checkIntervalHours || update.check_interval_hours, 24, { min: 1, max: 24 * 30 }),
+        autoInstall: normalizeBoolean(update.autoInstall || update.auto_install, false),
+        installerArguments: normalizeText(update.installerArguments || update.installer_arguments || '', 500)
       }
     }
   };
@@ -581,40 +778,8 @@ async function handleUploadAsset(req, res, { sendJson }) {
   try {
     await client.query('begin');
 
-    const duplicateResult = await client.query(
-      `select id, storage_path
-         from public.document_assets
-        where file_hash = $1
-          and status <> 'duplicate'
-        order by created_at asc
-        limit 1`,
-      [fileHash]
-    );
-    const duplicateOf = duplicateResult.rows[0] || null;
+    const duplicateOf = await findExistingAssetByHash(client, fileHash);
     const duplicate = !!duplicateOf;
-
-    const batchResult = await client.query(
-      `insert into public.document_import_batches (
-         device_id, uploaded_by_user_id, source, file_count, success_count,
-         duplicate_count, status, started_at, finished_at, metadata
-       ) values ($1,$2,$3,1,$4,$5,$6,now(),now(),$7)
-       returning id, batch_no`,
-      [
-        device.id,
-        normalizeText(metadata.uploaded_by_user_id || device.default_user_id || '', 120),
-        uploadSource,
-        duplicate ? 0 : 1,
-        duplicate ? 1 : 0,
-        duplicate ? 'completed' : 'uploaded',
-        {
-          client_queue_id: metadata.client_queue_id || null,
-          uploaded_by_username: metadata.uploaded_by_username || device.default_username || '',
-          operator_source: metadata.operator_source || '',
-          windows_username: metadata.windows_username || ''
-        }
-      ]
-    );
-    const batch = batchResult.rows[0];
 
     let storagePath = duplicateOf?.storage_path || '';
     if (!duplicate) {
@@ -627,44 +792,18 @@ async function handleUploadAsset(req, res, { sendJson }) {
       storagePath = target.fullPath;
     }
 
-    const assetResult = await client.query(
-      `insert into public.document_assets (
-         batch_id, device_id, uploaded_by_user_id, uploaded_by_username, operator_source,
-         original_filename, storage_path, mime_type, file_ext, file_size, file_hash,
-         upload_source, status, duplicate_of_asset_id, metadata
-       ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-       returning id, status`,
-      [
-        batch.id,
-        device.id,
-        normalizeText(metadata.uploaded_by_user_id || device.default_user_id || '', 120),
-        normalizeText(metadata.uploaded_by_username || device.default_username || '', 160),
-        normalizeText(metadata.operator_source || 'device_default_user', 80),
-        originalFilename,
-        storagePath,
-        mimeType,
-        path.extname(originalFilename).slice(0, 40),
-        fileSize,
-        fileHash,
-        uploadSource,
-        duplicate ? 'duplicate' : 'uploaded',
-        duplicateOf?.id || null,
-        {
-          ...asJsonObject(metadata),
-          source_device_code: device.device_code,
-          source_device_name: device.device_name
-        }
-      ]
-    );
-    const asset = assetResult.rows[0];
-
-    if (!duplicate) {
-      await client.query(
-        `insert into public.document_parse_jobs (asset_id, batch_id, status, metadata)
-         values ($1, $2, 'pending', $3)`,
-        [asset.id, batch.id, { reason: 'created_after_upload' }]
-      );
-    }
+    const { asset, batch } = await createUploadAssetRecords(client, {
+      device,
+      metadata,
+      originalFilename,
+      fileHash,
+      mimeType,
+      fileSize,
+      uploadSource,
+      storagePath,
+      duplicateOf,
+      uploadMode: 'multipart'
+    });
 
     await client.query('commit');
     sendJson(res, 200, {
@@ -678,6 +817,406 @@ async function handleUploadAsset(req, res, { sendJson }) {
   } catch (error) {
     try { await client.query('rollback'); } catch { /* ignore */ }
     sendJson(res, 500, { code: 'ASSET_UPLOAD_FAILED', message: error.message || 'Asset upload failed' });
+  } finally {
+    client.release();
+  }
+}
+
+async function handleInitChunkUpload(req, res, { sendJson, readJsonBody }) {
+  const device = await authorizeDevice(req, sendJson, res);
+  if (!device) return;
+
+  let body = {};
+  try {
+    body = await readJsonBody(req, 1024 * 1024);
+  } catch (error) {
+    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
+    return;
+  }
+
+  const originalFilename = normalizeFilename(body.originalFilename || body.original_filename || '');
+  const fileHash = normalizeText(body.fileHash || body.file_hash || '', 128).toLowerCase();
+  const fileSize = normalizePositiveNumber(body.fileSize || body.file_size, 0, { min: 0, max: maxUploadBytes });
+  const requestedChunkSize = normalizePositiveNumber(body.chunkSize || body.chunk_size, maxChunkBytes, { min: 256 * 1024, max: maxChunkBytes });
+  const totalChunks = normalizePositiveNumber(body.totalChunks || body.total_chunks, Math.ceil(fileSize / requestedChunkSize), { min: 1, max: 100000 });
+  const mimeType = normalizeMimeType(body.mimeType || body.mime_type || '');
+  const uploadSource = normalizeText(body.uploadSource || body.upload_source || 'collector_desktop_chunked', 80);
+  const metadata = asJsonObject(body.metadata);
+
+  if (!originalFilename || !isSha256Hex(fileHash) || !fileSize) {
+    sendJson(res, 400, { code: 'CHUNK_INIT_FIELDS_REQUIRED', message: 'originalFilename, fileHash and fileSize are required' });
+    return;
+  }
+  if (fileSize > maxUploadBytes) {
+    sendJson(res, 413, { code: 'FILE_TOO_LARGE', message: 'fileSize exceeds server limit' });
+    return;
+  }
+  if (totalChunks !== Math.ceil(fileSize / requestedChunkSize)) {
+    sendJson(res, 400, { code: 'CHUNK_COUNT_MISMATCH', message: 'totalChunks does not match fileSize/chunkSize' });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const duplicateOf = await findExistingAssetByHash(client, fileHash);
+    if (duplicateOf) {
+      await client.query('commit');
+      sendJson(res, 200, {
+        duplicate: true,
+        status: 'duplicate',
+        assetId: duplicateOf.id,
+        sessionId: '',
+        uploadedChunks: [],
+        missingChunks: [],
+        chunkSize: requestedChunkSize,
+        totalChunks
+      });
+      return;
+    }
+
+    const sessionResult = await client.query(
+      `insert into public.document_upload_sessions (
+         device_id, file_hash, original_filename, mime_type, file_size,
+         chunk_size, total_chunks, upload_source, status, metadata
+       ) values ($1,$2,$3,$4,$5,$6,$7,$8,'uploading',$9)
+       on conflict (device_id, file_hash) do update
+          set original_filename = excluded.original_filename,
+              mime_type = excluded.mime_type,
+              file_size = excluded.file_size,
+              chunk_size = excluded.chunk_size,
+              total_chunks = excluded.total_chunks,
+              upload_source = excluded.upload_source,
+              status = case
+                when public.document_upload_sessions.status in ('completed', 'duplicate') then public.document_upload_sessions.status
+                else 'uploading'
+              end,
+              metadata = excluded.metadata,
+              last_error = null,
+              updated_at = now()
+       returning *`,
+      [
+        device.id,
+        fileHash,
+        originalFilename,
+        mimeType,
+        fileSize,
+        requestedChunkSize,
+        totalChunks,
+        uploadSource,
+        {
+          ...metadata,
+          client_queue_id: body.clientQueueId || body.client_queue_id || metadata.client_queue_id || null
+        }
+      ]
+    );
+    const session = sessionResult.rows[0];
+    const chunks = await client.query(
+      `select chunk_index
+         from public.document_upload_chunks
+        where session_id = $1
+        order by chunk_index asc`,
+      [session.id]
+    );
+    const uploadedChunks = chunks.rows.map((row) => Number(row.chunk_index));
+    const uploadedSet = new Set(uploadedChunks);
+    const missingChunks = [];
+    for (let index = 0; index < totalChunks; index += 1) {
+      if (!uploadedSet.has(index)) missingChunks.push(index);
+    }
+    await client.query(
+      `update public.document_upload_sessions
+          set uploaded_chunks = $2,
+              updated_at = now()
+        where id = $1`,
+      [session.id, uploadedChunks.length]
+    );
+    await client.query('commit');
+    sendJson(res, 200, {
+      duplicate: false,
+      status: session.status || 'uploading',
+      sessionId: session.id,
+      uploadedChunks,
+      missingChunks,
+      chunkSize: requestedChunkSize,
+      totalChunks
+    });
+  } catch (error) {
+    try { await client.query('rollback'); } catch { /* ignore */ }
+    sendJson(res, 500, { code: 'CHUNK_INIT_FAILED', message: error.message || 'Chunk init failed' });
+  } finally {
+    client.release();
+  }
+}
+
+async function handleUploadChunk(req, res, { sendJson }) {
+  const device = await authorizeDevice(req, sendJson, res);
+  if (!device) return;
+
+  let parts = {};
+  try {
+    const raw = await readRawBody(req, maxChunkBytes + 1024 * 1024);
+    parts = parseMultipart(raw, req.headers['content-type'] || '');
+  } catch (error) {
+    sendJson(res, 400, { code: 'BAD_CHUNK_MULTIPART', message: error.message || 'Invalid chunk multipart body' });
+    return;
+  }
+
+  const chunkPart = parts.chunk;
+  if (!chunkPart?.data?.length) {
+    sendJson(res, 400, { code: 'CHUNK_REQUIRED', message: 'chunk is required' });
+    return;
+  }
+  if (chunkPart.data.length > maxChunkBytes) {
+    sendJson(res, 413, { code: 'CHUNK_TOO_LARGE', message: 'chunk exceeds server limit' });
+    return;
+  }
+
+  let metadata = {};
+  try {
+    metadata = readJsonPart(parts.metadata);
+  } catch {
+    sendJson(res, 400, { code: 'BAD_CHUNK_METADATA', message: 'metadata must be valid JSON' });
+    return;
+  }
+
+  const sessionId = toUuidOrNull(metadata.sessionId || metadata.session_id || '');
+  const chunkIndex = Number(metadata.chunkIndex ?? metadata.chunk_index);
+  const chunkHash = normalizeText(metadata.chunkHash || metadata.chunk_hash || '', 128).toLowerCase();
+  if (!sessionId || !Number.isInteger(chunkIndex) || chunkIndex < 0) {
+    sendJson(res, 400, { code: 'CHUNK_FIELDS_REQUIRED', message: 'sessionId and chunkIndex are required' });
+    return;
+  }
+  const actualChunkHash = sha256(chunkPart.data);
+  if (chunkHash && chunkHash !== actualChunkHash) {
+    sendJson(res, 400, { code: 'CHUNK_HASH_MISMATCH', message: 'chunkHash does not match uploaded chunk content' });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const sessionResult = await client.query(
+      `select *
+         from public.document_upload_sessions
+        where id = $1
+          and device_id = $2
+        for update`,
+      [sessionId, device.id]
+    );
+    const session = sessionResult.rows[0] || null;
+    if (!session) {
+      await client.query('rollback');
+      sendJson(res, 404, { code: 'UPLOAD_SESSION_NOT_FOUND', message: 'Upload session not found' });
+      return;
+    }
+    if (['completed', 'duplicate', 'cancelled'].includes(session.status)) {
+      await client.query('rollback');
+      sendJson(res, 409, { code: 'UPLOAD_SESSION_CLOSED', message: `Upload session is ${session.status}` });
+      return;
+    }
+    if (chunkIndex >= Number(session.total_chunks)) {
+      await client.query('rollback');
+      sendJson(res, 400, { code: 'CHUNK_INDEX_OUT_OF_RANGE', message: 'chunkIndex exceeds totalChunks' });
+      return;
+    }
+
+    const isLast = chunkIndex === Number(session.total_chunks) - 1;
+    const expectedSize = isLast
+      ? Number(session.file_size) - Number(session.chunk_size) * (Number(session.total_chunks) - 1)
+      : Number(session.chunk_size);
+    if (chunkPart.data.length !== expectedSize) {
+      await client.query('rollback');
+      sendJson(res, 400, { code: 'CHUNK_SIZE_MISMATCH', message: 'chunk size does not match upload session' });
+      return;
+    }
+
+    const existingChunkResult = await client.query(
+      `select chunk_index, chunk_size, chunk_hash, storage_path
+         from public.document_upload_chunks
+        where session_id = $1
+          and chunk_index = $2
+        for update`,
+      [session.id, chunkIndex]
+    );
+    const existingChunk = existingChunkResult.rows[0] || null;
+    if (existingChunk) {
+      const existingHash = normalizeText(existingChunk.chunk_hash || '', 128).toLowerCase();
+      const existingSize = Number(existingChunk.chunk_size);
+      if (existingHash !== actualChunkHash || existingSize !== chunkPart.data.length) {
+        await client.query('rollback');
+        sendJson(res, 409, {
+          code: 'CHUNK_CONFLICT',
+          message: 'uploaded chunk conflicts with an existing chunk for this session'
+        });
+        return;
+      }
+    }
+
+    const target = buildChunkPath(device.id, session.id, chunkIndex);
+    await ensureDirectory(target.dir);
+    await fs.promises.writeFile(target.fullPath, chunkPart.data);
+    await client.query(
+      `insert into public.document_upload_chunks (
+         session_id, chunk_index, chunk_size, chunk_hash, storage_path
+       ) values ($1,$2,$3,$4,$5)
+       on conflict (session_id, chunk_index) do update
+          set chunk_size = excluded.chunk_size,
+              chunk_hash = excluded.chunk_hash,
+              storage_path = excluded.storage_path`,
+      [session.id, chunkIndex, chunkPart.data.length, actualChunkHash, target.fullPath]
+    );
+    const countResult = await client.query(
+      `select count(*)::integer as count
+         from public.document_upload_chunks
+        where session_id = $1`,
+      [session.id]
+    );
+    const uploadedCount = Number(countResult.rows[0]?.count || 0);
+    await client.query(
+      `update public.document_upload_sessions
+          set uploaded_chunks = $2,
+              status = 'uploading',
+              last_error = null,
+              updated_at = now()
+        where id = $1`,
+      [session.id, uploadedCount]
+    );
+    await client.query('commit');
+    sendJson(res, 200, {
+      ok: true,
+      sessionId: session.id,
+      chunkIndex,
+      duplicate: !!existingChunk,
+      uploadedChunks: uploadedCount,
+      totalChunks: Number(session.total_chunks)
+    });
+  } catch (error) {
+    try { await client.query('rollback'); } catch { /* ignore */ }
+    sendJson(res, 500, { code: 'CHUNK_UPLOAD_FAILED', message: error.message || 'Chunk upload failed' });
+  } finally {
+    client.release();
+  }
+}
+
+async function handleCompleteChunkUpload(req, res, { sendJson, readJsonBody }) {
+  const device = await authorizeDevice(req, sendJson, res);
+  if (!device) return;
+
+  let body = {};
+  try {
+    body = await readJsonBody(req, 1024 * 1024);
+  } catch (error) {
+    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
+    return;
+  }
+
+  const sessionId = toUuidOrNull(body.sessionId || body.session_id || '');
+  if (!sessionId) {
+    sendJson(res, 400, { code: 'SESSION_ID_REQUIRED', message: 'sessionId is required' });
+    return;
+  }
+
+  const client = await pool.connect();
+  let assembledPath = '';
+  try {
+    await client.query('begin');
+    const sessionResult = await client.query(
+      `select *
+         from public.document_upload_sessions
+        where id = $1
+          and device_id = $2
+        for update`,
+      [sessionId, device.id]
+    );
+    const session = sessionResult.rows[0] || null;
+    if (!session) {
+      await client.query('rollback');
+      sendJson(res, 404, { code: 'UPLOAD_SESSION_NOT_FOUND', message: 'Upload session not found' });
+      return;
+    }
+
+    const chunksResult = await client.query(
+      `select chunk_index, chunk_size, chunk_hash, storage_path
+         from public.document_upload_chunks
+        where session_id = $1
+        order by chunk_index asc`,
+      [session.id]
+    );
+    const chunks = chunksResult.rows;
+    const missingChunks = [];
+    const byIndex = new Map(chunks.map((row) => [Number(row.chunk_index), row]));
+    for (let index = 0; index < Number(session.total_chunks); index += 1) {
+      if (!byIndex.has(index)) missingChunks.push(index);
+    }
+    if (missingChunks.length) {
+      await client.query('rollback');
+      sendJson(res, 409, { code: 'UPLOAD_CHUNKS_MISSING', message: 'Upload chunks are missing', missingChunks });
+      return;
+    }
+
+    const duplicateOf = await findExistingAssetByHash(client, session.file_hash);
+    let finalStoragePath = duplicateOf?.storage_path || '';
+    if (!duplicateOf) {
+      const target = buildStoragePath(device.id, session.file_hash, session.original_filename);
+      assembledPath = target.fullPath;
+      await assembleChunks(chunks, target.fullPath);
+      const assembledHash = await hashFile(target.fullPath);
+      const stat = await fs.promises.stat(target.fullPath);
+      if (assembledHash !== session.file_hash || stat.size !== Number(session.file_size)) {
+        await fs.promises.rm(target.fullPath, { force: true }).catch(() => {});
+        await client.query(
+          `update public.document_upload_sessions
+              set status = 'failed',
+                  last_error = $2,
+                  updated_at = now()
+            where id = $1`,
+          [session.id, 'assembled file hash or size mismatch']
+        );
+        await client.query('commit');
+        sendJson(res, 400, { code: 'ASSEMBLED_FILE_MISMATCH', message: 'assembled file hash or size mismatch' });
+        return;
+      }
+      finalStoragePath = target.fullPath;
+    }
+
+    const metadata = asJsonObject(session.metadata);
+    const { asset, batch, duplicate } = await createUploadAssetRecords(client, {
+      device,
+      metadata,
+      originalFilename: session.original_filename,
+      fileHash: session.file_hash,
+      mimeType: session.mime_type,
+      fileSize: Number(session.file_size),
+      uploadSource: session.upload_source || 'collector_desktop_chunked',
+      storagePath: finalStoragePath,
+      duplicateOf,
+      uploadMode: 'chunked'
+    });
+    await client.query(
+      `update public.document_upload_sessions
+          set status = $2,
+              storage_path = $3,
+              uploaded_chunks = total_chunks,
+              completed_at = now(),
+              last_error = null,
+              updated_at = now()
+        where id = $1`,
+      [session.id, duplicate ? 'duplicate' : 'completed', finalStoragePath]
+    );
+    await client.query('commit');
+    sendJson(res, 200, {
+      assetId: asset.id,
+      batchId: batch.id,
+      batchNo: batch.batch_no,
+      duplicate,
+      status: duplicate ? 'duplicate' : 'uploaded',
+      message: duplicate ? 'Duplicate file recorded without re-importing' : 'Chunked upload completed'
+    });
+  } catch (error) {
+    try { await client.query('rollback'); } catch { /* ignore */ }
+    if (assembledPath) await fs.promises.rm(assembledPath, { force: true }).catch(() => {});
+    sendJson(res, 500, { code: 'CHUNK_COMPLETE_FAILED', message: error.message || 'Chunk complete failed' });
   } finally {
     client.release();
   }
@@ -717,6 +1256,9 @@ function createDocumentIntakeHandlers(deps) {
     handleGetDeviceConfig: (req, res) => handleGetDeviceConfig(req, res, deps),
     handleHeartbeat: (req, res) => handleHeartbeat(req, res, deps),
     handleUploadAsset: (req, res) => handleUploadAsset(req, res, deps),
+    handleInitChunkUpload: (req, res) => handleInitChunkUpload(req, res, deps),
+    handleUploadChunk: (req, res) => handleUploadChunk(req, res, deps),
+    handleCompleteChunkUpload: (req, res) => handleCompleteChunkUpload(req, res, deps),
     handleLogBatch: (req, res) => handleLogBatch(req, res, deps)
   };
 }

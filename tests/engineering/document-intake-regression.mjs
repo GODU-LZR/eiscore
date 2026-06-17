@@ -33,6 +33,8 @@ const state = {
   },
   duplicateRows: [],
   watchFolders: [],
+  uploadSessions: new Map(),
+  uploadChunks: new Map(),
   clientQueries: [],
   poolQueries: [],
   assetInsertParams: [],
@@ -57,6 +59,75 @@ class FakeClient {
     }
     if (normalized.includes('insert into public.document_parse_jobs')) {
       state.parseJobInserts += 1
+      return { rows: [] }
+    }
+    if (normalized.includes('insert into public.document_upload_sessions')) {
+      const existing = [...state.uploadSessions.values()].find((session) => session.device_id === params[0] && session.file_hash === params[1])
+      const session = existing || {
+        id: `00000000-0000-4000-8000-${String(state.uploadSessions.size + 1).padStart(12, '0')}`,
+        device_id: params[0],
+        file_hash: params[1]
+      }
+      Object.assign(session, {
+        original_filename: params[2],
+        mime_type: params[3],
+        file_size: params[4],
+        chunk_size: params[5],
+        total_chunks: params[6],
+        upload_source: params[7],
+        status: session.status === 'completed' ? 'completed' : 'uploading',
+        uploaded_chunks: state.uploadChunks.get(session.id)?.size || 0,
+        metadata: params[8] || {}
+      })
+      state.uploadSessions.set(session.id, session)
+      return { rows: [session] }
+    }
+    if (normalized.includes('select * from public.document_upload_sessions')) {
+      const session = state.uploadSessions.get(params[0])
+      return { rows: session && session.device_id === params[1] ? [session] : [] }
+    }
+    if (
+      normalized.includes('select chunk_index, chunk_size, chunk_hash, storage_path') &&
+      normalized.includes('from public.document_upload_chunks') &&
+      normalized.includes('chunk_index = $2')
+    ) {
+      const chunks = state.uploadChunks.get(params[0]) || new Map()
+      const chunk = chunks.get(params[1])
+      return { rows: chunk ? [chunk] : [] }
+    }
+    if (normalized.includes('insert into public.document_upload_chunks')) {
+      const [sessionId, chunkIndex, chunkSize, chunkHash, storagePath] = params
+      if (!state.uploadChunks.has(sessionId)) state.uploadChunks.set(sessionId, new Map())
+      state.uploadChunks.get(sessionId).set(chunkIndex, {
+        session_id: sessionId,
+        chunk_index: chunkIndex,
+        chunk_size: chunkSize,
+        chunk_hash: chunkHash,
+        storage_path: storagePath
+      })
+      return { rows: [] }
+    }
+    if (normalized.includes('select count(*)::integer as count') && normalized.includes('from public.document_upload_chunks')) {
+      return { rows: [{ count: state.uploadChunks.get(params[0])?.size || 0 }] }
+    }
+    if (normalized.includes('select chunk_index, chunk_size, chunk_hash, storage_path') && normalized.includes('from public.document_upload_chunks')) {
+      let chunks = [...(state.uploadChunks.get(params[0]) || new Map()).values()]
+      if (params.length > 1) chunks = chunks.filter((chunk) => chunk.chunk_index === params[1])
+      return { rows: chunks.sort((a, b) => a.chunk_index - b.chunk_index) }
+    }
+    if (normalized.includes('select chunk_index') && normalized.includes('from public.document_upload_chunks')) {
+      const chunks = [...(state.uploadChunks.get(params[0]) || new Map()).values()]
+      return { rows: chunks.sort((a, b) => a.chunk_index - b.chunk_index).map((chunk) => ({ chunk_index: chunk.chunk_index })) }
+    }
+    if (normalized.includes('update public.document_upload_sessions')) {
+      const session = state.uploadSessions.get(params[0])
+      if (session) {
+        if (normalized.includes('set uploaded_chunks = $2')) session.uploaded_chunks = params[1]
+        if (normalized.includes('set status = $2')) {
+          session.status = params[1]
+          session.storage_path = params[2] || session.storage_path
+        }
+      }
       return { rows: [] }
     }
     if (normalized.includes('update public.collector_devices')) {
@@ -115,6 +186,8 @@ function resetState() {
   state.authorized = true
   state.duplicateRows = []
   state.watchFolders = []
+  state.uploadSessions = new Map()
+  state.uploadChunks = new Map()
   state.device.metadata = {}
   state.clientQueries = []
   state.poolQueries = []
@@ -158,7 +231,7 @@ function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex')
 }
 
-function multipartBody(boundary, { metadata, metadataRaw, filename = 'upload.txt', fileContent = Buffer.from('hello') } = {}) {
+function multipartBody(boundary, { metadata, metadataRaw, filename = 'upload.txt', fileContent = Buffer.from('hello'), fileField = 'file' } = {}) {
   const chunks = []
   const pushText = (text) => chunks.push(Buffer.from(text, 'utf8'))
   pushText(`--${boundary}\r\n`)
@@ -166,7 +239,7 @@ function multipartBody(boundary, { metadata, metadataRaw, filename = 'upload.txt
   pushText('Content-Type: application/json\r\n\r\n')
   pushText(metadataRaw ?? JSON.stringify(metadata || {}))
   pushText(`\r\n--${boundary}\r\n`)
-  pushText(`Content-Disposition: form-data; name="file"; filename="${filename}"\r\n`)
+  pushText(`Content-Disposition: form-data; name="${fileField}"; filename="${filename}"\r\n`)
   pushText('Content-Type: text/plain\r\n\r\n')
   chunks.push(fileContent)
   pushText(`\r\n--${boundary}--\r\n`)
@@ -221,6 +294,7 @@ try {
       ],
       upload: {
         max_file_bytes: 10 * 1024 * 1024,
+        chunk_size_bytes: 1024 * 1024,
         retry_interval_seconds: 20,
         max_retry_count: 7,
         allowed_extensions: ['.pdf', '.xlsx']
@@ -243,6 +317,7 @@ try {
   assert.equal(remoteConfig.payload.config.heartbeatIntervalSeconds, 45)
   assert.equal(remoteConfig.payload.config.watchFolders[0].folderPath, 'D:\\EISCore\\Inbox')
   assert.equal(remoteConfig.payload.config.upload.maxFileBytes, 10 * 1024 * 1024)
+  assert.equal(remoteConfig.payload.config.upload.chunkSizeBytes, 1024 * 1024)
   assert.deepEqual(remoteConfig.payload.config.upload.allowedExtensions, ['.pdf', '.xlsx'])
   assert.equal(remoteConfig.payload.config.logs.batchSize, 50)
   assert.equal(remoteConfig.payload.config.logs.highPriorityImmediate, false)
@@ -338,6 +413,159 @@ try {
   assert.equal(state.assetInsertParams[0][9], fileContent.length, 'server should store the real uploaded byte length')
   assert.equal(state.parseJobInserts, 1, 'new uploads should create a parse job')
   assert.equal((await listFiles(tmpRoot)).length, 1, 'new uploads should be written to storage')
+
+  resetState()
+  const chunkSize = 256 * 1024
+  const chunkedContent = Buffer.alloc(chunkSize * 2 + 17)
+  for (let index = 0; index < chunkedContent.length; index += 1) {
+    chunkedContent[index] = index % 251
+  }
+  const chunkedHash = sha256(chunkedContent)
+
+  const badChunkHashInit = await call(
+    handlers.handleInitChunkUpload,
+    JSON.stringify({
+      original_filename: 'chunked.pdf',
+      file_hash: 'not-a-sha256',
+      file_size: chunkedContent.length,
+      chunk_size: chunkSize,
+      total_chunks: 3
+    }),
+    { authorization: 'Bearer good-token', 'content-type': 'application/json' }
+  )
+  assert.equal(badChunkHashInit.statusCode, 400, 'chunk init should reject invalid file hashes')
+  assert.equal(badChunkHashInit.payload.code, 'CHUNK_INIT_FIELDS_REQUIRED')
+  assert.equal(state.connected, 0, 'invalid chunk init should fail before opening a DB transaction')
+
+  const badChunkCountInit = await call(
+    handlers.handleInitChunkUpload,
+    JSON.stringify({
+      original_filename: 'chunked.pdf',
+      file_hash: chunkedHash,
+      file_size: chunkedContent.length,
+      chunk_size: chunkSize,
+      total_chunks: 2
+    }),
+    { authorization: 'Bearer good-token', 'content-type': 'application/json' }
+  )
+  assert.equal(badChunkCountInit.statusCode, 400, 'chunk init should reject mismatched chunk counts')
+  assert.equal(badChunkCountInit.payload.code, 'CHUNK_COUNT_MISMATCH')
+
+  resetState()
+  const initChunk = await call(
+    handlers.handleInitChunkUpload,
+    JSON.stringify({
+      original_filename: 'chunked.pdf',
+      file_hash: chunkedHash,
+      file_size: chunkedContent.length,
+      mime_type: 'application/pdf',
+      upload_source: 'watch_folder',
+      chunk_size: chunkSize,
+      total_chunks: 3,
+      metadata: {
+        uploaded_by_username: 'operator',
+        client_queue_id: 42
+      }
+    }),
+    { authorization: 'Bearer good-token', 'content-type': 'application/json' }
+  )
+  assert.equal(initChunk.statusCode, 200, `chunk init should succeed: ${JSON.stringify(initChunk.payload)}`)
+  assert.equal(initChunk.payload.duplicate, false)
+  assert.equal(initChunk.payload.totalChunks, 3)
+  assert.deepEqual(initChunk.payload.missingChunks, [0, 1, 2])
+
+  const incompleteChunk = await call(
+    handlers.handleCompleteChunkUpload,
+    JSON.stringify({ session_id: initChunk.payload.sessionId }),
+    { authorization: 'Bearer good-token', 'content-type': 'application/json' }
+  )
+  assert.equal(incompleteChunk.statusCode, 409, 'chunk complete should reject missing parts')
+  assert.equal(incompleteChunk.payload.code, 'UPLOAD_CHUNKS_MISSING')
+  assert.deepEqual(incompleteChunk.payload.missingChunks, [0, 1, 2])
+
+  const uploadChunk = async (index, bytes) => call(
+    handlers.handleUploadChunk,
+    multipartBody(boundary, {
+      metadata: {
+        session_id: initChunk.payload.sessionId,
+        chunk_index: index,
+        chunk_hash: sha256(bytes)
+      },
+      filename: `chunk-${index}.part`,
+      fileContent: bytes,
+      fileField: 'chunk'
+    }),
+    { authorization: 'Bearer good-token', 'content-type': `multipart/form-data; boundary=${boundary}` }
+  )
+
+  state.connected = 0
+  const mismatchedChunkHash = await call(
+    handlers.handleUploadChunk,
+    multipartBody(boundary, {
+      metadata: {
+        session_id: initChunk.payload.sessionId,
+        chunk_index: 0,
+        chunk_hash: '0'.repeat(64)
+      },
+      filename: 'chunk-0.part',
+      fileContent: chunkedContent.subarray(0, chunkSize),
+      fileField: 'chunk'
+    }),
+    { authorization: 'Bearer good-token', 'content-type': `multipart/form-data; boundary=${boundary}` }
+  )
+  assert.equal(mismatchedChunkHash.statusCode, 400, 'chunk upload should reject bad client hashes')
+  assert.equal(mismatchedChunkHash.payload.code, 'CHUNK_HASH_MISMATCH')
+  assert.equal(state.connected, 0, 'chunk hash mismatch should fail before opening an upload transaction')
+
+  const chunk0 = await uploadChunk(0, chunkedContent.subarray(0, chunkSize))
+  assert.equal(chunk0.statusCode, 200, `chunk 0 should upload: ${JSON.stringify(chunk0.payload)}`)
+  assert.equal(chunk0.payload.duplicate, false)
+  assert.equal(chunk0.payload.uploadedChunks, 1)
+  const duplicateChunk0 = await uploadChunk(0, chunkedContent.subarray(0, chunkSize))
+  assert.equal(duplicateChunk0.statusCode, 200, 'same chunk should be idempotent')
+  assert.equal(duplicateChunk0.payload.duplicate, true)
+  assert.equal(duplicateChunk0.payload.uploadedChunks, 1)
+  const conflictingChunk0 = Buffer.from(chunkedContent.subarray(0, chunkSize))
+  conflictingChunk0[0] = (conflictingChunk0[0] + 1) % 255
+  const chunkConflict = await uploadChunk(0, conflictingChunk0)
+  assert.equal(chunkConflict.statusCode, 409, 'different bytes for an uploaded chunk should conflict')
+  assert.equal(chunkConflict.payload.code, 'CHUNK_CONFLICT')
+  const wrongSizeChunk = await uploadChunk(1, chunkedContent.subarray(chunkSize, chunkSize * 2 - 1))
+  assert.equal(wrongSizeChunk.statusCode, 400, 'non-final chunks must match configured chunk size')
+  assert.equal(wrongSizeChunk.payload.code, 'CHUNK_SIZE_MISMATCH')
+  const chunk1 = await uploadChunk(1, chunkedContent.subarray(chunkSize, chunkSize * 2))
+  assert.equal(chunk1.statusCode, 200, `chunk 1 should upload: ${JSON.stringify(chunk1.payload)}`)
+  const chunk2 = await uploadChunk(2, chunkedContent.subarray(chunkSize * 2))
+  assert.equal(chunk2.statusCode, 200, `chunk 2 should upload: ${JSON.stringify(chunk2.payload)}`)
+
+  const resumeInit = await call(
+    handlers.handleInitChunkUpload,
+    JSON.stringify({
+      originalFilename: 'chunked.pdf',
+      fileHash: chunkedHash,
+      fileSize: chunkedContent.length,
+      mimeType: 'application/pdf',
+      uploadSource: 'watch_folder',
+      chunkSize,
+      totalChunks: 3
+    }),
+    { authorization: 'Bearer good-token', 'content-type': 'application/json' }
+  )
+  assert.deepEqual(resumeInit.payload.uploadedChunks, [0, 1, 2], 'chunk init should report uploaded chunks for resume')
+  assert.deepEqual(resumeInit.payload.missingChunks, [], 'chunk init should report no missing chunks after upload')
+
+  const completeChunk = await call(
+    handlers.handleCompleteChunkUpload,
+    JSON.stringify({ session_id: initChunk.payload.sessionId }),
+    { authorization: 'Bearer good-token', 'content-type': 'application/json' }
+  )
+  assert.equal(completeChunk.statusCode, 200, `chunk complete should succeed: ${JSON.stringify(completeChunk.payload)}`)
+  assert.equal(completeChunk.payload.duplicate, false)
+  assert.equal(completeChunk.payload.status, 'uploaded')
+  assert.equal(state.assetInsertParams.at(-1)[5], 'chunked.pdf')
+  assert.equal(state.assetInsertParams.at(-1)[9], chunkedContent.length)
+  assert.equal(state.assetInsertParams.at(-1)[10], chunkedHash)
+  assert.equal(state.parseJobInserts, 1, 'chunked complete should create one parse job')
 
   resetState()
   state.duplicateRows = [{ id: 'asset-original', storage_path: '/already/stored.txt' }]

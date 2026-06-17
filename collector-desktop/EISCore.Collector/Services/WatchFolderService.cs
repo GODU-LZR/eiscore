@@ -25,7 +25,7 @@ public sealed class WatchFolderService : IDisposable
     {
         Stop();
 
-        foreach (var folder in config.WatchFolders.Where(item => item.Enabled))
+        foreach (var folder in (config.WatchFolders ?? new List<WatchFolderConfig>()).Where(item => item.Enabled))
         {
             if (string.IsNullOrWhiteSpace(folder.FolderPath) || !Directory.Exists(folder.FolderPath))
             {

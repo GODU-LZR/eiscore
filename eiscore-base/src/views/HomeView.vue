@@ -22,16 +22,25 @@
         />
         <div v-if="activeMode === 'twin' || activeMode === 'enterprise'" class="header-actions">
           <el-tooltip content="历史会话" placement="bottom">
-            <el-icon
-              class="action-icon"
+            <button
+              type="button"
+              class="action-icon-btn"
               :class="{ active: activeMode === 'enterprise' ? showEnterpriseHistory : showSidebar }"
+              aria-label="历史会话"
               @click="toggleActiveHistory"
             >
-              <Operation />
-            </el-icon>
+              <el-icon class="action-icon"><Operation /></el-icon>
+            </button>
           </el-tooltip>
           <el-tooltip content="新建对话" placement="bottom">
-            <el-icon class="action-icon" @click="createActiveSession"><Plus /></el-icon>
+            <button
+              type="button"
+              class="action-icon-btn"
+              aria-label="新建对话"
+              @click="createActiveSession"
+            >
+              <el-icon class="action-icon"><Plus /></el-icon>
+            </button>
           </el-tooltip>
         </div>
       </div>
@@ -870,15 +879,32 @@ $border-color: var(--el-border-color, #dcdfe6);
 
   .header-actions {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     font-size: 18px;
     color: #909399;
 
-    .action-icon {
+    .action-icon-btn {
+      width: 24px;
+      height: 24px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: inherit;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
       transition: color 0.2s;
       &:hover { color: $primary-color; }
       &.active { color: $primary-color; }
+      &:focus-visible {
+        outline: 2px solid rgba($primary-color, 0.35);
+        outline-offset: 2px;
+      }
+    }
+
+    .action-icon {
+      font-size: 18px;
     }
   }
 

@@ -760,7 +760,7 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
 }
 
 const SMART_BI_REPORT_SECTIONS = [
-  { key: 'summary', label: '摘要', aliases: ['摘要', '经营摘要', '分析摘要', '结论', '总览'] },
+  { key: 'summary', label: '摘要', aliases: ['摘要', '经营摘要', '分析摘要', '核心摘要', '结论', '总览'] },
   { key: 'metrics', label: '关键指标', aliases: ['关键指标', '核心指标', '指标口径'] },
   { key: 'charts', label: '指标图表', aliases: ['指标图表', '图表', '图表分析', '数据图表'] },
   { key: 'risks', label: '风险提醒', aliases: ['风险提醒', '风险', '风险预警', '异常提醒'] },
@@ -769,6 +769,8 @@ const SMART_BI_REPORT_SECTIONS = [
 
 const normalizeSmartBiHeading = (value = '') => String(value || '')
   .replace(/^#+\s*/, '')
+  .replace(/^(第)?[一二三四五六七八九十\d]+[、.．\-\s]*/, '')
+  .replace(/^第[一二三四五六七八九十\d]+部分/, '')
   .replace(/[：:]/g, '')
   .replace(/[【】\[\]（）()]/g, '')
   .replace(/\s+/g, '')
@@ -783,6 +785,19 @@ const matchSmartBiReportSection = (text = '') => {
       return normalized === normalizedAlias || normalized.startsWith(normalizedAlias)
     })
   )) || null
+}
+
+const matchSmartBiInlineSummarySection = (node) => {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE || node.tagName !== 'P') return null
+  const section = matchSmartBiReportSection(node.textContent || '')
+  return section?.key === 'summary' ? section : null
+}
+
+const matchSmartBiParagraphHeadingSection = (node) => {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE || node.tagName !== 'P') return null
+  const text = String(node.textContent || '').trim()
+  if (!text || text.length > 28 || /[。；;!?！？]/.test(text)) return null
+  return matchSmartBiReportSection(text)
 }
 
 const isMeaningfulSmartBiNode = (node) => {
@@ -801,8 +816,10 @@ const enhanceSmartBiReportHtml = (html = '') => {
 
   const children = Array.from(source.childNodes || [])
   const headingSections = children
-    .filter((node) => node.nodeType === Node.ELEMENT_NODE && /^H[1-4]$/.test(node.tagName))
-    .map((node) => matchSmartBiReportSection(node.textContent || ''))
+    .filter((node) => node.nodeType === Node.ELEMENT_NODE && (/^H[1-4]$/.test(node.tagName) || node.tagName === 'P'))
+    .map((node) => (/^H[1-4]$/.test(node.tagName)
+      ? matchSmartBiReportSection(node.textContent || '')
+      : (matchSmartBiParagraphHeadingSection(node) || matchSmartBiInlineSummarySection(node))))
     .filter(Boolean)
   if (new Set(headingSections.map((section) => section.key)).size < 2) return html
 
@@ -811,6 +828,7 @@ const enhanceSmartBiReportHtml = (html = '') => {
   let intro = doc.createElement('div')
   intro.className = 'smart-bi-report-intro'
   let currentContent = intro
+  const seenSectionKeys = new Set()
 
   const appendIntroIfNeeded = () => {
     if (!intro || !Array.from(intro.childNodes || []).some(isMeaningfulSmartBiNode)) return
@@ -818,33 +836,51 @@ const enhanceSmartBiReportHtml = (html = '') => {
     intro = null
   }
 
+  const startReportSection = (section) => {
+    appendIntroIfNeeded()
+    seenSectionKeys.add(section.key)
+    const sectionNode = doc.createElement('section')
+    sectionNode.className = `smart-bi-report-section section-${section.key}`
+    sectionNode.setAttribute('data-section', section.key)
+
+    const heading = doc.createElement('div')
+    heading.className = 'smart-bi-report-heading'
+    const badge = doc.createElement('span')
+    badge.className = 'section-badge'
+    badge.textContent = String(SMART_BI_REPORT_SECTIONS.findIndex((item) => item.key === section.key) + 1).padStart(2, '0')
+    const title = doc.createElement('span')
+    title.className = 'section-title'
+    title.textContent = section.label
+    heading.appendChild(badge)
+    heading.appendChild(title)
+
+    currentContent = doc.createElement('div')
+    currentContent.className = 'smart-bi-report-content'
+    sectionNode.appendChild(heading)
+    sectionNode.appendChild(currentContent)
+    report.appendChild(sectionNode)
+  }
+
   children.forEach((node) => {
     if (node.nodeType === Node.ELEMENT_NODE && /^H[1-4]$/.test(node.tagName)) {
       const section = matchSmartBiReportSection(node.textContent || '')
       if (section) {
-        appendIntroIfNeeded()
-        const sectionNode = doc.createElement('section')
-        sectionNode.className = `smart-bi-report-section section-${section.key}`
-        sectionNode.setAttribute('data-section', section.key)
-
-        const heading = doc.createElement('div')
-        heading.className = 'smart-bi-report-heading'
-        const badge = doc.createElement('span')
-        badge.className = 'section-badge'
-        badge.textContent = String(SMART_BI_REPORT_SECTIONS.findIndex((item) => item.key === section.key) + 1).padStart(2, '0')
-        const title = doc.createElement('span')
-        title.className = 'section-title'
-        title.textContent = section.label
-        heading.appendChild(badge)
-        heading.appendChild(title)
-
-        currentContent = doc.createElement('div')
-        currentContent.className = 'smart-bi-report-content'
-        sectionNode.appendChild(heading)
-        sectionNode.appendChild(currentContent)
-        report.appendChild(sectionNode)
+        startReportSection(section)
         return
       }
+    }
+    const paragraphSection = matchSmartBiParagraphHeadingSection(node)
+    if (paragraphSection) {
+      startReportSection(paragraphSection)
+      return
+    }
+    const inlineSummary = currentContent === intro && !seenSectionKeys.has('summary')
+      ? matchSmartBiInlineSummarySection(node)
+      : null
+    if (inlineSummary) {
+      startReportSection(inlineSummary)
+      currentContent.appendChild(node)
+      return
     }
     currentContent.appendChild(node)
   })

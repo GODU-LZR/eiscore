@@ -5,7 +5,7 @@
 当前实现目标：
 
 1. WebView2 打开已配置的 EISCore 站点。
-2. 本地保存服务器、设备、默认上传用户和监听目录配置。
+2. 本地保存服务器、设备、默认上传用户和多监听目录配置。
 3. 设备绑定后使用 Windows DPAPI 加密保存 `device_token`。
 4. 支持手动选择文件、窗口拖拽文件、本地目录监听入队。
 5. 文件入队前等待写入稳定，计算 SHA256 hash，并写入 SQLite 队列。
@@ -13,6 +13,7 @@
 7. 采集 WebView2 导航失败、进程异常、前端 JS 错误、Promise 异常、console 错误、资源加载失败和 HTTP 错误。
 8. 客户端日志先落 SQLite，本地脱敏后批量上报。
 9. 支持托盘常驻、开机自启和设备心跳。
+10. 支持桌面端未处理异常 dump 和下次启动后崩溃摘要上报。
 
 ## 工程位置
 
@@ -51,9 +52,28 @@ dotnet run --project .\collector-desktop\EISCore.Collector\EISCore.Collector.csp
 %AppData%\EISCore\Collector\
   collector-config.json
   collector.db
+  crash-dumps\
 ```
 
 `collector-config.json` 中的 `encryptedDeviceToken` 使用当前 Windows 用户的 DPAPI 加密，换用户或换机器后不能直接复用。
+
+## 崩溃 dump
+
+桌面端启动时会注册全局异常处理：
+
+1. WPF UI 线程未处理异常。
+2. AppDomain 未处理异常。
+3. 未观察到的 Task 异常。
+
+发生异常时会优先在本地写入：
+
+```text
+%AppData%\EISCore\Collector\crash-dumps\
+  yyyyMMdd-HHmmss-fff-<source>-<pid>.dmp
+  yyyyMMdd-HHmmss-fff-<source>-<pid>.json
+```
+
+`.json` manifest 保存异常类型、脱敏消息、脱敏堆栈、dump 路径和 dump 大小。应用下次启动时会扫描未上报 manifest，写入本地日志队列，随后通过现有日志批量上传接口上报，并生成 `.reported` 标记避免重复上报。
 
 ## 服务端接口约定
 
@@ -146,6 +166,79 @@ metadata  JSON 元信息
 POST /agent/document-intake/devices/heartbeat
 Authorization: Bearer <device_token>
 ```
+
+心跳响应会附带当前设备远程配置快照，客户端也会定期拉取独立配置接口：
+
+```text
+GET /agent/document-intake/devices/config
+Authorization: Bearer <device_token>
+```
+
+远程配置 MVP 读取优先级：
+
+1. `collector_devices.metadata.remote_config.watch_folders` 显式下发监听目录时优先使用。
+2. 否则读取 `collector_watch_folders` 中该设备启用的监听目录。
+3. 其他策略读取 `collector_devices.metadata.remote_config`，缺省时返回服务端默认值。
+
+`collector_devices.metadata.remote_config` 示例：
+
+```json
+{
+  "version": "warehouse-pc-01-v2",
+  "default_user_id": "u_warehouse",
+  "default_username": "仓库员",
+  "default_role": "仓库",
+  "auto_start_enabled": true,
+  "heartbeat_interval_seconds": 60,
+  "watch_folders": [
+    {
+      "folder_path": "D:\\EISCore\\Inbox",
+      "folder_name": "仓库收单",
+      "default_user_id": "u_warehouse",
+      "default_role": "仓库",
+      "enabled": true
+    }
+  ],
+  "upload": {
+    "max_file_bytes": 268435456,
+    "chunk_size_bytes": 8388608,
+    "retry_interval_seconds": 15,
+    "max_retry_count": 10,
+    "allowed_extensions": [".xlsx", ".xls", ".csv", ".docx", ".pdf", ".jpg", ".png", ".txt"]
+  },
+  "logs": {
+    "batch_size": 100,
+    "flush_interval_seconds": 30,
+    "retention_days": 30,
+    "high_priority_immediate": true
+  }
+}
+```
+
+客户端合并策略：
+
+1. 不覆盖服务器地址和本地加密 token。
+2. 更新设备名、默认上传人、默认岗位、开机自启、心跳/上传/日志策略。
+3. 当远程下发监听目录时，替换本地监听目录并重启 watcher。
+4. 文件入队前会按 `max_file_bytes` 和 `allowed_extensions` 过滤。
+
+### 大文件分片上传
+
+小文件继续使用一次性上传接口：
+
+```text
+POST /agent/document-intake/assets/upload
+```
+
+当文件大于客户端当前 `chunk_size_bytes` 时，桌面端会自动切换为分片续传：
+
+```text
+POST /agent/document-intake/assets/chunks/init
+POST /agent/document-intake/assets/chunks/upload
+POST /agent/document-intake/assets/chunks/complete
+```
+
+服务端会把上传会话写入 `document_upload_sessions`，把已收到的分片写入 `document_upload_chunks`。客户端重试同一个文件时，初始化接口会返回已上传分片编号，客户端只补传缺失分片。完成接口会按顺序合并分片，校验最终 SHA256 和文件大小后，再复用普通上传的批次、资产、解析任务创建逻辑。
 
 ### 日志批量上报
 
@@ -256,7 +349,5 @@ DOCUMENT_FIXED_ENTRY_DEFAULT_WAREHOUSE_NAME=
 
 ## 下一步
 
-1. 增加大文件分片上传和断点续传。
-2. 增加远程配置拉取和多监听目录 UI。
-3. 增加安装包、自动更新和崩溃 dump 收集。
-4. 继续接入质检、生产、销售等固定模块正式业务入口。
+1. 增加安装包和自动更新。
+2. 继续接入质检、生产、销售等固定模块正式业务入口。

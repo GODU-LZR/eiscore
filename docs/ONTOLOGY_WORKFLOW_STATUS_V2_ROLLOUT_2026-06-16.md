@@ -61,6 +61,9 @@
    - 支持从角色编码调用 `public.explain_role_ontology_access(...)`，展示角色到应用、业务表、应用动作、敏感字段的可解释链路。
    - 新增“知识图谱查询”面板，接入 `public.v_ontology_kg_nodes`、`public.search_ontology_kg_nodes(...)`、`public.query_ontology_kg_neighbors(...)`、`public.find_ontology_kg_paths(...)`，支持节点搜索、邻域展开和有界路径查询。
    - 默认查询角色节点 `sales_manager`，可直接展开一跳邻域，并查询到 `hr.archives` 的可达路径，用于快速验证角色、权限、应用、业务表之间的 KG 推理结果。
+   - 新增 KG 子图视图，基于邻域和路径查询结果在前端只读渲染节点/边；点击图边可查看对应推理规则、种子/推理来源、置信度和结构化 `evidence` 摘要。
+   - 重构工作台信息架构：顶部保留轻量总览指标，主体改为左侧功能导航 + 单任务工作区，按“关系图谱 / 推理引擎 / KG 查询 / 洞察审计”收纳能力，避免推理、查询、审计和关系明细在同一长屏混杂。
+   - 导航沿用项目 attention 设计原则，按 `critical / warning / focus / normal` 表达健康缺口、重点聚焦和普通状态；默认进入关系图谱，切换到 KG 查询时自动重绘子图，切回关系图谱时自动同步图宽。
    - 开发态基座验证入口：`http://127.0.0.1:8080/apps/ontology-relations/8abc144b-edf0-424a-bdb0-4fbe4c09ddb6`。
    - 修复子应用独立预览时 qiankun dev 生命周期误注册导致的 `window.proxy.vitemount` 噪音。
 
@@ -210,9 +213,10 @@ EISCORE_CHAIN_BASE_URL=http://127.0.0.1 npm run test:business-chain
 
 | 检查项 | 结果 |
 |---|---|
-| `eiscore-apps` 生产构建 | 通过 |
-| `EISCORE_CHAIN_BASE_URL=http://127.0.0.1 npm run test:business-chain` | 31/31 通过 |
+| `eiscore-apps` 生产构建 | 通过；KG 子图和结构化证据面板编译通过，ECharts 被拆为独立 charts chunk |
+| `EISCORE_CHAIN_BASE_URL=http://127.0.0.1 npm run test:business-chain` | 31/31 通过；`02h` 覆盖 KG 节点、邻域、路径 API |
 | 开发态工作台路由 `http://127.0.0.1:8080/apps/ontology-relations/8abc144b-edf0-424a-bdb0-4fbe4c09ddb6` | HTTP 200 |
+| 本体关系工作台布局重构 | 前端生产构建通过；开发态 8080/8083 路由 HTTP 200；Docker Desktop engine 当前返回 500，业务链需待 Docker backend 恢复后再复跑 |
 
 该回归现在会额外覆盖一条 V2 strict 链路：
 

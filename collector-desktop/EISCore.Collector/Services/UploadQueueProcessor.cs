@@ -75,7 +75,7 @@ public sealed class UploadQueueProcessor : IAsyncDisposable
 
             while (!cancellationToken.IsCancellationRequested)
             {
-                var item = await _queueStore.GetNextPendingAsync(cancellationToken);
+                var item = await _queueStore.GetNextPendingAsync(config.UploadMaxRetryCount, cancellationToken);
                 if (item is null) return;
 
                 if (!File.Exists(item.FilePath))
@@ -140,10 +140,35 @@ public sealed class UploadQueueProcessor : IAsyncDisposable
 
     private async Task RunLoopAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-        while (await timer.WaitForNextTickAsync(cancellationToken))
+        while (!cancellationToken.IsCancellationRequested)
         {
-            await ProcessOnceAsync(cancellationToken);
+            try
+            {
+                await ProcessOnceAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    await _logService.LogAsync(
+                        "error",
+                        "upload_queue_loop_failed",
+                        "上传队列后台循环异常，将在下一个周期重试。",
+                        ex.ToString(),
+                        cancellationToken: cancellationToken);
+                }
+                catch
+                {
+                    // Keep the queue loop alive even when local logging is unavailable.
+                }
+            }
+
+            var interval = Math.Clamp(_configProvider().UploadRetryIntervalSeconds, 5, 60 * 60);
+            await Task.Delay(TimeSpan.FromSeconds(interval), cancellationToken);
         }
     }
 }

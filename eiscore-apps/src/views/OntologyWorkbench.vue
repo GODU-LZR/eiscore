@@ -39,12 +39,34 @@
       </el-card>
     </section>
 
-    <section class="reasoning-section">
+    <section class="workbench-shell">
+      <aside class="workbench-nav" aria-label="本体工作台功能导航">
+        <button
+          v-for="item in workbenchViews"
+          :key="item.key"
+          type="button"
+          class="workbench-nav-item"
+          :class="[`attention-${item.attention}`, { active: activeWorkbenchView === item.key }]"
+          @click="setActiveWorkbenchView(item.key)"
+        >
+          <span class="nav-main">
+            <span class="nav-title">{{ item.title }}</span>
+            <span class="nav-desc">{{ item.desc }}</span>
+          </span>
+          <span class="nav-meta">
+            <span class="attention-dot"></span>
+            <span>{{ item.metric }}</span>
+          </span>
+        </button>
+      </aside>
+
+      <div class="workbench-stage">
+    <section v-show="['reasoning', 'kg', 'insight'].includes(activeWorkbenchView)" class="reasoning-section workbench-view">
       <el-card shadow="never" class="wb-card reasoning-card">
         <template #header>
           <div class="card-header">
-            <span>知识图谱推理</span>
-            <div class="header-controls">
+            <span>{{ activeWorkbenchMeta.title }}</span>
+            <div v-if="activeWorkbenchView === 'reasoning'" class="header-controls">
               <el-tag :type="reasoningSummary.last_run_status === 'completed' ? 'success' : 'warning'" effect="plain">
                 {{ reasoningSummary.last_run_status || '未刷新' }}
               </el-tag>
@@ -55,9 +77,23 @@
                 刷新推理
               </el-button>
             </div>
+            <div v-else-if="activeWorkbenchView === 'kg'" class="header-controls">
+              <el-tag effect="plain">节点 {{ kgNodes.length }} 个</el-tag>
+              <el-tag effect="plain">子图 {{ kgGraphStats.nodes }}/{{ kgGraphStats.links }}</el-tag>
+              <el-button size="small" text :loading="kgLoading" @click="loadKgNodes">查询节点</el-button>
+            </div>
+            <div v-else class="header-controls">
+              <el-tag :type="reasoningHealthTagType" effect="plain">
+                {{ reasoningHealth.health_code || 'unknown' }}
+              </el-tag>
+              <el-button size="small" text :loading="insightLoading" @click="loadReasoningInsights">
+                读取洞察
+              </el-button>
+            </div>
           </div>
         </template>
 
+        <div v-show="activeWorkbenchView === 'reasoning'" class="workbench-view-body">
         <div class="reasoning-metrics">
           <div v-for="item in reasoningMetricCards" :key="item.key" class="reasoning-metric">
             <span>{{ item.label }}</span>
@@ -156,8 +192,9 @@
           </el-table>
           <div v-else class="column-empty-tip">暂无路径结果</div>
         </div>
+        </div>
 
-        <div class="kg-panel">
+        <div v-show="activeWorkbenchView === 'kg'" class="kg-panel">
           <div class="kg-header">
             <div class="detail-title">知识图谱查询</div>
             <div class="header-controls">
@@ -251,6 +288,12 @@
                   <div class="kg-edge-proof-meta">
                     <span>规则：{{ kgSelectedEdge.rule_name || kgSelectedEdge.inference_rule || '-' }}</span>
                     <span>置信度：{{ kgSelectedEdge.confidence ?? '-' }}</span>
+                  </div>
+                  <div v-if="kgSelectedEdgeEvidenceRows.length" class="kg-edge-evidence">
+                    <div v-for="item in kgSelectedEdgeEvidenceRows" :key="item.key" class="kg-edge-evidence-row">
+                      <span>{{ item.key }}</span>
+                      <code>{{ item.value }}</code>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -365,7 +408,7 @@
           </div>
         </div>
 
-        <div class="insight-panel">
+        <div v-show="activeWorkbenchView === 'insight'" class="insight-panel">
           <div class="insight-header">
             <div class="detail-title">推理洞察</div>
             <div class="header-controls">
@@ -500,7 +543,7 @@
       </el-card>
     </section>
 
-    <section class="wb-layout">
+    <section v-show="activeWorkbenchView === 'relations'" class="wb-layout workbench-view">
       <main class="wb-main full">
         <el-card shadow="never" class="wb-card relation-card">
           <template #header>
@@ -687,6 +730,8 @@
         </el-card>
       </main>
     </section>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -704,6 +749,7 @@ const router = useRouter()
 
 const loading = ref(false)
 const relations = ref([])
+const activeWorkbenchView = ref('relations')
 const searchText = ref('')
 const relationType = ref('ontology')
 const selectedTable = ref('')
@@ -1088,6 +1134,70 @@ const kgGraphPayload = computed(() => {
 })
 
 const kgGraphStats = computed(() => kgGraphPayload.value.stats)
+
+const workbenchViews = computed(() => {
+  const insightAttention = reasoningHealth.value.is_healthy === false
+    ? 'critical'
+    : reasoningHealth.value.health_code && reasoningHealth.value.health_code !== 'healthy'
+      ? 'warning'
+      : 'normal'
+  return [
+    {
+      key: 'relations',
+      title: '关系图谱',
+      desc: '表关系 / 列语义 / 明细',
+      metric: `${graphRelations.value.length} 条`,
+      attention: selectedTable.value ? 'focus' : 'normal'
+    },
+    {
+      key: 'reasoning',
+      title: '推理引擎',
+      desc: '事实 / 规则 / 路径解释',
+      metric: `${reasoningSummary.value.facts_total || 0} facts`,
+      attention: reasoningSummary.value.last_run_status === 'completed' ? 'normal' : 'warning'
+    },
+    {
+      key: 'kg',
+      title: 'KG 查询',
+      desc: '节点 / 邻域 / 子图证据',
+      metric: `${kgGraphStats.value.nodes}/${kgGraphStats.value.links}`,
+      attention: kgSelectedEdge.value ? 'focus' : 'normal'
+    },
+    {
+      key: 'insight',
+      title: '洞察审计',
+      desc: '风险 / 影响 / 敏感路径',
+      metric: reasoningHealth.value.health_code || 'unknown',
+      attention: insightAttention
+    }
+  ]
+})
+
+const activeWorkbenchMeta = computed(() => {
+  return workbenchViews.value.find((item) => item.key === activeWorkbenchView.value) || workbenchViews.value[0]
+})
+
+const formatKgEvidenceValue = (value) => {
+  if (value == null) return '-'
+  const text = typeof value === 'string' ? value : JSON.stringify(value)
+  if (!text) return '-'
+  return text.length > 180 ? `${text.slice(0, 177)}...` : text
+}
+
+const kgSelectedEdgeEvidenceRows = computed(() => {
+  const evidence = kgSelectedEdge.value?.evidence
+  if (!evidence || typeof evidence !== 'object') return []
+  if (Array.isArray(evidence)) {
+    return evidence.slice(0, 8).map((item, index) => ({
+      key: `item_${index + 1}`,
+      value: formatKgEvidenceValue(item)
+    }))
+  }
+  return Object.entries(evidence).slice(0, 8).map(([key, value]) => ({
+    key,
+    value: formatKgEvidenceValue(value)
+  }))
+})
 
 const filteredReasoningFacts = computed(() => {
   const keyword = String(reasoningSearchText.value || '').trim().toLowerCase()
@@ -1749,6 +1859,11 @@ const resetZoom = () => {
   graphZoom.value = 1
 }
 
+const setActiveWorkbenchView = (key) => {
+  if (!workbenchViews.value.some((item) => item.key === key)) return
+  activeWorkbenchView.value = key
+}
+
 const pickRelation = (row) => {
   if (!row) return
   pickedRelationId.value = row.id
@@ -1834,6 +1949,16 @@ watch(kgGraphPayload, () => {
   void renderKgGraph()
 })
 
+watch(activeWorkbenchView, async (view) => {
+  await nextTick()
+  if (view === 'relations') {
+    updateGraphHostWidth()
+  }
+  if (view === 'kg') {
+    resizeKgGraph()
+  }
+})
+
 onMounted(() => {
   reloadAll()
   nextTick(() => {
@@ -1863,10 +1988,7 @@ onBeforeUnmount(() => {
 .ontology-workbench {
   min-height: 100vh;
   padding: 18px;
-  background:
-    radial-gradient(1200px 420px at -10% -20%, color-mix(in srgb, var(--el-color-primary) 16%, transparent), transparent 60%),
-    radial-gradient(900px 380px at 110% -30%, color-mix(in srgb, var(--el-color-success) 14%, transparent), transparent 58%),
-    var(--el-bg-color-page);
+  background: var(--el-bg-color-page);
 }
 
 .wb-hero {
@@ -1914,6 +2036,132 @@ onBeforeUnmount(() => {
 
 .wb-layout {
   display: block;
+}
+
+.workbench-shell {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.workbench-nav {
+  position: sticky;
+  top: 12px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workbench-nav-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 68px;
+  border: 1px solid var(--el-border-color-light);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+  padding: 10px 11px;
+  color: var(--el-text-color-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.workbench-nav-item:hover,
+.workbench-nav-item.active {
+  background: color-mix(in srgb, var(--el-color-primary-light-9) 55%, var(--el-fill-color-blank));
+  border-color: color-mix(in srgb, var(--el-color-primary) 30%, var(--el-border-color-light));
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.workbench-nav-item.attention-critical {
+  border-left-color: var(--el-color-danger);
+}
+
+.workbench-nav-item.attention-warning {
+  border-left-color: var(--el-color-warning);
+}
+
+.workbench-nav-item.attention-focus {
+  border-left-color: var(--el-color-primary);
+}
+
+.workbench-nav-item.attention-normal {
+  border-left-color: var(--el-color-success);
+}
+
+.nav-main,
+.nav-meta {
+  min-width: 0;
+}
+
+.nav-title,
+.nav-desc {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-title {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.nav-desc {
+  margin-top: 5px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.nav-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 78px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.nav-meta span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attention-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--el-color-success);
+}
+
+.attention-critical .attention-dot {
+  background: var(--el-color-danger);
+}
+
+.attention-warning .attention-dot {
+  background: var(--el-color-warning);
+}
+
+.attention-focus .attention-dot {
+  background: var(--el-color-primary);
+}
+
+.workbench-stage {
+  min-width: 0;
+}
+
+.workbench-view {
+  min-width: 0;
 }
 
 .wb-main.full {
@@ -1968,6 +2216,18 @@ onBeforeUnmount(() => {
 
 .reasoning-card :deep(.el-card__body) {
   padding-top: 12px;
+}
+
+.reasoning-card .kg-panel,
+.reasoning-card .insight-panel {
+  margin-top: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.workbench-view-body {
+  min-width: 0;
 }
 
 .reasoning-metrics {
@@ -2204,6 +2464,44 @@ onBeforeUnmount(() => {
   font-size: 12px;
 }
 
+.kg-edge-evidence {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.kg-edge-evidence-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.32fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  min-width: 0;
+  border-radius: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-blank);
+  padding: 5px 6px;
+}
+
+.kg-edge-evidence-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+
+.kg-edge-evidence-row code {
+  min-width: 0;
+  color: var(--el-text-color-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: normal;
+  word-break: break-all;
+}
+
 .kg-subtoolbar {
   margin-bottom: 8px;
 }
@@ -2426,6 +2724,15 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .workbench-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .workbench-nav {
+    position: static;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .kg-layout {
     grid-template-columns: 1fr;
   }
@@ -2442,6 +2749,14 @@ onBeforeUnmount(() => {
   .insight-metrics,
   .kg-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .workbench-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .workbench-nav-item {
+    min-height: 58px;
   }
 
   .detail-grid {

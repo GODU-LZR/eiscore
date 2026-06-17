@@ -45,7 +45,7 @@ public sealed class LogUploadProcessor : IAsyncDisposable
                 return;
             }
 
-            var events = await _logStore.ListPendingAsync(100, cancellationToken);
+            var events = await _logStore.ListPendingAsync(Math.Clamp(config.LogBatchSize, 1, 1000), cancellationToken);
             if (events.Count == 0) return;
 
             await _apiClient.UploadLogsAsync(config, token, events, cancellationToken);
@@ -88,10 +88,23 @@ public sealed class LogUploadProcessor : IAsyncDisposable
 
     private async Task RunLoopAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(30));
-        while (await timer.WaitForNextTickAsync(cancellationToken))
+        while (!cancellationToken.IsCancellationRequested)
         {
-            await FlushAsync(cancellationToken);
+            try
+            {
+                await FlushAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch
+            {
+                // Keep the background loop alive; failed events remain pending for the next flush.
+            }
+
+            var interval = Math.Clamp(_configProvider().LogFlushIntervalSeconds, 5, 60 * 60);
+            await Task.Delay(TimeSpan.FromSeconds(interval), cancellationToken);
         }
     }
 }

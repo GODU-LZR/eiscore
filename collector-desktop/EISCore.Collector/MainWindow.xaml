@@ -72,13 +72,16 @@
           <Separator Margin="0,14,0,14" />
 
           <TextBlock Text="监听目录" FontWeight="SemiBold" />
-          <TextBox x:Name="WatchFolderBox"
-                   IsReadOnly="True"
-                   TextChanged="ConfigTextChanged" />
-          <StackPanel Orientation="Horizontal">
-            <Button Content="选择目录" Click="ChooseWatchFolder_Click" />
+          <ListBox x:Name="WatchFolderList"
+                   Height="112"
+                   BorderBrush="#CBD5E1"
+                   Margin="0,4,0,6" />
+          <WrapPanel>
+            <Button Content="添加目录" Click="ChooseWatchFolder_Click" />
+            <Button Content="移除所选" Click="RemoveWatchFolder_Click" />
+            <Button Content="启用/停用" Click="ToggleWatchFolder_Click" />
             <Button Content="启动监听" Click="RestartWatchers_Click" />
-          </StackPanel>
+          </WrapPanel>
 
           <TextBlock Text="手动采集" FontWeight="SemiBold" Margin="0,14,0,0" />
           <StackPanel Orientation="Horizontal">

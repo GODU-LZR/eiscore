@@ -119,20 +119,21 @@ public sealed class UploadQueueStore
         return items;
     }
 
-    public async Task<UploadQueueItem?> GetNextPendingAsync(CancellationToken cancellationToken = default)
+    public async Task<UploadQueueItem?> GetNextPendingAsync(int maxRetryCount = 10, CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenConnectionAsync(cancellationToken);
         var command = connection.CreateCommand();
         command.CommandText = """
             SELECT * FROM upload_queue
             WHERE status IN ($pending, $queued, $failed)
-              AND retry_count < 10
+              AND retry_count < $max_retry_count
             ORDER BY created_at ASC
             LIMIT 1
             """;
         command.Parameters.AddWithValue("$pending", UploadQueueStatus.Pending);
         command.Parameters.AddWithValue("$queued", UploadQueueStatus.Queued);
         command.Parameters.AddWithValue("$failed", UploadQueueStatus.Failed);
+        command.Parameters.AddWithValue("$max_retry_count", Math.Max(1, maxRetryCount));
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadItem(reader) : null;

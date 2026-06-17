@@ -39,6 +39,35 @@ public sealed class CollectorFileService
             return null;
         }
 
+        var info = new FileInfo(filePath);
+        var allowedExtensions = (config.AllowedExtensions ?? new List<string>())
+            .Select(item => item.Trim().ToLowerInvariant())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item.StartsWith('.') ? item : "." + item)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var extension = Path.GetExtension(filePath);
+        if (allowedExtensions.Count > 0 && !allowedExtensions.Contains(extension))
+        {
+            await _logService.LogAsync(
+                "warn",
+                "file_ignored",
+                $"文件类型未在远程配置允许范围内：{Path.GetFileName(filePath)}",
+                metadataJson: $$"""{"extension":"{{extension}}"}""",
+                cancellationToken: cancellationToken);
+            return null;
+        }
+
+        if (config.MaxUploadBytes > 0 && info.Length > config.MaxUploadBytes)
+        {
+            await _logService.LogAsync(
+                "warn",
+                "file_ignored",
+                $"文件超过远程配置上传大小限制：{Path.GetFileName(filePath)}",
+                metadataJson: $$"""{"file_size":{{info.Length}},"max_upload_bytes":{{config.MaxUploadBytes}}}""",
+                cancellationToken: cancellationToken);
+            return null;
+        }
+
         var fileHash = await FileHashService.ComputeSha256Async(filePath, cancellationToken);
         var existing = await _queueStore.FindByHashAsync(fileHash, cancellationToken);
         if (existing is not null)
@@ -52,7 +81,6 @@ public sealed class CollectorFileService
             return existing;
         }
 
-        var info = new FileInfo(filePath);
         var item = new UploadQueueItem
         {
             FilePath = filePath,
