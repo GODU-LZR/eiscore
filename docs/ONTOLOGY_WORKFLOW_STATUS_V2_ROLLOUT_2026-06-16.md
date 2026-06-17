@@ -59,6 +59,8 @@
    - 支持从角色/表/应用/权限出发调用 `public.explain_ontology_path(...)` 做路径解释。
    - 新增“推理洞察”面板，读取 `v_ontology_reasoning_health`、角色风险、表影响、规则统计和敏感路径视图。
    - 支持从角色编码调用 `public.explain_role_ontology_access(...)`，展示角色到应用、业务表、应用动作、敏感字段的可解释链路。
+   - 新增“知识图谱查询”面板，接入 `public.v_ontology_kg_nodes`、`public.search_ontology_kg_nodes(...)`、`public.query_ontology_kg_neighbors(...)`、`public.find_ontology_kg_paths(...)`，支持节点搜索、邻域展开和有界路径查询。
+   - 默认查询角色节点 `sales_manager`，可直接展开一跳邻域，并查询到 `hr.archives` 的可达路径，用于快速验证角色、权限、应用、业务表之间的 KG 推理结果。
    - 开发态基座验证入口：`http://127.0.0.1:8080/apps/ontology-relations/8abc144b-edf0-424a-bdb0-4fbe4c09ddb6`。
    - 修复子应用独立预览时 qiankun dev 生命周期误注册导致的 `window.proxy.vitemount` 噪音。
 
@@ -70,6 +72,14 @@
    - 新增 `public.v_ontology_reasoning_health`，合并推理运行状态与语义覆盖审计，输出 `is_healthy/health_code`。
    - 新增 `public.explain_role_ontology_access(...)`，提供角色中心的只读访问解释。
    - 洞察视图本身已纳入本体语义覆盖；API 运行态审计为关系 `133/133`、字段 `1692/1692`、缺口 0；数据库管理员全量审计为字段 `1721/1721`、缺口 0。
+
+7. 知识图谱查询层：`sql/patch_ontology_graph_query_v1.sql`
+   - 新增 `public.v_ontology_kg_nodes`，从推理事实聚合节点，提供节点类型、标签、语义域、语义类别、敏感标记、入边/出边/总度数和谓词集合。
+   - 新增 `public.search_ontology_kg_nodes(...)`，支持按节点标识、标签、语义域和语义类别搜索 KG 节点。
+   - 新增 `public.query_ontology_kg_neighbors(...)`，支持从任意节点做有界深度邻域展开，可指定 `outgoing/incoming/both` 和谓词过滤。
+   - 新增 `public.find_ontology_kg_paths(...)`，支持在推理图上查找两个节点之间的有界路径，并返回路径边 ID 与路径事实。
+   - 查询层只读，全部建立在 `v_ontology_reasoning_edges` 和推理事实之上；不修改业务表、不参与 ACL 裁决、不改变工作流运行。
+   - 查询节点视图已纳入本体语义覆盖；当前 API 运行态审计为关系 `134/134`、字段 `1709/1709`、缺口 0；数据库管理员全量审计为字段 `1738/1738`、缺口 0。
 
 ## 默认策略
 
@@ -142,6 +152,18 @@ PowerShell UTF-8 安全方式：
 Get-Content sql/patch_ontology_reasoning_insights_v1.sql -Raw -Encoding UTF8 | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
 ```
 
+知识图谱查询层补丁：
+
+```bash
+cat sql/patch_ontology_graph_query_v1.sql | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
+```
+
+PowerShell UTF-8 安全方式：
+
+```powershell
+Get-Content sql/patch_ontology_graph_query_v1.sql -Raw -Encoding UTF8 | docker exec -i eiscore-db psql -v ON_ERROR_STOP=1 -U postgres -d eiscore
+```
+
 手动刷新推理事实：
 
 ```sql
@@ -178,6 +200,20 @@ SELECT * FROM public.refresh_ontology_inferences(4);
 EISCORE_CHAIN_BASE_URL=http://localhost npm run test:business-chain
 ```
 
+WSL 本机若 `localhost` 解析不稳定，可使用显式 IPv4：
+
+```bash
+EISCORE_CHAIN_BASE_URL=http://127.0.0.1 npm run test:business-chain
+```
+
+2026-06-17 本地验证结果：
+
+| 检查项 | 结果 |
+|---|---|
+| `eiscore-apps` 生产构建 | 通过 |
+| `EISCORE_CHAIN_BASE_URL=http://127.0.0.1 npm run test:business-chain` | 31/31 通过 |
+| 开发态工作台路由 `http://127.0.0.1:8080/apps/ontology-relations/8abc144b-edf0-424a-bdb0-4fbe4c09ddb6` | HTTP 200 |
+
 该回归现在会额外覆盖一条 V2 strict 链路：
 
 1. 流程启动后切换测试应用策略为 `strict` 且关闭旧码兜底。
@@ -189,3 +225,4 @@ EISCORE_CHAIN_BASE_URL=http://localhost npm run test:business-chain
 7. 在链路前置检查中读取 `public.v_ontology_reasoning_summary` 和 `public.v_ontology_reasoning_facts`，确保推理引擎已经生成种子事实与推理事实，且角色访问应用、角色访问业务表、传递依赖等规则可读。
 8. 在链路前置检查中读取 `public.v_ontology_reasoning_health`、`public.v_ontology_role_access_insights` 与 `public.v_ontology_table_impact_insights`，确保洞察层健康、角色风险面和表影响面可读。
 9. 在链路前置检查中调用 `public.explain_role_ontology_access(...)`，确保角色中心的敏感字段路径和表访问路径可解释。
+10. 在链路前置检查中读取 `public.v_ontology_kg_nodes`，并调用 `public.query_ontology_kg_neighbors(...)` 与 `public.find_ontology_kg_paths(...)`，确保图谱节点、邻域展开和路径查询 API 可用。

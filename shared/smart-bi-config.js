@@ -506,11 +506,13 @@ export const buildSmartBiContext = (text = '', options = {}) => {
     : routeSmartBiQuestion(text)
   const domain = findSmartBiDomain(route.key)
   const metricDefinitions = getSmartBiMetricDefinitions(route.key)
+  const snapshot = options?.snapshot && typeof options.snapshot === 'object' ? options.snapshot : {}
   return {
     route,
     reportMode: options?.reportMode || '',
     selectedCard,
-    snapshotTime: options?.snapshot?.snapshotTime || '',
+    snapshotTime: snapshot?.snapshotTime || '',
+    snapshotExcerpt: stringifySmartBiSnapshotExcerpt(route.key, snapshot, options?.snapshotMaxLength || 4200),
     metricCatalog: domain ? [domain] : SMART_BI_DOMAINS,
     metricDefinitions,
     outputSections: SMART_BI_OUTPUT_SECTIONS,

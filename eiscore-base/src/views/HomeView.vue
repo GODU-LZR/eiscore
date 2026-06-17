@@ -20,14 +20,18 @@
           size="small"
           class="mode-switcher"
         />
-        <div v-if="activeMode === 'twin'" class="header-actions">
+        <div v-if="activeMode === 'twin' || activeMode === 'enterprise'" class="header-actions">
           <el-tooltip content="历史会话" placement="bottom">
-            <el-icon class="action-icon" :class="{ active: showSidebar }" @click="showSidebar = !showSidebar">
+            <el-icon
+              class="action-icon"
+              :class="{ active: activeMode === 'enterprise' ? showEnterpriseHistory : showSidebar }"
+              @click="toggleActiveHistory"
+            >
               <Operation />
             </el-icon>
           </el-tooltip>
           <el-tooltip content="新建对话" placement="bottom">
-            <el-icon class="action-icon" @click="createSession"><Plus /></el-icon>
+            <el-icon class="action-icon" @click="createActiveSession"><Plus /></el-icon>
           </el-tooltip>
         </div>
       </div>
@@ -396,7 +400,10 @@ const activeModeMeta = computed(() => {
   return { title: '我的数字分身', icon: Service }
 })
 
+const showEnterpriseHistory = ref(false)
+
 watch(activeMode, (val) => {
+  showEnterpriseHistory.value = false
   if (val === 'enterprise') {
     // 内联显示智能 BI
     aiBridge.setMode('enterprise')
@@ -411,6 +418,9 @@ onBeforeUnmount(() => {
   // 离开首页时关闭智能 BI 窗口
   if (activeMode.value === 'enterprise') {
     aiBridge.closeWindow()
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('eis-smart-bi-history-state', handleSmartBiHistoryState)
   }
   if (echartsModulePromise) {
     void echartsModulePromise.then((echarts) => {
@@ -505,6 +515,33 @@ const loadSessions = async () => {
 const createSession = () => {
   currentSessionId.value = null
   messages.value = []
+}
+
+const emitSmartBiCommand = (name) => {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(name))
+}
+
+const toggleActiveHistory = () => {
+  if (activeMode.value === 'enterprise') {
+    showEnterpriseHistory.value = !showEnterpriseHistory.value
+    emitSmartBiCommand('eis-smart-bi-toggle-history')
+    return
+  }
+  showSidebar.value = !showSidebar.value
+}
+
+const createActiveSession = () => {
+  if (activeMode.value === 'enterprise') {
+    showEnterpriseHistory.value = false
+    emitSmartBiCommand('eis-smart-bi-new-session')
+    return
+  }
+  createSession()
+}
+
+const handleSmartBiHistoryState = (event) => {
+  showEnterpriseHistory.value = activeMode.value === 'enterprise' && Boolean(event?.detail?.visible)
 }
 
 const switchSession = async (id) => {
@@ -778,6 +815,9 @@ const scrollToBottom = () => {
 
 // ── 生命周期 ──
 onMounted(async () => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('eis-smart-bi-history-state', handleSmartBiHistoryState)
+  }
   await Promise.all([loadSessions(), loadKnowledgeFiles()])
   renderCharts()
 })

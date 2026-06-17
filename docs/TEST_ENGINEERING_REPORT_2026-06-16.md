@@ -1,39 +1,44 @@
 # EISCore 工程测试报告
 
-报告日期：2026-06-16
+报告日期：2026-06-16 / 2026-06-17 续测
 测试对象：本地 WSL 工程 `/home/lzr/eiscore` 与远端环境 `https://nanpai.eissys.top`
-测试目标：验证工程可构建、核心接口可用、业务写读改删闭环、Workflow V2 策略链路、浏览器 UI 回归和远端发布一致性。
+测试目标：验证工程可构建、核心接口可用、业务写读改删闭环、Workflow V2 策略链路、知识图谱查询、AI 文档采集链路、浏览器 UI 回归和远端发布一致性。
 
 ## 一、结论摘要
 
 | 测试层 | 结果 | 说明 |
 |---|---:|---|
-| Node 脚本语法门禁 | PASS | `npm run test:syntax` 通过，覆盖 tests/scripts/playwright/realtime 的 24 个入口。 |
-| 离线单元/回归 | PASS | `npm run test:unit` 通过，包含数字分身成本表、Smart BI 工作台报告请求、EISGrid agent 中文语义、共享 grid 工具和工程 HTTP 客户端回归。 |
+| Node 脚本语法门禁 | PASS | `npm run test:syntax` 通过，覆盖 tests/scripts/playwright/realtime 的 34 个入口。 |
+| 离线单元/回归 | PASS | `npm run test:unit` 通过，包含数字分身成本表、Smart BI、EISGrid agent、共享 grid 工具、工程 HTTP 客户端、AI 文档采集/解析/计划/通用入库/固定入库 worker 回归。 |
 | EISGrid agent 语义 | PASS | `npm run test:grid-agent` 通过，覆盖中文分组统计、明细抽样、金额汇总和受控查询 payload。 |
 | 共享 grid 工具 | PASS | `npm run test:grid-utils` 通过，覆盖分页、时间过滤、hash URL 拼接、服务端汇总 payload 和全量合计行。 |
 | 工程 HTTP 客户端 | PASS | `npm run test:http-client` 通过，覆盖远端重试、非幂等写请求保护、超时归一化和原生 body 透传。 |
 | 全前端构建 | PASS | `npm run build:frontends`，11 个前端包全部构建成功。 |
 | 远端 smoke | PASS | V2 patch 前后均为 23/23 PASS。 |
-| 远端业务闭环 | PASS | V2 + 本体覆盖 + 本体推理 + 推理洞察后最新为 30/30 PASS，包含角色授权视图、本体投影覆盖审计、推理事实、洞察健康、角色访问解释、严格策略和显式状态迁移规则。 |
-| 远端工程 API 套件 | PASS | `npm run test:engineering:remote:api` 最新 smoke 23/23、business-chain 30/30。 |
+| 远端业务闭环 | PASS | V2 + 本体覆盖 + 本体推理 + 推理洞察 + 知识图谱查询后最新为 31/31 PASS，包含角色授权视图、本体投影覆盖审计、推理事实、洞察健康、角色访问解释、KG 节点/邻域/路径、严格策略和显式状态迁移规则。 |
+| 远端工程 API 套件 | PASS | `npm run test:engineering:remote:api` 最新 smoke 23/23、business-chain 31/31。 |
 | 67 功能点 UI | PASS | `npm run test:e2e:functions67:remote` 最新 67/67 PASS，覆盖完整功能点矩阵。 |
 | UI 业务闭环 | PASS | `npm run test:e2e:business-chain:remote` 最新 1/1 PASS。 |
 | UI 点击巡检 | PASS | `npm run test:e2e:clicks:remote` 最新 4/4 PASS；已修复直跑 Playwright 时缺少本地 Linux 依赖路径的问题。 |
 | 完整 77 浏览器长跑 | PASS | 历史 `npm run test:e2e:remote` 最终 77/77 PASS；本轮拆分 UI 点击、业务闭环和 67 功能点均已通过。 |
 
-总体判断：工程主链路可用，远端业务、语义本体、推理引擎、推理洞察和 UI 点击功能均已通过自动化验证。当前剩余风险主要是历史观察到的远端长时间回归偶发 DNS/连接抖动、当前本机 WSL 偶发 `E_UNEXPECTED` 运行时中断，以及静态资源发布时删除旧 hash 资源会影响缓存窗口内的微前端动态加载。
+总体判断：工程主链路可用，远端业务、语义本体、推理引擎、推理洞察、知识图谱查询、AI 文档采集链路和 UI 点击功能均已通过自动化验证。当前剩余风险主要是历史观察到的远端长时间回归偶发 DNS/连接抖动、当前本机 WSL 偶发 `E_UNEXPECTED` 运行时中断、桌面采集器缺少本机 .NET SDK 无法实编，以及静态资源发布时删除旧 hash 资源会影响缓存窗口内的微前端动态加载。
 
 ## 二、本地工程基线
 
 | 命令 | 结果 | 备注 |
 |---|---|---|
-| `npm run test:syntax` | PASS | Node 脚本语法门禁通过。 |
-| `npm run test:unit` | PASS | `twin knowledge cost-table analysis regression` 通过。 |
+| `npm run test:syntax` | PASS | 34 个 Node 脚本入口语法门禁通过。 |
+| `npm run test:unit` | PASS | 数字分身、Smart BI、Grid、HTTP 客户端、AI 文档采集/解析/计划/通用入库/固定入库 worker 回归通过。 |
 | `npm run test:smart-bi` | PASS | Smart BI 领域路由、输出章节、指标口径、风险状态、工作台卡片、卡片报告请求和常用问题回归通过。 |
 | `npm run test:grid-agent` | PASS | EISGrid agent 中文查询语义、分组推断、PostgREST payload 和 prompt 格式化回归通过。 |
 | `npm run test:grid-utils` | PASS | 共享 grid 分页、时间过滤、服务端汇总和 hash URL 边界回归通过。 |
 | `npm run test:http-client` | PASS | 工程 HTTP 客户端远端重试、安全方法策略、JSON/text 解析和原生 body 透传回归通过。 |
+| `npm run test:document-intake` | PASS | AI 文档采集 handler 设备鉴权、上传校验、hash mismatch、重复上传、真实文件大小和环境兜底回归通过。 |
+| `npm run test:document-parser` | PASS | AI 文档解析 worker 文本、图片、unsupported、环境兜底回归通过。 |
+| `npm run test:document-planner` | PASS | AI 文档入库计划 worker 应用匹配、fallback 计划、字段快照和环境兜底回归通过。 |
+| `npm run test:document-entry` | PASS | AI 文档入库 worker 表格/文本转业务记录、未匹配字段补充、标识符净化和环境兜底回归通过。 |
+| `npm run test:document-fixed-entry` | PASS | AI 文档固定入库 worker 采购入库单字段识别、主数据校验、stock-in RPC payload、未匹配字段补充和环境兜底回归通过。 |
 | `npm run build:frontends` | PASS | 11 个前端包构建成功。 |
 | `node --check playwright.config.mjs tests/e2e/helpers.mjs tests/e2e/ui-business-chain.spec.mjs realtime/index.js` | PASS | Playwright 配置、E2E helper、UI 业务链路、realtime 后端语法通过。 |
 
@@ -136,6 +141,16 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 
 | 时间 | 命令 | 结果 | 说明 |
 |---|---|---:|---|
+| 2026-06-17 | `sql/patch_ai_document_intake_mvp.sql` | PASS | 远端应用 AI 文档采集 MVP schema；采集设备、资产、解析任务/结果、入库计划、业务链接、未匹配字段和客户端日志均验证 ready。补丁只授权 `web_user` 读写，不向 `web_anon` 暴露采集资产/日志读取。备份：`tests/.artifacts/eiscore_document_intake_mvp_schema_before_20260617_0010.sql`。 |
+| 2026-06-17 | `sql/patch_ontology_graph_query_v1.sql` | PASS | 远端应用知识图谱查询层，新增 `v_ontology_kg_nodes`、`search_ontology_kg_nodes(...)`、`query_ontology_kg_neighbors(...)`、`find_ontology_kg_paths(...)`；验证节点 `super_admin` 度数 354、邻域和路径查询均返回数据。 |
+| 2026-06-17 | `npm run test:business-chain:remote` | PASS | business-chain 31/31；本体语义覆盖为关系 145/145、字段 1968/1968，推理事实 3052、推理健康 healthy，新增 `02h` KG 节点/邻域/路径 API 检查。 |
+| 2026-06-17 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 31/31；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-17T14-56-12-044Z.md`。 |
+| 2026-06-17 | `npm run test:document-intake && npm run test:document-parser && npm run test:unit` | PASS | AI 文档采集/解析/计划/通用入库/固定入库 worker 离线回归全部通过，并已纳入 `test:unit`。 |
+| 2026-06-17 | `npm run test:syntax` | PASS | 34 个 Node 脚本入口语法检查通过，覆盖新增 realtime document worker 与工程测试脚本。 |
+| 2026-06-17 | `npm --prefix eiscore-base run build` | PASS | 受影响 base 前端构建通过；仍有 Node 20.18.1 低于 Vite 建议 20.19+ 的环境警告。 |
+| 2026-06-17 | `npm run test:e2e:clicks:remote` | PASS | 远端普通用户 UI 点击巡检 4/4 PASS。 |
+| 2026-06-17 | `npm run test:e2e:business-chain:remote` | PASS | 远端 UI 全业务链路闭环 1/1 PASS。 |
+| 2026-06-17 | Collector Desktop XML 静态校验 | PASS | `collector-desktop/EISCore.Collector` 下 `.xaml` 与 `.csproj` XML 均可解析；本机 Windows 仅有 .NET runtime、无 SDK，WPF 实编需在安装 .NET SDK 的机器上继续执行。 |
 | 2026-06-16 | `sql/patch_ontology_reasoning_insights_v1.sql` | PASS | 远端应用知识图谱推理洞察补丁；schema 执行前备份到 `tests/.artifacts/eiscore_ontology_reasoning_insights_v1_schema_before_20260616_2328.sql`。补丁新增规则统计、角色访问洞察、敏感路径、表依赖路径、表影响面、推理健康视图和 `explain_role_ontology_access(...)`。 |
 | 2026-06-16 | `npm run test:business-chain:remote` | PASS | business-chain 30/30；新增 `02f` 洞察健康/影响面检查与 `02g` 角色访问解释 RPC 检查。测试从实际洞察数据动态选择候选角色，避免固定演示角色不存在导致误报。 |
 | 2026-06-16 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 30/30；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-16T15-32-59-513Z.md`。 |
@@ -173,6 +188,11 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 9. `sql/patch_ontology_reasoning_engine_v1.sql` 将本体推理规则、推理事实、推理运行批次、推理摘要和路径解释纳入数据库侧工程能力；`test:business-chain` 增加 `02e` 前置检查，防止推理层不可读或无推理事实。
 10. `playwright.config.mjs` 自动加载 `tests/.artifacts/playwright-libs/root/usr/lib/x86_64-linux-gnu` 下的缓存 Linux 共享库，使 `test:e2e:*:remote` 单独直跑时也能稳定启动 Chromium。
 11. `sql/patch_ontology_reasoning_insights_v1.sql` 将推理规则统计、角色访问洞察、敏感字段路径、表依赖路径、表影响面和推理健康纳入 PostgREST 可读洞察层；`test:business-chain` 增加 `02f/02g`，并动态选择实际存在的角色验证解释函数，避免硬编码角色码造成误报。
+12. `sql/patch_ontology_graph_query_v1.sql` 将知识图谱节点检索、邻域展开和路径查询纳入 PostgREST 可读 RPC；`test:business-chain` 增加 `02h`，防止图查询层不可读或无路径数据。
+13. `sql/patch_ai_document_intake_mvp.sql` 将 AI 文档采集、解析任务、入库计划、业务链接、未匹配字段和客户端日志纳入数据库侧 MVP，并补齐 13 张表与 192 个字段的本体语义。
+14. `realtime/document-intake.js`、`document-parser.js`、`document-planner.js`、`document-entry.js`、`document-fixed-entry.js` 形成 AI 文档采集到业务入库的后端 worker 链路，并通过离线 mock 回归覆盖鉴权、上传、解析、计划、字段映射、通用入库、采购入库和错误兜底。
+15. `collector-desktop/EISCore.Collector` 提供本地桌面采集器 MVP 结构；当前完成 XML 静态校验，等待具备 .NET SDK 的 Windows 环境做真实 WPF 构建。
+16. `tests/business/full-chain.mjs` 对远端登录获取 JWT 增加独立短重试，避免偶发 `fetch failed` 造成空 token 连锁失败；业务写入请求仍保持默认不重试，避免重复写入。
 
 ## 六、当前风险
 
@@ -183,6 +203,9 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 本地 Node 版本低于 CI | P2 | 本机 Node 20.18.1，CI 为 20.19.0。 | WSL Node 升级到 20.19+，减少 Vite 环境差异。 |
 | 前端大 chunk / manual chunk 循环 | P2 | 不阻断构建，但影响性能和缓存效率。 | 后续建立 bundle size 基线，优化 chunk 策略。 |
 | 本机 WSL 偶发 `E_UNEXPECTED` | P2 | 本轮在并发 WSL 命令和一次远端 API 套件启动时观察到 WSL 运行时中断，重试后测试通过。 | 工程测试尽量串行跑 WSL 重负载命令；若复现频繁，重启 WSL 服务或迁移到 CI/Linux runner 执行长回归。 |
+| 桌面采集器未实编 | P2 | 当前 Windows 环境仅安装 .NET runtime，没有 .NET SDK；本轮只能做 `.xaml`/`.csproj` XML 静态校验。 | 在安装 .NET SDK 的 Windows 构建机上执行 WPF build/publish。 |
+| realtime 文档 worker 需要发布 | P2 | 远端数据库 patch 已应用并验收，但新增 realtime worker 代码需随容器重建/发布后才会在远端实际运行。 | 发布 realtime 镜像后复跑文档采集端到端用例。 |
+| Docker 本地构建未完成长跑 | P3 | 本机 Docker/WSL 组合存在超时风险，本轮以 Dockerfile 静态 packaging 检查确认新增 worker 文件已 COPY。 | 后续在 CI 或稳定 Linux runner 做镜像构建验收。 |
 
 ## 七、建议的工程门禁
 

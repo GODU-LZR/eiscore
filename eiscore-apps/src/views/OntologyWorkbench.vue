@@ -157,6 +157,214 @@
           <div v-else class="column-empty-tip">暂无路径结果</div>
         </div>
 
+        <div class="kg-panel">
+          <div class="kg-header">
+            <div class="detail-title">知识图谱查询</div>
+            <div class="header-controls">
+              <el-tag effect="plain">节点 {{ kgNodes.length }} 个</el-tag>
+              <el-button size="small" text :loading="kgLoading" @click="loadKgNodes">查询节点</el-button>
+            </div>
+          </div>
+
+          <div class="kg-toolbar">
+            <el-select v-model="kgNodeType" clearable size="small" style="width: 130px">
+              <el-option label="全部节点" value="" />
+              <el-option label="角色" value="role" />
+              <el-option label="应用" value="app" />
+              <el-option label="表" value="table" />
+              <el-option label="字段" value="column" />
+              <el-option label="权限" value="permission" />
+            </el-select>
+            <el-input
+              v-model="kgSearchText"
+              clearable
+              size="small"
+              class="kg-search"
+              placeholder="搜索节点标识/名称/语义"
+              @keyup.enter="loadKgNodes"
+            />
+            <el-button size="small" type="primary" plain :loading="kgLoading" @click="loadKgNodes">
+              搜索
+            </el-button>
+          </div>
+
+          <div class="kg-layout">
+            <div class="kg-node-pane">
+              <el-table
+                :data="kgNodes"
+                size="small"
+                border
+                stripe
+                :loading="kgLoading"
+                max-height="320"
+                highlight-current-row
+                @row-click="selectKgNode"
+              >
+                <el-table-column label="节点" min-width="210">
+                  <template #default="{ row }">
+                    <div class="kg-node-title">
+                      <span>{{ row.node_label || row.node_id }}</span>
+                      <el-tag v-if="row.is_sensitive" size="small" type="danger" effect="plain">敏感</el-tag>
+                    </div>
+                    <div class="table-raw">{{ nodeTypeLabel(row.node_type) }}:{{ row.node_id }}</div>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="semantic_class" label="语义类" width="130" show-overflow-tooltip />
+                <el-table-column prop="total_degree" label="度数" width="72" />
+              </el-table>
+            </div>
+
+            <div class="kg-detail-pane">
+              <div v-if="kgSelectedNode" class="kg-selected">
+                <div class="kg-selected-title">
+                  <span>{{ kgSelectedNode.node_label || kgSelectedNode.node_id }}</span>
+                  <el-tag size="small" effect="plain">{{ nodeTypeLabel(kgSelectedNode.node_type) }}</el-tag>
+                </div>
+                <div class="table-raw">{{ kgSelectedNode.node_type }}:{{ kgSelectedNode.node_id }}</div>
+                <div class="kg-metrics">
+                  <div v-for="item in kgSelectedMetrics" :key="item.key" class="kg-metric">
+                    <span>{{ item.label }}</span>
+                    <strong>{{ item.value }}</strong>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="column-empty-tip">请选择一个节点。</div>
+
+              <div class="kg-graph-panel">
+                <div class="kg-graph-header">
+                  <div class="kg-graph-title">子图视图</div>
+                  <div class="kg-graph-stats">
+                    <el-tag size="small" effect="plain">节点 {{ kgGraphStats.nodes }} 个</el-tag>
+                    <el-tag size="small" effect="plain">边 {{ kgGraphStats.links }} 条</el-tag>
+                    <el-button size="small" text @click="resizeKgGraph">重绘</el-button>
+                  </div>
+                </div>
+                <div v-show="kgGraphStats.nodes" ref="kgGraphRef" class="kg-graph-canvas"></div>
+                <div v-if="!kgGraphStats.nodes" class="column-empty-tip">暂无子图</div>
+                <div v-if="kgSelectedEdge" class="kg-edge-proof">
+                  <div class="kg-edge-proof-title">
+                    <span>{{ kgSelectedEdge.from }} -[{{ predicateLabel(kgSelectedEdge.predicate) }}]-> {{ kgSelectedEdge.to }}</span>
+                    <el-tag size="small" :type="kgSelectedEdge.is_inferred ? 'success' : 'info'" effect="plain">
+                      {{ kgSelectedEdge.is_inferred ? '推理' : '种子' }}
+                    </el-tag>
+                  </div>
+                  <div class="kg-edge-proof-meta">
+                    <span>规则：{{ kgSelectedEdge.rule_name || kgSelectedEdge.inference_rule || '-' }}</span>
+                    <span>置信度：{{ kgSelectedEdge.confidence ?? '-' }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <el-tabs class="kg-tabs">
+                <el-tab-pane label="邻域展开">
+                  <div class="kg-subtoolbar">
+                    <el-select v-model="kgDirection" size="small" style="width: 112px">
+                      <el-option label="出边" value="outgoing" />
+                      <el-option label="入边" value="incoming" />
+                      <el-option label="双向" value="both" />
+                    </el-select>
+                    <el-select v-model="kgDepth" size="small" style="width: 96px">
+                      <el-option label="1 跳" :value="1" />
+                      <el-option label="2 跳" :value="2" />
+                      <el-option label="3 跳" :value="3" />
+                      <el-option label="4 跳" :value="4" />
+                    </el-select>
+                    <el-select v-model="kgPredicate" clearable size="small" style="width: 190px">
+                      <el-option label="全部谓词" value="" />
+                      <el-option label="可访问应用" value="acl:canAccessApp" />
+                      <el-option label="可访问业务表" value="acl:canAccessTable" />
+                      <el-option label="可操作业务表" value="acl:canOperateTable" />
+                      <el-option label="敏感字段可达" value="risk:canAccessSensitiveColumn" />
+                      <el-option label="传递依赖" value="ontology:transitivelyDependsOn" />
+                    </el-select>
+                    <el-button size="small" :loading="kgNeighborLoading" @click="loadKgNeighbors">
+                      展开
+                    </el-button>
+                  </div>
+
+                  <el-table
+                    :data="kgNeighbors"
+                    size="small"
+                    border
+                    stripe
+                    :loading="kgNeighborLoading"
+                    max-height="260"
+                    @row-click="selectKgNeighbor"
+                  >
+                    <el-table-column prop="depth" label="跳数" width="72" />
+                    <el-table-column label="方向" width="82">
+                      <template #default="{ row }">{{ row.edge_direction === 'incoming' ? '入边' : '出边' }}</template>
+                    </el-table-column>
+                    <el-table-column label="谓词" min-width="150">
+                      <template #default="{ row }">{{ predicateLabel(row.predicate) }}</template>
+                    </el-table-column>
+                    <el-table-column label="目标" min-width="230">
+                      <template #default="{ row }">
+                        <div>{{ row.to_label || row.to_id }}</div>
+                        <div class="table-raw">{{ row.to_type }}:{{ row.to_id }}</div>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="inference_rule" label="规则" min-width="160" show-overflow-tooltip />
+                  </el-table>
+                </el-tab-pane>
+
+                <el-tab-pane label="路径查询">
+                  <div class="kg-subtoolbar">
+                    <el-select v-model="kgPathTargetType" size="small" style="width: 112px">
+                      <el-option label="应用" value="app" />
+                      <el-option label="表" value="table" />
+                      <el-option label="字段" value="column" />
+                      <el-option label="权限" value="permission" />
+                      <el-option label="应用动作" value="app_action" />
+                      <el-option label="角色" value="role" />
+                    </el-select>
+                    <el-input
+                      v-model="kgPathTargetId"
+                      clearable
+                      size="small"
+                      class="kg-path-target"
+                      placeholder="目标节点标识"
+                    />
+                    <el-select v-model="kgPathDirection" size="small" style="width: 112px">
+                      <el-option label="出边" value="outgoing" />
+                      <el-option label="入边" value="incoming" />
+                      <el-option label="双向" value="both" />
+                    </el-select>
+                    <el-select v-model="kgPathDepth" size="small" style="width: 96px">
+                      <el-option label="1 跳" :value="1" />
+                      <el-option label="2 跳" :value="2" />
+                      <el-option label="3 跳" :value="3" />
+                      <el-option label="4 跳" :value="4" />
+                    </el-select>
+                    <el-button size="small" type="primary" plain :loading="kgPathLoading" @click="findKgPaths">
+                      查路径
+                    </el-button>
+                  </div>
+
+                  <el-table
+                    :data="kgPathRows"
+                    size="small"
+                    border
+                    stripe
+                    :loading="kgPathLoading"
+                    max-height="260"
+                  >
+                    <el-table-column prop="depth" label="深度" width="72" />
+                    <el-table-column label="终点" min-width="220">
+                      <template #default="{ row }">
+                        <div>{{ row.target_label || row.target_id }}</div>
+                        <div class="table-raw">{{ row.target_type }}:{{ row.target_id }}</div>
+                      </template>
+                    </el-table-column>
+                    <el-table-column prop="path_text" label="路径" min-width="420" show-overflow-tooltip />
+                  </el-table>
+                  <div v-if="!kgPathRows.length" class="column-empty-tip kg-empty-tip">点击邻域行可带入目标节点。</div>
+                </el-tab-pane>
+              </el-tabs>
+            </div>
+          </div>
+        </div>
+
         <div class="insight-panel">
           <div class="insight-header">
             <div class="detail-title">推理洞察</div>
@@ -522,6 +730,24 @@ const sensitiveAccessPaths = ref([])
 const roleExplainLoading = ref(false)
 const roleExplainCode = ref('sales_manager')
 const roleExplainRows = ref([])
+const kgLoading = ref(false)
+const kgNodes = ref([])
+const kgSearchText = ref('sales_manager')
+const kgNodeType = ref('role')
+const kgSelectedNode = ref(null)
+const kgNeighborLoading = ref(false)
+const kgNeighbors = ref([])
+const kgDirection = ref('outgoing')
+const kgDepth = ref(1)
+const kgPredicate = ref('')
+const kgPathLoading = ref(false)
+const kgPathRows = ref([])
+const kgPathTargetType = ref('table')
+const kgPathTargetId = ref('hr.archives')
+const kgPathDirection = ref('outgoing')
+const kgPathDepth = ref(2)
+const kgGraphRef = ref(null)
+const kgSelectedEdge = ref(null)
 const pathLoading = ref(false)
 const pathSubjectType = ref('role')
 const pathSubjectId = ref('sales_manager')
@@ -529,6 +755,9 @@ const pathObjectType = ref('app')
 const pathObjectId = ref('')
 const pathRows = ref([])
 let graphResizeObserver = null
+let kgGraphResizeObserver = null
+let kgChart = null
+let kgEchartsModulePromise = null
 
 const STATIC_TABLE_LABELS = {
   'public.users': '用户',
@@ -549,6 +778,7 @@ const STATIC_TABLE_LABELS = {
   'public.v_ontology_table_dependency_paths': '表依赖路径',
   'public.v_ontology_table_impact_insights': '表影响洞察',
   'public.v_ontology_reasoning_health': '本体推理健康状态',
+  'public.v_ontology_kg_nodes': '知识图谱节点视图',
   'workflow.definitions': '流程定义',
   'workflow.instances': '流程实例',
   'workflow.task_assignments': '任务分派',
@@ -580,6 +810,48 @@ const PREDICATE_LABELS = {
   'data:hasSensitiveColumn': '包含敏感字段',
   'risk:canAccessSensitiveColumn': '可达敏感字段',
   'rdf:type': '类型'
+}
+
+const KG_NODE_TYPE_LABELS = {
+  role: '角色',
+  app: '应用',
+  app_action: '应用动作',
+  table: '表',
+  column: '字段',
+  permission: '权限',
+  permission_kind: '权限类型',
+  semantic_class: '语义类',
+  semantic_domain: '语义域'
+}
+
+const KG_GRAPH_CATEGORIES = [
+  { name: '角色' },
+  { name: '应用' },
+  { name: '业务表' },
+  { name: '字段' },
+  { name: '权限' },
+  { name: '其他' }
+]
+
+const KG_GRAPH_CATEGORY_BY_TYPE = {
+  role: '角色',
+  app: '应用',
+  app_action: '应用',
+  table: '业务表',
+  column: '字段',
+  permission: '权限'
+}
+
+const KG_GRAPH_NODE_COLORS = {
+  role: '#5b6ee1',
+  app: '#009688',
+  app_action: '#26a69a',
+  table: '#3f8cff',
+  column: '#d66b9d',
+  permission: '#f0a020',
+  permission_kind: '#b98b00',
+  semantic_class: '#8e6bd6',
+  semantic_domain: '#607d8b'
 }
 
 const SEMANTIC_CLASS_LABELS = {
@@ -695,6 +967,128 @@ const insightMetricCards = computed(() => ([
   { key: 'rules', label: '规则统计', value: ruleStats.value.length }
 ]))
 
+const kgSelectedMetrics = computed(() => {
+  const node = kgSelectedNode.value || {}
+  return [
+    { key: 'degree', label: '总度数', value: node.total_degree || node.degree_total || 0 },
+    { key: 'out', label: '出边', value: node.outgoing_edges || 0 },
+    { key: 'in', label: '入边', value: node.incoming_edges || 0 },
+    { key: 'predicates', label: '谓词', value: node.predicate_count || 0 }
+  ]
+})
+
+const kgGraphPayload = computed(() => {
+  const nodes = new Map()
+  const links = new Map()
+
+  const selected = kgSelectedNode.value
+  if (selected?.node_type && selected?.node_id) {
+    addKgGraphNode(nodes, selected.node_type, selected.node_id, selected.node_label, {
+      is_sensitive: selected.is_sensitive,
+      symbolSize: 50,
+      total_degree: selected.total_degree || selected.degree_total || 0
+    })
+  }
+
+  const addLink = ({
+    sourceType,
+    sourceId,
+    sourceLabel,
+    targetType,
+    targetId,
+    targetLabel,
+    predicate,
+    edgeId,
+    inferenceRule,
+    ruleName,
+    isInferred,
+    confidence,
+    evidence
+  }) => {
+    if (!sourceType || !sourceId || !targetType || !targetId) return
+    const sourceNode = addKgGraphNode(nodes, sourceType, sourceId, sourceLabel)
+    const targetNode = addKgGraphNode(nodes, targetType, targetId, targetLabel)
+    if (!sourceNode || !targetNode) return
+    const edge = {
+      edge_id: edgeId,
+      source: sourceNode.id,
+      target: targetNode.id,
+      predicate: predicate || '',
+      label: {
+        show: false,
+        formatter: predicateLabel(predicate)
+      },
+      lineStyle: {
+        width: isInferred === false ? 1.2 : 1.8,
+        opacity: 0.72,
+        type: isInferred === false ? 'dashed' : 'solid',
+        color: isInferred === false ? '#9aa6b2' : '#5b8def'
+      },
+      raw: {
+        from: sourceNode.id,
+        to: targetNode.id,
+        predicate,
+        edge_id: edgeId,
+        inference_rule: inferenceRule,
+        rule_name: ruleName,
+        is_inferred: isInferred,
+        confidence,
+        evidence
+      }
+    }
+    links.set(kgEdgeKey(edge), edge)
+  }
+
+  kgNeighbors.value.forEach((row) => {
+    addLink({
+      sourceType: row.edge_subject_type || row.from_type,
+      sourceId: row.edge_subject_id || row.from_id,
+      sourceLabel: row.edge_subject_type === row.from_type ? row.from_label : '',
+      targetType: row.edge_object_type || row.to_type,
+      targetId: row.edge_object_id || row.to_id,
+      targetLabel: row.edge_object_type === row.to_type ? row.to_label : '',
+      predicate: row.predicate,
+      edgeId: row.edge_id,
+      inferenceRule: row.inference_rule,
+      ruleName: row.rule_name,
+      isInferred: row.is_inferred,
+      confidence: row.confidence,
+      evidence: row.evidence
+    })
+  })
+
+  kgPathRows.value.forEach((row) => {
+    addKgGraphNode(nodes, row.target_type, row.target_id, row.target_label)
+    const facts = Array.isArray(row.path_facts) ? row.path_facts : []
+    facts.forEach((fact) => {
+      addLink({
+        sourceType: fact.subject_type,
+        sourceId: fact.subject_id,
+        targetType: fact.object_type,
+        targetId: fact.object_id,
+        predicate: fact.predicate,
+        edgeId: fact.id,
+        inferenceRule: fact.rule,
+        ruleName: fact.rule,
+        isInferred: fact.inferred,
+        confidence: fact.confidence,
+        evidence: fact.evidence
+      })
+    })
+  })
+
+  return {
+    nodes: Array.from(nodes.values()),
+    links: Array.from(links.values()),
+    stats: {
+      nodes: nodes.size,
+      links: links.size
+    }
+  }
+})
+
+const kgGraphStats = computed(() => kgGraphPayload.value.stats)
+
 const filteredReasoningFacts = computed(() => {
   const keyword = String(reasoningSearchText.value || '').trim().toLowerCase()
   if (!keyword) return reasoningFacts.value
@@ -732,6 +1126,57 @@ const semanticsModeLabel = (value) => {
 }
 
 const predicateLabel = (value) => PREDICATE_LABELS[value] || value || '-'
+
+const nodeTypeLabel = (value) => KG_NODE_TYPE_LABELS[value] || value || '-'
+
+const kgNodeKey = (type, id) => `${type || 'unknown'}:${id || ''}`
+
+const kgGraphCategory = (type) => KG_GRAPH_CATEGORY_BY_TYPE[type] || '其他'
+
+const kgGraphNodeSize = (node) => {
+  if (node?.node_type === 'role') return 44
+  if (node?.node_type === 'app') return 38
+  if (node?.node_type === 'table') return 36
+  if (node?.node_type === 'column') return node?.is_sensitive ? 34 : 28
+  return 30
+}
+
+const addKgGraphNode = (map, type, id, label, extra = {}) => {
+  if (!type || !id) return null
+  const key = kgNodeKey(type, id)
+  const existing = map.get(key) || {}
+  const next = {
+    id: key,
+    name: label || existing.name || id,
+    rawType: type,
+    rawId: id,
+    category: kgGraphCategory(type),
+    symbolSize: Math.max(existing.symbolSize || 0, kgGraphNodeSize({ node_type: type, ...extra })),
+    itemStyle: {
+      color: extra.is_sensitive ? '#d9475f' : (KG_GRAPH_NODE_COLORS[type] || '#607d8b')
+    },
+    label: {
+      show: true,
+      formatter: (value) => {
+        const name = String(value?.data?.name || '')
+        return name.length > 18 ? `${name.slice(0, 17)}...` : name
+      }
+    },
+    tooltip: {
+      formatter: `${nodeTypeLabel(type)}:${id}<br/>${label || id}`
+    },
+    ...existing,
+    ...extra
+  }
+  map.set(key, next)
+  return next
+}
+
+const kgEdgeKey = (edge) => {
+  if (edge?.edge_id != null) return `edge:${edge.edge_id}`
+  if (edge?.id != null) return `edge:${edge.id}`
+  return `${edge.source}|${edge.predicate}|${edge.target}`
+}
 
 const cleanDisplayText = (value) => {
   const text = String(value || '').trim()
@@ -947,7 +1392,7 @@ const refreshReasoning = async () => {
         'Content-Profile': 'public'
       }
     })
-    await Promise.all([loadReasoning(), loadReasoningInsights()])
+    await Promise.all([loadReasoning(), loadReasoningInsights(), loadKgNodes()])
     ElMessage.success('推理刷新完成')
   } catch {
     ElMessage.error('刷新推理失败')
@@ -982,6 +1427,263 @@ const explainRoleAccess = async (silent = false) => {
   } finally {
     roleExplainLoading.value = false
   }
+}
+
+const selectKgNode = async (row, options = {}) => {
+  if (!row) return
+  kgSelectedNode.value = row
+  kgSelectedEdge.value = null
+  if (!kgPathTargetId.value && row.node_type !== kgPathTargetType.value) {
+    kgPathTargetType.value = row.node_type === 'role' ? 'table' : row.node_type
+  }
+  if (options.loadNeighbors !== false) {
+    await loadKgNeighbors(true)
+  }
+}
+
+const loadKgNodes = async () => {
+  kgLoading.value = true
+  try {
+    const rows = await request({
+      url: '/rpc/search_ontology_kg_nodes',
+      method: 'post',
+      data: {
+        p_query: String(kgSearchText.value || '').trim() || null,
+        p_node_type: kgNodeType.value || null,
+        p_limit: 50
+      },
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
+      }
+    })
+    kgNodes.value = Array.isArray(rows) ? rows : []
+    const currentKey = kgSelectedNode.value
+      ? `${kgSelectedNode.value.node_type}:${kgSelectedNode.value.node_id}`
+      : ''
+    const nextSelected = kgNodes.value.find((row) => `${row.node_type}:${row.node_id}` === currentKey) || kgNodes.value[0] || null
+    if (nextSelected) {
+      await selectKgNode(nextSelected, { loadNeighbors: true })
+    } else {
+      kgSelectedNode.value = null
+      kgNeighbors.value = []
+      kgPathRows.value = []
+    }
+  } catch {
+    ElMessage.error('查询知识图谱节点失败')
+  } finally {
+    kgLoading.value = false
+  }
+}
+
+const loadKgNeighbors = async (silent = false) => {
+  const node = kgSelectedNode.value
+  if (!node?.node_type || !node?.node_id) {
+    if (!silent) ElMessage.warning('请先选择节点')
+    return
+  }
+  kgNeighborLoading.value = true
+  try {
+    const rows = await request({
+      url: '/rpc/query_ontology_kg_neighbors',
+      method: 'post',
+      data: {
+        p_node_type: node.node_type,
+        p_node_id: node.node_id,
+        p_direction: kgDirection.value,
+        p_max_depth: Number(kgDepth.value || 1),
+        p_limit: 80,
+        p_predicate: kgPredicate.value || null
+      },
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
+      }
+    })
+    kgNeighbors.value = Array.isArray(rows) ? rows : []
+    const target = kgNeighbors.value.find((row) => ['app', 'table', 'column', 'permission', 'role'].includes(row.to_type))
+    if (target) {
+      kgPathTargetType.value = target.to_type
+      kgPathTargetId.value = target.to_id
+    }
+  } catch {
+    if (!silent) ElMessage.error('展开知识图谱邻域失败')
+  } finally {
+    kgNeighborLoading.value = false
+  }
+}
+
+const selectKgNeighbor = (row) => {
+  if (!row?.to_type || !row?.to_id) return
+  kgPathTargetType.value = row.to_type
+  kgPathTargetId.value = row.to_id
+}
+
+const findKgPaths = async () => {
+  const node = kgSelectedNode.value
+  const targetId = String(kgPathTargetId.value || '').trim()
+  if (!node?.node_type || !node?.node_id) {
+    ElMessage.warning('请先选择起点节点')
+    return
+  }
+  if (!targetId) {
+    ElMessage.warning('请填写目标节点标识')
+    return
+  }
+  kgPathLoading.value = true
+  try {
+    const rows = await request({
+      url: '/rpc/find_ontology_kg_paths',
+      method: 'post',
+      data: {
+        p_source_type: node.node_type,
+        p_source_id: node.node_id,
+        p_target_type: kgPathTargetType.value,
+        p_target_id: targetId,
+        p_max_depth: Number(kgPathDepth.value || 2),
+        p_direction: kgPathDirection.value,
+        p_limit: 20
+      },
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
+      }
+    })
+    kgPathRows.value = Array.isArray(rows) ? rows : []
+  } catch {
+    ElMessage.error('查询知识图谱路径失败')
+  } finally {
+    kgPathLoading.value = false
+  }
+}
+
+const loadKgEcharts = async () => {
+  kgEchartsModulePromise ||= import('echarts')
+  return kgEchartsModulePromise
+}
+
+const formatKgTooltip = (params) => {
+  if (params.dataType === 'edge') {
+    const raw = params.data?.raw || {}
+    return [
+      `${raw.from || ''} -> ${raw.to || ''}`,
+      predicateLabel(raw.predicate),
+      raw.rule_name || raw.inference_rule || ''
+    ].filter(Boolean).join('<br/>')
+  }
+  const data = params.data || {}
+  return [
+    `${nodeTypeLabel(data.rawType)}:${data.rawId}`,
+    data.name
+  ].filter(Boolean).join('<br/>')
+}
+
+const renderKgGraph = async () => {
+  await nextTick()
+  const host = kgGraphRef.value
+  if (!host) return
+  const payload = kgGraphPayload.value
+  const echarts = await loadKgEcharts()
+  if (!kgChart) {
+    kgChart = echarts.init(host)
+  }
+  if (!payload.stats.nodes) {
+    kgChart.clear()
+    return
+  }
+  kgChart.off('click')
+  kgChart.on('click', (params) => {
+    if (params.dataType === 'edge') {
+      kgSelectedEdge.value = params.data?.raw || null
+      return
+    }
+    if (params.dataType === 'node') {
+      const data = params.data || {}
+      if (data.rawType && data.rawId) {
+        kgPathTargetType.value = data.rawType
+        kgPathTargetId.value = data.rawId
+        kgSelectedEdge.value = null
+      }
+    }
+  })
+  kgChart.setOption({
+    color: Object.values(KG_GRAPH_NODE_COLORS),
+    tooltip: {
+      trigger: 'item',
+      confine: true,
+      formatter: formatKgTooltip
+    },
+    legend: {
+      top: 0,
+      right: 0,
+      itemWidth: 10,
+      itemHeight: 10,
+      textStyle: {
+        color: '#606266',
+        fontSize: 11
+      },
+      data: KG_GRAPH_CATEGORIES.map((item) => item.name)
+    },
+    series: [
+      {
+        type: 'graph',
+        layout: 'force',
+        top: 28,
+        bottom: 8,
+        left: 8,
+        right: 8,
+        roam: true,
+        draggable: true,
+        data: payload.nodes,
+        links: payload.links,
+        categories: KG_GRAPH_CATEGORIES,
+        edgeSymbol: ['none', 'arrow'],
+        edgeSymbolSize: 8,
+        label: {
+          color: '#303133',
+          fontSize: 11
+        },
+        edgeLabel: {
+          show: false,
+          fontSize: 10,
+          formatter: (value) => predicateLabel(value?.data?.predicate)
+        },
+        force: {
+          repulsion: 230,
+          edgeLength: [82, 160],
+          gravity: 0.06,
+          friction: 0.42
+        },
+        emphasis: {
+          focus: 'adjacency',
+          lineStyle: {
+            width: 3,
+            opacity: 0.95
+          },
+          edgeLabel: {
+            show: true
+          }
+        }
+      }
+    ]
+  }, true)
+  kgChart.resize()
+}
+
+const resizeKgGraph = () => {
+  if (kgChart) {
+    kgChart.resize()
+    return
+  }
+  void renderKgGraph()
+}
+
+const bindKgGraphResizeObserver = () => {
+  if (typeof ResizeObserver === 'undefined' || !kgGraphRef.value) return
+  kgGraphResizeObserver = new ResizeObserver(() => {
+    resizeKgGraph()
+  })
+  kgGraphResizeObserver.observe(kgGraphRef.value)
 }
 
 const explainPath = async () => {
@@ -1113,7 +1815,7 @@ const reload = async () => {
 }
 
 const reloadAll = async () => {
-  await Promise.all([reload(), loadReasoning(), loadReasoningInsights()])
+  await Promise.all([reload(), loadReasoning(), loadReasoningInsights(), loadKgNodes()])
 }
 
 const goBack = () => {
@@ -1128,15 +1830,31 @@ watch(columnTablesForDisplay, (tables) => {
   ensureColumnSemanticsLoaded(tables)
 }, { immediate: true })
 
+watch(kgGraphPayload, () => {
+  void renderKgGraph()
+})
+
 onMounted(() => {
   reloadAll()
-  nextTick(() => bindGraphResizeObserver())
+  nextTick(() => {
+    bindGraphResizeObserver()
+    bindKgGraphResizeObserver()
+    void renderKgGraph()
+  })
 })
 
 onBeforeUnmount(() => {
   if (graphResizeObserver) {
     graphResizeObserver.disconnect()
     graphResizeObserver = null
+  }
+  if (kgGraphResizeObserver) {
+    kgGraphResizeObserver.disconnect()
+    kgGraphResizeObserver = null
+  }
+  if (kgChart) {
+    kgChart.dispose()
+    kgChart = null
   }
 })
 </script>
@@ -1301,6 +2019,201 @@ onBeforeUnmount(() => {
   border: 1px solid var(--el-border-color-light);
   background: var(--el-fill-color-extra-light);
   padding: 10px;
+}
+
+.kg-panel {
+  margin-top: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-blank);
+  padding: 10px;
+}
+
+.kg-header,
+.kg-toolbar,
+.kg-subtoolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kg-header {
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.kg-toolbar {
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-extra-light);
+}
+
+.kg-search {
+  width: min(340px, 100%);
+}
+
+.kg-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.55fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.kg-node-pane,
+.kg-detail-pane {
+  min-width: 0;
+}
+
+.kg-node-title,
+.kg-selected-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.kg-node-title span,
+.kg-selected-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kg-selected {
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-extra-light);
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.kg-selected-title {
+  justify-content: space-between;
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.kg-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.kg-metric {
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-blank);
+  padding: 7px 8px;
+}
+
+.kg-metric span {
+  display: block;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.kg-metric strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--el-text-color-primary);
+  font-size: 17px;
+  line-height: 1;
+  word-break: break-all;
+}
+
+.kg-tabs {
+  margin-top: 4px;
+}
+
+.kg-graph-panel {
+  margin: 8px 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-blank);
+  padding: 8px;
+}
+
+.kg-graph-header,
+.kg-graph-stats,
+.kg-edge-proof-title,
+.kg-edge-proof-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kg-graph-header {
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.kg-graph-title {
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.kg-graph-canvas {
+  width: 100%;
+  height: 320px;
+  min-height: 280px;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--el-border-color-lighter) 45%, transparent) 1px, transparent 1px),
+    linear-gradient(0deg, color-mix(in srgb, var(--el-border-color-lighter) 45%, transparent) 1px, transparent 1px),
+    var(--el-fill-color-extra-light);
+  background-size: 28px 28px;
+}
+
+.kg-edge-proof {
+  margin-top: 8px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 18%, var(--el-border-color-light));
+  background: color-mix(in srgb, var(--el-color-primary-light-9) 42%, var(--el-fill-color-blank));
+  padding: 8px;
+}
+
+.kg-edge-proof-title {
+  justify-content: space-between;
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.kg-edge-proof-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kg-edge-proof-meta {
+  margin-top: 5px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.kg-subtoolbar {
+  margin-bottom: 8px;
+}
+
+.kg-path-target {
+  width: min(300px, 100%);
+}
+
+.kg-empty-tip {
+  margin-top: 8px;
 }
 
 .insight-panel {
@@ -1508,8 +2421,13 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1200px) {
   .wb-metric-row,
-  .reasoning-metrics {
+  .reasoning-metrics,
+  .insight-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kg-layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1520,12 +2438,19 @@ onBeforeUnmount(() => {
   }
 
   .wb-metric-row,
-  .reasoning-metrics {
+  .reasoning-metrics,
+  .insight-metrics,
+  .kg-metrics {
     grid-template-columns: 1fr;
   }
 
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .kg-graph-canvas {
+    height: 260px;
+    min-height: 240px;
   }
 }
 </style>

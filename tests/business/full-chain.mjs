@@ -17,6 +17,11 @@ const REQUEST_ATTEMPTS = normalizePositiveInteger(
   IS_REMOTE_TARGET ? 3 : 1,
   { min: 1, max: 8 }
 )
+const LOGIN_ATTEMPTS = normalizePositiveInteger(
+  process.env.EISCORE_CHAIN_LOGIN_ATTEMPTS,
+  IS_REMOTE_TARGET ? 5 : 2,
+  { min: 1, max: 8 }
+)
 const DATA_TABLE = process.env.EISCORE_CHAIN_TABLE || 'eiscore_chain_test_records'
 const DATA_TABLE_QUALIFIED = `app_data.${DATA_TABLE}`
 const http = createHttpClient({
@@ -86,6 +91,23 @@ async function api(path, options = {}) {
     throw new Error(`${options.method || 'GET'} ${path} -> ${out.status}: ${String(detail || '').slice(0, 300)}`)
   }
   return out
+}
+
+async function loginApi() {
+  let lastError = null
+  for (let attempt = 1; attempt <= LOGIN_ATTEMPTS; attempt += 1) {
+    try {
+      return await api('/api/rpc/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: { username: USERNAME, password: PASSWORD }
+      })
+    } catch (error) {
+      lastError = error
+      if (attempt < LOGIN_ATTEMPTS) await sleep(500 * attempt)
+    }
+  }
+  throw new Error(`login failed after ${LOGIN_ATTEMPTS} attempts: ${lastError?.message || lastError || 'unknown error'}`)
 }
 
 async function step(name, fn) {
@@ -194,11 +216,7 @@ async function cleanupArtifacts() {
 }
 
 await step('01 login returns JWT token', async () => {
-  const out = await api('/api/rpc/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: { username: USERNAME, password: PASSWORD }
-  })
+  const out = await loginApi()
   token = String(out.data?.token || '')
   ensure(token.length > 100, 'login response should include a JWT token')
   return { detail: `token_len=${token.length}`, statusCode: out.status }
@@ -326,6 +344,54 @@ await step('02g ontology role access explanation is callable', async () => {
   ensure(out.data.length > 0, 'role access explanation should return rows')
   ensure(out.data.some((row) => ['acl:canAccessApp', 'acl:canAccessTable', 'acl:canOperateTable', 'risk:canAccessSensitiveColumn'].includes(row.predicate)), 'role access explanation should include access paths')
   return { detail: `role=${ontologyInsightRoleCode}, paths=${out.data.length}`, statusCode: out.status }
+})
+
+await step('02h ontology graph query APIs expose nodes, neighbors, and paths', async () => {
+  const roleCode = ontologyInsightRoleCode || 'super_admin'
+  const nodeOut = await api(`/api/v_ontology_kg_nodes?node_type=eq.role&node_id=eq.${filterValue(roleCode)}&select=node_type,node_id,node_label,total_degree,outgoing_edges,incoming_edges,predicate_count&limit=1`, {
+    headers: profileHeaders('public')
+  })
+  const node = rowOf(nodeOut.data)
+  ensure(node, 'ontology KG node view should expose role nodes')
+  ensure(Number(node.total_degree || 0) > 0, 'ontology KG role node should have graph degree')
+
+  const neighborOut = await api('/api/rpc/query_ontology_kg_neighbors', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: {
+      p_node_type: 'role',
+      p_node_id: roleCode,
+      p_direction: 'outgoing',
+      p_max_depth: 1,
+      p_limit: 30
+    }
+  })
+  ensure(Array.isArray(neighborOut.data), 'KG neighbor query response should be an array')
+  ensure(neighborOut.data.length > 0, 'KG neighbor query should return outgoing role facts')
+  const target = neighborOut.data.find((row) => ['app', 'table', 'column'].includes(row.to_type))
+  ensure(target?.to_type && target?.to_id, 'KG neighbor query should expose a reachable app/table/column target')
+
+  const pathOut = await api('/api/rpc/find_ontology_kg_paths', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: {
+      p_source_type: 'role',
+      p_source_id: roleCode,
+      p_target_type: target.to_type,
+      p_target_id: target.to_id,
+      p_direction: 'outgoing',
+      p_max_depth: 2,
+      p_limit: 5
+    }
+  })
+  ensure(Array.isArray(pathOut.data), 'KG path query response should be an array')
+  ensure(pathOut.data.length > 0, 'KG path query should return at least one path')
+  ensure(pathOut.data.some((row) => Array.isArray(row.path_edges) && row.path_edges.length > 0), 'KG path query should expose path edge ids')
+
+  return {
+    detail: `node=${roleCode}, degree=${node.total_degree}, neighbors=${neighborOut.data.length}, target=${target.to_type}:${target.to_id}, paths=${pathOut.data.length}`,
+    statusCode: pathOut.status
+  }
 })
 
 await step('03 HR archive baseline is readable', async () => {

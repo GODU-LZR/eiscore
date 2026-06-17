@@ -8,7 +8,7 @@ import { join, relative, resolve } from 'node:path'
 const repoRoot = resolve(import.meta.dirname, '../..')
 const nodeBin = process.execPath
 const scanDirs = ['scripts', 'tests']
-const explicitFiles = ['playwright.config.mjs', 'realtime/index.js']
+const explicitFiles = ['playwright.config.mjs', 'realtime/index.js', 'realtime/document-intake.js', 'realtime/document-parser.js', 'realtime/document-planner.js', 'realtime/document-entry.js', 'realtime/document-fixed-entry.js']
 const allowedExtensions = new Set(['.mjs', '.cjs'])
 
 function extensionOf(filePath) {

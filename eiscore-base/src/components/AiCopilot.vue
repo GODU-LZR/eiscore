@@ -31,30 +31,106 @@
       </div>
 
       <div class="ai-body">
-        <div class="history-sidebar" :class="{ 'show': showHistory }">
-          <div class="sidebar-header">对话历史</div>
-          <div class="session-list">
-            <div
-              v-for="sess in state.sessions"
-              :key="sess.id"
-              class="session-item"
-              :class="{ 'active': sess.id === state.currentSessionId }"
-              @click="switchSession(sess.id)"
-            >
-              <span class="session-title">{{ sess.title }}</span>
-              <el-icon class="delete-icon" @click.stop="aiBridge.deleteSession(sess.id)"><Delete /></el-icon>
+        <div
+          v-if="isEnterprise"
+          class="history-sidebar"
+          :class="{ show: showHistory }"
+        >
+          <div class="sidebar-content">
+            <el-tabs v-model="historyTab" class="sidebar-tabs">
+              <el-tab-pane label="对话" name="sessions">
+                <div class="session-list">
+                  <div
+                    v-for="sess in state.sessions"
+                    :key="sess.id"
+                    class="session-item"
+                    :class="{ active: sess.id === state.currentSessionId }"
+                    @click="switchSession(sess.id)"
+                  >
+                    <div class="session-info">
+                      <span class="session-title">{{ sess.title || '新对话' }}</span>
+                      <span class="session-time">{{ formatSessionTime(sess.updatedAt || sess.createdAt) }}</span>
+                    </div>
+                    <el-icon class="session-delete" @click.stop="aiBridge.deleteSession(sess.id)"><Delete /></el-icon>
+                  </div>
+                  <el-empty v-if="state.sessions.length === 0" description="暂无对话" :image-size="60" />
+                </div>
+              </el-tab-pane>
+
+              <el-tab-pane label="指标" name="metrics">
+                <div class="metric-list">
+                  <div
+                    v-for="domain in smartBiMetricDomains"
+                    :key="domain.key"
+                    class="metric-item"
+                    @click="runSmartBiDomain(domain)"
+                  >
+                    <div class="metric-info">
+                      <span class="metric-name">{{ domain.label }}</span>
+                      <span class="metric-desc">{{ domain.metrics.length }} 个指标 · {{ domain.charts.length }} 类图表</span>
+                    </div>
+                    <el-icon class="metric-icon"><Document /></el-icon>
+                  </div>
+                </div>
+              </el-tab-pane>
+            </el-tabs>
+          </div>
+        </div>
+
+        <div v-else class="history-sidebar worker-history-sidebar" :class="{ show: showHistory }">
+          <div class="sidebar-content">
+            <div class="sidebar-header">
+              <div>
+                <div class="sidebar-title">{{ historyTitle }}</div>
+                <div class="sidebar-count">{{ state.sessions.length }} 个会话</div>
+              </div>
+              <el-tooltip :content="isEnterprise ? '新建分析' : '新建对话'" placement="right">
+                <el-button
+                  class="sidebar-new-btn"
+                  type="primary"
+                  :icon="Plus"
+                  circle
+                  @click.stop="createSessionFromHistory"
+                />
+              </el-tooltip>
+            </div>
+            <div class="session-list">
+              <div
+                v-for="sess in state.sessions"
+                :key="sess.id"
+                class="session-item"
+                :class="{ active: sess.id === state.currentSessionId }"
+                @click="switchSession(sess.id)"
+              >
+                <div class="session-info">
+                  <span class="session-title">{{ sess.title || '新对话' }}</span>
+                  <span class="session-time">{{ formatSessionTime(sess.updatedAt || sess.createdAt) }}</span>
+                </div>
+                <el-tooltip content="删除会话" placement="top">
+                  <el-icon class="session-delete" @click.stop="aiBridge.deleteSession(sess.id)"><Delete /></el-icon>
+                </el-tooltip>
+              </div>
+              <el-empty
+                v-if="state.sessions.length === 0"
+                description="暂无对话"
+                :image-size="60"
+              >
+                <el-button type="primary" size="small" @click.stop="createSessionFromHistory">
+                  新建对话
+                </el-button>
+              </el-empty>
             </div>
           </div>
         </div>
 
-        <div class="chat-area" @click="showHistory = false">
+        <div class="chat-area" @click="handleChatAreaClick">
           <div class="messages-container" ref="messagesRef">
             <div v-if="showSmartBiWorkbench" class="smart-bi-workbench">
               <div class="smart-bi-head">
                 <div>
                   <div class="smart-bi-title">经营指标工作台</div>
                   <div class="smart-bi-meta">
-                    {{ smartBiSnapshotLoading ? '快照刷新中' : (smartBiSnapshotError || smartBiSnapshotTimeText) }}
+                    {{ smartBiSnapshotLoading ? '快照刷新中' : smartBiSnapshotStatusText }}
                   </div>
                 </div>
                 <el-button
@@ -127,7 +203,7 @@
                 <div class="bubble" v-if="shouldShowBubble(msg)">
                   <div
                     class="markdown-body"
-                    v-html="renderMarkdown(msg.content, { enableVisualBlocks: !isStreamingMessage(index) })"
+                    v-html="renderMarkdown(msg.content, { enableVisualBlocks: !isStreamingMessage(index), smartBiReport: isEnterprise && msg.role === 'assistant' })"
                   ></div>
                   <span
                     v-if="msg.role === 'assistant' && index === currentSession.messages.length - 1 && state.isStreaming"
@@ -313,6 +389,16 @@
               </div>
             </div>
 
+            <div
+              v-if="smartBiRoutePreview"
+              class="smart-bi-route-preview"
+              :data-confidence="smartBiRoutePreview.confidence"
+            >
+              <span class="route-label">范围</span>
+              <span class="route-domain">{{ smartBiRoutePreview.label }}</span>
+              <span class="route-keywords">{{ smartBiRouteKeywordText }}</span>
+            </div>
+
             <div v-if="quickActions.length" class="quick-actions">
               <el-button
                 v-for="action in quickActions"
@@ -377,9 +463,12 @@ import { ref, computed, nextTick, watch, onMounted, onUpdated, onBeforeUnmount }
 import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
 import {
+  SMART_BI_DOMAINS,
   SMART_BI_COMMON_QUESTIONS,
+  buildSmartBiContext,
   buildSmartBiReportRequest,
-  getSmartBiWorkbenchCards
+  getSmartBiWorkbenchCards,
+  routeSmartBiQuestion
 } from '@shared/smart-bi-config'
 import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -396,6 +485,7 @@ const props = defineProps({
 
 const state = aiBridge.state
 const showHistory = ref(false)
+const historyTab = ref('sessions')
 const messagesRef = ref(null)
 const lightboxChartRef = ref(null)
 const lightbox = ref({ visible: false, type: '', payload: null })
@@ -435,6 +525,7 @@ const isWorker = computed(() => props.mode === 'worker')
 const isEnterprise = computed(() => props.mode === 'enterprise')
 const isWorkerFullscreen = computed(() => isWorker.value && isFullscreen.value)
 const assistantTitle = computed(() => (isWorker.value ? '企业工作助手' : '智能 BI'))
+const historyTitle = computed(() => (isEnterprise.value ? '智能 BI 历史' : '对话历史'))
 const inputPlaceholder = computed(() => (
   isWorker.value
     ? '把数据或问题告诉我，我帮你整理成能录入系统的格式...'
@@ -456,7 +547,6 @@ const quickActions = computed(() => {
   if (!isEnterprise.value) return []
   return SMART_BI_COMMON_QUESTIONS
     .filter((item) => item.key !== 'upload')
-    .slice(0, 6)
     .map((item) => ({
       key: `smart_bi_${item.key}`,
       label: item.label,
@@ -465,6 +555,18 @@ const quickActions = computed(() => {
     }))
 })
 const smartBiWorkbenchCards = computed(() => getSmartBiWorkbenchCards(smartBiSnapshot.value || {}))
+const smartBiMetricDomains = computed(() => SMART_BI_DOMAINS)
+const smartBiRoutePreview = computed(() => {
+  if (!isEnterprise.value) return null
+  const text = String(state.inputBuffer || '').trim()
+  if (!text) return null
+  return routeSmartBiQuestion(text)
+})
+const smartBiRouteKeywordText = computed(() => {
+  const keywords = smartBiRoutePreview.value?.matchedKeywords || []
+  if (!keywords.length) return '默认总览'
+  return `命中 ${keywords.slice(0, 3).join('、')}`
+})
 const showSmartBiWorkbench = computed(() => {
   if (!isEnterprise.value || !currentSession.value) return false
   return !currentSession.value.messages.some((message) => message.role === 'user')
@@ -478,6 +580,31 @@ const smartBiSnapshotTimeText = computed(() => {
     return '快照已加载'
   }
 })
+const smartBiSnapshotStatusText = computed(() => {
+  if (smartBiSnapshotError.value) return smartBiSnapshotError.value
+  const meta = smartBiSnapshot.value?._meta
+  if (meta?.fallback) return `快照降级：${meta.error || '已使用空快照'}`
+  if (meta?.partial && Number(meta.failedSourceCount) > 0) {
+    return `快照部分加载：${meta.failedSourceCount} 个数据源读取失败`
+  }
+  return smartBiSnapshotTimeText.value
+})
+
+const buildSmartBiActionContext = (prompt = '', reportMode = 'common_question') => buildSmartBiContext(prompt, {
+  reportMode,
+  snapshot: smartBiSnapshot.value || {}
+})
+
+const formatSessionTime = (value) => {
+  if (!value) return '刚刚'
+  const time = new Date(value).getTime()
+  if (!Number.isFinite(time)) return '刚刚'
+  const diff = Date.now() - time
+  if (diff < 60 * 1000) return '刚刚'
+  if (diff < 3600 * 1000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff < 86400 * 1000) return `${Math.floor(diff / 3600000)}小时前`
+  return new Date(time).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+}
 
 const FORM_TEMPLATE_BLOCKS = ['form-template', 'form_template', 'form-schema', 'form_schema']
 const FORMULA_BLOCKS = ['formula']
@@ -501,7 +628,7 @@ const allowedHtmlTags = new Set([
   'p', 'br', 'strong', 'em', 'b', 'i', 'u', 's', 'code', 'pre', 'blockquote',
   'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
   'table', 'thead', 'tbody', 'tr', 'th', 'td',
-  'a', 'img', 'hr', 'span', 'div', 'details', 'summary'
+  'a', 'img', 'hr', 'span', 'div', 'section', 'details', 'summary'
 ])
 const allowedHtmlAttrs = {
   '*': new Set(['class', 'id']),
@@ -632,9 +759,106 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   return self.renderToken(tokens, idx, options)
 }
 
+const SMART_BI_REPORT_SECTIONS = [
+  { key: 'summary', label: '摘要', aliases: ['摘要', '经营摘要', '分析摘要', '结论', '总览'] },
+  { key: 'metrics', label: '关键指标', aliases: ['关键指标', '核心指标', '指标口径'] },
+  { key: 'charts', label: '指标图表', aliases: ['指标图表', '图表', '图表分析', '数据图表'] },
+  { key: 'risks', label: '风险提醒', aliases: ['风险提醒', '风险', '风险预警', '异常提醒'] },
+  { key: 'actions', label: '行动建议', aliases: ['行动建议', '建议', '改善建议', '下一步'] }
+]
+
+const normalizeSmartBiHeading = (value = '') => String(value || '')
+  .replace(/^#+\s*/, '')
+  .replace(/[：:]/g, '')
+  .replace(/[【】\[\]（）()]/g, '')
+  .replace(/\s+/g, '')
+  .trim()
+
+const matchSmartBiReportSection = (text = '') => {
+  const normalized = normalizeSmartBiHeading(text)
+  if (!normalized) return null
+  return SMART_BI_REPORT_SECTIONS.find((section) => (
+    section.aliases.some((alias) => {
+      const normalizedAlias = normalizeSmartBiHeading(alias)
+      return normalized === normalizedAlias || normalized.startsWith(normalizedAlias)
+    })
+  )) || null
+}
+
+const isMeaningfulSmartBiNode = (node) => {
+  if (!node) return false
+  if (node.nodeType === Node.TEXT_NODE) return Boolean(String(node.textContent || '').trim())
+  if (node.nodeType !== Node.ELEMENT_NODE) return false
+  return Boolean(String(node.textContent || '').trim()) || node.querySelector?.('.echarts-chart, .mermaid-chart, img, table')
+}
+
+const enhanceSmartBiReportHtml = (html = '') => {
+  if (!html || typeof window === 'undefined' || !window.DOMParser) return html
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(`<div class="smart-bi-report-source">${html}</div>`, 'text/html')
+  const source = doc.querySelector('.smart-bi-report-source')
+  if (!source) return html
+
+  const children = Array.from(source.childNodes || [])
+  const headingSections = children
+    .filter((node) => node.nodeType === Node.ELEMENT_NODE && /^H[1-4]$/.test(node.tagName))
+    .map((node) => matchSmartBiReportSection(node.textContent || ''))
+    .filter(Boolean)
+  if (new Set(headingSections.map((section) => section.key)).size < 2) return html
+
+  const report = doc.createElement('div')
+  report.className = 'smart-bi-report'
+  let intro = doc.createElement('div')
+  intro.className = 'smart-bi-report-intro'
+  let currentContent = intro
+
+  const appendIntroIfNeeded = () => {
+    if (!intro || !Array.from(intro.childNodes || []).some(isMeaningfulSmartBiNode)) return
+    report.appendChild(intro)
+    intro = null
+  }
+
+  children.forEach((node) => {
+    if (node.nodeType === Node.ELEMENT_NODE && /^H[1-4]$/.test(node.tagName)) {
+      const section = matchSmartBiReportSection(node.textContent || '')
+      if (section) {
+        appendIntroIfNeeded()
+        const sectionNode = doc.createElement('section')
+        sectionNode.className = `smart-bi-report-section section-${section.key}`
+        sectionNode.setAttribute('data-section', section.key)
+
+        const heading = doc.createElement('div')
+        heading.className = 'smart-bi-report-heading'
+        const badge = doc.createElement('span')
+        badge.className = 'section-badge'
+        badge.textContent = String(SMART_BI_REPORT_SECTIONS.findIndex((item) => item.key === section.key) + 1).padStart(2, '0')
+        const title = doc.createElement('span')
+        title.className = 'section-title'
+        title.textContent = section.label
+        heading.appendChild(badge)
+        heading.appendChild(title)
+
+        currentContent = doc.createElement('div')
+        currentContent.className = 'smart-bi-report-content'
+        sectionNode.appendChild(heading)
+        sectionNode.appendChild(currentContent)
+        report.appendChild(sectionNode)
+        return
+      }
+    }
+    currentContent.appendChild(node)
+  })
+
+  appendIntroIfNeeded()
+  if (!Array.from(report.childNodes || []).some(isMeaningfulSmartBiNode)) return html
+  return report.outerHTML
+}
+
 const renderMarkdown = (text, env = {}) => {
   if (!text) return ''
-  return sanitizeHtml(md.render(text, env))
+  const sanitized = sanitizeHtml(md.render(text, env))
+  if (!env?.smartBiReport) return sanitized
+  return sanitizeHtml(enhanceSmartBiReportHtml(sanitized))
 }
 
 const waitTwoFrames = () => new Promise((resolve) => {
@@ -2368,10 +2592,43 @@ onUpdated(renderCharts)
 
 const toggleHistory = () => {
   showHistory.value = !showHistory.value
+  if (showHistory.value && isEnterprise.value) {
+    historyTab.value = 'sessions'
+  }
+}
+
+const createSessionFromHistory = () => {
+  aiBridge.createNewSession()
+  historyTab.value = 'sessions'
+}
+
+const handleChatAreaClick = () => {
+  showHistory.value = false
 }
 
 const switchSession = (id) => {
   aiBridge.switchSession(id)
+  if (!isEnterprise.value) {
+    showHistory.value = false
+  }
+}
+
+const emitSmartBiHistoryState = (visible = showHistory.value) => {
+  if (typeof window === 'undefined' || !isEnterprise.value) return
+  window.dispatchEvent(new CustomEvent('eis-smart-bi-history-state', {
+    detail: { visible: Boolean(visible) }
+  }))
+}
+
+const handleSmartBiToggleHistory = () => {
+  if (!isEnterprise.value) return
+  showHistory.value = !showHistory.value
+  historyTab.value = 'sessions'
+}
+
+const handleSmartBiNewSession = () => {
+  if (!isEnterprise.value) return
+  createSessionFromHistory()
   showHistory.value = false
 }
 
@@ -2393,7 +2650,13 @@ const handleEnter = (event) => {
 const handleSend = () => {
   if (state.isLoading) return
   const text = state.inputBuffer
-  aiBridge.sendMessage(text)
+  const smartBiContext = isEnterprise.value
+    ? buildSmartBiContext(text, {
+        reportMode: 'manual_question',
+        snapshot: smartBiSnapshot.value || {}
+      })
+    : null
+  aiBridge.sendMessage(text, { smartBiContext })
 }
 
 const loadSmartBiSnapshot = async (force = false) => {
@@ -2429,6 +2692,21 @@ const runSmartBiCard = (card) => {
   })
 }
 
+const runSmartBiDomain = (domain) => {
+  if (!domain?.key) return
+  const commonQuestion = SMART_BI_COMMON_QUESTIONS.find(item => item.key === domain.key)
+  const prompt = commonQuestion?.prompt || `请分析${domain.label}经营指标，必须包含关键指标、图表、风险和建议。`
+  runQuickAction({
+    key: `smart_bi_metric_${domain.key}`,
+    label: `${domain.label}分析`,
+    prompt,
+    displayText: `${domain.label}分析`,
+    reportMode: 'metric_catalog',
+    smartBiContext: buildSmartBiActionContext(prompt, 'metric_catalog'),
+    mode: 'enterprise'
+  })
+}
+
 const runQuickAction = (action) => {
   if (state.isLoading || !action?.prompt) return
   aiBridge.setMode(action.mode || 'worker')
@@ -2440,9 +2718,12 @@ const runQuickAction = (action) => {
     if (action.allowFormula !== undefined) context.allowFormula = !!action.allowFormula
     if (action.allowFormulaOnce !== undefined) context.allowFormulaOnce = !!action.allowFormulaOnce
   }
+  const smartBiContext = isEnterprise.value
+    ? (action.smartBiContext || buildSmartBiActionContext(action.prompt, action.reportMode || 'common_question'))
+    : null
   aiBridge.sendMessage(action.displayText || action.prompt, {
     payloadText: action.prompt,
-    smartBiContext: action.smartBiContext || null
+    smartBiContext
   })
 }
 
@@ -2453,6 +2734,9 @@ const retryMessage = (index) => {
 watch(() => currentSession.value?.messages.length, scrollToBottom)
 watch(() => currentSession.value?.messages[currentSession.value?.messages.length - 1]?.content, scrollToBottom)
 watch(() => state.isOpen, (val) => { if (val) scrollToBottom() })
+watch(showHistory, (visible) => {
+  emitSmartBiHistoryState(visible)
+})
 watch(() => isWorkerFullscreen.value, () => {
   if (!state.isOpen) return
   setTimeout(() => scheduleResizeAllCharts(), 80)
@@ -2463,6 +2747,7 @@ onMounted(() => {
     isFullscreen.value = localStorage.getItem(FULLSCREEN_KEY) === '1'
   } catch {}
   aiBridge.setMode(props.mode)
+  showHistory.value = false
   if (props.autoOpen) {
     aiBridge.openWindow()
   }
@@ -2471,17 +2756,24 @@ onMounted(() => {
   }
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', scheduleResizeAllCharts)
+    window.addEventListener('eis-smart-bi-toggle-history', handleSmartBiToggleHistory)
+    window.addEventListener('eis-smart-bi-new-session', handleSmartBiNewSession)
   }
+  emitSmartBiHistoryState(false)
 })
 
 watch(() => props.mode, (val) => {
   aiBridge.setMode(val)
+  showHistory.value = false
   if (val === 'enterprise') void loadSmartBiSnapshot()
 })
 
 onBeforeUnmount(() => {
   if (typeof window !== 'undefined') {
     window.removeEventListener('resize', scheduleResizeAllCharts)
+    window.removeEventListener('eis-smart-bi-toggle-history', handleSmartBiToggleHistory)
+    window.removeEventListener('eis-smart-bi-new-session', handleSmartBiNewSession)
+    emitSmartBiHistoryState(false)
   }
   if (resizeRafId) {
     cancelAnimationFrame(resizeRafId)
@@ -2615,27 +2907,200 @@ $border-color: #e4e7ed;
 .ai-body { flex: 1; display: flex; position: relative; overflow: hidden; }
 
 .history-sidebar {
-  position: absolute; left: 0; top: 0; bottom: 0; width: 220px;
-  background: #f9fafc; border-right: 1px solid $border-color;
-  transform: translateX(-100%); transition: transform 0.3s ease; z-index: 10;
-  display: flex; flex-direction: column;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: min(260px, 82vw);
+  background: var(--el-bg-color, #fff);
+  border-right: 1px solid $border-color;
+  box-shadow: 12px 0 28px rgba(15, 23, 42, 0.08);
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  padding: 0 8px;
   &.show { transform: translateX(0); }
 
-  .sidebar-header { padding: 12px; font-weight: 600; color: #909399; font-size: 12px; }
-  .session-list { flex: 1; overflow-y: auto; padding: 0 8px; }
-  .session-item {
-    padding: 10px; margin-bottom: 4px; border-radius: 8px; cursor: pointer;
-    display: flex; justify-content: space-between; align-items: center;
-    font-size: 13px; color: #606266;
-    &:hover { background: #eef0f5; }
-    &.active { background: #ecf5ff; color: $primary-color; }
-    .session-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    .delete-icon { display: none; &:hover { color: #f56c6c; } }
-    &:hover .delete-icon { display: block; }
+  .sidebar-content { min-width: 0; height: 100%; display: flex; flex-direction: column; }
+}
+
+.worker-history-sidebar {
+  padding: 0;
+
+  .sidebar-header {
+    padding: 14px;
+    border-bottom: 1px solid $border-color;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .sidebar-title {
+    font-weight: 650;
+    color: #303133;
+    font-size: 14px;
+    line-height: 1.3;
+  }
+
+  .sidebar-count {
+    margin-top: 2px;
+    color: #909399;
+    font-size: 12px;
+  }
+
+  .sidebar-new-btn {
+    width: 28px;
+    height: 28px;
+    flex: none;
   }
 }
 
-.chat-area { flex: 1; display: flex; flex-direction: column; background: var(--ai-panel-bg); width: 100%; }
+.sidebar-tabs {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  :deep(.el-tabs__content) {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  :deep(.el-tabs__header) {
+    margin-bottom: 8px;
+  }
+}
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--el-fill-color-light, #f5f7fa);
+  }
+
+  &.active {
+    background: var(--el-color-primary-light-9, #ecf5ff);
+  }
+
+  .session-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .session-title {
+    display: block;
+    font-size: 13px;
+    color: var(--el-text-color-primary, #303133);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .session-time {
+    display: block;
+    font-size: 11px;
+    color: var(--el-text-color-placeholder, #a8abb2);
+    margin-top: 2px;
+  }
+
+  .session-delete {
+    opacity: 0;
+    color: var(--el-text-color-placeholder, #a8abb2);
+    cursor: pointer;
+    transition: opacity 0.15s;
+
+    &:hover {
+      color: var(--el-color-danger, #f56c6c);
+    }
+  }
+
+  &:hover .session-delete {
+    opacity: 1;
+  }
+}
+
+.metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+
+  &:hover {
+    background: var(--el-fill-color-light, #f5f7fa);
+  }
+
+  .metric-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .metric-name {
+    display: block;
+    font-size: 13px;
+    color: var(--el-text-color-primary, #303133);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .metric-desc {
+    display: block;
+    font-size: 11px;
+    color: var(--el-text-color-placeholder, #a8abb2);
+    margin-top: 2px;
+  }
+
+  .metric-icon {
+    color: var(--el-color-primary, #409EFF);
+    margin-left: 6px;
+  }
+}
+
+.worker-history-sidebar {
+  .session-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  :deep(.el-empty) {
+    padding: 24px 0;
+  }
+}
+
+.chat-area {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ai-panel-bg);
+  width: 100%;
+}
 
 .messages-container {
   flex: 1; overflow-y: auto; padding: 28px; display: flex; flex-direction: column; gap: 18px;
@@ -2896,6 +3361,42 @@ $border-color: #e4e7ed;
     }
   }
 
+  .smart-bi-route-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    border: 1px solid var(--el-border-color-lighter, #ebeef5);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--el-text-color-regular, #606266);
+    font-size: 12px;
+    line-height: 1.4;
+    vertical-align: top;
+
+    .route-label {
+      color: var(--el-text-color-placeholder, #a8abb2);
+    }
+
+    .route-domain {
+      font-weight: 650;
+      color: var(--el-color-primary, #409EFF);
+    }
+
+    .route-keywords {
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    &[data-confidence="low"] .route-domain {
+      color: var(--el-color-warning, #e6a23c);
+    }
+  }
+
   .input-box {
     display: flex; align-items: flex-end;
     gap: 10px; background: #f5f7fa; border-radius: 16px; padding: 10px 10px 10px 14px;
@@ -2980,6 +3481,91 @@ $border-color: #e4e7ed;
   :deep(.mermaid-chart svg) {
     max-width: 100%;
     height: auto;
+  }
+
+  :deep(.smart-bi-report) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  :deep(.smart-bi-report-intro) {
+    padding: 12px 14px;
+    border: 1px solid var(--el-border-color-lighter, #ebeef5);
+    border-radius: 8px;
+    background: var(--el-fill-color-extra-light, #fafafa);
+  }
+
+  :deep(.smart-bi-report-section) {
+    border: 1px solid var(--el-border-color-lighter, #ebeef5);
+    border-left: 4px solid var(--el-color-primary, #409EFF);
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  :deep(.smart-bi-report-section.section-risks) {
+    border-left-color: var(--el-color-warning, #e6a23c);
+  }
+
+  :deep(.smart-bi-report-section.section-actions) {
+    border-left-color: var(--el-color-success, #67c23a);
+  }
+
+  :deep(.smart-bi-report-heading) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--el-border-color-lighter, #ebeef5);
+    background: var(--el-fill-color-extra-light, #fafafa);
+  }
+
+  :deep(.section-badge) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--el-color-primary-light-9, #ecf5ff);
+    color: var(--el-color-primary, #409EFF);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  :deep(.section-title) {
+    color: var(--el-text-color-primary, #303133);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  :deep(.smart-bi-report-content) {
+    padding: 12px 14px;
+  }
+
+  :deep(.smart-bi-report-content > :last-child) {
+    margin-bottom: 0;
+  }
+
+  :deep(.smart-bi-report-content table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0;
+    font-size: 13px;
+  }
+
+  :deep(.smart-bi-report-content th),
+  :deep(.smart-bi-report-content td) {
+    border: 1px solid var(--el-border-color-lighter, #ebeef5);
+    padding: 8px 10px;
+    text-align: left;
+  }
+
+  :deep(.smart-bi-report-content th) {
+    background: var(--el-fill-color-extra-light, #fafafa);
+    color: var(--el-text-color-primary, #303133);
   }
 }
 
@@ -3186,14 +3772,26 @@ $border-color: #e4e7ed;
 .ai-copilot-container.is-dark .history-sidebar {
   background: #0b1220;
   border-right-color: #1f2937;
+  box-shadow: 12px 0 28px rgba(0, 0, 0, 0.28);
 }
 .ai-copilot-container.is-dark .history-sidebar .sidebar-header {
+  border-bottom-color: #1f2937;
+}
+.ai-copilot-container.is-dark .history-sidebar .sidebar-title,
+.ai-copilot-container.is-dark .history-sidebar .session-title,
+.ai-copilot-container.is-dark .history-sidebar .metric-name {
   color: #e5e7eb;
+}
+.ai-copilot-container.is-dark .history-sidebar .sidebar-count,
+.ai-copilot-container.is-dark .history-sidebar .session-time,
+.ai-copilot-container.is-dark .history-sidebar .metric-desc {
+  color: #94a3b8;
 }
 .ai-copilot-container.is-dark .session-item {
   color: #e5e7eb;
 }
-.ai-copilot-container.is-dark .session-item:hover {
+.ai-copilot-container.is-dark .session-item:hover,
+.ai-copilot-container.is-dark .metric-item:hover {
   background: rgba(148, 163, 184, 0.15);
 }
 .ai-copilot-container.is-dark .session-item.active {
@@ -3212,6 +3810,23 @@ $border-color: #e4e7ed;
   color: #f3f4f6;
   border: 1px solid #1f2937;
   box-shadow: none;
+}
+.ai-copilot-container.is-dark .markdown-body :deep(.smart-bi-report-intro),
+.ai-copilot-container.is-dark .markdown-body :deep(.smart-bi-report-section) {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+.ai-copilot-container.is-dark .markdown-body :deep(.smart-bi-report-heading),
+.ai-copilot-container.is-dark .markdown-body :deep(.smart-bi-report-content th) {
+  background: #111827;
+  border-color: #1f2937;
+}
+.ai-copilot-container.is-dark .markdown-body :deep(.section-title),
+.ai-copilot-container.is-dark .markdown-body :deep(.smart-bi-report-content th) {
+  color: #e5e7eb;
+}
+.ai-copilot-container.is-dark .markdown-body :deep(.smart-bi-report-content td) {
+  border-color: #1f2937;
 }
 .ai-copilot-container.is-dark .message-row.user .bubble {
   color: #ffffff;

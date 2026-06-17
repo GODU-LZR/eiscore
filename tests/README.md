@@ -40,6 +40,36 @@ Run only the engineering HTTP client regression:
 npm run test:http-client
 ```
 
+Run only the document-intake API handler regression:
+
+```bash
+npm run test:document-intake
+```
+
+Run only the document parser worker regression:
+
+```bash
+npm run test:document-parser
+```
+
+Run only the document planning worker regression:
+
+```bash
+npm run test:document-planner
+```
+
+Run only the document entry/import worker regression:
+
+```bash
+npm run test:document-entry
+```
+
+Run only the fixed-module stock-in document entry regression:
+
+```bash
+npm run test:document-fixed-entry
+```
+
 Build all frontend applications:
 
 ```bash
@@ -200,6 +230,7 @@ Defaults:
 | `EISCORE_CHAIN_TABLE` | `eiscore_chain_test_records` |
 | `EISCORE_CHAIN_KEEP_DATA` | unset |
 | `EISCORE_CHAIN_TIMEOUT_MS` | `15000` |
+| `EISCORE_CHAIN_LOGIN_ATTEMPTS` | remote targets: `5`; local targets: `2` |
 
 Example:
 
@@ -286,15 +317,32 @@ such as `libnspr4.so`, install the browser dependencies with
 - `test:http-client` verifies the shared engineering HTTP client used by remote
   smoke/business-chain tests, including timeout normalization, safe-method
   retries, and native request bodies.
+- `test:document-intake` verifies the intelligent document-intake runtime
+  handlers without a live database, including device authorization, multipart
+  metadata parsing, hash mismatch rejection, sanitized filenames, server-side
+  file size trust, duplicate upload handling, and invalid environment fallbacks.
+- `test:document-parser` verifies text, image, unsupported-file, and invalid
+  environment fallback paths in the document parsing worker without a live
+  database.
+- `test:document-planner` verifies app matching, fallback target planning,
+  column snapshot handling, and invalid environment fallbacks in the document
+  entry planning worker.
+- `test:document-entry` verifies AI-generated business record construction from
+  parsed tables/text, unmapped-field remark capture, identifier sanitization, and
+  invalid environment fallbacks before the worker writes into app data tables.
+- `test:document-fixed-entry` verifies fixed-module stock-in extraction from
+  parsed tables/text, material/warehouse validation, stock-in RPC payload
+  construction, unsupported-field remark capture, and invalid environment
+  fallbacks before the worker writes into SCM stock records.
 - `build:frontends` verifies all Vue/Vite micro-frontends compile.
 - `test:smoke` verifies login, deep-link routing, PostgREST profiles, agent health,
   AI chat, SSE, and realtime WebSocket connectivity against a running environment.
 - `test:business-chain` verifies create/read/update/delete loops and workflow
   status writeback against writable business APIs. It also checks ontology
   projections, coverage audit views, ontology reasoning summary/facts, reasoning
-  health, role access insights, table impact insights, and role access
-  explanation RPC before mutating data, so semantic-layer and inference-layer
-  gaps fail fast.
+  health, role access insights, table impact insights, role access explanation
+  RPC, and knowledge-graph node/neighbor/path query APIs before mutating data,
+  so semantic-layer and inference-layer gaps fail fast.
 - `test:e2e` verifies that the app actually renders in Chromium, catches blank
   screens in the login page, host shell, and selected micro-frontend deep links,
   and exercises daily UI clicks plus the UI business chain close-loop that

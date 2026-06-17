@@ -1,0 +1,29 @@
+<Application x:Class="EISCore.Collector.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+  <Application.Resources>
+    <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#F7F8FA" />
+    <SolidColorBrush x:Key="BorderBrushMuted" Color="#D7DCE2" />
+    <SolidColorBrush x:Key="PrimaryBrush" Color="#2563EB" />
+    <Style TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#1F2937" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Margin" Value="0,4,0,10" />
+      <Setter Property="Padding" Value="8,4" />
+    </Style>
+    <Style TargetType="PasswordBox">
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Margin" Value="0,4,0,10" />
+      <Setter Property="Padding" Value="8,4" />
+    </Style>
+    <Style TargetType="Button">
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="Padding" Value="12,4" />
+      <Setter Property="Margin" Value="0,4,8,4" />
+    </Style>
+  </Application.Resources>
+</Application>

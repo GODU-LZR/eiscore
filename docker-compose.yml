@@ -96,6 +96,7 @@ services:
       - ./eiscore-materials:/workspace/eiscore-materials
       - ./eiscore-apps:/workspace/eiscore-apps
       - ./eiscore-equipment:/workspace/eiscore-equipment
+      - document_intake_data:/app/data/document-intake
     depends_on:
       - db
 
@@ -144,3 +145,4 @@ volumes:
   code_server_tmp:
   code_server_run:
   code_server_home:
+  document_intake_data:

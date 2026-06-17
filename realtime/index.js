@@ -14,6 +14,11 @@ const { AgentConversation, FileWatcher } = require('./agent-core');
 const { WorkflowEngine } = require('./workflow-engine');
 const { TwinEngine } = require('./twin-engine');
 const { createTwinTools, buildTwinSystemPrompt, createPersistence } = require('./twin-tools');
+const { createDocumentIntakeHandlers } = require('./document-intake');
+const { createDocumentParseWorker } = require('./document-parser');
+const { createDocumentPlanWorker } = require('./document-planner');
+const { createDocumentEntryWorker } = require('./document-entry');
+const { createDocumentFixedEntryWorker } = require('./document-fixed-entry');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -778,6 +783,15 @@ const readJsonBody = (req, maxBytes = 25 * 1024 * 1024) => {
   });
 };
 
+const documentIntakeHandlers = createDocumentIntakeHandlers({
+  sendJson,
+  readJsonBody
+});
+const documentParseWorker = createDocumentParseWorker({ log: console });
+const documentPlanWorker = createDocumentPlanWorker({ log: console });
+const documentEntryWorker = createDocumentEntryWorker({ log: console });
+const documentFixedEntryWorker = createDocumentFixedEntryWorker({ log: console });
+
 const normalizeAiText = (value) => {
   if (!value) return '';
   if (typeof value === 'string') return value.trim();
@@ -1269,10 +1283,22 @@ const buildSmartBiPromptBlock = (smartBi, latestUserText = '') => {
   const selectedCardBlock = selectedCard
     ? `\n\n【当前智能 BI 指标卡】\n- 卡片：${selectedCard.label || route.label || '经营总览'}\n- 业务说明：${selectedCard.desc || ''}\n- 主指标：${selectedCard.metricLabel || '核心指标'} = ${selectedCard.metricValue || '--'}\n- 辅助指标：${selectedCard.subLabel || '辅助指标'} = ${selectedCard.subValue || '--'}\n- 风险指标：${selectedCard.riskLabel || '风险指标'} = ${selectedCard.riskValue || '--'}\n- 风险状态：${selectedCard.riskStatusLabel || '--'}（${selectedCard.riskLevel || 'auto'}）\n- 风险原因：${selectedCard.riskReason || '暂无'}\n- 指标口径：${selectedCard.metricDefinition || '按系统当前业务快照统计'}\n- 默认图表：${selectedCard.chartTemplate || '按业务场景生成结构/趋势图'}\n- 负责方向：${selectedCard.owner || '业务负责人'}`
     : '';
+  const snapshotExcerpt = typeof smartBi?.snapshotExcerpt === 'string' && smartBi.snapshotExcerpt.trim()
+    ? smartBi.snapshotExcerpt.trim()
+    : '';
+  const snapshotExcerptBlock = snapshotExcerpt
+    ? `\n\n【当前前端快照摘要】\n${snapshotExcerpt.slice(0, 5000)}`
+    : '';
   const reportModeLine = smartBi?.reportMode === 'workbench_card'
     ? '\n当前请求来自智能 BI 工作台指标卡点击。请按标准 BI 报告输出，不要只回答一句话。'
-    : '';
-  return `\n\n【智能 BI 指标目录与问题路由】\n当前问题路由：${route.label || '经营总览'}（${route.key || 'overview'}，置信度：${route.confidence || 'auto'}）。${route.matchedKeywords?.length ? `命中关键词：${route.matchedKeywords.join('、')}。` : ''}${reportModeLine}\n内置指标目录：\n${catalogLines}${selectedCardBlock}\n\n【固定指标口径/图表模板/风险阈值】\n${metricLines}\n标准输出模板：每次回答必须稳定包含“关键指标、指标图表、风险提醒、行动建议”。关键指标要说明口径和值；指标图表优先按默认图表模板输出 ECharts JSON；风险要按阈值和业务影响分级并指出影响对象；建议要包含负责方向、时间节点和目标。`;
+    : smartBi?.reportMode === 'manual_question'
+      ? '\n当前请求来自用户自然语言提问。请按当前问题路由自动选择指标，并输出标准 BI 报告。'
+      : smartBi?.reportMode === 'metric_catalog'
+        ? '\n当前请求来自智能 BI 指标目录。请围绕当前领域的固定指标、口径、图表和风险阈值输出标准 BI 报告。'
+        : smartBi?.reportMode === 'common_question'
+          ? '\n当前请求来自智能 BI 常用问题入口。请按预设问题路由输出标准 BI 报告。'
+          : '';
+  return `\n\n【智能 BI 指标目录与问题路由】\n当前问题路由：${route.label || '经营总览'}（${route.key || 'overview'}，置信度：${route.confidence || 'auto'}）。${route.matchedKeywords?.length ? `命中关键词：${route.matchedKeywords.join('、')}。` : ''}${reportModeLine}\n内置指标目录：\n${catalogLines}${selectedCardBlock}${snapshotExcerptBlock}\n\n【固定指标口径/图表模板/风险阈值】\n${metricLines}\n标准输出模板：每次回答必须稳定包含“关键指标、指标图表、风险提醒、行动建议”。关键指标要说明口径和值；指标图表优先按默认图表模板输出 ECharts JSON；风险要按阈值和业务影响分级并指出影响对象；建议要包含负责方向、时间节点和目标。`;
 };
 
 const buildGridAgentRuleBlock = (context) => {
@@ -3195,12 +3221,15 @@ const fetchSemanticContext = async (user) => {
 // ── 企业经营助手：业务数据快照采集 ───────────────────────────
 const fetchBusinessSnapshot = async (user) => {
   const snapshot = {};
+  const queryFailures = [];
   const safeQuery = async (label, opts) => {
     try {
       const result = await callPostgrestWithUser(user, { ...opts, timeoutMs: 5000 });
       return result?.data;
     } catch (e) {
-      console.warn(`[biz-snapshot] ${label} failed:`, e?.message || e);
+      const message = String(e?.message || e || 'unknown error').slice(0, 300);
+      queryFailures.push({ label, message });
+      console.warn(`[biz-snapshot] ${label} failed:`, message);
       return null;
     }
   };
@@ -3541,29 +3570,57 @@ const fetchBusinessSnapshot = async (user) => {
   }
 
   snapshot.snapshotTime = new Date().toISOString();
+  snapshot._meta = {
+    partial: queryFailures.length > 0,
+    failedSourceCount: queryFailures.length,
+    failedSources: queryFailures.slice(0, 12)
+  };
 
   // 输出快照摘要日志（方便调试）
-  const keys = Object.keys(snapshot).filter(k => k !== 'snapshotTime');
+  const keys = Object.keys(snapshot).filter(k => k !== 'snapshotTime' && k !== '_meta');
   const summary = keys.map(k => {
     const v = snapshot[k];
     return `${k}:${v?.total ?? (v?.totalRecords ?? '?')}`;
   }).join(', ');
-  console.log(`[biz-snapshot] user=${user?.username || '?'} => ${summary}`);
+  console.log(`[biz-snapshot] user=${user?.username || '?'} partial=${queryFailures.length > 0 ? 'yes' : 'no'} => ${summary}`);
 
   return snapshot;
+};
+
+const buildBusinessSnapshotFallback = (error) => {
+  const message = String(error?.message || error || '业务快照读取失败').slice(0, 500);
+  return {
+    snapshotTime: new Date().toISOString(),
+    _meta: {
+      partial: true,
+      fallback: true,
+      error: message,
+      failedSourceCount: 1,
+      failedSources: [{ label: 'businessSnapshot', message }]
+    }
+  };
+};
+
+const safeFetchBusinessSnapshot = async (user, source = 'biz-snapshot') => {
+  try {
+    return await fetchBusinessSnapshot(user);
+  } catch (error) {
+    console.warn(`[${source}] business snapshot fallback:`, error?.message || error);
+    return buildBusinessSnapshotFallback(error);
+  }
 };
 
 const handleAiBusinessSnapshot = async (req, res) => {
   const user = authorizeHttpRequest(req, res);
   if (!user) return;
 
-  try {
-    const snapshot = await fetchBusinessSnapshot(user);
-    sendJson(res, 200, { ok: true, snapshot });
-  } catch (error) {
-    console.error('[ai-business-snapshot] failed:', error?.message || error);
-    sendJson(res, 500, { code: 'AI_BUSINESS_SNAPSHOT_FAILED', message: error.message || 'Failed to load business snapshot' });
-  }
+  const snapshot = await safeFetchBusinessSnapshot(user, 'ai-business-snapshot');
+  const fallbackMessage = snapshot?._meta?.fallback ? snapshot._meta.error : '';
+  sendJson(res, 200, {
+    ok: !fallbackMessage,
+    snapshot,
+    ...(fallbackMessage ? { warning: fallbackMessage } : {})
+  });
 };
 
 const handleAiChat = async (req, res) => {
@@ -3598,13 +3655,9 @@ const handleAiChat = async (req, res) => {
 
     // ── 企业经营助手：自动注入业务数据快照 ──
     if (route.agentId === 'enterprise_analyst') {
-      try {
-        const snapshot = await fetchBusinessSnapshot(user);
-        if (!route.context) route.context = {};
-        route.context.businessSnapshot = snapshot;
-      } catch (snapErr) {
-        console.warn('[ai-chat] business snapshot fetch failed:', snapErr?.message || snapErr);
-      }
+      const snapshot = await safeFetchBusinessSnapshot(user, 'ai-chat');
+      if (!route.context) route.context = {};
+      route.context.businessSnapshot = snapshot;
     }
 
     const agentRuntime = resolveAgentRuntimeConfig(cfg, route.agentId);
@@ -5670,6 +5723,26 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/document-intake/devices/bind' && method === 'POST') {
+    await documentIntakeHandlers.handleBindDevice(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/devices/heartbeat' && method === 'POST') {
+    await documentIntakeHandlers.handleHeartbeat(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/assets/upload' && method === 'POST') {
+    await documentIntakeHandlers.handleUploadAsset(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/client-logs/batch' && method === 'POST') {
+    await documentIntakeHandlers.handleLogBatch(req, res);
+    return;
+  }
+
   if (pathname === '/ai/config' && method === 'GET') {
     await handleAiConfig(req, res);
     return;
@@ -6923,20 +6996,25 @@ function scheduleReconnect() {
   }, 1000);
 }
 
-function shutdown() {
+async function shutdown() {
+  if (shuttingDown) return;
   shuttingDown = true;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
   wss.clients.forEach((client) => client.close());
-  server.close(() => process.exit(0));
-  if (pgClient) {
-    pgClient.end().catch(() => process.exit(0));
-  }
-  if (workflowEngine) {
-    workflowEngine.shutdown().catch(() => process.exit(0));
-  }
+  const closeServer = new Promise((resolve) => server.close(resolve));
+  await Promise.allSettled([
+    closeServer,
+    pgClient ? pgClient.end() : Promise.resolve(),
+    workflowEngine ? workflowEngine.shutdown() : Promise.resolve(),
+    documentParseWorker ? documentParseWorker.shutdown() : Promise.resolve(),
+    documentPlanWorker ? documentPlanWorker.shutdown() : Promise.resolve(),
+    documentEntryWorker ? documentEntryWorker.shutdown() : Promise.resolve(),
+    documentFixedEntryWorker ? documentFixedEntryWorker.shutdown() : Promise.resolve()
+  ]);
+  process.exit(0);
 }
 
 process.on('SIGTERM', shutdown);
@@ -6944,6 +7022,10 @@ process.on('SIGINT', shutdown);
 
 server.listen(port, () => {
   connectPg();
+  documentParseWorker.start();
+  documentPlanWorker.start();
+  documentEntryWorker.start();
+  documentFixedEntryWorker.start();
 });
 
 wss.on('connection', (ws, req) => {

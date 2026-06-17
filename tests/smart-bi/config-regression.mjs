@@ -12,6 +12,7 @@ const smartBi = await import(moduleUrl)
 
 const {
   SMART_BI_DOMAINS,
+  SMART_BI_COMMON_QUESTIONS,
   SMART_BI_OUTPUT_SECTIONS,
   getSmartBiWorkbenchCards,
   routeSmartBiQuestion,
@@ -48,6 +49,31 @@ assert.equal(equipmentContext.metricCatalog.length, 1, 'domain context should on
 assert.equal(equipmentContext.metricCatalog[0].key, 'equipment', 'equipment context should expose equipment metrics')
 assert.equal(equipmentContext.metricDefinitions.length, 3, 'domain context should expose fixed metric definitions')
 assert.ok(equipmentContext.outputTemplate.includes('默认图表模板'), 'output template should require chart templates')
+
+const inventorySnapshotContext = buildSmartBiContext('库存风险怎么样', {
+  reportMode: 'manual_question',
+  snapshot: {
+    snapshotTime: '2026-06-16T00:00:00.000Z',
+    inventory: { totalQty: 2300, materialCount: 42, warehouseNames: ['A', 'B'] },
+    sales: { orderAmount: 128000 }
+  }
+})
+assert.equal(inventorySnapshotContext.reportMode, 'manual_question', 'manual smart BI questions should mark report mode')
+assert.equal(inventorySnapshotContext.route.key, 'inventory', 'manual smart BI questions should keep route')
+assert.equal(inventorySnapshotContext.snapshotTime, '2026-06-16T00:00:00.000Z', 'manual smart BI context should carry snapshot time')
+assert.ok(inventorySnapshotContext.snapshotExcerpt.includes('"inventory"'), 'manual smart BI context should carry routed snapshot excerpt')
+assert.ok(!inventorySnapshotContext.snapshotExcerpt.includes('"sales"'), 'manual domain context should avoid unrelated snapshot sections')
+
+const commonQuestionContext = buildSmartBiContext('销售现在怎么样？请分析销售额、订单、客户、商机、回款和应收风险，并生成图表。', {
+  reportMode: 'common_question',
+  snapshot: {
+    snapshotTime: '2026-06-16T00:00:00.000Z',
+    sales: { orderAmount: 128000, ordersTotal: 7, receivableBalance: 32000 }
+  }
+})
+assert.equal(commonQuestionContext.reportMode, 'common_question', 'common question entries should mark report mode')
+assert.equal(commonQuestionContext.route.key, 'sales', 'common question context should keep routed domain')
+assert.ok(commonQuestionContext.snapshotExcerpt.includes('"sales"'), 'common question context should carry routed snapshot excerpt')
 
 const overviewContext = buildSmartBiContext('')
 assert.equal(overviewContext.route.key, 'overview', 'empty context should route to overview')
@@ -121,5 +147,11 @@ assert.ok(metricPrompt.includes('负责方向'), 'metric prompt should include o
 const commonQuestions = getSmartBiCommonQuestions()
 assert.ok(commonQuestions.length >= 7, 'common questions should cover common BI entry points')
 assert.ok(commonQuestions.some((prompt) => prompt.includes('上传')), 'common questions should include upload analysis')
+for (const domain of SMART_BI_DOMAINS) {
+  assert.ok(
+    SMART_BI_COMMON_QUESTIONS.some((question) => question.key === domain.key),
+    `common questions should include ${domain.key} entry point`
+  )
+}
 
 console.log('PASS: smart BI config regression')
