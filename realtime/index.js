@@ -5728,6 +5728,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname === '/document-intake/devices/config' && method === 'GET') {
+    await documentIntakeHandlers.handleGetDeviceConfig(req, res);
+    return;
+  }
+
   if (pathname === '/document-intake/devices/heartbeat' && method === 'POST') {
     await documentIntakeHandlers.handleHeartbeat(req, res);
     return;

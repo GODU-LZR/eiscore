@@ -320,7 +320,9 @@ such as `libnspr4.so`, install the browser dependencies with
 - `test:document-intake` verifies the intelligent document-intake runtime
   handlers without a live database, including device authorization, multipart
   metadata parsing, hash mismatch rejection, sanitized filenames, server-side
-  file size trust, duplicate upload handling, and invalid environment fallbacks.
+  file size trust, duplicate upload handling, remote device configuration,
+  watch-folder table fallback, heartbeat configuration responses, and invalid
+  environment fallbacks.
 - `test:document-parser` verifies text, image, unsupported-file, and invalid
   environment fallback paths in the document parsing worker without a live
   database.

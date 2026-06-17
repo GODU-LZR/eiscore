@@ -27,9 +27,12 @@ const state = {
     device_name: 'Warehouse PC 01',
     default_user_id: 'u_1',
     default_username: 'operator',
-    default_role: 'warehouse'
+    default_role: 'warehouse',
+    status: 'active',
+    metadata: {}
   },
   duplicateRows: [],
+  watchFolders: [],
   clientQueries: [],
   poolQueries: [],
   assetInsertParams: [],
@@ -76,6 +79,12 @@ class FakePool {
     if (normalized.includes('from public.collector_devices')) {
       return { rows: state.authorized ? [state.device] : [] }
     }
+    if (normalized.includes('update public.collector_devices')) {
+      return { rows: [{ ...state.device, status: 'active', last_seen_at: new Date().toISOString() }] }
+    }
+    if (normalized.includes('from public.collector_watch_folders')) {
+      return { rows: state.watchFolders }
+    }
     if (normalized.includes('insert into public.client_log_events')) {
       return { rows: [] }
     }
@@ -105,6 +114,8 @@ assert.equal(state.poolOptions.port, 5432, 'invalid PGPORT env should fall back 
 function resetState() {
   state.authorized = true
   state.duplicateRows = []
+  state.watchFolders = []
+  state.device.metadata = {}
   state.clientQueries = []
   state.poolQueries = []
   state.assetInsertParams = []
@@ -189,6 +200,96 @@ try {
   const unauthorized = await call(handlers.handleHeartbeat, '{}', { authorization: 'Bearer bad-token' })
   assert.equal(unauthorized.statusCode, 401, 'heartbeat should require a valid device token')
   assert.equal(unauthorized.payload.code, 'UNAUTHORIZED_DEVICE')
+
+  resetState()
+  state.device.metadata = {
+    remote_config: {
+      version: 'cfg-v2',
+      default_user_id: 'u_remote',
+      default_username: 'remote-user',
+      default_role: '远程仓库员',
+      auto_start_enabled: true,
+      heartbeat_interval_seconds: 45,
+      watch_folders: [
+        {
+          folder_path: 'D:\\EISCore\\Inbox',
+          folder_name: '仓库收单',
+          default_user_id: 'u_folder',
+          default_role: '仓库员',
+          enabled: true
+        }
+      ],
+      upload: {
+        max_file_bytes: 10 * 1024 * 1024,
+        retry_interval_seconds: 20,
+        max_retry_count: 7,
+        allowed_extensions: ['.pdf', '.xlsx']
+      },
+      logs: {
+        batch_size: 50,
+        flush_interval_seconds: 12,
+        retention_days: 15,
+        high_priority_immediate: false
+      }
+    }
+  }
+  const remoteConfig = await call(handlers.handleGetDeviceConfig, '', { authorization: 'Bearer good-token' })
+  assert.equal(remoteConfig.statusCode, 200, 'device config endpoint should return remote config')
+  assert.equal(remoteConfig.payload.configVersion, 'cfg-v2')
+  assert.equal(remoteConfig.payload.config.defaultUserId, 'u_remote')
+  assert.equal(remoteConfig.payload.config.defaultUsername, 'remote-user')
+  assert.equal(remoteConfig.payload.config.defaultRole, '远程仓库员')
+  assert.equal(remoteConfig.payload.config.autoStartEnabled, true)
+  assert.equal(remoteConfig.payload.config.heartbeatIntervalSeconds, 45)
+  assert.equal(remoteConfig.payload.config.watchFolders[0].folderPath, 'D:\\EISCore\\Inbox')
+  assert.equal(remoteConfig.payload.config.upload.maxFileBytes, 10 * 1024 * 1024)
+  assert.deepEqual(remoteConfig.payload.config.upload.allowedExtensions, ['.pdf', '.xlsx'])
+  assert.equal(remoteConfig.payload.config.logs.batchSize, 50)
+  assert.equal(remoteConfig.payload.config.logs.highPriorityImmediate, false)
+  assert.equal(remoteConfig.payload.device.deviceTokenHash, undefined, 'device config should not leak token hashes')
+
+  resetState()
+  state.device.metadata = {
+    remote_config: {
+      autoStartEnabled: 'false',
+      logs: { highPriorityImmediate: false }
+    }
+  }
+  const camelBooleanConfig = await call(handlers.handleGetDeviceConfig, '', { authorization: 'Bearer good-token' })
+  assert.equal(camelBooleanConfig.statusCode, 200, 'device config should accept camelCase boolean flags')
+  assert.equal(camelBooleanConfig.payload.config.autoStartEnabled, false)
+  assert.equal(camelBooleanConfig.payload.config.logs.highPriorityImmediate, false)
+
+  resetState()
+  state.watchFolders = [{
+    folder_path: 'E:\\EISCore\\DefaultInbox',
+    folder_name: '默认收单',
+    default_user_id: 'u_table',
+    default_role: '表配置角色',
+    enabled: true
+  }]
+  const defaultConfig = await call(handlers.handleGetDeviceConfig, '', { authorization: 'Bearer good-token' })
+  assert.equal(defaultConfig.statusCode, 200, 'device config endpoint should work without remote metadata')
+  assert.equal(defaultConfig.payload.configVersion, 'default')
+  assert.equal(defaultConfig.payload.config.defaultUserId, 'u_1')
+  assert.equal(defaultConfig.payload.config.watchFolders.length, 1)
+  assert.equal(defaultConfig.payload.config.watchFolders[0].folderPath, 'E:\\EISCore\\DefaultInbox')
+  assert.equal(defaultConfig.payload.config.watchFolders[0].defaultUserId, 'u_table')
+  assert.equal(defaultConfig.payload.config.upload.maxFileBytes, 256 * 1024 * 1024)
+
+  resetState()
+  state.watchFolders = [{ folder_path: 'F:\\HeartbeatInbox', folder_name: '心跳目录', enabled: true }]
+  const heartbeatWithConfig = await call(
+    handlers.handleHeartbeat,
+    JSON.stringify({ clientVersion: '1.2.3' }),
+    { authorization: 'Bearer good-token' }
+  )
+  assert.equal(
+    heartbeatWithConfig.statusCode,
+    200,
+    `heartbeat should still succeed: ${JSON.stringify(heartbeatWithConfig.payload)}`
+  )
+  assert.equal(heartbeatWithConfig.payload.config.watchFolders[0].folderPath, 'F:\\HeartbeatInbox')
 
   resetState()
   const boundary = '----eiscore-test-boundary'

@@ -34,7 +34,7 @@
 | `npm run test:grid-agent` | PASS | EISGrid agent 中文查询语义、分组推断、PostgREST payload 和 prompt 格式化回归通过。 |
 | `npm run test:grid-utils` | PASS | 共享 grid 分页、时间过滤、服务端汇总和 hash URL 边界回归通过。 |
 | `npm run test:http-client` | PASS | 工程 HTTP 客户端远端重试、安全方法策略、JSON/text 解析和原生 body 透传回归通过。 |
-| `npm run test:document-intake` | PASS | AI 文档采集 handler 设备鉴权、上传校验、hash mismatch、重复上传、真实文件大小和环境兜底回归通过。 |
+| `npm run test:document-intake` | PASS | AI 文档采集 handler 设备鉴权、远程配置、采集目录表兜底、心跳配置响应、上传校验、hash mismatch、重复上传、真实文件大小和环境兜底回归通过。 |
 | `npm run test:document-parser` | PASS | AI 文档解析 worker 文本、图片、unsupported、环境兜底回归通过。 |
 | `npm run test:document-planner` | PASS | AI 文档入库计划 worker 应用匹配、fallback 计划、字段快照和环境兜底回归通过。 |
 | `npm run test:document-entry` | PASS | AI 文档入库 worker 表格/文本转业务记录、未匹配字段补充、标识符净化和环境兜底回归通过。 |
@@ -144,7 +144,8 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 2026-06-17 | `sql/patch_ai_document_intake_mvp.sql` | PASS | 远端应用 AI 文档采集 MVP schema；采集设备、资产、解析任务/结果、入库计划、业务链接、未匹配字段和客户端日志均验证 ready。补丁只授权 `web_user` 读写，不向 `web_anon` 暴露采集资产/日志读取。备份：`tests/.artifacts/eiscore_document_intake_mvp_schema_before_20260617_0010.sql`。 |
 | 2026-06-17 | `sql/patch_ontology_graph_query_v1.sql` | PASS | 远端应用知识图谱查询层，新增 `v_ontology_kg_nodes`、`search_ontology_kg_nodes(...)`、`query_ontology_kg_neighbors(...)`、`find_ontology_kg_paths(...)`；验证节点 `super_admin` 度数 354、邻域和路径查询均返回数据。 |
 | 2026-06-17 | `npm run test:business-chain:remote` | PASS | business-chain 31/31；本体语义覆盖为关系 145/145、字段 1968/1968，推理事实 3052、推理健康 healthy，新增 `02h` KG 节点/邻域/路径 API 检查。 |
-| 2026-06-17 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 31/31；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-17T14-56-12-044Z.md`。 |
+| 2026-06-17 | `npm run test:engineering:remote:api` | PASS | smoke 23/23、business-chain 31/31；最新报告：`tests/.artifacts/nanpai-engineering-suite-2026-06-17T15-10-59-197Z.md`。 |
+| 2026-06-17 | `npm run test:document-intake` | PASS | 新增采集端远程配置回归：`GET /document-intake/devices/config`、`collector_watch_folders` 表配置兜底、camelCase `false` 布尔值保真、heartbeat 配置响应拉平和设备 token hash 不外泄。 |
 | 2026-06-17 | `npm run test:document-intake && npm run test:document-parser && npm run test:unit` | PASS | AI 文档采集/解析/计划/通用入库/固定入库 worker 离线回归全部通过，并已纳入 `test:unit`。 |
 | 2026-06-17 | `npm run test:syntax` | PASS | 34 个 Node 脚本入口语法检查通过，覆盖新增 realtime document worker 与工程测试脚本。 |
 | 2026-06-17 | `npm --prefix eiscore-base run build` | PASS | 受影响 base 前端构建通过；仍有 Node 20.18.1 低于 Vite 建议 20.19+ 的环境警告。 |
@@ -193,6 +194,7 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 14. `realtime/document-intake.js`、`document-parser.js`、`document-planner.js`、`document-entry.js`、`document-fixed-entry.js` 形成 AI 文档采集到业务入库的后端 worker 链路，并通过离线 mock 回归覆盖鉴权、上传、解析、计划、字段映射、通用入库、采购入库和错误兜底。
 15. `collector-desktop/EISCore.Collector` 提供本地桌面采集器 MVP 结构；当前完成 XML 静态校验，等待具备 .NET SDK 的 Windows 环境做真实 WPF 构建。
 16. `tests/business/full-chain.mjs` 对远端登录获取 JWT 增加独立短重试，避免偶发 `fetch failed` 造成空 token 连锁失败；业务写入请求仍保持默认不重试，避免重复写入。
+17. `realtime/document-intake.js` 新增采集设备远程配置接口与 heartbeat 配置响应，支持从 `collector_watch_folders` 表下发默认采集目录，并通过回归测试防止布尔值 `false` 被默认值覆盖。
 
 ## 六、当前风险
 

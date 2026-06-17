@@ -64,6 +64,17 @@ function asJsonObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+function asJsonArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function firstDefined(...values) {
+  for (const value of values) {
+    if (value !== undefined && value !== null) return value;
+  }
+  return undefined;
+}
+
 function toUuidOrNull(value) {
   const text = normalizeText(value, 80);
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text)
@@ -223,6 +234,97 @@ async function authorizeDevice(req, sendJson, res) {
   return device;
 }
 
+function normalizeBoolean(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  const text = normalizeText(value, 20).toLowerCase();
+  if (['true', '1', 'yes', 'y', 'on', '启用', '是'].includes(text)) return true;
+  if (['false', '0', 'no', 'n', 'off', '停用', '否'].includes(text)) return false;
+  return fallback;
+}
+
+function normalizeWatchFolders(value) {
+  return asJsonArray(value).slice(0, 20).map((item) => {
+    const folder = asJsonObject(item);
+    return {
+      folderPath: normalizeText(folder.folderPath || folder.folder_path || folder.path || '', 1000),
+      folderName: normalizeText(folder.folderName || folder.folder_name || folder.name || '', 200),
+      defaultUserId: normalizeText(folder.defaultUserId || folder.default_user_id || '', 120),
+      defaultRole: normalizeText(folder.defaultRole || folder.default_role || '', 120),
+      enabled: normalizeBoolean(folder.enabled, true)
+    };
+  }).filter((item) => item.folderPath);
+}
+
+async function findWatchFoldersByDevice(deviceId) {
+  if (!deviceId) return [];
+  const result = await query(
+    `select folder_path, folder_name, default_user_id, default_role, enabled
+       from public.collector_watch_folders
+      where device_id = $1
+        and enabled is true
+      order by created_at asc, id asc
+      limit 20`,
+    [deviceId]
+  );
+  return result.rows;
+}
+
+function buildDeviceConfig(device, watchFolderRows = []) {
+  const metadata = asJsonObject(device?.metadata);
+  const remote = asJsonObject(metadata.remote_config || metadata.remoteConfig);
+  const upload = asJsonObject(remote.upload);
+  const logs = asJsonObject(remote.logs);
+  const remoteWatchFolders = normalizeWatchFolders(firstDefined(remote.watchFolders, remote.watch_folders));
+  const storedWatchFolders = normalizeWatchFolders(watchFolderRows);
+  const watchFolders = remoteWatchFolders.length ? remoteWatchFolders : storedWatchFolders;
+  const autoStartEnabled = firstDefined(remote.autoStartEnabled, remote.auto_start_enabled);
+  const highPriorityImmediate = firstDefined(logs.highPriorityImmediate, logs.high_priority_immediate);
+  const configVersion = normalizeText(
+    remote.version || metadata.remote_config_version || device.updated_at || device.last_seen_at || '',
+    120
+  ) || 'default';
+
+  return {
+    ok: true,
+    serverTime: new Date().toISOString(),
+    configVersion,
+    device: {
+      deviceId: device.id,
+      deviceCode: device.device_code || '',
+      deviceName: device.device_name || '',
+      defaultUserId: device.default_user_id || '',
+      defaultUsername: device.default_username || '',
+      defaultRole: device.default_role || '',
+      status: device.status || ''
+    },
+    config: {
+      defaultUserId: normalizeText(remote.defaultUserId || remote.default_user_id || device.default_user_id || '', 120),
+      defaultUsername: normalizeText(remote.defaultUsername || remote.default_username || device.default_username || '', 160),
+      defaultRole: normalizeText(remote.defaultRole || remote.default_role || device.default_role || '', 120),
+      autoStartEnabled: autoStartEnabled !== undefined && normalizeText(autoStartEnabled, 20)
+        ? normalizeBoolean(autoStartEnabled, false)
+        : null,
+      heartbeatIntervalSeconds: positiveInteger(remote.heartbeatIntervalSeconds || remote.heartbeat_interval_seconds, 60, { min: 15, max: 60 * 60 }),
+      watchFolders,
+      upload: {
+        maxFileBytes: positiveInteger(upload.maxFileBytes || upload.max_file_bytes, maxUploadBytes, { min: 1024 * 1024, max: 1024 * 1024 * 1024 }),
+        retryIntervalSeconds: positiveInteger(upload.retryIntervalSeconds || upload.retry_interval_seconds, 15, { min: 5, max: 60 * 60 }),
+        maxRetryCount: positiveInteger(upload.maxRetryCount || upload.max_retry_count, 10, { min: 1, max: 100 }),
+        allowedExtensions: asJsonArray(upload.allowedExtensions || upload.allowed_extensions)
+          .map((item) => normalizeText(item, 32).toLowerCase())
+          .filter(Boolean)
+          .slice(0, 100)
+      },
+      logs: {
+        batchSize: positiveInteger(logs.batchSize || logs.batch_size, 100, { min: 1, max: 1000 }),
+        flushIntervalSeconds: positiveInteger(logs.flushIntervalSeconds || logs.flush_interval_seconds, 30, { min: 5, max: 60 * 60 }),
+        retentionDays: positiveInteger(logs.retentionDays || logs.retention_days, 30, { min: 1, max: 3650 }),
+        highPriorityImmediate: normalizeBoolean(highPriorityImmediate, true)
+      }
+    }
+  };
+}
+
 async function insertClientLog(device, event) {
   const payload = asJsonObject(event);
   await query(
@@ -376,6 +478,18 @@ async function handleBindDevice(req, res, { sendJson, readJsonBody }) {
   }
 }
 
+async function handleGetDeviceConfig(req, res, { sendJson }) {
+  const device = await authorizeDevice(req, sendJson, res);
+  if (!device) return;
+
+  try {
+    const watchFolders = await findWatchFoldersByDevice(device.id);
+    sendJson(res, 200, buildDeviceConfig(device, watchFolders));
+  } catch (error) {
+    sendJson(res, 500, { code: 'DEVICE_CONFIG_FAILED', message: error.message || 'Device config failed' });
+  }
+}
+
 async function handleHeartbeat(req, res, { sendJson }) {
   const device = await authorizeDevice(req, sendJson, res);
   if (!device) return;
@@ -409,7 +523,16 @@ async function handleHeartbeat(req, res, { sendJson }) {
         }
       ]
     );
-    sendJson(res, 200, { ok: true, device: result.rows[0] || null });
+    const updatedDevice = result.rows[0] || null;
+    const watchFolders = updatedDevice ? await findWatchFoldersByDevice(device.id) : [];
+    const configPayload = updatedDevice ? buildDeviceConfig({ ...device, ...updatedDevice }, watchFolders) : null;
+    sendJson(res, 200, {
+      ok: true,
+      serverTime: configPayload?.serverTime || new Date().toISOString(),
+      configVersion: configPayload?.configVersion || 'default',
+      device: configPayload?.device || updatedDevice,
+      config: configPayload?.config || null
+    });
   } catch (error) {
     sendJson(res, 500, { code: 'HEARTBEAT_FAILED', message: error.message || 'Heartbeat failed' });
   }
@@ -591,6 +714,7 @@ async function handleLogBatch(req, res, { sendJson, readJsonBody }) {
 function createDocumentIntakeHandlers(deps) {
   return {
     handleBindDevice: (req, res) => handleBindDevice(req, res, deps),
+    handleGetDeviceConfig: (req, res) => handleGetDeviceConfig(req, res, deps),
     handleHeartbeat: (req, res) => handleHeartbeat(req, res, deps),
     handleUploadAsset: (req, res) => handleUploadAsset(req, res, deps),
     handleLogBatch: (req, res) => handleLogBatch(req, res, deps)
