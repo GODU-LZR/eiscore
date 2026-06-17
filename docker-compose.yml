@@ -24,6 +24,7 @@ services:
   api:
     image: postgrest/postgrest
     container_name: eiscore-api
+    restart: always
     ports:
       - "3000:3000"
     env_file:
