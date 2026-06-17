@@ -121,6 +121,11 @@ function Join-DownloadUrl {
     return "$base/$encoded"
 }
 
+function ConvertTo-InnoStringLiteral {
+    param([Parameter(Mandatory = $true)][string]$Value)
+    return '"' + ($Value -replace '"', '""') + '"'
+}
+
 function Test-DotnetSdk {
     if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
         return $false
@@ -180,12 +185,12 @@ function Invoke-InnoSetupBuild {
     New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
     $iscc = Find-InnoSetupCompiler -PreferredPath $CompilerPath
     $args = @(
-        "/DAppVersion=$Version",
-        "/DSourceDir=$SourceDir",
-        "/DOutputDir=$OutputDir",
-        "/DOutputBaseFilename=$OutputBaseFilename",
-        "/DAppPublisher=$Publisher",
-        "/DAppUrl=$Url",
+        "/DAppVersion=$(ConvertTo-InnoStringLiteral $Version)",
+        "/DSourceDir=$(ConvertTo-InnoStringLiteral $SourceDir)",
+        "/DOutputDir=$(ConvertTo-InnoStringLiteral $OutputDir)",
+        "/DOutputBaseFilename=$(ConvertTo-InnoStringLiteral $OutputBaseFilename)",
+        "/DAppPublisher=$(ConvertTo-InnoStringLiteral $Publisher)",
+        "/DAppUrl=$(ConvertTo-InnoStringLiteral $Url)",
         $ScriptPath
     )
 
