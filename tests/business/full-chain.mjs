@@ -44,7 +44,9 @@ const created = {
   workflowDefinitionId: null,
   workflowInstanceId: null,
   hrArchiveId: null,
-  warehouseId: ''
+  warehouseId: '',
+  stockInTransactionNo: '',
+  stockInBatchNo: ''
 }
 
 const dataColumns = [
@@ -201,6 +203,14 @@ async function cleanupArtifacts() {
   if (created.hrArchiveId) {
     const archive = await cleanupPath(`/api/archives?id=eq.${filterValue(created.hrArchiveId)}`, 'hr', 'hr archive')
     if (archive) completed.push(archive.description)
+  }
+  if (created.stockInTransactionNo) {
+    const transaction = await cleanupPath(`/api/inventory_transactions?transaction_no=eq.${filterValue(created.stockInTransactionNo)}`, 'scm', 'auto-entry stock-in transaction')
+    if (transaction) completed.push(transaction.description)
+  }
+  if (created.stockInBatchNo) {
+    const batch = await cleanupPath(`/api/inventory_batches?batch_no=eq.${filterValue(created.stockInBatchNo)}`, 'scm', 'auto-entry stock-in batch')
+    if (batch) completed.push(batch.description)
   }
   if (created.warehouseId) {
     const warehouse = await cleanupPath(`/api/warehouses?id=eq.${filterValue(created.warehouseId)}`, 'scm', 'scm warehouse')
@@ -418,6 +428,57 @@ await step('05 materials baseline is readable', async () => {
   return { detail: `rows=${out.data.length}`, statusCode: out.status }
 })
 
+// AUTO_ENTRY_CHAIN:fixed-stock-in-document-entry
+await step('05b fixed stock-in auto-entry business chain closes loop', async () => {
+  const materialsOut = await api('/api/raw_materials?select=id,batch_no,name&order=id.asc&limit=1', {
+    headers: profileHeaders('public')
+  })
+  const material = rowOf(materialsOut.data)
+  ensure(material?.id, 'stock-in chain requires at least one raw material')
+
+  const warehousesOut = await api('/api/warehouses?select=id,code,name&order=code.asc&limit=1', {
+    headers: profileHeaders('scm')
+  })
+  const warehouse = rowOf(warehousesOut.data)
+  ensure(warehouse?.id, 'stock-in chain requires at least one warehouse')
+
+  const transactionNo = `AUTO-${runId}`
+  const batchNo = `AUTO-BATCH-${runId}`
+  const remark = `AUTO_ENTRY_CHAIN:fixed-stock-in-document-entry ${runId}`
+  const stockIn = await api('/api/rpc/stock_in', {
+    method: 'POST',
+    headers: profileHeaders('scm'),
+    body: {
+      p_material_id: Number(material.id),
+      p_warehouse_id: warehouse.id,
+      p_quantity: 1,
+      p_unit: 'kg',
+      p_batch_no: batchNo,
+      p_transaction_no: transactionNo,
+      p_operator: 'auto-entry-chain',
+      p_production_date: generatedAt.slice(0, 10),
+      p_remark: remark,
+      p_io_type: '采购入库'
+    }
+  })
+  const rpcResult = stockIn.data?.result || stockIn.data
+  ensure(rpcResult?.success === true, 'stock-in RPC should return success')
+  ensure(rpcResult?.transaction_no === transactionNo, 'stock-in transaction_no should match test transaction')
+  created.stockInTransactionNo = transactionNo
+  created.stockInBatchNo = batchNo
+
+  const verify = await api(`/api/v_inventory_transactions?transaction_no=eq.${filterValue(transactionNo)}&select=transaction_no,transaction_type,io_type,material_id,batch_no,warehouse_id,quantity,unit,operator,remark&limit=1`, {
+    headers: profileHeaders('scm')
+  })
+  const row = rowOf(verify.data)
+  ensure(row?.transaction_no === transactionNo, 'stock-in transaction should be visible through inventory view')
+  ensure(String(row.batch_no || '') === batchNo, 'stock-in batch_no should be visible')
+  ensure(Number(row.quantity) === 1, 'stock-in quantity should be visible')
+  ensure(String(row.remark || '').includes('AUTO_ENTRY_CHAIN:fixed-stock-in-document-entry'), 'stock-in remark should carry auto-entry marker')
+
+  return { detail: `transaction_no=${transactionNo}, batch_no=${batchNo}`, statusCode: verify.status }
+})
+
 await step('06 create app center data app', async () => {
   const out = await api('/api/apps', {
     method: 'POST',
@@ -496,6 +557,7 @@ await step('09 ensure dynamic data app table exists', async () => {
 
 await step('10 wait for dynamic table schema cache', waitForDataTable)
 
+// AUTO_ENTRY_CHAIN:generic-app-data-document-entry
 await step('11 create data app business record', async () => {
   const out = await api(`/api/${DATA_TABLE}`, {
     method: 'POST',

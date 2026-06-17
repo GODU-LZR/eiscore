@@ -40,6 +40,12 @@ Run only the engineering HTTP client regression:
 npm run test:http-client
 ```
 
+Run the auto-entry coverage contract:
+
+```bash
+npm run test:auto-entry-coverage
+```
+
 Run only the document-intake API handler regression:
 
 ```bash
@@ -317,6 +323,11 @@ such as `libnspr4.so`, install the browser dependencies with
 - `test:http-client` verifies the shared engineering HTTP client used by remote
   smoke/business-chain tests, including timeout normalization, safe-method
   retries, and native request bodies.
+- `test:auto-entry-coverage` verifies that every automatic document-entry
+  implementation is registered with an offline regression test and an API
+  business-chain marker. New files matching `realtime/document-*-entry.js` must
+  be added to `tests/engineering/auto-entry-types.mjs` with `businessChain.required
+  = true`; otherwise `test:unit` fails.
 - `test:document-intake` verifies the intelligent document-intake runtime
   handlers without a live database, including device authorization, multipart
   metadata parsing, hash mismatch rejection, sanitized filenames, server-side
@@ -368,6 +379,27 @@ such as `libnspr4.so`, install the browser dependencies with
 - `test:engineering:remote` runs smoke, full business chain, and browser E2E as
   one repeatable remote acceptance suite. Use `test:engineering:remote:api` when
   validating backend/API behavior without the longer browser pass.
+
+## Automatic Entry Type Contract
+
+Every new automatic entry type must ship with three things in the same change:
+
+1. An implementation file under `realtime/`, for example `realtime/document-fixed-entry.js`.
+2. A deterministic offline regression under `tests/engineering/`, exposed through
+   an npm script such as `test:document-fixed-entry`.
+3. A business-chain test marker in `tests/business/full-chain.mjs`, registered in
+   `tests/engineering/auto-entry-types.mjs`.
+
+The registry currently enforces:
+
+| Auto-entry type | Offline regression | Business-chain marker |
+|---|---|---|
+| Generic app-data document entry | `npm run test:document-entry` | `AUTO_ENTRY_CHAIN:generic-app-data-document-entry` |
+| Fixed stock-in document entry | `npm run test:document-fixed-entry` | `AUTO_ENTRY_CHAIN:fixed-stock-in-document-entry` |
+
+Do not add a new automatic entry type as a UI-only or worker-only feature. It must
+prove the real business write path, verify the resulting business record through
+the API, and clean up generated artifacts.
 
 The next layer should broaden component tests around grid interaction widgets
 and expand the Chinese semantic query set with production user questions.
