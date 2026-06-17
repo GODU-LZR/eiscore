@@ -322,6 +322,55 @@
                 </div>
 
                 <div
+                  v-if="isEnterprise && msg.role === 'assistant' && getSmartBiActionInfo(msg).actions.length > 0 && !isStreamingMessage(index)"
+                  class="smart-bi-action-card"
+                >
+                  <div class="card-header">
+                    <span class="card-title">行动闭环草案</span>
+                    <span class="card-name">{{ getSmartBiActionInfo(msg).actions.length }} 项建议可转流程</span>
+                    <el-button link size="small" type="primary" @click="goWorkflowApprovalCenter">
+                      审批中心
+                    </el-button>
+                  </div>
+                  <div class="smart-bi-action-list">
+                    <div
+                      v-for="(action, actionIndex) in getSmartBiActionInfo(msg).actions"
+                      :key="`${msg.time}-${actionIndex}`"
+                      class="smart-bi-action-item"
+                    >
+                      <div class="action-main">
+                        <div class="action-title">{{ action.title }}</div>
+                        <div class="action-tags">
+                          <span>{{ action.domainLabel }}</span>
+                          <span :data-risk="action.riskLevel">{{ action.riskLabel }}</span>
+                          <span>{{ action.ownerName || action.ownerRole || '待指定负责人' }}</span>
+                        </div>
+                      </div>
+                      <div class="action-desc">{{ action.reason || action.target || action.nextStep }}</div>
+                      <div v-if="action.nextStep" class="action-next">下一步：{{ action.nextStep }}</div>
+                      <div class="card-actions">
+                        <span
+                          v-if="getSmartBiActionRuntime(msg.time, actionIndex)"
+                          class="action-status"
+                        >
+                          {{ getSmartBiActionRuntime(msg.time, actionIndex).action_no }}
+                          · {{ getSmartBiActionRuntime(msg.time, actionIndex).status || '已发起' }}
+                        </span>
+                        <el-button
+                          size="small"
+                          type="primary"
+                          :disabled="Boolean(getSmartBiActionRuntime(msg.time, actionIndex))"
+                          :loading="smartBiActionStartState[`${msg.time}-${actionIndex}`] === 'starting'"
+                          @click="startSmartBiActionWorkflow(action, msg, actionIndex)"
+                        >
+                          {{ getSmartBiActionRuntime(msg.time, actionIndex) ? '已发起闭环' : '生成流程待办' }}
+                        </el-button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div
                   v-if="msg.role === 'assistant' && getCategoryInfo(msg).data && !isStreamingMessage(index)"
                   class="import-card"
                 >
@@ -492,6 +541,8 @@ const lightbox = ref({ visible: false, type: '', payload: null })
 const smartBiSnapshot = ref(null)
 const smartBiSnapshotLoading = ref(false)
 const smartBiSnapshotError = ref('')
+const smartBiActionItems = ref([])
+const smartBiActionItemsLoading = ref(false)
 let lightboxChart = null
 let chartResizeObserver = null
 let resizeRafId = 0
@@ -611,6 +662,7 @@ const FORMULA_BLOCKS = ['formula']
 const IMPORT_BLOCKS = ['data-import', 'data_import', 'grid-import', 'grid_import']
 const BPMN_BLOCKS = ['bpmn-xml', 'bpmn_xml', 'workflow-bpmn', 'workflow_bpmn']
 const WORKFLOW_META_BLOCKS = ['workflow-meta', 'workflow_meta']
+const SMART_BI_ACTION_BLOCKS = ['smart-bi-actions', 'smart_bi_actions', 'bi-actions', 'bi_actions']
 const MATERIAL_CATEGORY_BLOCKS = [
   'materials-categories',
   'material-categories',
@@ -735,7 +787,8 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     MATERIAL_CATEGORY_BLOCKS.includes(info) ||
     IMPORT_BLOCKS.includes(info) ||
     BPMN_BLOCKS.includes(info) ||
-    WORKFLOW_META_BLOCKS.includes(info)
+    WORKFLOW_META_BLOCKS.includes(info) ||
+    SMART_BI_ACTION_BLOCKS.includes(info)
   ) {
     return ''
   }
@@ -1109,6 +1162,7 @@ const formulaApplyState = ref({})
 const importState = ref({})
 const categoryImportState = ref({})
 const workflowSaveState = ref({})
+const smartBiActionStartState = ref({})
 
 const getAuthToken = () => {
   const tokenStr = localStorage.getItem('auth_token')
@@ -1246,6 +1300,87 @@ const getWorkflowInfo = (msg) => {
   const meta = extractWorkflowMeta(msg?.content || '').meta
   return { xml, meta, error }
 }
+
+const SMART_BI_RISK_LABELS = {
+  normal: '正常',
+  focus: '关注',
+  warning: '预警',
+  critical: '严重'
+}
+
+const normalizeSmartBiActionDomain = (value) => {
+  const raw = String(value || '').trim().toLowerCase()
+  const matched = SMART_BI_DOMAINS.find((domain) => (
+    domain.key === raw || domain.label === value || domain.aliases.some((alias) => String(alias).toLowerCase() === raw)
+  ))
+  return matched?.key || raw || 'overview'
+}
+
+const getSmartBiDomainLabel = (key) => {
+  if (key === 'overview') return '经营总览'
+  return SMART_BI_DOMAINS.find((domain) => domain.key === key)?.label || key || '经营'
+}
+
+const normalizeSmartBiRiskLevel = (value) => {
+  const raw = String(value || '').trim().toLowerCase()
+  if (['critical', 'serious', '严重', '高', '高风险'].includes(raw)) return 'critical'
+  if (['warning', 'warn', '预警', '中', '中风险'].includes(raw)) return 'warning'
+  if (['focus', '关注', '低', '低风险'].includes(raw)) return 'focus'
+  return 'normal'
+}
+
+const normalizeSmartBiAction = (item, index = 0) => {
+  if (!item || typeof item !== 'object') return null
+  const domain = normalizeSmartBiActionDomain(item.domain || item.domain_key || item.module || item.scope)
+  const riskLevel = normalizeSmartBiRiskLevel(item.risk_level || item.riskLevel || item.risk || item.priority)
+  const title = String(item.title || item.name || item.action || item.suggestion || '').trim()
+    || `${getSmartBiDomainLabel(domain)}行动建议${index + 1}`
+  const ownerRole = String(item.owner_role || item.ownerRole || item.role || '').trim()
+  const ownerName = String(item.owner_name || item.ownerName || item.owner || item.responsible || '').trim()
+  const dueDays = Number(item.due_days ?? item.dueDays ?? item.days ?? '')
+  return {
+    title,
+    domain,
+    domainLabel: getSmartBiDomainLabel(domain),
+    riskLevel,
+    riskLabel: SMART_BI_RISK_LABELS[riskLevel] || '正常',
+    ownerRole,
+    ownerName,
+    dueDays: Number.isFinite(dueDays) && dueDays > 0 ? Math.floor(dueDays) : null,
+    dueAt: item.due_at || item.dueAt || '',
+    reason: String(item.reason || item.risk_reason || item.riskReason || item.problem || '').trim(),
+    target: String(item.target || item.goal || item.expected_result || item.expectedResult || '').trim(),
+    nextStep: String(item.next_step || item.nextStep || item.measure || item.todo || '').trim(),
+    businessTable: String(item.business_table || item.businessTable || item.table || '').trim(),
+    businessKey: String(item.business_key || item.businessKey || item.record_id || item.recordId || '').trim(),
+    raw: item
+  }
+}
+
+const extractSmartBiActions = (text) => {
+  if (!text) return { actions: [], error: null }
+  for (const tag of SMART_BI_ACTION_BLOCKS) {
+    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
+    const match = text.match(regex)
+    if (match && match[1]) {
+      try {
+        const raw = sanitizeJson(match[1])
+        const data = JSON.parse(raw)
+        const list = Array.isArray(data) ? data : (data.actions || data.items || data.todos || [])
+        if (!Array.isArray(list)) return { actions: [], error: 'invalid' }
+        return {
+          actions: list.map(normalizeSmartBiAction).filter(Boolean).slice(0, 5),
+          error: null
+        }
+      } catch (e) {
+        return { actions: [], error: 'parse' }
+      }
+    }
+  }
+  return { actions: [], error: null }
+}
+
+const getSmartBiActionInfo = (msg) => extractSmartBiActions(msg?.content || '')
 
 const getFormulaInfo = (msg) => extractFormula(msg?.content || '')
 const getImportInfo = (msg) => extractImportData(msg?.content || '')
@@ -1986,6 +2121,18 @@ const getWorkflowProfileHeaders = (token, prefer = '') => {
   return headers
 }
 
+const getPublicProfileHeaders = (token, prefer = '') => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Accept-Profile': 'public',
+    'Content-Profile': 'public'
+  }
+  if (prefer) headers.Prefer = prefer
+  if (token) headers.Authorization = `Bearer ${token}`
+  return headers
+}
+
 const getAppCenterProfileHeaders = (token, prefer = '') => {
   const headers = {
     'Content-Type': 'application/json',
@@ -2247,6 +2394,205 @@ const saveWorkflowDefinition = async (info, messageKey) => {
     workflowSaveState.value[messageKey] = 'error'
     ElMessage.error(e?.message || '流程保存失败')
   }
+}
+
+const SMART_BI_CLOSURE_WORKFLOW_NAME = '智能BI经营闭环流程'
+
+const stripSmartBiReportBlocks = (text = '') => String(text || '')
+  .replace(/```(?:echarts|mermaid|smart-bi-actions|smart_bi_actions|bi-actions|bi_actions|bpmn-xml|workflow-meta)[\s\S]*?```/gi, '')
+  .replace(/\s+/g, ' ')
+  .trim()
+
+const smartBiActionItemMap = computed(() => {
+  const map = {}
+  smartBiActionItems.value.forEach((item) => {
+    const messageTime = String(item?.source_message_time || '').trim()
+    const actionIndex = String(item?.source_action_index ?? '').trim()
+    if (messageTime && actionIndex) map[`${messageTime}-${actionIndex}`] = item
+  })
+  return map
+})
+
+const getSmartBiActionRuntime = (messageKey, actionIndex) => (
+  smartBiActionItemMap.value[`${messageKey}-${actionIndex}`] || null
+)
+
+const loadSmartBiActionItems = async (force = false) => {
+  if (!isEnterprise.value) return
+  if (smartBiActionItemsLoading.value) return
+  if (!force && smartBiActionItems.value.length > 0) return
+  smartBiActionItemsLoading.value = true
+  try {
+    const token = getAuthToken()
+    const res = await fetch(
+      '/api/smart_bi_action_items?select=id,action_no,title,domain,risk_level,owner_role,owner_name,due_at,status,source_session_id,source_message_time,source_action_index,workflow_definition_id,workflow_instance_id,created_at,updated_at,closed_at&order=updated_at.desc&limit=120',
+      { headers: getPublicProfileHeaders(token) }
+    )
+    if (!res.ok) {
+      smartBiActionItems.value = []
+      return
+    }
+    const data = await res.json()
+    smartBiActionItems.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    smartBiActionItems.value = []
+  } finally {
+    smartBiActionItemsLoading.value = false
+  }
+}
+
+const resolveSmartBiActionDueAt = (action) => {
+  if (action?.dueAt) {
+    const time = Date.parse(action.dueAt)
+    if (Number.isFinite(time)) return new Date(time).toISOString()
+  }
+  if (action?.dueDays) {
+    return new Date(Date.now() + action.dueDays * 86400000).toISOString()
+  }
+  return null
+}
+
+const getPreviousUserQuestion = (msg) => {
+  const messageTime = Number(msg?.time || 0)
+  const messages = currentSession.value?.messages || []
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const item = messages[i]
+    if (item?.role !== 'user') continue
+    if (messageTime && Number(item?.time || 0) > messageTime) continue
+    const text = String(item?.content || '').trim()
+    if (text) return text.slice(0, 500)
+  }
+  return ''
+}
+
+const fetchSmartBiClosureWorkflowDefinition = async (token) => {
+  const query = `/api/definitions?select=id,name,associated_table&name=eq.${encodeURIComponent(SMART_BI_CLOSURE_WORKFLOW_NAME)}&order=id.desc&limit=1`
+  const res = await fetch(query, { headers: getWorkflowProfileHeaders(token) })
+  await assertWorkflowSaveResponse(res, '读取智能BI闭环流程')
+  const data = await parseResponseJson(res)
+  return Array.isArray(data) ? (data[0] || null) : null
+}
+
+const createSmartBiActionItem = async ({ action, msg, actionIndex, token }) => {
+  const tokenUsername = getTokenUsername(token)
+  const payload = {
+    title: action.title,
+    domain: action.domain,
+    risk_level: action.riskLevel,
+    owner_role: action.ownerRole || null,
+    owner_name: action.ownerName || null,
+    due_at: resolveSmartBiActionDueAt(action),
+    status: '待发起',
+    source_session_id: state.currentSessionId || null,
+    source_message_time: Number(msg?.time || Date.now()),
+    source_action_index: actionIndex,
+    source_question: getPreviousUserQuestion(msg),
+    report_excerpt: stripSmartBiReportBlocks(msg?.content || '').slice(0, 1800),
+    suggestion: {
+      ...action.raw,
+      title: action.title,
+      domain: action.domain,
+      risk_level: action.riskLevel,
+      owner_role: action.ownerRole || '',
+      owner_name: action.ownerName || '',
+      reason: action.reason || '',
+      target: action.target || '',
+      next_step: action.nextStep || '',
+      business_table: action.businessTable || '',
+      business_key: action.businessKey || ''
+    },
+    created_by: tokenUsername || 'smart_bi'
+  }
+  const res = await fetch('/api/smart_bi_action_items', {
+    method: 'POST',
+    headers: getPublicProfileHeaders(token, 'return=representation'),
+    body: JSON.stringify(payload)
+  })
+  await assertWorkflowSaveResponse(res, '写入智能BI行动单')
+  return getFirstRow(await parseResponseJson(res))
+}
+
+const patchSmartBiActionWorkflowFields = async ({ actionItemId, definitionId, instanceId, token }) => {
+  if (!actionItemId) return
+  const res = await fetch(`/api/smart_bi_action_items?id=eq.${encodeURIComponent(actionItemId)}`, {
+    method: 'PATCH',
+    headers: getPublicProfileHeaders(token, 'return=representation'),
+    body: JSON.stringify({
+      workflow_definition_id: definitionId || null,
+      workflow_instance_id: instanceId || null,
+      status: instanceId ? '待确认' : '待发起'
+    })
+  })
+  await assertWorkflowSaveResponse(res, '回写智能BI行动单流程状态')
+}
+
+const startSmartBiActionWorkflow = async (action, msg, actionIndex) => {
+  const stateKey = `${msg?.time}-${actionIndex}`
+  if (smartBiActionStartState.value[stateKey] === 'starting') return
+  if (getSmartBiActionRuntime(msg?.time, actionIndex)) return
+  smartBiActionStartState.value[stateKey] = 'starting'
+  try {
+    const token = getAuthToken()
+    if (token && isTokenExpired(token)) {
+      ElMessage.error('登录已过期')
+      return
+    }
+
+    const definition = await fetchSmartBiClosureWorkflowDefinition(token)
+    if (!definition?.id) {
+      throw new Error('未找到“智能BI经营闭环流程”，请先执行 sql/patch_smart_bi_action_closure.sql')
+    }
+
+    const actionItem = await createSmartBiActionItem({ action, msg, actionIndex, token })
+    if (!actionItem?.id) throw new Error('行动单创建失败：未返回ID')
+
+    const variables = {
+      smart_bi_action_item_id: actionItem.id,
+      smart_bi_action: {
+        action_item_id: actionItem.id,
+        action_no: actionItem.action_no,
+        title: action.title,
+        domain: action.domain,
+        risk_level: action.riskLevel,
+        owner_role: action.ownerRole || '',
+        owner_name: action.ownerName || '',
+        reason: action.reason || '',
+        target: action.target || '',
+        next_step: action.nextStep || '',
+        source_session_id: state.currentSessionId || '',
+        source_message_time: Number(msg?.time || 0),
+        source_action_index: actionIndex
+      }
+    }
+    const res = await fetch('/api/rpc/start_workflow_instance', {
+      method: 'POST',
+      headers: getWorkflowProfileHeaders(token, 'return=representation'),
+      body: JSON.stringify({
+        p_definition_id: Number(definition.id),
+        p_business_key: String(actionItem.id),
+        p_initial_task_id: 'Task_BIReview',
+        p_variables: variables
+      })
+    })
+    await assertWorkflowSaveResponse(res, '发起智能BI闭环流程')
+    const instance = getFirstRow(await parseResponseJson(res))
+    await patchSmartBiActionWorkflowFields({
+      actionItemId: actionItem.id,
+      definitionId: definition.id,
+      instanceId: instance?.id || null,
+      token
+    })
+    await loadSmartBiActionItems(true)
+    ElMessage.success('已生成流程待办，可在审批中心处理')
+  } catch (e) {
+    ElMessage.error(e?.message || '生成流程待办失败')
+  } finally {
+    smartBiActionStartState.value[stateKey] = ''
+  }
+}
+
+const goWorkflowApprovalCenter = () => {
+  router.push('/apps/workflow-approval-center').catch(() => {})
 }
 
 const copyWorkflowXml = async (xml) => {
@@ -2789,6 +3135,7 @@ onMounted(() => {
   }
   if (isEnterprise.value) {
     void loadSmartBiSnapshot()
+    void loadSmartBiActionItems()
   }
   if (typeof window !== 'undefined') {
     window.addEventListener('resize', scheduleResizeAllCharts)
@@ -2801,7 +3148,10 @@ onMounted(() => {
 watch(() => props.mode, (val) => {
   aiBridge.setMode(val)
   showHistory.value = false
-  if (val === 'enterprise') void loadSmartBiSnapshot()
+  if (val === 'enterprise') {
+    void loadSmartBiSnapshot()
+    void loadSmartBiActionItems()
+  }
 })
 
 onBeforeUnmount(() => {
@@ -3618,7 +3968,8 @@ $border-color: #e4e7ed;
 
 .formula-card,
 .import-card,
-.workflow-card {
+.workflow-card,
+.smart-bi-action-card {
   margin-top: 8px;
   padding: 10px 12px;
   border: 1px solid $border-color;
@@ -3632,7 +3983,8 @@ $border-color: #e4e7ed;
 .form-template-card .card-header,
 .formula-card .card-header,
 .import-card .card-header,
-.workflow-card .card-header {
+.workflow-card .card-header,
+.smart-bi-action-card .card-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3643,7 +3995,8 @@ $border-color: #e4e7ed;
 .form-template-card .card-title,
 .formula-card .card-title,
 .import-card .card-title,
-.workflow-card .card-title {
+.workflow-card .card-title,
+.smart-bi-action-card .card-title {
   font-size: 12px;
   color: #909399;
 }
@@ -3651,14 +4004,17 @@ $border-color: #e4e7ed;
 .form-template-card .card-name,
 .formula-card .card-name,
 .import-card .card-name,
-.workflow-card .card-name {
+.workflow-card .card-name,
+.smart-bi-action-card .card-name {
   font-size: 13px;
+  flex: 1;
 }
 
 .form-template-card .card-meta,
 .formula-card .card-meta,
 .import-card .card-meta,
-.workflow-card .card-meta {
+.workflow-card .card-meta,
+.smart-bi-action-card .card-meta {
   font-size: 12px;
   color: #909399;
   display: flex;
@@ -3668,9 +4024,81 @@ $border-color: #e4e7ed;
 .form-template-card .card-actions,
 .formula-card .card-actions,
 .import-card .card-actions,
-.workflow-card .card-actions {
+.workflow-card .card-actions,
+.smart-bi-action-card .card-actions {
   display: flex;
+  align-items: center;
+  gap: 8px;
   justify-content: flex-end;
+}
+
+.smart-bi-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.smart-bi-action-item {
+  padding: 10px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #fafcff;
+}
+
+.smart-bi-action-item .action-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.smart-bi-action-item .action-title {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: #303133;
+  line-height: 1.5;
+}
+
+.smart-bi-action-item .action-tags {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.smart-bi-action-item .action-tags span {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f4f6f8;
+  color: #606266;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.smart-bi-action-item .action-tags span[data-risk="warning"] {
+  background: #fdf6ec;
+  color: #b88230;
+}
+
+.smart-bi-action-item .action-tags span[data-risk="critical"] {
+  background: #fef0f0;
+  color: #c45656;
+}
+
+.smart-bi-action-item .action-desc,
+.smart-bi-action-item .action-next {
+  margin-top: 6px;
+  color: #606266;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.smart-bi-action-item .action-status {
+  color: #67c23a;
+  font-size: 12px;
 }
 
 .preview-table,
@@ -3945,7 +4373,8 @@ $border-color: #e4e7ed;
 .ai-copilot-container.is-dark .form-template-card,
 .ai-copilot-container.is-dark .formula-card,
 .ai-copilot-container.is-dark .import-card,
-.ai-copilot-container.is-dark .workflow-card {
+.ai-copilot-container.is-dark .workflow-card,
+.ai-copilot-container.is-dark .smart-bi-action-card {
   background: #0f172a;
   border-color: #1f2937;
   color: #f3f4f6;
@@ -3954,11 +4383,28 @@ $border-color: #e4e7ed;
 .ai-copilot-container.is-dark .formula-card .card-title,
 .ai-copilot-container.is-dark .import-card .card-title,
 .ai-copilot-container.is-dark .workflow-card .card-title,
+.ai-copilot-container.is-dark .smart-bi-action-card .card-title,
 .ai-copilot-container.is-dark .form-template-card .card-meta,
 .ai-copilot-container.is-dark .formula-card .card-meta,
 .ai-copilot-container.is-dark .import-card .card-meta,
-.ai-copilot-container.is-dark .workflow-card .card-meta {
+.ai-copilot-container.is-dark .workflow-card .card-meta,
+.ai-copilot-container.is-dark .smart-bi-action-card .card-meta {
   color: #cbd5f5;
+}
+.ai-copilot-container.is-dark .smart-bi-action-item {
+  background: #111827;
+  border-color: #1f2937;
+}
+.ai-copilot-container.is-dark .smart-bi-action-item .action-title {
+  color: #f3f4f6;
+}
+.ai-copilot-container.is-dark .smart-bi-action-item .action-desc,
+.ai-copilot-container.is-dark .smart-bi-action-item .action-next {
+  color: #cbd5f5;
+}
+.ai-copilot-container.is-dark .smart-bi-action-item .action-tags span {
+  background: #1f2937;
+  color: #d1d5db;
 }
 .ai-copilot-container.is-dark .lightbox-content {
   background: #0f172a;

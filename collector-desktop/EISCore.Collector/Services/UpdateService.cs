@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using EISCore.Collector.Models;
 
@@ -50,7 +51,7 @@ public sealed class UpdateService
                     "info",
                     "collector_update_not_required",
                     $"当前已是最新版本：{config.ClientVersion}",
-                    metadataJson: $$"""{"latest_version":"{{manifest.Version}}"}""",
+                    metadataJson: JsonSerializer.Serialize(new { latest_version = manifest.Version }),
                     cancellationToken: cancellationToken);
                 return true;
             }
@@ -63,17 +64,26 @@ public sealed class UpdateService
                 "info",
                 "collector_update_downloaded",
                 $"采集端更新包已下载：{manifest.Version}",
-                metadataJson: $$"""{"version":"{{manifest.Version}}","installer_path":"{{EscapeJson(installerPath)}}","mandatory":{{manifest.Mandatory.ToString().ToLowerInvariant()}}}""",
+                metadataJson: JsonSerializer.Serialize(new
+                {
+                    version = manifest.Version,
+                    installer_path = installerPath,
+                    mandatory = manifest.Mandatory
+                }),
                 cancellationToken: cancellationToken);
 
-            if (config.AutoUpdateInstallEnabled || manifest.Mandatory && manifest.AutoInstall)
+            if (config.AutoUpdateInstallEnabled || (manifest.Mandatory && manifest.AutoInstall))
             {
                 StartInstaller(installerPath, manifest.InstallerArguments, config.UpdateInstallerArguments);
                 await _logService.LogAsync(
                     "info",
                     "collector_update_installer_started",
                     $"采集端更新安装器已启动：{manifest.Version}",
-                    metadataJson: $$"""{"version":"{{manifest.Version}}","installer_path":"{{EscapeJson(installerPath)}}"}""",
+                    metadataJson: JsonSerializer.Serialize(new
+                    {
+                        version = manifest.Version,
+                        installer_path = installerPath
+                    }),
                     cancellationToken: cancellationToken);
             }
 
@@ -141,11 +151,6 @@ public sealed class UpdateService
         using var sha = SHA256.Create();
         var hash = await sha.ComputeHashAsync(stream, cancellationToken);
         return Convert.ToHexString(hash).ToLowerInvariant();
-    }
-
-    private static string EscapeJson(string value)
-    {
-        return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 
     private sealed class UpdateManifest

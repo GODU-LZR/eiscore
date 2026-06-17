@@ -14,6 +14,7 @@
 8. 客户端日志先落 SQLite，本地脱敏后批量上报。
 9. 支持托盘常驻、开机自启和设备心跳。
 10. 支持桌面端未处理异常 dump 和下次启动后崩溃摘要上报。
+11. 支持远程下发自动更新策略，下载更新包、校验 SHA256，并按策略启动安装器。
 
 ## 工程位置
 
@@ -32,6 +33,7 @@ WebView2
 Microsoft.Data.Sqlite
 Windows Forms NotifyIcon
 Windows DPAPI
+Inno Setup 6（发布安装器时需要）
 ```
 
 ## 构建运行
@@ -53,6 +55,7 @@ dotnet run --project .\collector-desktop\EISCore.Collector\EISCore.Collector.csp
   collector-config.json
   collector.db
   crash-dumps\
+  updates\
 ```
 
 `collector-config.json` 中的 `encryptedDeviceToken` 使用当前 Windows 用户的 DPAPI 加密，换用户或换机器后不能直接复用。
@@ -74,6 +77,96 @@ dotnet run --project .\collector-desktop\EISCore.Collector\EISCore.Collector.csp
 ```
 
 `.json` manifest 保存异常类型、脱敏消息、脱敏堆栈、dump 路径和 dump 大小。应用下次启动时会扫描未上报 manifest，写入本地日志队列，随后通过现有日志批量上传接口上报，并生成 `.reported` 标记避免重复上报。
+
+## 自动更新
+
+桌面端会在启动、设备绑定后和心跳循环中检查远程更新策略。远程配置启用 `update.enabled` 且提供 `manifest_url` 后，客户端会按 `check_interval_hours` 周期拉取 manifest。
+
+manifest 示例：
+
+```json
+{
+  "version": "0.2.0",
+  "download_url": "https://download.example.com/eiscore/EISCore.Collector-0.2.0.msi",
+  "sha256": "64位十六进制SHA256",
+  "mandatory": false,
+  "auto_install": false,
+  "installer_arguments": "/quiet /norestart"
+}
+```
+
+客户端行为：
+
+1. `version` 高于本地 `clientVersion` 时下载更新包到 `%AppData%\EISCore\Collector\updates\`。
+2. manifest 提供 `sha256` 时必须校验通过，否则删除已下载文件并记录失败日志。
+3. 下载成功后写入 `pendingUpdateVersion` 和 `pendingUpdateInstallerPath`。
+4. 当远程配置 `update.auto_install = true`，或 manifest 同时声明 `mandatory = true` 与 `auto_install = true` 时，启动安装器。
+5. 更新检查、下载、校验和安装器启动都会写入客户端日志队列，后续通过日志批量上报。
+
+## 发布包与 manifest
+
+发布脚本位于：
+
+```text
+collector-desktop/scripts/publish-collector.ps1
+```
+
+在安装 .NET SDK 的 Windows 构建机上执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\collector-desktop\scripts\publish-collector.ps1 `
+  -Version 0.2.0 `
+  -DownloadBaseUrl https://download.example.com/eiscore/collector
+```
+
+默认会生成 zip 发布包和 manifest：
+
+```text
+collector-desktop/artifacts/
+  publish/EISCore.Collector-<version>-win-x64/
+  packages/EISCore.Collector-<version>-win-x64.zip
+  manifest/update.json
+```
+
+`update.json` 会写入版本号、下载地址、SHA256、强制更新标记、自动安装标记和安装参数。`DownloadBaseUrl` 必须是客户端可访问的绝对 URL，最终 manifest 中的 `download_url` 会自动拼上产物文件名。
+
+如果构建机安装了 Inno Setup 6，可以同时生成 EXE 安装器，并让 manifest 指向安装器：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\collector-desktop\scripts\publish-collector.ps1 `
+  -Version 0.2.0 `
+  -DownloadBaseUrl https://download.example.com/eiscore/collector `
+  -BuildInstaller `
+  -AutoInstall `
+  -InstallerArguments "/VERYSILENT /NORESTART /CLOSEAPPLICATIONS"
+```
+
+安装器模板位于：
+
+```text
+collector-desktop/installer/EISCore.Collector.iss
+```
+
+安装器默认安装到：
+
+```text
+%ProgramFiles%\EISCore\Collector
+```
+
+安装器支持桌面图标和开机自启安装任务；自动更新场景建议使用 `/VERYSILENT /NORESTART /CLOSEAPPLICATIONS`。
+
+如果已经用 WiX、Inno Setup、NSIS 或其他工具生成 MSI/EXE 安装包，也可以只为安装包生成 manifest：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\collector-desktop\scripts\publish-collector.ps1 `
+  -Version 0.2.0 `
+  -PackagePath .\collector-desktop\artifacts\installer\EISCore.Collector-0.2.0.msi `
+  -DownloadBaseUrl https://download.example.com/eiscore/collector `
+  -AutoInstall `
+  -InstallerArguments "/quiet /norestart"
+```
+
+当产物是 zip 时，脚本会生成可下载 manifest，但不会把 `auto_install` 置为 true。真正无人值守升级建议使用 MSI/EXE，并确保安装器支持静默参数。
 
 ## 服务端接口约定
 
@@ -211,6 +304,13 @@ Authorization: Bearer <device_token>
     "flush_interval_seconds": 30,
     "retention_days": 30,
     "high_priority_immediate": true
+  },
+  "update": {
+    "enabled": true,
+    "manifest_url": "https://download.example.com/eiscore/collector/update.json",
+    "check_interval_hours": 24,
+    "auto_install": false,
+    "installer_arguments": "/quiet /norestart"
   }
 }
 ```
@@ -221,6 +321,7 @@ Authorization: Bearer <device_token>
 2. 更新设备名、默认上传人、默认岗位、开机自启、心跳/上传/日志策略。
 3. 当远程下发监听目录时，替换本地监听目录并重启 watcher。
 4. 文件入队前会按 `max_file_bytes` 和 `allowed_extensions` 过滤。
+5. 更新策略变化会清空上次检查时间，使新 manifest 地址或检查周期立即生效。
 
 ### 大文件分片上传
 
@@ -349,5 +450,5 @@ DOCUMENT_FIXED_ENTRY_DEFAULT_WAREHOUSE_NAME=
 
 ## 下一步
 
-1. 增加安装包和自动更新。
+1. 在具备 .NET SDK 与 Inno Setup 的 Windows 构建机执行真实 publish/installer 验收。
 2. 继续接入质检、生产、销售等固定模块正式业务入口。

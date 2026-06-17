@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly UploadQueueStore _queueStore = new();
     private readonly ClientLogStore _logStore = new();
     private readonly ClientLogService _logService;
+    private readonly UpdateService _updateService;
     private readonly DeviceBindingService _bindingService;
     private readonly CollectorFileService _fileService;
     private readonly WebViewLogBridge _webViewLogBridge;
@@ -35,6 +36,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         _logService = new ClientLogService(_logStore);
+        _updateService = new UpdateService(_logService);
         _bindingService = new DeviceBindingService(_apiClient, _configurationService);
         _fileService = new CollectorFileService(_queueStore, _logService);
         _webViewLogBridge = new WebViewLogBridge(_logService);
@@ -77,6 +79,7 @@ public partial class MainWindow : Window
             await _webViewLogBridge.InitializeAsync(Browser);
             NavigateToConfiguredServer();
             await SyncRemoteConfigAsync();
+            await CheckForUpdatesAsync();
 
             _watchFolderService.Restart(_config);
             _uploadProcessor.Start();
@@ -113,6 +116,7 @@ public partial class MainWindow : Window
             _logService.UpdateContext(_config);
             LoadConfigToUi();
             await SyncRemoteConfigAsync();
+            await CheckForUpdatesAsync(force: true);
             _watchFolderService.Restart(_config);
             NavigateToConfiguredServer();
             await _logService.LogAsync("info", "collector_bound", "设备绑定成功。");
@@ -314,6 +318,7 @@ public partial class MainWindow : Window
         {
             await _apiClient.SendHeartbeatAsync(_config, _deviceToken);
             await SyncRemoteConfigAsync();
+            await CheckForUpdatesAsync();
             await _logProcessor.FlushAsync();
         }
         catch (Exception ex)
@@ -437,6 +442,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task CheckForUpdatesAsync(bool force = false)
+    {
+        var changed = await _updateService.CheckAsync(_config, force);
+        if (!changed) return;
+
+        await _configurationService.SaveAsync(_config);
+        _logService.UpdateContext(_config);
+    }
+
     private (bool Changed, bool WatchFoldersChanged) ApplyRemoteConfig(DeviceConfigResponse response)
     {
         var changed = false;
@@ -444,6 +458,7 @@ public partial class MainWindow : Window
         var remote = response.Config;
         remote.Upload ??= new CollectorUploadPolicy();
         remote.Logs ??= new CollectorLogPolicy();
+        remote.Update ??= new CollectorUpdatePolicy();
         remote.WatchFolders ??= new List<WatchFolderConfig>();
 
         changed |= SetIfNotEmpty(value => _config.DeviceId = value, _config.DeviceId, response.Device.DeviceId);
@@ -526,6 +541,42 @@ public partial class MainWindow : Window
         {
             _config.AutoStartEnabled = remote.AutoStartEnabled.Value;
             StartupService.SetEnabled(_config.AutoStartEnabled);
+            changed = true;
+        }
+
+        if (_config.AutoUpdateEnabled != remote.Update.Enabled)
+        {
+            _config.AutoUpdateEnabled = remote.Update.Enabled;
+            _config.LastUpdateCheckAt = null;
+            changed = true;
+        }
+
+        var updateManifestUrl = (remote.Update.ManifestUrl ?? "").Trim();
+        if (!string.Equals(_config.UpdateManifestUrl ?? "", updateManifestUrl, StringComparison.Ordinal))
+        {
+            _config.UpdateManifestUrl = updateManifestUrl;
+            _config.LastUpdateCheckAt = null;
+            changed = true;
+        }
+
+        var updateCheckIntervalHours = Math.Clamp(remote.Update.CheckIntervalHours <= 0 ? 24 : remote.Update.CheckIntervalHours, 1, 24 * 30);
+        if (_config.UpdateCheckIntervalHours != updateCheckIntervalHours)
+        {
+            _config.UpdateCheckIntervalHours = updateCheckIntervalHours;
+            _config.LastUpdateCheckAt = null;
+            changed = true;
+        }
+
+        if (_config.AutoUpdateInstallEnabled != remote.Update.AutoInstall)
+        {
+            _config.AutoUpdateInstallEnabled = remote.Update.AutoInstall;
+            changed = true;
+        }
+
+        var updateInstallerArguments = (remote.Update.InstallerArguments ?? "").Trim();
+        if (!string.Equals(_config.UpdateInstallerArguments ?? "", updateInstallerArguments, StringComparison.Ordinal))
+        {
+            _config.UpdateInstallerArguments = updateInstallerArguments;
             changed = true;
         }
 

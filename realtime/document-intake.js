@@ -468,6 +468,7 @@ function buildDeviceConfig(device, watchFolderRows = []) {
   const watchFolders = remoteWatchFolders.length ? remoteWatchFolders : storedWatchFolders;
   const autoStartEnabled = firstDefined(remote.autoStartEnabled, remote.auto_start_enabled);
   const highPriorityImmediate = firstDefined(logs.highPriorityImmediate, logs.high_priority_immediate);
+  const updateAutoInstall = firstDefined(update.autoInstall, update.auto_install);
   const configVersion = normalizeText(
     remote.version || metadata.remote_config_version || device.updated_at || device.last_seen_at || '',
     120
@@ -515,7 +516,7 @@ function buildDeviceConfig(device, watchFolderRows = []) {
         enabled: normalizeBoolean(update.enabled, false),
         manifestUrl: normalizeText(update.manifestUrl || update.manifest_url || '', 1000),
         checkIntervalHours: positiveInteger(update.checkIntervalHours || update.check_interval_hours, 24, { min: 1, max: 24 * 30 }),
-        autoInstall: normalizeBoolean(update.autoInstall || update.auto_install, false),
+        autoInstall: normalizeBoolean(updateAutoInstall, false),
         installerArguments: normalizeText(update.installerArguments || update.installer_arguments || '', 500)
       }
     }

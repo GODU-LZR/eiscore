@@ -1,51 +1,113 @@
 <template>
   <div class="approval-center">
-    <div class="page-header">
+    <header class="page-header">
       <div class="header-left">
         <el-button text :icon="ArrowLeft" @click="goBack">返回</el-button>
         <div class="header-text">
           <h2>审批中心</h2>
-          <p>跨流程查看会签进度与审批意见</p>
+          <p>先处理我的待办，再查看流程态势与审计明细</p>
         </div>
       </div>
       <div class="header-actions">
+        <div class="actor-chip">
+          <el-icon><User /></el-icon>
+          <span>{{ actorLabel }}</span>
+        </div>
         <el-button :icon="Refresh" :loading="loading" @click="loadData">刷新</el-button>
       </div>
-    </div>
+    </header>
 
-    <el-card class="summary-panel" shadow="never">
-      <div class="summary-grid">
-        <div class="summary-item">
-          <div class="summary-label">会签节点</div>
-          <div class="summary-value">{{ summary.totalProgress }}</div>
+    <section class="focus-board">
+      <div class="focus-main">
+        <div class="section-kicker">
+          <el-icon><Warning /></el-icon>
+          <span>注意力队列</span>
         </div>
-        <div class="summary-item">
-          <div class="summary-label">待会签</div>
-          <div class="summary-value warning">{{ summary.pendingProgress }}</div>
+        <div class="focus-headline">
+          <div>
+            <h3>{{ focusHeadline }}</h3>
+            <p>{{ focusSubtext }}</p>
+          </div>
+          <el-button
+            v-if="focusLeadRow?.myPending"
+            type="primary"
+            :loading="approvalSubmitting && approvalDialog.row?.key === focusLeadRow.key"
+            @click="openApprovalDialog(focusLeadRow)"
+          >
+            处理当前待办
+          </el-button>
         </div>
-        <div class="summary-item">
-          <div class="summary-label">审批记录</div>
-          <div class="summary-value">{{ summary.totalApprovals }}</div>
+
+        <div v-if="focusQueueRows.length" class="focus-queue">
+          <article
+            v-for="row in focusQueueRows"
+            :key="row.key"
+            class="focus-item"
+            :class="{ 'is-primary': row.myPending }"
+          >
+            <div class="focus-item-main">
+              <div class="focus-item-title">
+                <span>{{ row.taskName }}</span>
+                <el-tag size="small" :type="getProgressTagType(row)">{{ row.progressText }}</el-tag>
+              </div>
+              <div class="focus-item-meta">
+                <span>{{ row.definitionName }}</span>
+                <span>流程单 {{ row.instanceId }}</span>
+                <span>业务 {{ row.businessKey }}</span>
+              </div>
+            </div>
+            <div class="focus-item-progress">
+              <span>{{ row.approvedCount }}/{{ row.requiredApprovals }}</span>
+              <div class="mini-progress">
+                <i :style="{ width: `${getApprovalPercent(row)}%` }"></i>
+              </div>
+            </div>
+            <el-button
+              v-if="row.myPending"
+              size="small"
+              type="primary"
+              :loading="approvalSubmitting && approvalDialog.row?.key === row.key"
+              @click="openApprovalDialog(row)"
+            >
+              处理
+            </el-button>
+          </article>
         </div>
-        <div class="summary-item">
-          <div class="summary-label">流程单</div>
-          <div class="summary-value">{{ summary.instanceCount }}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">我的待办</div>
-          <div class="summary-value warning">{{ summary.myPendingCount }}</div>
-        </div>
+        <el-empty v-else description="暂无需要你处理的审批" :image-size="84" />
       </div>
-    </el-card>
 
-    <el-card class="filter-panel" shadow="never">
+      <aside class="focus-side">
+        <div
+          v-for="item in attentionStats"
+          :key="item.key"
+          class="stat-line"
+          :class="item.tone"
+        >
+          <div>
+            <span>{{ item.label }}</span>
+            <strong>{{ item.value }}</strong>
+          </div>
+          <el-icon><component :is="item.icon" /></el-icon>
+        </div>
+      </aside>
+    </section>
+
+    <section class="control-strip">
+      <div class="view-switch">
+        <el-radio-group v-model="activeView" size="small">
+          <el-radio-button label="mine">我的待办</el-radio-button>
+          <el-radio-button label="pending">全部待签</el-radio-button>
+          <el-radio-button label="all">流程态势</el-radio-button>
+          <el-radio-button label="audit">审批明细</el-radio-button>
+        </el-radio-group>
+      </div>
       <div class="filters">
         <el-select
           v-model="filters.definitionId"
           clearable
           filterable
-          placeholder="按流程定义筛选"
-          style="width: 280px"
+          placeholder="流程定义"
+          class="definition-filter"
         >
           <el-option
             v-for="item in definitionOptions"
@@ -57,40 +119,50 @@
         <el-input
           v-model="filters.keyword"
           clearable
-          placeholder="搜索流程单号 / 任务 / 审批人 / 业务单号"
-          style="width: 320px"
-        />
-        <el-switch
-          v-model="filters.pendingOnly"
-          active-text="仅待会签"
-          inactive-text="全部记录"
-        />
-        <el-switch
-          v-model="filters.myFirst"
-          active-text="我的待办优先"
-          inactive-text="普通排序"
-        />
-        <el-switch
-          v-model="filters.myRelatedOnly"
-          active-text="仅我相关"
-          inactive-text="全部人员"
-        />
+          placeholder="搜索流程单 / 任务 / 审批人 / 业务单号"
+          class="keyword-filter"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        <el-checkbox v-model="filters.myRelatedOnly">仅我相关</el-checkbox>
       </div>
-    </el-card>
+    </section>
 
-    <el-card class="table-panel" shadow="never">
-      <template #header>
-        <div class="panel-head">会签进度</div>
-      </template>
-      <el-table v-loading="loading" :data="filteredProgressRows" size="small" border>
+    <section v-if="activeView !== 'audit'" class="table-panel">
+      <div class="panel-title-row">
+        <div>
+          <h3>{{ progressPanelTitle }}</h3>
+          <p>{{ progressPanelSubtitle }}</p>
+        </div>
+        <el-tag size="small" effect="plain">{{ visibleProgressRows.length }} 条</el-tag>
+      </div>
+      <el-table
+        v-loading="loading"
+        :data="visibleProgressRows"
+        size="small"
+        border
+        :empty-text="progressEmptyText"
+        :row-class-name="getProgressRowClassName"
+      >
         <el-table-column prop="instanceId" label="流程单号" min-width="90" />
         <el-table-column prop="definitionName" label="流程定义" min-width="170" />
         <el-table-column prop="taskName" label="任务节点" min-width="170" />
-        <el-table-column prop="businessKey" label="业务单号" min-width="170" />
-        <el-table-column prop="approvalModeLabel" label="审批模式" min-width="120" />
-        <el-table-column label="进度" min-width="120">
+        <el-table-column label="业务事项" min-width="240">
           <template #default="{ row }">
-            {{ row.approvedCount }}/{{ row.requiredApprovals }}
+            <div class="business-cell">
+              <span>{{ row.businessTitle || row.businessKey }}</span>
+              <small v-if="row.businessOwner">负责人：{{ row.businessOwner }}</small>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="会签" min-width="150">
+          <template #default="{ row }">
+            <div class="table-progress">
+              <span>{{ row.approvalModeLabel }}</span>
+              <strong>{{ row.approvedCount }}/{{ row.requiredApprovals }}</strong>
+            </div>
           </template>
         </el-table-column>
         <el-table-column label="状态" min-width="120">
@@ -102,7 +174,7 @@
         <el-table-column label="最近时间" min-width="170">
           <template #default="{ row }">{{ formatDateTime(row.latestAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" fixed="right" min-width="110">
+        <el-table-column label="操作" fixed="right" min-width="120">
           <template #default="{ row }">
             <el-button
               v-if="row.myPending"
@@ -117,13 +189,17 @@
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </section>
 
-    <el-card class="table-panel" shadow="never">
-      <template #header>
-        <div class="panel-head">审批意见明细</div>
-      </template>
-      <el-table v-loading="loading" :data="filteredApprovalRows" size="small" border>
+    <section v-else class="table-panel">
+      <div class="panel-title-row">
+        <div>
+          <h3>审批意见明细</h3>
+          <p>按时间追溯每一次同意、驳回和审批意见</p>
+        </div>
+        <el-tag size="small" effect="plain">{{ filteredApprovalRows.length }} 条</el-tag>
+      </div>
+      <el-table v-loading="loading" :data="filteredApprovalRows" size="small" border empty-text="暂无审批意见">
         <el-table-column prop="createdAtText" label="时间" min-width="170" />
         <el-table-column prop="instanceId" label="流程单号" min-width="90" />
         <el-table-column prop="definitionName" label="流程定义" min-width="160" />
@@ -139,7 +215,7 @@
         </el-table-column>
         <el-table-column prop="commentText" label="审批意见" min-width="260" show-overflow-tooltip />
       </el-table>
-    </el-card>
+    </section>
 
     <el-dialog
       v-model="approvalDialog.visible"
@@ -203,7 +279,15 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
+import {
+  ArrowLeft,
+  DocumentChecked,
+  List,
+  Refresh,
+  Search,
+  User,
+  Warning
+} from '@element-plus/icons-vue'
 import axios from 'axios'
 
 const router = useRouter()
@@ -213,8 +297,10 @@ const definitions = ref([])
 const instances = ref([])
 const assignments = ref([])
 const approvals = ref([])
+const smartBiActions = ref([])
 const currentActor = ref({ username: '', appRole: '' })
 const approvalSubmitting = ref(false)
+const activeView = ref('mine')
 
 const approvalDialog = reactive({
   visible: false,
@@ -233,6 +319,13 @@ const filters = reactive({
   pendingOnly: false,
   myFirst: true,
   myRelatedOnly: false
+})
+
+const actorLabel = computed(() => {
+  const username = String(currentActor.value?.username || '').trim()
+  const role = String(currentActor.value?.appRole || '').trim()
+  if (username && role) return `${username} · ${role}`
+  return username || role || '当前账号'
 })
 
 const APPROVAL_MODE_LABEL_MAP = Object.freeze({
@@ -265,6 +358,12 @@ const getWorkflowHeaders = (token) => ({
   Authorization: `Bearer ${token}`,
   'Accept-Profile': 'workflow',
   'Content-Profile': 'workflow'
+})
+
+const getPublicHeaders = (token) => ({
+  Authorization: `Bearer ${token}`,
+  'Accept-Profile': 'public',
+  'Content-Profile': 'public'
 })
 
 const normalizeStringList = (value) => {
@@ -442,6 +541,43 @@ const instanceMap = computed(() => {
   return map
 })
 
+const smartBiActionMap = computed(() => {
+  const byId = {}
+  const byInstance = {}
+  smartBiActions.value.forEach((item) => {
+    const id = String(item?.id || '').trim()
+    const instanceId = String(item?.workflow_instance_id || '').trim()
+    if (id) byId[id] = item
+    if (instanceId) byInstance[instanceId] = item
+  })
+  return { byId, byInstance }
+})
+
+const getBusinessDisplay = (instance = {}) => {
+  const definition = definitionMap.value[String(instance?.definition_id || '').trim()] || {}
+  const associatedTable = String(definition?.associated_table || '').trim()
+  const businessKey = String(instance?.business_key || '').trim()
+  if (associatedTable === 'public.smart_bi_action_items') {
+    const action = smartBiActionMap.value.byInstance[String(instance?.id || '').trim()]
+      || smartBiActionMap.value.byId[businessKey]
+    if (action) {
+      const actionNo = String(action?.action_no || '').trim()
+      const title = String(action?.title || '').trim()
+      const owner = String(action?.owner_name || action?.owner_role || '').trim()
+      return {
+        key: actionNo || businessKey || '-',
+        title: [actionNo, title].filter(Boolean).join(' · ') || businessKey || '-',
+        owner
+      }
+    }
+  }
+  return {
+    key: businessKey || '-',
+    title: businessKey || '-',
+    owner: ''
+  }
+}
+
 const assignmentMap = computed(() => {
   const map = {}
   assignments.value.forEach((item) => {
@@ -612,6 +748,7 @@ const progressRows = computed(() => {
       const actorCanExecute = canActorExecuteByAssignment(assignment)
       const myPending = pending && actorCanExecute && !actorReviewed
       const myRelated = actorCanExecute || actorReviewed
+      const businessDisplay = getBusinessDisplay(instance)
 
       return {
         key: bucket.key,
@@ -620,7 +757,9 @@ const progressRows = computed(() => {
         definitionName: definitionNameMap.value[bucket.definitionId] || `流程定义#${bucket.definitionId}`,
         taskId: bucket.taskId,
         taskName: getTaskName(bucket.definitionId, bucket.taskId),
-        businessKey: String(instance?.business_key || '').trim() || '-',
+        businessKey: businessDisplay.key,
+        businessTitle: businessDisplay.title,
+        businessOwner: businessDisplay.owner,
         approvalMode: mode,
         approvalModeLabel: APPROVAL_MODE_LABEL_MAP[mode] || mode,
         approvedCount: approved,
@@ -679,6 +818,8 @@ const containsKeyword = (row, keyword) => {
     row.latestActor,
     row.actorUsername,
     row.businessKey,
+    row.businessTitle,
+    row.businessOwner,
     row.commentText
   ].some((item) => String(item || '').toLowerCase().includes(needle))
 }
@@ -702,6 +843,104 @@ const filteredProgressRows = computed(() => {
   })
   return sorted
 })
+
+const myPendingRows = computed(() => filteredProgressRows.value.filter((row) => row.myPending))
+
+const pendingRows = computed(() => filteredProgressRows.value.filter((row) => row.pending))
+
+const focusQueueRows = computed(() => {
+  const primary = myPendingRows.value
+  if (primary.length) return primary.slice(0, 4)
+  return pendingRows.value.slice(0, 4)
+})
+
+const focusLeadRow = computed(() => (
+  focusQueueRows.value[0]
+  || filteredProgressRows.value[0]
+  || null
+))
+
+const focusHeadline = computed(() => {
+  if (summary.value.myPendingCount > 0) {
+    return `你有 ${summary.value.myPendingCount} 个待处理审批`
+  }
+  if (summary.value.pendingProgress > 0) {
+    return `当前还有 ${summary.value.pendingProgress} 个待会签节点`
+  }
+  return '当前没有阻塞你的审批'
+})
+
+const focusSubtext = computed(() => {
+  const row = focusLeadRow.value
+  if (row?.myPending) {
+    return `${row.definitionName} / ${row.taskName} 正在等待你处理`
+  }
+  if (row?.pending) {
+    return '下面显示全局待会签节点，便于你判断流程是否拥堵'
+  }
+  return '可切换到流程态势或审批明细查看历史记录'
+})
+
+const visibleProgressRows = computed(() => {
+  if (activeView.value === 'mine') return myPendingRows.value
+  if (activeView.value === 'pending') return pendingRows.value
+  return filteredProgressRows.value
+})
+
+const progressPanelTitle = computed(() => {
+  if (activeView.value === 'mine') return '我的待办'
+  if (activeView.value === 'pending') return '全部待签'
+  return '流程态势'
+})
+
+const progressPanelSubtitle = computed(() => {
+  if (activeView.value === 'mine') return '只保留当前账号可以处理且尚未审批的节点'
+  if (activeView.value === 'pending') return '按待处理优先级查看所有仍未满足会签条件的节点'
+  return '查看所有活动流程、已流转节点和可推进节点'
+})
+
+const progressEmptyText = computed(() => {
+  if (activeView.value === 'mine') return '暂无我的待办'
+  if (activeView.value === 'pending') return '暂无待会签节点'
+  return '暂无流程记录'
+})
+
+const getApprovalPercent = (row) => {
+  const required = Math.max(1, Number(row?.requiredApprovals || 1))
+  const approved = Math.max(0, Number(row?.approvedCount || 0))
+  return Math.min(100, Math.round((approved / required) * 100))
+}
+
+const attentionStats = computed(() => ([
+  {
+    key: 'mine',
+    label: '我的待办',
+    value: summary.value.myPendingCount,
+    icon: User,
+    tone: summary.value.myPendingCount > 0 ? 'warning' : 'quiet'
+  },
+  {
+    key: 'pending',
+    label: '待会签',
+    value: summary.value.pendingProgress,
+    icon: Warning,
+    tone: summary.value.pendingProgress > 0 ? 'warning' : 'quiet'
+  },
+  {
+    key: 'instance',
+    label: '流程单',
+    value: summary.value.instanceCount,
+    icon: List,
+    tone: 'neutral'
+  },
+  {
+    key: 'approval',
+    label: '审批记录',
+    value: summary.value.totalApprovals,
+    icon: DocumentChecked,
+    tone: 'neutral'
+  }
+]))
 
 const myRelatedProgressKeySet = computed(() => {
   const set = new Set()
@@ -750,6 +989,12 @@ const getProgressTagType = (row) => {
   if (row?.pending) return 'warning'
   if (String(row?.progressText || '') === '流程已完成') return 'info'
   return 'success'
+}
+
+const getProgressRowClassName = ({ row }) => {
+  if (row?.myPending) return 'approval-row--focus'
+  if (row?.pending) return 'approval-row--pending'
+  return ''
 }
 
 const goBack = () => router.push('/')
@@ -834,16 +1079,20 @@ const loadData = async () => {
   try {
     const token = localStorage.getItem('auth_token')
     const headers = getWorkflowHeaders(token)
-    const [definitionRes, instanceRes, assignmentRes, approvalRes] = await Promise.all([
-      axios.get('/api/definitions?select=id,name,app_id,bpmn_xml,updated_at&order=id.desc&limit=500', { headers }),
+    const publicHeaders = getPublicHeaders(token)
+    const [definitionRes, instanceRes, assignmentRes, approvalRes, smartBiActionRes] = await Promise.all([
+      axios.get('/api/definitions?select=id,name,app_id,associated_table,bpmn_xml,updated_at&order=id.desc&limit=500', { headers }),
       axios.get('/api/instances?select=id,definition_id,current_task_id,status,business_key,started_at,ended_at&order=id.desc&limit=2000', { headers }),
       axios.get('/api/task_assignments?select=id,definition_id,task_id,candidate_roles,candidate_users,approval_mode,required_approvals,require_comment&order=id.desc&limit=2000', { headers }),
-      axios.get('/api/task_approvals?select=id,instance_id,definition_id,task_id,actor_username,actor_role,decision,comment,payload,created_at,updated_at&order=created_at.desc&limit=5000', { headers })
+      axios.get('/api/task_approvals?select=id,instance_id,definition_id,task_id,actor_username,actor_role,decision,comment,payload,created_at,updated_at&order=created_at.desc&limit=5000', { headers }),
+      axios.get('/api/smart_bi_action_items?select=id,action_no,title,domain,owner_role,owner_name,status,workflow_instance_id&order=updated_at.desc&limit=2000', { headers: publicHeaders })
+        .catch(() => ({ data: [] }))
     ])
     definitions.value = Array.isArray(definitionRes.data) ? definitionRes.data : []
     instances.value = Array.isArray(instanceRes.data) ? instanceRes.data : []
     assignments.value = Array.isArray(assignmentRes.data) ? assignmentRes.data : []
     approvals.value = Array.isArray(approvalRes.data) ? approvalRes.data : []
+    smartBiActions.value = Array.isArray(smartBiActionRes.data) ? smartBiActionRes.data : []
   } catch (error) {
     ElMessage.error(`加载审批中心数据失败：${error?.response?.data?.message || error?.message || '未知错误'}`)
   } finally {
@@ -859,12 +1108,12 @@ onMounted(() => {
 
 <style scoped>
 .approval-center {
-  padding: 16px;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: #f5f7fb;
+  gap: 14px;
+  padding: 16px;
+  background: #f4f6f9;
   box-sizing: border-box;
 }
 
@@ -872,6 +1121,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
 }
 
 .header-left {
@@ -883,68 +1134,347 @@ onMounted(() => {
 .header-text h2 {
   margin: 0;
   font-size: 20px;
+  line-height: 1.25;
   color: #303133;
 }
 
 .header-text p {
   margin: 4px 0 0;
-  color: #909399;
+  color: #6b7280;
   font-size: 12px;
 }
 
-.summary-grid {
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.actor-chip {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #d8dee9;
+  border-radius: 8px;
+  background: #fff;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.focus-board {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) 240px;
   gap: 12px;
 }
 
-.summary-item {
+.focus-main,
+.focus-side,
+.control-strip,
+.table-panel {
   background: #fff;
-  border: 1px solid #ebeef5;
-  border-radius: 10px;
-  padding: 12px;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.summary-label {
+.focus-main {
+  min-width: 0;
+  padding: 16px;
+}
+
+.section-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
-  color: #909399;
+  font-weight: 600;
+  color: #9a5b00;
 }
 
-.summary-value {
+.focus-headline {
+  min-height: 56px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.focus-headline h3 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.25;
+  color: #172033;
+}
+
+.focus-headline p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.focus-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.focus-item {
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e5eaf2;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.focus-item.is-primary {
+  border-color: #8db9ff;
+  background: #f4f8ff;
+}
+
+.focus-item-main {
+  min-width: 0;
+}
+
+.focus-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.focus-item-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.focus-item-meta {
+  display: flex;
+  gap: 10px;
   margin-top: 6px;
-  font-size: 24px;
-  font-weight: 700;
-  color: #303133;
+  min-width: 0;
+  color: #64748b;
+  font-size: 12px;
 }
 
-.summary-value.warning {
-  color: #e6a23c;
+.focus-item-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.focus-item-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.mini-progress {
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.mini-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #3b82f6;
+}
+
+.focus-side {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.stat-line {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  color: #4b5563;
+}
+
+.stat-line + .stat-line {
+  border-top: 1px solid #eef2f7;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+.stat-line span {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.stat-line strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 22px;
+  line-height: 1;
+  color: #111827;
+}
+
+.stat-line.warning {
+  background: #fff7ed;
+}
+
+.stat-line.warning strong,
+.stat-line.warning .el-icon {
+  color: #c2410c;
+}
+
+.stat-line.quiet strong,
+.stat-line.quiet .el-icon {
+  color: #16a34a;
+}
+
+.control-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
 }
 
 .filters {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
 }
 
-.panel-head {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
+.definition-filter {
+  width: 240px;
+}
+
+.keyword-filter {
+  width: 320px;
+}
+
+.table-panel {
+  padding: 12px;
+}
+
+.panel-title-row {
+  min-height: 42px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.panel-title-row h3 {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.3;
+  color: #1f2937;
+}
+
+.panel-title-row p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.table-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.table-progress span {
+  color: #64748b;
+}
+
+.table-progress strong {
+  color: #1f2937;
 }
 
 .muted-action {
   color: #c0c4cc;
 }
 
+.business-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.4;
+}
+
+.business-cell small {
+  color: #909399;
+}
+
 .approval-form {
   margin-top: 14px;
 }
 
+:deep(.approval-row--focus) {
+  --el-table-tr-bg-color: #f4f8ff;
+}
+
+:deep(.approval-row--pending) {
+  --el-table-tr-bg-color: #fffaf0;
+}
+
 @media (max-width: 960px) {
-  .summary-grid {
+  .focus-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .focus-side {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stat-line + .stat-line {
+    border-top: 0;
+  }
+
+  .control-strip,
+  .page-header,
+  .focus-headline {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .filters,
+  .header-actions {
+    justify-content: flex-start;
+  }
+
+  .definition-filter,
+  .keyword-filter {
+    width: 100%;
+  }
+
+  .focus-item {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 </style>

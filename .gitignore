@@ -37,4 +37,5 @@ scripts/_utf8_test.txt
 tools/plantuml.jar
 tests/.artifacts/
 output/
+collector-desktop/artifacts/
 softcopyright_extract/

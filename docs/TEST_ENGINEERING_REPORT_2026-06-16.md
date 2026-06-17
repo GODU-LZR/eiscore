@@ -153,9 +153,14 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 | 2026-06-17 | `npm run test:syntax` | PASS | 34 个 Node 脚本入口语法检查通过，覆盖新增 realtime document worker 与工程测试脚本。 |
 | 2026-06-17 | `npm --prefix eiscore-base run build` | PASS | 受影响 base 前端构建通过；仍有 Node 20.18.1 低于 Vite 建议 20.19+ 的环境警告。 |
 | 2026-06-17 | `npm --prefix eiscore-apps run build` | PASS | 受影响 apps 前端构建通过；仍有 Sass legacy JS API、manual chunk 循环和大 chunk 警告。 |
+| 2026-06-17 | Smart BI 行动闭环本地验证 | PASS | 新增 `sql/patch_smart_bi_action_closure.sql`、AI Copilot 行动闭环草案卡片、审批中心行动单视图和流程待办发起逻辑；`npm run test:unit`、`npm run test:syntax`、`npm --prefix eiscore-base run build`、`npm --prefix eiscore-apps run build` 通过。当前本机无 `psql`，该 SQL patch 尚未在远端执行。 |
+| 2026-06-17 | Collector Desktop 发布脚本静态验证 | PASS | 新增 `collector-desktop/scripts/publish-collector.ps1` 与 `collector-desktop/installer/EISCore.Collector.iss`，支持 publish/package、Inno Setup 安装器模板、SHA256、update manifest 和安装器参数；PowerShell PSParser 语法检查通过。 |
 | 2026-06-17 | `npm run test:e2e:clicks:remote` | PASS | 远端普通用户 UI 点击巡检 4/4 PASS。 |
 | 2026-06-17 | `npm run test:e2e:business-chain:remote` | PASS | 远端 UI 全业务链路闭环 1/1 PASS。 |
 | 2026-06-17 | Collector Desktop XML 静态校验 | PASS | `collector-desktop/EISCore.Collector` 下 `.xaml` 与 `.csproj` XML 均可解析；本机 Windows 仅有 .NET runtime、无 SDK，WPF 实编需在安装 .NET SDK 的机器上继续执行。 |
+| 2026-06-17 | Collector Desktop 自动更新静态验证 | PASS | 新增远程 `update` 策略、manifest 下载、SHA256 校验、待安装状态保存和按策略启动安装器；`document-intake-regression` 已覆盖远程配置下发的 update 字段，Node 文档采集链路回归继续通过。 |
+| 2026-06-18 | Collector Desktop 发布脚本静态验证 | PASS | 新增 `collector-desktop/scripts/publish-collector.ps1`，支持 .NET publish、zip 打包、SHA256 计算、`update.json` 生成，以及对既有 MSI/EXE 安装包生成自动更新 manifest；本轮完成 PowerShell AST 解析和 manifest-only dry run。 |
+| 2026-06-18 | Collector Desktop 安装器模板静态验证 | PASS | 新增 Inno Setup 模板 `collector-desktop/installer/EISCore.Collector.iss`，发布脚本新增 `-BuildInstaller`、`-InnoSetupCompiler`、安装器输出和 manifest 指向 EXE 的分支；本轮完成 PowerShell AST 解析、模板关键段落静态检查和 manifest-only dry run。 |
 | 2026-06-17 | `git diff --check` | PASS | 当前工程改动无空白错误。 |
 | 2026-06-16 | `sql/patch_ontology_reasoning_insights_v1.sql` | PASS | 远端应用知识图谱推理洞察补丁；schema 执行前备份到 `tests/.artifacts/eiscore_ontology_reasoning_insights_v1_schema_before_20260616_2328.sql`。补丁新增规则统计、角色访问洞察、敏感路径、表依赖路径、表影响面、推理健康视图和 `explain_role_ontology_access(...)`。 |
 | 2026-06-16 | `npm run test:business-chain:remote` | PASS | business-chain 30/30；新增 `02f` 洞察健康/影响面检查与 `02g` 角色访问解释 RPC 检查。测试从实际洞察数据动态选择候选角色，避免固定演示角色不存在导致误报。 |
@@ -203,6 +208,10 @@ EISCORE_E2E_BASE_URL=https://nanpai.eissys.top
 18. `collector-desktop` 对远程配置同步、多监听目录、上传大小/扩展名过滤、日志刷新策略和本地配置空值做兜底，降低老配置文件、坏配置文件和远程空配置导致采集端崩溃的风险。
 19. `realtime/document-intake.js` 增加大文件分片/断点续传接口，回归覆盖缺片、hash mismatch、重复分片、同索引冲突、大小校验和最终拼装入库，降低采集端大文件上传中断后的数据错配风险。
 20. `collector-desktop` 增加 crash dump manifest/minidump 输出和后台上传循环异常隔离，降低未处理异常与单次网络/本地日志异常造成采集端不可观测或后台任务退出的风险。
+21. `sql/patch_smart_bi_action_closure.sql` 与 `AiCopilot.vue` 增加 Smart BI 行动建议到流程待办的闭环草案能力，包含业务 action 表、内置 BPMN、状态映射、workflow 同步触发器和前端一键发起。
+22. `collector-desktop` 增加自动更新策略消费与 manifest 下载校验骨架，支持远程控制检查周期、manifest 地址、静默安装参数和自动安装开关。
+23. `collector-desktop/scripts/publish-collector.ps1` 增加桌面采集端发布与更新 manifest 生成脚本，支持 zip 发布包和外部 MSI/EXE 安装包两种模式。
+24. `collector-desktop/installer/EISCore.Collector.iss` 增加 Inno Setup 安装器模板，发布脚本可在 Windows 构建机上通过 `-BuildInstaller` 产出 EXE 安装包并生成自动更新 manifest。
 
 ## 六、当前风险
 

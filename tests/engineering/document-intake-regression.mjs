@@ -304,6 +304,13 @@ try {
         flush_interval_seconds: 12,
         retention_days: 15,
         high_priority_immediate: false
+      },
+      update: {
+        enabled: true,
+        manifest_url: 'https://example.test/eiscore-collector/update.json',
+        check_interval_hours: 6,
+        auto_install: false,
+        installer_arguments: '/quiet /norestart'
       }
     }
   }
@@ -321,6 +328,11 @@ try {
   assert.deepEqual(remoteConfig.payload.config.upload.allowedExtensions, ['.pdf', '.xlsx'])
   assert.equal(remoteConfig.payload.config.logs.batchSize, 50)
   assert.equal(remoteConfig.payload.config.logs.highPriorityImmediate, false)
+  assert.equal(remoteConfig.payload.config.update.enabled, true)
+  assert.equal(remoteConfig.payload.config.update.manifestUrl, 'https://example.test/eiscore-collector/update.json')
+  assert.equal(remoteConfig.payload.config.update.checkIntervalHours, 6)
+  assert.equal(remoteConfig.payload.config.update.autoInstall, false)
+  assert.equal(remoteConfig.payload.config.update.installerArguments, '/quiet /norestart')
   assert.equal(remoteConfig.payload.device.deviceTokenHash, undefined, 'device config should not leak token hashes')
 
   resetState()
