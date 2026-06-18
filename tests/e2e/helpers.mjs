@@ -14,6 +14,7 @@ const SHELL_READY_TIMEOUT_MS = Number(process.env.EISCORE_E2E_SHELL_READY_TIMEOU
 const ignoredConsoleErrorPatterns = [
   /ResizeObserver loop completed with undelivered notifications/i,
   /Failed to load resource:.*(?:favicon|cube\.elemecdn|faiusr\.com)/i,
+  /Failed to load resource:.*net::ERR_NETWORK_CHANGED/i,
   /net::ERR_ABORTED/i
 ]
 

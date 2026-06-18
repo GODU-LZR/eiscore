@@ -23,6 +23,8 @@ const selectedPointIds = new Set(
 )
 const selectedPointStart = parsePointNumber(process.env.EISCORE_E2E_FUNCTION_POINTS_START, 1)
 const selectedPointEnd = parsePointNumber(process.env.EISCORE_E2E_FUNCTION_POINTS_END, 67)
+const functionPointSurfaceTimeoutMs = Number(process.env.EISCORE_E2E_FUNCTION_POINT_SURFACE_TIMEOUT_MS || 30_000)
+const functionPointContentTimeoutMs = Number(process.env.EISCORE_E2E_FUNCTION_POINT_CONTENT_TIMEOUT_MS || 20_000)
 
 const ignoredHttpErrorPatterns = [
   /favicon/i,
@@ -122,7 +124,7 @@ async function expectInteractiveSurface(page, point) {
       '.ag-root-wrapper',
       '.el-table',
       '.grid-card'
-    ], 10_000)
+    ], functionPointSurfaceTimeoutMs)
     expect(grid, `${point.id} ${point.name} should expose a grid/table surface`).toBeTruthy()
 
     const search = await firstVisible(page, [
@@ -150,7 +152,7 @@ async function expectInteractiveSurface(page, point) {
       '.cockpit',
       '.overview',
       '.app-card'
-    ], 8_000)
+    ], functionPointContentTimeoutMs)
     expect(dashboard, `${point.id} ${point.name} should render dashboard content`).toBeTruthy()
     return
   }
@@ -161,7 +163,7 @@ async function expectInteractiveSurface(page, point) {
       '.app-card',
       '.dashboard-card',
       'button'
-    ], 8_000)
+    ], functionPointContentTimeoutMs)
     expect(appEntry, `${point.id} ${point.name} should expose app entries`).toBeTruthy()
     return
   }
@@ -175,7 +177,7 @@ async function expectInteractiveSurface(page, point) {
       '.el-table',
       'canvas',
       'svg'
-    ], 8_000)
+    ], functionPointContentTimeoutMs)
     expect(special, `${point.id} ${point.name} should expose interactive content`).toBeTruthy()
   }
 }

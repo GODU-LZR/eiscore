@@ -1,0 +1,19 @@
+# EISCore runtime V2 SQL patch manifest.
+#
+# Apply with:
+#   ./scripts/apply-runtime-patches.sh
+#
+# Order matters. Security hardening patches stay at the end because earlier
+# ontology/runtime patches intentionally grant broad web_user access before the
+# scoped agent-facing APIs revoke it again.
+
+sql/patch_lightweight_ontology_runtime.sql
+sql/patch_add_ontology_relations_app.sql
+sql/patch_ontology_semantic_coverage_v2.sql
+sql/patch_ontology_reasoning_engine_v1.sql
+sql/patch_ontology_reasoning_insights_v1.sql
+sql/patch_ontology_graph_query_v1.sql
+sql/patch_ai_document_intake_mvp.sql
+sql/patch_fix_ontology_semantic_qmarks_20260618.sql
+sql/patch_agent_ontology_secure_context_v1.sql
+sql/patch_document_intake_rls_hardening_v1.sql

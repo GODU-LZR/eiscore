@@ -128,6 +128,67 @@ npm run test:engineering:remote:api
 
 `npm run test:runtime-v2` 本轮未形成有效业务失败，原因是本地 `eiscore-db` 容器未运行；该项属于环境前置不满足，需要先启动本地数据库后再执行 runtime-v2 postcheck。
 
+## 2026-06-19 Runtime V2 与远端 E2E 再加固
+
+### Runtime V2 本地闭环
+
+本轮补齐 Runtime V2 本地测试工程，形成补丁清单、健康检查、数据库 postcheck、PostgREST 访问控制 smoke、访问边界审计快照。
+
+新增或纳入：
+
+- `scripts/apply-runtime-patches.sh`
+- `scripts/apply-runtime-patches.ps1`
+- `scripts/check-runtime-v2-health.sh`
+- `scripts/check-runtime-v2-health.ps1`
+- `sql/runtime_v2_patch_manifest.txt`
+- `sql/runtime_v2_postcheck.sql`
+- `tests/engineering/runtime-v2-postcheck.mjs`
+- `tests/engineering/runtime-v2-access-client.mjs`
+- `tests/engineering/runtime-v2-access-smoke.mjs`
+- `tests/engineering/runtime-v2-access-audit.mjs`
+
+验证结果：
+
+| 项目 | 结果 | 备注 |
+|---|---:|---|
+| `npm run db:runtime-patches:dry-run` | PASS | manifest 中 10 个 SQL 补丁文件全部存在 |
+| `npm run test:runtime-v2` | PASS | 本地 DB postcheck 通过 |
+| `npm run test:runtime-v2:access` | PASS | agent-safe ontology RPC 访问控制通过 |
+| `npm run runtime:health` | PASS | 容器、DB、PostgREST、agent runtime、postcheck、access smoke 全部通过 |
+| `npm run runtime:access-audit` | PASS | employee 角色未泄漏 `public.users`，旧 full-graph RPC 均为 403 |
+
+### 远端 E2E 稳定性修复
+
+本轮远端 67 功能点复测时抓到两个 flaky，并已修复测试工程的稳定性边界：
+
+1. FP32 采购订单首跑出现 `Failed to load resource: net::ERR_NETWORK_CHANGED`，重试通过。
+   - 处理：在 UI console error monitor 中忽略浏览器网络切换导致的资源层瞬断。
+   - 保留：页面 JS 异常、Element Plus error、HTTP 4xx/5xx 仍继续作为失败。
+
+2. FP58 设备保养标准首跑 10 秒内未等到 grid surface，重试通过。
+   - 处理：67 功能点 surface/content 等待时间改为可配置。
+   - 默认：`EISCORE_E2E_FUNCTION_POINT_SURFACE_TIMEOUT_MS=30000`，`EISCORE_E2E_FUNCTION_POINT_CONTENT_TIMEOUT_MS=20000`。
+
+增量验证结果：
+
+| 项目 | 结果 | 备注 |
+|---|---:|---|
+| `npm run test:engineering:remote:api` | PASS | smoke 23/23，business-chain 32/32 |
+| `npm run test:e2e:clicks:remote` | PASS | 4/4 |
+| `npm run test:e2e:business-chain:remote` | PASS | 1/1 |
+| FP32 定点复跑 | PASS | 1/1 |
+| `npm run test:e2e:functions67:remote:part1` | PASS | FP01-FP20，20/20 |
+| `npm run test:e2e:functions67:remote:part2` | PASS | FP21-FP33，13/13，复跑无 flaky |
+| `npm run test:e2e:functions67:remote:part3` | PASS | FP34-FP50，17/17 |
+| FP58 定点复跑 | PASS | 1/1 |
+| `npm run test:e2e:functions67:remote:part4` | PASS | FP51-FP67，17/17，复跑无 flaky |
+
+67 功能点本轮最终结果：
+
+- 通过：67/67
+- 失败：0
+- flaky：0
+
 ## 结论
 
 本轮工程测试已形成 API 业务链、UI 业务链、UI 点击测试、67 功能点闭环和前端构建验证的组合覆盖。远端 `nanpai.eissys.top` 当前闭环测试结果全部通过，且本地已针对微前端深链路空白页、长链路 E2E 超时/产物冲突、ontology SQL 结构兼容性进行了鲁棒性修复。
