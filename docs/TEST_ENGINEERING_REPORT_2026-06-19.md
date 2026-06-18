@@ -95,6 +95,39 @@ npm run test:engineering:remote:api
 3. 部分前端包存在 chunk size、circular dependency、Rollup PURE comment 告警，暂未阻断业务链测试。
 4. WSL 在并行运行多个 Vite build 或 Playwright suite 时可能出现资源压力；本轮采用顺序执行完成稳定验证。
 
+## 2026-06-19 增量加固
+
+### Grid 搜索竞态修复
+
+远端 UI 业务链复测时，HR 档案搜索链路首跑出现一次 flaky：测试数据已通过 API 创建，搜索框也已填入目标工号，但表格停留在“暂无数据”，重试后通过。定位后发现共享分页加载器在旧请求等待 `loadFieldAcl()` 之后，仍可能无条件清空 `gridData`，导致旧请求晚回来覆盖或清空新搜索结果。
+
+本轮修复：
+
+- `shared/eis-data-grid-paging.js` 在 `loadFieldAcl()` 返回后立即检查 `loadSeq`
+- 旧请求不再允许执行 `resetLoadedRows()`
+- 旧请求错误不再弹出过期错误提示或触发 `data-load-error`
+- 新增 `tests/engineering/grid-paging-regression.mjs`，模拟旧请求晚于新搜索请求返回的竞态
+- 新增 `test:grid-paging` 并纳入 `test:unit`
+
+### 增量验证结果
+
+| 项目 | 结果 | 备注 |
+|---|---:|---|
+| `npm run test:grid-paging` | PASS | 旧请求晚返回不能清空最新搜索结果 |
+| `npm run test:unit` | PASS | 包含 grid paging、auto-entry、文档入库等回归 |
+| `npm run test:syntax` | PASS | Node 脚本语法检查 38 个文件 |
+| `git diff --check` | PASS | 无空白错误 |
+| `npm run build:frontends` | PASS | 11 个前端包构建通过 |
+| `npm run test:engineering:remote:api` | PASS | smoke 23/23，business-chain 32/32 |
+| `npm run test:e2e:clicks:remote` | PASS | 4/4 |
+| `npm run test:e2e:business-chain:remote` | PASS | 1/1，复跑无 flaky |
+| `npm run test:e2e:functions67:remote:part1` | PASS | FP01-FP20，20/20 |
+| `npm run test:e2e:functions67:remote:part2` | PASS | FP21-FP33，13/13 |
+| `npm run test:e2e:functions67:remote:part3` | PASS | FP34-FP50，17/17 |
+| `npm run test:e2e:functions67:remote:part4` | PASS | FP51-FP67，17/17 |
+
+`npm run test:runtime-v2` 本轮未形成有效业务失败，原因是本地 `eiscore-db` 容器未运行；该项属于环境前置不满足，需要先启动本地数据库后再执行 runtime-v2 postcheck。
+
 ## 结论
 
 本轮工程测试已形成 API 业务链、UI 业务链、UI 点击测试、67 功能点闭环和前端构建验证的组合覆盖。远端 `nanpai.eissys.top` 当前闭环测试结果全部通过，且本地已针对微前端深链路空白页、长链路 E2E 超时/产物冲突、ontology SQL 结构兼容性进行了鲁棒性修复。

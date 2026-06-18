@@ -191,6 +191,7 @@ export function createPagedGridLoader({
   const loadData = async () => {
     const seq = ++loadSeq
     await loadFieldAcl()
+    if (seq !== loadSeq) return
     resetLoadedRows()
     const url = buildDataUrl(0, canPageCurrentUrl.value)
     if (!url) {
@@ -238,6 +239,7 @@ export function createPagedGridLoader({
       emitDataLoaded(false)
       scheduleInitialAutoSize()
     } catch (e) {
+      if (seq !== loadSeq) return
       const detail = e?.response?.data?.message || e?.response?.data?.details || e?.message
       ElMessage.error(detail ? `数据加载失败：${detail}` : '数据加载失败')
       if (eventEmitter) eventEmitter('data-load-error', e)
