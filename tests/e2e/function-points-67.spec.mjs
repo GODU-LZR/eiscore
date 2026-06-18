@@ -13,6 +13,16 @@ import {
 import { functionPoints67 } from './function-points-67.mjs'
 
 test.setTimeout(90_000)
+test.use({ video: 'off' })
+
+const selectedPointIds = new Set(
+  String(process.env.EISCORE_E2E_FUNCTION_POINTS_ONLY || '')
+    .split(',')
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean)
+)
+const selectedPointStart = parsePointNumber(process.env.EISCORE_E2E_FUNCTION_POINTS_START, 1)
+const selectedPointEnd = parsePointNumber(process.env.EISCORE_E2E_FUNCTION_POINTS_END, 67)
 
 const ignoredHttpErrorPatterns = [
   /favicon/i,
@@ -20,6 +30,28 @@ const ignoredHttpErrorPatterns = [
   /faiusr\.com/i,
   /sockjs-node/i
 ]
+
+function parsePointNumber(value, fallback) {
+  const parsed = Number.parseInt(String(value || ''), 10)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.max(1, Math.min(parsed, 67))
+}
+
+function pointNumber(point) {
+  const parsed = Number.parseInt(String(point.id || '').replace(/^FP/i, ''), 10)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function shouldRunPoint(point) {
+  if (selectedPointIds.size > 0) return selectedPointIds.has(String(point.id || '').toUpperCase())
+  const number = pointNumber(point)
+  return number >= selectedPointStart && number <= selectedPointEnd
+}
+
+const selectedFunctionPoints67 = functionPoints67.filter(shouldRunPoint)
+if (selectedFunctionPoints67.length === 0) {
+  throw new Error('No 67 function points selected; check EISCORE_E2E_FUNCTION_POINTS_ONLY/START/END')
+}
 
 function createHttpErrorMonitor(page) {
   const errors = []
@@ -153,7 +185,7 @@ test.describe('67 complete function points', () => {
     await seedAuth(page, await loginByApi(request))
   })
 
-  for (const point of functionPoints67) {
+  for (const point of selectedFunctionPoints67) {
     test(`${point.id} ${point.module} - ${point.name}`, async ({ page }) => {
       const uiMonitor = createUiErrorMonitor(page)
       const httpMonitor = createHttpErrorMonitor(page)

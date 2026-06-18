@@ -9,6 +9,7 @@ const E2E_BASE_URL = process.env.EISCORE_E2E_BASE_URL || process.env.EISCORE_BAS
 const IS_REMOTE_TARGET = !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(E2E_BASE_URL)
 const LOGIN_ATTEMPTS = Number(process.env.EISCORE_E2E_LOGIN_ATTEMPTS || (IS_REMOTE_TARGET ? 5 : 3))
 const GOTO_ATTEMPTS = Number(process.env.EISCORE_E2E_GOTO_ATTEMPTS || (IS_REMOTE_TARGET ? 3 : 2))
+const SHELL_READY_TIMEOUT_MS = Number(process.env.EISCORE_E2E_SHELL_READY_TIMEOUT_MS || (IS_REMOTE_TARGET ? 30_000 : 15_000))
 
 const ignoredConsoleErrorPatterns = [
   /ResizeObserver loop completed with undelivered notifications/i,
@@ -147,9 +148,9 @@ export async function expectNoBlankPage(page) {
 
 export async function expectShellReady(page) {
   await expect(page).not.toHaveURL(/\/login(?:$|[?#/])/)
-  await expect(page.locator('[data-guide="layout-aside"]')).toBeVisible()
-  await expect(page.locator('[data-guide="layout-main"]')).toBeVisible()
-  await expect(page.locator('[data-guide="user-menu"]')).toBeVisible()
+  await expect(page.locator('[data-guide="layout-aside"]')).toBeVisible({ timeout: SHELL_READY_TIMEOUT_MS })
+  await expect(page.locator('[data-guide="layout-main"]')).toBeVisible({ timeout: SHELL_READY_TIMEOUT_MS })
+  await expect(page.locator('[data-guide="user-menu"]')).toBeVisible({ timeout: SHELL_READY_TIMEOUT_MS })
   await expectNoBlankPage(page)
 }
 

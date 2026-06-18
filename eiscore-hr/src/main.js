@@ -96,9 +96,10 @@ function unmountApp() {
   app = null
 }
 
-function render(props = {}) {
+async function render(props = {}) {
   const { container } = props
   app = createApp(App)
+  const currentApp = app
 
   if (props && typeof props.setGlobalState === 'function') {
     window.__EIS_BASE_ACTIONS__ = props
@@ -136,6 +137,8 @@ function render(props = {}) {
 
   const target = resolveMountTarget(container)
   if (!target) return
+  await router.isReady().catch(() => {})
+  if (app !== currentApp) return
   themeDispose = installEisThemeSync(target, { container })
   app.mount(target)
 }
@@ -143,7 +146,7 @@ function render(props = {}) {
 const lifecycle = {
   mount(props) {
     console.log('[HR] mounted')
-    render(props)
+    return render(props)
   },
   bootstrap() {
     console.log('[HR] bootstrap')
