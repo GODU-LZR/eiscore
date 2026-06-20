@@ -189,6 +189,80 @@ npm run test:engineering:remote:api
 - 失败：0
 - flaky：0
 
+## 2026-06-21 Windows 克隆环境工程测试再加固
+
+### 环境说明
+
+本轮在 Windows 工作区 `github-eiscore` 对 GitHub HEAD `274d116` 继续执行工程测试。由于当前机器 WSL 发行版不可见，未直接使用原 `/home/lzr/eiscore` 工作树；Windows 系统自带 `npm ci` 在进入项目安装前出现 `Class extends value undefined is not a constructor or null`，因此本轮使用 Codex bundled Node/pnpm 临时安装 Playwright 测试依赖，并通过本机 Chrome 执行远端 UI 验证。
+
+### 本轮测试工程修复
+
+1. 修复 grid 回归脚本在 Windows CRLF checkout 下的加载问题。
+   - `tests/grid-utils/shared-regression.mjs` 剥离 Vue import 时兼容 `\n` 和 `\r\n`
+   - `tests/engineering/grid-paging-regression.mjs` 内存加载共享分页模块时兼容 `\n` 和 `\r\n`
+   - 目标：无须安装 Vue 也能执行纯逻辑回归，提升本地/CI 跨平台稳定性
+
+2. 加固 Playwright 外部浏览器执行能力。
+   - 新增 `EISCORE_E2E_CHROMIUM_EXECUTABLE_PATH`
+   - 当使用外部 Chrome/Chromium 可执行文件时，默认关闭 video，避免缺少 Playwright ffmpeg 缓存导致 `browserContext.newPage` 失败
+   - 可用 `EISCORE_E2E_VIDEO` 覆盖 video 策略
+
+### 本地工程回归结果
+
+| 项目 | 结果 | 备注 |
+|---|---:|---|
+| `node tests/engineering/check-node-syntax.mjs` | PASS | Node 脚本语法检查 41 个文件 |
+| `node tests/smart-bi/config-regression.mjs` | PASS | Smart BI 配置回归 |
+| `node tests/grid-agent/query-regression.mjs` | PASS | Grid agent 查询语义回归 |
+| `node tests/grid-utils/shared-regression.mjs` | PASS | 共享 grid/time/summary 工具回归 |
+| `node tests/engineering/grid-paging-regression.mjs` | PASS | 旧请求晚返回不能清空最新搜索结果 |
+| `node tests/engineering/http-client-regression.mjs` | PASS | 远端重试/HTTP 客户端回归 |
+| `node tests/engineering/auto-entry-coverage.mjs` | PASS | 自动入库覆盖契约，2 个类型 |
+| `node tests/engineering/document-intake-regression.mjs` | PASS | 文档 intake 回归 |
+| `node tests/engineering/document-parser-regression.mjs` | PASS | 文档解析回归 |
+| `node tests/engineering/document-planner-regression.mjs` | PASS | 文档入库规划回归 |
+| `node tests/engineering/document-entry-regression.mjs` | PASS | 文档入库回归 |
+| `node tests/engineering/document-fixed-entry-regression.mjs` | PASS | 固定入库回归 |
+
+### 远端 API 与业务链复测
+
+执行命令：
+
+```powershell
+node tests/engineering/run-remote-suite.mjs --skip-e2e
+```
+
+结果：
+
+| 链路 | 结果 | 覆盖 |
+|---|---:|---|
+| Remote smoke | PASS | 23/23 |
+| Remote business chain | PASS | 32/32 |
+
+报告产物：
+
+- `C:\Users\Twist\Documents\eiscore\github-eiscore\tests\.artifacts\nanpai-engineering-suite-2026-06-20T19-15-43-867Z.md`
+- `C:\Users\Twist\Documents\eiscore\github-eiscore\tests\.artifacts\nanpai-engineering-suite-2026-06-20T19-15-43-867Z.json`
+
+### 远端 UI 与 67 功能点复测
+
+执行方式：使用 `EISCORE_E2E_BASE_URL=https://nanpai.eissys.top`，并通过 `EISCORE_E2E_CHROMIUM_EXECUTABLE_PATH` 指向本机 Chrome。
+
+| Suite | 结果 | 备注 |
+|---|---:|---|
+| UI 普通用户点击 | PASS 4/4 | 登录表单、菜单、应用卡片、表格搜索、列管理、导出 |
+| UI 业务链闭环 | PASS 1/1 | App Center、Workflow、HR、Warehouse 浏览器链路 |
+| 67 功能点 FP01-FP20 | PASS 20/20 | 基座、人事、仓储 |
+| 67 功能点 FP21-FP33 | PASS 13/13 | 仓储大屏、销售、采购 |
+| 67 功能点 FP34-FP50 | PASS 17/17 | 生产、质量 |
+| 67 功能点 FP51-FP67 | PASS 17/17 | 设备、应用中心、决策、移动端 |
+
+67 功能点本轮最终结果：
+
+- 通过：67/67
+- 失败：0
+- flaky：0
+
 ## 结论
 
 本轮工程测试已形成 API 业务链、UI 业务链、UI 点击测试、67 功能点闭环和前端构建验证的组合覆盖。远端 `nanpai.eissys.top` 当前闭环测试结果全部通过，且本地已针对微前端深链路空白页、长链路 E2E 超时/产物冲突、ontology SQL 结构兼容性进行了鲁棒性修复。

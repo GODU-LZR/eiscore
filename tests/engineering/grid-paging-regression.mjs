@@ -24,7 +24,7 @@ function computed(getter) {
 
 function loadGridPagingModule() {
   const source = fs.readFileSync(sourcePath, 'utf8')
-    .replace("import { computed, ref } from 'vue'\n\n", '')
+    .replace(/^import\s+\{\s*computed,\s*ref\s*\}\s+from\s+['"]vue['"]\r?\n\r?\n/m, '')
     .replace(/\bexport const\b/g, 'const')
     .replace(/\bexport function\b/g, 'function')
 

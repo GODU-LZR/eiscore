@@ -9,7 +9,7 @@ const importSharedModule = async (relativePath, { stripVueImport = false } = {})
   const sourcePath = resolve(relativePath)
   let source = await readFile(sourcePath, 'utf8')
   if (stripVueImport) {
-    source = source.replace(/^import\s+\{[^}]+\}\s+from\s+'vue'\n/m, '')
+    source = source.replace(/^import\s+\{[^}]+\}\s+from\s+['"]vue['"]\r?\n/m, '')
   }
   const moduleUrl = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`
   return import(moduleUrl)

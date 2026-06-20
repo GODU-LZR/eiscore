@@ -22,6 +22,15 @@ const configuredRetries = process.env.EISCORE_E2E_RETRIES
 const configuredWorkers = process.env.EISCORE_E2E_WORKERS
 const retries = configuredRetries === undefined ? (isRemoteTarget ? 1 : 0) : Number(configuredRetries)
 const workers = configuredWorkers === undefined ? (isRemoteTarget ? 1 : undefined) : Number(configuredWorkers)
+const chromiumExecutablePath = String(process.env.EISCORE_E2E_CHROMIUM_EXECUTABLE_PATH || '').trim()
+const video = process.env.EISCORE_E2E_VIDEO || (chromiumExecutablePath ? 'off' : 'retain-on-failure')
+const chromiumProjectUse = { ...devices['Desktop Chrome'] }
+if (chromiumExecutablePath) {
+  chromiumProjectUse.launchOptions = {
+    ...(chromiumProjectUse.launchOptions || {}),
+    executablePath: chromiumExecutablePath
+  }
+}
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -44,12 +53,12 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure'
+    video
   },
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] }
+      use: chromiumProjectUse
     }
   ]
 })
