@@ -543,7 +543,7 @@
 
     <section v-show="activeWorkbenchView === 'relations'" class="wb-layout workbench-view">
       <main class="wb-main full">
-        <el-card shadow="never" class="wb-card relation-card">
+        <el-card shadow="never" class="wb-card relation-card relation-workbench-card">
           <template #header>
             <div class="card-header">
               <span>图关系总览</span>
@@ -563,168 +563,168 @@
             </div>
           </template>
 
-          <div class="graph-toolbar">
-            <el-input
-              v-model="searchText"
-              clearable
-              class="graph-search"
-              placeholder="筛选关系（表名/关系词/说明）"
-            />
-            <div class="graph-tip">点击表格图标可聚焦该表关系，再次点击可取消聚焦。</div>
-            <div class="graph-zoom">
-              <el-button size="small" @click="zoomOut">缩小</el-button>
-              <el-slider
-                v-model="graphZoom"
-                :min="0.6"
-                :max="1.8"
-                :step="0.1"
-                style="width: 130px"
-              />
-              <el-button size="small" @click="zoomIn">放大</el-button>
-              <el-button size="small" text @click="resetZoom">100%</el-button>
-            </div>
-            <el-tag effect="plain">当前展示 {{ graphRelations.length }} 条关系</el-tag>
-          </div>
-
-          <div ref="graphHostRef" class="graph-host">
-            <OntologyRelationGraph
-              :relations="graphRelations"
-              :selected-table="selectedTable"
-              :picked-relation-id="pickedRelationId"
-              :table-label-map="tableLabelMap"
-              :predicate-label="predicateLabel"
-              :host-width="graphHostWidth"
-              :zoom="graphZoom"
-              @toggle-table="toggleTableFocus"
-              @pick-relation="pickRelation"
-            />
-          </div>
-
-          <div class="relation-detail" v-if="pickedRelation">
-            <div class="detail-title">关系详情</div>
-            <div class="detail-grid">
-              <div class="detail-item"><span>类型</span><strong>{{ relationTypeLabel(pickedRelation.relation_type) }}</strong></div>
-              <div class="detail-item"><span>关系词</span><strong>{{ predicateLabel(pickedRelation.predicate) }}</strong></div>
-              <div class="detail-item">
-                <span>主体</span>
-                <strong>{{ tableDisplayLabel(pickedRelation.subject_table) }}（{{ pickedRelation.subject_table }}{{ formatColumn(pickedRelation.subject_column) }}）</strong>
+          <div class="relation-workspace">
+            <section class="relation-graph-pane" aria-label="图关系总览画布">
+              <div class="graph-toolbar">
+                <el-input
+                  v-model="searchText"
+                  clearable
+                  class="graph-search"
+                  placeholder="筛选关系（表名/关系词/说明）"
+                />
+                <div class="graph-tip">点击表格图标聚焦表，点击连线查看关系。</div>
+                <div class="graph-zoom">
+                  <el-button size="small" @click="zoomOut">缩小</el-button>
+                  <el-slider
+                    v-model="graphZoom"
+                    :min="0.6"
+                    :max="1.8"
+                    :step="0.1"
+                    style="width: 120px"
+                  />
+                  <el-button size="small" @click="zoomIn">放大</el-button>
+                  <el-button size="small" text @click="resetZoom">100%</el-button>
+                </div>
+                <el-tag effect="plain">展示 {{ graphRelations.length }} 条</el-tag>
               </div>
-              <div class="detail-item">
-                <span>客体</span>
-                <strong>{{ tableDisplayLabel(pickedRelation.object_table) }}（{{ pickedRelation.object_table }}{{ formatColumn(pickedRelation.object_column) }}）</strong>
+
+              <div ref="graphHostRef" class="graph-host">
+                <OntologyRelationGraph
+                  :relations="graphRelations"
+                  :selected-table="selectedTable"
+                  :picked-relation-id="pickedRelationId"
+                  :table-label-map="tableLabelMap"
+                  :predicate-label="predicateLabel"
+                  :host-width="graphHostWidth"
+                  :zoom="graphZoom"
+                  @toggle-table="toggleTableFocus"
+                  @pick-relation="pickRelation"
+                />
               </div>
-              <div class="detail-item full"><span>桥接表</span><strong>{{ pickedRelation.bridge_table || '-' }}</strong></div>
-              <div class="detail-item full"><span>说明</span><strong>{{ pickedRelation.details || '-' }}</strong></div>
-            </div>
+            </section>
+
+            <aside class="relation-side-panel" aria-label="关系明细与语义检查器">
+              <section class="relation-list-panel">
+                <div class="side-panel-header">
+                  <div>
+                    <div class="side-panel-title">关系明细列表</div>
+                    <div class="side-panel-subtitle">更新时间 {{ refreshedAt }}</div>
+                  </div>
+                  <el-tag type="info" effect="plain">{{ tableRows.length }} 条</el-tag>
+                </div>
+
+                <div v-if="!tableRows.length" class="column-empty-tip">
+                  暂无匹配关系，可调整筛选条件。
+                </div>
+                <div v-else class="relation-list">
+                  <button
+                    v-for="row in tableRows"
+                    :key="row.id"
+                    type="button"
+                    class="relation-list-row"
+                    :class="{ active: pickedRelationId === row.id }"
+                    @click="pickRelation(row)"
+                  >
+                    <span class="relation-row-top">
+                      <el-tag size="small" :type="row.relation_type === 'ontology' ? 'primary' : 'success'" effect="plain">
+                        {{ relationTypeLabel(row.relation_type) }}
+                      </el-tag>
+                      <span class="relation-row-predicate">{{ predicateLabel(row.predicate) }}</span>
+                    </span>
+                    <span class="relation-row-path">
+                      <span>
+                        <strong>{{ tableDisplayLabel(row.subject_table) }}</strong>
+                        <small>{{ row.subject_table }}{{ formatColumn(row.subject_column) }}</small>
+                      </span>
+                      <i aria-hidden="true">→</i>
+                      <span>
+                        <strong>{{ tableDisplayLabel(row.object_table) }}</strong>
+                        <small>{{ row.object_table }}{{ formatColumn(row.object_column) }}</small>
+                      </span>
+                    </span>
+                    <span class="relation-row-details">{{ row.details || row.bridge_table || '暂无说明' }}</span>
+                  </button>
+                </div>
+              </section>
+
+              <section class="relation-inspector-panel">
+                <el-tabs v-model="relationInspectorTab" class="relation-inspector-tabs" stretch>
+                  <el-tab-pane label="关系详情" name="relation">
+                    <div v-if="pickedRelation" class="relation-detail compact">
+                      <div class="detail-grid compact">
+                        <div class="detail-item"><span>类型</span><strong>{{ relationTypeLabel(pickedRelation.relation_type) }}</strong></div>
+                        <div class="detail-item"><span>关系词</span><strong>{{ predicateLabel(pickedRelation.predicate) }}</strong></div>
+                        <div class="detail-item full">
+                          <span>主体</span>
+                          <strong>{{ tableDisplayLabel(pickedRelation.subject_table) }}（{{ pickedRelation.subject_table }}{{ formatColumn(pickedRelation.subject_column) }}）</strong>
+                        </div>
+                        <div class="detail-item full">
+                          <span>客体</span>
+                          <strong>{{ tableDisplayLabel(pickedRelation.object_table) }}（{{ pickedRelation.object_table }}{{ formatColumn(pickedRelation.object_column) }}）</strong>
+                        </div>
+                        <div class="detail-item full"><span>桥接表</span><strong>{{ pickedRelation.bridge_table || '-' }}</strong></div>
+                        <div class="detail-item full"><span>说明</span><strong>{{ pickedRelation.details || '-' }}</strong></div>
+                      </div>
+                    </div>
+                    <div v-else class="column-empty-tip">
+                      点击左侧图谱连线或右侧关系行后查看详情。
+                    </div>
+                  </el-tab-pane>
+
+                  <el-tab-pane label="列级语义" name="columns">
+                    <div class="column-semantic-panel compact">
+                      <div class="column-toolbar">
+                        <el-tag effect="plain" type="info">
+                          {{ selectedTable ? tableDisplayLabel(selectedTable) : '未聚焦表' }}
+                        </el-tag>
+                        <el-tag effect="plain">列语义 {{ currentColumnRows.length }} 条</el-tag>
+                        <el-button
+                          size="small"
+                          text
+                          :loading="columnSemanticsLoading"
+                          :disabled="columnTablesForDisplay.length === 0"
+                          @click="reloadColumnSemantics"
+                        >
+                          刷新
+                        </el-button>
+                      </div>
+
+                      <div v-if="columnTablesForDisplay.length === 0" class="column-empty-tip">
+                        点击图中的表格节点后，可查看字段语义、敏感标记和语义来源。
+                      </div>
+
+                      <div v-else-if="columnSemanticsLoading" class="column-empty-tip">列语义加载中...</div>
+
+                      <div v-else class="column-semantic-list">
+                        <div
+                          v-for="row in currentColumnRows"
+                          :key="`${row.table_key}.${row.column_name}`"
+                          class="column-semantic-row"
+                        >
+                          <div class="column-row-main">
+                            <div>
+                              <strong>{{ row.column_name }}</strong>
+                              <span>{{ row.semantic_name || '未命名语义' }}</span>
+                            </div>
+                            <el-tag size="small" :type="row.is_sensitive ? 'danger' : 'info'" effect="plain">
+                              {{ row.is_sensitive ? '敏感' : '普通' }}
+                            </el-tag>
+                          </div>
+                          <div class="column-row-meta">
+                            <span>{{ semanticClassLabel(row.semantic_class) }}</span>
+                            <span>{{ row.data_type || '-' }}</span>
+                            <span>{{ semanticsModeLabel(row.semantics_mode) }}</span>
+                            <span>{{ row.source || '-' }}</span>
+                          </div>
+                          <div class="table-raw">{{ tableDisplayLabel(row.table_key) }} / {{ row.table_key }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </el-tab-pane>
+                </el-tabs>
+              </section>
+            </aside>
           </div>
-
-          <div class="column-semantic-panel">
-            <div class="detail-title">列级语义</div>
-            <div class="column-toolbar">
-              <el-tag effect="plain" type="info">
-                当前范围: {{ selectedTable ? tableDisplayLabel(selectedTable) : '未选中表（点击图中表节点）' }}
-              </el-tag>
-              <el-tag effect="plain">列语义 {{ currentColumnRows.length }} 条</el-tag>
-              <el-button
-                size="small"
-                text
-                :loading="columnSemanticsLoading"
-                :disabled="columnTablesForDisplay.length === 0"
-                @click="reloadColumnSemantics"
-              >
-                刷新列语义
-              </el-button>
-            </div>
-
-            <div v-if="columnTablesForDisplay.length === 0" class="column-empty-tip">
-              点击图中的表格节点后，可查看该表的列级语义（字段语义、敏感标记、语义来源等）。
-            </div>
-
-            <el-table
-              v-else
-              :data="currentColumnRows"
-              size="small"
-              border
-              stripe
-              :loading="columnSemanticsLoading"
-              max-height="320"
-            >
-              <el-table-column label="所属表" min-width="170">
-                <template #default="{ row }">
-                  <div>{{ tableDisplayLabel(row.table_key) }}</div>
-                  <div class="table-raw">{{ row.table_key }}</div>
-                </template>
-              </el-table-column>
-              <el-table-column prop="column_name" label="字段名" min-width="130" />
-              <el-table-column prop="semantic_name" label="语义名" min-width="150" />
-              <el-table-column prop="semantic_class" label="语义类型" min-width="120">
-                <template #default="{ row }">{{ semanticClassLabel(row.semantic_class) }}</template>
-              </el-table-column>
-              <el-table-column prop="data_type" label="数据类型" width="110" />
-              <el-table-column prop="ui_type" label="界面类型" width="110" />
-              <el-table-column prop="semantics_mode" label="语义模式" width="120">
-                <template #default="{ row }">{{ semanticsModeLabel(row.semantics_mode) }}</template>
-              </el-table-column>
-              <el-table-column prop="source" label="来源" width="110" />
-              <el-table-column prop="is_sensitive" label="敏感" width="90">
-                <template #default="{ row }">
-                  <el-tag size="small" :type="row.is_sensitive ? 'danger' : 'info'" effect="plain">
-                    {{ row.is_sensitive ? '是' : '否' }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </el-card>
-
-        <el-card shadow="never" class="wb-card list-card">
-          <template #header>
-            <div class="card-header">
-              <span>关系明细列表</span>
-              <div class="header-controls">
-                <el-tag type="info" effect="plain">更新时间 {{ refreshedAt }}</el-tag>
-                <el-button size="small" text @click="toggleListPanel">
-                  {{ listPanelExpanded ? '收起列表' : '展开列表' }}
-                </el-button>
-              </div>
-            </div>
-          </template>
-          <div v-if="!listPanelExpanded" class="list-collapsed-tip">
-            明细列表已收起，可点击“展开列表”查看关系明细。
-          </div>
-          <el-table
-            v-else
-            :data="tableRows"
-            size="small"
-            border
-            stripe
-            height="280"
-            @row-click="pickRelation"
-          >
-            <el-table-column prop="relation_type" label="关系类型" width="120">
-              <template #default="{ row }">
-                <el-tag size="small" :type="row.relation_type === 'ontology' ? 'primary' : 'success'">
-                  {{ relationTypeLabel(row.relation_type) }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="subject_table" label="主体表" min-width="180">
-              <template #default="{ row }">
-                <div>{{ tableDisplayLabel(row.subject_table) }}</div>
-                <div class="table-raw">{{ row.subject_table }}</div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="predicate" label="关系词" min-width="180">
-              <template #default="{ row }">{{ predicateLabel(row.predicate) }}</template>
-            </el-table-column>
-            <el-table-column prop="object_table" label="客体表" min-width="180">
-              <template #default="{ row }">
-                <div>{{ tableDisplayLabel(row.object_table) }}</div>
-                <div class="table-raw">{{ row.object_table }}</div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="details" label="说明" min-width="260" show-overflow-tooltip />
-          </el-table>
         </el-card>
       </main>
     </section>
@@ -764,8 +764,8 @@ const pickedRelationId = ref(null)
 const refreshedAt = ref('-')
 const graphHostRef = ref(null)
 const graphHostWidth = ref(1000)
-const listPanelExpanded = ref(false)
 const graphZoom = ref(1)
+const relationInspectorTab = ref('relation')
 const columnSemanticsLoading = ref(false)
 const columnSemanticsCache = ref({})
 const reasoningLoading = ref(false)
@@ -1882,17 +1882,13 @@ const toggleTableFocus = (table) => {
     return
   }
   selectedTable.value = selectedTable.value === table ? '' : table
+  if (selectedTable.value) relationInspectorTab.value = 'columns'
   syncPickedRelation()
 }
 
 const clearTableFocus = () => {
   selectedTable.value = ''
   syncPickedRelation()
-}
-
-const toggleListPanel = () => {
-  listPanelExpanded.value = !listPanelExpanded.value
-  nextTick(() => updateGraphHostWidth())
 }
 
 const zoomIn = () => {
@@ -1926,6 +1922,7 @@ const toggleNavCollapsed = () => {
 const pickRelation = (row) => {
   if (!row) return
   pickedRelationId.value = row.id
+  relationInspectorTab.value = 'relation'
   if (
     selectedTable.value &&
     row.subject_table !== selectedTable.value &&
@@ -2790,15 +2787,40 @@ onBeforeUnmount(() => {
   width: min(260px, 100%);
 }
 
+.relation-workbench-card :deep(.el-card__body) {
+  padding: 10px;
+}
+
+.relation-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.38fr);
+  gap: 10px;
+  align-items: stretch;
+  height: clamp(620px, calc(100vh - 228px), 820px);
+  min-height: 620px;
+}
+
+.relation-graph-pane,
+.relation-side-panel {
+  min-width: 0;
+  min-height: 0;
+}
+
+.relation-graph-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .graph-toolbar {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--el-color-primary-light-9) 52%, var(--el-fill-color-blank));
   border: 1px solid color-mix(in srgb, var(--el-color-primary) 20%, var(--el-border-color));
 }
@@ -2809,7 +2831,7 @@ onBeforeUnmount(() => {
 }
 
 .graph-search {
-  width: min(420px, 100%);
+  width: min(360px, 100%);
 }
 
 .graph-zoom {
@@ -2823,11 +2845,180 @@ onBeforeUnmount(() => {
 }
 
 .graph-host {
-  min-height: clamp(520px, 66vh, 900px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
   border-radius: 10px;
   border: 1px solid var(--el-border-color-light);
   background: var(--el-fill-color-extra-light);
   padding: 8px;
+}
+
+.graph-host :deep(.graph-wrap),
+.graph-host :deep(.graph-scroll) {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+}
+
+.graph-host :deep(.graph-scroll) {
+  overflow: auto;
+}
+
+.relation-side-panel {
+  display: grid;
+  grid-template-rows: minmax(280px, 0.58fr) minmax(260px, 0.42fr);
+  gap: 10px;
+}
+
+.relation-list-panel,
+.relation-inspector-panel {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-extra-light);
+}
+
+.relation-list-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+
+.relation-inspector-panel {
+  padding: 0 10px 10px;
+}
+
+.side-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.side-panel-title {
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.side-panel-subtitle {
+  margin-top: 3px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.relation-list {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.relation-list-row {
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+  padding: 8px;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.relation-list-row:hover,
+.relation-list-row.active {
+  border-color: color-mix(in srgb, var(--el-color-primary) 48%, var(--el-border-color-light));
+  background: color-mix(in srgb, var(--el-color-primary-light-9) 42%, var(--el-fill-color-blank));
+}
+
+.relation-list-row.active {
+  box-shadow: inset 3px 0 0 var(--el-color-primary);
+}
+
+.relation-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.relation-row-predicate {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.relation-row-path {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
+  margin-top: 7px;
+}
+
+.relation-row-path span {
+  min-width: 0;
+}
+
+.relation-row-path strong,
+.relation-row-path small,
+.relation-row-details {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relation-row-path strong {
+  color: var(--el-text-color-primary);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.relation-row-path small {
+  margin-top: 2px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.relation-row-path i {
+  color: var(--el-text-color-secondary);
+  font-style: normal;
+  font-size: 13px;
+}
+
+.relation-row-details {
+  margin-top: 7px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.relation-inspector-tabs {
+  height: 100%;
+}
+
+.relation-inspector-tabs :deep(.el-tabs__content) {
+  height: calc(100% - 48px);
+  overflow: auto;
 }
 
 .relation-detail {
@@ -2838,6 +3029,13 @@ onBeforeUnmount(() => {
   padding: 10px;
 }
 
+.relation-detail.compact {
+  margin-top: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 .column-semantic-panel {
   margin-top: 12px;
   border-radius: 10px;
@@ -2846,12 +3044,89 @@ onBeforeUnmount(() => {
   padding: 10px;
 }
 
+.column-semantic-panel.compact {
+  margin-top: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
 .column-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 8px;
+}
+
+.column-semantic-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.column-semantic-row {
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-light);
+  background: var(--el-fill-color-blank);
+  padding: 8px;
+}
+
+.column-row-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.column-row-main div {
+  min-width: 0;
+}
+
+.column-row-main strong,
+.column-row-main span {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.column-row-main strong {
+  color: var(--el-text-color-primary);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.column-row-main span {
+  margin-top: 3px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.column-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.column-row-meta span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-fill-color-extra-light);
+  padding: 2px 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .column-empty-tip {
@@ -2874,6 +3149,10 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+}
+
+.detail-grid.compact {
+  grid-template-columns: 1fr 1fr;
 }
 
 .detail-item {
@@ -2901,23 +3180,10 @@ onBeforeUnmount(() => {
   grid-column: 1 / -1;
 }
 
-.list-card :deep(.el-card__body) {
-  padding-top: 10px;
-}
-
 .table-raw {
   color: var(--el-text-color-secondary);
   font-size: 11px;
   margin-top: 2px;
-}
-
-.list-collapsed-tip {
-  padding: 14px 12px;
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  border: 1px dashed var(--el-border-color);
-  border-radius: 8px;
-  background: var(--el-fill-color-extra-light);
 }
 
 @media (max-width: 1280px) {
@@ -2946,6 +3212,22 @@ onBeforeUnmount(() => {
 
   .kg-layout {
     grid-template-columns: 1fr;
+  }
+
+  .relation-workspace {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+  }
+
+  .relation-side-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(280px, auto);
+  }
+
+  .graph-host {
+    flex: initial;
+    min-height: 520px;
   }
 }
 
@@ -2986,6 +3268,16 @@ onBeforeUnmount(() => {
 
   .workbench-nav-item {
     min-height: 58px;
+  }
+
+  .relation-side-panel {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .relation-list,
+  .column-semantic-list {
+    max-height: 360px;
   }
 
   .detail-grid {
