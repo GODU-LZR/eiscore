@@ -643,12 +643,14 @@
                       <span class="relation-row-predicate">{{ predicateLabel(row.predicate) }}</span>
                     </span>
                     <span class="relation-row-path">
-                      <span>
+                      <span class="relation-endpoint">
+                        <em>来源</em>
                         <strong>{{ tableDisplayLabel(row.subject_table) }}</strong>
                         <small>{{ row.subject_table }}{{ formatColumn(row.subject_column) }}</small>
                       </span>
-                      <i aria-hidden="true">→</i>
-                      <span>
+                      <i class="relation-flow-arrow" aria-hidden="true">↓</i>
+                      <span class="relation-endpoint">
+                        <em>目标</em>
                         <strong>{{ tableDisplayLabel(row.object_table) }}</strong>
                         <small>{{ row.object_table }}{{ formatColumn(row.object_column) }}</small>
                       </span>
@@ -722,10 +724,10 @@
                             </el-tag>
                           </div>
                           <div class="column-row-meta">
-                            <span>{{ semanticClassLabel(row.semantic_class) }}</span>
-                            <span>{{ row.data_type || '-' }}</span>
-                            <span>{{ semanticsModeLabel(row.semantics_mode) }}</span>
-                            <span>{{ row.source || '-' }}</span>
+                            <span><b>类型</b>{{ semanticClassLabel(row.semantic_class) }}</span>
+                            <span><b>数据</b>{{ row.data_type || '-' }}</span>
+                            <span><b>模式</b>{{ semanticsModeLabel(row.semantics_mode) }}</span>
+                            <span><b>来源</b>{{ row.source || '-' }}</span>
                           </div>
                           <div class="table-raw">{{ tableDisplayLabel(row.table_key) }} / {{ row.table_key }}</div>
                         </div>
@@ -2857,7 +2859,7 @@ onBeforeUnmount(() => {
 
 .relation-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.38fr);
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 0.46fr);
   gap: 10px;
   align-items: stretch;
   height: clamp(620px, calc(100vh - 196px), 840px);
@@ -2936,11 +2938,11 @@ onBeforeUnmount(() => {
 .relation-list-panel {
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  padding: 12px;
 }
 
 .relation-inspector-panel {
-  padding: 0 10px 10px;
+  padding: 0 12px 12px;
 }
 
 .side-panel-header {
@@ -2968,7 +2970,7 @@ onBeforeUnmount(() => {
 .relation-list {
   display: grid;
   align-content: start;
-  gap: 7px;
+  gap: 9px;
   min-height: 0;
   overflow: auto;
   padding-right: 2px;
@@ -2979,9 +2981,9 @@ onBeforeUnmount(() => {
   min-width: 0;
   text-align: left;
   border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--el-fill-color-blank);
-  padding: 8px;
+  padding: 10px 11px;
   color: inherit;
   cursor: pointer;
   transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
@@ -3001,7 +3003,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 
@@ -3011,20 +3013,35 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--el-text-color-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
 }
 
 .relation-row-path {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  gap: 7px;
-  align-items: center;
-  margin-top: 7px;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  align-items: start;
+  margin-top: 9px;
 }
 
-.relation-row-path span {
+.relation-endpoint {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: start;
   min-width: 0;
+  border-radius: 8px;
+  background: var(--el-fill-color-extra-light);
+  padding: 7px 8px;
+}
+
+.relation-endpoint em {
+  display: block;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.15;
+  margin-bottom: 4px;
 }
 
 .relation-row-path strong,
@@ -3039,7 +3056,7 @@ onBeforeUnmount(() => {
 
 .relation-row-path strong {
   color: var(--el-text-color-primary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
   line-height: 1.25;
 }
@@ -3049,19 +3066,33 @@ onBeforeUnmount(() => {
   color: var(--el-text-color-secondary);
   font-size: 11px;
   line-height: 1.2;
+  white-space: normal;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.relation-row-path i {
+.relation-flow-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 10px;
   color: var(--el-text-color-secondary);
   font-style: normal;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .relation-row-details {
-  margin-top: 7px;
+  display: -webkit-box;
+  margin-top: 8px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
-  line-height: 1.3;
+  line-height: 1.35;
+  white-space: normal;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .relation-inspector-tabs {
@@ -3106,14 +3137,14 @@ onBeforeUnmount(() => {
 .column-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .column-semantic-list {
   display: grid;
-  gap: 8px;
+  gap: 9px;
   max-height: 360px;
   overflow: auto;
   padding-right: 2px;
@@ -3121,10 +3152,10 @@ onBeforeUnmount(() => {
 
 .column-semantic-row {
   min-width: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--el-border-color-light);
   background: var(--el-fill-color-blank);
-  padding: 8px;
+  padding: 10px;
 }
 
 .column-row-main {
@@ -3150,7 +3181,7 @@ onBeforeUnmount(() => {
 
 .column-row-main strong {
   color: var(--el-text-color-primary);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.25;
 }
 
@@ -3161,24 +3192,35 @@ onBeforeUnmount(() => {
 }
 
 .column-row-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 7px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+  margin-top: 9px;
 }
 
 .column-row-meta span {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 7px;
+  align-items: center;
   max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-radius: 999px;
-  border: 1px solid var(--el-border-color-lighter);
-  background: var(--el-fill-color-extra-light);
-  padding: 2px 6px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--el-fill-color-extra-light) 76%, var(--el-fill-color-blank));
+  padding: 4px 6px;
   color: var(--el-text-color-secondary);
   font-size: 11px;
   line-height: 1.35;
+}
+
+.column-row-meta b {
+  color: var(--el-text-color-placeholder);
+  font-weight: 500;
+}
+
+.column-row-meta span {
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .column-empty-tip {
