@@ -5,50 +5,48 @@
         <h2>本体关系工作台</h2>
         <p>以图关系方式查看系统表之间的本体语义关系与影响范围。</p>
       </div>
+      <div class="hero-metrics" aria-label="本体关系概览指标">
+        <div v-for="item in topMetricCards" :key="item.key" class="hero-metric">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </div>
+      </div>
       <div class="hero-actions">
-        <el-tag effect="dark" type="info">已加载 {{ filteredRelations.length }} 条关系</el-tag>
-        <el-button :loading="loading || reasoningLoading" type="primary" @click="reloadAll">刷新数据</el-button>
-        <el-button @click="goBack">返回应用中心</el-button>
+        <el-tag effect="dark" size="small" type="info">已加载 {{ filteredRelations.length }} 条关系</el-tag>
+        <el-button :loading="loading || reasoningLoading" size="small" type="primary" @click="reloadAll">刷新数据</el-button>
+        <el-button size="small" @click="goBack">返回应用中心</el-button>
       </div>
     </section>
 
-    <section class="wb-metric-row">
-      <el-card shadow="never" class="wb-card metric-line-item">
-        <div class="metric-label">关系总数</div>
-        <div class="metric-value">{{ filteredRelations.length }}</div>
-      </el-card>
-      <el-card shadow="never" class="wb-card metric-line-item">
-        <div class="metric-label">表总数</div>
-        <div class="metric-value">{{ allTables.length }}</div>
-      </el-card>
-      <el-card shadow="never" class="wb-card metric-line-item">
-        <div class="metric-label">本体关系</div>
-        <div class="metric-value">{{ ontologyCount }}</div>
-      </el-card>
-      <el-card shadow="never" class="wb-card metric-line-item">
-        <div class="metric-label">外键关系</div>
-        <div class="metric-value">{{ foreignKeyCount }}</div>
-      </el-card>
-      <el-card shadow="never" class="wb-card metric-line-item">
-        <div class="metric-label">推理事实</div>
-        <div class="metric-value">{{ reasoningSummary.facts_total || 0 }}</div>
-      </el-card>
-      <el-card shadow="never" class="wb-card metric-line-item">
-        <div class="metric-label">推理规则</div>
-        <div class="metric-value">{{ reasoningSummary.active_rules || 0 }}</div>
-      </el-card>
-    </section>
-
-    <section class="workbench-shell">
-      <aside class="workbench-nav" aria-label="本体工作台功能导航">
+    <section class="workbench-shell" :class="{ 'nav-collapsed': navCollapsed }">
+      <aside class="workbench-nav" :class="{ 'is-collapsed': navCollapsed }" aria-label="本体工作台功能导航">
+        <div class="workbench-nav-toolbar">
+          <span class="workbench-nav-label">工作台视图</span>
+          <el-tooltip :content="navCollapsed ? '展开侧栏' : '收起侧栏'" placement="right">
+            <el-button
+              class="nav-collapse-button"
+              circle
+              text
+              size="small"
+              :icon="navCollapsed ? Expand : Fold"
+              :aria-label="navCollapsed ? '展开本体工作台侧栏' : '收起本体工作台侧栏'"
+              @click="toggleNavCollapsed"
+            />
+          </el-tooltip>
+        </div>
         <button
           v-for="item in workbenchViews"
           :key="item.key"
           type="button"
           class="workbench-nav-item"
           :class="[`attention-${item.attention}`, { active: activeWorkbenchView === item.key }]"
+          :title="`${item.title} ${item.metric}`"
+          :aria-label="`${item.title}，${item.desc}，${item.metric}`"
           @click="setActiveWorkbenchView(item.key)"
         >
+          <span class="nav-icon" aria-hidden="true">
+            <component :is="item.icon" />
+          </span>
           <span class="nav-main">
             <span class="nav-title">{{ item.title }}</span>
             <span class="nav-desc">{{ item.desc }}</span>
@@ -742,6 +740,14 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import {
+  Connection,
+  Cpu,
+  DataAnalysis,
+  Expand,
+  Fold,
+  Search as SearchIcon
+} from '@element-plus/icons-vue'
 import request from '@/utils/request'
 import OntologyRelationGraph from '@/components/OntologyRelationGraph.vue'
 
@@ -750,6 +756,7 @@ const router = useRouter()
 const loading = ref(false)
 const relations = ref([])
 const activeWorkbenchView = ref('relations')
+const navCollapsed = ref(false)
 const searchText = ref('')
 const relationType = ref('ontology')
 const selectedTable = ref('')
@@ -961,6 +968,15 @@ const foreignKeyCount = computed(() =>
   filteredRelations.value.filter((item) => item.relation_type === 'foreign_key').length
 )
 
+const topMetricCards = computed(() => ([
+  { key: 'relations', label: '关系总数', value: filteredRelations.value.length },
+  { key: 'tables', label: '表总数', value: allTables.value.length },
+  { key: 'ontology', label: '本体关系', value: ontologyCount.value },
+  { key: 'foreign', label: '外键关系', value: foreignKeyCount.value },
+  { key: 'facts', label: '推理事实', value: reasoningSummary.value.facts_total || 0 },
+  { key: 'rules', label: '推理规则', value: reasoningSummary.value.active_rules || 0 }
+]))
+
 const pickedRelation = computed(() =>
   graphRelations.value.find((item) => item.id === pickedRelationId.value) || null
 )
@@ -1147,28 +1163,32 @@ const workbenchViews = computed(() => {
       title: '关系图谱',
       desc: '表关系 / 列语义 / 明细',
       metric: `${graphRelations.value.length} 条`,
-      attention: selectedTable.value ? 'focus' : 'normal'
+      attention: selectedTable.value ? 'focus' : 'normal',
+      icon: Connection
     },
     {
       key: 'reasoning',
       title: '推理引擎',
       desc: '事实 / 规则 / 路径解释',
       metric: `${reasoningSummary.value.facts_total || 0} facts`,
-      attention: reasoningSummary.value.last_run_status === 'completed' ? 'normal' : 'warning'
+      attention: reasoningSummary.value.last_run_status === 'completed' ? 'normal' : 'warning',
+      icon: Cpu
     },
     {
       key: 'kg',
       title: 'KG 查询',
       desc: '节点 / 邻域 / 子图证据',
       metric: `${kgGraphStats.value.nodes}/${kgGraphStats.value.links}`,
-      attention: kgSelectedEdge.value ? 'focus' : 'normal'
+      attention: kgSelectedEdge.value ? 'focus' : 'normal',
+      icon: SearchIcon
     },
     {
       key: 'insight',
       title: '洞察审计',
       desc: '风险 / 影响 / 敏感路径',
       metric: reasoningHealth.value.health_code || 'unknown',
-      attention: insightAttention
+      attention: insightAttention,
+      icon: DataAnalysis
     }
   ]
 })
@@ -1892,6 +1912,17 @@ const setActiveWorkbenchView = (key) => {
   activeWorkbenchView.value = key
 }
 
+const refreshWorkbenchLayout = async () => {
+  await nextTick()
+  updateGraphHostWidth()
+  resizeKgGraph()
+}
+
+const toggleNavCollapsed = () => {
+  navCollapsed.value = !navCollapsed.value
+  void refreshWorkbenchLayout()
+}
+
 const pickRelation = (row) => {
   if (!row) return
   pickedRelationId.value = row.id
@@ -1966,8 +1997,17 @@ const reload = async () => {
   }
 }
 
+const reloadRelationsWithRetry = async () => {
+  await reload()
+  if (relations.value.length || String(searchText.value || '').trim()) return
+  await new Promise((resolve) => setTimeout(resolve, 600))
+  if (!relations.value.length && !String(searchText.value || '').trim()) {
+    await reload()
+  }
+}
+
 const reloadAll = async () => {
-  await Promise.all([reload(), loadReasoning(), loadReasoningInsights(), loadKgNodes()])
+  await Promise.all([reloadRelationsWithRetry(), loadReasoning(), loadReasoningInsights(), loadKgNodes()])
 }
 
 const goBack = () => {
@@ -2024,44 +2064,89 @@ onBeforeUnmount(() => {
 <style scoped>
 .ontology-workbench {
   min-height: 100vh;
-  padding: 18px;
+  padding: 12px;
   background: var(--el-bg-color-page);
 }
 
 .wb-hero {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(420px, 1.6fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 14px;
-  padding: 16px 18px;
-  border-radius: 14px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--el-color-primary) 14%, var(--el-bg-color)),
-    color-mix(in srgb, var(--el-color-primary-light-8) 40%, var(--el-bg-color))
-  );
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 20%, transparent);
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--el-fill-color-light) 62%, var(--el-bg-color));
+  border: 1px solid var(--el-border-color-light);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+}
+
+.hero-text {
+  min-width: 0;
 }
 
 .hero-text h2 {
-  margin: 0 0 6px;
-  font-size: 24px;
-  line-height: 1.2;
+  margin: 0 0 3px;
+  font-size: 20px;
+  line-height: 1.15;
   color: var(--el-text-color-primary);
 }
 
 .hero-text p {
   margin: 0;
   color: var(--el-text-color-regular);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(68px, 1fr));
+  gap: 6px;
+  min-width: 0;
+}
+
+.hero-metric {
+  min-width: 0;
+  border-radius: 7px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: color-mix(in srgb, var(--el-fill-color-blank) 74%, var(--el-fill-color-light));
+  padding: 6px 8px;
+}
+
+.hero-metric span,
+.hero-metric strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-metric span {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.hero-metric strong {
+  margin-top: 3px;
+  color: var(--el-text-color-primary);
+  font-size: 18px;
+  font-weight: 720;
+  line-height: 1;
 }
 
 .hero-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 8px;
   flex-wrap: wrap;
+  min-width: 260px;
 }
 
 .wb-metric-row {
@@ -2077,35 +2162,68 @@ onBeforeUnmount(() => {
 
 .workbench-shell {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 10px;
   align-items: start;
+  transition: grid-template-columns 0.18s ease;
+}
+
+.workbench-shell.nav-collapsed {
+  grid-template-columns: 56px minmax(0, 1fr);
 }
 
 .workbench-nav {
   position: sticky;
   top: 12px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
+  transition: width 0.18s ease;
+}
+
+.workbench-nav-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 5px 4px 8px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--el-fill-color-blank) 78%, var(--el-fill-color-light));
+}
+
+.workbench-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-collapse-button {
+  flex: 0 0 auto;
 }
 
 .workbench-nav-item {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
   width: 100%;
-  min-height: 68px;
+  min-height: 58px;
   border: 1px solid var(--el-border-color-light);
   border-left-width: 4px;
   border-radius: 8px;
   background: var(--el-fill-color-blank);
-  padding: 10px 11px;
+  padding: 8px 9px;
   color: var(--el-text-color-primary);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, padding 0.18s ease;
 }
 
 .workbench-nav-item:hover,
@@ -2129,6 +2247,22 @@ onBeforeUnmount(() => {
 
 .workbench-nav-item.attention-normal {
   border-left-color: var(--el-color-success);
+}
+
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--el-color-primary-light-9) 58%, var(--el-fill-color-extra-light));
+  color: var(--el-text-color-primary);
+}
+
+.nav-icon :deep(svg) {
+  width: 16px;
+  height: 16px;
 }
 
 .nav-main,
@@ -2161,7 +2295,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  max-width: 78px;
+  max-width: 58px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
@@ -2191,6 +2325,38 @@ onBeforeUnmount(() => {
 
 .attention-focus .attention-dot {
   background: var(--el-color-primary);
+}
+
+.workbench-nav.is-collapsed .workbench-nav-toolbar {
+  justify-content: center;
+  padding: 4px;
+}
+
+.workbench-nav.is-collapsed .workbench-nav-label {
+  display: none;
+}
+
+.workbench-nav.is-collapsed .workbench-nav-item {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  min-height: 48px;
+  padding: 8px 6px;
+  border-left-width: 3px;
+}
+
+.workbench-nav.is-collapsed .nav-main {
+  display: none;
+}
+
+.workbench-nav.is-collapsed .nav-meta {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  max-width: none;
+}
+
+.workbench-nav.is-collapsed .nav-meta span:last-child {
+  display: none;
 }
 
 .workbench-stage {
@@ -2754,20 +2920,28 @@ onBeforeUnmount(() => {
   background: var(--el-fill-color-extra-light);
 }
 
+@media (max-width: 1280px) {
+  .wb-hero {
+    grid-template-columns: minmax(220px, 1fr) auto;
+  }
+
+  .hero-metrics {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 1200px) {
-  .wb-metric-row,
   .reasoning-metrics,
   .insight-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .workbench-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: 168px minmax(0, 1fr);
   }
 
-  .workbench-nav {
-    position: static;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .workbench-shell.nav-collapsed {
+    grid-template-columns: 56px minmax(0, 1fr);
   }
 
   .kg-layout {
@@ -2777,18 +2951,36 @@ onBeforeUnmount(() => {
 
 @media (max-width: 900px) {
   .wb-hero {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
-  .wb-metric-row,
+  .hero-text p {
+    white-space: normal;
+  }
+
+  .hero-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hero-actions {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
   .reasoning-metrics,
   .insight-metrics,
   .kg-metrics {
     grid-template-columns: 1fr;
   }
 
+  .workbench-shell,
+  .workbench-shell.nav-collapsed {
+    grid-template-columns: 1fr;
+  }
+
   .workbench-nav {
+    position: static;
     grid-template-columns: 1fr;
   }
 
@@ -2803,6 +2995,12 @@ onBeforeUnmount(() => {
   .kg-graph-canvas {
     height: 260px;
     min-height: 240px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>
