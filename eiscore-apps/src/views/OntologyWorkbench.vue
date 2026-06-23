@@ -578,7 +578,7 @@
                   <el-button size="small" text :icon="Minus" aria-label="缩小" @click="zoomOut" />
                   <el-slider
                     v-model="graphZoom"
-                    :min="0.6"
+                    :min="0.1"
                     :max="1.8"
                     :step="0.1"
                     class="graph-zoom-slider"
@@ -1910,7 +1910,7 @@ const zoomIn = () => {
 }
 
 const zoomOut = () => {
-  graphZoom.value = Math.max(0.6, Number((graphZoom.value - 0.1).toFixed(1)))
+  graphZoom.value = Math.max(0.1, Number((graphZoom.value - 0.1).toFixed(1)))
 }
 
 const resetZoom = () => {
