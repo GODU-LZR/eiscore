@@ -545,17 +545,51 @@
       <main class="wb-main full">
         <el-card shadow="never" class="wb-card relation-card relation-workbench-card">
           <template #header>
-            <div class="card-header">
-              <span>图关系总览</span>
-              <div class="header-controls">
+            <div class="card-header relation-card-header">
+              <div class="relation-card-title">
+                <span>图关系总览</span>
+                <el-tooltip content="点击表格图标聚焦表，点击连线查看关系。" placement="bottom">
+                  <el-button
+                    class="relation-help-button"
+                    :icon="InfoFilled"
+                    circle
+                    text
+                    size="small"
+                    aria-label="图谱操作提示"
+                  />
+                </el-tooltip>
+              </div>
+              <div class="header-controls relation-card-controls">
+                <el-input
+                  v-model="searchText"
+                  clearable
+                  class="graph-search"
+                  placeholder="筛选关系（表名/关系词/说明）"
+                />
                 <el-select v-model="relationType" size="small" style="width: 140px">
                   <el-option label="全部类型" value="all" />
                   <el-option label="本体关系" value="ontology" />
                   <el-option label="外键关系" value="foreign_key" />
                 </el-select>
-                <el-tag type="success" effect="plain">
+                <el-tag class="focus-tag" type="success" effect="plain">
                   当前聚焦: {{ selectedTable ? tableDisplayLabel(selectedTable) : '全部表' }}
                 </el-tag>
+                <div class="graph-zoom">
+                  <el-button size="small" text :icon="Minus" aria-label="缩小" @click="zoomOut" />
+                  <el-slider
+                    v-model="graphZoom"
+                    :min="0.6"
+                    :max="1.8"
+                    :step="0.1"
+                    class="graph-zoom-slider"
+                    aria-label="图谱缩放比例"
+                  />
+                  <el-button size="small" text :icon="Plus" aria-label="放大" @click="zoomIn" />
+                  <el-button class="zoom-reset-button" size="small" text @click="resetZoom">
+                    {{ Math.round(graphZoom * 100) }}%
+                  </el-button>
+                </div>
+                <el-tag effect="plain">展示 {{ graphRelations.length }} 条</el-tag>
                 <el-button size="small" text :disabled="!selectedTable" @click="clearTableFocus">
                   查看全部
                 </el-button>
@@ -565,29 +599,6 @@
 
           <div class="relation-workspace">
             <section class="relation-graph-pane" aria-label="图关系总览画布">
-              <div class="graph-toolbar">
-                <el-input
-                  v-model="searchText"
-                  clearable
-                  class="graph-search"
-                  placeholder="筛选关系（表名/关系词/说明）"
-                />
-                <div class="graph-tip">点击表格图标聚焦表，点击连线查看关系。</div>
-                <div class="graph-zoom">
-                  <el-button size="small" @click="zoomOut">缩小</el-button>
-                  <el-slider
-                    v-model="graphZoom"
-                    :min="0.6"
-                    :max="1.8"
-                    :step="0.1"
-                    style="width: 120px"
-                  />
-                  <el-button size="small" @click="zoomIn">放大</el-button>
-                  <el-button size="small" text @click="resetZoom">100%</el-button>
-                </div>
-                <el-tag effect="plain">展示 {{ graphRelations.length }} 条</el-tag>
-              </div>
-
               <div ref="graphHostRef" class="graph-host">
                 <OntologyRelationGraph
                   :relations="graphRelations"
@@ -746,6 +757,9 @@ import {
   DataAnalysis,
   Expand,
   Fold,
+  InfoFilled,
+  Minus,
+  Plus,
   Search as SearchIcon
 } from '@element-plus/icons-vue'
 import request from '@/utils/request'
@@ -2791,12 +2805,62 @@ onBeforeUnmount(() => {
   padding: 10px;
 }
 
+.relation-workbench-card :deep(.el-card__header) {
+  padding: 7px 10px;
+}
+
+.relation-card-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 32px;
+}
+
+.relation-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.relation-help-button {
+  color: var(--el-text-color-secondary);
+}
+
+.relation-card-controls {
+  min-width: 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.relation-card-controls .graph-search {
+  flex: 1 1 180px;
+  width: auto;
+  min-width: 160px;
+  max-width: 260px;
+}
+
+.relation-card-controls .focus-tag {
+  max-width: 190px;
+}
+
+.relation-card-controls .focus-tag :deep(.el-tag__content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .relation-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 0.38fr);
   gap: 10px;
   align-items: stretch;
-  height: clamp(620px, calc(100vh - 228px), 820px);
+  height: clamp(620px, calc(100vh - 196px), 840px);
   min-height: 620px;
 }
 
@@ -2812,36 +2876,24 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-.graph-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--el-color-primary-light-9) 52%, var(--el-fill-color-blank));
-  border: 1px solid color-mix(in srgb, var(--el-color-primary) 20%, var(--el-border-color));
-}
-
-.graph-tip {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
-
-.graph-search {
-  width: min(360px, 100%);
-}
-
 .graph-zoom {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 6px;
+  gap: 3px;
+  padding: 2px 5px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--el-fill-color-blank) 84%, var(--el-color-primary-light-9));
   border: 1px solid var(--el-border-color-light);
+}
+
+.graph-zoom-slider {
+  width: 88px;
+}
+
+.zoom-reset-button {
+  min-width: 42px;
+  padding-left: 4px;
+  padding-right: 4px;
 }
 
 .graph-host {
