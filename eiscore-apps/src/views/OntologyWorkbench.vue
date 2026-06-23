@@ -1337,23 +1337,41 @@ const extractSemanticsMode = (tags) => {
   return String(hit).slice('semantics:'.length)
 }
 
-const fetchColumnSemanticsByTable = async (tableKey) => {
-  const parsed = parseTableKey(tableKey)
-  if (!parsed) return []
-  const schema = encodeURIComponent(parsed.schema)
-  const table = encodeURIComponent(parsed.table)
-  const rows = await request({
-    url: `/ontology_column_semantics?select=table_schema,table_name,column_name,semantic_class,semantic_name,data_type,ui_type,is_sensitive,source,tags,is_active&table_schema=eq.${schema}&table_name=eq.${table}&is_active=is.true&order=column_name.asc`,
-    method: 'get',
+const loadAgentOntologyContext = async ({ query = null, limit = 80 } = {}) => {
+  const data = await request({
+    url: '/rpc/agent_ontology_context',
+    method: 'post',
+    data: {
+      p_query: query || null,
+      p_limit: limit
+    },
     headers: {
       'Accept-Profile': 'public',
       'Content-Profile': 'public'
     }
   })
+  return data && typeof data === 'object' ? data : {}
+}
+
+const fetchColumnSemanticsByTable = async (tableKey) => {
+  const parsed = parseTableKey(tableKey)
+  if (!parsed) return []
+  const context = await loadAgentOntologyContext({ query: parsed.tableKey, limit: 20 })
+  const rows = context?.columns?.[parsed.tableKey] || []
   if (!Array.isArray(rows)) return []
   return rows.map((item) => ({
-    ...item,
-    table_key: `${item.table_schema}.${item.table_name}`,
+    table_schema: parsed.schema,
+    table_name: parsed.table,
+    column_name: item.col || item.column_name || '',
+    semantic_class: item.cls || item.semantic_class || '',
+    semantic_name: item.name || item.semantic_name || '',
+    data_type: item.type || item.data_type || '',
+    ui_type: item.ui || item.ui_type || '',
+    is_sensitive: item.sensitive === true || item.is_sensitive === true,
+    source: item.source || 'agent_ontology_context',
+    tags: item.tags || [],
+    is_active: true,
+    table_key: parsed.tableKey,
     semantics_mode: extractSemanticsMode(item.tags)
   }))
 }
@@ -1390,8 +1408,9 @@ const reloadColumnSemantics = async () => {
 
 const fetchReasoningSummary = async () => {
   const rows = await request({
-    url: '/v_ontology_reasoning_summary?select=last_run_status,facts_total,seed_facts,inferred_facts,active_rules,role_app_access_facts,role_table_access_facts,workflow_transition_facts,sensitive_exposure_facts,transitive_dependency_facts,last_finished_at&limit=1',
-    method: 'get',
+    url: '/rpc/agent_ontology_reasoning_summary',
+    method: 'post',
+    data: {},
     headers: {
       'Accept-Profile': 'public',
       'Content-Profile': 'public'
@@ -1402,11 +1421,15 @@ const fetchReasoningSummary = async () => {
 
 const loadReasoningFacts = async () => {
   const predicateFilter = reasoningPredicate.value
-    ? `&predicate=eq.${encodeURIComponent(reasoningPredicate.value)}`
-    : ''
+    ? String(reasoningPredicate.value)
+    : null
   const rows = await request({
-    url: `/v_ontology_reasoning_facts?select=id,subject_type,subject_id,subject_label,predicate,object_type,object_id,object_label,inference_rule,rule_name,inference_depth,is_inferred,evidence${predicateFilter}&order=is_inferred.desc,inference_depth.asc,id.asc&limit=200`,
-    method: 'get',
+    url: '/rpc/agent_ontology_reasoning_facts',
+    method: 'post',
+    data: {
+      p_predicate: predicateFilter,
+      p_limit: 200
+    },
     headers: {
       'Accept-Profile': 'public',
       'Content-Profile': 'public'
@@ -1437,40 +1460,45 @@ const loadReasoningInsights = async () => {
       sensitiveRows
     ] = await Promise.all([
       request({
-        url: '/v_ontology_reasoning_health?select=id,is_healthy,health_code,facts_total,inferred_facts,api_relations,semanticized_relations,ontology_columns,semanticized_columns,missing_relation_semantics,missing_column_semantics,last_run_status,last_finished_at&limit=1',
-        method: 'get',
+        url: '/rpc/agent_ontology_reasoning_health',
+        method: 'post',
+        data: {},
         headers: {
           'Accept-Profile': 'public',
           'Content-Profile': 'public'
         }
       }),
       request({
-        url: '/v_ontology_role_access_insights?select=role_code,role_name,accessible_apps,accessible_tables,operable_tables,sensitive_columns,sensitive_tables,inferred_permission_paths&order=sensitive_columns.desc,accessible_apps.desc,role_code.asc&limit=50',
-        method: 'get',
+        url: '/rpc/agent_ontology_role_access_insights',
+        method: 'post',
+        data: { p_limit: 50 },
         headers: {
           'Accept-Profile': 'public',
           'Content-Profile': 'public'
         }
       }),
       request({
-        url: '/v_ontology_table_impact_insights?select=table_id,table_label,sensitive_columns,roles_can_access,roles_can_operate,direct_dependent_tables,transitive_dependent_tables,depends_on_tables,has_reasoning_impact&has_reasoning_impact=eq.true&order=transitive_dependent_tables.desc,roles_can_access.desc,table_id.asc&limit=50',
-        method: 'get',
+        url: '/rpc/agent_ontology_table_impact_insights',
+        method: 'post',
+        data: { p_limit: 50 },
         headers: {
           'Accept-Profile': 'public',
           'Content-Profile': 'public'
         }
       }),
       request({
-        url: '/v_ontology_reasoning_rule_stats?select=rule_code,rule_name,declared_predicate,facts_total,seed_facts,inferred_facts,predicate_count,is_active,min_depth,max_depth&order=inferred_facts.desc,facts_total.desc,rule_code.asc&limit=50',
-        method: 'get',
+        url: '/rpc/agent_ontology_reasoning_rule_stats',
+        method: 'post',
+        data: { p_limit: 50 },
         headers: {
           'Accept-Profile': 'public',
           'Content-Profile': 'public'
         }
       }),
       request({
-        url: '/v_ontology_sensitive_access_paths?select=role_code,role_name,table_id,table_label,column_id,column_name,column_label,access_rule,access_predicate,inference_rule,rule_name&order=role_code.asc,table_id.asc,column_name.asc&limit=50',
-        method: 'get',
+        url: '/rpc/agent_ontology_sensitive_access_paths',
+        method: 'post',
+        data: { p_limit: 50 },
         headers: {
           'Accept-Profile': 'public',
           'Content-Profile': 'public'
@@ -1520,7 +1548,7 @@ const explainRoleAccess = async (silent = false) => {
   roleExplainLoading.value = true
   try {
     const rows = await request({
-      url: '/rpc/explain_role_ontology_access',
+      url: '/rpc/agent_explain_role_ontology_access',
       method: 'post',
       data: {
         p_role_code: roleCode,
@@ -1555,7 +1583,7 @@ const loadKgNodes = async () => {
   kgLoading.value = true
   try {
     const rows = await request({
-      url: '/rpc/search_ontology_kg_nodes',
+      url: '/rpc/agent_search_ontology_kg_nodes',
       method: 'post',
       data: {
         p_query: String(kgSearchText.value || '').trim() || null,
@@ -1595,7 +1623,7 @@ const loadKgNeighbors = async (silent = false) => {
   kgNeighborLoading.value = true
   try {
     const rows = await request({
-      url: '/rpc/query_ontology_kg_neighbors',
+      url: '/rpc/agent_query_ontology_kg_neighbors',
       method: 'post',
       data: {
         p_node_type: node.node_type,
@@ -1643,7 +1671,7 @@ const findKgPaths = async () => {
   kgPathLoading.value = true
   try {
     const rows = await request({
-      url: '/rpc/find_ontology_kg_paths',
+      url: '/rpc/agent_find_ontology_kg_paths',
       method: 'post',
       data: {
         p_source_type: node.node_type,
@@ -1805,7 +1833,7 @@ const explainPath = async () => {
   pathLoading.value = true
   try {
     const rows = await request({
-      url: '/rpc/explain_ontology_path',
+      url: '/rpc/agent_explain_ontology_path',
       method: 'post',
       data: {
         p_subject_type: pathSubjectType.value,
@@ -1911,15 +1939,24 @@ const bindGraphResizeObserver = () => {
 const reload = async () => {
   loading.value = true
   try {
-    const rows = await request({
-      url: '/ontology_table_relations?select=id,relation_type,subject_table,subject_column,predicate,object_table,object_column,bridge_table,details,subject_semantic_name,object_semantic_name&order=relation_type.asc,id.asc',
-      method: 'get',
-      headers: {
-        'Accept-Profile': 'app_data',
-        'Content-Profile': 'app_data'
-      }
+    const context = await loadAgentOntologyContext({
+      query: String(searchText.value || '').trim() || null,
+      limit: 200
     })
-    relations.value = Array.isArray(rows) ? rows : []
+    const rows = Array.isArray(context.relations) ? context.relations : []
+    relations.value = rows.map((row, index) => ({
+      id: row.id || index + 1,
+      relation_type: row.relation_type || 'ontology',
+      subject_table: row.subject_table || row.from || '',
+      subject_column: row.subject_column || '',
+      predicate: row.predicate || '',
+      object_table: row.object_table || row.to || '',
+      object_column: row.object_column || '',
+      bridge_table: row.bridge_table || '',
+      details: row.details || '',
+      subject_semantic_name: row.subject_semantic_name || row.fromName || '',
+      object_semantic_name: row.object_semantic_name || row.toName || ''
+    }))
     refreshedAt.value = new Date().toLocaleTimeString()
     syncSelectedTable()
   } catch (error) {
