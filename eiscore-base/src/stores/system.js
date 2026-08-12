@@ -37,8 +37,7 @@ const defaultLoginBranding = {
   navItems: [
     { label: '工厂现场', anchor: 'about' },
     { label: '产品方向', anchor: 'capabilities' },
-    { label: '制造链路', anchor: 'metrics' },
-    { label: '登录入口', anchor: 'overview' }
+    { label: '制造链路', anchor: 'metrics' }
   ],
   metrics: [
     { label: '工厂现场', value: '真实' },

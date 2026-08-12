@@ -16,15 +16,16 @@
             v-for="item in navItems"
             :key="`${item.label}-${item.anchor}`"
             type="button"
+            class="site-nav-item"
             @click="scrollToSection(item.anchor)"
           >
             {{ item.label }}
           </button>
         </template>
-        <a class="independent-site-tab" href="/company/" aria-label="打开企业独立站">
+        <a class="site-nav-item independent-site-tab" href="/company/" aria-label="打开企业独立站">
           企业独立站
         </a>
-        <button type="button" class="header-login" @click="focusLogin">
+        <button type="button" class="site-nav-item header-login" @click="focusLogin">
           {{ branding.headerLoginText }}
         </button>
       </nav>
@@ -311,12 +312,17 @@ const marqueeItems = computed(() => {
 })
 const heroFacts = computed(() => metricItems.value.slice(0, 3))
 
+const isLoginNavItem = (item) => {
+  const label = String(item?.label || '').trim()
+  return /^(?:登录|登录入口|企业人员登录|员工登录|员工通道|企业人员入口)$/.test(label)
+}
+
 const navItems = computed(() => branding.value.navItems
   .map((item) => ({
     label: String(item?.label || '').trim(),
     anchor: String(item?.anchor || '').trim()
   }))
-  .filter((item) => item.label)
+  .filter((item) => item.label && !isLoginNavItem(item))
   .slice(0, 6))
 
 const metricItems = computed(() => branding.value.metrics
@@ -621,9 +627,7 @@ const handleLogin = async () => {
   color: #fff;
 }
 
-.is-scrolled .site-nav button,
-.is-scrolled .site-nav a,
-.is-scrolled .header-login {
+.is-scrolled .site-nav-item {
   color: #111827;
 }
 
@@ -675,33 +679,36 @@ const handleLogin = async () => {
   gap: 4px;
 }
 
-.site-nav button,
-.site-nav a,
-.header-login {
+.site-nav-item {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 38px;
+  min-height: 38px;
+  margin: 0;
   padding: 0 14px;
   border-radius: 4px;
   border: 1px solid transparent;
   color: #fff;
   background: transparent;
+  font-family: inherit;
+  font-size: 14px;
   font-weight: 700;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
 }
 
-.site-nav a {
-  text-decoration: none;
-}
-
-.site-nav button:hover,
-.site-nav a:hover,
-.header-login:hover {
+.site-nav-item:hover {
   background: rgba(255, 255, 255, 0.14);
 }
 
-.is-scrolled .site-nav button:hover,
-.is-scrolled .site-nav a:hover,
-.is-scrolled .header-login:hover {
+.is-scrolled .site-nav-item:hover {
   background: color-mix(in srgb, var(--login-theme) 10%, #ffffff);
   color: var(--login-theme);
 }
@@ -1482,7 +1489,7 @@ const handleLogin = async () => {
     margin-left: auto;
   }
 
-  .site-nav > button:not(.header-login) {
+  .site-nav > .site-nav-item:not(.header-login) {
     display: none;
   }
 
