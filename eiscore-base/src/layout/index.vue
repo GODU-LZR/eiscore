@@ -3741,7 +3741,7 @@ const handleMenuSelect = (index) => {
 
 const openIndependentSite = () => {
   if (typeof window === 'undefined') return
-  window.open('/login/', '_blank', 'noopener,noreferrer')
+  window.open('/company/', '_blank', 'noopener,noreferrer')
 }
 
 const handleOpenHostTabEvent = (event) => {

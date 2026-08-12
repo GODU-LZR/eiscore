@@ -1050,7 +1050,7 @@ const saveSettings = async () => {
 }
 
 const previewLoginPage = () => {
-  window.open('/login', '_blank', 'noopener,noreferrer')
+  window.open('/company/#login', '_blank', 'noopener,noreferrer')
 }
 
 const resetSettings = () => {
