@@ -709,17 +709,6 @@ const handleLogin = async () => {
   color: var(--login-theme);
 }
 
-.independent-site-tab {
-  border-color: rgba(215, 183, 125, 0.58) !important;
-  background: rgba(215, 183, 125, 0.12) !important;
-}
-
-.independent-site-tab:hover {
-  border-color: var(--login-theme) !important;
-  background: var(--login-theme) !important;
-  color: #fff !important;
-}
-
 .header-login {
   border-color: rgba(255, 255, 255, 0.42);
   background: rgba(255, 255, 255, 0.13);

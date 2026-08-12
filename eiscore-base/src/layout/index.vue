@@ -114,7 +114,6 @@
               >
                 <span class="host-tab-dot dot-company-site-public"></span>
                 <span class="host-tab-label">独立站</span>
-                <el-icon class="host-tab-external-icon"><Promotion /></el-icon>
               </button>
             </div>
           </div>
@@ -3886,22 +3885,6 @@ const handleCommand = (command) => {
       .host-tab-dot.dot-quality { background: #0ea5e9; }
       .host-tab-dot.dot-equipment { background: #14b8a6; }
       .host-tab-dot.dot-company-site-public { background: #d7b77d; }
-
-      .host-tab.public-site-tab {
-        color: var(--el-color-primary);
-        border-style: dashed;
-        background: rgba(var(--el-color-primary-rgb), 0.06);
-      }
-
-      .host-tab.public-site-tab:hover {
-        transform: translateY(-1px);
-        border-color: rgba(var(--el-color-primary-rgb), 0.45);
-        background: rgba(var(--el-color-primary-rgb), 0.12);
-      }
-
-      .host-tab-external-icon {
-        font-size: 14px;
-      }
 
       .host-tab-close {
         color: #909399;
