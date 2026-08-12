@@ -50,6 +50,17 @@ export const DISPLAY_MODULE_CATALOG = [
     ]
   },
   {
+    key: 'company-site',
+    label: '企业站点运营',
+    route: '/company-site',
+    apps: [
+      { key: 'overview', name: '运营总览', desc: '查看站点版本、内容资产、SEO 与线索态势' },
+      { key: 'content', name: '内容资产', desc: '维护页面、产品、方案、案例、证据和知识文档' },
+      { key: 'leads', name: '询盘线索', desc: '承接官网询盘并进入销售跟进链路' },
+      { key: 'seo', name: 'SEO / GEO', desc: '检查公开内容的搜索与问答可发现性' }
+    ]
+  },
+  {
     key: 'sales',
     label: '销售管理',
     route: '/sales',

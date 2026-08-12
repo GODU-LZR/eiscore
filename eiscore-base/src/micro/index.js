@@ -78,7 +78,8 @@ export function registerQiankun() {
         'eiscore-production',
         'eiscore-quality',
         'eiscore-equipment',
-        'eiscore-decision'
+        'eiscore-decision',
+        'eiscore-company-site'
       ]
         .find((name) => appName === name || message.includes(name))
       if (!target) return

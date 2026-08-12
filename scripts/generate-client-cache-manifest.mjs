@@ -75,11 +75,11 @@ function priority(record) {
   if (url.startsWith('/assets/runtime-') || url.startsWith('/assets/vue-runtime-')) return 1
   if (url.startsWith('/assets/index-') || url.startsWith('/assets/utils-') || url.startsWith('/assets/micro-app-')) return 2
   if (url.startsWith('/assets/element-plus-') || url.startsWith('/assets/vendor-misc-')) return 3
-  if (/^\/(?:hr|materials|apps|sales|purchase|production|quality|equipment|decision|mobile)\/index\.html$/.test(url)) return 4
-  if (/^\/(?:hr|materials|apps|sales|purchase|production|quality|equipment|decision|mobile)\/assets\/(?:runtime|vue-runtime|index|utils|micro-app|request|element-plus)-/.test(url)) return 5
+  if (/^\/(?:hr|materials|apps|sales|purchase|production|quality|equipment|decision|company-site|mobile)\/index\.html$/.test(url)) return 4
+  if (/^\/(?:hr|materials|apps|sales|purchase|production|quality|equipment|decision|company-site|mobile)\/assets\/(?:runtime|vue-runtime|index|utils|micro-app|request|element-plus)-/.test(url)) return 5
   if (/^\/apps\/assets\/(?:AppRuntime|DataApp|AppDashboard|AppConfigCenter|AppRecordDetail|WorkflowApprovalCenter|FlowDesigner|FlashBuilder|OntologyWorkbench)-/.test(url)) return 5
   if (/^\/(?:hr|materials|sales|purchase|production|quality|equipment|decision)\/assets\/.*(?:AppView|AppGrid|Apps|Dashboard|Cockpit|Overview|Inventory|Home)-/.test(url)) return 5
-  if (/^\/(?:hr|materials|apps|sales|purchase|production|quality|equipment|decision|mobile)\/assets\//.test(url)) return record.size > 600 * 1024 ? 8 : 6
+  if (/^\/(?:hr|materials|apps|sales|purchase|production|quality|equipment|decision|company-site|mobile)\/assets\//.test(url)) return record.size > 600 * 1024 ? 8 : 6
   if (url.startsWith('/assets/') && record.size > 600 * 1024) return 9
   return 7
 }

@@ -32,6 +32,7 @@ export default defineConfig(({ command }) => ({
           rawPath.startsWith('/quality') ||
           rawPath.startsWith('/equipment') ||
           rawPath.startsWith('/decision') ||
+          rawPath.startsWith('/company-site') ||
           rawPath.startsWith('/mobile')
         const isAppsDraftPreview =
           rawPath === '/apps/preview/flash-draft' ||
@@ -45,7 +46,8 @@ export default defineConfig(({ command }) => ({
           rawPath === '/production/index.html' ||
           rawPath === '/quality/index.html' ||
           rawPath === '/equipment/index.html' ||
-          rawPath === '/decision/index.html'
+          rawPath === '/decision/index.html' ||
+          rawPath === '/company-site/index.html'
         const isDevAsset =
           rawPath.includes('/@vite') ||
           rawPath.includes('/src/') ||
@@ -79,6 +81,7 @@ export default defineConfig(({ command }) => ({
           '/quality': '/quality/',
           '/equipment': '/equipment/',
           '/decision': '/decision/',
+          '/company-site': '/company-site/',
           '/mobile': '/mobile/'
         }
         const target = redirectMap[rawPath]
@@ -211,6 +214,19 @@ export default defineConfig(({ command }) => ({
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
+          return isDocument ? '/index.html' : undefined
+        }
+      },
+      '/company-site': {
+        target: 'http://localhost:8092',
+        changeOrigin: true,
+        ws: true,
+        bypass: (req) => {
+          const rawPath = (req.url || '').split('?')[0]
+          if (rawPath === '/company-site/index.html') return undefined
           const isDocument =
             req.headers['sec-fetch-dest'] === 'document' ||
             req.headers['sec-fetch-mode'] === 'navigate'

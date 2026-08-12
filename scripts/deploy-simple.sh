@@ -54,7 +54,7 @@ echo "🧪 Step 4/7: 执行本体语义 UTF-8 校验..."
 # Step 5: Install dependencies
 echo ""
 echo "📦 Step 5/7: 安装依赖..."
-for app in eiscore-apps eiscore-base eiscore-hr eiscore-materials eiscore-sales eiscore-purchase eiscore-production; do
+for app in eiscore-apps eiscore-base eiscore-hr eiscore-materials eiscore-company-site eiscore-sales eiscore-purchase eiscore-production; do
     if [ -d "$app" ] && [ ! -d "$app/node_modules" ]; then
         echo "   安装 $app..."
         cd $app
@@ -75,11 +75,17 @@ pkill -f "vite.*8083" || true
 pkill -f "vite.*8085" || true
 pkill -f "vite.*8088" || true
 pkill -f "vite.*8087" || true
+pkill -f "vite.*8092" || true
 
 # Start eiscore-apps
 cd /home/lzr/eiscore/eiscore-apps
 nohup npm run dev > ../logs/eiscore-apps.log 2>&1 &
 echo "   ✅ eiscore-apps 已启动 (PID: $!)"
+
+# Start the EISCore company-site qiankun sub-application.
+cd /home/lzr/eiscore/eiscore-company-site
+nohup npm run dev > ../logs/eiscore-company-site.log 2>&1 &
+echo "   ✅ eiscore-company-site 已启动 (PID: $!)"
 
 sleep 2
 
@@ -98,7 +104,7 @@ docker-compose ps
 
 echo ""
 echo "   前端服务："
-ps aux | grep -E "vite.*(8080|8081|8082|8083|8085|8087|8088)" | grep -v grep || echo "   检查 logs/eiscore-apps.log"
+ps aux | grep -E "vite.*(8080|8081|8082|8083|8085|8087|8088|8092)" | grep -v grep || echo "   检查 logs/eiscore-apps.log"
 
 echo ""
 echo "🌐 访问地址："

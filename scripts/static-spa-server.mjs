@@ -59,6 +59,7 @@ const microTargets = [
   { prefix: '/quality', target: 'http://127.0.0.1:8089' },
   { prefix: '/equipment', target: 'http://127.0.0.1:8090' },
   { prefix: '/decision', target: 'http://127.0.0.1:8091' },
+  { prefix: '/company-site', target: 'http://127.0.0.1:8092' },
   { prefix: '/mobile', target: 'http://127.0.0.1:8084' }
 ]
 
@@ -135,7 +136,7 @@ function getApiProxy(rawPath) {
         .replace(/^\/production\/api\b/, '')
     }
   }
-  const moduleApiPrefix = rawPath.match(/^\/(hr|materials|sales|purchase|quality|equipment|decision|apps|mobile)\/api\b/)
+  const moduleApiPrefix = rawPath.match(/^\/(hr|materials|sales|purchase|quality|equipment|decision|apps|company-site|mobile)\/api\b/)
   if (moduleApiPrefix) {
     const moduleName = moduleApiPrefix[1]
     return {
@@ -158,7 +159,7 @@ function getApiProxy(rawPath) {
   if (rawPath === '/production/agent' || rawPath.startsWith('/production/agent/')) {
     return { target: 'http://127.0.0.1:8078', rewrite: (value) => value.replace(/^\/production\/agent\b/, '') || '/' }
   }
-  const moduleAgentPrefix = rawPath.match(/^\/(hr|materials|sales|purchase|quality|equipment|decision|apps|mobile)\/agent\b/)
+  const moduleAgentPrefix = rawPath.match(/^\/(hr|materials|sales|purchase|quality|equipment|decision|apps|company-site|mobile)\/agent\b/)
   if (moduleAgentPrefix) {
     const moduleName = moduleAgentPrefix[1]
     return { target: 'http://127.0.0.1:8078', rewrite: (value) => value.replace(new RegExp(`^/${moduleName}/agent\\b`), '') || '/' }

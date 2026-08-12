@@ -78,7 +78,7 @@ echo "🧪 Step 5/9: 执行本体语义 UTF-8 校验..."
 echo ""
 echo "📦 Step 6/9: 安装前端依赖..."
 
-for app in eiscore-base eiscore-hr eiscore-materials eiscore-apps eiscore-sales eiscore-purchase eiscore-production; do
+for app in eiscore-base eiscore-hr eiscore-materials eiscore-apps eiscore-company-site eiscore-sales eiscore-purchase eiscore-production; do
     if [ -d "$app" ]; then
         if [ ! -d "$app/node_modules" ]; then
             echo "   安装 $app 依赖..."
@@ -126,6 +126,7 @@ echo "   应用中心：http://localhost:8080/apps"
 echo "   销售模块：http://localhost:8080/sales"
 echo "   采购模块：http://localhost:8080/purchase"
 echo "   生产模块：http://localhost:8080/production"
+echo "   企业站点：http://localhost:8080/company-site"
 echo ""
 echo "🐛 Docker 日志："
 echo "   docker-compose logs -f agent-runtime"

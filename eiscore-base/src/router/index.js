@@ -96,6 +96,11 @@ const router = createRouter({
           path: 'decision/:page(.*)*',
           name: 'decision',
           component: EmptyView
+        },
+        {
+          path: 'company-site/:page(.*)*',
+          name: 'company-site',
+          component: EmptyView
         }
       ]
     }
@@ -149,7 +154,7 @@ router.beforeEach((to, from, next) => {
       return
     }
     next('/login')
-  } else if ((to.path === '/login' || to.path.startsWith('/company')) && token && !expired) {
+  } else if ((to.path === '/login' || to.path === '/company' || to.path.startsWith('/company/')) && token && !expired) {
     next('/')
   } else {
     next()

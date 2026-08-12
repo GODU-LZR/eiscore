@@ -122,6 +122,7 @@ rsync "${RSYNC_FLAGS[@]}" --delete \
   --exclude='/quality/' \
   --exclude='/equipment/' \
   --exclude='/decision/' \
+  --exclude='/company-site/' \
   --exclude='/mobile/' \
   "${DIST_DIR%/}/" "$(target "$DEST_DIR/")"
 rsync "${RSYNC_FLAGS[@]}" "${DIST_DIR%/}/assets/" "$(target "$DEST_DIR/assets/")"

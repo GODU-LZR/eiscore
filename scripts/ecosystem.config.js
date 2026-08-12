@@ -123,6 +123,23 @@ module.exports = {
       log_date_format: 'YYYY-MM-DD HH:mm:ss'
     },
     {
+      name: 'eiscore-company-site',
+      cwd: './eiscore-company-site',
+      script: '../scripts/static-spa-server.mjs',
+      interpreter: '/home/lzr/.nvm/versions/node/v20.20.0/bin/node',
+      args: '--root dist --port 8092 --host 127.0.0.1 --base /company-site',
+      env: {
+        NODE_ENV: 'development',
+        PORT: 8092
+      },
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '400M',
+      error_file: './logs/company-site-error.log',
+      out_file: './logs/company-site-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss'
+    },
+    {
       name: 'eiscore-quality',
       cwd: './eiscore-quality',
       script: '../scripts/static-spa-server.mjs',

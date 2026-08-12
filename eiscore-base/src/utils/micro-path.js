@@ -10,7 +10,8 @@ const MICRO_PREFIXES = new Set([
   'production',
   'quality',
   'equipment',
-  'decision'
+  'decision',
+  'company-site'
 ])
 
 const APPS_LOCAL_ROUTES = new Set([

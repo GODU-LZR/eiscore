@@ -43,6 +43,10 @@
           <el-icon><Grid /></el-icon>
           <template #title>应用中心</template>
         </el-menu-item>
+        <el-menu-item v-if="canCompanySite" index="/company-site" data-guide="menu-company-site" @mouseenter="warmMicroApp('company-site')" @focus="warmMicroApp('company-site')">
+          <el-icon><Promotion /></el-icon>
+          <template #title>企业站点</template>
+        </el-menu-item>
         <el-menu-item v-if="canSales" index="/sales" data-guide="menu-sales" @mouseenter="warmMicroApp('sales')" @focus="warmMicroApp('sales')">
           <el-icon><Sell /></el-icon>
           <template #title>销售管理</template>
@@ -264,7 +268,7 @@ import { hasPerm } from '@/utils/permission'
 import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '@/utils/micro-path'
 import { syncCollectorUserContext } from '@/utils/collector-bridge'
 import { ElMessage } from 'element-plus'
-import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
+import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Promotion, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import { isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
@@ -316,11 +320,12 @@ let idleWarmTimer = null
 let deferredWarmTimer = null
 const warmedMicroApps = new Set()
 const warmingMicroApps = new Set()
-const MICRO_APP_KEYS = ['materials', 'hr', 'apps', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision']
+const MICRO_APP_KEYS = ['materials', 'hr', 'apps', 'company-site', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision']
 const MICRO_APP_ENTRY_PREFIX = {
   materials: '/materials/',
   hr: '/hr/',
   apps: '/apps/',
+  'company-site': '/company-site/',
   sales: '/sales/',
   purchase: '/purchase/',
   production: '/production/',
@@ -419,6 +424,7 @@ const getModuleLoadingTitle = (moduleKey) => {
     materials: '仓储管理',
     hr: '人事管理',
     apps: '应用中心',
+    'company-site': '企业站点运营',
     sales: '销售管理',
     purchase: '采购管理',
     production: '生产管理',
@@ -573,6 +579,7 @@ const scheduleVisibleMicroAppWarmup = () => {
         ['materials', canMms.value],
         ['hr', canHr.value],
         ['apps', canApps.value],
+        ['company-site', canCompanySite.value],
         ['sales', canSales.value],
         ['purchase', canPurchase.value],
         ['production', canProduction.value],
@@ -598,6 +605,7 @@ const scheduleVisibleMicroAppWarmup = () => {
         ['materials', canMms.value],
         ['hr', canHr.value],
         ['apps', canApps.value],
+        ['company-site', canCompanySite.value],
         ['sales', canSales.value],
         ['purchase', canPurchase.value],
         ['production', canProduction.value],
@@ -916,6 +924,7 @@ const activeMenu = computed(() => {
   if (route.path.startsWith('/materials')) return '/materials'
   if (route.path.startsWith('/hr')) return '/hr'
   if (route.path.startsWith('/apps')) return '/apps/'
+  if (route.path.startsWith('/company-site')) return '/company-site'
   if (route.path.startsWith('/sales')) return '/sales'
   if (route.path.startsWith('/purchase')) return '/purchase'
   if (route.path.startsWith('/production')) return '/production'
@@ -971,6 +980,32 @@ const canApps = computed(() =>
   isSuperAdmin.value
   )
 )
+const COMPANY_SITE_READ_ROLES = new Set([
+  'super_admin', 'admin', 'company_site_admin', 'site_admin', 'content_editor',
+  'content_reviewer', 'sales_manager', 'sales_owner', 'sales'
+])
+const COMPANY_SITE_READ_SCOPES = ['company_site', 'company-site', 'companysite', 'site_content']
+const hasCompanySitePermission = computed(() => {
+  const info = userStore.userInfo || {}
+  const roleValues = [
+    info.app_role,
+    info.appRole,
+    info.role,
+    info.role_code,
+    info.roleCode,
+    info.dbRole,
+    info.db_role
+  ].map((value) => String(value || '').trim().toLowerCase())
+  if (roleValues.some((role) => COMPANY_SITE_READ_ROLES.has(role))) return true
+  const permissions = Array.isArray(info.permissions) ? info.permissions : []
+  return permissions.some((permission) => {
+    const value = String(permission || '').trim().toLowerCase()
+    if (value === '*') return true
+    const scoped = COMPANY_SITE_READ_SCOPES.some((scope) => value === scope || value.includes(`${scope}:`) || value.includes(`${scope}.`) || value.includes(`${scope}/`))
+    return scoped && ['read', 'view', 'list', 'manage', 'admin'].some((action) => value.includes(action))
+  })
+})
+const canCompanySite = computed(() => canShowModule('company-site') && (hasCompanySitePermission.value || isSuperAdmin.value))
 
 const SOP_ROLE_ALIASES = {
   warehouse: 'warehouse',
@@ -1049,6 +1084,7 @@ const MODULE_SOP_TITLES = {
   '/materials': '仓储管理',
   '/hr': '人事管理',
   '/apps': '应用中心',
+  '/company-site': '企业站点运营',
   '/sales': '销售管理',
   '/purchase': '采购管理',
   '/production': '生产管理',
@@ -1102,6 +1138,11 @@ const SOP_MODULE_INFO = {
     purpose: '查看跨模块经营态势、业务风险、驾驶舱和管理巡检信息。',
     focus: '销售、采购、生产、质量、设备和库存的异常趋势。',
     risk: '只看汇总不追溯明细，容易遗漏真正阻塞业务的单据。'
+  },
+  'company-site': {
+    purpose: '管理企业独立站的品牌资料、页面内容、产品表达、询盘线索和公开发布状态。',
+    focus: '内容状态、站点版本、证据来源、SEO 检查和线索跟进。',
+    risk: '未经审核的内容或缺少证据的公开表述会影响品牌可信度与销售转化。'
   }
 }
 
@@ -1141,6 +1182,10 @@ const SOP_MODULE_WORKFLOW_INFO = {
   decision: {
     sequence: '一般按“先看跨模块异常，再进入来源模块追溯单据，最后确认责任人和处理结果”的顺序工作。',
     done: '完成后管理视图中的异常应能追溯到具体业务单据和责任动作。'
+  },
+  'company-site': {
+    sequence: '一般按“维护站点配置 - 编辑内容资产 - 补充证据与 SEO - 提交审核 - 发布并复核”的顺序工作。',
+    done: '完成后站点版本、公开内容、SEO 检查、审计记录和新增线索要能在系统内追溯。'
   }
 }
 
@@ -1153,7 +1198,8 @@ const SOP_MODULE_APP_COMPLETE = {
   production: '处理完成后按工单号复核，确认领料、报工、质检、入库或缺料状态已经同步。',
   quality: '处理完成后按检验单号或 NCR 单号复核，确认整改责任、期限、验证结论和附件证据完整。',
   equipment: '处理完成后按设备编号、异常单号或工单号复核，确认维修状态、验收结果和保养计划已更新。',
-  decision: '处理完成后返回驾驶舱或来源模块，确认异常数量减少或责任动作已经明确。'
+  decision: '处理完成后返回驾驶舱或来源模块，确认异常数量减少或责任动作已经明确。',
+  'company-site': '处理完成后用站点版本、内容标识或线索编号复核，确认公开页面、发布状态和销售承接链路一致。'
 }
 
 const SOP_APP_TITLES = {
@@ -1578,6 +1624,7 @@ const resolveSopModuleKey = (path = route.path || '/') => {
   if (path.startsWith('/materials')) return 'materials'
   if (path.startsWith('/hr')) return 'hr'
   if (path.startsWith('/apps')) return 'apps'
+  if (path.startsWith('/company-site')) return 'company-site'
   if (path.startsWith('/sales')) return 'sales'
   if (path.startsWith('/purchase')) return 'purchase'
   if (path.startsWith('/production')) return 'production'
@@ -3335,6 +3382,7 @@ const normalizeHostPath = (value) => {
   if (raw === '/quality/' || raw === '/quality/index.html' || raw === '/quality/apps' || raw === '/quality/apps/') return '/quality'
   if (raw === '/equipment/' || raw === '/equipment/index.html' || raw === '/equipment/apps' || raw === '/equipment/apps/') return '/equipment'
   if (raw === '/decision/' || raw === '/decision/index.html' || raw === '/decision/apps' || raw === '/decision/apps/') return '/decision'
+  if (raw === '/company-site/' || raw === '/company-site/index.html' || raw === '/company-site/apps' || raw === '/company-site/apps/') return '/company-site'
   // Keep full child route for micro-app deep links (e.g. /materials/inventory-stock-in).
   if (raw === '/materials' || raw.startsWith('/materials/')) return raw
   if (raw === '/hr' || raw.startsWith('/hr/')) return raw
@@ -3344,6 +3392,7 @@ const normalizeHostPath = (value) => {
   if (raw === '/quality' || raw.startsWith('/quality/')) return raw
   if (raw === '/equipment' || raw.startsWith('/equipment/')) return raw
   if (raw === '/decision' || raw.startsWith('/decision/')) return raw
+  if (raw === '/company-site' || raw.startsWith('/company-site/')) return raw
   if (raw.startsWith('/apps/config-center')) return '/apps/config-center'
   if (raw.startsWith('/apps/')) return raw
   if (raw === '/settings') return '/settings'
@@ -3390,6 +3439,7 @@ const resolveHostTabDot = (path) => {
   if (path.startsWith('/quality')) return 'quality'
   if (path.startsWith('/equipment')) return 'equipment'
   if (path.startsWith('/decision')) return 'decision'
+  if (path.startsWith('/company-site')) return 'company-site'
   return 'default'
 }
 
@@ -3474,6 +3524,7 @@ const resolveHostTabTitle = (path, query = {}, fallback = '') => {
   if (path.startsWith('/apps/flash-builder/')) return preferred || getQueryAppTitle(query) || '闪念应用'
   if (path.startsWith('/apps/data-app/')) return preferred || getQueryAppTitle(query) || '数据表格应用'
   if (path.startsWith('/apps/ontology-relations/')) return '本体关系工作台'
+  if (path === '/company-site' || path.startsWith('/company-site/')) return preferred || '企业站点运营'
   if (path.startsWith('/apps/app/')) {
     const queryTitle = getQueryAppTitle(query)
     return preferred || queryTitle || readStoredAppRuntimeTitle(getAppRuntimeIdFromPath(path)) || '应用运行'

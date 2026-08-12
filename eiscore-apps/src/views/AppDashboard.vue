@@ -208,7 +208,7 @@ import { getPermissions, hasPerm } from '@/utils/permission'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
 import { getToken } from '@/utils/auth'
 import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
-import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
+import { isAppVisible, isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
 
@@ -229,6 +229,25 @@ const canAccessDocumentIntake = computed(() => {
     if (value === '*' || value === 'document_intake') return true
     const isDocumentIntake = value.includes('document_intake') || value.includes('document-intake')
     return isDocumentIntake && ['read', 'view', 'list', 'manage', 'admin'].some((keyword) => value.includes(keyword))
+  })
+})
+const COMPANY_SITE_READ_ROLES = new Set([
+  'super_admin', 'admin', 'company_site_admin', 'site_admin', 'content_editor',
+  'content_reviewer', 'sales_manager', 'sales_owner', 'sales'
+])
+const COMPANY_SITE_SCOPES = ['company_site', 'company-site', 'companysite', 'site_content']
+const canAccessCompanySite = computed(() => {
+  const raw = localStorage.getItem('user_info')
+  let info = {}
+  try { info = raw ? JSON.parse(raw) : {} } catch {}
+  const roles = [info.app_role, info.appRole, info.role, info.role_code, info.roleCode, info.dbRole, info.db_role]
+    .map((value) => String(value || '').trim().toLowerCase())
+  if (roles.some((role) => COMPANY_SITE_READ_ROLES.has(role))) return true
+  return getPermissions().some((permission) => {
+    const value = String(permission || '').trim().toLowerCase()
+    if (value === '*') return true
+    const scoped = COMPANY_SITE_SCOPES.some((scope) => value === scope || value.includes(`${scope}:`) || value.includes(`${scope}.`) || value.includes(`${scope}/`))
+    return scoped && ['read', 'view', 'list', 'manage', 'admin'].some((action) => value.includes(action))
   })
 })
 
@@ -424,6 +443,22 @@ const isHiddenSystemWorkflowApp = (app) => {
 const entryCards = computed(() => {
   const stats = appStats.value
   return [
+    {
+      key: 'company-site',
+      name: '企业站点运营',
+      desc: '内容、发布、SEO 与询盘线索一体化管理',
+      icon: 'Promotion',
+      tone: 'blue',
+      visible: canAccessCompanySite.value && isModuleVisible(displayVisibility.value, 'company-site'),
+      card: cardFromScore({
+        score: 38,
+        metrics: [
+          { label: '内容', value: '统一' },
+          { label: '线索', value: '闭环' }
+        ],
+        brief: '进入站点运营工作台'
+      })
+    },
     {
       key: 'config',
       name: '配置中心',
@@ -679,6 +714,10 @@ function openEntryCard(entry) {
     if (!startNavigationLoading(`entry:${entry.key}`, '正在打开智能收单中心')) return
     return goDocumentIntakeCenter()
   }
+  if (entry.key === 'company-site') {
+    if (!startNavigationLoading(`entry:${entry.key}`, '正在打开企业站点运营')) return
+    return goCompanySite()
+  }
 }
 
 function navigateToBuilder(app) {
@@ -750,6 +789,19 @@ function goApprovalCenter() {
 
 function goDocumentIntakeCenter() {
   router.push('/document-intake-center').catch(() => clearNavigationLoading())
+}
+
+function goCompanySite() {
+  const detail = {
+    path: '/company-site',
+    tabKey: '/company-site',
+    tabTitle: '企业站点运营',
+    query: {}
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('eis:open-host-tab', { detail }))
+    window.setTimeout(clearNavigationLoading, 350)
+  }
 }
 
 onMounted(() => {
