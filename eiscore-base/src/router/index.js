@@ -23,7 +23,11 @@ const router = createRouter({
     {
       path: '/company/:pathMatch(.*)*',
       name: 'company-entry',
-      component: () => import('../views/LoginView.vue'),
+      redirect: to => ({
+        path: '/login',
+        query: to.query,
+        hash: to.hash
+      }),
       meta: { requiresAuth: false, publicLanding: true }
     },
     {

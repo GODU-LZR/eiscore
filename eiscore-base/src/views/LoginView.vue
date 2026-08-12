@@ -1,5 +1,10 @@
 <template>
-  <div class="login-page" :class="{ 'is-scrolled': pageScrolled }" :style="pageStyle">
+  <div
+    class="login-page portal-page"
+    data-portal="junleyuan-external"
+    :class="{ 'is-scrolled': pageScrolled }"
+    :style="pageStyle"
+  >
     <header class="site-header">
       <div class="brand-lockup">
         <div class="brand-mark">
@@ -8,23 +13,34 @@
         </div>
         <div class="site-name">
           <strong>{{ companyName }}</strong>
+          <span>外部门户</span>
         </div>
       </div>
-      <nav class="site-nav" aria-label="登录页导航">
-        <template v-if="navItems.length">
-          <button
-            v-for="item in navItems"
-            :key="`${item.label}-${item.anchor}`"
-            type="button"
-            class="site-nav-item"
-            @click="scrollToSection(item.anchor)"
-          >
-            {{ item.label }}
-          </button>
-        </template>
-        <a class="site-nav-item independent-site-tab" href="/company/" aria-label="打开企业独立站">
-          企业独立站
-        </a>
+      <nav class="site-nav" aria-label="企业外部门户导航">
+        <button
+          type="button"
+          class="mobile-nav-toggle"
+          :aria-expanded="mobileNavOpen"
+          aria-controls="portal-nav-menu"
+          aria-label="打开门户导航"
+          @click="mobileNavOpen = !mobileNavOpen"
+        >
+          <span></span>
+          <span></span>
+        </button>
+        <div id="portal-nav-menu" class="site-nav-menu" :class="{ 'is-open': mobileNavOpen }">
+          <template v-if="navItems.length">
+            <button
+              v-for="item in navItems"
+              :key="`${item.label}-${item.anchor}`"
+              type="button"
+              class="site-nav-item"
+              @click="scrollToSection(item.anchor)"
+            >
+              {{ item.label }}
+            </button>
+          </template>
+        </div>
         <button type="button" class="site-nav-item header-login" @click="focusLogin">
           {{ branding.headerLoginText }}
         </button>
@@ -65,7 +81,7 @@
 
               <el-form ref="loginFormRef" :model="loginForm" :rules="loginRules" class="login-form" size="large">
                 <el-form-item prop="username">
-                  <el-input v-model="loginForm.username" placeholder="用户名" prefix-icon="User" />
+                  <el-input v-model="loginForm.username" placeholder="用户名" aria-label="用户名" prefix-icon="User" />
                 </el-form-item>
 
                 <el-form-item prop="password">
@@ -73,6 +89,7 @@
                     v-model="loginForm.password"
                     type="password"
                     placeholder="密码"
+                    aria-label="密码"
                     prefix-icon="Lock"
                     show-password
                     @keyup.enter="handleLogin"
@@ -230,6 +247,7 @@ const loading = ref(false)
 const loginFormRef = ref(null)
 const authCardRef = ref(null)
 const pageScrolled = ref(false)
+const mobileNavOpen = ref(false)
 
 const loginForm = reactive({
   username: '',
@@ -388,6 +406,8 @@ const pageStyle = computed(() => {
     '--login-theme': theme,
     '--login-theme-light': tintLight,
     '--login-ink': ink,
+    '--portal-cta': mix(theme, '#0f172a', 0.72),
+    '--portal-cta-hover': mix(theme, '#0f172a', 0.58),
     backgroundImage: background
   }
 })
@@ -398,11 +418,13 @@ const handleScroll = () => {
 
 const scrollToSection = (anchor) => {
   if (!anchor) return
+  mobileNavOpen.value = false
   const el = document.getElementById(anchor)
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 const focusLogin = () => {
+  mobileNavOpen.value = false
   authCardRef.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
   requestAnimationFrame(() => {
     loginFormRef.value?.$el?.querySelector?.('input')?.focus?.()
@@ -593,10 +615,18 @@ const handleLogin = async () => {
 
 <style scoped lang="scss">
 .login-page {
+  --portal-ink: #111827;
+  --portal-muted: #64748b;
+  --portal-paper: #f7f4ee;
+  --portal-line: rgba(17, 24, 39, 0.13);
+  --portal-radius: 10px;
+  --portal-content-width: 1420px;
+  container: portal / inline-size;
   min-height: 100vh;
   overflow-x: hidden;
-  color: #111827;
-  background: #f6f3ee;
+  color: var(--portal-ink);
+  background: var(--portal-paper);
+  text-rendering: optimizeLegibility;
 }
 
 .site-header {
@@ -605,8 +635,8 @@ const handleLogin = async () => {
   z-index: 30;
   display: flex;
   align-items: center;
-  gap: 22px;
-  min-height: 76px;
+  gap: 28px;
+  min-height: 78px;
   padding: 14px clamp(18px, 4vw, 68px);
   box-sizing: border-box;
   color: #fff;
@@ -634,7 +664,7 @@ const handleLogin = async () => {
 .brand-lockup {
   display: flex;
   align-items: center;
-  min-width: 280px;
+  min-width: 248px;
   gap: 12px;
 }
 
@@ -672,11 +702,50 @@ const handleLogin = async () => {
   white-space: nowrap;
 }
 
+.site-name span {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.is-scrolled .site-name span {
+  color: #64748b;
+}
+
 .site-nav {
   margin-left: auto;
   display: flex;
   align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.site-nav-menu {
+  display: flex;
+  align-items: center;
   gap: 4px;
+}
+
+.mobile-nav-toggle {
+  display: none;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 50%;
+  background: rgba(2, 6, 23, 0.22);
+  color: inherit;
+  cursor: pointer;
+}
+
+.mobile-nav-toggle span {
+  display: block;
+  width: 16px;
+  height: 1px;
+  margin: 5px auto;
+  background: currentColor;
+  transition: transform 180ms ease;
 }
 
 .site-nav-item {
@@ -686,11 +755,11 @@ const handleLogin = async () => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 38px;
-  min-height: 38px;
+  height: 40px;
+  min-height: 40px;
   margin: 0;
   padding: 0 14px;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid transparent;
   color: #fff;
   background: transparent;
@@ -708,14 +777,27 @@ const handleLogin = async () => {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.site-nav-item:focus-visible,
+.mobile-nav-toggle:focus-visible,
+.scroll-cue:focus-visible,
+.text-link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--login-theme) 72%, #ffffff);
+  outline-offset: 3px;
+}
+
 .is-scrolled .site-nav-item:hover {
   background: color-mix(in srgb, var(--login-theme) 10%, #ffffff);
   color: var(--login-theme);
 }
 
+.is-scrolled .mobile-nav-toggle {
+  border-color: rgba(17, 24, 39, 0.12);
+  background: rgba(255, 255, 255, 0.72);
+}
+
 .hero-section {
   position: relative;
-  min-height: 100vh;
+  min-height: 100svh;
   overflow: hidden;
   isolation: isolate;
   color: #fff;
@@ -748,7 +830,7 @@ const handleLogin = async () => {
 .hero-inner {
   position: relative;
   z-index: 2;
-  min-height: 100vh;
+  min-height: 100svh;
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(340px, 410px);
   align-items: center;
@@ -847,7 +929,7 @@ const handleLogin = async () => {
   width: min(100%, 410px);
   padding: 30px;
   box-sizing: border-box;
-  border-radius: 8px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.72);
   box-shadow: 0 24px 62px rgba(2, 6, 23, 0.28);
@@ -937,12 +1019,17 @@ const handleLogin = async () => {
   width: 100%;
   height: 46px;
   border-radius: 4px;
+  border-color: var(--portal-cta);
+  background: var(--portal-cta);
+  color: #fff;
   font-weight: 800;
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
 .login-btn:hover {
   transform: translateY(-1px);
+  border-color: var(--portal-cta-hover);
+  background: var(--portal-cta-hover);
   box-shadow: 0 10px 22px color-mix(in srgb, var(--login-theme) 20%, transparent);
 }
 
@@ -1032,7 +1119,7 @@ const handleLogin = async () => {
 .operation-section,
 .gallery-section,
 .leader-section {
-  width: min(1420px, calc(100% - clamp(36px, 8vw, 136px)));
+  width: min(var(--portal-content-width), calc(100% - clamp(36px, 8vw, 136px)));
   margin: 0 auto;
 }
 
@@ -1143,7 +1230,7 @@ const handleLogin = async () => {
 .story-media {
   height: clamp(360px, 42vw, 620px);
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--portal-radius);
 }
 
 .story-media img {
@@ -1225,9 +1312,10 @@ const handleLogin = async () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 18px 46px rgba(17, 24, 39, 0.08);
+  border-radius: 0;
+  border-top: 1px solid var(--portal-line);
+  background: #efebe4;
+  box-shadow: none;
   transition: transform 260ms ease, box-shadow 260ms ease;
 }
 
@@ -1242,8 +1330,8 @@ const handleLogin = async () => {
 }
 
 .capability-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 26px 56px rgba(17, 24, 39, 0.13);
+  transform: translateY(-4px);
+  box-shadow: none;
 }
 
 .capability-card:hover::after {
@@ -1352,16 +1440,17 @@ const handleLogin = async () => {
 .leader-card {
   display: flex;
   gap: 14px;
-  padding: 20px;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 16px 38px rgba(17, 24, 39, 0.07);
-  transition: transform 220ms ease, box-shadow 220ms ease;
+  padding: 20px 0;
+  border-top: 1px solid var(--portal-line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transition: transform 220ms ease, background 220ms ease;
 }
 
 .leader-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 22px 48px rgba(17, 24, 39, 0.12);
+  transform: translateX(6px);
+  background: rgba(255, 255, 255, 0.42);
 }
 
 .leader-card h4 {
@@ -1471,7 +1560,7 @@ const handleLogin = async () => {
 
 @media (max-width: 760px) {
   .site-header {
-    min-height: 68px;
+    min-height: 72px;
     padding: 12px 14px;
   }
 
@@ -1485,23 +1574,61 @@ const handleLogin = async () => {
 
   .site-nav {
     display: flex;
-    gap: 2px;
+    gap: 6px;
     margin-left: auto;
   }
 
-  .site-nav > .site-nav-item:not(.header-login) {
-    display: none;
+  .mobile-nav-toggle {
+    display: block;
   }
 
-  .site-nav .independent-site-tab,
+  .site-nav-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 12px);
+    right: 0;
+    width: min(248px, calc(100vw - 28px));
+    padding: 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.94);
+    box-shadow: 0 18px 40px rgba(2, 6, 23, 0.28);
+    backdrop-filter: blur(18px);
+  }
+
+  .site-nav-menu.is-open {
+    display: flex;
+  }
+
+  .site-nav-menu .site-nav-item {
+    justify-content: flex-start;
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 14px;
+  }
+
+  .is-scrolled .site-nav-menu {
+    border-color: rgba(17, 24, 39, 0.1);
+    background: rgba(255, 255, 255, 0.96);
+  }
+
+  .is-scrolled .site-nav-menu .site-nav-item {
+    color: #111827;
+  }
+
   .site-nav .header-login {
-    height: 34px;
-    padding: 0 8px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0 12px;
     font-size: 12px;
   }
 
   .hero-inner {
-    min-height: 100vh;
+    min-height: 100svh;
     grid-template-columns: 1fr;
     padding: 92px 18px 76px;
   }
@@ -1515,6 +1642,7 @@ const handleLogin = async () => {
   }
 
   .auth-card {
+    width: 100%;
     padding: 22px;
   }
 
@@ -1565,6 +1693,21 @@ const handleLogin = async () => {
 
   .gallery-track {
     animation-duration: 36s;
+  }
+}
+
+@container portal (max-width: 760px) {
+  .hero-copy {
+    max-width: 38rem;
+  }
+
+  .brand-intro {
+    max-width: 34rem;
+  }
+
+  .section-heading h2,
+  .story-copy h2 {
+    text-wrap: balance;
   }
 }
 </style>

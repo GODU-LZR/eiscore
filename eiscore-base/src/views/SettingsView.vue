@@ -99,8 +99,8 @@
                 <img :src="form.loginBranding.logo" alt="企业 Logo 预览" />
               </span>
               <div>
-                <strong>当前登录页 Logo</strong>
-            <p>默认使用系统图标，可在这里替换为企业自有图片地址或上传图片。</p>
+                <strong>当前外部门户 Logo</strong>
+            <p>默认使用系统图标，可在这里替换为企业外部门户的自有图片地址或上传图片。</p>
               </div>
             </div>
           </div>
@@ -471,7 +471,7 @@
 
         <el-form-item v-if="canManage" class="settings-actions">
           <el-button type="primary" :loading="savingSettings" @click="saveSettings">保存并生效</el-button>
-          <el-button @click="previewLoginPage">预览登录页</el-button>
+          <el-button @click="previewLoginPage">预览外部门户</el-button>
           <el-button @click="resetSettings">重置默认</el-button>
         </el-form-item>
       </el-form>

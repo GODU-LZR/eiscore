@@ -109,11 +109,11 @@
                 type="button"
                 class="host-tab public-site-tab"
                 data-guide="host-tab-public-site"
-                title="打开企业独立站"
+                title="打开君乐缘外部门户"
                 @click="openIndependentSite"
               >
                 <span class="host-tab-dot dot-company-site-public"></span>
-                <span class="host-tab-label">独立站</span>
+                <span class="host-tab-label">外部门户</span>
               </button>
             </div>
           </div>
@@ -3741,7 +3741,7 @@ const handleMenuSelect = (index) => {
 
 const openIndependentSite = () => {
   if (typeof window === 'undefined') return
-  window.open('/company/', '_blank', 'noopener,noreferrer')
+  window.open('/login/', '_blank', 'noopener,noreferrer')
 }
 
 const handleOpenHostTabEvent = (event) => {
