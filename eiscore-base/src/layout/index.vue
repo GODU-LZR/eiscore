@@ -105,6 +105,17 @@
                   <Close />
                 </el-icon>
               </button>
+              <button
+                type="button"
+                class="host-tab public-site-tab"
+                data-guide="host-tab-public-site"
+                title="打开企业独立站"
+                @click="openIndependentSite"
+              >
+                <span class="host-tab-dot dot-company-site-public"></span>
+                <span class="host-tab-label">独立站</span>
+                <el-icon class="host-tab-external-icon"><Promotion /></el-icon>
+              </button>
             </div>
           </div>
         </div>
@@ -3729,6 +3740,11 @@ const handleMenuSelect = (index) => {
   router.push({ path }).catch(() => {})
 }
 
+const openIndependentSite = () => {
+  if (typeof window === 'undefined') return
+  window.open('/company/', '_blank', 'noopener,noreferrer')
+}
+
 const handleOpenHostTabEvent = (event) => {
   handleOpenHostTab(event?.detail || {})
 }
@@ -3869,6 +3885,23 @@ const handleCommand = (command) => {
       .host-tab-dot.dot-production { background: #22c55e; }
       .host-tab-dot.dot-quality { background: #0ea5e9; }
       .host-tab-dot.dot-equipment { background: #14b8a6; }
+      .host-tab-dot.dot-company-site-public { background: #d7b77d; }
+
+      .host-tab.public-site-tab {
+        color: var(--el-color-primary);
+        border-style: dashed;
+        background: rgba(var(--el-color-primary-rgb), 0.06);
+      }
+
+      .host-tab.public-site-tab:hover {
+        transform: translateY(-1px);
+        border-color: rgba(var(--el-color-primary-rgb), 0.45);
+        background: rgba(var(--el-color-primary-rgb), 0.12);
+      }
+
+      .host-tab-external-icon {
+        font-size: 14px;
+      }
 
       .host-tab-close {
         color: #909399;

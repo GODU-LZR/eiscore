@@ -10,15 +10,20 @@
           <strong>{{ companyName }}</strong>
         </div>
       </div>
-      <nav v-if="navItems.length" class="site-nav">
-        <button
-          v-for="item in navItems"
-          :key="`${item.label}-${item.anchor}`"
-          type="button"
-          @click="scrollToSection(item.anchor)"
-        >
-          {{ item.label }}
-        </button>
+      <nav class="site-nav" aria-label="登录页导航">
+        <template v-if="navItems.length">
+          <button
+            v-for="item in navItems"
+            :key="`${item.label}-${item.anchor}`"
+            type="button"
+            @click="scrollToSection(item.anchor)"
+          >
+            {{ item.label }}
+          </button>
+        </template>
+        <a class="independent-site-tab" href="/company/" aria-label="打开企业独立站">
+          企业独立站
+        </a>
       </nav>
       <button type="button" class="header-login" @click="focusLogin">
         {{ branding.headerLoginText }}
@@ -617,6 +622,7 @@ const handleLogin = async () => {
 }
 
 .is-scrolled .site-nav button,
+.is-scrolled .site-nav a,
 .is-scrolled .header-login {
   color: #111827;
 }
@@ -675,6 +681,7 @@ const handleLogin = async () => {
 }
 
 .site-nav button,
+.site-nav a,
 .header-login {
   height: 38px;
   padding: 0 14px;
@@ -687,13 +694,30 @@ const handleLogin = async () => {
   transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
 }
 
-.site-nav button:hover {
+.site-nav a {
+  text-decoration: none;
+}
+
+.site-nav button:hover,
+.site-nav a:hover {
   background: rgba(255, 255, 255, 0.14);
 }
 
-.is-scrolled .site-nav button:hover {
+.is-scrolled .site-nav button:hover,
+.is-scrolled .site-nav a:hover {
   background: color-mix(in srgb, var(--login-theme) 10%, #ffffff);
   color: var(--login-theme);
+}
+
+.independent-site-tab {
+  border-color: rgba(215, 183, 125, 0.58) !important;
+  background: rgba(215, 183, 125, 0.12) !important;
+}
+
+.independent-site-tab:hover {
+  border-color: var(--login-theme) !important;
+  background: var(--login-theme) !important;
+  color: #fff !important;
 }
 
 .header-login {
@@ -1474,14 +1498,29 @@ const handleLogin = async () => {
     min-width: 0;
   }
 
-  .site-name span,
-  .site-nav {
+  .site-name span {
     display: none;
   }
 
-  .header-login {
+  .site-nav {
+    display: flex;
+    gap: 2px;
     margin-left: auto;
-    padding: 0 12px;
+  }
+
+  .site-nav > button {
+    display: none;
+  }
+
+  .site-nav .independent-site-tab {
+    height: 34px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
+  .header-login {
+    padding: 0 8px;
+    font-size: 12px;
   }
 
   .hero-inner {
