@@ -24,10 +24,10 @@
         <a class="independent-site-tab" href="/company/" aria-label="打开企业独立站">
           企业独立站
         </a>
+        <button type="button" class="header-login" @click="focusLogin">
+          {{ branding.headerLoginText }}
+        </button>
       </nav>
-      <button type="button" class="header-login" @click="focusLogin">
-        {{ branding.headerLoginText }}
-      </button>
     </header>
 
     <main>
@@ -627,11 +627,6 @@ const handleLogin = async () => {
   color: #111827;
 }
 
-.is-scrolled .header-login {
-  border-color: rgba(17, 24, 39, 0.18);
-  background: rgba(255, 255, 255, 0.72);
-}
-
 .brand-lockup {
   display: flex;
   align-items: center;
@@ -699,26 +694,16 @@ const handleLogin = async () => {
 }
 
 .site-nav button:hover,
-.site-nav a:hover {
+.site-nav a:hover,
+.header-login:hover {
   background: rgba(255, 255, 255, 0.14);
 }
 
 .is-scrolled .site-nav button:hover,
-.is-scrolled .site-nav a:hover {
+.is-scrolled .site-nav a:hover,
+.is-scrolled .header-login:hover {
   background: color-mix(in srgb, var(--login-theme) 10%, #ffffff);
   color: var(--login-theme);
-}
-
-.header-login {
-  border-color: rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.13);
-  backdrop-filter: blur(14px);
-}
-
-.header-login:hover {
-  transform: translateY(-1px);
-  background: var(--login-theme);
-  border-color: var(--login-theme);
 }
 
 .hero-section {
@@ -1497,17 +1482,13 @@ const handleLogin = async () => {
     margin-left: auto;
   }
 
-  .site-nav > button {
+  .site-nav > button:not(.header-login) {
     display: none;
   }
 
-  .site-nav .independent-site-tab {
+  .site-nav .independent-site-tab,
+  .site-nav .header-login {
     height: 34px;
-    padding: 0 8px;
-    font-size: 12px;
-  }
-
-  .header-login {
     padding: 0 8px;
     font-size: 12px;
   }
