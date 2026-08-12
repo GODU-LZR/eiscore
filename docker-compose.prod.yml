@@ -15,6 +15,15 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./env/init_roles.sql:/docker-entrypoint-initdb.d/00_init_roles.sql:ro
       - ./env/db_schema_and_data.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
+      - ./sql/inventory_schema.sql:/docker-entrypoint-initdb.d/02_inventory_schema.sql:ro
+      - ./sql/patch_inventory_transactions_io_type.sql:/docker-entrypoint-initdb.d/03_inventory_transactions_io_type.sql:ro
+      - ./sql/patch_inventory_drafts.sql:/docker-entrypoint-initdb.d/04_inventory_drafts.sql:ro
+      - ./sql/patch_inventory_drafts_rule_id.sql:/docker-entrypoint-initdb.d/05_inventory_drafts_rule_id.sql:ro
+      - ./sql/patch_inventory_drafts_io_type.sql:/docker-entrypoint-initdb.d/06_inventory_drafts_io_type.sql:ro
+      - ./sql/patch_inventory_batches_update_policy.sql:/docker-entrypoint-initdb.d/07_inventory_batches_update_policy.sql:ro
+      - ./sql/junleyuan_baseline.sql:/docker-entrypoint-initdb.d/08_junleyuan_baseline.sql:ro
+      - ./sql/company_site_platform_v1.sql:/docker-entrypoint-initdb.d/09_company_site_platform_v1.sql:ro
+      - ./sql/workflow_rls_patch.sql:/docker-entrypoint-initdb.d/10_workflow_rls_patch.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d eiscore"]
       interval: 10s
@@ -34,7 +43,7 @@ services:
       PGRST_DB_SCHEMAS: "public,hr,scm,app_center,workflow,app_data"
       PGRST_DB_ANON_ROLE: "web_anon"
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:-my_super_secret_key_for_eiscore_system_2025}"
-      PGRST_OPENAPI_SERVER_PROXY_URI: "https://nanpai.eissys.top/api"
+      PGRST_OPENAPI_SERVER_PROXY_URI: "${EISCORE_PUBLIC_API_URL:-http://localhost/api}"
     depends_on:
       db:
         condition: service_healthy
@@ -86,11 +95,50 @@ services:
       - ./eiscore-materials:/workspace/eiscore-materials
       - ./eiscore-apps:/workspace/eiscore-apps
       - ./eiscore-equipment:/workspace/eiscore-equipment
+      - ./collector-desktop/artifacts/release:/app/data/collector-releases:ro
     depends_on:
       db:
         condition: service_healthy
       api:
         condition: service_started
 
+
+  code-server:
+    image: codercom/code-server:4.108.2
+    container_name: eiscore-ide
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command:
+      - --bind-addr
+      - 0.0.0.0:8443
+      - --auth
+      - none
+      - --user-data-dir
+      - /config/data
+      - --extensions-dir
+      - /config/extensions
+      - --disable-telemetry
+      - /config/workspace/drafts
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      HOME: /home/coder
+      XDG_CONFIG_HOME: /config/.config
+      NODE_OPTIONS: "--no-experimental-global-navigator"
+      VSCODE_NODE_OPTIONS: "--max-old-space-size=4096 --no-experimental-global-navigator"
+      CLINE_OPENAI_BASE_URL: "${CLINE_OPENAI_BASE_URL:-}"
+      CLINE_OPENAI_API_KEY: "${CLINE_OPENAI_API_KEY:-}"
+      CLINE_OPENAI_MODEL: "${CLINE_OPENAI_MODEL:-}"
+    ports:
+      - "127.0.0.1:8443:8443"
+    read_only: true
+    volumes:
+      - code_server_tmp:/tmp
+      - code_server_run:/run
+      - code_server_home:/home/coder
+      - ./config/code-server:/config
+      - ./eiscore-apps/src/views/drafts:/config/workspace/drafts
 volumes:
   pgdata:
+  code_server_tmp:
+  code_server_run:
+  code_server_home:

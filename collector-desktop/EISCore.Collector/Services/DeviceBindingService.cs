@@ -30,10 +30,12 @@ public sealed class DeviceBindingService
                 DefaultRole = config.DefaultRole,
                 AuthorizationCode = authorizationCode,
                 WindowsUsername = Environment.UserDomainName + "\\" + Environment.UserName,
-                ClientVersion = config.ClientVersion
+                ClientVersion = config.ClientVersion,
+                WebViewVersion = config.WebViewVersion
             },
             cancellationToken);
 
+        ValidateBindResponse(response);
         config.DeviceId = response.DeviceId;
         config.DeviceCode = string.IsNullOrWhiteSpace(response.DeviceCode) ? config.DeviceCode : response.DeviceCode;
         config.DeviceName = string.IsNullOrWhiteSpace(response.DeviceName) ? config.DeviceName : response.DeviceName;
@@ -41,9 +43,22 @@ public sealed class DeviceBindingService
         config.DefaultUsername = string.IsNullOrWhiteSpace(response.DefaultUsername) ? config.DefaultUsername : response.DefaultUsername;
         config.DefaultRole = string.IsNullOrWhiteSpace(response.DefaultRole) ? config.DefaultRole : response.DefaultRole;
         config.EncryptedDeviceToken = _configurationService.ProtectToken(response.DeviceToken);
+        config.DeviceStatus = "active";
         config.LastBoundAt = DateTimeOffset.Now;
 
         await _configurationService.SaveAsync(config, cancellationToken);
         return config;
+    }
+
+    private static void ValidateBindResponse(DeviceBindResponse response)
+    {
+        var missingFields = new List<string>();
+        if (string.IsNullOrWhiteSpace(response.DeviceId)) missingFields.Add("deviceId");
+        if (string.IsNullOrWhiteSpace(response.DeviceToken)) missingFields.Add("deviceToken");
+
+        if (missingFields.Count > 0)
+        {
+            throw new InvalidOperationException($"设备绑定接口响应缺少必需字段：{string.Join(", ", missingFields)}。");
+        }
     }
 }

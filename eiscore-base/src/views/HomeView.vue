@@ -13,13 +13,32 @@
       </div>
       <div class="header-right">
         <!-- 管理员才显示模式切换 -->
-        <el-segmented
+        <div
           v-if="isAdmin"
-          v-model="activeMode"
-          :options="modeOptions"
-          size="small"
           class="mode-switcher"
-        />
+          role="tablist"
+          aria-label="首页功能切换"
+        >
+          <button
+            v-for="item in modeOptions"
+            :key="item.value"
+            type="button"
+            class="mode-card"
+            :class="{ active: activeMode === item.value }"
+            role="tab"
+            :aria-selected="activeMode === item.value"
+            @click="activeMode = item.value"
+          >
+            <span class="mode-icon-wrap">
+              <el-icon class="mode-icon"><component :is="item.icon" /></el-icon>
+            </span>
+            <span class="mode-copy">
+              <strong>{{ item.label }}</strong>
+              <em>{{ item.desc }}</em>
+            </span>
+            <span class="mode-badge">{{ item.badge }}</span>
+          </button>
+        </div>
         <div v-if="activeMode === 'twin' || activeMode === 'enterprise'" class="header-actions">
           <el-tooltip content="历史会话" placement="bottom">
             <button
@@ -398,9 +417,9 @@ const getAuthHeaders = () => {
 const DEFAULT_WORKBENCH_MODE = 'flow'
 const activeMode = ref(DEFAULT_WORKBENCH_MODE)
 const modeOptions = [
-  { label: '数字分身', value: 'twin' },
-  { label: '智能 BI', value: 'enterprise' },
-  { label: '业务流程', value: 'flow' }
+  { label: '数字分身', value: 'twin', desc: '个人工作助手', badge: 'AI', icon: Service },
+  { label: '智能 BI', value: 'enterprise', desc: '经营数据分析', badge: 'BI', icon: DataAnalysis },
+  { label: '业务流程', value: 'flow', desc: '流程与单据', badge: 'Flow', icon: Share }
 ]
 
 const activeModeMeta = computed(() => {
@@ -853,12 +872,13 @@ $border-color: var(--el-border-color, #dcdfe6);
 
 // ── 顶部栏 ──
 .home-header {
-  height: 52px;
+  min-height: 60px;
   border-bottom: 1px solid $border-color;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 20px;
+  gap: 12px;
+  padding: 6px 14px;
   background: var(--ai-panel-surface);
   flex-shrink: 0;
 
@@ -875,11 +895,12 @@ $border-color: var(--el-border-color, #dcdfe6);
     display: flex;
     align-items: center;
     gap: 16px;
+    min-width: 0;
   }
 
   .header-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     font-size: 18px;
     color: #909399;
 
@@ -909,9 +930,124 @@ $border-color: var(--el-border-color, #dcdfe6);
   }
 
   .mode-switcher {
-    :deep(.el-segmented-item) {
-      padding: 2px 12px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(128px, 1fr));
+    gap: 6px;
+    min-width: min(540px, 56vw);
+    padding: 3px;
+    border: 1px solid #d7e0ea;
+    border-radius: 8px;
+    background: #f6f8fb;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
+  }
+
+  .mode-card {
+    min-width: 0;
+    height: 38px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 0 7px;
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    color: #334155;
+    background: #ffffff;
+    cursor: pointer;
+    text-align: left;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+
+    &:hover {
+      border-color: #9bb7d7;
+      color: #0f172a;
+      transform: translateY(-1px);
+      box-shadow: 0 5px 14px rgba(15, 23, 42, 0.10);
     }
+
+    &.active {
+      border-color: #0f172a;
+      background: #061224;
+      color: #ffffff;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.24);
+
+      .mode-icon-wrap {
+        background: rgba(255, 255, 255, 0.16);
+        color: #ffffff;
+      }
+
+      .mode-copy em {
+        color: rgba(255, 255, 255, 0.72);
+      }
+
+      .mode-badge {
+        background: rgba(255, 255, 255, 0.18);
+        color: #ffffff;
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid rgba($primary-color, 0.35);
+      outline-offset: 2px;
+    }
+  }
+
+  .mode-icon-wrap {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: #edf4ff;
+    color: #2563eb;
+  }
+
+  .mode-icon {
+    font-size: 15px;
+  }
+
+  .mode-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+
+    strong,
+    em {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      letter-spacing: 0;
+    }
+
+    strong {
+      font-size: 13px;
+      line-height: 16px;
+      font-weight: 700;
+    }
+
+    em {
+      font-size: 10px;
+      line-height: 12px;
+      font-style: normal;
+      color: #64748b;
+    }
+  }
+
+  .mode-badge {
+    height: 18px;
+    min-width: 26px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #e2e8f0;
+    color: #475569;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0;
   }
 }
 
@@ -1351,16 +1487,16 @@ $border-color: var(--el-border-color, #dcdfe6);
 .input-section {
   background: var(--ai-panel-surface);
   border-top: 1px solid $border-color;
-  padding: 12px;
+  padding: 8px 10px;
 }
 
 .input-box {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   background: #f5f7fa;
-  border-radius: 20px;
-  padding: 4px 8px 4px 12px;
+  border-radius: 16px;
+  padding: 3px 7px 3px 10px;
   border: 1px solid transparent;
   transition: all 0.2s;
 
@@ -1373,7 +1509,7 @@ $border-color: var(--el-border-color, #dcdfe6);
   .upload-trigger { display: flex; }
 
   .tool-icon {
-    font-size: 20px;
+    font-size: 18px;
     color: #909399;
     cursor: pointer;
     padding: 4px;
@@ -1385,16 +1521,17 @@ $border-color: var(--el-border-color, #dcdfe6);
     background: transparent;
     border: none;
     resize: none;
-    height: 36px;
-    padding: 8px 0;
+    height: 30px;
+    padding: 5px 0;
     font-size: 14px;
     font-family: inherit;
+    line-height: 20px;
     &:focus { outline: none; }
   }
 
   .send-btn {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     background: $primary-color;
     border-radius: 50%;
     display: flex;
@@ -1424,5 +1561,59 @@ $border-color: var(--el-border-color, #dcdfe6);
 @keyframes rotate {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+@media (max-width: 1180px) {
+  .home-header {
+    align-items: stretch;
+    flex-direction: column;
+
+    .header-right {
+      justify-content: space-between;
+    }
+
+    .mode-switcher {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+}
+
+@media (max-width: 760px) {
+  .home-header {
+    padding: 8px;
+
+    .header-left {
+      min-width: 0;
+    }
+
+    .header-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .header-right {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mode-switcher {
+      display: flex;
+      overflow-x: auto;
+      padding-bottom: 5px;
+      scroll-snap-type: x proximity;
+    }
+
+    .mode-card {
+      flex: 0 0 154px;
+      scroll-snap-align: start;
+    }
+
+    .header-actions {
+      justify-content: flex-end;
+    }
+  }
 }
 </style>

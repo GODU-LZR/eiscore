@@ -262,6 +262,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { mix } from '@/utils/theme'
 import { hasPerm } from '@/utils/permission'
 import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '@/utils/micro-path'
+import { syncCollectorUserContext } from '@/utils/collector-bridge'
 import { ElMessage } from 'element-plus'
 import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import { isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
@@ -437,7 +438,7 @@ const showMicroAppLoading = (moduleKey = '') => {
     microAppLoading.value = false
     microAppLoadingVisible.value = false
     microAppLoadingFallbackTimer = null
-  }, 8000)
+  }, 45_000)
 }
 
 const hideMicroAppLoadingSoon = (delay = 120) => {
@@ -465,7 +466,7 @@ const handleMicroLoading = (event) => {
       microAppLoading.value = false
       microAppLoadingVisible.value = false
       microAppLoadingFallbackTimer = null
-    }, 8000)
+    }, 45_000)
   } else {
     hideMicroAppLoadingSoon(120)
   }
@@ -497,7 +498,9 @@ const sortWarmUrls = (urls) => [...urls].sort((a, b) => {
     if (/\/(?:materials|hr|sales|purchase|production|quality|equipment|decision)\/assets\/.*(?:AppView|AppGrid|Apps|Dashboard|Cockpit|Overview|Inventory|Home)-/.test(url)) return 2
     if (/\/assets\/element-plus-/.test(url)) return 2
     if (/\/assets\/(?:vendor-misc)-/.test(url)) return 3
-    if (/\/apps\/assets\/(?:AppRuntime|DataApp|AppConfigCenter|AppRecordDetail|WorkflowApprovalCenter|FlowDesigner|FlashBuilder|OntologyWorkbench)-/.test(url)) return 6
+    // Keep deep-link workbench chunks warm enough for a cold application-center entry.
+    if (/\/apps\/assets\/(?:AppDashboard|FlowDesigner|OntologyWorkbench|bpmn)-/.test(url)) return 2
+    if (/\/apps\/assets\/(?:AppRuntime|DataApp|AppConfigCenter|AppRecordDetail|WorkflowApprovalCenter|FlowDesigner|FlashBuilder)-/.test(url)) return 6
     if (/\/apps\/assets\/(?:AppCenterGrid|AppRuntime|DataApp|AppConfigCenter|AppRecordDetail|WorkflowApprovalCenter|FlowDesigner|FlashBuilder|OntologyWorkbench)-.*\.css$/.test(url)) return 7
     if (/\/assets\/style-/.test(url) || url.endsWith('.css')) return 4
     if (/\/assets\/(?:charts|documents)-/.test(url)) return 8
@@ -548,7 +551,7 @@ const warmMicroApp = async (moduleKey, options = {}) => {
     const manifest = await getMicroAppManifest()
     const urls = pickMicroAppWarmUrls(key, manifest)
     if (!urls.length) return
-    const initialMaxUrls = full ? urls.length : Math.min(urls.length, key === 'apps' ? 14 : 18)
+    const initialMaxUrls = full ? urls.length : Math.min(urls.length, key === 'apps' ? 24 : 18)
     await warmUrls(urls.slice(0, initialMaxUrls), full ? 5 : 4)
     if (!full && microAppWarmMode.get(key) === 'full' && initialMaxUrls < urls.length) {
       await warmUrls(urls.slice(initialMaxUrls), 5)
@@ -620,7 +623,7 @@ const getAuthHeader = () => {
     const parsed = JSON.parse(tokenStr)
     if (parsed?.token) token = parsed.token
   } catch (e) {}
-  if (token && token.length > 8192) {
+  if (token && token.length > 32768) {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user_info')
     return {}
@@ -769,6 +772,10 @@ const fetchUserInfoByToken = async (token) => {
   }
 }
 
+const syncCollectorLogContext = () => {
+  syncCollectorUserContext(userStore.userInfo || {})
+}
+
 const refreshUserInfo = async () => {
   try {
     let info = JSON.parse(localStorage.getItem('user_info') || '{}')
@@ -784,8 +791,10 @@ const refreshUserInfo = async () => {
       const next = { ...(resolved || info), avatar: resolved?.avatar || info?.avatar || '' }
       localStorage.setItem('user_info', JSON.stringify(next))
     }
+    syncCollectorLogContext()
   } catch (e) {
     userStore.userInfo = {}
+    syncCollectorLogContext()
   }
 }
 
@@ -892,6 +901,7 @@ watch(() => route.fullPath, () => {
 })
 
 watch(() => userStore.userInfo, () => {
+  syncCollectorLogContext()
   ensureSuperAdminScopes()
   scheduleSuperScopeRetry()
 }, { deep: true })
@@ -1166,7 +1176,8 @@ const SOP_APP_TITLES = {
     acl: '权限管理',
     user: '用户管理',
     b: '调岗记录',
-    c: '考勤管理'
+    c: '考勤管理',
+    payroll: '薪资复核'
   },
   apps: {
     config: '配置中心',
@@ -3245,7 +3256,8 @@ const MODULE_APP_KEY_TITLES = {
   },
   hr: {
     b: '调岗记录',
-    c: '考勤管理'
+    c: '考勤管理',
+    payroll: '薪资复核'
   },
   sales: {
     customers: '客户档案',
@@ -3303,6 +3315,7 @@ const MODULE_DIRECT_APP_ROUTES = [
   { path: '/hr/org', title: '部门架构图' },
   { path: '/hr/acl', title: '权限管理' },
   { path: '/hr/users', title: '用户管理' },
+  { path: '/apps/payroll-precheck-review', title: '薪资复核' },
   { path: '/sales/cockpit', title: '销售驾驶舱' },
   { path: '/purchase/dashboard', title: '采购驾驶舱' },
   { path: '/production/overview', title: '生产总览' },
@@ -3456,6 +3469,7 @@ const resolveHostTabTitle = (path, query = {}, fallback = '') => {
   const directAppRoute = getDirectAppRoute(path)
   if (directAppRoute?.title) return directAppRoute.title
   if (path === '/apps/config-center') return '应用配置中心'
+  if (path.startsWith('/apps/workflow-approval-center')) return '审批中心'
   if (path.startsWith('/apps/workflow-designer/')) return preferred || getQueryAppTitle(query) || '流程应用'
   if (path.startsWith('/apps/flash-builder/')) return preferred || getQueryAppTitle(query) || '闪念应用'
   if (path.startsWith('/apps/data-app/')) return preferred || getQueryAppTitle(query) || '数据表格应用'

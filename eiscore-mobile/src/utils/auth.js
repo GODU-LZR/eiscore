@@ -39,7 +39,7 @@ export function getToken() {
     // ignore
   }
   if (!token) token = raw
-  if (token && token.length > 8192) {
+  if (token && token.length > 32768) {
     clearAuth()
     return ''
   }

@@ -517,6 +517,37 @@ BEGIN
             'role',
             rp.role_code,
             COALESCE(NULLIF(rp.role_name, ''), rp.role_code),
+            'acl:canAccessTable',
+            'table',
+            legacy.table_id,
+            COALESCE(NULLIF(ots.semantic_name, ''), legacy.table_id),
+            'infer_role_can_access_table',
+            true,
+            jsonb_build_object(
+                'permission_code', rp.permission_code,
+                'source', 'legacy_hr_permission_table_map'
+            )
+        FROM public.v_role_permission_ontology rp
+        JOIN (
+            VALUES
+                ('module:hr'::TEXT, 'hr.archives'::TEXT),
+                ('module:hr'::TEXT, 'hr.attendance_records'::TEXT),
+                ('module:hr'::TEXT, 'hr.v_attendance_daily'::TEXT),
+                ('module:hr'::TEXT, 'hr.v_attendance_monthly'::TEXT),
+                ('app:hr_employee'::TEXT, 'hr.archives'::TEXT),
+                ('app:hr_attendance'::TEXT, 'hr.attendance_records'::TEXT),
+                ('app:hr_attendance'::TEXT, 'hr.v_attendance_daily'::TEXT),
+                ('app:hr_attendance'::TEXT, 'hr.v_attendance_monthly'::TEXT)
+        ) AS legacy(permission_code, table_id)
+          ON legacy.permission_code = rp.permission_code
+        LEFT JOIN public.ontology_table_semantics ots
+          ON ots.table_schema || '.' || ots.table_name = legacy.table_id
+         AND ots.is_active = true
+        UNION ALL
+        SELECT
+            'role',
+            rp.role_code,
+            COALESCE(NULLIF(rp.role_name, ''), rp.role_code),
             'acl:canOperateTable',
             'table',
             app.qualified_table,

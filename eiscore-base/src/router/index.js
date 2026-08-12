@@ -18,7 +18,13 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue'),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: false, publicLanding: true }
+    },
+    {
+      path: '/company/:pathMatch(.*)*',
+      name: 'company-entry',
+      component: () => import('../views/LoginView.vue'),
+      meta: { requiresAuth: false, publicLanding: true }
     },
     {
       path: '/eiscore',
@@ -104,6 +110,13 @@ const isMobileDevice = () => {
     || (window.innerWidth <= 768)
 }
 
+const shouldSkipMobileRedirect = (to) => {
+  if (typeof window !== 'undefined' && window.__EIS_SKIP_MOBILE_REDIRECT__) return true
+  const path = String(to.path || '')
+  const querySkip = String(to.query?.eis_skip_mobile_redirect || '') === '1'
+  return querySkip || path.startsWith('/ide')
+}
+
 router.beforeEach((to, from, next) => {
   const canonicalPath = canonicalizeMicroChainPath(to.path)
   if (canonicalPath !== to.path) {
@@ -116,8 +129,11 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  // 移动端自动跳转（仅在非 /mobile/ 路径下触发）
-  if (isMobileDevice() && !window.__EIS_SKIP_MOBILE_REDIRECT__ && !to.meta.publicLanding) {
+  const token = getToken()
+  const expired = isTokenExpired(token)
+
+  // 未登录用户先进入统一企业首页/登录页；登录后的内部业务才切换到移动工作台。
+  if (token && !expired && isMobileDevice() && !shouldSkipMobileRedirect(to) && !to.meta.publicLanding) {
     const currentPath = window.location.pathname
     if (!currentPath.startsWith('/mobile')) {
       window.location.href = '/mobile/'
@@ -125,12 +141,15 @@ router.beforeEach((to, from, next) => {
     }
   }
 
-  const token = getToken()
-  const expired = isTokenExpired(token)
   if (to.meta.requiresAuth && (!token || expired)) {
     clearAuthStorage()
+    // Force a document navigation so the public static company site owns /login.
+    if (typeof window !== 'undefined') {
+      window.location.replace('/login')
+      return
+    }
     next('/login')
-  } else if (to.path === '/login' && token && !expired) {
+  } else if ((to.path === '/login' || to.path.startsWith('/company')) && token && !expired) {
     next('/')
   } else {
     next()

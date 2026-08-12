@@ -195,6 +195,7 @@ BEGIN
     'document_business_links',
     'document_unmapped_fields',
     'ai_business_corrections',
+    'ai_business_recalculation_tasks',
     'client_log_sessions',
     'client_log_events'
   ]

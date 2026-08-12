@@ -252,14 +252,14 @@ import { useRouter, useRoute } from 'vue-router'
 import { showToast, showFailToast } from 'vant'
 import { setAuth, parseJwt, isAuthenticated, getToken } from '@/utils/auth'
 
-const NANPAI_LOGO_URL = 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg'
+const DEFAULT_LOGIN_LOGO = '/favicon.ico'
 
 const defaultLoginBranding = {
-  companyName: '广东南派食品有限公司',
-  slogan: '深耕热带水果全产业链，打造高品质水果制品方案',
-  description: '根据企业官网公开信息：公司成立于 2009 年，总部位于中国雷州半岛；拥有湛江、广西两大加工基地和多条水果加工生产线，面向茶饮、烘焙、饮料与生鲜客户提供一站式水果制品解决方案。',
-  logo: NANPAI_LOGO_URL,
-  siteTag: '热带水果制品解决方案提供商',
+  companyName: '君乐缘台球工厂',
+  slogan: '让生产、仓储与经营协同更高效',
+  description: '面向君乐缘台球工厂的生产制造、物料仓储、销售采购与经营分析一体化平台。',
+  logo: DEFAULT_LOGIN_LOGO,
+  siteTag: '台球工厂数字化运营平台',
   announcement: '员工与合作伙伴入口',
   authKicker: '员工入口',
   authTitle: '账号登录',
@@ -270,52 +270,36 @@ const defaultLoginBranding = {
   secondaryActionUrl: '/eiscore',
   showSecondaryAction: false,
   passBadgeText: '员工通行',
-  businessChainTitle: '从产地到交付的服务路径',
+  businessChainTitle: '从订单到交付的业务路径',
   scrollCueText: '向下了解企业',
   aboutSectionKicker: '关于企业',
   metricsSectionKicker: '企业实力',
-  metricsSectionTitle: '多年深耕热带水果产业',
+  metricsSectionTitle: '制造现场与经营管理协同',
   capabilitiesSectionKicker: '产品与服务',
-  capabilitiesSectionTitle: '从产地原料到客户应用的完整服务',
-  backgroundImage: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgx6CtnwYoh8fKtgcwgA84vAU!1500x1500.jpg',
+  capabilitiesSectionTitle: '从订单、生产到交付的业务协同',
+  backgroundImage: '',
   metrics: [
-    { label: '成立时间', value: '2009' },
-    { label: '加工基地', value: '2' },
-    { label: '注册资金', value: '1000万' }
+    { label: '生产协同', value: '全流程' },
+    { label: '库存可视', value: '实时' },
+    { label: '经营决策', value: '数据化' }
   ],
   trustBadges: [
-    { label: '雷州半岛产地优势' },
-    { label: '双加工基地' },
-    { label: '多场景客户服务' }
+    { label: '生产制造' },
+    { label: '物料仓储' },
+    { label: '经营分析' }
   ],
   businessChain: [
-    { title: '原料甄选', description: '依托热带水果产区资源，关注原料风味、成熟度与稳定供应。', status: '产地直采' },
-    { title: '加工制造', description: '围绕果浆、果粒、果酱等产品形态，支持规模化与定制化生产。', status: '稳定交付' },
-    { title: '客户服务', description: '面向茶饮、烘焙、饮料与生鲜渠道，提供产品方案和交付支持。', status: '多场景适配' }
+    { title: '订单协同', description: '统一管理客户需求、订单计划和交付节点。', status: '计划可追踪' },
+    { title: '生产制造', description: '围绕产品配方、工单、领料和报工形成生产闭环。', status: '过程透明' },
+    { title: '交付服务', description: '打通质量、库存、出货与经营分析数据。', status: '结果可复盘' }
   ],
   capabilities: [
-    { title: '热带水果制品', description: '围绕芒果、菠萝、百香果等热带水果，提供多形态原料产品。' },
-    { title: '规模化加工', description: '依托湛江、广西加工基地，保障稳定产能与产品一致性。' },
-    { title: '应用方案支持', description: '结合茶饮、烘焙、饮料等使用场景，提供选型与应用建议。' }
+    { title: '生产与配方管理', description: '管理产品配方、BOM、工单、领料和生产报工。' },
+    { title: '库存与仓储管理', description: '统一管理物料、批次、仓库、入库和出库。' },
+    { title: '销售采购协同', description: '连接客户订单、采购供应和交付执行。' }
   ],
-  carouselImages: [
-    {
-      url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg5uqnnwYoiNO9CjDcCziIBQ.jpg',
-      title: '热带水果全产业链布局',
-      subtitle: '覆盖种植、加工、研发、销售与服务'
-    },
-    {
-      url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3-CwnwYo_qL0ggIwjgI4nwM.jpg',
-      title: '加工与品控能力',
-      subtitle: '支持多品类水果制品的规模化生产'
-    },
-    {
-      url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgheiwnwYoj7jo0QQwjgI4nwM.jpg',
-      title: '面向多场景客户',
-      subtitle: '服务茶饮、烘焙、饮料与生鲜渠道'
-    }
-  ],
-  footerText: 'Copyright © 广东南派食品有限公司',
+  carouselImages: [],
+  footerText: 'Copyright © 君乐缘台球工厂',
   icpText: ''
 }
 

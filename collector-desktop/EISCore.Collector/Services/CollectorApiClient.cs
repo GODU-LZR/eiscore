@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
@@ -9,6 +10,9 @@ namespace EISCore.Collector.Services;
 
 public sealed class CollectorApiClient
 {
+    private const int MaxUploadResponseIdLength = 256;
+    private const int MaxUploadResponseMessageLength = 1024;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -31,9 +35,27 @@ public sealed class CollectorApiClient
             JsonOptions,
             cancellationToken);
 
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken, classifyDeviceAuthFailure: false);
         var bindResponse = await response.Content.ReadFromJsonAsync<DeviceBindResponse>(JsonOptions, cancellationToken);
-        return bindResponse ?? throw new InvalidOperationException("设备绑定接口未返回有效响应。");
+        if (bindResponse is null)
+        {
+            throw new InvalidOperationException("设备绑定接口未返回有效响应。");
+        }
+
+        ValidateBindResponse(bindResponse);
+        return bindResponse;
+    }
+
+    private static void ValidateBindResponse(DeviceBindResponse response)
+    {
+        var missingFields = new List<string>();
+        if (string.IsNullOrWhiteSpace(response.DeviceId)) missingFields.Add("deviceId");
+        if (string.IsNullOrWhiteSpace(response.DeviceToken)) missingFields.Add("deviceToken");
+
+        if (missingFields.Count > 0)
+        {
+            throw new InvalidOperationException($"设备绑定接口响应缺少必需字段：{string.Join(", ", missingFields)}。");
+        }
     }
 
     public async Task<UploadResponse> UploadFileAsync(
@@ -76,10 +98,12 @@ public sealed class CollectorApiClient
         AddDeviceHeaders(request, deviceToken);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken, classifyDeviceAuthFailure: true);
 
-        var uploadResponse = await response.Content.ReadFromJsonAsync<UploadResponse>(JsonOptions, cancellationToken);
-        return uploadResponse ?? new UploadResponse { Status = "uploaded" };
+        var uploadResponse = await response.Content.ReadFromJsonAsync<UploadResponse>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("文件上传接口未返回有效响应。");
+        EnsureUploadResponseAccepted(uploadResponse, "文件上传");
+        return uploadResponse;
     }
 
     private async Task<UploadResponse> UploadFileInChunksAsync(
@@ -112,26 +136,43 @@ public sealed class CollectorApiClient
         AddDeviceHeaders(initRequest, deviceToken);
 
         using var initResponse = await _httpClient.SendAsync(initRequest, cancellationToken);
-        await EnsureSuccessAsync(initResponse, cancellationToken);
+        await EnsureSuccessAsync(initResponse, cancellationToken, classifyDeviceAuthFailure: true);
         var init = await initResponse.Content.ReadFromJsonAsync<ChunkUploadInitResponse>(JsonOptions, cancellationToken)
             ?? throw new InvalidOperationException("分片上传初始化接口未返回有效响应。");
 
         if (init.Duplicate)
         {
-            return new UploadResponse
-            {
-                AssetId = init.AssetId,
-                Duplicate = true,
-                Status = "duplicate",
-                Message = "Duplicate file recorded without re-importing"
+        var duplicateResponse = new UploadResponse
+        {
+            AssetId = init.AssetId,
+            BatchId = init.BatchId,
+            BatchNo = init.BatchNo,
+            Duplicate = true,
+            Status = "duplicate",
+            Message = "Duplicate file recorded without re-importing"
             };
+            EnsureUploadResponseAccepted(duplicateResponse, "分片上传初始化");
+            return duplicateResponse;
         }
         if (string.IsNullOrWhiteSpace(init.SessionId))
         {
             throw new InvalidOperationException("分片上传初始化未返回 sessionId。");
         }
 
-        var uploaded = init.UploadedChunks.ToHashSet();
+        var acceptedChunkSize = init.ChunkSize <= 0 ? chunkSize : init.ChunkSize;
+        var acceptedTotalChunks = init.TotalChunks <= 0 ? totalChunks : init.TotalChunks;
+        if (acceptedChunkSize != chunkSize || acceptedTotalChunks != totalChunks)
+        {
+            throw new InvalidOperationException("分片上传初始化响应与本地分片计划不一致。");
+        }
+
+        var uploaded = NormalizeChunkIndexes(init.UploadedChunks, totalChunks);
+        var reportedMissing = NormalizeChunkIndexes(init.MissingChunks, totalChunks);
+        var chunksToUpload = reportedMissing.Count > 0
+            ? reportedMissing
+            : Enumerable.Range(0, totalChunks)
+                .Where(index => !uploaded.Contains(index))
+                .ToHashSet();
         var buffer = new byte[chunkSize];
         await using var stream = new FileStream(
             item.FilePath,
@@ -143,7 +184,7 @@ public sealed class CollectorApiClient
 
         for (var index = 0; index < totalChunks; index++)
         {
-            if (uploaded.Contains(index)) continue;
+            if (!chunksToUpload.Contains(index)) continue;
 
             stream.Seek((long)index * chunkSize, SeekOrigin.Begin);
             var expected = (int)Math.Min(chunkSize, item.FileSize - (long)index * chunkSize);
@@ -182,8 +223,10 @@ public sealed class CollectorApiClient
             };
             AddDeviceHeaders(chunkRequest, deviceToken);
             using var chunkResponse = await _httpClient.SendAsync(chunkRequest, cancellationToken);
-            await EnsureSuccessAsync(chunkResponse, cancellationToken);
-            _ = await chunkResponse.Content.ReadFromJsonAsync<ChunkUploadPartResponse>(JsonOptions, cancellationToken);
+            await EnsureSuccessAsync(chunkResponse, cancellationToken, classifyDeviceAuthFailure: true);
+            var part = await chunkResponse.Content.ReadFromJsonAsync<ChunkUploadPartResponse>(JsonOptions, cancellationToken)
+                ?? throw new InvalidOperationException($"分片上传接口未返回有效确认：{index}");
+            EnsureChunkUploadPartAccepted(part, init.SessionId, index, totalChunks);
         }
 
         using var completeRequest = new HttpRequestMessage(
@@ -194,23 +237,120 @@ public sealed class CollectorApiClient
         };
         AddDeviceHeaders(completeRequest, deviceToken);
         using var completeResponse = await _httpClient.SendAsync(completeRequest, cancellationToken);
-        await EnsureSuccessAsync(completeResponse, cancellationToken);
-        return await completeResponse.Content.ReadFromJsonAsync<UploadResponse>(JsonOptions, cancellationToken)
-            ?? new UploadResponse { Status = "uploaded" };
+        await EnsureSuccessAsync(completeResponse, cancellationToken, classifyDeviceAuthFailure: true);
+        var uploadResponse = await completeResponse.Content.ReadFromJsonAsync<UploadResponse>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("分片上传完成接口未返回有效响应。");
+        EnsureUploadResponseAccepted(uploadResponse, "分片上传完成");
+        return uploadResponse;
+    }
+
+    private static HashSet<int> NormalizeChunkIndexes(IEnumerable<int>? indexes, int totalChunks)
+    {
+        return (indexes ?? Enumerable.Empty<int>())
+            .Where(index => index >= 0 && index < totalChunks)
+            .ToHashSet();
+    }
+
+    private static void EnsureChunkUploadPartAccepted(
+        ChunkUploadPartResponse part,
+        string sessionId,
+        int chunkIndex,
+        int totalChunks)
+    {
+        if (!part.Ok)
+        {
+            throw new InvalidOperationException($"分片上传未被服务端确认：{chunkIndex}");
+        }
+
+        if (!string.Equals(part.SessionId, sessionId, StringComparison.Ordinal)
+            || part.ChunkIndex != chunkIndex
+            || part.TotalChunks != totalChunks)
+        {
+            throw new InvalidOperationException($"分片上传确认与本地请求不一致：{chunkIndex}");
+        }
+    }
+
+    private static void EnsureUploadResponseAccepted(UploadResponse response, string actionName)
+    {
+        var status = NormalizeUploadResponseText(response.Status, 32).ToLowerInvariant();
+        if (status is not ("uploaded" or "duplicate"))
+        {
+            throw new InvalidOperationException($"{actionName}接口返回了无法识别的状态：{response.Status}");
+        }
+
+        var assetId = NormalizeUploadResponseText(response.AssetId, MaxUploadResponseIdLength);
+        if (string.IsNullOrWhiteSpace(assetId))
+        {
+            throw new InvalidOperationException($"{actionName}接口响应缺少 assetId。");
+        }
+
+        if (StripControlCharacters(response.AssetId).Trim().Length > MaxUploadResponseIdLength)
+        {
+            throw new InvalidOperationException($"{actionName}接口响应 assetId 超过长度限制。");
+        }
+
+        var batchId = NormalizeUploadResponseText(response.BatchId, MaxUploadResponseIdLength);
+        if (StripControlCharacters(response.BatchId).Trim().Length > MaxUploadResponseIdLength)
+        {
+            throw new InvalidOperationException($"{actionName}接口响应 batchId 超过长度限制。");
+        }
+
+        var batchNo = NormalizeUploadResponseText(response.BatchNo, MaxUploadResponseIdLength);
+        if (StripControlCharacters(response.BatchNo).Trim().Length > MaxUploadResponseIdLength)
+        {
+            throw new InvalidOperationException($"{actionName}接口响应 batchNo 超过长度限制。");
+        }
+
+        response.Status = status;
+        response.AssetId = assetId;
+        response.BatchId = batchId;
+        response.BatchNo = batchNo;
+        response.Message = NormalizeUploadResponseText(response.Message, MaxUploadResponseMessageLength);
+        response.Duplicate = status == "duplicate";
+    }
+
+    private static void EnsureDeviceConfigResponseAccepted(DeviceConfigResponse response, string actionName)
+    {
+        if (!response.Ok)
+        {
+            throw new InvalidOperationException($"{actionName}接口未被服务端确认。");
+        }
+    }
+
+    private static string NormalizeUploadResponseText(string? value, int maxLength)
+    {
+        var normalized = StripControlCharacters(value).Trim();
+        return normalized.Length <= maxLength ? normalized : normalized[..maxLength];
+    }
+
+    private static string StripControlCharacters(string? value)
+    {
+        return new string((value ?? "").Where(ch => !char.IsControl(ch)).ToArray());
     }
 
     private static object BuildUploadMetadata(UploadQueueItem item, AppConfig config)
     {
+        var uploadedByUserId = FirstNonEmpty(item.UploadedByUserId, config.DefaultUserId);
+        var uploadedByUsername = FirstNonEmpty(item.UploadedByUsername, config.DefaultUsername);
+        var uploadedByRole = FirstNonEmpty(item.UploadedByRole, config.DefaultRole);
+        var operatorSource = FirstNonEmpty(
+            item.OperatorSource,
+            ResolveFallbackOperatorSource(item, config, uploadedByUserId, uploadedByUsername, uploadedByRole));
+        var windowsUsername = FirstNonEmpty(item.WindowsUsername, Environment.UserDomainName + "\\" + Environment.UserName);
+
         return new
         {
             device_id = config.DeviceId,
             device_name = config.DeviceName,
+            enterprise_code = config.EnterpriseCode,
+            tenant_id = config.EnterpriseCode,
             upload_source = item.UploadSource,
-            uploaded_by_user_id = config.DefaultUserId,
-            uploaded_by_username = config.DefaultUsername,
-            uploaded_by_role = config.DefaultRole,
-            windows_username = Environment.UserDomainName + "\\" + Environment.UserName,
-            operator_source = item.UploadSource == "web_drag_drop" ? "web_login_user" : "device_default_user",
+            uploaded_by_user_id = uploadedByUserId,
+            uploaded_by_username = uploadedByUsername,
+            uploaded_by_role = uploadedByRole,
+            source_folder = item.SourceFolder,
+            windows_username = windowsUsername,
+            operator_source = operatorSource,
             file_hash = item.FileHash,
             original_filename = item.OriginalFilename,
             file_size = item.FileSize,
@@ -219,14 +359,70 @@ public sealed class CollectorApiClient
         };
     }
 
-    public async Task SendHeartbeatAsync(
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value)) return value.Trim();
+        }
+
+        return "";
+    }
+
+    private static string ResolveFallbackOperatorSource(
+        UploadQueueItem item,
+        AppConfig config,
+        string uploadedByUserId,
+        string uploadedByUsername,
+        string uploadedByRole)
+    {
+        if (!HasUploadUserIdentity(uploadedByUserId, uploadedByUsername))
+        {
+            return "unknown";
+        }
+
+        if (string.Equals(item.UploadSource, "manual_selected_file", StringComparison.OrdinalIgnoreCase))
+        {
+            return "manual_selected_user";
+        }
+
+        if (string.Equals(item.UploadSource, "web_drag_drop", StringComparison.OrdinalIgnoreCase)
+            && HasDistinctUploadOwner(item, config))
+        {
+            return "web_login_user";
+        }
+
+        return "device_default_user";
+    }
+
+    private static bool HasUploadUserIdentity(params string?[] values)
+    {
+        return values.Any(value => !string.IsNullOrWhiteSpace(value));
+    }
+
+    private static bool HasDistinctUploadOwner(UploadQueueItem item, AppConfig config)
+    {
+        return IsDistinctOwnerValue(item.UploadedByUserId, config.DefaultUserId)
+            || IsDistinctOwnerValue(item.UploadedByUsername, config.DefaultUsername)
+            || IsDistinctOwnerValue(item.UploadedByRole, config.DefaultRole);
+    }
+
+    private static bool IsDistinctOwnerValue(string? value, string? defaultValue)
+    {
+        var normalized = (value ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(normalized)) return false;
+        return !string.Equals(normalized, (defaultValue ?? "").Trim(), StringComparison.Ordinal);
+    }
+
+    public async Task<DeviceConfigResponse?> SendHeartbeatAsync(
         AppConfig config,
         string deviceToken,
+        CollectorHealthSnapshot? health = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(config.ServerBaseUrl) || string.IsNullOrWhiteSpace(deviceToken))
         {
-            return;
+            return null;
         }
 
         using var request = new HttpRequestMessage(
@@ -239,14 +435,20 @@ public sealed class CollectorApiClient
                 device_code = config.DeviceCode,
                 device_name = config.DeviceName,
                 client_version = config.ClientVersion,
+                webview_version = config.WebViewVersion,
                 windows_username = Environment.UserDomainName + "\\" + Environment.UserName,
-                last_seen_at = DateTimeOffset.Now
+                last_seen_at = DateTimeOffset.Now,
+                health
             }, options: JsonOptions)
         };
         AddDeviceHeaders(request, deviceToken);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken, classifyDeviceAuthFailure: true);
+        var configResponse = await response.Content.ReadFromJsonAsync<DeviceConfigResponse>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("设备心跳接口未返回有效响应。");
+        EnsureDeviceConfigResponseAccepted(configResponse, "设备心跳");
+        return configResponse;
     }
 
     public async Task<DeviceConfigResponse?> GetDeviceConfigAsync(
@@ -265,8 +467,41 @@ public sealed class CollectorApiClient
         AddDeviceHeaders(request, deviceToken);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
-        return await response.Content.ReadFromJsonAsync<DeviceConfigResponse>(JsonOptions, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken, classifyDeviceAuthFailure: true);
+        var configResponse = await response.Content.ReadFromJsonAsync<DeviceConfigResponse>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("设备远程配置接口未返回有效响应。");
+        EnsureDeviceConfigResponseAccepted(configResponse, "设备远程配置");
+        return configResponse;
+    }
+
+    public async Task<DocumentAssetStatus?> GetAssetStatusAsync(
+        AppConfig config,
+        string deviceToken,
+        string assetId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(config.ServerBaseUrl)
+            || string.IsNullOrWhiteSpace(deviceToken)
+            || string.IsNullOrWhiteSpace(assetId))
+        {
+            return null;
+        }
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            BuildUrl(config.ServerBaseUrl, $"/agent/document-intake/assets/{Uri.EscapeDataString(assetId.Trim())}/status"));
+        AddDeviceHeaders(request, deviceToken);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken, classifyDeviceAuthFailure: true);
+        var statusResponse = await response.Content.ReadFromJsonAsync<DocumentAssetStatusResponse>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("资产状态接口未返回有效响应。");
+        if (!statusResponse.Ok)
+        {
+            throw new InvalidOperationException("资产状态接口未被服务端确认。");
+        }
+
+        return NormalizeAssetStatus(statusResponse.Asset);
     }
 
     public async Task UploadLogsAsync(
@@ -294,7 +529,13 @@ public sealed class CollectorApiClient
         AddDeviceHeaders(request, deviceToken);
 
         using var response = await _httpClient.SendAsync(request, cancellationToken);
-        await EnsureSuccessAsync(response, cancellationToken);
+        await EnsureSuccessAsync(response, cancellationToken, classifyDeviceAuthFailure: true);
+        var batchResponse = await response.Content.ReadFromJsonAsync<ClientLogBatchResponse>(JsonOptions, cancellationToken)
+            ?? throw new InvalidOperationException("客户端日志批量上报接口未返回有效响应。");
+        if (!batchResponse.Ok)
+        {
+            throw new InvalidOperationException("客户端日志批量上报未被服务端确认。");
+        }
     }
 
     private static void AddDeviceHeaders(HttpRequestMessage request, string deviceToken)
@@ -303,22 +544,58 @@ public sealed class CollectorApiClient
         request.Headers.TryAddWithoutValidation("X-EISCore-Collector", "windows-desktop");
     }
 
+    private static DocumentAssetStatus NormalizeAssetStatus(DocumentAssetStatus asset)
+    {
+        asset.AssetId = NormalizeUploadResponseText(asset.AssetId, MaxUploadResponseIdLength);
+        asset.BatchId = NormalizeUploadResponseText(asset.BatchId, MaxUploadResponseIdLength);
+        asset.BatchNo = NormalizeUploadResponseText(asset.BatchNo, MaxUploadResponseIdLength);
+        asset.AssetStatus = NormalizeUploadResponseText(asset.AssetStatus, 80).ToLowerInvariant();
+        asset.BatchStatus = NormalizeUploadResponseText(asset.BatchStatus, 80).ToLowerInvariant();
+        asset.ParseStatus = NormalizeUploadResponseText(asset.ParseStatus, 80).ToLowerInvariant();
+        asset.EntryStatus = NormalizeUploadResponseText(asset.EntryStatus, 80).ToLowerInvariant();
+        asset.ActionHref = NormalizeUploadResponseText(asset.ActionHref, 512);
+        asset.UpdatedAt = NormalizeUploadResponseText(asset.UpdatedAt, 80);
+        asset.Message = NormalizeUploadResponseText(asset.Message, MaxUploadResponseMessageLength);
+        asset.BusinessLinkCount = Math.Max(0, asset.BusinessLinkCount);
+        asset.UnmappedFieldCount = Math.Max(0, asset.UnmappedFieldCount);
+        return asset;
+    }
+
     private static string BuildUrl(string serverBaseUrl, string path)
     {
-        if (string.IsNullOrWhiteSpace(serverBaseUrl))
-        {
-            throw new InvalidOperationException("请先配置服务器地址。");
-        }
-
-        var normalizedBase = serverBaseUrl.Trim().TrimEnd('/');
+        var normalizedBase = CollectorServerAddressPolicy.RequireValid(serverBaseUrl);
         return normalizedBase + path;
     }
 
-    private static async Task EnsureSuccessAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    private static async Task EnsureSuccessAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken,
+        bool classifyDeviceAuthFailure)
     {
         if (response.IsSuccessStatusCode) return;
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            if (classifyDeviceAuthFailure)
+            {
+                throw new CollectorDeviceAuthException(
+                    response.StatusCode,
+                    response.ReasonPhrase ?? "",
+                    body);
+            }
+
+            throw new CollectorDeviceBindException(
+                response.StatusCode,
+                response.ReasonPhrase ?? "",
+                body);
+        }
+
         throw new HttpRequestException($"接口请求失败：{(int)response.StatusCode} {response.ReasonPhrase} {body}");
+    }
+
+    private sealed class ClientLogBatchResponse
+    {
+        public bool Ok { get; set; }
     }
 }

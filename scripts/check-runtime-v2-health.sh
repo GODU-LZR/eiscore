@@ -157,6 +157,12 @@ require_command docker
 require_command curl
 require_command node
 
+if ! docker info >/dev/null 2>&1; then
+  echo "ERROR: Docker engine is not ready inside WSL. Enable Docker Desktop WSL integration for this distro or restore the Docker engine." >&2
+  docker info >&2 || true
+  exit 1
+fi
+
 if [[ "${START_SERVICES}" == "true" ]]; then
   echo "Starting Runtime V2 docker compose services from ${REPO_ROOT}..."
   (

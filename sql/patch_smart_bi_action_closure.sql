@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS public.smart_bi_action_items (
     risk_level TEXT,
     owner_role TEXT,
     owner_name TEXT,
+    owner_username TEXT,
     due_at TIMESTAMPTZ,
     status TEXT NOT NULL DEFAULT '待发起',
     source_session_id TEXT,
@@ -45,6 +46,12 @@ CREATE INDEX IF NOT EXISTS idx_smart_bi_action_items_source_message
     ON public.smart_bi_action_items(source_message_time, source_action_index);
 CREATE INDEX IF NOT EXISTS idx_smart_bi_action_items_workflow_instance
     ON public.smart_bi_action_items(workflow_instance_id);
+
+ALTER TABLE public.smart_bi_action_items
+    ADD COLUMN IF NOT EXISTS owner_username TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_smart_bi_action_items_owner
+    ON public.smart_bi_action_items(owner_role, owner_username, status);
 
 ALTER TABLE public.smart_bi_action_items ENABLE ROW LEVEL SECURITY;
 
@@ -317,6 +324,8 @@ BEGIN
     v_action_id := v_action_id_text::INT;
 
     v_next_status := CASE
+        WHEN COALESCE(NEW.status, '') = 'COMPLETED'
+             AND COALESCE(NEW.variables ->> 'rejected', 'false') = 'true' THEN '已驳回'
         WHEN COALESCE(NEW.status, '') = 'COMPLETED' THEN '已闭环'
         WHEN NEW.current_task_id = 'Task_BIReview' THEN '待确认'
         WHEN NEW.current_task_id = 'Task_BIExecute' THEN '执行中'
@@ -392,6 +401,132 @@ AFTER INSERT OR UPDATE OF payload ON workflow.instance_events
 FOR EACH ROW
 EXECUTE FUNCTION public.close_smart_bi_action_item_from_workflow_event();
 
+CREATE OR REPLACE FUNCTION workflow.can_execute_smart_bi_action_instance(
+    p_instance_id INT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = workflow, public
+AS $$
+DECLARE
+    v_claims JSONB := workflow.current_claims();
+    v_actor_username TEXT := NULLIF(btrim(v_claims ->> 'username'), '');
+    v_actor_role TEXT := NULLIF(btrim(v_claims ->> 'app_role'), '');
+    v_action_id_text TEXT;
+    v_action public.smart_bi_action_items%ROWTYPE;
+BEGIN
+    IF p_instance_id IS NULL THEN
+        RETURN false;
+    END IF;
+
+    SELECT COALESCE(
+        i.variables ->> 'smart_bi_action_item_id',
+        i.variables #>> '{smart_bi_action,action_item_id}',
+        i.business_key
+    )
+    INTO v_action_id_text
+    FROM workflow.instances i
+    WHERE i.id = p_instance_id
+    LIMIT 1;
+
+    IF NOT FOUND THEN
+        RETURN false;
+    END IF;
+
+    SELECT ai.*
+      INTO v_action
+      FROM public.smart_bi_action_items ai
+     WHERE ai.workflow_instance_id = p_instance_id
+        OR ai.id = CASE
+            WHEN COALESCE(v_action_id_text, '') ~ '^[0-9]+$' THEN v_action_id_text::INT
+            ELSE NULL
+        END
+     ORDER BY CASE WHEN ai.workflow_instance_id = p_instance_id THEN 0 ELSE 1 END,
+              ai.id DESC
+     LIMIT 1;
+
+    IF NOT FOUND THEN
+        RETURN true;
+    END IF;
+
+    IF v_actor_role = 'super_admin' THEN
+        RETURN true;
+    END IF;
+
+    IF NULLIF(btrim(COALESCE(v_action.owner_username, '')), '') IS NOT NULL THEN
+        RETURN v_actor_username IS NOT NULL
+           AND lower(v_actor_username) = lower(btrim(v_action.owner_username));
+    END IF;
+
+    IF NULLIF(btrim(COALESCE(v_action.owner_role, '')), '') IS NOT NULL THEN
+        RETURN v_actor_role IS NOT NULL
+           AND v_actor_role = btrim(v_action.owner_role);
+    END IF;
+
+    RETURN true;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION workflow.transition_smart_bi_action_workflow(
+    p_instance_id INT,
+    p_next_task_id TEXT DEFAULT NULL,
+    p_complete BOOLEAN DEFAULT false,
+    p_variables JSONB DEFAULT NULL
+)
+RETURNS workflow.instances
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = workflow, public
+AS $$
+BEGIN
+    IF NOT workflow.can_execute_smart_bi_action_instance(p_instance_id) THEN
+        RAISE EXCEPTION 'smart BI action is not assigned to current actor'
+            USING ERRCODE = '42501';
+    END IF;
+
+    RETURN workflow.transition_workflow_instance(
+        p_instance_id,
+        p_next_task_id,
+        p_complete,
+        p_variables
+    );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION workflow.reject_smart_bi_action_workflow(
+    p_instance_id INT,
+    p_comment TEXT DEFAULT NULL,
+    p_variables JSONB DEFAULT '{}'::jsonb
+)
+RETURNS workflow.instances
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = workflow, public
+AS $$
+BEGIN
+    IF NOT workflow.can_execute_smart_bi_action_instance(p_instance_id) THEN
+        RAISE EXCEPTION 'smart BI action is not assigned to current actor'
+            USING ERRCODE = '42501';
+    END IF;
+
+    RETURN workflow.reject_workflow_task(
+        p_instance_id,
+        p_comment,
+        p_variables
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION workflow.can_execute_smart_bi_action_instance(INT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION workflow.transition_smart_bi_action_workflow(INT, TEXT, BOOLEAN, JSONB) FROM PUBLIC;
+REVOKE ALL ON FUNCTION workflow.reject_smart_bi_action_workflow(INT, TEXT, JSONB) FROM PUBLIC;
+
+GRANT EXECUTE ON FUNCTION workflow.can_execute_smart_bi_action_instance(INT) TO web_user;
+GRANT EXECUTE ON FUNCTION workflow.transition_smart_bi_action_workflow(INT, TEXT, BOOLEAN, JSONB) TO web_user;
+GRANT EXECUTE ON FUNCTION workflow.reject_smart_bi_action_workflow(INT, TEXT, JSONB) TO web_user;
+
 SELECT pg_notify('pgrst', 'reload schema');
 
 COMMIT;
@@ -404,4 +539,14 @@ SELECT
          WHERE name = '智能BI经营闭环流程'
     ) AS smart_bi_closure_workflow_ready,
     has_table_privilege('web_user', 'public.smart_bi_action_items', 'INSERT') AS web_user_can_insert_smart_bi_actions,
-    has_table_privilege('web_user', 'public.smart_bi_action_items', 'UPDATE') AS web_user_can_update_smart_bi_actions;
+    has_table_privilege('web_user', 'public.smart_bi_action_items', 'UPDATE') AS web_user_can_update_smart_bi_actions,
+    has_function_privilege(
+        'web_user',
+        'workflow.transition_smart_bi_action_workflow(INT, TEXT, BOOLEAN, JSONB)',
+        'EXECUTE'
+    ) AS web_user_can_transition_smart_bi_actions,
+    has_function_privilege(
+        'web_user',
+        'workflow.reject_smart_bi_action_workflow(INT, TEXT, JSONB)',
+        'EXECUTE'
+    ) AS web_user_can_reject_smart_bi_actions;

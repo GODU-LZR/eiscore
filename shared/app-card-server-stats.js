@@ -31,7 +31,7 @@ const parseStoredToken = (raw) => {
 const getAuthToken = () => {
   if (typeof localStorage === 'undefined') return ''
   const token = parseStoredToken(localStorage.getItem('auth_token'))
-  return token && token.length <= 8192 ? token : ''
+  return token && token.length <= 32768 ? token : ''
 }
 
 const parseContentRangeTotal = (value) => {

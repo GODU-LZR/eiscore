@@ -18,6 +18,15 @@ powershell -ExecutionPolicy Bypass -File .\collector-desktop\scripts\publish-col
 .EXAMPLE
 powershell -ExecutionPolicy Bypass -File .\collector-desktop\scripts\publish-collector.ps1 `
   -Version 0.2.0 `
+  -DownloadBaseUrl https://nanpai.eissys.top/agent/document-intake/collector/releases `
+  -BuildInstaller `
+  -AutoInstall `
+  -InstallerArguments "/VERYSILENT /NORESTART /CLOSEAPPLICATIONS" `
+  -ReleaseDirectory .\collector-desktop\artifacts\release
+
+.EXAMPLE
+powershell -ExecutionPolicy Bypass -File .\collector-desktop\scripts\publish-collector.ps1 `
+  -Version 0.2.0 `
   -PackagePath .\collector-desktop\artifacts\installer\EISCore.Collector-0.2.0.msi `
   -DownloadBaseUrl https://download.example.com/eiscore/collector `
   -AutoInstall `
@@ -32,6 +41,7 @@ param(
     [ValidateSet("win-x64", "win-x86", "win-arm64")]
     [string]$Runtime = "win-x64",
     [string]$OutputRoot = "",
+    [string]$ReleaseDirectory = "",
     [string]$DownloadBaseUrl = "",
     [string]$PackagePath = "",
     [string]$InstallerScript = "",
@@ -121,6 +131,39 @@ function Join-DownloadUrl {
     return "$base/$encoded"
 }
 
+function Test-AbsoluteHttpUrl {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    $uri = $null
+    if (-not [System.Uri]::TryCreate($Value, [System.UriKind]::Absolute, [ref]$uri)) {
+        return $false
+    }
+
+    return $uri.Scheme -eq [System.Uri]::UriSchemeHttp -or $uri.Scheme -eq [System.Uri]::UriSchemeHttps
+}
+
+function Test-CollectorVersion {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    $parts = $Value.Split(".")
+    if ($parts.Count -lt 2 -or $parts.Count -gt 4) {
+        return $false
+    }
+
+    foreach ($part in $parts) {
+        if ($part.Length -eq 0 -or $part -notmatch "^[0-9]+$") {
+            return $false
+        }
+
+        $parsed = 0
+        if (-not [int]::TryParse($part, [ref]$parsed)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
 function ConvertTo-InnoStringLiteral {
     param([Parameter(Mandatory = $true)][string]$Value)
     return '"' + ($Value -replace '"', '""') + '"'
@@ -152,7 +195,8 @@ function Find-InnoSetupCompiler {
 
     $candidates = @(
         (Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"),
-        (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe")
+        (Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe")
     )
     foreach ($candidate in $candidates) {
         if (Test-Path -LiteralPath $candidate) {
@@ -194,7 +238,10 @@ function Invoke-InnoSetupBuild {
         $ScriptPath
     )
 
-    & $iscc @args
+    $compilerOutput = & $iscc @args 2>&1
+    foreach ($line in $compilerOutput) {
+        Write-Host $line
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup compiler failed with exit code $LASTEXITCODE"
     }
@@ -231,12 +278,21 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = Get-ProjectVersion -ProjectPath $projectPath -RepoRoot $repoRoot
 }
 $Version = $Version.Trim()
+if (-not (Test-CollectorVersion -Value $Version)) {
+    throw "Version must be 2 to 4 numeric dot-separated segments, for example 0.2.0."
+}
 $safeVersion = ConvertTo-SafeFilePart $Version
 $zipArtifactPath = ""
 $installerArtifactPath = ""
 
 if (-not $SkipManifest -and [string]::IsNullOrWhiteSpace($DownloadBaseUrl)) {
     throw "DownloadBaseUrl is required when writing update manifest. Use -SkipManifest for local package-only builds."
+}
+if (-not $SkipManifest) {
+    $DownloadBaseUrl = $DownloadBaseUrl.Trim()
+    if (-not (Test-AbsoluteHttpUrl -Value $DownloadBaseUrl)) {
+        throw "DownloadBaseUrl must be an absolute http or https URL when writing update manifest."
+    }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($PackagePath)) {
@@ -304,13 +360,18 @@ if (-not [string]::IsNullOrWhiteSpace($PackagePath)) {
 $artifactPath = (Resolve-Path -LiteralPath $artifactPath).ProviderPath
 $artifactFileName = Split-Path -Leaf $artifactPath
 $artifactHash = Get-Sha256Hex -FilePath $artifactPath
-$installerExtensions = @(".exe", ".msi", ".msix", ".cmd", ".bat")
+$downloadableExtensions = @(".exe", ".msi", ".zip")
+$installerExtensions = @(".exe", ".msi")
 $artifactExtension = [System.IO.Path]::GetExtension($artifactPath).ToLowerInvariant()
-$canShellInstall = $installerExtensions -contains $artifactExtension
+$canAutoInstall = $installerExtensions -contains $artifactExtension
 $effectiveAutoInstall = [bool]$AutoInstall
 
-if ($effectiveAutoInstall -and -not $canShellInstall) {
-    Write-Warning "AutoInstall was requested, but $artifactExtension is not treated as an installer. Manifest auto_install will be false."
+if (-not ($downloadableExtensions -contains $artifactExtension)) {
+    throw "Release artifact extension '$artifactExtension' is not supported by the collector update client. Use .exe, .msi, or .zip."
+}
+
+if ($effectiveAutoInstall -and -not $canAutoInstall) {
+    Write-Warning "AutoInstall was requested, but $artifactExtension is not supported for automatic installation. Manifest auto_install will be false."
     $effectiveAutoInstall = $false
 }
 
@@ -328,11 +389,66 @@ if (-not $SkipManifest) {
         sha256 = $artifactHash
         mandatory = [bool]$Mandatory
         auto_install = $effectiveAutoInstall
-        installer_arguments = if ($canShellInstall) { $InstallerArguments } else { "" }
+        installer_arguments = if ($canAutoInstall) { $InstallerArguments } else { "" }
     }
 
     $manifestJson = $manifest | ConvertTo-Json -Depth 4
     [System.IO.File]::WriteAllText($manifestPath, $manifestJson + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
+}
+
+$releasedArtifactPath = ""
+$releasedManifestPath = ""
+if (-not [string]::IsNullOrWhiteSpace($ReleaseDirectory)) {
+    $releaseDirectoryFullPath = Resolve-FullPath $ReleaseDirectory
+    New-Item -ItemType Directory -Force -Path $releaseDirectoryFullPath | Out-Null
+    $releasedArtifactPath = Join-Path $releaseDirectoryFullPath $artifactFileName
+    Copy-Item -LiteralPath $artifactPath -Destination $releasedArtifactPath -Force
+
+    if (-not [string]::IsNullOrWhiteSpace($manifestPath) -and (Test-Path -LiteralPath $manifestPath)) {
+        $releasedManifestPath = Join-Path $releaseDirectoryFullPath $ManifestFileName
+        Copy-Item -LiteralPath $manifestPath -Destination $releasedManifestPath -Force
+    }
+}
+
+$autoInstallExecuted = $false
+$autoInstallExitCode = $null
+$autoInstallPath = ""
+if ($effectiveAutoInstall) {
+    $autoInstallExecuted = $true
+    $autoInstallPath = $artifactPath
+    if ($artifactPath.StartsWith("\\", [StringComparison]::Ordinal)) {
+        $autoInstallTempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("eiscore-collector-autoinstall-" + [Guid]::NewGuid().ToString("N"))
+        New-Item -ItemType Directory -Force -Path $autoInstallTempDir | Out-Null
+        $autoInstallPath = Join-Path $autoInstallTempDir $artifactFileName
+        Copy-Item -LiteralPath $artifactPath -Destination $autoInstallPath -Force
+    }
+
+    $processArgs = @{
+        Wait = $true
+        PassThru = $true
+        WindowStyle = "Hidden"
+    }
+
+    if ($artifactExtension -eq ".msi") {
+        $msiArguments = @("/i", "`"$autoInstallPath`"")
+        if (-not [string]::IsNullOrWhiteSpace($InstallerArguments)) {
+            $msiArguments += $InstallerArguments
+        }
+
+        $processArgs.FilePath = "msiexec.exe"
+        $processArgs.ArgumentList = $msiArguments
+    } else {
+        $processArgs.FilePath = $autoInstallPath
+        if (-not [string]::IsNullOrWhiteSpace($InstallerArguments)) {
+            $processArgs.ArgumentList = $InstallerArguments
+        }
+    }
+
+    $installerProcess = Start-Process @processArgs
+    $autoInstallExitCode = $installerProcess.ExitCode
+    if ($autoInstallExitCode -ne 0) {
+        throw "AutoInstall failed with exit code $autoInstallExitCode"
+    }
 }
 
 $result = [ordered]@{
@@ -344,7 +460,13 @@ $result = [ordered]@{
     artifactSha256 = $artifactHash
     manifestPath = $manifestPath
     downloadUrl = $downloadUrl
+    releaseDirectory = $ReleaseDirectory
+    releasedArtifactPath = $releasedArtifactPath
+    releasedManifestPath = $releasedManifestPath
     autoInstall = $effectiveAutoInstall
+    autoInstallExecuted = $autoInstallExecuted
+    autoInstallExitCode = $autoInstallExitCode
+    autoInstallPath = $autoInstallPath
 }
 
 $result | ConvertTo-Json -Depth 4

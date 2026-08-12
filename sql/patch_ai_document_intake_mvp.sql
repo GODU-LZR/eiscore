@@ -47,12 +47,16 @@ create table if not exists public.collector_watch_folders (
   folder_path text not null,
   folder_name text,
   default_user_id text,
+  default_username text,
   default_role text,
   enabled boolean not null default true,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.collector_watch_folders
+  add column if not exists default_username text;
 
 create table if not exists public.document_import_batches (
   id uuid primary key default gen_random_uuid(),
@@ -80,6 +84,7 @@ create table if not exists public.document_assets (
   device_id uuid references public.collector_devices(id) on delete set null,
   uploaded_by_user_id text,
   uploaded_by_username text,
+  uploaded_by_role text,
   operator_source text,
   original_filename text not null,
   storage_path text not null,
@@ -95,6 +100,9 @@ create table if not exists public.document_assets (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.document_assets
+  add column if not exists uploaded_by_role text;
 
 create table if not exists public.document_upload_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -244,6 +252,34 @@ create table if not exists public.ai_business_corrections (
   metadata jsonb not null default '{}'::jsonb
 );
 
+create table if not exists public.ai_business_recalculation_tasks (
+  id uuid primary key default gen_random_uuid(),
+  correction_id uuid references public.ai_business_corrections(id) on delete cascade,
+  business_link_id uuid references public.document_business_links(id) on delete set null,
+  target_schema text not null,
+  target_table text not null,
+  target_record_id text not null,
+  task_type text not null default 'business_result_recalculation',
+  status text not null default 'pending' check (status in ('pending', 'manual_review_required', 'processing', 'completed', 'failed', 'cancelled')),
+  priority integer not null default 50,
+  requested_by text,
+  requested_at timestamptz not null default now(),
+  attempt_count integer not null default 0,
+  next_attempt_at timestamptz,
+  locked_at timestamptz,
+  locked_by text,
+  completed_at timestamptz,
+  last_error text,
+  metadata jsonb not null default '{}'::jsonb,
+  unique (correction_id)
+);
+
+alter table public.ai_business_recalculation_tasks
+  add column if not exists attempt_count integer not null default 0,
+  add column if not exists next_attempt_at timestamptz,
+  add column if not exists locked_at timestamptz,
+  add column if not exists locked_by text;
+
 create table if not exists public.client_log_sessions (
   id uuid primary key default gen_random_uuid(),
   client_session_id text not null,
@@ -298,7 +334,11 @@ create index if not exists idx_upload_chunks_session_index on public.document_up
 create index if not exists idx_parse_jobs_status_created on public.document_parse_jobs(status, created_at);
 create index if not exists idx_business_links_asset on public.document_business_links(asset_id);
 create index if not exists idx_business_links_target on public.document_business_links(target_schema, target_table, target_record_id);
+create index if not exists idx_business_links_dedupe_key on public.document_business_links(target_schema, target_table, target_app_id, (metadata->>'business_dedupe_key')) where metadata ? 'business_dedupe_key';
 create index if not exists idx_unmapped_fields_target on public.document_unmapped_fields(target_schema, target_table, target_record_id);
+create index if not exists idx_recalculation_tasks_status on public.ai_business_recalculation_tasks(status, requested_at desc);
+create index if not exists idx_recalculation_tasks_target on public.ai_business_recalculation_tasks(target_schema, target_table, target_record_id);
+create index if not exists idx_recalculation_tasks_retry on public.ai_business_recalculation_tasks(status, next_attempt_at, priority desc, requested_at);
 create index if not exists idx_client_log_events_device_created on public.client_log_events(device_id, created_at desc);
 create index if not exists idx_client_log_events_type_created on public.client_log_events(event_type, created_at desc);
 create index if not exists idx_client_log_events_trace on public.client_log_events(trace_id) where trace_id is not null and trace_id <> '';
@@ -353,6 +393,7 @@ with document_intake_tables(table_schema, table_name, semantic_domain, semantic_
     ('public', 'document_business_links', 'document_intake', 'document_business_link_table', '文档业务关联', '文档资产与落库业务记录之间的关联', '["document_intake","business_link"]'::jsonb),
     ('public', 'document_unmapped_fields', 'document_intake', 'document_unmapped_field_table', '未映射字段', 'AI 识别但未能映射到结构化字段的数据', '["document_intake","unmapped_field"]'::jsonb),
     ('public', 'ai_business_corrections', 'document_intake', 'ai_business_correction_table', 'AI 业务修正', '人工修正 AI 入库结果后的审计记录', '["document_intake","correction","audit"]'::jsonb),
+    ('public', 'ai_business_recalculation_tasks', 'document_intake', 'ai_business_recalculation_task_table', 'AI 业务重算任务', '影响业务结果的 AI 修正触发的库存、统计、进度或质量重算队列', '["document_intake","correction","recalculation"]'::jsonb),
     ('public', 'client_log_sessions', 'document_intake', 'client_log_session_table', '客户端日志会话', '采集端本地运行会话和版本信息', '["document_intake","client_log","session"]'::jsonb),
     ('public', 'client_log_events', 'document_intake', 'client_log_event_table', '客户端日志事件', '采集端运行、上传、WebView 和错误日志事件', '["document_intake","client_log","event"]'::jsonb)
 )
@@ -405,6 +446,7 @@ with document_intake_tables(table_schema, table_name) as (
     ('public', 'document_business_links'),
     ('public', 'document_unmapped_fields'),
     ('public', 'ai_business_corrections'),
+    ('public', 'ai_business_recalculation_tasks'),
     ('public', 'client_log_sessions'),
     ('public', 'client_log_events')
 ),
@@ -522,6 +564,7 @@ grant select, insert, update, delete on
   public.document_business_links,
   public.document_unmapped_fields,
   public.ai_business_corrections,
+  public.ai_business_recalculation_tasks,
   public.client_log_sessions,
   public.client_log_events
 to web_user;
@@ -539,6 +582,7 @@ alter table public.document_entry_plans enable row level security;
 alter table public.document_business_links enable row level security;
 alter table public.document_unmapped_fields enable row level security;
 alter table public.ai_business_corrections enable row level security;
+alter table public.ai_business_recalculation_tasks enable row level security;
 alter table public.client_log_sessions enable row level security;
 alter table public.client_log_events enable row level security;
 
@@ -560,6 +604,7 @@ begin
     'document_business_links',
     'document_unmapped_fields',
     'ai_business_corrections',
+    'ai_business_recalculation_tasks',
     'client_log_sessions',
     'client_log_events'
   ]

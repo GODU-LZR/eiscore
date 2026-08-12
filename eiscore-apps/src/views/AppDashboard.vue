@@ -204,7 +204,7 @@ import {
 } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { ensureAppAclConfig, ensureAppPermissions, resolveAppAclModule } from '@/utils/app-permissions'
-import { hasPerm } from '@/utils/permission'
+import { getPermissions, hasPerm } from '@/utils/permission'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
 import { getToken } from '@/utils/auth'
 import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
@@ -222,6 +222,15 @@ let navigatingTimer = null
 let removeRouteAfterEach = null
 const { visibility: displayVisibility } = useDisplayVisibility()
 const canManage = computed(() => hasPerm('module:app') || hasPerm('module:apps'))
+const canAccessDocumentIntake = computed(() => {
+  if (canManage.value) return true
+  return getPermissions().some((perm) => {
+    const value = String(perm || '').toLowerCase()
+    if (value === '*' || value === 'document_intake') return true
+    const isDocumentIntake = value.includes('document_intake') || value.includes('document-intake')
+    return isDocumentIntake && ['read', 'view', 'list', 'manage', 'admin'].some((keyword) => value.includes(keyword))
+  })
+})
 
 const newAppForm = ref({
   name: '',
@@ -404,6 +413,14 @@ const appStats = computed(() => {
   }
 })
 
+const isHiddenSystemWorkflowApp = (app) => {
+  const config = parseAppConfig(app?.config)
+  return app?.app_type === 'workflow'
+    && config
+    && typeof config === 'object'
+    && config.smartBiClosureWorkflow === true
+}
+
 const entryCards = computed(() => {
   const stats = appStats.value
   return [
@@ -452,6 +469,22 @@ const entryCards = computed(() => {
           { label: '已发布', value: `${stats.published}` }
         ],
         brief: stats.workflow > 0 ? '查看流程审批态势' : '暂无流程应用'
+      })
+    },
+    {
+      key: 'document-intake',
+      name: '智能收单中心',
+      desc: '采集文件、设备和日志统一追溯',
+      icon: 'Document',
+      tone: 'green',
+      visible: canAccessDocumentIntake.value,
+      card: cardFromScore({
+        score: 42,
+        metrics: [
+          { label: '对象', value: '文件/设备' },
+          { label: '链路', value: '入库/日志' }
+        ],
+        brief: '查看采集与入库结果'
       })
     }
   ].filter((entry) => entry.visible !== false)
@@ -642,6 +675,10 @@ function openEntryCard(entry) {
     if (!startNavigationLoading(`entry:${entry.key}`, '正在打开审批中心')) return
     return goApprovalCenter()
   }
+  if (entry.key === 'document-intake') {
+    if (!startNavigationLoading(`entry:${entry.key}`, '正在打开智能收单中心')) return
+    return goDocumentIntakeCenter()
+  }
 }
 
 function navigateToBuilder(app) {
@@ -691,6 +728,7 @@ async function loadApps() {
     })
     const list = response.data || []
     apps.value = list.filter((app) => {
+      if (isHiddenSystemWorkflowApp(app)) return false
       const moduleKey = resolveAppAclModule(app, app?.config, app?.id)
       if (!moduleKey) return true
       return hasPerm(`app:${moduleKey}`)
@@ -708,6 +746,10 @@ function goConfigCenter(id) {
 
 function goApprovalCenter() {
   router.push('/workflow-approval-center').catch(() => clearNavigationLoading())
+}
+
+function goDocumentIntakeCenter() {
+  router.push('/document-intake-center').catch(() => clearNavigationLoading())
 }
 
 onMounted(() => {

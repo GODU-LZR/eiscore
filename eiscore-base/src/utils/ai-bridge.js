@@ -11,7 +11,8 @@ import {
 import {
   buildSmartBiContext,
   formatSmartBiCatalogForPrompt,
-  formatSmartBiMetricDefinitionsForPrompt
+  formatSmartBiMetricDefinitionsForPrompt,
+  SMART_BI_DOMAINS
 } from '@shared/smart-bi-config'
 
 const STORAGE_KEY = 'eis_ai_history_v5'
@@ -19,6 +20,138 @@ const MAX_SESSIONS = 20
 const MAX_MESSAGES_PER_SESSION = 50
 const HISTORY_WINDOW = 8
 const CODE_FENCE = '```'
+const SMART_BI_ACTION_FENCE_RE = /```(?:smart-bi-actions|smart_bi_actions|bi-actions|bi_actions)[\s\S]*?```/i
+const SMART_BI_ACTION_RISK_LEVELS = new Set(['normal', 'focus', 'warning', 'critical'])
+const SMART_BI_FALLBACK_ACTION_META = {
+  overview: {
+    label: '经营总览',
+    ownerName: '经营管理层',
+    title: '推进经营风险闭环跟进',
+    reason: '智能 BI 已识别经营分析中的待跟进事项，需要转为负责人待办。',
+    target: '形成跨领域风险清单并明确下一步处理结果。',
+    nextStep: '确认销售、采购、库存、生产、质量、设备中的重点风险，指定负责人跟进。'
+  },
+  sales: {
+    label: '销售',
+    ownerName: '销售负责人',
+    title: '跟进销售经营风险',
+    reason: '销售指标存在需要继续确认的订单、回款或交付风险。',
+    target: '明确销售异常原因并形成客户/订单跟进清单。',
+    nextStep: '核对重点订单、应收余额和交付风险，更新跟进计划。'
+  },
+  purchase: {
+    label: '采购',
+    ownerName: '采购负责人',
+    title: '跟进采购履约风险',
+    reason: '采购指标存在到货、供应商或 IQC 相关待跟进事项。',
+    target: '降低采购履约不确定性并形成供应商跟进记录。',
+    nextStep: '核对待到货订单、供应商交期和到货合格情况。'
+  },
+  inventory: {
+    label: '库存',
+    ownerName: '仓储负责人',
+    title: '跟进库存风险',
+    reason: '库存分析中存在库存占用、低库存、盘点或效期相关待确认事项。',
+    target: '确认库存风险范围并输出处理清单。',
+    nextStep: '核对重点物料、仓库库存、盘点差异和效期风险。'
+  },
+  production: {
+    label: '生产',
+    ownerName: '生产计划负责人',
+    title: '跟进生产进度风险',
+    reason: '生产指标存在工单进度、缺料齐套或计划交付相关待跟进事项。',
+    target: '保障重点工单按计划推进并减少缺料影响。',
+    nextStep: '核对缺料工单、优先级和计划完工节点，更新处理计划。'
+  },
+  quality: {
+    label: '质量',
+    ownerName: '质量负责人',
+    title: '跟进质量异常闭环',
+    reason: '质量分析中存在检验、不良、异常或整改闭环相关待处理事项。',
+    target: '推动质量异常完成原因分析、整改和验证。',
+    nextStep: '核对未关闭异常、不良率和整改任务，明确责任人与验证时间。'
+  },
+  equipment: {
+    label: '设备',
+    ownerName: '设备负责人',
+    title: '跟进设备健康风险',
+    reason: '设备指标存在健康评分、点检异常、故障或保养相关待跟进事项。',
+    target: '降低设备异常对生产连续性的影响。',
+    nextStep: '核对高风险设备、未关闭异常和逾期维保计划。'
+  }
+}
+
+const normalizeSmartBiFallbackRiskLevel = (value) => {
+  const raw = String(value || '').trim().toLowerCase()
+  if (SMART_BI_ACTION_RISK_LEVELS.has(raw)) return raw
+  if (['严重', '高风险', '高', 'critical'].includes(raw)) return 'critical'
+  if (['预警', '中风险', '中', 'warning', 'warn'].includes(raw)) return 'warning'
+  if (['关注', '低风险', '低', 'focus'].includes(raw)) return 'focus'
+  return 'focus'
+}
+
+const getSmartBiFallbackDomainKey = (smartBiContext, userText = '') => {
+  const routeKey = String(smartBiContext?.route?.key || smartBiContext?.selectedCard?.key || '').trim()
+  const knownKeys = new Set(['overview', ...SMART_BI_DOMAINS.map((domain) => domain.key)])
+  if (knownKeys.has(routeKey)) return routeKey
+  return buildSmartBiContext(userText || '').route?.key || 'overview'
+}
+
+const getSmartBiFallbackRiskLevel = (smartBiContext) => {
+  const selectedCard = smartBiContext?.selectedCard || null
+  return normalizeSmartBiFallbackRiskLevel(
+    selectedCard?.riskLevel ||
+    selectedCard?.risk_level ||
+    selectedCard?.riskStatusLabel ||
+    ''
+  )
+}
+
+const getSmartBiFallbackOwnerName = (domainKey, smartBiContext) => {
+  const selectedCardOwner = String(smartBiContext?.selectedCard?.owner || '').trim()
+  const metricOwner = String(smartBiContext?.metricDefinitions?.[0]?.owner || '').trim()
+  return selectedCardOwner || metricOwner || SMART_BI_FALLBACK_ACTION_META[domainKey]?.ownerName || '业务负责人'
+}
+
+const shouldAppendSmartBiFallbackActionBlock = (content, smartBiContext, userText = '') => {
+  const text = String(content || '').trim()
+  if (!text || SMART_BI_ACTION_FENCE_RE.test(text)) return false
+  if (/\[Error:/i.test(text)) return false
+  if (!smartBiContext) return false
+  if (smartBiContext?.reportMode || smartBiContext?.selectedCard) return true
+  return /行动建议|建议|风险|指标|图表|经营|销售|采购|库存|生产|质量|设备/.test(`${userText}\n${text}`)
+}
+
+const buildSmartBiFallbackActionBlock = ({ smartBiContext, userText = '' } = {}) => {
+  const domainKey = getSmartBiFallbackDomainKey(smartBiContext, userText)
+  const meta = SMART_BI_FALLBACK_ACTION_META[domainKey] || SMART_BI_FALLBACK_ACTION_META.overview
+  const selectedCard = smartBiContext?.selectedCard || {}
+  const reason = String(selectedCard.riskReason || selectedCard.risk_reason || '').trim() || meta.reason
+  const action = {
+    title: meta.title,
+    domain: domainKey,
+    risk_level: getSmartBiFallbackRiskLevel(smartBiContext),
+    owner_role: '',
+    owner_name: getSmartBiFallbackOwnerName(domainKey, smartBiContext),
+    owner_username: '',
+    due_days: domainKey === 'overview' ? 5 : 3,
+    reason,
+    target: meta.target,
+    next_step: meta.nextStep,
+    business_table: '',
+    business_key: '',
+    source: 'system_fallback'
+  }
+  return `${CODE_FENCE}smart-bi-actions\n${JSON.stringify({ actions: [action] }, null, 2)}\n${CODE_FENCE}`
+}
+
+const ensureSmartBiActionClosureBlock = (content, options = {}) => {
+  if (!shouldAppendSmartBiFallbackActionBlock(content, options.smartBiContext, options.userText)) {
+    return content
+  }
+  const block = buildSmartBiFallbackActionBlock(options)
+  return `${String(content || '').trim()}\n\n${block}`
+}
 
 const replaceLatestUserPayloadText = (messages, text) => {
   if (!text) return false
@@ -157,7 +290,7 @@ class AiBridge {
     } catch (e) {
       // ignore
     }
-    if (token && token.length > 8192) {
+    if (token && token.length > 32768) {
       localStorage.removeItem('auth_token')
       localStorage.removeItem('user_info')
       return ''
@@ -373,8 +506,13 @@ class AiBridge {
       return `你是企业一线员工的工作助手，帮助他们把杂乱的数据整理成能录入系统的内容，并用通俗易懂的语言解释。请避免复杂术语，回答要简单、清晰、一步一步。\n\n【工作目标】\n1. 帮用户整理表格、图片、文字里的数据，输出规范字段。\n2. 帮用户查询/解释表格数据，直接给结论和下一步操作。\n3. 如果用户要填表，请给出清晰的字段清单和示例。\n4. 默认不输出图表，只有在用户明确要求图表时才输出。\n\n${dataRuleBlock}\n${salesRuleBlock}\n${materialsRuleBlock}\n${workflowRuleBlock}\n【表单模板输出规则】\n当用户要求“生成表单/模板/单据/拍照识别表单”等需求时，你必须输出模板 JSON，并放在 ${fence}form-template${fence} 代码块中。不要添加多余说明。\n模板 JSON 结构要求：\n${fence}form-template\n{\n  \"docType\": \"employee_profile\",\n  \"title\": \"员工详细档案表\",\n  \"docNo\": \"employee_no\",\n  \"layout\": [\n    {\n      \"type\": \"section\",\n      \"title\": \"基本信息\",\n      \"cols\": 2,\n      \"children\": [\n        { \"label\": \"姓名\", \"field\": \"name\", \"widget\": \"input\" },\n        { \"label\": \"身份证号\", \"field\": \"id_card\", \"widget\": \"input\" },\n        { \"label\": \"照片\", \"field\": \"id_photo\", \"widget\": \"image\", \"fileSource\": \"field_1001\" }\n      ]\n    },\n    {\n      \"type\": \"table\",\n      \"title\": \"工作履历\",\n      \"field\": \"work_history\",\n      \"columns\": [\n        { \"label\": \"公司名称\", \"field\": \"company\" },\n        { \"label\": \"职位\", \"field\": \"position\" },\n        { \"label\": \"开始时间\", \"field\": \"start_date\" },\n        { \"label\": \"结束时间\", \"field\": \"end_date\" }\n      ]\n    }\n  ]\n}\n${fence}\n字段说明：\n- widget 可选：text/input/textarea/date/number/image/select/cascader。\n- 当字段类型是 select/cascader 时，优先使用对应 widget，并可附带 options / cascaderOptions。\n- image 字段可选 fileSource，值为文件列 prop，用于提示从哪个文件列选图。\n- table 用于多行表格区，field 对应一个数组字段。\n- 若表单字段在系统列里不存在，请仍给出 field（后端会保存到扩展字段表）。\n- 所有 label 必须中文，输出内容要正规、简洁。\n\n${formulaRuleBlock}\n${importRuleBlock}\n【回答风格】\n- 用短句、通俗话。\n- 能一步一步引导最好。\n- 不要使用专业或学术术语。`
     }
 
+    const implementationOpsStaticPrompt = '你是“数字化转型服务商智能体”，用于 EISCore 的“实施贯标运维系统”。你服务于商务、售前、调研、项目经理、实施、开发、测试、验收、售后和运维团队，负责把客户项目从商机推进到上线、验收和持续维护。\n\n【核心交付链路】\n商务 -> 售前 -> 调研 -> 合同 -> 项目立项 -> 实施配置 -> 二次开发 -> 测试联调 -> 验收文件 -> 验收 -> 售后 -> 运维 -> 复盘续约。\n\n【回答规则】\n1. 先识别项目阶段、目标、输入资料、负责人、交付物、风险和下一步动作。\n2. 将需求拆解为任务、检查项、交付物和验收证据，并标注待确认内容。\n3. 持续核对售前承诺、合同范围、调研需求、实施任务、二开需求和验收标准；不确定是否属于合同范围时不得擅自判断。\n4. 配置、生产变更、权限、数据写入和正式流程执行必须先给出草案、影响范围、确认点和回滚方案，不得声称已经执行。\n5. 运维问题要区分业务、配置、二次开发、版本、环境和数据问题，并给出升级路径和闭环标准。\n6. 不得编造客户资料、合同条款、项目进度、日志结论或执行结果；缺少依据时明确标记“待确认”。\n7. 默认按“结论 -> 当前阶段与依据 -> 任务/交付物 -> 风险与范围 -> 下一步与待确认项”输出。'
+    if (this.state.assistantMode === 'implementation_ops') {
+      return implementationOpsStaticPrompt
+    }
+
     const smartBiCatalogBlock = formatSmartBiCatalogForPrompt()
-    const smartBiMetricBlock = formatSmartBiMetricDefinitionsForPrompt()
+    const smartBiMetricBlock = `${formatSmartBiMetricDefinitionsForPrompt()}\n\n【行动闭环负责人字段】\nsmart-bi-actions 除原有字段外可输出 owner_username。owner_username 表示系统登录账号，用于审批中心精准派单；不确定具体账号时必须留空字符串，并至少填写 owner_role 或 owner_name。`
     return `你是一名面向中小企业的智能 BI 分析助手，负责把用户的自然语言经营问题自动转成指标解读、图表洞察和行动建议。用户不需要自己拖拽字段、编排报表或理解数据库结构。\n\n【内置指标目录与问题路由】\n${smartBiCatalogBlock}\n\n【固定指标口径/图表模板/风险阈值】\n${smartBiMetricBlock}\n\n【强制输出规则】\n1. 当用户需要统计图表时，必须输出 ECharts JSON 配置，并放在 ${fence}echarts${fence} 代码块内。\n2. 当用户需要流程图时，必须输出 Mermaid 语法，并放在 ${fence}mermaid${fence} 代码块内。\n3. 智能 BI 默认不要输出 BPMN XML 或 workflow-meta；只有用户明确要求“流程编排/BPMN审批流设计”时才输出。\n4. 禁止输出任何 JavaScript 变量或包装（例如 \"var option =\"、\"option =\"）。只允许纯 JSON。\n5. 每次回答必须稳定包含：关键指标、指标图表、风险提醒、行动建议。\n6. 关键指标必须说明口径；图表优先使用对应默认图表模板；风险按阈值和业务影响分级。\n7. 用户问题很短时自动路由：问“销售怎么样”走销售指标；问“库存风险”走库存指标；问“生产/质量/设备/采购”分别走对应指标。\n8. 当行动建议中存在需要负责人跟进的事项时，必须在回答末尾追加 ${fence}smart-bi-actions${fence} 代码块，内容是严格 JSON，最多 3 条，字段使用：title、domain、risk_level、owner_role、owner_name、due_days、reason、target、next_step、business_table、business_key。domain 只能用 overview/sales/purchase/inventory/production/quality/equipment；risk_level 只能用 normal/focus/warning/critical。不确定的 business_table/business_key 留空字符串。\n\n【smart-bi-actions 示例】\n${fence}smart-bi-actions\n{\n  \"actions\": [\n    {\n      \"title\": \"跟进库存占用风险\",\n      \"domain\": \"inventory\",\n      \"risk_level\": \"warning\",\n      \"owner_role\": \"warehouse_keeper\",\n      \"owner_name\": \"仓储负责人\",\n      \"due_days\": 3,\n      \"reason\": \"库存占用偏高，需要确认可用库存与呆滞物料\",\n      \"target\": \"降低库存占用并形成处理清单\",\n      \"next_step\": \"核对库存Top物料，给出处理计划\",\n      \"business_table\": \"\",\n      \"business_key\": \"\"\n    }\n  ]\n}\n${fence}\n\n【ECharts 示例】\n${fence}echarts\n{\n  \"title\": { \"text\": \"月度收入与成本\" },\n  \"tooltip\": { \"trigger\": \"axis\" },\n  \"legend\": { \"data\": [\"收入\", \"成本\"] },\n  \"xAxis\": { \"type\": \"category\", \"data\": [\"1月\", \"2月\", \"3月\"] },\n  \"yAxis\": { \"type\": \"value\" },\n  \"series\": [\n    { \"name\": \"收入\", \"type\": \"bar\", \"data\": [120, 132, 150] },\n    { \"name\": \"成本\", \"type\": \"bar\", \"data\": [80, 95, 110] }\n  ]\n}\n${fence}\n\n【Mermaid 示例】\n${fence}mermaid\ngraph TD\n  A[数据采集] --> B[清洗与校验]\n  B --> C[指标计算]\n  C --> D[经营分析]\n  D --> E[报告生成]\n${fence}\n\n请严格遵循以上规则。`
   }
 
@@ -515,6 +653,7 @@ class AiBridge {
 
     if (!this.config) await this.loadConfig()
     let silentRetryNeeded = false
+    let smartBiContextPayload = null
     try {
       const serverGridResult = await this.prefetchGridAgentQuery(effectivePayloadText || effectiveUserText, context)
       const serverGridText = formatGridAgentQueryResultForPrompt(serverGridResult)
@@ -528,7 +667,7 @@ class AiBridge {
           lastMessage.content.push({ type: 'text', text: serverGridText })
         }
       }
-      const smartBiContextPayload = this.state.assistantMode === 'enterprise'
+      smartBiContextPayload = this.state.assistantMode === 'enterprise'
         ? (smartBiContext || buildSmartBiContext(effectivePayloadText || effectiveUserText))
         : null
       let contextPayload = this.state.currentContext
@@ -610,6 +749,12 @@ class AiBridge {
             console.warn('[AiBridge] SSE Parse Failed', e)
           }
         }
+      }
+      if (this.state.assistantMode === 'enterprise') {
+        aiMsg.content = ensureSmartBiActionClosureBlock(aiMsg.content, {
+          smartBiContext: smartBiContextPayload,
+          userText: effectivePayloadText || effectiveUserText
+        })
       }
     } catch (e) {
       const message = String(e?.message || '')

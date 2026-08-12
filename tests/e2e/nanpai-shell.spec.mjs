@@ -6,6 +6,7 @@ import {
   expectNoBlankPage,
   expectShellReady,
   expectSubAppReady,
+  gotoWithRetry,
   loginByApi,
   seedAuth
 } from './helpers.mjs'
@@ -17,12 +18,14 @@ const authenticatedRoutes = [
 ]
 
 test('public login page renders employee entry', async ({ page }) => {
-  await page.goto('/login', { waitUntil: 'domcontentloaded' })
+  await gotoWithRetry(page, '/company/')
 
-  await expect(page.locator('.auth-panel')).toBeVisible()
-  await expect(page.getByPlaceholder('用户名')).toBeVisible()
-  await expect(page.getByPlaceholder('密码')).toBeVisible()
-  await expect(page.locator('.login-btn')).toBeVisible()
+  await expect(page.locator('[data-login-open]').first()).toBeVisible()
+  await page.locator('[data-login-open]').first().click()
+  await expect(page.locator('[data-login-dialog]')).toBeVisible()
+  await expect(page.locator('input[name="username"]')).toBeVisible()
+  await expect(page.locator('input[name="password"]')).toBeVisible()
+  await expect(page.locator('[data-login-submit]')).toBeVisible()
   await expectNoBlankPage(page)
 })
 
@@ -39,7 +42,7 @@ test.describe('authenticated shell', () => {
 
   for (const route of authenticatedRoutes) {
     test(`${route.name} deep link renders through host shell`, async ({ page }) => {
-      await page.goto(route.path, { waitUntil: 'domcontentloaded' })
+      await gotoWithRetry(page, route.path)
       await expectSubAppReady(page)
     })
   }

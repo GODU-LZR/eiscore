@@ -6,10 +6,13 @@ public static class AppPaths
     {
         get
         {
-            var path = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "EISCore",
-                "Collector");
+            var overridePath = Environment.GetEnvironmentVariable("EISCORE_COLLECTOR_DATA_DIR");
+            var path = string.IsNullOrWhiteSpace(overridePath)
+                ? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "EISCore",
+                    "Collector")
+                : overridePath.Trim();
             Directory.CreateDirectory(path);
             return path;
         }
@@ -22,6 +25,16 @@ public static class AppPaths
         get
         {
             var path = Path.Combine(RootDirectory, "crash-dumps");
+            Directory.CreateDirectory(path);
+            return path;
+        }
+    }
+
+    public static string WebViewUserDataDirectory
+    {
+        get
+        {
+            var path = Path.Combine(RootDirectory, "webview-user-data");
             Directory.CreateDirectory(path);
             return path;
         }

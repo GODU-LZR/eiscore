@@ -227,6 +227,7 @@ const appConfig = computed(() => ({
   schema: 'scm',
   viewId: 'inventory_current',
   configKey: 'inventory_current_cols',
+  defaultOrder: 'last_transaction_at.desc,warehouse_name.asc,material_name.asc',
   writeMode: 'patch',
   aclModule: 'mms_inventory',
   staticColumns: [

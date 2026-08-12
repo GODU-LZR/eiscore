@@ -881,6 +881,7 @@ device_id
 folder_path
 folder_name
 default_user_id
+default_username
 default_role
 enabled
 metadata

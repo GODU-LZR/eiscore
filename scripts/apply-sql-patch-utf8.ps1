@@ -1,5 +1,5 @@
 param(
-    [string]$PatchFile = "sql/patch_fix_ontology_semantic_chinese.sql",
+    [string]$PatchFile = "sql/patch_fix_ontology_semantic_qmarks_20260618.sql",
     [string]$DbContainer = "eiscore-db",
     [string]$DbName = "eiscore",
     [string]$DbUser = "postgres",
@@ -85,16 +85,18 @@ if ($exitCode -ne 0) {
 Write-Host "Running UTF-8 / semantic checks..." -ForegroundColor Cyan
 $clientEncoding = docker exec $DbContainer psql -U $DbUser -d $DbName -Atc "show client_encoding;"
 $garbledSemantics = docker exec $DbContainer psql -U $DbUser -d $DbName -Atc "select count(*) from public.ontology_table_semantics where semantic_name like '%?%' or semantic_description like '%?%';"
+$garbledColumnSemantics = docker exec $DbContainer psql -U $DbUser -d $DbName -Atc "select count(*) from public.ontology_column_semantics where semantic_name like '%?%' or semantic_description like '%?%';"
 $garbledRelations = docker exec $DbContainer psql -U $DbUser -d $DbName -Atc "select count(*) from app_data.ontology_table_relations where relation_type='ontology' and (coalesce(subject_semantic_name,'') like '%?%' or coalesce(object_semantic_name,'') like '%?%');"
 
 Write-Host ("client_encoding=" + $clientEncoding)
-Write-Host ("garbled_semantics=" + $garbledSemantics)
+Write-Host ("garbled_table_semantics=" + $garbledSemantics)
+Write-Host ("garbled_column_semantics=" + $garbledColumnSemantics)
 Write-Host ("garbled_ontology_relations=" + $garbledRelations)
 
 if ($clientEncoding.Trim() -ne "UTF8") {
     Fail "client_encoding is not UTF8."
 }
-if ([int]$garbledSemantics.Trim() -ne 0 -or [int]$garbledRelations.Trim() -ne 0) {
+if ([int]$garbledSemantics.Trim() -ne 0 -or [int]$garbledColumnSemantics.Trim() -ne 0 -or [int]$garbledRelations.Trim() -ne 0) {
     Fail "Validation failed: garbled semantic text still exists."
 }
 

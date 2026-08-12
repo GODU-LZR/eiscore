@@ -144,7 +144,7 @@ router.beforeEach((to, _from, next) => {
     token = raw || ''
   }
 
-  if (token && token.length > 8192) {
+  if (token && token.length > 32768) {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user_info')
     next({ name: 'login', query: { redirect: to.fullPath } })

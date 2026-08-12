@@ -9,7 +9,6 @@ import { createHttpClient, isRemoteTarget, normalizePositiveInteger } from '../e
 const require = createRequire(import.meta.url)
 
 const BASE_URL = (process.env.EISCORE_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '')
-const AGENT_WS_URL = process.env.EISCORE_AGENT_WS_URL || 'ws://localhost:8078/ws'
 const USERNAME = process.env.EISCORE_SMOKE_USERNAME || 'admin'
 const PASSWORD = process.env.EISCORE_SMOKE_PASSWORD || '123456'
 const RESULT_FILE = process.env.EISCORE_SMOKE_RESULT || ''
@@ -17,6 +16,12 @@ const SKIP_AI = process.env.EISCORE_SMOKE_SKIP_AI === '1'
 const SKIP_WS = process.env.EISCORE_SMOKE_SKIP_WS === '1'
 const AI_TIMEOUT_MS = normalizePositiveInteger(process.env.EISCORE_SMOKE_AI_TIMEOUT_MS, 60000, { min: 1000, max: 180000 })
 const IS_REMOTE_TARGET = isRemoteTarget(BASE_URL)
+const DEFAULT_AGENT_WS_URL = BASE_URL
+  .replace(/^http:/i, 'ws:')
+  .replace(/^https:/i, 'wss:') + '/agent/ws'
+const AGENT_WS_URL = process.env.EISCORE_AGENT_WS_URL || (
+  IS_REMOTE_TARGET ? DEFAULT_AGENT_WS_URL : 'ws://localhost:8078/ws'
+)
 const REQUEST_ATTEMPTS = normalizePositiveInteger(
   process.env.EISCORE_SMOKE_REQUEST_ATTEMPTS,
   IS_REMOTE_TARGET ? 3 : 1,

@@ -2,6 +2,10 @@ pgdata/
 *.log
 node_modules/
 **/node_modules/
+**/bin/
+**/obj/
+.playwright-cli/
+/source_folder
 dist/
 build/
 .tmp/

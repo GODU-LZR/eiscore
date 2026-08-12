@@ -68,7 +68,7 @@ foreach ($patch in $workflowPatches) {
 # Step 5: UTF-8 ontology patch and validation
 Write-Host ""
 Write-Host "🧪 Step 5/7: 执行本体语义 UTF-8 校验..." -ForegroundColor Cyan
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\apply-sql-patch-utf8.ps1 -PatchFile "sql/patch_fix_ontology_semantic_chinese.sql"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\apply-sql-patch-utf8.ps1 -PatchFile "sql/patch_fix_ontology_semantic_qmarks_20260618.sql"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ 本体语义 UTF-8 校验失败，终止部署" -ForegroundColor Red
     exit $LASTEXITCODE

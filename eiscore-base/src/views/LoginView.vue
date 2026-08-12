@@ -49,7 +49,7 @@
             </div>
           </div>
 
-          <section class="auth-panel" aria-label="员工登录">
+          <section class="auth-panel" aria-label="员工与客户登录入口">
             <div class="auth-card reveal is-visible" ref="authCardRef">
               <div class="auth-card-header">
                 <span>{{ branding.authKicker }}</span>
@@ -215,7 +215,7 @@ import { useUserStore } from '@/stores/user'
 import { useSystemStore } from '@/stores/system'
 import { mix } from '@/utils/theme'
 
-const NANPAI_LOGO_URL = 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg'
+const DEFAULT_LOGIN_LOGO = '/company-assets/junleyuan-mark.png'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -245,28 +245,28 @@ const branding = computed(() => {
   const source = systemStore.config?.loginBranding || {}
   return {
     companyName: String(source.companyName || ''),
-    slogan: String(source.slogan || '深耕热带水果全产业链，打造高品质水果制品方案'),
-    description: String(source.description || '公司立足热带水果产区，面向茶饮、烘焙、饮料与生鲜客户提供水果制品和应用方案支持。'),
-    logo: String(source.logo || NANPAI_LOGO_URL),
-    siteTag: String(source.siteTag || '热带水果制品解决方案提供商'),
-    announcement: String(source.announcement || '员工与合作伙伴入口'),
-    headerLoginText: String(source.headerLoginText || '员工通道'),
-    authKicker: String(source.authKicker || '员工入口'),
-    authTitle: String(source.authTitle || '账号登录'),
-    authSafeNote: String(source.authSafeNote || '账号由管理员统一分配'),
-    authFootnote: String(source.authFootnote || '该入口仅供授权人员使用'),
-    primaryActionText: String(source.primaryActionText || '员工登录'),
-    secondaryActionText: String(source.secondaryActionText || '了解平台'),
-    secondaryActionUrl: String(source.secondaryActionUrl || '/eiscore'),
-    scrollCueText: String(source.scrollCueText || '向下了解企业'),
-    metricsSectionKicker: String(source.metricsSectionKicker || '企业实力'),
-    metricsSectionTitle: String(source.metricsSectionTitle || '多年深耕热带水果产业'),
-    aboutSectionKicker: String(source.aboutSectionKicker || '关于企业'),
-    capabilitiesSectionKicker: String(source.capabilitiesSectionKicker || '产品与服务'),
-    capabilitiesSectionTitle: String(source.capabilitiesSectionTitle || '从产地原料到客户应用的完整服务'),
+    slogan: String(source.slogan || '从木料，到一杆入局。'),
+    description: String(source.description || '台州君乐缘体育用品有限公司，聚焦台球杆与台球器材，从木料现场到产品交付。'),
+    logo: String(source.logo || DEFAULT_LOGIN_LOGO),
+    siteTag: String(source.siteTag || '台州君乐缘体育用品有限公司'),
+    announcement: String(source.announcement || '员工与客户 / 合作伙伴入口'),
+    headerLoginText: String(source.headerLoginText || '登录入口'),
+    authKicker: String(source.authKicker || '员工与客户入口'),
+    authTitle: String(source.authTitle || '进入君乐缘'),
+    authSafeNote: String(source.authSafeNote || '授权账号登录'),
+    authFootnote: String(source.authFootnote || '员工与客户账号由企业统一创建和管理'),
+    primaryActionText: String(source.primaryActionText || '登录企业系统'),
+    secondaryActionText: String(source.secondaryActionText || '了解君乐缘'),
+    secondaryActionUrl: String(source.secondaryActionUrl || '#about'),
+    scrollCueText: String(source.scrollCueText || '向下了解君乐缘'),
+    metricsSectionKicker: String(source.metricsSectionKicker || 'JUNLEYUAN / FIELD'),
+    metricsSectionTitle: String(source.metricsSectionTitle || '材料、制造与交付在同一条链路'),
+    aboutSectionKicker: String(source.aboutSectionKicker || 'ABOUT JUNLEYUAN'),
+    capabilitiesSectionKicker: String(source.capabilitiesSectionKicker || 'PRODUCT DIRECTION'),
+    capabilitiesSectionTitle: String(source.capabilitiesSectionTitle || '台球杆与器材，围绕真实场景交付'),
     leadersSectionKicker: String(source.leadersSectionKicker || '管理团队'),
     leadersSectionTitle: String(source.leadersSectionTitle || '管理团队'),
-    backgroundImage: String(source.backgroundImage || ''),
+    backgroundImage: String(source.backgroundImage || '/company-assets/factory-gate.jpeg'),
     navItems: Array.isArray(source.navItems) ? source.navItems : [],
     metrics: Array.isArray(source.metrics) ? source.metrics : [],
     trustBadges: Array.isArray(source.trustBadges) ? source.trustBadges : [],
@@ -286,8 +286,8 @@ const displayText = (value, fallback) => {
   return text
 }
 
-const companyName = computed(() => displayText(branding.value.companyName, '广东南派食品有限公司'))
-const siteTagText = computed(() => displayText(branding.value.siteTag, '热带水果制品解决方案提供商'))
+const companyName = computed(() => displayText(branding.value.companyName, '君乐缘台球工厂'))
+const siteTagText = computed(() => displayText(branding.value.siteTag, '台球工厂数字化运营平台'))
 const brandInitial = computed(() => companyName.value.slice(0, 1))
 const heroImage = computed(() => branding.value.backgroundImage || carouselItems.value[0]?.url || '')
 const introLead = computed(() => {
@@ -401,6 +401,10 @@ const focusLogin = () => {
 const openSecondaryAction = () => {
   const url = branding.value.secondaryActionUrl
   if (!url) return
+  if (url.startsWith('#')) {
+    scrollToSection(url.slice(1))
+    return
+  }
   if (/^https?:\/\//i.test(url)) {
     window.open(url, '_blank', 'noopener,noreferrer')
     return
@@ -608,7 +612,7 @@ const handleLogin = async () => {
 }
 
 .is-scrolled .brand-mark {
-  background: var(--login-theme);
+  background: #171817;
   color: #fff;
 }
 
@@ -632,16 +636,17 @@ const handleLogin = async () => {
 .brand-mark {
   width: 44px;
   height: 44px;
-  border-radius: 4px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.92);
+  background: #171817;
   color: var(--login-theme);
   font-size: 18px;
   font-weight: 800;
   flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgba(215, 183, 125, 0.45);
 }
 
 .brand-mark img {

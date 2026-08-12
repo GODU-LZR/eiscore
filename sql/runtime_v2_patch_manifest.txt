@@ -7,8 +7,11 @@
 # ontology/runtime patches intentionally grant broad web_user access before the
 # scoped agent-facing APIs revoke it again.
 
+sql/workflow_runtime_patch.sql
+sql/workflow_rls_patch.sql
 sql/patch_lightweight_ontology_runtime.sql
 sql/patch_add_ontology_relations_app.sql
+sql/patch_workflow_policy_v2.sql
 sql/patch_ontology_semantic_coverage_v2.sql
 sql/patch_ontology_reasoning_engine_v1.sql
 sql/patch_ontology_reasoning_insights_v1.sql

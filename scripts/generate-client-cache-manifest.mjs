@@ -32,12 +32,15 @@ const EXCLUDED_BASENAMES = new Set([
   'sw.js'
 ])
 
+const EXCLUDED_DIRECTORY_RE = /(?:^|\.)bak(?:\.|$)/i
+
 async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true })
   const files = []
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
+      if (EXCLUDED_DIRECTORY_RE.test(entry.name)) continue
       files.push(...await walk(fullPath))
     } else if (entry.isFile()) {
       files.push(fullPath)

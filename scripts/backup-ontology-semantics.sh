@@ -54,6 +54,7 @@ TS="$(date +%Y%m%d_%H%M%S)"
 BASE="${TARGET_DIR}/ontology_backup_${TS}"
 META_FILE="${BASE}.meta.txt"
 SEM_FILE="${BASE}.ontology_table_semantics.csv"
+COL_SEM_FILE="${BASE}.ontology_column_semantics.csv"
 REL_FILE="${BASE}.ontology_table_relations.csv"
 
 echo "Creating ontology backup at ${BASE}..."
@@ -61,7 +62,8 @@ echo "Creating ontology backup at ${BASE}..."
 docker exec "${DB_CONTAINER}" psql -U "${DB_USER}" -d "${DB_NAME}" -Atc \
   "select 'backup_at='||now()||E'\n'||
           'client_encoding='||(select setting from pg_settings where name='client_encoding')||E'\n'||
-          'semantics_count='||(select count(*) from public.ontology_table_semantics)||E'\n'||
+          'table_semantics_count='||(select count(*) from public.ontology_table_semantics)||E'\n'||
+          'column_semantics_count='||(select count(*) from public.ontology_column_semantics)||E'\n'||
           'relations_count='||(select count(*) from app_data.ontology_table_relations);" \
   > "${META_FILE}"
 
@@ -70,11 +72,15 @@ docker exec "${DB_CONTAINER}" psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_N
   > "${SEM_FILE}"
 
 docker exec "${DB_CONTAINER}" psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -c \
+  "COPY (SELECT * FROM public.ontology_column_semantics ORDER BY table_schema, table_name, column_name) TO STDOUT WITH CSV HEADER" \
+  > "${COL_SEM_FILE}"
+
+docker exec "${DB_CONTAINER}" psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -c \
   "COPY (SELECT * FROM app_data.ontology_table_relations ORDER BY id) TO STDOUT WITH CSV HEADER" \
   > "${REL_FILE}"
 
 echo "Backup completed:"
 echo "  ${META_FILE}"
 echo "  ${SEM_FILE}"
+echo "  ${COL_SEM_FILE}"
 echo "  ${REL_FILE}"
-

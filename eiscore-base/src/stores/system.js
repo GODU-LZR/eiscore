@@ -6,77 +6,69 @@ import { ref } from 'vue'
 import { setThemeColor } from '@/utils/theme' // 引入工具
 import { normalizeDisplayVisibility } from '@shared/eis-display-control'
 
-const NANPAI_LOGO_URL = 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg'
+const DEFAULT_APP_TITLE = '君乐缘台球工厂数字化管理平台'
+const LEGACY_FAVICON_URL = '/favicon.ico'
+const DEFAULT_FAVICON_URL = '/company-assets/favicon.png'
 
 const defaultLoginBranding = {
-  companyName: '广东南派食品有限公司',
-  slogan: '深耕热带水果全产业链，打造高品质水果制品方案',
-  description: '根据企业官网公开信息：公司成立于 2009 年，注册资金 1000 万元，总部位于中国雷州半岛；拥有湛江、广西两大加工基地和多条水果加工生产线，面向茶饮、烘焙、饮料与生鲜客户提供一站式水果制品解决方案。',
-  logo: NANPAI_LOGO_URL,
-  siteTag: '热带水果制品解决方案提供商',
-  announcement: '员工与合作伙伴入口',
-  headerLoginText: '员工通道',
-  authKicker: '员工入口',
-  authTitle: '账号登录',
-  authSafeNote: '账号由管理员统一分配',
-  authFootnote: '该入口仅供授权人员使用',
-  primaryActionText: '员工登录',
-  secondaryActionText: '了解平台',
-  secondaryActionUrl: '/eiscore',
-  scrollCueText: '向下了解企业',
-  metricsSectionKicker: '企业实力',
-  metricsSectionTitle: '多年深耕热带水果产业',
-  aboutSectionKicker: '关于企业',
-  capabilitiesSectionKicker: '产品与服务',
-  capabilitiesSectionTitle: '从产地原料到客户应用的完整服务',
+  companyName: '君乐缘台球',
+  slogan: '从木料，到一杆入局。',
+  description: '台州君乐缘体育用品有限公司，聚焦台球杆与台球器材，从木料现场到产品交付。',
+  logo: '/company-assets/junleyuan-mark.png',
+  siteTag: '台州君乐缘体育用品有限公司',
+  announcement: '员工与客户 / 合作伙伴入口',
+  headerLoginText: '登录入口',
+  authKicker: '员工与客户入口',
+  authTitle: '进入君乐缘',
+  authSafeNote: '授权账号登录',
+  authFootnote: '员工与客户账号由企业统一创建和管理',
+  primaryActionText: '登录企业系统',
+  secondaryActionText: '了解君乐缘',
+  secondaryActionUrl: '#about',
+  scrollCueText: '向下了解君乐缘',
+  metricsSectionKicker: 'JUNLEYUAN / FIELD',
+  metricsSectionTitle: '材料、制造与交付在同一条链路',
+  aboutSectionKicker: 'ABOUT JUNLEYUAN',
+  capabilitiesSectionKicker: 'PRODUCT DIRECTION',
+  capabilitiesSectionTitle: '台球杆与器材，围绕真实场景交付',
   leadersSectionKicker: '管理团队',
   leadersSectionTitle: '管理团队',
-  backgroundImage: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgx6CtnwYoh8fKtgcwgA84vAU!1500x1500.jpg',
+  backgroundImage: '/company-assets/factory-gate.jpeg',
   navItems: [
-    { label: '企业概况', anchor: 'overview' },
-    { label: '关于企业', anchor: 'about' },
-    { label: '产品服务', anchor: 'capabilities' },
-    { label: '企业实力', anchor: 'metrics' }
+    { label: '工厂现场', anchor: 'about' },
+    { label: '产品方向', anchor: 'capabilities' },
+    { label: '制造链路', anchor: 'metrics' },
+    { label: '登录入口', anchor: 'overview' }
   ],
   metrics: [
-    { label: '成立时间', value: '2009' },
-    { label: '加工基地', value: '2' },
-    { label: '注册资金', value: '1000万' }
+    { label: '工厂现场', value: '真实' },
+    { label: '木料目录', value: '31 类' },
+    { label: '企业主体', value: '台州' }
   ],
   trustBadges: [
-    { label: '雷州半岛产地优势' },
-    { label: '双加工基地' },
-    { label: '多场景客户服务' }
+    { label: '木料现场' },
+    { label: '分区存放' },
+    { label: '台球器材' }
   ],
   businessChain: [
-    { title: '原料甄选', description: '依托热带水果产区资源，关注原料风味、成熟度与稳定供应。', status: '产地直采' },
-    { title: '加工制造', description: '围绕果浆、果粒、果酱等产品形态，支持规模化与定制化生产。', status: '稳定交付' },
-    { title: '客户服务', description: '面向茶饮、烘焙、饮料与生鲜渠道，提供产品方案和交付支持。', status: '多场景适配' }
+    { title: '材料', description: '从圆棒、片料、方料与块料的现场资料开始。', status: '现场可见' },
+    { title: '制造', description: '围绕台球杆加工现场组织材料与工位。', status: '路径清晰' },
+    { title: '交付', description: '面向台球杆、台球桌及配套器材开展合作。', status: '方向明确' }
   ],
   capabilities: [
-    { title: '热带水果制品', description: '围绕芒果、菠萝、百香果等热带水果，提供多形态原料产品。' },
-    { title: '规模化加工', description: '依托湛江、广西加工基地，保障稳定产能与产品一致性。' },
-    { title: '应用方案支持', description: '结合茶饮、烘焙、饮料等使用场景，提供选型与应用建议。' }
+    { title: '台球杆', description: '围绕中式台球、斯诺克与九球等使用场景的球杆方向。' },
+    { title: '台球桌', description: '面向俱乐部与家庭场景的台球桌产品方向。' },
+    { title: '配套器材', description: '围绕台球空间与日常使用的器材和配套选择。' }
   ],
   carouselImages: [
-    {
-      url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg5uqnnwYoiNO9CjDcCziIBQ.jpg',
-      title: '热带水果全产业链布局',
-      subtitle: '覆盖种植、加工、研发、销售与服务'
-    },
-    {
-      url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3-CwnwYo_qL0ggIwjgI4nwM.jpg',
-      title: '加工与品控能力',
-      subtitle: '支持多品类水果制品的规模化生产'
-    },
-    {
-      url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgheiwnwYoj7jo0QQwjgI4nwM.jpg',
-      title: '面向多场景客户',
-      subtitle: '服务茶饮、烘焙、饮料与生鲜渠道'
-    }
+    { url: '/company-assets/factory-gate.jpeg', title: '工厂门头', subtitle: '君乐缘台球工厂实景' },
+    { url: '/company-assets/wood-workshop.jpeg', title: '加工车间', subtitle: '木杆与工位在同一条生产视线里' },
+    { url: '/company-assets/material-racks.jpeg', title: '原料仓储', subtitle: '不同木料按形态分区存放' },
+    { url: '/company-assets/wood-rods.jpeg', title: '材料细节', subtitle: '圆棒料，是球杆制造的起点' },
+    { url: '/company-assets/workshop-wide.jpeg', title: '车间现场', subtitle: '木杆加工与存放现场' }
   ],
   leaders: [],
-  footerText: 'Copyright © EISCore',
+  footerText: '台州君乐缘体育用品有限公司 · 君乐缘台球工厂',
   icpText: ''
 }
 
@@ -191,10 +183,14 @@ const normalizeLoginBranding = (input) => {
   const source = input && typeof input === 'object' ? input : {}
   const legacyName = String(source.companyName || '').trim() === 'EISCore 企业数字化平台'
   const legacySlogan = String(source.slogan || '').includes('让企业管理更高效')
+  const genericFactoryName = ['君乐缘台球工厂', '君乐缘台球'].includes(String(source.companyName || '').trim())
+  const genericFactorySlogan = String(source.slogan || '').includes('让生产、仓储与经营协同')
   const noCustomMedia = !String(source.backgroundImage || '').trim()
     && (!Array.isArray(source.carouselImages) || source.carouselImages.length === 0)
     && (!Array.isArray(source.leaders) || source.leaders.length === 0)
-  const resolved = legacyName && legacySlogan && noCustomMedia ? {} : source
+  const resolved = ((legacyName && legacySlogan) || (genericFactoryName && genericFactorySlogan)) && noCustomMedia
+    ? {}
+    : source
   return {
     ...defaultLoginBranding,
     ...resolved,
@@ -238,13 +234,50 @@ const normalizeLoginBranding = (input) => {
 const normalizeConfig = (input = {}) => {
   const source = input && typeof input === 'object' ? input : {}
   const depth = Number(source.materialsCategoryDepth)
+  const loginBranding = normalizeLoginBranding(source.loginBranding)
+  const explicitFavicon = String(source.favicon || source.icon || source.siteIcon || source.faviconUrl || '').trim()
+  const fallbackFavicon = explicitFavicon
+    && explicitFavicon !== DEFAULT_FAVICON_URL
+    && explicitFavicon !== LEGACY_FAVICON_URL
+    ? explicitFavicon
+    : String(loginBranding.logo || DEFAULT_FAVICON_URL)
   return {
-    title: String(source.title || '海边姑娘管理系统'),
+    title: String(source.title || DEFAULT_APP_TITLE),
+    favicon: fallbackFavicon,
     themeColor: String(source.themeColor || '#409EFF'),
     notifications: source.notifications !== false,
     materialsCategoryDepth: depth === 3 ? 3 : 2,
     visibility: normalizeDisplayVisibility(source.visibility),
-    loginBranding: normalizeLoginBranding(source.loginBranding)
+    loginBranding
+  }
+}
+
+const ensureHeadLink = (selector, rel) => {
+  if (typeof document === 'undefined') return null
+  let link = document.head.querySelector(selector)
+  if (!link) {
+    link = document.createElement('link')
+    link.setAttribute('rel', rel)
+    document.head.appendChild(link)
+  }
+  return link
+}
+
+const applyBrowserBranding = (nextConfig = {}) => {
+  if (typeof document === 'undefined') return
+  const title = String(nextConfig.title || DEFAULT_APP_TITLE).trim() || DEFAULT_APP_TITLE
+  const favicon = String(nextConfig.favicon || DEFAULT_FAVICON_URL).trim() || DEFAULT_FAVICON_URL
+
+  document.title = title
+
+  const iconLink = ensureHeadLink('link[rel="icon"]', 'icon')
+  if (iconLink) {
+    iconLink.setAttribute('href', favicon)
+  }
+
+  const shortcutIconLink = document.head.querySelector('link[rel="shortcut icon"]')
+  if (shortcutIconLink) {
+    shortcutIconLink.setAttribute('href', favicon)
   }
 }
 
@@ -264,7 +297,7 @@ export const useSystemStore = defineStore('system', () => {
       const parsed = JSON.parse(raw)
       if (parsed?.token) token = parsed.token
     } catch (e) {}
-    if (token && token.length > 8192) {
+    if (token && token.length > 32768) {
       localStorage.removeItem('auth_token')
       localStorage.removeItem('user_info')
       return ''
@@ -280,6 +313,7 @@ export const useSystemStore = defineStore('system', () => {
       ...(newConfig || {})
     })
     config.value = merged
+    applyBrowserBranding(merged)
     const hasDom = typeof document !== 'undefined' && !!document.documentElement
     const themeMissing = hasDom ? !document.documentElement.style.getPropertyValue('--el-color-primary') : false
     if (merged.themeColor !== previousTheme || themeMissing) {
@@ -334,6 +368,7 @@ export const useSystemStore = defineStore('system', () => {
 
   // 3. 初始化动作 (App启动时调用)
   const initTheme = () => {
+    applyBrowserBranding(config.value)
     if (config.value.themeColor) {
       setThemeColor(config.value.themeColor)
     }

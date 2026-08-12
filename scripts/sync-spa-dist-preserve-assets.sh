@@ -107,7 +107,23 @@ if [[ "$DRY_RUN" != "1" ]]; then
   run_remote "set -e; if [ -d '$DEST_DIR' ]; then cp -a '$DEST_DIR' '$backup_dir'; fi; mkdir -p '$DEST_DIR/assets'"
 fi
 
-rsync "${RSYNC_FLAGS[@]}" --delete --exclude='/assets/' "${DIST_DIR%/}/" "$(target "$DEST_DIR/")"
+# The base SPA lives beside the micro-frontends. Keep those sibling directories
+# out of the root --delete pass so parallel or staged releases cannot remove them.
+rsync "${RSYNC_FLAGS[@]}" --delete \
+  --exclude='/assets/' \
+  --exclude='/asset-manifest.json' \
+  --exclude='*.bak.*/' \
+  --exclude='/apps/' \
+  --exclude='/hr/' \
+  --exclude='/materials/' \
+  --exclude='/sales/' \
+  --exclude='/purchase/' \
+  --exclude='/production/' \
+  --exclude='/quality/' \
+  --exclude='/equipment/' \
+  --exclude='/decision/' \
+  --exclude='/mobile/' \
+  "${DIST_DIR%/}/" "$(target "$DEST_DIR/")"
 rsync "${RSYNC_FLAGS[@]}" "${DIST_DIR%/}/assets/" "$(target "$DEST_DIR/assets/")"
 
 if [[ -n "$OWNER" && "$DRY_RUN" != "1" ]]; then

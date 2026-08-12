@@ -18,35 +18,35 @@ ALTER TABLE public.system_configs ENABLE ROW LEVEL SECURITY;
 -- 如果是后端代理方案 (Scheme B)，则应限制读取。
 -- 这里假设是前端直连方案，或者通过受控的 RPC 函数获取。
 
--- 插入或更新 GLM-4.6V API Key
+-- 插入或更新 DeepSeek V4 Flash API Key
 INSERT INTO public.system_configs (key, value, description)
 VALUES (
     'ai_glm_config',
     '{
-        "provider": "zhipu",
-        "model": "glm-4.6v",
+        "provider": "deepseek",
+        "model": "deepseek-v4-flash",
         "api_key": "",
-        "api_url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+        "api_url": "https://api.deepseek.com/chat/completions",
         "thinking": {
             "type": "enabled"
         },
         "agents": {
             "enterprise_analyst": {
-                "model": "glm-4.6v",
+                "model": "deepseek-v4-flash",
                 "temperature": 0.2,
                 "top_p": 0.8,
                 "max_tokens": 4096,
                 "tools_whitelist": ["echarts"]
             },
             "worker_assistant": {
-                "model": "glm-4.6v",
+                "model": "deepseek-v4-flash",
                 "temperature": 0.3,
                 "top_p": 0.9,
                 "max_tokens": 4096,
                 "tools_whitelist": ["form-template", "translate", "map-locate"]
             },
             "workflow_orchestrator": {
-                "model": "glm-4.6v",
+                "model": "deepseek-v4-flash",
                 "temperature": 0.1,
                 "top_p": 0.7,
                 "max_tokens": 6144,
@@ -54,7 +54,7 @@ VALUES (
             }
         }
     }'::jsonb,
-    '智谱 AI GLM-4.6V 模型配置'
+    'DeepSeek V4 Flash 模型配置'
 )
 ON CONFLICT (key) 
 DO UPDATE SET 

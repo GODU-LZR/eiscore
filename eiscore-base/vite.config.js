@@ -36,6 +36,16 @@ export default defineConfig(({ command }) => ({
         const isAppsDraftPreview =
           rawPath === '/apps/preview/flash-draft' ||
           rawPath.startsWith('/apps/preview/')
+        const isMicroAppEntry =
+          rawPath === '/apps/index.html' ||
+          rawPath === '/hr/index.html' ||
+          rawPath === '/materials/index.html' ||
+          rawPath === '/sales/index.html' ||
+          rawPath === '/purchase/index.html' ||
+          rawPath === '/production/index.html' ||
+          rawPath === '/quality/index.html' ||
+          rawPath === '/equipment/index.html' ||
+          rawPath === '/decision/index.html'
         const isDevAsset =
           rawPath.includes('/@vite') ||
           rawPath.includes('/src/') ||
@@ -53,7 +63,7 @@ export default defineConfig(({ command }) => ({
         // Keep flash draft preview out of host-shell rewrite: it must load pure apps sub-app page.
         // /mobile is a standalone SPA — let it pass through to its own dev server directly.
         const isMobileRoute = rawPath.startsWith('/mobile')
-        if (isMicroRoute && isDocumentNav && !isDevAsset && !isAppsDraftPreview && !isMobileRoute) {
+        if (isMicroRoute && isDocumentNav && !isDevAsset && !isAppsDraftPreview && !isMobileRoute && !isMicroAppEntry) {
           req.url = '/'
           next()
           return
@@ -134,7 +144,7 @@ export default defineConfig(({ command }) => ({
           const isPreview =
             rawPath === '/apps/preview/flash-draft' ||
             rawPath.startsWith('/apps/preview/')
-          if (isPreview) return undefined
+          if (isPreview || rawPath === '/apps/index.html') return undefined
           const isDocument =
             req.headers['sec-fetch-dest'] === 'document' ||
             req.headers['sec-fetch-mode'] === 'navigate'

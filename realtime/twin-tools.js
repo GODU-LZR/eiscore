@@ -46,6 +46,148 @@ function limitRows(arr, max = MAX_RESULT_ROWS) {
   };
 }
 
+const HR_ARCHIVE_FIELDS = ['id', 'employee_no', 'name', 'department', 'position', 'entry_date', 'status', 'phone', 'updated_at'];
+const PUBLIC_EMPLOYEE_FIELDS = ['id', 'name', 'department', 'position', 'created_at'];
+const DEPARTMENT_FIELDS = ['id', 'name', 'parent_id', 'leader_id', 'sort', 'status', 'created_at', 'updated_at'];
+const MATERIAL_FIELDS = ['id', 'batch_no', 'name', 'category', 'weight_kg', 'entry_date', 'created_by', 'updated_at', 'dept_id'];
+const WAREHOUSE_FIELDS = ['id', 'code', 'name', 'parent_id', 'level', 'sort', 'status', 'manager_id', 'capacity', 'unit', 'updated_at'];
+const APP_FIELDS = ['id', 'name', 'description', 'category_id', 'app_type', 'icon', 'status', 'version', 'created_by', 'created_at', 'updated_at'];
+const INVENTORY_TRANSACTION_FIELDS = [
+  'id', 'transaction_no', 'transaction_type', 'io_type', 'material_code', 'material_name',
+  'warehouse_code', 'warehouse_name', 'quantity', 'unit', 'operator', 'transaction_date', 'remark'
+];
+const INVENTORY_CURRENT_FIELDS = [
+  'id', 'material_code', 'material_name', 'material_category', 'batch_no',
+  'warehouse_code', 'warehouse_name', 'available_qty', 'locked_qty', 'total_qty', 'unit',
+  'production_date', 'expiry_date', 'status', 'last_transaction_at'
+];
+
+const HR_ARCHIVE_ALIASES = {
+  full_name: 'name',
+  hire_date: 'entry_date',
+  username: 'employee_no'
+};
+const PUBLIC_EMPLOYEE_ALIASES = {
+  full_name: 'name',
+  employee_no: 'id',
+  hire_date: 'created_at',
+  status: '',
+  phone: '',
+  email: ''
+};
+const DEPARTMENT_ALIASES = {
+  code: 'id',
+  manager: 'leader_id',
+  manager_id: 'leader_id',
+  level: '',
+  sort_order: 'sort'
+};
+const MATERIAL_ALIASES = {
+  code: 'batch_no',
+  spec: 'category',
+  unit: '',
+  unit_price: '',
+  status: '',
+  created_at: 'entry_date'
+};
+const APP_ALIASES = {
+  app_name: 'name'
+};
+const INVENTORY_TRANSACTION_ALIASES = {
+  type: 'transaction_type',
+  created_at: 'transaction_date'
+};
+
+function normalizeFieldName(field, aliases = {}) {
+  const raw = String(field || '').trim();
+  if (!raw || raw === '*') return '';
+  const normalized = aliases[raw] !== undefined ? aliases[raw] : raw;
+  return String(normalized || '').trim();
+}
+
+function normalizeSelect(select, fallback, allowedFields, aliases = {}) {
+  const allowed = new Set(allowedFields);
+  const fields = String(select || fallback || '')
+    .split(',')
+    .map(field => normalizeFieldName(field, aliases))
+    .filter(field => field && allowed.has(field));
+  const unique = [...new Set(fields)];
+  return unique.length ? unique.join(',') : fallback;
+}
+
+function normalizeOrder(order, fallback, allowedFields, aliases = {}) {
+  const allowed = new Set(allowedFields);
+  const parts = String(order || fallback || '')
+    .split(',')
+    .map(part => {
+      const bits = String(part || '').trim().split('.');
+      const field = normalizeFieldName(bits[0], aliases);
+      if (!field || !allowed.has(field)) return '';
+      const direction = String(bits[1] || 'asc').toLowerCase() === 'desc' ? 'desc' : 'asc';
+      return `${field}.${direction}`;
+    })
+    .filter(Boolean);
+  return parts.length ? parts.join(',') : fallback;
+}
+
+function applySimpleFilter(query, filter, allowedFields, aliases = {}) {
+  if (!filter) return false;
+  const parts = String(filter).split('=');
+  if (parts.length < 2) return false;
+  const field = normalizeFieldName(parts[0], aliases);
+  if (!field || !allowedFields.includes(field)) return false;
+  query[field] = parts.slice(1).join('=');
+  return true;
+}
+
+function normalizeEmployeeRecord(row = {}, source = 'hr.archives') {
+  const fullName = row.full_name || row.name || '';
+  const hireDate = row.hire_date || row.entry_date || row.created_at || '';
+  return {
+    id: row.id,
+    employee_no: row.employee_no || '',
+    full_name: fullName,
+    name: fullName,
+    department: row.department || '',
+    position: row.position || '',
+    hire_date: hireDate,
+    entry_date: row.entry_date || hireDate,
+    status: row.status || '',
+    phone: row.phone || '',
+    email: row.email || '',
+    source
+  };
+}
+
+function normalizeDepartmentRecord(row = {}) {
+  return {
+    ...row,
+    code: row.code || String(row.id || ''),
+    manager: row.manager || row.manager_name || row.leader_id || '',
+    manager_id: row.manager_id || row.leader_id || '',
+    level: row.level || '',
+    sort_order: row.sort_order ?? row.sort ?? null
+  };
+}
+
+function normalizeMaterialRecord(row = {}) {
+  return {
+    ...row,
+    code: row.code || row.batch_no || '',
+    spec: row.spec || row.category || '',
+    unit: row.unit || '',
+    unit_price: row.unit_price ?? null,
+    status: row.status || ''
+  };
+}
+
+function normalizeAppRecord(row = {}) {
+  return {
+    ...row,
+    app_name: row.app_name || row.name || ''
+  };
+}
+
 // ───────────────────── 工具定义工厂 ──────────────────────
 
 /**
@@ -67,20 +209,40 @@ function createTwinTools(pgQuery, user) {
         limit: '(可选) 返回数量，默认20'
       },
       async execute(params) {
+        const opts = params || {};
         const query = {
-          select: params.select || 'employee_no,full_name,department,position,hire_date,status,phone,email',
-          limit: String(Math.min(Number(params.limit) || 20, MAX_RESULT_ROWS)),
-          order: 'hire_date.desc'
+          select: normalizeSelect(opts.select, 'id,employee_no,name,department,position,entry_date,status,phone', HR_ARCHIVE_FIELDS, HR_ARCHIVE_ALIASES),
+          limit: String(Math.min(Number(opts.limit) || 20, MAX_RESULT_ROWS)),
+          order: normalizeOrder(opts.order, 'entry_date.desc', HR_ARCHIVE_FIELDS, HR_ARCHIVE_ALIASES)
         };
-        if (params.filter) {
-          const parts = String(params.filter).split('=');
-          if (parts.length >= 2) query[parts[0]] = parts.slice(1).join('=');
+        applySimpleFilter(query, opts.filter, HR_ARCHIVE_FIELDS, HR_ARCHIVE_ALIASES);
+
+        try {
+          const res = await pgQuery({
+            method: 'GET', path: '/archives', query,
+            acceptProfile: 'hr', timeoutMs: 8000
+          });
+          const rows = Array.isArray(res?.data) ? res.data.map(row => normalizeEmployeeRecord(row, 'hr.archives')) : res?.data;
+          return truncateResult(limitRows(rows));
+        } catch (error) {
+          const fallbackQuery = {
+            select: normalizeSelect(opts.select, 'id,name,department,position,created_at', PUBLIC_EMPLOYEE_FIELDS, PUBLIC_EMPLOYEE_ALIASES),
+            limit: String(Math.min(Number(opts.limit) || 20, MAX_RESULT_ROWS)),
+            order: normalizeOrder(opts.order, 'created_at.desc', PUBLIC_EMPLOYEE_FIELDS, PUBLIC_EMPLOYEE_ALIASES)
+          };
+          applySimpleFilter(fallbackQuery, opts.filter, PUBLIC_EMPLOYEE_FIELDS, PUBLIC_EMPLOYEE_ALIASES);
+          const fallback = await pgQuery({
+            method: 'GET', path: '/employees', query: fallbackQuery,
+            acceptProfile: 'public', timeoutMs: 8000
+          });
+          const rows = Array.isArray(fallback?.data)
+            ? fallback.data.map(row => normalizeEmployeeRecord(row, 'public.employees'))
+            : fallback?.data;
+          return truncateResult({
+            rows: limitRows(rows),
+            warning: `HR档案查询失败，已回退公共员工表：${String(error?.message || error).slice(0, 160)}`
+          });
         }
-        const res = await pgQuery({
-          method: 'GET', path: '/employees', query,
-          acceptProfile: 'public', timeoutMs: 8000
-        });
-        return truncateResult(limitRows(res?.data));
       }
     },
 
@@ -92,20 +254,19 @@ function createTwinTools(pgQuery, user) {
         limit: '(可选) 返回数量'
       },
       async execute(params) {
+        const opts = params || {};
         const query = {
-          select: 'id,name,code,parent_id,manager,level,sort_order',
-          limit: String(Math.min(Number(params.limit) || 30, 50)),
-          order: 'sort_order.asc'
+          select: normalizeSelect(opts.select, 'id,name,parent_id,leader_id,sort,status', DEPARTMENT_FIELDS, DEPARTMENT_ALIASES),
+          limit: String(Math.min(Number(opts.limit) || 30, 50)),
+          order: normalizeOrder(opts.order, 'sort.asc', DEPARTMENT_FIELDS, DEPARTMENT_ALIASES)
         };
-        if (params.filter) {
-          const parts = String(params.filter).split('=');
-          if (parts.length >= 2) query[parts[0]] = parts.slice(1).join('=');
-        }
+        applySimpleFilter(query, opts.filter, DEPARTMENT_FIELDS, DEPARTMENT_ALIASES);
         const res = await pgQuery({
           method: 'GET', path: '/departments', query,
           acceptProfile: 'public', timeoutMs: 5000
         });
-        return truncateResult(limitRows(res?.data));
+        const rows = Array.isArray(res?.data) ? res.data.map(normalizeDepartmentRecord) : res?.data;
+        return truncateResult(limitRows(rows));
       }
     },
 
@@ -118,20 +279,19 @@ function createTwinTools(pgQuery, user) {
         limit: '(可选) 返回数量'
       },
       async execute(params) {
+        const opts = params || {};
         const query = {
-          select: params.select || 'id,code,name,spec,category,unit,unit_price,status',
-          limit: String(Math.min(Number(params.limit) || 20, MAX_RESULT_ROWS)),
-          order: 'code.asc'
+          select: normalizeSelect(opts.select, 'id,batch_no,name,category,weight_kg,entry_date,updated_at', MATERIAL_FIELDS, MATERIAL_ALIASES),
+          limit: String(Math.min(Number(opts.limit) || 20, MAX_RESULT_ROWS)),
+          order: normalizeOrder(opts.order, 'updated_at.desc', MATERIAL_FIELDS, MATERIAL_ALIASES)
         };
-        if (params.filter) {
-          const parts = String(params.filter).split('=');
-          if (parts.length >= 2) query[parts[0]] = parts.slice(1).join('=');
-        }
+        applySimpleFilter(query, opts.filter, MATERIAL_FIELDS, MATERIAL_ALIASES);
         const res = await pgQuery({
           method: 'GET', path: '/raw_materials', query,
           acceptProfile: 'public', timeoutMs: 8000
         });
-        return truncateResult(limitRows(res?.data));
+        const rows = Array.isArray(res?.data) ? res.data.map(normalizeMaterialRecord) : res?.data;
+        return truncateResult(limitRows(rows));
       }
     },
 
@@ -144,20 +304,20 @@ function createTwinTools(pgQuery, user) {
         limit: '(可选) 返回数量'
       },
       async execute(params) {
-        const isTransactions = String(params.type || '').toLowerCase() === 'transactions';
+        const opts = params || {};
+        const isTransactions = String(opts.type || '').toLowerCase() === 'transactions';
         const viewPath = isTransactions ? '/v_inventory_transactions' : '/v_inventory_current';
+        const fields = isTransactions ? INVENTORY_TRANSACTION_FIELDS : INVENTORY_CURRENT_FIELDS;
+        const aliases = isTransactions ? INVENTORY_TRANSACTION_ALIASES : {};
         const defaultSelect = isTransactions
-          ? 'id,material_name,warehouse_name,type,quantity,created_at'
-          : 'material_name,warehouse_name,available_qty,total_qty,unit';
+          ? 'id,transaction_no,transaction_type,io_type,material_name,warehouse_name,quantity,unit,operator,transaction_date'
+          : 'id,material_code,material_name,warehouse_name,available_qty,total_qty,unit,status,last_transaction_at';
         const query = {
-          select: params.select || defaultSelect,
-          limit: String(Math.min(Number(params.limit) || 20, MAX_RESULT_ROWS)),
-          order: isTransactions ? 'created_at.desc' : 'material_name.asc'
+          select: normalizeSelect(opts.select, defaultSelect, fields, aliases),
+          limit: String(Math.min(Number(opts.limit) || 20, MAX_RESULT_ROWS)),
+          order: normalizeOrder(opts.order, isTransactions ? 'transaction_date.desc' : 'material_name.asc', fields, aliases)
         };
-        if (params.filter) {
-          const parts = String(params.filter).split('=');
-          if (parts.length >= 2) query[parts[0]] = parts.slice(1).join('=');
-        }
+        applySimpleFilter(query, opts.filter, fields, aliases);
         const res = await pgQuery({
           method: 'GET', path: viewPath, query,
           acceptProfile: 'scm', timeoutMs: 8000
@@ -173,12 +333,13 @@ function createTwinTools(pgQuery, user) {
         limit: '(可选) 返回数量'
       },
       async execute(params) {
+        const opts = params || {};
         const res = await pgQuery({
           method: 'GET', path: '/warehouses',
           query: {
-            select: 'id,name,code,location,capacity,status',
-            limit: String(Math.min(Number(params.limit) || 20, 50)),
-            order: 'name.asc'
+            select: normalizeSelect(opts.select, 'id,code,name,parent_id,level,sort,status,manager_id,capacity,unit', WAREHOUSE_FIELDS),
+            limit: String(Math.min(Number(opts.limit) || 20, 50)),
+            order: normalizeOrder(opts.order, 'level.asc,sort.asc', WAREHOUSE_FIELDS)
           },
           acceptProfile: 'scm', timeoutMs: 5000
         });
@@ -194,20 +355,19 @@ function createTwinTools(pgQuery, user) {
         limit: '(可选) 返回数量'
       },
       async execute(params) {
+        const opts = params || {};
         const query = {
-          select: 'id,app_name,app_type,status,description,created_at',
-          limit: String(Math.min(Number(params.limit) || 20, MAX_RESULT_ROWS)),
-          order: 'created_at.desc'
+          select: normalizeSelect(opts.select, 'id,name,app_type,status,description,created_at,updated_at', APP_FIELDS, APP_ALIASES),
+          limit: String(Math.min(Number(opts.limit) || 20, MAX_RESULT_ROWS)),
+          order: normalizeOrder(opts.order, 'created_at.desc', APP_FIELDS, APP_ALIASES)
         };
-        if (params.filter) {
-          const parts = String(params.filter).split('=');
-          if (parts.length >= 2) query[parts[0]] = parts.slice(1).join('=');
-        }
+        applySimpleFilter(query, opts.filter, APP_FIELDS, APP_ALIASES);
         const res = await pgQuery({
           method: 'GET', path: '/apps', query,
           acceptProfile: 'app_center', timeoutMs: 5000
         });
-        return truncateResult(limitRows(res?.data));
+        const rows = Array.isArray(res?.data) ? res.data.map(normalizeAppRecord) : res?.data;
+        return truncateResult(limitRows(rows));
       }
     },
 
@@ -216,23 +376,72 @@ function createTwinTools(pgQuery, user) {
       description: '获取当前登录员工的个人信息（姓名、部门、角色、权限等）',
       parameters: {},
       async execute() {
-        // 查员工基本信息
-        const empRes = await pgQuery({
-          method: 'GET', path: '/employees',
-          query: {
-            select: 'employee_no,full_name,department,position,hire_date,status,phone,email',
-            or: `(username.eq.${username},employee_no.eq.${username})`,
-            limit: '1'
-          },
-          acceptProfile: 'public', timeoutMs: 5000
-        });
-        const emp = Array.isArray(empRes?.data) ? empRes.data[0] : null;
+        let account = null;
+        let departmentName = '';
+        let employee = null;
+        const notes = [];
+
+        try {
+          const userRes = await pgQuery({
+            method: 'GET', path: '/users',
+            query: {
+              select: 'id,username,role,full_name,phone,email,status,dept_id,position_id,sop_role',
+              username: `eq.${username}`,
+              limit: '1'
+            },
+            acceptProfile: 'public', timeoutMs: 5000
+          });
+          account = Array.isArray(userRes?.data) ? userRes.data[0] : null;
+        } catch (error) {
+          notes.push(`账号表查询失败：${String(error?.message || error).slice(0, 120)}`);
+        }
+
+        if (account?.dept_id) {
+          try {
+            const deptRes = await pgQuery({
+              method: 'GET', path: '/departments',
+              query: { select: 'id,name', id: `eq.${account.dept_id}`, limit: '1' },
+              acceptProfile: 'public', timeoutMs: 5000
+            });
+            const dept = Array.isArray(deptRes?.data) ? deptRes.data[0] : null;
+            departmentName = dept?.name || '';
+          } catch (error) {
+            notes.push(`部门查询失败：${String(error?.message || error).slice(0, 120)}`);
+          }
+        }
+
+        try {
+          const orParts = [`employee_no.eq.${username}`];
+          if (account?.full_name) orParts.push(`name.eq.${account.full_name}`);
+          const empRes = await pgQuery({
+            method: 'GET', path: '/archives',
+            query: {
+              select: 'id,employee_no,name,department,position,entry_date,status,phone,updated_at',
+              or: `(${orParts.join(',')})`,
+              limit: '1'
+            },
+            acceptProfile: 'hr', timeoutMs: 5000
+          });
+          const emp = Array.isArray(empRes?.data) ? empRes.data[0] : null;
+          employee = emp ? normalizeEmployeeRecord(emp, 'hr.archives') : null;
+        } catch (error) {
+          notes.push(`HR员工档案查询失败：${String(error?.message || error).slice(0, 120)}`);
+        }
+
+        const accountInfo = account
+          ? { ...account, department: departmentName }
+          : null;
 
         return {
           username,
-          role: user?.role || '',
-          employee: emp || '未找到对应员工信息',
-          note: '以上信息来自系统数据库'
+          role: account?.role || user?.role || '',
+          account: accountInfo,
+          employee: employee || '未找到对应HR员工档案',
+          permissions: Array.isArray(user?.permissions) ? user.permissions : undefined,
+          note: employee
+            ? '账号信息来自 users，员工档案来自 hr.archives'
+            : '已返回登录账号信息；当前账号未绑定HR员工档案',
+          warnings: notes
         };
       }
     },

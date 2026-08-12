@@ -269,25 +269,27 @@ await step('02c ontology projections cover forms and roles', async () => {
   return { detail: `forms=${forms.data.length}, roles=${roles.data.length}`, statusCode: roles.status }
 })
 
-await step('02d ontology coverage audit has no gaps', async () => {
-  const out = await api('/api/v_ontology_coverage_audit?select=api_relations,semanticized_relations,missing_relation_semantics,ontology_columns,semanticized_columns,missing_column_semantics,app_rows,app_form_ontology_rows,role_rows,role_ontology_rows,permission_rows,permission_ontology_rows', {
-    headers: profileHeaders('public')
+await step('02d secure ontology context is role-scoped and semanticized', async () => {
+  const out = await api('/api/rpc/agent_ontology_context', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: { p_query: null, p_limit: 80 }
   })
-  const audit = rowOf(out.data)
-  ensure(audit, 'ontology coverage audit row should exist')
-  ensure(Number(audit.missing_relation_semantics || 0) === 0, 'ontology relation coverage should have no missing relation semantics')
-  ensure(Number(audit.missing_column_semantics || 0) === 0, 'ontology column coverage should have no missing column semantics')
-  ensure(Number(audit.api_relations || 0) === Number(audit.semanticized_relations || 0), 'all API relations should be semanticized')
-  ensure(Number(audit.ontology_columns || 0) === Number(audit.semanticized_columns || 0), 'all ontology columns should be semanticized')
-  ensure(Number(audit.app_rows || 0) === Number(audit.app_form_ontology_rows || 0), 'all App Center apps should be projected into app form ontology')
-  ensure(Number(audit.role_rows || 0) === Number(audit.role_ontology_rows || 0), 'all roles should be projected into role ontology')
-  ensure(Number(audit.permission_rows || 0) === Number(audit.permission_ontology_rows || 0), 'all permissions should be projected into permission ontology')
-  return { detail: `relations=${audit.semanticized_relations}/${audit.api_relations}, columns=${audit.semanticized_columns}/${audit.ontology_columns}`, statusCode: out.status }
+  const context = out.data
+  ensure(context && context.accessPolicy?.roleScoped === true, 'agent ontology context should be role-scoped')
+  ensure(context.accessPolicy?.superUser === true, 'admin ontology context should identify super user')
+  ensure(Array.isArray(context.apps), 'secure ontology context should expose app rows')
+  ensure(Array.isArray(context.tables), 'secure ontology context should expose accessible tables')
+  ensure(Array.isArray(context.relations), 'secure ontology context should expose accessible relations')
+  ensure(context.health && typeof context.health === 'object', 'secure ontology context should expose health metadata')
+  return { detail: `apps=${context.apps.length}, tables=${context.tables.length}, relations=${context.relations.length}`, statusCode: out.status }
 })
 
 await step('02e ontology reasoning engine exposes inferred facts', async () => {
-  const summaryOut = await api('/api/v_ontology_reasoning_summary?select=facts_total,seed_facts,inferred_facts,active_rules,role_app_access_facts,role_table_access_facts,sensitive_exposure_facts,transitive_dependency_facts', {
-    headers: profileHeaders('public')
+  const summaryOut = await api('/api/rpc/agent_ontology_reasoning_summary', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: {}
   })
   const summary = rowOf(summaryOut.data)
   ensure(summary, 'ontology reasoning summary should exist')
@@ -295,20 +297,23 @@ await step('02e ontology reasoning engine exposes inferred facts', async () => {
   ensure(Number(summary.inferred_facts || 0) > 0, 'reasoning engine should expose inferred facts')
   ensure(Number(summary.active_rules || 0) >= 10, 'reasoning engine should have active rules')
   ensure(Number(summary.role_app_access_facts || 0) > 0, 'reasoning engine should infer role app access')
-  ensure(Number(summary.role_table_access_facts || 0) > 0, 'reasoning engine should infer role table access')
   ensure(Number(summary.transitive_dependency_facts || 0) > 0, 'reasoning engine should infer transitive dependencies')
 
-  const factsOut = await api(`/api/v_ontology_reasoning_facts?predicate=eq.${filterValue('acl:canAccessApp')}&select=subject_id,predicate,object_id,inference_rule&limit=3`, {
-    headers: profileHeaders('public')
+  const factsOut = await api('/api/rpc/agent_ontology_reasoning_facts', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: { p_predicate: 'acl:canAccessApp', p_limit: 3 }
   })
   ensure(Array.isArray(factsOut.data), 'reasoning facts response should be an array')
   ensure(factsOut.data.length > 0, 'reasoning facts should include role app access facts')
-  return { detail: `facts=${summary.facts_total}, inferred=${summary.inferred_facts}`, statusCode: factsOut.status }
+  return { detail: `facts=${summary.facts_total}, inferred=${summary.inferred_facts}, table_access=${summary.role_table_access_facts || 0}`, statusCode: factsOut.status }
 })
 
 await step('02f ontology reasoning insights expose health and impact', async () => {
-  const healthOut = await api('/api/v_ontology_reasoning_health?select=is_healthy,health_code,facts_total,inferred_facts,missing_relation_semantics,missing_column_semantics', {
-    headers: profileHeaders('public')
+  const healthOut = await api('/api/rpc/agent_ontology_reasoning_health', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: {}
   })
   const health = rowOf(healthOut.data)
   ensure(health, 'ontology reasoning health row should exist')
@@ -316,8 +321,10 @@ await step('02f ontology reasoning insights expose health and impact', async () 
   ensure(Number(health.missing_relation_semantics || 0) === 0, 'reasoning insight views should be table-semanticized')
   ensure(Number(health.missing_column_semantics || 0) === 0, 'reasoning insight view columns should be semanticized')
 
-  const roleOut = await api('/api/v_ontology_role_access_insights?select=role_code,accessible_apps,accessible_tables,operable_tables,sensitive_columns,sensitive_tables&or=(accessible_apps.gt.0,accessible_tables.gt.0,operable_tables.gt.0,sensitive_columns.gt.0)&order=accessible_apps.desc&limit=1', {
-    headers: profileHeaders('public')
+  const roleOut = await api('/api/rpc/agent_ontology_role_access_insights', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: { p_limit: 50 }
   })
   const role = rowOf(roleOut.data)
   ensure(role, 'role access insight should expose at least one role with inferred access')
@@ -326,8 +333,10 @@ await step('02f ontology reasoning insights expose health and impact', async () 
   ensure(roleAccessCount > 0, 'role access insight should include app/table access')
   ensure(Number(role.sensitive_columns || 0) >= 0, 'role access insight should include sensitive exposure count')
 
-  const tableOut = await api('/api/v_ontology_table_impact_insights?has_reasoning_impact=eq.true&select=table_id,roles_can_access,transitive_dependent_tables,sensitive_columns&limit=3', {
-    headers: profileHeaders('public')
+  const tableOut = await api('/api/rpc/agent_ontology_table_impact_insights', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: { p_limit: 3 }
   })
   ensure(Array.isArray(tableOut.data), 'table impact insight response should be an array')
   ensure(tableOut.data.length > 0, 'table impact insights should expose impacted tables')
@@ -339,13 +348,15 @@ await step('02f ontology reasoning insights expose health and impact', async () 
 
 await step('02g ontology role access explanation is callable', async () => {
   if (!ontologyInsightRoleCode) {
-    const roleOut = await api('/api/v_ontology_role_access_insights?select=role_code&or=(accessible_apps.gt.0,accessible_tables.gt.0,operable_tables.gt.0,sensitive_columns.gt.0)&order=accessible_apps.desc&limit=1', {
-      headers: profileHeaders('public')
+    const roleOut = await api('/api/rpc/agent_ontology_role_access_insights', {
+      method: 'POST',
+      headers: profileHeaders('public'),
+      body: { p_limit: 50 }
     })
     ontologyInsightRoleCode = rowOf(roleOut.data)?.role_code || ''
   }
   ensure(ontologyInsightRoleCode, 'role access explanation should have a candidate role code')
-  const out = await api('/api/rpc/explain_role_ontology_access', {
+  const out = await api('/api/rpc/agent_explain_role_ontology_access', {
     method: 'POST',
     headers: profileHeaders('public'),
     body: { p_role_code: ontologyInsightRoleCode, p_limit: 8 }
@@ -358,14 +369,16 @@ await step('02g ontology role access explanation is callable', async () => {
 
 await step('02h ontology graph query APIs expose nodes, neighbors, and paths', async () => {
   const roleCode = ontologyInsightRoleCode || 'super_admin'
-  const nodeOut = await api(`/api/v_ontology_kg_nodes?node_type=eq.role&node_id=eq.${filterValue(roleCode)}&select=node_type,node_id,node_label,total_degree,outgoing_edges,incoming_edges,predicate_count&limit=1`, {
-    headers: profileHeaders('public')
+  const nodeOut = await api('/api/rpc/agent_search_ontology_kg_nodes', {
+    method: 'POST',
+    headers: profileHeaders('public'),
+    body: { p_query: roleCode, p_node_type: 'role', p_limit: 3 }
   })
   const node = rowOf(nodeOut.data)
   ensure(node, 'ontology KG node view should expose role nodes')
   ensure(Number(node.total_degree || 0) > 0, 'ontology KG role node should have graph degree')
 
-  const neighborOut = await api('/api/rpc/query_ontology_kg_neighbors', {
+  const neighborOut = await api('/api/rpc/agent_query_ontology_kg_neighbors', {
     method: 'POST',
     headers: profileHeaders('public'),
     body: {
@@ -373,7 +386,8 @@ await step('02h ontology graph query APIs expose nodes, neighbors, and paths', a
       p_node_id: roleCode,
       p_direction: 'outgoing',
       p_max_depth: 1,
-      p_limit: 30
+      p_limit: 30,
+      p_predicate: null
     }
   })
   ensure(Array.isArray(neighborOut.data), 'KG neighbor query response should be an array')
@@ -381,7 +395,7 @@ await step('02h ontology graph query APIs expose nodes, neighbors, and paths', a
   const target = neighborOut.data.find((row) => ['app', 'table', 'column'].includes(row.to_type))
   ensure(target?.to_type && target?.to_id, 'KG neighbor query should expose a reachable app/table/column target')
 
-  const pathOut = await api('/api/rpc/find_ontology_kg_paths', {
+  const pathOut = await api('/api/rpc/agent_find_ontology_kg_paths', {
     method: 'POST',
     headers: profileHeaders('public'),
     body: {

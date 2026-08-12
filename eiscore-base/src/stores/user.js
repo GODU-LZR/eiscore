@@ -4,6 +4,7 @@
 // src/stores/user.js
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { clearCollectorUserContext, syncCollectorUserContext } from '@/utils/collector-bridge'
 
 export const useUserStore = defineStore('user', () => {
   // 初始化时尝试从 localStorage 读取，防止刷新丢失
@@ -24,6 +25,7 @@ export const useUserStore = defineStore('user', () => {
     // 持久化
     localStorage.setItem('auth_token', userData.token)
     localStorage.setItem('user_info', JSON.stringify(userData.user))
+    syncCollectorUserContext(userInfo.value)
   }
 
   // 退出动作
@@ -32,6 +34,7 @@ export const useUserStore = defineStore('user', () => {
     userInfo.value = {}
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user_info')
+    clearCollectorUserContext()
   }
 
   return { token, userInfo, login, logout }

@@ -78,7 +78,8 @@ function sleep(ms) {
 
 async function precacheClientAssets(options = {}) {
   const manifest = await readManifest()
-  const urls = Array.isArray(manifest.urls) ? manifest.urls : []
+  const allUrls = Array.isArray(manifest.urls) ? manifest.urls : []
+  const urls = options.mode === 'background' ? allUrls.slice(0, 120) : allUrls
   if (!urls.length) return
 
   const cache = await caches.open(await getCacheName())

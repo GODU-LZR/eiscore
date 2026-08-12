@@ -69,11 +69,11 @@ where semantic_name like '%?%'
 
 1. `sql/app_center_data_tables.sql` 已将动态语义中文模板改为 Unicode 转义写法。
 2. `sql/patch_add_ontology_relations_app.sql` 已增加 `SET client_encoding = 'UTF8';`。
-3. `sql/patch_fix_ontology_semantic_chinese.sql` 可用于历史乱码数据修复。
+3. `sql/patch_fix_ontology_semantic_qmarks_20260618.sql` 可用于历史乱码数据修复，并覆盖表语义、字段语义和本体关系校验。
 
 ## 6. 故障处理
 
-1. 若执行后出现乱码，先执行 `sql/patch_fix_ontology_semantic_chinese.sql` 修复历史数据。
+1. 若执行后出现乱码，先执行 `sql/patch_fix_ontology_semantic_qmarks_20260618.sql` 修复历史数据。
 2. 复核补丁执行命令是否使用了 UTF-8 读取方式。
 3. 复核补丁 SQL 是否包含直接中文常量且未做编码保护。
 4. 从 `backups/ontology/` 使用最近一次备份进行比对或回滚。

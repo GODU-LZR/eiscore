@@ -95,10 +95,10 @@
     <section class="control-strip">
       <div class="view-switch">
         <el-radio-group v-model="activeView" size="small">
-          <el-radio-button label="mine">我的待办</el-radio-button>
-          <el-radio-button label="pending">全部待签</el-radio-button>
-          <el-radio-button label="all">流程态势</el-radio-button>
-          <el-radio-button label="audit">审批明细</el-radio-button>
+          <el-radio-button value="mine">我的待办</el-radio-button>
+          <el-radio-button value="pending">全部待签</el-radio-button>
+          <el-radio-button value="all">流程态势</el-radio-button>
+          <el-radio-button value="audit">审批明细</el-radio-button>
         </el-radio-group>
       </div>
       <div class="filters">
@@ -228,16 +228,60 @@
         <el-descriptions-item label="流程单号">{{ approvalDialog.row.instanceId }}</el-descriptions-item>
         <el-descriptions-item label="流程定义">{{ approvalDialog.row.definitionName }}</el-descriptions-item>
         <el-descriptions-item label="当前节点">{{ approvalDialog.row.taskName }}</el-descriptions-item>
+        <el-descriptions-item v-if="approvalDialog.row.businessOwner" label="负责人">
+          {{ approvalDialog.row.businessOwner }}
+        </el-descriptions-item>
         <el-descriptions-item label="会签进度">
           {{ approvalDialog.row.approvedCount }}/{{ approvalDialog.row.requiredApprovals }}
         </el-descriptions-item>
       </el-descriptions>
 
+      <section
+        v-if="approvalDialog.row?.smartBiActionDetails"
+        class="smart-bi-action-context"
+      >
+        <div class="smart-bi-action-context__head">
+          <span>智能 BI 行动详情</span>
+          <el-tag
+            size="small"
+            :type="approvalDialog.row.smartBiActionDetails.riskTagType"
+          >
+            {{ approvalDialog.row.smartBiActionDetails.riskLabel }}
+          </el-tag>
+        </div>
+        <strong class="smart-bi-action-context__title">
+          {{ approvalDialog.row.smartBiActionDetails.title }}
+        </strong>
+        <div class="smart-bi-action-context__meta">
+          <span>{{ approvalDialog.row.smartBiActionDetails.domainLabel }}</span>
+          <span>{{ approvalDialog.row.smartBiActionDetails.statusLabel }}</span>
+          <span>{{ approvalDialog.row.smartBiActionDetails.dueText }}</span>
+        </div>
+        <div class="smart-bi-action-context__body">
+          <p v-if="approvalDialog.row.smartBiActionDetails.reason">
+            <span>原因</span>
+            {{ approvalDialog.row.smartBiActionDetails.reason }}
+          </p>
+          <p v-if="approvalDialog.row.smartBiActionDetails.target">
+            <span>目标</span>
+            {{ approvalDialog.row.smartBiActionDetails.target }}
+          </p>
+          <p v-if="approvalDialog.row.smartBiActionDetails.nextStep">
+            <span>下一步</span>
+            {{ approvalDialog.row.smartBiActionDetails.nextStep }}
+          </p>
+          <p v-if="approvalDialog.row.smartBiActionDetails.sourceQuestion">
+            <span>原始问题</span>
+            {{ approvalDialog.row.smartBiActionDetails.sourceQuestion }}
+          </p>
+        </div>
+      </section>
+
       <el-form class="approval-form" label-width="84px">
         <el-form-item label="处理结果">
           <el-radio-group v-model="approvalForm.decision">
-            <el-radio-button label="approved">同意</el-radio-button>
-            <el-radio-button label="rejected">驳回</el-radio-button>
+            <el-radio-button value="approved">同意</el-radio-button>
+            <el-radio-button value="rejected">驳回</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="approvalForm.decision === 'approved'" label="下一步">
@@ -257,7 +301,7 @@
             :rows="4"
             maxlength="500"
             show-word-limit
-            :placeholder="approvalDialog.row?.requireComment ? '当前节点要求填写审批意见' : '可填写审批意见'"
+            :placeholder="getApprovalCommentPlaceholder(approvalDialog.row)"
           />
         </el-form-item>
       </el-form>
@@ -276,8 +320,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, computed, nextTick, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   ArrowLeft,
@@ -291,6 +335,7 @@ import {
 import axios from 'axios'
 
 const router = useRouter()
+const route = useRoute()
 
 const loading = ref(false)
 const definitions = ref([])
@@ -301,6 +346,7 @@ const smartBiActions = ref([])
 const currentActor = ref({ username: '', appRole: '' })
 const approvalSubmitting = ref(false)
 const activeView = ref('mine')
+const openedRouteFocusDialogKey = ref('')
 
 const approvalDialog = reactive({
   visible: false,
@@ -321,6 +367,12 @@ const filters = reactive({
   myRelatedOnly: false
 })
 
+const routeFocus = reactive({
+  smartBiActionId: '',
+  instanceId: '',
+  autoOpen: false
+})
+
 const actorLabel = computed(() => {
   const username = String(currentActor.value?.username || '').trim()
   const role = String(currentActor.value?.appRole || '').trim()
@@ -333,6 +385,26 @@ const APPROVAL_MODE_LABEL_MAP = Object.freeze({
   quota: '多人会签',
   all: '全员会签'
 })
+
+const SMART_BI_DOMAIN_LABEL_MAP = Object.freeze({
+  overview: '经营总览',
+  sales: '销售',
+  purchase: '采购',
+  inventory: '库存',
+  production: '生产',
+  quality: '质量',
+  equipment: '设备'
+})
+
+const SMART_BI_RISK_META = Object.freeze({
+  critical: { label: '严重', tagType: 'danger' },
+  warning: { label: '预警', tagType: 'warning' },
+  focus: { label: '关注', tagType: 'primary' },
+  normal: { label: '正常', tagType: 'success' }
+})
+
+const SMART_BI_ACTION_REFRESH_EVENT = 'eis-smart-bi-action-refresh'
+const SMART_BI_ACTION_REFRESH_STORAGE_KEY = 'eis_smart_bi_action_refresh_at'
 
 const TASK_NODE_TYPE_SET = new Set([
   'bpmn:userTask',
@@ -377,6 +449,14 @@ const normalizeApprovalMode = (value) => {
   return 'any'
 }
 
+const normalizeSmartBiRiskLevel = (value) => {
+  const raw = String(value || '').trim().toLowerCase()
+  if (['critical', 'serious', '严重', '高', '高风险'].includes(raw)) return 'critical'
+  if (['warning', 'warn', '预警', '中', '中风险'].includes(raw)) return 'warning'
+  if (['focus', '关注', '低', '低风险'].includes(raw)) return 'focus'
+  return 'normal'
+}
+
 const normalizeRequiredApprovals = (value) => {
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return 1
@@ -399,6 +479,97 @@ const parsePayloadObject = (payload) => {
 const getTimeValue = (value) => {
   const time = Date.parse(String(value || ''))
   return Number.isFinite(time) ? time : 0
+}
+
+const getSmartBiDomainLabel = (value) => {
+  const key = String(value || '').trim().toLowerCase()
+  return SMART_BI_DOMAIN_LABEL_MAP[key] || value || '经营'
+}
+
+const getSmartBiDueText = (value) => {
+  const text = String(value || '').trim()
+  if (!text) return '暂无截止时间'
+  const time = Date.parse(text)
+  if (!Number.isFinite(time)) return text
+  const diff = time - Date.now()
+  const absDays = Math.ceil(Math.abs(diff) / 86400000)
+  if (diff < 0) return `已超期 ${Math.max(absDays, 1)} 天`
+  if (diff < 86400000) return '今天到期'
+  if (diff < 2 * 86400000) return '明天到期'
+  if (diff <= 7 * 86400000) return `${Math.ceil(diff / 86400000)} 天内到期`
+  return `截止 ${new Date(time).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}`
+}
+
+const extractSmartBiSuggestionText = (suggestion, ...keys) => {
+  if (!suggestion || typeof suggestion !== 'object') return ''
+  for (const key of keys) {
+    const value = String(suggestion?.[key] || '').trim()
+    if (value) return value
+  }
+  return ''
+}
+
+const buildSmartBiActionDetails = (action = {}) => {
+  const suggestion = parsePayloadObject(action?.suggestion)
+  const riskLevel = normalizeSmartBiRiskLevel(action?.risk_level)
+  const riskMeta = SMART_BI_RISK_META[riskLevel] || SMART_BI_RISK_META.normal
+  const title = String(action?.title || action?.action_no || '').trim() || '未命名行动单'
+  return {
+    actionNo: String(action?.action_no || '').trim(),
+    title,
+    domainLabel: getSmartBiDomainLabel(action?.domain),
+    riskLevel,
+    riskLabel: riskMeta.label,
+    riskTagType: riskMeta.tagType,
+    statusLabel: String(action?.status || '').trim() || '待发起',
+    dueText: getSmartBiDueText(action?.due_at),
+    reason: extractSmartBiSuggestionText(suggestion, 'reason', 'risk_reason', 'riskReason', 'problem'),
+    target: extractSmartBiSuggestionText(suggestion, 'target', 'goal', 'expected_result', 'expectedResult'),
+    nextStep: extractSmartBiSuggestionText(suggestion, 'next_step', 'nextStep', 'measure', 'todo'),
+    sourceQuestion: String(action?.source_question || '').trim(),
+    reportExcerpt: String(action?.report_excerpt || '').trim()
+  }
+}
+
+const getRouteQueryValue = (name) => {
+  const value = route.query?.[name]
+  const raw = Array.isArray(value) ? value[0] : value
+  return String(raw || '').trim()
+}
+
+const findSmartBiActionByRouteFocus = (actionId, instanceId) => smartBiActions.value.find((item) => {
+  const itemId = String(item?.id || '').trim()
+  const itemInstanceId = String(item?.workflow_instance_id || '').trim()
+  if (actionId && itemId === actionId) return true
+  return Boolean(instanceId && itemInstanceId === instanceId)
+})
+
+const applyRouteFocusFromQuery = () => {
+  const actionId = getRouteQueryValue('smart_bi_action_id') || getRouteQueryValue('smartBiActionId') || getRouteQueryValue('action_id')
+  const instanceId = getRouteQueryValue('instance_id') || getRouteQueryValue('workflow_instance_id') || getRouteQueryValue('instanceId')
+  const keyword = getRouteQueryValue('keyword')
+  const autoOpen = ['1', 'true', 'yes'].includes(
+    (getRouteQueryValue('open') || getRouteQueryValue('auto_open') || getRouteQueryValue('autoOpen')).toLowerCase()
+  )
+  if (!actionId && !instanceId && !keyword) return false
+
+  const action = findSmartBiActionByRouteFocus(actionId, instanceId)
+  const previousFocusKey = `${routeFocus.smartBiActionId}::${routeFocus.instanceId}`
+  routeFocus.smartBiActionId = actionId || String(action?.id || '').trim()
+  routeFocus.instanceId = instanceId || String(action?.workflow_instance_id || '').trim()
+  routeFocus.autoOpen = autoOpen
+  const nextFocusKey = `${routeFocus.smartBiActionId}::${routeFocus.instanceId}`
+  if (nextFocusKey !== previousFocusKey) openedRouteFocusDialogKey.value = ''
+
+  activeView.value = 'all'
+  filters.pendingOnly = false
+  filters.myRelatedOnly = false
+  filters.keyword = keyword
+    || String(action?.action_no || action?.title || '').trim()
+    || routeFocus.instanceId
+    || routeFocus.smartBiActionId
+
+  return true
 }
 
 const getTagAttribute = (tag, name) => {
@@ -563,18 +734,34 @@ const getBusinessDisplay = (instance = {}) => {
     if (action) {
       const actionNo = String(action?.action_no || '').trim()
       const title = String(action?.title || '').trim()
-      const owner = String(action?.owner_name || action?.owner_role || '').trim()
+      const ownerName = String(action?.owner_name || '').trim()
+      const ownerRole = String(action?.owner_role || '').trim()
+      const ownerUsername = String(action?.owner_username || '').trim()
+      const ownerPrimary = ownerName || ownerRole || ownerUsername
+      const ownerAccount = ownerUsername && ownerUsername !== ownerPrimary ? `账号 ${ownerUsername}` : ''
       return {
         key: actionNo || businessKey || '-',
         title: [actionNo, title].filter(Boolean).join(' · ') || businessKey || '-',
-        owner
+        owner: [ownerPrimary, ownerAccount].filter(Boolean).join(' / '),
+        ownerName,
+        ownerRole,
+        ownerUsername,
+        isSmartBiAction: true,
+        smartBiActionId: String(action?.id || '').trim(),
+        smartBiActionDetails: buildSmartBiActionDetails(action)
       }
     }
   }
   return {
     key: businessKey || '-',
     title: businessKey || '-',
-    owner: ''
+    owner: '',
+    ownerName: '',
+    ownerRole: '',
+    ownerUsername: '',
+    isSmartBiAction: false,
+    smartBiActionId: '',
+    smartBiActionDetails: null
   }
 }
 
@@ -603,6 +790,23 @@ const canActorExecuteByAssignment = (assignment) => {
   const roleOk = !roles.length || (role && roles.includes(role))
   const userOk = !users.length || (username && users.includes(username))
   return roleOk && userOk
+}
+
+const canActorExecuteSmartBiAction = (businessDisplay) => {
+  if (!businessDisplay?.isSmartBiAction) return true
+  const role = String(currentActor.value?.appRole || '').trim()
+  const username = String(currentActor.value?.username || '').trim()
+  if (role === 'super_admin') return true
+
+  const ownerUsername = String(businessDisplay?.ownerUsername || '').trim()
+  if (ownerUsername) {
+    return Boolean(username && username.toLowerCase() === ownerUsername.toLowerCase())
+  }
+
+  const ownerRole = String(businessDisplay?.ownerRole || '').trim()
+  if (ownerRole) return Boolean(role && role === ownerRole)
+
+  return true
 }
 
 const resolveNextTaskCandidatesByGraph = (definitionId, taskId) => {
@@ -745,10 +949,11 @@ const progressRows = computed(() => {
       const approvedActors = Array.from(bucket.approvedActorSet)
       const reviewedActors = [...approvedActors, ...Array.from(bucket.rejectedActorSet)]
       const actorReviewed = reviewedActors.includes(String(currentActor.value?.username || '').trim())
+      const businessDisplay = getBusinessDisplay(instance)
       const actorCanExecute = canActorExecuteByAssignment(assignment)
+        && canActorExecuteSmartBiAction(businessDisplay)
       const myPending = pending && actorCanExecute && !actorReviewed
       const myRelated = actorCanExecute || actorReviewed
-      const businessDisplay = getBusinessDisplay(instance)
 
       return {
         key: bucket.key,
@@ -760,6 +965,12 @@ const progressRows = computed(() => {
         businessKey: businessDisplay.key,
         businessTitle: businessDisplay.title,
         businessOwner: businessDisplay.owner,
+        businessOwnerRole: businessDisplay.ownerRole,
+        businessOwnerName: businessDisplay.ownerName,
+        businessOwnerUsername: businessDisplay.ownerUsername,
+        isSmartBiAction: businessDisplay.isSmartBiAction,
+        smartBiActionId: businessDisplay.smartBiActionId,
+        smartBiActionDetails: businessDisplay.smartBiActionDetails,
         approvalMode: mode,
         approvalModeLabel: APPROVAL_MODE_LABEL_MAP[mode] || mode,
         approvedCount: approved,
@@ -820,6 +1031,13 @@ const containsKeyword = (row, keyword) => {
     row.businessKey,
     row.businessTitle,
     row.businessOwner,
+    row.businessOwnerRole,
+    row.businessOwnerUsername,
+    row.smartBiActionId,
+    row.smartBiActionDetails?.reason,
+    row.smartBiActionDetails?.target,
+    row.smartBiActionDetails?.nextStep,
+    row.smartBiActionDetails?.sourceQuestion,
     row.commentText
   ].some((item) => String(item || '').toLowerCase().includes(needle))
 }
@@ -992,6 +1210,12 @@ const getProgressTagType = (row) => {
 }
 
 const getProgressRowClassName = ({ row }) => {
+  if (
+    (routeFocus.smartBiActionId && String(row?.smartBiActionId || '') === routeFocus.smartBiActionId)
+    || (routeFocus.instanceId && String(row?.instanceId || '') === routeFocus.instanceId)
+  ) {
+    return 'approval-row--smart-bi-focus'
+  }
   if (row?.myPending) return 'approval-row--focus'
   if (row?.pending) return 'approval-row--pending'
   return ''
@@ -1006,6 +1230,25 @@ const resetApprovalDialog = () => {
   approvalForm.comment = ''
 }
 
+const getApprovalCommentPlaceholder = (row) => {
+  if (row?.isSmartBiAction) {
+    const taskId = String(row?.taskId || '').trim()
+    if (taskId === 'Task_BIExecute') return '请填写执行结果、负责人动作、预计或实际完成情况'
+    if (taskId === 'Task_BIVerify') return '请填写验证结论、指标变化、是否同意闭环'
+    if (taskId === 'Task_BIReview') return '可填写确认意见，例如风险是否属实、建议是否采纳'
+  }
+  return row?.requireComment ? '当前节点要求填写审批意见' : '可填写审批意见'
+}
+
+const getApprovalRequiredCommentMessage = (row) => {
+  if (row?.isSmartBiAction) {
+    const taskId = String(row?.taskId || '').trim()
+    if (taskId === 'Task_BIExecute') return '请填写智能 BI 行动执行结果'
+    if (taskId === 'Task_BIVerify') return '请填写智能 BI 闭环验证结论'
+  }
+  return '当前节点要求填写审批意见'
+}
+
 const openApprovalDialog = (row) => {
   approvalDialog.row = row
   approvalForm.decision = 'approved'
@@ -1014,13 +1257,52 @@ const openApprovalDialog = (row) => {
   approvalDialog.visible = true
 }
 
+const notifySmartBiActionChanged = (row, decision) => {
+  if (!row?.isSmartBiAction || typeof window === 'undefined') return
+  const payload = {
+    actionId: String(row.smartBiActionId || '').trim(),
+    instanceId: String(row.instanceId || '').trim(),
+    taskId: String(row.taskId || '').trim(),
+    decision: String(decision || '').trim(),
+    updatedAt: Date.now()
+  }
+  try {
+    window.localStorage?.setItem(SMART_BI_ACTION_REFRESH_STORAGE_KEY, JSON.stringify(payload))
+  } catch {}
+  window.dispatchEvent(new CustomEvent(SMART_BI_ACTION_REFRESH_EVENT, { detail: payload }))
+}
+
+const getRouteFocusedProgressRow = () => {
+  const actionId = String(routeFocus.smartBiActionId || '').trim()
+  const instanceId = String(routeFocus.instanceId || '').trim()
+  if (!actionId && !instanceId) return null
+  const isMatched = (row) => (
+    (actionId && String(row?.smartBiActionId || '') === actionId)
+    || (instanceId && String(row?.instanceId || '') === instanceId)
+  )
+  return filteredProgressRows.value.find(isMatched)
+    || progressRows.value.find(isMatched)
+    || null
+}
+
+const maybeOpenRouteFocusDialog = async () => {
+  if (!routeFocus.autoOpen || approvalDialog.visible) return
+  const row = getRouteFocusedProgressRow()
+  if (!row?.myPending) return
+  const key = String(row.key || '')
+  if (!key || openedRouteFocusDialogKey.value === key) return
+  openedRouteFocusDialogKey.value = key
+  await nextTick()
+  openApprovalDialog(row)
+}
+
 const submitApproval = async () => {
   const row = approvalDialog.row
   if (!row?.instanceId) return
 
   const comment = String(approvalForm.comment || '').trim()
   if (row.requireComment && !comment) {
-    ElMessage.warning('当前节点要求填写审批意见')
+    ElMessage.warning(getApprovalRequiredCommentMessage(row))
     return
   }
 
@@ -1031,9 +1313,16 @@ const submitApproval = async () => {
       ...getWorkflowHeaders(token),
       'Content-Type': 'application/json'
     }
+    const rejectRpcPath = row.isSmartBiAction
+      ? '/api/rpc/reject_smart_bi_action_workflow'
+      : '/api/rpc/reject_workflow_task'
+    const transitionRpcPath = row.isSmartBiAction
+      ? '/api/rpc/transition_smart_bi_action_workflow'
+      : '/api/rpc/transition_workflow_instance'
+
     if (approvalForm.decision === 'rejected') {
       await axios.post(
-        '/api/rpc/reject_workflow_task',
+        rejectRpcPath,
         {
           p_instance_id: Number(row.instanceId),
           p_comment: comment || null,
@@ -1042,6 +1331,7 @@ const submitApproval = async () => {
         { headers }
       )
       ElMessage.success('已驳回流程单')
+      notifySmartBiActionChanged(row, 'rejected')
     } else {
       const nextTaskId = String(approvalForm.nextTaskId || '').trim()
       if (!nextTaskId) {
@@ -1050,7 +1340,7 @@ const submitApproval = async () => {
       }
       const complete = nextTaskId === '__complete__'
       const response = await axios.post(
-        '/api/rpc/transition_workflow_instance',
+        transitionRpcPath,
         {
           p_instance_id: Number(row.instanceId),
           p_next_task_id: complete ? null : nextTaskId,
@@ -1064,6 +1354,7 @@ const submitApproval = async () => {
         && String(updated?.current_task_id || '').trim() === String(row.taskId || '').trim()
         && String(updated?.status || '').toUpperCase() === 'ACTIVE'
       ElMessage.success(stillPendingSameTask ? '已记录审批意见，等待其他审批人' : '流程单已推进')
+      notifySmartBiActionChanged(row, 'approved')
     }
     approvalDialog.visible = false
     await loadData()
@@ -1085,7 +1376,7 @@ const loadData = async () => {
       axios.get('/api/instances?select=id,definition_id,current_task_id,status,business_key,started_at,ended_at&order=id.desc&limit=2000', { headers }),
       axios.get('/api/task_assignments?select=id,definition_id,task_id,candidate_roles,candidate_users,approval_mode,required_approvals,require_comment&order=id.desc&limit=2000', { headers }),
       axios.get('/api/task_approvals?select=id,instance_id,definition_id,task_id,actor_username,actor_role,decision,comment,payload,created_at,updated_at&order=created_at.desc&limit=5000', { headers }),
-      axios.get('/api/smart_bi_action_items?select=id,action_no,title,domain,owner_role,owner_name,status,workflow_instance_id&order=updated_at.desc&limit=2000', { headers: publicHeaders })
+      axios.get('/api/smart_bi_action_items?select=id,action_no,title,domain,risk_level,owner_role,owner_name,owner_username,due_at,status,source_question,report_excerpt,suggestion,workflow_instance_id&order=updated_at.desc&limit=2000', { headers: publicHeaders })
         .catch(() => ({ data: [] }))
     ])
     definitions.value = Array.isArray(definitionRes.data) ? definitionRes.data : []
@@ -1093,12 +1384,19 @@ const loadData = async () => {
     assignments.value = Array.isArray(assignmentRes.data) ? assignmentRes.data : []
     approvals.value = Array.isArray(approvalRes.data) ? approvalRes.data : []
     smartBiActions.value = Array.isArray(smartBiActionRes.data) ? smartBiActionRes.data : []
+    const hasRouteFocus = applyRouteFocusFromQuery()
+    if (hasRouteFocus) await maybeOpenRouteFocusDialog()
   } catch (error) {
     ElMessage.error(`加载审批中心数据失败：${error?.response?.data?.message || error?.message || '未知错误'}`)
   } finally {
     loading.value = false
   }
 }
+
+watch(() => route.query, async () => {
+  const hasRouteFocus = applyRouteFocusFromQuery()
+  if (hasRouteFocus) await maybeOpenRouteFocusDialog()
+})
 
 onMounted(() => {
   readCurrentActor()
@@ -1430,12 +1728,83 @@ onMounted(() => {
   color: #909399;
 }
 
+.smart-bi-action-context {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #d9ecff;
+  border-radius: 8px;
+  background: #f4f8ff;
+}
+
+.smart-bi-action-context__head,
+.smart-bi-action-context__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.smart-bi-action-context__head span {
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.smart-bi-action-context__title {
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.smart-bi-action-context__meta {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.smart-bi-action-context__meta span {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.smart-bi-action-context__body {
+  display: grid;
+  gap: 6px;
+}
+
+.smart-bi-action-context__body p {
+  margin: 0;
+  color: #374151;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.smart-bi-action-context__body p span {
+  display: inline-block;
+  min-width: 52px;
+  color: #64748b;
+  font-weight: 650;
+}
+
 .approval-form {
   margin-top: 14px;
 }
 
 :deep(.approval-row--focus) {
   --el-table-tr-bg-color: #f4f8ff;
+}
+
+:deep(.approval-row--smart-bi-focus) {
+  --el-table-tr-bg-color: #ecf5ff;
+}
+
+:deep(.approval-row--smart-bi-focus td:first-child) {
+  box-shadow: inset 3px 0 0 #409eff;
 }
 
 :deep(.approval-row--pending) {

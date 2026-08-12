@@ -63,7 +63,7 @@ done
 
 echo ""
 echo "🧪 Step 5/7: 执行本体语义 UTF-8 校验..."
-./scripts/apply-sql-patch-utf8.sh -p sql/patch_fix_ontology_semantic_chinese.sql
+./scripts/apply-sql-patch-utf8.sh -p sql/patch_fix_ontology_semantic_qmarks_20260618.sql
 
 # Step 6: Install frontend dependencies
 echo ""

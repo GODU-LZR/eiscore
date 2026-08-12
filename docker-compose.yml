@@ -20,6 +20,16 @@ services:
       - ./env/db_schema_and_data.sql:/docker-entrypoint-initdb.d/01_init_schema.sql
       # 🟢 应用中心 Schema (02)
       - ./sql/app_center_schema.sql:/docker-entrypoint-initdb.d/02_app_center_schema.sql
+      # 🟢 物料库存 Schema 与运行策略 (03-09)
+      - ./sql/inventory_schema.sql:/docker-entrypoint-initdb.d/03_inventory_schema.sql
+      - ./sql/patch_inventory_transactions_io_type.sql:/docker-entrypoint-initdb.d/04_inventory_transactions_io_type.sql
+      - ./sql/patch_inventory_drafts.sql:/docker-entrypoint-initdb.d/05_inventory_drafts.sql
+      - ./sql/patch_inventory_drafts_rule_id.sql:/docker-entrypoint-initdb.d/06_inventory_drafts_rule_id.sql
+      - ./sql/patch_inventory_drafts_io_type.sql:/docker-entrypoint-initdb.d/07_inventory_drafts_io_type.sql
+      - ./sql/patch_inventory_batches_update_policy.sql:/docker-entrypoint-initdb.d/08_inventory_batches_update_policy.sql
+      - ./sql/junleyuan_baseline.sql:/docker-entrypoint-initdb.d/09_junleyuan_baseline.sql
+      - ./sql/company_site_platform_v1.sql:/docker-entrypoint-initdb.d/10_company_site_platform_v1.sql
+      - ./sql/workflow_rls_patch.sql:/docker-entrypoint-initdb.d/11_workflow_rls_patch.sql
 
   api:
     image: postgrest/postgrest
@@ -98,6 +108,7 @@ services:
       - ./eiscore-apps:/workspace/eiscore-apps
       - ./eiscore-equipment:/workspace/eiscore-equipment
       - document_intake_data:/app/data/document-intake
+      - ./collector-desktop/artifacts/release:/app/data/collector-releases:ro
     depends_on:
       - db
 

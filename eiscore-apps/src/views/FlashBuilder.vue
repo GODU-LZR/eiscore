@@ -560,10 +560,10 @@ const ideBaseCandidates = (() => {
   const proto = window.location.protocol === 'https:' ? 'https' : 'http'
   const host = String(window.location.hostname || 'localhost').trim() || 'localhost'
   const defaults = [
-    normalizeUrlBase(`${proto}://${host}:8443/`),
-    normalizeUrlBase(`${proto}://localhost:8443/`),
     normalizeUrlBase(`${window.location.origin}/ide/`),
-    normalizeUrlBase('/ide/')
+    normalizeUrlBase('/ide/'),
+    normalizeUrlBase(`${proto}://${host}:8443/`),
+    normalizeUrlBase(`${proto}://localhost:8443/`)
   ]
   const deduped = []
   ;[...defaults, ...configured].forEach((url) => {
@@ -592,10 +592,31 @@ const ideUrl = computed(() => {
   const base = ideBaseUrl.value
   const search = new URLSearchParams({
     folder: IDE_DRAFT_WORKSPACE,
-    windowId: `_blank_${appId.value || 'flash'}`
+    windowId: `_blank_${appId.value || 'flash'}`,
+    eis_skip_mobile_redirect: '1'
   })
   return `${base}?${search.toString()}`
 })
+
+const isLikelyCodeServerHtml = (html) => {
+  const text = String(html || '').slice(0, 12000).toLowerCase()
+  return (
+    text.includes('code-server') ||
+    text.includes('vscode') ||
+    text.includes('monaco') ||
+    text.includes('workbench')
+  )
+}
+
+const isLikelyEiscoreShellHtml = (html) => {
+  const text = String(html || '').slice(0, 12000).toLowerCase()
+  return (
+    text.includes('<title>eiscore') ||
+    text.includes('eiscore-client-assets') ||
+    text.includes('/mobile/index.html') ||
+    text.includes('/asset-manifest.json')
+  )
+}
 
 const previewUrl = computed(() => `${PREVIEW_ROUTE}?appId=${encodeURIComponent(appId.value)}&_t=${previewNonce.value}`)
 const shellStorageKey = computed(() => `flash_shell_conversations:${appId.value || 'default'}`)
@@ -967,6 +988,16 @@ const probeIdeAvailability = async (baseUrl = ideBaseUrl.value) => {
     })
     if (!response.ok) {
       return { ok: false, reason: `HTTP ${response.status}` }
+    }
+    const contentType = String(response.headers.get('content-type') || '').toLowerCase()
+    if (contentType.includes('text/html')) {
+      const html = await response.text()
+      if (isLikelyEiscoreShellHtml(html)) {
+        return { ok: false, reason: '/ide/ 返回了主站页面，未代理到 Code-Server' }
+      }
+      if (!isLikelyCodeServerHtml(html)) {
+        return { ok: false, reason: '未识别到 Code-Server 页面' }
+      }
     }
     return { ok: true, reason: '' }
   } catch (error) {

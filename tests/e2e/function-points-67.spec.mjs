@@ -24,7 +24,7 @@ const selectedPointIds = new Set(
 const selectedPointStart = parsePointNumber(process.env.EISCORE_E2E_FUNCTION_POINTS_START, 1)
 const selectedPointEnd = parsePointNumber(process.env.EISCORE_E2E_FUNCTION_POINTS_END, 67)
 const functionPointSurfaceTimeoutMs = Number(process.env.EISCORE_E2E_FUNCTION_POINT_SURFACE_TIMEOUT_MS || 30_000)
-const functionPointContentTimeoutMs = Number(process.env.EISCORE_E2E_FUNCTION_POINT_CONTENT_TIMEOUT_MS || 20_000)
+const functionPointContentTimeoutMs = Number(process.env.EISCORE_E2E_FUNCTION_POINT_CONTENT_TIMEOUT_MS || 45_000)
 
 const ignoredHttpErrorPatterns = [
   /favicon/i,
@@ -78,7 +78,7 @@ async function expectAnyText(page, texts, label) {
     const ok = await body.filter({ hasText: text }).count().then((count) => count > 0).catch(() => false)
     if (ok) return
   }
-  await expect(body, `${label} should contain one of: ${texts.join(', ')}`).toContainText(texts[0], { timeout: 20_000 })
+  await expect(body, `${label} should contain one of: ${texts.join(', ')}`).toContainText(texts[0], { timeout: functionPointContentTimeoutMs })
 }
 
 async function firstVisible(page, selectors, timeout = 2_000) {

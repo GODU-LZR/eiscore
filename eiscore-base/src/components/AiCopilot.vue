@@ -169,6 +169,148 @@
                   </div>
                 </button>
               </div>
+              <section class="smart-bi-closure-panel">
+                <div class="closure-head">
+                  <div>
+                    <div class="closure-title">行动闭环跟踪</div>
+                    <div class="closure-meta">
+                      {{ smartBiActionItemsLoading ? '正在读取闭环状态' : smartBiActionSummaryDisplayText }}
+                    </div>
+                  </div>
+                  <div class="closure-actions">
+                    <el-button
+                      size="small"
+                      plain
+                      :loading="smartBiActionItemsLoading"
+                      @click.stop="refreshSmartBiActionItems"
+                    >
+                      刷新
+                    </el-button>
+                    <el-button size="small" type="primary" plain @click.stop="goWorkflowApprovalCenter">
+                      审批中心
+                    </el-button>
+                  </div>
+                </div>
+                <div class="closure-stats">
+                  <span
+                    v-for="item in smartBiActionStatusStats"
+                    :key="item.status"
+                    class="closure-stat"
+                    :data-tone="item.tone"
+                  >
+                    <strong>{{ item.count }}</strong>
+                    <span>{{ item.label }}</span>
+                  </span>
+                </div>
+                <div v-if="smartBiActionFocusItems.length" class="closure-priority">
+                  <div class="closure-priority-head">
+                    <span>优先推进</span>
+                    <small>{{ smartBiActionUrgencyText }}</small>
+                  </div>
+                  <button
+                    v-for="item in smartBiActionFocusItems"
+                    :key="`focus-${item.id}`"
+                    type="button"
+                    class="closure-priority-item"
+                    :data-tone="getSmartBiActionPriorityTone(item)"
+                    @click.stop="goWorkflowApprovalCenter(item)"
+                  >
+                    <div class="closure-priority-main">
+                      <span class="closure-priority-domain">{{ getSmartBiDomainLabel(item.domain) }}</span>
+                      <strong>{{ item.title || item.action_no || '未命名行动单' }}</strong>
+                      <small>{{ getSmartBiActionOwner(item) }} · {{ formatSmartBiActionDueText(item) }}</small>
+                      <div class="closure-stage-line">
+                        <span>{{ getSmartBiActionStageText(item) }}</span>
+                        <small>{{ getSmartBiActionNextText(item) }}</small>
+                      </div>
+                      <div class="closure-step-strip" aria-hidden="true">
+                        <i
+                          v-for="step in SMART_BI_ACTION_STEP_DEFS"
+                          :key="step.key"
+                          :data-state="getSmartBiActionStepState(item, step.index)"
+                        />
+                      </div>
+                    </div>
+                    <span class="closure-status">{{ item.status || '待发起' }}</span>
+                  </button>
+                </div>
+                <div v-if="smartBiClosureReviewItems.length" class="closure-review">
+                  <div class="closure-review-head">
+                    <span>闭环复盘</span>
+                    <small>{{ smartBiClosureReviewSummaryText }}</small>
+                  </div>
+                  <button
+                    v-for="item in smartBiClosureReviewItems"
+                    :key="`review-${item.id}`"
+                    type="button"
+                    class="closure-review-item"
+                    :data-tone="getSmartBiActionStatusTone(item.status)"
+                    @click.stop="goWorkflowApprovalCenter(item)"
+                  >
+                    <div class="closure-review-main">
+                      <strong>{{ item.title || item.action_no || '未命名行动单' }}</strong>
+                      <small>{{ formatSmartBiActionCycleTime(item) }} · {{ formatSmartBiActionDate(item.closed_at || item.updated_at || item.created_at) }}</small>
+                      <div v-if="getSmartBiActionReviewText(item)" class="closure-review-note">
+                        <span>{{ getSmartBiActionReviewLabel(item) }}</span>
+                        <small>{{ getSmartBiActionReviewText(item) }}</small>
+                      </div>
+                    </div>
+                    <span class="closure-status">{{ item.status || '已结束' }}</span>
+                  </button>
+                </div>
+                <div v-if="smartBiRecentActions.length" class="closure-list">
+                  <button
+                    v-for="item in smartBiRecentActions"
+                    :key="item.id"
+                    type="button"
+                    class="closure-item"
+                    :data-tone="getSmartBiActionStatusTone(item.status)"
+                    @click.stop="goWorkflowApprovalCenter(item)"
+                  >
+                    <div class="closure-item-main">
+                      <div class="closure-item-title">{{ item.title || item.action_no || '未命名行动单' }}</div>
+                      <div class="closure-item-meta">
+                        <span>{{ item.action_no || `#${item.id}` }}</span>
+                        <span>{{ getSmartBiActionOwner(item) }}</span>
+                        <span>{{ formatSmartBiActionDate(item.updated_at || item.created_at) }}</span>
+                      </div>
+                      <div class="closure-stage-line">
+                        <span>{{ getSmartBiActionStageText(item) }}</span>
+                        <small>{{ getSmartBiActionNextText(item) }}</small>
+                      </div>
+                      <div class="closure-step-strip" aria-hidden="true">
+                        <i
+                          v-for="step in SMART_BI_ACTION_STEP_DEFS"
+                          :key="step.key"
+                          :data-state="getSmartBiActionStepState(item, step.index)"
+                        />
+                      </div>
+                    </div>
+                    <span class="closure-status">{{ item.status || '待发起' }}</span>
+                  </button>
+                </div>
+                <el-empty
+                  v-else
+                  description="暂无行动闭环"
+                  :image-size="72"
+                >
+                  <template #default>
+                    <div class="closure-empty-guide">
+                      <span>先生成一份经营分析，再把行动建议转成流程待办。</span>
+                      <div class="closure-starter-actions">
+                        <button
+                          v-for="item in smartBiClosureStarterQuestions"
+                          :key="item.key"
+                          type="button"
+                          @click.stop="runSmartBiClosureStarter(item)"
+                        >
+                          {{ item.label }}
+                        </button>
+                      </div>
+                    </div>
+                  </template>
+                </el-empty>
+              </section>
             </div>
 
             <template v-if="currentSession">
@@ -180,7 +322,11 @@
                 :data-message-index="index"
               >
                 <div class="avatar-wrapper">
-                  <div class="avatar">{{ msg.role === 'user' ? '👤' : '✨' }}</div>
+                  <div class="avatar" :class="{ 'assistant-avatar': msg.role === 'assistant', 'user-avatar': msg.role === 'user' }">
+                    <el-icon :size="16">
+                      <component :is="msg.role === 'user' ? UserFilled : (isEnterprise ? DataAnalysis : Service)" />
+                    </el-icon>
+                  </div>
                 </div>
 
                 <div class="content-wrapper">
@@ -200,15 +346,29 @@
                     </div>
                   </div>
 
-                <div class="bubble" v-if="shouldShowBubble(msg)">
-                  <div
-                    class="markdown-body"
-                    v-html="renderMarkdown(msg.content, { enableVisualBlocks: !isStreamingMessage(index), smartBiReport: isEnterprise && msg.role === 'assistant' })"
-                  ></div>
-                  <span
-                    v-if="msg.role === 'assistant' && index === currentSession.messages.length - 1 && state.isStreaming"
-                    class="typing-cursor"
-                  ></span>
+                <div
+                  class="bubble"
+                  v-if="shouldShowBubble(msg, index)"
+                  :class="{ 'is-pending': isPendingAssistantMessage(msg, index) }"
+                >
+                  <div v-if="isPendingAssistantMessage(msg, index)" class="assistant-pending">
+                    <span class="pending-dots" aria-hidden="true">
+                      <i></i>
+                      <i></i>
+                      <i></i>
+                    </span>
+                    <span>{{ assistantPendingText }}</span>
+                  </div>
+                  <template v-else>
+                    <div
+                      class="markdown-body"
+                      v-html="renderMarkdown(msg.content, { enableVisualBlocks: !isStreamingMessage(index), smartBiReport: isEnterprise && msg.role === 'assistant' })"
+                    ></div>
+                    <span
+                      v-if="msg.role === 'assistant' && index === currentSession.messages.length - 1 && state.isStreaming"
+                      class="typing-cursor"
+                    ></span>
+                  </template>
                 </div>
 
                 <div
@@ -461,8 +621,23 @@
               </el-button>
             </div>
 
-            <div class="input-box">
+            <div class="input-box" :class="{ 'is-smart-bi-input': useTopUploadToolbar }">
+              <div v-if="useTopUploadToolbar" class="input-toolbar">
+                <el-upload
+                  action="#"
+                  :auto-upload="false"
+                  :show-file-list="false"
+                  :on-change="(file) => aiBridge.handleFileSelect(file.raw)"
+                  class="upload-trigger"
+                >
+                  <button class="toolbar-upload-btn" type="button" :disabled="state.isLoading">
+                    <el-icon class="tool-icon"><Paperclip /></el-icon>
+                    <span>{{ uploadButtonText }}</span>
+                  </button>
+                </el-upload>
+              </div>
               <el-upload
+                v-if="!useTopUploadToolbar"
                 action="#"
                 :auto-upload="false"
                 :show-file-list="false"
@@ -472,16 +647,18 @@
                 <el-icon class="tool-icon"><Paperclip /></el-icon>
               </el-upload>
 
-              <textarea
-                v-model="state.inputBuffer"
-                :placeholder="inputPlaceholder"
-                @keydown.enter="handleEnter"
-                :disabled="state.isLoading"
-              ></textarea>
+              <div class="input-main-row">
+                <textarea
+                  v-model="state.inputBuffer"
+                  :placeholder="inputPlaceholder"
+                  @keydown.enter="handleEnter"
+                  :disabled="state.isLoading"
+                ></textarea>
 
-              <div class="send-btn" :class="{ 'disabled': state.isLoading || (!state.inputBuffer && !state.selectedFiles.length) }" @click="handleSend">
-                <el-icon v-if="state.isLoading" class="is-loading"><Loading /></el-icon>
-                <el-icon v-else><Position /></el-icon>
+                <div class="send-btn" :class="{ 'disabled': state.isLoading || (!state.inputBuffer && !state.selectedFiles.length) }" @click="handleSend">
+                  <el-icon v-if="state.isLoading" class="is-loading"><Loading /></el-icon>
+                  <el-icon v-else><Position /></el-icon>
+                </div>
               </div>
             </div>
           </div>
@@ -519,7 +696,10 @@ import {
   getSmartBiWorkbenchCards,
   routeSmartBiQuestion
 } from '@shared/smart-bi-config'
-import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
+import {
+  Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document,
+  Refresh, FullScreen, ScaleToOriginal, UserFilled, DataAnalysis, Service
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { useRouter } from 'vue-router'
@@ -542,11 +722,14 @@ const smartBiSnapshot = ref(null)
 const smartBiSnapshotLoading = ref(false)
 const smartBiSnapshotError = ref('')
 const smartBiActionItems = ref([])
+const smartBiActionApprovalNotes = ref({})
 const smartBiActionItemsLoading = ref(false)
+const smartBiActionLastSyncedAt = ref(0)
 let lightboxChart = null
 let chartResizeObserver = null
 let resizeRafId = 0
 let mermaidRenderSeed = 0
+let smartBiActionItemsPendingRefresh = false
 const chartResizeTimers = new Map()
 const router = useRouter()
 const isFullscreen = ref(false)
@@ -574,13 +757,24 @@ const loadMermaid = async () => {
 const currentSession = computed(() => aiBridge.getCurrentSession())
 const isWorker = computed(() => props.mode === 'worker')
 const isEnterprise = computed(() => props.mode === 'enterprise')
+const useTopUploadToolbar = computed(() => isWorker.value || isEnterprise.value)
 const isWorkerFullscreen = computed(() => isWorker.value && isFullscreen.value)
 const assistantTitle = computed(() => (isWorker.value ? '企业工作助手' : '智能 BI'))
 const historyTitle = computed(() => (isEnterprise.value ? '智能 BI 历史' : '对话历史'))
+const uploadButtonText = computed(() => {
+  const count = state.selectedFiles.length
+  if (count) return `${count} 个文件`
+  return isEnterprise.value ? '上传数据文件' : '上传文件'
+})
 const inputPlaceholder = computed(() => (
   isWorker.value
     ? '把数据或问题告诉我，我帮你整理成能录入系统的格式...'
     : '直接问经营数据，或上传表格生成指标图表...'
+))
+const assistantPendingText = computed(() => (
+  isEnterprise.value
+    ? '正在生成指标图表、风险和建议'
+    : '正在整理你的问题'
 ))
 const containerClasses = computed(() => ({
   'is-open': state.isOpen,
@@ -640,11 +834,273 @@ const smartBiSnapshotStatusText = computed(() => {
   }
   return smartBiSnapshotTimeText.value
 })
+const SMART_BI_ACTION_REFRESH_EVENT = 'eis-smart-bi-action-refresh'
+const SMART_BI_ACTION_REFRESH_STORAGE_KEY = 'eis_smart_bi_action_refresh_at'
+const SMART_BI_ACTION_STATUS_META = Object.freeze({
+  待发起: { label: '待发起', tone: 'muted' },
+  待确认: { label: '待确认', tone: 'warning' },
+  执行中: { label: '执行中', tone: 'focus' },
+  待验证: { label: '待验证', tone: 'warning' },
+  已闭环: { label: '已闭环', tone: 'success' },
+  已驳回: { label: '已驳回', tone: 'danger' }
+})
+const SMART_BI_ACTION_STEP_DEFS = Object.freeze([
+  { key: 'review', index: 1, label: '确认' },
+  { key: 'execute', index: 2, label: '执行' },
+  { key: 'verify', index: 3, label: '验证' }
+])
+const SMART_BI_ACTION_STAGE_META = Object.freeze({
+  待发起: { activeStep: 0, stageText: '待发起流程', nextText: '先生成流程待办' },
+  待确认: { activeStep: 1, stageText: '第1步 确认建议', nextText: '通过后进入执行' },
+  执行中: { activeStep: 2, stageText: '第2步 执行整改', nextText: '完成后提交验证' },
+  待验证: { activeStep: 3, stageText: '第3步 验证结果', nextText: '确认后完成闭环' },
+  已闭环: { activeStep: 4, stageText: '已完成闭环', nextText: '结果已归档' },
+  已驳回: { activeStep: -1, stageText: '流程已驳回', nextText: '需重新评估建议' }
+})
+const SMART_BI_ACTION_STATUS_WEIGHT = Object.freeze({
+  待验证: 70,
+  执行中: 60,
+  待确认: 50,
+  待发起: 40
+})
+const SMART_BI_ACTION_RISK_WEIGHT = Object.freeze({
+  critical: 40,
+  warning: 28,
+  focus: 16,
+  normal: 4
+})
+const smartBiActionStatusStats = computed(() => {
+  const order = ['待确认', '执行中', '待验证', '已闭环', '已驳回']
+  const counts = smartBiActionItems.value.reduce((acc, item) => {
+    const status = String(item?.status || '待发起').trim() || '待发起'
+    acc[status] = (acc[status] || 0) + 1
+    return acc
+  }, {})
+  return order.map((status) => ({
+    status,
+    count: counts[status] || 0,
+    label: SMART_BI_ACTION_STATUS_META[status]?.label || status,
+    tone: SMART_BI_ACTION_STATUS_META[status]?.tone || 'muted'
+  }))
+})
+const smartBiActionSummaryText = computed(() => {
+  const total = smartBiActionItems.value.length
+  if (!total) return '暂无行动单，生成流程待办后会自动跟踪'
+  const active = smartBiActionItems.value.filter((item) => !['已闭环', '已驳回'].includes(String(item?.status || '').trim())).length
+  return `${total} 个行动单 · ${active} 个仍在推进`
+})
+const smartBiActionSummaryDisplayText = computed(() => {
+  if (!smartBiActionLastSyncedAt.value) return smartBiActionSummaryText.value
+  const syncedAt = new Date(smartBiActionLastSyncedAt.value).toLocaleTimeString('zh-CN', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+  return `${smartBiActionSummaryText.value} · ${syncedAt}同步`
+})
+const smartBiRecentActions = computed(() => smartBiActionItems.value.slice(0, 5))
+const isSmartBiActionClosed = (item) => ['已闭环', '已驳回'].includes(String(item?.status || '').trim())
+const getSmartBiActionDueTime = (item) => {
+  const text = String(item?.due_at || item?.dueAt || '').trim()
+  if (!text) return 0
+  const time = new Date(text).getTime()
+  return Number.isFinite(time) ? time : 0
+}
+const getSmartBiActionPriorityScore = (item) => {
+  const status = String(item?.status || '待发起').trim() || '待发起'
+  const risk = normalizeSmartBiRiskLevel(item?.risk_level || item?.riskLevel)
+  const dueTime = getSmartBiActionDueTime(item)
+  const now = Date.now()
+  let dueWeight = 0
+  if (dueTime) {
+    const days = Math.ceil((dueTime - now) / 86400000)
+    if (days < 0) dueWeight = 80
+    else if (days <= 1) dueWeight = 52
+    else if (days <= 3) dueWeight = 36
+    else if (days <= 7) dueWeight = 16
+  }
+  return (SMART_BI_ACTION_STATUS_WEIGHT[status] || 20)
+    + (SMART_BI_ACTION_RISK_WEIGHT[risk] || 0)
+    + dueWeight
+}
+const smartBiActionFocusItems = computed(() => (
+  smartBiActionItems.value
+    .filter((item) => !isSmartBiActionClosed(item))
+    .slice()
+    .sort((a, b) => {
+      const scoreDiff = getSmartBiActionPriorityScore(b) - getSmartBiActionPriorityScore(a)
+      if (scoreDiff) return scoreDiff
+      return new Date(b?.updated_at || b?.created_at || 0).getTime()
+        - new Date(a?.updated_at || a?.created_at || 0).getTime()
+    })
+    .slice(0, 3)
+))
+const smartBiActionUrgencyText = computed(() => {
+  const openItems = smartBiActionItems.value.filter((item) => !isSmartBiActionClosed(item))
+  if (!openItems.length) return '暂无进行中的行动单'
+  const now = Date.now()
+  let overdue = 0
+  let dueSoon = 0
+  openItems.forEach((item) => {
+    const dueTime = getSmartBiActionDueTime(item)
+    if (!dueTime) return
+    if (dueTime < now) overdue += 1
+    else if (dueTime - now <= 3 * 86400000) dueSoon += 1
+  })
+  if (overdue) return `${overdue} 项已超期 · ${dueSoon} 项 3 天内到期`
+  if (dueSoon) return `${dueSoon} 项 3 天内到期`
+  return `${openItems.length} 项仍在推进`
+})
+const smartBiClosureReviewItems = computed(() => (
+  smartBiActionItems.value
+    .filter((item) => isSmartBiActionClosed(item))
+    .slice()
+    .sort((a, b) => getSmartBiActionResolvedTime(b) - getSmartBiActionResolvedTime(a))
+    .slice(0, 2)
+))
+const smartBiClosureReviewSummaryText = computed(() => {
+  const resolved = smartBiActionItems.value.filter((item) => isSmartBiActionClosed(item))
+  if (!resolved.length) return '暂无已结束行动单'
+  const closed = resolved.filter((item) => getSmartBiActionStatus(item) === '已闭环')
+  const durations = closed
+    .map((item) => getSmartBiActionResolvedTime(item) - new Date(item?.created_at || 0).getTime())
+    .filter((value) => Number.isFinite(value) && value > 0)
+  const avgText = durations.length
+    ? ` · 平均${formatSmartBiActionDuration(durations.reduce((sum, value) => sum + value, 0) / durations.length)}`
+    : ''
+  const rejected = resolved.length - closed.length
+  return `${closed.length} 项已闭环${rejected ? ` · ${rejected} 项已驳回` : ''}${avgText}`
+})
+const smartBiClosureStarterQuestions = computed(() => (
+  ['overview', 'inventory', 'quality']
+    .map((key) => SMART_BI_COMMON_QUESTIONS.find((item) => item.key === key))
+    .filter(Boolean)
+))
 
 const buildSmartBiActionContext = (prompt = '', reportMode = 'common_question') => buildSmartBiContext(prompt, {
   reportMode,
   snapshot: smartBiSnapshot.value || {}
 })
+
+const getSmartBiActionStatusTone = (status) => (
+  SMART_BI_ACTION_STATUS_META[String(status || '').trim()]?.tone || 'muted'
+)
+
+const getSmartBiActionStatus = (item) => (
+  String(item?.status || '待发起').trim() || '待发起'
+)
+
+const getSmartBiActionStageMeta = (item) => {
+  const status = getSmartBiActionStatus(item)
+  return SMART_BI_ACTION_STAGE_META[status] || SMART_BI_ACTION_STAGE_META.待发起
+}
+
+const getSmartBiActionStageText = (item) => getSmartBiActionStageMeta(item).stageText
+
+const getSmartBiActionNextText = (item) => getSmartBiActionStageMeta(item).nextText
+
+const getSmartBiActionApprovalNote = (item) => {
+  const instanceId = String(item?.workflow_instance_id || item?.workflowInstanceId || '').trim()
+  return instanceId ? (smartBiActionApprovalNotes.value[instanceId] || {}) : {}
+}
+
+const getSmartBiActionReviewEntry = (item) => {
+  const note = getSmartBiActionApprovalNote(item)
+  if (getSmartBiActionStatus(item) === '已驳回') return note.rejected || note.latest || null
+  return note.verify || note.execute || note.latest || null
+}
+
+const getSmartBiActionReviewLabel = (item) => {
+  const entry = getSmartBiActionReviewEntry(item)
+  if (!entry?.taskId) return getSmartBiActionStatus(item) === '已驳回' ? '驳回原因' : '复盘结论'
+  if (entry.taskId === 'Task_BIVerify') return '验证结论'
+  if (entry.taskId === 'Task_BIExecute') return '执行记录'
+  if (entry.taskId === 'Task_BIReview') return '确认意见'
+  return getSmartBiActionStatus(item) === '已驳回' ? '驳回原因' : '复盘结论'
+}
+
+const getSmartBiActionReviewText = (item) => {
+  const comment = String(getSmartBiActionReviewEntry(item)?.comment || '').trim()
+  return comment.length > 120 ? `${comment.slice(0, 120)}...` : comment
+}
+
+const getSmartBiActionStepState = (item, stepIndex) => {
+  const { activeStep } = getSmartBiActionStageMeta(item)
+  const index = Number(stepIndex)
+  if (activeStep === -1) return 'danger'
+  if (activeStep >= 4) return 'done'
+  if (activeStep > index) return 'done'
+  if (activeStep === index) return 'active'
+  return 'todo'
+}
+
+const getSmartBiActionPriorityTone = (item) => {
+  const dueTime = getSmartBiActionDueTime(item)
+  if (dueTime && dueTime < Date.now()) return 'danger'
+  const risk = normalizeSmartBiRiskLevel(item?.risk_level || item?.riskLevel)
+  if (risk === 'critical') return 'danger'
+  if (risk === 'warning') return 'warning'
+  return getSmartBiActionStatusTone(item?.status)
+}
+
+const getSmartBiActionOwner = (item) => {
+  const ownerName = String(item?.owner_name || '').trim()
+  const ownerRole = String(item?.owner_role || '').trim()
+  const ownerUsername = String(item?.owner_username || '').trim()
+  if (ownerName && ownerUsername && ownerName !== ownerUsername) return `${ownerName} / ${ownerUsername}`
+  return ownerName || ownerUsername || ownerRole || '待指定负责人'
+}
+
+const formatSmartBiActionDate = (value) => {
+  const text = String(value || '').trim()
+  if (!text) return '暂无时间'
+  const time = new Date(text).getTime()
+  if (!Number.isFinite(time)) return text
+  const diff = Date.now() - time
+  if (diff >= 0 && diff < 60 * 1000) return '刚刚更新'
+  if (diff >= 0 && diff < 3600 * 1000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff >= 0 && diff < 86400 * 1000) return `${Math.floor(diff / 3600000)}小时前`
+  return new Date(time).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
+}
+
+const formatSmartBiActionDueText = (item) => {
+  const dueTime = getSmartBiActionDueTime(item)
+  if (!dueTime) return '暂无截止时间'
+  const diff = dueTime - Date.now()
+  const absDays = Math.ceil(Math.abs(diff) / 86400000)
+  if (diff < 0) return `已超期 ${Math.max(absDays, 1)} 天`
+  if (diff < 86400000) return '今天到期'
+  if (diff < 2 * 86400000) return '明天到期'
+  if (diff <= 7 * 86400000) return `${Math.ceil(diff / 86400000)} 天内到期`
+  return `截止 ${new Date(dueTime).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}`
+}
+
+const getSmartBiActionResolvedTime = (item) => {
+  const candidates = [item?.closed_at, item?.updated_at, item?.created_at]
+  for (const value of candidates) {
+    const time = new Date(value || '').getTime()
+    if (Number.isFinite(time)) return time
+  }
+  return 0
+}
+
+const formatSmartBiActionDuration = (value) => {
+  const ms = Number(value || 0)
+  if (!Number.isFinite(ms) || ms <= 0) return '暂无耗时'
+  const minutes = Math.max(1, Math.round(ms / 60000))
+  if (minutes < 60) return `${minutes}分钟`
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return `${hours}小时`
+  const days = Math.round(hours / 24)
+  return `${days}天`
+}
+
+const formatSmartBiActionCycleTime = (item) => {
+  const start = new Date(item?.created_at || '').getTime()
+  const end = getSmartBiActionResolvedTime(item)
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return '闭环用时待统计'
+  return `闭环用时 ${formatSmartBiActionDuration(end - start)}`
+}
 
 const formatSessionTime = (value) => {
   if (!value) return '刚刚'
@@ -780,6 +1236,11 @@ const sanitizeSvg = (svgText) => {
 }
 
 const defaultFence = md.renderer.rules.fence
+const renderVisualBlockStreamingPlaceholder = (type) => {
+  const label = type === 'echarts' ? '图表生成中' : '流程图生成中'
+  return `<div class="chart-streaming-placeholder" data-chart-type="${type}"><span>${label}</span></div>`
+}
+
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
   const info = token.info.trim().toLowerCase()
@@ -794,15 +1255,13 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   }
   if (info === 'mermaid') {
     if (env?.enableVisualBlocks === false) {
-      if (defaultFence) return defaultFence(tokens, idx, options, env, self)
-      return self.renderToken(tokens, idx, options)
+      return renderVisualBlockStreamingPlaceholder('mermaid')
     }
     return `<div class="mermaid-chart chart-pending" data-raw="${encodeURIComponent(token.content)}"></div>`
   }
   if (info === 'echarts') {
     if (env?.enableVisualBlocks === false) {
-      if (defaultFence) return defaultFence(tokens, idx, options, env, self)
-      return self.renderToken(tokens, idx, options)
+      return renderVisualBlockStreamingPlaceholder('echarts')
     }
     return `<div class="echarts-chart chart-pending" data-option="${encodeURIComponent(token.content)}"></div>`
   }
@@ -1174,7 +1633,7 @@ const getAuthToken = () => {
   } catch (e) {
     token = tokenStr
   }
-  if (token && token.length > 8192) {
+  if (token && token.length > 32768) {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user_info')
     return ''
@@ -1337,6 +1796,14 @@ const normalizeSmartBiAction = (item, index = 0) => {
     || `${getSmartBiDomainLabel(domain)}行动建议${index + 1}`
   const ownerRole = String(item.owner_role || item.ownerRole || item.role || '').trim()
   const ownerName = String(item.owner_name || item.ownerName || item.owner || item.responsible || '').trim()
+  const ownerUsername = String(
+    item.owner_username
+    || item.ownerUsername
+    || item.assignee_username
+    || item.assigneeUsername
+    || item.username
+    || ''
+  ).trim()
   const dueDays = Number(item.due_days ?? item.dueDays ?? item.days ?? '')
   return {
     title,
@@ -1346,6 +1813,7 @@ const normalizeSmartBiAction = (item, index = 0) => {
     riskLabel: SMART_BI_RISK_LABELS[riskLevel] || '正常',
     ownerRole,
     ownerName,
+    ownerUsername,
     dueDays: Number.isFinite(dueDays) && dueDays > 0 ? Math.floor(dueDays) : null,
     dueAt: item.due_at || item.dueAt || '',
     reason: String(item.reason || item.risk_reason || item.riskReason || item.problem || '').trim(),
@@ -1424,7 +1892,8 @@ const extractCategoryData = (text, blocks) => {
 
 const getCategoryInfo = (msg) => extractCategoryData(msg?.content || '', MATERIAL_CATEGORY_BLOCKS)
 
-const shouldShowBubble = (msg) => {
+const shouldShowBubble = (msg, index = -1) => {
+  if (isPendingAssistantMessage(msg, index)) return true
   const html = renderMarkdown(msg?.content || '')
   const text = html
     .replace(/<[^>]*>/g, '')
@@ -1581,6 +2050,12 @@ const isStreamingMessage = (index) => {
   if (!currentSession.value) return false
   return state.isStreaming && index === currentSession.value.messages.length - 1
 }
+
+const isPendingAssistantMessage = (msg, index) => (
+  msg?.role === 'assistant' &&
+  isStreamingMessage(index) &&
+  !String(msg?.content || '').trim()
+)
 
 const applyAiFormula = (formula, messageKey) => {
   if (!formula) return
@@ -2417,28 +2892,134 @@ const getSmartBiActionRuntime = (messageKey, actionIndex) => (
   smartBiActionItemMap.value[`${messageKey}-${actionIndex}`] || null
 )
 
+const parseSmartBiApprovalPayload = (payload) => {
+  if (!payload) return {}
+  if (typeof payload === 'object') return payload
+  try {
+    return JSON.parse(String(payload)) || {}
+  } catch {
+    return {}
+  }
+}
+
+const extractSmartBiApprovalComment = (row) => {
+  const payload = parseSmartBiApprovalPayload(row?.payload)
+  return String(
+    row?.comment
+    || payload?.approval_comment
+    || payload?.comment
+    || payload?.variables?.approval_comment
+    || payload?.approval?.comment
+    || ''
+  ).trim()
+}
+
+const buildSmartBiActionApprovalNotes = (rows = []) => {
+  const map = {}
+  rows.forEach((row) => {
+    const instanceId = String(row?.instance_id || '').trim()
+    if (!instanceId) return
+    if (!map[instanceId]) map[instanceId] = {}
+    const comment = extractSmartBiApprovalComment(row)
+    if (!comment) return
+    const entry = {
+      taskId: String(row?.task_id || '').trim(),
+      decision: String(row?.decision || '').trim(),
+      comment,
+      createdAt: row?.created_at || ''
+    }
+    if (entry.taskId === 'Task_BIReview') map[instanceId].review = entry
+    if (entry.taskId === 'Task_BIExecute') map[instanceId].execute = entry
+    if (entry.taskId === 'Task_BIVerify') map[instanceId].verify = entry
+    if (entry.decision === 'rejected') map[instanceId].rejected = entry
+    map[instanceId].latest = entry
+  })
+  return map
+}
+
+const loadSmartBiActionApprovalNotes = async (items = [], token = '') => {
+  const instanceIds = Array.from(new Set(
+    items
+      .map((item) => String(item?.workflow_instance_id || '').trim())
+      .filter((value) => /^\d+$/.test(value))
+  )).slice(0, 80)
+  if (!instanceIds.length) {
+    smartBiActionApprovalNotes.value = {}
+    return
+  }
+  try {
+    const query = `/api/task_approvals?select=instance_id,task_id,decision,comment,payload,created_at&instance_id=in.(${instanceIds.join(',')})&order=created_at.asc&limit=500`
+    const res = await fetch(query, { headers: getWorkflowProfileHeaders(token) })
+    if (!res.ok) {
+      smartBiActionApprovalNotes.value = {}
+      return
+    }
+    const data = await res.json()
+    smartBiActionApprovalNotes.value = buildSmartBiActionApprovalNotes(Array.isArray(data) ? data : [])
+  } catch {
+    smartBiActionApprovalNotes.value = {}
+  }
+}
+
 const loadSmartBiActionItems = async (force = false) => {
   if (!isEnterprise.value) return
-  if (smartBiActionItemsLoading.value) return
+  if (smartBiActionItemsLoading.value) {
+    if (force) smartBiActionItemsPendingRefresh = true
+    return
+  }
   if (!force && smartBiActionItems.value.length > 0) return
   smartBiActionItemsLoading.value = true
   try {
     const token = getAuthToken()
     const res = await fetch(
-      '/api/smart_bi_action_items?select=id,action_no,title,domain,risk_level,owner_role,owner_name,due_at,status,source_session_id,source_message_time,source_action_index,workflow_definition_id,workflow_instance_id,created_at,updated_at,closed_at&order=updated_at.desc&limit=120',
+      '/api/smart_bi_action_items?select=id,action_no,title,domain,risk_level,owner_role,owner_name,owner_username,due_at,status,source_session_id,source_message_time,source_action_index,workflow_definition_id,workflow_instance_id,created_at,updated_at,closed_at&order=updated_at.desc&limit=120',
       { headers: getPublicProfileHeaders(token) }
     )
     if (!res.ok) {
       smartBiActionItems.value = []
+      smartBiActionApprovalNotes.value = {}
       return
     }
     const data = await res.json()
-    smartBiActionItems.value = Array.isArray(data) ? data : []
+    const nextItems = Array.isArray(data) ? data : []
+    smartBiActionItems.value = nextItems
+    smartBiActionLastSyncedAt.value = Date.now()
+    await loadSmartBiActionApprovalNotes(nextItems, token)
   } catch (e) {
     smartBiActionItems.value = []
+    smartBiActionApprovalNotes.value = {}
   } finally {
     smartBiActionItemsLoading.value = false
+    if (smartBiActionItemsPendingRefresh) {
+      smartBiActionItemsPendingRefresh = false
+      void loadSmartBiActionItems(true)
+    }
   }
+}
+
+const refreshSmartBiActionItems = () => {
+  void loadSmartBiActionItems(true)
+}
+
+const requestSmartBiActionItemsRefresh = () => {
+  if (!isEnterprise.value) return
+  void loadSmartBiActionItems(true)
+}
+
+const handleSmartBiActionRefreshSignal = () => {
+  requestSmartBiActionItemsRefresh()
+}
+
+const handleSmartBiActionStorageSignal = (event) => {
+  if (event?.key !== SMART_BI_ACTION_REFRESH_STORAGE_KEY) return
+  requestSmartBiActionItemsRefresh()
+}
+
+const handleSmartBiActionResume = () => {
+  if (!isEnterprise.value) return
+  if (typeof document !== 'undefined' && document.visibilityState && document.visibilityState !== 'visible') return
+  if (smartBiActionLastSyncedAt.value && Date.now() - smartBiActionLastSyncedAt.value < 5000) return
+  requestSmartBiActionItemsRefresh()
 }
 
 const resolveSmartBiActionDueAt = (action) => {
@@ -2466,7 +3047,7 @@ const getPreviousUserQuestion = (msg) => {
 }
 
 const fetchSmartBiClosureWorkflowDefinition = async (token) => {
-  const query = `/api/definitions?select=id,name,associated_table&name=eq.${encodeURIComponent(SMART_BI_CLOSURE_WORKFLOW_NAME)}&order=id.desc&limit=1`
+  const query = '/api/definitions?select=id,name,associated_table&associated_table=eq.public.smart_bi_action_items&order=id.desc&limit=1'
   const res = await fetch(query, { headers: getWorkflowProfileHeaders(token) })
   await assertWorkflowSaveResponse(res, '读取智能BI闭环流程')
   const data = await parseResponseJson(res)
@@ -2481,6 +3062,7 @@ const createSmartBiActionItem = async ({ action, msg, actionIndex, token }) => {
     risk_level: action.riskLevel,
     owner_role: action.ownerRole || null,
     owner_name: action.ownerName || null,
+    owner_username: action.ownerUsername || null,
     due_at: resolveSmartBiActionDueAt(action),
     status: '待发起',
     source_session_id: state.currentSessionId || null,
@@ -2495,6 +3077,7 @@ const createSmartBiActionItem = async ({ action, msg, actionIndex, token }) => {
       risk_level: action.riskLevel,
       owner_role: action.ownerRole || '',
       owner_name: action.ownerName || '',
+      owner_username: action.ownerUsername || '',
       reason: action.reason || '',
       target: action.target || '',
       next_step: action.nextStep || '',
@@ -2556,6 +3139,7 @@ const startSmartBiActionWorkflow = async (action, msg, actionIndex) => {
         risk_level: action.riskLevel,
         owner_role: action.ownerRole || '',
         owner_name: action.ownerName || '',
+        owner_username: action.ownerUsername || '',
         reason: action.reason || '',
         target: action.target || '',
         next_step: action.nextStep || '',
@@ -2591,8 +3175,19 @@ const startSmartBiActionWorkflow = async (action, msg, actionIndex) => {
   }
 }
 
-const goWorkflowApprovalCenter = () => {
-  router.push('/apps/workflow-approval-center').catch(() => {})
+const goWorkflowApprovalCenter = (item = null) => {
+  const query = {}
+  const actionId = String(item?.id || '').trim()
+  const instanceId = String(item?.workflow_instance_id || item?.workflowInstanceId || '').trim()
+  const keyword = String(item?.action_no || item?.title || '').trim()
+  if (actionId) query.smart_bi_action_id = actionId
+  if (instanceId) query.instance_id = instanceId
+  if (keyword) query.keyword = keyword
+  if (actionId || instanceId) query.open = '1'
+  router.push({
+    path: '/apps/workflow-approval-center',
+    query
+  }).catch(() => {})
 }
 
 const copyWorkflowXml = async (xml) => {
@@ -3089,6 +3684,19 @@ const runSmartBiDomain = (domain) => {
   })
 }
 
+const runSmartBiClosureStarter = (question) => {
+  if (!question?.prompt) return
+  runQuickAction({
+    key: `smart_bi_closure_${question.key || 'starter'}`,
+    label: question.label,
+    prompt: question.prompt,
+    displayText: question.label,
+    reportMode: 'closure_seed',
+    smartBiContext: buildSmartBiActionContext(question.prompt, 'closure_seed'),
+    mode: 'enterprise'
+  })
+}
+
 const runQuickAction = (action) => {
   if (state.isLoading || !action?.prompt) return
   aiBridge.setMode(action.mode || 'worker')
@@ -3141,6 +3749,12 @@ onMounted(() => {
     window.addEventListener('resize', scheduleResizeAllCharts)
     window.addEventListener('eis-smart-bi-toggle-history', handleSmartBiToggleHistory)
     window.addEventListener('eis-smart-bi-new-session', handleSmartBiNewSession)
+    window.addEventListener(SMART_BI_ACTION_REFRESH_EVENT, handleSmartBiActionRefreshSignal)
+    window.addEventListener('storage', handleSmartBiActionStorageSignal)
+    window.addEventListener('focus', handleSmartBiActionResume)
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', handleSmartBiActionResume)
   }
   emitSmartBiHistoryState(false)
 })
@@ -3150,7 +3764,7 @@ watch(() => props.mode, (val) => {
   showHistory.value = false
   if (val === 'enterprise') {
     void loadSmartBiSnapshot()
-    void loadSmartBiActionItems()
+    void loadSmartBiActionItems(true)
   }
 })
 
@@ -3159,7 +3773,13 @@ onBeforeUnmount(() => {
     window.removeEventListener('resize', scheduleResizeAllCharts)
     window.removeEventListener('eis-smart-bi-toggle-history', handleSmartBiToggleHistory)
     window.removeEventListener('eis-smart-bi-new-session', handleSmartBiNewSession)
+    window.removeEventListener(SMART_BI_ACTION_REFRESH_EVENT, handleSmartBiActionRefreshSignal)
+    window.removeEventListener('storage', handleSmartBiActionStorageSignal)
+    window.removeEventListener('focus', handleSmartBiActionResume)
     emitSmartBiHistoryState(false)
+  }
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', handleSmartBiActionResume)
   }
   if (resizeRafId) {
     cancelAnimationFrame(resizeRafId)
@@ -3500,6 +4120,8 @@ $border-color: #e4e7ed;
   gap: 12px;
   width: min(100%, 1180px);
   align-self: center;
+  padding-bottom: 12px;
+  box-sizing: border-box;
 }
 
 .smart-bi-head {
@@ -3671,6 +4293,462 @@ $border-color: #e4e7ed;
   border-left-color: #f56c6c;
 }
 
+.smart-bi-closure-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #e4e7ed;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.closure-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.closure-title {
+  color: #1f2d3d;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.closure-meta {
+  margin-top: 3px;
+  color: #909399;
+  font-size: 12px;
+}
+
+.closure-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.closure-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.closure-stat {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #606266;
+  font-size: 12px;
+
+  strong {
+    color: #1f2d3d;
+    font-size: 20px;
+    line-height: 1;
+  }
+}
+
+.closure-stat[data-tone='focus'] {
+  border-color: rgba(64, 158, 255, 0.22);
+  background: rgba(64, 158, 255, 0.08);
+}
+
+.closure-stat[data-tone='warning'] {
+  border-color: rgba(230, 162, 60, 0.24);
+  background: rgba(230, 162, 60, 0.1);
+}
+
+.closure-stat[data-tone='success'] {
+  border-color: rgba(103, 194, 58, 0.22);
+  background: rgba(103, 194, 58, 0.08);
+}
+
+.closure-stat[data-tone='danger'] {
+  border-color: rgba(245, 108, 108, 0.22);
+  background: rgba(245, 108, 108, 0.08);
+}
+
+.closure-priority {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.closure-priority-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+
+  span {
+    color: #303133;
+    font-size: 13px;
+    font-weight: 650;
+  }
+
+  small {
+    color: #909399;
+    font-size: 11px;
+  }
+}
+
+.closure-priority-item {
+  appearance: none;
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e9edf3;
+  border-left: 3px solid #c0c4cc;
+  border-radius: 8px;
+  background: #fff;
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+
+  &:hover {
+    border-color: var(--el-color-primary-light-5, #a0cfff);
+    box-shadow: 0 8px 18px rgba(31, 45, 61, 0.08);
+    transform: translateY(-1px);
+  }
+}
+
+.closure-priority-item[data-tone='focus'] {
+  border-left-color: #409eff;
+}
+
+.closure-priority-item[data-tone='warning'] {
+  border-left-color: #e6a23c;
+}
+
+.closure-priority-item[data-tone='danger'] {
+  border-left-color: #f56c6c;
+}
+
+.closure-priority-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  flex: 1;
+
+  strong {
+    min-width: 0;
+    color: #1f2d3d;
+    font-size: 13px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    min-width: 0;
+    color: #909399;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.closure-priority-domain {
+  color: #606266;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.closure-stage-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #909399;
+  font-size: 11px;
+
+  span {
+    flex: none;
+    color: #606266;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+
+  small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.closure-step-strip {
+  width: min(180px, 100%);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+
+  i {
+    height: 4px;
+    border-radius: 999px;
+    background: #e5e7eb;
+  }
+
+  i[data-state='done'] {
+    background: #67c23a;
+  }
+
+  i[data-state='active'] {
+    background: #409eff;
+  }
+
+  i[data-state='danger'] {
+    background: #f56c6c;
+  }
+}
+
+.closure-review {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #edf0f5;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fbfcfe 0%, #f7fbff 100%);
+  padding: 10px;
+}
+
+.closure-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  span {
+    color: #303133;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  small {
+    color: #909399;
+    font-size: 11px;
+  }
+}
+
+.closure-review-item {
+  appearance: none;
+  width: 100%;
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e8f3e4;
+  border-left: 3px solid #67c23a;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+
+  &:hover {
+    border-color: var(--el-color-primary-light-5, #a0cfff);
+    box-shadow: 0 6px 18px rgba(31, 45, 61, 0.07);
+  }
+}
+
+.closure-review-item[data-tone='danger'] {
+  border-left-color: #f56c6c;
+}
+
+.closure-review-main {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 5px;
+
+  strong {
+    min-width: 0;
+    color: #303133;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  > small {
+    color: #909399;
+    font-size: 11px;
+  }
+}
+
+.closure-review-note {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #606266;
+  font-size: 11px;
+
+  span {
+    flex: none;
+    color: #409eff;
+    font-weight: 700;
+  }
+
+  small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.closure-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.closure-item {
+  appearance: none;
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #edf0f5;
+  border-left: 3px solid #c0c4cc;
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+
+  &:hover {
+    border-color: var(--el-color-primary-light-5, #a0cfff);
+    box-shadow: 0 6px 18px rgba(31, 45, 61, 0.07);
+  }
+}
+
+.closure-item[data-tone='focus'] {
+  border-left-color: #409eff;
+}
+
+.closure-item[data-tone='warning'] {
+  border-left-color: #e6a23c;
+}
+
+.closure-item[data-tone='success'] {
+  border-left-color: #67c23a;
+}
+
+.closure-item[data-tone='danger'] {
+  border-left-color: #f56c6c;
+}
+
+.closure-item-main {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.closure-item-title {
+  color: #303133;
+  font-size: 13px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.closure-item .closure-step-strip {
+  width: min(150px, 100%);
+}
+
+.closure-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 5px;
+  color: #909399;
+  font-size: 11px;
+  min-width: 0;
+
+  span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.closure-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #f4f4f5;
+  color: #606266;
+  font-size: 12px;
+  font-weight: 650;
+  flex-shrink: 0;
+}
+
+.closure-empty-guide {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  color: #909399;
+  font-size: 12px;
+}
+
+.closure-starter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  button {
+    appearance: none;
+    border: 1px solid #dcdfe6;
+    border-radius: 999px;
+    background: #fff;
+    color: #606266;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 7px 12px;
+    transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+
+    &:hover {
+      border-color: var(--el-color-primary, #409eff);
+      background: rgba(64, 158, 255, 0.08);
+      color: var(--el-color-primary, #409eff);
+    }
+  }
+}
+
 .message-row {
   display: flex; gap: 12px;
   &.user { flex-direction: row-reverse; }
@@ -3678,7 +4756,12 @@ $border-color: #e4e7ed;
   .avatar {
     width: 32px; height: 32px; border-radius: 8px; background: #fff;
     display: flex; align-items: center; justify-content: center; font-size: 18px;
+    color: var(--el-text-color-secondary, #606266);
     box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+  .avatar.assistant-avatar {
+    background: var(--el-color-primary-light-9, #ecf5ff);
+    color: var(--el-color-primary, #409EFF);
   }
   &.user .avatar { background: $primary-color; color: white; }
 
@@ -3703,11 +4786,48 @@ $border-color: #e4e7ed;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05); background: #fff; color: #303133;
     position: relative;
   }
+  .bubble.is-pending {
+    width: fit-content;
+    min-width: 190px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    color: #606266;
+  }
   &.assistant .bubble {
     width: 100%;
   }
+  &.assistant .bubble.is-pending {
+    width: fit-content;
+  }
   &.user .bubble { background: $primary-color; color: #fff; border-top-right-radius: 2px; }
   &.assistant .bubble { border-top-left-radius: 2px; }
+
+  .assistant-pending {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: #606266;
+    font-weight: 500;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  .pending-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+
+    i {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--el-color-primary, #409eff);
+      opacity: 0.35;
+      animation: pendingDot 1.1s ease-in-out infinite;
+
+      &:nth-child(2) { animation-delay: 0.16s; }
+      &:nth-child(3) { animation-delay: 0.32s; }
+    }
+  }
 
   .msg-actions {
     margin-top: 4px; opacity: 0; transition: opacity 0.2s; display: flex; gap: 4px;
@@ -3716,12 +4836,12 @@ $border-color: #e4e7ed;
 }
 
 .input-section {
-  background: var(--ai-panel-surface); border-top: 1px solid $border-color; padding: 12px;
+  background: var(--ai-panel-surface); border-top: 1px solid $border-color; padding: 8px 10px;
 
   .file-preview-bar {
-    display: flex; gap: 8px; margin-bottom: 8px; overflow-x: auto; padding-bottom: 4px;
+    display: flex; gap: 8px; margin-bottom: 6px; overflow-x: auto; padding-bottom: 3px;
     .preview-item {
-      position: relative; width: 48px; height: 48px; flex-shrink: 0;
+      position: relative; width: 42px; height: 42px; flex-shrink: 0;
       border-radius: 6px; border: 1px solid $border-color; overflow: hidden;
       img { width: 100%; height: 100%; object-fit: cover; }
       .doc-preview { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f0f2f5; }
@@ -3735,9 +4855,9 @@ $border-color: #e4e7ed;
 
   .quick-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 
     :deep(.el-button) {
       margin-left: 0;
@@ -3752,7 +4872,7 @@ $border-color: #e4e7ed;
     align-items: center;
     gap: 6px;
     max-width: 100%;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     padding: 4px 8px;
     border: 1px solid var(--el-border-color-lighter, #ebeef5);
     border-radius: 999px;
@@ -3785,30 +4905,119 @@ $border-color: #e4e7ed;
 
   .input-box {
     display: flex; align-items: flex-end;
-    gap: 10px; background: #f5f7fa; border-radius: 16px; padding: 10px 10px 10px 14px;
+    gap: 8px; background: #f5f7fa; border-radius: 14px; padding: 6px 8px 6px 10px;
     border: 1px solid transparent; transition: all 0.2s;
 
     &:focus-within { background: #fff; border-color: $primary-color; box-shadow: 0 0 0 2px rgba($primary-color, 0.1); }
 
-    .upload-trigger { display: flex; padding-bottom: 5px; }
+    .upload-trigger { display: flex; padding-bottom: 2px; }
     .tool-icon {
-      font-size: 20px; color: #909399; cursor: pointer; padding: 4px;
+      font-size: 18px; color: #909399; cursor: pointer; padding: 4px;
       &:hover { color: $primary-color; }
+    }
+
+    .input-main-row {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
     }
 
     textarea {
       flex: 1; background: transparent; border: none; resize: none;
-      height: 52px; padding: 0; font-size: 14px; font-family: inherit; line-height: 1.7;
+      height: 38px; padding: 0; font-size: 14px; font-family: inherit; line-height: 1.45;
       &:focus { outline: none; }
     }
 
     .send-btn {
-      width: 32px; height: 32px; background: $primary-color; border-radius: 50%;
+      width: 30px; height: 30px; background: $primary-color; border-radius: 50%;
       display: flex; align-items: center; justify-content: center; color: white;
       cursor: pointer; transition: transform 0.2s; flex-shrink: 0;
       &.disabled { background: #c0c4cc; cursor: not-allowed; }
       &:not(.disabled):hover { transform: scale(1.1); }
       .is-loading { animation: rotate 1s linear infinite; }
+    }
+
+    &.is-smart-bi-input {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+      padding: 6px 8px 8px;
+      background: #fbfcff;
+      border-color: #d8e5f6;
+      border-radius: 14px;
+      box-shadow: 0 10px 28px rgba(20, 46, 82, 0.08);
+
+      &:focus-within {
+        border-color: rgba($primary-color, 0.65);
+        box-shadow: 0 12px 32px rgba(20, 46, 82, 0.1), 0 0 0 2px rgba($primary-color, 0.1);
+      }
+
+      .input-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 26px;
+        padding-bottom: 5px;
+        border-bottom: 1px solid #e8edf5;
+      }
+
+      .upload-trigger {
+        padding-bottom: 0;
+        flex-shrink: 0;
+      }
+
+      .toolbar-upload-btn {
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 8px 0 6px;
+        border: 1px solid #d6e4d3;
+        border-radius: 999px;
+        background: #f6fbf4;
+        color: #2f6f3e;
+        font-size: 11px;
+        line-height: 1;
+        cursor: pointer;
+        transition: all 0.2s ease;
+
+        &:hover:not(:disabled) {
+          border-color: rgba($primary-color, 0.65);
+          background: #eef8eb;
+          color: $primary-color;
+        }
+
+        &:disabled {
+          cursor: not-allowed;
+          opacity: 0.62;
+        }
+
+        .tool-icon {
+          padding: 0;
+          font-size: 16px;
+          color: currentColor;
+        }
+      }
+
+      .input-main-row {
+        width: 100%;
+      }
+
+      textarea {
+        min-height: 40px;
+        height: 40px;
+        padding: 2px 2px 0;
+        color: #1f2937;
+      }
+
+      .send-btn {
+        width: 30px;
+        height: 30px;
+        box-shadow: 0 8px 18px rgba($primary-color, 0.24);
+      }
     }
   }
 }
@@ -3821,6 +5030,20 @@ $border-color: #e4e7ed;
   }
   :deep(code) { font-family: 'Consolas', monospace; }
   :deep(img) { max-width: 100%; border-radius: 4px; }
+
+  :deep(.chart-streaming-placeholder) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    margin: 4px 0 8px;
+    padding: 0 10px;
+    border: 1px dashed var(--el-border-color, #dcdfe6);
+    border-radius: 6px;
+    background: var(--el-fill-color-extra-light, #fafafa);
+    color: var(--el-text-color-secondary, #606266);
+    font-size: 12px;
+    line-height: 28px;
+  }
 
   :deep(.echarts-chart),
   :deep(.mermaid-chart) {
@@ -4200,11 +5423,30 @@ $border-color: #e4e7ed;
 }
 
 @keyframes blink { 50% { opacity: 0; } }
+@keyframes pendingDot {
+  0%, 72%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  36% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 @media (max-width: 1180px) {
   .smart-bi-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .closure-list {
+    grid-template-columns: 1fr;
+  }
+
+  .closure-review-head,
+  .closure-review-item {
+    align-items: flex-start;
   }
 }
 
@@ -4219,6 +5461,35 @@ $border-color: #e4e7ed;
 
   .smart-bi-head {
     align-items: flex-start;
+  }
+
+  .input-box.is-smart-bi-input .input-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .closure-head {
+    flex-direction: column;
+  }
+
+  .closure-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .closure-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .closure-priority-head,
+  .closure-priority-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .closure-priority-item .closure-status {
+    align-self: flex-start;
   }
 }
 
@@ -4274,6 +5545,13 @@ $border-color: #e4e7ed;
   color: #f3f4f6;
   border: 1px solid #1f2937;
   box-shadow: none;
+}
+.ai-copilot-container.is-dark .message-row .bubble.is-pending {
+  background: #111827;
+  color: #cbd5e1;
+}
+.ai-copilot-container.is-dark .assistant-pending {
+  color: #cbd5e1;
 }
 .ai-copilot-container.is-dark .markdown-body :deep(.smart-bi-report-intro),
 .ai-copilot-container.is-dark .markdown-body :deep(.smart-bi-report-section) {
@@ -4360,9 +5638,87 @@ $border-color: #e4e7ed;
   border-color: rgba(248, 113, 113, 0.24);
   color: #fca5a5;
 }
+.ai-copilot-container.is-dark .smart-bi-closure-panel {
+  background: #1f2937;
+  border-color: rgba(148, 163, 184, 0.22);
+}
+.ai-copilot-container.is-dark .closure-title,
+.ai-copilot-container.is-dark .closure-stat strong,
+.ai-copilot-container.is-dark .closure-item-title,
+.ai-copilot-container.is-dark .closure-priority-head span,
+.ai-copilot-container.is-dark .closure-priority-main strong,
+.ai-copilot-container.is-dark .closure-review-head span,
+.ai-copilot-container.is-dark .closure-review-main strong {
+  color: #e5edf7;
+}
+.ai-copilot-container.is-dark .closure-meta,
+.ai-copilot-container.is-dark .closure-stat,
+.ai-copilot-container.is-dark .closure-item-meta,
+.ai-copilot-container.is-dark .closure-priority-head small,
+.ai-copilot-container.is-dark .closure-priority-main small,
+.ai-copilot-container.is-dark .closure-review-head small,
+.ai-copilot-container.is-dark .closure-review-main > small,
+.ai-copilot-container.is-dark .closure-review-note,
+.ai-copilot-container.is-dark .closure-empty-guide {
+  color: #94a3b8;
+}
+.ai-copilot-container.is-dark .closure-stat,
+.ai-copilot-container.is-dark .closure-item,
+.ai-copilot-container.is-dark .closure-priority,
+.ai-copilot-container.is-dark .closure-priority-item,
+.ai-copilot-container.is-dark .closure-review,
+.ai-copilot-container.is-dark .closure-review-item,
+.ai-copilot-container.is-dark .closure-starter-actions button {
+  background: #111827;
+  border-color: #1f2937;
+}
+.ai-copilot-container.is-dark .closure-priority-domain {
+  color: #cbd5e1;
+}
+.ai-copilot-container.is-dark .closure-stage-line span {
+  color: #cbd5e1;
+}
+
+.ai-copilot-container.is-dark .closure-review-note span {
+  color: #8cc8ff;
+}
+.ai-copilot-container.is-dark .closure-step-strip i {
+  background: #334155;
+}
+.ai-copilot-container.is-dark .closure-step-strip i[data-state='done'] {
+  background: #22c55e;
+}
+.ai-copilot-container.is-dark .closure-step-strip i[data-state='active'] {
+  background: #60a5fa;
+}
+.ai-copilot-container.is-dark .closure-step-strip i[data-state='danger'] {
+  background: #f87171;
+}
+.ai-copilot-container.is-dark .closure-status {
+  background: #0f172a;
+  color: #cbd5e1;
+}
 .ai-copilot-container.is-dark .input-box {
   background: #0b1220;
   border-color: #1f2937;
+}
+.ai-copilot-container.is-dark .input-box.is-smart-bi-input {
+  background: #0f172a;
+  border-color: #243047;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+.ai-copilot-container.is-dark .input-box.is-smart-bi-input .input-toolbar {
+  border-bottom-color: #243047;
+}
+.ai-copilot-container.is-dark .input-box.is-smart-bi-input .toolbar-upload-btn {
+  background: #12231c;
+  border-color: #2f5e42;
+  color: #b7e4c0;
+}
+.ai-copilot-container.is-dark .input-box.is-smart-bi-input .toolbar-upload-btn:hover:not(:disabled) {
+  background: #153322;
+  border-color: #4f9f62;
+  color: #d7f9dd;
 }
 .ai-copilot-container.is-dark .input-box textarea {
   color: #f3f4f6;

@@ -102,7 +102,7 @@ while IFS= read -r raw_line || [[ -n "${raw_line}" ]]; do
     continue
   fi
 
-  cat "${patch_path}" | docker exec -i "${DB_CONTAINER}" psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}"
+  docker exec -i "${DB_CONTAINER}" psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" < "${patch_path}"
 done < "${MANIFEST_PATH}"
 
 if [[ "${DRY_RUN}" == "true" ]]; then

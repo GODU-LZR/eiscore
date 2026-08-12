@@ -5,7 +5,7 @@
         <div class="card-header">
           <div>
             <h2>系统全局设置</h2>
-            <p>主题色、登录门户与 AI Agent 接入配置</p>
+            <p>主题色、登录门户与数字化转型服务商智能体接入配置</p>
           </div>
         </div>
       </template>
@@ -24,6 +24,31 @@
             <el-divider content-position="left">基础配置</el-divider>
             <el-form-item label="系统标题">
               <el-input v-model="form.title" placeholder="请输入左上角显示标题" />
+            </el-form-item>
+
+            <el-form-item label="标签页图标">
+              <div class="favicon-config">
+                <div class="upload-row">
+                  <el-input v-model="form.favicon" placeholder="可填图标 URL，或使用右侧上传" />
+                  <el-upload
+                    accept="image/*,.ico"
+                    :show-file-list="false"
+                    :auto-upload="false"
+                    :on-change="(file) => handleFaviconUpload(file)"
+                  >
+                    <el-button>上传</el-button>
+                  </el-upload>
+                </div>
+                <div v-if="form.favicon" class="favicon-preview">
+                  <span class="favicon-preview__frame">
+                    <img :src="form.favicon" alt="标签页图标预览" />
+                  </span>
+                  <div>
+                    <strong>当前标签页图标</strong>
+                    <p>保存后会同步到浏览器标签页的 favicon。</p>
+                  </div>
+                </div>
+              </div>
             </el-form-item>
 
             <el-form-item label="主题颜色">
@@ -75,7 +100,7 @@
               </span>
               <div>
                 <strong>当前登录页 Logo</strong>
-                <p>默认取自南派企业官网页面 Logo，可在这里替换为企业自有图片地址或上传图片。</p>
+            <p>默认使用系统图标，可在这里替换为企业自有图片地址或上传图片。</p>
               </div>
             </div>
           </div>
@@ -94,7 +119,7 @@
         </el-form-item>
 
         <el-form-item label="主宣传语">
-          <el-input v-model="form.loginBranding.slogan" placeholder="例如：深耕热带水果全产业链" />
+          <el-input v-model="form.loginBranding.slogan" placeholder="例如：让生产、仓储与经营协同更高效" />
         </el-form-item>
 
         <el-form-item label="企业介绍">
@@ -231,7 +256,7 @@
               :key="`capability-${index}`"
               class="dynamic-item"
             >
-              <el-input v-model="item.title" placeholder="能力标题，例如：热带水果制品" />
+              <el-input v-model="item.title" placeholder="能力标题，例如：生产与配方管理" />
               <el-input
                 v-model="item.description"
                 type="textarea"
@@ -254,7 +279,7 @@
         <el-form-item label="指标区块">
           <div class="double-row">
             <el-input v-model="form.loginBranding.metricsSectionKicker" placeholder="小标题，例如：企业实力" />
-            <el-input v-model="form.loginBranding.metricsSectionTitle" placeholder="标题，例如：多年深耕热带水果产业" />
+            <el-input v-model="form.loginBranding.metricsSectionTitle" placeholder="标题，例如：制造现场与经营管理协同" />
           </div>
         </el-form-item>
 
@@ -347,8 +372,8 @@
 
           </el-tab-pane>
 
-          <el-tab-pane label="AI Agent" name="agent">
-            <el-divider content-position="left">Agent 接入配置</el-divider>
+          <el-tab-pane label="实施运维 Agent" name="agent">
+            <el-divider content-position="left">数字化转型服务商智能体配置</el-divider>
             <el-alert
               title="该配置会写入 system_configs.ai_glm_config，Agent Runtime 将读取 api_url 与 api_key。"
               type="info"
@@ -494,20 +519,19 @@ const predefineColors = [
   '#4f46e5'
 ]
 
-const NANPAI_LOGO_URL = 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg'
-
 const defaultForm = () => ({
-  title: '海边姑娘管理系统',
+  title: '君乐缘台球工厂数字化管理平台',
+  favicon: '/favicon.ico',
   themeColor: '#409EFF',
   notifications: true,
   materialsCategoryDepth: 2,
   visibility: normalizeDisplayVisibility(),
   loginBranding: {
-    companyName: '广东南派食品有限公司',
-    slogan: '深耕热带水果全产业链，打造高品质水果制品方案',
-    description: '根据企业官网公开信息：公司成立于 2009 年，注册资金 1000 万元，总部位于中国雷州半岛；拥有湛江、广西两大加工基地和多条水果加工生产线，面向茶饮、烘焙、饮料与生鲜客户提供一站式水果制品解决方案。',
-    logo: NANPAI_LOGO_URL,
-    siteTag: '热带水果制品解决方案提供商',
+    companyName: '君乐缘台球工厂',
+    slogan: '让生产、仓储与经营协同更高效',
+    description: '面向君乐缘台球工厂的生产制造、物料仓储、销售采购与经营分析一体化平台。',
+    logo: '/favicon.ico',
+    siteTag: '台球工厂数字化运营平台',
     announcement: '员工与合作伙伴入口',
     headerLoginText: '员工通道',
     authKicker: '员工入口',
@@ -519,13 +543,13 @@ const defaultForm = () => ({
     secondaryActionUrl: '/eiscore',
     scrollCueText: '向下了解企业',
     metricsSectionKicker: '企业实力',
-    metricsSectionTitle: '多年深耕热带水果产业',
+    metricsSectionTitle: '制造现场与经营管理协同',
     aboutSectionKicker: '关于企业',
     capabilitiesSectionKicker: '产品与服务',
-    capabilitiesSectionTitle: '从产地原料到客户应用的完整服务',
+    capabilitiesSectionTitle: '从订单、生产到交付的业务协同',
     leadersSectionKicker: '管理团队',
     leadersSectionTitle: '管理团队',
-    backgroundImage: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgx6CtnwYoh8fKtgcwgA84vAU!1500x1500.jpg',
+    backgroundImage: '',
     navItems: [
       { label: '企业概况', anchor: 'overview' },
       { label: '关于企业', anchor: 'about' },
@@ -533,42 +557,26 @@ const defaultForm = () => ({
       { label: '企业实力', anchor: 'metrics' }
     ],
     metrics: [
-      { label: '成立时间', value: '2009' },
-      { label: '加工基地', value: '2' },
-      { label: '注册资金', value: '1000万' }
+      { label: '生产协同', value: '全流程' },
+      { label: '库存可视', value: '实时' },
+      { label: '经营决策', value: '数据化' }
     ],
     trustBadges: [
-      { label: '雷州半岛产地优势' },
-      { label: '双加工基地' },
-      { label: '多场景客户服务' }
+      { label: '生产制造' },
+      { label: '物料仓储' },
+      { label: '经营分析' }
     ],
     businessChain: [
-      { title: '原料甄选', description: '依托热带水果产区资源，关注原料风味、成熟度与稳定供应。', status: '产地直采' },
-      { title: '加工制造', description: '围绕果浆、果粒、果酱等产品形态，支持规模化与定制化生产。', status: '稳定交付' },
-      { title: '客户服务', description: '面向茶饮、烘焙、饮料与生鲜渠道，提供产品方案和交付支持。', status: '多场景适配' }
+      { title: '订单协同', description: '统一管理客户需求、订单计划和交付节点。', status: '计划可追踪' },
+      { title: '生产制造', description: '围绕产品配方、工单、领料和报工形成生产闭环。', status: '过程透明' },
+      { title: '交付服务', description: '打通质量、库存、出货与经营分析数据。', status: '结果可复盘' }
     ],
     capabilities: [
-      { title: '热带水果制品', description: '围绕芒果、菠萝、百香果等热带水果，提供多形态原料产品。' },
-      { title: '规模化加工', description: '依托湛江、广西加工基地，保障稳定产能与产品一致性。' },
-      { title: '应用方案支持', description: '结合茶饮、烘焙、饮料等使用场景，提供选型与应用建议。' }
+      { title: '生产与配方管理', description: '管理产品配方、BOM、工单、领料和生产报工。' },
+      { title: '库存与仓储管理', description: '统一管理物料、批次、仓库、入库和出库。' },
+      { title: '销售采购协同', description: '连接客户订单、采购供应和交付执行。' }
     ],
-    carouselImages: [
-      {
-        url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg5uqnnwYoiNO9CjDcCziIBQ.jpg',
-        title: '热带水果全产业链布局',
-        subtitle: '覆盖种植、加工、研发、销售与服务'
-      },
-      {
-        url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3-CwnwYo_qL0ggIwjgI4nwM.jpg',
-        title: '加工与品控能力',
-        subtitle: '支持多品类水果制品的规模化生产'
-      },
-      {
-        url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgheiwnwYoj7jo0QQwjgI4nwM.jpg',
-        title: '面向多场景客户',
-        subtitle: '服务茶饮、烘焙、饮料与生鲜渠道'
-      }
-    ],
+    carouselImages: [],
     leaders: [],
     footerText: 'Copyright © EISCore',
     icpText: ''
@@ -681,7 +689,7 @@ const getAuthToken = () => {
     const parsed = JSON.parse(raw)
     if (parsed?.token) token = parsed.token
   } catch (e) {}
-  if (token && token.length > 8192) {
+  if (token && token.length > 32768) {
     localStorage.removeItem('auth_token')
     localStorage.removeItem('user_info')
     return ''
@@ -773,7 +781,7 @@ const saveAgentConfig = async () => {
     body: JSON.stringify({
       key: AI_AGENT_CONFIG_KEY,
       value,
-      description: 'AI Agent 接入配置'
+      description: '数字化转型服务商智能体接入配置'
     })
   })
   if (!res.ok) return false
@@ -791,6 +799,7 @@ const syncFromStore = (cfg) => {
   const next = defaultForm()
 
   form.title = String(source.title || next.title)
+  form.favicon = String(source.favicon || source.icon || source.siteIcon || source.faviconUrl || branding.logo || next.favicon)
   form.themeColor = String(source.themeColor || next.themeColor)
   form.notifications = source.notifications !== false
   form.materialsCategoryDepth = Number(source.materialsCategoryDepth) === 3 ? 3 : 2
@@ -904,6 +913,11 @@ const handleLogoUpload = async (uploadFile) => {
   form.loginBranding.logo = await toDataUrl(uploadFile.raw)
 }
 
+const handleFaviconUpload = async (uploadFile) => {
+  if (!uploadFile?.raw) return
+  form.favicon = await toDataUrl(uploadFile.raw)
+}
+
 const handleCarouselUpload = async (uploadFile, index) => {
   if (!uploadFile?.raw || !form.loginBranding.carouselImages[index]) return
   form.loginBranding.carouselImages[index].url = await toDataUrl(uploadFile.raw)
@@ -975,6 +989,7 @@ const saveSettings = async () => {
   savingSettings.value = true
   const payload = {
     title: form.title,
+    favicon: form.favicon,
     themeColor: form.themeColor,
     notifications: form.notifications,
     materialsCategoryDepth: form.materialsCategoryDepth === 3 ? 3 : 2,
@@ -1041,6 +1056,7 @@ const previewLoginPage = () => {
 const resetSettings = () => {
   const next = defaultForm()
   form.title = next.title
+  form.favicon = next.favicon
   form.themeColor = next.themeColor
   form.notifications = next.notifications
   form.materialsCategoryDepth = next.materialsCategoryDepth
@@ -1151,6 +1167,12 @@ const resetSettings = () => {
   width: 100%;
 }
 
+.favicon-config {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
 .logo-preview {
   display: flex;
   align-items: center;
@@ -1188,6 +1210,48 @@ const resetSettings = () => {
 }
 
 .logo-preview p {
+  margin: 4px 0 0;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+}
+
+.favicon-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.favicon-preview__frame {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding: 6px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.favicon-preview__frame img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.favicon-preview strong {
+  display: block;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.favicon-preview p {
   margin: 4px 0 0;
   color: var(--el-text-color-secondary);
   line-height: 1.5;

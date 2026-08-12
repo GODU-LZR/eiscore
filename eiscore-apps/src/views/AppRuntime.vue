@@ -1,5 +1,7 @@
 <template>
-  <div v-if="appData?.app_type === 'data'">
+  <PayrollPrecheckReview v-if="isPayrollPrecheckRuntime" />
+
+  <div v-else-if="appData?.app_type === 'data'">
     <AppCenterGrid :app-data="appData" :app-id="runtimeAppId" />
   </div>
 
@@ -872,6 +874,7 @@ import { hasPerm } from '@/utils/permission'
 import { resolveAppAclModule } from '@/utils/app-permissions'
 
 const AppCenterGrid = defineAsyncComponent(() => import('@/components/AppCenterGrid.vue'))
+const PayrollPrecheckReview = defineAsyncComponent(() => import('./PayrollPrecheckReview.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -879,6 +882,7 @@ const router = useRouter()
 const routeAppId = computed(() => (route.params.appId ? String(route.params.appId) : ''))
 const resolvedAppId = ref('')
 const runtimeAppId = computed(() => resolvedAppId.value || routeAppId.value || '')
+const isPayrollPrecheckRuntime = computed(() => runtimeAppId.value === 'legacy:hr_payroll')
 const appData = ref(null)
 const loading = ref(false)
 const flashRuntimeReady = ref(false)
@@ -1096,6 +1100,7 @@ const LEGACY_BINDING_LABEL_MAP = Object.freeze({
   'legacy:hr_employee': '人事花名册（HR）',
   'legacy:hr_user': '用户管理（HR）',
   'legacy:hr_attendance': '考勤管理（HR）',
+  'legacy:hr_payroll': '薪资复核（HR）',
   'legacy:hr_change': '调岗记录（HR）',
   'legacy:mms_ledger': '物料台账（MMS）',
   'legacy:mms_inventory_ledger': '库存台账（MMS）',
@@ -1110,6 +1115,8 @@ const LEGACY_BINDING_LABEL_MAP = Object.freeze({
 const LEGACY_TABLE_BINDING_MAP = Object.freeze({
   'hr.archives': 'legacy:hr_employee',
   'hr.attendance_records': 'legacy:hr_attendance',
+  'hr.v_payroll_precheck_attendance_snapshots': 'legacy:hr_payroll',
+  'hr.v_payroll_ready_precheck_results': 'legacy:hr_payroll',
   'public.users': 'legacy:hr_user',
   'public.raw_materials': 'legacy:mms_ledger',
   'public.sales_orders': 'legacy:sales_order',
@@ -1123,6 +1130,7 @@ const LEGACY_BINDING_STATE_TARGET_MAP = Object.freeze({
   'legacy:hr_employee': { target_table: 'hr.archives', state_field: 'status' },
   'legacy:hr_user': { target_table: 'public.users', state_field: 'status' },
   'legacy:hr_attendance': { target_table: 'hr.attendance_records', state_field: 'status' },
+  'legacy:hr_payroll': { target_table: 'hr.v_payroll_ready_precheck_results', state_field: 'trial_status' },
   'legacy:hr_change': { target_table: 'hr.employee_changes', state_field: 'status' },
   'legacy:mms_ledger': { target_table: 'public.raw_materials', state_field: 'status' },
   'legacy:sales_order': { target_table: 'public.sales_orders', state_field: 'status' },
@@ -2823,6 +2831,16 @@ onUnmounted(() => {
 })
 
 async function loadAppData() {
+  if (isPayrollPrecheckRuntime.value) {
+    appData.value = {
+      id: 'legacy:hr_payroll',
+      name: '薪资复核',
+      app_type: 'legacy',
+      desc: '读取已通过的薪资前置试算结果，作为正式薪资模块的只读引用入口'
+    }
+    loading.value = false
+    return
+  }
   loading.value = true
   flashRuntimeReady.value = false
   flashRuntimeError.value = ''
@@ -2856,6 +2874,7 @@ async function loadAppData() {
 }
 
 async function loadRuntimeData() {
+  if (isPayrollPrecheckRuntime.value) return
   if (!appData.value) return
   if (appData.value.app_type === 'workflow') {
     await loadWorkflowBusinessApps()
@@ -4005,6 +4024,7 @@ function resolveLegacyBusinessRoute(bindingKey, businessKey) {
     return { path: '/hr/app/b' }
   }
   if (key === 'legacy:hr_attendance') return { path: '/hr/app/c' }
+  if (key === 'legacy:hr_payroll') return { path: '/apps/payroll-precheck-review' }
   if (key === 'legacy:hr_user') return { path: '/hr/users' }
   if (key === 'legacy:mms_ledger') {
     if (isNumericKey) return { path: `/materials/material/detail/${rowKey}`, query: { appKey: 'a' } }

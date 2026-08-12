@@ -9,6 +9,9 @@ const Module = require('node:module')
 
 process.env.DOCUMENT_PLAN_POLL_INTERVAL_MS = 'bad-interval'
 process.env.DOCUMENT_PLAN_PG_POOL_MAX = 'bad-pool'
+process.env.DOCUMENT_INTAKE_DEFAULT_AUTO_IMPORT_MODE = 'auto_import'
+process.env.DOCUMENT_INTAKE_LOW_CONFIDENCE_POLICY = 'review_required'
+process.env.DOCUMENT_INTAKE_CONFIDENCE_THRESHOLD = '0.7'
 process.env.PGPORT = 'bad-port'
 
 const state = {
@@ -61,7 +64,9 @@ assert.ok(purchaseClassification.confidence >= 0.4)
 const purchasePlan = buildEntryPlan(asset, { text_content: '供应商 送货单 物料 数量' }, purchaseClassification)
 assert.equal(purchasePlan.target_kind, 'fixed_module_table')
 assert.equal(purchasePlan.mode, 'one_document_with_lines')
-assert.equal(purchasePlan.status, undefined, 'status is supplied by insert SQL, not the pure plan builder')
+assert.equal(purchasePlan.status, 'planned')
+assert.equal(purchasePlan.metadata.auto_import_ready, true)
+assert.equal(purchasePlan.metadata.manual_review_required, false)
 
 const dynamicApp = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -99,6 +104,26 @@ const dynamicPlan = buildEntryPlan(asset, { text_content: '外协加工入库 �
 assert.equal(dynamicPlan.target_schema, 'app_data')
 assert.equal(dynamicPlan.target_table, 'outsourcing_receipts')
 assert.equal(dynamicPlan.columns_snapshot.length, 3)
+
+const lowConfidencePlan = buildEntryPlan(asset, { text_content: '销售 客户 出库' }, {
+  recognized: true,
+  targetModule: 'sales',
+  targetDocumentType: '销售出库单',
+  targetKind: 'fixed_module_table',
+  confidence: 0.55,
+  reason: '低置信度测试',
+  groupingFields: ['客户', '订单号'],
+  lineFields: ['产品', '数量'],
+  lineCount: 1,
+  tables: []
+})
+assert.equal(lowConfidencePlan.status, 'archived_only')
+assert.equal(lowConfidencePlan.metadata.auto_import_ready, false)
+assert.equal(lowConfidencePlan.metadata.next_step, 'manual_review_or_archive')
+assert.equal(lowConfidencePlan.metadata.low_confidence, true)
+assert.equal(lowConfidencePlan.metadata.manual_review_required, true)
+assert.equal(lowConfidencePlan.metadata.auto_import_policy_action, 'manual_review_required')
+assert.equal(lowConfidencePlan.metadata.auto_import_policy_reason, 'low_confidence_review_required')
 
 const imageClassification = chooseClassification({
   asset: { ...asset, original_filename: '照片.png' },

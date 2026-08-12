@@ -3,9 +3,10 @@
 
 import { readdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const repoRoot = resolve(import.meta.dirname, '../..')
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const nodeBin = process.execPath
 const scanDirs = ['scripts', 'tests']
 const explicitFiles = ['playwright.config.mjs', 'realtime/index.js', 'realtime/document-intake.js', 'realtime/document-parser.js', 'realtime/document-planner.js', 'realtime/document-entry.js', 'realtime/document-fixed-entry.js']

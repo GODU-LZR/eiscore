@@ -27,13 +27,14 @@
 
 [Setup]
 AppId={{D7F10C50-AD26-4D57-85CB-CB4AAEA36347}
+AppMutex=EISCoreCollector_D7F10C50AD264D5785CBCB4AAEA36347
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}
 AppUpdatesURL={#AppUrl}
-DefaultDirName={autopf}\EISCore\Collector
+DefaultDirName={localappdata}\Programs\EISCore\Collector
 DefaultGroupName=EISCore
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
@@ -42,17 +43,15 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
 CloseApplicationsFilter={#AppExeName}
 RestartApplications=no
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 SetupLogging=yes
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]

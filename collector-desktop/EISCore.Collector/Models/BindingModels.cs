@@ -11,6 +11,7 @@ public sealed class DeviceBindRequest
     public string AuthorizationCode { get; set; } = "";
     public string WindowsUsername { get; set; } = "";
     public string ClientVersion { get; set; } = "";
+    public string WebViewVersion { get; set; } = "";
 }
 
 public sealed class DeviceBindResponse
@@ -28,8 +29,32 @@ public sealed class UploadResponse
 {
     public string AssetId { get; set; } = "";
     public string BatchId { get; set; } = "";
+    public string BatchNo { get; set; } = "";
     public bool Duplicate { get; set; }
     public string Status { get; set; } = "";
+    public string Message { get; set; } = "";
+}
+
+public sealed class DocumentAssetStatusResponse
+{
+    public bool Ok { get; set; }
+    public DocumentAssetStatus Asset { get; set; } = new();
+}
+
+public sealed class DocumentAssetStatus
+{
+    public string AssetId { get; set; } = "";
+    public string BatchId { get; set; } = "";
+    public string BatchNo { get; set; } = "";
+    public string AssetStatus { get; set; } = "";
+    public string BatchStatus { get; set; } = "";
+    public string ParseStatus { get; set; } = "";
+    public string EntryStatus { get; set; } = "";
+    public int BusinessLinkCount { get; set; }
+    public int UnmappedFieldCount { get; set; }
+    public bool Duplicate { get; set; }
+    public string ActionHref { get; set; } = "";
+    public string UpdatedAt { get; set; } = "";
     public string Message { get; set; } = "";
 }
 
@@ -72,11 +97,13 @@ public sealed class CollectorUploadPolicy
     public int ChunkSizeBytes { get; set; } = 8 * 1024 * 1024;
     public int RetryIntervalSeconds { get; set; } = 15;
     public int MaxRetryCount { get; set; } = 10;
+    public int QueueRetentionDays { get; set; } = 30;
     public List<string> AllowedExtensions { get; set; } = new();
 }
 
 public sealed class CollectorLogPolicy
 {
+    public bool Enabled { get; set; } = true;
     public int BatchSize { get; set; } = 100;
     public int FlushIntervalSeconds { get; set; } = 30;
     public int RetentionDays { get; set; } = 30;
@@ -97,6 +124,8 @@ public sealed class ChunkUploadInitResponse
     public bool Duplicate { get; set; }
     public string Status { get; set; } = "";
     public string AssetId { get; set; } = "";
+    public string BatchId { get; set; } = "";
+    public string BatchNo { get; set; } = "";
     public string SessionId { get; set; } = "";
     public List<int> UploadedChunks { get; set; } = new();
     public List<int> MissingChunks { get; set; } = new();

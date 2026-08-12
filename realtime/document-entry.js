@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 const { Pool } = require('pg');
+const { updateBatchStatusFromAssets } = require('./document-batch-status');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 function positiveInteger(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
@@ -24,6 +25,25 @@ const pool = new Pool({
 });
 
 const remarkFields = ['remarks', 'remark', 'notes', 'note', 'comment', 'comments'];
+const strongBusinessNumberKeys = new Set([
+  'businessno',
+  'billno',
+  'contractno',
+  'deliveryno',
+  'documentno',
+  'invoiceno',
+  'inspectionno',
+  'orderno',
+  'pono',
+  'purchaseorderno',
+  'receiptno',
+  'reportno',
+  'salesorderno',
+  'sono',
+  'taskno',
+  'transactionno',
+  'workorderno'
+]);
 
 function normalizeText(value, max = 4000) {
   return String(value ?? '').trim().slice(0, max);
@@ -304,6 +324,100 @@ async function insertRecord(client, schemaName, tableName, payload) {
   return result.rows[0]?.id || null;
 }
 
+function findBusinessNumberField(payload) {
+  const entries = Object.entries(toPlainObject(payload))
+    .filter(([key, value]) => key !== 'properties' && value !== null && value !== undefined && String(value).trim() !== '');
+  for (const [key, value] of entries) {
+    const normalizedKey = normalizeKey(key);
+    const matched = [...strongBusinessNumberKeys].find((candidate) => normalizedKey === candidate || normalizedKey.endsWith(candidate));
+    if (matched) {
+      return {
+        field: sanitizeIdentifier(key),
+        fieldKey: matched,
+        value: normalizeText(value, 240),
+        normalizedValue: normalizeKey(value).slice(0, 240)
+      };
+    }
+  }
+  return null;
+}
+
+function buildBusinessDedupeSignature({ schemaName, tableName, appId = null, payload }) {
+  const businessNumber = findBusinessNumberField(payload);
+  if (!businessNumber?.normalizedValue) return null;
+  const schema = sanitizeIdentifier(schemaName, 'app_data');
+  const table = sanitizeIdentifier(tableName);
+  const app = normalizeText(appId, 120);
+  return {
+    key: `v1|schema=${schema}|table=${table}|app=${app}|${businessNumber.fieldKey}=${businessNumber.normalizedValue}`,
+    field: businessNumber.field,
+    fieldKey: businessNumber.fieldKey,
+    value: businessNumber.value,
+    normalizedValue: businessNumber.normalizedValue
+  };
+}
+
+async function findExistingBusinessDedupeLink(client, { schemaName, tableName, appId = null, dedupeKey }) {
+  const normalizedKey = normalizeText(dedupeKey, 600);
+  if (!normalizedKey) return null;
+  const result = await client.query(
+    `select id, asset_id, batch_id, entry_plan_id, target_schema, target_table,
+            target_record_id, target_module, target_document_type, target_app_id,
+            ai_confidence, metadata, created_at
+       from public.document_business_links
+      where target_schema = $1
+        and target_table = $2
+        and (($3::uuid is null and target_app_id is null) or target_app_id = $3::uuid)
+        and metadata->>'business_dedupe_key' = $4
+      order by case when metadata->>'duplicate_business_source' in ('true', '1', 'yes') then 1 else 0 end,
+               created_at asc nulls last,
+               id asc
+      limit 1`,
+    [
+      sanitizeIdentifier(schemaName, 'app_data'),
+      sanitizeIdentifier(tableName),
+      appId || null,
+      normalizedKey
+    ]
+  );
+  return result.rows[0] || null;
+}
+
+async function insertDuplicateBusinessLink(client, { asset, entryPlan, existingLink, schemaName, tableName, dedupeSignature, record }) {
+  const targetRecordId = normalizeText(existingLink?.target_record_id, 160);
+  await client.query(
+    `insert into public.document_business_links (
+       asset_id, batch_id, entry_plan_id, target_schema, target_table,
+       target_record_id, target_module, target_document_type, target_app_id,
+       ai_confidence, metadata
+     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+    [
+      asset.id,
+      asset.batch_id,
+      entryPlan.id,
+      sanitizeIdentifier(schemaName, 'app_data'),
+      sanitizeIdentifier(tableName),
+      targetRecordId,
+      entryPlan.target_module || existingLink?.target_module || 'app_data',
+      entryPlan.target_document_type || existingLink?.target_document_type || '',
+      entryPlan.app_id || existingLink?.target_app_id || null,
+      Number(entryPlan.confidence || existingLink?.ai_confidence || 0),
+      JSON.stringify({
+        source: record?.source || '',
+        ai_generated: true,
+        duplicate_business_source: true,
+        duplicate_reason: 'business_dedupe_key_already_linked',
+        duplicate_of_business_link_id: existingLink?.id || null,
+        duplicate_of_asset_id: existingLink?.asset_id || null,
+        business_dedupe_key: dedupeSignature?.key || '',
+        business_dedupe_field: dedupeSignature?.field || '',
+        business_dedupe_value: dedupeSignature?.value || ''
+      })
+    ]
+  );
+  return targetRecordId;
+}
+
 class DocumentEntryWorker {
   constructor(options = {}) {
     this.log = options.log || console;
@@ -381,6 +495,7 @@ class DocumentEntryWorker {
             limit 1
          ) pr on true
         where p.status = 'planned'
+          and coalesce(lower(p.metadata->>'auto_import_ready') in ('true', '1', 'yes', 'on'), true)
           and p.target_kind = 'data_app'
           and coalesce(p.target_schema, '') = 'app_data'
           and coalesce(p.target_table, '') <> ''
@@ -444,7 +559,59 @@ class DocumentEntryWorker {
       }
 
       const insertedIds = [];
+      const duplicateIds = [];
       for (const record of records.slice(0, maxRowsPerPlan)) {
+        const dedupeSignature = buildBusinessDedupeSignature({
+          schemaName,
+          tableName,
+          appId: entryPlan.app_id || null,
+          payload: record.payload
+        });
+        const existingBusinessLink = dedupeSignature
+          ? await findExistingBusinessDedupeLink(client, {
+              schemaName,
+              tableName,
+              appId: entryPlan.app_id || null,
+              dedupeKey: dedupeSignature.key
+            })
+          : null;
+
+        if (existingBusinessLink) {
+          const targetRecordId = await insertDuplicateBusinessLink(client, {
+            asset,
+            entryPlan,
+            existingLink: existingBusinessLink,
+            schemaName,
+            tableName,
+            dedupeSignature,
+            record
+          });
+          duplicateIds.push(targetRecordId);
+          for (const field of record.unmappedFields || []) {
+            await client.query(
+              `insert into public.document_unmapped_fields (
+                 asset_id, batch_id, entry_plan_id, target_schema, target_table,
+                 target_record_id, name, value, confidence, source, write_location, metadata
+               ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+              [
+                asset.id,
+                asset.batch_id,
+                entryPlan.id,
+                schemaName,
+                tableName,
+                String(targetRecordId || ''),
+                normalizeText(field.name, 200),
+                normalizeText(field.value, 4000),
+                Number(field.confidence || 0),
+                normalizeText(field.source, 300),
+                'properties',
+                JSON.stringify({ source_record: record.source, duplicate_business_source: true })
+              ]
+            );
+          }
+          continue;
+        }
+
         const recordId = await insertRecord(client, schemaName, tableName, record.payload);
         insertedIds.push(recordId);
         await client.query(
@@ -464,7 +631,13 @@ class DocumentEntryWorker {
             entryPlan.target_document_type || '',
             entryPlan.app_id || null,
             Number(entryPlan.confidence || 0),
-            JSON.stringify({ source: record.source, ai_generated: true })
+            JSON.stringify({
+              source: record.source,
+              ai_generated: true,
+              business_dedupe_key: dedupeSignature?.key || '',
+              business_dedupe_field: dedupeSignature?.field || '',
+              business_dedupe_value: dedupeSignature?.value || ''
+            })
           ]
         );
 
@@ -494,16 +667,19 @@ class DocumentEntryWorker {
 
       await client.query(
         `update public.document_entry_plans
-            set status = 'imported',
-                metadata = coalesce(metadata, '{}'::jsonb) || $2::jsonb,
+            set status = $2,
+                metadata = coalesce(metadata, '{}'::jsonb) || $3::jsonb,
                 updated_at = now()
           where id = $1`,
         [
           entryPlan.id,
+          insertedIds.length ? 'imported' : 'skipped_duplicate',
           JSON.stringify({
             imported_at: new Date().toISOString(),
             imported_count: insertedIds.length,
-            target_record_ids: insertedIds.map((id) => String(id || ''))
+            duplicate_count: duplicateIds.length,
+            target_record_ids: insertedIds.map((id) => String(id || '')),
+            duplicate_target_record_ids: duplicateIds.map((id) => String(id || ''))
           })
         ]
       );
@@ -518,13 +694,20 @@ class DocumentEntryWorker {
           JSON.stringify({
             ai_import_status: 'imported',
             ai_imported_at: new Date().toISOString(),
-            ai_imported_count: insertedIds.length
+            ai_imported_count: insertedIds.length,
+            ai_duplicate_business_count: duplicateIds.length
           })
         ]
       );
+      await updateBatchStatusFromAssets(client, asset.batch_id, {
+        worker: 'document-entry',
+        entry_plan_id: entryPlan.id,
+        imported_count: insertedIds.length,
+        duplicate_business_count: duplicateIds.length
+      });
 
       await client.query('commit');
-      this.log.info?.(`[document-entry] imported ${insertedIds.length} records into ${schemaName}.${tableName}`);
+      this.log.info?.(`[document-entry] imported ${insertedIds.length} records into ${schemaName}.${tableName}, duplicates=${duplicateIds.length}`);
       return true;
     } catch (error) {
       try { await client.query('rollback'); } catch { /* ignore */ }
@@ -545,5 +728,8 @@ module.exports = {
   sanitizeIdentifier,
   normalizeColumns,
   findHeaderMapping,
-  makeAiSupplementRemark
+  makeAiSupplementRemark,
+  buildBusinessDedupeSignature,
+  findExistingBusinessDedupeLink,
+  insertDuplicateBusinessLink
 };

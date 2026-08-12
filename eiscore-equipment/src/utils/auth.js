@@ -20,7 +20,7 @@ export const parseStoredToken = (raw) => {
 export const getToken = () => {
   if (typeof localStorage === 'undefined') return ''
   const token = parseStoredToken(localStorage.getItem(AUTH_TOKEN_KEY))
-  if (token && token.length > 8192) {
+  if (token && token.length > 32768) {
     clearAuthStorage()
     return ''
   }
@@ -43,4 +43,3 @@ export const clearAuthAndRedirect = (loginPath = '/login') => {
     window.location.href = loginPath
   }
 }
-

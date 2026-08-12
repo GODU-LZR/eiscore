@@ -86,15 +86,12 @@ async function exerciseGridControls(page, monitor, label) {
 
 test('user can log in by clicking the public form controls', async ({ page }) => {
   const monitor = createUiErrorMonitor(page)
-  await gotoWithRetry(page, '/login')
+  await gotoWithRetry(page, '/company/')
 
-  await page.locator('.header-login').click()
-  await page.getByPlaceholder('用户名').click()
-  await page.getByPlaceholder('用户名').fill(USERNAME)
-  await page.getByPlaceholder('密码').click()
-  await page.getByPlaceholder('密码').fill(PASSWORD)
-  await page.locator('.el-checkbox').filter({ hasText: '记住我' }).click()
-  await page.locator('.login-btn').click()
+  await page.locator('[data-login-open]').first().click()
+  await page.locator('input[name="username"]').fill(USERNAME)
+  await page.locator('input[name="password"]').fill(PASSWORD)
+  await page.locator('[data-login-submit]').click()
 
   await expectShellReady(page)
   await monitor.expectClean('interactive login')
@@ -157,7 +154,8 @@ test.describe('authenticated daily UI click tour', () => {
 
     await clickAppCard(page, 'config')
     await expectSubAppReady(page)
-    await expect(page.locator('[data-guide="subapp-viewport"]')).toContainText(/配置|应用|流程|表格|闪念/, { timeout: 20_000 })
+    await expect(page.locator('.config-center')).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByRole('heading', { name: '应用配置中心' })).toBeVisible()
     await monitor.expectClean('app center config card')
   })
 })

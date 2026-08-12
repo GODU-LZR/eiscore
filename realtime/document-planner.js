@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 const { Pool } = require('pg');
+const { documentIntakePolicy, resolveEntryPlanImportPolicy } = require('./document-intake-policy');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 function positiveInteger(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
@@ -309,6 +310,7 @@ function buildEntryPlan(asset, parseResult, classification) {
 
   const documentCount = 1;
   const lineCount = classification.lineCount || 0;
+  const entryPlanPolicy = resolveEntryPlanImportPolicy(classification);
   const mode = lineCount > 1 ? 'one_document_with_lines' : 'one_document';
   const documents = [{
     source_asset_id: asset.id,
@@ -321,6 +323,7 @@ function buildEntryPlan(asset, parseResult, classification) {
   }];
 
   if (classification.targetKind === 'data_app') {
+    const autoImportReady = entryPlanPolicy.autoImportReady && !!classification.targetTable;
     return {
       target_module: classification.targetModule,
       target_document_type: classification.targetDocumentType,
@@ -336,14 +339,23 @@ function buildEntryPlan(asset, parseResult, classification) {
       reason: classification.reason,
       columns_snapshot: classification.columns || [],
       documents,
+      status: entryPlanPolicy.status,
       metadata: {
         planner: 'rule_v1',
-        auto_import_ready: !!classification.targetTable,
-        next_step: 'field_mapping'
+        auto_import_ready: autoImportReady,
+        next_step: autoImportReady ? 'field_mapping' : 'manual_review_or_archive',
+        default_auto_import_mode: documentIntakePolicy.defaultAutoImportMode,
+        low_confidence_policy: documentIntakePolicy.lowConfidencePolicy,
+        confidence_threshold: documentIntakePolicy.confidenceThreshold,
+        low_confidence: entryPlanPolicy.lowConfidence,
+        manual_review_required: entryPlanPolicy.manualReviewRequired,
+        auto_import_policy_action: entryPlanPolicy.action,
+        auto_import_policy_reason: entryPlanPolicy.reason
       }
     };
   }
 
+  const autoImportReady = entryPlanPolicy.autoImportReady;
   return {
     target_module: classification.targetModule,
     target_document_type: classification.targetDocumentType,
@@ -359,11 +371,20 @@ function buildEntryPlan(asset, parseResult, classification) {
     reason: classification.reason,
     columns_snapshot: [],
     documents,
+    status: entryPlanPolicy.status,
     metadata: {
       planner: 'rule_v1',
       grouping_fields: classification.groupingFields || [],
       line_item_fields: classification.lineFields || [],
-      next_step: 'fixed_module_business_adapter'
+      auto_import_ready: autoImportReady,
+      next_step: autoImportReady ? 'fixed_module_business_adapter' : 'manual_review_or_archive',
+      default_auto_import_mode: documentIntakePolicy.defaultAutoImportMode,
+      low_confidence_policy: documentIntakePolicy.lowConfidencePolicy,
+      confidence_threshold: documentIntakePolicy.confidenceThreshold,
+      low_confidence: entryPlanPolicy.lowConfidence,
+      manual_review_required: entryPlanPolicy.manualReviewRequired,
+      auto_import_policy_action: entryPlanPolicy.action,
+      auto_import_policy_reason: entryPlanPolicy.reason
     }
   };
 }
@@ -519,7 +540,7 @@ class DocumentPlanWorker {
              app_id, app_name, target_schema, target_table, mode, document_count,
              line_count, confidence, reason, columns_snapshot, documents, status, metadata
            ) values (
-             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,'planned',$17
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18
            )`,
           [
             asset.id,
@@ -538,6 +559,7 @@ class DocumentPlanWorker {
             entryPlan.reason,
             JSON.stringify(entryPlan.columns_snapshot || []),
             JSON.stringify(entryPlan.documents || []),
+            entryPlan.status || 'planned',
             JSON.stringify(entryPlan.metadata || {})
           ]
         );

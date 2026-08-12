@@ -49,7 +49,7 @@ docker exec -i eiscore-db psql -U postgres -d eiscore -c "NOTIFY pgrst, 'reload 
 
 echo ""
 echo "🧪 Step 4/7: 执行本体语义 UTF-8 校验..."
-./scripts/apply-sql-patch-utf8.sh -p sql/patch_fix_ontology_semantic_chinese.sql
+./scripts/apply-sql-patch-utf8.sh -p sql/patch_fix_ontology_semantic_qmarks_20260618.sql
 
 # Step 5: Install dependencies
 echo ""

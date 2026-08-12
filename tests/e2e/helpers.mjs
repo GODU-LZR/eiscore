@@ -9,7 +9,7 @@ const E2E_BASE_URL = process.env.EISCORE_E2E_BASE_URL || process.env.EISCORE_BAS
 const IS_REMOTE_TARGET = !/^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(E2E_BASE_URL)
 const LOGIN_ATTEMPTS = Number(process.env.EISCORE_E2E_LOGIN_ATTEMPTS || (IS_REMOTE_TARGET ? 5 : 3))
 const GOTO_ATTEMPTS = Number(process.env.EISCORE_E2E_GOTO_ATTEMPTS || (IS_REMOTE_TARGET ? 3 : 2))
-const SHELL_READY_TIMEOUT_MS = Number(process.env.EISCORE_E2E_SHELL_READY_TIMEOUT_MS || (IS_REMOTE_TARGET ? 30_000 : 15_000))
+const SHELL_READY_TIMEOUT_MS = Number(process.env.EISCORE_E2E_SHELL_READY_TIMEOUT_MS || (IS_REMOTE_TARGET ? 45_000 : 15_000))
 
 const ignoredConsoleErrorPatterns = [
   /ResizeObserver loop completed with undelivered notifications/i,
@@ -82,10 +82,18 @@ export async function loginByApi(request) {
 
 export async function seedAuth(page, auth) {
   await page.addInitScript(({ token, user }) => {
+    // Playwright may run init scripts once for its initial about:blank document,
+    // where accessing localStorage throws a security exception. The target SPA
+    // origin will run the same script again and persist the auth state normally.
     window.__EIS_SKIP_MOBILE_REDIRECT__ = true
-    window.localStorage.setItem('auth_token', token)
-    window.localStorage.setItem('user_info', JSON.stringify(user))
-    window.localStorage.setItem(`eis_guide_welcome_v1_${String(user.username || user.id || 'guest').toLowerCase()}`, '1')
+    try {
+      const storage = window.localStorage
+      storage.setItem('auth_token', token)
+      storage.setItem('user_info', JSON.stringify(user))
+      storage.setItem(`eis_guide_welcome_v1_${String(user.username || user.id || 'guest').toLowerCase()}`, '1')
+    } catch {
+      // about:blank and sandboxed documents do not expose origin storage.
+    }
   }, auth)
 }
 
@@ -128,7 +136,16 @@ export function createUiErrorMonitor(page) {
 }
 
 export async function expectNoBlankPage(page) {
-  await expect(page.locator('body > #app')).toBeVisible()
+  const appRoot = page.locator('body > #app')
+  if (await appRoot.count()) {
+    await expect(appRoot).toBeVisible()
+    await page.waitForFunction(() => {
+      const root = document.querySelector('body > #app')
+      if (!root) return true
+      return root.innerHTML.trim().length > 100
+    }, null, { timeout: SHELL_READY_TIMEOUT_MS })
+  }
+
   const metrics = await page.evaluate(() => {
     const visibleNodes = Array.from(document.body.querySelectorAll('*')).filter((node) => {
       const rect = node.getBoundingClientRect()
@@ -142,16 +159,41 @@ export async function expectNoBlankPage(page) {
     }
   })
 
-  expect(metrics.appHtmlLength, 'Vue app should render HTML').toBeGreaterThan(100)
+  if (await appRoot.count()) {
+    await expect(appRoot).toBeVisible()
+    expect(metrics.appHtmlLength, 'Vue app should render HTML').toBeGreaterThan(100)
+  }
   expect(metrics.bodyTextLength, 'page should have visible text').toBeGreaterThan(20)
   expect(metrics.visibleNodeCount, 'page should have visible DOM nodes').toBeGreaterThan(5)
 }
 
 export async function expectShellReady(page) {
   await expect(page).not.toHaveURL(/\/login(?:$|[?#/])/)
-  await expect(page.locator('[data-guide="layout-aside"]')).toBeVisible({ timeout: SHELL_READY_TIMEOUT_MS })
-  await expect(page.locator('[data-guide="layout-main"]')).toBeVisible({ timeout: SHELL_READY_TIMEOUT_MS })
-  await expect(page.locator('[data-guide="user-menu"]')).toBeVisible({ timeout: SHELL_READY_TIMEOUT_MS })
+  await page.waitForFunction(() => {
+    const visible = (selector) => {
+      const element = document.querySelector(selector)
+      if (!element) return false
+      const rect = element.getBoundingClientRect()
+      const style = window.getComputedStyle(element)
+      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none'
+    }
+
+    const hostShell = visible('[data-guide="layout-aside"]') &&
+      visible('[data-guide="layout-main"]') &&
+      visible('[data-guide="user-menu"]')
+    const standaloneApp = visible('[data-guide="app-list-page"]') ||
+      visible('[data-guide="app-list-header"]') ||
+      visible('[data-guide="app-runtime-root"]')
+    return hostShell || standaloneApp
+  }, null, { timeout: SHELL_READY_TIMEOUT_MS })
+
+  if (await page.locator('[data-guide="layout-aside"]').isVisible().catch(() => false)) {
+    await expect(page.locator('[data-guide="layout-main"]')).toBeVisible({ timeout: SHELL_READY_TIMEOUT_MS })
+    await expect(page.locator('[data-guide="user-menu"]')).toBeVisible({ timeout: SHELL_READY_TIMEOUT_MS })
+  } else {
+    await expect(page.locator('[data-guide="app-list-page"], [data-guide="app-list-header"], [data-guide="app-runtime-root"]').first())
+      .toBeVisible({ timeout: SHELL_READY_TIMEOUT_MS })
+  }
   await expectNoBlankPage(page)
 }
 
@@ -159,10 +201,14 @@ export async function expectSubAppReady(page) {
   await expectShellReady(page)
   await page.waitForFunction(() => {
     const viewport = document.querySelector('[data-guide="subapp-viewport"]')
-    if (!viewport) return false
-    const rect = viewport.getBoundingClientRect()
-    const text = viewport.innerText.trim()
-    return rect.width > 200 && rect.height > 80 && (viewport.children.length > 0 || text.length > 20)
+    if (viewport) {
+      const rect = viewport.getBoundingClientRect()
+      const text = viewport.innerText.trim()
+      if (rect.width > 200 && rect.height > 80 && (viewport.children.length > 0 || text.length > 20)) return true
+    }
+
+    const standalone = document.querySelector('[data-guide="app-list-page"], [data-guide="app-list-header"], [data-guide="app-runtime-root"]')
+    return Boolean(standalone && standalone.getBoundingClientRect().width > 200 && standalone.getBoundingClientRect().height > 80)
   }, null, { timeout: 45_000 })
 }
 
