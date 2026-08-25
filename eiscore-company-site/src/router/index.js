@@ -18,8 +18,26 @@ const router = createRouter({
       name: 'CompanySiteOps',
       component: () => import('@/views/CompanySiteOps.vue')
     },
+    {
+      path: '/cue-builder',
+      name: 'CueBuilder',
+      component: () => import('@/views/CueBuilder.vue'),
+      meta: { title: '3D 定制器与 BOM' }
+    },
+    {
+      path: '/factory-demo',
+      name: 'FactoryDemo',
+      component: () => import('@/views/FactoryDemo.vue'),
+      meta: { title: '全厂演示调度台' }
+    },
     { path: '/:pathMatch(.*)*', redirect: '/' }
   ]
+})
+
+router.afterEach((to) => {
+  if (typeof document !== 'undefined' && to.meta?.title) {
+    document.title = String(to.meta.title)
+  }
 })
 
 export default router

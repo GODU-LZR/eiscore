@@ -37,6 +37,11 @@ export default defineConfig(({ mode }) => {
         allow: ['..']
       },
       proxy: {
+        '/agent/company-site/public': {
+          target: env.VITE_COMPANY_SITE_PLATFORM_URL || 'http://127.0.0.1:8080',
+          changeOrigin: true,
+          rewrite: (path) => path
+        },
         '/agent': {
           target: 'http://localhost:8078',
           changeOrigin: true,
