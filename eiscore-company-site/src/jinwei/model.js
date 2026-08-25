@@ -22,6 +22,124 @@ export const JINWEI_RESEARCH_SUMMARY = Object.freeze({
   legacyProcessDocuments: 1
 })
 
+// Publicly verifiable references used as an implementation baseline. These are
+// not certificates or a claim that every product is already compliant.
+export const JINWEI_COMPLIANCE_STANDARDS = Object.freeze([
+  {
+    code: 'GB/T 18673-2024',
+    title: '渔用机织网片',
+    status: '现行',
+    effectiveDate: '2024-10-01',
+    source: '国家标准全文公开系统',
+    url: 'https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=665D978DF8B22C3BE52CEFA6704FEF55',
+    implementationUse: '建立有结/无结网片的规格版本、批次检验和放行字段。'
+  },
+  {
+    code: 'GB/T 6964-2010',
+    title: '渔网网目尺寸测量方法',
+    status: '现行',
+    effectiveDate: '2011-05-01',
+    source: '国家标准全文公开系统',
+    url: 'https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=7BB234C1FA2B3F0FEC0A3538B32709E4',
+    implementationUse: '把网眼/目数的测量方法、单位和抽检结果纳入质量记录。'
+  },
+  {
+    code: 'GB/T 30892-2014',
+    title: '渔网 有结网片的类型和标示',
+    status: '现行',
+    effectiveDate: '2015-03-01',
+    source: '国家标准全文公开系统',
+    url: 'https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=81796775CF10D659CE460D7F22DC0DE2',
+    implementationUse: '规范有结网片的类型、标示和规格版本字段，供报价与包装标签复用。'
+  },
+  {
+    code: 'GB/T 4925-2008',
+    title: '渔网 合成纤维网片强力与断裂伸长率试验方法',
+    status: '现行',
+    effectiveDate: '2008-12-01',
+    source: '国家标准全文公开系统',
+    url: 'https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=8796138D4FB4F343AB05BCF5AC325C8F',
+    implementationUse: '为合成纤维网片的强力、断裂伸长率检验项目预留方法和结果字段。'
+  },
+  {
+    code: 'GB/T 21292-2007',
+    title: '渔网 网目断裂强力的测定',
+    status: '现行',
+    effectiveDate: '2008-03-01',
+    source: '国家标准全文公开系统',
+    url: 'https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=60896C275AB3382C21422C8E5BB8FE6C',
+    implementationUse: '为网目断裂强力抽检、样品编号和质量放行建立可追溯记录。'
+  },
+  {
+    code: 'GB/T 18674-2018',
+    title: '渔用绳索通用技术条件',
+    status: '现行',
+    effectiveDate: '2018-09-01',
+    source: '国家标准全文公开系统',
+    url: 'https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=3D3C89BEA1EFBDB54F6955B85D6C3CB7',
+    implementationUse: '为绳索规格、重量/长度、检验和包装单元建立产品族字段。'
+  },
+  {
+    code: 'GB/T 40749-2021',
+    title: '海水重力式网箱设计技术规范',
+    status: '现行',
+    effectiveDate: '2022-05-01',
+    source: '国家标准全文公开系统',
+    url: 'https://openstd.samr.gov.cn/bzgk/std/newGbInfo?hcno=11AFAF25435392CC266948C4358DAD2B',
+    implementationUse: '为养殖网箱 BOM、框架/浮子/连接件和整体检验建立设计输入清单。'
+  }
+])
+
+// Online research is intentionally separated from the local photo/workbook
+// evidence. Secondary summaries remain pending until the factory confirms them.
+export const JINWEI_EXTERNAL_RESEARCH = Object.freeze([
+  {
+    id: 'official-line-expansion-approval',
+    tier: 'official',
+    title: '制线生产线扩建项目环评批复',
+    publishedAt: '2026-02-26',
+    finding: '建设单位为湛江市经纬网厂，地点为湛江经济技术开发区东海岛中线公路民安渔网工业城北侧、规划科技大道南侧，批复文号湛开环建〔2026〕4号。',
+    url: 'https://www.zhanjiang.gov.cn/zdlyxxgk/sthj/jsxmhjyx/content/post_2152033.html',
+    implementationUse: '将制线/拉丝作为独立工作中心，先采集原料批次、机台、温度和产出重量。'
+  },
+  {
+    id: 'official-line-expansion-acceptance',
+    tier: 'official',
+    title: '制线生产线扩建环评受理公告',
+    publishedAt: '2025-11-25',
+    finding: '公告记载项目建设地点为开发区东海岛民安中线公路渔网工业城北侧规划科技大道南侧车间，环评单位为湛江天惠生态环境有限公司。',
+    url: 'https://www.zhanjiang.gov.cn/zdlyxxgk/sthj/jsxmhjyx/content/post_2121847.html',
+    implementationUse: '把车间、项目和资料来源登记为主数据证据，不把环评信息当作产能承诺。'
+  },
+  {
+    id: 'official-boiler-upgrade-approval',
+    tier: 'official',
+    title: '锅炉改造项目环评审批公告',
+    publishedAt: '2026-08-07',
+    finding: '公告记载湛江市经纬网厂锅炉改造项目，审批文号湛开环建[2026]13号，地点为开发区民安街道三角路口“调军湖”渔网工业城三号。',
+    url: 'https://www.zhanjiang.gov.cn/zdlyxxgk/sthj/jsxmhjyx/content/post_2210607.html',
+    implementationUse: '在设备模块预留锅炉/能源设备台账、点检、维护和能耗记录；具体参数待现场确认。'
+  },
+  {
+    id: 'industry-cluster-report',
+    tier: 'secondary',
+    title: '民安渔网产业集群公开报道',
+    publishedAt: '2024-11-13',
+    finding: '湛江日报报道民安渔网工业区有多家市场主体及网具产业链数据；这些是产业集群统计，不是经纬网厂单厂经营数据。',
+    url: 'https://www.gdzjdaily.com.cn/p/2901527.html',
+    implementationUse: '用于独立站的行业背景叙事，禁止直接写成经纬网厂的企业规模、产值或专利数量。'
+  },
+  {
+    id: 'company-registry-search-summary',
+    tier: 'secondary',
+    title: '企业登记搜索摘要',
+    publishedAt: '待确认',
+    finding: '公开搜索摘要出现成立日期、法定代表人、注册资本和经营范围等字段，但不同页面存在注册资本等信息冲突。',
+    url: 'https://www.qcc.com/',
+    implementationUse: '仅作为待核验线索；公司名称、英文名、联系人、注册信息不得在独立站发布，直至工厂书面确认。'
+  }
+])
+
 export const JINWEI_PRODUCT_FAMILIES = Object.freeze([
   {
     id: 'knotted-net',
@@ -279,6 +397,9 @@ export const validateJinweiModel = () => {
   if (JINWEI_WORKFLOW.length !== 9) issues.push('WORKFLOW_LENGTH_INVALID')
   if (!JINWEI_WORKFLOW.some((step) => step.id === 'repair') || !JINWEI_WORKFLOW.some((step) => step.id === 'packing')) issues.push('CORE_WORKFLOW_MISSING')
   if (JINWEI_WORK_CENTERS.length < 7) issues.push('WORK_CENTER_COVERAGE_INVALID')
+  if (JINWEI_COMPLIANCE_STANDARDS.length < 7 || JINWEI_COMPLIANCE_STANDARDS.some((item) => item.status !== '现行' || !item.url?.startsWith('https://') || !item.implementationUse)) issues.push('COMPLIANCE_BASELINE_INVALID')
+  if (JINWEI_COMPLIANCE_STANDARDS.some((item) => item.code === 'GB/T 18673-2008')) issues.push('SUPERSEDED_STANDARD_MUST_NOT_BE_BASELINE')
+  if (JINWEI_EXTERNAL_RESEARCH.filter((item) => item.tier === 'official').some((item) => !item.url?.startsWith('https://') || !item.finding)) issues.push('EXTERNAL_RESEARCH_SOURCE_INVALID')
   if (JINWEI_ATTENTION_ITEMS.some((item) => !JINWEI_SOURCE_STATUS[item.sourceStatus])) issues.push('ATTENTION_SOURCE_STATUS_INVALID')
   if (JINWEI_WORKFLOW.some((item) => !JINWEI_SOURCE_STATUS[item.sourceStatus])) issues.push('WORKFLOW_SOURCE_STATUS_INVALID')
   if (JINWEI_DEMO_ORDER.orderNo.startsWith('JW-24') || JINWEI_DEMO_ORDER.orderNo.startsWith('JW-25')) issues.push('HISTORICAL_ORDER_MUST_NOT_BE_ACTIVE_DEMO')

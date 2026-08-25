@@ -1,0 +1,40 @@
+services:
+  jinwei-leads:
+    build:
+      context: ../..
+      dockerfile: deploy/jinwei/leads.Dockerfile
+    image: eiscore/jinwei-leads:trial
+    container_name: jinwei-trial-leads
+    restart: unless-stopped
+    environment:
+      PORT: 8093
+      DATA_FILE: /var/lib/jinwei/leads.json
+    volumes:
+      - jinwei_leads_data:/var/lib/jinwei
+    expose:
+      - "8093"
+    networks:
+      - jinwei_internal
+
+  jinwei-web:
+    build:
+      context: ../..
+      dockerfile: deploy/jinwei/Dockerfile
+    image: eiscore/jinwei-web:trial
+    container_name: jinwei-trial-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18192:8080"
+    depends_on:
+      jinwei-leads:
+        condition: service_healthy
+    networks:
+      - jinwei_internal
+
+networks:
+  jinwei_internal:
+    driver: bridge
+
+volumes:
+  jinwei_leads_data:
+

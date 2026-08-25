@@ -5,7 +5,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   JINWEI_ATTENTION_ITEMS,
+  JINWEI_COMPLIANCE_STANDARDS,
   JINWEI_DEMO_ORDER,
+  JINWEI_EXTERNAL_RESEARCH,
   JINWEI_PRODUCT_FAMILIES,
   JINWEI_RESEARCH_SUMMARY,
   JINWEI_SPEC_FIELDS,
@@ -35,6 +37,14 @@ test('attention score is deterministic and keeps specification lock critical', (
   const score = calcJinweiAttentionScore(item, { role: 'planner' })
   assert.equal(scoreToJinweiAttention(score), 'critical')
   assert.equal(calcJinweiAttentionScore(item, { role: 'planner' }), score)
+})
+
+test('compliance baseline contains only current standards with official sources', () => {
+  assert.equal(JINWEI_COMPLIANCE_STANDARDS.length, 7)
+  assert.ok(JINWEI_COMPLIANCE_STANDARDS.every((item) => item.status === '现行'))
+  assert.ok(JINWEI_COMPLIANCE_STANDARDS.every((item) => item.url.startsWith('https://openstd.samr.gov.cn/')))
+  assert.ok(!JINWEI_COMPLIANCE_STANDARDS.some((item) => item.code === 'GB/T 18673-2008'))
+  assert.ok(JINWEI_EXTERNAL_RESEARCH.filter((item) => item.tier === 'official').length >= 3)
 })
 
 test('workflow snapshots advance without converting historical workbook data into live facts', () => {

@@ -1,0 +1,14 @@
+**
+!eiscore-company-site/
+!eiscore-company-site/**
+!shared/
+!shared/**
+!scripts/
+!scripts/**
+!deploy/
+!deploy/jinwei/
+!deploy/jinwei/**
+
+eiscore-company-site/node_modules/
+eiscore-company-site/dist/
+
