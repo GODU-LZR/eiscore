@@ -18,6 +18,17 @@
           <el-icon><Setting /></el-icon><span>EISCore</span>
         </a>
         <button class="nav-cta" type="button" @click="scrollToSection('inquiry')">提交规格<el-icon><ArrowRight /></el-icon></button>
+        <button class="menu-toggle" type="button" :aria-expanded="mobileNavOpen" aria-controls="mobile-nav" aria-label="打开页面导航" @click="mobileNavOpen = !mobileNavOpen">
+          <el-icon><Close v-if="mobileNavOpen" /><Menu v-else /></el-icon>
+        </button>
+      </div>
+      <div v-if="mobileNavOpen" id="mobile-nav" class="mobile-nav" aria-label="移动端页面导航">
+        <button type="button" @click="goFromMobile('products')">产品体系</button>
+        <button type="button" @click="goFromMobile('solutions')">应用方案</button>
+        <button type="button" @click="goFromMobile('capability')">制造现场</button>
+        <button type="button" @click="goFromMobile('process')">交付流程</button>
+        <button type="button" @click="goFromMobile('quality')">质量依据</button>
+        <button type="button" class="mobile-nav-cta" @click="goFromMobile('inquiry')">提交规格询盘<el-icon><ArrowRight /></el-icon></button>
       </div>
     </header>
 
@@ -26,29 +37,31 @@
         <img :src="assetUrl('hero-net.webp')" alt="经纬网厂车间内展开的无结网成品" fetchpriority="high">
         <div class="hero-shade" aria-hidden="true"></div>
         <div class="hero-content">
-          <p class="hero-kicker">Zhanjiang · Netting manufacture</p>
-          <h1 id="hero-title">湛江市经纬网厂</h1>
-          <p class="hero-lead">有结网、无结网、绳索与养殖网箱，从线材准备、织造和人工检修，到定型、包装与分批交付。</p>
+          <p class="hero-org">湛江市经纬网厂 / ZHANJIANG JINGWEI NETTING FACTORY</p>
+          <p class="hero-kicker">JWWC / MARINE NETTING SYSTEMS</p>
+          <h1 id="hero-title">从一根丝，<br><em>到一座深海网箱。</em></h1>
+          <p class="hero-lead">湛江市经纬网厂，为渔业捕捞、深远海养殖与工业水体工程提供有结网、无结网、绳索和网箱系统。</p>
           <div class="hero-actions">
-            <button class="hero-primary" type="button" @click="scrollToSection('inquiry')">按规格询盘<el-icon><ArrowRight /></el-icon></button>
+            <button class="hero-primary" type="button" @click="scrollToSection('inquiry')">Request a specification<el-icon><ArrowRight /></el-icon></button>
             <button class="hero-secondary" type="button" @click="scrollToSection('capability')"><el-icon><View /></el-icon>查看制造现场</button>
           </div>
         </div>
+        <div class="hero-coordinate" aria-hidden="true"><span>21°05'N</span><i></i><span>110°21'E</span></div>
         <div class="hero-index" aria-label="产品范围">
-          <span>有结网</span><span>无结网</span><span>绳索</span><span>养殖网箱</span>
+          <span><b>01</b>有结网</span><span><b>02</b>无结网</span><span><b>03</b>绳索</span><span><b>04</b>养殖网箱</span>
         </div>
       </section>
 
       <section class="proof-band" aria-label="制造依据">
-        <div><span>01</span><strong>规格驱动</strong><small>材质、股数、网眼、尺寸、颜色与包装逐项确认</small></div>
-        <div><span>02</span><strong>工序可追溯</strong><small>合同、批次、机台、人员、检验与包装码贯通</small></div>
-        <div><span>03</span><strong>多路线协同</strong><small>本厂织造、外协回网、染色和分批交付统一衔接</small></div>
+        <div><span>01</span><strong>Specification first</strong><small>材质、线规格、网眼、尺寸、颜色与包装逐项确认</small></div>
+        <div><span>02</span><strong>Traceable by batch</strong><small>合同、批次、机台、人员、检验与包装码贯通</small></div>
+        <div><span>03</span><strong>Built for handoff</strong><small>本厂织造、外协回网、染色和分批交付统一衔接</small></div>
       </section>
 
       <section id="products" class="products-section section-shell">
         <div class="section-intro">
-          <p class="section-label">PRODUCT RANGE</p>
-          <h2>围绕用途定义网，而不是套用单一规格</h2>
+          <p class="section-label">01 / PRODUCT SYSTEM</p>
+          <h2>从线材、网衣到整套网箱，按工况定义每一条规格。</h2>
           <p>每个询盘先形成可核对的规格版本，再进入库存齐套、机台匹配和交付评估。</p>
         </div>
         <div class="product-grid">
@@ -65,12 +78,12 @@
 
       <section id="solutions" class="solutions-section section-shell" aria-labelledby="solutions-title">
         <div class="section-intro solutions-intro">
-          <p class="section-label">APPLICATION SYSTEMS</p>
+          <p class="section-label">02 / APPLICATION SYSTEMS</p>
           <h2 id="solutions-title">从网片供货，到按工况协同的工程方案</h2>
           <p>公开页面区分产品族与产业关联业务；项目参数、客户名称和性能指标均在技术评审后确认。</p>
         </div>
         <div class="solution-list">
-          <article v-for="(solution, index) in JINWEI_PUBLIC_SOLUTIONS" :key="solution.id" class="solution-card">
+          <article v-for="(solution, index) in primarySolutions" :key="solution.id" class="solution-card">
             <div class="solution-index">{{ String(index + 1).padStart(2, '0') }}</div>
             <div class="solution-image"><img :src="assetUrl(solution.asset)" :alt="`${solution.title}现场参考`" loading="lazy"></div>
             <div class="solution-copy">
@@ -80,6 +93,12 @@
               <small>{{ solution.evidence }}</small>
             </div>
           </article>
+        </div>
+        <div v-if="associatedSeafood" class="associate-rail">
+          <span class="associate-label">ASSOCIATED BRAND / 产业关联业务</span>
+          <strong>{{ associatedSeafood.title }}</strong>
+          <p>{{ associatedSeafood.description }}</p>
+          <span class="associate-status">{{ associatedSeafood.evidence }}</span>
         </div>
       </section>
 
@@ -100,8 +119,8 @@
       <section id="capability" class="capability-section">
         <div class="section-shell capability-shell">
           <div class="capability-copy">
-            <p class="section-label">FACTORY FLOOR</p>
-            <h2>制造能力来自可见的设备、工位与交接</h2>
+            <p class="section-label">03 / FACTORY FLOOR</p>
+            <h2>制造能力，来自看得见的工位与交接。</h2>
             <p>现场调研覆盖原料、拉丝与温控、整经盘头、织网、人工检修、热定型、包装及仓储。每一处实物标识，都会在系统中转成可扫描、可校验的批次记录。</p>
             <dl>
               <div><dt>原料准备</dt><dd>聚乙烯、尼龙、涤纶及外购纱线按批次接收</dd></div>
@@ -120,8 +139,8 @@
 
       <section id="process" class="process-section section-shell">
         <div class="section-intro process-intro">
-          <p class="section-label">ORDER JOURNEY</p>
-          <h2>从客户规格到包装码，状态不再散落在多张表里</h2>
+          <p class="section-label">04 / ORDER JOURNEY</p>
+          <h2>从客户规格到包装码，状态沿着一条线走完。</h2>
         </div>
         <ol class="process-list">
           <li v-for="step in publicProcess" :key="step.no">
@@ -134,8 +153,8 @@
       <section id="quality" class="quality-section" aria-labelledby="quality-title">
         <div class="section-shell quality-shell">
           <div class="quality-copy">
-            <p class="section-label">QUALITY & EVIDENCE</p>
-            <h2 id="quality-title">把标准、批次和放行状态放在同一条证据链上</h2>
+            <p class="section-label">05 / QUALITY & EVIDENCE</p>
+            <h2 id="quality-title">把标准、批次和放行状态，放在同一条证据链上。</h2>
             <p>以下是联网核验后用于系统建模的标准基线，不等同于企业认证，也不替代客户合同中的检验要求。</p>
             <div class="quality-boundary"><el-icon><Warning /></el-icon><span>公开数字、项目案例、证书和产能口径上线前仍需经纬网厂书面确认。</span></div>
           </div>
@@ -166,8 +185,8 @@
       <section id="inquiry" class="inquiry-section">
         <div class="section-shell inquiry-shell">
           <div class="inquiry-copy">
-            <p class="section-label">SPECIFICATION REQUEST</p>
-            <h2>把关键规格一次说清楚</h2>
+            <p class="section-label">06 / SPECIFICATION REQUEST</p>
+            <h2>把关键规格，一次说清楚。</h2>
             <p>提交后进入人工审核。价格、库存、产能与交期只有在规格版本锁定并完成齐套检查后才会确认。</p>
             <div class="inquiry-note">
               <el-icon><DocumentChecked /></el-icon>
@@ -239,7 +258,7 @@
 // Copyright (c) 2026 林志荣
 
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { ArrowRight, CircleCheck, DocumentChecked, Loading, Setting, Top, View, Warning } from '@element-plus/icons-vue'
+import { ArrowRight, CircleCheck, Close, DocumentChecked, Loading, Menu, Setting, Top, View, Warning } from '@element-plus/icons-vue'
 import {
   JINWEI_PRODUCT_FAMILIES,
   JINWEI_PUBLIC_PROJECTS,
@@ -250,8 +269,12 @@ import {
 } from '@/jinwei/model.js'
 
 const scrolled = ref(false)
+const mobileNavOpen = ref(false)
 const submitting = ref(false)
 const submitState = reactive({ tone: 'normal', message: '' })
+
+const primarySolutions = JINWEI_PUBLIC_SOLUTIONS.filter((item) => item.id !== 'yuefuxian')
+const associatedSeafood = JINWEI_PUBLIC_SOLUTIONS.find((item) => item.id === 'yuefuxian')
 
 const form = reactive({
   productFamily: 'knotless-net',
@@ -286,8 +309,11 @@ const publicProcess = [
 const assetUrl = (asset) => `${import.meta.env.BASE_URL}assets/jinwei/${asset}`
 
 const scrollToSection = (id) => {
+  mobileNavOpen.value = false
   document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
+
+const goFromMobile = (id) => scrollToSection(id)
 
 const selectProduct = (id) => {
   form.productFamily = id
@@ -360,7 +386,10 @@ const submitInquiry = async () => {
   }
 }
 
-const onScroll = () => { scrolled.value = window.scrollY > 24 }
+const onScroll = () => {
+  scrolled.value = window.scrollY > 24
+  if (window.scrollY > 24) mobileNavOpen.value = false
+}
 const setMeta = (name, content) => {
   if (!content) return
   let node = document.head.querySelector(`meta[name="${name}"]`)
@@ -408,15 +437,15 @@ onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 
 <style scoped>
 .jinwei-site {
-  --ink: #142620;
-  --muted: #62716b;
-  --paper: #f5f7f4;
+  --ink: #102733;
+  --muted: #5f7076;
+  --paper: #f4f6f5;
   --white: #fff;
-  --net: #1f6755;
-  --ocean: #164656;
-  --signal: #e1b444;
-  --clay: #bd593f;
-  --line: #d9e0dc;
+  --net: #075b73;
+  --ocean: #082f3d;
+  --signal: #e5b34f;
+  --clay: #b65b43;
+  --line: #d4dfe1;
   min-height: 100vh;
   color: var(--ink);
   background: var(--paper);
@@ -664,5 +693,274 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
 @media (prefers-reduced-motion: reduce) {
   .site-nav, .product-image img { transition: none; }
   html:focus-within { scroll-behavior: auto; }
+}
+
+/* Marine engineering dossier treatment */
+.jinwei-site {
+  --ink: #102733;
+  --muted: #5f7076;
+  --paper: #f4f6f5;
+  --net: #075b73;
+  --ocean: #082f3d;
+  --signal: #e5b34f;
+  --clay: #b65b43;
+  --line: #d4dfe1;
+  overflow-x: clip;
+  background: var(--paper);
+}
+
+.jinwei-site :focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 4px;
+}
+
+.site-nav {
+  height: 76px;
+  padding: 0 max(24px, calc((100% - 1380px) / 2));
+  background: rgba(8, 47, 61, .2);
+  border-bottom-color: rgba(255, 255, 255, .3);
+  backdrop-filter: blur(10px);
+}
+
+.site-nav.compact {
+  height: 64px;
+  color: var(--ink);
+  background: rgba(244, 246, 245, .96);
+  border-bottom-color: var(--line);
+  box-shadow: 0 12px 32px rgba(8, 47, 61, .12);
+}
+
+.brand-lockup strong { font-size: 16px; letter-spacing: .06em; }
+.brand-lockup small { color: var(--signal); }
+.site-nav.compact .brand-lockup small { color: var(--net); }
+.brand-mark { width: 24px; height: 24px; color: var(--signal); }
+.site-nav.compact .brand-mark { color: var(--net); }
+.site-nav nav { gap: 26px; }
+.site-nav nav button { font-size: 12px; letter-spacing: .08em; }
+.site-nav nav button:hover { color: var(--signal); }
+.system-link { min-height: 36px; padding: 0 8px; font-size: 11px; letter-spacing: .08em; }
+.nav-cta { min-height: 38px; padding: 0 14px; color: var(--ink); border-color: var(--signal); background: var(--signal); font-size: 11px; letter-spacing: .04em; }
+.menu-toggle { display: none; place-items: center; width: 38px; height: 38px; padding: 0; color: inherit; border: 1px solid currentColor; background: transparent; }
+
+.hero {
+  min-height: 760px;
+  height: 92vh;
+  max-height: 980px;
+  background: var(--ocean);
+}
+.hero > img { object-position: center 48%; filter: saturate(.82) contrast(1.06); }
+.hero-shade { right: 42%; background: rgba(7, 36, 48, .82); }
+.hero::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  opacity: .3;
+  background-image: repeating-linear-gradient(90deg, transparent 0, transparent calc(12.5% - 1px), rgba(214, 236, 239, .22) 12.5%, transparent calc(12.5% + 1px)), repeating-linear-gradient(0deg, transparent 0, transparent calc(25% - 1px), rgba(214, 236, 239, .16) 25%, transparent calc(25% + 1px));
+}
+.hero-content { z-index: 2; width: min(820px, calc(100% - 64px)); padding-top: 72px; }
+.hero-org { margin: 0 0 10px; color: #f1f6f6; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+.hero-kicker { margin-bottom: 22px; color: #b5d1d7; font-size: 10px; letter-spacing: .24em; }
+.hero h1 { max-width: 820px; font-size: clamp(54px, 6.4vw, 92px); line-height: 1.02; letter-spacing: .01em; }
+.hero h1 em { color: var(--signal); font-style: normal; }
+.hero-lead { max-width: 650px; margin-top: 30px; color: #d5e6e9; font-size: 16px; line-height: 1.9; }
+.hero-actions { margin-top: 38px; }
+.hero-primary, .hero-secondary { min-height: 50px; border-radius: 0; font-size: 11px; letter-spacing: .08em; }
+.hero-primary { color: var(--ink); border-color: var(--signal); background: var(--signal); }
+.hero-secondary { border-color: rgba(255, 255, 255, .72); background: rgba(7, 36, 48, .24); }
+.hero-coordinate { position: absolute; z-index: 3; top: 50%; right: max(24px, calc((100% - 1380px) / 2)); display: grid; gap: 11px; justify-items: end; transform: translateY(-50%); color: rgba(231, 245, 246, .78); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; }
+.hero-coordinate i { display: block; width: 1px; height: 74px; background: var(--signal); }
+.hero-index { right: max(24px, calc((100% - 1380px) / 2)); bottom: 30px; grid-template-columns: repeat(4, minmax(112px, 1fr)); gap: 0; border-top: 1px solid rgba(255, 255, 255, .42); border-bottom: 1px solid rgba(255, 255, 255, .42); background: transparent; }
+.hero-index span { min-height: 52px; gap: 10px; padding: 0 14px; color: #e7f0f1; background: rgba(7, 36, 48, .62); border-right: 1px solid rgba(255, 255, 255, .22); font-size: 11px; letter-spacing: .08em; }
+.hero-index span:last-child { border-right: 0; }
+.hero-index b { color: var(--signal); font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.proof-band { min-height: 126px; background: #0d5369; }
+.proof-band > div { padding: 26px max(20px, calc((100vw - 1380px) / 6)); border-right-color: rgba(219, 240, 242, .2); }
+.proof-band span { color: var(--signal); font-size: 11px; letter-spacing: .12em; }
+.proof-band strong { font-size: 13px; letter-spacing: .06em; }
+.proof-band small { color: #d1e3e6; font-size: 10px; line-height: 1.65; }
+
+.section-shell { width: min(1380px, calc(100% - 64px)); }
+.section-label { color: var(--net); font-size: 10px; letter-spacing: .22em; }
+.section-intro { grid-template-columns: minmax(0, 1.2fr) minmax(300px, .8fr); gap: 64px; margin-bottom: 48px; }
+.section-intro .section-label { margin-bottom: -38px; }
+.section-intro h2, .spec-ribbon h2, .capability-copy h2, .inquiry-copy h2 { font-size: clamp(32px, 4vw, 52px); line-height: 1.18; }
+.section-intro > p:last-child, .capability-copy > p, .inquiry-copy > p { color: var(--muted); font-size: 14px; line-height: 1.9; }
+
+.products-section { padding: 128px 0 136px; }
+.product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.product-card { grid-template-columns: minmax(190px, .78fr) minmax(0, 1.22fr); min-height: 308px; border: 1px solid var(--line); border-top: 3px solid var(--net); border-radius: 0; box-shadow: 0 14px 30px rgba(16, 39, 51, .05); }
+.product-image { min-height: 308px; background: #c3d2d5; }
+.product-image img { filter: saturate(.86); }
+.product-image span { top: 0; left: 0; width: 38px; height: 38px; border-radius: 0; background: var(--net); font-size: 10px; }
+.product-copy { padding: 32px 30px; }
+.product-copy h3 { margin-bottom: 14px; font-size: 22px; letter-spacing: .02em; }
+.product-copy p { font-size: 12px; line-height: 1.8; }
+.product-copy button { margin-top: 26px; color: var(--net); border-bottom-color: var(--signal); font-size: 11px; letter-spacing: .06em; }
+
+.solutions-section { padding: 126px 0 136px; background: #e8f0f1; }
+.solutions-intro { margin-bottom: 44px; }
+.solution-list { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.solution-card { grid-template-rows: 156px auto; min-height: 334px; border: 1px solid #cbdcdf; border-radius: 0; background: #f8fbfb; }
+.solution-index { top: 0; left: 0; width: 32px; height: 32px; border-radius: 0; background: var(--net); font-size: 10px; }
+.solution-image { background: #b9cdd1; }
+.solution-image img { filter: saturate(.78); }
+.solution-copy { gap: 8px; padding: 20px 18px 21px; }
+.solution-copy p { color: var(--net); font-size: 9px; letter-spacing: .14em; }
+.solution-copy h3 { font-size: 16px; }
+.solution-copy span { font-size: 11px; line-height: 1.65; }
+.solution-copy small { color: #8c5c25; border-top-color: #e4c88f; font-size: 10px; }
+.associate-rail { display: grid; grid-template-columns: auto minmax(140px, .35fr) minmax(0, 1fr) auto; align-items: center; gap: 18px; margin-top: 26px; padding: 18px 20px; border-top: 1px solid #b5cace; border-bottom: 1px solid #b5cace; }
+.associate-label, .associate-status { color: var(--net); font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .1em; }
+.associate-rail strong { font-size: 15px; }
+.associate-rail p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.associate-status { color: #8c5c25; }
+
+.spec-ribbon { padding: 84px max(32px, calc((100% - 1380px) / 2)); background: var(--ocean); }
+.spec-ribbon-head { grid-template-columns: minmax(280px, .7fr) minmax(0, 1.3fr); gap: 60px; margin-bottom: 46px; }
+.spec-ribbon h2 { font-size: clamp(32px, 3.8vw, 48px); }
+.spec-lines { grid-template-columns: repeat(9, minmax(140px, 1fr)); border-top-color: rgba(219, 240, 242, .4); border-bottom-color: rgba(219, 240, 242, .4); }
+.spec-cell { min-height: 174px; padding: 22px 16px; border-right-color: rgba(219, 240, 242, .2); }
+.spec-cell::after { background: var(--signal); }
+.spec-cell span { color: var(--signal); font-size: 9px; letter-spacing: .12em; }
+.spec-cell strong { font-size: 13px; letter-spacing: .04em; }
+.spec-cell small { color: #b9d0d4; font-size: 10px; line-height: 1.65; }
+
+.capability-section { padding: 132px 0; background: #f4f6f5; }
+.capability-shell { grid-template-columns: minmax(300px, .68fr) minmax(0, 1.32fr); gap: 76px; }
+.capability-copy h2 { margin-bottom: 24px; }
+.capability-copy dl { margin-top: 38px; border-top-color: #b9cbd0; }
+.capability-copy dl > div { padding: 16px 0; border-bottom-color: #b9cbd0; }
+.capability-copy dt { color: var(--net); font-size: 11px; letter-spacing: .06em; }
+.capability-copy dd { color: var(--muted); font-size: 11px; line-height: 1.7; }
+.factory-gallery { grid-template-rows: 340px 250px; gap: 14px; }
+.factory-gallery figure { background: #bdcfd3; }
+.factory-gallery img { filter: saturate(.8); }
+.factory-gallery figcaption { padding: 12px 15px; background: rgba(8, 47, 61, .86); font-size: 10px; letter-spacing: .05em; }
+.factory-gallery figcaption span { color: var(--signal); }
+
+.process-section { padding: 132px 0; background: #fff; }
+.process-intro { max-width: 940px; }
+.process-list { border-top-color: var(--line); }
+.process-list li { grid-template-columns: 76px minmax(0, 1fr); min-height: 126px; padding: 28px 0; border-bottom-color: var(--line); }
+.process-list > li > span { color: var(--clay); font-size: 13px; letter-spacing: .12em; }
+.process-list strong { font-size: 18px; letter-spacing: .02em; }
+.process-list p { margin-top: 9px; color: var(--muted); font-size: 12px; line-height: 1.75; }
+
+.quality-section { padding: 132px 0 112px; background: #e9f0ef; }
+.quality-shell { grid-template-columns: minmax(300px, .72fr) minmax(0, 1.28fr); gap: 72px; }
+.quality-copy h2 { font-size: clamp(32px, 3.6vw, 48px); }
+.quality-copy > p { font-size: 13px; line-height: 1.9; }
+.quality-boundary { color: #7a5422; border-color: #e3c68f; background: #fffaf0; font-size: 10px; }
+.quality-grid { gap: 12px; }
+.quality-card { min-height: 132px; padding: 17px; border: 1px solid #cbdcdf; border-radius: 0; background: #f8fbfb; }
+.quality-card code { color: var(--net); font-size: 10px; }
+.quality-card strong { font-size: 13px; }
+.quality-card span { color: var(--muted); font-size: 10px; line-height: 1.6; }
+.project-shell { margin-top: 78px; }
+.project-heading h3 { font-size: 25px; }
+.project-heading > span { font-size: 10px; }
+.project-grid { gap: 14px; }
+.project-card { grid-template-columns: 142px minmax(0, 1fr); min-height: 154px; border-color: #cbdcdf; border-radius: 0; background: #f8fbfb; }
+.project-card > img { min-height: 154px; filter: saturate(.78); }
+.project-card > div { gap: 8px; padding: 16px; }
+.project-card small { color: var(--net); font-size: 9px; }
+.project-card h4 { font-size: 13px; }
+.project-card p { color: var(--muted); font-size: 10px; line-height: 1.6; }
+
+.industry-note { padding-top: 84px; padding-bottom: 84px; }
+.industry-note h2 { font-size: 30px; }
+.industry-note > p { color: var(--muted); font-size: 13px; }
+.inquiry-section { padding: 132px 0; background: var(--ocean); }
+.inquiry-shell { grid-template-columns: minmax(300px, .62fr) minmax(520px, 1.38fr); gap: 82px; }
+.inquiry-copy h2 { font-size: clamp(34px, 4vw, 52px); }
+.inquiry-copy > p { color: #c8dce0; font-size: 13px; }
+.inquiry-note { border-top-color: rgba(219, 240, 242, .3); }
+.inquiry-note span { color: #b8d1d5; font-size: 10px; }
+.inquiry-form { padding: 38px; border-radius: 0; box-shadow: 0 24px 52px rgba(0, 17, 24, .22); }
+.inquiry-form legend { padding-bottom: 13px; border-bottom-color: var(--line); font-size: 14px; letter-spacing: .04em; }
+.inquiry-form legend span { color: var(--clay); font-size: 10px; letter-spacing: .12em; }
+.inquiry-form label > span { color: #415a62; font-size: 10px; letter-spacing: .04em; }
+.inquiry-form input:not([type="checkbox"]), .inquiry-form select, .inquiry-form textarea { min-height: 44px; border-color: #c6d5d8; border-radius: 0; background: #fbfcfc; font-size: 11px; }
+.inquiry-form input:focus, .inquiry-form select:focus, .inquiry-form textarea:focus { border-color: var(--net); box-shadow: 0 0 0 3px rgba(7, 91, 115, .12); }
+.submit-button { min-height: 52px; border-radius: 0; background: var(--net); font-size: 11px; letter-spacing: .1em; }
+
+footer { min-height: 132px; padding: 26px max(24px, calc((100% - 1380px) / 2)); background: #061f2a; }
+.footer-brand strong { letter-spacing: .08em; }
+footer p { color: #a9c4c9; font-size: 10px; letter-spacing: .06em; }
+footer > button { width: 40px; height: 40px; border-radius: 0; border-color: #4c6b75; }
+
+@media (max-width: 1080px) {
+  .site-nav { grid-template-columns: minmax(190px, 1fr) auto; }
+  .site-nav nav { display: none; }
+  .menu-toggle { display: grid; }
+  .mobile-nav { position: fixed; z-index: 19; top: 64px; right: 0; left: 0; display: grid; gap: 0; padding: 10px 16px 16px; color: var(--ink); border-bottom: 1px solid var(--line); background: rgba(244, 246, 245, .98); box-shadow: 0 16px 34px rgba(8, 47, 61, .16); }
+  .mobile-nav button { display: flex; align-items: center; justify-content: space-between; min-height: 46px; padding: 0 4px; color: inherit; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; font-size: 12px; }
+  .mobile-nav button:last-child { border-bottom: 0; }
+  .mobile-nav .mobile-nav-cta { margin-top: 10px; padding: 0 14px; color: var(--ink); border: 1px solid var(--signal); background: var(--signal); font-weight: 700; }
+  .hero-coordinate { right: 24px; }
+  .solution-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .associate-rail { grid-template-columns: auto minmax(130px, .45fr) minmax(0, 1fr); }
+  .associate-status { grid-column: 2 / -1; }
+}
+
+@media (max-width: 760px) {
+  .section-shell { width: calc(100% - 28px); }
+  .site-nav, .site-nav.compact { height: 62px; padding: 0 14px; }
+  .site-nav.compact + main .hero { padding-top: 0; }
+  .nav-cta { min-height: 36px; padding: 0 10px; font-size: 10px; }
+  .hero { min-height: 700px; height: 86svh; max-height: 820px; }
+  .hero > img { object-position: 63% center; }
+  .hero-shade { right: 0; background: rgba(7, 36, 48, .7); }
+  .hero-content { width: calc(100% - 28px); margin: 0 14px; padding-top: 42px; }
+  .hero-org { max-width: 270px; font-size: 10px; line-height: 1.5; letter-spacing: .06em; }
+  .hero-kicker { font-size: 9px; letter-spacing: .16em; }
+  .hero h1 { font-size: clamp(44px, 13vw, 62px); line-height: 1.05; }
+  .hero-lead { max-width: 100%; margin-top: 24px; font-size: 14px; line-height: 1.8; }
+  .hero-actions { align-items: stretch; margin-top: 30px; }
+  .hero-primary, .hero-secondary { width: 100%; min-height: 48px; }
+  .hero-coordinate { top: auto; right: 16px; bottom: 122px; display: flex; align-items: center; gap: 8px; transform: none; font-size: 8px; }
+  .hero-coordinate i { width: 40px; height: 1px; }
+  .hero-index { right: 14px; bottom: 16px; left: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .hero-index span { min-height: 44px; gap: 5px; padding: 0 7px; font-size: 9px; letter-spacing: 0; }
+  .hero-index b { font-size: 8px; }
+  .proof-band > div { min-height: 84px; padding: 18px 20px; }
+  .products-section, .solutions-section, .process-section { padding: 82px 0; }
+  .section-intro { grid-template-columns: 1fr; gap: 18px; margin-bottom: 32px; }
+  .section-intro .section-label { margin-bottom: 0; }
+  .section-intro h2, .spec-ribbon h2, .capability-copy h2, .inquiry-copy h2 { font-size: 31px; line-height: 1.22; }
+  .product-grid { grid-template-columns: 1fr; }
+  .product-card { grid-template-columns: 1fr; min-height: 0; }
+  .product-image { min-height: 220px; }
+  .product-copy { padding: 24px 20px 26px; }
+  .solution-list { grid-template-columns: 1fr; }
+  .solution-card { grid-template-rows: 176px auto; min-height: 0; }
+  .associate-rail { grid-template-columns: 1fr; gap: 8px; margin-top: 22px; padding: 17px 14px; }
+  .associate-status { grid-column: auto; }
+  .spec-ribbon { padding: 62px 14px; }
+  .spec-ribbon-head { grid-template-columns: 1fr; gap: 16px; }
+  .spec-lines { grid-template-columns: repeat(9, 148px); }
+  .capability-section { padding: 82px 0; }
+  .capability-shell { gap: 40px; }
+  .factory-gallery { grid-template-rows: 240px 180px; }
+  .process-list li { grid-template-columns: 42px minmax(0, 1fr); min-height: 108px; padding: 23px 0; }
+  .process-list strong { font-size: 16px; }
+  .quality-section { padding: 82px 0 72px; }
+  .quality-shell { gap: 38px; }
+  .quality-copy h2 { font-size: 31px; }
+  .quality-grid { grid-template-columns: 1fr; }
+  .project-shell { margin-top: 52px; }
+  .project-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .project-card { grid-template-columns: 108px minmax(0, 1fr); }
+  .project-card > img { min-height: 144px; }
+  .industry-note { grid-template-columns: 1fr; gap: 24px; padding-top: 58px; padding-bottom: 58px; }
+  .industry-note h2 { font-size: 25px; }
+  .inquiry-section { padding: 82px 0; }
+  .inquiry-shell { grid-template-columns: 1fr; gap: 38px; }
+  .inquiry-form { padding: 24px 16px; }
+  footer { align-items: flex-start; flex-wrap: wrap; padding: 28px 18px; }
+  footer p { order: 3; width: 100%; }
 }
 </style>
