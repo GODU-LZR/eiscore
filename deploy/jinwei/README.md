@@ -4,9 +4,36 @@
 
 - `jinwei-web`：构建 `eiscore-company-site`，对外只绑定宿主机 `127.0.0.1:18192`。
 - `jinwei-leads`：轻量询盘接收服务，使用 Docker volume 保存 JSON；只用于测试，不接正式 PostgreSQL、客户或销售数据。
-- `host-nginx.conf`：宿主机 Nginx 的独立域名反代模板，域名为 `jwwc.eiscore.top`。
+- `host-nginx.conf`：宿主机 Nginx 的独立域名反代模板，只匹配 `jwwc.eiscore.top` 和可选的 `*.jwwc.eiscore.top`。
+- `host-nginx-https.conf`：需要 DNS-01 通配符证书时使用的 443 模板。
 
-DNS 已核验指向 `149.104.26.71`。部署前仍需确认服务器登录权限和现有 Nginx 配置，不能覆盖默认站点。
+DNS 已核验 `jwwc.eiscore.top` 指向 `149.104.26.71`。`vedio.eiscore.top` 属于现有短视频系统，不应被本配置接管。部署前仍需确认服务器登录权限和现有 Nginx 配置，不能覆盖默认站点。
+
+## 域名隔离与通配符
+
+如果只使用主域名，保留 `server_name jwwc.eiscore.top;` 即可。如果需要把 `demo.jwwc.eiscore.top`、`pda.jwwc.eiscore.top` 等子域也交给经纬试用系统，使用模板中的：
+
+```nginx
+server_name jwwc.eiscore.top *.jwwc.eiscore.top;
+```
+
+DNS 需要同时有两条记录（不能只配 wildcard，因为 wildcard 不覆盖 apex）：
+
+```text
+jwwc.eiscore.top       A 149.104.26.71
+*.jwwc.eiscore.top     A 149.104.26.71
+```
+
+不要把 `*.eiscore.top` 写进经纬站的 Nginx server block；那会把其他应用的请求混入同一个代理选择范围。Nginx 的精确主机名会优先于通配符，但显式的独立 server block 仍更容易审计和回滚。
+
+当前公网证书的 SAN 是 `*.eiscore.top` 和 `eiscore.top`，它能覆盖 `jwwc.eiscore.top`，不能覆盖 `foo.jwwc.eiscore.top`。启用子域通配符 HTTPS 前，需用 DNS-01 申请同时包含主域和子域 wildcard 的证书，例如：
+
+```bash
+certbot certonly --manual --preferred-challenges dns \
+  -d jwwc.eiscore.top -d '*.jwwc.eiscore.top'
+```
+
+证书申请命令只作为模板，DNS TXT 校验和证书路径必须按实际 DNS/证书管理方式执行。
 
 ## 本地验证
 
@@ -41,8 +68,8 @@ curl -i -X POST http://127.0.0.1:18192/agent/company-site/public/leads \
    docker compose -f deploy/jinwei/docker-compose.yml up -d --build
    ```
 
-4. 复制 `host-nginx.conf` 为新的 `jwwc.eiscore.top` server block，先执行 `nginx -t`，再 `systemctl reload nginx`。如果宿主机已有同名 server block，应合并代理 location，不要创建重复监听配置。
-5. 先用 HTTP 验收 `/healthz`、`/`、`/company-site/jinwei`、移动端布局和询盘幂等提交，再使用现有证书或 certbot 配置 HTTPS。证书申请和 DNS/防火墙变更必须按服务器现状执行。
+4. 复制 `host-nginx.conf` 为新的 Jinwei HTTP server block，先执行 `nginx -t`，再 `systemctl reload nginx`。如果宿主机已有同名 server block，应合并代理 location，不要创建重复监听配置。
+5. 需要 HTTPS 时，在证书就绪后再启用 `host-nginx-https.conf`；确认它只包含 `jwwc.eiscore.top` 和 `*.jwwc.eiscore.top`，不会影响 `vedio.eiscore.top`。证书申请和 DNS/防火墙变更必须按服务器现状执行。
 
 ## 回滚
 
@@ -55,4 +82,3 @@ docker compose -f deploy/jinwei/docker-compose.yml down
 ## 生产边界
 
 该 JSON 服务没有正式登录、审批、RLS、备份策略或客户数据保留策略。上线前必须切换到已有 company-site leads API/PostgreSQL，配置认证、审计、限流、备份和隐私政策；不要直接把试用 volume 当作生产数据源。
-
