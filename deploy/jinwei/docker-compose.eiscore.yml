@@ -67,6 +67,7 @@ services:
       - ../../sql/patch_eis_app_card_stats_rpc.sql:/docker-entrypoint-initdb.d/46_eis_app_card_stats.sql:ro
       - ../../sql/patch_agent_ontology_secure_context_v1.sql:/docker-entrypoint-initdb.d/47_agent_ontology_secure_context.sql:ro
       - ../../sql/patch_document_intake_rls_hardening_v1.sql:/docker-entrypoint-initdb.d/48_document_intake_rls_hardening.sql:ro
+      - ../../sql/patch_company_site_jinwei_research_gallery.sql:/docker-entrypoint-initdb.d/96_company_site_jinwei_research_gallery.sql:ro
       - ../../sql/company_site_jinwei_admin_branding.sql:/docker-entrypoint-initdb.d/97_company_site_jinwei_admin_branding.sql:ro
       - ../../sql/patch_login_jwt_secret_setting.sql:/docker-entrypoint-initdb.d/98_patch_login_jwt_secret_setting.sql:ro
       - ./init-jwt-secret.sh:/docker-entrypoint-initdb.d/99_init_jwt_secret.sh:ro

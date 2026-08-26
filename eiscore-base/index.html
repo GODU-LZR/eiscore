@@ -2,10 +2,22 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" type="image/png" sizes="64x64" href="/company-assets/favicon.png">
-    <link rel="apple-touch-icon" href="/company-assets/junleyuan-mark.png">
+    <link id="initial-favicon" rel="icon" type="image/png" sizes="64x64" href="/company-assets/favicon.png">
+    <link id="initial-apple-icon" rel="apple-touch-icon" href="/company-assets/junleyuan-mark.png">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>君乐缘台球工厂数字化管理平台</title>
+    <title>EISCore 企业协同平台</title>
+    <script>
+      if (/^jwwc-admin\.eiscore\.top$/i.test(location.hostname)) {
+        document.title = '湛江市经纬网厂 EISCore 制造协同平台'
+        var icon = document.getElementById('initial-favicon')
+        if (icon) {
+          icon.type = 'image/svg+xml'
+          icon.href = '/company-site/assets/jinwei/jinwei-mark.svg'
+        }
+        var appleIcon = document.getElementById('initial-apple-icon')
+        if (appleIcon) appleIcon.href = '/company-site/assets/jinwei/jinwei-mark.svg'
+      }
+    </script>
     <script>
       (function () {
         if (!('serviceWorker' in navigator)) return

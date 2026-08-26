@@ -1,7 +1,7 @@
 <template>
   <div
     class="login-page portal-page"
-    data-portal="junleyuan-external"
+    :data-portal="isJinweiPortal ? 'jinwei-external' : 'junleyuan-external'"
     :class="{ 'is-scrolled': pageScrolled }"
     :style="pageStyle"
   >
@@ -238,7 +238,8 @@ import { useUserStore } from '@/stores/user'
 import { useSystemStore } from '@/stores/system'
 import { mix } from '@/utils/theme'
 
-const DEFAULT_LOGIN_LOGO = '/company-assets/junleyuan-mark.png'
+const isJinweiPortal = typeof window !== 'undefined' && /^jwwc-admin\.eiscore\.top$/i.test(window.location.hostname)
+const DEFAULT_LOGIN_LOGO = isJinweiPortal ? '/company-site/assets/jinwei/jinwei-mark.svg' : '/company-assets/junleyuan-mark.png'
 
 const router = useRouter()
 const userStore = useUserStore()

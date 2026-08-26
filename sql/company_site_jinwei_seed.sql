@@ -70,7 +70,7 @@ VALUES
   '从一根丝，到一座深海网箱。',
   '面向渔业捕捞、深远海养殖与工业水体拦截场景，提供丝、线、绳、网衣、深水网箱及工程集成解决方案。',
   $json$ {
-    "hero": {"eyebrow":"湛江市经纬网厂","title":"从一根丝，到一座深海网箱。","summary":"有结网、无结网、绳索与养殖网箱，从线材准备、织造和人工检修，到定型、包装与分批交付。","image":"/company-site/assets/jinwei/hero-net.webp"},
+    "hero": {"eyebrow":"湛江市经纬网厂","title":"从一根丝，到一座深海网箱。","summary":"有结网、无结网、绳索与养殖网箱，从线材准备、织造和人工检修，到定型、包装与分批交付。","image":"/company-site/assets/jinwei/research-gallery/gallery-003.png"},
     "navigation":[{"label":"产品","href":"#products"},{"label":"解决方案","href":"#solutions"},{"label":"制造","href":"#capability"},{"label":"质量依据","href":"#quality"},{"label":"规格询盘","href":"#inquiry"}],
     "sections":["products","solutions","capability","quality","inquiry"],
     "boundary":"公开内容只展示已整理的产品族、工艺和研究依据；产能、客户、认证、价格、库存和交期需企业确认。"
@@ -82,7 +82,7 @@ VALUES
   'primary', 'en-US', 'home', 'home',
   'From Filament to Deep-Sea Cage Systems.',
   'Integrated netting, rope, aquaculture cage and engineering solutions for commercial fishing, offshore aquaculture and industrial water-intake protection.',
-  $json$ {"hero":{"eyebrow":"Zhanjiang Jingwei Netting Factory","title":"From Filament to Deep-Sea Cage Systems.","summary":"Knotted and knotless netting, ropes and cage systems, connected from filament preparation to inspection, packing and staged delivery.","image":"/company-site/assets/jinwei/hero-net.webp"},"navigation":[{"label":"Products","href":"#products"},{"label":"Solutions","href":"#solutions"},{"label":"Manufacturing","href":"#capability"},{"label":"Quality","href":"#quality"},{"label":"RFQ","href":"#inquiry"}],"sections":["products","solutions","capability","quality","inquiry"],"boundary":"Public content is limited to reviewed product families, process evidence and research references. Capacity, customers, certificates, price, stock and lead time require confirmation."} $json$::jsonb,
+  $json$ {"hero":{"eyebrow":"Zhanjiang Jingwei Netting Factory","title":"From Filament to Deep-Sea Cage Systems.","summary":"Knotted and knotless netting, ropes and cage systems, connected from filament preparation to inspection, packing and staged delivery.","image":"/company-site/assets/jinwei/research-gallery/gallery-003.png"},"navigation":[{"label":"Products","href":"#products"},{"label":"Solutions","href":"#solutions"},{"label":"Manufacturing","href":"#capability"},{"label":"Quality","href":"#quality"},{"label":"RFQ","href":"#inquiry"}],"sections":["products","solutions","capability","quality","inquiry"],"boundary":"Public content is limited to reviewed product families, process evidence and research references. Capacity, customers, certificates, price, stock and lead time require confirmation."} $json$::jsonb,
   '{"title":"Zhanjiang Jingwei Netting Factory | Netting & Cage Systems","description":"Netting, ropes, deep-sea cage and engineering coordination from filament to delivery."}'::jsonb,
   'published', 1, now(), 'seed:jinwei', 'seed:jinwei', 'seed:jinwei'
 )
@@ -120,7 +120,7 @@ INSERT INTO company_site.product_locales (
 )
 SELECT id, 'zh-CN', '有结网', '面向渔业捕捞、养殖和定制网片的有结结构。',
   '按材质、D 数或股数、网眼/目数、尺寸、颜色、重量和包装要求形成规格版本；具体参数在报价前核对。',
-  '["/company-site/assets/jinwei/mesh-on-loom.webp"]'::jsonb,
+  '["/company-site/assets/jinwei/research-gallery/gallery-008.webp"]'::jsonb,
   '{"title":"有结网 | 经纬网业","description":"有结渔网及定制网片规格入口。"}'::jsonb,
   '[]'::jsonb, 'published' FROM product_upsert
 ON CONFLICT (product_id, locale) DO UPDATE SET name = EXCLUDED.name, summary = EXCLUDED.summary, description = EXCLUDED.description, image_urls = EXCLUDED.image_urls, seo = EXCLUDED.seo, status = EXCLUDED.status, updated_at = now();
@@ -132,7 +132,7 @@ WITH product_upsert AS (
   RETURNING id
 )
 INSERT INTO company_site.product_locales (product_id, locale, name, summary, description, image_urls, seo, faq, status)
-SELECT id, 'zh-CN', '无结网', '为深远海养殖和网箱场景准备的无结网衣方向。', '无结结构以整经、经编织造、补网、染色可选、定型、剪断和包装形成制造路线；应用效果需按鱼种、海况和项目设计确认。', '["/company-site/assets/jinwei/hero-net.webp"]'::jsonb, '{"title":"无结网 | 经纬网业","description":"深远海养殖无结网衣与项目规格入口。"}'::jsonb, '[]'::jsonb, 'published' FROM product_upsert
+SELECT id, 'zh-CN', '无结网', '为深远海养殖和网箱场景准备的无结网衣方向。', '无结结构以整经、经编织造、补网、染色可选、定型、剪断和包装形成制造路线；应用效果需按鱼种、海况和项目设计确认。', '["/company-site/assets/jinwei/research-gallery/gallery-009.webp"]'::jsonb, '{"title":"无结网 | 经纬网业","description":"深远海养殖无结网衣与项目规格入口。"}'::jsonb, '[]'::jsonb, 'published' FROM product_upsert
 ON CONFLICT (product_id, locale) DO UPDATE SET name = EXCLUDED.name, summary = EXCLUDED.summary, description = EXCLUDED.description, image_urls = EXCLUDED.image_urls, seo = EXCLUDED.seo, status = EXCLUDED.status, updated_at = now();
 
 WITH product_upsert AS (
@@ -142,7 +142,7 @@ WITH product_upsert AS (
   RETURNING id
 )
 INSERT INTO company_site.product_locales (product_id, locale, name, summary, description, image_urls, seo, faq, status)
-SELECT id, 'zh-CN', '绳索与网线', '从细丝、纱线到并线、捻线和成绳的规格化产品方向。', '记录材质、线规格、股数、捻度、长度/重量、盘卷和包装标签，适配网箱装配与海洋作业场景。', '["/company-site/assets/jinwei/rope-coils.webp"]'::jsonb, '{"title":"绳索与网线 | 经纬网业","description":"渔用绳索、网线和单丝产品方向。"}'::jsonb, '[]'::jsonb, 'published' FROM product_upsert
+SELECT id, 'zh-CN', '绳索与网线', '从细丝、纱线到并线、捻线和成绳的规格化产品方向。', '记录材质、线规格、股数、捻度、长度/重量、盘卷和包装标签，适配网箱装配与海洋作业场景。', '["/company-site/assets/jinwei/research-gallery/gallery-013.webp"]'::jsonb, '{"title":"绳索与网线 | 经纬网业","description":"渔用绳索、网线和单丝产品方向。"}'::jsonb, '[]'::jsonb, 'published' FROM product_upsert
 ON CONFLICT (product_id, locale) DO UPDATE SET name = EXCLUDED.name, summary = EXCLUDED.summary, description = EXCLUDED.description, image_urls = EXCLUDED.image_urls, seo = EXCLUDED.seo, status = EXCLUDED.status, updated_at = now();
 
 WITH product_upsert AS (
@@ -152,7 +152,7 @@ WITH product_upsert AS (
   RETURNING id
 )
 INSERT INTO company_site.product_locales (product_id, locale, name, summary, description, image_urls, seo, faq, status)
-SELECT id, 'zh-CN', '养殖网箱与工程系统', '将网衣、绳索、框架和连接件按 BOM 协同设计。', '面向深水养殖、海洋牧场和工业水体拦截等场景，先收集目标海况、尺寸、物种、网眼和工程图，再进行技术评审。', '["/company-site/assets/jinwei/weaving-floor.webp"]'::jsonb, '{"title":"养殖网箱与工程系统 | 经纬网业","description":"深水网箱、网衣和海洋工程协同方案。"}'::jsonb, '[]'::jsonb, 'published' FROM product_upsert
+SELECT id, 'zh-CN', '养殖网箱与工程系统', '将网衣、绳索、框架和连接件按 BOM 协同设计。', '面向深水养殖、海洋牧场和工业水体拦截等场景，先收集目标海况、尺寸、物种、网眼和工程图，再进行技术评审。', '["/company-site/assets/jinwei/research-gallery/gallery-005.webp"]'::jsonb, '{"title":"养殖网箱与工程系统 | 经纬网业","description":"深水网箱、网衣和海洋工程协同方案。"}'::jsonb, '[]'::jsonb, 'published' FROM product_upsert
 ON CONFLICT (product_id, locale) DO UPDATE SET name = EXCLUDED.name, summary = EXCLUDED.summary, description = EXCLUDED.description, image_urls = EXCLUDED.image_urls, seo = EXCLUDED.seo, status = EXCLUDED.status, updated_at = now();
 
 INSERT INTO company_site.solutions (site_key, slug, locale, title, industry, scenario, content, seo, status)

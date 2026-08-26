@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">Jingwei mark</title>
+  <desc id="desc">A woven square mark with a marine blue wave.</desc>
+  <rect width="96" height="96" fill="#082f3d"/>
+  <g fill="none" stroke="#e5b34f" stroke-width="5">
+    <path d="M19 19h25v25H19zM52 19h25v25H52zM19 52h25v25H19zM52 52h25v25H52z"/>
+    <path d="M16 48c10-8 20-8 30 0s20 8 30 0" stroke="#d5e6e9"/>
+  </g>
+</svg>

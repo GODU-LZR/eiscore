@@ -147,7 +147,7 @@ export const JINWEI_PRODUCT_FAMILIES = Object.freeze([
     short: '有结',
     description: '支持材质、股数、网目、网眼、长宽、颜色与定型方向等组合规格。',
     route: ['制线 / 拉丝', '织网', '拼网', '补网', '执头', '染色可选', '定型', '包装'],
-    asset: 'mesh-on-loom.webp',
+    asset: 'research-gallery/gallery-008.webp',
     sourceStatus: 'workbook'
   },
   {
@@ -156,7 +156,7 @@ export const JINWEI_PRODUCT_FAMILIES = Object.freeze([
     short: '无结',
     description: '以涤纶、尼龙等纱线整经后经编织造，支持硬度、颜色与多单位包装。',
     route: ['原料齐套', '整经 / 盘头', '无结织造', '补网', '染色可选', '定型', '剪断', '包装'],
-    asset: 'hero-net.webp',
+    asset: 'research-gallery/gallery-009.webp',
     sourceStatus: 'observed'
   },
   {
@@ -165,7 +165,7 @@ export const JINWEI_PRODUCT_FAMILIES = Object.freeze([
     short: '绳索',
     description: '由细丝、纱线或半成品线经并线、加捻和成绳，按规格、重量和包装单元管理。',
     route: ['原料领用', '并线', '捻线', '成绳', '检验', '盘卷', '包装'],
-    asset: 'rope-coils.webp',
+    asset: 'research-gallery/gallery-013.webp',
     sourceStatus: 'observed'
   },
   {
@@ -174,7 +174,7 @@ export const JINWEI_PRODUCT_FAMILIES = Object.freeze([
     short: '网箱',
     description: '将网片、绳索、框架、浮子与连接件按 BOM 进行裁剪、缝合与组装。',
     route: ['网片齐套', '绳索齐套', '裁剪', '缝合', '组装', '整体检验', '包装'],
-    asset: 'weaving-floor.webp',
+    asset: 'research-gallery/gallery-005.webp',
     sourceStatus: 'workbook'
   }
 ])
@@ -188,7 +188,7 @@ export const JINWEI_PUBLIC_SOLUTIONS = Object.freeze([
     englishTitle: 'Commercial Fishing Netting',
     description: '按目标鱼种、作业方式、网结、网眼和交付单位整理可审核规格。',
     evidence: '历史样表 + 现场工艺',
-    asset: 'mesh-on-loom.webp'
+    asset: 'research-gallery/gallery-011.webp'
   },
   {
     id: 'offshore-aquaculture',
@@ -196,7 +196,7 @@ export const JINWEI_PUBLIC_SOLUTIONS = Object.freeze([
     englishTitle: 'Offshore Aquaculture Cage Systems',
     description: '网衣、绳索、框架、浮子和连接件按 BOM 进行项目协同。',
     evidence: '项目线索，待企业确认',
-    asset: 'weaving-floor.webp'
+    asset: 'research-gallery/gallery-006.webp'
   },
   {
     id: 'industrial-intake',
@@ -204,7 +204,7 @@ export const JINWEI_PUBLIC_SOLUTIONS = Object.freeze([
     englishTitle: 'Industrial Intake Interception Netting',
     description: '面向严苛水体环境的材料、几何和检验要求，先做工况评审。',
     evidence: '公开文案方向，参数待确认',
-    asset: 'rope-coils.webp'
+    asset: 'research-gallery/gallery-012.webp'
   },
   {
     id: 'marine-ranch',
@@ -212,7 +212,7 @@ export const JINWEI_PUBLIC_SOLUTIONS = Object.freeze([
     englishTitle: 'Marine Ranch Engineering Coordination',
     description: '把网具、网箱、绳索和现场交付拆成可追溯的工作包。',
     evidence: '产业体系叙事，范围待确认',
-    asset: 'heat-setting.webp'
+    asset: 'research-gallery/gallery-026.jpeg'
   },
   {
     id: 'yuefuxian',
@@ -220,7 +220,7 @@ export const JINWEI_PUBLIC_SOLUTIONS = Object.freeze([
     englishTitle: 'Yuefuxian Golden Pompano',
     description: '经纬产业体系中的水产业务线，仅展示为关联业务，不与网厂制造能力混写。',
     evidence: '关联业务，资质与 SKU 待确认',
-    asset: 'raw-polymer.webp'
+    asset: 'research-gallery/gallery-021.jpeg'
   }
 ])
 
@@ -229,9 +229,9 @@ export const JINWEI_PUBLIC_PROJECTS = Object.freeze([
     id: 'field-process',
     title: '从拉丝到包装的现场链',
     type: '制造现场',
-    description: '本地调研图片和工艺记录支持的设备、工位与交接路径。',
+    description: '独立站调研图集中的企业现场、设备、工位与交接路径参考。',
     status: '现场证据',
-    asset: 'extrusion-line.webp'
+    asset: 'research-gallery/gallery-003.png'
   },
   {
     id: 'offshore-reported',
@@ -239,7 +239,7 @@ export const JINWEI_PUBLIC_PROJECTS = Object.freeze([
     type: '工程研究',
     description: '公开报道提及的网箱和平台应用线索，需逐项目授权与核验。',
     status: '报道线索',
-    asset: 'hero-net.webp'
+    asset: 'research-gallery/gallery-015.jpeg'
   },
   {
     id: 'industrial-review',
@@ -247,7 +247,7 @@ export const JINWEI_PUBLIC_PROJECTS = Object.freeze([
     type: '工程评审',
     description: '围绕材料、网袋几何、强力与耐磨要求建立输入清单，不直接承诺性能。',
     status: '待确认',
-    asset: 'heat-setting.webp'
+    asset: 'research-gallery/gallery-016.jpg'
   }
 ])
 

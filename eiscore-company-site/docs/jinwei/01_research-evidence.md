@@ -64,11 +64,9 @@
 
 ## 5. 已生成的网页资产
 
-从 72 张现场 JPG 中整理出 8 个用于首版页面的 WebP 资产，位于 `public/assets/jinwei/`：
+首版使用的占位资产仍保留在 `public/assets/jinwei/` 作为旧链接兼容，但不再用于经纬独立站或管理端。
 
-`hero-net.webp`、`weaving-floor.webp`、`mesh-on-loom.webp`、`raw-polymer.webp`、`extrusion-line.webp`、`heat-setting.webp`、`rope-coils.webp`、`yarn-pallets.webp`。
-
-资产用于展示真实设备和产品状态，不代表对每台设备、每种规格或产能的认证。首屏使用网片现场图，制造能力区使用织造、制线和定型图片；图片无法确认的内容仍以“待确认”显示。
+当前页面统一使用你提供的独立站图集：`public/assets/jinwei/research-gallery/` 下 31 张本地素材，由 [research-images.js](../../src/jinwei/research-images.js) 维护标题、来源和授权状态。资产用于选片与核验，不代表对每台设备、每种规格或产能的认证；正式商用前仍需完成企业授权或替换为企业原片。
 
 ## 6. 需要工厂确认的事项
 

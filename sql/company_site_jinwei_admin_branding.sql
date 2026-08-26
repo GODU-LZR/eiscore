@@ -20,7 +20,7 @@ VALUES (
       "companyName": "经纬网业",
       "slogan": "从一根丝，到一座深海网箱。",
       "description": "湛江市经纬网厂，聚焦有结网、无结网、绳索与养殖网箱，从线材准备、织造和人工检修，到定型、包装与分批交付。",
-      "logo": "/company-site/assets/favicon.png",
+      "logo": "/company-site/assets/jinwei/jinwei-mark.svg",
       "siteTag": "湛江市经纬网厂",
       "announcement": "授权员工、计划、仓库、质检与管理入口",
       "headerLoginText": "系统登录",
@@ -39,7 +39,7 @@ VALUES (
       "capabilitiesSectionTitle": "从询盘、物料到质量放行",
       "leadersSectionKicker": "授权团队",
       "leadersSectionTitle": "按岗位分工协同",
-      "backgroundImage": "/company-site/assets/jinwei/hero-net.webp",
+      "backgroundImage": "/company-site/assets/jinwei/research-gallery/gallery-003.png",
       "navItems": [
         {"label": "制造现场", "anchor": "about"},
         {"label": "业务模块", "anchor": "capabilities"},
@@ -66,10 +66,10 @@ VALUES (
         {"title": "质量与设备", "description": "检验、不合格处置、设备点检和维护任务集中留痕。"}
       ],
       "carouselImages": [
-        {"url": "/company-site/assets/jinwei/hero-net.webp", "title": "网具现场", "subtitle": "经纬网业制造现场"},
-        {"url": "/company-site/assets/jinwei/weaving-floor.webp", "title": "织造工位", "subtitle": "多机台生产区域"},
-        {"url": "/company-site/assets/jinwei/extrusion-line.webp", "title": "制线路线", "subtitle": "挤出与拉丝"},
-        {"url": "/company-site/assets/jinwei/heat-setting.webp", "title": "后处理", "subtitle": "热定型设备"}
+        {"url": "/company-site/assets/jinwei/research-gallery/gallery-003.png", "title": "网具现场", "subtitle": "经纬网业制造现场"},
+        {"url": "/company-site/assets/jinwei/research-gallery/gallery-002.png", "title": "织造工位", "subtitle": "多机台生产区域"},
+        {"url": "/company-site/assets/jinwei/research-gallery/gallery-001.png", "title": "制线路线", "subtitle": "生产与拉丝参考"},
+        {"url": "/company-site/assets/jinwei/research-gallery/gallery-015.jpeg", "title": "网箱项目", "subtitle": "深远海案例参考"}
       ],
       "leaders": [],
       "footerText": "湛江市经纬网厂 · 经纬网业制造协同平台",
