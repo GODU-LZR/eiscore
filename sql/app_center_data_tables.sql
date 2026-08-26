@@ -14,6 +14,27 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA app_data
 ALTER DEFAULT PRIVILEGES IN SCHEMA app_data
   GRANT SELECT ON TABLES TO web_anon;
 
+-- Keep the shared ontology catalog available before module-specific seed
+-- scripts run. The BOM module is loaded before the quality module, which
+-- also declares this table, so defining it here avoids order-dependent
+-- initialization failures while remaining safe for existing databases.
+CREATE TABLE IF NOT EXISTS public.ontology_table_semantics (
+  table_schema TEXT NOT NULL,
+  table_name TEXT NOT NULL,
+  semantic_domain TEXT NOT NULL DEFAULT 'general',
+  semantic_class TEXT NOT NULL DEFAULT 'entity',
+  semantic_name TEXT NOT NULL,
+  semantic_description TEXT NOT NULL DEFAULT '',
+  is_business BOOLEAN NOT NULL DEFAULT true,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (table_schema, table_name)
+);
+
+GRANT SELECT ON public.ontology_table_semantics TO web_user;
+
 CREATE TABLE IF NOT EXISTS public.ontology_column_semantics (
   table_schema TEXT NOT NULL,
   table_name TEXT NOT NULL,

@@ -93,6 +93,16 @@ CREATE TABLE IF NOT EXISTS app_center.execution_logs (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- The base data dump may contain an older version of this table. Keep
+-- initialization idempotent by bringing those installations up to the
+-- current shape before applying comments, policies, and runtime helpers.
+ALTER TABLE app_center.execution_logs
+    ADD COLUMN IF NOT EXISTS operation_location JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE app_center.execution_logs
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE app_center.execution_logs
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
 COMMENT ON TABLE app_center.execution_logs IS 'Runtime execution logs for workflows';
 COMMENT ON COLUMN app_center.execution_logs.operation_location IS 'Operation context displayed by the grid geo/location column. address records module/app/action.';
 

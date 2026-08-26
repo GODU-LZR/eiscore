@@ -11,7 +11,11 @@
         data-guide="layout-logo"
         :style="{ backgroundColor: asideTheme.logoBg, color: asideTheme.menuText }"
       >
-        <span v-if="!isCollapse" class="logo-text">{{ config?.title || '管理系统' }}</span>
+        <span
+          v-if="!isCollapse"
+          class="logo-text"
+          :title="config?.title || '管理系统'"
+        >{{ config?.title || '管理系统' }}</span>
         <span v-else class="logo-text">EIS</span>
       </div>
 
@@ -3794,6 +3798,14 @@ const handleCommand = (command) => {
       font-size: 18px; font-weight: 600; color: white;
       transition: background-color 0.3s;
       white-space: nowrap;
+
+      .logo-text {
+        display: block;
+        overflow: hidden;
+        padding: 0 10px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
     }
     .el-menu { border-right: none; }
 

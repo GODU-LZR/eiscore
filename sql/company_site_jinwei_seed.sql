@@ -24,6 +24,7 @@ INSERT INTO company_site.site_config (
   '{"primaryColor":"#1f6755","accentColor":"#d6aa3a","inkColor":"#142620","paperColor":"#f5f7f4"}'::jsonb,
   '{"email":"","phone":"","whatsapp":"","address":"","publicChannelUrl":""}'::jsonb,
   '[]'::jsonb,
+  '{}'::jsonb,
   '{"loginUrl":"https://jwwc-admin.eiscore.top/login","loginLabel":"EISCore 制造系统","publicApiBase":"/agent/company-site/public","agent":{"enabled":true,"title":"工程询盘","buttonLabel":"提交规格","intro":"请告诉我们产品方向、材质、尺寸、数量和应用场景。价格、库存与交期由授权人员人工确认。","consentLabel":"我同意使用本次信息进行询盘跟进","placeholder":"输入你的规格或项目问题","sendLabel":"发送","humanHandoffLabel":"留下联系方式，转人工跟进"}}'::jsonb,
   '{"title":"湛江市经纬网厂 | Netting & Offshore Aquaculture Solutions","description":"湛江市经纬网厂提供有结网、无结网、绳索、养殖网箱及按场景定制的网具工程方案。","keywords":["渔网厂家","无结网","深水网箱","渔用绳索","海洋牧场"]}'::jsonb,
   'published', 1, now(), 'seed:jinwei'

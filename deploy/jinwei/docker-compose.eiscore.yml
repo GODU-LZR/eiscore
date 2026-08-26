@@ -32,19 +32,24 @@ services:
       - ../../sql/material_bom_schema.sql:/docker-entrypoint-initdb.d/14_material_bom_schema.sql:ro
       - ../../sql/sales_demo_schema.sql:/docker-entrypoint-initdb.d/15_sales_schema.sql:ro
       - ../../sql/sales_permissions_patch.sql:/docker-entrypoint-initdb.d/16_sales_permissions.sql:ro
-      - ../../sql/purchase_demo_schema.sql:/docker-entrypoint-initdb.d/17_purchase_schema.sql:ro
-      - ../../sql/production_bom_work_orders.sql:/docker-entrypoint-initdb.d/18_production_work_orders.sql:ro
-      - ../../sql/quality_demo_schema.sql:/docker-entrypoint-initdb.d/19_quality_schema.sql:ro
-      - ../../sql/equipment_demo_schema.sql:/docker-entrypoint-initdb.d/20_equipment_schema.sql:ro
-      - ../../sql/quality_realtime_notify.sql:/docker-entrypoint-initdb.d/21_quality_realtime_notify.sql:ro
-      - ../../sql/equipment_realtime_notify.sql:/docker-entrypoint-initdb.d/22_equipment_realtime_notify.sql:ro
-      - ../../sql/workflow_schema.sql:/docker-entrypoint-initdb.d/23_workflow_schema.sql:ro
-      - ../../sql/workflow_runtime_patch.sql:/docker-entrypoint-initdb.d/24_workflow_runtime_patch.sql:ro
-      - ../../sql/workflow_rls_patch.sql:/docker-entrypoint-initdb.d/25_workflow_rls_patch.sql:ro
-      - ../../sql/twin_schema.sql:/docker-entrypoint-initdb.d/26_twin_schema.sql:ro
-      - ../../sql/company_site_platform_v1.sql:/docker-entrypoint-initdb.d/27_company_site_platform.sql:ro
-      - ../../sql/jinwei_manufacturing_schema.sql:/docker-entrypoint-initdb.d/28_jinwei_manufacturing.sql:ro
-      - ../../sql/company_site_jinwei_seed.sql:/docker-entrypoint-initdb.d/29_company_site_jinwei_seed.sql:ro
+      - ../../sql/material_bom_mrp_integration.sql:/docker-entrypoint-initdb.d/17_material_bom_mrp_integration.sql:ro
+      - ../../sql/purchase_demo_schema.sql:/docker-entrypoint-initdb.d/18_purchase_schema.sql:ro
+      - ../../sql/production_bom_work_orders.sql:/docker-entrypoint-initdb.d/19_production_work_orders.sql:ro
+      - ../../sql/quality_demo_schema.sql:/docker-entrypoint-initdb.d/20_quality_schema.sql:ro
+      - ../../sql/equipment_demo_schema.sql:/docker-entrypoint-initdb.d/21_equipment_schema.sql:ro
+      - ../../sql/quality_realtime_notify.sql:/docker-entrypoint-initdb.d/22_quality_realtime_notify.sql:ro
+      - ../../sql/equipment_realtime_notify.sql:/docker-entrypoint-initdb.d/23_equipment_realtime_notify.sql:ro
+      - ../../sql/workflow_schema.sql:/docker-entrypoint-initdb.d/24_workflow_schema.sql:ro
+      - ../../sql/workflow_runtime_patch.sql:/docker-entrypoint-initdb.d/25_workflow_runtime_patch.sql:ro
+      - ../../sql/workflow_rls_patch.sql:/docker-entrypoint-initdb.d/26_workflow_rls_patch.sql:ro
+      - ../../sql/twin_schema.sql:/docker-entrypoint-initdb.d/27_twin_schema.sql:ro
+      - ../../sql/company_site_platform_v1.sql:/docker-entrypoint-initdb.d/28_company_site_platform.sql:ro
+      - ../../sql/jinwei_manufacturing_schema.sql:/docker-entrypoint-initdb.d/29_jinwei_manufacturing.sql:ro
+      - ../../sql/company_site_jinwei_seed.sql:/docker-entrypoint-initdb.d/30_company_site_jinwei_seed.sql:ro
+      - ../../sql/patch_ai_document_intake_mvp.sql:/docker-entrypoint-initdb.d/31_document_intake_mvp.sql:ro
+      - ../../sql/patch_document_intake_hr_records.sql:/docker-entrypoint-initdb.d/32_document_intake_hr_records.sql:ro
+      - ../../sql/patch_document_intake_production_work_reports.sql:/docker-entrypoint-initdb.d/33_document_intake_production_work_reports.sql:ro
+      - ../../sql/company_site_jinwei_admin_branding.sql:/docker-entrypoint-initdb.d/97_company_site_jinwei_admin_branding.sql:ro
       - ../../sql/patch_login_jwt_secret_setting.sql:/docker-entrypoint-initdb.d/98_patch_login_jwt_secret_setting.sql:ro
       - ./init-jwt-secret.sh:/docker-entrypoint-initdb.d/99_init_jwt_secret.sh:ro
     healthcheck:
@@ -161,7 +166,7 @@ services:
       - 0.0.0.0:8443
       - --auth
       - password
-      - --base-path
+      - --abs-proxy-base-path
       - /ide
       - --user-data-dir
       - /config/data

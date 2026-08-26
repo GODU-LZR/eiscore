@@ -4,6 +4,11 @@
 -- Patch: add inventory transactions view with material/warehouse info.
 -- Apply after inventory_schema.sql is loaded.
 
+-- Earlier inventory patches may have created a compatible view with a
+-- different column list. Dropping first keeps this refresh valid on both
+-- fresh databases and upgraded installations.
+DROP VIEW IF EXISTS scm.v_inventory_transactions;
+
 CREATE OR REPLACE VIEW scm.v_inventory_transactions AS
 SELECT
     it.id,
