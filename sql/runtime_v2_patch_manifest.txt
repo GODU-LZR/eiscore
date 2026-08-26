@@ -18,5 +18,11 @@ sql/patch_ontology_reasoning_insights_v1.sql
 sql/patch_ontology_graph_query_v1.sql
 sql/patch_ai_document_intake_mvp.sql
 sql/patch_fix_ontology_semantic_qmarks_20260618.sql
+# Grid runtime RPCs are applied before the final security hardening so the
+# manifest keeps the scoped ontology/document permissions at the end.
+sql/patch_eis_grid_summary_rpc.sql
+sql/patch_eis_grid_agent_query_rpc.sql
+sql/patch_eis_grid_formula_recalculate_rpc.sql
+sql/patch_eis_app_card_stats_rpc.sql
 sql/patch_agent_ontology_secure_context_v1.sql
 sql/patch_document_intake_rls_hardening_v1.sql

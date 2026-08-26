@@ -25,7 +25,11 @@ BEGIN
       ('public.agent_search_ontology_kg_nodes(text,text,integer)', to_regprocedure('public.agent_search_ontology_kg_nodes(text,text,integer)') IS NOT NULL),
       ('public.agent_upsert_ontology_table_semantic(jsonb)', to_regprocedure('public.agent_upsert_ontology_table_semantic(jsonb)') IS NOT NULL),
       ('public.document_intake_can_view()', to_regprocedure('public.document_intake_can_view()') IS NOT NULL),
-      ('public.document_intake_can_manage()', to_regprocedure('public.document_intake_can_manage()') IS NOT NULL)
+      ('public.document_intake_can_manage()', to_regprocedure('public.document_intake_can_manage()') IS NOT NULL),
+      ('public.eis_grid_summary(jsonb)', to_regprocedure('public.eis_grid_summary(jsonb)') IS NOT NULL),
+      ('public.eis_grid_agent_query(jsonb)', to_regprocedure('public.eis_grid_agent_query(jsonb)') IS NOT NULL),
+      ('public.eis_grid_formula_recalculate(jsonb)', to_regprocedure('public.eis_grid_formula_recalculate(jsonb)') IS NOT NULL),
+      ('public.eis_app_card_stats(jsonb)', to_regprocedure('public.eis_app_card_stats(jsonb)') IS NOT NULL)
   ) AS required(object_name, ok)
   WHERE NOT ok;
 
@@ -81,7 +85,11 @@ BEGIN
       ('public.agent_explain_role_ontology_access(text,integer)'),
       ('public.agent_upsert_ontology_table_semantic(jsonb)'),
       ('public.document_intake_can_view()'),
-      ('public.document_intake_can_manage()')
+      ('public.document_intake_can_manage()'),
+      ('public.eis_grid_summary(jsonb)'),
+      ('public.eis_grid_agent_query(jsonb)'),
+      ('public.eis_grid_formula_recalculate(jsonb)'),
+      ('public.eis_app_card_stats(jsonb)')
   ) AS f(signature)
   WHERE NOT has_function_privilege('web_user', f.signature, 'EXECUTE');
 
