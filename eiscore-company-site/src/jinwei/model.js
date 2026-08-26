@@ -200,11 +200,11 @@ export const JINWEI_PUBLIC_SOLUTIONS = Object.freeze([
   },
   {
     id: 'industrial-intake',
-    title: '工业水体拦截网',
+    title: '工业水体网具',
     englishTitle: 'Industrial Intake Interception Netting',
-    description: '面向严苛水体环境的材料、几何和检验要求，先做工况评审。',
-    evidence: '公开文案方向，参数待确认',
-    asset: 'research-gallery/gallery-012.webp'
+    description: '面向严苛水体环境的材质、网目几何和检验要求，先做工况评审。',
+    evidence: '网衣细节参考，参数待确认',
+    asset: 'research-gallery/gallery-010.webp'
   },
   {
     id: 'marine-ranch',
@@ -229,7 +229,7 @@ export const JINWEI_PUBLIC_PROJECTS = Object.freeze([
     id: 'field-process',
     title: '从拉丝到包装的现场链',
     type: '制造现场',
-    description: '独立站调研图集中的企业现场、设备、工位与交接路径参考。',
+    description: '企业现场图片中的设备、工位与交接路径参考。',
     status: '现场证据',
     asset: 'research-gallery/gallery-003.png'
   },
@@ -243,11 +243,11 @@ export const JINWEI_PUBLIC_PROJECTS = Object.freeze([
   },
   {
     id: 'industrial-review',
-    title: '工业水体拦截工况评审',
+    title: '工业水体网具评审',
     type: '工程评审',
     description: '围绕材料、网袋几何、强力与耐磨要求建立输入清单，不直接承诺性能。',
     status: '待确认',
-    asset: 'research-gallery/gallery-016.jpg'
+    asset: 'research-gallery/gallery-010.webp'
   }
 ])
 

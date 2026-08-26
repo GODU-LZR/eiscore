@@ -70,7 +70,7 @@ VALUES
   '从一根丝，到一座深海网箱。',
   '面向渔业捕捞、深远海养殖与工业水体拦截场景，提供丝、线、绳、网衣、深水网箱及工程集成解决方案。',
   $json$ {
-    "hero": {"eyebrow":"湛江市经纬网厂","title":"从一根丝，到一座深海网箱。","summary":"有结网、无结网、绳索与养殖网箱，从线材准备、织造和人工检修，到定型、包装与分批交付。","image":"/company-site/assets/jinwei/research-gallery/gallery-003.png"},
+    "hero": {"eyebrow":"湛江市经纬网厂","title":"从一根丝，到一座深海网箱。","summary":"有结网、无结网、绳索与养殖网箱，从线材准备、织造和人工检修，到定型、包装与分批交付。","image":"/company-site/assets/jinwei/research-gallery/gallery-001.png"},
     "navigation":[{"label":"产品","href":"#products"},{"label":"解决方案","href":"#solutions"},{"label":"制造","href":"#capability"},{"label":"质量依据","href":"#quality"},{"label":"规格询盘","href":"#inquiry"}],
     "sections":["products","solutions","capability","quality","inquiry"],
     "boundary":"公开内容只展示已整理的产品族、工艺和研究依据；产能、客户、认证、价格、库存和交期需企业确认。"
@@ -82,7 +82,7 @@ VALUES
   'primary', 'en-US', 'home', 'home',
   'From Filament to Deep-Sea Cage Systems.',
   'Integrated netting, rope, aquaculture cage and engineering solutions for commercial fishing, offshore aquaculture and industrial water-intake protection.',
-  $json$ {"hero":{"eyebrow":"Zhanjiang Jingwei Netting Factory","title":"From Filament to Deep-Sea Cage Systems.","summary":"Knotted and knotless netting, ropes and cage systems, connected from filament preparation to inspection, packing and staged delivery.","image":"/company-site/assets/jinwei/research-gallery/gallery-003.png"},"navigation":[{"label":"Products","href":"#products"},{"label":"Solutions","href":"#solutions"},{"label":"Manufacturing","href":"#capability"},{"label":"Quality","href":"#quality"},{"label":"RFQ","href":"#inquiry"}],"sections":["products","solutions","capability","quality","inquiry"],"boundary":"Public content is limited to reviewed product families, process evidence and research references. Capacity, customers, certificates, price, stock and lead time require confirmation."} $json$::jsonb,
+  $json$ {"hero":{"eyebrow":"Zhanjiang Jingwei Netting Factory","title":"From Filament to Deep-Sea Cage Systems.","summary":"Knotted and knotless netting, ropes and cage systems, connected from filament preparation to inspection, packing and staged delivery.","image":"/company-site/assets/jinwei/research-gallery/gallery-001.png"},"navigation":[{"label":"Products","href":"#products"},{"label":"Solutions","href":"#solutions"},{"label":"Manufacturing","href":"#capability"},{"label":"Quality","href":"#quality"},{"label":"RFQ","href":"#inquiry"}],"sections":["products","solutions","capability","quality","inquiry"],"boundary":"Public content is limited to reviewed product families, process evidence and image references. Capacity, customers, certificates, price, stock and lead time require confirmation."} $json$::jsonb,
   '{"title":"Zhanjiang Jingwei Netting Factory | Netting & Cage Systems","description":"Netting, ropes, deep-sea cage and engineering coordination from filament to delivery."}'::jsonb,
   'published', 1, now(), 'seed:jinwei', 'seed:jinwei', 'seed:jinwei'
 )

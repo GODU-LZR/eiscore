@@ -9,7 +9,6 @@
         <button type="button" @click="scrollToSection('products')">{{ copy.nav.products }}</button>
         <button type="button" @click="scrollToSection('solutions')">{{ copy.nav.solutions }}</button>
         <button type="button" @click="scrollToSection('capability')">{{ copy.nav.capability }}</button>
-        <button type="button" @click="scrollToSection('archive')">{{ copy.nav.archive }}</button>
         <button type="button" @click="scrollToSection('process')">{{ copy.nav.process }}</button>
         <button type="button" @click="scrollToSection('quality')">{{ copy.nav.quality }}</button>
       </nav>
@@ -32,7 +31,6 @@
         <button type="button" @click="goFromMobile('products')">{{ copy.nav.products }}</button>
         <button type="button" @click="goFromMobile('solutions')">{{ copy.nav.solutions }}</button>
         <button type="button" @click="goFromMobile('capability')">{{ copy.nav.capability }}</button>
-        <button type="button" @click="goFromMobile('archive')">{{ copy.nav.archive }}</button>
         <button type="button" @click="goFromMobile('process')">{{ copy.nav.process }}</button>
         <button type="button" @click="goFromMobile('quality')">{{ copy.nav.quality }}</button>
         <button type="button" class="mobile-login-link" @click="openLogin">{{ copy.login.title }}<el-icon><Lock /></el-icon></button>
@@ -62,23 +60,66 @@
     </Teleport>
 
     <main>
-      <section id="top" class="hero" aria-labelledby="hero-title">
-        <img :src="assetUrl(independentSiteAssets.hero)" :alt="copy.hero.imageAlt" fetchpriority="high">
+      <section
+        id="top"
+        class="hero"
+        aria-labelledby="hero-title"
+        @mouseenter="pauseHeroAutoplay"
+        @mouseleave="resumeHeroAutoplay"
+        @focusin="pauseHeroAutoplay"
+        @focusout="resumeHeroAutoplay"
+      >
+        <div class="hero-slides" role="region" :aria-roledescription="copy.hero.carouselRole" :aria-label="copy.hero.carouselLabel">
+          <div
+            v-for="(slide, index) in localizedHeroSlides"
+            :key="slide.id"
+            class="hero-slide"
+            :class="{ active: activeHeroSlide === index }"
+            :aria-hidden="activeHeroSlide !== index"
+          >
+            <img
+              :src="assetUrl(slide.image)"
+              :alt="slide.alt"
+              :fetchpriority="index === 0 ? 'high' : 'auto'"
+              :loading="index === 0 ? 'eager' : 'lazy'"
+            >
+          </div>
+        </div>
         <div class="hero-shade" aria-hidden="true"></div>
         <div class="hero-content">
           <p class="hero-org">{{ copy.hero.org }}</p>
-          <p class="hero-kicker">{{ copy.hero.kicker }}</p>
-          <h1 id="hero-title">{{ copy.hero.titleLead }}<br><em>{{ copy.hero.titleAccent }}</em></h1>
-          <p class="hero-lead">{{ copy.hero.lead }}</p>
+          <p class="hero-kicker">{{ currentHeroSlide.kicker }}</p>
+          <h1 id="hero-title">{{ currentHeroSlide.titleLead }}<br><em>{{ currentHeroSlide.titleAccent }}</em></h1>
+          <p class="hero-lead">{{ currentHeroSlide.detail }}</p>
           <div class="hero-actions">
             <button class="hero-primary" type="button" @click="scrollToSection('inquiry')">{{ copy.hero.primary }}<el-icon><ArrowRight /></el-icon></button>
             <button class="hero-secondary" type="button" @click="scrollToSection('capability')"><el-icon><View /></el-icon>{{ copy.hero.secondary }}</button>
           </div>
         </div>
-        <div class="hero-coordinate" aria-hidden="true"><span>21°05'N</span><i></i><span>110°21'E</span></div>
-        <div class="hero-index" :aria-label="copy.hero.indexLabel">
-          <span v-for="(item, index) in localizedProducts" :key="item.id"><b>{{ String(index + 1).padStart(2, '0') }}</b>{{ item.short }}</span>
+        <div class="hero-slide-note" aria-live="polite">
+          <span class="hero-slide-count">{{ String(activeHeroSlide + 1).padStart(2, '0') }} / {{ String(localizedHeroSlides.length).padStart(2, '0') }}</span>
+          <strong>{{ currentHeroSlide.caption }}</strong>
+          <small>{{ currentHeroSlide.captionDetail }}</small>
         </div>
+        <div class="hero-controls" :aria-label="copy.hero.carouselControls">
+          <button type="button" class="hero-control" :title="copy.hero.previous" :aria-label="copy.hero.previous" @click="setHeroSlide(activeHeroSlide - 1)"><el-icon><ArrowLeft /></el-icon></button>
+          <div class="hero-dots" role="tablist" :aria-label="copy.hero.carouselSlides">
+            <button
+              v-for="(slide, index) in localizedHeroSlides"
+              :key="slide.id"
+              type="button"
+              role="tab"
+              class="hero-dot"
+              :class="{ active: activeHeroSlide === index }"
+              :aria-selected="activeHeroSlide === index"
+              :aria-label="`${copy.hero.slideLabel} ${index + 1}: ${slide.caption}`"
+              :title="slide.caption"
+              @click="setHeroSlide(index)"
+            ><span></span></button>
+          </div>
+          <button type="button" class="hero-control" :title="copy.hero.next" :aria-label="copy.hero.next" @click="setHeroSlide(activeHeroSlide + 1)"><el-icon><ArrowRight /></el-icon></button>
+        </div>
+        <div class="hero-coordinate" aria-hidden="true"><span>21°05'N</span><i></i><span>110°21'E</span></div>
       </section>
 
       <section class="proof-band" :aria-label="copy.proof.ariaLabel">
@@ -93,7 +134,7 @@
         </div>
         <div class="product-grid">
           <article v-for="(product, index) in localizedProducts" :key="product.id" class="product-card">
-            <div class="product-image"><img :src="assetUrl(productResearchAsset(product.id))" :alt="product.imageAlt" loading="lazy"><span>{{ String(index + 1).padStart(2, '0') }}</span></div>
+            <div class="product-image"><img :src="assetUrl(productAsset(product.id))" :alt="product.imageAlt" loading="lazy"><span>{{ String(index + 1).padStart(2, '0') }}</span></div>
             <div class="product-copy">
               <h3>{{ product.name }}</h3>
               <p>{{ product.description }}</p>
@@ -112,7 +153,7 @@
         <div class="solution-list">
           <article v-for="(solution, index) in localizedPrimarySolutions" :key="solution.id" class="solution-card">
             <div class="solution-index">{{ String(index + 1).padStart(2, '0') }}</div>
-            <div class="solution-image"><img :src="assetUrl(solutionResearchAsset(solution.id))" :alt="solution.imageAlt" loading="lazy"></div>
+            <div class="solution-image"><img :src="assetUrl(solutionAsset(solution.id))" :alt="solution.imageAlt" loading="lazy"></div>
             <div class="solution-copy">
               <p>{{ solution.englishTitle }}</p>
               <h3>{{ solution.title }}</h3>
@@ -161,37 +202,6 @@
         </div>
       </section>
 
-      <section id="archive" class="archive-section section-shell" aria-labelledby="archive-title">
-        <div class="archive-heading">
-          <div>
-            <p class="section-label">{{ copy.sections.archive.label }}</p>
-            <h2 id="archive-title">{{ copy.sections.archive.title }}</h2>
-          </div>
-          <p>{{ copy.sections.archive.detail }}</p>
-        </div>
-        <div class="archive-notice"><el-icon><InfoFilled /></el-icon><span>{{ copy.sections.archive.notice }}</span><strong>{{ localizedResearchImages.length }} {{ copy.sections.archive.countSuffix }}</strong></div>
-        <div class="archive-filters" role="tablist" :aria-label="copy.sections.archive.filterLabel">
-          <button v-for="group in localizedResearchGroups" :key="group.id" type="button" role="tab" :aria-selected="activeResearchGroup === group.id" :class="{ active: activeResearchGroup === group.id }" @click="activeResearchGroup = group.id">{{ group.label }}</button>
-        </div>
-        <div class="research-grid">
-          <button v-for="item in filteredResearchImages" :key="item.id" class="research-tile" type="button" @click="openResearchImage(item)">
-            <img :src="assetUrl(item.src)" :alt="item.alt" loading="lazy">
-            <span class="research-tile-meta"><strong>{{ item.title }}</strong><small>{{ item.category }}</small></span>
-          </button>
-        </div>
-      </section>
-
-      <Teleport to="body">
-        <div v-if="selectedResearchImage" class="research-lightbox" role="presentation" @click.self="closeResearchImage">
-          <section class="research-lightbox-dialog" role="dialog" aria-modal="true" :aria-label="copy.sections.archive.detailLabel">
-            <button class="lightbox-close" type="button" :aria-label="copy.sections.archive.closeLabel" @click="closeResearchImage"><el-icon><Close /></el-icon></button>
-            <img :src="assetUrl(selectedResearchImage.src)" :alt="localizedResearchImage.title">
-            <div class="lightbox-copy"><p class="section-label">{{ localizedResearchImage.category }}</p><h3>{{ localizedResearchImage.title }}</h3><p>{{ copy.sections.archive.rightsPrefix }}{{ localizedResearchImage.rights }}</p><a :href="localizedResearchImage.source" target="_blank" rel="noreferrer">{{ copy.sections.archive.sourceLink }}<el-icon><TopRight /></el-icon></a></div>
-            <div class="lightbox-controls"><button type="button" :aria-label="copy.sections.archive.previous" @click="stepResearchImage(-1)"><el-icon><ArrowLeft /></el-icon></button><span>{{ researchImagePosition }} / {{ localizedResearchImages.length }}</span><button type="button" :aria-label="copy.sections.archive.next" @click="stepResearchImage(1)"><el-icon><ArrowRight /></el-icon></button></div>
-          </section>
-        </div>
-      </Teleport>
-
       <section id="process" class="process-section section-shell">
         <div class="section-intro process-intro">
           <p class="section-label">{{ copy.sections.process.label }}</p>
@@ -225,7 +235,7 @@
           <div class="project-heading"><div><p class="section-label">{{ copy.sections.projects.label }}</p><h3>{{ copy.sections.projects.title }}</h3></div><span>{{ copy.sections.projects.note }}</span></div>
           <div class="project-grid">
             <article v-for="project in localizedProjects" :key="project.id" class="project-card">
-              <img :src="assetUrl(projectResearchAsset(project.id))" :alt="project.title" loading="lazy">
+              <img :src="assetUrl(projectAsset(project.id))" :alt="project.title" loading="lazy">
               <div><small>{{ project.type }} · {{ project.status }}</small><h4>{{ project.title }}</h4><p>{{ project.description }}</p></div>
             </article>
           </div>
@@ -313,7 +323,7 @@
 // Copyright (c) 2026 林志荣
 
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { ArrowLeft, ArrowRight, CircleCheck, Close, DocumentChecked, InfoFilled, Key, Loading, Lock, Menu, Setting, Top, TopRight, View, Warning } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowRight, CircleCheck, Close, DocumentChecked, Key, Loading, Lock, Menu, Setting, Top, View, Warning } from '@element-plus/icons-vue'
 import {
   JINWEI_PRODUCT_FAMILIES,
   JINWEI_PUBLIC_PROJECTS,
@@ -322,7 +332,6 @@ import {
   JINWEI_SPEC_FIELDS,
   JINWEI_SYSTEM_URL
 } from '@/jinwei/model.js'
-import { JINWEI_RESEARCH_GROUPS, JINWEI_RESEARCH_IMAGES } from '@/jinwei/research-images.js'
 
 const locale = ref(typeof localStorage !== 'undefined' && localStorage.getItem('jinwei.site.locale') === 'en-US' ? 'en-US' : 'zh-CN')
 const isEnglish = computed(() => locale.value === 'en-US')
@@ -331,21 +340,20 @@ const tx = (zh, en) => (isEnglish.value ? en : zh)
 const ZH_COPY = Object.freeze({
   brand: { name: '经纬网业', sub: 'JINGWEI NETTING', homeLabel: '返回经纬网业首页' },
   locale: { toggleLabel: '切换到英文' },
-  nav: { ariaLabel: '页面导航', mobileLabel: '移动端页面导航', products: '产品体系', solutions: '应用方案', capability: '制造现场', archive: '独立站图集', process: '交付流程', quality: '质量依据', inquiry: '提交规格', systemTitle: '打开 EISCore 制造系统', menuLabel: '打开页面导航' },
+  nav: { ariaLabel: '页面导航', mobileLabel: '移动端页面导航', products: '产品体系', solutions: '应用方案', capability: '制造现场', process: '交付流程', quality: '质量依据', inquiry: '提交规格', systemTitle: '打开 EISCore 制造系统', menuLabel: '打开页面导航' },
   login: { openTitle: '打开经纬系统登录', short: '登录', title: '进入经纬 EISCore', kicker: 'AUTHORIZED ACCESS / 授权入口', dialogTitleId: 'jinwei-login-title', closeLabel: '关闭登录窗口', lead: '员工、计划、仓库、质检与合作伙伴使用统一账号进入制造协同系统。', username: '用户名', password: '密码', usernamePlaceholder: '输入企业账号', passwordPlaceholder: '输入登录密码', remember: '在本设备记住账号', checking: '正在验证', submit: '验证并进入系统', note: '登录验证在经纬域名下完成；管理端使用独立会话，不在地址栏传递密码或 Token。', adminLink: '打开管理端登录页', verified: '账号验证通过，请继续打开管理端完成登录。', invalid: '账号或密码不正确，请检查后重试。' },
-  hero: { imageAlt: '海上网具与网箱产品参考图', org: '湛江市经纬网厂 / ZHANJIANG JINGWEI NETTING FACTORY', kicker: 'JWWC / MARINE NETTING SYSTEMS', titleLead: '从一根丝，', titleAccent: '到一座深海网箱。', lead: '湛江市经纬网厂，为渔业捕捞、深远海养殖与工业水体工程提供有结网、无结网、绳索和网箱系统。', primary: '提交规格', secondary: '查看制造现场', indexLabel: '产品范围' },
+  hero: { imageAlt: '湛江市经纬网厂厂区大门', org: '湛江市经纬网厂 / ZHANJIANG JINGWEI NETTING FACTORY', primary: '提交规格', secondary: '查看制造现场', indexLabel: '产品范围', carouselRole: '轮播图', carouselLabel: '经纬网业厂区与产品现场', carouselControls: '现场图片切换', carouselSlides: '现场图片', slideLabel: '第', previous: '上一张现场图片', next: '下一张现场图片' },
   proof: { ariaLabel: '制造依据', items: [{ title: 'Specification first', detail: '材质、线规格、网眼、尺寸、颜色与包装逐项确认' }, { title: 'Traceable by batch', detail: '合同、批次、机台、人员、检验与包装码贯通' }, { title: 'Built for handoff', detail: '本厂织造、外协回网、染色和分批交付统一衔接' }] },
   sections: {
     products: { label: '01 / PRODUCT SYSTEM', title: '从线材、网衣到整套网箱，按工况定义每一条规格。', detail: '每个询盘先形成可核对的规格版本，再进入库存齐套、机台匹配和交付评估。' },
     solutions: { label: '02 / APPLICATION SYSTEMS', title: '从网片供货，到按工况协同的工程方案', detail: '公开页面区分产品族与产业关联业务；项目参数、客户名称和性能指标均在技术评审后确认。', associatedLabel: 'ASSOCIATED BRAND / 产业关联业务' },
     spec: { label: 'SPECIFICATION LOOM', title: '一张规格单，贯穿报价、排产、检验与包装' },
-    capability: { label: '03 / FACTORY FLOOR', title: '制造能力，来自看得见的工位与交接。', detail: '现场调研覆盖原料、拉丝与温控、整经盘头、织网、人工检修、热定型、包装及仓储。每一处实物标识，都会在系统中转成可扫描、可校验的批次记录。', rows: [{ title: '原料准备', detail: '聚乙烯、尼龙、涤纶及外购纱线按批次接收' }, { title: '织造路线', detail: '有结、无结、捻线与成绳按产品工艺分支' }, { title: '后处理', detail: '人工补网、委外染色、电热或蒸汽定型' }, { title: '交付控制', detail: '条/件换算、包装唛头、合同归属与分批出库' }], images: { weaving: { label: '织造', caption: '多机台生产区', alt: '经纬网厂织网设备生产区域' }, extrusion: { label: '制线', caption: '挤出与拉丝', alt: '聚合物拉丝挤出生产线' }, setting: { label: '后处理', caption: '热定型', alt: '网具热处理定型设备' } } },
-    archive: { label: '04 / INDEPENDENT-SITE RESEARCH PACK', title: '独立站调研图集，逐张保留来源线索', detail: '图集来自你提供的独立站研究 HTML，按企业现场、产品参考、案例与品牌线索分类。正式商用前仍需完成企业授权或换用企业原片。', notice: '研究素材仅用于独立站选片与内容核验，版权与商业使用范围待确认。', countSuffix: '张素材', filterLabel: '图集分类', detailLabel: '调研图集详情', closeLabel: '关闭图片详情', rightsPrefix: '素材状态：', sourceLink: '查看原始来源', previous: '上一张', next: '下一张' },
-    process: { label: '05 / ORDER JOURNEY', title: '从客户规格到包装码，状态沿着一条线走完。' },
-    quality: { label: '06 / QUALITY & EVIDENCE', title: '把标准、批次和放行状态，放在同一条证据链上。', detail: '以下是联网核验后用于系统建模的标准基线，不等同于企业认证，也不替代客户合同中的检验要求。', boundary: '公开数字、项目案例、证书和产能口径上线前仍需经纬网厂书面确认。' },
+    capability: { label: '03 / FACTORY FLOOR', title: '制造能力，来自看得见的工位与交接。', detail: '现场图片覆盖原料、拉丝与温控、整经盘头、织网、人工检修、热定型、包装及仓储。每一处实物标识，都会在系统中转成可扫描、可校验的批次记录。', rows: [{ title: '原料准备', detail: '聚乙烯、尼龙、涤纶及外购纱线按批次接收' }, { title: '织造路线', detail: '有结、无结、捻线与成绳按产品工艺分支' }, { title: '后处理', detail: '人工补网、委外染色、电热或蒸汽定型' }, { title: '交付控制', detail: '条/件换算、包装唛头、合同归属与分批出库' }], images: { weaving: { label: '织网现场', caption: '大面积网衣装配', alt: '经纬网厂大面积网衣装配现场' }, extrusion: { label: '生产车间', caption: '多机台织造工位', alt: '经纬网厂多机台织造生产车间' }, setting: { label: '网结细节', caption: '成品网衣检视', alt: '渔网网结与网眼细节' } } },
+    process: { label: '04 / ORDER JOURNEY', title: '从客户规格到包装码，状态沿着一条线走完。' },
+    quality: { label: '05 / QUALITY & EVIDENCE', title: '把标准、批次和放行状态，放在同一条证据链上。', detail: '以下是联网核验后用于系统建模的标准基线，不等同于企业认证，也不替代客户合同中的检验要求。', boundary: '公开数字、项目案例、证书和产能口径上线前仍需经纬网厂书面确认。' },
     projects: { label: 'PROJECT REGISTER', title: '项目展示采用证据等级，而不是夸大承诺', note: '授权后可扩充为正式案例' },
     industry: { ariaLabel: '产业关联边界', label: 'JINGWEI INDUSTRIAL CONTEXT', title: '网具制造是主体，产业协同按业务边界呈现', detail: '公开资料还提到海洋牧场、养殖装备与“粤府鲜”金鲳鱼等关联业务。本页仅将其作为产业体系背景，不把关联业务的规模、资质或产品承诺写成湛江市经纬网厂单体数据。' },
-    inquiry: { label: '07 / SPECIFICATION REQUEST', title: '把关键规格，一次说清楚。', detail: '提交后进入人工审核。价格、库存、产能与交期只有在规格版本锁定并完成齐套检查后才会确认。', noteTitle: '规格先行', noteDetail: '缺少关键字段时不会直接生成正式订单或生产任务。' }
+    inquiry: { label: '06 / SPECIFICATION REQUEST', title: '把关键规格，一次说清楚。', detail: '提交后进入人工审核。价格、库存、产能与交期只有在规格版本锁定并完成齐套检查后才会确认。', noteTitle: '规格先行', noteDetail: '缺少关键字段时不会直接生成正式订单或生产任务。' }
   },
   form: { productLegend: '产品与规格', productType: '产品类型', material: '材质', materialPlaceholder: '如：涤纶 / 尼龙 / 聚乙烯', construction: '网结类型', selectPlaceholder: '请选择', yarnSpec: '线规格 / 股数', yarnPlaceholder: '如：210D / PLY3', meshSize: '网眼 / 目数', meshPlaceholder: '如：3/8 英寸', dimensions: '成品尺寸', dimensionsPlaceholder: '长 x 宽 x 深，注明单位', color: '颜色', colorPlaceholder: '如：原白 / 深黑青', weight: '重量标准', weightPlaceholder: '如：KG/PC 与允许偏差', finish: '后处理', finishPlaceholder: '染色、硬度、定型要求', packing: '包装与唛头', packingPlaceholder: '条/件、袋色、印刷版、侧边编号、重量与唛头要求', purchaseLegend: '采购需求', quantity: '需求数量', quantityPlaceholder: '数量及单位', targetDate: '目标日期', country: '交付地区', countryPlaceholder: '国家 / 地区', notes: '用途与补充要求', notesPlaceholder: '应用场景、分批交付、检验或其他要求', contactLegend: '联系信息', company: '企业名称', contact: '联系人', email: '邮箱', phone: '电话 / WhatsApp', consent: '我同意使用本次提交的信息进行询盘跟进。', submitting: '正在提交', submit: '提交规格询盘' },
   footer: '湛江 · 渔网、绳索与养殖网具制造', footerTop: '返回顶部'
@@ -354,27 +362,123 @@ const ZH_COPY = Object.freeze({
 const EN_COPY = Object.freeze({
   brand: { name: 'Jingwei Netting', sub: 'JINGWEI NETTING', homeLabel: 'Back to Jingwei Netting home' },
   locale: { toggleLabel: 'Switch to Chinese' },
-  nav: { ariaLabel: 'Site navigation', mobileLabel: 'Mobile site navigation', products: 'Products', solutions: 'Solutions', capability: 'Factory floor', archive: 'Research pack', process: 'Order journey', quality: 'Quality basis', inquiry: 'Request specs', systemTitle: 'Open EISCore manufacturing system', menuLabel: 'Open site navigation' },
+  nav: { ariaLabel: 'Site navigation', mobileLabel: 'Mobile site navigation', products: 'Products', solutions: 'Solutions', capability: 'Factory floor', process: 'Order journey', quality: 'Quality basis', inquiry: 'Request specs', systemTitle: 'Open EISCore manufacturing system', menuLabel: 'Open site navigation' },
   login: { openTitle: 'Open Jingwei system login', short: 'Login', title: 'Enter Jingwei EISCore', kicker: 'AUTHORIZED ACCESS', dialogTitleId: 'jinwei-login-title', closeLabel: 'Close login dialog', lead: 'Employees, planners, warehouse, quality and partners use one account for manufacturing coordination.', username: 'Username', password: 'Password', usernamePlaceholder: 'Enter company username', passwordPlaceholder: 'Enter password', remember: 'Remember username on this device', checking: 'Verifying', submit: 'Verify and continue', note: 'Verification stays on the Jingwei domain. The admin portal keeps its own session; passwords and tokens are never put in the address bar.', adminLink: 'Open admin login', verified: 'Account verified. Continue in the admin portal to complete sign-in.', invalid: 'Username or password is incorrect. Please try again.' },
-  hero: { imageAlt: 'Marine netting and cage product reference', org: 'ZHANJIANG JINGWEI NETTING FACTORY / 湛江市经纬网厂', kicker: 'JWWC / MARINE NETTING SYSTEMS', titleLead: 'From one filament,', titleAccent: 'to a deep-sea cage.', lead: 'Zhanjiang Jingwei Netting Factory supplies knotted and knotless nets, rope and cage systems for commercial fishing, offshore aquaculture and industrial water projects.', primary: 'Request a specification', secondary: 'View factory floor', indexLabel: 'Product scope' },
+  hero: { imageAlt: 'Jingwei Netting Factory entrance', org: 'ZHANJIANG JINGWEI NETTING FACTORY / 湛江市经纬网厂', primary: 'Request a specification', secondary: 'View factory floor', indexLabel: 'Product scope', carouselRole: 'Carousel', carouselLabel: 'Jingwei factory and product scenes', carouselControls: 'Scene controls', carouselSlides: 'Scenes', slideLabel: 'Slide', previous: 'Previous scene', next: 'Next scene' },
   proof: { ariaLabel: 'Manufacturing basis', items: [{ title: 'Specification first', detail: 'Material, yarn, mesh, dimensions, color and packing are confirmed line by line.' }, { title: 'Traceable by batch', detail: 'Contract, batch, machine, operator, inspection and package code stay connected.' }, { title: 'Built for handoff', detail: 'In-house weaving, outsourced return, dyeing and split delivery share one handoff.' }] },
   sections: {
     products: { label: '01 / PRODUCT SYSTEM', title: 'From yarn and netting to complete cages, every specification follows the operating condition.', detail: 'Each inquiry becomes a checkable specification version before readiness, machine matching and delivery review.' },
     solutions: { label: '02 / APPLICATION SYSTEMS', title: 'From net supply to coordinated engineering packages', detail: 'The public page separates product families from associated businesses. Project parameters, customer names and performance metrics are confirmed in technical review.', associatedLabel: 'ASSOCIATED BRAND / INDUSTRIAL CONTEXT' },
     spec: { label: 'SPECIFICATION LOOM', title: 'One specification sheet across quote, planning, inspection and packing' },
-    capability: { label: '03 / FACTORY FLOOR', title: 'Manufacturing capability comes from visible workstations and handoffs.', detail: 'The field pack covers material, drawing and temperature control, warping, weaving, manual repair, heat setting, packing and storage. Physical marks become scannable, verifiable batch records in the system.', rows: [{ title: 'Material preparation', detail: 'PE, nylon, polyester and purchased yarn are received by batch.' }, { title: 'Weaving routes', detail: 'Knotted, knotless, twisting and rope routes branch by product process.' }, { title: 'Finishing', detail: 'Manual repair, outsourced dyeing and electric or steam setting.' }, { title: 'Delivery control', detail: 'Piece/carton conversion, marks, contract ownership and split dispatch.' }], images: { weaving: { label: 'WEAVING', caption: 'Multi-machine production area', alt: 'Jingwei net weaving production area' }, extrusion: { label: 'LINE MAKING', caption: 'Extrusion and drawing', alt: 'Polymer extrusion and drawing line' }, setting: { label: 'FINISHING', caption: 'Heat setting', alt: 'Netting heat-setting equipment' } } },
-    archive: { label: '04 / INDEPENDENT-SITE RESEARCH PACK', title: 'The independent-site research pack, with a source trail on every frame', detail: 'These images come from the two independent-site research HTML files you supplied. They are grouped as factory, product, case and brand references. Commercial launch still requires written clearance or replacement with factory originals.', notice: 'Research references are for selection and verification; copyright and commercial scope remain pending.', countSuffix: 'images', filterLabel: 'Research image categories', detailLabel: 'Research image detail', closeLabel: 'Close image detail', rightsPrefix: 'Asset status: ', sourceLink: 'View original source', previous: 'Previous image', next: 'Next image' },
-    process: { label: '05 / ORDER JOURNEY', title: 'From customer specification to package code, every state follows one line.' },
-    quality: { label: '06 / QUALITY & EVIDENCE', title: 'Keep standards, batches and release status on one evidence chain.', detail: 'This is a standards baseline for system modeling after public verification. It is not a certificate and does not replace contract inspection requirements.', boundary: 'Public figures, case studies, certificates and capacity claims require written confirmation from Jingwei before launch.' },
+    capability: { label: '03 / FACTORY FLOOR', title: 'Manufacturing capability comes from visible workstations and handoffs.', detail: 'Factory scenes cover material, drawing and temperature control, warping, weaving, manual repair, heat setting, packing and storage. Physical marks become scannable, verifiable batch records in the system.', rows: [{ title: 'Material preparation', detail: 'PE, nylon, polyester and purchased yarn are received by batch.' }, { title: 'Weaving routes', detail: 'Knotted, knotless, twisting and rope routes branch by product process.' }, { title: 'Finishing', detail: 'Manual repair, outsourced dyeing and electric or steam setting.' }, { title: 'Delivery control', detail: 'Piece/carton conversion, marks, contract ownership and split dispatch.' }], images: { weaving: { label: 'NET ASSEMBLY', caption: 'Large net assembly floor', alt: 'Jingwei large net assembly floor' }, extrusion: { label: 'FACTORY FLOOR', caption: 'Multi-machine weaving stations', alt: 'Jingwei multi-machine weaving floor' }, setting: { label: 'NET DETAIL', caption: 'Finished net inspection', alt: 'Net knot and mesh detail' } } },
+    process: { label: '04 / ORDER JOURNEY', title: 'From customer specification to package code, every state follows one line.' },
+    quality: { label: '05 / QUALITY & EVIDENCE', title: 'Keep standards, batches and release status on one evidence chain.', detail: 'This is a standards baseline for system modeling after public verification. It is not a certificate and does not replace contract inspection requirements.', boundary: 'Public figures, case studies, certificates and capacity claims require written confirmation from Jingwei before launch.' },
     projects: { label: 'PROJECT REGISTER', title: 'Project stories use evidence grades, not inflated promises', note: 'Expand to authorized case studies later' },
     industry: { ariaLabel: 'Industrial context boundary', label: 'JINGWEI INDUSTRIAL CONTEXT', title: 'Netting is the core; industrial context stays within its boundary', detail: 'Public sources also mention marine ranching, aquaculture equipment and the Yuefuxian golden pompano line. Here they are context only, not claims about the standalone scale, credentials or products of Jingwei Netting Factory.' },
-    inquiry: { label: '07 / SPECIFICATION REQUEST', title: 'Put the critical specifications in one place.', detail: 'Every submission enters manual review. Price, stock, capacity and lead time are confirmed only after the specification version and readiness check are locked.', noteTitle: 'Specification first', noteDetail: 'Missing critical fields never create a formal order or production task.' }
+    inquiry: { label: '06 / SPECIFICATION REQUEST', title: 'Put the critical specifications in one place.', detail: 'Every submission enters manual review. Price, stock, capacity and lead time are confirmed only after the specification version and readiness check are locked.', noteTitle: 'Specification first', noteDetail: 'Missing critical fields never create a formal order or production task.' }
   },
   form: { productLegend: 'Product & specification', productType: 'Product type', material: 'Material', materialPlaceholder: 'e.g. polyester / nylon / polyethylene', construction: 'Construction', selectPlaceholder: 'Select one', yarnSpec: 'Yarn specification / ply', yarnPlaceholder: 'e.g. 210D / PLY3', meshSize: 'Mesh size / gauge', meshPlaceholder: 'e.g. 3/8 inch', dimensions: 'Finished dimensions', dimensionsPlaceholder: 'Length x width x depth with units', color: 'Color', colorPlaceholder: 'e.g. natural white / deep black-green', weight: 'Weight standard', weightPlaceholder: 'e.g. KG/PC and tolerance', finish: 'Finishing', finishPlaceholder: 'Dyeing, hardness or setting requirement', packing: 'Packing & marks', packingPlaceholder: 'Pieces/carton, bag color, print, side code, weight and marks', purchaseLegend: 'Purchase requirement', quantity: 'Required quantity', quantityPlaceholder: 'Quantity and unit', targetDate: 'Target date', country: 'Delivery region', countryPlaceholder: 'Country / region', notes: 'Use and additional requirements', notesPlaceholder: 'Application, split delivery, inspection or other notes', contactLegend: 'Contact details', company: 'Company', contact: 'Contact person', email: 'Email', phone: 'Phone / WhatsApp', consent: 'I agree that this information may be used for inquiry follow-up.', submitting: 'Submitting', submit: 'Submit specification request' },
   footer: 'Zhanjiang · Netting, rope and aquaculture equipment manufacturing', footerTop: 'Back to top'
 })
 
 const copy = computed(() => (isEnglish.value ? EN_COPY : ZH_COPY))
+
+const HERO_SLIDES = Object.freeze([
+  {
+    id: 'entrance',
+    image: 'research-gallery/gallery-001.png',
+    zh: {
+      kicker: 'FACTORY ENTRANCE / 厂区大门',
+      titleLead: '经纬网业，',
+      titleAccent: '从湛江连接深海。',
+      detail: '从厂区大门开始，认识一家专注渔网、绳索与养殖网具的制造企业。',
+      caption: '厂区大门',
+      captionDetail: '湛江市经纬网厂 · 企业形象',
+      alt: '湛江市经纬网厂厂区大门与中英文企业标识'
+    },
+    en: {
+      kicker: 'FACTORY ENTRANCE / JINGWEI NETTING',
+      titleLead: 'Jingwei Netting,',
+      titleAccent: 'from Zhanjiang to offshore.',
+      detail: 'Start at the gate of a manufacturing company focused on netting, rope and aquaculture equipment.',
+      caption: 'Factory entrance',
+      captionDetail: 'Zhanjiang Jingwei Netting Factory · Company identity',
+      alt: 'Jingwei Netting Factory entrance with Chinese and English signage'
+    }
+  },
+  {
+    id: 'weaving-floor',
+    image: 'research-gallery/gallery-002.png',
+    zh: {
+      kicker: 'WEAVING FLOOR / 织造现场',
+      titleLead: '把每一根线，',
+      titleAccent: '织成可交付的网。',
+      detail: '多机台织造工位承接线材、网目与尺寸要求，形成可核对的生产规格。',
+      caption: '多机台织造',
+      captionDetail: '线材准备 · 织造工位 · 过程交接',
+      alt: '经纬网厂多机台织造生产车间与线材工位'
+    },
+    en: {
+      kicker: 'WEAVING FLOOR / PRODUCTION',
+      titleLead: 'Turn every filament',
+      titleAccent: 'into a deliverable net.',
+      detail: 'Multi-machine weaving connects yarn, mesh and dimensions to a specification the team can check.',
+      caption: 'Multi-machine weaving',
+      captionDetail: 'Yarn preparation · weaving stations · process handoff',
+      alt: 'Jingwei multi-machine weaving floor with yarn stations'
+    }
+  },
+  {
+    id: 'net-assembly',
+    image: 'research-gallery/gallery-003.png',
+    zh: {
+      kicker: 'NET ASSEMBLY / 网衣装配',
+      titleLead: '看得见的工位，',
+      titleAccent: '撑起每一张大网。',
+      detail: '大面积网衣装配与人工检视，把工艺路线落实到现场交接与批次记录。',
+      caption: '大面积网衣装配',
+      captionDetail: '网衣拼接 · 人工检视 · 尺寸复核',
+      alt: '经纬网厂大面积网衣装配车间，工作人员在网面上检修'
+    },
+    en: {
+      kicker: 'NET ASSEMBLY / FIELD WORK',
+      titleLead: 'Visible workstations',
+      titleAccent: 'support every large net.',
+      detail: 'Large net assembly and manual inspection turn the process route into accountable handoffs and batch records.',
+      caption: 'Large net assembly',
+      captionDetail: 'Net joining · manual inspection · dimensional check',
+      alt: 'Jingwei large net assembly floor with workers inspecting a net'
+    }
+  },
+  {
+    id: 'offshore-application',
+    image: 'research-gallery/gallery-015.jpeg',
+    zh: {
+      kicker: 'OFFSHORE APPLICATION / 深远海应用',
+      titleLead: '从网衣到网箱，',
+      titleAccent: '协同每一处连接。',
+      detail: '面向深远海养殖场景，按网衣、绳索、框架与连接件的系统边界展开项目评审。',
+      caption: '深远海养殖平台',
+      captionDetail: '网箱系统 · 工程协同 · 项目评审',
+      alt: '深远海养殖平台与大型海上网箱应用场景'
+    },
+    en: {
+      kicker: 'OFFSHORE APPLICATION / CAGE SYSTEMS',
+      titleLead: 'From netting to cages,',
+      titleAccent: 'coordinate every connection.',
+      detail: 'For offshore aquaculture, review the system boundary across netting, rope, frames and connectors.',
+      caption: 'Offshore aquaculture platform',
+      captionDetail: 'Cage system · engineering coordination · project review',
+      alt: 'Offshore aquaculture platform and large marine cage application'
+    }
+  }
+])
+
+const localizedHeroSlides = computed(() => HERO_SLIDES.map((slide) => ({
+  id: slide.id,
+  image: slide.image,
+  ...(isEnglish.value ? slide.en : slide.zh)
+})))
 
 const setLocale = (nextLocale) => {
   locale.value = nextLocale === 'en-US' ? 'en-US' : 'zh-CN'
@@ -392,14 +496,15 @@ const loginLoading = ref(false)
 const loginMessage = ref('')
 const loginTone = ref('normal')
 const loginForm = reactive({ username: '', password: '', remember: false })
-const activeResearchGroup = ref('all')
-const selectedResearchImage = ref(null)
+const activeHeroSlide = ref(0)
+const heroAutoplayPaused = ref(false)
+let heroAutoplayTimer = null
 
 const independentSiteAssets = Object.freeze({
-  hero: 'research-gallery/gallery-003.png',
-  factoryWide: 'research-gallery/gallery-002.png',
-  factoryLine: 'research-gallery/gallery-001.png',
-  factoryCase: 'research-gallery/gallery-015.jpeg',
+  hero: 'research-gallery/gallery-001.png',
+  factoryWide: 'research-gallery/gallery-003.png',
+  factoryLine: 'research-gallery/gallery-002.png',
+  factoryCase: 'research-gallery/gallery-010.webp',
   products: Object.freeze({
     'knotted-net': 'research-gallery/gallery-008.webp',
     'knotless-net': 'research-gallery/gallery-009.webp',
@@ -409,20 +514,20 @@ const independentSiteAssets = Object.freeze({
   solutions: Object.freeze({
     'commercial-fishing': 'research-gallery/gallery-011.webp',
     'offshore-aquaculture': 'research-gallery/gallery-006.webp',
-    'industrial-intake': 'research-gallery/gallery-012.webp',
+    'industrial-intake': 'research-gallery/gallery-010.webp',
     'marine-ranch': 'research-gallery/gallery-026.jpeg',
     yuefuxian: 'research-gallery/gallery-021.jpeg'
   }),
   projects: Object.freeze({
     'field-process': 'research-gallery/gallery-003.png',
     'offshore-reported': 'research-gallery/gallery-015.jpeg',
-    'industrial-review': 'research-gallery/gallery-016.jpg'
+    'industrial-review': 'research-gallery/gallery-010.webp'
   })
 })
 
-const productResearchAsset = (id) => independentSiteAssets.products[id] || independentSiteAssets.products['knotless-net']
-const solutionResearchAsset = (id) => independentSiteAssets.solutions[id] || independentSiteAssets.solutions['commercial-fishing']
-const projectResearchAsset = (id) => independentSiteAssets.projects[id] || independentSiteAssets.projects['field-process']
+const productAsset = (id) => independentSiteAssets.products[id] || independentSiteAssets.products['knotless-net']
+const solutionAsset = (id) => independentSiteAssets.solutions[id] || independentSiteAssets.solutions['commercial-fishing']
+const projectAsset = (id) => independentSiteAssets.projects[id] || independentSiteAssets.projects['field-process']
 
 const primarySolutions = JINWEI_PUBLIC_SOLUTIONS.filter((item) => item.id !== 'yuefuxian')
 const associatedSeafood = JINWEI_PUBLIC_SOLUTIONS.find((item) => item.id === 'yuefuxian')
@@ -437,15 +542,15 @@ const productEnglish = Object.freeze({
 const solutionEnglish = Object.freeze({
   'commercial-fishing': { title: 'Commercial fishing netting', description: 'Turn target species, operating method, construction, mesh and delivery unit into a reviewable specification.' },
   'offshore-aquaculture': { title: 'Offshore aquaculture cage systems', description: 'Coordinate netting, rope, frame, floats and connectors through a project BOM.' },
-  'industrial-intake': { title: 'Industrial intake interception netting', description: 'Review material, geometry and inspection requirements for demanding water environments.' },
+  'industrial-intake': { title: 'Industrial water netting', description: 'Review material, mesh geometry and inspection requirements for demanding water environments.' },
   'marine-ranch': { title: 'Marine ranch engineering coordination', description: 'Break netting, cages, rope and field delivery into traceable work packages.' },
   yuefuxian: { title: 'Yuefuxian golden pompano', description: 'An associated aquaculture business line, shown separately from netting manufacturing.' }
 })
 
 const projectEnglish = Object.freeze({
-  'field-process': { title: 'Field chain from drawing to packing', type: 'Factory floor', status: 'Field evidence', description: 'Equipment, workstations and handoff routes supported by the independent-site research pack.' },
+  'field-process': { title: 'Field chain from drawing to packing', type: 'Factory floor', status: 'Field evidence', description: 'Equipment, workstations and handoff routes shown through factory photography.' },
   'offshore-reported': { title: 'Offshore project lead in public reports', type: 'Engineering research', status: 'Reported lead', description: 'Publicly reported cage and platform application lead; authorize and verify per project.' },
-  'industrial-review': { title: 'Industrial water interception review', type: 'Engineering review', status: 'Pending confirmation', description: 'Input list for material, bag geometry, strength and abrasion; no performance promise.' }
+  'industrial-review': { title: 'Industrial water netting review', type: 'Engineering review', status: 'Pending confirmation', description: 'Input list for material, mesh geometry, strength and abrasion; no performance promise.' }
 })
 
 const qualityEnglish = Object.freeze({
@@ -480,7 +585,7 @@ const localizedProducts = computed(() => JINWEI_PRODUCT_FAMILIES.map((item) => {
 
 const localizeSolution = (item) => {
   const english = solutionEnglish[item.id] || {}
-  return { ...item, title: isEnglish.value ? (english.title || item.title) : item.title, description: isEnglish.value ? (english.description || item.description) : item.description, englishTitle: isEnglish.value ? (item.englishTitle || english.title || item.title) : item.englishTitle, evidence: isEnglish.value ? ({ '历史样表 + 现场工艺': 'Historical workbook + field process', '项目线索，待企业确认': 'Project lead, confirmation pending', '公开文案方向，参数待确认': 'Public direction, parameters pending', '产业体系叙事，范围待确认': 'Industrial context, scope pending', '关联业务，资质与 SKU 待确认': 'Associated business, credentials and SKUs pending' }[item.evidence] || item.evidence) : item.evidence, imageAlt: isEnglish.value ? `${english.title || item.title} field reference` : `${item.title}现场参考` }
+  return { ...item, title: isEnglish.value ? (english.title || item.title) : item.title, description: isEnglish.value ? (english.description || item.description) : item.description, englishTitle: isEnglish.value ? (item.englishTitle || english.title || item.title) : item.englishTitle, evidence: isEnglish.value ? ({ '历史样表 + 现场工艺': 'Historical workbook + field process', '项目线索，待企业确认': 'Project lead, confirmation pending', '公开文案方向，参数待确认': 'Public direction, parameters pending', '网衣细节参考，参数待确认': 'Net detail reference, parameters pending', '产业体系叙事，范围待确认': 'Industrial context, scope pending', '关联业务，资质与 SKU 待确认': 'Associated business, credentials and SKUs pending' }[item.evidence] || item.evidence) : item.evidence, imageAlt: isEnglish.value ? `${english.title || item.title} field reference` : `${item.title}现场参考` }
 }
 const localizedPrimarySolutions = computed(() => primarySolutions.map(localizeSolution))
 const localizedAssociatedSeafood = computed(() => localizeSolution(associatedSeafood))
@@ -488,21 +593,7 @@ const localizedSpecFields = computed(() => JINWEI_SPEC_FIELDS.map((item) => ({ .
 const localizedQualityBaseline = computed(() => JINWEI_QUALITY_BASELINE.map((item) => ({ ...item, ...(isEnglish.value ? (qualityEnglish[item.standard] || {}) : {}) })))
 const localizedProjects = computed(() => JINWEI_PUBLIC_PROJECTS.map((item) => ({ ...item, ...(isEnglish.value ? (projectEnglish[item.id] || {}) : {}) })))
 const localizedProcess = computed(() => publicProcess.map((item) => ({ no: item.no, title: isEnglish.value ? item.titleEn : item.title, detail: isEnglish.value ? item.detailEn : item.detail })))
-const localizedResearchGroups = computed(() => JINWEI_RESEARCH_GROUPS.map((item) => ({ ...item, label: isEnglish.value ? item.labelEn : item.label })))
-const localizedResearchImages = computed(() => JINWEI_RESEARCH_IMAGES.map((item) => ({ ...item, title: isEnglish.value ? item.titleEn : item.title, category: isEnglish.value ? item.categoryEn : item.category, alt: isEnglish.value ? item.altEn : item.alt, rights: isEnglish.value ? item.rightsEn : item.rights })))
-const filteredResearchImages = computed(() => {
-  if (activeResearchGroup.value === 'all') return localizedResearchImages.value
-  const group = localizedResearchGroups.value.find((item) => item.id === activeResearchGroup.value)
-  return group ? localizedResearchImages.value.filter((item) => item.category === group.label) : localizedResearchImages.value
-})
-const localizedResearchImage = computed(() => {
-  if (!selectedResearchImage.value) return null
-  return localizedResearchImages.value.find((item) => item.id === selectedResearchImage.value.id) || selectedResearchImage.value
-})
-const researchImagePosition = computed(() => {
-  const index = filteredResearchImages.value.findIndex((item) => item.id === selectedResearchImage.value?.id)
-  return index >= 0 ? index + 1 : 1
-})
+const currentHeroSlide = computed(() => localizedHeroSlides.value[activeHeroSlide.value] || localizedHeroSlides.value[0])
 
 const form = reactive({
   productFamily: 'knotless-net',
@@ -548,6 +639,41 @@ const selectProduct = (id) => {
   scrollToSection('inquiry')
 }
 
+const stopHeroAutoplay = () => {
+  if (heroAutoplayTimer !== null) {
+    window.clearInterval(heroAutoplayTimer)
+    heroAutoplayTimer = null
+  }
+}
+
+const startHeroAutoplay = () => {
+  if (heroAutoplayPaused.value || heroAutoplayTimer !== null || localizedHeroSlides.value.length < 2) return
+  heroAutoplayTimer = window.setInterval(() => {
+    activeHeroSlide.value = (activeHeroSlide.value + 1) % localizedHeroSlides.value.length
+  }, 6500)
+}
+
+const setHeroSlide = (index) => {
+  const total = localizedHeroSlides.value.length
+  if (!total) return
+  activeHeroSlide.value = (index + total) % total
+  if (!heroAutoplayPaused.value) {
+    stopHeroAutoplay()
+    startHeroAutoplay()
+  }
+}
+
+const pauseHeroAutoplay = () => {
+  heroAutoplayPaused.value = true
+  stopHeroAutoplay()
+}
+
+const resumeHeroAutoplay = (event) => {
+  if (event?.relatedTarget && event.currentTarget?.contains?.(event.relatedTarget)) return
+  heroAutoplayPaused.value = false
+  startHeroAutoplay()
+}
+
 const openLogin = () => {
   mobileNavOpen.value = false
   loginMessage.value = ''
@@ -584,28 +710,11 @@ const submitPortalLogin = async () => {
   }
 }
 
-const openResearchImage = (item) => {
-  selectedResearchImage.value = item
-}
-
-const closeResearchImage = () => {
-  selectedResearchImage.value = null
-}
-
-const stepResearchImage = (delta) => {
-  const list = filteredResearchImages.value
-  if (!list.length) return
-  const current = Math.max(0, list.findIndex((item) => item.id === selectedResearchImage.value?.id))
-  selectedResearchImage.value = list[(current + delta + list.length) % list.length]
-}
-
 const onKeydown = (event) => {
-  if (event.key === 'Escape') {
-    if (selectedResearchImage.value) closeResearchImage()
-    else if (loginOpen.value) closeLogin()
-  }
-  if (selectedResearchImage.value && event.key === 'ArrowRight') stepResearchImage(1)
-  if (selectedResearchImage.value && event.key === 'ArrowLeft') stepResearchImage(-1)
+  if (event.key === 'Escape' && loginOpen.value) closeLogin()
+  if (loginOpen.value || ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target?.tagName)) return
+  if (event.key === 'ArrowRight') setHeroSlide(activeHeroSlide.value + 1)
+  if (event.key === 'ArrowLeft') setHeroSlide(activeHeroSlide.value - 1)
 }
 
 const createIdempotencyKey = () => {
@@ -723,10 +832,12 @@ onMounted(() => {
   document.addEventListener('keydown', onKeydown)
   document.documentElement.lang = locale.value
   installPublicSeo()
+  startHeroAutoplay()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
   document.removeEventListener('keydown', onKeydown)
+  stopHeroAutoplay()
 })
 </script>
 
@@ -771,7 +882,10 @@ button { cursor: pointer; }
 .nav-cta { color: #10231d; border: 1px solid var(--signal); background: var(--signal); font-weight: 700; }
 
 .hero { position: relative; display: flex; min-height: 680px; height: 88vh; max-height: 900px; overflow: hidden; color: #fff; background: #243b34; }
-.hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 55%; }
+.hero-slides { position: absolute; inset: 0; }
+.hero-slide { position: absolute; inset: 0; visibility: hidden; opacity: 0; transform: scale(1.025); transition: opacity .8s ease, transform 6.5s ease, visibility 0s linear .8s; }
+.hero-slide.active { visibility: visible; opacity: 1; transform: scale(1); transition-delay: 0s; }
+.hero-slide img { width: 100%; height: 100%; object-fit: cover; object-position: center 54%; }
 .hero-shade { position: absolute; inset: 0 38% 0 0; background: rgba(11,32,27,.78); }
 .hero-content { position: relative; z-index: 1; align-self: center; width: min(760px, calc(100% - 64px)); margin-left: max(32px, calc((100% - 1320px) / 2)); padding-top: 56px; }
 .hero-kicker { margin: 0 0 18px; color: #cbdcd5; font: 700 11px/1.2 "Arial Narrow", Arial, sans-serif; text-transform: uppercase; letter-spacing: 2px; }
@@ -781,9 +895,17 @@ button { cursor: pointer; }
 .hero-primary, .hero-secondary { min-height: 48px; padding: 0 21px; font-weight: 700; }
 .hero-primary { color: #11261f; border: 1px solid var(--signal); background: var(--signal); }
 .hero-secondary { color: #fff; border: 1px solid rgba(255,255,255,.65); background: rgba(9,29,25,.28); }
-.hero-index { position: absolute; z-index: 2; right: max(32px, calc((100% - 1320px) / 2)); bottom: 32px; display: grid; grid-template-columns: repeat(2, 150px); gap: 1px; background: rgba(255,255,255,.42); }
-.hero-index span { display: flex; align-items: center; min-height: 42px; padding: 0 14px; background: rgba(12,35,30,.72); font-size: 12px; }
-
+.hero-slide-note { position: absolute; z-index: 3; right: max(32px, calc((100% - 1320px) / 2)); bottom: 126px; display: grid; gap: 5px; width: min(270px, 30vw); padding: 16px 18px; border-left: 2px solid var(--signal); color: #fff; background: rgba(8,38,48,.78); }
+.hero-slide-count { color: var(--signal); font: 700 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; }
+.hero-slide-note strong { font-size: 15px; line-height: 1.35; }
+.hero-slide-note small { color: #d1e2e4; font-size: 10px; line-height: 1.5; }
+.hero-controls { position: absolute; z-index: 4; right: max(32px, calc((100% - 1320px) / 2)); bottom: 34px; display: flex; align-items: center; gap: 10px; }
+.hero-control, .hero-dot { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; color: #fff; border: 1px solid rgba(255,255,255,.62); border-radius: 0; background: rgba(8,38,48,.56); }
+.hero-control:hover, .hero-control:focus-visible { color: var(--ink); border-color: var(--signal); background: var(--signal); }
+.hero-dots { display: flex; align-items: center; gap: 6px; }
+.hero-dot { width: 30px; border-color: transparent; background: transparent; }
+.hero-dot span { display: block; width: 18px; height: 2px; background: rgba(255,255,255,.55); transition: width .2s ease, background .2s ease; }
+.hero-dot:hover span, .hero-dot.active span { width: 28px; background: var(--signal); }
 .proof-band { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); min-height: 118px; color: #fff; background: var(--ocean); }
 .proof-band > div { display: grid; grid-template-columns: auto minmax(0,1fr); align-content: center; gap: 4px 14px; padding: 24px max(24px, calc((100vw - 1320px) / 6)); border-right: 1px solid rgba(255,255,255,.16); }
 .proof-band > div:last-child { border-right: 0; }
@@ -924,7 +1046,7 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
   .site-nav { grid-template-columns: minmax(190px, 1fr) auto; }
   .site-nav nav { display: none; }
   .hero-shade { right: 22%; }
-  .hero-index { display: none; }
+  .hero-controls { right: 24px; }
   .product-card { grid-template-columns: 1fr; }
   .product-image { min-height: 230px; }
   .solution-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -944,7 +1066,7 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
   .system-link { width: 40px; padding: 0; }
   .nav-cta { min-height: 38px; padding: 0 11px; font-size: 11px; }
   .hero { min-height: 620px; height: 82svh; max-height: 760px; }
-  .hero > img { object-position: 60% center; }
+  .hero-slide img { object-position: 60% center; }
   .hero-shade { right: 0; background: rgba(11,32,27,.68); }
   .hero-content { width: calc(100% - 28px); margin: 0 14px; padding-top: 34px; }
   .hero h1 { font-size: 42px; }
@@ -985,7 +1107,7 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
   footer p { order: 3; width: 100%; }
 }
 
-/* Independent-site research pack and authenticated entry */
+/* Authenticated entry */
 .locale-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 9px; color: inherit; border: 1px solid currentColor; border-radius: 0; background: transparent; font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
 .locale-toggle span { opacity: .58; }
 .locale-toggle span.active { color: var(--signal); opacity: 1; }
@@ -993,9 +1115,9 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
 .locale-toggle i { width: 1px; height: 11px; background: currentColor; opacity: .45; }
 .mobile-login-link { color: var(--net) !important; font-weight: 700; }
 
-.login-overlay, .research-lightbox { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(4, 27, 36, .72); backdrop-filter: blur(8px); }
+.login-overlay { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(4, 27, 36, .72); backdrop-filter: blur(8px); }
 .login-dialog { position: relative; width: min(490px, 100%); max-height: min(760px, calc(100vh - 28px)); overflow: auto; padding: 34px; color: var(--ink); background: #f8fbfb; box-shadow: 0 28px 80px rgba(0, 13, 20, .34); }
-.login-close, .lightbox-close { position: absolute; top: 13px; right: 13px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; color: var(--net); border: 1px solid #bad0d4; border-radius: 0; background: transparent; }
+.login-close { position: absolute; top: 13px; right: 13px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; color: var(--net); border: 1px solid #bad0d4; border-radius: 0; background: transparent; }
 .login-dialog-brand { display: inline-flex; align-items: center; gap: 11px; margin-bottom: 30px; }
 .login-dialog-brand > span:last-child { display: grid; gap: 3px; }
 .login-dialog-brand strong { font-size: 16px; letter-spacing: .06em; }
@@ -1018,63 +1140,15 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
 .login-dialog-note .el-icon { flex: 0 0 auto; color: var(--net); font-size: 15px; }
 .login-admin-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 18px; color: var(--net); font-size: 11px; font-weight: 750; text-decoration: none; }
 
-.archive-section { padding-top: 132px; padding-bottom: 136px; }
-.archive-heading { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, .72fr); gap: 66px; align-items: end; margin-bottom: 30px; }
-.archive-heading h2 { max-width: 800px; margin: 0; font-family: "Noto Serif SC", "Songti SC", serif; font-size: clamp(32px, 4vw, 52px); line-height: 1.18; }
-.archive-heading > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.9; }
-.archive-notice { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; padding: 12px 14px; color: #76501a; border: 1px solid #e3c68f; background: #fffaf0; font-size: 10px; line-height: 1.5; }
-.archive-notice .el-icon { flex: 0 0 auto; color: var(--signal); font-size: 16px; }
-.archive-notice strong { margin-left: auto; color: var(--net); white-space: nowrap; font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
-.archive-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 22px; }
-.archive-filters button { min-height: 34px; padding: 0 12px; color: var(--muted); border: 1px solid #cbdcdf; border-radius: 0; background: transparent; font-size: 10px; }
-.archive-filters button:hover, .archive-filters button.active { color: #fff; border-color: var(--net); background: var(--net); }
-.research-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.research-tile { display: grid; grid-template-rows: 180px auto; min-width: 0; padding: 0; overflow: hidden; color: var(--ink); border: 1px solid #cbdcdf; border-radius: 0; background: #f8fbfb; text-align: left; }
-.research-tile:hover { border-color: var(--net); box-shadow: 0 10px 24px rgba(8, 47, 61, .12); }
-.research-tile img { width: 100%; height: 100%; object-fit: cover; background: #dce8e9; filter: saturate(.82); transition: transform .35s ease; }
-.research-tile:hover img { transform: scale(1.035); }
-.research-tile-meta { display: grid; gap: 5px; min-height: 70px; padding: 12px 13px; }
-.research-tile-meta strong { overflow: hidden; font-size: 12px; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
-.research-tile-meta small { overflow: hidden; color: var(--net); font-size: 9px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
-.research-lightbox-dialog { position: relative; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(250px, .75fr); width: min(1100px, 100%); max-height: calc(100vh - 32px); overflow: hidden; color: var(--ink); background: #f8fbfb; box-shadow: 0 28px 80px rgba(0, 13, 20, .38); }
-.research-lightbox-dialog > img { width: 100%; height: min(680px, calc(100vh - 32px)); object-fit: contain; background: #dce8e9; }
-.lightbox-copy { display: flex; flex-direction: column; justify-content: center; gap: 13px; padding: 32px 28px; }
-.lightbox-copy h3 { margin: 0; font-family: "Noto Serif SC", "Songti SC", serif; font-size: 25px; line-height: 1.35; }
-.lightbox-copy p:not(.section-label) { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.7; }
-.lightbox-copy a { display: inline-flex; align-items: center; gap: 5px; width: fit-content; color: var(--net); font-size: 11px; font-weight: 700; text-decoration: none; }
-.lightbox-controls { position: absolute; right: 28px; bottom: 24px; left: calc(62.5% + 28px); display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
-.lightbox-controls button { display: grid; place-items: center; width: 34px; height: 34px; color: var(--net); border: 1px solid #bad0d4; border-radius: 0; background: transparent; }
-
-@media (max-width: 1080px) {
-  .research-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .archive-heading { grid-template-columns: 1fr; gap: 22px; }
-  .research-lightbox-dialog { grid-template-columns: 1fr; max-height: calc(100vh - 24px); overflow: auto; }
-  .research-lightbox-dialog > img { height: min(54vh, 520px); }
-  .lightbox-copy { padding: 24px 22px 72px; }
-  .lightbox-controls { right: 22px; bottom: 20px; left: 22px; }
-}
-
 @media (max-width: 760px) {
   .locale-toggle { min-height: 32px; padding: 0 7px; font-size: 8px; }
   .system-link-external { display: none; }
   .login-dialog { padding: 27px 20px 24px; }
   .login-dialog h2 { font-size: 29px; }
-  .archive-section { padding-top: 82px; padding-bottom: 84px; }
-  .archive-heading { gap: 18px; }
-  .archive-heading h2 { font-size: 31px; }
-  .archive-notice { align-items: flex-start; flex-wrap: wrap; }
-  .archive-notice strong { width: 100%; margin-left: 26px; }
-  .research-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .research-tile { grid-template-rows: 138px auto; }
-  .research-tile-meta { min-height: 61px; padding: 9px 10px; }
-  .research-tile-meta strong { font-size: 10px; }
-  .research-tile-meta small { font-size: 8px; }
-  .research-lightbox { padding: 8px; }
-  .research-lightbox-dialog > img { height: 42vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .site-nav, .product-image img { transition: none; }
+  .site-nav, .product-image img, .hero-slide, .hero-dot span { transition: none; }
   html:focus-within { scroll-behavior: auto; }
 }
 
@@ -1131,17 +1205,8 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
   max-height: 980px;
   background: var(--ocean);
 }
-.hero > img { object-position: center 48%; filter: saturate(.82) contrast(1.06); }
+.hero-slide img { object-position: center 48%; filter: saturate(.82) contrast(1.06); }
 .hero-shade { right: 42%; background: rgba(7, 36, 48, .82); }
-.hero::after {
-  content: '';
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  pointer-events: none;
-  opacity: .3;
-  background-image: repeating-linear-gradient(90deg, transparent 0, transparent calc(12.5% - 1px), rgba(214, 236, 239, .22) 12.5%, transparent calc(12.5% + 1px)), repeating-linear-gradient(0deg, transparent 0, transparent calc(25% - 1px), rgba(214, 236, 239, .16) 25%, transparent calc(25% + 1px));
-}
 .hero-content { z-index: 2; width: min(820px, calc(100% - 64px)); padding-top: 72px; }
 .hero-org { margin: 0 0 10px; color: #f1f6f6; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
 .hero-kicker { margin-bottom: 22px; color: #b5d1d7; font-size: 10px; letter-spacing: .24em; }
@@ -1152,13 +1217,10 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
 .hero-primary, .hero-secondary { min-height: 50px; border-radius: 0; font-size: 11px; letter-spacing: .08em; }
 .hero-primary { color: var(--ink); border-color: var(--signal); background: var(--signal); }
 .hero-secondary { border-color: rgba(255, 255, 255, .72); background: rgba(7, 36, 48, .24); }
+.hero-slide-note { right: max(24px, calc((100% - 1380px) / 2)); bottom: 132px; width: min(320px, 27vw); border-left-width: 2px; }
+.hero-controls { right: max(24px, calc((100% - 1380px) / 2)); bottom: 34px; }
 .hero-coordinate { position: absolute; z-index: 3; top: 50%; right: max(24px, calc((100% - 1380px) / 2)); display: grid; gap: 11px; justify-items: end; transform: translateY(-50%); color: rgba(231, 245, 246, .78); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; }
 .hero-coordinate i { display: block; width: 1px; height: 74px; background: var(--signal); }
-.hero-index { right: max(24px, calc((100% - 1380px) / 2)); bottom: 30px; grid-template-columns: repeat(4, minmax(112px, 1fr)); gap: 0; border-top: 1px solid rgba(255, 255, 255, .42); border-bottom: 1px solid rgba(255, 255, 255, .42); background: transparent; }
-.hero-index span { min-height: 52px; gap: 10px; padding: 0 14px; color: #e7f0f1; background: rgba(7, 36, 48, .62); border-right: 1px solid rgba(255, 255, 255, .22); font-size: 11px; letter-spacing: .08em; }
-.hero-index span:last-child { border-right: 0; }
-.hero-index b { color: var(--signal); font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
-
 .proof-band { min-height: 126px; background: #0d5369; }
 .proof-band > div { padding: 26px max(20px, calc((100vw - 1380px) / 6)); border-right-color: rgba(219, 240, 242, .2); }
 .proof-band span { color: var(--signal); font-size: 11px; letter-spacing: .12em; }
@@ -1284,6 +1346,8 @@ footer > button { width: 40px; height: 40px; border-radius: 0; border-color: #4c
   .mobile-nav button:last-child { border-bottom: 0; }
   .mobile-nav .mobile-nav-cta { margin-top: 10px; padding: 0 14px; color: var(--ink); border: 1px solid var(--signal); background: var(--signal); font-weight: 700; }
   .hero-coordinate { right: 24px; }
+  .hero-slide-note { right: 24px; width: min(300px, 34vw); }
+  .hero-controls { right: 24px; }
   .solution-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .associate-rail { grid-template-columns: auto minmax(130px, .45fr) minmax(0, 1fr); }
   .associate-status { grid-column: 2 / -1; }
@@ -1291,24 +1355,26 @@ footer > button { width: 40px; height: 40px; border-radius: 0; border-color: #4c
 
 @media (max-width: 760px) {
   .section-shell { width: calc(100% - 28px); }
-  .site-nav, .site-nav.compact { height: 62px; padding: 0 14px; }
+  .site-nav, .site-nav.compact { grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; height: 62px; padding: 0 14px; }
+  .nav-actions { gap: 6px; min-width: 0; }
   .site-nav.compact + main .hero { padding-top: 0; }
-  .nav-cta { min-height: 36px; padding: 0 10px; font-size: 10px; }
+  .nav-cta { min-height: 36px; padding: 0 10px; font-size: 10px; white-space: nowrap; }
   .hero { min-height: 700px; height: 86svh; max-height: 820px; }
-  .hero > img { object-position: 63% center; }
+  .hero-slide img { object-position: 63% center; }
   .hero-shade { right: 0; background: rgba(7, 36, 48, .7); }
   .hero-content { width: calc(100% - 28px); margin: 0 14px; padding-top: 42px; }
   .hero-org { max-width: 270px; font-size: 10px; line-height: 1.5; letter-spacing: .06em; }
   .hero-kicker { font-size: 9px; letter-spacing: .16em; }
-  .hero h1 { font-size: clamp(44px, 13vw, 62px); line-height: 1.05; }
+  .hero h1 { font-size: clamp(38px, 11vw, 52px); line-height: 1.06; }
   .hero-lead { max-width: 100%; margin-top: 24px; font-size: 14px; line-height: 1.8; }
-  .hero-actions { align-items: stretch; margin-top: 30px; }
-  .hero-primary, .hero-secondary { width: 100%; min-height: 48px; }
-  .hero-coordinate { top: auto; right: 16px; bottom: 122px; display: flex; align-items: center; gap: 8px; transform: none; font-size: 8px; }
-  .hero-coordinate i { width: 40px; height: 1px; }
-  .hero-index { right: 14px; bottom: 16px; left: 14px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .hero-index span { min-height: 44px; gap: 5px; padding: 0 7px; font-size: 9px; letter-spacing: 0; }
-  .hero-index b { font-size: 8px; }
+  .hero-actions { flex-direction: row; align-items: stretch; gap: 8px; margin-top: 28px; }
+  .hero-primary, .hero-secondary { flex: 1; width: auto; min-height: 46px; padding: 0 10px; }
+  .hero-slide-note { right: 14px; bottom: 92px; left: 14px; width: auto; padding: 10px 12px; }
+  .hero-slide-note strong { font-size: 13px; }
+  .hero-slide-note small { font-size: 9px; }
+  .hero-controls { right: 14px; bottom: 20px; left: 14px; justify-content: space-between; }
+  .hero-dots { flex: 1; justify-content: center; }
+  .hero-coordinate { display: none; }
   .proof-band > div { min-height: 84px; padding: 18px 20px; }
   .products-section, .solutions-section, .process-section { padding: 82px 0; }
   .section-intro { grid-template-columns: 1fr; gap: 18px; margin-bottom: 32px; }
@@ -1345,5 +1411,14 @@ footer > button { width: 40px; height: 40px; border-radius: 0; border-color: #4c
   .inquiry-form { padding: 24px 16px; }
   footer { align-items: flex-start; flex-wrap: wrap; padding: 28px 18px; }
   footer p { order: 3; width: 100%; }
+}
+
+@media (max-width: 360px) {
+  .site-nav, .site-nav.compact { column-gap: 8px; padding-right: 12px; padding-left: 12px; }
+  .nav-actions { gap: 4px; }
+  .nav-actions > .system-link:not(.system-link-external) { display: none; }
+  .nav-cta { min-height: 34px; padding: 0 8px; font-size: 9px; }
+  .locale-toggle { min-height: 30px; padding: 0 6px; gap: 5px; font-size: 8px; }
+  .menu-toggle { width: 34px; height: 34px; }
 }
 </style>
