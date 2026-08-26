@@ -14,9 +14,6 @@
         <button type="button" @click="scrollToSection('inquiry')">规格询盘</button>
       </nav>
       <div class="nav-actions">
-        <button class="system-link" type="button" title="打开制造协同演示台" @click="router.push('/jinwei/manufacturing')">
-          <el-icon><DataBoard /></el-icon><span>协同演示</span>
-        </button>
         <a class="system-link system-link-external" :href="JINWEI_SYSTEM_URL" target="_blank" rel="noreferrer" title="打开 EISCore 制造系统">
           <el-icon><Setting /></el-icon><span>EISCore</span>
         </a>
@@ -242,8 +239,7 @@
 // Copyright (c) 2026 林志荣
 
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { ArrowRight, CircleCheck, DataBoard, DocumentChecked, Loading, Setting, Top, View, Warning } from '@element-plus/icons-vue'
+import { ArrowRight, CircleCheck, DocumentChecked, Loading, Setting, Top, View, Warning } from '@element-plus/icons-vue'
 import {
   JINWEI_PRODUCT_FAMILIES,
   JINWEI_PUBLIC_PROJECTS,
@@ -253,7 +249,6 @@ import {
   JINWEI_SYSTEM_URL
 } from '@/jinwei/model.js'
 
-const router = useRouter()
 const scrolled = ref(false)
 const submitting = ref(false)
 const submitState = reactive({ tone: 'normal', message: '' })

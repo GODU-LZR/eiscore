@@ -36,12 +36,6 @@ const router = createRouter({
       component: () => import('@/views/JinweiSite.vue'),
       meta: { title: '湛江市经纬网厂 · 网具制造' }
     },
-    {
-      path: '/jinwei/manufacturing',
-      name: 'JinweiManufacturing',
-      component: () => import('@/views/JinweiManufacturing.vue'),
-      meta: { title: '经纬制造协同台' }
-    },
     { path: '/:pathMatch(.*)*', redirect: '/' }
   ]
 })
