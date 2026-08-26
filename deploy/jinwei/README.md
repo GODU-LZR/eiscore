@@ -68,6 +68,14 @@ curl -i -X POST http://127.0.0.1:18192/agent/company-site/public/leads \
    docker compose -f deploy/jinwei/docker-compose.yml up -d --build
    ```
 
+   在本服务器的 `gps-platform-edge` 网关后运行时，使用远端网络覆盖文件，让网关可以按容器名访问经纬 Web：
+
+   ```bash
+   docker compose -f deploy/jinwei/docker-compose.yml -f deploy/jinwei/docker-compose.remote.yml up -d --build
+   ```
+
+   该覆盖文件只连接已有的 `gps-platform_default` 网络，不会重新创建或停止短视频服务。
+
 4. 复制 `host-nginx.conf` 为新的 Jinwei HTTP server block，先执行 `nginx -t`，再 `systemctl reload nginx`。如果宿主机已有同名 server block，应合并代理 location，不要创建重复监听配置。
 5. 需要 HTTPS 时，在证书就绪后再启用 `host-nginx-https.conf`；确认它只包含 `jwwc.eiscore.top` 和 `*.jwwc.eiscore.top`，不会影响 `vedio.eiscore.top`。证书申请和 DNS/防火墙变更必须按服务器现状执行。
 

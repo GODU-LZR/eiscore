@@ -1,0 +1,13 @@
+# Remote-only overlay: connect the web container to the existing public edge
+# network without making that network a prerequisite for local trial runs.
+services:
+  jinwei-web:
+    networks:
+      - jinwei_internal
+      - gps-platform_default
+
+networks:
+  gps-platform_default:
+    external: true
+    name: gps-platform_default
+
