@@ -1,5 +1,42 @@
 # 经纬网厂独立站试用 Docker 包
 
+## 完整 EISCore 发布
+
+`docker-compose.eiscore.yml` 是经纬网厂的独立完整栈，和已有的试用容器及其他
+站点使用不同的项目名、容器名、数据卷和宿主机端口。它包含 PostgreSQL、
+PostgREST、Agent Runtime、Swagger、受密码保护的 code-server，以及同时提供
+公开站点和管理端的静态 Web 镜像。
+
+在仓库根目录构建发布目录并生成缓存清单：
+
+```bash
+bash scripts/build-jinwei-release.sh
+```
+
+启动完整栈时显式指定环境文件（Compose 的 `env_file` 不参与 `${...}` 插值）：
+
+```bash
+docker compose --env-file env/.env \
+  -f deploy/jinwei/docker-compose.eiscore.yml \
+  up -d --build
+```
+
+正式部署前，`env/.env` 至少应包含随机生成的
+`POSTGRES_PASSWORD`、`PGRST_JWT_SECRET` 和 `CODE_SERVER_PASSWORD`。
+首次初始化会执行 `patch_login_jwt_secret_setting.sql`，让登录函数使用同一
+个 JWT 密钥；不要把本地开发 `.env` 或其他租户的密钥复制到服务器。
+
+完整栈的内部入口：
+
+- `http://127.0.0.1:18193`：公开站点监听器
+- `http://127.0.0.1:18194`：EISCore 管理端监听器
+- `http://127.0.0.1:18079/doc/`：Swagger（由管理端 `/doc/` 反代）
+- `http://127.0.0.1:18443/`：code-server（由管理端 `/ide/` 反代）
+
+网关只需要把 `jwwc.eiscore.top` 代理到 Web 的 `8080`，把
+`jwwc-admin.eiscore.top` 代理到同一容器的 `8081`。不要使用
+`*.eiscore.top` 的兜底 server block，以免接管 `vedio.eiscore.top`。
+
 此目录提供一个与现有 EISCore 容器隔离的试用栈：
 
 - `jinwei-web`：构建 `eiscore-company-site`，对外只绑定宿主机 `127.0.0.1:18192`。

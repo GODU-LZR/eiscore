@@ -179,6 +179,88 @@ export const JINWEI_PRODUCT_FAMILIES = Object.freeze([
   }
 ])
 
+// Public-facing solution language is kept separate from the operational
+// product model so a project claim cannot silently become a product promise.
+export const JINWEI_PUBLIC_SOLUTIONS = Object.freeze([
+  {
+    id: 'commercial-fishing',
+    title: '渔业捕捞与网具定制',
+    englishTitle: 'Commercial Fishing Netting',
+    description: '按目标鱼种、作业方式、网结、网眼和交付单位整理可审核规格。',
+    evidence: '历史样表 + 现场工艺',
+    asset: 'mesh-on-loom.webp'
+  },
+  {
+    id: 'offshore-aquaculture',
+    title: '深远海养殖网箱',
+    englishTitle: 'Offshore Aquaculture Cage Systems',
+    description: '网衣、绳索、框架、浮子和连接件按 BOM 进行项目协同。',
+    evidence: '项目线索，待企业确认',
+    asset: 'weaving-floor.webp'
+  },
+  {
+    id: 'industrial-intake',
+    title: '工业水体拦截网',
+    englishTitle: 'Industrial Intake Interception Netting',
+    description: '面向严苛水体环境的材料、几何和检验要求，先做工况评审。',
+    evidence: '公开文案方向，参数待确认',
+    asset: 'rope-coils.webp'
+  },
+  {
+    id: 'marine-ranch',
+    title: '海洋牧场工程协同',
+    englishTitle: 'Marine Ranch Engineering Coordination',
+    description: '把网具、网箱、绳索和现场交付拆成可追溯的工作包。',
+    evidence: '产业体系叙事，范围待确认',
+    asset: 'heat-setting.webp'
+  },
+  {
+    id: 'yuefuxian',
+    title: '粤府鲜金鲳鱼',
+    englishTitle: 'Yuefuxian Golden Pompano',
+    description: '经纬产业体系中的水产业务线，仅展示为关联业务，不与网厂制造能力混写。',
+    evidence: '关联业务，资质与 SKU 待确认',
+    asset: 'raw-polymer.webp'
+  }
+])
+
+export const JINWEI_PUBLIC_PROJECTS = Object.freeze([
+  {
+    id: 'field-process',
+    title: '从拉丝到包装的现场链',
+    type: '制造现场',
+    description: '本地调研图片和工艺记录支持的设备、工位与交接路径。',
+    status: '现场证据',
+    asset: 'extrusion-line.webp'
+  },
+  {
+    id: 'offshore-reported',
+    title: '公开报道中的深远海项目线索',
+    type: '工程研究',
+    description: '公开报道提及的网箱和平台应用线索，需逐项目授权与核验。',
+    status: '报道线索',
+    asset: 'hero-net.webp'
+  },
+  {
+    id: 'industrial-review',
+    title: '工业水体拦截工况评审',
+    type: '工程评审',
+    description: '围绕材料、网袋几何、强力与耐磨要求建立输入清单，不直接承诺性能。',
+    status: '待确认',
+    asset: 'heat-setting.webp'
+  }
+])
+
+export const JINWEI_QUALITY_BASELINE = Object.freeze([
+  { label: '网眼 / 目数', standard: 'GB/T 6964-2010', detail: '测量方法、单位和抽检记录' },
+  { label: '网片强力与伸长率', standard: 'GB/T 4925-2008', detail: '样品、方法、结果和放行状态' },
+  { label: '网目断裂强力', standard: 'GB/T 21292-2007', detail: '抽检批次和样品编号' },
+  { label: '渔用绳索', standard: 'GB/T 18674-2018', detail: '长度、重量、检验和包装单元' },
+  { label: '网箱设计输入', standard: 'GB/T 40749-2021', detail: 'BOM、框架、浮子和整体检验' }
+])
+
+export const JINWEI_SYSTEM_URL = (import.meta.env?.VITE_JINWEI_SYSTEM_URL || 'https://jwwc-admin.eiscore.top').replace(/\/$/, '')
+
 export const JINWEI_SPEC_FIELDS = Object.freeze([
   { key: 'material', label: '材质', examples: '聚乙烯 / 尼龙 / 涤纶 / 超高分子量聚乙烯', required: true, sourceStatus: 'observed' },
   { key: 'construction', label: '网结类型', examples: '单结 / 双结 / 无结', required: true, sourceStatus: 'workbook' },

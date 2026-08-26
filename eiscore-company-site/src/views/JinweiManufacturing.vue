@@ -12,7 +12,8 @@
         </div>
       </div>
       <div class="header-tools">
-        <span class="environment-chip">演示边界 · 不写入正式数据</span>
+        <span class="environment-chip" :class="`is-${liveState}`">{{ liveStateLabel }}</span>
+        <a class="header-system-link" :href="JINWEI_SYSTEM_URL" target="_blank" rel="noreferrer" title="打开完整 EISCore 制造系统"><el-icon><DataBoard /></el-icon>完整 EISCore</a>
         <button class="header-site-link" type="button" @click="router.push('/jinwei')"><el-icon><Link /></el-icon>独立站</button>
         <button class="header-reset" type="button" @click="resetDemo"><el-icon><RefreshLeft /></el-icon>重置</button>
         <button class="header-next" type="button" :disabled="!snapshot.nextAction" @click="advanceWorkflow">推进下一环节<el-icon><ArrowRight /></el-icon></button>
@@ -48,11 +49,11 @@
       </section>
 
       <section class="metrics-row" aria-label="制造关键指标">
-        <div class="metric metric-focus"><span>规格待锁定</span><strong>{{ snapshot.metrics.unresolvedSpecs }}</strong><small>关键字段未确认</small></div>
-        <div class="metric"><span>计划数量</span><strong>{{ snapshot.metrics.plannedPieces }}</strong><small>条 / 演示需求</small></div>
-        <div class="metric metric-green"><span>已完成</span><strong>{{ snapshot.metrics.completedPieces }}</strong><small>条 / 工序报工快照</small></div>
-        <div class="metric metric-blue"><span>在制数量</span><strong>{{ snapshot.metrics.wipPieces }}</strong><small>条 / 当前 WIP</small></div>
-        <div class="metric metric-warning"><span>开放交接</span><strong>{{ snapshot.metrics.openHandoffs }}</strong><small>待扫描或待对账</small></div>
+        <div class="metric metric-focus"><span>规格待锁定</span><strong>{{ effectiveMetrics.unresolvedSpecs }}</strong><small>关键字段未确认</small></div>
+        <div class="metric"><span>计划数量</span><strong>{{ effectiveMetrics.plannedPieces }}</strong><small>条 / 演示需求</small></div>
+        <div class="metric metric-green"><span>已完成</span><strong>{{ effectiveMetrics.completedPieces }}</strong><small>条 / 工序报工快照</small></div>
+        <div class="metric metric-blue"><span>在制数量</span><strong>{{ effectiveMetrics.wipPieces }}</strong><small>条 / 当前 WIP</small></div>
+        <div class="metric metric-warning"><span>开放交接</span><strong>{{ effectiveMetrics.openHandoffs }}</strong><small>待扫描或待对账</small></div>
       </section>
 
       <section class="workflow-panel" aria-labelledby="workflow-title">
@@ -154,7 +155,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { computed, defineComponent, h, ref, watch } from 'vue'
+import { computed, defineComponent, h, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight, Check, DataBoard, DocumentChecked, Link, RefreshLeft, Setting, Van, Warning } from '@element-plus/icons-vue'
@@ -175,8 +176,10 @@ import {
   JINWEI_WORK_CENTERS,
   JINWEI_WORKFLOW,
   JINWEI_DEMO_STORAGE_KEY,
+  JINWEI_SYSTEM_URL,
   createJinweiSnapshot
 } from '@/jinwei/model.js'
+import { getToken } from '@/utils/auth.js'
 
 const router = useRouter()
 const SourceBadge = defineComponent({
@@ -203,8 +206,25 @@ const activeView = ref(initial.view)
 const selectedWorkflow = ref(initial.step)
 const handoffs = ref(JINWEI_HANDOFFS.map((item) => ({ ...item })))
 const toastMessage = ref('')
+const liveTower = ref(null)
+const liveState = ref('loading')
 
 const snapshot = computed(() => createJinweiSnapshot(step.value, role.value))
+const effectiveMetrics = computed(() => {
+  const local = snapshot.value.metrics
+  if (!liveTower.value) return local
+  return {
+    ...local,
+    openHandoffs: Number(liveTower.value.open_handoff_count ?? local.openHandoffs),
+    unresolvedSpecs: liveTower.value.specification_status === 'locked' ? 0 : local.unresolvedSpecs,
+    finishedPieces: Number(liveTower.value.released_package_count || local.finishedPieces)
+  }
+})
+const liveStateLabel = computed(() => ({
+  loading: '正在连接制造数据域…',
+  connected: '数据库快照已连接 · 演示数据',
+  fallback: '演示边界 · 不写入正式数据'
+}[liveState.value] || '演示边界 · 不写入正式数据'))
 const roleConfig = computed(() => JINWEI_ROLES.find((item) => item.id === role.value) || JINWEI_ROLES[0])
 const selectedStep = computed(() => snapshot.value.workflow[selectedWorkflow.value] || snapshot.value.stage)
 const topAttention = computed(() => snapshot.value.attention[0] || { title: '暂无高优先级事项', nextAction: '保持当前流程', owner: '系统', score: 0, sourceStatus: 'demo', module: 'planning' })
@@ -231,6 +251,26 @@ const resetDemo = () => { step.value = 0; selectedWorkflow.value = 0; activeView
 const receiveHandoff = (handoff) => { handoff.state = handoff.state === 'outsource' ? 'received' : 'received'; toastMessage.value = `${handoff.code} 已在浏览器演示状态中标记为已接收`; ElMessage.success(toastMessage.value) }
 const simulateScan = () => { const next = handoffs.value.find((item) => item.state !== 'received'); if (next) receiveHandoff(next); else ElMessage.info('当前演示交接已全部接收') }
 const openModule = (module) => { const route = JINWEI_MODULE_ROUTES[module]; if (route) window.location.assign(route) }
+
+const loadLiveTower = async () => {
+  liveState.value = 'loading'
+  try {
+    const token = getToken()
+    const headers = { Accept: 'application/json', 'Accept-Profile': 'jinwei' }
+    if (token) headers.Authorization = `Bearer ${token}`
+    const response = await fetch(`/api/v_control_tower?order_no=eq.${encodeURIComponent(JINWEI_DEMO_ORDER.orderNo)}&limit=1`, { headers })
+    if (!response.ok) throw new Error(`control tower ${response.status}`)
+    const rows = await response.json()
+    if (!Array.isArray(rows) || !rows[0]) throw new Error('control tower returned no rows')
+    liveTower.value = rows[0]
+    liveState.value = 'connected'
+  } catch {
+    liveTower.value = null
+    liveState.value = 'fallback'
+  }
+}
+
+onMounted(loadLiveTower)
 </script>
 
 <style scoped>
@@ -246,8 +286,9 @@ const openModule = (module) => { const route = JINWEI_MODULE_ROUTES[module]; if 
 .workbench-brand p { margin:0; color:var(--muted); font-size:12px; }
 .header-tools { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
 .environment-chip { padding:7px 10px; color:#7a511d; border:1px solid #dfbd83; border-radius:3px; background:#fff8ed; font-size:10px; white-space:nowrap; }
-.header-site-link,.header-reset,.header-next,.outline-action,.inspector-action,.row-action { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:0 12px; border:1px solid var(--line); border-radius:3px; background:var(--surface); cursor:pointer; font-size:11px; }
+.header-site-link,.header-reset,.header-next,.header-system-link,.outline-action,.inspector-action,.row-action { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:36px; padding:0 12px; border:1px solid var(--line); border-radius:3px; background:var(--surface); cursor:pointer; font-size:11px; }
 .header-site-link,.header-reset { color:var(--green); }
+.header-system-link { color:#fff; border-color:var(--blue); background:var(--blue); text-decoration:none; font-weight:700; }
 .header-next { color:#fff; border-color:var(--green); background:var(--green); font-weight:700; }
 .header-next:disabled { cursor:not-allowed; opacity:.45; }
 .boundary-banner { display:flex; align-items:center; justify-content:space-between; gap:18px; min-height:42px; padding:9px 12px; color:#6c4c20; border:1px solid #dfbd83; border-radius:3px; background:#fff8ed; font-size:11px; }
@@ -275,6 +316,6 @@ const openModule = (module) => { const route = JINWEI_MODULE_ROUTES[module]; if 
 .standards-panel{margin-top:18px;border-top:1px solid var(--line);padding-top:18px}.standards-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}.standards-heading h3{margin:4px 0 0;font-size:14px}.standards-heading p{margin:5px 0 0;color:var(--muted);font-size:10px;line-height:1.5}.standards-boundary{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;padding:6px 8px;color:#7a511d;border:1px solid #dfbd83;background:#fff8ed;font-size:10px;white-space:nowrap}.standards-boundary .el-icon{font-size:13px}.standards-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.standard-card{display:grid;gap:7px;padding:11px 12px;border:1px solid var(--line);background:#fbfcfb}.standard-top,.standard-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}.standard-top code{color:var(--blue);font:700 10px ui-monospace,SFMono-Regular,Menlo,monospace}.standard-current{display:inline-flex;align-items:center;gap:4px;color:var(--green);font-size:10px}.standard-current i{width:6px;height:6px;border-radius:50%;background:var(--green)}.standard-card h4{margin:0;font-size:11px;line-height:1.4}.standard-card p{min-height:29px;margin:0;color:var(--muted);font-size:10px;line-height:1.45}.standard-foot{padding-top:7px;border-top:1px solid var(--line);color:var(--muted);font-size:9px}.standard-foot a,.research-register a{display:inline-flex;align-items:center;gap:4px;color:var(--green);text-decoration:none;white-space:nowrap}.standard-foot a:hover,.research-register a:hover{text-decoration:underline}.research-register{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:10px;padding:10px 11px;color:#72501e;border:1px solid #dfbd83;background:#fff8ed;font-size:10px;line-height:1.5}.research-register>span{display:flex;align-items:flex-start;gap:6px}.research-register .el-icon{flex:0 0 auto;margin-top:1px;color:var(--amber);font-size:14px}
 .attention-sidebar{position:sticky;top:14px}.sidebar-head{align-items:center;padding:16px;color:#fff;background:#24372f}.sidebar-head h2{color:#fff}.sidebar-head .panel-eyebrow{color:#a8c4b8}.sidebar-head>strong{display:grid;place-items:center;width:35px;height:35px;border:1px solid #627b70;border-radius:50%;font-size:15px}.queue-list{padding:4px 14px}.queue-item{position:relative;padding:13px 0 13px 14px;border-bottom:1px solid var(--line)}.queue-item>i{position:absolute;top:17px;left:0;width:7px;height:7px;border-radius:50%;background:var(--amber)}.queue-item.level-critical>i{background:var(--red)}.queue-item.level-warning>i{background:var(--amber)}.queue-item.level-focus>i{background:var(--blue)}.queue-item-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start}.queue-item-top>strong{font-size:12px;line-height:1.35}.queue-item-top>b{color:var(--amber);font:700 12px ui-monospace,SFMono-Regular,Menlo,monospace}.queue-item>span{display:block;margin-top:4px;color:var(--muted);font-size:10px}.queue-item p{margin:6px 0 8px;color:var(--muted);font-size:10px;line-height:1.5}.queue-item button{display:inline-flex;align-items:center;gap:4px;padding:0;color:var(--green);border:0;background:transparent;font-size:10px}.source-register{padding:14px;background:#f7f9f7}.source-register h3{margin:0 0 9px;font-size:12px}.source-register>div{display:flex;align-items:center;justify-content:space-between;min-height:27px;color:var(--muted);font-size:10px}.source-register span{display:flex;align-items:center;gap:7px}.source-register b{color:var(--ink)}
 @media (max-width:1100px){.workbench-header{align-items:flex-start;flex-direction:column}.header-tools{width:100%;justify-content:flex-start;flex-wrap:wrap}.control-header{grid-template-columns:1fr}.attention-focus{grid-template-columns:minmax(0,1fr) repeat(2,minmax(130px,.45fr))}.workspace-grid{grid-template-columns:minmax(0,1fr) 270px}.handoff-row{grid-template-columns:110px minmax(110px,.8fr) minmax(150px,1.2fr) auto}.handoff-row .source-badge{display:none}}
-@media (max-width:780px){.jinwei-workbench{padding:12px 10px 25px}.workbench-brand h1{font-size:22px}.workbench-brand p{font-size:11px}.boundary-banner{align-items:flex-start;flex-direction:column;gap:8px}.source-key{width:100%;justify-content:space-between}.role-toolbar{align-items:flex-start;flex-direction:column}.role-switch{width:100%}.role-switch button{min-width:64px;padding:0 10px}.control-header{padding:15px}.order-identity h2{font-size:19px}.metrics-row{grid-template-columns:repeat(2,minmax(0,1fr))}.metric{border-bottom:1px solid var(--line)}.metric:nth-child(even){border-right:0}.metric:last-child{grid-column:1/-1;border-right:0}.workflow-panel{border-radius:4px}.panel-heading{padding:14px 12px 0}.workflow-scroll{padding-right:10px;padding-left:10px}.workflow-rail{min-width:840px}.workflow-inspector{align-items:flex-start;flex-direction:column;padding:13px 12px}.inspector-action{width:100%}.attention-focus{grid-template-columns:1fr}.attention-summary{min-height:75px}.workspace-grid{grid-template-columns:1fr}.attention-sidebar{position:static}.workspace-content{padding:14px 12px}.content-heading{align-items:flex-start;flex-direction:column}.spec-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.spec-summary-cell{min-height:145px}.historical-table-wrap{display:none}.mobile-records{display:grid;border-top:1px solid var(--line)}.mobile-records article{display:grid;gap:5px;padding:12px 2px;border-bottom:1px solid var(--line)}.mobile-records article>div{display:flex;align-items:center;justify-content:space-between;gap:8px}.mobile-records span{font-size:11px}.mobile-records small{color:var(--muted);font-size:10px;line-height:1.45}.handoff-row{grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:12px 2px}.handoff-route{grid-column:1/-1;order:2}.handoff-item{grid-column:1/-1;order:3}.handoff-row>.source-badge{display:inline-flex;order:4;width:fit-content}.handoff-row>.row-action,.received-label{grid-column:2;grid-row:1;order:5}.trace-header{grid-template-columns:repeat(2,minmax(0,1fr))}.trace-header>div:nth-child(2){border-right:0}.trace-header>div:nth-child(-n+2){border-bottom:1px solid var(--line)}.trace-chain{margin-right:-12px;margin-left:-12px;padding-left:12px}.center-grid{grid-template-columns:1fr}.standards-heading{align-items:flex-start;flex-direction:column}.standards-boundary{white-space:normal}.standards-grid{grid-template-columns:1fr}.research-register{align-items:flex-start;flex-direction:column}.header-tools{gap:6px}.environment-chip{width:100%}.header-next,.header-site-link,.header-reset{min-height:34px}}
+@media (max-width:780px){.jinwei-workbench{padding:12px 10px 25px}.workbench-brand h1{font-size:22px}.workbench-brand p{font-size:11px}.boundary-banner{align-items:flex-start;flex-direction:column;gap:8px}.source-key{width:100%;justify-content:space-between}.role-toolbar{align-items:flex-start;flex-direction:column}.role-switch{width:100%}.role-switch button{min-width:64px;padding:0 10px}.control-header{padding:15px}.order-identity h2{font-size:19px}.metrics-row{grid-template-columns:repeat(2,minmax(0,1fr))}.metric{border-bottom:1px solid var(--line)}.metric:nth-child(even){border-right:0}.metric:last-child{grid-column:1/-1;border-right:0}.workflow-panel{border-radius:4px}.panel-heading{padding:14px 12px 0}.workflow-scroll{padding-right:10px;padding-left:10px}.workflow-rail{min-width:840px}.workflow-inspector{align-items:flex-start;flex-direction:column;padding:13px 12px}.inspector-action{width:100%}.attention-focus{grid-template-columns:1fr}.attention-summary{min-height:75px}.workspace-grid{grid-template-columns:1fr}.attention-sidebar{position:static}.workspace-content{padding:14px 12px}.content-heading{align-items:flex-start;flex-direction:column}.spec-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.spec-summary-cell{min-height:145px}.historical-table-wrap{display:none}.mobile-records{display:grid;border-top:1px solid var(--line)}.mobile-records article{display:grid;gap:5px;padding:12px 2px;border-bottom:1px solid var(--line)}.mobile-records article>div{display:flex;align-items:center;justify-content:space-between;gap:8px}.mobile-records span{font-size:11px}.mobile-records small{color:var(--muted);font-size:10px;line-height:1.45}.handoff-row{grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:12px 2px}.handoff-route{grid-column:1/-1;order:2}.handoff-item{grid-column:1/-1;order:3}.handoff-row>.source-badge{display:inline-flex;order:4;width:fit-content}.handoff-row>.row-action,.received-label{grid-column:2;grid-row:1;order:5}.trace-header{grid-template-columns:repeat(2,minmax(0,1fr))}.trace-header>div:nth-child(2){border-right:0}.trace-header>div:nth-child(-n+2){border-bottom:1px solid var(--line)}.trace-chain{margin-right:-12px;margin-left:-12px;padding-left:12px}.center-grid{grid-template-columns:1fr}.standards-heading{align-items:flex-start;flex-direction:column}.standards-boundary{white-space:normal}.standards-grid{grid-template-columns:1fr}.research-register{align-items:flex-start;flex-direction:column}.header-tools{gap:6px}.environment-chip{width:100%}.header-next,.header-site-link,.header-reset,.header-system-link{min-height:34px}}
 @media (prefers-reduced-motion:reduce){.progress-track i{transition:none}}
 </style>

@@ -1,0 +1,232 @@
+name: jinwei-eiscore
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: jinwei-eiscore-db
+    restart: unless-stopped
+    env_file:
+      - ../../env/.env
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      POSTGRES_DB: eiscore
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - jinwei_eiscore_pgdata:/var/lib/postgresql/data
+      - ../../env/init_roles.sql:/docker-entrypoint-initdb.d/00_init_roles.sql:ro
+      - ../../env/db_schema_and_data.sql:/docker-entrypoint-initdb.d/01_db_schema_and_data.sql:ro
+      - ../../sql/app_center_schema.sql:/docker-entrypoint-initdb.d/02_app_center_schema.sql:ro
+      - ../../sql/app_center_data_tables.sql:/docker-entrypoint-initdb.d/03_app_center_data_tables.sql:ro
+      - ../../sql/inventory_schema.sql:/docker-entrypoint-initdb.d/04_inventory_schema.sql:ro
+      - ../../sql/patch_inventory_stock_rpc_security_definer.sql:/docker-entrypoint-initdb.d/05_inventory_stock_rpc_security_definer.sql:ro
+      - ../../sql/patch_inventory_transactions_io_type.sql:/docker-entrypoint-initdb.d/06_inventory_transactions_io_type.sql:ro
+      - ../../sql/patch_inventory_drafts.sql:/docker-entrypoint-initdb.d/07_inventory_drafts.sql:ro
+      - ../../sql/patch_inventory_drafts_rule_id.sql:/docker-entrypoint-initdb.d/08_inventory_drafts_rule_id.sql:ro
+      - ../../sql/patch_inventory_drafts_io_type.sql:/docker-entrypoint-initdb.d/09_inventory_drafts_io_type.sql:ro
+      - ../../sql/patch_inventory_batches_update_policy.sql:/docker-entrypoint-initdb.d/10_inventory_batches_update_policy.sql:ro
+      - ../../sql/patch_inventory_current_view_unicode.sql:/docker-entrypoint-initdb.d/11_inventory_current_view_unicode.sql:ro
+      - ../../sql/patch_inventory_transactions_view.sql:/docker-entrypoint-initdb.d/12_inventory_transactions_view.sql:ro
+      - ../../sql/patch_generate_batch_no_security_definer.sql:/docker-entrypoint-initdb.d/13_generate_batch_no_security_definer.sql:ro
+      - ../../sql/material_bom_schema.sql:/docker-entrypoint-initdb.d/14_material_bom_schema.sql:ro
+      - ../../sql/sales_demo_schema.sql:/docker-entrypoint-initdb.d/15_sales_schema.sql:ro
+      - ../../sql/sales_permissions_patch.sql:/docker-entrypoint-initdb.d/16_sales_permissions.sql:ro
+      - ../../sql/purchase_demo_schema.sql:/docker-entrypoint-initdb.d/17_purchase_schema.sql:ro
+      - ../../sql/production_bom_work_orders.sql:/docker-entrypoint-initdb.d/18_production_work_orders.sql:ro
+      - ../../sql/quality_demo_schema.sql:/docker-entrypoint-initdb.d/19_quality_schema.sql:ro
+      - ../../sql/equipment_demo_schema.sql:/docker-entrypoint-initdb.d/20_equipment_schema.sql:ro
+      - ../../sql/quality_realtime_notify.sql:/docker-entrypoint-initdb.d/21_quality_realtime_notify.sql:ro
+      - ../../sql/equipment_realtime_notify.sql:/docker-entrypoint-initdb.d/22_equipment_realtime_notify.sql:ro
+      - ../../sql/workflow_schema.sql:/docker-entrypoint-initdb.d/23_workflow_schema.sql:ro
+      - ../../sql/workflow_runtime_patch.sql:/docker-entrypoint-initdb.d/24_workflow_runtime_patch.sql:ro
+      - ../../sql/workflow_rls_patch.sql:/docker-entrypoint-initdb.d/25_workflow_rls_patch.sql:ro
+      - ../../sql/twin_schema.sql:/docker-entrypoint-initdb.d/26_twin_schema.sql:ro
+      - ../../sql/company_site_platform_v1.sql:/docker-entrypoint-initdb.d/27_company_site_platform.sql:ro
+      - ../../sql/jinwei_manufacturing_schema.sql:/docker-entrypoint-initdb.d/28_jinwei_manufacturing.sql:ro
+      - ../../sql/company_site_jinwei_seed.sql:/docker-entrypoint-initdb.d/29_company_site_jinwei_seed.sql:ro
+      - ../../sql/patch_login_jwt_secret_setting.sql:/docker-entrypoint-initdb.d/98_patch_login_jwt_secret_setting.sql:ro
+      - ./init-jwt-secret.sh:/docker-entrypoint-initdb.d/99_init_jwt_secret.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d eiscore"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    networks:
+      - jinwei_internal
+
+  api:
+    image: postgrest/postgrest:latest
+    container_name: jinwei-eiscore-api
+    restart: unless-stopped
+    env_file:
+      - ../../env/.env
+    environment:
+      PGRST_DB_URI: "postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/eiscore"
+      PGRST_DB_SCHEMAS: "public,hr,scm,app_center,workflow,app_data,jinwei"
+      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
+      PGRST_OPENAPI_SERVER_PROXY_URI: https://jwwc-admin.eiscore.top/api
+      PGRST_DB_PRE_REQUEST: ""
+    ports:
+      - "127.0.0.1:13000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - jinwei_internal
+
+  agent-runtime:
+    build:
+      context: ../../realtime
+      dockerfile: Dockerfile.prod
+    image: eiscore/jinwei-agent-runtime:release
+    container_name: jinwei-eiscore-agent
+    restart: unless-stopped
+    command: ["node", "index.js"]
+    env_file:
+      - ../../env/.env
+    environment:
+      PORT: 8078
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      PGDATABASE: eiscore
+      CHANNEL: eis_events
+      AGENT_POSTGREST_URL: http://api:3000
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
+      AI_HTTP_PROXY_URL: "${AI_HTTP_PROXY_URL:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      FLASH_CLINE_ENABLED: "${FLASH_CLINE_ENABLED:-false}"
+      FLASH_CLINE_COMMAND: "${FLASH_CLINE_COMMAND:-/app/node_modules/.bin/cline}"
+      FLASH_CLINE_PROJECT_PATH: "${FLASH_CLINE_PROJECT_PATH:-eiscore-apps/src/views/drafts}"
+      FLASH_CLINE_WORKDIR: "${FLASH_CLINE_WORKDIR:-/workspace/eiscore-apps/src/views/drafts}"
+      FLASH_CLINE_CONFIG_ROOT: "${FLASH_CLINE_CONFIG_ROOT:-/tmp/flash-cline}"
+      FLASH_CLINE_PROVIDER: "${FLASH_CLINE_PROVIDER:-openai}"
+      FLASH_CLINE_TASK_TIMEOUT_MS: "${FLASH_CLINE_TASK_TIMEOUT_MS:-480000}"
+      DOCUMENT_WORKER_SCHEMA_CHECK_ENABLED: "${DOCUMENT_WORKER_SCHEMA_CHECK_ENABLED:-true}"
+    ports:
+      - "127.0.0.1:18078:8078"
+    volumes:
+      - ../../eiscore-base:/workspace/eiscore-base:ro
+      - ../../eiscore-hr:/workspace/eiscore-hr:ro
+      - ../../eiscore-materials:/workspace/eiscore-materials:ro
+      - ../../eiscore-apps:/workspace/eiscore-apps
+      - ../../eiscore-company-site:/workspace/eiscore-company-site:ro
+      - ../../eiscore-equipment:/workspace/eiscore-equipment:ro
+      - ../../eiscore-sales:/workspace/eiscore-sales:ro
+      - ../../eiscore-purchase:/workspace/eiscore-purchase:ro
+      - ../../eiscore-production:/workspace/eiscore-production:ro
+      - ../../eiscore-quality:/workspace/eiscore-quality:ro
+      - ../../shared:/workspace/shared:ro
+      - jinwei_eiscore_document_data:/app/data/document-intake
+      - jinwei_eiscore_flash_tmp:/tmp/flash-cline
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8078/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 8s
+      retries: 12
+    networks:
+      - jinwei_internal
+
+  swagger:
+    image: swaggerapi/swagger-ui:v5.18.2
+    container_name: jinwei-eiscore-swagger
+    restart: unless-stopped
+    environment:
+      BASE_URL: /doc
+      API_URL: /api/
+      SWAGGER_JSON_URL: /api/
+    ports:
+      - "127.0.0.1:18079:8080"
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - jinwei_internal
+
+  ide:
+    image: codercom/code-server:4.108.2
+    container_name: jinwei-eiscore-ide
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command:
+      - --bind-addr
+      - 0.0.0.0:8443
+      - --auth
+      - password
+      - --base-path
+      - /ide
+      - --user-data-dir
+      - /config/data
+      - --extensions-dir
+      - /config/extensions
+      - --disable-telemetry
+      - --disable-update-check
+      - /config/workspace
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      PASSWORD: "${CODE_SERVER_PASSWORD:?CODE_SERVER_PASSWORD is required}"
+      HOME: /home/coder
+      XDG_CONFIG_HOME: /config/.config
+      NODE_OPTIONS: "--no-experimental-global-navigator"
+      VSCODE_NODE_OPTIONS: "--max-old-space-size=4096 --no-experimental-global-navigator"
+    ports:
+      - "127.0.0.1:18443:8443"
+    volumes:
+      - jinwei_eiscore_code_config:/config
+      - jinwei_eiscore_code_home:/home/coder
+      - jinwei_eiscore_code_tmp:/tmp
+      - ../../eiscore-apps:/config/workspace/eiscore-apps
+      - ../../eiscore-company-site:/config/workspace/eiscore-company-site:ro
+    networks:
+      - jinwei_internal
+
+  web:
+    build:
+      context: .
+      dockerfile: eiscore-web.Dockerfile
+    image: eiscore/jinwei-eiscore-web:release
+    container_name: jinwei-eiscore-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18193:8080"
+      - "127.0.0.1:18194:8081"
+    depends_on:
+      api:
+        condition: service_started
+      agent-runtime:
+        condition: service_healthy
+      swagger:
+        condition: service_started
+      ide:
+        condition: service_started
+    networks:
+      jinwei_internal:
+        aliases:
+          - jinwei-eiscore-web
+      gps-platform_default:
+        aliases:
+          - jinwei-eiscore-web
+
+networks:
+  jinwei_internal:
+    name: jinwei-eiscore_internal
+    driver: bridge
+  gps-platform_default:
+    external: true
+    name: gps-platform_default
+
+volumes:
+  jinwei_eiscore_pgdata:
+  jinwei_eiscore_document_data:
+  jinwei_eiscore_flash_tmp:
+  jinwei_eiscore_code_config:
+  jinwei_eiscore_code_home:
+  jinwei_eiscore_code_tmp:

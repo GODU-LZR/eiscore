@@ -1,0 +1,5 @@
+*
+!eiscore-web.Dockerfile
+!eiscore-nginx.conf
+!release/
+!release/**

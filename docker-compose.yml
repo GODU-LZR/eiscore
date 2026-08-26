@@ -30,6 +30,8 @@ services:
       - ./sql/junleyuan_baseline.sql:/docker-entrypoint-initdb.d/09_junleyuan_baseline.sql
       - ./sql/company_site_platform_v1.sql:/docker-entrypoint-initdb.d/10_company_site_platform_v1.sql
       - ./sql/workflow_rls_patch.sql:/docker-entrypoint-initdb.d/11_workflow_rls_patch.sql
+      - ./sql/jinwei_manufacturing_schema.sql:/docker-entrypoint-initdb.d/12_jinwei_manufacturing_schema.sql
+      - ./sql/company_site_jinwei_seed.sql:/docker-entrypoint-initdb.d/13_company_site_jinwei_seed.sql
 
   api:
     image: postgrest/postgrest
@@ -41,7 +43,7 @@ services:
       - ./env/.env
     environment:
       PGRST_DB_URI: "postgres://postgres:${POSTGRES_PASSWORD:-postgres123}@db:5432/eiscore"
-      PGRST_DB_SCHEMAS: "public,hr,scm,app_center,workflow,app_data"
+      PGRST_DB_SCHEMAS: "public,hr,scm,app_center,workflow,app_data,jinwei"
       PGRST_DB_ANON_ROLE: "web_anon"
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:-my_super_secret_key_for_eiscore_system_2025}"
     depends_on:

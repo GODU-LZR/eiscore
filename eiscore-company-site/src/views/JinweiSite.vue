@@ -7,14 +7,19 @@
       </button>
       <nav aria-label="页面导航">
         <button type="button" @click="scrollToSection('products')">产品</button>
+        <button type="button" @click="scrollToSection('solutions')">方案</button>
         <button type="button" @click="scrollToSection('capability')">制造</button>
         <button type="button" @click="scrollToSection('process')">流程</button>
+        <button type="button" @click="scrollToSection('quality')">质量依据</button>
         <button type="button" @click="scrollToSection('inquiry')">规格询盘</button>
       </nav>
       <div class="nav-actions">
-        <button class="system-link" type="button" title="打开经纬制造协同台" @click="router.push('/jinwei/manufacturing')">
-          <el-icon><DataBoard /></el-icon><span>制造系统</span>
+        <button class="system-link" type="button" title="打开制造协同演示台" @click="router.push('/jinwei/manufacturing')">
+          <el-icon><DataBoard /></el-icon><span>协同演示</span>
         </button>
+        <a class="system-link system-link-external" :href="JINWEI_SYSTEM_URL" target="_blank" rel="noreferrer" title="打开 EISCore 制造系统">
+          <el-icon><Setting /></el-icon><span>EISCore</span>
+        </a>
         <button class="nav-cta" type="button" @click="scrollToSection('inquiry')">提交规格<el-icon><ArrowRight /></el-icon></button>
       </div>
     </header>
@@ -56,6 +61,26 @@
               <h3>{{ product.name }}</h3>
               <p>{{ product.description }}</p>
               <button type="button" @click="selectProduct(product.id)">提交{{ product.short }}规格<el-icon><ArrowRight /></el-icon></button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="solutions" class="solutions-section section-shell" aria-labelledby="solutions-title">
+        <div class="section-intro solutions-intro">
+          <p class="section-label">APPLICATION SYSTEMS</p>
+          <h2 id="solutions-title">从网片供货，到按工况协同的工程方案</h2>
+          <p>公开页面区分产品族与产业关联业务；项目参数、客户名称和性能指标均在技术评审后确认。</p>
+        </div>
+        <div class="solution-list">
+          <article v-for="(solution, index) in JINWEI_PUBLIC_SOLUTIONS" :key="solution.id" class="solution-card">
+            <div class="solution-index">{{ String(index + 1).padStart(2, '0') }}</div>
+            <div class="solution-image"><img :src="assetUrl(solution.asset)" :alt="`${solution.title}现场参考`" loading="lazy"></div>
+            <div class="solution-copy">
+              <p>{{ solution.englishTitle }}</p>
+              <h3>{{ solution.title }}</h3>
+              <span>{{ solution.description }}</span>
+              <small>{{ solution.evidence }}</small>
             </div>
           </article>
         </div>
@@ -107,6 +132,38 @@
             <div><strong>{{ step.title }}</strong><p>{{ step.detail }}</p></div>
           </li>
         </ol>
+      </section>
+
+      <section id="quality" class="quality-section" aria-labelledby="quality-title">
+        <div class="section-shell quality-shell">
+          <div class="quality-copy">
+            <p class="section-label">QUALITY & EVIDENCE</p>
+            <h2 id="quality-title">把标准、批次和放行状态放在同一条证据链上</h2>
+            <p>以下是联网核验后用于系统建模的标准基线，不等同于企业认证，也不替代客户合同中的检验要求。</p>
+            <div class="quality-boundary"><el-icon><Warning /></el-icon><span>公开数字、项目案例、证书和产能口径上线前仍需经纬网厂书面确认。</span></div>
+          </div>
+          <div class="quality-grid">
+            <article v-for="item in JINWEI_QUALITY_BASELINE" :key="item.standard" class="quality-card">
+              <code>{{ item.standard }}</code>
+              <strong>{{ item.label }}</strong>
+              <span>{{ item.detail }}</span>
+            </article>
+          </div>
+        </div>
+        <div class="section-shell project-shell">
+          <div class="project-heading"><div><p class="section-label">PROJECT REGISTER</p><h3>项目展示采用证据等级，而不是夸大承诺</h3></div><span>授权后可扩充为正式案例</span></div>
+          <div class="project-grid">
+            <article v-for="project in JINWEI_PUBLIC_PROJECTS" :key="project.id" class="project-card">
+              <img :src="assetUrl(project.asset)" :alt="project.title" loading="lazy">
+              <div><small>{{ project.type }} · {{ project.status }}</small><h4>{{ project.title }}</h4><p>{{ project.description }}</p></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="industry-note section-shell" aria-label="产业关联边界">
+        <div><p class="section-label">JINGWEI INDUSTRIAL CONTEXT</p><h2>网具制造是主体，产业协同按业务边界呈现</h2></div>
+        <p>公开资料还提到海洋牧场、养殖装备与“粤府鲜”金鲳鱼等关联业务。本页仅将其作为产业体系背景，不把关联业务的规模、资质或产品承诺写成湛江市经纬网厂单体数据。</p>
       </section>
 
       <section id="inquiry" class="inquiry-section">
@@ -186,8 +243,15 @@
 
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, CircleCheck, DataBoard, DocumentChecked, Loading, Top, View, Warning } from '@element-plus/icons-vue'
-import { JINWEI_PRODUCT_FAMILIES, JINWEI_SPEC_FIELDS } from '@/jinwei/model.js'
+import { ArrowRight, CircleCheck, DataBoard, DocumentChecked, Loading, Setting, Top, View, Warning } from '@element-plus/icons-vue'
+import {
+  JINWEI_PRODUCT_FAMILIES,
+  JINWEI_PUBLIC_PROJECTS,
+  JINWEI_PUBLIC_SOLUTIONS,
+  JINWEI_QUALITY_BASELINE,
+  JINWEI_SPEC_FIELDS,
+  JINWEI_SYSTEM_URL
+} from '@/jinwei/model.js'
 
 const router = useRouter()
 const scrolled = ref(false)
@@ -302,7 +366,48 @@ const submitInquiry = async () => {
 }
 
 const onScroll = () => { scrolled.value = window.scrollY > 24 }
-onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }))
+const setMeta = (name, content) => {
+  if (!content) return
+  let node = document.head.querySelector(`meta[name="${name}"]`)
+  if (!node) {
+    node = document.createElement('meta')
+    node.setAttribute('name', name)
+    document.head.appendChild(node)
+  }
+  node.setAttribute('content', content)
+}
+
+const installPublicSeo = () => {
+  document.title = '湛江市经纬网厂 | 渔网、绳索与深水网箱'
+  setMeta('description', '湛江市经纬网厂提供有结网、无结网、绳索、养殖网箱及工程协同方案。')
+  setMeta('keywords', '渔网厂家,无结网厂家,深水网箱,渔用绳索,海洋牧场')
+  let canonical = document.head.querySelector('link[rel="canonical"]')
+  if (!canonical) {
+    canonical = document.createElement('link')
+    canonical.setAttribute('rel', 'canonical')
+    document.head.appendChild(canonical)
+  }
+  canonical.setAttribute('href', `${window.location.origin}/company-site/jinwei`)
+  let structuredData = document.head.querySelector('script[data-jinwei-structured-data]')
+  if (!structuredData) {
+    structuredData = document.createElement('script')
+    structuredData.type = 'application/ld+json'
+    structuredData.dataset.jinweiStructuredData = 'true'
+    document.head.appendChild(structuredData)
+  }
+  structuredData.textContent = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: '湛江市经纬网厂',
+    url: `${window.location.origin}/company-site/jinwei`,
+    description: '渔网、绳索、养殖网箱与工程协同'
+  })
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', onScroll, { passive: true })
+  installPublicSeo()
+})
 onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
 </script>
 
@@ -343,6 +448,7 @@ button { cursor: pointer; }
 .nav-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .system-link, .nav-cta, .hero-primary, .hero-secondary, .submit-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 16px; border-radius: 3px; }
 .system-link { color: inherit; border: 0; background: transparent; }
+.system-link-external { color: inherit; text-decoration: none; }
 .nav-cta { color: #10231d; border: 1px solid var(--signal); background: var(--signal); font-weight: 700; }
 
 .hero { position: relative; display: flex; min-height: 680px; height: 88vh; max-height: 900px; overflow: hidden; color: #fff; background: #243b34; }
@@ -382,6 +488,20 @@ button { cursor: pointer; }
 .product-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.75; }
 .product-copy button { display: inline-flex; align-items: center; gap: 6px; width: fit-content; margin-top: 25px; padding: 8px 0; color: var(--net); border: 0; border-bottom: 1px solid var(--net); background: transparent; font-weight: 700; font-size: 12px; }
 
+.solutions-section { padding: 104px 0 112px; background: #f8faf8; }
+.solutions-intro { margin-bottom: 38px; }
+.solution-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.solution-card { position: relative; display: grid; grid-template-rows: 128px auto; min-height: 310px; overflow: hidden; border: 1px solid var(--line); background: #fff; }
+.solution-index { position: absolute; z-index: 1; top: 12px; left: 12px; display: grid; place-items: center; width: 30px; height: 30px; color: #fff; background: rgba(18,38,32,.82); font: 700 10px "Arial Narrow", Arial, sans-serif; }
+.solution-image { overflow: hidden; background: #d6dfda; }
+.solution-image img { width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease; }
+.solution-card:hover .solution-image img { transform: scale(1.04); }
+.solution-copy { display: grid; align-content: start; gap: 7px; padding: 17px 16px 18px; }
+.solution-copy p { margin: 0; color: var(--net); font: 700 9px/1.2 "Arial Narrow", Arial, sans-serif; letter-spacing: 1px; text-transform: uppercase; }
+.solution-copy h3 { margin: 0; font-size: 16px; line-height: 1.35; }
+.solution-copy span { color: var(--muted); font-size: 11px; line-height: 1.55; }
+.solution-copy small { width: fit-content; margin-top: 4px; padding-top: 7px; color: #7b5a22; border-top: 1px solid #ead8ad; font-size: 10px; line-height: 1.35; }
+
 .spec-ribbon { padding: 70px max(32px, calc((100% - 1320px) / 2)); color: #fff; background: #192f28; }
 .spec-ribbon-head { display: grid; grid-template-columns: minmax(280px, .8fr) minmax(0, 1.2fr); align-items: end; gap: 50px; margin-bottom: 40px; }
 .spec-ribbon .section-label { color: var(--signal); }
@@ -416,6 +536,32 @@ button { cursor: pointer; }
 .process-list > li > span { color: var(--clay); font: 700 15px "Arial Narrow", Arial, sans-serif; }
 .process-list strong { font-size: 19px; }
 .process-list p { max-width: 760px; margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.65; }
+
+.quality-section { padding: 104px 0 96px; background: #eef3ef; }
+.quality-shell { display: grid; grid-template-columns: minmax(300px, .75fr) minmax(0, 1.25fr); gap: 64px; align-items: start; }
+.quality-copy h2 { margin: 0 0 20px; font-family: "Noto Serif SC", "Songti SC", serif; font-size: 38px; line-height: 1.3; }
+.quality-copy > p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
+.quality-boundary { display: flex; align-items: flex-start; gap: 9px; margin-top: 28px; padding: 13px 14px; color: #76501a; border: 1px solid #dfbd83; background: #fff8ed; font-size: 11px; line-height: 1.55; }
+.quality-boundary .el-icon { flex: 0 0 auto; color: var(--signal); font-size: 16px; }
+.quality-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.quality-card { display: grid; gap: 7px; min-height: 122px; padding: 15px; border: 1px solid #d4dfd8; background: #fff; }
+.quality-card code { color: var(--net); font: 700 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.quality-card strong { font-size: 14px; }
+.quality-card span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.project-shell { margin-top: 72px; }
+.project-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+.project-heading h3 { margin: 0; font-family: "Noto Serif SC", "Songti SC", serif; font-size: 26px; line-height: 1.35; }
+.project-heading > span { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.project-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.project-card { display: grid; grid-template-columns: 150px minmax(0, 1fr); min-height: 150px; border: 1px solid #d4dfd8; background: #fff; }
+.project-card > img { width: 100%; height: 100%; min-height: 150px; object-fit: cover; }
+.project-card > div { display: grid; align-content: start; gap: 7px; padding: 15px; }
+.project-card small { color: var(--net); font-size: 10px; }
+.project-card h4 { margin: 0; font-size: 14px; line-height: 1.4; }
+.project-card p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.industry-note { display: grid; grid-template-columns: minmax(300px, .75fr) minmax(0, 1.25fr); gap: 64px; align-items: center; padding-top: 72px; padding-bottom: 72px; }
+.industry-note h2 { margin: 0; font-family: "Noto Serif SC", "Songti SC", serif; font-size: 30px; line-height: 1.35; }
+.industry-note > p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
 
 .inquiry-section { padding: 104px 0; color: #fff; background: var(--ocean); }
 .inquiry-shell { display: grid; grid-template-columns: minmax(300px, .65fr) minmax(520px, 1.35fr); gap: 70px; align-items: start; }
@@ -462,6 +608,9 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
   .hero-index { display: none; }
   .product-card { grid-template-columns: 1fr; }
   .product-image { min-height: 230px; }
+  .solution-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quality-shell, .industry-note { grid-template-columns: 1fr; gap: 34px; }
+  .project-grid { grid-template-columns: 1fr; }
   .capability-shell { grid-template-columns: 1fr; }
   .capability-copy { max-width: 760px; }
   .inquiry-shell { grid-template-columns: 1fr; gap: 40px; }
@@ -484,7 +633,7 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
   .hero-actions { flex-direction: column; align-items: stretch; }
   .proof-band { grid-template-columns: 1fr; }
   .proof-band > div { min-height: 88px; padding: 18px 20px; border-right: 0; border-bottom: 1px solid rgba(255,255,255,.16); }
-  .products-section, .process-section { padding: 74px 0; }
+  .products-section, .solutions-section, .process-section { padding: 74px 0; }
   .section-intro { grid-template-columns: 1fr; gap: 18px; margin-bottom: 28px; }
   .section-intro .section-label { margin-bottom: 0; }
   .section-intro h2, .spec-ribbon h2, .capability-copy h2, .inquiry-copy h2 { font-size: 30px; }
@@ -492,6 +641,17 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
   .product-card { min-height: 0; }
   .product-image { min-height: 210px; }
   .product-copy { padding: 24px 20px; }
+  .solution-list { grid-template-columns: 1fr; }
+  .solution-card { grid-template-rows: 170px auto; }
+  .quality-section { padding: 74px 0 66px; }
+  .quality-copy h2 { font-size: 30px; }
+  .quality-grid { grid-template-columns: 1fr; }
+  .project-shell { margin-top: 48px; }
+  .project-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .project-heading h3 { font-size: 23px; }
+  .project-card { grid-template-columns: 120px minmax(0, 1fr); }
+  .industry-note { padding-top: 54px; padding-bottom: 54px; }
+  .industry-note h2 { font-size: 25px; }
   .spec-ribbon { padding: 56px 14px; }
   .spec-ribbon-head { grid-template-columns: 1fr; gap: 14px; }
   .spec-lines { grid-template-columns: repeat(9, 154px); }
