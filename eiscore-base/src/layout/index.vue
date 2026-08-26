@@ -14,8 +14,8 @@
         <span
           v-if="!isCollapse"
           class="logo-text"
-          :title="config?.title || '管理系统'"
-        >{{ config?.title || '管理系统' }}</span>
+          :title="systemTitle"
+        >{{ sidebarBrandTitle }}</span>
         <span v-else class="logo-text">EIS</span>
       </div>
 
@@ -308,6 +308,11 @@ const systemStore = useSystemStore()
 const userStore = useUserStore()
 const { visibility: displayVisibility } = useDisplayVisibility()
 const { config } = storeToRefs(systemStore)
+const systemTitle = computed(() => String(config.value?.title || '管理系统').trim())
+const sidebarBrandTitle = computed(() => {
+  const companyName = String(config.value?.loginBranding?.companyName || '').trim()
+  return companyName ? `${companyName} EISCore` : systemTitle.value
+})
 const isDark = useDark({ storageKey: 'eis_theme_global' })
 const toggleDark = useToggle(isDark)
 const showThemeToggle = false
