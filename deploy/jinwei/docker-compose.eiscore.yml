@@ -55,17 +55,18 @@ services:
       - ../../sql/patch_lightweight_ontology_runtime.sql:/docker-entrypoint-initdb.d/34_lightweight_ontology_runtime.sql:ro
       - ../../sql/patch_add_ontology_relations_app.sql:/docker-entrypoint-initdb.d/35_ontology_relations_app.sql:ro
       - ../../sql/patch_workflow_policy_v2.sql:/docker-entrypoint-initdb.d/36_workflow_policy_v2.sql:ro
-      - ../../sql/patch_ontology_semantic_coverage_v2.sql:/docker-entrypoint-initdb.d/37_ontology_semantic_coverage.sql:ro
-      - ../../sql/patch_ontology_reasoning_engine_v1.sql:/docker-entrypoint-initdb.d/38_ontology_reasoning_engine.sql:ro
-      - ../../sql/patch_ontology_reasoning_insights_v1.sql:/docker-entrypoint-initdb.d/39_ontology_reasoning_insights.sql:ro
-      - ../../sql/patch_ontology_graph_query_v1.sql:/docker-entrypoint-initdb.d/40_ontology_graph_query.sql:ro
-      - ../../sql/patch_fix_ontology_semantic_qmarks_20260618.sql:/docker-entrypoint-initdb.d/41_ontology_semantic_qmarks.sql:ro
-      - ../../sql/patch_eis_grid_summary_rpc.sql:/docker-entrypoint-initdb.d/42_eis_grid_summary_rpc.sql:ro
-      - ../../sql/patch_eis_grid_agent_query_rpc.sql:/docker-entrypoint-initdb.d/43_eis_grid_agent_query_rpc.sql:ro
-      - ../../sql/patch_eis_grid_formula_recalculate_rpc.sql:/docker-entrypoint-initdb.d/44_eis_grid_formula_recalculate.sql:ro
-      - ../../sql/patch_eis_app_card_stats_rpc.sql:/docker-entrypoint-initdb.d/45_eis_app_card_stats.sql:ro
-      - ../../sql/patch_agent_ontology_secure_context_v1.sql:/docker-entrypoint-initdb.d/46_agent_ontology_secure_context.sql:ro
-      - ../../sql/patch_document_intake_rls_hardening_v1.sql:/docker-entrypoint-initdb.d/47_document_intake_rls_hardening.sql:ro
+      - ../../sql/patch_sop_learning_records.sql:/docker-entrypoint-initdb.d/37_sop_learning_records.sql:ro
+      - ../../sql/patch_ontology_semantic_coverage_v2.sql:/docker-entrypoint-initdb.d/38_ontology_semantic_coverage.sql:ro
+      - ../../sql/patch_ontology_reasoning_engine_v1.sql:/docker-entrypoint-initdb.d/39_ontology_reasoning_engine.sql:ro
+      - ../../sql/patch_ontology_reasoning_insights_v1.sql:/docker-entrypoint-initdb.d/40_ontology_reasoning_insights.sql:ro
+      - ../../sql/patch_ontology_graph_query_v1.sql:/docker-entrypoint-initdb.d/41_ontology_graph_query.sql:ro
+      - ../../sql/patch_fix_ontology_semantic_qmarks_20260618.sql:/docker-entrypoint-initdb.d/42_ontology_semantic_qmarks.sql:ro
+      - ../../sql/patch_eis_grid_summary_rpc.sql:/docker-entrypoint-initdb.d/43_eis_grid_summary_rpc.sql:ro
+      - ../../sql/patch_eis_grid_agent_query_rpc.sql:/docker-entrypoint-initdb.d/44_eis_grid_agent_query_rpc.sql:ro
+      - ../../sql/patch_eis_grid_formula_recalculate_rpc.sql:/docker-entrypoint-initdb.d/45_eis_grid_formula_recalculate.sql:ro
+      - ../../sql/patch_eis_app_card_stats_rpc.sql:/docker-entrypoint-initdb.d/46_eis_app_card_stats.sql:ro
+      - ../../sql/patch_agent_ontology_secure_context_v1.sql:/docker-entrypoint-initdb.d/47_agent_ontology_secure_context.sql:ro
+      - ../../sql/patch_document_intake_rls_hardening_v1.sql:/docker-entrypoint-initdb.d/48_document_intake_rls_hardening.sql:ro
       - ../../sql/company_site_jinwei_admin_branding.sql:/docker-entrypoint-initdb.d/97_company_site_jinwei_admin_branding.sql:ro
       - ../../sql/patch_login_jwt_secret_setting.sql:/docker-entrypoint-initdb.d/98_patch_login_jwt_secret_setting.sql:ro
       - ./init-jwt-secret.sh:/docker-entrypoint-initdb.d/99_init_jwt_secret.sh:ro

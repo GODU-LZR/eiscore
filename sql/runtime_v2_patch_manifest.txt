@@ -12,6 +12,7 @@ sql/workflow_rls_patch.sql
 sql/patch_lightweight_ontology_runtime.sql
 sql/patch_add_ontology_relations_app.sql
 sql/patch_workflow_policy_v2.sql
+sql/patch_sop_learning_records.sql
 sql/patch_ontology_semantic_coverage_v2.sql
 sql/patch_ontology_reasoning_engine_v1.sql
 sql/patch_ontology_reasoning_insights_v1.sql
