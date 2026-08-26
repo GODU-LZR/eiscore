@@ -60,3 +60,7 @@ comment on column public.sop_learning_records.step_count is '步骤数';
 comment on column public.sop_learning_records.status is '学习状态';
 comment on column public.sop_learning_records.seen_at is '已读时间';
 comment on column public.sop_learning_records.completed_at is '完成时间';
+
+-- Make the table available immediately when this patch is applied to an
+-- already-running PostgREST instance.
+select pg_notify('pgrst', 'reload schema');
