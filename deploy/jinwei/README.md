@@ -6,6 +6,7 @@
 - `jinwei-leads`：轻量询盘接收服务，使用 Docker volume 保存 JSON；只用于测试，不接正式 PostgreSQL、客户或销售数据。
 - `host-nginx.conf`：宿主机 Nginx 的独立域名反代模板，只匹配 `jwwc.eiscore.top` 和可选的 `*.jwwc.eiscore.top`。
 - `host-nginx-https.conf`：需要 DNS-01 通配符证书时使用的 443 模板。
+- `gps-edge-jinwei.conf`：当前 `gps-platform-edge` 网关使用的经纬路由块（运行时 Docker DNS 解析）。
 
 DNS 已核验 `jwwc.eiscore.top` 指向 `149.104.26.71`。`vedio.eiscore.top` 属于现有短视频系统，不应被本配置接管。部署前仍需确认服务器登录权限和现有 Nginx 配置，不能覆盖默认站点。
 
@@ -76,7 +77,7 @@ curl -i -X POST http://127.0.0.1:18192/agent/company-site/public/leads \
 
    该覆盖文件只连接已有的 `gps-platform_default` 网络，不会重新创建或停止短视频服务。
 
-4. 复制 `host-nginx.conf` 为新的 Jinwei HTTP server block，先执行 `nginx -t`，再 `systemctl reload nginx`。如果宿主机已有同名 server block，应合并代理 location，不要创建重复监听配置。
+4. 对本服务器的 `gps-platform-edge`，将 `gps-edge-jinwei.conf` 中的两个 server block 合并到 `/opt/gps-platform/nginx/conf.d/edge.conf`（现有网关不是宿主机 systemd Nginx），先执行 `docker exec gps-platform-edge nginx -t`，再 `docker exec gps-platform-edge nginx -s reload`。如果已有同名 server block，应合并代理 location，不要创建重复监听配置。
 5. 需要 HTTPS 时，在证书就绪后再启用 `host-nginx-https.conf`；确认它只包含 `jwwc.eiscore.top` 和 `*.jwwc.eiscore.top`，不会影响 `vedio.eiscore.top`。证书申请和 DNS/防火墙变更必须按服务器现状执行。
 
 ## 回滚
