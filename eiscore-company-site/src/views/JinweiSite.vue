@@ -719,7 +719,7 @@ const submitPortalLogin = async () => {
     }
     loginTone.value = 'success'
     loginMessage.value = copy.value.login.verified
-    window.location.assign(`${JINWEI_SYSTEM_URL}/login?handoff=${encodeURIComponent(handoffPayload.code)}`)
+    window.location.assign(`${JINWEI_SYSTEM_URL}/auth/handoff?handoff=${encodeURIComponent(handoffPayload.code)}`)
   } catch (error) {
     loginTone.value = 'error'
     loginMessage.value = error?.message === 'handoff-failed' ? copy.value.login.unavailable : copy.value.login.invalid

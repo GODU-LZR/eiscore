@@ -1,5 +1,34 @@
 <template>
+  <main
+    v-if="isAuthHandoffEntry"
+    class="auth-handoff-page"
+    :data-state="handoffState"
+    aria-labelledby="auth-handoff-title"
+  >
+    <section class="auth-handoff-content" aria-live="polite">
+      <div class="auth-handoff-brand">
+        <img :src="JINWEI_HANDOFF_LOGO" alt="经纬网业" />
+        <div>
+          <strong>经纬网业</strong>
+          <span>JINGWEI NETTING</span>
+        </div>
+      </div>
+      <p class="auth-handoff-kicker">SECURE ACCESS / 安全登录</p>
+      <h1 id="auth-handoff-title">
+        {{ handoffState === 'error' ? '未能进入系统' : '正在进入经纬 EISCore' }}
+      </h1>
+      <p class="auth-handoff-message">
+        {{ handoffState === 'error' ? handoffErrorMessage : '账号验证已完成，正在建立你的工作会话。' }}
+      </p>
+      <div v-if="handoffState !== 'error'" class="auth-handoff-progress" role="progressbar" aria-label="正在进入系统">
+        <i />
+      </div>
+      <a v-else class="auth-handoff-retry" href="https://jwwc.eiscore.top/company-site/jinwei">返回经纬网业独立站</a>
+      <small>账号凭证不会显示在地址栏，也不会由独立站长期保存。</small>
+    </section>
+  </main>
   <div
+    v-else
     class="login-page portal-page"
     :data-portal="isJinweiPortal ? 'jinwei-external' : 'junleyuan-external'"
     :class="{ 'is-scrolled': pageScrolled }"
@@ -240,11 +269,18 @@ import { mix } from '@/utils/theme'
 
 const isJinweiPortal = typeof window !== 'undefined' && /^jwwc-admin\.eiscore\.top$/i.test(window.location.hostname)
 const DEFAULT_LOGIN_LOGO = isJinweiPortal ? '/company-site/assets/jinwei/jinwei-mark.svg' : '/company-assets/junleyuan-mark.png'
+const JINWEI_HANDOFF_LOGO = '/company-site/assets/jinwei/jinwei-mark.svg'
+const isAuthHandoffEntry = isJinweiPortal && typeof window !== 'undefined' && (
+  window.location.pathname === '/auth/handoff'
+  || new URLSearchParams(window.location.search).has('handoff')
+)
 
 const router = useRouter()
 const userStore = useUserStore()
 const systemStore = useSystemStore()
 const loading = ref(false)
+const handoffState = ref('loading')
+const handoffErrorMessage = ref('登录交接已失效，请返回登录页重新进入。')
 const loginFormRef = ref(null)
 const authCardRef = ref(null)
 const pageScrolled = ref(false)
@@ -447,8 +483,11 @@ const openSecondaryAction = () => {
 }
 
 onMounted(async () => {
+  if (isAuthHandoffEntry && typeof document !== 'undefined') {
+    document.title = '正在进入经纬 EISCore'
+  }
   const handoffSucceeded = await consumeAuthHandoff()
-  if (handoffSucceeded) return
+  if (handoffSucceeded || isAuthHandoffEntry) return
 
   await systemStore.loadConfig()
   systemStore.initTheme()
@@ -595,7 +634,13 @@ const consumeAuthHandoff = async () => {
   if (typeof window === 'undefined') return false
   const url = new URL(window.location.href)
   const code = String(url.searchParams.get('handoff') || '').trim()
-  if (!code) return false
+  if (!code) {
+    if (isAuthHandoffEntry) {
+      handoffState.value = 'error'
+      document.title = '经纬 EISCore 登录交接失败'
+    }
+    return false
+  }
 
   url.searchParams.delete('handoff')
   window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
@@ -611,7 +656,9 @@ const consumeAuthHandoff = async () => {
     await establishUserSession(data)
     return true
   } catch (error) {
-    ElMessage.error(error.message || '登录链接已失效，请返回经纬网业独立站重新登录')
+    handoffState.value = 'error'
+    handoffErrorMessage.value = '登录交接已失效，请返回经纬网业独立站重新进入。'
+    document.title = '经纬 EISCore 登录交接失败'
     return false
   } finally {
     loading.value = false
@@ -646,6 +693,93 @@ const handleLogin = async () => {
 </script>
 
 <style scoped lang="scss">
+.auth-handoff-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  padding: clamp(24px, 7vw, 72px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: #f4fafb;
+  background: #062f3d;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+
+.auth-handoff-content {
+  width: min(520px, 100%);
+  padding-top: 28px;
+  border-top: 3px solid #e5b34f;
+}
+
+.auth-handoff-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: clamp(56px, 10vh, 96px);
+}
+
+.auth-handoff-brand img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.auth-handoff-brand div { display: grid; gap: 2px; }
+.auth-handoff-brand strong { font-size: 19px; line-height: 1.2; }
+.auth-handoff-brand span { color: #b9d1d6; font-size: 10px; font-weight: 700; }
+.auth-handoff-kicker { margin: 0 0 14px; color: #e5b34f; font-size: 11px; font-weight: 800; }
+.auth-handoff-content h1 { margin: 0; font-size: 40px; line-height: 1.18; letter-spacing: 0; }
+.auth-handoff-message { margin: 18px 0 28px; color: #c6d9dd; font-size: 15px; line-height: 1.8; }
+.auth-handoff-content small { display: block; margin-top: 22px; color: #8fb0b7; font-size: 11px; line-height: 1.7; }
+
+.auth-handoff-progress {
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(244, 250, 251, 0.18);
+}
+
+.auth-handoff-progress i {
+  display: block;
+  width: 42%;
+  height: 100%;
+  background: #e5b34f;
+  animation: handoffProgress 1.1s ease-in-out infinite;
+}
+
+.auth-handoff-retry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 0 22px;
+  color: #062f3d;
+  background: #e5b34f;
+  font-size: 14px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.auth-handoff-retry:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+@keyframes handoffProgress {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(340%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-handoff-progress i { animation: none; width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .auth-handoff-page { place-items: start center; padding-top: max(32px, env(safe-area-inset-top)); }
+  .auth-handoff-content { margin: auto 0; }
+  .auth-handoff-brand { margin-bottom: 64px; }
+  .auth-handoff-content h1 { font-size: 30px; }
+}
+
 .login-page {
   --portal-ink: #111827;
   --portal-muted: #64748b;

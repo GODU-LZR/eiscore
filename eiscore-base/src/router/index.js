@@ -21,6 +21,12 @@ const router = createRouter({
       meta: { requiresAuth: false, publicLanding: true }
     },
     {
+      path: '/auth/handoff',
+      name: 'auth-handoff',
+      component: () => import('../views/LoginView.vue'),
+      meta: { requiresAuth: false, publicLanding: true }
+    },
+    {
       path: '/company/:pathMatch(.*)*',
       name: 'company-entry',
       redirect: to => ({
