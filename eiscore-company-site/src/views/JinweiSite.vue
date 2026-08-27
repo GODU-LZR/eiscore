@@ -341,7 +341,7 @@ const ZH_COPY = Object.freeze({
   brand: { name: '经纬网业', sub: 'JINGWEI NETTING', homeLabel: '返回经纬网业首页' },
   locale: { toggleLabel: '切换到英文' },
   nav: { ariaLabel: '页面导航', mobileLabel: '移动端页面导航', products: '产品体系', solutions: '应用方案', capability: '制造现场', process: '交付流程', quality: '质量依据', inquiry: '提交规格', systemTitle: '打开 EISCore 制造系统', menuLabel: '打开页面导航' },
-  login: { openTitle: '打开经纬系统登录', short: '登录', title: '进入经纬 EISCore', kicker: 'AUTHORIZED ACCESS / 授权入口', dialogTitleId: 'jinwei-login-title', closeLabel: '关闭登录窗口', lead: '员工、计划、仓库、质检与合作伙伴使用统一账号进入制造协同系统。', username: '用户名', password: '密码', usernamePlaceholder: '输入企业账号', passwordPlaceholder: '输入登录密码', remember: '在本设备记住账号', checking: '正在验证', submit: '验证并进入系统', note: '登录验证在经纬域名下完成；管理端使用独立会话，不在地址栏传递密码或 Token。', adminLink: '打开管理端登录页', verified: '账号验证通过，请继续打开管理端完成登录。', invalid: '账号或密码不正确，请检查后重试。' },
+  login: { openTitle: '打开经纬系统登录', short: '登录', title: '进入经纬 EISCore', kicker: 'AUTHORIZED ACCESS / 授权入口', dialogTitleId: 'jinwei-login-title', closeLabel: '关闭登录窗口', lead: '员工、计划、仓库、质检与合作伙伴使用统一账号进入制造协同系统。', username: '用户名', password: '密码', usernamePlaceholder: '输入企业账号', passwordPlaceholder: '输入登录密码', remember: '在本设备记住账号', checking: '正在验证', submit: '验证并进入系统', note: '登录验证在经纬域名下完成；管理端使用独立会话，不在地址栏传递密码或 Token。', adminLink: '打开管理端登录页', verified: '账号验证通过，正在进入经纬 EISCore。', invalid: '账号或密码不正确，请检查后重试。', unavailable: '账号已验证，但系统登录交接暂时不可用，请稍后重试。' },
   hero: { imageAlt: '湛江市经纬网厂厂区大门', org: '湛江市经纬网厂 / ZHANJIANG JINGWEI NETTING FACTORY', primary: '提交规格', secondary: '查看制造现场', indexLabel: '产品范围', carouselRole: '轮播图', carouselLabel: '经纬网业厂区与产品现场', carouselControls: '现场图片切换', carouselSlides: '现场图片', slideLabel: '第', previous: '上一张现场图片', next: '下一张现场图片' },
   proof: { ariaLabel: '制造依据', items: [{ title: 'Specification first', detail: '材质、线规格、网眼、尺寸、颜色与包装逐项确认' }, { title: 'Traceable by batch', detail: '合同、批次、机台、人员、检验与包装码贯通' }, { title: 'Built for handoff', detail: '本厂织造、外协回网、染色和分批交付统一衔接' }] },
   sections: {
@@ -363,7 +363,7 @@ const EN_COPY = Object.freeze({
   brand: { name: 'Jingwei Netting', sub: 'JINGWEI NETTING', homeLabel: 'Back to Jingwei Netting home' },
   locale: { toggleLabel: 'Switch to Chinese' },
   nav: { ariaLabel: 'Site navigation', mobileLabel: 'Mobile site navigation', products: 'Products', solutions: 'Solutions', capability: 'Factory floor', process: 'Order journey', quality: 'Quality basis', inquiry: 'Request specs', systemTitle: 'Open EISCore manufacturing system', menuLabel: 'Open site navigation' },
-  login: { openTitle: 'Open Jingwei system login', short: 'Login', title: 'Enter Jingwei EISCore', kicker: 'AUTHORIZED ACCESS', dialogTitleId: 'jinwei-login-title', closeLabel: 'Close login dialog', lead: 'Employees, planners, warehouse, quality and partners use one account for manufacturing coordination.', username: 'Username', password: 'Password', usernamePlaceholder: 'Enter company username', passwordPlaceholder: 'Enter password', remember: 'Remember username on this device', checking: 'Verifying', submit: 'Verify and continue', note: 'Verification stays on the Jingwei domain. The admin portal keeps its own session; passwords and tokens are never put in the address bar.', adminLink: 'Open admin login', verified: 'Account verified. Continue in the admin portal to complete sign-in.', invalid: 'Username or password is incorrect. Please try again.' },
+  login: { openTitle: 'Open Jingwei system login', short: 'Login', title: 'Enter Jingwei EISCore', kicker: 'AUTHORIZED ACCESS', dialogTitleId: 'jinwei-login-title', closeLabel: 'Close login dialog', lead: 'Employees, planners, warehouse, quality and partners use one account for manufacturing coordination.', username: 'Username', password: 'Password', usernamePlaceholder: 'Enter company username', passwordPlaceholder: 'Enter password', remember: 'Remember username on this device', checking: 'Verifying', submit: 'Verify and continue', note: 'Verification stays on the Jingwei domain. The admin portal keeps its own session; passwords and tokens are never put in the address bar.', adminLink: 'Open admin login', verified: 'Account verified. Opening Jingwei EISCore.', invalid: 'Username or password is incorrect. Please try again.', unavailable: 'Your account was verified, but the secure system handoff is temporarily unavailable. Please try again.' },
   hero: { imageAlt: 'Jingwei Netting Factory entrance', org: 'ZHANJIANG JINGWEI NETTING FACTORY / 湛江市经纬网厂', primary: 'Request a specification', secondary: 'View factory floor', indexLabel: 'Product scope', carouselRole: 'Carousel', carouselLabel: 'Jingwei factory and product scenes', carouselControls: 'Scene controls', carouselSlides: 'Scenes', slideLabel: 'Slide', previous: 'Previous scene', next: 'Next scene' },
   proof: { ariaLabel: 'Manufacturing basis', items: [{ title: 'Specification first', detail: 'Material, yarn, mesh, dimensions, color and packing are confirmed line by line.' }, { title: 'Traceable by batch', detail: 'Contract, batch, machine, operator, inspection and package code stay connected.' }, { title: 'Built for handoff', detail: 'In-house weaving, outsourced return, dyeing and split delivery share one handoff.' }] },
   sections: {
@@ -495,7 +495,11 @@ const loginOpen = ref(false)
 const loginLoading = ref(false)
 const loginMessage = ref('')
 const loginTone = ref('normal')
-const loginForm = reactive({ username: '', password: '', remember: false })
+const LOGIN_USERNAME_STORAGE_KEY = 'jinwei.login.username'
+const rememberedLoginUsername = typeof localStorage !== 'undefined'
+  ? String(localStorage.getItem(LOGIN_USERNAME_STORAGE_KEY) || '')
+  : ''
+const loginForm = reactive({ username: rememberedLoginUsername, password: '', remember: Boolean(rememberedLoginUsername) })
 const activeHeroSlide = ref(0)
 const heroAutoplayPaused = ref(false)
 let heroAutoplayTimer = null
@@ -679,11 +683,13 @@ const openLogin = () => {
   loginMessage.value = ''
   loginTone.value = 'normal'
   loginOpen.value = true
+  if (typeof document !== 'undefined') document.body.style.overflow = 'hidden'
 }
 
 const closeLogin = () => {
   if (loginLoading.value) return
   loginOpen.value = false
+  if (typeof document !== 'undefined') document.body.style.overflow = ''
 }
 
 const submitPortalLogin = async () => {
@@ -699,12 +705,24 @@ const submitPortalLogin = async () => {
     })
     const payload = await response.json().catch(() => ({}))
     if (!response.ok || !payload?.token) throw new Error('invalid-login')
-    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('jinwei.login.verified', '1')
+
+    const handoffResponse = await fetch('/agent/company-site/auth/handoff', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${payload.token}` }
+    })
+    const handoffPayload = await handoffResponse.json().catch(() => ({}))
+    if (!handoffResponse.ok || !handoffPayload?.code) throw new Error('handoff-failed')
+
+    if (typeof localStorage !== 'undefined') {
+      if (loginForm.remember) localStorage.setItem(LOGIN_USERNAME_STORAGE_KEY, loginForm.username)
+      else localStorage.removeItem(LOGIN_USERNAME_STORAGE_KEY)
+    }
     loginTone.value = 'success'
     loginMessage.value = copy.value.login.verified
-  } catch {
+    window.location.assign(`${JINWEI_SYSTEM_URL}/login?handoff=${encodeURIComponent(handoffPayload.code)}`)
+  } catch (error) {
     loginTone.value = 'error'
-    loginMessage.value = copy.value.login.invalid
+    loginMessage.value = error?.message === 'handoff-failed' ? copy.value.login.unavailable : copy.value.login.invalid
   } finally {
     loginLoading.value = false
   }
@@ -837,6 +855,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('scroll', onScroll)
   document.removeEventListener('keydown', onKeydown)
+  document.body.style.overflow = ''
   stopHeroAutoplay()
 })
 </script>
@@ -1115,7 +1134,22 @@ footer > button { display: grid; place-items: center; width: 42px; height: 42px;
 .locale-toggle i { width: 1px; height: 11px; background: currentColor; opacity: .45; }
 .mobile-login-link { color: var(--net) !important; font-weight: 700; }
 
-.login-overlay { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(4, 27, 36, .72); backdrop-filter: blur(8px); }
+.login-overlay {
+  --ink: #102733;
+  --muted: #5f7076;
+  --net: #075b73;
+  --signal: #e5b34f;
+  --line: #d4dfe1;
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(4, 27, 36, .72);
+  backdrop-filter: blur(8px);
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", sans-serif;
+}
 .login-dialog { position: relative; width: min(490px, 100%); max-height: min(760px, calc(100vh - 28px)); overflow: auto; padding: 34px; color: var(--ink); background: #f8fbfb; box-shadow: 0 28px 80px rgba(0, 13, 20, .34); }
 .login-close { position: absolute; top: 13px; right: 13px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; color: var(--net); border: 1px solid #bad0d4; border-radius: 0; background: transparent; }
 .login-dialog-brand { display: inline-flex; align-items: center; gap: 11px; margin-bottom: 30px; }
@@ -1349,6 +1383,10 @@ footer > button { width: 40px; height: 40px; border-radius: 0; border-color: #4c
   .hero-slide-note { right: 24px; width: min(300px, 34vw); }
   .hero-controls { right: 24px; }
   .solution-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .capability-shell, .quality-shell, .inquiry-shell { grid-template-columns: minmax(0, 1fr); }
+  .capability-copy, .inquiry-copy { max-width: 760px; }
+  .inquiry-copy { position: static; }
+  .project-grid { grid-template-columns: minmax(0, 1fr); }
   .associate-rail { grid-template-columns: auto minmax(130px, .45fr) minmax(0, 1fr); }
   .associate-status { grid-column: 2 / -1; }
 }
@@ -1357,6 +1395,10 @@ footer > button { width: 40px; height: 40px; border-radius: 0; border-color: #4c
   .section-shell { width: calc(100% - 28px); }
   .site-nav, .site-nav.compact { grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; height: 62px; padding: 0 14px; }
   .nav-actions { gap: 6px; min-width: 0; }
+  .nav-actions > .system-link:not(.system-link-external) { display: none; }
+  .brand-lockup { min-width: 0; }
+  .brand-lockup strong { font-size: 15px; white-space: nowrap; }
+  .mobile-nav { top: 62px; max-height: calc(100dvh - 62px); overflow-y: auto; overscroll-behavior: contain; }
   .site-nav.compact + main .hero { padding-top: 0; }
   .nav-cta { min-height: 36px; padding: 0 10px; font-size: 10px; white-space: nowrap; }
   .hero { min-height: 700px; height: 86svh; max-height: 820px; }
@@ -1390,16 +1432,21 @@ footer > button { width: 40px; height: 40px; border-radius: 0; border-color: #4c
   .associate-status { grid-column: auto; }
   .spec-ribbon { padding: 62px 14px; }
   .spec-ribbon-head { grid-template-columns: 1fr; gap: 16px; }
-  .spec-lines { grid-template-columns: repeat(9, 148px); }
+  .spec-lines { grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+  .spec-cell { min-height: 142px; padding: 18px 13px; border-bottom: 1px solid rgba(219, 240, 242, .2); }
+  .spec-cell:nth-child(even) { border-right: 0; }
+  .spec-cell::after { display: none; }
+  .spec-cell strong, .spec-cell small { overflow-wrap: anywhere; }
   .capability-section { padding: 82px 0; }
-  .capability-shell { gap: 40px; }
-  .factory-gallery { grid-template-rows: 240px 180px; }
+  .capability-shell { grid-template-columns: minmax(0, 1fr); gap: 40px; align-items: stretch; }
+  .factory-gallery { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: 240px 180px; }
+  .factory-gallery figure { min-width: 0; }
   .process-list li { grid-template-columns: 42px minmax(0, 1fr); min-height: 108px; padding: 23px 0; }
   .process-list strong { font-size: 16px; }
   .quality-section { padding: 82px 0 72px; }
-  .quality-shell { gap: 38px; }
+  .quality-shell { grid-template-columns: minmax(0, 1fr); gap: 38px; }
   .quality-copy h2 { font-size: 31px; }
-  .quality-grid { grid-template-columns: 1fr; }
+  .quality-grid, .project-grid { grid-template-columns: minmax(0, 1fr); }
   .project-shell { margin-top: 52px; }
   .project-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
   .project-card { grid-template-columns: 108px minmax(0, 1fr); }
@@ -1407,8 +1454,16 @@ footer > button { width: 40px; height: 40px; border-radius: 0; border-color: #4c
   .industry-note { grid-template-columns: 1fr; gap: 24px; padding-top: 58px; padding-bottom: 58px; }
   .industry-note h2 { font-size: 25px; }
   .inquiry-section { padding: 82px 0; }
-  .inquiry-shell { grid-template-columns: 1fr; gap: 38px; }
+  .inquiry-shell { grid-template-columns: minmax(0, 1fr); gap: 38px; }
   .inquiry-form { padding: 24px 16px; }
+  .form-grid-three, .form-grid-two { grid-template-columns: minmax(0, 1fr); }
+  .inquiry-form input:not([type="checkbox"]), .inquiry-form select, .inquiry-form textarea { font-size: 16px; }
+  .login-overlay { place-items: start center; overflow-y: auto; padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)); }
+  .login-dialog { width: 100%; max-height: none; margin: auto 0; padding: 26px 18px 22px; }
+  .login-dialog-brand { margin-bottom: 22px; padding-right: 42px; }
+  .login-dialog h2 { font-size: 28px; }
+  .login-form input:not([type="checkbox"]) { min-height: 48px; font-size: 16px; }
+  .login-close { width: 40px; height: 40px; }
   footer { align-items: flex-start; flex-wrap: wrap; padding: 28px 18px; }
   footer p { order: 3; width: 100%; }
 }
@@ -1416,9 +1471,11 @@ footer > button { width: 40px; height: 40px; border-radius: 0; border-color: #4c
 @media (max-width: 360px) {
   .site-nav, .site-nav.compact { column-gap: 8px; padding-right: 12px; padding-left: 12px; }
   .nav-actions { gap: 4px; }
-  .nav-actions > .system-link:not(.system-link-external) { display: none; }
   .nav-cta { min-height: 34px; padding: 0 8px; font-size: 9px; }
   .locale-toggle { min-height: 30px; padding: 0 6px; gap: 5px; font-size: 8px; }
   .menu-toggle { width: 34px; height: 34px; }
+  .hero-actions { flex-direction: column; }
+  .hero-primary, .hero-secondary { width: 100%; }
+  .hero-slide-note { bottom: 72px; }
 }
 </style>

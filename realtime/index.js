@@ -243,6 +243,24 @@ let aiVisionConfigCache = null;
 let aiVisionConfigLoadedAt = 0;
 const flashToolIdempotencyCache = new Map();
 
+// Public-site login and the admin portal live on separate origins. Keep the
+// credential handoff server-side so the browser only carries a short-lived,
+// single-use opaque code in the navigation URL.
+const authHandoffStore = new Map();
+const AUTH_HANDOFF_TTL_MS = 90 * 1000;
+const AUTH_HANDOFF_MAX_ENTRIES = 256;
+
+const purgeExpiredAuthHandoffs = (nowMs = Date.now()) => {
+  for (const [code, entry] of authHandoffStore) {
+    if (!entry || Number(entry.expiresAt || 0) <= nowMs) authHandoffStore.delete(code);
+  }
+  while (authHandoffStore.size > AUTH_HANDOFF_MAX_ENTRIES) {
+    const oldestCode = authHandoffStore.keys().next().value;
+    if (!oldestCode) break;
+    authHandoffStore.delete(oldestCode);
+  }
+};
+
 const flashSemanticToolRegistryVersion = 'flash-tools-v2';
 const flashSemanticToolRegistry = Object.freeze([
   {
@@ -1058,6 +1076,68 @@ const readJsonBody = (req, maxBytes = 25 * 1024 * 1024) => {
 
     req.on('error', (error) => reject(error));
   });
+};
+
+const handleCreateAuthHandoff = async (req, res) => {
+  const token = getBearerFromAuthHeader(req);
+  const payload = verifyToken(token);
+  if (!payload) {
+    sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Invalid or missing token' }, { 'Cache-Control': 'no-store' });
+    return;
+  }
+
+  purgeExpiredAuthHandoffs();
+  let code = '';
+  do {
+    code = crypto.randomBytes(32).toString('base64url');
+  } while (authHandoffStore.has(code));
+
+  authHandoffStore.set(code, {
+    token,
+    expiresAt: Date.now() + AUTH_HANDOFF_TTL_MS
+  });
+  purgeExpiredAuthHandoffs();
+
+  sendJson(res, 201, {
+    code,
+    expiresIn: Math.floor(AUTH_HANDOFF_TTL_MS / 1000)
+  }, { 'Cache-Control': 'no-store' });
+};
+
+const handleConsumeAuthHandoff = async (req, res) => {
+  let body;
+  try {
+    body = await readJsonBody(req, 4 * 1024);
+  } catch (error) {
+    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' }, { 'Cache-Control': 'no-store' });
+    return;
+  }
+
+  const code = String(body?.code || '').trim();
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(code)) {
+    sendJson(res, 400, { code: 'INVALID_HANDOFF', message: 'Invalid login handoff code' }, { 'Cache-Control': 'no-store' });
+    return;
+  }
+
+  purgeExpiredAuthHandoffs();
+  const entry = authHandoffStore.get(code);
+  authHandoffStore.delete(code);
+  if (!entry || Number(entry.expiresAt || 0) <= Date.now()) {
+    sendJson(res, 410, { code: 'HANDOFF_EXPIRED', message: 'Login handoff has expired or was already used' }, { 'Cache-Control': 'no-store' });
+    return;
+  }
+
+  const payload = verifyToken(entry.token);
+  if (!payload) {
+    sendJson(res, 410, { code: 'HANDOFF_EXPIRED', message: 'Login handoff has expired or was already used' }, { 'Cache-Control': 'no-store' });
+    return;
+  }
+
+  sendJson(res, 200, {
+    token: entry.token,
+    app_role: payload.app_role || '',
+    permissions: Array.isArray(payload.permissions) ? payload.permissions : []
+  }, { 'Cache-Control': 'no-store' });
 };
 
 const documentIntakeHandlers = createDocumentIntakeHandlers({
@@ -6567,6 +6647,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── 单租户企业独立站 API 路由 ──
+  if (pathname === '/company-site/auth/handoff' && method === 'POST') {
+    await handleCreateAuthHandoff(req, res);
+    return;
+  }
+
+  if (pathname === '/company-site/auth/handoff/consume' && method === 'POST') {
+    await handleConsumeAuthHandoff(req, res);
+    return;
+  }
+
   if (pathname === '/company-site/public/site-config' && method === 'GET') {
     await companySiteHandlers.handleGetPublicSiteConfig(req, res);
     return;

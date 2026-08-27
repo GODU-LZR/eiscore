@@ -447,6 +447,9 @@ const openSecondaryAction = () => {
 }
 
 onMounted(async () => {
+  const handoffSucceeded = await consumeAuthHandoff()
+  if (handoffSucceeded) return
+
   await systemStore.loadConfig()
   systemStore.initTheme()
   handleScroll()
@@ -486,33 +489,13 @@ function parseJwt(token) {
   }
 }
 
-const handleLogin = async () => {
-  if (!loginFormRef.value) return
-
-  await loginFormRef.value.validate(async (valid) => {
-    if (!valid) return
-    loading.value = true
-
-    try {
-      const response = await fetch('/api/rpc/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: loginForm.username?.trim(),
-          password: loginForm.password?.trim()
-        })
-      })
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}))
-        throw new Error(errData.message || '登录失败，账号或密码错误')
-      }
-
-      const data = await response.json()
+const establishUserSession = async (data) => {
       const realToken = data.token
       if (!realToken) throw new Error('服务器未返回有效 Token')
 
       const payload = parseJwt(realToken)
+      const username = payload.username || payload.sub || ''
+      if (!username) throw new Error('登录凭证缺少用户信息')
       const permissions = Array.isArray(data.permissions)
         ? data.permissions
         : (Array.isArray(payload.permissions) ? payload.permissions : [])
@@ -522,7 +505,8 @@ const handleLogin = async () => {
 
       if (data.app_role || payload.app_role) {
         try {
-          const roleRes = await fetch(`/api/roles?code=eq.${data.app_role || payload.app_role}`, {
+          const roleCode = encodeURIComponent(data.app_role || payload.app_role)
+          const roleRes = await fetch(`/api/roles?code=eq.${roleCode}`, {
             method: 'GET',
             headers: {
               'Accept-Profile': 'public',
@@ -560,7 +544,7 @@ const handleLogin = async () => {
       }
 
       try {
-        const encodedUsername = encodeURIComponent(payload.username)
+        const encodedUsername = encodeURIComponent(username)
         const headers = {
           'Accept-Profile': 'public',
           'Content-Profile': 'public',
@@ -589,9 +573,9 @@ const handleLogin = async () => {
       const userData = {
         token: realToken,
         user: {
-          id: payload.username,
-          name: payload.username,
-          username: payload.username,
+          id: username,
+          name: username,
+          username,
           role: data.app_role || payload.app_role || payload.role || 'user',
           role_id: roleId,
           dbRole: payload.role || 'web_user',
@@ -604,7 +588,54 @@ const handleLogin = async () => {
 
       userStore.login(userData)
       ElMessage.success(`登录成功，欢迎 ${userData.user.name}`)
-      router.push('/')
+      await router.replace('/')
+}
+
+const consumeAuthHandoff = async () => {
+  if (typeof window === 'undefined') return false
+  const url = new URL(window.location.href)
+  const code = String(url.searchParams.get('handoff') || '').trim()
+  if (!code) return false
+
+  url.searchParams.delete('handoff')
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  loading.value = true
+  try {
+    const response = await fetch('/agent/company-site/auth/handoff/consume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code })
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok || !data?.token) throw new Error(data.message || '登录链接无效或已过期')
+    await establishUserSession(data)
+    return true
+  } catch (error) {
+    ElMessage.error(error.message || '登录链接已失效，请返回经纬网业独立站重新登录')
+    return false
+  } finally {
+    loading.value = false
+  }
+}
+
+const handleLogin = async () => {
+  if (!loginFormRef.value) return
+
+  await loginFormRef.value.validate(async (valid) => {
+    if (!valid) return
+    loading.value = true
+    try {
+      const response = await fetch('/api/rpc/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: loginForm.username?.trim(),
+          password: loginForm.password?.trim()
+        })
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data.message || '登录失败，账号或密码错误')
+      await establishUserSession(data)
     } catch (error) {
       ElMessage.error(error.message || '登录出现异常')
     } finally {
