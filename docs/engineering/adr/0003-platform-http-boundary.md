@@ -11,14 +11,15 @@ EISCore 的多个前端分别使用 Axios、原生 `fetch` 和局部 API 工具�
 
 ## 决策
 
-1. 在 `@eiscore/platform/http-client` 建立不依赖 Vue、Axios 或具体业务模块的产品级 HTTP 契约。
-2. API 与 Agent 地址只从已校验的企业配置解析；业务调用只提供同源资源绝对路径，外部 URL、反斜杠、片段和路径穿越立即拒绝。
+1. 在 `@eiscore/platform/http-client` 建立不依赖 Vue、Axios 或具体业务模块的产品级 HTTP 契约；在迁移期由 `@eiscore/platform/axios-client` 提供注入式 Axios 兼容层，平台包不直接依赖 Axios、Vue 或 UI 库。
+2. API 与 Agent 地址只从已校验的企业配置解析；业务调用提供资源路径，兼容层也接受严格位于已配置服务根下的完整 URL，但仍会还原为资源路径后重新解析。外部 URL、协议相对 URL、反斜杠、片段和路径穿越立即拒绝。
 3. 认证信息通过 `getAccessToken` 适配器注入；平台客户端不直接读取 LocalStorage，也不决定页面跳转。
 4. 401 只产生不含敏感值的结构化事件，由宿主适配器负责清理会话和导航；查询参数、请求体、Token 与服务端错误内容不得进入平台错误消息。
 5. 默认超时为 15 秒，错误统一分类为 `unauthorized`、`forbidden`、`not-found`、`conflict`、`validation`、`rate-limited`、`server`、`network`、`timeout` 等稳定代码。
 6. 平台客户端不自动重试。GET 重试和写请求幂等策略必须在明确业务语义后单独启用，避免重复创建或重复下推。
 7. 首个迁移链路是桌面系统配置读写与移动登录配置读取；其他 Request/Auth 工具按业务切片迁移，新代码不得继续直接拼装相同基础能力。
 8. 现有基座全局 401 兜底暂时保留，待受保护 API 调用充分迁移并具备覆盖证明后再删除。
+9. Axios 兼容层保持可调用 config、`response.data` 返回、调用方显式 Header/Profile、原错误对象身份和无自动重试行为；通知与结构化事件只接收脱敏信息，拒绝前清除错误中的认证头、请求体和查询值。
 
 ## 结果
 
@@ -32,6 +33,7 @@ EISCore 的多个前端分别使用 Axios、原生 `fetch` 和局部 API 工具�
 需要承担的成本：
 
 - 新旧 HTTP 实现会在迁移期并存。
+- Axios 兼容层是过渡边界；待调用方不再依赖 Axios 返回/错误语义后，才可迁入原生平台客户端。
 - 宿主与移动端仍需各自提供会话失效策略。
 - 平台错误默认不展示服务端原文；确需用户可见的业务校验信息时，必须通过受控错误映射单独设计。
 

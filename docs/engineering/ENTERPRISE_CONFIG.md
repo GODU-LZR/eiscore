@@ -17,10 +17,10 @@
 
 - 基座系统 Store、设置页、基座登录页和移动登录页已移除重复的存量客户品牌、远程图片与行业文案，统一从企业配置读取；系统设置仍可覆盖部署默认值。
 - 基座固定注册 9 个 qiankun 子应用；移动端作为独立入口，共形成 10 个企业模块开关。
-- 10 个前端 Auth 工具及基座/移动真实消费者已收敛到平台会话；产品源码对 `auth_token`、`user_info` 的直接 LocalStorage 调用已清零。重复 Request、Realtime 与普通偏好/业务缓存仍需按后续业务切片迁移。
+- 10 个前端 Auth 工具及基座/移动真实消费者已收敛到平台会话；产品源码对 `auth_token`、`user_info` 的直接 LocalStorage 调用已清零。质量与设备 Request 已由企业端点控制，其余 Request、Realtime 与普通偏好/业务缓存仍需按后续业务切片迁移。
 - 11 个 HTML 入口的标题尚未统一，部分仍是 `Vite App`，生产模块标题还误写为 Sales。
 
-企业配置、模块注册、平台导航、登录品牌、移动端启动和 10 个前端 Auth 工具现已接入统一平台入口；直接会话存储调用、Request、Realtime 仍按后续小切片渐进收敛。
+企业配置、模块注册、平台导航、登录品牌、移动端启动、10 个前端 Auth 工具以及质量/设备 Request 现已接入统一平台入口；其余 Request、Realtime 仍按后续小切片渐进收敛。
 
 ## 安全与兼容规则
 
@@ -30,7 +30,7 @@
 - 生产启动最终必须以 `required: true` 加载；开发与现有部署迁移期可以在配置缺失时使用中性、全模块启用的只读默认值。
 - 返回对象递归冻结，业务页面不得在运行时修改企业配置。
 
-平台 HTTP 客户端使用 `endpoints.publicBaseUrl` 与 `apiBasePath`/`agentBasePath` 解析请求地址。业务代码只提交资源路径，不能覆盖为任意外部 URL；认证头、超时、401 通知和错误脱敏由平台契约统一处理。决策边界见 `adr/0003-platform-http-boundary.md`。
+平台 HTTP 客户端使用 `endpoints.publicBaseUrl` 与 `apiBasePath`/`agentBasePath` 解析请求地址。业务代码只提交资源路径；迁移期 Axios 兼容层即使收到完整 URL，也只接受已配置服务根内的地址并重新解析，不能覆盖为任意外部 URL。认证头、超时、401 通知和错误脱敏由平台契约统一处理。决策边界见 `adr/0003-platform-http-boundary.md`。
 
 平台 Auth/Session 继续兼容 `auth_token`、`user_info` 及纯文本/JSON Token 存量格式；平台安全存储捕获浏览器禁用存储、配额不足与 JSON 损坏，不输出 Key 或 Value。登录路径仍由各前端决定，边界见 `adr/0004-platform-auth-session-boundary.md`。
 
