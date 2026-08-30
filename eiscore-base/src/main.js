@@ -6,7 +6,6 @@ import { createPinia } from 'pinia' // 👈 引入 Pinia
 import App from './App.vue'
 import router from './router'
 import { bootstrapEnterpriseConfig, renderEnterpriseConfigFailure } from './platform/enterprise-config'
-import { clearAuthAndRedirect } from '@/utils/auth'
 
 // 🟢 Element Plus 完整引入
 import ElementPlus from 'element-plus'
@@ -30,25 +29,6 @@ const mountHostApplication = () => {
   }
 
   app.mount('#app')
-}
-
-// Global fetch guard for 401 -> redirect to login
-if (typeof window !== 'undefined' && window.fetch) {
-  const originalFetch = window.fetch.bind(window)
-  window.fetch = async (...args) => {
-    const response = await originalFetch(...args)
-    try {
-      const reqUrl = typeof args[0] === 'string' ? args[0] : args[0]?.url
-      const url = reqUrl || response.url || ''
-      const isApiCall = url.startsWith('/api') || url.includes(`${window.location.origin}/api`)
-      if (isApiCall && response.status === 401 && window.location.pathname !== '/login') {
-        clearAuthAndRedirect('/login')
-      }
-    } catch (e) {
-      // ignore
-    }
-    return response
-  }
 }
 
 let qiankunStartObserver = null

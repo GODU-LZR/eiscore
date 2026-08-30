@@ -10,9 +10,12 @@ const readSource = (path) => readFileSync(resolve(repoRoot, path), 'utf8')
 const directSessionPattern = /localStorage\.(?:getItem|setItem|removeItem)\(\s*['"](?:auth_token|user_info)['"]/
 
 const baseMain = readSource('eiscore-base/src/main.js')
-assert.match(baseMain, /import\s*\{\s*clearAuthAndRedirect\s*\}\s*from\s*['"]@\/utils\/auth['"]/)
-assert.match(baseMain, /response\.status\s*===\s*401/)
-assert.match(baseMain, /clearAuthAndRedirect\(['"]\/login['"]\)/)
+for (const obsoleteFetchGuard of [
+  /clearAuthAndRedirect/,
+  /window\.fetch\s*=/,
+  /originalFetch/,
+  /response\.status\s*===\s*401/
+]) assert.doesNotMatch(baseMain, obsoleteFetchGuard)
 assert.doesNotMatch(baseMain, directSessionPattern)
 
 const mobileRouter = readSource('eiscore-mobile/src/router/index.js')
