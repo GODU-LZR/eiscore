@@ -3,20 +3,13 @@
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { getUserInfo, setUserInfo as persistUserInfo } from '@/utils/auth'
 
 export const useUserStore = defineStore('user', () => {
-  let parsedUser = {}
-  try {
-    const raw = localStorage.getItem('user_info')
-    parsedUser = raw ? JSON.parse(raw) : {}
-  } catch {
-    parsedUser = {}
-  }
-
-  const userInfo = ref(parsedUser)
+  const userInfo = ref(getUserInfo() || {})
   const setUserInfo = (info) => {
     userInfo.value = info || {}
-    localStorage.setItem('user_info', JSON.stringify(userInfo.value))
+    persistUserInfo(userInfo.value)
   }
 
   return { userInfo, setUserInfo }

@@ -16,6 +16,10 @@ export const getToken = () => authSession.getToken()
 
 export const getAuthHeader = () => authSession.getAuthHeader()
 
+export const getUserInfo = () => authSession.getUserInfo()
+
+export const setUserInfo = (userInfo) => authSession.setUserInfo(userInfo)
+
 export const parseJwtPayload = (token) => platformParseJwtPayload(token)
 
 export const isTokenExpired = (token) => platformIsTokenExpired(token)

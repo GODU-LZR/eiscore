@@ -12,6 +12,10 @@ export { parseStoredToken }
 
 export const getToken = () => authSession.getToken()
 
+export const getUserInfo = () => authSession.getUserInfo()
+
+export const setUserInfo = (userInfo) => authSession.setUserInfo(userInfo)
+
 export const clearAuthStorage = () => authSession.clearAuth()
 
 export const clearAuthAndRedirect = (loginPath = '/login') => {
