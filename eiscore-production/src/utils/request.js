@@ -11,6 +11,9 @@ const service = createPlatformAxiosClient({
   getAccessToken: getToken,
   onUnauthorized: () => clearAuthAndRedirect('/login'),
   notifyError: (message) => ElMessage.error(message),
+  shouldNotifyError: (config) => (
+    config.silentError !== true && config.suppressErrorMessage !== true
+  ),
   resolveErrorMessage: (error) => error?.response?.data?.message,
   defaultProfile: 'scm',
   timeoutMs: 8000

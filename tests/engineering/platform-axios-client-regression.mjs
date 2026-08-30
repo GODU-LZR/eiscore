@@ -280,14 +280,13 @@ for (const target of [
 }
 
 {
-  const errors = [
-    Object.assign(new Error('Request failed with status code 422'), {
-      response: { status: 422, data: { message: '生产工单数量超过可用库存' } }
-    }),
-    Object.assign(new Error('Request failed with status code 422'), {
-      response: { status: 422, data: { message: 'token=must-not-appear' } }
-    })
-  ]
+  const safeBusinessError = Object.assign(new Error('Request failed with status code 422'), {
+    response: { status: 422, data: { message: '生产工单数量超过可用库存' } }
+  })
+  const sensitiveBusinessError = Object.assign(new Error('Request failed with status code 422'), {
+    response: { status: 422, data: { message: 'token=must-not-appear' } }
+  })
+  const errors = [safeBusinessError, sensitiveBusinessError]
   const notifications = []
   const service = createPlatformAxiosClient({
     axios: createAxiosStub(async () => { throw errors.shift() }),
@@ -300,6 +299,8 @@ for (const target of [
     '生产工单数量超过可用库存',
     'Request failed with status code 422'
   ])
+  assert.equal(safeBusinessError.displayMessage, '生产工单数量超过可用库存')
+  assert.equal(sensitiveBusinessError.displayMessage, undefined)
   assert.doesNotMatch(JSON.stringify(notifications), /must-not-appear/)
 }
 

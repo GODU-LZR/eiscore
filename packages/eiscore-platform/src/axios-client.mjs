@@ -217,14 +217,25 @@ function safeMappedErrorMessage(candidate, fallback) {
   return message
 }
 
-async function resolveNotificationMessage(error, event, resolver) {
-  const fallback = safeAxiosErrorMessage(error)
-  if (typeof resolver !== 'function') return fallback
+async function resolveMappedErrorMessage(error, event, resolver) {
+  if (typeof resolver !== 'function') return ''
   try {
-    return safeMappedErrorMessage(await resolver(error, event), fallback)
+    return safeMappedErrorMessage(await resolver(error, event), '')
   } catch {
-    return fallback
+    return ''
   }
+}
+
+function attachDisplayMessage(error, displayMessage) {
+  if (!error || typeof error !== 'object' || !displayMessage) return
+  try {
+    Object.defineProperty(error, 'displayMessage', {
+      configurable: false,
+      enumerable: false,
+      value: displayMessage,
+      writable: false
+    })
+  } catch {}
 }
 
 function errorEvent(error) {
@@ -370,6 +381,10 @@ export function createPlatformAxiosClient({
         error,
         event
       )
+      const displayMessage = event.status === 401
+        ? ''
+        : await resolveMappedErrorMessage(error, event, resolveErrorMessage)
+      attachDisplayMessage(error, displayMessage)
       if (event.status === 401) {
         const shouldHandle = await resolveDecision(
           shouldHandleUnauthorized,
@@ -384,7 +399,7 @@ export function createPlatformAxiosClient({
           await callSafely(onUnauthorized, event)
         }
       } else if (shouldNotify) {
-        const message = await resolveNotificationMessage(error, event, resolveErrorMessage)
+        const message = displayMessage || safeAxiosErrorMessage(error)
         await callSafely(notifyError, message, event)
       }
       sanitizeRejectedAxiosError(error, event)

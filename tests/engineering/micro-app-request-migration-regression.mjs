@@ -14,7 +14,7 @@ for (const [moduleId, timeoutMs, defaultProfile, expectedAccept, expectedSilence
   ['sales', 5000, 'public', false, true, false],
   ['hr', 5000, 'hr', false, false, false],
   ['apps', 8000, 'app_center', false, false, false],
-  ['production', 8000, 'scm', false, false, true],
+  ['production', 8000, 'scm', false, true, true],
   ['materials', 5000, '', false, false, false]
 ]) {
   const requestPath = resolve(repoRoot, `eiscore-${moduleId}/src/utils/request.js`)

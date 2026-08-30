@@ -10,12 +10,12 @@ const read = (path) => readFileSync(resolve(repoRoot, path), 'utf8')
 const directSessionStorage = /localStorage\.(?:getItem|setItem|removeItem)\(\s*(['"])(?:auth_token|user_info)\1/
 
 const productionHome = read('eiscore-production/src/views/HomeView.vue')
-assert.match(productionHome, /import\s*{\s*getAuthHeader,\s*getUserInfo\s*}\s*from\s*['"]@\/utils\/auth['"]/)
+assert.match(productionHome, /import\s*{\s*getUserInfo\s*}\s*from\s*['"]@\/utils\/auth['"]/)
+assert.match(productionHome, /import request from\s*['"]@\/utils\/request['"]/)
 assert.doesNotMatch(productionHome, directSessionStorage)
-assert.doesNotMatch(productionHome, /const parseStoredToken|const getAuthHeader/)
+assert.doesNotMatch(productionHome, /\bgetAuthHeader\b|const parseStoredToken/)
 assert.match(productionHome, /const info = getUserInfo\(\) \|\| {}/)
 assert.match(productionHome, /return info\.username \|\| info\.name \|\| info\.id \|\| ['"]BOM-MRP['"]/)
-assert.match(productionHome, /\.\.\.getAuthHeader\(\)/)
 
 const productionGrid = read('eiscore-production/src/components/ProductionAppGrid.vue')
 assert.match(productionGrid, /import\s*{\s*getUserInfo\s*}\s*from\s*['"]@\/utils\/auth['"]/)

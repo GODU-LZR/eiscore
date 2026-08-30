@@ -292,13 +292,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getAuthHeader, getUserInfo } from '@/utils/auth'
-
-const API_BASE = (() => {
-  if (typeof window === 'undefined') return '/api'
-  if (window.location.port === '8087') return 'http://127.0.0.1:8080/api'
-  return '/api'
-})()
+import request from '@/utils/request'
+import { getUserInfo } from '@/utils/auth'
 
 const router = useRouter()
 const workOrderStatuses = ['待排产', '已排产', '生产中', '已完工', '已取消']
@@ -635,33 +630,19 @@ const getCurrentUserName = () => {
 }
 
 const apiRequest = async (path, options = {}) => {
-  const headers = {
-    Accept: 'application/json',
-    'Accept-Profile': 'scm',
-    ...getAuthHeader(),
-    ...(options.headers || {})
-  }
+  const { body, data, ...config } = options
   const method = String(options.method || 'GET').toUpperCase()
-  if (method !== 'GET' && method !== 'HEAD') {
-    headers['Content-Type'] = headers['Content-Type'] || 'application/json'
-    headers['Content-Profile'] = headers['Content-Profile'] || 'scm'
+  try {
+    return await request({
+      ...config,
+      url: path,
+      method,
+      data: data !== undefined ? data : body,
+      silentError: true
+    })
+  } catch (error) {
+    throw new Error(error?.displayMessage || error?.message || '请求失败')
   }
-
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    method,
-    headers,
-    body: options.body !== undefined ? options.body : (options.data ? JSON.stringify(options.data) : undefined)
-  })
-
-  if (response.status === 204) return null
-
-  const text = await response.text()
-  const data = text ? JSON.parse(text) : null
-  if (!response.ok) {
-    throw new Error(data?.message || data?.hint || data?.details || response.statusText || '请求失败')
-  }
-  return data
 }
 
 const loadPlans = async () => {
