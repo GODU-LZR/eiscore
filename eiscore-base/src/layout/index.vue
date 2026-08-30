@@ -262,6 +262,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { mix } from '@/utils/theme'
 import { hasPerm } from '@/utils/permission'
 import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '@/utils/micro-path'
+import { getEnterpriseConfig } from '@/platform/enterprise-config'
+import { isEnterprisePathEnabled } from '@/platform/enterprise-routing'
 import { ElMessage } from 'element-plus'
 import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import { isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
@@ -287,6 +289,7 @@ const avatarRenderSrc = computed(() => {
 })
 const systemStore = useSystemStore()
 const userStore = useUserStore()
+const enterpriseConfig = getEnterpriseConfig(window)
 const { visibility: displayVisibility } = useDisplayVisibility()
 const { config } = storeToRefs(systemStore)
 const isDark = useDark({ storageKey: 'eis_theme_global' })
@@ -309,7 +312,6 @@ let guideDomRefreshTimer = null
 let microAppLoadingShowTimer = null
 let microAppLoadingFallbackTimer = null
 let microAppLoadingRouteTimer = null
-let welcomeGuideTimer = null
 let microAppManifestPromise = null
 let idleWarmTimer = null
 let deferredWarmTimer = null
@@ -852,10 +854,6 @@ onUnmounted(() => {
     window.clearTimeout(superScopeRetryTimer)
     superScopeRetryTimer = null
   }
-  if (welcomeGuideTimer) {
-    window.clearTimeout(welcomeGuideTimer)
-    welcomeGuideTimer = null
-  }
   if (idleWarmTimer) {
     window.clearTimeout(idleWarmTimer)
     idleWarmTimer = null
@@ -915,7 +913,9 @@ const activeMenu = computed(() => {
   return route.path
 })
 
-const canShowModule = (moduleKey) => isModuleVisible(displayVisibility.value, moduleKey)
+const canShowModule = (moduleKey) => (
+  enterpriseConfig.modules?.[moduleKey] !== false && isModuleVisible(displayVisibility.value, moduleKey)
+)
 const canHome = computed(() => canShowModule('home') && hasPerm('module:home'))
 const canHr = computed(() => canShowModule('hr') && hasPerm('module:hr'))
 const canMms = computed(() => canShowModule('materials') && hasPerm('module:mms'))
@@ -3157,14 +3157,6 @@ const resetGuideProgress = () => {
   saveGuideProgress()
 }
 
-const shouldShowWelcomeGuide = () => {
-  try {
-    return localStorage.getItem(guideWelcomeKey.value) !== '1'
-  } catch (e) {
-    return false
-  }
-}
-
 const closeWelcomeGuide = () => {
   try {
     localStorage.setItem(guideWelcomeKey.value, '1')
@@ -3183,20 +3175,6 @@ const startWelcomeGuide = () => {
 
 const maybeOpenWelcomeGuide = () => {
   // Keep navigation non-blocking. Users can open SOP guidance from the help entry.
-  return
-  if (!shouldShowWelcomeGuide()) return
-  if (welcomeGuideTimer) window.clearTimeout(welcomeGuideTimer)
-  welcomeGuideTimer = window.setTimeout(() => {
-    welcomeGuideTimer = null
-    if (!shouldShowWelcomeGuide()) return
-    if (route.path === '/login') return
-    if (!availableGuides.value.length) return
-    runWhenIdle(() => {
-      if (!shouldShowWelcomeGuide()) return
-      if (route.path === '/login') return
-      guideWelcomeVisible.value = true
-    }, 7000)
-  }, 6000)
 }
 
 const handleGuideRegisterEvent = (event) => {
@@ -3514,6 +3492,7 @@ const restoreHostTabs = () => {
     parsed.forEach((item) => {
       if (!item || typeof item !== 'object') return
       const path = normalizeHostPath(item.path)
+      if (!isEnterprisePathEnabled(path, enterpriseConfig)) return
       const query = normalizeHostQuery(item.query)
       const defaultKey = buildDefaultTabKey(path, query)
       const forceDefaultKey = isModuleEntryPath(path) ||
@@ -3637,7 +3616,7 @@ const closeHostTab = (key) => {
 const handleOpenHostTab = (payload) => {
   const detail = payload && typeof payload === 'object' ? payload : {}
   const path = normalizeHostPath(detail.path)
-  if (!path) return
+  if (!path || !isEnterprisePathEnabled(path, enterpriseConfig)) return
   const query = normalizeHostQuery(detail.query)
   const key = String(detail.tabKey || buildDefaultTabKey(path, query)).trim()
   const title = resolveHostTabTitle(path, query, detail.tabTitle)

@@ -6,6 +6,8 @@ import { h } from 'vue'
 import Layout from '@/layout/index.vue'
 import { getToken, isTokenExpired, clearAuthStorage } from '@/utils/auth'
 import { canonicalizeMicroChainPath } from '@/utils/micro-path'
+import { getEnterpriseConfig } from '@/platform/enterprise-config'
+import { resolveEnterpriseNavigation } from '@/platform/enterprise-routing'
 
 const EmptyView = {
   render: () => h('div')
@@ -128,13 +130,24 @@ router.beforeEach((to, from, next) => {
     return
   }
 
-  // 移动端自动跳转（仅在非 /mobile/ 路径下触发）
-  if (isMobileDevice() && !shouldSkipMobileRedirect(to) && !to.meta.publicLanding) {
-    const currentPath = window.location.pathname
-    if (!currentPath.startsWith('/mobile')) {
-      window.location.href = '/mobile/'
-      return
-    }
+  const enterpriseNavigation = resolveEnterpriseNavigation({
+    path: canonicalPath,
+    enterpriseConfig: getEnterpriseConfig(window),
+    mobileDevice: isMobileDevice(),
+    skipMobileRedirect: shouldSkipMobileRedirect(to),
+    publicLanding: !!to.meta.publicLanding
+  })
+  if (enterpriseNavigation.type === 'redirect') {
+    next({
+      path: enterpriseNavigation.path,
+      query: { module_unavailable: enterpriseNavigation.moduleId },
+      replace: true
+    })
+    return
+  }
+  if (enterpriseNavigation.type === 'external') {
+    window.location.href = enterpriseNavigation.path
+    return
   }
 
   const token = getToken()

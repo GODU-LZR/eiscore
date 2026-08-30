@@ -1,9 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { loadEnterpriseConfig } from '@eiscore/platform/enterprise-config'
+import {
+  DEFAULT_ENTERPRISE_CONFIG,
+  loadEnterpriseConfig
+} from '@eiscore/platform/enterprise-config'
 
 export const ENTERPRISE_CONFIG_GLOBAL = '__EISCORE_ENTERPRISE_CONFIG__'
+
+export function getEnterpriseConfig(runtimeTarget = globalThis) {
+  return runtimeTarget?.[ENTERPRISE_CONFIG_GLOBAL] || DEFAULT_ENTERPRISE_CONFIG
+}
 
 export function publishEnterpriseConfig(config, runtimeTarget = globalThis) {
   const descriptor = Object.getOwnPropertyDescriptor(runtimeTarget, ENTERPRISE_CONFIG_GLOBAL)

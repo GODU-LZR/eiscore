@@ -246,6 +246,18 @@ export function parseEnterpriseConfig(input, { source = 'inline' } = {}) {
 
 export const DEFAULT_ENTERPRISE_CONFIG = parseEnterpriseConfig(DEFAULT_SOURCE, { source: 'built-in default' })
 
+export function enterpriseModuleForPath(path) {
+  const normalized = String(path || '').split(/[?#]/, 1)[0]
+  return ENTERPRISE_MODULE_IDS.find((moduleId) => (
+    normalized === `/${moduleId}` || normalized.startsWith(`/${moduleId}/`)
+  )) || ''
+}
+
+export function isEnterpriseModuleEnabled(config, moduleId) {
+  if (!ENTERPRISE_MODULE_IDS.includes(moduleId)) return false
+  return config?.modules?.[moduleId] !== false
+}
+
 export async function loadEnterpriseConfig({
   url = '/config/eiscore-enterprise.json',
   fetchImpl = globalThis.fetch,
