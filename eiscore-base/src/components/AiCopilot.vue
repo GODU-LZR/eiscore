@@ -2100,7 +2100,7 @@ const normalizeWorkflowTaskBindings = (meta = {}, globalBinding = '') => {
   return next
 }
 
-const getWorkflowProfileHeaders = (token, prefer = '') => {
+const getWorkflowProfileHeaders = (prefer = '') => {
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -2108,11 +2108,10 @@ const getWorkflowProfileHeaders = (token, prefer = '') => {
     'Content-Profile': 'workflow'
   }
   if (prefer) headers.Prefer = prefer
-  if (token) headers.Authorization = `Bearer ${token}`
   return headers
 }
 
-const getPublicProfileHeaders = (token, prefer = '') => {
+const getPublicProfileHeaders = (prefer = '') => {
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -2120,11 +2119,10 @@ const getPublicProfileHeaders = (token, prefer = '') => {
     'Content-Profile': 'public'
   }
   if (prefer) headers.Prefer = prefer
-  if (token) headers.Authorization = `Bearer ${token}`
   return headers
 }
 
-const getAppCenterProfileHeaders = (token, prefer = '') => {
+const getAppCenterProfileHeaders = (prefer = '') => {
   const headers = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -2132,25 +2130,18 @@ const getAppCenterProfileHeaders = (token, prefer = '') => {
     'Content-Profile': 'app_center'
   }
   if (prefer) headers.Prefer = prefer
-  if (token) headers.Authorization = `Bearer ${token}`
   return headers
 }
 
-const parseResponseJson = async (res) => {
+const requestWorkflowJson = async (target, options, label) => {
   try {
-    return await res.json()
-  } catch (e) {
-    return null
+    const { data } = await getHostHttpClient().requestJson(target, options)
+    return data
+  } catch (error) {
+    if (!error?.status) throw error
+    const detail = error?.displayMessage || ''
+    throw new Error(`${label}失败: ${error.status}${detail ? ` ${detail}` : ''}`)
   }
-}
-
-const assertWorkflowSaveResponse = async (res, label) => {
-  if (res.ok) return
-  let detail = ''
-  try {
-    detail = String(await res.text()).slice(0, 180)
-  } catch (e) {}
-  throw new Error(`${label}失败: ${res.status}${detail ? ` ${detail}` : ''}`)
 }
 
 const getFirstRow = (data) => Array.isArray(data) ? (data[0] || null) : (data || null)
@@ -2174,7 +2165,7 @@ const buildWorkflowOps = (moduleKey) => {
   }
 }
 
-const createWorkflowAppFromAi = async ({ name, description, xml, associatedTable, businessAppId, taskBindings, meta, token, username }) => {
+const createWorkflowAppFromAi = async ({ name, description, xml, associatedTable, businessAppId, taskBindings, meta, username }) => {
   const now = new Date().toISOString()
   const appPayload = {
     name,
@@ -2205,32 +2196,30 @@ const createWorkflowAppFromAi = async ({ name, description, xml, associatedTable
     created_at: now,
     updated_at: now
   }
-  const res = await fetch('/api/apps', {
+  const data = await requestWorkflowJson('/apps', {
     method: 'POST',
-    headers: getAppCenterProfileHeaders(token, 'return=representation'),
-    body: JSON.stringify(appPayload)
-  })
-  await assertWorkflowSaveResponse(res, '创建流程应用')
-  return getFirstRow(await parseResponseJson(res))
+    headers: getAppCenterProfileHeaders('return=representation'),
+    body: appPayload
+  }, '创建流程应用')
+  return getFirstRow(data)
 }
 
-const createWorkflowDefinitionForApp = async ({ appId, name, xml, associatedTable, token }) => {
+const createWorkflowDefinitionForApp = async ({ appId, name, xml, associatedTable }) => {
   const payload = {
     name,
     bpmn_xml: xml,
     associated_table: associatedTable || null,
     app_id: appId
   }
-  const res = await fetch('/api/definitions', {
+  const data = await requestWorkflowJson('/definitions', {
     method: 'POST',
-    headers: getWorkflowProfileHeaders(token, 'return=representation'),
-    body: JSON.stringify(payload)
-  })
-  await assertWorkflowSaveResponse(res, '写入流程定义')
-  return getFirstRow(await parseResponseJson(res))
+    headers: getWorkflowProfileHeaders('return=representation'),
+    body: payload
+  }, '写入流程定义')
+  return getFirstRow(data)
 }
 
-const patchWorkflowAppDefinitionId = async ({ appId, definitionId, xml, associatedTable, businessAppId, taskBindings, meta, token }) => {
+const patchWorkflowAppDefinitionId = async ({ appId, definitionId, xml, associatedTable, businessAppId, taskBindings, meta }) => {
   const aclModule = buildWorkflowAclModule(appId)
   const config = {
     table: associatedTable || null,
@@ -2244,17 +2233,16 @@ const patchWorkflowAppDefinitionId = async ({ appId, definitionId, xml, associat
     perm: aclModule ? `app:${aclModule}` : '',
     ops: buildWorkflowOps(aclModule)
   }
-  const res = await fetch(`/api/apps?id=eq.${encodeURIComponent(appId)}`, {
+  const data = await requestWorkflowJson(`/apps?id=eq.${encodeURIComponent(appId)}`, {
     method: 'PATCH',
-    headers: getAppCenterProfileHeaders(token, 'return=representation'),
-    body: JSON.stringify({
+    headers: getAppCenterProfileHeaders('return=representation'),
+    body: {
       bpmn_xml: xml,
       config,
       updated_at: new Date().toISOString()
-    })
-  })
-  await assertWorkflowSaveResponse(res, '回写流程应用配置')
-  return getFirstRow(await parseResponseJson(res))
+    }
+  }, '回写流程应用配置')
+  return getFirstRow(data)
 }
 
 const normalizeWorkflowAssignmentRows = (meta = {}, definitionId) => {
@@ -2278,16 +2266,14 @@ const normalizeWorkflowAssignmentRows = (meta = {}, definitionId) => {
     .filter(Boolean)
 }
 
-const saveWorkflowAssignments = async ({ meta, definitionId, token }) => {
+const saveWorkflowAssignments = async ({ meta, definitionId }) => {
   const rows = normalizeWorkflowAssignmentRows(meta, definitionId)
   if (!rows.length) return 0
-  const res = await fetch('/api/task_assignments', {
+  const data = await requestWorkflowJson('/task_assignments', {
     method: 'POST',
-    headers: getWorkflowProfileHeaders(token, 'return=representation'),
-    body: JSON.stringify(rows)
-  })
-  await assertWorkflowSaveResponse(res, '写入任务分派')
-  const data = await parseResponseJson(res)
+    headers: getWorkflowProfileHeaders('return=representation'),
+    body: rows
+  }, '写入任务分派')
   return Array.isArray(data) ? data.length : rows.length
 }
 
@@ -2311,16 +2297,14 @@ const normalizeWorkflowStateMappingRows = (meta = {}, workflowAppId, associatedT
     .filter(item => item && item.target_table)
 }
 
-const saveWorkflowStateMappings = async ({ meta, workflowAppId, associatedTable, token }) => {
+const saveWorkflowStateMappings = async ({ meta, workflowAppId, associatedTable }) => {
   const rows = normalizeWorkflowStateMappingRows(meta, workflowAppId, associatedTable)
   if (!rows.length) return 0
-  const res = await fetch('/api/workflow_state_mappings?on_conflict=workflow_app_id,bpmn_task_id', {
+  const data = await requestWorkflowJson('/workflow_state_mappings?on_conflict=workflow_app_id,bpmn_task_id', {
     method: 'POST',
-    headers: getAppCenterProfileHeaders(token, 'resolution=merge-duplicates,return=representation'),
-    body: JSON.stringify(rows)
-  })
-  await assertWorkflowSaveResponse(res, '写入状态映射')
-  const data = await parseResponseJson(res)
+    headers: getAppCenterProfileHeaders('resolution=merge-duplicates,return=representation'),
+    body: rows
+  }, '写入状态映射')
   return Array.isArray(data) ? data.length : rows.length
 }
 
@@ -2349,7 +2333,6 @@ const saveWorkflowDefinition = async (info, messageKey) => {
       businessAppId,
       taskBindings,
       meta,
-      token,
       username
     })
     const appId = app?.id
@@ -2358,8 +2341,7 @@ const saveWorkflowDefinition = async (info, messageKey) => {
       appId,
       name,
       xml: info.xml,
-      associatedTable,
-      token
+      associatedTable
     })
     const definitionId = definition?.id || null
     await patchWorkflowAppDefinitionId({
@@ -2369,13 +2351,12 @@ const saveWorkflowDefinition = async (info, messageKey) => {
       associatedTable,
       businessAppId,
       taskBindings,
-      meta,
-      token
+      meta
     })
     if (definitionId) {
-      await saveWorkflowAssignments({ meta, definitionId, token })
+      await saveWorkflowAssignments({ meta, definitionId })
     }
-    await saveWorkflowStateMappings({ meta, workflowAppId: appId, associatedTable, token })
+    await saveWorkflowStateMappings({ meta, workflowAppId: appId, associatedTable })
     workflowSaveState.value[messageKey] = 'saved'
     ElMessage.success('流程已保存为应用中心流程应用')
     window.dispatchEvent(new CustomEvent('eis-workflow-app-created', {
@@ -2414,10 +2395,9 @@ const loadSmartBiActionItems = async (force = false) => {
   if (!force && smartBiActionItems.value.length > 0) return
   smartBiActionItemsLoading.value = true
   try {
-    const token = getAuthToken()
     const { data } = await getHostHttpClient().requestJson(
       '/smart_bi_action_items?select=id,action_no,title,domain,risk_level,owner_role,owner_name,due_at,status,source_session_id,source_message_time,source_action_index,workflow_definition_id,workflow_instance_id,created_at,updated_at,closed_at&order=updated_at.desc&limit=120',
-      { headers: getPublicProfileHeaders(token) }
+      { headers: getPublicProfileHeaders() }
     )
     smartBiActionItems.value = Array.isArray(data) ? data : []
   } catch (e) {
@@ -2451,11 +2431,13 @@ const getPreviousUserQuestion = (msg) => {
   return ''
 }
 
-const fetchSmartBiClosureWorkflowDefinition = async (token) => {
-  const query = `/api/definitions?select=id,name,associated_table&name=eq.${encodeURIComponent(SMART_BI_CLOSURE_WORKFLOW_NAME)}&order=id.desc&limit=1`
-  const res = await fetch(query, { headers: getWorkflowProfileHeaders(token) })
-  await assertWorkflowSaveResponse(res, '读取智能BI闭环流程')
-  const data = await parseResponseJson(res)
+const fetchSmartBiClosureWorkflowDefinition = async () => {
+  const query = `/definitions?select=id,name,associated_table&name=eq.${encodeURIComponent(SMART_BI_CLOSURE_WORKFLOW_NAME)}&order=id.desc&limit=1`
+  const data = await requestWorkflowJson(
+    query,
+    { headers: getWorkflowProfileHeaders() },
+    '读取智能BI闭环流程'
+  )
   return Array.isArray(data) ? (data[0] || null) : null
 }
 
@@ -2489,27 +2471,25 @@ const createSmartBiActionItem = async ({ action, msg, actionIndex, token }) => {
     },
     created_by: tokenUsername || 'smart_bi'
   }
-  const res = await fetch('/api/smart_bi_action_items', {
+  const data = await requestWorkflowJson('/smart_bi_action_items', {
     method: 'POST',
-    headers: getPublicProfileHeaders(token, 'return=representation'),
-    body: JSON.stringify(payload)
-  })
-  await assertWorkflowSaveResponse(res, '写入智能BI行动单')
-  return getFirstRow(await parseResponseJson(res))
+    headers: getPublicProfileHeaders('return=representation'),
+    body: payload
+  }, '写入智能BI行动单')
+  return getFirstRow(data)
 }
 
-const patchSmartBiActionWorkflowFields = async ({ actionItemId, definitionId, instanceId, token }) => {
+const patchSmartBiActionWorkflowFields = async ({ actionItemId, definitionId, instanceId }) => {
   if (!actionItemId) return
-  const res = await fetch(`/api/smart_bi_action_items?id=eq.${encodeURIComponent(actionItemId)}`, {
+  await requestWorkflowJson(`/smart_bi_action_items?id=eq.${encodeURIComponent(actionItemId)}`, {
     method: 'PATCH',
-    headers: getPublicProfileHeaders(token, 'return=representation'),
-    body: JSON.stringify({
+    headers: getPublicProfileHeaders('return=representation'),
+    body: {
       workflow_definition_id: definitionId || null,
       workflow_instance_id: instanceId || null,
       status: instanceId ? '待确认' : '待发起'
-    })
-  })
-  await assertWorkflowSaveResponse(res, '回写智能BI行动单流程状态')
+    }
+  }, '回写智能BI行动单流程状态')
 }
 
 const startSmartBiActionWorkflow = async (action, msg, actionIndex) => {
@@ -2524,7 +2504,7 @@ const startSmartBiActionWorkflow = async (action, msg, actionIndex) => {
       return
     }
 
-    const definition = await fetchSmartBiClosureWorkflowDefinition(token)
+    const definition = await fetchSmartBiClosureWorkflowDefinition()
     if (!definition?.id) {
       throw new Error('未找到“智能BI经营闭环流程”，请先执行 sql/patch_smart_bi_action_closure.sql')
     }
@@ -2550,23 +2530,21 @@ const startSmartBiActionWorkflow = async (action, msg, actionIndex) => {
         source_action_index: actionIndex
       }
     }
-    const res = await fetch('/api/rpc/start_workflow_instance', {
+    const instanceData = await requestWorkflowJson('/rpc/start_workflow_instance', {
       method: 'POST',
-      headers: getWorkflowProfileHeaders(token, 'return=representation'),
-      body: JSON.stringify({
+      headers: getWorkflowProfileHeaders('return=representation'),
+      body: {
         p_definition_id: Number(definition.id),
         p_business_key: String(actionItem.id),
         p_initial_task_id: 'Task_BIReview',
         p_variables: variables
-      })
-    })
-    await assertWorkflowSaveResponse(res, '发起智能BI闭环流程')
-    const instance = getFirstRow(await parseResponseJson(res))
+      }
+    }, '发起智能BI闭环流程')
+    const instance = getFirstRow(instanceData)
     await patchSmartBiActionWorkflowFields({
       actionItemId: actionItem.id,
       definitionId: definition.id,
-      instanceId: instance?.id || null,
-      token
+      instanceId: instance?.id || null
     })
     await loadSmartBiActionItems(true)
     ElMessage.success('已生成流程待办，可在审批中心处理')

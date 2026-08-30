@@ -18,7 +18,8 @@ export function getHostHttpClient() {
   cachedHttpClient = createPlatformHttpClient({
     enterpriseConfig,
     getAccessToken: getToken,
-    onUnauthorized: () => clearAuthAndRedirect('/login')
+    onUnauthorized: () => clearAuthAndRedirect('/login'),
+    resolveErrorMessage: (data) => data?.message
   })
   cachedEnterpriseConfig = enterpriseConfig
   cachedSystemConfigService = null
