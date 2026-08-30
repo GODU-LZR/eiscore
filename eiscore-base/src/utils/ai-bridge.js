@@ -165,22 +165,22 @@ class AiBridge {
     if (!payload) return null
 
     try {
-      const response = await fetch('/api/rpc/eis_grid_agent_query', {
-        method: 'POST',
+      return await request({
+        url: '/api/rpc/eis_grid_agent_query',
+        method: 'post',
         headers: {
-          ...this.buildAuthHeaders(),
           'Accept-Profile': 'public',
           'Content-Profile': 'public'
         },
-        body: JSON.stringify({ payload })
+        data: { payload },
+        silentError: true
       })
-      if (!response.ok) {
-        const text = await response.text().catch(() => '')
-        throw new Error(`EISGrid server query failed: ${response.status}${text ? ` ${text.slice(0, 160)}` : ''}`)
-      }
-      return await response.json()
     } catch (e) {
-      console.warn('[AiBridge] EISGrid server query skipped', e)
+      console.warn('[AiBridge] EISGrid server query skipped', {
+        code: e?.code || 'request-failed',
+        status: Number(e?.response?.status) || 0,
+        message: e?.displayMessage || e?.message || '请求失败'
+      })
       return null
     }
   }

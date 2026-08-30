@@ -50,6 +50,8 @@ AI Copilot 的流程应用保存与智能 BI 行动闭环共九个读写请求�
 
 生产驾驶舱的六个 SCM 读写调用已从页面局部 `fetch` 迁入生产 Request。原查询、RPC、PATCH、`return=minimal`、对象数据、空响应与页面成功/失败提示保持；企业端点、8000ms 超时、Profile 和 401 由平台统一处理。生产 Request 新增请求级静默选项以避免与页面重复弹错，但静默不影响 401；Axios 错误仅通过不可枚举 `displayMessage` 把安全业务文本交还页面，敏感或异常正文回退到通用错误。
 
+基座 AI Bridge 的 EISGrid 服务端预取属于普通受保护 RPC，已从同文件的 Agent 流式协议中拆分出来，复用基座双服务 Request 的 `/api` 边界。`public` Profile、POST、`{ payload }`、成功 JSON、失败降级为 `null` 和警告日志保持；请求级静默避免预取失败打扰主对话，但不绕过 API 401 失效。同文件 `/agent/ai/chat/completions` 的流式响应继续使用原生 `fetch`。
+
 正面影响：
 
 - 企业配置中的公网地址和 API 路径能够真正控制产品请求地址。

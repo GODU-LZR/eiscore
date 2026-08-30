@@ -74,14 +74,15 @@
 | `20e4b48` | 迁移移动受保护 API wrapper | 考勤/盘点/出入库/仓库查询统一平台 HTTP，保留 Profile/401/安全业务文案，移动构建 |
 | `1a5c595` | 迁移移动 PDA 只读 HTTP | 仓库简表与最近盘点复用仓库 service，保留字段/排序/上限/静默失败，移动构建 |
 | `501e283` | 迁移 AI 工作流写链 HTTP | 9 个流程/行动单请求统一宿主客户端，保留三类 Profile/Prefer/返回语义，基座构建 |
-| 本文件所在提交 | 迁移生产驾驶舱 HTTP | 6 个 SCM 读写调用统一生产 Request，保留查询/RPC/PATCH/页面提示，生产构建 |
+| `bb19d68` | 迁移生产驾驶舱 HTTP | 6 个 SCM 读写调用统一生产 Request，保留查询/RPC/PATCH/页面提示，生产构建 |
+| 本文件所在提交 | 迁移 AI Bridge EISGrid RPC | 普通受保护 RPC 统一基座 Request，保留 Agent 流、静默降级与 Grid 语义，基座构建 |
 
 ## 当前切片
 
-- 状态：G2 进行中；生产驾驶舱局部 `apiRequest` 承载的六个受保护 SCM 调用已完成 HTTP 边界迁移。
-- 结果：驾驶舱不再硬编码 8087→8080 开发地址、Token、Profile、JSON 和错误解析；请求统一受企业端点与生产 Request 约束。Axios 平台边界新增不可枚举安全 `displayMessage`，供静默业务调用保留短业务提示。
-- 兼容边界：三类只读视图、按工单明细、创建工单 RPC、状态 PATCH 的查询与对象数据、`return=minimal`、空响应、加载状态和页面成功/失败提示保持；请求级 `silentError` 只抑制 Request 自身通知，401 仍清理会话并跳转登录。
-- 验证：完整质量门禁通过，覆盖 101 个 Node 脚本、14 个 CI 包、生产驾驶舱与既有平台契约、1165 个文本秘密扫描、11 个变更代码文件 lint、23 个 Shell 与生产 Compose；生产端生产构建成功并转换 1622 个模块。
+- 状态：G2 进行中；AI Bridge 的 EISGrid 服务端预取 RPC 已与 Agent 流式协议分离并完成 HTTP 边界迁移。
+- 结果：`/api/rpc/eis_grid_agent_query` 改用基座双服务 Request，页面不再手工注入 Token 或序列化 JSON；`ai-bridge.js` 只剩 `/agent/ai/chat/completions` 流式 `fetch`。
+- 兼容边界：预取判定、Grid payload、`public` Profile、POST、成功 JSON、任意失败返回 `null` 和警告日志保持；日志仅输出安全 code/status/message，请求级静默不影响普通 API 401 清理。
+- 验证：完整质量门禁通过，覆盖 102 个 Node 脚本、14 个 CI 包、AI Bridge 与既有平台契约、1166 个文本秘密扫描、10 个变更代码文件 lint、23 个 Shell 与生产 Compose；Grid Agent 语义回归通过，基座生产构建成功并转换 5866 个模块。
 
 ## 已知非阻断风险
 
@@ -98,4 +99,4 @@
 
 ## 下一候选切片
 
-迁移基座 `ai-bridge.js` 中独立的 EISGrid RPC 预取请求，保留同文件 Agent 流式协议；受保护 RPC 与 Agent 流必须继续分属不同客户端边界。
+建立全产品直接 `fetch` 分类门禁，证明剩余调用只属于登录前、Agent/流式、外部 Geo/翻译、静态资源/预热或兼容封装；在证据覆盖后再删除基座全局 `fetch` 401 兜底。

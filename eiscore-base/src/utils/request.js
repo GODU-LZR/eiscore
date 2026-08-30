@@ -15,7 +15,11 @@ const service = createPlatformAxiosClient({
   shouldHandleUnauthorized: (_config, context) => !(
     context.service === 'agent' && context.path.startsWith('/ai/')
   ),
-  shouldNotifyError: (_config, _context, error) => error?.response?.status !== 404,
+  shouldNotifyError: (config, _context, error) => (
+    config.silentError !== true &&
+    config.suppressErrorMessage !== true &&
+    error?.response?.status !== 404
+  ),
   resolveErrorMessage: (error) => error?.response
     ? error.message
     : '网络连接超时或断开',
