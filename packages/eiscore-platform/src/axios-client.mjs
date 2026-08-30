@@ -27,7 +27,8 @@ const SAFE_ERROR_HEADER_NAMES = new Set([
 ])
 const SENSITIVE_ERROR_MESSAGE_PATTERN = /(?:bearer\s+|(?:password|passphrase|token|secret|api[\s_-]?key|authorization)\s*[:=]|https?:\/\/|[?&][^=\s&]{1,80}=)/i
 const SAFE_PATH = Symbol('eiscore.platform.safePath')
-const SHOULD_NOTIFY_ERROR = Symbol('eiscore.platform.shouldNotifyError')
+const REQUEST_CONTEXT = Symbol('eiscore.platform.requestContext')
+const AUTO_SERVICE_PREFIXES = Object.freeze({ api: '/api', agent: '/agent' })
 
 function invalidPath() {
   return new PlatformHttpError('invalid-path')
@@ -62,6 +63,33 @@ function hasTraversal(path) {
   }
 }
 
+function autoServiceTarget(raw, options) {
+  if (/^[A-Za-z][A-Za-z\d+.-]*:/.test(raw)) {
+    for (const candidate of Object.keys(AUTO_SERVICE_PREFIXES)) {
+      try {
+        return normalizePlatformAxiosTarget(raw, { ...options, service: candidate })
+      } catch (error) {
+        if (!(error instanceof PlatformHttpError) || error.code !== 'invalid-path') throw error
+      }
+    }
+    throw invalidPath()
+  }
+
+  for (const [candidate, prefix] of Object.entries(AUTO_SERVICE_PREFIXES)) {
+    const path = raw.split('?', 1)[0]
+    if (path !== prefix && !path.startsWith(`${prefix}/`)) continue
+    const suffix = raw.slice(prefix.length)
+    const resourceTarget = !suffix
+      ? '/'
+      : (suffix.startsWith('?') ? `/${suffix}` : suffix)
+    return normalizePlatformAxiosTarget(resourceTarget, {
+      ...options,
+      service: candidate
+    })
+  }
+  throw invalidPath()
+}
+
 function normalizePlatformAxiosTarget(target, {
   enterpriseConfig,
   service,
@@ -77,10 +105,15 @@ function normalizePlatformAxiosTarget(target, {
     CONTROL_CHARACTER_PATTERN.test(raw)
   ) throw invalidPath()
 
+  if (service === 'auto') {
+    return autoServiceTarget(raw, { enterpriseConfig, locationOrigin })
+  }
+
   if (!/^[A-Za-z][A-Za-z\d+.-]*:/.test(raw)) {
     const resourceTarget = raw.startsWith('/') ? raw : `/${raw}`
     return {
       resourceTarget,
+      service,
       url: resolvePlatformServiceUrl(resourceTarget, { enterpriseConfig, service })
     }
   }
@@ -107,6 +140,7 @@ function normalizePlatformAxiosTarget(target, {
   const resourceTarget = `${resourcePath}${parsed.search}`
   return {
     resourceTarget,
+    service,
     url: resolvePlatformServiceUrl(resourceTarget, { enterpriseConfig, service })
   }
 }
@@ -248,6 +282,14 @@ async function callSafely(callback, ...args) {
   } catch {}
 }
 
+async function resolveDecision(callback, fallback, ...args) {
+  try {
+    return (await callback(...args)) !== false
+  } catch {
+    return fallback
+  }
+}
+
 export function createPlatformAxiosClient({
   axios,
   enterpriseConfig = getEnterpriseConfig(globalThis),
@@ -257,6 +299,7 @@ export function createPlatformAxiosClient({
   onUnauthorized = () => {},
   notifyError = () => {},
   shouldNotifyError = () => true,
+  shouldHandleUnauthorized = () => true,
   resolveErrorMessage,
   defaultProfile = '',
   defaultAccept = '',
@@ -277,12 +320,11 @@ export function createPlatformAxiosClient({
     })
     config.url = normalized.url
     config[SAFE_PATH] = safeResourcePath(normalized.resourceTarget)
-    const requestContext = Object.freeze({ path: config[SAFE_PATH] })
-    try {
-      config[SHOULD_NOTIFY_ERROR] = shouldNotifyError(config) !== false
-    } catch {
-      config[SHOULD_NOTIFY_ERROR] = true
-    }
+    const requestContext = Object.freeze({
+      path: config[SAFE_PATH],
+      service: normalized.service
+    })
+    config[REQUEST_CONTEXT] = requestContext
     if (!config.headers || typeof config.headers !== 'object') config.headers = {}
 
     let token
@@ -315,10 +357,32 @@ export function createPlatformAxiosClient({
     (response) => response.data,
     async (error) => {
       const event = errorEvent(error)
-      const shouldNotify = error?.config?.[SHOULD_NOTIFY_ERROR] !== false
+      const requestConfig = error?.config || {}
+      const requestContext = requestConfig[REQUEST_CONTEXT] || Object.freeze({
+        path: event.path,
+        service: service === 'auto' ? '' : service
+      })
+      const shouldNotify = await resolveDecision(
+        shouldNotifyError,
+        true,
+        requestConfig,
+        requestContext,
+        error,
+        event
+      )
       if (event.status === 401) {
-        if (shouldNotify) await callSafely(notifyError, unauthorizedMessage, event)
-        await callSafely(onUnauthorized, event)
+        const shouldHandle = await resolveDecision(
+          shouldHandleUnauthorized,
+          true,
+          requestConfig,
+          requestContext,
+          error,
+          event
+        )
+        if (shouldHandle) {
+          if (shouldNotify) await callSafely(notifyError, unauthorizedMessage, event)
+          await callSafely(onUnauthorized, event)
+        }
       } else if (shouldNotify) {
         const message = await resolveNotificationMessage(error, event, resolveErrorMessage)
         await callSafely(notifyError, message, event)

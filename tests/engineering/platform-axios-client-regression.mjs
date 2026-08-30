@@ -84,6 +84,27 @@ assert.equal(
   }),
   '/api/equipment_assets'
 )
+assert.equal(
+  resolvePlatformAxiosUrl('/api/document_links?status=eq.active', {
+    enterpriseConfig: remoteConfig,
+    service: 'auto'
+  }),
+  'https://erp.example.com/tenant/api/document_links?status=eq.active'
+)
+assert.equal(
+  resolvePlatformAxiosUrl('/agent/ai/config', {
+    enterpriseConfig: remoteConfig,
+    service: 'auto'
+  }),
+  'https://erp.example.com/tenant/agent/ai/config'
+)
+assert.throws(
+  () => resolvePlatformAxiosUrl('/unconfigured/private', {
+    enterpriseConfig: remoteConfig,
+    service: 'auto'
+  }),
+  (error) => error instanceof PlatformHttpError && error.code === 'invalid-path'
+)
 
 for (const target of [
   'https://attacker.invalid/api/quality_inspections',
@@ -280,6 +301,47 @@ for (const target of [
     'Request failed with status code 422'
   ])
   assert.doesNotMatch(JSON.stringify(notifications), /must-not-appear/)
+}
+
+{
+  const errors = [
+    Object.assign(new Error('Request failed with status code 401'), { response: { status: 401 } }),
+    Object.assign(new Error('Request failed with status code 401'), { response: { status: 401 } }),
+    Object.assign(new Error('Request failed with status code 404'), { response: { status: 404 } }),
+    Object.assign(new Error('socket detail must not appear'), { code: 'ERR_NETWORK' })
+  ]
+  const notifications = []
+  const unauthorizedEvents = []
+  const service = createPlatformAxiosClient({
+    axios: createAxiosStub(async () => { throw errors.shift() }),
+    enterpriseConfig: remoteConfig,
+    service: 'auto',
+    unauthorizedMessage: '未授权，请重新登录',
+    shouldHandleUnauthorized: (_config, context) => !(
+      context.service === 'agent' && context.path.startsWith('/ai/')
+    ),
+    shouldNotifyError: (_config, _context, error) => error?.response?.status !== 404,
+    resolveErrorMessage: (error) => error?.response
+      ? error.message
+      : '网络连接超时或断开',
+    notifyError: (message, event) => notifications.push({ message, event }),
+    onUnauthorized: (event) => unauthorizedEvents.push(event)
+  })
+  await assert.rejects(service({ url: '/agent/ai/config' }))
+  await assert.rejects(service({ url: '/api/document_links' }))
+  await assert.rejects(service({ url: '/api/missing' }))
+  await assert.rejects(service({ url: '/api/document_links' }))
+  assert.deepEqual(notifications.map(({ message }) => message), [
+    '未授权，请重新登录',
+    '网络连接超时或断开'
+  ])
+  assert.deepEqual(unauthorizedEvents, [{
+    code: 'unauthorized',
+    status: 401,
+    method: 'GET',
+    path: '/document_links'
+  }])
+  assert.doesNotMatch(JSON.stringify(notifications), /socket detail/)
 }
 
 console.log('PASS: platform Axios compatibility contract')
