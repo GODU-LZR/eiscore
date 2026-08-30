@@ -52,6 +52,13 @@ Run the repository quality gates (syntax, secrets, changed-code lint, and infras
 npm run test:quality
 ```
 
+Validate the pinned toolchain and lockfile contract:
+
+```bash
+npm run test:toolchain
+npm run toolchain:check -- --strict
+```
+
 Run the auto-entry coverage contract:
 
 ```bash

@@ -81,5 +81,6 @@ EISCore 的工程化目标不是减少文件行数，也不是追求一次性“
 - G0 仓库可信：最新成果已形成可恢复检查点，离线回归、11 个前端构建及桌面采集器编译通过。
 - G1 生产配置安全：生产秘密值改为缺失即失败，企业公网地址外置，部署前校验、环境模板和存量迁移手册已建立。决策见 `adr/0002-production-environment-contract.md`。
 - G1 渐进式质量门禁：秘密扫描、变更代码 lint、Shell/Compose 检查已接入 CI；规则与扩展原则见 `QUALITY_GATES.md`。
+- G1 工具链与依赖治理：CI 运行时、npm、lockfile 契约和升级规则见 `DEPENDENCY_POLICY.md`。
 
 长期重构的当前状态、验证证据和下一切片记录在 `REFACTOR_PROGRESS.md`；最终交付结论持续汇总到 `REFACTOR_FINAL_REPORT.md`。

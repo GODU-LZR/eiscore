@@ -29,6 +29,9 @@ jobs:
             eiscore-*/package-lock.json
             realtime/package-lock.json
 
+      - name: Verify pinned toolchain
+        run: npm run toolchain:check -- --strict
+
       - name: Install dependencies
         run: npm run ci:install
 
