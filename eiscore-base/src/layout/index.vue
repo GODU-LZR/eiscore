@@ -263,7 +263,6 @@ import { mix } from '@/utils/theme'
 import { hasPerm } from '@/utils/permission'
 import {
   USER_INFO_KEY,
-  getAuthHeader,
   getToken,
   getUserInfo,
   getUserInfoText,
@@ -645,15 +644,12 @@ const ensureSuperAdminScopes = async () => {
   let roleId = info.role_id || ''
   if (!roleId) {
     try {
-      const res = await fetch('/api/roles?code=eq.super_admin', {
+      const { data: list } = await getHostHttpClient().requestJson('/roles?code=eq.super_admin', {
         method: 'GET',
-        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', ...getAuthHeader() }
+        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
       })
-      if (res.ok) {
-        const list = await res.json()
-        if (Array.isArray(list) && list.length > 0) {
-          roleId = list[0].id
-        }
+      if (Array.isArray(list) && list.length > 0) {
+        roleId = list[0].id
       }
     } catch (e) {}
   }
@@ -666,16 +662,14 @@ const ensureSuperAdminScopes = async () => {
     dept_id: null
   }))
   try {
-    await fetch('/api/role_data_scopes?on_conflict=role_id,module', {
+    await getHostHttpClient().requestJson('/role_data_scopes?on_conflict=role_id,module', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Accept-Profile': 'public',
         'Content-Profile': 'public',
-        'Prefer': 'resolution=merge-duplicates',
-        ...getAuthHeader()
+        Prefer: 'resolution=merge-duplicates'
       },
-      body: JSON.stringify(payload)
+      body: payload
     })
     superScopeSynced.value = true
     if (superScopeRetryTimer) {
@@ -690,11 +684,9 @@ const resolveAvatarUrl = async (info) => {
   if (!info.avatar.startsWith('file:')) return info
   const fileId = info.avatar.replace('file:', '')
   try {
-    const res = await fetch(`/api/files?id=eq.${fileId}&select=content_base64,mime_type`, {
-      headers: { 'Accept-Profile': 'public', ...getAuthHeader() }
+    const { data: list } = await getHostHttpClient().requestJson(`/files?id=eq.${fileId}&select=content_base64,mime_type`, {
+      headers: { 'Accept-Profile': 'public' }
     })
-    if (!res.ok) return { ...info, avatar: '' }
-    const list = await res.json()
     const row = Array.isArray(list) ? list[0] : null
     if (!row?.content_base64) return { ...info, avatar: '' }
     const mime = row.mime_type || 'application/octet-stream'
@@ -717,21 +709,21 @@ const fetchUserInfoByToken = async (token) => {
       Authorization: `Bearer ${token}`
     }
     const urls = [
-      `/api/v_users_manage?username=eq.${encodedUsername}&select=username,full_name,avatar,role_id,sop_role`,
-      `/api/v_users_manage?username=eq.${encodedUsername}&select=username,full_name,avatar,role_id`,
-      `/api/users?username=eq.${encodedUsername}&select=username,full_name,avatar,role,sop_role`,
-      `/api/users?username=eq.${encodedUsername}&select=username,full_name,avatar,role`
+      `/v_users_manage?username=eq.${encodedUsername}&select=username,full_name,avatar,role_id,sop_role`,
+      `/v_users_manage?username=eq.${encodedUsername}&select=username,full_name,avatar,role_id`,
+      `/users?username=eq.${encodedUsername}&select=username,full_name,avatar,role,sop_role`,
+      `/users?username=eq.${encodedUsername}&select=username,full_name,avatar,role`
     ]
     let row = null
     for (const url of urls) {
-      const res = await fetch(url, {
-        method: 'GET',
-        headers
-      })
-      if (!res.ok) continue
-      const list = await res.json()
-      row = Array.isArray(list) ? list[0] : null
-      if (row) break
+      try {
+        const { data: list } = await getHostHttpClient().requestJson(url, {
+          method: 'GET',
+          headers
+        })
+        row = Array.isArray(list) ? list[0] : null
+        if (row) break
+      } catch (e) {}
     }
     if (!row) return null
     const sopRole = row.sop_role || row.sopRole || payload.sop_role || payload.sopRole || ''

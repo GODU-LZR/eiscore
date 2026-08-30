@@ -17,7 +17,6 @@ for (const name of ['USER_INFO_KEY', 'getUserInfoText', 'setUserInfo']) {
 const layout = readSource('eiscore-base/src/layout/index.vue')
 for (const name of [
   'USER_INFO_KEY',
-  'getAuthHeader',
   'getToken',
   'getUserInfo',
   'getUserInfoText',
