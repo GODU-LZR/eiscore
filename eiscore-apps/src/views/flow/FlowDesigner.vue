@@ -60,6 +60,7 @@ import { ElMessage, ElEmpty, ElDivider, ElForm, ElFormItem, ElSelect, ElOption, 
 import { ArrowLeft, Connection, Check } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { BpmnDesigner } from 'kthirty-bpmn-vue3'
+import { getToken } from '@/utils/auth'
 import 'kthirty-bpmn-vue3/dist/style.css'
 
 const route = useRoute()
@@ -789,7 +790,7 @@ const syncTaskAssignment = async (element) => {
   }
   assignmentLoading.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const definitionId = await ensureWorkflowDefinitionId(token)
     if (!definitionId) {
       resetTaskAssignment()
@@ -842,7 +843,7 @@ const syncStateMapping = async (element) => {
   }
   mappingLoading.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/workflow_state_mappings?workflow_app_id=eq.${appId.value}&bpmn_task_id=eq.${element.id}&limit=1`,
       { headers: getAppCenterHeaders(token) }
@@ -869,7 +870,7 @@ const saveStateMapping = async () => {
     const inferred = inferStateTargetByBusinessBinding()
     const resolvedTargetTable = String(stateMapping.value.target_table || inferred.target_table || appData.value?.config?.table || '').trim()
     const resolvedStateField = String(stateMapping.value.state_field || inferred.state_field || 'status').trim()
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     await axios.post(
       '/api/workflow_state_mappings?on_conflict=workflow_app_id,bpmn_task_id',
       {
@@ -902,7 +903,7 @@ const saveTaskAutoRule = async () => {
 
   autoRuleSaving.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const cfg = getAppConfigObject()
     const currentRules = cfg.workflowAutoAdvanceRules && typeof cfg.workflowAutoAdvanceRules === 'object'
       ? cfg.workflowAutoAdvanceRules
@@ -941,7 +942,7 @@ const saveTaskAssignment = async () => {
   if (!selectedElement.value || selectedElement.value.type !== 'bpmn:UserTask' || !appId.value) return
   assignmentSaving.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const definitionId = await ensureWorkflowDefinitionId(token)
     if (!definitionId) {
       ElMessage.warning('未找到流程定义，请先导出并保存流程')
@@ -1047,7 +1048,7 @@ const loadAppData = async () => {
   if (!appId.value) return
 
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(`/api/apps?id=eq.${appId.value}`, {
       headers: getAppCenterHeaders(token)
     })
@@ -1131,7 +1132,7 @@ const exportAndSave = async () => {
   saving.value = true
   try {
     const bpmnXml = await getCurrentXml()
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const definitionId = await upsertWorkflowDefinition(bpmnXml, token)
     await axios.patch(
       `/api/apps?id=eq.${appId.value}`,
@@ -1165,7 +1166,7 @@ const exportAndSave = async () => {
 
 const loadBusinessAppOptions = async () => {
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get('/api/apps?select=id,name,config,status,app_type&order=updated_at.desc', {
       headers: getAppCenterHeaders(token)
     })
@@ -1199,7 +1200,7 @@ const loadBusinessAppOptions = async () => {
 const saveWorkflowLinkConfig = async () => {
   if (!appId.value || !appData.value) return
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const nextConfig = {
       ...getAppConfigObject(),
       workflowBusinessAppId: workflowLinkConfig.value.businessAppId || null,
@@ -1226,7 +1227,7 @@ const saveWorkflowLinkConfig = async () => {
 
 const loadRoleOptions = async () => {
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get('/api/roles?select=code,name&order=sort.asc,name.asc', {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -1247,7 +1248,7 @@ const loadRoleOptions = async () => {
 
 const loadUserOptions = async () => {
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get('/api/users?select=username,full_name&order=username.asc', {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -1338,7 +1339,7 @@ const publishWorkflow = async () => {
   publishing.value = true
   try {
     await exportAndSave()
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     await axios.patch(
       `/api/apps?id=eq.${appId.value}`,
       { status: 'published' },

@@ -289,6 +289,7 @@ import {
   Warning
 } from '@element-plus/icons-vue'
 import axios from 'axios'
+import { getToken, getUserInfo } from '@/utils/auth'
 
 const router = useRouter()
 
@@ -459,8 +460,7 @@ const parseBpmnGraph = (raw) => {
 
 const readCurrentActor = () => {
   try {
-    const raw = localStorage.getItem('user_info')
-    const info = raw ? JSON.parse(raw) : {}
+    const info = getUserInfo() || {}
     currentActor.value = {
       username: String(info?.username || '').trim(),
       appRole: String(info?.app_role || info?.appRole || info?.role || '').trim()
@@ -1026,7 +1026,7 @@ const submitApproval = async () => {
 
   approvalSubmitting.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const headers = {
       ...getWorkflowHeaders(token),
       'Content-Type': 'application/json'
@@ -1077,7 +1077,7 @@ const submitApproval = async () => {
 const loadData = async () => {
   loading.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const headers = getWorkflowHeaders(token)
     const publicHeaders = getPublicHeaders(token)
     const [definitionRes, instanceRes, assignmentRes, approvalRes, smartBiActionRes] = await Promise.all([

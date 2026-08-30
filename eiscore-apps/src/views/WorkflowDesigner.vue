@@ -57,6 +57,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import axios from 'axios'
 import Modeler from 'bpmn-js/lib/Modeler'
+import { getToken } from '@/utils/auth'
 
 import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-font/css/bpmn.css'
@@ -117,7 +118,7 @@ async function loadAppData() {
   if (!appId.value) return
 
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/apps?id=eq.${appId.value}`,
       {
@@ -158,7 +159,7 @@ async function saveWorkflow() {
     const result = await bpmnModeler.saveXML({ format: true })
     const bpmnXml = result.xml
 
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     await axios.patch(
       `/api/apps?id=eq.${appId.value}`,
       {
@@ -184,7 +185,7 @@ async function publishWorkflow() {
   try {
     await saveWorkflow()
     
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     await axios.patch(
       `/api/apps?id=eq.${appId.value}`,
       {
@@ -207,7 +208,7 @@ async function saveStateMapping() {
   if (!selectedElement.value) return
 
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     await axios.post(
       '/api/workflow_state_mappings',
       {
