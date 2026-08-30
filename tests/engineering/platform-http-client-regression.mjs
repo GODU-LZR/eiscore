@@ -126,6 +126,40 @@ for (const path of [
 }
 
 {
+  const responses = [
+    { message: '盘点数量不能小于零' },
+    { message: 'token=must-not-appear' },
+    { message: `业务错误${'过'.repeat(200)}` }
+  ]
+  const client = createPlatformHttpClient({
+    enterpriseConfig: DEFAULT_ENTERPRISE_CONFIG,
+    resolveErrorMessage: (data) => data?.message,
+    fetchImpl: async () => new Response(JSON.stringify(responses.shift()), {
+      status: 422,
+      headers: { 'content-type': 'application/json' }
+    })
+  })
+  await assert.rejects(
+    client.requestJson('/inventory_checks'),
+    (error) => {
+      assert.equal(error.message, 'Platform HTTP request failed: validation (GET /inventory_checks)')
+      assert.equal(error.displayMessage, '盘点数量不能小于零')
+      return true
+    }
+  )
+  for (let index = 0; index < 2; index += 1) {
+    await assert.rejects(
+      client.requestJson('/inventory_checks'),
+      (error) => {
+        assert.equal(error.displayMessage, undefined)
+        assert.doesNotMatch(error.message, /must-not-appear|业务错误/)
+        return true
+      }
+    )
+  }
+}
+
+{
   const client = createPlatformHttpClient({
     enterpriseConfig: DEFAULT_ENTERPRISE_CONFIG,
     timeoutMs: 100,

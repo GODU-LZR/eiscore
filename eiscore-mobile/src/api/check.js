@@ -13,57 +13,9 @@
  *   scm.v_inventory_current  库存视图
  *   public.raw_materials     物料主数据
  */
-import { clearAuth, getToken } from '@/utils/auth'
+import { createMobileProfileRequest } from './request'
 
-const API_BASE = '/api'
-
-const scmHeaders = {
-  'Accept-Profile': 'scm',
-  'Content-Profile': 'scm'
-}
-
-/** 内部 fetch 封装 */
-async function request(method, path, { params, body, headers: extraHeaders } = {}) {
-  const token = getToken()
-  const headers = {
-    'Content-Type': 'application/json',
-    ...scmHeaders,
-    ...extraHeaders
-  }
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
-  let url = `${API_BASE}${path}`
-  if (params) {
-    const qs = Object.entries(params)
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-      .join('&')
-    url += `?${qs}`
-  }
-
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined
-  })
-
-  if (res.status === 401) {
-    clearAuth()
-    window.location.href = '/mobile/login'
-    throw new Error('登录已过期')
-  }
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.message || `请求失败 (${res.status})`)
-  }
-
-  const text = await res.text()
-  return text ? JSON.parse(text) : null
-}
-
-function get(path, opts) { return request('GET', path, opts) }
-function post(path, data, opts = {}) { return request('POST', path, { ...opts, body: data }) }
-function patch(path, data, opts = {}) { return request('PATCH', path, { ...opts, body: data }) }
+const { get, post, patch } = createMobileProfileRequest('scm')
 
 /* ============ 仓库 / 库位 ============ */
 

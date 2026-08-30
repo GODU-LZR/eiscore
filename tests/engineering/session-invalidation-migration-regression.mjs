@@ -24,6 +24,19 @@ assert.match(mobileRouter, /payload\.exp\s*&&\s*Date\.now\(\)\s*\/\s*1000\s*>=\s
 assert.doesNotMatch(mobileRouter, directSessionPattern)
 assert.doesNotMatch(mobileRouter, /\batob\b/)
 
+const mobileHttp = readSource('eiscore-mobile/src/platform/http-client.js')
+assert.match(mobileHttp, /from\s*['"]@\/utils\/auth['"]/)
+assert.match(mobileHttp, /\bgetToken\b/)
+assert.match(mobileHttp, /\bclearAuth\b/)
+assert.match(mobileHttp, /onUnauthorized:\s*\(\)\s*=>\s*\{/)
+assert.match(mobileHttp, /clearAuth\(\)/)
+assert.match(mobileHttp, /window\.location\.href\s*=\s*['"]\/mobile\/login['"]/)
+assert.doesNotMatch(mobileHttp, directSessionPattern)
+
+const mobileRequestCore = readSource('eiscore-mobile/src/api/request-core.js')
+assert.match(mobileRequestCore, /error\?\.status\s*===\s*401/)
+assert.match(mobileRequestCore, /throw new Error\(['"]登录已过期['"]\)/)
+
 for (const path of [
   'eiscore-mobile/src/api/warehouse.js',
   'eiscore-mobile/src/api/stock.js',
@@ -31,13 +44,9 @@ for (const path of [
   'eiscore-mobile/src/api/check.js'
 ]) {
   const source = readSource(path)
-  assert.match(source, /from\s*['"]@\/utils\/auth['"]/)
-  assert.match(source, /\bgetToken\b/)
-  assert.match(source, /\bclearAuth\b/)
-  assert.match(source, /res\.status\s*===\s*401/)
-  assert.match(source, /clearAuth\(\)/)
-  assert.match(source, /window\.location\.href\s*=\s*['"]\/mobile\/login['"]/)
-  assert.match(source, /throw new Error\(['"]登录已过期['"]\)/)
+  assert.match(source, /from\s*['"]\.\/request['"]/)
+  assert.doesNotMatch(source, /from\s*['"]@\/utils\/auth['"]/)
+  assert.doesNotMatch(source, /\bgetToken\b|\bclearAuth\b|res\.status\s*===\s*401/)
   assert.doesNotMatch(source, directSessionPattern)
 }
 

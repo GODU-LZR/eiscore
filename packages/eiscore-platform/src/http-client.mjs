@@ -10,6 +10,8 @@ export const DEFAULT_HTTP_TIMEOUT_MS = 15_000
 
 const SAFE_ORIGIN = 'https://eiscore.invalid'
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/
+const SENSITIVE_ERROR_MESSAGE_PATTERN = /(?:bearer\s+|(?:password|passphrase|token|secret|api[\s_-]?key|authorization)\s*[:=]|https?:\/\/|[?&][^=\s&]{1,80}=)/i
+const MAX_ERROR_RESPONSE_LENGTH = 16_384
 const SERVICE_ENDPOINT_KEYS = Object.freeze({
   api: 'apiBasePath',
   agent: 'agentBasePath'
@@ -128,11 +130,59 @@ async function parseJsonResponse(response, method, path) {
   }
 }
 
+function safeMappedErrorMessage(candidate) {
+  if (typeof candidate !== 'string') return ''
+  const message = candidate.trim()
+  if (
+    !message ||
+    message.length > 200 ||
+    CONTROL_CHARACTER_PATTERN.test(message) ||
+    SENSITIVE_ERROR_MESSAGE_PATTERN.test(message)
+  ) return ''
+  return message
+}
+
+async function resolveDisplayMessage(response, event, resolver) {
+  if (typeof resolver !== 'function') return ''
+  const contentLength = Number(response?.headers?.get?.('content-length'))
+  if (Number.isFinite(contentLength) && contentLength > MAX_ERROR_RESPONSE_LENGTH) return ''
+  let text
+  try {
+    text = await response.text()
+  } catch {
+    return ''
+  }
+  if (!text || text.length > MAX_ERROR_RESPONSE_LENGTH) return ''
+  let data
+  try {
+    data = JSON.parse(text)
+  } catch {
+    return ''
+  }
+  try {
+    return safeMappedErrorMessage(await resolver(data, Object.freeze({ ...event })))
+  } catch {
+    return ''
+  }
+}
+
+function attachDisplayMessage(error, displayMessage) {
+  if (!displayMessage) return error
+  Object.defineProperty(error, 'displayMessage', {
+    configurable: false,
+    enumerable: false,
+    value: displayMessage,
+    writable: false
+  })
+  return error
+}
+
 export function createPlatformHttpClient({
   enterpriseConfig = getEnterpriseConfig(globalThis),
   fetchImpl = globalThis.fetch,
   getAccessToken = () => '',
   onUnauthorized = () => {},
+  resolveErrorMessage,
   timeoutMs = DEFAULT_HTTP_TIMEOUT_MS,
   setTimeoutImpl = globalThis.setTimeout,
   clearTimeoutImpl = globalThis.clearTimeout,
@@ -194,7 +244,10 @@ export function createPlatformHttpClient({
       if (status === 401) {
         try { await onUnauthorized(event) } catch {}
       }
-      throw new PlatformHttpError(code, event)
+      const displayMessage = status === 401
+        ? ''
+        : await resolveDisplayMessage(response, event, resolveErrorMessage)
+      throw attachDisplayMessage(new PlatformHttpError(code, event), displayMessage)
     }
 
     const data = await parseJsonResponse(response, method, requestTarget.safePath)

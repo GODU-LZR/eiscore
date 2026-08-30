@@ -4,21 +4,34 @@
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { createPlatformHttpClient } from '@eiscore/platform/http-client'
 import { createSystemConfigService } from '@eiscore/platform/system-config'
-import { getToken } from '@/utils/auth'
+import { clearAuth, getToken } from '@/utils/auth'
 
 let cachedEnterpriseConfig = null
+let cachedHttpClient = null
 let cachedSystemConfigService = null
 
-export function getMobileSystemConfigService() {
+export function getMobileHttpClient() {
   const enterpriseConfig = getEnterpriseConfig(globalThis)
-  if (cachedSystemConfigService && cachedEnterpriseConfig === enterpriseConfig) {
-    return cachedSystemConfigService
+  if (cachedHttpClient && cachedEnterpriseConfig === enterpriseConfig) {
+    return cachedHttpClient
   }
-  const httpClient = createPlatformHttpClient({
+  cachedHttpClient = createPlatformHttpClient({
     enterpriseConfig,
-    getAccessToken: getToken
+    getAccessToken: getToken,
+    onUnauthorized: () => {
+      clearAuth()
+      window.location.href = '/mobile/login'
+    },
+    resolveErrorMessage: (data) => data?.message
   })
   cachedEnterpriseConfig = enterpriseConfig
+  cachedSystemConfigService = null
+  return cachedHttpClient
+}
+
+export function getMobileSystemConfigService() {
+  const httpClient = getMobileHttpClient()
+  if (cachedSystemConfigService) return cachedSystemConfigService
   cachedSystemConfigService = createSystemConfigService({ httpClient })
   return cachedSystemConfigService
 }
