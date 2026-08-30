@@ -20,7 +20,9 @@ if (!scriptName) {
   process.exit(2)
 }
 
-const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+const npmExecPath = process.env.npm_execpath
+const npmBin = npmExecPath ? process.execPath : (process.platform === 'win32' ? 'npm.cmd' : 'npm')
+const npmArgsPrefix = npmExecPath ? [npmExecPath] : []
 const selected = selectPackages(group)
 
 if (selected.length === 0) {
@@ -45,12 +47,15 @@ for (const pkg of selected) {
 
   ran += 1
   console.log(`\n===== ${pkg.name}: npm run ${scriptName} =====`)
-  const result = spawnSync(npmBin, ['--prefix', pkg.path, 'run', scriptName], {
+  const result = spawnSync(npmBin, [...npmArgsPrefix, '--prefix', pkg.path, 'run', scriptName], {
     stdio: 'inherit',
-    shell: false
+    shell: process.platform === 'win32' && !npmExecPath
   })
 
   if (result.status !== 0) {
+    if (result.error) {
+      console.error(`[error] ${result.error.message}`)
+    }
     console.error(`\n[fail] ${pkg.name}: npm run ${scriptName}`)
     process.exit(result.status ?? 1)
   }

@@ -13,7 +13,9 @@ const group = groupArg
   : groupFlagIndex >= 0
     ? process.argv[groupFlagIndex + 1]
     : 'ci'
-const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+const npmExecPath = process.env.npm_execpath
+const npmBin = npmExecPath ? process.execPath : (process.platform === 'win32' ? 'npm.cmd' : 'npm')
+const npmArgsPrefix = npmExecPath ? [npmExecPath] : []
 const selected = selectPackages(group)
 
 if (selected.length === 0) {
@@ -31,12 +33,15 @@ for (const pkg of selected) {
 
   const command = existsSync(lockPath) ? 'ci' : 'install'
   console.log(`\n===== ${pkg.name}: npm ${command} =====`)
-  const result = spawnSync(npmBin, ['--prefix', pkg.path, command], {
+  const result = spawnSync(npmBin, [...npmArgsPrefix, '--prefix', pkg.path, command], {
     stdio: 'inherit',
-    shell: false
+    shell: process.platform === 'win32' && !npmExecPath
   })
 
   if (result.status !== 0) {
+    if (result.error) {
+      console.error(`[error] ${result.error.message}`)
+    }
     console.error(`\n[fail] ${pkg.name}: npm ${command}`)
     process.exit(result.status ?? 1)
   }
