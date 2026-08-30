@@ -8,3 +8,12 @@ const authSession = createAuthSession()
 export const getToken = () => authSession.getToken()
 
 export const getUserInfo = () => authSession.getUserInfo()
+
+export const clearAuthStorage = () => authSession.clearAuth()
+
+export const clearAuthAndRedirect = (loginPath = '/login') => {
+  clearAuthStorage()
+  if (typeof window !== 'undefined' && window.location.pathname !== loginPath) {
+    window.location.href = loginPath
+  }
+}

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import { extractApiFilterQuery } from './eis-grid-server-summary'
-import { getToken } from './eis-session'
+import { getSharedHttpClient } from './eis-http'
 
 const trimApiPrefix = (url) => String(url || '').replace(/^\/api\b/, '')
 
@@ -157,24 +157,22 @@ async function fetchExactCount({
   baseFilter = '',
   searchQuery = ''
 } = {}) {
-  if (typeof fetch !== 'function') return null
+  if (typeof globalThis.fetch !== 'function') return null
   const sourceUrl = trimApiPrefix(apiUrl || '')
   const [baseUrl] = sourceUrl.split('?')
   if (!baseUrl) return null
   const filterQuery = combineQueryParts(extractApiFilterQuery(sourceUrl), baseFilter, searchQuery, 'select=*')
-  const url = `/api/${baseUrl.replace(/^\/+/, '')}${filterQuery ? `?${filterQuery}` : ''}`
-  const headers = {
-    'Accept-Profile': profile,
-    Prefer: 'count=exact',
-    Range: '0-0',
-    'Range-Unit': 'items'
-  }
-  const token = getToken()
-  if (token) headers.Authorization = `Bearer ${token}`
-
-  const response = await fetch(url, { method: 'GET', headers })
-  if (!response.ok && response.status !== 206) return null
-  return parseContentRangeTotal(response.headers.get('content-range'))
+  const url = `/${baseUrl.replace(/^\/+/, '')}${filterQuery ? `?${filterQuery}` : ''}`
+  const { headers } = await getSharedHttpClient().requestJson(url, {
+    method: 'GET',
+    headers: {
+      'Accept-Profile': profile,
+      Prefer: 'count=exact',
+      Range: '0-0',
+      'Range-Unit': 'items'
+    }
+  })
+  return parseContentRangeTotal(headers.get('content-range'))
 }
 
 async function loadAppCardStatsRaw({

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import { onMounted, onUnmounted, ref } from 'vue'
-import { getToken } from './eis-session'
+import { getSharedHttpClient } from './eis-http'
 
 export const DISPLAY_VISIBILITY_STORAGE_KEY = 'eis_display_visibility_v1'
 export const DISPLAY_VISIBILITY_UPDATED_EVENT = 'eis:display-visibility-updated'
@@ -216,15 +216,10 @@ export const saveStoredDisplayVisibility = (visibility) => {
 }
 
 export const fetchDisplayVisibility = async () => {
-  const headers = {
-    Accept: 'application/json',
-    'Accept-Profile': 'public'
-  }
-  const token = getToken()
-  if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch('/api/system_configs?key=eq.app_settings', { headers })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const list = await res.json()
+  const { data } = await getSharedHttpClient().requestJson('/system_configs?key=eq.app_settings', {
+    headers: { 'Accept-Profile': 'public' }
+  })
+  const list = data
   const row = Array.isArray(list) ? list[0] : null
   const value = readJson(row?.value)
   return saveStoredDisplayVisibility(value.visibility)
