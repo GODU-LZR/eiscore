@@ -1,10 +1,113 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://eiscore.local/schemas/enterprise-config-v1.schema.json",
-  "title": "EISCore Enterprise Configuration v1",
+  "$id": "https://eiscore.local/schemas/enterprise-config-v1.json",
+  "title": "EISCore Enterprise Configuration",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "enterprise", "branding", "endpoints", "modules", "features"],
+  "$defs": {
+    "navItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "maxLength": 80 },
+        "anchor": { "type": "string", "maxLength": 80 }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "maxLength": 80 },
+        "value": { "type": "string", "maxLength": 80 }
+      }
+    },
+    "trustBadge": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "maxLength": 120 }
+      }
+    },
+    "businessStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "maxLength": 80 }
+      }
+    },
+    "capability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "carouselImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": { "type": "string", "maxLength": 500 },
+        "title": { "type": "string", "maxLength": 120 },
+        "subtitle": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "leader": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "maxLength": 80 },
+        "title": { "type": "string", "maxLength": 120 },
+        "intro": { "type": "string", "maxLength": 500 },
+        "avatar": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "loginFields": {
+      "type": "object",
+      "properties": {
+        "slogan": { "type": "string", "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "siteTag": { "type": "string", "maxLength": 120 },
+        "announcement": { "type": "string", "maxLength": 200 },
+        "headerLoginText": { "type": "string", "maxLength": 80 },
+        "authKicker": { "type": "string", "maxLength": 80 },
+        "authTitle": { "type": "string", "maxLength": 120 },
+        "authSafeNote": { "type": "string", "maxLength": 200 },
+        "authFootnote": { "type": "string", "maxLength": 200 },
+        "primaryActionText": { "type": "string", "maxLength": 80 },
+        "secondaryActionText": { "type": "string", "maxLength": 80 },
+        "secondaryActionUrl": { "type": "string", "maxLength": 500 },
+        "showSecondaryAction": { "type": "boolean" },
+        "passBadgeText": { "type": "string", "maxLength": 120 },
+        "businessChainTitle": { "type": "string", "maxLength": 200 },
+        "scrollCueText": { "type": "string", "maxLength": 120 },
+        "metricsSectionKicker": { "type": "string", "maxLength": 120 },
+        "metricsSectionTitle": { "type": "string", "maxLength": 200 },
+        "aboutSectionKicker": { "type": "string", "maxLength": 120 },
+        "capabilitiesSectionKicker": { "type": "string", "maxLength": 120 },
+        "capabilitiesSectionTitle": { "type": "string", "maxLength": 200 },
+        "leadersSectionKicker": { "type": "string", "maxLength": 120 },
+        "leadersSectionTitle": { "type": "string", "maxLength": 200 },
+        "backgroundImage": { "type": "string", "maxLength": 500 },
+        "navItems": { "type": "array", "maxItems": 6, "items": { "$ref": "#/$defs/navItem" } },
+        "metrics": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/metric" } },
+        "trustBadges": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/trustBadge" } },
+        "businessChain": { "type": "array", "maxItems": 5, "items": { "$ref": "#/$defs/businessStep" } },
+        "capabilities": { "type": "array", "maxItems": 4, "items": { "$ref": "#/$defs/capability" } },
+        "carouselImages": { "type": "array", "maxItems": 6, "items": { "$ref": "#/$defs/carouselImage" } },
+        "leaders": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/leader" } },
+        "footerText": { "type": "string", "maxLength": 200 },
+        "icpText": { "type": "string", "maxLength": 200 }
+      }
+    },
+    "loginOverride": {
+      "allOf": [{ "$ref": "#/$defs/loginFields" }],
+      "unevaluatedProperties": false
+    }
+  },
   "properties": {
     "$schema": { "type": "string" },
     "schemaVersion": { "const": 1 },
@@ -27,15 +130,12 @@
         "themeColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
         "logoUrl": { "type": "string" },
         "login": {
+          "allOf": [{ "$ref": "#/$defs/loginFields" }],
           "type": "object",
-          "additionalProperties": false,
+          "unevaluatedProperties": false,
           "required": ["slogan", "description", "siteTag", "backgroundImage", "footerText"],
           "properties": {
-            "slogan": { "type": "string", "maxLength": 200 },
-            "description": { "type": "string", "maxLength": 1000 },
-            "siteTag": { "type": "string", "maxLength": 120 },
-            "backgroundImage": { "type": "string" },
-            "footerText": { "type": "string", "maxLength": 200 }
+            "mobile": { "$ref": "#/$defs/loginOverride" }
           }
         }
       }

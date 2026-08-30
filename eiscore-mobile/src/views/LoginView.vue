@@ -259,80 +259,21 @@ import { computed, ref, reactive, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showFailToast } from 'vant'
 import { setAuth, parseJwt, isAuthenticated, getToken } from '@/utils/auth'
+import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
+import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 
-const NANPAI_LOGO_URL = 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg'
-
-const defaultLoginBranding = {
-  companyName: '广东南派食品有限公司',
-  slogan: '深耕热带水果全产业链，打造高品质水果制品方案',
-  description: '根据企业官网公开信息：公司成立于 2009 年，总部位于中国雷州半岛；拥有湛江、广西两大加工基地和多条水果加工生产线，面向茶饮、烘焙、饮料与生鲜客户提供一站式水果制品解决方案。',
-  logo: NANPAI_LOGO_URL,
-  siteTag: '热带水果制品解决方案提供商',
-  announcement: '员工与合作伙伴入口',
-  authKicker: '员工入口',
-  authTitle: '账号登录',
-  authSafeNote: '账号由管理员统一分配',
-  authFootnote: '仅授权人员使用',
-  primaryActionText: '员工登录',
-  secondaryActionText: '了解平台',
-  secondaryActionUrl: '/eiscore',
-  showSecondaryAction: false,
-  passBadgeText: '员工通行',
-  businessChainTitle: '从产地到交付的服务路径',
-  scrollCueText: '向下了解企业',
-  aboutSectionKicker: '关于企业',
-  metricsSectionKicker: '企业实力',
-  metricsSectionTitle: '多年深耕热带水果产业',
-  capabilitiesSectionKicker: '产品与服务',
-  capabilitiesSectionTitle: '从产地原料到客户应用的完整服务',
-  backgroundImage: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgx6CtnwYoh8fKtgcwgA84vAU!1500x1500.jpg',
-  metrics: [
-    { label: '成立时间', value: '2009' },
-    { label: '加工基地', value: '2' },
-    { label: '注册资金', value: '1000万' }
-  ],
-  trustBadges: [
-    { label: '雷州半岛产地优势' },
-    { label: '双加工基地' },
-    { label: '多场景客户服务' }
-  ],
-  businessChain: [
-    { title: '原料甄选', description: '依托热带水果产区资源，关注原料风味、成熟度与稳定供应。', status: '产地直采' },
-    { title: '加工制造', description: '围绕果浆、果粒、果酱等产品形态，支持规模化与定制化生产。', status: '稳定交付' },
-    { title: '客户服务', description: '面向茶饮、烘焙、饮料与生鲜渠道，提供产品方案和交付支持。', status: '多场景适配' }
-  ],
-  capabilities: [
-    { title: '热带水果制品', description: '围绕芒果、菠萝、百香果等热带水果，提供多形态原料产品。' },
-    { title: '规模化加工', description: '依托湛江、广西加工基地，保障稳定产能与产品一致性。' },
-    { title: '应用方案支持', description: '结合茶饮、烘焙、饮料等使用场景，提供选型与应用建议。' }
-  ],
-  carouselImages: [
-    {
-      url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg5uqnnwYoiNO9CjDcCziIBQ.jpg',
-      title: '热带水果全产业链布局',
-      subtitle: '覆盖种植、加工、研发、销售与服务'
-    },
-    {
-      url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3-CwnwYo_qL0ggIwjgI4nwM.jpg',
-      title: '加工与品控能力',
-      subtitle: '支持多品类水果制品的规模化生产'
-    },
-    {
-      url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgheiwnwYoj7jo0QQwjgI4nwM.jpg',
-      title: '面向多场景客户',
-      subtitle: '服务茶饮、烘焙、饮料与生鲜渠道'
-    }
-  ],
-  footerText: 'Copyright © 广东南派食品有限公司',
-  icpText: ''
-}
+const enterpriseConfig = getEnterpriseConfig(globalThis)
+const defaultLoginBranding = normalizeLoginBranding({}, {
+  enterpriseConfig,
+  surface: 'mobile'
+})
 
 const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
 const showPassword = ref(false)
 const loginFeedback = ref({ type: 'idle', message: '' })
-const appSettings = ref({ themeColor: '#409EFF', loginBranding: defaultLoginBranding })
+const appSettings = ref({ themeColor: enterpriseConfig.branding.themeColor, loginBranding: defaultLoginBranding })
 const activeSceneIndex = ref(0)
 const pageRef = ref(null)
 const storyRef = ref(null)
@@ -398,72 +339,10 @@ const sanitizePublicText = (value = '', fallback = '') => {
   return text || fallback
 }
 
-const normalizeList = (items, mapper, fallback = []) => {
-  const source = safeArray(items).length ? safeArray(items) : fallback
-  return source.map(mapper).filter(Boolean)
-}
-
-const normalizeBranding = (input) => {
-  const source = input && typeof input === 'object' ? input : {}
-  return {
-    ...defaultLoginBranding,
-    ...source,
-    companyName: normalizeText(source.companyName, defaultLoginBranding.companyName),
-    slogan: normalizeText(source.slogan, defaultLoginBranding.slogan),
-    description: normalizeText(source.description, defaultLoginBranding.description),
-    logo: normalizeText(source.logo, defaultLoginBranding.logo),
-    siteTag: normalizeText(source.siteTag, defaultLoginBranding.siteTag),
-    announcement: normalizeText(source.announcement, defaultLoginBranding.announcement),
-    authKicker: normalizeText(source.authKicker, defaultLoginBranding.authKicker),
-    authTitle: normalizeText(source.authTitle, defaultLoginBranding.authTitle),
-    authSafeNote: normalizeText(source.authSafeNote, defaultLoginBranding.authSafeNote),
-    authFootnote: normalizeText(source.authFootnote, defaultLoginBranding.authFootnote),
-    primaryActionText: normalizeText(source.primaryActionText, defaultLoginBranding.primaryActionText),
-    secondaryActionText: normalizeText(source.secondaryActionText, defaultLoginBranding.secondaryActionText),
-    secondaryActionUrl: normalizeText(source.secondaryActionUrl, defaultLoginBranding.secondaryActionUrl),
-    showSecondaryAction: source.showSecondaryAction === true,
-    passBadgeText: sanitizePublicText(source.passBadgeText, defaultLoginBranding.passBadgeText),
-    businessChainTitle: sanitizePublicText(source.businessChainTitle, defaultLoginBranding.businessChainTitle),
-    scrollCueText: normalizeText(source.scrollCueText, defaultLoginBranding.scrollCueText),
-    aboutSectionKicker: normalizeText(source.aboutSectionKicker, defaultLoginBranding.aboutSectionKicker),
-    metricsSectionKicker: normalizeText(source.metricsSectionKicker, defaultLoginBranding.metricsSectionKicker),
-    metricsSectionTitle: normalizeText(source.metricsSectionTitle, defaultLoginBranding.metricsSectionTitle),
-    capabilitiesSectionKicker: normalizeText(source.capabilitiesSectionKicker, defaultLoginBranding.capabilitiesSectionKicker),
-    capabilitiesSectionTitle: normalizeText(source.capabilitiesSectionTitle, defaultLoginBranding.capabilitiesSectionTitle),
-    backgroundImage: normalizeText(source.backgroundImage, defaultLoginBranding.backgroundImage),
-    metrics: normalizeList(source.metrics, (item) => {
-      const label = normalizeText(item?.label)
-      const value = normalizeText(item?.value)
-      return label || value ? { label, value } : null
-    }, defaultLoginBranding.metrics).slice(0, 4),
-    trustBadges: normalizeList(source.trustBadges, (item) => {
-      const label = typeof item === 'string' ? item.trim() : normalizeText(item?.label)
-      return label ? { label } : null
-    }, defaultLoginBranding.trustBadges).slice(0, 5),
-    businessChain: normalizeList(source.businessChain, (item) => {
-      const title = normalizeText(item?.title)
-      const description = normalizeText(item?.description)
-      const status = normalizeText(item?.status)
-      return title || description ? { title, description, status } : null
-    }, defaultLoginBranding.businessChain).slice(0, 5),
-    capabilities: normalizeList(source.capabilities, (item) => {
-      const title = normalizeText(item?.title)
-      const description = normalizeText(item?.description)
-      return title || description ? { title, description } : null
-    }, defaultLoginBranding.capabilities).slice(0, 4),
-    carouselImages: normalizeList(source.carouselImages, (item) => {
-      const url = typeof item === 'string' ? item.trim() : normalizeText(item?.url)
-      if (!url) return null
-      return {
-        url,
-        title: normalizeText(item?.title),
-        subtitle: normalizeText(item?.subtitle)
-      }
-    }, defaultLoginBranding.carouselImages).slice(0, 6),
-    footerText: stripPlatformBrand(source.footerText || defaultLoginBranding.footerText),
-    icpText: normalizeText(source.icpText)
-  }
-}
+const normalizeBranding = (input) => normalizeLoginBranding(input, {
+  enterpriseConfig,
+  surface: 'mobile'
+})
 
 const branding = computed(() => normalizeBranding(appSettings.value?.loginBranding))
 const companyName = computed(() => branding.value.companyName)
@@ -529,7 +408,7 @@ const loadAppSettings = async () => {
     const row = Array.isArray(list) ? list[0] : null
     if (row?.value && typeof row.value === 'object') {
       appSettings.value = {
-        themeColor: normalizeText(row.value.themeColor, '#409EFF'),
+        themeColor: normalizeText(row.value.themeColor, enterpriseConfig.branding.themeColor),
         loginBranding: normalizeBranding(row.value.loginBranding)
       }
     }

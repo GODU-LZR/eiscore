@@ -214,8 +214,8 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useSystemStore } from '@/stores/system'
 import { mix } from '@/utils/theme'
-
-const NANPAI_LOGO_URL = 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg'
+import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
+import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -243,51 +243,11 @@ const safeThemeColor = computed(() => {
 
 const branding = computed(() => {
   const source = systemStore.config?.loginBranding || {}
-  return {
-    companyName: String(source.companyName || ''),
-    slogan: String(source.slogan || '深耕热带水果全产业链，打造高品质水果制品方案'),
-    description: String(source.description || '公司立足热带水果产区，面向茶饮、烘焙、饮料与生鲜客户提供水果制品和应用方案支持。'),
-    logo: String(source.logo || NANPAI_LOGO_URL),
-    siteTag: String(source.siteTag || '热带水果制品解决方案提供商'),
-    announcement: String(source.announcement || '员工与合作伙伴入口'),
-    headerLoginText: String(source.headerLoginText || '员工通道'),
-    authKicker: String(source.authKicker || '员工入口'),
-    authTitle: String(source.authTitle || '账号登录'),
-    authSafeNote: String(source.authSafeNote || '账号由管理员统一分配'),
-    authFootnote: String(source.authFootnote || '该入口仅供授权人员使用'),
-    primaryActionText: String(source.primaryActionText || '员工登录'),
-    secondaryActionText: String(source.secondaryActionText || '了解平台'),
-    secondaryActionUrl: String(source.secondaryActionUrl || '/eiscore'),
-    scrollCueText: String(source.scrollCueText || '向下了解企业'),
-    metricsSectionKicker: String(source.metricsSectionKicker || '企业实力'),
-    metricsSectionTitle: String(source.metricsSectionTitle || '多年深耕热带水果产业'),
-    aboutSectionKicker: String(source.aboutSectionKicker || '关于企业'),
-    capabilitiesSectionKicker: String(source.capabilitiesSectionKicker || '产品与服务'),
-    capabilitiesSectionTitle: String(source.capabilitiesSectionTitle || '从产地原料到客户应用的完整服务'),
-    leadersSectionKicker: String(source.leadersSectionKicker || '管理团队'),
-    leadersSectionTitle: String(source.leadersSectionTitle || '管理团队'),
-    backgroundImage: String(source.backgroundImage || ''),
-    navItems: Array.isArray(source.navItems) ? source.navItems : [],
-    metrics: Array.isArray(source.metrics) ? source.metrics : [],
-    trustBadges: Array.isArray(source.trustBadges) ? source.trustBadges : [],
-    businessChain: Array.isArray(source.businessChain) ? source.businessChain : [],
-    capabilities: Array.isArray(source.capabilities) ? source.capabilities : [],
-    carouselImages: Array.isArray(source.carouselImages) ? source.carouselImages : [],
-    leaders: Array.isArray(source.leaders) ? source.leaders : [],
-    footerText: String(source.footerText || 'Copyright © EISCore'),
-    icpText: String(source.icpText || '')
-  }
+  return normalizeLoginBranding(source, { enterpriseConfig: getEnterpriseConfig(globalThis) })
 })
 
-const looksLikeSystemName = (value) => /数字化|系统|平台|EISCore|信息化/i.test(String(value || ''))
-const displayText = (value, fallback) => {
-  const text = String(value || '').trim()
-  if (!text || looksLikeSystemName(text)) return fallback
-  return text
-}
-
-const companyName = computed(() => displayText(branding.value.companyName, '广东南派食品有限公司'))
-const siteTagText = computed(() => displayText(branding.value.siteTag, '热带水果制品解决方案提供商'))
+const companyName = computed(() => branding.value.companyName)
+const siteTagText = computed(() => branding.value.siteTag)
 const brandInitial = computed(() => companyName.value.slice(0, 1))
 const heroImage = computed(() => branding.value.backgroundImage || carouselItems.value[0]?.url || '')
 const introLead = computed(() => {

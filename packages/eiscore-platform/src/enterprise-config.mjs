@@ -60,7 +60,49 @@ const DEFAULT_SOURCE = {
 const TOP_LEVEL_KEYS = new Set(['$schema', 'schemaVersion', 'enterprise', 'branding', 'endpoints', 'modules', 'features'])
 const ENTERPRISE_KEYS = new Set(['id', 'displayName', 'shortName'])
 const BRANDING_KEYS = new Set(['productName', 'themeColor', 'logoUrl', 'login'])
-const LOGIN_KEYS = new Set(['slogan', 'description', 'siteTag', 'backgroundImage', 'footerText'])
+const LOGIN_TEXT_FIELDS = Object.freeze({
+  slogan: 200,
+  description: 1000,
+  siteTag: 120,
+  announcement: 200,
+  headerLoginText: 80,
+  authKicker: 80,
+  authTitle: 120,
+  authSafeNote: 200,
+  authFootnote: 200,
+  primaryActionText: 80,
+  secondaryActionText: 80,
+  scrollCueText: 120,
+  passBadgeText: 120,
+  businessChainTitle: 200,
+  metricsSectionKicker: 120,
+  metricsSectionTitle: 200,
+  aboutSectionKicker: 120,
+  capabilitiesSectionKicker: 120,
+  capabilitiesSectionTitle: 200,
+  leadersSectionKicker: 120,
+  leadersSectionTitle: 200,
+  footerText: 200,
+  icpText: 200
+})
+const LOGIN_URL_FIELDS = Object.freeze(['secondaryActionUrl', 'backgroundImage'])
+const LOGIN_LIST_FIELDS = Object.freeze({
+  navItems: Object.freeze({ max: 6, keys: Object.freeze({ label: 80, anchor: 80 }) }),
+  metrics: Object.freeze({ max: 4, keys: Object.freeze({ label: 80, value: 80 }) }),
+  trustBadges: Object.freeze({ max: 5, keys: Object.freeze({ label: 120 }) }),
+  businessChain: Object.freeze({ max: 5, keys: Object.freeze({ title: 120, description: 500, status: 80 }) }),
+  capabilities: Object.freeze({ max: 4, keys: Object.freeze({ title: 120, description: 500 }) }),
+  carouselImages: Object.freeze({ max: 6, keys: Object.freeze({ url: 500, title: 120, subtitle: 200 }), urlKey: 'url' }),
+  leaders: Object.freeze({ max: 20, keys: Object.freeze({ name: 80, title: 120, intro: 500, avatar: 500 }), urlKey: 'avatar' })
+})
+const LOGIN_PROFILE_KEYS = Object.freeze([
+  ...Object.keys(LOGIN_TEXT_FIELDS),
+  ...LOGIN_URL_FIELDS,
+  ...Object.keys(LOGIN_LIST_FIELDS),
+  'showSecondaryAction'
+])
+const LOGIN_KEYS = new Set([...LOGIN_PROFILE_KEYS, 'mobile'])
+const LOGIN_MOBILE_KEYS = new Set(LOGIN_PROFILE_KEYS)
 const ENDPOINT_KEYS = new Set(['publicBaseUrl', 'apiBasePath', 'agentBasePath', 'realtimeWsPath'])
 const SECRET_KEY_PATTERN = /(password|secret|token|api[_-]?key|private[_-]?key)/i
 
@@ -94,6 +136,60 @@ function requiredText(issues, value, path, maxLength = 160) {
 function textField(issues, value, path, maxLength = 500) {
   if (typeof value !== 'string') issues.push(pathValue(path, 'text-required'))
   else if (value.length > maxLength) issues.push(pathValue(path, 'text-too-long'))
+}
+
+function validateLoginList(issues, value, path, contract) {
+  if (value === undefined) return
+  if (!Array.isArray(value)) {
+    issues.push(pathValue(path, 'array-required'))
+    return
+  }
+  if (value.length > contract.max) issues.push(pathValue(path, 'array-too-long'))
+  const allowed = new Set(Object.keys(contract.keys))
+  value.forEach((item, index) => {
+    const itemPath = `${path}[${index}]`
+    if (!isObject(item)) {
+      issues.push(pathValue(itemPath, 'object-required'))
+      return
+    }
+    issues.push(...unknownKeyIssues(item, allowed, itemPath))
+    for (const [key, maxLength] of Object.entries(contract.keys)) {
+      if (item[key] !== undefined) textField(issues, item[key], `${itemPath}.${key}`, maxLength)
+    }
+    if (contract.urlKey && item[contract.urlKey] !== undefined && !isSafeAssetUrl(item[contract.urlKey])) {
+      issues.push(pathValue(`${itemPath}.${contract.urlKey}`, 'unsafe-url'))
+    }
+  })
+}
+
+function validateLoginProfile(issues, value, path, { requiredCore = false, allowMobile = false } = {}) {
+  if (!isObject(value)) {
+    issues.push(pathValue(path, 'object-required'))
+    return
+  }
+  issues.push(...unknownKeyIssues(value, allowMobile ? LOGIN_KEYS : LOGIN_MOBILE_KEYS, path))
+  const requiredFields = new Set(requiredCore
+    ? ['slogan', 'description', 'siteTag', 'backgroundImage', 'footerText']
+    : [])
+  for (const [key, maxLength] of Object.entries(LOGIN_TEXT_FIELDS)) {
+    if (requiredFields.has(key)) textField(issues, value[key], `${path}.${key}`, maxLength)
+    else if (value[key] !== undefined) textField(issues, value[key], `${path}.${key}`, maxLength)
+  }
+  for (const key of LOGIN_URL_FIELDS) {
+    if ((requiredFields.has(key) || value[key] !== undefined) &&
+      (typeof value[key] !== 'string' || !isSafeAssetUrl(value[key]))) {
+      issues.push(pathValue(`${path}.${key}`, 'unsafe-url'))
+    }
+  }
+  if (value.showSecondaryAction !== undefined && typeof value.showSecondaryAction !== 'boolean') {
+    issues.push(pathValue(`${path}.showSecondaryAction`, 'boolean-required'))
+  }
+  for (const [key, contract] of Object.entries(LOGIN_LIST_FIELDS)) {
+    validateLoginList(issues, value[key], `${path}.${key}`, contract)
+  }
+  if (allowMobile && value.mobile !== undefined) {
+    validateLoginProfile(issues, value.mobile, `${path}.mobile`)
+  }
 }
 
 function isSafeRelativePath(value) {
@@ -155,17 +251,10 @@ export function validateEnterpriseConfig(input) {
     if (typeof input.branding.logoUrl !== 'string' || !isSafeAssetUrl(input.branding.logoUrl)) {
       issues.push(pathValue('$.branding.logoUrl', 'unsafe-url'))
     }
-    if (!isObject(input.branding.login)) issues.push(pathValue('$.branding.login', 'object-required'))
-    else {
-      issues.push(...unknownKeyIssues(input.branding.login, LOGIN_KEYS, '$.branding.login'))
-      textField(issues, input.branding.login.slogan, '$.branding.login.slogan', 200)
-      textField(issues, input.branding.login.description, '$.branding.login.description', 1000)
-      textField(issues, input.branding.login.siteTag, '$.branding.login.siteTag', 120)
-      textField(issues, input.branding.login.footerText, '$.branding.login.footerText', 200)
-      if (typeof input.branding.login.backgroundImage !== 'string' || !isSafeAssetUrl(input.branding.login.backgroundImage)) {
-        issues.push(pathValue('$.branding.login.backgroundImage', 'unsafe-url'))
-      }
-    }
+    validateLoginProfile(issues, input.branding.login, '$.branding.login', {
+      requiredCore: true,
+      allowMobile: true
+    })
   }
 
   if (!isObject(input.endpoints)) issues.push(pathValue('$.endpoints', 'object-required'))
@@ -219,6 +308,36 @@ function trimTrailingSlash(value) {
   return text === '/' ? '/' : text.replace(/\/+$/, '')
 }
 
+function normalizeLoginList(value, contract) {
+  if (!Array.isArray(value)) return []
+  return value.slice(0, contract.max).map((item) => Object.fromEntries(
+    Object.keys(contract.keys)
+      .filter((key) => item?.[key] !== undefined)
+      .map((key) => [key, String(item[key] || '').trim()])
+  ))
+}
+
+function normalizeLoginProfile(input, { includeMissing = true, allowMobile = false } = {}) {
+  const source = isObject(input) ? input : {}
+  const normalized = {}
+  for (const key of Object.keys(LOGIN_TEXT_FIELDS)) {
+    if (includeMissing || source[key] !== undefined) normalized[key] = String(source[key] || '').trim()
+  }
+  for (const key of LOGIN_URL_FIELDS) {
+    if (includeMissing || source[key] !== undefined) normalized[key] = String(source[key] || '').trim()
+  }
+  if (includeMissing || source.showSecondaryAction !== undefined) {
+    normalized.showSecondaryAction = source.showSecondaryAction === true
+  }
+  for (const [key, contract] of Object.entries(LOGIN_LIST_FIELDS)) {
+    if (includeMissing || source[key] !== undefined) normalized[key] = normalizeLoginList(source[key], contract)
+  }
+  if (allowMobile && isObject(source.mobile)) {
+    normalized.mobile = normalizeLoginProfile(source.mobile, { includeMissing: false })
+  }
+  return normalized
+}
+
 function normalizeConfig(input) {
   return {
     schemaVersion: ENTERPRISE_CONFIG_SCHEMA_VERSION,
@@ -231,13 +350,7 @@ function normalizeConfig(input) {
       productName: input.branding.productName.trim(),
       themeColor: input.branding.themeColor.toUpperCase(),
       logoUrl: input.branding.logoUrl.trim(),
-      login: {
-        slogan: String(input.branding.login.slogan || '').trim(),
-        description: String(input.branding.login.description || '').trim(),
-        siteTag: String(input.branding.login.siteTag || '').trim(),
-        backgroundImage: input.branding.login.backgroundImage.trim(),
-        footerText: String(input.branding.login.footerText || '').trim()
-      }
+      login: normalizeLoginProfile(input.branding.login, { allowMobile: true })
     },
     endpoints: {
       publicBaseUrl: trimTrailingSlash(input.endpoints.publicBaseUrl.trim()),

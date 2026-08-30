@@ -75,7 +75,7 @@
               </span>
               <div>
                 <strong>当前登录页 Logo</strong>
-                <p>默认取自南派企业官网页面 Logo，可在这里替换为企业自有图片地址或上传图片。</p>
+                <p>默认取自企业部署配置，可在这里替换为企业自有图片地址或上传图片。</p>
               </div>
             </div>
           </div>
@@ -94,7 +94,7 @@
         </el-form-item>
 
         <el-form-item label="主宣传语">
-          <el-input v-model="form.loginBranding.slogan" placeholder="例如：深耕热带水果全产业链" />
+          <el-input v-model="form.loginBranding.slogan" placeholder="例如：连接业务与客户价值" />
         </el-form-item>
 
         <el-form-item label="企业介绍">
@@ -231,7 +231,7 @@
               :key="`capability-${index}`"
               class="dynamic-item"
             >
-              <el-input v-model="item.title" placeholder="能力标题，例如：热带水果制品" />
+              <el-input v-model="item.title" placeholder="能力标题，例如：精益制造" />
               <el-input
                 v-model="item.description"
                 type="textarea"
@@ -254,7 +254,7 @@
         <el-form-item label="指标区块">
           <div class="double-row">
             <el-input v-model="form.loginBranding.metricsSectionKicker" placeholder="小标题，例如：企业实力" />
-            <el-input v-model="form.loginBranding.metricsSectionTitle" placeholder="标题，例如：多年深耕热带水果产业" />
+            <el-input v-model="form.loginBranding.metricsSectionTitle" placeholder="标题，例如：稳定交付与持续创新" />
           </div>
         </el-form-item>
 
@@ -467,6 +467,8 @@ import {
   normalizeDisplayVisibility,
   saveStoredDisplayVisibility
 } from '@shared/eis-display-control'
+import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
+import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 
 const systemStore = useSystemStore()
 const userStore = useUserStore()
@@ -494,86 +496,17 @@ const predefineColors = [
   '#4f46e5'
 ]
 
-const NANPAI_LOGO_URL = 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg'
-
-const defaultForm = () => ({
-  title: '海边姑娘管理系统',
-  themeColor: '#409EFF',
-  notifications: true,
-  materialsCategoryDepth: 2,
-  visibility: normalizeDisplayVisibility(),
-  loginBranding: {
-    companyName: '广东南派食品有限公司',
-    slogan: '深耕热带水果全产业链，打造高品质水果制品方案',
-    description: '根据企业官网公开信息：公司成立于 2009 年，注册资金 1000 万元，总部位于中国雷州半岛；拥有湛江、广西两大加工基地和多条水果加工生产线，面向茶饮、烘焙、饮料与生鲜客户提供一站式水果制品解决方案。',
-    logo: NANPAI_LOGO_URL,
-    siteTag: '热带水果制品解决方案提供商',
-    announcement: '员工与合作伙伴入口',
-    headerLoginText: '员工通道',
-    authKicker: '员工入口',
-    authTitle: '账号登录',
-    authSafeNote: '账号由管理员统一分配',
-    authFootnote: '该入口仅供授权人员使用',
-    primaryActionText: '员工登录',
-    secondaryActionText: '了解平台',
-    secondaryActionUrl: '/eiscore',
-    scrollCueText: '向下了解企业',
-    metricsSectionKicker: '企业实力',
-    metricsSectionTitle: '多年深耕热带水果产业',
-    aboutSectionKicker: '关于企业',
-    capabilitiesSectionKicker: '产品与服务',
-    capabilitiesSectionTitle: '从产地原料到客户应用的完整服务',
-    leadersSectionKicker: '管理团队',
-    leadersSectionTitle: '管理团队',
-    backgroundImage: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgx6CtnwYoh8fKtgcwgA84vAU!1500x1500.jpg',
-    navItems: [
-      { label: '企业概况', anchor: 'overview' },
-      { label: '关于企业', anchor: 'about' },
-      { label: '产品服务', anchor: 'capabilities' },
-      { label: '企业实力', anchor: 'metrics' }
-    ],
-    metrics: [
-      { label: '成立时间', value: '2009' },
-      { label: '加工基地', value: '2' },
-      { label: '注册资金', value: '1000万' }
-    ],
-    trustBadges: [
-      { label: '雷州半岛产地优势' },
-      { label: '双加工基地' },
-      { label: '多场景客户服务' }
-    ],
-    businessChain: [
-      { title: '原料甄选', description: '依托热带水果产区资源，关注原料风味、成熟度与稳定供应。', status: '产地直采' },
-      { title: '加工制造', description: '围绕果浆、果粒、果酱等产品形态，支持规模化与定制化生产。', status: '稳定交付' },
-      { title: '客户服务', description: '面向茶饮、烘焙、饮料与生鲜渠道，提供产品方案和交付支持。', status: '多场景适配' }
-    ],
-    capabilities: [
-      { title: '热带水果制品', description: '围绕芒果、菠萝、百香果等热带水果，提供多形态原料产品。' },
-      { title: '规模化加工', description: '依托湛江、广西加工基地，保障稳定产能与产品一致性。' },
-      { title: '应用方案支持', description: '结合茶饮、烘焙、饮料等使用场景，提供选型与应用建议。' }
-    ],
-    carouselImages: [
-      {
-        url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg5uqnnwYoiNO9CjDcCziIBQ.jpg',
-        title: '热带水果全产业链布局',
-        subtitle: '覆盖种植、加工、研发、销售与服务'
-      },
-      {
-        url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3-CwnwYo_qL0ggIwjgI4nwM.jpg',
-        title: '加工与品控能力',
-        subtitle: '支持多品类水果制品的规模化生产'
-      },
-      {
-        url: 'https://29761748.s21i.faiusr.com/2/ABUIABACGAAgheiwnwYoj7jo0QQwjgI4nwM.jpg',
-        title: '面向多场景客户',
-        subtitle: '服务茶饮、烘焙、饮料与生鲜渠道'
-      }
-    ],
-    leaders: [],
-    footerText: 'Copyright © EISCore',
-    icpText: ''
+const defaultForm = () => {
+  const enterpriseConfig = getEnterpriseConfig(globalThis)
+  return {
+    title: enterpriseConfig.branding.productName,
+    themeColor: enterpriseConfig.branding.themeColor,
+    notifications: true,
+    materialsCategoryDepth: 2,
+    visibility: normalizeDisplayVisibility(),
+    loginBranding: normalizeLoginBranding({}, { enterpriseConfig })
   }
-})
+}
 
 const form = reactive(defaultForm())
 
