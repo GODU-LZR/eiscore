@@ -870,6 +870,7 @@ import {
 import axios from 'axios'
 import { hasPerm } from '@/utils/permission'
 import { resolveAppAclModule } from '@/utils/app-permissions'
+import { getToken, getUserInfo } from '@/utils/auth'
 
 const AppCenterGrid = defineAsyncComponent(() => import('@/components/AppCenterGrid.vue'))
 
@@ -1669,8 +1670,7 @@ const setDefaultWorkflowTab = () => {
 
 const readCurrentActor = () => {
   try {
-    const raw = localStorage.getItem('user_info')
-    const info = raw ? JSON.parse(raw) : {}
+    const info = getUserInfo() || {}
     currentActor.value = {
       username: String(info?.username || '').trim(),
       appRole: String(info?.app_role || info?.appRole || info?.role || '').trim()
@@ -2400,19 +2400,7 @@ const getBusinessProgressTime = (row) => {
   return `检测时间 ${raw}`
 }
 
-const getAuthToken = () => {
-  const raw = localStorage.getItem('auth_token')
-  if (!raw) return ''
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object' && parsed.token) {
-      return String(parsed.token).trim()
-    }
-  } catch {
-    // ignore and fallback to plain text
-  }
-  return String(raw).trim()
-}
+const getAuthToken = () => getToken().trim()
 
 const generateWorkflowBusinessKey = () => {
   const appPart = String(runtimeAppId.value || 'wf').replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'wf'
@@ -2609,7 +2597,7 @@ const transitionWorkflowByChoice = async (row, choice, options = {}) => {
   if (auto) markAutoAdvancing(row.id, true)
   instanceTransitioningId.value = row.id
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.post(
       '/api/rpc/transition_workflow_instance',
       {
@@ -2879,7 +2867,7 @@ async function refreshWorkflowData() {
 
 async function loadWorkflowBusinessApps() {
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get('/api/apps?app_type=eq.data&select=id,name,config,status&order=updated_at.desc', {
       headers: getAppCenterHeaders(token)
     })
@@ -2918,7 +2906,7 @@ async function initializeBpmnViewer() {
 async function loadStateMappings() {
   if (!runtimeAppId.value) return
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/workflow_state_mappings?workflow_app_id=eq.${runtimeAppId.value}`,
       {
@@ -2937,7 +2925,7 @@ async function loadWorkflowPolicy() {
     return
   }
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/workflow_permission_policies?workflow_app_id=eq.${runtimeAppId.value}&limit=1`,
       { headers: getAppCenterHeaders(token) }
@@ -2954,7 +2942,7 @@ async function loadWorkflowTransitionRules() {
     return
   }
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/workflow_transition_rules?workflow_app_id=eq.${runtimeAppId.value}&order=is_active.desc,id.asc`,
       { headers: getAppCenterHeaders(token) }
@@ -2981,7 +2969,7 @@ function openWorkflowPolicyDialog() {
 }
 
 async function upsertWorkflowPolicy(payload) {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const response = await axios.post(
     '/api/workflow_permission_policies?on_conflict=workflow_app_id',
     payload,
@@ -3093,7 +3081,7 @@ async function saveWorkflowRule() {
   if (!payload) return
   workflowRuleSaving.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const id = workflowRuleEditingId.value
     const response = id
       ? await axios.patch(
@@ -3125,7 +3113,7 @@ async function saveWorkflowRule() {
 async function toggleWorkflowTransitionRule(row) {
   if (!row?.id) return
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const nextActive = row?.is_active === false
     await axios.patch(
       `/api/workflow_transition_rules?id=eq.${encodeURIComponent(String(row.id))}`,
@@ -3151,7 +3139,7 @@ async function deleteWorkflowTransitionRule(row) {
     return
   }
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     await axios.delete(
       `/api/workflow_transition_rules?id=eq.${encodeURIComponent(String(row.id))}`,
       { headers: getAppCenterHeaders(token) }
@@ -3185,7 +3173,7 @@ const resolveWorkflowRuleUpsertPlan = (candidates) => {
 }
 
 async function persistWorkflowTransitionRulePlan(toCreate, toReactivate) {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const headers = {
     ...getAppCenterHeaders(token),
     Prefer: 'return=representation'
@@ -3304,7 +3292,7 @@ async function runWorkflowReadinessCheck() {
     missingRules = getMissingGeneratedWorkflowRules()
     requiredPermissions = getRequiredWorkflowPermissionEntries(missingRules)
     const permissionCodes = requiredPermissions.map((item) => item.code)
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const publicHeaders = getPublicHeaders(token)
     const warnings = []
 
@@ -3409,7 +3397,7 @@ async function createMissingWorkflowPermissionDefs() {
 
   workflowPermissionDefSaving.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     await axios.post('/api/permissions?on_conflict=code', rows, {
       headers: {
         ...getPublicHeaders(token),
@@ -3480,7 +3468,7 @@ async function createMissingWorkflowRoleGrants() {
 
   workflowRoleGrantSaving.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const publicHeaders = getPublicHeaders(token)
     const roleFilter = buildPostgrestInFilter(roleCodes)
     const permissionFilter = buildPostgrestInFilter(permissionCodes)
@@ -3609,7 +3597,7 @@ async function ensureWorkflowDefinitionId() {
   }
 
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/definitions?app_id=eq.${runtimeAppId.value}&order=id.desc&limit=1`,
       { headers: getWorkflowHeaders(token) }
@@ -3634,7 +3622,7 @@ async function loadTaskAssignments() {
     return
   }
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/task_assignments?definition_id=eq.${workflowDefinitionId.value}&order=id.asc`,
       { headers: getWorkflowHeaders(token) }
@@ -3867,7 +3855,7 @@ async function loadWorkflowInstances() {
   }
   instanceLoading.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/instances?definition_id=eq.${workflowDefinitionId.value}&order=started_at.desc`,
       { headers: getWorkflowHeaders(token) }
@@ -3910,7 +3898,7 @@ async function loadWorkflowEvents() {
     return
   }
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/instance_events?definition_id=eq.${workflowDefinitionId.value}&order=created_at.desc&limit=40`,
       { headers: getWorkflowHeaders(token) }
@@ -3930,7 +3918,7 @@ async function startWorkflowInstance() {
 
   instanceStarting.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const initialTaskId = taskAssignments.value[0]?.task_id
       || stateMappings.value[0]?.bpmn_task_id
       || resolveFirstUserTaskId(appData.value?.bpmn_xml)

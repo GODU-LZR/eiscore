@@ -9,6 +9,7 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const productRoots = readdirSync(repoRoot, { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && entry.name.startsWith('eiscore-'))
   .map((entry) => resolve(repoRoot, entry.name, 'src'))
+const runtimeRoots = [...productRoots, resolve(repoRoot, 'shared')]
 const sourceExtensions = new Set(['.js', '.vue'])
 const directSessionPattern = /localStorage\.(?:getItem|setItem|removeItem)\(\s*(['"])(?:auth_token|user_info)\1/g
 
@@ -25,14 +26,14 @@ function collectSources(root) {
   return files
 }
 
-const inventory = productRoots.flatMap(collectSources).flatMap((file) => {
+const inventory = runtimeRoots.flatMap(collectSources).flatMap((file) => {
   const source = readFileSync(file, 'utf8')
   return [...source.matchAll(directSessionPattern)].map(() => relative(repoRoot, file).replaceAll('\\', '/'))
 })
 const affectedFiles = new Set(inventory)
 
-assert.ok(inventory.length > 0, 'remove this bounded inventory after all direct session consumers are migrated')
-assert.ok(inventory.length <= 20, `direct session calls increased: ${inventory.length} > 20`)
-assert.ok(affectedFiles.size <= 1, `direct session files increased: ${affectedFiles.size} > 1`)
+assert.ok(inventory.length > 0, 'replace this bounded inventory with a strict zero gate after shared consumers migrate')
+assert.ok(inventory.length <= 3, `direct session calls increased: ${inventory.length} > 3`)
+assert.ok(affectedFiles.size <= 3, `direct session files increased: ${affectedFiles.size} > 3`)
 
 console.log(`PASS: bounded direct session inventory (${inventory.length} calls in ${affectedFiles.size} files)`)
