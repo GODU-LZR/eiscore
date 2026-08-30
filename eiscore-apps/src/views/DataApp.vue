@@ -72,6 +72,7 @@ import { ArrowLeft } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { DATA_APP_COLUMN_TYPES, normalizeColumnType } from '@/utils/data-app-columns'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
+import { getToken } from '@/utils/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -104,7 +105,7 @@ async function loadAppData() {
   if (!appId.value) return
 
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get(
       `/api/apps?id=eq.${appId.value}`,
       {
@@ -165,7 +166,7 @@ function removeColumn(index) {
 async function saveConfig() {
   saving.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const nextConfig = ensureSemanticConfig({ ...config.value, columns: columns.value })
     if (Object.prototype.hasOwnProperty.call(nextConfig, 'filters')) {
       delete nextConfig.filters
@@ -199,7 +200,7 @@ async function publishApp() {
     config.value.table = tableName
     await saveConfig()
     
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     await axios.patch(
       `/api/apps?id=eq.${appId.value}`,
       {
@@ -220,7 +221,7 @@ async function publishApp() {
 }
 
 async function ensureDataTable() {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const current = config.value.table?.trim()
   const fallback = `data_app_${String(appId.value).replace(/-/g, '').slice(0, 8)}`
   const tableName = current ? current.split('.').pop() : fallback

@@ -224,6 +224,7 @@ import axios from 'axios'
 import { ensureAppAclConfig, ensureAppPermissions, cleanupAppPermissions, resolveAppAclModule } from '@/utils/app-permissions'
 import { DATA_APP_COLUMN_TYPES, normalizeColumnType } from '@/utils/data-app-columns'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
+import { getToken } from '@/utils/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -344,7 +345,7 @@ const isCreateAppForbidden = (error) => {
 
 const loadApps = async () => {
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const response = await axios.get('/api/apps', {
       headers: getAppCenterHeaders(token),
       params: { order: 'created_at.desc' }
@@ -434,7 +435,7 @@ const saveApp = async () => {
   if (!selectedAppId.value) return
   saving.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const current = apps.value.find((item) => item.id === selectedAppId.value)
     const currentConfig = normalizeConfig(current?.config)
     const readonly = isOntologyReadonlyApp(current)
@@ -523,7 +524,7 @@ const deleteApp = async () => {
 
   deleting.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     await axios.delete(`/api/apps?id=eq.${selectedAppId.value}`, {
       headers: getAppCenterHeaders(token)
     })
@@ -553,7 +554,7 @@ const createApp = async () => {
   }
   creating.value = true
   try {
-    const token = localStorage.getItem('auth_token')
+    const token = getToken()
     const categoryMap = { workflow: 1, data: 2, flash: 3, custom: 4 }
     const payload = {
       ...newAppForm.value,
