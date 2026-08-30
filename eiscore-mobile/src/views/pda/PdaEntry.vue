@@ -83,7 +83,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
-import { getToken } from '@/utils/auth'
+import { fetchPdaWarehouses, fetchRecentChecks } from '@/api/warehouse'
 
 const router = useRouter()
 const searchKeyword = ref('')
@@ -106,16 +106,7 @@ onMounted(async () => {
 async function loadWarehouses() {
   warehouseLoading.value = true
   try {
-    const token = getToken()
-    const res = await fetch('/api/warehouses?select=code,name&order=code.asc', {
-      headers: {
-        'Accept-Profile': 'scm',
-        Authorization: `Bearer ${token}`
-      }
-    })
-    if (res.ok) {
-      warehouses.value = await res.json()
-    }
+    warehouses.value = await fetchPdaWarehouses()
   } catch (e) {
     console.error('加载仓库失败:', e)
   } finally {
@@ -125,19 +116,7 @@ async function loadWarehouses() {
 
 async function loadRecentRecords() {
   try {
-    const token = getToken()
-    const res = await fetch(
-      '/api/inventory_checks?select=id,check_no,warehouse_id,check_date,status,total_items,diff_count,created_at&order=created_at.desc&limit=5',
-      {
-        headers: {
-          'Accept-Profile': 'scm',
-          Authorization: `Bearer ${token}`
-        }
-      }
-    )
-    if (res.ok) {
-      recentRecords.value = await res.json()
-    }
+    recentRecords.value = await fetchRecentChecks(5)
   } catch (e) {
     console.error('加载盘点记录失败:', e)
   }

@@ -157,4 +157,18 @@ for (const [path, contract] of Object.entries(endpointContracts)) {
   }
 }
 
+const warehouseApi = read('eiscore-mobile/src/api/warehouse.js')
+assert.match(warehouseApi, /export const fetchPdaWarehouses\s*=\s*\(\)\s*=>/)
+assert.match(warehouseApi, /select:\s*['"]code,name['"]/)
+assert.match(warehouseApi, /order:\s*['"]code\.asc['"]/)
+assert.match(warehouseApi, /export const fetchRecentChecks\s*=\s*\(limit\s*=\s*5\)\s*=>/)
+assert.match(warehouseApi, /select:\s*['"]id,check_no,warehouse_id,check_date,status,total_items,diff_count,created_at['"]/)
+assert.match(warehouseApi, /order:\s*['"]created_at\.desc['"]/)
+
+const pdaEntry = read('eiscore-mobile/src/views/pda/PdaEntry.vue')
+assert.match(pdaEntry, /import \{ fetchPdaWarehouses, fetchRecentChecks \} from ['"]@\/api\/warehouse['"]/)
+assert.match(pdaEntry, /warehouses\.value\s*=\s*await fetchPdaWarehouses\(\)/)
+assert.match(pdaEntry, /recentRecords\.value\s*=\s*await fetchRecentChecks\(5\)/)
+assert.doesNotMatch(pdaEntry, /\bfetch\s*\(|\bgetToken\b|Authorization/)
+
 console.log('PASS: mobile protected API wrappers use platform HTTP')
