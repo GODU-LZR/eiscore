@@ -20,7 +20,7 @@
 - 各前端现有 Auth、Request、Realtime 工具共 27 份，其中多份内容相同或高度相似。
 - 11 个 HTML 入口的标题尚未统一，部分仍是 `Vite App`，生产模块标题还误写为 Sales。
 
-企业配置、模块注册、平台导航、登录品牌和移动端启动现已接入统一平台入口；Auth、Request、Realtime 仍按后续小切片渐进收敛。
+企业配置、模块注册、平台导航、登录品牌和移动端启动现已接入统一平台入口；Auth/Session 已完成基座与移动端首批迁移，其他微应用 Auth、Request、Realtime 仍按后续小切片渐进收敛。
 
 ## 安全与兼容规则
 
@@ -31,6 +31,8 @@
 - 返回对象递归冻结，业务页面不得在运行时修改企业配置。
 
 平台 HTTP 客户端使用 `endpoints.publicBaseUrl` 与 `apiBasePath`/`agentBasePath` 解析请求地址。业务代码只提交资源路径，不能覆盖为任意外部 URL；认证头、超时、401 通知和错误脱敏由平台契约统一处理。决策边界见 `adr/0003-platform-http-boundary.md`。
+
+平台 Auth/Session 继续兼容 `auth_token`、`user_info` 及纯文本/JSON Token 存量格式；平台安全存储捕获浏览器禁用存储、配额不足与 JSON 损坏，不输出 Key 或 Value。登录路径仍由各前端决定，边界见 `adr/0004-platform-auth-session-boundary.md`。
 
 ## 基座启动接入
 

@@ -2,89 +2,40 @@
 // Copyright (c) 2026 林志荣
 
 /**
- * 移动端鉴权工具
- * 与基座共用同一套 JWT Token / PostgREST 接口
+ * 移动端鉴权适配器。
+ * Token 与用户信息格式由平台会话契约统一，移动端只保留页面跳转策略。
  */
 
-const TOKEN_KEY = 'auth_token'
-const USER_KEY = 'user_info'
+import {
+  createAuthSession,
+  isTokenExpired as platformIsTokenExpired,
+  parseJwtPayload
+} from '@eiscore/platform/auth-session'
+
+const authSession = createAuthSession()
 
 /** 解析 JWT payload（纯前端，不做签名校验） */
-export function parseJwt(token) {
-  try {
-    const base64Url = token.split('.')[1]
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-    const jsonPayload = decodeURIComponent(
-      window
-        .atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
-    )
-    return JSON.parse(jsonPayload)
-  } catch {
-    return null
-  }
-}
+export const parseJwt = (token) => parseJwtPayload(token)
 
-/** 从 localStorage 读取实际 token 字符串 */
-export function getToken() {
-  const raw = localStorage.getItem(TOKEN_KEY)
-  if (!raw) return ''
-  let token = ''
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed?.token) token = parsed.token
-  } catch {
-    // ignore
-  }
-  if (!token) token = raw
-  if (token && token.length > 8192) {
-    clearAuth()
-    return ''
-  }
-  return token
-}
+/** 从浏览器安全存储读取实际 token 字符串 */
+export const getToken = () => authSession.getToken()
 
 /** token 是否已过期 */
-export function isTokenExpired(token) {
-  if (!token) return true
-  const payload = parseJwt(token)
-  if (!payload || typeof payload.exp !== 'number') return true
-  return Date.now() / 1000 >= payload.exp
-}
+export const isTokenExpired = (token) => platformIsTokenExpired(token)
 
 /** 保存鉴权信息（与基座保持格式一致） */
-export function setAuth(token, userInfo) {
-  localStorage.setItem(TOKEN_KEY, JSON.stringify({ token }))
-  if (userInfo) {
-    localStorage.setItem(USER_KEY, JSON.stringify(userInfo))
-  }
-}
+export const setAuth = (token, userInfo) => authSession.setAuth(token, userInfo)
 
 /** 清除鉴权信息 */
-export function clearAuth() {
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(USER_KEY)
-}
+export const clearAuth = () => authSession.clearAuth()
 
 /** 获取已登录的用户信息 */
-export function getUserInfo() {
-  try {
-    const raw = localStorage.getItem(USER_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
-}
+export const getUserInfo = () => authSession.getUserInfo()
 
 /** 检查当前是否已登录（token 存在且未过期） */
-export function isAuthenticated() {
-  const token = getToken()
-  return !!token && !isTokenExpired(token)
-}
+export const isAuthenticated = () => authSession.isAuthenticated()
 
-/** 带 Authorization 的 fetch 封装 */
+/** 带 Authorization 的 fetch 兼容封装 */
 export async function authFetch(url, options = {}) {
   const token = getToken()
   const headers = {
@@ -92,7 +43,7 @@ export async function authFetch(url, options = {}) {
     ...(options.headers || {})
   }
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+    headers.Authorization = `Bearer ${token}`
   }
   const res = await fetch(url, { ...options, headers })
   if (res.status === 401) {
