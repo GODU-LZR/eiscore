@@ -1785,11 +1785,16 @@ const applyDataImport = async (info, messageKey) => {
     const headers = { 'Accept': 'application/json', 'Accept-Profile': 'public' }
     if (token) headers.Authorization = `Bearer ${token}`
     const likePattern = `${prefix}.%`
-    const url = `/api/raw_materials?select=batch_no&batch_no=like.${encodeURIComponent(
+    const url = `/raw_materials?select=batch_no&batch_no=like.${encodeURIComponent(
       likePattern
     )}&order=batch_no.desc&limit=1`
-    const res = await fetch(url, { headers })
-    const data = res.ok ? await res.json() : []
+    let data = []
+    try {
+      ({ data } = await getHostHttpClient().requestJson(url, { headers }))
+    } catch (error) {
+      if (!error?.status) throw error
+      data = []
+    }
     const latest = Array.isArray(data) && data.length ? data[0].batch_no : ''
     const next = parseSeq(latest) + 1
     nextSeqMap.set(prefix, next)
@@ -1864,18 +1869,23 @@ const applyDataImport = async (info, messageKey) => {
       headers['Content-Profile'] = target.profile
     }
     if (token) headers.Authorization = `Bearer ${token}`
-    const url = target.apiUrl.startsWith('/api') ? target.apiUrl : `/api${target.apiUrl}`
-    const res = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload)
-    })
-    if (res.status === 401) {
-      importState.value[messageKey] = 'error'
-      ElMessage.error('登录已过期，请重新登录后再导入')
-      return
+    const resourceUrl = target.apiUrl.startsWith('/api')
+      ? (target.apiUrl.slice(4) || '/')
+      : target.apiUrl
+    try {
+      await getHostHttpClient().requestJson(resourceUrl, {
+        method: 'POST',
+        headers,
+        body: payload
+      })
+    } catch (error) {
+      if (error?.code === 'unauthorized') {
+        importState.value[messageKey] = 'error'
+        ElMessage.error('登录已过期，请重新登录后再导入')
+        return
+      }
+      throw error
     }
-    if (!res.ok) throw new Error(`导入失败: ${res.status}`)
     importState.value[messageKey] = 'done'
     const skippedReason = isMaterialsImport ? '物料名称或分类缺失' : '空行或无有效字段'
     const extra = skipped > 0 ? `，跳过 ${skipped} 行（${skippedReason}）` : ''
