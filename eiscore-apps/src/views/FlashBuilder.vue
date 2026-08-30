@@ -384,6 +384,7 @@ import {
   RefreshRight
 } from '@element-plus/icons-vue'
 import axios from 'axios'
+import { getToken, getUserInfo } from '@/utils/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -669,22 +670,9 @@ const previewStageStyle = computed(() => {
   }
 })
 
-const getAuthToken = () => {
-  const raw = localStorage.getItem('auth_token')
-  if (!raw) return ''
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object' && parsed.token) return String(parsed.token)
-  } catch {
-    // ignore
-  }
-  return String(raw)
-}
-
 const readCurrentUser = () => {
   try {
-    const raw = localStorage.getItem('user_info')
-    const parsed = raw ? JSON.parse(raw) : {}
+    const parsed = getUserInfo() || {}
     return {
       username: String(parsed?.username || '').trim() || 'unknown',
       appRole: String(parsed?.app_role || parsed?.role || '').trim() || 'unknown'
@@ -780,7 +768,7 @@ const buildTraceId = (prefix = 'tr') => `${prefix}_${Date.now()}_${Math.random()
 const buildIdempotencyKey = (prefix = 'idem') => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
 
 const callFlashTool = async (toolId, toolArgs = {}, options = {}) => {
-  const token = getAuthToken()
+  const token = getToken()
   if (!token) throw new Error('缺少登录令牌，请重新登录')
 
   const writeTool = FLASH_WRITE_TOOL_IDS.has(toolId) || options.write === true
@@ -2334,7 +2322,7 @@ const handleShellEvent = (event) => {
 }
 
 const getWsProtocols = () => {
-  const token = getAuthToken()
+  const token = getToken()
   return token ? ['bearer', token] : []
 }
 

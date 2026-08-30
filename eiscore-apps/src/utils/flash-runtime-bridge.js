@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+import { getToken, getUserInfo } from '@/utils/auth'
+
 const FLASH_WRITE_TOOL_IDS = new Set([
   'flash.draft.write',
   'flash.attachment.upload',
@@ -28,22 +30,11 @@ const FLASH_WRITE_TOOL_IDS = new Set([
   'flash.ontology.semantic.enrich'
 ])
 
-const readAuthToken = () => {
-  const raw = localStorage.getItem('auth_token')
-  if (!raw) return ''
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object' && parsed.token) return String(parsed.token).trim()
-  } catch {
-    // fallback to raw token
-  }
-  return String(raw).trim()
-}
+const readAuthToken = () => String(getToken() || '').trim()
 
 const readCurrentUser = () => {
   try {
-    const raw = localStorage.getItem('user_info')
-    const parsed = raw ? JSON.parse(raw) : {}
+    const parsed = getUserInfo() || {}
     return {
       username: String(parsed?.username || parsed?.user_name || parsed?.name || '').trim(),
       appRole: String(parsed?.app_role || parsed?.role || '').trim()

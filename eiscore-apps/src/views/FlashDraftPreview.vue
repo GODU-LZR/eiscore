@@ -16,6 +16,7 @@ import * as VueRuntime from 'vue'
 import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue'
 import { compile } from '@vue/compiler-dom'
 import { useRoute } from 'vue-router'
+import { getToken } from '@/utils/auth'
 
 const route = useRoute()
 const runtimeComponent = ref(null)
@@ -41,18 +42,6 @@ const DEFAULT_FLASH_DRAFT_SOURCE = `<template>
 
 const appId = computed(() => String(route.query.appId || route.query.app_id || '').trim())
 
-const readAuthToken = () => {
-  const raw = localStorage.getItem('auth_token')
-  if (!raw) return ''
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed && typeof parsed === 'object' && parsed.token) return String(parsed.token)
-  } catch {
-    // fallback to raw token
-  }
-  return String(raw)
-}
-
 const getDraftUrls = () => {
   const query = appId.value ? `?appId=${encodeURIComponent(appId.value)}` : ''
   const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
@@ -64,7 +53,7 @@ const getDraftUrls = () => {
 }
 
 const fetchDraftSource = async () => {
-  const token = readAuthToken()
+  const token = getToken()
   let lastError = null
   for (const url of getDraftUrls()) {
     try {
