@@ -79,4 +79,17 @@ const loaded = await loadEnterpriseConfig({
 })
 assert.equal(loaded.enterprise.displayName, example.enterprise.displayName)
 
+const invalidJsonWarnings = []
+const invalidJsonFallback = await loadEnterpriseConfig({
+  globalConfig: null,
+  fetchImpl: async () => ({
+    ok: true,
+    status: 200,
+    json: async () => { throw new SyntaxError('HTML response') }
+  }),
+  onWarning: (warning) => invalidJsonWarnings.push(warning.code)
+})
+assert.equal(invalidJsonFallback, DEFAULT_ENTERPRISE_CONFIG)
+assert.deepEqual(invalidJsonWarnings, ['invalid-json'])
+
 console.log(`PASS: enterprise configuration contract (${ENTERPRISE_MODULE_IDS.length} modules)`)

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+import { DEFAULT_ENTERPRISE_CONFIG } from '@eiscore/platform/enterprise-config'
+
 const hasQiankunContainer = () => {
   if (typeof document === 'undefined') return false
   return !!document.querySelector('#subapp-viewport')
@@ -15,8 +17,9 @@ const withContainerRule = (prefix) => (location) => {
   return matched && hasQiankunContainer()
 }
 
-const apps = [
+const appDefinitions = [
   {
+    moduleId: 'hr',
     name: 'eiscore-hr',
     // Keep sub-app entry same-origin to avoid CORS in host prefetch/runtime.
     entry: '/hr/index.html',
@@ -24,54 +27,73 @@ const apps = [
     activeRule: withContainerRule('/hr'),
   },
   {
+    moduleId: 'materials',
     name: 'eiscore-materials',
     entry: '/materials/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/materials'),
   },
   {
+    moduleId: 'sales',
     name: 'eiscore-sales',
     entry: '/sales/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/sales'),
   },
   {
+    moduleId: 'purchase',
     name: 'eiscore-purchase',
     entry: '/purchase/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/purchase'),
   },
   {
+    moduleId: 'production',
     name: 'eiscore-production',
     entry: '/production/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/production'),
   },
   {
+    moduleId: 'quality',
     name: 'eiscore-quality',
     entry: '/quality/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/quality'),
   },
   {
+    moduleId: 'equipment',
     name: 'eiscore-equipment',
     entry: '/equipment/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/equipment'),
   },
   {
+    moduleId: 'decision',
     name: 'eiscore-decision',
     entry: '/decision/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/decision'),
   },
   {
+    moduleId: 'apps',
     name: 'eiscore-apps',
     // Use explicit html entry to avoid redirect chains that may jump to :8083.
     entry: '/apps/index.html',
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/apps'),
   },
-];
+]
 
-export default apps;
+export function createMicroApps(enterpriseConfig = DEFAULT_ENTERPRISE_CONFIG) {
+  const resolvedConfig = enterpriseConfig || DEFAULT_ENTERPRISE_CONFIG
+  const modules = resolvedConfig.modules || DEFAULT_ENTERPRISE_CONFIG.modules
+  return appDefinitions
+    .filter((app) => modules[app.moduleId] !== false)
+    .map(({ moduleId, ...app }) => ({
+      ...app,
+      props: { enterpriseConfig: resolvedConfig }
+    }))
+}
+
+export default createMicroApps()

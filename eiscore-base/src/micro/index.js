@@ -3,7 +3,7 @@
 
 import { registerMicroApps, start, initGlobalState } from 'qiankun'
 import { setBootstrapMaxTime, setMountMaxTime, setUnmountMaxTime, addErrorHandler, unloadApplication } from 'single-spa'
-import apps from './apps'
+import { createMicroApps } from './apps'
 import { aiBridge } from '@/utils/ai-bridge' 
 import { syncEisThemeScopes } from '@shared/eis-theme-sync'
 
@@ -11,7 +11,7 @@ import { syncEisThemeScopes } from '@shared/eis-theme-sync'
  * 初始化微前端架构
  * 包含：子应用注册、全局状态管理、AI通信桥接
  */
-export function registerQiankun() {
+export function registerQiankun(enterpriseConfig = window.__EISCORE_ENTERPRISE_CONFIG__) {
   if (window.__EIS_QIANKUN_STARTED__) return
   if (window.__EIS_QIANKUN_STARTING__) return
   window.__EIS_QIANKUN_STARTING__ = true
@@ -105,7 +105,8 @@ export function registerQiankun() {
     window.__EIS_QIANKUN_ERROR_HANDLER_READY__ = true
   }
 
-  // 1. 注册子应用
+  // 1. 注册企业配置中启用的子应用
+  const apps = createMicroApps(enterpriseConfig)
   registerMicroApps(apps, {
     beforeLoad: app => {
       window.dispatchEvent(new CustomEvent('eis:micro-loading', { detail: { app: app?.name || '', loading: true } }))
@@ -135,7 +136,8 @@ export function registerQiankun() {
     user: 'admin',
     user_info: null,
     context: null,  // 用于子应用上报页面信息给 AI
-    command: null
+    command: null,
+    enterpriseConfig
   })
 
   // 3. 将 actions 交给 AI Bridge 托管

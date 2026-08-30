@@ -281,5 +281,13 @@ export async function loadEnterpriseConfig({
     return DEFAULT_ENTERPRISE_CONFIG
   }
   if (!response.ok) throw new EnterpriseConfigError(url, [pathValue('$', `http-${response.status}`)])
-  return parseEnterpriseConfig(await response.json(), { source: url })
+  let input
+  try {
+    input = await response.json()
+  } catch {
+    if (required) throw new EnterpriseConfigError(url, [pathValue('$', 'invalid-json')])
+    onWarning({ code: 'invalid-json', source: url })
+    return DEFAULT_ENTERPRISE_CONFIG
+  }
+  return parseEnterpriseConfig(input, { source: url })
 }

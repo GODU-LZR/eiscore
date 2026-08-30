@@ -5,6 +5,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia' // 👈 引入 Pinia
 import App from './App.vue'
 import router from './router'
+import { bootstrapEnterpriseConfig, renderEnterpriseConfigFailure } from './platform/enterprise-config'
 
 // 🟢 Element Plus 完整引入
 import ElementPlus from 'element-plus'
@@ -16,18 +17,19 @@ import { patchElMessage } from '@/utils/message-patch'
 
 patchElMessage()
 
-const app = createApp(App)
+const mountHostApplication = () => {
+  const app = createApp(App)
+  app.use(createPinia()) // 👈 挂载 Pinia
+  app.use(router)
+  app.use(ElementPlus)
 
-app.use(createPinia()) // 👈 挂载 Pinia
-app.use(router)
-app.use(ElementPlus)
+  // 注册所有图标
+  for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+    app.component(key, component)
+  }
 
-// 注册所有图标
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
+  app.mount('#app')
 }
-
-app.mount('#app')
 
 // Global fetch guard for 401 -> redirect to login
 if (typeof window !== 'undefined' && window.fetch) {
@@ -84,7 +86,7 @@ const startQiankunWhenContainerReady = () => {
     if (!document.querySelector('#subapp-viewport')) return false
     stopQiankunStartObserver()
     loadQiankunModule()
-      .then(({ registerQiankun }) => registerQiankun())
+      .then(({ registerQiankun }) => registerQiankun(window.__EISCORE_ENTERPRISE_CONFIG__))
       .catch((error) => {
         console.error('[Qiankun] load micro runtime failed', error)
       })
@@ -99,10 +101,22 @@ const startQiankunWhenContainerReady = () => {
   qiankunStartObserver.observe(document.body, { childList: true, subtree: true })
 }
 
-// Start qiankun only after the authenticated layout has rendered its sub-app mount point.
-router.isReady().then(() => {
+const bootstrap = async () => {
+  await bootstrapEnterpriseConfig({
+    isProduction: import.meta.env.PROD,
+    onWarning: ({ code }) => console.warn(`[enterprise-config] ${code}`)
+  })
+  mountHostApplication()
+
+  // Start qiankun only after the authenticated layout has rendered its sub-app mount point.
+  await router.isReady()
   window.requestAnimationFrame(startQiankunWhenContainerReady)
   router.afterEach(() => {
     window.requestAnimationFrame(startQiankunWhenContainerReady)
   })
+}
+
+bootstrap().catch(() => {
+  console.error('[enterprise-config] host bootstrap failed')
+  renderEnterpriseConfigFailure()
 })
