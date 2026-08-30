@@ -159,6 +159,24 @@ for (const target of [
 }
 
 {
+  const calls = []
+  const scmPaths = new Set(['/inventory_batches', '/warehouses'])
+  const service = createPlatformAxiosClient({
+    axios: createAxiosStub(async (config) => {
+      calls.push(config)
+      return { status: 200, data: [], config }
+    }),
+    enterpriseConfig: remoteConfig,
+    defaultProfile: (_config, { path }) => scmPaths.has(path) ? 'scm' : 'public'
+  })
+  await service({ url: '/inventory_batches?status=neq.deleted' })
+  await service({ url: '/system_configs' })
+  assert.equal(calls[0].url, 'https://erp.example.com/tenant/api/inventory_batches?status=neq.deleted')
+  assert.equal(calls[0].headers['Accept-Profile'], 'scm')
+  assert.equal(calls[1].headers['Accept-Profile'], 'public')
+}
+
+{
   const error = Object.assign(new Error('request leaked?secret-query-value'), {
     response: { status: 401 }
   })

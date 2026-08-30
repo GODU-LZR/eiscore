@@ -277,6 +277,7 @@ export function createPlatformAxiosClient({
     })
     config.url = normalized.url
     config[SAFE_PATH] = safeResourcePath(normalized.resourceTarget)
+    const requestContext = Object.freeze({ path: config[SAFE_PATH] })
     try {
       config[SHOULD_NOTIFY_ERROR] = shouldNotifyError(config) !== false
     } catch {
@@ -296,7 +297,7 @@ export function createPlatformAxiosClient({
     if (token) setHeader(config.headers, 'Authorization', `Bearer ${token}`)
 
     const profile = typeof defaultProfile === 'function'
-      ? defaultProfile(config)
+      ? defaultProfile(config, requestContext)
       : defaultProfile
     if (profile && !hasHeader(config.headers, 'Accept-Profile')) {
       setHeader(config.headers, 'Accept-Profile', String(profile))

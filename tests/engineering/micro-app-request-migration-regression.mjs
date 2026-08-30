@@ -14,14 +14,20 @@ for (const [moduleId, timeoutMs, defaultProfile, expectedAccept, expectedSilence
   ['sales', 5000, 'public', false, true, false],
   ['hr', 5000, 'hr', false, false, false],
   ['apps', 8000, 'app_center', false, false, false],
-  ['production', 8000, 'scm', false, false, true]
+  ['production', 8000, 'scm', false, false, true],
+  ['materials', 5000, '', false, false, false]
 ]) {
   const requestPath = resolve(repoRoot, `eiscore-${moduleId}/src/utils/request.js`)
   const source = readFileSync(requestPath, 'utf8')
   assert.match(source, /createPlatformAxiosClient/)
   assert.match(source, /from '@eiscore\/platform\/axios-client'/)
   assert.match(source, /axios,\s*\n\s*getAccessToken: getToken/)
-  assert.match(source, new RegExp(`defaultProfile: '${defaultProfile}'`))
+  if (defaultProfile) {
+    assert.match(source, new RegExp(`defaultProfile: '${defaultProfile}'`))
+  } else {
+    assert.match(source, /defaultProfile: \(_config, \{ path \}\) => resolveDefaultProfile\(path\)/)
+    assert.match(source, /SCM_ENDPOINTS/)
+  }
   assert.match(source, new RegExp(`timeoutMs: ${timeoutMs}`))
   assert.match(source, /clearAuthAndRedirect\('\/login'\)/)
   assert.doesNotMatch(source, /axios\.create|interceptors\.(request|response)/)
@@ -42,4 +48,4 @@ for (const [moduleId, timeoutMs, defaultProfile, expectedAccept, expectedSilence
   }
 }
 
-console.log('PASS: standard-profile Request migration contract (7 applications)')
+console.log('PASS: profile-aware Request migration contract (8 applications)')
