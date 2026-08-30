@@ -516,6 +516,7 @@ import { ref, computed, nextTick, watch, onMounted, onUpdated, onBeforeUnmount }
 import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
 import { getToken, parseJwtPayload } from '@/utils/auth'
+import { getHostHttpClient } from '@/platform/http-client'
 import {
   SMART_BI_DOMAINS,
   SMART_BI_COMMON_QUESTIONS,
@@ -1474,15 +1475,10 @@ const isSameTemplateScope = (left, right) => {
 
 const loadTemplateLibrary = async () => {
   try {
-    const token = getAuthToken()
-    const headers = { 'Accept': 'application/json', 'Accept-Profile': 'public' }
-    if (token) headers.Authorization = `Bearer ${token}`
     const key = encodeURIComponent(getCurrentTemplateLibraryKey())
-    const res = await fetch(`/api/system_configs?key=eq.${key}`, {
-      headers
+    const { data } = await getHostHttpClient().requestJson(`/system_configs?key=eq.${key}`, {
+      headers: { 'Accept-Profile': 'public' }
     })
-    if (!res.ok) return []
-    const data = await res.json()
     return Array.isArray(data) && data.length > 0 ? (data[0].value || []) : []
   } catch (e) {
     return []
@@ -1490,20 +1486,17 @@ const loadTemplateLibrary = async () => {
 }
 
 const saveTemplateLibrary = async (templates) => {
-  const token = getAuthToken()
   const key = getCurrentTemplateLibraryKey()
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept-Profile': 'public',
-    'Content-Profile': 'public',
-    'Prefer': 'resolution=merge-duplicates'
-  }
-  if (token) headers.Authorization = `Bearer ${token}`
-  return fetch('/api/system_configs', {
+  await getHostHttpClient().requestJson('/system_configs', {
     method: 'POST',
-    headers,
-    body: JSON.stringify({ key, value: templates })
+    headers: {
+      'Accept-Profile': 'public',
+      'Content-Profile': 'public',
+      Prefer: 'resolution=merge-duplicates'
+    },
+    body: { key, value: templates }
   })
+  return true
 }
 
 const buildTemplateRecord = (schema) => {
@@ -1547,8 +1540,8 @@ const saveFormTemplate = async (schema, messageKey) => {
     } else {
       templates.unshift(record)
     }
-    const res = await saveTemplateLibrary(templates)
-    if (!res.ok) throw new Error('保存失败')
+    const saved = await saveTemplateLibrary(templates)
+    if (!saved) throw new Error('保存失败')
     templateSaveState.value[messageKey] = 'saved'
     ElMessage.success('模板已保存到模板库')
     window.dispatchEvent(new CustomEvent('eis-form-templates-updated', {
@@ -1900,20 +1893,20 @@ const saveSystemConfig = async (key, value) => {
   if (token && isTokenExpired(token)) {
     throw new Error('登录已过期')
   }
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept-Profile': 'public',
-    'Content-Profile': 'public',
-    'Prefer': 'resolution=merge-duplicates'
+  try {
+    await getHostHttpClient().requestJson('/system_configs', {
+      method: 'POST',
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public',
+        Prefer: 'resolution=merge-duplicates'
+      },
+      body: { key, value }
+    })
+  } catch (error) {
+    if (error?.code === 'unauthorized') throw new Error('登录已过期')
+    throw new Error('保存失败')
   }
-  if (token) headers.Authorization = `Bearer ${token}`
-  const res = await fetch('/api/system_configs', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ key, value })
-  })
-  if (res.status === 401) throw new Error('登录已过期')
-  if (!res.ok) throw new Error('保存失败')
 }
 
 const getNextSegment = (siblings = []) => {
@@ -1952,10 +1945,15 @@ const applyCategoryImport = async (info, messageKey) => {
   }
   categoryImportState.value[messageKey] = 'importing'
   try {
-    const existingRes = await fetch('/api/system_configs?key=eq.materials_categories', {
-      headers: { 'Accept-Profile': 'public' }
-    })
-    const existingJson = existingRes.ok ? await existingRes.json() : []
+    let existingJson = []
+    try {
+      const { data } = await getHostHttpClient().requestJson('/system_configs?key=eq.materials_categories', {
+        headers: { 'Accept-Profile': 'public' }
+      })
+      existingJson = data
+    } catch (e) {
+      existingJson = []
+    }
     const existingRow = Array.isArray(existingJson) && existingJson.length ? existingJson[0] : null
     const existingList = Array.isArray(existingRow?.value) ? existingRow.value : []
     const maxDepth = Number(aiBridge.state.currentContext?.materialsCategoryDepth || 2) === 3 ? 3 : 2
