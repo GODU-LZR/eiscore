@@ -6,6 +6,7 @@ import { createPinia } from 'pinia' // 👈 引入 Pinia
 import App from './App.vue'
 import router from './router'
 import { bootstrapEnterpriseConfig, renderEnterpriseConfigFailure } from './platform/enterprise-config'
+import { clearAuthAndRedirect } from '@/utils/auth'
 
 // 🟢 Element Plus 完整引入
 import ElementPlus from 'element-plus'
@@ -41,11 +42,7 @@ if (typeof window !== 'undefined' && window.fetch) {
       const url = reqUrl || response.url || ''
       const isApiCall = url.startsWith('/api') || url.includes(`${window.location.origin}/api`)
       if (isApiCall && response.status === 401 && window.location.pathname !== '/login') {
-        try {
-          localStorage.removeItem('auth_token')
-          localStorage.removeItem('user_info')
-        } catch (e) {}
-        window.location.href = '/login'
+        clearAuthAndRedirect('/login')
       }
     } catch (e) {
       // ignore

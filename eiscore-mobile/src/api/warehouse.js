@@ -6,7 +6,7 @@
  *
  * 复用 scm.warehouses / scm.v_inventory_current / public.raw_materials
  */
-import { getToken } from '@/utils/auth'
+import { clearAuth, getToken } from '@/utils/auth'
 
 const API_BASE = '/api'
 
@@ -39,8 +39,7 @@ async function request(method, path, { params, body, headers: extraHeaders } = {
   })
 
   if (res.status === 401) {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_info')
+    clearAuth()
     window.location.href = '/mobile/login'
     throw new Error('登录已过期')
   }

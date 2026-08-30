@@ -13,7 +13,7 @@
  *   scm.stock_out             出库 RPC
  *   public.raw_materials      物料主数据
  */
-import { getToken } from '@/utils/auth'
+import { clearAuth, getToken } from '@/utils/auth'
 
 const API_BASE = '/api'
 
@@ -43,8 +43,7 @@ async function request(method, path, { params, body, headers: extraHeaders } = {
   const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined })
 
   if (res.status === 401) {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_info')
+    clearAuth()
     window.location.href = '/mobile/login'
     throw new Error('登录已过期')
   }

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import { createRouter, createWebHistory } from 'vue-router'
+import { clearAuth, getToken, parseJwt } from '@/utils/auth'
 
 const router = createRouter({
   history: createWebHistory('/mobile/'),
@@ -134,42 +135,18 @@ router.beforeEach((to, _from, next) => {
     return
   }
 
-  // 检查 token
-  const raw = localStorage.getItem('auth_token')
-  let token = ''
-  try {
-    const parsed = JSON.parse(raw)
-    token = parsed?.token || ''
-  } catch {
-    token = raw || ''
-  }
-
-  if (token && token.length > 8192) {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_info')
-    next({ name: 'login', query: { redirect: to.fullPath } })
-    return
-  }
-
+  const token = getToken()
   if (!token) {
     next({ name: 'login', query: { redirect: to.fullPath } })
     return
   }
 
-  // 简单检查过期
-  try {
-    const parts = token.split('.')
-    if (parts.length === 3) {
-      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-      if (payload.exp && Date.now() / 1000 >= payload.exp) {
-        localStorage.removeItem('auth_token')
-        localStorage.removeItem('user_info')
-        next({ name: 'login', query: { redirect: to.fullPath } })
-        return
-      }
-    }
-  } catch {
-    // ignore parse errors
+  // 保持旧路由兼容：仅在 JWT 明确携带且达到 exp 时拒绝。
+  const payload = parseJwt(token)
+  if (payload && payload.exp && Date.now() / 1000 >= payload.exp) {
+    clearAuth()
+    next({ name: 'login', query: { redirect: to.fullPath } })
+    return
   }
 
   next()

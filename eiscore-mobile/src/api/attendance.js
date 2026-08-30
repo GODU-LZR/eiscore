@@ -11,7 +11,7 @@
  *   hr.v_attendance_daily          日考勤视图
  *   hr.v_attendance_monthly        月考勤汇总视图
  */
-import { getToken } from '@/utils/auth'
+import { clearAuth, getToken } from '@/utils/auth'
 
 const API_BASE = '/api'
 
@@ -45,8 +45,7 @@ async function request(method, path, { params, body, headers: extraHeaders } = {
   })
 
   if (res.status === 401) {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_info')
+    clearAuth()
     window.location.href = '/mobile/login'
     throw new Error('登录已过期')
   }
