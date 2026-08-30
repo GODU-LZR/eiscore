@@ -13,6 +13,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@eiscore/platform": "file:../packages/eiscore-platform",
     "@element-plus/icons-vue": "^2.3.2",
     "ag-grid-community": "^35.0.0",
     "ag-grid-vue3": "^35.0.0",
