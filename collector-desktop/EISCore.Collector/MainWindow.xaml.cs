@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private readonly DeviceBindingService _bindingService;
     private readonly CollectorFileService _fileService;
     private readonly WebViewLogBridge _webViewLogBridge;
+    private readonly WebViewIdentityBridge _webViewIdentityBridge;
     private readonly UploadQueueProcessor _uploadProcessor;
     private readonly LogUploadProcessor _logProcessor;
     private readonly WatchFolderService _watchFolderService;
@@ -28,8 +29,15 @@ public partial class MainWindow : Window
     private AppConfig _config = new();
     private string _deviceToken = "";
     private Forms.NotifyIcon? _trayIcon;
+    private System.Drawing.Icon? _trayIconImage;
     private bool _isExitRequested;
     private bool _isLoadingUi;
+    private bool _isWebViewLogBridgeInitialized;
+    private bool _isWebViewIdentityBridgeInitialized;
+    private bool _isWebViewIdentityBridgeSubscribed;
+    private bool _isDeviceAuthorizationInvalid;
+    private Visibility _browserVisibilityBeforeSettings = Visibility.Visible;
+    private Visibility _fallbackVisibilityBeforeSettings = Visibility.Collapsed;
 
     public MainWindow()
     {
@@ -40,6 +48,7 @@ public partial class MainWindow : Window
         _bindingService = new DeviceBindingService(_apiClient, _configurationService);
         _fileService = new CollectorFileService(_queueStore, _logService);
         _webViewLogBridge = new WebViewLogBridge(_logService);
+        _webViewIdentityBridge = new WebViewIdentityBridge();
         _uploadProcessor = new UploadQueueProcessor(
             _queueStore,
             _apiClient,
@@ -56,6 +65,7 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
         _fileService.QueueChanged += QueueChanged;
         _uploadProcessor.QueueChanged += QueueChanged;
+        _uploadProcessor.AuthorizationFailed += UploadProcessor_AuthorizationFailed;
         _logService.HighPriorityLogWritten += LogService_HighPriorityLogWritten;
         _heartbeatTimer.Interval = TimeSpan.FromMinutes(1);
         _heartbeatTimer.Tick += HeartbeatTimer_Tick;
@@ -71,25 +81,30 @@ public partial class MainWindow : Window
             _config = await _configurationService.LoadAsync();
             _deviceToken = _configurationService.UnprotectToken(_config.EncryptedDeviceToken);
             _logService.UpdateContext(_config);
+            await RecoverInterruptedUploadsAsync();
             await ReportPendingCrashDumpsAsync();
 
             LoadConfigToUi();
             InitializeTrayIcon();
 
-            await _webViewLogBridge.InitializeAsync(Browser);
-            NavigateToConfiguredServer();
+            var webViewReady = await InitializeWebViewShellAsync();
+            if (webViewReady)
+            {
+                NavigateToConfiguredServer();
+            }
+
             await SyncRemoteConfigAsync();
             await CheckForUpdatesAsync();
 
             _watchFolderService.Restart(_config);
-            _uploadProcessor.Start();
-            _logProcessor.Start();
-            UpdateHeartbeatTimerInterval();
-            _heartbeatTimer.Start();
+            if (!_isDeviceAuthorizationInvalid)
+            {
+                StartAuthorizedBackgroundServices();
+            }
 
             await _logService.LogAsync("info", "collector_start", "采集端启动。");
             await RefreshQueueAsync();
-            SetStatus("采集端已启动。");
+            SetStatus(_isDeviceAuthorizationInvalid ? "设备授权已失效，请重新绑定。" : "采集端已启动。");
         }
         catch (Exception ex)
         {
@@ -113,11 +128,13 @@ public partial class MainWindow : Window
             SetStatus("正在绑定设备...");
             _config = await _bindingService.BindAsync(_config, authorizationCode);
             _deviceToken = _configurationService.UnprotectToken(_config.EncryptedDeviceToken);
+            _isDeviceAuthorizationInvalid = false;
             _logService.UpdateContext(_config);
             LoadConfigToUi();
             await SyncRemoteConfigAsync();
             await CheckForUpdatesAsync(force: true);
             _watchFolderService.Restart(_config);
+            StartAuthorizedBackgroundServices();
             NavigateToConfiguredServer();
             await _logService.LogAsync("info", "collector_bound", "设备绑定成功。");
             SetStatus("设备绑定成功。");
@@ -166,9 +183,13 @@ public partial class MainWindow : Window
             existing.DefaultUserId = string.IsNullOrWhiteSpace(existing.DefaultUserId)
                 ? DefaultUserIdBox.Text.Trim()
                 : existing.DefaultUserId;
+            existing.DefaultUsername = string.IsNullOrWhiteSpace(existing.DefaultUsername)
+                ? DefaultUsernameBox.Text.Trim()
+                : existing.DefaultUsername;
             existing.DefaultRole = string.IsNullOrWhiteSpace(existing.DefaultRole)
                 ? DefaultRoleBox.Text.Trim()
                 : existing.DefaultRole;
+            existing.Source = NormalizeWatchFolderSource(existing.Source);
         }
         else
         {
@@ -178,7 +199,9 @@ public partial class MainWindow : Window
                     FolderPath = folderPath,
                     FolderName = GetFolderDisplayName(folderPath),
                     DefaultUserId = DefaultUserIdBox.Text.Trim(),
+                    DefaultUsername = DefaultUsernameBox.Text.Trim(),
                     DefaultRole = DefaultRoleBox.Text.Trim(),
+                    Source = WatchFolderSource.LocalSettings,
                     Enabled = true
                 });
         }
@@ -231,9 +254,13 @@ public partial class MainWindow : Window
             {
                 var status = folder.Enabled ? "启用" : "停用";
                 var name = string.IsNullOrWhiteSpace(folder.FolderName) ? GetFolderDisplayName(folder.FolderPath) : folder.FolderName;
-                var owner = string.Join(" / ", new[] { folder.DefaultUserId, folder.DefaultRole }.Where(item => !string.IsNullOrWhiteSpace(item)));
-                var suffix = string.IsNullOrWhiteSpace(owner) ? "" : $"  默认：{owner}";
-                return $"{index + 1}. [{status}] {name}  {folder.FolderPath}{suffix}";
+                var ownerName = FirstNonEmpty(folder.DefaultUsername, folder.DefaultUserId);
+                var ownerId = string.IsNullOrWhiteSpace(folder.DefaultUserId) || string.Equals(ownerName, folder.DefaultUserId, StringComparison.Ordinal)
+                    ? ""
+                    : $" [{folder.DefaultUserId.Trim()}]";
+                var owner = string.Join(" / ", new[] { ownerName + ownerId, folder.DefaultRole }.Where(item => !string.IsNullOrWhiteSpace(item)));
+                var ownerSuffix = string.IsNullOrWhiteSpace(owner) ? "" : $"  默认：{owner}";
+                return $"{index + 1}. [{status}] {name}  {folder.FolderPath}{ownerSuffix}  来源：{FormatWatchFolderSource(folder.Source)}";
             })
             .ToList();
 
@@ -252,14 +279,14 @@ public partial class MainWindow : Window
 
     private async void ChooseFiles_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFileDialog
+        var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = "选择要采集的文件",
             Multiselect = true,
             Filter = "业务资料|*.xlsx;*.xls;*.csv;*.docx;*.doc;*.pdf;*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp;*.txt;*.zip;*.rar;*.7z|所有文件|*.*"
         };
 
-        if (dialog.ShowDialog() != true) return;
+        if (dialog.ShowDialog(this) != true) return;
         await EnqueueFilesAsync(dialog.FileNames, "manual_selected_file");
     }
 
@@ -295,21 +322,115 @@ public partial class MainWindow : Window
         SetStatus("配置已修改，保存后生效。");
     }
 
-    private void Window_DragOver(object sender, DragEventArgs e)
+    private async Task<bool> InitializeWebViewShellAsync()
     {
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
+        try
+        {
+            Browser.Visibility = Visibility.Visible;
+            WebViewFallbackPanel.Visibility = Visibility.Collapsed;
+
+            if (!_isWebViewLogBridgeInitialized)
+            {
+                await _webViewLogBridge.InitializeAsync(Browser);
+                _isWebViewLogBridgeInitialized = true;
+            }
+
+            if (!_isWebViewIdentityBridgeSubscribed)
+            {
+                _webViewIdentityBridge.IdentityChanged += WebViewIdentityBridge_IdentityChanged;
+                _isWebViewIdentityBridgeSubscribed = true;
+            }
+
+            if (!_isWebViewIdentityBridgeInitialized)
+            {
+                await _webViewIdentityBridge.InitializeAsync(Browser);
+                _isWebViewIdentityBridgeInitialized = true;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            var reason = string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message;
+            Browser.Visibility = Visibility.Collapsed;
+            WebViewFallbackPanel.Visibility = Visibility.Visible;
+            WebViewFallbackText.Text =
+                $"内置浏览器初始化失败：{reason}\n\n采集端后台能力仍会继续运行。可以打开设置检查服务器地址，或重试初始化内置浏览器。";
+            SetStatus("内置浏览器不可用，采集端后台能力继续运行。");
+            await _logService.LogAsync("error", "webview_initialization_failed", "WebView 初始化失败，已切换到降级模式。", ex.ToString());
+            return false;
+        }
+    }
+
+    private async void RetryWebView_Click(object sender, RoutedEventArgs e)
+    {
+        var webViewReady = await InitializeWebViewShellAsync();
+        if (!webViewReady) return;
+
+        NavigateToConfiguredServer();
+        SetStatus("内置浏览器已恢复。");
+    }
+
+    private void ShowSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (SettingsOverlay.Visibility == Visibility.Visible) return;
+
+        _browserVisibilityBeforeSettings = Browser.Visibility;
+        _fallbackVisibilityBeforeSettings = WebViewFallbackPanel.Visibility;
+        Browser.Visibility = Visibility.Collapsed;
+        WebViewFallbackPanel.Visibility = Visibility.Collapsed;
+        SettingsOverlay.Visibility = Visibility.Visible;
+    }
+
+    private void HideSettings_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsOverlay.Visibility = Visibility.Collapsed;
+        Browser.Visibility = _browserVisibilityBeforeSettings;
+        WebViewFallbackPanel.Visibility = _fallbackVisibilityBeforeSettings;
+    }
+
+    private void Window_DragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)
+            ? System.Windows.DragDropEffects.Copy
+            : System.Windows.DragDropEffects.None;
         e.Handled = true;
     }
 
-    private async void Window_Drop(object sender, DragEventArgs e)
+    private async void Window_Drop(object sender, System.Windows.DragEventArgs e)
     {
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
+        if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return;
+        if (e.Data.GetData(System.Windows.DataFormats.FileDrop) is not string[] paths) return;
 
         e.Handled = true;
-        await EnqueueFilesAsync(paths.Where(File.Exists), "manual_drag_drop");
+        await EnqueueFilesAsync(paths.Where(File.Exists), "web_drag_drop");
+    }
+
+    private async void WebViewIdentityBridge_IdentityChanged(object? sender, WebLoginUserChangedEventArgs e)
+    {
+        try
+        {
+            if (!ApplyWebLoginUser(e.User)) return;
+
+            await _configurationService.SaveAsync(_config);
+            _logService.UpdateContext(_config);
+            LoadConfigToUi();
+            SetStatus($"已同步网页登录用户：{_config.DefaultUsername}");
+            await _logService.LogAsync(
+                "info",
+                "web_login_user_synced",
+                $"已同步网页登录用户：{_config.DefaultUsername}",
+                metadataJson: JsonSerializer.Serialize(new
+                {
+                    user_id = _config.DefaultUserId,
+                    username = _config.DefaultUsername,
+                    role = _config.DefaultRole
+                }));
+        }
+        catch (Exception ex)
+        {
+            await _logService.LogAsync("warn", "web_login_user_sync_failed", "同步网页登录用户失败。", ex.ToString());
+        }
     }
 
     private async void HeartbeatTimer_Tick(object? sender, EventArgs e)
@@ -321,10 +442,19 @@ public partial class MainWindow : Window
             await CheckForUpdatesAsync();
             await _logProcessor.FlushAsync();
         }
+        catch (DeviceAuthorizationException ex)
+        {
+            await HandleDeviceAuthorizationInvalidAsync(ex);
+        }
         catch (Exception ex)
         {
             await _logService.LogAsync("warn", "collector_heartbeat_failed", "采集端心跳上报失败。", ex.ToString());
         }
+    }
+
+    private void UploadProcessor_AuthorizationFailed(object? sender, DeviceAuthorizationFailedEventArgs e)
+    {
+        _ = Dispatcher.InvokeAsync(async () => await HandleDeviceAuthorizationInvalidAsync(e.Exception));
     }
 
     private async void QueueChanged(object? sender, EventArgs e)
@@ -338,6 +468,10 @@ public partial class MainWindow : Window
         {
             if (!_config.HighPriorityLogImmediate) return;
             await _logProcessor.FlushAsync();
+        }
+        catch (DeviceAuthorizationException ex)
+        {
+            await HandleDeviceAuthorizationInvalidAsync(ex);
         }
         catch
         {
@@ -406,6 +540,18 @@ public partial class MainWindow : Window
         }
     }
 
+    private async Task RecoverInterruptedUploadsAsync()
+    {
+        var recovered = await _queueStore.RecoverInterruptedUploadsAsync();
+        if (recovered <= 0) return;
+
+        await _logService.LogAsync(
+            "warn",
+            "upload_queue_recovered",
+            $"已恢复 {recovered} 个上次中断的上传任务。",
+            metadataJson: $$"""{"recovered_count":{{recovered}}}""");
+    }
+
     private async Task SyncRemoteConfigAsync()
     {
         if (string.IsNullOrWhiteSpace(_config.ServerBaseUrl) || string.IsNullOrWhiteSpace(_deviceToken))
@@ -436,10 +582,54 @@ public partial class MainWindow : Window
                 "远程配置已同步。",
                 metadataJson: $$"""{"config_version":"{{_config.RemoteConfigVersion}}"}""");
         }
+        catch (DeviceAuthorizationException ex)
+        {
+            await HandleDeviceAuthorizationInvalidAsync(ex);
+        }
         catch (Exception ex)
         {
             await _logService.LogAsync("warn", "collector_config_sync_failed", "远程配置同步失败。", ex.ToString());
         }
+    }
+
+    private void StartAuthorizedBackgroundServices()
+    {
+        if (string.IsNullOrWhiteSpace(_deviceToken)) return;
+
+        _uploadProcessor.Start();
+        _logProcessor.Start();
+        UpdateHeartbeatTimerInterval();
+        _heartbeatTimer.Start();
+    }
+
+    private async Task HandleDeviceAuthorizationInvalidAsync(DeviceAuthorizationException ex)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            await Dispatcher.InvokeAsync(async () => await HandleDeviceAuthorizationInvalidAsync(ex));
+            return;
+        }
+
+        var wasAlreadyInvalid = _isDeviceAuthorizationInvalid && string.IsNullOrWhiteSpace(_deviceToken);
+        _isDeviceAuthorizationInvalid = true;
+        _deviceToken = "";
+        _config.EncryptedDeviceToken = "";
+        await _configurationService.SaveAsync(_config);
+        _heartbeatTimer.Stop();
+        await _uploadProcessor.StopAsync();
+        await _logProcessor.StopAsync();
+        LoadConfigToUi();
+        SettingsOverlay.Visibility = Visibility.Visible;
+        SetStatus("设备授权已失效，请重新输入设备授权码并绑定。");
+
+        if (wasAlreadyInvalid) return;
+
+        await _logService.LogAsync(
+            "error",
+            "collector_device_authorization_invalid",
+            "设备授权已失效，已暂停心跳、上传和日志上报，请重新绑定设备。",
+            ex.ToString(),
+            metadataJson: $$"""{"status_code":{{(int)ex.ResponseStatusCode}}}""");
     }
 
     private async Task CheckForUpdatesAsync(bool force = false)
@@ -449,6 +639,23 @@ public partial class MainWindow : Window
 
         await _configurationService.SaveAsync(_config);
         _logService.UpdateContext(_config);
+    }
+
+    private bool ApplyWebLoginUser(WebLoginUserSnapshot user)
+    {
+        var userId = FirstNonEmpty(user.UserId, user.Username);
+        var username = FirstNonEmpty(user.Username, user.DisplayName, userId);
+        var role = FirstNonEmpty(user.Role);
+        if (string.IsNullOrWhiteSpace(userId) && string.IsNullOrWhiteSpace(username))
+        {
+            return false;
+        }
+
+        var changed = false;
+        changed |= SetIfNotEmpty(value => _config.DefaultUserId = value, _config.DefaultUserId, userId);
+        changed |= SetIfNotEmpty(value => _config.DefaultUsername = value, _config.DefaultUsername, username);
+        changed |= SetIfNotEmpty(value => _config.DefaultRole = value, _config.DefaultRole, role);
+        return changed;
     }
 
     private (bool Changed, bool WatchFoldersChanged) ApplyRemoteConfig(DeviceConfigResponse response)
@@ -591,7 +798,9 @@ public partial class MainWindow : Window
                         ? Path.GetFileName(item.FolderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
                         : item.FolderName.Trim(),
                     DefaultUserId = string.IsNullOrWhiteSpace(item.DefaultUserId) ? _config.DefaultUserId : item.DefaultUserId.Trim(),
+                    DefaultUsername = ResolveWatchFolderUsername(item, _config),
                     DefaultRole = string.IsNullOrWhiteSpace(item.DefaultRole) ? _config.DefaultRole : item.DefaultRole.Trim(),
+                    Source = WatchFolderSource.RemoteConfig,
                     Enabled = item.Enabled
                 })
                 .ToList();
@@ -631,6 +840,13 @@ public partial class MainWindow : Window
         return true;
     }
 
+    private static string FirstNonEmpty(params string[] values)
+    {
+        return values
+            .Select(value => (value ?? "").Trim())
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "";
+    }
+
     private static List<string> NormalizeExtensions(IEnumerable<string>? extensions)
     {
         return (extensions ?? Enumerable.Empty<string>())
@@ -655,7 +871,9 @@ public partial class MainWindow : Window
             string.Equals(pair.First.FolderPath, pair.Second.FolderPath, StringComparison.OrdinalIgnoreCase)
             && string.Equals(pair.First.FolderName, pair.Second.FolderName, StringComparison.Ordinal)
             && string.Equals(pair.First.DefaultUserId, pair.Second.DefaultUserId, StringComparison.Ordinal)
+            && string.Equals(pair.First.DefaultUsername, pair.Second.DefaultUsername, StringComparison.Ordinal)
             && string.Equals(pair.First.DefaultRole, pair.Second.DefaultRole, StringComparison.Ordinal)
+            && string.Equals(NormalizeWatchFolderSource(pair.First.Source), NormalizeWatchFolderSource(pair.Second.Source), StringComparison.Ordinal)
             && pair.First.Enabled == pair.Second.Enabled);
     }
 
@@ -676,8 +894,61 @@ public partial class MainWindow : Window
 
         var items = await _queueStore.ListRecentAsync(50);
         QueueList.ItemsSource = items
-            .Select(item => $"#{item.Id} [{item.Status}] {item.OriginalFilename} ({FormatBytes(item.FileSize)})")
+            .Select(FormatQueueItem)
             .ToList();
+    }
+
+    private static string FormatQueueItem(UploadQueueItem item)
+    {
+        return $"#{item.Id} [{item.Status}] {item.OriginalFilename} ({FormatBytes(item.FileSize)})  上传：{FormatQueueOwner(item)}  采集来源：{FormatUploadSource(item.UploadSource)}  责任人来源：{FormatOperatorSource(item.OperatorSource)}{FormatQueueSourceFolder(item)}";
+    }
+
+    private static string FormatQueueOwner(UploadQueueItem item)
+    {
+        var owner = FirstNonEmpty(item.UploadedByUsername, item.UploadedByUserId, "未识别用户");
+        var userId = string.IsNullOrWhiteSpace(item.UploadedByUserId) || string.Equals(owner, item.UploadedByUserId, StringComparison.Ordinal)
+            ? ""
+            : $" [{item.UploadedByUserId.Trim()}]";
+        var role = string.IsNullOrWhiteSpace(item.UploadedByRole) ? "" : $" / {item.UploadedByRole.Trim()}";
+        return owner + userId + role;
+    }
+
+    private static string FormatUploadSource(string uploadSource)
+    {
+        var source = FirstNonEmpty(uploadSource, "unknown");
+        var label = source switch
+        {
+            "manual_selected_file" => "手动选择文件",
+            "web_drag_drop" => "页面拖拽",
+            "watch_folder" => "监听目录",
+            _ => source
+        };
+
+        return string.Equals(label, source, StringComparison.Ordinal) ? label : $"{label} ({source})";
+    }
+
+    private static string FormatOperatorSource(string operatorSource)
+    {
+        var source = FirstNonEmpty(operatorSource, "unknown");
+        var label = source switch
+        {
+            "web_login_user" => "网页登录用户",
+            "device_default_user" => "设备默认责任人",
+            "manual_selected_file" => "手动选择文件",
+            _ => source
+        };
+
+        return string.Equals(label, source, StringComparison.Ordinal) ? label : $"{label} ({source})";
+    }
+
+    private static string FormatQueueSourceFolder(UploadQueueItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.SourceFolder)) return "";
+
+        var source = string.IsNullOrWhiteSpace(item.WatchFolderSource)
+            ? ""
+            : $" / {FormatWatchFolderSource(item.WatchFolderSource)}";
+        return $"  目录：{item.SourceFolder.Trim()}{source}";
     }
 
     private void LoadConfigToUi()
@@ -733,9 +1004,11 @@ public partial class MainWindow : Window
                 DefaultUserId = string.IsNullOrWhiteSpace(folder.DefaultUserId)
                     ? _config.DefaultUserId
                     : folder.DefaultUserId.Trim(),
+                DefaultUsername = ResolveWatchFolderUsername(folder, _config),
                 DefaultRole = string.IsNullOrWhiteSpace(folder.DefaultRole)
                     ? _config.DefaultRole
                     : folder.DefaultRole.Trim(),
+                Source = NormalizeWatchFolderSource(folder.Source),
                 Enabled = folder.Enabled
             });
         }
@@ -748,6 +1021,45 @@ public partial class MainWindow : Window
     {
         var trimmed = (folderPath ?? "").TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return Path.GetFileName(trimmed) is { Length: > 0 } name ? name : trimmed;
+    }
+
+    private static string ResolveWatchFolderUsername(WatchFolderConfig folder, AppConfig config)
+    {
+        if (!string.IsNullOrWhiteSpace(folder.DefaultUsername))
+        {
+            return folder.DefaultUsername.Trim();
+        }
+
+        if (string.IsNullOrWhiteSpace(folder.DefaultUserId)
+            || string.Equals(folder.DefaultUserId.Trim(), config.DefaultUserId, StringComparison.OrdinalIgnoreCase))
+        {
+            return config.DefaultUsername;
+        }
+
+        return "";
+    }
+
+    private static string NormalizeWatchFolderSource(string source)
+    {
+        var normalized = (source ?? "").Trim();
+        return normalized switch
+        {
+            WatchFolderSource.RemoteConfig => WatchFolderSource.RemoteConfig,
+            WatchFolderSource.LocalSettings => WatchFolderSource.LocalSettings,
+            "" => WatchFolderSource.LocalSettings,
+            _ => normalized
+        };
+    }
+
+    private static string FormatWatchFolderSource(string source)
+    {
+        var normalized = NormalizeWatchFolderSource(source);
+        return normalized switch
+        {
+            WatchFolderSource.RemoteConfig => "远程下发 (remote_config)",
+            WatchFolderSource.LocalSettings => "本机设置 (local_settings)",
+            _ => normalized
+        };
     }
 
     private void NavigateToConfiguredServer()
@@ -789,10 +1101,23 @@ public partial class MainWindow : Window
     {
         if (_trayIcon is not null) return;
 
+        try
+        {
+            var processPath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(processPath))
+            {
+                _trayIconImage = System.Drawing.Icon.ExtractAssociatedIcon(processPath);
+            }
+        }
+        catch
+        {
+            _trayIconImage = null;
+        }
+
         _trayIcon = new Forms.NotifyIcon
         {
             Text = "EISCore 采集端",
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = _trayIconImage ?? System.Drawing.SystemIcons.Application,
             Visible = true,
             ContextMenuStrip = new Forms.ContextMenuStrip()
         };
@@ -817,8 +1142,9 @@ public partial class MainWindow : Window
         await _logProcessor.FlushAsync();
         await _logProcessor.StopAsync();
         _trayIcon?.Dispose();
+        _trayIconImage?.Dispose();
         Close();
-        Application.Current.Shutdown();
+        System.Windows.Application.Current.Shutdown();
     }
 
     private void Window_Closing(object? sender, CancelEventArgs e)

@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY package.json package-lock.json* ./
 RUN apk add --no-cache bash git openssh-client ripgrep \
-  && npm ci --omit=dev --ignore-scripts \
+  && npm install --omit=dev --ignore-scripts --package-lock=false \
   && mkdir -p node_modules/@vscode/ripgrep/bin \
   && ln -sf /usr/bin/rg node_modules/@vscode/ripgrep/bin/rg \
   && npm rebuild esbuild sharp --omit=dev

@@ -379,14 +379,29 @@ function toggleWarehouse(wh) {
 }
 function toggleLocation(loc) { loc.expanded = !loc.expanded }
 
+function locationMatches(loc, kw) {
+  return match(loc.name, kw) || match(loc.code, kw) ||
+    (loc.materials || []).some(m =>
+      match(m.material_name, kw) || match(m.material_code, kw)
+    )
+}
+
+function expandSearchMatches() {
+  const kw = keyword.value
+  if (!kw) return
+  warehouses.value.forEach(wh => {
+    const whMatched = match(wh.name, kw) || match(wh.code, kw)
+    const matchedLocations = (wh.locations || []).filter(loc => locationMatches(loc, kw))
+    if (whMatched || matchedLocations.length) {
+      wh.expanded = true
+      matchedLocations.forEach(loc => { loc.expanded = true })
+    }
+  })
+}
+
 function getDisplayLocations(wh) {
   if (!keyword.value) return wh.locations || []
-  return (wh.locations || []).filter(l =>
-    match(l.name, keyword.value) || match(l.code, keyword.value) ||
-    (l.materials || []).some(m =>
-      match(m.material_name, keyword.value) || match(m.material_code, keyword.value)
-    )
-  )
+  return (wh.locations || []).filter(l => locationMatches(l, keyword.value))
 }
 function getDisplayMaterials(loc) {
   if (!keyword.value) return loc.materials || []
@@ -448,6 +463,7 @@ function routeByCode(raw) {
   }
   searchText.value = raw
   activeSearch.value = raw
+  expandSearchMatches()
 }
 
 function parseCode(rawCode) {
@@ -473,6 +489,7 @@ function findMaterialByCode(code) {
 function handleSearch() {
   if (!searchText.value) { showToast('请输入查询内容'); return }
   activeSearch.value = searchText.value
+  expandSearchMatches()
   if (coldMode.value && !cacheMeta.complete) showToast('冷库模式请先缓存完整数据')
 }
 function clearSearch() { searchText.value = ''; activeSearch.value = '' }

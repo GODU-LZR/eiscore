@@ -144,6 +144,14 @@
               {{ branding.primaryActionText }}
             </van-button>
           </div>
+          <p
+            v-if="loginFeedback.message"
+            class="login-feedback"
+            :class="`login-feedback--${loginFeedback.type}`"
+            role="status"
+          >
+            {{ loginFeedback.message }}
+          </p>
         </van-form>
 
         <button v-if="showSecondaryAction" type="button" class="secondary-link" @click="openSecondaryAction">
@@ -164,14 +172,14 @@
           <h2>把产地、加工和客户应用放进口袋里</h2>
         </div>
         <div class="story-lane">
-          <article v-for="(item, index) in carouselItems" :key="item.url" class="story-card">
+          <figure v-for="(item, index) in carouselItems" :key="item.url" class="story-card">
             <img :src="item.url" alt="" />
             <figcaption>
               <span>{{ String(index + 1).padStart(2, '0') }}</span>
               <strong>{{ item.title }}</strong>
               <small>{{ item.subtitle }}</small>
             </figcaption>
-          </article>
+          </figure>
         </div>
       </section>
 
@@ -323,6 +331,7 @@ const router = useRouter()
 const route = useRoute()
 const loading = ref(false)
 const showPassword = ref(false)
+const loginFeedback = ref({ type: 'idle', message: '' })
 const appSettings = ref({ themeColor: '#409EFF', loginBranding: defaultLoginBranding })
 const activeSceneIndex = ref(0)
 const pageRef = ref(null)
@@ -332,12 +341,48 @@ const showDock = ref(false)
 const scrollY = ref(0)
 let sceneTimer = null
 let revealObserver = null
+const LOGIN_REQUEST_TIMEOUT_MS = 15_000
 
 const form = reactive({
   username: '',
   password: '',
   remember: false
 })
+
+const clearLoginFeedback = () => {
+  loginFeedback.value = { type: 'idle', message: '' }
+}
+
+const setLoginFeedback = (type, message) => {
+  loginFeedback.value = { type, message }
+}
+
+const parseLoginErrorMessage = async (res) => {
+  try {
+    const err = await res.json()
+    return err?.message || err?.hint || err?.details || ''
+  } catch {
+    return ''
+  }
+}
+
+const postLogin = async () => {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), LOGIN_REQUEST_TIMEOUT_MS)
+  try {
+    return await fetch('/api/rpc/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        username: form.username.trim(),
+        password: form.password.trim()
+      })
+    })
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
 
 const safeArray = (input) => Array.isArray(input) ? input : []
 const normalizeText = (value, fallback = '') => String(value || fallback || '').trim()
@@ -541,20 +586,15 @@ function initReveal() {
 }
 
 async function handleLogin() {
+  if (loading.value) return
+  clearLoginFeedback()
   loading.value = true
   try {
-    const res = await fetch('/api/rpc/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: form.username.trim(),
-        password: form.password.trim()
-      })
-    })
+    const res = await postLogin()
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.message || '账号或密码错误')
+      const message = await parseLoginErrorMessage(res)
+      throw new Error(message || '账号或密码错误')
     }
 
     const data = await res.json()
@@ -608,11 +648,16 @@ async function handleLogin() {
     }
 
     showToast({ message: '登录成功', type: 'success', duration: 1000 })
+    setLoginFeedback('success', '登录成功，正在进入移动工作台')
 
     const redirect = route.query.redirect || '/'
     setTimeout(() => router.replace(redirect), 500)
   } catch (e) {
-    showFailToast(e.message || '登录失败')
+    const message = e?.name === 'AbortError'
+      ? '登录请求超时，请检查手机网络后重试'
+      : (e.message || '登录失败，请稍后重试')
+    setLoginFeedback('error', message)
+    showFailToast(message)
   } finally {
     loading.value = false
   }
@@ -1222,6 +1267,27 @@ function handlePageScroll(event) {
 
 .submit-area {
   padding: 13px 0 6px;
+}
+
+.login-feedback {
+  margin: 2px 4px 0;
+  padding: 9px 11px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  font-weight: 750;
+}
+
+.login-feedback--error {
+  color: #b42318;
+  background: #fff1f0;
+  border: 1px solid #ffd6d3;
+}
+
+.login-feedback--success {
+  color: #157347;
+  background: #eefaf3;
+  border: 1px solid #ccefd9;
 }
 
 .submit-area :deep(.van-button--primary) {

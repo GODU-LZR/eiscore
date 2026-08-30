@@ -1,12 +1,15 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Reflection;
 using EISCore.Collector.Models;
 
 namespace EISCore.Collector.Services;
 
 public sealed class ConfigurationService
 {
+    public const string DefaultServerBaseUrl = "https://nanpai.eissys.top";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -19,6 +22,7 @@ public sealed class ConfigurationService
         {
             return Normalize(new AppConfig
             {
+                ServerBaseUrl = DefaultServerBaseUrl,
                 DeviceCode = Environment.MachineName.ToLowerInvariant(),
                 DeviceName = Environment.MachineName,
                 DefaultUsername = Environment.UserName,
@@ -26,9 +30,20 @@ public sealed class ConfigurationService
             });
         }
 
-        await using var stream = File.OpenRead(AppPaths.ConfigPath);
-        var config = await JsonSerializer.DeserializeAsync<AppConfig>(stream, JsonOptions, cancellationToken);
-        return Normalize(config ?? new AppConfig());
+        AppConfig? loaded;
+        await using (var stream = File.OpenRead(AppPaths.ConfigPath))
+        {
+            loaded = await JsonSerializer.DeserializeAsync<AppConfig>(stream, JsonOptions, cancellationToken);
+        }
+
+        var loadedClientVersion = loaded?.ClientVersion;
+        var normalized = Normalize(loaded ?? new AppConfig());
+        if (loaded is not null && !string.Equals(loadedClientVersion, normalized.ClientVersion, StringComparison.Ordinal))
+        {
+            await SaveAsync(normalized, cancellationToken);
+        }
+
+        return normalized;
     }
 
     public async Task SaveAsync(AppConfig config, CancellationToken cancellationToken = default)
@@ -42,8 +57,22 @@ public sealed class ConfigurationService
 
     public static AppConfig Normalize(AppConfig config)
     {
+        var buildVersion = typeof(ConfigurationService).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion?
+            .Split('+', 2)[0]
+            .Trim();
+        if (!string.IsNullOrWhiteSpace(buildVersion))
+        {
+            config.ClientVersion = buildVersion;
+        }
+
         config.WatchFolders ??= new List<WatchFolderConfig>();
         config.AllowedExtensions ??= new List<string>();
+        if (string.IsNullOrWhiteSpace(config.ServerBaseUrl))
+        {
+            config.ServerBaseUrl = DefaultServerBaseUrl;
+        }
         config.MaxUploadBytes = config.MaxUploadBytes <= 0 ? 256L * 1024 * 1024 : config.MaxUploadBytes;
         config.UploadRetryIntervalSeconds = Math.Clamp(config.UploadRetryIntervalSeconds <= 0 ? 15 : config.UploadRetryIntervalSeconds, 5, 60 * 60);
         config.UploadMaxRetryCount = Math.Clamp(config.UploadMaxRetryCount <= 0 ? 10 : config.UploadMaxRetryCount, 1, 100);

@@ -528,7 +528,7 @@
         <strong>{{ bomDialog.form.id ? '修改产品、产出数量或启用状态' : '先填主信息，保存后再添加用料' }}</strong>
         <span>配方用于生产领料、用量换算和生产工单。</span>
       </div>
-      <el-form :model="bomDialog.form" label-width="112px">
+      <el-form :model="bomDialog.form" label-width="96px" class="bom-main-form">
         <el-form-item label="配方编号" required>
           <el-input v-model.trim="bomDialog.form.bom_no" placeholder="例如：BOM-MAT-FG-001-V1" />
         </el-form-item>
@@ -554,7 +554,7 @@
               <el-option v-for="item in bomTypeOptions" :key="item" :label="item" :value="item" />
             </el-select>
           </el-form-item>
-          <el-form-item label="一次产出" required>
+          <el-form-item label="一次产出" required class="base-qty-field">
             <el-input-number v-model="bomDialog.form.base_qty" :min="0.000001" :precision="3" controls-position="right" />
           </el-form-item>
           <el-form-item label="单位" required>
@@ -1682,6 +1682,14 @@ onMounted(loadAll)
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 16px;
+}
+
+.form-two-col :deep(.el-form-item) {
+  min-width: 0;
+}
+
+.base-qty-field :deep(.el-input-number) {
+  min-width: 172px;
 }
 
 .drawer-intro {

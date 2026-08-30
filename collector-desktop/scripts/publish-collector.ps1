@@ -107,7 +107,19 @@ function Reset-Directory {
 
 function Get-Sha256Hex {
     param([Parameter(Mandatory = $true)][string]$FilePath)
-    return (Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash.ToLowerInvariant()
+
+    $stream = [System.IO.File]::OpenRead($FilePath)
+    try {
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $hashBytes = $sha256.ComputeHash($stream)
+            return ([System.BitConverter]::ToString($hashBytes) -replace "-", "").ToLowerInvariant()
+        } finally {
+            $sha256.Dispose()
+        }
+    } finally {
+        $stream.Dispose()
+    }
 }
 
 function Join-DownloadUrl {
@@ -194,7 +206,9 @@ function Invoke-InnoSetupBuild {
         $ScriptPath
     )
 
-    & $iscc @args
+    # Keep ISCC's console output out of the function pipeline. The caller
+    # captures this function's return value as the installer path.
+    & $iscc @args | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup compiler failed with exit code $LASTEXITCODE"
     }

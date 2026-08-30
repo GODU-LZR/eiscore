@@ -358,7 +358,7 @@ const columnTypes = {
   file: {},
   formula: {}
 }
-const rowSelectionConfig = { mode: 'singleRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
+const rowSelectionConfig = { mode: 'multiRow', headerCheckbox: false, checkboxes: false, enableClickSelection: true }
 const fallbackRowIds = new WeakMap()
 let fallbackRowSeq = 0
 const getRowId = (params) => {

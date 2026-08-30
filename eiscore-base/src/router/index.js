@@ -42,6 +42,11 @@ const router = createRouter({
           component: () => import('../views/SettingsView.vue')
         },
         {
+          path: 'document-intake',
+          name: 'document-intake',
+          component: () => import('../views/DocumentIntakeCenter.vue')
+        },
+        {
           path: 'ai/enterprise',
           name: 'ai-enterprise',
           component: () => import('../views/EnterpriseAiView.vue')
@@ -104,6 +109,13 @@ const isMobileDevice = () => {
     || (window.innerWidth <= 768)
 }
 
+const shouldSkipMobileRedirect = (to) => {
+  if (typeof window !== 'undefined' && window.__EIS_SKIP_MOBILE_REDIRECT__) return true
+  const path = String(to.path || '')
+  const querySkip = String(to.query?.eis_skip_mobile_redirect || '') === '1'
+  return querySkip || path.startsWith('/ide')
+}
+
 router.beforeEach((to, from, next) => {
   const canonicalPath = canonicalizeMicroChainPath(to.path)
   if (canonicalPath !== to.path) {
@@ -117,7 +129,7 @@ router.beforeEach((to, from, next) => {
   }
 
   // 移动端自动跳转（仅在非 /mobile/ 路径下触发）
-  if (isMobileDevice() && !window.__EIS_SKIP_MOBILE_REDIRECT__ && !to.meta.publicLanding) {
+  if (isMobileDevice() && !shouldSkipMobileRedirect(to) && !to.meta.publicLanding) {
     const currentPath = window.location.pathname
     if (!currentPath.startsWith('/mobile')) {
       window.location.href = '/mobile/'

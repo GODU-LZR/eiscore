@@ -11,7 +11,7 @@ public sealed class AppConfig
     public string DefaultUsername { get; set; } = "";
     public string DefaultRole { get; set; } = "";
     public string EncryptedDeviceToken { get; set; } = "";
-    public string ClientVersion { get; set; } = "0.1.0";
+    public string ClientVersion { get; set; } = "1.0.0";
     public List<WatchFolderConfig> WatchFolders { get; set; } = new();
     public bool AutoStartEnabled { get; set; }
     public string RemoteConfigVersion { get; set; } = "";
@@ -43,6 +43,14 @@ public sealed class WatchFolderConfig
     public string FolderPath { get; set; } = "";
     public string FolderName { get; set; } = "";
     public string DefaultUserId { get; set; } = "";
+    public string DefaultUsername { get; set; } = "";
     public string DefaultRole { get; set; } = "";
+    public string Source { get; set; } = WatchFolderSource.LocalSettings;
     public bool Enabled { get; set; } = true;
+}
+
+public static class WatchFolderSource
+{
+    public const string LocalSettings = "local_settings";
+    public const string RemoteConfig = "remote_config";
 }

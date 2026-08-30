@@ -26,6 +26,11 @@ public sealed class UploadQueueStore
                 upload_source TEXT NOT NULL,
                 device_id TEXT NOT NULL,
                 uploaded_by_user_id TEXT NOT NULL,
+                uploaded_by_username TEXT NOT NULL DEFAULT '',
+                uploaded_by_role TEXT NOT NULL DEFAULT '',
+                operator_source TEXT NOT NULL DEFAULT '',
+                source_folder TEXT NOT NULL DEFAULT '',
+                watch_folder_source TEXT NOT NULL DEFAULT '',
                 status TEXT NOT NULL,
                 retry_count INTEGER NOT NULL DEFAULT 0,
                 last_error TEXT NOT NULL DEFAULT '',
@@ -41,6 +46,12 @@ public sealed class UploadQueueStore
                 ON upload_queue(file_hash);
             """;
         await command.ExecuteNonQueryAsync(cancellationToken);
+
+        await EnsureColumnAsync(connection, "uploaded_by_username", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await EnsureColumnAsync(connection, "uploaded_by_role", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await EnsureColumnAsync(connection, "operator_source", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await EnsureColumnAsync(connection, "source_folder", "TEXT NOT NULL DEFAULT ''", cancellationToken);
+        await EnsureColumnAsync(connection, "watch_folder_source", "TEXT NOT NULL DEFAULT ''", cancellationToken);
     }
 
     public async Task<UploadQueueItem?> FindByHashAsync(string fileHash, CancellationToken cancellationToken = default)
@@ -69,6 +80,11 @@ public sealed class UploadQueueStore
                 upload_source,
                 device_id,
                 uploaded_by_user_id,
+                uploaded_by_username,
+                uploaded_by_role,
+                operator_source,
+                source_folder,
+                watch_folder_source,
                 status,
                 retry_count,
                 last_error,
@@ -84,6 +100,11 @@ public sealed class UploadQueueStore
                 $upload_source,
                 $device_id,
                 $uploaded_by_user_id,
+                $uploaded_by_username,
+                $uploaded_by_role,
+                $operator_source,
+                $source_folder,
+                $watch_folder_source,
                 $status,
                 $retry_count,
                 $last_error,
@@ -137,6 +158,23 @@ public sealed class UploadQueueStore
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         return await reader.ReadAsync(cancellationToken) ? ReadItem(reader) : null;
+    }
+
+    public async Task<int> RecoverInterruptedUploadsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        var command = connection.CreateCommand();
+        command.CommandText = """
+            UPDATE upload_queue
+            SET status = $queued,
+                last_error = $last_error
+            WHERE status IN ($uploading, $hashing)
+            """;
+        command.Parameters.AddWithValue("$queued", UploadQueueStatus.Queued);
+        command.Parameters.AddWithValue("$uploading", UploadQueueStatus.Uploading);
+        command.Parameters.AddWithValue("$hashing", UploadQueueStatus.Hashing);
+        command.Parameters.AddWithValue("$last_error", "采集端上次退出时任务中断，已恢复等待重试。");
+        return await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     public async Task UpdateStatusAsync(
@@ -203,6 +241,11 @@ public sealed class UploadQueueStore
         command.Parameters.AddWithValue("$upload_source", item.UploadSource);
         command.Parameters.AddWithValue("$device_id", item.DeviceId);
         command.Parameters.AddWithValue("$uploaded_by_user_id", item.UploadedByUserId);
+        command.Parameters.AddWithValue("$uploaded_by_username", item.UploadedByUsername);
+        command.Parameters.AddWithValue("$uploaded_by_role", item.UploadedByRole);
+        command.Parameters.AddWithValue("$operator_source", item.OperatorSource);
+        command.Parameters.AddWithValue("$source_folder", item.SourceFolder);
+        command.Parameters.AddWithValue("$watch_folder_source", item.WatchFolderSource);
         command.Parameters.AddWithValue("$status", item.Status);
         command.Parameters.AddWithValue("$retry_count", item.RetryCount);
         command.Parameters.AddWithValue("$last_error", item.LastError);
@@ -224,6 +267,11 @@ public sealed class UploadQueueStore
             UploadSource = reader.GetString(reader.GetOrdinal("upload_source")),
             DeviceId = reader.GetString(reader.GetOrdinal("device_id")),
             UploadedByUserId = reader.GetString(reader.GetOrdinal("uploaded_by_user_id")),
+            UploadedByUsername = GetOptionalString(reader, "uploaded_by_username"),
+            UploadedByRole = GetOptionalString(reader, "uploaded_by_role"),
+            OperatorSource = GetOptionalString(reader, "operator_source"),
+            SourceFolder = GetOptionalString(reader, "source_folder"),
+            WatchFolderSource = GetOptionalString(reader, "watch_folder_source"),
             Status = reader.GetString(reader.GetOrdinal("status")),
             RetryCount = reader.GetInt32(reader.GetOrdinal("retry_count")),
             LastError = reader.GetString(reader.GetOrdinal("last_error")),
@@ -233,5 +281,43 @@ public sealed class UploadQueueStore
                 : DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("uploaded_at"))),
             ServerAssetId = reader.GetString(reader.GetOrdinal("server_asset_id"))
         };
+    }
+
+    private static async Task EnsureColumnAsync(
+        SqliteConnection connection,
+        string columnName,
+        string definition,
+        CancellationToken cancellationToken)
+    {
+        var columnsCommand = connection.CreateCommand();
+        columnsCommand.CommandText = "PRAGMA table_info(upload_queue)";
+        await using (var reader = await columnsCommand.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var name = reader.GetString(reader.GetOrdinal("name"));
+                if (string.Equals(name, columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+        }
+
+        var alterCommand = connection.CreateCommand();
+        alterCommand.CommandText = $"ALTER TABLE upload_queue ADD COLUMN {columnName} {definition}";
+        await alterCommand.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static string GetOptionalString(SqliteDataReader reader, string columnName)
+    {
+        try
+        {
+            var ordinal = reader.GetOrdinal(columnName);
+            return reader.IsDBNull(ordinal) ? "" : reader.GetString(ordinal);
+        }
+        catch (IndexOutOfRangeException)
+        {
+            return "";
+        }
     }
 }

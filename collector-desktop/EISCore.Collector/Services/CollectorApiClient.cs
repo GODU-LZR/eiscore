@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net.Http;
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -201,16 +203,25 @@ public sealed class CollectorApiClient
 
     private static object BuildUploadMetadata(UploadQueueItem item, AppConfig config)
     {
+        var uploadedByUserId = string.IsNullOrWhiteSpace(item.UploadedByUserId) ? config.DefaultUserId : item.UploadedByUserId;
+        var uploadedByUsername = string.IsNullOrWhiteSpace(item.UploadedByUsername) ? config.DefaultUsername : item.UploadedByUsername;
+        var uploadedByRole = string.IsNullOrWhiteSpace(item.UploadedByRole) ? config.DefaultRole : item.UploadedByRole;
+        var operatorSource = string.IsNullOrWhiteSpace(item.OperatorSource)
+            ? (item.UploadSource == "web_drag_drop" ? "web_login_user" : "device_default_user")
+            : item.OperatorSource;
+
         return new
         {
             device_id = config.DeviceId,
             device_name = config.DeviceName,
             upload_source = item.UploadSource,
-            uploaded_by_user_id = config.DefaultUserId,
-            uploaded_by_username = config.DefaultUsername,
-            uploaded_by_role = config.DefaultRole,
+            uploaded_by_user_id = uploadedByUserId,
+            uploaded_by_username = uploadedByUsername,
+            uploaded_by_role = uploadedByRole,
             windows_username = Environment.UserDomainName + "\\" + Environment.UserName,
-            operator_source = item.UploadSource == "web_drag_drop" ? "web_login_user" : "device_default_user",
+            operator_source = operatorSource,
+            source_folder = item.SourceFolder,
+            watch_folder_source = item.WatchFolderSource,
             file_hash = item.FileHash,
             original_filename = item.OriginalFilename,
             file_size = item.FileSize,
@@ -280,6 +291,7 @@ public sealed class CollectorApiClient
             return;
         }
 
+        var sanitizedEvents = events.Select(ClientLogService.SanitizeEvent).ToList();
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
             BuildUrl(config.ServerBaseUrl, "/agent/document-intake/client-logs/batch"))
@@ -288,7 +300,7 @@ public sealed class CollectorApiClient
             {
                 device_id = config.DeviceId,
                 device_name = config.DeviceName,
-                events
+                events = sanitizedEvents
             }, options: JsonOptions)
         };
         AddDeviceHeaders(request, deviceToken);
@@ -319,6 +331,11 @@ public sealed class CollectorApiClient
         if (response.IsSuccessStatusCode) return;
 
         var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        {
+            throw new DeviceAuthorizationException(response.StatusCode, response.ReasonPhrase ?? "", body);
+        }
+
         throw new HttpRequestException($"接口请求失败：{(int)response.StatusCode} {response.ReasonPhrase} {body}");
     }
 }

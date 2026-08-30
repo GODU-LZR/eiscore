@@ -33,6 +33,15 @@ const state = {
   },
   duplicateRows: [],
   watchFolders: [],
+  assetRows: [],
+  deviceRows: [],
+  logRows: [],
+  entryResultRows: [],
+  entryResultDetailRow: null,
+  overviewRow: null,
+  businessLinkRows: [],
+  unmappedFieldRows: [],
+  businessCorrectionRows: [],
   uploadSessions: new Map(),
   uploadChunks: new Map(),
   clientQueries: [],
@@ -147,14 +156,156 @@ class FakePool {
   async query(sql, params = []) {
     state.poolQueries.push({ sql, params })
     const normalized = String(sql).replace(/\s+/g, ' ').trim().toLowerCase()
-    if (normalized.includes('from public.collector_devices')) {
+    if (normalized.includes('today_file_count') && normalized.includes('active_device_count')) {
+      return {
+        rows: [state.overviewRow || {
+          today_file_count: 0,
+          successful_import_count: 0,
+          low_confidence_count: 0,
+          unrecognized_count: 0,
+          duplicate_file_count: 0,
+          failed_count: 0,
+          active_device_count: 0,
+          offline_device_count: 0,
+          low_confidence_threshold: '0.8',
+          generated_at: '2026-06-16T00:00:00.000Z'
+        }]
+      }
+    }
+    if (normalized.includes('select count(*)::integer as total') && normalized.includes('from public.collector_devices d')) {
+      return { rows: [{ total: state.deviceRows.length }] }
+    }
+    if (normalized.includes('from public.collector_devices d') && normalized.includes('order by coalesce')) {
+      return { rows: state.deviceRows }
+    }
+    if (normalized.includes('select count(*)::integer as total') && normalized.includes('from public.client_log_events e')) {
+      return { rows: [{ total: state.logRows.length }] }
+    }
+    if (normalized.includes('from public.client_log_events e') && normalized.includes('order by e.created_at desc')) {
+      return { rows: state.logRows }
+    }
+    if (normalized.includes('select count(*)::integer as total') && normalized.includes('from public.document_entry_plans p')) {
+      return { rows: [{ total: state.entryResultRows.length }] }
+    }
+    if (
+      normalized.includes('select p.id') &&
+      normalized.includes('from public.document_entry_plans p') &&
+      normalized.includes('order by coalesce(p.updated_at, p.created_at)')
+    ) {
+      return { rows: state.entryResultRows }
+    }
+    if (normalized.includes('from public.document_entry_plans p') && normalized.includes('where p.id = $1')) {
+      return { rows: state.entryResultDetailRow ? [state.entryResultDetailRow] : [] }
+    }
+    if (normalized.includes('from public.document_business_links') && normalized.includes('where entry_plan_id = $1')) {
+      return { rows: state.businessLinkRows }
+    }
+    if (normalized.includes('from public.document_unmapped_fields') && normalized.includes('where entry_plan_id = $1')) {
+      return { rows: state.unmappedFieldRows }
+    }
+    if (normalized.includes('from public.ai_business_corrections c')) {
+      return { rows: state.businessCorrectionRows }
+    }
+    if (normalized.includes('from public.collector_devices') && !normalized.includes('from public.document_assets a')) {
       return { rows: state.authorized ? [state.device] : [] }
+    }
+    if (normalized.includes('update public.collector_devices') && normalized.includes('set status = $2')) {
+      return {
+        rows: [{
+          id: params[0],
+          device_code: 'warehouse-pc-01',
+          device_name: 'Warehouse PC 01',
+          status: params[1],
+          updated_at: '2026-06-16T14:00:00.000Z'
+        }]
+      }
+    }
+    if (normalized.includes('update public.collector_devices') && normalized.includes('binding_code_hash = $2')) {
+      return {
+        rows: [{
+          id: params[0],
+          device_code: 'warehouse-pc-01',
+          device_name: 'Warehouse PC 01',
+          status: 'pending',
+          updated_at: '2026-06-16T14:05:00.000Z'
+        }]
+      }
     }
     if (normalized.includes('update public.collector_devices')) {
       return { rows: [{ ...state.device, status: 'active', last_seen_at: new Date().toISOString() }] }
     }
+    if (normalized.includes('insert into public.collector_watch_folders')) {
+      return {
+        rows: [{
+          id: '00000000-0000-4000-8000-000000000602',
+          device_id: params[0],
+          folder_path: params[1],
+          folder_name: params[2],
+          default_user_id: params[3],
+          default_role: params[4],
+          enabled: params[5],
+          metadata: params[6] || {},
+          created_at: '2026-06-16T14:20:00.000Z',
+          updated_at: '2026-06-16T14:20:00.000Z'
+        }]
+      }
+    }
+    if (normalized.includes('update public.collector_watch_folders') && normalized.includes('folder_path = case')) {
+      return {
+        rows: [{
+          id: params[0],
+          device_id: params[1],
+          folder_path: params[2] ? params[3] : 'D:\\EISCore\\Inbox',
+          folder_name: params[4] ? params[5] : '仓库收单',
+          default_user_id: params[6] ? params[7] : 'u_1',
+          default_role: params[8] ? params[9] : '仓库员',
+          enabled: params[10] ? params[11] : true,
+          metadata: params[12] || {},
+          created_at: '2026-06-16T08:00:00.000Z',
+          updated_at: '2026-06-16T14:15:00.000Z'
+        }]
+      }
+    }
+    if (normalized.includes('update public.collector_watch_folders')) {
+      return {
+        rows: [{
+          id: params[0],
+          device_id: params[1],
+          folder_path: 'D:\\EISCore\\Inbox',
+          folder_name: '仓库收单',
+          default_user_id: 'u_1',
+          default_role: '仓库员',
+          enabled: params[2],
+          metadata: params[3] || {},
+          created_at: '2026-06-16T08:00:00.000Z',
+          updated_at: '2026-06-16T14:10:00.000Z'
+        }]
+      }
+    }
+    if (normalized.includes('delete from public.collector_watch_folders')) {
+      return {
+        rows: [{
+          id: params[0],
+          device_id: params[1],
+          folder_path: 'D:\\EISCore\\Inbox',
+          folder_name: '仓库收单',
+          default_user_id: 'u_1',
+          default_role: '仓库员',
+          enabled: false,
+          metadata: {},
+          created_at: '2026-06-16T08:00:00.000Z',
+          updated_at: '2026-06-16T14:15:00.000Z'
+        }]
+      }
+    }
     if (normalized.includes('from public.collector_watch_folders')) {
       return { rows: state.watchFolders }
+    }
+    if (normalized.includes('select count(*)::integer as total') && normalized.includes('from public.document_assets a')) {
+      return { rows: [{ total: state.assetRows.length }] }
+    }
+    if (normalized.includes('from public.document_assets a') && normalized.includes('left join public.collector_devices')) {
+      return { rows: state.assetRows }
     }
     if (normalized.includes('insert into public.client_log_events')) {
       return { rows: [] }
@@ -178,14 +329,71 @@ const modulePath = '../../realtime/document-intake.js'
 delete require.cache[require.resolve(modulePath)]
 const { createDocumentIntakeHandlers } = require(modulePath)
 Module._load = originalLoad
+const realtimeIndexSource = await fs.readFile(path.resolve(import.meta.dirname, '../../realtime/index.js'), 'utf8')
 
 assert.equal(state.poolOptions.max, 5, 'invalid pool max env should fall back to 5')
 assert.equal(state.poolOptions.port, 5432, 'invalid PGPORT env should fall back to 5432')
+assert.ok(
+  realtimeIndexSource.includes("pathname === '/document-intake/admin/overview' && method === 'GET'"),
+  'realtime router should expose document-intake admin overview route'
+)
+assert.ok(
+  realtimeIndexSource.includes("pathname === '/document-intake/admin/assets' && method === 'GET'"),
+  'realtime router should expose document-intake admin asset list route'
+)
+assert.ok(
+  realtimeIndexSource.includes("pathname === '/document-intake/admin/devices' && method === 'GET'"),
+  'realtime router should expose document-intake admin device list route'
+)
+assert.ok(
+  realtimeIndexSource.includes('handleListDeviceWatchFolders(req, res)') &&
+    realtimeIndexSource.includes('handleCreateWatchFolder(req, res)') &&
+    realtimeIndexSource.includes('handleUpdateWatchFolder(req, res)') &&
+    realtimeIndexSource.includes('handleUpdateWatchFolderStatus(req, res)'),
+  'realtime router should expose document-intake admin device watch folder routes'
+)
+assert.ok(
+  realtimeIndexSource.includes('handleDeleteWatchFolder(req, res)'),
+  'realtime router should expose document-intake admin device watch folder delete route'
+)
+assert.ok(
+  realtimeIndexSource.includes("handleUpdateDeviceStatus(req, res)"),
+  'realtime router should expose document-intake admin device status route'
+)
+assert.ok(
+  realtimeIndexSource.includes("handleResetDeviceBindingCode(req, res)"),
+  'realtime router should expose document-intake admin device binding code reset route'
+)
+assert.ok(
+  realtimeIndexSource.includes("pathname === '/document-intake/admin/logs' && method === 'GET'"),
+  'realtime router should expose document-intake admin log list route'
+)
+assert.ok(
+  realtimeIndexSource.includes("pathname === '/document-intake/admin/entry-results' && method === 'GET'"),
+  'realtime router should expose document-intake admin entry result list route'
+)
+assert.ok(
+  realtimeIndexSource.includes("pathname.startsWith('/document-intake/admin/entry-results/') && method === 'GET'"),
+  'realtime router should expose document-intake admin entry result detail route'
+)
+assert.ok(
+  realtimeIndexSource.includes('authorizeDocumentIntakeAdminRequest(req, res)'),
+  'document-intake admin routes should require a valid JWT'
+)
 
 function resetState() {
   state.authorized = true
   state.duplicateRows = []
   state.watchFolders = []
+  state.assetRows = []
+  state.deviceRows = []
+  state.logRows = []
+  state.entryResultRows = []
+  state.entryResultDetailRow = null
+  state.overviewRow = null
+  state.businessLinkRows = []
+  state.unmappedFieldRows = []
+  state.businessCorrectionRows = []
   state.uploadSessions = new Map()
   state.uploadChunks = new Map()
   state.device.metadata = {}
@@ -196,9 +404,10 @@ function resetState() {
   state.connected = 0
 }
 
-function makeRequest(body = Buffer.alloc(0), headers = {}) {
+function makeRequest(body = Buffer.alloc(0), headers = {}, url = '/') {
   const req = Readable.from([Buffer.isBuffer(body) ? body : Buffer.from(String(body))])
   req.headers = headers
+  req.url = url
   return req
 }
 
@@ -221,9 +430,15 @@ function sendJson(res, status, payload) {
 
 const handlers = createDocumentIntakeHandlers({ sendJson, readJsonBody: collectBody })
 
-async function call(handler, body, headers = {}) {
+async function call(handler, body, headers = {}, url = '/') {
   const res = {}
-  await handler(makeRequest(body, headers), res)
+  await handler(makeRequest(body, headers, url), res)
+  return res
+}
+
+async function callUrl(handler, url, headers = {}) {
+  const res = {}
+  await handler(makeRequest('', headers, url), res)
   return res
 }
 
@@ -258,6 +473,69 @@ async function listFiles(dir) {
 }
 
 try {
+  resetState()
+  state.overviewRow = {
+    today_file_count: 12,
+    successful_import_count: 8,
+    low_confidence_count: 2,
+    unrecognized_count: 1,
+    duplicate_file_count: 3,
+    failed_count: 4,
+    active_device_count: 5,
+    offline_device_count: 6,
+    low_confidence_threshold: '0.8',
+    generated_at: '2026-06-16T13:00:00.000Z'
+  }
+  const overview = await callUrl(handlers.handleGetOverview, '/document-intake/admin/overview')
+  assert.equal(overview.statusCode, 200, 'overview endpoint should return document intake summary metrics')
+  assert.equal(overview.payload.overview.todayFileCount, 12)
+  assert.equal(overview.payload.overview.successfulImportCount, 8)
+  assert.equal(overview.payload.overview.lowConfidenceCount, 2)
+  assert.equal(overview.payload.overview.unrecognizedCount, 1)
+  assert.equal(overview.payload.overview.duplicateFileCount, 3)
+  assert.equal(overview.payload.overview.failedCount, 4)
+  assert.equal(overview.payload.overview.activeDeviceCount, 5)
+  assert.equal(overview.payload.overview.offlineDeviceCount, 6)
+  assert.equal(overview.payload.overview.lowConfidenceThreshold, 0.8)
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('date_trunc') && entry.sql.includes('today_file_count') && entry.sql.includes('successful_import_count')),
+    'overview should aggregate today files, import results and device status in one query'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes("p.status in ('imported', 'partial'") && entry.sql.includes("a.status = 'duplicate' or a.duplicate_of_asset_id is not null")),
+    'overview should count successful imports and duplicate files with the documented status rules'
+  )
+
+  resetState()
+  state.assetRows = [{
+    id: 'asset-today',
+    batch_id: 'batch-today',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'web_login_user',
+    original_filename: '今日采集.xlsx',
+    mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    file_ext: '.xlsx',
+    file_size: 1024,
+    file_hash: 'e'.repeat(64),
+    upload_source: 'watch_folder',
+    status: 'uploaded',
+    duplicate_of_asset_id: null,
+    metadata: {},
+    created_at: '2026-06-16T08:30:00.000Z',
+    updated_at: '2026-06-16T08:31:00.000Z'
+  }]
+  const todayAssets = await callUrl(handlers.handleListAssets, '/document-intake/admin/assets?today=true&limit=20')
+  assert.equal(todayAssets.statusCode, 200, 'asset list should support today overview filters')
+  assert.equal(todayAssets.payload.assets[0].id, 'asset-today')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes("a.created_at >= date_trunc('day', now())")),
+    'asset list today filter should constrain assets to the current day'
+  )
+
   resetState()
   const missingFields = await call(
     handlers.handleBindDevice,
@@ -377,6 +655,1109 @@ try {
     `heartbeat should still succeed: ${JSON.stringify(heartbeatWithConfig.payload)}`
   )
   assert.equal(heartbeatWithConfig.payload.config.watchFolders[0].folderPath, 'F:\\HeartbeatInbox')
+
+  resetState()
+  state.assetRows = [{
+    id: 'asset-duplicate',
+    batch_id: 'batch-1',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'web_login_user',
+    original_filename: 'duplicate.pdf',
+    mime_type: 'application/pdf',
+    file_ext: '.pdf',
+    file_size: 1024,
+    file_hash: 'a'.repeat(64),
+    upload_source: 'web_drag_drop',
+    status: 'duplicate',
+    duplicate_of_asset_id: 'asset-original',
+    target_module: 'purchase',
+    target_document_type: '采购入库单',
+    target_kind: 'fixed_module_table',
+    app_name: '',
+    target_schema: 'public',
+    target_table: 'purchase_receipts',
+    entry_status: 'imported',
+    document_count: 1,
+    line_count: 3,
+    confidence: '0.9100',
+    business_link_count: 2,
+    metadata: {
+      uploaded_by_role: '仓库员',
+      source_folder: 'C:\\EISCore\\Watch\\warehouse',
+      watch_folder_source: 'remote_config'
+    },
+    created_at: '2026-06-16T08:00:00.000Z',
+    updated_at: '2026-06-16T08:01:00.000Z'
+  }]
+  const duplicateAssets = await callUrl(handlers.handleListAssets, '/document-intake/admin/assets?duplicate=true&limit=20')
+  assert.equal(duplicateAssets.statusCode, 200, 'asset list should support duplicate=true')
+  assert.equal(duplicateAssets.payload.assets.length, 1)
+  assert.equal(duplicateAssets.payload.assets[0].duplicate, true)
+  assert.equal(duplicateAssets.payload.assets[0].uploadedByRole, '仓库员')
+  assert.equal(duplicateAssets.payload.assets[0].targetDocumentType, '采购入库单')
+  assert.equal(duplicateAssets.payload.assets[0].targetTable, 'purchase_receipts')
+  assert.equal(duplicateAssets.payload.assets[0].generatedDocumentCount, 2)
+  assert.equal(duplicateAssets.payload.assets[0].confidence, 0.91)
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes("a.status = 'duplicate' or a.duplicate_of_asset_id is not null")),
+    'duplicate=true should match duplicate status or duplicate source id'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('left join lateral') && entry.sql.includes('from public.document_entry_plans p') && entry.sql.includes('business_link_count')),
+    'asset list should include the latest entry summary for target business, generated count, and confidence'
+  )
+
+  resetState()
+  state.assetRows = [{
+    id: 'asset-normal',
+    batch_id: 'batch-2',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_2',
+    uploaded_by_username: 'reviewer',
+    operator_source: 'device_default_user',
+    original_filename: 'normal.xlsx',
+    mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    file_ext: '.xlsx',
+    file_size: 2048,
+    file_hash: 'b'.repeat(64),
+    upload_source: 'watch_folder',
+    status: 'uploaded',
+    duplicate_of_asset_id: null,
+    metadata: {},
+    created_at: '2026-06-16T09:00:00.000Z',
+    updated_at: '2026-06-16T09:01:00.000Z'
+  }]
+  const nonDuplicateAssets = await callUrl(handlers.handleListAssets, '/document-intake/admin/assets?duplicate=false&q=normal')
+  assert.equal(nonDuplicateAssets.statusCode, 200, 'asset list should support duplicate=false')
+  assert.equal(nonDuplicateAssets.payload.assets[0].duplicate, false)
+  assert.equal(nonDuplicateAssets.payload.assets[0].originalFilename, 'normal.xlsx')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes("a.status <> 'duplicate' and a.duplicate_of_asset_id is null")),
+    'duplicate=false should exclude duplicate status and duplicate source id'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('left join public.collector_devices'))?.params,
+    ['%normal%', 50, 0],
+    'keyword filter should keep limit and offset parameters stable'
+  )
+
+  resetState()
+  state.assetRows = [{
+    id: 'asset-by-device',
+    batch_id: 'batch-device',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'watch_folder',
+    original_filename: 'device-source.xlsx',
+    mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    file_ext: '.xlsx',
+    file_size: 4096,
+    file_hash: 'c'.repeat(64),
+    upload_source: 'watch_folder',
+    status: 'uploaded',
+    duplicate_of_asset_id: null,
+    metadata: {
+      uploaded_by_role: '仓库员',
+      source_folder: 'C:\\EISCore\\Watch\\warehouse',
+      watch_folder_source: 'remote_config'
+    },
+    created_at: '2026-06-16T09:30:00.000Z',
+    updated_at: '2026-06-16T09:31:00.000Z'
+  }]
+  const deviceAssets = await callUrl(handlers.handleListAssets, '/document-intake/admin/assets?deviceId=warehouse-pc-01&limit=10')
+  assert.equal(deviceAssets.statusCode, 200, 'asset list should support device filters')
+  assert.equal(deviceAssets.payload.assets[0].deviceCode, 'warehouse-pc-01')
+  assert.equal(deviceAssets.payload.assets[0].originalFilename, 'device-source.xlsx')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.document_assets a') && entry.sql.includes('a.device_id::text = $1')),
+    'asset list should filter by device id or code'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.collector_devices fd') && entry.sql.includes('fd.device_code = $1')),
+    'asset list should allow filtering by collector device code'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by a.created_at desc'))?.params,
+    ['warehouse-pc-01', 10, 0],
+    'asset device filter should keep device, limit and offset parameters stable'
+  )
+
+  resetState()
+  state.assetRows = [{
+    id: 'asset-traceable',
+    batch_id: 'batch-traceable',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'web_login_user',
+    original_filename: 'traceable-source.xlsx',
+    mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    file_ext: '.xlsx',
+    file_size: 4096,
+    file_hash: 'd'.repeat(64),
+    upload_source: 'web_drag_drop',
+    status: 'uploaded',
+    duplicate_of_asset_id: null,
+    metadata: {
+      uploaded_by_role: '仓库员',
+      source_folder: 'C:\\EISCore\\Watch\\warehouse',
+      watch_folder_source: 'remote_config'
+    },
+    created_at: '2026-06-16T09:40:00.000Z',
+    updated_at: '2026-06-16T09:41:00.000Z'
+  }]
+  const traceableAssets = await callUrl(
+    handlers.handleListAssets,
+    '/document-intake/admin/assets?user=%E4%BB%93%E5%BA%93%E5%91%98&operatorSource=web_login_user&sourceFolder=warehouse&watchFolderSource=remote_config&limit=10'
+  )
+  assert.equal(traceableAssets.statusCode, 200, 'asset list should support uploaded user/role, operator source and watch folder filters')
+  assert.equal(traceableAssets.payload.assets[0].uploadedByRole, '仓库员')
+  assert.equal(traceableAssets.payload.assets[0].operatorSource, 'web_login_user')
+  assert.equal(traceableAssets.payload.assets[0].sourceFolder, 'C:\\EISCore\\Watch\\warehouse')
+  assert.equal(traceableAssets.payload.assets[0].watchFolderSource, 'remote_config')
+  assert.ok(
+    state.poolQueries.some((entry) =>
+      entry.sql.includes('a.uploaded_by_user_id ilike $1') &&
+      entry.sql.includes('a.uploaded_by_username ilike $1') &&
+      entry.sql.includes("coalesce(a.metadata->>'uploaded_by_role', '') ilike $1") &&
+      entry.sql.includes('a.operator_source = $2') &&
+      entry.sql.includes("coalesce(a.metadata->>'source_folder', '') ilike $3") &&
+      entry.sql.includes("coalesce(a.metadata->>'watch_folder_source', '') = $4")
+    ),
+    'asset list should filter by uploaded user id/name/role, operator source and watch folder source'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by a.created_at desc'))?.params,
+    ['%仓库员%', 'web_login_user', '%warehouse%', 'remote_config', 10, 0],
+    'asset traceability filters should keep user, source, folder, limit and offset parameters stable'
+  )
+
+  resetState()
+  const badDuplicateFilter = await callUrl(handlers.handleListAssets, '/document-intake/admin/assets?duplicate=maybe')
+  assert.equal(badDuplicateFilter.statusCode, 400, 'asset list should reject invalid duplicate values')
+  assert.equal(badDuplicateFilter.payload.code, 'BAD_QUERY')
+  assert.equal(state.poolQueries.length, 0, 'invalid duplicate filter should fail before querying')
+
+  resetState()
+  state.deviceRows = [{
+    id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    enterprise_id: 'tenant001',
+    department_id: 'warehouse',
+    default_user_id: 'u_1',
+    default_username: 'operator',
+    default_role: '仓库员',
+    server_base_url: 'https://nanpai.eissys.top',
+    client_version: '0.1.0',
+    webview_version: '121.0',
+    status: 'active',
+    last_seen_at: '2026-06-16T10:00:00.000Z',
+    metadata: { windows_username: 'LAPTOP\\Twist' },
+    created_at: '2026-06-16T09:00:00.000Z',
+    updated_at: '2026-06-16T10:00:00.000Z'
+  }]
+  const activeDevices = await callUrl(handlers.handleListDevices, '/document-intake/admin/devices?status=active&q=warehouse&limit=20')
+  assert.equal(activeDevices.statusCode, 200, 'device list should support status and keyword filters')
+  assert.equal(activeDevices.payload.devices.length, 1)
+  assert.equal(activeDevices.payload.devices[0].deviceCode, 'warehouse-pc-01')
+  assert.equal(activeDevices.payload.devices[0].defaultRole, '仓库员')
+  assert.equal(activeDevices.payload.devices[0].serverBaseUrl, 'https://nanpai.eissys.top')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.collector_devices d') && entry.sql.includes('d.status = $1')),
+    'device list should filter by collector device status'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by coalesce'))?.params,
+    ['active', '%warehouse%', 20, 0],
+    'device list should keep status, keyword, limit and offset parameters stable'
+  )
+
+  resetState()
+  state.deviceRows = [{
+    id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    enterprise_id: 'tenant001',
+    department_id: 'warehouse',
+    default_user_id: 'u_1',
+    default_username: 'operator',
+    default_role: '仓库员',
+    server_base_url: 'https://nanpai.eissys.top',
+    client_version: '0.1.0',
+    webview_version: '121.0',
+    status: 'active',
+    last_seen_at: '2026-06-16T10:00:00.000Z',
+    metadata: { windows_username: 'LAPTOP\\Twist' },
+    created_at: '2026-06-16T09:00:00.000Z',
+    updated_at: '2026-06-16T10:00:00.000Z'
+  }]
+  const traceableDevices = await callUrl(
+    handlers.handleListDevices,
+    '/document-intake/admin/devices?status=active&user=%E4%BB%93%E5%BA%93%E5%91%98&serverBaseUrl=nanpai&clientVersion=0.1&webviewVersion=121&limit=20'
+  )
+  assert.equal(traceableDevices.statusCode, 200, 'device list should support user, server and version filters')
+  assert.equal(traceableDevices.payload.devices[0].defaultRole, '仓库员')
+  assert.equal(traceableDevices.payload.devices[0].clientVersion, '0.1.0')
+  assert.equal(traceableDevices.payload.devices[0].webviewVersion, '121.0')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('d.default_user_id ilike $2') && entry.sql.includes('d.default_username ilike $2') && entry.sql.includes('d.default_role ilike $2')),
+    'device list should filter by default user id, username or role'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('d.server_base_url ilike $3')),
+    'device list should filter by server base URL'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('d.client_version ilike $4')),
+    'device list should filter by client version'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('d.webview_version ilike $5')),
+    'device list should filter by WebView version'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by coalesce'))?.params,
+    ['active', '%仓库员%', '%nanpai%', '%0.1%', '%121%', 20, 0],
+    'device list traceability filters should keep status, user, server, versions, limit and offset parameters stable'
+  )
+
+  resetState()
+  const adminDeviceId = '00000000-0000-4000-8000-000000000501'
+  const disableDevice = await call(
+    handlers.handleUpdateDeviceStatus,
+    JSON.stringify({ status: 'disabled', reason: '现场暂停使用' }),
+    { 'content-type': 'application/json' },
+    `/document-intake/admin/devices/${adminDeviceId}/status`
+  )
+  assert.equal(disableDevice.statusCode, 200, 'admin should be able to disable collector devices')
+  assert.equal(disableDevice.payload.device.status, 'disabled')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('set status = $2') && entry.params[2]?.admin_status_updated_at),
+    'device status updates should write the status and trace metadata'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('set status = $2'))?.params.slice(0, 2),
+    [adminDeviceId, 'disabled'],
+    'device status update should keep device id and next status parameters stable'
+  )
+
+  resetState()
+  const invalidDeviceStatus = await call(
+    handlers.handleUpdateDeviceStatus,
+    JSON.stringify({ status: 'offline' }),
+    { 'content-type': 'application/json' },
+    `/document-intake/admin/devices/${adminDeviceId}/status`
+  )
+  assert.equal(invalidDeviceStatus.statusCode, 400, 'device status updates should only allow active or disabled')
+  assert.equal(invalidDeviceStatus.payload.code, 'DEVICE_STATUS_INVALID')
+  assert.equal(state.poolQueries.length, 0, 'invalid device status should fail before querying')
+
+  resetState()
+  const resetBindingCode = await call(
+    handlers.handleResetDeviceBindingCode,
+    '',
+    {},
+    `/document-intake/admin/devices/${adminDeviceId}/reset-binding-code`
+  )
+  assert.equal(resetBindingCode.statusCode, 200, 'admin should be able to reset collector device binding codes')
+  assert.equal(resetBindingCode.payload.device.status, 'pending')
+  assert.match(resetBindingCode.payload.bindingCode, /^[a-f0-9]{24}$/)
+  const resetQuery = state.poolQueries.find((entry) => entry.sql.includes('binding_code_hash = $2'))
+  assert.ok(resetQuery, 'reset binding code should update binding_code_hash')
+  assert.equal(resetQuery.params[0], adminDeviceId)
+  assert.equal(resetQuery.params[1].length, 64)
+  assert.notEqual(resetQuery.params[1], resetBindingCode.payload.bindingCode, 'reset should store only the code hash')
+  assert.ok(
+    resetQuery.sql.includes('device_token_hash = null') && resetQuery.sql.includes("status = 'pending'"),
+    'reset binding code should invalidate old tokens and require re-binding'
+  )
+
+  resetState()
+  const watchFolderId = '00000000-0000-4000-8000-000000000601'
+  state.watchFolders = [{
+    id: watchFolderId,
+    device_id: adminDeviceId,
+    folder_path: 'D:\\EISCore\\Inbox',
+    folder_name: '仓库收单',
+    default_user_id: 'u_1',
+    default_role: '仓库员',
+    enabled: true,
+    metadata: {},
+    created_at: '2026-06-16T08:00:00.000Z',
+    updated_at: '2026-06-16T08:05:00.000Z'
+  }]
+  const watchFolderList = await callUrl(
+    handlers.handleListDeviceWatchFolders,
+    `/document-intake/admin/devices/${adminDeviceId}/watch-folders`
+  )
+  assert.equal(watchFolderList.statusCode, 200, 'admin should be able to list device watch folders')
+  assert.equal(watchFolderList.payload.watchFolders.length, 1)
+  assert.equal(watchFolderList.payload.watchFolders[0].folderPath, 'D:\\EISCore\\Inbox')
+  assert.equal(watchFolderList.payload.watchFolders[0].defaultRole, '仓库员')
+  assert.equal(watchFolderList.payload.watchFolders[0].enabled, true)
+  const watchFolderListQuery = state.poolQueries.find((entry) => entry.sql.includes('from public.collector_watch_folders'))
+  assert.ok(watchFolderListQuery, 'watch folder list should query collector_watch_folders')
+  assert.equal(watchFolderListQuery.params[0], adminDeviceId)
+  assert.ok(
+    !watchFolderListQuery.sql.includes('enabled is true'),
+    'admin watch folder list should include disabled folders for management'
+  )
+
+  resetState()
+  const disableWatchFolder = await call(
+    handlers.handleUpdateWatchFolderStatus,
+    JSON.stringify({ enabled: false }),
+    { 'content-type': 'application/json' },
+    `/document-intake/admin/devices/${adminDeviceId}/watch-folders/${watchFolderId}/status`
+  )
+  assert.equal(disableWatchFolder.statusCode, 200, 'admin should be able to disable a watch folder')
+  assert.equal(disableWatchFolder.payload.watchFolder.enabled, false)
+  const watchFolderUpdateQuery = state.poolQueries.find((entry) => entry.sql.includes('update public.collector_watch_folders'))
+  assert.ok(watchFolderUpdateQuery, 'watch folder status update should update collector_watch_folders')
+  assert.deepEqual(
+    watchFolderUpdateQuery.params.slice(0, 3),
+    [watchFolderId, adminDeviceId, false],
+    'watch folder status update should keep folder id, device id and enabled parameters stable'
+  )
+  assert.ok(
+    watchFolderUpdateQuery.params[3]?.admin_enabled_updated_at,
+    'watch folder status updates should write trace metadata'
+  )
+
+  resetState()
+  const invalidWatchFolderStatus = await call(
+    handlers.handleUpdateWatchFolderStatus,
+    JSON.stringify({ enabled: 'maybe' }),
+    { 'content-type': 'application/json' },
+    `/document-intake/admin/devices/${adminDeviceId}/watch-folders/${watchFolderId}/status`
+  )
+  assert.equal(invalidWatchFolderStatus.statusCode, 400, 'watch folder status updates should require a boolean enabled value')
+  assert.equal(invalidWatchFolderStatus.payload.code, 'WATCH_FOLDER_ENABLED_REQUIRED')
+  assert.equal(state.poolQueries.length, 0, 'invalid watch folder enabled value should fail before querying')
+
+  resetState()
+  const createdWatchFolder = await call(
+    handlers.handleCreateWatchFolder,
+    JSON.stringify({
+      folderPath: 'E:\\EISCore\\Purchase',
+      folderName: '采购收单',
+      defaultUserId: 'u_purchase',
+      defaultRole: '采购员',
+      enabled: true
+    }),
+    { 'content-type': 'application/json' },
+    `/document-intake/admin/devices/${adminDeviceId}/watch-folders`
+  )
+  assert.equal(createdWatchFolder.statusCode, 201, 'admin should be able to create watch folders')
+  assert.equal(createdWatchFolder.payload.watchFolder.folderPath, 'E:\\EISCore\\Purchase')
+  assert.equal(createdWatchFolder.payload.watchFolder.defaultRole, '采购员')
+  const createWatchFolderQuery = state.poolQueries.find((entry) => entry.sql.includes('insert into public.collector_watch_folders'))
+  assert.ok(createWatchFolderQuery, 'watch folder create should insert into collector_watch_folders')
+  assert.deepEqual(
+    createWatchFolderQuery.params.slice(0, 6),
+    [adminDeviceId, 'E:\\EISCore\\Purchase', '采购收单', 'u_purchase', '采购员', true],
+    'watch folder create should keep device, path, name, owner and enabled parameters stable'
+  )
+  assert.ok(
+    createWatchFolderQuery.params[6]?.admin_created_at,
+    'watch folder create should write trace metadata'
+  )
+
+  resetState()
+  state.watchFolders = [{ id: watchFolderId }]
+  const duplicateWatchFolder = await call(
+    handlers.handleCreateWatchFolder,
+    JSON.stringify({ folderPath: 'D:\\EISCore\\Inbox' }),
+    { 'content-type': 'application/json' },
+    `/document-intake/admin/devices/${adminDeviceId}/watch-folders`
+  )
+  assert.equal(duplicateWatchFolder.statusCode, 409, 'watch folder create should reject duplicate paths on the same device')
+  assert.equal(duplicateWatchFolder.payload.code, 'WATCH_FOLDER_DUPLICATE')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('lower(folder_path) = lower($2)')),
+    'watch folder create should check duplicate paths case-insensitively before insert'
+  )
+
+  resetState()
+  const updatedWatchFolder = await call(
+    handlers.handleUpdateWatchFolder,
+    JSON.stringify({
+      folderPath: 'E:\\EISCore\\Purchase',
+      folderName: '采购收单',
+      defaultUserId: 'u_purchase',
+      defaultRole: '采购员',
+      enabled: false
+    }),
+    { 'content-type': 'application/json' },
+    `/document-intake/admin/devices/${adminDeviceId}/watch-folders/${watchFolderId}`
+  )
+  assert.equal(updatedWatchFolder.statusCode, 200, 'admin should be able to edit watch folder defaults')
+  assert.equal(updatedWatchFolder.payload.watchFolder.folderName, '采购收单')
+  assert.equal(updatedWatchFolder.payload.watchFolder.defaultUserId, 'u_purchase')
+  assert.equal(updatedWatchFolder.payload.watchFolder.enabled, false)
+  const editWatchFolderQuery = state.poolQueries.find((entry) => entry.sql.includes('folder_path = case'))
+  assert.ok(editWatchFolderQuery, 'watch folder edit should update collector_watch_folders')
+  assert.deepEqual(
+    editWatchFolderQuery.params.slice(0, 12),
+    [watchFolderId, adminDeviceId, true, 'E:\\EISCore\\Purchase', true, '采购收单', true, 'u_purchase', true, '采购员', true, false],
+    'watch folder edit should keep patch flags and field values stable'
+  )
+  assert.ok(editWatchFolderQuery.params[12]?.admin_updated_at, 'watch folder edit should write trace metadata')
+
+  resetState()
+  const emptyWatchFolderPatch = await call(
+    handlers.handleUpdateWatchFolder,
+    JSON.stringify({}),
+    { 'content-type': 'application/json' },
+    `/document-intake/admin/devices/${adminDeviceId}/watch-folders/${watchFolderId}`
+  )
+  assert.equal(emptyWatchFolderPatch.statusCode, 400, 'empty watch folder patches should be rejected')
+  assert.equal(emptyWatchFolderPatch.payload.code, 'WATCH_FOLDER_PATCH_EMPTY')
+  assert.equal(state.poolQueries.length, 0, 'empty watch folder patches should fail before querying')
+
+  resetState()
+  const deletedWatchFolder = await callUrl(
+    handlers.handleDeleteWatchFolder,
+    `/document-intake/admin/devices/${adminDeviceId}/watch-folders/${watchFolderId}`
+  )
+  assert.equal(deletedWatchFolder.statusCode, 200, 'admin should be able to delete watch folders')
+  assert.equal(deletedWatchFolder.payload.watchFolder.id, watchFolderId)
+  const deleteWatchFolderQuery = state.poolQueries.find((entry) => entry.sql.includes('delete from public.collector_watch_folders'))
+  assert.ok(deleteWatchFolderQuery, 'watch folder delete should remove from collector_watch_folders')
+  assert.deepEqual(
+    deleteWatchFolderQuery.params,
+    [watchFolderId, adminDeviceId],
+    'watch folder delete should keep folder id and device id parameters stable'
+  )
+
+  resetState()
+  state.logRows = [{
+    id: 'log-1',
+    level: 'error',
+    event_type: 'webview_navigation_failed',
+    message: 'WebView navigation failed for intake shell',
+    stack: 'Error: network timeout',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    user_id: 'u_1',
+    username: 'operator',
+    role: '仓库员',
+    app_module: 'collector-desktop',
+    route: '/document-intake',
+    url: 'https://nanpai.eissys.top/document-intake',
+    request_url: 'https://nanpai.eissys.top/agent/document-intake/assets/upload',
+    status_code: 502,
+    client_session_id: 'session-1',
+    trace_id: 'trace-1',
+    ai_import_batch_id: 'batch-1',
+    source_file_hash: 'hash-1',
+    app_version: '0.1.0',
+    webview_version: '120',
+    metadata: {
+      redacted: true,
+      source_folder: 'C:\\EISCore\\Watch\\warehouse',
+      watch_folder_source: 'remote_config'
+    },
+    created_at: '2026-06-16T11:00:00.000Z'
+  }]
+  const logList = await callUrl(handlers.handleListLogs, '/document-intake/admin/logs?level=error&traceId=trace-1&eventType=webview_navigation_failed&user=operator&appModule=collector&route=document-intake&batchId=batch-1&sourceFileHash=hash-1&sourceFolder=warehouse&watchFolderSource=remote_config&q=webview&limit=10')
+  assert.equal(logList.statusCode, 200, 'log list should support all traceability filters')
+  assert.equal(logList.payload.logs.length, 1)
+  assert.equal(logList.payload.logs[0].eventType, 'webview_navigation_failed')
+  assert.equal(logList.payload.logs[0].deviceCode, 'warehouse-pc-01')
+  assert.equal(logList.payload.logs[0].statusCode, 502)
+  assert.equal(logList.payload.logs[0].traceId, 'trace-1')
+  assert.equal(logList.payload.logs[0].aiImportBatchId, 'batch-1')
+  assert.equal(logList.payload.logs[0].sourceFileHash, 'hash-1')
+  assert.equal(logList.payload.logs[0].sourceFolder, 'C:\\EISCore\\Watch\\warehouse')
+  assert.equal(logList.payload.logs[0].watchFolderSource, 'remote_config')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.client_log_events e') && entry.sql.includes('lower(e.level) = $1')),
+    'log list should filter by normalized log level'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('e.event_type = $2')),
+    'log list should filter by event type'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('e.user_id ilike $3') && entry.sql.includes('e.username ilike $3') && entry.sql.includes('e.role ilike $3')),
+    'log list should filter by user id, username or role'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('e.app_module ilike $4')),
+    'log list should filter by app module'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('e.route ilike $5') && entry.sql.includes('e.url ilike $5') && entry.sql.includes('e.request_url ilike $5')),
+    'log list should filter by page route, page URL or request URL'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('e.trace_id = $6')),
+    'log list should filter by trace_id'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('e.ai_import_batch_id::text = $7')),
+    'log list should filter by import batch id'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('e.source_file_hash ilike $8')),
+    'log list should filter by source file hash'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) =>
+      entry.sql.includes("coalesce(e.metadata->>'source_folder', '') ilike $9") &&
+      entry.sql.includes("coalesce(e.metadata->>'watch_folder_source', '') = $10")
+    ),
+    'log list should filter by watch folder path and source'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by e.created_at desc'))?.params,
+    ['error', 'webview_navigation_failed', '%operator%', '%collector%', '%document-intake%', 'trace-1', 'batch-1', '%hash-1%', '%warehouse%', 'remote_config', '%webview%', 10, 0],
+    'log list should keep all traceability, watch folder, keyword, limit and offset parameters stable'
+  )
+
+  resetState()
+  state.logRows = [{
+    id: 'log-device',
+    level: 'warn',
+    event_type: 'watch_folder_retry',
+    message: 'watch folder retry for warehouse pc',
+    stack: '',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    user_id: 'u_1',
+    username: 'operator',
+    role: '仓库员',
+    app_module: 'collector-desktop',
+    route: '',
+    url: '',
+    request_url: '',
+    status_code: null,
+    client_session_id: 'session-device',
+    trace_id: 'trace-device',
+    ai_import_batch_id: null,
+    source_file_hash: '',
+    app_version: '0.1.0',
+    webview_version: '120',
+    metadata: {},
+    created_at: '2026-06-16T11:05:00.000Z'
+  }]
+  const deviceLogs = await callUrl(handlers.handleListLogs, '/document-intake/admin/logs?deviceId=warehouse-pc-01&limit=10')
+  assert.equal(deviceLogs.statusCode, 200, 'log list should support device filters')
+  assert.equal(deviceLogs.payload.logs[0].deviceCode, 'warehouse-pc-01')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.client_log_events e') && entry.sql.includes('e.device_id::text = $1 or d.device_code = $1')),
+    'log list should filter by device id or code'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by e.created_at desc'))?.params,
+    ['warehouse-pc-01', 10, 0],
+    'log device filter should keep device, limit and offset parameters stable'
+  )
+
+  resetState()
+  state.entryResultRows = [{
+    id: 'plan-1',
+    asset_id: 'asset-1',
+    batch_id: 'batch-1',
+    target_module: 'materials',
+    target_document_type: '采购入库单',
+    target_kind: 'fixed_module_table',
+    app_id: null,
+    app_name: '',
+    target_schema: 'scm',
+    target_table: 'inventory_transactions',
+    mode: 'auto_import',
+    document_count: 1,
+    line_count: 3,
+    confidence: '0.8600',
+    reason: '采购入库资料',
+    status: 'partial',
+    metadata: {
+      imported_at: '2026-06-16T11:30:00.000Z',
+      imported_count: 2,
+      rejected_count: 1,
+      target_record_ids: ['txn-1', 'txn-2']
+    },
+    created_at: '2026-06-16T11:10:00.000Z',
+    updated_at: '2026-06-16T11:30:00.000Z',
+    original_filename: '采购入库单.xlsx',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'web_login_user',
+    asset_status: 'partial_imported',
+    duplicate_of_asset_id: null,
+    asset_metadata: { uploaded_by_role: '仓库员' },
+    business_link_count: 2,
+    unmapped_field_count: 4
+  }]
+  const entryResults = await callUrl(handlers.handleListEntryResults, '/document-intake/admin/entry-results?status=partial&targetKind=fixed_module_table&q=采购&limit=10')
+  assert.equal(entryResults.statusCode, 200, 'entry result list should support status, target kind and keyword filters')
+  assert.equal(entryResults.payload.entryResults.length, 1)
+  assert.equal(entryResults.payload.entryResults[0].targetDocumentType, '采购入库单')
+  assert.equal(entryResults.payload.entryResults[0].uploadedByRole, '仓库员')
+  assert.equal(entryResults.payload.entryResults[0].importedCount, 2)
+  assert.equal(entryResults.payload.entryResults[0].rejectedCount, 1)
+  assert.equal(entryResults.payload.entryResults[0].businessLinkCount, 2)
+  assert.equal(entryResults.payload.entryResults[0].unmappedFieldCount, 4)
+  assert.equal(entryResults.payload.entryResults[0].duplicate, false)
+  assert.deepEqual(entryResults.payload.entryResults[0].targetRecordIds, ['txn-1', 'txn-2'])
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.document_entry_plans p') && entry.sql.includes('p.status = $1')),
+    'entry result list should filter by entry plan status'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('p.target_kind = $2')),
+    'entry result list should filter by target kind'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by coalesce(p.updated_at, p.created_at)'))?.params,
+    ['partial', 'fixed_module_table', '%采购%', 10, 0],
+    'entry result list should keep status, target kind, keyword, limit and offset parameters stable'
+  )
+
+  resetState()
+  state.entryResultRows = [{
+    id: 'plan-traceable',
+    asset_id: 'asset-traceable',
+    batch_id: 'batch-traceable',
+    target_module: 'materials',
+    target_document_type: '采购入库单',
+    target_kind: 'fixed_module_table',
+    app_id: null,
+    app_name: '',
+    target_schema: 'scm',
+    target_table: 'inventory_transactions',
+    mode: 'auto_import',
+    document_count: 1,
+    line_count: 2,
+    confidence: '0.9300',
+    reason: '按设备和上传人追溯',
+    status: 'partial',
+    metadata: { imported_count: 1, rejected_count: 1, target_record_ids: ['txn-traceable'] },
+    created_at: '2026-06-16T11:40:00.000Z',
+    updated_at: '2026-06-16T11:45:00.000Z',
+    original_filename: '重复采购入库单.xlsx',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'web_login_user',
+    asset_status: 'duplicate',
+    duplicate_of_asset_id: 'asset-original',
+    asset_metadata: { uploaded_by_role: '仓库员' },
+    business_link_count: 1,
+    unmapped_field_count: 2
+  }]
+  const traceableEntryResults = await callUrl(
+    handlers.handleListEntryResults,
+    '/document-intake/admin/entry-results?duplicate=true&deviceId=warehouse-pc-01&user=%E4%BB%93%E5%BA%93%E5%91%98&operatorSource=web_login_user&status=partial&targetKind=fixed_module_table&limit=10'
+  )
+  assert.equal(traceableEntryResults.statusCode, 200, 'entry result list should support duplicate, device, user and source filters')
+  assert.equal(traceableEntryResults.payload.entryResults[0].duplicate, true)
+  assert.equal(traceableEntryResults.payload.entryResults[0].deviceCode, 'warehouse-pc-01')
+  assert.equal(traceableEntryResults.payload.entryResults[0].uploadedByRole, '仓库员')
+  assert.equal(traceableEntryResults.payload.entryResults[0].operatorSource, 'web_login_user')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes("a.status = 'duplicate' or a.duplicate_of_asset_id is not null")),
+    'entry result duplicate=true should match duplicate asset status or duplicate source id'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('a.device_id::text = $1') && entry.sql.includes('fd.device_code = $1')),
+    'entry result list should filter by source device id or code'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('a.uploaded_by_user_id ilike $2') && entry.sql.includes("a.metadata->>'uploaded_by_role'")),
+    'entry result list should filter by uploaded user id, username or role'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('a.operator_source = $3')),
+    'entry result list should filter by operator source'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by coalesce(p.updated_at, p.created_at)'))?.params,
+    ['warehouse-pc-01', '%仓库员%', 'web_login_user', 'partial', 'fixed_module_table', 10, 0],
+    'entry result traceability filters should keep device, user, source, status, target kind, limit and offset parameters stable'
+  )
+
+  resetState()
+  const badEntryResultDuplicateFilter = await callUrl(handlers.handleListEntryResults, '/document-intake/admin/entry-results?duplicate=maybe')
+  assert.equal(badEntryResultDuplicateFilter.statusCode, 400, 'entry result list should reject invalid duplicate values')
+  assert.equal(badEntryResultDuplicateFilter.payload.code, 'BAD_QUERY')
+  assert.equal(state.poolQueries.length, 0, 'invalid entry result duplicate filter should fail before querying')
+
+  resetState()
+  const badEntryResultAssetFilter = await callUrl(handlers.handleListEntryResults, '/document-intake/admin/entry-results?assetId=not-a-uuid')
+  assert.equal(badEntryResultAssetFilter.statusCode, 400, 'entry result list should reject invalid asset ids')
+  assert.equal(badEntryResultAssetFilter.payload.code, 'BAD_QUERY')
+  assert.equal(state.poolQueries.length, 0, 'invalid entry result asset filter should fail before querying')
+
+  resetState()
+  const assetFilterId = '00000000-0000-4000-8000-000000000201'
+  state.entryResultRows = [{
+    id: 'plan-by-asset',
+    asset_id: assetFilterId,
+    batch_id: 'batch-asset',
+    target_module: 'materials',
+    target_document_type: '采购入库单',
+    target_kind: 'fixed_module_table',
+    app_id: null,
+    app_name: '',
+    target_schema: 'scm',
+    target_table: 'inventory_transactions',
+    mode: 'auto_import',
+    document_count: 1,
+    line_count: 1,
+    confidence: '0.9000',
+    reason: '按来源文件追溯',
+    status: 'imported',
+    metadata: { imported_count: 1, target_record_ids: ['txn-asset'] },
+    created_at: '2026-06-16T12:00:00.000Z',
+    updated_at: '2026-06-16T12:01:00.000Z',
+    original_filename: '按文件追溯.xlsx',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'web_login_user',
+    asset_status: 'imported',
+    duplicate_of_asset_id: null,
+    asset_metadata: { uploaded_by_role: '仓库员' },
+    business_link_count: 1,
+    unmapped_field_count: 0
+  }]
+  const entryResultsByAsset = await callUrl(handlers.handleListEntryResults, `/document-intake/admin/entry-results?assetId=${assetFilterId}&limit=10`)
+  assert.equal(entryResultsByAsset.statusCode, 200, 'entry result list should support source asset filters')
+  assert.equal(entryResultsByAsset.payload.entryResults[0].assetId, assetFilterId)
+  assert.equal(entryResultsByAsset.payload.entryResults[0].targetRecordIds[0], 'txn-asset')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.document_entry_plans p') && entry.sql.includes('p.asset_id = $1')),
+    'entry result list should filter by source asset id'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by coalesce(p.updated_at, p.created_at)'))?.params,
+    [assetFilterId, 10, 0],
+    'entry result asset filter should keep asset id, limit and offset parameters stable'
+  )
+
+  resetState()
+  const badEntryResultBatchFilter = await callUrl(handlers.handleListEntryResults, '/document-intake/admin/entry-results?batchId=not-a-uuid')
+  assert.equal(badEntryResultBatchFilter.statusCode, 400, 'entry result list should reject invalid batch ids')
+  assert.equal(badEntryResultBatchFilter.payload.code, 'BAD_QUERY')
+  assert.equal(state.poolQueries.length, 0, 'invalid entry result batch filter should fail before querying')
+
+  resetState()
+  const batchFilterId = '00000000-0000-4000-8000-000000000301'
+  state.entryResultRows = [{
+    id: 'plan-by-batch',
+    asset_id: '00000000-0000-4000-8000-000000000302',
+    batch_id: batchFilterId,
+    target_module: 'materials',
+    target_document_type: '采购入库单',
+    target_kind: 'fixed_module_table',
+    app_id: null,
+    app_name: '',
+    target_schema: 'scm',
+    target_table: 'inventory_transactions',
+    mode: 'auto_import',
+    document_count: 1,
+    line_count: 2,
+    confidence: '0.9200',
+    reason: '按日志批次追溯',
+    status: 'imported',
+    metadata: { imported_count: 2, target_record_ids: ['txn-batch-1', 'txn-batch-2'] },
+    created_at: '2026-06-16T12:10:00.000Z',
+    updated_at: '2026-06-16T12:11:00.000Z',
+    original_filename: '按批次追溯.xlsx',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'web_login_user',
+    asset_status: 'imported',
+    duplicate_of_asset_id: null,
+    asset_metadata: { uploaded_by_role: '仓库员' },
+    business_link_count: 2,
+    unmapped_field_count: 0
+  }]
+  const entryResultsByBatch = await callUrl(handlers.handleListEntryResults, `/document-intake/admin/entry-results?batchId=${batchFilterId}&limit=10`)
+  assert.equal(entryResultsByBatch.statusCode, 200, 'entry result list should support import batch filters')
+  assert.equal(entryResultsByBatch.payload.entryResults[0].batchId, batchFilterId)
+  assert.equal(entryResultsByBatch.payload.entryResults[0].targetRecordIds[0], 'txn-batch-1')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.document_entry_plans p') && entry.sql.includes('p.batch_id = $1')),
+    'entry result list should filter by import batch id'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by coalesce(p.updated_at, p.created_at)'))?.params,
+    [batchFilterId, 10, 0],
+    'entry result batch filter should keep batch id, limit and offset parameters stable'
+  )
+
+  resetState()
+  state.entryResultRows = [{
+    id: 'plan-overview-success',
+    asset_id: '00000000-0000-4000-8000-000000000402',
+    batch_id: '00000000-0000-4000-8000-000000000401',
+    target_module: 'materials',
+    target_document_type: '采购入库单',
+    target_kind: 'fixed_module_table',
+    app_id: null,
+    app_name: '',
+    target_schema: 'scm',
+    target_table: 'inventory_transactions',
+    mode: 'auto_import',
+    document_count: 1,
+    line_count: 1,
+    confidence: '0.7600',
+    reason: '总览卡片联动筛选',
+    status: 'partial',
+    metadata: { imported_count: 1, target_record_ids: ['txn-overview'] },
+    created_at: '2026-06-16T12:20:00.000Z',
+    updated_at: '2026-06-16T12:21:00.000Z',
+    original_filename: '总览低置信度.xlsx',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'web_login_user',
+    asset_status: 'imported',
+    duplicate_of_asset_id: null,
+    asset_metadata: { uploaded_by_role: '仓库员' },
+    business_link_count: 1,
+    unmapped_field_count: 0
+  }]
+  const overviewEntryResults = await callUrl(handlers.handleListEntryResults, '/document-intake/admin/entry-results?today=true&status=successful&lowConfidence=true&limit=10')
+  assert.equal(overviewEntryResults.statusCode, 200, 'entry result list should support overview successful and low-confidence filters')
+  assert.equal(overviewEntryResults.payload.entryResults[0].status, 'partial')
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes("coalesce(p.updated_at, p.created_at) >= date_trunc('day', now())")),
+    'entry result today filter should constrain plans to the current day'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes("p.status in ('imported', 'partial')")),
+    'entry result successful filter should include imported and partial plans'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('p.confidence is not null and p.confidence < 0.8')),
+    'entry result low-confidence filter should use the overview confidence threshold'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('order by coalesce(p.updated_at, p.created_at)'))?.params,
+    [10, 0],
+    'entry result overview filters should not add unnecessary SQL parameters'
+  )
+
+  resetState()
+  const entryPlanId = '00000000-0000-4000-8000-000000000101'
+  const invalidEntryDetail = await callUrl(handlers.handleGetEntryResultDetail, '/document-intake/admin/entry-results/not-a-uuid')
+  assert.equal(invalidEntryDetail.statusCode, 400, 'entry result detail should reject invalid ids')
+  assert.equal(invalidEntryDetail.payload.code, 'ENTRY_RESULT_ID_REQUIRED')
+  assert.equal(state.poolQueries.length, 0, 'invalid entry result detail should fail before querying')
+
+  const detailFileHash = 'd'.repeat(64)
+  state.entryResultDetailRow = {
+    id: entryPlanId,
+    asset_id: 'asset-1',
+    batch_id: 'batch-1',
+    target_module: 'materials',
+    target_document_type: '采购入库单',
+    target_kind: 'fixed_module_table',
+    app_id: null,
+    app_name: '',
+    target_schema: 'scm',
+    target_table: 'inventory_transactions',
+    mode: 'auto_import',
+    document_count: 1,
+    line_count: 3,
+    confidence: '0.8600',
+    reason: '采购入库资料',
+    columns_snapshot: [{ field: 'material_code', label: '物料编码' }],
+    documents: [{ source: '采购入库单.xlsx', line_count: 3 }],
+    status: 'partial',
+    metadata: {
+      imported_at: '2026-06-16T11:30:00.000Z',
+      imported_count: 2,
+      rejected_count: 1,
+      target_record_ids: ['txn-1', 'txn-2'],
+      rejected_rows: [{ source: 'sheet1:row:4', reason: '物料编码缺失' }]
+    },
+    created_at: '2026-06-16T11:10:00.000Z',
+    updated_at: '2026-06-16T11:30:00.000Z',
+    original_filename: '采购入库单.xlsx',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    file_hash: detailFileHash,
+    uploaded_by_user_id: 'u_1',
+    uploaded_by_username: 'operator',
+    operator_source: 'web_login_user',
+    asset_status: 'partial_imported',
+    duplicate_of_asset_id: null,
+    asset_metadata: { uploaded_by_role: '仓库员' },
+    business_link_count: 2,
+    unmapped_field_count: 1
+  }
+  state.businessLinkRows = [{
+    id: 'link-1',
+    asset_id: 'asset-1',
+    batch_id: 'batch-1',
+    entry_plan_id: entryPlanId,
+    target_schema: 'scm',
+    target_table: 'inventory_transactions',
+    target_record_id: 'txn-1',
+    target_module: 'materials',
+    target_document_type: '采购入库单',
+    target_app_id: null,
+    ai_confidence: '0.8600',
+    metadata: { stock_in_result: { batch_no: 'B20260616' } },
+    created_at: '2026-06-16T11:20:00.000Z'
+  }, {
+    id: 'link-2',
+    asset_id: 'asset-1',
+    batch_id: 'batch-1',
+    entry_plan_id: entryPlanId,
+    target_schema: 'custom',
+    target_table: 'special_documents',
+    target_record_id: 'custom-1',
+    target_module: 'apps',
+    target_document_type: '自定义单据',
+    target_app_id: null,
+    ai_confidence: '0.7700',
+    metadata: { business_record_url: '/apps/app/custom-docs/record/custom-1?source=document-intake' },
+    created_at: '2026-06-16T11:21:00.000Z'
+  }]
+  state.unmappedFieldRows = [{
+    id: 'field-1',
+    asset_id: 'asset-1',
+    batch_id: 'batch-1',
+    entry_plan_id: entryPlanId,
+    target_schema: 'scm',
+    target_table: 'inventory_transactions',
+    target_record_id: 'txn-1',
+    name: '供应商',
+    value: '南派供应链',
+    confidence: '0.7500',
+    source: 'sheet1:row:2',
+    write_location: 'remarks',
+    metadata: { reason: 'stock_in RPC 暂未提供独立字段' },
+    created_at: '2026-06-16T11:21:00.000Z'
+  }]
+  state.businessCorrectionRows = [{
+    id: 'correction-1',
+    business_link_id: 'link-1',
+    target_schema: 'scm',
+    target_table: 'inventory_transactions',
+    target_record_id: 'txn-1',
+    field_name: 'quantity',
+    old_value: '10',
+    new_value: '12',
+    correction_type: 'manual_update',
+    affects_business_result: true,
+    recalculation_status: 'completed',
+    corrected_by: '仓库主管',
+    corrected_at: '2026-06-16T12:00:00.000Z',
+    metadata: { reason: '实收数量复核' }
+  }]
+  state.logRows = [{
+    id: 'log-detail-1',
+    level: 'info',
+    event_type: 'document_entry_completed',
+    message: '采购入库单自动入库完成 2 条，失败 1 条',
+    stack: '',
+    device_id: 'device-1',
+    device_code: 'warehouse-pc-01',
+    device_name: 'Warehouse PC 01',
+    user_id: 'u_1',
+    username: 'operator',
+    role: '仓库员',
+    app_module: 'document-intake-worker',
+    route: 'document-fixed-entry',
+    url: '',
+    request_url: '',
+    status_code: null,
+    client_session_id: 'session-entry',
+    trace_id: 'trace-entry-detail',
+    ai_import_batch_id: 'batch-1',
+    source_file_hash: detailFileHash,
+    app_version: '0.1.0',
+    webview_version: '',
+    metadata: { imported_count: 2, rejected_count: 1 },
+    created_at: '2026-06-16T11:31:00.000Z'
+  }]
+  const entryDetail = await callUrl(handlers.handleGetEntryResultDetail, `/document-intake/admin/entry-results/${entryPlanId}`)
+  assert.equal(entryDetail.statusCode, 200, 'entry result detail should return traceability details')
+  assert.equal(entryDetail.payload.entryResult.id, entryPlanId)
+  assert.equal(entryDetail.payload.entryResult.fileHash, detailFileHash)
+  assert.equal(entryDetail.payload.entryResult.columnsSnapshot[0].field, 'material_code')
+  assert.equal(entryDetail.payload.businessLinks[0].targetRecordId, 'txn-1')
+  assert.equal(entryDetail.payload.businessLinks[0].aiConfidence, 0.86)
+  assert.equal(
+    entryDetail.payload.businessLinks[0].businessRecordUrl,
+    '/materials/inventory-ledger?recordId=txn-1&source=document-intake',
+    'business link should include a server-generated business record URL for known target tables'
+  )
+  assert.equal(
+    entryDetail.payload.businessLinks[1].businessRecordUrl,
+    '/apps/app/custom-docs/record/custom-1?source=document-intake',
+    'business link metadata should be able to override the business record URL'
+  )
+  assert.equal(entryDetail.payload.unmappedFields[0].name, '供应商')
+  assert.equal(entryDetail.payload.unmappedFields[0].writeLocation, 'remarks')
+  assert.equal(entryDetail.payload.businessCorrections[0].fieldName, 'quantity')
+  assert.equal(entryDetail.payload.businessCorrections[0].oldValue, '10')
+  assert.equal(entryDetail.payload.businessCorrections[0].newValue, '12')
+  assert.equal(entryDetail.payload.businessCorrections[0].affectsBusinessResult, true)
+  assert.equal(entryDetail.payload.businessCorrections[0].recalculationStatus, 'completed')
+  assert.equal(entryDetail.payload.businessCorrections[0].correctedBy, '仓库主管')
+  assert.equal(entryDetail.payload.relatedLogs[0].eventType, 'document_entry_completed')
+  assert.equal(entryDetail.payload.relatedLogs[0].traceId, 'trace-entry-detail')
+  assert.equal(entryDetail.payload.relatedLogs[0].sourceFileHash, detailFileHash)
+  assert.equal(entryDetail.payload.rejectedRows[0].reason, '物料编码缺失')
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('where p.id = $1'))?.params,
+    [entryPlanId],
+    'entry result detail should query by the requested entry plan id'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.client_log_events e') && entry.sql.includes('e.ai_import_batch_id::text = $1') && entry.sql.includes('e.source_file_hash = $2')),
+    'entry result detail should query related import logs by import batch id and source file hash'
+  )
+  assert.ok(
+    state.poolQueries.some((entry) => entry.sql.includes('from public.ai_business_corrections c') && entry.sql.includes('bl.entry_plan_id = $1') && entry.sql.includes('c.business_link_id = bl.id')),
+    'entry result detail should query business correction records through its business links'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('from public.ai_business_corrections c'))?.params,
+    [entryPlanId],
+    'entry result detail correction query should keep the entry plan id parameter stable'
+  )
+  assert.deepEqual(
+    state.poolQueries.find((entry) => entry.sql.includes('from public.client_log_events e') && entry.sql.includes('limit 100'))?.params,
+    ['batch-1', detailFileHash],
+    'entry result detail log query should keep batch id and file hash parameters stable'
+  )
 
   resetState()
   const boundary = '----eiscore-test-boundary'

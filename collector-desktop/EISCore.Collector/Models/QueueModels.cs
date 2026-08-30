@@ -23,6 +23,11 @@ public sealed class UploadQueueItem
     public string UploadSource { get; set; } = "manual";
     public string DeviceId { get; set; } = "";
     public string UploadedByUserId { get; set; } = "";
+    public string UploadedByUsername { get; set; } = "";
+    public string UploadedByRole { get; set; } = "";
+    public string OperatorSource { get; set; } = "";
+    public string SourceFolder { get; set; } = "";
+    public string WatchFolderSource { get; set; } = "";
     public string Status { get; set; } = UploadQueueStatus.Pending;
     public int RetryCount { get; set; }
     public string LastError { get; set; } = "";

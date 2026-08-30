@@ -3312,12 +3312,19 @@ const fetchBusinessSnapshot = async (user) => {
     snapshot.materials = { total: materials.length, byCategory: categories };
   }
 
-  // 5. 员工统计
-  const employees = await safeQuery('employees', {
-    method: 'GET', path: '/employees',
-    query: { select: 'id,department', limit: '500' },
-    acceptProfile: 'public'
+  // 5. 员工统计（真实 HR 档案在 hr.archives，public.employees 仅保留兼容样例数据）
+  let employees = await safeQuery('hrArchives', {
+    method: 'GET', path: '/archives',
+    query: { select: 'id,department,status', limit: '500' },
+    acceptProfile: 'hr'
   });
+  if (!Array.isArray(employees)) {
+    employees = await safeQuery('employeesFallback', {
+      method: 'GET', path: '/employees',
+      query: { select: 'id,department', limit: '500' },
+      acceptProfile: 'public'
+    });
+  }
   if (Array.isArray(employees)) {
     const depts = {};
     employees.forEach(e => { const d = e.department || '未分配'; depts[d] = (depts[d] || 0) + 1; });
@@ -5322,6 +5329,16 @@ const authorizeTwinRequest = (req, res) => {
   return asUser(payload, token);
 };
 
+const authorizeDocumentIntakeAdminRequest = (req, res) => {
+  const token = getBearerFromAuthHeader(req);
+  const payload = verifyToken(token);
+  if (!payload) {
+    sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Invalid or missing token' });
+    return null;
+  }
+  return asUser(payload, token);
+};
+
 /**
  * 为指定用户创建绑定到其 JWT 的 PostgREST 查询函数
  */
@@ -5725,6 +5742,84 @@ const server = http.createServer(async (req, res) => {
 
   if (pathname === '/document-intake/devices/bind' && method === 'POST') {
     await documentIntakeHandlers.handleBindDevice(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/admin/overview' && method === 'GET') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleGetOverview(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/admin/assets' && method === 'GET') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleListAssets(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/admin/devices' && method === 'GET') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleListDevices(req, res);
+    return;
+  }
+
+  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders$/.test(pathname) && method === 'GET') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleListDeviceWatchFolders(req, res);
+    return;
+  }
+
+  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders$/.test(pathname) && method === 'POST') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleCreateWatchFolder(req, res);
+    return;
+  }
+
+  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders\/[^/]+$/.test(pathname) && method === 'PATCH') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleUpdateWatchFolder(req, res);
+    return;
+  }
+
+  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders\/[^/]+$/.test(pathname) && method === 'DELETE') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleDeleteWatchFolder(req, res);
+    return;
+  }
+
+  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders\/[^/]+\/status$/.test(pathname) && method === 'POST') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleUpdateWatchFolderStatus(req, res);
+    return;
+  }
+
+  if (/^\/document-intake\/admin\/devices\/[^/]+\/status$/.test(pathname) && method === 'POST') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleUpdateDeviceStatus(req, res);
+    return;
+  }
+
+  if (/^\/document-intake\/admin\/devices\/[^/]+\/reset-binding-code$/.test(pathname) && method === 'POST') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleResetDeviceBindingCode(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/admin/logs' && method === 'GET') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleListLogs(req, res);
+    return;
+  }
+
+  if (pathname === '/document-intake/admin/entry-results' && method === 'GET') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleListEntryResults(req, res);
+    return;
+  }
+
+  if (pathname.startsWith('/document-intake/admin/entry-results/') && method === 'GET') {
+    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
+    await documentIntakeHandlers.handleGetEntryResultDetail(req, res);
     return;
   }
 

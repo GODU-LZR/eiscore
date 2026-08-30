@@ -59,12 +59,12 @@
         <van-cell
           v-for="rec in recentRecords"
           :key="rec.id"
-          :title="`${rec.warehouse_name || rec.warehouse_code} - ${rec.location_code || ''}`"
-          :label="`盘点时间: ${formatDate(rec.check_date || rec.created_at)}`"
+          :title="rec.check_no || `盘点单 ${rec.id}`"
+          :label="`盘点日期: ${formatDate(rec.check_date || rec.created_at)}${rec.total_items ? ` · ${rec.total_items} 项` : ''}`"
         >
           <template #value>
-            <van-tag :type="rec.status === 'completed' ? 'success' : 'warning'">
-              {{ rec.status === 'completed' ? '已完成' : '进行中' }}
+            <van-tag :type="isCompletedCheck(rec.status) ? 'success' : 'warning'">
+              {{ isCompletedCheck(rec.status) ? '已完成' : (rec.status || '进行中') }}
             </van-tag>
           </template>
         </van-cell>
@@ -127,7 +127,7 @@ async function loadRecentRecords() {
   try {
     const token = getToken()
     const res = await fetch(
-      '/api/inventory_checks?select=id,warehouse_code,location_code,check_date,status,created_at&order=created_at.desc&limit=5',
+      '/api/inventory_checks?select=id,check_no,warehouse_id,check_date,status,total_items,diff_count,created_at&order=created_at.desc&limit=5',
       {
         headers: {
           'Accept-Profile': 'scm',
@@ -141,6 +141,10 @@ async function loadRecentRecords() {
   } catch (e) {
     console.error('加载盘点记录失败:', e)
   }
+}
+
+function isCompletedCheck(status) {
+  return ['completed', '已完成', '已生成调整单'].includes(String(status || '').trim())
 }
 
 function enterWarehouse(wh) {

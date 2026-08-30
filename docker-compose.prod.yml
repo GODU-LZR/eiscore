@@ -86,11 +86,50 @@ services:
       - ./eiscore-materials:/workspace/eiscore-materials
       - ./eiscore-apps:/workspace/eiscore-apps
       - ./eiscore-equipment:/workspace/eiscore-equipment
+      - ./data/document-intake:/app/data/document-intake
     depends_on:
       db:
         condition: service_healthy
       api:
         condition: service_started
 
+  code-server:
+    image: codercom/code-server:4.108.2
+    container_name: eiscore-ide
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    command:
+      - --bind-addr
+      - 0.0.0.0:8443
+      - --auth
+      - none
+      - --user-data-dir
+      - /config/data
+      - --extensions-dir
+      - /config/extensions
+      - --disable-telemetry
+      - /config/workspace/drafts
+    environment:
+      TZ: "${TZ:-Asia/Shanghai}"
+      HOME: /home/coder
+      XDG_CONFIG_HOME: /config/.config
+      NODE_OPTIONS: "--no-experimental-global-navigator"
+      VSCODE_NODE_OPTIONS: "--max-old-space-size=4096 --no-experimental-global-navigator"
+      CLINE_OPENAI_BASE_URL: "${CLINE_OPENAI_BASE_URL:-}"
+      CLINE_OPENAI_API_KEY: "${CLINE_OPENAI_API_KEY:-}"
+      CLINE_OPENAI_MODEL: "${CLINE_OPENAI_MODEL:-}"
+    ports:
+      - "127.0.0.1:8443:8443"
+    read_only: true
+    volumes:
+      - code_server_tmp:/tmp
+      - code_server_run:/run
+      - code_server_home:/home/coder
+      - ./config/code-server:/config
+      - ./eiscore-apps/src/views/drafts:/config/workspace/drafts
+
 volumes:
   pgdata:
+  code_server_tmp:
+  code_server_run:
+  code_server_home:

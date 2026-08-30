@@ -2,7 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="EISCore 采集端"
+        Title="EISCore"
+        Icon="Assets/eiscore.ico"
         Width="1280"
         Height="820"
         MinWidth="980"
@@ -15,111 +16,204 @@
         PreviewDragOver="Window_DragOver"
         PreviewDrop="Window_Drop">
   <Grid>
-    <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="340" />
-      <ColumnDefinition Width="*" />
-    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="44" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
 
-    <Border Grid.Column="0"
-            Background="{StaticResource PanelBackgroundBrush}"
+    <Border Grid.Row="0"
+            Background="#FFFFFF"
             BorderBrush="{StaticResource BorderBrushMuted}"
-            BorderThickness="0,0,1,0">
-      <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="18">
-          <TextBlock Text="EISCore 采集端"
-                     FontSize="22"
-                     FontWeight="SemiBold"
-                     Margin="0,0,0,4" />
-          <TextBlock Text="设备绑定、文件采集、上传队列和客户端日志"
-                     Foreground="#64748B"
-                     Margin="0,0,0,18" />
+            BorderThickness="0,0,0,1">
+      <Grid Margin="12,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
 
-          <TextBlock Text="服务器地址" FontWeight="SemiBold" />
-          <TextBox x:Name="ServerBaseUrlBox"
-                   ToolTip="例如 https://nanpai.eissys.top"
-                   TextChanged="ConfigTextChanged" />
+        <TextBlock Text="EISCore"
+                   VerticalAlignment="Center"
+                   FontSize="15"
+                   FontWeight="SemiBold" />
 
-          <TextBlock Text="企业编号 / 租户标识" FontWeight="SemiBold" />
-          <TextBox x:Name="EnterpriseCodeBox" TextChanged="ConfigTextChanged" />
-
-          <TextBlock Text="设备编号" FontWeight="SemiBold" />
-          <TextBox x:Name="DeviceCodeBox" TextChanged="ConfigTextChanged" />
-
-          <TextBlock Text="设备名称" FontWeight="SemiBold" />
-          <TextBox x:Name="DeviceNameBox" TextChanged="ConfigTextChanged" />
-
-          <TextBlock Text="默认上传用户 ID" FontWeight="SemiBold" />
-          <TextBox x:Name="DefaultUserIdBox" TextChanged="ConfigTextChanged" />
-
-          <TextBlock Text="默认上传用户名" FontWeight="SemiBold" />
-          <TextBox x:Name="DefaultUsernameBox" TextChanged="ConfigTextChanged" />
-
-          <TextBlock Text="默认岗位" FontWeight="SemiBold" />
-          <TextBox x:Name="DefaultRoleBox" TextChanged="ConfigTextChanged" />
-
-          <TextBlock Text="设备授权码" FontWeight="SemiBold" />
-          <PasswordBox x:Name="AuthorizationCodeBox" />
-
-          <StackPanel Orientation="Horizontal">
-            <Button Content="保存并绑定"
-                    Background="{StaticResource PrimaryBrush}"
-                    Foreground="#FFFFFF"
-                    Click="BindDevice_Click" />
-            <Button Content="仅保存配置"
-                    Click="SaveConfig_Click" />
-          </StackPanel>
-
-          <Separator Margin="0,14,0,14" />
-
-          <TextBlock Text="监听目录" FontWeight="SemiBold" />
-          <ListBox x:Name="WatchFolderList"
-                   Height="112"
-                   BorderBrush="#CBD5E1"
-                   Margin="0,4,0,6" />
-          <WrapPanel>
-            <Button Content="添加目录" Click="ChooseWatchFolder_Click" />
-            <Button Content="移除所选" Click="RemoveWatchFolder_Click" />
-            <Button Content="启用/停用" Click="ToggleWatchFolder_Click" />
-            <Button Content="启动监听" Click="RestartWatchers_Click" />
-          </WrapPanel>
-
-          <TextBlock Text="手动采集" FontWeight="SemiBold" Margin="0,14,0,0" />
-          <StackPanel Orientation="Horizontal">
-            <Button Content="选择文件入队" Click="ChooseFiles_Click" />
-            <Button Content="立即上传" Click="ProcessQueue_Click" />
-          </StackPanel>
-          <Border BorderBrush="#CBD5E1"
-                  BorderThickness="1"
-                  CornerRadius="6"
-                  Padding="12"
-                  Margin="0,8,0,12"
-                  Background="#FFFFFF">
-            <TextBlock Text="也可以直接把文件拖到本窗口。"
-                       Foreground="#475569" />
-          </Border>
-
-          <CheckBox x:Name="AutoStartBox"
-                    Content="开机自启"
-                    Margin="0,2,0,8"
-                    Checked="AutoStartBox_Changed"
-                    Unchecked="AutoStartBox_Changed" />
-
-          <TextBlock Text="状态" FontWeight="SemiBold" Margin="0,8,0,4" />
-          <TextBlock x:Name="StatusText"
-                     Text="正在初始化..."
-                     Foreground="#475569"
-                     Margin="0,0,0,8" />
-
-          <TextBlock Text="上传队列" FontWeight="SemiBold" Margin="0,8,0,4" />
-          <ListBox x:Name="QueueList"
-                   Height="220"
-                   BorderBrush="#CBD5E1" />
-        </StackPanel>
-      </ScrollViewer>
+        <Button Grid.Column="1"
+                Width="34"
+                Height="34"
+                MinHeight="34"
+                Padding="0"
+                Margin="0"
+                ToolTip="设置"
+                Click="ShowSettings_Click">
+          <TextBlock Text="&#xE713;"
+                     FontFamily="Segoe MDL2 Assets"
+                     FontSize="16"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center" />
+        </Button>
+      </Grid>
     </Border>
 
-    <Grid Grid.Column="1">
-      <wv2:WebView2 x:Name="Browser" />
+    <Grid Grid.Row="1">
+      <wv2:WebView2 x:Name="Browser"
+                    AllowDrop="True"
+                    DragOver="Window_DragOver"
+                    Drop="Window_Drop"
+                    PreviewDragOver="Window_DragOver"
+                    PreviewDrop="Window_Drop" />
+
+      <Border x:Name="WebViewFallbackPanel"
+              Visibility="Collapsed"
+              Background="#F8FAFC"
+              BorderBrush="{StaticResource BorderBrushMuted}"
+              BorderThickness="0,1,0,0">
+        <StackPanel Width="520"
+                    MaxWidth="680"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+          <TextBlock Text="内置浏览器初始化失败"
+                     FontSize="22"
+                     FontWeight="SemiBold"
+                     Margin="0,0,0,10" />
+          <TextBlock x:Name="WebViewFallbackText"
+                     Text="采集端后台能力仍会继续运行。可以打开设置检查服务器地址，或重试初始化内置浏览器。"
+                     Foreground="#64748B"
+                     FontSize="14"
+                     LineHeight="22"
+                     TextWrapping="Wrap"
+                     Margin="0,0,0,18" />
+          <StackPanel Orientation="Horizontal">
+            <Button Content="打开设置"
+                    Background="{StaticResource PrimaryBrush}"
+                    Foreground="#FFFFFF"
+                    Click="ShowSettings_Click" />
+            <Button Content="重试浏览器"
+                    Click="RetryWebView_Click" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Grid x:Name="SettingsOverlay"
+          Grid.RowSpan="2"
+          Visibility="Collapsed"
+          Panel.ZIndex="100"
+          Background="#660F172A">
+      <Grid HorizontalAlignment="Right"
+            Width="420"
+            MaxWidth="520"
+            Background="{StaticResource PanelBackgroundBrush}">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="52" />
+          <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="#FFFFFF"
+                BorderBrush="{StaticResource BorderBrushMuted}"
+                BorderThickness="0,0,0,1">
+          <Grid Margin="18,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="采集端设置"
+                       VerticalAlignment="Center"
+                       FontSize="17"
+                       FontWeight="SemiBold" />
+            <Button Grid.Column="1"
+                    Content="关闭"
+                    Click="HideSettings_Click" />
+          </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="20">
+            <TextBlock Text="设备绑定、文件采集、上传队列和客户端日志"
+                       Foreground="#64748B"
+                       Margin="0,0,0,18" />
+
+            <TextBlock Text="服务器地址" FontWeight="SemiBold" />
+            <TextBox x:Name="ServerBaseUrlBox"
+                     ToolTip="例如 https://nanpai.eissys.top"
+                     TextChanged="ConfigTextChanged" />
+
+            <TextBlock Text="企业编号 / 租户标识" FontWeight="SemiBold" />
+            <TextBox x:Name="EnterpriseCodeBox" TextChanged="ConfigTextChanged" />
+
+            <TextBlock Text="设备编号" FontWeight="SemiBold" />
+            <TextBox x:Name="DeviceCodeBox" TextChanged="ConfigTextChanged" />
+
+            <TextBlock Text="设备名称" FontWeight="SemiBold" />
+            <TextBox x:Name="DeviceNameBox" TextChanged="ConfigTextChanged" />
+
+            <TextBlock Text="默认上传用户 ID" FontWeight="SemiBold" />
+            <TextBox x:Name="DefaultUserIdBox" TextChanged="ConfigTextChanged" />
+
+            <TextBlock Text="默认上传用户名" FontWeight="SemiBold" />
+            <TextBox x:Name="DefaultUsernameBox" TextChanged="ConfigTextChanged" />
+
+            <TextBlock Text="默认岗位" FontWeight="SemiBold" />
+            <TextBox x:Name="DefaultRoleBox" TextChanged="ConfigTextChanged" />
+
+            <TextBlock Text="设备授权码" FontWeight="SemiBold" />
+            <PasswordBox x:Name="AuthorizationCodeBox" />
+
+            <StackPanel Orientation="Horizontal">
+              <Button Content="保存并绑定"
+                      Background="{StaticResource PrimaryBrush}"
+                      Foreground="#FFFFFF"
+                      Click="BindDevice_Click" />
+              <Button Content="仅保存配置"
+                      Click="SaveConfig_Click" />
+            </StackPanel>
+
+            <Separator Margin="0,14,0,14" />
+
+            <TextBlock Text="监听目录" FontWeight="SemiBold" />
+            <ListBox x:Name="WatchFolderList"
+                     Height="112"
+                     BorderBrush="#CBD5E1"
+                     Margin="0,4,0,6" />
+            <WrapPanel>
+              <Button Content="添加目录" Click="ChooseWatchFolder_Click" />
+              <Button Content="移除所选" Click="RemoveWatchFolder_Click" />
+              <Button Content="启用/停用" Click="ToggleWatchFolder_Click" />
+              <Button Content="启动监听" Click="RestartWatchers_Click" />
+            </WrapPanel>
+
+            <TextBlock Text="手动采集" FontWeight="SemiBold" Margin="0,14,0,0" />
+            <StackPanel Orientation="Horizontal">
+              <Button Content="选择文件入队" Click="ChooseFiles_Click" />
+              <Button Content="立即上传" Click="ProcessQueue_Click" />
+            </StackPanel>
+            <Border BorderBrush="#CBD5E1"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="12"
+                    Margin="0,8,0,12"
+                    Background="#FFFFFF">
+              <TextBlock Text="也可以直接把文件拖到本窗口。" Foreground="#475569" />
+            </Border>
+
+            <CheckBox x:Name="AutoStartBox"
+                      Content="开机自启"
+                      Margin="0,2,0,8"
+                      Checked="AutoStartBox_Changed"
+                      Unchecked="AutoStartBox_Changed" />
+
+            <TextBlock Text="状态" FontWeight="SemiBold" Margin="0,8,0,4" />
+            <TextBlock x:Name="StatusText"
+                       Text="正在初始化..."
+                       Foreground="#475569"
+                       Margin="0,0,0,8" />
+
+            <TextBlock Text="上传队列" FontWeight="SemiBold" Margin="0,8,0,4" />
+            <ListBox x:Name="QueueList"
+                     Height="220"
+                     BorderBrush="#CBD5E1" />
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
     </Grid>
   </Grid>
 </Window>

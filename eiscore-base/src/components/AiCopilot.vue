@@ -180,7 +180,11 @@
                 :data-message-index="index"
               >
                 <div class="avatar-wrapper">
-                  <div class="avatar">{{ msg.role === 'user' ? '👤' : '✨' }}</div>
+                  <div class="avatar" :class="{ 'assistant-avatar': msg.role === 'assistant', 'user-avatar': msg.role === 'user' }">
+                    <el-icon :size="16">
+                      <component :is="msg.role === 'user' ? UserFilled : (isEnterprise ? DataAnalysis : Service)" />
+                    </el-icon>
+                  </div>
                 </div>
 
                 <div class="content-wrapper">
@@ -519,7 +523,10 @@ import {
   getSmartBiWorkbenchCards,
   routeSmartBiQuestion
 } from '@shared/smart-bi-config'
-import { Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document, Refresh, FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
+import {
+  Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document,
+  Refresh, FullScreen, ScaleToOriginal, UserFilled, DataAnalysis, Service
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { useRouter } from 'vue-router'
@@ -780,6 +787,11 @@ const sanitizeSvg = (svgText) => {
 }
 
 const defaultFence = md.renderer.rules.fence
+const renderVisualBlockStreamingPlaceholder = (type) => {
+  const label = type === 'echarts' ? '图表生成中' : '流程图生成中'
+  return `<div class="chart-streaming-placeholder" data-chart-type="${type}"><span>${label}</span></div>`
+}
+
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx]
   const info = token.info.trim().toLowerCase()
@@ -794,15 +806,13 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   }
   if (info === 'mermaid') {
     if (env?.enableVisualBlocks === false) {
-      if (defaultFence) return defaultFence(tokens, idx, options, env, self)
-      return self.renderToken(tokens, idx, options)
+      return renderVisualBlockStreamingPlaceholder('mermaid')
     }
     return `<div class="mermaid-chart chart-pending" data-raw="${encodeURIComponent(token.content)}"></div>`
   }
   if (info === 'echarts') {
     if (env?.enableVisualBlocks === false) {
-      if (defaultFence) return defaultFence(tokens, idx, options, env, self)
-      return self.renderToken(tokens, idx, options)
+      return renderVisualBlockStreamingPlaceholder('echarts')
     }
     return `<div class="echarts-chart chart-pending" data-option="${encodeURIComponent(token.content)}"></div>`
   }
@@ -3678,7 +3688,12 @@ $border-color: #e4e7ed;
   .avatar {
     width: 32px; height: 32px; border-radius: 8px; background: #fff;
     display: flex; align-items: center; justify-content: center; font-size: 18px;
+    color: var(--el-text-color-secondary, #606266);
     box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  }
+  .avatar.assistant-avatar {
+    background: var(--el-color-primary-light-9, #ecf5ff);
+    color: var(--el-color-primary, #409EFF);
   }
   &.user .avatar { background: $primary-color; color: white; }
 
@@ -3716,12 +3731,12 @@ $border-color: #e4e7ed;
 }
 
 .input-section {
-  background: var(--ai-panel-surface); border-top: 1px solid $border-color; padding: 12px;
+  background: var(--ai-panel-surface); border-top: 1px solid $border-color; padding: 8px 10px;
 
   .file-preview-bar {
-    display: flex; gap: 8px; margin-bottom: 8px; overflow-x: auto; padding-bottom: 4px;
+    display: flex; gap: 8px; margin-bottom: 6px; overflow-x: auto; padding-bottom: 3px;
     .preview-item {
-      position: relative; width: 48px; height: 48px; flex-shrink: 0;
+      position: relative; width: 42px; height: 42px; flex-shrink: 0;
       border-radius: 6px; border: 1px solid $border-color; overflow: hidden;
       img { width: 100%; height: 100%; object-fit: cover; }
       .doc-preview { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f0f2f5; }
@@ -3735,9 +3750,9 @@ $border-color: #e4e7ed;
 
   .quick-actions {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 
     :deep(.el-button) {
       margin-left: 0;
@@ -3752,7 +3767,7 @@ $border-color: #e4e7ed;
     align-items: center;
     gap: 6px;
     max-width: 100%;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     padding: 4px 8px;
     border: 1px solid var(--el-border-color-lighter, #ebeef5);
     border-radius: 999px;
@@ -3785,25 +3800,25 @@ $border-color: #e4e7ed;
 
   .input-box {
     display: flex; align-items: flex-end;
-    gap: 10px; background: #f5f7fa; border-radius: 16px; padding: 10px 10px 10px 14px;
+    gap: 8px; background: #f5f7fa; border-radius: 14px; padding: 6px 8px 6px 10px;
     border: 1px solid transparent; transition: all 0.2s;
 
     &:focus-within { background: #fff; border-color: $primary-color; box-shadow: 0 0 0 2px rgba($primary-color, 0.1); }
 
-    .upload-trigger { display: flex; padding-bottom: 5px; }
+    .upload-trigger { display: flex; padding-bottom: 2px; }
     .tool-icon {
-      font-size: 20px; color: #909399; cursor: pointer; padding: 4px;
+      font-size: 18px; color: #909399; cursor: pointer; padding: 4px;
       &:hover { color: $primary-color; }
     }
 
     textarea {
       flex: 1; background: transparent; border: none; resize: none;
-      height: 52px; padding: 0; font-size: 14px; font-family: inherit; line-height: 1.7;
+      height: 38px; padding: 0; font-size: 14px; font-family: inherit; line-height: 1.45;
       &:focus { outline: none; }
     }
 
     .send-btn {
-      width: 32px; height: 32px; background: $primary-color; border-radius: 50%;
+      width: 30px; height: 30px; background: $primary-color; border-radius: 50%;
       display: flex; align-items: center; justify-content: center; color: white;
       cursor: pointer; transition: transform 0.2s; flex-shrink: 0;
       &.disabled { background: #c0c4cc; cursor: not-allowed; }
@@ -3821,6 +3836,20 @@ $border-color: #e4e7ed;
   }
   :deep(code) { font-family: 'Consolas', monospace; }
   :deep(img) { max-width: 100%; border-radius: 4px; }
+
+  :deep(.chart-streaming-placeholder) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    margin: 4px 0 8px;
+    padding: 0 10px;
+    border: 1px dashed var(--el-border-color, #dcdfe6);
+    border-radius: 6px;
+    background: var(--el-fill-color-extra-light, #fafafa);
+    color: var(--el-text-color-secondary, #606266);
+    font-size: 12px;
+    line-height: 28px;
+  }
 
   :deep(.echarts-chart),
   :deep(.mermaid-chart) {

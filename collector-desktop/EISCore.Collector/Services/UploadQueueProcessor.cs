@@ -14,6 +14,7 @@ public sealed class UploadQueueProcessor : IAsyncDisposable
     private Task? _loopTask;
 
     public event EventHandler? QueueChanged;
+    public event EventHandler<DeviceAuthorizationFailedEventArgs>? AuthorizationFailed;
 
     public UploadQueueProcessor(
         UploadQueueStore queueStore,
@@ -103,6 +104,23 @@ public sealed class UploadQueueProcessor : IAsyncDisposable
                         $"文件上传完成：{item.OriginalFilename}",
                         metadataJson: $$"""{"queue_id":{{item.Id}},"asset_id":"{{response.AssetId}}","batch_id":"{{response.BatchId}}"}""",
                         cancellationToken: cancellationToken);
+                }
+                catch (DeviceAuthorizationException ex)
+                {
+                    await _queueStore.UpdateStatusAsync(
+                        item.Id,
+                        UploadQueueStatus.Queued,
+                        "设备授权已失效，等待重新绑定。",
+                        incrementRetry: false,
+                        cancellationToken);
+                    await _logService.LogAsync(
+                        "warn",
+                        "collector_device_authorization_invalid",
+                        "设备授权已失效，上传队列已暂停并等待重新绑定。",
+                        ex.ToString(),
+                        cancellationToken: cancellationToken);
+                    AuthorizationFailed?.Invoke(this, new DeviceAuthorizationFailedEventArgs(ex));
+                    return;
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {

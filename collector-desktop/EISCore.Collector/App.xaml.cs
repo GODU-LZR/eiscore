@@ -4,7 +4,7 @@ using EISCore.Collector.Services;
 
 namespace EISCore.Collector;
 
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private MainWindow? _mainWindow;
 

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc" shape-rendering="geometricPrecision">
+  <title id="title">EISCore 黑白字母图标</title>
+  <desc id="desc">黑色圆角方形中的几何化 EIS 字母标识。</desc>
+
+  <rect x="28" y="28" width="456" height="456" rx="96" fill="#0A0A0A" />
+  <rect x="54" y="54" width="404" height="404" rx="70" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.28" />
+
+  <!-- Each glyph occupies the same 112 x 228px grid cell; the three cells are centered as a group. -->
+  <g fill="#FFFFFF">
+    <!-- E: x=72..184, y=142..370 -->
+    <path d="M72 142H184V170H100V242H168V270H100V342H184V370H72Z" />
+
+    <!-- I: x=200..312, y=142..370 -->
+    <path d="M200 142H312V170H270V342H312V370H200V342H242V170H200Z" />
+
+    <!-- S: x=328..440, y=142..370; complete geometric S with matching bounds. -->
+    <rect x="328" y="142" width="112" height="28" />
+    <rect x="328" y="142" width="28" height="128" />
+    <rect x="328" y="242" width="112" height="28" />
+    <rect x="412" y="242" width="28" height="128" />
+    <rect x="328" y="342" width="112" height="28" />
+  </g>
+</svg>

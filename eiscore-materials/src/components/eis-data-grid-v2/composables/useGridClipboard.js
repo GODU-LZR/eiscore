@@ -7,6 +7,11 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
   const { history, isSystemOperation, debouncedSave, performUndoRedo, sanitizeValue, pushPendingChange } = historyHooks
   const { rangeSelection, getColIndex } = selectionHooks
 
+  const isEditableTarget = (target) => {
+    if (!target || typeof target.closest !== 'function') return false
+    return Boolean(target.closest('input, textarea, [contenteditable="true"]'))
+  }
+
   const handleGlobalPaste = async (event) => {
     if (!gridApi.value) return
     const activeEl = document.activeElement
@@ -135,6 +140,10 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
     const isCtrl = event.ctrlKey || event.metaKey;
     
     if (!gridApi.value) return
+
+    if (isEditableTarget(event.target) || gridApi.value.getEditingCells?.().length > 0) {
+      return
+    }
     
     if (isCtrl && key === 'z' && !event.shiftKey) {
       event.preventDefault(); event.stopPropagation(); 

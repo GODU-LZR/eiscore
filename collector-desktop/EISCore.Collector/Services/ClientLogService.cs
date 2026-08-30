@@ -5,8 +5,38 @@ namespace EISCore.Collector.Services;
 
 public sealed class ClientLogService
 {
-    private static readonly Regex SensitiveHeaderRegex = new(
-        "(authorization|cookie|token|password|secret|access_token|refresh_token)(\\s*[:=]\\s*)([^&\\s,;]+)",
+    private const string Redacted = "***";
+
+    private static readonly Regex BearerTokenRegex = new(
+        "(authorization\\s*[:=]\\s*bearer\\s+|bearer\\s+)([A-Za-z0-9._~+/=-]+)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex SensitiveKeyValueRegex = new(
+        "(authorization|cookie|token|password|secret|access_token|refresh_token|auth_token|device_token|deviceToken|authorization_code|authorizationCode|binding_code|bindingCode)(\\s*[:=]\\s*)(\"?)([^\"&\\s,;}]+)(\"?)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex SensitiveJsonStringRegex = new(
+        "\"(authorization|cookie|token|password|secret|access_token|refresh_token|auth_token|device_token|deviceToken|authorization_code|authorizationCode|binding_code|bindingCode)\"(\\s*:\\s*)\"[^\"]*\"",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex SensitiveQueryRegex = new(
+        "([?&](?:authorization|cookie|token|password|secret|access_token|refresh_token|auth_token|device_token|deviceToken|authorization_code|authorizationCode|binding_code|bindingCode)=)([^&#\\s]+)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex WindowsUserPathRegex = new(
+        "([A-Za-z]:\\\\Users\\\\)[^\\\\\\r\\n\"']+",
+        RegexOptions.Compiled);
+
+    private static readonly Regex EscapedWindowsUserPathRegex = new(
+        "([A-Za-z]:\\\\\\\\Users\\\\\\\\)[^\\\\\\r\\n\"']+",
+        RegexOptions.Compiled);
+
+    private static readonly Regex UnixUserPathRegex = new(
+        "((?:/home|/Users)/)[^/\\s\"']+",
+        RegexOptions.Compiled);
+
+    private static readonly Regex DataUrlRegex = new(
+        "data:[^;,\\s]+;base64,[A-Za-z0-9+/=]{32,}",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex PhoneRegex = new(
@@ -50,27 +80,27 @@ public sealed class ClientLogService
         string metadataJson = "{}",
         CancellationToken cancellationToken = default)
     {
-        var logEvent = new ClientLogEvent
+        var logEvent = SanitizeEvent(new ClientLogEvent
         {
-            Level = Sanitize(level),
-            EventType = Sanitize(eventType),
-            Message = Sanitize(message),
-            Stack = Sanitize(stack),
+            Level = level,
+            EventType = eventType,
+            Message = message,
+            Stack = stack,
             DeviceId = _config.DeviceId,
             DeviceName = _config.DeviceName,
             UserId = _config.DefaultUserId,
             Username = _config.DefaultUsername,
             Role = _config.DefaultRole,
-            Route = Sanitize(route),
-            Url = Sanitize(url),
-            RequestUrl = Sanitize(requestUrl),
+            Route = route,
+            Url = url,
+            RequestUrl = requestUrl,
             StatusCode = statusCode,
             ClientSessionId = _sessionId,
             AppVersion = _config.ClientVersion,
             WebViewVersion = _webViewVersion,
             CreatedAt = DateTimeOffset.Now,
-            MetadataJson = Sanitize(metadataJson)
-        };
+            MetadataJson = metadataJson
+        });
 
         await _store.InsertAsync(logEvent, cancellationToken);
         if (logEvent.IsHighPriority)
@@ -83,9 +113,46 @@ public sealed class ClientLogService
     {
         if (string.IsNullOrEmpty(value)) return "";
 
-        var sanitized = SensitiveHeaderRegex.Replace(value, match => $"{match.Groups[1].Value}{match.Groups[2].Value}***");
+        var sanitized = SensitiveJsonStringRegex.Replace(value, match => $"\"{match.Groups[1].Value}\"{match.Groups[2].Value}\"{Redacted}\"");
+        sanitized = BearerTokenRegex.Replace(sanitized, match => $"{match.Groups[1].Value}{Redacted}");
+        sanitized = SensitiveQueryRegex.Replace(sanitized, match => $"{match.Groups[1].Value}{Redacted}");
+        sanitized = SensitiveKeyValueRegex.Replace(sanitized, match => $"{match.Groups[1].Value}{match.Groups[2].Value}{match.Groups[3].Value}{Redacted}{match.Groups[5].Value}");
+        sanitized = DataUrlRegex.Replace(sanitized, "data:***;base64,***");
         sanitized = PhoneRegex.Replace(sanitized, match => $"{match.Value[..3]}****{match.Value[^4..]}");
         sanitized = IdCardRegex.Replace(sanitized, match => $"{match.Value[..6]}********{match.Value[^4..]}");
+        sanitized = EscapedWindowsUserPathRegex.Replace(sanitized, match => $"{match.Groups[1].Value}{Redacted}");
+        sanitized = WindowsUserPathRegex.Replace(sanitized, match => $"{match.Groups[1].Value}{Redacted}");
+        sanitized = UnixUserPathRegex.Replace(sanitized, match => $"{match.Groups[1].Value}{Redacted}");
         return sanitized;
+    }
+
+    public static ClientLogEvent SanitizeEvent(ClientLogEvent logEvent)
+    {
+        return new ClientLogEvent
+        {
+            Id = logEvent.Id,
+            Level = Sanitize(logEvent.Level),
+            EventType = Sanitize(logEvent.EventType),
+            Message = Sanitize(logEvent.Message),
+            Stack = Sanitize(logEvent.Stack),
+            DeviceId = Sanitize(logEvent.DeviceId),
+            DeviceName = Sanitize(logEvent.DeviceName),
+            UserId = Sanitize(logEvent.UserId),
+            Username = Sanitize(logEvent.Username),
+            Role = Sanitize(logEvent.Role),
+            AppModule = Sanitize(logEvent.AppModule),
+            Route = Sanitize(logEvent.Route),
+            Url = Sanitize(logEvent.Url),
+            RequestUrl = Sanitize(logEvent.RequestUrl),
+            StatusCode = logEvent.StatusCode,
+            ClientSessionId = Sanitize(logEvent.ClientSessionId),
+            TraceId = Sanitize(logEvent.TraceId),
+            AiImportBatchId = Sanitize(logEvent.AiImportBatchId),
+            SourceFileHash = Sanitize(logEvent.SourceFileHash),
+            AppVersion = Sanitize(logEvent.AppVersion),
+            WebViewVersion = Sanitize(logEvent.WebViewVersion),
+            CreatedAt = logEvent.CreatedAt,
+            MetadataJson = Sanitize(logEvent.MetadataJson)
+        };
     }
 }

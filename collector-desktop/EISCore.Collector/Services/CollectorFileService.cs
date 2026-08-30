@@ -1,4 +1,5 @@
 using EISCore.Collector.Models;
+using System.Text.Json;
 
 namespace EISCore.Collector.Services;
 
@@ -19,6 +20,7 @@ public sealed class CollectorFileService
         string filePath,
         string uploadSource,
         AppConfig config,
+        WatchFolderConfig? watchFolder = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
@@ -40,6 +42,17 @@ public sealed class CollectorFileService
         }
 
         var info = new FileInfo(filePath);
+        if (info.Length == 0)
+        {
+            await _logService.LogAsync(
+                "warn",
+                "file_ignored",
+                $"空文件已忽略：{info.Name}",
+                metadataJson: "{\"file_size\":0}",
+                cancellationToken: cancellationToken);
+            return null;
+        }
+
         var allowedExtensions = (config.AllowedExtensions ?? new List<string>())
             .Select(item => item.Trim().ToLowerInvariant())
             .Where(item => !string.IsNullOrWhiteSpace(item))
@@ -91,6 +104,11 @@ public sealed class CollectorFileService
             UploadSource = uploadSource,
             DeviceId = config.DeviceId,
             UploadedByUserId = config.DefaultUserId,
+            UploadedByUsername = config.DefaultUsername,
+            UploadedByRole = config.DefaultRole,
+            OperatorSource = uploadSource == "web_drag_drop" ? "web_login_user" : "device_default_user",
+            SourceFolder = (watchFolder?.FolderPath ?? "").Trim(),
+            WatchFolderSource = NormalizeWatchFolderSource(watchFolder?.Source),
             Status = UploadQueueStatus.Queued,
             CreatedAt = DateTimeOffset.Now
         };
@@ -102,9 +120,31 @@ public sealed class CollectorFileService
             "info",
             "file_queued",
             $"文件已入队：{item.OriginalFilename}",
-            metadataJson: $$"""{"file_hash":"{{fileHash}}","file_size":{{item.FileSize}},"upload_source":"{{uploadSource}}"}""",
+            metadataJson: JsonSerializer.Serialize(new
+            {
+                file_hash = fileHash,
+                file_size = item.FileSize,
+                upload_source = uploadSource,
+                uploaded_by_user_id = item.UploadedByUserId,
+                uploaded_by_username = item.UploadedByUsername,
+                uploaded_by_role = item.UploadedByRole,
+                operator_source = item.OperatorSource,
+                source_folder = item.SourceFolder,
+                watch_folder_source = item.WatchFolderSource
+            }),
             cancellationToken: cancellationToken);
 
         return inserted;
+    }
+
+    private static string NormalizeWatchFolderSource(string? source)
+    {
+        var normalized = (source ?? "").Trim();
+        return normalized switch
+        {
+            WatchFolderSource.LocalSettings => WatchFolderSource.LocalSettings,
+            WatchFolderSource.RemoteConfig => WatchFolderSource.RemoteConfig,
+            _ => normalized
+        };
     }
 }

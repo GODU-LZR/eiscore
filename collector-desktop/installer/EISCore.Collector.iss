@@ -33,7 +33,7 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}
 AppUpdatesURL={#AppUrl}
-DefaultDirName={autopf}\EISCore\Collector
+DefaultDirName={localappdata}\Programs\EISCore\Collector
 DefaultGroupName=EISCore
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
@@ -48,11 +48,10 @@ CloseApplicationsFilter={#AppExeName}
 RestartApplications=no
 UninstallDisplayName={#AppName}
 UninstallDisplayIcon={app}\{#AppExeName}
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 SetupLogging=yes
 
 [Languages]
-Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
