@@ -292,6 +292,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { getAuthHeader, getUserInfo } from '@/utils/auth'
 
 const API_BASE = (() => {
   if (typeof window === 'undefined') return '/api'
@@ -624,32 +625,9 @@ const topShortageMaterials = computed(() => {
   return Array.from(map.values()).sort((a, b) => b.qty - a.qty)
 })
 
-const parseStoredToken = (raw) => {
-  if (!raw) return ''
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed?.token) return String(parsed.token)
-  } catch {
-    // localStorage may contain a plain token.
-  }
-  return String(raw)
-}
-
-const getAuthHeader = () => {
-  if (typeof localStorage === 'undefined') return {}
-  const token = parseStoredToken(localStorage.getItem('auth_token'))
-  if (token && token.length > 8192) {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_info')
-    return {}
-  }
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 const getCurrentUserName = () => {
-  if (typeof localStorage === 'undefined') return 'BOM-MRP'
   try {
-    const info = JSON.parse(localStorage.getItem('user_info') || '{}')
+    const info = getUserInfo() || {}
     return info.username || info.name || info.id || 'BOM-MRP'
   } catch {
     return 'BOM-MRP'

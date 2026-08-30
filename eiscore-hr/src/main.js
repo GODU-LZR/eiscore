@@ -17,6 +17,7 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { patchElMessage } from '@/utils/message-patch'
 import { installEisThemeSync } from '@shared/eis-theme-sync'
+import { getUserInfo } from '@/utils/auth'
 // BPMN 样式与字体（用于部门架构图）
 import 'bpmn-js/dist/assets/diagram-js.css'
 import 'bpmn-js/dist/assets/bpmn-js.css'
@@ -122,8 +123,7 @@ async function render(props = {}) {
   app.directive('permission', {
     mounted(el, binding) {
       const { value } = binding
-      const userInfoStr = localStorage.getItem('user_info')
-      const userInfo = userInfoStr ? JSON.parse(userInfoStr) : {}
+      const userInfo = getUserInfo() || {}
       const permissions = userInfo.permissions || []
 
       if (value && value instanceof Array && value.length > 0) {

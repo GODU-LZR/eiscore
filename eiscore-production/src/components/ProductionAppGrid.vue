@@ -581,6 +581,7 @@ import {
   matchesProductionAttentionFilter
 } from '@/utils/production-attention'
 import { hasPerm } from '@/utils/permission'
+import { getUserInfo } from '@/utils/auth'
 
 const props = defineProps({
   appKey: { type: String, default: 'work_orders' },
@@ -2144,7 +2145,7 @@ const createWorkOrdersFromPlan = async () => {
 
 const getCurrentUserName = () => {
   try {
-    const info = JSON.parse(localStorage.getItem('user_info') || '{}')
+    const info = getUserInfo() || {}
     return info.username || info.name || info.id || 'BOM-MRP'
   } catch {
     return 'BOM-MRP'

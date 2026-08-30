@@ -74,6 +74,7 @@ import { ElMessage } from 'element-plus'
 import { hasPerm } from '@/utils/permission'
 import { useUserStore } from '@/stores/user'
 import { pushAiContext } from '@/utils/ai-context'
+import { getUserInfo, setUserInfo } from '@/utils/auth'
 import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
 import { buildGridLoadState } from '@shared/eis-grid-agent-context'
 
@@ -323,7 +324,8 @@ const normalizeFileValue = async (raw) => {
 }
 
 const notifyUserInfoUpdated = (info) => {
-  localStorage.setItem('user_info', JSON.stringify(info))
+  const userInfoText = JSON.stringify(info)
+  if (!setUserInfo(info)) throw new Error('Unable to persist user info')
   userStore.userInfo = info
   const payload = { type: 'user-info-updated', user_info: info, user: info }
   const fire = (target) => {
@@ -336,7 +338,7 @@ const notifyUserInfoUpdated = (info) => {
   ;[window, window.parent, window.top].forEach((target) => {
     try { target?.postMessage?.(payload, '*') } catch (_) {}
   })
-  const storageEventInit = { key: 'user_info', newValue: JSON.stringify(info), storageArea: localStorage }
+  const storageEventInit = { key: 'user_info', newValue: userInfoText, storageArea: localStorage }
   try { window.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}
   if (window.parent && window.parent !== window) {
     try { window.parent.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}
@@ -357,10 +359,9 @@ const handleCellChanged = async (event) => {
   const current = userStore.userInfo?.username
   if (!current || event.data.username !== current) return
   const hasNewValue = Object.prototype.hasOwnProperty.call(event, 'newValue')
-  const stored = localStorage.getItem('user_info')
-  if (!stored) return
   try {
-    const info = JSON.parse(stored)
+    const info = getUserInfo()
+    if (!info) return
     if (field === 'avatar') {
       const raw = hasNewValue ? event.newValue : (event.data.avatar ?? '')
       info.avatar = await normalizeFileValue(raw)

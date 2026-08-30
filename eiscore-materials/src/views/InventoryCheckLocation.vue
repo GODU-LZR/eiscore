@@ -99,6 +99,7 @@ import {
 } from '@/api/check'
 import request from '@/utils/request'
 import { getCheckCache, getColdMode, addPendingCheck } from '@/utils/check-cache'
+import { getUserInfo } from '@/utils/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -117,8 +118,8 @@ const inputRefs = reactive({})
 const activeMaterial = computed(() => materials.value.find(m => m.material_code === activeCode.value))
 
 onMounted(() => {
-  const user = localStorage.getItem('user_info')
-  if (user) { try { checkBy.value = JSON.parse(user).username || '' } catch {} }
+  const user = getUserInfo()
+  checkBy.value = user?.username || ''
   loadAll()
 })
 
