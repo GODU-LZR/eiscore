@@ -10,7 +10,7 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 for (const [moduleId, timeoutMs, defaultProfile, expectedAccept, expectedSilence, expectedBusinessMessage] of [
   ['quality', 8000, 'public', false, false, false],
   ['equipment', 8000, 'public', true, false, false],
-  ['purchase', 5000, 'public', false, false, false],
+  ['purchase', 5000, 'public', false, true, false],
   ['sales', 5000, 'public', false, true, false],
   ['hr', 5000, 'hr', false, false, false],
   ['apps', 8000, 'app_center', false, false, false],

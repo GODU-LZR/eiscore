@@ -28,6 +28,8 @@ EISCore 的多个前端分别使用 Axios、原生 `fetch` 和局部 API 工具�
 
 实施继续覆盖基座设置页：宿主适配器公开同一缓存 HTTP 客户端，动态应用列表使用 `app_center` Profile，Agent 配置读写复用 `public` 系统配置服务。该页不再直接拼装 Token 或调用 `fetch`，401 由宿主局部清理并跳转 `/login`；全局 401 兜底仍按决策 8 保留。
 
+采购单据关系的可选查重与写入也复用微应用 Request。适配器允许请求以 `silentError` 或 `suppressErrorMessage` 抑制错误通知，但该判定不改变 401 的统一会话清理；业务层继续把表未部署、查重或写入失败视为可选能力并返回 `null`。
+
 正面影响：
 
 - 企业配置中的公网地址和 API 路径能够真正控制产品请求地址。

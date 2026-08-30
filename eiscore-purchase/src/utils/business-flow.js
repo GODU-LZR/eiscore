@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { getAuthHeader } from '@/utils/auth'
+import request from '@/utils/request'
 
 const apiHeaders = { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
 
@@ -44,19 +44,17 @@ export const createDocumentLinkPayload = ({
 const postOptionalRecord = async (path, payload) => {
   if (!payload) return null
   try {
-    const res = await fetch(`/api${path}`, {
-      method: 'POST',
+    return await request({
+      url: path,
+      method: 'post',
       headers: {
         ...apiHeaders,
-        ...getAuthHeader(),
-        Prefer: 'return=representation',
-        'Content-Type': 'application/json'
+        Prefer: 'return=representation'
       },
-      body: JSON.stringify(payload)
+      data: payload,
+      silentError: true,
+      suppressErrorMessage: true
     })
-    if (res.status === 404) return null
-    if (!res.ok) return null
-    return res.json().catch(() => null)
   } catch {
     return null
   }
@@ -79,14 +77,14 @@ const buildLinkQuery = (payload) => {
 export const tryCreateDocumentLink = async (payload) => {
   if (!payload) return null
   try {
-    const existing = await fetch(`/api/document_links?${buildLinkQuery(payload)}&select=id&limit=1`, {
-      method: 'GET',
-      headers: { ...apiHeaders, ...getAuthHeader() }
+    const rows = await request({
+      url: `/document_links?${buildLinkQuery(payload)}&select=id&limit=1`,
+      method: 'get',
+      headers: apiHeaders,
+      silentError: true,
+      suppressErrorMessage: true
     })
-    if (existing.ok) {
-      const rows = await existing.json().catch(() => [])
-      if (Array.isArray(rows) && rows.length > 0) return rows[0]
-    }
+    if (Array.isArray(rows) && rows.length > 0) return rows[0]
   } catch {
     // optional flow table may not exist yet
   }
