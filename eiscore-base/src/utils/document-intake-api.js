@@ -2,6 +2,9 @@
 // Copyright (c) 2026 林志荣
 
 import { getAuthHeader } from './auth.js'
+import { createDocumentIntakeClient } from './document-intake-client.js'
+
+const documentIntakeClient = createDocumentIntakeClient({ getAuthHeader })
 
 export const DOCUMENT_INTAKE_ASSETS_ENDPOINT = '/agent/document-intake/admin/assets'
 export const DOCUMENT_INTAKE_DEVICES_ENDPOINT = '/agent/document-intake/admin/devices'
@@ -224,173 +227,96 @@ export function buildDocumentIntakeWatchFolderUrl(deviceId, folderId) {
 }
 
 export async function fetchDocumentIntakeOverview() {
-  const response = await fetch(buildDocumentIntakeOverviewUrl(), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeOverviewUrl(), {
     method: 'GET',
-    headers: getAuthHeader()
+    errorMessage: '智能收单总览加载失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `智能收单总览加载失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function updateDocumentIntakeDeviceStatus(id, status) {
-  const response = await fetch(buildDocumentIntakeDeviceStatusUrl(id), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeDeviceStatusUrl(id), {
     method: 'POST',
-    headers: {
-      ...getAuthHeader(),
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ status })
+    data: { status },
+    errorMessage: '设备状态更新失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `设备状态更新失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function resetDocumentIntakeDeviceBindingCode(id) {
-  const response = await fetch(buildDocumentIntakeDeviceResetBindingCodeUrl(id), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeDeviceResetBindingCodeUrl(id), {
     method: 'POST',
-    headers: getAuthHeader()
+    errorMessage: '设备授权码重置失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `设备授权码重置失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function fetchDocumentIntakeDeviceWatchFolders(id) {
-  const response = await fetch(buildDocumentIntakeDeviceWatchFoldersUrl(id), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeDeviceWatchFoldersUrl(id), {
     method: 'GET',
-    headers: getAuthHeader()
+    errorMessage: '监听目录加载失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `监听目录加载失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function createDocumentIntakeDeviceWatchFolder(deviceId, payload) {
-  const response = await fetch(buildDocumentIntakeDeviceWatchFoldersUrl(deviceId), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeDeviceWatchFoldersUrl(deviceId), {
     method: 'POST',
-    headers: {
-      ...getAuthHeader(),
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload || {})
+    data: payload || {},
+    errorMessage: '监听目录新增失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `监听目录新增失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function updateDocumentIntakeWatchFolder(deviceId, folderId, payload) {
-  const response = await fetch(buildDocumentIntakeWatchFolderUrl(deviceId, folderId), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeWatchFolderUrl(deviceId, folderId), {
     method: 'PATCH',
-    headers: {
-      ...getAuthHeader(),
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload || {})
+    data: payload || {},
+    errorMessage: '监听目录保存失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `监听目录保存失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function updateDocumentIntakeWatchFolderStatus(deviceId, folderId, enabled) {
-  const response = await fetch(buildDocumentIntakeWatchFolderStatusUrl(deviceId, folderId), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeWatchFolderStatusUrl(deviceId, folderId), {
     method: 'POST',
-    headers: {
-      ...getAuthHeader(),
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ enabled: !!enabled })
+    data: { enabled: !!enabled },
+    errorMessage: '监听目录状态更新失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `监听目录状态更新失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function deleteDocumentIntakeWatchFolder(deviceId, folderId) {
-  const response = await fetch(buildDocumentIntakeWatchFolderUrl(deviceId, folderId), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeWatchFolderUrl(deviceId, folderId), {
     method: 'DELETE',
-    headers: getAuthHeader()
+    errorMessage: '监听目录删除失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `监听目录删除失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function fetchDocumentIntakeAssets(filters = {}) {
-  const response = await fetch(buildDocumentIntakeAssetListUrl(filters), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeAssetListUrl(filters), {
     method: 'GET',
-    headers: getAuthHeader()
+    errorMessage: '资产列表加载失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `资产列表加载失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function fetchDocumentIntakeDevices(filters = {}) {
-  const response = await fetch(buildDocumentIntakeDeviceListUrl(filters), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeDeviceListUrl(filters), {
     method: 'GET',
-    headers: getAuthHeader()
+    errorMessage: '设备列表加载失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `设备列表加载失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function fetchDocumentIntakeLogs(filters = {}) {
-  const response = await fetch(buildDocumentIntakeLogListUrl(filters), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeLogListUrl(filters), {
     method: 'GET',
-    headers: getAuthHeader()
+    errorMessage: '日志列表加载失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `日志列表加载失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function fetchDocumentIntakeEntryResults(filters = {}) {
-  const response = await fetch(buildDocumentIntakeEntryResultListUrl(filters), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeEntryResultListUrl(filters), {
     method: 'GET',
-    headers: getAuthHeader()
+    errorMessage: '入库结果加载失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `入库结果加载失败：${response.status}`)
-  }
-  return response.json()
 }
 
 export async function fetchDocumentIntakeEntryResultDetail(id) {
-  const response = await fetch(buildDocumentIntakeEntryResultDetailUrl(id), {
+  return documentIntakeClient.requestJson(buildDocumentIntakeEntryResultDetailUrl(id), {
     method: 'GET',
-    headers: getAuthHeader()
+    errorMessage: '入库结果详情加载失败'
   })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(text || `入库结果详情加载失败：${response.status}`)
-  }
-  return response.json()
 }
