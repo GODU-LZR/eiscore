@@ -25,6 +25,7 @@ const SAFE_ERROR_HEADER_NAMES = new Set([
   'content-profile',
   'content-type'
 ])
+const SENSITIVE_ERROR_MESSAGE_PATTERN = /(?:bearer\s+|(?:password|passphrase|token|secret|api[\s_-]?key|authorization)\s*[:=]|https?:\/\/|[?&][^=\s&]{1,80}=)/i
 const SAFE_PATH = Symbol('eiscore.platform.safePath')
 const SHOULD_NOTIFY_ERROR = Symbol('eiscore.platform.shouldNotifyError')
 
@@ -170,6 +171,28 @@ function safeAxiosErrorMessage(error) {
     : '请求失败'
 }
 
+function safeMappedErrorMessage(candidate, fallback) {
+  if (typeof candidate !== 'string') return fallback
+  const message = candidate.trim()
+  if (
+    !message ||
+    message.length > 200 ||
+    CONTROL_CHARACTER_PATTERN.test(message) ||
+    SENSITIVE_ERROR_MESSAGE_PATTERN.test(message)
+  ) return fallback
+  return message
+}
+
+async function resolveNotificationMessage(error, event, resolver) {
+  const fallback = safeAxiosErrorMessage(error)
+  if (typeof resolver !== 'function') return fallback
+  try {
+    return safeMappedErrorMessage(await resolver(error, event), fallback)
+  } catch {
+    return fallback
+  }
+}
+
 function errorEvent(error) {
   const config = error?.config || {}
   const status = Number(error?.response?.status) || Number(error?.status) || 0
@@ -234,6 +257,7 @@ export function createPlatformAxiosClient({
   onUnauthorized = () => {},
   notifyError = () => {},
   shouldNotifyError = () => true,
+  resolveErrorMessage,
   defaultProfile = '',
   defaultAccept = '',
   timeoutMs = DEFAULT_AXIOS_TIMEOUT_MS,
@@ -295,7 +319,8 @@ export function createPlatformAxiosClient({
         if (shouldNotify) await callSafely(notifyError, unauthorizedMessage, event)
         await callSafely(onUnauthorized, event)
       } else if (shouldNotify) {
-        await callSafely(notifyError, safeAxiosErrorMessage(error), event)
+        const message = await resolveNotificationMessage(error, event, resolveErrorMessage)
+        await callSafely(notifyError, message, event)
       }
       sanitizeRejectedAxiosError(error, event)
       return Promise.reject(error)

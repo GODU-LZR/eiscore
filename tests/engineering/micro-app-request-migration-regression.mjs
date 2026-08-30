@@ -7,13 +7,14 @@ import { resolve } from 'node:path'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 
-for (const [moduleId, timeoutMs, defaultProfile, expectedAccept, expectedSilence] of [
-  ['quality', 8000, 'public', false, false],
-  ['equipment', 8000, 'public', true, false],
-  ['purchase', 5000, 'public', false, false],
-  ['sales', 5000, 'public', false, true],
-  ['hr', 5000, 'hr', false, false],
-  ['apps', 8000, 'app_center', false, false]
+for (const [moduleId, timeoutMs, defaultProfile, expectedAccept, expectedSilence, expectedBusinessMessage] of [
+  ['quality', 8000, 'public', false, false, false],
+  ['equipment', 8000, 'public', true, false, false],
+  ['purchase', 5000, 'public', false, false, false],
+  ['sales', 5000, 'public', false, true, false],
+  ['hr', 5000, 'hr', false, false, false],
+  ['apps', 8000, 'app_center', false, false, false],
+  ['production', 8000, 'scm', false, false, true]
 ]) {
   const requestPath = resolve(repoRoot, `eiscore-${moduleId}/src/utils/request.js`)
   const source = readFileSync(requestPath, 'utf8')
@@ -33,6 +34,12 @@ for (const [moduleId, timeoutMs, defaultProfile, expectedAccept, expectedSilence
   } else {
     assert.doesNotMatch(source, /shouldNotifyError:/)
   }
+  if (expectedBusinessMessage) {
+    assert.match(source, /resolveErrorMessage:/)
+    assert.match(source, /error\?\.response\?\.data\?\.message/)
+  } else {
+    assert.doesNotMatch(source, /resolveErrorMessage:/)
+  }
 }
 
-console.log('PASS: standard-profile Request migration contract (6 applications)')
+console.log('PASS: standard-profile Request migration contract (7 applications)')
