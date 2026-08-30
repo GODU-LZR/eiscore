@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import { extractApiFilterQuery } from './eis-grid-server-summary'
+import { getToken } from './eis-session'
 
 const trimApiPrefix = (url) => String(url || '').replace(/^\/api\b/, '')
 
@@ -17,21 +18,6 @@ const normalizeDate = (date = new Date()) => {
   const next = new Date(date)
   if (Number.isNaN(next.getTime())) return ''
   return next.toISOString().slice(0, 10)
-}
-
-const parseStoredToken = (raw) => {
-  if (!raw) return ''
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed?.token) return String(parsed.token)
-  } catch (e) {}
-  return String(raw)
-}
-
-const getAuthToken = () => {
-  if (typeof localStorage === 'undefined') return ''
-  const token = parseStoredToken(localStorage.getItem('auth_token'))
-  return token && token.length <= 8192 ? token : ''
 }
 
 const parseContentRangeTotal = (value) => {
@@ -183,7 +169,7 @@ async function fetchExactCount({
     Range: '0-0',
     'Range-Unit': 'items'
   }
-  const token = getAuthToken()
+  const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
 
   const response = await fetch(url, { method: 'GET', headers })

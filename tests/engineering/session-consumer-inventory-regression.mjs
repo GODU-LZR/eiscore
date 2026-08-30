@@ -30,10 +30,6 @@ const inventory = runtimeRoots.flatMap(collectSources).flatMap((file) => {
   const source = readFileSync(file, 'utf8')
   return [...source.matchAll(directSessionPattern)].map(() => relative(repoRoot, file).replaceAll('\\', '/'))
 })
-const affectedFiles = new Set(inventory)
+assert.equal(inventory.length, 0, `direct session storage is forbidden:\n${inventory.join('\n')}`)
 
-assert.ok(inventory.length > 0, 'replace this bounded inventory with a strict zero gate after shared consumers migrate')
-assert.ok(inventory.length <= 3, `direct session calls increased: ${inventory.length} > 3`)
-assert.ok(affectedFiles.size <= 3, `direct session files increased: ${affectedFiles.size} > 3`)
-
-console.log(`PASS: bounded direct session inventory (${inventory.length} calls in ${affectedFiles.size} files)`)
+console.log('PASS: direct session consumer inventory is empty')

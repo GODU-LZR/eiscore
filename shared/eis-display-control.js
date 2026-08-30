@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import { onMounted, onUnmounted, ref } from 'vue'
+import { getToken } from './eis-session'
 
 export const DISPLAY_VISIBILITY_STORAGE_KEY = 'eis_display_visibility_v1'
 export const DISPLAY_VISIBILITY_UPDATED_EVENT = 'eis:display-visibility-updated'
@@ -214,24 +215,12 @@ export const saveStoredDisplayVisibility = (visibility) => {
   return cfg
 }
 
-const getAuthToken = () => {
-  if (typeof localStorage === 'undefined') return ''
-  const raw = localStorage.getItem('auth_token')
-  if (!raw) return ''
-  try {
-    const parsed = JSON.parse(raw)
-    return parsed?.token || raw
-  } catch (e) {
-    return raw
-  }
-}
-
 export const fetchDisplayVisibility = async () => {
   const headers = {
     Accept: 'application/json',
     'Accept-Profile': 'public'
   }
-  const token = getAuthToken()
+  const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
   const res = await fetch('/api/system_configs?key=eq.app_settings', { headers })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+import { getUserInfo } from './eis-session'
+
 const normalizeText = (value, fallback = '') => {
   const text = value === null || value === undefined ? '' : String(value).trim()
   return text || fallback
@@ -8,8 +10,7 @@ const normalizeText = (value, fallback = '') => {
 
 const getCurrentUserName = () => {
   try {
-    const raw = localStorage.getItem('user_info')
-    const info = raw ? JSON.parse(raw) : {}
+    const info = getUserInfo() || {}
     return normalizeText(info?.username || info?.name || info?.id, 'unknown')
   } catch {
     return 'unknown'
