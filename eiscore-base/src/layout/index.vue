@@ -273,6 +273,7 @@ import {
 import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '@/utils/micro-path'
 import { getEnterpriseConfig } from '@/platform/enterprise-config'
 import { isEnterprisePathEnabled } from '@/platform/enterprise-routing'
+import { getHostHttpClient } from '@/platform/http-client'
 import { ElMessage } from 'element-plus'
 import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import { isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
@@ -2942,19 +2943,14 @@ const fetchSopLearningRecords = async () => {
   guideProgressSyncState.value = 'syncing'
   try {
     const encodedUsername = encodeURIComponent(username)
-    const res = await fetch(`/api/sop_learning_records?username=eq.${encodedUsername}&select=guide_id,seen_at,completed_at,status&limit=500`, {
+    const { data } = await getHostHttpClient().requestJson(`/sop_learning_records?username=eq.${encodedUsername}&select=guide_id,seen_at,completed_at,status&limit=500`, {
       method: 'GET',
       headers: {
         'Accept-Profile': 'public',
-        'Content-Profile': 'public',
-        ...getAuthHeader()
+        'Content-Profile': 'public'
       }
     })
-    if (!res.ok) {
-      guideProgressSyncState.value = 'local'
-      return
-    }
-    const rows = await res.json()
+    const rows = data
     const incoming = {}
     if (Array.isArray(rows)) {
       rows.forEach((row) => {
@@ -3011,18 +3007,16 @@ const syncSopLearningRecord = async (guideId) => {
   if (!record) return
   guideProgressSyncState.value = 'syncing'
   try {
-    const res = await fetch('/api/sop_learning_records?on_conflict=username,guide_id', {
+    await getHostHttpClient().requestJson('/sop_learning_records?on_conflict=username,guide_id', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
         'Accept-Profile': 'public',
         'Content-Profile': 'public',
-        Prefer: 'resolution=merge-duplicates',
-        ...getAuthHeader()
+        Prefer: 'resolution=merge-duplicates'
       },
-      body: JSON.stringify(record)
+      body: record
     })
-    guideProgressSyncState.value = res.ok ? 'synced' : 'local'
+    guideProgressSyncState.value = 'synced'
   } catch (e) {
     guideProgressSyncState.value = 'local'
   }
