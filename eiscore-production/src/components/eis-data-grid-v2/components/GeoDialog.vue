@@ -57,6 +57,7 @@ import { ElMessage } from 'element-plus'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import html2canvas from 'html2canvas'
+import { getToken } from '@/utils/auth'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -271,21 +272,9 @@ const extractTranslation = (data, resultField) => {
   return ''
 }
 
-const getAuthToken = () => {
-  const tokenStr = localStorage.getItem('auth_token')
-  if (!tokenStr) return ''
-  try {
-    const parsed = JSON.parse(tokenStr)
-    if (parsed?.token) return parsed.token
-  } catch (e) {
-    // ignore
-  }
-  return tokenStr
-}
-
 const buildAuthHeaders = () => {
   const headers = { 'Content-Type': 'application/json' }
-  const token = getAuthToken()
+  const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
   return headers
 }

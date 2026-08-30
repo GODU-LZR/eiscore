@@ -21,6 +21,7 @@ import CheckRenderer from '../components/renderers/CheckRenderer.vue'
 import CheckEditor from '../components/renderers/CheckEditor.vue'
 import RowHeightHandleRenderer from '@shared/eis-grid-row-height-handle.vue'
 import { useUserStore } from '@/stores/user'
+import { getUserInfo } from '@/utils/auth'
 
 export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit, workflowBindingRef) {
   const hasGridRef = gridApiRef && typeof gridApiRef === 'object' && 'value' in gridApiRef
@@ -54,8 +55,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const info = userStore.userInfo
     if (info && typeof info === 'object' && Object.keys(info).length > 0) return info
     try {
-      const raw = localStorage.getItem('user_info')
-      return raw ? JSON.parse(raw) : {}
+      return getUserInfo() || {}
     } catch (e) {
       return {}
     }

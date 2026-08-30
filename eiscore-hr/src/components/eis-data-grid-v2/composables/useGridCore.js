@@ -20,6 +20,7 @@ import CheckRenderer from '../components/renderers/CheckRenderer.vue'
 import CheckEditor from '../components/renderers/CheckEditor.vue'
 import RowHeightHandleRenderer from '../components/renderers/RowHeightHandleRenderer.vue'
 import { useUserStore } from '@/stores/user'
+import { getUserInfo } from '@/utils/auth'
 import {
   HR_ATTENTION_LEVEL_OPTIONS,
   attentionLevelRank,
@@ -86,8 +87,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const info = userStore.userInfo
     if (info && typeof info === 'object' && Object.keys(info).length > 0) return info
     try {
-      const raw = localStorage.getItem('user_info')
-      return raw ? JSON.parse(raw) : {}
+      return getUserInfo() || {}
     } catch (e) {
       return {}
     }
