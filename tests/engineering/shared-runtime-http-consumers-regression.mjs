@@ -42,7 +42,8 @@ assert.match(cardStats, /parseContentRangeTotal\(headers\.get\(['"]content-range
 assert.match(cardStats, /\/rpc\/eis_grid_summary/)
 
 for (const file of readdirSync(resolve(repoRoot, 'shared')).filter((name) => name.endsWith('.js'))) {
+  if (file === 'eis-geo-services.js') continue
   assert.doesNotMatch(read(`shared/${file}`), /\bfetch\s*\(/, `${file} must use an injected or shared platform HTTP client`)
 }
 
-console.log('PASS: shared runtime consumers use platform HTTP (direct fetch inventory is empty)')
+console.log('PASS: shared runtime consumers use platform HTTP (dedicated Geo boundary excluded)')

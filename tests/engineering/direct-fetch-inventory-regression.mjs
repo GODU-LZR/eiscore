@@ -10,14 +10,7 @@ const sourceExtensions = new Set(['.js', '.jsx', '.mjs', '.ts', '.tsx', '.vue'])
 const fetchPattern = /\bfetch\s*\(/g
 
 const expectedInventory = new Map([
-  ['eiscore-apps/src/components/eis-data-grid-v2/components/GeoDialog.vue', ['geo-hybrid', 6]],
-  ['eiscore-equipment/src/components/eis-data-grid-v2/components/GeoDialog.vue', ['geo-hybrid', 6]],
-  ['eiscore-hr/src/components/eis-data-grid-v2/components/GeoDialog.vue', ['geo-hybrid', 6]],
-  ['eiscore-materials/src/components/eis-data-grid-v2/components/GeoDialog.vue', ['geo-hybrid', 6]],
-  ['eiscore-production/src/components/eis-data-grid-v2/components/GeoDialog.vue', ['geo-hybrid', 6]],
-  ['eiscore-purchase/src/components/eis-data-grid-v2/components/GeoDialog.vue', ['geo-hybrid', 6]],
-  ['eiscore-quality/src/components/eis-data-grid-v2/components/GeoDialog.vue', ['geo-hybrid', 6]],
-  ['eiscore-sales/src/components/eis-data-grid-v2/components/GeoDialog.vue', ['geo-hybrid', 6]],
+  ['shared/eis-geo-services.js', ['geo-hybrid', 1]],
   ['eiscore-apps/src/utils/flash-runtime-bridge.js', ['agent-protocol', 1]],
   ['eiscore-apps/src/views/FlashDraftPreview.vue', ['agent-protocol', 1]],
   ['eiscore-base/src/components/AiCopilot.vue', ['agent-protocol', 1]],
@@ -36,7 +29,7 @@ const expectedInventory = new Map([
 ])
 
 const expectedCategoryCounts = new Map([
-  ['geo-hybrid', 48],
+  ['geo-hybrid', 1],
   ['agent-protocol', 24],
   ['static-assets', 4],
   ['service-probe', 1],
@@ -87,5 +80,5 @@ assert.deepEqual([...categoryCounts.entries()].sort(), [...expectedCategoryCount
 assert.deepEqual(literalApiFetches, [], 'protected /api calls must use the platform HTTP client')
 
 const total = [...actualInventory.values()].reduce((sum, count) => sum + count, 0)
-assert.equal(total, 84)
+assert.equal(total, 37)
 console.log(`PASS: direct fetch inventory locked (${actualInventory.size} files, ${total} calls, 6 categories)`)

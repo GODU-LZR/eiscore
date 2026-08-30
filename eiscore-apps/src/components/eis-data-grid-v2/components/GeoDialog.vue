@@ -58,6 +58,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import html2canvas from 'html2canvas'
 import { getToken } from '@/utils/auth'
+import { createGeoServices, hasChinese } from '@shared/eis-geo-services'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -86,8 +87,6 @@ const form = reactive({
   ipAddress: '',
   ipSource: ''
 })
-
-const translationCache = new Map()
 
 const allowAddress = computed(() => {
   const colDef = props.params?.colDef || {}
@@ -173,6 +172,13 @@ const getGeoConfig = () => {
   }
 }
 
+const {
+  askGlmForMapLocation,
+  fetchIpLocation,
+  fetchReverseAddress,
+  translateText
+} = createGeoServices({ getConfig: getGeoConfig, getToken })
+
 const ensureMap = async () => {
   if (mapInstance.value || !mapRef.value) return
   const config = getGeoConfig()
@@ -225,146 +231,6 @@ const setIpMeta = (payload) => {
   if (payload.source) form.ipSource = payload.source
 }
 
-const hasChinese = (text) => /[\u4e00-\u9fa5]/.test(String(text || ''))
-
-const extractAddress = (data) => {
-  if (!data || typeof data !== 'object') return ''
-  return (
-    data.display_name ||
-    data.formatted_address ||
-    data.address ||
-    data?.regeocode?.formatted_address ||
-    data?.result?.address ||
-    ''
-  )
-}
-
-const buildIpAddress = (data) => {
-  if (!data || typeof data !== 'object') return ''
-  const parts = []
-  if (data.country) parts.push(data.country)
-  if (data.region) parts.push(data.region)
-  if (data.province) parts.push(data.province)
-  if (data.city) parts.push(data.city)
-  if (data.district) parts.push(data.district)
-  return parts.join('')
-}
-
-const parseIpLocation = (data) => {
-  if (!data || typeof data !== 'object') return null
-  const lat = normalizeNumber(data.lat ?? data.latitude ?? data.location?.lat)
-  const lng = normalizeNumber(data.lon ?? data.lng ?? data.longitude ?? data.location?.lng)
-  if (lat === null || lng === null) return null
-  const address = extractAddress(data) || buildIpAddress(data)
-  const ip = data.ip || data.query || ''
-  return { lat, lng, address, ip, source: 'ip' }
-}
-
-const appendLangParam = (url, key, lang) => {
-  if (!url || !lang) return url
-  if (url.includes('{lang}')) {
-    return url.replace('{lang}', encodeURIComponent(lang))
-  }
-  const pattern = new RegExp(`[?&]${key}=`, 'i')
-  if (pattern.test(url)) return url
-  const sep = url.includes('?') ? '&' : '?'
-  return `${url}${sep}${key}=${encodeURIComponent(lang)}`
-}
-
-const extractTranslation = (data, resultField) => {
-  if (!data) return ''
-  if (typeof data === 'string') return data
-  if (Array.isArray(data)) {
-    const item = data[0]
-    if (typeof item === 'string') return item
-    if (item?.translatedText) return item.translatedText
-  }
-  if (data.translatedText) return data.translatedText
-  if (data.translation) return data.translation
-  if (data.result?.translatedText) return data.result.translatedText
-  if (data.data?.translations?.[0]?.translatedText) return data.data.translations[0].translatedText
-  if (resultField) {
-    return resultField.split('.').reduce((acc, key) => acc?.[key], data) || ''
-  }
-  return ''
-}
-
-const buildAuthHeaders = () => {
-  const headers = { 'Content-Type': 'application/json' }
-  const token = getToken()
-  if (token) headers.Authorization = `Bearer ${token}`
-  return headers
-}
-
-const translateWithGlm = async (text) => {
-  const trimmed = text ? String(text).trim() : ''
-  if (!trimmed) return ''
-  const cached = translationCache.get(trimmed)
-  if (cached) return cached
-  const systemPrompt = `你是翻译助手。把用户输入翻译成简洁、自然的中文地址，只输出翻译结果，不要添加任何解释。若输入已是中文，原样输出。`
-  try {
-    const res = await fetch('/agent/ai/translate', {
-      method: 'POST',
-      headers: buildAuthHeaders(),
-      body: JSON.stringify({
-        text: trimmed,
-        prompt: systemPrompt
-      })
-    })
-    if (!res.ok) return trimmed
-    const data = await res.json()
-    const finalText = String(data?.text || '').trim() || trimmed
-    translationCache.set(trimmed, finalText)
-    return finalText
-  } catch (e) {
-    return trimmed
-  }
-}
-
-const translateText = async (text) => {
-  const config = getGeoConfig()
-  const trimmed = text ? String(text).trim() : ''
-  if (!trimmed) return ''
-  if (translationCache.has(trimmed)) return translationCache.get(trimmed)
-  if (config.translateProvider === 'glm' || !config.translateApiUrl) {
-    const translated = await translateWithGlm(trimmed)
-    translationCache.set(trimmed, translated)
-    return translated
-  }
-  const payload = {
-    ...config.translateExtra,
-    [config.translateTextField || 'q']: trimmed,
-    [config.translateSourceField || 'source']: 'auto',
-    [config.translateTargetField || 'target']: config.translateLang || 'zh-CN'
-  }
-  try {
-    if (String(config.translateMethod || 'post').toLowerCase() === 'get') {
-      const params = new URLSearchParams(payload).toString()
-      const url = config.translateApiUrl.includes('?')
-        ? `${config.translateApiUrl}&${params}`
-        : `${config.translateApiUrl}?${params}`
-      const res = await fetch(url)
-      if (!res.ok) return text
-      const data = await res.json()
-      const translated = extractTranslation(data, config.translateResultField) || trimmed
-      translationCache.set(trimmed, translated)
-      return translated
-    }
-    const res = await fetch(config.translateApiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    if (!res.ok) return text
-    const data = await res.json()
-    const translated = extractTranslation(data, config.translateResultField) || trimmed
-    translationCache.set(trimmed, translated)
-    return translated
-  } catch (e) {
-    return text
-  }
-}
-
 const captureMapSnapshot = async () => {
   if (!mapRef.value) return null
   const config = getGeoConfig()
@@ -383,28 +249,6 @@ const captureMapSnapshot = async () => {
   }
 }
 
-const askGlmForMapLocation = async (imageUrl, lat, lng) => {
-  const config = getGeoConfig()
-  const prompt = config.mapAiPrompt || `请根据地图截图上的中文地名，且以蓝色圆点为用户当前位置，找出离蓝点最近的街道级位置。输出严格格式的中文位置：“省-市-区/县/县级市-街道/乡镇”。必须包含街道级；如果无法确定街道，请用“某街道”或“附近街道”占位，但仍要输出四段。只输出位置，不要解释，不要多余的话。坐标：${lng},${lat}`
-  try {
-    const res = await fetch('/agent/ai/map-locate', {
-      method: 'POST',
-      headers: buildAuthHeaders(),
-      body: JSON.stringify({
-        imageUrl,
-        lat,
-        lng,
-        prompt
-      })
-    })
-    if (!res.ok) return ''
-    const data = await res.json()
-    return String(data?.address || '').trim()
-  } catch (e) {
-    return ''
-  }
-}
-
 const inferAddressFromMap = async (lat, lng) => {
   if (!allowAddress.value || aiLocating.value) return
   aiLocating.value = true
@@ -419,41 +263,6 @@ const inferAddressFromMap = async (lat, lng) => {
     }
   } finally {
     aiLocating.value = false
-  }
-}
-
-const fetchIpLocation = async () => {
-  const config = getGeoConfig()
-  if (!config.ipApiUrl) return null
-  const ipUrl = appendLangParam(config.ipApiUrl, config.ipLangParam || 'lang', config.lang)
-  try {
-    const res = await fetch(ipUrl, {
-      headers: config.lang ? { 'Accept-Language': config.lang } : {}
-    })
-    if (!res.ok) return null
-    const data = await res.json()
-    return parseIpLocation(data)
-  } catch (e) {
-    return null
-  }
-}
-
-const fetchReverseAddress = async (lat, lng) => {
-  const config = getGeoConfig()
-  if (!config.reverseApiUrl) return ''
-  let url = config.reverseApiUrl
-    .replace('{lat}', encodeURIComponent(String(lat)))
-    .replace('{lng}', encodeURIComponent(String(lng)))
-  url = appendLangParam(url, config.reverseLangParam || 'accept-language', config.lang)
-  try {
-    const res = await fetch(url, {
-      headers: config.lang ? { 'Accept-Language': config.lang } : {}
-    })
-    if (!res.ok) return ''
-    const data = await res.json()
-    return extractAddress(data)
-  } catch (e) {
-    return ''
   }
 }
 
