@@ -7,19 +7,27 @@ import { createSystemConfigService } from '@eiscore/platform/system-config'
 import { clearAuthAndRedirect, getToken } from '@/utils/auth'
 
 let cachedEnterpriseConfig = null
+let cachedHttpClient = null
 let cachedSystemConfigService = null
 
-export function getHostSystemConfigService() {
+export function getHostHttpClient() {
   const enterpriseConfig = getEnterpriseConfig(globalThis)
-  if (cachedSystemConfigService && cachedEnterpriseConfig === enterpriseConfig) {
-    return cachedSystemConfigService
+  if (cachedHttpClient && cachedEnterpriseConfig === enterpriseConfig) {
+    return cachedHttpClient
   }
-  const httpClient = createPlatformHttpClient({
+  cachedHttpClient = createPlatformHttpClient({
     enterpriseConfig,
     getAccessToken: getToken,
     onUnauthorized: () => clearAuthAndRedirect('/login')
   })
   cachedEnterpriseConfig = enterpriseConfig
+  cachedSystemConfigService = null
+  return cachedHttpClient
+}
+
+export function getHostSystemConfigService() {
+  const httpClient = getHostHttpClient()
+  if (cachedSystemConfigService) return cachedSystemConfigService
   cachedSystemConfigService = createSystemConfigService({ httpClient })
   return cachedSystemConfigService
 }

@@ -461,7 +461,7 @@
 import { reactive, ref, onMounted, computed, watch } from 'vue'
 import { useSystemStore } from '@/stores/system'
 import { useUserStore } from '@/stores/user'
-import { getToken } from '@/utils/auth'
+import { getHostHttpClient, getHostSystemConfigService } from '@/platform/http-client'
 import { ElMessage } from 'element-plus'
 import {
   DISPLAY_MODULE_CATALOG,
@@ -607,40 +607,16 @@ const parseConfigValue = (value) => {
   }
 }
 
-const systemConfigHeaders = (withJson = false) => {
-  const headers = {
-    Accept: 'application/json',
-    'Accept-Profile': 'public'
-  }
-  if (withJson) {
-    headers['Content-Type'] = 'application/json'
-    headers['Content-Profile'] = 'public'
-    headers.Prefer = 'resolution=merge-duplicates'
-  }
-  const token = getToken()
-  if (token) headers.Authorization = `Bearer ${token}`
-  return headers
-}
-
-const appCenterHeaders = () => {
-  const headers = {
-    Accept: 'application/json',
-    'Accept-Profile': 'app_center',
-    'Content-Profile': 'app_center'
-  }
-  const token = getToken()
-  if (token) headers.Authorization = `Bearer ${token}`
-  return headers
-}
-
 const loadAppCenterDynamicApps = async () => {
   if (!canManage.value) return
   try {
-    const res = await fetch('/api/apps?select=id,name,description,app_type,status&order=created_at.desc', {
-      headers: appCenterHeaders()
+    const { data } = await getHostHttpClient().requestJson('/apps?select=id,name,description,app_type,status&order=created_at.desc', {
+      headers: {
+        'Accept-Profile': 'app_center',
+        'Content-Profile': 'app_center'
+      }
     })
-    if (!res.ok) return
-    const list = await res.json()
+    const list = data
     appCenterDynamicApps.value = Array.isArray(list)
       ? list
         .map((app) => ({
@@ -658,14 +634,8 @@ const loadAppCenterDynamicApps = async () => {
 const loadAgentConfig = async () => {
   if (!canManage.value) return
   try {
-    const key = encodeURIComponent(AI_AGENT_CONFIG_KEY)
-    const res = await fetch(`/api/system_configs?key=eq.${key}`, {
-      headers: systemConfigHeaders()
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = await res.json()
-    const row = Array.isArray(data) ? data[0] : null
-    const value = parseConfigValue(row?.value)
+    const storedValue = await getHostSystemConfigService().readValue(AI_AGENT_CONFIG_KEY)
+    const value = parseConfigValue(storedValue)
     agentRawConfig.value = { ...value }
     agentConfig.apiUrl = String(value.api_url || '')
     agentConfig.apiKey = String(value.api_key || '')
@@ -685,20 +655,17 @@ const saveAgentConfig = async () => {
     api_url: String(agentConfig.apiUrl || '').trim(),
     api_key: String(agentConfig.apiKey || '').trim()
   }
-  const res = await fetch('/api/system_configs', {
-    method: 'POST',
-    headers: systemConfigHeaders(true),
-    body: JSON.stringify({
-      key: AI_AGENT_CONFIG_KEY,
-      value,
+  try {
+    await getHostSystemConfigService().saveValue(AI_AGENT_CONFIG_KEY, value, {
       description: 'AI Agent 接入配置'
     })
-  })
-  if (!res.ok) return false
-  agentRawConfig.value = { ...value }
-  agentConfigLoaded.value = true
-  agentConfigDirty.value = false
-  return true
+    agentRawConfig.value = { ...value }
+    agentConfigLoaded.value = true
+    agentConfigDirty.value = false
+    return true
+  } catch {
+    return false
+  }
 }
 
 const syncFromStore = (cfg) => {

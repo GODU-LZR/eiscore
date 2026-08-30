@@ -33,7 +33,8 @@ assert.match(bridge, /import\s*\{\s*getToken\s*\}\s*from\s*['"]@\/utils\/auth['"
 assert.match(bridge, /getAuthToken\(\)\s*\{\s*return getToken\(\)\s*\}/)
 
 const settings = readSource('eiscore-base/src/views/SettingsView.vue')
-assert.match(settings, /import\s*\{\s*getToken\s*\}\s*from\s*['"]@\/utils\/auth['"]/)
+assert.match(settings, /import\s*{\s*getHostHttpClient,\s*getHostSystemConfigService\s*}\s*from\s*['"]@\/platform\/http-client['"]/)
+assert.doesNotMatch(settings, /import\s*{\s*getToken\s*}\s*from\s*['"]@\/utils\/auth['"]/)
 assert.doesNotMatch(settings, /const getAuthToken/)
 
 for (const path of ['eiscore-base/src/views/HomeView.vue', 'eiscore-base/src/views/DigitalTwinView.vue']) {
