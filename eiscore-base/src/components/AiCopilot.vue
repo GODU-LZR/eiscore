@@ -2405,15 +2405,10 @@ const loadSmartBiActionItems = async (force = false) => {
   smartBiActionItemsLoading.value = true
   try {
     const token = getAuthToken()
-    const res = await fetch(
-      '/api/smart_bi_action_items?select=id,action_no,title,domain,risk_level,owner_role,owner_name,due_at,status,source_session_id,source_message_time,source_action_index,workflow_definition_id,workflow_instance_id,created_at,updated_at,closed_at&order=updated_at.desc&limit=120',
+    const { data } = await getHostHttpClient().requestJson(
+      '/smart_bi_action_items?select=id,action_no,title,domain,risk_level,owner_role,owner_name,due_at,status,source_session_id,source_message_time,source_action_index,workflow_definition_id,workflow_instance_id,created_at,updated_at,closed_at&order=updated_at.desc&limit=120',
       { headers: getPublicProfileHeaders(token) }
     )
-    if (!res.ok) {
-      smartBiActionItems.value = []
-      return
-    }
-    const data = await res.json()
     smartBiActionItems.value = Array.isArray(data) ? data : []
   } catch (e) {
     smartBiActionItems.value = []
