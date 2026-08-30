@@ -11,21 +11,35 @@ set -e
 
 echo "🚀 部署 EISCore 应用中心（PM2 模式）"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
+
+ENV_FILE="${EISCORE_ENV_FILE:-env/.env}"
+ENV_TEMPLATE="env/.env.example"
+
 # Step 1: Check environment
 echo ""
 echo "📋 Step 1/9: 检查环境..."
 
-if [ ! -f .env ]; then
-    echo "⚠️  未找到 .env 文件，从模板创建..."
-    cp .env.example .env
-    # Set default values
-    sed -i 's/POSTGRES_PASSWORD=change_me/POSTGRES_PASSWORD=postgres123/' .env
-    sed -i 's/PGRST_JWT_SECRET=change_me/PGRST_JWT_SECRET=your-secret-jwt-key-min-32-chars-long/' .env
-    echo "✅ .env 文件已创建（使用默认配置）"
+if [ ! -f "$ENV_FILE" ]; then
+    cp "$ENV_TEMPLATE" "$ENV_FILE"
+    echo "❌ 已创建 $ENV_FILE 模板。请生成独立随机密钥、设置公网地址后重新执行部署。"
+    exit 1
+fi
+node scripts/validate-production-env.mjs --env-file "$ENV_FILE"
+
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE=(docker compose --env-file "$ENV_FILE")
+elif command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE=(docker-compose --env-file "$ENV_FILE")
+else
+    echo "❌ 未找到 Docker Compose"
+    exit 1
 fi
 
 # Check ANTHROPIC_API_KEY (warning only, not required)
-if ! grep -q "^ANTHROPIC_API_KEY=sk-ant-" .env 2>/dev/null; then
+if ! grep -q "^ANTHROPIC_API_KEY=sk-ant-" "$ENV_FILE" 2>/dev/null; then
     echo "⚠️  ANTHROPIC_API_KEY 未配置，AI Agent 功能将不可用"
     echo "   如需使用 Flash Builder，请在 .env 中配置有效的 API Key"
 fi
@@ -46,7 +60,7 @@ mkdir -p logs
 # Step 3: Start Docker services
 echo ""
 echo "🐳 Step 3/9: 启动 Docker 服务..."
-docker-compose up -d db
+"${COMPOSE[@]}" up -d db
 sleep 5
 
 echo "   导入 app_center schema..."
@@ -55,8 +69,8 @@ docker exec -i eiscore-db psql -U postgres -d eiscore < sql/app_center_schema.sq
 }
 
 echo "   构建并启动 agent-runtime..."
-docker-compose build agent-runtime
-docker-compose up -d
+"${COMPOSE[@]}" build agent-runtime
+"${COMPOSE[@]}" up -d
 
 echo ""
 echo "🧩 Step 4/9: 应用 Workflow 运行时补丁..."
@@ -128,5 +142,5 @@ echo "   采购模块：http://localhost:8080/purchase"
 echo "   生产模块：http://localhost:8080/production"
 echo ""
 echo "🐛 Docker 日志："
-echo "   docker-compose logs -f agent-runtime"
+echo "   docker compose --env-file $ENV_FILE logs -f agent-runtime"
 echo ""

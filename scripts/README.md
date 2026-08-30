@@ -13,6 +13,16 @@
 - apply-sql-patch-utf8.ps1：以 UTF-8 安全方式执行 SQL 补丁并自动校验语义乱码（PowerShell）。
 - ecosystem.config.js：PM2 配置文件（根目录保留符号链接）。
 - sync-spa-dist-preserve-assets.sh：同步前端 dist 时保留旧 hash assets，避免缓存窗口内动态 import 404。
+- validate-production-env.mjs：部署前校验生产密码、JWT 密钥和企业公网地址，输出不会包含秘密值。
+
+## 生产环境配置门禁
+
+```bash
+cp env/.env.example env/.env
+node scripts/validate-production-env.mjs --env-file env/.env
+```
+
+`deploy-simple.sh` 与 `deploy-pm2.sh` 会自动执行相同校验。缺失配置时脚本只创建模板并退出，不会填充或启动任何弱默认密码。
 
 ## 本体语义数据备份
 

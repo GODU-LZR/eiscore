@@ -4,10 +4,11 @@ services:
     container_name: eiscore-db
     restart: unless-stopped
     env_file:
-      - ./env/.env
+      - path: ./env/.env
+        required: false
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-postgres123}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       POSTGRES_DB: eiscore
     ports:
       - "127.0.0.1:5432:5432"
@@ -28,13 +29,14 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     env_file:
-      - ./env/.env
+      - path: ./env/.env
+        required: false
     environment:
-      PGRST_DB_URI: "postgres://postgres:${POSTGRES_PASSWORD:-postgres123}@db:5432/eiscore"
+      PGRST_DB_URI: "postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/eiscore"
       PGRST_DB_SCHEMAS: "public,hr,scm,app_center,workflow,app_data"
       PGRST_DB_ANON_ROLE: "web_anon"
-      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:-my_super_secret_key_for_eiscore_system_2025}"
-      PGRST_OPENAPI_SERVER_PROXY_URI: "https://nanpai.eissys.top/api"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
+      PGRST_OPENAPI_SERVER_PROXY_URI: "${EISCORE_PUBLIC_BASE_URL:?EISCORE_PUBLIC_BASE_URL is required}/api"
     depends_on:
       db:
         condition: service_healthy
@@ -61,16 +63,17 @@ services:
     ports:
       - "127.0.0.1:8078:8078"
     env_file:
-      - ./env/.env
+      - path: ./env/.env
+        required: false
     environment:
       PGHOST: db
       PGPORT: 5432
       PGUSER: postgres
-      PGPASSWORD: "${POSTGRES_PASSWORD:-postgres123}"
+      PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       PGDATABASE: eiscore
       CHANNEL: eis_events
       AGENT_POSTGREST_URL: "http://api:3000"
-      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:-my_super_secret_key_for_eiscore_system_2025}"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
       AI_HTTP_PROXY_URL: "${AI_HTTP_PROXY_URL:-}"
       ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
       FLASH_CLINE_ENABLED: "${FLASH_CLINE_ENABLED:-true}"

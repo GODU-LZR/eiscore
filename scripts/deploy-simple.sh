@@ -11,29 +11,43 @@ set -e
 
 echo "🚀 部署 EISCore 应用中心"
 
-cd /home/lzr/eiscore
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
+
+ENV_FILE="${EISCORE_ENV_FILE:-env/.env}"
+ENV_TEMPLATE="env/.env.example"
 
 # Step 1: Check .env
 echo ""
 echo "📋 Step 1/7: 检查环境配置..."
-if [ ! -f .env ]; then
-    cp .env.example .env
-    sed -i 's/POSTGRES_PASSWORD=change_me/POSTGRES_PASSWORD=postgres123/' .env
-    sed -i 's/PGRST_JWT_SECRET=change_me/PGRST_JWT_SECRET=your-secret-jwt-key-min-32-chars-long/' .env
-    echo "✅ .env 已创建"
+if [ ! -f "$ENV_FILE" ]; then
+    cp "$ENV_TEMPLATE" "$ENV_FILE"
+    echo "❌ 已创建 $ENV_FILE 模板。请生成独立随机密钥、设置公网地址后重新执行部署。"
+    exit 1
+fi
+node scripts/validate-production-env.mjs --env-file "$ENV_FILE"
+
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE=(docker compose --env-file "$ENV_FILE")
+elif command -v docker-compose >/dev/null 2>&1; then
+    COMPOSE=(docker-compose --env-file "$ENV_FILE")
+else
+    echo "❌ 未找到 Docker Compose"
+    exit 1
 fi
 
 # Step 2: Start Docker
 echo ""
 echo "🐳 Step 2/7: 启动 Docker 服务..."
-docker-compose up -d db
+"${COMPOSE[@]}" up -d db
 sleep 3
 
 echo "   导入数据库 schema..."
 docker exec -i eiscore-db psql -U postgres -d eiscore < sql/app_center_schema.sql 2>/dev/null || echo "   Schema 已存在"
 
-docker-compose build agent-runtime 2>&1 | grep -E "(Step|Successfully|built)" || true
-docker-compose up -d
+"${COMPOSE[@]}" build agent-runtime 2>&1 | grep -E "(Step|Successfully|built)" || true
+"${COMPOSE[@]}" up -d
 
 echo ""
 echo "🧩 Step 3/7: 应用 Workflow 运行时补丁..."
@@ -77,7 +91,7 @@ pkill -f "vite.*8088" || true
 pkill -f "vite.*8087" || true
 
 # Start eiscore-apps
-cd /home/lzr/eiscore/eiscore-apps
+cd "$REPO_ROOT/eiscore-apps"
 nohup npm run dev > ../logs/eiscore-apps.log 2>&1 &
 echo "   ✅ eiscore-apps 已启动 (PID: $!)"
 
@@ -94,7 +108,7 @@ echo "🔍 Step 7/7: 检查服务状态..."
 echo ""
 echo "📊 服务状态："
 echo "   Docker 服务："
-docker-compose ps
+"${COMPOSE[@]}" ps
 
 echo ""
 echo "   前端服务："
@@ -107,5 +121,5 @@ echo "   (需要基座应用时启动 eiscore-base)"
 echo ""
 echo "📝 查看日志："
 echo "   tail -f logs/eiscore-apps.log"
-echo "   docker-compose logs -f agent-runtime"
+echo "   docker compose --env-file $ENV_FILE logs -f agent-runtime"
 echo ""

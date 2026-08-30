@@ -40,6 +40,12 @@ Run only the engineering HTTP client regression:
 npm run test:http-client
 ```
 
+Run the production configuration security regression:
+
+```bash
+npm run test:production-config
+```
+
 Run the auto-entry coverage contract:
 
 ```bash
@@ -323,6 +329,10 @@ such as `libnspr4.so`, install the browser dependencies with
 - `test:http-client` verifies the shared engineering HTTP client used by remote
   smoke/business-chain tests, including timeout normalization, safe-method
   retries, and native request bodies.
+- `test:production-config` verifies that production Compose fails closed for
+  database/JWT secrets, customer domains come from enterprise configuration,
+  environment templates cannot be deployed unchanged, and deploy scripts run
+  the same configuration validator before starting services.
 - `test:auto-entry-coverage` verifies that every automatic document-entry
   implementation is registered with an offline regression test and an API
   business-chain marker. New files matching `realtime/document-*-entry.js` must
