@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eiscore.local/schemas/enterprise-config-v1.schema.json",
+  "title": "EISCore Enterprise Configuration v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "enterprise", "branding", "endpoints", "modules", "features"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "enterprise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName", "shortName"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "maxLength": 64 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "shortName": { "type": "string", "minLength": 1, "maxLength": 40 }
+      }
+    },
+    "branding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productName", "themeColor", "logoUrl", "login"],
+      "properties": {
+        "productName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "themeColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "logoUrl": { "type": "string" },
+        "login": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["slogan", "description", "siteTag", "backgroundImage", "footerText"],
+          "properties": {
+            "slogan": { "type": "string", "maxLength": 200 },
+            "description": { "type": "string", "maxLength": 1000 },
+            "siteTag": { "type": "string", "maxLength": 120 },
+            "backgroundImage": { "type": "string" },
+            "footerText": { "type": "string", "maxLength": 200 }
+          }
+        }
+      }
+    },
+    "endpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publicBaseUrl", "apiBasePath", "agentBasePath", "realtimeWsPath"],
+      "properties": {
+        "publicBaseUrl": { "type": "string" },
+        "apiBasePath": { "type": "string", "pattern": "^/(?!/)" },
+        "agentBasePath": { "type": "string", "pattern": "^/(?!/)" },
+        "realtimeWsPath": { "type": "string", "pattern": "^/(?!/)" }
+      }
+    },
+    "modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hr", "materials", "apps", "sales", "purchase", "production", "quality", "equipment", "decision", "mobile"],
+      "properties": {
+        "hr": { "type": "boolean" },
+        "materials": { "type": "boolean" },
+        "apps": { "type": "boolean" },
+        "sales": { "type": "boolean" },
+        "purchase": { "type": "boolean" },
+        "production": { "type": "boolean" },
+        "quality": { "type": "boolean" },
+        "equipment": { "type": "boolean" },
+        "decision": { "type": "boolean" },
+        "mobile": { "type": "boolean" }
+      }
+    },
+    "features": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][A-Za-z0-9]*$" },
+      "additionalProperties": { "type": "boolean" }
+    }
+  }
+}

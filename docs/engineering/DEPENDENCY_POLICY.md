@@ -12,7 +12,7 @@ npm run toolchain:check -- --strict
 
 ## 锁文件契约
 
-- 根包、11 个前端和 `realtime` 共 13 个 CI 包必须提交 `package-lock.json`。
+- 根包、平台包、11 个前端和 `realtime` 共 14 个 CI 包必须提交 `package-lock.json`。
 - 锁文件统一使用版本 3，包名必须与对应 `package.json` 一致。
 - `npm run ci:install` 只接受锁文件安装；缺失锁文件立即失败，不得退化为 `npm install`。
 - 生成物、`node_modules`、安装缓存和本地审批状态不得提交。

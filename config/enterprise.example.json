@@ -1,0 +1,43 @@
+{
+  "$schema": "./enterprise.schema.json",
+  "schemaVersion": 1,
+  "enterprise": {
+    "id": "example-manufacturer",
+    "displayName": "示例制造企业",
+    "shortName": "示例制造"
+  },
+  "branding": {
+    "productName": "EISCore 企业数字化平台",
+    "themeColor": "#409EFF",
+    "logoUrl": "/config/assets/logo.svg",
+    "login": {
+      "slogan": "连接业务、数据与智能协作",
+      "description": "",
+      "siteTag": "企业数字化平台",
+      "backgroundImage": "/config/assets/login-background.webp",
+      "footerText": "Copyright © 示例制造企业"
+    }
+  },
+  "endpoints": {
+    "publicBaseUrl": "https://erp.example.com",
+    "apiBasePath": "/api",
+    "agentBasePath": "/agent",
+    "realtimeWsPath": "/agent/ws"
+  },
+  "modules": {
+    "hr": true,
+    "materials": true,
+    "apps": true,
+    "sales": true,
+    "purchase": true,
+    "production": true,
+    "quality": true,
+    "equipment": true,
+    "decision": true,
+    "mobile": true
+  },
+  "features": {
+    "documentIntake": true,
+    "enterpriseAi": true
+  }
+}

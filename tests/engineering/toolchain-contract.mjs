@@ -23,7 +23,7 @@ assert.match(workflow, new RegExp(`node-version: ['\"]${policy.ci.node.replaceAl
 assert.match(workflow, /npm run toolchain:check -- --strict/)
 
 const ciPackages = selectPackages('ci')
-assert.equal(ciPackages.length, 13, 'CI package inventory should remain explicit')
+assert.equal(ciPackages.length, 14, 'CI package inventory should remain explicit')
 for (const pkg of ciPackages) {
   const manifestPath = resolve(repoRoot, pkg.path, 'package.json')
   const lockPath = resolve(repoRoot, pkg.path, 'package-lock.json')

@@ -59,6 +59,13 @@ npm run test:toolchain
 npm run toolchain:check -- --strict
 ```
 
+Validate the enterprise configuration schema and runtime loader:
+
+```bash
+npm run test:enterprise-config
+npm run config:enterprise:validate
+```
+
 Run the auto-entry coverage contract:
 
 ```bash

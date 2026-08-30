@@ -3,6 +3,7 @@
 
 export const packages = [
   { name: 'eiscore-root', path: '.', groups: ['root', 'ci'] },
+  { name: 'eiscore-platform', path: 'packages/eiscore-platform', groups: ['platform', 'ci'] },
   { name: 'eiscore-base', path: 'eiscore-base', groups: ['frontends', 'ci'] },
   { name: 'eiscore-apps', path: 'eiscore-apps', groups: ['frontends', 'ci'] },
   { name: 'eiscore-hr', path: 'eiscore-hr', groups: ['frontends', 'ci'] },
