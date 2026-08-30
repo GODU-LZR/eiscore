@@ -214,4 +214,30 @@ for (const target of [
   }])
 }
 
+{
+  const errors = [
+    Object.assign(new Error('Request failed with status code 401'), { response: { status: 401 } }),
+    Object.assign(new Error('Request failed with status code 500'), { response: { status: 500 } })
+  ]
+  const notifications = []
+  const unauthorizedEvents = []
+  const service = createPlatformAxiosClient({
+    axios: createAxiosStub(async () => { throw errors.shift() }),
+    shouldNotifyError: (config) => (
+      config.silentError !== true && config.suppressErrorMessage !== true
+    ),
+    notifyError: (message, event) => notifications.push({ message, event }),
+    onUnauthorized: (event) => unauthorizedEvents.push(event)
+  })
+  await assert.rejects(service({ url: '/sales_orders', silentError: true }))
+  await assert.rejects(service({ url: '/sales_orders', suppressErrorMessage: true }))
+  assert.deepEqual(notifications, [])
+  assert.deepEqual(unauthorizedEvents, [{
+    code: 'unauthorized',
+    status: 401,
+    method: 'GET',
+    path: '/sales_orders'
+  }])
+}
+
 console.log('PASS: platform Axios compatibility contract')

@@ -7,10 +7,11 @@ import { resolve } from 'node:path'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 
-for (const [moduleId, timeoutMs, expectedAccept] of [
-  ['quality', 8000, false],
-  ['equipment', 8000, true],
-  ['purchase', 5000, false]
+for (const [moduleId, timeoutMs, expectedAccept, expectedSilence] of [
+  ['quality', 8000, false, false],
+  ['equipment', 8000, true, false],
+  ['purchase', 5000, false, false],
+  ['sales', 5000, false, true]
 ]) {
   const requestPath = resolve(repoRoot, `eiscore-${moduleId}/src/utils/request.js`)
   const source = readFileSync(requestPath, 'utf8')
@@ -23,6 +24,13 @@ for (const [moduleId, timeoutMs, expectedAccept] of [
   assert.doesNotMatch(source, /axios\.create|interceptors\.(request|response)/)
   if (expectedAccept) assert.match(source, /defaultAccept: 'application\/json'/)
   else assert.doesNotMatch(source, /defaultAccept:/)
+  if (expectedSilence) {
+    assert.match(source, /shouldNotifyError:/)
+    assert.match(source, /config\.silentError !== true/)
+    assert.match(source, /config\.suppressErrorMessage !== true/)
+  } else {
+    assert.doesNotMatch(source, /shouldNotifyError:/)
+  }
 }
 
-console.log('PASS: public-profile Request migration contract (3 applications)')
+console.log('PASS: public-profile Request migration contract (4 applications)')

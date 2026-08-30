@@ -26,6 +26,7 @@ const SAFE_ERROR_HEADER_NAMES = new Set([
   'content-type'
 ])
 const SAFE_PATH = Symbol('eiscore.platform.safePath')
+const SHOULD_NOTIFY_ERROR = Symbol('eiscore.platform.shouldNotifyError')
 
 function invalidPath() {
   return new PlatformHttpError('invalid-path')
@@ -232,6 +233,7 @@ export function createPlatformAxiosClient({
   getAccessToken = () => '',
   onUnauthorized = () => {},
   notifyError = () => {},
+  shouldNotifyError = () => true,
   defaultProfile = '',
   defaultAccept = '',
   timeoutMs = DEFAULT_AXIOS_TIMEOUT_MS,
@@ -251,6 +253,11 @@ export function createPlatformAxiosClient({
     })
     config.url = normalized.url
     config[SAFE_PATH] = safeResourcePath(normalized.resourceTarget)
+    try {
+      config[SHOULD_NOTIFY_ERROR] = shouldNotifyError(config) !== false
+    } catch {
+      config[SHOULD_NOTIFY_ERROR] = true
+    }
     if (!config.headers || typeof config.headers !== 'object') config.headers = {}
 
     let token
@@ -283,10 +290,11 @@ export function createPlatformAxiosClient({
     (response) => response.data,
     async (error) => {
       const event = errorEvent(error)
+      const shouldNotify = error?.config?.[SHOULD_NOTIFY_ERROR] !== false
       if (event.status === 401) {
-        await callSafely(notifyError, unauthorizedMessage, event)
+        if (shouldNotify) await callSafely(notifyError, unauthorizedMessage, event)
         await callSafely(onUnauthorized, event)
-      } else {
+      } else if (shouldNotify) {
         await callSafely(notifyError, safeAxiosErrorMessage(error), event)
       }
       sanitizeRejectedAxiosError(error, event)
