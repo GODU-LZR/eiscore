@@ -6,6 +6,8 @@
  * Demonstrates how to interact with the AI Agent Runtime via WebSocket
  */
 
+import { getToken } from '@/utils/auth'
+
 // ========================================
 // Example 1: Basic Flash App Generation
 // ========================================
@@ -76,7 +78,7 @@ class AgentClient {
 // ========================================
 
 async function generateContactForm() {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const agent = new AgentClient()
   
   await agent.connect(token)
@@ -124,7 +126,7 @@ async function generateContactForm() {
 // ========================================
 
 async function generateDataTableView() {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const agent = new AgentClient()
   
   await agent.connect(token)
@@ -154,7 +156,7 @@ async function generateDataTableView() {
 // ========================================
 
 async function executeReadFile() {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const agent = new AgentClient()
   
   await agent.connect(token)
@@ -180,7 +182,7 @@ async function executeReadFile() {
 // ========================================
 
 async function listProjectFiles() {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const agent = new AgentClient()
   
   await agent.connect(token)
@@ -208,7 +210,7 @@ async function listProjectFiles() {
 // ========================================
 
 async function installPackage() {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const agent = new AgentClient()
   
   await agent.connect(token)
@@ -229,7 +231,7 @@ async function installPackage() {
 // ========================================
 
 async function multiTurnTask() {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const agent = new AgentClient()
   
   await agent.connect(token)
@@ -267,7 +269,7 @@ async function multiTurnTask() {
 // ========================================
 
 async function subscribeToDatabaseNotifications() {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const ws = new WebSocket('ws://localhost:8078/ws', ['bearer', token])
 
   ws.onopen = () => {
@@ -296,7 +298,7 @@ async function subscribeToDatabaseNotifications() {
 // ========================================
 
 async function robustAgentCall() {
-  const token = localStorage.getItem('auth_token')
+  const token = getToken()
   const agent = new AgentClient()
   
   try {
@@ -356,7 +358,7 @@ export default {
   
   methods: {
     async connectAgent() {
-      const token = localStorage.getItem('auth_token')
+      const token = getToken()
       this.agent = new AgentClient()
       
       await this.agent.connect(token)

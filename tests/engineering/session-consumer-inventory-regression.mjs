@@ -32,7 +32,7 @@ const inventory = productRoots.flatMap(collectSources).flatMap((file) => {
 const affectedFiles = new Set(inventory)
 
 assert.ok(inventory.length > 0, 'remove this bounded inventory after all direct session consumers are migrated')
-assert.ok(inventory.length <= 48, `direct session calls increased: ${inventory.length} > 48`)
-assert.ok(affectedFiles.size <= 5, `direct session files increased: ${affectedFiles.size} > 5`)
+assert.ok(inventory.length <= 39, `direct session calls increased: ${inventory.length} > 39`)
+assert.ok(affectedFiles.size <= 4, `direct session files increased: ${affectedFiles.size} > 4`)
 
 console.log(`PASS: bounded direct session inventory (${inventory.length} calls in ${affectedFiles.size} files)`)
