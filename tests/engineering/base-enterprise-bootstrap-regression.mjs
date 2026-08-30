@@ -35,6 +35,7 @@ assert.deepEqual(
 const configured = structuredClone(example)
 configured.modules.quality = false
 configured.modules.decision = false
+configured.modules.production = false
 const runtimeTarget = {}
 const enterpriseConfig = await bootstrapEnterpriseConfig({
   isProduction: true,
@@ -49,7 +50,11 @@ assert.equal(runtimeTarget[ENTERPRISE_CONFIG_GLOBAL], enterpriseConfig)
 const filteredApps = createMicroApps(enterpriseConfig)
 assert.deepEqual(
   filteredApps.map((app) => app.name),
-  allApps.map((app) => app.name).filter((name) => !['eiscore-quality', 'eiscore-decision'].includes(name))
+  allApps.map((app) => app.name).filter((name) => ![
+    'eiscore-production',
+    'eiscore-quality',
+    'eiscore-decision'
+  ].includes(name))
 )
 assert.ok(filteredApps.every((app) => app.props.enterpriseConfig === enterpriseConfig))
 

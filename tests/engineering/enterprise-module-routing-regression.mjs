@@ -31,6 +31,8 @@ const configured = JSON.parse(JSON.stringify(DEFAULT_ENTERPRISE_CONFIG))
 configured.enterprise.id = 'routing-test'
 configured.modules.quality = false
 configured.modules.mobile = false
+configured.modules.production = false
+configured.modules.decision = false
 const restricted = parseEnterpriseConfig(configured, { source: 'routing test' })
 
 assert.deepEqual(

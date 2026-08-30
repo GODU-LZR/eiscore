@@ -65,6 +65,7 @@ Validate the enterprise configuration schema and runtime loader:
 npm run test:enterprise-config
 npm run test:enterprise-bootstrap
 npm run test:enterprise-routing
+npm run test:enterprise-dependencies
 npm run config:enterprise:validate
 ```
 

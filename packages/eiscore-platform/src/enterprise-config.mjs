@@ -14,6 +14,18 @@ export const ENTERPRISE_MODULE_IDS = Object.freeze([
   'decision',
   'mobile'
 ])
+export const ENTERPRISE_MODULE_DEPENDENCIES = Object.freeze({
+  hr: Object.freeze(['apps']),
+  materials: Object.freeze(['apps']),
+  apps: Object.freeze([]),
+  sales: Object.freeze(['apps', 'materials', 'purchase']),
+  purchase: Object.freeze(['apps', 'materials']),
+  production: Object.freeze(['apps', 'materials', 'quality']),
+  quality: Object.freeze(['apps']),
+  equipment: Object.freeze(['apps']),
+  decision: Object.freeze(['apps', 'materials', 'sales', 'purchase', 'production', 'quality', 'equipment']),
+  mobile: Object.freeze(['hr', 'materials'])
+})
 
 const DEFAULT_SOURCE = {
   schemaVersion: ENTERPRISE_CONFIG_SCHEMA_VERSION,
@@ -172,6 +184,14 @@ export function validateEnterpriseConfig(input) {
     for (const moduleId of ENTERPRISE_MODULE_IDS) {
       if (typeof input.modules[moduleId] !== 'boolean') {
         issues.push(pathValue(`$.modules.${moduleId}`, 'boolean-required'))
+      }
+    }
+    for (const [moduleId, dependencies] of Object.entries(ENTERPRISE_MODULE_DEPENDENCIES)) {
+      if (input.modules[moduleId] !== true) continue
+      for (const dependency of dependencies) {
+        if (input.modules[dependency] !== true) {
+          issues.push(pathValue(`$.modules.${moduleId}`, `module-dependency-disabled:${dependency}`))
+        }
       }
     }
   }
