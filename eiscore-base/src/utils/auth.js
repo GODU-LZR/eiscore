@@ -8,13 +8,17 @@ import {
   parseStoredToken
 } from '@eiscore/platform/auth-session'
 
-const authSession = createAuthSession()
+const authSession = createAuthSession({ tokenStorageFormat: 'plain' })
 
 export { parseStoredToken }
 
 export const getToken = () => authSession.getToken()
 
 export const getAuthHeader = () => authSession.getAuthHeader()
+
+export const setAuth = (token, userInfo) => authSession.setAuth(token, userInfo)
+
+export const getUserInfo = () => authSession.getUserInfo()
 
 export const parseJwtPayload = (token) => platformParseJwtPayload(token)
 

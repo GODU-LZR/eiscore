@@ -76,9 +76,13 @@ export function createAuthSession({
   storage,
   atobImpl = globalThis.atob,
   now = Date.now,
-  maxTokenLength = DEFAULT_MAX_TOKEN_LENGTH
+  maxTokenLength = DEFAULT_MAX_TOKEN_LENGTH,
+  tokenStorageFormat = 'json'
 } = {}) {
   const safeStorage = createSafeStorage(resolveBrowserStorage(storage))
+  if (tokenStorageFormat !== 'json' && tokenStorageFormat !== 'plain') {
+    throw new TypeError('Unsupported auth token storage format')
+  }
   const configuredLimit = Number(maxTokenLength)
   const tokenLengthLimit = Number.isSafeInteger(configuredLimit) && configuredLimit > 0
     ? configuredLimit
@@ -109,7 +113,9 @@ export function createAuthSession({
       clearAuth()
       return false
     }
-    const tokenStored = safeStorage.setJson(AUTH_TOKEN_KEY, { token })
+    const tokenStored = tokenStorageFormat === 'plain'
+      ? safeStorage.setText(AUTH_TOKEN_KEY, token)
+      : safeStorage.setJson(AUTH_TOKEN_KEY, { token })
     if (!tokenStored) {
       clearAuth()
       return false
