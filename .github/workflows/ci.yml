@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -23,11 +25,17 @@ jobs:
           node-version: '20.19.0'
           cache: npm
           cache-dependency-path: |
+            package-lock.json
             eiscore-*/package-lock.json
             realtime/package-lock.json
 
       - name: Install dependencies
         run: npm run ci:install
+
+      - name: Run quality gates
+        env:
+          EISCORE_QUALITY_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: npm run test:quality
 
       - name: Run offline regression tests
         run: npm run test:unit

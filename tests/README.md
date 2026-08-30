@@ -46,6 +46,12 @@ Run the production configuration security regression:
 npm run test:production-config
 ```
 
+Run the repository quality gates (syntax, secrets, changed-code lint, and infrastructure):
+
+```bash
+npm run test:quality
+```
+
 Run the auto-entry coverage contract:
 
 ```bash

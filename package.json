@@ -11,6 +11,10 @@
     "runtime:access-audit": "node tests/engineering/runtime-v2-access-audit.mjs",
     "runtime:health": "bash scripts/check-runtime-v2-health.sh",
     "runtime:up": "bash scripts/check-runtime-v2-health.sh --start",
+    "lint:changed": "node scripts/lint-changed.mjs",
+    "test:secrets": "node scripts/scan-secrets.mjs",
+    "test:infrastructure": "node tests/engineering/infrastructure-regression.mjs",
+    "test:quality": "npm run test:syntax && npm run test:secrets && npm run lint:changed && npm run test:infrastructure",
     "test:syntax": "node tests/engineering/check-node-syntax.mjs",
     "test:runtime-v2": "node tests/engineering/runtime-v2-postcheck.mjs",
     "test:runtime-v2:access": "node tests/engineering/runtime-v2-access-smoke.mjs",
@@ -58,13 +62,15 @@
     "test:engineering:remote:api": "node tests/engineering/run-remote-suite.mjs --skip-e2e",
     "e2e:install": "playwright install chromium",
     "e2e:install:with-deps": "playwright install --with-deps chromium",
-    "test:ci": "npm run test:syntax && npm run test:unit && npm run build:frontends"
+    "test:ci": "npm run test:quality && npm run test:unit && npm run build:frontends"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0",
     "npm": ">=10"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.0"
+    "@playwright/test": "^1.61.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-vue": "^10.10.0"
   }
 }
