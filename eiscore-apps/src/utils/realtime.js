@@ -1,23 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+import { getToken } from '@/utils/auth'
+
 const DEFAULT_PORT = 8078
 const DEFAULT_PATH = '/ws'
 const PROXY_WS_PATH = '/agent/ws'
 
 let client = null
-
-const getAuthToken = () => {
-  const tokenStr = localStorage.getItem('auth_token')
-  if (!tokenStr) return ''
-  try {
-    const parsed = JSON.parse(tokenStr)
-    if (parsed?.token) return parsed.token
-  } catch (e) {
-    // ignore
-  }
-  return tokenStr
-}
 
 const createClient = () => {
   const listeners = new Set()
@@ -48,7 +38,7 @@ const createClient = () => {
   const connect = () => {
     if (closed || socket) return
     try {
-      const token = getAuthToken()
+      const token = getToken()
       socket = token ? new WebSocket(buildUrl(), ['bearer', token]) : new WebSocket(buildUrl())
     } catch (err) {
       scheduleReconnect()

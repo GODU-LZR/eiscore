@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+import { getUserInfo } from '@/utils/auth'
+
 export const getPermissions = () => {
   try {
-    const raw = localStorage.getItem('user_info')
-    const info = raw ? JSON.parse(raw) : {}
+    const info = getUserInfo() || {}
     const perms = info?.permissions
     return Array.isArray(perms) ? perms : []
   } catch (e) {
@@ -14,8 +15,7 @@ export const getPermissions = () => {
 
 const getRole = () => {
   try {
-    const raw = localStorage.getItem('user_info')
-    const info = raw ? JSON.parse(raw) : {}
+    const info = getUserInfo() || {}
     return info?.app_role || info?.appRole || info?.role || ''
   } catch (e) {
     return ''
