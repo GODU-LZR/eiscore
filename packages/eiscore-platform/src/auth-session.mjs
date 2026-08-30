@@ -108,6 +108,14 @@ export function createAuthSession({
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
 
+  function getUserInfoText() {
+    return safeStorage.getText(USER_INFO_KEY) || ''
+  }
+
+  function setUserInfo(userInfo) {
+    return safeStorage.setJson(USER_INFO_KEY, userInfo)
+  }
+
   function setAuth(token, userInfo) {
     if (String(token ?? '').length > tokenLengthLimit) {
       clearAuth()
@@ -120,7 +128,7 @@ export function createAuthSession({
       clearAuth()
       return false
     }
-    if (userInfo && !safeStorage.setJson(USER_INFO_KEY, userInfo)) {
+    if (userInfo && !setUserInfo(userInfo)) {
       clearAuth()
       return false
     }
@@ -139,6 +147,8 @@ export function createAuthSession({
   return Object.freeze({
     getToken,
     getAuthHeader,
+    getUserInfoText,
+    setUserInfo,
     setAuth,
     clearAuth,
     getUserInfo,

@@ -135,6 +135,8 @@ assert.equal(isTokenExpired('invalid', { now: boundaryNow }), true)
   const session = createAuthSession({ storage: throwingStorage })
   assert.equal(session.getToken(), '')
   assert.equal(session.getUserInfo(), null)
+  assert.equal(session.getUserInfoText(), '')
+  assert.equal(session.setUserInfo({ token: sensitiveValue }), false)
   assert.equal(session.setAuth(sensitiveValue, { token: sensitiveValue }), false)
   assert.equal(session.clearAuth(), false)
 }

@@ -261,6 +261,15 @@ import { storeToRefs } from 'pinia'
 import { useRouter, useRoute } from 'vue-router'
 import { mix } from '@/utils/theme'
 import { hasPerm } from '@/utils/permission'
+import {
+  USER_INFO_KEY,
+  getAuthHeader,
+  getToken,
+  getUserInfo,
+  getUserInfoText,
+  parseJwtPayload,
+  setUserInfo
+} from '@/utils/auth'
 import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '@/utils/micro-path'
 import { getEnterpriseConfig } from '@/platform/enterprise-config'
 import { isEnterprisePathEnabled } from '@/platform/enterprise-routing'
@@ -614,22 +623,6 @@ const scheduleVisibleMicroAppWarmup = () => {
   }, 18000)
 }
 
-const getAuthHeader = () => {
-  const tokenStr = localStorage.getItem('auth_token') || ''
-  if (!tokenStr) return {}
-  let token = tokenStr
-  try {
-    const parsed = JSON.parse(tokenStr)
-    if (parsed?.token) token = parsed.token
-  } catch (e) {}
-  if (token && token.length > 8192) {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_info')
-    return {}
-  }
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 const superScopeSynced = ref(false)
 const superScopeRetryCount = ref(0)
 let superScopeRetryTimer = null
@@ -710,22 +703,9 @@ const resolveAvatarUrl = async (info) => {
   }
 }
 
-const parseJwt = (token) => {
-  try {
-    const base64Url = token.split('.')[1]
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
-    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
-    }).join(''))
-    return JSON.parse(jsonPayload)
-  } catch (e) {
-    return {}
-  }
-}
-
 const fetchUserInfoByToken = async (token) => {
   if (!token) return null
-  const payload = parseJwt(token)
+  const payload = parseJwtPayload(token) || {}
   const username = payload?.username || payload?.sub || ''
   if (!username) return null
   try {
@@ -773,8 +753,8 @@ const fetchUserInfoByToken = async (token) => {
 
 const refreshUserInfo = async () => {
   try {
-    let info = JSON.parse(localStorage.getItem('user_info') || '{}')
-    const token = localStorage.getItem('auth_token') || ''
+    let info = getUserInfo() || {}
+    const token = getToken()
     if ((!info || !info.username) && token) {
       const fetched = await fetchUserInfoByToken(token)
       if (fetched) info = fetched
@@ -784,7 +764,7 @@ const refreshUserInfo = async () => {
     avatarTick.value += 1
     if ((resolved || info) && typeof (resolved || info) === 'object') {
       const next = { ...(resolved || info), avatar: resolved?.avatar || info?.avatar || '' }
-      localStorage.setItem('user_info', JSON.stringify(next))
+      setUserInfo(next)
     }
   } catch (e) {
     userStore.userInfo = {}
@@ -797,13 +777,13 @@ const handleUserInfoMessage = (event) => {
   const next = data.user_info || data.user
   if (!next || typeof next !== 'object') return
   try {
-    localStorage.setItem('user_info', JSON.stringify(next))
+    setUserInfo(next)
     refreshUserInfo()
   } catch (e) {}
 }
 
 const handleUserInfoStorage = (event) => {
-  if (!event || event.key !== 'user_info') return
+  if (!event || event.key !== USER_INFO_KEY) return
   refreshUserInfo()
 }
 
@@ -828,10 +808,10 @@ onMounted(() => {
     guideDomObserver = new MutationObserver(scheduleGuideDomRefresh)
     guideDomObserver.observe(target, { childList: true, subtree: true })
   }
-  lastUserInfoStr = localStorage.getItem('user_info') || ''
+  lastUserInfoStr = getUserInfoText()
   // 兜底：同窗口 localStorage 变更不会触发 storage 事件，用轮询确保头像即时刷新
   userInfoPoller = window.setInterval(() => {
-    const current = localStorage.getItem('user_info') || ''
+    const current = getUserInfoText()
     if (current !== lastUserInfoStr) {
       lastUserInfoStr = current
       refreshUserInfo()

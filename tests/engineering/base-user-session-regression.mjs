@@ -30,6 +30,9 @@ class MemoryStorage {
   assert.equal(storage.getItem(USER_INFO_KEY), JSON.stringify({ id: 'operator-1' }))
   assert.equal(session.getToken(), 'desktop-plain-token')
   assert.deepEqual(session.getUserInfo(), { id: 'operator-1' })
+  assert.equal(session.getUserInfoText(), JSON.stringify({ id: 'operator-1' }))
+  assert.equal(session.setUserInfo({ id: 'operator-2', permissions: ['orders.read'] }), true)
+  assert.deepEqual(session.getUserInfo(), { id: 'operator-2', permissions: ['orders.read'] })
 }
 
 assert.throws(
@@ -39,7 +42,7 @@ assert.throws(
 
 const authAdapter = readFileSync(resolve(repoRoot, 'eiscore-base/src/utils/auth.js'), 'utf8')
 assert.match(authAdapter, /createAuthSession\(\{\s*tokenStorageFormat:\s*['"]plain['"]\s*\}\)/)
-for (const name of ['setAuth', 'getUserInfo']) {
+for (const name of ['setAuth', 'getUserInfo', 'getUserInfoText', 'setUserInfo']) {
   assert.match(authAdapter, new RegExp(`export const ${name}\\b`))
 }
 

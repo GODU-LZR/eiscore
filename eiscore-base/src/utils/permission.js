@@ -1,40 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+import { getUserInfo } from '@/utils/auth'
+
+const readUserInfo = () => getUserInfo() || {}
+
 export const getPermissions = () => {
-  try {
-    const raw = localStorage.getItem('user_info')
-    const info = raw ? JSON.parse(raw) : {}
-    const perms = info?.permissions
-    return Array.isArray(perms) ? perms : []
-  } catch (e) {
-    return []
-  }
+  const perms = readUserInfo()?.permissions
+  return Array.isArray(perms) ? perms : []
 }
 
 export const hasPerm = (perm) => {
   if (!perm) return true
-  try {
-    const raw = localStorage.getItem('user_info')
-    const info = raw ? JSON.parse(raw) : {}
-    const role = info?.app_role || info?.appRole || info?.role
-    if (role === 'super_admin') return true
-  } catch (e) {
-    // ignore
-  }
+  const info = readUserInfo()
+  const role = info?.app_role || info?.appRole || info?.role
+  if (role === 'super_admin') return true
   return getPermissions().includes(perm)
 }
 
 export const hasAnyPerm = (permList = []) => {
   if (!permList || permList.length === 0) return true
-  try {
-    const raw = localStorage.getItem('user_info')
-    const info = raw ? JSON.parse(raw) : {}
-    const role = info?.app_role || info?.appRole || info?.role
-    if (role === 'super_admin') return true
-  } catch (e) {
-    // ignore
-  }
+  const info = readUserInfo()
+  const role = info?.app_role || info?.appRole || info?.role
+  if (role === 'super_admin') return true
   const perms = getPermissions()
   return permList.some((perm) => perms.includes(perm))
 }

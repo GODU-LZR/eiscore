@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import {
+  USER_INFO_KEY,
   createAuthSession,
   isTokenExpired as platformIsTokenExpired,
   parseJwtPayload as platformParseJwtPayload,
@@ -10,7 +11,7 @@ import {
 
 const authSession = createAuthSession({ tokenStorageFormat: 'plain' })
 
-export { parseStoredToken }
+export { parseStoredToken, USER_INFO_KEY }
 
 export const getToken = () => authSession.getToken()
 
@@ -19,6 +20,10 @@ export const getAuthHeader = () => authSession.getAuthHeader()
 export const setAuth = (token, userInfo) => authSession.setAuth(token, userInfo)
 
 export const getUserInfo = () => authSession.getUserInfo()
+
+export const getUserInfoText = () => authSession.getUserInfoText()
+
+export const setUserInfo = (userInfo) => authSession.setUserInfo(userInfo)
 
 export const parseJwtPayload = (token) => platformParseJwtPayload(token)
 
