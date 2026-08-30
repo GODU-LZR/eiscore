@@ -55,8 +55,9 @@ assert.doesNotMatch(section, /JSON\.stringify\(/)
 assert.doesNotMatch(section, /const parseResponseJson|const assertWorkflowSaveResponse/)
 
 const fetchCalls = source.match(/\bfetch\s*\(/g) || []
-assert.equal(fetchCalls.length, 1)
-assert.match(source, /fetch\(['"]\/agent\/ai\/business-snapshot['"]/)
+assert.equal(fetchCalls.length, 0)
+assert.match(source, /from\s*['"]@shared\/eis-business-snapshot['"]/)
+assert.match(source, /smartBiSnapshot\.value\s*=\s*await loadBusinessSnapshot\(\)/)
 assert.match(adapter, /resolveErrorMessage:\s*\(data\)\s*=>\s*data\?\.message/)
 
 console.log('PASS: AI Copilot workflow writes use platform HTTP')

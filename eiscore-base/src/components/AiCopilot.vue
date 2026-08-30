@@ -517,6 +517,7 @@ import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
 import { getToken, parseJwtPayload } from '@/utils/auth'
 import { getHostHttpClient } from '@/platform/http-client'
+import { createBusinessSnapshotLoader } from '@shared/eis-business-snapshot'
 import {
   SMART_BI_DOMAINS,
   SMART_BI_COMMON_QUESTIONS,
@@ -550,6 +551,9 @@ const lightbox = ref({ visible: false, type: '', payload: null })
 const smartBiSnapshot = ref(null)
 const smartBiSnapshotLoading = ref(false)
 const smartBiSnapshotError = ref('')
+const loadBusinessSnapshot = createBusinessSnapshotLoader({
+  getAuthHeaders: () => aiBridge.buildAuthHeaders()
+})
 const smartBiActionItems = ref([])
 const smartBiActionItemsLoading = ref(false)
 let lightboxChart = null
@@ -3012,13 +3016,7 @@ const loadSmartBiSnapshot = async (force = false) => {
   smartBiSnapshotLoading.value = true
   smartBiSnapshotError.value = ''
   try {
-    const res = await fetch('/agent/ai/business-snapshot', {
-      method: 'GET',
-      headers: aiBridge.buildAuthHeaders()
-    })
-    if (!res.ok) throw new Error(`快照读取失败 (${res.status})`)
-    const data = await res.json()
-    smartBiSnapshot.value = data?.snapshot || {}
+    smartBiSnapshot.value = await loadBusinessSnapshot()
   } catch (error) {
     smartBiSnapshotError.value = error?.message || '快照读取失败'
   } finally {

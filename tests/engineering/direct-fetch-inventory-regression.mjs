@@ -13,13 +13,13 @@ const expectedInventory = new Map([
   ['shared/eis-geo-services.js', ['geo-hybrid', 1]],
   ['eiscore-apps/src/utils/flash-runtime-bridge.js', ['agent-protocol', 1]],
   ['eiscore-apps/src/views/FlashDraftPreview.vue', ['agent-protocol', 1]],
-  ['eiscore-base/src/components/AiCopilot.vue', ['agent-protocol', 1]],
   ['eiscore-base/src/utils/ai-bridge.js', ['agent-protocol', 1]],
   ['eiscore-base/src/utils/document-intake-client.js', ['agent-protocol', 1]],
   ['eiscore-base/src/views/DigitalTwinView.vue', ['agent-protocol', 2]],
   ['eiscore-base/src/views/HomeView.vue', ['agent-protocol', 2]],
-  ['eiscore-mobile/src/views/assistant/EnterpriseAssistant.vue', ['agent-protocol', 2]],
+  ['eiscore-mobile/src/views/assistant/EnterpriseAssistant.vue', ['agent-protocol', 1]],
   ['eiscore-mobile/src/views/assistant/WarehouseAssistant.vue', ['agent-protocol', 1]],
+  ['shared/eis-business-snapshot.js', ['agent-protocol', 1]],
   ['eiscore-apps/src/views/AppDashboard.vue', ['static-assets', 2]],
   ['eiscore-base/src/layout/index.vue', ['static-assets', 2]],
   ['eiscore-apps/src/views/FlashBuilder.vue', ['service-probe', 1]],
@@ -30,7 +30,7 @@ const expectedInventory = new Map([
 
 const expectedCategoryCounts = new Map([
   ['geo-hybrid', 1],
-  ['agent-protocol', 12],
+  ['agent-protocol', 11],
   ['static-assets', 4],
   ['service-probe', 1],
   ['login-bootstrap', 6],
@@ -80,5 +80,5 @@ assert.deepEqual([...categoryCounts.entries()].sort(), [...expectedCategoryCount
 assert.deepEqual(literalApiFetches, [], 'protected /api calls must use the platform HTTP client')
 
 const total = [...actualInventory.values()].reduce((sum, count) => sum + count, 0)
-assert.equal(total, 25)
+assert.equal(total, 24)
 console.log(`PASS: direct fetch inventory locked (${actualInventory.size} files, ${total} calls, 6 categories)`)

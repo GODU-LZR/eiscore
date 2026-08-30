@@ -197,6 +197,7 @@ import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } 
 import { useRouter } from 'vue-router'
 import { getToken } from '@/utils/auth'
 import MarkdownIt from 'markdown-it'
+import { createBusinessSnapshotLoader } from '@shared/eis-business-snapshot'
 import {
   SMART_BI_COMMON_QUESTIONS,
   buildSmartBiContext,
@@ -856,19 +857,15 @@ const buildAuthHeaders = () => {
   return headers
 }
 
+const requestBusinessSnapshot = createBusinessSnapshotLoader({ getAuthHeaders: buildAuthHeaders })
+
 const loadBusinessSnapshot = async (force = false) => {
   if (snapshotLoading.value) return
   if (!force && businessSnapshot.value?.snapshotTime) return
   snapshotLoading.value = true
   snapshotError.value = ''
   try {
-    const response = await fetch('/agent/ai/business-snapshot', {
-      method: 'GET',
-      headers: buildAuthHeaders()
-    })
-    if (!response.ok) throw new Error(`快照读取失败 (${response.status})`)
-    const data = await response.json()
-    businessSnapshot.value = data?.snapshot || {}
+    businessSnapshot.value = await requestBusinessSnapshot()
   } catch (error) {
     snapshotError.value = error?.message || '快照读取失败'
   } finally {
