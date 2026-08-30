@@ -6,8 +6,10 @@
   "license": "AGPL-3.0-or-later",
   "exports": {
     "./enterprise-config": "./src/enterprise-config.mjs",
+    "./http-client": "./src/http-client.mjs",
     "./login-branding": "./src/login-branding.mjs",
-    "./navigation": "./src/navigation.mjs"
+    "./navigation": "./src/navigation.mjs",
+    "./system-config": "./src/system-config.mjs"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"

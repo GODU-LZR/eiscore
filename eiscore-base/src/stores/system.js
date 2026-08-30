@@ -7,6 +7,7 @@ import { setThemeColor } from '@/utils/theme' // 引入工具
 import { normalizeDisplayVisibility } from '@shared/eis-display-control'
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding as normalizeEnterpriseLoginBranding } from '@eiscore/platform/login-branding'
+import { getHostSystemConfigService } from '@/platform/http-client'
 
 const normalizeLoginBranding = (input) => {
   const source = input && typeof input === 'object' ? input : {}
@@ -43,22 +44,6 @@ export const useSystemStore = defineStore('system', () => {
     ...defaultConfig
   })
 
-  const getAuthToken = () => {
-    const raw = localStorage.getItem('auth_token')
-    if (!raw) return ''
-    let token = raw
-    try {
-      const parsed = JSON.parse(raw)
-      if (parsed?.token) token = parsed.token
-    } catch (e) {}
-    if (token && token.length > 8192) {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user_info')
-      return ''
-    }
-    return token
-  }
-
   // 2. 定义动作
   const updateConfig = (newConfig = {}) => {
     const previousTheme = config.value?.themeColor || defaultConfig.themeColor
@@ -76,17 +61,9 @@ export const useSystemStore = defineStore('system', () => {
 
   const loadConfig = async () => {
     try {
-      const token = getAuthToken()
-      const headers = { 'Accept-Profile': 'public' }
-      if (token) headers.Authorization = `Bearer ${token}`
-      const res = await fetch('/api/system_configs?key=eq.app_settings', {
-        headers
-      })
-      if (!res.ok) return
-      const list = await res.json()
-      const row = Array.isArray(list) ? list[0] : null
-      if (row?.value && typeof row.value === 'object') {
-        const next = normalizeConfig({ ...defaultConfig, ...row.value })
+      const value = await getHostSystemConfigService().readValue('app_settings')
+      if (value && typeof value === 'object') {
+        const next = normalizeConfig({ ...defaultConfig, ...value })
         updateConfig(next)
       }
     } catch (e) {}
@@ -99,20 +76,9 @@ export const useSystemStore = defineStore('system', () => {
     })
     updateConfig(payload)
     try {
-      const token = getAuthToken()
-      const headers = {
-        'Content-Type': 'application/json',
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public',
-        'Prefer': 'resolution=merge-duplicates'
-      }
-      if (token) headers.Authorization = `Bearer ${token}`
-      const res = await fetch('/api/system_configs', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ key: 'app_settings', value: payload, description: '系统全局设置' })
+      await getHostSystemConfigService().saveValue('app_settings', payload, {
+        description: '系统全局设置'
       })
-      if (!res.ok) return false
       return true
     } catch (e) {
       return false

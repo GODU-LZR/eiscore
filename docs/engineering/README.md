@@ -83,5 +83,6 @@ EISCore 的工程化目标不是减少文件行数，也不是追求一次性“
 - G1 渐进式质量门禁：秘密扫描、变更代码 lint、Shell/Compose 检查已接入 CI；规则与扩展原则见 `QUALITY_GATES.md`。
 - G1 工具链与依赖治理：CI 运行时、npm、lockfile 契约和升级规则见 `DEPENDENCY_POLICY.md`。
 - G2 企业配置契约：品牌、域名、模块和功能开关的 v1 schema 与迁移边界见 `ENTERPRISE_CONFIG.md`。
+- G2 平台 HTTP 边界：企业端点解析、认证注入、超时、401 所有权和错误脱敏规则见 `adr/0003-platform-http-boundary.md`。
 
 长期重构的当前状态、验证证据和下一切片记录在 `REFACTOR_PROGRESS.md`；最终交付结论持续汇总到 `REFACTOR_FINAL_REPORT.md`。

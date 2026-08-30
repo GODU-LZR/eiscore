@@ -30,6 +30,8 @@
 - 生产启动最终必须以 `required: true` 加载；开发与现有部署迁移期可以在配置缺失时使用中性、全模块启用的只读默认值。
 - 返回对象递归冻结，业务页面不得在运行时修改企业配置。
 
+平台 HTTP 客户端使用 `endpoints.publicBaseUrl` 与 `apiBasePath`/`agentBasePath` 解析请求地址。业务代码只提交资源路径，不能覆盖为任意外部 URL；认证头、超时、401 通知和错误脱敏由平台契约统一处理。决策边界见 `adr/0003-platform-http-boundary.md`。
+
 ## 基座启动接入
 
 - 基座启动时先读取 `/config/eiscore-enterprise.json`，校验成功后才挂载 Vue 应用。

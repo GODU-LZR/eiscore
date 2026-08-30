@@ -258,9 +258,10 @@
 import { computed, ref, reactive, onBeforeUnmount, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showFailToast } from 'vant'
-import { setAuth, parseJwt, isAuthenticated, getToken } from '@/utils/auth'
+import { setAuth, parseJwt, isAuthenticated } from '@/utils/auth'
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
+import { getMobileSystemConfigService } from '@/platform/http-client'
 
 const enterpriseConfig = getEnterpriseConfig(globalThis)
 const defaultLoginBranding = normalizeLoginBranding({}, {
@@ -399,17 +400,11 @@ const pageStyle = computed(() => ({
 
 const loadAppSettings = async () => {
   try {
-    const token = getToken()
-    const headers = { 'Accept-Profile': 'public' }
-    if (token) headers.Authorization = `Bearer ${token}`
-    const res = await fetch('/api/system_configs?key=eq.app_settings', { headers })
-    if (!res.ok) return
-    const list = await res.json()
-    const row = Array.isArray(list) ? list[0] : null
-    if (row?.value && typeof row.value === 'object') {
+    const value = await getMobileSystemConfigService().readValue('app_settings')
+    if (value && typeof value === 'object') {
       appSettings.value = {
-        themeColor: normalizeText(row.value.themeColor, enterpriseConfig.branding.themeColor),
-        loginBranding: normalizeBranding(row.value.loginBranding)
+        themeColor: normalizeText(value.themeColor, enterpriseConfig.branding.themeColor),
+        loginBranding: normalizeBranding(value.loginBranding)
       }
     }
   } catch {
