@@ -461,6 +461,7 @@
 import { reactive, ref, onMounted, computed, watch } from 'vue'
 import { useSystemStore } from '@/stores/system'
 import { useUserStore } from '@/stores/user'
+import { getToken } from '@/utils/auth'
 import { ElMessage } from 'element-plus'
 import {
   DISPLAY_MODULE_CATALOG,
@@ -606,22 +607,6 @@ const parseConfigValue = (value) => {
   }
 }
 
-const getAuthToken = () => {
-  const raw = localStorage.getItem('auth_token')
-  if (!raw) return ''
-  let token = raw
-  try {
-    const parsed = JSON.parse(raw)
-    if (parsed?.token) token = parsed.token
-  } catch (e) {}
-  if (token && token.length > 8192) {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_info')
-    return ''
-  }
-  return token
-}
-
 const systemConfigHeaders = (withJson = false) => {
   const headers = {
     Accept: 'application/json',
@@ -632,7 +617,7 @@ const systemConfigHeaders = (withJson = false) => {
     headers['Content-Profile'] = 'public'
     headers.Prefer = 'resolution=merge-duplicates'
   }
-  const token = getAuthToken()
+  const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
   return headers
 }
@@ -643,7 +628,7 @@ const appCenterHeaders = () => {
     'Accept-Profile': 'app_center',
     'Content-Profile': 'app_center'
   }
-  const token = getAuthToken()
+  const token = getToken()
   if (token) headers.Authorization = `Bearer ${token}`
   return headers
 }

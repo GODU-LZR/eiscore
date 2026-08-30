@@ -3,6 +3,7 @@
 
 import { reactive, watch } from 'vue'
 import request from '@/utils/request'
+import { getToken } from '@/utils/auth'
 import {
   buildGridAgentQueryPayload,
   formatGridAgentQueryResultForPrompt,
@@ -148,21 +149,7 @@ class AiBridge {
   }
 
   getAuthToken() {
-    const tokenStr = localStorage.getItem('auth_token')
-    if (!tokenStr) return ''
-    let token = tokenStr
-    try {
-      const parsed = JSON.parse(tokenStr)
-      if (parsed?.token) token = parsed.token
-    } catch (e) {
-      // ignore
-    }
-    if (token && token.length > 8192) {
-      localStorage.removeItem('auth_token')
-      localStorage.removeItem('user_info')
-      return ''
-    }
-    return token
+    return getToken()
   }
 
   buildAuthHeaders() {

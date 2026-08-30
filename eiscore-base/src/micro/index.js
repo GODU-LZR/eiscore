@@ -5,6 +5,7 @@ import { registerMicroApps, start, initGlobalState } from 'qiankun'
 import { setBootstrapMaxTime, setMountMaxTime, setUnmountMaxTime, addErrorHandler, unloadApplication } from 'single-spa'
 import { createMicroApps } from './apps'
 import { aiBridge } from '@/utils/ai-bridge' 
+import { setUserInfo } from '@/utils/auth'
 import { syncEisThemeScopes } from '@shared/eis-theme-sync'
 
 /**
@@ -145,10 +146,9 @@ export function registerQiankun(enterpriseConfig = window.__EISCORE_ENTERPRISE_C
   const syncUserInfo = (state) => {
     const incoming = state?.user_info || state?.user || null
     if (incoming && typeof incoming === 'object') {
-      try {
-        localStorage.setItem('user_info', JSON.stringify(incoming))
+      if (setUserInfo(incoming)) {
         window.dispatchEvent(new CustomEvent('user-info-updated'))
-      } catch (e) {}
+      }
     }
   }
 

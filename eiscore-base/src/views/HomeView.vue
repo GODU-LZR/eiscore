@@ -233,6 +233,7 @@
 import { defineAsyncComponent, ref, reactive, computed, onMounted, nextTick, watch, onBeforeUnmount, onUpdated } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { getAuthHeader } from '@/utils/auth'
 import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
 import { aiBridge } from '@/utils/ai-bridge'
 import {
@@ -401,17 +402,10 @@ const isAdmin = computed(() => {
   return role === 'super_admin' || role === 'admin'
 })
 
-const getAuthHeaders = () => {
-  const tokenStr = localStorage.getItem('auth_token') || ''
-  let token = tokenStr
-  try {
-    const parsed = JSON.parse(tokenStr)
-    if (parsed?.token) token = parsed.token
-  } catch {}
-  const headers = { 'Content-Type': 'application/json' }
-  if (token) headers.Authorization = `Bearer ${token}`
-  return headers
-}
+const getAuthHeaders = () => ({
+  'Content-Type': 'application/json',
+  ...getAuthHeader()
+})
 
 // ── 模式切换 ──
 const DEFAULT_WORKBENCH_MODE = 'flow'

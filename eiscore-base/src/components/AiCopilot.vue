@@ -515,6 +515,7 @@
 import { ref, computed, nextTick, watch, onMounted, onUpdated, onBeforeUnmount } from 'vue'
 import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
+import { getToken, parseJwtPayload } from '@/utils/auth'
 import {
   SMART_BI_DOMAINS,
   SMART_BI_COMMON_QUESTIONS,
@@ -1174,35 +1175,7 @@ const categoryImportState = ref({})
 const workflowSaveState = ref({})
 const smartBiActionStartState = ref({})
 
-const getAuthToken = () => {
-  const tokenStr = localStorage.getItem('auth_token')
-  if (!tokenStr) return ''
-  let token = tokenStr
-  try {
-    const parsed = JSON.parse(tokenStr)
-    if (parsed && parsed.token) token = parsed.token
-  } catch (e) {
-    token = tokenStr
-  }
-  if (token && token.length > 8192) {
-    localStorage.removeItem('auth_token')
-    localStorage.removeItem('user_info')
-    return ''
-  }
-  return token
-}
-
-const parseJwtPayload = (token) => {
-  const parts = typeof token === 'string' ? token.split('.') : []
-  if (parts.length !== 3) return null
-  try {
-    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
-    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4)
-    return JSON.parse(atob(padded))
-  } catch (e) {
-    return null
-  }
-}
+const getAuthToken = getToken
 
 const getTokenUsername = (token) => {
   const payload = parseJwtPayload(token)

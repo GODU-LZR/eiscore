@@ -157,6 +157,7 @@
 
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch, onUpdated } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { getAuthHeader } from '@/utils/auth'
 import {
   Plus, Delete, Upload, Document, Promotion,
   DArrowLeft, DArrowRight, CircleCheck, Loading
@@ -295,17 +296,10 @@ const renderCharts = async () => {
 // ── Store & Auth ──
 const userStore = useUserStore()
 
-const getAuthHeaders = () => {
-  const tokenStr = localStorage.getItem('auth_token') || ''
-  let token = tokenStr
-  try {
-    const parsed = JSON.parse(tokenStr)
-    if (parsed?.token) token = parsed.token
-  } catch {}
-  const headers = { 'Content-Type': 'application/json' }
-  if (token) headers.Authorization = `Bearer ${token}`
-  return headers
-}
+const getAuthHeaders = () => ({
+  'Content-Type': 'application/json',
+  ...getAuthHeader()
+})
 
 // ── 状态 ──
 const showSidebar = ref(true)
