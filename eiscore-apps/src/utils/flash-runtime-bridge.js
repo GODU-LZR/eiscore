@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import { getToken, getUserInfo } from '@/utils/auth'
+import { callTool as callFlashAgentTool } from '@/utils/flash-agent-client'
 
 const FLASH_WRITE_TOOL_IDS = new Set([
   'flash.draft.write',
@@ -101,27 +102,7 @@ export const callFlashRuntimeTool = async (toolId, args = {}, options = {}) => {
     payload.idempotency_key = options.idempotencyKey || buildIdempotencyKey()
   }
 
-  let lastError = null
-  for (const url of getAgentToolCallUrls()) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-      const result = await response.json().catch(() => ({}))
-      if (!response.ok || result?.ok === false) {
-        throw new Error(String(result?.message || result?.code || `工具调用失败 (${response.status})`))
-      }
-      return result
-    } catch (error) {
-      lastError = error
-    }
-  }
-  throw new Error(String(lastError?.message || '工具调用失败'))
+  return callFlashAgentTool({ urls: getAgentToolCallUrls(), token, payload })
 }
 
 export const installFlashRuntimeBridge = (app) => {

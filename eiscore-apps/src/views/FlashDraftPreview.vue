@@ -17,6 +17,7 @@ import { computed, markRaw, onMounted, onUnmounted, ref, watch } from 'vue'
 import { compile } from '@vue/compiler-dom'
 import { useRoute } from 'vue-router'
 import { getToken } from '@/utils/auth'
+import { fetchDraftSource as requestFlashDraftSource } from '@/utils/flash-agent-client'
 
 const route = useRoute()
 const runtimeComponent = ref(null)
@@ -52,24 +53,10 @@ const getDraftUrls = () => {
   ]))
 }
 
-const fetchDraftSource = async () => {
-  const token = getToken()
-  let lastError = null
-  for (const url of getDraftUrls()) {
-    try {
-      const response = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        cache: 'no-store'
-      })
-      const result = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(result?.message || `HTTP ${response.status}`)
-      return String(result?.content || result?.data?.content || '')
-    } catch (error) {
-      lastError = error
-    }
-  }
-  throw lastError || new Error('读取草稿失败')
-}
+const fetchDraftSource = () => requestFlashDraftSource({
+  urls: getDraftUrls(),
+  token: getToken()
+})
 
 const extractBlock = (source, tag) => {
   const match = String(source || '').match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'))
