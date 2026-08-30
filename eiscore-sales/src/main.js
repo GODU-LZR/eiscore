@@ -13,6 +13,10 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { patchElMessage } from '@/utils/message-patch'
 import { installEisThemeSync } from '@shared/eis-theme-sync'
+import {
+  getEnterpriseConfig,
+  publishEnterpriseConfig
+} from '@eiscore/platform/enterprise-config'
 
 patchElMessage()
 
@@ -92,6 +96,7 @@ async function render(props = {}) {
   const { container } = props
   app = createApp(App)
   const currentApp = app
+  publishEnterpriseConfig(props.enterpriseConfig || getEnterpriseConfig(window), window)
 
   if (props && typeof props.setGlobalState === 'function') {
     window.__EIS_BASE_ACTIONS__ = props

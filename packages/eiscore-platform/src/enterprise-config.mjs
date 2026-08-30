@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 export const ENTERPRISE_CONFIG_SCHEMA_VERSION = 1
+export const ENTERPRISE_CONFIG_GLOBAL = '__EISCORE_ENTERPRISE_CONFIG__'
 export const ENTERPRISE_MODULE_IDS = Object.freeze([
   'hr',
   'materials',
@@ -265,6 +266,28 @@ export function parseEnterpriseConfig(input, { source = 'inline' } = {}) {
 }
 
 export const DEFAULT_ENTERPRISE_CONFIG = parseEnterpriseConfig(DEFAULT_SOURCE, { source: 'built-in default' })
+
+export function getEnterpriseConfig(runtimeTarget = globalThis) {
+  return runtimeTarget?.[ENTERPRISE_CONFIG_GLOBAL] || DEFAULT_ENTERPRISE_CONFIG
+}
+
+export function publishEnterpriseConfig(config, runtimeTarget = globalThis) {
+  if (!runtimeTarget || (typeof runtimeTarget !== 'object' && typeof runtimeTarget !== 'function')) {
+    throw new TypeError('Enterprise configuration runtime target must be an object')
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(runtimeTarget, ENTERPRISE_CONFIG_GLOBAL)
+  if (descriptor?.value === config) return config
+  if (descriptor && !descriptor.configurable) {
+    throw new Error('Enterprise configuration global is already locked')
+  }
+  Object.defineProperty(runtimeTarget, ENTERPRISE_CONFIG_GLOBAL, {
+    value: config,
+    enumerable: false,
+    configurable: false,
+    writable: false
+  })
+  return config
+}
 
 export function enterpriseModuleForPath(path) {
   const normalized = String(path || '').split(/[?#]/, 1)[0]

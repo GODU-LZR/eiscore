@@ -853,6 +853,7 @@ import {
 } from '@/utils/sales-attention'
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
+import { openSalesFlowTarget } from '@/platform/sales-flow-navigation'
 
 const props = defineProps({
   appKey: { type: String, default: 'customers' },
@@ -2878,15 +2879,15 @@ const pushSingleOrderToPurchaseDemand = async (order) => {
 }
 
 const jumpToPurchaseDemandPage = () => {
-  window.location.href = '/purchase/app/demands'
+  openSalesFlowTarget('purchaseDemand', { onWarning: (message) => ElMessage.warning(message) })
 }
 
 const jumpToShipmentPage = () => {
-  window.location.href = '/sales/app/shipment_requests'
+  openSalesFlowTarget('shipmentRequest', { onWarning: (message) => ElMessage.warning(message) })
 }
 
 const jumpToSalesOutboundPage = () => {
-  window.location.href = '/materials/inventory-stock-out?ioType=销售出库'
+  openSalesFlowTarget('salesOutbound', { onWarning: (message) => ElMessage.warning(message) })
 }
 
 const pushOrderToPurchaseDemand = async () => {

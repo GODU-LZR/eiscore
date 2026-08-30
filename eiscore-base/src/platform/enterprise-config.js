@@ -3,28 +3,13 @@
 
 import {
   DEFAULT_ENTERPRISE_CONFIG,
+  ENTERPRISE_CONFIG_GLOBAL,
+  getEnterpriseConfig,
+  publishEnterpriseConfig,
   loadEnterpriseConfig
 } from '@eiscore/platform/enterprise-config'
 
-export const ENTERPRISE_CONFIG_GLOBAL = '__EISCORE_ENTERPRISE_CONFIG__'
-
-export function getEnterpriseConfig(runtimeTarget = globalThis) {
-  return runtimeTarget?.[ENTERPRISE_CONFIG_GLOBAL] || DEFAULT_ENTERPRISE_CONFIG
-}
-
-export function publishEnterpriseConfig(config, runtimeTarget = globalThis) {
-  const descriptor = Object.getOwnPropertyDescriptor(runtimeTarget, ENTERPRISE_CONFIG_GLOBAL)
-  if (descriptor && !descriptor.configurable && descriptor.value !== config) {
-    throw new Error('Enterprise configuration global is already locked')
-  }
-  Object.defineProperty(runtimeTarget, ENTERPRISE_CONFIG_GLOBAL, {
-    value: config,
-    enumerable: false,
-    configurable: false,
-    writable: false
-  })
-  return config
-}
+export { ENTERPRISE_CONFIG_GLOBAL, getEnterpriseConfig, publishEnterpriseConfig }
 
 export async function bootstrapEnterpriseConfig({
   isProduction = false,

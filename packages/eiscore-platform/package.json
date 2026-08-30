@@ -5,7 +5,8 @@
   "type": "module",
   "license": "AGPL-3.0-or-later",
   "exports": {
-    "./enterprise-config": "./src/enterprise-config.mjs"
+    "./enterprise-config": "./src/enterprise-config.mjs",
+    "./navigation": "./src/navigation.mjs"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
