@@ -234,6 +234,7 @@ import { defineAsyncComponent, ref, reactive, computed, onMounted, nextTick, wat
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getAuthHeader } from '@/utils/auth'
+import { createTwinJsonClient } from '@/utils/twin-json-client'
 import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
 import { aiBridge } from '@/utils/ai-bridge'
 import {
@@ -510,19 +511,7 @@ const formatSize = (bytes) => {
 }
 
 // ── API 调用 ──
-const apiCall = async (path, options = {}) => {
-  const url = `/agent${path}`
-  const res = await fetch(url, {
-    method: options.method || 'GET',
-    headers: getAuthHeaders(),
-    body: options.body ? JSON.stringify(options.body) : undefined
-  })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`API error ${res.status}: ${text.slice(0, 200)}`)
-  }
-  return res.json()
-}
+const apiCall = createTwinJsonClient({ getAuthHeaders })
 
 // ── 会话管理 ──
 const loadSessions = async () => {
