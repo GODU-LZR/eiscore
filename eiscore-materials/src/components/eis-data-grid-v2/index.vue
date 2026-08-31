@@ -113,7 +113,7 @@ import { useGridFormula } from '@shared/eis-data-grid-v2/composables/useGridForm
 import { evaluateFormulaExpression } from '@/utils/formula-eval'
 import { useGridHistory } from './composables/useGridHistory'
 import { useGridSelection } from '@shared/eis-data-grid-v2/composables/useGridSelection'
-import { useGridClipboard } from './composables/useGridClipboard'
+import { useGridClipboard } from '@shared/eis-data-grid-v2/composables/useGridClipboard'
 
 import GridToolbar from '@shared/eis-data-grid-v2/components/GridToolbar.vue'
 import ConfigDialog from '@shared/eis-data-grid-v2/components/ConfigDialog.vue'
@@ -327,7 +327,12 @@ formulaDependencyHooks.searchText = searchText
 formulaDependencyHooks.reloadData = loadData
 
 // 5. Clipboard (修复参数传递)
-const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(gridApi, historyHooks, selectionHooks)
+const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(
+  gridApi,
+  historyHooks,
+  selectionHooks,
+  { keyboardMode: 'preserve-editors' }
+)
 
 const defaultColDef = { 
   sortable: true, filter: true, resizable: true, minWidth: 100,

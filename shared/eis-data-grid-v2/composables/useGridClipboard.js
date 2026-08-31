@@ -3,25 +3,43 @@
 
 import { ElMessage } from 'element-plus'
 
-export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
+export function useGridClipboard(gridApi, historyHooks, selectionHooks, clipboardOptions = {}) {
   const { history, isSystemOperation, debouncedSave, performUndoRedo, sanitizeValue, pushPendingChange } = historyHooks
   const { rangeSelection, getColIndex } = selectionHooks
+  const {
+    keyboardMode = 'default',
+    clearMode = 'plain'
+  } = clipboardOptions
 
-  const setNodeFieldValue = (rowNode, field, value) => {
-    if (field?.startsWith('properties.')) {
+  const isEditableTarget = (target) => {
+    if (!target || typeof target.closest !== 'function') return false
+    return Boolean(target.closest('input, textarea, [contenteditable="true"]'))
+  }
+
+  const setClearedValue = (rowNode, field, value) => {
+    if (clearMode === 'sanitized-nested' && field?.startsWith('properties.')) {
       const key = field.split('.')[1]
       if (!rowNode.data.properties || typeof rowNode.data.properties !== 'object') {
         rowNode.data.properties = {}
       }
       rowNode.data.properties[key] = value
-      rowNode.setDataValue(field, value)
-      return
     }
     rowNode.setDataValue(field, value)
   }
 
+  const getClearedValue = (field) => (
+    clearMode === 'sanitized-nested' ? sanitizeValue(field, null) : null
+  )
+
   const handleGlobalPaste = async (event) => {
     if (!gridApi.value) return
+
+    if (
+      keyboardMode === 'preserve-editors' &&
+      (isEditableTarget(event.target) || gridApi.value.getEditingCells?.().length > 0)
+    ) {
+      return
+    }
     const activeEl = document.activeElement
     if (activeEl) {
       const tag = activeEl.tagName
@@ -183,8 +201,8 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
                 const field = col.getColDef().field
                 let currentVal = field.split('.').reduce((obj, key) => obj?.[key], rowNode.data)
                 if (currentVal !== null && currentVal !== '') {
-                  const cleanValue = sanitizeValue(field, null)
-                  setNodeFieldValue(rowNode, field, cleanValue)
+                  const cleanValue = getClearedValue(field)
+                  setClearedValue(rowNode, field, cleanValue)
                   transaction.changes.push({ rowId: rowNode.data.id, colId: field, oldValue: currentVal, newValue: cleanValue })
                   pushPendingChange({ rowNode: rowNode, colDef: col.getColDef(), newValue: cleanValue, oldValue: currentVal })
                 }
@@ -205,7 +223,7 @@ export function useGridClipboard(gridApi, historyHooks, selectionHooks) {
           const col = gridApi.value.getColumn(focusedCell.column.colId)
           if (col.isCellEditable(rowNode)) {
             const field = col.getColDef().field
-            setNodeFieldValue(rowNode, field, sanitizeValue(field, null))
+            setClearedValue(rowNode, field, getClearedValue(field))
           }
         }
       }

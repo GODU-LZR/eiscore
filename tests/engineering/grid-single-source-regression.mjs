@@ -36,8 +36,13 @@ for (const app of apps) {
     entry,
     /import\s*{\s*useGridFormula\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridFormula['"]/
   )
+  assert.match(
+    entry,
+    /import\s*{\s*useGridClipboard\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridClipboard['"]/
+  )
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridSelection.js')), false)
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridFormula.js')), false)
+  assert.equal(existsSync(resolve(gridRoot, 'composables/useGridClipboard.js')), false)
   assert.match(
     entry,
     /import FileDialog from ['"]@shared\/eis-data-grid-v2\/components\/FileDialog\.vue['"]/
@@ -100,6 +105,17 @@ for (const app of apps) {
     assert.doesNotMatch(toolbarInvocation, /\bfull-width-rows\b/)
   }
   if (app !== 'apps') assert.doesNotMatch(toolbarInvocation, /\blayout="split"/)
+
+  if (app === 'materials') {
+    assert.match(entry, /useGridClipboard\([\s\S]*?keyboardMode:\s*['"]preserve-editors['"][\s\S]*?\)/)
+  } else {
+    assert.doesNotMatch(entry, /keyboardMode:\s*['"]preserve-editors['"]/)
+  }
+  if (app === 'purchase') {
+    assert.match(entry, /useGridClipboard\([\s\S]*?clearMode:\s*['"]sanitized-nested['"][\s\S]*?\)/)
+  } else {
+    assert.doesNotMatch(entry, /clearMode:\s*['"]sanitized-nested['"]/)
+  }
 
   if (localFormulaEvaluators.has(app)) {
     assert.match(
@@ -182,4 +198,15 @@ assert.doesNotMatch(
   /from\s*['"][^'"]*formula-eval['"]/
 )
 
-console.log('PASS: all eight Grid entries share selection, formula services, common dialogs, and renderer baselines with explicit local variants')
+const clipboardSource = readFileSync(
+  resolve(repoRoot, 'shared/eis-data-grid-v2/composables/useGridClipboard.js'),
+  'utf8'
+)
+assert.match(clipboardSource, /clipboardOptions\s*=\s*{}/)
+assert.match(clipboardSource, /keyboardMode\s*=\s*['"]default['"]/)
+assert.match(clipboardSource, /clearMode\s*=\s*['"]plain['"]/)
+assert.match(clipboardSource, /keyboardMode\s*===\s*['"]preserve-editors['"]/)
+assert.match(clipboardSource, /clearMode\s*===\s*['"]sanitized-nested['"]/)
+assert.doesNotMatch(clipboardSource, /\b(?:apps|equipment|hr|materials|production|purchase|quality|sales)\b/)
+
+console.log('PASS: all eight Grid entries share selection, formula, clipboard, dialogs, and renderer baselines with explicit variants')
