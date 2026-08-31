@@ -126,14 +126,15 @@
 | `f21f65a` | 抽离 Realtime 数据库通知适配器 | LISTEN、目标/角色广播、Workflow 分发、重连和关闭清理进入注入式生命周期 |
 | `ef3d847` | 抽离 AI 配置与上游运行时 | TTL 缓存、秘密剥离、代理/超时、JSON/流传输及主/视觉重试进入注入式服务 |
 | `6fbc1f5` | 抽离 AI OCR 编排 | 视觉 payload、六图上限、逐图降级及消息替换进入注入式服务 |
-| 本文件所在提交 | 抽离企业 AI 输出守卫 | 路由门控、泄漏改写、前导语清理、ECharts 修复与安全兜底进入注入式服务 |
+| `86373fa` | 抽离企业 AI 输出守卫 | 路由门控、泄漏改写、前导语清理、ECharts 修复与安全兜底进入注入式服务 |
+| 本文件所在提交 | 抽离 Flash PostgREST 适配器 | 用户 JWT、Profile、错误映射、动态表补建与 Schema Cache 重试进入注入式边界 |
 
 ## 当前切片
 
-- 状态：G3 进行中；企业 AI 输出守卫已退出组合根并复用 AI 上游运行时，下一阶段继续抽离 Flash 语义工具或 Agent 路由/Prompt。
-- 结果：`ai-output-guard.js` 接收文本解析与 AI 上游依赖，负责企业分析路由门控、Workflow/BPMN/Mermaid 泄漏改写、前导客套语清理、ECharts 本地规范化、最多 6 轮 AI 修复及最终安全图表兜底。`realtime/index.js` 只构造服务并向 AI Chat 处理器传递两个能力，从 5,673 降至 5,275 行，较 G3 起点减少 2,111 行。
-- 兼容边界：保留仅 `enterprise_analyst` 非 Workflow 路由启用、原 completion 深拷贝替换、改写一次重试 240ms 基数、图表修复三次上游重试 260ms 基数与六轮领域重试；合法图表原样返回，类 JSON、尾逗号、未加引号键、单引号及函数值继续本地清理，全部修复失败后仍输出可渲染的静态兜底。没有调用外部 AI。
-- 验证：专项模拟覆盖非企业/Workflow 原样放行、无变化对象身份、message/delta/无 choices 三种 completion、工作流泄漏、前导语、合法 ECharts、类 JSON/尾逗号/函数值、AI 第六轮成功和最终兜底；组合根契约禁止重新内联 15 个输出守卫实现函数。完整 `test:quality` 与完整离线 `test:unit` 通过，其中语法扫描 142 个 Node 文件、14 个锁定 CI 包、1,098 个文本文件秘密扫描、5 个变更文件 lint 和 23 项基础设施检查均通过，未执行远程测试。
+- 状态：G3 进行中；Flash PostgREST 底层已退出组合根，下一阶段把 42 个语义工具、注册表、确认/幂等策略作为整体服务抽离。
+- 结果：`flash-postgrest-adapter.js` 接收地址、角色、JWT、HTTP、文本与计时依赖，统一用户 JWT 绑定、Query 编码、读写 Profile、JSON/原文响应、错误分类、动态 `app_data` 表补建、Schema Cache 重载和最多 5 次阶梯重试；同时向 Flash、语义上下文、业务快照与 Twin 暴露最小查询能力。`realtime/index.js` 从 5,275 降至 5,062 行，较 G3 起点减少 2,324 行。
+- 兼容边界：保留 15 分钟用户 JWT 与原 Token 降级、`web_user`/`app_role`/permissions Claims、所有写方法的 `Content-Profile`、默认/显式超时、HTTP 到 Flash 错误码映射、RLS `42501`、PostgREST JSON/原文解析、仅 `app_data` 且有 appId 时补表、450ms 首次等待及 350ms 起的五轮 Schema Cache 重试。没有连接真实 PostgREST 或数据库。
+- 验证：专项模拟覆盖 GET/POST/DELETE、Query 清洗、JWT 签发失败降级、Profile/Trace/Prefer/Body、7 类 HTTP 错误、Abort/网络异常、表名校验、字段类型推断、补表/Reload 失败降级/阶梯重试、非 `app_data` 禁止补表及用户绑定查询；组合根契约禁止重新内联 11 个适配器实现。完整 `test:quality` 与完整离线 `test:unit` 通过，其中语法扫描 143 个 Node 文件、14 个锁定 CI 包、1,100 个文本文件秘密扫描、5 个变更文件 lint 和 23 项基础设施检查均通过，未执行远程测试。
 
 ## 已知非阻断风险
 
@@ -148,9 +149,9 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/123 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- `realtime/index.js` 仍有 5,275 行且保留 AI Agent 路由/Prompt、Flash 与 Agent 任务领域实现；已有边界退出不代表 G3 完成。
+- `realtime/index.js` 仍有 5,062 行且保留 AI Agent 路由/Prompt、Flash 语义工具/Cline 与 Agent 任务领域实现；已有边界退出不代表 G3 完成。
 - 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器虽已有离线契约，仍需在获授权的隔离环境完成真实备份、迁移、postcheck 与恢复演练后才能成为上线证据。
 
 ## 下一候选切片
 
-继续 G3：从 `realtime/index.js` 抽离 Flash PostgREST 适配器与语义工具的完整领域切片，以注入式契约锁定查询、幂等/确认策略、错误和 PostgREST 语义；保持 HTTP/WebSocket 协议、SQL 和部署行为不变。随后治理 Flash Cline、Agent 路由/Prompt/任务执行，并建立巨型前端页面库存与拆分门禁。
+继续 G3：从 `realtime/index.js` 抽离 Flash 的 42 个语义工具、别名/注册表、调用 Envelope、确认门槛、幂等缓存、成功/失败响应和审计，以注入式契约锁定完整工具矩阵与写策略；保持 HTTP/WebSocket 协议、SQL 和部署行为不变。随后治理 Flash Cline、Agent 路由/Prompt/任务执行，并建立巨型前端页面库存与拆分门禁。

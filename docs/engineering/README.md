@@ -88,7 +88,7 @@ EISCore 的工程化目标不是减少文件行数，也不是追求一次性“
 - G2 前端权限判断：9 个权限适配器共享同一平台服务，兼容规则见 `adr/0005-platform-permission-boundary.md`。
 - G2 非会话本地存储：领域缓存通过安全适配器渐进迁移，Key/格式/异常降级边界见 `adr/0006-domain-local-storage-boundary.md`。
 - G2 Grid/UI 单一来源：共享入口与实现主体由 8 个薄适配器消费，9 个具名扩展受专项契约锁定，边界见 `adr/0007-grid-single-source.md`。
-- G3 Realtime 模块化单体：41 条 HTTP、9 类 WebSocket、PostgreSQL 通知及 AI 配置/上游/OCR/企业输出守卫均进入注入式边界，组合根已减少 2,111 行；下一阶段继续拆分 Flash/Agent 领域，决策见 `adr/0008-realtime-modular-monolith.md`。
+- G3 Realtime 模块化单体：41 条 HTTP、9 类 WebSocket、PostgreSQL 通知、AI 配置/上游/OCR/企业输出守卫及 Flash PostgREST 均进入注入式边界，组合根已减少 2,324 行；下一阶段继续拆分 Flash/Agent 领域，决策见 `adr/0008-realtime-modular-monolith.md`。
 - G3 数据库迁移治理：102 份历史 SQL 作为只读库存锁定，已有顺序证据的 10 个 Runtime V2 补丁进入带 ID、SHA-256、事务归属、postcheck 与回退声明的 Manifest；双平台执行入口共享离线校验、备份门槛、幂等账本和强制 postcheck，决策见 `adr/0009-database-migration-governance.md`。
 
 G2 已通过退出审计；接受库存和持续门禁见 `G2_EXIT_AUDIT.md`。当前主要工作进入 G3 核心模块可维护性。

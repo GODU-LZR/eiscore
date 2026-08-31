@@ -24,6 +24,7 @@ const { createDatabaseNotifier } = require('./database-notifier');
 const { createAiRuntimeService } = require('./ai-runtime-service');
 const { createAiOcrService } = require('./ai-ocr-service');
 const { createAiOutputGuard } = require('./ai-output-guard');
+const { FlashToolError, createFlashPostgrestAdapter } = require('./flash-postgrest-adapter');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -1519,6 +1520,26 @@ const parseJsonMaybe = (rawText) => {
     return null;
   }
 };
+
+const flashPostgrestAdapter = createFlashPostgrestAdapter({
+  baseUrl: postgrestBaseUrl,
+  userRole: postgrestUserRole,
+  jwtSecret,
+  toolCallTimeoutMs: flashToolCallTimeoutMs,
+  signJwt: (...args) => jwt.sign(...args),
+  fetchImpl: (...args) => fetch(...args),
+  sanitizeQueryParams,
+  parseJson: parseJsonMaybe,
+  normalizeText: normalizeAiText,
+  wait: waitMs
+});
+const {
+  bindPgQueryForUser,
+  callPostgrestWithFlashTableEnsure,
+  callPostgrestWithUser,
+  inferFlashDataColumnsFromPayload,
+  resolveDataTableTarget
+} = flashPostgrestAdapter;
 
 const deriveOpenAiBaseUrl = (apiUrl) => {
   const raw = envText(apiUrl, '');
@@ -4111,13 +4132,6 @@ const authorizeDocumentIntakeAdminRequest = (req, res) => {
   return asUser(payload, token);
 };
 
-/**
- * 为指定用户创建绑定到其 JWT 的 PostgREST 查询函数
- */
-const bindPgQueryForUser = (user) => {
-  return (options) => callPostgrestWithUser(user, options);
-};
-
 const handleTwinChat = createTwinChatHttpHandler({
   authorizeTwinRequest,
   readJsonBody,
@@ -4258,23 +4272,6 @@ function sanitizeQueryParams(query = {}) {
   return out;
 }
 
-function isValidDbObjectName(value) {
-  const text = String(value || '').trim();
-  if (!text) return false;
-  return /^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$/.test(text);
-}
-
-class FlashToolError extends Error {
-  constructor(code, message, options = {}) {
-    super(message || code || 'Flash tool error');
-    this.name = 'FlashToolError';
-    this.code = String(code || 'INTERNAL_ERROR');
-    this.httpStatus = Number(options.httpStatus || 500);
-    this.reasonCode = String(options.reasonCode || this.code);
-    this.data = options.data === undefined ? null : options.data;
-  }
-}
-
 function toPlainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
@@ -4325,107 +4322,6 @@ function resolveFlashToolId(rawToolId) {
   const cleaned = sanitizeToolId(rawToolId);
   if (!cleaned) return '';
   return flashSemanticToolAliases[cleaned] || cleaned;
-}
-
-function resolveDataTableTarget(tableInput) {
-  const raw = String(tableInput || '').trim();
-  if (!raw) {
-    throw new FlashToolError('VALIDATION_FAILED', 'table is required', { httpStatus: 400 });
-  }
-  if (!isValidDbObjectName(raw)) {
-    throw new FlashToolError('VALIDATION_FAILED', 'table is invalid', { httpStatus: 400 });
-  }
-  const [schema, table] = raw.includes('.') ? raw.split('.', 2) : ['app_data', raw];
-  if (!schema || !table || !isValidDbObjectName(`${schema}.${table}`)) {
-    throw new FlashToolError('VALIDATION_FAILED', 'table is invalid', { httpStatus: 400 });
-  }
-  return { schema, table };
-}
-
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function isPostgrestSchemaCacheMiss(error) {
-  const text = `${error?.message || ''} ${JSON.stringify(error?.data || {})}`.toLowerCase();
-  return (
-    text.includes('schema cache') ||
-    text.includes('could not find the table') ||
-    text.includes('could not find the column') ||
-    text.includes('pgrst200') ||
-    text.includes('pgrst204') ||
-    text.includes('pgrst205')
-  );
-}
-
-function inferFlashDataColumnsFromPayload(payload = {}) {
-  const out = [];
-  for (const [key, value] of Object.entries(toPlainObject(payload))) {
-    if (!key || ['id', 'created_at', 'updated_at', 'properties'].includes(key)) continue;
-    let type = 'text';
-    if (typeof value === 'number') type = Number.isInteger(value) ? 'integer' : 'numeric';
-    if (typeof value === 'boolean') type = 'boolean';
-    if (value instanceof Date) type = 'timestamptz';
-    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}t/i.test(value)) type = 'timestamptz';
-    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) type = 'date';
-    out.push({ field: key, label: key, type });
-  }
-  return out;
-}
-
-async function reloadPostgrestSchemaCache(user, traceId = '') {
-  try {
-    await callPostgrestWithUser(user, {
-      method: 'POST',
-      path: '/rpc/reload_schema_cache',
-      acceptProfile: 'public',
-      contentProfile: 'public',
-      traceId,
-      timeoutMs: 5000
-    });
-  } catch {
-    // Not every database has the helper RPC; create_data_app_table already NOTIFYs pgrst.
-  }
-}
-
-async function ensureFlashDataTable(user, target, appId, columns = [], traceId = '') {
-  if (!target || target.schema !== 'app_data') return false;
-  const normalizedAppId = String(appId || '').trim();
-  if (!normalizedAppId) return false;
-  await callPostgrestWithUser(user, {
-    method: 'POST',
-    path: '/rpc/create_data_app_table',
-    body: {
-      app_id: normalizedAppId,
-      table_name: target.table,
-      columns: Array.isArray(columns) ? columns : []
-    },
-    acceptProfile: 'app_center',
-    contentProfile: 'app_center',
-    traceId,
-    timeoutMs: 20000
-  });
-  await reloadPostgrestSchemaCache(user, traceId);
-  await wait(450);
-  return true;
-}
-
-async function callPostgrestWithFlashTableEnsure(user, target, appId, options = {}, ensureColumns = []) {
-  try {
-    return await callPostgrestWithUser(user, options);
-  } catch (error) {
-    const ensured = await ensureFlashDataTable(user, target, appId, ensureColumns, options.traceId);
-    if (!ensured || !isPostgrestSchemaCacheMiss(error)) throw error;
-    let lastError = error;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      try {
-        return await callPostgrestWithUser(user, options);
-      } catch (retryError) {
-        lastError = retryError;
-        if (!isPostgrestSchemaCacheMiss(retryError)) throw retryError;
-        await wait(350 + attempt * 250);
-      }
-    }
-    throw lastError;
-  }
 }
 
 function normalizeExecutionLogStatus(rawStatus = '') {
@@ -4548,115 +4444,6 @@ function encodeInList(values = []) {
     .map((item) => item.replace(/[,()]/g, ''));
   if (!list.length) return '';
   return `in.(${list.join(',')})`;
-}
-
-function mapPostgrestErrorCode(status, payload) {
-  if (status === 400) return 'VALIDATION_FAILED';
-  if (status === 401 || status === 403) {
-    const code = String(payload?.code || '').trim();
-    const message = String(payload?.message || '').toLowerCase();
-    if (code === '42501' || message.includes('permission denied')) return 'RLS_DENIED';
-    return 'PERMISSION_DENIED';
-  }
-  if (status === 404) return 'BAD_REQUEST';
-  if (status === 409) return 'CONFLICT';
-  if (status === 408 || status === 504) return 'TIMEOUT';
-  if (status >= 500) return 'UPSTREAM_ERROR';
-  return 'UPSTREAM_ERROR';
-}
-
-function buildPostgrestPath(pathname = '/', query = {}) {
-  const basePath = String(pathname || '/').startsWith('/') ? String(pathname || '/') : `/${pathname}`;
-  const params = new URLSearchParams();
-  const cleaned = sanitizeQueryParams(query);
-  for (const [key, value] of Object.entries(cleaned)) {
-    params.set(key, value);
-  }
-  const queryString = params.toString();
-  return queryString ? `${basePath}?${queryString}` : basePath;
-}
-
-function buildPostgrestUserToken(user) {
-  if (!jwtSecret || !postgrestUserRole) return user?.token || '';
-  const payload = {
-    sub: String(user?.id || user?.username || ''),
-    username: String(user?.username || ''),
-    role: postgrestUserRole,
-    app_role: String(user?.role || ''),
-    permissions: Array.isArray(user?.permissions) ? user.permissions : []
-  };
-  try {
-    return jwt.sign(payload, jwtSecret, { expiresIn: '15m' });
-  } catch {
-    return user?.token || '';
-  }
-}
-
-async function callPostgrestWithUser(user, options = {}) {
-  const method = String(options.method || 'GET').toUpperCase();
-  const requestPath = buildPostgrestPath(options.path, options.query);
-  const url = `${postgrestBaseUrl}${requestPath}`;
-  const headers = {
-    Authorization: `Bearer ${buildPostgrestUserToken(user)}`,
-    Accept: 'application/json'
-  };
-  if (options.acceptProfile) headers['Accept-Profile'] = options.acceptProfile;
-  if (options.traceId) headers['X-Trace-Id'] = options.traceId;
-  if (options.prefer) headers.Prefer = options.prefer;
-
-  // Content-Profile must be set for all write operations (POST/PATCH/PUT/DELETE),
-  // not just when body is present — PostgREST uses it to resolve the target schema.
-  if (options.contentProfile) headers['Content-Profile'] = options.contentProfile;
-
-  let body;
-  if (options.body !== undefined) {
-    headers['Content-Type'] = 'application/json';
-    body = JSON.stringify(options.body);
-  }
-
-  const controller = new AbortController();
-  const timeout = Number(options.timeoutMs || flashToolCallTimeoutMs);
-  const timeoutHandle = setTimeout(() => controller.abort(), timeout);
-  let response;
-  try {
-    response = await fetch(url, {
-      method,
-      headers,
-      body,
-      signal: controller.signal
-    });
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new FlashToolError('TIMEOUT', `Tool upstream timeout after ${timeout}ms`, { httpStatus: 504 });
-    }
-    throw new FlashToolError('UPSTREAM_ERROR', error?.message || 'Tool upstream request failed', { httpStatus: 502 });
-  } finally {
-    clearTimeout(timeoutHandle);
-  }
-
-  const rawText = await response.text();
-  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
-  let payload = null;
-  if (rawText) {
-    if (contentType.includes('json')) payload = parseJsonMaybe(rawText);
-    if (payload === null) payload = { raw: rawText };
-  }
-
-  if (!response.ok) {
-    const reasonCode = mapPostgrestErrorCode(response.status, payload || {});
-    const message = normalizeAiText(payload?.message || payload?.details || payload?.hint) ||
-      `PostgREST request failed (${response.status})`;
-    throw new FlashToolError(reasonCode, message, {
-      httpStatus: response.status,
-      data: payload
-    });
-  }
-
-  return {
-    status: response.status,
-    data: payload,
-    path: requestPath
-  };
 }
 
 function getFlashToolRegistryPayload() {

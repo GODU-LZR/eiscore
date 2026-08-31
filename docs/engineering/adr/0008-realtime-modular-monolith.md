@@ -46,4 +46,6 @@
 
 第十三个切片把企业分析输出守卫迁入 `ai-output-guard.js`。服务只暴露路由判定和守卫执行，注入 AI 上游与文本解析能力；非企业及 Workflow 路由继续原样放行，企业回答继续执行流程泄漏改写、客套语清理、ECharts 本地规范化、AI 修复与最终静态兜底。专项契约锁定 completion 结构、重试参数和六轮修复上限，不发起真实 AI 请求。
 
+第十四个切片把用户态 PostgREST 调用与 Flash 动态表恢复迁入 `flash-postgrest-adapter.js`。适配器注入 JWT、HTTP、Query 清洗、JSON 解析与计时能力，向 Flash、语义上下文、业务快照和 Twin 提供绑定查询；用户 Claims、Profile、错误映射、超时、`app_data` 补表及 Schema Cache 重试保持。专项契约只使用模拟响应，明确禁止真实数据库连接。
+
 这些切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库或部署拓扑；可通过回退各自单提交恢复旧装配。Notifier 抽离保留默认连接参数、LISTEN 频道和通知 payload，同时在重连时显式回收旧 Workflow Engine。组合根仍包含大量 Flash/Agent 及 AI Agent 路由/Prompt 领域实现，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
