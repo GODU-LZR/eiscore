@@ -576,6 +576,13 @@ import {
   extractAiImportData,
   getAiWorkflowInfo
 } from '@/domain/ai-copilot-message-block-policy'
+import {
+  buildAiTemplateRecord,
+  getAiTemplateSectionCount as getTemplateSectionCount,
+  getAiTemplateTableCount as getTemplateTableCount,
+  mergeAiTemplateRecord,
+  resolveAiTemplateLibraryKey
+} from '@/domain/ai-copilot-template-policy'
 
 const props = defineProps({
   mode: { type: String, default: 'enterprise' },
@@ -1249,36 +1256,7 @@ const shouldShowBubble = (msg) => {
 
 const getImportPreview = (info) => buildAiImportPreview(info, state.currentContext?.columns)
 
-const getTemplateSectionCount = (schema) => {
-  if (!schema?.layout) return 0
-  return schema.layout.filter(item => item.type === 'section').length
-}
-
-const getTemplateTableCount = (schema) => {
-  if (!schema?.layout) return 0
-  return schema.layout.filter(item => item.type === 'table').length
-}
-
-const getCurrentTemplateLibraryKey = () => {
-  const key = state.currentContext?.templateLibraryKey || state.currentContext?.formTemplateKey
-  if (!key || typeof key !== 'string') return 'form_templates'
-  return key
-}
-
-const getCurrentTemplateScope = () => {
-  const scope = state.currentContext?.templateScope || state.currentContext?.formTemplateScope || null
-  return scope && typeof scope === 'object' ? scope : {}
-}
-
-const getTemplateRecordScope = (template) => {
-  const scope = template?.scope || template?.schema?.scope || null
-  return scope && typeof scope === 'object' ? scope : {}
-}
-
-const isSameTemplateScope = (left, right) => {
-  const keys = ['app', 'key', 'appId', 'configKey', 'apiUrl', 'templateLibraryKey']
-  return keys.every((key) => String(left?.[key] ?? '') === String(right?.[key] ?? ''))
-}
+const getCurrentTemplateLibraryKey = () => resolveAiTemplateLibraryKey(state.currentContext)
 
 const loadTemplateLibrary = async () => {
   try {
@@ -1308,28 +1286,7 @@ const saveTemplateLibrary = async (templates) => {
 
 const buildTemplateRecord = (schema) => {
   const now = new Date().toISOString()
-  const scope = {
-    ...getCurrentTemplateScope(),
-    templateLibraryKey: getCurrentTemplateLibraryKey()
-  }
-  const scopedSchema = {
-    ...schema,
-    scope: {
-      ...(schema.scope || {}),
-      ...scope
-    }
-  }
-  const templateId = schema.templateId || schema.docType || `tpl_${Date.now()}`
-  const name = schema.title || schema.name || 'AI生成模板'
-  return {
-    id: templateId,
-    name,
-    schema: scopedSchema,
-    scope,
-    source: 'ai',
-    created_at: now,
-    updated_at: now
-  }
+  return buildAiTemplateRecord(schema, state.currentContext, { nowIso: now, nowMs: Date.now() })
 }
 
 const saveFormTemplate = async (schema, messageKey) => {
@@ -1337,16 +1294,9 @@ const saveFormTemplate = async (schema, messageKey) => {
   if (templateSaveState.value[messageKey] === 'saved') return
   templateSaveState.value[messageKey] = 'saving'
   try {
-    const templates = await loadTemplateLibrary()
+    let templates = await loadTemplateLibrary()
     const record = buildTemplateRecord(schema)
-    const idx = templates.findIndex(item => (
-      item.id === record.id && isSameTemplateScope(getTemplateRecordScope(item), record.scope)
-    ))
-    if (idx >= 0) {
-      templates[idx] = { ...templates[idx], ...record, updated_at: new Date().toISOString() }
-    } else {
-      templates.unshift(record)
-    }
+    templates = mergeAiTemplateRecord(templates, record, { updatedAt: new Date().toISOString() })
     const saved = await saveTemplateLibrary(templates)
     if (!saved) throw new Error('保存失败')
     templateSaveState.value[messageKey] = 'saved'
