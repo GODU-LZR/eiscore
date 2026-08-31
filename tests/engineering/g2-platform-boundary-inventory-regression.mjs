@@ -11,15 +11,15 @@ const storagePattern = /\b(?:window\.)?(?:localStorage|sessionStorage)\b/g
 const fullPageNavigationPattern = /\bwindow\.location\.href\s*=/g
 
 const expectedStorageInventory = new Map([
-  ['eiscore-apps/src/views/AppDashboard.vue', 4],
   ['eiscore-apps/src/views/FlashBuilder.vue', 2],
   ['eiscore-base/src/components/AiCopilot.vue', 2],
-  ['eiscore-base/src/layout/index.vue', 9],
+  ['eiscore-base/src/layout/index.vue', 8],
   ['eiscore-base/src/stores/system.js', 1],
   ['eiscore-base/src/utils/ai-bridge.js', 2],
   ['eiscore-hr/src/views/HrUserManage.vue', 1],
   ['eiscore-mobile/src/views/LoginView.vue', 3],
   ['eiscore-mobile/src/views/stock/StockScan.vue', 2],
+  ['shared/eis-app-runtime-title-store.mjs', 1],
   ['shared/eis-assistant-history.mjs', 1],
   ['shared/eis-check-cache.mjs', 1],
   ['shared/eis-display-control.js', 4],

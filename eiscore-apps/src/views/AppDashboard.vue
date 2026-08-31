@@ -209,6 +209,7 @@ import { ensureSemanticConfig } from '@/utils/semantics-config'
 import { getToken } from '@/utils/auth'
 import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
 import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
+import { rememberAppRuntimeTitle } from '@shared/eis-app-runtime-title-store.mjs'
 
 const router = useRouter()
 
@@ -284,8 +285,6 @@ const typeTextMap = {
 const ONTOLOGY_SYSTEM_APP = 'ontology_workbench'
 const ONTOLOGY_READONLY_NAME = '本体关系工作台'
 const ONTOLOGY_READONLY_DESC = '可视化查看系统表关系与影响范围'
-const APP_RUNTIME_TITLE_STORAGE_KEY = 'eis_app_runtime_title_map_v1'
-
 const apiBase = '/api'
 let appRouteWarmTimer = null
 let appRouteWarmDone = false
@@ -492,17 +491,7 @@ const getAppTabTitle = (app) => String(getDisplayName(app) || app?.name || '').t
 const rememberAppTabTitle = (app) => {
   const id = String(app?.id || '').trim()
   const title = getAppTabTitle(app)
-  if (!id || !title || typeof localStorage === 'undefined') return
-  try {
-    const raw = localStorage.getItem(APP_RUNTIME_TITLE_STORAGE_KEY)
-    const map = raw ? JSON.parse(raw) : {}
-    if (map && typeof map === 'object' && !Array.isArray(map)) {
-      map[id] = title
-      localStorage.setItem(APP_RUNTIME_TITLE_STORAGE_KEY, JSON.stringify(map))
-    }
-  } catch {
-    localStorage.setItem(APP_RUNTIME_TITLE_STORAGE_KEY, JSON.stringify({ [id]: title }))
-  }
+  rememberAppRuntimeTitle(id, title)
 }
 
 const buildAppRouteQuery = (app) => {

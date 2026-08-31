@@ -276,6 +276,7 @@ import { getHostHttpClient } from '@/platform/http-client'
 import { ElMessage } from 'element-plus'
 import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import { isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
+import { getAppRuntimeTitle } from '@shared/eis-app-runtime-title-store.mjs'
 
 const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
 const isCollapse = ref(false)
@@ -3164,7 +3165,6 @@ const handleGuideRegisterMessage = (event) => {
 }
 
 const HOST_TABS_STORAGE_KEY = 'eis_host_nav_tabs_v1'
-const APP_RUNTIME_TITLE_STORAGE_KEY = 'eis_app_runtime_title_map_v1'
 const hostOpenTabAliasMap = new Map()
 const hostTabs = ref([{ key: '/', path: '/', query: {}, title: '首页', closable: false, dot: 'home', routeId: '/' }])
 const activeHostTabKey = ref('/')
@@ -3371,15 +3371,7 @@ const getAppRuntimeIdFromPath = (path) => {
 }
 
 const readStoredAppRuntimeTitle = (appId) => {
-  const key = String(appId || '').trim()
-  if (!key) return ''
-  try {
-    const raw = localStorage.getItem(APP_RUNTIME_TITLE_STORAGE_KEY)
-    const map = raw ? JSON.parse(raw) : {}
-    return String(map?.[key] || '').trim()
-  } catch {
-    return ''
-  }
+  return getAppRuntimeTitle(appId)
 }
 
 const normalizeFallbackTitle = (title) => {
