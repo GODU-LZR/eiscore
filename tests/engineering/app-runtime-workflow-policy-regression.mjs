@@ -23,6 +23,7 @@ import {
   formatPolicyBool,
   formatTransitionStatePair,
   formatWorkflowBusinessBindingSummary,
+  getWorkflowPolicyModeMeta,
   getWorkflowStateColor,
   getWorkflowStateLabel,
   getWorkflowStateLevel,
@@ -31,6 +32,7 @@ import {
   isAutoAdvanceSatisfied,
   isInventoryDraftTable,
   isStateReached,
+  isWorkflowStrictPolicyEnabled,
   mergeCurrentTaskMapping,
   normalizeApprovalMode,
   normalizePolicyBool,
@@ -44,6 +46,7 @@ import {
   resolveInventoryDraftType,
   resolveTargetBusinessAppId,
   resolveTaskAutoRule,
+  resolveWorkflowEffectivePolicy,
   resolveWorkflowPermissionDefMeta,
   resolveWorkflowRuntimeConfig
 } from '../../eiscore-apps/src/domain/app-runtime-workflow-policy.mjs'
@@ -137,6 +140,65 @@ assert.equal(normalizePolicyBool('', false), false)
 assert.equal(normalizePolicyBool('unknown', true), true)
 assert.equal(formatPolicyBool(1), '开启')
 assert.equal(formatPolicyBool(0), '关闭')
+
+assert.deepEqual(resolveWorkflowEffectivePolicy({ fallbackModule: ' module:fallback ' }), {
+  acl_module: 'module:fallback',
+  permission_mode: 'compat',
+  enforce_assignment: true,
+  enforce_workflow_op_perm: true,
+  enforce_status_transition_perm: true,
+  legacy_fallback_enabled: true,
+  source: 'default'
+})
+assert.deepEqual(resolveWorkflowEffectivePolicy({
+  config: { aclModule: 'module:config', permission_mode: ' STRICT ' },
+  policy: {
+    acl_module: ' module:policy ',
+    permission_mode: ' COMPAT ',
+    enforce_assignment: 'false',
+    enforce_workflow_op_perm: 'yes',
+    enforce_status_transition_perm: 0,
+    legacy_fallback_enabled: false
+  },
+  fallbackModule: 'module:fallback'
+}), {
+  acl_module: 'module:policy',
+  permission_mode: 'compat',
+  enforce_assignment: false,
+  enforce_workflow_op_perm: true,
+  enforce_status_transition_perm: false,
+  legacy_fallback_enabled: false,
+  source: 'policy'
+})
+assert.equal(resolveWorkflowEffectivePolicy({
+  config: { aclModule: 'module:config', permission_mode: ' STRICT ' }
+}).permission_mode, 'strict')
+assert.equal(resolveWorkflowEffectivePolicy({ policy: 'invalid-but-present' }).source, 'policy')
+assert.deepEqual(getWorkflowPolicyModeMeta({ permission_mode: 'strict' }), {
+  label: 'strict',
+  tagType: 'danger'
+})
+assert.deepEqual(getWorkflowPolicyModeMeta({ permission_mode: 'STRICT' }), {
+  label: 'compat',
+  tagType: 'success'
+})
+const strictPolicy = {
+  permission_mode: 'strict',
+  legacy_fallback_enabled: false,
+  enforce_assignment: true,
+  enforce_workflow_op_perm: true,
+  enforce_status_transition_perm: true
+}
+assert.equal(isWorkflowStrictPolicyEnabled(strictPolicy), true)
+for (const key of [
+  'legacy_fallback_enabled',
+  'enforce_assignment',
+  'enforce_workflow_op_perm',
+  'enforce_status_transition_perm'
+]) {
+  assert.equal(isWorkflowStrictPolicyEnabled({ ...strictPolicy, [key]: key === 'legacy_fallback_enabled' ? true : false }), false)
+}
+assert.equal(isWorkflowStrictPolicyEnabled({ ...strictPolicy, permission_mode: 'compat' }), false)
 
 assert.equal(normalizeStatusTokenForPermission(' Active:Review 状态 '), 'active_review_u72b6_u6001')
 assert.equal(normalizeStatusTokenForPermission(''), '')
@@ -464,10 +526,12 @@ for (const removedDefinition of [
   'const workflowBusinessAppId = computed(() => {',
   'const workflowTaskBusinessAppBindings = computed(() => {',
   'const ids = new Set()',
-  'const values = new Set(WORKFLOW_STATUS_ORDER)'
+  'const values = new Set(WORKFLOW_STATUS_ORDER)',
+  "permission_mode: String(policy.permission_mode || cfg.permission_mode || 'compat')",
+  "workflowPolicyEffective.value.permission_mode === 'strict' ? 'danger' : 'success'"
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 4048)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 4033)
 
 console.log('PASS: AppRuntime workflow policy preserves states, approvals, permissions, generated rules and legacy bindings')

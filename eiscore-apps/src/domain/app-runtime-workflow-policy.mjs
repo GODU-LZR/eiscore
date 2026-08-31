@@ -106,6 +106,36 @@ export const normalizePolicyBool = (value, fallback = true) => {
 
 export const formatPolicyBool = (value) => (value ? '开启' : '关闭')
 
+export const resolveWorkflowEffectivePolicy = ({ config, policy, fallbackModule } = {}) => {
+  const cfg = config && typeof config === 'object' ? config : {}
+  const storedPolicy = policy && typeof policy === 'object' ? policy : {}
+  return {
+    acl_module: String(storedPolicy.acl_module || cfg.aclModule || fallbackModule || '').trim(),
+    permission_mode: String(storedPolicy.permission_mode || cfg.permission_mode || 'compat').trim().toLowerCase(),
+    enforce_assignment: normalizePolicyBool(storedPolicy.enforce_assignment, true),
+    enforce_workflow_op_perm: normalizePolicyBool(storedPolicy.enforce_workflow_op_perm, true),
+    enforce_status_transition_perm: normalizePolicyBool(storedPolicy.enforce_status_transition_perm, true),
+    legacy_fallback_enabled: normalizePolicyBool(storedPolicy.legacy_fallback_enabled, true),
+    source: policy ? 'policy' : 'default'
+  }
+}
+
+export const getWorkflowPolicyModeMeta = (policy) => {
+  const strict = policy?.permission_mode === 'strict'
+  return {
+    label: strict ? 'strict' : 'compat',
+    tagType: strict ? 'danger' : 'success'
+  }
+}
+
+export const isWorkflowStrictPolicyEnabled = (policy) => (
+  policy?.permission_mode === 'strict'
+  && policy?.legacy_fallback_enabled === false
+  && policy?.enforce_assignment !== false
+  && policy?.enforce_workflow_op_perm !== false
+  && policy?.enforce_status_transition_perm !== false
+)
+
 export const normalizeStateValue = (value) => {
   const raw = String(value || '').trim()
   if (!raw) return ''

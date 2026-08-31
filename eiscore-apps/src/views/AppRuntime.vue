@@ -910,6 +910,7 @@ import {
   formatPolicyBool,
   formatTransitionStatePair,
   formatWorkflowBusinessBindingSummary,
+  getWorkflowPolicyModeMeta,
   getWorkflowStateColor,
   getWorkflowStateLabel,
   getWorkflowStateLevel,
@@ -918,6 +919,7 @@ import {
   isAutoAdvanceSatisfied,
   isInventoryDraftTable,
   isStateReached,
+  isWorkflowStrictPolicyEnabled,
   mergeCurrentTaskMapping,
   normalizeApprovalMode,
   normalizePolicyBool,
@@ -930,6 +932,7 @@ import {
   resolveInventoryDraftType,
   resolveTargetBusinessAppId,
   resolveTaskAutoRule,
+  resolveWorkflowEffectivePolicy,
   resolveWorkflowRuntimeConfig
 } from '@/domain/app-runtime-workflow-policy.mjs'
 
@@ -1105,31 +1108,13 @@ const workflowBusinessAppName = computed(() => formatWorkflowBusinessBindingSumm
 }))
 const workflowPolicyEffective = computed(() => {
   const cfg = appData.value?.config && typeof appData.value.config === 'object' ? appData.value.config : {}
-  const policy = workflowPolicy.value && typeof workflowPolicy.value === 'object' ? workflowPolicy.value : {}
   const fallbackModule = resolveAppAclModule(appData.value, cfg, runtimeAppId.value)
-  return {
-    acl_module: String(policy.acl_module || cfg.aclModule || fallbackModule || '').trim(),
-    permission_mode: String(policy.permission_mode || cfg.permission_mode || 'compat').trim().toLowerCase(),
-    enforce_assignment: normalizePolicyBool(policy.enforce_assignment, true),
-    enforce_workflow_op_perm: normalizePolicyBool(policy.enforce_workflow_op_perm, true),
-    enforce_status_transition_perm: normalizePolicyBool(policy.enforce_status_transition_perm, true),
-    legacy_fallback_enabled: normalizePolicyBool(policy.legacy_fallback_enabled, true),
-    source: workflowPolicy.value ? 'policy' : 'default'
-  }
+  return resolveWorkflowEffectivePolicy({ config: cfg, policy: workflowPolicy.value, fallbackModule })
 })
-const workflowPolicyModeLabel = computed(() => (
-  workflowPolicyEffective.value.permission_mode === 'strict' ? 'strict' : 'compat'
-))
-const workflowPolicyModeTagType = computed(() => (
-  workflowPolicyEffective.value.permission_mode === 'strict' ? 'danger' : 'success'
-))
-const workflowStrictAlreadyEnabled = computed(() => (
-  workflowPolicyEffective.value.permission_mode === 'strict'
-  && workflowPolicyEffective.value.legacy_fallback_enabled === false
-  && workflowPolicyEffective.value.enforce_assignment !== false
-  && workflowPolicyEffective.value.enforce_workflow_op_perm !== false
-  && workflowPolicyEffective.value.enforce_status_transition_perm !== false
-))
+const workflowPolicyModeMeta = computed(() => getWorkflowPolicyModeMeta(workflowPolicyEffective.value))
+const workflowPolicyModeLabel = computed(() => workflowPolicyModeMeta.value.label)
+const workflowPolicyModeTagType = computed(() => workflowPolicyModeMeta.value.tagType)
+const workflowStrictAlreadyEnabled = computed(() => isWorkflowStrictPolicyEnabled(workflowPolicyEffective.value))
 const workflowTaskOptions = computed(() => buildWorkflowTaskOptions({
   taskNameMap: taskNameMap.value,
   stateMappings: stateMappings.value,
