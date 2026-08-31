@@ -104,12 +104,13 @@
 // Copyright (c) 2026 林志荣
 
 import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive, watch } from 'vue'
+import { debounce } from 'lodash'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
 import { useGridFormula } from '@shared/eis-data-grid-v2/composables/useGridFormula'
 import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
-import { useGridHistory } from './composables/useGridHistory'
+import { useGridHistory } from '@shared/eis-data-grid-v2/composables/useGridHistory'
 import { useGridSelection } from '@shared/eis-data-grid-v2/composables/useGridSelection'
 import { useGridClipboard } from '@shared/eis-data-grid-v2/composables/useGridClipboard'
 
@@ -294,7 +295,14 @@ const {
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState, { evaluateFormulaExpression })
 
 // 4. History
-const historyHooks = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals })
+const historyHooks = useGridHistory(
+  props,
+  gridApi,
+  gridData,
+  { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals },
+  {},
+  { debounce }
+)
 const { 
   history, isSystemOperation, 
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,

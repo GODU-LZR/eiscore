@@ -20,6 +20,7 @@
     "element-plus": "^2.13.0",
     "html2canvas": "^1.4.1",
     "leaflet": "^1.9.4",
+    "lodash": "^4.17.21",
     "pinia": "^3.0.4",
     "vite-plugin-qiankun": "^1.0.15",
     "vue": "^3.5.25",

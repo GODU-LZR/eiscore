@@ -2,13 +2,25 @@
 // Copyright (c) 2026 林志荣
 
 import { reactive, ref } from 'vue'
-import { debounce } from 'lodash'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { shouldCalculateLoadedSummary } from '@shared/eis-grid-calculation-policy'
 import { writeGridOperationLog } from '@shared/eis-grid-operation-audit'
 
-export function useGridHistory(props, gridApi, gridData, formulaHooks) {
+const DEFAULT_TEXT_FIELDS = [
+  'name', 'code', 'employee_id', 'username', 'email', 'phone',
+  'id_card', 'address', 'status', 'department', 'employee_no'
+]
+
+export function useGridHistory(
+  props,
+  gridApi,
+  gridData,
+  formulaHooks,
+  historyOptions = {},
+  historyServices = {}
+) {
+  const { debounce } = historyServices
   const history = reactive({ undoStack: [], redoStack: [] })
   const pendingChanges = []
   const isRemoteUpdating = ref(false)
@@ -29,6 +41,33 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   const getWriteMode = () => props.writeMode || 'upsert'
   const fieldDefaults = props.fieldDefaults || {}
   const patchRequiredFields = Array.isArray(props.patchRequiredFields) ? props.patchRequiredFields : []
+  const {
+    defaultProfile = 'hr',
+    profileFallbackFromProps = false,
+    removeEmptyPropertyValues = false,
+    skipSaveColumns = false,
+    encodeFilterValues = false,
+    textFields = DEFAULT_TEXT_FIELDS,
+    requiredFieldDefaults = {},
+    matchFieldDefaultsByLeaf = false,
+    respectReadonlyStaticColumns = false
+  } = historyOptions
+  const readonlyFieldSet = new Set(
+    respectReadonlyStaticColumns
+      ? (props.staticColumns || [])
+          .filter(col => col?.editable === false || col?.readonly === true || col?.readOnly === true)
+          .map(col => col.prop)
+          .filter(Boolean)
+      : []
+  )
+
+  const resolveProfile = (explicitProfile) => (
+    explicitProfile || (profileFallbackFromProps ? props.profile : '') || defaultProfile
+  )
+
+  const safeFilterValue = (value) => (
+    encodeFilterValues ? encodeURIComponent(String(value)) : value
+  )
 
   const resolveWriteUrl = () => {
     if (props.writeUrl) return props.writeUrl
@@ -67,9 +106,17 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
   }
 
   const applyFieldDefaults = (field, value) => {
+    const key = field.includes('.') ? field.split('.').pop() : field
     if (value === null || value === undefined || value === '') {
       if (Object.prototype.hasOwnProperty.call(fieldDefaults, field)) {
         return cloneValue(fieldDefaults[field])
+      }
+      if (matchFieldDefaultsByLeaf && Object.prototype.hasOwnProperty.call(fieldDefaults, key)) {
+        return cloneValue(fieldDefaults[key])
+      }
+      if (Object.prototype.hasOwnProperty.call(requiredFieldDefaults, key)) {
+        const fallback = requiredFieldDefaults[key]
+        return typeof fallback === 'function' ? fallback() : cloneValue(fallback)
       }
     }
     return value
@@ -99,6 +146,11 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
         const writeMode = getWriteMode()
         const rowUpdatesMap = new Map()
         changesToProcess.forEach(({ rowNode, colDef, newValue }) => {
+            if (respectReadonlyStaticColumns) {
+              if (!colDef?.field) return
+              const fieldKey = colDef.field.startsWith('properties.') ? colDef.field.slice('properties.'.length) : colDef.field
+              if (readonlyFieldSet.has(fieldKey)) return
+            }
             const id = rowNode.data.id
             if (!rowUpdatesMap.has(id)) {
                 if (writeMode === 'patch') {
@@ -126,13 +178,13 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                   if (!group.payload.properties) {
                     group.payload.properties = { ...(rowNode.data.properties || {}) }
                   }
-                  if (newValue === null || newValue === undefined || newValue === '') {
+                  if (removeEmptyPropertyValues && (newValue === null || newValue === undefined || newValue === '')) {
                     delete group.payload.properties[propKey]
                   } else {
                     group.payload.properties[propKey] = newValue
                   }
                 } else {
-                  if (newValue === null || newValue === undefined || newValue === '') {
+                  if (removeEmptyPropertyValues && (newValue === null || newValue === undefined || newValue === '')) {
                     delete group.properties[propKey]
                   } else {
                     group.properties[propKey] = newValue
@@ -151,11 +203,11 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
                 if (!entry.payload || Object.keys(entry.payload).length === 0) return
                 const patchPayload = buildPatchPayload(entry)
                 if (!patchPayload || Object.keys(patchPayload).length === 0) return
-                const patchUrl = appendQuery(resolveWriteUrl(), `id=eq.${rowId}`)
+                const patchUrl = appendQuery(resolveWriteUrl(), `id=eq.${safeFilterValue(rowId)}`)
                 await request({
                   url: patchUrl,
                   method: 'patch',
-                  headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr', 'Prefer': 'return=representation' },
+                  headers: { 'Accept-Profile': resolveProfile(props.acceptProfile), 'Content-Profile': resolveProfile(props.contentProfile), 'Prefer': 'return=representation' },
                   data: patchPayload
                 })
               }))
@@ -182,7 +234,7 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
               }))
               await request({
                   url: resolveWriteUrl(), method: 'post',
-                  headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr', 'Prefer': 'resolution=merge-duplicates,return=representation' },
+                  headers: { 'Accept-Profile': resolveProfile(props.acceptProfile), 'Content-Profile': resolveProfile(props.contentProfile), 'Prefer': 'resolution=merge-duplicates,return=representation' },
                   data: apiPayload
               })
               affectedNodes.forEach(({ node, newVer }) => {
@@ -208,7 +260,6 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
 
   const sanitizeValue = (field, value) => {
     const key = field.includes('.') ? field.split('.').pop() : field
-    const textFields = ['name', 'code', 'employee_id', 'username', 'email', 'phone', 'id_card', 'address', 'status', 'department', 'employee_no']
     if (typeof value === 'boolean') return value
     const isEmpty = value === null || value === undefined || value === ''
     if (key === 'punch_times') {
@@ -220,8 +271,11 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
         .map(item => item.trim())
         .filter(Boolean)
     }
-    if (isEmpty && Object.prototype.hasOwnProperty.call(fieldDefaults, key)) {
-      const fallback = fieldDefaults[key]
+    if (isEmpty && (Object.prototype.hasOwnProperty.call(fieldDefaults, key) || Object.prototype.hasOwnProperty.call(requiredFieldDefaults, key))) {
+      const fallback = Object.prototype.hasOwnProperty.call(fieldDefaults, key)
+        ? fieldDefaults[key]
+        : requiredFieldDefaults[key]
+      if (typeof fallback === 'function') return fallback()
       if (Array.isArray(fallback)) return [...fallback]
       if (fallback && typeof fallback === 'object') return { ...fallback }
       return fallback
@@ -307,6 +361,12 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
     if (event.node.rowPinned) return 
     if (isRemoteUpdating.value || event.oldValue === event.newValue) return
 
+    if (skipSaveColumns && event.colDef?.skipSave === true) {
+      clearDependentFields(event)
+      openDependentCascader(event)
+      return
+    }
+
     const safeValue = sanitizeValue(event.colDef.field, event.newValue)
     if (safeValue !== event.newValue) {
         isRemoteUpdating.value = true
@@ -362,9 +422,9 @@ export function useGridHistory(props, gridApi, gridData, formulaHooks) {
         debouncedSave.cancel()
         pendingChanges.length = 0
         await ElMessageBox.confirm(`确定要删除选中的 ${selectedNodes.length} 条数据吗？`, '警告', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
-        const ids = selectedNodes.map(n => n.data.id)
+        const ids = selectedNodes.map(n => safeFilterValue(n.data.id))
         const deleteUrl = appendQuery(resolveWriteUrl(), `id=in.(${ids.join(',')})`)
-        await request({ url: deleteUrl, method: 'delete', headers: { 'Accept-Profile': props.acceptProfile || 'hr', 'Content-Profile': props.contentProfile || 'hr' } })
+        await request({ url: deleteUrl, method: 'delete', headers: { 'Accept-Profile': resolveProfile(props.acceptProfile), 'Content-Profile': resolveProfile(props.contentProfile) } })
         gridApi.value.applyTransaction({ remove: selectedNodes.map(node => node.data) })
         writeGridOperationLog({
           request,

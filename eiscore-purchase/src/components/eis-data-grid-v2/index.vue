@@ -109,12 +109,13 @@
 // Copyright (c) 2026 林志荣
 
 import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, reactive, watch } from 'vue'
+import { debounce } from 'lodash'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
 import { useGridFormula } from '@shared/eis-data-grid-v2/composables/useGridFormula'
 import { evaluateFormulaExpression } from '@/utils/formula-eval'
-import { useGridHistory } from './composables/useGridHistory'
+import { useGridHistory } from '@shared/eis-data-grid-v2/composables/useGridHistory'
 import { useGridSelection } from '@shared/eis-data-grid-v2/composables/useGridSelection'
 import { useGridClipboard } from '@shared/eis-data-grid-v2/composables/useGridClipboard'
 
@@ -303,7 +304,44 @@ const {
 } = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState, { evaluateFormulaExpression })
 
 // 4. History
-const historyHooks = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals })
+const purchaseHistoryOptions = {
+  defaultProfile: 'public',
+  respectReadonlyStaticColumns: true,
+  matchFieldDefaultsByLeaf: true,
+  requiredFieldDefaults: {
+    name: '未命名',
+    supplier_no: () => `SUP${Date.now().toString().slice(-6)}`,
+    supplier_name: '待选择供应商',
+    material_name: '待录入物料',
+    quantity: 0,
+    unit: 'kg',
+    unit_price: 0,
+    total_amount: 0,
+    order_date: () => new Date().toISOString().slice(0, 10),
+    arrival_date: () => new Date().toISOString().slice(0, 10),
+    demand_status: '草稿',
+    order_status: '草稿',
+    arrival_status: '待到货',
+    iqc_status: '待检',
+    status: 'active',
+    properties: () => ({})
+  },
+  textFields: [
+    'name', 'code', 'username', 'email', 'phone', 'address', 'status',
+    'supplier_no', 'supplier_name', 'demand_no', 'order_no', 'arrival_no',
+    'material_no', 'material_name', 'unit', 'contact_name', 'contact_phone',
+    'category', 'payment_terms', 'buyer_name', 'source_dept', 'requester_name',
+    'preferred_supplier', 'remark', 'inbound_no'
+  ]
+}
+const historyHooks = useGridHistory(
+  props,
+  gridApi,
+  gridData,
+  { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals },
+  purchaseHistoryOptions,
+  { debounce }
+)
 const { 
   history, isSystemOperation, 
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,

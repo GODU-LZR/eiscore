@@ -40,9 +40,16 @@ for (const app of apps) {
     entry,
     /import\s*{\s*useGridClipboard\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridClipboard['"]/
   )
+  assert.match(
+    entry,
+    /import\s*{\s*useGridHistory\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridHistory['"]/
+  )
+  assert.match(entry, /import\s*{\s*debounce\s*}\s*from\s*['"]lodash['"]/)
+  assert.match(entry, /useGridHistory\([\s\S]*?{\s*debounce\s*}\s*\)/)
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridSelection.js')), false)
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridFormula.js')), false)
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridClipboard.js')), false)
+  assert.equal(existsSync(resolve(gridRoot, 'composables/useGridHistory.js')), false)
   assert.match(
     entry,
     /import FileDialog from ['"]@shared\/eis-data-grid-v2\/components\/FileDialog\.vue['"]/
@@ -115,6 +122,25 @@ for (const app of apps) {
     assert.match(entry, /useGridClipboard\([\s\S]*?clearMode:\s*['"]sanitized-nested['"][\s\S]*?\)/)
   } else {
     assert.doesNotMatch(entry, /clearMode:\s*['"]sanitized-nested['"]/)
+  }
+
+  const historyOptionOwners = new Map([
+    ['defaultProfile', new Set(['purchase', 'sales'])],
+    ['removeEmptyPropertyValues', new Set(['equipment', 'quality'])],
+    ['profileFallbackFromProps', new Set(['materials'])],
+    ['skipSaveColumns', new Set(['materials'])],
+    ['respectReadonlyStaticColumns', new Set(['purchase'])],
+    ['matchFieldDefaultsByLeaf', new Set(['purchase'])],
+    ['requiredFieldDefaults', new Set(['purchase'])],
+    ['encodeFilterValues', new Set(['sales'])],
+    ['textFields', new Set(['purchase', 'sales'])]
+  ])
+  for (const [option, owners] of historyOptionOwners) {
+    if (owners.has(app)) {
+      assert.match(entry, new RegExp(`\\b${option}\\b`))
+    } else {
+      assert.doesNotMatch(entry, new RegExp(`\\b${option}\\b`))
+    }
   }
 
   if (localFormulaEvaluators.has(app)) {
@@ -209,4 +235,27 @@ assert.match(clipboardSource, /keyboardMode\s*===\s*['"]preserve-editors['"]/)
 assert.match(clipboardSource, /clearMode\s*===\s*['"]sanitized-nested['"]/)
 assert.doesNotMatch(clipboardSource, /\b(?:apps|equipment|hr|materials|production|purchase|quality|sales)\b/)
 
-console.log('PASS: all eight Grid entries share selection, formula, clipboard, dialogs, and renderer baselines with explicit variants')
+const historySource = readFileSync(
+  resolve(repoRoot, 'shared/eis-data-grid-v2/composables/useGridHistory.js'),
+  'utf8'
+)
+assert.match(historySource, /historyOptions\s*=\s*{}/)
+assert.match(historySource, /historyServices\s*=\s*{}/)
+assert.match(historySource, /const\s*{\s*debounce\s*}\s*=\s*historyServices/)
+assert.doesNotMatch(historySource, /from\s*['"]lodash['"]/)
+for (const option of [
+  'defaultProfile',
+  'profileFallbackFromProps',
+  'removeEmptyPropertyValues',
+  'skipSaveColumns',
+  'encodeFilterValues',
+  'textFields',
+  'requiredFieldDefaults',
+  'matchFieldDefaultsByLeaf',
+  'respectReadonlyStaticColumns'
+]) {
+  assert.match(historySource, new RegExp(`\\b${option}\\b`))
+}
+assert.doesNotMatch(historySource, /eiscore-(?:apps|equipment|hr|materials|production|purchase|quality|sales)/)
+
+console.log('PASS: all eight Grid entries share selection, formula, clipboard, history, dialogs, and renderer baselines with explicit variants')
