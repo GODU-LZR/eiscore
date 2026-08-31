@@ -16,10 +16,13 @@ import {
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
   buildWorkflowPolicyPayload,
+  buildWorkflowRoleGrantGaps,
+  buildWorkflowRolePermissionRows,
   buildWorkflowRuleDraftState,
   buildWorkflowRulePayloadPlan,
   buildWorkflowStateOptions,
   buildWorkflowTaskOptions,
+  buildUniqueWorkflowPermissionDefPayloads,
   chooseNextTaskByStateLevel,
   collectRequiredPermissionEntries,
   collectWorkflowCandidateRoleCodes,
@@ -28,9 +31,11 @@ import {
   formatPolicyBool,
   formatTransitionStatePair,
   formatWorkflowBusinessBindingSummary,
+  flattenWorkflowRoleGrantGaps,
   getWorkflowPolicyModeMeta,
   getActiveWorkflowTransitionRules,
   getMissingGeneratedWorkflowRules,
+  getMissingWorkflowPermissionDefinitions,
   getWorkflowStateColor,
   getWorkflowStateLabel,
   getWorkflowStateLevel,
@@ -46,6 +51,7 @@ import {
   normalizeRequiredApprovals,
   normalizeStateValue,
   normalizeStatusTokenForPermission,
+  normalizeWorkflowReadinessReport,
   parseSchemaTable,
   resolveBoundStateTarget,
   resolveConfiguredTaskBusinessBinding,
@@ -57,7 +63,8 @@ import {
   resolveWorkflowPermissionDefMeta,
   resolveWorkflowRulePermissionSync,
   resolveWorkflowRuleUpsertPlan,
-  resolveWorkflowRuntimeConfig
+  resolveWorkflowRuntimeConfig,
+  summarizeWorkflowCodes
 } from '../../eiscore-apps/src/domain/app-runtime-workflow-policy.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
@@ -441,6 +448,69 @@ assert.deepEqual(collectRequiredPermissionEntries({
   { code: 'op:sales.status_transition.active_locked', source: '建议规则' }
 ])
 
+assert.deepEqual(normalizeWorkflowReadinessReport({ ready: false }), {
+  requiredPermissions: [],
+  missingRules: [],
+  missingPermissionDefs: [],
+  roleGrantGaps: [],
+  warnings: [],
+  ready: false
+})
+assert.equal(normalizeWorkflowReadinessReport({}).ready, true)
+for (const field of ['missingRules', 'missingPermissionDefs', 'roleGrantGaps', 'warnings']) {
+  assert.equal(normalizeWorkflowReadinessReport({ [field]: [{}] }).ready, false)
+}
+
+const requiredPermissionSamples = [
+  { code: 'perm:a', source: 'A' },
+  { code: 'perm:b', source: 'B' }
+]
+assert.deepEqual(getMissingWorkflowPermissionDefinitions({
+  requiredPermissions: requiredPermissionSamples,
+  definedCodes: new Set(['perm:a'])
+}), [{ code: 'perm:b', source: 'B' }])
+assert.deepEqual(getMissingWorkflowPermissionDefinitions({
+  requiredPermissions: requiredPermissionSamples,
+  skip: true
+}), [])
+
+assert.deepEqual(buildWorkflowRoleGrantGaps({
+  roleCodes: ['operator', 'reviewer'],
+  permissionCodes: ['perm:a', 'perm:b'],
+  grantRows: [
+    { role_code: 'operator', permissions: ['perm:a', '', null] },
+    { role_code: 'reviewer', permissions: ['perm:a', 'perm:b'] }
+  ]
+}), [{ role_code: 'operator', missing_permissions: ['perm:b'] }])
+const grantEntries = flattenWorkflowRoleGrantGaps([
+  { role_code: ' operator ', missing_permissions: [' perm:a ', 'perm:a', '', null] },
+  { role_code: 'reviewer', missing_permissions: ['perm:b'] },
+  { role_code: '', missing_permissions: ['perm:c'] }
+])
+assert.deepEqual(grantEntries, [
+  { roleCode: 'operator', permissionCode: 'perm:a' },
+  { roleCode: 'reviewer', permissionCode: 'perm:b' }
+])
+assert.equal(summarizeWorkflowCodes([' a ', '', 'b']), 'a, b')
+assert.equal(summarizeWorkflowCodes(['a', 'b', 'c', 'd', 'e', 'f']), 'a, b, c, d, e 等 6 项')
+assert.equal(summarizeWorkflowCodes(null), '')
+
+assert.deepEqual(buildUniqueWorkflowPermissionDefPayloads({
+  items: [{ code: 'a' }, { code: 'a' }, { code: '' }, { code: 'b' }],
+  buildPayload: (item) => ({ code: item.code, name: `name:${item.code}` })
+}), [
+  { code: 'a', name: 'name:a' },
+  { code: 'b', name: 'name:b' }
+])
+assert.deepEqual(buildWorkflowRolePermissionRows({
+  entries: [...grantEntries, grantEntries[0], { roleCode: 'missing', permissionCode: 'perm:a' }],
+  roleMap: new Map([['operator', 'role-1'], ['reviewer', 'role-2']]),
+  permissionMap: new Map([['perm:a', 'permission-1'], ['perm:b', 'permission-2']])
+}), [
+  { role_id: 'role-1', permission_id: 'permission-1' },
+  { role_id: 'role-2', permission_id: 'permission-2' }
+])
+
 assert.deepEqual(resolveWorkflowPermissionDefMeta('op:sales.workflow_start'), { suffix: '流程发起', action: 'workflow_start' })
 assert.deepEqual(resolveWorkflowPermissionDefMeta('op:sales.workflow_transition'), { suffix: '流程推进', action: 'workflow_transition' })
 assert.deepEqual(resolveWorkflowPermissionDefMeta('op:sales.workflow_complete'), { suffix: '流程完结', action: 'workflow_complete' })
@@ -709,10 +779,13 @@ for (const removedDefinition of [
   'const resolveWorkflowRuleUpsertPlan =',
   "ElMessage.warning('来源状态和目标状态不能相同')",
   'const buildGeneratedWorkflowTransitionRule =',
-  'const roles = new Set()'
+  'const roles = new Set()',
+  'workflowReadinessReport.missingRules = next.missingRules || []',
+  'const getWorkflowRoleGrantGapEntries = () => {',
+  'const summarizeWorkflowCodes = (codes) => {'
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 3967)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 3917)
 
 console.log('PASS: AppRuntime workflow policy preserves states, approvals, permissions, generated rules and legacy bindings')

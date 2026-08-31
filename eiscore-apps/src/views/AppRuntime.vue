@@ -902,10 +902,13 @@ import {
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
   buildWorkflowPolicyPayload,
+  buildWorkflowRoleGrantGaps,
+  buildWorkflowRolePermissionRows,
   buildWorkflowRuleDraftState,
   buildWorkflowRulePayloadPlan,
   buildWorkflowStateOptions,
   buildWorkflowTaskOptions,
+  buildUniqueWorkflowPermissionDefPayloads,
   chooseNextTaskByStateLevel,
   collectRequiredPermissionEntries,
   collectWorkflowCandidateRoleCodes,
@@ -914,6 +917,7 @@ import {
   formatPolicyBool,
   formatTransitionStatePair,
   formatWorkflowBusinessBindingSummary,
+  flattenWorkflowRoleGrantGaps,
   getWorkflowPolicyModeMeta,
   getWorkflowStateColor,
   getWorkflowStateLabel,
@@ -921,6 +925,7 @@ import {
   getWorkflowStateTagType,
   getActiveWorkflowTransitionRules as filterActiveWorkflowTransitionRules,
   getMissingGeneratedWorkflowRules as filterMissingGeneratedWorkflowRules,
+  getMissingWorkflowPermissionDefinitions,
   isAutoAdvanceSatisfied,
   isInventoryDraftTable,
   isStateReached,
@@ -930,6 +935,7 @@ import {
   normalizePolicyBool,
   normalizeRequiredApprovals,
   normalizeStateValue,
+  normalizeWorkflowReadinessReport,
   parseSchemaTable,
   resolveExpectedStateForRow as resolveExpectedState,
   resolveConfiguredTaskBusinessBinding,
@@ -939,7 +945,8 @@ import {
   resolveWorkflowEffectivePolicy,
   resolveWorkflowRulePermissionSync,
   resolveWorkflowRuleUpsertPlan,
-  resolveWorkflowRuntimeConfig
+  resolveWorkflowRuntimeConfig,
+  summarizeWorkflowCodes
 } from '@/domain/app-runtime-workflow-policy.mjs'
 
 const AppCenterGrid = defineAsyncComponent(() => import('@/components/AppCenterGrid.vue'))
@@ -1338,24 +1345,11 @@ const getMissingGeneratedWorkflowRules = () => filterMissingGeneratedWorkflowRul
 })
 
 const resetWorkflowReadinessReport = () => {
-  workflowReadinessReport.ready = false
-  workflowReadinessReport.requiredPermissions = []
-  workflowReadinessReport.missingRules = []
-  workflowReadinessReport.missingPermissionDefs = []
-  workflowReadinessReport.roleGrantGaps = []
-  workflowReadinessReport.warnings = []
+  Object.assign(workflowReadinessReport, normalizeWorkflowReadinessReport({ ready: false }))
 }
 
 const assignWorkflowReadinessReport = (next) => {
-  workflowReadinessReport.requiredPermissions = next.requiredPermissions || []
-  workflowReadinessReport.missingRules = next.missingRules || []
-  workflowReadinessReport.missingPermissionDefs = next.missingPermissionDefs || []
-  workflowReadinessReport.roleGrantGaps = next.roleGrantGaps || []
-  workflowReadinessReport.warnings = next.warnings || []
-  workflowReadinessReport.ready = workflowReadinessReport.missingRules.length === 0
-    && workflowReadinessReport.missingPermissionDefs.length === 0
-    && workflowReadinessReport.roleGrantGaps.length === 0
-    && workflowReadinessReport.warnings.length === 0
+  Object.assign(workflowReadinessReport, normalizeWorkflowReadinessReport(next))
 }
 
 const buildWorkflowPermissionDefPayload = (item) => {
@@ -2468,11 +2462,11 @@ async function runWorkflowReadinessCheck() {
         warnings.push('当前账号无法读取权限定义，已跳过 permissions 完整性检查')
       }
     }
-    const missingPermissionDefs = warnings.some((item) => item.includes('权限定义'))
-      ? []
-      : requiredPermissions
-        .filter((item) => !permissionDefSet.has(item.code))
-        .map((item) => ({ code: item.code, source: item.source }))
+    const missingPermissionDefs = getMissingWorkflowPermissionDefinitions({
+      requiredPermissions,
+      definedCodes: permissionDefSet,
+      skip: warnings.some((item) => item.includes('权限定义'))
+    })
 
     const roleGrantGaps = []
     const roleCodes = getWorkflowCandidateRoleCodes()
@@ -2483,19 +2477,11 @@ async function runWorkflowReadinessCheck() {
           `/api/v_role_permissions?role_code=in.(${roleFilter})`,
           { headers: publicHeaders }
         )
-        const grantMap = new Map()
-        ;(Array.isArray(response.data) ? response.data : []).forEach((row) => {
-          const roleCode = String(row?.role_code || '').trim()
-          const permissions = Array.isArray(row?.permissions) ? row.permissions : []
-          grantMap.set(roleCode, new Set(permissions.map((item) => String(item || '').trim()).filter(Boolean)))
-        })
-        roleCodes.forEach((roleCode) => {
-          const granted = grantMap.get(roleCode) || new Set()
-          const missing = permissionCodes.filter((code) => !granted.has(code))
-          if (missing.length) {
-            roleGrantGaps.push({ role_code: roleCode, missing_permissions: missing })
-          }
-        })
+        roleGrantGaps.push(...buildWorkflowRoleGrantGaps({
+          roleCodes,
+          permissionCodes,
+          grantRows: Array.isArray(response.data) ? response.data : []
+        }))
       } catch {
         warnings.push('当前账号无法读取角色授权视图，已跳过 v_role_permissions 授权检查')
       }
@@ -2524,14 +2510,10 @@ async function runWorkflowReadinessCheck() {
 
 async function createMissingWorkflowPermissionDefs() {
   if (workflowPermissionDefSaving.value) return
-  const seen = new Set()
-  const rows = workflowReadinessReport.missingPermissionDefs
-    .map((item) => buildWorkflowPermissionDefPayload(item))
-    .filter((row) => {
-      if (!row.code || seen.has(row.code)) return false
-      seen.add(row.code)
-      return true
-    })
+  const rows = buildUniqueWorkflowPermissionDefPayloads({
+    items: workflowReadinessReport.missingPermissionDefs,
+    buildPayload: buildWorkflowPermissionDefPayload
+  })
   if (!rows.length) {
     ElMessage.success('权限定义已齐备')
     return
@@ -2570,28 +2552,7 @@ async function createMissingWorkflowPermissionDefs() {
   }
 }
 
-const getWorkflowRoleGrantGapEntries = () => {
-  const seen = new Set()
-  const entries = []
-  workflowReadinessReport.roleGrantGaps.forEach((row) => {
-    const roleCode = String(row?.role_code || '').trim()
-    const permissions = Array.isArray(row?.missing_permissions) ? row.missing_permissions : []
-    permissions.forEach((permission) => {
-      const permissionCode = String(permission || '').trim()
-      const key = `${roleCode}\u0000${permissionCode}`
-      if (!roleCode || !permissionCode || seen.has(key)) return
-      seen.add(key)
-      entries.push({ roleCode, permissionCode })
-    })
-  })
-  return entries
-}
-
-const summarizeWorkflowCodes = (codes) => {
-  const list = (Array.isArray(codes) ? codes : []).map((item) => String(item || '').trim()).filter(Boolean)
-  if (list.length <= 5) return list.join(', ')
-  return `${list.slice(0, 5).join(', ')} 等 ${list.length} 项`
-}
+const getWorkflowRoleGrantGapEntries = () => flattenWorkflowRoleGrantGaps(workflowReadinessReport.roleGrantGaps)
 
 async function createMissingWorkflowRoleGrants() {
   if (workflowRoleGrantSaving.value) return
@@ -2660,18 +2621,7 @@ async function createMissingWorkflowRoleGrants() {
       return
     }
 
-    const rowSeen = new Set()
-    const rows = entries
-      .map((item) => ({
-        role_id: roleMap.get(item.roleCode),
-        permission_id: permissionMap.get(item.permissionCode)
-      }))
-      .filter((row) => {
-        const key = `${row.role_id}\u0000${row.permission_id}`
-        if (!row.role_id || !row.permission_id || rowSeen.has(key)) return false
-        rowSeen.add(key)
-        return true
-      })
+    const rows = buildWorkflowRolePermissionRows({ entries, roleMap, permissionMap })
     if (!rows.length) {
       ElMessage.success('候选角色授权已齐备')
       return

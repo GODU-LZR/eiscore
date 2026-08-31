@@ -451,6 +451,101 @@ export const collectRequiredPermissionEntries = ({ appKey, activeRules = [], mis
   })
 }
 
+export const normalizeWorkflowReadinessReport = (next = {}) => {
+  const report = {
+    requiredPermissions: next.requiredPermissions || [],
+    missingRules: next.missingRules || [],
+    missingPermissionDefs: next.missingPermissionDefs || [],
+    roleGrantGaps: next.roleGrantGaps || [],
+    warnings: next.warnings || []
+  }
+  const computedReady = report.missingRules.length === 0
+    && report.missingPermissionDefs.length === 0
+    && report.roleGrantGaps.length === 0
+    && report.warnings.length === 0
+  return {
+    ...report,
+    ready: typeof next.ready === 'boolean' ? next.ready : computedReady
+  }
+}
+
+export const getMissingWorkflowPermissionDefinitions = ({
+  requiredPermissions = [],
+  definedCodes = [],
+  skip = false
+} = {}) => {
+  if (skip) return []
+  const defined = definedCodes instanceof Set ? definedCodes : new Set(definedCodes)
+  return requiredPermissions
+    .filter((item) => !defined.has(item?.code))
+    .map((item) => ({ code: item?.code, source: item?.source }))
+}
+
+export const buildWorkflowRoleGrantGaps = ({ roleCodes = [], permissionCodes = [], grantRows = [] } = {}) => {
+  const grantMap = new Map()
+  grantRows.forEach((row) => {
+    const roleCode = String(row?.role_code || '').trim()
+    const permissions = Array.isArray(row?.permissions) ? row.permissions : []
+    grantMap.set(roleCode, new Set(permissions.map((item) => String(item || '').trim()).filter(Boolean)))
+  })
+  const gaps = []
+  roleCodes.forEach((roleCode) => {
+    const granted = grantMap.get(roleCode) || new Set()
+    const missing = permissionCodes.filter((code) => !granted.has(code))
+    if (missing.length) gaps.push({ role_code: roleCode, missing_permissions: missing })
+  })
+  return gaps
+}
+
+export const flattenWorkflowRoleGrantGaps = (roleGrantGaps = []) => {
+  const seen = new Set()
+  const entries = []
+  roleGrantGaps.forEach((row) => {
+    const roleCode = String(row?.role_code || '').trim()
+    const permissions = Array.isArray(row?.missing_permissions) ? row.missing_permissions : []
+    permissions.forEach((permission) => {
+      const permissionCode = String(permission || '').trim()
+      const key = `${roleCode}\u0000${permissionCode}`
+      if (!roleCode || !permissionCode || seen.has(key)) return
+      seen.add(key)
+      entries.push({ roleCode, permissionCode })
+    })
+  })
+  return entries
+}
+
+export const summarizeWorkflowCodes = (codes) => {
+  const list = (Array.isArray(codes) ? codes : []).map((item) => String(item || '').trim()).filter(Boolean)
+  if (list.length <= 5) return list.join(', ')
+  return `${list.slice(0, 5).join(', ')} 等 ${list.length} 项`
+}
+
+export const buildUniqueWorkflowPermissionDefPayloads = ({ items = [], buildPayload } = {}) => {
+  const seen = new Set()
+  return items
+    .map((item) => buildPayload(item))
+    .filter((row) => {
+      if (!row.code || seen.has(row.code)) return false
+      seen.add(row.code)
+      return true
+    })
+}
+
+export const buildWorkflowRolePermissionRows = ({ entries = [], roleMap, permissionMap } = {}) => {
+  const seen = new Set()
+  return entries
+    .map((item) => ({
+      role_id: roleMap?.get(item.roleCode),
+      permission_id: permissionMap?.get(item.permissionCode)
+    }))
+    .filter((row) => {
+      const key = `${row.role_id}\u0000${row.permission_id}`
+      if (!row.role_id || !row.permission_id || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+}
+
 export const resolveWorkflowPermissionDefMeta = (code, source = '') => {
   if (code.includes('.workflow_start')) {
     return { suffix: '流程发起', action: 'workflow_start' }
