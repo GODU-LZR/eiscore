@@ -854,6 +854,16 @@ import {
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
 import { openSalesFlowTarget } from '@/platform/sales-flow-navigation'
+import {
+  buildSalesDataSample as buildDataSample,
+  buildSalesDataStats,
+  calculateSalesCustomerReceivable as calculateCustomerReceivable,
+  getSalesCustomerKey as getCustomerKey,
+  getSalesDateTime as getDateTime,
+  isSalesOrderActive as isOrderActive,
+  isSalesRowActive as isRowActive,
+  toSalesAmount as toAmount
+} from '@/domain/sales-grid-data-policy'
 
 const props = defineProps({
   appKey: { type: String, default: 'customers' },
@@ -1546,16 +1556,6 @@ const handleSalesCellValueChanged = (params) => {
   }
 }
 
-const addCount = (target, key) => {
-  const text = key === null || key === undefined || key === '' ? '未设置' : String(key)
-  target[text] = (target[text] || 0) + 1
-}
-
-const toAmount = (value) => {
-  const num = Number(value)
-  return Number.isFinite(num) ? num : 0
-}
-
 const normalizeId = (value) => {
   if (value === null || value === undefined || value === '') return ''
   return String(value)
@@ -1581,20 +1581,6 @@ const isMissingColumnError = (error, columnName) => {
   )
 }
 
-const getDateTime = (value) => {
-  if (!value) return 0
-  const time = new Date(value).getTime()
-  return Number.isFinite(time) ? time : 0
-}
-
-const isOrderActive = (row) => row?.order_status !== '已取消' && row?.status !== 'deleted'
-const isRowActive = (row) => row?.status !== 'deleted'
-
-const getCustomerKey = (row) => {
-  if (!row) return ''
-  return row.customer_id || row.id || row.customer_name || row.name || ''
-}
-
 const loadReceivableSourceRows = async () => {
   const [customerRows, orderRows, paymentRows] = await Promise.all([
     request({
@@ -1618,20 +1604,6 @@ const loadReceivableSourceRows = async () => {
     orders: Array.isArray(orderRows) ? orderRows : [],
     payments: Array.isArray(paymentRows) ? paymentRows : []
   }
-}
-
-const calculateCustomerReceivable = (customer, rows) => {
-  const customerId = customer?.id || ''
-  const customerName = customer?.name || ''
-  const orderAmount = rows.orders
-    .filter((row) => isOrderActive(row))
-    .filter((row) => (customerId && row.customer_id === customerId) || (!row.customer_id && row.customer_name === customerName) || row.customer_name === customerName)
-    .reduce((sum, row) => sum + toAmount(row.total_amount), 0)
-  const paymentAmount = rows.payments
-    .filter((row) => row?.status !== 'deleted')
-    .filter((row) => (customerId && row.customer_id === customerId) || (!row.customer_id && row.customer_name === customerName) || row.customer_name === customerName)
-    .reduce((sum, row) => sum + toAmount(row.amount), 0)
-  return Math.max(orderAmount - paymentAmount, 0)
 }
 
 const syncCustomerReceivableBalance = async (customer) => {
@@ -1725,124 +1697,7 @@ const syncAllCustomerReceivables = async () => {
   }
 }
 
-const buildDataStats = (rows) => {
-  const stats = { totalCount: 0, sampleSize: 0, statusCounts: {}, ownerCounts: {}, regionCounts: {} }
-  if (!Array.isArray(rows)) return stats
-  stats.totalCount = rows.length
-  stats.sampleSize = rows.length
-
-  if (app.value.key === 'customers') {
-    stats.levelCounts = {}
-    stats.totalCreditLimit = 0
-    stats.totalReceivableBalance = 0
-    rows.forEach((row) => {
-      addCount(stats.statusCounts, row?.customer_status || row?.status)
-      addCount(stats.levelCounts, row?.level)
-      addCount(stats.ownerCounts, row?.owner_name || row?.properties?.owner_name)
-      addCount(stats.regionCounts, row?.region || row?.properties?.region)
-      stats.totalCreditLimit += toAmount(row?.credit_limit)
-      stats.totalReceivableBalance += toAmount(row?.receivable_balance)
-    })
-    return stats
-  }
-
-  if (app.value.key === 'orders') {
-    stats.totalQuantity = 0
-    stats.totalAmount = 0
-    stats.deliveryRiskCounts = {}
-    rows.forEach((row) => {
-      addCount(stats.statusCounts, row?.order_status || row?.status)
-      addCount(stats.ownerCounts, row?.owner_name || row?.properties?.owner_name)
-      addCount(stats.deliveryRiskCounts, row?.properties?.delivery_risk || row?.properties?.交付风险)
-      stats.totalQuantity += toAmount(row?.quantity)
-      stats.totalAmount += toAmount(row?.total_amount)
-    })
-    return stats
-  }
-
-  if (app.value.key === 'payments') {
-    stats.totalAmount = 0
-    stats.methodCounts = {}
-    stats.handlerCounts = {}
-    rows.forEach((row) => {
-      addCount(stats.statusCounts, row?.verify_status || row?.status)
-      addCount(stats.methodCounts, row?.payment_method)
-      addCount(stats.handlerCounts, row?.handler_name || row?.properties?.handler_name)
-      stats.totalAmount += toAmount(row?.amount)
-    })
-    return stats
-  }
-
-  if (app.value.key === 'opportunities') {
-    stats.totalExpectedAmount = 0
-    stats.totalWeightedAmount = 0
-    stats.stageCounts = {}
-    stats.overdueOpportunityCount = 0
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    rows.forEach((row) => {
-      addCount(stats.statusCounts, row?.stage || row?.status)
-      addCount(stats.stageCounts, row?.stage)
-      addCount(stats.ownerCounts, row?.owner_name || row?.properties?.owner_name)
-      const expectedAmount = toAmount(row?.expected_amount)
-      stats.totalExpectedAmount += expectedAmount
-      stats.totalWeightedAmount += expectedAmount * toAmount(row?.probability) / 100
-      if (row?.expected_close_date && !['赢单', '输单', '搁置'].includes(row.stage) && getDateTime(row.expected_close_date) < today.getTime()) {
-        stats.overdueOpportunityCount += 1
-      }
-    })
-    return stats
-  }
-
-  if (app.value.key === 'follow_ups') {
-    stats.resultCounts = {}
-    stats.typeCounts = {}
-    stats.overdueFollowCount = 0
-    stats.upcomingFollowCount = 0
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const upcomingLimit = today.getTime() + 3 * 24 * 60 * 60 * 1000
-    rows.forEach((row) => {
-      addCount(stats.statusCounts, row?.follow_result || row?.status)
-      addCount(stats.resultCounts, row?.follow_result)
-      addCount(stats.typeCounts, row?.follow_type)
-      addCount(stats.ownerCounts, row?.owner_name || row?.properties?.owner_name)
-      const nextTime = getDateTime(row?.next_follow_at)
-      if (nextTime && nextTime < today.getTime() && !['已成交', '无效'].includes(row?.follow_result)) {
-        stats.overdueFollowCount += 1
-      } else if (nextTime && nextTime <= upcomingLimit && !['已成交', '无效'].includes(row?.follow_result)) {
-        stats.upcomingFollowCount += 1
-      }
-    })
-    return stats
-  }
-
-  rows.forEach((row) => {
-    addCount(stats.statusCounts, row?.properties?.status || row?.status)
-    addCount(stats.ownerCounts, row?.owner_name || row?.handler_name || row?.properties?.owner_name)
-    addCount(stats.regionCounts, row?.region || row?.properties?.region)
-  })
-  return stats
-}
-
-const buildDataSample = (rows, columns, limit = 50) => {
-  if (!Array.isArray(rows)) return []
-  const sample = rows.slice(0, limit)
-  return sample.map((row) => {
-    const item = {}
-    columns.forEach((col) => {
-      const prop = col.prop
-      if (!prop) return
-      if (col.type === 'file' || col.type === 'geo') return
-      const value = row?.[prop] ?? row?.properties?.[prop]
-      if (value !== undefined && value !== null && value !== '') {
-        item[prop] = value
-      }
-    })
-    if (row?.id !== undefined) item.id = row.id
-    return item
-  })
-}
+const buildDataStats = (rows) => buildSalesDataStats(app.value.key, rows)
 
 const getRowValue = (row, prop) => {
   if (!row || !prop) return undefined
