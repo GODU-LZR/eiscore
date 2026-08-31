@@ -29,6 +29,7 @@ const { createFlashToolService } = require('./flash-tool-service');
 const { createFlashSemanticExecutor } = require('./flash-semantic-executor');
 const { createFlashClineRuntime } = require('./flash-cline-runtime');
 const { createFlashClineService } = require('./flash-cline-service');
+const { loadFlashClineConfig } = require('./flash-cline-config');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -54,30 +55,30 @@ const postgrestUserRole = envText(
 ) || 'web_user';
 const flashToolCallTimeoutMs = Number(process.env.FLASH_TOOL_CALL_TIMEOUT_MS || 30 * 1000);
 const flashToolIdempotencyTtlMs = Number(process.env.FLASH_TOOL_IDEMPOTENCY_TTL_MS || 10 * 60 * 1000);
-const flashCliEnabled = envText(process.env.FLASH_CLINE_ENABLED, 'true').toLowerCase() !== 'false';
-const flashCliCommand = envText(process.env.FLASH_CLINE_COMMAND, '/app/node_modules/.bin/cline');
-const flashCliProjectPath = envText(process.env.FLASH_CLINE_PROJECT_PATH, 'eiscore-apps/src/views/drafts');
-const flashCliWorkdirConfigured = envText(
-  process.env.FLASH_CLINE_WORKDIR,
-  path.posix.join('/workspace', flashCliProjectPath)
-);
-const flashCliConfigRoot = envText(process.env.FLASH_CLINE_CONFIG_ROOT, '/tmp/flash-cline');
-const flashCliTaskTimeoutMs = Number(process.env.FLASH_CLINE_TASK_TIMEOUT_MS || 8 * 60 * 1000);
-const flashCliAuthTimeoutMs = Number(process.env.FLASH_CLINE_AUTH_TIMEOUT_MS || 30 * 1000);
-const flashCliProvider = envText(process.env.FLASH_CLINE_PROVIDER, 'openai');
-const flashCliHistoryLimit = Number(process.env.FLASH_CLINE_HISTORY_LIMIT || 10);
-const flashCliBuildValidateEnabled = envText(process.env.FLASH_CLINE_BUILD_VALIDATE, 'true').toLowerCase() !== 'false';
-const flashCliBuildWorkdirConfigured = envText(process.env.FLASH_CLINE_BUILD_WORKDIR, '/workspace/eiscore-apps');
-const flashCliBuildTimeoutMs = Number(process.env.FLASH_CLINE_BUILD_TIMEOUT_MS || 180 * 1000);
-const flashCliInstallTimeoutMs = Number(process.env.FLASH_CLINE_INSTALL_TIMEOUT_MS || 120 * 1000);
-const flashCliSelfHealMaxRounds = Math.max(0, Number(process.env.FLASH_CLINE_SELF_HEAL_ROUNDS || 3));
-const flashCliAutoInstallDeps = envText(process.env.FLASH_CLINE_AUTO_INSTALL_DEPS, 'true').toLowerCase() !== 'false';
-const flashDraftFileName = envText(process.env.FLASH_DRAFT_FILE, 'FlashDraft.vue');
-const flashAttachmentDirName = envText(process.env.FLASH_ATTACHMENT_DIR_NAME, '.uploads') || '.uploads';
-const flashAttachmentMaxBytes = Math.max(256 * 1024, Number(process.env.FLASH_ATTACHMENT_MAX_BYTES || 8 * 1024 * 1024));
-const flashAttachmentPreviewMaxChars = Math.max(800, Number(process.env.FLASH_ATTACHMENT_PREVIEW_MAX_CHARS || 8000));
-const flashSemanticCliScript = envText(process.env.FLASH_SEMANTIC_CLI_SCRIPT, '/app/flash-semantic-tool.js');
-const flashAgentBaseUrl = envText(process.env.FLASH_AGENT_BASE_URL, `http://127.0.0.1:${port}`).replace(/\/+$/, '');
+const flashClineConfig = loadFlashClineConfig({ port });
+const {
+  enabled: flashCliEnabled,
+  command: flashCliCommand,
+  projectPath: flashCliProjectPath,
+  workdirConfigured: flashCliWorkdirConfigured,
+  configRoot: flashCliConfigRoot,
+  taskTimeoutMs: flashCliTaskTimeoutMs,
+  authTimeoutMs: flashCliAuthTimeoutMs,
+  provider: flashCliProvider,
+  historyLimit: flashCliHistoryLimit,
+  buildValidateEnabled: flashCliBuildValidateEnabled,
+  buildWorkdirConfigured: flashCliBuildWorkdirConfigured,
+  buildTimeoutMs: flashCliBuildTimeoutMs,
+  installTimeoutMs: flashCliInstallTimeoutMs,
+  selfHealMaxRounds: flashCliSelfHealMaxRounds,
+  autoInstallDeps: flashCliAutoInstallDeps,
+  draftFileName: flashDraftFileName,
+  attachmentDirName: flashAttachmentDirName,
+  attachmentMaxBytes: flashAttachmentMaxBytes,
+  attachmentPreviewMaxChars: flashAttachmentPreviewMaxChars,
+  semanticCliScript: flashSemanticCliScript,
+  agentBaseUrl: flashAgentBaseUrl
+} = flashClineConfig;
 let activeFlashDraftAppId = '';
 
 const resolveFlashCliWorkdir = () => {
