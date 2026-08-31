@@ -9,7 +9,7 @@ import { resolve } from 'node:path'
 const require = createRequire(import.meta.url)
 const repoRoot = resolve(import.meta.dirname, '../..')
 const indexSource = readFileSync(resolve(repoRoot, 'realtime/index.js'), 'utf8')
-const { createAiConfigHttpHandlers } = require(resolve(repoRoot, 'realtime/ai-config-http.js'))
+const { createAiHttpHandlers } = require(resolve(repoRoot, 'realtime/ai-http.js'))
 
 const user = Object.freeze({ username: 'manager', role: 'manager' })
 let authorized = true
@@ -17,10 +17,12 @@ let config = null
 let configError = null
 let visionConfig = null
 let visionError = null
+let businessSnapshot = null
 const catalogCalls = []
+const snapshotCalls = []
 const responses = []
 
-const handlers = createAiConfigHttpHandlers({
+const handlers = createAiHttpHandlers({
   authorizeHttpRequest() {
     return authorized ? user : null
   },
@@ -36,6 +38,10 @@ const handlers = createAiConfigHttpHandlers({
     catalogCalls.push([value, cfg])
     return [{ id: 'enterprise' }]
   },
+  async safeFetchBusinessSnapshot(value, source) {
+    snapshotCalls.push([value, source])
+    return businessSnapshot
+  },
   sendJson(_res, status, payload) {
     responses.push({ status, payload })
   }
@@ -47,7 +53,9 @@ const reset = () => {
   configError = null
   visionConfig = null
   visionError = null
+  businessSnapshot = null
   catalogCalls.length = 0
+  snapshotCalls.length = 0
   responses.length = 0
 }
 
@@ -55,7 +63,9 @@ reset()
 authorized = false
 await handlers.handleConfig({}, {})
 await handlers.handleAgents({}, {})
+await handlers.handleBusinessSnapshot({}, {})
 assert.deepEqual(catalogCalls, [])
+assert.deepEqual(snapshotCalls, [])
 assert.deepEqual(responses, [])
 
 reset()
@@ -132,9 +142,29 @@ assert.deepEqual(responses, [{
   payload: { code: 'AI_CONFIG_LOAD_FAILED', message: 'agents unavailable' }
 }])
 
-assert.ok(Object.isFrozen(handlers))
-assert.match(indexSource, /createAiConfigHttpHandlers\(\{/)
-assert.match(indexSource, /\.\.\.aiConfigHttpHandlers/)
-assert.doesNotMatch(indexSource, /const handleAi(?:Config|Agents)/)
+reset()
+businessSnapshot = { snapshotTime: '2026-08-31T00:00:00.000Z', sales: { total: 8 } }
+await handlers.handleBusinessSnapshot({}, {})
+assert.deepEqual(snapshotCalls, [[user, 'ai-business-snapshot']])
+assert.deepEqual(responses, [{
+  status: 200,
+  payload: { ok: true, snapshot: businessSnapshot }
+}])
 
-console.log('PASS: AI config HTTP handlers preserve authorization, defaults, vision fallback and secret-free responses')
+reset()
+businessSnapshot = {
+  snapshotTime: '2026-08-31T00:00:00.000Z',
+  _meta: { fallback: true, error: 'snapshot unavailable' }
+}
+await handlers.handleBusinessSnapshot({}, {})
+assert.deepEqual(responses, [{
+  status: 200,
+  payload: { ok: false, snapshot: businessSnapshot, warning: 'snapshot unavailable' }
+}])
+
+assert.ok(Object.isFrozen(handlers))
+assert.match(indexSource, /createAiHttpHandlers\(\{/)
+assert.match(indexSource, /\.\.\.aiHttpHandlers/)
+assert.doesNotMatch(indexSource, /const handleAi(?:Config|Agents|BusinessSnapshot)/)
+
+console.log('PASS: AI read HTTP handlers preserve config secrecy, defaults, vision fallback and snapshot warnings')

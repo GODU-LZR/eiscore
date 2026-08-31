@@ -3,11 +3,12 @@
 
 'use strict';
 
-const createAiConfigHttpHandlers = ({
+const createAiHttpHandlers = ({
   authorizeHttpRequest,
   getAiConfig,
   getAiVisionConfig,
   buildAgentCatalog,
+  safeFetchBusinessSnapshot,
   sendJson
 }) => {
   const handleConfig = async (req, res) => {
@@ -47,7 +48,20 @@ const createAiConfigHttpHandlers = ({
     }
   };
 
-  return Object.freeze({ handleConfig, handleAgents });
+  const handleBusinessSnapshot = async (req, res) => {
+    const user = authorizeHttpRequest(req, res);
+    if (!user) return;
+
+    const snapshot = await safeFetchBusinessSnapshot(user, 'ai-business-snapshot');
+    const fallbackMessage = snapshot?._meta?.fallback ? snapshot._meta.error : '';
+    sendJson(res, 200, {
+      ok: !fallbackMessage,
+      snapshot,
+      ...(fallbackMessage ? { warning: fallbackMessage } : {})
+    });
+  };
+
+  return Object.freeze({ handleConfig, handleAgents, handleBusinessSnapshot });
 };
 
-module.exports = { createAiConfigHttpHandlers };
+module.exports = { createAiHttpHandlers };

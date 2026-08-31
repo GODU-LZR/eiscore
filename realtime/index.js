@@ -21,7 +21,7 @@ const { createDocumentEntryWorker } = require('./document-entry');
 const { createDocumentFixedEntryWorker } = require('./document-fixed-entry');
 const { createHttpRequestHandler } = require('./http-router');
 const { createTwinResourceHttpHandlers } = require('./twin-resource-http');
-const { createAiConfigHttpHandlers } = require('./ai-config-http');
+const { createAiHttpHandlers } = require('./ai-http');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -3090,14 +3090,6 @@ const authorizeHttpRequest = (req, res) => {
   return user;
 };
 
-const aiConfigHttpHandlers = createAiConfigHttpHandlers({
-  authorizeHttpRequest,
-  getAiConfig,
-  getAiVisionConfig,
-  buildAgentCatalog,
-  sendJson
-});
-
 // ── 轻量本体语义上下文采集 ───────────────────────────────────
 const fetchSemanticContext = async (user) => {
   const semantic = {};
@@ -3591,18 +3583,14 @@ const safeFetchBusinessSnapshot = async (user, source = 'biz-snapshot') => {
   }
 };
 
-const handleAiBusinessSnapshot = async (req, res) => {
-  const user = authorizeHttpRequest(req, res);
-  if (!user) return;
-
-  const snapshot = await safeFetchBusinessSnapshot(user, 'ai-business-snapshot');
-  const fallbackMessage = snapshot?._meta?.fallback ? snapshot._meta.error : '';
-  sendJson(res, 200, {
-    ok: !fallbackMessage,
-    snapshot,
-    ...(fallbackMessage ? { warning: fallbackMessage } : {})
-  });
-};
+const aiHttpHandlers = createAiHttpHandlers({
+  authorizeHttpRequest,
+  getAiConfig,
+  getAiVisionConfig,
+  buildAgentCatalog,
+  safeFetchBusinessSnapshot,
+  sendJson
+});
 
 const handleAiChat = async (req, res) => {
   const user = authorizeHttpRequest(req, res);
@@ -5593,8 +5581,7 @@ const server = http.createServer(createHttpRequestHandler({
     health: (_req, res) => sendJson(res, 200, { ok: true, channel }),
     documentIntake: documentIntakeHandlers,
     ai: {
-      ...aiConfigHttpHandlers,
-      handleBusinessSnapshot: handleAiBusinessSnapshot,
+      ...aiHttpHandlers,
       handleChat: handleAiChat,
       handleTranslate: handleAiTranslate,
       handleOcr: handleAiOcr,
