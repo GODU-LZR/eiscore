@@ -17,14 +17,13 @@ const expectedStorageInventory = new Map([
   ['eiscore-base/src/layout/index.vue', 9],
   ['eiscore-base/src/stores/system.js', 1],
   ['eiscore-base/src/utils/ai-bridge.js', 2],
-  ['eiscore-hr/src/components/eis-data-grid-v2/composables/useGridCore.js', 2],
   ['eiscore-hr/src/views/HrUserManage.vue', 1],
   ['eiscore-mobile/src/views/LoginView.vue', 3],
   ['eiscore-mobile/src/views/stock/StockScan.vue', 2],
   ['shared/eis-assistant-history.mjs', 1],
   ['shared/eis-check-cache.mjs', 1],
   ['shared/eis-display-control.js', 4],
-  ['shared/eis-grid-local-layout.js', 2]
+  ['shared/eis-grid-local-layout.js', 1]
 ])
 
 const expectedFullPageNavigationInventory = new Map([

@@ -2,10 +2,28 @@
 // Copyright (c) 2026 林志荣
 
 import { computed, reactive } from 'vue'
+import { createSafeStorage } from '../packages/eiscore-platform/src/safe-storage.mjs'
 
 const ROW_HEIGHT_EDGE_HIT_SIZE = 10
 
-export function createGridLocalLayout({ props, gridApi, defaultRowHeight }) {
+function resolveBrowserStorage(storage) {
+  if (storage !== undefined) return storage
+  try {
+    return globalThis.localStorage
+  } catch {
+    return null
+  }
+}
+
+export function createGridLocalLayout({
+  props,
+  gridApi,
+  defaultRowHeight,
+  resolveRowKey,
+  scheduleApply = (callback) => setTimeout(callback, 0),
+  storage
+}) {
+  const safeStorage = createSafeStorage(resolveBrowserStorage(storage))
   const layoutStorageKey = computed(() => props.localLayoutKey ? `eis-grid-layout:${props.localLayoutKey}` : '')
   const localLayoutState = reactive({ columns: {}, rows: {} })
   const rowHeightConfig = computed(() => ({
@@ -24,29 +42,22 @@ export function createGridLocalLayout({ props, gridApi, defaultRowHeight }) {
 
   const safeReadLocalLayout = () => {
     if (!layoutStorageKey.value || typeof window === 'undefined') return
-    try {
-      const raw = window.localStorage.getItem(layoutStorageKey.value)
-      const parsed = raw ? JSON.parse(raw) : {}
-      localLayoutState.columns = parsed && typeof parsed.columns === 'object' ? parsed.columns : {}
-      localLayoutState.rows = parsed && typeof parsed.rows === 'object' ? parsed.rows : {}
-    } catch (e) {
-      localLayoutState.columns = {}
-      localLayoutState.rows = {}
-    }
+    const parsed = safeStorage.getJson(layoutStorageKey.value, {})
+    localLayoutState.columns = parsed && typeof parsed.columns === 'object' ? parsed.columns : {}
+    localLayoutState.rows = parsed && typeof parsed.rows === 'object' ? parsed.rows : {}
   }
 
   const safeWriteLocalLayout = () => {
     if (!layoutStorageKey.value || typeof window === 'undefined') return
-    try {
-      window.localStorage.setItem(layoutStorageKey.value, JSON.stringify({
-        version: 1,
-        columns: localLayoutState.columns,
-        rows: localLayoutState.rows
-      }))
-    } catch (e) {}
+    safeStorage.setJson(layoutStorageKey.value, {
+      version: 1,
+      columns: localLayoutState.columns,
+      rows: localLayoutState.rows
+    })
   }
 
   const getLayoutRowKey = (rowData) => {
+    if (typeof resolveRowKey === 'function') return String(resolveRowKey(rowData) || '')
     if (!rowData) return ''
     if (rowData.id !== undefined && rowData.id !== null) return String(rowData.id)
     if (rowData.doc_no) return String(rowData.doc_no)
@@ -197,10 +208,10 @@ export function createGridLocalLayout({ props, gridApi, defaultRowHeight }) {
 
   const onGridReadyLayout = () => {
     safeReadLocalLayout()
-    setTimeout(() => {
+    scheduleApply(() => {
       applyStoredColumnWidths()
       gridApi.value?.resetRowHeights?.()
-    }, 0)
+    })
   }
 
   safeReadLocalLayout()
