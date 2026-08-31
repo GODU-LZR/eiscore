@@ -330,56 +330,37 @@ delete require.cache[require.resolve(modulePath)]
 const { createDocumentIntakeHandlers } = require(modulePath)
 Module._load = originalLoad
 const realtimeIndexSource = await fs.readFile(path.resolve(import.meta.dirname, '../../realtime/index.js'), 'utf8')
+const { HTTP_ROUTE_MANIFEST } = require('../../realtime/http-router.js')
 
 assert.equal(state.poolOptions.max, 5, 'invalid pool max env should fall back to 5')
 assert.equal(state.poolOptions.port, 5432, 'invalid PGPORT env should fall back to 5432')
-assert.ok(
-  realtimeIndexSource.includes("pathname === '/document-intake/admin/overview' && method === 'GET'"),
-  'realtime router should expose document-intake admin overview route'
-)
-assert.ok(
-  realtimeIndexSource.includes("pathname === '/document-intake/admin/assets' && method === 'GET'"),
-  'realtime router should expose document-intake admin asset list route'
-)
-assert.ok(
-  realtimeIndexSource.includes("pathname === '/document-intake/admin/devices' && method === 'GET'"),
-  'realtime router should expose document-intake admin device list route'
-)
-assert.ok(
-  realtimeIndexSource.includes('handleListDeviceWatchFolders(req, res)') &&
-    realtimeIndexSource.includes('handleCreateWatchFolder(req, res)') &&
-    realtimeIndexSource.includes('handleUpdateWatchFolder(req, res)') &&
-    realtimeIndexSource.includes('handleUpdateWatchFolderStatus(req, res)'),
-  'realtime router should expose document-intake admin device watch folder routes'
-)
-assert.ok(
-  realtimeIndexSource.includes('handleDeleteWatchFolder(req, res)'),
-  'realtime router should expose document-intake admin device watch folder delete route'
-)
-assert.ok(
-  realtimeIndexSource.includes("handleUpdateDeviceStatus(req, res)"),
-  'realtime router should expose document-intake admin device status route'
-)
-assert.ok(
-  realtimeIndexSource.includes("handleResetDeviceBindingCode(req, res)"),
-  'realtime router should expose document-intake admin device binding code reset route'
-)
-assert.ok(
-  realtimeIndexSource.includes("pathname === '/document-intake/admin/logs' && method === 'GET'"),
-  'realtime router should expose document-intake admin log list route'
-)
-assert.ok(
-  realtimeIndexSource.includes("pathname === '/document-intake/admin/entry-results' && method === 'GET'"),
-  'realtime router should expose document-intake admin entry result list route'
-)
-assert.ok(
-  realtimeIndexSource.includes("pathname.startsWith('/document-intake/admin/entry-results/') && method === 'GET'"),
-  'realtime router should expose document-intake admin entry result detail route'
-)
-assert.ok(
-  realtimeIndexSource.includes('authorizeDocumentIntakeAdminRequest(req, res)'),
-  'document-intake admin routes should require a valid JWT'
-)
+const describeRoute = (entry) => [
+  entry.method,
+  entry.match,
+  entry.match === 'pattern' ? entry.pattern.source : entry.path,
+  entry.handler
+]
+const documentIntakeAdminRoutes = HTTP_ROUTE_MANIFEST
+  .filter((entry) => entry.authorize === 'documentIntakeAdmin')
+  .map(describeRoute)
+
+assert.deepEqual(documentIntakeAdminRoutes, [
+  ['GET', 'exact', '/document-intake/admin/overview', 'documentIntake.handleGetOverview'],
+  ['GET', 'exact', '/document-intake/admin/assets', 'documentIntake.handleListAssets'],
+  ['GET', 'exact', '/document-intake/admin/devices', 'documentIntake.handleListDevices'],
+  ['GET', 'pattern', /^\/document-intake\/admin\/devices\/[^/]+\/watch-folders$/.source, 'documentIntake.handleListDeviceWatchFolders'],
+  ['POST', 'pattern', /^\/document-intake\/admin\/devices\/[^/]+\/watch-folders$/.source, 'documentIntake.handleCreateWatchFolder'],
+  ['PATCH', 'pattern', /^\/document-intake\/admin\/devices\/[^/]+\/watch-folders\/[^/]+$/.source, 'documentIntake.handleUpdateWatchFolder'],
+  ['DELETE', 'pattern', /^\/document-intake\/admin\/devices\/[^/]+\/watch-folders\/[^/]+$/.source, 'documentIntake.handleDeleteWatchFolder'],
+  ['POST', 'pattern', /^\/document-intake\/admin\/devices\/[^/]+\/watch-folders\/[^/]+\/status$/.source, 'documentIntake.handleUpdateWatchFolderStatus'],
+  ['POST', 'pattern', /^\/document-intake\/admin\/devices\/[^/]+\/status$/.source, 'documentIntake.handleUpdateDeviceStatus'],
+  ['POST', 'pattern', /^\/document-intake\/admin\/devices\/[^/]+\/reset-binding-code$/.source, 'documentIntake.handleResetDeviceBindingCode'],
+  ['GET', 'exact', '/document-intake/admin/logs', 'documentIntake.handleListLogs'],
+  ['GET', 'exact', '/document-intake/admin/entry-results', 'documentIntake.handleListEntryResults'],
+  ['GET', 'prefix', '/document-intake/admin/entry-results/', 'documentIntake.handleGetEntryResultDetail']
+])
+assert.match(realtimeIndexSource, /documentIntakeAdmin:\s*authorizeDocumentIntakeAdminRequest/)
+assert.match(realtimeIndexSource, /documentIntake:\s*documentIntakeHandlers/)
 
 function resetState() {
   state.authorized = true

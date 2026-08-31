@@ -19,6 +19,7 @@ const { createDocumentParseWorker } = require('./document-parser');
 const { createDocumentPlanWorker } = require('./document-planner');
 const { createDocumentEntryWorker } = require('./document-entry');
 const { createDocumentFixedEntryWorker } = require('./document-fixed-entry');
+const { createHttpRequestHandler } = require('./http-router');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -5724,239 +5725,42 @@ const handleTwinKnowledgeDelete = async (req, res) => {
   }
 };
 
-const server = http.createServer(async (req, res) => {
-  const method = String(req.method || 'GET').toUpperCase();
-  const pathname = getRequestPath(req);
-
-  if (method === 'OPTIONS') {
-    setCorsHeaders(res);
-    res.writeHead(204);
-    res.end();
-    return;
+const server = http.createServer(createHttpRequestHandler({
+  getRequestPath,
+  setCorsHeaders,
+  authorizers: {
+    documentIntakeAdmin: authorizeDocumentIntakeAdminRequest
+  },
+  handlers: {
+    health: (_req, res) => sendJson(res, 200, { ok: true, channel }),
+    documentIntake: documentIntakeHandlers,
+    ai: {
+      handleConfig: handleAiConfig,
+      handleAgents: handleAiAgents,
+      handleBusinessSnapshot: handleAiBusinessSnapshot,
+      handleChat: handleAiChat,
+      handleTranslate: handleAiTranslate,
+      handleOcr: handleAiOcr,
+      handleMapLocate: handleAiMapLocate
+    },
+    flash: {
+      handleDraftGet: handleFlashDraftGet,
+      handleDraftWrite: handleFlashDraftWrite,
+      handleAttachmentUpload: handleFlashAttachmentUpload,
+      handleToolsRegistryGet: handleFlashToolsRegistryGet,
+      handleToolCall: handleFlashToolCallHttp
+    },
+    twin: {
+      handleChat: handleTwinChat,
+      handleSessionsList: handleTwinSessionsList,
+      handleSessionDelete: handleTwinSessionDelete,
+      handleMessagesGet: handleTwinMessagesGet,
+      handleKnowledgeList: handleTwinKnowledgeList,
+      handleKnowledgeUpload: handleTwinKnowledgeUpload,
+      handleKnowledgeDelete: handleTwinKnowledgeDelete
+    }
   }
-
-  if (pathname === '/health') {
-    sendJson(res, 200, { ok: true, channel });
-    return;
-  }
-
-  if (pathname === '/document-intake/devices/bind' && method === 'POST') {
-    await documentIntakeHandlers.handleBindDevice(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/admin/overview' && method === 'GET') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleGetOverview(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/admin/assets' && method === 'GET') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleListAssets(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/admin/devices' && method === 'GET') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleListDevices(req, res);
-    return;
-  }
-
-  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders$/.test(pathname) && method === 'GET') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleListDeviceWatchFolders(req, res);
-    return;
-  }
-
-  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders$/.test(pathname) && method === 'POST') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleCreateWatchFolder(req, res);
-    return;
-  }
-
-  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders\/[^/]+$/.test(pathname) && method === 'PATCH') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleUpdateWatchFolder(req, res);
-    return;
-  }
-
-  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders\/[^/]+$/.test(pathname) && method === 'DELETE') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleDeleteWatchFolder(req, res);
-    return;
-  }
-
-  if (/^\/document-intake\/admin\/devices\/[^/]+\/watch-folders\/[^/]+\/status$/.test(pathname) && method === 'POST') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleUpdateWatchFolderStatus(req, res);
-    return;
-  }
-
-  if (/^\/document-intake\/admin\/devices\/[^/]+\/status$/.test(pathname) && method === 'POST') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleUpdateDeviceStatus(req, res);
-    return;
-  }
-
-  if (/^\/document-intake\/admin\/devices\/[^/]+\/reset-binding-code$/.test(pathname) && method === 'POST') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleResetDeviceBindingCode(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/admin/logs' && method === 'GET') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleListLogs(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/admin/entry-results' && method === 'GET') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleListEntryResults(req, res);
-    return;
-  }
-
-  if (pathname.startsWith('/document-intake/admin/entry-results/') && method === 'GET') {
-    if (!authorizeDocumentIntakeAdminRequest(req, res)) return;
-    await documentIntakeHandlers.handleGetEntryResultDetail(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/devices/config' && method === 'GET') {
-    await documentIntakeHandlers.handleGetDeviceConfig(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/devices/heartbeat' && method === 'POST') {
-    await documentIntakeHandlers.handleHeartbeat(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/assets/upload' && method === 'POST') {
-    await documentIntakeHandlers.handleUploadAsset(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/assets/chunks/init' && method === 'POST') {
-    await documentIntakeHandlers.handleInitChunkUpload(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/assets/chunks/upload' && method === 'POST') {
-    await documentIntakeHandlers.handleUploadChunk(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/assets/chunks/complete' && method === 'POST') {
-    await documentIntakeHandlers.handleCompleteChunkUpload(req, res);
-    return;
-  }
-
-  if (pathname === '/document-intake/client-logs/batch' && method === 'POST') {
-    await documentIntakeHandlers.handleLogBatch(req, res);
-    return;
-  }
-
-  if (pathname === '/ai/config' && method === 'GET') {
-    await handleAiConfig(req, res);
-    return;
-  }
-
-  if (pathname === '/ai/agents' && method === 'GET') {
-    await handleAiAgents(req, res);
-    return;
-  }
-
-  if (pathname === '/ai/business-snapshot' && method === 'GET') {
-    await handleAiBusinessSnapshot(req, res);
-    return;
-  }
-
-  if (pathname === '/ai/chat/completions' && method === 'POST') {
-    await handleAiChat(req, res);
-    return;
-  }
-
-  if (pathname === '/ai/translate' && method === 'POST') {
-    await handleAiTranslate(req, res);
-    return;
-  }
-
-  if (pathname === '/ai/ocr' && method === 'POST') {
-    await handleAiOcr(req, res);
-    return;
-  }
-
-  if (pathname === '/ai/map-locate' && method === 'POST') {
-    await handleAiMapLocate(req, res);
-    return;
-  }
-
-  if (pathname === '/flash/draft' && method === 'GET') {
-    await handleFlashDraftGet(req, res);
-    return;
-  }
-
-  if (pathname === '/flash/draft' && method === 'POST') {
-    await handleFlashDraftWrite(req, res);
-    return;
-  }
-
-  if (pathname === '/flash/attachments' && method === 'POST') {
-    await handleFlashAttachmentUpload(req, res);
-    return;
-  }
-
-  if (pathname === '/flash/tools/registry' && method === 'GET') {
-    await handleFlashToolsRegistryGet(req, res);
-    return;
-  }
-
-  if (pathname === '/flash/tools/call' && method === 'POST') {
-    await handleFlashToolCallHttp(req, res);
-    return;
-  }
-
-  // ── 数字分身 API 路由 ──
-  if (pathname === '/twin/chat' && method === 'POST') {
-    await handleTwinChat(req, res);
-    return;
-  }
-
-  if (pathname === '/twin/sessions' && method === 'GET') {
-    await handleTwinSessionsList(req, res);
-    return;
-  }
-
-  if (pathname === '/twin/sessions' && method === 'DELETE') {
-    await handleTwinSessionDelete(req, res);
-    return;
-  }
-
-  if (pathname === '/twin/messages' && method === 'GET') {
-    await handleTwinMessagesGet(req, res);
-    return;
-  }
-
-  if (pathname === '/twin/knowledge' && method === 'GET') {
-    await handleTwinKnowledgeList(req, res);
-    return;
-  }
-
-  if (pathname === '/twin/knowledge/upload' && method === 'POST') {
-    await handleTwinKnowledgeUpload(req, res);
-    return;
-  }
-
-  if (pathname === '/twin/knowledge' && method === 'DELETE') {
-    await handleTwinKnowledgeDelete(req, res);
-    return;
-  }
-
-  res.writeHead(404);
-  res.end();
-});
+}));
 
 const wss = new WebSocket.Server({ server, path: wsPath });
 
