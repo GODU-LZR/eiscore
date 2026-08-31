@@ -40,9 +40,14 @@ for (const app of apps) {
     entry,
     /import ConfigDialog from ['"]@shared\/eis-data-grid-v2\/components\/ConfigDialog\.vue['"]/
   )
+  assert.match(
+    entry,
+    /import GridToolbar from ['"]@shared\/eis-data-grid-v2\/components\/GridToolbar\.vue['"]/
+  )
   assert.equal(existsSync(resolve(gridRoot, 'components/FileDialog.vue')), false)
   assert.equal(existsSync(resolve(gridRoot, 'components/ColumnManagerDialog.vue')), false)
   assert.equal(existsSync(resolve(gridRoot, 'components/ConfigDialog.vue')), false)
+  assert.equal(existsSync(resolve(gridRoot, 'components/GridToolbar.vue')), false)
   const hasLocalGeoDialog = app === 'apps'
   assert.match(
     entry,
@@ -74,12 +79,21 @@ for (const app of apps) {
 
   if (app === 'apps') {
     assert.match(entry, /<ConfigDialog[\s\S]*?ai-app="app_center"[\s\S]*?@save="saveConfig"/)
+    assert.match(entry, /<GridToolbar[\s\S]*?layout="split"[\s\S]*?<\/GridToolbar>/)
   } else if (app === 'purchase' || app === 'sales') {
     assert.match(entry, new RegExp(`<ConfigDialog[\\s\\S]*?ai-app="${app}"[\\s\\S]*?cell-label-example="订单金额"[\\s\\S]*?formula-display-example="\\{订单金额\\} \\* 0\\.18"[\\s\\S]*?formula-prompt-example="\\{订单金额\\}\\*0\\.18"[\\s\\S]*?@save="saveConfig"`))
   } else {
     const configInvocation = entry.match(/<ConfigDialog[\s\S]*?@save="saveConfig"/)?.[0] || ''
     assert.doesNotMatch(configInvocation, /ai-app|cell-label-example|formula-display-example|formula-prompt-example/)
   }
+
+  const toolbarInvocation = entry.match(/<GridToolbar[\s\S]*?<\/GridToolbar>/)?.[0] || ''
+  if (app === 'materials') {
+    assert.match(toolbarInvocation, /\bfull-width-rows\b/)
+  } else {
+    assert.doesNotMatch(toolbarInvocation, /\bfull-width-rows\b/)
+  }
+  if (app !== 'apps') assert.doesNotMatch(toolbarInvocation, /\blayout="split"/)
 }
 
 for (const renderer of [...alwaysSharedRenderers, ...rendererLocalVariants.keys()]) {
@@ -91,6 +105,20 @@ for (const renderer of [...alwaysSharedRenderers, ...rendererLocalVariants.keys(
 for (const dialog of ['FileDialog', 'ColumnManagerDialog', 'GeoDialog', 'ConfigDialog']) {
   assert.equal(existsSync(resolve(repoRoot, `shared/eis-data-grid-v2/components/${dialog}.vue`)), true)
 }
+
+const gridToolbarSource = readFileSync(
+  resolve(repoRoot, 'shared/eis-data-grid-v2/components/GridToolbar.vue'),
+  'utf8'
+)
+for (const prop of ['layout', 'fullWidthRows']) {
+  assert.match(gridToolbarSource, new RegExp(`['"]${prop}['"]`))
+}
+assert.match(
+  gridToolbarSource,
+  /props\.layout === ['"]split['"]/
+)
+assert.match(gridToolbarSource, /class="toolbar-business-row"/)
+assert.match(gridToolbarSource, /class="left-tools"/)
 
 const configDialogSource = readFileSync(
   resolve(repoRoot, 'shared/eis-data-grid-v2/components/ConfigDialog.vue'),

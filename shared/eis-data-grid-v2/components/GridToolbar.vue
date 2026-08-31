@@ -1,10 +1,78 @@
 <template>
-  <div class="grid-toolbar" data-guide="grid-toolbar">
-    <div class="toolbar-business-row" data-guide="grid-business-actions">
+  <div class="grid-toolbar" :class="{ 'is-split': isSplit }" data-guide="grid-toolbar">
+    <template v-if="isSplit">
+      <div class="left-tools" data-guide="grid-table-tools">
+        <el-input
+          class="toolbar-search"
+          data-guide="grid-search"
+          :model-value="search"
+          @update:modelValue="$emit('update:search', $event)"
+          placeholder="搜索全表..."
+          style="width: 240px"
+          clearable
+          @input="$emit('search')"
+        >
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+
+        <el-tooltip
+          v-if="calculationState"
+          :content="calculationState.detail"
+          placement="top"
+        >
+          <el-tag
+            class="calculation-tag"
+            :type="calculationState.type || 'info'"
+            effect="plain"
+          >
+            {{ calculationState.label }}
+          </el-tag>
+        </el-tooltip>
+
+        <el-button-group class="ml-2" data-guide="grid-actions">
+          <el-button v-if="canCreate" data-guide="grid-create" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
+          <el-button v-if="canConfig" data-guide="grid-config" type="primary" plain icon="Operation" @click="$emit('config-columns')">列管理</el-button>
+          <el-button
+            v-if="canRecalculateFormulas"
+            data-guide="grid-recalculate"
+            type="warning"
+            plain
+            icon="Refresh"
+            :loading="formulaRecalculating"
+            @click="$emit('recalculate-formulas')"
+          >
+            重算公式
+          </el-button>
+          <el-button
+            v-if="canDelete"
+            data-guide="grid-delete"
+            type="danger"
+            plain
+            icon="Delete"
+            @click="$emit('delete')"
+            :disabled="selectedCount === 0"
+          >
+            删除选中 ({{ selectedCount }})
+          </el-button>
+          <el-button v-if="canExport" data-guide="grid-export" plain icon="Download" @click="$emit('export')">导出</el-button>
+        </el-button-group>
+
+        <div class="tip-text" v-if="rangeInfo.active">
+          已选中: {{ realRangeRowCount }} 行 x {{ realRangeColCount }} 列
+        </div>
+      </div>
+
+      <div class="toolbar-actions" data-guide="grid-business-actions">
+        <slot></slot>
+      </div>
+    </template>
+
+    <template v-else>
+    <div class="toolbar-business-row" :class="{ 'is-full-width': fullWidthRows }" data-guide="grid-business-actions">
       <slot></slot>
     </div>
 
-    <div class="toolbar-table-row">
+    <div class="toolbar-table-row" :class="{ 'is-full-width': fullWidthRows }">
       <el-input 
         class="toolbar-search"
         data-guide="grid-search"
@@ -67,6 +135,7 @@
         已选中: {{ realRangeRowCount }} 行 x {{ realRangeColCount }} 列
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -75,7 +144,7 @@
 // Copyright (c) 2026 林志荣
 
 import { computed } from 'vue'
-import { ElInput, ElButton, ElIcon, ElTag, ElTooltip } from 'element-plus'
+import { ElInput, ElButton, ElButtonGroup, ElIcon, ElTag, ElTooltip } from 'element-plus'
 import { Search, CirclePlus, Operation, Delete, Download, Refresh } from '@element-plus/icons-vue'
 
 const props = defineProps([
@@ -89,9 +158,13 @@ const props = defineProps([
   'canExport',
   'canRecalculateFormulas',
   'formulaRecalculating',
-  'calculationState'
+  'calculationState',
+  'layout',
+  'fullWidthRows'
 ])
 const emit = defineEmits(['update:search', 'search', 'create', 'config-columns', 'recalculate-formulas', 'delete', 'export'])
+const isSplit = computed(() => props.layout === 'split')
+const fullWidthRows = computed(() => props.fullWidthRows === true || props.fullWidthRows === '')
 
 const getColIndex = (colId) => {
   if (!props.gridApi) return -1
@@ -124,6 +197,32 @@ const realRangeColCount = computed(() => {
   background-color: #f8f9fa;
 }
 
+.grid-toolbar.is-split {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0;
+}
+
+.left-tools {
+  display: flex;
+  align-items: center;
+}
+
+.is-split .toolbar-search {
+  max-width: none;
+  flex: 0 1 auto;
+}
+
+.ml-2 {
+  margin-left: 8px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 12px;
+}
+
 .toolbar-business-row {
   display: flex;
   align-items: center;
@@ -134,6 +233,12 @@ const realRangeColCount = computed(() => {
 
 .toolbar-business-row:empty {
   display: none;
+}
+
+.toolbar-business-row.is-full-width,
+.toolbar-table-row.is-full-width {
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .toolbar-table-row {
@@ -184,6 +289,14 @@ const realRangeColCount = computed(() => {
   white-space: nowrap;
 }
 
+.is-split .calculation-tag {
+  margin-left: 8px;
+}
+
+.is-split .tip-text {
+  margin-left: 12px;
+}
+
 .toolbar-business-row :deep(.el-button + .el-button),
 .toolbar-table-extra :deep(.el-button + .el-button),
 .table-actions :deep(.el-button + .el-button) {
@@ -191,7 +304,7 @@ const realRangeColCount = computed(() => {
 }
 
 @media (max-width: 768px) {
-  .toolbar-search {
+  .grid-toolbar:not(.is-split) .toolbar-search {
     flex-basis: 100%;
     width: 100%;
   }
@@ -225,6 +338,9 @@ const realRangeColCount = computed(() => {
 :global(#app.dark) .grid-toolbar :deep(.el-button.is-disabled) {
   background-color: #0b0f14;
   color: #6b7280;
+}
+:global(#app.dark) .grid-toolbar :deep(.el-button-group .el-button) {
+  border-color: #1f2937;
 }
 :global(#app.dark) .grid-toolbar .tip-text {
   color: #f3f4f6;

@@ -1,6 +1,7 @@
 <template>
   <div class="eis-grid-wrapper" data-guide="grid-wrapper">
     <GridToolbar
+      full-width-rows
       v-model:search="searchText"
       :selected-count="selectedRowsCount"
       :range-info="rangeSelection"
@@ -113,7 +114,7 @@ import { useGridHistory } from './composables/useGridHistory'
 import { useGridSelection } from '@shared/eis-data-grid-v2/composables/useGridSelection'
 import { useGridClipboard } from './composables/useGridClipboard'
 
-import GridToolbar from './components/GridToolbar.vue'
+import GridToolbar from '@shared/eis-data-grid-v2/components/GridToolbar.vue'
 import ConfigDialog from '@shared/eis-data-grid-v2/components/ConfigDialog.vue'
 import GeoDialog from '@shared/eis-data-grid-v2/components/GeoDialog.vue'
 import FileDialog from '@shared/eis-data-grid-v2/components/FileDialog.vue'
