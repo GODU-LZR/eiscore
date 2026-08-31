@@ -417,6 +417,15 @@ import {
   sanitizeFlashConversationTitle as sanitizeConversationTitle
 } from '@/domain/flash-builder-shell-policy'
 import { renderFlashMarkdown } from '@/domain/flash-builder-markdown-policy'
+import {
+  buildFlashPreviewStageStyle,
+  buildFlashSourceSnapshotHtml,
+  isLikelyFlashCodeServerHtml as isLikelyCodeServerHtml,
+  isLikelyFlashEiscoreShellHtml as isLikelyEiscoreShellHtml,
+  parseFlashPreviewRatio,
+  resolveFlashPreviewGlassText,
+  sanitizeFlashPreviewSnapshotHtml
+} from '@/domain/flash-builder-preview-policy'
 
 const route = useRoute()
 const router = useRouter()
@@ -593,26 +602,6 @@ const ideUrl = computed(() => {
   return `${base}?${search.toString()}`
 })
 
-const isLikelyCodeServerHtml = (html) => {
-  const text = String(html || '').slice(0, 12000).toLowerCase()
-  return (
-    text.includes('code-server') ||
-    text.includes('vscode') ||
-    text.includes('monaco') ||
-    text.includes('workbench')
-  )
-}
-
-const isLikelyEiscoreShellHtml = (html) => {
-  const text = String(html || '').slice(0, 12000).toLowerCase()
-  return (
-    text.includes('<title>eiscore') ||
-    text.includes('eiscore-client-assets') ||
-    text.includes('/mobile/index.html') ||
-    text.includes('/asset-manifest.json')
-  )
-}
-
 const previewUrl = computed(() => `${PREVIEW_ROUTE}?appId=${encodeURIComponent(appId.value)}&_t=${previewNonce.value}`)
 const shellStorageKey = computed(() => buildFlashConversationStorageKey(appId.value))
 const shellConversationOptions = computed(() => shellConversations.value.map((item) => ({
@@ -624,13 +613,12 @@ const activeShellConversationLabel = computed(() => {
   return target?.title || '新会话'
 })
 const canRetryShell = computed(() => !!String(shellLastRequest.value?.prompt || '').trim())
-const previewGlassText = computed(() => {
-  if (shellBusy.value && !shellHasFirstChunk.value) return 'AI 正在加工界面...'
-  if (shellBusy.value) return 'AI 正在完善细节...'
-  if (previewFatal.value) return '预览恢复中，请稍候...'
-  if (previewMaskText.value) return previewMaskText.value
-  return '正在加载预览...'
-})
+const previewGlassText = computed(() => resolveFlashPreviewGlassText({
+  shellBusy: shellBusy.value,
+  hasFirstChunk: shellHasFirstChunk.value,
+  previewFatal: previewFatal.value,
+  maskText: previewMaskText.value
+}))
 const visibleShellMessages = computed(() => shellMessages.value.filter((item) => {
   if (item.role !== 'assistant') return true
   return (
@@ -640,29 +628,14 @@ const visibleShellMessages = computed(() => shellMessages.value.filter((item) =>
     !!item.registryCheck
   )
 }))
-const previewRatioValue = computed(() => {
-  const wRaw = String(previewRatioWidth.value || '').trim()
-  const hRaw = String(previewRatioHeight.value || '').trim()
-  if (!wRaw || !hRaw) return null
-  const w = Number(wRaw)
-  const h = Number(hRaw)
-  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null
-  const ratio = w / h
-  if (ratio < 0.4 || ratio > 4) return null
-  return ratio
-})
-const previewStageStyle = computed(() => {
-  if (!previewRatioValue.value || isCodeServerMode.value) return null
-  const ratio = previewRatioValue.value
-  return {
-    width: `min(100%, calc((100dvh - 240px) * ${ratio}))`,
-    maxWidth: '100%',
-    margin: '0 auto',
-    flex: 'none',
-    aspectRatio: String(ratio),
-    maxHeight: 'calc(100dvh - 240px)'
-  }
-})
+const previewRatioValue = computed(() => parseFlashPreviewRatio(
+  previewRatioWidth.value,
+  previewRatioHeight.value
+))
+const previewStageStyle = computed(() => buildFlashPreviewStageStyle(
+  previewRatioValue.value,
+  { codeServerMode: isCodeServerMode.value }
+))
 
 const readCurrentUser = () => {
   try {
@@ -2160,39 +2133,11 @@ const validateDraftBeforePublish = async () => {
   }
 }
 
-const sanitizePreviewSnapshotHtml = (rawHtml) => {
-  const source = String(rawHtml || '').trim()
-  if (!source) return ''
-
-  if (typeof window !== 'undefined' && typeof DOMParser !== 'undefined') {
-    try {
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(source, 'text/html')
-      const dynamicSelectors = [
-        'script',
-        'noscript',
-        'link[rel="modulepreload"]',
-        'link[rel="preload"][as="script"]'
-      ]
-      dynamicSelectors.forEach((selector) => {
-        doc.querySelectorAll(selector).forEach((node) => node.remove())
-      })
-
-      const html = String(doc.documentElement?.outerHTML || '').trim()
-      if (!html) return ''
-      return `<!doctype html>\n${html}`
-    } catch {
-      // fallback to regexp cleanup below
-    }
-  }
-
-  return source
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
-    .replace(/<link\b[^>]*rel=["']modulepreload["'][^>]*>/gi, '')
-    .replace(/<link\b[^>]*rel=["']preload["'][^>]*as=["']script["'][^>]*>/gi, '')
-    .trim()
-}
+const sanitizePreviewSnapshotHtml = (rawHtml) => sanitizeFlashPreviewSnapshotHtml(rawHtml, {
+  parseDocument: typeof window !== 'undefined' && typeof DOMParser !== 'undefined'
+    ? (source) => new DOMParser().parseFromString(source, 'text/html')
+    : null
+})
 
 const capturePreviewSnapshot = () => {
   const doc = previewIframeRef.value?.contentDocument
@@ -2200,21 +2145,9 @@ const capturePreviewSnapshot = () => {
   return sanitizePreviewSnapshotHtml(String(doc.documentElement?.outerHTML || ''))
 }
 
-const buildSourceSnapshotHtml = (draftSource) => {
-  const source = String(draftSource || '').trim()
-  if (!source) return ''
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${appData.value?.name || '闪念应用'}</title>
-</head>
-<body>
-  <pre style="white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;">${escapeHtml(source)}</pre>
-</body>
-</html>`
-}
+const buildSourceSnapshotHtml = (draftSource) => buildFlashSourceSnapshotHtml(draftSource, {
+  title: appData.value?.name || '闪念应用'
+})
 
 const loadAppData = async () => {
   if (!appId.value) return
