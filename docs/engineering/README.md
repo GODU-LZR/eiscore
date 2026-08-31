@@ -86,6 +86,7 @@ EISCore 的工程化目标不是减少文件行数，也不是追求一次性“
 - G2 平台 HTTP 边界：企业端点解析、认证注入、超时、401 所有权和错误脱敏规则见 `adr/0003-platform-http-boundary.md`。
 - G2 Auth/Session 与安全存储：10 个前端工具及真实消费者已统一，兼容 Token 格式、JWT UTF-8 解码、长度限制、失效判断和存储异常边界见 `adr/0004-platform-auth-session-boundary.md`。
 - G2 前端权限判断：9 个权限适配器共享同一平台服务，兼容规则见 `adr/0005-platform-permission-boundary.md`。
+- G2 非会话本地存储：领域缓存通过安全适配器渐进迁移，Key/格式/异常降级边界见 `adr/0006-domain-local-storage-boundary.md`。
 
 G2 的逐项退出证据、剩余 Storage/导航/Grid 库存及阻断条件见 `G2_EXIT_AUDIT.md`。
 

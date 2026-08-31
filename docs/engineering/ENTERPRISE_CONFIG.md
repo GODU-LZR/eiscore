@@ -17,7 +17,7 @@
 
 - 基座系统 Store、设置页、基座登录页和移动登录页已移除重复的存量客户品牌、远程图片与行业文案，统一从企业配置读取；系统设置仍可覆盖部署默认值。
 - 基座固定注册 9 个 qiankun 子应用；移动端作为独立入口，共形成 10 个企业模块开关。
-- 10 个前端 Auth 工具及全部生产运行时消费者已收敛到平台会话，直接 `auth_token`/`user_info` Storage 消费全仓归零；基座与 8 个微应用共 9 个权限工具共享平台权限服务，9 份 Axios Request 及普通受保护 API 已由企业端点与平台 HTTP 控制。剩余直接 `fetch` 为 12 个文件/18 处；非会话 Storage、跨模块导航与共享 Grid 仍按 G2 审计渐进迁移。
+- 10 个前端 Auth 工具及全部生产运行时消费者已收敛到平台会话，直接 `auth_token`/`user_info` Storage 消费全仓归零；基座与 8 个微应用共 9 个权限工具共享平台权限服务，9 份 Axios Request 及普通受保护 API 已由企业端点与平台 HTTP 控制。剩余直接 `fetch` 为 12 个文件/18 处；盘点缓存迁移后非会话 Storage 为 15 个文件/41 处，跨模块动态路由与共享 Grid 仍按 G2 审计渐进迁移。
 - 11 个 HTML 入口的标题尚未统一，部分仍是 `Vite App`，生产模块标题还误写为 Sales。
 
 企业配置、模块注册、平台导航、登录品牌、移动端启动、Auth/Session、前端权限判断以及全部 9 份 Axios Request 现已接入统一平台入口；剩余边界与阻断数字见 `G2_EXIT_AUDIT.md`。
@@ -35,6 +35,8 @@
 平台 Auth/Session 继续兼容 `auth_token`、`user_info` 及纯文本/JSON Token 存量格式；平台安全存储捕获浏览器禁用存储、配额不足与 JSON 损坏，不输出 Key 或 Value。登录路径仍由各前端决定，边界见 `adr/0004-platform-auth-session-boundary.md`。
 
 平台权限服务只接收调用方提供的用户快照并返回前端可见性判断，不直接读取 Storage，也不替代后端授权；角色别名、超级管理员、模块权限和销售/采购经理特例的兼容边界见 `adr/0005-platform-permission-boundary.md`。
+
+非会话本地存储按领域缓存族迁移，共享平台安全读写但保留各自 Key、格式和生命周期；不得把客户秘密或服务端权威数据写入浏览器缓存。决策边界见 `adr/0006-domain-local-storage-boundary.md`。
 
 ## 基座启动接入
 

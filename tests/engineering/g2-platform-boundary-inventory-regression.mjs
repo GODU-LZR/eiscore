@@ -19,12 +19,11 @@ const expectedStorageInventory = new Map([
   ['eiscore-base/src/utils/ai-bridge.js', 2],
   ['eiscore-hr/src/components/eis-data-grid-v2/composables/useGridCore.js', 2],
   ['eiscore-hr/src/views/HrUserManage.vue', 1],
-  ['eiscore-materials/src/utils/check-cache.js', 9],
-  ['eiscore-mobile/src/utils/check-cache.js', 9],
   ['eiscore-mobile/src/views/LoginView.vue', 3],
   ['eiscore-mobile/src/views/assistant/EnterpriseAssistant.vue', 3],
   ['eiscore-mobile/src/views/assistant/WarehouseAssistant.vue', 3],
   ['eiscore-mobile/src/views/stock/StockScan.vue', 2],
+  ['shared/eis-check-cache.mjs', 1],
   ['shared/eis-display-control.js', 4],
   ['shared/eis-grid-local-layout.js', 2]
 ])
