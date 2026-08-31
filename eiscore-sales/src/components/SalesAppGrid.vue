@@ -888,6 +888,18 @@ import {
   projectSalesOutboundLink,
   projectSalesShipmentLink
 } from '@/domain/sales-grid-flow-policy'
+import {
+  buildSalesQuickFollowEntry,
+  buildSalesQuickFollowForm,
+  buildSalesQuickOpportunityEntry,
+  buildSalesQuickOpportunityForm,
+  buildSalesQuickOrderEntry,
+  buildSalesQuickOrderFallbackPayload,
+  buildSalesQuickOrderForm,
+  buildSalesQuickPaymentEntry,
+  buildSalesQuickPaymentForm,
+  calculateSalesQuickOrderTotal
+} from '@/domain/sales-grid-quick-entry-policy'
 
 const props = defineProps({
   appKey: { type: String, default: 'customers' },
@@ -943,51 +955,10 @@ const followTypeOptions = ['电话沟通', '微信沟通', '上门拜访', '视�
 const followResultOptions = ['待跟进', '有意向', '报价中', '样品确认', '已成交', '暂缓', '无效']
 const opportunityStageOptions = ['初步接洽', '需求确认', '方案报价', '商务谈判', '赢单', '输单', '搁置']
 
-const orderForm = reactive({
-  customer_id: '',
-  product_material_id: null,
-  product_name: '',
-  quantity: 1,
-  unit: '箱',
-  unit_price: 0,
-  order_date: todayText(),
-  delivery_date: addDaysText(7),
-  order_status: '已确认',
-  owner_name: ''
-})
-
-const paymentForm = reactive({
-  order_id: '',
-  customer_name: '',
-  amount: 0,
-  payment_date: todayText(),
-  payment_method: '银行转账',
-  verify_status: '待核销',
-  handler_name: ''
-})
-
-const opportunityForm = reactive({
-  customer_id: '',
-  opportunity_name: '',
-  expected_amount: 0,
-  stage: '初步接洽',
-  probability: 20,
-  expected_close_date: addDaysText(14),
-  owner_name: '',
-  next_action: '',
-  remark: ''
-})
-
-const followForm = reactive({
-  customer_id: '',
-  contact_name: '',
-  follow_date: todayText(),
-  follow_type: '电话沟通',
-  follow_result: '待跟进',
-  next_follow_at: addDaysText(3),
-  owner_name: '',
-  follow_content: ''
-})
+const orderForm = reactive(buildSalesQuickOrderForm(null, { today: todayText(), deliveryDate: addDaysText(7) }))
+const paymentForm = reactive(buildSalesQuickPaymentForm(null, { today: todayText() }))
+const opportunityForm = reactive(buildSalesQuickOpportunityForm(null, { closeDate: addDaysText(14) }))
+const followForm = reactive(buildSalesQuickFollowForm(null, { today: todayText(), nextFollowDate: addDaysText(3) }))
 
 const app = computed(() => props.appConfig || findSalesApp(props.appKey) || {
   key: 'customers',
@@ -1082,9 +1053,7 @@ const selectedFollowCustomer = computed(() => {
 const selectedOpportunityCustomer = computed(() => {
   return quickCustomers.value.find((customer) => customer.id === opportunityForm.customer_id) || null
 })
-const orderTotalAmount = computed(() => {
-  return toAmount(orderForm.quantity) * toAmount(orderForm.unit_price)
-})
+const orderTotalAmount = computed(() => calculateSalesQuickOrderTotal(orderForm))
 const selectedQuickOrderPaidAmount = computed(() => {
   const order = selectedQuickOrder.value
   if (!order) return 0
@@ -2059,49 +2028,19 @@ const loadQuickOrderPayments = async () => {
 
 const resetOrderForm = (source = null) => {
   currentOrderSource.value = source?.opportunity_no ? source : null
-  orderForm.customer_id = source?.customer_id || (source?.opportunity_no ? '' : source?.id) || ''
-  orderForm.product_material_id = source?.product_material_id || null
-  orderForm.product_name = source?.product_name || source?.opportunity_name || ''
-  orderForm.quantity = 1
-  orderForm.unit = '箱'
-  orderForm.unit_price = toAmount(source?.expected_amount || 0)
-  orderForm.order_date = todayText()
-  orderForm.delivery_date = addDaysText(7)
-  orderForm.order_status = '已确认'
-  orderForm.owner_name = source?.owner_name || ''
+  Object.assign(orderForm, buildSalesQuickOrderForm(source, { today: todayText(), deliveryDate: addDaysText(7) }))
 }
 
 const resetPaymentForm = (source = null) => {
-  paymentForm.order_id = source?.id || source?.order_id || ''
-  paymentForm.customer_name = source?.customer_name || source?.name || ''
-  paymentForm.amount = toAmount(source?.total_amount || source?.amount || 0)
-  paymentForm.payment_date = todayText()
-  paymentForm.payment_method = '银行转账'
-  paymentForm.verify_status = '待核销'
-  paymentForm.handler_name = source?.owner_name || source?.handler_name || ''
+  Object.assign(paymentForm, buildSalesQuickPaymentForm(source, { today: todayText() }))
 }
 
 const resetFollowForm = (source = null) => {
-  followForm.customer_id = source?.id || source?.customer_id || ''
-  followForm.contact_name = source?.contact_name || ''
-  followForm.follow_date = todayText()
-  followForm.follow_type = '电话沟通'
-  followForm.follow_result = '待跟进'
-  followForm.next_follow_at = addDaysText(3)
-  followForm.owner_name = source?.owner_name || ''
-  followForm.follow_content = ''
+  Object.assign(followForm, buildSalesQuickFollowForm(source, { today: todayText(), nextFollowDate: addDaysText(3) }))
 }
 
 const resetOpportunityForm = (source = null) => {
-  opportunityForm.customer_id = source?.id || source?.customer_id || ''
-  opportunityForm.opportunity_name = source?.opportunity_name || source?.name || ''
-  opportunityForm.expected_amount = toAmount(source?.expected_amount || 0)
-  opportunityForm.stage = source?.stage || '初步接洽'
-  opportunityForm.probability = toAmount(source?.probability || 20)
-  opportunityForm.expected_close_date = source?.expected_close_date || addDaysText(14)
-  opportunityForm.owner_name = source?.owner_name || ''
-  opportunityForm.next_action = source?.next_action || ''
-  opportunityForm.remark = source?.remark || ''
+  Object.assign(opportunityForm, buildSalesQuickOpportunityForm(source, { closeDate: addDaysText(14) }))
 }
 
 const openOrderDialog = async (source = null) => {
@@ -2514,42 +2453,19 @@ const resetQuickDialog = () => {
 const submitQuickOrder = async () => {
   const customer = selectedQuickCustomer.value
   const bomProduct = selectedQuickBomProduct.value
-  if (!customer) {
-    ElMessage.warning('请选择客户')
+  const result = buildSalesQuickOrderEntry({
+    form: orderForm,
+    customer,
+    bomProduct,
+    source: currentOrderSource.value,
+    orderNo: `SO${Date.now().toString().slice(-8)}`,
+    today: todayText()
+  })
+  if (result.error) {
+    ElMessage.warning(result.error)
     return
   }
-  if (!orderForm.product_name?.trim()) {
-    ElMessage.warning('请输入产品名称')
-    return
-  }
-  const payload = {
-    order_no: `SO${Date.now().toString().slice(-8)}`,
-    customer_id: customer.id,
-    customer_name: customer.name,
-    product_name: orderForm.product_name.trim(),
-    quantity: toAmount(orderForm.quantity),
-    unit: orderForm.unit || '箱',
-    unit_price: toAmount(orderForm.unit_price),
-    total_amount: orderTotalAmount.value,
-    order_date: orderForm.order_date || todayText(),
-    delivery_date: orderForm.delivery_date || null,
-    order_status: orderForm.order_status || '已确认',
-    owner_name: orderForm.owner_name || customer.owner_name || '',
-    status: 'active',
-    properties: {
-      来源: currentOrderSource.value?.opportunity_no ? '商机转订单' : '快捷建单',
-      bom_enabled: Boolean(bomProduct?.parent_material_id),
-      bom_no: bomProduct?.bom_no || null,
-      product_material_code: bomProduct?.parent_material_code || null
-    }
-  }
-  if (bomProduct?.parent_material_id) {
-    payload.product_material_id = bomProduct.parent_material_id
-  }
-  if (currentOrderSource.value?.id && currentOrderSource.value?.opportunity_no) {
-    payload.properties.商机ID = currentOrderSource.value.id
-    payload.properties.商机编号 = currentOrderSource.value.opportunity_no
-  }
+  const payload = result.payload
   try {
     await request({
       url: '/sales_orders',
@@ -2560,17 +2476,11 @@ const submitQuickOrder = async () => {
     })
   } catch (e) {
     if (!isMissingColumnError(e, 'product_material_id')) throw e
-    const fallbackPayload = { ...payload }
-    delete fallbackPayload.product_material_id
-    fallbackPayload.properties = {
-      ...(fallbackPayload.properties || {}),
-      product_material_id: bomProduct?.parent_material_id || null
-    }
     await request({
       url: '/sales_orders',
       method: 'post',
       headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-      data: fallbackPayload
+      data: buildSalesQuickOrderFallbackPayload(payload, bomProduct)
     })
   }
   await syncCustomerReceivableFromRow(payload)
@@ -2587,35 +2497,17 @@ const submitQuickOrder = async () => {
 
 const submitQuickPayment = async () => {
   const order = selectedQuickOrder.value
-  const customerName = order?.customer_name || paymentForm.customer_name?.trim()
-  if (order && !isOrderActive(order)) {
-    ElMessage.warning('已取消或已删除的订单不能登记回款')
+  const result = buildSalesQuickPaymentEntry({
+    form: paymentForm,
+    order,
+    paymentNo: `PAY${Date.now().toString().slice(-8)}`,
+    today: todayText()
+  })
+  if (result.error) {
+    ElMessage.warning(result.error)
     return
   }
-  if (!customerName) {
-    ElMessage.warning('请选择订单或填写客户名称')
-    return
-  }
-  if (toAmount(paymentForm.amount) <= 0) {
-    ElMessage.warning('回款金额必须大于 0')
-    return
-  }
-  const payload = {
-    payment_no: `PAY${Date.now().toString().slice(-8)}`,
-    order_id: order?.id || null,
-    order_no: order?.order_no || '',
-    customer_id: order?.customer_id || null,
-    customer_name: customerName,
-    amount: toAmount(paymentForm.amount),
-    payment_date: paymentForm.payment_date || todayText(),
-    payment_method: paymentForm.payment_method || '银行转账',
-    verify_status: paymentForm.verify_status || '待核销',
-    handler_name: paymentForm.handler_name || order?.owner_name || '',
-    status: 'active',
-    properties: {
-      来源: '快捷登记回款'
-    }
-  }
+  const payload = result.payload
   await request({
     url: '/sales_payments',
     method: 'post',
@@ -2628,66 +2520,37 @@ const submitQuickPayment = async () => {
 
 const submitQuickOpportunity = async () => {
   const customer = selectedOpportunityCustomer.value
-  if (!customer) {
-    ElMessage.warning('请选择客户')
+  const result = buildSalesQuickOpportunityEntry({
+    form: opportunityForm,
+    customer,
+    opportunityNo: `OPP${Date.now().toString().slice(-8)}`
+  })
+  if (result.error) {
+    ElMessage.warning(result.error)
     return
-  }
-  if (!opportunityForm.opportunity_name?.trim()) {
-    ElMessage.warning('请输入商机名称')
-    return
-  }
-  const payload = {
-    opportunity_no: `OPP${Date.now().toString().slice(-8)}`,
-    opportunity_name: opportunityForm.opportunity_name.trim(),
-    customer_id: customer.id,
-    customer_name: customer.name,
-    expected_amount: toAmount(opportunityForm.expected_amount),
-    stage: opportunityForm.stage || '初步接洽',
-    probability: toAmount(opportunityForm.probability),
-    expected_close_date: opportunityForm.expected_close_date || null,
-    owner_name: opportunityForm.owner_name || customer.owner_name || '',
-    next_action: opportunityForm.next_action || '',
-    remark: opportunityForm.remark || '',
-    status: 'active',
-    properties: {
-      来源: '快捷新建商机'
-    }
   }
   await request({
     url: '/sales_opportunities',
     method: 'post',
     headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-    data: payload
+    data: result.payload
   })
   ElMessage.success('销售商机已创建')
 }
 
 const submitQuickFollow = async () => {
   const customer = selectedFollowCustomer.value
-  if (!customer) {
-    ElMessage.warning('请选择客户')
+  const result = buildSalesQuickFollowEntry({
+    form: followForm,
+    customer,
+    followNo: `FU${Date.now().toString().slice(-8)}`,
+    today: todayText()
+  })
+  if (result.error) {
+    ElMessage.warning(result.error)
     return
   }
-  if (!followForm.follow_content?.trim()) {
-    ElMessage.warning('请输入跟进纪要')
-    return
-  }
-  const payload = {
-    follow_no: `FU${Date.now().toString().slice(-8)}`,
-    customer_id: customer.id,
-    customer_name: customer.name,
-    contact_name: followForm.contact_name || customer.contact_name || '',
-    follow_date: followForm.follow_date || todayText(),
-    follow_type: followForm.follow_type || '电话沟通',
-    follow_result: followForm.follow_result || '待跟进',
-    next_follow_at: followForm.next_follow_at || null,
-    owner_name: followForm.owner_name || customer.owner_name || '',
-    follow_content: followForm.follow_content.trim(),
-    status: 'active',
-    properties: {
-      来源: '快捷登记跟进'
-    }
-  }
+  const payload = result.payload
   await request({
     url: '/sales_follow_ups',
     method: 'post',
@@ -2698,10 +2561,7 @@ const submitQuickFollow = async () => {
     url: `/sales_customers?id=eq.${safeEq(customer.id)}`,
     method: 'patch',
     headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-    data: {
-      last_follow_up_at: payload.follow_date,
-      customer_status: payload.follow_result === '已成交' ? '已成交' : customer.customer_status
-    }
+    data: result.customerPatch
   })
   ElMessage.success('客户跟进已创建')
 }
