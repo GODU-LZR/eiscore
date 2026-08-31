@@ -8,7 +8,7 @@ import { resolve } from 'node:path'
 const repoRoot = resolve(import.meta.dirname, '../..')
 const source = readFileSync(resolve(repoRoot, 'eiscore-base/src/components/AiCopilot.vue'), 'utf8')
 const adapter = readFileSync(resolve(repoRoot, 'eiscore-base/src/platform/http-client.js'), 'utf8')
-const start = source.indexOf('const getWorkflowProfileHeaders =')
+const start = source.indexOf('const requestWorkflowJson =')
 const end = source.indexOf('const goWorkflowApprovalCenter =', start)
 assert.notEqual(start, -1)
 assert.notEqual(end, -1)

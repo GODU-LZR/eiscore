@@ -159,14 +159,15 @@
 | `7122375` | 抽离 SalesAppGrid 详情投影策略 | 字段/Properties、七类关联区块、业务指标与摘要进入纯领域模块 |
 | `52919e1` | 抽离 SalesAppGrid 单据下推策略 | 单据/关系类型、链路投影、有效性校验及三条下推计划进入纯领域模块 |
 | `74d5075` | 抽离 SalesAppGrid 快速录单策略 | 四类表单、校验、Payload、BOM 降级与客户回写进入纯领域模块 |
-| 本文件所在提交 | 完成 SalesAppGrid 纯策略阶段退出审计 | 锁定 3,822 行、4 个纯策略模块、40 个导出及组合副作用上限 |
+| `0053d93` | 完成 SalesAppGrid 纯策略阶段退出审计 | 锁定 3,822 行、4 个纯策略模块、40 个导出及组合副作用上限 |
+| 本文件所在提交 | 抽离 AiCopilot Workflow 元数据策略 | 表名/绑定、Profile、ACL、任务分派与状态映射进入纯领域模块 |
 
 ## 当前切片
 
-- 状态：G3 进行中；SalesAppGrid 纯策略阶段退出审计完成，下一步转向当前最大巨页 `AiCopilot.vue`。
-- 结果：组合门禁锁定 `SalesAppGrid.vue` 3,822 行、833/2,541/445 行 SFC 分区、4 个纯策略模块/40 个导出、53 个 Request、57 个消息/确认、1 个 Router、8 个 Watch、124 个 Callable 和 2/1 个 Mounted/Unmounted；禁止重新引入直接 Fetch、Axios、Storage、EventSource、WebSocket、XMLHttpRequest 或 `window.location` 导航。权威审计见 `G3_SALES_GRID_EXIT_AUDIT.md`。
-- 兼容边界：本切片不修改产品代码、接口、数据或部署；页面继续拥有 Reactive 状态、Grid/Dialog/Drawer、平台 Request、Realtime、延迟刷新、窗口事件、消息、审计和导航时序。现有快速录单校验失败后关闭弹窗/刷新作为已知行为保留，后续只能用独立缺陷切片修正。
-- 验证：组合专项、完整质量门禁与离线单元套件通过，覆盖 166 个 Node 文件语法、14 个锁定 CI 包、1,148 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查；销售生产构建成功并转换 1,631 个模块；没有连接数据库、PostgREST、Realtime 服务或远程环境。
+- 状态：G3 进行中；AiCopilot 第一个渐进拆分切片完成，下一步审计智能 BI 行动/报告或通用导入策略。
+- 结果：新增无 Vue、Element Plus、Request、浏览器、Storage 或时间依赖的 `ai-copilot-workflow-policy.js`，迁出表名别名/API 规范化、上下文关联表推断、列表/布尔/对象数组兼容、业务应用绑定、任务级去重、三类 Profile Header、首行响应、ACL/Ops、任务分派与状态映射。`AiCopilot.vue` 从 4,393 降至 4,196 行，巨页债务从 89,027 降至 88,830 行并收紧棘轮。
+- 兼容边界：显式 Meta→上下文关联表→API URL 优先级、Schema/别名大小写、Legacy/Table/自定义绑定、中文布尔、候选角色/用户拆分、审批模式与数量回退、对象形式 Task ID、状态字段/目标表回退、Profile/Prefer Header 与 ACL 权限键均保持；页面仍拥有 AI Bridge Context、Workflow Request、时间、保存状态、消息和写入顺序。
+- 验证：专项覆盖别名/查询/API/Schema、上下文三级回退、列表与布尔别名、对象任务、绑定推断/去重、Profile、首行、ACL/Ops、任务分派和状态映射及页面委托门禁；完整质量门禁与离线单元套件通过，覆盖 167 个 Node 文件语法、14 个锁定 CI 包、1,150 个文本文件秘密扫描、7 个变更代码文件 lint 和 23 项基础设施检查；基座生产构建成功并转换 5,880 个模块；没有连接数据库、Workflow/App Center API、AI 或远程环境。
 
 ## 已知非阻断风险
 
@@ -181,9 +182,9 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/120 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- 巨型 Vue 库存仍有 52 个文件、89,027 行，其中 11 个超过 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
+- 巨型 Vue 库存仍有 52 个文件、88,830 行，其中 11 个超过 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
 - 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器虽已有离线契约，仍需在获授权的隔离环境完成真实备份、迁移、postcheck 与恢复演练后才能成为上线证据。
 
 ## 下一候选切片
 
-继续 G3：审计 4,393 行 `eiscore-base/src/components/AiCopilot.vue` 的对话状态、SSE 事件、Workflow/BI 与子面板职责，先选择首个无视觉变化、可纯函数锁定的策略边界。
+继续 G3：审计 4,196 行 `eiscore-base/src/components/AiCopilot.vue` 的智能 BI 行动项/报告展示或通用导入逻辑，选择下一个无 DOM/SSE 变化的纯策略边界。

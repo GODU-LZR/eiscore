@@ -534,6 +534,20 @@ import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { useRouter } from 'vue-router'
 import { getWorkerFullscreen, saveWorkerFullscreen } from '@shared/eis-ui-preferences.mjs'
+import {
+  buildAiWorkflowAclModule as buildWorkflowAclModule,
+  buildAiWorkflowOps as buildWorkflowOps,
+  getAiAppCenterProfileHeaders as getAppCenterProfileHeaders,
+  getAiFirstRow as getFirstRow,
+  getAiPublicProfileHeaders as getPublicProfileHeaders,
+  getAiWorkflowProfileHeaders as getWorkflowProfileHeaders,
+  inferAiWorkflowBusinessAppId as inferWorkflowBusinessAppId,
+  normalizeAiWorkflowAssignmentRows as normalizeWorkflowAssignmentRows,
+  normalizeAiWorkflowBool as normalizeWorkflowBool,
+  normalizeAiWorkflowStateMappingRows as normalizeWorkflowStateMappingRows,
+  normalizeAiWorkflowTaskBindings as normalizeWorkflowTaskBindings,
+  resolveAiWorkflowAssociatedTable
+} from '@/domain/ai-copilot-workflow-policy'
 
 const props = defineProps({
   mode: { type: String, default: 'enterprise' },
@@ -1982,159 +1996,10 @@ const applyCategoryImport = async (info, messageKey) => {
   }
 }
 
-const resolveAssociatedTable = (meta = {}) => {
-  const raw = meta?.associated_table || meta?.associatedTable || ''
-  if (raw) return normalizeWorkflowAssociatedTable(raw)
-  const context = aiBridge.state.currentContext || {}
-  const fallback = context?.workflowAssociatedTable || context?.associatedTable || ''
-  if (fallback) return normalizeWorkflowAssociatedTable(fallback)
-  const apiUrl = context?.apiUrl || context?.importTarget?.apiUrl || ''
-  if (!apiUrl) return ''
-  const cleaned = String(apiUrl).replace(/^\/api/, '').replace(/^\//, '')
-  return cleaned ? normalizeWorkflowAssociatedTable(`public.${cleaned}`) : ''
-}
-
-const WORKFLOW_TABLE_ALIASES = {
-  archives: 'hr.archives',
-  'hr_archives': 'hr.archives',
-  employee_changes: 'hr.employee_changes',
-  attendance_records: 'hr.attendance_records',
-  users: 'public.users',
-  raw_materials: 'public.raw_materials',
-  inventory_drafts: 'scm.inventory_drafts',
-  production_work_orders: 'scm.production_work_orders',
-  sales_orders: 'public.sales_orders',
-  purchase_demands: 'public.purchase_demands'
-}
-
-const WORKFLOW_TABLE_BINDINGS = {
-  'hr.archives': 'legacy:hr_employee',
-  'hr.employee_changes': 'legacy:hr_change',
-  'hr.attendance_records': 'legacy:hr_attendance',
-  'public.users': 'legacy:hr_user',
-  'public.raw_materials': 'legacy:mms_ledger',
-  'scm.inventory_drafts': 'legacy:mms_inventory_stock_in',
-  'scm.production_work_orders': 'legacy:production_work_order',
-  'public.sales_orders': 'legacy:sales_order',
-  'public.purchase_demands': 'legacy:purchase_demand'
-}
-
-const normalizeWorkflowAssociatedTable = (value) => {
-  const raw = String(value || '').trim()
-  if (!raw) return ''
-  const withoutApi = raw.replace(/^\/api\//, '').replace(/^\/api/, '').replace(/^\//, '')
-  const table = withoutApi.includes('?') ? withoutApi.split('?')[0] : withoutApi
-  const normalized = table.replace(/\//g, '.').trim()
-  if (!normalized) return ''
-  const lower = normalized.toLowerCase()
-  if (WORKFLOW_TABLE_ALIASES[lower]) return WORKFLOW_TABLE_ALIASES[lower]
-  if (normalized.includes('.')) return normalized
-  return WORKFLOW_TABLE_ALIASES[lower] || `public.${normalized}`
-}
-
-const normalizeWorkflowList = (value) => {
-  if (Array.isArray(value)) {
-    return value.map(item => String(item ?? '').trim()).filter(Boolean)
-  }
-  if (typeof value === 'string') {
-    return value.split(/[,\s，、;；]+/).map(item => item.trim()).filter(Boolean)
-  }
-  return []
-}
-
-const normalizeWorkflowBool = (value, fallback = false) => {
-  if (typeof value === 'boolean') return value
-  if (typeof value === 'string') {
-    const text = value.trim().toLowerCase()
-    if (['true', '1', 'yes', 'y', '是', '需要'].includes(text)) return true
-    if (['false', '0', 'no', 'n', '否', '不需要'].includes(text)) return false
-  }
-  return fallback
-}
-
-const toWorkflowArray = (value) => {
-  if (Array.isArray(value)) return value
-  if (value && typeof value === 'object') {
-    return Object.entries(value).map(([key, item]) => (
-      item && typeof item === 'object'
-        ? { ...item, task_id: item.task_id || item.taskId || item.bpmn_task_id || key }
-        : { task_id: key, value: item }
-    ))
-  }
-  return []
-}
-
-const normalizeWorkflowBindingValue = (value, associatedTable = '') => {
-  const raw = String(value || '').trim()
-  if (!raw) return ''
-  if (raw.startsWith('legacy:')) return raw
-  if (raw.startsWith('table:')) {
-    const table = normalizeWorkflowAssociatedTable(raw.slice('table:'.length))
-    return table ? `table:${table}` : ''
-  }
-  const table = normalizeWorkflowAssociatedTable(raw)
-  return WORKFLOW_TABLE_BINDINGS[table] || raw
-}
-
-const inferWorkflowBusinessAppId = (meta = {}, associatedTable = '') => {
-  const explicit = meta.workflowBusinessAppId
-    || meta.workflow_business_app_id
-    || meta.business_app_id
-    || meta.businessAppId
-    || meta.binding
-  if (explicit) return normalizeWorkflowBindingValue(explicit, associatedTable)
-  const table = normalizeWorkflowAssociatedTable(associatedTable)
-  return WORKFLOW_TABLE_BINDINGS[table] || (table ? `table:${table}` : '')
-}
-
-const normalizeWorkflowTaskBindings = (meta = {}, globalBinding = '') => {
-  const source = meta.workflowTaskBusinessAppBindings
-    || meta.workflow_task_business_app_bindings
-    || meta.task_business_app_bindings
-    || meta.taskBusinessAppBindings
-    || {}
-  if (!source || typeof source !== 'object' || Array.isArray(source)) return {}
-  const next = {}
-  Object.entries(source).forEach(([taskId, binding]) => {
-    const key = String(taskId || '').trim()
-    const value = normalizeWorkflowBindingValue(binding)
-    if (key && value && value !== globalBinding) next[key] = value
-  })
-  return next
-}
-
-const getWorkflowProfileHeaders = (prefer = '') => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Accept-Profile': 'workflow',
-    'Content-Profile': 'workflow'
-  }
-  if (prefer) headers.Prefer = prefer
-  return headers
-}
-
-const getPublicProfileHeaders = (prefer = '') => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Accept-Profile': 'public',
-    'Content-Profile': 'public'
-  }
-  if (prefer) headers.Prefer = prefer
-  return headers
-}
-
-const getAppCenterProfileHeaders = (prefer = '') => {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Accept-Profile': 'app_center',
-    'Content-Profile': 'app_center'
-  }
-  if (prefer) headers.Prefer = prefer
-  return headers
-}
+const resolveAssociatedTable = (meta = {}) => resolveAiWorkflowAssociatedTable(
+  meta,
+  aiBridge.state.currentContext || {}
+)
 
 const requestWorkflowJson = async (target, options, label) => {
   try {
@@ -2144,27 +2009,6 @@ const requestWorkflowJson = async (target, options, label) => {
     if (!error?.status) throw error
     const detail = error?.displayMessage || ''
     throw new Error(`${label}失败: ${error.status}${detail ? ` ${detail}` : ''}`)
-  }
-}
-
-const getFirstRow = (data) => Array.isArray(data) ? (data[0] || null) : (data || null)
-
-const buildWorkflowAclModule = (appId) => {
-  const raw = String(appId || '').replace(/-/g, '').trim()
-  return raw ? `app_${raw}` : ''
-}
-
-const buildWorkflowOps = (moduleKey) => {
-  if (!moduleKey) return {}
-  return {
-    create: `op:${moduleKey}.create`,
-    edit: `op:${moduleKey}.edit`,
-    delete: `op:${moduleKey}.delete`,
-    export: `op:${moduleKey}.export`,
-    config: `op:${moduleKey}.config`,
-    workflowStart: `op:${moduleKey}.workflow_start`,
-    workflowTransition: `op:${moduleKey}.workflow_transition`,
-    workflowComplete: `op:${moduleKey}.workflow_complete`
   }
 }
 
@@ -2248,27 +2092,6 @@ const patchWorkflowAppDefinitionId = async ({ appId, definitionId, xml, associat
   return getFirstRow(data)
 }
 
-const normalizeWorkflowAssignmentRows = (meta = {}, definitionId) => {
-  const source = meta.task_assignments || meta.taskAssignments || meta.assignments || []
-  return toWorkflowArray(source)
-    .map((item) => {
-      const taskId = String(item?.task_id || item?.taskId || item?.bpmn_task_id || item?.id || '').trim()
-      if (!taskId) return null
-      const approvalMode = String(item?.approval_mode || item?.approvalMode || 'any').trim().toLowerCase()
-      const requiredApprovals = Number(item?.required_approvals || item?.requiredApprovals || 1)
-      return {
-        definition_id: definitionId,
-        task_id: taskId,
-        candidate_roles: normalizeWorkflowList(item?.candidate_roles || item?.candidateRoles || item?.roles),
-        candidate_users: normalizeWorkflowList(item?.candidate_users || item?.candidateUsers || item?.users),
-        approval_mode: ['any', 'quota', 'all'].includes(approvalMode) ? approvalMode : 'any',
-        required_approvals: Number.isFinite(requiredApprovals) && requiredApprovals > 0 ? Math.floor(requiredApprovals) : 1,
-        require_comment: normalizeWorkflowBool(item?.require_comment ?? item?.requireComment, false)
-      }
-    })
-    .filter(Boolean)
-}
-
 const saveWorkflowAssignments = async ({ meta, definitionId }) => {
   const rows = normalizeWorkflowAssignmentRows(meta, definitionId)
   if (!rows.length) return 0
@@ -2278,26 +2101,6 @@ const saveWorkflowAssignments = async ({ meta, definitionId }) => {
     body: rows
   }, '写入任务分派')
   return Array.isArray(data) ? data.length : rows.length
-}
-
-const normalizeWorkflowStateMappingRows = (meta = {}, workflowAppId, associatedTable = '') => {
-  const source = meta.state_mappings || meta.stateMappings || meta.workflow_state_mappings || meta.workflowStateMappings || []
-  const fallbackTable = normalizeWorkflowAssociatedTable(associatedTable)
-  return toWorkflowArray(source)
-    .map((item) => {
-      const taskId = String(item?.bpmn_task_id || item?.bpmnTaskId || item?.task_id || item?.taskId || item?.id || '').trim()
-      const stateValue = String(item?.state_value ?? item?.stateValue ?? item?.status ?? item?.value ?? '').trim()
-      if (!taskId || !stateValue) return null
-      const targetTable = normalizeWorkflowAssociatedTable(item?.target_table || item?.targetTable || item?.table || fallbackTable)
-      return {
-        workflow_app_id: workflowAppId,
-        bpmn_task_id: taskId,
-        target_table: targetTable || fallbackTable || null,
-        state_field: String(item?.state_field || item?.stateField || 'status').trim() || 'status',
-        state_value: stateValue
-      }
-    })
-    .filter(item => item && item.target_table)
 }
 
 const saveWorkflowStateMappings = async ({ meta, workflowAppId, associatedTable }) => {

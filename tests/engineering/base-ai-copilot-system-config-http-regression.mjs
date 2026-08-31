@@ -42,7 +42,7 @@ assert.match(saveConfig, /error\?\.code === ['"]unauthorized['"]/)
 assert.match(saveConfig, /throw new Error\(['"]登录已过期['"]\)/)
 assert.match(saveConfig, /throw new Error\(['"]保存失败['"]\)/)
 
-const categoryImport = section('const applyCategoryImport = async (info, messageKey) => {', 'const resolveAssociatedTable = (meta = {}) => {')
+const categoryImport = section('const applyCategoryImport = async (info, messageKey) => {', 'const resolveAssociatedTable = (meta = {}) =>')
 assert.doesNotMatch(categoryImport, /\bfetch\s*\(|Authorization/)
 assert.match(categoryImport, /requestJson\(['"]\/system_configs\?key=eq\.materials_categories['"]/)
 assert.match(categoryImport, /catch \(e\) \{\s*existingJson = \[\]/)
