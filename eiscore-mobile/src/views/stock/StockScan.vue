@@ -309,6 +309,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast, showConfirmDialog } from 'vant'
 import { getUserInfo } from '@/utils/auth'
+import { loadPendingStockItems, savePendingStockItems } from '@shared/eis-stock-pending-queue.mjs'
 import {
   fetchWarehouses, fetchLocationsByWarehouse,
   fetchMaterialByCode, searchMaterials,
@@ -320,7 +321,6 @@ import {
 } from '@/api/stock'
 
 const router = useRouter()
-const PENDING_KEY = 'eiscore_stock_pending_v1'
 
 /* ---------- 状态 ---------- */
 const pageLoading = ref(false)
@@ -373,17 +373,11 @@ const targetWarehouseId = computed(() => {
 })
 
 function loadPendingItems() {
-  try {
-    const raw = localStorage.getItem(PENDING_KEY)
-    const list = raw ? JSON.parse(raw) : []
-    pendingItems.value = Array.isArray(list) ? list : []
-  } catch {
-    pendingItems.value = []
-  }
+  pendingItems.value = loadPendingStockItems()
 }
 
 function savePendingItems() {
-  localStorage.setItem(PENDING_KEY, JSON.stringify(pendingItems.value))
+  savePendingStockItems(pendingItems.value)
 }
 
 function addPendingItem(entry) {
