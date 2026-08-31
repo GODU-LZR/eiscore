@@ -126,6 +126,7 @@ import { getToken } from '@/utils/auth'
 import MarkdownIt from 'markdown-it'
 import * as echarts from 'echarts'
 import { streamAgentEvents } from '@shared/eis-agent-sse-client'
+import { createAssistantHistory } from '@shared/eis-assistant-history.mjs'
 
 const router = useRouter()
 
@@ -133,6 +134,11 @@ const router = useRouter()
 const STORAGE_KEY = 'eis_warehouse_assistant_v1'
 const MAX_SESSIONS = 10
 const MAX_MESSAGES = 40
+const assistantHistory = createAssistantHistory({
+  storageKey: STORAGE_KEY,
+  maxSessions: MAX_SESSIONS,
+  maxMessages: MAX_MESSAGES
+})
 const HISTORY_WINDOW = 8
 const CODE_FENCE = '```'
 
@@ -427,30 +433,16 @@ const renderCharts = async () => {
   nodes.forEach(node => void renderEchartsNode(node))
 }
 
-// ── 会话管理 (localStorage) ────────────────────────────
+// ── 会话管理 ───────────────────────────────────────────
 const loadSessions = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
-    const data = JSON.parse(raw)
-    if (Array.isArray(data.sessions)) {
-      sessions.splice(0, sessions.length, ...data.sessions.slice(0, MAX_SESSIONS))
-      currentSessionId.value = data.currentSessionId || sessions[0]?.id || null
-    }
-  } catch {}
+  const data = assistantHistory.load()
+  if (!data) return
+  sessions.splice(0, sessions.length, ...data.sessions)
+  currentSessionId.value = data.currentSessionId
 }
 
 const saveSessions = () => {
-  try {
-    const data = {
-      sessions: sessions.slice(0, MAX_SESSIONS).map(s => ({
-        ...s,
-        messages: s.messages.slice(-MAX_MESSAGES)
-      })),
-      currentSessionId: currentSessionId.value
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  } catch {}
+  assistantHistory.save(sessions, currentSessionId.value)
 }
 
 const createNewSession = () => {

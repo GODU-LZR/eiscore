@@ -199,6 +199,7 @@ import { getToken } from '@/utils/auth'
 import MarkdownIt from 'markdown-it'
 import { createBusinessSnapshotLoader } from '@shared/eis-business-snapshot'
 import { streamAgentEvents } from '@shared/eis-agent-sse-client'
+import { createAssistantHistory } from '@shared/eis-assistant-history.mjs'
 import {
   SMART_BI_COMMON_QUESTIONS,
   buildSmartBiContext,
@@ -214,6 +215,22 @@ const router = useRouter()
 const STORAGE_KEY = 'eis_enterprise_assistant_v1'
 const MAX_SESSIONS = 10
 const MAX_MESSAGES = 40
+const assistantHistory = createAssistantHistory({
+  storageKey: STORAGE_KEY,
+  maxSessions: MAX_SESSIONS,
+  maxMessages: MAX_MESSAGES,
+  transformMessage: (message) => {
+    if (!message.files?.length) return message
+    return {
+      ...message,
+      files: message.files.map((file) => ({
+        type: file.type,
+        name: file.name,
+        url: file.type === 'image' ? file.url : null
+      }))
+    }
+  }
+})
 const HISTORY_WINDOW = 10
 const CODE_FENCE = '```'
 let echartsLib = null
@@ -784,37 +801,16 @@ const exportMessageReportAsPdf = (messageIndex) => {
   printWindow.document.close()
 }
 
-// ── 会话管理 (localStorage) ────────────────────────────
+// ── 会话管理 ───────────────────────────────────────────
 const loadSessions = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
-    const data = JSON.parse(raw)
-    if (Array.isArray(data.sessions)) {
-      sessions.splice(0, sessions.length, ...data.sessions.slice(0, MAX_SESSIONS))
-      currentSessionId.value = data.currentSessionId || sessions[0]?.id || null
-    }
-  } catch {}
+  const data = assistantHistory.load()
+  if (!data) return
+  sessions.splice(0, sessions.length, ...data.sessions)
+  currentSessionId.value = data.currentSessionId
 }
 
 const saveSessions = () => {
-  try {
-    const data = {
-      sessions: sessions.slice(0, MAX_SESSIONS).map(s => ({
-        ...s,
-        messages: s.messages.slice(-MAX_MESSAGES).map(m => {
-          if (!m.files?.length) return m
-          // 保存文件元信息但不存 raw File 对象
-          return {
-            ...m,
-            files: m.files.map(f => ({ type: f.type, name: f.name, url: f.type === 'image' ? f.url : null }))
-          }
-        })
-      })),
-      currentSessionId: currentSessionId.value
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-  } catch {}
+  assistantHistory.save(sessions, currentSessionId.value)
 }
 
 const createNewSession = () => {
