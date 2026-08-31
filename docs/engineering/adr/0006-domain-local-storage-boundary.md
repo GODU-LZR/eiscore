@@ -40,6 +40,8 @@ Auth/Session 已有统一安全存储，但产品仍有离线队列、页面偏�
 
 原生 Storage 复审随后移除两处仅出现在注释中的假库存，并从 HR 合成 `StorageEvent` 中删除未被消费者读取的可选 `storageArea` 元数据。`user_info` 仍先由平台会话持久化，事件继续携带 Key/NewValue 并通过窗口、父窗口和顶层窗口派发；产品源码的原生 Storage 引用因此只剩共享安全边界。
 
+间接持久化复审把基座两处 `useDark({ storageKey: 'eis_theme_global' })` 改为共享响应式主题桥。VueUse 继续负责 DOM 暗色类，但以 `storageKey: null` 禁止自行访问 Storage；安全偏好服务独占 `eis_theme_global` 的 `dark/light/auto` 读写并兼容布尔别名，保留跨标签页同步及按用户主题覆盖。未注册插件的 Pinia `persist: true` 死配置被移除，门禁禁止重新引入未受控的 VueUse/Pinia 间接持久化。
+
 ## 后果
 
 领域代码减少重复实现，浏览器隐私模式与配额异常不再破坏盘点主流程。不同缓存族仍需独立迁移；本决策不提供加密、跨设备同步、TTL 或冲突解决，敏感数据不得因此写入浏览器持久化存储。

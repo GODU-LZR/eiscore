@@ -252,7 +252,7 @@
 // Copyright (c) 2026 林志荣
 
 import { defineAsyncComponent, ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
-import { useDark, useToggle } from '@vueuse/core'
+import { useToggle } from '@vueuse/core'
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 import { useSystemStore } from '@/stores/system'
@@ -273,6 +273,7 @@ import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '@/utils/micr
 import { getEnterpriseConfig } from '@/platform/enterprise-config'
 import { isEnterprisePathEnabled } from '@/platform/enterprise-routing'
 import { getHostHttpClient } from '@/platform/http-client'
+import { useHostDarkMode } from '@/platform/theme-mode'
 import { ElMessage } from 'element-plus'
 import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import { isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
@@ -313,7 +314,7 @@ const userStore = useUserStore()
 const enterpriseConfig = getEnterpriseConfig(window)
 const { visibility: displayVisibility } = useDisplayVisibility()
 const { config } = storeToRefs(systemStore)
-const isDark = useDark({ storageKey: 'eis_theme_global' })
+const isDark = useHostDarkMode()
 const toggleDark = useToggle(isDark)
 const showThemeToggle = false
 const guideCenterVisible = ref(false)

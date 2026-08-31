@@ -8,6 +8,10 @@ import { extname, relative, resolve } from 'node:path'
 const repoRoot = resolve(import.meta.dirname, '../..')
 const sourceExtensions = new Set(['.js', '.jsx', '.mjs', '.ts', '.tsx', '.vue'])
 const storagePattern = /\b(?:window\.)?(?:localStorage|sessionStorage)\b/g
+const vueUseStoragePattern = /\b(?:useStorage|useLocalStorage|useSessionStorage)\s*\(/g
+const useDarkPattern = /\buseDark\s*\(/g
+const safeUseDarkPattern = /\buseDark\s*\(\s*\{[^}]*\bstorageKey\s*:\s*null\b[^}]*}\s*\)/gs
+const piniaPersistencePattern = /\bpersist\s*:\s*(?:true|\{)/g
 const fullPageNavigationPattern = /\bwindow\.location\.href\s*=/g
 
 const expectedStorageInventory = new Map([
@@ -97,7 +101,19 @@ for (const path of sourceFiles) {
 }
 assert.deepEqual([...actualGridCopies].sort(), expectedGridCopies)
 
-assert.deepEqual([...collectInventory(storagePattern).entries()].sort(), [...expectedStorageInventory.entries()].sort())
+const storageInventory = collectInventory(storagePattern)
+const vueUseStorageInventory = collectInventory(vueUseStoragePattern)
+const piniaPersistenceInventory = collectInventory(piniaPersistencePattern)
+const useDarkInventory = collectInventory(useDarkPattern)
+const safeUseDarkInventory = collectInventory(safeUseDarkPattern)
+
+assert.deepEqual([...storageInventory.entries()].sort(), [...expectedStorageInventory.entries()].sort())
+assert.deepEqual([...vueUseStorageInventory.entries()], [])
+assert.deepEqual([...piniaPersistenceInventory.entries()], [])
+assert.deepEqual(
+  [...useDarkInventory.entries()].sort(),
+  [...safeUseDarkInventory.entries()].sort()
+)
 assert.deepEqual(
   [...collectInventory(fullPageNavigationPattern).entries()].sort(),
   [...expectedFullPageNavigationInventory.entries()].sort()
@@ -111,5 +127,6 @@ for (const path of permissionAdapters) {
 }
 
 const storageTotal = [...expectedStorageInventory.values()].reduce((total, count) => total + count, 0)
+const safeUseDarkTotal = [...safeUseDarkInventory.values()].reduce((total, count) => total + count, 0)
 const navigationTotal = [...expectedFullPageNavigationInventory.values()].reduce((total, count) => total + count, 0)
-console.log(`PASS: G2 remaining inventories locked (storage ${expectedStorageInventory.size}/${storageTotal}, full-page navigation ${expectedFullPageNavigationInventory.size}/${navigationTotal}, permission adapters ${permissionAdapters.length}, Grid copies ${actualGridCopies.size})`)
+console.log(`PASS: G2 remaining inventories locked (storage ${expectedStorageInventory.size}/${storageTotal}, unsafe indirect storage 0, safe useDark ${safeUseDarkTotal}, full-page navigation ${expectedFullPageNavigationInventory.size}/${navigationTotal}, permission adapters ${permissionAdapters.length}, Grid copies ${actualGridCopies.size})`)

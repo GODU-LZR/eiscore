@@ -4,11 +4,19 @@
 import { createSafeStorage } from '../packages/eiscore-platform/src/safe-storage.mjs'
 
 export const AI_WORKER_FULLSCREEN_STORAGE_KEY = 'eis_ai_worker_fullscreen'
+export const GLOBAL_THEME_STORAGE_KEY = 'eis_theme_global'
 export const USER_THEME_STORAGE_PREFIX = 'eis_theme_'
 
 export const buildUserThemeStorageKey = (identity) => (
   `${USER_THEME_STORAGE_PREFIX}${String(identity || 'guest').toLowerCase()}`
 )
+
+export const normalizeGlobalTheme = (value) => {
+  if (value === 'dark' || value === '1' || value === 'true' || value === true) return 'dark'
+  if (value === 'light' || value === '0' || value === 'false' || value === false) return 'light'
+  if (value === 'auto') return 'auto'
+  return null
+}
 
 function resolveBrowserStorage(storage) {
   if (storage !== undefined) return storage
@@ -29,6 +37,12 @@ export function createUiPreferenceStore({ storage } = {}) {
     fullscreen ? '1' : '0'
   )
 
+  const getGlobalTheme = () => normalizeGlobalTheme(safeStorage.getText(GLOBAL_THEME_STORAGE_KEY))
+  const saveGlobalTheme = (mode) => {
+    const normalized = normalizeGlobalTheme(mode)
+    return normalized ? safeStorage.setText(GLOBAL_THEME_STORAGE_KEY, normalized) : false
+  }
+
   const getUserTheme = (identity) => {
     const value = safeStorage.getText(buildUserThemeStorageKey(identity))
     if (value === 'dark' || value === '1' || value === 'true') return 'dark'
@@ -44,6 +58,8 @@ export function createUiPreferenceStore({ storage } = {}) {
   return Object.freeze({
     getWorkerFullscreen,
     saveWorkerFullscreen,
+    getGlobalTheme,
+    saveGlobalTheme,
     getUserTheme,
     saveUserTheme
   })
@@ -53,5 +69,7 @@ const uiPreferenceStore = createUiPreferenceStore()
 
 export const getWorkerFullscreen = uiPreferenceStore.getWorkerFullscreen
 export const saveWorkerFullscreen = uiPreferenceStore.saveWorkerFullscreen
+export const getGlobalTheme = uiPreferenceStore.getGlobalTheme
+export const saveGlobalTheme = uiPreferenceStore.saveGlobalTheme
 export const getUserTheme = uiPreferenceStore.getUserTheme
 export const saveUserTheme = uiPreferenceStore.saveUserTheme

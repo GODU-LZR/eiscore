@@ -513,10 +513,10 @@
 // Copyright (c) 2026 林志荣
 
 import { ref, computed, nextTick, watch, onMounted, onUpdated, onBeforeUnmount } from 'vue'
-import { useDark } from '@vueuse/core'
 import { aiBridge } from '@/utils/ai-bridge'
 import { getToken, parseJwtPayload } from '@/utils/auth'
 import { getHostHttpClient } from '@/platform/http-client'
+import { useHostDarkMode } from '@/platform/theme-mode'
 import { createBusinessSnapshotLoader } from '@shared/eis-business-snapshot'
 import {
   SMART_BI_DOMAINS,
@@ -562,7 +562,7 @@ let mermaidRenderSeed = 0
 const chartResizeTimers = new Map()
 const router = useRouter()
 const isFullscreen = ref(false)
-const isDark = useDark({ storageKey: 'eis_theme_global' })
+const isDark = useHostDarkMode()
 
 let echartsModulePromise = null
 const loadEcharts = async () => {
