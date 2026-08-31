@@ -88,7 +88,7 @@ EISCore 的工程化目标不是减少文件行数，也不是追求一次性“
 - G2 前端权限判断：9 个权限适配器共享同一平台服务，兼容规则见 `adr/0005-platform-permission-boundary.md`。
 - G2 非会话本地存储：领域缓存通过安全适配器渐进迁移，Key/格式/异常降级边界见 `adr/0006-domain-local-storage-boundary.md`。
 - G2 Grid/UI 单一来源：共享入口与实现主体由 8 个薄适配器消费，9 个具名扩展受专项契约锁定，边界见 `adr/0007-grid-single-source.md`。
-- G3 Realtime HTTP 传输边界：41 条路由进入只读 Manifest，组合根只注入处理器与鉴权器；渐进式模块化边界见 `adr/0008-realtime-modular-monolith.md`。
+- G3 Realtime 模块化单体：41 条路由进入只读 Manifest，Twin 会话/消息/知识库处理器进入可独立验证的注入式工厂；渐进式边界见 `adr/0008-realtime-modular-monolith.md`。
 
 G2 已通过退出审计；接受库存和持续门禁见 `G2_EXIT_AUDIT.md`。当前主要工作进入 G3 核心模块可维护性。
 

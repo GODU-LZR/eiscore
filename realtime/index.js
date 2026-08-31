@@ -20,6 +20,7 @@ const { createDocumentPlanWorker } = require('./document-planner');
 const { createDocumentEntryWorker } = require('./document-entry');
 const { createDocumentFixedEntryWorker } = require('./document-fixed-entry');
 const { createHttpRequestHandler } = require('./http-router');
+const { createTwinResourceHttpHandlers } = require('./twin-resource-http');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -5602,128 +5603,13 @@ const handleTwinChat = async (req, res) => {
   }
 };
 
-/**
- * GET /twin/sessions — 列出会话历史
- */
-const handleTwinSessionsList = async (req, res) => {
-  const user = authorizeTwinRequest(req, res);
-  if (!user) return;
-  try {
-    const pgQuery = bindPgQueryForUser(user);
-    const persistence = createPersistence(pgQuery, user.username);
-    const sessions = await persistence.listSessions(30);
-    sendJson(res, 200, { sessions });
-  } catch (error) {
-    sendJson(res, 500, { code: 'TWIN_SESSIONS_FAILED', message: error?.message || 'Failed to list sessions' });
-  }
-};
-
-/**
- * DELETE /twin/sessions?id=xxx — 删除会话
- */
-const handleTwinSessionDelete = async (req, res) => {
-  const user = authorizeTwinRequest(req, res);
-  if (!user) return;
-  try {
-    const url = new URL(req.url, `http://localhost:${port}`);
-    const sessionId = url.searchParams.get('id') || '';
-    if (!sessionId) {
-      sendJson(res, 400, { code: 'ID_REQUIRED', message: 'session id is required' });
-      return;
-    }
-    const pgQuery = bindPgQueryForUser(user);
-    const persistence = createPersistence(pgQuery, user.username);
-    await persistence.deleteSession(sessionId);
-    sendJson(res, 200, { ok: true });
-  } catch (error) {
-    console.error('[twin-session-delete] error:', error);
-    sendJson(res, 500, { code: 'TWIN_DELETE_FAILED', message: error?.message || 'Failed to delete session' });
-  }
-};
-
-/**
- * GET /twin/messages?session_id=xxx — 加载会话消息
- */
-const handleTwinMessagesGet = async (req, res) => {
-  const user = authorizeTwinRequest(req, res);
-  if (!user) return;
-  try {
-    const url = new URL(req.url, `http://localhost:${port}`);
-    const sessionId = url.searchParams.get('session_id') || '';
-    if (!sessionId) {
-      sendJson(res, 400, { code: 'SESSION_ID_REQUIRED', message: 'session_id is required' });
-      return;
-    }
-    const pgQuery = bindPgQueryForUser(user);
-    const persistence = createPersistence(pgQuery, user.username);
-    const messages = await persistence.loadHistory(sessionId, 50);
-    sendJson(res, 200, { messages });
-  } catch (error) {
-    sendJson(res, 500, { code: 'TWIN_MESSAGES_FAILED', message: error?.message || 'Failed to load messages' });
-  }
-};
-
-/**
- * POST /twin/knowledge/upload — 上传文件到个人知识库
- * Body: { fileName, fileType, fileSize, contentText, contentB64, tags, summary }
- */
-const handleTwinKnowledgeUpload = async (req, res) => {
-  const user = authorizeTwinRequest(req, res);
-  if (!user) return;
-  let body = {};
-  try {
-    body = await readJsonBody(req);
-  } catch (error) {
-    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
-    return;
-  }
-  try {
-    const pgQuery = bindPgQueryForUser(user);
-    const persistence = createPersistence(pgQuery, user.username);
-    const file = await persistence.uploadKnowledgeFile(body);
-    sendJson(res, 200, { ok: true, file });
-  } catch (error) {
-    sendJson(res, 500, { code: 'TWIN_UPLOAD_FAILED', message: error?.message || 'Failed to upload file' });
-  }
-};
-
-/**
- * GET /twin/knowledge — 列出知识库文件
- */
-const handleTwinKnowledgeList = async (req, res) => {
-  const user = authorizeTwinRequest(req, res);
-  if (!user) return;
-  try {
-    const pgQuery = bindPgQueryForUser(user);
-    const persistence = createPersistence(pgQuery, user.username);
-    const files = await persistence.listKnowledgeFiles(50);
-    sendJson(res, 200, { files });
-  } catch (error) {
-    sendJson(res, 500, { code: 'TWIN_KB_LIST_FAILED', message: error?.message || 'Failed to list knowledge files' });
-  }
-};
-
-/**
- * DELETE /twin/knowledge?id=xxx — 删除知识库文件
- */
-const handleTwinKnowledgeDelete = async (req, res) => {
-  const user = authorizeTwinRequest(req, res);
-  if (!user) return;
-  try {
-    const url = new URL(req.url, `http://localhost:${port}`);
-    const fileId = url.searchParams.get('id') || '';
-    if (!fileId) {
-      sendJson(res, 400, { code: 'ID_REQUIRED', message: 'file id is required' });
-      return;
-    }
-    const pgQuery = bindPgQueryForUser(user);
-    const persistence = createPersistence(pgQuery, user.username);
-    await persistence.deleteKnowledgeFile(fileId);
-    sendJson(res, 200, { ok: true });
-  } catch (error) {
-    sendJson(res, 500, { code: 'TWIN_KB_DELETE_FAILED', message: error?.message || 'Failed to delete knowledge file' });
-  }
-};
+const twinResourceHttpHandlers = createTwinResourceHttpHandlers({
+  authorizeTwinRequest,
+  bindPgQueryForUser,
+  readJsonBody,
+  sendJson,
+  port
+});
 
 const server = http.createServer(createHttpRequestHandler({
   getRequestPath,
@@ -5752,12 +5638,7 @@ const server = http.createServer(createHttpRequestHandler({
     },
     twin: {
       handleChat: handleTwinChat,
-      handleSessionsList: handleTwinSessionsList,
-      handleSessionDelete: handleTwinSessionDelete,
-      handleMessagesGet: handleTwinMessagesGet,
-      handleKnowledgeList: handleTwinKnowledgeList,
-      handleKnowledgeUpload: handleTwinKnowledgeUpload,
-      handleKnowledgeDelete: handleTwinKnowledgeDelete
+      ...twinResourceHttpHandlers
     }
   }
 }));
