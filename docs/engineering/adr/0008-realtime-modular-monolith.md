@@ -40,4 +40,6 @@
 
 第十个切片把 PostgreSQL LISTEN、通知过滤/广播、可选 Workflow Engine、重连和资源回收迁入 `database-notifier.js`。模块拥有数据库连接生命周期，并向组合根只暴露 `start`、`query` 和 `shutdown`；AI 配置读取通过同一适配器查询。专项契约以模拟客户端锁定频道、目标用户、角色过滤、Workflow 专用分发、单一重连计时器和关闭清理，不连接数据库。
 
+第十一个切片把 AI 主/视觉配置 TTL 缓存、上游 payload、代理/超时、JSON/流传输与两套重试策略迁入 `ai-runtime-service.js`。服务只依赖数据库 query 端口和 Axios 适配器；组合根继续拥有 Agent 路由、OCR 编排和输出守卫，但不再直接导入 Axios 或管理 API Key。专项契约验证敏感字段不会透传、主/视觉默认值和重试差异保持，并覆盖 Node Stream 与 Web Reader。
+
 这些切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库或部署拓扑；可通过回退各自单提交恢复旧装配。Notifier 抽离保留默认连接参数、LISTEN 频道和通知 payload，同时在重连时显式回收旧 Workflow Engine。组合根仍包含大量 AI/Flash/Agent 领域实现，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
