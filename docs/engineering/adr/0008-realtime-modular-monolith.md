@@ -66,4 +66,6 @@
 
 第二十三个切片把 Agent 角色/项目环境配置、项目授权、写策略、审计、错误规范化和非流式任务 AI 调用迁入 `agent-access-service.js`。服务在创建时解析白名单，通过统一 AI Runtime 端口调用上游；日志只保留用户 id/role，路径拒绝 `..`，上游错误保留 code/status。组合根只向 Flash、HTTP 鉴权与 Agent 任务服务提供七个稳定能力。
 
+第二十四个切片在后端退出审计中把本体语义和十二域业务快照迁入 `ai-context-service.js`。服务注入用户态 PostgREST 端口，保持 4 条本体、25 条主快照与 1 条 HR 失败回退的请求矩阵，并在领域内完成业务聚合、部分失败记录与安全 fallback；组合根不再包含具体业务表或指标计算。
+
 这些切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库或部署拓扑；可通过回退各自单提交恢复旧装配。Notifier 抽离保留默认连接参数、LISTEN 频道和通知 payload，同时在重连时显式回收旧 Workflow Engine。组合根仍包含大量 Flash/Agent 及 AI Agent 路由/Prompt 领域实现，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
