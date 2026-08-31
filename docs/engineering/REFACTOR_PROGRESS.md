@@ -118,14 +118,15 @@
 | `b91c3b2` | 扩展 AI 只读 HTTP 边界 | 业务快照加入 AI 工厂，锁定正常与部分失败 warning 语义 |
 | `ba93c6d` | 抽离 Flash HTTP 处理器 | 5 条非流式接口进入注入式工厂，WebSocket 工具调用保持原位 |
 | `84412cc` | 抽离 Twin Chat 流式处理器 | SSE/ReAct 处理器进入工厂，锁定降级、流解析、中断与错误边界 |
-| 本文件所在提交 | 扩展 AI 媒体 HTTP 边界 | Translate/OCR/Map 进入 AI 工厂，锁定别名、上游 payload 与错误映射 |
+| `a932897` | 扩展 AI 媒体 HTTP 边界 | Translate/OCR/Map 进入 AI 工厂，锁定别名、上游 payload 与错误映射 |
+| 本文件所在提交 | 抽离 AI Chat 流式处理器 | 路由/守卫/双流处理进入工厂，完成 41 条 HTTP 处理器装配退出 |
 
 ## 当前切片
 
-- 状态：G3 进行中；Realtime 除 AI Chat 外的全部 HTTP 处理器均进入按域可测工厂，WebSocket 与领域实现仍在组合根。
-- 结果：`realtime/ai-http.js` 增加 Translate、OCR 与 Map Locate 三条处理器，组合根只注入文本/视觉上游、OCR 和规范化服务；`realtime/index.js` 由 6,719 降至 6,593 行。
-- 兼容边界：保持 AI 授权、`imageUrl/image_url` 别名、翻译空结果回退原文、默认/自定义 Prompt、thinking/model、文本一次 260ms 与视觉一次 360ms 重试、OCR 缺省 502、视觉配置温度/token、上游状态透传和三类 500 错误码；领域上游函数及 AI Chat 未移动。
-- 验证：专项契约覆盖未授权、坏 JSON、必填校验、翻译 payload/空回退/429、OCR 成功/502/500、地图默认坐标 Prompt/视觉 payload/503/配置 500；完整质量门禁覆盖 132 个 Node 脚本、14 个锁定 CI 包、41 条路由及既有契约、1078 个文本秘密扫描、5 个变更代码文件 lint、23 个 Shell 与生产 Compose，完整离线单元套件通过。未执行远程测试。
+- 状态：G3 进行中；Realtime 的 41 条 HTTP 路由与全部业务处理器已退出组合根并具备独立契约，下一阶段转向 WebSocket 传输和领域/持久化边界。
+- 结果：`realtime/ai-chat-http.js` 承载 AI Chat 的消息/OCR、Agent 路由、语义/快照上下文、输出守卫、上游重试及 Node/Web 双流转发；`realtime/index.js` 仅装配工厂，行数由 6,593 降至 6,436，较 G3 起点减少 950 行。
+- 兼容边界：保持 body 透传、企业上下文注入、两次 320ms 重试、Guard 强制非流、响应头、请求流回退 SSE、Node Stream 事件/close destroy、Web Reader cancel/release、无流 502 和总错误 500；Agent 路由、OCR、输出守卫与上游实现未改写。
+- 验证：AI Chat 专项契约覆盖未授权、坏 JSON、上下文注入、Guard JSON/流回退、429、Node/Web Stream、close、无效流 502 和配置 500；完整质量门禁覆盖 133 个 Node 脚本、14 个锁定 CI 包、41 条路由及既有契约、1080 个文本秘密扫描、5 个变更代码文件 lint、23 个 Shell 与生产 Compose，完整离线单元套件通过。未执行远程测试。
 
 ## 已知非阻断风险
 
@@ -140,8 +141,8 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/123 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- `realtime/index.js` 仍有 6,593 行且保留 health、AI Chat/上游、Flash/WebSocket 与大量领域逻辑；HTTP 处理器边界已明显改善但不能把本切片误判为 G3 完成。
+- `realtime/index.js` 仍有 6,436 行且保留 AI/Flash 领域实现、WebSocket 装配与大量消息处理；HTTP 子阶段完成不代表 G3 完成。
 
 ## 下一候选切片
 
-继续 G3：为 AI Chat 建立非流/流/输出守卫特征测试并迁入独立工厂；随后建立 WebSocket 消息类型库存与 Manifest，开始拆分传输层。继续保持路由、鉴权、响应、数据库和协议行为不变。
+继续 G3：建立 WebSocket 消息类型、鉴权与分发库存/Manifest，再把连接装配与业务消息处理分离；随后治理数据库迁移顺序/校验/回退。继续保持协议、鉴权、数据库和部署行为不变。

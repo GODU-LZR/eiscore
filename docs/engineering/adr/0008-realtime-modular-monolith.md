@@ -34,4 +34,6 @@
 
 第七个切片把 Translate、OCR 与 Map Locate 纳入 `ai-http.js`。三者共享授权/JSON 边界但继续注入各自文本上游、OCR 与视觉上游；字段别名、默认 Prompt、模型参数、重试策略及状态透传由专项契约分别保护，避免用一个通用客户端抹平真实语义差异。
 
+第八个切片把最后一条内联业务处理器 AI Chat 迁入 `ai-chat-http.js`。Agent 路由、OCR、企业语义/快照、输出守卫与上游作为应用依赖注入；Node Stream 与 Web Reader 两类传输继续保持原 close/cancel/release 行为。至此 41 条 HTTP 路由和全部业务处理器都已离开组合根，HTTP 子阶段完成；WebSocket、领域服务及持久化拆分仍是 G3 后续工作。
+
 该切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库、部署拓扑或 WebSocket 时序；可通过回退单提交恢复旧装配。组合根仍包含大量业务处理器，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
