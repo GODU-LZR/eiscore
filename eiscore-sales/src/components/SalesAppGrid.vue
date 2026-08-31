@@ -874,6 +874,20 @@ import {
   formatSalesDetailValue as formatDetailValue,
   getSalesRowDisplayName as getRowDisplayName
 } from '@/domain/sales-grid-detail-policy'
+import {
+  SALES_FLOW_DOC_TYPES as DOC_TYPES,
+  SALES_FLOW_RELATION_TYPES as RELATION_TYPES,
+  assertSalesOrderFlowSource,
+  buildSalesFlowNodes,
+  buildSalesOrderPropertiesPatch,
+  buildSalesOutboundPlan,
+  buildSalesPurchaseDemandCompletion,
+  buildSalesPurchaseDemandPlan,
+  buildSalesShipmentRequestPlan,
+  getSalesFlowDownstreamState,
+  projectSalesOutboundLink,
+  projectSalesShipmentLink
+} from '@/domain/sales-grid-flow-policy'
 
 const props = defineProps({
   appKey: { type: String, default: 'customers' },
@@ -928,24 +942,6 @@ const paymentStatusOptions = ['待核销', '部分核销', '已核销']
 const followTypeOptions = ['电话沟通', '微信沟通', '上门拜访', '视频会议', '展会接洽', '其他']
 const followResultOptions = ['待跟进', '有意向', '报价中', '样品确认', '已成交', '暂缓', '无效']
 const opportunityStageOptions = ['初步接洽', '需求确认', '方案报价', '商务谈判', '赢单', '输单', '搁置']
-const DOC_TYPES = Object.freeze({
-  SALES_ORDER: 'sales_order',
-  PURCHASE_DEMAND: 'purchase_demand',
-  PURCHASE_ORDER: 'purchase_order',
-  PURCHASE_ARRIVAL: 'purchase_arrival',
-  INVENTORY_INBOUND: 'inventory_inbound',
-  SALES_SHIPMENT: 'sales_shipment',
-  INVENTORY_OUTBOUND: 'inventory_outbound'
-})
-const RELATION_TYPES = Object.freeze({
-  SALES_TO_PURCHASE_DEMAND: 'sales_to_purchase_demand',
-  DEMAND_TO_ORDER: 'demand_to_order',
-  ORDER_TO_ARRIVAL: 'order_to_arrival',
-  ARRIVAL_TO_INBOUND: 'arrival_to_inbound',
-  SALES_TO_SHIPMENT_REQUEST: 'sales_to_shipment_request',
-  SHIPMENT_REQUEST_TO_SALES_OUTBOUND: 'shipment_request_to_sales_outbound',
-  SALES_TO_OUTBOUND: 'sales_to_outbound'
-})
 
 const orderForm = reactive({
   customer_id: '',
@@ -1105,37 +1101,12 @@ const selectedQuickOrderRemainAmount = computed(() => {
   return Math.max(toAmount(order.total_amount) - selectedQuickOrderPaidAmount.value, 0)
 })
 const flowPrimaryOrder = computed(() => flowSelectedRows.value[0] || selectedDetailRow.value || null)
-const salesFlowNodes = computed(() => {
-  const order = flowPrimaryOrder.value || {}
-  const docs = salesFlowDocs.value || {}
-  return [
-    { key: 'so', type: '销售订单', docNo: order.order_no, status: order.order_status, current: true },
-    { key: 'pr', type: '采购需求', docNo: docs.purchaseDemand?.demand_no, status: docs.purchaseDemand?.demand_status },
-    { key: 'po', type: '采购订单', docNo: docs.purchaseOrder?.order_no, status: docs.purchaseOrder?.order_status },
-    { key: 'pa', type: '到货/检验', docNo: docs.purchaseArrival?.arrival_no, status: docs.purchaseArrival?.arrival_status },
-    { key: 'in', type: '采购入库', docNo: docs.inventoryInbound?.inbound_no || docs.inventoryInbound?.docNo, status: docs.inventoryInbound?.status },
-    { key: 'ship', type: '出货申请', docNo: docs.salesShipment?.shipment_no || docs.salesShipment?.docNo, status: docs.salesShipment?.status },
-    { key: 'out', type: '销售出库', docNo: docs.salesOutbound?.outbound_no || docs.salesOutbound?.docNo, status: docs.salesOutbound?.status }
-  ]
-})
-const flowConfirmButtonType = computed(() => (flowNextStep.value === 'purchase_demand' ? 'success' : 'warning'))
-const salesDownstreamLabel = computed(() => {
-  if (flowNextStep.value === 'shipment_request') return '下游出货申请'
-  if (flowNextStep.value === 'sales_outbound') return '下游销售出库'
-  return '下游采购需求'
-})
-const salesDownstreamDocNo = computed(() => {
-  const docs = salesFlowDocs.value || {}
-  if (flowNextStep.value === 'shipment_request') return docs.salesShipment?.shipment_no || docs.salesShipment?.docNo || '未生成'
-  if (flowNextStep.value === 'sales_outbound') return docs.salesOutbound?.outbound_no || docs.salesOutbound?.docNo || '未生成'
-  return docs.purchaseDemand?.demand_no || '未生成'
-})
-const salesDownstreamStatus = computed(() => {
-  const docs = salesFlowDocs.value || {}
-  if (flowNextStep.value === 'shipment_request') return docs.salesShipment?.status || '可下推生成'
-  if (flowNextStep.value === 'sales_outbound') return docs.salesOutbound?.status || '可生成出库链路'
-  return docs.purchaseDemand?.demand_status || '可下推生成'
-})
+const salesFlowNodes = computed(() => buildSalesFlowNodes({ order: flowPrimaryOrder.value, docs: salesFlowDocs.value }))
+const salesDownstreamState = computed(() => getSalesFlowDownstreamState({ nextStep: flowNextStep.value, docs: salesFlowDocs.value }))
+const flowConfirmButtonType = computed(() => salesDownstreamState.value.buttonType)
+const salesDownstreamLabel = computed(() => salesDownstreamState.value.label)
+const salesDownstreamDocNo = computed(() => salesDownstreamState.value.docNo)
+const salesDownstreamStatus = computed(() => salesDownstreamState.value.status)
 const canReverseSalesDemand = computed(() => {
   return flowSelectedRows.value.length === 1
     && Boolean(salesFlowDocs.value?.purchaseDemand)
@@ -1905,13 +1876,7 @@ const loadSalesBusinessFlow = async (sourceOrder = null) => {
       : []
     const shipmentLink = salesShipmentLinks[0]
     if (shipmentLink) {
-      salesShipment = {
-        id: shipmentLink.target_doc_id,
-        shipment_no: shipmentLink.target_doc_no,
-        docNo: shipmentLink.target_doc_no,
-        status: shipmentLink.payload?.status || '待仓储确认',
-        payload: shipmentLink.payload || {}
-      }
+      salesShipment = projectSalesShipmentLink(shipmentLink)
       shipmentOutboundLinks = await request({
         url: `/document_links?${activeLinkQuery(DOC_TYPES.SALES_SHIPMENT, shipmentLink.target_doc_id, shipmentLink.target_doc_no)}&select=*`,
         method: 'get',
@@ -1921,26 +1886,12 @@ const loadSalesBusinessFlow = async (sourceOrder = null) => {
       const outboundLink = Array.isArray(shipmentOutboundLinks)
         ? shipmentOutboundLinks.find((link) => link.relation_type === RELATION_TYPES.SHIPMENT_REQUEST_TO_SALES_OUTBOUND)
         : null
-      if (outboundLink) {
-        salesOutbound = {
-          id: outboundLink.target_doc_id,
-          outbound_no: outboundLink.target_doc_no,
-          docNo: outboundLink.target_doc_no,
-          status: outboundLink.payload?.status || '待仓储补录'
-        }
-      }
+      if (outboundLink) salesOutbound = projectSalesOutboundLink(outboundLink)
     }
     directOutboundLinks = Array.isArray(salesDemandLinks)
       ? salesDemandLinks.filter((link) => link.relation_type === RELATION_TYPES.SALES_TO_OUTBOUND)
       : []
-    if (!salesOutbound && directOutboundLinks[0]) {
-      salesOutbound = {
-        id: directOutboundLinks[0].target_doc_id,
-        outbound_no: directOutboundLinks[0].target_doc_no,
-        docNo: directOutboundLinks[0].target_doc_no,
-        status: directOutboundLinks[0].payload?.status || '待仓储补录'
-      }
-    }
+    if (!salesOutbound && directOutboundLinks[0]) salesOutbound = projectSalesOutboundLink(directOutboundLinks[0])
 
     salesFlowDocs.value = { purchaseDemand, purchaseOrder, purchaseArrival, inventoryInbound, salesShipment, salesOutbound }
     salesFlowRelationLinks.value = [
@@ -2251,12 +2202,6 @@ const findExistingPurchaseDemandForOrder = async (order) => {
   return pickFirstByLinkTarget(demands, demandLink, 'demand_no')
 }
 
-const getSalesOrderSourceDoc = (order) => ({
-  docType: DOC_TYPES.SALES_ORDER,
-  docId: order?.id || null,
-  docNo: order?.order_no || ''
-})
-
 const findExistingShipmentForOrder = async (order) => {
   const link = await findActiveDocumentLink({
     sourceType: DOC_TYPES.SALES_ORDER,
@@ -2264,14 +2209,7 @@ const findExistingShipmentForOrder = async (order) => {
     sourceNo: order.order_no,
     relationType: RELATION_TYPES.SALES_TO_SHIPMENT_REQUEST
   })
-  if (!link) return null
-  return {
-    id: link.target_doc_id,
-    shipment_no: link.target_doc_no,
-    docNo: link.target_doc_no,
-    status: link.payload?.status || '待仓储确认',
-    payload: link.payload || {}
-  }
+  return projectSalesShipmentLink(link)
 }
 
 const findExistingOutboundForOrder = async (order, shipment = null) => {
@@ -2282,14 +2220,7 @@ const findExistingOutboundForOrder = async (order, shipment = null) => {
       sourceNo: shipment.shipment_no || shipment.docNo,
       relationType: RELATION_TYPES.SHIPMENT_REQUEST_TO_SALES_OUTBOUND
     })
-    if (shipmentLink) {
-      return {
-        id: shipmentLink.target_doc_id,
-        outbound_no: shipmentLink.target_doc_no,
-        docNo: shipmentLink.target_doc_no,
-        status: shipmentLink.payload?.status || '待仓储补录'
-      }
-    }
+    if (shipmentLink) return projectSalesOutboundLink(shipmentLink)
   }
   const directLink = await findActiveDocumentLink({
     sourceType: DOC_TYPES.SALES_ORDER,
@@ -2297,210 +2228,80 @@ const findExistingOutboundForOrder = async (order, shipment = null) => {
     sourceNo: order.order_no,
     relationType: RELATION_TYPES.SALES_TO_OUTBOUND
   })
-  if (!directLink) return null
-  return {
-    id: directLink.target_doc_id,
-    outbound_no: directLink.target_doc_no,
-    docNo: directLink.target_doc_no,
-    status: directLink.payload?.status || '待仓储补录'
-  }
+  return projectSalesOutboundLink(directLink)
 }
 
 const patchSalesOrderProperties = async (order, nextProperties, nextStatus = null) => {
-  const data = {
-    properties: {
-      ...(order.properties || {}),
-      ...nextProperties
-    }
-  }
-  if (nextStatus) data.order_status = nextStatus
   await request({
     url: `/sales_orders?id=eq.${safeEq(order.id)}`,
     method: 'patch',
     headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-    data,
+    data: buildSalesOrderPropertiesPatch(order, nextProperties, nextStatus),
     silentError: true
   }).catch(() => null)
 }
 
 const pushSingleOrderToShipmentRequest = async (order) => {
-  if (!order?.id) throw new Error('销售订单缺少主键，不能下推出货申请')
-  if (!isOrderActive(order)) throw new Error(`销售订单 ${order.order_no || order.id} 已取消或已删除`)
+  assertSalesOrderFlowSource(order, '出货申请')
   const existingShipment = await findExistingShipmentForOrder(order)
   if (existingShipment) return { skipped: true, shipment: existingShipment }
-  const quantity = toAmount(order.quantity)
-  if (quantity <= 0) throw new Error(`销售订单 ${order.order_no || order.id} 数量必须大于 0`)
-  const shipmentNo = nextDocNo('SHIP')
-  const sourceDoc = getSalesOrderSourceDoc(order)
-  const targetDoc = { docType: DOC_TYPES.SALES_SHIPMENT, docId: null, docNo: shipmentNo }
-  await createDocumentLink({
-    source: sourceDoc,
-    target: targetDoc,
-    relationType: RELATION_TYPES.SALES_TO_SHIPMENT_REQUEST,
-    quantity,
-    amount: toAmount(order.total_amount),
-    payload: {
-      status: '待仓储确认',
-      customer_name: order.customer_name || '',
-      product_name: order.product_name || '',
-      product_material_id: order.product_material_id || order.properties?.product_material_id || null,
-      product_material_code: order.properties?.product_material_code || '',
-      unit: order.unit || '',
-      delivery_date: order.delivery_date || null
-    }
+  const plan = buildSalesShipmentRequestPlan({
+    order,
+    shipmentNo: nextDocNo('SHIP'),
+    pushedAt: new Date().toISOString()
   })
-  await writeDocumentAudit({
-    actionType: 'push_sales_order_to_shipment_request',
-    source: sourceDoc,
-    target: targetDoc,
-    payload: { quantity, customer_name: order.customer_name || '', product_name: order.product_name || '' }
-  })
-  await patchSalesOrderProperties(order, {
-    shipment_no: shipmentNo,
-    shipment_status: '待仓储确认',
-    shipment_pushed_at: new Date().toISOString(),
-    workflow_status: 'running',
-    workflow_key: 'sales_to_shipment_outbound'
-  })
-  return { skipped: false, shipment: { shipment_no: shipmentNo, status: '待仓储确认' } }
+  await createDocumentLink(plan.documentLink)
+  await writeDocumentAudit(plan.audit)
+  await patchSalesOrderProperties(order, plan.orderPatch)
+  return { skipped: false, shipment: plan.shipment }
 }
 
 const pushSingleOrderToSalesOutbound = async (order) => {
-  if (!order?.id) throw new Error('销售订单缺少主键，不能下推销售出库')
-  if (!isOrderActive(order)) throw new Error(`销售订单 ${order.order_no || order.id} 已取消或已删除`)
+  assertSalesOrderFlowSource(order, '销售出库')
   const shipmentResult = await pushSingleOrderToShipmentRequest(order)
   const shipment = shipmentResult.shipment
   const existingOutbound = await findExistingOutboundForOrder(order, shipment)
   if (existingOutbound) return { skipped: true, outbound: existingOutbound }
-  const quantity = toAmount(order.quantity)
-  if (quantity <= 0) throw new Error(`销售订单 ${order.order_no || order.id} 数量必须大于 0`)
-  const outboundNo = nextDocNo('SOUT')
-  const sourceDoc = {
-    docType: DOC_TYPES.SALES_SHIPMENT,
-    docId: shipment?.id || null,
-    docNo: shipment?.shipment_no || shipment?.docNo || ''
-  }
-  const targetDoc = { docType: DOC_TYPES.INVENTORY_OUTBOUND, docId: null, docNo: outboundNo }
-  await createDocumentLink({
-    source: sourceDoc,
-    target: targetDoc,
-    relationType: RELATION_TYPES.SHIPMENT_REQUEST_TO_SALES_OUTBOUND,
-    quantity,
-    amount: toAmount(order.total_amount),
-    payload: {
-      status: '待仓储补录',
-      io_type: '销售出库',
-      sales_order_id: order.id,
-      sales_order_no: order.order_no || '',
-      customer_name: order.customer_name || '',
-      product_name: order.product_name || '',
-      product_material_id: order.product_material_id || order.properties?.product_material_id || null,
-      product_material_code: order.properties?.product_material_code || '',
-      unit: order.unit || ''
-    }
+  const plan = buildSalesOutboundPlan({
+    order,
+    shipment,
+    outboundNo: nextDocNo('SOUT'),
+    pushedAt: new Date().toISOString()
   })
-  await createDocumentLink({
-    source: getSalesOrderSourceDoc(order),
-    target: targetDoc,
-    relationType: RELATION_TYPES.SALES_TO_OUTBOUND,
-    quantity,
-    amount: toAmount(order.total_amount),
-    payload: {
-      status: '待仓储补录',
-      io_type: '销售出库',
-      shipment_no: shipment?.shipment_no || shipment?.docNo || ''
-    }
-  })
-  await writeDocumentAudit({
-    actionType: 'push_sales_order_to_sales_outbound',
-    source: getSalesOrderSourceDoc(order),
-    target: targetDoc,
-    payload: { quantity, io_type: '销售出库', customer_name: order.customer_name || '', product_name: order.product_name || '' }
-  })
-  await patchSalesOrderProperties(order, {
-    shipment_no: shipment?.shipment_no || shipment?.docNo || '',
-    sales_outbound_no: outboundNo,
-    sales_outbound_status: '待仓储补录',
-    sales_outbound_pushed_at: new Date().toISOString(),
-    workflow_status: 'running',
-    workflow_key: 'sales_to_shipment_outbound'
-  }, order.order_status === '草稿' ? '已确认' : null)
-  return { skipped: false, outbound: { outbound_no: outboundNo, status: '待仓储补录' } }
+  await createDocumentLink(plan.shipmentLink)
+  await createDocumentLink(plan.directLink)
+  await writeDocumentAudit(plan.audit)
+  await patchSalesOrderProperties(order, plan.orderPatch, plan.nextOrderStatus)
+  return { skipped: false, outbound: plan.outbound }
 }
 
 const pushSingleOrderToPurchaseDemand = async (order) => {
-  if (!order?.id) throw new Error('销售订单缺少主键，不能下推')
-  if (!isOrderActive(order)) throw new Error(`销售订单 ${order.order_no || order.id} 已取消或已删除`)
+  assertSalesOrderFlowSource(order)
   const existingDemand = await findExistingPurchaseDemandForOrder(order)
   if (existingDemand) return { skipped: true, demand: existingDemand }
 
-  const quantity = toAmount(order.quantity)
-  if (quantity <= 0) throw new Error(`销售订单 ${order.order_no || order.id} 数量必须大于 0`)
-
-  const demandPayload = {
-    demand_no: `PR${Date.now().toString().slice(-8)}${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`,
-    material_no: order.properties?.product_material_code || '',
-    material_name: order.product_name || '待录入物料',
-    quantity,
-    unit: order.unit || '箱',
-    required_date: order.delivery_date || null,
-    source_dept: '销售订单',
-    requester_name: order.owner_name || '',
-    preferred_supplier: '',
-    demand_status: '待采购',
-    status: 'active',
-    properties: {
-      source_type: 'sales_order',
-      source_order_id: order.id,
-      source_order_no: order.order_no || '',
-      source_order_nos: order.order_no || '',
-      audit_status: '未提交',
-      workflow_status: 'not_started',
-      workflow_key: 'sales_to_purchase_inbound',
-      customer_name: order.customer_name || '',
-      product_name: order.product_name || '',
-      product_material_id: order.product_material_id || order.properties?.product_material_id || null,
-      product_material_code: order.properties?.product_material_code || ''
-    }
-  }
+  const plan = buildSalesPurchaseDemandPlan({ order, demandNo: nextDocNo('PR') })
   const createdRows = await request({
     url: '/purchase_demands',
     method: 'post',
     headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=representation' },
-    data: demandPayload
+    data: plan.demandPayload
   })
   const demand = Array.isArray(createdRows) ? createdRows[0] : createdRows
-  const sourceDoc = { docType: DOC_TYPES.SALES_ORDER, docId: order.id, docNo: order.order_no || '' }
-  const targetDoc = { docType: DOC_TYPES.PURCHASE_DEMAND, docId: demand?.id || null, docNo: demand?.demand_no || demandPayload.demand_no }
-  await createDocumentLink({
-    source: sourceDoc,
-    target: targetDoc,
-    relationType: RELATION_TYPES.SALES_TO_PURCHASE_DEMAND,
-    quantity,
-    amount: toAmount(order.total_amount),
-    payload: { product_name: order.product_name || '', customer_name: order.customer_name || '' }
+  const completion = buildSalesPurchaseDemandCompletion({
+    order,
+    demand,
+    demandPayload: plan.demandPayload,
+    quantity: plan.quantity,
+    pushedAt: new Date().toISOString()
   })
-  await writeDocumentAudit({
-    actionType: 'push_sales_order_to_purchase_demand',
-    source: sourceDoc,
-    target: targetDoc,
-    payload: { quantity, product_name: order.product_name || '' }
-  })
+  await createDocumentLink(completion.documentLink)
+  await writeDocumentAudit(completion.audit)
   await request({
     url: `/sales_orders?id=eq.${safeEq(order.id)}`,
     method: 'patch',
     headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-    data: {
-      properties: {
-        ...(order.properties || {}),
-        purchase_pushed_at: new Date().toISOString(),
-        audit_status: order.properties?.audit_status || '已审核',
-        workflow_status: 'running',
-        workflow_key: 'sales_to_purchase_inbound',
-        purchase_demand_id: demand?.id || null,
-        purchase_demand_no: demand?.demand_no || demandPayload.demand_no
-      }
-    }
+    data: buildSalesOrderPropertiesPatch(order, completion.orderPatch)
   })
   return { skipped: false, demand }
 }
