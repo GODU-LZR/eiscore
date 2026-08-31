@@ -64,4 +64,6 @@
 
 第二十二个切片把 Agent 任务、FileWatcher、工具调用、终端执行和连接清理迁入 `agent-task-service.js`。WebSocket 传输层的三类 handler 只委托服务，连接关闭通过服务释放 watcher；服务继续通过注入端口消费权限、项目、AI 配置、写策略、错误与 Agent Core，专项以假 Conversation/Watcher 禁止真实命令执行并锁定全部响应和审计语义。
 
+第二十三个切片把 Agent 角色/项目环境配置、项目授权、写策略、审计、错误规范化和非流式任务 AI 调用迁入 `agent-access-service.js`。服务在创建时解析白名单，通过统一 AI Runtime 端口调用上游；日志只保留用户 id/role，路径拒绝 `..`，上游错误保留 code/status。组合根只向 Flash、HTTP 鉴权与 Agent 任务服务提供七个稳定能力。
+
 这些切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库或部署拓扑；可通过回退各自单提交恢复旧装配。Notifier 抽离保留默认连接参数、LISTEN 频道和通知 payload，同时在重连时显式回收旧 Workflow Engine。组合根仍包含大量 Flash/Agent 及 AI Agent 路由/Prompt 领域实现，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
