@@ -366,6 +366,71 @@ const parseJsonObject = (value) => {
   }
 }
 
+export const resolveWorkflowRuntimeConfig = (config) => {
+  const cfg = config && typeof config === 'object' ? config : {}
+  const businessAppId = String(cfg.workflowBusinessAppId || '').trim()
+  const rawBindings = cfg.workflowTaskBusinessAppBindings
+  const taskBindings = {}
+  if (rawBindings && typeof rawBindings === 'object' && !Array.isArray(rawBindings)) {
+    Object.entries(rawBindings).forEach(([taskId, binding]) => {
+      const key = String(taskId || '').trim()
+      const value = String(binding || '').trim()
+      if (key && value) taskBindings[key] = value
+    })
+  }
+  const rules = cfg.workflowAutoAdvanceRules
+  return {
+    businessAppId,
+    taskBindings,
+    tableBinding: businessAppId.startsWith('table:')
+      ? String(businessAppId.slice('table:'.length) || '').trim()
+      : '',
+    legacyBinding: businessAppId.startsWith('legacy:') ? businessAppId : '',
+    autoAdvanceEnabled: cfg.workflowAutoAdvanceEnabled === true,
+    autoAdvanceRules: rules && typeof rules === 'object' ? rules : {}
+  }
+}
+
+export const formatWorkflowBusinessBindingSummary = ({
+  businessAppId,
+  taskBindings,
+  businessApps = []
+} = {}) => {
+  const bindingCount = Object.keys(taskBindings || {}).length
+  if (bindingCount > 0) return `按任务绑定（${bindingCount} 个节点）`
+  const targetId = String(businessAppId || '').trim()
+  if (targetId.startsWith('legacy:')) {
+    return LEGACY_BINDING_LABEL_MAP[targetId] || `业务应用：${targetId}`
+  }
+  if (targetId.startsWith('table:')) {
+    return `旧按表绑定：${String(targetId.slice('table:'.length) || '').trim()}`
+  }
+  if (!targetId) return ''
+  const matched = (Array.isArray(businessApps) ? businessApps : [])
+    .find((item) => String(item?.id || '') === targetId)
+  if (!matched) return '已绑定业务应用'
+  const cfg = parseJsonObject(matched?.config) || {}
+  const tableName = String(cfg.table || '').trim()
+  return tableName ? `业务应用：${matched.name}（${tableName}）` : `业务应用：${matched.name}`
+}
+
+export const resolveConfiguredTaskBusinessBinding = ({
+  taskId,
+  taskName,
+  taskBindings,
+  globalBinding
+} = {}) => {
+  const key = String(taskId || '').trim()
+  if (key && taskBindings?.[key]) return String(taskBindings[key] || '').trim()
+  const binding = String(globalBinding || '').trim()
+  if (binding === 'legacy:mms_inventory_stock_in' || binding === 'legacy:mms_inventory_stock_out') {
+    const taskText = `${key} ${String(taskName || '')}`.toLowerCase()
+    if (/出库|outbound|stock[_-]?out/.test(taskText)) return 'legacy:mms_inventory_stock_out'
+    if (/入库|inbound|stock[_-]?in/.test(taskText)) return 'legacy:mms_inventory_stock_in'
+  }
+  return binding
+}
+
 export const resolveBoundStateTarget = ({ binding, businessApps = [] }) => {
   const normalizedBinding = String(binding || '').trim()
   if (normalizedBinding.startsWith('legacy:')) {

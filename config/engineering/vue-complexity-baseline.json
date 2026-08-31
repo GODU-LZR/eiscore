@@ -9,7 +9,7 @@
     "node_modules"
   ],
   "files": {
-    "eiscore-apps/src/views/AppRuntime.vue": 4118,
+    "eiscore-apps/src/views/AppRuntime.vue": 4065,
     "eiscore-sales/src/components/SalesAppGrid.vue": 4534,
     "eiscore-base/src/components/AiCopilot.vue": 4393,
     "eiscore-apps/src/views/FlashBuilder.vue": 4264,

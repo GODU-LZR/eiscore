@@ -20,6 +20,7 @@ import {
   formatApprovalMode,
   formatPolicyBool,
   formatTransitionStatePair,
+  formatWorkflowBusinessBindingSummary,
   getWorkflowStateColor,
   getWorkflowStateLabel,
   getWorkflowStateLevel,
@@ -36,11 +37,13 @@ import {
   normalizeStatusTokenForPermission,
   parseSchemaTable,
   resolveBoundStateTarget,
+  resolveConfiguredTaskBusinessBinding,
   resolveExpectedStateForRow,
   resolveInventoryDraftType,
   resolveTargetBusinessAppId,
   resolveTaskAutoRule,
-  resolveWorkflowPermissionDefMeta
+  resolveWorkflowPermissionDefMeta,
+  resolveWorkflowRuntimeConfig
 } from '../../eiscore-apps/src/domain/app-runtime-workflow-policy.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
@@ -325,6 +328,76 @@ assert.deepEqual(buildBusinessRecordQueryPlan({
 ])
 assert.deepEqual(buildBusinessRecordQueryPlan({}), [])
 
+assert.deepEqual(resolveWorkflowRuntimeConfig(null), {
+  businessAppId: '',
+  taskBindings: {},
+  tableBinding: '',
+  legacyBinding: '',
+  autoAdvanceEnabled: false,
+  autoAdvanceRules: {}
+})
+const runtimeRules = { Task_A: { enabled: false, trigger_state: 'active' } }
+assert.deepEqual(resolveWorkflowRuntimeConfig({
+  workflowBusinessAppId: ' table:custom.orders ',
+  workflowTaskBusinessAppBindings: {
+    ' Task_A ': ' app-a ',
+    '': 'ignored',
+    Task_B: '   '
+  },
+  workflowAutoAdvanceEnabled: true,
+  workflowAutoAdvanceRules: runtimeRules
+}), {
+  businessAppId: 'table:custom.orders',
+  taskBindings: { Task_A: 'app-a' },
+  tableBinding: 'custom.orders',
+  legacyBinding: '',
+  autoAdvanceEnabled: true,
+  autoAdvanceRules: runtimeRules
+})
+assert.equal(resolveWorkflowRuntimeConfig({ workflowBusinessAppId: ' legacy:hr_employee ' }).legacyBinding, 'legacy:hr_employee')
+assert.equal(resolveWorkflowRuntimeConfig({ workflowAutoAdvanceEnabled: 'true' }).autoAdvanceEnabled, false)
+assert.deepEqual(resolveWorkflowRuntimeConfig({ workflowTaskBusinessAppBindings: [], workflowAutoAdvanceRules: 'bad' }).taskBindings, {})
+
+assert.equal(formatWorkflowBusinessBindingSummary({
+  businessAppId: 'legacy:hr_employee',
+  taskBindings: { A: 'app-a', B: 'app-b' }
+}), '按任务绑定（2 个节点）')
+assert.equal(formatWorkflowBusinessBindingSummary({ businessAppId: 'legacy:hr_employee' }), '人事花名册（HR）')
+assert.equal(formatWorkflowBusinessBindingSummary({ businessAppId: 'legacy:unknown' }), '业务应用：legacy:unknown')
+assert.equal(formatWorkflowBusinessBindingSummary({ businessAppId: ' table:custom.orders ' }), '旧按表绑定：custom.orders')
+assert.equal(formatWorkflowBusinessBindingSummary({}), '')
+assert.equal(formatWorkflowBusinessBindingSummary({ businessAppId: 'missing' }), '已绑定业务应用')
+assert.equal(formatWorkflowBusinessBindingSummary({
+  businessAppId: '99',
+  businessApps: [{ id: 99, name: '订单', config: '{"table":"custom.orders"}' }]
+}), '业务应用：订单（custom.orders）')
+assert.equal(formatWorkflowBusinessBindingSummary({
+  businessAppId: 'app-a',
+  businessApps: [{ id: 'app-a', name: '审批', config: '{bad' }]
+}), '业务应用：审批')
+
+assert.equal(resolveConfiguredTaskBusinessBinding({
+  taskId: ' Task_A ',
+  taskBindings: { Task_A: ' app-a ' },
+  globalBinding: 'global-app'
+}), 'app-a')
+assert.equal(resolveConfiguredTaskBusinessBinding({
+  taskId: 'Task_Out',
+  taskName: '成品出库',
+  globalBinding: 'legacy:mms_inventory_stock_in'
+}), 'legacy:mms_inventory_stock_out')
+assert.equal(resolveConfiguredTaskBusinessBinding({
+  taskId: 'stock_in_review',
+  taskName: 'Review',
+  globalBinding: 'legacy:mms_inventory_stock_out'
+}), 'legacy:mms_inventory_stock_in')
+assert.equal(resolveConfiguredTaskBusinessBinding({
+  taskId: 'Task_A',
+  taskName: 'General review',
+  globalBinding: ' legacy:mms_inventory_stock_in '
+}), 'legacy:mms_inventory_stock_in')
+assert.equal(resolveConfiguredTaskBusinessBinding({ globalBinding: ' app-a ' }), 'app-a')
+
 assert.equal(LEGACY_BINDING_LABEL_MAP['legacy:mms_inventory_stock_in'], '入库（MMS）')
 assert.equal(LEGACY_TABLE_BINDING_MAP['scm.production_work_orders'], 'legacy:production_work_order')
 assert.deepEqual(LEGACY_BINDING_STATE_TARGET_MAP['legacy:hr_employee'], {
@@ -348,10 +421,12 @@ for (const removedDefinition of [
   'const parseSchemaTable =',
   'const extractBusinessDocNo =',
   'const isAutoAdvanceSatisfied =',
-  'const resolveBoundStateTarget ='
+  'const resolveBoundStateTarget =',
+  'const workflowBusinessAppId = computed(() => {',
+  'const workflowTaskBusinessAppBindings = computed(() => {'
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 4284)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 4065)
 
 console.log('PASS: AppRuntime workflow policy preserves states, approvals, permissions, generated rules and legacy bindings')

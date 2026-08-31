@@ -897,7 +897,6 @@ import {
   resolveBindingDisplayName as resolveBusinessBindingDisplayName
 } from '@/domain/app-runtime-navigation-policy.mjs'
 import {
-  LEGACY_BINDING_LABEL_MAP,
   WORKFLOW_STATUS_ORDER,
   buildBusinessRecordQueryPlan,
   buildGeneratedTransitionRule,
@@ -909,6 +908,7 @@ import {
   formatApprovalMode,
   formatPolicyBool,
   formatTransitionStatePair,
+  formatWorkflowBusinessBindingSummary,
   getWorkflowStateColor,
   getWorkflowStateLabel,
   getWorkflowStateLevel,
@@ -925,9 +925,11 @@ import {
   normalizeStatusTokenForPermission,
   parseSchemaTable,
   resolveExpectedStateForRow as resolveExpectedState,
+  resolveConfiguredTaskBusinessBinding,
   resolveInventoryDraftType,
   resolveTargetBusinessAppId,
-  resolveTaskAutoRule
+  resolveTaskAutoRule,
+  resolveWorkflowRuntimeConfig
 } from '@/domain/app-runtime-workflow-policy.mjs'
 
 const AppCenterGrid = defineAsyncComponent(() => import('@/components/AppCenterGrid.vue'))
@@ -1090,64 +1092,16 @@ const workflowSideOverview = computed(() => ([
 const workflowSideStyle = computed(() => ({
   width: workflowSideCollapsed.value ? '0px' : `${workflowSideWidth.value}px`
 }))
-const workflowBusinessAppId = computed(() => {
-  const cfg = appData.value?.config
-  if (!cfg || typeof cfg !== 'object') return ''
-  return String(cfg.workflowBusinessAppId || '').trim()
-})
-const workflowTaskBusinessAppBindings = computed(() => {
-  const cfg = appData.value?.config
-  if (!cfg || typeof cfg !== 'object') return {}
-  const raw = cfg.workflowTaskBusinessAppBindings
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
-  const next = {}
-  Object.entries(raw).forEach(([taskId, binding]) => {
-    const key = String(taskId || '').trim()
-    const value = String(binding || '').trim()
-    if (key && value) next[key] = value
-  })
-  return next
-})
-const workflowBusinessTableBinding = computed(() => {
-  const raw = workflowBusinessAppId.value
-  if (!raw.startsWith('table:')) return ''
-  return String(raw.slice('table:'.length) || '').trim()
-})
-const workflowBusinessLegacyBinding = computed(() => {
-  const raw = workflowBusinessAppId.value
-  if (!raw.startsWith('legacy:')) return ''
-  return raw
-})
-const workflowAutoAdvanceEnabled = computed(() => {
-  const cfg = appData.value?.config
-  if (!cfg || typeof cfg !== 'object') return false
-  return cfg.workflowAutoAdvanceEnabled === true
-})
-const workflowAutoAdvanceRules = computed(() => {
-  const cfg = appData.value?.config
-  if (!cfg || typeof cfg !== 'object') return {}
-  const rules = cfg.workflowAutoAdvanceRules
-  return rules && typeof rules === 'object' ? rules : {}
-})
-const workflowBusinessAppName = computed(() => {
-  const taskBindingCount = Object.keys(workflowTaskBusinessAppBindings.value || {}).length
-  if (taskBindingCount > 0) {
-    return `按任务绑定（${taskBindingCount} 个节点）`
-  }
-  if (workflowBusinessLegacyBinding.value) {
-    return LEGACY_BINDING_LABEL_MAP[workflowBusinessLegacyBinding.value] || `业务应用：${workflowBusinessLegacyBinding.value}`
-  }
-  if (workflowBusinessTableBinding.value) {
-    return `旧按表绑定：${workflowBusinessTableBinding.value}`
-  }
-  const targetId = workflowBusinessAppId.value
-  if (!targetId) return ''
-  const matched = workflowBusinessApps.value.find((item) => String(item?.id || '') === targetId)
-  if (!matched) return '已绑定业务应用'
-  const cfg = parseJsonObject(matched?.config) || {}
-  const tableName = String(cfg.table || '').trim()
-  return tableName ? `业务应用：${matched.name}（${tableName}）` : `业务应用：${matched.name}`
-})
+const workflowRuntimeConfig = computed(() => resolveWorkflowRuntimeConfig(appData.value?.config))
+const workflowBusinessAppId = computed(() => workflowRuntimeConfig.value.businessAppId)
+const workflowTaskBusinessAppBindings = computed(() => workflowRuntimeConfig.value.taskBindings)
+const workflowAutoAdvanceEnabled = computed(() => workflowRuntimeConfig.value.autoAdvanceEnabled)
+const workflowAutoAdvanceRules = computed(() => workflowRuntimeConfig.value.autoAdvanceRules)
+const workflowBusinessAppName = computed(() => formatWorkflowBusinessBindingSummary({
+  businessAppId: workflowBusinessAppId.value,
+  taskBindings: workflowTaskBusinessAppBindings.value,
+  businessApps: workflowBusinessApps.value
+}))
 const workflowPolicyEffective = computed(() => {
   const cfg = appData.value?.config && typeof appData.value.config === 'object' ? appData.value.config : {}
   const policy = workflowPolicy.value && typeof workflowPolicy.value === 'object' ? workflowPolicy.value : {}
@@ -1212,19 +1166,12 @@ const workflowRuleSuggestedPermission = computed(() => buildWorkflowTransitionPe
 
 const resolveTaskBusinessBinding = (taskId) => {
   const key = String(taskId || '').trim()
-  if (key && workflowTaskBusinessAppBindings.value[key]) {
-    return String(workflowTaskBusinessAppBindings.value[key] || '').trim()
-  }
-  const globalBinding = workflowBusinessAppId.value
-  if (
-    globalBinding === 'legacy:mms_inventory_stock_in'
-    || globalBinding === 'legacy:mms_inventory_stock_out'
-  ) {
-    const taskText = `${key} ${formatTaskName(key)}`.toLowerCase()
-    if (/出库|outbound|stock[_-]?out/.test(taskText)) return 'legacy:mms_inventory_stock_out'
-    if (/入库|inbound|stock[_-]?in/.test(taskText)) return 'legacy:mms_inventory_stock_in'
-  }
-  return globalBinding
+  return resolveConfiguredTaskBusinessBinding({
+    taskId: key,
+    taskName: formatTaskName(key),
+    taskBindings: workflowTaskBusinessAppBindings.value,
+    globalBinding: workflowBusinessAppId.value
+  })
 }
 
 const getAppCenterHeaders = (token) => ({
