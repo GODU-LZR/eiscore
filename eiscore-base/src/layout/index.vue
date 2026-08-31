@@ -282,6 +282,11 @@ import {
   getUserTheme,
   saveUserTheme
 } from '@shared/eis-ui-preferences.mjs'
+import {
+  markGuideWelcomeSeen,
+  readGuideProgress,
+  writeGuideProgress
+} from '@shared/eis-guide-progress-store.mjs'
 
 const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
 const isCollapse = ref(false)
@@ -310,9 +315,6 @@ const { config } = storeToRefs(systemStore)
 const isDark = useDark({ storageKey: 'eis_theme_global' })
 const toggleDark = useToggle(isDark)
 const showThemeToggle = false
-const GUIDE_PROGRESS_VERSION = 'v1'
-const GUIDE_PROGRESS_PREFIX = `eis_guide_progress_${GUIDE_PROGRESS_VERSION}`
-const GUIDE_WELCOME_PREFIX = `eis_guide_welcome_${GUIDE_PROGRESS_VERSION}`
 const guideCenterVisible = ref(false)
 const guideWelcomeVisible = ref(false)
 const customGuides = ref([])
@@ -354,8 +356,6 @@ const guideUserKey = computed(() => {
   return String(username || 'guest').toLowerCase()
 })
 
-const guideProgressKey = computed(() => `${GUIDE_PROGRESS_PREFIX}_${guideUserKey.value}`)
-const guideWelcomeKey = computed(() => `${GUIDE_WELCOME_PREFIX}_${guideUserKey.value}`)
 const guideProgressSyncLabel = computed(() => {
   if (guideProgressSyncState.value === 'syncing') return '同步中'
   if (guideProgressSyncState.value === 'synced') return '已同步'
@@ -2898,21 +2898,16 @@ const normalizeGuideProgressEntry = (entry) => {
 }
 
 const loadGuideProgress = () => {
-  try {
-    const raw = localStorage.getItem(guideProgressKey.value)
-    const parsed = raw ? JSON.parse(raw) : {}
-    if (!parsed || typeof parsed !== 'object') {
-      guideProgress.value = {}
-      return
-    }
-    guideProgress.value = Object.fromEntries(
-      Object.entries(parsed)
-        .map(([key, entry]) => [key, normalizeGuideProgressEntry(entry)])
-        .filter(([, entry]) => entry)
-    )
-  } catch (e) {
+  const parsed = readGuideProgress(guideUserKey.value)
+  if (!parsed || typeof parsed !== 'object') {
     guideProgress.value = {}
+    return
   }
+  guideProgress.value = Object.fromEntries(
+    Object.entries(parsed)
+      .map(([key, entry]) => [key, normalizeGuideProgressEntry(entry)])
+      .filter(([, entry]) => entry)
+  )
 }
 
 const mergeGuideProgress = (incoming = {}) => {
@@ -2960,9 +2955,7 @@ const fetchSopLearningRecords = async () => {
 }
 
 const saveGuideProgress = () => {
-  try {
-    localStorage.setItem(guideProgressKey.value, JSON.stringify(guideProgress.value || {}))
-  } catch (e) {}
+  writeGuideProgress(guideUserKey.value, guideProgress.value || {})
 }
 
 const getGuideProgressEntry = (guideId) => normalizeGuideProgressEntry(guideProgress.value?.[guideId])
@@ -3123,9 +3116,7 @@ const resetGuideProgress = () => {
 }
 
 const closeWelcomeGuide = () => {
-  try {
-    localStorage.setItem(guideWelcomeKey.value, '1')
-  } catch (e) {}
+  markGuideWelcomeSeen(guideUserKey.value)
   guideWelcomeVisible.value = false
 }
 
