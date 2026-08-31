@@ -83,6 +83,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { showToast } from 'vant'
+import { navigateEnterprisePath } from '@eiscore/platform/navigation'
 import { fetchPdaWarehouses, fetchRecentChecks } from '@/api/warehouse'
 
 const router = useRouter()
@@ -127,11 +128,13 @@ function isCompletedCheck(status) {
 }
 
 function enterWarehouse(wh) {
-  // 跳转到桌面版盘点详情（未来可做纯移动端页面）
-  // 目前先用 iframe 或直接跳转
   showToast({ message: `进入 ${wh.name}`, icon: 'logistics' })
-  // 可配合 materials 子应用的盘点页面
-  window.location.href = `/materials/inventory-check/warehouse/${wh.code}`
+  const result = navigateEnterprisePath(`/materials/inventory-check/warehouse/${wh.code}`, {
+    tabTitle: `${wh.name}盘点`
+  })
+  if (!result.ok) {
+    showToast(result.reason === 'module-disabled' ? '仓储模块未启用' : '无法进入该仓库')
+  }
 }
 
 function startScan() {

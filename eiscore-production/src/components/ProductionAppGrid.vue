@@ -562,6 +562,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { navigateEnterprisePath } from '@eiscore/platform/navigation'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { pushAiCommand, pushAiContext } from '@/utils/ai-context'
@@ -1911,6 +1912,16 @@ const pushSingleIssueToMaterialOutbound = async (row, override = {}) => {
   return { skipped: false, outbound: { outbound_no: outboundNo, status: '待仓储补录' } }
 }
 
+const openProductionFlowTarget = (path, tabTitle, moduleName) => {
+  const result = navigateEnterprisePath(path, { tabTitle })
+  if (!result.ok) {
+    ElMessage.warning(result.reason === 'module-disabled'
+      ? `${moduleName}模块未启用，业务单据已生成但无法打开目标页面`
+      : `无法打开${tabTitle}，请稍后重试`)
+  }
+  return result
+}
+
 const pushSelectedWorkOrdersToQuality = async () => {
   const rows = flowSelectedRows.value.length ? flowSelectedRows.value : getSelectedFlowRows('work_orders')
   flowActionLoading.value = true
@@ -1936,7 +1947,7 @@ const pushSelectedWorkOrdersToQuality = async () => {
     }
     ElMessage.success(`已下推生产检验 ${createdCount} 单，跳过 ${skippedCount} 单`)
     flowDialogVisible.value = false
-    window.location.href = '/quality/app/production_inspections'
+    openProductionFlowTarget('/quality/app/production_inspections', '生产检验', '质量')
   } finally {
     flowActionLoading.value = false
   }
@@ -1967,7 +1978,7 @@ const pushSelectedWorkOrdersToInbound = async () => {
     }
     ElMessage.success(`已生成生产入库链路 ${createdCount} 单，跳过 ${skippedCount} 单`)
     flowDialogVisible.value = false
-    window.location.href = '/materials/inventory-stock-in?ioType=生产入库'
+    openProductionFlowTarget('/materials/inventory-stock-in?ioType=生产入库', '生产入库', '仓储')
   } finally {
     flowActionLoading.value = false
   }
@@ -1998,7 +2009,7 @@ const pushSelectedIssuesToOutbound = async () => {
     }
     ElMessage.success(`已生成生产领料出库链路 ${createdCount} 单，跳过 ${skippedCount} 单`)
     flowDialogVisible.value = false
-    window.location.href = '/materials/inventory-stock-out?ioType=生产领料'
+    openProductionFlowTarget('/materials/inventory-stock-out?ioType=生产领料', '生产领料', '仓储')
   } finally {
     flowActionLoading.value = false
   }

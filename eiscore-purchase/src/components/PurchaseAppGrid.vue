@@ -413,6 +413,7 @@ import { useRouter } from 'vue-router'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
+import { navigateEnterprisePath } from '@eiscore/platform/navigation'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
@@ -1858,7 +1859,12 @@ const pushSelectedArrivalsToInbound = async () => {
     }
     ElMessage.success(`已确认入库 ${createdCount} 单`)
     flowDialogVisible.value = false
-    window.location.href = '/materials/inventory-stock-in'
+    const navigation = navigateEnterprisePath('/materials/inventory-stock-in', { tabTitle: '采购入库' })
+    if (!navigation.ok) {
+      ElMessage.warning(navigation.reason === 'module-disabled'
+        ? '仓储模块未启用，入库单已生成但无法打开目标页面'
+        : '无法打开采购入库页面，请稍后重试')
+    }
   } finally {
     flowActionLoading.value = false
   }

@@ -1066,6 +1066,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Document, Refresh, Search, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { navigateEnterprisePath } from '@eiscore/platform/navigation'
 import {
   deviceStatusFilterOptions,
   duplicateFilterOptions,
@@ -1864,7 +1865,12 @@ const openBusinessRecord = (row) => {
     ElMessage.info('暂未配置该业务表的跳转路径')
     return
   }
-  window.location.href = url
+  const result = navigateEnterprisePath(url, { tabTitle: '业务记录' })
+  if (!result.ok) {
+    ElMessage.warning(result.reason === 'module-disabled'
+      ? '目标业务模块未启用，无法打开业务记录'
+      : '业务记录跳转地址无效')
+  }
 }
 
 const copyTextToClipboard = async (text) => {

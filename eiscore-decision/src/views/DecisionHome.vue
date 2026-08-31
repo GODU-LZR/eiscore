@@ -60,7 +60,8 @@
 // Copyright (c) 2026 林志荣
 
 import { computed, onMounted } from 'vue'
-import { qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
+import { ElMessage } from 'element-plus'
+import { navigateEnterprisePath } from '@eiscore/platform/navigation'
 import {
   Box,
   CircleCheck,
@@ -189,38 +190,16 @@ const dashboardCards = computed(() => baseDashboardCards
   })
   .sort(sortByAttention))
 
-const isRunningInQiankun = () => {
-  if (typeof window === 'undefined') return false
-  return Boolean(
-    qiankunWindow.__POWERED_BY_QIANKUN__ ||
-    window.__POWERED_BY_QIANKUN__ ||
-    window.proxy?.__POWERED_BY_QIANKUN__ ||
-    window.__INJECTED_PUBLIC_PATH_BY_QIANKUN__
-  )
-}
-
 const openHostTab = (card) => {
   if (!card?.route || card.disabled) return
-  const detail = {
-    path: card.route,
-    openInNewTab: true,
+  const result = navigateEnterprisePath(card.route, {
     tabKey: card.route,
     tabTitle: card.title
-  }
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('eis:open-host-tab', { detail }))
-    const payload = { type: 'eis:open-host-tab', detail }
-    try {
-      window.postMessage(payload, window.location.origin)
-    } catch (e) {}
-    try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage(payload, window.location.origin)
-      }
-    } catch (e) {}
-    if (!isRunningInQiankun()) {
-      window.location.href = card.route
-    }
+  })
+  if (!result.ok) {
+    ElMessage.warning(result.reason === 'module-disabled'
+      ? `${card.title}所属模块未启用`
+      : `无法打开${card.title}，请稍后重试`)
   }
 }
 
