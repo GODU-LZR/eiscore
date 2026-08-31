@@ -563,6 +563,19 @@ import {
   prepareAiGenericImportRows,
   shouldAiImportAttachCurrentUser as shouldAttachCurrentUser
 } from '@/domain/ai-copilot-import-policy'
+import {
+  AI_BPMN_BLOCKS as BPMN_BLOCKS,
+  AI_IMPORT_BLOCKS as IMPORT_BLOCKS,
+  AI_MATERIAL_CATEGORY_BLOCKS as MATERIAL_CATEGORY_BLOCKS,
+  AI_SMART_BI_ACTION_BLOCKS as SMART_BI_ACTION_BLOCKS,
+  AI_WORKFLOW_META_BLOCKS as WORKFLOW_META_BLOCKS,
+  buildAiImportPreview,
+  extractAiCategoryData,
+  extractAiFormTemplate,
+  extractAiFormula,
+  extractAiImportData,
+  getAiWorkflowInfo
+} from '@/domain/ai-copilot-message-block-policy'
 
 const props = defineProps({
   mode: { type: String, default: 'enterprise' },
@@ -697,19 +710,6 @@ const formatSessionTime = (value) => {
   if (diff < 86400 * 1000) return `${Math.floor(diff / 3600000)}小时前`
   return new Date(time).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })
 }
-
-const FORM_TEMPLATE_BLOCKS = ['form-template', 'form_template', 'form-schema', 'form_schema']
-const FORMULA_BLOCKS = ['formula']
-const IMPORT_BLOCKS = ['data-import', 'data_import', 'grid-import', 'grid_import']
-const BPMN_BLOCKS = ['bpmn-xml', 'bpmn_xml', 'workflow-bpmn', 'workflow_bpmn']
-const WORKFLOW_META_BLOCKS = ['workflow-meta', 'workflow_meta']
-const SMART_BI_ACTION_BLOCKS = ['smart-bi-actions', 'smart_bi_actions', 'bi-actions', 'bi_actions']
-const MATERIAL_CATEGORY_BLOCKS = [
-  'materials-categories',
-  'material-categories',
-  'materials_categories',
-  'material_categories'
-]
 
 const md = new MarkdownIt({
   html: false,
@@ -1222,146 +1222,21 @@ const isTokenExpired = (token) => {
   return Date.now() / 1000 >= payload.exp
 }
 
-const extractFormTemplate = (text) => {
-  if (!text) return { schema: null, error: null }
-  for (const tag of FORM_TEMPLATE_BLOCKS) {
-    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
-    const match = text.match(regex)
-    if (match && match[1]) {
-      try {
-        const raw = sanitizeJson(match[1])
-        const schema = JSON.parse(raw)
-        if (!schema || !schema.layout) {
-          return { schema: null, error: 'invalid' }
-        }
-        return { schema, error: null }
-      } catch (e) {
-        return { schema: null, error: 'parse' }
-      }
-    }
-  }
-  return { schema: null, error: null }
-}
+const getFormTemplateInfo = (msg) => extractAiFormTemplate(msg?.content || '', { sanitizeJson })
 
-const getFormTemplateInfo = (msg) => extractFormTemplate(msg?.content || '')
-
-const extractFormula = (text) => {
-  if (!text) return { formula: null, error: null }
-  for (const tag of FORMULA_BLOCKS) {
-    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
-    const match = text.match(regex)
-    if (match && match[1]) {
-      const formula = match[1].trim()
-      if (!formula) return { formula: null, error: 'empty' }
-      return { formula, error: null }
-    }
-  }
-  return { formula: null, error: null }
-}
-
-const extractImportData = (text) => {
-  if (!text) return { rows: null, error: null }
-  for (const tag of IMPORT_BLOCKS) {
-    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
-    const match = text.match(regex)
-    if (match && match[1]) {
-      try {
-        const raw = sanitizeJson(match[1])
-        const data = JSON.parse(raw)
-        const rows = Array.isArray(data) ? data : (data.rows || data.data || data.items || null)
-        if (!Array.isArray(rows)) return { rows: null, error: 'invalid' }
-        return { rows, error: null }
-      } catch (e) {
-        return { rows: null, error: 'parse' }
-      }
-    }
-  }
-  return { rows: null, error: null }
-}
-
-const extractBpmnXml = (text) => {
-  if (!text) return { xml: null, error: null }
-  for (const tag of BPMN_BLOCKS) {
-    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
-    const match = text.match(regex)
-    if (match && match[1]) {
-      const xml = match[1].trim()
-      if (!xml) return { xml: null, error: 'empty' }
-      return { xml, error: null }
-    }
-  }
-  return { xml: null, error: null }
-}
-
-const extractWorkflowMeta = (text) => {
-  if (!text) return { meta: null, error: null }
-  for (const tag of WORKFLOW_META_BLOCKS) {
-    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
-    const match = text.match(regex)
-    if (match && match[1]) {
-      try {
-        const raw = sanitizeJson(match[1])
-        const meta = JSON.parse(raw)
-        return { meta, error: null }
-      } catch (e) {
-        return { meta: null, error: 'parse' }
-      }
-    }
-  }
-  return { meta: null, error: null }
-}
-
-const getWorkflowInfo = (msg) => {
-  const { xml, error } = extractBpmnXml(msg?.content || '')
-  const meta = extractWorkflowMeta(msg?.content || '').meta
-  return { xml, meta, error }
-}
+const getWorkflowInfo = (msg) => getAiWorkflowInfo(msg?.content || '', { sanitizeJson })
 
 const extractSmartBiActions = (text) => extractAiSmartBiActions(text, { sanitizeJson })
 
 const getSmartBiActionInfo = (msg) => extractSmartBiActions(msg?.content || '')
 
-const getFormulaInfo = (msg) => extractFormula(msg?.content || '')
-const getImportInfo = (msg) => extractImportData(msg?.content || '')
-
-const normalizeCategoryTree = (list, parentId = '') => {
-  if (!Array.isArray(list)) return []
-  return list.map((item, idx) => {
-    const raw = item && typeof item === 'object' ? item : { label: String(item ?? '').trim() }
-    const label = String(raw.label ?? raw.name ?? '').trim() || `分类${idx + 1}`
-    let id = String(raw.id ?? raw.code ?? '').trim()
-    if (!id) {
-      const segment = String(idx + 1).padStart(2, '0')
-      id = parentId ? `${parentId}.${segment}` : segment
-    }
-    const children = normalizeCategoryTree(raw.children || raw.items || [], id)
-    return { id, label, children: children.length ? children : undefined }
-  })
-}
-
-const extractCategoryData = (text, blocks) => {
-  if (!text) return { data: null, error: null }
-  for (const tag of blocks) {
-    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
-    const match = text.match(regex)
-    if (match && match[1]) {
-      try {
-        const raw = sanitizeJson(match[1])
-        const json = JSON.parse(raw)
-        const list = Array.isArray(json)
-          ? json
-          : (json.list || json.items || json.categories || json.data || null)
-        if (!Array.isArray(list)) return { data: null, error: 'invalid' }
-        return { data: normalizeCategoryTree(list), error: null }
-      } catch (e) {
-        return { data: null, error: 'parse' }
-      }
-    }
-  }
-  return { data: null, error: null }
-}
-
-const getCategoryInfo = (msg) => extractCategoryData(msg?.content || '', MATERIAL_CATEGORY_BLOCKS)
+const getFormulaInfo = (msg) => extractAiFormula(msg?.content || '')
+const getImportInfo = (msg) => extractAiImportData(msg?.content || '', { sanitizeJson })
+const getCategoryInfo = (msg) => extractAiCategoryData(
+  msg?.content || '',
+  MATERIAL_CATEGORY_BLOCKS,
+  { sanitizeJson }
+)
 
 const shouldShowBubble = (msg) => {
   const html = renderMarkdown(msg?.content || '')
@@ -1372,30 +1247,7 @@ const shouldShowBubble = (msg) => {
   return text.length > 0
 }
 
-const getImportPreview = (info) => {
-  const rows = Array.isArray(info?.rows) ? info.rows : []
-  if (rows.length === 0) return { columns: [], rows: [] }
-  const keySet = new Set()
-  rows.forEach((row) => {
-    Object.keys(row || {}).forEach((key) => keySet.add(key))
-  })
-  const contextColumns = Array.isArray(state.currentContext?.columns)
-    ? state.currentContext.columns
-    : []
-  const orderedKeys = []
-  contextColumns.forEach((col) => {
-    if (keySet.has(col.prop)) orderedKeys.push(col.prop)
-  })
-  keySet.forEach((key) => {
-    if (!orderedKeys.includes(key)) orderedKeys.push(key)
-  })
-  const labelMap = new Map(contextColumns.map(col => [col.prop, col.label]))
-  const columns = orderedKeys.map((key) => ({
-    prop: key,
-    label: labelMap.get(key) || key
-  }))
-  return { columns, rows: rows.slice(0, 8) }
-}
+const getImportPreview = (info) => buildAiImportPreview(info, state.currentContext?.columns)
 
 const getTemplateSectionCount = (schema) => {
   if (!schema?.layout) return 0
