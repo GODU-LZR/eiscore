@@ -40,7 +40,7 @@
 | --- | ---: | --- |
 | `eiscore-sales/src/components/SalesAppGrid.vue` | 3,822 | 数据、详情、订单链路和快速录单策略已迁出，阶段退出门禁已建立 |
 | `eiscore-base/src/components/AiCopilot.vue` | 3,522 | 7 类纯策略已迁出，阶段退出门禁已建立 |
-| `eiscore-apps/src/views/FlashBuilder.vue` | 3,741 | 草稿、Shell、Markdown 与预览纯策略已迁出；继续拆 IDE/WS 候选或发布校验策略 |
+| `eiscore-apps/src/views/FlashBuilder.vue` | 3,741 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/AppRuntime.vue` | 3,725 | Runtime 协议、生命周期组合；BPMN、Workflow、自动推进、导航、Flash 来源、配置/选项、规则、就绪、授权与任务路由策略已迁出 |
 | `eiscore-base/src/layout/index.vue` | 4,003 | 标签/菜单策略、主题/企业配置、布局组件 |
 | `eiscore-apps/src/views/OntologyWorkbench.vue` | 2,772 | 本体查询策略、编辑器状态、关系视图 |
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-继续 `eiscore-apps/src/views/FlashBuilder.vue`：审计 IDE/WS 候选或发布校验纯策略，保持网络探测、DOM、Storage、远程同步、WebSocket、Cline 和 UI 状态时序不变。
+转向 `eiscore-base/src/layout/index.vue`：先建立标签/菜单、主题、企业配置、身份权限和窗口事件职责库存，再选择无视觉变化的纯策略切片。

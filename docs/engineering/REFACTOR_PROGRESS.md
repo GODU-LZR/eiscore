@@ -171,14 +171,15 @@
 | `3e4e447` | 抽离 FlashBuilder 草稿来源策略 | 默认草稿、源码规范化、快照回填、隔离优先级与配置合并进入纯领域模块 |
 | `52f1e5c` | 抽离 FlashBuilder Shell 会话策略 | 消息、工具调用、思考/回答、附件、会话、历史与重试规则进入纯领域模块 |
 | `76c0a5d` | 抽离 FlashBuilder Markdown 安全渲染策略 | HTML 转义、URL 白名单、行内语法、表格、块与代码围栏进入纯领域模块 |
-| 本文件所在提交 | 抽离 FlashBuilder 预览策略 | IDE HTML 探针、遮罩文案、比例样式、Snapshot 清理与源码兜底进入纯领域模块 |
+| `175c0af` | 抽离 FlashBuilder 预览策略 | IDE HTML 探针、遮罩文案、比例样式、Snapshot 清理与源码兜底进入纯领域模块 |
+| 本文件所在提交 | 完成 FlashBuilder 纯策略阶段退出审计 | 锁定 3,741 行、4 个纯策略模块、39 个导出及组合副作用上限 |
 
 ## 当前切片
 
-- 状态：G3 进行中；FlashBuilder 第四个渐进拆分切片完成，下一步审计 IDE/WS 候选或发布校验纯策略。
-- 结果：新增无 Vue、Element Plus、Axios、浏览器、Storage 或隐式时间依赖的 `flash-builder-preview-policy.js`，迁出 Code Server/EISCore Shell HTML 探针、Glass 文案、0.4–4 预览比例、Stage 样式、可注入 DOM Parser 的动态脚本清理、正则降级和源码兜底快照包装。`FlashBuilder.vue` 从 3,808 降至 3,741 行，巨页债务从 87,700 降至 87,633 行并收紧棘轮。
-- 兼容边界：12,000 字符探针上限、文案优先级、比例边界、240px 视口偏移、`script`/`noscript`/预加载清理、Doctype 和源码 HTML 转义保持；DOMParser 由页面注入，iframe、重试、网络探测、发布写入和 UI 时序不变。同时修复 Markdown 切片后源码兜底残留的旧局部 `escapeHtml` 引用，并由页面委托门禁锁定。
-- 验证：专项锁定 IDE/Shell 探针、Glass 文案、比例、Stage 样式、DOM/正则双路径清理、源码快照转义、纯依赖和页面委托；完整质量门禁与离线单元套件通过，覆盖 178 个 Node 文件语法、14 个锁定 CI 包、1,172 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,326 个模块；没有调用 Cline/Agent、数据库、草稿工具或远程环境。
+- 状态：G3 进行中；FlashBuilder 纯策略子目标完成并退出，下一目标转向 4,003 行 `eiscore-base/src/layout/index.vue`。
+- 结果：新增组合退出门禁和 `G3_FLASH_BUILDER_EXIT_AUDIT.md`，锁定 3,741 行页面、366/2,057/1,315 行 SFC 分区、4 个纯策略模块/39 个导出，以及 1 个 Axios Agent 请求、1 个 IDE Fetch、1 个 WebSocket、12 个 Flash Tool 入口、13 个消息/确认、2 个 Router、4 个 Watch、110 个 Callable、14 个 Timeout、1 个 Interval 和各 1 个 Mounted/Unmounted 的只降不增上限。
+- 兼容边界：四个策略模块继续禁止 Vue、Element Plus、网络、浏览器、Storage 与隐式时间依赖；直接 Storage、EventSource、XMLHttpRequest 与 `window.location` 导航失败关闭。现有专用 Agent/IDE/WebSocket、DOM、缓存、上传、发布和 UI 时序作为组合边界保留。
+- 验证：组合专项、完整质量门禁与离线单元套件通过，覆盖 179 个 Node 文件语法、14 个锁定 CI 包、1,174 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,326 个模块；本切片不修改产品代码，没有调用 Cline/Agent、数据库、草稿工具或远程环境。
 
 ## 已知非阻断风险
 
@@ -198,4 +199,4 @@
 
 ## 下一候选切片
 
-继续 G3：审计 3,741 行 `eiscore-apps/src/views/FlashBuilder.vue` 的 IDE/WS 候选或发布校验纯策略；保持网络探测、DOM、Storage、远程同步、WebSocket、Cline 和 UI 状态顺序不变。
+继续 G3：建立 4,003 行 `eiscore-base/src/layout/index.vue` 的职责库存和行为特征测试，优先审计标签/菜单、主题或企业配置的纯策略边界；保持身份权限、Router、窗口事件和现有视觉布局不变。

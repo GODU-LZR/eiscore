@@ -203,6 +203,8 @@ FlashBuilder 第三个切片新增纯 Markdown 安全渲染策略。HTML 转义�
 
 FlashBuilder 第四个切片新增纯预览策略。Code Server/EISCore Shell HTML 探针、Glass 文案、比例/Stage 样式、可注入 DOM Parser 的动态脚本清理、正则降级和源码兜底快照脱离页面；DOMParser、iframe、重试、网络探测、发布写入和 UI 时序保持原位。本切片同时消除上一切片后源码兜底残留的旧局部转义符号引用并补入委托回归。页面降至 3,741 行，巨页债务棘轮收紧到 87,633 行。
 
+FlashBuilder 纯策略子目标随后通过阶段退出审计。机器门禁锁定 3,741 行页面、366/2,057/1,315 行 SFC 分区、4 个纯策略模块/39 个导出，以及 1 个 Axios Agent 请求、1 个 IDE Fetch、1 个 WebSocket、12 个 Flash Tool、13 个消息/确认、2 个 Router、4 个 Watch、110 个 Callable、14 个 Timeout、1 个 Interval 和各 1 个 Mounted/Unmounted 的只降不增上限；直接 Storage、EventSource、XMLHttpRequest 与 `window.location` 导航失败关闭。页面累计减少 523 行（12.3%），剩余专用协议、DOM、缓存、上传、发布与视觉样式作为当前组合边界保留，G3 转向 `eiscore-base/src/layout/index.vue`。
+
 数据库迁移治理首先接管唯一已有可信顺序的 Runtime V2 补丁。10 个历史补丁现在具有连续 ID、SHA-256、事务所有权、postcheck 和 `backup-restore` 声明，并与旧文本 Manifest 逐项对照；五个历史根共 102 份 SQL 由离线门禁锁定。其余 92 份没有足够依赖证据，因此保持原位且禁止自动执行。随后 Bash/PowerShell 入口收敛到共享执行核心：离线校验和备份证据先于连接，账本按 ID/校验和幂等处理并与迁移原子提交，最后强制 postcheck。真实备份恢复演练仍需获授权环境，边界决策见 ADR-0009。
 
 会话契约已接入首批真实失效链：基座全局 API 401、移动路由守卫和仓库/库存/考勤/盘点 API 均通过适配器清理会话。原 `/login`、`/mobile/login`、移动重定向参数、401 用户错误及宽松 JWT 路由兼容保持，移动端这些链路不再直接操作 Storage 或 Base64；剩余直接会话操作已量化为基座 9 个文件、30 处。
@@ -538,6 +540,8 @@ FlashBuilder Shell 会话策略切片通过纯函数专项、完整质量门禁�
 FlashBuilder Markdown 安全渲染策略切片通过纯函数专项、完整质量门禁和完整离线单元套件：177 个 Node 文件语法、14 个锁定 CI 包、1,170 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,325 个模块。专项锁定 HTML 转义、协议白名单、行内语法、表格、标题、引用、列表、段落、代码围栏、纯依赖及页面委托；没有调用 Cline/Agent、数据库、草稿工具或远程环境。
 
 FlashBuilder 预览策略切片通过纯函数专项、完整质量门禁和完整离线单元套件：178 个 Node 文件语法、14 个锁定 CI 包、1,172 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,326 个模块。专项锁定 IDE/Shell HTML 探针、Glass 文案、比例/Stage 样式、DOM/正则双路径清理、源码快照转义、纯依赖及页面委托；没有调用 Cline/Agent、数据库、草稿工具或远程环境。
+
+FlashBuilder 阶段退出审计通过组合专项、完整质量门禁和完整离线单元套件：179 个 Node 文件语法、14 个锁定 CI 包、1,174 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,326 个模块。审计锁定 SFC 分区、纯模块依赖、策略导出、Agent/IDE/WebSocket/Flash Tool/消息/Router/Watch/Timer/Callable 上限、生命周期入口及平台旁路禁令；本切片没有修改产品代码或连接外部系统。
 
 ## 5. 升级、回退与运行治理
 
