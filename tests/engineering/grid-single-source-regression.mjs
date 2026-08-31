@@ -36,8 +36,13 @@ for (const app of apps) {
     entry,
     /import FileDialog from ['"]@shared\/eis-data-grid-v2\/components\/FileDialog\.vue['"]/
   )
+  assert.match(
+    entry,
+    /import ConfigDialog from ['"]@shared\/eis-data-grid-v2\/components\/ConfigDialog\.vue['"]/
+  )
   assert.equal(existsSync(resolve(gridRoot, 'components/FileDialog.vue')), false)
   assert.equal(existsSync(resolve(gridRoot, 'components/ColumnManagerDialog.vue')), false)
+  assert.equal(existsSync(resolve(gridRoot, 'components/ConfigDialog.vue')), false)
   const hasLocalGeoDialog = app === 'apps'
   assert.match(
     entry,
@@ -66,6 +71,15 @@ for (const app of apps) {
     assert.match(core, new RegExp(`import ${renderer} from ['"]${importPath}['"]`))
     assert.equal(existsSync(resolve(gridRoot, `components/renderers/${renderer}.vue`)), hasLocalVariant)
   }
+
+  if (app === 'apps') {
+    assert.match(entry, /<ConfigDialog[\s\S]*?ai-app="app_center"[\s\S]*?@save="saveConfig"/)
+  } else if (app === 'purchase' || app === 'sales') {
+    assert.match(entry, new RegExp(`<ConfigDialog[\\s\\S]*?ai-app="${app}"[\\s\\S]*?cell-label-example="订单金额"[\\s\\S]*?formula-display-example="\\{订单金额\\} \\* 0\\.18"[\\s\\S]*?formula-prompt-example="\\{订单金额\\}\\*0\\.18"[\\s\\S]*?@save="saveConfig"`))
+  } else {
+    const configInvocation = entry.match(/<ConfigDialog[\s\S]*?@save="saveConfig"/)?.[0] || ''
+    assert.doesNotMatch(configInvocation, /ai-app|cell-label-example|formula-display-example|formula-prompt-example/)
+  }
 }
 
 for (const renderer of [...alwaysSharedRenderers, ...rendererLocalVariants.keys()]) {
@@ -74,9 +88,21 @@ for (const renderer of [...alwaysSharedRenderers, ...rendererLocalVariants.keys(
     true
   )
 }
-for (const dialog of ['FileDialog', 'ColumnManagerDialog', 'GeoDialog']) {
+for (const dialog of ['FileDialog', 'ColumnManagerDialog', 'GeoDialog', 'ConfigDialog']) {
   assert.equal(existsSync(resolve(repoRoot, `shared/eis-data-grid-v2/components/${dialog}.vue`)), true)
 }
+
+const configDialogSource = readFileSync(
+  resolve(repoRoot, 'shared/eis-data-grid-v2/components/ConfigDialog.vue'),
+  'utf8'
+)
+for (const prop of ['aiApp', 'cellLabelExample', 'formulaDisplayExample', 'formulaPromptExample']) {
+  assert.match(configDialogSource, new RegExp(`['"]${prop}['"]`))
+}
+assert.match(configDialogSource, /props\.aiApp \|\| ['"]hr['"]/)
+assert.match(configDialogSource, /props\.cellLabelExample \|\| ['"]员工['"]/)
+assert.match(configDialogSource, /props\.formulaDisplayExample \|\| ['"]\{基本工资\} \+ \{岗位津贴\}['"]/)
+assert.match(configDialogSource, /props\.formulaPromptExample \|\| ['"]\{工资\}\+\{绩效\}['"]/)
 
 const selectionSource = readFileSync(
   resolve(repoRoot, 'shared/eis-data-grid-v2/composables/useGridSelection.js'),

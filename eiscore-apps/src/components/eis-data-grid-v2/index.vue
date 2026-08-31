@@ -70,6 +70,7 @@
       </ag-grid-vue>
 
       <ConfigDialog
+        ai-app="app_center"
         v-model:visible="configDialog.visible"
         :title="configDialog.title"
         :type="configDialog.type"
@@ -111,7 +112,7 @@ import { useGridSelection } from '@shared/eis-data-grid-v2/composables/useGridSe
 import { useGridClipboard } from './composables/useGridClipboard'
 
 import GridToolbar from './components/GridToolbar.vue'
-import ConfigDialog from './components/ConfigDialog.vue'
+import ConfigDialog from '@shared/eis-data-grid-v2/components/ConfigDialog.vue'
 import GeoDialog from './components/GeoDialog.vue'
 import FileDialog from '@shared/eis-data-grid-v2/components/FileDialog.vue'
 

@@ -73,6 +73,10 @@
       </ag-grid-vue>
 
       <ConfigDialog
+        ai-app="sales"
+        cell-label-example="订单金额"
+        formula-display-example="{订单金额} * 0.18"
+        formula-prompt-example="{订单金额}*0.18"
         v-model:visible="configDialog.visible"
         :title="configDialog.title"
         :type="configDialog.type"
@@ -114,7 +118,7 @@ import { useGridSelection } from '@shared/eis-data-grid-v2/composables/useGridSe
 import { useGridClipboard } from './composables/useGridClipboard'
 
 import GridToolbar from './components/GridToolbar.vue'
-import ConfigDialog from './components/ConfigDialog.vue'
+import ConfigDialog from '@shared/eis-data-grid-v2/components/ConfigDialog.vue'
 import GeoDialog from '@shared/eis-data-grid-v2/components/GeoDialog.vue'
 import FileDialog from '@shared/eis-data-grid-v2/components/FileDialog.vue'
 

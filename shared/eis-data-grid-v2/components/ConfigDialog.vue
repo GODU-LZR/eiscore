@@ -26,15 +26,15 @@
             </el-radio-group>
             <div class="cell-label-block">
               <span class="cell-label-title">合计显示名称：</span>
-              <el-input v-model="internalCellLabel" placeholder="比如：员工" clearable />
-              <span class="cell-label-tip">显示效果：员工：123</span>
+              <el-input v-model="internalCellLabel" :placeholder="`比如：${cellLabelExample}`" clearable />
+              <span class="cell-label-tip">显示效果：{{ cellLabelExample }}：123</span>
             </div>
           </el-tab-pane>
 
           <el-tab-pane label="高级公式" name="formula">
             <p class="dialog-tip">
               <b>列间运算公式：</b><br>
-              <span style="font-size: 12px; color: #909399;">例如: <code>{基本工资} + {岗位津贴}</code></span>
+              <span style="font-size: 12px; color: #909399;">例如: <code>{{ formulaDisplayExample }}</code></span>
             </p>
             <div class="formula-actions">
               <el-button size="small" type="primary" plain @click="openAiFormula">AI生成公式</el-button>
@@ -76,12 +76,32 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { ElDialog, ElTabs, ElTabPane, ElRadioGroup, ElRadio, ElInput, ElButton, ElTag } from 'element-plus'
 import { pushAiCommand, pushAiContext } from '@/utils/ai-context'
 
-const props = defineProps(['visible', 'title', 'type', 'colId', 'currentRule', 'currentExpression', 'currentLabel', 'currentCellLabel', 'columns', 'loading'])
+const props = defineProps([
+  'visible',
+  'title',
+  'type',
+  'colId',
+  'currentRule',
+  'currentExpression',
+  'currentLabel',
+  'currentCellLabel',
+  'columns',
+  'loading',
+  'aiApp',
+  'cellLabelExample',
+  'formulaDisplayExample',
+  'formulaPromptExample'
+])
 const emit = defineEmits(['update:visible', 'save'])
+
+const aiApp = computed(() => props.aiApp || 'hr')
+const cellLabelExample = computed(() => props.cellLabelExample || '员工')
+const formulaDisplayExample = computed(() => props.formulaDisplayExample || '{基本工资} + {岗位津贴}')
+const formulaPromptExample = computed(() => props.formulaPromptExample || '{工资}+{绩效}')
 
 const internalTab = ref('basic')
 const internalRule = ref('')
@@ -117,14 +137,14 @@ const buildFormulaPrompt = () => {
     '请帮我生成表格“合计/统计公式”。',
     `目标列：${colName}`,
     '要求：只输出公式，不要解释。',
-    '必须放在 ```formula``` 代码块中，内容示例：{工资}+{绩效}。',
+    `必须放在 \`\`\`formula\`\`\` 代码块中，内容示例：${formulaPromptExample.value}。`,
     `可用字段：${variables || '无'}。`
   ].join('\n')
 }
 
 const openAiFormula = () => {
   pushAiContext({
-    app: 'app_center',
+    app: aiApp.value,
     view: 'summary_formula',
     aiScene: 'summary_formula',
     allowFormulaOnce: true,
