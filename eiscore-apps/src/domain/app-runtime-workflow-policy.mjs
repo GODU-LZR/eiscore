@@ -78,6 +78,20 @@ export const LEGACY_BINDING_STATE_TARGET_MAP = Object.freeze({
   'legacy:mms_inventory_stock_out': { target_table: 'scm.inventory_drafts', state_field: 'status' }
 })
 
+const WORKFLOW_RLS_PASSTHROUGH_KEYWORDS = Object.freeze([
+  '只有具备流程发起权限',
+  '缺少流程推进权限',
+  '缺少状态迁移权限',
+  '任务未分配',
+  'workflow start permission required',
+  'workflow transition permission required',
+  'status transition rule required',
+  'status transition state mapping required',
+  'status transition permission required',
+  'current task is not assigned to current actor',
+  'approval comment required'
+])
+
 export const normalizeApprovalMode = (value) => {
   const mode = String(value || '').trim().toLowerCase()
   if (mode === 'quota' || mode === 'all') return mode
@@ -544,6 +558,71 @@ export const buildWorkflowRolePermissionRows = ({ entries = [], roleMap, permiss
       seen.add(key)
       return true
     })
+}
+
+export const buildWorkflowRoleGrantLookupPlan = (entries = []) => {
+  const source = Array.isArray(entries) ? entries : []
+  const collectCodes = (field) => Array.from(new Set(source
+    .map((item) => String(item?.[field] || '').trim())
+    .filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+  return {
+    roleCodes: collectCodes('roleCode'),
+    permissionCodes: collectCodes('permissionCode')
+  }
+}
+
+export const buildWorkflowCodeIdMap = (rows = []) => {
+  const result = new Map()
+  ;(Array.isArray(rows) ? rows : []).forEach((row) => {
+    const code = String(row?.code || '').trim()
+    const id = String(row?.id || '').trim()
+    if (code && id) result.set(code, id)
+  })
+  return result
+}
+
+export const resolveWorkflowRoleGrantReferences = ({
+  entries = [],
+  roleCodes = [],
+  permissionCodes = [],
+  roleRows = [],
+  permissionRows = []
+} = {}) => {
+  const roleMap = buildWorkflowCodeIdMap(roleRows)
+  const permissionMap = buildWorkflowCodeIdMap(permissionRows)
+  const missingRoles = roleCodes.filter((code) => !roleMap.has(code))
+  const missingPermissions = permissionCodes.filter((code) => !permissionMap.has(code))
+  return {
+    missingRoles,
+    missingPermissions,
+    rows: buildWorkflowRolePermissionRows({ entries, roleMap, permissionMap })
+  }
+}
+
+export const formatWorkflowRoleGrantReferenceError = ({ missingRoles = [], missingPermissions = [] } = {}) => {
+  const parts = []
+  if (missingRoles.length) parts.push(`角色不存在：${summarizeWorkflowCodes(missingRoles)}`)
+  if (missingPermissions.length) parts.push(`权限定义不存在：${summarizeWorkflowCodes(missingPermissions)}`)
+  return parts.length ? `补齐角色授权失败，${parts.join('；')}` : ''
+}
+
+export const normalizeWorkflowApiError = (error) => ({
+  status: error?.response?.status,
+  code: error?.response?.data?.code || '',
+  message: error?.response?.data?.message || error?.message || '未知错误'
+})
+
+export const formatWorkflowError = (fallback, error, rlsMessage = '') => {
+  const { status, code, message } = normalizeWorkflowApiError(error)
+  if (status === 403 && code === '42501') {
+    const normalizedMessage = String(message || '').trim()
+    if (normalizedMessage && WORKFLOW_RLS_PASSTHROUGH_KEYWORDS.some((keyword) => normalizedMessage.includes(keyword))) {
+      return normalizedMessage
+    }
+    return rlsMessage || `${fallback}（当前账号无权限）`
+  }
+  return `${fallback}：${message}`
 }
 
 export const resolveWorkflowPermissionDefMeta = (code, source = '') => {

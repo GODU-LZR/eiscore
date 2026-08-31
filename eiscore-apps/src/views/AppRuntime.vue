@@ -902,8 +902,8 @@ import {
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
   buildWorkflowPolicyPayload,
+  buildWorkflowRoleGrantLookupPlan,
   buildWorkflowRoleGrantGaps,
-  buildWorkflowRolePermissionRows,
   buildWorkflowRuleDraftState,
   buildWorkflowRulePayloadPlan,
   buildWorkflowStateOptions,
@@ -916,7 +916,9 @@ import {
   formatApprovalMode,
   formatPolicyBool,
   formatTransitionStatePair,
+  formatWorkflowError,
   formatWorkflowBusinessBindingSummary,
+  formatWorkflowRoleGrantReferenceError,
   flattenWorkflowRoleGrantGaps,
   getWorkflowPolicyModeMeta,
   getWorkflowStateColor,
@@ -943,10 +945,10 @@ import {
   resolveTargetBusinessAppId,
   resolveTaskAutoRule,
   resolveWorkflowEffectivePolicy,
+  resolveWorkflowRoleGrantReferences,
   resolveWorkflowRulePermissionSync,
   resolveWorkflowRuleUpsertPlan,
-  resolveWorkflowRuntimeConfig,
-  summarizeWorkflowCodes
+  resolveWorkflowRuntimeConfig
 } from '@/domain/app-runtime-workflow-policy.mjs'
 
 const AppCenterGrid = defineAsyncComponent(() => import('@/components/AppCenterGrid.vue'))
@@ -1269,42 +1271,6 @@ const readCurrentActor = () => {
 const unwrapSingleRow = (data) => {
   if (Array.isArray(data)) return data[0] || null
   return data && typeof data === 'object' ? data : null
-}
-
-const getApiError = (error) => ({
-  status: error?.response?.status,
-  code: error?.response?.data?.code || '',
-  message: error?.response?.data?.message || error?.message || '未知错误'
-})
-
-const isRlsDenied = (error) => {
-  const { status, code } = getApiError(error)
-  return status === 403 && code === '42501'
-}
-
-const formatWorkflowError = (fallback, error, rlsMessage = '') => {
-  const { message } = getApiError(error)
-  if (isRlsDenied(error)) {
-    const msg = String(message || '').trim()
-    const passthroughKeywords = [
-      '只有具备流程发起权限',
-      '缺少流程推进权限',
-      '缺少状态迁移权限',
-      '任务未分配',
-      'workflow start permission required',
-      'workflow transition permission required',
-      'status transition rule required',
-      'status transition state mapping required',
-      'status transition permission required',
-      'current task is not assigned to current actor',
-      'approval comment required'
-    ]
-    if (msg && passthroughKeywords.some((keyword) => msg.includes(keyword))) {
-      return msg
-    }
-    return rlsMessage || `${fallback}（当前账号无权限）`
-  }
-  return `${fallback}：${message}`
 }
 
 const formatArrayCell = (value) => {
@@ -2567,8 +2533,7 @@ async function createMissingWorkflowRoleGrants() {
     return
   }
 
-  const roleCodes = Array.from(new Set(entries.map((item) => item.roleCode))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
-  const permissionCodes = Array.from(new Set(entries.map((item) => item.permissionCode))).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+  const { roleCodes, permissionCodes } = buildWorkflowRoleGrantLookupPlan(entries)
   try {
     await ElMessageBox.confirm(
       `将为 ${roleCodes.length} 个候选角色新增最多 ${entries.length} 条 role_permissions 关系。该操作只补齐当前检查报告中的缺口。`,
@@ -2598,30 +2563,20 @@ async function createMissingWorkflowRoleGrants() {
       axios.get(`/api/roles?code=in.(${roleFilter})&select=id,code`, { headers: publicHeaders }),
       axios.get(`/api/permissions?code=in.(${permissionFilter})&select=id,code`, { headers: publicHeaders })
     ])
-    const roleMap = new Map()
-    ;(Array.isArray(rolesResponse.data) ? rolesResponse.data : []).forEach((row) => {
-      const code = String(row?.code || '').trim()
-      const id = String(row?.id || '').trim()
-      if (code && id) roleMap.set(code, id)
+    const resolution = resolveWorkflowRoleGrantReferences({
+      entries,
+      roleCodes,
+      permissionCodes,
+      roleRows: rolesResponse.data,
+      permissionRows: permissionsResponse.data
     })
-    const permissionMap = new Map()
-    ;(Array.isArray(permissionsResponse.data) ? permissionsResponse.data : []).forEach((row) => {
-      const code = String(row?.code || '').trim()
-      const id = String(row?.id || '').trim()
-      if (code && id) permissionMap.set(code, id)
-    })
-
-    const missingRoles = roleCodes.filter((code) => !roleMap.has(code))
-    const missingPermissions = permissionCodes.filter((code) => !permissionMap.has(code))
-    if (missingRoles.length || missingPermissions.length) {
-      const parts = []
-      if (missingRoles.length) parts.push(`角色不存在：${summarizeWorkflowCodes(missingRoles)}`)
-      if (missingPermissions.length) parts.push(`权限定义不存在：${summarizeWorkflowCodes(missingPermissions)}`)
-      ElMessage.error(`补齐角色授权失败，${parts.join('；')}`)
+    const referenceError = formatWorkflowRoleGrantReferenceError(resolution)
+    if (referenceError) {
+      ElMessage.error(referenceError)
       return
     }
 
-    const rows = buildWorkflowRolePermissionRows({ entries, roleMap, permissionMap })
+    const rows = resolution.rows
     if (!rows.length) {
       ElMessage.success('候选角色授权已齐备')
       return

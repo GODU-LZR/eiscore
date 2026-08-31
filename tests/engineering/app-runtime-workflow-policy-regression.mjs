@@ -16,7 +16,9 @@ import {
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
   buildWorkflowPolicyPayload,
+  buildWorkflowCodeIdMap,
   buildWorkflowRoleGrantGaps,
+  buildWorkflowRoleGrantLookupPlan,
   buildWorkflowRolePermissionRows,
   buildWorkflowRuleDraftState,
   buildWorkflowRulePayloadPlan,
@@ -31,6 +33,8 @@ import {
   formatPolicyBool,
   formatTransitionStatePair,
   formatWorkflowBusinessBindingSummary,
+  formatWorkflowError,
+  formatWorkflowRoleGrantReferenceError,
   flattenWorkflowRoleGrantGaps,
   getWorkflowPolicyModeMeta,
   getActiveWorkflowTransitionRules,
@@ -51,6 +55,7 @@ import {
   normalizeRequiredApprovals,
   normalizeStateValue,
   normalizeStatusTokenForPermission,
+  normalizeWorkflowApiError,
   normalizeWorkflowReadinessReport,
   parseSchemaTable,
   resolveBoundStateTarget,
@@ -61,6 +66,7 @@ import {
   resolveTaskAutoRule,
   resolveWorkflowEffectivePolicy,
   resolveWorkflowPermissionDefMeta,
+  resolveWorkflowRoleGrantReferences,
   resolveWorkflowRulePermissionSync,
   resolveWorkflowRuleUpsertPlan,
   resolveWorkflowRuntimeConfig,
@@ -511,6 +517,87 @@ assert.deepEqual(buildWorkflowRolePermissionRows({
   { role_id: 'role-2', permission_id: 'permission-2' }
 ])
 
+assert.deepEqual(buildWorkflowRoleGrantLookupPlan([
+  { roleCode: ' reviewer ', permissionCode: ' perm:b ' },
+  { roleCode: 'operator', permissionCode: 'perm:a' },
+  { roleCode: 'operator', permissionCode: 'perm:a' },
+  { roleCode: '', permissionCode: null }
+]), {
+  roleCodes: ['operator', 'reviewer'],
+  permissionCodes: ['perm:a', 'perm:b']
+})
+assert.deepEqual(buildWorkflowRoleGrantLookupPlan(null), { roleCodes: [], permissionCodes: [] })
+assert.deepEqual(Array.from(buildWorkflowCodeIdMap([
+  { code: ' operator ', id: ' role-old ' },
+  { code: 'operator', id: 'role-new' },
+  { code: 'reviewer', id: '' },
+  null
+])), [['operator', 'role-new']])
+assert.deepEqual(Array.from(buildWorkflowCodeIdMap({})), [])
+
+const grantResolution = resolveWorkflowRoleGrantReferences({
+  entries: [
+    { roleCode: 'operator', permissionCode: 'perm:a' },
+    { roleCode: 'reviewer', permissionCode: 'perm:b' }
+  ],
+  roleCodes: ['operator', 'reviewer'],
+  permissionCodes: ['perm:a', 'perm:b'],
+  roleRows: [{ code: ' operator ', id: ' role-1 ' }],
+  permissionRows: [{ code: 'perm:a', id: 'permission-1' }]
+})
+assert.deepEqual(grantResolution, {
+  missingRoles: ['reviewer'],
+  missingPermissions: ['perm:b'],
+  rows: [{ role_id: 'role-1', permission_id: 'permission-1' }]
+})
+assert.equal(formatWorkflowRoleGrantReferenceError(grantResolution), '补齐角色授权失败，角色不存在：reviewer；权限定义不存在：perm:b')
+assert.equal(formatWorkflowRoleGrantReferenceError(), '')
+
+assert.deepEqual(normalizeWorkflowApiError({
+  response: { status: 403, data: { code: '42501', message: 'denied' } },
+  message: 'ignored'
+}), { status: 403, code: '42501', message: 'denied' })
+assert.deepEqual(normalizeWorkflowApiError(new Error('offline')), {
+  status: undefined,
+  code: '',
+  message: 'offline'
+})
+assert.deepEqual(normalizeWorkflowApiError(null), {
+  status: undefined,
+  code: '',
+  message: '未知错误'
+})
+assert.equal(formatWorkflowError('启动失败', {
+  response: { status: 403, data: { code: '42501', message: ' 缺少流程推进权限：demo ' } }
+}), '缺少流程推进权限：demo')
+for (const message of [
+  '只有具备流程发起权限的用户才能操作',
+  '缺少流程推进权限',
+  '缺少状态迁移权限',
+  '任务未分配',
+  'workflow start permission required',
+  'workflow transition permission required',
+  'status transition rule required',
+  'status transition state mapping required',
+  'status transition permission required',
+  'current task is not assigned to current actor',
+  'approval comment required'
+]) {
+  assert.equal(formatWorkflowError('操作失败', {
+    response: { status: 403, data: { code: '42501', message } }
+  }), message)
+}
+assert.equal(formatWorkflowError('启动失败', {
+  response: { status: 403, data: { code: '42501', message: 'database denied' } }
+}, '当前账号无权限启动流程单'), '当前账号无权限启动流程单')
+assert.equal(formatWorkflowError('启动失败', {
+  response: { status: 403, data: { code: '42501', message: 'database denied' } }
+}), '启动失败（当前账号无权限）')
+assert.equal(formatWorkflowError('启动失败', {
+  response: { status: '403', data: { code: '42501', message: 'database denied' } }
+}), '启动失败：database denied')
+assert.equal(formatWorkflowError('启动失败', new Error('offline')), '启动失败：offline')
+
 assert.deepEqual(resolveWorkflowPermissionDefMeta('op:sales.workflow_start'), { suffix: '流程发起', action: 'workflow_start' })
 assert.deepEqual(resolveWorkflowPermissionDefMeta('op:sales.workflow_transition'), { suffix: '流程推进', action: 'workflow_transition' })
 assert.deepEqual(resolveWorkflowPermissionDefMeta('op:sales.workflow_complete'), { suffix: '流程完结', action: 'workflow_complete' })
@@ -782,10 +869,14 @@ for (const removedDefinition of [
   'const roles = new Set()',
   'workflowReadinessReport.missingRules = next.missingRules || []',
   'const getWorkflowRoleGrantGapEntries = () => {',
-  'const summarizeWorkflowCodes = (codes) => {'
+  'const summarizeWorkflowCodes = (codes) => {',
+  'const getApiError = (error) => ({',
+  'const formatWorkflowError = (fallback, error, rlsMessage = \'\') => {',
+  'Array.isArray(rolesResponse.data) ? rolesResponse.data : []',
+  'Array.isArray(permissionsResponse.data) ? permissionsResponse.data : []'
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 3917)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 3872)
 
 console.log('PASS: AppRuntime workflow policy preserves states, approvals, permissions, generated rules and legacy bindings')
