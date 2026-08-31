@@ -548,6 +548,14 @@ import {
   normalizeAiWorkflowTaskBindings as normalizeWorkflowTaskBindings,
   resolveAiWorkflowAssociatedTable
 } from '@/domain/ai-copilot-workflow-policy'
+import {
+  AI_SMART_BI_CLOSURE_WORKFLOW_NAME as SMART_BI_CLOSURE_WORKFLOW_NAME,
+  buildAiSmartBiActionItemMap,
+  extractAiSmartBiActions,
+  getAiPreviousUserQuestion,
+  resolveAiSmartBiActionDueAt,
+  stripAiSmartBiReportBlocks as stripSmartBiReportBlocks
+} from '@/domain/ai-copilot-smart-bi-action-policy'
 
 const props = defineProps({
   mode: { type: String, default: 'enterprise' },
@@ -1302,84 +1310,7 @@ const getWorkflowInfo = (msg) => {
   return { xml, meta, error }
 }
 
-const SMART_BI_RISK_LABELS = {
-  normal: '正常',
-  focus: '关注',
-  warning: '预警',
-  critical: '严重'
-}
-
-const normalizeSmartBiActionDomain = (value) => {
-  const raw = String(value || '').trim().toLowerCase()
-  const matched = SMART_BI_DOMAINS.find((domain) => (
-    domain.key === raw || domain.label === value || domain.aliases.some((alias) => String(alias).toLowerCase() === raw)
-  ))
-  return matched?.key || raw || 'overview'
-}
-
-const getSmartBiDomainLabel = (key) => {
-  if (key === 'overview') return '经营总览'
-  return SMART_BI_DOMAINS.find((domain) => domain.key === key)?.label || key || '经营'
-}
-
-const normalizeSmartBiRiskLevel = (value) => {
-  const raw = String(value || '').trim().toLowerCase()
-  if (['critical', 'serious', '严重', '高', '高风险'].includes(raw)) return 'critical'
-  if (['warning', 'warn', '预警', '中', '中风险'].includes(raw)) return 'warning'
-  if (['focus', '关注', '低', '低风险'].includes(raw)) return 'focus'
-  return 'normal'
-}
-
-const normalizeSmartBiAction = (item, index = 0) => {
-  if (!item || typeof item !== 'object') return null
-  const domain = normalizeSmartBiActionDomain(item.domain || item.domain_key || item.module || item.scope)
-  const riskLevel = normalizeSmartBiRiskLevel(item.risk_level || item.riskLevel || item.risk || item.priority)
-  const title = String(item.title || item.name || item.action || item.suggestion || '').trim()
-    || `${getSmartBiDomainLabel(domain)}行动建议${index + 1}`
-  const ownerRole = String(item.owner_role || item.ownerRole || item.role || '').trim()
-  const ownerName = String(item.owner_name || item.ownerName || item.owner || item.responsible || '').trim()
-  const dueDays = Number(item.due_days ?? item.dueDays ?? item.days ?? '')
-  return {
-    title,
-    domain,
-    domainLabel: getSmartBiDomainLabel(domain),
-    riskLevel,
-    riskLabel: SMART_BI_RISK_LABELS[riskLevel] || '正常',
-    ownerRole,
-    ownerName,
-    dueDays: Number.isFinite(dueDays) && dueDays > 0 ? Math.floor(dueDays) : null,
-    dueAt: item.due_at || item.dueAt || '',
-    reason: String(item.reason || item.risk_reason || item.riskReason || item.problem || '').trim(),
-    target: String(item.target || item.goal || item.expected_result || item.expectedResult || '').trim(),
-    nextStep: String(item.next_step || item.nextStep || item.measure || item.todo || '').trim(),
-    businessTable: String(item.business_table || item.businessTable || item.table || '').trim(),
-    businessKey: String(item.business_key || item.businessKey || item.record_id || item.recordId || '').trim(),
-    raw: item
-  }
-}
-
-const extractSmartBiActions = (text) => {
-  if (!text) return { actions: [], error: null }
-  for (const tag of SMART_BI_ACTION_BLOCKS) {
-    const regex = new RegExp(`\\\`\`\`${tag}([\\s\\S]*?)\\\`\`\``, 'i')
-    const match = text.match(regex)
-    if (match && match[1]) {
-      try {
-        const raw = sanitizeJson(match[1])
-        const data = JSON.parse(raw)
-        const list = Array.isArray(data) ? data : (data.actions || data.items || data.todos || [])
-        if (!Array.isArray(list)) return { actions: [], error: 'invalid' }
-        return {
-          actions: list.map(normalizeSmartBiAction).filter(Boolean).slice(0, 5),
-          error: null
-        }
-      } catch (e) {
-        return { actions: [], error: 'parse' }
-      }
-    }
-  }
-  return { actions: [], error: null }
-}
+const extractSmartBiActions = (text) => extractAiSmartBiActions(text, { sanitizeJson })
 
 const getSmartBiActionInfo = (msg) => extractSmartBiActions(msg?.content || '')
 
@@ -2174,22 +2105,7 @@ const saveWorkflowDefinition = async (info, messageKey) => {
   }
 }
 
-const SMART_BI_CLOSURE_WORKFLOW_NAME = '智能BI经营闭环流程'
-
-const stripSmartBiReportBlocks = (text = '') => String(text || '')
-  .replace(/```(?:echarts|mermaid|smart-bi-actions|smart_bi_actions|bi-actions|bi_actions|bpmn-xml|workflow-meta)[\s\S]*?```/gi, '')
-  .replace(/\s+/g, ' ')
-  .trim()
-
-const smartBiActionItemMap = computed(() => {
-  const map = {}
-  smartBiActionItems.value.forEach((item) => {
-    const messageTime = String(item?.source_message_time || '').trim()
-    const actionIndex = String(item?.source_action_index ?? '').trim()
-    if (messageTime && actionIndex) map[`${messageTime}-${actionIndex}`] = item
-  })
-  return map
-})
+const smartBiActionItemMap = computed(() => buildAiSmartBiActionItemMap(smartBiActionItems.value))
 
 const getSmartBiActionRuntime = (messageKey, actionIndex) => (
   smartBiActionItemMap.value[`${messageKey}-${actionIndex}`] || null
@@ -2213,29 +2129,9 @@ const loadSmartBiActionItems = async (force = false) => {
   }
 }
 
-const resolveSmartBiActionDueAt = (action) => {
-  if (action?.dueAt) {
-    const time = Date.parse(action.dueAt)
-    if (Number.isFinite(time)) return new Date(time).toISOString()
-  }
-  if (action?.dueDays) {
-    return new Date(Date.now() + action.dueDays * 86400000).toISOString()
-  }
-  return null
-}
+const resolveSmartBiActionDueAt = (action) => resolveAiSmartBiActionDueAt(action, { now: Date.now() })
 
-const getPreviousUserQuestion = (msg) => {
-  const messageTime = Number(msg?.time || 0)
-  const messages = currentSession.value?.messages || []
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    const item = messages[i]
-    if (item?.role !== 'user') continue
-    if (messageTime && Number(item?.time || 0) > messageTime) continue
-    const text = String(item?.content || '').trim()
-    if (text) return text.slice(0, 500)
-  }
-  return ''
-}
+const getPreviousUserQuestion = (msg) => getAiPreviousUserQuestion(msg, currentSession.value?.messages || [])
 
 const fetchSmartBiClosureWorkflowDefinition = async () => {
   const query = `/definitions?select=id,name,associated_table&name=eq.${encodeURIComponent(SMART_BI_CLOSURE_WORKFLOW_NAME)}&order=id.desc&limit=1`

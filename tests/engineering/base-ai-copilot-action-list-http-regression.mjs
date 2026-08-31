@@ -7,7 +7,7 @@ import { resolve } from 'node:path'
 
 const source = readFileSync(resolve(import.meta.dirname, '../../eiscore-base/src/components/AiCopilot.vue'), 'utf8')
 const start = source.indexOf('const loadSmartBiActionItems = async (force = false) => {')
-const end = source.indexOf('const resolveSmartBiActionDueAt = (action) => {', start)
+const end = source.indexOf('const resolveSmartBiActionDueAt = (action) =>', start)
 assert.notEqual(start, -1)
 assert.notEqual(end, -1)
 const section = source.slice(start, end)
