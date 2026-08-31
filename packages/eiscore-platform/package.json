@@ -11,6 +11,7 @@
     "./http-client": "./src/http-client.mjs",
     "./login-branding": "./src/login-branding.mjs",
     "./navigation": "./src/navigation.mjs",
+    "./permission": "./src/permission.mjs",
     "./safe-storage": "./src/safe-storage.mjs",
     "./system-config": "./src/system-config.mjs"
   },

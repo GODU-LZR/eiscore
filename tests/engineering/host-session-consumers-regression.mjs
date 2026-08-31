@@ -32,7 +32,9 @@ assert.doesNotMatch(layout, directSessionPattern)
 assert.doesNotMatch(layout, /\batob\b/)
 
 const permission = readSource('eiscore-base/src/utils/permission.js')
+assert.match(permission, /@eiscore\/platform\/permission/)
 assert.match(permission, /import\s*\{\s*getUserInfo\s*\}\s*from\s*['"]@\/utils\/auth['"]/)
+assert.match(permission, /catchReadErrors:\s*false/)
 assert.doesNotMatch(permission, /\blocalStorage\b/)
 assert.doesNotMatch(permission, /JSON\.parse/)
 

@@ -17,10 +17,10 @@
 
 - 基座系统 Store、设置页、基座登录页和移动登录页已移除重复的存量客户品牌、远程图片与行业文案，统一从企业配置读取；系统设置仍可覆盖部署默认值。
 - 基座固定注册 9 个 qiankun 子应用；移动端作为独立入口，共形成 10 个企业模块开关。
-- 10 个前端 Auth 工具、基座/移动已盘点消费者及 8 个微应用用户 Store 已收敛到平台会话。全产品复审基线的 56 个文件、134 处直接调用已降至 48 个文件、118 处，并受只降不增门禁保护；8 个微应用与基座共 9 份 Axios Request 已全部由企业 API/Agent 端点控制。直接 `fetch`、Realtime 与普通偏好/业务缓存仍需按后续业务切片迁移。
+- 10 个前端 Auth 工具及全部生产运行时消费者已收敛到平台会话，直接 `auth_token`/`user_info` Storage 消费全仓归零；基座与 8 个微应用共 9 个权限工具共享平台权限服务，9 份 Axios Request 及普通受保护 API 已由企业端点与平台 HTTP 控制。剩余直接 `fetch` 为 12 个文件/18 处；非会话 Storage、跨模块导航与共享 Grid 仍按 G2 审计渐进迁移。
 - 11 个 HTML 入口的标题尚未统一，部分仍是 `Vite App`，生产模块标题还误写为 Sales。
 
-企业配置、模块注册、平台导航、登录品牌、移动端启动、10 个前端 Auth 工具以及全部 9 份 Axios Request 现已接入统一平台入口；直接 `fetch`、Realtime 仍按后续小切片渐进收敛。
+企业配置、模块注册、平台导航、登录品牌、移动端启动、Auth/Session、前端权限判断以及全部 9 份 Axios Request 现已接入统一平台入口；剩余边界与阻断数字见 `G2_EXIT_AUDIT.md`。
 
 ## 安全与兼容规则
 
@@ -33,6 +33,8 @@
 平台 HTTP 客户端使用 `endpoints.publicBaseUrl` 与 `apiBasePath`/`agentBasePath` 解析请求地址。业务代码只提交资源路径；迁移期 Axios 兼容层即使收到完整 URL，也只接受已配置服务根内的地址并重新解析，不能覆盖为任意外部 URL。认证头、超时、401 通知和错误脱敏由平台契约统一处理。决策边界见 `adr/0003-platform-http-boundary.md`。
 
 平台 Auth/Session 继续兼容 `auth_token`、`user_info` 及纯文本/JSON Token 存量格式；平台安全存储捕获浏览器禁用存储、配额不足与 JSON 损坏，不输出 Key 或 Value。登录路径仍由各前端决定，边界见 `adr/0004-platform-auth-session-boundary.md`。
+
+平台权限服务只接收调用方提供的用户快照并返回前端可见性判断，不直接读取 Storage，也不替代后端授权；角色别名、超级管理员、模块权限和销售/采购经理特例的兼容边界见 `adr/0005-platform-permission-boundary.md`。
 
 ## 基座启动接入
 

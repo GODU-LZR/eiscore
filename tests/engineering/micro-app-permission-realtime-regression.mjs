@@ -8,6 +8,11 @@ import { resolve } from 'node:path'
 const repoRoot = resolve(import.meta.dirname, '../..')
 const apps = ['apps', 'hr', 'materials', 'sales', 'purchase', 'production', 'quality', 'equipment']
 const compactPermissionApps = new Set(['quality', 'equipment'])
+const permissionPlatformSource = readFileSync(
+  resolve(repoRoot, 'packages/eiscore-platform/src/permission.mjs'),
+  'utf8'
+)
+const permissionPlatformUrl = `data:text/javascript;base64,${Buffer.from(permissionPlatformSource).toString('base64')}`
 
 const readSource = (app, utility) => readFileSync(
   resolve(repoRoot, `eiscore-${app}/src/utils/${utility}.js`),
@@ -16,6 +21,10 @@ const readSource = (app, utility) => readFileSync(
 
 const loadPermission = async (app, userInfo) => {
   const source = readSource(app, 'permission')
+    .replace(
+      /from\s*['"]@eiscore\/platform\/permission['"]/,
+      `from '${permissionPlatformUrl}'`
+    )
     .replace(
       /import\s*{\s*getUserInfo\s*}\s*from\s*['"]@\/utils\/auth['"]\s*/,
       `const getUserInfo = () => (${JSON.stringify(userInfo)})\n`
@@ -27,7 +36,9 @@ for (const app of apps) {
   const permissionSource = readSource(app, 'permission')
   const realtimeSource = readSource(app, 'realtime')
 
+  assert.match(permissionSource, /import\s*{\s*createPermissionService\s*}\s*from\s*['"]@eiscore\/platform\/permission['"]/)
   assert.match(permissionSource, /import\s*{\s*getUserInfo\s*}\s*from\s*['"]@\/utils\/auth['"]/)
+  assert.match(permissionSource, /createPermissionService\(\{/)
   assert.doesNotMatch(permissionSource, /localStorage|user_info|JSON\.parse/)
   assert.match(permissionSource, /export const getPermissions/)
   assert.match(permissionSource, /export const hasPerm/)
