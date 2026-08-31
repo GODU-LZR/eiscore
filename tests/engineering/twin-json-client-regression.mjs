@@ -53,9 +53,10 @@ await assert.rejects(apiCall('/ai/chat/completions'), /Twin JSON path must start
 for (const path of ['eiscore-base/src/views/HomeView.vue', 'eiscore-base/src/views/DigitalTwinView.vue']) {
   const source = read(path)
   assert.match(source, /from\s*['"]@\/utils\/twin-json-client['"]/)
+  assert.match(source, /from\s*['"]@shared\/eis-agent-sse-client['"]/)
   assert.match(source, /const apiCall = createTwinJsonClient\(\{ getAuthHeaders \}\)/)
-  assert.equal([...source.matchAll(/\bfetch\s*\(/g)].length, 1, `${path} must retain only Twin SSE fetch`)
-  assert.match(source, /fetch\(['"]\/agent\/twin\/chat['"]/)
+  assert.equal([...source.matchAll(/\bfetch\s*\(/g)].length, 0, `${path} must delegate Twin SSE transport`)
+  assert.match(source, /path:\s*['"]\/agent\/twin\/chat['"]/)
   assert.doesNotMatch(source, /const url = `\/agent\$\{path\}`|API error \$\{res\.status\}/)
 }
 

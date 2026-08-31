@@ -235,6 +235,7 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getAuthHeader } from '@/utils/auth'
 import { createTwinJsonClient } from '@/utils/twin-json-client'
+import { streamAgentEvents } from '@shared/eis-agent-sse-client'
 import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
 import { aiBridge } from '@/utils/ai-bridge'
 import {
@@ -438,6 +439,7 @@ watch(activeMode, (val) => {
 })
 
 onBeforeUnmount(() => {
+  activeStreamController?.abort()
   // 离开首页时关闭智能 BI 窗口
   if (activeMode.value === 'enterprise') {
     aiBridge.closeWindow()
@@ -465,6 +467,7 @@ const inputText = ref('')
 const isThinking = ref(false)
 const isStreaming = ref(false)
 const thinkingText = ref('正在思考...')
+let activeStreamController = null
 const uploading = ref(false)
 const knowledgeFiles = ref([])
 const messagesRef = ref(null)
@@ -712,6 +715,8 @@ const sendMessage = async () => {
   messages.value.push({ role: 'user', content: text, toolEvents: [] })
   const aiMsg = reactive({ role: 'assistant', content: '', toolEvents: [] })
   messages.value.push(aiMsg)
+  const streamController = new AbortController()
+  activeStreamController = streamController
   scrollToBottom()
 
   try {
@@ -724,36 +729,19 @@ const sendMessage = async () => {
         .map(m => ({ role: m.role, content: m.content }))
     }
 
-    const response = await fetch('/agent/twin/chat', {
-      method: 'POST',
+    await streamAgentEvents({
+      path: '/agent/twin/chat',
       headers: getAuthHeaders(),
-      body: JSON.stringify(payload)
-    })
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '')
-      throw new Error(`请求失败 (${response.status}): ${errText.slice(0, 200)}`)
-    }
-
-    if (!response.body) throw new Error('无法获取流式响应')
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        if (!line.startsWith('data:')) continue
-        const jsonStr = line.replace('data:', '').trim()
-        if (!jsonStr || jsonStr === '[DONE]') continue
-
+      payload,
+      signal: streamController.signal,
+      onResponse: async (response) => {
+        if (!response.ok) {
+          const errText = await response.text().catch(() => '')
+          throw new Error(`请求失败 (${response.status}): ${errText.slice(0, 200)}`)
+        }
+      },
+      missingBodyMessage: '无法获取流式响应',
+      onData: (jsonStr) => {
         try {
           const parsed = JSON.parse(jsonStr)
 
@@ -798,12 +786,13 @@ const sendMessage = async () => {
           // skip invalid JSON
         }
       }
-    }
+    })
 
     await loadSessions()
   } catch (e) {
-    aiMsg.content += `\n[请求失败: ${e.message}]`
+    if (e?.name !== 'AbortError') aiMsg.content += `\n[请求失败: ${e.message}]`
   } finally {
+    if (activeStreamController === streamController) activeStreamController = null
     isThinking.value = false
     isStreaming.value = false
     thinkingText.value = ''

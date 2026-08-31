@@ -26,8 +26,9 @@ assert.match(section, /console\.warn\(['"]\[AiBridge] EISGrid server query skipp
 assert.match(section, /return null/)
 
 const fetchCalls = source.match(/\bfetch\s*\(/g) || []
-assert.equal(fetchCalls.length, 1)
-assert.match(source, /fetch\(['"]\/agent\/ai\/chat\/completions['"]/)
+assert.equal(fetchCalls.length, 0)
+assert.match(source, /from\s*['"]@shared\/eis-agent-sse-client['"]/)
+assert.match(source, /path:\s*['"]\/agent\/ai\/chat\/completions['"]/)
 assert.match(request, /config\.silentError !== true/)
 assert.match(request, /config\.suppressErrorMessage !== true/)
 assert.match(request, /error\?\.response\?\.status !== 404/)

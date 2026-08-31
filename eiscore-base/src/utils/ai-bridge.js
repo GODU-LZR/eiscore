@@ -14,6 +14,7 @@ import {
   formatSmartBiCatalogForPrompt,
   formatSmartBiMetricDefinitionsForPrompt
 } from '@shared/smart-bi-config'
+import { streamAgentEvents } from '@shared/eis-agent-sse-client'
 
 const STORAGE_KEY = 'eis_ai_history_v5'
 const MAX_SESSIONS = 20
@@ -59,6 +60,7 @@ class AiBridge {
     this.config = null
     this.lastCommandId = null
     this.eventBound = false
+    this.activeStreamController = null
 
     const savedData = this.loadFromStorage()
     this.modeStorage = savedData
@@ -290,6 +292,8 @@ class AiBridge {
   }
 
   resetTransientState() {
+    this.activeStreamController?.abort()
+    this.activeStreamController = null
     this.state.inputBuffer = ''
     this.state.selectedFiles = []
     this.state.isLoading = false
@@ -499,6 +503,8 @@ class AiBridge {
 
     const aiMsg = reactive({ role: 'assistant', content: '', thinking: false, time: Date.now(), agent: '' })
     session.messages.push(aiMsg)
+    const streamController = new AbortController()
+    this.activeStreamController = streamController
 
     if (!this.config) await this.loadConfig()
     let silentRetryNeeded = false
@@ -544,47 +550,30 @@ class AiBridge {
         thinking: { type: 'enabled' }
       }
 
-      const response = await fetch('/agent/ai/chat/completions', {
-        method: 'POST',
+      await streamAgentEvents({
+        path: '/agent/ai/chat/completions',
         headers: this.buildAuthHeaders(),
-        body: JSON.stringify(payload)
-      })
-      const routedAgent = response.headers.get('x-eis-ai-agent')
-      if (routedAgent) {
-        aiMsg.agent = routedAgent
-      }
+        payload,
+        signal: streamController.signal,
+        onResponse: async (response) => {
+          const routedAgent = response.headers.get('x-eis-ai-agent')
+          if (routedAgent) {
+            aiMsg.agent = routedAgent
+          }
 
-      if (!response.ok) {
-        let detail = ''
-        try {
-          const text = await response.text()
-          detail = String(text || '').slice(0, 180)
-        } catch {}
-        const error = new Error(`网络错误: ${response.status}${detail ? ` ${detail}` : ''}`)
-        error.status = response.status
-        throw error
-      }
-
-      if (!response.body) {
-        throw new Error('无可用的流式响应')
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data:')) continue
-          const jsonStr = line.replace('data:', '').trim()
-          if (!jsonStr || jsonStr === '[DONE]') continue
+          if (!response.ok) {
+            let detail = ''
+            try {
+              const text = await response.text()
+              detail = String(text || '').slice(0, 180)
+            } catch {}
+            const error = new Error(`网络错误: ${response.status}${detail ? ` ${detail}` : ''}`)
+            error.status = response.status
+            throw error
+          }
+        },
+        missingBodyMessage: '无可用的流式响应',
+        onData: (jsonStr) => {
           try {
             const json = JSON.parse(jsonStr)
             const delta = json.choices?.[0]?.delta
@@ -597,22 +586,30 @@ class AiBridge {
             console.warn('[AiBridge] SSE Parse Failed', e)
           }
         }
-      }
+      })
     } catch (e) {
-      const message = String(e?.message || '')
-      const status = Number(e?.status || 0)
-      const isTransientStatus = [429, 500, 502, 503, 504].includes(status)
-      const isTransientStreamError = /input stream|networkerror|failed to fetch|stream|网络错误:\s*(429|500|502|503|504)/i.test(message.toLowerCase()) || isTransientStatus
-      if (silentRetryCount < 2 && isTransientStreamError) {
-        silentRetryNeeded = true
+      if (e?.name !== 'AbortError') {
+        const message = String(e?.message || '')
+        const status = Number(e?.status || 0)
+        const isTransientStatus = [429, 500, 502, 503, 504].includes(status)
+        const isTransientStreamError = /input stream|networkerror|failed to fetch|stream|网络错误:\s*(429|500|502|503|504)/i.test(message.toLowerCase()) || isTransientStatus
+        if (silentRetryCount < 2 && isTransientStreamError) {
+          silentRetryNeeded = true
+          const idx = session.messages.indexOf(aiMsg)
+          if (idx >= 0) session.messages.splice(idx, 1)
+        } else {
+          aiMsg.content += `\n[Error: ${message || 'Unknown Error'}]`
+        }
+      } else {
         const idx = session.messages.indexOf(aiMsg)
         if (idx >= 0) session.messages.splice(idx, 1)
-      } else {
-        aiMsg.content += `\n[Error: ${message || 'Unknown Error'}]`
       }
     } finally {
-      this.state.isLoading = false
-      this.state.isStreaming = false
+      if (this.activeStreamController === streamController) {
+        this.activeStreamController = null
+        this.state.isLoading = false
+        this.state.isStreaming = false
+      }
       session.updatedAt = Date.now()
     }
 

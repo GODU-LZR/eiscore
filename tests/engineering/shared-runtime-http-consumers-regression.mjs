@@ -42,7 +42,7 @@ assert.match(cardStats, /parseContentRangeTotal\(headers\.get\(['"]content-range
 assert.match(cardStats, /\/rpc\/eis_grid_summary/)
 
 for (const file of readdirSync(resolve(repoRoot, 'shared')).filter((name) => name.endsWith('.js'))) {
-  if (['eis-business-snapshot.js', 'eis-geo-services.js'].includes(file)) continue
+  if (['eis-agent-sse-client.js', 'eis-business-snapshot.js', 'eis-geo-services.js'].includes(file)) continue
   assert.doesNotMatch(read(`shared/${file}`), /\bfetch\s*\(/, `${file} must use an injected or shared platform HTTP client`)
 }
 

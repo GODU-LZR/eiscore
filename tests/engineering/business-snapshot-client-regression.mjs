@@ -50,9 +50,10 @@ assert.doesNotMatch(baseSource, /fetch\(['"]\/agent\/ai\/business-snapshot['"]/)
 
 const mobileSource = read('eiscore-mobile/src/views/assistant/EnterpriseAssistant.vue')
 assert.match(mobileSource, /from\s*['"]@shared\/eis-business-snapshot['"]/)
+assert.match(mobileSource, /from\s*['"]@shared\/eis-agent-sse-client['"]/)
 assert.match(mobileSource, /createBusinessSnapshotLoader\(\{\s*getAuthHeaders:\s*buildAuthHeaders\s*\}\)/)
 assert.match(mobileSource, /businessSnapshot\.value\s*=\s*await requestBusinessSnapshot\(\)/)
-assert.equal([...mobileSource.matchAll(/\bfetch\s*\(/g)].length, 1, 'mobile enterprise assistant must retain only SSE chat fetch')
+assert.equal([...mobileSource.matchAll(/\bfetch\s*\(/g)].length, 0, 'mobile enterprise assistant must delegate SSE transport')
 
 assert.doesNotMatch(clientSource, /localStorage|auth_token|user_info|clearAuth|location\.href|JSON\.stringify/)
 assert.equal([...clientSource.matchAll(/\bglobalThis\.fetch\s*\(/g)].length, 1)

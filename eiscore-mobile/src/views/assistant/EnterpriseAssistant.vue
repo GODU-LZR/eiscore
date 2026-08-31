@@ -198,6 +198,7 @@ import { useRouter } from 'vue-router'
 import { getToken } from '@/utils/auth'
 import MarkdownIt from 'markdown-it'
 import { createBusinessSnapshotLoader } from '@shared/eis-business-snapshot'
+import { streamAgentEvents } from '@shared/eis-agent-sse-client'
 import {
   SMART_BI_COMMON_QUESTIONS,
   buildSmartBiContext,
@@ -318,6 +319,7 @@ const renderMarkdown = (text) => {
 const inputText = ref('')
 const isLoading = ref(false)
 const isStreaming = ref(false)
+let activeStreamController = null
 const showHistory = ref(false)
 const messagesRef = ref(null)
 const selectedFiles = reactive([])
@@ -945,6 +947,8 @@ const sendMessage = async (text, options = {}) => {
   // 创建 AI 回复占位
   const aiMsg = reactive({ role: 'assistant', content: '', time: Date.now() })
   session.messages.push(aiMsg)
+  const streamController = new AbortController()
+  activeStreamController = streamController
 
   try {
     const payloadMessages = await buildPayloadMessages()
@@ -966,35 +970,22 @@ const sendMessage = async (text, options = {}) => {
       ]
     }
 
-    const response = await fetch('/agent/ai/chat/completions', {
-      method: 'POST',
+    await streamAgentEvents({
+      path: '/agent/ai/chat/completions',
       headers: buildAuthHeaders(),
-      body: JSON.stringify(payload)
-    })
-
-    if (!response.ok) {
-      const errText = await response.text().catch(() => '')
-      throw new Error(`请求失败 (${response.status}): ${errText.slice(0, 100)}`)
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    isStreaming.value = true
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (!trimmed || !trimmed.startsWith('data:')) continue
-        const dataStr = trimmed.slice(5).trim()
-        if (dataStr === '[DONE]') continue
+      payload,
+      signal: streamController.signal,
+      trimLines: true,
+      onResponse: async (response) => {
+        if (!response.ok) {
+          const errText = await response.text().catch(() => '')
+          throw new Error(`请求失败 (${response.status}): ${errText.slice(0, 100)}`)
+        }
+      },
+      onOpen: () => {
+        isStreaming.value = true
+      },
+      onData: (dataStr) => {
         try {
           const json = JSON.parse(dataStr)
           const delta = json?.choices?.[0]?.delta?.content
@@ -1004,12 +995,16 @@ const sendMessage = async (text, options = {}) => {
           }
         } catch {}
       }
-    }
+    })
   } catch (e) {
-    if (!aiMsg.content) {
+    if (e?.name === 'AbortError') {
+      const index = session.messages.indexOf(aiMsg)
+      if (index >= 0) session.messages.splice(index, 1)
+    } else if (!aiMsg.content) {
       aiMsg.content = `抱歉，请求出现错误：${e.message || '未知错误'}。请稍后重试。`
     }
   } finally {
+    if (activeStreamController === streamController) activeStreamController = null
     isLoading.value = false
     isStreaming.value = false
     session.updatedAt = Date.now()
@@ -1098,6 +1093,7 @@ const handleWindowResize = () => {
 }
 
 onBeforeUnmount(() => {
+  activeStreamController?.abort()
   window.removeEventListener('resize', handleWindowResize)
   chartResizeTimers.forEach(timer => clearTimeout(timer))
   chartResizeTimers.clear()
