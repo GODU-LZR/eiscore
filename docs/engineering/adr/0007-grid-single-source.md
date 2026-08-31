@@ -26,6 +26,8 @@
 
 第六批把 GridToolbar 的三组布局收敛为共享主体。`layout="split"` 保留应用中心左右分栏、按钮组与间距，`full-width-rows` 保留材料端双行 100% 宽度，缺省值保留其他六端标准双行布局；按钮能力、事件、Slot、选择提示和暗色样式不变。共享主体只识别布局语义；本地/共享库存变为 57/17。
 
+第七批把 8 份 `useGridFormula` 收敛为共享主体。共享 composable 通过最后一个 `formulaServices` 参数接收 `evaluateFormulaExpression`，不静态选择任何应用求值器；apps/equipment/hr/quality 注入共享实现，materials/production/purchase/sales 注入原本地实现，保留三类历史求值语义及消费者 Request/Profile 解析。8 个入口的导入与服务注入由专项契约锁定；本地/共享库存变为 49/18。
+
 ## 后果
 
 后续 Grid 修复可以逐步进入一个受测试的共享根，但在入口与 Core 完成参数化前，8 个本地目录仍是 G2 阻断项。迁移不改变数据库、API、部署拓扑或页面公开 Props/Events；单提交回退可恢复本地副本。

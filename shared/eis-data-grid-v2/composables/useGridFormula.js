@@ -4,7 +4,6 @@
 import { reactive, ref, computed, watch, nextTick } from 'vue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { evaluateFormulaExpression } from '@/utils/formula-eval'
 import { buildSearchQuery } from '@/utils/grid-query'
 import { loadServerSummary } from '@shared/eis-grid-server-summary'
 import {
@@ -19,7 +18,17 @@ import {
 } from '@shared/eis-grid-calculation-policy'
 
 // 🟢 接收 columnLockState 参数
-export function useGridFormula(props, gridApi, gridData, activeSummaryConfig, currentUser, hooks, columnLockState) {
+export function useGridFormula(
+  props,
+  gridApi,
+  gridData,
+  activeSummaryConfig,
+  currentUser,
+  hooks,
+  columnLockState,
+  formulaServices = {}
+) {
+  const { evaluateFormulaExpression } = formulaServices
   const pinnedBottomRowData = ref([])
   const isSavingConfig = ref(false)
   const configDialog = reactive({ visible: false, title: '', type: null, colId: null, tempValue: '', expression: '', cellLabel: '' })

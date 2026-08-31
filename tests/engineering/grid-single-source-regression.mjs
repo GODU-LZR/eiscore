@@ -17,6 +17,7 @@ const rendererLocalVariants = new Map([
   ['SelectRenderer', new Set(['materials'])],
   ['StatusRenderer', new Set(['materials'])]
 ])
+const localFormulaEvaluators = new Set(['materials', 'production', 'purchase', 'sales'])
 
 for (const dependency of ['vue', 'element-plus', '@element-plus/icons-vue', 'ag-grid-community', 'ag-grid-vue3', 'leaflet', 'html2canvas']) {
   assert.match(sharedViteConfig, new RegExp(`['"]${dependency}['"]`))
@@ -31,7 +32,12 @@ for (const app of apps) {
     entry,
     /import\s*{\s*useGridSelection\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridSelection['"]/
   )
+  assert.match(
+    entry,
+    /import\s*{\s*useGridFormula\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridFormula['"]/
+  )
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridSelection.js')), false)
+  assert.equal(existsSync(resolve(gridRoot, 'composables/useGridFormula.js')), false)
   assert.match(
     entry,
     /import FileDialog from ['"]@shared\/eis-data-grid-v2\/components\/FileDialog\.vue['"]/
@@ -94,6 +100,20 @@ for (const app of apps) {
     assert.doesNotMatch(toolbarInvocation, /\bfull-width-rows\b/)
   }
   if (app !== 'apps') assert.doesNotMatch(toolbarInvocation, /\blayout="split"/)
+
+  if (localFormulaEvaluators.has(app)) {
+    assert.match(
+      entry,
+      /import\s*{\s*evaluateFormulaExpression\s*}\s*from\s*['"]@\/utils\/formula-eval['"]/
+    )
+    assert.match(entry, /columnLockState,\s*{\s*evaluateFormulaExpression\s*}\s*\)/)
+  } else {
+    assert.match(
+      entry,
+      /import\s*{\s*evaluateFormulaExpression\s*}\s*from\s*['"]@shared\/utils\/formula-eval['"]/
+    )
+    assert.match(entry, /columnLockState,\s*{\s*evaluateFormulaExpression\s*}\s*\)/)
+  }
 }
 
 for (const renderer of [...alwaysSharedRenderers, ...rendererLocalVariants.keys()]) {
@@ -151,4 +171,15 @@ assert.match(selectionSource, /export function useGridSelection\(gridApi, select
 assert.match(selectionSource, /requestAnimationFrame\(autoScroll\)/)
 assert.match(selectionSource, /cancelAnimationFrame\(autoScrollRaf\)/)
 
-console.log('PASS: all eight Grid entries share selection, common dialogs, and renderer baselines with explicit local variants')
+const formulaSource = readFileSync(
+  resolve(repoRoot, 'shared/eis-data-grid-v2/composables/useGridFormula.js'),
+  'utf8'
+)
+assert.match(formulaSource, /formulaServices\s*=\s*{}/)
+assert.match(formulaSource, /const\s*{\s*evaluateFormulaExpression\s*}\s*=\s*formulaServices/)
+assert.doesNotMatch(
+  formulaSource,
+  /from\s*['"][^'"]*formula-eval['"]/
+)
+
+console.log('PASS: all eight Grid entries share selection, formula services, common dialogs, and renderer baselines with explicit local variants')

@@ -107,7 +107,8 @@ import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, re
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
 import { useGridCore } from './composables/useGridCore'
-import { useGridFormula } from './composables/useGridFormula'
+import { useGridFormula } from '@shared/eis-data-grid-v2/composables/useGridFormula'
+import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
 import { useGridHistory } from './composables/useGridHistory'
 import { useGridSelection } from '@shared/eis-data-grid-v2/composables/useGridSelection'
 import { useGridClipboard } from './composables/useGridClipboard'
@@ -290,7 +291,7 @@ const {
   formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas, calculationState,
   configDialog, isSavingConfig, availableColumns, 
   openConfigDialog, saveConfig, loadGridConfig 
-} = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState)
+} = useGridFormula(props, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState, { evaluateFormulaExpression })
 
 // 4. History
 const historyHooks = useGridHistory(props, gridApi, gridData, { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals })
