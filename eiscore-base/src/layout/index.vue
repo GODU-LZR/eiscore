@@ -287,6 +287,7 @@ import {
   readGuideProgress,
   writeGuideProgress
 } from '@shared/eis-guide-progress-store.mjs'
+import { readHostTabs, writeHostTabs } from '@shared/eis-host-tabs-store.mjs'
 
 const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
 const isCollapse = ref(false)
@@ -3153,7 +3154,6 @@ const handleGuideRegisterMessage = (event) => {
   ]
 }
 
-const HOST_TABS_STORAGE_KEY = 'eis_host_nav_tabs_v1'
 const hostOpenTabAliasMap = new Map()
 const hostTabs = ref([{ key: '/', path: '/', query: {}, title: '首页', closable: false, dot: 'home', routeId: '/' }])
 const activeHostTabKey = ref('/')
@@ -3413,25 +3413,21 @@ const buildDefaultTabKey = (path, query = {}) => {
 }
 
 const persistHostTabs = () => {
-  try {
-    const payload = hostTabs.value.map((tab) => ({
-      key: tab.key,
-      path: tab.path,
-      query: tab.query || {},
-      title: tab.title,
-      closable: tab.key !== '/',
-      dot: tab.dot || resolveHostTabDot(tab.path)
-    }))
-    localStorage.setItem(HOST_TABS_STORAGE_KEY, JSON.stringify(payload))
-  } catch (e) {}
+  const payload = hostTabs.value.map((tab) => ({
+    key: tab.key,
+    path: tab.path,
+    query: tab.query || {},
+    title: tab.title,
+    closable: tab.key !== '/',
+    dot: tab.dot || resolveHostTabDot(tab.path)
+  }))
+  writeHostTabs(payload)
 }
 
 const restoreHostTabs = () => {
   try {
-    const raw = localStorage.getItem(HOST_TABS_STORAGE_KEY)
-    if (!raw) return
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return
+    const parsed = readHostTabs()
+    if (!parsed.length) return
     let entryTab = { key: ENTRY_TAB_KEY, path: '/', query: {}, title: '首页', closable: false, dot: 'home', routeId: '/' }
     const next = []
     const seen = new Set()
