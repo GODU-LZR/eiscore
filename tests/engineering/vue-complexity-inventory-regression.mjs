@@ -59,7 +59,7 @@ for (const [file, cap] of baselineEntries) {
 
 const currentDebtLines = baselineEntries.reduce((sum, [file]) => sum + (currentByFile.get(file) || 0), 0)
 const baselineDebtLines = baselineEntries.reduce((sum, [, lines]) => sum + lines, 0)
-assert.equal(baselineDebtLines, 90010)
+assert.equal(baselineDebtLines, 89981)
 assert.ok(currentDebtLines <= baselineDebtLines, `giant Vue debt grew from ${baselineDebtLines} to ${currentDebtLines} lines`)
 assert.ok(currentGiants.length <= 52, `giant Vue count grew from 52 to ${currentGiants.length}`)
 assert.ok(currentGiants.filter((item) => item.lines >= 1200).length <= 32, 'critical Vue count (>=1200 lines) grew')

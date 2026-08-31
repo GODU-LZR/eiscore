@@ -372,6 +372,58 @@ export const buildGeneratedTransitionRule = ({
   }
 }
 
+export const buildGeneratedWorkflowTransitionRuleCandidates = ({
+  stateMappings = [],
+  workflowAppId,
+  appKey,
+  resolveNextTasks = () => []
+} = {}) => {
+  const seen = new Set()
+  const candidates = []
+  stateMappings.forEach((mapping) => {
+    const fromTask = String(mapping?.bpmn_task_id || '').trim()
+    if (!fromTask) return
+    resolveNextTasks(fromTask).forEach((toTask) => {
+      const candidate = buildGeneratedTransitionRule({
+        fromTaskId: fromTask,
+        toTaskId: toTask,
+        stateMappings,
+        workflowAppId,
+        appKey
+      })
+      if (!candidate) return
+      const key = getWorkflowTransitionRuleKey(candidate)
+      if (seen.has(key)) return
+      seen.add(key)
+      candidates.push(candidate)
+    })
+  })
+  return candidates
+}
+
+export const getActiveWorkflowTransitionRules = (rules = []) => (
+  rules.filter((row) => row?.is_active !== false)
+)
+
+export const getMissingGeneratedWorkflowRules = ({ candidates = [], existingRules = [] } = {}) => {
+  const activeKeys = new Set(
+    getActiveWorkflowTransitionRules(existingRules).map((row) => getWorkflowTransitionRuleKey(row))
+  )
+  return candidates.filter((candidate) => !activeKeys.has(getWorkflowTransitionRuleKey(candidate)))
+}
+
+export const collectWorkflowCandidateRoleCodes = (taskAssignments = []) => {
+  const roles = new Set()
+  taskAssignments.forEach((item) => {
+    const candidateRoles = Array.isArray(item?.candidate_roles) ? item.candidate_roles : []
+    candidateRoles.forEach((itemRole) => {
+      const role = String(itemRole || '').trim()
+      if (role && role !== 'super_admin') roles.add(role)
+    })
+  })
+  return Array.from(roles).sort((a, b) => String(a).localeCompare(String(b), 'zh-Hans-CN'))
+}
+
 export const buildCorePermissionEntries = (appKey) => {
   const normalizedAppKey = String(appKey || '').trim()
   if (!normalizedAppKey) return []

@@ -12,6 +12,7 @@ import {
   buildBusinessRecordQueryPlan,
   buildCorePermissionEntries,
   buildGeneratedTransitionRule,
+  buildGeneratedWorkflowTransitionRuleCandidates,
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
   buildWorkflowPolicyPayload,
@@ -21,12 +22,15 @@ import {
   buildWorkflowTaskOptions,
   chooseNextTaskByStateLevel,
   collectRequiredPermissionEntries,
+  collectWorkflowCandidateRoleCodes,
   extractBusinessDocNo,
   formatApprovalMode,
   formatPolicyBool,
   formatTransitionStatePair,
   formatWorkflowBusinessBindingSummary,
   getWorkflowPolicyModeMeta,
+  getActiveWorkflowTransitionRules,
+  getMissingGeneratedWorkflowRules,
   getWorkflowStateColor,
   getWorkflowStateLabel,
   getWorkflowStateLevel,
@@ -374,6 +378,44 @@ assert.equal(buildGeneratedTransitionRule({ fromTaskId: 'Task_A', toTaskId: 'Tas
 assert.equal(buildGeneratedTransitionRule({ fromTaskId: 'Task_B', toTaskId: 'Task_C', stateMappings }), null)
 assert.equal(buildGeneratedTransitionRule({ fromTaskId: 'Task_A', toTaskId: 'missing', stateMappings }), null)
 
+const generatedCandidates = buildGeneratedWorkflowTransitionRuleCandidates({
+  stateMappings: [...stateMappings, { bpmn_task_id: '', state_value: 'locked' }],
+  workflowAppId: 'workflow-1',
+  appKey: 'sales',
+  resolveNextTasks: (taskId) => ({
+    Task_A: ['Task_B', 'Task_B', 'Task_C'],
+    Task_B: ['Task_C']
+  }[taskId] || [])
+})
+assert.equal(generatedCandidates.length, 2)
+assert.deepEqual(generatedCandidates.map((item) => [item.from_task_id, item.to_task_id]), [
+  ['Task_A', 'Task_B'],
+  ['Task_A', 'Task_C']
+])
+assert.equal(generatedCandidates[0].required_permission, 'op:sales.status_transition.created_active')
+assert.deepEqual(buildGeneratedWorkflowTransitionRuleCandidates(), [])
+
+assert.deepEqual(getActiveWorkflowTransitionRules([
+  { id: 1, is_active: true },
+  { id: 2 },
+  { id: 3, is_active: false }
+]).map((item) => item.id), [1, 2])
+const disabledCandidate = { ...generatedCandidates[0] }
+const activeCandidate = { ...generatedCandidates[1] }
+assert.deepEqual(getMissingGeneratedWorkflowRules({
+  candidates: [disabledCandidate, activeCandidate],
+  existingRules: [
+    { ...disabledCandidate, id: 1, is_active: false },
+    { ...activeCandidate, id: 2, is_active: true }
+  ]
+}), [disabledCandidate])
+
+assert.deepEqual(collectWorkflowCandidateRoleCodes([
+  { candidate_roles: [' reviewer ', 'super_admin', '', null] },
+  { candidate_roles: ['operator', 'reviewer'] },
+  { candidate_roles: 'invalid' }
+]), ['operator', 'reviewer'].sort((a, b) => a.localeCompare(b, 'zh-Hans-CN')))
+
 assert.deepEqual(buildCorePermissionEntries('sales'), [
   { code: 'op:sales.workflow_start', source: '流程发起' },
   { code: 'op:sales.workflow_transition', source: '流程推进' },
@@ -665,10 +707,12 @@ for (const removedDefinition of [
   "permission_mode: String(policy.permission_mode || cfg.permission_mode || 'compat')",
   "workflowPolicyEffective.value.permission_mode === 'strict' ? 'danger' : 'success'",
   'const resolveWorkflowRuleUpsertPlan =',
-  "ElMessage.warning('来源状态和目标状态不能相同')"
+  "ElMessage.warning('来源状态和目标状态不能相同')",
+  'const buildGeneratedWorkflowTransitionRule =',
+  'const roles = new Set()'
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 3996)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 3967)
 
 console.log('PASS: AppRuntime workflow policy preserves states, approvals, permissions, generated rules and legacy bindings')

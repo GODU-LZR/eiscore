@@ -898,7 +898,7 @@ import {
 } from '@/domain/app-runtime-navigation-policy.mjs'
 import {
   buildBusinessRecordQueryPlan,
-  buildGeneratedTransitionRule,
+  buildGeneratedWorkflowTransitionRuleCandidates,
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
   buildWorkflowPolicyPayload,
@@ -908,6 +908,7 @@ import {
   buildWorkflowTaskOptions,
   chooseNextTaskByStateLevel,
   collectRequiredPermissionEntries,
+  collectWorkflowCandidateRoleCodes,
   extractBusinessDocNo,
   formatApprovalMode,
   formatPolicyBool,
@@ -918,7 +919,8 @@ import {
   getWorkflowStateLabel,
   getWorkflowStateLevel,
   getWorkflowStateTagType,
-  getWorkflowTransitionRuleKey,
+  getActiveWorkflowTransitionRules as filterActiveWorkflowTransitionRules,
+  getMissingGeneratedWorkflowRules as filterMissingGeneratedWorkflowRules,
   isAutoAdvanceSatisfied,
   isInventoryDraftTable,
   isStateReached,
@@ -1313,46 +1315,16 @@ const buildWorkflowTransitionPermission = (fromState, toState, appKeyOverride = 
   return buildTransitionPermission(fromState, toState, appKey)
 }
 
-const buildGeneratedWorkflowTransitionRule = (fromTaskId, toTaskId, appKey = '') => buildGeneratedTransitionRule({
-  fromTaskId,
-  toTaskId,
+const getGeneratedWorkflowTransitionRuleCandidates = () => buildGeneratedWorkflowTransitionRuleCandidates({
   stateMappings: stateMappings.value,
   workflowAppId: runtimeAppId.value,
-  appKey
+  appKey: String(workflowPolicyEffective.value.acl_module || '').trim(),
+  resolveNextTasks: resolveNextTaskCandidatesByGraph
 })
 
-const getGeneratedWorkflowTransitionRuleCandidates = () => {
-  const appKey = String(workflowPolicyEffective.value.acl_module || '').trim()
-  const seen = new Set()
-  const candidates = []
-  stateMappings.value.forEach((mapping) => {
-    const fromTask = String(mapping?.bpmn_task_id || '').trim()
-    if (!fromTask) return
-    const nextTasks = resolveNextTaskCandidatesByGraph(fromTask)
-    nextTasks.forEach((toTask) => {
-      const candidate = buildGeneratedWorkflowTransitionRule(fromTask, toTask, appKey)
-      if (!candidate) return
-      const key = getWorkflowTransitionRuleKey(candidate)
-      if (seen.has(key)) return
-      seen.add(key)
-      candidates.push(candidate)
-    })
-  })
-  return candidates
-}
+const getActiveWorkflowTransitionRules = () => filterActiveWorkflowTransitionRules(workflowTransitionRules.value)
 
-const getActiveWorkflowTransitionRules = () => workflowTransitionRules.value
-  .filter((row) => row?.is_active !== false)
-
-const getWorkflowCandidateRoleCodes = () => {
-  const roles = new Set()
-  taskAssignments.value.forEach((item) => {
-    normalizeStringList(item?.candidate_roles).forEach((role) => {
-      if (role !== 'super_admin') roles.add(role)
-    })
-  })
-  return Array.from(roles).sort((a, b) => String(a).localeCompare(String(b), 'zh-Hans-CN'))
-}
+const getWorkflowCandidateRoleCodes = () => collectWorkflowCandidateRoleCodes(taskAssignments.value)
 
 const getRequiredWorkflowPermissionEntries = (missingRules = []) => collectRequiredPermissionEntries({
   appKey: workflowPolicyEffective.value.acl_module,
@@ -1360,11 +1332,10 @@ const getRequiredWorkflowPermissionEntries = (missingRules = []) => collectRequi
   missingRules
 })
 
-const getMissingGeneratedWorkflowRules = () => {
-  const activeKeys = new Set(getActiveWorkflowTransitionRules().map((row) => getWorkflowTransitionRuleKey(row)))
-  return getGeneratedWorkflowTransitionRuleCandidates()
-    .filter((candidate) => !activeKeys.has(getWorkflowTransitionRuleKey(candidate)))
-}
+const getMissingGeneratedWorkflowRules = () => filterMissingGeneratedWorkflowRules({
+  candidates: getGeneratedWorkflowTransitionRuleCandidates(),
+  existingRules: workflowTransitionRules.value
+})
 
 const resetWorkflowReadinessReport = () => {
   workflowReadinessReport.ready = false
