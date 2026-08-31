@@ -19,6 +19,7 @@ const { createAiChatHttpHandler } = require('./ai-chat-http');
 const { createFlashHttpHandlers } = require('./flash-http');
 const { createTwinChatHttpHandler } = require('./twin-chat-http');
 const { attachWebSocketServer } = require('./websocket-server');
+const { createAgentTaskService } = require('./agent-task-service');
 const { createDatabaseNotifier } = require('./database-notifier');
 const { createAiRuntimeService } = require('./ai-runtime-service');
 const { createAiOcrService } = require('./ai-ocr-service');
@@ -1522,6 +1523,18 @@ function createAgentTaskAiInvoker(cfg) {
   };
 }
 
+const agentTaskService = createAgentTaskService({
+  canUseAgent,
+  logAgentEvent,
+  normalizeProjectPath,
+  isAllowedProject,
+  getAiConfig,
+  sanitizeWritePolicy,
+  resolveDefaultWritePolicy,
+  createAgentTaskAiInvoker,
+  normalizeAgentTaskErrorMessage
+});
+
 const flashClineService = createFlashClineService({
   enabled: flashCliEnabled,
   nodeVersion: process.versions.node,
@@ -1593,13 +1606,5 @@ attachWebSocketServer({
   killFlashCliSessionProcess,
   sendWsJson,
   createFlashCliSession,
-  canUseAgent,
-  logAgentEvent,
-  normalizeProjectPath,
-  isAllowedProject,
-  getAiConfig,
-  sanitizeWritePolicy,
-  resolveDefaultWritePolicy,
-  createAgentTaskAiInvoker,
-  normalizeAgentTaskErrorMessage
+  agentTaskService
 });

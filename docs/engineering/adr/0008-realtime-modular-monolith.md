@@ -62,4 +62,6 @@
 
 第二十一个切片把 AI Agent 的消息清洗、意图与模式路由、三类 Runtime 配置、Smart BI/Grid Prompt、上下文压缩、系统 Prompt 和输出提取迁入纯 `ai-agent-policy.js`。该模块不访问网络、数据库或环境；HTTP Chat 和 Agent 任务调用只消费策略端口。契约锁定不信任消息过滤、权限降级、配置别名/范围、数据长度上限、六域指标与三类 Agent 的硬性输出规则。
 
+第二十二个切片把 Agent 任务、FileWatcher、工具调用、终端执行和连接清理迁入 `agent-task-service.js`。WebSocket 传输层的三类 handler 只委托服务，连接关闭通过服务释放 watcher；服务继续通过注入端口消费权限、项目、AI 配置、写策略、错误与 Agent Core，专项以假 Conversation/Watcher 禁止真实命令执行并锁定全部响应和审计语义。
+
 这些切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库或部署拓扑；可通过回退各自单提交恢复旧装配。Notifier 抽离保留默认连接参数、LISTEN 频道和通知 payload，同时在重连时显式回收旧 Workflow Engine。组合根仍包含大量 Flash/Agent 及 AI Agent 路由/Prompt 领域实现，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。

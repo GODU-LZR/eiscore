@@ -3,11 +3,6 @@
 
 'use strict';
 
-const {
-  AgentConversation: DefaultAgentConversation,
-  FileWatcher: DefaultFileWatcher
-} = require('./agent-core');
-
 const WEBSOCKET_MESSAGE_MANIFEST = Object.freeze([
   Object.freeze({ type: 'subscribe', handler: 'subscribe' }),
   Object.freeze({ type: 'unsubscribe', handler: 'unsubscribe' }),
@@ -30,17 +25,7 @@ const createWebSocketMessageHandler = ({
   killFlashCliSessionProcess,
   sendWsJson,
   createFlashCliSession,
-  canUseAgent,
-  logAgentEvent,
-  normalizeProjectPath,
-  isAllowedProject,
-  getAiConfig,
-  sanitizeWritePolicy,
-  resolveDefaultWritePolicy,
-  createAgentTaskAiInvoker,
-  normalizeAgentTaskErrorMessage,
-  AgentConversation = DefaultAgentConversation,
-  FileWatcher = DefaultFileWatcher,
+  agentTaskService,
   manifest = WEBSOCKET_MESSAGE_MANIFEST
 }) => {
   const handlers = {
@@ -83,107 +68,9 @@ const createWebSocketMessageHandler = ({
         message: '会话已重置'
       });
     },
-    agentTask: async (ws, data) => {
-      if (!canUseAgent(ws.user)) {
-        ws.send(JSON.stringify({
-          type: 'agent:error',
-          error: 'Forbidden: agent access denied'
-        }));
-        logAgentEvent('agent:task_denied', ws.user, { projectPath: data.projectPath || '' });
-        return;
-      }
-      const projectPath = normalizeProjectPath(data.projectPath) || 'eiscore-apps';
-      if (!isAllowedProject(projectPath)) {
-        ws.send(JSON.stringify({
-          type: 'agent:error',
-          error: 'Forbidden: project path not allowed'
-        }));
-        logAgentEvent('agent:task_denied', ws.user, { projectPath });
-        return;
-      }
-      const cfg = await getAiConfig();
-      if (!cfg?.api_url || !cfg?.api_key) {
-        ws.send(JSON.stringify({
-          type: 'agent:error',
-          error: 'AI configuration is missing in system_configs.ai_glm_config'
-        }));
-        logAgentEvent('agent:task_denied', ws.user, { projectPath, reason: 'ai_config_missing' });
-        return;
-      }
-      const requestedPolicy = sanitizeWritePolicy(data.writePolicy);
-      const defaultPolicy = resolveDefaultWritePolicy(projectPath);
-      const hasRequestedRules = requestedPolicy.allowedFiles.length > 0 || requestedPolicy.allowedDirs.length > 0;
-      const writePolicy = hasRequestedRules ? requestedPolicy : defaultPolicy;
-
-      logAgentEvent('agent:task_start', ws.user, { projectPath, writePolicy });
-      ws.agentConversation = new AgentConversation(projectPath, {
-        writePolicy,
-        model: cfg?.model || 'glm-4.6v',
-        aiInvoker: createAgentTaskAiInvoker(cfg)
-      });
-
-      if (ws.fileWatcher) ws.fileWatcher.stop();
-      ws.fileWatcher = new FileWatcher(projectPath, (changeEvent) => {
-        ws.send(JSON.stringify({ type: 'agent:file_change', data: changeEvent }));
-      });
-      ws.fileWatcher.start();
-
-      ws.send(JSON.stringify({
-        type: 'agent:status',
-        status: 'thinking',
-        message: 'Processing your request...'
-      }));
-
-      try {
-        const result = await ws.agentConversation.executeTask(data.prompt);
-        ws.send(JSON.stringify({
-          type: 'agent:result',
-          success: result.success,
-          executionLog: result.executionLog,
-          totalTurns: result.totalTurns
-        }));
-        logAgentEvent('agent:task_result', ws.user, {
-          projectPath,
-          success: result.success,
-          totalTurns: result.totalTurns
-        });
-      } catch (error) {
-        const safeError = normalizeAgentTaskErrorMessage(error);
-        ws.send(JSON.stringify({ type: 'agent:error', error: safeError, code: 'AGENT_TASK_FAILED' }));
-        logAgentEvent('agent:task_failed', ws.user, { projectPath, error: safeError });
-      }
-    },
-    agentToolUse: async (ws, data) => {
-      if (!canUseAgent(ws.user)) {
-        ws.send(JSON.stringify({ type: 'agent:error', error: 'Forbidden: agent access denied' }));
-        logAgentEvent('agent:tool_denied', ws.user, { tool: data.toolCall?.tool });
-        return;
-      }
-      if (!ws.agentConversation) {
-        ws.send(JSON.stringify({ type: 'agent:error', error: 'No active conversation. Send agent:task first.' }));
-        return;
-      }
-      const result = await ws.agentConversation.executeToolCall(data.toolCall);
-      ws.send(JSON.stringify({ type: 'agent:tool_result', result }));
-      logAgentEvent('agent:tool_result', ws.user, {
-        tool: data.toolCall?.tool,
-        success: result?.success !== false
-      });
-    },
-    agentTerminal: async (ws, data) => {
-      if (!canUseAgent(ws.user)) {
-        ws.send(JSON.stringify({ type: 'agent:error', error: 'Forbidden: agent access denied' }));
-        logAgentEvent('agent:terminal_denied', ws.user, { command: data.command || '' });
-        return;
-      }
-      if (!ws.agentConversation) {
-        ws.send(JSON.stringify({ type: 'agent:error', error: 'No active conversation.' }));
-        return;
-      }
-      const result = await ws.agentConversation.tools.executeCommand(data.command);
-      ws.send(JSON.stringify({ type: 'agent:terminal_result', result }));
-      logAgentEvent('agent:terminal_result', ws.user, { success: result?.success !== false });
-    }
+    agentTask: agentTaskService.runTask,
+    agentToolUse: agentTaskService.runTool,
+    agentTerminal: agentTaskService.runTerminal
   };
 
   const routeByType = new Map(manifest.map((entry) => [entry.type, entry.handler]));
@@ -207,10 +94,12 @@ const attachWebSocketServer = ({
   asUser,
   channel,
   killFlashCliSessionProcess,
+  agentTaskService,
   ...messageDependencies
 }) => {
   const handleMessage = createWebSocketMessageHandler({
     killFlashCliSessionProcess,
+    agentTaskService,
     ...messageDependencies
   });
 
@@ -229,7 +118,7 @@ const attachWebSocketServer = ({
 
     ws.on('message', (message) => handleMessage(ws, message));
     ws.on('close', () => {
-      if (ws.fileWatcher) ws.fileWatcher.stop();
+      agentTaskService.cleanup(ws);
       if (ws.flashCliSessions) {
         ws.flashCliSessions.forEach((session) => killFlashCliSessionProcess(session));
         ws.flashCliSessions.clear();

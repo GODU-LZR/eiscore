@@ -13,6 +13,7 @@ const {
   WEBSOCKET_MESSAGE_MANIFEST,
   attachWebSocketServer
 } = require(resolve(repoRoot, 'realtime/websocket-server.js'))
+const { createAgentTaskService } = require(resolve(repoRoot, 'realtime/agent-task-service.js'))
 
 assert.deepEqual(WEBSOCKET_MESSAGE_MANIFEST.map((entry) => [entry.type, entry.handler]), [
   ['subscribe', 'subscribe'],
@@ -74,6 +75,24 @@ class FakeFileWatcher {
   stop() { this.stopped = true; calls.push(['watcherStop']) }
 }
 
+const agentTaskService = createAgentTaskService({
+  canUseAgent() { return agentAllowed },
+  logAgentEvent(type, _user, detail) { logs.push([type, detail]) },
+  normalizeProjectPath(value) { return String(value || '').trim() },
+  isAllowedProject() { return projectAllowed },
+  async getAiConfig() { return aiConfig },
+  sanitizeWritePolicy(value) {
+    return value || { allowedFiles: [], allowedDirs: [] }
+  },
+  resolveDefaultWritePolicy(projectPath) {
+    return { allowedFiles: [`${projectPath}/default.vue`], allowedDirs: [] }
+  },
+  createAgentTaskAiInvoker(cfg) { return { model: cfg.model } },
+  normalizeAgentTaskErrorMessage(error) { return `safe:${error.message}` },
+  AgentConversation: FakeAgentConversation,
+  FileWatcher: FakeFileWatcher
+})
+
 const createSocket = () => ({
   listeners: new Map(),
   sent: [],
@@ -102,21 +121,7 @@ attachWebSocketServer({
   killFlashCliSessionProcess(session) { calls.push(['kill', session.id]) },
   sendWsJson(ws, payload) { ws.sent.push(payload) },
   createFlashCliSession() { calls.push(['createFlashSession']); return { id: 'created', taskId: 'new' } },
-  canUseAgent() { return agentAllowed },
-  logAgentEvent(type, _user, detail) { logs.push([type, detail]) },
-  normalizeProjectPath(value) { return String(value || '').trim() },
-  isAllowedProject() { return projectAllowed },
-  async getAiConfig() { return aiConfig },
-  sanitizeWritePolicy(value) {
-    return value || { allowedFiles: [], allowedDirs: [] }
-  },
-  resolveDefaultWritePolicy(projectPath) {
-    return { allowedFiles: [`${projectPath}/default.vue`], allowedDirs: [] }
-  },
-  createAgentTaskAiInvoker(cfg) { return { model: cfg.model } },
-  normalizeAgentTaskErrorMessage(error) { return `safe:${error.message}` },
-  AgentConversation: FakeAgentConversation,
-  FileWatcher: FakeFileWatcher
+  agentTaskService
 })
 
 const connect = (socket = createSocket()) => {
@@ -214,5 +219,6 @@ assert.equal(socket.flashCliSessions.size, 0)
 assert.match(indexSource, /attachWebSocketServer\(\{/)
 assert.doesNotMatch(indexSource, /wss\.on\(['"]connection['"]/)
 assert.doesNotMatch(indexSource, /data\.type ===/)
+assert.doesNotMatch(readFileSync(resolve(repoRoot, 'realtime/websocket-server.js'), 'utf8'), /new AgentConversation/)
 
 console.log('PASS: WebSocket manifest and connection dispatcher preserve 9 message types, auth, sessions and cleanup')

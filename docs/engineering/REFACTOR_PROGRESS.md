@@ -134,14 +134,15 @@
 | `3f3d45f` | 抽离 Flash Cline 运行时 | 命令、环境、构建自愈、Prompt、输出解析与会话原语进入注入式工厂 |
 | `167e893` | 抽离 Flash Cline 任务服务 | 鉴权、并发、分帧、超时、草稿同步、后检查与终态审计进入注入式服务 |
 | `4d1e1df` | 集中 Flash Cline 配置 | 20 项 Cline/草稿环境变量进入只读配置契约 |
-| 本文件所在提交 | 抽离 AI Agent 策略 | 消息清洗、意图/路由、Runtime 配置、Smart BI/Grid Prompt 与输出提取进入纯策略模块 |
+| `5affeab` | 抽离 AI Agent 策略 | 消息清洗、意图/路由、Runtime 配置、Smart BI/Grid Prompt 与输出提取进入纯策略模块 |
+| 本文件所在提交 | 抽离 Agent 任务服务 | 任务、文件监听、工具调用、终端执行与连接清理退出 WebSocket 传输层 |
 
 ## 当前切片
 
-- 状态：G3 进行中；Flash Cline 子领域已完成当前模块化目标，AI Agent 路由、Prompt 与 Runtime 配置已退出组合根。
-- 结果：新增 `ai-agent-policy.js`，集中消息内容清洗与 24 条上限、五类意图、角色/显式模式/Smart BI 路由、三类 Agent 默认与覆盖配置、工具白名单、目录公开元数据、上下文压缩、六域 Smart BI 指标/问题路由、Grid 全量/样本规则、三套系统 Prompt、消息组合及普通/流式输出提取。`realtime/index.js` 仅导入十个运行端口，从 2,242 降至 1,605 行，较 G3 起点减少 5,781 行。
-- 兼容边界：不信任前端 system/tool 消息、文本/图片结构、工作流权限降级、worker/enterprise/workflow 路由优先级、模型/temperature/top_p/max_tokens/thinking/工具覆盖与数值范围、列 80/20、样本 12、上下文 9,000、快照 16,000、本体 6,000 字符上限，以及 Workflow/经营分析/一线助手全部硬性 Prompt 规则保持。
-- 验证：专项覆盖消息净化、意图优先级、三类路由与权限降级、Smart BI 强制经营分析、Runtime 默认/别名/越界回退、Agent 目录、上下文裁剪、六域指标、Grid 服务端优先、三套 Prompt、消息组合和多种上游完成格式；完整 `test:quality` 与 `test:unit` 通过，其中语法扫描 150 个 Node 文件、14 个锁定 CI 包、1,114 个文本文件秘密扫描、6 个变更文件 lint 和 23 项基础设施检查均通过。未执行外部 AI、数据库或远程测试。
+- 状态：G3 进行中；AI Agent 策略和任务执行均已进入独立边界，WebSocket 恢复为认证、Manifest 分发与连接资源装配层。
+- 结果：新增 `agent-task-service.js`，注入权限、项目、AI 配置、写策略、错误规范化及 Agent Core 类，完整承载任务准备/执行、旧文件监听停止、新监听启动与变更事件、工具调用、终端命令和连接关闭清理。`websocket-server.js` 从 246 降至 135 行，三类 Agent handler 变为服务委托；`realtime/index.js` 为显式装配 1,610 行，较 G3 起点减少 5,776 行。
+- 兼容边界：角色/项目/AI 配置三层拒绝，空项目默认 `eiscore-apps`，显式写规则优先、否则默认写策略，模型回退、`thinking/result/error/file_change/tool_result/terminal_result` 协议、任务异常脱敏、七类审计事件、重复任务的旧 watcher 停止及连接关闭 watcher 清理保持；工具和终端仍要求已有会话。
+- 验证：专项以假 Conversation/FileWatcher 覆盖三层拒绝、默认/显式写策略、任务成功/失败、文件事件、工具/终端权限与无会话拒绝、失败结果审计和清理；WebSocket 集成契约锁定 9 类消息、认证、Flash 会话和 Agent 服务委托。完整 `test:quality` 与 `test:unit` 通过，其中语法扫描 151 个 Node 文件、14 个锁定 CI 包、1,116 个文本文件秘密扫描、7 个变更文件 lint 和 23 项基础设施检查均通过。未执行真实终端命令、外部 AI、数据库或远程测试。
 
 ## 已知非阻断风险
 
@@ -156,9 +157,9 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/123 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- `realtime/index.js` 仍有 1,605 行且保留 Agent 权限/项目配置、任务 AI 调用适配与草稿文件适配；WebSocket 内仍有 Agent 任务/工具/终端生命周期，已有边界退出不代表 G3 完成。
+- `realtime/index.js` 仍有 1,610 行且保留 Agent 权限/项目配置、错误规范化、任务 AI 调用适配与草稿文件适配；已有边界退出不代表 G3 完成。
 - 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器虽已有离线契约，仍需在获授权的隔离环境完成真实备份、迁移、postcheck 与恢复演练后才能成为上线证据。
 
 ## 下一候选切片
 
-继续 G3：把 WebSocket 中的 Agent 任务、工具调用与终端生命周期迁入独立服务，并集中 Agent 权限/项目/错误与 AI 调用适配；随后建立巨型前端页面库存与渐进拆分门禁。保持 HTTP/WebSocket 协议、SQL 和部署行为不变。
+继续 G3：集中 Agent 权限/项目配置、写策略、错误规范化与 AI 调用适配，进一步收敛组合根；随后建立巨型前端页面库存与渐进拆分门禁。保持 HTTP/WebSocket 协议、SQL 和部署行为不变。
