@@ -385,6 +385,11 @@ import {
 } from '@element-plus/icons-vue'
 import axios from 'axios'
 import { getToken, getUserInfo } from '@/utils/auth'
+import {
+  buildFlashConversationStorageKey,
+  loadFlashConversations,
+  saveFlashConversations
+} from '@shared/eis-flash-conversation-cache.mjs'
 
 const route = useRoute()
 const router = useRouter()
@@ -620,7 +625,7 @@ const isLikelyEiscoreShellHtml = (html) => {
 }
 
 const previewUrl = computed(() => `${PREVIEW_ROUTE}?appId=${encodeURIComponent(appId.value)}&_t=${previewNonce.value}`)
-const shellStorageKey = computed(() => `flash_shell_conversations:${appId.value || 'default'}`)
+const shellStorageKey = computed(() => buildFlashConversationStorageKey(appId.value))
 const shellConversationOptions = computed(() => shellConversations.value.map((item) => ({
   value: item.id,
   label: item.title
@@ -1578,11 +1583,7 @@ const buildDefaultConversation = (id = '') => {
 
 const writeShellConversations = () => {
   if (!shellStorageKey.value) return
-  try {
-    localStorage.setItem(shellStorageKey.value, JSON.stringify(shellConversations.value))
-  } catch {
-    // ignore storage errors
-  }
+  saveFlashConversations(appId.value, shellConversations.value)
   schedulePersistShellConversationsRemote()
 }
 
@@ -1765,45 +1766,24 @@ const loadShellConversations = () => {
   const remoteSource = normalizeSourceCode(appData.value?.source_code)
   const remoteFlash = remoteSource?.flash && typeof remoteSource.flash === 'object' ? remoteSource.flash : {}
   const remoteList = Array.isArray(remoteFlash?.shell_conversations) ? remoteFlash.shell_conversations : []
-  try {
-    const raw = localStorage.getItem(key)
-    const parsed = raw ? JSON.parse(raw) : []
-    const sourceList = Array.isArray(parsed) && parsed.length > 0 ? parsed : remoteList
-    const list = Array.isArray(sourceList)
-      ? sourceList.map((item) => {
-        const conv = buildDefaultConversation(String(item?.id || ''))
-        conv.title = sanitizeConversationTitle(item?.title, conv.title)
-        conv.createdAt = String(item?.createdAt || conv.createdAt)
-        conv.updatedAt = String(item?.updatedAt || conv.updatedAt)
-        conv.messages = Array.isArray(item?.messages)
-          ? item.messages.map((msg) => normalizeSavedMessage(msg)).filter(Boolean).slice(-SHELL_MAX_MESSAGE_PER_CONVERSATION)
-          : []
-        conv.attachments = Array.isArray(item?.attachments)
-          ? item.attachments.map((att) => normalizeShellAttachment(att)).filter(Boolean).slice(-SHELL_MAX_ATTACHMENTS)
-          : []
-        return conv
-      }).filter((item) => item.id)
-      : []
-
-    shellConversations.value = list.slice(0, SHELL_MAX_CONVERSATIONS)
-  } catch {
-    shellConversations.value = remoteList
-      .map((item) => {
-        const conv = buildDefaultConversation(String(item?.id || ''))
-        conv.title = sanitizeConversationTitle(item?.title, conv.title)
-        conv.createdAt = String(item?.createdAt || conv.createdAt)
-        conv.updatedAt = String(item?.updatedAt || conv.updatedAt)
-        conv.messages = Array.isArray(item?.messages)
-          ? item.messages.map((msg) => normalizeSavedMessage(msg)).filter(Boolean).slice(-SHELL_MAX_MESSAGE_PER_CONVERSATION)
-          : []
-        conv.attachments = Array.isArray(item?.attachments)
-          ? item.attachments.map((att) => normalizeShellAttachment(att)).filter(Boolean).slice(-SHELL_MAX_ATTACHMENTS)
-          : []
-        return conv
-      })
-      .filter((item) => item.id)
-      .slice(0, SHELL_MAX_CONVERSATIONS)
-  }
+  const cachedConversations = loadFlashConversations(appId.value)
+  const sourceList = cachedConversations.length > 0 ? cachedConversations : remoteList
+  shellConversations.value = sourceList
+    .map((item) => {
+      const conv = buildDefaultConversation(String(item?.id || ''))
+      conv.title = sanitizeConversationTitle(item?.title, conv.title)
+      conv.createdAt = String(item?.createdAt || conv.createdAt)
+      conv.updatedAt = String(item?.updatedAt || conv.updatedAt)
+      conv.messages = Array.isArray(item?.messages)
+        ? item.messages.map((msg) => normalizeSavedMessage(msg)).filter(Boolean).slice(-SHELL_MAX_MESSAGE_PER_CONVERSATION)
+        : []
+      conv.attachments = Array.isArray(item?.attachments)
+        ? item.attachments.map((att) => normalizeShellAttachment(att)).filter(Boolean).slice(-SHELL_MAX_ATTACHMENTS)
+        : []
+      return conv
+    })
+    .filter((item) => item.id)
+    .slice(0, SHELL_MAX_CONVERSATIONS)
 
   if (shellConversations.value.length === 0) {
     const fallback = buildDefaultConversation()
