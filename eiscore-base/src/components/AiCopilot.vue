@@ -556,6 +556,13 @@ import {
   resolveAiSmartBiActionDueAt,
   stripAiSmartBiReportBlocks as stripSmartBiReportBlocks
 } from '@/domain/ai-copilot-smart-bi-action-policy'
+import {
+  buildAiImportPayload,
+  generateAiImportCode,
+  isAiMaterialsImportContext as isMaterialsImportContext,
+  prepareAiGenericImportRows,
+  shouldAiImportAttachCurrentUser as shouldAttachCurrentUser
+} from '@/domain/ai-copilot-import-policy'
 
 const props = defineProps({
   mode: { type: String, default: 'enterprise' },
@@ -1521,153 +1528,20 @@ const applyAiFormula = (formula, messageKey) => {
   }
 }
 
-const isImportBlankValue = (value) => {
-  if (value === undefined || value === null) return true
-  return typeof value === 'string' && value.trim() === ''
-}
+const generateImportCode = (prefix, index) => generateAiImportCode(prefix, index, new Date())
 
-const hasImportValue = (value) => {
-  if (isImportBlankValue(value)) return false
-  if (Array.isArray(value)) return value.some(hasImportValue)
-  if (typeof value === 'object') return Object.values(value).some(hasImportValue)
-  return true
-}
-
-const isMaterialsImportContext = (context, target) => {
-  const app = String(context?.app || '').toLowerCase()
-  const apiUrl = String(target?.apiUrl || context?.apiUrl || '')
-  return app === 'materials' || apiUrl.includes('/raw_materials')
-}
-
-const shouldAttachCurrentUser = (context) => {
-  const columns = Array.isArray(context?.columns) ? context.columns : []
-  const staticColumns = Array.isArray(context?.staticColumns) ? context.staticColumns : []
-  return columns.concat(staticColumns).some(col => col?.prop === 'created_by')
-}
-
-const getImportDefaultMap = (context, target) => ({
-  ...((context?.importDefaults && typeof context.importDefaults === 'object') ? context.importDefaults : {}),
-  ...((target?.defaults && typeof target.defaults === 'object') ? target.defaults : {})
-})
-
-const getImportRequiredFields = (context, target) => {
-  const fields = []
-  if (Array.isArray(context?.importRequiredFields)) fields.push(...context.importRequiredFields)
-  if (Array.isArray(target?.requiredFields)) fields.push(...target.requiredFields)
-  return Array.from(new Set(fields.filter(Boolean)))
-}
-
-const getImportGeneratedFields = (context, target) => {
-  const fields = []
-  if (Array.isArray(context?.importGeneratedFields)) fields.push(...context.importGeneratedFields)
-  if (Array.isArray(target?.generatedFields)) fields.push(...target.generatedFields)
-  return fields.filter(field => field?.prop)
-}
-
-const generateImportCode = (prefix, index) => {
-  const date = new Date()
-  const yyyy = String(date.getFullYear())
-  const mm = String(date.getMonth() + 1).padStart(2, '0')
-  const dd = String(date.getDate()).padStart(2, '0')
-  const hh = String(date.getHours()).padStart(2, '0')
-  const mi = String(date.getMinutes()).padStart(2, '0')
-  const ss = String(date.getSeconds()).padStart(2, '0')
-  const ms = String(date.getMilliseconds()).padStart(3, '0')
-  const seq = String(index + 1).padStart(4, '0')
-  return `${prefix || 'NO-'}${yyyy}${mm}${dd}${hh}${mi}${ss}${ms}-${seq}`
-}
-
-const normalizeImportRow = (row, context) => {
-  const labelToProp = new Map((context?.columns || []).map(col => [col.label, col.prop]))
-  const normalized = {}
-  Object.entries(row || {}).forEach(([key, value]) => {
-    if (key === 'properties') return
-    const prop = labelToProp.get(key) || key
-    if (hasImportValue(normalized[prop]) && prop !== key) return
-    normalized[prop] = value
-  })
-  if (row?.properties && typeof row.properties === 'object') {
-    normalized.properties = row.properties
-  }
-  return normalized
-}
-
-const prepareGenericImportRows = (rows, context, target) => {
-  const defaults = getImportDefaultMap(context, target)
-  const requiredFields = getImportRequiredFields(context, target)
-  const generatedFields = getImportGeneratedFields(context, target)
-  let skipped = 0
-  const cleanedRows = []
-
-  rows.forEach((row) => {
-    const normalizedRow = normalizeImportRow(row, context)
-    if (!Object.values(normalizedRow).some(hasImportValue)) {
-      skipped += 1
-      return
-    }
-
-    const nextRow = { ...defaults, ...normalizedRow }
-    generatedFields.forEach((field) => {
-      if (!hasImportValue(nextRow[field.prop])) {
-        nextRow[field.prop] = generateImportCode(field.prefix, cleanedRows.length)
-      }
-    })
-
-    const hasRequiredFields = requiredFields.every((field) => hasImportValue(nextRow[field]))
-    if (!hasRequiredFields) {
-      skipped += 1
-      return
-    }
-
-    cleanedRows.push(nextRow)
-  })
-
-  return { rows: cleanedRows, skipped }
-}
+const prepareGenericImportRows = (rows, context, target) => prepareAiGenericImportRows(
+  rows,
+  context,
+  target,
+  { generateCode: generateImportCode }
+)
 
 const buildImportPayload = (rows, context) => {
-  const staticProps = new Set((context?.staticColumns || []).map(col => col.prop))
-  const labelToProp = new Map((context?.columns || []).map(col => [col.label, col.prop]))
-  const propertyFields = new Set(context?.propertyFields || [])
   const token = getAuthToken()
   const tokenUsername = getTokenUsername(token)
   const currentUser = tokenUsername || context?.currentUser || ''
-  return rows.map((row) => {
-    if (!row || typeof row !== 'object') return null
-    const payload = { properties: {} }
-    const rowProps = row.properties && typeof row.properties === 'object' ? row.properties : null
-    let hasValue = false
-    Object.entries(row).forEach(([key, value]) => {
-      if (key === 'properties') return
-      if (!hasImportValue(value)) return
-      let prop = key
-      if (!staticProps.has(prop) && labelToProp.has(prop)) {
-        prop = labelToProp.get(prop)
-      }
-      hasValue = true
-      if (staticProps.has(prop)) {
-        if (propertyFields.has(prop)) {
-          payload.properties[prop] = value
-        } else {
-          payload[prop] = value
-        }
-      } else {
-        payload.properties[prop] = value
-      }
-    })
-    if (rowProps) {
-      Object.entries(rowProps).forEach(([key, value]) => {
-        if (!hasImportValue(value)) return
-        payload.properties[key] = value
-        hasValue = true
-      })
-    }
-    if (staticProps.has('created_by') && currentUser) {
-      payload.created_by = currentUser
-    }
-    if (Object.keys(payload.properties).length === 0) delete payload.properties
-    return hasValue ? payload : null
-  }).filter(Boolean)
+  return buildAiImportPayload(rows, context, { currentUser })
 }
 
 const applyDataImport = async (info, messageKey) => {
