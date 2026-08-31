@@ -864,6 +864,16 @@ import {
   isSalesRowActive as isRowActive,
   toSalesAmount as toAmount
 } from '@/domain/sales-grid-data-policy'
+import {
+  buildSalesDetailBusinessMetrics,
+  buildSalesDetailItems,
+  buildSalesDetailPropertyItems,
+  buildSalesDetailRelationSections,
+  buildSalesDetailSummary,
+  formatSalesAmount as formatAmount,
+  formatSalesDetailValue as formatDetailValue,
+  getSalesRowDisplayName as getRowDisplayName
+} from '@/domain/sales-grid-detail-policy'
 
 const props = defineProps({
   appKey: { type: String, default: 'customers' },
@@ -1179,172 +1189,14 @@ const detailTitle = computed(() => {
   if (!row) return `${app.value.name}详情`
   return `${app.value.name} - ${getRowDisplayName(row)}`
 })
-const detailItems = computed(() => {
-  const row = selectedDetailRow.value
-  if (!row) return []
-  return detailColumns.value
-    .filter(col => col.type !== 'file' && col.type !== 'geo')
-    .map(col => ({
-      label: col.label,
-      prop: col.prop,
-      value: formatDetailValue(getRowValue(row, col.prop))
-    }))
-})
-const detailPropertyItems = computed(() => {
-  const row = selectedDetailRow.value
-  const properties = row?.properties && typeof row.properties === 'object' ? row.properties : {}
-  const visibleProps = new Set(detailColumns.value.map(col => col.prop))
-  return Object.entries(properties)
-    .filter(([key]) => !visibleProps.has(key))
-    .map(([key, value]) => ({ key, value: formatDetailValue(value) }))
-})
-const detailRelationSections = computed(() => {
-  const relations = detailRelations.value || {}
-  const sections = []
-  if (Array.isArray(relations.orders)) {
-    sections.push({
-      key: 'orders',
-      title: '相关订单',
-      rows: relations.orders.map(mapOrderRelation),
-      columns: [
-        { label: '订单号', prop: 'order_no' },
-        { label: '产品', prop: 'product_name' },
-        { label: '金额', prop: 'total_amount' },
-        { label: '状态', prop: 'order_status' }
-      ]
-    })
-  }
-  if (Array.isArray(relations.payments)) {
-    sections.push({
-      key: 'payments',
-      title: '相关回款',
-      rows: relations.payments.map(mapPaymentRelation),
-      columns: [
-        { label: '回款单号', prop: 'payment_no' },
-        { label: '订单号', prop: 'order_no' },
-        { label: '金额', prop: 'amount' },
-        { label: '核销状态', prop: 'verify_status' }
-      ]
-    })
-  }
-  if (Array.isArray(relations.followUps)) {
-    sections.push({
-      key: 'followUps',
-      title: '跟进记录',
-      rows: relations.followUps.map(mapFollowRelation),
-      columns: [
-        { label: '跟进编号', prop: 'follow_no' },
-        { label: '日期', prop: 'follow_date' },
-        { label: '方式', prop: 'follow_type' },
-        { label: '结果', prop: 'follow_result' },
-        { label: '下次跟进', prop: 'next_follow_at' }
-      ]
-    })
-  }
-  if (Array.isArray(relations.opportunities)) {
-    sections.push({
-      key: 'opportunities',
-      title: '相关商机',
-      rows: relations.opportunities.map(mapOpportunityRelation),
-      columns: [
-        { label: '商机编号', prop: 'opportunity_no' },
-        { label: '商机名称', prop: 'opportunity_name' },
-        { label: '预计金额', prop: 'expected_amount' },
-        { label: '阶段', prop: 'stage' }
-      ]
-    })
-  }
-  if (relations.order) {
-    sections.push({
-      key: 'order',
-      title: '对应订单',
-      rows: [mapOrderRelation(relations.order)],
-      columns: [
-        { label: '订单号', prop: 'order_no' },
-        { label: '客户', prop: 'customer_name' },
-        { label: '产品', prop: 'product_name' },
-        { label: '金额', prop: 'total_amount' }
-      ]
-    })
-  }
-  if (relations.customer) {
-    sections.push({
-      key: 'customer',
-      title: '对应客户',
-      rows: [mapCustomerRelation(relations.customer)],
-      columns: [
-        { label: '客户编码', prop: 'customer_no' },
-        { label: '客户名称', prop: 'name' },
-        { label: '等级', prop: 'level' },
-        { label: '应收余额', prop: 'receivable_balance' }
-      ]
-    })
-  }
-  if (relations.opportunity) {
-    sections.push({
-      key: 'opportunity',
-      title: '对应商机',
-      rows: [mapOpportunityRelation(relations.opportunity)],
-      columns: [
-        { label: '商机编号', prop: 'opportunity_no' },
-        { label: '商机名称', prop: 'opportunity_name' },
-        { label: '预计金额', prop: 'expected_amount' },
-        { label: '阶段', prop: 'stage' }
-      ]
-    })
-  }
-  return sections.filter(section => section.rows.length > 0)
-})
-const detailBusinessMetrics = computed(() => {
-  const relations = detailRelations.value || {}
-  const row = selectedDetailRow.value
-  if (!row) return []
-  const relationOrders = Array.isArray(relations.orders)
-    ? relations.orders
-    : (relations.order ? [relations.order] : [])
-  const relationPayments = Array.isArray(relations.payments) ? relations.payments : []
-  const orderAmount = relationOrders
-    .filter(isOrderActive)
-    .reduce((sum, item) => sum + toAmount(item.total_amount), 0)
-  const paymentAmount = relationPayments
-    .filter((item) => item?.status !== 'deleted')
-    .reduce((sum, item) => sum + toAmount(item.amount), 0)
-  const receivable = Math.max(orderAmount - paymentAmount, toAmount(row.receivable_balance))
-  const paymentRate = orderAmount ? Math.round((paymentAmount / orderAmount) * 1000) / 10 : 0
-  if (app.value.key === 'customers') {
-    return [
-      { key: 'orderAmount', label: '累计订单', value: formatAmount(orderAmount) },
-      { key: 'paymentAmount', label: '累计回款', value: formatAmount(paymentAmount) },
-      { key: 'receivable', label: '应收余额', value: formatAmount(receivable) },
-      { key: 'paymentRate', label: '回款率', value: `${paymentRate}%` }
-    ]
-  }
-  if (app.value.key === 'orders') {
-    return [
-      { key: 'orderAmount', label: '订单金额', value: formatAmount(row.total_amount) },
-      { key: 'paymentAmount', label: '已回款', value: formatAmount(paymentAmount) },
-      { key: 'remain', label: '未回款', value: formatAmount(Math.max(toAmount(row.total_amount) - paymentAmount, 0)) },
-      { key: 'paymentRate', label: '回款率', value: `${toAmount(row.total_amount) ? Math.round((paymentAmount / toAmount(row.total_amount)) * 1000) / 10 : 0}%` }
-    ]
-  }
-  if (app.value.key === 'opportunities') {
-    return [
-      { key: 'expectedAmount', label: '预计金额', value: formatAmount(row.expected_amount) },
-      { key: 'probability', label: '赢率', value: `${toAmount(row.probability)}%` },
-      { key: 'weightedAmount', label: '加权金额', value: formatAmount(toAmount(row.expected_amount) * toAmount(row.probability) / 100) },
-      { key: 'stage', label: '当前阶段', value: formatDetailValue(row.stage) }
-    ]
-  }
-  if (app.value.key === 'follow_ups') {
-    return [
-      { key: 'followDate', label: '跟进日期', value: formatDetailValue(row.follow_date) },
-      { key: 'followResult', label: '跟进结果', value: formatDetailValue(row.follow_result) },
-      { key: 'nextFollow', label: '下次跟进', value: formatDetailValue(row.next_follow_at) },
-      { key: 'owner', label: '负责人', value: formatDetailValue(row.owner_name) }
-    ]
-  }
-  return []
-})
+const detailItems = computed(() => buildSalesDetailItems({ row: selectedDetailRow.value, columns: detailColumns.value }))
+const detailPropertyItems = computed(() => buildSalesDetailPropertyItems({ row: selectedDetailRow.value, columns: detailColumns.value }))
+const detailRelationSections = computed(() => buildSalesDetailRelationSections(detailRelations.value))
+const detailBusinessMetrics = computed(() => buildSalesDetailBusinessMetrics({
+  appKey: app.value.key,
+  row: selectedDetailRow.value,
+  relations: detailRelations.value
+}))
 
 const extraColumns = ref([])
 const hasSyncedFieldAcl = ref(false)
@@ -1699,93 +1551,13 @@ const syncAllCustomerReceivables = async () => {
 
 const buildDataStats = (rows) => buildSalesDataStats(app.value.key, rows)
 
-const getRowValue = (row, prop) => {
-  if (!row || !prop) return undefined
-  return row[prop] ?? row.properties?.[prop]
-}
-
-const formatDetailValue = (value) => {
-  if (value === undefined || value === null || value === '') return '-'
-  if (Array.isArray(value)) return value.map(formatDetailValue).join('、')
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
-}
-
-const formatAmount = (value) => {
-  const num = Number(value)
-  if (!Number.isFinite(num)) return formatDetailValue(value)
-  return num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
-
-const mapOrderRelation = (row) => ({
-  order_no: formatDetailValue(row?.order_no),
-  customer_name: formatDetailValue(row?.customer_name),
-  product_name: formatDetailValue(row?.product_name),
-  total_amount: formatAmount(row?.total_amount),
-  order_status: formatDetailValue(row?.order_status)
+const buildDetailSummary = () => buildSalesDetailSummary({
+  appName: app.value.name,
+  row: selectedDetailRow.value,
+  items: detailItems.value,
+  propertyItems: detailPropertyItems.value,
+  relationSections: detailRelationSections.value
 })
-
-const mapPaymentRelation = (row) => ({
-  payment_no: formatDetailValue(row?.payment_no),
-  order_no: formatDetailValue(row?.order_no),
-  amount: formatAmount(row?.amount),
-  verify_status: formatDetailValue(row?.verify_status)
-})
-
-const mapFollowRelation = (row) => ({
-  follow_no: formatDetailValue(row?.follow_no),
-  follow_date: formatDetailValue(row?.follow_date),
-  follow_type: formatDetailValue(row?.follow_type),
-  follow_result: formatDetailValue(row?.follow_result),
-  next_follow_at: formatDetailValue(row?.next_follow_at)
-})
-
-const mapOpportunityRelation = (row) => ({
-  opportunity_no: formatDetailValue(row?.opportunity_no),
-  opportunity_name: formatDetailValue(row?.opportunity_name),
-  expected_amount: formatAmount(row?.expected_amount),
-  stage: formatDetailValue(row?.stage),
-  probability: `${formatDetailValue(row?.probability)}%`
-})
-
-const mapCustomerRelation = (row) => ({
-  customer_no: formatDetailValue(row?.customer_no),
-  name: formatDetailValue(row?.name),
-  level: formatDetailValue(row?.level),
-  receivable_balance: formatAmount(row?.receivable_balance)
-})
-
-const getRowDisplayName = (row) => {
-  if (!row) return '未选择记录'
-  return row.name || row.opportunity_name || row.customer_name || row.order_no || row.payment_no || row.follow_no || row.opportunity_no || row.customer_no || row.id || '未命名记录'
-}
-
-const buildDetailSummary = () => {
-  const row = selectedDetailRow.value
-  if (!row) return ''
-  const lines = [
-    `${app.value.name}：${getRowDisplayName(row)}`
-  ]
-  detailItems.value.forEach((item) => {
-    if (item.value !== '-') lines.push(`${item.label}：${item.value}`)
-  })
-  if (detailPropertyItems.value.length) {
-    lines.push('扩展字段：')
-    detailPropertyItems.value.forEach((item) => {
-      lines.push(`${item.key}：${item.value}`)
-    })
-  }
-  if (detailRelationSections.value.length) {
-    lines.push('关联记录：')
-    detailRelationSections.value.forEach((section) => {
-      lines.push(`${section.title}：${section.rows.length} 条`)
-      section.rows.slice(0, 5).forEach((item) => {
-        lines.push(Object.values(item).filter(value => value !== '-').join(' / '))
-      })
-    })
-  }
-  return lines.join('\n')
-}
 
 const safeFilterValue = (value) => encodeURIComponent(String(value))
   .replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)
