@@ -18,6 +18,8 @@
 
 第二批迁移 5 个逐字节一致的 Check/File/Lock/Select/Status 基础编辑器与渲染器。共享 SFC 的裸依赖由 8 个消费者通过统一 Vite `resolve.dedupe` 锚定到各自的 Vue、Element Plus、图标和 AG Grid 单例，避免从仓库根错误解析或把第二份运行时打入微应用；本地/共享库存变为 138/6。
 
+第三批迁移逐字节一致的 FileDialog 与 ColumnManagerDialog。FileDialog 仍通过消费者的 `@/utils/request` 解析原应用 HTTP/Profile 适配，上传、下载、删除和消息语义不变；ColumnManagerDialog 当前未被入口直接消费，但只保留共享实现以阻止未来复制。本地/共享库存变为 122/8。
+
 ## 后果
 
 后续 Grid 修复可以逐步进入一个受测试的共享根，但在入口与 Core 完成参数化前，8 个本地目录仍是 G2 阻断项。迁移不改变数据库、API、部署拓扑或页面公开 Props/Events；单提交回退可恢复本地副本。

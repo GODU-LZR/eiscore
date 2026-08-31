@@ -19,6 +19,9 @@ for (const app of apps) {
     /import\s*{\s*useGridSelection\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridSelection['"]/
   )
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridSelection.js')), false)
+  assert.match(entry, /import FileDialog from ['"]@shared\/eis-data-grid-v2\/components\/FileDialog\.vue['"]/)
+  assert.equal(existsSync(resolve(gridRoot, 'components/FileDialog.vue')), false)
+  assert.equal(existsSync(resolve(gridRoot, 'components/ColumnManagerDialog.vue')), false)
   assert.match(viteConfig, /import\s*{\s*sharedFrontendDedupe\s*}\s*from\s*['"]\.\.\/scripts\/vite-shared-source-config\.mjs['"]/)
   assert.match(viteConfig, /resolve:\s*{\s*dedupe:\s*sharedFrontendDedupe,/)
   for (const renderer of sharedRenderers) {
@@ -35,6 +38,9 @@ for (const renderer of sharedRenderers) {
     existsSync(resolve(repoRoot, `shared/eis-data-grid-v2/components/renderers/${renderer}.vue`)),
     true
   )
+}
+for (const dialog of ['FileDialog', 'ColumnManagerDialog']) {
+  assert.equal(existsSync(resolve(repoRoot, `shared/eis-data-grid-v2/components/${dialog}.vue`)), true)
 }
 
 const selectionSource = readFileSync(
@@ -56,4 +62,4 @@ assert.match(selectionSource, /export function useGridSelection\(gridApi, select
 assert.match(selectionSource, /requestAnimationFrame\(autoScroll\)/)
 assert.match(selectionSource, /cancelAnimationFrame\(autoScrollRaf\)/)
 
-console.log('PASS: all eight Grid entries share selection and five base renderer/editor implementations')
+console.log('PASS: all eight Grid entries share selection, base renderers/editors, and common dialogs')

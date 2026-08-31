@@ -98,6 +98,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+// Shared by all EIS Data Grid v2 consumers.
+
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'

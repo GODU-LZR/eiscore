@@ -106,8 +106,8 @@ for (const path of sourceFiles) {
   if (repoPath.startsWith('shared/eis-data-grid-v2/')) sharedGridFileCount += 1
 }
 assert.deepEqual([...actualGridCopies].sort(), expectedGridCopies)
-assert.equal(localGridFileCount, 138)
-assert.equal(sharedGridFileCount, 6)
+assert.equal(localGridFileCount, 122)
+assert.equal(sharedGridFileCount, 8)
 
 const storageInventory = collectInventory(storagePattern)
 const vueUseStorageInventory = collectInventory(vueUseStoragePattern)

@@ -100,6 +100,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+// Shared by all EIS Data Grid v2 consumers.
+
 import { ref, computed, watch, nextTick } from 'vue'
 import { Plus, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'

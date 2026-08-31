@@ -116,7 +116,7 @@ import { useGridClipboard } from './composables/useGridClipboard'
 import GridToolbar from './components/GridToolbar.vue'
 import ConfigDialog from './components/ConfigDialog.vue'
 import GeoDialog from './components/GeoDialog.vue'
-import FileDialog from './components/FileDialog.vue'
+import FileDialog from '@shared/eis-data-grid-v2/components/FileDialog.vue'
 
 import {
   CellApiModule,

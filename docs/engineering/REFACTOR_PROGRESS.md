@@ -101,14 +101,15 @@
 | `0bcdf43` | 完成原生 Storage 消费审计 | 清除注释假库存和 HR 可选事件元数据，产品消费者归零，库存由 14/14 降至 11/11 安全边界 |
 | `39f2356` | 完成间接 Storage 迁移 | 全局主题进入安全单例桥，未受控 VueUse/Pinia 持久化归零，关闭 Storage 子目标 |
 | `60b9eaf` | 启动 Grid 单一来源迁移 | 8 份相同 Selection 原样收敛为 1 份共享实现，本地/共享文件库存 186/0→178/1 |
-| 本文件所在提交 | 共享 Grid 基础编辑器/渲染器 | 5 组相同 SFC 收敛并建立 Vite 单例依赖契约，库存 178/1→138/6 |
+| `215dd2d` | 共享 Grid 基础编辑器/渲染器 | 5 组相同 SFC 收敛并建立 Vite 单例依赖契约，库存 178/1→138/6 |
+| 本文件所在提交 | 共享 Grid 公共对话框 | File/ColumnManager 两组相同 SFC 收敛，保留消费者 Request 适配，库存 138/6→122/8 |
 
 ## 当前切片
 
-- 状态：G2 进行中；Storage 子目标完成，Grid 单一来源本地/共享文件库存继续降至 138/6。
-- 结果：8 份逐字节一致的 CheckEditor、FileRenderer、LockHeader、SelectEditor、StatusEditor 原样迁入共享根；8 个 Core 统一导入。统一 Vite dedupe 契约把 Vue、Element Plus、图标和 AG Grid 锚定到各消费者单例，修复共享 SFC 跨根解析。
-- 兼容边界：组件 Props/事件、Grid context、状态编辑弹层、文件对话入口、锁定/排序/过滤头部和选择编辑器保持。差异渲染器、Core 与入口未改；无接口、数据库、部署或缓存迁移。
-- 验证：完整质量门禁通过，覆盖 126 个 Node 脚本、14 个锁定 CI 包、6 个共享 Grid 模块/138:6 库存/Vite 依赖契约及既有平台契约、1170 个文本秘密扫描、33 个变更代码文件 lint、23 个 Shell 与生产 Compose；8 个受影响前端生产构建成功并分别转换 apps 2317、equipment 1774、hr 1614、materials 1796、production 1626、purchase 1634、quality 1774、sales 1626 个模块。未执行远程测试。
+- 状态：G2 进行中；Storage 子目标完成，Grid 单一来源本地/共享文件库存继续降至 122/8。
+- 结果：8 份逐字节一致的 FileDialog 与 ColumnManagerDialog 原样迁入共享根；8 个入口统一使用共享 FileDialog，本地 16 个文件被 2 个共享源替代。
+- 兼容边界：FileDialog 的 Props/事件、上传/下载/删除、文件类别和消息保持，并继续通过每个消费者的 `@/utils/request` 使用原 URL/Profile/Auth；ColumnManager 的列增删排序和校验保持。无接口、数据库、部署或缓存迁移。
+- 验证：完整质量门禁通过，覆盖 126 个 Node 脚本、14 个锁定 CI 包、8 个共享 Grid 模块/122:8 库存/消费者 Request 解析及既有平台契约、1156 个文本秘密扫描、34 个变更代码文件 lint、23 个 Shell 与生产 Compose；8 个受影响前端生产构建成功并分别转换 apps 2317、equipment 1774、hr 1614、materials 1796、production 1626、purchase 1634、quality 1774、sales 1626 个模块。未执行远程测试。
 
 ## 已知非阻断风险
 
@@ -121,9 +122,9 @@
 - 平台 HTTP 已覆盖系统配置、全部 9 份 Axios Request、基座设置页/SOP/布局身份权限/AI 配置、采购可选业务流及根部共享运行时；普通受保护 API 的直接 `fetch` 已归零，全局 401 兜底已删除。Geo/翻译、智能收单、业务快照、Twin JSON、Flash JSON 与 Agent SSE 族分别由 48→1、13→1、2→1、2→1、2→1、5→1，页面级 Agent 传输归零；剩余总库存为 12 个文件、18 处并受严格门禁保护。
 - 2026-08-30 全产品复审纠正了早期会话统计口径：此前“归零”只覆盖基座/移动与 Auth 工具，没有覆盖微应用页面、Store、权限、Realtime 和共享 Grid 副本。产品目录审计基线为 56 个文件、134 处直接调用；连续九个切片后依次降至 118/48、87/32、71/16、61/10、56/7、48/5、39/4、20/1、0/0。AppRuntime 切片把门禁扩展至根部共享运行时代码并发现范围外 3/3，本切片已将其归零；Auth/Session 子目标完成。
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/123 次剩余 Router 调用受审计门禁保护。
-- G2 当前原生非会话 Storage 为 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航为 15 个文件/17 处；`eis-data-grid-v2` 有 8 个迁移中目录、本地/共享文件 138/6，是 G2 唯一退出阻断项。
+- G2 当前原生非会话 Storage 为 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航为 15 个文件/17 处；`eis-data-grid-v2` 有 8 个迁移中目录、本地/共享文件 122/8，是 G2 唯一退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
 
 ## 下一候选切片
 
-迁移逐字节一致的 FileDialog 与 ColumnManagerDialog；再处理分组同构组件，不混入 Core 参数化。
+处理分组同构的 Cascader/Geo/Check/Select/Status 渲染器，先锁定材料端与应用中心的差异注入方式。
