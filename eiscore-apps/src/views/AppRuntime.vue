@@ -884,6 +884,31 @@ import {
   parseBpmnTaskNameMap,
   resolveFirstUserTaskId
 } from '@/domain/app-runtime-bpmn.mjs'
+import {
+  LEGACY_BINDING_LABEL_MAP,
+  LEGACY_BINDING_STATE_TARGET_MAP,
+  LEGACY_TABLE_BINDING_MAP,
+  WORKFLOW_STATUS_ORDER,
+  buildGeneratedTransitionRule,
+  buildPermissionDefinitionPayload,
+  buildTransitionPermission,
+  collectRequiredPermissionEntries,
+  formatApprovalMode,
+  formatPolicyBool,
+  formatTransitionStatePair,
+  getWorkflowStateColor,
+  getWorkflowStateLabel,
+  getWorkflowStateLevel,
+  getWorkflowStateTagType,
+  getWorkflowTransitionRuleKey,
+  isStateReached,
+  normalizeApprovalMode,
+  normalizePolicyBool,
+  normalizeRequiredApprovals,
+  normalizeStateValue,
+  normalizeStatusTokenForPermission,
+  parseSchemaTable
+} from '@/domain/app-runtime-workflow-policy.mjs'
 
 const AppCenterGrid = defineAsyncComponent(() => import('@/components/AppCenterGrid.vue'))
 
@@ -1076,74 +1101,10 @@ let sideResizeUpHandler = null
 let autoAdvanceTimer = null
 const autoAdvancingInstanceIds = reactive({})
 
-const WORKFLOW_STATUS_ORDER = Object.freeze(['created', 'active', 'locked'])
-const WORKFLOW_STATE_LABEL_MAP = Object.freeze({
-  created: '创建',
-  active: '生效',
-  locked: '锁定'
-})
-const WORKFLOW_STATE_UI_MAP = Object.freeze({
-  created: { tagType: 'info', icon: CirclePlusFilled, color: '#909399' },
-  active: { tagType: 'success', icon: CircleCheckFilled, color: '#67c23a' },
-  locked: { tagType: 'danger', icon: Lock, color: '#f56c6c' }
-})
-const APPROVAL_MODE_LABEL_MAP = Object.freeze({
-  any: '单人通过',
-  quota: '多人会签',
-  all: '全员会签'
-})
-const WORKFLOW_STATE_CANONICAL_MAP = Object.freeze({
-  created: 'created',
-  draft: 'created',
-  '创建': 'created',
-  '新建': 'created',
-  active: 'active',
-  enabled: 'active',
-  '生效': 'active',
-  '启用': 'active',
-  locked: 'locked',
-  disabled: 'locked',
-  '锁定': 'locked',
-  '禁用': 'locked'
-})
-const LEGACY_BINDING_LABEL_MAP = Object.freeze({
-  'legacy:hr_employee': '人事花名册（HR）',
-  'legacy:hr_user': '用户管理（HR）',
-  'legacy:hr_attendance': '考勤管理（HR）',
-  'legacy:hr_change': '调岗记录（HR）',
-  'legacy:mms_ledger': '物料台账（MMS）',
-  'legacy:mms_inventory_ledger': '库存台账（MMS）',
-  'legacy:mms_inventory_stock_in': '入库（MMS）',
-  'legacy:mms_inventory_stock_out': '出库（MMS）',
-  'legacy:mms_inventory_current': '库存查询（MMS）',
-  'legacy:mms_bom': 'BOM管理（MMS）',
-  'legacy:sales_order': '销售订单',
-  'legacy:purchase_demand': '采购需求',
-  'legacy:production_work_order': '生产工单'
-})
-const LEGACY_TABLE_BINDING_MAP = Object.freeze({
-  'hr.archives': 'legacy:hr_employee',
-  'hr.attendance_records': 'legacy:hr_attendance',
-  'public.users': 'legacy:hr_user',
-  'public.raw_materials': 'legacy:mms_ledger',
-  'public.sales_orders': 'legacy:sales_order',
-  'public.purchase_demands': 'legacy:purchase_demand',
-  'scm.boms': 'legacy:mms_bom',
-  'scm.inventory_transactions': 'legacy:mms_inventory_ledger',
-  'scm.v_inventory_current': 'legacy:mms_inventory_current',
-  'scm.production_work_orders': 'legacy:production_work_order'
-})
-const LEGACY_BINDING_STATE_TARGET_MAP = Object.freeze({
-  'legacy:hr_employee': { target_table: 'hr.archives', state_field: 'status' },
-  'legacy:hr_user': { target_table: 'public.users', state_field: 'status' },
-  'legacy:hr_attendance': { target_table: 'hr.attendance_records', state_field: 'status' },
-  'legacy:hr_change': { target_table: 'hr.employee_changes', state_field: 'status' },
-  'legacy:mms_ledger': { target_table: 'public.raw_materials', state_field: 'status' },
-  'legacy:sales_order': { target_table: 'public.sales_orders', state_field: 'status' },
-  'legacy:purchase_demand': { target_table: 'public.purchase_demands', state_field: 'status' },
-  'legacy:production_work_order': { target_table: 'scm.production_work_orders', state_field: 'work_order_status' },
-  'legacy:mms_inventory_stock_in': { target_table: 'scm.inventory_drafts', state_field: 'status' },
-  'legacy:mms_inventory_stock_out': { target_table: 'scm.inventory_drafts', state_field: 'status' }
+const WORKFLOW_STATE_ICON_MAP = Object.freeze({
+  created: CirclePlusFilled,
+  active: CircleCheckFilled,
+  locked: Lock
 })
 
 const canUseAdminView = computed(() => currentActor.value.appRole === 'super_admin' || hasPerm('module:app'))
@@ -1460,57 +1421,6 @@ const formatArrayCell = (value) => {
   return list.length ? list.join(', ') : '-'
 }
 
-const normalizeApprovalMode = (value) => {
-  const mode = String(value || '').trim().toLowerCase()
-  if (mode === 'quota' || mode === 'all') return mode
-  return 'any'
-}
-
-const normalizeRequiredApprovals = (value) => {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return 1
-  return Math.max(1, Math.floor(parsed))
-}
-
-const formatApprovalMode = (value) => {
-  const mode = normalizeApprovalMode(value)
-  return APPROVAL_MODE_LABEL_MAP[mode] || mode
-}
-
-const normalizePolicyBool = (value, fallback = true) => {
-  if (value === true || value === false) return value
-  if (value === null || value === undefined || value === '') return fallback
-  const raw = String(value).trim().toLowerCase()
-  if (['true', '1', 'yes', 'on'].includes(raw)) return true
-  if (['false', '0', 'no', 'off'].includes(raw)) return false
-  return fallback
-}
-
-const formatPolicyBool = (value) => (value ? '开启' : '关闭')
-
-const formatTransitionStatePair = (fromState, toState) => {
-  const fromText = getWorkflowStateLabel(fromState)
-  const toText = getWorkflowStateLabel(toState)
-  if (fromText === '-' && toText === '-') return '-'
-  return `${fromText} -> ${toText}`
-}
-
-const normalizeStatusTokenForPermission = (value) => {
-  const raw = String(value || '').trim().toLowerCase()
-  if (!raw) return ''
-  const parts = []
-  for (const char of raw) {
-    if (/^[a-z0-9]$/.test(char)) {
-      parts.push(char)
-    } else if (/^[\s_.:-]$/.test(char)) {
-      parts.push('_')
-    } else {
-      parts.push(`_u${char.codePointAt(0).toString(16)}_`)
-    }
-  }
-  return parts.join('').replace(/_+/g, '_').replace(/^_+|_+$/g, '')
-}
-
 const buildWorkflowTransitionPermission = (fromState, toState, appKeyOverride = '') => {
   const appKey = String(
     appKeyOverride
@@ -1518,45 +1428,16 @@ const buildWorkflowTransitionPermission = (fromState, toState, appKeyOverride = 
     || workflowPolicyEffective.value.acl_module
     || ''
   ).trim()
-  const fromToken = normalizeStatusTokenForPermission(fromState)
-  const toToken = normalizeStatusTokenForPermission(toState)
-  if (!appKey || !fromToken || !toToken || fromToken === toToken) return ''
-  return `op:${appKey}.status_transition.${fromToken}_${toToken}`
+  return buildTransitionPermission(fromState, toState, appKey)
 }
 
-const getWorkflowTransitionRuleKey = (row = {}) => ([
-  String(row?.from_task_id || '').trim(),
-  String(row?.to_task_id || '').trim(),
-  String(row?.from_state || '').trim(),
-  String(row?.to_state || '').trim()
-].join('\u001f'))
-
-const getStateMappingByTaskId = (taskId) => {
-  const key = String(taskId || '').trim()
-  if (!key) return null
-  return stateMappings.value.find((item) => String(item?.bpmn_task_id || '').trim() === key) || null
-}
-
-const buildGeneratedWorkflowTransitionRule = (fromTaskId, toTaskId, appKey = '') => {
-  const fromTask = String(fromTaskId || '').trim()
-  const toTask = String(toTaskId || '').trim()
-  if (!fromTask || !toTask || fromTask === toTask) return null
-  const fromMapping = getStateMappingByTaskId(fromTask)
-  const toMapping = getStateMappingByTaskId(toTask)
-  const fromState = String(fromMapping?.state_value || '').trim()
-  const toState = String(toMapping?.state_value || '').trim()
-  if (!fromState || !toState) return null
-  if (normalizeStatusTokenForPermission(fromState) === normalizeStatusTokenForPermission(toState)) return null
-  return {
-    workflow_app_id: runtimeAppId.value,
-    from_task_id: fromTask,
-    to_task_id: toTask,
-    from_state: fromState,
-    to_state: toState,
-    required_permission: buildWorkflowTransitionPermission(fromState, toState, appKey) || null,
-    is_active: true
-  }
-}
+const buildGeneratedWorkflowTransitionRule = (fromTaskId, toTaskId, appKey = '') => buildGeneratedTransitionRule({
+  fromTaskId,
+  toTaskId,
+  stateMappings: stateMappings.value,
+  workflowAppId: runtimeAppId.value,
+  appKey
+})
 
 const getGeneratedWorkflowTransitionRuleCandidates = () => {
   const appKey = String(workflowPolicyEffective.value.acl_module || '').trim()
@@ -1591,32 +1472,11 @@ const getWorkflowCandidateRoleCodes = () => {
   return Array.from(roles).sort((a, b) => String(a).localeCompare(String(b), 'zh-Hans-CN'))
 }
 
-const getWorkflowCorePermissionEntries = () => {
-  const appKey = String(workflowPolicyEffective.value.acl_module || '').trim()
-  if (!appKey) return []
-  return [
-    { code: `op:${appKey}.workflow_start`, source: '流程发起' },
-    { code: `op:${appKey}.workflow_transition`, source: '流程推进' },
-    { code: `op:${appKey}.workflow_complete`, source: '流程完结' }
-  ]
-}
-
-const getRequiredWorkflowPermissionEntries = (missingRules = []) => {
-  const entries = [...getWorkflowCorePermissionEntries()]
-  const pushRulePermission = (rule, source) => {
-    const code = String(rule?.required_permission || '').trim()
-    if (code) entries.push({ code, source })
-  }
-  getActiveWorkflowTransitionRules().forEach((rule) => pushRulePermission(rule, '迁移规则'))
-  missingRules.forEach((rule) => pushRulePermission(rule, '建议规则'))
-
-  const seen = new Set()
-  return entries.filter((item) => {
-    if (!item.code || seen.has(item.code)) return false
-    seen.add(item.code)
-    return true
-  })
-}
+const getRequiredWorkflowPermissionEntries = (missingRules = []) => collectRequiredPermissionEntries({
+  appKey: workflowPolicyEffective.value.acl_module,
+  activeRules: getActiveWorkflowTransitionRules(),
+  missingRules
+})
 
 const getMissingGeneratedWorkflowRules = () => {
   const activeKeys = new Set(getActiveWorkflowTransitionRules().map((row) => getWorkflowTransitionRuleKey(row)))
@@ -1645,34 +1505,10 @@ const assignWorkflowReadinessReport = (next) => {
     && workflowReadinessReport.warnings.length === 0
 }
 
-const resolveWorkflowPermissionDefMeta = (code, source = '') => {
-  if (code.includes('.workflow_start')) {
-    return { suffix: '流程发起', action: 'workflow_start' }
-  }
-  if (code.includes('.workflow_transition')) {
-    return { suffix: '流程推进', action: 'workflow_transition' }
-  }
-  if (code.includes('.workflow_complete')) {
-    return { suffix: '流程完结', action: 'workflow_complete' }
-  }
-  if (code.includes('.status_transition.')) {
-    return { suffix: '状态流转', action: 'status_transition' }
-  }
-  const fallback = String(source || '流程权限').trim() || '流程权限'
-  return { suffix: fallback, action: 'workflow_permission' }
-}
-
 const buildWorkflowPermissionDefPayload = (item) => {
-  const code = String(item?.code || '').trim()
   const moduleName = String(workflowPolicyEffective.value.acl_module || appData.value?.name || 'workflow').trim()
   const displayName = String(appData.value?.name || moduleName || '流程应用').trim()
-  const meta = resolveWorkflowPermissionDefMeta(code, item?.source)
-  return {
-    code,
-    name: `${displayName}-${meta.suffix}`,
-    module: moduleName,
-    action: meta.action
-  }
+  return buildPermissionDefinitionPayload(item, { moduleName, displayName })
 }
 
 const formatEventComment = (row) => {
@@ -1687,49 +1523,9 @@ const formatEventComment = (row) => {
   return fromPayload || '-'
 }
 
-const parseSchemaTable = (value) => {
-  const raw = String(value || '').trim()
-  if (!raw) return { schema: '', table: '' }
-  if (raw.includes('.')) {
-    const [schema, table] = raw.split('.', 2)
-    return { schema: String(schema || '').trim(), table: String(table || '').trim() }
-  }
-  return { schema: 'public', table: raw }
-}
-
-const normalizeStateValue = (value) => {
-  const raw = String(value || '').trim()
-  if (!raw) return ''
-  const normalized = WORKFLOW_STATE_CANONICAL_MAP[raw.toLowerCase()] || WORKFLOW_STATE_CANONICAL_MAP[raw]
-  return normalized || raw
-}
-const getWorkflowStateLevel = (value) => WORKFLOW_STATUS_ORDER.indexOf(normalizeStateValue(value))
-const getWorkflowStateLabel = (value) => {
-  const normalized = normalizeStateValue(value)
-  if (!normalized) return '未配置'
-  return WORKFLOW_STATE_LABEL_MAP[normalized] || normalized
-}
-const getWorkflowStateTagType = (value) => {
-  const normalized = normalizeStateValue(value)
-  return WORKFLOW_STATE_UI_MAP[normalized]?.tagType || 'info'
-}
 const getWorkflowStateIcon = (value) => {
   const normalized = normalizeStateValue(value)
-  return WORKFLOW_STATE_UI_MAP[normalized]?.icon || CirclePlusFilled
-}
-const getWorkflowStateColor = (value) => {
-  const normalized = normalizeStateValue(value)
-  return WORKFLOW_STATE_UI_MAP[normalized]?.color || '#909399'
-}
-const isStateReached = (observed, expected) => {
-  const observedValue = normalizeStateValue(observed)
-  const expectedValue = normalizeStateValue(expected)
-  if (!observedValue || !expectedValue) return false
-  if (observedValue === expectedValue) return true
-  const observedLevel = getWorkflowStateLevel(observedValue)
-  const expectedLevel = getWorkflowStateLevel(expectedValue)
-  if (observedLevel < 0 || expectedLevel < 0) return false
-  return observedLevel >= expectedLevel
+  return WORKFLOW_STATE_ICON_MAP[normalized] || CirclePlusFilled
 }
 
 const getTaskAutoRule = (taskId) => {
