@@ -277,6 +277,11 @@ import { ElMessage } from 'element-plus'
 import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import { isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
 import { getAppRuntimeTitle } from '@shared/eis-app-runtime-title-store.mjs'
+import {
+  buildUserThemeStorageKey,
+  getUserTheme,
+  saveUserTheme
+} from '@shared/eis-ui-preferences.mjs'
 
 const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
 const isCollapse = ref(false)
@@ -341,10 +346,8 @@ const MICRO_APP_ENTRY_PREFIX = {
 }
 const MICRO_APP_WARM_CONCURRENCY = 4
 const microAppWarmMode = new Map()
-const userThemeKey = computed(() => {
-  const username = userStore.userInfo?.username || userStore.userInfo?.id || 'guest'
-  return `eis_theme_${String(username).toLowerCase()}`
-})
+const userThemeIdentity = computed(() => userStore.userInfo?.username || userStore.userInfo?.id || 'guest')
+const userThemeKey = computed(() => buildUserThemeStorageKey(userThemeIdentity.value))
 
 const guideUserKey = computed(() => {
   const username = userStore.userInfo?.username || userStore.userInfo?.id || 'guest'
@@ -365,12 +368,9 @@ const guideProgressSyncTagType = computed(() => {
 })
 
 const applyUserTheme = () => {
-  try {
-    const raw = localStorage.getItem(userThemeKey.value)
-    if (raw === null || raw === undefined || raw === '') return
-    if (raw === 'dark' || raw === '1' || raw === 'true') isDark.value = true
-    if (raw === 'light' || raw === '0' || raw === 'false') isDark.value = false
-  } catch (e) {}
+  const storedTheme = getUserTheme(userThemeIdentity.value)
+  if (storedTheme === 'dark') isDark.value = true
+  if (storedTheme === 'light') isDark.value = false
 }
 
 const asideTheme = computed(() => {
@@ -869,9 +869,7 @@ watch(() => userStore.userInfo, () => {
 }, { deep: true })
 
 watch(isDark, (val) => {
-  try {
-    localStorage.setItem(userThemeKey.value, val ? 'dark' : 'light')
-  } catch (e) {}
+  saveUserTheme(userThemeIdentity.value, val)
 })
 
 const activeMenu = computed(() => {

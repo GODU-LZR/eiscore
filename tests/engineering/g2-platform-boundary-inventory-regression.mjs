@@ -11,8 +11,7 @@ const storagePattern = /\b(?:window\.)?(?:localStorage|sessionStorage)\b/g
 const fullPageNavigationPattern = /\bwindow\.location\.href\s*=/g
 
 const expectedStorageInventory = new Map([
-  ['eiscore-base/src/components/AiCopilot.vue', 2],
-  ['eiscore-base/src/layout/index.vue', 8],
+  ['eiscore-base/src/layout/index.vue', 6],
   ['eiscore-base/src/stores/system.js', 1],
   ['eiscore-hr/src/views/HrUserManage.vue', 1],
   ['shared/eis-app-runtime-title-store.mjs', 1],
@@ -22,7 +21,8 @@ const expectedStorageInventory = new Map([
   ['shared/eis-flash-conversation-cache.mjs', 1],
   ['shared/eis-grid-local-layout.js', 1],
   ['shared/eis-remembered-username.mjs', 1],
-  ['shared/eis-stock-pending-queue.mjs', 1]
+  ['shared/eis-stock-pending-queue.mjs', 1],
+  ['shared/eis-ui-preferences.mjs', 1]
 ])
 
 const expectedFullPageNavigationInventory = new Map([

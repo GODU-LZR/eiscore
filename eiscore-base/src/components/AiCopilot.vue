@@ -533,8 +533,7 @@ import {
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { useRouter } from 'vue-router'
-
-const FULLSCREEN_KEY = 'eis_ai_worker_fullscreen'
+import { getWorkerFullscreen, saveWorkerFullscreen } from '@shared/eis-ui-preferences.mjs'
 
 const props = defineProps({
   mode: { type: String, default: 'enterprise' },
@@ -2829,9 +2828,7 @@ const closeAssistant = () => {
 const toggleFullscreen = () => {
   if (!isWorker.value) return
   isFullscreen.value = !isFullscreen.value
-  try {
-    localStorage.setItem(FULLSCREEN_KEY, isFullscreen.value ? '1' : '0')
-  } catch {}
+  saveWorkerFullscreen(isFullscreen.value)
 }
 
 const renderFallbackEcharts = async (node) => {
@@ -3087,9 +3084,7 @@ watch(() => isWorkerFullscreen.value, () => {
 })
 
 onMounted(() => {
-  try {
-    isFullscreen.value = localStorage.getItem(FULLSCREEN_KEY) === '1'
-  } catch {}
+  isFullscreen.value = getWorkerFullscreen()
   aiBridge.setMode(props.mode)
   showHistory.value = false
   if (props.autoOpen) {
