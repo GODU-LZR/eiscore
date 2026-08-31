@@ -7,7 +7,6 @@ const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { spawn } = require('child_process');
 const { createDocumentIntakeHandlers } = require('./document-intake');
 const { createDocumentParseWorker } = require('./document-parser');
 const { createDocumentPlanWorker } = require('./document-planner');
@@ -29,6 +28,7 @@ const { createFlashToolRegistry } = require('./flash-tool-registry');
 const { createFlashToolService } = require('./flash-tool-service');
 const { createFlashSemanticExecutor } = require('./flash-semantic-executor');
 const { createFlashClineRuntime } = require('./flash-cline-runtime');
+const { createFlashClineService } = require('./flash-cline-service');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -1085,9 +1085,7 @@ const {
   buildFlashCliEnv,
   buildFlashCliPrompt,
   clampFlashHistory,
-  createFlashCliSession,
   deriveOpenAiBaseUrl,
-  killFlashCliSessionProcess,
   normalizeFlashAttachmentList,
   normalizeFlashCliError,
   parseClineRetryMessage,
@@ -2160,387 +2158,37 @@ function createAgentTaskAiInvoker(cfg) {
   };
 }
 
-async function runFlashClineTask(ws, payload = {}) {
-  if (!flashCliEnabled) {
-    sendWsJson(ws, {
-      type: 'flash:cline_error',
-      sessionId: String(payload?.sessionId || 'default'),
-      error: 'Cline CLI shell mode is disabled by server policy'
-    });
-    return;
-  }
-  if (!flashCliRuntimeReady) {
-    sendWsJson(ws, {
-      type: 'flash:cline_error',
-      sessionId: String(payload?.sessionId || 'default'),
-      error: `Node.js ${process.versions.node} is not supported by Cline CLI (requires >=20)`
-    });
-    return;
-  }
-
-  if (!canUseAgent(ws.user)) {
-    sendWsJson(ws, {
-      type: 'flash:cline_error',
-      sessionId: String(payload?.sessionId || 'default'),
-      error: 'Forbidden: agent access denied'
-    });
-    logAgentEvent('flash:cline_denied', ws.user, { reason: 'role_denied' });
-    return;
-  }
-
-  const normalizedProject = normalizeProjectPath(flashCliProjectPath) || 'eiscore-apps/src/views/drafts';
-  if (!isAllowedProject(normalizedProject)) {
-    sendWsJson(ws, {
-      type: 'flash:cline_error',
-      sessionId: String(payload?.sessionId || 'default'),
-      error: 'Forbidden: flash project path not allowed'
-    });
-    logAgentEvent('flash:cline_denied', ws.user, { reason: 'project_denied', projectPath: normalizedProject });
-    return;
-  }
-
-  const sessionId = String(payload?.sessionId || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'default';
-  const taskAppId = normalizeFlashAppId(payload?.appId || payload?.app_id || '');
-  try {
-  if (!ws.flashCliSessions) ws.flashCliSessions = new Map();
-  if (!ws.flashCliSessions.has(sessionId)) {
-    ws.flashCliSessions.set(sessionId, createFlashCliSession());
-  }
-  const session = ws.flashCliSessions.get(sessionId);
-  if (session.running || session.process) {
-    sendWsJson(ws, {
-      type: 'flash:cline_error',
-      sessionId,
-      error: '上一条请求尚未完成，请稍后再试'
-    });
-    return;
-  }
-
-  const prompt = normalizeAiText(payload?.prompt);
-  if (!prompt) {
-    sendWsJson(ws, { type: 'flash:cline_error', sessionId, error: 'Prompt is required' });
-    return;
-  }
-
-  const cfg = await getAiConfig();
-  if (!cfg?.api_key || !cfg?.api_url) {
-    sendWsJson(ws, {
-      type: 'flash:cline_error',
-      sessionId,
-      error: 'AI configuration is missing in system_configs.ai_glm_config'
-    });
-    return;
-  }
-
-  const clineBin = resolveClineBin();
-  const clineEnv = buildFlashCliEnv(ws?.user?.token || '');
-  const model = envText(payload?.model, envText(cfg?.model, 'gpt-4o'));
-  const history = clampFlashHistory(payload?.history);
-  const configDir = path.posix.join(flashCliConfigRoot, sessionId);
-  const taskWorkdir = resolveFlashCliWorkdir();
-  const attachments = normalizeFlashAttachmentList(payload?.attachments, taskWorkdir);
-  const composedPrompt = buildFlashCliPrompt(prompt, history, attachments);
-
-  await ensureDir(configDir);
-  await ensureDir(taskWorkdir);
-  if (taskAppId) {
-    await syncScopedDraftToPreview(taskAppId);
-  }
-
-  const baseUrl = deriveOpenAiBaseUrl(cfg.api_url);
-  const authArgs = [
-    'auth',
-    '-p',
-    flashCliProvider,
-    '-k',
-    String(cfg.api_key),
-    '-m',
-    model,
-    '--config',
-    configDir
-  ];
-  if (baseUrl) {
-    authArgs.push('-b', baseUrl);
-  }
-
-  const authResult = await runSpawnCapture(clineBin, authArgs, {
-    cwd: '/app',
-    env: clineEnv,
-    timeoutMs: flashCliAuthTimeoutMs
-  });
-  if (authResult.timedOut || authResult.code !== 0) {
-    const authError = normalizeAiText(authResult.stderr || authResult.stdout || 'Cline auth failed');
-    sendWsJson(ws, {
-      type: 'flash:cline_error',
-      sessionId,
-      error: `Cline auth failed: ${authError}`
-    });
-    logAgentEvent('flash:cline_auth_failed', ws.user, {
-      sessionId,
-      error: authError.slice(0, 400)
-    });
-    return;
-  }
-
-  const taskArgs = buildFlashCliArgs({
-    configDir,
-    model,
-    taskId: session.taskId,
-    prompt: composedPrompt,
-    workdir: taskWorkdir
-  });
-  const draftBefore = await readFlashDraftFingerprintsSafe(taskAppId);
-
-  const child = spawn(clineBin, taskArgs, {
-    cwd: '/app',
-    env: clineEnv,
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
-
-  session.running = true;
-  session.process = child;
-  let assistantChunks = [];
-  let stdoutBuffer = '';
-  let stderrBuffer = '';
-  let timeoutTriggered = false;
-  const startedAt = Date.now();
-
-  logAgentEvent('flash:cline_start', ws.user, {
-    sessionId,
-    appId: taskAppId,
-    model,
-    workdir: taskWorkdir
-  });
-  sendWsJson(ws, {
-    type: 'flash:cline_status',
-    sessionId,
-    status: 'running',
-    message: 'Cline CLI 正在处理...'
-  });
-  sendWsJson(ws, {
-    type: 'flash:cline_status',
-    sessionId,
-    status: 'registry_meta',
-    registryVersion: flashSemanticToolRegistryVersion,
-    registryCount: flashSemanticToolRegistryCount
-  });
-
-  const timeoutTimer = setTimeout(() => {
-    timeoutTriggered = true;
-    killFlashCliSessionProcess(session);
-  }, flashCliTaskTimeoutMs);
-
-  const flushCliLine = (line, source) => {
-    const text = String(line || '').trim();
-    if (!text) return;
-    const parsed = parseJsonMaybe(text);
-    if (!parsed) {
-      if (source === 'stderr') {
-        sendWsJson(ws, {
-          type: 'flash:cline_status',
-          sessionId,
-          status: 'log',
-          message: text.slice(0, 240)
-        });
-      }
-      return;
-    }
-
-    if (parsed.type === 'task_started' && parsed.taskId) {
-      session.taskId = String(parsed.taskId);
-      return;
-    }
-
-    if (parsed.type === 'error') {
-      const errorText = normalizeFlashCliError(parsed.message || parsed.text || 'Cline task failed');
-      sendWsJson(ws, {
-        type: 'flash:cline_error',
-        sessionId,
-        error: errorText
-      });
-      return;
-    }
-
-    const retryText = parseClineRetryMessage(parsed);
-    if (retryText) {
-      sendWsJson(ws, {
-        type: 'flash:cline_status',
-        sessionId,
-        status: 'retry',
-        message: retryText
-      });
-      return;
-    }
-
-    if (parsed.type === 'ask' && parsed.ask === 'api_req_failed') {
-      const askError = normalizeAiText(parsed.text || 'AI upstream request failed');
-      sendWsJson(ws, {
-        type: 'flash:cline_error',
-        sessionId,
-        error: askError
-      });
-      return;
-    }
-
-    if (parsed.type === 'say') {
-      const sayText = normalizeAiText(parsed.text);
-      if (!shouldForwardClineSay(parsed.say, sayText)) return;
-      assistantChunks.push(sayText);
-      sendWsJson(ws, {
-        type: 'flash:cline_output',
-        sessionId,
-        role: 'assistant',
-        content: sayText,
-        eventType: 'say',
-        say: parsed.say || ''
-      });
-    }
-  };
-
-  const consumeOutput = (chunk, source) => {
-    const data = String(chunk || '');
-    if (source === 'stdout') {
-      stdoutBuffer += data;
-      const lines = stdoutBuffer.split(/\r?\n/);
-      stdoutBuffer = lines.pop() || '';
-      lines.forEach((line) => flushCliLine(line, source));
-      return;
-    }
-    stderrBuffer += data;
-    const lines = stderrBuffer.split(/\r?\n/);
-    stderrBuffer = lines.pop() || '';
-    lines.forEach((line) => flushCliLine(line, source));
-  };
-
-  child.stdout.on('data', (chunk) => consumeOutput(chunk, 'stdout'));
-  child.stderr.on('data', (chunk) => consumeOutput(chunk, 'stderr'));
-
-  child.on('error', (error) => {
-    sendWsJson(ws, {
-      type: 'flash:cline_error',
-      sessionId,
-      error: normalizeAiText(error?.message || 'Cline process error')
-    });
-  });
-
-  child.on('close', (code) => {
-    (async () => {
-      clearTimeout(timeoutTimer);
-      if (stdoutBuffer.trim()) flushCliLine(stdoutBuffer, 'stdout');
-      if (stderrBuffer.trim()) flushCliLine(stderrBuffer, 'stderr');
-
-      let success = !timeoutTriggered && Number(code || 0) === 0;
-      let exitCode = Number(code || 0);
-      const elapsedMs = Date.now() - startedAt;
-      const summary = assistantChunks.filter(Boolean).join('\n\n').trim();
-      let draftAfter = await readFlashDraftFingerprintsSafe(taskAppId);
-      let draftChanged = hasFlashFingerprintChanged(draftBefore.preview, draftAfter.preview)
-        || hasFlashFingerprintChanged(draftBefore.scoped, draftAfter.scoped);
-
-      if (taskAppId && hasFlashFingerprintChanged(draftBefore.preview, draftAfter.preview)) {
-        await syncPreviewDraftToScoped(taskAppId);
-        draftAfter = await readFlashDraftFingerprintsSafe(taskAppId);
-      } else if (taskAppId && hasFlashFingerprintChanged(draftBefore.scoped, draftAfter.scoped)) {
-        await syncScopedDraftToPreview(taskAppId);
-        draftAfter = await readFlashDraftFingerprintsSafe(taskAppId);
-      }
-
-      if (summary) {
-        sendWsJson(ws, {
-          type: 'flash:cline_summary',
-          sessionId,
-          role: 'assistant',
-          content: summary
-        });
-      }
-      if (timeoutTriggered) {
-        sendWsJson(ws, {
-          type: 'flash:cline_error',
-          sessionId,
-          error: `Cline task timeout after ${flashCliTaskTimeoutMs}ms`
-        });
-      } else if (success) {
-        const healResult = await runFlashBuildSelfHeal({
-          ws,
-          sessionId,
-          session,
-          clineBin,
-          configDir,
-          model,
-          prompt,
-          taskWorkdir,
-          clineEnv
-        });
-        if (!healResult.success) {
-          success = false;
-          exitCode = 2;
-          sendWsJson(ws, {
-            type: 'flash:cline_error',
-            sessionId,
-            error: healResult.error || '草稿构建校验失败'
-          });
-        }
-      }
-
-      session.running = false;
-      session.process = null;
-      sendWsJson(ws, {
-        type: 'flash:cline_done',
-        sessionId,
-        success,
-        exitCode,
-        elapsedMs,
-        appId: taskAppId,
-        draftChanged,
-        draftFingerprint: draftAfter.scoped || draftAfter.preview || null
-      });
-      logAgentEvent('flash:cline_done', ws.user, {
-        sessionId,
-        appId: taskAppId,
-        success,
-        exitCode,
-        elapsedMs,
-        draftChanged,
-        draftBytes: Number((draftAfter.scoped || draftAfter.preview)?.bytes || 0)
-      });
-    })().catch((error) => {
-      session.running = false;
-      session.process = null;
-      const safeError = normalizeAiText(error?.message || 'Cline task post-check failed');
-      sendWsJson(ws, {
-        type: 'flash:cline_error',
-        sessionId,
-        error: safeError
-      });
-      sendWsJson(ws, {
-        type: 'flash:cline_done',
-        sessionId,
-        success: false,
-        exitCode: 2,
-        elapsedMs: Date.now() - startedAt
-      });
-      logAgentEvent('flash:cline_done', ws.user, {
-        sessionId,
-        success: false,
-        exitCode: 2,
-        elapsedMs: Date.now() - startedAt,
-        error: safeError
-      });
-    });
-  });
-  } catch (error) {
-    const safeError = normalizeAiText(error?.message || 'Cline task failed');
-    sendWsJson(ws, {
-      type: 'flash:cline_error',
-      sessionId,
-      error: safeError
-    });
-    logAgentEvent('flash:cline_failed', ws.user, {
-      sessionId,
-      error: safeError.slice(0, 400)
-    });
-  }
-}
+const flashClineService = createFlashClineService({
+  enabled: flashCliEnabled,
+  nodeVersion: process.versions.node,
+  projectPath: flashCliProjectPath,
+  configRoot: flashCliConfigRoot,
+  taskTimeoutMs: flashCliTaskTimeoutMs,
+  authTimeoutMs: flashCliAuthTimeoutMs,
+  provider: flashCliProvider,
+  registryVersion: flashSemanticToolRegistryVersion,
+  registryCount: flashSemanticToolRegistryCount,
+  runtime: flashClineRuntime,
+  normalizeText: normalizeAiText,
+  normalizeAppId: normalizeFlashAppId,
+  normalizeProjectPath,
+  isAllowedProject,
+  canUseAgent,
+  getAiConfig,
+  resolveTaskWorkdir: resolveFlashCliWorkdir,
+  ensureDir,
+  syncScopedDraftToPreview,
+  readDraftFingerprintsSafe: readFlashDraftFingerprintsSafe,
+  syncPreviewDraftToScoped,
+  hasFingerprintChanged: hasFlashFingerprintChanged,
+  sendWsJson,
+  logAgentEvent
+});
+const {
+  createFlashCliSession,
+  killFlashCliSessionProcess,
+  runFlashClineTask
+} = flashClineService;
 
 async function shutdown() {
   if (shuttingDown) return;
