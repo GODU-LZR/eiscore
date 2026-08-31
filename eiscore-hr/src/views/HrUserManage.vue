@@ -338,7 +338,7 @@ const notifyUserInfoUpdated = (info) => {
   ;[window, window.parent, window.top].forEach((target) => {
     try { target?.postMessage?.(payload, '*') } catch (_) {}
   })
-  const storageEventInit = { key: 'user_info', newValue: userInfoText, storageArea: localStorage }
+  const storageEventInit = { key: 'user_info', newValue: userInfoText }
   try { window.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}
   if (window.parent && window.parent !== window) {
     try { window.parent.dispatchEvent(new StorageEvent('storage', storageEventInit)) } catch (_) {}

@@ -35,7 +35,9 @@ assert.doesNotMatch(hrUserManage, directSessionStorage)
 assert.match(hrUserManage, /if \(!setUserInfo\(info\)\) throw new Error\(['"]Unable to persist user info['"]\)/)
 assert.match(hrUserManage, /const info = getUserInfo\(\)/)
 assert.match(hrUserManage, /type: ['"]user-info-updated['"], user_info: info, user: info/)
+assert.match(hrUserManage, /const storageEventInit = { key: ['"]user_info['"], newValue: userInfoText }/)
 assert.match(hrUserManage, /new StorageEvent\(['"]storage['"], storageEventInit\)/)
+assert.doesNotMatch(hrUserManage, /storageArea|\blocalStorage\b/)
 assert.match(hrUserManage, /setGlobalState\({ user_info: info, user: info }\)/)
 
 for (const app of ['hr', 'materials']) {

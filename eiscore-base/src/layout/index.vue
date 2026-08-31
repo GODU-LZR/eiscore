@@ -804,7 +804,7 @@ onMounted(() => {
     guideDomObserver.observe(target, { childList: true, subtree: true })
   }
   lastUserInfoStr = getUserInfoText()
-  // 兜底：同窗口 localStorage 变更不会触发 storage 事件，用轮询确保头像即时刷新
+  // 兜底：同窗口会话数据写入不会触发 storage 事件，用轮询确保头像即时刷新
   userInfoPoller = window.setInterval(() => {
     const current = getUserInfoText()
     if (current !== lastUserInfoStr) {

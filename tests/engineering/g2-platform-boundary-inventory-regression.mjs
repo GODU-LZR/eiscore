@@ -11,9 +11,6 @@ const storagePattern = /\b(?:window\.)?(?:localStorage|sessionStorage)\b/g
 const fullPageNavigationPattern = /\bwindow\.location\.href\s*=/g
 
 const expectedStorageInventory = new Map([
-  ['eiscore-base/src/layout/index.vue', 1],
-  ['eiscore-base/src/stores/system.js', 1],
-  ['eiscore-hr/src/views/HrUserManage.vue', 1],
   ['shared/eis-app-runtime-title-store.mjs', 1],
   ['shared/eis-assistant-history.mjs', 1],
   ['shared/eis-check-cache.mjs', 1],

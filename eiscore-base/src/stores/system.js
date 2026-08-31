@@ -94,5 +94,5 @@ export const useSystemStore = defineStore('system', () => {
 
   return { config, updateConfig, loadConfig, saveConfig, initTheme }
 }, {
-  persist: true // 如果你装了 pinia-plugin-persistedstate 插件，这会自动保存到 localStorage
+  persist: true // 如果启用 pinia-plugin-persistedstate 插件，这会自动保存到浏览器持久化存储
 })
