@@ -166,14 +166,15 @@
 | `ed12a7e` | 抽离 AiCopilot 消息结构块策略 | 表单、公式、导入、BPMN、Workflow、分类 Fence 与导入预览进入纯领域模块 |
 | `f3f62ca` | 抽离 AiCopilot 模板库策略 | 布局统计、Key/Scope、记录生成与同范围替换进入纯领域模块 |
 | `45d53ec` | 抽离 AiCopilot 报告策略 | 章节识别、下载可见性、前导清理与打印文档进入纯领域模块 |
-| 本文件所在提交 | 抽离 AiCopilot 图表配置策略 | 宽松 JSON、平衡截取、布局/Series 规范化与隐藏图判断进入纯领域模块 |
+| `c4c6751` | 抽离 AiCopilot 图表配置策略 | 宽松 JSON、平衡截取、布局/Series 规范化与隐藏图判断进入纯领域模块 |
+| 本文件所在提交 | 完成 AiCopilot 纯策略阶段退出审计 | 锁定 3,522 行、7 个纯策略模块、77 个导出及组合副作用上限 |
 
 ## 当前切片
 
-- 状态：G3 进行中；AiCopilot 第七个渐进拆分切片完成，下一步建立纯策略阶段退出审计。
-- 结果：新增无 Vue、Element Plus、Request、DOM、Storage 或时间依赖的 `ai-copilot-chart-policy.js`，迁出函数值剥离、宽松 JSON 清洗、字符串感知平衡截取、Grid 尺寸修复、Series/Tooltip/动画规范化、多候选安全解析、隐藏图识别和必要字段校验。`AiCopilot.vue` 从 3,720 降至 3,522 行，巨页债务从 88,354 降至 88,156 行并收紧棘轮。
-- 兼容边界：赋值前缀、尾逗号/注释/非 JSON 值/单引号/裸 Key 清洗顺序、函数体字符串与嵌套大括号、原始/清洗/切片/平衡候选顺序、Grid 默认边距与 260/180/70%/55% 阈值、单 Series 数组化、默认折线/Tooltip、禁动画和双轴/线/点全隐判断均保持；页面继续拥有 ECharts 动态加载、DOM 实例、重试、状态和错误展示。
-- 验证：专项覆盖函数体、既有宽松清洗顺序、对象/数组平衡截取、Grid 阈值、输入不变、Series 合法/非法分支、多候选解析、隐藏图与校验文案及页面委托门禁；完整质量门禁与离线单元套件通过，覆盖 173 个 Node 文件语法、14 个锁定 CI 包、1,162 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查；基座生产构建成功并转换 5,886 个模块；没有加载 ECharts、调用 AI、数据库或远程环境。
+- 状态：G3 进行中；AiCopilot 纯策略子目标完成并退出，下一步转向 FlashBuilder。
+- 结果：新增 `ai-copilot-composition-exit-regression.mjs` 与 `G3_AI_COPILOT_EXIT_AUDIT.md`，持续锁定 3,522 行页面、509/1,765/1,245 行 SFC 分区、7 个纯策略模块/77 个导出、8 个宿主 HTTP、24 个消息/确认、2 个 Router、6 个 Watch、94 个 Callable 及各 1 个 Mounted/Updated/BeforeUnmount。页面累计减少 871 行（19.8%），本切片不改产品代码。
+- 兼容边界：AI Bridge、宿主客户端、Markdown/Sanitizer、Mermaid/ECharts、DOM/剪贴板/打印、CustomEvent、Router、消息和生命周期继续作为组合边界；直接 Fetch、Axios、Storage、原生流传输、XHR 与 `window.location` 导航失败关闭。
+- 验证：组合专项、完整质量门禁与离线单元套件通过，覆盖 174 个 Node 文件语法、14 个锁定 CI 包、1,164 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查；基座生产构建成功并转换 5,886 个模块；没有调用 AI、数据库、PostgREST、Workflow 服务或远程环境。
 
 ## 已知非阻断风险
 
@@ -193,4 +194,4 @@
 
 ## 下一候选切片
 
-继续 G3：为 3,522 行 `eiscore-base/src/components/AiCopilot.vue` 建立纯策略阶段退出审计，锁定 SFC 分区、7 个策略模块、策略导出与组合副作用上限。
+继续 G3：审计 4,264 行 `eiscore-apps/src/views/FlashBuilder.vue` 的会话、草稿、附件、预览和 Cline/Agent 编排职责，先建立行为特征测试，再选择首个无视觉变化的纯策略边界。

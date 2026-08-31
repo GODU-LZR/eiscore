@@ -39,7 +39,7 @@
 | 文件 | 行数 | 首选拆分方向 |
 | --- | ---: | --- |
 | `eiscore-sales/src/components/SalesAppGrid.vue` | 3,822 | 数据、详情、订单链路和快速录单策略已迁出，阶段退出门禁已建立 |
-| `eiscore-base/src/components/AiCopilot.vue` | 3,522 | Workflow、BI 行动、导入、结构块、模板、报告与图表策略已迁出；准备阶段退出审计 |
+| `eiscore-base/src/components/AiCopilot.vue` | 3,522 | 7 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/FlashBuilder.vue` | 4,264 | 会话状态、草稿协议、Cline/附件编排 |
 | `eiscore-apps/src/views/AppRuntime.vue` | 3,725 | Runtime 协议、生命周期组合；BPMN、Workflow、自动推进、导航、Flash 来源、配置/选项、规则、就绪、授权与任务路由策略已迁出 |
 | `eiscore-base/src/layout/index.vue` | 4,003 | 标签/菜单策略、主题/企业配置、布局组件 |
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-为 `eiscore-base/src/components/AiCopilot.vue` 建立纯策略阶段退出审计，锁定 SFC 分区、7 个策略模块、策略导出与 Request/消息/Router/Watch/生命周期等组合副作用上限。
+转向 `eiscore-apps/src/views/FlashBuilder.vue`：先建立会话、草稿、附件、预览和 Cline/Agent 编排职责库存，再选择首个无视觉变化的纯策略边界。
