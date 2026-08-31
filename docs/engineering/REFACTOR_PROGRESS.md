@@ -122,14 +122,15 @@
 | `56b8608` | 抽离 AI Chat 流式处理器 | 路由/守卫/双流处理进入工厂，完成 41 条 HTTP 处理器装配退出 |
 | `7dd03a0` | 抽离 WebSocket 连接与消息装配 | 9 类输入进入只读 Manifest，锁定认证、分发、会话与清理 |
 | `d4274cd` | 建立数据库迁移治理基线 | 10 个 Runtime V2 补丁进入校验 Manifest，102 份历史 SQL 作为只读库存锁定 |
-| 本文件所在提交 | 治理 Runtime V2 双平台执行器 | 先校验再连接、备份证据、幂等账本、原子事务和强制 postcheck 进入共享执行核心 |
+| `104b115` | 治理 Runtime V2 双平台执行器 | 先校验再连接、备份证据、幂等账本、原子事务和强制 postcheck 进入共享执行核心 |
+| 本文件所在提交 | 抽离 Realtime 数据库通知适配器 | LISTEN、目标/角色广播、Workflow 分发、重连和关闭清理进入注入式生命周期 |
 
 ## 当前切片
 
-- 状态：G3 进行中；Runtime V2 的治理与双平台执行代码已闭环，真实环境备份/恢复演练留待获授权发布验证；下一阶段回到 Realtime 领域与持久化拆分。
-- 结果：Bash 与 PowerShell 入口共享 `apply-runtime-migrations.mjs`。执行路径在创建 Docker 适配器前校验 Manifest 并要求备份证据；账本按 ID/校验和跳过或拒绝冲突，记录提交、操作者、备份证据和耗时。前两个补丁由 runner 包裹事务，后八个保留文件事务，账本 INSERT 均注入同一事务；结尾不可跳过 postcheck。
-- 兼容边界：没有修改、移动或执行任何历史 SQL，也没有连接数据库。dry-run 不要求 Docker；真实执行沿用原容器、数据库和用户参数，但现在缺少备份证据会失败关闭。旧文本 Manifest 仍保留为顺序对照，其余 92 份无可信顺序 SQL 仍禁止自动执行。
-- 验证：专项模拟覆盖校验先于连接、缺少备份证据、相同校验和跳过、冲突拒绝、runner/file 两种事务原子记账、SQL 字面量转义和 postcheck 失败；Bash、PowerShell dry-run 均实际列出相同 10 项且明确未连接数据库。完整质量门禁及完整离线单元套件通过，未执行迁移或远程测试。
+- 状态：G3 进行中；Realtime 的传输装配与数据库通知生命周期均已退出组合根，下一阶段继续拆分 AI/Flash/Agent 领域实现。
+- 结果：`database-notifier.js` 封装 PostgreSQL Client、LISTEN、按频道/目标/角色广播、可选 Workflow Engine、去重重连和关闭回收，并提供 AI 配置读取所需的最小 `query` 端口。`realtime/index.js` 只构造配置和调用 `start/query/shutdown`，从 6,217 降至 6,109 行，较 G3 起点减少 1,277 行。
+- 兼容边界：保留 `eis_events`/`workflow_event`、`db_notify` payload、WebSocket OPEN/频道/目标/角色过滤、1 秒重连、Workflow 开关及原数据库默认参数；HTTP、WebSocket、SQL 和部署拓扑未改。重连现在显式回收旧 Workflow Engine，避免重复连接；没有连接真实数据库。
+- 验证：专项模拟覆盖空/坏/多别名 payload、频道/目标/角色/连接状态过滤、Workflow 专用分发、相同错误只安排一个重连、旧 Client/Engine 回收、关闭取消计时器、禁用 Workflow 和 query 端口；组合根契约禁止重新导入 `pg`/WorkflowEngine 或内联通知函数。完整质量门禁及完整离线单元套件通过，未执行远程测试。
 
 ## 已知非阻断风险
 
@@ -144,9 +145,9 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/123 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- `realtime/index.js` 仍有 6,217 行且保留 AI/Flash/Agent 领域实现与数据库通知逻辑；传输层退出不代表 G3 完成。
+- `realtime/index.js` 仍有 6,109 行且保留 AI/Flash/Agent 领域实现；传输与数据库通知退出不代表 G3 完成。
 - 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器虽已有离线契约，仍需在获授权的隔离环境完成真实备份、迁移、postcheck 与恢复演练后才能成为上线证据。
 
 ## 下一候选切片
 
-继续 G3：盘点 `realtime/index.js` 剩余 AI/Flash/Agent 函数与数据库通知依赖，优先选择可由注入式契约保护的完整领域切片退出组合根；保持 HTTP/WebSocket 协议、SQL 和部署行为不变。随后建立巨型前端页面库存与拆分门禁。
+继续 G3：从 `realtime/index.js` 抽离 AI 配置缓存/上游客户端或 Flash 语义工具的完整领域切片，以注入式契约锁定缓存、重试、错误和 PostgREST 语义；保持 HTTP/WebSocket 协议、SQL 和部署行为不变。随后建立巨型前端页面库存与拆分门禁。

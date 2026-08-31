@@ -4,13 +4,11 @@
 const http = require('http');
 const WebSocket = require('ws');
 const axios = require('axios');
-const { Client } = require('pg');
 const jwt = require('jsonwebtoken');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
-const { WorkflowEngine } = require('./workflow-engine');
 const { createDocumentIntakeHandlers } = require('./document-intake');
 const { createDocumentParseWorker } = require('./document-parser');
 const { createDocumentPlanWorker } = require('./document-planner');
@@ -23,6 +21,7 @@ const { createAiChatHttpHandler } = require('./ai-chat-http');
 const { createFlashHttpHandlers } = require('./flash-http');
 const { createTwinChatHttpHandler } = require('./twin-chat-http');
 const { attachWebSocketServer } = require('./websocket-server');
+const { createDatabaseNotifier } = require('./database-notifier');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -231,10 +230,7 @@ if (!process.env.NODE_USE_ENV_PROXY) {
   process.env.NODE_USE_ENV_PROXY = '1';
 }
 
-let pgClient = null;
-let reconnectTimer = null;
 let shuttingDown = false;
-let workflowEngine = null;
 let aiConfigCache = null;
 let aiConfigLoadedAt = 0;
 let aiVisionConfigCache = null;
@@ -1550,12 +1546,11 @@ const canUseAi = (user) => {
 };
 
 const getAiConfig = async () => {
-  if (!pgClient) throw new Error('Database client not ready');
   const now = Date.now();
   if (aiConfigCache && (now - aiConfigLoadedAt) < aiConfigTtlMs) {
     return aiConfigCache;
   }
-  const result = await pgClient.query(
+  const result = await databaseNotifier.query(
     'SELECT value FROM public.system_configs WHERE key = $1 LIMIT 1',
     [aiConfigKey]
   );
@@ -1566,12 +1561,11 @@ const getAiConfig = async () => {
 };
 
 const getAiVisionConfig = async () => {
-  if (!pgClient) throw new Error('Database client not ready');
   const now = Date.now();
   if (aiVisionConfigCache && (now - aiVisionConfigLoadedAt) < aiConfigTtlMs) {
     return aiVisionConfigCache;
   }
-  const result = await pgClient.query(
+  const result = await databaseNotifier.query(
     'SELECT value FROM public.system_configs WHERE key = $1 LIMIT 1',
     [aiVisionConfigKey]
   );
@@ -5009,6 +5003,20 @@ const server = http.createServer(createHttpRequestHandler({
 }));
 
 const wss = new WebSocket.Server({ server, path: wsPath });
+const databaseNotifier = createDatabaseNotifier({
+  wss,
+  channel,
+  workflowChannel,
+  enableWorkflowAutoTransition,
+  pgConfig: {
+    host: process.env.PGHOST || 'localhost',
+    port: Number(process.env.PGPORT || 5432),
+    user: process.env.PGUSER || 'postgres',
+    password: process.env.PGPASSWORD || 'postgres',
+    database: process.env.PGDATABASE || 'postgres'
+  },
+  log: console
+});
 
 function extractToken(req) {
   const header = req.headers['sec-websocket-protocol'];
@@ -6050,130 +6058,14 @@ async function runFlashClineTask(ws, payload = {}) {
   }
 }
 
-function extractPayloadMeta(rawPayload) {
-  if (!rawPayload) return { id: null, targets: [], roles: [], payload: null };
-  try {
-    const parsed = JSON.parse(rawPayload);
-    const id = parsed?.id ?? parsed?.record_id ?? parsed?.primary_key ?? null;
-    const targets = normalizeStringList(parsed?.targets || parsed?.user_ids || parsed?.users);
-    const roles = normalizeStringList(parsed?.roles || parsed?.role || parsed?.app_role);
-    return { id, targets, roles, payload: parsed };
-  } catch {
-    return { id: null, targets: [], roles: [], payload: null };
-  }
-}
-
-function shouldSendToClient(client, meta, channelName) {
-  if (client.readyState !== WebSocket.OPEN) return false;
-  if (client.channels && !client.channels.has(channelName)) return false;
-  if (meta.targets?.length) {
-    return meta.targets.includes(String(client.user?.id || ''));
-  }
-  if (meta.roles?.length) {
-    return meta.roles.includes(String(client.user?.role || ''));
-  }
-  return true;
-}
-
-function notifyClients(signal, meta) {
-  const data = JSON.stringify(signal);
-  wss.clients.forEach((client) => {
-    if (shouldSendToClient(client, meta, signal.channel)) {
-      client.send(data);
-    }
-  });
-}
-
-async function connectPg() {
-  if (shuttingDown) return;
-  if (pgClient) {
-    try {
-      await pgClient.end();
-    } catch (err) {
-      // ignore
-    }
-    pgClient = null;
-  }
-
-  pgClient = new Client({
-    host: process.env.PGHOST || 'localhost',
-    port: Number(process.env.PGPORT || 5432),
-    user: process.env.PGUSER || 'postgres',
-    password: process.env.PGPASSWORD || 'postgres',
-    database: process.env.PGDATABASE || 'postgres'
-  });
-
-  pgClient.on('notification', (msg) => {
-    if (enableWorkflowAutoTransition && msg.channel === workflowChannel && workflowEngine) {
-      workflowEngine.handleWorkflowEvent(msg.payload).catch((error) => {
-        console.error('❌ Workflow notify error:', error.message);
-      });
-      return;
-    }
-    const meta = extractPayloadMeta(msg.payload);
-    notifyClients(
-      {
-        type: 'db_notify',
-        channel: msg.channel,
-        id: meta.id,
-        payload: meta.payload,
-        ts: new Date().toISOString()
-      },
-      meta
-    );
-  });
-
-  pgClient.on('error', () => scheduleReconnect());
-  pgClient.on('end', () => scheduleReconnect());
-
-  try {
-    await pgClient.connect();
-    await pgClient.query(`LISTEN ${channel}`);
-    if (enableWorkflowAutoTransition) {
-      await pgClient.query(`LISTEN ${workflowChannel}`);
-
-      // Optional auto-transition engine. Disabled by default to avoid overriding
-      // explicit workflow state changes made by RPC endpoints/UI actions.
-      workflowEngine = new WorkflowEngine({
-        host: process.env.PGHOST || 'localhost',
-        port: Number(process.env.PGPORT || 5432),
-        user: process.env.PGUSER || 'postgres',
-        password: process.env.PGPASSWORD || 'postgres',
-        database: process.env.PGDATABASE || 'postgres'
-      });
-      await workflowEngine.initialize();
-      console.log('✅ Workflow engine initialized (auto-transition enabled)');
-    } else {
-      workflowEngine = null;
-      console.log('ℹ️ Workflow auto-transition is disabled');
-    }
-  } catch (err) {
-    scheduleReconnect();
-  }
-}
-
-function scheduleReconnect() {
-  if (shuttingDown) return;
-  if (reconnectTimer) return;
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
-    connectPg();
-  }, 1000);
-}
-
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
   wss.clients.forEach((client) => client.close());
   const closeServer = new Promise((resolve) => server.close(resolve));
   await Promise.allSettled([
     closeServer,
-    pgClient ? pgClient.end() : Promise.resolve(),
-    workflowEngine ? workflowEngine.shutdown() : Promise.resolve(),
+    databaseNotifier.shutdown(),
     documentParseWorker ? documentParseWorker.shutdown() : Promise.resolve(),
     documentPlanWorker ? documentPlanWorker.shutdown() : Promise.resolve(),
     documentEntryWorker ? documentEntryWorker.shutdown() : Promise.resolve(),
@@ -6186,7 +6078,7 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 server.listen(port, () => {
-  connectPg();
+  databaseNotifier.start();
   documentParseWorker.start();
   documentPlanWorker.start();
   documentEntryWorker.start();

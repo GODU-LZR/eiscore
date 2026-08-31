@@ -38,4 +38,6 @@
 
 第九个切片把 WebSocket 连接与 9 类输入分发迁入 `websocket-server.js`。只读 Manifest 锁定订阅 2 类、Flash 4 类和 Agent 3 类协议；连接层继续执行 JWT 1008、默认频道、状态初始化和关闭清理，业务能力全部注入。未知类型仍静默忽略，坏 JSON/处理异常仍发送通用 error。至此 HTTP 与 WebSocket 传输装配均退出组合根。
 
-该切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库、部署拓扑或 WebSocket 时序；可通过回退单提交恢复旧装配。组合根仍包含大量业务处理器，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
+第十个切片把 PostgreSQL LISTEN、通知过滤/广播、可选 Workflow Engine、重连和资源回收迁入 `database-notifier.js`。模块拥有数据库连接生命周期，并向组合根只暴露 `start`、`query` 和 `shutdown`；AI 配置读取通过同一适配器查询。专项契约以模拟客户端锁定频道、目标用户、角色过滤、Workflow 专用分发、单一重连计时器和关闭清理，不连接数据库。
+
+这些切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库或部署拓扑；可通过回退各自单提交恢复旧装配。Notifier 抽离保留默认连接参数、LISTEN 频道和通知 payload，同时在重连时显式回收旧 Workflow Engine。组合根仍包含大量 AI/Flash/Agent 领域实现，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
