@@ -856,6 +856,10 @@ import { defineAsyncComponent, ref, reactive, computed, onMounted, onUnmounted }
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
+  isEnterpriseHostRuntime,
+  navigateEnterprisePath
+} from '@eiscore/platform/navigation'
+import {
   CirclePlusFilled,
   CircleCheckFilled,
   Lock,
@@ -4009,21 +4013,17 @@ function resolveLegacyBusinessRoute(bindingKey, businessKey) {
   return null
 }
 
-function navigateCrossMicroPath(target) {
-  const path = String(target?.path || '').trim()
-  if (!path) return false
+function buildEnterpriseTargetHref(target, { hostPath = false } = {}) {
+  const rawPath = String(target?.path || '').trim()
+  const path = hostPath ? toHostRoutePath(rawPath) : rawPath
+  if (!path) return ''
   const queryObj = target?.query && typeof target.query === 'object' ? target.query : {}
   const query = new URLSearchParams(
     Object.entries(queryObj)
       .filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '')
       .map(([k, v]) => [k, String(v)])
   ).toString()
-  const fullPath = `${path}${query ? `?${query}` : ''}`
-  if (typeof window !== 'undefined') {
-    window.location.assign(fullPath)
-    return true
-  }
-  return false
+  return `${path}${query ? `?${query}` : ''}`
 }
 
 function toHostRoutePath(path) {
@@ -4048,50 +4048,43 @@ function resolveBindingDisplayName(binding) {
   return String(matched?.name || '').trim() || '业务处理'
 }
 
-function openInHostTab(target, options = {}) {
-  if (typeof window === 'undefined') return false
-  const hasHostViewport = Boolean(document.getElementById('subapp-viewport'))
-  if (!hasHostViewport) return false
-  const rawPath = String(target?.path || '').trim()
-  if (!rawPath) return false
-  const path = toHostRoutePath(rawPath)
-  if (!path) return false
-  const queryObj = target?.query && typeof target.query === 'object' ? target.query : {}
-  const query = {}
-  Object.entries(queryObj).forEach(([k, v]) => {
-    if (v === null || v === undefined) return
-    const text = String(v).trim()
-    if (!text) return
-    query[k] = text
+function reportEnterpriseNavigationFailure(result, targetBinding) {
+  const targetName = resolveBindingDisplayName(targetBinding)
+  ElMessage.warning(result.reason === 'module-disabled'
+    ? `${targetName}所属模块未启用`
+    : `无法打开${targetName}，请稍后重试`)
+}
+
+function navigateCrossMicroPath(target, options = {}) {
+  const href = buildEnterpriseTargetHref(target)
+  if (!href) return false
+  const result = navigateEnterprisePath(href, {
+    tabKey: options.tabKey,
+    tabTitle: options.tabTitle || `业务处理 · ${resolveBindingDisplayName(options.targetBinding)}`
   })
+  if (!result.ok) reportEnterpriseNavigationFailure(result, options.targetBinding)
+  return true
+}
+
+function openInHostTab(target, options = {}) {
+  if (!isEnterpriseHostRuntime(globalThis)) return false
+  const href = buildEnterpriseTargetHref(target, { hostPath: true })
+  if (!href) return false
   const row = options?.row && typeof options.row === 'object' ? options.row : null
   const targetBinding = String(options?.targetBinding || '').trim()
   const scope = String(options?.scope || 'business').trim()
-  const instanceId = String(row?.id || query?.wf_instance || '').trim() || 'instance'
-  const workflowAppId = String(runtimeAppId.value || query?.wf_app || '').trim() || 'workflow'
-  const tabKey = String(options?.tabKey || `${workflowAppId}:${instanceId}:${targetBinding || path}:${scope}`).trim()
+  const queryObj = target?.query && typeof target.query === 'object' ? target.query : {}
+  const instanceId = String(row?.id || queryObj?.wf_instance || '').trim() || 'instance'
+  const workflowAppId = String(runtimeAppId.value || queryObj?.wf_app || '').trim() || 'workflow'
+  const tabKey = String(options?.tabKey || `${workflowAppId}:${instanceId}:${targetBinding || href}:${scope}`).trim()
   const baseTitle = String(options?.tabTitle || '').trim()
   const tabTitle = baseTitle || `业务处理 · ${resolveBindingDisplayName(targetBinding)}`
-
-  const detail = {
-    path,
-    query,
-    openInNewTab: true,
+  const result = navigateEnterprisePath(href, {
+    hosted: true,
     tabKey,
     tabTitle
-  }
-  const payload = { type: 'eis:open-host-tab', detail }
-  try {
-    window.dispatchEvent(new CustomEvent('eis:open-host-tab', { detail }))
-  } catch (e) {}
-  try {
-    window.postMessage(payload, window.location.origin)
-  } catch (e) {}
-  try {
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage(payload, window.location.origin)
-    }
-  } catch (e) {}
+  })
+  if (!result.ok) reportEnterpriseNavigationFailure(result, targetBinding)
   return true
 }
 
@@ -4139,7 +4132,8 @@ function openBusinessPageForInstance(row) {
         ...workflowQuery
       }
     }
-    if (!openInHostTab(resolvedTarget, { row, targetBinding, scope: 'open' }) && !navigateCrossMicroPath(resolvedTarget)) {
+    const navigationOptions = { row, targetBinding, scope: 'open' }
+    if (!openInHostTab(resolvedTarget, navigationOptions) && !navigateCrossMicroPath(resolvedTarget, navigationOptions)) {
       router.push(resolvedTarget)
     }
     return
@@ -4173,7 +4167,8 @@ function openBoundBusinessRecord(row) {
         draftType
       }
     }
-    if (!openInHostTab(target, { row, targetBinding, scope: 'record', tabKey: `${runtimeAppId.value || 'workflow'}:${row?.id || ''}:${recordId}:record` }) && !navigateCrossMicroPath(target)) {
+    const navigationOptions = { row, targetBinding, scope: 'record', tabKey: `${runtimeAppId.value || 'workflow'}:${row?.id || ''}:${recordId}:record` }
+    if (!openInHostTab(target, navigationOptions) && !navigateCrossMicroPath(target, navigationOptions)) {
       router.push(target)
     }
     return
@@ -4189,7 +4184,8 @@ function openBoundBusinessRecord(row) {
           ...workflowQuery
         }
       }
-      if (!openInHostTab(target, { row, targetBinding, scope: 'record', tabKey: `${runtimeAppId.value || 'workflow'}:${row?.id || ''}:${recordId}:record` }) && !navigateCrossMicroPath(target)) {
+      const navigationOptions = { row, targetBinding, scope: 'record', tabKey: `${runtimeAppId.value || 'workflow'}:${row?.id || ''}:${recordId}:record` }
+      if (!openInHostTab(target, navigationOptions) && !navigateCrossMicroPath(target, navigationOptions)) {
         router.push(target)
       }
       return
