@@ -125,13 +125,28 @@ assert.equal(await failing.askGlmForMapLocation('', 0, 0), '')
 assert.equal(await failing.fetchIpLocation(), null)
 assert.equal(await failing.fetchReverseAddress(0, 0), '')
 
-for (const app of ['apps', 'equipment', 'hr', 'materials', 'production', 'purchase', 'quality', 'sales']) {
-  const component = read(`eiscore-${app}/src/components/eis-data-grid-v2/components/GeoDialog.vue`)
-  assert.match(component, /from\s*['"]@shared\/eis-geo-services['"]/)
+const geoDialogSources = [
+  'shared/eis-data-grid-v2/components/GeoDialog.vue',
+  'eiscore-apps/src/components/eis-data-grid-v2/components/GeoDialog.vue'
+]
+for (const path of geoDialogSources) {
+  const component = read(path)
+  assert.match(
+    component,
+    /from\s*['"]@shared\/eis-geo-services['"]/
+  )
   assert.match(component, /createGeoServices\(\{\s*getConfig:\s*getGeoConfig,\s*getToken\s*\}\)/)
   assert.doesNotMatch(component, /\bfetch\s*\(/)
 }
 
+for (const app of ['equipment', 'hr', 'materials', 'production', 'purchase', 'quality', 'sales']) {
+  const entry = read(`eiscore-${app}/src/components/eis-data-grid-v2/index.vue`)
+  assert.match(
+    entry,
+    /import GeoDialog from ['"]@shared\/eis-data-grid-v2\/components\/GeoDialog\.vue['"]/
+  )
+}
+
 assert.equal([...moduleSource.matchAll(/\bglobalThis\.fetch\s*\(/g)].length, 1)
 assert.doesNotMatch(moduleSource, /localStorage|auth_token|user_info|\/api\//)
-console.log('PASS: shared Geo service preserves translation and location request semantics (8 consumers)')
+console.log('PASS: shared Geo service preserves translation and location request semantics (2 implementations, 8 consumers)')

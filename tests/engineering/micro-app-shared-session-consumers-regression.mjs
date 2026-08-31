@@ -8,11 +8,17 @@ import { resolve } from 'node:path'
 const repoRoot = resolve(import.meta.dirname, '../..')
 const apps = ['apps', 'hr', 'materials', 'sales', 'purchase', 'production', 'quality', 'equipment']
 const geoServiceSource = readFileSync(resolve(repoRoot, 'shared/eis-geo-services.js'), 'utf8')
+const sharedGeoSource = readFileSync(
+  resolve(repoRoot, 'shared/eis-data-grid-v2/components/GeoDialog.vue'),
+  'utf8'
+)
 
 for (const app of apps) {
   const componentRoot = resolve(repoRoot, `eiscore-${app}/src/components/eis-data-grid-v2`)
   const gridSource = readFileSync(resolve(componentRoot, 'composables/useGridCore.js'), 'utf8')
-  const geoSource = readFileSync(resolve(componentRoot, 'components/GeoDialog.vue'), 'utf8')
+  const geoSource = app === 'apps'
+    ? readFileSync(resolve(componentRoot, 'components/GeoDialog.vue'), 'utf8')
+    : sharedGeoSource
 
   assert.match(gridSource, /import\s*{\s*getUserInfo\s*}\s*from\s*['"]@\/utils\/auth['"]/)
   assert.doesNotMatch(gridSource, /localStorage\.getItem\(\s*['"]user_info['"]\s*\)/)

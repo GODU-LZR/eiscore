@@ -20,6 +20,8 @@
 
 第三批迁移逐字节一致的 FileDialog 与 ColumnManagerDialog。FileDialog 仍通过消费者的 `@/utils/request` 解析原应用 HTTP/Profile 适配，上传、下载、删除和消息语义不变；ColumnManagerDialog 当前未被入口直接消费，但只保留共享实现以阻止未来复制。本地/共享库存变为 122/8。
 
+第四批按差异分组迁移 CascaderEditor、CascaderRenderer、GeoDialog、GeoRenderer、CheckRenderer、SelectRenderer 和 StatusRenderer。公共字节一致基线进入共享根；应用中心继续本地提供地图/勾选扩展，材料端继续本地提供级联/下拉/状态扩展，专项契约逐消费者锁定唯一允许的变体。共享 GeoDialog 的 Leaflet 与 html2canvas 由统一 Vite dedupe 契约从消费者依赖解析；本地/共享库存变为 73/15。
+
 ## 后果
 
 后续 Grid 修复可以逐步进入一个受测试的共享根，但在入口与 Core 完成参数化前，8 个本地目录仍是 G2 阻断项。迁移不改变数据库、API、部署拓扑或页面公开 Props/Events；单提交回退可恢复本地副本。

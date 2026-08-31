@@ -71,6 +71,8 @@ Grid 单一来源迁移已从逐字节一致的 Selection composable 开始。8 
 
 逐字节一致的 FileDialog 与 ColumnManagerDialog 已由 16 个本地文件收敛为 2 个共享源。FileDialog 继续通过消费者 `@/utils/request` 解析各应用原有 URL/Profile/Auth，上传、下载、删除、分类和消息契约保持；本地/共享 Grid 库存变为 122/8。
 
+CascaderEditor、CascaderRenderer、GeoDialog、GeoRenderer、CheckRenderer、SelectRenderer 和 StatusRenderer 随后按真实差异分组：公共基线进入共享根并删除 49 个本地副本，应用中心地图/勾选与材料端级联/下拉/状态扩展继续本地存在且由逐应用契约锁定。统一 Vite 消费者解析新增 Leaflet 与 html2canvas，地图、翻译、截图及选项展示不变；本地/共享库存变为 73/15。
+
 会话契约已接入首批真实失效链：基座全局 API 401、移动路由守卫和仓库/库存/考勤/盘点 API 均通过适配器清理会话。原 `/login`、`/mobile/login`、移动重定向参数、401 用户错误及宽松 JWT 路由兼容保持，移动端这些链路不再直接操作 Storage 或 Base64；剩余直接会话操作已量化为基座 9 个文件、30 处。
 
 基座用户 Store 已通过平台会话完成初始化、登录持久化和退出清理。平台显式区分桌面 `plain` 与移动 `json` Token 写入格式，因此结构收敛没有改变既有部署中的存储表示；历史两种格式仍可互读。剩余直接会话操作进一步降为基座 8 个文件、24 处。
@@ -290,6 +292,8 @@ Grid Selection 单一来源切片通过完整质量门禁：125 个 Node 脚本�
 Grid 基础编辑器/渲染器单一来源切片通过完整质量门禁：126 个 Node 脚本语法、14 个锁定 CI 包、6 个共享 Grid 模块、138/6 库存、Vite 单例依赖契约及既有平台契约、1170 个文本文件秘密扫描、33 个变更代码文件 lint、23 个基础设施检查；8 个受影响前端生产构建成功并分别转换 apps 2317、equipment 1774、hr 1614、materials 1796、production 1626、purchase 1634、quality 1774、sales 1626 个模块。未执行远程测试。
 
 Grid 公共对话框单一来源切片通过完整质量门禁：126 个 Node 脚本语法、14 个锁定 CI 包、8 个共享 Grid 模块、122/8 库存、消费者 Request 解析及既有平台契约、1156 个文本文件秘密扫描、34 个变更代码文件 lint、23 个基础设施检查；8 个受影响前端生产构建成功并分别转换 apps 2317、equipment 1774、hr 1614、materials 1796、production 1626、purchase 1634、quality 1774、sales 1626 个模块。未执行远程测试。
+
+Grid 分组同构组件单一来源切片通过完整质量门禁：126 个 Node 脚本语法、14 个锁定 CI 包、15 个共享 Grid 模块、73/15 库存、7 个显式本地扩展、Vite 地图/截图依赖解析及既有平台契约、1114 个文本文件秘密扫描、30 个变更代码文件 lint、23 个基础设施检查；8 个受影响前端生产构建成功并分别转换 apps 2317、equipment 1774、hr 1614、materials 1796、production 1626、purchase 1634、quality 1774、sales 1626 个模块。未执行远程测试。
 
 ## 5. 升级、回退与运行治理
 

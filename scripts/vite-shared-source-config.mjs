@@ -6,5 +6,7 @@ export const sharedFrontendDedupe = Object.freeze([
   'element-plus',
   '@element-plus/icons-vue',
   'ag-grid-community',
-  'ag-grid-vue3'
+  'ag-grid-vue3',
+  'leaflet',
+  'html2canvas'
 ])
