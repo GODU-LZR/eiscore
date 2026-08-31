@@ -107,7 +107,14 @@ import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, re
 import { debounce } from 'lodash'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
-import { useGridCore } from './composables/useGridCore'
+import { useGridCore } from '@shared/eis-data-grid-v2/composables/useGridCore'
+import GeoRenderer from './components/renderers/GeoRenderer.vue'
+import CheckRenderer from './components/renderers/CheckRenderer.vue'
+import StatusRenderer from '@shared/eis-data-grid-v2/components/renderers/StatusRenderer.vue'
+import SelectRenderer from '@shared/eis-data-grid-v2/components/renderers/SelectRenderer.vue'
+import CascaderRenderer from '@shared/eis-data-grid-v2/components/renderers/CascaderRenderer.vue'
+import CascaderEditor from '@shared/eis-data-grid-v2/components/renderers/CascaderEditor.vue'
+import RowHeightHandleRenderer from '@shared/eis-grid-row-height-handle.vue'
 import { useGridFormula } from '@shared/eis-data-grid-v2/composables/useGridFormula'
 import { evaluateFormulaExpression } from '@shared/utils/formula-eval'
 import { useGridHistory } from '@shared/eis-data-grid-v2/composables/useGridHistory'
@@ -271,7 +278,22 @@ const {
   handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
   columnLockState, setWorkflowBinding, getRowHeight, handleColumnResized,
   onGridReadyLayout, stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
-} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit, workflowBinding) // 🟢 关键修复：共享 gridApi
+} = useGridCore(
+  props,
+  activeSummaryConfig,
+  { value: currentUser },
+  isCellInSelection,
+  gridApi,
+  emit,
+  workflowBinding,
+  {
+    rendererComponents: { StatusRenderer, SelectRenderer, CascaderRenderer, CascaderEditor, GeoRenderer, CheckRenderer, RowHeightHandleRenderer },
+    attentionEnabled: false,
+    rowActionsEnabled: false,
+    actionRendererOptions: { rowActionsEnabled: false, allowedIcons: ['Document'], layout: 'form-only' },
+    legacyAppColumns: true
+  }
+) // 🟢 关键修复：共享 gridApi
 
 const openFileDialog = (params) => {
   if (!params || params.node?.rowPinned) return

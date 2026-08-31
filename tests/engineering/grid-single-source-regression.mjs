@@ -9,6 +9,7 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const apps = ['apps', 'equipment', 'hr', 'materials', 'production', 'purchase', 'quality', 'sales']
 const alwaysSharedRenderers = ['CheckEditor', 'DocumentActionRenderer', 'FileRenderer', 'LockHeader', 'SelectEditor', 'StatusEditor']
 const sharedViteConfig = readFileSync(resolve(repoRoot, 'scripts/vite-shared-source-config.mjs'), 'utf8')
+const sharedCore = readFileSync(resolve(repoRoot, 'shared/eis-data-grid-v2/composables/useGridCore.js'), 'utf8')
 const rendererLocalVariants = new Map([
   ['CascaderEditor', new Set(['materials'])],
   ['CascaderRenderer', new Set(['materials'])],
@@ -37,7 +38,12 @@ for (const app of apps) {
   const gridRoot = resolve(repoRoot, `eiscore-${app}/src/components/eis-data-grid-v2`)
   const viteConfig = readFileSync(resolve(repoRoot, `eiscore-${app}/vite.config.js`), 'utf8')
   const entry = readFileSync(resolve(gridRoot, 'index.vue'), 'utf8')
-  const core = readFileSync(resolve(gridRoot, 'composables/useGridCore.js'), 'utf8')
+  const core = sharedCore
+  assert.match(
+    entry,
+    /import\s*{\s*useGridCore\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridCore['"]/
+  )
+  assert.equal(existsSync(resolve(gridRoot, 'composables/useGridCore.js')), false)
   assert.match(
     entry,
     /import\s*{\s*useGridSelection\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridSelection['"]/
@@ -99,16 +105,41 @@ for (const app of apps) {
   for (const [renderer, localVariants] of rendererLocalVariants) {
     const hasLocalVariant = localVariants.has(app)
     const importPath = hasLocalVariant
-      ? `../components/renderers/${renderer}\\.vue`
+      ? `\\./components/renderers/${renderer}\\.vue`
       : `@shared/eis-data-grid-v2/components/renderers/${renderer}\\.vue`
-    assert.match(core, new RegExp(`import ${renderer} from ['"]${importPath}['"]`))
+    assert.match(entry, new RegExp(`import ${renderer} from ['"]${importPath}['"]`))
+    assert.match(entry, new RegExp(`rendererComponents:\\s*{[^}]*\\b${renderer}\\b[^}]*}`))
+    assert.doesNotMatch(core, new RegExp(`import ${renderer} from`))
     assert.equal(existsSync(resolve(gridRoot, `components/renderers/${renderer}.vue`)), hasLocalVariant)
   }
   const actionOptions = documentActionOptions.get(app)
-  const actionRendererParams = core.match(/cellRendererParams:\s*{\s*actionRendererOptions:\s*{[^}]+}\s*}/)?.[0] || ''
+  const actionRendererParams = entry.match(/actionRendererOptions:\s*{[^}]+}/)?.[0] || ''
   assert.match(actionRendererParams, new RegExp(`rowActionsEnabled:\\s*${actionOptions.enabled}`))
   assert.match(actionRendererParams, new RegExp(`allowedIcons:\\s*\\[${actionOptions.icons.map(icon => `['"]${icon}['"]`).join(',\\s*')}\\]`))
   assert.match(actionRendererParams, new RegExp(`layout:\\s*['"]${actionOptions.layout}['"]`))
+  if (actionOptions.enabled) {
+    assert.doesNotMatch(entry, /rowActionsEnabled:\s*false/)
+  } else {
+    assert.match(entry, /rowActionsEnabled:\s*false/)
+  }
+
+  if (app === 'apps') {
+    assert.match(entry, /attentionEnabled:\s*false/)
+    assert.match(entry, /legacyAppColumns:\s*true/)
+    assert.doesNotMatch(entry, /from\s*['"]@\/utils\/[^'"]*attention['"]/)
+  } else {
+    assert.match(entry, /attentionLevelOptions,\s*attentionLevelRank,\s*getManualAttentionLevel,\s*normalizeAttentionLevel/)
+  }
+  if (app === 'hr') {
+    assert.match(entry, /import RowHeightHandleRenderer from ['"]\.\/components\/renderers\/RowHeightHandleRenderer\.vue['"]/)
+    assert.match(entry, /rendererComponents:\s*{[^}]*\bRowHeightHandleRenderer\b[^}]*}/)
+    assert.match(entry, /layoutMode:\s*['"]hr-employee['"]/)
+  }
+  if (app === 'materials') assert.match(entry, /materialColumns:\s*true/)
+  if (app === 'purchase') assert.match(entry, /purchaseStatusEditable:\s*true/)
+  if (app === 'purchase' || app === 'sales') {
+    assert.match(entry, /defaultProfile:\s*['"]public['"]/)
+  }
 
   if (app === 'apps') {
     assert.match(entry, /<ConfigDialog[\s\S]*?ai-app="app_center"[\s\S]*?@save="saveConfig"/)
@@ -283,4 +314,32 @@ assert.match(documentActionSource, /action-cell-wrapper--form-only/)
 assert.match(documentActionSource, /action-cell-wrapper--compact/)
 assert.doesNotMatch(documentActionSource, /eiscore-(?:apps|equipment|hr|materials|production|purchase|quality|sales)/)
 
-console.log('PASS: all eight Grid entries share selection, formula, clipboard, history, dialogs, and renderer baselines with explicit variants')
+assert.match(sharedCore, /coreOptions\s*=\s*{}/)
+assert.match(sharedCore, /coreServices\s*=\s*{}/)
+for (const option of [
+  'rendererComponents',
+  'attentionEnabled',
+  'rowActionsEnabled',
+  'actionColumnWidth',
+  'actionColumnMinWidth',
+  'actionRendererOptions',
+  'defaultProfile',
+  'layoutMode',
+  'legacyAppColumns',
+  'materialColumns',
+  'purchaseStatusEditable'
+]) {
+  assert.match(sharedCore, new RegExp(`\\b${option}\\b`))
+}
+for (const service of [
+  'attentionLevelOptions',
+  'attentionLevelRank',
+  'getManualAttentionLevel',
+  'normalizeAttentionLevel'
+]) {
+  assert.match(sharedCore, new RegExp(`\\b${service}\\b`))
+}
+assert.doesNotMatch(sharedCore, /from\s*['"]@\/utils\/[^'"]*attention['"]/)
+assert.doesNotMatch(sharedCore, /eiscore-(?:apps|equipment|hr|materials|production|purchase|quality|sales)/)
+
+console.log('PASS: all eight Grid entries share core, selection, formula, clipboard, history, dialogs, and renderers with explicit variants')

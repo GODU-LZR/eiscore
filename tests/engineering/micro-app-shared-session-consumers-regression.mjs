@@ -12,22 +12,32 @@ const sharedGeoSource = readFileSync(
   resolve(repoRoot, 'shared/eis-data-grid-v2/components/GeoDialog.vue'),
   'utf8'
 )
+const sharedGridSource = readFileSync(
+  resolve(repoRoot, 'shared/eis-data-grid-v2/composables/useGridCore.js'),
+  'utf8'
+)
+
+assert.match(sharedGridSource, /import\s*{\s*getUserInfo\s*}\s*from\s*['"]@\/utils\/auth['"]/)
+assert.doesNotMatch(sharedGridSource, /localStorage\.getItem\(\s*['"]user_info['"]\s*\)/)
+assert.match(sharedGridSource, /const getUserInfoSnapshot = \(\) =>\s*{/)
+assert.match(sharedGridSource, /const info = userStore\.userInfo/)
+assert.match(sharedGridSource, /Object\.keys\(info\)\.length > 0\) return info/)
+assert.match(sharedGridSource, /try\s*{\s*return getUserInfo\(\) \|\| {}\s*}\s*catch/)
+assert.match(sharedGridSource, /const perms = info\?\.permissions/)
+assert.match(sharedGridSource, /info\?\.app_role \|\| info\?\.appRole \|\| info\?\.role \|\| ['"]/)
 
 for (const app of apps) {
   const componentRoot = resolve(repoRoot, `eiscore-${app}/src/components/eis-data-grid-v2`)
-  const gridSource = readFileSync(resolve(componentRoot, 'composables/useGridCore.js'), 'utf8')
+  const gridEntrySource = readFileSync(resolve(componentRoot, 'index.vue'), 'utf8')
   const geoSource = app === 'apps'
     ? readFileSync(resolve(componentRoot, 'components/GeoDialog.vue'), 'utf8')
     : sharedGeoSource
 
-  assert.match(gridSource, /import\s*{\s*getUserInfo\s*}\s*from\s*['"]@\/utils\/auth['"]/)
-  assert.doesNotMatch(gridSource, /localStorage\.getItem\(\s*['"]user_info['"]\s*\)/)
-  assert.match(gridSource, /const getUserInfoSnapshot = \(\) =>\s*{/)
-  assert.match(gridSource, /const info = userStore\.userInfo/)
-  assert.match(gridSource, /Object\.keys\(info\)\.length > 0\) return info/)
-  assert.match(gridSource, /try\s*{\s*return getUserInfo\(\) \|\| {}\s*}\s*catch/)
-  assert.match(gridSource, /const perms = info\?\.permissions/)
-  assert.match(gridSource, /info\?\.app_role \|\| info\?\.appRole \|\| info\?\.role \|\| ['"]/)
+  assert.match(
+    gridEntrySource,
+    /import\s*{\s*useGridCore\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridCore['"]/
+  )
+  assert.doesNotMatch(gridEntrySource, /localStorage\.getItem\(\s*['"]user_info['"]\s*\)/)
 
   assert.match(geoSource, /import\s*{\s*getToken\s*}\s*from\s*['"]@\/utils\/auth['"]/)
   assert.match(geoSource, /import\s*{\s*createGeoServices,\s*hasChinese\s*}\s*from\s*['"]@shared\/eis-geo-services['"]/)

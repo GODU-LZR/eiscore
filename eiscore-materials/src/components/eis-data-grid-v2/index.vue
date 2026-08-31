@@ -109,7 +109,20 @@ import { onMounted, onUnmounted, defineProps, defineEmits, defineExpose, ref, re
 import { debounce } from 'lodash'
 import { AgGridVue } from "ag-grid-vue3"
 import { useUserStore } from '@/stores/user' 
-import { useGridCore } from './composables/useGridCore'
+import { useGridCore } from '@shared/eis-data-grid-v2/composables/useGridCore'
+import CascaderEditor from './components/renderers/CascaderEditor.vue'
+import CascaderRenderer from './components/renderers/CascaderRenderer.vue'
+import SelectRenderer from './components/renderers/SelectRenderer.vue'
+import StatusRenderer from './components/renderers/StatusRenderer.vue'
+import GeoRenderer from '@shared/eis-data-grid-v2/components/renderers/GeoRenderer.vue'
+import CheckRenderer from '@shared/eis-data-grid-v2/components/renderers/CheckRenderer.vue'
+import RowHeightHandleRenderer from '@shared/eis-grid-row-height-handle.vue'
+import {
+  MATERIAL_ATTENTION_LEVEL_OPTIONS as attentionLevelOptions,
+  attentionLevelRank,
+  getManualAttentionLevel,
+  normalizeAttentionLevel
+} from '@/utils/material-attention'
 import { useGridFormula } from '@shared/eis-data-grid-v2/composables/useGridFormula'
 import { evaluateFormulaExpression } from '@/utils/formula-eval'
 import { useGridHistory } from '@shared/eis-data-grid-v2/composables/useGridHistory'
@@ -276,7 +289,22 @@ const {
   handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
   columnLockState, setWorkflowBinding, getRowHeight, handleColumnResized,
   onGridReadyLayout, stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
-} = useGridCore(props, activeSummaryConfig, { value: currentUser }, isCellInSelection, gridApi, emit, workflowBinding) // 🟢 关键修复：共享 gridApi
+} = useGridCore(
+  props,
+  activeSummaryConfig,
+  { value: currentUser },
+  isCellInSelection,
+  gridApi,
+  emit,
+  workflowBinding,
+  {
+    rendererComponents: { StatusRenderer, SelectRenderer, CascaderRenderer, CascaderEditor, GeoRenderer, CheckRenderer, RowHeightHandleRenderer },
+    rowActionsEnabled: false,
+    actionRendererOptions: { rowActionsEnabled: false, allowedIcons: ['Document'], layout: 'form-only' },
+    materialColumns: true
+  },
+  { attentionLevelOptions, attentionLevelRank, getManualAttentionLevel, normalizeAttentionLevel }
+) // 🟢 关键修复：共享 gridApi
 
 const openFileDialog = (params) => {
   if (!params || params.node?.rowPinned) return

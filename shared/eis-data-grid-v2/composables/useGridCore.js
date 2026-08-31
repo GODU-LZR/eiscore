@@ -7,29 +7,48 @@ import request from '@/utils/request'
 import { buildSearchQuery } from '@/utils/grid-query'
 import { createPagedGridLoader } from '@shared/eis-data-grid-paging'
 import { createGridLocalLayout } from '@shared/eis-grid-local-layout'
-import StatusRenderer from '@shared/eis-data-grid-v2/components/renderers/StatusRenderer.vue'
 import StatusEditor from '@shared/eis-data-grid-v2/components/renderers/StatusEditor.vue'
-import SelectRenderer from '@shared/eis-data-grid-v2/components/renderers/SelectRenderer.vue'
 import SelectEditor from '@shared/eis-data-grid-v2/components/renderers/SelectEditor.vue'
-import CascaderRenderer from '@shared/eis-data-grid-v2/components/renderers/CascaderRenderer.vue'
-import CascaderEditor from '@shared/eis-data-grid-v2/components/renderers/CascaderEditor.vue'
-import GeoRenderer from '@shared/eis-data-grid-v2/components/renderers/GeoRenderer.vue'
 import FileRenderer from '@shared/eis-data-grid-v2/components/renderers/FileRenderer.vue'
 import LockHeader from '@shared/eis-data-grid-v2/components/renderers/LockHeader.vue'
 import DocumentActionRenderer from '@shared/eis-data-grid-v2/components/renderers/DocumentActionRenderer.vue'
-import CheckRenderer from '@shared/eis-data-grid-v2/components/renderers/CheckRenderer.vue'
 import CheckEditor from '@shared/eis-data-grid-v2/components/renderers/CheckEditor.vue'
-import RowHeightHandleRenderer from '@shared/eis-grid-row-height-handle.vue'
 import { useUserStore } from '@/stores/user'
 import { getUserInfo } from '@/utils/auth'
-import {
-  PURCHASE_ATTENTION_LEVEL_OPTIONS,
-  attentionLevelRank,
-  getManualAttentionLevel,
-  normalizeAttentionLevel
-} from '@/utils/purchase-attention'
-
-export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSelection, gridApiRef, emit, workflowBindingRef) {
+export function useGridCore(
+  props,
+  activeSummaryConfig,
+  currentUser,
+  isCellInSelection,
+  gridApiRef,
+  emit,
+  workflowBindingRef,
+  coreOptions = {},
+  coreServices = {}
+) {
+  const {
+    rendererComponents = {},
+    attentionEnabled = true,
+    rowActionsEnabled = true,
+    actionColumnWidth = 210,
+    actionColumnMinWidth = 180,
+    actionRendererOptions = {
+      rowActionsEnabled: true,
+      allowedIcons: ['CircleCheck', 'Document', 'Edit', 'Position', 'Warning'],
+      layout: 'standard'
+    },
+    defaultProfile = 'hr',
+    layoutMode = 'standard',
+    legacyAppColumns = false,
+    materialColumns = false,
+    purchaseStatusEditable = false
+  } = coreOptions
+  const {
+    attentionLevelOptions = [],
+    attentionLevelRank = () => 0,
+    getManualAttentionLevel = () => null,
+    normalizeAttentionLevel = (value) => value
+  } = coreServices
   const hasGridRef = gridApiRef && typeof gridApiRef === 'object' && 'value' in gridApiRef
   const gridApi = hasGridRef ? gridApiRef : ref(null)
   const eventEmitter = typeof gridApiRef === 'function' && !emit ? gridApiRef : emit
@@ -45,11 +64,22 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const aclModule = computed(() => props.aclModule || '')
   const STATUS_TRANSITION_ACTION = 'status_transition'
   const defaultRowHeight = computed(() => Math.max(28, Math.min(120, Number(props.defaultRowHeight) || 35)))
+  const layoutOptions = layoutMode === 'hr-employee'
+    ? {
+        scheduleApply: nextTick,
+        resolveRowKey: (rowData) => {
+          if (!rowData) return ''
+          if (rowData.id !== undefined && rowData.id !== null) return String(rowData.id)
+          if (rowData.employee_no) return String(rowData.employee_no)
+          return ''
+        }
+      }
+    : {}
   const {
     rowHeightConfig, getStoredColumnWidth, getRowHeight, handleColumnResized,
     onGridReadyLayout, stopRowHeightResize, startRowHeightResize,
     resetRowHeight, isRowHeightEdgeResizeEvent
-  } = createGridLocalLayout({ props, gridApi, defaultRowHeight })
+  } = createGridLocalLayout({ props, gridApi, defaultRowHeight, ...layoutOptions })
 
   const getUserInfoSnapshot = () => {
     const info = userStore.userInfo
@@ -122,19 +152,19 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const gridComponents = {
-    StatusRenderer: markRaw(StatusRenderer),
+    StatusRenderer: markRaw(rendererComponents.StatusRenderer),
     StatusEditor: markRaw(StatusEditor),
-    SelectRenderer: markRaw(SelectRenderer),
+    SelectRenderer: markRaw(rendererComponents.SelectRenderer),
     SelectEditor: markRaw(SelectEditor),
-    CascaderRenderer: markRaw(CascaderRenderer),
-    CascaderEditor: markRaw(CascaderEditor),
-    GeoRenderer: markRaw(GeoRenderer),
+    CascaderRenderer: markRaw(rendererComponents.CascaderRenderer),
+    CascaderEditor: markRaw(rendererComponents.CascaderEditor),
+    GeoRenderer: markRaw(rendererComponents.GeoRenderer),
     FileRenderer: markRaw(FileRenderer),
     LockHeader: markRaw(LockHeader),
     DocumentActionRenderer: markRaw(DocumentActionRenderer),
-    CheckRenderer: markRaw(CheckRenderer),
+    CheckRenderer: markRaw(rendererComponents.CheckRenderer),
     CheckEditor: markRaw(CheckEditor),
-    RowHeightHandleRenderer: markRaw(RowHeightHandleRenderer)
+    RowHeightHandleRenderer: markRaw(rendererComponents.RowHeightHandleRenderer)
   }
 
   const dictOptions = reactive({})
@@ -239,20 +269,27 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
 
   // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
-    const colId = params.colDef.colId || params.colDef.field
+    const colId = legacyAppColumns ? params.colDef.field : (params.colDef.colId || params.colDef.field)
     if (props.canEdit === false && !params.node.rowPinned) return true
-    if (colId === 'rowCheckbox' || params.colDef.checkboxSelection) return true
+    if (!legacyAppColumns && (colId === 'rowCheckbox' || params.colDef.checkboxSelection)) return true
     if (colId === '_status') {
       const currentStatus = params.data?.properties?.status ?? params.data?.status
       return !hasOutgoingTransitionPermission(currentStatus)
     }
     if (colId === '_actions') return true // ⚠️ 关键：操作列必须只读！
     if (params.node.rowPinned) return true
+    if (materialColumns && props.aclModule === 'mms_inventory') {
+      const rawStatus = params.data?.properties?.status ?? params.data?.status
+      const status = rawStatus ? String(rawStatus).toLowerCase() : ''
+      if (status === 'active' || status === 'locked') return true
+    }
+    if (purchaseStatusEditable) {
+      if (typeof params.colDef.statusEditable === 'function' && !params.colDef.statusEditable(params.data || {})) return true
+      if (params.colDef.statusEditable === false) return true
+    }
     if (props.enableColumnLock !== false && columnLockState[colId]) return true
     if (params.data?.properties?.row_locked_by) return true
     if (params.colDef.type === 'formula') return true
-    if (typeof params.colDef.statusEditable === 'function' && !params.colDef.statusEditable(params.data || {})) return true
-    if (params.colDef.statusEditable === false) return true
     const acl = getFieldAcl(params.colDef)
     if (acl?.canView === false) return true
     if (acl?.canEdit === false) return true
@@ -275,7 +312,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   }
 
   const resolveAttention = (row) => {
-    if (!props.attentionResolver || !row || typeof props.attentionResolver !== 'function') return null
+    if (!attentionEnabled || !props.attentionResolver || !row || typeof props.attentionResolver !== 'function') return null
     try {
       return props.attentionResolver(row) || null
     } catch (e) {
@@ -283,26 +320,33 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     }
   }
 
-  const rowClassRules = {
-    'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by,
-    'attention-row-critical': (params) => resolveAttention(params.data)?.level === 'critical',
-    'attention-row-warning': (params) => resolveAttention(params.data)?.level === 'warning',
-    'attention-row-focus': (params) => resolveAttention(params.data)?.level === 'focus'
-  }
+  const rowClassRules = attentionEnabled
+    ? {
+        'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by,
+        'attention-row-critical': (params) => resolveAttention(params.data)?.level === 'critical',
+        'attention-row-warning': (params) => resolveAttention(params.data)?.level === 'warning',
+        'attention-row-focus': (params) => resolveAttention(params.data)?.level === 'focus'
+      }
+    : { 'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by }
 
   const getCellStyle = (params) => {
     const base = { 'line-height': '34px' }
     if (params.node.rowPinned) return { ...base, backgroundColor: '#ecf5ff', color: '#409EFF', fontWeight: 'bold', borderTop: '2px solid var(--el-color-primary-light-5)' }
     if (params.colDef.field === '_status') return { ...base, cursor: 'pointer' }
-    if (params.colDef.isAttentionColumn) return { ...base, cursor: 'pointer' }
+    if (params.colDef.isAttentionColumn) {
+      const attentionCursor = materialColumns && params.colDef.editable === false ? 'default' : 'pointer'
+      return { ...base, cursor: attentionCursor }
+    }
     if (params.data?.properties?.row_locked_by) return base
     const acl = getFieldAcl(params.colDef)
     if (acl?.canView === false) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
     if (acl?.canView !== false && acl?.canEdit === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (!shouldShowByWorkflow(params.colDef)) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
     if (!canEditByWorkflow(params.colDef)) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
-    if (typeof params.colDef.statusEditable === 'function' && !params.colDef.statusEditable(params.data || {})) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
-    if (params.colDef.statusEditable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
+    if (purchaseStatusEditable) {
+      if (typeof params.colDef.statusEditable === 'function' && !params.colDef.statusEditable(params.data || {})) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
+      if (params.colDef.statusEditable === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
+    }
     if (params.colDef.type === 'formula') return { ...base, backgroundColor: '#fdf6ec', color: '#606266' } 
     if (params.colDef.editable === false && params.colDef.field !== '_actions') return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
     if (params.colDef?.multiLine) {
@@ -315,6 +359,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (!params?.node?.rowPinned) {
       const acl = getFieldAcl(params.colDef)
       if (acl?.canView === false) return '*******'
+      if (materialColumns && typeof col?.valueFormatter === 'function') return col.valueFormatter(params)
       if (typeof col?.formatter === 'function') return col.formatter(params)
       if (Array.isArray(params.value)) return params.value.join('  ')
       return params.value
@@ -414,7 +459,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
   const isSelectColumn = (col) => {
     if (!col) return false
     if (col.type === 'select' || col.type === 'dropdown') return true
-    if (Array.isArray(col.options)) return true
+    if (Array.isArray(col.options) && (!legacyAppColumns || col.options.length > 0)) return true
     if (col.dictKey) return true
     return false
   }
@@ -485,8 +530,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         toggleColumnLock: handleToggleColumnLock, 
         columnLockState,
         viewDocument: handleViewDocument,
-        resolveRowActions,
-        rowAction: handleRowAction
+        ...(rowActionsEnabled ? { resolveRowActions, rowAction: handleRowAction } : {}),
+        ...(layoutMode === 'hr-employee' ? { startRowHeightResize, resetRowHeight } : {})
     }
   })
   const SYSTEM_RELATION_TYPE_OPTIONS = [
@@ -582,10 +627,14 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     if (typeof col.valueParser === 'function') extraColDef.valueParser = col.valueParser
     if (col.multiLine) extraColDef.multiLine = true
     if (Array.isArray(col.syncFields)) extraColDef.syncFields = col.syncFields
-    if (typeof col.statusEditable === 'function' || col.statusEditable === false) extraColDef.statusEditable = col.statusEditable
     if (col.cellEditor) extraColDef.cellEditor = col.cellEditor
     if (col.cellEditorPopup !== undefined) extraColDef.cellEditorPopup = col.cellEditorPopup
     if (col.cellEditorPopupPosition) extraColDef.cellEditorPopupPosition = col.cellEditorPopupPosition
+    if (purchaseStatusEditable && (typeof col.statusEditable === 'function' || col.statusEditable === false)) {
+      extraColDef.statusEditable = col.statusEditable
+    }
+    if (materialColumns && col.skipSave === true) extraColDef.skipSave = true
+    if (materialColumns && col.allowClear !== undefined) extraColDef.allowClear = col.allowClear
 
     const colDef = {
       headerName: col.label,
@@ -652,7 +701,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         if (text === 'false' || text === 'f' || text === '0' || text === 'no' || text === 'n') return false
         return !!val
       }
-      return {
+      const checkColDef = {
         ...colDef,
         cellRenderer: 'CheckRenderer',
         editable: false,
@@ -672,6 +721,18 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         width: col.width || 90,
         minWidth: col.minWidth || 80
       }
+      if (legacyAppColumns) {
+        return {
+          ...checkColDef,
+          cellEditor: 'CheckEditor',
+          cellEditorPopup: false,
+          editable: (params) => !isCellReadOnly(params),
+          suppressDoubleClickEdit: undefined,
+          suppressKeyboardEvent: undefined,
+          checkEditable: undefined
+        }
+      }
+      return checkColDef
     }
 
     if (col?.type === 'cascader') {
@@ -687,7 +748,16 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
         labelField: col.labelField || 'label',
         valueField: col.valueField || 'value',
         cascaderOptions: col.cascaderOptions || {},
-        cascaderOptionsMap: {}
+        cascaderOptionsMap: {},
+        ...(materialColumns
+          ? {
+              cascaderFlatOptions: col.cascaderFlatOptions || null,
+              cascaderParentField: col.cascaderParentField || 'parent_id',
+              cascaderLabelField: col.cascaderLabelField || 'name',
+              cascaderValueField: col.cascaderValueField || 'id',
+              cascaderCodeField: col.cascaderCodeField || 'code'
+            }
+          : {})
       }
     }
 
@@ -735,6 +805,15 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       valueSetter: () => false,
       cellStyle: { padding: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' } 
     }
+    if (legacyAppColumns) {
+      delete checkboxCol.editable
+      delete checkboxCol.suppressClickEdit
+      delete checkboxCol.suppressDoubleClickEdit
+      delete checkboxCol.suppressKeyboardEvent
+      delete checkboxCol.suppressNavigable
+      delete checkboxCol.valueGetter
+      delete checkboxCol.valueSetter
+    }
     const rowHeightCol = {
       headerName: '',
       field: '_rowHeight',
@@ -754,6 +833,15 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       valueSetter: () => false,
       cellRenderer: 'RowHeightHandleRenderer',
       cellStyle: { padding: '0', display: 'flex', alignItems: 'stretch', justifyContent: 'center' }
+    }
+    if (legacyAppColumns) {
+      delete rowHeightCol.suppressRowClickSelection
+      delete rowHeightCol.suppressNavigable
+      delete rowHeightCol.valueGetter
+      delete rowHeightCol.valueSetter
+      rowHeightCol.suppressSizeToFit = true
+      rowHeightCol.cellClass = 'row-height-handle-cell'
+      rowHeightCol.cellStyle = { padding: 0, display: 'flex', alignItems: 'stretch', justifyContent: 'center' }
     }
 
     
@@ -806,8 +894,8 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const actionCol = {
       headerName: '操作',
       field: '_actions',
-      width: props.rowActionResolver ? 210 : 100,
-      minWidth: props.rowActionResolver ? 180 : 100,
+      width: rowActionsEnabled && props.rowActionResolver ? actionColumnWidth : 100,
+      minWidth: rowActionsEnabled && props.rowActionResolver ? actionColumnMinWidth : 100,
       pinned: 'right', // 固定在右侧
       sortable: false,
       filter: false,
@@ -816,10 +904,11 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       suppressHeaderMenuButton: true,
       suppressRowClickSelection: true, // ⚠️ 核心修复：点击此列单元格，不触发“行选中”，防止状态冲突
       cellRenderer: 'DocumentActionRenderer',
-      cellRendererParams: { actionRendererOptions: { rowActionsEnabled: true, allowedIcons: ['Box', 'Document', 'OfficeBuilding', 'Position', 'Promotion', 'Tickets', 'Warning'], layout: 'standard' } },
+      cellRendererParams: { actionRendererOptions },
       cellStyle: { padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center' }
     }
 
+    const attentionWritable = !materialColumns || (props.includeProperties !== false && props.canEdit !== false)
     const attentionCol = {
       headerName: '关注',
       field: 'properties.attention_level',
@@ -832,14 +921,14 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       sortable: true,
       filter: true,
       resizable: false,
-      editable: (params) => !params.node.rowPinned && !isCellReadOnly(params),
-      singleClickEdit: true,
+      editable: attentionWritable ? ((params) => !params.node.rowPinned && !isCellReadOnly(params)) : false,
+      singleClickEdit: attentionWritable,
       suppressHeaderMenuButton: false,
       cellRenderer: 'SelectRenderer',
       cellEditor: 'SelectEditor',
       cellEditorPopup: true,
       cellEditorPopupPosition: 'under',
-      options: PURCHASE_ATTENTION_LEVEL_OPTIONS,
+      options: attentionLevelOptions,
       allowClear: false,
       valueGetter: params => {
         if (params.node.rowPinned) return ''
@@ -847,7 +936,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       },
       valueParser: params => normalizeAttentionLevel(params.newValue) || null,
       valueSetter: params => {
-        if (params.node.rowPinned) return false
+        if (params.node.rowPinned || !attentionWritable) return false
         const nextLevel = normalizeAttentionLevel(params.newValue)
         if (!params.data.properties || typeof params.data.properties !== 'object') {
           params.data.properties = {}
@@ -874,7 +963,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     const prefixCols = [
       checkboxCol,
       ...(rowHeightConfig.value.enabled ? [rowHeightCol] : []),
-      ...(props.attentionResolver ? [attentionCol] : [])
+      ...(attentionEnabled && props.attentionResolver ? [attentionCol] : [])
     ]
 
     const baseCols = props.showStatusCol === false
@@ -904,7 +993,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
     request,
     buildSearchQuery,
     ElMessage,
-    defaultProfile: 'public'
+    defaultProfile
   })
 
   return {
