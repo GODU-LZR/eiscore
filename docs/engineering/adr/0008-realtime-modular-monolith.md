@@ -36,4 +36,6 @@
 
 第八个切片把最后一条内联业务处理器 AI Chat 迁入 `ai-chat-http.js`。Agent 路由、OCR、企业语义/快照、输出守卫与上游作为应用依赖注入；Node Stream 与 Web Reader 两类传输继续保持原 close/cancel/release 行为。至此 41 条 HTTP 路由和全部业务处理器都已离开组合根，HTTP 子阶段完成；WebSocket、领域服务及持久化拆分仍是 G3 后续工作。
 
+第九个切片把 WebSocket 连接与 9 类输入分发迁入 `websocket-server.js`。只读 Manifest 锁定订阅 2 类、Flash 4 类和 Agent 3 类协议；连接层继续执行 JWT 1008、默认频道、状态初始化和关闭清理，业务能力全部注入。未知类型仍静默忽略，坏 JSON/处理异常仍发送通用 error。至此 HTTP 与 WebSocket 传输装配均退出组合根。
+
 该切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库、部署拓扑或 WebSocket 时序；可通过回退单提交恢复旧装配。组合根仍包含大量业务处理器，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。

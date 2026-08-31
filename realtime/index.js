@@ -10,7 +10,6 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
-const { AgentConversation, FileWatcher } = require('./agent-core');
 const { WorkflowEngine } = require('./workflow-engine');
 const { createDocumentIntakeHandlers } = require('./document-intake');
 const { createDocumentParseWorker } = require('./document-parser');
@@ -23,6 +22,7 @@ const { createAiHttpHandlers } = require('./ai-http');
 const { createAiChatHttpHandler } = require('./ai-chat-http');
 const { createFlashHttpHandlers } = require('./flash-http');
 const { createTwinChatHttpHandler } = require('./twin-chat-http');
+const { attachWebSocketServer } = require('./websocket-server');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -6193,244 +6193,25 @@ server.listen(port, () => {
   documentFixedEntryWorker.start();
 });
 
-wss.on('connection', (ws, req) => {
-  const token = extractToken(req);
-  const payload = verifyToken(token);
-  if (!payload) {
-    ws.close(1008, 'unauthorized');
-    return;
-  }
-  ws.user = {
-    ...asUser(payload),
-    token
-  };
-  ws.channels = new Set([channel]);
-  ws.agentConversation = null; // Will be initialized on agent:task
-  ws.fileWatcher = null;
-  ws.flashCliSessions = new Map();
-
-  ws.on('message', async (message) => {
-    try {
-      const data = JSON.parse(String(message));
-      if (!data || typeof data !== 'object') return;
-
-      // Database notification subscriptions
-      if (data.type === 'subscribe') {
-        const list = normalizeStringList(data.channels);
-        if (list.length) ws.channels = new Set(list);
-        return;
-      }
-      if (data.type === 'unsubscribe') {
-        const list = normalizeStringList(data.channels);
-        list.forEach((ch) => ws.channels.delete(ch));
-        return;
-      }
-
-      if (data.type === 'flash:tool_call') {
-        await handleFlashToolCallWs(ws, data);
-        return;
-      }
-
-      if (data.type === 'flash:cline_task') {
-        await runFlashClineTask(ws, data);
-        return;
-      }
-
-      if (data.type === 'flash:cline_stop') {
-        const sessionId = String(data?.sessionId || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'default';
-        const session = ws.flashCliSessions?.get(sessionId);
-        if (session) {
-          killFlashCliSessionProcess(session);
-          sendWsJson(ws, {
-            type: 'flash:cline_status',
-            sessionId,
-            status: 'stopped',
-            message: '已停止当前 Cline 任务'
-          });
-        }
-        return;
-      }
-
-      if (data.type === 'flash:cline_reset') {
-        const sessionId = String(data?.sessionId || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'default';
-        const session = ws.flashCliSessions?.get(sessionId);
-        if (session) {
-          killFlashCliSessionProcess(session);
-          session.taskId = '';
-        } else if (ws.flashCliSessions) {
-          ws.flashCliSessions.set(sessionId, createFlashCliSession());
-        }
-        sendWsJson(ws, {
-          type: 'flash:cline_status',
-          sessionId,
-          status: 'reset',
-          message: '会话已重置'
-        });
-        return;
-      }
-
-      // Agent: Start new task
-      if (data.type === 'agent:task') {
-        if (!canUseAgent(ws.user)) {
-          ws.send(JSON.stringify({
-            type: 'agent:error',
-            error: 'Forbidden: agent access denied'
-          }));
-          logAgentEvent('agent:task_denied', ws.user, { projectPath: data.projectPath || '' });
-          return;
-        }
-        const projectPath = normalizeProjectPath(data.projectPath) || 'eiscore-apps';
-        if (!isAllowedProject(projectPath)) {
-          ws.send(JSON.stringify({
-            type: 'agent:error',
-            error: 'Forbidden: project path not allowed'
-          }));
-          logAgentEvent('agent:task_denied', ws.user, { projectPath });
-          return;
-        }
-        const cfg = await getAiConfig();
-        if (!cfg?.api_url || !cfg?.api_key) {
-          ws.send(JSON.stringify({
-            type: 'agent:error',
-            error: 'AI configuration is missing in system_configs.ai_glm_config'
-          }));
-          logAgentEvent('agent:task_denied', ws.user, { projectPath, reason: 'ai_config_missing' });
-          return;
-        }
-        const requestedPolicy = sanitizeWritePolicy(data.writePolicy);
-        const defaultPolicy = resolveDefaultWritePolicy(projectPath);
-        const hasRequestedRules = requestedPolicy.allowedFiles.length > 0 || requestedPolicy.allowedDirs.length > 0;
-        const writePolicy = hasRequestedRules ? requestedPolicy : defaultPolicy;
-
-        logAgentEvent('agent:task_start', ws.user, {
-          projectPath,
-          writePolicy
-        });
-        ws.agentConversation = new AgentConversation(projectPath, {
-          writePolicy,
-          model: cfg?.model || 'glm-4.6v',
-          aiInvoker: createAgentTaskAiInvoker(cfg)
-        });
-        
-        // Setup file watcher for HMR feedback
-        if (ws.fileWatcher) ws.fileWatcher.stop();
-        ws.fileWatcher = new FileWatcher(projectPath, (changeEvent) => {
-          ws.send(JSON.stringify({
-            type: 'agent:file_change',
-            data: changeEvent
-          }));
-        });
-        ws.fileWatcher.start();
-
-        ws.send(JSON.stringify({
-          type: 'agent:status',
-          status: 'thinking',
-          message: 'Processing your request...'
-        }));
-
-        try {
-          // Execute task asynchronously
-          const result = await ws.agentConversation.executeTask(data.prompt);
-          ws.send(JSON.stringify({
-            type: 'agent:result',
-            success: result.success,
-            executionLog: result.executionLog,
-            totalTurns: result.totalTurns
-          }));
-          logAgentEvent('agent:task_result', ws.user, {
-            projectPath,
-            success: result.success,
-            totalTurns: result.totalTurns
-          });
-        } catch (taskError) {
-          const safeError = normalizeAgentTaskErrorMessage(taskError);
-          ws.send(JSON.stringify({
-            type: 'agent:error',
-            error: safeError,
-            code: 'AGENT_TASK_FAILED'
-          }));
-          logAgentEvent('agent:task_failed', ws.user, {
-            projectPath,
-            error: safeError
-          });
-        }
-        return;
-      }
-
-      // Agent: Execute specific tool
-      if (data.type === 'agent:tool_use') {
-        if (!canUseAgent(ws.user)) {
-          ws.send(JSON.stringify({
-            type: 'agent:error',
-            error: 'Forbidden: agent access denied'
-          }));
-          logAgentEvent('agent:tool_denied', ws.user, { tool: data.toolCall?.tool });
-          return;
-        }
-        if (!ws.agentConversation) {
-          ws.send(JSON.stringify({
-            type: 'agent:error',
-            error: 'No active conversation. Send agent:task first.'
-          }));
-          return;
-        }
-
-        const result = await ws.agentConversation.executeToolCall(data.toolCall);
-        ws.send(JSON.stringify({
-          type: 'agent:tool_result',
-          result
-        }));
-        logAgentEvent('agent:tool_result', ws.user, {
-          tool: data.toolCall?.tool,
-          success: result?.success !== false
-        });
-        return;
-      }
-
-      // Agent: Execute terminal command (limited)
-      if (data.type === 'agent:terminal') {
-        if (!canUseAgent(ws.user)) {
-          ws.send(JSON.stringify({
-            type: 'agent:error',
-            error: 'Forbidden: agent access denied'
-          }));
-          logAgentEvent('agent:terminal_denied', ws.user, { command: data.command || '' });
-          return;
-        }
-        if (!ws.agentConversation) {
-          ws.send(JSON.stringify({
-            type: 'agent:error',
-            error: 'No active conversation.'
-          }));
-          return;
-        }
-
-        const result = await ws.agentConversation.tools.executeCommand(data.command);
-        ws.send(JSON.stringify({
-          type: 'agent:terminal_result',
-          result
-        }));
-        logAgentEvent('agent:terminal_result', ws.user, {
-          success: result?.success !== false
-        });
-        return;
-      }
-
-    } catch (error) {
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: error.message
-      }));
-    }
-  });
-
-  ws.on('close', () => {
-    if (ws.fileWatcher) {
-      ws.fileWatcher.stop();
-    }
-    if (ws.flashCliSessions) {
-      ws.flashCliSessions.forEach((session) => killFlashCliSessionProcess(session));
-      ws.flashCliSessions.clear();
-    }
-  });
+attachWebSocketServer({
+  wss,
+  extractToken,
+  verifyToken,
+  asUser,
+  channel,
+  normalizeStringList,
+  handleFlashToolCallWs,
+  runFlashClineTask,
+  killFlashCliSessionProcess,
+  sendWsJson,
+  createFlashCliSession,
+  canUseAgent,
+  logAgentEvent,
+  normalizeProjectPath,
+  isAllowedProject,
+  getAiConfig,
+  sanitizeWritePolicy,
+  resolveDefaultWritePolicy,
+  createAgentTaskAiInvoker,
+  normalizeAgentTaskErrorMessage
 });
