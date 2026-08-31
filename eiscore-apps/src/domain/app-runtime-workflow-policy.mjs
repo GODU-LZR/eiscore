@@ -240,12 +240,103 @@ export const buildTransitionPermission = (fromState, toState, appKey) => {
   return `op:${normalizedAppKey}.status_transition.${fromToken}_${toToken}`
 }
 
+export const buildWorkflowPolicyPayload = ({ draft, workflowAppId } = {}) => ({
+  workflow_app_id: workflowAppId,
+  acl_module: String(draft?.acl_module || '').trim(),
+  permission_mode: draft?.permission_mode === 'strict' ? 'strict' : 'compat',
+  enforce_assignment: Boolean(draft?.enforce_assignment),
+  enforce_workflow_op_perm: Boolean(draft?.enforce_workflow_op_perm),
+  enforce_status_transition_perm: Boolean(draft?.enforce_status_transition_perm),
+  legacy_fallback_enabled: Boolean(draft?.legacy_fallback_enabled)
+})
+
+export const buildWorkflowRuleDraftState = (row, { appKey, buildSuggestedPermission } = {}) => {
+  const draft = {
+    from_task_id: String(row?.from_task_id || '').trim(),
+    to_task_id: String(row?.to_task_id || '').trim(),
+    from_state: String(row?.from_state || '').trim(),
+    to_state: String(row?.to_state || '').trim(),
+    required_permission: String(row?.required_permission || '').trim(),
+    is_active: row ? row?.is_active !== false : true
+  }
+  const suggestedPermission = typeof buildSuggestedPermission === 'function'
+    ? String(buildSuggestedPermission(draft.from_state, draft.to_state) || '').trim()
+    : buildTransitionPermission(draft.from_state, draft.to_state, appKey)
+  if (!row && suggestedPermission) draft.required_permission = suggestedPermission
+  return {
+    editingId: row?.id || null,
+    draft,
+    lastSuggestedPermission: suggestedPermission
+  }
+}
+
+export const resolveWorkflowRulePermissionSync = ({
+  suggestedPermission,
+  currentPermission,
+  lastSuggestedPermission,
+  force = false
+} = {}) => {
+  const suggested = String(suggestedPermission || '').trim()
+  if (!suggested) return null
+  const current = String(currentPermission || '').trim()
+  return {
+    requiredPermission: force || !current || current === lastSuggestedPermission ? suggested : current,
+    lastSuggestedPermission: suggested
+  }
+}
+
+export const buildWorkflowRulePayloadPlan = ({ draft, workflowAppId, suggestedPermission } = {}) => {
+  const fromTask = String(draft?.from_task_id || '').trim()
+  const toTask = String(draft?.to_task_id || '').trim()
+  const fromState = String(draft?.from_state || '').trim()
+  const toState = String(draft?.to_state || '').trim()
+  if (!fromTask || !toTask) return { payload: null, validationError: 'tasks', suggestedPermission: '' }
+  if (!fromState || !toState) return { payload: null, validationError: 'states', suggestedPermission: '' }
+  if (normalizeStatusTokenForPermission(fromState) === normalizeStatusTokenForPermission(toState)) {
+    return { payload: null, validationError: 'same-state', suggestedPermission: '' }
+  }
+  const currentPermission = String(draft?.required_permission || '').trim()
+  const normalizedSuggestion = currentPermission ? '' : String(suggestedPermission || '').trim()
+  return {
+    payload: {
+      workflow_app_id: workflowAppId,
+      from_task_id: fromTask,
+      to_task_id: toTask,
+      from_state: fromState,
+      to_state: toState,
+      required_permission: currentPermission || normalizedSuggestion || null,
+      is_active: Boolean(draft?.is_active)
+    },
+    validationError: '',
+    suggestedPermission: normalizedSuggestion
+  }
+}
+
 export const getWorkflowTransitionRuleKey = (row = {}) => ([
   String(row?.from_task_id || '').trim(),
   String(row?.to_task_id || '').trim(),
   String(row?.from_state || '').trim(),
   String(row?.to_state || '').trim()
 ].join('\u001f'))
+
+export const resolveWorkflowRuleUpsertPlan = ({ candidates = [], existingRules = [] } = {}) => {
+  const existingMap = new Map()
+  existingRules.forEach((row) => {
+    const key = getWorkflowTransitionRuleKey(row)
+    if (key) existingMap.set(key, row)
+  })
+  const toCreate = []
+  const toReactivate = []
+  candidates.forEach((candidate) => {
+    const existing = existingMap.get(getWorkflowTransitionRuleKey(candidate))
+    if (!existing) {
+      toCreate.push(candidate)
+      return
+    }
+    if (existing?.is_active === false) toReactivate.push({ existing, candidate })
+  })
+  return { toCreate, toReactivate }
+}
 
 const getStateMappingByTaskId = (stateMappings, taskId) => {
   const key = String(taskId || '').trim()

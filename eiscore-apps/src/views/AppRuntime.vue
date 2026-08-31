@@ -901,6 +901,9 @@ import {
   buildGeneratedTransitionRule,
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
+  buildWorkflowPolicyPayload,
+  buildWorkflowRuleDraftState,
+  buildWorkflowRulePayloadPlan,
   buildWorkflowStateOptions,
   buildWorkflowTaskOptions,
   chooseNextTaskByStateLevel,
@@ -925,7 +928,6 @@ import {
   normalizePolicyBool,
   normalizeRequiredApprovals,
   normalizeStateValue,
-  normalizeStatusTokenForPermission,
   parseSchemaTable,
   resolveExpectedStateForRow as resolveExpectedState,
   resolveConfiguredTaskBusinessBinding,
@@ -933,6 +935,8 @@ import {
   resolveTargetBusinessAppId,
   resolveTaskAutoRule,
   resolveWorkflowEffectivePolicy,
+  resolveWorkflowRulePermissionSync,
+  resolveWorkflowRuleUpsertPlan,
   resolveWorkflowRuntimeConfig
 } from '@/domain/app-runtime-workflow-policy.mjs'
 
@@ -2216,15 +2220,10 @@ async function saveWorkflowPolicy() {
   }
   workflowPolicySaving.value = true
   try {
-    await upsertWorkflowPolicy({
-      workflow_app_id: runtimeAppId.value,
-      acl_module: aclModule,
-      permission_mode: workflowPolicyDraft.permission_mode === 'strict' ? 'strict' : 'compat',
-      enforce_assignment: Boolean(workflowPolicyDraft.enforce_assignment),
-      enforce_workflow_op_perm: Boolean(workflowPolicyDraft.enforce_workflow_op_perm),
-      enforce_status_transition_perm: Boolean(workflowPolicyDraft.enforce_status_transition_perm),
-      legacy_fallback_enabled: Boolean(workflowPolicyDraft.legacy_fallback_enabled)
-    })
+    await upsertWorkflowPolicy(buildWorkflowPolicyPayload({
+      draft: { ...workflowPolicyDraft, acl_module: aclModule },
+      workflowAppId: runtimeAppId.value
+    }))
     workflowPolicyDialogVisible.value = false
     ElMessage.success('V2 策略已保存')
   } catch (error) {
@@ -2235,20 +2234,12 @@ async function saveWorkflowPolicy() {
 }
 
 function resetWorkflowRuleDraft(row = null) {
-  workflowRuleEditingId.value = row?.id || null
-  workflowRuleDraft.from_task_id = String(row?.from_task_id || '').trim()
-  workflowRuleDraft.to_task_id = String(row?.to_task_id || '').trim()
-  workflowRuleDraft.from_state = String(row?.from_state || '').trim()
-  workflowRuleDraft.to_state = String(row?.to_state || '').trim()
-  workflowRuleDraft.required_permission = String(row?.required_permission || '').trim()
-  workflowRuleDraft.is_active = row ? row?.is_active !== false : true
-  workflowRuleLastSuggestedPermission.value = buildWorkflowTransitionPermission(
-    workflowRuleDraft.from_state,
-    workflowRuleDraft.to_state
-  )
-  if (!row && workflowRuleLastSuggestedPermission.value) {
-    workflowRuleDraft.required_permission = workflowRuleLastSuggestedPermission.value
-  }
+  const next = buildWorkflowRuleDraftState(row, {
+    buildSuggestedPermission: buildWorkflowTransitionPermission
+  })
+  workflowRuleEditingId.value = next.editingId
+  Object.assign(workflowRuleDraft, next.draft)
+  workflowRuleLastSuggestedPermission.value = next.lastSuggestedPermission
 }
 
 function openWorkflowRuleDialog(row = null) {
@@ -2257,44 +2248,34 @@ function openWorkflowRuleDialog(row = null) {
 }
 
 function syncWorkflowRulePermission(force = false) {
-  const suggested = workflowRuleSuggestedPermission.value
-  if (!suggested) return
-  const current = String(workflowRuleDraft.required_permission || '').trim()
-  if (force || !current || current === workflowRuleLastSuggestedPermission.value) {
-    workflowRuleDraft.required_permission = suggested
-  }
-  workflowRuleLastSuggestedPermission.value = suggested
+  const next = resolveWorkflowRulePermissionSync({
+    suggestedPermission: workflowRuleSuggestedPermission.value,
+    currentPermission: workflowRuleDraft.required_permission,
+    lastSuggestedPermission: workflowRuleLastSuggestedPermission.value,
+    force
+  })
+  if (!next) return
+  workflowRuleDraft.required_permission = next.requiredPermission
+  workflowRuleLastSuggestedPermission.value = next.lastSuggestedPermission
 }
 
 function buildWorkflowRulePayload() {
-  const fromTask = String(workflowRuleDraft.from_task_id || '').trim()
-  const toTask = String(workflowRuleDraft.to_task_id || '').trim()
-  const fromState = String(workflowRuleDraft.from_state || '').trim()
-  const toState = String(workflowRuleDraft.to_state || '').trim()
-  if (!fromTask || !toTask) {
-    ElMessage.warning('请选择来源任务和目标任务')
+  const plan = buildWorkflowRulePayloadPlan({
+    draft: workflowRuleDraft,
+    workflowAppId: runtimeAppId.value,
+    suggestedPermission: workflowRuleSuggestedPermission.value
+  })
+  const validationMessages = {
+    tasks: '请选择来源任务和目标任务',
+    states: '请选择来源状态和目标状态',
+    'same-state': '来源状态和目标状态不能相同'
+  }
+  if (plan.validationError) {
+    ElMessage.warning(validationMessages[plan.validationError])
     return null
   }
-  if (!fromState || !toState) {
-    ElMessage.warning('请选择来源状态和目标状态')
-    return null
-  }
-  if (normalizeStatusTokenForPermission(fromState) === normalizeStatusTokenForPermission(toState)) {
-    ElMessage.warning('来源状态和目标状态不能相同')
-    return null
-  }
-  if (!String(workflowRuleDraft.required_permission || '').trim()) {
-    syncWorkflowRulePermission(true)
-  }
-  return {
-    workflow_app_id: runtimeAppId.value,
-    from_task_id: fromTask,
-    to_task_id: toTask,
-    from_state: fromState,
-    to_state: toState,
-    required_permission: String(workflowRuleDraft.required_permission || '').trim() || null,
-    is_active: Boolean(workflowRuleDraft.is_active)
-  }
+  if (plan.suggestedPermission) syncWorkflowRulePermission(true)
+  return plan.payload
 }
 
 async function saveWorkflowRule() {
@@ -2373,27 +2354,6 @@ async function deleteWorkflowTransitionRule(row) {
   }
 }
 
-const resolveWorkflowRuleUpsertPlan = (candidates) => {
-  const existingMap = new Map()
-  workflowTransitionRules.value.forEach((row) => {
-    const key = getWorkflowTransitionRuleKey(row)
-    if (key) existingMap.set(key, row)
-  })
-  const toCreate = []
-  const toReactivate = []
-  candidates.forEach((candidate) => {
-    const existing = existingMap.get(getWorkflowTransitionRuleKey(candidate))
-    if (!existing) {
-      toCreate.push(candidate)
-      return
-    }
-    if (existing?.is_active === false) {
-      toReactivate.push({ existing, candidate })
-    }
-  })
-  return { toCreate, toReactivate }
-}
-
 async function persistWorkflowTransitionRulePlan(toCreate, toReactivate) {
   const token = getToken()
   const headers = {
@@ -2421,7 +2381,10 @@ async function generateWorkflowTransitionRules() {
     return
   }
 
-  const { toCreate, toReactivate } = resolveWorkflowRuleUpsertPlan(candidates)
+  const { toCreate, toReactivate } = resolveWorkflowRuleUpsertPlan({
+    candidates,
+    existingRules: workflowTransitionRules.value
+  })
 
   if (!toCreate.length && !toReactivate.length) {
     ElMessage.success('显式迁移规则已齐备')

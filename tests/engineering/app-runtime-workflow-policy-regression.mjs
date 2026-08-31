@@ -14,6 +14,9 @@ import {
   buildGeneratedTransitionRule,
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
+  buildWorkflowPolicyPayload,
+  buildWorkflowRuleDraftState,
+  buildWorkflowRulePayloadPlan,
   buildWorkflowStateOptions,
   buildWorkflowTaskOptions,
   chooseNextTaskByStateLevel,
@@ -48,6 +51,8 @@ import {
   resolveTaskAutoRule,
   resolveWorkflowEffectivePolicy,
   resolveWorkflowPermissionDefMeta,
+  resolveWorkflowRulePermissionSync,
+  resolveWorkflowRuleUpsertPlan,
   resolveWorkflowRuntimeConfig
 } from '../../eiscore-apps/src/domain/app-runtime-workflow-policy.mjs'
 
@@ -207,6 +212,113 @@ assert.equal(buildTransitionPermission('created', 'created', 'sales'), '')
 assert.equal(buildTransitionPermission('', 'active', 'sales'), '')
 assert.equal(buildTransitionPermission('created', 'active', ''), '')
 
+assert.deepEqual(buildWorkflowPolicyPayload({
+  workflowAppId: 'app-1',
+  draft: {
+    acl_module: ' module:sales ',
+    permission_mode: 'invalid',
+    enforce_assignment: 0,
+    enforce_workflow_op_perm: 'false',
+    enforce_status_transition_perm: 1,
+    legacy_fallback_enabled: null
+  }
+}), {
+  workflow_app_id: 'app-1',
+  acl_module: 'module:sales',
+  permission_mode: 'compat',
+  enforce_assignment: false,
+  enforce_workflow_op_perm: true,
+  enforce_status_transition_perm: true,
+  legacy_fallback_enabled: false
+})
+
+const existingDraftState = buildWorkflowRuleDraftState({
+  id: 7,
+  from_task_id: ' Task_A ',
+  to_task_id: ' Task_B ',
+  from_state: ' created ',
+  to_state: ' active ',
+  required_permission: ' custom:permission ',
+  is_active: false
+}, { buildSuggestedPermission: (from, to) => `suggested:${from}:${to}` })
+assert.deepEqual(existingDraftState, {
+  editingId: 7,
+  draft: {
+    from_task_id: 'Task_A',
+    to_task_id: 'Task_B',
+    from_state: 'created',
+    to_state: 'active',
+    required_permission: 'custom:permission',
+    is_active: false
+  },
+  lastSuggestedPermission: 'suggested:created:active'
+})
+const newDraftState = buildWorkflowRuleDraftState(null, {
+  buildSuggestedPermission: () => 'suggested:new-rule'
+})
+assert.equal(newDraftState.editingId, null)
+assert.equal(newDraftState.draft.is_active, true)
+assert.equal(newDraftState.draft.required_permission, 'suggested:new-rule')
+assert.equal(buildWorkflowRuleDraftState({
+  from_state: 'created',
+  to_state: 'active'
+}, { appKey: 'sales' }).lastSuggestedPermission, 'op:sales.status_transition.created_active')
+assert.equal(buildWorkflowRuleDraftState({ id: 0 }).editingId, null)
+
+assert.equal(resolveWorkflowRulePermissionSync({ suggestedPermission: '' }), null)
+assert.deepEqual(resolveWorkflowRulePermissionSync({
+  suggestedPermission: ' next ',
+  currentPermission: '',
+  lastSuggestedPermission: 'old'
+}), { requiredPermission: 'next', lastSuggestedPermission: 'next' })
+assert.deepEqual(resolveWorkflowRulePermissionSync({
+  suggestedPermission: 'next',
+  currentPermission: 'old',
+  lastSuggestedPermission: 'old'
+}), { requiredPermission: 'next', lastSuggestedPermission: 'next' })
+assert.deepEqual(resolveWorkflowRulePermissionSync({
+  suggestedPermission: 'next',
+  currentPermission: 'custom',
+  lastSuggestedPermission: 'old'
+}), { requiredPermission: 'custom', lastSuggestedPermission: 'next' })
+assert.equal(resolveWorkflowRulePermissionSync({
+  suggestedPermission: 'next',
+  currentPermission: 'custom',
+  force: true
+})?.requiredPermission, 'next')
+
+for (const [draft, validationError] of [
+  [{ from_task_id: '', to_task_id: 'B' }, 'tasks'],
+  [{ from_task_id: 'A', to_task_id: 'B', from_state: '', to_state: 'active' }, 'states'],
+  [{ from_task_id: 'A', to_task_id: 'B', from_state: 'active', to_state: ' active ' }, 'same-state']
+]) {
+  assert.equal(buildWorkflowRulePayloadPlan({ draft }).validationError, validationError)
+}
+assert.deepEqual(buildWorkflowRulePayloadPlan({
+  workflowAppId: 'workflow-1',
+  suggestedPermission: ' op:sales.status_transition.created_active ',
+  draft: {
+    from_task_id: ' A ',
+    to_task_id: ' B ',
+    from_state: ' created ',
+    to_state: ' active ',
+    required_permission: '',
+    is_active: 1
+  }
+}), {
+  payload: {
+    workflow_app_id: 'workflow-1',
+    from_task_id: 'A',
+    to_task_id: 'B',
+    from_state: 'created',
+    to_state: 'active',
+    required_permission: 'op:sales.status_transition.created_active',
+    is_active: true
+  },
+  validationError: '',
+  suggestedPermission: 'op:sales.status_transition.created_active'
+})
+
 const rule = {
   from_task_id: ' Task_A ',
   to_task_id: 'Task_B',
@@ -214,6 +326,29 @@ const rule = {
   to_state: 'active'
 }
 assert.equal(getWorkflowTransitionRuleKey(rule), 'Task_A\u001fTask_B\u001fcreated\u001factive')
+
+const activeExistingRule = { ...rule, id: 1, is_active: true }
+const disabledExistingRule = {
+  from_task_id: 'Task_B',
+  to_task_id: 'Task_C',
+  from_state: 'active',
+  to_state: 'locked',
+  id: 2,
+  is_active: false
+}
+const newRule = {
+  from_task_id: 'Task_C',
+  to_task_id: 'Task_D',
+  from_state: 'locked',
+  to_state: 'archived'
+}
+assert.deepEqual(resolveWorkflowRuleUpsertPlan({
+  candidates: [rule, { ...disabledExistingRule, id: undefined }, newRule],
+  existingRules: [activeExistingRule, disabledExistingRule]
+}), {
+  toCreate: [newRule],
+  toReactivate: [{ existing: disabledExistingRule, candidate: { ...disabledExistingRule, id: undefined } }]
+})
 
 const stateMappings = [
   { bpmn_task_id: 'Task_A', state_value: 'created' },
@@ -528,10 +663,12 @@ for (const removedDefinition of [
   'const ids = new Set()',
   'const values = new Set(WORKFLOW_STATUS_ORDER)',
   "permission_mode: String(policy.permission_mode || cfg.permission_mode || 'compat')",
-  "workflowPolicyEffective.value.permission_mode === 'strict' ? 'danger' : 'success'"
+  "workflowPolicyEffective.value.permission_mode === 'strict' ? 'danger' : 'success'",
+  'const resolveWorkflowRuleUpsertPlan =',
+  "ElMessage.warning('来源状态和目标状态不能相同')"
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 4033)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 3996)
 
 console.log('PASS: AppRuntime workflow policy preserves states, approvals, permissions, generated rules and legacy bindings')
