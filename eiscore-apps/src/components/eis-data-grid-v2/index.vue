@@ -107,7 +107,7 @@ import { useUserStore } from '@/stores/user'
 import { useGridCore } from './composables/useGridCore'
 import { useGridFormula } from './composables/useGridFormula'
 import { useGridHistory } from './composables/useGridHistory'
-import { useGridSelection } from './composables/useGridSelection'
+import { useGridSelection } from '@shared/eis-data-grid-v2/composables/useGridSelection'
 import { useGridClipboard } from './composables/useGridClipboard'
 
 import GridToolbar from './components/GridToolbar.vue'

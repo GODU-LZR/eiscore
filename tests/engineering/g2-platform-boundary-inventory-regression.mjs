@@ -94,12 +94,20 @@ const collectInventory = (pattern) => {
 }
 
 const actualGridCopies = new Set()
+let localGridFileCount = 0
+let sharedGridFileCount = 0
 for (const path of sourceFiles) {
   const repoPath = relative(repoRoot, path).replaceAll('\\', '/')
   const match = repoPath.match(/^(eiscore-[^/]+)\/src\/components\/eis-data-grid-v2\//)
-  if (match) actualGridCopies.add(match[1])
+  if (match) {
+    actualGridCopies.add(match[1])
+    localGridFileCount += 1
+  }
+  if (repoPath.startsWith('shared/eis-data-grid-v2/')) sharedGridFileCount += 1
 }
 assert.deepEqual([...actualGridCopies].sort(), expectedGridCopies)
+assert.equal(localGridFileCount, 178)
+assert.equal(sharedGridFileCount, 1)
 
 const storageInventory = collectInventory(storagePattern)
 const vueUseStorageInventory = collectInventory(vueUseStoragePattern)
@@ -129,4 +137,4 @@ for (const path of permissionAdapters) {
 const storageTotal = [...expectedStorageInventory.values()].reduce((total, count) => total + count, 0)
 const safeUseDarkTotal = [...safeUseDarkInventory.values()].reduce((total, count) => total + count, 0)
 const navigationTotal = [...expectedFullPageNavigationInventory.values()].reduce((total, count) => total + count, 0)
-console.log(`PASS: G2 remaining inventories locked (storage ${expectedStorageInventory.size}/${storageTotal}, unsafe indirect storage 0, safe useDark ${safeUseDarkTotal}, full-page navigation ${expectedFullPageNavigationInventory.size}/${navigationTotal}, permission adapters ${permissionAdapters.length}, Grid copies ${actualGridCopies.size})`)
+console.log(`PASS: G2 remaining inventories locked (storage ${expectedStorageInventory.size}/${storageTotal}, unsafe indirect storage 0, safe useDark ${safeUseDarkTotal}, full-page navigation ${expectedFullPageNavigationInventory.size}/${navigationTotal}, permission adapters ${permissionAdapters.length}, Grid copies ${actualGridCopies.size}, Grid files local/shared ${localGridFileCount}/${sharedGridFileCount})`)
