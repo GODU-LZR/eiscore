@@ -29,7 +29,7 @@ for (const application of applications) {
   const source = readSource(path)
   assert.match(
     source,
-    /import\s*{\s*useGridCore\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridCore['"]/,
+    /import SharedGrid from ['"]@shared\/eis-data-grid-v2\/index\.vue['"]/,
     path
   )
   if (application === 'hr') assert.match(source, /layoutMode:\s*['"]hr-employee['"]/, path)

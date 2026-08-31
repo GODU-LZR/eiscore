@@ -10,6 +10,7 @@ const apps = ['apps', 'equipment', 'hr', 'materials', 'production', 'purchase', 
 const alwaysSharedRenderers = ['CheckEditor', 'DocumentActionRenderer', 'FileRenderer', 'LockHeader', 'SelectEditor', 'StatusEditor']
 const sharedViteConfig = readFileSync(resolve(repoRoot, 'scripts/vite-shared-source-config.mjs'), 'utf8')
 const sharedCore = readFileSync(resolve(repoRoot, 'shared/eis-data-grid-v2/composables/useGridCore.js'), 'utf8')
+const sharedEntry = readFileSync(resolve(repoRoot, 'shared/eis-data-grid-v2/index.vue'), 'utf8')
 const rendererLocalVariants = new Map([
   ['CascaderEditor', new Set(['materials'])],
   ['CascaderRenderer', new Set(['materials'])],
@@ -29,6 +30,16 @@ const documentActionOptions = new Map([
   ['quality', { enabled: true, icons: ['CircleCheck', 'Document', 'Warning'], layout: 'standard' }],
   ['sales', { enabled: true, icons: ['ChatLineSquare', 'Document', 'Money', 'Position', 'Promotion', 'Tickets', 'TrendCharts'], layout: 'compact' }]
 ])
+const expectedExposes = new Map([
+  ['apps', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'recalculateServerFormulas']],
+  ['equipment', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'recalculateServerFormulas']],
+  ['hr', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'recalculateServerFormulas']],
+  ['materials', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'refreshCells', 'recalculateServerFormulas']],
+  ['production', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'refreshCells', 'recalculateServerFormulas']],
+  ['purchase', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'getSelectedRows', 'recalculateServerFormulas']],
+  ['quality', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'recalculateServerFormulas']],
+  ['sales', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'getSelectedRows', 'recalculateServerFormulas']]
+])
 
 for (const dependency of ['vue', 'element-plus', '@element-plus/icons-vue', 'ag-grid-community', 'ag-grid-vue3', 'leaflet', 'html2canvas']) {
   assert.match(sharedViteConfig, new RegExp(`['"]${dependency}['"]`))
@@ -38,46 +49,21 @@ for (const app of apps) {
   const gridRoot = resolve(repoRoot, `eiscore-${app}/src/components/eis-data-grid-v2`)
   const viteConfig = readFileSync(resolve(repoRoot, `eiscore-${app}/vite.config.js`), 'utf8')
   const entry = readFileSync(resolve(gridRoot, 'index.vue'), 'utf8')
-  const core = sharedCore
   assert.match(
     entry,
-    /import\s*{\s*useGridCore\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridCore['"]/
+    /import SharedGrid from ['"]@shared\/eis-data-grid-v2\/index\.vue['"]/
   )
+  assert.match(entry, /<SharedGrid ref="sharedGrid" v-bind="\$attrs" :entry-adapter="entryAdapter">/)
+  assert.match(entry, /defineOptions\(\{ inheritAttrs: false }\)/)
+  assert.doesNotMatch(entry, /<ag-grid-vue|useGridCore|useGridSelection|useGridFormula|useGridClipboard|useGridHistory|<style/)
+  assert.ok(entry.split(/\r?\n/).length <= 110, `${app} Grid entry must remain a thin adapter`)
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridCore.js')), false)
-  assert.match(
-    entry,
-    /import\s*{\s*useGridSelection\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridSelection['"]/
-  )
-  assert.match(
-    entry,
-    /import\s*{\s*useGridFormula\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridFormula['"]/
-  )
-  assert.match(
-    entry,
-    /import\s*{\s*useGridClipboard\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridClipboard['"]/
-  )
-  assert.match(
-    entry,
-    /import\s*{\s*useGridHistory\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridHistory['"]/
-  )
   assert.match(entry, /import\s*{\s*debounce\s*}\s*from\s*['"]lodash['"]/)
-  assert.match(entry, /useGridHistory\([\s\S]*?{\s*debounce\s*}\s*\)/)
+  assert.match(entry, /services:\s*{\s*debounce,\s*evaluateFormulaExpression\s*}/)
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridSelection.js')), false)
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridFormula.js')), false)
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridClipboard.js')), false)
   assert.equal(existsSync(resolve(gridRoot, 'composables/useGridHistory.js')), false)
-  assert.match(
-    entry,
-    /import FileDialog from ['"]@shared\/eis-data-grid-v2\/components\/FileDialog\.vue['"]/
-  )
-  assert.match(
-    entry,
-    /import ConfigDialog from ['"]@shared\/eis-data-grid-v2\/components\/ConfigDialog\.vue['"]/
-  )
-  assert.match(
-    entry,
-    /import GridToolbar from ['"]@shared\/eis-data-grid-v2\/components\/GridToolbar\.vue['"]/
-  )
   assert.equal(existsSync(resolve(gridRoot, 'components/FileDialog.vue')), false)
   assert.equal(existsSync(resolve(gridRoot, 'components/ColumnManagerDialog.vue')), false)
   assert.equal(existsSync(resolve(gridRoot, 'components/ConfigDialog.vue')), false)
@@ -97,7 +83,7 @@ for (const app of apps) {
   assert.match(viteConfig, /resolve:\s*{\s*dedupe:\s*sharedFrontendDedupe,/)
   for (const renderer of alwaysSharedRenderers) {
     assert.match(
-      core,
+      sharedCore,
       new RegExp(`import ${renderer} from ['"]@shared/eis-data-grid-v2/components/renderers/${renderer}\\.vue['"]`)
     )
     assert.equal(existsSync(resolve(gridRoot, `components/renderers/${renderer}.vue`)), false)
@@ -109,7 +95,7 @@ for (const app of apps) {
       : `@shared/eis-data-grid-v2/components/renderers/${renderer}\\.vue`
     assert.match(entry, new RegExp(`import ${renderer} from ['"]${importPath}['"]`))
     assert.match(entry, new RegExp(`rendererComponents:\\s*{[^}]*\\b${renderer}\\b[^}]*}`))
-    assert.doesNotMatch(core, new RegExp(`import ${renderer} from`))
+    assert.doesNotMatch(sharedCore, new RegExp(`import ${renderer} from`))
     assert.equal(existsSync(resolve(gridRoot, `components/renderers/${renderer}.vue`)), hasLocalVariant)
   }
   const actionOptions = documentActionOptions.get(app)
@@ -134,38 +120,57 @@ for (const app of apps) {
     assert.match(entry, /import RowHeightHandleRenderer from ['"]\.\/components\/renderers\/RowHeightHandleRenderer\.vue['"]/)
     assert.match(entry, /rendererComponents:\s*{[^}]*\bRowHeightHandleRenderer\b[^}]*}/)
     assert.match(entry, /layoutMode:\s*['"]hr-employee['"]/)
+    assert.match(entry, /propDefaults:\s*{\s*maxRowHeight:\s*160\s*}/)
   }
   if (app === 'materials') assert.match(entry, /materialColumns:\s*true/)
   if (app === 'purchase') assert.match(entry, /purchaseStatusEditable:\s*true/)
   if (app === 'purchase' || app === 'sales') {
     assert.match(entry, /defaultProfile:\s*['"]public['"]/)
+    assert.match(entry, /propDefaults:\s*{\s*acceptProfile:\s*['"]public['"],\s*contentProfile:\s*['"]public['"]\s*}/)
   }
 
   if (app === 'apps') {
-    assert.match(entry, /<ConfigDialog[\s\S]*?ai-app="app_center"[\s\S]*?@save="saveConfig"/)
-    assert.match(entry, /<GridToolbar[\s\S]*?layout="split"[\s\S]*?<\/GridToolbar>/)
+    assert.match(entry, /toolbarLayout:\s*['"]split['"]/)
+    assert.match(entry, /tableToolsSlot:\s*false/)
+    assert.match(entry, /configDialog:\s*{\s*aiApp:\s*['"]app_center['"]\s*}/)
+    assert.match(entry, /initialSearchEnabled:\s*false/)
+    assert.match(entry, /reloadOnApiUrlChange:\s*true/)
   } else if (app === 'purchase' || app === 'sales') {
-    assert.match(entry, new RegExp(`<ConfigDialog[\\s\\S]*?ai-app="${app}"[\\s\\S]*?cell-label-example="订单金额"[\\s\\S]*?formula-display-example="\\{订单金额\\} \\* 0\\.18"[\\s\\S]*?formula-prompt-example="\\{订单金额\\}\\*0\\.18"[\\s\\S]*?@save="saveConfig"`))
+    assert.match(entry, new RegExp(`configDialog:\\s*{[\\s\\S]*?aiApp:\\s*['"]${app}['"][\\s\\S]*?cellLabelExample:\\s*['"]订单金额['"][\\s\\S]*?formulaDisplayExample:\\s*['"]\\{订单金额\\} \\* 0\\.18['"][\\s\\S]*?formulaPromptExample:\\s*['"]\\{订单金额\\}\\*0\\.18['"][\\s\\S]*?}`))
   } else {
-    const configInvocation = entry.match(/<ConfigDialog[\s\S]*?@save="saveConfig"/)?.[0] || ''
-    assert.doesNotMatch(configInvocation, /ai-app|cell-label-example|formula-display-example|formula-prompt-example/)
+    assert.doesNotMatch(entry, /\bconfigDialog:\s*{/)
   }
 
-  const toolbarInvocation = entry.match(/<GridToolbar[\s\S]*?<\/GridToolbar>/)?.[0] || ''
   if (app === 'materials') {
-    assert.match(toolbarInvocation, /\bfull-width-rows\b/)
+    assert.match(entry, /toolbarFullWidthRows:\s*true/)
   } else {
-    assert.doesNotMatch(toolbarInvocation, /\bfull-width-rows\b/)
+    assert.doesNotMatch(entry, /toolbarFullWidthRows:\s*true/)
   }
-  if (app !== 'apps') assert.doesNotMatch(toolbarInvocation, /\blayout="split"/)
+  if (app !== 'apps') assert.doesNotMatch(entry, /toolbarLayout:\s*['"]split['"]/)
+
+  if (new Set(['equipment', 'materials', 'sales']).has(app)) {
+    assert.match(entry, /constrainHeight:\s*true/)
+  } else {
+    assert.doesNotMatch(entry, /constrainHeight:\s*true/)
+  }
+  if (app === 'apps') assert.match(entry, /styleVariant:\s*['"]legacy-columns['"]/)
+  else if (app === 'equipment') assert.match(entry, /styleVariant:\s*['"]bordered-attention['"]/)
+  else assert.doesNotMatch(entry, /\bstyleVariant\b/)
+  if (app === 'materials' || app === 'production') {
+    assert.match(entry, /emitSelectionChanged:\s*true/)
+  } else {
+    assert.doesNotMatch(entry, /emitSelectionChanged:\s*true/)
+  }
+  if (app === 'materials') assert.match(entry, /respectAttentionReadonly:\s*true/)
+  else assert.doesNotMatch(entry, /respectAttentionReadonly:\s*true/)
 
   if (app === 'materials') {
-    assert.match(entry, /useGridClipboard\([\s\S]*?keyboardMode:\s*['"]preserve-editors['"][\s\S]*?\)/)
+    assert.match(entry, /clipboardOptions:\s*{\s*keyboardMode:\s*['"]preserve-editors['"]\s*}/)
   } else {
     assert.doesNotMatch(entry, /keyboardMode:\s*['"]preserve-editors['"]/)
   }
   if (app === 'purchase') {
-    assert.match(entry, /useGridClipboard\([\s\S]*?clearMode:\s*['"]sanitized-nested['"][\s\S]*?\)/)
+    assert.match(entry, /clipboardOptions:\s*{\s*clearMode:\s*['"]sanitized-nested['"]\s*}/)
   } else {
     assert.doesNotMatch(entry, /clearMode:\s*['"]sanitized-nested['"]/)
   }
@@ -194,15 +199,39 @@ for (const app of apps) {
       entry,
       /import\s*{\s*evaluateFormulaExpression\s*}\s*from\s*['"]@\/utils\/formula-eval['"]/
     )
-    assert.match(entry, /columnLockState,\s*{\s*evaluateFormulaExpression\s*}\s*\)/)
   } else {
     assert.match(
       entry,
       /import\s*{\s*evaluateFormulaExpression\s*}\s*from\s*['"]@shared\/utils\/formula-eval['"]/
     )
-    assert.match(entry, /columnLockState,\s*{\s*evaluateFormulaExpression\s*}\s*\)/)
   }
+
+  const exposed = (entry.match(/defineExpose\(\{([^}]+)}\)/)?.[1] || '')
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean)
+    .sort()
+  assert.deepEqual(exposed, [...expectedExposes.get(app)].sort())
 }
+
+for (const composable of ['useGridCore', 'useGridSelection', 'useGridFormula', 'useGridClipboard', 'useGridHistory']) {
+  assert.match(sharedEntry, new RegExp(`from ['"]@shared/eis-data-grid-v2/composables/${composable}['"]`))
+}
+for (const component of ['FileDialog', 'ConfigDialog', 'GridToolbar']) {
+  assert.match(sharedEntry, new RegExp(`import ${component} from ['"]@shared/eis-data-grid-v2/components/${component}\\.vue['"]`))
+}
+assert.match(sharedEntry, /<ag-grid-vue/)
+assert.match(sharedEntry, /entryAdapter\.rendererComponents/)
+assert.match(sharedEntry, /entryAdapter\.attentionServices/)
+assert.match(sharedEntry, /entryAdapter\.historyOptions/)
+assert.match(sharedEntry, /entryAdapter\.clipboardOptions/)
+assert.match(sharedEntry, /adapterServices\.evaluateFormulaExpression/)
+assert.match(sharedEntry, /adapterServices\.debounce/)
+assert.match(sharedEntry, /entryAdapter\.emitSelectionChanged/)
+assert.match(sharedEntry, /entryAdapter\.reloadOnApiUrlChange/)
+assert.match(sharedEntry, /entryAdapter\.styleVariant === ['"]legacy-columns['"]/)
+assert.match(sharedEntry, /entryAdapter\.styleVariant === ['"]bordered-attention['"]/)
+assert.doesNotMatch(sharedEntry, /eiscore-(?:apps|equipment|hr|materials|production|purchase|quality|sales)/)
 
 for (const renderer of [...alwaysSharedRenderers, ...rendererLocalVariants.keys()]) {
   assert.equal(
@@ -342,4 +371,4 @@ for (const service of [
 assert.doesNotMatch(sharedCore, /from\s*['"]@\/utils\/[^'"]*attention['"]/)
 assert.doesNotMatch(sharedCore, /eiscore-(?:apps|equipment|hr|materials|production|purchase|quality|sales)/)
 
-console.log('PASS: all eight Grid entries share core, selection, formula, clipboard, history, dialogs, and renderers with explicit variants')
+console.log('PASS: eight thin Grid adapters share one entry, core, composables, dialogs, and renderer baselines with explicit variants')

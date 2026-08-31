@@ -107,7 +107,7 @@ for (const path of sourceFiles) {
 }
 assert.deepEqual([...actualGridCopies].sort(), expectedGridCopies)
 assert.equal(localGridFileCount, 17)
-assert.equal(sharedGridFileCount, 22)
+assert.equal(sharedGridFileCount, 23)
 
 const storageInventory = collectInventory(storagePattern)
 const vueUseStorageInventory = collectInventory(vueUseStoragePattern)
@@ -137,4 +137,4 @@ for (const path of permissionAdapters) {
 const storageTotal = [...expectedStorageInventory.values()].reduce((total, count) => total + count, 0)
 const safeUseDarkTotal = [...safeUseDarkInventory.values()].reduce((total, count) => total + count, 0)
 const navigationTotal = [...expectedFullPageNavigationInventory.values()].reduce((total, count) => total + count, 0)
-console.log(`PASS: G2 remaining inventories locked (storage ${expectedStorageInventory.size}/${storageTotal}, unsafe indirect storage 0, safe useDark ${safeUseDarkTotal}, full-page navigation ${expectedFullPageNavigationInventory.size}/${navigationTotal}, permission adapters ${permissionAdapters.length}, Grid copies ${actualGridCopies.size}, Grid files local/shared ${localGridFileCount}/${sharedGridFileCount})`)
+console.log(`PASS: G2 accepted inventories locked (storage ${expectedStorageInventory.size}/${storageTotal}, unsafe indirect storage 0, safe useDark ${safeUseDarkTotal}, full-page navigation ${expectedFullPageNavigationInventory.size}/${navigationTotal}, permission adapters ${permissionAdapters.length}, Grid adapters ${actualGridCopies.size}, Grid files local/shared ${localGridFileCount}/${sharedGridFileCount})`)

@@ -35,7 +35,7 @@ for (const app of apps) {
 
   assert.match(
     gridEntrySource,
-    /import\s*{\s*useGridCore\s*}\s*from\s*['"]@shared\/eis-data-grid-v2\/composables\/useGridCore['"]/
+    /import SharedGrid from ['"]@shared\/eis-data-grid-v2\/index\.vue['"]/
   )
   assert.doesNotMatch(gridEntrySource, /localStorage\.getItem\(\s*['"]user_info['"]\s*\)/)
 

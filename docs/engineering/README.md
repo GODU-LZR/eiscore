@@ -87,7 +87,8 @@ EISCore 的工程化目标不是减少文件行数，也不是追求一次性“
 - G2 Auth/Session 与安全存储：10 个前端工具及真实消费者已统一，兼容 Token 格式、JWT UTF-8 解码、长度限制、失效判断和存储异常边界见 `adr/0004-platform-auth-session-boundary.md`。
 - G2 前端权限判断：9 个权限适配器共享同一平台服务，兼容规则见 `adr/0005-platform-permission-boundary.md`。
 - G2 非会话本地存储：领域缓存通过安全适配器渐进迁移，Key/格式/异常降级边界见 `adr/0006-domain-local-storage-boundary.md`。
+- G2 Grid/UI 单一来源：共享入口与实现主体由 8 个薄适配器消费，9 个具名扩展受专项契约锁定，边界见 `adr/0007-grid-single-source.md`。
 
-G2 的逐项退出证据、剩余 Storage/导航/Grid 库存及阻断条件见 `G2_EXIT_AUDIT.md`。
+G2 已通过退出审计；接受库存和持续门禁见 `G2_EXIT_AUDIT.md`。当前主要工作进入 G3 核心模块可维护性。
 
 长期重构的当前状态、验证证据和下一切片记录在 `REFACTOR_PROGRESS.md`；最终交付结论持续汇总到 `REFACTOR_FINAL_REPORT.md`。
