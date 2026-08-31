@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "name": "runtime-v2",
+  "ledger": "database/migration-ledger.sql",
+  "postcheck": "sql/runtime_v2_postcheck.sql",
+  "legacyManifest": "sql/runtime_v2_patch_manifest.txt",
+  "legacyInventory": [
+    { "path": ".", "recursive": false, "expectedSqlFiles": 3 },
+    { "path": "env", "recursive": false, "expectedSqlFiles": 2 },
+    { "path": "sql", "recursive": false, "expectedSqlFiles": 65 },
+    { "path": "eiscore-hr/sql", "recursive": false, "expectedSqlFiles": 30 },
+    { "path": "eiscore-materials/sql", "recursive": false, "expectedSqlFiles": 2 }
+  ],
+  "migrations": [
+    {
+      "id": "runtime-v2-001",
+      "path": "sql/patch_lightweight_ontology_runtime.sql",
+      "sha256": "762ec169102bba3a016fafe8a72b486e89e9dd864e6de455e94a331dca001580",
+      "transaction": "runner",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    },
+    {
+      "id": "runtime-v2-002",
+      "path": "sql/patch_add_ontology_relations_app.sql",
+      "sha256": "d44540f9e039a2823d0b0705b7e8deb29c3f1d68d8977a83674c32bcb1bbc3b3",
+      "transaction": "runner",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    },
+    {
+      "id": "runtime-v2-003",
+      "path": "sql/patch_ontology_semantic_coverage_v2.sql",
+      "sha256": "3a14a43c71d2b94035e6793ceef3a44503624d493c3917b75e487c5741c55a93",
+      "transaction": "file",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    },
+    {
+      "id": "runtime-v2-004",
+      "path": "sql/patch_ontology_reasoning_engine_v1.sql",
+      "sha256": "acf9d0ecd5920cc6385a47c79c8236823d3f22fc2bb5b36195031889d0ee4bdf",
+      "transaction": "file",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    },
+    {
+      "id": "runtime-v2-005",
+      "path": "sql/patch_ontology_reasoning_insights_v1.sql",
+      "sha256": "2040bf34351ee6bcaa9ca196ec70c74a1f83d587436b7bb574ad1da70db1278b",
+      "transaction": "file",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    },
+    {
+      "id": "runtime-v2-006",
+      "path": "sql/patch_ontology_graph_query_v1.sql",
+      "sha256": "ba4eb04ef6a7e19f7f8b05961f8101391715000014faea37a5f55e64fa67107d",
+      "transaction": "file",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    },
+    {
+      "id": "runtime-v2-007",
+      "path": "sql/patch_ai_document_intake_mvp.sql",
+      "sha256": "378ed86f77cef6958cdd89256f70c55c2611ee8cd64245216165a55a2c2856c7",
+      "transaction": "file",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    },
+    {
+      "id": "runtime-v2-008",
+      "path": "sql/patch_fix_ontology_semantic_qmarks_20260618.sql",
+      "sha256": "6386919b81b1b3772063bdafb4ef3058e37fec2d915811d24494221d053f531c",
+      "transaction": "file",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    },
+    {
+      "id": "runtime-v2-009",
+      "path": "sql/patch_agent_ontology_secure_context_v1.sql",
+      "sha256": "72a89d592c2ea26d429f7a04d0b63addc9ad02839164588eb3f75314c739f9f6",
+      "transaction": "file",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    },
+    {
+      "id": "runtime-v2-010",
+      "path": "sql/patch_document_intake_rls_hardening_v1.sql",
+      "sha256": "aa6758a6e1043a2680a9464da35fd864706b1cdc4882c5f4d29bc60dc6bf39d4",
+      "transaction": "file",
+      "rollback": { "strategy": "backup-restore", "backupRequired": true }
+    }
+  ]
+}

@@ -120,14 +120,15 @@
 | `84412cc` | 抽离 Twin Chat 流式处理器 | SSE/ReAct 处理器进入工厂，锁定降级、流解析、中断与错误边界 |
 | `a932897` | 扩展 AI 媒体 HTTP 边界 | Translate/OCR/Map 进入 AI 工厂，锁定别名、上游 payload 与错误映射 |
 | `56b8608` | 抽离 AI Chat 流式处理器 | 路由/守卫/双流处理进入工厂，完成 41 条 HTTP 处理器装配退出 |
-| 本文件所在提交 | 抽离 WebSocket 连接与消息装配 | 9 类输入进入只读 Manifest，锁定认证、分发、会话与清理 |
+| `7dd03a0` | 抽离 WebSocket 连接与消息装配 | 9 类输入进入只读 Manifest，锁定认证、分发、会话与清理 |
+| 本文件所在提交 | 建立数据库迁移治理基线 | 10 个 Runtime V2 补丁进入校验 Manifest，102 份历史 SQL 作为只读库存锁定 |
 
 ## 当前切片
 
-- 状态：G3 进行中；Realtime 的 HTTP 与 WebSocket 传输装配均退出组合根并具备 Manifest/分发契约，下一阶段进入领域逻辑与数据库迁移治理。
-- 结果：`realtime/websocket-server.js` 以 9 条只读 Manifest 管理 subscribe/unsubscribe、4 条 Flash 和 3 条 Agent 输入，负责连接认证、状态初始化、分发与关闭清理；`realtime/index.js` 只注入业务函数，行数由 6,436 降至 6,217，较 G3 起点减少 1,169 行。
-- 兼容边界：保持协议 Token 解析与 1008、默认频道、未知类型静默、Flash sessionId 清洗/stop/reset、Agent 权限/路径/配置/写策略、任务/工具/终端响应与审计、文件监听和 Flash 进程清理；AgentConversation、FileWatcher、Cline 与工具领域实现未改写。
-- 验证：WebSocket 专项契约逐项锁定 9 条 Manifest，并模拟未授权/授权连接、订阅、4 条 Flash、Agent 拒绝/成功、写策略、文件事件、工具/终端、坏 JSON、未知消息与 close 清理；完整质量门禁覆盖 134 个 Node 脚本、14 个锁定 CI 包、41 条 HTTP/9 类 WebSocket 及既有契约、1082 个文本秘密扫描、5 个变更代码文件 lint、23 个 Shell 与生产 Compose，完整离线单元套件通过。未执行远程测试。
+- 状态：G3 进行中；数据库迁移已建立离线治理基线，但执行器尚未接入账本、备份证据与 postcheck，因此迁移子目标尚未关闭。
+- 结果：`database/migrations/runtime-v2.json` 按旧 Manifest 的可信顺序登记 10 个 Runtime V2 补丁，连续 ID、SHA-256、事务所有权和 `backup-restore` 回退声明可离线审计；`eiscore_meta.schema_migrations` 账本 schema 记录版本、校验和、来源提交、操作者和耗时。五个历史根共 102 份 SQL 被锁定为接受库存，其中其他 92 份不猜测顺序、不重命名、不自动执行。
+- 兼容边界：没有修改、移动或执行任何历史 SQL，没有连接数据库；旧文本 Manifest 仍保留并由新 Manifest 逐项对照。前两个无内置事务的补丁声明由 runner 持有事务，后八个保留文件自身唯一事务；没有为未演练的历史补丁伪造反向 SQL。
+- 验证：离线治理校验与 mutation 契约覆盖顺序、重复 ID、路径逃逸、文件缺失、校验和漂移、事务归属、回退声明、postcheck、账本权限和 102 份库存；专项测试、完整质量门禁及完整离线单元套件通过。未执行迁移、远程测试或数据库连接。
 
 ## 已知非阻断风险
 
@@ -143,7 +144,8 @@
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
 - `realtime/index.js` 仍有 6,217 行且保留 AI/Flash/Agent 领域实现与数据库通知逻辑；传输层退出不代表 G3 完成。
+- 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器也尚未写入账本或强制备份证据，不能据此宣称数据库迁移已可安全上线。
 
 ## 下一候选切片
 
-继续 G3：建立数据库迁移目录的顺序、重复编号、事务/回退与执行记录审计，先补治理工具而不改迁移 SQL；随后选择 AI 配置或 Flash 工具领域逻辑继续拆分。保持协议、数据库和部署行为不变。
+继续 G3：让 Bash/PowerShell Runtime V2 执行器读取同一 JSON Manifest，并以 dry-run/mutation 契约锁定“先离线校验、再连接数据库”、账本幂等与校验和冲突、事务所有权、备份证据、postcheck 和成功后记账；只做离线模拟，不连接真实数据库。随后继续拆分 AI/Flash/Agent 领域逻辑。
