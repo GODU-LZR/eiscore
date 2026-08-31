@@ -16,7 +16,7 @@ import CascaderEditor from '@shared/eis-data-grid-v2/components/renderers/Cascad
 import GeoRenderer from '@shared/eis-data-grid-v2/components/renderers/GeoRenderer.vue'
 import FileRenderer from '@shared/eis-data-grid-v2/components/renderers/FileRenderer.vue'
 import LockHeader from '@shared/eis-data-grid-v2/components/renderers/LockHeader.vue'
-import DocumentActionRenderer from '../components/renderers/DocumentActionRenderer.vue'
+import DocumentActionRenderer from '@shared/eis-data-grid-v2/components/renderers/DocumentActionRenderer.vue'
 import CheckRenderer from '@shared/eis-data-grid-v2/components/renderers/CheckRenderer.vue'
 import CheckEditor from '@shared/eis-data-grid-v2/components/renderers/CheckEditor.vue'
 import RowHeightHandleRenderer from '@shared/eis-grid-row-height-handle.vue'
@@ -811,6 +811,7 @@ export function useGridCore(props, activeSummaryConfig, currentUser, isCellInSel
       suppressHeaderMenuButton: true,
       suppressRowClickSelection: true, // ⚠️ 核心修复：点击此列单元格，不触发“行选中”，防止状态冲突
       cellRenderer: 'DocumentActionRenderer',
+      cellRendererParams: { actionRendererOptions: { rowActionsEnabled: true, allowedIcons: ['CircleCheck', 'Document', 'Warning'], layout: 'standard' } },
       cellStyle: { padding: '0', display: 'flex', alignItems: 'center', justifyContent: 'center' }
     }
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="action-cell-wrapper" @mousedown.stop>
+  <div class="action-cell-wrapper" :class="`action-cell-wrapper--${layout}`" @mousedown.stop>
     <el-button
       v-for="action in rowActions"
       :key="action.key"
@@ -50,13 +50,30 @@
 
 import { computed } from 'vue'
 import { ElButton, ElIcon } from 'element-plus'
-import { CircleCheck, Document, Edit, Position, Warning } from '@element-plus/icons-vue'
+import {
+  Box,
+  ChatLineSquare,
+  CircleCheck,
+  Document,
+  Edit,
+  Money,
+  OfficeBuilding,
+  Position,
+  Promotion,
+  Tickets,
+  Tools,
+  TrendCharts,
+  Warning
+} from '@element-plus/icons-vue'
 
 const props = defineProps(['params'])
 
 const isPinned = computed(() => !!props.params?.node?.rowPinned)
+const rendererOptions = computed(() => props.params?.actionRendererOptions || {})
+const layout = computed(() => rendererOptions.value.layout || 'standard')
 const rowActions = computed(() => {
   if (isPinned.value) return []
+  if (rendererOptions.value.rowActionsEnabled !== true) return []
   const resolver = props.params?.context?.componentParent?.resolveRowActions
   if (typeof resolver !== 'function') return []
   const actions = resolver(props.params?.data)
@@ -64,14 +81,25 @@ const rowActions = computed(() => {
 })
 
 const iconMap = {
+  Box,
+  ChatLineSquare,
   CircleCheck,
   Document,
   Edit,
+  Money,
+  OfficeBuilding,
   Position,
+  Promotion,
+  Tickets,
+  Tools,
+  TrendCharts,
   Warning
 }
 
-const resolveIcon = (icon) => iconMap[icon] || null
+const resolveIcon = (icon) => {
+  const allowedIcons = rendererOptions.value.allowedIcons || ['Document']
+  return allowedIcons.includes(icon) ? iconMap[icon] || null : null
+}
 
 const formatSopSteps = (steps) => Array.isArray(steps) ? steps.filter(Boolean).join('|') : (steps || '')
 
@@ -115,5 +143,20 @@ const onViewForm = () => {
 .action-btn:hover {
   background-color: var(--el-color-primary-light-9);
   border-radius: 4px;
+}
+.action-cell-wrapper--form-only .action-btn {
+  padding: 4px 8px;
+}
+.action-cell-wrapper--compact {
+  justify-content: flex-start !important;
+  gap: 0;
+  overflow: visible;
+}
+.action-cell-wrapper--compact .action-btn {
+  margin: 0 !important;
+  padding: 2px 3px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 </style>

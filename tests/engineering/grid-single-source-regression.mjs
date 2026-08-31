@@ -7,7 +7,7 @@ import { resolve } from 'node:path'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const apps = ['apps', 'equipment', 'hr', 'materials', 'production', 'purchase', 'quality', 'sales']
-const alwaysSharedRenderers = ['CheckEditor', 'FileRenderer', 'LockHeader', 'SelectEditor', 'StatusEditor']
+const alwaysSharedRenderers = ['CheckEditor', 'DocumentActionRenderer', 'FileRenderer', 'LockHeader', 'SelectEditor', 'StatusEditor']
 const sharedViteConfig = readFileSync(resolve(repoRoot, 'scripts/vite-shared-source-config.mjs'), 'utf8')
 const rendererLocalVariants = new Map([
   ['CascaderEditor', new Set(['materials'])],
@@ -18,6 +18,16 @@ const rendererLocalVariants = new Map([
   ['StatusRenderer', new Set(['materials'])]
 ])
 const localFormulaEvaluators = new Set(['materials', 'production', 'purchase', 'sales'])
+const documentActionOptions = new Map([
+  ['apps', { enabled: false, icons: ['Document'], layout: 'form-only' }],
+  ['equipment', { enabled: true, icons: ['CircleCheck', 'Document', 'Tools', 'Warning'], layout: 'standard' }],
+  ['hr', { enabled: false, icons: ['Document'], layout: 'form-only' }],
+  ['materials', { enabled: false, icons: ['Document'], layout: 'form-only' }],
+  ['production', { enabled: true, icons: ['CircleCheck', 'Document', 'Edit', 'Position', 'Warning'], layout: 'standard' }],
+  ['purchase', { enabled: true, icons: ['Box', 'Document', 'OfficeBuilding', 'Position', 'Promotion', 'Tickets', 'Warning'], layout: 'standard' }],
+  ['quality', { enabled: true, icons: ['CircleCheck', 'Document', 'Warning'], layout: 'standard' }],
+  ['sales', { enabled: true, icons: ['ChatLineSquare', 'Document', 'Money', 'Position', 'Promotion', 'Tickets', 'TrendCharts'], layout: 'compact' }]
+])
 
 for (const dependency of ['vue', 'element-plus', '@element-plus/icons-vue', 'ag-grid-community', 'ag-grid-vue3', 'leaflet', 'html2canvas']) {
   assert.match(sharedViteConfig, new RegExp(`['"]${dependency}['"]`))
@@ -94,6 +104,11 @@ for (const app of apps) {
     assert.match(core, new RegExp(`import ${renderer} from ['"]${importPath}['"]`))
     assert.equal(existsSync(resolve(gridRoot, `components/renderers/${renderer}.vue`)), hasLocalVariant)
   }
+  const actionOptions = documentActionOptions.get(app)
+  const actionRendererParams = core.match(/cellRendererParams:\s*{\s*actionRendererOptions:\s*{[^}]+}\s*}/)?.[0] || ''
+  assert.match(actionRendererParams, new RegExp(`rowActionsEnabled:\\s*${actionOptions.enabled}`))
+  assert.match(actionRendererParams, new RegExp(`allowedIcons:\\s*\\[${actionOptions.icons.map(icon => `['"]${icon}['"]`).join(',\\s*')}\\]`))
+  assert.match(actionRendererParams, new RegExp(`layout:\\s*['"]${actionOptions.layout}['"]`))
 
   if (app === 'apps') {
     assert.match(entry, /<ConfigDialog[\s\S]*?ai-app="app_center"[\s\S]*?@save="saveConfig"/)
@@ -257,5 +272,15 @@ for (const option of [
   assert.match(historySource, new RegExp(`\\b${option}\\b`))
 }
 assert.doesNotMatch(historySource, /eiscore-(?:apps|equipment|hr|materials|production|purchase|quality|sales)/)
+
+const documentActionSource = readFileSync(
+  resolve(repoRoot, 'shared/eis-data-grid-v2/components/renderers/DocumentActionRenderer.vue'),
+  'utf8'
+)
+assert.match(documentActionSource, /rowActionsEnabled\s*!==\s*true/)
+assert.match(documentActionSource, /allowedIcons\.includes\(icon\)/)
+assert.match(documentActionSource, /action-cell-wrapper--form-only/)
+assert.match(documentActionSource, /action-cell-wrapper--compact/)
+assert.doesNotMatch(documentActionSource, /eiscore-(?:apps|equipment|hr|materials|production|purchase|quality|sales)/)
 
 console.log('PASS: all eight Grid entries share selection, formula, clipboard, history, dialogs, and renderer baselines with explicit variants')
