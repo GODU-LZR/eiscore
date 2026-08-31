@@ -5,8 +5,6 @@ const http = require('http');
 const WebSocket = require('ws');
 const jwt = require('jsonwebtoken');
 const path = require('path');
-const fs = require('fs');
-const crypto = require('crypto');
 const { createDocumentIntakeHandlers } = require('./document-intake');
 const { createDocumentParseWorker } = require('./document-parser');
 const { createDocumentPlanWorker } = require('./document-planner');
@@ -45,6 +43,7 @@ const { createFlashSemanticExecutor } = require('./flash-semantic-executor');
 const { createFlashClineRuntime } = require('./flash-cline-runtime');
 const { createFlashClineService } = require('./flash-cline-service');
 const { loadFlashClineConfig } = require('./flash-cline-config');
+const { createFlashWorkspaceService } = require('./flash-workspace-service');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -112,121 +111,35 @@ const {
   resolveDefaultWritePolicy,
   sanitizeWritePolicy
 } = agentAccessService;
-let activeFlashDraftAppId = '';
 
-const resolveFlashCliWorkdir = () => {
-  const candidates = [
-    flashCliWorkdirConfigured,
-    path.resolve(process.cwd(), '..', flashCliProjectPath),
-    path.resolve(__dirname, '..', flashCliProjectPath),
-    path.resolve(process.cwd(), flashCliProjectPath)
-  ]
-    .map((item) => envText(item, ''))
-    .filter(Boolean);
-
-  for (const candidate of candidates) {
-    try {
-      if (fs.existsSync(candidate)) return candidate;
-    } catch {
-      // ignore
-    }
-  }
-  return candidates[0] || flashCliWorkdirConfigured;
-};
-
-
-const resolveFlashDraftFilePath = () => {
-  const workdir = resolveFlashCliWorkdir();
-  const file = flashDraftFileName || 'FlashDraft.vue';
-  const resolved = path.resolve(workdir, file);
-  const normalizedWorkdir = path.resolve(workdir);
-  if (!resolved.startsWith(normalizedWorkdir + path.sep) && resolved !== path.join(normalizedWorkdir, file)) {
-    throw new Error('Flash draft path escapes workdir');
-  }
-  return resolved;
-};
-
-const normalizeFlashAppId = (value) => sanitizePathToken(value, '');
-
-const resolveFlashScopedDraftFilePath = (appId) => {
-  const normalizedAppId = normalizeFlashAppId(appId);
-  if (!normalizedAppId) return '';
-  const workdir = resolveFlashCliWorkdir();
-  const baseDir = path.resolve(workdir, '.app-drafts');
-  const resolved = path.resolve(baseDir, `${normalizedAppId}.vue`);
-  if (!resolved.startsWith(baseDir + path.sep)) {
-    throw new Error('Flash scoped draft path escapes workdir');
-  }
-  return resolved;
-};
-
-const syncScopedDraftToPreview = async (appId) => {
-  const scopedPath = resolveFlashScopedDraftFilePath(appId);
-  if (!scopedPath || !fs.existsSync(scopedPath)) return false;
-  const previewPath = resolveFlashDraftFilePath();
-  await ensureDir(path.dirname(previewPath));
-  await fs.promises.copyFile(scopedPath, previewPath);
-  activeFlashDraftAppId = normalizeFlashAppId(appId);
-  return true;
-};
-
-const readFlashFileFingerprintSafe = async (target, appId = '') => {
-  try {
-    if (!target) return null;
-    const stat = await fs.promises.stat(target);
-    if (!stat?.isFile?.()) return null;
-    const buffer = await fs.promises.readFile(target);
-    return {
-      appId: normalizeFlashAppId(appId),
-      path: target,
-      bytes: Number(stat.size || 0),
-      mtimeMs: Number(stat.mtimeMs || 0),
-      sha1: crypto.createHash('sha1').update(buffer).digest('hex')
-    };
-  } catch {
-    return null;
-  }
-};
-
-const readFlashDraftFingerprintSafe = async (appId = '') => {
-  const normalizedAppId = normalizeFlashAppId(appId);
-  const scopedTarget = normalizedAppId ? resolveFlashScopedDraftFilePath(normalizedAppId) : '';
-  const target = scopedTarget && fs.existsSync(scopedTarget) ? scopedTarget : resolveFlashDraftFilePath();
-  return readFlashFileFingerprintSafe(target, normalizedAppId);
-};
-
-const readFlashDraftFingerprintsSafe = async (appId = '') => {
-  const normalizedAppId = normalizeFlashAppId(appId);
-  const previewPath = resolveFlashDraftFilePath();
-  const scopedPath = normalizedAppId ? resolveFlashScopedDraftFilePath(normalizedAppId) : '';
-  const [preview, scoped] = await Promise.all([
-    readFlashFileFingerprintSafe(previewPath, normalizedAppId),
-    scopedPath ? readFlashFileFingerprintSafe(scopedPath, normalizedAppId) : Promise.resolve(null)
-  ]);
-  return { preview, scoped };
-};
-
-const hasFlashFingerprintChanged = (before, after) => !!(
-  after
-  && (
-    !before
-    || before.sha1 !== after.sha1
-    || before.bytes !== after.bytes
-    || before.mtimeMs !== after.mtimeMs
-  )
-);
-
-const syncPreviewDraftToScoped = async (appId) => {
-  const normalizedAppId = normalizeFlashAppId(appId);
-  if (!normalizedAppId) return false;
-  const previewPath = resolveFlashDraftFilePath();
-  const scopedPath = resolveFlashScopedDraftFilePath(normalizedAppId);
-  if (!fs.existsSync(previewPath)) return false;
-  await ensureDir(path.dirname(scopedPath));
-  await fs.promises.copyFile(previewPath, scopedPath);
-  activeFlashDraftAppId = normalizedAppId;
-  return true;
-};
+const flashWorkspaceService = createFlashWorkspaceService({
+  projectPath: flashCliProjectPath,
+  workdirConfigured: flashCliWorkdirConfigured,
+  draftFileName: flashDraftFileName,
+  attachmentDirName: flashAttachmentDirName,
+  attachmentMaxBytes: flashAttachmentMaxBytes,
+  attachmentPreviewMaxChars: flashAttachmentPreviewMaxChars,
+  moduleRoot: __dirname,
+  normalizeText: normalizeAiText,
+  normalizeProjectPath,
+  sanitizePathToken,
+  FlashToolError,
+  logAgentEvent
+});
+const {
+  ensureDir,
+  hasFingerprintChanged: hasFlashFingerprintChanged,
+  normalizeAppId: normalizeFlashAppId,
+  readDraftFingerprintsSafe: readFlashDraftFingerprintsSafe,
+  readDraftSource: readFlashDraftSource,
+  requireNonEmptyText,
+  resolveWorkdir: resolveFlashCliWorkdir,
+  sanitizeUploadFileName,
+  syncPreviewDraftToScoped,
+  syncScopedDraftToPreview,
+  uploadAttachment: uploadFlashAttachment,
+  writeDraftSource: writeFlashDraftSource
+} = flashWorkspaceService;
 
 // In proxy-based environments, Node fetch reads proxy vars when this flag is enabled.
 if (!process.env.NODE_USE_ENV_PROXY) {
@@ -391,10 +304,6 @@ const {
 const sendWsJson = (ws, payload) => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
   ws.send(JSON.stringify(payload));
-};
-
-const ensureDir = async (dirPath) => {
-  await fs.promises.mkdir(dirPath, { recursive: true });
 };
 
 const parseJsonMaybe = (rawText) => {
@@ -581,135 +490,6 @@ const authorizeAgentHttpRequest = (req, res) => {
   user.token = token;
   return user;
 };
-
-function requireNonEmptyText(value, fieldName) {
-  const text = String(value || '').trim();
-  if (!text) {
-    throw new FlashToolError('VALIDATION_FAILED', `${fieldName} is required`, { httpStatus: 400 });
-  }
-  return text;
-}
-
-async function readFlashDraftSource(appId = '') {
-  const normalizedAppId = normalizeFlashAppId(appId);
-  if (normalizedAppId) {
-    await syncScopedDraftToPreview(normalizedAppId);
-  }
-  const scopedTarget = normalizedAppId ? resolveFlashScopedDraftFilePath(normalizedAppId) : '';
-  const target = scopedTarget && fs.existsSync(scopedTarget) ? scopedTarget : resolveFlashDraftFilePath();
-  const content = await fs.promises.readFile(target, 'utf8');
-  return {
-    appId: normalizedAppId,
-    activeAppId: activeFlashDraftAppId,
-    path: scopedTarget && target === scopedTarget
-      ? normalizeProjectPath(`${flashCliProjectPath}/.app-drafts/${normalizedAppId}.vue`)
-      : normalizeProjectPath(`${flashCliProjectPath}/${flashDraftFileName}`),
-    content,
-    bytes: Buffer.byteLength(content, 'utf8')
-  };
-}
-
-async function writeFlashDraftSource(content, reason = '', user = null, appId = '') {
-  const text = String(content || '');
-  if (!text.trim()) {
-    throw new FlashToolError('VALIDATION_FAILED', 'content is required', { httpStatus: 400 });
-  }
-  const bytes = Buffer.byteLength(text, 'utf8');
-  if (bytes > 1024 * 1024) {
-    throw new FlashToolError('VALIDATION_FAILED', 'content exceeds 1MB limit', { httpStatus: 400 });
-  }
-
-  const normalizedAppId = normalizeFlashAppId(appId);
-  const previewTarget = resolveFlashDraftFilePath();
-  const scopedTarget = normalizedAppId ? resolveFlashScopedDraftFilePath(normalizedAppId) : '';
-  if (scopedTarget) {
-    await ensureDir(path.dirname(scopedTarget));
-    await fs.promises.writeFile(scopedTarget, text, 'utf8');
-  }
-  await ensureDir(path.dirname(previewTarget));
-  await fs.promises.writeFile(previewTarget, text, 'utf8');
-  if (normalizedAppId) activeFlashDraftAppId = normalizedAppId;
-  if (user) {
-    logAgentEvent('flash:draft_write', user, {
-      bytes,
-      appId: normalizedAppId,
-      reason: normalizeAiText(reason).slice(0, 80)
-    });
-  }
-  return {
-    appId: normalizedAppId,
-    activeAppId: activeFlashDraftAppId,
-    path: normalizeProjectPath(`${flashCliProjectPath}/${flashDraftFileName}`),
-    scopedPath: scopedTarget ? normalizeProjectPath(`${flashCliProjectPath}/.app-drafts/${normalizedAppId}.vue`) : '',
-    bytes
-  };
-}
-
-async function uploadFlashAttachment(body = {}, user = null) {
-  const appId = sanitizePathToken(body?.appId, 'app');
-  const conversationId = sanitizePathToken(body?.conversationId, 'default');
-  const fileName = sanitizeUploadFileName(body?.fileName);
-  const mimeType = normalizeAiText(body?.mimeType || body?.contentType).slice(0, 120) || 'application/octet-stream';
-  const binary = decodeBase64Payload(body?.contentBase64 || body?.base64);
-
-  if (!binary.length) {
-    throw new FlashToolError('VALIDATION_FAILED', 'contentBase64 is required', { httpStatus: 400 });
-  }
-  if (binary.length > flashAttachmentMaxBytes) {
-    throw new FlashToolError('VALIDATION_FAILED', `attachment exceeds ${flashAttachmentMaxBytes} bytes`, { httpStatus: 400 });
-  }
-
-  const taskWorkdir = resolveFlashCliWorkdir();
-  const targetInfo = buildSafeUploadPath(taskWorkdir, appId, conversationId, fileName);
-  await ensureDir(targetInfo.baseDir);
-
-  let finalName = targetInfo.safeName;
-  let targetPath = targetInfo.candidate;
-  let suffix = 1;
-  while (fs.existsSync(targetPath)) {
-    const ext = path.extname(targetInfo.safeName);
-    const stem = targetInfo.safeName.slice(0, Math.max(1, targetInfo.safeName.length - ext.length));
-    finalName = `${stem}-${suffix}${ext}`;
-    targetPath = path.resolve(targetInfo.baseDir, finalName);
-    suffix += 1;
-  }
-
-  await fs.promises.writeFile(targetPath, binary);
-  const relativePath = path.relative(path.resolve(taskWorkdir), targetPath).replace(/\\/g, '/');
-  const uploadedAt = new Date().toISOString();
-
-  let textPreview = '';
-  if (isTextLikeAttachment(finalName, mimeType)) {
-    try {
-      const utf8 = binary.toString('utf8');
-      textPreview = normalizeAiText(utf8).slice(0, flashAttachmentPreviewMaxChars);
-    } catch {
-      textPreview = '';
-    }
-  }
-
-  if (user) {
-    logAgentEvent('flash:attachment_upload', user, {
-      appId,
-      conversationId,
-      name: finalName,
-      mimeType,
-      size: binary.length
-    });
-  }
-
-  return {
-    id: `att-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    appId,
-    conversationId,
-    name: finalName,
-    mimeType,
-    size: binary.length,
-    relativePath,
-    textPreview,
-    uploadedAt
-  };
-}
 
 const handleFlashToolCallWs = async (ws, payload) => {
   if (!canUseAgent(ws.user)) {
@@ -901,45 +681,6 @@ function sanitizePathToken(value, fallback = 'default') {
     .replace(/^_+|_+$/g, '');
   if (!raw) return fallback;
   return raw.slice(0, 64);
-}
-
-function sanitizeUploadFileName(value) {
-  const base = path.posix.basename(String(value || '').trim());
-  const safe = base
-    .replace(/[^a-zA-Z0-9._-]/g, '_')
-    .replace(/^_+/, '')
-    .slice(0, 96);
-  if (!safe) return `upload-${Date.now()}.bin`;
-  return safe;
-}
-
-function decodeBase64Payload(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return Buffer.alloc(0);
-  const payload = raw.includes(',') ? raw.slice(raw.indexOf(',') + 1) : raw;
-  return Buffer.from(payload, 'base64');
-}
-
-function isTextLikeAttachment(fileName, mimeType) {
-  const mime = String(mimeType || '').toLowerCase();
-  if (mime.startsWith('text/')) return true;
-  if (mime.includes('json') || mime.includes('xml') || mime.includes('yaml') || mime.includes('csv')) return true;
-  const ext = path.extname(String(fileName || '').toLowerCase());
-  const textExt = new Set(['.txt', '.md', '.markdown', '.csv', '.json', '.yaml', '.yml', '.xml', '.html', '.htm', '.sql', '.js', '.ts', '.vue', '.py']);
-  return textExt.has(ext);
-}
-
-function buildSafeUploadPath(taskWorkdir, appId, conversationId, fileName) {
-  const appPart = sanitizePathToken(appId, 'app');
-  const convPart = sanitizePathToken(conversationId, 'default');
-  const safeName = sanitizeUploadFileName(fileName);
-  const baseDir = path.resolve(taskWorkdir, flashAttachmentDirName, appPart, convPart);
-  const candidate = path.resolve(baseDir, safeName);
-  const workdirResolved = path.resolve(taskWorkdir);
-  if (candidate !== workdirResolved && !candidate.startsWith(`${workdirResolved}${path.sep}`)) {
-    throw new Error('Attachment target escapes task workdir');
-  }
-  return { baseDir, candidate, safeName };
 }
 
 const agentTaskService = createAgentTaskService({
