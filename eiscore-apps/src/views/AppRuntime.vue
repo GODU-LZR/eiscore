@@ -885,6 +885,11 @@ import {
   resolveFirstUserTaskId
 } from '@/domain/app-runtime-bpmn.mjs'
 import {
+  buildFlashPublishedSrcdoc,
+  extractFlashRuntimeDraftSource,
+  parseJsonObject
+} from '@/domain/app-runtime-flash-source.mjs'
+import {
   buildEnterpriseTargetHref,
   buildWorkflowOpenNavigationPlan,
   buildWorkflowRecordNavigationPlan,
@@ -938,77 +943,20 @@ const loading = ref(false)
 const flashRuntimeReady = ref(false)
 const flashRuntimeError = ref('')
 const flashRuntimeNonce = ref(Date.now())
-const parseJsonObject = (value) => {
-  if (!value) return null
-  if (typeof value === 'object') return value
-  try {
-    const parsed = JSON.parse(value)
-    return parsed && typeof parsed === 'object' ? parsed : null
-  } catch {
-    return null
-  }
-}
-
-const sanitizeFlashPublishedHtml = (value) => {
-  const raw = String(value || '').trim()
-  if (!raw) return ''
-
-  const stripSourceMapMarkers = (text) => String(text || '')
-    .replace(/\/\/#\s*sourceMappingURL=.*$/gim, '')
-    .replace(/\/\*#\s*sourceMappingURL=[\s\S]*?\*\//gim, '')
-    .trim()
-
-  if (typeof window !== 'undefined' && typeof DOMParser !== 'undefined') {
-    try {
-      const parser = new DOMParser()
-      const doc = parser.parseFromString(raw, 'text/html')
-      const removableSelectors = [
-        'script',
-        'noscript',
-        'link[rel="modulepreload"]',
-        'link[rel="preload"][as="script"]'
-      ]
-      removableSelectors.forEach((selector) => {
-        doc.querySelectorAll(selector).forEach((node) => node.remove())
-      })
-      const html = stripSourceMapMarkers(String(doc.documentElement?.outerHTML || ''))
-      if (html) return `<!doctype html>\n${html}`
-    } catch {
-      // fallback to regexp cleanup
-    }
-  }
-
-  return stripSourceMapMarkers(raw)
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
-    .replace(/<link\b[^>]*rel=["']modulepreload["'][^>]*>/gi, '')
-    .replace(/<link\b[^>]*rel=["']preload["'][^>]*as=["']script["'][^>]*>/gi, '')
-    .trim()
-}
+const parseFlashHtmlDocument = typeof DOMParser !== 'undefined'
+  ? (html) => new DOMParser().parseFromString(html, 'text/html')
+  : null
 
 const flashPublishedSrcdoc = computed(() => {
-  const source = parseJsonObject(appData.value?.source_code)
-  if (!source || typeof source !== 'object') return ''
-  const flash = source.flash
-  if (!flash || typeof flash !== 'object') return ''
-  const html = sanitizeFlashPublishedHtml(flash.published_html || '')
-  if (!html) return ''
-  if (html.toLowerCase().includes('<html')) return html
-  return `<!doctype html><html><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1.0" /></head><body>${html}</body></html>`
+  return buildFlashPublishedSrcdoc(appData.value?.source_code, {
+    parseHtmlDocument: parseFlashHtmlDocument
+  })
 })
 
 const flashRuntimeUrl = computed(() => {
   if (!flashRuntimeReady.value || !runtimeAppId.value) return ''
   return `/apps/preview/flash-draft?appId=${encodeURIComponent(runtimeAppId.value)}&_t=${flashRuntimeNonce.value}`
 })
-
-const extractFlashRuntimeDraftSource = (row) => {
-  const source = parseJsonObject(row?.source_code)
-  if (!source || typeof source !== 'object') return ''
-  const flash = source.flash
-  if (!flash || typeof flash !== 'object') return ''
-  return normalizeDraftSourceText(flash.published_draft_source || flash.draft_source || '')
-}
 
 const prepareFlashRuntimeSource = async (row) => {
   flashRuntimeReady.value = false
@@ -1853,8 +1801,6 @@ const generateWorkflowBusinessKey = () => {
   const randPart = Math.random().toString(36).slice(2, 8).toUpperCase()
   return `WK-${appPart}-${tsPart}-${randPart}`
 }
-
-const normalizeDraftSourceText = (value) => String(value || '').replace(/\r\n/g, '\n').trim()
 
 const getCurrentTaskMapping = (taskId) => {
   return mergeCurrentTaskMapping({
