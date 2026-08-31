@@ -21,7 +21,7 @@ const expectedStorageInventory = new Map([
   ['shared/eis-app-runtime-title-store.mjs', 1],
   ['shared/eis-assistant-history.mjs', 1],
   ['shared/eis-check-cache.mjs', 1],
-  ['shared/eis-display-control.js', 4],
+  ['shared/eis-display-visibility-store.mjs', 1],
   ['shared/eis-grid-local-layout.js', 1],
   ['shared/eis-remembered-username.mjs', 1]
 ])

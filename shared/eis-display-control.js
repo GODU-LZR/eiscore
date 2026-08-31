@@ -3,8 +3,19 @@
 
 import { onMounted, onUnmounted, ref } from 'vue'
 import { getSharedHttpClient } from './eis-http'
+import {
+  DISPLAY_VISIBILITY_STORAGE_KEY,
+  defaultDisplayVisibility,
+  normalizeDisplayVisibility,
+  persistDisplayVisibility,
+  readStoredDisplayVisibility
+} from './eis-display-visibility-store.mjs'
 
-export const DISPLAY_VISIBILITY_STORAGE_KEY = 'eis_display_visibility_v1'
+export {
+  DISPLAY_VISIBILITY_STORAGE_KEY,
+  defaultDisplayVisibility,
+  normalizeDisplayVisibility
+}
 export const DISPLAY_VISIBILITY_UPDATED_EVENT = 'eis:display-visibility-updated'
 
 export const DISPLAY_MODULE_CATALOG = [
@@ -137,33 +148,6 @@ export const DISPLAY_MODULE_CATALOG = [
   }
 ]
 
-const normalizeKeyArray = (input) => {
-  if (!Array.isArray(input)) return []
-  return Array.from(new Set(input.map((item) => String(item || '').trim()).filter(Boolean)))
-}
-
-export const defaultDisplayVisibility = () => ({
-  hiddenModules: [],
-  hiddenApps: {}
-})
-
-export const normalizeDisplayVisibility = (input) => {
-  const source = input && typeof input === 'object' ? input : {}
-  const hiddenAppsSource = source.hiddenApps && typeof source.hiddenApps === 'object'
-    ? source.hiddenApps
-    : {}
-  const hiddenApps = Object.entries(hiddenAppsSource).reduce((acc, [moduleKey, appKeys]) => {
-    const key = String(moduleKey || '').trim()
-    if (!key) return acc
-    acc[key] = normalizeKeyArray(appKeys)
-    return acc
-  }, {})
-  return {
-    hiddenModules: normalizeKeyArray(source.hiddenModules),
-    hiddenApps
-  }
-}
-
 const readJson = (value) => {
   if (!value) return {}
   if (typeof value === 'object') return value
@@ -195,18 +179,10 @@ export const filterVisibleApps = (apps, moduleKey, visibility) => {
   return apps.filter((app) => isAppVisible(visibility, moduleKey, app?.key || app?.id))
 }
 
-export const getStoredDisplayVisibility = () => {
-  if (typeof localStorage === 'undefined') return defaultDisplayVisibility()
-  return normalizeDisplayVisibility(readJson(localStorage.getItem(DISPLAY_VISIBILITY_STORAGE_KEY)))
-}
+export const getStoredDisplayVisibility = () => readStoredDisplayVisibility()
 
 export const saveStoredDisplayVisibility = (visibility) => {
-  const cfg = normalizeDisplayVisibility(visibility)
-  if (typeof localStorage !== 'undefined') {
-    try {
-      localStorage.setItem(DISPLAY_VISIBILITY_STORAGE_KEY, JSON.stringify(cfg))
-    } catch (e) {}
-  }
+  const cfg = persistDisplayVisibility(visibility)
   if (typeof window !== 'undefined') {
     try {
       window.dispatchEvent(new CustomEvent(DISPLAY_VISIBILITY_UPDATED_EVENT, { detail: cfg }))
