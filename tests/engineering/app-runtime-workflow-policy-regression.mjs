@@ -24,8 +24,10 @@ import {
   buildWorkflowRulePayloadPlan,
   buildWorkflowStateOptions,
   buildWorkflowTaskOptions,
+  buildWorkflowTransitionOptions,
   buildUniqueWorkflowPermissionDefPayloads,
   chooseNextTaskByStateLevel,
+  canExecuteWorkflowTask,
   collectRequiredPermissionEntries,
   collectWorkflowCandidateRoleCodes,
   extractBusinessDocNo,
@@ -35,6 +37,7 @@ import {
   formatWorkflowBusinessBindingSummary,
   formatWorkflowError,
   formatWorkflowRoleGrantReferenceError,
+  formatWorkflowTaskAssignmentHint,
   flattenWorkflowRoleGrantGaps,
   getWorkflowPolicyModeMeta,
   getActiveWorkflowTransitionRules,
@@ -57,6 +60,7 @@ import {
   normalizeStatusTokenForPermission,
   normalizeWorkflowApiError,
   normalizeWorkflowReadinessReport,
+  normalizeWorkflowStringList,
   parseSchemaTable,
   resolveBoundStateTarget,
   resolveConfiguredTaskBusinessBinding,
@@ -70,6 +74,8 @@ import {
   resolveWorkflowRulePermissionSync,
   resolveWorkflowRuleUpsertPlan,
   resolveWorkflowRuntimeConfig,
+  resolveWorkflowTaskApprovalConfig,
+  summarizeWorkflowTaskAssignment,
   summarizeWorkflowCodes
 } from '../../eiscore-apps/src/domain/app-runtime-workflow-policy.mjs'
 
@@ -155,6 +161,119 @@ assert.equal(formatApprovalMode(null), '单人通过')
 assert.equal(normalizeRequiredApprovals('3.9'), 3)
 assert.equal(normalizeRequiredApprovals(0), 1)
 assert.equal(normalizeRequiredApprovals('bad'), 1)
+
+assert.deepEqual(normalizeWorkflowStringList([' manager ', '', null, 'alice']), ['manager', 'alice'])
+assert.deepEqual(normalizeWorkflowStringList('manager'), [])
+const taskAssignmentSamples = [
+  {
+    task_id: ' Task_A ',
+    candidate_roles: [' manager '],
+    candidate_users: [' alice '],
+    approval_mode: 'quota',
+    required_approvals: '2.8',
+    require_comment: true
+  },
+  { task_id: 'Task_A', candidate_roles: ['operator'], candidate_users: [] },
+  { task_id: 'Task_B', candidate_roles: [], candidate_users: [] },
+  { task_id: 'Task_B', candidate_roles: ['reviewer'], candidate_users: ['bob'] }
+]
+assert.equal(canExecuteWorkflowTask({
+  taskId: '',
+  actor: { appRole: 'super_admin' },
+  taskAssignments: taskAssignmentSamples
+}), false)
+assert.equal(canExecuteWorkflowTask({
+  taskId: 'unconfigured',
+  actor: { appRole: 'viewer' },
+  taskAssignments: taskAssignmentSamples
+}), true)
+assert.equal(canExecuteWorkflowTask({
+  taskId: 'Task_A',
+  actor: { appRole: 'manager', username: 'alice' },
+  taskAssignments: taskAssignmentSamples
+}), true)
+assert.equal(canExecuteWorkflowTask({
+  taskId: 'Task_A',
+  actor: { appRole: 'manager', username: 'bob' },
+  taskAssignments: taskAssignmentSamples
+}), false)
+assert.equal(canExecuteWorkflowTask({
+  taskId: 'Task_A',
+  actor: { appRole: 'operator', username: 'bob' },
+  taskAssignments: taskAssignmentSamples
+}), true)
+assert.equal(canExecuteWorkflowTask({
+  taskId: 'Task_A',
+  actor: { appRole: 'super_admin' },
+  taskAssignments: taskAssignmentSamples
+}), true)
+assert.deepEqual(resolveWorkflowTaskApprovalConfig({
+  taskId: 'Task_A',
+  taskAssignments: taskAssignmentSamples
+}), { mode: 'quota', required: 2, requireComment: true })
+assert.deepEqual(resolveWorkflowTaskApprovalConfig({
+  taskId: 'missing',
+  taskAssignments: taskAssignmentSamples
+}), { mode: 'any', required: 1, requireComment: false })
+assert.deepEqual(summarizeWorkflowTaskAssignment({
+  taskId: 'Task_A',
+  taskAssignments: taskAssignmentSamples
+}), { unrestricted: false, roles: ['manager', 'operator'], users: ['alice'] })
+assert.deepEqual(summarizeWorkflowTaskAssignment({
+  taskId: 'Task_B',
+  taskAssignments: taskAssignmentSamples
+}), { unrestricted: true, roles: ['reviewer'], users: ['bob'] })
+assert.equal(formatWorkflowTaskAssignmentHint({
+  taskId: 'Task_A',
+  taskAssignments: taskAssignmentSamples
+}), '分派:角色:manager/operator，用户:alice｜会签:2')
+assert.equal(formatWorkflowTaskAssignmentHint({
+  taskId: 'Task_B',
+  taskAssignments: taskAssignmentSamples
+}), '分派:不限｜单人通过')
+
+const transitionOptions = buildWorkflowTransitionOptions({
+  currentTaskId: 'Task_A',
+  graphCandidates: ['Task_C', 'Task_B', 'Task_C'],
+  stateMappings: [
+    { bpmn_task_id: 'Task_B', state_value: 'locked' },
+    { bpmn_task_id: 'Task_C', state_value: 'active' }
+  ],
+  taskAssignments: [
+    { task_id: 'Task_B', candidate_roles: ['reviewer'] },
+    { task_id: 'Task_C', candidate_roles: [] }
+  ],
+  actor: { appRole: 'operator', username: 'alice' },
+  formatTaskName: (id) => `名称-${id}`
+})
+assert.deepEqual(transitionOptions, [
+  {
+    value: 'Task_C',
+    taskName: '名称-Task_C',
+    stateValue: 'active',
+    assignmentText: '分派:不限｜单人通过',
+    stateLevel: 1,
+    disabled: false,
+    label: '名称-Task_C'
+  },
+  {
+    value: 'Task_B',
+    taskName: '名称-Task_B',
+    stateValue: 'locked',
+    assignmentText: '分派:角色:reviewer｜单人通过',
+    stateLevel: 2,
+    disabled: true,
+    label: '名称-Task_B'
+  }
+])
+assert.deepEqual(buildWorkflowTransitionOptions({
+  currentTaskId: 'Task_A',
+  stateMappings: [
+    { bpmn_task_id: 'Task_A', state_value: 'created' },
+    { bpmn_task_id: 'Task_B', state_value: 'active' }
+  ],
+  taskAssignments: [{ task_id: 'Task_C' }]
+}).map((item) => item.value), ['Task_B', 'Task_C'])
 
 for (const value of [true, 'true', '1', 'yes', 'ON']) assert.equal(normalizePolicyBool(value, false), true)
 for (const value of [false, 'false', '0', 'no', 'OFF']) assert.equal(normalizePolicyBool(value, true), false)
@@ -873,10 +992,15 @@ for (const removedDefinition of [
   'const getApiError = (error) => ({',
   'const formatWorkflowError = (fallback, error, rlsMessage = \'\') => {',
   'Array.isArray(rolesResponse.data) ? rolesResponse.data : []',
-  'Array.isArray(permissionsResponse.data) ? permissionsResponse.data : []'
+  'Array.isArray(permissionsResponse.data) ? permissionsResponse.data : []',
+  'function canExecuteTask(taskId) {',
+  'function getTaskApprovalConfig(taskId) {',
+  'function getTaskAssignmentSummary(taskId) {',
+  'function formatTaskAssignmentHint(taskId) {',
+  'function getTransitionOptions(row) {'
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 3872)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 3725)
 
 console.log('PASS: AppRuntime workflow policy preserves states, approvals, permissions, generated rules and legacy bindings')

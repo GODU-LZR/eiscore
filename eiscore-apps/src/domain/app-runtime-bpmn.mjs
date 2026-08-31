@@ -281,6 +281,39 @@ export const parseBpmnGraph = (xmlRaw) => {
   return { nodeTypeMap, outgoingMap }
 }
 
+export const resolveNextBpmnTaskCandidates = ({ taskId, graph, maxSteps = 300 } = {}) => {
+  const current = String(taskId || '').trim()
+  if (!current) return []
+  const nodeTypeMap = graph?.nodeTypeMap || {}
+  const outgoingMap = graph?.outgoingMap || {}
+  const firstTargets = Array.isArray(outgoingMap[current]) ? outgoingMap[current] : []
+  if (!firstTargets.length) return []
+
+  const queue = [...firstTargets]
+  const visited = new Set([current])
+  const candidates = []
+  let steps = 0
+  const limit = Number.isFinite(maxSteps) ? Math.max(0, Math.floor(maxSteps)) : 300
+  while (queue.length && steps < limit) {
+    steps += 1
+    const nodeId = String(queue.shift() || '').trim()
+    if (!nodeId || visited.has(nodeId)) continue
+    visited.add(nodeId)
+
+    const nodeType = String(nodeTypeMap[nodeId] || '').trim()
+    if (TASK_NODE_TYPE_SET.has(nodeType)) {
+      candidates.push(nodeId)
+      continue
+    }
+    if (nodeType === 'bpmn:endEvent') continue
+    if (!nodeType || PASSTHROUGH_NODE_TYPE_SET.has(nodeType)) {
+      const nextTargets = Array.isArray(outgoingMap[nodeId]) ? outgoingMap[nodeId] : []
+      nextTargets.forEach((nextId) => queue.push(nextId))
+    }
+  }
+  return Array.from(new Set(candidates))
+}
+
 export const resolveFirstUserTaskId = (xml = '') => {
   const text = normalizeBpmnXml(xml)
   if (!text) return ''

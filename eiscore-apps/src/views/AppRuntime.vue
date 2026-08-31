@@ -876,12 +876,11 @@ import { hasPerm } from '@/utils/permission'
 import { resolveAppAclModule } from '@/utils/app-permissions'
 import { getToken, getUserInfo } from '@/utils/auth'
 import {
-  PASSTHROUGH_NODE_TYPE_SET,
-  TASK_NODE_TYPE_SET,
   decodeHtmlEntitiesDeep,
   ensureBpmnDiagramXml,
   parseBpmnGraph,
   parseBpmnTaskNameMap,
+  resolveNextBpmnTaskCandidates,
   resolveFirstUserTaskId
 } from '@/domain/app-runtime-bpmn.mjs'
 import {
@@ -908,8 +907,10 @@ import {
   buildWorkflowRulePayloadPlan,
   buildWorkflowStateOptions,
   buildWorkflowTaskOptions,
+  buildWorkflowTransitionOptions,
   buildUniqueWorkflowPermissionDefPayloads,
   chooseNextTaskByStateLevel,
+  canExecuteWorkflowTask,
   collectRequiredPermissionEntries,
   collectWorkflowCandidateRoleCodes,
   extractBusinessDocNo,
@@ -923,7 +924,6 @@ import {
   getWorkflowPolicyModeMeta,
   getWorkflowStateColor,
   getWorkflowStateLabel,
-  getWorkflowStateLevel,
   getWorkflowStateTagType,
   getActiveWorkflowTransitionRules as filterActiveWorkflowTransitionRules,
   getMissingGeneratedWorkflowRules as filterMissingGeneratedWorkflowRules,
@@ -933,10 +933,9 @@ import {
   isStateReached,
   isWorkflowStrictPolicyEnabled,
   mergeCurrentTaskMapping,
-  normalizeApprovalMode,
   normalizePolicyBool,
-  normalizeRequiredApprovals,
   normalizeStateValue,
+  normalizeWorkflowStringList,
   normalizeWorkflowReadinessReport,
   parseSchemaTable,
   resolveExpectedStateForRow as resolveExpectedState,
@@ -948,7 +947,8 @@ import {
   resolveWorkflowRoleGrantReferences,
   resolveWorkflowRulePermissionSync,
   resolveWorkflowRuleUpsertPlan,
-  resolveWorkflowRuntimeConfig
+  resolveWorkflowRuntimeConfig,
+  resolveWorkflowTaskApprovalConfig
 } from '@/domain/app-runtime-workflow-policy.mjs'
 
 const AppCenterGrid = defineAsyncComponent(() => import('@/components/AppCenterGrid.vue'))
@@ -1187,13 +1187,6 @@ const parseDefinitionId = (value) => {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-const normalizeStringList = (value) => {
-  if (!Array.isArray(value)) return []
-  return value
-    .map((item) => String(item || '').trim())
-    .filter(Boolean)
-}
-
 const statusLabelMap = Object.freeze({
   ACTIVE: '进行中',
   COMPLETED: '已完成',
@@ -1274,7 +1267,7 @@ const unwrapSingleRow = (data) => {
 }
 
 const formatArrayCell = (value) => {
-  const list = normalizeStringList(value)
+  const list = normalizeWorkflowStringList(value)
   return list.length ? list.join(', ') : '-'
 }
 
@@ -2694,169 +2687,29 @@ async function loadTaskAssignments() {
   }
 }
 
-function canExecuteTask(taskId) {
-  const task = String(taskId || '').trim()
-  if (!task) return false
+const getWorkflowTaskPolicyArgs = (taskId) => ({
+  taskId,
+  actor: currentActor.value,
+  taskAssignments: taskAssignments.value
+})
 
-  const role = currentActor.value.appRole
-  const username = currentActor.value.username
-  if (role === 'super_admin') return true
+const canExecuteTask = (taskId) => canExecuteWorkflowTask(getWorkflowTaskPolicyArgs(taskId))
 
-  const related = taskAssignments.value.filter((item) => String(item?.task_id || '').trim() === task)
-  if (!related.length) return true
+const getTaskApprovalConfig = (taskId) => resolveWorkflowTaskApprovalConfig(getWorkflowTaskPolicyArgs(taskId))
 
-  return related.some((item) => {
-    const roles = normalizeStringList(item?.candidate_roles)
-    const users = normalizeStringList(item?.candidate_users)
-    const roleOk = !roles.length || (role && roles.includes(role))
-    const userOk = !users.length || (username && users.includes(username))
-    return roleOk && userOk
-  })
-}
+const resolveNextTaskCandidatesByGraph = (taskId) => resolveNextBpmnTaskCandidates({
+  taskId,
+  graph: workflowGraph.value
+})
 
-function getTaskApprovalConfig(taskId) {
-  const task = String(taskId || '').trim()
-  if (!task) return { mode: 'any', required: 1, requireComment: false }
-  const row = taskAssignments.value.find((item) => String(item?.task_id || '').trim() === task)
-  if (!row) return { mode: 'any', required: 1, requireComment: false }
-  return {
-    mode: normalizeApprovalMode(row?.approval_mode),
-    required: normalizeRequiredApprovals(row?.required_approvals),
-    requireComment: row?.require_comment === true
-  }
-}
-
-function getTaskAssignmentSummary(taskId) {
-  const task = String(taskId || '').trim()
-  if (!task) return { unrestricted: true, roles: [], users: [] }
-
-  const related = taskAssignments.value.filter((item) => String(item?.task_id || '').trim() === task)
-  if (!related.length) return { unrestricted: true, roles: [], users: [] }
-
-  const roleSet = new Set()
-  const userSet = new Set()
-  let unrestricted = false
-
-  related.forEach((item) => {
-    const roles = normalizeStringList(item?.candidate_roles)
-    const users = normalizeStringList(item?.candidate_users)
-    if (!roles.length && !users.length) {
-      unrestricted = true
-      return
-    }
-    roles.forEach((roleCode) => roleSet.add(roleCode))
-    users.forEach((username) => userSet.add(username))
-  })
-
-  return {
-    unrestricted,
-    roles: Array.from(roleSet),
-    users: Array.from(userSet)
-  }
-}
-
-function formatTaskAssignmentHint(taskId) {
-  const summary = getTaskAssignmentSummary(taskId)
-  const approvalCfg = getTaskApprovalConfig(taskId)
-  const approvalText = approvalCfg.mode === 'any'
-    ? '单人通过'
-    : `会签:${approvalCfg.required}`
-  if (summary.unrestricted) return `分派:不限｜${approvalText}`
-
-  const pieces = []
-  if (summary.roles.length) {
-    pieces.push(`角色:${summary.roles.join('/')}`)
-  }
-  if (summary.users.length) {
-    pieces.push(`用户:${summary.users.join('/')}`)
-  }
-  const assignText = pieces.join('，') || '不限'
-  return `分派:${assignText}｜${approvalText}`
-}
-
-function resolveNextTaskCandidatesByGraph(taskId) {
-  const current = String(taskId || '').trim()
-  if (!current) return []
-  const graph = workflowGraph.value || {}
-  const nodeTypeMap = graph.nodeTypeMap || {}
-  const outgoingMap = graph.outgoingMap || {}
-  const firstTargets = Array.isArray(outgoingMap[current]) ? outgoingMap[current] : []
-  if (!firstTargets.length) return []
-
-  const queue = [...firstTargets]
-  const visited = new Set([current])
-  const candidates = []
-  let guard = 0
-  const maxSteps = 300
-
-  while (queue.length && guard < maxSteps) {
-    guard += 1
-    const nodeId = String(queue.shift() || '').trim()
-    if (!nodeId || visited.has(nodeId)) continue
-    visited.add(nodeId)
-
-    const nodeType = String(nodeTypeMap[nodeId] || '').trim()
-    if (TASK_NODE_TYPE_SET.has(nodeType)) {
-      candidates.push(nodeId)
-      continue
-    }
-    if (nodeType === 'bpmn:endEvent') continue
-    if (!nodeType || PASSTHROUGH_NODE_TYPE_SET.has(nodeType)) {
-      const nextTargets = Array.isArray(outgoingMap[nodeId]) ? outgoingMap[nodeId] : []
-      nextTargets.forEach((nextId) => queue.push(nextId))
-    }
-  }
-
-  return Array.from(new Set(candidates))
-}
-
-function getTransitionOptions(row) {
-  const currentTask = String(row?.current_task_id || '')
-  const set = new Set()
-
-  const graphCandidates = resolveNextTaskCandidatesByGraph(currentTask)
-  if (graphCandidates.length > 0) {
-    graphCandidates.forEach((taskId) => set.add(String(taskId)))
-  } else {
-    stateMappings.value
-      .map((item) => item?.bpmn_task_id)
-      .filter(Boolean)
-      .forEach((taskId) => {
-        if (String(taskId) !== currentTask) set.add(String(taskId))
-      })
-
-    taskAssignments.value
-      .map((item) => item?.task_id)
-      .filter(Boolean)
-      .forEach((taskId) => {
-        if (String(taskId) !== currentTask) set.add(String(taskId))
-      })
-  }
-
-  return Array.from(set)
-    .map((id) => {
-      const mapping = stateMappings.value.find((item) => String(item?.bpmn_task_id || '').trim() === String(id))
-      const stateValue = normalizeStateValue(mapping?.state_value)
-      const stateLevel = getWorkflowStateLevel(stateValue)
-      const assignmentHint = formatTaskAssignmentHint(id)
-      const executable = canExecuteTask(id)
-      return {
-        value: id,
-        taskName: formatTaskName(id),
-        stateValue,
-        assignmentText: assignmentHint,
-        stateLevel,
-        disabled: !executable,
-        label: formatTaskName(id)
-      }
-    })
-    .sort((a, b) => {
-      const aLevel = a.stateLevel >= 0 ? a.stateLevel : 99
-      const bLevel = b.stateLevel >= 0 ? b.stateLevel : 99
-      if (aLevel !== bLevel) return aLevel - bLevel
-      return String(a.taskName || '').localeCompare(String(b.taskName || ''), 'zh-Hans-CN')
-    })
-}
+const getTransitionOptions = (row) => buildWorkflowTransitionOptions({
+  currentTaskId: row?.current_task_id,
+  graphCandidates: resolveNextTaskCandidatesByGraph(row?.current_task_id),
+  stateMappings: stateMappings.value,
+  taskAssignments: taskAssignments.value,
+  actor: currentActor.value,
+  formatTaskName
+})
 
 function getSelectedNextTaskText(row) {
   const key = String(row?.id || '').trim()

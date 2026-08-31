@@ -109,6 +109,78 @@ export const formatApprovalMode = (value) => {
   return APPROVAL_MODE_LABEL_MAP[mode] || mode
 }
 
+export const normalizeWorkflowStringList = (value) => {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => String(item || '').trim()).filter(Boolean)
+}
+
+const findWorkflowTaskAssignments = (taskId, taskAssignments) => {
+  const task = String(taskId || '').trim()
+  if (!task) return []
+  return (Array.isArray(taskAssignments) ? taskAssignments : [])
+    .filter((item) => String(item?.task_id || '').trim() === task)
+}
+
+export const canExecuteWorkflowTask = ({ taskId, actor, taskAssignments = [] } = {}) => {
+  const task = String(taskId || '').trim()
+  if (!task) return false
+  const role = actor?.appRole
+  const username = actor?.username
+  if (role === 'super_admin') return true
+
+  const related = findWorkflowTaskAssignments(task, taskAssignments)
+  if (!related.length) return true
+  return related.some((item) => {
+    const roles = normalizeWorkflowStringList(item?.candidate_roles)
+    const users = normalizeWorkflowStringList(item?.candidate_users)
+    const roleOk = !roles.length || (role && roles.includes(role))
+    const userOk = !users.length || (username && users.includes(username))
+    return roleOk && userOk
+  })
+}
+
+export const resolveWorkflowTaskApprovalConfig = ({ taskId, taskAssignments = [] } = {}) => {
+  const row = findWorkflowTaskAssignments(taskId, taskAssignments)[0]
+  if (!row) return { mode: 'any', required: 1, requireComment: false }
+  return {
+    mode: normalizeApprovalMode(row?.approval_mode),
+    required: normalizeRequiredApprovals(row?.required_approvals),
+    requireComment: row?.require_comment === true
+  }
+}
+
+export const summarizeWorkflowTaskAssignment = ({ taskId, taskAssignments = [] } = {}) => {
+  const related = findWorkflowTaskAssignments(taskId, taskAssignments)
+  if (!related.length) return { unrestricted: true, roles: [], users: [] }
+
+  const roleSet = new Set()
+  const userSet = new Set()
+  let unrestricted = false
+  related.forEach((item) => {
+    const roles = normalizeWorkflowStringList(item?.candidate_roles)
+    const users = normalizeWorkflowStringList(item?.candidate_users)
+    if (!roles.length && !users.length) {
+      unrestricted = true
+      return
+    }
+    roles.forEach((roleCode) => roleSet.add(roleCode))
+    users.forEach((username) => userSet.add(username))
+  })
+  return { unrestricted, roles: Array.from(roleSet), users: Array.from(userSet) }
+}
+
+export const formatWorkflowTaskAssignmentHint = ({ taskId, taskAssignments = [] } = {}) => {
+  const summary = summarizeWorkflowTaskAssignment({ taskId, taskAssignments })
+  const approval = resolveWorkflowTaskApprovalConfig({ taskId, taskAssignments })
+  const approvalText = approval.mode === 'any' ? '单人通过' : `会签:${approval.required}`
+  if (summary.unrestricted) return `分派:不限｜${approvalText}`
+
+  const pieces = []
+  if (summary.roles.length) pieces.push(`角色:${summary.roles.join('/')}`)
+  if (summary.users.length) pieces.push(`用户:${summary.users.join('/')}`)
+  return `分派:${pieces.join('，') || '不限'}｜${approvalText}`
+}
+
 export const normalizePolicyBool = (value, fallback = true) => {
   if (value === true || value === false) return value
   if (value === null || value === undefined || value === '') return fallback
@@ -173,6 +245,56 @@ export const getWorkflowStateTagType = (value) => {
 export const getWorkflowStateColor = (value) => {
   const normalized = normalizeStateValue(value)
   return WORKFLOW_STATE_UI_MAP[normalized]?.color || '#909399'
+}
+
+export const buildWorkflowTransitionOptions = ({
+  currentTaskId,
+  graphCandidates = [],
+  stateMappings = [],
+  taskAssignments = [],
+  actor,
+  formatTaskName = (value) => String(value || '')
+} = {}) => {
+  const currentTask = String(currentTaskId || '')
+  const taskIds = new Set()
+  if (graphCandidates.length > 0) {
+    graphCandidates.forEach((taskId) => taskIds.add(String(taskId)))
+  } else {
+    stateMappings
+      .map((item) => item?.bpmn_task_id)
+      .filter(Boolean)
+      .forEach((taskId) => {
+        if (String(taskId) !== currentTask) taskIds.add(String(taskId))
+      })
+    taskAssignments
+      .map((item) => item?.task_id)
+      .filter(Boolean)
+      .forEach((taskId) => {
+        if (String(taskId) !== currentTask) taskIds.add(String(taskId))
+      })
+  }
+
+  return Array.from(taskIds)
+    .map((id) => {
+      const mapping = stateMappings.find((item) => String(item?.bpmn_task_id || '').trim() === String(id))
+      const stateValue = normalizeStateValue(mapping?.state_value)
+      const stateLevel = getWorkflowStateLevel(stateValue)
+      return {
+        value: id,
+        taskName: formatTaskName(id),
+        stateValue,
+        assignmentText: formatWorkflowTaskAssignmentHint({ taskId: id, taskAssignments }),
+        stateLevel,
+        disabled: !canExecuteWorkflowTask({ taskId: id, actor, taskAssignments }),
+        label: formatTaskName(id)
+      }
+    })
+    .sort((a, b) => {
+      const aLevel = a.stateLevel >= 0 ? a.stateLevel : 99
+      const bLevel = b.stateLevel >= 0 ? b.stateLevel : 99
+      if (aLevel !== bLevel) return aLevel - bLevel
+      return String(a.taskName || '').localeCompare(String(b.taskName || ''), 'zh-Hans-CN')
+    })
 }
 
 export const isStateReached = (observed, expected) => {

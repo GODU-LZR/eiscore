@@ -12,6 +12,7 @@ import {
   normalizeBpmnXml,
   parseBpmnGraph,
   parseBpmnTaskNameMap,
+  resolveNextBpmnTaskCandidates,
   resolveFirstUserTaskId
 } from '../../eiscore-apps/src/domain/app-runtime-bpmn.mjs'
 
@@ -68,6 +69,28 @@ assert.deepEqual(parseBpmnGraph(processXml), {
 })
 assert.deepEqual(parseBpmnGraph(''), { nodeTypeMap: {}, outgoingMap: {} })
 
+const routingGraph = {
+  nodeTypeMap: {
+    Current: 'bpmn:userTask',
+    Gateway: 'bpmn:exclusiveGateway',
+    End: 'bpmn:endEvent',
+    Process: 'bpmn:process',
+    Task_B: 'bpmn:userTask',
+    Task_C: 'bpmn:serviceTask',
+    Task_D: 'bpmn:userTask'
+  },
+  outgoingMap: {
+    Current: ['Gateway', 'End', 'Process', 'Unknown'],
+    Gateway: ['Task_B', 'Current'],
+    Process: ['Task_D'],
+    Unknown: ['Task_C']
+  }
+}
+assert.deepEqual(resolveNextBpmnTaskCandidates({ taskId: ' Current ', graph: routingGraph }), ['Task_B', 'Task_C'])
+assert.deepEqual(resolveNextBpmnTaskCandidates({ taskId: 'Current', graph: routingGraph, maxSteps: 1 }), [])
+assert.deepEqual(resolveNextBpmnTaskCandidates({ taskId: 'Task_D', graph: routingGraph }), [])
+assert.deepEqual(resolveNextBpmnTaskCandidates(), [])
+
 const diagramXml = ensureBpmnDiagramXml(processXml)
 for (const namespace of ['xmlns:bpmndi=', 'xmlns:dc=', 'xmlns:di=']) {
   assert.match(diagramXml, new RegExp(namespace))
@@ -108,10 +131,11 @@ for (const removedDefinition of [
   'const parseBpmnTaskNameMap =',
   'const ensureBpmnDiagramXml =',
   'const parseBpmnGraph =',
+  'function resolveNextTaskCandidatesByGraph(taskId) {',
   'const resolveFirstUserTaskId ='
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 4654)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 3725)
 
 console.log('PASS: AppRuntime BPMN policy preserves normalization, labels, graph, diagram repair and first-task fallback')
