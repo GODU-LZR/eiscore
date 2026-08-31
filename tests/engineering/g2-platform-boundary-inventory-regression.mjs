@@ -14,7 +14,6 @@ const expectedStorageInventory = new Map([
   ['eiscore-base/src/components/AiCopilot.vue', 2],
   ['eiscore-base/src/layout/index.vue', 8],
   ['eiscore-base/src/stores/system.js', 1],
-  ['eiscore-base/src/utils/ai-bridge.js', 2],
   ['eiscore-hr/src/views/HrUserManage.vue', 1],
   ['shared/eis-app-runtime-title-store.mjs', 1],
   ['shared/eis-assistant-history.mjs', 1],

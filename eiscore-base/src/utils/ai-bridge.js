@@ -15,12 +15,19 @@ import {
   formatSmartBiMetricDefinitionsForPrompt
 } from '@shared/smart-bi-config'
 import { streamAgentEvents } from '@shared/eis-agent-sse-client'
+import { createAssistantModeHistory } from '@shared/eis-assistant-history.mjs'
 
 const STORAGE_KEY = 'eis_ai_history_v5'
 const MAX_SESSIONS = 20
 const MAX_MESSAGES_PER_SESSION = 50
 const HISTORY_WINDOW = 8
 const CODE_FENCE = '```'
+const aiModeHistory = createAssistantModeHistory({
+  storageKey: STORAGE_KEY,
+  modes: ['enterprise', 'worker'],
+  maxSessions: MAX_SESSIONS,
+  maxMessages: MAX_MESSAGES_PER_SESSION
+})
 
 const replaceLatestUserPayloadText = (messages, text) => {
   if (!text) return false
@@ -188,37 +195,17 @@ class AiBridge {
   }
 
   loadFromStorage() {
-    const fallback = {
-      enterprise: { sessions: [], currentSessionId: null },
-      worker: { sessions: [], currentSessionId: null }
-    }
-    try {
-      const json = localStorage.getItem(STORAGE_KEY)
-      if (!json) return fallback
-      const parsed = JSON.parse(json)
-      return {
-        enterprise: parsed.enterprise || fallback.enterprise,
-        worker: parsed.worker || fallback.worker
-      }
-    } catch {
-      return fallback
-    }
+    return aiModeHistory.load()
   }
 
   saveToStorage() {
     const mode = this.state.assistantMode
-    const data = {
-      sessions: this.state.sessions.slice(0, MAX_SESSIONS).map(session => ({
-        ...session,
-        messages: session.messages.slice(-MAX_MESSAGES_PER_SESSION)
-      })),
-      currentSessionId: this.state.currentSessionId
-    }
-    this.modeStorage = {
-      ...this.modeStorage,
-      [mode]: data
-    }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(this.modeStorage))
+    this.modeStorage = aiModeHistory.saveMode(
+      this.modeStorage,
+      mode,
+      this.state.sessions,
+      this.state.currentSessionId
+    )
   }
 
   createNewSession() {

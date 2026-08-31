@@ -4,7 +4,10 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { createAssistantHistory } from '../../shared/eis-assistant-history.mjs'
+import {
+  createAssistantHistory,
+  createAssistantModeHistory
+} from '../../shared/eis-assistant-history.mjs'
 
 class MemoryStorage {
   constructor(initial = {}) {
@@ -86,6 +89,47 @@ assert.doesNotThrow(() => unavailable.save(sessions, 'session-1'))
 assert.throws(() => createAssistantHistory(), /storageKey/)
 assert.throws(() => createAssistantHistory({ storageKey: key, transformMessage: null }), /transformMessage/)
 
+const modeKey = 'eis_ai_history_v5'
+const modeStorage = new MemoryStorage({
+  [modeKey]: JSON.stringify({
+    enterprise: { sessions: sessions.slice(0, 2), currentSessionId: 'session-1' },
+    worker: { sessions: sessions.slice(2, 4), currentSessionId: 'session-2' }
+  })
+})
+const modeHistory = createAssistantModeHistory({
+  storageKey: modeKey,
+  modes: ['enterprise', 'worker'],
+  maxSessions: 20,
+  maxMessages: 50,
+  storage: modeStorage
+})
+assert.deepEqual(modeHistory.load(), JSON.parse(modeStorage.getItem(modeKey)))
+const manySessions = Array.from({ length: 22 }, (_, sessionIndex) => ({
+  id: `desktop-${sessionIndex}`,
+  messages: Array.from({ length: 55 }, (_, messageIndex) => ({ id: `${sessionIndex}-${messageIndex}` }))
+}))
+const modeSaved = modeHistory.saveMode(modeHistory.load(), 'enterprise', manySessions, 'desktop-3')
+assert.equal(modeSaved.enterprise.sessions.length, 20)
+assert.equal(modeSaved.enterprise.sessions[0].messages.length, 50)
+assert.equal(modeSaved.enterprise.sessions[0].messages[0].id, '0-5')
+assert.equal(modeSaved.enterprise.currentSessionId, 'desktop-3')
+assert.equal(modeSaved.worker.currentSessionId, 'session-2')
+assert.deepEqual(JSON.parse(modeStorage.getItem(modeKey)), modeSaved)
+modeStorage.setItem(modeKey, '{invalid-json')
+assert.deepEqual(modeHistory.load(), {
+  enterprise: { sessions: [], currentSessionId: null },
+  worker: { sessions: [], currentSessionId: null }
+})
+assert.throws(() => modeHistory.saveMode({}, 'unknown', [], null), /Unsupported assistant history mode/)
+assert.throws(() => createAssistantModeHistory({ storageKey: modeKey }), /modes/)
+
+const unavailableModes = createAssistantModeHistory({
+  storageKey: modeKey,
+  modes: ['enterprise', 'worker'],
+  storage: throwingStorage
+})
+assert.doesNotThrow(() => unavailableModes.saveMode(unavailableModes.load(), 'worker', manySessions, 'desktop-1'))
+
 const repoRoot = resolve(import.meta.dirname, '../..')
 const assistantSources = new Map([
   ['eiscore-mobile/src/views/assistant/EnterpriseAssistant.vue', /transformMessage:\s*\(message\)/],
@@ -100,4 +144,11 @@ for (const [path, specificPattern] of assistantSources) {
   assert.doesNotMatch(source, /\blocalStorage\b|JSON\.parse\(raw\)|localStorage\.setItem/, path)
 }
 
-console.log('PASS: mobile assistants share bounded safe history storage with file metadata policy')
+const desktopBridge = readFileSync(resolve(repoRoot, 'eiscore-base/src/utils/ai-bridge.js'), 'utf8')
+assert.match(desktopBridge, /createAssistantModeHistory\s*}\s*from\s*['"]@shared\/eis-assistant-history\.mjs['"]/)
+assert.match(desktopBridge, /modes:\s*\[['"]enterprise['"],\s*['"]worker['"]\]/)
+assert.match(desktopBridge, /return aiModeHistory\.load\(\)/)
+assert.match(desktopBridge, /this\.modeStorage = aiModeHistory\.saveMode\(/)
+assert.doesNotMatch(desktopBridge, /\blocalStorage\b|\bsessionStorage\b/)
+
+console.log('PASS: mobile and desktop assistants share bounded safe history storage with mode and file policies')
