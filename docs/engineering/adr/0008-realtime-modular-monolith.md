@@ -60,4 +60,6 @@
 
 第二十个切片把 Flash Cline 与草稿的 20 项环境变量集中到冻结的 `flash-cline-config.js`。配置加载器保持原有默认值、裁剪、关闭语义、数值换算、目录派生、附件下限和 URL 清理；组合根只解构一次并分别注入草稿文件端口、运行时与任务服务，禁止业务函数继续读取 Cline 环境。
 
+第二十一个切片把 AI Agent 的消息清洗、意图与模式路由、三类 Runtime 配置、Smart BI/Grid Prompt、上下文压缩、系统 Prompt 和输出提取迁入纯 `ai-agent-policy.js`。该模块不访问网络、数据库或环境；HTTP Chat 和 Agent 任务调用只消费策略端口。契约锁定不信任消息过滤、权限降级、配置别名/范围、数据长度上限、六域指标与三类 Agent 的硬性输出规则。
+
 这些切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库或部署拓扑；可通过回退各自单提交恢复旧装配。Notifier 抽离保留默认连接参数、LISTEN 频道和通知 payload，同时在重连时显式回收旧 Workflow Engine。组合根仍包含大量 Flash/Agent 及 AI Agent 路由/Prompt 领域实现，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
