@@ -26,6 +26,7 @@ const { createAiOcrService } = require('./ai-ocr-service');
 const { createAiOutputGuard } = require('./ai-output-guard');
 const { FlashToolError, createFlashPostgrestAdapter } = require('./flash-postgrest-adapter');
 const { createFlashToolRegistry } = require('./flash-tool-registry');
+const { createFlashToolService } = require('./flash-tool-service');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -235,7 +236,6 @@ if (!process.env.NODE_USE_ENV_PROXY) {
 }
 
 let shuttingDown = false;
-const flashToolIdempotencyCache = new Map();
 
 const flashToolRegistry = createFlashToolRegistry();
 const {
@@ -245,6 +245,22 @@ const {
   registryVersion: flashSemanticToolRegistryVersion,
   resolveFlashToolId
 } = flashToolRegistry;
+
+const flashToolService = createFlashToolService({
+  idempotencyTtlMs: flashToolIdempotencyTtlMs,
+  getToolDefinition: getFlashToolDefinition,
+  resolveToolId: resolveFlashToolId,
+  registryVersion: flashSemanticToolRegistryVersion,
+  registryCount: flashSemanticToolRegistryCount,
+  executeSemanticTool: executeFlashSemanticTool,
+  logAgentEvent,
+  normalizeText: (...args) => normalizeAiText(...args),
+  sanitizePathToken
+});
+const {
+  executeFlashToolCall,
+  normalizeToolCallBoolean
+} = flashToolService;
 
 const getRequestPath = (req) => {
   const rawPath = String(req?.url || '/').split('?')[0] || '/';
@@ -2477,30 +2493,6 @@ async function uploadFlashAttachment(body = {}, user = null) {
   };
 }
 
-function normalizeFlashToolCallEnvelope(rawInput = {}) {
-  const payload = toPlainObject(rawInput);
-  const args = toPlainObject(payload.arguments);
-  const context = toPlainObject(payload.context);
-  const traceId = sanitizeTraceId(payload.trace_id || payload.traceId || payload.trace) || generateTraceId('tr');
-  const toolId = resolveFlashToolId(payload.tool_id || payload.toolId);
-  const idempotencyKey = sanitizeIdempotencyKey(payload.idempotency_key || payload.idempotencyKey);
-  const sessionId = sanitizePathToken(payload.session_id || payload.sessionId || context.sessionId, 'default');
-  const appId = String(payload.app_id || payload.appId || args.appId || '').trim();
-  const confirmed = normalizeToolCallBoolean(
-    payload.confirmed ?? payload.confirm ?? context.confirmed ?? context.confirm
-  );
-  return {
-    traceId,
-    toolId,
-    idempotencyKey,
-    sessionId,
-    appId,
-    arguments: args,
-    context,
-    confirmed
-  };
-}
-
 async function executeFlashSemanticTool(toolId, args, user, callContext) {
   const requestArgs = toPlainObject(args);
   switch (toolId) {
@@ -3473,135 +3465,6 @@ async function executeFlashSemanticTool(toolId, args, user, callContext) {
   }
 }
 
-async function executeFlashToolCall(user, rawPayload = {}, source = 'http') {
-  const startedAt = Date.now();
-  const call = normalizeFlashToolCallEnvelope(rawPayload);
-  if (!call.toolId) {
-    const errorResponse = {
-      ok: false,
-      code: 'VALIDATION_FAILED',
-      message: 'tool_id is required',
-      tool_id: '',
-      trace_id: call.traceId,
-      error: { reason_code: 'VALIDATION_FAILED', http_status: 400 }
-    };
-    return { status: 400, payload: errorResponse };
-  }
-
-  const tool = getFlashToolDefinition(call.toolId);
-  if (!tool) {
-    const errorResponse = {
-      ok: false,
-      code: 'TOOL_NOT_FOUND',
-      message: `tool_id not found: ${call.toolId}`,
-      tool_id: call.toolId,
-      trace_id: call.traceId,
-      error: { reason_code: 'TOOL_NOT_FOUND', http_status: 404 }
-    };
-    return { status: 404, payload: errorResponse };
-  }
-
-  const isWriteTool = tool.confirm_required || tool.risk_level !== 'low';
-  if (isWriteTool && !call.confirmed) {
-    const errorResponse = {
-      ok: false,
-      code: 'PERMISSION_DENIED',
-      message: 'write tool requires confirmed=true',
-      tool_id: call.toolId,
-      trace_id: call.traceId,
-      error: { reason_code: 'PERMISSION_DENIED', http_status: 403 }
-    };
-    return { status: 403, payload: errorResponse };
-  }
-
-  if (isWriteTool && !call.idempotencyKey) {
-    const errorResponse = {
-      ok: false,
-      code: 'VALIDATION_FAILED',
-      message: 'idempotency_key is required for write tools',
-      tool_id: call.toolId,
-      trace_id: call.traceId,
-      error: { reason_code: 'VALIDATION_FAILED', http_status: 400 }
-    };
-    return { status: 400, payload: errorResponse };
-  }
-
-  cleanupFlashToolIdempotencyCache();
-  let cacheKey = '';
-  if (isWriteTool && call.idempotencyKey) {
-    cacheKey = makeFlashToolIdempotencyCacheKey(user, call.toolId, call.idempotencyKey);
-    const cached = flashToolIdempotencyCache.get(cacheKey);
-    if (cached && cached.expireAt > Date.now()) {
-      const replay = cloneJsonValue(cached.payload);
-      replay.meta = {
-        ...(toPlainObject(replay.meta)),
-        idempotent_replay: true
-      };
-      return { status: 200, payload: replay };
-    }
-  }
-
-  try {
-    const result = await executeFlashSemanticTool(call.toolId, call.arguments, user, call);
-    const responsePayload = {
-      ok: true,
-      code: 'OK',
-      message: normalizeAiText(result?.message) || 'OK',
-      tool_id: call.toolId,
-      trace_id: call.traceId,
-      registry_version: flashSemanticToolRegistryVersion,
-      registry_tools_count_actual: flashSemanticToolRegistryCount,
-      data: cloneJsonValue(result?.data),
-      meta: {
-        risk_level: tool.risk_level,
-        duration_ms: Date.now() - startedAt,
-        rows_affected: Number(result?.rowsAffected || 0),
-        source
-      }
-    };
-    if (cacheKey) {
-      flashToolIdempotencyCache.set(cacheKey, {
-        expireAt: Date.now() + flashToolIdempotencyTtlMs,
-        payload: cloneJsonValue(responsePayload)
-      });
-    }
-    logAgentEvent('flash:tool_call_ok', user, {
-      tool_id: call.toolId,
-      trace_id: call.traceId,
-      source,
-      duration_ms: responsePayload.meta.duration_ms
-    });
-    return { status: 200, payload: responsePayload };
-  } catch (error) {
-    const isTypedError = error instanceof FlashToolError;
-    const code = isTypedError ? error.code : 'INTERNAL_ERROR';
-    const httpStatus = isTypedError ? error.httpStatus : 500;
-    const responsePayload = {
-      ok: false,
-      code,
-      message: normalizeAiText(error?.message) || 'Tool execution failed',
-      tool_id: call.toolId,
-      trace_id: call.traceId,
-      registry_version: flashSemanticToolRegistryVersion,
-      registry_tools_count_actual: flashSemanticToolRegistryCount,
-      error: {
-        reason_code: isTypedError ? error.reasonCode : code,
-        http_status: httpStatus,
-        data: cloneJsonValue(isTypedError ? error.data : null)
-      }
-    };
-    logAgentEvent('flash:tool_call_fail', user, {
-      tool_id: call.toolId,
-      trace_id: call.traceId,
-      source,
-      code,
-      message: responsePayload.message
-    });
-    return { status: httpStatus, payload: responsePayload };
-  }
-}
-
-
 const handleFlashToolCallWs = async (ws, payload) => {
   if (!canUseAgent(ws.user)) {
     sendWsJson(ws, {
@@ -3773,17 +3636,6 @@ function normalizeProjectPath(value) {
   return normalized.replace(/\/+$/, '');
 }
 
-function generateTraceId(prefix = 'tr') {
-  const rand = Math.random().toString(36).slice(2, 10);
-  return `${prefix}_${Date.now()}_${rand}`;
-}
-
-function sanitizeIdempotencyKey(value) {
-  const text = String(value || '').trim();
-  if (!text) return '';
-  return text.replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 128);
-}
-
 function sanitizeQueryParams(query = {}) {
   const out = {};
   if (!query || typeof query !== 'object') return out;
@@ -3800,46 +3652,10 @@ function toPlainObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
-function cloneJsonValue(value) {
-  if (value === undefined) return null;
-  try {
-    return JSON.parse(JSON.stringify(value));
-  } catch {
-    return value;
-  }
-}
-
-function sanitizeTraceId(value) {
-  const text = String(value || '').trim();
-  if (!text) return '';
-  return text.replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 128);
-}
-
-function normalizeToolCallBoolean(value) {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number') return value !== 0;
-  const text = String(value || '').trim().toLowerCase();
-  if (!text) return false;
-  return text === '1' || text === 'true' || text === 'yes' || text === 'y';
-}
-
 function normalizeLimit(value, fallback = 50, max = 500) {
   const parsed = Number.parseInt(String(value || ''), 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return String(fallback);
   return String(Math.min(parsed, max));
-}
-
-function cleanupFlashToolIdempotencyCache(now = Date.now()) {
-  for (const [key, record] of flashToolIdempotencyCache.entries()) {
-    if (!record || !record.expireAt || record.expireAt <= now) {
-      flashToolIdempotencyCache.delete(key);
-    }
-  }
-}
-
-function makeFlashToolIdempotencyCacheKey(user, toolId, idempotencyKey) {
-  const userId = String(user?.id || 'anonymous');
-  return `${userId}:${toolId}:${idempotencyKey}`;
 }
 
 function normalizeExecutionLogStatus(rawStatus = '') {
