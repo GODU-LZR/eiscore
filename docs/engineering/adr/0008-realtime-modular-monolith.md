@@ -48,4 +48,6 @@
 
 第十四个切片把用户态 PostgREST 调用与 Flash 动态表恢复迁入 `flash-postgrest-adapter.js`。适配器注入 JWT、HTTP、Query 清洗、JSON 解析与计时能力，向 Flash、语义上下文、业务快照和 Twin 提供绑定查询；用户 Claims、Profile、错误映射、超时、`app_data` 补表及 Schema Cache 重试保持。专项契约只使用模拟响应，明确禁止真实数据库连接。
 
+第十五个切片把 Flash 工具注册表迁入 `flash-tool-registry.js`。迁移前后逐字段审计纠正库存为 43 项与 39 个别名，19 项低风险无需确认、24 项需要确认；服务统一提供定义查询、别名解析、版本/数量和公开 Manifest。HTTP、执行器与 Cline 不再各自接触可变注册表，专项契约锁定全部元数据和顺序。
+
 这些切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库或部署拓扑；可通过回退各自单提交恢复旧装配。Notifier 抽离保留默认连接参数、LISTEN 频道和通知 payload，同时在重连时显式回收旧 Workflow Engine。组合根仍包含大量 Flash/Agent 及 AI Agent 路由/Prompt 领域实现，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。

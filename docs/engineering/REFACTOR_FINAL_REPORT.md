@@ -115,6 +115,8 @@ AI 配置缓存与上游客户端随后进入 `ai-runtime-service.js`。主/视�
 
 Flash、语义上下文、业务快照与 Twin 共用的用户态 PostgREST 能力随后进入 `flash-postgrest-adapter.js`。15 分钟用户 JWT 与原 Token 降级、Profile/Trace/Prefer/Body、超时与 RLS/冲突/上游错误映射保持；动态 `app_data` 表补建、Schema Cache 重载和五次阶梯重试也归适配器所有。全部契约使用模拟 HTTP，不连接数据库；组合根降至 5,062 行，较 G3 起点减少 2,324 行。
 
+Flash 工具注册表随后进入 `flash-tool-registry.js`。新模块与迁移前基线逐字段比对后确认真实库存为 43 项、39 个别名，其中 19 项低风险无需确认、24 项需要确认；旧计划中的 42 项口径已纠正。版本、顺序、中文名称、意图、对象、风险、批次、API/Profile、别名清洗、公开 Manifest 和 Cline 元数据保持；组合根降至 4,561 行，较 G3 起点减少 2,825 行。
+
 数据库迁移治理首先接管唯一已有可信顺序的 Runtime V2 补丁。10 个历史补丁现在具有连续 ID、SHA-256、事务所有权、postcheck 和 `backup-restore` 声明，并与旧文本 Manifest 逐项对照；五个历史根共 102 份 SQL 由离线门禁锁定。其余 92 份没有足够依赖证据，因此保持原位且禁止自动执行。随后 Bash/PowerShell 入口收敛到共享执行核心：离线校验和备份证据先于连接，账本按 ID/校验和幂等处理并与迁移原子提交，最后强制 postcheck。真实备份恢复演练仍需获授权环境，边界决策见 ADR-0009。
 
 会话契约已接入首批真实失效链：基座全局 API 401、移动路由守卫和仓库/库存/考勤/盘点 API 均通过适配器清理会话。原 `/login`、`/mobile/login`、移动重定向参数、401 用户错误及宽松 JWT 路由兼容保持，移动端这些链路不再直接操作 Storage 或 Base64；剩余直接会话操作已量化为基座 9 个文件、30 处。

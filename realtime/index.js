@@ -25,6 +25,7 @@ const { createAiRuntimeService } = require('./ai-runtime-service');
 const { createAiOcrService } = require('./ai-ocr-service');
 const { createAiOutputGuard } = require('./ai-output-guard');
 const { FlashToolError, createFlashPostgrestAdapter } = require('./flash-postgrest-adapter');
+const { createFlashToolRegistry } = require('./flash-tool-registry');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -236,485 +237,14 @@ if (!process.env.NODE_USE_ENV_PROXY) {
 let shuttingDown = false;
 const flashToolIdempotencyCache = new Map();
 
-const flashSemanticToolRegistryVersion = 'flash-tools-v2';
-const flashSemanticToolRegistry = Object.freeze([
-  {
-    tool_id: 'flash.app.list',
-    tool_name_zh: '查询应用列表',
-    intent: 'read_list',
-    object: 'app_registry',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/apps', method: 'GET', accept_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.app.detail',
-    tool_name_zh: '查询应用详情',
-    intent: 'read_detail',
-    object: 'app_registry',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/apps', method: 'GET', accept_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.route.resolve',
-    tool_name_zh: '查询发布路由',
-    intent: 'read_detail',
-    object: 'published_route',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/published_routes', method: 'GET', accept_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.data.grid.list',
-    tool_name_zh: '查询表格列表数据',
-    intent: 'read_list',
-    object: 'data_table',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/{table}', method: 'GET' }
-  },
-  {
-    tool_id: 'flash.data.grid.detail',
-    tool_name_zh: '查询表格单条详情',
-    intent: 'read_detail',
-    object: 'data_table',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/{table}', method: 'GET' }
-  },
-  {
-    tool_id: 'flash.data.grid.export',
-    tool_name_zh: '导出表格数据',
-    intent: 'read_export',
-    object: 'data_table',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/{table}', method: 'GET' }
-  },
-  {
-    tool_id: 'flash.workflow.definition.list',
-    tool_name_zh: '查询流程定义',
-    intent: 'read_list',
-    object: 'workflow_definition',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/definitions', method: 'GET', accept_profile: 'workflow' }
-  },
-  {
-    tool_id: 'flash.workflow.instance.list',
-    tool_name_zh: '查询流程实例',
-    intent: 'read_list',
-    object: 'workflow_instance',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/instances', method: 'GET', accept_profile: 'workflow' }
-  },
-  {
-    tool_id: 'flash.workflow.event.list',
-    tool_name_zh: '查询流程日志',
-    intent: 'read_list',
-    object: 'workflow_event',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/instance_events', method: 'GET', accept_profile: 'workflow' }
-  },
-  {
-    tool_id: 'flash.workflow.assignment.list',
-    tool_name_zh: '查询流程任务分派',
-    intent: 'read_list',
-    object: 'workflow_task_assignment',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/task_assignments', method: 'GET', accept_profile: 'workflow' }
-  },
-  {
-    tool_id: 'flash.workflow.mapping.list',
-    tool_name_zh: '查询流程状态映射',
-    intent: 'read_list',
-    object: 'workflow_state_mapping',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/workflow_state_mappings', method: 'GET', accept_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.inventory.current.list',
-    tool_name_zh: '查询当前库存',
-    intent: 'read_list',
-    object: 'inventory_current',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/v_inventory_current', method: 'GET', accept_profile: 'scm' }
-  },
-  {
-    tool_id: 'flash.inventory.draft.list',
-    tool_name_zh: '查询库存草稿',
-    intent: 'read_list',
-    object: 'inventory_draft',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/v_inventory_drafts', method: 'GET', accept_profile: 'scm' }
-  },
-  {
-    tool_id: 'flash.material.master.list',
-    tool_name_zh: '查询物料主数据',
-    intent: 'read_list',
-    object: 'material_master',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/raw_materials', method: 'GET', accept_profile: 'public' }
-  },
-  {
-    tool_id: 'flash.warehouse.list',
-    tool_name_zh: '查询仓库列表',
-    intent: 'read_list',
-    object: 'warehouse',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/warehouses', method: 'GET', accept_profile: 'scm' }
-  },
-  {
-    tool_id: 'flash.hr.archive.list',
-    tool_name_zh: '查询人事档案',
-    intent: 'read_list',
-    object: 'hr_archive',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/archives', method: 'GET', accept_profile: 'hr' }
-  },
-  {
-    tool_id: 'flash.ontology.relation.list',
-    tool_name_zh: '查询本体关系',
-    intent: 'read_list',
-    object: 'ontology_relation',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/ontology_table_relations', method: 'GET', accept_profile: 'app_data' }
-  },
-  {
-    tool_id: 'flash.ontology.semantic.list',
-    tool_name_zh: '查询本体语义',
-    intent: 'read_list',
-    object: 'ontology_semantic',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 1,
-    api: { path: '/ontology_table_semantics', method: 'GET', accept_profile: 'public' }
-  },
-  {
-    tool_id: 'flash.app.create',
-    tool_name_zh: '创建应用',
-    intent: 'create_record',
-    object: 'app_registry',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/apps', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.app.delete',
-    tool_name_zh: '删除应用',
-    intent: 'delete_record',
-    object: 'app_registry',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/apps', method: 'DELETE', accept_profile: 'app_center', content_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.data.table.ensure',
-    tool_name_zh: '初始化数据应用表',
-    intent: 'configure_app',
-    object: 'data_table',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/rpc/create_data_app_table', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.data.grid.create',
-    tool_name_zh: '新增表格记录',
-    intent: 'create_record',
-    object: 'data_table',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/{table}', method: 'POST' }
-  },
-  {
-    tool_id: 'flash.data.grid.update',
-    tool_name_zh: '更新表格记录',
-    intent: 'update_record',
-    object: 'data_table',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/{table}', method: 'PATCH' }
-  },
-  {
-    tool_id: 'flash.data.grid.delete',
-    tool_name_zh: '删除表格记录',
-    intent: 'delete_record',
-    object: 'data_table',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/{table}', method: 'DELETE' }
-  },
-  {
-    tool_id: 'flash.workflow.definition.upsert',
-    tool_name_zh: '写入流程定义',
-    intent: 'configure_app',
-    object: 'workflow_definition',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/definitions', method: 'POST/PATCH', accept_profile: 'workflow', content_profile: 'workflow' }
-  },
-  {
-    tool_id: 'flash.workflow.assignment.upsert',
-    tool_name_zh: '写入流程任务分派',
-    intent: 'configure_app',
-    object: 'workflow_task_assignment',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/task_assignments', method: 'POST/PATCH', accept_profile: 'workflow', content_profile: 'workflow' }
-  },
-  {
-    tool_id: 'flash.workflow.mapping.upsert',
-    tool_name_zh: '写入流程状态映射',
-    intent: 'configure_app',
-    object: 'workflow_state_mapping',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/workflow_state_mappings', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.workflow.instance.start',
-    tool_name_zh: '启动流程实例',
-    intent: 'start_workflow',
-    object: 'workflow_instance',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/rpc/start_workflow_instance', method: 'POST', accept_profile: 'workflow', content_profile: 'workflow' }
-  },
-  {
-    tool_id: 'flash.workflow.instance.transition',
-    tool_name_zh: '推进流程实例',
-    intent: 'transition_workflow',
-    object: 'workflow_instance',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/rpc/transition_workflow_instance', method: 'POST', accept_profile: 'workflow', content_profile: 'workflow' }
-  },
-  {
-    tool_id: 'flash.hr.archive.update',
-    tool_name_zh: '更新人事档案',
-    intent: 'update_record',
-    object: 'hr_archive',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/archives', method: 'PATCH', accept_profile: 'hr', content_profile: 'hr' }
-  },
-  {
-    tool_id: 'flash.hr.attendance.init',
-    tool_name_zh: '初始化考勤记录',
-    intent: 'configure_app',
-    object: 'hr_attendance_record',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/rpc/init_attendance_records', method: 'POST', accept_profile: 'hr', content_profile: 'hr' }
-  },
-  {
-    tool_id: 'flash.inventory.draft.create',
-    tool_name_zh: '创建库存草稿',
-    intent: 'create_record',
-    object: 'inventory_draft',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/inventory_drafts', method: 'POST', accept_profile: 'scm', content_profile: 'scm' }
-  },
-  {
-    tool_id: 'flash.inventory.batchno.generate',
-    tool_name_zh: '生成批次号',
-    intent: 'configure_app',
-    object: 'inventory_draft',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/rpc/generate_batch_no', method: 'POST', accept_profile: 'scm', content_profile: 'scm' }
-  },
-  {
-    tool_id: 'flash.inventory.stock.in',
-    tool_name_zh: '执行库存入库',
-    intent: 'update_record',
-    object: 'inventory_transaction',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/rpc/stock_in', method: 'POST', accept_profile: 'scm', content_profile: 'scm' }
-  },
-  {
-    tool_id: 'flash.inventory.stock.out',
-    tool_name_zh: '执行库存出库',
-    intent: 'update_record',
-    object: 'inventory_transaction',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/rpc/stock_out', method: 'POST', accept_profile: 'scm', content_profile: 'scm' }
-  },
-  {
-    tool_id: 'flash.ontology.semantic.enrich',
-    tool_name_zh: '补全本体语义',
-    intent: 'semantic_enrich',
-    object: 'ontology_semantic',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/ontology_table_semantics', method: 'POST/PATCH', accept_profile: 'public', content_profile: 'public' }
-  },
-  {
-    tool_id: 'flash.draft.read',
-    tool_name_zh: '读取闪念草稿',
-    intent: 'read',
-    object: 'flash_draft',
-    risk_level: 'low',
-    confirm_required: false,
-    batch: 2,
-    api: { path: '/agent/flash/draft', method: 'GET' }
-  },
-  {
-    tool_id: 'flash.draft.write',
-    tool_name_zh: '写入闪念草稿',
-    intent: 'save',
-    object: 'flash_draft',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/agent/flash/draft', method: 'POST' }
-  },
-  {
-    tool_id: 'flash.attachment.upload',
-    tool_name_zh: '上传闪念附件',
-    intent: 'upload',
-    object: 'flash_attachment',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/agent/flash/attachments', method: 'POST' }
-  },
-  {
-    tool_id: 'flash.app.save',
-    tool_name_zh: '保存闪念应用',
-    intent: 'save',
-    object: 'flash_application',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/apps', method: 'PATCH', accept_profile: 'app_center', content_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.app.publish',
-    tool_name_zh: '发布闪念应用',
-    intent: 'publish',
-    object: 'flash_application',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/apps', method: 'PATCH', accept_profile: 'app_center', content_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.route.upsert',
-    tool_name_zh: '写入发布路由',
-    intent: 'configure_app',
-    object: 'published_route',
-    risk_level: 'high',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/published_routes', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
-  },
-  {
-    tool_id: 'flash.audit.write',
-    tool_name_zh: '写入执行审计',
-    intent: 'audit',
-    object: 'execution_log',
-    risk_level: 'medium',
-    confirm_required: true,
-    batch: 2,
-    api: { path: '/execution_logs', method: 'POST', accept_profile: 'app_center', content_profile: 'app_center' }
-  }
-]);
-
-const flashSemanticToolAliases = Object.freeze({
-  'cap.app.list': 'flash.app.list',
-  'cap.app.detail': 'flash.app.detail',
-  'cap.app.create': 'flash.app.create',
-  'cap.app.update': 'flash.app.save',
-  'cap.app.delete': 'flash.app.delete',
-  'cap.route.resolve': 'flash.route.resolve',
-  'cap.route.upsert': 'flash.route.upsert',
-  'cap.data.table.ensure': 'flash.data.table.ensure',
-  'cap.data.grid.list': 'flash.data.grid.list',
-  'cap.data.grid.detail': 'flash.data.grid.detail',
-  'cap.data.grid.create': 'flash.data.grid.create',
-  'cap.data.grid.update': 'flash.data.grid.update',
-  'cap.data.grid.delete': 'flash.data.grid.delete',
-  'cap.data.grid.export': 'flash.data.grid.export',
-  'cap.workflow.definition.list': 'flash.workflow.definition.list',
-  'cap.workflow.definition.upsert': 'flash.workflow.definition.upsert',
-  'cap.workflow.assignment.list': 'flash.workflow.assignment.list',
-  'cap.workflow.assignment.upsert': 'flash.workflow.assignment.upsert',
-  'cap.workflow.mapping.list': 'flash.workflow.mapping.list',
-  'cap.workflow.mapping.upsert': 'flash.workflow.mapping.upsert',
-  'cap.workflow.instance.list': 'flash.workflow.instance.list',
-  'cap.workflow.event.list': 'flash.workflow.event.list',
-  'cap.workflow.instance.start': 'flash.workflow.instance.start',
-  'cap.workflow.instance.transition': 'flash.workflow.instance.transition',
-  'cap.hr.archive.list': 'flash.hr.archive.list',
-  'cap.hr.archive.update': 'flash.hr.archive.update',
-  'cap.hr.attendance.init': 'flash.hr.attendance.init',
-  'cap.inventory.current.list': 'flash.inventory.current.list',
-  'cap.inventory.draft.list': 'flash.inventory.draft.list',
-  'cap.inventory.draft.create': 'flash.inventory.draft.create',
-  'cap.inventory.batchno.generate': 'flash.inventory.batchno.generate',
-  'cap.inventory.stock.in': 'flash.inventory.stock.in',
-  'cap.inventory.stock.out': 'flash.inventory.stock.out',
-  'cap.material.master.list': 'flash.material.master.list',
-  'cap.warehouse.list': 'flash.warehouse.list',
-  'cap.ontology.relation.list': 'flash.ontology.relation.list',
-  'cap.ontology.semantic.list': 'flash.ontology.semantic.list',
-  'cap.ontology.semantic.enrich': 'flash.ontology.semantic.enrich',
-  'flash.app.read': 'flash.app.detail'
-});
-
-const flashSemanticToolMap = new Map(
-  flashSemanticToolRegistry.map((tool) => [tool.tool_id, tool])
-);
+const flashToolRegistry = createFlashToolRegistry();
+const {
+  getFlashToolDefinition,
+  getFlashToolRegistryPayload,
+  registryCount: flashSemanticToolRegistryCount,
+  registryVersion: flashSemanticToolRegistryVersion,
+  resolveFlashToolId
+} = flashToolRegistry;
 
 const getRequestPath = (req) => {
   const rawPath = String(req?.url || '/').split('?')[0] || '/';
@@ -3958,7 +3488,7 @@ async function executeFlashToolCall(user, rawPayload = {}, source = 'http') {
     return { status: 400, payload: errorResponse };
   }
 
-  const tool = flashSemanticToolMap.get(call.toolId);
+  const tool = getFlashToolDefinition(call.toolId);
   if (!tool) {
     const errorResponse = {
       ok: false,
@@ -4020,7 +3550,7 @@ async function executeFlashToolCall(user, rawPayload = {}, source = 'http') {
       tool_id: call.toolId,
       trace_id: call.traceId,
       registry_version: flashSemanticToolRegistryVersion,
-      registry_tools_count_actual: flashSemanticToolRegistry.length,
+      registry_tools_count_actual: flashSemanticToolRegistryCount,
       data: cloneJsonValue(result?.data),
       meta: {
         risk_level: tool.risk_level,
@@ -4053,7 +3583,7 @@ async function executeFlashToolCall(user, rawPayload = {}, source = 'http') {
       tool_id: call.toolId,
       trace_id: call.traceId,
       registry_version: flashSemanticToolRegistryVersion,
-      registry_tools_count_actual: flashSemanticToolRegistry.length,
+      registry_tools_count_actual: flashSemanticToolRegistryCount,
       error: {
         reason_code: isTypedError ? error.reasonCode : code,
         http_status: httpStatus,
@@ -4254,12 +3784,6 @@ function sanitizeIdempotencyKey(value) {
   return text.replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 128);
 }
 
-function sanitizeToolId(value) {
-  const text = String(value || '').trim();
-  if (!text) return '';
-  return text.replace(/[^a-zA-Z0-9._-]/g, '');
-}
-
 function sanitizeQueryParams(query = {}) {
   const out = {};
   if (!query || typeof query !== 'object') return out;
@@ -4316,12 +3840,6 @@ function cleanupFlashToolIdempotencyCache(now = Date.now()) {
 function makeFlashToolIdempotencyCacheKey(user, toolId, idempotencyKey) {
   const userId = String(user?.id || 'anonymous');
   return `${userId}:${toolId}:${idempotencyKey}`;
-}
-
-function resolveFlashToolId(rawToolId) {
-  const cleaned = sanitizeToolId(rawToolId);
-  if (!cleaned) return '';
-  return flashSemanticToolAliases[cleaned] || cleaned;
 }
 
 function normalizeExecutionLogStatus(rawStatus = '') {
@@ -4444,25 +3962,6 @@ function encodeInList(values = []) {
     .map((item) => item.replace(/[,()]/g, ''));
   if (!list.length) return '';
   return `in.(${list.join(',')})`;
-}
-
-function getFlashToolRegistryPayload() {
-  return {
-    registry_version: flashSemanticToolRegistryVersion,
-    tools_count: flashSemanticToolRegistry.length,
-    generated_at: new Date().toISOString(),
-    domain: 'flash',
-    tools: flashSemanticToolRegistry.map((tool) => ({
-      tool_id: tool.tool_id,
-      tool_name_zh: tool.tool_name_zh,
-      intent: tool.intent,
-      object: tool.object,
-      risk_level: tool.risk_level,
-      confirm_required: tool.confirm_required,
-      batch: tool.batch,
-      api: cloneJsonValue(tool.api)
-    }))
-  };
 }
 
 function sanitizePathToken(value, fallback = 'default') {
@@ -4791,7 +4290,7 @@ async function runFlashClineTask(ws, payload = {}) {
     sessionId,
     status: 'registry_meta',
     registryVersion: flashSemanticToolRegistryVersion,
-    registryCount: flashSemanticToolRegistry.length
+    registryCount: flashSemanticToolRegistryCount
   });
 
   const timeoutTimer = setTimeout(() => {
