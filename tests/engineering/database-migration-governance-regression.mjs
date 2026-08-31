@@ -57,6 +57,7 @@ for (const column of [
   'rollback_strategy text NOT NULL',
   'release_revision text NOT NULL',
   'applied_by text NOT NULL',
+  'backup_evidence text NOT NULL',
   'execution_ms bigint NOT NULL',
   'applied_at timestamptz NOT NULL'
 ]) {
@@ -64,5 +65,7 @@ for (const column of [
 }
 assert.match(ledgerSource, /REVOKE ALL ON SCHEMA eiscore_meta FROM PUBLIC/)
 assert.match(ledgerSource, /REVOKE ALL ON TABLE eiscore_meta\.schema_migrations FROM PUBLIC/)
+assert.match(ledgerSource, /ADD COLUMN IF NOT EXISTS backup_evidence text/)
+assert.match(ledgerSource, /ALTER COLUMN backup_evidence SET NOT NULL/)
 
 console.log('PASS: database migration ids, order, checksums, transactions, rollback declarations, ledger and legacy inventory')

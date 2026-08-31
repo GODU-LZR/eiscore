@@ -21,6 +21,19 @@
 ```bash
 npm run db:migrations:check
 node scripts/check-database-migrations.mjs --format=tsv
+npm run db:runtime-patches:dry-run
+pwsh -File scripts/apply-runtime-patches.ps1 -DryRun
 ```
 
-校验不会连接或修改数据库。实际执行、备份和恢复仍必须由获得目标环境授权的发布流程完成。
+上述命令不会要求 Docker，也不会连接或修改数据库。Bash 与 PowerShell 入口共用 `apply-runtime-migrations.mjs`，避免两套执行语义漂移。
+
+获得目标环境授权后，实际执行还必须提供可审计的备份证据；提交号与操作者会连同证据写入账本：
+
+```bash
+./scripts/apply-runtime-patches.sh \
+  --backup-evidence "backup://<artifact-id>" \
+  --release-revision "<git-commit>" \
+  --operator "<operator>"
+```
+
+PowerShell 使用同名参数 `-BackupEvidence`、`-ReleaseRevision` 与 `-Operator`。执行器先完成离线 Manifest 校验，随后才检查 Docker 和数据库；相同 ID/校验和跳过，相同 ID/不同校验和失败。runner-managed SQL 和历史文件自带事务都会把账本写入同一事务，所有迁移结束后强制运行 postcheck。当前重构过程只验证 dry-run 和模拟适配器，没有执行真实迁移；备份恢复仍必须在获授权的发布演练中验证。
