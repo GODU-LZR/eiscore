@@ -262,6 +262,11 @@ import { setAuth, parseJwt, isAuthenticated } from '@/utils/auth'
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 import { getMobileSystemConfigService } from '@/platform/http-client'
+import {
+  forgetRememberedUsername,
+  getRememberedUsername,
+  rememberUsername
+} from '@shared/eis-remembered-username.mjs'
 
 const enterpriseConfig = getEnterpriseConfig(globalThis)
 const defaultLoginBranding = normalizeLoginBranding({}, {
@@ -420,7 +425,7 @@ onMounted(async () => {
     router.replace(redirect)
   }
 
-  const saved = localStorage.getItem('mobile_remembered_user')
+  const saved = getRememberedUsername()
   if (saved) {
     form.username = saved
     form.remember = true
@@ -516,9 +521,9 @@ async function handleLogin() {
     setAuth(token, userInfo)
 
     if (form.remember) {
-      localStorage.setItem('mobile_remembered_user', form.username)
+      rememberUsername(form.username)
     } else {
-      localStorage.removeItem('mobile_remembered_user')
+      forgetRememberedUsername()
     }
 
     showToast({ message: '登录成功', type: 'success', duration: 1000 })
