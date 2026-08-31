@@ -116,14 +116,15 @@
 | `e7e7a05` | 抽离 Twin 资源 HTTP 处理器 | 6 条会话/消息/知识库处理器进入可注入工厂，组合根再减少 119 行 |
 | `62f2b2a` | 抽离 AI 配置 HTTP 处理器 | 配置与 Agent 目录读取进入可注入工厂，锁定默认值、视觉降级与秘密脱敏 |
 | `b91c3b2` | 扩展 AI 只读 HTTP 边界 | 业务快照加入 AI 工厂，锁定正常与部分失败 warning 语义 |
-| 本文件所在提交 | 抽离 Flash HTTP 处理器 | 5 条非流式接口进入注入式工厂，WebSocket 工具调用保持原位 |
+| `ba93c6d` | 抽离 Flash HTTP 处理器 | 5 条非流式接口进入注入式工厂，WebSocket 工具调用保持原位 |
+| 本文件所在提交 | 抽离 Twin Chat 流式处理器 | SSE/ReAct 处理器进入工厂，锁定降级、流解析、中断与错误边界 |
 
 ## 当前切片
 
-- 状态：G3 进行中；Realtime 的传输装配、Twin 资源、AI 只读面和 Flash 非流式 HTTP 已进入独立可测边界，流式与 WebSocket 处理器仍保留在组合根。
-- 结果：`realtime/flash-http.js` 以注入式工厂承载工具注册表/调用、草稿读写和附件上传 5 条接口；`realtime/index.js` 只注入既有领域函数并继续本地处理 WebSocket 工具调用，行数由 7,029 降至 6,956。
-- 兼容边界：保持 Agent 授权、工具 4 MiB、草稿写 2 MiB、附件动态 body 上限、`appId/app_id` 优先级、工具 status/payload 透传、FlashToolError 400 判断与其他 500 错误；不移动工具执行、草稿文件边界、附件持久化或 WebSocket 协议。
-- 验证：Flash 专项契约覆盖未授权短路、注册表、坏 JSON、工具调用来源/状态、草稿 ID/读写、附件上限与 400/500 映射；完整质量门禁覆盖 130 个 Node 脚本、14 个锁定 CI 包、41 条路由及既有契约、1075 个文本秘密扫描、5 个变更代码文件 lint、23 个 Shell 与生产 Compose，完整离线单元套件通过。未执行远程测试。
+- 状态：G3 进行中；Realtime 全部 Twin HTTP 处理器、AI 只读面、Flash 非流式 HTTP 与路由装配均可脱离完整进程验证，WebSocket 与其他领域实现仍在组合根。
+- 结果：`realtime/twin-chat-http.js` 以显式依赖工厂承载 Twin Chat 的鉴权、会话/历史、语义上下文、ReAct、上游流/非流、SSE 和中断处理；`realtime/index.js` 只保留工厂装配，行数由 6,956 降至 6,719。
+- 兼容边界：保持消息/content 兼容、标题/历史长度、持久化与语义失败降级、工具/系统提示、三次上游重试、模型默认值、SSE 头/事件/meta/DONE、20 字回退分块、流超时取消、客户端 close 中断和头前/头后错误响应；数据库、TwinEngine、工具实现及路由不变。
+- 验证：Twin Chat 专项契约覆盖未授权、坏 JSON、空消息、缺配置、会话/历史/语义降级、ReAct 注入、非流式回退、真实 SSE chunk/坏行解析、客户端中断与两类错误边界；完整质量门禁覆盖 131 个 Node 脚本、14 个锁定 CI 包、41 条路由及既有契约、1077 个文本秘密扫描、5 个变更代码文件 lint、23 个 Shell 与生产 Compose，完整离线单元套件通过。未执行远程测试。
 
 ## 已知非阻断风险
 
@@ -138,8 +139,8 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/123 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- `realtime/index.js` 仍有 6,956 行且保留 health、AI 上游、Flash WebSocket/领域实现、Twin Chat 及大量 WebSocket 逻辑；当前边界只是首批切片，不能把本切片误判为 G3 完成。
+- `realtime/index.js` 仍有 6,719 行且保留 health、AI 写/上游、Flash/WebSocket 与大量领域逻辑；HTTP 处理器边界已明显改善但不能把本切片误判为 G3 完成。
 
 ## 下一候选切片
 
-继续 G3：给 Twin Chat 的 SSE 事件、中断、持久化失败降级和上游流/非流回退建立特征测试，再将其迁入独立工厂；保持 Manifest、端口、鉴权、响应、数据库和 WebSocket 行为不变。
+继续 G3：盘点 AI Chat/Translate/OCR/Map 四条写处理器依赖，以 Translate/Map 的较小适配器为下一候选；随后建立 WebSocket 消息类型 Manifest，开始拆分传输层。继续保持路由、鉴权、响应、数据库和协议行为不变。

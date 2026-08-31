@@ -12,8 +12,6 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { AgentConversation, FileWatcher } = require('./agent-core');
 const { WorkflowEngine } = require('./workflow-engine');
-const { TwinEngine } = require('./twin-engine');
-const { createTwinTools, buildTwinSystemPrompt, createPersistence } = require('./twin-tools');
 const { createDocumentIntakeHandlers } = require('./document-intake');
 const { createDocumentParseWorker } = require('./document-parser');
 const { createDocumentPlanWorker } = require('./document-planner');
@@ -23,6 +21,7 @@ const { createHttpRequestHandler } = require('./http-router');
 const { createTwinResourceHttpHandlers } = require('./twin-resource-http');
 const { createAiHttpHandlers } = require('./ai-http');
 const { createFlashHttpHandlers } = require('./flash-http');
+const { createTwinChatHttpHandler } = require('./twin-chat-http');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -5239,260 +5238,24 @@ const bindPgQueryForUser = (user) => {
   return (options) => callPostgrestWithUser(user, options);
 };
 
-/**
- * POST /twin/chat — 数字分身对话（SSE 流式）
- *
- * Body: {
- *   message: string,           // 用户消息
- *   session_id?: string,       // 可选，复用已有会话
- *   history?: [{role,content}] // 可选，前端传入的历史消息（若无 session_id）
- * }
- */
-const handleTwinChat = async (req, res) => {
-  const user = authorizeTwinRequest(req, res);
-  if (!user) return;
-
-  let body = {};
-  try {
-    body = await readJsonBody(req);
-  } catch (error) {
-    sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
-    return;
-  }
-
-  const userMessage = normalizeAiText(body?.message || body?.content || '');
-  if (!userMessage) {
-    sendJson(res, 400, { code: 'MESSAGE_REQUIRED', message: 'message is required' });
-    return;
-  }
-
-  try {
-    const cfg = await getAiConfig();
-    if (!cfg?.api_url || !cfg?.api_key) {
-      sendJson(res, 503, { code: 'AI_CONFIG_MISSING', message: 'AI configuration not available' });
-      return;
-    }
-
-    const pgQuery = bindPgQueryForUser(user);
-    const persistence = createPersistence(pgQuery, user.username);
-
-    // 会话管理：复用或创建
-    let sessionId = body.session_id || null;
-    if (!sessionId) {
-      try {
-        sessionId = await persistence.createSession(
-          userMessage.slice(0, 30) + (userMessage.length > 30 ? '...' : '')
-        );
-      } catch (e) {
-        console.warn('[twin-chat] create session failed:', e?.message);
-      }
-    }
-
-    // 加载历史（从数据库或前端传入）
-    let history = [];
-    if (sessionId) {
-      try {
-        history = await persistence.loadHistory(sessionId, 12);
-      } catch (e) {
-        console.warn('[twin-chat] load history failed:', e?.message);
-      }
-    }
-    if (!history.length && Array.isArray(body.history)) {
-      history = body.history
-        .filter(m => m && (m.role === 'user' || m.role === 'assistant') && m.content)
-        .slice(-12)
-        .map(m => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
-    }
-
-    // 语义上下文
-    let semanticCtx = null;
-    try {
-      semanticCtx = await fetchSemanticContext(user);
-    } catch (e) {
-      console.warn('[twin-chat] semantic context failed:', e?.message);
-    }
-
-    // 构建工具集 & 系统提示
-    const tools = createTwinTools(pgQuery, user);
-    const systemPrompt = buildTwinSystemPrompt(user, semanticCtx);
-
-    // 构建 AI 调用器（非流式，用于 ReAct 中间推理 / 工具选择）
-    const aiCaller = async ({ model, messages, stream }) => {
-      const payload = {
-        model: model || cfg.model || 'glm-4.6v',
-        stream: false,
-        thinking: { type: 'disabled' },
-        messages
-      };
-      const result = await callAiUpstreamWithRetry(
-        payload,
-        { forceStream: false, cfg },
-        { maxRetries: 3, baseDelayMs: 320 }
-      );
-      if (!result.ok) {
-        throw new Error(result.payload?.message || 'AI upstream failed');
-      }
-      return result.data;
-    };
-
-    // SSE 事件推送
-    setCorsHeaders(res);
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Accel-Buffering': 'no',
-      'X-Eis-Agent': 'digital_twin',
-      'X-Eis-Session': sessionId || ''
-    });
-    if (typeof res.flushHeaders === 'function') res.flushHeaders();
-
-    const sendSseEvent = (eventType, data) => {
-      if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ type: eventType, ...data })}\n\n`);
-      }
-    };
-
-    // 目标断开则提前结束
-    let aborted = false;
-    req.on('close', () => { aborted = true; });
-
-    // 流式 AI 调用器 — 用于最终回答的实时 token 推送
-    const streamingAiCaller = async ({ model, messages }) => {
-      const payload = {
-        model: model || cfg.model || 'glm-4.6v',
-        stream: true,
-        thinking: { type: 'disabled' },
-        messages
-      };
-      const upstream = await callAiUpstreamWithRetry(
-        payload,
-        { forceStream: true, cfg },
-        { maxRetries: 3, baseDelayMs: 320 }
-      );
-      if (!upstream.ok) {
-        throw new Error(upstream.payload?.message || 'AI upstream failed');
-      }
-
-      // 非流式回退（上游未返回流）
-      if (!upstream.stream) {
-        const text = extractCompletionText(upstream.data || {});
-        // 非流式结果用小分块 + 延迟模拟逐字效果
-        const chunkSize = 20;
-        for (let i = 0; i < text.length; i += chunkSize) {
-          if (aborted) break;
-          writeSsePayload(res, { choices: [{ delta: { content: text.slice(i, i + chunkSize) } }] });
-          await waitMs(25);
-        }
-        return text;
-      }
-
-      // 真正的流式：逐 chunk 透传
-      const upstreamBody = upstream.response.body;
-      if (!upstreamBody || (typeof upstreamBody.getReader !== 'function' && typeof upstreamBody[Symbol.asyncIterator] !== 'function')) {
-        throw new Error('AI upstream stream is unavailable');
-      }
-
-      const decoder = new TextDecoder();
-      let fullText = '';
-      let sseBuffer = '';
-
-      // 安全超时：防止流式响应无限挂起
-      const streamTimeout = setTimeout(() => {
-        console.warn('[twin-stream] stream read timeout, cancelling');
-        try { upstreamBody.destroy?.(); } catch { /* ignore */ }
-        try { upstreamBody.cancel?.(); } catch { /* ignore */ }
-      }, aiUpstreamTimeoutMs || 60000);
-
-      try {
-        for await (const value of iterateAiStreamChunks(upstreamBody)) {
-          if (aborted) break;
-          sseBuffer += decoder.decode(value, { stream: true });
-          const lines = sseBuffer.split('\n');
-          sseBuffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || !trimmed.startsWith('data:')) continue;
-            const jsonStr = trimmed.slice(5).trim();
-            if (!jsonStr || jsonStr === '[DONE]') continue;
-
-            try {
-              const parsed = JSON.parse(jsonStr);
-              const delta = extractStreamDeltaText(parsed);
-              if (delta) {
-                fullText += delta;
-                if (!res.writableEnded) {
-                  writeSsePayload(res, { choices: [{ delta: { content: delta } }] });
-                }
-              }
-            } catch { /* skip unparseable chunk */ }
-          }
-        }
-      } finally {
-        clearTimeout(streamTimeout);
-      }
-
-      return fullText;
-    };
-
-    // ── 启动 ReAct 推理循环 ──
-    const engine = new TwinEngine({
-      aiCaller,
-      streamingAiCaller,
-      tools,
-      systemPrompt,
-      model: cfg.model || 'glm-4.6v',
-      maxTurns: 6,
-      turnDelayMs: 120,
-      onEvent: (event) => {
-        if (aborted) return;
-        sendSseEvent(event.type, event);
-      },
-      persistence
-    });
-
-    console.log('[twin-chat]', JSON.stringify({
-      user: user.username,
-      session: sessionId,
-      msgLen: userMessage.length,
-      tools: Object.keys(tools).length
-    }));
-
-    const result = await engine.run(userMessage, history, { sessionId });
-
-    // 发送最终回答：如果流式已在 engine 内完成，跳过；否则回退到分块发送
-    if (!aborted && !res.writableEnded) {
-      if (!result.streamed) {
-        // 非流式回退：小分块 + 延迟模拟逐字效果
-        const answer = result.answer || '';
-        const chunkSize = 20;
-        for (let i = 0; i < answer.length; i += chunkSize) {
-          if (aborted) break;
-          const chunk = answer.slice(i, i + chunkSize);
-          writeSsePayload(res, { choices: [{ delta: { content: chunk } }] });
-          await waitMs(25);
-        }
-      }
-      // 发送元信息
-      sendSseEvent('meta', {
-        session_id: sessionId,
-        turns: result.turns,
-        tool_calls: result.toolLogs.length
-      });
-      writeSseDone(res);
-    }
-
-  } catch (error) {
-    console.error('[twin-chat] error:', error?.message || error);
-    if (!res.headersSent) {
-      sendJson(res, 500, { code: 'TWIN_CHAT_FAILED', message: error?.message || 'Digital twin chat failed' });
-    } else if (!res.writableEnded) {
-      res.write(`data: ${JSON.stringify({ type: 'error', message: error?.message || 'Internal error' })}\n\n`);
-      res.end();
-    }
-  }
-};
+const handleTwinChat = createTwinChatHttpHandler({
+  authorizeTwinRequest,
+  readJsonBody,
+  normalizeAiText,
+  sendJson,
+  getAiConfig,
+  bindPgQueryForUser,
+  fetchSemanticContext,
+  callAiUpstreamWithRetry,
+  setCorsHeaders,
+  extractCompletionText,
+  waitMs,
+  writeSsePayload,
+  iterateAiStreamChunks,
+  extractStreamDeltaText,
+  writeSseDone,
+  aiUpstreamTimeoutMs
+});
 
 const twinResourceHttpHandlers = createTwinResourceHttpHandlers({
   authorizeTwinRequest,

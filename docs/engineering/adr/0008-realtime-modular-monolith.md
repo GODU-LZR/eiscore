@@ -30,4 +30,6 @@
 
 第五个切片把 Flash 工具注册表/HTTP 调用、草稿读写和附件上传迁入 `flash-http.js`。HTTP 工厂注入领域函数与 FlashToolError 状态解析器，保留各自 body 上限和兼容参数；WebSocket 工具调用继续在组合根复用同一 `executeFlashToolCall`，避免单个切片同时改变两种传输协议。
 
+第六个切片在流式特征测试建立后把 Twin Chat 迁入 `twin-chat-http.js`。工厂显式注入会话、语义、上游、SSE 与引擎能力；测试覆盖上游非流回退和真实 SSE chunk 解析、持久化/语义降级、close 中断及发送响应头前后的两类错误，组合根不再持有 Twin HTTP 业务流程。
+
 该切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库、部署拓扑或 WebSocket 时序；可通过回退单提交恢复旧装配。组合根仍包含大量业务处理器，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
