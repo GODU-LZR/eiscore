@@ -390,6 +390,17 @@ import {
   loadFlashConversations,
   saveFlashConversations
 } from '@shared/eis-flash-conversation-cache.mjs'
+import {
+  DEFAULT_FLASH_BUILDER_DRAFT_SOURCE as DEFAULT_FLASH_DRAFT_SOURCE,
+  buildFlashBuilderConfig,
+  buildFlashDraftFromPublishedHtml,
+  buildFlashSourceCodeWithDraft,
+  normalizeFlashConfig as normalizeConfig,
+  normalizeFlashDraftSourceText as normalizeDraftSourceText,
+  normalizeFlashSourceCode as normalizeSourceCode,
+  resolveFlashDraftIsolation,
+  stripFlashSourceMapMarkers as stripSourceMapMarkers
+} from '@/domain/flash-builder-draft-policy'
 
 const route = useRoute()
 const router = useRouter()
@@ -455,24 +466,6 @@ const IDE_AGENT_FULLSCREEN_SELECTORS = [
   'a[title*="最大化"]'
 ]
 const IDE_AGENT_FULLSCREEN_RESTORE_KEYWORDS = ['Restore', '还原']
-const DEFAULT_FLASH_DRAFT_SOURCE = `<template>
-  <div class="flash-draft-page">
-    <section class="hero">
-      <div class="hero-badge">Flash Builder</div>
-      <h1>闪念应用草稿画板</h1>
-      <p>在左侧描述你的需求，智能体会持续生成并优化这里的页面效果。</p>
-    </section>
-  </div>
-</template>
-<style scoped>
-.flash-draft-page { min-height: 100vh; padding: 36px; color: #0f172a; background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%); font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
-.hero { max-width: 860px; margin: 0 auto; padding: 34px 30px; border: 1px solid rgba(148, 163, 184, 0.28); border-radius: 20px; background: rgba(255, 255, 255, 0.78); box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08); }
-.hero-badge { width: fit-content; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #1d4ed8; background: rgba(59, 130, 246, 0.14); border: 1px solid rgba(59, 130, 246, 0.22); }
-.hero h1 { margin: 14px 0 10px; font-size: 38px; line-height: 1.15; }
-.hero p { margin: 0; font-size: 17px; color: #475569; }
-</style>
-`
-
 const appId = computed(() => String(route.params.appId || ''))
 const appData = ref(null)
 const saving = ref(false)
@@ -687,39 +680,6 @@ const readCurrentUser = () => {
   }
 }
 
-const normalizeConfig = (value) => {
-  if (!value) return {}
-  if (typeof value === 'object') return value
-  try {
-    const parsed = JSON.parse(value)
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-const normalizeSourceCode = (value) => {
-  if (!value) return {}
-  if (typeof value === 'object') return value
-  try {
-    const parsed = JSON.parse(value)
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
-const normalizeDraftSourceText = (value) => String(value || '').replace(/\r\n/g, '\n').trim()
-const normalizeAppStatus = (value) => String(value || '').trim().toLowerCase()
-const indentMultiline = (text, spaces = 4) => String(text || '')
-  .split('\n')
-  .map((line) => `${' '.repeat(spaces)}${line}`)
-  .join('\n')
-const stripSourceMapMarkers = (text) => String(text || '')
-  .replace(/\/\/#\s*sourceMappingURL=.*$/gim, '')
-  .replace(/\/\*#\s*sourceMappingURL=[\s\S]*?\*\//gim, '')
-  .trim()
-
 const extractPublishedBodyHtml = (rawHtml) => {
   const source = stripSourceMapMarkers(rawHtml)
   if (!source) return ''
@@ -746,14 +706,7 @@ const extractPublishedBodyHtml = (rawHtml) => {
 }
 
 const buildDraftFromPublishedHtml = (publishedHtml) => {
-  const bodyHtml = extractPublishedBodyHtml(publishedHtml)
-  if (!bodyHtml) return ''
-  return `<template>
-  <div class="flash-legacy-draft">
-${indentMultiline(bodyHtml, 4)}
-  </div>
-</template>
-`
+  return buildFlashDraftFromPublishedHtml(publishedHtml, { extractBody: extractPublishedBodyHtml })
 }
 
 const getAgentHeaders = (token) => ({
@@ -837,20 +790,12 @@ const writeRemoteDraftSource = async (content, reason = '') => {
 }
 
 const buildNextSourceCodeWithDraft = (baseSourceCode, draftSource, extraFlash = {}) => {
-  const source = normalizeSourceCode(baseSourceCode)
-  const flash = source?.flash && typeof source.flash === 'object' ? source.flash : {}
-  const now = new Date().toISOString()
-  return {
-    ...source,
-    flash: {
-      ...flash,
-      draft_file: DRAFT_FILE_PATH,
-      draft_source: String(draftSource || ''),
-      draft_updated_at: now,
-      mode: flashMode.value,
-      ...extraFlash
-    }
-  }
+  return buildFlashSourceCodeWithDraft(baseSourceCode, draftSource, {
+    draftFile: DRAFT_FILE_PATH,
+    mode: flashMode.value,
+    updatedAt: new Date().toISOString(),
+    extraFlash
+  })
 }
 
 const persistDraftSourceToApp = async (draftSource, baseRow = null) => {
@@ -886,24 +831,11 @@ const syncDraftFromRuntimeToApp = async () => {
 const applyDraftIsolationForApp = async (row) => {
   if (!appId.value) return
   previewBootstrapped.value = false
-  const sourceCode = normalizeSourceCode(row?.source_code)
-  const flashSource = sourceCode?.flash && typeof sourceCode.flash === 'object' ? sourceCode.flash : {}
-  const savedDraft = normalizeDraftSourceText(flashSource?.draft_source)
-  const publishedDraft = normalizeDraftSourceText(flashSource?.published_draft_source)
-  const legacyPublishedDraft = normalizeDraftSourceText(buildDraftFromPublishedHtml(flashSource?.published_html))
-  const isDraftApp = normalizeAppStatus(row?.status) === 'draft'
-  const fallbackDraft = normalizeDraftSourceText(DEFAULT_FLASH_DRAFT_SOURCE)
-  const targetDraft = savedDraft || publishedDraft || legacyPublishedDraft || fallbackDraft
+  const { savedDraft, targetDraft, reason } = resolveFlashDraftIsolation(row, {
+    defaultDraft: DEFAULT_FLASH_DRAFT_SOURCE,
+    buildLegacyDraft: buildDraftFromPublishedHtml
+  })
   if (!targetDraft) return
-
-  let reason = 'init_new_app_draft'
-  if (savedDraft) {
-    reason = 'restore_app_draft'
-  } else if (publishedDraft) {
-    reason = 'restore_published_draft'
-  } else if (legacyPublishedDraft) {
-    reason = isDraftApp ? 'restore_draft_seed' : 'restore_legacy_published_snapshot'
-  }
 
   let remoteDraft = ''
   try {
@@ -923,19 +855,15 @@ const applyDraftIsolationForApp = async (row) => {
 }
 
 const buildFlashConfig = (baseConfig = {}) => {
-  const flashConfig = {
-    ...(baseConfig.flash || {}),
-    mode: codeServerEnabled ? flashMode.value : FLASH_MODES.LEGACY,
+  return buildFlashBuilderConfig(baseConfig, {
+    codeServerEnabled,
+    mode: flashMode.value,
+    legacyMode: FLASH_MODES.LEGACY,
     draftRoot: DRAFT_ROOT_PATH,
     draftFile: DRAFT_FILE_PATH,
     previewRoute: PREVIEW_ROUTE,
-    featureFlag: 'flash_builder_v2',
     updatedAt: new Date().toISOString()
-  }
-  return {
-    ...baseConfig,
-    flash: flashConfig
-  }
+  })
 }
 
 const writeAuditLog = async (taskId, status, input = {}, output = {}) => {

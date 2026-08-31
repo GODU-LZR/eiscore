@@ -167,14 +167,15 @@
 | `f3f62ca` | 抽离 AiCopilot 模板库策略 | 布局统计、Key/Scope、记录生成与同范围替换进入纯领域模块 |
 | `45d53ec` | 抽离 AiCopilot 报告策略 | 章节识别、下载可见性、前导清理与打印文档进入纯领域模块 |
 | `c4c6751` | 抽离 AiCopilot 图表配置策略 | 宽松 JSON、平衡截取、布局/Series 规范化与隐藏图判断进入纯领域模块 |
-| 本文件所在提交 | 完成 AiCopilot 纯策略阶段退出审计 | 锁定 3,522 行、7 个纯策略模块、77 个导出及组合副作用上限 |
+| `5929c44` | 完成 AiCopilot 纯策略阶段退出审计 | 锁定 3,522 行、7 个纯策略模块、77 个导出及组合副作用上限 |
+| 本文件所在提交 | 抽离 FlashBuilder 草稿来源策略 | 默认草稿、源码规范化、快照回填、隔离优先级与配置合并进入纯领域模块 |
 
 ## 当前切片
 
-- 状态：G3 进行中；AiCopilot 纯策略子目标完成并退出，下一步转向 FlashBuilder。
-- 结果：新增 `ai-copilot-composition-exit-regression.mjs` 与 `G3_AI_COPILOT_EXIT_AUDIT.md`，持续锁定 3,522 行页面、509/1,765/1,245 行 SFC 分区、7 个纯策略模块/77 个导出、8 个宿主 HTTP、24 个消息/确认、2 个 Router、6 个 Watch、94 个 Callable 及各 1 个 Mounted/Updated/BeforeUnmount。页面累计减少 871 行（19.8%），本切片不改产品代码。
-- 兼容边界：AI Bridge、宿主客户端、Markdown/Sanitizer、Mermaid/ECharts、DOM/剪贴板/打印、CustomEvent、Router、消息和生命周期继续作为组合边界；直接 Fetch、Axios、Storage、原生流传输、XHR 与 `window.location` 导航失败关闭。
-- 验证：组合专项、完整质量门禁与离线单元套件通过，覆盖 174 个 Node 文件语法、14 个锁定 CI 包、1,164 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查；基座生产构建成功并转换 5,886 个模块；没有调用 AI、数据库、PostgREST、Workflow 服务或远程环境。
+- 状态：G3 进行中；FlashBuilder 首个渐进拆分切片完成，下一步审计 Shell 会话与附件纯策略。
+- 结果：新增无 Vue、Element Plus、Axios、浏览器、Storage 或隐式时间依赖的 `flash-builder-draft-policy.js`，迁出默认草稿、Config/Source Code 规范化、换行/状态/Source Map 清理、发布 HTML 草稿包装、时间/模式注入的 `source_code.flash` 合并、草稿隔离优先级/原因和 Flash 配置生成。`FlashBuilder.vue` 从 4,264 降至 4,192 行，巨页债务从 88,156 降至 88,084 行并收紧棘轮。
+- 兼容边界：对象/JSON/无效输入、CRLF、发布 Body/Sourcemap、默认草稿、Saved/Published/Legacy/Fallback 优先级、Draft/Published 恢复原因、`extraFlash` 最后覆盖、Code Server 禁用回退 Legacy、路径、Feature Flag 与更新时间均保持；页面继续拥有 DOMParser、当前模式/时钟、远程草稿/App 写入、预览启动和错误降级。
+- 验证：专项覆盖默认草稿、对象/JSON/无效配置、换行/状态/缩进/Source Map、发布草稿包装、输入不变的 Flash 合并、五种隔离分支、配置模式与页面委托门禁；完整质量门禁与离线单元套件通过，覆盖 175 个 Node 文件语法、14 个锁定 CI 包、1,166 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,323 个模块；没有调用 Cline/Agent、数据库、草稿工具或远程环境。
 
 ## 已知非阻断风险
 
@@ -189,9 +190,9 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/120 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- 巨型 Vue 库存仍有 52 个文件、88,156 行，其中 11 个超过 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
+- 巨型 Vue 库存仍有 52 个文件、88,084 行，其中 11 个超过 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
 - 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器虽已有离线契约，仍需在获授权的隔离环境完成真实备份、迁移、postcheck 与恢复演练后才能成为上线证据。
 
 ## 下一候选切片
 
-继续 G3：审计 4,264 行 `eiscore-apps/src/views/FlashBuilder.vue` 的会话、草稿、附件、预览和 Cline/Agent 编排职责，先建立行为特征测试，再选择首个无视觉变化的纯策略边界。
+继续 G3：审计 4,192 行 `eiscore-apps/src/views/FlashBuilder.vue` 的 Shell 会话标题、消息/工具调用、附件规范化与历史裁剪逻辑；保持 Storage、远程同步、WebSocket 和 UI 状态顺序不变。
