@@ -28,6 +28,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+// Shared by all EIS Data Grid v2 consumers.
+
 import { computed, ref, onMounted } from 'vue'
 import { ElIcon, ElTooltip } from 'element-plus'
 import { SortUp, SortDown, Lock, Unlock, Filter, Sort } from '@element-plus/icons-vue'

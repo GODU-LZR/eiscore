@@ -67,6 +67,8 @@ AI Copilot 全屏与基座按用户主题已进入同一个具名类型化安全
 
 Grid 单一来源迁移已从逐字节一致的 Selection composable 开始。8 个入口共同导入 `shared/eis-data-grid-v2/composables/useGridSelection.js`，原函数签名、范围状态、拖拽自动滚动、行列选择和刷新计数契约保持；8 份本地文件删除后，Grid 本地/共享文件库存由 186/0 变为 178/1。入口与 Core 的真实应用差异仍待显式参数化，G2 尚未关闭。边界决策见 ADR-0007。
 
+5 组逐字节一致的 Grid 基础编辑器/渲染器随后迁入共享根，8 个 Core 共同消费 CheckEditor、FileRenderer、LockHeader、SelectEditor 和 StatusEditor。统一 Vite dedupe 契约把 Vue、Element Plus、图标与 AG Grid 解析到各微应用单例，避免共享 SFC 跨根解析失败或重复运行时；本地/共享文件库存进一步变为 138/6，差异组件未被覆盖。
+
 会话契约已接入首批真实失效链：基座全局 API 401、移动路由守卫和仓库/库存/考勤/盘点 API 均通过适配器清理会话。原 `/login`、`/mobile/login`、移动重定向参数、401 用户错误及宽松 JWT 路由兼容保持，移动端这些链路不再直接操作 Storage 或 Base64；剩余直接会话操作已量化为基座 9 个文件、30 处。
 
 基座用户 Store 已通过平台会话完成初始化、登录持久化和退出清理。平台显式区分桌面 `plain` 与移动 `json` Token 写入格式，因此结构收敛没有改变既有部署中的存储表示；历史两种格式仍可互读。剩余直接会话操作进一步降为基座 8 个文件、24 处。
@@ -282,6 +284,8 @@ FlashBuilder 会话缓存切片通过完整质量门禁：121 个 Node 脚本语
 间接 Storage 迁移切片通过完整质量门禁：124 个 Node 脚本语法、14 个锁定 CI 包、12 个安全 Storage 族、原生 11/11 安全边界与间接 0 库存、主题/基座会话及既有平台契约、1209 个文本文件秘密扫描、9 个变更代码文件 lint、23 个基础设施检查；基座生产构建成功并转换 5879 个模块。未执行远程测试。
 
 Grid Selection 单一来源切片通过完整质量门禁：125 个 Node 脚本语法、14 个锁定 CI 包、8 个消费者、Grid 本地/共享 178/1 库存及既有平台契约、1204 个文本文件秘密扫描、17 个变更代码文件 lint、23 个基础设施检查；全部 11 个前端生产构建成功并分别转换 base 5879、apps 2317、hr 1614、materials 1796、sales 1626、purchase 1634、production 1626、quality 1774、equipment 1774、decision 1634、mobile 1474 个模块。未执行远程测试。
+
+Grid 基础编辑器/渲染器单一来源切片通过完整质量门禁：126 个 Node 脚本语法、14 个锁定 CI 包、6 个共享 Grid 模块、138/6 库存、Vite 单例依赖契约及既有平台契约、1170 个文本文件秘密扫描、33 个变更代码文件 lint、23 个基础设施检查；8 个受影响前端生产构建成功并分别转换 apps 2317、equipment 1774、hr 1614、materials 1796、production 1626、purchase 1634、quality 1774、sales 1626 个模块。未执行远程测试。
 
 ## 5. 升级、回退与运行治理
 

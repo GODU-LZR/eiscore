@@ -18,6 +18,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+// Shared by all EIS Data Grid v2 consumers.
+
 import { ref, onMounted } from 'vue'
 import { ElIcon } from 'element-plus'
 import { Lock, CirclePlus, CircleCheck } from '@element-plus/icons-vue'

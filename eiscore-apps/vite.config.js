@@ -6,6 +6,7 @@ import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import qiankun from 'vite-plugin-qiankun'
 import { createBuildOptions } from '../scripts/vite-build-config.mjs'
+import { sharedFrontendDedupe } from '../scripts/vite-shared-source-config.mjs'
 
 const useDevMode = true
 const enablePollingWatch = String(process.env.VITE_FLASH_WATCH_POLLING || 'true').toLowerCase() !== 'false'
@@ -27,8 +28,9 @@ const redirectRootPlugin = () => ({
 
 export default defineConfig({
   base: '/apps/',
-  resolve: {
-    alias: {
+    resolve: {
+      dedupe: sharedFrontendDedupe,
+      alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@shared': fileURLToPath(new URL('../shared', import.meta.url))
     }
