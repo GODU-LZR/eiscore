@@ -280,3 +280,213 @@ export const parseSchemaTable = (value) => {
   }
   return { schema: 'public', table: raw }
 }
+
+export const resolveTaskAutoRule = (autoAdvanceRules, taskId) => {
+  const key = String(taskId || '').trim()
+  if (!key) return { enabled: true, triggerState: '' }
+  const ruleRaw = autoAdvanceRules?.[key]
+  if (!ruleRaw || typeof ruleRaw !== 'object') {
+    return { enabled: true, triggerState: '' }
+  }
+  return {
+    enabled: ruleRaw.enabled !== false,
+    triggerState: normalizeStateValue(ruleRaw.trigger_state)
+  }
+}
+
+export const resolveExpectedStateForRow = ({ row, mapping, autoAdvanceRules }) => {
+  const taskId = String(row?.current_task_id || '').trim()
+  const rule = resolveTaskAutoRule(autoAdvanceRules, taskId)
+  const fromRule = normalizeStateValue(rule?.triggerState)
+  if (fromRule) return fromRule
+  return normalizeStateValue(mapping?.state_value)
+}
+
+export const extractBusinessDocNo = (rowData) => {
+  if (!rowData || typeof rowData !== 'object') return ''
+  const candidates = [
+    rowData.business_doc_no,
+    rowData.doc_no,
+    rowData.bill_no,
+    rowData.order_no,
+    rowData.transaction_no,
+    rowData.business_key,
+    rowData.code,
+    rowData.id
+  ]
+  for (const item of candidates) {
+    const text = String(item || '').trim()
+    if (text) return text
+  }
+  const props = rowData.properties && typeof rowData.properties === 'object' ? rowData.properties : {}
+  const fromProps = String(props.workflow_business_key || '').trim()
+  if (fromProps) return fromProps
+  return ''
+}
+
+export const isInventoryDraftTable = (schema, table) => schema === 'scm' && table === 'inventory_drafts'
+
+const parseIsoTime = (value) => {
+  const text = String(value || '').trim()
+  if (!text) return 0
+  const ts = Date.parse(text)
+  return Number.isFinite(ts) ? ts : 0
+}
+
+export const isAutoAdvanceSatisfied = ({
+  row,
+  mapping,
+  taskRule,
+  observedState,
+  businessRow
+}) => {
+  const explicitTrigger = normalizeStateValue(taskRule?.triggerState)
+  const mappedExpected = normalizeStateValue(mapping?.state_value)
+  const expectedState = explicitTrigger || mappedExpected
+  if (!expectedState) return false
+  if (!isStateReached(observedState, expectedState)) return false
+  if (explicitTrigger) return true
+
+  const businessUpdatedAt = parseIsoTime(businessRow?.updated_at || businessRow?.created_at)
+  const instanceEnteredAt = parseIsoTime(row?.updated_at || row?.created_at)
+  if (businessUpdatedAt > 0 && instanceEnteredAt > 0 && businessUpdatedAt < instanceEnteredAt) {
+    return false
+  }
+  return true
+}
+
+const parseJsonObject = (value) => {
+  if (!value) return null
+  if (typeof value === 'object') return value
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export const resolveBoundStateTarget = ({ binding, businessApps = [] }) => {
+  const normalizedBinding = String(binding || '').trim()
+  if (normalizedBinding.startsWith('legacy:')) {
+    const legacy = LEGACY_BINDING_STATE_TARGET_MAP[normalizedBinding]
+    if (legacy?.target_table) {
+      return {
+        target_table: String(legacy.target_table),
+        state_field: String(legacy.state_field || 'status')
+      }
+    }
+  }
+  if (normalizedBinding.startsWith('table:')) {
+    const table = String(normalizedBinding.slice('table:'.length) || '').trim()
+    if (table) return { target_table: table, state_field: 'status' }
+  }
+  if (normalizedBinding) {
+    const target = businessApps.find((item) => String(item?.id || '') === normalizedBinding)
+    const cfg = parseJsonObject(target?.config) || {}
+    const table = String(cfg.table || '').trim()
+    if (table) return { target_table: table, state_field: 'status' }
+  }
+  return { target_table: '', state_field: '' }
+}
+
+export const mergeCurrentTaskMapping = ({ taskId, stateMappings = [], binding, businessApps = [] }) => {
+  const key = String(taskId || '').trim()
+  if (!key) return null
+  const base = stateMappings.find((item) => String(item?.bpmn_task_id || '').trim() === key) || null
+  const bound = resolveBoundStateTarget({ binding, businessApps })
+  if (base) {
+    return {
+      ...base,
+      target_table: String(base?.target_table || bound.target_table || '').trim(),
+      state_field: String(base?.state_field || bound.state_field || 'status').trim()
+    }
+  }
+  if (!bound.target_table) return null
+  return {
+    bpmn_task_id: key,
+    target_table: bound.target_table,
+    state_field: bound.state_field || 'status',
+    state_value: ''
+  }
+}
+
+export const resolveTargetBusinessAppId = ({
+  taskId,
+  binding,
+  stateMappings = [],
+  businessApps = []
+}) => {
+  const normalizedBinding = String(binding || '').trim()
+  if (normalizedBinding) {
+    if (normalizedBinding.startsWith('legacy:')) return normalizedBinding
+    if (normalizedBinding.startsWith('table:')) {
+      const table = String(normalizedBinding.slice('table:'.length) || '').trim()
+      if (!table) return ''
+      const legacyBinding = LEGACY_TABLE_BINDING_MAP[table]
+      if (legacyBinding) return legacyBinding
+      const matchedByTable = businessApps.find((item) => {
+        const cfg = parseJsonObject(item?.config) || {}
+        return String(cfg.table || '').trim() === table
+      })
+      return matchedByTable?.id ? String(matchedByTable.id) : ''
+    }
+    return normalizedBinding
+  }
+  const mapping = mergeCurrentTaskMapping({ taskId, stateMappings, binding: normalizedBinding, businessApps })
+  const targetTable = String(mapping?.target_table || '').trim()
+  if (!targetTable) return ''
+  const legacyBinding = LEGACY_TABLE_BINDING_MAP[targetTable]
+  if (legacyBinding) return legacyBinding
+  const matched = businessApps.find((item) => {
+    const cfg = parseJsonObject(item?.config) || {}
+    return String(cfg.table || '').trim() === targetTable
+  })
+  return matched?.id ? String(matched.id) : ''
+}
+
+export const chooseNextTaskByStateLevel = ({
+  currentTaskId,
+  targetLevel,
+  options = [],
+  stateMappings = []
+}) => {
+  const currentTask = String(currentTaskId || '').trim()
+  if (!currentTask || targetLevel < 0) return ''
+  const normalizedOptions = options.map((item) => String(item || '').trim())
+  if (!normalizedOptions.length) return ''
+  const preferred = stateMappings.find((item) => {
+    const taskId = String(item?.bpmn_task_id || '').trim()
+    if (!taskId || taskId === currentTask) return false
+    if (!normalizedOptions.includes(taskId)) return false
+    return getWorkflowStateLevel(item?.state_value) === targetLevel
+  })
+  if (preferred?.bpmn_task_id) return String(preferred.bpmn_task_id)
+  return normalizedOptions[0]
+}
+
+export const resolveInventoryDraftType = (binding) => {
+  if (binding === 'legacy:mms_inventory_stock_in') return 'in'
+  if (binding === 'legacy:mms_inventory_stock_out') return 'out'
+  return ''
+}
+
+export const buildBusinessRecordQueryPlan = ({ businessKey, instanceId, inventoryDrafts = false }) => {
+  const normalizedBusinessKey = String(businessKey || '').trim()
+  const normalizedInstanceId = String(instanceId || '').trim()
+  const queries = []
+  if (normalizedBusinessKey) {
+    if (!inventoryDrafts) {
+      queries.push(`id=eq.${encodeURIComponent(normalizedBusinessKey)}`)
+      queries.push(`business_key=eq.${encodeURIComponent(normalizedBusinessKey)}`)
+    }
+    queries.push(`${encodeURIComponent('properties->>workflow_business_key')}=eq.${encodeURIComponent(normalizedBusinessKey)}`)
+  }
+  if (normalizedInstanceId) {
+    queries.push(`${encodeURIComponent('properties->>workflow_instance_id')}=eq.${encodeURIComponent(normalizedInstanceId)}`)
+    if (!inventoryDrafts) {
+      queries.push(`workflow_instance_id=eq.${encodeURIComponent(normalizedInstanceId)}`)
+    }
+  }
+  return queries
+}

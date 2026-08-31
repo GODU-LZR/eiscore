@@ -9,11 +9,14 @@ import {
   LEGACY_BINDING_STATE_TARGET_MAP,
   LEGACY_TABLE_BINDING_MAP,
   WORKFLOW_STATUS_ORDER,
+  buildBusinessRecordQueryPlan,
   buildCorePermissionEntries,
   buildGeneratedTransitionRule,
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
+  chooseNextTaskByStateLevel,
   collectRequiredPermissionEntries,
+  extractBusinessDocNo,
   formatApprovalMode,
   formatPolicyBool,
   formatTransitionStatePair,
@@ -22,13 +25,21 @@ import {
   getWorkflowStateLevel,
   getWorkflowStateTagType,
   getWorkflowTransitionRuleKey,
+  isAutoAdvanceSatisfied,
+  isInventoryDraftTable,
   isStateReached,
+  mergeCurrentTaskMapping,
   normalizeApprovalMode,
   normalizePolicyBool,
   normalizeRequiredApprovals,
   normalizeStateValue,
   normalizeStatusTokenForPermission,
   parseSchemaTable,
+  resolveBoundStateTarget,
+  resolveExpectedStateForRow,
+  resolveInventoryDraftType,
+  resolveTargetBusinessAppId,
+  resolveTaskAutoRule,
   resolveWorkflowPermissionDefMeta
 } from '../../eiscore-apps/src/domain/app-runtime-workflow-policy.mjs'
 
@@ -168,6 +179,152 @@ assert.deepEqual(parseSchemaTable(''), { schema: '', table: '' })
 assert.deepEqual(parseSchemaTable('orders'), { schema: 'public', table: 'orders' })
 assert.deepEqual(parseSchemaTable(' scm.inventory_drafts.extra '), { schema: 'scm', table: 'inventory_drafts' })
 
+const autoRules = {
+  Task_A: { enabled: false, trigger_state: ' enabled ' },
+  Task_B: 'invalid'
+}
+assert.deepEqual(resolveTaskAutoRule(autoRules, ' Task_A '), { enabled: false, triggerState: 'active' })
+assert.deepEqual(resolveTaskAutoRule(autoRules, 'Task_B'), { enabled: true, triggerState: '' })
+assert.deepEqual(resolveTaskAutoRule(autoRules, ''), { enabled: true, triggerState: '' })
+assert.equal(resolveExpectedStateForRow({
+  row: { current_task_id: 'Task_A' },
+  mapping: { state_value: 'locked' },
+  autoAdvanceRules: autoRules
+}), 'active')
+assert.equal(resolveExpectedStateForRow({
+  row: { current_task_id: 'Task_B' },
+  mapping: { state_value: '禁用' },
+  autoAdvanceRules: autoRules
+}), 'locked')
+
+assert.equal(extractBusinessDocNo({ business_doc_no: ' DOC-1 ', doc_no: 'DOC-2' }), 'DOC-1')
+assert.equal(extractBusinessDocNo({ order_no: '', properties: { workflow_business_key: ' PROP-1 ' } }), 'PROP-1')
+assert.equal(extractBusinessDocNo({ id: 42 }), '42')
+assert.equal(extractBusinessDocNo(null), '')
+assert.equal(isInventoryDraftTable('scm', 'inventory_drafts'), true)
+assert.equal(isInventoryDraftTable('public', 'inventory_drafts'), false)
+
+const olderBusinessRow = { updated_at: '2026-08-01T00:00:00.000Z' }
+const newerInstance = { updated_at: '2026-08-02T00:00:00.000Z' }
+assert.equal(isAutoAdvanceSatisfied({
+  row: newerInstance,
+  mapping: { state_value: 'active' },
+  taskRule: { triggerState: '' },
+  observedState: 'locked',
+  businessRow: olderBusinessRow
+}), false)
+assert.equal(isAutoAdvanceSatisfied({
+  row: newerInstance,
+  mapping: { state_value: 'active' },
+  taskRule: { triggerState: 'active' },
+  observedState: 'locked',
+  businessRow: olderBusinessRow
+}), true)
+assert.equal(isAutoAdvanceSatisfied({
+  row: { created_at: 'invalid' },
+  mapping: { state_value: 'active' },
+  taskRule: {},
+  observedState: 'active',
+  businessRow: { created_at: 'invalid' }
+}), true)
+assert.equal(isAutoAdvanceSatisfied({ mapping: {}, taskRule: {}, observedState: 'active' }), false)
+assert.equal(isAutoAdvanceSatisfied({ mapping: { state_value: 'locked' }, taskRule: {}, observedState: 'active' }), false)
+
+const businessApps = [
+  { id: 'app-object', config: { table: 'custom.orders' } },
+  { id: 99, config: JSON.stringify({ table: 'custom.lines' }) },
+  { id: 'bad', config: '{bad' }
+]
+assert.deepEqual(resolveBoundStateTarget({ binding: 'legacy:hr_employee', businessApps }), {
+  target_table: 'hr.archives',
+  state_field: 'status'
+})
+assert.deepEqual(resolveBoundStateTarget({ binding: 'table:custom.orders', businessApps }), {
+  target_table: 'custom.orders',
+  state_field: 'status'
+})
+assert.deepEqual(resolveBoundStateTarget({ binding: '99', businessApps }), {
+  target_table: 'custom.lines',
+  state_field: 'status'
+})
+assert.deepEqual(resolveBoundStateTarget({ binding: 'missing', businessApps }), {
+  target_table: '',
+  state_field: ''
+})
+
+assert.deepEqual(mergeCurrentTaskMapping({
+  taskId: 'Task_A',
+  stateMappings: [{ bpmn_task_id: 'Task_A', target_table: '', state_field: '', state_value: 'active' }],
+  binding: 'legacy:hr_employee',
+  businessApps
+}), {
+  bpmn_task_id: 'Task_A',
+  target_table: 'hr.archives',
+  state_field: 'status',
+  state_value: 'active'
+})
+assert.deepEqual(mergeCurrentTaskMapping({
+  taskId: 'Task_New',
+  stateMappings: [],
+  binding: 'table:custom.orders',
+  businessApps
+}), {
+  bpmn_task_id: 'Task_New',
+  target_table: 'custom.orders',
+  state_field: 'status',
+  state_value: ''
+})
+assert.equal(mergeCurrentTaskMapping({ taskId: '', stateMappings, binding: '' }), null)
+assert.equal(mergeCurrentTaskMapping({ taskId: 'Task_New', stateMappings, binding: '' }), null)
+
+assert.equal(resolveTargetBusinessAppId({ taskId: 'A', binding: 'legacy:hr_employee', businessApps }), 'legacy:hr_employee')
+assert.equal(resolveTargetBusinessAppId({ taskId: 'A', binding: 'table:scm.production_work_orders', businessApps }), 'legacy:production_work_order')
+assert.equal(resolveTargetBusinessAppId({ taskId: 'A', binding: 'table:custom.orders', businessApps }), 'app-object')
+assert.equal(resolveTargetBusinessAppId({ taskId: 'A', binding: '99', businessApps }), '99')
+assert.equal(resolveTargetBusinessAppId({
+  taskId: 'Task_A',
+  binding: '',
+  stateMappings: [{ bpmn_task_id: 'Task_A', target_table: 'custom.lines', state_field: 'status' }],
+  businessApps
+}), '99')
+
+assert.equal(chooseNextTaskByStateLevel({
+  currentTaskId: 'Task_A',
+  targetLevel: 2,
+  options: ['Task_B', 'Task_C'],
+  stateMappings: [
+    { bpmn_task_id: 'Task_B', state_value: 'active' },
+    { bpmn_task_id: 'Task_C', state_value: 'locked' }
+  ]
+}), 'Task_C')
+assert.equal(chooseNextTaskByStateLevel({ currentTaskId: 'Task_A', targetLevel: 2, options: ['Task_B'], stateMappings: [] }), 'Task_B')
+assert.equal(chooseNextTaskByStateLevel({ currentTaskId: '', targetLevel: 2, options: ['Task_B'] }), '')
+assert.equal(chooseNextTaskByStateLevel({ currentTaskId: 'Task_A', targetLevel: -1, options: ['Task_B'] }), '')
+
+assert.equal(resolveInventoryDraftType('legacy:mms_inventory_stock_in'), 'in')
+assert.equal(resolveInventoryDraftType('legacy:mms_inventory_stock_out'), 'out')
+assert.equal(resolveInventoryDraftType('other'), '')
+assert.deepEqual(buildBusinessRecordQueryPlan({
+  businessKey: 'KEY /1',
+  instanceId: '42',
+  inventoryDrafts: false
+}), [
+  'id=eq.KEY%20%2F1',
+  'business_key=eq.KEY%20%2F1',
+  'properties-%3E%3Eworkflow_business_key=eq.KEY%20%2F1',
+  'properties-%3E%3Eworkflow_instance_id=eq.42',
+  'workflow_instance_id=eq.42'
+])
+assert.deepEqual(buildBusinessRecordQueryPlan({
+  businessKey: 'KEY-1',
+  instanceId: '42',
+  inventoryDrafts: true
+}), [
+  'properties-%3E%3Eworkflow_business_key=eq.KEY-1',
+  'properties-%3E%3Eworkflow_instance_id=eq.42'
+])
+assert.deepEqual(buildBusinessRecordQueryPlan({}), [])
+
 assert.equal(LEGACY_BINDING_LABEL_MAP['legacy:mms_inventory_stock_in'], '入库（MMS）')
 assert.equal(LEGACY_TABLE_BINDING_MAP['scm.production_work_orders'], 'legacy:production_work_order')
 assert.deepEqual(LEGACY_BINDING_STATE_TARGET_MAP['legacy:hr_employee'], {
@@ -188,10 +345,13 @@ for (const removedDefinition of [
   'const normalizePolicyBool =',
   'const normalizeStateValue =',
   'const getWorkflowTransitionRuleKey =',
-  'const parseSchemaTable ='
+  'const parseSchemaTable =',
+  'const extractBusinessDocNo =',
+  'const isAutoAdvanceSatisfied =',
+  'const resolveBoundStateTarget ='
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 4450)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 4284)
 
 console.log('PASS: AppRuntime workflow policy preserves states, approvals, permissions, generated rules and legacy bindings')

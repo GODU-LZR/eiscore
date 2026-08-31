@@ -886,13 +886,14 @@ import {
 } from '@/domain/app-runtime-bpmn.mjs'
 import {
   LEGACY_BINDING_LABEL_MAP,
-  LEGACY_BINDING_STATE_TARGET_MAP,
-  LEGACY_TABLE_BINDING_MAP,
   WORKFLOW_STATUS_ORDER,
+  buildBusinessRecordQueryPlan,
   buildGeneratedTransitionRule,
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
+  chooseNextTaskByStateLevel,
   collectRequiredPermissionEntries,
+  extractBusinessDocNo,
   formatApprovalMode,
   formatPolicyBool,
   formatTransitionStatePair,
@@ -901,13 +902,20 @@ import {
   getWorkflowStateLevel,
   getWorkflowStateTagType,
   getWorkflowTransitionRuleKey,
+  isAutoAdvanceSatisfied,
+  isInventoryDraftTable,
   isStateReached,
+  mergeCurrentTaskMapping,
   normalizeApprovalMode,
   normalizePolicyBool,
   normalizeRequiredApprovals,
   normalizeStateValue,
   normalizeStatusTokenForPermission,
-  parseSchemaTable
+  parseSchemaTable,
+  resolveExpectedStateForRow as resolveExpectedState,
+  resolveInventoryDraftType,
+  resolveTargetBusinessAppId,
+  resolveTaskAutoRule
 } from '@/domain/app-runtime-workflow-policy.mjs'
 
 const AppCenterGrid = defineAsyncComponent(() => import('@/components/AppCenterGrid.vue'))
@@ -1528,18 +1536,7 @@ const getWorkflowStateIcon = (value) => {
   return WORKFLOW_STATE_ICON_MAP[normalized] || CirclePlusFilled
 }
 
-const getTaskAutoRule = (taskId) => {
-  const key = String(taskId || '').trim()
-  if (!key) return { enabled: true, triggerState: '' }
-  const ruleRaw = workflowAutoAdvanceRules.value?.[key]
-  if (!ruleRaw || typeof ruleRaw !== 'object') {
-    return { enabled: true, triggerState: '' }
-  }
-  return {
-    enabled: ruleRaw.enabled !== false,
-    triggerState: normalizeStateValue(ruleRaw.trigger_state)
-  }
-}
+const getTaskAutoRule = (taskId) => resolveTaskAutoRule(workflowAutoAdvanceRules.value, taskId)
 
 const getBusinessProgressKey = (row) => String(row?.id || '').trim()
 
@@ -1572,36 +1569,8 @@ const removeBusinessProgressByRows = (rows = []) => {
 }
 
 const resolveExpectedStateForRow = (row, mapping) => {
-  const taskId = String(row?.current_task_id || '').trim()
-  const rule = getTaskAutoRule(taskId)
-  const fromRule = normalizeStateValue(rule?.triggerState)
-  if (fromRule) return fromRule
-  return normalizeStateValue(mapping?.state_value)
+  return resolveExpectedState({ row, mapping, autoAdvanceRules: workflowAutoAdvanceRules.value })
 }
-
-const extractBusinessDocNo = (rowData) => {
-  if (!rowData || typeof rowData !== 'object') return ''
-  const candidates = [
-    rowData.business_doc_no,
-    rowData.doc_no,
-    rowData.bill_no,
-    rowData.order_no,
-    rowData.transaction_no,
-    rowData.business_key,
-    rowData.code,
-    rowData.id
-  ]
-  for (const item of candidates) {
-    const text = String(item || '').trim()
-    if (text) return text
-  }
-  const props = rowData.properties && typeof rowData.properties === 'object' ? rowData.properties : {}
-  const fromProps = String(props.workflow_business_key || '').trim()
-  if (fromProps) return fromProps
-  return ''
-}
-
-const isInventoryDraftTable = (schema, table) => schema === 'scm' && table === 'inventory_drafts'
 
 const fetchBusinessRecordFromRow = async (row, mapping) => {
   const businessKey = String(row?.business_key || '').trim()
@@ -1621,9 +1590,7 @@ const fetchBusinessRecordFromRow = async (row, mapping) => {
   const selectPart = encodeURIComponent('*')
   const isInventoryDrafts = isInventoryDraftTable(schema, table)
   const taskBinding = resolveTaskBusinessBinding(String(row?.current_task_id || '').trim())
-  const draftType = taskBinding === 'legacy:mms_inventory_stock_in'
-    ? 'in'
-    : (taskBinding === 'legacy:mms_inventory_stock_out' ? 'out' : '')
+  const draftType = resolveInventoryDraftType(taskBinding)
 
   const tryQuery = async (query) => {
     const conditions = [query]
@@ -1641,62 +1608,13 @@ const fetchBusinessRecordFromRow = async (row, mapping) => {
     return null
   }
 
-  if (businessKey) {
-    if (!isInventoryDrafts) {
-      const byId = await tryQuery(`id=eq.${encodeURIComponent(businessKey)}`)
-      if (byId) return byId
-      const byBusinessKey = await tryQuery(`business_key=eq.${encodeURIComponent(businessKey)}`)
-      if (byBusinessKey) return byBusinessKey
-    }
-    const propKey = `${encodeURIComponent('properties->>workflow_business_key')}=eq.${encodeURIComponent(businessKey)}`
-    const byPropKey = await tryQuery(propKey)
-    if (byPropKey) return byPropKey
-  }
-
-  if (instanceId) {
-    const propInstance = `${encodeURIComponent('properties->>workflow_instance_id')}=eq.${encodeURIComponent(instanceId)}`
-    const byPropInstance = await tryQuery(propInstance)
-    if (byPropInstance) return byPropInstance
-    if (!isInventoryDrafts) {
-      const byWorkflowInstance = await tryQuery(`workflow_instance_id=eq.${encodeURIComponent(instanceId)}`)
-      if (byWorkflowInstance) return byWorkflowInstance
-    }
+  const queryPlan = buildBusinessRecordQueryPlan({ businessKey, instanceId, inventoryDrafts: isInventoryDrafts })
+  for (const query of queryPlan) {
+    const matched = await tryQuery(query)
+    if (matched) return matched
   }
 
   return null
-}
-
-const parseIsoTime = (value) => {
-  const text = String(value || '').trim()
-  if (!text) return 0
-  const ts = Date.parse(text)
-  return Number.isFinite(ts) ? ts : 0
-}
-
-const isAutoAdvanceSatisfied = ({
-  row,
-  mapping,
-  taskRule,
-  observedState,
-  businessRow
-}) => {
-  const explicitTrigger = normalizeStateValue(taskRule?.triggerState)
-  const mappedExpected = normalizeStateValue(mapping?.state_value)
-  const expectedState = explicitTrigger || mappedExpected
-  if (!expectedState) return false
-  if (!isStateReached(observedState, expectedState)) return false
-  // 显式规则优先：达标即推进
-  if (explicitTrigger) return true
-
-  // 兼容“生效即冻结”：
-  // 当节点映射与上一节点状态可能相同（例如 active -> active）时，
-  // 仅在业务单据更新时间不早于流程进入当前节点时间时，判定为完成。
-  const businessUpdatedAt = parseIsoTime(businessRow?.updated_at || businessRow?.created_at)
-  const instanceEnteredAt = parseIsoTime(row?.updated_at || row?.created_at)
-  if (businessUpdatedAt > 0 && instanceEnteredAt > 0 && businessUpdatedAt < instanceEnteredAt) {
-    return false
-  }
-  return true
 }
 
 const refreshBusinessProgressForInstance = async (row) => {
@@ -1931,97 +1849,31 @@ const generateWorkflowBusinessKey = () => {
 
 const normalizeDraftSourceText = (value) => String(value || '').replace(/\r\n/g, '\n').trim()
 
-const resolveBoundStateTarget = (taskId = '') => {
-  const binding = resolveTaskBusinessBinding(taskId)
-  if (binding.startsWith('legacy:')) {
-    const legacy = LEGACY_BINDING_STATE_TARGET_MAP[binding]
-    if (legacy?.target_table) {
-      return {
-        target_table: String(legacy.target_table),
-        state_field: String(legacy.state_field || 'status')
-      }
-    }
-  }
-  if (binding.startsWith('table:')) {
-    const table = String(binding.slice('table:'.length) || '').trim()
-    if (table) return { target_table: table, state_field: 'status' }
-  }
-  if (binding) {
-    const target = workflowBusinessApps.value.find((item) => String(item?.id || '') === binding)
-    const cfg = parseJsonObject(target?.config) || {}
-    const table = String(cfg.table || '').trim()
-    if (table) return { target_table: table, state_field: 'status' }
-  }
-  return { target_table: '', state_field: '' }
-}
-
 const getCurrentTaskMapping = (taskId) => {
-  const key = String(taskId || '').trim()
-  if (!key) return null
-  const base = stateMappings.value.find((item) => String(item?.bpmn_task_id || '').trim() === key) || null
-  const bound = resolveBoundStateTarget(key)
-  if (base) {
-    return {
-      ...base,
-      target_table: String(base?.target_table || bound.target_table || '').trim(),
-      state_field: String(base?.state_field || bound.state_field || 'status').trim()
-    }
-  }
-  if (!bound.target_table) return null
-  return {
-    bpmn_task_id: key,
-    target_table: bound.target_table,
-    state_field: bound.state_field || 'status',
-    state_value: ''
-  }
+  return mergeCurrentTaskMapping({
+    taskId,
+    stateMappings: stateMappings.value,
+    binding: resolveTaskBusinessBinding(taskId),
+    businessApps: workflowBusinessApps.value
+  })
 }
 
 const getTargetBusinessAppIdForTask = (taskId) => {
-  const taskBinding = resolveTaskBusinessBinding(taskId)
-  if (taskBinding) {
-    if (taskBinding.startsWith('legacy:')) {
-      return taskBinding
-    }
-    if (taskBinding.startsWith('table:')) {
-      const table = String(taskBinding.slice('table:'.length) || '').trim()
-      if (!table) return ''
-      const legacyBinding = LEGACY_TABLE_BINDING_MAP[table]
-      if (legacyBinding) return legacyBinding
-      const matchedByTable = workflowBusinessApps.value.find((item) => {
-        const cfg = parseJsonObject(item?.config) || {}
-        return String(cfg.table || '').trim() === table
-      })
-      return matchedByTable?.id ? String(matchedByTable.id) : ''
-    }
-    return taskBinding
-  }
-  const mapping = getCurrentTaskMapping(taskId)
-  const targetTable = String(mapping?.target_table || '').trim()
-  if (!targetTable) return ''
-  const legacyBinding = LEGACY_TABLE_BINDING_MAP[targetTable]
-  if (legacyBinding) return legacyBinding
-  const matched = workflowBusinessApps.value.find((item) => {
-    const cfg = parseJsonObject(item?.config) || {}
-    const table = String(cfg.table || '').trim()
-    return table === targetTable
+  return resolveTargetBusinessAppId({
+    taskId,
+    binding: resolveTaskBusinessBinding(taskId),
+    stateMappings: stateMappings.value,
+    businessApps: workflowBusinessApps.value
   })
-  return matched?.id ? String(matched.id) : ''
 }
 
 const resolveNextTaskByStateLevel = (row, targetLevel) => {
-  const currentTask = String(row?.current_task_id || '').trim()
-  if (!currentTask || targetLevel < 0) return ''
-  const options = getTransitionOptions(row).map((item) => String(item.value || '').trim())
-  if (!options.length) return ''
-
-  const preferred = stateMappings.value.find((item) => {
-    const taskId = String(item?.bpmn_task_id || '').trim()
-    if (!taskId || taskId === currentTask) return false
-    if (!options.includes(taskId)) return false
-    return getWorkflowStateLevel(item?.state_value) === targetLevel
+  return chooseNextTaskByStateLevel({
+    currentTaskId: row?.current_task_id,
+    targetLevel,
+    options: getTransitionOptions(row).map((item) => item.value),
+    stateMappings: stateMappings.value
   })
-  if (preferred?.bpmn_task_id) return String(preferred.bpmn_task_id)
-  return options[0]
 }
 
 const fetchBusinessStateFromRow = async (row, mapping) => {
@@ -2044,9 +1896,7 @@ const fetchBusinessStateFromRow = async (row, mapping) => {
   }
   const selectPart = encodeURIComponent(fieldName)
   const taskBinding = resolveTaskBusinessBinding(String(row?.current_task_id || '').trim())
-  const draftType = taskBinding === 'legacy:mms_inventory_stock_in'
-    ? 'in'
-    : (taskBinding === 'legacy:mms_inventory_stock_out' ? 'out' : '')
+  const draftType = resolveInventoryDraftType(taskBinding)
 
   const tryFetchState = async (query) => {
     const conditions = [query]
@@ -2069,26 +1919,10 @@ const fetchBusinessStateFromRow = async (row, mapping) => {
     return ''
   }
 
-  if (businessKey) {
-    if (!isInventoryDrafts) {
-      const byId = await tryFetchState(`id=eq.${encodeURIComponent(businessKey)}`)
-      if (byId) return byId
-      const byBusinessKey = await tryFetchState(`business_key=eq.${encodeURIComponent(businessKey)}`)
-      if (byBusinessKey) return byBusinessKey
-    }
-    const keyFilter = `${encodeURIComponent('properties->>workflow_business_key')}=eq.${encodeURIComponent(businessKey)}`
-    const byPropertyKey = await tryFetchState(keyFilter)
-    if (byPropertyKey) return byPropertyKey
-  }
-
-  if (instanceId) {
-    const instanceFilter = `${encodeURIComponent('properties->>workflow_instance_id')}=eq.${encodeURIComponent(instanceId)}`
-    const byPropertyInstance = await tryFetchState(instanceFilter)
-    if (byPropertyInstance) return byPropertyInstance
-    if (!isInventoryDrafts) {
-      const byWorkflowInstance = await tryFetchState(`workflow_instance_id=eq.${encodeURIComponent(instanceId)}`)
-      if (byWorkflowInstance) return byWorkflowInstance
-    }
+  const queryPlan = buildBusinessRecordQueryPlan({ businessKey, instanceId, inventoryDrafts: isInventoryDrafts })
+  for (const query of queryPlan) {
+    const state = await tryFetchState(query)
+    if (state) return state
   }
   return ''
 }
