@@ -592,6 +592,12 @@ import {
   normalizeAiReportInlineText as normalizeInlineText,
   shouldAiShowReportDownload
 } from '@/domain/ai-copilot-report-policy'
+import {
+  isAiOmittedEchartsOption as isOmittedOption,
+  parseAiEchartsOptionSafely as parseEchartsOptionSafely,
+  sanitizeAiJson as sanitizeJson,
+  validateAiEchartsOption as validateEchartsOption
+} from '@/domain/ai-copilot-chart-policy'
 
 const props = defineProps({
   mode: { type: String, default: 'enterprise' },
@@ -991,203 +997,6 @@ const waitTwoFrames = () => new Promise((resolve) => {
 })
 
 const delayMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
-const stripFunctionValueBlocks = (input) => {
-  const text = String(input || '')
-  if (!text.includes(': function')) return text
-  let out = ''
-  let cursor = 0
-  while (cursor < text.length) {
-    const fnToken = text.indexOf(': function', cursor)
-    if (fnToken < 0) {
-      out += text.slice(cursor)
-      break
-    }
-
-    out += text.slice(cursor, fnToken) + ': null'
-    let i = fnToken + 1
-    const keyword = text.indexOf('function', i)
-    if (keyword < 0) {
-      cursor = fnToken + 1
-      continue
-    }
-    i = keyword + 'function'.length
-    while (i < text.length && text[i] !== '{') i += 1
-    if (i >= text.length) {
-      cursor = text.length
-      break
-    }
-
-    let depth = 0
-    let inString = false
-    let escaped = false
-    for (; i < text.length; i += 1) {
-      const ch = text[i]
-      if (inString) {
-        if (escaped) {
-          escaped = false
-        } else if (ch === '\\') {
-          escaped = true
-        } else if (ch === '"') {
-          inString = false
-        }
-        continue
-      }
-      if (ch === '"') {
-        inString = true
-        continue
-      }
-      if (ch === '{') depth += 1
-      if (ch === '}') {
-        depth -= 1
-        if (depth === 0) {
-          i += 1
-          break
-        }
-      }
-    }
-    cursor = i
-  }
-  return out
-}
-
-const sanitizeJson = (jsonStr) => {
-  if (!jsonStr) return ''
-  let cleaned = jsonStr
-  cleaned = cleaned.replace(/^\s*[^=]*=\s*/, '')
-  cleaned = cleaned.replace(/,\s*([\]}])/g, '$1')
-  cleaned = cleaned.replace(/\/\/.*(?=[\n\r])/g, '')
-  cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '')
-  cleaned = cleaned.replace(/\bundefined\b/g, 'null')
-  cleaned = cleaned.replace(/\bNaN\b/g, '0')
-  cleaned = cleaned.replace(/\bInfinity\b/g, '0')
-  cleaned = cleaned.replace(/\b-Infinity\b/g, '0')
-  cleaned = stripFunctionValueBlocks(cleaned)
-  cleaned = cleaned.replace(/'([^']*)'/g, (_, p1) => `"${p1.replace(/"/g, '\\"')}"`)
-  cleaned = cleaned.replace(/([{,]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":')
-  return cleaned.trim()
-}
-
-const extractBalancedJson = (input) => {
-  const text = String(input || '')
-  const start = text.search(/[{[]/)
-  if (start < 0) return ''
-  const open = text[start]
-  const close = open === '{' ? '}' : ']'
-  let depth = 0
-  let inString = false
-  let escaped = false
-
-  for (let i = start; i < text.length; i += 1) {
-    const ch = text[i]
-    if (inString) {
-      if (escaped) {
-        escaped = false
-      } else if (ch === '\\') {
-        escaped = true
-      } else if (ch === '"') {
-        inString = false
-      }
-      continue
-    }
-    if (ch === '"') {
-      inString = true
-      continue
-    }
-    if (ch === open) depth += 1
-    if (ch === close) depth -= 1
-    if (depth === 0) return text.slice(start, i + 1)
-  }
-  return ''
-}
-
-const normalizeGridItem = (grid) => {
-  const base = { left: 56, right: 28, top: 64, bottom: 44, containLabel: true }
-  const next = { ...base, ...(grid && typeof grid === 'object' ? grid : {}) }
-  const widthNum = typeof next.width === 'number' ? next.width : Number.NaN
-  const heightNum = typeof next.height === 'number' ? next.height : Number.NaN
-  const widthPct = typeof next.width === 'string' && next.width.endsWith('%') ? Number.parseFloat(next.width) : Number.NaN
-  const heightPct = typeof next.height === 'string' && next.height.endsWith('%') ? Number.parseFloat(next.height) : Number.NaN
-
-  if ((Number.isFinite(widthNum) && widthNum < 260) || (Number.isFinite(widthPct) && widthPct < 70)) delete next.width
-  if ((Number.isFinite(heightNum) && heightNum < 180) || (Number.isFinite(heightPct) && heightPct < 55)) delete next.height
-  return next
-}
-
-const normalizeEchartsOption = (option) => {
-  if (!option || typeof option !== 'object' || Array.isArray(option)) return null
-  const cloned = JSON.parse(JSON.stringify(option))
-  if (cloned.series && !Array.isArray(cloned.series)) {
-    cloned.series = [cloned.series]
-  }
-  if (!Array.isArray(cloned.series) || cloned.series.length === 0) return null
-  cloned.series = cloned.series
-    .filter(item => item && typeof item === 'object')
-    .map(item => ({
-      type: item.type || 'line',
-      ...item
-    }))
-  if (!cloned.series.length) return null
-  cloned.animation = false
-  if (Array.isArray(cloned.grid)) {
-    cloned.grid = cloned.grid.map(item => normalizeGridItem(item))
-  } else {
-    cloned.grid = normalizeGridItem(cloned.grid)
-  }
-  if (!cloned.tooltip) {
-    cloned.tooltip = { trigger: 'axis' }
-  }
-  return cloned
-}
-
-const parseEchartsOptionSafely = (raw) => {
-  const source = String(raw || '')
-  const primary = sanitizeJson(source)
-  const candidates = []
-
-  const rawTrimmed = source.trim()
-  if (rawTrimmed) candidates.push(rawTrimmed)
-  const rawBalanced = extractBalancedJson(rawTrimmed)
-  if (rawBalanced) candidates.push(rawBalanced)
-  if (primary) {
-    candidates.push(primary)
-    const firstBrace = primary.search(/[{[]/)
-    const lastCurly = primary.lastIndexOf('}')
-    const lastSquare = primary.lastIndexOf(']')
-    const lastBrace = Math.max(lastCurly, lastSquare)
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      candidates.push(primary.slice(firstBrace, lastBrace + 1))
-    }
-    const balanced = extractBalancedJson(primary)
-    if (balanced) candidates.push(balanced)
-  }
-
-  const seen = new Set()
-  for (const candidate of candidates) {
-    if (!candidate) continue
-    const key = candidate.trim()
-    if (!key || seen.has(key)) continue
-    seen.add(key)
-    try {
-      const parsed = JSON.parse(key)
-      const normalized = normalizeEchartsOption(parsed)
-      if (normalized) return normalized
-    } catch {}
-  }
-  return null
-}
-
-const isOmittedOption = (option) => {
-  if (!option || typeof option !== 'object') return false
-  const xAxis = Array.isArray(option.xAxis) ? option.xAxis[0] : option.xAxis
-  const yAxis = Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis
-  const firstSeries = Array.isArray(option.series) ? option.series[0] : null
-  if (!xAxis || !yAxis || !firstSeries) return false
-  const hiddenAxis = xAxis.show === false && yAxis.show === false
-  const hiddenLine = Number(firstSeries?.lineStyle?.opacity) === 0
-  const hiddenPoint = Number(firstSeries?.itemStyle?.opacity) === 0
-  return hiddenAxis && hiddenLine && hiddenPoint
-}
 
 const templateSaveState = ref({})
 const formulaApplyState = ref({})
@@ -1926,13 +1735,6 @@ const copyWorkflowXml = async (xml) => {
   } catch (e) {
     ElMessage.error('复制失败')
   }
-}
-
-const validateEchartsOption = (option) => {
-  if (!option || !option.series || !Array.isArray(option.series) || option.series.length === 0) {
-    return '图表配置缺少必要的 series 数据'
-  }
-  return ''
 }
 
 const shouldShowReportDownload = (msg, index) => shouldAiShowReportDownload(msg, {

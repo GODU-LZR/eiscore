@@ -11,7 +11,7 @@
   "files": {
     "eiscore-apps/src/views/AppRuntime.vue": 3725,
     "eiscore-sales/src/components/SalesAppGrid.vue": 3822,
-    "eiscore-base/src/components/AiCopilot.vue": 3720,
+    "eiscore-base/src/components/AiCopilot.vue": 3522,
     "eiscore-apps/src/views/FlashBuilder.vue": 4264,
     "eiscore-base/src/layout/index.vue": 4003,
     "eiscore-apps/src/views/OntologyWorkbench.vue": 2772,
