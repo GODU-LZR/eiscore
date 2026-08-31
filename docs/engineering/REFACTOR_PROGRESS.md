@@ -129,14 +129,15 @@
 | `86373fa` | 抽离企业 AI 输出守卫 | 路由门控、泄漏改写、前导语清理、ECharts 修复与安全兜底进入注入式服务 |
 | `652ae6c` | 抽离 Flash PostgREST 适配器 | 用户 JWT、Profile、错误映射、动态表补建与 Schema Cache 重试进入注入式边界 |
 | `aca578f` | 抽离 Flash 工具注册表 | 43 项工具、39 个别名、19/24 确认策略与公开 Manifest 进入独立边界 |
-| 本文件所在提交 | 抽离 Flash 工具调用策略 | Envelope、确认门槛、用户级 TTL 幂等、统一响应和审计进入注入式服务 |
+| `3e8baa0` | 抽离 Flash 工具调用策略 | Envelope、确认门槛、用户级 TTL 幂等、统一响应和审计进入注入式服务 |
+| 本文件所在提交 | 抽离 Flash 语义工具执行器 | 43 项具体 PostgREST/草稿/附件业务矩阵进入注入式工厂 |
 
 ## 当前切片
 
-- 状态：G3 进行中；Flash 调用策略已退出组合根，下一阶段整体抽离 43 项具体业务工具执行矩阵。
-- 结果：`flash-tool-service.js` 注入注册表、别名解析、语义工具执行器、日志和时间源，负责兼容 Envelope、Trace/幂等键清洗、19/24 确认策略、写工具幂等键要求、按用户/工具/键隔离的 TTL 缓存、成功/失败统一响应及审计事件。`realtime/index.js` 仅构造服务并向 HTTP/WebSocket 传递同一执行能力，从 4,561 降至 4,377 行，较 G3 起点减少 3,009 行。
-- 兼容边界：保留 `tool_id/toolId`、`trace_id/traceId/trace`、`idempotency_key/idempotencyKey`、session/app/confirm 别名，非低风险工具即使 Manifest 未标记也要求确认，写工具缺确认/幂等键分别返回 403/400；缓存键继续包含用户 ID，回放保持原响应并加 `idempotent_replay`，Typed `FlashToolError` 和普通异常映射、版本/数量、duration/rows/source 及成功/失败审计结构保持。
-- 验证：专项覆盖布尔兼容、自动/清洗 Trace、缺失/未知工具、读工具直通、两类确认门槛、缺幂等键、首次写入、同用户回放、跨用户隔离、TTL 过期、数据深拷贝、Typed/普通错误及审计事件；组合根契约禁止重新内联 10 个策略实现。完整 `test:quality` 与完整离线 `test:unit` 通过，其中语法扫描 145 个 Node 文件、14 个锁定 CI 包、1,104 个文本文件秘密扫描、5 个变更文件 lint 和 23 项基础设施检查均通过，未执行远程测试。
+- 状态：G3 进行中；Flash 的 PostgREST、注册表、调用策略和 43 项具体工具矩阵均已退出组合根，下一阶段治理 Flash Cline 生命周期。
+- 结果：`flash-semantic-executor.js` 接收 PostgREST、动态表、布尔、草稿和附件端口，完整承载应用、路由、动态数据表、Workflow、HR、库存、物料/仓库、本体、草稿/附件、发布及执行审计 43 项业务分支；执行日志规范化、In 查询、分页与 Upsert 助手也随领域迁出。`realtime/index.js` 只注入十个端口并把执行能力交给调用策略，从 4,377 降至 3,289 行，较 G3 起点减少 4,097 行。
+- 兼容边界：43 项执行器集合与注册表集合精确相等；保留逐工具方法、路径、Query、Body、Accept/Content Profile、Prefer、Trace、分页上限、字段别名、正数/必填校验、动态表补建列推断、Workflow/RPC 参数、库存出库字段差异、本体/路由 Upsert、草稿/附件委托、发布元数据剥离及审计位置/状态规范化。
+- 验证：专项锁定 43/43 集合覆盖和唯一性，并模拟验证应用列表、动态表初始化/创建、Workflow 推进、库存出库、本体更新、草稿读写、附件上传、应用发布、路由更新、执行审计、校验与未知工具；组合根禁止重新出现 `case 'flash.*'` 和八个执行助手。完整 `test:quality` 与完整离线 `test:unit` 通过，其中语法扫描 146 个 Node 文件、14 个锁定 CI 包、1,106 个文本文件秘密扫描、5 个变更文件 lint 和 23 项基础设施检查均通过，未执行远程测试或真实 PostgREST。
 
 ## 已知非阻断风险
 
@@ -151,9 +152,9 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/123 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- `realtime/index.js` 仍有 4,377 行且保留 AI Agent 路由/Prompt、Flash 具体工具矩阵/Cline 与 Agent 任务领域实现；已有边界退出不代表 G3 完成。
+- `realtime/index.js` 仍有 3,289 行且保留 AI Agent 路由/Prompt、Flash Cline 与 Agent 任务领域实现；已有边界退出不代表 G3 完成。
 - 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器虽已有离线契约，仍需在获授权的隔离环境完成真实备份、迁移、postcheck 与恢复演练后才能成为上线证据。
 
 ## 下一候选切片
 
-继续 G3：从 `realtime/index.js` 整体抽离 Flash 的 43 项具体业务工具执行矩阵，以注入式契约锁定逐工具 PostgREST 方法、路径、Profile、过滤器、payload、校验与返回结构；保持 HTTP/WebSocket 协议、SQL 和部署行为不变。随后治理 Flash Cline、Agent 路由/Prompt/任务执行，并建立巨型前端页面库存与拆分门禁。
+继续 G3：抽离 Flash Cline 的环境/配置、进程、输出解析、构建校验、自愈、附件 Prompt、会话和取消生命周期，以离线模拟契约锁定命令参数、状态事件、超时和清理；保持 HTTP/WebSocket 协议、SQL 和部署行为不变。随后治理 Agent 路由/Prompt/任务执行，并建立巨型前端页面库存与拆分门禁。

@@ -52,4 +52,6 @@
 
 第十六个切片把 Flash 调用策略迁入 `flash-tool-service.js`。服务注入注册表和具体工具执行器，拥有 Envelope 兼容、Trace/幂等键清洗、确认门槛、按用户隔离的 TTL 缓存、统一响应与审计；HTTP/WebSocket 继续共享同一能力。专项契约锁定读写权限、回放/过期、跨用户隔离及错误结构，具体业务工具矩阵仍待后续整体抽离。
 
+第十七个切片把 43 项 Flash 业务工具矩阵迁入 `flash-semantic-executor.js`。工厂注入 PostgREST、动态表、草稿与附件端口，注册表和执行器集合由契约强制相等；分页、Query/Body/Profile、字段兼容、校验、RPC、Upsert 和执行审计规范化保持。至此 Flash 工具的传输、注册、策略、持久化与业务执行均可分层测试，Cline 生命周期仍待治理。
+
 这些切片不改变端口、路径、HTTP 方法、鉴权规则、响应格式、数据库或部署拓扑；可通过回退各自单提交恢复旧装配。Notifier 抽离保留默认连接参数、LISTEN 频道和通知 payload，同时在重连时显式回收旧 Workflow Engine。组合根仍包含大量 Flash/Agent 及 AI Agent 路由/Prompt 领域实现，这是 G3 后续切片要解决的受控技术债，而不是本 ADR 宣称已经完成的模块化。
