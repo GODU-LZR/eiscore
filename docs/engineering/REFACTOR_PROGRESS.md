@@ -158,14 +158,15 @@
 | `3a4aabb` | 抽离 SalesAppGrid 数据聚合策略 | 客户应收、五类业务统计和 AI 样本裁剪进入纯领域模块 |
 | `7122375` | 抽离 SalesAppGrid 详情投影策略 | 字段/Properties、七类关联区块、业务指标与摘要进入纯领域模块 |
 | `52919e1` | 抽离 SalesAppGrid 单据下推策略 | 单据/关系类型、链路投影、有效性校验及三条下推计划进入纯领域模块 |
-| 本文件所在提交 | 抽离 SalesAppGrid 快速录单策略 | 四类表单、校验、Payload、BOM 降级与客户回写进入纯领域模块 |
+| `74d5075` | 抽离 SalesAppGrid 快速录单策略 | 四类表单、校验、Payload、BOM 降级与客户回写进入纯领域模块 |
+| 本文件所在提交 | 完成 SalesAppGrid 纯策略阶段退出审计 | 锁定 3,822 行、4 个纯策略模块、40 个导出及组合副作用上限 |
 
 ## 当前切片
 
-- 状态：G3 进行中；SalesAppGrid 第四个渐进拆分切片完成，下一步建立阶段退出审计并转向下一高风险巨页。
-- 结果：新增无 Vue/Request/浏览器、时间或随机数依赖的 `sales-grid-quick-entry-policy.js`，迁出订单/回款/商机/跟进四类表单初始化、订单金额、原校验顺序与文案、四类创建 Payload、BOM 兼容降级和跟进后的客户回写。`SalesAppGrid.vue` 从 3,962 降至 3,822 行，巨页债务从 89,167 降至 89,027 行并收紧棘轮。
-- 兼容边界：商机转订单客户/物料/金额映射、四类日期默认值、概率 0 的历史回退、产品/客户/回款/纪要警告顺序、手工客户名 trim、单据号与今日日期由页面注入、订单 BOM 顶层字段及缺列降级、商机赢单回写、跟进后客户状态、校验失败后既有弹窗关闭/刷新行为均保持；页面仍拥有 Reactive Form、Watch、Request、消息和刷新时序。
-- 验证：专项覆盖四类空/来源表单、日期注入、金额计算、全部校验分支、字段回退、四类完整 Payload、商机来源、BOM 顶层/Properties 降级、跟进客户回写及页面委托门禁；完整质量门禁与离线单元套件通过，覆盖 165 个 Node 文件语法、14 个锁定 CI 包、1,146 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查；销售生产构建成功并转换 1,631 个模块；没有连接数据库、PostgREST 或远程环境。
+- 状态：G3 进行中；SalesAppGrid 纯策略阶段退出审计完成，下一步转向当前最大巨页 `AiCopilot.vue`。
+- 结果：组合门禁锁定 `SalesAppGrid.vue` 3,822 行、833/2,541/445 行 SFC 分区、4 个纯策略模块/40 个导出、53 个 Request、57 个消息/确认、1 个 Router、8 个 Watch、124 个 Callable 和 2/1 个 Mounted/Unmounted；禁止重新引入直接 Fetch、Axios、Storage、EventSource、WebSocket、XMLHttpRequest 或 `window.location` 导航。权威审计见 `G3_SALES_GRID_EXIT_AUDIT.md`。
+- 兼容边界：本切片不修改产品代码、接口、数据或部署；页面继续拥有 Reactive 状态、Grid/Dialog/Drawer、平台 Request、Realtime、延迟刷新、窗口事件、消息、审计和导航时序。现有快速录单校验失败后关闭弹窗/刷新作为已知行为保留，后续只能用独立缺陷切片修正。
+- 验证：组合专项、完整质量门禁与离线单元套件通过，覆盖 166 个 Node 文件语法、14 个锁定 CI 包、1,148 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查；销售生产构建成功并转换 1,631 个模块；没有连接数据库、PostgREST、Realtime 服务或远程环境。
 
 ## 已知非阻断风险
 
@@ -185,4 +186,4 @@
 
 ## 下一候选切片
 
-继续 G3：为 3,822 行 `SalesAppGrid.vue` 建立阶段退出审计，锁定 SFC 分区、四个纯策略模块及 Request/消息/Router/Callable 上限；通过后转向当前最大的 `AiCopilot.vue`。
+继续 G3：审计 4,393 行 `eiscore-base/src/components/AiCopilot.vue` 的对话状态、SSE 事件、Workflow/BI 与子面板职责，先选择首个无视觉变化、可纯函数锁定的策略边界。

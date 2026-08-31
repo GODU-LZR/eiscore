@@ -38,7 +38,7 @@
 
 | 文件 | 行数 | 首选拆分方向 |
 | --- | ---: | --- |
-| `eiscore-sales/src/components/SalesAppGrid.vue` | 3,822 | 数据、详情、订单链路和快速录单策略已迁出；完成阶段退出审计后转向下一巨页 |
+| `eiscore-sales/src/components/SalesAppGrid.vue` | 3,822 | 数据、详情、订单链路和快速录单策略已迁出，阶段退出门禁已建立 |
 | `eiscore-base/src/components/AiCopilot.vue` | 4,393 | 对话状态机、SSE 事件策略、Workflow/BI 子面板 |
 | `eiscore-apps/src/views/FlashBuilder.vue` | 4,264 | 会话状态、草稿协议、Cline/附件编排 |
 | `eiscore-apps/src/views/AppRuntime.vue` | 3,725 | Runtime 协议、生命周期组合；BPMN、Workflow、自动推进、导航、Flash 来源、配置/选项、规则、就绪、授权与任务路由策略已迁出 |
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-完成 `SalesAppGrid.vue` 阶段退出审计：锁定 SFC 分区、四个纯策略模块、导出数量、Request/消息/Router/Callable 上限和生命周期入口，确认剩余代码属于可接受的页面组合边界。
+转向当前最大巨页 `eiscore-base/src/components/AiCopilot.vue`：先审计对话状态、SSE 事件、Workflow/BI 和子面板职责，建立首个无视觉变化的纯策略特征测试。
