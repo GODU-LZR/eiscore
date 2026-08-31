@@ -149,6 +149,43 @@ export const formatTransitionStatePair = (fromState, toState) => {
   return `${fromText} -> ${toText}`
 }
 
+export const buildWorkflowTaskOptions = ({
+  taskNameMap = {},
+  stateMappings = [],
+  taskAssignments = [],
+  transitionRules = [],
+  formatTaskName = (value) => String(value || '')
+} = {}) => {
+  const ids = new Set()
+  Object.keys(taskNameMap || {}).forEach((id) => ids.add(String(id || '').trim()))
+  stateMappings.forEach((item) => ids.add(String(item?.bpmn_task_id || '').trim()))
+  taskAssignments.forEach((item) => ids.add(String(item?.task_id || '').trim()))
+  transitionRules.forEach((item) => {
+    ids.add(String(item?.from_task_id || '').trim())
+    ids.add(String(item?.to_task_id || '').trim())
+  })
+  return Array.from(ids)
+    .filter(Boolean)
+    .map((id) => ({ value: id, label: formatTaskName(id) }))
+    .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'zh-Hans-CN'))
+}
+
+export const buildWorkflowStateOptions = ({ stateMappings = [], transitionRules = [] } = {}) => {
+  const values = new Set(WORKFLOW_STATUS_ORDER)
+  stateMappings.forEach((item) => {
+    values.add(String(item?.from_state || '').trim())
+    values.add(String(item?.state_value || '').trim())
+  })
+  transitionRules.forEach((item) => {
+    values.add(String(item?.from_state || '').trim())
+    values.add(String(item?.to_state || '').trim())
+  })
+  return Array.from(values)
+    .filter(Boolean)
+    .map((value) => ({ value, label: getWorkflowStateLabel(value) }))
+    .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'zh-Hans-CN'))
+}
+
 export const normalizeStatusTokenForPermission = (value) => {
   const raw = String(value || '').trim().toLowerCase()
   if (!raw) return ''

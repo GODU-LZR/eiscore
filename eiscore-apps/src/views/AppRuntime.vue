@@ -897,11 +897,12 @@ import {
   resolveBindingDisplayName as resolveBusinessBindingDisplayName
 } from '@/domain/app-runtime-navigation-policy.mjs'
 import {
-  WORKFLOW_STATUS_ORDER,
   buildBusinessRecordQueryPlan,
   buildGeneratedTransitionRule,
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
+  buildWorkflowStateOptions,
+  buildWorkflowTaskOptions,
   chooseNextTaskByStateLevel,
   collectRequiredPermissionEntries,
   extractBusinessDocNo,
@@ -1129,35 +1130,17 @@ const workflowStrictAlreadyEnabled = computed(() => (
   && workflowPolicyEffective.value.enforce_workflow_op_perm !== false
   && workflowPolicyEffective.value.enforce_status_transition_perm !== false
 ))
-const workflowTaskOptions = computed(() => {
-  const ids = new Set()
-  Object.keys(taskNameMap.value || {}).forEach((id) => ids.add(String(id || '').trim()))
-  stateMappings.value.forEach((item) => ids.add(String(item?.bpmn_task_id || '').trim()))
-  taskAssignments.value.forEach((item) => ids.add(String(item?.task_id || '').trim()))
-  workflowTransitionRules.value.forEach((item) => {
-    ids.add(String(item?.from_task_id || '').trim())
-    ids.add(String(item?.to_task_id || '').trim())
-  })
-  return Array.from(ids)
-    .filter(Boolean)
-    .map((id) => ({ value: id, label: formatTaskName(id) }))
-    .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'zh-Hans-CN'))
-})
-const workflowStateOptions = computed(() => {
-  const values = new Set(WORKFLOW_STATUS_ORDER)
-  stateMappings.value.forEach((item) => {
-    values.add(String(item?.from_state || '').trim())
-    values.add(String(item?.state_value || '').trim())
-  })
-  workflowTransitionRules.value.forEach((item) => {
-    values.add(String(item?.from_state || '').trim())
-    values.add(String(item?.to_state || '').trim())
-  })
-  return Array.from(values)
-    .filter(Boolean)
-    .map((value) => ({ value, label: getWorkflowStateLabel(value) }))
-    .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'zh-Hans-CN'))
-})
+const workflowTaskOptions = computed(() => buildWorkflowTaskOptions({
+  taskNameMap: taskNameMap.value,
+  stateMappings: stateMappings.value,
+  taskAssignments: taskAssignments.value,
+  transitionRules: workflowTransitionRules.value,
+  formatTaskName
+}))
+const workflowStateOptions = computed(() => buildWorkflowStateOptions({
+  stateMappings: stateMappings.value,
+  transitionRules: workflowTransitionRules.value
+}))
 const workflowRuleDialogTitle = computed(() => (workflowRuleEditingId.value ? '编辑迁移规则' : '新增迁移规则'))
 const workflowRuleSuggestedPermission = computed(() => buildWorkflowTransitionPermission(
   workflowRuleDraft.from_state,

@@ -14,6 +14,8 @@ import {
   buildGeneratedTransitionRule,
   buildPermissionDefinitionPayload,
   buildTransitionPermission,
+  buildWorkflowStateOptions,
+  buildWorkflowTaskOptions,
   chooseNextTaskByStateLevel,
   collectRequiredPermissionEntries,
   extractBusinessDocNo,
@@ -81,6 +83,43 @@ assert.equal(isStateReached('custom', 'created'), false)
 assert.equal(isStateReached('', 'created'), false)
 assert.equal(formatTransitionStatePair('draft', 'enabled'), '创建 -> 生效')
 assert.equal(formatTransitionStatePair('', ''), '未配置 -> 未配置')
+
+const taskOptions = buildWorkflowTaskOptions({
+  taskNameMap: { Task_B: 'ignored here', ' Task_A ': 'trimmed key' },
+  stateMappings: [{ bpmn_task_id: ' Task_C ' }, { bpmn_task_id: 'Task_A' }],
+  taskAssignments: [{ task_id: 'Task_D' }, { task_id: '' }],
+  transitionRules: [
+    { from_task_id: 'Task_E', to_task_id: 'Task_F' },
+    { from_task_id: 'Task_B', to_task_id: ' ' }
+  ],
+  formatTaskName: (id) => `名称-${id}`
+})
+assert.deepEqual(new Set(taskOptions.map((item) => item.value)), new Set([
+  'Task_A', 'Task_B', 'Task_C', 'Task_D', 'Task_E', 'Task_F'
+]))
+assert.deepEqual(taskOptions.map((item) => item.label), taskOptions
+  .map((item) => item.label)
+  .toSorted((a, b) => a.localeCompare(b, 'zh-Hans-CN')))
+assert.equal(taskOptions.find((item) => item.value === 'Task_C')?.label, '名称-Task_C')
+assert.deepEqual(buildWorkflowTaskOptions(), [])
+
+const stateOptions = buildWorkflowStateOptions({
+  stateMappings: [
+    { from_state: ' draft ', state_value: 'custom' },
+    { from_state: '', state_value: 'active' }
+  ],
+  transitionRules: [
+    { from_state: 'custom', to_state: ' review ' },
+    { from_state: 'locked', to_state: '' }
+  ]
+})
+assert.deepEqual(new Set(stateOptions.map((item) => item.value)), new Set([
+  'created', 'active', 'locked', 'draft', 'custom', 'review'
+]))
+assert.equal(stateOptions.find((item) => item.value === 'draft')?.label, '创建')
+assert.equal(stateOptions.find((item) => item.value === 'review')?.label, 'review')
+assert.equal(stateOptions.filter((item) => item.value === 'active').length, 1)
+assert.equal(buildWorkflowStateOptions().length, 3)
 
 assert.equal(normalizeApprovalMode(' QUOTA '), 'quota')
 assert.equal(normalizeApprovalMode('ALL'), 'all')
@@ -423,10 +462,12 @@ for (const removedDefinition of [
   'const isAutoAdvanceSatisfied =',
   'const resolveBoundStateTarget =',
   'const workflowBusinessAppId = computed(() => {',
-  'const workflowTaskBusinessAppBindings = computed(() => {'
+  'const workflowTaskBusinessAppBindings = computed(() => {',
+  'const ids = new Set()',
+  'const values = new Set(WORKFLOW_STATUS_ORDER)'
 ]) {
   assert.equal(runtimeSource.includes(removedDefinition), false, `AppRuntime reintroduced ${removedDefinition}`)
 }
-assert.ok(runtimeSource.split(/\r?\n/).length <= 4065)
+assert.ok(runtimeSource.split(/\r?\n/).length <= 4048)
 
 console.log('PASS: AppRuntime workflow policy preserves states, approvals, permissions, generated rules and legacy bindings')
