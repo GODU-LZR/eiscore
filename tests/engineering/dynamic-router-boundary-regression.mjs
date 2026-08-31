@@ -45,7 +45,7 @@ for (const path of sourceFiles) {
 }
 
 assert.equal(routerFiles.length, 61)
-assert.equal(routerCallCount, 123)
+assert.equal(routerCallCount, 120)
 assert.deepEqual(directLocationMethods, [])
 assert.deepEqual(childFullModuleRoutes, [])
 
@@ -62,4 +62,4 @@ assert.match(baseRouterSource, /resolveEnterpriseNavigation\(/)
 assert.match(baseRouterSource, /enterpriseNavigation\.type === ['"]redirect['"]/)
 assert.match(baseRouterSource, /module_unavailable:\s*enterpriseNavigation\.moduleId/)
 
-console.log('PASS: dynamic router boundary audit (61 files/123 calls, no child full-module literals or direct location methods)')
+console.log('PASS: dynamic router boundary audit (61 files/120 calls, no child full-module literals or direct location methods)')

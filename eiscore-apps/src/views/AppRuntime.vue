@@ -885,6 +885,13 @@ import {
   resolveFirstUserTaskId
 } from '@/domain/app-runtime-bpmn.mjs'
 import {
+  buildEnterpriseTargetHref,
+  buildWorkflowOpenNavigationPlan,
+  buildWorkflowRecordNavigationPlan,
+  buildWorkflowRecordTabKey,
+  resolveBindingDisplayName as resolveBusinessBindingDisplayName
+} from '@/domain/app-runtime-navigation-policy.mjs'
+import {
   LEGACY_BINDING_LABEL_MAP,
   WORKFLOW_STATUS_ORDER,
   buildBusinessRecordQueryPlan,
@@ -3333,69 +3340,8 @@ async function transitionWorkflowInstance(row) {
   }
 }
 
-function resolveLegacyBusinessRoute(bindingKey, businessKey) {
-  const key = String(bindingKey || '').trim()
-  const rowKey = String(businessKey || '').trim()
-  const isNumericKey = /^\d+$/.test(rowKey)
-
-  if (key === 'legacy:hr_employee') {
-    if (isNumericKey) return { path: `/hr/employee/detail/${rowKey}`, query: { appKey: 'a' } }
-    return { path: '/hr/employee' }
-  }
-  if (key === 'legacy:hr_change') {
-    if (isNumericKey) return { path: `/hr/employee/detail/${rowKey}`, query: { appKey: 'b' } }
-    return { path: '/hr/app/b' }
-  }
-  if (key === 'legacy:hr_attendance') return { path: '/hr/app/c' }
-  if (key === 'legacy:hr_user') return { path: '/hr/users' }
-  if (key === 'legacy:mms_ledger') {
-    if (isNumericKey) return { path: `/materials/material/detail/${rowKey}`, query: { appKey: 'a' } }
-    return { path: '/materials/app/a' }
-  }
-  if (key === 'legacy:mms_inventory_ledger') return { path: '/materials/inventory-ledger' }
-  if (key === 'legacy:mms_inventory_stock_in') return { path: '/materials/inventory-stock-in' }
-  if (key === 'legacy:mms_inventory_stock_out') return { path: '/materials/inventory-stock-out' }
-  if (key === 'legacy:mms_inventory_current') return { path: '/materials/inventory-current' }
-  if (key === 'legacy:mms_bom') return { path: '/materials/bom' }
-  if (key === 'legacy:sales_order') return { path: '/sales/app/orders' }
-  if (key === 'legacy:purchase_demand') return { path: '/purchase/app/demands' }
-  if (key === 'legacy:production_work_order') return { path: '/production/app/work_orders' }
-  return null
-}
-
-function buildEnterpriseTargetHref(target, { hostPath = false } = {}) {
-  const rawPath = String(target?.path || '').trim()
-  const path = hostPath ? toHostRoutePath(rawPath) : rawPath
-  if (!path) return ''
-  const queryObj = target?.query && typeof target.query === 'object' ? target.query : {}
-  const query = new URLSearchParams(
-    Object.entries(queryObj)
-      .filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '')
-      .map(([k, v]) => [k, String(v)])
-  ).toString()
-  return `${path}${query ? `?${query}` : ''}`
-}
-
-function toHostRoutePath(path) {
-  const raw = String(path || '').trim()
-  if (!raw) return ''
-  if (raw.startsWith('/app/')) return `/apps${raw}`
-  if (raw.startsWith('/workflow-designer/')) return `/apps${raw}`
-  if (raw.startsWith('/flash-builder/')) return `/apps${raw}`
-  if (raw.startsWith('/data-app/')) return `/apps${raw}`
-  if (raw.startsWith('/config-center/')) return `/apps${raw}`
-  if (raw.startsWith('/ontology-relations/')) return `/apps${raw}`
-  return raw
-}
-
 function resolveBindingDisplayName(binding) {
-  const key = String(binding || '').trim()
-  if (!key) return '业务处理'
-  if (key.startsWith('legacy:')) {
-    return LEGACY_BINDING_LABEL_MAP[key] || '业务处理'
-  }
-  const matched = workflowBusinessApps.value.find((item) => String(item?.id || '').trim() === key)
-  return String(matched?.name || '').trim() || '业务处理'
+  return resolveBusinessBindingDisplayName(binding, workflowBusinessApps.value)
 }
 
 function reportEnterpriseNavigationFailure(result, targetBinding) {
@@ -3438,22 +3384,6 @@ function openInHostTab(target, options = {}) {
   return true
 }
 
-function buildWorkflowRouteQuery(row) {
-  const query = {}
-  const instanceId = String(row?.id || '').trim()
-  const businessKey = String(row?.business_key || '').trim()
-  const taskId = String(row?.current_task_id || '').trim()
-  const definitionId = String(row?.definition_id || workflowDefinitionId.value || '').trim()
-  const workflowAppId = String(runtimeAppId.value || '').trim()
-  if (instanceId) query.wf_instance = instanceId
-  if (businessKey) query.wf_key = businessKey
-  if (taskId) query.wf_task = taskId
-  if (definitionId) query.wf_definition = definitionId
-  if (workflowAppId) query.wf_app = workflowAppId
-  query.wf_from = 'workflow_runtime'
-  return query
-}
-
 function openBusinessPageForInstance(row) {
   const currentTaskId = String(row?.current_task_id || '').trim()
   const taskBinding = resolveTaskBusinessBinding(currentTaskId)
@@ -3467,33 +3397,20 @@ function openBusinessPageForInstance(row) {
     ElMessage.warning('当前任务未绑定业务应用，请先到流程设计器选中该任务并保存“业务应用绑定”')
     return
   }
-  const key = String(row?.business_key || '').trim()
-  const workflowQuery = buildWorkflowRouteQuery(row)
-  if (targetBinding.startsWith('legacy:')) {
-    const resolved = resolveLegacyBusinessRoute(targetBinding, key)
-    if (!resolved?.path) {
-      ElMessage.warning('未找到该业务应用的跳转路由，请联系管理员配置')
-      return
-    }
-    const resolvedTarget = {
-      ...resolved,
-      query: {
-        ...(resolved?.query && typeof resolved.query === 'object' ? resolved.query : {}),
-        ...workflowQuery
-      }
-    }
-    const navigationOptions = { row, targetBinding, scope: 'open' }
-    if (!openInHostTab(resolvedTarget, navigationOptions) && !navigateCrossMicroPath(resolvedTarget, navigationOptions)) {
-      router.push(resolvedTarget)
-    }
+  const plan = buildWorkflowOpenNavigationPlan({
+    row,
+    targetBinding,
+    definitionId: workflowDefinitionId.value,
+    workflowAppId: runtimeAppId.value
+  })
+  if (!plan?.target?.path) {
+    ElMessage.warning('未找到该业务应用的跳转路由，请联系管理员配置')
     return
   }
-  const target = {
-    path: `/app/${targetBinding}`,
-    query: workflowQuery
-  }
-  if (openInHostTab(target, { row, targetBinding, scope: 'open' })) return
-  router.push(target)
+  const navigationOptions = { row, targetBinding, scope: 'open' }
+  if (openInHostTab(plan.target, navigationOptions)) return
+  if (plan.allowCrossMicro && navigateCrossMicroPath(plan.target, navigationOptions)) return
+  router.push(plan.target)
 }
 
 function openBoundBusinessRecord(row) {
@@ -3505,53 +3422,24 @@ function openBoundBusinessRecord(row) {
   }
   const currentTaskId = String(row?.current_task_id || '').trim()
   const targetBinding = getTargetBusinessAppIdForTask(currentTaskId)
-  const workflowQuery = buildWorkflowRouteQuery(row)
-
-  if (targetBinding === 'legacy:mms_inventory_stock_in' || targetBinding === 'legacy:mms_inventory_stock_out') {
-    const draftType = String(info.boundDraftType || '').trim()
-      || (targetBinding === 'legacy:mms_inventory_stock_out' ? 'out' : 'in')
-    const target = {
-      path: `/materials/inventory-draft/detail/${encodeURIComponent(recordId)}`,
-      query: {
-        ...workflowQuery,
-        draftType
-      }
+  const plan = buildWorkflowRecordNavigationPlan({
+    row,
+    targetBinding,
+    recordId,
+    boundDraftType: info.boundDraftType,
+    definitionId: workflowDefinitionId.value,
+    workflowAppId: runtimeAppId.value
+  })
+  if (plan?.target?.path) {
+    const navigationOptions = {
+      row,
+      targetBinding,
+      scope: 'record',
+      tabKey: buildWorkflowRecordTabKey({ row, recordId, workflowAppId: runtimeAppId.value })
     }
-    const navigationOptions = { row, targetBinding, scope: 'record', tabKey: `${runtimeAppId.value || 'workflow'}:${row?.id || ''}:${recordId}:record` }
-    if (!openInHostTab(target, navigationOptions) && !navigateCrossMicroPath(target, navigationOptions)) {
-      router.push(target)
-    }
-    return
-  }
-
-  if (targetBinding && targetBinding.startsWith('legacy:')) {
-    const legacy = resolveLegacyBusinessRoute(targetBinding, String(row?.business_key || '').trim())
-    if (legacy?.path) {
-      const target = {
-        ...legacy,
-        query: {
-          ...(legacy?.query && typeof legacy.query === 'object' ? legacy.query : {}),
-          ...workflowQuery
-        }
-      }
-      const navigationOptions = { row, targetBinding, scope: 'record', tabKey: `${runtimeAppId.value || 'workflow'}:${row?.id || ''}:${recordId}:record` }
-      if (!openInHostTab(target, navigationOptions) && !navigateCrossMicroPath(target, navigationOptions)) {
-        router.push(target)
-      }
-      return
-    }
-  }
-
-  if (targetBinding) {
-    const target = {
-      path: `/app/${targetBinding}`,
-      query: {
-        ...workflowQuery,
-        wf_row_id: recordId
-      }
-    }
-    if (openInHostTab(target, { row, targetBinding, scope: 'record', tabKey: `${runtimeAppId.value || 'workflow'}:${row?.id || ''}:${recordId}:record` })) return
-    router.push(target)
+    if (openInHostTab(plan.target, navigationOptions)) return
+    if (plan.allowCrossMicro && navigateCrossMicroPath(plan.target, navigationOptions)) return
+    router.push(plan.target)
     return
   }
 
