@@ -115,3 +115,23 @@ export const buildPurchaseSalesDemandReversePlan = ({
     reason
   }
 })
+
+export const buildPurchaseDocumentFlowAuditPayload = ({
+  actionType,
+  source,
+  target,
+  reason = '',
+  actorUsername = 'admin',
+  payload = {}
+} = {}) => ({
+  action_type: actionType,
+  source_doc_type: source?.docType || '',
+  source_doc_id: source?.docId || null,
+  source_doc_no: source?.docNo || '',
+  target_doc_type: target?.docType || '',
+  target_doc_id: target?.docId || null,
+  target_doc_no: target?.docNo || '',
+  reason,
+  actor_username: actorUsername,
+  payload
+})

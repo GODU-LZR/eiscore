@@ -302,6 +302,7 @@ import {
   selectPurchaseArrivalLinkOrder
 } from '@/domain/purchase-document-detail-arrival-link-policy.js'
 import {
+  buildPurchaseDocumentFlowAuditPayload,
   buildPurchaseDocumentFlowNodes,
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
@@ -494,19 +495,8 @@ const detailFormValueKey = computed(() => buildPurchaseDocumentFormValueKey({
   templateId: selectedTemplateId.value
 }))
 
-const writeFlowAudit = async ({ actionType, source, target, reason = '', payload = {} }) => {
-  await tryCreateDocumentAudit({
-    action_type: actionType,
-    source_doc_type: source?.docType || '',
-    source_doc_id: source?.docId || null,
-    source_doc_no: source?.docNo || '',
-    target_doc_type: target?.docType || '',
-    target_doc_id: target?.docId || null,
-    target_doc_no: target?.docNo || '',
-    reason,
-    actor_username: 'admin',
-    payload
-  })
+const writeFlowAudit = async (params) => {
+  await tryCreateDocumentAudit(buildPurchaseDocumentFlowAuditPayload(params))
 }
 
 const loadPurchaseDocumentRows = async (params) => {

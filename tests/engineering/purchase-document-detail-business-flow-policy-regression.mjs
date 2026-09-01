@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
+  buildPurchaseDocumentFlowAuditPayload,
   buildPurchaseDocumentFlowNodes,
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
@@ -107,6 +108,27 @@ assert.deepEqual(buildPurchaseSalesDemandReversePlan({
 assert.equal(buildPurchaseSalesDemandReversePlan({ demand }).linkPatch, null)
 assert.deepEqual(demand.properties, { source: 'sales', audit_status: '旧状态' })
 
+const auditPayload = { material_name: '轴承', quantity: 3 }
+assert.deepEqual(buildPurchaseDocumentFlowAuditPayload({
+  actionType: 'confirm_arrival_inbound',
+  source: { docType: 'purchase_arrival', docId: 'arrival-1', docNo: 'PA-1' },
+  target: { docType: 'inventory_inbound', docId: null, docNo: 'IN-1' },
+  reason: '质检合格',
+  payload: auditPayload
+}), {
+  action_type: 'confirm_arrival_inbound',
+  source_doc_type: 'purchase_arrival', source_doc_id: 'arrival-1', source_doc_no: 'PA-1',
+  target_doc_type: 'inventory_inbound', target_doc_id: null, target_doc_no: 'IN-1',
+  reason: '质检合格', actor_username: 'admin', payload: auditPayload
+})
+assert.deepEqual(buildPurchaseDocumentFlowAuditPayload({ actionType: 'empty', actorUsername: 'operator' }), {
+  action_type: 'empty',
+  source_doc_type: '', source_doc_id: null, source_doc_no: '',
+  target_doc_type: '', target_doc_id: null, target_doc_no: '',
+  reason: '', actor_username: 'operator', payload: {}
+})
+assert.deepEqual(auditPayload, { material_name: '轴承', quantity: 3 })
+
 const moduleSource = readFileSync(resolve(
   repoRoot,
   'eiscore-purchase/src/domain/purchase-document-detail-business-flow-policy.js'
@@ -141,10 +163,11 @@ for (const requiredCall of [
   'buildPurchaseDocumentFlowNodes({',
   'canReversePurchaseSalesDemandFlow({',
   'buildPurchaseInventoryInboundProjection(inboundLink)',
-  'buildPurchaseSalesDemandReversePlan({'
+  'buildPurchaseSalesDemandReversePlan({',
+  'buildPurchaseDocumentFlowAuditPayload(params)'
 ]) {
   assert.equal(pageSource.includes(requiredCall), true, `PurchaseDocumentDetail lost ${requiredCall}`)
 }
-assert.ok(pageSource.split(/\r?\n/).length <= 1927)
+assert.ok(pageSource.split(/\r?\n/).length <= 1919)
 
-console.log('PASS: PurchaseDocumentDetail business-flow policy preserves queries, projections, reversal eligibility and reverse plans')
+console.log('PASS: PurchaseDocumentDetail business-flow policy preserves queries, projections, reversal plans and audit payloads')
