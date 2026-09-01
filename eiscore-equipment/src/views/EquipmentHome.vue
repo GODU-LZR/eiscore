@@ -416,7 +416,6 @@ import {
   buildEquipmentStandardCoverageRows,
   buildEquipmentStatusRows,
   buildEquipmentVisibleWorkOrders,
-  calculateEquipmentPercent as percent,
   formatEquipmentNumber as numberText,
   resolveEquipmentStatusTone as statusTone,
   toEquipmentNumber as numberValue
@@ -428,6 +427,13 @@ import {
   buildEquipmentWorkSummaryRows,
   calculateEquipmentRiskIndex
 } from '@/domain/equipment-home-summary-policy.js'
+import {
+  buildEquipmentAlertRows,
+  buildEquipmentCheckBuckets,
+  calculateEquipmentDaysBetween,
+  formatEquipmentClockTime as formatClockTime,
+  formatEquipmentShortDate as formatShortDate
+} from '@/domain/equipment-home-timeline-policy.js'
 
 const router = useRouter()
 
@@ -617,35 +623,7 @@ const fallbackStandards = [
   }
 ]
 
-const parseDate = (value) => {
-  if (!value) return null
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? null : date
-}
-
-const dayStart = (date = new Date()) => {
-  const next = new Date(date)
-  next.setHours(0, 0, 0, 0)
-  return next
-}
-
-const daysBetween = (value, base = new Date()) => {
-  const target = parseDate(value)
-  if (!target) return null
-  return Math.round((dayStart(target).getTime() - dayStart(base).getTime()) / 86400000)
-}
-
-const formatShortDate = (value) => {
-  const date = parseDate(value)
-  if (!date) return '--'
-  return `${date.getMonth() + 1}/${date.getDate()}`
-}
-
-const formatClockTime = (value) => {
-  const date = parseDate(value)
-  if (!date) return '--:--:--'
-  return date.toLocaleTimeString('zh-CN', { hour12: false })
-}
+const daysBetween = (value) => calculateEquipmentDaysBetween(value, new Date())
 
 const scrollDuration = (count, factor = 3, min = 12) => `${Math.max(numberValue(count) * factor, min)}s`
 
@@ -802,34 +780,10 @@ const healthRiskRows = computed(() => buildEquipmentHealthRiskRows(assets.value)
 
 const flowNodes = computed(() => buildEquipmentFlowNodes(cockpitSummary.value))
 
-const checkBuckets = computed(() => {
-  const today = dayStart()
-  const buckets = Array.from({ length: 7 }).map((_, index) => {
-    const date = new Date(today)
-    date.setDate(today.getDate() - (6 - index))
-    return {
-      date,
-      label: `${date.getMonth() + 1}/${date.getDate()}`,
-      count: 0,
-      abnormal: 0
-    }
-  })
-  checks.value.forEach((row) => {
-    const date = parseDate(row.check_date)
-    if (!date) return
-    const diff = Math.round((dayStart(date).getTime() - dayStart(today).getTime()) / 86400000)
-    const index = diff + 6
-    if (index >= 0 && index < buckets.length) {
-      buckets[index].count += 1
-      buckets[index].abnormal += numberValue(row.abnormal_count)
-    }
-  })
-  const maxCount = Math.max(...buckets.map((item) => item.count), 1)
-  return buckets.map((item) => ({
-    ...item,
-    pct: Math.max(8, percent(item.count, maxCount))
-  }))
-})
+const checkBuckets = computed(() => buildEquipmentCheckBuckets({
+  checks: checks.value,
+  referenceDate: new Date()
+}))
 
 const recentChecks = computed(() => checks.value.slice(0, 6))
 
@@ -846,44 +800,12 @@ const issueLevelRows = computed(() => buildEquipmentIssueLevelRows(issues.value)
 
 const workSummaryRows = computed(() => buildEquipmentWorkSummaryRows(cockpitSummary.value))
 
-const alertList = computed(() => {
-  const alerts = []
-  assets.value.forEach((row) => {
-    if (!['停机', '维修中'].includes(row.run_status) && numberValue(row.health_score) >= 75) return
-    alerts.push({
-      id: `asset-${row.id || row.asset_no}`,
-      type: row.run_status || '健康',
-      message: `${row.asset_no} · ${row.asset_name} · 健康 ${numberText(row.health_score)}`,
-      level: row.run_status === '停机' || numberValue(row.health_score) < 70 ? 'danger' : 'warn',
-      appKey: 'assets'
-    })
-  })
-  issues.value.forEach((row) => {
-    if (row.issue_status === '已关闭') return
-    const delta = daysBetween(row.deadline)
-    alerts.push({
-      id: `issue-${row.id || row.issue_no}`,
-      type: row.issue_level || '异常',
-      message: `${row.issue_no} · ${row.issue_desc}${delta !== null ? ` · ${delta < 0 ? '逾期' + Math.abs(delta) + '天' : delta + '天内到期'}` : ''}`,
-      level: delta !== null && delta < 0 || row.issue_level === '紧急' ? 'danger' : 'warn',
-      appKey: 'issues'
-    })
-  })
-  plans.value.forEach((row) => {
-    if (row.plan_status === '已完成') return
-    const delta = daysBetween(row.next_execute_date)
-    if (delta !== null && delta <= 1) {
-      alerts.push({
-        id: `plan-${row.id || row.plan_no}`,
-        type: delta < 0 ? '计划逾期' : '计划临期',
-        message: `${row.plan_no} · ${row.plan_name}`,
-        level: delta < 0 ? 'danger' : 'warn',
-        appKey: 'plans'
-      })
-    }
-  })
-  return alerts.slice(0, 8)
-})
+const alertList = computed(() => buildEquipmentAlertRows({
+  assets: assets.value,
+  issues: issues.value,
+  plans: plans.value,
+  referenceDate: new Date()
+}))
 
 const appRoutes = {
   assets: '/app/assets',
