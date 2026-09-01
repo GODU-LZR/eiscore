@@ -48,3 +48,29 @@ export const pickPurchaseDocumentRowForLinkTarget = (rows, link, noField) => (
     || rows[0]
     || null
 )
+
+export const buildPurchaseDocumentFlowNodes = ({ docs = {}, currentKey } = {}) => ([
+  { key: 'so', type: '销售订单', docNo: docs.salesOrder?.order_no, status: docs.salesOrder?.order_status, current: false },
+  { key: 'pr', type: '采购需求', docNo: docs.purchaseDemand?.demand_no, status: docs.purchaseDemand?.demand_status, current: currentKey === 'demands' },
+  { key: 'po', type: '采购订单', docNo: docs.purchaseOrder?.order_no, status: docs.purchaseOrder?.order_status, current: currentKey === 'orders' },
+  { key: 'pa', type: '到货/检验', docNo: docs.purchaseArrival?.arrival_no, status: docs.purchaseArrival?.arrival_status, current: currentKey === 'arrivals' },
+  { key: 'in', type: '采购入库', docNo: docs.inventoryInbound?.inbound_no || docs.inventoryInbound?.docNo, status: docs.inventoryInbound?.status }
+])
+
+export const canReversePurchaseSalesDemandFlow = ({ docs = {}, permitted = false } = {}) => (
+  Boolean(docs.salesOrder)
+    && Boolean(docs.purchaseDemand)
+    && !docs.purchaseOrder
+    && Boolean(permitted)
+)
+
+export const buildPurchaseInventoryInboundProjection = (inboundLink) => (
+  inboundLink
+    ? {
+        id: inboundLink.target_doc_id,
+        inbound_no: inboundLink.target_doc_no,
+        docNo: inboundLink.target_doc_no,
+        status: inboundLink.status === 'active' ? '已入库' : inboundLink.status
+      }
+    : null
+)

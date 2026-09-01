@@ -211,13 +211,14 @@
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 数量与到货 Payload 策略 | 待到货量、合格量、关联到货量及登记到货/确认入库 Payload 进入纯模块 |
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 订单生成策略 | 重复订单查询 URL 与采购订单草稿 Payload 进入纯模块 |
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 到货关联策略 | 候选订单查询、首行选择与到货关联 Patch 进入纯模块 |
+| 本文件所在提交 | 抽离 PurchaseDocumentDetail 流程投影策略 | 五节点投影、撤销资格与入库链路状态映射进入纯模块 |
 
 ## 当前切片
 
-- 状态：G3 进行中；`DocumentIntakeCenter.vue` 纯策略阶段通过退出审计，`PurchaseDocumentDetail.vue` 已完成十一个纯策略切片。
-- 结果：PurchaseDocumentDetail 从 2,326 降至 1,944 行，累计减少 382 行（16.4%）；详情动作、Schema 生成、字段值编排、模板库规范化、业务流程查询、表单值编排、模板编辑、状态 Payload、数量/到货 Payload、订单生成和到货关联策略进入 11 个无运行时依赖纯模块，共 48 个导出。到货关联策略保留订单号优先、物料名回退、最早预计到货排序、未到齐/有效状态过滤、首行选择以及供应商/物料/单位回退；页面真实动作处理、确认框、Request、Router、Loading、链路、审计与视觉布局保持原位；巨页债务棘轮收紧到 84,664 行。
-- 兼容边界：状态资格保留原字段、状态文案、权限覆盖和 `hasPerm` 时序；订单确认对 locked/disabled 的既有宽松语义、需求/订单关联按钮无记录仍显示等边界由专项锁定。Schema 保留原 `documentSchemaExample` 引用回退和字段类型优先级；字段策略保留顶层字段优先、`properties` 回退和文件空 URL 兼容；模板策略保留作用域合并与选择回退顺序；业务流程策略只负责纯查询/匹配规划，真实 Request 与异步加载顺序不变；表单值策略只负责纯键/分流/Payload 规划，公式应用、响应式赋值和保存时序不变；模板编辑策略只负责列表/记录变换，确认框、请求和时间生成仍在页面；状态策略只负责纯 Payload 构造，确认、请求、审计和路由仍在页面；数量策略只负责数值和对象规划；订单策略只负责查询字符串和草稿对象组合；到货关联策略只负责候选查询、结果选择和 Patch 组合。所有输入校验、确认、请求、时间注入、链路、审计和跳转仍在页面。未修改接口、数据或部署。
-- 验证：新增 `test:purchase-document-detail-flow`、`test:purchase-document-detail-form`、`test:purchase-document-detail-template-edit`、`test:purchase-document-detail-status`、`test:purchase-document-detail-quantity`、`test:purchase-document-detail-order`、`test:purchase-document-detail-arrival-link` 并纳入 `test:quality`；十一个 PurchaseDocumentDetail 专项回归、Node 语法检查（216 个文件）、Windows 完整质量门禁、离线单元套件和采购前端构建均通过；本切片未连接数据库、远程 API 或 Agent。
+- 状态：G3 进行中；`DocumentIntakeCenter.vue` 纯策略阶段通过退出审计，`PurchaseDocumentDetail.vue` 已完成十二个纯策略切片。
+- 结果：PurchaseDocumentDetail 从 2,326 降至 1,931 行，累计减少 395 行（17.0%）；详情动作、Schema 生成、字段值编排、模板库规范化、业务流程查询/投影、表单值编排、模板编辑、状态 Payload、数量/到货 Payload、订单生成和到货关联策略进入 11 个无运行时依赖纯模块，共 51 个导出。流程投影策略保留销售订单→采购需求→采购订单→到货/检验→采购入库的固定顺序、当前节点标识、撤销所需上下游条件和 active 入库状态中文映射；巨页债务棘轮收紧到 84,651 行。
+- 兼容边界：状态资格保留原字段、状态文案、权限覆盖和 `hasPerm` 时序；订单确认对 locked/disabled 的既有宽松语义、需求/订单关联按钮无记录仍显示等边界由专项锁定。Schema、字段、模板、表单、状态、数量、订单与到货关联规则继续由既有专项锁定；业务流程策略仅新增纯节点/资格/状态投影，`hasPerm` 调用、真实 Request、异步加载顺序、确认、时间注入、链路、审计、路由和视觉布局保持原位。未修改接口、数据或部署。
+- 验证：`test:purchase-document-detail-flow` 扩展覆盖节点顺序、撤销资格和入库状态映射；十一个 PurchaseDocumentDetail 专项回归、Node 语法检查（216 个文件）、Windows 完整质量门禁、离线单元套件和采购前端构建均通过；本切片未连接数据库、远程 API 或 Agent。
 
 ## 已知非阻断风险
 
@@ -232,9 +233,9 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/120 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- 巨型 Vue 库存仍有 52 个文件、84,664 行，其中 9 个达到 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
+- 巨型 Vue 库存仍有 52 个文件、84,651 行，其中 9 个达到 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
 - 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器虽已有离线契约，仍需在获授权的隔离环境完成真实备份、迁移、postcheck 与恢复演练后才能成为上线证据。
 
 ## 下一候选切片
 
-继续 G3：盘点 1,944 行 `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` 的入库链路与流程投影区块，选择下一个无视觉变化的纯策略边界。
+继续 G3：盘点 1,931 行 `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` 的反审核 Payload 与入库链路编排，选择下一个无视觉变化的纯策略边界。

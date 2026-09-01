@@ -5,8 +5,11 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
+  buildPurchaseDocumentFlowNodes,
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
+  buildPurchaseInventoryInboundProjection,
+  canReversePurchaseSalesDemandFlow,
   encodePurchaseDocumentFilterValue,
   pickPurchaseDocumentRowForLinkSource,
   pickPurchaseDocumentRowForLinkTarget
@@ -40,6 +43,37 @@ assert.equal(pickPurchaseDocumentRowForLinkSource([], null, 'order_no'), null)
 assert.equal(pickPurchaseDocumentRowForLinkTarget(rows, { target_doc_id: 'matched-id', target_doc_no: 'PO-02' }, 'order_no').id, 'matched-id')
 assert.equal(pickPurchaseDocumentRowForLinkTarget(rows, { target_doc_no: 'PO-02' }, 'order_no').id, 'matched-no')
 
+const flowDocs = {
+  salesOrder: { order_no: 'SO-1', order_status: '已确认' },
+  purchaseDemand: { demand_no: 'PR-1', demand_status: '待采购' },
+  purchaseOrder: { order_no: 'PO-1', order_status: '已下单' },
+  purchaseArrival: { arrival_no: 'PA-1', arrival_status: '待检验' },
+  inventoryInbound: { inbound_no: 'IN-1', docNo: 'legacy-IN', status: '已入库' }
+}
+assert.deepEqual(buildPurchaseDocumentFlowNodes({ docs: flowDocs, currentKey: 'orders' }), [
+  { key: 'so', type: '销售订单', docNo: 'SO-1', status: '已确认', current: false },
+  { key: 'pr', type: '采购需求', docNo: 'PR-1', status: '待采购', current: false },
+  { key: 'po', type: '采购订单', docNo: 'PO-1', status: '已下单', current: true },
+  { key: 'pa', type: '到货/检验', docNo: 'PA-1', status: '待检验', current: false },
+  { key: 'in', type: '采购入库', docNo: 'IN-1', status: '已入库' }
+])
+assert.equal(canReversePurchaseSalesDemandFlow({ docs: flowDocs, permitted: true }), false)
+assert.equal(canReversePurchaseSalesDemandFlow({
+  docs: { salesOrder: flowDocs.salesOrder, purchaseDemand: flowDocs.purchaseDemand },
+  permitted: true
+}), true)
+assert.equal(canReversePurchaseSalesDemandFlow({
+  docs: { salesOrder: flowDocs.salesOrder, purchaseDemand: flowDocs.purchaseDemand },
+  permitted: false
+}), false)
+assert.deepEqual(buildPurchaseInventoryInboundProjection({
+  target_doc_id: 'inbound-1', target_doc_no: 'IN-1', status: 'active'
+}), { id: 'inbound-1', inbound_no: 'IN-1', docNo: 'IN-1', status: '已入库' })
+assert.deepEqual(buildPurchaseInventoryInboundProjection({
+  target_doc_id: 'inbound-2', target_doc_no: 'IN-2', status: 'reversed'
+}), { id: 'inbound-2', inbound_no: 'IN-2', docNo: 'IN-2', status: 'reversed' })
+assert.equal(buildPurchaseInventoryInboundProjection(null), null)
+
 const moduleSource = readFileSync(resolve(
   repoRoot,
   'eiscore-purchase/src/domain/purchase-document-detail-business-flow-policy.js'
@@ -70,10 +104,13 @@ for (const requiredCall of [
   'buildPurchaseDocumentLinkQuery({ direction: \'target\'',
   'buildPurchaseDocumentRowsQuery(params)',
   'pickPurchaseDocumentRowForLinkSource',
-  'pickPurchaseDocumentRowForLinkTarget'
+  'pickPurchaseDocumentRowForLinkTarget',
+  'buildPurchaseDocumentFlowNodes({',
+  'canReversePurchaseSalesDemandFlow({',
+  'buildPurchaseInventoryInboundProjection(inboundLink)'
 ]) {
   assert.equal(pageSource.includes(requiredCall), true, `PurchaseDocumentDetail lost ${requiredCall}`)
 }
-assert.ok(pageSource.split(/\r?\n/).length <= 2003)
+assert.ok(pageSource.split(/\r?\n/).length <= 1935)
 
-console.log('PASS: PurchaseDocumentDetail business-flow policy preserves encoded queries, row lookup and fallback precedence')
+console.log('PASS: PurchaseDocumentDetail business-flow policy preserves queries, row lookup, node order, reversal eligibility and inbound projection')

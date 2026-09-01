@@ -302,8 +302,11 @@ import {
   selectPurchaseArrivalLinkOrder
 } from '@/domain/purchase-document-detail-arrival-link-policy.js'
 import {
+  buildPurchaseDocumentFlowNodes,
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
+  buildPurchaseInventoryInboundProjection,
+  canReversePurchaseSalesDemandFlow,
   encodePurchaseDocumentFilterValue,
   pickPurchaseDocumentRowForLinkSource,
   pickPurchaseDocumentRowForLinkTarget
@@ -403,23 +406,14 @@ const docMainName = computed(() => {
   const row = formData.value || {}
   return row.name || row.supplier_name || row.material_name || row.order_no || row.demand_no || row.arrival_no || '采购单据'
 })
-const purchaseFlowNodes = computed(() => {
-  const docs = purchaseFlowDocs.value || {}
-  const currentKey = detailConfig.value.key
-  return [
-    { key: 'so', type: '销售订单', docNo: docs.salesOrder?.order_no, status: docs.salesOrder?.order_status, current: false },
-    { key: 'pr', type: '采购需求', docNo: docs.purchaseDemand?.demand_no, status: docs.purchaseDemand?.demand_status, current: currentKey === 'demands' },
-    { key: 'po', type: '采购订单', docNo: docs.purchaseOrder?.order_no, status: docs.purchaseOrder?.order_status, current: currentKey === 'orders' },
-    { key: 'pa', type: '到货/检验', docNo: docs.purchaseArrival?.arrival_no, status: docs.purchaseArrival?.arrival_status, current: currentKey === 'arrivals' },
-    { key: 'in', type: '采购入库', docNo: docs.inventoryInbound?.inbound_no || docs.inventoryInbound?.docNo, status: docs.inventoryInbound?.status }
-  ]
-})
-const canReverseSalesDemandFlow = computed(() => {
-  return Boolean(purchaseFlowDocs.value?.salesOrder)
-    && Boolean(purchaseFlowDocs.value?.purchaseDemand)
-    && !purchaseFlowDocs.value?.purchaseOrder
-    && hasPerm('op:business_flow.reverse')
-})
+const purchaseFlowNodes = computed(() => buildPurchaseDocumentFlowNodes({
+  docs: purchaseFlowDocs.value,
+  currentKey: detailConfig.value.key
+}))
+const canReverseSalesDemandFlow = computed(() => canReversePurchaseSalesDemandFlow({
+  docs: purchaseFlowDocs.value,
+  permitted: hasPerm('op:business_flow.reverse')
+}))
 
 const fileOptions = computed(() => {
   if (!formData.value) return []
@@ -645,14 +639,7 @@ const loadPurchaseBusinessFlow = async () => {
       }).catch(() => [])
       collectedLinks.push(...(links || []))
       const inboundLink = (links || []).find((link) => link.target_doc_type === DOC_TYPES.INVENTORY_INBOUND)
-      if (inboundLink) {
-        inventoryInbound = {
-          id: inboundLink.target_doc_id,
-          inbound_no: inboundLink.target_doc_no,
-          docNo: inboundLink.target_doc_no,
-          status: inboundLink.status === 'active' ? '已入库' : inboundLink.status
-        }
-      }
+      inventoryInbound = buildPurchaseInventoryInboundProjection(inboundLink)
     }
 
     purchaseFlowDocs.value = { salesOrder, purchaseDemand, purchaseOrder, purchaseArrival, inventoryInbound }
