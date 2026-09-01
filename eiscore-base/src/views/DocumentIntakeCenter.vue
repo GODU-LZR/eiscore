@@ -902,35 +902,35 @@
       destroy-on-close
     >
       <div v-loading="entryResultDetailLoading" class="entry-result-detail">
-        <template v-if="selectedEntryResult">
+        <template v-if="entryResultDetailProjection.entryResult">
           <el-descriptions :column="1" border>
-            <el-descriptions-item label="来源文件">{{ selectedEntryResult.originalFilename || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="来源文件">{{ entryResultDetailProjection.entryResult.originalFilename || '-' }}</el-descriptions-item>
             <el-descriptions-item label="入库状态">
-              <el-tag :type="entryResultStatusTagType(selectedEntryResult.status)" effect="light">
-                {{ entryResultStatusLabel(selectedEntryResult.status) }}
+              <el-tag :type="entryResultStatusTagType(entryResultDetailProjection.entryResult.status)" effect="light">
+                {{ entryResultStatusLabel(entryResultDetailProjection.entryResult.status) }}
               </el-tag>
             </el-descriptions-item>
             <el-descriptions-item label="目标业务">
-              {{ selectedEntryResult.targetDocumentType || selectedEntryResult.appName || selectedEntryResult.targetModule || '-' }}
+              {{ entryResultDetailProjection.entryResult.targetDocumentType || entryResultDetailProjection.entryResult.appName || entryResultDetailProjection.entryResult.targetModule || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="目标表">{{ targetTableLabel(selectedEntryResult) }}</el-descriptions-item>
+            <el-descriptions-item label="目标表">{{ targetTableLabel(entryResultDetailProjection.entryResult) }}</el-descriptions-item>
             <el-descriptions-item label="上传人">
-              {{ selectedEntryResult.uploadedByUsername || selectedEntryResult.uploadedByUserId || '-' }}
-              <span class="muted-inline">{{ selectedEntryResult.uploadedByRole || operatorSourceLabel(selectedEntryResult.operatorSource) }}</span>
+              {{ entryResultDetailProjection.entryResult.uploadedByUsername || entryResultDetailProjection.entryResult.uploadedByUserId || '-' }}
+              <span class="muted-inline">{{ entryResultDetailProjection.entryResult.uploadedByRole || operatorSourceLabel(entryResultDetailProjection.entryResult.operatorSource) }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="来源设备">
-              {{ selectedEntryResult.deviceName || selectedEntryResult.deviceCode || selectedEntryResult.deviceId || '-' }}
+              {{ entryResultDetailProjection.entryResult.deviceName || entryResultDetailProjection.entryResult.deviceCode || entryResultDetailProjection.entryResult.deviceId || '-' }}
             </el-descriptions-item>
-            <el-descriptions-item label="更新时间">{{ formatTime(selectedEntryResult.updatedAt || selectedEntryResult.createdAt) }}</el-descriptions-item>
-            <el-descriptions-item label="识别原因">{{ selectedEntryResult.reason || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="更新时间">{{ formatTime(entryResultDetailProjection.entryResult.updatedAt || entryResultDetailProjection.entryResult.createdAt) }}</el-descriptions-item>
+            <el-descriptions-item label="识别原因">{{ entryResultDetailProjection.entryResult.reason || '-' }}</el-descriptions-item>
           </el-descriptions>
 
           <section class="detail-section">
             <div class="detail-section-header">
               <h2>入库日志</h2>
-              <span>{{ relatedLogs.length }} 条</span>
+              <span>{{ entryResultDetailProjection.relatedLogs.length }} 条</span>
             </div>
-            <el-table :data="relatedLogs" size="small" border empty-text="暂无入库日志">
+            <el-table :data="entryResultDetailProjection.relatedLogs" size="small" border empty-text="暂无入库日志">
               <el-table-column label="级别" width="86">
                 <template #default="{ row }">
                   <el-tag :type="logLevelTagType(row.level)" effect="light">{{ logLevelLabel(row.level) }}</el-tag>
@@ -962,9 +962,9 @@
           <section class="detail-section">
             <div class="detail-section-header">
               <h2>业务记录</h2>
-              <span>{{ businessLinks.length }} 条</span>
+              <span>{{ entryResultDetailProjection.businessLinks.length }} 条</span>
             </div>
-            <el-table :data="businessLinks" size="small" border empty-text="暂无业务记录">
+            <el-table :data="entryResultDetailProjection.businessLinks" size="small" border empty-text="暂无业务记录">
               <el-table-column label="目标表" min-width="150" show-overflow-tooltip>
                 <template #default="{ row }">{{ linkTargetTableLabel(row) }}</template>
               </el-table-column>
@@ -998,9 +998,9 @@
           <section class="detail-section">
             <div class="detail-section-header">
               <h2>修改记录</h2>
-              <span>{{ businessCorrections.length }} 条</span>
+              <span>{{ entryResultDetailProjection.businessCorrections.length }} 条</span>
             </div>
-            <el-table :data="businessCorrections" size="small" border empty-text="暂无修改记录">
+            <el-table :data="entryResultDetailProjection.businessCorrections" size="small" border empty-text="暂无修改记录">
               <el-table-column label="字段" min-width="120" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.fieldName || '-' }}</template>
               </el-table-column>
@@ -1032,9 +1032,9 @@
           <section class="detail-section">
             <div class="detail-section-header">
               <h2>失败行</h2>
-              <span>{{ rejectedRows.length }} 条</span>
+              <span>{{ entryResultDetailProjection.rejectedRows.length }} 条</span>
             </div>
-            <el-table :data="rejectedRows" size="small" border empty-text="暂无失败行">
+            <el-table :data="entryResultDetailProjection.rejectedRows" size="small" border empty-text="暂无失败行">
               <el-table-column label="来源" min-width="150" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.source || '-' }}</template>
               </el-table-column>
@@ -1047,9 +1047,9 @@
           <section class="detail-section">
             <div class="detail-section-header">
               <h2>未匹配字段</h2>
-              <span>{{ unmappedFields.length }} 个</span>
+              <span>{{ entryResultDetailProjection.unmappedFields.length }} 个</span>
             </div>
-            <el-table :data="unmappedFields" size="small" border empty-text="暂无未匹配字段">
+            <el-table :data="entryResultDetailProjection.unmappedFields" size="small" border empty-text="暂无未匹配字段">
               <el-table-column prop="name" label="字段" min-width="120" show-overflow-tooltip />
               <el-table-column prop="value" label="值" min-width="180" show-overflow-tooltip />
               <el-table-column prop="source" label="来源" min-width="130" show-overflow-tooltip />
@@ -1108,6 +1108,7 @@ import {
   planDocumentIntakeEntryResultsForLog,
   planDocumentIntakeLogsForDevice
 } from '@/domain/document-intake-filter-policy.js'
+import { buildDocumentIntakeEntryResultDetailProjection } from '@/domain/document-intake-entry-result-detail-policy.js'
 import {
   buildDocumentIntakeWatchFolderEditForm,
   createDocumentIntakeWatchFolderForm,
@@ -1197,16 +1198,10 @@ const activeLoading = computed(() => {
 
 const overviewItems = computed(() => buildDocumentIntakeOverviewItems(overview.value))
 
-const selectedEntryResult = computed(() => entryResultDetail.value?.entryResult || entryResultDetailFallback.value)
-const businessLinks = computed(() => Array.isArray(entryResultDetail.value?.businessLinks) ? entryResultDetail.value.businessLinks : [])
-const businessCorrections = computed(() => Array.isArray(entryResultDetail.value?.businessCorrections) ? entryResultDetail.value.businessCorrections : [])
-const relatedLogs = computed(() => Array.isArray(entryResultDetail.value?.relatedLogs) ? entryResultDetail.value.relatedLogs : [])
-const unmappedFields = computed(() => Array.isArray(entryResultDetail.value?.unmappedFields) ? entryResultDetail.value.unmappedFields : [])
-const rejectedRows = computed(() => {
-  if (Array.isArray(entryResultDetail.value?.rejectedRows)) return entryResultDetail.value.rejectedRows
-  const metadata = selectedEntryResult.value?.metadata || {}
-  return Array.isArray(metadata.rejected_rows) ? metadata.rejected_rows : []
-})
+const entryResultDetailProjection = computed(() => buildDocumentIntakeEntryResultDetailProjection(
+  entryResultDetail.value,
+  entryResultDetailFallback.value
+))
 
 const loadOverview = async () => {
   const seq = ++overviewRequestSeq

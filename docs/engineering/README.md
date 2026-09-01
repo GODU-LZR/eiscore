@@ -91,8 +91,8 @@ EISCore 的工程化目标不是减少文件行数，也不是追求一次性“
 - G3 Realtime 模块化单体：41 条 HTTP、9 类 WebSocket、PostgreSQL 通知、AI 配置/上游/OCR/企业输出守卫/十二域上下文、Agent 策略/访问/AI 适配/任务/工具/终端，以及 Flash PostgREST、43 项注册表、调用策略、执行矩阵、Cline 全生命周期和草稿/附件工作区均进入独立边界；组合根已减少 6,616 行并受 800 行门禁约束，决策见 `adr/0008-realtime-modular-monolith.md`。
 - G3 Realtime 后端退出审计：组合根只保留配置、装配、通用传输/鉴权和生命周期，28 个模块依赖与 26 个辅助职责受精确门禁锁定，结论见 `G3_REALTIME_EXIT_AUDIT.md`。
 - G3 数据库迁移治理：102 份历史 SQL 作为只读库存锁定，已有顺序证据的 10 个 Runtime V2 补丁进入带 ID、SHA-256、事务归属、postcheck 与回退声明的 Manifest；双平台执行入口共享离线校验、备份门槛、幂等账本和强制 postcheck，决策见 `adr/0009-database-migration-governance.md`。
-- G3 Vue 复杂度治理：139 个有效 Vue 文件中 52 个达到 800 行，初始债务 90,948 行；八个重点组合页已完成当前纯策略阶段退出，DocumentIntakeCenter 四刀累计减少 417 行，债务降至 85,101 行，极端页保持 10 个；逐文件、总债务和 1,200/2,000 行分层门禁只允许下降。库存见 `G3_VUE_COMPLEXITY_INVENTORY.md`，采购页结论见 `G3_PURCHASE_GRID_EXIT_AUDIT.md`，决策见 `adr/0010-incremental-vue-decomposition.md`。
+- G3 Vue 复杂度治理：139 个有效 Vue 文件中 52 个达到 800 行，初始债务 90,948 行；八个重点组合页已完成当前纯策略阶段退出，DocumentIntakeCenter 五刀累计减少 422 行，债务降至 85,096 行，极端页保持 10 个；逐文件、总债务和 1,200/2,000 行分层门禁只允许下降。库存见 `G3_VUE_COMPLEXITY_INVENTORY.md`，采购页结论见 `G3_PURCHASE_GRID_EXIT_AUDIT.md`，决策见 `adr/0010-incremental-vue-decomposition.md`。
 
-G2 已通过退出审计；接受库存和持续门禁见 `G2_EXIT_AUDIT.md`。G3 的 Realtime 后端、AppRuntime、SalesAppGrid、AiCopilot、FlashBuilder、基座布局、OntologyWorkbench、ProductionAppGrid 和 PurchaseAppGrid 子目标已通过阶段退出审计；DocumentIntakeCenter 已完成展示、总览动作、跨列表筛选和监听目录四刀并继续渐进治理。
+G2 已通过退出审计；接受库存和持续门禁见 `G2_EXIT_AUDIT.md`。G3 的 Realtime 后端、AppRuntime、SalesAppGrid、AiCopilot、FlashBuilder、基座布局、OntologyWorkbench、ProductionAppGrid 和 PurchaseAppGrid 子目标已通过阶段退出审计；DocumentIntakeCenter 已完成展示、总览动作、跨列表筛选、监听目录和详情投影五刀并继续渐进治理。
 
 长期重构的当前状态、验证证据和下一切片记录在 `REFACTOR_PROGRESS.md`；最终交付结论持续汇总到 `REFACTOR_FINAL_REPORT.md`。

@@ -17,7 +17,8 @@ const viewSource = readSource('eiscore-base/src/views/DocumentIntakeCenter.vue')
 const presentationPolicySource = readSource('eiscore-base/src/domain/document-intake-presentation-policy.js')
 const filterPolicySource = readSource('eiscore-base/src/domain/document-intake-filter-policy.js')
 const watchFolderPolicySource = readSource('eiscore-base/src/domain/document-intake-watch-folder-policy.js')
-const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}\n${filterPolicySource}\n${watchFolderPolicySource}`
+const entryResultDetailPolicySource = readSource('eiscore-base/src/domain/document-intake-entry-result-detail-policy.js')
+const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}\n${filterPolicySource}\n${watchFolderPolicySource}\n${entryResultDetailPolicySource}`
 const apiModuleUrl = pathToFileURL(resolve(repoRoot, 'eiscore-base/src/utils/document-intake-api.js')).href
 const api = await import(apiModuleUrl)
 
@@ -236,17 +237,17 @@ assert.ok(
   'DocumentIntakeCenter should load entry result details in a drawer.'
 )
 assert.ok(
-  viewSource.includes('const relatedLogs = computed') &&
-    viewSource.includes('entryResultDetail.value?.relatedLogs') &&
-    viewSource.includes(':data="relatedLogs"') &&
+  viewSource.includes('buildDocumentIntakeEntryResultDetailProjection(') &&
+    entryResultDetailPolicySource.includes("getDocumentIntakeEntryResultDetailList(detail, 'relatedLogs')") &&
+    viewSource.includes(':data="entryResultDetailProjection.relatedLogs"') &&
     viewSource.includes('logLevelTagType(row.level)') &&
     viewSource.includes('prop="traceId"'),
   'DocumentIntakeCenter should show related import logs inside the entry result detail drawer.'
 )
 assert.ok(
-  viewSource.includes('const businessCorrections = computed') &&
-    viewSource.includes('entryResultDetail.value?.businessCorrections') &&
-    viewSource.includes(':data="businessCorrections"') &&
+  viewSource.includes('buildDocumentIntakeEntryResultDetailProjection(') &&
+    entryResultDetailPolicySource.includes("getDocumentIntakeEntryResultDetailList(detail, 'businessCorrections')") &&
+    viewSource.includes(':data="entryResultDetailProjection.businessCorrections"') &&
     viewSource.includes('correctionValueLabel(row.oldValue)') &&
     viewSource.includes('recalculationStatusLabel(row.recalculationStatus)') &&
     viewSource.includes('row.affectsBusinessResult ?') &&
