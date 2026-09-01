@@ -297,6 +297,11 @@ import {
   buildPurchaseOrderDuplicateQuery
 } from '@/domain/purchase-document-detail-order-policy.js'
 import {
+  buildPurchaseArrivalOrderLinkPatch,
+  buildPurchaseArrivalOrderLookupQuery,
+  selectPurchaseArrivalLinkOrder
+} from '@/domain/purchase-document-detail-arrival-link-policy.js'
+import {
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
   encodePurchaseDocumentFilterValue,
@@ -1494,35 +1499,24 @@ const linkArrivalToOrder = async () => {
   }
   detailActionLoading.value = true
   try {
-    const query = row.value.order_no
-      ? `order_no=eq.${encodeURIComponent(row.value.order_no)}`
-      : `material_name=eq.${encodeURIComponent(row.value.material_name || '')}`
     const orders = await request({
-      url: `/v_purchase_order_progress?${query}&arrival_progress=neq.已到齐&order_status=in.(已下单,部分到货)&status=eq.active&select=id,order_no,supplier_id,supplier_name,material_name,unit,pending_quantity&order=expected_arrival_date.asc&limit=1`,
+      url: buildPurchaseArrivalOrderLookupQuery(row.value),
       method: 'get',
       headers: { 'Accept-Profile': 'public' }
     })
-    const order = Array.isArray(orders) && orders.length > 0 ? orders[0] : null
+    const order = selectPurchaseArrivalLinkOrder(orders)
     if (!order?.id) {
       ElMessage.warning('未找到可关联的未到齐采购订单')
       return
     }
     const pendingQuantity = Number(order.pending_quantity) || 0
     const nextArrivalQuantity = resolvePurchaseDetailLinkedArrivalQuantity(pendingQuantity, row.value.arrival_quantity)
-    await patchAndReload(`/purchase_arrivals?id=eq.${row.value.id}`, {
-      order_id: order.id,
-      order_no: order.order_no,
-      supplier_id: order.supplier_id || null,
-      supplier_name: order.supplier_name || row.value.supplier_name || '待选择供应商',
-      material_name: order.material_name || row.value.material_name || '待录入物料',
-      unit: order.unit || row.value.unit || 'kg',
-      arrival_quantity: nextArrivalQuantity,
-      properties: {
-        ...(row.value.properties || {}),
-        source_order_id: order.id,
-        linked_order_at: new Date().toISOString()
-      }
-    }, `已关联采购订单 ${order.order_no}`, '关联采购订单失败')
+    await patchAndReload(`/purchase_arrivals?id=eq.${row.value.id}`, buildPurchaseArrivalOrderLinkPatch({
+      row: row.value,
+      order,
+      arrivalQuantity: nextArrivalQuantity,
+      linkedAt: new Date().toISOString()
+    }), `已关联采购订单 ${order.order_no}`, '关联采购订单失败')
     const sourceDoc = {
       docType: DOC_TYPES.PURCHASE_ORDER,
       docId: order.id,
