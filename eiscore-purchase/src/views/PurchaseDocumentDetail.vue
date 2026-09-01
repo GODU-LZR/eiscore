@@ -276,6 +276,12 @@ import {
   pickPurchaseDocumentRowForLinkSource,
   pickPurchaseDocumentRowForLinkTarget
 } from '@/domain/purchase-document-detail-business-flow-policy.js'
+import {
+  buildPurchaseDocumentFormValueKey,
+  buildPurchaseDocumentFormValuesQuery,
+  buildPurchaseDocumentSavePayload,
+  splitPurchaseDocumentFormUpdate
+} from '@/domain/purchase-document-detail-form-policy.js'
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
 
 const props = defineProps({
@@ -457,7 +463,10 @@ const resolveWriteUrl = () => {
   const url = detailConfig.value.writeUrl || detailConfig.value.apiUrl || ''
   return url.split('?')[0]
 }
-const detailFormValueKey = computed(() => `${templateLibraryKey.value}:${selectedTemplateId.value}`)
+const detailFormValueKey = computed(() => buildPurchaseDocumentFormValueKey({
+  templateLibraryKey: templateLibraryKey.value,
+  templateId: selectedTemplateId.value
+}))
 
 const writeFlowAudit = async ({ actionType, source, target, reason = '', payload = {} }) => {
   await tryCreateDocumentAudit({
@@ -788,7 +797,11 @@ const loadFormValues = async () => {
   }
   try {
     const res = await request({
-      url: `/form_values?row_id=eq.${formData.value.id}&template_id=eq.${encodeURIComponent(detailFormValueKey.value)}`,
+      url: buildPurchaseDocumentFormValuesQuery({
+        rowId: formData.value.id,
+        templateLibraryKey: templateLibraryKey.value,
+        templateId: selectedTemplateId.value
+      }),
       method: 'get',
       headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
     })
@@ -823,34 +836,15 @@ const saveFormValues = async () => {
 const handleFormUpdate = (nextValue) => {
   if (!nextValue || !formData.value) return
   sanitizePurchaseDocumentCascaderValues(nextValue, dynamicColumns.value)
-  const nextProps = nextValue.properties || {}
-
-  Object.keys(formData.value || {}).forEach((key) => {
-    if (key === 'properties') return
-    if (key in nextValue) formData.value[key] = nextValue[key]
+  const { rowPatch, properties, extraValues: nextExtraValues } = splitPurchaseDocumentFormUpdate({
+    currentRow: formData.value,
+    nextValue,
+    knownKeys: knownPropertyKeys.value,
+    supportsProperties: supportsProperties.value
   })
-
-  if (!supportsProperties.value) {
-    extraValues.value = { ...nextProps }
-    applyFormulaUpdates(formData.value)
-    return
-  }
-
-  const knownKeys = knownPropertyKeys.value
-  const updatedProps = {}
-  const updatedExtra = {}
-  Object.entries(nextProps).forEach(([key, val]) => {
-    if (knownKeys.has(key)) updatedProps[key] = val
-    else updatedExtra[key] = val
-  })
-
-  const cleanedProps = {}
-  knownKeys.forEach((key) => {
-    if (key in updatedProps) cleanedProps[key] = updatedProps[key]
-    else if (formData.value.properties && key in formData.value.properties) cleanedProps[key] = formData.value.properties[key]
-  })
-  formData.value.properties = cleanedProps
-  extraValues.value = updatedExtra
+  Object.assign(formData.value, rowPatch)
+  if (supportsProperties.value) formData.value.properties = properties
+  extraValues.value = nextExtraValues
   applyFormulaUpdates(formData.value)
 }
 
@@ -1054,13 +1048,6 @@ const formatTemplateTime = (value) => {
   return date.toLocaleString()
 }
 
-const buildSavePayload = () => {
-  const { id, created_at, updated_at, arrived_quantity, pending_quantity, arrival_progress, ...payload } = formData.value || {}
-  if (supportsProperties.value) payload.properties = formData.value?.properties || {}
-  else delete payload.properties
-  return payload
-}
-
 const saveDoc = async () => {
   if (!formData.value?.id) return
   saving.value = true
@@ -1070,7 +1057,10 @@ const saveDoc = async () => {
       url: `${resolveWriteUrl()}?id=eq.${props.id}`,
       method: 'patch',
       headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public' },
-      data: buildSavePayload()
+      data: buildPurchaseDocumentSavePayload({
+        row: formData.value,
+        supportsProperties: supportsProperties.value
+      })
     })
     await saveFormValues()
     ElMessage.success('保存成功')
