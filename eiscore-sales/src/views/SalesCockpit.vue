@@ -324,7 +324,6 @@ import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
 import {
-  clampSalesCockpitRate as clampRate,
   formatSalesCockpitCurrency as formatCurrency,
   formatSalesCockpitDate as formatDate,
   formatSalesCockpitEventTime as formatTime,
@@ -338,9 +337,16 @@ import {
   selectActiveSalesOrders,
   selectActiveSalesPayments,
   shouldAutoScrollSalesCockpitRows as shouldAutoScroll,
-  sumSalesCockpitRowsBy as sumBy,
   toSalesCockpitAmount as toAmount
 } from '@/domain/sales-cockpit-presentation-policy.js'
+import {
+  buildSalesCockpitKpiCards,
+  buildSalesCockpitStats,
+  buildSalesCreditUsage,
+  buildSalesOpportunityFunnel,
+  buildSalesOrderStageStats,
+  buildSalesPaymentGauge
+} from '@/domain/sales-cockpit-summary-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -384,87 +390,27 @@ const activeOpportunities = computed(() => selectActiveSalesOpportunities(opport
 const activeFollowUps = computed(() => selectActiveSalesFollowUps(followUps.value))
 const lastUpdatedText = computed(() => formatRefreshTime(lastUpdatedAt.value))
 
-const totalCreditLimit = computed(() => sumBy(activeCustomers.value, 'credit_limit'))
-const creditUsageRate = computed(() => {
-  if (!totalCreditLimit.value) return 0
-  return Math.min(100, Math.round((stats.value.receivableBalance / totalCreditLimit.value) * 1000) / 10)
-})
-
-const stats = computed(() => {
-  const orderAmount = sumBy(activeOrders.value, 'total_amount')
-  const paymentAmount = sumBy(activePayments.value, 'amount')
-  const opportunityAmount = sumBy(activeOpportunities.value, 'expected_amount')
-  const weightedOpportunityAmount = activeOpportunities.value.reduce((sum, row) => {
-    return sum + toAmount(row.expected_amount) * toAmount(row.probability) / 100
-  }, 0)
-  const receivableBalance = sumBy(activeCustomers.value, 'receivable_balance') || Math.max(orderAmount - paymentAmount, 0)
-  const closedOpportunities = opportunities.value.filter((row) => row?.status !== 'deleted' && ['赢单', '输单'].includes(row?.stage))
-  const wonOpportunities = closedOpportunities.filter((row) => row?.stage === '赢单')
-  return {
-    customerCount: activeCustomers.value.length,
-    strategicCustomerCount: activeCustomers.value.filter((row) => ['战略客户', '重点客户'].includes(row?.level)).length,
-    opportunityCount: activeOpportunities.value.length,
-    orderCount: activeOrders.value.length,
-    paymentCount: activePayments.value.length,
-    followCount: activeFollowUps.value.length,
-    orderAmount,
-    paymentAmount,
-    opportunityAmount,
-    weightedOpportunityAmount,
-    receivableBalance,
-    avgOrderAmount: activeOrders.value.length ? orderAmount / activeOrders.value.length : 0,
-    winRate: closedOpportunities.length ? Math.round((wonOpportunities.length / closedOpportunities.length) * 1000) / 10 : 0,
-    paymentRate: orderAmount ? Math.round((paymentAmount / orderAmount) * 1000) / 10 : 0,
-    pendingVerifyCount: activePayments.value.filter((row) => row?.verify_status !== '已核销').length
-  }
-})
-
-const kpiCards = computed(() => [
-  { key: 'customers', label: '客户总数', value: `${stats.value.customerCount}`, sub: `战略/重点 ${stats.value.strategicCustomerCount} 家`, tone: 'blue' },
-  { key: 'opportunities', label: '商机管道', value: formatCurrency(stats.value.opportunityAmount), sub: `${stats.value.opportunityCount} 个活跃商机`, tone: 'indigo' },
-  { key: 'weighted', label: '加权预测', value: formatCurrency(stats.value.weightedOpportunityAmount), sub: '按赢率折算', tone: 'teal' },
-  { key: 'orders', label: '有效订单', value: formatCurrency(stats.value.orderAmount), sub: `${stats.value.orderCount} 笔订单`, tone: 'green' },
-  { key: 'payments', label: '回款金额', value: formatCurrency(stats.value.paymentAmount), sub: `回款率 ${stats.value.paymentRate}%`, tone: 'orange' },
-  { key: 'receivable', label: '应收余额', value: formatCurrency(stats.value.receivableBalance), sub: `待核销 ${stats.value.pendingVerifyCount} 笔`, tone: 'red' }
-])
-
-const opportunityFunnel = computed(() => {
-  const order = ['初步接洽', '需求确认', '方案报价', '商务谈判', '赢单']
-  const totalAmount = sumBy(activeOpportunities.value, 'expected_amount') || 1
-  return order
-    .map((stage) => {
-      const rows = activeOpportunities.value.filter((row) => row?.stage === stage)
-      const amount = sumBy(rows, 'expected_amount')
-      return {
-        label: stage,
-        count: rows.length,
-        amount,
-        rate: Math.max(8, Math.round((amount / totalAmount) * 100))
-      }
-    })
-    .filter((item) => item.count > 0)
-})
-
-const paymentRateCapped = computed(() => clampRate(stats.value.paymentRate))
-const paymentGaugeColor = computed(() => {
-  if (paymentRateCapped.value >= 80) return 'var(--c-green)'
-  if (paymentRateCapped.value >= 50) return 'var(--c-amber)'
-  return 'var(--c-red)'
-})
-const paymentGaugeDash = computed(() => {
-  const total = 257.61
-  const filled = total * paymentRateCapped.value / 100
-  return `${filled} ${total - filled}`
-})
-
-const orderStageStats = computed(() => {
-  const stages = ['草稿', '已确认', '生产中', '已发货', '已完成']
-  const total = activeOrders.value.length || 1
-  return stages.map((label) => {
-    const count = activeOrders.value.filter((row) => row?.order_status === label).length
-    return { label, count, rate: Math.max(count ? 8 : 0, Math.round((count / total) * 100)) }
-  })
-})
+const stats = computed(() => buildSalesCockpitStats({
+  customers: activeCustomers.value,
+  orders: activeOrders.value,
+  opportunities: opportunities.value,
+  activeOpportunities: activeOpportunities.value,
+  payments: activePayments.value,
+  followUps: activeFollowUps.value
+}))
+const kpiCards = computed(() => buildSalesCockpitKpiCards(stats.value))
+const opportunityFunnel = computed(() => buildSalesOpportunityFunnel(activeOpportunities.value))
+const orderStageStats = computed(() => buildSalesOrderStageStats(activeOrders.value))
+const creditUsage = computed(() => buildSalesCreditUsage({
+  customers: activeCustomers.value,
+  receivableBalance: stats.value.receivableBalance
+}))
+const totalCreditLimit = computed(() => creditUsage.value.totalCreditLimit)
+const creditUsageRate = computed(() => creditUsage.value.rate)
+const paymentGauge = computed(() => buildSalesPaymentGauge(stats.value.paymentRate))
+const paymentRateCapped = computed(() => paymentGauge.value.rate)
+const paymentGaugeColor = computed(() => paymentGauge.value.color)
+const paymentGaugeDash = computed(() => paymentGauge.value.dash)
 
 const receivableCustomers = computed(() => {
   return [...activeCustomers.value]
