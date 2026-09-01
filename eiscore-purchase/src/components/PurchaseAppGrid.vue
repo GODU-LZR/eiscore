@@ -415,6 +415,16 @@ import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 import { navigateEnterprisePath } from '@eiscore/platform/navigation'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
+import {
+  buildPurchaseAiColumns,
+  buildPurchaseCascaderParentColumns,
+  buildPurchaseCascaderParentOptions,
+  buildPurchaseDataSample,
+  buildPurchaseDataStats,
+  clonePurchaseColumns,
+  isPurchaseRowActive,
+  normalizePurchaseCascaderMap
+} from '@/domain/purchase-grid-data-policy'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
 import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
@@ -709,63 +719,11 @@ const allAvailableColumns = computed(() => {
   return all
 })
 
-const isSelectColumnConfig = (col) => {
-  if (!col) return false
-  if (Array.isArray(col.options) && col.options.length > 0) return true
-  return false
-}
-
-const isCascaderColumnConfig = (col) => {
-  if (!col) return false
-  if (col.type !== 'cascader') return false
-  if (col.cascaderOptions && Object.keys(col.cascaderOptions).length > 0) return true
-  return false
-}
-
-const cascaderParentColumns = computed(() => {
-  return allAvailableColumns.value.filter(col => isSelectColumnConfig(col) || isCascaderColumnConfig(col) || col.type === 'cascader')
-})
-
-const normalizeCascaderOption = (opt) => {
-  if (opt === null || opt === undefined) return null
-  if (typeof opt === 'string' || typeof opt === 'number') {
-    const text = String(opt)
-    return { label: text, value: text }
-  }
-  const label = opt.label ?? opt.value ?? ''
-  const value = opt.value ?? opt.label ?? ''
-  const labelText = String(label || value)
-  const valueText = String(value || label)
-  return { label: labelText, value: valueText }
-}
-
-const cascaderParentOptions = computed(() => {
-  const parentCol = cascaderParentColumns.value.find(col => col.prop === currentCol.dependsOn)
-  if (!parentCol) return []
-  if (Array.isArray(parentCol.options)) {
-    return parentCol.options
-      .map(normalizeCascaderOption)
-      .filter(opt => opt && opt.label !== '')
-  }
-  if (parentCol.type === 'cascader' && parentCol.cascaderOptions) {
-    const list = []
-    const seen = new Set()
-    Object.values(parentCol.cascaderOptions).forEach((items) => {
-      if (!Array.isArray(items)) return
-      items.forEach((item) => {
-        const normalized = normalizeCascaderOption(item)
-        if (!normalized) return
-        if (normalized.label === '') return
-        const key = String(normalized.value)
-        if (seen.has(key)) return
-        seen.add(key)
-        list.push(normalized)
-      })
-    })
-    return list
-  }
-  return []
-})
+const cascaderParentColumns = computed(() => buildPurchaseCascaderParentColumns(allAvailableColumns.value))
+const cascaderParentOptions = computed(() => buildPurchaseCascaderParentOptions(
+  cascaderParentColumns.value,
+  currentCol.dependsOn
+))
 
 const cascaderInputMap = reactive({})
 
@@ -789,8 +747,6 @@ watch([() => currentCol.dependsOn, cascaderParentOptions], () => {
   syncCascaderMap()
 })
 
-const cloneColumns = (cols) => JSON.parse(JSON.stringify(cols || []))
-
 const getConfigKey = () => app.value.configKey || 'purchase_suppliers_cols'
 
 const loadColumnsConfig = async () => {
@@ -804,7 +760,7 @@ const loadColumnsConfig = async () => {
     if (res && res.length > 0 && Array.isArray(res[0].value)) {
       extraColumns.value = res[0].value
     } else {
-      extraColumns.value = cloneColumns(app.value.defaultExtraColumns || [])
+      extraColumns.value = clonePurchaseColumns(app.value.defaultExtraColumns || [])
       if (extraColumns.value.length > 0) {
         await saveColumnsConfig()
       }
@@ -868,57 +824,10 @@ const handlePurchaseCellValueChanged = (params) => {
   lastLoadedRows.value = next
 }
 
-const buildDataStats = (rows) => {
-  const stats = { totalCount: 0, sampleSize: 0, statusCounts: {}, buyerCounts: {}, supplierCounts: {} }
-  if (!Array.isArray(rows)) return stats
-  stats.totalCount = rows.length
-  stats.sampleSize = rows.length
-  rows.forEach((row) => {
-    const status = row?.properties?.status || row?.status || '未设置'
-    stats.statusCounts[status] = (stats.statusCounts[status] || 0) + 1
-    const buyer = row?.buyer_name || row?.properties?.buyer_name
-    if (buyer) {
-      stats.buyerCounts[buyer] = (stats.buyerCounts[buyer] || 0) + 1
-    }
-    const supplier = row?.supplier_name || row?.name || row?.properties?.supplier_name
-    if (supplier) {
-      stats.supplierCounts[supplier] = (stats.supplierCounts[supplier] || 0) + 1
-    }
-  })
-  return stats
-}
-
-const buildDataSample = (rows, columns, limit = 50) => {
-  if (!Array.isArray(rows)) return []
-  const sample = rows.slice(0, limit)
-  return sample.map((row) => {
-    const item = {}
-    columns.forEach((col) => {
-      const prop = col.prop
-      if (!prop) return
-      if (col.type === 'file' || col.type === 'geo') return
-      const value = row?.[prop] ?? row?.properties?.[prop]
-      if (value !== undefined && value !== null && value !== '') {
-        item[prop] = value
-      }
-    })
-    if (row?.id !== undefined) item.id = row.id
-    return item
-  })
-}
-
 const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
-  const columns = [...staticColumns.value, ...extraColumns.value].map(col => ({
-    label: col.label,
-    prop: col.prop,
-    type: col.type || 'text',
-    options: col.options || [],
-    dependsOn: col.dependsOn || '',
-    cascaderOptions: col.cascaderOptions || null,
-    expression: col.expression || ''
-  }))
-  const dataStats = enrichLoadedDataStats(buildDataStats(rows), lastGridLoadState.value, rows)
-  const dataSample = buildDataSample(rows, columns, 40)
+  const columns = buildPurchaseAiColumns([...staticColumns.value, ...extraColumns.value])
+  const dataStats = enrichLoadedDataStats(buildPurchaseDataStats(rows), lastGridLoadState.value, rows)
+  const dataSample = buildPurchaseDataSample(rows, columns, 40)
   const fileColumns = columns.filter(col => col.type === 'file')
   const apiUrl = app.value.writeUrl || app.value.apiUrl
   const dataScope = (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
@@ -1082,7 +991,7 @@ const handleViewDocument = (row) => {
 const todayText = () => new Date().toISOString().slice(0, 10)
 const nextDocNo = (prefix) => `${prefix}${Date.now().toString().slice(-8)}${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`
 const safeEq = (value) => encodeURIComponent(String(value ?? ''))
-const isRowActive = (row) => row?.status !== 'deleted'
+const isRowActive = isPurchaseRowActive
 
 const isDemandPushable = (row) => {
   if (!row?.id) return false
@@ -1918,7 +1827,7 @@ const editColumn = (index) => {
       }))
     : []
   currentCol.dependsOn = col.dependsOn || ''
-  currentCol.cascaderMap = normalizeCascaderMap(col.cascaderOptions)
+  currentCol.cascaderMap = normalizePurchaseCascaderMap(col.cascaderOptions)
   Object.keys(cascaderInputMap).forEach((key) => delete cascaderInputMap[key])
   currentCol.geoAddress = col.geoAddress !== false
   currentCol.fileMaxSizeMb = col.fileMaxSizeMb || 20
@@ -1980,24 +1889,6 @@ const removeCascaderChild = (key, child) => {
   const mapKey = String(key)
   const list = currentCol.cascaderMap[mapKey] || []
   currentCol.cascaderMap[mapKey] = list.filter(item => item !== child)
-}
-
-const normalizeCascaderMap = (map) => {
-  const result = {}
-  if (!map || typeof map !== 'object') return result
-  Object.entries(map).forEach(([key, list]) => {
-    if (!Array.isArray(list)) return
-    const normalized = list
-      .map(item => {
-        if (item === null || item === undefined) return ''
-        if (typeof item === 'string' || typeof item === 'number') return String(item)
-        const label = item.label ?? item.value ?? ''
-        return String(label)
-      })
-      .filter(Boolean)
-    result[String(key)] = normalized
-  })
-  return result
 }
 
 const saveColumn = async () => {
