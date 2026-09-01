@@ -181,14 +181,15 @@
 | `4d77bd8` | 抽离 OntologyWorkbench 关系策略 | 筛选、表集合、指标、标签、显示清洗与语义解析进入纯领域模块 |
 | `d2af1f8` | 抽离 OntologyWorkbench KG 图策略 | 标签、节点/边、图 Payload、视图状态、证据与 Tooltip 进入纯领域模块 |
 | `0168f47` | 抽离 OntologyWorkbench 查询协议策略 | Profile、URL、RPC Payload、响应规范化与 KG 选择回退进入纯领域模块 |
-| 本文件所在提交 | 完成 OntologyWorkbench 纯策略阶段退出审计 | 锁定 2,184 行、3 个纯策略模块、54 个导出及组合副作用上限 |
+| `dea5945` | 完成 OntologyWorkbench 纯策略阶段退出审计 | 锁定 2,184 行、3 个纯策略模块、54 个导出及组合副作用上限 |
+| 本文件所在提交 | 抽离 ProductionAppGrid 数据策略 | 默认排序、列类型/级联配置、深拷贝、统计、样本与 AI 列投影进入纯领域模块 |
 
 ## 当前切片
 
-- 状态：G3 进行中；OntologyWorkbench 纯策略子目标通过阶段退出审计，下一步转向 `ProductionAppGrid.vue`。
-- 结果：组合退出门禁锁定 2,184 行页面、736/660/785 行 SFC 分区、3 个纯策略模块/54 个导出，以及 11 个 Request、16 个消息、1 个 Router、4 个 Watch、2 个 ResizeObserver、4 个 NextTick、35 个 Callable、1 个 ECharts 动态加载和各 1 个 Mounted/BeforeUnmount 的只降不增上限；Axios、直接 Fetch/Storage、EventSource、WebSocket、XMLHttpRequest 与 `window.location` 导航失败关闭。
-- 兼容边界：真实 Request、错误提示、并发刷新、ECharts 实例/点击/Option、ResizeObserver、四视图状态、表格/图展示和现有模板/样式继续作为组合边界；没有拆视觉组件或移动跨区响应式状态。
-- 验证：组合专项、完整质量门禁、离线单元套件与应用中心生产构建通过；覆盖 188 个 Node 文件语法、14 个锁定 CI 包、1,192 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查，构建转换 2,329 个模块；没有调用数据库、API、ECharts、Router、DOM 或远程环境。
+- 状态：G3 进行中；`ProductionAppGrid.vue` 完成第一个无视觉变化的纯策略切片。
+- 结果：新增 1 个纯数据策略模块、10 个具名导出和专项回归；默认排序、Select/Cascader 判定、级联父列/选项、配置深拷贝、级联 Map 规范化、生产统计、AI 数据样本与列描述投影脱离页面。页面从 2,585 降至 2,483 行，巨页债务棘轮收紧到 86,475 行。
+- 兼容边界：Vue Ref/Reactive/Computed、配置 Request、AI Context 推送、Grid Ref、Router、生产工单/领料抽屉、单据关系、业务下推、DOM 和视觉布局继续留在组合层；本切片不修改接口、数据格式或交互。
+- 验证：数据策略专项、复杂度棘轮、完整质量门禁、离线单元套件与生产前端构建通过；覆盖 189 个 Node 文件语法、14 个锁定 CI 包、1,194 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查，构建转换 1,628 个模块。没有调用数据库、API、Agent、Router、DOM 或远程环境。
 
 ## 已知非阻断风险
 
@@ -203,9 +204,9 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/120 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- 巨型 Vue 库存仍有 52 个文件、86,577 行，其中 11 个超过 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
+- 巨型 Vue 库存仍有 52 个文件、86,475 行，其中 11 个超过 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
 - 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器虽已有离线契约，仍需在获授权的隔离环境完成真实备份、迁移、postcheck 与恢复演练后才能成为上线证据。
 
 ## 下一候选切片
 
-继续 G3：盘点 2,585 行 `eiscore-production/src/components/ProductionAppGrid.vue` 的生产 Grid 数据、业务动作、请求、表单、业务链和 DOM 边界，建立首个无视觉变化的纯策略切片。
+继续 G3：盘点 2,483 行 `eiscore-production/src/components/ProductionAppGrid.vue` 的单据关系、生产业务流、下推 Payload 和展示派生值，选择下一组无副作用策略；真实 Request、Router、抽屉和视觉布局保持原位。

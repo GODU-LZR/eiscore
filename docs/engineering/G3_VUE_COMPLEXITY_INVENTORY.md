@@ -2,7 +2,7 @@
 
 ## 结论
 
-2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,911 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局与三个 OntologyWorkbench 纯策略切片后，巨页债务已降至 86,577 行。
+2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,911 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench 与一个 ProductionAppGrid 纯策略切片后，巨页债务已降至 86,475 行。
 
 该结果证明巨页是系统性维护风险，不能靠一次整体重写解决。基线已进入 `config/engineering/vue-complexity-baseline.json`，质量门禁禁止既有巨页增长、禁止新增巨页，并要求总债务、极端页和关键页数量只降不增。
 
@@ -26,7 +26,7 @@
 | 物料/仓储 | 12 | 14,945 | 1,828 |
 | 移动端 | 7 | 8,632 | 1,893 |
 | 销售 | 2 | 5,792 | 3,822 |
-| 生产 | 3 | 6,299 | 2,585 |
+| 生产 | 3 | 6,197 | 2,483 |
 | 人力 | 5 | 6,071 | 1,518 |
 | 采购 | 3 | 5,977 | 2,521 |
 | 设备 | 2 | 3,082 | 2,072 |
@@ -44,7 +44,7 @@
 | `eiscore-apps/src/views/AppRuntime.vue` | 3,725 | Runtime 协议、生命周期组合；BPMN、Workflow、自动推进、导航、Flash 来源、配置/选项、规则、就绪、授权与任务路由策略已迁出 |
 | `eiscore-base/src/layout/index.vue` | 3,535 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/OntologyWorkbench.vue` | 2,184 | 3 类纯策略已迁出，阶段退出门禁已建立 |
-| `eiscore-production/src/components/ProductionAppGrid.vue` | 2,585 | Grid 业务策略与专用交互 |
+| `eiscore-production/src/components/ProductionAppGrid.vue` | 2,483 | 数据、列配置与 AI 上下文策略已迁出；继续拆生产业务流与专用交互 |
 | `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 2,521 | Grid 业务策略与专用交互 |
 | `eiscore-base/src/views/DocumentIntakeCenter.vue` | 2,446 | 收单任务状态机、API 领域层、展示组件 |
 | `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 2,326 | 单据模型、动作策略、详情子区块 |
@@ -54,7 +54,7 @@
 
 - 扫描范围内新 Vue 文件不得达到 800 行。
 - 52 个基线文件逐文件不得超过各自基线行数；文件删除或降到阈值以下视为债务下降。
-- 巨页总行数的初始基线为 90,948，当前棘轮值为 86,577；≥1,200 行不得超过 32 个；≥2,000 行不得超过 11 个。
+- 巨页总行数的初始基线为 90,948，当前棘轮值为 86,475；≥1,200 行不得超过 32 个；≥2,000 行不得超过 11 个。
 - 不允许通过重命名、移动目录、生成文件或扩充排除项规避门禁。
 - 基线扩张不是普通维护动作；确有必要时必须记录 ADR、替代方案和回收计划。
 
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-转向 `eiscore-production/src/components/ProductionAppGrid.vue`：先盘点生产 Grid 数据、业务动作、请求、表单、业务链和 DOM 边界，再选择无视觉变化的纯策略切片。
+继续 `eiscore-production/src/components/ProductionAppGrid.vue`：在数据与列配置边界稳定后，优先抽离单据关系、业务流展示和下推 Payload 等无副作用策略，保留真实请求、Router、抽屉和视觉布局。

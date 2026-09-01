@@ -583,6 +583,16 @@ import {
 } from '@/utils/production-attention'
 import { hasPerm } from '@/utils/permission'
 import { getUserInfo } from '@/utils/auth'
+import {
+  buildProductionAiColumns,
+  buildProductionCascaderParentColumns,
+  buildProductionCascaderParentOptions,
+  buildProductionDataSample,
+  buildProductionDataStats,
+  cloneProductionColumns,
+  normalizeProductionCascaderMap,
+  resolveProductionDefaultOrder
+} from '@/domain/production-grid-data-policy'
 
 const props = defineProps({
   appKey: { type: String, default: 'work_orders' },
@@ -674,11 +684,7 @@ const issueDrawer = reactive({
 
 const app = computed(() => props.appConfig || findProductionApp(props.appKey) || findProductionApp('work_orders'))
 const initialSearch = computed(() => String(route.query.q || ''))
-const defaultOrder = computed(() => {
-  if (app.value.key === 'plans') return 'product_material_code.asc'
-  if (app.value.key === 'work_order_items') return 'work_order_no.asc,line_no.asc'
-  return 'created_at.desc'
-})
+const defaultOrder = computed(() => resolveProductionDefaultOrder(app.value.key))
 const opPerms = computed(() => app.value?.ops || {})
 const canGenerateWorkOrder = computed(() => hasPerm('op:production_work_order.create'))
 const canCreate = computed(() => hasPerm(opPerms.value.create))
@@ -892,63 +898,11 @@ const allAvailableColumns = computed(() => {
   return all
 })
 
-const isSelectColumnConfig = (col) => {
-  if (!col) return false
-  if (col.type === 'select' || col.type === 'dropdown') return true
-  if (Array.isArray(col.options) && col.options.length > 0) return true
-  return false
-}
-
-const isCascaderColumnConfig = (col) => {
-  if (!col) return false
-  if (col.type !== 'cascader') return false
-  if (col.cascaderOptions && Object.keys(col.cascaderOptions).length > 0) return true
-  return false
-}
-
-const cascaderParentColumns = computed(() => {
-  return allAvailableColumns.value.filter(col => isSelectColumnConfig(col) || isCascaderColumnConfig(col) || col.type === 'cascader')
-})
-
-const normalizeCascaderOption = (opt) => {
-  if (opt === null || opt === undefined) return null
-  if (typeof opt === 'string' || typeof opt === 'number') {
-    const text = String(opt)
-    return { label: text, value: text }
-  }
-  const label = opt.label ?? opt.value ?? ''
-  const value = opt.value ?? opt.label ?? ''
-  const labelText = String(label || value)
-  const valueText = String(value || label)
-  return { label: labelText, value: valueText }
-}
-
-const cascaderParentOptions = computed(() => {
-  const parentCol = cascaderParentColumns.value.find(col => col.prop === currentCol.dependsOn)
-  if (!parentCol) return []
-  if (Array.isArray(parentCol.options)) {
-    return parentCol.options
-      .map(normalizeCascaderOption)
-      .filter(opt => opt && opt.label !== '')
-  }
-  if (parentCol.type === 'cascader' && parentCol.cascaderOptions) {
-    const list = []
-    const seen = new Set()
-    Object.values(parentCol.cascaderOptions).forEach((items) => {
-      if (!Array.isArray(items)) return
-      items.forEach((item) => {
-        const normalized = normalizeCascaderOption(item)
-        if (!normalized || normalized.label === '') return
-        const key = String(normalized.value)
-        if (seen.has(key)) return
-        seen.add(key)
-        list.push(normalized)
-      })
-    })
-    return list
-  }
-  return []
-})
+const cascaderParentColumns = computed(() => buildProductionCascaderParentColumns(allAvailableColumns.value))
+const cascaderParentOptions = computed(() => buildProductionCascaderParentOptions(
+  cascaderParentColumns.value,
+  currentCol.dependsOn
+))
 
 const cascaderInputMap = reactive({})
 
@@ -972,8 +926,6 @@ watch([() => currentCol.dependsOn, cascaderParentOptions], () => {
   syncCascaderMap()
 })
 
-const cloneColumns = (cols) => JSON.parse(JSON.stringify(cols || []))
-
 const getConfigKey = () => app.value.configKey || `${app.value.viewId || app.value.key}_cols`
 
 const loadColumnsConfig = async () => {
@@ -987,14 +939,14 @@ const loadColumnsConfig = async () => {
     if (Array.isArray(res) && res.length > 0 && Array.isArray(res[0].value)) {
       extraColumns.value = res[0].value
     } else {
-      extraColumns.value = cloneColumns(app.value.defaultExtraColumns || [])
+      extraColumns.value = cloneProductionColumns(app.value.defaultExtraColumns || [])
       if (extraColumns.value.length > 0) {
         await saveColumnsConfig()
       }
     }
     syncAiContext()
   } catch (e) {
-    extraColumns.value = cloneColumns(app.value.defaultExtraColumns || [])
+    extraColumns.value = cloneProductionColumns(app.value.defaultExtraColumns || [])
   }
 }
 
@@ -1033,46 +985,10 @@ const saveColumnsConfig = async () => {
   })
 }
 
-const buildDataStats = (rows) => {
-  const stats = { totalCount: 0, statusCounts: {}, productCounts: {} }
-  if (!Array.isArray(rows)) return stats
-  stats.totalCount = rows.length
-  rows.forEach((row) => {
-    const status = row?.work_order_status || row?.plan_status || row?.issue_status || row?.status || '未设置'
-    stats.statusCounts[status] = (stats.statusCounts[status] || 0) + 1
-    const product = row?.product_material_code || row?.product_material_name
-    if (product) stats.productCounts[product] = (stats.productCounts[product] || 0) + 1
-  })
-  return stats
-}
-
-const buildDataSample = (rows, columns, limit = 50) => {
-  if (!Array.isArray(rows)) return []
-  return rows.slice(0, limit).map((row) => {
-    const item = {}
-    columns.forEach((col) => {
-      const prop = col.prop
-      if (!prop || col.type === 'file' || col.type === 'geo') return
-      const value = row?.[prop] ?? row?.properties?.[prop]
-      if (value !== undefined && value !== null && value !== '') item[prop] = value
-    })
-    if (row?.id !== undefined) item.id = row.id
-    return item
-  })
-}
-
 const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
-  const columns = [...staticColumns.value, ...extraColumns.value].map(col => ({
-    label: col.label,
-    prop: col.prop,
-    type: col.type || 'text',
-    options: col.options || [],
-    dependsOn: col.dependsOn || '',
-    cascaderOptions: col.cascaderOptions || null,
-    expression: col.expression || ''
-  }))
+  const columns = buildProductionAiColumns([...staticColumns.value, ...extraColumns.value])
   const fileColumns = columns.filter(col => col.type === 'file')
-  const dataStats = enrichLoadedDataStats(buildDataStats(rows), lastGridLoadState.value, rows)
+  const dataStats = enrichLoadedDataStats(buildProductionDataStats(rows), lastGridLoadState.value, rows)
   const dataScope = (overrides.searchText ?? lastSearchText.value) ? '当前搜索结果' : '当前列表数据'
   const importTarget = {
     apiUrl: app.value.writeUrl || app.value.apiUrl,
@@ -1091,7 +1007,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
     summaryConfig: summaryConfig.value,
     fileColumns,
     dataStats,
-    dataSample: buildDataSample(rows, columns, 40),
+    dataSample: buildProductionDataSample(rows, columns, 40),
     dataScope,
     searchText: overrides.searchText ?? lastSearchText.value ?? '',
     gridAgent: buildGridAgentContext({
@@ -1213,7 +1129,7 @@ const editColumn = (index) => {
     ? col.options.map(opt => ({ label: opt.label ?? opt.value ?? '' }))
     : []
   currentCol.dependsOn = col.dependsOn || ''
-  currentCol.cascaderMap = normalizeCascaderMap(col.cascaderOptions)
+  currentCol.cascaderMap = normalizeProductionCascaderMap(col.cascaderOptions)
   Object.keys(cascaderInputMap).forEach((key) => delete cascaderInputMap[key])
   currentCol.geoAddress = col.geoAddress !== false
   currentCol.fileMaxSizeMb = col.fileMaxSizeMb || 20
@@ -1272,24 +1188,6 @@ const removeCascaderChild = (key, child) => {
   const mapKey = String(key)
   const list = currentCol.cascaderMap[mapKey] || []
   currentCol.cascaderMap[mapKey] = list.filter(item => item !== child)
-}
-
-const normalizeCascaderMap = (map) => {
-  const result = {}
-  if (!map || typeof map !== 'object') return result
-  Object.entries(map).forEach(([key, list]) => {
-    if (!Array.isArray(list)) return
-    const normalized = list
-      .map((item) => {
-        if (item === null || item === undefined) return ''
-        if (typeof item === 'string' || typeof item === 'number') return String(item)
-        const label = item.label ?? item.value ?? ''
-        return String(label)
-      })
-      .filter(Boolean)
-    result[String(key)] = normalized
-  })
-  return result
 }
 
 const saveColumn = async () => {
