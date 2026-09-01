@@ -214,13 +214,14 @@
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 流程投影策略 | 五节点投影、撤销资格与入库链路状态映射进入纯模块 |
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 反审核执行计划 | 链路反转 Patch、需求关闭 Patch 与审计描述进入纯计划 |
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 文档流审计 Payload | 动作、来源、目标、原因、操作者与业务 Payload 映射进入纯模块 |
+| 本文件所在提交 | 完成 PurchaseDocumentDetail 纯策略阶段退出审计 | 锁定 1,916 行、11 个纯模块、54 个导出及组合副作用上限 |
 
 ## 当前切片
 
-- 状态：G3 进行中；`DocumentIntakeCenter.vue` 纯策略阶段通过退出审计，`PurchaseDocumentDetail.vue` 已完成十四个纯策略切片，下一步建立阶段退出审计。
-- 结果：PurchaseDocumentDetail 从 2,326 降至 1,916 行，累计减少 410 行（17.6%）；详情动作、Schema 生成、字段值编排、模板库规范化、业务流程查询/投影/反审核/审计、表单值编排、模板编辑、状态 Payload、数量/到货 Payload、订单生成和到货关联策略进入 11 个无运行时依赖纯模块，共 53 个导出。审计策略统一映射动作、来源、目标、原因、操作者与业务 Payload，巨页债务棘轮收紧到 84,636 行。
-- 兼容边界：状态资格、Schema、字段、模板、表单、状态、数量、订单、到货关联和业务流程规则继续由既有专项锁定；审计策略只负责纯字段映射，默认操作者仍为 `admin`，空来源/目标回退不变，真实 `tryCreateDocumentAudit` 调用、请求顺序、确认、时间、重新加载、路由和视觉布局保持原位。未修改接口、数据或部署。
-- 验证：`test:purchase-document-detail-flow` 扩展覆盖审计完整映射、空来源/目标回退、操作者覆盖和 Payload 引用不变性；十一个 PurchaseDocumentDetail 专项回归、Node 语法检查（216 个文件）、Windows 完整质量门禁、离线单元套件和采购前端构建均通过；本切片未连接数据库、远程 API 或 Agent。
+- 状态：G3 进行中；`DocumentIntakeCenter.vue` 与 `PurchaseDocumentDetail.vue` 均已通过纯策略阶段退出审计。
+- 结果：PurchaseDocumentDetail 从 2,326 降至 1,916 行，累计减少 410 行（17.6%）；14 个切片把详情动作、Schema、字段值、模板、业务流程、表单值、状态、数量、订单生成和到货关联规则迁入 11 个无运行时依赖纯模块，共 54 个导出。退出门禁锁定模板/脚本/样式区段、策略清单与导出数、28 次 Request、60 次消息、4 次 Router、4 个 Watch、5 次链路/审计调用和 51 个可调用定义，并禁止重新引入 Axios、Fetch、Storage、原生流式传输及全页导航；巨页债务保持 84,636 行。
+- 兼容边界：页面继续作为 Vue、Element Plus、Request、Router、AI、打印、模板事件、文档链路和审计的组合入口；纯策略不得引入运行时依赖。退出审计不改变接口、数据、部署、请求顺序、确认、时间生成、重新加载或视觉布局。
+- 验证：新增 `test:purchase-document-detail-exit` 并纳入 `test:quality`；十一个 PurchaseDocumentDetail 专项、退出门禁、复杂度门禁、Node 语法检查（217 个文件）、Windows 完整质量门禁、离线单元套件和采购前端构建均通过；本切片未连接数据库、远程 API 或 Agent。
 
 ## 已知非阻断风险
 
@@ -240,4 +241,4 @@
 
 ## 下一候选切片
 
-继续 G3：为 1,916 行 `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` 建立纯策略阶段退出审计，锁定 11 个策略模块、53 个导出及组合副作用上限。
+继续 G3：盘点 2,072 行 `eiscore-equipment/src/views/EquipmentHome.vue` 的驾驶舱查询、聚合与卡片投影，选择第一个无视觉变化的纯策略边界。

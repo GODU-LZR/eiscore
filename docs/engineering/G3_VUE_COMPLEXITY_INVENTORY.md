@@ -47,7 +47,7 @@
 | `eiscore-production/src/components/ProductionAppGrid.vue` | 2,077 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 1,970 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-base/src/views/DocumentIntakeCenter.vue` | 1,973 | 6 个纯模块/54 个导出已迁出，阶段退出门禁已建立 |
-| `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 1,916 | 11 个纯策略模块/53 个导出已迁出；下一步建立阶段退出门禁 |
+| `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 1,916 | 11 个纯策略模块/54 个导出已迁出，阶段退出门禁已建立 |
 | `eiscore-equipment/src/views/EquipmentHome.vue` | 2,072 | 驾驶舱查询/聚合与卡片组件 |
 
 ## 持续门禁
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-为 `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` 建立纯策略阶段退出审计，锁定页面行数、11 个策略模块、53 个导出及 Request/Router/审计副作用上限。
+转向 `eiscore-equipment/src/views/EquipmentHome.vue`：先锁定驾驶舱查询、聚合和卡片投影行为，再选择第一个无视觉变化的纯策略边界。
