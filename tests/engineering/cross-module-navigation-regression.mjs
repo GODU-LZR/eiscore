@@ -38,10 +38,13 @@ const consumers = new Map([
 
 for (const [path, expectedTargets] of consumers) {
   const source = readSource(path)
+  const targetSource = path === 'eiscore-base/src/views/DocumentIntakeCenter.vue'
+    ? readSource('eiscore-base/src/domain/document-intake-presentation-policy.js')
+    : source
   assert.match(source, /from\s+['"]@eiscore\/platform\/navigation['"]/, path)
   assert.match(source, /navigateEnterprisePath\(/, path)
   assert.doesNotMatch(source, /window\.location\.href\s*=/, path)
-  for (const target of expectedTargets) assert.ok(source.includes(target), `${path}: ${target}`)
+  for (const target of expectedTargets) assert.ok(targetSource.includes(target), `${path}: ${target}`)
 }
 
 const decisionSource = readSource('eiscore-decision/src/views/DecisionHome.vue')

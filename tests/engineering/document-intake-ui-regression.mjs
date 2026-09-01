@@ -14,6 +14,8 @@ function readSource(filePath) {
 
 const routerSource = readSource('eiscore-base/src/router/index.js')
 const viewSource = readSource('eiscore-base/src/views/DocumentIntakeCenter.vue')
+const presentationPolicySource = readSource('eiscore-base/src/domain/document-intake-presentation-policy.js')
+const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}`
 const apiModuleUrl = pathToFileURL(resolve(repoRoot, 'eiscore-base/src/utils/document-intake-api.js')).href
 const api = await import(apiModuleUrl)
 
@@ -27,12 +29,13 @@ assert.ok(
 )
 
 for (const text of ['智能收单中心', '文件列表', '设备列表', '日志列表', '入库结果', '今日采集', '成功入库', '低置信度', '未识别', '重复文件', '在线设备', '离线设备', '重复', '非重复', '上传人', '来源设备', '文件类型', '目标业务', '生成单据', '置信度', '上传时间', '默认上传人', '最后心跳', '监听目录', '目录来源', '设备监听目录', '目录路径', '目录名称', '默认归属', '默认上传用户 ID', '默认岗位 / 角色', '新增目录', '保存目录', '取消编辑', '启用目录', '停用目录', '编辑', '删除', 'trace_id', '事件类型', '文件 hash', '用户 / 岗位', '模块', '页面 / URL', '导入批次', '业务记录', '入库日志', '修改记录', '失败行', '未匹配字段', '入库结果详情', '来源文件', '来源方式', '设备编号', '默认上传人 / 岗位', '服务器地址', '客户端版本', 'WebView版本', '复制ID']) {
-  assert.ok(viewSource.includes(text), `DocumentIntakeCenter should render visible text: ${text}`)
+  assert.ok(documentIntakeUiSource.includes(text), `DocumentIntakeCenter should render visible text: ${text}`)
 }
 
 assert.ok(
   viewSource.includes('fetchDocumentIntakeOverview') &&
     viewSource.includes('const overviewItems = computed') &&
+    viewSource.includes('buildDocumentIntakeOverviewItems(overview.value)') &&
     viewSource.includes('v-for="item in overviewItems"') &&
     viewSource.includes('@click="applyOverviewMetric(item)"') &&
     viewSource.includes('role="button"') &&
@@ -247,18 +250,19 @@ assert.ok(
   'DocumentIntakeCenter should show business correction records inside the entry result detail drawer.'
 )
 assert.ok(
-  viewSource.includes('businessRecordRouteMap') &&
+  viewSource.includes("from '@/domain/document-intake-presentation-policy.js'") &&
+    viewSource.includes('buildDocumentIntakeBusinessRecordUrl as businessRecordUrl') &&
     viewSource.includes('businessRecordUrl(row)') &&
-    viewSource.includes("row?.businessRecordUrl || row?.business_record_url") &&
+    presentationPolicySource.includes("row?.businessRecordUrl || row?.business_record_url") &&
     viewSource.includes('openBusinessRecord(row)') &&
     viewSource.includes('copyBusinessRecordId(row)'),
   'DocumentIntakeCenter should prefer server-provided business record URLs and provide open/copy actions for entry result business records.'
 )
 assert.ok(
-  viewSource.includes('/materials/inventory-ledger?recordId=') &&
-    viewSource.includes('/materials/material/detail/') &&
-    viewSource.includes('/purchase/document/') &&
-    viewSource.includes('/apps/app/${encodeURIComponent(row.targetAppId)}/record/'),
+  presentationPolicySource.includes('/materials/inventory-ledger?recordId=') &&
+    presentationPolicySource.includes('/materials/material/detail/') &&
+    presentationPolicySource.includes('/purchase/document/') &&
+    presentationPolicySource.includes('/apps/app/${encodeURIComponent(row.targetAppId)}/record/'),
   'DocumentIntakeCenter should map business links to known module record routes.'
 )
 assert.ok(

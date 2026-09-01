@@ -1068,6 +1068,34 @@ import { Document, Refresh, Search, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { navigateEnterprisePath } from '@eiscore/platform/navigation'
 import {
+  buildDocumentIntakeBusinessRecordUrl as businessRecordUrl,
+  buildDocumentIntakeOverviewItems,
+  formatDocumentIntakeBytes as formatBytes,
+  formatDocumentIntakeConfidence as formatConfidence,
+  formatDocumentIntakeCorrectionValue as correctionValueLabel,
+  formatDocumentIntakeInteger as formatInteger,
+  getDocumentIntakeAssetFileTypeLabel as assetFileTypeLabel,
+  getDocumentIntakeAssetGeneratedCountLabel as assetGeneratedCountLabel,
+  getDocumentIntakeAssetSourceFolderLabel as assetSourceFolderLabel,
+  getDocumentIntakeAssetStatusLabel as statusLabel,
+  getDocumentIntakeAssetStatusTagType as statusTagType,
+  getDocumentIntakeAssetTargetLabel as assetTargetLabel,
+  getDocumentIntakeDeviceStatusLabel as deviceStatusLabel,
+  getDocumentIntakeDeviceStatusTagType as deviceStatusTagType,
+  getDocumentIntakeEntryResultStatusLabel as entryResultStatusLabel,
+  getDocumentIntakeEntryResultStatusTagType as entryResultStatusTagType,
+  getDocumentIntakeLinkTargetTableLabel as linkTargetTableLabel,
+  getDocumentIntakeLogLevelLabel as logLevelLabel,
+  getDocumentIntakeLogLevelTagType as logLevelTagType,
+  getDocumentIntakeLogSourceFolderLabel as logSourceFolderLabel,
+  getDocumentIntakeOperatorSourceLabel as operatorSourceLabel,
+  getDocumentIntakeRecalculationStatusLabel as recalculationStatusLabel,
+  getDocumentIntakeSourceLabel as sourceLabel,
+  getDocumentIntakeTargetKindLabel as targetKindLabel,
+  getDocumentIntakeTargetTableLabel as targetTableLabel,
+  getDocumentIntakeWatchFolderSourceLabel as watchFolderSourceLabel
+} from '@/domain/document-intake-presentation-policy.js'
+import {
   deviceStatusFilterOptions,
   duplicateFilterOptions,
   entryResultStatusFilterOptions,
@@ -1201,16 +1229,7 @@ const activeLoading = computed(() => {
   return loading.value
 })
 
-const overviewItems = computed(() => [
-  { key: 'todayFileCount', label: '今日采集', value: formatInteger(overview.value.todayFileCount), action: 'assets-today' },
-  { key: 'successfulImportCount', label: '成功入库', value: formatInteger(overview.value.successfulImportCount), action: 'entry-successful' },
-  { key: 'lowConfidenceCount', label: '低置信度', value: formatInteger(overview.value.lowConfidenceCount), action: 'entry-low-confidence' },
-  { key: 'unrecognizedCount', label: '未识别', value: formatInteger(overview.value.unrecognizedCount), action: 'assets-unrecognized' },
-  { key: 'duplicateFileCount', label: '重复文件', value: formatInteger(overview.value.duplicateFileCount), action: 'assets-duplicate' },
-  { key: 'failedCount', label: '失败', value: formatInteger(overview.value.failedCount), action: 'entry-failed' },
-  { key: 'activeDeviceCount', label: '在线设备', value: formatInteger(overview.value.activeDeviceCount), action: 'devices-active' },
-  { key: 'offlineDeviceCount', label: '离线设备', value: formatInteger(overview.value.offlineDeviceCount), action: 'devices-offline' }
-])
+const overviewItems = computed(() => buildDocumentIntakeOverviewItems(overview.value))
 
 const selectedEntryResult = computed(() => entryResultDetail.value?.entryResult || entryResultDetailFallback.value)
 const businessLinks = computed(() => Array.isArray(entryResultDetail.value?.businessLinks) ? entryResultDetail.value.businessLinks : [])
@@ -1811,54 +1830,6 @@ const applyOverviewMetric = (item) => {
   }
 }
 
-const businessRecordRouteMap = {
-  'public.raw_materials': (id) => `/materials/material/detail/${encodeURIComponent(id)}?source=document-intake`,
-  raw_materials: (id) => `/materials/material/detail/${encodeURIComponent(id)}?source=document-intake`,
-  'scm.inventory_transactions': (id) => `/materials/inventory-ledger?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  inventory_transactions: (id) => `/materials/inventory-ledger?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  'scm.v_inventory_transactions': (id) => `/materials/inventory-ledger?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  v_inventory_transactions: (id) => `/materials/inventory-ledger?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  'scm.inventory_batches': (id) => `/materials/inventory-current?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  inventory_batches: (id) => `/materials/inventory-current?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  'scm.v_inventory_current': (id) => `/materials/inventory-current?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  v_inventory_current: (id) => `/materials/inventory-current?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  'scm.warehouses': (id) => `/materials/warehouses?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  warehouses: (id) => `/materials/warehouses?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  'scm.inventory_drafts': (id) => `/materials/inventory-draft/detail/${encodeURIComponent(id)}?source=document-intake`,
-  inventory_drafts: (id) => `/materials/inventory-draft/detail/${encodeURIComponent(id)}?source=document-intake`,
-  purchase_demands: (id) => `/purchase/document/${encodeURIComponent(id)}?appKey=demands&source=document-intake`,
-  purchase_orders: (id) => `/purchase/document/${encodeURIComponent(id)}?appKey=orders&source=document-intake`,
-  purchase_arrivals: (id) => `/purchase/document/${encodeURIComponent(id)}?appKey=arrivals&source=document-intake`,
-  boms: (id) => `/production/app/bom_list?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  v_sales_bom_production_plan: (id) => `/production/app/plans?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  v_production_work_orders: (id) => `/production/app/work_orders?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  v_production_work_order_items: (id) => `/production/app/work_order_items?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  production_inspections: (id) => `/quality/app/production_inspections?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  inspection_orders: (id) => `/quality/app/inspection_orders?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  sales_orders: (id) => `/sales/app/orders?recordId=${encodeURIComponent(id)}&source=document-intake`,
-  sales_payments: (id) => `/sales/app/payments?recordId=${encodeURIComponent(id)}&source=document-intake`
-}
-
-const businessRecordTableKey = (row) => {
-  const schema = String(row?.targetSchema || '').trim()
-  const table = String(row?.targetTable || '').trim()
-  if (schema && table) return `${schema}.${table}`
-  return table || schema
-}
-
-const businessRecordUrl = (row) => {
-  const serverUrl = String(row?.businessRecordUrl || row?.business_record_url || '').trim()
-  if (serverUrl) return serverUrl
-  const recordId = String(row?.targetRecordId || '').trim()
-  if (!recordId) return ''
-  if (row?.targetKind === 'data_app' && row?.targetAppId) {
-    return `/apps/app/${encodeURIComponent(row.targetAppId)}/record/${encodeURIComponent(recordId)}?source=document-intake`
-  }
-  const key = businessRecordTableKey(row)
-  const routeBuilder = businessRecordRouteMap[key] || businessRecordRouteMap[key.replace(/^[^.]+\./, '')]
-  return routeBuilder ? routeBuilder(recordId) : ''
-}
-
 const openBusinessRecord = (row) => {
   const url = businessRecordUrl(row)
   if (!url) {
@@ -1899,19 +1870,6 @@ const copyBusinessRecordId = async (row) => {
     ElMessage.error('复制失败，请手动复制记录 ID')
   }
 }
-
-const correctionValueLabel = (value) => {
-  if (value === null || value === undefined || value === '') return '-'
-  return String(value)
-}
-
-const recalculationStatusLabel = (status) => ({
-  pending: '待重算',
-  recalculating: '重算中',
-  completed: '已重算',
-  failed: '重算失败',
-  skipped: '无需重算'
-}[status] || status || '未触发重算')
 
 const refreshActiveList = () => {
   void loadOverview()
@@ -2012,169 +1970,11 @@ watch(activeTab, (tab) => {
   }
 })
 
-const formatBytes = (bytes) => {
-  const value = Number(bytes || 0)
-  if (!value) return '0 B'
-  if (value < 1024) return `${value} B`
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
-  if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`
-  return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`
-}
-
-const formatInteger = (value) => {
-  const numeric = Number(value || 0)
-  if (!Number.isFinite(numeric)) return '0'
-  return Math.max(0, Math.floor(numeric)).toLocaleString('zh-CN')
-}
-
 const formatTime = (value) => {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
   return date.toLocaleString('zh-CN', { hour12: false })
-}
-
-const statusLabel = (status) => ({
-  uploaded: '已上传',
-  duplicate: '重复',
-  queued: '排队中',
-  parsing: '解析中',
-  parsed: '已解析',
-  classified: '已识别',
-  importing: '入库中',
-  imported: '已入库',
-  partial_imported: '部分入库',
-  unrecognized: '未识别',
-  failed: '失败',
-  archived: '已归档'
-}[status] || status || '-')
-
-const statusTagType = (status) => ({
-  duplicate: 'warning',
-  failed: 'danger',
-  imported: 'success',
-  partial_imported: 'warning',
-  unrecognized: 'info'
-}[status] || '')
-
-const deviceStatusLabel = (status) => ({
-  pending: '待绑定',
-  active: '在线',
-  offline: '离线',
-  disabled: '停用'
-}[status] || status || '-')
-
-const deviceStatusTagType = (status) => ({
-  active: 'success',
-  offline: 'warning',
-  disabled: 'danger',
-  pending: 'info'
-}[status] || '')
-
-const logLevelLabel = (level) => ({
-  error: '错误',
-  warn: '警告',
-  warning: '警告',
-  info: '信息',
-  debug: '调试'
-}[String(level || '').toLowerCase()] || level || '-')
-
-const logLevelTagType = (level) => ({
-  error: 'danger',
-  warn: 'warning',
-  warning: 'warning',
-  info: 'info',
-  debug: ''
-}[String(level || '').toLowerCase()] || '')
-
-const entryResultStatusLabel = (status) => ({
-  planned: '计划中',
-  importing: '入库中',
-  imported: '已入库',
-  partial: '部分入库',
-  failed: '失败',
-  skipped_duplicate: '重复跳过',
-  archived_only: '仅归档'
-}[status] || status || '-')
-
-const entryResultStatusTagType = (status) => ({
-  imported: 'success',
-  partial: 'warning',
-  failed: 'danger',
-  skipped_duplicate: 'warning',
-  archived_only: 'info',
-  planned: 'info'
-}[status] || '')
-
-const targetKindLabel = (kind) => ({
-  fixed_module_table: '固定模块',
-  data_app: '动态应用'
-}[kind] || kind || '未识别')
-
-const targetTableLabel = (row) => {
-  const schema = row.targetSchema || ''
-  const table = row.targetTable || ''
-  if (schema && table) return `${schema}.${table}`
-  return table || schema || '-'
-}
-
-const linkTargetTableLabel = (row) => {
-  const schema = row.targetSchema || ''
-  const table = row.targetTable || ''
-  if (schema && table) return `${schema}.${table}`
-  return table || schema || row.targetDocumentType || '-'
-}
-
-const assetTargetLabel = (row) => row.targetDocumentType || row.appName || row.targetModule || '-'
-
-const assetFileTypeLabel = (row) => {
-  const ext = String(row.fileExt || '').replace(/^\./, '').trim()
-  if (ext) return ext.toUpperCase()
-  const mime = String(row.mimeType || '').trim()
-  if (!mime) return '-'
-  const subtype = mime.includes('/') ? mime.split('/').pop() : mime
-  return subtype ? subtype.toUpperCase() : mime
-}
-
-const assetGeneratedCountLabel = (row) => {
-  const count = Number(row.generatedDocumentCount ?? row.businessLinkCount ?? row.documentCount ?? 0)
-  return Number.isFinite(count) && count > 0 ? `${count} 条` : '-'
-}
-
-const formatConfidence = (value) => {
-  if (value === null || value === undefined || value === '') return '-'
-  const numeric = Number(value)
-  if (!Number.isFinite(numeric)) return String(value)
-  return `${Math.round(numeric * 100)}%`
-}
-
-const sourceLabel = (source) => ({
-  web_drag_drop: '网页拖拽',
-  manual_drag_drop: '桌面拖拽',
-  manual_selected_file: '手动选择',
-  watch_folder: '监听目录',
-  collector_desktop: '采集端'
-}[source] || source || '-')
-
-const operatorSourceLabel = (source) => ({
-  web_login_user: '网页登录用户',
-  device_default_user: '设备默认用户'
-}[source] || source || '未记录来源')
-
-const watchFolderSourceLabel = (source) => ({
-  local_settings: '本机设置',
-  remote_config: '远程下发'
-}[source] || source || '未记录目录来源')
-
-const assetSourceFolderLabel = (row) => {
-  if (!row?.sourceFolder) return watchFolderSourceLabel(row?.watchFolderSource)
-  return `${row.sourceFolder} · ${watchFolderSourceLabel(row.watchFolderSource)}`
-}
-
-const logSourceFolderLabel = (row) => {
-  if (!row?.sourceFolder && !row?.watchFolderSource) return '-'
-  if (!row?.sourceFolder) return watchFolderSourceLabel(row.watchFolderSource)
-  return `${row.sourceFolder} · ${watchFolderSourceLabel(row.watchFolderSource)}`
 }
 
 onMounted(() => {

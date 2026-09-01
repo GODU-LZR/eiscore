@@ -17,7 +17,7 @@
     "eiscore-apps/src/views/OntologyWorkbench.vue": 2184,
     "eiscore-production/src/components/ProductionAppGrid.vue": 2077,
     "eiscore-purchase/src/components/PurchaseAppGrid.vue": 1970,
-    "eiscore-base/src/views/DocumentIntakeCenter.vue": 2446,
+    "eiscore-base/src/views/DocumentIntakeCenter.vue": 2246,
     "eiscore-purchase/src/views/PurchaseDocumentDetail.vue": 2326,
     "eiscore-equipment/src/views/EquipmentHome.vue": 2072,
     "eiscore-sales/src/views/SalesCockpit.vue": 1970,
