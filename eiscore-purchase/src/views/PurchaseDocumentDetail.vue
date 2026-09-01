@@ -256,8 +256,10 @@ import {
   buildPurchaseDocumentBusinessActions,
   buildPurchaseDocumentPermissionKeys
 } from '@/domain/purchase-document-detail-action-policy.js'
+import {
+  buildPurchaseDocumentFallbackSchema
+} from '@/domain/purchase-document-detail-schema-policy.js'
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
-import { documentSchemaExample } from '@/components/eis-document-engine/documentSchemaExample'
 
 const props = defineProps({
   id: { type: [String, Number], required: true }
@@ -417,56 +419,14 @@ const businessActions = computed(() => buildPurchaseDocumentBusinessActions({
   }
 }))
 
-const normalizeSchemaColumns = (cols) => (
-  Array.isArray(cols)
-    ? cols.filter(col => col && col.label && col.prop)
-    : []
-)
-
-const buildSchemaSection = (title, cols) => {
-  const list = normalizeSchemaColumns(cols)
-  if (!list.length) return null
-  return {
-    type: 'section',
-    title,
-    cols: 2,
-    children: list.map(col => ({
-      label: col.label,
-      field: col.prop,
-      widget: resolveSchemaWidget(col)
-    }))
-  }
-}
-
-const resolveSchemaWidget = (col) => {
-  if (col.type === 'select') return 'select'
-  if (col.type === 'cascader') return 'cascader'
-  if (col.type === 'number') return 'number'
-  if (String(col.prop || '').includes('date') || String(col.prop || '').endsWith('_at')) return 'date'
-  if (col.type === 'file') return 'image'
-  return 'input'
-}
-
 const buildFallbackSchema = () => {
-  const baseSection = buildSchemaSection('基础信息', staticColumns.value || [])
-  const extraSection = buildSchemaSection('扩展信息', dynamicColumns.value || [])
-  const layout = [baseSection, extraSection].filter(Boolean)
-  if (!layout.length) return documentSchemaExample
-  return {
-    docType: `purchase_${detailConfig.value.key || 'document'}_auto`,
-    title: pageTitle.value,
-    docNo: getDocNoField(),
+  return buildPurchaseDocumentFallbackSchema({
+    appKey: detailConfig.value.key,
+    pageTitle: pageTitle.value,
     scope: templateScope.value,
-    layout
-  }
-}
-
-const getDocNoField = () => {
-  if (detailConfig.value.key === 'suppliers') return 'supplier_no'
-  if (detailConfig.value.key === 'demands') return 'demand_no'
-  if (detailConfig.value.key === 'orders') return 'order_no'
-  if (detailConfig.value.key === 'arrivals') return 'arrival_no'
-  return ''
+    staticColumns: staticColumns.value,
+    dynamicColumns: dynamicColumns.value
+  })
 }
 
 const activeSchema = computed(() => {
