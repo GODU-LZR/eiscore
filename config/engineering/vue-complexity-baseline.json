@@ -15,7 +15,7 @@
     "eiscore-apps/src/views/FlashBuilder.vue": 3741,
     "eiscore-base/src/layout/index.vue": 3535,
     "eiscore-apps/src/views/OntologyWorkbench.vue": 2184,
-    "eiscore-production/src/components/ProductionAppGrid.vue": 2483,
+    "eiscore-production/src/components/ProductionAppGrid.vue": 2278,
     "eiscore-purchase/src/components/PurchaseAppGrid.vue": 2521,
     "eiscore-base/src/views/DocumentIntakeCenter.vue": 2446,
     "eiscore-purchase/src/views/PurchaseDocumentDetail.vue": 2326,

@@ -593,6 +593,26 @@ import {
   normalizeProductionCascaderMap,
   resolveProductionDefaultOrder
 } from '@/domain/production-grid-data-policy'
+import {
+  PRODUCTION_FLOW_DOC_TYPES as DOC_TYPES,
+  PRODUCTION_FLOW_RELATION_TYPES as RELATION_TYPES,
+  assertProductionIssueFlowSource,
+  assertProductionWorkOrderFlowSource,
+  buildProductionActiveSourceLinkQuery as activeSourceLinkQuery,
+  buildProductionDocumentLinkPayload as createDocumentLinkPayload,
+  buildProductionFlowAuditPayload,
+  buildProductionFlowView,
+  buildProductionInboundPlan,
+  buildProductionMaterialOutboundPlan,
+  buildProductionQualityInspectionCompletion,
+  buildProductionQualityInspectionDraft,
+  encodeProductionFilterValue as safeEq,
+  formatProductionQuantity as formatQty,
+  getProductionIssueDocNo as getIssueDocNo,
+  pickProductionRowByLinkTarget as pickFirstByLinkTarget,
+  projectProductionLinkedDocument,
+  selectProductionFlowRows
+} from '@/domain/production-grid-flow-policy'
 
 const props = defineProps({
   appKey: { type: String, default: 'work_orders' },
@@ -639,22 +659,6 @@ const currentCol = reactive({
 const workOrderStatusOptions = WORK_ORDER_STATUS_OPTIONS
 const priorityOptions = PRIORITY_OPTIONS
 const issueStatusOptions = ISSUE_STATUS_OPTIONS
-const DOC_TYPES = Object.freeze({
-  PRODUCTION_PLAN: 'production_order',
-  WORK_ORDER: 'work_order',
-  WORK_ORDER_ITEM: 'work_order_item',
-  QUALITY_INSPECTION: 'quality_inspection',
-  INVENTORY_INBOUND: 'inventory_inbound',
-  INVENTORY_OUTBOUND: 'inventory_outbound'
-})
-const RELATION_TYPES = Object.freeze({
-  PRODUCTION_PLAN_TO_WORK_ORDER: 'production_plan_to_work_order',
-  WORK_ORDER_TO_ISSUE: 'work_order_to_issue',
-  WORK_ORDER_TO_QUALITY_INSPECTION: 'work_order_to_quality_inspection',
-  WORK_ORDER_TO_PRODUCTION_INBOUND: 'work_order_to_production_inbound',
-  WORK_ORDER_ITEM_TO_MATERIAL_OUTBOUND: 'work_order_item_to_material_outbound'
-})
-
 const workOrderDrawer = reactive({
   visible: false,
   saving: false,
@@ -704,56 +708,23 @@ const summaryConfig = computed(() => app.value.summaryConfig || { label: '总计
 const activeWorkOrder = computed(() => workOrderDrawer.row)
 const activeIssueRow = computed(() => issueDrawer.row)
 const flowPrimaryRow = computed(() => flowSelectedRows.value[0] || null)
-const isIssueFlow = computed(() => flowSourceMode.value === 'work_order_items' || app.value.key === 'work_order_items')
-const flowSelectedLabel = computed(() => (isIssueFlow.value ? '已选择领料明细' : '已选择生产工单'))
-const flowNextStepOptions = computed(() => {
-  if (isIssueFlow.value) {
-    return [{ label: '生产领料出库', value: 'material_outbound' }]
-  }
-  return [
-    { label: '生产检验', value: 'quality_inspection' },
-    { label: '生产入库', value: 'production_inbound' }
-  ]
-})
-const productionFlowNodes = computed(() => {
-  const row = flowPrimaryRow.value || {}
-  const docs = flowDocs.value || {}
-  const workOrderNo = row.work_order_no || docs.workOrder?.work_order_no
-  return [
-    { key: 'wo', type: '生产工单', docNo: workOrderNo, status: row.work_order_status || docs.workOrder?.work_order_status, current: !isIssueFlow.value },
-    { key: 'issue', type: '生产领料', docNo: docs.materialOutbound?.outbound_no || docs.materialOutbound?.docNo || (isIssueFlow.value ? `${row.work_order_no || ''}-${row.line_no || row.id || ''}` : ''), status: docs.materialOutbound?.status || row.issue_status, current: isIssueFlow.value },
-    { key: 'qc', type: '生产检验', docNo: docs.qualityInspection?.doc_no, status: docs.qualityInspection?.result },
-    { key: 'in', type: '生产入库', docNo: docs.productionInbound?.inbound_no || docs.productionInbound?.docNo, status: docs.productionInbound?.status }
-  ]
-})
-const flowPrimaryLabel = computed(() => (isIssueFlow.value ? '首个待下推用料' : '首个待下推工单'))
-const flowPrimaryDocNo = computed(() => {
-  const row = flowPrimaryRow.value || {}
-  if (isIssueFlow.value) return row.work_order_no ? `${row.work_order_no}-${row.line_no || row.id || ''}` : row.id || '-'
-  return row.work_order_no || row.id || '-'
-})
-const flowPrimarySummary = computed(() => {
-  const row = flowPrimaryRow.value || {}
-  if (isIssueFlow.value) return `${row.component_material_name || row.component_material_code || '-'} / ${formatQty(row.required_qty)} ${row.unit || ''}`
-  return `${row.product_material_name || row.product_material_code || '-'} / ${formatQty(row.planned_qty)} ${row.unit || ''}`
-})
-const flowDownstreamLabel = computed(() => {
-  if (flowNextStep.value === 'quality_inspection') return '下游生产检验'
-  if (flowNextStep.value === 'production_inbound') return '下游生产入库'
-  return '下游领料出库'
-})
-const flowDownstreamDocNo = computed(() => {
-  const docs = flowDocs.value || {}
-  if (flowNextStep.value === 'quality_inspection') return docs.qualityInspection?.doc_no || '未生成'
-  if (flowNextStep.value === 'production_inbound') return docs.productionInbound?.inbound_no || docs.productionInbound?.docNo || '未生成'
-  return docs.materialOutbound?.outbound_no || docs.materialOutbound?.docNo || '未生成'
-})
-const flowDownstreamStatus = computed(() => {
-  const docs = flowDocs.value || {}
-  if (flowNextStep.value === 'quality_inspection') return docs.qualityInspection?.result || '可下推生成'
-  if (flowNextStep.value === 'production_inbound') return docs.productionInbound?.status || '可生成入库链路'
-  return docs.materialOutbound?.status || '可生成出库链路'
-})
+const productionFlowView = computed(() => buildProductionFlowView({
+  sourceMode: flowSourceMode.value,
+  appKey: app.value.key,
+  row: flowPrimaryRow.value || {},
+  docs: flowDocs.value || {},
+  nextStep: flowNextStep.value
+}))
+const isIssueFlow = computed(() => productionFlowView.value.isIssueFlow)
+const flowSelectedLabel = computed(() => productionFlowView.value.selectedLabel)
+const flowNextStepOptions = computed(() => productionFlowView.value.nextStepOptions)
+const productionFlowNodes = computed(() => productionFlowView.value.nodes)
+const flowPrimaryLabel = computed(() => productionFlowView.value.primaryLabel)
+const flowPrimaryDocNo = computed(() => productionFlowView.value.primaryDocNo)
+const flowPrimarySummary = computed(() => productionFlowView.value.primarySummary)
+const flowDownstreamLabel = computed(() => productionFlowView.value.downstream.label)
+const flowDownstreamDocNo = computed(() => productionFlowView.value.downstream.docNo)
+const flowDownstreamStatus = computed(() => productionFlowView.value.downstream.status)
 const issueShortageQty = computed(() => {
   const required = Number(activeIssueRow.value?.required_qty || 0)
   const issued = Number(issueDrawer.form.issued_qty || 0)
@@ -1291,63 +1262,7 @@ const formatDateValue = (value) => {
   return String(value).slice(0, 10)
 }
 
-const formatQty = (value) => {
-  const num = Number(value)
-  if (!Number.isFinite(num)) return '0'
-  if (Number.isInteger(num)) return String(num)
-  return num.toFixed(3).replace(/\.?0+$/, '')
-}
-
-const safeEq = (value) => encodeURIComponent(String(value ?? ''))
-
 const nextDocNo = (prefix) => `${prefix}${Date.now().toString().slice(-8)}${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`
-
-const toNumber = (value) => {
-  const num = Number(value)
-  return Number.isFinite(num) ? num : 0
-}
-
-const getIssueDocNo = (row = {}) => {
-  const lineNo = row.line_no || row.id || ''
-  return `${row.work_order_no || 'WO'}-${lineNo}`
-}
-
-const getFlowSourceDoc = (row, docType) => ({
-  docType,
-  docId: row?.id || null,
-  docNo: docType === DOC_TYPES.WORK_ORDER_ITEM ? getIssueDocNo(row) : row?.work_order_no || ''
-})
-
-const createDocumentLinkPayload = ({ source, target, relationType, quantity = null, amount = null, payload = {} }) => ({
-  source_doc_type: source.docType,
-  source_doc_id: source.docId || null,
-  source_doc_no: source.docNo || '',
-  target_doc_type: target.docType,
-  target_doc_id: target.docId || null,
-  target_doc_no: target.docNo || '',
-  relation_type: relationType,
-  quantity,
-  amount,
-  status: 'active',
-  payload
-})
-
-const activeSourceLinkQuery = (sourceType, sourceId, sourceNo, relationType = '') => {
-  const clauses = []
-  if (sourceId) clauses.push(`source_doc_id.eq.${safeEq(sourceId)}`)
-  if (sourceNo) clauses.push(`source_doc_no.eq.${safeEq(sourceNo)}`)
-  const orPart = clauses.length ? `&or=(${clauses.join(',')})` : ''
-  const relationPart = relationType ? `&relation_type=eq.${safeEq(relationType)}` : ''
-  return `source_doc_type=eq.${safeEq(sourceType)}&status=eq.active${relationPart}${orPart}&order=created_at.asc`
-}
-
-const pickFirstByLinkTarget = (rows, link, noField) => {
-  if (!link) return rows[0] || null
-  return rows.find((row) => {
-    if (link.target_doc_id && row.id === link.target_doc_id) return true
-    return noField && link.target_doc_no && row[noField] === link.target_doc_no
-  }) || rows[0] || null
-}
 
 const loadRowsByIdsOrNos = async ({ table, noField, ids = [], nos = [], select = '*', profile = 'public' }) => {
   const clauses = []
@@ -1398,18 +1313,14 @@ const writeFlowAudit = async ({ actionType, source, target, reason = '', payload
     url: '/document_flow_audits',
     method: 'post',
     headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=minimal' },
-    data: {
-      action_type: actionType,
-      source_doc_type: source?.docType || '',
-      source_doc_id: source?.docId || null,
-      source_doc_no: source?.docNo || '',
-      target_doc_type: target?.docType || '',
-      target_doc_id: target?.docId || null,
-      target_doc_no: target?.docNo || '',
+    data: buildProductionFlowAuditPayload({
+      actionType,
+      source,
+      target,
       reason,
-      actor_username: getCurrentUserName() || 'production',
+      actorUsername: getCurrentUserName(),
       payload
-    },
+    }),
     silentError: true
   }).catch(() => null)
 }
@@ -1467,8 +1378,7 @@ const resetFlowDialog = () => {
 
 const getSelectedFlowRows = (mode = app.value.key) => {
   const rows = selectedRows.value.length ? selectedRows.value : []
-  if (mode === 'work_order_items') return rows.filter((row) => row?.id && (row.work_order_no || row.work_order_id))
-  return rows.filter((row) => row?.id && row.work_order_no)
+  return selectProductionFlowRows(rows, mode)
 }
 
 const loadWorkOrderBusinessFlow = async (row = flowPrimaryRow.value) => {
@@ -1497,14 +1407,7 @@ const loadWorkOrderBusinessFlow = async (row = flowPrimaryRow.value) => {
       })
       : []
     const qualityInspection = pickFirstByLinkTarget(inspections, qcLink, 'doc_no')
-    const productionInbound = inboundLink
-      ? {
-        id: inboundLink.target_doc_id,
-        inbound_no: inboundLink.target_doc_no,
-        docNo: inboundLink.target_doc_no,
-        status: inboundLink.payload?.status || (inboundLink.status === 'active' ? '已生成链路' : inboundLink.status)
-      }
-      : null
+    const productionInbound = projectProductionLinkedDocument(inboundLink, 'inbound_no')
     flowDocs.value = { workOrder: row, qualityInspection, productionInbound }
     flowLinks.value = [qcLink, inboundLink].filter(Boolean)
   } catch (error) {
@@ -1526,14 +1429,7 @@ const loadIssueBusinessFlow = async (row = flowPrimaryRow.value) => {
       sourceNo,
       relationType: RELATION_TYPES.WORK_ORDER_ITEM_TO_MATERIAL_OUTBOUND
     })
-    const materialOutbound = outboundLink
-      ? {
-        id: outboundLink.target_doc_id,
-        outbound_no: outboundLink.target_doc_no,
-        docNo: outboundLink.target_doc_no,
-        status: outboundLink.payload?.status || (outboundLink.status === 'active' ? '已生成链路' : outboundLink.status)
-      }
-      : null
+    const materialOutbound = projectProductionLinkedDocument(outboundLink, 'outbound_no')
     flowDocs.value = { workOrderItem: row, materialOutbound }
     flowLinks.value = [outboundLink].filter(Boolean)
   } catch (error) {
@@ -1613,36 +1509,14 @@ const findExistingQualityInspectionForWorkOrder = async (row) => {
 }
 
 const pushSingleWorkOrderToQualityInspection = async (row) => {
-  if (!row?.id) throw new Error('生产工单缺少主键，不能下推生产检验')
+  assertProductionWorkOrderFlowSource(row, '生产检验')
   const existing = await findExistingQualityInspectionForWorkOrder(row)
   if (existing) return { skipped: true, inspection: existing }
-  const sampleQty = Math.max(1, Math.min(toNumber(row.planned_qty), 100) || 1)
-  const inspectionPayload = {
-    doc_no: nextDocNo('QI'),
-    inspection_type: '过程巡检',
-    source_doc_no: row.work_order_no || '',
-    item_code: row.product_material_code || '',
-    item_name: row.product_material_name || row.product_material_code || '生产产品',
-    source_name: row.properties?.line_name || row.properties?.workshop || '生产现场',
-    batch_no: row.properties?.batch_no || '',
-    sample_qty: sampleQty,
-    defect_qty: 0,
-    result: '待判定',
-    inspector: '',
-    inspection_date: new Date().toISOString().slice(0, 10),
-    remark: `由生产工单 ${row.work_order_no || ''} 下推生成`,
-    status: 'active',
-    properties: {
-      source_type: 'production_work_order',
-      source_work_order_id: row.id,
-      source_work_order_no: row.work_order_no || '',
-      product_material_id: row.product_material_id || null,
-      product_material_code: row.product_material_code || '',
-      planned_qty: toNumber(row.planned_qty),
-      unit: row.unit || '',
-      workflow_key: 'production_to_quality'
-    }
-  }
+  const { sampleQty, inspectionPayload } = buildProductionQualityInspectionDraft({
+    row,
+    inspectionNo: nextDocNo('QI'),
+    inspectionDate: new Date().toISOString().slice(0, 10)
+  })
   const createdRows = await request({
     url: '/quality_inspections',
     method: 'post',
@@ -1650,40 +1524,20 @@ const pushSingleWorkOrderToQualityInspection = async (row) => {
     data: inspectionPayload
   })
   const inspection = Array.isArray(createdRows) ? createdRows[0] : createdRows
-  const sourceDoc = getFlowSourceDoc(row, DOC_TYPES.WORK_ORDER)
-  const targetDoc = {
-    docType: DOC_TYPES.QUALITY_INSPECTION,
-    docId: inspection?.id || null,
-    docNo: inspection?.doc_no || inspectionPayload.doc_no
-  }
-  await createDocumentLink(createDocumentLinkPayload({
-    source: sourceDoc,
-    target: targetDoc,
-    relationType: RELATION_TYPES.WORK_ORDER_TO_QUALITY_INSPECTION,
-    quantity: sampleQty,
-    payload: {
-      product_material_code: row.product_material_code || '',
-      product_material_name: row.product_material_name || ''
-    }
-  }))
-  await writeFlowAudit({
-    actionType: 'push_work_order_to_quality_inspection',
-    source: sourceDoc,
-    target: targetDoc,
-    payload: { sample_qty: sampleQty, product_material_name: row.product_material_name || '' }
+  const completion = buildProductionQualityInspectionCompletion({
+    row,
+    inspection,
+    inspectionPayload,
+    sampleQty,
+    pushedAt: null
   })
+  await createDocumentLink(createDocumentLinkPayload(completion.documentLink))
+  await writeFlowAudit(completion.audit)
   await request({
     url: `/production_work_orders?id=eq.${safeEq(row.id)}`,
     method: 'patch',
     headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
-    data: {
-      properties: {
-        ...(row.properties || {}),
-        quality_inspection_id: inspection?.id || null,
-        quality_inspection_no: inspection?.doc_no || inspectionPayload.doc_no,
-        quality_pushed_at: new Date().toISOString()
-      }
-    }
+    data: { properties: { ...completion.orderProperties, quality_pushed_at: new Date().toISOString() } }
   }).catch(() => null)
   return { skipped: false, inspection }
 }
@@ -1696,56 +1550,27 @@ const findExistingProductionInboundForWorkOrder = async (row) => {
     relationType: RELATION_TYPES.WORK_ORDER_TO_PRODUCTION_INBOUND
   })
   if (!link) return null
-  return {
-    inbound_no: link.target_doc_no,
-    docNo: link.target_doc_no,
-    status: link.payload?.status || '已生成链路'
-  }
+  return projectProductionLinkedDocument(link, 'inbound_no')
 }
 
 const pushSingleWorkOrderToProductionInbound = async (row) => {
-  if (!row?.id) throw new Error('生产工单缺少主键，不能下推生产入库')
+  assertProductionWorkOrderFlowSource(row, '生产入库')
   const existing = await findExistingProductionInboundForWorkOrder(row)
   if (existing) return { skipped: true, inbound: existing }
-  const quantity = toNumber(row.planned_qty)
-  if (quantity <= 0) throw new Error(`生产工单 ${row.work_order_no || row.id} 计划数量必须大于 0`)
-  const inboundNo = nextDocNo('PIN')
-  const sourceDoc = getFlowSourceDoc(row, DOC_TYPES.WORK_ORDER)
-  const targetDoc = { docType: DOC_TYPES.INVENTORY_INBOUND, docId: null, docNo: inboundNo }
-  await createDocumentLink(createDocumentLinkPayload({
-    source: sourceDoc,
-    target: targetDoc,
-    relationType: RELATION_TYPES.WORK_ORDER_TO_PRODUCTION_INBOUND,
-    quantity,
-    payload: {
-      status: '待仓储补录',
-      io_type: '生产入库',
-      product_material_id: row.product_material_id || null,
-      product_material_code: row.product_material_code || '',
-      product_material_name: row.product_material_name || '',
-      unit: row.unit || ''
-    }
-  }))
-  await writeFlowAudit({
-    actionType: 'push_work_order_to_production_inbound',
-    source: sourceDoc,
-    target: targetDoc,
-    payload: { quantity, io_type: '生产入库', product_material_name: row.product_material_name || '' }
+  const plan = buildProductionInboundPlan({
+    row,
+    inboundNo: nextDocNo('PIN'),
+    pushedAt: null
   })
+  await createDocumentLink(createDocumentLinkPayload(plan.documentLink))
+  await writeFlowAudit(plan.audit)
   await request({
     url: `/production_work_orders?id=eq.${safeEq(row.id)}`,
     method: 'patch',
     headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
-    data: {
-      properties: {
-        ...(row.properties || {}),
-        production_inbound_no: inboundNo,
-        production_inbound_status: '待仓储补录',
-        production_inbound_pushed_at: new Date().toISOString()
-      }
-    }
+    data: { properties: { ...plan.orderProperties, production_inbound_pushed_at: new Date().toISOString() } }
   }).catch(() => null)
-  return { skipped: false, inbound: { inbound_no: inboundNo, status: '待仓储补录' } }
+  return { skipped: false, inbound: plan.inbound }
 }
 
 const findExistingMaterialOutboundForIssue = async (row) => {
@@ -1756,58 +1581,28 @@ const findExistingMaterialOutboundForIssue = async (row) => {
     relationType: RELATION_TYPES.WORK_ORDER_ITEM_TO_MATERIAL_OUTBOUND
   })
   if (!link) return null
-  return {
-    outbound_no: link.target_doc_no,
-    docNo: link.target_doc_no,
-    status: link.payload?.status || '已生成链路'
-  }
+  return projectProductionLinkedDocument(link, 'outbound_no')
 }
 
 const pushSingleIssueToMaterialOutbound = async (row, override = {}) => {
-  if (!row?.id) throw new Error('领料明细缺少主键，不能下推出库')
+  assertProductionIssueFlowSource(row)
   const existing = await findExistingMaterialOutboundForIssue(row)
   if (existing) return { skipped: true, outbound: existing }
-  const quantity = toNumber(override.issued_qty ?? row.issued_qty ?? row.required_qty)
-  if (quantity <= 0) throw new Error(`领料明细 ${getIssueDocNo(row)} 数量必须大于 0`)
-  const outboundNo = nextDocNo('PICK')
-  const sourceDoc = getFlowSourceDoc(row, DOC_TYPES.WORK_ORDER_ITEM)
-  const targetDoc = { docType: DOC_TYPES.INVENTORY_OUTBOUND, docId: null, docNo: outboundNo }
-  await createDocumentLink(createDocumentLinkPayload({
-    source: sourceDoc,
-    target: targetDoc,
-    relationType: RELATION_TYPES.WORK_ORDER_ITEM_TO_MATERIAL_OUTBOUND,
-    quantity,
-    payload: {
-      status: '待仓储补录',
-      io_type: '生产领料',
-      work_order_id: row.work_order_id || null,
-      work_order_no: row.work_order_no || '',
-      component_material_id: row.component_material_id || null,
-      component_material_code: row.component_material_code || '',
-      component_material_name: row.component_material_name || '',
-      unit: row.unit || ''
-    }
-  }))
-  await writeFlowAudit({
-    actionType: 'push_work_order_item_to_material_outbound',
-    source: sourceDoc,
-    target: targetDoc,
-    payload: { quantity, io_type: '生产领料', component_material_name: row.component_material_name || '' }
+  const plan = buildProductionMaterialOutboundPlan({
+    row,
+    issuedQty: override.issued_qty,
+    outboundNo: nextDocNo('PICK'),
+    pushedAt: null
   })
+  await createDocumentLink(createDocumentLinkPayload(plan.documentLink))
+  await writeFlowAudit(plan.audit)
   await request({
     url: `/production_work_order_items?id=eq.${safeEq(row.id)}`,
     method: 'patch',
     headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
-    data: {
-      properties: {
-        ...(row.properties || {}),
-        material_outbound_no: outboundNo,
-        material_outbound_status: '待仓储补录',
-        material_outbound_pushed_at: new Date().toISOString()
-      }
-    }
+    data: { properties: { ...plan.issueProperties, material_outbound_pushed_at: new Date().toISOString() } }
   }).catch(() => null)
-  return { skipped: false, outbound: { outbound_no: outboundNo, status: '待仓储补录' } }
+  return { skipped: false, outbound: plan.outbound }
 }
 
 const openProductionFlowTarget = (path, tabTitle, moduleName) => {
