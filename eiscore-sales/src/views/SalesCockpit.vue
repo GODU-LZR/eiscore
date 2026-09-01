@@ -347,6 +347,12 @@ import {
   buildSalesOrderStageStats,
   buildSalesPaymentGauge
 } from '@/domain/sales-cockpit-summary-policy.js'
+import {
+  buildSalesOwnerPerformance,
+  buildSalesOwnerRanking,
+  calculateSalesReceivableRate,
+  selectSalesReceivableCustomers
+} from '@/domain/sales-cockpit-ranking-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -412,49 +418,13 @@ const paymentRateCapped = computed(() => paymentGauge.value.rate)
 const paymentGaugeColor = computed(() => paymentGauge.value.color)
 const paymentGaugeDash = computed(() => paymentGauge.value.dash)
 
-const receivableCustomers = computed(() => {
-  return [...activeCustomers.value]
-    .filter((row) => toAmount(row?.receivable_balance) > 0)
-    .sort((a, b) => toAmount(b.receivable_balance) - toAmount(a.receivable_balance))
-    .slice(0, 6)
-})
-
-const maxReceivable = computed(() => Math.max(...receivableCustomers.value.map((row) => toAmount(row.receivable_balance)), 0))
-const receivableRate = (customer) => {
-  if (!maxReceivable.value) return 0
-  return Math.max(8, Math.round((toAmount(customer?.receivable_balance) / maxReceivable.value) * 100))
-}
-
-const ownerPerformance = computed(() => {
-  const map = new Map()
-  const ensure = (owner) => {
-    const key = owner || '未设置'
-    if (!map.has(key)) map.set(key, { owner: key, orderCount: 0, orderAmount: 0, opportunityCount: 0, opportunityAmount: 0 })
-    return map.get(key)
-  }
-  activeOrders.value.forEach((row) => {
-    const item = ensure(row.owner_name)
-    item.orderCount += 1
-    item.orderAmount += toAmount(row.total_amount)
-  })
-  activeOpportunities.value.forEach((row) => {
-    const item = ensure(row.owner_name)
-    item.opportunityCount += 1
-    item.opportunityAmount += toAmount(row.expected_amount)
-  })
-  return Array.from(map.values())
-    .sort((a, b) => (b.orderAmount + b.opportunityAmount * 0.4) - (a.orderAmount + a.opportunityAmount * 0.4))
-    .slice(0, 6)
-})
-
-const ownerRanking = computed(() => {
-  const max = Math.max(...ownerPerformance.value.map((row) => row.orderAmount), 0)
-  return ownerPerformance.value.map((row, index) => ({
-    ...row,
-    rank: String(index + 1).padStart(2, '0'),
-    rate: max ? Math.max(8, Math.round((row.orderAmount / max) * 100)) : 0
-  }))
-})
+const receivableCustomers = computed(() => selectSalesReceivableCustomers(activeCustomers.value))
+const receivableRate = (customer) => calculateSalesReceivableRate(customer, receivableCustomers.value)
+const ownerPerformance = computed(() => buildSalesOwnerPerformance({
+  orders: activeOrders.value,
+  opportunities: activeOpportunities.value
+}))
+const ownerRanking = computed(() => buildSalesOwnerRanking(ownerPerformance.value))
 
 const riskItems = computed(() => {
   const today = new Date()
