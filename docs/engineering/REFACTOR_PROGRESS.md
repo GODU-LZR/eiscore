@@ -232,14 +232,15 @@
 | 本文件所在提交 | 抽离 SalesCockpit 壳层策略 | 16:9 设计尺寸、最小可视尺寸、响应式缩放和舞台尺寸投影进入纯模块；窗口/Fullscreen/ResizeObserver 仍由页面持有 |
 | 本文件所在提交 | 抽离 SalesCockpit 时钟与刷新倒计时策略 | 本地化时钟格式与倒计时递减进入纯模块；页面继续持有 Date、1 秒定时器、刷新定时器和生命周期清理 |
 | 本文件所在提交 | 抽离 SalesCockpit 响应归一化策略 | 五路查询响应统一为显式数据投影，保留非数组回退为空数组与请求顺序；页面继续持有 Request、加载状态、时间戳和 AI Context 副作用 |
-| 本文件所在提交 | 建立 SalesCockpit 组合层退出门禁 | 锁定 1,751 行、8 个纯策略模块/33 个导出，以及 Request、Router、Watch、定时器、全屏、ResizeObserver、窗口事件、AI Context 与生命周期副作用库存 |
+| 本文件所在提交 | 抽离 SalesCockpit 全屏动作策略 | 全屏进入/退出判定进入纯模块；页面继续持有 DOM 目标、Fullscreen API、异常处理、状态同步与缩放调度 |
+| 本文件所在提交 | 建立 SalesCockpit 组合层退出门禁 | 锁定 1,753 行、11 个纯策略模块/37 个导出，以及 Request、Router、Watch、定时器、全屏、ResizeObserver、窗口事件、AI Context 与生命周期副作用库存 |
 
 ## 当前切片
 
 - 状态：G3 进行中；`SalesCockpit.vue` 正按销售驾驶舱职责渐进拆分。
-- 结果：SalesCockpit 在壳层策略和组合层退出门禁之后新增时钟/刷新倒计时及响应归一化纯策略，当前页面 1,751 行，累计 10 个纯模块、36 个导出；巨页债务为 83,988 行。
-- 兼容边界：页面继续持有 Vue 响应式组合并执行五路 Request、AI Context 推送、Router、Fullscreen、ResizeObserver、Date、1 秒时钟定时器、刷新定时器、窗口事件和生命周期副作用；时钟策略只接收显式 Date 或数值，数据策略只接收五路响应数组，不依赖浏览器 API，保留 `zh-CN` 24 小时格式、倒计时下限 0 和非数组空数组回退。本切片不改变接口、请求顺序、模板、视觉或交互。
-- 验证：新增 `test:sales-cockpit-clock` 与 `test:sales-cockpit-data`，并由 `test:sales-cockpit-exit` 纳入质量链；时钟/数据专项、组合门禁、壳层专项、查询专项、六个既有 SalesCockpit 专项与复杂度门禁均已通过，复杂度门禁实测 139 个 Vue 文件、52 个巨页、83,988/85,045 行债务；完整质量、离线单元与销售构建仍受既有环境兼容项阻断，详见交付说明。本切片不连接数据库、远程 API 或 Agent。
+- 结果：SalesCockpit 在壳层策略和组合层退出门禁之后新增时钟/刷新倒计时、响应归一化及全屏动作纯策略，当前页面 1,753 行，累计 11 个纯模块、37 个导出；巨页债务维持 83,988 行。
+- 兼容边界：页面继续持有 Vue 响应式组合并执行五路 Request、AI Context 推送、Router、Fullscreen、ResizeObserver、Date、1 秒时钟定时器、刷新定时器、窗口事件和生命周期副作用；时钟、数据和全屏策略均不依赖浏览器 API，分别保留 `zh-CN` 24 小时格式、倒计时下限 0、非数组空数组回退和 enter/exit 判定。本切片不改变接口、请求顺序、模板、视觉或交互。
+- 验证：新增 `test:sales-cockpit-clock`、`test:sales-cockpit-data` 与 `test:sales-cockpit-fullscreen`，并由 `test:sales-cockpit-exit` 纳入质量链；时钟/数据/全屏专项、组合门禁、壳层专项、查询专项、六个既有 SalesCockpit 专项与复杂度门禁均已通过，复杂度门禁实测 139 个 Vue 文件、52 个巨页、83,988/85,045 行债务；完整质量、离线单元与销售构建仍受既有环境兼容项阻断，详见交付说明。本切片不连接数据库、远程 API 或 Agent。
 
 ## 已知非阻断风险
 
@@ -259,4 +260,4 @@
 
 ## 下一候选切片
 
-继续 G3：在 `SalesCockpit.vue` 退出门禁保护下，评估是否存在可独立验证的副作用服务边界；展示、查询、壳层、时钟和数据归一化已迁出，继续保留页面作为 Vue/Router/Request/AI Context/Fullscreen/ResizeObserver/Date/定时器/窗口事件生命周期组合入口。
+继续 G3：在 `SalesCockpit.vue` 退出门禁保护下，评估是否存在可独立验证的副作用服务边界；展示、查询、壳层、时钟、数据归一化和全屏动作判定已迁出，继续保留页面作为 Vue/Router/Request/AI Context/Fullscreen/ResizeObserver/Date/定时器/窗口事件生命周期组合入口。

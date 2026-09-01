@@ -358,6 +358,7 @@ import { buildSalesCockpitAiContext } from '@/domain/sales-cockpit-context-polic
 import { buildSalesCockpitQueryRequests } from '@/domain/sales-cockpit-query-policy.js'
 import { decrementSalesCockpitRefreshCountdown, formatSalesCockpitClock } from '@/domain/sales-cockpit-clock-policy.js'
 import { normalizeSalesCockpitData } from '@/domain/sales-cockpit-data-policy.js'
+import { getSalesCockpitFullscreenAction } from '@/domain/sales-cockpit-fullscreen-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -514,8 +515,9 @@ const updateClock = () => { const now = new Date(); clock.value = formatSalesCoc
 
 const toggleFullscreen = () => {
   const target = rootRef.value || screenRef.value || document.documentElement
+  const action = getSalesCockpitFullscreenAction(document.fullscreenElement)
   try {
-    if (!document.fullscreenElement) {
+    if (action === 'enter') {
       const result = target.requestFullscreen?.()
       if (result?.catch) result.catch(() => {})
     } else {

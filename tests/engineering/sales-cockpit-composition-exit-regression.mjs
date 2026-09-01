@@ -11,7 +11,7 @@ const source = readFileSync(pagePath, 'utf8')
 const lines = source.split(/\r?\n/)
 const lineCount = lines.at(-1) === '' ? lines.length - 1 : lines.length
 
-assert.ok(lineCount <= 1751, `SalesCockpit grew beyond its 1751-line exit baseline: ${lineCount}`)
+assert.ok(lineCount <= 1753, `SalesCockpit grew beyond its 1753-line exit baseline: ${lineCount}`)
 
 const markerLine = (marker) => lines.findIndex((line) => line === marker)
 const templateStart = markerLine('<template>')
@@ -25,7 +25,7 @@ assert.ok(templateStart < templateEnd)
 assert.ok(templateEnd < scriptStart && scriptStart < scriptEnd)
 assert.ok(scriptEnd < styleStart && styleStart < styleEnd)
 assert.ok(templateEnd - templateStart + 1 <= 316)
-assert.ok(scriptEnd - scriptStart + 1 <= 245)
+assert.ok(scriptEnd - scriptStart + 1 <= 247)
 assert.ok(styleEnd - styleStart + 1 <= 1187)
 
 const policyImports = [...source.matchAll(/from ['"](@\/domain\/sales-cockpit-[^'"]+-policy\.js)['"]/g)]
@@ -36,6 +36,7 @@ assert.deepEqual(policyImports, [
   '@/domain/sales-cockpit-clock-policy.js',
   '@/domain/sales-cockpit-context-policy.js',
   '@/domain/sales-cockpit-data-policy.js',
+  '@/domain/sales-cockpit-fullscreen-policy.js',
   '@/domain/sales-cockpit-presentation-policy.js',
   '@/domain/sales-cockpit-query-policy.js',
   '@/domain/sales-cockpit-ranking-policy.js',
@@ -54,7 +55,7 @@ for (const file of policyFiles) {
   }
   assert.equal(/new Date\(\s*\)/.test(policySource), false, `${file} gained implicit current time`)
 }
-assert.equal(policyExports, 36)
+assert.equal(policyExports, 37)
 
 const count = (pattern) => (source.match(pattern) || []).length
 assert.equal(count(/\brequest\s*\(/g), 1)
