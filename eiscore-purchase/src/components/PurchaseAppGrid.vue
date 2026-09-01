@@ -422,9 +422,20 @@ import {
   buildPurchaseDataSample,
   buildPurchaseDataStats,
   clonePurchaseColumns,
-  isPurchaseRowActive,
-  normalizePurchaseCascaderMap
+  isPurchaseRowActive
 } from '@/domain/purchase-grid-data-policy'
+import {
+  appendPurchaseCascaderChild,
+  buildEmptyPurchaseColumnEditorDraft,
+  buildPurchaseAvailableColumns,
+  buildPurchaseColumnConfig,
+  buildPurchaseColumnEditorDraft,
+  buildPurchaseFormulaPrompt,
+  getPurchaseCascaderChildren,
+  removePurchaseCascaderChild,
+  resolvePurchaseColumnEditorTab,
+  togglePurchaseStaticColumn
+} from '@/domain/purchase-grid-column-policy'
 import {
   assertPurchaseDemandFlowSource,
   assertPurchaseOrderFlowSource,
@@ -670,26 +681,14 @@ const hasSyncedFieldAcl = ref(false)
 const isEditing = ref(false)
 const editingIndex = ref(-1)
 
-const currentCol = reactive({
-  label: '',
-  prop: '',
-  expression: '',
-  options: [],
-  dependsOn: '',
-  cascaderMap: {},
-  geoAddress: true,
-  fileMaxSizeMb: 20,
-  fileMaxCount: 3,
-  fileAccept: ''
-})
+const currentCol = reactive(buildEmptyPurchaseColumnEditorDraft())
 
-const allAvailableColumns = computed(() => {
-  const all = [...staticColumns.value, ...extraColumns.value]
-  if (isEditing.value) {
-    return all.filter((c, i) => i !== (staticColumns.value.length + editingIndex.value))
-  }
-  return all
-})
+const allAvailableColumns = computed(() => buildPurchaseAvailableColumns({
+  staticColumns: staticColumns.value,
+  extraColumns: extraColumns.value,
+  isEditing: isEditing.value,
+  editingIndex: editingIndex.value
+}))
 
 const cascaderParentColumns = computed(() => buildPurchaseCascaderParentColumns(allAvailableColumns.value))
 const cascaderParentOptions = computed(() => buildPurchaseCascaderParentOptions(
@@ -922,24 +921,12 @@ const insertVariable = (label) => {
   currentCol.expression += `{${label}}`
 }
 
-const buildFormulaPrompt = () => {
-  const label = currentCol.label || '计算列'
-  const variables = allAvailableColumns.value.map(col => col.label).join('、')
-  return [
-    '请帮我生成表格“自动计算”公式。',
-    `目标列：${label}`,
-    '要求：只输出公式，不要解释。',
-    '必须放在 ```formula``` 代码块中，内容示例：{数量}*{单价}。',
-    `可用字段：${variables || '无'}。`
-  ].join('\n')
-}
-
 const openAiFormula = () => {
   syncAiContext(lastLoadedRows.value, { aiScene: 'column_formula', allowFormulaOnce: true })
   pushAiCommand({
     id: `formula_${Date.now()}`,
     type: 'open-worker',
-    prompt: buildFormulaPrompt()
+    prompt: buildPurchaseFormulaPrompt({ label: currentCol.label, columns: allAvailableColumns.value })
   })
 }
 
@@ -1613,49 +1600,19 @@ const handleRealtimeEvent = (event) => {
 
 const editColumn = (index) => {
   const col = extraColumns.value[index]
-  currentCol.label = col.label
-  currentCol.prop = col.prop
-  currentCol.expression = col.expression || ''
-  currentCol.options = Array.isArray(col.options)
-    ? col.options.map(opt => ({
-        label: opt.label ?? opt.value ?? ''
-      }))
-    : []
-  currentCol.dependsOn = col.dependsOn || ''
-  currentCol.cascaderMap = normalizePurchaseCascaderMap(col.cascaderOptions)
+  Object.assign(currentCol, buildPurchaseColumnEditorDraft(col))
   Object.keys(cascaderInputMap).forEach((key) => delete cascaderInputMap[key])
-  currentCol.geoAddress = col.geoAddress !== false
-  currentCol.fileMaxSizeMb = col.fileMaxSizeMb || 20
-  currentCol.fileMaxCount = col.fileMaxCount || 3
-  currentCol.fileAccept = col.fileAccept || ''
-  
   isEditing.value = true
   editingIndex.value = index
-  
-  if (col.type === 'formula') addTab.value = 'formula'
-  else if (col.type === 'select' || col.type === 'dropdown') addTab.value = 'select'
-  else if (col.type === 'cascader') addTab.value = 'cascader'
-  else if (col.type === 'geo') addTab.value = 'geo'
-  else if (col.type === 'file') addTab.value = 'file'
-  else addTab.value = 'text'
-
+  addTab.value = resolvePurchaseColumnEditorTab(col.type)
   syncCascaderMap()
 }
 
 const resetForm = () => {
   isEditing.value = false
   editingIndex.value = -1
-  currentCol.label = ''
-  currentCol.prop = ''
-  currentCol.expression = ''
-  currentCol.options = []
-  currentCol.dependsOn = ''
-  currentCol.cascaderMap = {}
+  Object.assign(currentCol, buildEmptyPurchaseColumnEditorDraft())
   Object.keys(cascaderInputMap).forEach((key) => delete cascaderInputMap[key])
-  currentCol.geoAddress = true
-  currentCol.fileMaxSizeMb = 20
-  currentCol.fileMaxCount = 3
-  currentCol.fileAccept = ''
   addTab.value = 'text'
   if (!colConfigVisible.value) {
     syncAiContext(lastLoadedRows.value, { aiScene: 'grid_chat', allowFormula: false })
@@ -1663,99 +1620,38 @@ const resetForm = () => {
 }
 
 const getCascaderChildren = (key) => {
-  const list = currentCol.cascaderMap[String(key)] || []
-  return Array.isArray(list) ? list : []
+  return getPurchaseCascaderChildren(currentCol.cascaderMap, key)
 }
 
 const addCascaderChild = (key) => {
   const mapKey = String(key)
-  const raw = cascaderInputMap[mapKey]
-  const text = raw === null || raw === undefined ? '' : String(raw).trim()
-  if (!text) return
-  const list = currentCol.cascaderMap[mapKey] || []
-  if (!list.includes(text)) {
-    list.push(text)
-  }
-  currentCol.cascaderMap[mapKey] = list
+  const result = appendPurchaseCascaderChild(currentCol.cascaderMap[mapKey], cascaderInputMap[mapKey])
+  if (!result.changed) return
+  currentCol.cascaderMap[mapKey] = result.list
   cascaderInputMap[mapKey] = ''
 }
 
 const removeCascaderChild = (key, child) => {
   const mapKey = String(key)
-  const list = currentCol.cascaderMap[mapKey] || []
-  currentCol.cascaderMap[mapKey] = list.filter(item => item !== child)
+  currentCol.cascaderMap[mapKey] = removePurchaseCascaderChild(currentCol.cascaderMap[mapKey], child)
 }
 
 const saveColumn = async () => {
   if (!currentCol.label) return
-  
   const type = addTab.value
-  
-  const colConfig = {
-    label: currentCol.label,
-    type: type
+  const result = buildPurchaseColumnConfig({
+    draft: currentCol,
+    type,
+    isEditing: isEditing.value,
+    generatedProp: isEditing.value ? currentCol.prop : `field_${Math.floor(Math.random() * 10000)}`,
+    parentColumns: cascaderParentColumns.value,
+    parentOptions: cascaderParentOptions.value
+  })
+  if (!result.ok) {
+    ElMessage.warning(result.message)
+    return
   }
-
-  if (isEditing.value) {
-    colConfig.prop = currentCol.prop
-  } else {
-    colConfig.prop = 'field_' + Math.floor(Math.random() * 10000)
-  }
-
-  if (type === 'formula') {
-    colConfig.expression = currentCol.expression
-  } else if (type === 'select') {
-    colConfig.type = 'select'
-    const toText = (val) => (val === null || val === undefined) ? '' : String(val)
-    const cleanOptions = currentCol.options
-      .map(opt => {
-        const text = toText(opt.label).trim()
-        return {
-          label: text,
-          value: text
-        }
-      })
-      .filter(opt => opt.label)
-    if (cleanOptions.length === 0) {
-      ElMessage.warning('请至少添加一个选项')
-      return
-    }
-    colConfig.options = cleanOptions
-  } else if (type === 'cascader') {
-    if (!currentCol.dependsOn) {
-      ElMessage.warning('请选择上一级列')
-      return
-    }
-    const parentCol = cascaderParentColumns.value.find(col => col.prop === currentCol.dependsOn)
-    if (!parentCol) {
-      ElMessage.warning('上一级必须是下拉或联动列')
-      return
-    }
-    colConfig.dependsOn = currentCol.dependsOn
-    const cascaderOptions = {}
-    cascaderParentOptions.value.forEach((opt) => {
-      const valueKey = String(opt.value)
-      const labelKey = String(opt.label)
-      const list = currentCol.cascaderMap[valueKey] || currentCol.cascaderMap[labelKey] || []
-      const normalizedList = list.map(item => ({ label: item, value: item }))
-      cascaderOptions[valueKey] = normalizedList
-      if (labelKey !== valueKey && !(labelKey in cascaderOptions)) {
-        cascaderOptions[labelKey] = normalizedList
-      }
-    })
-    const hasAny = Object.values(cascaderOptions).some(list => Array.isArray(list) && list.length > 0)
-    if (!hasAny) {
-      ElMessage.warning('请至少给一个上一级配置下级选项')
-      return
-    }
-    colConfig.cascaderOptions = cascaderOptions
-  } else if (type === 'geo') {
-    colConfig.geoAddress = !!currentCol.geoAddress
-  } else if (type === 'file') {
-    colConfig.fileMaxSizeMb = Math.max(1, Number(currentCol.fileMaxSizeMb) || 20)
-    colConfig.fileMaxCount = Math.max(1, Number(currentCol.fileMaxCount) || 3)
-    colConfig.fileAccept = currentCol.fileAccept?.trim() || ''
-  }
+  const colConfig = result.column
 
   if (isEditing.value) {
     extraColumns.value[editingIndex.value] = colConfig
@@ -1786,13 +1682,7 @@ const openColumnConfig = () => {
 
 const isStaticVisible = (prop) => !staticHidden.value.includes(prop)
 const toggleStaticColumn = async (prop, visible) => {
-  const has = staticHidden.value.includes(prop)
-  if (visible && has) {
-    staticHidden.value = staticHidden.value.filter(item => item !== prop)
-  }
-  if (!visible && !has) {
-    staticHidden.value = [...staticHidden.value, prop]
-  }
+  staticHidden.value = togglePurchaseStaticColumn(staticHidden.value, prop, visible)
   await saveStaticColumnsConfig()
   syncAiContext()
 }
