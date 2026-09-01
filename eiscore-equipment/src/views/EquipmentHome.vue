@@ -421,6 +421,13 @@ import {
   resolveEquipmentStatusTone as statusTone,
   toEquipmentNumber as numberValue
 } from '@/domain/equipment-home-presentation-policy.js'
+import {
+  buildEquipmentCockpitSummary,
+  buildEquipmentFlowNodes,
+  buildEquipmentKpiRows,
+  buildEquipmentWorkSummaryRows,
+  calculateEquipmentRiskIndex
+} from '@/domain/equipment-home-summary-policy.js'
 
 const router = useRouter()
 
@@ -751,47 +758,28 @@ const handleRealtimeEvent = (event) => {
   }
 }
 
-const runningCount = computed(() => assets.value.filter((row) => row.run_status === '运行').length)
-const downCount = computed(() => assets.value.filter((row) => ['停机', '维修中'].includes(row.run_status)).length)
-const avgHealthScore = computed(() => {
-  if (!assets.value.length) return 0
-  const total = assets.value.reduce((sum, row) => sum + numberValue(row.health_score), 0)
-  return Math.round(total / assets.value.length)
-})
-const abnormalCheckCount = computed(() => checks.value.filter((row) => row.check_result === '异常' || row.check_result === '停机').length)
-const openIssueCount = computed(() => issues.value.filter((row) => row.issue_status !== '已关闭').length)
-const urgentIssueCount = computed(() => issues.value.filter((row) => row.issue_level === '紧急' || row.issue_level === '严重').length)
-const activeWorkOrderCount = computed(() => workOrders.value.filter((row) => row.work_status !== '已完成').length)
-const totalDowntimeHours = computed(() => workOrders.value.reduce((sum, row) => sum + numberValue(row.downtime_hours), 0))
-const overduePlanCount = computed(() => plans.value.filter((row) => {
-  if (row.plan_status === '已完成') return false
-  const delta = daysBetween(row.next_execute_date)
-  return delta !== null && delta < 0
-}).length)
-const effectiveStandardCount = computed(() => standards.value.filter((row) => row.standard_status === '生效').length)
-const avgPlanCompletion = computed(() => {
-  if (!plans.value.length) return 0
-  const total = plans.value.reduce((sum, row) => sum + numberValue(row.completion_rate), 0)
-  return Math.round(total / plans.value.length)
-})
+const cockpitSummary = computed(() => buildEquipmentCockpitSummary({
+  assets: assets.value,
+  checks: checks.value,
+  issues: issues.value,
+  workOrders: workOrders.value,
+  plans: plans.value,
+  standards: standards.value,
+  daysUntil: daysBetween
+}))
+const summaryMetric = (key) => computed(() => cockpitSummary.value[key])
+const runningCount = summaryMetric('runningCount')
+const downCount = summaryMetric('downCount')
+const avgHealthScore = summaryMetric('avgHealthScore')
+const abnormalCheckCount = summaryMetric('abnormalCheckCount')
+const openIssueCount = summaryMetric('openIssueCount')
+const activeWorkOrderCount = summaryMetric('activeWorkOrderCount')
+const totalDowntimeHours = summaryMetric('totalDowntimeHours')
+const avgPlanCompletion = summaryMetric('avgPlanCompletion')
 
-const riskIndex = computed(() => {
-  const score =
-    downCount.value * 16 +
-    openIssueCount.value * 12 +
-    urgentIssueCount.value * 10 +
-    activeWorkOrderCount.value * 8 +
-    overduePlanCount.value * 14 +
-    abnormalCheckCount.value * 6
-  return Math.min(99, score)
-})
+const riskIndex = computed(() => calculateEquipmentRiskIndex(cockpitSummary.value))
 
-const kpiList = computed(() => [
-  { label: '设备健康评分', value: avgHealthScore.value, sub: `${assets.value.length} 台设备`, color: avgHealthScore.value < 80 ? colors.amber : colors.green, appKey: 'assets' },
-  { label: '异常点检', value: abnormalCheckCount.value, sub: `${checks.value.length} 张点检单`, color: abnormalCheckCount.value ? colors.amber : colors.green, appKey: 'checks' },
-  { label: '未关闭异常', value: openIssueCount.value, sub: `紧急/严重 ${urgentIssueCount.value}`, color: openIssueCount.value ? colors.red : colors.green, appKey: 'issues' },
-  { label: '处理中工单', value: activeWorkOrderCount.value, sub: `${numberText(totalDowntimeHours.value)}h 停机`, color: activeWorkOrderCount.value ? colors.cyan : colors.green, appKey: 'work_orders' }
-])
+const kpiList = computed(() => buildEquipmentKpiRows({ summary: cockpitSummary.value, colors }))
 
 const statusRows = computed(() => buildEquipmentStatusRows({ assets: assets.value, colors }))
 
@@ -812,13 +800,7 @@ const assetTypeRows = computed(() => buildEquipmentAssetTypeRows({ assets: asset
 
 const healthRiskRows = computed(() => buildEquipmentHealthRiskRows(assets.value))
 
-const flowNodes = computed(() => [
-  { label: '设备台账', value: assets.value.length, appKey: 'assets' },
-  { label: '异常点检', value: abnormalCheckCount.value, appKey: 'checks' },
-  { label: '异常单', value: issues.value.length, appKey: 'issues' },
-  { label: '维保中', value: activeWorkOrderCount.value, appKey: 'work_orders' },
-  { label: '已完成', value: workOrders.value.filter((row) => row.work_status === '已完成').length, appKey: 'work_orders' }
-])
+const flowNodes = computed(() => buildEquipmentFlowNodes(cockpitSummary.value))
 
 const checkBuckets = computed(() => {
   const today = dayStart()
@@ -862,12 +844,7 @@ const visibleWorkOrders = computed(() => buildEquipmentVisibleWorkOrders(workOrd
 
 const issueLevelRows = computed(() => buildEquipmentIssueLevelRows(issues.value))
 
-const workSummaryRows = computed(() => [
-  { label: '处理中', value: activeWorkOrderCount.value, appKey: 'work_orders' },
-  { label: '停机小时', value: numberText(totalDowntimeHours.value), appKey: 'work_orders' },
-  { label: '计划完成', value: `${avgPlanCompletion.value}%`, appKey: 'plans' },
-  { label: '标准生效', value: effectiveStandardCount.value, appKey: 'standards' }
-])
+const workSummaryRows = computed(() => buildEquipmentWorkSummaryRows(cockpitSummary.value))
 
 const alertList = computed(() => {
   const alerts = []
