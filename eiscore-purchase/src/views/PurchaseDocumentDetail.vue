@@ -264,6 +264,11 @@ import {
   getPurchaseDocumentFieldValue,
   sanitizePurchaseDocumentCascaderValues
 } from '@/domain/purchase-document-detail-field-policy.js'
+import {
+  applyPurchaseDocumentTemplateScope,
+  normalizePurchaseDocumentTemplates,
+  selectPurchaseDocumentTemplateId
+} from '@/domain/purchase-document-detail-template-policy.js'
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
 
 const props = defineProps({
@@ -740,11 +745,7 @@ const loadTemplates = async () => {
       headers: { 'Accept-Profile': 'public' }
     })
     const list = res && res.length > 0 ? (res[0].value || []) : []
-    templates.value = Array.isArray(list)
-      ? list
-        .filter(item => item && item.schema && Array.isArray(item.schema.layout))
-        .map(withCurrentScope)
-      : []
+    templates.value = normalizePurchaseDocumentTemplates(list, templateScope.value)
     if (!selectedTemplateId.value && templates.value.length > 0) {
       selectedTemplateId.value = templates.value[0].id
     }
@@ -766,31 +767,18 @@ const saveTemplateLibrary = async (list) => {
   })
 }
 
-const withCurrentScope = (template) => ({
-  ...template,
-  scope: {
-    ...(template.scope || {}),
-    ...templateScope.value
-  },
-  schema: {
-    ...(template.schema || {}),
-    scope: {
-      ...((template.schema || {}).scope || {}),
-      ...templateScope.value
-    }
-  }
-})
-
 const handleTemplatesUpdated = (event) => {
   const eventKey = event?.detail?.templateLibraryKey || event?.detail?.key || 'form_templates'
   if (eventKey !== templateLibraryKey.value) return
   const list = event?.detail?.templates
   if (Array.isArray(list)) {
-    const filtered = list
-      .filter(item => item && item.schema && Array.isArray(item.schema.layout))
-      .map(withCurrentScope)
+    const filtered = normalizePurchaseDocumentTemplates(list, templateScope.value)
     templates.value = filtered
-    selectedTemplateId.value = event?.detail?.record?.id || selectedTemplateId.value || filtered[0]?.id || ''
+    selectedTemplateId.value = selectPurchaseDocumentTemplateId({
+      recordId: event?.detail?.record?.id,
+      currentId: selectedTemplateId.value,
+      templates: filtered
+    })
   } else {
     loadTemplates()
   }
@@ -1025,21 +1013,24 @@ const submitTemplateEdit = async () => {
       if (idx >= 0) {
         const nextSchema = list[idx].schema ? { ...list[idx].schema } : {}
         nextSchema.title = name
-        list[idx] = withCurrentScope({ ...list[idx], name, schema: nextSchema, updated_at: now })
+        list[idx] = applyPurchaseDocumentTemplateScope(
+          { ...list[idx], name, schema: nextSchema, updated_at: now },
+          templateScope.value
+        )
       }
     } else {
       const schema = JSON.parse(JSON.stringify(buildFallbackSchema()))
       schema.title = name
       const templateId = `purchase_${detailConfig.value.key}_${Date.now()}`
       schema.docType = templateId
-      const record = withCurrentScope({
+      const record = applyPurchaseDocumentTemplateScope({
         id: templateId,
         name,
         schema,
         source: 'manual',
         created_at: now,
         updated_at: now
-      })
+      }, templateScope.value)
       list.unshift(record)
       selectedTemplateId.value = record.id
     }
