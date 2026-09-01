@@ -59,7 +59,7 @@ assert.equal(pageSource.includes('const withCurrentScope ='), false)
 for (const requiredCall of [
   'normalizePurchaseDocumentTemplates(list, templateScope.value)',
   'selectPurchaseDocumentTemplateId({',
-  'applyPurchaseDocumentTemplateScope('
+  'applyScope: applyPurchaseDocumentTemplateScope'
 ]) {
   assert.equal(pageSource.includes(requiredCall), true, `PurchaseDocumentDetail lost ${requiredCall}`)
 }

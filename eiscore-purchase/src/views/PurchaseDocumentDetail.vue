@@ -270,6 +270,11 @@ import {
   selectPurchaseDocumentTemplateId
 } from '@/domain/purchase-document-detail-template-policy.js'
 import {
+  buildPurchaseDocumentManualTemplate,
+  removePurchaseDocumentTemplate,
+  renamePurchaseDocumentTemplate
+} from '@/domain/purchase-document-detail-template-edit-policy.js'
+import {
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
   encodePurchaseDocumentFilterValue,
@@ -869,33 +874,13 @@ const applyFormulaUpdates = (rowData) => {
 const buildAiFormPrompt = () => {
   const columns = getAllColumns()
   const model = formModel.value || formData.value
-  const columnValues = columns.map(col => {
-    const value = getPurchaseDocumentFieldValue(model, col.prop)
-    if (col.type === 'file') {
-      const files = Array.isArray(value)
-        ? value.map(file => ({ name: file?.name || file?.fileName || file?.filename || '文件' }))
-        : []
-      return { label: col.label, prop: col.prop, type: col.type, value: files }
-    }
-    return { label: col.label, prop: col.prop, type: col.type, value: value ?? '' }
+  columns.forEach(col => getPurchaseDocumentFieldValue(model, col.prop))
+  buildPurchaseDocumentFileColumnPayload(columns, model)
+  return buildDocumentFormPrompt({
+    title: detailConfig.value.name || '采购单据',
+    columns,
+    rowData: model
   })
-  const fileColumns = buildPurchaseDocumentFileColumnPayload(columns, model)
-
-  return [
-    `请根据采购模块“${detailConfig.value.name}”当前表格列生成单据模板。`,
-    '优先使用列里的 prop 作为字段。',
-    '如果用户表单需要但系统列里没有，可以新增扩展字段，field 建议用 ext_ 开头（如 ext_note）。',
-    '把“当前行已存在的数据”中的值填入对应字段，没有值就留空。',
-    '必须只输出一个模板 JSON，并放在 ```form-template``` 代码块中。',
-    '如果是图片/文件字段，请使用 widget=image，并设置 fileSource 为对应文件列 prop。',
-    '如果字段是 select/cascader，请使用 widget=select 或 widget=cascader，并给出 options/cascaderOptions。',
-    '当前表格列：',
-    JSON.stringify(columns, null, 2),
-    '当前行已存在的数据：',
-    JSON.stringify(columnValues, null, 2),
-    '可用文件列素材：',
-    JSON.stringify(fileColumns, null, 2)
-  ].join('\n')
 }
 
 const syncAiContext = () => {
@@ -931,11 +916,7 @@ const openAiFormAssistant = () => {
   pushAiCommand({
     id: `purchase_form_${Date.now()}`,
     type: 'open-worker',
-    prompt: buildDocumentFormPrompt({
-      title: detailConfig.value.name || '采购单据',
-      columns: getAllColumns(),
-      rowData: formModel.value || formData.value
-    })
+    prompt: buildAiFormPrompt()
   })
 }
 
@@ -983,28 +964,24 @@ const submitTemplateEdit = async () => {
     const list = Array.isArray(templates.value) ? [...templates.value] : []
     const now = new Date().toISOString()
     if (templateEditMode.value === 'rename') {
-      const idx = list.findIndex(item => item.id === templateEditForm.value.id)
-      if (idx >= 0) {
-        const nextSchema = list[idx].schema ? { ...list[idx].schema } : {}
-        nextSchema.title = name
-        list[idx] = applyPurchaseDocumentTemplateScope(
-          { ...list[idx], name, schema: nextSchema, updated_at: now },
-          templateScope.value
-        )
-      }
+      list.splice(0, list.length, ...renamePurchaseDocumentTemplate({
+        templates: list,
+        templateId: templateEditForm.value.id,
+        name,
+        updatedAt: now,
+        scope: templateScope.value,
+        applyScope: applyPurchaseDocumentTemplateScope
+      }))
     } else {
-      const schema = JSON.parse(JSON.stringify(buildFallbackSchema()))
-      schema.title = name
       const templateId = `purchase_${detailConfig.value.key}_${Date.now()}`
-      schema.docType = templateId
-      const record = applyPurchaseDocumentTemplateScope({
+      const record = buildPurchaseDocumentManualTemplate({
         id: templateId,
         name,
-        schema,
-        source: 'manual',
-        created_at: now,
-        updated_at: now
-      }, templateScope.value)
+        schema: buildFallbackSchema(),
+        now,
+        scope: templateScope.value,
+        applyScope: applyPurchaseDocumentTemplateScope
+      })
       list.unshift(record)
       selectedTemplateId.value = record.id
     }
@@ -1031,10 +1008,14 @@ const removeTemplate = async (template) => {
     return
   }
   try {
-    const list = (templates.value || []).filter(item => item.id !== template.id)
-    await saveTemplateLibrary(list)
-    templates.value = list
-    if (selectedTemplateId.value === template.id) selectedTemplateId.value = list[0]?.id || ''
+    const result = removePurchaseDocumentTemplate({
+      templates: templates.value,
+      templateId: template.id,
+      selectedId: selectedTemplateId.value
+    })
+    await saveTemplateLibrary(result.templates)
+    templates.value = result.templates
+    selectedTemplateId.value = result.selectedId
     ElMessage.success('模板已删除')
   } catch (e) {
     ElMessage.error('模板删除失败')
