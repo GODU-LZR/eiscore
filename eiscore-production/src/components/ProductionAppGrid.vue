@@ -613,6 +613,16 @@ import {
   projectProductionLinkedDocument,
   selectProductionFlowRows
 } from '@/domain/production-grid-flow-policy'
+import {
+  buildProductionIssueForm,
+  buildProductionIssuePushRow,
+  buildProductionIssueSavePayload,
+  buildProductionRowActions,
+  buildProductionWorkOrderForm,
+  buildProductionWorkOrderSavePayload,
+  calculateProductionIssueShortage,
+  inferProductionIssueStatus
+} from '@/domain/production-grid-operation-policy'
 
 const props = defineProps({
   appKey: { type: String, default: 'work_orders' },
@@ -725,11 +735,10 @@ const flowPrimarySummary = computed(() => productionFlowView.value.primarySummar
 const flowDownstreamLabel = computed(() => productionFlowView.value.downstream.label)
 const flowDownstreamDocNo = computed(() => productionFlowView.value.downstream.docNo)
 const flowDownstreamStatus = computed(() => productionFlowView.value.downstream.status)
-const issueShortageQty = computed(() => {
-  const required = Number(activeIssueRow.value?.required_qty || 0)
-  const issued = Number(issueDrawer.form.issued_qty || 0)
-  return Math.max(required - issued, 0)
-})
+const issueShortageQty = computed(() => calculateProductionIssueShortage(
+  activeIssueRow.value?.required_qty,
+  issueDrawer.form.issued_qty
+))
 const attentionRows = computed(() => lastLoadedRows.value)
 const attentionSummary = computed(() => buildProductionAttentionSummary(app.value?.key, attentionRows.value))
 const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesProductionAttentionFilter(app.value?.key, row, 'todo')).length)
@@ -773,94 +782,13 @@ const resolveAttention = (row) => getProductionRecordAttention(app.value?.key, r
 })
 const rowAttentionFilter = (row) => matchesProductionAttentionFilter(app.value?.key, row, attentionFilter.value)
 const summaryScope = computed(() => attentionFilter.value === 'all' && gridTimeMode.value === 'infinite' ? 'server' : 'loaded')
-const resolveRowActions = (row) => {
-  if (!row) return []
-  if (app.value?.key === 'work_orders') {
-    const actions = []
-    if (canEditRows.value) {
-      actions.push({
-        key: 'edit-work-order',
-        label: '处理',
-        type: 'primary',
-        icon: 'Edit',
-        title: '处理生产工单',
-        sopAction: 'production-row-edit-work-order',
-        sopTitle: '单行处理生产工单',
-        sopDesc: '打开当前生产工单的处理抽屉。',
-        sopSteps: [
-          '确认当前行是要处理的生产工单。',
-          '点击“处理”打开工单处理抽屉。',
-          '复核工单状态、优先级、计划数量、开始日期和完成日期。',
-          '保存后检查表格关注等级、工单状态和计划日期是否正确。'
-        ],
-        sopRisk: '工单状态会影响领料、生产检验和入库，不要误改其他工单。'
-      })
-    }
-    if (canPushWorkOrder.value) {
-      actions.push({
-        key: 'push-work-order',
-        label: '下推',
-        type: 'success',
-        icon: 'Position',
-        title: '下推生产检验或生产入库',
-        sopAction: 'production-row-push-work-order',
-        sopTitle: '单行生产工单下推',
-        sopDesc: '把当前生产工单下推到生产检验或生产入库。',
-        sopSteps: [
-          '确认当前行是要流转的生产工单。',
-          '复核工单状态、数量、完工情况和质量要求。',
-          '点击“下推”打开业务流转确认窗。',
-          '选择下一环节并确认，跳转后复核生成单据。'
-        ],
-        sopRisk: '未生产、未检验或数量错误的工单不能直接下推。'
-      })
-    }
-    return actions
-  }
-  if (app.value?.key === 'work_order_items') {
-    const actions = []
-    if (canEditRows.value) {
-      actions.push({
-        key: 'edit-issue',
-        label: '领料',
-        type: 'primary',
-        icon: 'Edit',
-        title: '登记生产领料',
-        sopAction: 'production-row-register-issue',
-        sopTitle: '单行登记领料',
-        sopDesc: '登记当前工单用料明细的实际领料情况。',
-        sopSteps: [
-          '确认当前行是要领料的物料明细。',
-          '复核物料编码、需求数量、已领数量和库存情况。',
-          '点击“领料”打开登记抽屉。',
-          '填写本次领料数量和备注，保存后复核缺料数量。'
-        ],
-        sopRisk: '领料数量会影响库存和成本，不能登记到错误物料或错误工单。'
-      })
-    }
-    if (canPushIssue.value) {
-      actions.push({
-        key: 'push-issue',
-        label: '下推',
-        type: 'warning',
-        icon: 'Position',
-        title: '下推生产领料出库',
-        sopAction: 'production-row-push-issue-outbound',
-        sopTitle: '单行领料下推出库',
-        sopDesc: '把当前工单用料明细下推到仓储出库。',
-        sopSteps: [
-          '确认当前行是要出库的领料明细。',
-          '复核物料、需求数量、已领数量、仓库和批次。',
-          '点击“下推”打开业务流转确认窗。',
-          '确认后跳转仓储出库，复核出库单和库存影响。'
-        ],
-        sopRisk: '出库会影响库存账，缺料或批次不清时不要直接下推。'
-      })
-    }
-    return actions
-  }
-  return []
-}
+const resolveRowActions = (row) => buildProductionRowActions({
+  row,
+  appKey: app.value?.key,
+  canEditRows: canEditRows.value,
+  canPushWorkOrder: canPushWorkOrder.value,
+  canPushIssue: canPushIssue.value
+})
 const allAvailableColumns = computed(() => {
   const all = [...staticColumns.value, ...extraColumns.value]
   if (isEditing.value) {
@@ -1257,11 +1185,6 @@ const handleCreate = async () => {
   ElMessage.info('该生产应用不支持手工新增')
 }
 
-const formatDateValue = (value) => {
-  if (!value) return ''
-  return String(value).slice(0, 10)
-}
-
 const nextDocNo = (prefix) => `${prefix}${Date.now().toString().slice(-8)}${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`
 
 const loadRowsByIdsOrNos = async ({ table, noField, ids = [], nos = [], select = '*', profile = 'public' }) => {
@@ -1341,15 +1264,7 @@ const openWorkOrderDrawer = (row = null) => {
   const target = row || getSingleSelectedRow('请先选中一张生产工单')
   if (!target?.id) return
   workOrderDrawer.row = target
-  Object.assign(workOrderDrawer.form, {
-    work_order_status: target.work_order_status || '待排产',
-    priority: target.priority || '普通',
-    planned_qty: Number(target.planned_qty || 0),
-    unit: target.unit || '',
-    planned_start_date: formatDateValue(target.planned_start_date),
-    planned_finish_date: formatDateValue(target.planned_finish_date),
-    remark: target.remark || ''
-  })
+  Object.assign(workOrderDrawer.form, buildProductionWorkOrderForm(target))
   workOrderDrawer.visible = true
 }
 
@@ -1357,12 +1272,7 @@ const openIssueDrawer = (row = null) => {
   const target = row || getSingleSelectedRow('请先选中一条领料明细')
   if (!target?.id) return
   issueDrawer.row = target
-  Object.assign(issueDrawer.form, {
-    issued_qty: Number(target.issued_qty || 0),
-    shortage_qty: Number(target.shortage_qty || 0),
-    issue_status: target.issue_status || '未领料',
-    remark: target.remark || ''
-  })
+  Object.assign(issueDrawer.form, buildProductionIssueForm(target))
   issueDrawer.visible = true
 }
 
@@ -1743,15 +1653,7 @@ const saveWorkOrder = async () => {
   if (!row?.id) return
   workOrderDrawer.saving = true
   try {
-    const payload = {
-      work_order_status: workOrderDrawer.form.work_order_status || '待排产',
-      priority: workOrderDrawer.form.priority || '普通',
-      planned_qty: Number(workOrderDrawer.form.planned_qty || 0),
-      unit: workOrderDrawer.form.unit || '盒',
-      planned_start_date: workOrderDrawer.form.planned_start_date || null,
-      planned_finish_date: workOrderDrawer.form.planned_finish_date || null,
-      remark: workOrderDrawer.form.remark || null
-    }
+    const payload = buildProductionWorkOrderSavePayload(workOrderDrawer.form)
     await request({
       url: `/production_work_orders?id=eq.${encodeURIComponent(row.id)}`,
       method: 'patch',
@@ -1768,20 +1670,12 @@ const saveWorkOrder = async () => {
   }
 }
 
-const inferIssueStatus = (issuedQty, requiredQty) => {
-  const issued = Number(issuedQty || 0)
-  const required = Number(requiredQty || 0)
-  if (required > 0 && issued >= required) return '已齐套'
-  if (issued > 0) return '部分领料'
-  return '未领料'
-}
-
 watch(
   () => issueDrawer.form.issued_qty,
   () => {
     if (!issueDrawer.visible || !activeIssueRow.value) return
     issueDrawer.form.shortage_qty = issueShortageQty.value
-    issueDrawer.form.issue_status = inferIssueStatus(issueDrawer.form.issued_qty, activeIssueRow.value.required_qty)
+    issueDrawer.form.issue_status = inferProductionIssueStatus(issueDrawer.form.issued_qty, activeIssueRow.value.required_qty)
   }
 )
 
@@ -1790,12 +1684,11 @@ const saveIssue = async () => {
   if (!row?.id) return
   issueDrawer.saving = true
   try {
-    const payload = {
-      issued_qty: Number(issueDrawer.form.issued_qty || 0),
-      shortage_qty: Number(issueShortageQty.value || 0),
-      issue_status: issueDrawer.form.issue_status || inferIssueStatus(issueDrawer.form.issued_qty, row.required_qty),
-      remark: issueDrawer.form.remark || null
-    }
+    const payload = buildProductionIssueSavePayload({
+      form: issueDrawer.form,
+      requiredQty: row.required_qty,
+      shortageQty: issueShortageQty.value
+    })
     await request({
       url: `/production_work_order_items?id=eq.${encodeURIComponent(row.id)}`,
       method: 'patch',
@@ -1804,15 +1697,7 @@ const saveIssue = async () => {
     })
     if (payload.issued_qty > 0) {
       await pushSingleIssueToMaterialOutbound(
-        {
-          ...row,
-          ...payload,
-          properties: {
-            ...(row.properties || {}),
-            issued_qty: payload.issued_qty,
-            issue_status: payload.issue_status
-          }
-        },
+        buildProductionIssuePushRow(row, payload),
         { issued_qty: payload.issued_qty }
       ).catch((error) => {
         console.warn('create production issue outbound link failed', error)
