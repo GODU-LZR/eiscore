@@ -293,6 +293,10 @@ import {
   resolvePurchaseDetailLinkedArrivalQuantity
 } from '@/domain/purchase-document-detail-quantity-policy.js'
 import {
+  buildPurchaseOrderDraft,
+  buildPurchaseOrderDuplicateQuery
+} from '@/domain/purchase-document-detail-order-policy.js'
+import {
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
   encodePurchaseDocumentFilterValue,
@@ -1233,10 +1237,11 @@ const createOrderFromDemand = async () => {
   if (!row.value.id) return
   detailActionLoading.value = true
   try {
-    const duplicateConditions = [`demand_id.eq.${row.value.id}`]
-    if (row.value.demand_no) duplicateConditions.push(`source_demand_no.eq.${encodeURIComponent(row.value.demand_no)}`)
     const existingOrders = await request({
-      url: `/purchase_orders?or=(${duplicateConditions.join(',')})&order_status=neq.已取消&status=neq.disabled&select=id,order_no&limit=1`,
+      url: buildPurchaseOrderDuplicateQuery({
+        demandId: row.value.id,
+        demandNo: row.value.demand_no
+      }),
       method: 'get',
       headers: { 'Accept-Profile': 'public' }
     })
@@ -1268,28 +1273,12 @@ const createOrderFromDemand = async () => {
       }
     }
 
-    const payload = {
-      order_no: nextDocNo('PO'),
-      demand_id: row.value.id,
-      source_demand_no: row.value.demand_no || '',
-      supplier_id: supplier?.id || null,
-      supplier_name: supplier?.name || row.value.preferred_supplier || '待选择供应商',
-      material_name: row.value.material_name || '待录入物料',
-      quantity: Number(row.value.quantity) || 0,
-      unit: row.value.unit || 'kg',
-      unit_price: 0,
-      total_amount: 0,
-      order_date: todayText(),
-      expected_arrival_date: row.value.required_date || null,
-      buyer_name: supplier?.buyer_name || row.value.requester_name || '',
-      order_status: '草稿',
-      status: 'draft',
-      properties: {
-        source_dept: row.value.source_dept || '',
-        supplier_lead_time_days: supplier?.lead_time_days ?? null,
-        source_demand_id: row.value.id
-      }
-    }
+    const payload = buildPurchaseOrderDraft({
+      row: row.value,
+      supplier,
+      orderNo: nextDocNo('PO'),
+      orderDate: todayText()
+    })
     const createdOrders = await request({
       url: '/purchase_orders',
       method: 'post',
