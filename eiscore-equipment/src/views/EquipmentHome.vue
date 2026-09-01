@@ -408,6 +408,19 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { getRealtimeClient } from '@/utils/realtime'
+import {
+  buildEquipmentAssetTypeRows,
+  buildEquipmentHealthRiskRows,
+  buildEquipmentIssueLevelRows,
+  buildEquipmentPlanProgressRows,
+  buildEquipmentStandardCoverageRows,
+  buildEquipmentStatusRows,
+  buildEquipmentVisibleWorkOrders,
+  calculateEquipmentPercent as percent,
+  formatEquipmentNumber as numberText,
+  resolveEquipmentStatusTone as statusTone,
+  toEquipmentNumber as numberValue
+} from '@/domain/equipment-home-presentation-policy.js'
 
 const router = useRouter()
 
@@ -597,23 +610,6 @@ const fallbackStandards = [
   }
 ]
 
-const numberValue = (value) => {
-  const num = Number(value)
-  return Number.isFinite(num) ? num : 0
-}
-
-const numberText = (value) => {
-  const num = numberValue(value)
-  if (Math.abs(num) >= 10000) return `${(num / 10000).toFixed(1)}万`
-  return Number.isInteger(num) ? String(num) : num.toFixed(1)
-}
-
-const percent = (value, total) => {
-  const base = numberValue(total)
-  if (base <= 0) return 0
-  return Math.max(0, Math.min(100, Math.round((numberValue(value) / base) * 100)))
-}
-
 const parseDate = (value) => {
   if (!value) return null
   const date = new Date(value)
@@ -797,31 +793,7 @@ const kpiList = computed(() => [
   { label: '处理中工单', value: activeWorkOrderCount.value, sub: `${numberText(totalDowntimeHours.value)}h 停机`, color: activeWorkOrderCount.value ? colors.cyan : colors.green, appKey: 'work_orders' }
 ])
 
-const countBy = (rows, key, fallback = '未分类') => {
-  const map = new Map()
-  rows.forEach((row) => {
-    const label = row?.[key] || fallback
-    map.set(label, (map.get(label) || 0) + 1)
-  })
-  return Array.from(map.entries()).map(([label, value]) => ({ label, value }))
-}
-
-const statusRows = computed(() => {
-  const palette = {
-    运行: colors.green,
-    停机: colors.red,
-    维修中: colors.amber,
-    待验收: colors.cyan,
-    报废: colors.violet
-  }
-  const base = ['运行', '停机', '维修中', '待验收', '报废']
-  const counts = countBy(assets.value, 'run_status')
-  return base.map((label) => ({
-    label,
-    value: counts.find((item) => item.label === label)?.value || 0,
-    color: palette[label]
-  }))
-})
+const statusRows = computed(() => buildEquipmentStatusRows({ assets: assets.value, colors }))
 
 const statusPieStyle = computed(() => {
   const total = statusRows.value.reduce((sum, item) => sum + item.value, 0)
@@ -836,28 +808,9 @@ const statusPieStyle = computed(() => {
   return { background: `conic-gradient(${stops.join(', ')})` }
 })
 
-const assetTypeRows = computed(() => {
-  const rows = countBy(assets.value, 'asset_type')
-  const maxValue = Math.max(...rows.map((item) => item.value), 1)
-  const palette = [colors.primary, colors.green, colors.cyan, colors.amber, colors.violet]
-  return rows
-    .sort((a, b) => b.value - a.value)
-    .map((item, index) => ({
-      ...item,
-      pct: percent(item.value, maxValue),
-      color: palette[index % palette.length]
-    }))
-})
+const assetTypeRows = computed(() => buildEquipmentAssetTypeRows({ assets: assets.value, colors }))
 
-const healthRiskRows = computed(() => assets.value
-  .slice()
-  .sort((a, b) => {
-    const aDown = ['停机', '维修中'].includes(a.run_status) ? 0 : 1
-    const bDown = ['停机', '维修中'].includes(b.run_status) ? 0 : 1
-    if (aDown !== bDown) return aDown - bDown
-    return numberValue(a.health_score) - numberValue(b.health_score)
-  })
-  .slice(0, 6))
+const healthRiskRows = computed(() => buildEquipmentHealthRiskRows(assets.value))
 
 const flowNodes = computed(() => [
   { label: '设备台账', value: assets.value.length, appKey: 'assets' },
@@ -898,79 +851,16 @@ const checkBuckets = computed(() => {
 
 const recentChecks = computed(() => checks.value.slice(0, 6))
 
-const planProgressRows = computed(() => plans.value
-  .slice()
-  .sort((a, b) => {
-    const aDone = a.plan_status === '已完成'
-    const bDone = b.plan_status === '已完成'
-    if (aDone !== bDone) return aDone ? 1 : -1
-    return numberValue(a.completion_rate) - numberValue(b.completion_rate)
-  })
-  .map((row) => ({
-    ...row,
-    progress: Math.max(0, Math.min(100, Math.round(numberValue(row.completion_rate))))
-  }))
-  .slice(0, 5))
+const planProgressRows = computed(() => buildEquipmentPlanProgressRows(plans.value))
 
-const standardCoverageRows = computed(() => {
-  const assetTypes = countBy(assets.value, 'asset_type')
-  const effectiveTypes = new Set(standards.value
-    .filter((row) => row.standard_status === '生效')
-    .map((row) => row.asset_type || '未分类'))
-  if (assetTypes.length > 0) {
-    return assetTypes
-      .map((item) => {
-        const effective = effectiveTypes.has(item.label) ? item.value : 0
-        return {
-          label: item.label,
-          total: item.value,
-          effective,
-          pct: percent(effective, item.value)
-        }
-      })
-      .sort((a, b) => a.pct - b.pct || b.total - a.total)
-  }
-  const standardTypes = countBy(standards.value, 'asset_type')
-  return standardTypes
-    .map((item) => {
-      const effective = standards.value.filter((row) => (row.asset_type || '未分类') === item.label && row.standard_status === '生效').length
-      return {
-        label: item.label,
-        total: item.value,
-        effective,
-        pct: percent(effective, item.value)
-      }
-    })
-    .sort((a, b) => a.pct - b.pct || b.total - a.total)
-})
+const standardCoverageRows = computed(() => buildEquipmentStandardCoverageRows({
+  assets: assets.value,
+  standards: standards.value
+}))
 
-const visibleWorkOrders = computed(() => workOrders.value
-  .slice()
-  .sort((a, b) => {
-    const aActive = a.work_status !== '已完成'
-    const bActive = b.work_status !== '已完成'
-    if (aActive !== bActive) return aActive ? -1 : 1
-    return String(a.plan_date || '').localeCompare(String(b.plan_date || ''))
-  })
-  .slice(0, 5))
+const visibleWorkOrders = computed(() => buildEquipmentVisibleWorkOrders(workOrders.value))
 
-const issueLevelRows = computed(() => [
-  {
-    label: '紧急',
-    value: issues.value.filter((row) => row.issue_status !== '已关闭' && row.issue_level === '紧急').length,
-    level: 'danger'
-  },
-  {
-    label: '严重',
-    value: issues.value.filter((row) => row.issue_status !== '已关闭' && row.issue_level === '严重').length,
-    level: 'warn'
-  },
-  {
-    label: '一般',
-    value: issues.value.filter((row) => row.issue_status !== '已关闭' && !['紧急', '严重'].includes(row.issue_level)).length,
-    level: 'info'
-  }
-])
+const issueLevelRows = computed(() => buildEquipmentIssueLevelRows(issues.value))
 
 const workSummaryRows = computed(() => [
   { label: '处理中', value: activeWorkOrderCount.value, appKey: 'work_orders' },
@@ -1017,13 +907,6 @@ const alertList = computed(() => {
   })
   return alerts.slice(0, 8)
 })
-
-const statusTone = (status) => {
-  if (['正常', '运行', '已完成', '已关闭', '生效'].includes(status)) return 'ok'
-  if (['停机', '异常', '紧急', '严重', '报废'].includes(status)) return 'danger'
-  if (['待处理', '处理中', '待验收', '维修中', '执行中', '计划中'].includes(status)) return 'warn'
-  return 'info'
-}
 
 const appRoutes = {
   assets: '/app/assets',
