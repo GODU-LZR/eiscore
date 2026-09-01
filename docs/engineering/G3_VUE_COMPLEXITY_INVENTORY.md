@@ -42,7 +42,7 @@
 | `eiscore-base/src/components/AiCopilot.vue` | 3,522 | 7 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/FlashBuilder.vue` | 3,741 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/AppRuntime.vue` | 3,725 | Runtime 协议、生命周期组合；BPMN、Workflow、自动推进、导航、Flash 来源、配置/选项、规则、就绪、授权与任务路由策略已迁出 |
-| `eiscore-base/src/layout/index.vue` | 3,535 | 宿主标签路由、微应用预热、布局壳与引导规范化策略已迁出；继续拆 SOP 模块/应用上下文纯策略 |
+| `eiscore-base/src/layout/index.vue` | 3,535 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/OntologyWorkbench.vue` | 2,772 | 本体查询策略、编辑器状态、关系视图 |
 | `eiscore-production/src/components/ProductionAppGrid.vue` | 2,585 | Grid 业务策略与专用交互 |
 | `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 2,521 | Grid 业务策略与专用交互 |
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-继续 `eiscore-base/src/layout/index.vue`：审计 SOP 模块路由、应用上下文、功能展示文本与完成标准纯策略，保持身份权限、Router、安全存储、DOM/Driver、窗口事件和现有视觉布局不变。
+转向 `eiscore-apps/src/views/OntologyWorkbench.vue`：先盘点本体查询、编辑状态、关系图、HTTP、Router、Watch 与 DOM 边界，再选择无视觉变化的纯策略切片。
