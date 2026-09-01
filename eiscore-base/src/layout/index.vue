@@ -311,6 +311,17 @@ import {
   isBaseWorkerAssistantVisible,
   resolveBaseAsideTheme
 } from '@/domain/base-layout-shell-policy'
+import {
+  compactBaseGuideSteps,
+  normalizeBaseExternalGuide,
+  normalizeBaseGuideId,
+  normalizeBaseGuideProgress,
+  normalizeBaseGuideProgressEntry,
+  normalizeBaseGuideText,
+  normalizeBaseSopRole,
+  parseBaseSopStepTexts,
+  pickBaseRecommendedGuide
+} from '@/domain/base-layout-guide-policy'
 
 const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
 const isCollapse = ref(false)
@@ -839,43 +850,7 @@ const canApps = computed(() =>
   )
 )
 
-const SOP_ROLE_ALIASES = {
-  warehouse: 'warehouse',
-  warehouse_keeper: 'warehouse',
-  storekeeper: 'warehouse',
-  mms: 'warehouse',
-  materials: 'warehouse',
-  sales: 'sales',
-  salesperson: 'sales',
-  sale: 'sales',
-  purchase: 'purchase',
-  procurement: 'purchase',
-  buyer: 'purchase',
-  production: 'production',
-  pmc: 'production',
-  production_supervisor: 'production',
-  quality: 'quality',
-  qc: 'quality',
-  qa: 'quality',
-  inspector: 'quality',
-  equipment: 'equipment',
-  maintenance: 'equipment',
-  equipment_admin: 'equipment',
-  hr: 'hr_admin',
-  hr_admin: 'hr_admin',
-  human_resource: 'hr_admin',
-  manager: 'manager',
-  management: 'manager',
-  decision: 'manager',
-  boss: 'manager'
-}
-
-const normalizeSopRole = (value) => {
-  const key = String(value || '').trim().toLowerCase()
-  return SOP_ROLE_ALIASES[key] || key
-}
-
-const currentSopRole = computed(() => normalizeSopRole(
+const currentSopRole = computed(() => normalizeBaseSopRole(
   userStore.userInfo?.sop_role ||
   userStore.userInfo?.sopRole ||
   userStore.userInfo?.job_role ||
@@ -1479,13 +1454,6 @@ const getCurrentModuleCompleteText = () => SOP_MODULE_APP_COMPLETE[currentSopMod
 
 const hasGuideElement = (selector) => Boolean(resolveGuideElement(selector))
 
-const normalizeGuideText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
-
-const normalizeGuideId = (value) => normalizeGuideText(value)
-  .toLowerCase()
-  .replace(/[^a-z0-9\u4e00-\u9fa5]+/gi, '-')
-  .replace(/^-+|-+$/g, '') || 'current'
-
 const escapeGuideAttr = (value) => String(value || '')
   .replace(/\\/g, '\\\\')
   .replace(/"/g, '\\"')
@@ -1507,7 +1475,7 @@ const isGuideElementVisible = (element) => {
 
 const readGuideText = (root, selector, fallback = '') => {
   const target = selector ? root?.querySelector(selector) : root
-  return normalizeGuideText(target?.textContent || fallback)
+  return normalizeBaseGuideText(target?.textContent || fallback)
 }
 
 const getAppCardFunctionGuide = (card) => {
@@ -1605,11 +1573,11 @@ const buildModuleFunctionText = () => {
 }
 
 const buildAppCardFunctionText = (card, guide = getAppCardFunctionGuide(card)) => {
-  const purpose = normalizeGuideText(guide.purpose)
-  const scenario = normalizeGuideText(guide.scenario)
-  const action = normalizeGuideText(guide.action)
-  const complete = normalizeGuideText(guide.complete)
-  const risk = normalizeGuideText(guide.risk)
+  const purpose = normalizeBaseGuideText(guide.purpose)
+  const scenario = normalizeBaseGuideText(guide.scenario)
+  const action = normalizeBaseGuideText(guide.action)
+  const complete = normalizeBaseGuideText(guide.complete)
+  const risk = normalizeBaseGuideText(guide.risk)
   return [
     purpose ? `功能：${purpose}` : '',
     scenario ? `适用：${scenario}` : '',
@@ -1645,19 +1613,6 @@ const getVisibleAppCardInfos = () => {
     .filter((card) => card.name)
 }
 
-const parseSopStepTexts = (value) => {
-  const raw = String(value || '').trim()
-  if (!raw) return []
-  try {
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) return parsed.map((item) => normalizeGuideText(item)).filter(Boolean)
-  } catch (e) {}
-  return raw
-    .split('|')
-    .map((item) => normalizeGuideText(item))
-    .filter(Boolean)
-}
-
 const getVisibleSopActionInfos = () => {
   guideDomTick.value
   const seen = new Set()
@@ -1671,10 +1626,10 @@ const getVisibleSopActionInfos = () => {
     })
     .map((element, index) => {
       const action = element.getAttribute('data-sop-action') || `action-${index + 1}`
-      const title = normalizeGuideText(element.getAttribute('data-sop-title') || element.textContent || '业务动作')
-      const desc = normalizeGuideText(element.getAttribute('data-sop-desc') || '')
-      const risk = normalizeGuideText(element.getAttribute('data-sop-risk') || '')
-      const steps = parseSopStepTexts(element.getAttribute('data-sop-steps'))
+      const title = normalizeBaseGuideText(element.getAttribute('data-sop-title') || element.textContent || '业务动作')
+      const desc = normalizeBaseGuideText(element.getAttribute('data-sop-desc') || '')
+      const risk = normalizeBaseGuideText(element.getAttribute('data-sop-risk') || '')
+      const steps = parseBaseSopStepTexts(element.getAttribute('data-sop-steps'))
       return {
         action,
         selector: `[data-sop-action="${escapeGuideAttr(action)}"]`,
@@ -1700,10 +1655,10 @@ const getVisibleSopFlowInfos = () => {
     })
     .map((element, index) => {
       const flow = element.getAttribute('data-sop-flow') || `flow-${index + 1}`
-      const title = normalizeGuideText(element.getAttribute('data-sop-flow-title') || element.getAttribute('data-sop-title') || element.textContent || '业务流程')
-      const desc = normalizeGuideText(element.getAttribute('data-sop-flow-desc') || element.getAttribute('data-sop-desc') || '')
-      const risk = normalizeGuideText(element.getAttribute('data-sop-flow-risk') || element.getAttribute('data-sop-risk') || '')
-      const steps = parseSopStepTexts(element.getAttribute('data-sop-flow-steps') || element.getAttribute('data-sop-steps'))
+      const title = normalizeBaseGuideText(element.getAttribute('data-sop-flow-title') || element.getAttribute('data-sop-title') || element.textContent || '业务流程')
+      const desc = normalizeBaseGuideText(element.getAttribute('data-sop-flow-desc') || element.getAttribute('data-sop-desc') || '')
+      const risk = normalizeBaseGuideText(element.getAttribute('data-sop-flow-risk') || element.getAttribute('data-sop-risk') || '')
+      const steps = parseBaseSopStepTexts(element.getAttribute('data-sop-flow-steps') || element.getAttribute('data-sop-steps'))
       return {
         flow,
         selector: `[data-sop-flow="${escapeGuideAttr(flow)}"]`,
@@ -2248,10 +2203,10 @@ const sopGuideMap = computed(() => {
   guideDomTick.value
   const moduleTitle = currentSopModule.value
   const moduleFunctionText = buildModuleFunctionText()
-  const routeId = normalizeGuideId(route.path || 'current')
+  const routeId = normalizeBaseGuideId(route.path || 'current')
   const currentApp = buildCurrentAppCardInfo()
   const currentAppGuide = currentApp ? {
-    id: `sop-${routeId}-current-app-${normalizeGuideId(currentApp.key)}`,
+    id: `sop-${routeId}-current-app-${normalizeBaseGuideId(currentApp.key)}`,
     title: `${currentApp.name} SOP`,
     description: `了解“${currentApp.name}”功能并按当前页面完成操作闭环。`,
     type: 'sop',
@@ -2289,7 +2244,7 @@ const sopGuideMap = computed(() => {
     const functionGuide = getAppCardFunctionGuide(card)
     const functionText = buildAppCardFunctionText(card, functionGuide)
     return {
-      id: `sop-${routeId}-card-${normalizeGuideId(card.key)}`,
+      id: `sop-${routeId}-card-${normalizeBaseGuideId(card.key)}`,
       title: `${card.name} SOP`,
       description: functionGuide.purpose || card.desc
         ? `了解“${card.name}”功能并按标准步骤进入处理。`
@@ -2331,7 +2286,7 @@ const sopGuideMap = computed(() => {
     }
   })
   const flowGuides = getVisibleSopFlowInfos().map((flow, index) => ({
-    id: `sop-${routeId}-flow-${normalizeGuideId(flow.flow)}`,
+    id: `sop-${routeId}-flow-${normalizeBaseGuideId(flow.flow)}`,
     title: `${flow.title} SOP`,
     description: flow.desc || `按标准步骤执行“${flow.title}”。`,
     type: 'sop',
@@ -2384,7 +2339,7 @@ const sopGuideMap = computed(() => {
     ]
   }))
   const actionGuides = getVisibleSopActionInfos().map((action, index) => ({
-    id: `sop-${routeId}-action-${normalizeGuideId(action.action)}`,
+    id: `sop-${routeId}-action-${normalizeBaseGuideId(action.action)}`,
     title: `${action.title} SOP`,
     description: action.desc || `按标准步骤执行“${action.title}”。`,
     type: 'sop',
@@ -2703,36 +2658,6 @@ const sopGuideMap = computed(() => {
   ]
 })
 
-const normalizeExternalGuide = (input) => {
-  if (!input || typeof input !== 'object') return null
-  const id = String(input.id || '').trim()
-  const title = String(input.title || '').trim()
-  const steps = Array.isArray(input.steps) ? input.steps : []
-  if (!id || !title || !steps.length) return null
-  return {
-    id,
-    title,
-    description: String(input.description || ''),
-    type: input.type === 'sop' ? 'sop' : 'guide',
-    category: String(input.category || ''),
-    routes: Array.isArray(input.routes) ? input.routes.map((item) => String(item || '').trim()).filter(Boolean) : [],
-    priority: Number(input.priority || 30),
-    steps: steps
-      .map((step) => {
-        const selector = String(step?.selector || step?.element || '').trim()
-        if (!selector) return null
-        return createGuideStep({
-          selector,
-          title: String(step?.title || '操作提示'),
-          description: String(step?.description || ''),
-          side: String(step?.side || 'bottom'),
-          align: String(step?.align || 'start')
-        })
-      })
-      .filter(Boolean)
-  }
-}
-
 const availableGuides = computed(() => {
   guideDomTick.value
   const list = [
@@ -2750,20 +2675,9 @@ const availableGuides = computed(() => {
   return Array.from(map.values()).sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0))
 })
 
-const pickRecommendedGuide = (guides, unseenOnly = false) => {
-  const list = Array.isArray(guides) ? guides : []
-  const candidates = unseenOnly ? list.filter((guide) => !hasSeenGuide(guide.id)) : list
-  if (!candidates.length) return null
-  return candidates.find((guide) => guide.category === '当前应用') ||
-    candidates.find((guide) => guide.category === '应用卡片' && !String(guide.id || '').includes('-app-cards')) ||
-    candidates.find((guide) => guide.type === 'sop') ||
-    candidates[0] ||
-    null
-}
-
 const recommendedGuide = computed(() => {
-  return pickRecommendedGuide(availableGuides.value, true) ||
-    pickRecommendedGuide(availableGuides.value, false) ||
+  return pickBaseRecommendedGuide(availableGuides.value, true, (guide) => hasSeenGuide(guide.id)) ||
+    pickBaseRecommendedGuide(availableGuides.value, false) ||
     baseGuide.value
 })
 
@@ -2772,55 +2686,17 @@ const getGuideVisibleSteps = (guide) => (Array.isArray(guide?.steps) ? guide.ste
 
 const getGuideVisibleStepCount = (guide) => getGuideVisibleSteps(guide).length || guide?.steps?.length || 0
 
-const shortenGuideDescription = (value, maxLength = 180) => {
-  const text = normalizeGuideText(value)
-  if (text.length <= maxLength) return text
-  const sentenceEnd = text.slice(0, maxLength).search(/[。；;.!?？]/)
-  if (sentenceEnd >= 36) return text.slice(0, sentenceEnd + 1)
-  return `${text.slice(0, maxLength).trim()}...`
-}
-
-const compactGuideSteps = (steps) => steps.map((step) => ({
-  ...step,
-  popover: {
-    ...(step.popover || {}),
-    description: shortenGuideDescription(step.popover?.description || '')
-  }
-}))
-
-const normalizeGuideProgressEntry = (entry) => {
-  if (!entry) return null
-  if (typeof entry === 'string') {
-    return { seenAt: entry, completedAt: '' }
-  }
-  if (typeof entry === 'object') {
-    return {
-      seenAt: String(entry.seenAt || entry.seen_at || entry.viewedAt || ''),
-      completedAt: String(entry.completedAt || entry.completed_at || '')
-    }
-  }
-  return null
-}
-
 const loadGuideProgress = () => {
   const parsed = readGuideProgress(guideUserKey.value)
   if (!parsed || typeof parsed !== 'object') {
     guideProgress.value = {}
     return
   }
-  guideProgress.value = Object.fromEntries(
-    Object.entries(parsed)
-      .map(([key, entry]) => [key, normalizeGuideProgressEntry(entry)])
-      .filter(([, entry]) => entry)
-  )
+  guideProgress.value = normalizeBaseGuideProgress(parsed)
 }
 
 const mergeGuideProgress = (incoming = {}) => {
-  const normalized = Object.fromEntries(
-    Object.entries(incoming)
-      .map(([key, entry]) => [key, normalizeGuideProgressEntry(entry)])
-      .filter(([, entry]) => entry)
-  )
+  const normalized = normalizeBaseGuideProgress(incoming)
   guideProgress.value = {
     ...(guideProgress.value || {}),
     ...normalized
@@ -2863,7 +2739,7 @@ const saveGuideProgress = () => {
   writeGuideProgress(guideUserKey.value, guideProgress.value || {})
 }
 
-const getGuideProgressEntry = (guideId) => normalizeGuideProgressEntry(guideProgress.value?.[guideId])
+const getGuideProgressEntry = (guideId) => normalizeBaseGuideProgressEntry(guideProgress.value?.[guideId])
 
 const hasSeenGuide = (guideId) => Boolean(getGuideProgressEntry(guideId)?.seenAt)
 
@@ -2994,7 +2870,7 @@ const runGuide = async (guide) => {
     prevBtnText: '上一步',
     doneBtnText: '完成',
     closeBtnText: '关闭',
-    steps: compactGuideSteps(steps),
+    steps: compactBaseGuideSteps(steps),
     onDestroyed: () => {
       markGuideSeen(target.id)
       if (target.type === 'sop') markGuideCompleted(target.id)
@@ -3039,7 +2915,7 @@ const maybeOpenWelcomeGuide = () => {
 }
 
 const handleGuideRegisterEvent = (event) => {
-  const guide = normalizeExternalGuide(event?.detail)
+  const guide = normalizeBaseExternalGuide(event?.detail)
   if (!guide) return
   customGuides.value = [
     ...customGuides.value.filter((item) => item.id !== guide.id),
@@ -3050,7 +2926,7 @@ const handleGuideRegisterEvent = (event) => {
 const handleGuideRegisterMessage = (event) => {
   const data = event?.data || {}
   if (data?.type !== 'eis:register-guide') return
-  const guide = normalizeExternalGuide(data?.detail)
+  const guide = normalizeBaseExternalGuide(data?.detail)
   if (!guide) return
   customGuides.value = [
     ...customGuides.value.filter((item) => item.id !== guide.id),
