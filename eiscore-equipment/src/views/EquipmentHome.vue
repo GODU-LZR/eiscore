@@ -420,6 +420,16 @@ import {
   shouldApplyEquipmentHomeFallback
 } from '@/domain/equipment-home-load-policy.js'
 import {
+  EQUIPMENT_HOME_COLORS as colors,
+  buildEquipmentRecordRoute,
+  buildEquipmentStatusPieStyle,
+  formatEquipmentCockpitClock,
+  formatEquipmentScrollDuration as scrollDuration,
+  resolveEquipmentAppRoute,
+  resolveEquipmentLastSyncText,
+  resolveEquipmentRealtimeStatusText
+} from '@/domain/equipment-home-shell-policy.js'
+import {
   buildEquipmentAssetTypeRows,
   buildEquipmentHealthRiskRows,
   buildEquipmentIssueLevelRows,
@@ -442,7 +452,6 @@ import {
   buildEquipmentAlertRows,
   buildEquipmentCheckBuckets,
   calculateEquipmentDaysBetween,
-  formatEquipmentClockTime as formatClockTime,
   formatEquipmentShortDate as formatShortDate
 } from '@/domain/equipment-home-timeline-policy.js'
 
@@ -466,34 +475,14 @@ let refreshTimer = null
 let realtimeUnsub = null
 let realtimeTimer = null
 
-const colors = {
-  primary: 'var(--c-primary)',
-  green: 'var(--c-green)',
-  amber: 'var(--c-amber)',
-  red: 'var(--c-red)',
-  cyan: 'var(--c-cyan)',
-  violet: 'var(--c-violet)'
-}
-
 const daysBetween = (value) => calculateEquipmentDaysBetween(value, new Date())
 
-const scrollDuration = (count, factor = 3, min = 12) => `${Math.max(numberValue(count) * factor, min)}s`
-
 const updateClock = () => {
-  const now = new Date()
-  clock.value = now.toLocaleString('zh-CN', {
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
+  clock.value = formatEquipmentCockpitClock(new Date())
 }
 
-const realtimeStatusText = computed(() => realtimeReady.value ? '实时传输' : '轮询传输')
-const lastSyncText = computed(() => lastSyncAt.value ? `同步 ${formatClockTime(lastSyncAt.value)}` : '等待同步')
+const realtimeStatusText = computed(() => resolveEquipmentRealtimeStatusText(realtimeReady.value))
+const lastSyncText = computed(() => resolveEquipmentLastSyncText(lastSyncAt.value))
 
 const assignRowsIfChanged = (target, rows) => {
   const nextRows = normalizeEquipmentRows(rows)
@@ -584,18 +573,7 @@ const kpiList = computed(() => buildEquipmentKpiRows({ summary: cockpitSummary.v
 
 const statusRows = computed(() => buildEquipmentStatusRows({ assets: assets.value, colors }))
 
-const statusPieStyle = computed(() => {
-  const total = statusRows.value.reduce((sum, item) => sum + item.value, 0)
-  if (total <= 0) return { background: 'conic-gradient(rgba(255,255,255,0.16) 0deg 360deg)' }
-  let cursor = 0
-  const stops = statusRows.value.map((item) => {
-    const start = cursor
-    const size = (item.value / total) * 360
-    cursor += size
-    return `${item.color} ${start}deg ${cursor}deg`
-  })
-  return { background: `conic-gradient(${stops.join(', ')})` }
-})
+const statusPieStyle = computed(() => buildEquipmentStatusPieStyle(statusRows.value))
 
 const assetTypeRows = computed(() => buildEquipmentAssetTypeRows({ assets: assets.value, colors }))
 
@@ -630,27 +608,14 @@ const alertList = computed(() => buildEquipmentAlertRows({
   referenceDate: new Date()
 }))
 
-const appRoutes = {
-  assets: '/app/assets',
-  checks: '/app/checks',
-  issues: '/app/issues',
-  work_orders: '/app/work_orders',
-  plans: '/app/plans',
-  standards: '/app/standards'
-}
-
 const openApp = (key) => {
-  const path = appRoutes[key]
+  const path = resolveEquipmentAppRoute(key)
   if (path) router.push(path)
 }
 
 const openRecord = (row, appKey) => {
-  if (!row?.id) return
-  router.push({
-    name: 'EquipmentDocumentDetail',
-    params: { id: row.id },
-    query: { appKey, demo: String(row.id).startsWith('demo-') ? '1' : undefined }
-  })
+  const target = buildEquipmentRecordRoute(row, appKey)
+  if (target) router.push(target)
 }
 
 const goApps = () => router.push('/')

@@ -2,7 +2,7 @@
 
 ## 结论
 
-2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,805 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid、四个 PurchaseAppGrid、七个 DocumentIntakeCenter、十四个 PurchaseDocumentDetail 纯策略切片及五个 EquipmentHome 驾驶舱策略切片后，当前库存为 109,204 行，巨页债务已降至 84,241 行，≥2,000 行极端页降至 7 个。
+2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,805 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid、四个 PurchaseAppGrid、七个 DocumentIntakeCenter、十四个 PurchaseDocumentDetail 纯策略切片及六个 EquipmentHome 驾驶舱策略切片后，当前库存为 109,169 行，巨页债务已降至 84,206 行，≥2,000 行极端页降至 7 个。
 
 该结果证明巨页是系统性维护风险，不能靠一次整体重写解决。基线已进入 `config/engineering/vue-complexity-baseline.json`，质量门禁禁止既有巨页增长、禁止新增巨页，并要求总债务、极端页和关键页数量只降不增。
 
@@ -48,13 +48,13 @@
 | `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 1,970 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-base/src/views/DocumentIntakeCenter.vue` | 1,973 | 6 个纯模块/54 个导出已迁出，阶段退出门禁已建立 |
 | `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 1,916 | 11 个纯策略模块/54 个导出已迁出，阶段退出门禁已建立 |
-| `eiscore-equipment/src/views/EquipmentHome.vue` | 1,677 | 5 个纯策略模块/35 个导出已迁出；评估剩余壳层投影与阶段退出门禁 |
+| `eiscore-equipment/src/views/EquipmentHome.vue` | 1,642 | 6 个纯策略模块/43 个导出已迁出；下一步建立组合层退出门禁 |
 
 ## 持续门禁
 
 - 扫描范围内新 Vue 文件不得达到 800 行。
 - 52 个基线文件逐文件不得超过各自基线行数；文件删除或降到阈值以下视为债务下降。
-- 巨页总行数的初始基线为 90,948，当前值为 84,241；≥1,200 行当前为 32 个，≥2,000 行当前为 7 个。质量门禁继续执行逐文件上限和总量只降不增，EquipmentHome 专项门禁另锁定其 1,677 行上限。
+- 巨页总行数的初始基线为 90,948，当前值为 84,206；≥1,200 行当前为 32 个，≥2,000 行当前为 7 个。质量门禁继续执行逐文件上限和总量只降不增，EquipmentHome 专项门禁另锁定其 1,642 行上限。
 - 不允许通过重命名、移动目录、生成文件或扩充排除项规避门禁。
 - 基线扩张不是普通维护动作；确有必要时必须记录 ADR、替代方案和回收计划。
 
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-继续 `eiscore-equipment/src/views/EquipmentHome.vue`：展示投影、KPI/风险摘要、日期趋势/告警、数据同步及加载策略边界已锁定并迁出，下一步评估状态饼图、滚动时长和应用路由等剩余壳层投影，再建立纯策略阶段退出门禁。
+继续 `eiscore-equipment/src/views/EquipmentHome.vue`：展示、摘要、时间线、数据、加载与壳层策略均已迁出；下一步建立组合层退出门禁，锁定策略清单、导出数、请求/订阅/路由/定时器/Fullscreen 副作用和页面行数。
