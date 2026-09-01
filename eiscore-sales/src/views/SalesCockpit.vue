@@ -325,11 +325,9 @@ import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
 import {
   formatSalesCockpitCurrency as formatCurrency,
-  formatSalesCockpitEventTime as formatTime,
   formatSalesCockpitRefreshTime as formatRefreshTime,
   formatSalesCockpitScrollDuration as scrollDuration,
   normalizeSalesCockpitRows as toRows,
-  parseSalesCockpitDateTime as getDateTime,
   selectActiveSalesCustomers,
   selectActiveSalesFollowUps,
   selectActiveSalesOpportunities,
@@ -356,6 +354,7 @@ import {
   buildSalesActionItems,
   buildSalesRiskItems
 } from '@/domain/sales-cockpit-risk-action-policy.js'
+import { buildSalesActivityEvents } from '@/domain/sales-cockpit-activity-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -441,48 +440,11 @@ const actionItems = computed(() => buildSalesActionItems({
   opportunities: activeOpportunities.value
 }))
 
-const salesEvents = computed(() => {
-  const events = []
-  activeOrders.value.forEach((row) => {
-    events.push({
-      key: `order-${row.id || row.order_no}`,
-      appKey: 'orders',
-      type: '订单',
-      tone: 'order',
-      date: row.order_date,
-      time: formatTime(row.order_date),
-      title: row.customer_name || row.order_no,
-      amount: formatCurrency(row.total_amount)
-    })
-  })
-  activePayments.value.forEach((row) => {
-    events.push({
-      key: `payment-${row.id || row.payment_no}`,
-      appKey: 'payments',
-      type: '回款',
-      tone: 'payment',
-      date: row.payment_date,
-      time: formatTime(row.payment_date),
-      title: row.customer_name || row.payment_no,
-      amount: formatCurrency(row.amount)
-    })
-  })
-  activeFollowUps.value.forEach((row) => {
-    events.push({
-      key: `follow-${row.id || row.follow_no}`,
-      appKey: 'follow_ups',
-      type: '跟进',
-      tone: 'follow',
-      date: row.follow_date,
-      time: formatTime(row.follow_date),
-      title: row.customer_name || row.follow_no,
-      amount: row.follow_result || '-'
-    })
-  })
-  return events
-    .sort((a, b) => getDateTime(b.date) - getDateTime(a.date))
-    .slice(0, 12)
-})
+const salesEvents = computed(() => buildSalesActivityEvents({
+  orders: activeOrders.value,
+  payments: activePayments.value,
+  followUps: activeFollowUps.value
+}))
 
 const buildCockpitContext = () => ({
   app: 'sales',
