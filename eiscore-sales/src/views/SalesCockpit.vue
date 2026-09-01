@@ -323,6 +323,24 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
+import {
+  clampSalesCockpitRate as clampRate,
+  formatSalesCockpitCurrency as formatCurrency,
+  formatSalesCockpitDate as formatDate,
+  formatSalesCockpitEventTime as formatTime,
+  formatSalesCockpitRefreshTime as formatRefreshTime,
+  formatSalesCockpitScrollDuration as scrollDuration,
+  normalizeSalesCockpitRows as toRows,
+  parseSalesCockpitDateTime as getDateTime,
+  selectActiveSalesCustomers,
+  selectActiveSalesFollowUps,
+  selectActiveSalesOpportunities,
+  selectActiveSalesOrders,
+  selectActiveSalesPayments,
+  shouldAutoScrollSalesCockpitRows as shouldAutoScroll,
+  sumSalesCockpitRowsBy as sumBy,
+  toSalesCockpitAmount as toAmount
+} from '@/domain/sales-cockpit-presentation-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -359,45 +377,11 @@ const cockpitScaleVars = computed(() => ({
   '--cockpit-scale': cockpitFrame.value.scale
 }))
 
-const toRows = (value) => (Array.isArray(value) ? value : [])
-const toAmount = (value) => {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : 0
-}
-const sumBy = (rows, prop) => rows.reduce((sum, row) => sum + toAmount(row?.[prop]), 0)
-const getDateTime = (value) => {
-  if (!value) return 0
-  const time = new Date(value).getTime()
-  return Number.isFinite(time) ? time : 0
-}
-const formatDate = (value) => value ? String(value).slice(0, 10) : '-'
-const formatRefreshTime = (value) => {
-  if (!value) return '等待首次刷新'
-  return new Date(value).toLocaleTimeString('zh-CN', { hour12: false })
-}
-const formatTime = (value) => {
-  if (!value) return '--:--'
-  const date = new Date(value)
-  if (!Number.isFinite(date.getTime())) return '--:--'
-  return `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-}
-const formatAmount = (value) => {
-  const amount = toAmount(value)
-  const abs = Math.abs(amount)
-  if (abs >= 100000000) return `${(amount / 100000000).toFixed(abs >= 1000000000 ? 1 : 2)}亿`
-  if (abs >= 10000) return `${(amount / 10000).toFixed(abs >= 1000000 ? 0 : 1)}万`
-  return amount.toLocaleString('zh-CN', { maximumFractionDigits: 0 })
-}
-const formatCurrency = (value) => `¥${formatAmount(value)}`
-const clampRate = (value) => Math.max(0, Math.min(100, Math.round(toAmount(value))))
-const shouldAutoScroll = (rows, threshold = 4) => Array.isArray(rows) && rows.length > threshold
-const scrollDuration = (rows, secondsPerItem = 6) => `${Math.max(toRows(rows).length * secondsPerItem, 18)}s`
-
-const activeCustomers = computed(() => customers.value.filter((row) => row?.status !== 'deleted'))
-const activeOrders = computed(() => orders.value.filter((row) => row?.status !== 'deleted' && row?.order_status !== '已取消'))
-const activePayments = computed(() => payments.value.filter((row) => row?.status !== 'deleted'))
-const activeOpportunities = computed(() => opportunities.value.filter((row) => row?.status !== 'deleted' && !['输单', '搁置'].includes(row?.stage)))
-const activeFollowUps = computed(() => followUps.value.filter((row) => row?.status !== 'deleted'))
+const activeCustomers = computed(() => selectActiveSalesCustomers(customers.value))
+const activeOrders = computed(() => selectActiveSalesOrders(orders.value))
+const activePayments = computed(() => selectActiveSalesPayments(payments.value))
+const activeOpportunities = computed(() => selectActiveSalesOpportunities(opportunities.value))
+const activeFollowUps = computed(() => selectActiveSalesFollowUps(followUps.value))
 const lastUpdatedText = computed(() => formatRefreshTime(lastUpdatedAt.value))
 
 const totalCreditLimit = computed(() => sumBy(activeCustomers.value, 'credit_limit'))
