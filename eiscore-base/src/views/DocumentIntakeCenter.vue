@@ -1109,6 +1109,7 @@ import {
   planDocumentIntakeLogsForDevice
 } from '@/domain/document-intake-filter-policy.js'
 import { buildDocumentIntakeEntryResultDetailProjection } from '@/domain/document-intake-entry-result-detail-policy.js'
+import { planDocumentIntakeDeviceBindingCodeReset, planDocumentIntakeDeviceStatus } from '@/domain/document-intake-device-operation-policy.js'
 import {
   buildDocumentIntakeWatchFolderEditForm,
   createDocumentIntakeWatchFolderForm,
@@ -1433,44 +1434,36 @@ const resetAssetFilters = () => Object.assign(filters, createDocumentIntakeAsset
 const resetDeviceFilters = () => Object.assign(deviceFilters, createDocumentIntakeDeviceFilters())
 
 const toggleDeviceStatus = async (row) => {
-  if (!row?.id) return
-  const nextStatus = row.status === 'disabled' ? 'active' : 'disabled'
-  const label = nextStatus === 'disabled' ? '停用' : '启用'
+  const plan = planDocumentIntakeDeviceStatus(row)
+  if (!plan) return
   try {
-    await ElMessageBox.confirm(`确认${label}设备 ${row.deviceName || row.deviceCode || row.id}？`, `${label}设备`, {
-      confirmButtonText: label,
-      cancelButtonText: '取消',
-      type: nextStatus === 'disabled' ? 'warning' : 'info'
-    })
+    await ElMessageBox.confirm(plan.confirmMessage, plan.confirmTitle, { confirmButtonText: plan.label, cancelButtonText: '取消', type: plan.confirmType })
   } catch {
     return
   }
-  deviceActionLoadingId.value = `${row.id}:status`
+  deviceActionLoadingId.value = plan.actionKey
   try {
-    await updateDocumentIntakeDeviceStatus(row.id, nextStatus)
-    ElMessage.success(`设备已${label}`)
+    await updateDocumentIntakeDeviceStatus(plan.deviceId, plan.nextStatus)
+    ElMessage.success(`设备已${plan.label}`)
     await Promise.all([loadDevices(), loadOverview()])
   } catch (error) {
-    ElMessage.error(error?.message || `设备${label}失败`)
+    ElMessage.error(error?.message || `设备${plan.label}失败`)
   } finally {
     deviceActionLoadingId.value = ''
   }
 }
 
 const resetDeviceBindingCode = async (row) => {
-  if (!row?.id) return
+  const plan = planDocumentIntakeDeviceBindingCodeReset(row)
+  if (!plan) return
   try {
-    await ElMessageBox.confirm(`确认重置设备 ${row.deviceName || row.deviceCode || row.id} 的授权码？旧 token 将失效，需要重新绑定。`, '重置设备授权码', {
-      confirmButtonText: '重置',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
+    await ElMessageBox.confirm(plan.confirmMessage, '重置设备授权码', { confirmButtonText: '重置', cancelButtonText: '取消', type: 'warning' })
   } catch {
     return
   }
-  deviceActionLoadingId.value = `${row.id}:reset-code`
+  deviceActionLoadingId.value = plan.actionKey
   try {
-    const data = await resetDocumentIntakeDeviceBindingCode(row.id)
+    const data = await resetDocumentIntakeDeviceBindingCode(plan.deviceId)
     const bindingCode = data?.bindingCode || ''
     if (bindingCode) {
       try {

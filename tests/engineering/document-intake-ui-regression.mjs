@@ -18,7 +18,8 @@ const presentationPolicySource = readSource('eiscore-base/src/domain/document-in
 const filterPolicySource = readSource('eiscore-base/src/domain/document-intake-filter-policy.js')
 const watchFolderPolicySource = readSource('eiscore-base/src/domain/document-intake-watch-folder-policy.js')
 const entryResultDetailPolicySource = readSource('eiscore-base/src/domain/document-intake-entry-result-detail-policy.js')
-const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}\n${filterPolicySource}\n${watchFolderPolicySource}\n${entryResultDetailPolicySource}`
+const deviceOperationPolicySource = readSource('eiscore-base/src/domain/document-intake-device-operation-policy.js')
+const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}\n${filterPolicySource}\n${watchFolderPolicySource}\n${entryResultDetailPolicySource}\n${deviceOperationPolicySource}`
 const apiModuleUrl = pathToFileURL(resolve(repoRoot, 'eiscore-base/src/utils/document-intake-api.js')).href
 const api = await import(apiModuleUrl)
 
@@ -101,12 +102,13 @@ assert.ok(
   'DocumentIntakeCenter should load devices with status and keyword filters.'
 )
 assert.ok(
-  viewSource.includes('toggleDeviceStatus(row)') &&
+    viewSource.includes('toggleDeviceStatus(row)') &&
     viewSource.includes('resetDeviceBindingCode(row)') &&
     viewSource.includes('openWatchFolders(row)') &&
     viewSource.includes("row.status === 'disabled' ? '启用' : '停用'") &&
-    viewSource.includes('updateDocumentIntakeDeviceStatus(row.id, nextStatus)') &&
-    viewSource.includes('resetDocumentIntakeDeviceBindingCode(row.id)') &&
+    viewSource.includes('updateDocumentIntakeDeviceStatus(plan.deviceId, plan.nextStatus)') &&
+    viewSource.includes('resetDocumentIntakeDeviceBindingCode(plan.deviceId)') &&
+    deviceOperationPolicySource.includes("row.status === 'disabled' ? 'active' : 'disabled'") &&
     viewSource.includes('ElMessageBox.confirm') &&
     viewSource.includes('新授权码已复制'),
   'DocumentIntakeCenter should provide device watch folder, enable/disable and binding-code reset actions.'

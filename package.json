@@ -62,7 +62,7 @@
     "test:collector-file-boundary": "node tests/engineering/collector-file-boundary-regression.mjs",
     "test:collector-upload-ownership": "node tests/engineering/collector-upload-ownership-regression.mjs",
     "test:document-intake": "node tests/engineering/document-intake-regression.mjs",
-    "test:document-intake-center": "node tests/engineering/document-intake-presentation-policy-regression.mjs && node tests/engineering/document-intake-filter-policy-regression.mjs && node tests/engineering/document-intake-watch-folder-policy-regression.mjs && node tests/engineering/document-intake-entry-result-detail-policy-regression.mjs",
+    "test:document-intake-center": "node tests/engineering/document-intake-presentation-policy-regression.mjs && node tests/engineering/document-intake-filter-policy-regression.mjs && node tests/engineering/document-intake-watch-folder-policy-regression.mjs && node tests/engineering/document-intake-entry-result-detail-policy-regression.mjs && node tests/engineering/document-intake-device-operation-policy-regression.mjs",
     "test:document-intake-ui": "node tests/engineering/document-intake-ui-regression.mjs",
     "test:mobile-login-feedback": "node tests/engineering/mobile-login-feedback-regression.mjs",
     "test:mobile-pda": "node tests/engineering/mobile-pda-regression.mjs",
