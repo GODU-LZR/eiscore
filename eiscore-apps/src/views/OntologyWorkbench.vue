@@ -744,6 +744,27 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 import OntologyRelationGraph from '@/components/OntologyRelationGraph.vue'
+import {
+  buildOntologyInsightMetricCards,
+  buildOntologyReasoningMetricCards,
+  buildOntologyTableLabelMap,
+  cleanOntologyDisplayText as cleanDisplayText,
+  collectOntologyRelationTables,
+  countOntologyRelationTypes,
+  extractOntologySemanticsMode,
+  filterOntologyReasoningFacts,
+  filterOntologyRelations,
+  filterOntologyRelationsByTable,
+  firstOntologyRow as firstRow,
+  flattenOntologyColumnSemantics,
+  formatOntologyColumn as formatColumn,
+  getOntologyColumnTables,
+  getOntologyReasoningHealthTagType,
+  getOntologyRelationTypeLabel as relationTypeLabel,
+  getOntologySemanticClassLabel as semanticClassLabel,
+  getOntologySemanticsModeLabel as semanticsModeLabel,
+  parseOntologyTableKey
+} from '@/domain/ontology-workbench-relation-policy'
 
 const router = useRouter()
 
@@ -804,33 +825,6 @@ let graphResizeObserver = null
 let kgGraphResizeObserver = null
 let kgChart = null
 let kgEchartsModulePromise = null
-
-const STATIC_TABLE_LABELS = {
-  'public.users': '用户',
-  'public.roles': '角色',
-  'public.permissions': '权限点',
-  'public.user_roles': '用户角色关系',
-  'public.role_permissions': '角色权限关系',
-  'public.v_permission_ontology': '权限语义视图',
-  'public.ontology_inference_rules': '本体推理规则',
-  'public.ontology_inferred_facts': '本体推理事实',
-  'public.ontology_reasoning_runs': '本体推理运行',
-  'public.v_ontology_reasoning_facts': '本体推理事实视图',
-  'public.v_ontology_reasoning_edges': '本体推理边视图',
-  'public.v_ontology_reasoning_summary': '本体推理摘要',
-  'public.v_ontology_reasoning_rule_stats': '本体推理规则统计',
-  'public.v_ontology_role_access_insights': '角色访问洞察',
-  'public.v_ontology_sensitive_access_paths': '敏感字段访问路径',
-  'public.v_ontology_table_dependency_paths': '表依赖路径',
-  'public.v_ontology_table_impact_insights': '表影响洞察',
-  'public.v_ontology_reasoning_health': '本体推理健康状态',
-  'public.v_ontology_kg_nodes': '知识图谱节点视图',
-  'workflow.definitions': '流程定义',
-  'workflow.instances': '流程实例',
-  'workflow.task_assignments': '任务分派',
-  'app_center.apps': '应用中心应用',
-  'app_center.workflow_state_mappings': '流程状态映射'
-}
 
 const PREDICATE_LABELS = {
   'acl:hasRole': '拥有角色',
@@ -900,66 +894,15 @@ const KG_GRAPH_NODE_COLORS = {
   semantic_domain: '#607d8b'
 }
 
-const SEMANTIC_CLASS_LABELS = {
-  business_attribute: '业务属性',
-  enum_attribute: '枚举属性',
-  hierarchy_attribute: '层级属性',
-  geo_attribute: '地理属性',
-  file_attribute: '文件属性',
-  derived_metric: '派生指标',
-  time_attribute: '时间属性',
-  json_attribute: 'JSON属性',
-  identifier: '标识',
-  reference_attribute: '引用属性',
-  boolean_attribute: '布尔属性'
-}
-
-const normalizedSearch = computed(() => String(searchText.value || '').trim().toLowerCase())
-
-const filteredRelations = computed(() => {
-  const keyword = normalizedSearch.value
-  return relations.value.filter((item) => {
-    const typePass = relationType.value === 'all' || item.relation_type === relationType.value
-    if (!typePass) return false
-    if (!keyword) return true
-    const haystack = [
-      item.subject_table,
-      item.subject_column,
-      item.predicate,
-      item.object_table,
-      item.object_column,
-      item.subject_semantic_name,
-      item.object_semantic_name,
-      item.bridge_table,
-      item.details
-    ].join(' ').toLowerCase()
-    return haystack.includes(keyword)
-  })
-})
-
-const allTables = computed(() => {
-  const set = new Set()
-  filteredRelations.value.forEach((item) => {
-    if (item.subject_table) set.add(item.subject_table)
-    if (item.object_table) set.add(item.object_table)
-  })
-  return Array.from(set).sort((a, b) => a.localeCompare(b))
-})
-
-const graphRelations = computed(() => {
-  if (!selectedTable.value) return filteredRelations.value
-  return filteredRelations.value.filter((item) =>
-    item.subject_table === selectedTable.value || item.object_table === selectedTable.value
-  )
-})
-
-const ontologyCount = computed(() =>
-  filteredRelations.value.filter((item) => item.relation_type === 'ontology').length
-)
-
-const foreignKeyCount = computed(() =>
-  filteredRelations.value.filter((item) => item.relation_type === 'foreign_key').length
-)
+const filteredRelations = computed(() => filterOntologyRelations(relations.value, {
+  relationType: relationType.value,
+  searchText: searchText.value
+}))
+const allTables = computed(() => collectOntologyRelationTables(filteredRelations.value))
+const graphRelations = computed(() => filterOntologyRelationsByTable(filteredRelations.value, selectedTable.value))
+const relationTypeCounts = computed(() => countOntologyRelationTypes(filteredRelations.value))
+const ontologyCount = computed(() => relationTypeCounts.value.ontology)
+const foreignKeyCount = computed(() => relationTypeCounts.value.foreignKey)
 
 const pickedRelation = computed(() =>
   graphRelations.value.find((item) => item.id === pickedRelationId.value) || null
@@ -967,51 +910,20 @@ const pickedRelation = computed(() =>
 
 const tableRows = computed(() => graphRelations.value.slice(0, 500))
 
-const columnTablesForDisplay = computed(() => {
-  if (selectedTable.value) return [selectedTable.value]
-  if (!pickedRelation.value) return []
-  const list = [pickedRelation.value.subject_table, pickedRelation.value.object_table]
-  return Array.from(new Set(list.filter(Boolean)))
-})
-
-const currentColumnRows = computed(() => {
-  return columnTablesForDisplay.value.flatMap((tableKey) => {
-    const rows = columnSemanticsCache.value[tableKey] || []
-    return rows.map((row) => ({ ...row, table_key: tableKey }))
-  })
-})
-
-const reasoningMetricCards = computed(() => ([
-  { key: 'facts', label: '事实总数', value: reasoningSummary.value.facts_total || 0 },
-  { key: 'inferred', label: '推理事实', value: reasoningSummary.value.inferred_facts || 0 },
-  { key: 'app', label: '角色-应用', value: reasoningSummary.value.role_app_access_facts || 0 },
-  { key: 'table', label: '角色-业务表', value: reasoningSummary.value.role_table_access_facts || 0 },
-  { key: 'sensitive', label: '敏感可达', value: reasoningSummary.value.sensitive_exposure_facts || 0 },
-  { key: 'dependency', label: '传递依赖', value: reasoningSummary.value.transitive_dependency_facts || 0 }
-]))
-
-const reasoningHealthTagType = computed(() => {
-  if (reasoningHealth.value.is_healthy === true) return 'success'
-  if (reasoningHealth.value.health_code) return 'danger'
-  return 'info'
-})
-
-const insightMetricCards = computed(() => ([
-  {
-    key: 'relations',
-    label: '关系覆盖',
-    value: `${reasoningHealth.value.semanticized_relations || 0}/${reasoningHealth.value.api_relations || 0}`
-  },
-  {
-    key: 'columns',
-    label: '字段覆盖',
-    value: `${reasoningHealth.value.semanticized_columns || 0}/${reasoningHealth.value.ontology_columns || 0}`
-  },
-  { key: 'roles', label: '角色洞察', value: roleAccessInsights.value.length },
-  { key: 'tables', label: '影响表', value: tableImpactInsights.value.length },
-  { key: 'sensitive', label: '敏感路径', value: sensitiveAccessPaths.value.length },
-  { key: 'rules', label: '规则统计', value: ruleStats.value.length }
-]))
+const columnTablesForDisplay = computed(() => getOntologyColumnTables(selectedTable.value, pickedRelation.value))
+const currentColumnRows = computed(() => flattenOntologyColumnSemantics(
+  columnTablesForDisplay.value,
+  columnSemanticsCache.value
+))
+const reasoningMetricCards = computed(() => buildOntologyReasoningMetricCards(reasoningSummary.value))
+const reasoningHealthTagType = computed(() => getOntologyReasoningHealthTagType(reasoningHealth.value))
+const insightMetricCards = computed(() => buildOntologyInsightMetricCards({
+  health: reasoningHealth.value,
+  roleAccessInsights: roleAccessInsights.value,
+  tableImpactInsights: tableImpactInsights.value,
+  sensitiveAccessPaths: sensitiveAccessPaths.value,
+  ruleStats: ruleStats.value
+}))
 
 const kgSelectedMetrics = computed(() => {
   const node = kgSelectedNode.value || {}
@@ -1199,41 +1111,10 @@ const kgSelectedEdgeEvidenceRows = computed(() => {
   }))
 })
 
-const filteredReasoningFacts = computed(() => {
-  const keyword = String(reasoningSearchText.value || '').trim().toLowerCase()
-  if (!keyword) return reasoningFacts.value
-  return reasoningFacts.value.filter((item) => {
-    const haystack = [
-      item.subject_type,
-      item.subject_id,
-      item.subject_label,
-      item.predicate,
-      item.object_type,
-      item.object_id,
-      item.object_label,
-      item.inference_rule,
-      item.rule_name
-    ].join(' ').toLowerCase()
-    return haystack.includes(keyword)
-  })
-})
-
-const firstRow = (value) => (Array.isArray(value) ? value[0] : value)
-
-const relationTypeLabel = (value) => {
-  if (value === 'ontology') return '本体关系'
-  if (value === 'foreign_key') return '外键关系'
-  return value || '-'
-}
-
-const semanticClassLabel = (value) => SEMANTIC_CLASS_LABELS[value] || value || '-'
-
-const semanticsModeLabel = (value) => {
-  if (value === 'ai_defined') return 'AI定义'
-  if (value === 'creator_defined') return '创建者定义'
-  if (value === 'none') return '无语义'
-  return value || '-'
-}
+const filteredReasoningFacts = computed(() => filterOntologyReasoningFacts(
+  reasoningFacts.value,
+  reasoningSearchText.value
+))
 
 const predicateLabel = (value) => PREDICATE_LABELS[value] || value || '-'
 
@@ -1288,57 +1169,12 @@ const kgEdgeKey = (edge) => {
   return `${edge.source}|${edge.predicate}|${edge.target}`
 }
 
-const cleanDisplayText = (value) => {
-  const text = String(value || '').trim()
-  if (!text || text.includes('?')) return ''
-  return text
-}
-
-const formatColumn = (value) => (value ? `.${value}` : '')
-
-const sanitizeSemanticName = (value, fallback) => {
-  const name = String(value || '').trim()
-  if (!name || name === fallback) return ''
-  if (name.includes('?')) return ''
-  return name
-}
-
-const tableLabelMap = computed(() => {
-  const map = { ...STATIC_TABLE_LABELS }
-  filteredRelations.value.forEach((item) => {
-    if (item.subject_table) {
-      const semantic = sanitizeSemanticName(item.subject_semantic_name, item.subject_table)
-      if (semantic) map[item.subject_table] = semantic
-    }
-    if (item.object_table) {
-      const semantic = sanitizeSemanticName(item.object_semantic_name, item.object_table)
-      if (semantic) map[item.object_table] = semantic
-    }
-  })
-  return map
-})
+const tableLabelMap = computed(() => buildOntologyTableLabelMap(filteredRelations.value))
 
 const tableDisplayLabel = (table) => tableLabelMap.value[table] || table
 
-const parseTableKey = (tableKey) => {
-  const value = String(tableKey || '').trim()
-  if (!value) return null
-  const chunks = value.split('.')
-  if (chunks.length === 1) return { schema: 'public', table: chunks[0], tableKey: `public.${chunks[0]}` }
-  const schema = chunks[0]
-  const table = chunks.slice(1).join('.')
-  return { schema, table, tableKey: `${schema}.${table}` }
-}
-
-const extractSemanticsMode = (tags) => {
-  if (!Array.isArray(tags)) return ''
-  const hit = tags.find((item) => String(item || '').startsWith('semantics:'))
-  if (!hit) return ''
-  return String(hit).slice('semantics:'.length)
-}
-
 const fetchColumnSemanticsByTable = async (tableKey) => {
-  const parsed = parseTableKey(tableKey)
+  const parsed = parseOntologyTableKey(tableKey)
   if (!parsed) return []
   const schema = encodeURIComponent(parsed.schema)
   const table = encodeURIComponent(parsed.table)
@@ -1354,7 +1190,7 @@ const fetchColumnSemanticsByTable = async (tableKey) => {
   return rows.map((item) => ({
     ...item,
     table_key: `${item.table_schema}.${item.table_name}`,
-    semantics_mode: extractSemanticsMode(item.tags)
+    semantics_mode: extractOntologySemanticsMode(item.tags)
   }))
 }
 
