@@ -357,6 +357,7 @@ import { buildSalesActivityEvents } from '@/domain/sales-cockpit-activity-policy
 import { buildSalesCockpitAiContext } from '@/domain/sales-cockpit-context-policy.js'
 import { buildSalesCockpitQueryRequests } from '@/domain/sales-cockpit-query-policy.js'
 import { decrementSalesCockpitRefreshCountdown, formatSalesCockpitClock } from '@/domain/sales-cockpit-clock-policy.js'
+import { normalizeSalesCockpitData } from '@/domain/sales-cockpit-data-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -485,11 +486,12 @@ const loadCockpitData = async () => {
     const [customerRows, orderRows, opportunityRows, paymentRows, followRows] = await Promise.all(
       buildSalesCockpitQueryRequests().map((config) => request(config))
     )
-    customers.value = toRows(customerRows)
-    orders.value = toRows(orderRows)
-    opportunities.value = toRows(opportunityRows)
-    payments.value = toRows(paymentRows)
-    followUps.value = toRows(followRows)
+    const normalized = normalizeSalesCockpitData([customerRows, orderRows, opportunityRows, paymentRows, followRows])
+    customers.value = normalized.customers
+    orders.value = normalized.orders
+    opportunities.value = normalized.opportunities
+    payments.value = normalized.payments
+    followUps.value = normalized.followUps
     lastUpdatedAt.value = new Date().toISOString()
     refreshCountdown.value = refreshIntervalSeconds
   } catch (error) {
