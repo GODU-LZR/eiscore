@@ -286,6 +286,13 @@ import {
   buildPurchaseSupplierReviewPatch
 } from '@/domain/purchase-document-detail-status-policy.js'
 import {
+  buildPurchaseDetailArrivalDraft,
+  buildPurchaseDetailInboundPatch,
+  calculatePurchaseDetailPendingArrivalQuantity,
+  resolvePurchaseDetailAcceptedQuantity,
+  resolvePurchaseDetailLinkedArrivalQuantity
+} from '@/domain/purchase-document-detail-quantity-policy.js'
+import {
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
   encodePurchaseDocumentFilterValue,
@@ -1418,10 +1425,7 @@ const registerArrivalFromOrder = async () => {
       method: 'get',
       headers: { 'Accept-Profile': 'public' }
     })
-    const arrivedQuantity = Array.isArray(arrivals)
-      ? arrivals.reduce((sum, item) => sum + (Number(item.arrival_quantity) || 0), 0)
-      : 0
-    const quantity = Math.max(orderQuantity - arrivedQuantity, 0)
+    const quantity = calculatePurchaseDetailPendingArrivalQuantity(orderQuantity, arrivals)
     if (quantity <= 0) {
       ElMessage.warning('该订单已无待到货数量')
       return
@@ -1446,23 +1450,12 @@ const registerArrivalFromOrder = async () => {
       ElMessage.warning(`本次到货数量不能超过待到货 ${quantity}`)
       return
     }
-    const arrivalPayload = {
-      arrival_no: nextDocNo('PA'),
-      order_id: row.value.id,
-      order_no: row.value.order_no || '',
-      supplier_id: row.value.supplier_id || null,
-      supplier_name: row.value.supplier_name || '',
-      material_name: row.value.material_name || '待录入物料',
-      arrival_quantity: arrivalQuantity,
-      accepted_quantity: 0,
-      unit: row.value.unit || 'kg',
-      arrival_date: todayText(),
-      iqc_status: '待检',
-      inbound_no: '',
-      arrival_status: '待检验',
-      status: 'active',
-      properties: { source_order_id: row.value.id }
-    }
+    const arrivalPayload = buildPurchaseDetailArrivalDraft({
+      row: row.value,
+      arrivalQuantity,
+      arrivalNo: nextDocNo('PA'),
+      arrivalDate: todayText()
+    })
     const createdArrivals = await request({
       url: '/purchase_arrivals',
       method: 'post',
@@ -1526,7 +1519,7 @@ const linkArrivalToOrder = async () => {
       return
     }
     const pendingQuantity = Number(order.pending_quantity) || 0
-    const nextArrivalQuantity = pendingQuantity > 0 ? pendingQuantity : (Number(row.value.arrival_quantity) || 1)
+    const nextArrivalQuantity = resolvePurchaseDetailLinkedArrivalQuantity(pendingQuantity, row.value.arrival_quantity)
     await patchAndReload(`/purchase_arrivals?id=eq.${row.value.id}`, {
       order_id: order.id,
       order_no: order.order_no,
@@ -1584,22 +1577,18 @@ const confirmArrivalInbound = async () => {
       ElMessage.warning('异常到货不能直接入库')
       return
     }
-    const acceptedQuantity = Number(row.value.accepted_quantity) > 0
-      ? Math.min(Number(row.value.accepted_quantity), arrivalQuantity)
-      : arrivalQuantity
+    const acceptedQuantity = resolvePurchaseDetailAcceptedQuantity(arrivalQuantity, row.value.accepted_quantity)
     await ElMessageBox.confirm(
       `确认将到货单 ${row.value.arrival_no || row.value.id} 入库？合格数量为 ${acceptedQuantity}。`,
       '确认入库',
       { type: 'warning', confirmButtonText: '确认入库', cancelButtonText: '取消' }
     )
     const inboundNo = row.value.inbound_no || nextDocNo('IN')
-    await patchAndReload(`/purchase_arrivals?id=eq.${row.value.id}`, {
-      accepted_quantity: acceptedQuantity,
-      iqc_status: row.value.iqc_status === '让步接收' ? '让步接收' : '合格',
-      inbound_no: inboundNo,
-      arrival_status: '已入库',
-      status: 'active'
-    }, '已确认入库', '确认入库失败')
+    await patchAndReload(`/purchase_arrivals?id=eq.${row.value.id}`, buildPurchaseDetailInboundPatch({
+      row: row.value,
+      acceptedQuantity,
+      inboundNo
+    }), '已确认入库', '确认入库失败')
     const sourceDoc = {
       docType: DOC_TYPES.PURCHASE_ARRIVAL,
       docId: row.value.id,
