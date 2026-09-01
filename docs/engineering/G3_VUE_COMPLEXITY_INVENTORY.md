@@ -2,7 +2,7 @@
 
 ## 结论
 
-2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,805 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid、四个 PurchaseAppGrid、七个 DocumentIntakeCenter、十四个 PurchaseDocumentDetail、六个 EquipmentHome 及六个 SalesCockpit 纯策略切片后，当前库存为 108,958 行，巨页债务已降至 83,995 行，≥2,000 行极端页降至 7 个。
+2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,805 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid、四个 PurchaseAppGrid、七个 DocumentIntakeCenter、十四个 PurchaseDocumentDetail、六个 EquipmentHome 及七个 SalesCockpit 纯策略切片后，当前库存为 108,959 行，巨页债务已降至 83,996 行，≥2,000 行极端页降至 7 个。
 
 该结果证明巨页是系统性维护风险，不能靠一次整体重写解决。基线已进入 `config/engineering/vue-complexity-baseline.json`，质量门禁禁止既有巨页增长、禁止新增巨页，并要求总债务、极端页和关键页数量只降不增。
 
@@ -49,13 +49,13 @@
 | `eiscore-base/src/views/DocumentIntakeCenter.vue` | 1,973 | 6 个纯模块/54 个导出已迁出，阶段退出门禁已建立 |
 | `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 1,916 | 11 个纯策略模块/54 个导出已迁出，阶段退出门禁已建立 |
 | `eiscore-equipment/src/views/EquipmentHome.vue` | 1,642 | 6 个纯策略模块/43 个导出已迁出，阶段退出门禁已建立 |
-| `eiscore-sales/src/views/SalesCockpit.vue` | 1,763 | 6 个纯策略模块/31 个导出已迁出；继续评估查询描述与壳层投影 |
+| `eiscore-sales/src/views/SalesCockpit.vue` | 1,759 | 7 个纯策略模块/32 个导出已迁出；下一步评估壳层投影 |
 
 ## 持续门禁
 
 - 扫描范围内新 Vue 文件不得达到 800 行。
 - 52 个基线文件逐文件不得超过各自基线行数；文件删除或降到阈值以下视为债务下降。
-- 巨页总行数的初始基线为 90,948，当前值为 83,995；≥1,200 行当前为 32 个，≥2,000 行当前为 7 个。质量门禁继续执行逐文件上限和总量只降不增，EquipmentHome 专项门禁另锁定其 1,642 行上限，SalesCockpit 专项门禁锁定当前 1,763 行上限。
+- 巨页总行数的初始基线为 90,948，当前值为 83,996；≥1,200 行当前为 32 个，≥2,000 行当前为 7 个。质量门禁继续执行逐文件上限和总量只降不增，EquipmentHome 专项门禁另锁定其 1,642 行上限，SalesCockpit 专项门禁锁定当前 1,760 行上限。
 - 不允许通过重命名、移动目录、生成文件或扩充排除项规避门禁。
 - 基线扩张不是普通维护动作；确有必要时必须记录 ADR、替代方案和回收计划。
 
@@ -69,4 +69,4 @@
 
 ## 下一切片
 
-继续 `eiscore-sales/src/views/SalesCockpit.vue`：展示、经营摘要、排行、风险/行动、销售动态及 AI Context 策略已迁出，下一步评估查询描述与壳层投影边界。
+继续 `eiscore-sales/src/views/SalesCockpit.vue`：展示、经营摘要、排行、风险/行动、销售动态、AI Context 及五路查询描述已迁出，下一步评估壳层投影边界。

@@ -355,6 +355,7 @@ import {
 } from '@/domain/sales-cockpit-risk-action-policy.js'
 import { buildSalesActivityEvents } from '@/domain/sales-cockpit-activity-policy.js'
 import { buildSalesCockpitAiContext } from '@/domain/sales-cockpit-context-policy.js'
+import { buildSalesCockpitQueryRequests } from '@/domain/sales-cockpit-query-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -489,13 +490,9 @@ const scheduleCockpitScale = () => {
 const loadCockpitData = async () => {
   loading.value = true
   try {
-    const [customerRows, orderRows, opportunityRows, paymentRows, followRows] = await Promise.all([
-      request({ url: '/sales_customers?select=*&status=neq.deleted&order=created_at.desc&limit=500', method: 'get' }),
-      request({ url: '/sales_orders?select=*&status=neq.deleted&order_status=neq.%E5%B7%B2%E5%8F%96%E6%B6%88&order=order_date.desc&limit=500', method: 'get' }),
-      request({ url: '/sales_opportunities?select=*&status=neq.deleted&order=expected_close_date.asc&limit=500', method: 'get' }),
-      request({ url: '/sales_payments?select=*&status=neq.deleted&order=payment_date.desc&limit=500', method: 'get' }),
-      request({ url: '/sales_follow_ups?select=*&status=neq.deleted&order=follow_date.desc&limit=500', method: 'get' })
-    ])
+    const [customerRows, orderRows, opportunityRows, paymentRows, followRows] = await Promise.all(
+      buildSalesCockpitQueryRequests().map((config) => request(config))
+    )
     customers.value = toRows(customerRows)
     orders.value = toRows(orderRows)
     opportunities.value = toRows(opportunityRows)
