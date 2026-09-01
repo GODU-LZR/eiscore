@@ -241,6 +241,8 @@ PurchaseAppGrid 第三个切片新增纯列编辑策略。可用列排除、公�
 
 PurchaseAppGrid 第四个切片新增纯操作策略。需求/订单/到货三类行操作 SOP、工具栏与单行流程对话框计划、权限映射、Action→Next Step、Realtime Payload 解析及表级重载判定脱离页面；工具栏对订单/到货的状态校验仍按既有时序延迟到确认阶段，Vue 状态、Request、Timer、消息、Router、Realtime 订阅与视觉布局保持原位。页面降至 1,970 行，累计减少 551 行（21.9%），首次退出 2,000 行极端页层级，巨页债务棘轮收紧到 85,518 行，极端页数量收紧到 10 个。
 
+PurchaseAppGrid 纯策略子目标随后通过阶段退出审计。机器门禁锁定 1,970 行页面、405/1,226/336 行 SFC 分区、4 个纯策略模块/55 个导出，以及 24 个 Request、23 个消息、4 个 Router、1 个平台导航、2 个 Watch、2 个 AI Bridge、68 个 Callable、2/1 个 Mounted/Unmounted、2 对窗口事件、2 个 Timer 和 1 个 Realtime 订阅的只降不增上限；Axios、直接 Fetch/Storage、EventSource、WebSocket、XMLHttpRequest 与 `window.location` 导航失败关闭。页面累计减少 551 行（21.9%），剩余真实网络、响应式状态、Realtime/Timer 生命周期、跨模块下推和视觉布局作为当前组合边界保留，G3 转向 `DocumentIntakeCenter.vue`。
+
 数据库迁移治理首先接管唯一已有可信顺序的 Runtime V2 补丁。10 个历史补丁现在具有连续 ID、SHA-256、事务所有权、postcheck 和 `backup-restore` 声明，并与旧文本 Manifest 逐项对照；五个历史根共 102 份 SQL 由离线门禁锁定。其余 92 份没有足够依赖证据，因此保持原位且禁止自动执行。随后 Bash/PowerShell 入口收敛到共享执行核心：离线校验和备份证据先于连接，账本按 ID/校验和幂等处理并与迁移原子提交，最后强制 postcheck。真实备份恢复演练仍需获授权环境，边界决策见 ADR-0009。
 
 会话契约已接入首批真实失效链：基座全局 API 401、移动路由守卫和仓库/库存/考勤/盘点 API 均通过适配器清理会话。原 `/login`、`/mobile/login`、移动重定向参数、401 用户错误及宽松 JWT 路由兼容保持，移动端这些链路不再直接操作 Storage 或 Base64；剩余直接会话操作已量化为基座 9 个文件、30 处。
@@ -614,6 +616,8 @@ PurchaseAppGrid 业务流策略切片通过纯函数专项、完整质量门禁�
 PurchaseAppGrid 列编辑策略切片通过纯函数专项、完整质量门禁和完整离线单元套件：196 个 Node 文件语法、14 个锁定 CI 包、1,208 个文本文件秘密扫描、7 个变更代码文件 lint 和 23 项基础设施检查；采购前端构建成功并转换 1,638 个模块。专项锁定可用列、公式 Prompt、编辑草稿/Tab、级联子项、静态列可见性、五类列保存验证、数字 `0` 下拉兼容、纯依赖及页面委托；没有调用数据库、API、Agent、Router、DOM 或远程环境。
 
 PurchaseAppGrid 操作策略切片通过纯函数专项、完整质量门禁和完整离线单元套件：197 个 Node 文件语法、14 个锁定 CI 包、1,210 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查；采购前端构建成功并转换 1,639 个模块。专项锁定三类行操作 SOP、工具栏/单行流程对话框计划、既有延迟校验、权限/Action 映射、Realtime 解析/表级重载、纯依赖及页面委托；没有调用数据库、API、Agent、Router、DOM 或远程环境。
+
+PurchaseAppGrid 阶段退出审计通过组合专项、完整质量门禁和完整离线单元套件：198 个 Node 文件语法、14 个锁定 CI 包、1,212 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查；采购前端构建成功并转换 1,639 个模块。审计锁定 SFC 分区、纯模块依赖、策略导出、Request/消息/Router/平台导航/Watch/AI Bridge/Callable 上限、生命周期、窗口事件、Timer、Realtime 订阅及平台旁路禁令；本切片没有修改产品代码或连接外部系统。
 
 ## 5. 升级、回退与运行治理
 
