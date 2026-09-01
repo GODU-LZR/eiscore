@@ -409,6 +409,12 @@ import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { getRealtimeClient } from '@/utils/realtime'
 import {
+  isEquipmentRealtimePayloadRelevant,
+  normalizeEquipmentRows,
+  parseEquipmentRealtimePayload,
+  shouldReplaceEquipmentRows
+} from '@/domain/equipment-home-data-policy.js'
+import {
   buildEquipmentAssetTypeRows,
   buildEquipmentHealthRiskRows,
   buildEquipmentIssueLevelRows,
@@ -454,15 +460,6 @@ let clockTimer = null
 let refreshTimer = null
 let realtimeUnsub = null
 let realtimeTimer = null
-
-const EQUIPMENT_REALTIME_TABLES = new Set([
-  'equipment_assets',
-  'equipment_checks',
-  'equipment_issues',
-  'equipment_work_orders',
-  'equipment_maintenance_plans',
-  'equipment_standards'
-])
 
 const colors = {
   primary: 'var(--c-primary)',
@@ -643,26 +640,9 @@ const updateClock = () => {
 const realtimeStatusText = computed(() => realtimeReady.value ? '实时传输' : '轮询传输')
 const lastSyncText = computed(() => lastSyncAt.value ? `同步 ${formatClockTime(lastSyncAt.value)}` : '等待同步')
 
-const signatureValue = (value) => {
-  if (value === null || value === undefined) return ''
-  if (value instanceof Date) return value.toISOString()
-  if (typeof value === 'object') return JSON.stringify(value)
-  return String(value)
-}
-
-const rowSignature = (row) => {
-  if (!row || typeof row !== 'object') return signatureValue(row)
-  return Object.keys(row)
-    .sort()
-    .map((key) => `${key}:${signatureValue(row[key])}`)
-    .join('\u001f')
-}
-
-const rowsSignature = (rows) => (Array.isArray(rows) ? rows.map(rowSignature).join('\u001e') : '')
-
 const assignRowsIfChanged = (target, rows) => {
-  const nextRows = Array.isArray(rows) ? rows : []
-  if (rowsSignature(target.value) !== rowsSignature(nextRows)) {
+  const nextRows = normalizeEquipmentRows(rows)
+  if (shouldReplaceEquipmentRows(target.value, nextRows)) {
     target.value = nextRows
   }
 }
@@ -714,23 +694,9 @@ const scheduleRealtimeReload = () => {
   }, 600)
 }
 
-const parseRealtimePayload = (event) => {
-  if (!event) return null
-  if (event.payload && typeof event.payload === 'string') {
-    try {
-      return JSON.parse(event.payload)
-    } catch (e) {
-      return null
-    }
-  }
-  if (event.payload && typeof event.payload === 'object') return event.payload
-  return event.schema && event.table ? event : null
-}
-
 const handleRealtimeEvent = (event) => {
-  const payload = parseRealtimePayload(event)
-  if (!payload) return
-  if (payload.schema === 'public' && EQUIPMENT_REALTIME_TABLES.has(payload.table)) {
+  const payload = parseEquipmentRealtimePayload(event)
+  if (isEquipmentRealtimePayloadRelevant(payload)) {
     realtimeEventCount.value += 1
     scheduleRealtimeReload()
   }
