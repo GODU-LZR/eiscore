@@ -299,6 +299,12 @@ import {
   resolveHostTabDot,
   resolveHostTabTitle as resolveHostTabTitlePolicy
 } from '@/domain/base-layout-host-tab-policy'
+import {
+  getBaseModuleKeyFromPath,
+  getBaseModuleLoadingTitle,
+  getVisibleBaseMicroAppKeys,
+  pickBaseMicroAppWarmUrls
+} from '@/domain/base-layout-micro-app-policy'
 
 const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
 const isCollapse = ref(false)
@@ -346,18 +352,6 @@ let idleWarmTimer = null
 let deferredWarmTimer = null
 const warmedMicroApps = new Set()
 const warmingMicroApps = new Set()
-const MICRO_APP_KEYS = ['materials', 'hr', 'apps', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision']
-const MICRO_APP_ENTRY_PREFIX = {
-  materials: '/materials/',
-  hr: '/hr/',
-  apps: '/apps/',
-  sales: '/sales/',
-  purchase: '/purchase/',
-  production: '/production/',
-  quality: '/quality/',
-  equipment: '/equipment/',
-  decision: '/decision/'
-}
 const MICRO_APP_WARM_CONCURRENCY = 4
 const microAppWarmMode = new Map()
 const userThemeIdentity = computed(() => userStore.userInfo?.username || userStore.userInfo?.id || 'guest')
@@ -437,24 +431,9 @@ const clearMicroAppLoadingFallback = () => {
   microAppLoadingFallbackTimer = null
 }
 
-const getModuleLoadingTitle = (moduleKey) => {
-  const map = {
-    materials: '仓储管理',
-    hr: '人事管理',
-    apps: '应用中心',
-    sales: '销售管理',
-    purchase: '采购管理',
-    production: '生产管理',
-    quality: '质量管理',
-    equipment: '设备管理',
-    decision: '决策支持'
-  }
-  return map[moduleKey] || '模块'
-}
-
 const showMicroAppLoading = (moduleKey = '') => {
   clearMicroAppLoadingFallback()
-  microAppLoadingText.value = `正在加载${getModuleLoadingTitle(moduleKey)}`
+  microAppLoadingText.value = `正在加载${getBaseModuleLoadingTitle(moduleKey)}`
   microAppLoading.value = true
   microAppLoadingVisible.value = true
   microAppLoadingFallbackTimer = window.setTimeout(() => {
@@ -480,7 +459,7 @@ const handleMicroLoading = (event) => {
   if (loading) {
     const appName = String(event?.detail?.app || '')
     const moduleKey = appName.replace(/^eiscore-/, '')
-    microAppLoadingText.value = `正在加载${getModuleLoadingTitle(moduleKey)}`
+    microAppLoadingText.value = `正在加载${getBaseModuleLoadingTitle(moduleKey)}`
     microAppLoadingShowTimer = window.setTimeout(() => {
       microAppLoadingVisible.value = microAppLoading.value
       microAppLoadingShowTimer = null
@@ -512,38 +491,6 @@ const getMicroAppManifest = async () => {
   return microAppManifestPromise
 }
 
-const sortWarmUrls = (urls) => [...urls].sort((a, b) => {
-  const rank = (url) => {
-    if (url.endsWith('/index.html')) return 0
-    if (/\/assets\/(?:runtime|vue-runtime|index|micro-app|request|utils)-/.test(url)) return 1
-    if (/\/assets\/(?:bpmn|maps-canvas|ag-grid)-/.test(url)) return 8
-    if (/\/apps\/assets\/AppDashboard-/.test(url)) return 2
-    if (/\/(?:materials|hr|sales|purchase|production|quality|equipment|decision)\/assets\/.*(?:AppView|AppGrid|Apps|Dashboard|Cockpit|Overview|Inventory|Home)-/.test(url)) return 2
-    if (/\/assets\/element-plus-/.test(url)) return 2
-    if (/\/assets\/(?:vendor-misc)-/.test(url)) return 3
-    if (/\/apps\/assets\/(?:AppRuntime|DataApp|AppConfigCenter|AppRecordDetail|WorkflowApprovalCenter|FlowDesigner|FlashBuilder|OntologyWorkbench)-/.test(url)) return 6
-    if (/\/apps\/assets\/(?:AppCenterGrid|AppRuntime|DataApp|AppConfigCenter|AppRecordDetail|WorkflowApprovalCenter|FlowDesigner|FlashBuilder|OntologyWorkbench)-.*\.css$/.test(url)) return 7
-    if (/\/assets\/style-/.test(url) || url.endsWith('.css')) return 4
-    if (/\/assets\/(?:charts|documents)-/.test(url)) return 8
-    return 5
-  }
-  const delta = rank(a) - rank(b)
-  if (delta) return delta
-  return a.localeCompare(b)
-})
-
-const pickMicroAppWarmUrls = (moduleKey, manifest) => {
-  const prefix = MICRO_APP_ENTRY_PREFIX[moduleKey]
-  const urls = Array.isArray(manifest?.urls) ? manifest.urls : []
-  if (!prefix) return []
-  return sortWarmUrls(urls.filter((url) => url === `${prefix}index.html` || url.startsWith(`${prefix}assets/`)))
-}
-
-const moduleKeyFromPath = (path) => {
-  const first = String(path || '').split('?')[0].split('#')[0].split('/').filter(Boolean)[0]
-  return MICRO_APP_KEYS.includes(first) ? first : ''
-}
-
 const warmUrls = async (urls, limit = MICRO_APP_WARM_CONCURRENCY) => {
   let cursor = 0
   const worker = async () => {
@@ -570,7 +517,7 @@ const warmMicroApp = async (moduleKey, options = {}) => {
   if (full) microAppWarmMode.set(key, 'full')
   try {
     const manifest = await getMicroAppManifest()
-    const urls = pickMicroAppWarmUrls(key, manifest)
+    const urls = pickBaseMicroAppWarmUrls(key, manifest)
     if (!urls.length) return
     const initialMaxUrls = full ? urls.length : Math.min(urls.length, key === 'apps' ? 14 : 18)
     await warmUrls(urls.slice(0, initialMaxUrls), full ? 5 : 4)
@@ -584,25 +531,25 @@ const warmMicroApp = async (moduleKey, options = {}) => {
   }
 }
 
+const getVisibleMicroAppWarmKeys = () => getVisibleBaseMicroAppKeys({
+  materials: canMms.value,
+  hr: canHr.value,
+  apps: canApps.value,
+  sales: canSales.value,
+  purchase: canPurchase.value,
+  production: canProduction.value,
+  quality: canQuality.value,
+  equipment: canEquipment.value,
+  decision: canDecision.value
+})
+
 const scheduleVisibleMicroAppWarmup = () => {
   if (idleWarmTimer) window.clearTimeout(idleWarmTimer)
   if (deferredWarmTimer) window.clearTimeout(deferredWarmTimer)
   idleWarmTimer = window.setTimeout(() => {
     idleWarmTimer = null
     runWhenIdle(async () => {
-      const candidates = [
-        ['materials', canMms.value],
-        ['hr', canHr.value],
-        ['apps', canApps.value],
-        ['sales', canSales.value],
-        ['purchase', canPurchase.value],
-        ['production', canProduction.value],
-        ['quality', canQuality.value],
-        ['equipment', canEquipment.value],
-        ['decision', canDecision.value]
-      ]
-        .filter(([, allowed]) => allowed)
-        .map(([key]) => key)
+      const candidates = getVisibleMicroAppWarmKeys()
 
       if (canApps.value) {
         await warmMicroApp('apps')
@@ -615,19 +562,7 @@ const scheduleVisibleMicroAppWarmup = () => {
   deferredWarmTimer = window.setTimeout(() => {
     deferredWarmTimer = null
     runWhenIdle(async () => {
-      const candidates = [
-        ['materials', canMms.value],
-        ['hr', canHr.value],
-        ['apps', canApps.value],
-        ['sales', canSales.value],
-        ['purchase', canPurchase.value],
-        ['production', canProduction.value],
-        ['quality', canQuality.value],
-        ['equipment', canEquipment.value],
-        ['decision', canDecision.value]
-      ]
-        .filter(([, allowed]) => allowed)
-        .map(([key]) => key)
+      const candidates = getVisibleMicroAppWarmKeys()
 
       for (const key of candidates.filter((item) => item !== 'apps').slice(0, 4)) {
         await warmMicroApp(key)
@@ -3337,7 +3272,7 @@ const handleOpenHostTab = (payload) => {
 const handleMenuSelect = (index) => {
   const path = normalizeHostPath(index)
   if (!path) return
-  const moduleKey = moduleKeyFromPath(path)
+  const moduleKey = getBaseModuleKeyFromPath(path)
   if (moduleKey) {
     showMicroAppLoading(moduleKey)
     warmMicroApp(moduleKey)
