@@ -425,6 +425,32 @@ import {
   isPurchaseRowActive,
   normalizePurchaseCascaderMap
 } from '@/domain/purchase-grid-data-policy'
+import {
+  assertPurchaseDemandFlowSource,
+  assertPurchaseOrderFlowSource,
+  assertPurchaseOrderQuantity,
+  buildPurchaseActiveSourceLinkQuery as activeSourceLinkQuery,
+  buildPurchaseArrivalInboundPlan,
+  buildPurchaseDemandOrderCompletion,
+  buildPurchaseDemandOrderDraft,
+  buildPurchaseDocumentLinkPayload as createDocumentLinkPayload,
+  buildPurchaseFlowAuditPayload,
+  buildPurchaseFlowView,
+  buildPurchaseOrderActivationUpdate,
+  buildPurchaseOrderArrivalCompletion,
+  buildPurchaseOrderArrivalDraft,
+  calculatePurchaseOrderPendingQuantity,
+  encodePurchaseFilterValue as safeEq,
+  getPurchaseOrderPendingQuantityHint,
+  isPurchaseArrivalPushable as isArrivalPushable,
+  isPurchaseDemandPushable as isDemandPushable,
+  isPurchaseOrderPushable as isOrderPushable,
+  pickPurchaseRowByLinkTarget as pickFirstByLinkTarget,
+  projectPurchaseInboundFromLink,
+  PURCHASE_FLOW_DOC_TYPES as DOC_TYPES,
+  PURCHASE_FLOW_RELATION_TYPES as RELATION_TYPES,
+  selectPurchaseFlowRows
+} from '@/domain/purchase-grid-flow-policy'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
 import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
@@ -437,13 +463,7 @@ import {
   getPurchaseRecordAttention,
   matchesPurchaseAttentionFilter
 } from '@/utils/purchase-attention'
-import {
-  DOC_TYPES,
-  RELATION_TYPES,
-  createDocumentLinkPayload,
-  tryCreateDocumentLink,
-  tryCreateDocumentAudit
-} from '@/utils/business-flow'
+import { tryCreateDocumentLink, tryCreateDocumentAudit } from '@/utils/business-flow'
 
 const props = defineProps({
   appKey: { type: String, default: 'suppliers' },
@@ -581,79 +601,31 @@ const resolveRowActions = (row) => {
 const primaryDemand = computed(() => selectedDemandRows.value[0] || null)
 const primaryOrder = computed(() => selectedOrderRows.value[0] || null)
 const primaryArrival = computed(() => selectedArrivalRows.value[0] || null)
+const purchaseFlowView = computed(() => buildPurchaseFlowView({
+  appKey: app.value.key,
+  demand: primaryDemand.value || flowDocs.value.purchaseDemand || {},
+  order: primaryOrder.value || flowDocs.value.purchaseOrder || {},
+  arrival: primaryArrival.value || flowDocs.value.purchaseArrival || {},
+  docs: flowDocs.value
+}))
 const selectedFlowCount = computed(() => {
   if (app.value.key === 'orders') return selectedOrderRows.value.length
   if (app.value.key === 'arrivals') return selectedArrivalRows.value.length
   return selectedDemandRows.value.length
 })
-const flowDialogTitle = computed(() => {
-  if (app.value.key === 'orders') return '采购订单业务流程'
-  if (app.value.key === 'arrivals') return '到货入库业务流程'
-  return '采购需求业务流程'
-})
-const flowSelectedLabel = computed(() => {
-  if (app.value.key === 'orders') return '已选择采购订单'
-  if (app.value.key === 'arrivals') return '已选择到货单'
-  return '已选择采购需求'
-})
-const nextStepOptions = computed(() => {
-  if (app.value.key === 'orders') return [{ label: '到货跟踪', value: 'purchase_arrival' }]
-  if (app.value.key === 'arrivals') return [{ label: '采购入库', value: 'inventory_inbound' }]
-  return [{ label: '采购订单', value: 'purchase_order' }]
-})
-const flowConfirmButtonType = computed(() => (app.value.key === 'arrivals' ? 'warning' : 'success'))
-const purchaseFlowNodes = computed(() => {
-  const demand = primaryDemand.value || flowDocs.value.purchaseDemand || {}
-  const order = primaryOrder.value || flowDocs.value.purchaseOrder || {}
-  const arrival = primaryArrival.value || flowDocs.value.purchaseArrival || {}
-  const docs = flowDocs.value || {}
-  return [
-    { key: 'sales', type: '销售订单', docNo: demand.properties?.source_order_no || demand.properties?.source_order_nos, status: '上游来源' },
-    { key: 'demand', type: '采购需求', docNo: demand.demand_no, status: demand.demand_status, current: app.value.key === 'demands' },
-    { key: 'order', type: '采购订单', docNo: order.order_no, status: order.order_status, current: app.value.key === 'orders' },
-    { key: 'arrival', type: '到货跟踪', docNo: arrival.arrival_no, status: arrival.arrival_status, current: app.value.key === 'arrivals' },
-    { key: 'inbound', type: '采购入库', docNo: docs.inventoryInbound?.inbound_no || docs.inventoryInbound?.docNo, status: docs.inventoryInbound?.status }
-  ]
-})
-const primaryDocLabel = computed(() => {
-  if (app.value.key === 'orders') return '首个待下推订单'
-  if (app.value.key === 'arrivals') return '首个待入库到货单'
-  return '首个待下推需求'
-})
-const primaryDocNo = computed(() => {
-  if (app.value.key === 'orders') return primaryOrder.value?.order_no || primaryOrder.value?.id || '-'
-  if (app.value.key === 'arrivals') return primaryArrival.value?.arrival_no || primaryArrival.value?.id || '-'
-  return primaryDemand.value?.demand_no || primaryDemand.value?.id || '-'
-})
-const primaryDocSummary = computed(() => {
-  const row = primaryOrder.value || primaryArrival.value || primaryDemand.value || {}
-  return `${row.material_name || '-'} / ${row.quantity || row.arrival_quantity || 0} ${row.unit || ''}`
-})
-const previousDocNo = computed(() => {
-  if (app.value.key === 'orders') return primaryOrder.value?.source_demand_no || flowDocs.value.purchaseDemand?.demand_no || '采购需求'
-  if (app.value.key === 'arrivals') return primaryArrival.value?.order_no || flowDocs.value.purchaseOrder?.order_no || '采购订单'
-  return primaryDemand.value?.properties?.source_order_no || primaryDemand.value?.properties?.source_order_nos || '采购需求'
-})
-const previousDocSummary = computed(() => {
-  if (app.value.key === 'orders') return '当前链路上游需求'
-  if (app.value.key === 'arrivals') return '当前链路上游订单'
-  return primaryDemand.value?.source_dept || '当前链路节点'
-})
-const downstreamDocLabel = computed(() => {
-  if (app.value.key === 'orders') return '下游到货跟踪'
-  if (app.value.key === 'arrivals') return '下游采购入库'
-  return '下游采购订单'
-})
-const downstreamDocNo = computed(() => {
-  if (app.value.key === 'orders') return flowDocs.value.purchaseArrival?.arrival_no || '未生成'
-  if (app.value.key === 'arrivals') return flowDocs.value.inventoryInbound?.inbound_no || flowDocs.value.inventoryInbound?.docNo || '未生成'
-  return flowDocs.value.purchaseOrder?.order_no || '未生成'
-})
-const downstreamDocStatus = computed(() => {
-  if (app.value.key === 'orders') return flowDocs.value.purchaseArrival?.arrival_status || '可下推生成'
-  if (app.value.key === 'arrivals') return flowDocs.value.inventoryInbound?.status || '可确认入库'
-  return flowDocs.value.purchaseOrder?.order_status || '可下推生成'
-})
+const flowDialogTitle = computed(() => purchaseFlowView.value.dialogTitle)
+const flowSelectedLabel = computed(() => purchaseFlowView.value.selectedLabel)
+const nextStepOptions = computed(() => purchaseFlowView.value.nextStepOptions)
+const flowConfirmButtonType = computed(() => purchaseFlowView.value.confirmButtonType)
+const purchaseFlowNodes = computed(() => purchaseFlowView.value.nodes)
+const primaryDocLabel = computed(() => purchaseFlowView.value.primaryLabel)
+const primaryDocNo = computed(() => purchaseFlowView.value.primaryDocNo)
+const primaryDocSummary = computed(() => purchaseFlowView.value.primarySummary)
+const previousDocNo = computed(() => purchaseFlowView.value.previousDocNo)
+const previousDocSummary = computed(() => purchaseFlowView.value.previousSummary)
+const downstreamDocLabel = computed(() => purchaseFlowView.value.downstream.label)
+const downstreamDocNo = computed(() => purchaseFlowView.value.downstream.docNo)
+const downstreamDocStatus = computed(() => purchaseFlowView.value.downstream.status)
 
 const staticHidden = ref([])
 const staticColumnsAll = computed(() => app.value.staticColumns || SUPPLIER_COLUMNS)
@@ -990,45 +962,21 @@ const handleViewDocument = (row) => {
 
 const todayText = () => new Date().toISOString().slice(0, 10)
 const nextDocNo = (prefix) => `${prefix}${Date.now().toString().slice(-8)}${String(Math.floor(Math.random() * 100)).padStart(2, '0')}`
-const safeEq = (value) => encodeURIComponent(String(value ?? ''))
 const isRowActive = isPurchaseRowActive
-
-const isDemandPushable = (row) => {
-  if (!row?.id) return false
-  const closedStatuses = ['已下单', '已关闭', 'locked', 'disabled']
-  return !closedStatuses.includes(row.demand_status) && !closedStatuses.includes(row.status)
-}
-
-const isOrderPushable = (row) => {
-  if (!row?.id) return false
-  if (!['草稿', '已下单', '部分到货'].includes(row.order_status)) return false
-  if (['已完成', '已取消', 'locked', 'disabled'].includes(row.order_status)) return false
-  if (['locked', 'disabled', 'deleted'].includes(row.status)) return false
-  if (row.arrival_progress === '已到齐') return false
-  return true
-}
-
-const isArrivalPushable = (row) => {
-  if (!row?.id) return false
-  if (row.arrival_status === '已入库' || row.arrival_status === '异常') return false
-  if (row.iqc_status === '不合格') return false
-  if (['locked', 'disabled', 'deleted'].includes(row.status)) return false
-  return true
-}
 
 const getSelectedDemandRows = () => {
   const rows = gridRef.value?.getSelectedRows?.() || []
-  return rows.filter((row) => row?.id || row?.demand_no)
+  return selectPurchaseFlowRows(rows, 'demands')
 }
 
 const getSelectedOrderRows = () => {
   const rows = gridRef.value?.getSelectedRows?.() || []
-  return rows.filter((row) => row?.id || row?.order_no)
+  return selectPurchaseFlowRows(rows, 'orders')
 }
 
 const getSelectedArrivalRows = () => {
   const rows = gridRef.value?.getSelectedRows?.() || []
-  return rows.filter((row) => row?.id || row?.arrival_no)
+  return selectPurchaseFlowRows(rows, 'arrivals')
 }
 
 const resetFlowDialog = () => {
@@ -1056,22 +1004,6 @@ const loadRowsByIdsOrNos = async ({ table, idField = 'id', noField, ids = [], no
     silentError: true
   })
   return Array.isArray(rows) ? rows : []
-}
-
-const pickFirstByLinkTarget = (rows, link, noField) => {
-  if (!link) return rows[0] || null
-  return rows.find((row) => {
-    if (link.target_doc_id && row.id === link.target_doc_id) return true
-    return noField && link.target_doc_no && row[noField] === link.target_doc_no
-  }) || rows[0] || null
-}
-
-const activeSourceLinkQuery = (sourceType, sourceId, sourceNo) => {
-  const clauses = []
-  if (sourceId) clauses.push(`source_doc_id.eq.${safeEq(sourceId)}`)
-  if (sourceNo) clauses.push(`source_doc_no.eq.${safeEq(sourceNo)}`)
-  const orPart = clauses.length ? `&or=(${clauses.join(',')})` : ''
-  return `source_doc_type=eq.${safeEq(sourceType)}&status=eq.active${orPart}&order=created_at.asc`
 }
 
 const findExistingOrderForDemand = async (demand) => {
@@ -1140,14 +1072,7 @@ const loadDemandBusinessFlow = async (demand = primaryDemand.value) => {
       }).catch(() => [])
       links.push(...(Array.isArray(arrivalInboundLinks) ? arrivalInboundLinks : []))
       const link = arrivalInboundLinks?.[0]
-      if (link) {
-        inventoryInbound = {
-          id: link.target_doc_id,
-          inbound_no: link.target_doc_no,
-          docNo: link.target_doc_no,
-          status: link.status === 'active' ? '已入库' : link.status
-        }
-      }
+      inventoryInbound = projectPurchaseInboundFromLink(link)
     }
     flowDocs.value = { purchaseOrder, purchaseArrival, inventoryInbound }
     flowLinks.value = links
@@ -1220,14 +1145,7 @@ const loadOrderBusinessFlow = async (order = primaryOrder.value) => {
       const inboundLink = Array.isArray(inboundLinks)
         ? inboundLinks.find((link) => link.relation_type === RELATION_TYPES.ARRIVAL_TO_INBOUND)
         : null
-      if (inboundLink) {
-        inventoryInbound = {
-          id: inboundLink.target_doc_id,
-          inbound_no: inboundLink.target_doc_no,
-          docNo: inboundLink.target_doc_no,
-          status: inboundLink.status === 'active' ? '已入库' : inboundLink.status
-        }
-      }
+      inventoryInbound = projectPurchaseInboundFromLink(inboundLink)
     }
     flowDocs.value = { purchaseDemand, purchaseOrder: order, purchaseArrival, inventoryInbound }
   } catch (e) {
@@ -1373,18 +1291,13 @@ const handleRowAction = ({ action, row }) => {
 }
 
 const writeFlowAudit = async ({ actionType, source, target, reason = '', payload = {} }) => {
-  await tryCreateDocumentAudit({
-    action_type: actionType,
-    source_doc_type: source?.docType || '',
-    source_doc_id: source?.docId || null,
-    source_doc_no: source?.docNo || '',
-    target_doc_type: target?.docType || '',
-    target_doc_id: target?.docId || null,
-    target_doc_no: target?.docNo || '',
+  await tryCreateDocumentAudit(buildPurchaseFlowAuditPayload({
+    actionType,
+    source,
+    target,
     reason,
-    actor_username: 'purchase',
     payload
-  })
+  }))
 }
 
 const resolveDemandSupplier = async (demand) => {
@@ -1411,36 +1324,17 @@ const resolveDemandSupplier = async (demand) => {
 }
 
 const pushSingleDemandToOrder = async (demand) => {
-  if (!demand?.id) throw new Error('采购需求缺少主键，不能下推')
-  if (!isDemandPushable(demand)) throw new Error(`采购需求 ${demand.demand_no || demand.id} 当前状态不能下推`)
+  assertPurchaseDemandFlowSource(demand)
   const existingOrder = await findExistingOrderForDemand(demand)
   if (existingOrder) return { skipped: true, order: existingOrder }
 
   const supplier = await resolveDemandSupplier(demand)
-  const payload = {
-    order_no: nextDocNo('PO'),
-    demand_id: demand.id,
-    source_demand_no: demand.demand_no || '',
-    supplier_id: supplier?.id || null,
-    supplier_name: supplier?.name || demand.preferred_supplier || '待选择供应商',
-    material_name: demand.material_name || '待录入物料',
-    quantity: Number(demand.quantity) || 0,
-    unit: demand.unit || 'kg',
-    unit_price: 0,
-    total_amount: 0,
-    order_date: todayText(),
-    expected_arrival_date: demand.required_date || null,
-    buyer_name: supplier?.buyer_name || demand.requester_name || '',
-    order_status: '草稿',
-    status: 'draft',
-    properties: {
-      source_dept: demand.source_dept || '',
-      supplier_lead_time_days: supplier?.lead_time_days ?? null,
-      source_demand_id: demand.id,
-      source_sales_order_no: demand.properties?.source_order_no || demand.properties?.source_order_nos || ''
-    }
-  }
-  if (payload.quantity <= 0) throw new Error(`采购需求 ${demand.demand_no || demand.id} 数量必须大于 0`)
+  const payload = buildPurchaseDemandOrderDraft({
+    demand,
+    supplier,
+    orderNo: nextDocNo('PO'),
+    orderDate: todayText()
+  })
   const createdOrders = await request({
     url: '/purchase_orders',
     method: 'post',
@@ -1448,46 +1342,20 @@ const pushSingleDemandToOrder = async (demand) => {
     data: payload
   })
   const createdOrder = Array.isArray(createdOrders) ? createdOrders[0] : createdOrders
+  const completion = buildPurchaseDemandOrderCompletion({
+    demand,
+    order: createdOrder,
+    orderPayload: payload,
+    pushedAt: new Date().toISOString()
+  })
   await request({
     url: `/purchase_demands?id=eq.${safeEq(demand.id)}`,
     method: 'patch',
     headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public' },
-    data: {
-      demand_status: '已下单',
-      status: 'active',
-      properties: {
-        ...(demand.properties || {}),
-        purchase_order_id: createdOrder?.id || null,
-        purchase_order_no: createdOrder?.order_no || payload.order_no,
-        workflow_status: 'running',
-        pushed_to_order_at: new Date().toISOString()
-      }
-    }
+    data: completion.demandUpdate
   })
-  const sourceDoc = {
-    docType: DOC_TYPES.PURCHASE_DEMAND,
-    docId: demand.id,
-    docNo: demand.demand_no || ''
-  }
-  const targetDoc = {
-    docType: DOC_TYPES.PURCHASE_ORDER,
-    docId: createdOrder?.id || null,
-    docNo: createdOrder?.order_no || payload.order_no
-  }
-  await tryCreateDocumentLink(createDocumentLinkPayload({
-    source: sourceDoc,
-    target: targetDoc,
-    relationType: RELATION_TYPES.DEMAND_TO_ORDER,
-    quantity: payload.quantity,
-    amount: payload.total_amount,
-    payload: { material_name: payload.material_name }
-  }))
-  await writeFlowAudit({
-    actionType: 'create_order_from_demand',
-    source: sourceDoc,
-    target: targetDoc,
-    payload: { material_name: payload.material_name, quantity: payload.quantity }
-  })
+  await tryCreateDocumentLink(createDocumentLinkPayload(completion.documentLink))
+  await writeFlowAudit(completion.audit)
   return { skipped: false, order: createdOrder }
 }
 
@@ -1548,22 +1416,18 @@ const ensureOrderSupplierActive = async (order) => {
 }
 
 const ensureOrderReadyForArrival = async (order) => {
-  const quantity = Number(order.quantity) || 0
-  if (quantity <= 0) throw new Error(`采购订单 ${order.order_no || order.id} 数量必须大于 0`)
+  assertPurchaseOrderQuantity(order)
   await ensureOrderSupplierActive(order)
   if (order.order_status === '草稿' || order.status === 'draft') {
+    const update = buildPurchaseOrderActivationUpdate({
+      order,
+      confirmedAt: new Date().toISOString()
+    })
     await request({
       url: `/purchase_orders?id=eq.${safeEq(order.id)}`,
       method: 'patch',
       headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public' },
-      data: {
-        order_status: '已下单',
-        status: 'active',
-        properties: {
-          ...(order.properties || {}),
-          auto_confirmed_before_arrival_at: new Date().toISOString()
-        }
-      }
+      data: update
     })
     order.order_status = '已下单'
     order.status = 'active'
@@ -1571,10 +1435,9 @@ const ensureOrderReadyForArrival = async (order) => {
 }
 
 const getOrderPendingQuantity = async (order) => {
-  const directPending = Number(order.pending_quantity)
-  if (Number.isFinite(directPending) && directPending > 0) return directPending
+  const pendingHint = getPurchaseOrderPendingQuantityHint(order)
+  if (pendingHint !== null) return pendingHint
   const orderQuantity = Number(order.quantity) || 0
-  if (orderQuantity <= 0) return 0
   const conditions = []
   if (order.id) conditions.push(`order_id.eq.${safeEq(order.id)}`)
   if (order.order_no) conditions.push(`order_no.eq.${safeEq(order.order_no)}`)
@@ -1585,37 +1448,20 @@ const getOrderPendingQuantity = async (order) => {
     headers: { 'Accept-Profile': 'public' },
     silentError: true
   }).catch(() => [])
-  const arrivedQuantity = Array.isArray(rows)
-    ? rows.reduce((sum, item) => sum + (Number(item.arrival_quantity) || 0), 0)
-    : 0
-  return Math.max(orderQuantity - arrivedQuantity, 0)
+  return calculatePurchaseOrderPendingQuantity(order, rows)
 }
 
 const pushSingleOrderToArrival = async (order) => {
-  if (!order?.id) throw new Error('采购订单缺少主键，不能下推')
-  if (!isOrderPushable(order)) {
-    throw new Error(`采购订单 ${order.order_no || order.id} 状态不能下推，请确认不是已完成、已取消或已到齐`)
-  }
+  assertPurchaseOrderFlowSource(order)
   await ensureOrderReadyForArrival(order)
   const arrivalQuantity = await getOrderPendingQuantity(order)
   if (arrivalQuantity <= 0) return { skipped: true, arrival: await findFirstArrivalForOrder(order) }
-  const arrivalPayload = {
-    arrival_no: nextDocNo('PA'),
-    order_id: order.id,
-    order_no: order.order_no || '',
-    supplier_id: order.supplier_id || null,
-    supplier_name: order.supplier_name || '',
-    material_name: order.material_name || '待录入物料',
-    arrival_quantity: arrivalQuantity,
-    accepted_quantity: 0,
-    unit: order.unit || 'kg',
-    arrival_date: todayText(),
-    iqc_status: '待检',
-    inbound_no: '',
-    arrival_status: '待检验',
-    status: 'active',
-    properties: { source_order_id: order.id }
-  }
+  const arrivalPayload = buildPurchaseOrderArrivalDraft({
+    order,
+    arrivalQuantity,
+    arrivalNo: nextDocNo('PA'),
+    arrivalDate: todayText()
+  })
   const createdArrivals = await request({
     url: '/purchase_arrivals',
     method: 'post',
@@ -1623,29 +1469,13 @@ const pushSingleOrderToArrival = async (order) => {
     data: arrivalPayload
   })
   const createdArrival = Array.isArray(createdArrivals) ? createdArrivals[0] : createdArrivals
-  const sourceDoc = {
-    docType: DOC_TYPES.PURCHASE_ORDER,
-    docId: order.id,
-    docNo: order.order_no || ''
-  }
-  const targetDoc = {
-    docType: DOC_TYPES.PURCHASE_ARRIVAL,
-    docId: createdArrival?.id || null,
-    docNo: createdArrival?.arrival_no || arrivalPayload.arrival_no
-  }
-  await tryCreateDocumentLink(createDocumentLinkPayload({
-    source: sourceDoc,
-    target: targetDoc,
-    relationType: RELATION_TYPES.ORDER_TO_ARRIVAL,
-    quantity: arrivalQuantity,
-    payload: { material_name: arrivalPayload.material_name }
-  }))
-  await writeFlowAudit({
-    actionType: 'register_arrival_from_order',
-    source: sourceDoc,
-    target: targetDoc,
-    payload: { material_name: arrivalPayload.material_name, quantity: arrivalQuantity }
+  const completion = buildPurchaseOrderArrivalCompletion({
+    order,
+    arrival: createdArrival,
+    arrivalPayload
   })
+  await tryCreateDocumentLink(createDocumentLinkPayload(completion.documentLink))
+  await writeFlowAudit(completion.audit)
   return { skipped: false, arrival: createdArrival }
 }
 
@@ -1689,51 +1519,16 @@ const pushSelectedOrdersToArrivals = async () => {
 }
 
 const pushSingleArrivalToInbound = async (arrival) => {
-  if (!arrival?.id) throw new Error('到货单缺少主键，不能入库')
-  if (!isArrivalPushable(arrival)) {
-    throw new Error(`到货单 ${arrival.arrival_no || arrival.id} 已入库、异常或不合格，不能直接入库`)
-  }
-  const arrivalQuantity = Number(arrival.arrival_quantity) || 0
-  if (arrivalQuantity <= 0) throw new Error(`到货单 ${arrival.arrival_no || arrival.id} 到货数量必须大于 0`)
-  const acceptedQuantity = Number(arrival.accepted_quantity) > 0
-    ? Math.min(Number(arrival.accepted_quantity), arrivalQuantity)
-    : arrivalQuantity
   const inboundNo = arrival.inbound_no || nextDocNo('IN')
+  const plan = buildPurchaseArrivalInboundPlan({ arrival, inboundNo })
   await request({
     url: `/purchase_arrivals?id=eq.${safeEq(arrival.id)}`,
     method: 'patch',
     headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public' },
-    data: {
-      accepted_quantity: acceptedQuantity,
-      iqc_status: arrival.iqc_status === '让步接收' ? '让步接收' : '合格',
-      inbound_no: inboundNo,
-      arrival_status: '已入库',
-      status: 'active'
-    }
+    data: plan.arrivalUpdate
   })
-  const sourceDoc = {
-    docType: DOC_TYPES.PURCHASE_ARRIVAL,
-    docId: arrival.id,
-    docNo: arrival.arrival_no || ''
-  }
-  const targetDoc = {
-    docType: DOC_TYPES.INVENTORY_INBOUND,
-    docId: null,
-    docNo: inboundNo
-  }
-  await tryCreateDocumentLink(createDocumentLinkPayload({
-    source: sourceDoc,
-    target: targetDoc,
-    relationType: RELATION_TYPES.ARRIVAL_TO_INBOUND,
-    quantity: acceptedQuantity,
-    payload: { material_name: arrival.material_name || '' }
-  }))
-  await writeFlowAudit({
-    actionType: 'confirm_arrival_inbound',
-    source: sourceDoc,
-    target: targetDoc,
-    payload: { material_name: arrival.material_name || '', quantity: acceptedQuantity }
-  })
+  await tryCreateDocumentLink(createDocumentLinkPayload(plan.documentLink))
+  await writeFlowAudit(plan.audit)
   return { skipped: false, inboundNo }
 }
 
