@@ -1109,6 +1109,13 @@ import {
   planDocumentIntakeLogsForDevice
 } from '@/domain/document-intake-filter-policy.js'
 import {
+  buildDocumentIntakeWatchFolderEditForm,
+  createDocumentIntakeWatchFolderForm,
+  planDocumentIntakeWatchFolderDeletion,
+  planDocumentIntakeWatchFolderSave,
+  planDocumentIntakeWatchFolderStatus
+} from '@/domain/document-intake-watch-folder-policy.js'
+import {
   deviceStatusFilterOptions,
   duplicateFilterOptions,
   entryResultStatusFilterOptions,
@@ -1170,14 +1177,7 @@ const filters = reactive(createDocumentIntakeAssetFilters())
 const deviceFilters = reactive(createDocumentIntakeDeviceFilters())
 const logFilters = reactive(createDocumentIntakeLogFilters())
 const entryResultFilters = reactive(createDocumentIntakeEntryResultFilters())
-const watchFolderForm = reactive({
-  id: '',
-  folderPath: '',
-  folderName: '',
-  defaultUserId: '',
-  defaultRole: '',
-  enabled: true
-})
+const watchFolderForm = reactive(createDocumentIntakeWatchFolderForm())
 
 let requestSeq = 0
 let deviceRequestSeq = 0
@@ -1495,31 +1495,9 @@ const resetDeviceBindingCode = async (row) => {
   }
 }
 
-const resetWatchFolderForm = () => {
-  watchFolderForm.id = ''
-  watchFolderForm.folderPath = ''
-  watchFolderForm.folderName = ''
-  watchFolderForm.defaultUserId = ''
-  watchFolderForm.defaultRole = ''
-  watchFolderForm.enabled = true
-}
+const resetWatchFolderForm = () => Object.assign(watchFolderForm, createDocumentIntakeWatchFolderForm())
 
-const editWatchFolder = (row) => {
-  watchFolderForm.id = row?.id || ''
-  watchFolderForm.folderPath = row?.folderPath || ''
-  watchFolderForm.folderName = row?.folderName || ''
-  watchFolderForm.defaultUserId = row?.defaultUserId || ''
-  watchFolderForm.defaultRole = row?.defaultRole || ''
-  watchFolderForm.enabled = row?.enabled !== false
-}
-
-const watchFolderPayload = () => ({
-  folderPath: watchFolderForm.folderPath.trim(),
-  folderName: watchFolderForm.folderName.trim(),
-  defaultUserId: watchFolderForm.defaultUserId.trim(),
-  defaultRole: watchFolderForm.defaultRole.trim(),
-  enabled: watchFolderForm.enabled
-})
+const editWatchFolder = (row) => Object.assign(watchFolderForm, buildDocumentIntakeWatchFolderEditForm(row))
 
 const loadWatchFolders = async () => {
   const deviceId = selectedWatchFolderDevice.value?.id
@@ -1551,18 +1529,18 @@ const openWatchFolders = (row) => {
 const saveWatchFolder = async () => {
   const deviceId = selectedWatchFolderDevice.value?.id
   if (!deviceId) return
-  const payload = watchFolderPayload()
-  if (!payload.folderPath) {
+  const plan = planDocumentIntakeWatchFolderSave(watchFolderForm)
+  if (!plan.payload.folderPath) {
     ElMessage.warning('请填写目录路径')
     return
   }
   watchFolderSaving.value = true
   try {
-    if (watchFolderForm.id) {
-      await updateDocumentIntakeWatchFolder(deviceId, watchFolderForm.id, payload)
+    if (plan.mode === 'update') {
+      await updateDocumentIntakeWatchFolder(deviceId, plan.recordId, plan.payload)
       ElMessage.success('监听目录已保存')
     } else {
-      await createDocumentIntakeDeviceWatchFolder(deviceId, payload)
+      await createDocumentIntakeDeviceWatchFolder(deviceId, plan.payload)
       ElMessage.success('监听目录已新增')
     }
     resetWatchFolderForm()
@@ -1576,16 +1554,15 @@ const saveWatchFolder = async () => {
 
 const toggleWatchFolderStatus = async (row) => {
   const deviceId = selectedWatchFolderDevice.value?.id
-  if (!deviceId || !row?.id) return
-  const nextEnabled = !row.enabled
-  const label = nextEnabled ? '启用' : '停用'
-  watchFolderActionLoadingId.value = `${row.id}:status`
+  const plan = planDocumentIntakeWatchFolderStatus(row)
+  if (!deviceId || !plan) return
+  watchFolderActionLoadingId.value = plan.actionKey
   try {
-    await updateDocumentIntakeWatchFolderStatus(deviceId, row.id, nextEnabled)
-    ElMessage.success(`监听目录已${label}`)
+    await updateDocumentIntakeWatchFolderStatus(deviceId, plan.recordId, plan.nextEnabled)
+    ElMessage.success(`监听目录已${plan.label}`)
     await Promise.all([loadWatchFolders(), loadOverview()])
   } catch (error) {
-    ElMessage.error(error?.message || `监听目录${label}失败`)
+    ElMessage.error(error?.message || `监听目录${plan.label}失败`)
   } finally {
     watchFolderActionLoadingId.value = ''
   }
@@ -1593,9 +1570,10 @@ const toggleWatchFolderStatus = async (row) => {
 
 const deleteWatchFolder = async (row) => {
   const deviceId = selectedWatchFolderDevice.value?.id
-  if (!deviceId || !row?.id) return
+  const plan = planDocumentIntakeWatchFolderDeletion(row)
+  if (!deviceId || !plan) return
   try {
-    await ElMessageBox.confirm(`确认删除监听目录 ${row.folderName || row.folderPath || row.id}？`, '删除监听目录', {
+    await ElMessageBox.confirm(`确认删除监听目录 ${plan.displayName}？`, '删除监听目录', {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning'
@@ -1603,11 +1581,11 @@ const deleteWatchFolder = async (row) => {
   } catch {
     return
   }
-  watchFolderActionLoadingId.value = `${row.id}:delete`
+  watchFolderActionLoadingId.value = plan.actionKey
   try {
-    await deleteDocumentIntakeWatchFolder(deviceId, row.id)
+    await deleteDocumentIntakeWatchFolder(deviceId, plan.recordId)
     ElMessage.success('监听目录已删除')
-    if (watchFolderForm.id === row.id) resetWatchFolderForm()
+    if (watchFolderForm.id === plan.recordId) resetWatchFolderForm()
     await loadWatchFolders()
   } catch (error) {
     ElMessage.error(error?.message || '监听目录删除失败')

@@ -16,7 +16,8 @@ const routerSource = readSource('eiscore-base/src/router/index.js')
 const viewSource = readSource('eiscore-base/src/views/DocumentIntakeCenter.vue')
 const presentationPolicySource = readSource('eiscore-base/src/domain/document-intake-presentation-policy.js')
 const filterPolicySource = readSource('eiscore-base/src/domain/document-intake-filter-policy.js')
-const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}\n${filterPolicySource}`
+const watchFolderPolicySource = readSource('eiscore-base/src/domain/document-intake-watch-folder-policy.js')
+const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}\n${filterPolicySource}\n${watchFolderPolicySource}`
 const apiModuleUrl = pathToFileURL(resolve(repoRoot, 'eiscore-base/src/utils/document-intake-api.js')).href
 const api = await import(apiModuleUrl)
 
@@ -117,11 +118,11 @@ assert.ok(
     viewSource.includes('saveWatchFolder') &&
     viewSource.includes('editWatchFolder(row)') &&
     viewSource.includes('deleteWatchFolder(row)') &&
-    viewSource.includes('createDocumentIntakeDeviceWatchFolder(deviceId, payload)') &&
-    viewSource.includes('updateDocumentIntakeWatchFolder(deviceId, watchFolderForm.id, payload)') &&
-    viewSource.includes('deleteDocumentIntakeWatchFolder(deviceId, row.id)') &&
+    viewSource.includes('createDocumentIntakeDeviceWatchFolder(deviceId, plan.payload)') &&
+    viewSource.includes('updateDocumentIntakeWatchFolder(deviceId, plan.recordId, plan.payload)') &&
+    viewSource.includes('deleteDocumentIntakeWatchFolder(deviceId, plan.recordId)') &&
     viewSource.includes('fetchDocumentIntakeDeviceWatchFolders(deviceId)') &&
-    viewSource.includes('updateDocumentIntakeWatchFolderStatus(deviceId, row.id, nextEnabled)') &&
+    viewSource.includes('updateDocumentIntakeWatchFolderStatus(deviceId, plan.recordId, plan.nextEnabled)') &&
     viewSource.includes('toggleWatchFolderStatus(row)'),
   'DocumentIntakeCenter should create, edit, delete and enable/disable collector watch folders in a drawer.'
 )
