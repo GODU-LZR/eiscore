@@ -333,8 +333,7 @@ import {
   selectActiveSalesOpportunities,
   selectActiveSalesOrders,
   selectActiveSalesPayments,
-  shouldAutoScrollSalesCockpitRows as shouldAutoScroll,
-  toSalesCockpitAmount as toAmount
+  shouldAutoScrollSalesCockpitRows as shouldAutoScroll
 } from '@/domain/sales-cockpit-presentation-policy.js'
 import {
   buildSalesCockpitKpiCards,
@@ -355,6 +354,7 @@ import {
   buildSalesRiskItems
 } from '@/domain/sales-cockpit-risk-action-policy.js'
 import { buildSalesActivityEvents } from '@/domain/sales-cockpit-activity-policy.js'
+import { buildSalesCockpitAiContext } from '@/domain/sales-cockpit-context-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -446,35 +446,15 @@ const salesEvents = computed(() => buildSalesActivityEvents({
   followUps: activeFollowUps.value
 }))
 
-const buildCockpitContext = () => ({
-  app: 'sales',
-  view: 'sales_cockpit',
-  viewId: 'sales_cockpit',
-  profile: 'public',
-  aiScene: 'sales_cockpit',
-  allowImport: false,
-  allowFormula: false,
-  dataStats: stats.value,
-  cockpit: {
-    kpis: kpiCards.value,
-    funnel: opportunityFunnel.value,
-    ownerPerformance: ownerPerformance.value,
-    receivableCustomers: receivableCustomers.value.map((row) => ({
-      customerNo: row.customer_no,
-      customerName: row.name,
-      ownerName: row.owner_name,
-      receivableBalance: toAmount(row.receivable_balance),
-      creditLimit: toAmount(row.credit_limit)
-    })),
-    risks: riskItems.value,
-    actions: actionItems.value,
-    events: salesEvents.value
-  },
-  moduleTips: [
-    '销售驾驶舱用于面向管理层查看销售经营指标。',
-    '商机管道和加权预测用于评估后续销售增长。',
-    '风险预警聚合交付、商机逾期和应收问题。'
-  ]
+const buildCockpitContext = () => buildSalesCockpitAiContext({
+  stats: stats.value,
+  kpis: kpiCards.value,
+  funnel: opportunityFunnel.value,
+  ownerPerformance: ownerPerformance.value,
+  receivableCustomers: receivableCustomers.value,
+  risks: riskItems.value,
+  actions: actionItems.value,
+  events: salesEvents.value
 })
 
 const syncCockpitContext = () => {
