@@ -376,17 +376,11 @@ let refreshTimer = null
 let resizeObserver = null
 let resizeFrame = 0
 const refreshIntervalSeconds = 60
-const cockpitDesignWidth = 1600
-const cockpitDesignHeight = 900
-const cockpitFrame = ref({
-  scale: 1,
-  width: cockpitDesignWidth,
-  height: cockpitDesignHeight
-})
+const cockpitFrame = ref(buildSalesCockpitFrame())
 
 const cockpitScaleVars = computed(() => ({
-  '--screen-width': `${cockpitDesignWidth}px`,
-  '--screen-height': `${cockpitDesignHeight}px`,
+  '--screen-width': `${cockpitFrame.value.designWidth}px`,
+  '--screen-height': `${cockpitFrame.value.designHeight}px`,
   '--stage-width': `${cockpitFrame.value.width}px`,
   '--stage-height': `${cockpitFrame.value.height}px`,
   '--cockpit-scale': cockpitFrame.value.scale
@@ -468,15 +462,12 @@ const updateCockpitScale = () => {
   const style = window.getComputedStyle(root)
   const paddingX = parseFloat(style.paddingLeft || 0) + parseFloat(style.paddingRight || 0)
   const paddingY = parseFloat(style.paddingTop || 0) + parseFloat(style.paddingBottom || 0)
-  const availableWidth = Math.max(root.clientWidth - paddingX, 320)
-  const availableHeight = Math.max(root.clientHeight - paddingY, 180)
-  const scale = Math.min(availableWidth / cockpitDesignWidth, availableHeight / cockpitDesignHeight)
-  const nextScale = Math.max(0.2, Number(scale.toFixed(4)))
-  cockpitFrame.value = {
-    scale: nextScale,
-    width: Math.round(cockpitDesignWidth * nextScale),
-    height: Math.round(cockpitDesignHeight * nextScale)
-  }
+  cockpitFrame.value = buildSalesCockpitFrame({
+    clientWidth: root.clientWidth,
+    clientHeight: root.clientHeight,
+    paddingX,
+    paddingY
+  })
 }
 
 const scheduleCockpitScale = () => {
@@ -1757,3 +1748,4 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   }
 }
 </style>
+import { buildSalesCockpitFrame } from '@/domain/sales-cockpit-shell-policy.js'
