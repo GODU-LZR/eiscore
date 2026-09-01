@@ -44,7 +44,7 @@
 | `eiscore-apps/src/views/AppRuntime.vue` | 3,725 | Runtime 协议、生命周期组合；BPMN、Workflow、自动推进、导航、Flash 来源、配置/选项、规则、就绪、授权与任务路由策略已迁出 |
 | `eiscore-base/src/layout/index.vue` | 3,535 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/OntologyWorkbench.vue` | 2,184 | 3 类纯策略已迁出，阶段退出门禁已建立 |
-| `eiscore-production/src/components/ProductionAppGrid.vue` | 2,077 | 数据、业务流、操作与列编辑策略已迁出；等待组合退出审计 |
+| `eiscore-production/src/components/ProductionAppGrid.vue` | 2,077 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 2,521 | Grid 业务策略与专用交互 |
 | `eiscore-base/src/views/DocumentIntakeCenter.vue` | 2,446 | 收单任务状态机、API 领域层、展示组件 |
 | `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 2,326 | 单据模型、动作策略、详情子区块 |
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-为 `eiscore-production/src/components/ProductionAppGrid.vue` 建立组合退出门禁，锁定 SFC 分区、4 个纯策略模块/导出和 Request、消息、Router、Watch、生命周期等副作用上限；若审计通过，则保留 2,077 行组合边界并转向下一巨页。
+转向 `eiscore-purchase/src/components/PurchaseAppGrid.vue`：先盘点采购 Grid 数据、供应商/单据动作、业务流、表单、请求和 DOM 边界，并复用已退出 Sales/Production Grid 的测试与策略模式。

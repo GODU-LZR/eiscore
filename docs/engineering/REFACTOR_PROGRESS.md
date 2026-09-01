@@ -185,14 +185,15 @@
 | `e29e914` | 抽离 ProductionAppGrid 数据策略 | 默认排序、列类型/级联配置、深拷贝、统计、样本与 AI 列投影进入纯领域模块 |
 | `993b7ad` | 抽离 ProductionAppGrid 业务流策略 | 单据关系、流程视图、查询编码、链接投影与检验/入库/领料出库三类计划进入纯领域模块 |
 | `b38834f` | 抽离 ProductionAppGrid 操作策略 | 行操作 SOP、工单/领料表单、缺料/状态和保存/下推行 Payload 进入纯领域模块 |
-| 本文件所在提交 | 抽离 ProductionAppGrid 列编辑策略 | 可用列、公式提示、编辑草稿、Tab、级联子项、可见性与五类列保存验证进入纯领域模块 |
+| `a843576` | 抽离 ProductionAppGrid 列编辑策略 | 可用列、公式提示、编辑草稿、Tab、级联子项、可见性与五类列保存验证进入纯领域模块 |
+| 本文件所在提交 | 完成 ProductionAppGrid 纯策略阶段退出审计 | 锁定 2,077 行、4 个纯策略模块、49 个导出及组合副作用上限 |
 
 ## 当前切片
 
-- 状态：G3 进行中；`ProductionAppGrid.vue` 完成第四个无视觉变化的纯策略切片，下一步建立组合退出门禁。
-- 结果：新增 1 个纯列编辑策略模块、10 个具名导出和专项回归；可用列排除、公式 Prompt、编辑 Tab/草稿/重置、级联子项增删、静态列可见性，以及公式/下拉/级联/位置/文件五类列保存规范化与验证脱离页面。页面从 2,163 降至 2,077 行，累计减少 508 行（19.7%），巨页债务棘轮收紧到 86,069 行。
-- 兼容边界：随机字段名由页面注入，Vue Reactive、级联 Map 同步、AI 命令、消息、配置 Request/持久化、抽屉/对话框、Router、DOM 和视觉布局继续留在组合层；既有字段命名、错误文案、保存顺序和显示行为保持。
-- 验证：四组生产 Grid 专项、复杂度棘轮、完整质量门禁、离线单元套件与生产前端构建通过；覆盖 192 个 Node 文件语法、14 个锁定 CI 包、1,200 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查，构建转换 1,631 个模块。没有调用数据库、API、Agent、Router、DOM 或远程环境。
+- 状态：G3 进行中；ProductionAppGrid 纯策略子目标通过阶段退出审计，下一步转向 `PurchaseAppGrid.vue`。
+- 结果：组合退出门禁锁定 2,077 行页面、556/1,124/394 行 SFC 分区、4 个纯策略模块/49 个导出，以及 15 个 Request、27 个消息、2 个 Router、1 个平台导航、3 个 Watch、2 个 AI Bridge、66 个 Callable、各 1 个 Mounted/Unmounted 和 1 对窗口事件的只降不增上限；Axios、直接 Fetch/Storage、原生流传输、XHR、Timer 与 `window.location` 导航失败关闭。
+- 兼容边界：真实配置/单据/检验/工单/领料 Request、AI Bridge、随机字段名/单据号/时间、查重/顺序/错误聚合、Grid Ref、Router/平台导航、抽屉/对话框、DOM 和视觉布局继续作为组合边界；没有拆视觉组件或移动跨区响应式状态。
+- 验证：组合专项、完整质量门禁、离线单元套件与生产前端构建通过；覆盖 193 个 Node 文件语法、14 个锁定 CI 包、1,202 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查，构建转换 1,631 个模块。没有调用数据库、API、Agent、Router、DOM 或远程环境。
 
 ## 已知非阻断风险
 
@@ -212,4 +213,4 @@
 
 ## 下一候选切片
 
-继续 G3：为 2,077 行 `eiscore-production/src/components/ProductionAppGrid.vue` 建立组合退出门禁，锁定 SFC 分区、4 个纯策略模块/导出及 Request、消息、Router、Watch、生命周期等副作用上限；通过后转向下一巨页。
+继续 G3：盘点 2,521 行 `eiscore-purchase/src/components/PurchaseAppGrid.vue` 的采购 Grid 数据、供应商/单据动作、业务流、表单、请求和 DOM 边界，优先复用 Sales/Production Grid 已验证的纯策略与组合门禁模式。
