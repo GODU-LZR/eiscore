@@ -305,6 +305,12 @@ import {
   getVisibleBaseMicroAppKeys,
   pickBaseMicroAppWarmUrls
 } from '@/domain/base-layout-micro-app-policy'
+import {
+  buildBaseAvatarRenderSrc,
+  getBaseGuideProgressSyncPresentation,
+  isBaseWorkerAssistantVisible,
+  resolveBaseAsideTheme
+} from '@/domain/base-layout-shell-policy'
 
 const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
 const isCollapse = ref(false)
@@ -313,18 +319,7 @@ const route = useRoute()
 let userInfoPoller = null
 let lastUserInfoStr = ''
 const avatarTick = ref(0)
-const defaultAvatar = 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'
-const avatarSrc = computed(() => userStore.userInfo?.avatar || defaultAvatar)
-const avatarRenderSrc = computed(() => {
-  const src = avatarSrc.value || defaultAvatar
-  if (!src) return defaultAvatar
-  if (src.startsWith('data:')) return `${src}#t=${avatarTick.value}`
-  if (src.startsWith('http')) {
-    const joiner = src.includes('?') ? '&' : '?'
-    return `${src}${joiner}t=${avatarTick.value}`
-  }
-  return src
-})
+const avatarRenderSrc = computed(() => buildBaseAvatarRenderSrc(userStore.userInfo?.avatar, avatarTick.value))
 const systemStore = useSystemStore()
 const userStore = useUserStore()
 const enterpriseConfig = getEnterpriseConfig(window)
@@ -362,16 +357,9 @@ const guideUserKey = computed(() => {
   return String(username || 'guest').toLowerCase()
 })
 
-const guideProgressSyncLabel = computed(() => {
-  if (guideProgressSyncState.value === 'syncing') return '同步中'
-  if (guideProgressSyncState.value === 'synced') return '已同步'
-  return '本地记录'
-})
-const guideProgressSyncTagType = computed(() => {
-  if (guideProgressSyncState.value === 'syncing') return 'warning'
-  if (guideProgressSyncState.value === 'synced') return 'success'
-  return 'info'
-})
+const guideProgressSyncPresentation = computed(() => getBaseGuideProgressSyncPresentation(guideProgressSyncState.value))
+const guideProgressSyncLabel = computed(() => guideProgressSyncPresentation.value.label)
+const guideProgressSyncTagType = computed(() => guideProgressSyncPresentation.value.tagType)
 
 const applyUserTheme = () => {
   const storedTheme = getUserTheme(userThemeIdentity.value)
@@ -379,43 +367,13 @@ const applyUserTheme = () => {
   if (storedTheme === 'light') isDark.value = false
 }
 
-const asideTheme = computed(() => {
-  const primaryColor = config.value?.themeColor || '#409EFF'
+const asideTheme = computed(() => resolveBaseAsideTheme({
+  primaryColor: config.value?.themeColor || '#409EFF',
+  isDark: isDark.value,
+  mixColor: mix
+}))
 
-  if (isDark.value) {
-    return {
-      menuBg: '#001529',
-      menuText: '#fff',
-      menuActiveText: primaryColor,
-      logoBg: '#002140',
-      headerBg: '#001529'
-    }
-  } else {
-    return {
-      menuBg: primaryColor,
-      menuText: '#ffffff',
-      menuActiveText: '#ffffff',
-      logoBg: mix(primaryColor, '#000000', 0.1),
-      headerBg: mix(primaryColor, '#ffffff', 0.85)
-    }
-  }
-})
-
-const WORKER_ASSISTANT_HIDDEN_ROUTES = [
-  '/materials/inventory-dashboard',
-  '/sales/cockpit',
-  '/purchase/dashboard',
-  '/quality/dashboard',
-  '/equipment/dashboard'
-]
-
-const isPathInRouteGroup = (path, prefix) => path === prefix || path.startsWith(`${prefix}/`)
-
-const showWorkerAssistant = computed(() => {
-  const path = route.path || '/'
-  if (path === '/' || path.startsWith('/ai/enterprise')) return false
-  return !WORKER_ASSISTANT_HIDDEN_ROUTES.some((item) => isPathInRouteGroup(path, item))
-})
+const showWorkerAssistant = computed(() => isBaseWorkerAssistantVisible(route.path))
 
 const clearMicroAppLoadingFallback = () => {
   if (microAppLoadingShowTimer) {
