@@ -251,6 +251,11 @@ import {
   tryCreateDocumentAudit,
   tryCreateDocumentLink
 } from '@/utils/business-flow'
+import {
+  buildPurchaseDocumentActionAvailability,
+  buildPurchaseDocumentBusinessActions,
+  buildPurchaseDocumentPermissionKeys
+} from '@/domain/purchase-document-detail-action-policy.js'
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
 import { documentSchemaExample } from '@/components/eis-document-engine/documentSchemaExample'
 
@@ -377,231 +382,40 @@ const fileOptions = computed(() => {
     })
 })
 
-const opPerms = computed(() => detailConfig.value.ops || {})
-const businessPerms = computed(() => detailConfig.value.businessOps || {})
-const canEdit = computed(() => hasPerm(opPerms.value.edit))
-const canReviewSupplierAction = computed(() => hasPerm(businessPerms.value.reviewSupplier || 'op:purchase_supplier.review'))
-const canPauseSupplierAction = computed(() => hasPerm(businessPerms.value.pauseSupplier || 'op:purchase_supplier.pause'))
-const canResumeSupplierAction = computed(() => hasPerm(businessPerms.value.resumeSupplier || 'op:purchase_supplier.resume'))
-const canCreateOrder = computed(() => hasPerm(businessPerms.value.createOrder || 'op:purchase_demand.create_order'))
-const canSubmitDemandAction = computed(() => hasPerm(businessPerms.value.submitDemand || 'op:purchase_demand.submit'))
-const canCloseDemandAction = computed(() => hasPerm(businessPerms.value.closeDemand || 'op:purchase_demand.close'))
-const canReopenDemandAction = computed(() => hasPerm(businessPerms.value.reopenDemand || 'op:purchase_demand.reopen'))
-const canCreateArrival = computed(() => hasPerm(businessPerms.value.registerArrival || 'op:purchase_order.register_arrival'))
-const canConfirmOrderAction = computed(() => hasPerm(businessPerms.value.confirmOrder || 'op:purchase_order.confirm'))
-const canCancelOrderAction = computed(() => hasPerm(businessPerms.value.cancelOrder || 'op:purchase_order.cancel'))
-const canConfirmInboundAction = computed(() => hasPerm(businessPerms.value.confirmInbound || 'op:purchase_arrival.confirm_inbound'))
-const canMarkArrivalExceptionAction = computed(() => hasPerm(businessPerms.value.markException || 'op:purchase_arrival.mark_exception'))
-
 const row = computed(() => formData.value || {})
+const actionPermissionKeys = computed(() => buildPurchaseDocumentPermissionKeys({
+  ops: detailConfig.value.ops,
+  businessOps: detailConfig.value.businessOps
+}))
+const actionPermissions = computed(() => Object.fromEntries(
+  Object.entries(actionPermissionKeys.value).map(([key, permission]) => [key, hasPerm(permission)])
+))
+const actionAvailability = computed(() => buildPurchaseDocumentActionAvailability({
+  appKey: detailConfig.value.key,
+  row: row.value,
+  permissions: actionPermissions.value
+}))
 
-const canReviewSupplier = computed(() => detailConfig.value.key === 'suppliers'
-  && !!row.value.id
-  && row.value.supplier_status === '待评审'
-  && !['disabled', 'locked'].includes(row.value.status)
-  && canReviewSupplierAction.value)
-
-const canPauseSupplier = computed(() => detailConfig.value.key === 'suppliers'
-  && !!row.value.id
-  && row.value.supplier_status !== '暂停合作'
-  && !['disabled', 'locked'].includes(row.value.status)
-  && canPauseSupplierAction.value)
-
-const canResumeSupplier = computed(() => detailConfig.value.key === 'suppliers'
-  && !!row.value.id
-  && (row.value.supplier_status === '暂停合作' || row.value.status === 'disabled')
-  && canResumeSupplierAction.value)
-
-const isDemandClosed = computed(() => [row.value.demand_status, row.value.status]
-  .some(status => ['已下单', '已关闭', 'locked', 'disabled'].includes(status)))
-
-const canCreateOrderFromDemand = computed(() => detailConfig.value.key === 'demands'
-  && !!row.value.id
-  && !isDemandClosed.value
-  && canCreateOrder.value)
-
-const canSubmitDemand = computed(() => detailConfig.value.key === 'demands'
-  && !!row.value.id
-  && (row.value.demand_status === '草稿' || row.value.status === 'draft')
-  && !['locked', 'disabled'].includes(row.value.status)
-  && canSubmitDemandAction.value)
-
-const canCloseDemand = computed(() => detailConfig.value.key === 'demands'
-  && !!row.value.id
-  && !['已下单', '已关闭'].includes(row.value.demand_status)
-  && !['locked', 'disabled'].includes(row.value.status)
-  && canCloseDemandAction.value)
-
-const canReopenDemand = computed(() => detailConfig.value.key === 'demands'
-  && !!row.value.id
-  && (row.value.demand_status === '已关闭' || row.value.status === 'disabled')
-  && canReopenDemandAction.value)
-
-const canConfirmOrder = computed(() => detailConfig.value.key === 'orders'
-  && !!row.value.id
-  && (row.value.order_status === '草稿' || row.value.status === 'draft')
-  && row.value.order_status !== '已取消'
-  && canConfirmOrderAction.value)
-
-const canCancelOrder = computed(() => detailConfig.value.key === 'orders'
-  && !!row.value.id
-  && (Number(row.value.arrived_quantity) || 0) <= 0
-  && !['已完成', '已取消'].includes(row.value.order_status)
-  && !['disabled', 'locked'].includes(row.value.status)
-  && canCancelOrderAction.value)
-
-const canRegisterArrival = computed(() => {
-  const executable = ['已下单', '部分到货'].includes(row.value.order_status)
-  const closed = [row.value.order_status, row.value.status, row.value.arrival_progress]
-    .some(status => ['已完成', '已取消', 'locked', 'disabled', '已到齐'].includes(status))
-  return detailConfig.value.key === 'orders'
-    && !!row.value.id
-    && executable
-    && !closed
-    && canCreateArrival.value
-})
-
-const canLinkArrivalOrder = computed(() => detailConfig.value.key === 'arrivals'
-  && !!row.value.id
-  && !row.value.order_id
-  && !['已入库', '异常'].includes(row.value.arrival_status)
-  && row.value.iqc_status !== '不合格'
-  && canEdit.value)
-
-const canConfirmInbound = computed(() => detailConfig.value.key === 'arrivals'
-  && !!row.value.id
-  && row.value.arrival_status !== '已入库'
-  && row.value.arrival_status !== '异常'
-  && row.value.iqc_status !== '不合格'
-  && canConfirmInboundAction.value)
-
-const canMarkArrivalException = computed(() => detailConfig.value.key === 'arrivals'
-  && !!row.value.id
-  && row.value.arrival_status !== '已入库'
-  && row.value.arrival_status !== '异常'
-  && canMarkArrivalExceptionAction.value)
-
-const canGoRelatedApp = computed(() => ['demands', 'orders'].includes(detailConfig.value.key))
-const relatedAppButtonText = computed(() => detailConfig.value.key === 'demands' ? '查看采购订单' : '查看到货跟踪')
-
-const detailBusinessActionSopMap = {
-  reviewSupplier: {
-    title: '供应商完成评审',
-    desc: '把待评审供应商标记为已评审，进入可合作状态。',
-    steps: ['确认供应商名称、联系人、资质和风险信息', '检查附件和评审意见是否完整', '点击完成评审', '回到供应商表格复核供应商状态'],
-    risk: '评审后供应商可能进入采购使用范围，请确认资质、风险和审批记录都已留档。'
-  },
-  pauseSupplier: {
-    title: '暂停供应商合作',
-    desc: '暂停当前供应商，避免继续下单或错误使用。',
-    steps: ['确认暂停原因和影响范围', '检查是否存在未完成订单或到货', '点击暂停合作', '通知采购相关人员并复核供应商状态'],
-    risk: '暂停供应商可能影响未完成采购，请先确认订单、到货和替代供应商。'
-  },
-  resumeSupplier: {
-    title: '恢复供应商合作',
-    desc: '恢复暂停供应商，使其重新进入可用范围。',
-    steps: ['确认供应商整改或资质恢复完成', '检查风险记录和附件', '点击恢复合作', '回到供应商表格复核状态'],
-    risk: '恢复前必须确认暂停原因已经关闭，否则会把风险重新带入采购链路。'
-  },
-  submitDemand: {
-    title: '提交采购需求',
-    desc: '把草稿采购需求提交到采购处理状态。',
-    steps: ['确认物料、数量、需求日期和申请人', '检查是否重复需求或库存已有满足', '点击提交采购', '回到采购需求表格复核状态'],
-    risk: '提交后会进入采购执行范围，请避免重复需求和错误数量。'
-  },
-  createOrder: {
-    title: '采购需求生成采购订单',
-    desc: '从当前采购需求生成下游采购订单。',
-    steps: ['确认需求未关闭且尚未下单', '复核供应商、物料、数量、价格和交期', '点击生成采购订单', '跳转或回到采购订单应用搜索新订单复核'],
-    risk: '生成订单前要确认供应商和数量，否则会导致错误下单或重复下单。'
-  },
-  closeDemand: {
-    title: '关闭采购需求',
-    desc: '关闭不再执行的采购需求。',
-    steps: ['确认需求确实不再采购', '检查是否已有采购订单或到货', '点击关闭需求', '回到采购需求表格复核关闭状态'],
-    risk: '关闭需求会影响采购计划和生产供料，请确认业务方已同意。'
-  },
-  reopenDemand: {
-    title: '重新打开采购需求',
-    desc: '把已关闭采购需求恢复为可继续处理。',
-    steps: ['确认重新采购的原因', '复核物料、数量和需求日期是否仍有效', '点击重新打开', '回到采购需求表格复核状态'],
-    risk: '重新打开旧需求前要确认没有新需求替代，避免重复采购。'
-  },
-  confirmOrder: {
-    title: '确认采购订单下单',
-    desc: '确认草稿采购订单已正式下单。',
-    steps: ['确认供应商、物料、数量、价格、税率和预计到货日期', '检查合同或报价附件', '点击确认下单', '回到采购订单表格复核订单状态'],
-    risk: '确认下单后会影响到货跟踪和应付对账，请确保价格、数量和交期正确。'
-  },
-  cancelOrder: {
-    title: '取消采购订单',
-    desc: '取消尚未完成或尚未到货的采购订单。',
-    steps: ['确认取消原因和供应商沟通结果', '检查是否已有到货或入库', '点击取消订单', '回到采购订单表格复核状态'],
-    risk: '取消订单可能影响生产供料和库存计划，请确认没有下游到货或入库依赖。'
-  },
-  registerArrival: {
-    title: '采购订单登记到货',
-    desc: '从采购订单登记到货跟踪记录。',
-    steps: ['确认订单处于可到货状态', '复核供应商、物料、订单数量和本次到货数量', '点击登记到货', '到到货跟踪应用搜索并复核记录'],
-    risk: '登记到货前请确认实物、送货单和订单一致，避免影响质检和入库。'
-  },
-  linkArrival: {
-    title: '到货记录关联采购订单',
-    desc: '把未关联订单的到货记录关联到正确采购订单。',
-    steps: ['确认到货记录的供应商、物料和数量', '查找正确采购订单', '点击关联采购订单', '复核到货记录的订单来源'],
-    risk: '关联错误订单会影响订单到货进度、质检和入库追溯。'
-  },
-  confirmInbound: {
-    title: '确认采购到货入库',
-    desc: '确认合格到货记录进入入库处理。',
-    steps: ['确认质检状态不是不合格', '复核到货数量、批次、仓库和库位', '点击确认入库', '跳转或回到仓储入库复核库存影响'],
-    risk: '入库会影响库存，请确认质检、批次、仓库和数量都正确。'
-  },
-  markException: {
-    title: '标记采购到货异常',
-    desc: '把当前到货记录标记为异常，阻止错误入库。',
-    steps: ['确认异常原因，如数量不符、质检不合格或资料缺失', '补充异常说明和附件', '点击标记异常', '回到到货跟踪表格复核异常状态'],
-    risk: '异常标记会阻止正常入库，并可能触发质量或供应商处理流程。'
-  },
-  related: {
-    title: '查看采购关联应用',
-    desc: '跳转到当前单据的下游应用查看处理结果。',
-    steps: ['确认当前单据已经生成或关联下游记录', '点击查看关联应用', '在下游应用用单号搜索', '复核状态、来源、数量和责任人'],
-    risk: '跳转后请用单号复核，不能只凭页面跳转判断下游单据已经正确生成。'
+const businessActions = computed(() => buildPurchaseDocumentBusinessActions({
+  appKey: detailConfig.value.key,
+  availability: actionAvailability.value,
+  handlers: {
+    reviewSupplier,
+    pauseSupplier,
+    resumeSupplier,
+    submitDemand: submitPurchaseDemand,
+    createOrder: createOrderFromDemand,
+    closeDemand: closePurchaseDemand,
+    reopenDemand: reopenPurchaseDemand,
+    confirmOrder: confirmPurchaseOrder,
+    cancelOrder: cancelPurchaseOrder,
+    registerArrival: registerArrivalFromOrder,
+    linkArrival: linkArrivalToOrder,
+    confirmInbound: confirmArrivalInbound,
+    markException: markArrivalException,
+    related: goRelatedApp
   }
-}
-
-const withDetailBusinessSop = (action) => {
-  const sop = detailBusinessActionSopMap[action.key] || {}
-  const steps = Array.isArray(sop.steps) ? sop.steps.join('|') : (sop.steps || '')
-  return {
-    ...action,
-    sopAction: `purchase-detail-${action.key}`,
-    sopTitle: sop.title || action.label,
-    sopDesc: sop.desc || `按标准步骤执行“${action.label}”。`,
-    sopSteps: steps,
-    sopRisk: sop.risk || '动作完成后请回到相关应用搜索单号，复核状态、来源、数量、责任人和下游链路。'
-  }
-}
-
-const businessActions = computed(() => {
-  const actions = []
-  if (canReviewSupplier.value) actions.push({ key: 'reviewSupplier', label: '完成评审', handler: reviewSupplier, type: 'primary', plain: false })
-  if (canPauseSupplier.value) actions.push({ key: 'pauseSupplier', label: '暂停合作', handler: pauseSupplier, type: 'danger' })
-  if (canResumeSupplier.value) actions.push({ key: 'resumeSupplier', label: '恢复合作', handler: resumeSupplier, type: 'success' })
-  if (canSubmitDemand.value) actions.push({ key: 'submitDemand', label: '提交采购', handler: submitPurchaseDemand, type: 'primary', plain: false })
-  if (canCreateOrderFromDemand.value) actions.push({ key: 'createOrder', label: '生成采购订单', handler: createOrderFromDemand, type: 'primary', plain: false })
-  if (canCloseDemand.value) actions.push({ key: 'closeDemand', label: '关闭需求', handler: closePurchaseDemand, type: 'danger' })
-  if (canReopenDemand.value) actions.push({ key: 'reopenDemand', label: '重新打开', handler: reopenPurchaseDemand, type: 'success' })
-  if (canConfirmOrder.value) actions.push({ key: 'confirmOrder', label: '确认下单', handler: confirmPurchaseOrder, type: 'primary', plain: false })
-  if (canCancelOrder.value) actions.push({ key: 'cancelOrder', label: '取消订单', handler: cancelPurchaseOrder, type: 'danger' })
-  if (canRegisterArrival.value) actions.push({ key: 'registerArrival', label: '登记到货', handler: registerArrivalFromOrder, type: 'success', plain: false })
-  if (canLinkArrivalOrder.value) actions.push({ key: 'linkArrival', label: '关联采购订单', handler: linkArrivalToOrder, type: 'success' })
-  if (canConfirmInbound.value) actions.push({ key: 'confirmInbound', label: '确认入库', handler: confirmArrivalInbound, type: 'warning' })
-  if (canMarkArrivalException.value) actions.push({ key: 'markException', label: '标记异常', handler: markArrivalException, type: 'danger' })
-  if (canGoRelatedApp.value) actions.push({ key: 'related', label: relatedAppButtonText.value, handler: goRelatedApp, type: 'primary' })
-  return actions.map(withDetailBusinessSop)
-})
+}))
 
 const normalizeSchemaColumns = (cols) => (
   Array.isArray(cols)
