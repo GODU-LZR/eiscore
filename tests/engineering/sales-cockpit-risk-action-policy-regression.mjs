@@ -81,6 +81,6 @@ for (const requiredCall of ['buildSalesRiskItems({', 'buildSalesActionItems({', 
 for (const removedDefinition of ['const riskItems = computed(() => {', 'const actionItems = computed(() => {']) {
   assert.equal(pageSource.includes(removedDefinition), false, 'SalesCockpit reintroduced ' + removedDefinition)
 }
-assert.ok(pageSource.split(/\\r?\\n/).length <= 1821)
+assert.ok(pageSource.split(/\r?\n/).length <= 1821)
 
 console.log('PASS: SalesCockpit risk/action policy preserves deadlines, ordering, limits and presentation')
