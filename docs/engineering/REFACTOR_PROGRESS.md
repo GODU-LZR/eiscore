@@ -178,14 +178,15 @@
 | `35f27ad` | 抽离基座布局壳策略 | 头像刷新、引导同步状态、侧栏主题与助手路由可见性进入纯领域模块 |
 | `71f598b` | 抽离基座布局引导规范化策略 | SOP 角色/文本、外部指引、推荐、步骤压缩与进度兼容进入纯领域模块 |
 | `0ead5a1` | 完成基座布局纯策略阶段退出审计 | 锁定 3,535 行、4 个纯策略模块、41 个导出及组合副作用上限 |
-| 本文件所在提交 | 抽离 OntologyWorkbench 关系策略 | 筛选、表集合、指标、标签、显示清洗与语义解析进入纯领域模块 |
+| `4d77bd8` | 抽离 OntologyWorkbench 关系策略 | 筛选、表集合、指标、标签、显示清洗与语义解析进入纯领域模块 |
+| 本文件所在提交 | 抽离 OntologyWorkbench KG 图策略 | 标签、节点/边、图 Payload、视图状态、证据与 Tooltip 进入纯领域模块 |
 
 ## 当前切片
 
-- 状态：G3 进行中；OntologyWorkbench 第一个渐进拆分切片完成，下一步审计 KG 图纯策略。
-- 结果：新增无 Vue、Element Plus、Request、网络、浏览器、Storage 或隐式时间依赖的 `ontology-workbench-relation-policy.js`，迁出关系类型/关键字/表筛选、稳定表集合、类型计数、列语义展平、推理/洞察指标、事实搜索、表静态/动态中文标签、显示清洗、Table Key 和 Semantics Tag 解析。页面从 2,772 降至 2,608 行，巨页债务从 87,165 降至 87,001 行并收紧棘轮。
-- 兼容边界：九字段宽松搜索、Relation Type All、主/客体表聚合、500 行表格上限、静态标签被有效动态语义覆盖、问号乱码清除、无 Schema 默认 Public、多 Dot 表名和 `semantics:` 前缀保持；页面继续拥有 Ref/Computed、Request、ECharts、ResizeObserver、Router、Watch 与 DOM。
-- 验证：专项锁定筛选、表集合、指标、事实搜索、中文标签、清洗、Table Key、Semantics Tag、纯依赖和页面委托；完整质量门禁与离线单元套件通过，覆盖 185 个 Node 文件语法、14 个锁定 CI 包、1,186 个文本文件秘密扫描、5 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,327 个模块；没有调用数据库、API、ECharts、Router、DOM 或远程环境。
+- 状态：G3 进行中；OntologyWorkbench 第二个渐进拆分切片完成，下一步审计查询参数/响应策略。
+- 结果：新增无 Vue、Element Plus、Request、ECharts、网络、浏览器、Storage 或隐式时间依赖的 `ontology-workbench-kg-policy.js`，迁出 23 个谓词/9 个节点类型标签、6 类图分类/9 类颜色、节点 Key/尺寸/合并、边 Key/样式/去重、邻域与路径 Graph Payload、节点指标、四视图状态、证据裁剪和 Tooltip。页面从 2,608 降至 2,320 行，巨页债务从 87,001 降至 86,713 行并收紧棘轮。
+- 兼容边界：选中节点 50px、敏感节点新建红色、重复节点首次样式、无 ID 边三元组 Key、同 ID 后写覆盖、显式事实虚线/推理事实实线、18 字标签、180 字证据、8 项证据上限及四视图 Attention 保持；页面继续拥有 ECharts 加载/实例/点击、ResizeObserver、Request、Router、Watch 与 DOM。
+- 验证：专项锁定标签、分类/颜色、节点合并、边去重、邻域/路径 Payload、指标、视图、证据、Tooltip、纯依赖和页面委托；完整质量门禁与离线单元套件通过，覆盖 186 个 Node 文件语法、14 个锁定 CI 包、1,188 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,328 个模块；没有调用数据库、API、ECharts、Router、DOM 或远程环境。
 
 ## 已知非阻断风险
 
@@ -200,9 +201,9 @@
 - 销售业务链、智能收单、决策、PDA、生产、采购及 AppRuntime 动态业务目标均已迁入平台导航；61 文件/120 次剩余 Router 调用受审计门禁保护。
 - G2 接受库存已锁定：原生非会话 Storage 11 个文件/11 处且全部属于安全边界，未受控间接持久化为 0，全页导航 15 个文件/17 处，`eis-data-grid-v2` 为 8 个薄适配器、9 个具名扩展和 23 个共享文件；G2 无剩余退出阻断项。
 - 当前兼容配置仍引用既有第三方 HTTPS 图片地址；建立三家企业配置包时应把获授权素材镜像到企业自有静态资源域名并验证可用性。
-- 巨型 Vue 库存仍有 52 个文件、87,001 行，其中 11 个超过 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
+- 巨型 Vue 库存仍有 52 个文件、86,713 行，其中 11 个超过 2,000 行；门禁已阻止继续增长，现有债务仍需按特征测试和所属产品构建逐页下降。
 - 其余 92 份历史 SQL 缺少可信全局顺序，当前仅作为不自动执行的接受库存；Runtime V2 执行器虽已有离线契约，仍需在获授权的隔离环境完成真实备份、迁移、postcheck 与恢复演练后才能成为上线证据。
 
 ## 下一候选切片
 
-继续 G3：抽离 2,608 行 `eiscore-apps/src/views/OntologyWorkbench.vue` 的 KG 节点/边去重、样式、Payload、证据与工作台元数据纯策略；保持 ECharts、ResizeObserver、HTTP、Router、Watch 与 DOM 不变。
+继续 G3：审计 2,320 行 `eiscore-apps/src/views/OntologyWorkbench.vue` 的列语义、推理事实、角色解释、KG 邻域/路径和业务路径请求参数、响应规范化与选择状态纯策略；保持实际 Request、ECharts、ResizeObserver、Router、Watch 与 DOM 不变。
