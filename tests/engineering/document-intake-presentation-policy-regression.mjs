@@ -39,6 +39,34 @@ assert.deepEqual(
 )
 assert.deepEqual(overviewItems.map(({ value }) => value), ['1,234', '0', '8', '0', '2', '3', '4', '5'])
 
+const overviewPlans = {
+  'assets-today': { target: 'assets', filterPatch: { today: true } },
+  'assets-duplicate': { target: 'assets', filterPatch: { today: true, duplicate: 'true' } },
+  'assets-unrecognized': { target: 'assets', filterPatch: { today: true, status: 'unrecognized' } },
+  'entry-successful': { target: 'entryResults', filterPatch: { today: true, status: 'successful' } },
+  'entry-low-confidence': { target: 'entryResults', filterPatch: { today: true, lowConfidence: true } },
+  'entry-failed': { target: 'entryResults', filterPatch: { today: true, status: 'failed' } },
+  'devices-active': { target: 'devices', filterPatch: { status: 'active' } },
+  'devices-offline': { target: 'devices', filterPatch: { status: 'offline' } }
+}
+for (const [action, expected] of Object.entries(overviewPlans)) {
+  assert.deepEqual(policy.planDocumentIntakeOverviewMetric({ action }), expected)
+}
+assert.deepEqual(policy.planDocumentIntakeOverviewMetric({ action: 'assets-future' }), {
+  target: 'assets',
+  filterPatch: { today: true }
+})
+assert.deepEqual(policy.planDocumentIntakeOverviewMetric({ action: 'entry-future' }), {
+  target: 'entryResults',
+  filterPatch: { today: true }
+})
+assert.deepEqual(policy.planDocumentIntakeOverviewMetric({ action: 'devices-future' }), {
+  target: 'devices',
+  filterPatch: { status: 'offline' }
+})
+assert.equal(policy.planDocumentIntakeOverviewMetric({ action: 'unknown' }), null)
+assert.equal(policy.planDocumentIntakeOverviewMetric(), null)
+
 const businessUrl = policy.buildDocumentIntakeBusinessRecordUrl
 assert.equal(businessUrl({ businessRecordUrl: '/server/url', targetRecordId: 'ignored' }), '/server/url')
 assert.equal(businessUrl({ business_record_url: '/snake/url', targetRecordId: 'ignored' }), '/snake/url')
@@ -123,8 +151,10 @@ assert.doesNotMatch(policySource, /\b(?:localStorage|sessionStorage|XMLHttpReque
 assert.doesNotMatch(policySource, /\bnew\s+Date\b|\bDate\s*\.|\b(?:setTimeout|setInterval)\s*\(/)
 assert.ok(viewSource.includes("from '@/domain/document-intake-presentation-policy.js'"))
 assert.ok(viewSource.includes('buildDocumentIntakeOverviewItems(overview.value)'))
+assert.ok(viewSource.includes('planDocumentIntakeOverviewMetric(item)'))
+assert.ok(viewSource.includes('Object.assign(target.filters, plan.filterPatch)'))
 assert.ok(viewSource.includes('buildDocumentIntakeBusinessRecordUrl as businessRecordUrl'))
 assert.ok(viewSource.includes('const url = businessRecordUrl(row)'))
-assert.ok(viewSource.split(/\r?\n/).length <= 2446, 'DocumentIntakeCenter must not grow beyond its pre-extraction baseline')
+assert.ok(viewSource.split(/\r?\n/).length <= 2233, 'DocumentIntakeCenter must not grow beyond its overview-policy baseline')
 
 console.log('PASS: document intake presentation policy regression')

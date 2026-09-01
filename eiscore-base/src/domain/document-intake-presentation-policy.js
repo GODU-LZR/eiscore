@@ -40,6 +40,39 @@ export const buildDocumentIntakeOverviewItems = (overview = {}) => [
   { key: 'offlineDeviceCount', label: '离线设备', value: formatDocumentIntakeInteger(overview.offlineDeviceCount), action: 'devices-offline' }
 ]
 
+export const planDocumentIntakeOverviewMetric = (item) => {
+  const action = String(item?.action || '')
+  if (!action) return null
+  if (action.startsWith('assets-')) {
+    return {
+      target: 'assets',
+      filterPatch: {
+        today: true,
+        ...(action === 'assets-duplicate' ? { duplicate: 'true' } : {}),
+        ...(action === 'assets-unrecognized' ? { status: 'unrecognized' } : {})
+      }
+    }
+  }
+  if (action.startsWith('entry-')) {
+    return {
+      target: 'entryResults',
+      filterPatch: {
+        today: true,
+        ...(action === 'entry-successful' ? { status: 'successful' } : {}),
+        ...(action === 'entry-low-confidence' ? { lowConfidence: true } : {}),
+        ...(action === 'entry-failed' ? { status: 'failed' } : {})
+      }
+    }
+  }
+  if (action.startsWith('devices-')) {
+    return {
+      target: 'devices',
+      filterPatch: { status: action === 'devices-active' ? 'active' : 'offline' }
+    }
+  }
+  return null
+}
+
 export const getDocumentIntakeBusinessRecordTableKey = (row) => {
   const schema = String(row?.targetSchema || '').trim()
   const table = String(row?.targetTable || '').trim()

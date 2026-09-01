@@ -45,12 +45,14 @@ assert.ok(
 )
 assert.ok(
   viewSource.includes('applyOverviewMetric') &&
-    viewSource.includes("item.action === 'assets-duplicate'") &&
-    viewSource.includes("item.action === 'entry-successful'") &&
-    viewSource.includes("item.action === 'entry-low-confidence'") &&
-    viewSource.includes("item.action === 'devices-active'") &&
-    viewSource.includes('filters.today = true') &&
-    viewSource.includes('entryResultFilters.lowConfidence = true'),
+    viewSource.includes('planDocumentIntakeOverviewMetric(item)') &&
+    viewSource.includes('reset: resetAssetFilters') &&
+    viewSource.includes('reset: resetEntryResultFilters') &&
+    viewSource.includes('reset: resetDeviceFilters') &&
+    viewSource.includes('Object.assign(target.filters, plan.filterPatch)') &&
+    presentationPolicySource.includes("action === 'assets-duplicate'") &&
+    presentationPolicySource.includes("action === 'entry-low-confidence'") &&
+    presentationPolicySource.includes("action === 'devices-active'"),
   'DocumentIntakeCenter should let overview metrics jump to matching filtered lists.'
 )
 

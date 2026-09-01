@@ -1070,6 +1070,7 @@ import { navigateEnterprisePath } from '@eiscore/platform/navigation'
 import {
   buildDocumentIntakeBusinessRecordUrl as businessRecordUrl,
   buildDocumentIntakeOverviewItems,
+  planDocumentIntakeOverviewMetric,
   formatDocumentIntakeBytes as formatBytes,
   formatDocumentIntakeConfidence as formatConfidence,
   formatDocumentIntakeCorrectionValue as correctionValueLabel,
@@ -1802,32 +1803,18 @@ const resetEntryResultFilters = () => {
 }
 
 const applyOverviewMetric = (item) => {
-  if (!item?.action) return
-  if (item.action.startsWith('assets-')) {
-    resetAssetFilters()
-    filters.today = true
-    if (item.action === 'assets-duplicate') filters.duplicate = 'true'
-    if (item.action === 'assets-unrecognized') filters.status = 'unrecognized'
-    activeTab.value = 'assets'
-    reloadFromFirstPage()
-    return
-  }
-  if (item.action.startsWith('entry-')) {
-    resetEntryResultFilters()
-    entryResultFilters.today = true
-    if (item.action === 'entry-successful') entryResultFilters.status = 'successful'
-    if (item.action === 'entry-low-confidence') entryResultFilters.lowConfidence = true
-    if (item.action === 'entry-failed') entryResultFilters.status = 'failed'
-    activeTab.value = 'entryResults'
-    reloadEntryResultsFromFirstPage()
-    return
-  }
-  if (item.action.startsWith('devices-')) {
-    resetDeviceFilters()
-    deviceFilters.status = item.action === 'devices-active' ? 'active' : 'offline'
-    activeTab.value = 'devices'
-    reloadDevicesFromFirstPage()
-  }
+  const plan = planDocumentIntakeOverviewMetric(item)
+  if (!plan) return
+  const target = {
+    assets: { reset: resetAssetFilters, filters, reload: reloadFromFirstPage },
+    entryResults: { reset: resetEntryResultFilters, filters: entryResultFilters, reload: reloadEntryResultsFromFirstPage },
+    devices: { reset: resetDeviceFilters, filters: deviceFilters, reload: reloadDevicesFromFirstPage }
+  }[plan.target]
+  if (!target) return
+  target.reset()
+  Object.assign(target.filters, plan.filterPatch)
+  activeTab.value = plan.target
+  target.reload()
 }
 
 const openBusinessRecord = (row) => {
