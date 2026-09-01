@@ -1111,6 +1111,12 @@ import {
 import { buildDocumentIntakeEntryResultDetailProjection } from '@/domain/document-intake-entry-result-detail-policy.js'
 import { planDocumentIntakeDeviceBindingCodeReset, planDocumentIntakeDeviceStatus } from '@/domain/document-intake-device-operation-policy.js'
 import {
+  buildDocumentIntakeAssetQuery,
+  buildDocumentIntakeDeviceQuery,
+  buildDocumentIntakeEntryResultQuery,
+  buildDocumentIntakeLogQuery
+} from '@/domain/document-intake-list-query-policy.js'
+import {
   buildDocumentIntakeWatchFolderEditForm,
   createDocumentIntakeWatchFolderForm,
   planDocumentIntakeWatchFolderDeletion,
@@ -1225,19 +1231,7 @@ const loadAssets = async () => {
   loading.value = true
   errorMessage.value = ''
   try {
-    const data = await fetchDocumentIntakeAssets({
-      duplicate: filters.duplicate,
-      q: filters.q,
-      status: filters.status,
-      today: filters.today,
-      deviceId: filters.deviceId,
-      user: filters.user,
-      operatorSource: filters.operatorSource,
-      sourceFolder: filters.sourceFolder,
-      watchFolderSource: filters.watchFolderSource,
-      limit: pageSize.value,
-      offset: (page.value - 1) * pageSize.value
-    })
+    const data = await fetchDocumentIntakeAssets(buildDocumentIntakeAssetQuery(filters, page.value, pageSize.value))
     if (seq !== requestSeq) return
     assets.value = Array.isArray(data.assets) ? data.assets : []
     total.value = Number(data.total || 0)
@@ -1256,16 +1250,7 @@ const loadDevices = async () => {
   deviceLoading.value = true
   errorMessage.value = ''
   try {
-    const data = await fetchDocumentIntakeDevices({
-      status: deviceFilters.status,
-      q: deviceFilters.q,
-      user: deviceFilters.user,
-      serverBaseUrl: deviceFilters.serverBaseUrl,
-      clientVersion: deviceFilters.clientVersion,
-      webviewVersion: deviceFilters.webviewVersion,
-      limit: devicePageSize.value,
-      offset: (devicePage.value - 1) * devicePageSize.value
-    })
+    const data = await fetchDocumentIntakeDevices(buildDocumentIntakeDeviceQuery(deviceFilters, devicePage.value, devicePageSize.value))
     if (seq !== deviceRequestSeq) return
     devices.value = Array.isArray(data.devices) ? data.devices : []
     deviceTotal.value = Number(data.total || 0)
@@ -1284,22 +1269,7 @@ const loadLogs = async () => {
   logLoading.value = true
   errorMessage.value = ''
   try {
-    const data = await fetchDocumentIntakeLogs({
-      level: logFilters.level,
-      q: logFilters.q,
-      traceId: logFilters.traceId,
-      eventType: logFilters.eventType,
-      sourceFileHash: logFilters.sourceFileHash,
-      sourceFolder: logFilters.sourceFolder,
-      watchFolderSource: logFilters.watchFolderSource,
-      user: logFilters.user,
-      appModule: logFilters.appModule,
-      route: logFilters.route,
-      batchId: logFilters.batchId,
-      deviceId: logFilters.deviceId,
-      limit: logPageSize.value,
-      offset: (logPage.value - 1) * logPageSize.value
-    })
+    const data = await fetchDocumentIntakeLogs(buildDocumentIntakeLogQuery(logFilters, logPage.value, logPageSize.value))
     if (seq !== logRequestSeq) return
     logs.value = Array.isArray(data.logs) ? data.logs : []
     logTotal.value = Number(data.total || 0)
@@ -1318,21 +1288,7 @@ const loadEntryResults = async () => {
   entryResultLoading.value = true
   errorMessage.value = ''
   try {
-    const data = await fetchDocumentIntakeEntryResults({
-      status: entryResultFilters.status,
-      targetKind: entryResultFilters.targetKind,
-      duplicate: entryResultFilters.duplicate,
-      q: entryResultFilters.q,
-      user: entryResultFilters.user,
-      operatorSource: entryResultFilters.operatorSource,
-      today: entryResultFilters.today,
-      lowConfidence: entryResultFilters.lowConfidence,
-      deviceId: entryResultFilters.deviceId,
-      assetId: entryResultFilters.assetId,
-      batchId: entryResultFilters.batchId,
-      limit: entryResultPageSize.value,
-      offset: (entryResultPage.value - 1) * entryResultPageSize.value
-    })
+    const data = await fetchDocumentIntakeEntryResults(buildDocumentIntakeEntryResultQuery(entryResultFilters, entryResultPage.value, entryResultPageSize.value))
     if (seq !== entryResultRequestSeq) return
     entryResults.value = Array.isArray(data.entryResults) ? data.entryResults : []
     entryResultTotal.value = Number(data.total || 0)

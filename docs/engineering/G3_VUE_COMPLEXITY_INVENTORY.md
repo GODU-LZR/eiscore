@@ -2,7 +2,7 @@
 
 ## 结论
 
-2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,911 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid、四个 PurchaseAppGrid 与六个 DocumentIntakeCenter 纯策略切片后，巨页债务已降至 85,089 行，≥2,000 行极端页保持 10 个。
+2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,911 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid、四个 PurchaseAppGrid 与七个 DocumentIntakeCenter 纯策略切片后，巨页债务已降至 85,045 行，≥2,000 行极端页降至 9 个。
 
 该结果证明巨页是系统性维护风险，不能靠一次整体重写解决。基线已进入 `config/engineering/vue-complexity-baseline.json`，质量门禁禁止既有巨页增长、禁止新增巨页，并要求总债务、极端页和关键页数量只降不增。
 
@@ -22,7 +22,7 @@
 | 产品 | 巨页数 | 巨页行数 | 最大文件行数 |
 | --- | ---: | ---: | ---: |
 | 应用中心 | 8 | 15,538 | 3,741 |
-| 基座 | 8 | 16,038 | 3,535 |
+| 基座 | 8 | 15,994 | 3,535 |
 | 物料/仓储 | 12 | 14,945 | 1,828 |
 | 移动端 | 7 | 8,632 | 1,893 |
 | 销售 | 2 | 5,792 | 3,822 |
@@ -46,7 +46,7 @@
 | `eiscore-apps/src/views/OntologyWorkbench.vue` | 2,184 | 3 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-production/src/components/ProductionAppGrid.vue` | 2,077 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 1,970 | 4 类纯策略已迁出，阶段退出门禁已建立 |
-| `eiscore-base/src/views/DocumentIntakeCenter.vue` | 2,017 | 总览、筛选、业务记录、展示、监听目录、详情与设备操作已迁出；继续拆列表查询投影 |
+| `eiscore-base/src/views/DocumentIntakeCenter.vue` | 1,973 | 7 类纯策略已迁出并退出极端页层级；下一步建立阶段退出门禁 |
 | `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 2,326 | 单据模型、动作策略、详情子区块 |
 | `eiscore-equipment/src/views/EquipmentHome.vue` | 2,072 | 驾驶舱查询/聚合与卡片组件 |
 
@@ -54,7 +54,7 @@
 
 - 扫描范围内新 Vue 文件不得达到 800 行。
 - 52 个基线文件逐文件不得超过各自基线行数；文件删除或降到阈值以下视为债务下降。
-- 巨页总行数的初始基线为 90,948，当前棘轮值为 85,089；≥1,200 行不得超过 32 个；≥2,000 行不得超过 10 个。
+- 巨页总行数的初始基线为 90,948，当前棘轮值为 85,045；≥1,200 行不得超过 32 个；≥2,000 行不得超过 9 个。
 - 不允许通过重命名、移动目录、生成文件或扩充排除项规避门禁。
 - 基线扩张不是普通维护动作；确有必要时必须记录 ADR、替代方案和回收计划。
 
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-继续 `eiscore-base/src/views/DocumentIntakeCenter.vue`：优先抽离文件、设备、日志和入库结果四类列表查询参数与分页 offset 投影，保留真实请求、并发序号和响应式赋值在组合层。
+对 `eiscore-base/src/views/DocumentIntakeCenter.vue` 建立阶段退出审计，锁定 SFC 分区、7 个纯模块、策略导出、API/消息/Watch/导航/Clipboard/生命周期上限与平台旁路禁令。

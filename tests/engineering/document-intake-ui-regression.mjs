@@ -19,7 +19,8 @@ const filterPolicySource = readSource('eiscore-base/src/domain/document-intake-f
 const watchFolderPolicySource = readSource('eiscore-base/src/domain/document-intake-watch-folder-policy.js')
 const entryResultDetailPolicySource = readSource('eiscore-base/src/domain/document-intake-entry-result-detail-policy.js')
 const deviceOperationPolicySource = readSource('eiscore-base/src/domain/document-intake-device-operation-policy.js')
-const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}\n${filterPolicySource}\n${watchFolderPolicySource}\n${entryResultDetailPolicySource}\n${deviceOperationPolicySource}`
+const listQueryPolicySource = readSource('eiscore-base/src/domain/document-intake-list-query-policy.js')
+const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}\n${filterPolicySource}\n${watchFolderPolicySource}\n${entryResultDetailPolicySource}\n${deviceOperationPolicySource}\n${listQueryPolicySource}`
 const apiModuleUrl = pathToFileURL(resolve(repoRoot, 'eiscore-base/src/utils/document-intake-api.js')).href
 const api = await import(apiModuleUrl)
 
@@ -65,7 +66,7 @@ assert.ok(
   'DocumentIntakeCenter should provide a dedicated duplicate segmented filter.'
 )
 assert.ok(
-  viewSource.includes('fetchDocumentIntakeAssets') && viewSource.includes('duplicate: filters.duplicate'),
+  viewSource.includes('fetchDocumentIntakeAssets') && documentIntakeUiSource.includes('duplicate: filters.duplicate'),
   'DocumentIntakeCenter should pass the duplicate filter to the asset list API.'
 )
 assert.ok(
@@ -73,10 +74,10 @@ assert.ok(
     viewSource.includes('v-model="filters.operatorSource"') &&
     viewSource.includes('v-model="filters.sourceFolder"') &&
     viewSource.includes('v-model="filters.watchFolderSource"') &&
-    viewSource.includes('user: filters.user') &&
-    viewSource.includes('operatorSource: filters.operatorSource') &&
-    viewSource.includes('sourceFolder: filters.sourceFolder') &&
-    viewSource.includes('watchFolderSource: filters.watchFolderSource'),
+    documentIntakeUiSource.includes('user: filters.user') &&
+    documentIntakeUiSource.includes('operatorSource: filters.operatorSource') &&
+    documentIntakeUiSource.includes('sourceFolder: filters.sourceFolder') &&
+    documentIntakeUiSource.includes('watchFolderSource: filters.watchFolderSource'),
   'DocumentIntakeCenter should filter source files by uploaded user/role, operator source and watch folder source.'
 )
 
@@ -94,7 +95,7 @@ assert.ok(
   'DocumentIntakeCenter asset rows should display file type, target business, generated count, and confidence.'
 )
 assert.ok(
-  viewSource.includes('deviceId: filters.deviceId') && viewSource.includes('clearAssetDeviceFilter'),
+  documentIntakeUiSource.includes('deviceId: filters.deviceId') && viewSource.includes('clearAssetDeviceFilter'),
   'DocumentIntakeCenter should filter source files by collector device.'
 )
 assert.ok(
@@ -138,10 +139,10 @@ assert.ok(
     viewSource.includes('v-model="deviceFilters.serverBaseUrl"') &&
     viewSource.includes('v-model="deviceFilters.clientVersion"') &&
     viewSource.includes('v-model="deviceFilters.webviewVersion"') &&
-    viewSource.includes('user: deviceFilters.user') &&
-    viewSource.includes('serverBaseUrl: deviceFilters.serverBaseUrl') &&
-    viewSource.includes('clientVersion: deviceFilters.clientVersion') &&
-    viewSource.includes('webviewVersion: deviceFilters.webviewVersion'),
+    listQueryPolicySource.includes('user: filters.user') &&
+    listQueryPolicySource.includes('serverBaseUrl: filters.serverBaseUrl') &&
+    listQueryPolicySource.includes('clientVersion: filters.clientVersion') &&
+    listQueryPolicySource.includes('webviewVersion: filters.webviewVersion'),
   'DocumentIntakeCenter should filter devices by default user/role, server URL, client version and WebView version.'
 )
 assert.ok(
@@ -157,10 +158,10 @@ assert.ok(
     viewSource.includes('v-model="logFilters.sourceFileHash"') &&
     viewSource.includes('v-model="logFilters.sourceFolder"') &&
     viewSource.includes('v-model="logFilters.watchFolderSource"') &&
-    viewSource.includes('eventType: logFilters.eventType') &&
-    viewSource.includes('sourceFileHash: logFilters.sourceFileHash') &&
-    viewSource.includes('sourceFolder: logFilters.sourceFolder') &&
-    viewSource.includes('watchFolderSource: logFilters.watchFolderSource'),
+    listQueryPolicySource.includes('eventType: filters.eventType') &&
+    listQueryPolicySource.includes('sourceFileHash: filters.sourceFileHash') &&
+    listQueryPolicySource.includes('sourceFolder: filters.sourceFolder') &&
+    listQueryPolicySource.includes('watchFolderSource: filters.watchFolderSource'),
   'DocumentIntakeCenter should filter client logs by event type, source file hash and watch folder source.'
 )
 assert.ok(
@@ -173,14 +174,14 @@ assert.ok(
     viewSource.includes('v-model="logFilters.appModule"') &&
     viewSource.includes('v-model="logFilters.route"') &&
     viewSource.includes('v-model="logFilters.batchId"') &&
-    viewSource.includes('user: logFilters.user') &&
-    viewSource.includes('appModule: logFilters.appModule') &&
-    viewSource.includes('route: logFilters.route') &&
-    viewSource.includes('batchId: logFilters.batchId'),
+    listQueryPolicySource.includes('user: filters.user') &&
+    listQueryPolicySource.includes('appModule: filters.appModule') &&
+    listQueryPolicySource.includes('route: filters.route') &&
+    listQueryPolicySource.includes('batchId: filters.batchId'),
   'DocumentIntakeCenter should filter client logs by user, module, page and import batch.'
 )
 assert.ok(
-  viewSource.includes('deviceId: logFilters.deviceId') && viewSource.includes('clearLogDeviceFilter'),
+  listQueryPolicySource.includes('deviceId: filters.deviceId') && viewSource.includes('clearLogDeviceFilter'),
   'DocumentIntakeCenter should filter client logs by collector device.'
 )
 assert.ok(
@@ -221,13 +222,13 @@ assert.ok(
 )
 assert.ok(
   viewSource.includes('v-model="entryResultFilters.duplicate"') &&
-    viewSource.includes('duplicate: entryResultFilters.duplicate') &&
+    listQueryPolicySource.includes('duplicate: filters.duplicate') &&
     viewSource.includes('v-model="entryResultFilters.user"') &&
-    viewSource.includes('user: entryResultFilters.user') &&
+    listQueryPolicySource.includes('user: filters.user') &&
     viewSource.includes('v-model="entryResultFilters.deviceId"') &&
-    viewSource.includes('deviceId: entryResultFilters.deviceId') &&
+    listQueryPolicySource.includes('deviceId: filters.deviceId') &&
     viewSource.includes('v-model="entryResultFilters.operatorSource"') &&
-    viewSource.includes('operatorSource: entryResultFilters.operatorSource'),
+    listQueryPolicySource.includes('operatorSource: filters.operatorSource'),
   'DocumentIntakeCenter should filter entry results by duplicate status, source device, uploaded user/role and operator source.'
 )
 assert.ok(
