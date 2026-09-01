@@ -74,3 +74,44 @@ export const buildPurchaseInventoryInboundProjection = (inboundLink) => (
       }
     : null
 )
+
+export const buildPurchaseSalesDemandReversePlan = ({
+  link,
+  demand = {},
+  salesOrder = {},
+  reason = '',
+  linkReversedAt,
+  demandReversedAt,
+  docTypes = {}
+} = {}) => ({
+  linkPatch: link?.id
+    ? {
+        url: `/document_links?id=eq.${encodePurchaseDocumentFilterValue(link.id)}`,
+        data: {
+          status: 'reversed',
+          reversed_by: 'purchase',
+          reversed_at: linkReversedAt,
+          reverse_reason: reason
+        }
+      }
+    : null,
+  demandPatch: {
+    url: `/purchase_demands?id=eq.${encodePurchaseDocumentFilterValue(demand.id)}`,
+    data: {
+      demand_status: '已关闭',
+      status: 'disabled',
+      properties: {
+        ...(demand.properties || {}),
+        audit_status: '已反审核',
+        reverse_audit_reason: reason,
+        reverse_audit_at: demandReversedAt
+      }
+    }
+  },
+  audit: {
+    actionType: 'reverse_sales_order_purchase_demand',
+    source: { docType: docTypes.SALES_ORDER, docId: salesOrder.id, docNo: salesOrder.order_no || '' },
+    target: { docType: docTypes.PURCHASE_DEMAND, docId: demand.id, docNo: demand.demand_no || '' },
+    reason
+  }
+})

@@ -306,8 +306,8 @@ import {
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
   buildPurchaseInventoryInboundProjection,
+  buildPurchaseSalesDemandReversePlan,
   canReversePurchaseSalesDemandFlow,
-  encodePurchaseDocumentFilterValue,
   pickPurchaseDocumentRowForLinkSource,
   pickPurchaseDocumentRowForLinkTarget
 } from '@/domain/purchase-document-detail-business-flow-policy.js'
@@ -679,35 +679,30 @@ const reverseSalesDemandFromPurchase = async () => {
     const reason = String(result?.value || '').trim()
     flowActionLoading.value = true
     const link = purchaseFlowRelationLinks.value.find((item) => item.relation_type === RELATION_TYPES.SALES_TO_PURCHASE_DEMAND)
-    if (link?.id) {
+    const reversePlan = buildPurchaseSalesDemandReversePlan({
+      link,
+      demand,
+      salesOrder,
+      reason,
+      linkReversedAt: link?.id ? new Date().toISOString() : '',
+      demandReversedAt: new Date().toISOString(),
+      docTypes: DOC_TYPES
+    })
+    if (reversePlan.linkPatch) {
       await request({
-        url: `/document_links?id=eq.${encodePurchaseDocumentFilterValue(link.id)}`,
+        url: reversePlan.linkPatch.url,
         method: 'patch',
         headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-        data: { status: 'reversed', reversed_by: 'purchase', reversed_at: new Date().toISOString(), reverse_reason: reason }
+        data: reversePlan.linkPatch.data
       })
     }
     await request({
-      url: `/purchase_demands?id=eq.${encodePurchaseDocumentFilterValue(demand.id)}`,
+      url: reversePlan.demandPatch.url,
       method: 'patch',
       headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-      data: {
-        demand_status: '已关闭',
-        status: 'disabled',
-        properties: {
-          ...(demand.properties || {}),
-          audit_status: '已反审核',
-          reverse_audit_reason: reason,
-          reverse_audit_at: new Date().toISOString()
-        }
-      }
+      data: reversePlan.demandPatch.data
     })
-    await writeFlowAudit({
-      actionType: 'reverse_sales_order_purchase_demand',
-      source: { docType: DOC_TYPES.SALES_ORDER, docId: salesOrder.id, docNo: salesOrder.order_no || '' },
-      target: { docType: DOC_TYPES.PURCHASE_DEMAND, docId: demand.id, docNo: demand.demand_no || '' },
-      reason
-    })
+    await writeFlowAudit(reversePlan.audit)
     ElMessage.success('已撤销销售下推关联')
     await loadData()
     await loadPurchaseBusinessFlow()

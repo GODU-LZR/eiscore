@@ -9,6 +9,7 @@ import {
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
   buildPurchaseInventoryInboundProjection,
+  buildPurchaseSalesDemandReversePlan,
   canReversePurchaseSalesDemandFlow,
   encodePurchaseDocumentFilterValue,
   pickPurchaseDocumentRowForLinkSource,
@@ -74,6 +75,38 @@ assert.deepEqual(buildPurchaseInventoryInboundProjection({
 }), { id: 'inbound-2', inbound_no: 'IN-2', docNo: 'IN-2', status: 'reversed' })
 assert.equal(buildPurchaseInventoryInboundProjection(null), null)
 
+const demand = { id: 'demand-1', demand_no: 'PR/1', properties: { source: 'sales', audit_status: '旧状态' } }
+const salesOrder = { id: 'sales-1', order_no: 'SO-1' }
+assert.deepEqual(buildPurchaseSalesDemandReversePlan({
+  link: { id: 'link/1' },
+  demand,
+  salesOrder,
+  reason: '重复下推',
+  linkReversedAt: '2026-09-02T01:00:00.000Z',
+  demandReversedAt: '2026-09-02T01:00:01.000Z',
+  docTypes: { SALES_ORDER: 'sales_order', PURCHASE_DEMAND: 'purchase_demand' }
+}), {
+  linkPatch: {
+    url: '/document_links?id=eq.link%2F1',
+    data: { status: 'reversed', reversed_by: 'purchase', reversed_at: '2026-09-02T01:00:00.000Z', reverse_reason: '重复下推' }
+  },
+  demandPatch: {
+    url: '/purchase_demands?id=eq.demand-1',
+    data: {
+      demand_status: '已关闭', status: 'disabled',
+      properties: { source: 'sales', audit_status: '已反审核', reverse_audit_reason: '重复下推', reverse_audit_at: '2026-09-02T01:00:01.000Z' }
+    }
+  },
+  audit: {
+    actionType: 'reverse_sales_order_purchase_demand',
+    source: { docType: 'sales_order', docId: 'sales-1', docNo: 'SO-1' },
+    target: { docType: 'purchase_demand', docId: 'demand-1', docNo: 'PR/1' },
+    reason: '重复下推'
+  }
+})
+assert.equal(buildPurchaseSalesDemandReversePlan({ demand }).linkPatch, null)
+assert.deepEqual(demand.properties, { source: 'sales', audit_status: '旧状态' })
+
 const moduleSource = readFileSync(resolve(
   repoRoot,
   'eiscore-purchase/src/domain/purchase-document-detail-business-flow-policy.js'
@@ -107,10 +140,11 @@ for (const requiredCall of [
   'pickPurchaseDocumentRowForLinkTarget',
   'buildPurchaseDocumentFlowNodes({',
   'canReversePurchaseSalesDemandFlow({',
-  'buildPurchaseInventoryInboundProjection(inboundLink)'
+  'buildPurchaseInventoryInboundProjection(inboundLink)',
+  'buildPurchaseSalesDemandReversePlan({'
 ]) {
   assert.equal(pageSource.includes(requiredCall), true, `PurchaseDocumentDetail lost ${requiredCall}`)
 }
-assert.ok(pageSource.split(/\r?\n/).length <= 1935)
+assert.ok(pageSource.split(/\r?\n/).length <= 1927)
 
-console.log('PASS: PurchaseDocumentDetail business-flow policy preserves queries, row lookup, node order, reversal eligibility and inbound projection')
+console.log('PASS: PurchaseDocumentDetail business-flow policy preserves queries, projections, reversal eligibility and reverse plans')
