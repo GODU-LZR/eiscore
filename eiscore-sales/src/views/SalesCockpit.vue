@@ -356,6 +356,7 @@ import {
 import { buildSalesActivityEvents } from '@/domain/sales-cockpit-activity-policy.js'
 import { buildSalesCockpitAiContext } from '@/domain/sales-cockpit-context-policy.js'
 import { buildSalesCockpitQueryRequests } from '@/domain/sales-cockpit-query-policy.js'
+import { decrementSalesCockpitRefreshCountdown, formatSalesCockpitClock } from '@/domain/sales-cockpit-clock-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -507,10 +508,7 @@ const goApps = () => {
   router.push('/apps')
 }
 
-const updateClock = () => {
-  clock.value = new Date().toLocaleString('zh-CN', { hour12: false })
-  refreshCountdown.value = Math.max(refreshCountdown.value - 1, 0)
-}
+const updateClock = () => { const now = new Date(); clock.value = formatSalesCockpitClock(now); refreshCountdown.value = decrementSalesCockpitRefreshCountdown(refreshCountdown.value) }
 
 const toggleFullscreen = () => {
   const target = rootRef.value || screenRef.value || document.documentElement

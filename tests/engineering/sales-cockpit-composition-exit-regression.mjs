@@ -33,6 +33,7 @@ const policyImports = [...source.matchAll(/from ['"](@\/domain\/sales-cockpit-[^
   .sort()
 assert.deepEqual(policyImports, [
   '@/domain/sales-cockpit-activity-policy.js',
+  '@/domain/sales-cockpit-clock-policy.js',
   '@/domain/sales-cockpit-context-policy.js',
   '@/domain/sales-cockpit-presentation-policy.js',
   '@/domain/sales-cockpit-query-policy.js',
@@ -52,7 +53,7 @@ for (const file of policyFiles) {
   }
   assert.equal(/new Date\(\s*\)/.test(policySource), false, `${file} gained implicit current time`)
 }
-assert.equal(policyExports, 33)
+assert.equal(policyExports, 35)
 
 const count = (pattern) => (source.match(pattern) || []).length
 assert.equal(count(/\brequest\s*\(/g), 1)

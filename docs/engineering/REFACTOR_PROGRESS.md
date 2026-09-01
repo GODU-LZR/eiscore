@@ -230,14 +230,15 @@
 | 本文件所在提交 | 抽离 SalesCockpit AI Context 策略 | 上下文元数据、应收客户投影和驾驶舱数据聚合进入纯模块 |
 | 本文件所在提交 | 抽离 SalesCockpit 查询策略 | 客户、订单、商机、回款、跟进五路 PostgREST 查询描述、过滤条件、排序、method 与 Promise.all 顺序进入纯模块 |
 | 本文件所在提交 | 抽离 SalesCockpit 壳层策略 | 16:9 设计尺寸、最小可视尺寸、响应式缩放和舞台尺寸投影进入纯模块；窗口/Fullscreen/ResizeObserver 仍由页面持有 |
+| 本文件所在提交 | 抽离 SalesCockpit 时钟与刷新倒计时策略 | 本地化时钟格式与倒计时递减进入纯模块；页面继续持有 Date、1 秒定时器、刷新定时器和生命周期清理 |
 | 本文件所在提交 | 建立 SalesCockpit 组合层退出门禁 | 锁定 1,751 行、8 个纯策略模块/33 个导出，以及 Request、Router、Watch、定时器、全屏、ResizeObserver、窗口事件、AI Context 与生命周期副作用库存 |
 
 ## 当前切片
 
 - 状态：G3 进行中；`SalesCockpit.vue` 正按销售驾驶舱职责渐进拆分。
-- 结果：SalesCockpit 第八个切片新增壳层纯策略模块及 1 个导出，把 16:9 设计尺寸、最小可视尺寸、响应式缩放和舞台尺寸投影迁出；随后建立组合层退出门禁，锁定当前 1,751 行页面、8 个纯模块/33 个导出及副作用库存，巨页债务维持 83,988 行。
-- 兼容边界：页面继续持有 Vue 响应式组合并执行五路 Request、AI Context 推送、Router、Fullscreen、ResizeObserver、定时器、窗口事件和生命周期副作用；壳层策略只接收尺寸和内边距数值，不依赖浏览器 API，保留 16:9 缩放、最小尺寸和四舍五入行为。本切片不改变接口、请求顺序、模板、视觉或交互。
-- 验证：新增 `test:sales-cockpit-shell` 与 `test:sales-cockpit-exit`，组合退出门禁纳入 `test:quality`；组合门禁、壳层专项、查询专项、六个既有 SalesCockpit 专项与复杂度门禁均已通过，复杂度门禁实测 139 个 Vue 文件、52 个巨页、83,988/85,045 行债务；完整质量、离线单元与销售构建仍受既有环境兼容项阻断，详见交付说明。本切片不连接数据库、远程 API 或 Agent。
+- 结果：SalesCockpit 在壳层策略和组合层退出门禁之后新增时钟/刷新倒计时纯策略，页面降至 1,749 行，累计 9 个纯模块、35 个导出；巨页债务降至 83,986 行。
+- 兼容边界：页面继续持有 Vue 响应式组合并执行五路 Request、AI Context 推送、Router、Fullscreen、ResizeObserver、Date、1 秒时钟定时器、刷新定时器、窗口事件和生命周期副作用；时钟策略只接收显式 Date 或数值，不依赖浏览器 API，保留 `zh-CN` 24 小时格式与倒计时下限 0。本切片不改变接口、请求顺序、模板、视觉或交互。
+- 验证：新增 `test:sales-cockpit-clock`，并由 `test:sales-cockpit-exit` 纳入质量链；时钟专项、组合门禁、壳层专项、查询专项、六个既有 SalesCockpit 专项与复杂度门禁均已通过，复杂度门禁实测 139 个 Vue 文件、52 个巨页、83,986/85,045 行债务；完整质量、离线单元与销售构建仍受既有环境兼容项阻断，详见交付说明。本切片不连接数据库、远程 API 或 Agent。
 
 ## 已知非阻断风险
 
@@ -257,4 +258,4 @@
 
 ## 下一候选切片
 
-继续 G3：在 `SalesCockpit.vue` 退出门禁保护下，评估是否存在可独立验证的副作用服务边界；继续保留页面作为 Vue/Router/Request/AI Context/Fullscreen/ResizeObserver/定时器/窗口事件生命周期组合入口。
+继续 G3：在 `SalesCockpit.vue` 退出门禁保护下，评估是否存在可独立验证的副作用服务边界；继续保留页面作为 Vue/Router/Request/AI Context/Fullscreen/ResizeObserver/Date/定时器/窗口事件生命周期组合入口。

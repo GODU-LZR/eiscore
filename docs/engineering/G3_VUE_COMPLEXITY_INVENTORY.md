@@ -49,7 +49,7 @@
 | `eiscore-base/src/views/DocumentIntakeCenter.vue` | 1,973 | 6 个纯模块/54 个导出已迁出，阶段退出门禁已建立 |
 | `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 1,916 | 11 个纯策略模块/54 个导出已迁出，阶段退出门禁已建立 |
 | `eiscore-equipment/src/views/EquipmentHome.vue` | 1,642 | 6 个纯策略模块/43 个导出已迁出，阶段退出门禁已建立 |
-| `eiscore-sales/src/views/SalesCockpit.vue` | 1,751 | 8 个纯策略模块/33 个导出已迁出；组合层退出门禁已建立，下一步评估副作用服务边界 |
+| `eiscore-sales/src/views/SalesCockpit.vue` | 1,749 | 9 个纯策略模块/35 个导出已迁出；组合层退出门禁已建立，下一步评估副作用服务边界 |
 
 ## 持续门禁
 
@@ -69,4 +69,4 @@
 
 ## 下一切片
 
-继续 `eiscore-sales/src/views/SalesCockpit.vue`：展示、经营摘要、排行、风险/行动、销售动态、AI Context、五路查询描述及壳层缩放投影已迁出；组合层退出门禁已锁定当前副作用库存，下一步评估副作用服务边界。
+继续 `eiscore-sales/src/views/SalesCockpit.vue`：展示、经营摘要、排行、风险/行动、销售动态、AI Context、五路查询描述、壳层缩放投影及时钟/刷新倒计时已迁出；组合层退出门禁已锁定当前副作用库存，下一步评估副作用服务边界。
