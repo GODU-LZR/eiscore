@@ -136,9 +136,7 @@ for (const requiredUse of [
   'filterOntologyRelations(',
   'collectOntologyRelationTables(',
   'filterOntologyRelationsByTable(',
-  'buildOntologyTableLabelMap(',
-  'parseOntologyTableKey(',
-  'extractOntologySemanticsMode('
+  'buildOntologyTableLabelMap('
 ]) {
   assert.equal(pageSource.includes(requiredUse), true, `OntologyWorkbench lost ${requiredUse}`)
 }

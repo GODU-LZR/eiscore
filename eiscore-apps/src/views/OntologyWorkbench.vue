@@ -751,19 +751,16 @@ import {
   cleanOntologyDisplayText as cleanDisplayText,
   collectOntologyRelationTables,
   countOntologyRelationTypes,
-  extractOntologySemanticsMode,
   filterOntologyReasoningFacts,
   filterOntologyRelations,
   filterOntologyRelationsByTable,
-  firstOntologyRow as firstRow,
   flattenOntologyColumnSemantics,
   formatOntologyColumn as formatColumn,
   getOntologyColumnTables,
   getOntologyReasoningHealthTagType,
   getOntologyRelationTypeLabel as relationTypeLabel,
   getOntologySemanticClassLabel as semanticClassLabel,
-  getOntologySemanticsModeLabel as semanticsModeLabel,
-  parseOntologyTableKey
+  getOntologySemanticsModeLabel as semanticsModeLabel
 } from '@/domain/ontology-workbench-relation-policy'
 import {
   ONTOLOGY_KG_GRAPH_CATEGORIES,
@@ -777,6 +774,25 @@ import {
   getOntologyKgNodeTypeLabel as nodeTypeLabel,
   getOntologyPredicateLabel as predicateLabel
 } from '@/domain/ontology-workbench-kg-policy'
+import {
+  ONTOLOGY_INSIGHT_REQUESTS,
+  ONTOLOGY_REASONING_SUMMARY_REQUEST,
+  ONTOLOGY_REFRESH_REASONING_REQUEST,
+  ONTOLOGY_RELATIONS_REQUEST,
+  buildOntologyColumnSemanticsRequest,
+  buildOntologyKgNeighborRequest,
+  buildOntologyKgNodeSearchRequest,
+  buildOntologyKgPathRequest,
+  buildOntologyPathExplanationRequest,
+  buildOntologyReasoningFactsRequest,
+  buildOntologyRoleAccessRequest,
+  normalizeOntologyColumnSemanticsRows,
+  normalizeOntologyFirstRow,
+  normalizeOntologyInsightRows,
+  normalizeOntologyRows,
+  pickOntologyKgNeighborTarget,
+  pickOntologyKgSelectedNode
+} from '@/domain/ontology-workbench-query-policy'
 
 const router = useRouter()
 
@@ -902,24 +918,9 @@ const tableLabelMap = computed(() => buildOntologyTableLabelMap(filteredRelation
 const tableDisplayLabel = (table) => tableLabelMap.value[table] || table
 
 const fetchColumnSemanticsByTable = async (tableKey) => {
-  const parsed = parseOntologyTableKey(tableKey)
-  if (!parsed) return []
-  const schema = encodeURIComponent(parsed.schema)
-  const table = encodeURIComponent(parsed.table)
-  const rows = await request({
-    url: `/ontology_column_semantics?select=table_schema,table_name,column_name,semantic_class,semantic_name,data_type,ui_type,is_sensitive,source,tags,is_active&table_schema=eq.${schema}&table_name=eq.${table}&is_active=is.true&order=column_name.asc`,
-    method: 'get',
-    headers: {
-      'Accept-Profile': 'public',
-      'Content-Profile': 'public'
-    }
-  })
-  if (!Array.isArray(rows)) return []
-  return rows.map((item) => ({
-    ...item,
-    table_key: `${item.table_schema}.${item.table_name}`,
-    semantics_mode: extractOntologySemanticsMode(item.tags)
-  }))
+  const requestConfig = buildOntologyColumnSemanticsRequest(tableKey)
+  if (!requestConfig) return []
+  return normalizeOntologyColumnSemanticsRows(await request(requestConfig))
 }
 
 const ensureColumnSemanticsLoaded = async (tableKeys, force = false) => {
@@ -953,30 +954,13 @@ const reloadColumnSemantics = async () => {
 }
 
 const fetchReasoningSummary = async () => {
-  const rows = await request({
-    url: '/v_ontology_reasoning_summary?select=last_run_status,facts_total,seed_facts,inferred_facts,active_rules,role_app_access_facts,role_table_access_facts,workflow_transition_facts,sensitive_exposure_facts,transitive_dependency_facts,last_finished_at&limit=1',
-    method: 'get',
-    headers: {
-      'Accept-Profile': 'public',
-      'Content-Profile': 'public'
-    }
-  })
-  reasoningSummary.value = firstRow(rows) || {}
+  reasoningSummary.value = normalizeOntologyFirstRow(await request(ONTOLOGY_REASONING_SUMMARY_REQUEST))
 }
 
 const loadReasoningFacts = async () => {
-  const predicateFilter = reasoningPredicate.value
-    ? `&predicate=eq.${encodeURIComponent(reasoningPredicate.value)}`
-    : ''
-  const rows = await request({
-    url: `/v_ontology_reasoning_facts?select=id,subject_type,subject_id,subject_label,predicate,object_type,object_id,object_label,inference_rule,rule_name,inference_depth,is_inferred,evidence${predicateFilter}&order=is_inferred.desc,inference_depth.asc,id.asc&limit=200`,
-    method: 'get',
-    headers: {
-      'Accept-Profile': 'public',
-      'Content-Profile': 'public'
-    }
-  })
-  reasoningFacts.value = Array.isArray(rows) ? rows : []
+  reasoningFacts.value = normalizeOntologyRows(await request(
+    buildOntologyReasoningFactsRequest(reasoningPredicate.value)
+  ))
 }
 
 const loadReasoning = async () => {
@@ -993,59 +977,14 @@ const loadReasoning = async () => {
 const loadReasoningInsights = async () => {
   insightLoading.value = true
   try {
-    const [
-      healthRows,
-      roleRows,
-      tableRows,
-      ruleRows,
-      sensitiveRows
-    ] = await Promise.all([
-      request({
-        url: '/v_ontology_reasoning_health?select=id,is_healthy,health_code,facts_total,inferred_facts,api_relations,semanticized_relations,ontology_columns,semanticized_columns,missing_relation_semantics,missing_column_semantics,last_run_status,last_finished_at&limit=1',
-        method: 'get',
-        headers: {
-          'Accept-Profile': 'public',
-          'Content-Profile': 'public'
-        }
-      }),
-      request({
-        url: '/v_ontology_role_access_insights?select=role_code,role_name,accessible_apps,accessible_tables,operable_tables,sensitive_columns,sensitive_tables,inferred_permission_paths&order=sensitive_columns.desc,accessible_apps.desc,role_code.asc&limit=50',
-        method: 'get',
-        headers: {
-          'Accept-Profile': 'public',
-          'Content-Profile': 'public'
-        }
-      }),
-      request({
-        url: '/v_ontology_table_impact_insights?select=table_id,table_label,sensitive_columns,roles_can_access,roles_can_operate,direct_dependent_tables,transitive_dependent_tables,depends_on_tables,has_reasoning_impact&has_reasoning_impact=eq.true&order=transitive_dependent_tables.desc,roles_can_access.desc,table_id.asc&limit=50',
-        method: 'get',
-        headers: {
-          'Accept-Profile': 'public',
-          'Content-Profile': 'public'
-        }
-      }),
-      request({
-        url: '/v_ontology_reasoning_rule_stats?select=rule_code,rule_name,declared_predicate,facts_total,seed_facts,inferred_facts,predicate_count,is_active,min_depth,max_depth&order=inferred_facts.desc,facts_total.desc,rule_code.asc&limit=50',
-        method: 'get',
-        headers: {
-          'Accept-Profile': 'public',
-          'Content-Profile': 'public'
-        }
-      }),
-      request({
-        url: '/v_ontology_sensitive_access_paths?select=role_code,role_name,table_id,table_label,column_id,column_name,column_label,access_rule,access_predicate,inference_rule,rule_name&order=role_code.asc,table_id.asc,column_name.asc&limit=50',
-        method: 'get',
-        headers: {
-          'Accept-Profile': 'public',
-          'Content-Profile': 'public'
-        }
-      })
-    ])
-    reasoningHealth.value = firstRow(healthRows) || {}
-    roleAccessInsights.value = Array.isArray(roleRows) ? roleRows : []
-    tableImpactInsights.value = Array.isArray(tableRows) ? tableRows : []
-    ruleStats.value = Array.isArray(ruleRows) ? ruleRows : []
-    sensitiveAccessPaths.value = Array.isArray(sensitiveRows) ? sensitiveRows : []
+    const insight = normalizeOntologyInsightRows(await Promise.all(
+      ONTOLOGY_INSIGHT_REQUESTS.map((config) => request(config))
+    ))
+    reasoningHealth.value = insight.health
+    roleAccessInsights.value = insight.roles
+    tableImpactInsights.value = insight.tables
+    ruleStats.value = insight.rules
+    sensitiveAccessPaths.value = insight.sensitive
     await explainRoleAccess(true)
   } catch {
     ElMessage.error('加载推理洞察失败')
@@ -1057,15 +996,7 @@ const loadReasoningInsights = async () => {
 const refreshReasoning = async () => {
   reasoningRefreshLoading.value = true
   try {
-    await request({
-      url: '/rpc/refresh_ontology_inferences',
-      method: 'post',
-      data: { p_max_depth: 4 },
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public'
-      }
-    })
+    await request(ONTOLOGY_REFRESH_REASONING_REQUEST)
     await Promise.all([loadReasoning(), loadReasoningInsights(), loadKgNodes()])
     ElMessage.success('推理刷新完成')
   } catch {
@@ -1083,19 +1014,7 @@ const explainRoleAccess = async (silent = false) => {
   }
   roleExplainLoading.value = true
   try {
-    const rows = await request({
-      url: '/rpc/explain_role_ontology_access',
-      method: 'post',
-      data: {
-        p_role_code: roleCode,
-        p_limit: 50
-      },
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public'
-      }
-    })
-    roleExplainRows.value = Array.isArray(rows) ? rows : []
+    roleExplainRows.value = normalizeOntologyRows(await request(buildOntologyRoleAccessRequest(roleCode)))
   } catch {
     if (!silent) ElMessage.error('角色访问解释失败')
   } finally {
@@ -1118,24 +1037,11 @@ const selectKgNode = async (row, options = {}) => {
 const loadKgNodes = async () => {
   kgLoading.value = true
   try {
-    const rows = await request({
-      url: '/rpc/search_ontology_kg_nodes',
-      method: 'post',
-      data: {
-        p_query: String(kgSearchText.value || '').trim() || null,
-        p_node_type: kgNodeType.value || null,
-        p_limit: 50
-      },
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public'
-      }
-    })
-    kgNodes.value = Array.isArray(rows) ? rows : []
-    const currentKey = kgSelectedNode.value
-      ? `${kgSelectedNode.value.node_type}:${kgSelectedNode.value.node_id}`
-      : ''
-    const nextSelected = kgNodes.value.find((row) => `${row.node_type}:${row.node_id}` === currentKey) || kgNodes.value[0] || null
+    kgNodes.value = normalizeOntologyRows(await request(buildOntologyKgNodeSearchRequest({
+      query: kgSearchText.value,
+      nodeType: kgNodeType.value
+    })))
+    const nextSelected = pickOntologyKgSelectedNode(kgNodes.value, kgSelectedNode.value)
     if (nextSelected) {
       await selectKgNode(nextSelected, { loadNeighbors: true })
     } else {
@@ -1158,24 +1064,12 @@ const loadKgNeighbors = async (silent = false) => {
   }
   kgNeighborLoading.value = true
   try {
-    const rows = await request({
-      url: '/rpc/query_ontology_kg_neighbors',
-      method: 'post',
-      data: {
-        p_node_type: node.node_type,
-        p_node_id: node.node_id,
-        p_direction: kgDirection.value,
-        p_max_depth: Number(kgDepth.value || 1),
-        p_limit: 80,
-        p_predicate: kgPredicate.value || null
-      },
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public'
-      }
-    })
-    kgNeighbors.value = Array.isArray(rows) ? rows : []
-    const target = kgNeighbors.value.find((row) => ['app', 'table', 'column', 'permission', 'role'].includes(row.to_type))
+    kgNeighbors.value = normalizeOntologyRows(await request(buildOntologyKgNeighborRequest(node, {
+      direction: kgDirection.value,
+      depth: kgDepth.value,
+      predicate: kgPredicate.value
+    })))
+    const target = pickOntologyKgNeighborTarget(kgNeighbors.value)
     if (target) {
       kgPathTargetType.value = target.to_type
       kgPathTargetId.value = target.to_id
@@ -1206,24 +1100,12 @@ const findKgPaths = async () => {
   }
   kgPathLoading.value = true
   try {
-    const rows = await request({
-      url: '/rpc/find_ontology_kg_paths',
-      method: 'post',
-      data: {
-        p_source_type: node.node_type,
-        p_source_id: node.node_id,
-        p_target_type: kgPathTargetType.value,
-        p_target_id: targetId,
-        p_max_depth: Number(kgPathDepth.value || 2),
-        p_direction: kgPathDirection.value,
-        p_limit: 20
-      },
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public'
-      }
-    })
-    kgPathRows.value = Array.isArray(rows) ? rows : []
+    kgPathRows.value = normalizeOntologyRows(await request(buildOntologyKgPathRequest(node, {
+      targetType: kgPathTargetType.value,
+      targetId,
+      depth: kgPathDepth.value,
+      direction: kgPathDirection.value
+    })))
   } catch {
     ElMessage.error('查询知识图谱路径失败')
   } finally {
@@ -1352,22 +1234,12 @@ const explainPath = async () => {
   }
   pathLoading.value = true
   try {
-    const rows = await request({
-      url: '/rpc/explain_ontology_path',
-      method: 'post',
-      data: {
-        p_subject_type: pathSubjectType.value,
-        p_subject_id: subjectId,
-        p_object_type: pathObjectType.value || null,
-        p_object_id: String(pathObjectId.value || '').trim() || null,
-        p_max_depth: 4
-      },
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public'
-      }
-    })
-    pathRows.value = Array.isArray(rows) ? rows : []
+    pathRows.value = normalizeOntologyRows(await request(buildOntologyPathExplanationRequest({
+      subjectType: pathSubjectType.value,
+      subjectId,
+      objectType: pathObjectType.value,
+      objectId: pathObjectId.value
+    })))
   } catch {
     ElMessage.error('路径解释失败')
   } finally {
@@ -1459,15 +1331,7 @@ const bindGraphResizeObserver = () => {
 const reload = async () => {
   loading.value = true
   try {
-    const rows = await request({
-      url: '/ontology_table_relations?select=id,relation_type,subject_table,subject_column,predicate,object_table,object_column,bridge_table,details,subject_semantic_name,object_semantic_name&order=relation_type.asc,id.asc',
-      method: 'get',
-      headers: {
-        'Accept-Profile': 'app_data',
-        'Content-Profile': 'app_data'
-      }
-    })
-    relations.value = Array.isArray(rows) ? rows : []
+    relations.value = normalizeOntologyRows(await request(ONTOLOGY_RELATIONS_REQUEST))
     refreshedAt.value = new Date().toLocaleTimeString()
     syncSelectedTable()
   } catch (error) {
