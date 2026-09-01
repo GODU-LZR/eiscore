@@ -59,7 +59,7 @@ assert.doesNotMatch(dashboardSource, /APP_RUNTIME_TITLE_STORAGE_KEY|\blocalStora
 
 const layoutSource = readFileSync(resolve(repoRoot, 'eiscore-base/src/layout/index.vue'), 'utf8')
 assert.match(layoutSource, /getAppRuntimeTitle\s*}\s*from\s*['"]@shared\/eis-app-runtime-title-store\.mjs['"]/)
-assert.match(layoutSource, /return getAppRuntimeTitle\(appId\)/)
+assert.match(layoutSource, /getRuntimeTitle:\s*getAppRuntimeTitle/)
 assert.doesNotMatch(layoutSource, /APP_RUNTIME_TITLE_STORAGE_KEY/)
 
 console.log('PASS: app dashboard and host tabs share safe runtime title storage')

@@ -2,7 +2,7 @@
 
 ## 结论
 
-2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,911 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot 与四个 FlashBuilder 纯策略切片后，巨页债务已降至 87,633 行。
+2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,911 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder 与首个基座布局纯策略切片后，巨页债务已降至 87,396 行。
 
 该结果证明巨页是系统性维护风险，不能靠一次整体重写解决。基线已进入 `config/engineering/vue-complexity-baseline.json`，质量门禁禁止既有巨页增长、禁止新增巨页，并要求总债务、极端页和关键页数量只降不增。
 
@@ -22,7 +22,7 @@
 | 产品 | 巨页数 | 巨页行数 | 最大文件行数 |
 | --- | ---: | ---: | ---: |
 | 应用中心 | 8 | 16,126 | 3,741 |
-| 基座 | 8 | 16,935 | 4,003 |
+| 基座 | 8 | 16,698 | 3,766 |
 | 物料/仓储 | 12 | 14,945 | 1,828 |
 | 移动端 | 7 | 8,632 | 1,893 |
 | 销售 | 2 | 5,792 | 3,822 |
@@ -42,7 +42,7 @@
 | `eiscore-base/src/components/AiCopilot.vue` | 3,522 | 7 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/FlashBuilder.vue` | 3,741 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/AppRuntime.vue` | 3,725 | Runtime 协议、生命周期组合；BPMN、Workflow、自动推进、导航、Flash 来源、配置/选项、规则、就绪、授权与任务路由策略已迁出 |
-| `eiscore-base/src/layout/index.vue` | 4,003 | 标签/菜单策略、主题/企业配置、布局组件 |
+| `eiscore-base/src/layout/index.vue` | 3,766 | 宿主标签路由策略已迁出；继续拆菜单/主题或引导纯策略 |
 | `eiscore-apps/src/views/OntologyWorkbench.vue` | 2,772 | 本体查询策略、编辑器状态、关系视图 |
 | `eiscore-production/src/components/ProductionAppGrid.vue` | 2,585 | Grid 业务策略与专用交互 |
 | `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 2,521 | Grid 业务策略与专用交互 |
@@ -54,7 +54,7 @@
 
 - 扫描范围内新 Vue 文件不得达到 800 行。
 - 52 个基线文件逐文件不得超过各自基线行数；文件删除或降到阈值以下视为债务下降。
-- 巨页总行数的初始基线为 90,948，当前棘轮值为 87,633；≥1,200 行不得超过 32 个；≥2,000 行不得超过 11 个。
+- 巨页总行数的初始基线为 90,948，当前棘轮值为 87,396；≥1,200 行不得超过 32 个；≥2,000 行不得超过 11 个。
 - 不允许通过重命名、移动目录、生成文件或扩充排除项规避门禁。
 - 基线扩张不是普通维护动作；确有必要时必须记录 ADR、替代方案和回收计划。
 
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-转向 `eiscore-base/src/layout/index.vue`：先建立标签/菜单、主题、企业配置、身份权限和窗口事件职责库存，再选择无视觉变化的纯策略切片。
+继续 `eiscore-base/src/layout/index.vue`：审计菜单/主题或引导规范化纯策略，保持身份权限、Router、安全存储、窗口事件和现有视觉布局不变。

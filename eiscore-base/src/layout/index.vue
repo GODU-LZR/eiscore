@@ -269,7 +269,6 @@ import {
   parseJwtPayload,
   setUserInfo
 } from '@/utils/auth'
-import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '@/utils/micro-path'
 import { getEnterpriseConfig } from '@/platform/enterprise-config'
 import { isEnterprisePathEnabled } from '@/platform/enterprise-routing'
 import { getHostHttpClient } from '@/platform/http-client'
@@ -289,6 +288,17 @@ import {
   writeGuideProgress
 } from '@shared/eis-guide-progress-store.mjs'
 import { readHostTabs, writeHostTabs } from '@shared/eis-host-tabs-store.mjs'
+import {
+  HOST_ENTRY_TAB_KEY as ENTRY_TAB_KEY,
+  buildDefaultHostTabKey as buildDefaultTabKey,
+  buildHostTabRouteId as buildHostRouteId,
+  isHostModuleAppPath as isModuleAppPath,
+  isHostModuleEntryPath as isModuleEntryPath,
+  normalizeHostTabPath as normalizeHostPath,
+  normalizeHostTabQuery as normalizeHostQuery,
+  resolveHostTabDot,
+  resolveHostTabTitle as resolveHostTabTitlePolicy
+} from '@/domain/base-layout-host-tab-policy'
 
 const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
 const isCollapse = ref(false)
@@ -3159,259 +3169,12 @@ const hostOpenTabAliasMap = new Map()
 const hostTabs = ref([{ key: '/', path: '/', query: {}, title: '首页', closable: false, dot: 'home', routeId: '/' }])
 const activeHostTabKey = ref('/')
 
-const ENTRY_TAB_KEY = '/'
-const MODULE_ENTRY_TITLES = {
-  '/': '首页',
-  '/materials': '仓储管理',
-  '/hr': '人事管理',
-  '/apps/': '应用中心',
-  '/sales': '销售管理',
-  '/purchase': '采购管理',
-  '/production': '生产管理',
-  '/quality': '质量管理',
-  '/equipment': '设备管理',
-  '/decision': '决策支持'
-}
-
-const MODULE_APP_KEY_TITLES = {
-  materials: {
-    a: '物料'
-  },
-  hr: {
-    b: '调岗记录',
-    c: '考勤管理'
-  },
-  sales: {
-    customers: '客户档案',
-    follow_ups: '客户跟进',
-    opportunities: '销售商机',
-    orders: '销售订单',
-    payments: '回款记录'
-  },
-  purchase: {
-    suppliers: '供应商档案',
-    demands: '采购需求',
-    orders: '采购订单',
-    arrivals: '到货跟踪'
-  },
-  production: {
-    bom_list: '配方清单',
-    plans: '生产建议',
-    work_orders: '生产工单',
-    work_order_items: '领料跟进'
-  },
-  quality: {
-    inspections: '检验台账',
-    inspection_orders: '检验单',
-    production_inspections: '生产检验',
-    ncr: '质量异常',
-    actions: '整改任务',
-    audits: '质量审核',
-    standards: '检验标准',
-    dashboard: '质量总览'
-  },
-  equipment: {
-    assets: '设备台账',
-    checks: '点检记录',
-    equipment_patrols: '设备巡检',
-    issues: '设备异常',
-    work_orders: '维保工单',
-    plans: '巡检计划',
-    standards: '保养标准',
-    dashboard: '设备总览'
-  }
-}
-
-const MODULE_DIRECT_APP_ROUTES = [
-  { path: '/materials/batch-rules', title: '批次号规则' },
-  { path: '/materials/warehouses', title: '仓库管理' },
-  { path: '/materials/inventory-ledger', title: '库存台账' },
-  { path: '/materials/inventory-stock-in', title: '入库' },
-  { path: '/materials/inventory-stock-out', title: '出库' },
-  { path: '/materials/inventory-current', title: '库存查询' },
-  { path: '/materials/inventory-dashboard', title: '库存大屏' },
-  { path: '/materials/material/detail', title: '物料', tabKey: '/materials/app/a' },
-  { path: '/materials/material/label', title: '物料', tabKey: '/materials/app/a' },
-  { path: '/materials/inventory-draft/detail', title: '库存台账', tabKey: '/materials/inventory-ledger' },
-  { path: '/hr/employee', title: '人事花名册' },
-  { path: '/hr/org', title: '部门架构图' },
-  { path: '/hr/acl', title: '权限管理' },
-  { path: '/hr/users', title: '用户管理' },
-  { path: '/sales/cockpit', title: '销售驾驶舱' },
-  { path: '/purchase/dashboard', title: '采购驾驶舱' },
-  { path: '/production/overview', title: '生产总览' },
-  { path: '/production/bom', title: '产品配方' },
-  { path: '/quality/dashboard', title: '质量总览' },
-  { path: '/equipment/dashboard', title: '设备总览' }
-]
-
-const normalizeHostPath = (value) => {
-  const raw = canonicalizeMicroChainPath(ensureAbsoluteHostPath(value))
-  if (raw === '/apps' || raw === '/apps/index.html') return '/apps/'
-  if (raw === '/materials/' || raw === '/materials/index.html' || raw === '/materials/apps' || raw === '/materials/apps/') return '/materials'
-  if (raw === '/hr/' || raw === '/hr/index.html' || raw === '/hr/apps' || raw === '/hr/apps/') return '/hr'
-  if (raw === '/sales/' || raw === '/sales/index.html' || raw === '/sales/apps' || raw === '/sales/apps/') return '/sales'
-  if (raw === '/purchase/' || raw === '/purchase/index.html' || raw === '/purchase/apps' || raw === '/purchase/apps/') return '/purchase'
-  if (raw === '/production/' || raw === '/production/index.html' || raw === '/production/apps' || raw === '/production/apps/') return '/production'
-  if (raw === '/quality/' || raw === '/quality/index.html' || raw === '/quality/apps' || raw === '/quality/apps/') return '/quality'
-  if (raw === '/equipment/' || raw === '/equipment/index.html' || raw === '/equipment/apps' || raw === '/equipment/apps/') return '/equipment'
-  if (raw === '/decision/' || raw === '/decision/index.html' || raw === '/decision/apps' || raw === '/decision/apps/') return '/decision'
-  // Keep full child route for micro-app deep links (e.g. /materials/inventory-stock-in).
-  if (raw === '/materials' || raw.startsWith('/materials/')) return raw
-  if (raw === '/hr' || raw.startsWith('/hr/')) return raw
-  if (raw === '/sales' || raw.startsWith('/sales/')) return raw
-  if (raw === '/purchase' || raw.startsWith('/purchase/')) return raw
-  if (raw === '/production' || raw.startsWith('/production/')) return raw
-  if (raw === '/quality' || raw.startsWith('/quality/')) return raw
-  if (raw === '/equipment' || raw.startsWith('/equipment/')) return raw
-  if (raw === '/decision' || raw.startsWith('/decision/')) return raw
-  if (raw.startsWith('/apps/config-center')) return '/apps/config-center'
-  if (raw.startsWith('/apps/')) return raw
-  if (raw === '/settings') return '/settings'
-  if (raw.startsWith('/ai/enterprise')) return '/ai/enterprise'
-  return raw
-}
-
-const normalizeHostQuery = (value) => {
-  if (!value || typeof value !== 'object') return {}
-  const next = {}
-  Object.keys(value).sort().forEach((key) => {
-    const current = value[key]
-    if (current === null || current === undefined) return
-    if (Array.isArray(current)) {
-      const list = current.map((item) => String(item || '').trim()).filter(Boolean)
-      if (list.length) next[key] = list.join(',')
-      return
-    }
-    const text = String(current).trim()
-    if (text) next[key] = text
-  })
-  return next
-}
-
-const serializeHostQuery = (query = {}) => {
-  const params = new URLSearchParams()
-  Object.keys(query).sort().forEach((key) => params.set(key, query[key]))
-  return params.toString()
-}
-
-const buildHostRouteId = (path, query = {}) => {
-  const qs = serializeHostQuery(query)
-  return qs ? `${path}?${qs}` : path
-}
-
-const resolveHostTabDot = (path) => {
-  if (path === '/') return 'home'
-  if (path.startsWith('/materials')) return 'materials'
-  if (path.startsWith('/hr')) return 'hr'
-  if (path.startsWith('/apps')) return 'apps'
-  if (path.startsWith('/sales')) return 'sales'
-  if (path.startsWith('/purchase')) return 'purchase'
-  if (path.startsWith('/production')) return 'production'
-  if (path.startsWith('/quality')) return 'quality'
-  if (path.startsWith('/equipment')) return 'equipment'
-  if (path.startsWith('/decision')) return 'decision'
-  return 'default'
-}
-
-const getEntryTitle = (path) => MODULE_ENTRY_TITLES[path] || '首页'
-
-const isModuleEntryPath = (path) => {
-  return path === '/' ||
-    path === '/materials' ||
-    path === '/hr' ||
-    path === '/apps/' ||
-    path === '/apps' ||
-    path === '/sales' ||
-    path === '/purchase' ||
-    path === '/production' ||
-    path === '/quality' ||
-    path === '/equipment' ||
-    path === '/decision'
-}
-
-const getModuleAppKeyTitle = (path) => {
-  const match = String(path || '').match(/^\/(materials|hr|sales|purchase|production|quality|equipment)\/app\/([^/?#]+)/)
-  if (!match) return ''
-  const moduleName = match[1]
-  const appKey = decodeURIComponent(match[2] || '')
-  return MODULE_APP_KEY_TITLES[moduleName]?.[appKey] || ''
-}
-
-const getDirectAppRoute = (path) => {
-  return MODULE_DIRECT_APP_ROUTES.find((item) => path === item.path || path.startsWith(`${item.path}/`)) || null
-}
-
-const getPurchaseDocumentAppKey = (path, query = {}) => {
-  if (!String(path || '').startsWith('/purchase/document/')) return ''
-  const key = String(query.appKey || '').trim()
-  return key || 'suppliers'
-}
-
-const isModuleAppPath = (path, query = {}) => {
-  if (getPurchaseDocumentAppKey(path, query)) return true
-  if (getModuleAppKeyTitle(path)) return true
-  if (getDirectAppRoute(path)) return true
-  return false
-}
-
-const getAppRuntimeIdFromPath = (path) => {
-  const match = String(path || '').match(/^\/apps\/app\/([^/?#]+)/)
-  return match?.[1] ? decodeURIComponent(match[1]) : ''
-}
-
-const readStoredAppRuntimeTitle = (appId) => {
-  return getAppRuntimeTitle(appId)
-}
-
-const normalizeFallbackTitle = (title) => {
-  const text = String(title || '').trim()
-  if (!text || text === '页面' || text === '应用运行') return ''
-  return text
-}
-
-const getQueryAppTitle = (query = {}) => String(query.appName || query.name || '').trim()
-
-const resolveHostTabTitle = (path, query = {}, fallback = '') => {
-  const preferred = normalizeFallbackTitle(fallback)
-  const purchaseDocumentAppKey = getPurchaseDocumentAppKey(path, query)
-  if (purchaseDocumentAppKey) return MODULE_APP_KEY_TITLES.purchase?.[purchaseDocumentAppKey] || '采购单据'
-  if (isModuleEntryPath(path)) return getEntryTitle(path === '/apps' ? '/apps/' : path)
-  const moduleAppKeyTitle = getModuleAppKeyTitle(path)
-  if (moduleAppKeyTitle) return moduleAppKeyTitle
-  const directAppRoute = getDirectAppRoute(path)
-  if (directAppRoute?.title) return directAppRoute.title
-  if (path === '/apps/config-center') return '应用配置中心'
-  if (path.startsWith('/apps/workflow-designer/')) return preferred || getQueryAppTitle(query) || '流程应用'
-  if (path.startsWith('/apps/flash-builder/')) return preferred || getQueryAppTitle(query) || '闪念应用'
-  if (path.startsWith('/apps/data-app/')) return preferred || getQueryAppTitle(query) || '数据表格应用'
-  if (path.startsWith('/apps/ontology-relations/')) return '本体关系工作台'
-  if (path.startsWith('/apps/app/')) {
-    const queryTitle = getQueryAppTitle(query)
-    return preferred || queryTitle || readStoredAppRuntimeTitle(getAppRuntimeIdFromPath(path)) || '应用运行'
-  }
-  if (path === '/settings') return '系统设置'
-  if (path.startsWith('/ai/enterprise')) return '企业助手'
-  if (preferred) return preferred
-  return '页面'
-}
-
-const buildDefaultTabKey = (path, query = {}) => {
-  if (isModuleEntryPath(path)) return ENTRY_TAB_KEY
-  const purchaseDocumentAppKey = getPurchaseDocumentAppKey(path, query)
-  if (purchaseDocumentAppKey) return `/purchase/app/${purchaseDocumentAppKey}`
-  const directAppRoute = getDirectAppRoute(path)
-  if (directAppRoute?.tabKey) return directAppRoute.tabKey
-  if (directAppRoute) return directAppRoute.path
-  if (isModuleAppPath(path, query)) {
-    const match = String(path || '').match(/^\/(materials|hr|sales|purchase|production|quality|equipment)\/app\/([^/?#]+)/)
-    if (match) return `/${match[1]}/app/${decodeURIComponent(match[2] || '')}`
-  }
-  if (path === '/apps/config-center') return '/apps/config-center'
-  if (path === '/settings') return '/settings'
-  if (path.startsWith('/ai/enterprise')) return '/ai/enterprise'
-  return path
-}
+const resolveHostTabTitle = (path, query = {}, fallback = '') => resolveHostTabTitlePolicy(
+  path,
+  query,
+  fallback,
+  { getRuntimeTitle: getAppRuntimeTitle }
+)
 
 const persistHostTabs = () => {
   const payload = hostTabs.value.map((tab) => ({
