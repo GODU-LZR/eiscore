@@ -221,6 +221,8 @@ OntologyWorkbench 第二个切片新增纯 KG 图策略。谓词/节点标签、
 
 OntologyWorkbench 第三个切片新增纯查询协议策略。Public/App Data Profile、列语义/推理/洞察/角色解释/KG/业务路径/关系表的 URL 与 RPC Payload、数组/首行/五类洞察响应规范化、KG 当前节点稳定选择和邻域目标回退脱离页面；实际 Request、加载/错误状态、ECharts、ResizeObserver、Router、Watch 和 DOM 保持原位。页面降至 2,184 行，巨页债务棘轮收紧到 86,577 行。
 
+OntologyWorkbench 纯策略子目标随后通过阶段退出审计。机器门禁锁定 2,184 行页面、736/660/785 行 SFC 分区、3 个纯策略模块/54 个导出，以及 11 个 Request、16 个消息、1 个 Router、4 个 Watch、2 个 ResizeObserver、4 个 NextTick、35 个 Callable、1 个 ECharts 动态加载和各 1 个 Mounted/BeforeUnmount 的只降不增上限；Axios、直接 Fetch/Storage、EventSource、WebSocket、XMLHttpRequest 与 `window.location` 导航失败关闭。页面累计减少 588 行（21.2%），剩余真实网络、ECharts、响应式状态和视觉布局作为当前组合边界保留，G3 转向 `ProductionAppGrid.vue`。
+
 数据库迁移治理首先接管唯一已有可信顺序的 Runtime V2 补丁。10 个历史补丁现在具有连续 ID、SHA-256、事务所有权、postcheck 和 `backup-restore` 声明，并与旧文本 Manifest 逐项对照；五个历史根共 102 份 SQL 由离线门禁锁定。其余 92 份没有足够依赖证据，因此保持原位且禁止自动执行。随后 Bash/PowerShell 入口收敛到共享执行核心：离线校验和备份证据先于连接，账本按 ID/校验和幂等处理并与迁移原子提交，最后强制 postcheck。真实备份恢复演练仍需获授权环境，边界决策见 ADR-0009。
 
 会话契约已接入首批真实失效链：基座全局 API 401、移动路由守卫和仓库/库存/考勤/盘点 API 均通过适配器清理会话。原 `/login`、`/mobile/login`、移动重定向参数、401 用户错误及宽松 JWT 路由兼容保持，移动端这些链路不再直接操作 Storage 或 Base64；剩余直接会话操作已量化为基座 9 个文件、30 处。
@@ -574,6 +576,8 @@ OntologyWorkbench 关系策略切片通过纯函数专项、完整质量门禁�
 OntologyWorkbench KG 图策略切片通过纯函数专项、完整质量门禁和完整离线单元套件：186 个 Node 文件语法、14 个锁定 CI 包、1,188 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,328 个模块。专项锁定标签、分类/颜色、节点合并、边去重、邻域/路径 Payload、指标、工作台视图、证据、Tooltip、纯依赖及页面委托；没有调用数据库、API、ECharts、Router、DOM 或远程环境。
 
 OntologyWorkbench 查询协议策略切片通过纯函数专项、完整质量门禁和完整离线单元套件：187 个 Node 文件语法、14 个锁定 CI 包、1,190 个文本文件秘密扫描、7 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,329 个模块。专项锁定 Profile、URL、RPC Payload、响应规范化、当前节点/邻域目标回退、纯依赖及页面委托；没有调用数据库、API、ECharts、Router、DOM 或远程环境。
+
+OntologyWorkbench 阶段退出审计通过组合专项、完整质量门禁和完整离线单元套件：188 个 Node 文件语法、14 个锁定 CI 包、1,192 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,329 个模块。审计锁定 SFC 分区、纯模块依赖、策略导出、Request/消息/Router/Watch/ResizeObserver/NextTick/Callable 上限、生命周期、ECharts 动态加载及平台旁路禁令；本切片没有修改产品代码或连接外部系统。
 
 ## 5. 升级、回退与运行治理
 

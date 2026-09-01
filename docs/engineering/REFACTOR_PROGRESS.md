@@ -180,14 +180,15 @@
 | `0ead5a1` | 完成基座布局纯策略阶段退出审计 | 锁定 3,535 行、4 个纯策略模块、41 个导出及组合副作用上限 |
 | `4d77bd8` | 抽离 OntologyWorkbench 关系策略 | 筛选、表集合、指标、标签、显示清洗与语义解析进入纯领域模块 |
 | `d2af1f8` | 抽离 OntologyWorkbench KG 图策略 | 标签、节点/边、图 Payload、视图状态、证据与 Tooltip 进入纯领域模块 |
-| 本文件所在提交 | 抽离 OntologyWorkbench 查询协议策略 | Profile、URL、RPC Payload、响应规范化与 KG 选择回退进入纯领域模块 |
+| `0168f47` | 抽离 OntologyWorkbench 查询协议策略 | Profile、URL、RPC Payload、响应规范化与 KG 选择回退进入纯领域模块 |
+| 本文件所在提交 | 完成 OntologyWorkbench 纯策略阶段退出审计 | 锁定 2,184 行、3 个纯策略模块、54 个导出及组合副作用上限 |
 
 ## 当前切片
 
-- 状态：G3 进行中；OntologyWorkbench 第三个渐进拆分切片完成，下一步建立组合阶段退出门禁。
-- 结果：新增无 Vue、Element Plus、实际 Request、ECharts、浏览器、Storage 或隐式时间依赖的 `ontology-workbench-query-policy.js`，迁出 Public/App Data Profile、12 类查询/RPC URL 与 Payload、列语义/首行/数组/五类洞察响应规范化、KG 当前节点稳定选择和邻域目标回退。页面从 2,320 降至 2,184 行，巨页债务从 86,713 降至 86,577 行并收紧棘轮。
-- 兼容边界：Schema/Table URL 编码、Predicate 可选过滤、50/80/20/200 上限、Depth 1/2/4 兜底、空查询/类型/谓词转 Null、五类邻域目标、当前节点保留/首行回退、Public 与 App Data Profile 保持；页面继续拥有实际 Request、加载/错误状态、ECharts、ResizeObserver、Router、Watch 与 DOM。
-- 验证：专项锁定 Profile、URL、RPC Payload、响应规范化、当前节点/邻域目标回退、纯依赖和页面委托；完整质量门禁与离线单元套件通过，覆盖 187 个 Node 文件语法、14 个锁定 CI 包、1,190 个文本文件秘密扫描、7 个变更代码文件 lint 和 23 项基础设施检查；应用中心生产构建成功并转换 2,329 个模块；没有调用数据库、API、ECharts、Router、DOM 或远程环境。
+- 状态：G3 进行中；OntologyWorkbench 纯策略子目标通过阶段退出审计，下一步转向 `ProductionAppGrid.vue`。
+- 结果：组合退出门禁锁定 2,184 行页面、736/660/785 行 SFC 分区、3 个纯策略模块/54 个导出，以及 11 个 Request、16 个消息、1 个 Router、4 个 Watch、2 个 ResizeObserver、4 个 NextTick、35 个 Callable、1 个 ECharts 动态加载和各 1 个 Mounted/BeforeUnmount 的只降不增上限；Axios、直接 Fetch/Storage、EventSource、WebSocket、XMLHttpRequest 与 `window.location` 导航失败关闭。
+- 兼容边界：真实 Request、错误提示、并发刷新、ECharts 实例/点击/Option、ResizeObserver、四视图状态、表格/图展示和现有模板/样式继续作为组合边界；没有拆视觉组件或移动跨区响应式状态。
+- 验证：组合专项、完整质量门禁、离线单元套件与应用中心生产构建通过；覆盖 188 个 Node 文件语法、14 个锁定 CI 包、1,192 个文本文件秘密扫描、6 个变更代码文件 lint 和 23 项基础设施检查，构建转换 2,329 个模块；没有调用数据库、API、ECharts、Router、DOM 或远程环境。
 
 ## 已知非阻断风险
 
@@ -207,4 +208,4 @@
 
 ## 下一候选切片
 
-继续 G3：为 2,184 行 `eiscore-apps/src/views/OntologyWorkbench.vue` 建立组合阶段退出门禁，锁定 SFC 分区、3 个纯策略模块/导出、Request、ECharts、ResizeObserver、Router、Watch、生命周期与 Callable 上限，再转向下一张未退出巨页。
+继续 G3：盘点 2,585 行 `eiscore-production/src/components/ProductionAppGrid.vue` 的生产 Grid 数据、业务动作、请求、表单、业务链和 DOM 边界，建立首个无视觉变化的纯策略切片。
