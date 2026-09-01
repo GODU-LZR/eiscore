@@ -259,6 +259,11 @@ import {
 import {
   buildPurchaseDocumentFallbackSchema
 } from '@/domain/purchase-document-detail-schema-policy.js'
+import {
+  buildPurchaseDocumentFileColumnPayload,
+  getPurchaseDocumentFieldValue,
+  sanitizePurchaseDocumentCascaderValues
+} from '@/domain/purchase-document-detail-field-policy.js'
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
 
 const props = defineProps({
@@ -849,7 +854,7 @@ const saveFormValues = async () => {
 
 const handleFormUpdate = (nextValue) => {
   if (!nextValue || !formData.value) return
-  sanitizeCascaderValues(nextValue)
+  sanitizePurchaseDocumentCascaderValues(nextValue, dynamicColumns.value)
   const nextProps = nextValue.properties || {}
 
   Object.keys(formData.value || {}).forEach((key) => {
@@ -891,62 +896,6 @@ const getAllColumns = () => ([
   })))
 ])
 
-const getColumnValue = (col, rowData) => {
-  if (!rowData || !col?.prop) return ''
-  if (Object.prototype.hasOwnProperty.call(rowData, col.prop)) return rowData[col.prop]
-  return rowData.properties?.[col.prop] ?? ''
-}
-
-const getRowValueByProp = (rowData, prop) => {
-  if (!rowData || !prop) return ''
-  if (Object.prototype.hasOwnProperty.call(rowData, prop)) return rowData[prop]
-  return rowData.properties?.[prop] ?? ''
-}
-
-const setRowValueByProp = (rowData, prop, value) => {
-  if (!rowData || !prop) return
-  if (Object.prototype.hasOwnProperty.call(rowData, prop)) {
-    rowData[prop] = value
-    return
-  }
-  if (!rowData.properties) rowData.properties = {}
-  rowData.properties[prop] = value
-}
-
-const normalizeOptionKey = (value) => {
-  if (value === null || value === undefined) return ''
-  return String(value)
-}
-
-const normalizeOptionList = (options) => {
-  if (!Array.isArray(options)) return []
-  return options.map(opt => {
-    if (opt && typeof opt === 'object') {
-      return {
-        label: opt.label ?? opt.value ?? '',
-        value: opt.value ?? opt.label ?? ''
-      }
-    }
-    return { label: String(opt), value: opt }
-  })
-}
-
-const sanitizeCascaderValues = (rowData) => {
-  if (!rowData) return
-  const cascaderColumns = dynamicColumns.value.filter(col => col?.type === 'cascader' && col.dependsOn && col.cascaderOptions)
-  cascaderColumns.forEach(col => {
-    const parentValue = getRowValueByProp(rowData, col.dependsOn)
-    const map = col.cascaderOptions || {}
-    const key = normalizeOptionKey(parentValue)
-    const options = map[key] || map[parentValue] || []
-    const allowed = new Set(normalizeOptionList(options).map(opt => normalizeOptionKey(opt.value)))
-    const current = getRowValueByProp(rowData, col.prop)
-    if (current && !allowed.has(normalizeOptionKey(current))) {
-      setRowValueByProp(rowData, col.prop, '')
-    }
-  })
-}
-
 const applyFormulaUpdates = (rowData) => {
   applyDocumentFormulaUpdates({
     rowData,
@@ -955,28 +904,11 @@ const applyFormulaUpdates = (rowData) => {
   })
 }
 
-const buildFileColumnPayload = (columns, rowData) => {
-  if (!rowData) return []
-  return columns
-    .filter(col => col.type === 'file')
-    .map(col => {
-      const rawValue = getRowValueByProp(rowData, col.prop)
-      const rawFiles = Array.isArray(rawValue) ? rawValue : []
-      const files = rawFiles
-        .map(file => ({
-          name: file?.name || file?.fileName || file?.filename || '文件',
-          url: file?.url || file?.file_url || file?.dataUrl || ''
-        }))
-        .filter(file => file.name)
-      return { label: col.label, prop: col.prop, files }
-    })
-}
-
 const buildAiFormPrompt = () => {
   const columns = getAllColumns()
   const model = formModel.value || formData.value
   const columnValues = columns.map(col => {
-    const value = getColumnValue(col, model)
+    const value = getPurchaseDocumentFieldValue(model, col.prop)
     if (col.type === 'file') {
       const files = Array.isArray(value)
         ? value.map(file => ({ name: file?.name || file?.fileName || file?.filename || '文件' }))
@@ -985,7 +917,7 @@ const buildAiFormPrompt = () => {
     }
     return { label: col.label, prop: col.prop, type: col.type, value: value ?? '' }
   })
-  const fileColumns = buildFileColumnPayload(columns, model)
+  const fileColumns = buildPurchaseDocumentFileColumnPayload(columns, model)
 
   return [
     `请根据采购模块“${detailConfig.value.name}”当前表格列生成单据模板。`,
