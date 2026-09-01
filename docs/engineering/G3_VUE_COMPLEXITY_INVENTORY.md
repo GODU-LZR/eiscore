@@ -48,7 +48,7 @@
 | `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 1,970 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-base/src/views/DocumentIntakeCenter.vue` | 1,973 | 6 个纯模块/54 个导出已迁出，阶段退出门禁已建立 |
 | `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 1,916 | 11 个纯策略模块/54 个导出已迁出，阶段退出门禁已建立 |
-| `eiscore-equipment/src/views/EquipmentHome.vue` | 1,642 | 6 个纯策略模块/43 个导出已迁出；下一步建立组合层退出门禁 |
+| `eiscore-equipment/src/views/EquipmentHome.vue` | 1,642 | 6 个纯策略模块/43 个导出已迁出，阶段退出门禁已建立 |
 
 ## 持续门禁
 
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-继续 `eiscore-equipment/src/views/EquipmentHome.vue`：展示、摘要、时间线、数据、加载与壳层策略均已迁出；下一步建立组合层退出门禁，锁定策略清单、导出数、请求/订阅/路由/定时器/Fullscreen 副作用和页面行数。
+`EquipmentHome.vue` 已完成纯策略阶段退出：组合门禁锁定 1,642 行上限、6 个策略模块/43 个导出，以及 Request、Realtime、Router、定时器、Fullscreen 和生命周期副作用。下一 G3 切片从机器库存选择新的高价值候选页。

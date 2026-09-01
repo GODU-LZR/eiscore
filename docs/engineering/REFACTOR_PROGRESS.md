@@ -221,13 +221,14 @@
 | 本文件所在提交 | 抽离 EquipmentHome 数据同步策略 | 顶层稳定签名、行序等值判断、非数组归一、Realtime Payload 解析与六表资格进入纯模块 |
 | 本文件所在提交 | 抽离 EquipmentHome 加载策略 | 六路查询 URL/顺序/method/limit、完整演示快照和全空回退资格进入纯模块 |
 | 本文件所在提交 | 抽离 EquipmentHome 壳层投影策略 | 颜色、时钟/同步文案、滚动周期、状态饼图及应用/记录路由描述进入纯模块 |
+| 本文件所在提交 | 完成 EquipmentHome 纯策略阶段退出审计 | 锁定 1,642 行、6 个纯模块、43 个导出及组合副作用上限 |
 
 ## 当前切片
 
-- 状态：G3 进行中；`DocumentIntakeCenter.vue` 与 `PurchaseDocumentDetail.vue` 均已通过纯策略阶段退出审计，`EquipmentHome.vue` 已开始按驾驶舱职责渐进拆分。
-- 结果：EquipmentHome 第六个切片新增壳层投影纯策略模块及 8 个导出，把颜色令牌、驾驶舱时钟、同步/Realtime 文案、滚动周期、状态饼图及应用/记录路由描述迁出；累计 6 个纯模块、43 个导出，页面从 2,072 降至 1,642 行（累计减少 430 行），巨页债务降至 84,206 行，极端页保持 7 个。
-- 兼容边界：页面继续取得当前时间并执行 Vue、Request、Realtime、Router、Fullscreen 和生命周期副作用；壳层策略只投影字符串、样式和路由描述，保留颜色 CSS 变量、时钟 locale/options、空状态圆环、角度累加顺序、六个应用路径及演示记录 query。纯策略不得引入 Vue、网络执行、Router、浏览器存储、DOM、隐式时间或随机依赖；本切片不改变接口、数据、请求顺序、实时订阅、路由结果、模板或视觉布局。
-- 验证：新增 `test:equipment-home-shell` 并纳入 `test:quality`；六个 EquipmentHome 专项、复杂度门禁（139 个 Vue 文件、52 个巨页、84,206/85,045 行债务）、223 个 JavaScript/Vue 文件语法检查、变更 lint、差异检查及 Windows 完整质量门禁均已通过，Windows 离线单元套件退出码为 0，设备前端生产构建完成 1,781 个模块且退出码为 0；本切片未连接数据库、远程 API 或 Agent。
+- 状态：G3 进行中；`DocumentIntakeCenter.vue`、`PurchaseDocumentDetail.vue` 与 `EquipmentHome.vue` 均已通过纯策略阶段退出审计。
+- 结果：新增 EquipmentHome 组合层退出门禁，锁定页面 1,642 行上限、模板/脚本/样式结构、6 个策略模块精确清单、43 个导出及 12 个页面可调用定义上限；不再继续无边界拆分视觉和 CSS，下一页从机器库存选择。
+- 兼容边界：门禁锁定六路查询描述与单一 Request 组合入口、单一 Realtime 订阅和事件计数、600ms 防抖、3 个 Router 跳转、2 组 interval 及清理、Realtime timeout 及清理、Fullscreen 进入/退出和挂载/卸载生命周期；同时禁止页面重新引入 Axios、Fetch、Storage、原生流式连接、全页导航或散落设备查询 URL。本切片只增加测试与文档，不改变页面、接口、数据、视觉或运行行为。
+- 验证：新增 `test:equipment-home-exit` 并纳入 `test:quality`；专项门禁已通过（1,641 个实际物理行、6 个策略模块、43 个导出），Windows 完整质量门禁通过（含 224 个 JavaScript/Vue 文件语法检查、变更 lint 和基础设施回归），离线单元套件退出码为 0，设备前端生产构建完成 1,781 个模块且退出码为 0；本切片不连接数据库、远程 API 或 Agent。
 
 ## 已知非阻断风险
 
@@ -247,4 +248,4 @@
 
 ## 下一候选切片
 
-继续 G3：为 1,642 行 `eiscore-equipment/src/views/EquipmentHome.vue` 建立组合层退出门禁，锁定 6 个策略模块/43 个导出及 Request、Realtime、Router、定时器和 Fullscreen 副作用上限。
+继续 G3：从机器复杂度库存选择新的高价值候选页，先建立特征测试，再按明确职责抽取纯策略；不继续拆分已完成退出审计的 `EquipmentHome.vue`。
