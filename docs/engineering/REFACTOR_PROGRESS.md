@@ -207,13 +207,14 @@
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 业务流程查询策略 | 链路查询编码、ID/单号列表查询 URL 与来源/目标行匹配优先级进入纯模块 |
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 表单值策略 | 模板值键/查询 URL、已知属性与扩展属性分流、保存 Payload 过滤进入纯模块 |
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 模板编辑策略 | 模板新增/改名/删除列表变换、作用域封装与当前选择回退进入纯模块 |
+| 本文件所在提交 | 抽离 PurchaseDocumentDetail 状态 Payload 策略 | 供应商、需求、订单、到货状态动作 Payload 构造进入纯模块 |
 
 ## 当前切片
 
-- 状态：G3 进行中；`DocumentIntakeCenter.vue` 纯策略阶段通过退出审计，`PurchaseDocumentDetail.vue` 已完成七个纯策略切片。
-- 结果：PurchaseDocumentDetail 从 2,326 降至 1,973 行，累计减少 353 行（15.2%）；详情动作、Schema 生成、字段值编排、模板库规范化、业务流程查询、表单值编排和模板编辑进入 7 个无运行时依赖纯模块，共 29 个导出。模板编辑策略保留手工模板 schema 克隆、改名 scope 合并、删除后的当前选择回退；页面真实动作处理、确认框、Request、Router、Loading、模板/单据模型、链路撤销与视觉布局保持原位；重复 prompt 构造已收敛为调用字段投影策略后委托共享 `buildDocumentFormPrompt` 的薄适配器，实际 AI 路径与提示内容保持不变；巨页债务棘轮收紧到 84,693 行。
-- 兼容边界：状态资格保留原字段、状态文案、权限覆盖和 `hasPerm` 时序；订单确认对 locked/disabled 的既有宽松语义、需求/订单关联按钮无记录仍显示等边界由专项锁定。Schema 保留原 `documentSchemaExample` 引用回退和字段类型优先级；字段策略保留顶层字段优先、`properties` 回退和文件空 URL 兼容；模板策略保留作用域合并与选择回退顺序；业务流程策略只负责纯查询/匹配规划，真实 Request 与异步加载顺序不变；表单值策略只负责纯键/分流/Payload 规划，公式应用、响应式赋值和保存时序不变；模板编辑策略只负责列表/记录变换，确认框、请求和时间生成仍在页面。未修改接口、数据或部署。
-- 验证：新增 `test:purchase-document-detail-flow`、`test:purchase-document-detail-form`、`test:purchase-document-detail-template-edit` 并纳入 `test:quality`；七个 PurchaseDocumentDetail 专项回归均通过，Node 语法检查通过（212 个文件）。Windows 完整质量门禁、离线单元套件和采购前端构建均通过；本切片未连接数据库、远程 API 或 Agent。
+- 状态：G3 进行中；`DocumentIntakeCenter.vue` 纯策略阶段通过退出审计，`PurchaseDocumentDetail.vue` 已完成八个纯策略切片。
+- 结果：PurchaseDocumentDetail 从 2,326 降至 1,972 行，累计减少 354 行（15.2%）；详情动作、Schema 生成、字段值编排、模板库规范化、业务流程查询、表单值编排、模板编辑和状态 Payload 进入 8 个无运行时依赖纯模块，共 38 个导出。状态策略覆盖供应商评审/暂停/恢复、需求提交/关闭/重开、订单确认/取消和到货异常，保留原字段、状态值、扩展属性合并与时间注入边界；页面真实动作处理、确认框、Request、Router、Loading、模板/单据模型、链路撤销与视觉布局保持原位；巨页债务棘轮收紧到 84,692 行。
+- 兼容边界：状态资格保留原字段、状态文案、权限覆盖和 `hasPerm` 时序；订单确认对 locked/disabled 的既有宽松语义、需求/订单关联按钮无记录仍显示等边界由专项锁定。Schema 保留原 `documentSchemaExample` 引用回退和字段类型优先级；字段策略保留顶层字段优先、`properties` 回退和文件空 URL 兼容；模板策略保留作用域合并与选择回退顺序；业务流程策略只负责纯查询/匹配规划，真实 Request 与异步加载顺序不变；表单值策略只负责纯键/分流/Payload 规划，公式应用、响应式赋值和保存时序不变；模板编辑策略只负责列表/记录变换，确认框、请求和时间生成仍在页面；状态策略只负责纯 Payload 构造，确认、请求、审计和路由仍在页面。未修改接口、数据或部署。
+- 验证：新增 `test:purchase-document-detail-flow`、`test:purchase-document-detail-form`、`test:purchase-document-detail-template-edit`、`test:purchase-document-detail-status` 并纳入 `test:quality`；八个 PurchaseDocumentDetail 专项回归均通过，Node 语法检查通过（213 个文件）。Windows 完整质量门禁、离线单元套件和采购前端构建均通过；本切片未连接数据库、远程 API 或 Agent。
 
 ## 已知非阻断风险
 

@@ -275,6 +275,17 @@ import {
   renamePurchaseDocumentTemplate
 } from '@/domain/purchase-document-detail-template-edit-policy.js'
 import {
+  buildPurchaseArrivalExceptionPatch,
+  buildPurchaseDemandClosePatch,
+  buildPurchaseDemandReopenPatch,
+  buildPurchaseDemandSubmitPatch,
+  buildPurchaseOrderCancelPatch,
+  buildPurchaseOrderConfirmPatch,
+  buildPurchaseSupplierPausePatch,
+  buildPurchaseSupplierResumePatch,
+  buildPurchaseSupplierReviewPatch
+} from '@/domain/purchase-document-detail-status-policy.js'
+import {
   buildPurchaseDocumentLinkQuery,
   buildPurchaseDocumentRowsQuery,
   encodePurchaseDocumentFilterValue,
@@ -1075,12 +1086,11 @@ const patchAndReload = async (url, data, successText, errorText) => {
 
 const reviewSupplier = async () => {
   if (!row.value.id) return
-  await patchAndReload(`/purchase_suppliers?id=eq.${row.value.id}`, {
-    supplier_status: '合作中',
-    status: 'active',
-    last_review_at: todayText(),
-    properties: { ...(row.value.properties || {}), reviewed_at: new Date().toISOString() }
-  }, '已完成供应商评审', '供应商评审失败')
+  await patchAndReload(`/purchase_suppliers?id=eq.${row.value.id}`, buildPurchaseSupplierReviewPatch({
+    row: row.value,
+    reviewDate: todayText(),
+    reviewedAt: new Date().toISOString()
+  }), '已完成供应商评审', '供应商评审失败')
 }
 
 const pauseSupplier = async () => {
@@ -1098,11 +1108,11 @@ const pauseSupplier = async () => {
       }
     )
     const pauseReason = String(result?.value || '').trim()
-    await patchAndReload(`/purchase_suppliers?id=eq.${row.value.id}`, {
-      supplier_status: '暂停合作',
-      status: 'disabled',
-      properties: { ...(row.value.properties || {}), pause_reason: pauseReason, paused_at: new Date().toISOString() }
-    }, '已暂停供应商合作', '暂停供应商失败')
+    await patchAndReload(`/purchase_suppliers?id=eq.${row.value.id}`, buildPurchaseSupplierPausePatch({
+      row: row.value,
+      reason: pauseReason,
+      pausedAt: new Date().toISOString()
+    }), '已暂停供应商合作', '暂停供应商失败')
   } catch (e) {
     if (e === 'cancel' || e === 'close') return
     console.error(e)
@@ -1118,11 +1128,10 @@ const resumeSupplier = async () => {
       '恢复供应商合作',
       { type: 'warning', confirmButtonText: '恢复合作', cancelButtonText: '取消' }
     )
-    await patchAndReload(`/purchase_suppliers?id=eq.${row.value.id}`, {
-      supplier_status: '合作中',
-      status: 'active',
-      properties: { ...(row.value.properties || {}), resumed_at: new Date().toISOString() }
-    }, '已恢复供应商合作', '恢复供应商失败')
+    await patchAndReload(`/purchase_suppliers?id=eq.${row.value.id}`, buildPurchaseSupplierResumePatch({
+      row: row.value,
+      resumedAt: new Date().toISOString()
+    }), '已恢复供应商合作', '恢复供应商失败')
   } catch (e) {
     if (e === 'cancel' || e === 'close') return
     console.error(e)
@@ -1164,10 +1173,7 @@ const submitPurchaseDemand = async () => {
     ElMessage.warning('需求数量必须大于 0')
     return
   }
-  await patchAndReload(`/purchase_demands?id=eq.${row.value.id}`, {
-    demand_status: '待采购',
-    status: 'active'
-  }, '已提交采购', '提交采购失败')
+  await patchAndReload(`/purchase_demands?id=eq.${row.value.id}`, buildPurchaseDemandSubmitPatch(), '已提交采购', '提交采购失败')
 }
 
 const closePurchaseDemand = async () => {
@@ -1185,11 +1191,11 @@ const closePurchaseDemand = async () => {
       }
     )
     const closeReason = String(result?.value || '').trim()
-    await patchAndReload(`/purchase_demands?id=eq.${row.value.id}`, {
-      demand_status: '已关闭',
-      status: 'disabled',
-      properties: { ...(row.value.properties || {}), close_reason: closeReason, closed_at: new Date().toISOString() }
-    }, '已关闭需求', '关闭需求失败')
+    await patchAndReload(`/purchase_demands?id=eq.${row.value.id}`, buildPurchaseDemandClosePatch({
+      row: row.value,
+      reason: closeReason,
+      closedAt: new Date().toISOString()
+    }), '已关闭需求', '关闭需求失败')
   } catch (e) {
     if (e === 'cancel' || e === 'close') return
     console.error(e)
@@ -1205,11 +1211,10 @@ const reopenPurchaseDemand = async () => {
       '重新打开需求',
       { type: 'warning', confirmButtonText: '重新打开', cancelButtonText: '取消' }
     )
-    await patchAndReload(`/purchase_demands?id=eq.${row.value.id}`, {
-      demand_status: '待采购',
-      status: 'active',
-      properties: { ...(row.value.properties || {}), reopened_at: new Date().toISOString() }
-    }, '已重新打开需求', '重新打开需求失败')
+    await patchAndReload(`/purchase_demands?id=eq.${row.value.id}`, buildPurchaseDemandReopenPatch({
+      row: row.value,
+      reopenedAt: new Date().toISOString()
+    }), '已重新打开需求', '重新打开需求失败')
   } catch (e) {
     if (e === 'cancel' || e === 'close') return
     console.error(e)
@@ -1340,10 +1345,7 @@ const confirmPurchaseOrder = async () => {
       '确认下单',
       { type: 'warning', confirmButtonText: '确认下单', cancelButtonText: '取消' }
     )
-    await patchAndReload(`/purchase_orders?id=eq.${row.value.id}`, {
-      order_status: '已下单',
-      status: 'active'
-    }, '已确认下单', '确认下单失败')
+    await patchAndReload(`/purchase_orders?id=eq.${row.value.id}`, buildPurchaseOrderConfirmPatch(), '已确认下单', '确认下单失败')
   } catch (e) {
     if (e === 'cancel' || e === 'close') return
     console.error(e)
@@ -1375,11 +1377,11 @@ const cancelPurchaseOrder = async () => {
       url: `/purchase_orders?id=eq.${row.value.id}`,
       method: 'patch',
       headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public' },
-      data: {
-        order_status: '已取消',
-        status: 'disabled',
-        properties: { ...(row.value.properties || {}), cancel_reason: cancelReason, canceled_at: new Date().toISOString() }
-      }
+      data: buildPurchaseOrderCancelPatch({
+        row: row.value,
+        reason: cancelReason,
+        canceledAt: new Date().toISOString()
+      })
     })
     if (row.value.demand_id) {
       await request({
@@ -1643,13 +1645,10 @@ const markArrivalException = async () => {
       }
     )
     const exceptionNote = String(result?.value || '').trim()
-    await patchAndReload(`/purchase_arrivals?id=eq.${row.value.id}`, {
-      accepted_quantity: 0,
-      iqc_status: '不合格',
-      arrival_status: '异常',
-      status: 'active',
-      properties: { ...(row.value.properties || {}), exception_note: exceptionNote }
-    }, '已标记异常', '标记异常失败')
+    await patchAndReload(`/purchase_arrivals?id=eq.${row.value.id}`, buildPurchaseArrivalExceptionPatch({
+      row: row.value,
+      reason: exceptionNote
+    }), '已标记异常', '标记异常失败')
   } catch (e) {
     if (e === 'cancel' || e === 'close') return
     console.error(e)
