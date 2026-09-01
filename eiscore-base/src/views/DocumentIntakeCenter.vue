@@ -1097,6 +1097,18 @@ import {
   getDocumentIntakeWatchFolderSourceLabel as watchFolderSourceLabel
 } from '@/domain/document-intake-presentation-policy.js'
 import {
+  createDocumentIntakeAssetFilters,
+  createDocumentIntakeDeviceFilters,
+  createDocumentIntakeEntryResultFilters,
+  createDocumentIntakeLogFilters,
+  planDocumentIntakeAssetForLog,
+  planDocumentIntakeAssetsForDevice,
+  planDocumentIntakeEntryResultsForAsset,
+  planDocumentIntakeEntryResultsForDevice,
+  planDocumentIntakeEntryResultsForLog,
+  planDocumentIntakeLogsForDevice
+} from '@/domain/document-intake-filter-policy.js'
+import {
   deviceStatusFilterOptions,
   duplicateFilterOptions,
   entryResultStatusFilterOptions,
@@ -1154,57 +1166,10 @@ const watchFolderSaving = ref(false)
 const selectedWatchFolderDevice = ref(null)
 const watchFolders = ref([])
 const errorMessage = ref('')
-const filters = reactive({
-  duplicate: '',
-  q: '',
-  status: '',
-  today: false,
-  deviceId: '',
-  deviceName: '',
-  user: '',
-  operatorSource: '',
-  sourceFolder: '',
-  watchFolderSource: ''
-})
-const deviceFilters = reactive({
-  status: '',
-  q: '',
-  user: '',
-  serverBaseUrl: '',
-  clientVersion: '',
-  webviewVersion: ''
-})
-const logFilters = reactive({
-  level: '',
-  q: '',
-  traceId: '',
-  eventType: '',
-  sourceFileHash: '',
-  sourceFolder: '',
-  watchFolderSource: '',
-  user: '',
-  appModule: '',
-  route: '',
-  batchId: '',
-  deviceId: '',
-  deviceName: ''
-})
-const entryResultFilters = reactive({
-  status: '',
-  targetKind: '',
-  duplicate: '',
-  q: '',
-  user: '',
-  operatorSource: '',
-  today: false,
-  lowConfidence: false,
-  deviceId: '',
-  deviceName: '',
-  assetId: '',
-  assetName: '',
-  batchId: '',
-  batchLabel: ''
-})
+const filters = reactive(createDocumentIntakeAssetFilters())
+const deviceFilters = reactive(createDocumentIntakeDeviceFilters())
+const logFilters = reactive(createDocumentIntakeLogFilters())
+const entryResultFilters = reactive(createDocumentIntakeEntryResultFilters())
 const watchFolderForm = reactive({
   id: '',
   folderPath: '',
@@ -1409,119 +1374,17 @@ const openEntryResultDetail = (row) => {
   void loadEntryResultDetail(row.id)
 }
 
-const showEntryResultsForAsset = (row) => {
-  if (!row?.id) return
-  entryResultFilters.assetId = row.id
-  entryResultFilters.assetName = row.originalFilename || row.id
-  entryResultFilters.status = ''
-  entryResultFilters.targetKind = ''
-  entryResultFilters.duplicate = ''
-  entryResultFilters.q = ''
-  entryResultFilters.user = ''
-  entryResultFilters.operatorSource = ''
-  entryResultFilters.today = false
-  entryResultFilters.lowConfidence = false
-  entryResultFilters.deviceId = ''
-  entryResultFilters.deviceName = ''
-  entryResultFilters.batchId = ''
-  entryResultFilters.batchLabel = ''
-  activeTab.value = 'entryResults'
-  reloadEntryResultsFromFirstPage()
-}
+const showEntryResultsForAsset = (row) => applyDocumentIntakeFilterPlan(planDocumentIntakeEntryResultsForAsset(row))
 
-const showEntryResultsForLog = (row) => {
-  if (!row?.aiImportBatchId) return
-  entryResultFilters.batchId = row.aiImportBatchId
-  entryResultFilters.batchLabel = row.aiImportBatchId
-  entryResultFilters.assetId = ''
-  entryResultFilters.assetName = ''
-  entryResultFilters.status = ''
-  entryResultFilters.targetKind = ''
-  entryResultFilters.duplicate = ''
-  entryResultFilters.q = ''
-  entryResultFilters.user = ''
-  entryResultFilters.operatorSource = ''
-  entryResultFilters.today = false
-  entryResultFilters.lowConfidence = false
-  entryResultFilters.deviceId = ''
-  entryResultFilters.deviceName = ''
-  activeTab.value = 'entryResults'
-  reloadEntryResultsFromFirstPage()
-}
+const showEntryResultsForLog = (row) => applyDocumentIntakeFilterPlan(planDocumentIntakeEntryResultsForLog(row))
 
-const showEntryResultsForDevice = (row) => {
-  const deviceId = row?.id || row?.deviceCode
-  if (!deviceId) return
-  entryResultFilters.deviceId = deviceId
-  entryResultFilters.deviceName = row.deviceName || row.deviceCode || deviceId
-  entryResultFilters.status = ''
-  entryResultFilters.targetKind = ''
-  entryResultFilters.duplicate = ''
-  entryResultFilters.q = ''
-  entryResultFilters.user = ''
-  entryResultFilters.operatorSource = ''
-  entryResultFilters.today = false
-  entryResultFilters.lowConfidence = false
-  entryResultFilters.assetId = ''
-  entryResultFilters.assetName = ''
-  entryResultFilters.batchId = ''
-  entryResultFilters.batchLabel = ''
-  activeTab.value = 'entryResults'
-  reloadEntryResultsFromFirstPage()
-}
+const showEntryResultsForDevice = (row) => applyDocumentIntakeFilterPlan(planDocumentIntakeEntryResultsForDevice(row))
 
-const showAssetsForDevice = (row) => {
-  const deviceId = row?.id || row?.deviceCode
-  if (!deviceId) return
-  filters.deviceId = deviceId
-  filters.deviceName = row.deviceName || row.deviceCode || deviceId
-  filters.q = ''
-  filters.status = ''
-  filters.duplicate = ''
-  filters.today = false
-  filters.user = ''
-  filters.operatorSource = ''
-  filters.sourceFolder = ''
-  filters.watchFolderSource = ''
-  activeTab.value = 'assets'
-  reloadFromFirstPage()
-}
+const showAssetsForDevice = (row) => applyDocumentIntakeFilterPlan(planDocumentIntakeAssetsForDevice(row))
 
-const showLogsForDevice = (row) => {
-  const deviceId = row?.id || row?.deviceCode
-  if (!deviceId) return
-  logFilters.deviceId = deviceId
-  logFilters.deviceName = row.deviceName || row.deviceCode || deviceId
-  logFilters.level = ''
-  logFilters.q = ''
-  logFilters.traceId = ''
-  logFilters.eventType = ''
-  logFilters.sourceFileHash = ''
-  logFilters.sourceFolder = ''
-  logFilters.watchFolderSource = ''
-  logFilters.user = ''
-  logFilters.appModule = ''
-  logFilters.route = ''
-  logFilters.batchId = ''
-  activeTab.value = 'logs'
-  reloadLogsFromFirstPage()
-}
+const showLogsForDevice = (row) => applyDocumentIntakeFilterPlan(planDocumentIntakeLogsForDevice(row))
 
-const showAssetForLog = (row) => {
-  if (!row?.sourceFileHash) return
-  filters.q = row.sourceFileHash
-  filters.status = ''
-  filters.duplicate = ''
-  filters.today = false
-  filters.deviceId = ''
-  filters.deviceName = ''
-  filters.user = ''
-  filters.operatorSource = ''
-  filters.sourceFolder = ''
-  filters.watchFolderSource = ''
-  activeTab.value = 'assets'
-  reloadFromFirstPage()
-}
+const showAssetForLog = (row) => applyDocumentIntakeFilterPlan(planDocumentIntakeAssetForLog(row))
 
 const clearAssetDeviceFilter = () => {
   filters.deviceId = ''
@@ -1540,21 +1403,7 @@ const clearLogDeviceFilter = () => {
   reloadLogsFromFirstPage()
 }
 
-const resetLogFilters = () => {
-  logFilters.level = ''
-  logFilters.q = ''
-  logFilters.traceId = ''
-  logFilters.eventType = ''
-  logFilters.sourceFileHash = ''
-  logFilters.sourceFolder = ''
-  logFilters.watchFolderSource = ''
-  logFilters.user = ''
-  logFilters.appModule = ''
-  logFilters.route = ''
-  logFilters.batchId = ''
-  logFilters.deviceId = ''
-  logFilters.deviceName = ''
-}
+const resetLogFilters = () => Object.assign(logFilters, createDocumentIntakeLogFilters())
 
 const clearEntryResultAssetFilter = () => {
   entryResultFilters.assetId = ''
@@ -1584,27 +1433,9 @@ const clearEntryResultLowConfidenceFilter = () => {
   reloadEntryResultsFromFirstPage()
 }
 
-const resetAssetFilters = () => {
-  filters.q = ''
-  filters.status = ''
-  filters.duplicate = ''
-  filters.today = false
-  filters.deviceId = ''
-  filters.deviceName = ''
-  filters.user = ''
-  filters.operatorSource = ''
-  filters.sourceFolder = ''
-  filters.watchFolderSource = ''
-}
+const resetAssetFilters = () => Object.assign(filters, createDocumentIntakeAssetFilters())
 
-const resetDeviceFilters = () => {
-  deviceFilters.status = ''
-  deviceFilters.q = ''
-  deviceFilters.user = ''
-  deviceFilters.serverBaseUrl = ''
-  deviceFilters.clientVersion = ''
-  deviceFilters.webviewVersion = ''
-}
+const resetDeviceFilters = () => Object.assign(deviceFilters, createDocumentIntakeDeviceFilters())
 
 const toggleDeviceStatus = async (row) => {
   if (!row?.id) return
@@ -1785,30 +1616,15 @@ const deleteWatchFolder = async (row) => {
   }
 }
 
-const resetEntryResultFilters = () => {
-  entryResultFilters.status = ''
-  entryResultFilters.targetKind = ''
-  entryResultFilters.duplicate = ''
-  entryResultFilters.q = ''
-  entryResultFilters.user = ''
-  entryResultFilters.operatorSource = ''
-  entryResultFilters.today = false
-  entryResultFilters.lowConfidence = false
-  entryResultFilters.deviceId = ''
-  entryResultFilters.deviceName = ''
-  entryResultFilters.assetId = ''
-  entryResultFilters.assetName = ''
-  entryResultFilters.batchId = ''
-  entryResultFilters.batchLabel = ''
-}
+const resetEntryResultFilters = () => Object.assign(entryResultFilters, createDocumentIntakeEntryResultFilters())
 
-const applyOverviewMetric = (item) => {
-  const plan = planDocumentIntakeOverviewMetric(item)
+const applyDocumentIntakeFilterPlan = (plan) => {
   if (!plan) return
   const target = {
     assets: { reset: resetAssetFilters, filters, reload: reloadFromFirstPage },
     entryResults: { reset: resetEntryResultFilters, filters: entryResultFilters, reload: reloadEntryResultsFromFirstPage },
-    devices: { reset: resetDeviceFilters, filters: deviceFilters, reload: reloadDevicesFromFirstPage }
+    devices: { reset: resetDeviceFilters, filters: deviceFilters, reload: reloadDevicesFromFirstPage },
+    logs: { reset: resetLogFilters, filters: logFilters, reload: reloadLogsFromFirstPage }
   }[plan.target]
   if (!target) return
   target.reset()
@@ -1816,6 +1632,8 @@ const applyOverviewMetric = (item) => {
   activeTab.value = plan.target
   target.reload()
 }
+
+const applyOverviewMetric = (item) => applyDocumentIntakeFilterPlan(planDocumentIntakeOverviewMetric(item))
 
 const openBusinessRecord = (row) => {
   const url = businessRecordUrl(row)

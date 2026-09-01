@@ -15,7 +15,8 @@ function readSource(filePath) {
 const routerSource = readSource('eiscore-base/src/router/index.js')
 const viewSource = readSource('eiscore-base/src/views/DocumentIntakeCenter.vue')
 const presentationPolicySource = readSource('eiscore-base/src/domain/document-intake-presentation-policy.js')
-const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}`
+const filterPolicySource = readSource('eiscore-base/src/domain/document-intake-filter-policy.js')
+const documentIntakeUiSource = `${viewSource}\n${presentationPolicySource}\n${filterPolicySource}`
 const apiModuleUrl = pathToFileURL(resolve(repoRoot, 'eiscore-base/src/utils/document-intake-api.js')).href
 const api = await import(apiModuleUrl)
 
@@ -179,7 +180,7 @@ assert.ok(
   'DocumentIntakeCenter should filter client logs by collector device.'
 )
 assert.ok(
-  viewSource.includes('showAssetForLog') && viewSource.includes('row.sourceFileHash'),
+  viewSource.includes('showAssetForLog') && filterPolicySource.includes('row?.sourceFileHash'),
   'DocumentIntakeCenter should let operators jump from logs to source files by file hash.'
 )
 assert.ok(
