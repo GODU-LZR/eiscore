@@ -325,7 +325,6 @@ import request from '@/utils/request'
 import { pushAiContext } from '@/utils/ai-context'
 import {
   formatSalesCockpitCurrency as formatCurrency,
-  formatSalesCockpitDate as formatDate,
   formatSalesCockpitEventTime as formatTime,
   formatSalesCockpitRefreshTime as formatRefreshTime,
   formatSalesCockpitScrollDuration as scrollDuration,
@@ -353,6 +352,10 @@ import {
   calculateSalesReceivableRate,
   selectSalesReceivableCustomers
 } from '@/domain/sales-cockpit-ranking-policy.js'
+import {
+  buildSalesActionItems,
+  buildSalesRiskItems
+} from '@/domain/sales-cockpit-risk-action-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -426,69 +429,17 @@ const ownerPerformance = computed(() => buildSalesOwnerPerformance({
 }))
 const ownerRanking = computed(() => buildSalesOwnerRanking(ownerPerformance.value))
 
-const riskItems = computed(() => {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const riskLimit = today.getTime() + 3 * 24 * 60 * 60 * 1000
-  const delivery = activeOrders.value
-    .filter((row) => row?.delivery_date && !['已完成', '已取消'].includes(row.order_status) && getDateTime(row.delivery_date) <= riskLimit)
-    .slice(0, 3)
-    .map((row) => ({
-      key: `delivery-${row.id}`,
-      appKey: 'orders',
-      label: '交付',
-      type: 'danger',
-      title: row.order_no || '未编号订单',
-      desc: `${row.customer_name || '-'}，交付 ${formatDate(row.delivery_date)}`
-    }))
-  const opportunity = activeOpportunities.value
-    .filter((row) => row?.expected_close_date && !['赢单', '输单', '搁置'].includes(row.stage) && getDateTime(row.expected_close_date) <= riskLimit)
-    .slice(0, 3)
-    .map((row) => ({
-      key: `opportunity-${row.id}`,
-      appKey: 'opportunities',
-      label: '商机',
-      type: getDateTime(row.expected_close_date) < today.getTime() ? 'danger' : 'warning',
-      title: row.opportunity_name || row.opportunity_no,
-      desc: `${row.stage || '-'}，预计成交 ${formatDate(row.expected_close_date)}`
-    }))
-  const receivable = receivableCustomers.value.slice(0, 3).map((row) => ({
-    key: `receivable-${row.id}`,
-    appKey: 'customers',
-    label: '应收',
-    type: 'warning',
-    title: row.name || row.customer_no,
-    desc: `应收 ${formatCurrency(row.receivable_balance)}，负责人 ${row.owner_name || '-'}`
-  }))
-  return [...delivery, ...opportunity, ...receivable].slice(0, 8)
-})
-
-const actionItems = computed(() => {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const weekLimit = today.getTime() + 7 * 24 * 60 * 60 * 1000
-  const followActions = activeFollowUps.value
-    .filter((row) => row?.next_follow_at && !['已成交', '无效'].includes(row.follow_result) && getDateTime(row.next_follow_at) <= weekLimit)
-    .slice(0, 4)
-    .map((row) => ({
-      key: `follow-${row.id}`,
-      appKey: 'follow_ups',
-      label: '跟进',
-      title: row.customer_name || row.follow_no,
-      desc: `${formatDate(row.next_follow_at)} ${row.follow_type || ''}，${row.owner_name || '-'}`
-    }))
-  const opportunityActions = activeOpportunities.value
-    .filter((row) => row?.next_action && !['赢单', '输单', '搁置'].includes(row.stage))
-    .slice(0, 4)
-    .map((row) => ({
-      key: `opp-${row.id}`,
-      appKey: 'opportunities',
-      label: '商机',
-      title: row.opportunity_name || row.opportunity_no,
-      desc: `${row.stage || '-'}，${row.next_action}`
-    }))
-  return [...opportunityActions, ...followActions].slice(0, 8)
-})
+const riskItems = computed(() => buildSalesRiskItems({
+  referenceTime: new Date(),
+  orders: activeOrders.value,
+  opportunities: activeOpportunities.value,
+  receivableCustomers: receivableCustomers.value
+}))
+const actionItems = computed(() => buildSalesActionItems({
+  referenceTime: new Date(),
+  followUps: activeFollowUps.value,
+  opportunities: activeOpportunities.value
+}))
 
 const salesEvents = computed(() => {
   const events = []
