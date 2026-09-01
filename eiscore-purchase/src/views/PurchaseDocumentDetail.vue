@@ -269,6 +269,13 @@ import {
   normalizePurchaseDocumentTemplates,
   selectPurchaseDocumentTemplateId
 } from '@/domain/purchase-document-detail-template-policy.js'
+import {
+  buildPurchaseDocumentLinkQuery,
+  buildPurchaseDocumentRowsQuery,
+  encodePurchaseDocumentFilterValue,
+  pickPurchaseDocumentRowForLinkSource,
+  pickPurchaseDocumentRowForLinkTarget
+} from '@/domain/purchase-document-detail-business-flow-policy.js'
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
 
 const props = defineProps({
@@ -467,44 +474,17 @@ const writeFlowAudit = async ({ actionType, source, target, reason = '', payload
   })
 }
 
-const safeEq = (value) => encodeURIComponent(String(value ?? ''))
-const activeSourceLinkQuery = (sourceType, sourceId, sourceNo) => {
-  const clauses = []
-  if (sourceId) clauses.push(`source_doc_id.eq.${safeEq(sourceId)}`)
-  if (sourceNo) clauses.push(`source_doc_no.eq.${safeEq(sourceNo)}`)
-  const orPart = clauses.length ? `&or=(${clauses.join(',')})` : ''
-  return `source_doc_type=eq.${safeEq(sourceType)}&status=eq.active${orPart}&order=created_at.asc`
-}
-const activeTargetLinkQuery = (targetType, targetId, targetNo) => {
-  const clauses = []
-  if (targetId) clauses.push(`target_doc_id.eq.${safeEq(targetId)}`)
-  if (targetNo) clauses.push(`target_doc_no.eq.${safeEq(targetNo)}`)
-  const orPart = clauses.length ? `&or=(${clauses.join(',')})` : ''
-  return `target_doc_type=eq.${safeEq(targetType)}&status=eq.active${orPart}&order=created_at.asc`
-}
-const loadRowsByIdsOrNos = async ({ table, noField, ids = [], nos = [] }) => {
-  const clauses = []
-  const cleanIds = ids.filter(Boolean).map(safeEq)
-  const cleanNos = nos.filter(Boolean).map(safeEq)
-  if (cleanIds.length) clauses.push(`id.in.(${cleanIds.join(',')})`)
-  if (noField && cleanNos.length) clauses.push(`${noField}.in.(${cleanNos.join(',')})`)
-  if (!clauses.length) return []
+const loadPurchaseDocumentRows = async (params) => {
+  const url = buildPurchaseDocumentRowsQuery(params)
+  if (!url) return []
   const rows = await request({
-    url: `/${table}?or=(${clauses.join(',')})&select=*&limit=50`,
+    url,
     method: 'get',
     headers: { 'Accept-Profile': 'public' },
     silentError: true
   })
   return Array.isArray(rows) ? rows : []
 }
-const pickRowForLinkSource = (rows, link, noField) => rows.find((item) => {
-  if (link?.source_doc_id && item.id === link.source_doc_id) return true
-  return noField && link?.source_doc_no && item[noField] === link.source_doc_no
-}) || rows[0] || null
-const pickRowForLinkTarget = (rows, link, noField) => rows.find((item) => {
-  if (link?.target_doc_id && item.id === link.target_doc_id) return true
-  return noField && link?.target_doc_no && item[noField] === link.target_doc_no
-}) || rows[0] || null
 
 const resetBusinessFlowDialog = () => {
   purchaseFlowDocs.value = {}
@@ -527,97 +507,97 @@ const loadPurchaseBusinessFlow = async () => {
 
     if (purchaseArrival && !purchaseOrder) {
       const links = await request({
-        url: `/document_links?${activeTargetLinkQuery(DOC_TYPES.PURCHASE_ARRIVAL, purchaseArrival.id, purchaseArrival.arrival_no)}&select=*`,
+        url: `/document_links?${buildPurchaseDocumentLinkQuery({ direction: 'target', docType: DOC_TYPES.PURCHASE_ARRIVAL, docId: purchaseArrival.id, docNo: purchaseArrival.arrival_no })}&select=*`,
         method: 'get',
         headers: { 'Accept-Profile': 'public' },
         silentError: true
       }).catch(() => [])
       collectedLinks.push(...(links || []))
       const orderLink = (links || []).find((link) => link.source_doc_type === DOC_TYPES.PURCHASE_ORDER)
-      const orders = await loadRowsByIdsOrNos({
+      const orders = await loadPurchaseDocumentRows({
         table: 'purchase_orders',
         noField: 'order_no',
         ids: orderLink ? [orderLink.source_doc_id] : [purchaseArrival.order_id],
         nos: orderLink ? [orderLink.source_doc_no] : [purchaseArrival.order_no]
       })
-      purchaseOrder = pickRowForLinkSource(orders, orderLink, 'order_no')
+      purchaseOrder = pickPurchaseDocumentRowForLinkSource(orders, orderLink, 'order_no')
     }
 
     if (purchaseOrder && !purchaseDemand) {
       const links = await request({
-        url: `/document_links?${activeTargetLinkQuery(DOC_TYPES.PURCHASE_ORDER, purchaseOrder.id, purchaseOrder.order_no)}&select=*`,
+        url: `/document_links?${buildPurchaseDocumentLinkQuery({ direction: 'target', docType: DOC_TYPES.PURCHASE_ORDER, docId: purchaseOrder.id, docNo: purchaseOrder.order_no })}&select=*`,
         method: 'get',
         headers: { 'Accept-Profile': 'public' },
         silentError: true
       }).catch(() => [])
       collectedLinks.push(...(links || []))
       const demandLink = (links || []).find((link) => link.source_doc_type === DOC_TYPES.PURCHASE_DEMAND)
-      const demands = await loadRowsByIdsOrNos({
+      const demands = await loadPurchaseDocumentRows({
         table: 'purchase_demands',
         noField: 'demand_no',
         ids: demandLink ? [demandLink.source_doc_id] : [purchaseOrder.demand_id],
         nos: demandLink ? [demandLink.source_doc_no] : [purchaseOrder.source_demand_no]
       })
-      purchaseDemand = pickRowForLinkSource(demands, demandLink, 'demand_no')
+      purchaseDemand = pickPurchaseDocumentRowForLinkSource(demands, demandLink, 'demand_no')
     }
 
     if (purchaseDemand) {
       const salesLinks = await request({
-        url: `/document_links?${activeTargetLinkQuery(DOC_TYPES.PURCHASE_DEMAND, purchaseDemand.id, purchaseDemand.demand_no)}&select=*`,
+        url: `/document_links?${buildPurchaseDocumentLinkQuery({ direction: 'target', docType: DOC_TYPES.PURCHASE_DEMAND, docId: purchaseDemand.id, docNo: purchaseDemand.demand_no })}&select=*`,
         method: 'get',
         headers: { 'Accept-Profile': 'public' },
         silentError: true
       }).catch(() => [])
       collectedLinks.push(...(salesLinks || []))
       const salesLink = (salesLinks || []).find((link) => link.source_doc_type === DOC_TYPES.SALES_ORDER)
-      const salesRows = await loadRowsByIdsOrNos({
+      const salesRows = await loadPurchaseDocumentRows({
         table: 'sales_orders',
         noField: 'order_no',
         ids: salesLink ? [salesLink.source_doc_id] : [purchaseDemand.properties?.source_order_id],
         nos: salesLink ? [salesLink.source_doc_no] : [purchaseDemand.properties?.source_order_no]
       })
-      salesOrder = pickRowForLinkSource(salesRows, salesLink, 'order_no')
+      salesOrder = pickPurchaseDocumentRowForLinkSource(salesRows, salesLink, 'order_no')
     }
 
     if (purchaseDemand && !purchaseOrder) {
       const links = await request({
-        url: `/document_links?${activeSourceLinkQuery(DOC_TYPES.PURCHASE_DEMAND, purchaseDemand.id, purchaseDemand.demand_no)}&select=*`,
+        url: `/document_links?${buildPurchaseDocumentLinkQuery({ direction: 'source', docType: DOC_TYPES.PURCHASE_DEMAND, docId: purchaseDemand.id, docNo: purchaseDemand.demand_no })}&select=*`,
         method: 'get',
         headers: { 'Accept-Profile': 'public' },
         silentError: true
       }).catch(() => [])
       collectedLinks.push(...(links || []))
       const orderLink = (links || []).find((link) => link.target_doc_type === DOC_TYPES.PURCHASE_ORDER)
-      const orders = await loadRowsByIdsOrNos({
+      const orders = await loadPurchaseDocumentRows({
         table: 'purchase_orders',
         noField: 'order_no',
         ids: orderLink ? [orderLink.target_doc_id] : [],
         nos: orderLink ? [orderLink.target_doc_no] : []
       })
-      purchaseOrder = pickRowForLinkTarget(orders, orderLink, 'order_no')
+      purchaseOrder = pickPurchaseDocumentRowForLinkTarget(orders, orderLink, 'order_no')
     }
 
     if (purchaseOrder && !purchaseArrival) {
       const links = await request({
-        url: `/document_links?${activeSourceLinkQuery(DOC_TYPES.PURCHASE_ORDER, purchaseOrder.id, purchaseOrder.order_no)}&select=*`,
+        url: `/document_links?${buildPurchaseDocumentLinkQuery({ direction: 'source', docType: DOC_TYPES.PURCHASE_ORDER, docId: purchaseOrder.id, docNo: purchaseOrder.order_no })}&select=*`,
         method: 'get',
         headers: { 'Accept-Profile': 'public' },
         silentError: true
       }).catch(() => [])
       collectedLinks.push(...(links || []))
       const arrivalLink = (links || []).find((link) => link.target_doc_type === DOC_TYPES.PURCHASE_ARRIVAL)
-      const arrivals = await loadRowsByIdsOrNos({
+      const arrivals = await loadPurchaseDocumentRows({
         table: 'purchase_arrivals',
         noField: 'arrival_no',
         ids: arrivalLink ? [arrivalLink.target_doc_id] : [],
         nos: arrivalLink ? [arrivalLink.target_doc_no] : []
       })
-      purchaseArrival = pickRowForLinkTarget(arrivals, arrivalLink, 'arrival_no')
+      purchaseArrival = pickPurchaseDocumentRowForLinkTarget(arrivals, arrivalLink, 'arrival_no')
     }
 
     if (purchaseArrival) {
       const links = await request({
-        url: `/document_links?${activeSourceLinkQuery(DOC_TYPES.PURCHASE_ARRIVAL, purchaseArrival.id, purchaseArrival.arrival_no)}&select=*`,
+        url: `/document_links?${buildPurchaseDocumentLinkQuery({ direction: 'source', docType: DOC_TYPES.PURCHASE_ARRIVAL, docId: purchaseArrival.id, docNo: purchaseArrival.arrival_no })}&select=*`,
         method: 'get',
         headers: { 'Accept-Profile': 'public' },
         silentError: true
@@ -673,14 +653,14 @@ const reverseSalesDemandFromPurchase = async () => {
     const link = purchaseFlowRelationLinks.value.find((item) => item.relation_type === RELATION_TYPES.SALES_TO_PURCHASE_DEMAND)
     if (link?.id) {
       await request({
-        url: `/document_links?id=eq.${safeEq(link.id)}`,
+        url: `/document_links?id=eq.${encodePurchaseDocumentFilterValue(link.id)}`,
         method: 'patch',
         headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
         data: { status: 'reversed', reversed_by: 'purchase', reversed_at: new Date().toISOString(), reverse_reason: reason }
       })
     }
     await request({
-      url: `/purchase_demands?id=eq.${safeEq(demand.id)}`,
+      url: `/purchase_demands?id=eq.${encodePurchaseDocumentFilterValue(demand.id)}`,
       method: 'patch',
       headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
       data: {

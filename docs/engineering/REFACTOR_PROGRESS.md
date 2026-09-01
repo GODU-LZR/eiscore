@@ -204,13 +204,14 @@
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail Schema 策略 | 回退 Schema、字段 Widget、单号字段与基础/扩展分区进入纯模块 |
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 字段值策略 | 嵌套字段读写、级联失效值清理与文件列素材投影进入纯模块 |
 | 本文件所在提交 | 抽离 PurchaseDocumentDetail 模板策略 | 模板过滤、作用域合并与事件选择优先级进入纯模块 |
+| 本文件所在提交 | 抽离 PurchaseDocumentDetail 业务流程查询策略 | 链路查询编码、ID/单号列表查询 URL 与来源/目标行匹配优先级进入纯模块 |
 
 ## 当前切片
 
-- 状态：G3 进行中；`DocumentIntakeCenter.vue` 纯策略阶段通过退出审计，`PurchaseDocumentDetail.vue` 已完成首个详情动作策略切片。
-- 结果：PurchaseDocumentDetail 从 2,326 降至 2,022 行，累计减少 304 行（13.1%）；详情动作、Schema 生成、字段值编排和模板库规范化进入 4 个无运行时依赖纯模块，共 17 个导出。模板策略保留合法 Schema 过滤、当前作用域覆盖、事件记录优先/当前选择/首项回退顺序；页面真实动作处理、确认框、Request、Router、Loading、模板/单据模型、业务流程与视觉布局保持原位；巨页债务棘轮收紧到 84,742 行。
-- 兼容边界：状态资格保留原字段、状态文案、权限覆盖和 `hasPerm` 时序；订单确认对 locked/disabled 的既有宽松语义、需求/订单关联按钮无记录仍显示等边界由专项锁定。Schema 保留原 `documentSchemaExample` 引用回退和字段类型优先级；字段策略保留顶层字段优先、`properties` 回退和文件空 URL 兼容；模板策略保留作用域合并与选择回退顺序。未修改接口、数据或部署。
-- 验证：新增 `test:purchase-document-detail-template` 并纳入 `test:quality`；Windows 完整质量门禁、完整离线单元套件和采购前端构建均通过：209 个 Node 文件语法、14 个锁定 CI 包、1,234 个文本文件秘密扫描、5 个变更代码文件 lint、23 项基础设施检查，采购构建转换 1,643 个模块。WSL 侧质量门禁受既有 Node 20.18.1/CommonJS 与 Rollup optional binary 环境限制，未作为发布证据；Windows Node/npm 26.1.0/11.13.0 工具链偏差为非阻断告警。全部验证未连接数据库、远程 API 或 Agent。
+- 状态：G3 进行中；`DocumentIntakeCenter.vue` 纯策略阶段通过退出审计，`PurchaseDocumentDetail.vue` 已完成五个纯策略切片。
+- 结果：PurchaseDocumentDetail 从 2,326 降至 2,002 行，累计减少 324 行（13.9%）；详情动作、Schema 生成、字段值编排、模板库规范化和业务流程查询进入 5 个无运行时依赖纯模块，共 22 个导出。业务流程策略保留 URL 编码、source/target 查询字段、active 状态、created_at 升序、ID > 单号 > 首行 > null 匹配优先级；页面真实动作处理、确认框、Request、Router、Loading、模板/单据模型、链路撤销与视觉布局保持原位；巨页债务棘轮收紧到 84,722 行。
+- 兼容边界：状态资格保留原字段、状态文案、权限覆盖和 `hasPerm` 时序；订单确认对 locked/disabled 的既有宽松语义、需求/订单关联按钮无记录仍显示等边界由专项锁定。Schema 保留原 `documentSchemaExample` 引用回退和字段类型优先级；字段策略保留顶层字段优先、`properties` 回退和文件空 URL 兼容；模板策略保留作用域合并与选择回退顺序；业务流程策略只负责纯查询/匹配规划，真实 Request 与异步加载顺序不变。未修改接口、数据或部署。
+- 验证：新增 `test:purchase-document-detail-flow` 并纳入 `test:quality`；五个 PurchaseDocumentDetail 专项回归均通过。完整 Windows 质量门禁、离线单元套件和采购前端构建需在提交前复跑；本切片未连接数据库、远程 API 或 Agent。
 
 ## 已知非阻断风险
 
@@ -230,4 +231,4 @@
 
 ## 下一候选切片
 
-继续 G3：盘点 2,022 行 `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` 的单据值编排与业务流程关联区块，选择下一个无视觉变化的纯策略边界。
+继续 G3：盘点 2,002 行 `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` 的模板/表单值编排区块，选择下一个无视觉变化的纯策略边界。
