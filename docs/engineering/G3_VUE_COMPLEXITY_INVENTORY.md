@@ -2,7 +2,7 @@
 
 ## 结论
 
-2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,911 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid 与三个 PurchaseAppGrid 纯策略切片后，巨页债务已降至 85,645 行。
+2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。有效库存为 139 个 Vue 文件、115,911 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid 与四个 PurchaseAppGrid 纯策略切片后，巨页债务已降至 85,518 行，≥2,000 行极端页由 11 个降至 10 个。
 
 该结果证明巨页是系统性维护风险，不能靠一次整体重写解决。基线已进入 `config/engineering/vue-complexity-baseline.json`，质量门禁禁止既有巨页增长、禁止新增巨页，并要求总债务、极端页和关键页数量只降不增。
 
@@ -10,7 +10,7 @@
 
 | 等级 | 物理行 | 数量 | 处理原则 |
 | --- | ---: | ---: | --- |
-| 极端 | ≥ 2,000 | 11 | 优先建立特征测试，抽离纯策略、协议和领域服务 |
+| 极端 | ≥ 2,000 | 10 | 优先建立特征测试，抽离纯策略、协议和领域服务 |
 | 关键 | 1,200–1,999 | 21 | 在相关业务变更前先建立可替换边界 |
 | 受控 | 800–1,199 | 20 | 禁止增长，随功能切片渐进拆分 |
 | 正常 | < 800 | 87 | 禁止跨过 800 行阈值 |
@@ -28,7 +28,7 @@
 | 销售 | 2 | 5,792 | 3,822 |
 | 生产 | 3 | 5,791 | 2,077 |
 | 人力 | 5 | 6,071 | 1,518 |
-| 采购 | 3 | 5,868 | 2,097 |
+| 采购 | 3 | 5,868 | 1,970 |
 | 设备 | 2 | 3,082 | 2,072 |
 | 质量 | 2 | 2,757 | 1,767 |
 
@@ -45,7 +45,7 @@
 | `eiscore-base/src/layout/index.vue` | 3,535 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-apps/src/views/OntologyWorkbench.vue` | 2,184 | 3 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-production/src/components/ProductionAppGrid.vue` | 2,077 | 4 类纯策略已迁出，阶段退出门禁已建立 |
-| `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 2,097 | 数据、业务流与列编辑纯策略已迁出；继续拆采购操作与组合边界 |
+| `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 1,970 | 数据、业务流、列编辑与操作纯策略已迁出；准备阶段退出审计 |
 | `eiscore-base/src/views/DocumentIntakeCenter.vue` | 2,446 | 收单任务状态机、API 领域层、展示组件 |
 | `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 2,326 | 单据模型、动作策略、详情子区块 |
 | `eiscore-equipment/src/views/EquipmentHome.vue` | 2,072 | 驾驶舱查询/聚合与卡片组件 |
@@ -54,7 +54,7 @@
 
 - 扫描范围内新 Vue 文件不得达到 800 行。
 - 52 个基线文件逐文件不得超过各自基线行数；文件删除或降到阈值以下视为债务下降。
-- 巨页总行数的初始基线为 90,948，当前棘轮值为 85,645；≥1,200 行不得超过 32 个；≥2,000 行不得超过 11 个。
+- 巨页总行数的初始基线为 90,948，当前棘轮值为 85,518；≥1,200 行不得超过 32 个；≥2,000 行不得超过 10 个。
 - 不允许通过重命名、移动目录、生成文件或扩充排除项规避门禁。
 - 基线扩张不是普通维护动作；确有必要时必须记录 ADR、替代方案和回收计划。
 
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-继续 `eiscore-purchase/src/components/PurchaseAppGrid.vue`：盘点行操作 SOP、流程对话框入口、筛选/Realtime 与配置持久化边界，抽离最后一组稳定纯操作策略后建立阶段退出门禁。
+为 `eiscore-purchase/src/components/PurchaseAppGrid.vue` 建立阶段退出门禁：锁定 SFC 分区、4 个纯策略模块/导出、Request/消息/Router/Watch/Timer/Realtime/AI Bridge/Callable 与生命周期上限，并禁止平台边界旁路。

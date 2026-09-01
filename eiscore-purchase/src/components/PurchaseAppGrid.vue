@@ -437,6 +437,15 @@ import {
   togglePurchaseStaticColumn
 } from '@/domain/purchase-grid-column-policy'
 import {
+  buildPurchaseRowActions,
+  buildPurchaseRowFlowPlan,
+  buildPurchaseToolbarFlowPlan,
+  getPurchaseFlowNextStepForAction,
+  getPurchaseFlowPermission,
+  PURCHASE_FLOW_NEXT_STEPS,
+  shouldReloadPurchaseRealtimeEvent
+} from '@/domain/purchase-grid-operation-policy'
+import {
   assertPurchaseDemandFlowSource,
   assertPurchaseOrderFlowSource,
   assertPurchaseOrderQuantity,
@@ -453,9 +462,6 @@ import {
   calculatePurchaseOrderPendingQuantity,
   encodePurchaseFilterValue as safeEq,
   getPurchaseOrderPendingQuantityHint,
-  isPurchaseArrivalPushable as isArrivalPushable,
-  isPurchaseDemandPushable as isDemandPushable,
-  isPurchaseOrderPushable as isOrderPushable,
   pickPurchaseRowByLinkTarget as pickFirstByLinkTarget,
   projectPurchaseInboundFromLink,
   PURCHASE_FLOW_DOC_TYPES as DOC_TYPES,
@@ -543,72 +549,13 @@ const resolveAttention = (row) => getPurchaseRecordAttention(app.value?.key, row
   task: 'monitor'
 })
 const rowAttentionFilter = (row) => matchesPurchaseAttentionFilter(app.value?.key, row, attentionFilter.value)
-const resolveRowActions = (row) => {
-  if (!row) return []
-  if (app.value.key === 'demands') {
-    return canPushDemandToOrder.value && isDemandPushable(row)
-      ? [{
-          key: 'push-demand-order',
-          label: '下单',
-          type: 'success',
-          icon: 'Position',
-          sopAction: 'purchase-row-push-demand-order',
-          sopTitle: '单行需求下单',
-          sopDesc: '把当前这一条采购需求下推为采购订单。',
-          sopSteps: [
-            '先确认当前行是要下单的采购需求。',
-            '复核供应商、物料、数量、需求日期和需求状态。',
-            '点击“下单”打开业务流转确认窗。',
-            '确认后跳转采购订单并搜索新生成或已关联订单。'
-          ],
-          sopRisk: '单行下推仍会创建采购订单，不能用错供应商或数量。'
-        }]
-      : []
-  }
-  if (app.value.key === 'orders') {
-    return canPushOrderToArrival.value && isOrderPushable(row)
-      ? [{
-          key: 'push-order-arrival',
-          label: '到货',
-          type: 'success',
-          icon: 'Position',
-          sopAction: 'purchase-row-push-order-arrival',
-          sopTitle: '单行订单到货',
-          sopDesc: '把当前采购订单下推为到货跟踪记录。',
-          sopSteps: [
-            '先确认当前行是要跟踪到货的采购订单。',
-            '复核订单号、供应商、物料、订单数量和预计到货日期。',
-            '点击“到货”打开业务流转确认窗。',
-            '确认后跳转到货跟踪并复核到货状态。'
-          ],
-          sopRisk: '错误下推会影响收货计划和后续质检。'
-        }]
-      : []
-  }
-  if (app.value.key === 'arrivals') {
-    const actions = []
-    if (canPushArrivalToInbound.value && isArrivalPushable(row)) {
-      actions.push({
-        key: 'push-arrival-inbound',
-        label: '入库',
-        type: 'warning',
-        icon: 'Box',
-        sopAction: 'purchase-row-push-arrival-inbound',
-        sopTitle: '单行到货入库',
-        sopDesc: '把当前到货记录下推为采购入库。',
-        sopSteps: [
-          '先确认当前到货记录可以入库。',
-          '复核到货数量、质检状态、批次、仓库和库位。',
-          '点击“入库”打开业务流转确认窗。',
-          '确认后跳转仓储入库，检查库存影响。'
-        ],
-        sopRisk: '入库会影响库存账，异常、不合格或数量未确认记录不能直接入库。'
-      })
-    }
-    return actions
-  }
-  return []
-}
+const resolveRowActions = (row) => buildPurchaseRowActions({
+  appKey: app.value.key,
+  row,
+  canPushDemand: canPushDemandToOrder.value,
+  canPushOrder: canPushOrderToArrival.value,
+  canPushArrival: canPushArrivalToInbound.value
+})
 const primaryDemand = computed(() => selectedDemandRows.value[0] || null)
 const primaryOrder = computed(() => selectedOrderRows.value[0] || null)
 const primaryArrival = computed(() => selectedArrivalRows.value[0] || null)
@@ -1172,109 +1119,52 @@ const loadArrivalBusinessFlow = async (arrival = primaryArrival.value) => {
   }
 }
 
-const openDemandPushFlowDialog = async () => {
-  const rows = getSelectedDemandRows()
-  if (!rows.length) {
-    ElMessage.warning('请先在表格中选择要下推的采购需求')
+const applyPurchaseFlowDialogPlan = async (plan) => {
+  if (!plan.ok) {
+    if (!plan.silent && plan.message) ElMessage.warning(plan.message)
     return
   }
-  const invalidRows = rows.filter((row) => !isDemandPushable(row))
-  if (invalidRows.length) {
-    ElMessage.warning('已下单、已关闭或已锁定的采购需求不能下推采购订单')
-    return
-  }
-  selectedDemandRows.value = rows
-  flowNextStep.value = 'purchase_order'
+  if (plan.mode === 'demands') selectedDemandRows.value = plan.rows
+  if (plan.mode === 'orders') selectedOrderRows.value = plan.rows
+  if (plan.mode === 'arrivals') selectedArrivalRows.value = plan.rows
+  flowNextStep.value = plan.nextStep
   flowDialogVisible.value = true
-  await loadDemandBusinessFlow(rows[0])
+  if (plan.mode === 'demands') await loadDemandBusinessFlow(plan.rows[0])
+  if (plan.mode === 'orders') await loadOrderBusinessFlow(plan.rows[0])
+  if (plan.mode === 'arrivals') await loadArrivalBusinessFlow(plan.rows[0])
 }
 
-const openOrderPushFlowDialog = async () => {
-  const rows = getSelectedOrderRows()
-  if (!rows.length) {
-    ElMessage.warning('请先在表格中选择要下推的采购订单')
-    return
-  }
-  selectedOrderRows.value = rows
-  flowNextStep.value = 'purchase_arrival'
-  flowDialogVisible.value = true
-  await loadOrderBusinessFlow(rows[0])
-}
+const openDemandPushFlowDialog = async () => applyPurchaseFlowDialogPlan(buildPurchaseToolbarFlowPlan({
+  nextStep: PURCHASE_FLOW_NEXT_STEPS.DEMAND_TO_ORDER,
+  rows: getSelectedDemandRows()
+}))
 
-const openArrivalPushFlowDialog = async () => {
-  const rows = getSelectedArrivalRows()
-  if (!rows.length) {
-    ElMessage.warning('请先在表格中选择要下推入库的到货单')
-    return
-  }
-  selectedArrivalRows.value = rows
-  flowNextStep.value = 'inventory_inbound'
-  flowDialogVisible.value = true
-  await loadArrivalBusinessFlow(rows[0])
-}
+const openOrderPushFlowDialog = async () => applyPurchaseFlowDialogPlan(buildPurchaseToolbarFlowPlan({
+  nextStep: PURCHASE_FLOW_NEXT_STEPS.ORDER_TO_ARRIVAL,
+  rows: getSelectedOrderRows()
+}))
+
+const openArrivalPushFlowDialog = async () => applyPurchaseFlowDialogPlan(buildPurchaseToolbarFlowPlan({
+  nextStep: PURCHASE_FLOW_NEXT_STEPS.ARRIVAL_TO_INBOUND,
+  rows: getSelectedArrivalRows()
+}))
 
 const openPurchaseFlowDialogForRow = async (row, nextStep) => {
   if (!row) return
   resetFlowDialog()
-  if (nextStep === 'purchase_order') {
-    if (!canPushDemandToOrder.value) {
-      ElMessage.warning('当前账号没有下推采购订单权限')
-      return
-    }
-    if (!isDemandPushable(row)) {
-      ElMessage.warning('已下单、已关闭或已锁定的采购需求不能下推采购订单')
-      return
-    }
-    selectedDemandRows.value = [row]
-    flowNextStep.value = 'purchase_order'
-    flowDialogVisible.value = true
-    await loadDemandBusinessFlow(row)
-    return
-  }
-  if (nextStep === 'purchase_arrival') {
-    if (!canPushOrderToArrival.value) {
-      ElMessage.warning('当前账号没有登记到货权限')
-      return
-    }
-    if (!isOrderPushable(row)) {
-      ElMessage.warning('该采购订单当前状态不能登记到货')
-      return
-    }
-    selectedOrderRows.value = [row]
-    flowNextStep.value = 'purchase_arrival'
-    flowDialogVisible.value = true
-    await loadOrderBusinessFlow(row)
-    return
-  }
-  if (nextStep === 'inventory_inbound') {
-    if (!canPushArrivalToInbound.value) {
-      ElMessage.warning('当前账号没有确认采购入库权限')
-      return
-    }
-    if (!isArrivalPushable(row)) {
-      ElMessage.warning('该到货单已入库、异常或不合格，不能直接入库')
-      return
-    }
-    selectedArrivalRows.value = [row]
-    flowNextStep.value = 'inventory_inbound'
-    flowDialogVisible.value = true
-    await loadArrivalBusinessFlow(row)
-  }
+  const permitted = getPurchaseFlowPermission({
+    nextStep,
+    canPushDemand: canPushDemandToOrder.value,
+    canPushOrder: canPushOrderToArrival.value,
+    canPushArrival: canPushArrivalToInbound.value
+  })
+  await applyPurchaseFlowDialogPlan(buildPurchaseRowFlowPlan({ nextStep, row, permitted }))
 }
 
 const handleRowAction = ({ action, row }) => {
   if (!action || action.disabled || !row) return
-  if (action.key === 'push-demand-order') {
-    openPurchaseFlowDialogForRow(row, 'purchase_order')
-    return
-  }
-  if (action.key === 'push-order-arrival') {
-    openPurchaseFlowDialogForRow(row, 'purchase_arrival')
-    return
-  }
-  if (action.key === 'push-arrival-inbound') {
-    openPurchaseFlowDialogForRow(row, 'inventory_inbound')
-  }
+  const nextStep = getPurchaseFlowNextStepForAction(action.key)
+  if (nextStep) openPurchaseFlowDialogForRow(row, nextStep)
 }
 
 const writeFlowAudit = async ({ actionType, source, target, reason = '', payload = {} }) => {
@@ -1577,25 +1467,8 @@ const scheduleGridReload = () => {
   }, 600)
 }
 
-const parseRealtimePayload = (event) => {
-  if (!event) return null
-  if (event.payload && typeof event.payload === 'string') {
-    try {
-      return JSON.parse(event.payload)
-    } catch (e) {
-      return null
-    }
-  }
-  return event.payload && typeof event.payload === 'object' ? event.payload : null
-}
-
 const handleRealtimeEvent = (event) => {
-  const payload = parseRealtimePayload(event)
-  if (!payload) return
-  const tableName = (app.value.apiUrl || '').replace(/^\//, '').split('?')[0]
-  if (payload.schema === 'public' && payload.table === tableName) {
-    scheduleGridReload()
-  }
+  if (shouldReloadPurchaseRealtimeEvent(event, app.value.apiUrl)) scheduleGridReload()
 }
 
 const editColumn = (index) => {
