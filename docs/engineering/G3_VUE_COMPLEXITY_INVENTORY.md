@@ -46,7 +46,7 @@
 | `eiscore-apps/src/views/OntologyWorkbench.vue` | 2,184 | 3 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-production/src/components/ProductionAppGrid.vue` | 2,077 | 4 类纯策略已迁出，阶段退出门禁已建立 |
 | `eiscore-purchase/src/components/PurchaseAppGrid.vue` | 1,970 | 4 类纯策略已迁出，阶段退出门禁已建立 |
-| `eiscore-base/src/views/DocumentIntakeCenter.vue` | 1,973 | 7 类纯策略已迁出并退出极端页层级；下一步建立阶段退出门禁 |
+| `eiscore-base/src/views/DocumentIntakeCenter.vue` | 1,973 | 6 个纯模块/54 个导出已迁出，阶段退出门禁已建立 |
 | `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` | 2,326 | 单据模型、动作策略、详情子区块 |
 | `eiscore-equipment/src/views/EquipmentHome.vue` | 2,072 | 驾驶舱查询/聚合与卡片组件 |
 
@@ -68,4 +68,4 @@
 
 ## 下一切片
 
-对 `eiscore-base/src/views/DocumentIntakeCenter.vue` 建立阶段退出审计，锁定 SFC 分区、7 个纯模块、策略导出、API/消息/Watch/导航/Clipboard/生命周期上限与平台旁路禁令。
+盘点 `eiscore-purchase/src/views/PurchaseDocumentDetail.vue` 的单据模型、状态动作、关联区块与既有特征测试，选择无视觉变化的首个纯策略边界。
