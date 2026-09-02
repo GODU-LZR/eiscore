@@ -5,7 +5,6 @@ import { expect, test } from '@playwright/test'
 import { createUiErrorMonitor, expectShellReady } from './helpers.mjs'
 
 const HOST_URL = 'http://127.0.0.1:18000'
-const COMPANY_SITE_URL = 'http://127.0.0.1:8092'
 
 const encodeJwtPart = (value) => Buffer.from(JSON.stringify(value)).toString('base64url')
 
@@ -73,13 +72,6 @@ test('published enterprise profile remains single-source across settings, draft 
   let saveCalls = 0
   let publishCalls = 0
   const auth = createAdminAuth()
-
-  await page.route(`${HOST_URL}/company-site/**`, async (route) => {
-    const requestUrl = new URL(route.request().url())
-    const upstreamUrl = `${COMPANY_SITE_URL}${requestUrl.pathname}${requestUrl.search}`
-    const response = await route.fetch({ url: upstreamUrl })
-    await route.fulfill({ response })
-  })
 
   await page.route(`${HOST_URL}/api/**`, async (route) => {
     const url = new URL(route.request().url())

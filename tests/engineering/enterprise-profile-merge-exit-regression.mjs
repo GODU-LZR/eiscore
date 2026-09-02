@@ -10,6 +10,9 @@ const audit = readFileSync(resolve(repoRoot, 'docs/engineering/ENTERPRISE_PROFIL
 const adr = readFileSync(resolve(repoRoot, 'docs/engineering/adr/0011-enterprise-profile-single-source.md'), 'utf8')
 const e2e = readFileSync(resolve(repoRoot, 'tests/e2e/enterprise-profile-merge.spec.mjs'), 'utf8')
 const e2eConfig = readFileSync(resolve(repoRoot, 'playwright.enterprise-profile.config.mjs'), 'utf8')
+const baseVite = readFileSync(resolve(repoRoot, 'eiscore-base/vite.config.js'), 'utf8')
+const nginx = readFileSync(resolve(repoRoot, 'nginx/conf.d/default.conf'), 'utf8')
+const staticServer = readFileSync(resolve(repoRoot, 'scripts/static-spa-server.mjs'), 'utf8')
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
 
 for (const marker of [
@@ -38,6 +41,11 @@ assert.match(packageJson.scripts?.['test:unit'] || '', /npm run test:company-sit
 assert.match(packageJson.scripts?.['test:e2e:enterprise-profile-merge'] || '', /enterprise-profile-merge\.spec\.mjs/)
 assert.match(e2eConfig, /enterprise-profile-playwright-result\.json/)
 assert.match(e2eConfig, /VITE_DEV_CORS_ORIGIN/)
+assert.match(baseVite, /rawPath\.startsWith\('\/company-site'\)/)
+assert.match(baseVite, /'\/company-site':\s*\{\s*target:\s*'http:\/\/localhost:8092'/s)
+assert.match(nginx, /location \/company-site\/ \{\s*proxy_pass http:\/\/host\.docker\.internal:8092\/company-site\//s)
+assert.match(staticServer, /prefix:\s*'\/company-site',\s*target:\s*'http:\/\/127\.0\.0\.1:8092'/)
+assert.doesNotMatch(e2e, /page\.route\(`\$\{HOST_URL\}\/company-site/)
 for (const marker of [
   '企业公开资料已合并到企业站点运营',
   "page.locator('.login-btn').click()",

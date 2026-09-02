@@ -51,6 +51,7 @@ const mimeTypes = {
 
 const microTargets = [
   { prefix: '/apps', target: 'http://127.0.0.1:8083' },
+  { prefix: '/company-site', target: 'http://127.0.0.1:8092' },
   { prefix: '/production', target: 'http://127.0.0.1:8087' },
   { prefix: '/hr', target: 'http://127.0.0.1:8082' },
   { prefix: '/materials', target: 'http://127.0.0.1:8081' },

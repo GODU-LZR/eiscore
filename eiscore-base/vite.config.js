@@ -27,6 +27,7 @@ export default defineConfig(({ command }) => ({
           rawPath.startsWith('/materials') ||
           rawPath.startsWith('/hr') ||
           rawPath.startsWith('/apps') ||
+          rawPath.startsWith('/company-site') ||
           rawPath.startsWith('/sales') ||
           rawPath.startsWith('/purchase') ||
           rawPath.startsWith('/production') ||
@@ -62,6 +63,7 @@ export default defineConfig(({ command }) => ({
 
         const redirectMap = {
           '/apps': '/apps/',
+          '/company-site': '/company-site/',
           '/hr': '/hr/',
           '/materials': '/materials/',
           '/sales': '/sales/',
@@ -136,6 +138,17 @@ export default defineConfig(({ command }) => ({
             rawPath === '/apps/preview/flash-draft' ||
             rawPath.startsWith('/apps/preview/')
           if (isPreview) return undefined
+          const isDocument =
+            req.headers['sec-fetch-dest'] === 'document' ||
+            req.headers['sec-fetch-mode'] === 'navigate'
+          return isDocument ? '/index.html' : undefined
+        }
+      },
+      '/company-site': {
+        target: 'http://localhost:8092',
+        changeOrigin: true,
+        ws: true,
+        bypass: (req) => {
           const isDocument =
             req.headers['sec-fetch-dest'] === 'document' ||
             req.headers['sec-fetch-mode'] === 'navigate'
