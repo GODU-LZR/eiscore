@@ -22,7 +22,7 @@
 - “系统设置 → 企业资料”改为只读发布摘要，展示资料状态、名称、Logo、联系方式、官网和版本，并跳转到 `/company-site`；没有发布档案时也只提示前往运营台，不再显示旧登录门户编辑器。
 - “企业站点运营”成为唯一资料编辑入口；草稿不会提前污染公开站或系统外壳，发布后才成为运行时事实。
 - 企业站模块禁用、接口不可用或尚无发布档案时，基座保留部署配置和旧 `loginBranding` 兼容兜底，不阻断现有登录与系统设置加载。
-- 君乐缘球杆配置器、材料资产与研究成果，以及经纬网厂独立站、研究资产和页面成果均已迁入独立重构仓库并保留。
+- 君乐缘球杆配置器、材料资产与研究成果，以及经纬网厂独立站、研究资产和页面成果均已迁入独立重构仓库并保留；后续复核发现的君乐缘 42 个 V2/V3 材料文件也已补齐，详见 `JUNLEYUAN_LATEST_RESULT_MERGE_AUDIT.md`。
 - 尚无运行时后端支撑的销售草稿、客户匹配、关键词报告和事实治理能力保持显式禁用，不再在首屏自动请求不存在的接口或制造伪故障。
 
 ## 实现边界
@@ -47,12 +47,13 @@
 | 完整生命周期（离线行为） | 保存草稿 → 发布 → 公开 API → 基座重新加载通过；发布版本由 1 增至 2，未发布草稿不会被公开读取；覆盖二次保存不覆盖首个发布快照 |
 | 合并后浏览器交互 | `npm run test:e2e:enterprise-profile-merge` 1/1 通过；真实 Chromium 加载基座与企业站两个真实 Vite 前端，填写超级管理员登录表单并验证系统设置只读、进入运营台、草稿隔离、显式发布、基座同步和刷新后持久化 |
 | 合并后真实完整栈 | `npm run test:e2e:enterprise-profile-full-stack` 1/1 通过；真实 Chromium + 基座/企业站 Vite + PostgREST + Agent + PostgreSQL，真实登录、两次草稿保存、旧品牌/旧发布域名保持、新草稿域名返回 404、发布后品牌与域名同时切换、停用后公开 API 返回 404，且设置页切换为无编辑器的未发布提示；测试前后备份/恢复 `company_site` schema，隔离数据库恢复为 `published|君乐缘台球|v1` |
-| 企业站单元与契约 | 25/25 通过，覆盖君乐缘配置器、经纬网厂模型/素材、公开档案优先级、能力开关、运营契约和安全存储 |
+| 企业站单元与契约 | 26/26 通过，覆盖君乐缘配置器、14 套 V1/V2/V3 材料完整性和哈希、经纬网厂模型/素材、公开档案优先级、能力开关、运营契约和安全存储 |
+| 君乐缘材质浏览器链路 | `npm run test:e2e:junleyuan-materials` 1/1 通过；Chromium 实际加载 V2 材质卡和 V3 枫木/黑檀纹理，切换材料后 Three.js 重建成功，无材质请求失败、页面异常或 3D 回退 |
 | 企业站数据库契约 | 28 张表通过 Schema 静态检查；Schema/Handler 回归已接入 `test:unit` 的 `test:company-site-runtime` 门禁 |
 | Realtime | 路由 Manifest 80 条；组合根 796 行、31 个本地模块、28 个传输/配置辅助职责，均在既有上限内 |
 | 数据库治理 | 107 份 SQL 被库存门禁识别；Runtime V2 的 10 个迁移继续受顺序、校验和、事务、账本与 postcheck 治理；新增 `company-site-001` 有序迁移、SQL 回滚和 postcheck，并在隔离数据库真实执行 1 applied/0 skipped |
 | 前端复杂度 | 148 个 Vue 文件，51 个达到 800 行，巨页债务 83,332/85,045 行；旧设置页编辑器移除后 `SettingsView.vue` 降到 800 行以下 |
-| Node 语法 | 251 个文件通过语法检查 |
+| Node 语法 | 252 个文件通过语法检查 |
 | 生产构建 | 企业站加入后的完整前端 12/12 成功；企业站 1,718 modules、基座 5,901 modules |
 
 合并前 G3.5 已有隔离完整栈 77/77 Playwright 证据。合并后保留 1 条状态化契约模拟浏览器验收（`npm run test:e2e:enterprise-profile-merge`，1/1），用于快速锁定前端交互；另新增真实完整栈验收（`npm run test:e2e:enterprise-profile-full-stack`，1/1），不 mock API，直接通过 `eiscore-g35` 的 PostgreSQL、PostgREST、Agent 和两个真实 Vite 服务验证发布可见性。真实完整栈用例只接受 localhost、显式 `eiscore-g35` 项目和 `eiscore-g35-db`，并在 afterAll 中恢复 `company_site` 备份。
@@ -60,6 +61,7 @@
 ## 隔离、兼容与回退
 
 - 唯一修改目标是 `C:\Users\Twist\Documents\eiscore\github-eiscore-refactor` 的 `codex/systematic-refactor`；原仓库、原仓库 `main` 和既有 WSL 主环境均未修改，未推送远程。
+- 桌面君乐缘独立站来源只读；V2/V3 源与目标均为 42 个文件、5,140,758 字节，逐项 SHA-256 一致，目录清单 SHA-256 均为 `9ab4082ff091231f4b000995d93f1b675f5f7970ee438b0a2cde524aa1380673`。
 - 数据库没有删除 `loginBranding` 或客户 seed，现有数据可继续回退读取。
 - 本轮隔离数据库备份产物为 `tests/.artifacts/g35-company-site-pre-published-snapshot.dump`（SHA-256 `1fec9eb2b3ce13d4cf92fcc75dde4ba23bbfe2186489d9f5912f086e04eb2242`）；真实完整栈专项结束后已恢复并核对君乐缘 v1 发布资料。
 - 隔离栈曾发现数据库 `app.jwt_secret` 与 API/Agent 的 `PGRST_JWT_SECRET` 漂移；已仅对 `eiscore-g35` 应用既有 JWT 对齐补丁并重启该项目 API/Agent，三者指纹一致。该环境修复未触碰其他 Compose 项目。
@@ -72,6 +74,7 @@
 - 107 份 SQL 中 Runtime V2 的 10 份和 company-site 的 1 份具备 Manifest 治理；其余历史 SQL 不得按文件名猜测顺序或自动执行。
 - 部分历史客户页面仍有硬编码展示内容，后续只能在真实业务与视觉证据保护下渐进迁移到公开内容 API。
 - 三家企业配置包、客户数据迁移、真实 AI、恢复演练、发布治理和生产可观测性未验证。
+- 君乐缘 V1/V2/V3 材料虽已完整保留并接通内部配置器，但仍为未授权候选资源，不是生产级 PBR 或正式商品素材。
 - 生产构建仍有非阻断循环 chunk 与体积告警。
 - 本检查点在当前本机 Node 26.1.0/npm 11.13.0 下复核，满足仓库 `>=22.12.0` 兼容范围但不是规范发布工具链；Node 20.19.0/npm 10.8.2 的严格证据来自合并前 G3.5，正式发布前仍须在规范工具链重跑完整 CI。
 

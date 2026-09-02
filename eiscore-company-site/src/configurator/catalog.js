@@ -43,29 +43,62 @@ export const SLOT_DEFINITIONS = [
   { slot: 'EXTENSION_INTERFACE', label: 'Extension interface', labelZh: '延长把接口', step: 'butt' }
 ]
 
-// These are factory-supplied preview crops from 君乐缘素材.xlsx. They are
-// candidate references for the internal prototype, not approved PBR assets.
+const JUNLEYUAN_MATERIAL_V2_ROOT = 'assets/junleyuan-materials-v2'
+const JUNLEYUAN_MATERIAL_V1_ROOT = 'assets/junleyuan-materials'
+
+// These are factory-supplied preview crops from 君乐缘素材.xlsx plus the
+// latest derived V2 cards and V3 visualisation textures preserved from the
+// independent site. They remain candidate references for the internal
+// prototype, not approved PBR assets.
 export const JUNLEYUAN_MATERIAL_ASSETS = [
-  { assetId: 'JLY-MAT-PURPLEHEART-ROD-V001', name: 'Purpleheart', nameZh: '紫心木', previewFile: 'JLY-MAT-PURPLEHEART-ROD-V001.jpg', sourceCell: 'B13', sourceMedia: 'image24.png' },
-  { assetId: 'JLY-MAT-EBONY-V001', name: 'Ebony', nameZh: '黑檀', previewFile: 'JLY-MAT-EBONY-V001.jpg', sourceCell: 'B10', sourceMedia: 'image17.png' },
-  { assetId: 'JLY-MAT-MAPLE-V001', name: 'Maple', nameZh: '枫木', previewFile: 'JLY-MAT-MAPLE-V001.jpg', sourceCell: 'B15', sourceMedia: 'image28.png' },
-  { assetId: 'JLY-MAT-BOCOTE-V001', name: 'Bocote', nameZh: '可可木', previewFile: 'JLY-MAT-BOCOTE-V001.jpg', sourceCell: 'B20', sourceMedia: 'image42.png' },
-  { assetId: 'JLY-MAT-PEACOCK-V001', name: 'Peacock wood', nameZh: '孔雀木', previewFile: 'JLY-MAT-PEACOCK-V001.jpg', sourceCell: 'B9', sourceMedia: 'image16.png' },
-  { assetId: 'JLY-MAT-SNAKEWOOD-INLAY-V001', name: 'Snakewood eight-point', nameZh: '蛇纹木八插', previewFile: 'JLY-MAT-SNAKEWOOD-INLAY-V001.jpg', sourceCell: 'B12', sourceMedia: 'image23.png' },
-  { assetId: 'JLY-MAT-TECHWOOD-TULIP-V001', name: 'Techwood tulip', nameZh: '科技木郁金香', previewFile: 'JLY-MAT-TECHWOOD-TULIP-V001.jpg', sourceCell: 'B5', sourceMedia: 'image8.jpeg' },
-  { assetId: 'JLY-MAT-HUANGHUALI-V001', name: 'Hainan huanghuali', nameZh: '海南黄花梨', previewFile: 'JLY-MAT-HUANGHUALI-V001.jpg', sourceCell: 'B21', sourceMedia: 'image43.png' },
-  { assetId: 'JLY-MAT-BRAZILIAN-ROSEWOOD-V001', name: 'Brazilian rosewood', nameZh: '巴西花梨木', previewFile: 'JLY-MAT-BRAZILIAN-ROSEWOOD-V001.jpg', sourceCell: 'B27', sourceMedia: 'image52.png' },
-  { assetId: 'JLY-MAT-MICROCONCAVE-ROSEWOOD-V001', name: 'Microconcave rosewood', nameZh: '微凹黄檀', previewFile: 'JLY-MAT-MICROCONCAVE-ROSEWOOD-V001.jpg', sourceCell: 'B30', sourceMedia: 'image59.png' },
-  { assetId: 'JLY-MAT-GOLDEN-CAMPHOR-V001', name: 'Golden camphor', nameZh: '黄金樟', previewFile: 'JLY-MAT-GOLDEN-CAMPHOR-V001.jpg', sourceCell: 'B24', sourceMedia: 'image47.png' },
-  { assetId: 'JLY-MAT-DRAGON-SCALE-INLAY-V001', name: 'Dragon-scale inlay', nameZh: '龙鳞插片', previewFile: 'JLY-MAT-DRAGON-SCALE-INLAY-V001.jpg', sourceCell: 'B22', sourceMedia: 'image45.png' },
-  { assetId: 'JLY-MAT-BLACKWHITE-SANDAL-INLAY-V001', name: 'Black-white sandal eight-point', nameZh: '黑白檀高插', previewFile: 'JLY-MAT-BLACKWHITE-SANDAL-INLAY-V001.jpg', sourceCell: 'B8', sourceMedia: 'image14.png' },
-  { assetId: 'JLY-MAT-TULIP-INLAY-V001', name: 'Tulip eight-point', nameZh: '郁金香高插', previewFile: 'JLY-MAT-TULIP-INLAY-V001.jpg', sourceCell: 'B11', sourceMedia: 'image18.png' }
-]
+  { assetId: 'JLY-MAT-PURPLEHEART-ROD-V001', name: 'Purpleheart', nameZh: '紫心木', sourceCell: 'B13', sourceMedia: 'image24.png' },
+  { assetId: 'JLY-MAT-EBONY-V001', name: 'Ebony', nameZh: '黑檀', sourceCell: 'B10', sourceMedia: 'image17.png' },
+  { assetId: 'JLY-MAT-MAPLE-V001', name: 'Maple', nameZh: '枫木', sourceCell: 'B15', sourceMedia: 'image28.png' },
+  { assetId: 'JLY-MAT-BOCOTE-V001', name: 'Bocote', nameZh: '可可木', sourceCell: 'B20', sourceMedia: 'image42.png' },
+  { assetId: 'JLY-MAT-PEACOCK-V001', name: 'Peacock wood', nameZh: '孔雀木', sourceCell: 'B9', sourceMedia: 'image16.png' },
+  { assetId: 'JLY-MAT-SNAKEWOOD-INLAY-V001', name: 'Snakewood eight-point', nameZh: '蛇纹木八插', sourceCell: 'B12', sourceMedia: 'image23.png' },
+  { assetId: 'JLY-MAT-TECHWOOD-TULIP-V001', name: 'Techwood tulip', nameZh: '科技木郁金香', sourceCell: 'B5', sourceMedia: 'image8.jpeg' },
+  { assetId: 'JLY-MAT-HUANGHUALI-V001', name: 'Hainan huanghuali', nameZh: '海南黄花梨', sourceCell: 'B21', sourceMedia: 'image43.png' },
+  { assetId: 'JLY-MAT-BRAZILIAN-ROSEWOOD-V001', name: 'Brazilian rosewood', nameZh: '巴西花梨木', sourceCell: 'B27', sourceMedia: 'image52.png' },
+  { assetId: 'JLY-MAT-MICROCONCAVE-ROSEWOOD-V001', name: 'Microconcave rosewood', nameZh: '微凹黄檀', sourceCell: 'B30', sourceMedia: 'image59.png' },
+  { assetId: 'JLY-MAT-GOLDEN-CAMPHOR-V001', name: 'Golden camphor', nameZh: '黄金樟', sourceCell: 'B24', sourceMedia: 'image47.png' },
+  { assetId: 'JLY-MAT-DRAGON-SCALE-INLAY-V001', name: 'Dragon-scale inlay', nameZh: '龙鳞插片', sourceCell: 'B22', sourceMedia: 'image45.png' },
+  { assetId: 'JLY-MAT-BLACKWHITE-SANDAL-INLAY-V001', name: 'Black-white sandal eight-point', nameZh: '黑白檀高插', sourceCell: 'B8', sourceMedia: 'image14.png' },
+  { assetId: 'JLY-MAT-TULIP-INLAY-V001', name: 'Tulip eight-point', nameZh: '郁金香高插', sourceCell: 'B11', sourceMedia: 'image18.png' }
+].map((asset) => {
+  const stem = asset.assetId.replace(/-V001$/, '')
+  return {
+    ...asset,
+    previewAssetId: `${stem}-CARD-V002`,
+    textureAssetId: `${stem}-TEXTURE-HQ-V003`,
+    previewFile: `${stem}-V002.webp`,
+    lightweightTextureFile: `${stem}-V002.webp`,
+    textureFile: `${stem}-V003.webp`,
+    fallbackPreviewFile: `${asset.assetId}.jpg`
+  }
+})
 
 const JUNLEYUAN_ASSET_BY_ID = Object.fromEntries(JUNLEYUAN_MATERIAL_ASSETS.map((asset) => [asset.assetId, asset]))
 
-const jlyMaterialVariant = ({ variantId, assetId, displayName, displayNameZh, slot = 'FOREARM', color = '#a77750', materialFamily = 'wood', weightG = 0 }) => {
+const junleyuanMaterialFields = (assetId) => {
   const asset = JUNLEYUAN_ASSET_BY_ID[assetId]
+  if (!asset) return {}
+  return {
+    materialAssetId: asset.assetId,
+    materialPreviewAssetId: asset.previewAssetId,
+    materialTextureAssetId: asset.textureAssetId,
+    materialPreviewUrl: `${JUNLEYUAN_MATERIAL_V2_ROOT}/cards/${asset.previewFile}`,
+    materialTextureUrl: `${JUNLEYUAN_MATERIAL_V2_ROOT}/textures/${asset.textureFile}`,
+    materialPreviewFallbackUrl: `${JUNLEYUAN_MATERIAL_V1_ROOT}/${asset.fallbackPreviewFile}`,
+    sourceId: 'SRC-SUPPLIER-JLY-MATERIAL-WORKBOOK-20260813',
+    sourceCell: asset.sourceCell,
+    sourceMedia: asset.sourceMedia,
+    assetStatus: 'candidate',
+    approved: false
+  }
+}
+
+const jlyMaterialVariant = ({ variantId, assetId, displayName, displayNameZh, slot = 'FOREARM', color = '#a77750', materialFamily = 'wood', weightG = 0 }) => {
   return {
     variantId,
     slot,
@@ -73,12 +106,7 @@ const jlyMaterialVariant = ({ variantId, assetId, displayName, displayNameZh, sl
     displayNameZh,
     color,
     materialFamily,
-    materialAssetId: assetId,
-    materialPreviewUrl: `assets/junleyuan-materials/${asset?.previewFile || ''}`,
-    sourceId: 'SRC-SUPPLIER-JLY-MATERIAL-WORKBOOK-20260813',
-    sourceCell: asset?.sourceCell || '',
-    sourceMedia: asset?.sourceMedia || '',
-    assetStatus: 'candidate',
+    ...junleyuanMaterialFields(assetId),
     priceLabel: 'RFQ',
     priceDelta: 0,
     weightG,
@@ -93,9 +121,7 @@ export const BASE_MODELS = PRODUCT_FAMILIES.map((family) => ({
   variantId: `BASE-${family.id.toUpperCase()}-OEM-P01`,
   displayName: `${family.name} / OEM-P01`,
   displayNameZh: `${family.nameZh} / OEM-P01`,
-  materialAssetId: 'JLY-MAT-MAPLE-V001',
-  materialPreviewUrl: 'assets/junleyuan-materials/JLY-MAT-MAPLE-V001.jpg',
-  sourceId: 'SRC-SUPPLIER-JLY-MATERIAL-WORKBOOK-20260813',
+  ...junleyuanMaterialFields('JLY-MAT-MAPLE-V001'),
   geometryAssetId: 'GEO_PROTO_CUE_PARAMETRIC_V001',
   priceDelta: family.priceDelta,
   leadTimeDays: family.leadTimeDays,
@@ -113,18 +139,18 @@ export const COMPONENT_VARIANTS = {
     { variantId: 'FERRULE-COMPOSITE-10', slot: 'FERRULE', displayName: 'Composite / 10 mm', displayNameZh: '复合材料 / 10 mm', color: '#d8dde0', lengthMm: 10, priceDelta: 12, weightG: 2, approved: false }
   ],
   SHAFT: [
-    { variantId: 'SHAFT-MAPLE-125-JF01', slot: 'SHAFT', displayName: 'Hard maple / 12.5 mm / JF01', displayNameZh: '硬枫木 / 12.5 mm / JF01', color: '#d8b887', materialFamily: 'maple', allowedTipDiameters: [12.25, 12.75], jointFamilyIds: ['JF01'], priceDelta: 0, weightG: 125, lengthMm: 737, approved: false },
+    { variantId: 'SHAFT-MAPLE-125-JF01', slot: 'SHAFT', displayName: 'Hard maple / 12.5 mm / JF01', displayNameZh: '硬枫木 / 12.5 mm / JF01', color: '#d8b887', materialFamily: 'maple', ...junleyuanMaterialFields('JLY-MAT-MAPLE-V001'), allowedTipDiameters: [12.25, 12.75], jointFamilyIds: ['JF01'], priceDelta: 0, weightG: 125, lengthMm: 737, approved: false },
     { variantId: 'SHAFT-CARBON-125-JF01', slot: 'SHAFT', displayName: 'Matte carbon / 12.5 mm / JF01', displayNameZh: '哑光碳纤维 / 12.5 mm / JF01', color: '#31353a', materialFamily: 'carbon', allowedTipDiameters: [12.25, 12.75], jointFamilyIds: ['JF01'], priceDelta: 180, weightG: 115, lengthMm: 737, approved: false },
-    { variantId: 'SHAFT-MAPLE-1175-JF02', slot: 'SHAFT', displayName: 'Hard maple / 11.75 mm / JF02', displayNameZh: '硬枫木 / 11.75 mm / JF02', color: '#caa371', materialFamily: 'maple', allowedTipDiameters: [11.75], jointFamilyIds: ['JF02'], priceDelta: 35, weightG: 120, lengthMm: 737, approved: false }
+    { variantId: 'SHAFT-MAPLE-1175-JF02', slot: 'SHAFT', displayName: 'Hard maple / 11.75 mm / JF02', displayNameZh: '硬枫木 / 11.75 mm / JF02', color: '#caa371', materialFamily: 'maple', ...junleyuanMaterialFields('JLY-MAT-MAPLE-V001'), allowedTipDiameters: [11.75], jointFamilyIds: ['JF02'], priceDelta: 35, weightG: 120, lengthMm: 737, approved: false }
   ],
   JOINT: [
     { variantId: 'JOINT-JF01-SS', slot: 'JOINT', displayName: 'JF01 / stainless collar', displayNameZh: 'JF01 / 不锈钢接环', color: '#a9b0b3', jointFamily: 'JF01', materialFamily: 'stainless_steel', priceDelta: 0, weightG: 18, approved: false },
     { variantId: 'JOINT-JF02-BRASS', slot: 'JOINT', displayName: 'JF02 / brass collar', displayNameZh: 'JF02 / 黄铜接环', color: '#b18a4b', jointFamily: 'JF02', materialFamily: 'brass', priceDelta: 32, weightG: 20, approved: false }
   ],
   FOREARM: [
-    { variantId: 'WOOD-MAPLE-NAT-01', slot: 'FOREARM', displayName: 'Birdseye maple / natural', displayNameZh: '鸟眼枫 / 原色', color: '#c89b63', materialAssetId: 'JLY-MAT-MAPLE-V001', materialPreviewUrl: 'assets/junleyuan-materials/JLY-MAT-MAPLE-V001.jpg', sourceId: 'SRC-SUPPLIER-JLY-MATERIAL-WORKBOOK-20260813', sourceCell: 'B15', assetStatus: 'candidate', priceDelta: 0, weightG: 210, approved: false },
-    { variantId: 'WOOD-EBONY-DARK-01', slot: 'FOREARM', displayName: 'Ebony / satin black', displayNameZh: '乌木 / 哑光黑', color: '#252322', materialAssetId: 'JLY-MAT-EBONY-V001', materialPreviewUrl: 'assets/junleyuan-materials/JLY-MAT-EBONY-V001.jpg', sourceId: 'SRC-SUPPLIER-JLY-MATERIAL-WORKBOOK-20260813', sourceCell: 'B10', assetStatus: 'candidate', priceDelta: 120, weightG: 235, approved: false },
-    { variantId: 'WOOD-BOCOTE-CLR-01', slot: 'FOREARM', displayName: 'Bocote / clear coat', displayNameZh: '可可木 / 透明漆', color: '#80573d', materialAssetId: 'JLY-MAT-BOCOTE-V001', materialPreviewUrl: 'assets/junleyuan-materials/JLY-MAT-BOCOTE-V001.jpg', sourceId: 'SRC-SUPPLIER-JLY-MATERIAL-WORKBOOK-20260813', sourceCell: 'B20', assetStatus: 'candidate', priceDelta: 160, weightG: 225, approved: false },
+    { variantId: 'WOOD-MAPLE-NAT-01', slot: 'FOREARM', displayName: 'Birdseye maple / natural', displayNameZh: '鸟眼枫 / 原色', color: '#c89b63', ...junleyuanMaterialFields('JLY-MAT-MAPLE-V001'), priceDelta: 0, weightG: 210, approved: false },
+    { variantId: 'WOOD-EBONY-DARK-01', slot: 'FOREARM', displayName: 'Ebony / satin black', displayNameZh: '乌木 / 哑光黑', color: '#252322', ...junleyuanMaterialFields('JLY-MAT-EBONY-V001'), priceDelta: 120, weightG: 235, approved: false },
+    { variantId: 'WOOD-BOCOTE-CLR-01', slot: 'FOREARM', displayName: 'Bocote / clear coat', displayNameZh: '可可木 / 透明漆', color: '#80573d', ...junleyuanMaterialFields('JLY-MAT-BOCOTE-V001'), priceDelta: 160, weightG: 225, approved: false },
     jlyMaterialVariant({ variantId: 'WOOD-PURPLEHEART-JLY-01', assetId: 'JLY-MAT-PURPLEHEART-ROD-V001', displayName: 'Purpleheart / factory sample', displayNameZh: '紫心木 / 工厂样本', color: '#714257', weightG: 220 }),
     jlyMaterialVariant({ variantId: 'WOOD-PEACOCK-JLY-01', assetId: 'JLY-MAT-PEACOCK-V001', displayName: 'Peacock wood / factory sample', displayNameZh: '孔雀木 / 工厂样本', color: '#3d715f', weightG: 220 }),
     jlyMaterialVariant({ variantId: 'WOOD-HUANGHUALI-JLY-01', assetId: 'JLY-MAT-HUANGHUALI-V001', displayName: 'Hainan huanghuali / sample', displayNameZh: '海南黄花梨 / 样本', color: '#8b5a35', weightG: 220 }),
@@ -151,8 +177,8 @@ export const COMPONENT_VARIANTS = {
   ],
   BUTT_SLEEVE: [
     { variantId: 'WOOD-WALNUT-DARK-01', slot: 'BUTT_SLEEVE', displayName: 'Walnut / dark clear coat', displayNameZh: '胡桃木 / 深色透明漆', color: '#4a2b21', materialAssetId: 'MAT_PROTO_WALNUT_CLR_V001', priceDelta: 40, weightG: 175, approved: false },
-    { variantId: 'WOOD-EBONY-SATIN-01', slot: 'BUTT_SLEEVE', displayName: 'Ebony / satin', displayNameZh: '乌木 / 哑光', color: '#211f1e', materialAssetId: 'JLY-MAT-EBONY-V001', materialPreviewUrl: 'assets/junleyuan-materials/JLY-MAT-EBONY-V001.jpg', sourceId: 'SRC-SUPPLIER-JLY-MATERIAL-WORKBOOK-20260813', sourceCell: 'B10', assetStatus: 'candidate', priceDelta: 120, weightG: 195, approved: false },
-    { variantId: 'WOOD-BIRDSEYE-NAT-01', slot: 'BUTT_SLEEVE', displayName: 'Maple / natural sample', displayNameZh: '枫木 / 原色样本', color: '#bd8e5d', materialAssetId: 'JLY-MAT-MAPLE-V001', materialPreviewUrl: 'assets/junleyuan-materials/JLY-MAT-MAPLE-V001.jpg', sourceId: 'SRC-SUPPLIER-JLY-MATERIAL-WORKBOOK-20260813', sourceCell: 'B15', assetStatus: 'candidate', priceDelta: 70, weightG: 165, approved: false },
+    { variantId: 'WOOD-EBONY-SATIN-01', slot: 'BUTT_SLEEVE', displayName: 'Ebony / satin', displayNameZh: '乌木 / 哑光', color: '#211f1e', ...junleyuanMaterialFields('JLY-MAT-EBONY-V001'), priceDelta: 120, weightG: 195, approved: false },
+    { variantId: 'WOOD-BIRDSEYE-NAT-01', slot: 'BUTT_SLEEVE', displayName: 'Maple / natural sample', displayNameZh: '枫木 / 原色样本', color: '#bd8e5d', ...junleyuanMaterialFields('JLY-MAT-MAPLE-V001'), priceDelta: 70, weightG: 165, approved: false },
     jlyMaterialVariant({ variantId: 'WOOD-HUANGHUALI-BUTT-JLY-01', assetId: 'JLY-MAT-HUANGHUALI-V001', displayName: 'Hainan huanghuali / sample', displayNameZh: '海南黄花梨 / 样本', color: '#8b5a35', slot: 'BUTT_SLEEVE', weightG: 180 }),
     jlyMaterialVariant({ variantId: 'WOOD-BRAZILIAN-ROSEWOOD-BUTT-JLY-01', assetId: 'JLY-MAT-BRAZILIAN-ROSEWOOD-V001', displayName: 'Brazilian rosewood / sample', displayNameZh: '巴西花梨木 / 样本', color: '#835044', slot: 'BUTT_SLEEVE', weightG: 180 }),
     jlyMaterialVariant({ variantId: 'WOOD-GOLDEN-CAMPHOR-BUTT-JLY-01', assetId: 'JLY-MAT-GOLDEN-CAMPHOR-V001', displayName: 'Golden camphor / sample', displayNameZh: '黄金樟 / 样本', color: '#a77b39', slot: 'BUTT_SLEEVE', weightG: 180 })

@@ -1,5 +1,5 @@
 <template>
-  <div ref="stageRoot" class="cue-stage" :class="{ 'is-unavailable': unavailable }">
+  <div ref="stageRoot" class="cue-stage" :class="{ 'is-unavailable': unavailable }" :data-applied-material-textures="appliedMaterialTextureIds">
     <canvas ref="canvas" aria-label="Interactive prototype cue preview"></canvas>
     <div v-if="unavailable" class="stage-fallback">
       <span class="fallback-kicker">3D FALLBACK</span>
@@ -36,6 +36,7 @@ const emit = defineEmits(['ready', 'error'])
 const stageRoot = ref(null)
 const canvas = ref(null)
 const unavailable = ref(false)
+const appliedMaterialTextureIds = ref('')
 
 let renderer = null
 let scene = null
@@ -51,6 +52,7 @@ let cameraLookAtGoal = new THREE.Vector3(0, 0, 0)
 let fullCameraDistance = 24
 let pulseStartedAt = 0
 let reducedMotion = false
+let cueBuildToken = 0
 
 // Keep the cue slender enough to read as a real 57-58 inch cue at a glance.
 const CUE_DISPLAY_SCALE = new THREE.Vector3(0.98, 1.82, 1.82)
@@ -85,6 +87,8 @@ const colorFor = (slot) => {
 }
 
 const woodTextureCache = new Map()
+const loadedMaterialTextures = new Set()
+const activeMaterialTextureIds = new Set()
 
 const textureSeedFor = (value) => [...String(value || '')].reduce((seed, char, index) => (seed + char.charCodeAt(0) * (index + 7)) % 997, 17)
 
@@ -138,6 +142,43 @@ const generatedWoodTexture = (baseColor, variantKey = '') => {
   texture.anisotropy = 4
   woodTextureCache.set(cacheKey, texture)
   return texture
+}
+
+const loadCandidateMaterialTexture = (group, variant, buildToken, repeatV = 2.2) => {
+  if (!variant?.materialTextureUrl) return
+  let pendingTexture = null
+  pendingTexture = new THREE.TextureLoader().load(
+    variant.materialTextureUrl,
+    (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace
+      texture.wrapS = THREE.RepeatWrapping
+      texture.wrapT = THREE.RepeatWrapping
+      texture.repeat.set(1.2, repeatV)
+      texture.anisotropy = Math.min(8, renderer?.capabilities?.getMaxAnisotropy?.() || 1)
+      if (buildToken !== cueBuildToken || !cueGroup || !scene) {
+        texture.dispose()
+        return
+      }
+      loadedMaterialTextures.add(texture)
+      let applied = false
+      group.traverse((child) => {
+        if (!child.isMesh || !child.userData?.acceptsCandidateMaterialTexture) return
+        const materials = Array.isArray(child.material) ? child.material : [child.material]
+        materials.filter(Boolean).forEach((material) => {
+          material.map = texture
+          material.color?.set?.('#ffffff')
+          material.needsUpdate = true
+          applied = true
+        })
+      })
+      if (applied && variant.materialTextureAssetId) {
+        activeMaterialTextureIds.add(variant.materialTextureAssetId)
+        appliedMaterialTextureIds.value = [...activeMaterialTextureIds].sort().join(',')
+      }
+    },
+    undefined,
+    () => pendingTexture?.dispose?.()
+  )
 }
 
 const materialFor = (slot) => {
@@ -194,7 +235,7 @@ const addCueRing = (group, x, radius, tube, color, name) => {
   group.add(ring)
 }
 
-const createInlayPart = () => {
+const createInlayPart = (buildToken) => {
   const selected = props.design?.components?.find((item) => item.slot === 'INLAY')
   const variant = getVariant('INLAY', selected?.variantId)
   if (!variant || variant.variantId === 'INLAY-NONE-01') return null
@@ -216,6 +257,7 @@ const createInlayPart = () => {
     })
   })
   group.position.set(PART_LAYOUT.FOREARM.x, 0, 0)
+  loadCandidateMaterialTexture(group, variant, buildToken, 1)
   return group
 }
 
@@ -230,6 +272,7 @@ const createPointAccent = (layout, offset, color, angle = 0, insetColor = '#b477
     geometry,
     new THREE.MeshPhysicalMaterial({ color, roughness: 0.28, metalness: 0.04, clearcoat: 0.58, clearcoatRoughness: 0.18 })
   )
+  mesh.userData.acceptsCandidateMaterialTexture = true
   const radius = (layout.leftRadius + layout.rightRadius) / 2
   mesh.rotation.x = angle
   mesh.position.set(offset, -Math.sin(angle) * radius * 0.985, Math.cos(angle) * radius * 0.985)
@@ -247,10 +290,10 @@ const createPointAccent = (layout, offset, color, angle = 0, insetColor = '#b477
   return group
 }
 
-const createPart = (slot) => {
+const createPart = (slot, buildToken) => {
   const layout = PART_LAYOUT[slot]
   if (!layout) return null
-  if (slot === 'INLAY') return createInlayPart()
+  if (slot === 'INLAY') return createInlayPart(buildToken)
   if (slot === 'WRAP' && selectedVariantFor('WRAP')?.variantId === 'WRAP-NONE-01') return null
   const group = new THREE.Group()
   group.name = `GEO_CUE_${slot}`
@@ -258,6 +301,7 @@ const createPart = (slot) => {
   group.userData.baseX = layout.x
   group.userData.axis = layout.axis
   const mesh = new THREE.Mesh(axisGeometry(layout), materialFor(slot))
+  if (['SHAFT', 'FOREARM', 'BUTT_SLEEVE'].includes(slot)) mesh.userData.acceptsCandidateMaterialTexture = true
   mesh.name = `GEO_CUE_${slot}_MESH`
   mesh.castShadow = true
   mesh.receiveShadow = true
@@ -319,6 +363,7 @@ const createPart = (slot) => {
     group.add(edge)
   }
   group.position.set(layout.x, 0, 0)
+  loadCandidateMaterialTexture(group, selectedVariantFor(slot), buildToken, slot === 'SHAFT' ? 3.2 : 2.2)
   return group
 }
 
@@ -326,13 +371,22 @@ const disposeObject = (object) => {
   object.traverse((child) => {
     if (!child.isMesh) return
     child.geometry?.dispose?.()
-    if (Array.isArray(child.material)) child.material.forEach((material) => material.dispose?.())
-    else child.material?.dispose?.()
+    const materials = Array.isArray(child.material) ? child.material : [child.material]
+    materials.filter(Boolean).forEach((material) => {
+      if (material.map && loadedMaterialTextures.has(material.map)) {
+        material.map.dispose()
+        loadedMaterialTextures.delete(material.map)
+      }
+      material.dispose?.()
+    })
   })
 }
 
 const rebuildCue = () => {
   if (!scene) return
+  const buildToken = ++cueBuildToken
+  activeMaterialTextureIds.clear()
+  appliedMaterialTextureIds.value = ''
   if (cueGroup) {
     disposeObject(cueGroup)
     scene.remove(cueGroup)
@@ -342,7 +396,7 @@ const rebuildCue = () => {
   cueGroup.scale.copy(CUE_DISPLAY_SCALE)
   cueGroup.rotation.set(CUE_DISPLAY_ROTATION.x, CUE_DISPLAY_ROTATION.y, CUE_DISPLAY_ROTATION.z)
   PART_ORDER.forEach((slot) => {
-    const part = createPart(slot)
+    const part = createPart(slot, buildToken)
     if (part) cueGroup.add(part)
   })
   const ringColor = colorFor('JOINT')
@@ -506,10 +560,17 @@ const mountScene = () => {
 }
 
 const unmountScene = () => {
+  cueBuildToken += 1
+  activeMaterialTextureIds.clear()
+  appliedMaterialTextureIds.value = ''
   if (animationFrame) window.cancelAnimationFrame(animationFrame)
   resizeObserver?.disconnect?.()
   controls?.dispose?.()
   if (cueGroup) disposeObject(cueGroup)
+  loadedMaterialTextures.forEach((texture) => texture.dispose())
+  loadedMaterialTextures.clear()
+  woodTextureCache.forEach((texture) => texture.dispose())
+  woodTextureCache.clear()
   renderer?.dispose?.()
   renderer = null
   scene = null

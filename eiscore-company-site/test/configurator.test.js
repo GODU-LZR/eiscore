@@ -15,6 +15,7 @@ import {
   validateDesign
 } from '../src/configurator/engine.js'
 import { BASE_MODELS, COMPONENT_VARIANTS, JUNLEYUAN_MATERIAL_ASSETS } from '../src/configurator/catalog.js'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -87,21 +88,74 @@ test('base-family price delta is applied exactly once', () => {
   assert.equal(quote.subtotal, 619)
 })
 
-test('君乐缘 candidate previews are present and traceable', () => {
+const sha256 = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+
+test('君乐缘 V1 sources and V2/V3 derivatives are complete', () => {
   assert.equal(JUNLEYUAN_MATERIAL_ASSETS.length, 14)
   for (const asset of JUNLEYUAN_MATERIAL_ASSETS) {
-    const file = path.resolve('public/assets/junleyuan-materials', asset.previewFile)
-    assert.equal(fs.existsSync(file), true, asset.assetId)
+    const files = [
+      path.resolve('public/assets/junleyuan-materials', asset.fallbackPreviewFile),
+      path.resolve('public/assets/junleyuan-materials-v2/cards', asset.previewFile),
+      path.resolve('public/assets/junleyuan-materials-v2/textures', asset.lightweightTextureFile),
+      path.resolve('public/assets/junleyuan-materials-v2/textures', asset.textureFile)
+    ]
+    files.forEach((file) => assert.equal(fs.existsSync(file), true, `${asset.assetId}: ${file}`))
+    assert.match(asset.previewAssetId, /-CARD-V002$/)
+    assert.match(asset.textureAssetId, /-TEXTURE-HQ-V003$/)
   }
 })
 
-test('catalog material references resolve to manifest assets', () => {
+test('君乐缘 derivative manifest is complete, immutable and non-production', () => {
   const manifest = JSON.parse(fs.readFileSync(path.resolve('assets/manifests/asset_manifest.json'), 'utf8'))
-  const manifestIds = new Set(manifest.assets.map((asset) => asset.asset_id))
-  const references = [
+  const sourceIds = new Set(manifest.assets.map((asset) => asset.asset_id))
+  const derivatives = manifest.material_derivatives || []
+  const derivativeIds = new Set(derivatives.map((asset) => asset.asset_id))
+
+  assert.equal(manifest.manifestVersion, 2)
+  assert.equal(derivatives.length, 42)
+  assert.equal(derivativeIds.size, 42)
+  assert.deepEqual(
+    Object.fromEntries(['selection_card', 'texture_lightweight', 'texture_high_quality'].map((role) => [role, derivatives.filter((asset) => asset.role === role).length])),
+    { selection_card: 14, texture_lightweight: 14, texture_high_quality: 14 }
+  )
+
+  for (const derivative of derivatives) {
+    assert.equal(sourceIds.has(derivative.parent_asset_id), true, derivative.asset_id)
+    assert.equal(derivative.status, 'candidate', derivative.asset_id)
+    assert.equal(derivative.approved, false, derivative.asset_id)
+    assert.equal(derivative.commercial_use, false, derivative.asset_id)
+    assert.equal(derivative.license_id, 'supplier_authorization_pending', derivative.asset_id)
+    const file = path.resolve('public', derivative.web_path)
+    assert.equal(fs.existsSync(file), true, derivative.asset_id)
+    assert.equal(sha256(file), derivative.sha256, derivative.asset_id)
+  }
+
+  for (const asset of JUNLEYUAN_MATERIAL_ASSETS) {
+    const family = derivatives.filter((candidate) => candidate.parent_asset_id === asset.assetId)
+    assert.deepEqual(family.map((candidate) => candidate.role).sort(), ['selection_card', 'texture_high_quality', 'texture_lightweight'])
+    assert.equal(derivativeIds.has(asset.previewAssetId), true, asset.previewAssetId)
+    assert.equal(derivativeIds.has(asset.textureAssetId), true, asset.textureAssetId)
+  }
+})
+
+test('catalog material references resolve to source and derivative manifests', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.resolve('assets/manifests/asset_manifest.json'), 'utf8'))
+  const sourceIds = new Set(manifest.assets.map((asset) => asset.asset_id))
+  const derivativeIds = new Set((manifest.material_derivatives || []).map((asset) => asset.asset_id))
+  const variants = [
     ...BASE_MODELS,
     ...Object.values(COMPONENT_VARIANTS).flat()
-  ].map((variant) => variant.materialAssetId).filter(Boolean)
+  ]
+  const sourceReferences = variants.map((variant) => variant.materialAssetId).filter(Boolean)
+  const derivativeReferences = variants.flatMap((variant) => [variant.materialPreviewAssetId, variant.materialTextureAssetId]).filter(Boolean)
 
-  assert.deepEqual([...new Set(references)].filter((assetId) => !manifestIds.has(assetId)), [])
+  assert.deepEqual([...new Set(sourceReferences)].filter((assetId) => !sourceIds.has(assetId)), [])
+  assert.deepEqual([...new Set(derivativeReferences)].filter((assetId) => !derivativeIds.has(assetId)), [])
+  variants.filter((variant) => variant.materialTextureAssetId).forEach((variant) => {
+    assert.match(variant.materialPreviewUrl, /^assets\/junleyuan-materials-v2\/cards\/.+-V002\.webp$/)
+    assert.match(variant.materialTextureUrl, /^assets\/junleyuan-materials-v2\/textures\/.+-V003\.webp$/)
+    assert.match(variant.materialPreviewFallbackUrl, /^assets\/junleyuan-materials\/.+-V001\.jpg$/)
+    assert.equal(variant.assetStatus, 'candidate')
+    assert.equal(variant.approved, false)
+  })
 })

@@ -38,7 +38,10 @@ defineProps({
 
 const swatchStyle = (variant) => ({
   backgroundColor: variant.color || '#b48a50',
-  backgroundImage: variant.materialPreviewUrl ? `url(${variant.materialPreviewUrl})` : undefined,
+  backgroundImage: [variant.materialPreviewUrl, variant.materialPreviewFallbackUrl]
+    .filter(Boolean)
+    .map((url) => `url(${url})`)
+    .join(', ') || undefined,
   backgroundSize: 'cover',
   backgroundPosition: 'center'
 })
