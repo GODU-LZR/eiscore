@@ -19,4 +19,5 @@ G0～G3 已完成；G3.5 产品级集成与功能验收已于 2026-09-02 通过�
 - 长期进度：[docs/engineering/REFACTOR_PROGRESS.md](docs/engineering/REFACTOR_PROGRESS.md)
 - G3.5 退出审计：[docs/engineering/G3_5_EXIT_AUDIT.md](docs/engineering/G3_5_EXIT_AUDIT.md)
 - 企业资料合并审计：[docs/engineering/ENTERPRISE_PROFILE_MERGE_EXIT_AUDIT.md](docs/engineering/ENTERPRISE_PROFILE_MERGE_EXIT_AUDIT.md)
+- G4 前可运行性审计：[docs/engineering/PRE_G4_ENGINEERING_READINESS.md](docs/engineering/PRE_G4_ENGINEERING_READINESS.md)
 - 累积报告：[docs/engineering/REFACTOR_FINAL_REPORT.md](docs/engineering/REFACTOR_FINAL_REPORT.md)
