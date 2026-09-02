@@ -48,7 +48,7 @@
 | 合并后浏览器交互 | `npm run test:e2e:enterprise-profile-merge` 1/1 通过；真实 Chromium 加载基座与企业站两个真实 Vite 前端，填写超级管理员登录表单并验证系统设置只读、进入运营台、草稿隔离、显式发布、基座同步和刷新后持久化 |
 | 合并后真实完整栈 | `npm run test:e2e:enterprise-profile-full-stack` 1/1 通过；真实 Chromium + 基座/企业站 Vite + PostgREST + Agent + PostgreSQL，真实登录、两次草稿保存、旧品牌/旧发布域名保持、新草稿域名返回 404、发布后品牌与域名同时切换；测试前后备份/恢复 `company_site` schema，隔离数据库恢复为 `published|君乐缘台球|v1` |
 | 企业站单元与契约 | 25/25 通过，覆盖君乐缘配置器、经纬网厂模型/素材、公开档案优先级、能力开关、运营契约和安全存储 |
-| 企业站数据库契约 | 28 张表通过 Schema 静态检查 |
+| 企业站数据库契约 | 28 张表通过 Schema 静态检查；Schema/Handler 回归已接入 `test:unit` 的 `test:company-site-runtime` 门禁 |
 | Realtime | 路由 Manifest 80 条；组合根 796 行、31 个本地模块、28 个传输/配置辅助职责，均在既有上限内 |
 | 数据库治理 | 107 份 SQL 被库存门禁识别；Runtime V2 的 10 个迁移继续受顺序、校验和、事务、账本与 postcheck 治理；新增 `company-site-001` 有序迁移、SQL 回滚和 postcheck，并在隔离数据库真实执行 1 applied/0 skipped |
 | 前端复杂度 | 148 个 Vue 文件，52 个达到 800 行，巨页债务 83,986/85,045 行；没有扩大巨页白名单或债务基线 |
@@ -68,6 +68,7 @@
 ## 已接受限制
 
 - 企业站完整基线仍由单租户上线手册显式执行；`published_snapshot` 已进入独立的 `company-site` 受治理迁移集合，但企业站全部 Schema/seed 尚未整体纳入 Runtime V2 历史迁移序列。
+- 站点进入 `suspended` 或 `archived` 状态时，公开查询不会回退到旧 `published_snapshot`；只有 `published`/`draft` 状态允许使用发布快照维持线上版本。
 - 107 份 SQL 中 Runtime V2 的 10 份和 company-site 的 1 份具备 Manifest 治理；其余历史 SQL 不得按文件名猜测顺序或自动执行。
 - 部分历史客户页面仍有硬编码展示内容，后续只能在真实业务与视觉证据保护下渐进迁移到公开内容 API。
 - 三家企业配置包、客户数据迁移、真实 AI、恢复演练、发布治理和生产可观测性未验证。

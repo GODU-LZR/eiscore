@@ -103,6 +103,35 @@ async function testPublishedSiteOnly() {
   assert.equal(readPayload(unpublishedRes).code, 'SITE_NOT_FOUND');
 }
 
+async function testSuspendedSiteDoesNotFallbackToSnapshot() {
+  const { handler, calls } = createHarness({
+    query: (sql) => {
+      if (sql.includes('FROM company_site.site_config') && sql.includes('published.status')) return { rows: [] };
+      if (sql.includes('FROM company_site.site_config')) return {
+        rows: [siteRow({
+          status: 'suspended',
+          published_snapshot: {
+            site_key: 'primary',
+            legal_name: '旧企业',
+            brand_name: '旧品牌',
+            domain: 'old.example.test',
+            status: 'published',
+            published_version: 3
+          }
+        })]
+      };
+      return { rows: [] };
+    }
+  });
+  const res = response();
+  await handler.handleGetPublicSiteConfig(request(), res);
+  assert.equal(res.statusCode, 404);
+  assert.equal(readPayload(res).code, 'SITE_NOT_FOUND');
+  const siteCall = calls.find((call) => call.sql.includes('FROM company_site.site_config'));
+  assert.ok(siteCall, 'public site lookup should query site_config');
+  assert.match(siteCall.sql, /c\.status = 'published' OR c\.status = 'draft'/);
+}
+
 async function testPublicProductsAndSitemap() {
   const { handler } = createHarness({
     query: (sql) => {
@@ -267,7 +296,7 @@ async function testPublishRegularPageKeepsSiteScopeAndAudit() {
 async function testAdminConfigContentAndSitePublish() {
   const { handler } = createHarness({
     query: (sql) => {
-      if (sql.includes('UPDATE company_site.site_config') && sql.includes('RETURNING *')) return { rows: [siteRow({ status: 'draft', published_version: 1 })] };
+      if (sql.includes('UPDATE company_site.site_config') && sql.includes('RETURNING c.*')) return { rows: [siteRow({ status: 'draft', published_version: 1 })] };
       if (sql.includes('INSERT INTO company_site.audit_events')) return { rows: [] };
       if (sql.includes('FROM company_site.seo_metadata')) return { rows: [{ id: 'seo-1', site_key: 'primary', path: '/company/', status: 'published' }] };
       throw new Error(`unexpected admin config query: ${sql}`);
@@ -389,6 +418,7 @@ async function testSeoCheckAndGeoSnapshotOperations() {
 }
 
 await testPublishedSiteOnly();
+await testSuspendedSiteDoesNotFallbackToSnapshot();
 await testPublicProductsAndSitemap();
 await testPublicPagesSolutionsCasesAndFaq();
 await testLeadValidationAndIdempotency();

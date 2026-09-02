@@ -183,6 +183,16 @@ test('real database keeps the published enterprise profile online until a draft 
   await expect(page.locator('.enterprise-profile-panel')).toContainText(`v${initialVersion + 1}`)
   await ui.expectClean('enterprise profile full-stack merge')
 
+  const authToken = await page.evaluate(() => localStorage.getItem('auth_token'))
+  expect(authToken).toBeTruthy()
+  const suspendResponse = await request.post('/agent/company-site/admin/content/publish', {
+    headers: { Authorization: `Bearer ${authToken}` },
+    data: { objectType: 'site_config', id: 'primary', status: 'suspended' }
+  })
+  expect(suspendResponse.status()).toBe(200)
+  const publicSuspended = await request.get('/agent/company-site/public/site-config')
+  expect(publicSuspended.status()).toBe(404)
+
   const backupHash = createHash('sha256').update(readFileSync(backupOnHost)).digest('hex')
   expect(backupHash).toMatch(/^[0-9a-f]{64}$/)
 })

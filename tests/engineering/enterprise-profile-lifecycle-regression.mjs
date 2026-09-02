@@ -84,8 +84,9 @@ const query = async (sql, params = []) => {
       ? state.published_snapshot
       : state
     const published = candidate?.status === 'published'
+    const statusAllowed = state.status === 'published' || state.status === 'draft'
     const domainMatches = !params[1] || candidate?.domain === params[1]
-    return { rows: published && domainMatches ? [{ ...candidate }] : [] }
+    return { rows: published && statusAllowed && domainMatches ? [{ ...candidate }] : [] }
   }
   if (statement.includes('FROM company_site.site_locales')) return { rows: [] }
   if (/FROM company_site\.(content_pages|products|solutions|cases|knowledge_documents)/.test(statement)) return { rows: [] }
@@ -208,5 +209,17 @@ const merged = mergeEnterpriseProfileIntoSystemConfig({
 assert.equal(merged.loginBranding.companyName, '合并后品牌')
 assert.equal(merged.loginBranding.authTitle, '账号登录')
 assert.equal(Object.hasOwn(stripEnterpriseProfileFromSystemConfig(merged).loginBranding, 'companyName'), false)
+
+const suspendResponse = {}
+await handlers.handlePublishContent(request({
+  objectType: 'site_config',
+  id: 'primary',
+  status: 'suspended'
+}), suspendResponse, { id: 'admin-1' })
+assert.equal(suspendResponse.status, 200)
+
+const publicSuspended = {}
+await handlers.handleGetPublicSiteConfig(request({}, '/company-site/public/site-config'), publicSuspended)
+assert.equal(publicSuspended.status, 404)
 
 console.log('enterprise-profile-lifecycle-regression: PASS')

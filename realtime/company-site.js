@@ -307,6 +307,7 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
             END
           ) AS published
           WHERE c.site_key = $1
+            AND (c.status = 'published' OR c.status = 'draft')
             AND published.status = 'published'
             AND ($2 = '' OR lower(published.domain) = lower($2))
           LIMIT 1`,
@@ -1402,7 +1403,7 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
     const objectType = text(body?.objectType || body?.object_type, 40).toLowerCase();
     const objectId = text(body?.id || body?.objectId || body?.object_id, 80);
     const status = text(body?.status, 32).toLowerCase();
-    const allowedStatuses = new Set(['draft', 'review', 'approved', 'published', 'expired', 'archived']);
+    const allowedStatuses = new Set(['draft', 'review', 'approved', 'published', 'suspended', 'expired', 'archived']);
     const tableMap = {
       site_config: { table: 'site_config', siteConfig: true, publishedBy: true },
       page: { table: 'content_pages', publishedBy: true },
