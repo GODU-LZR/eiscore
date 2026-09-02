@@ -1,7 +1,6 @@
+#!/usr/bin/env node
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
-
-#!/usr/bin/env node
 'use strict';
 
 const crypto = require('crypto');
