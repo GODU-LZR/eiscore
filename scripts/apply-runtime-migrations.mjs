@@ -194,6 +194,7 @@ export const loadRuntimeMigrationPlan = ({
   const result = loadAndValidateMigrationManifest({ repoRoot, manifestPath })
   if (result.errors.length) throw new Error(`migration governance validation failed:\n- ${result.errors.join('\n- ')}`)
   return {
+    name: result.manifest.name,
     manifestPath,
     ledgerPath: resolve(repoRoot, result.manifest.ledger),
     postcheckPath: resolve(repoRoot, result.manifest.postcheck),
@@ -232,8 +233,10 @@ export const executeRuntimeMigrationPlan = ({ plan, adapter, metadata, log = con
     applied += 1
   }
 
-  adapter.executeSql('Runtime V2 postcheck', readFileSync(plan.postcheckPath, 'utf8'))
-  log(`Runtime migration execution passed: ${applied} applied, ${skipped} skipped, postcheck passed.`)
+  const planLabel = plan.name === 'runtime-v2' ? 'Runtime V2' : plan.name
+  const summaryLabel = plan.name === 'runtime-v2' ? 'Runtime migration' : `${plan.name} migration`
+  adapter.executeSql(`${planLabel} postcheck`, readFileSync(plan.postcheckPath, 'utf8'))
+  log(`${summaryLabel} execution passed: ${applied} applied, ${skipped} skipped, postcheck passed.`)
   return { applied, skipped }
 }
 

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS company_site.site_config (
   published_version INTEGER NOT NULL DEFAULT 0,
   published_at TIMESTAMPTZ,
   published_by TEXT NOT NULL DEFAULT '',
+  published_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

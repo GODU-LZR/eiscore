@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "name": "company-site",
+  "ledger": "database/migration-ledger.sql",
+  "postcheck": "database/migrations/postchecks/company-site.sql",
+  "migrations": [
+    {
+      "id": "company-site-001",
+      "path": "database/migrations/sql/company-site-001-add-published-snapshot.sql",
+      "sha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4",
+      "transaction": "runner",
+      "rollback": {
+        "strategy": "sql",
+        "path": "database/migrations/rollback/company-site-001-add-published-snapshot.sql",
+        "sha256": "263541d8976c7269321f645fdfe7dcf0251a451d7449e31dec9ce0fbbdea81f3",
+        "backupRequired": false
+      }
+    }
+  ]
+}

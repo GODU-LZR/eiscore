@@ -54,6 +54,14 @@ const jsonBytes = (value) => {
 
 const normalizeHost = (value) => text(value, 255).split(',')[0].trim().split(':')[0].toLowerCase();
 
+const isLocalHost = (value) => new Set([
+  '',
+  'localhost',
+  '127.0.0.1',
+  '0.0.0.0',
+  'host.docker.internal'
+]).has(normalizeHost(value));
+
 const escapeXml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
   .replace(/</g, '&lt;')
@@ -264,23 +272,46 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
 
   const loadPublishedSite = async (req, { allowDraft = false } = {}) => {
     const url = readUrl(req);
-    const requestedDomain = normalizeHost(
+    const requestHost = normalizeHost(
       url.searchParams.get('domain') || req?.headers?.host || ''
     );
-    const statusSql = allowDraft ? "c.status <> 'archived'" : "c.status = 'published'";
-    const result = await query(
-      `SELECT c.site_key, c.legal_name, c.brand_name, c.brand_short_name,
-              c.factory_name, c.domain, c.template_key, c.default_locale,
-              c.enabled_locales, c.theme, c.contact, c.social_links,
-              c.trademark, c.settings, c.seo, c.status,
-              c.published_version, c.published_at
-         FROM company_site.site_config c
-        WHERE c.site_key = $1
-          AND ${statusSql}
-          AND ($2 = '' OR lower(c.domain) = lower($2))
-        LIMIT 1`,
-      [SITE_KEY, requestedDomain]
-    );
+    const requestedDomain = isLocalHost(requestHost) ? '' : requestHost;
+    const result = allowDraft
+      ? await query(
+        `SELECT c.site_key, c.legal_name, c.brand_name, c.brand_short_name,
+                c.factory_name, c.domain, c.template_key, c.default_locale,
+                c.enabled_locales, c.theme, c.contact, c.social_links,
+                c.trademark, c.settings, c.seo, c.status,
+                c.published_version, c.published_at
+           FROM company_site.site_config c
+          WHERE c.site_key = $1
+            AND c.status <> 'archived'
+            AND ($2 = '' OR lower(c.domain) = lower($2))
+          LIMIT 1`,
+        [SITE_KEY, requestedDomain]
+      )
+      : await query(
+        `SELECT published.site_key, published.legal_name, published.brand_name,
+                published.brand_short_name, published.factory_name,
+                published.domain, published.template_key, published.default_locale,
+                published.enabled_locales, published.theme, published.contact,
+                published.social_links, published.trademark, published.settings,
+                published.seo, published.status, published.published_version,
+                published.published_at
+           FROM company_site.site_config c
+          CROSS JOIN LATERAL jsonb_populate_record(
+            NULL::company_site.site_config,
+            CASE
+              WHEN c.status = 'published' THEN to_jsonb(c) - 'published_snapshot'
+              ELSE c.published_snapshot
+            END
+          ) AS published
+          WHERE c.site_key = $1
+            AND published.status = 'published'
+            AND ($2 = '' OR lower(published.domain) = lower($2))
+          LIMIT 1`,
+        [SITE_KEY, requestedDomain]
+      );
     return firstRow(result);
   };
 
@@ -869,13 +900,19 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
       sendJson(res, 400, { code: 'NO_ALLOWED_FIELDS', message: 'No configurable site fields were provided' });
       return;
     }
-    sets.push("status = 'draft'", 'published_at = NULL', "published_by = ''", 'updated_at = now()');
+    sets.push(
+      "published_snapshot = CASE WHEN c.status = 'published' THEN to_jsonb(c) - 'published_snapshot' ELSE c.published_snapshot END",
+      "status = 'draft'",
+      'published_at = NULL',
+      "published_by = ''",
+      'updated_at = now()'
+    );
     try {
       const result = await query(
-        `UPDATE company_site.site_config
+        `UPDATE company_site.site_config AS c
             SET ${sets.join(', ')}
-          WHERE site_key = $1
-          RETURNING *`,
+          WHERE c.site_key = $1
+          RETURNING c.*`,
         params
       );
       const site = firstRow(result);
@@ -1388,14 +1425,25 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
           return;
         }
         const siteResult = await query(
-          `UPDATE company_site.site_config
+          `UPDATE company_site.site_config AS c
               SET status = $1,
-                  published_version = CASE WHEN $1 = 'published' THEN published_version + 1 ELSE published_version END,
+                  published_version = CASE WHEN $1 = 'published' THEN c.published_version + 1 ELSE c.published_version END,
                   published_at = CASE WHEN $1 = 'published' THEN now() ELSE NULL END,
                   published_by = CASE WHEN $1 = 'published' THEN $3 ELSE '' END,
+                  published_snapshot = CASE
+                    WHEN $1 = 'published' THEN
+                      (to_jsonb(c) - 'published_snapshot') || jsonb_build_object(
+                        'status', 'published',
+                        'published_version', c.published_version + 1,
+                        'published_at', now(),
+                        'published_by', $3,
+                        'updated_at', now()
+                      )
+                    ELSE c.published_snapshot
+                  END,
                   updated_at = now()
-            WHERE site_key = $2
-            RETURNING site_key, status, published_version, published_at, published_by, updated_at`,
+            WHERE c.site_key = $2
+            RETURNING c.site_key, c.status, c.published_version, c.published_at, c.published_by, c.updated_at`,
           [status, SITE_KEY, text(user?.id || user?.username, 160)]
         );
         const site = firstRow(siteResult);

@@ -10,7 +10,7 @@
 ## 决策
 
 - 保留全部历史 SQL，不重命名、不改写、不自动执行；五个根及 102 份接受库存由质量门锁定。
-- 先接管已有顺序证据的 Runtime V2：JSON Manifest 为 10 个补丁增加连续 ID、SHA-256、事务所有权、postcheck 和备份恢复策略，同时要求与旧文本 Manifest 路径/顺序一致。
+- 先接管已有顺序证据的 Runtime V2：JSON Manifest 为 10 个补丁增加连续 ID、SHA-256、事务所有权、postcheck 和备份恢复策略，同时要求与旧文本 Manifest 路径/顺序一致。新数据库变化另使用按集合命名的 Manifest；当前 `company-site` 集合以 `company-site-001` 登记字段迁移、SQL 回滚和 postcheck，不改写 Runtime V2 历史顺序。
 - 历史补丁没有经过反向 SQL 演练，不编造 rollback；统一要求执行前备份并通过恢复完成回退。
 - 新数据库变化只能追加到 `database/migrations/sql/`，必须具有唯一连续 ID、校验和、事务声明、回退脚本或明确的不可逆审批记录。
 - `eiscore_meta.schema_migrations` 记录 ID、校验和、路径、提交、操作者、耗时、时间和回退策略；PUBLIC 无访问权限。

@@ -3,6 +3,9 @@ import fs from 'node:fs';
 
 const schema = fs.readFileSync(new URL('../../sql/company_site_platform_v1.sql', import.meta.url), 'utf8');
 const seed = fs.readFileSync(new URL('../../sql/company_site_junleyuan_seed.sql', import.meta.url), 'utf8');
+const snapshotMigration = fs.readFileSync(new URL('../../database/migrations/sql/company-site-001-add-published-snapshot.sql', import.meta.url), 'utf8');
+const snapshotRollback = fs.readFileSync(new URL('../../database/migrations/rollback/company-site-001-add-published-snapshot.sql', import.meta.url), 'utf8');
+const snapshotPostcheck = fs.readFileSync(new URL('../../database/migrations/postchecks/company-site.sql', import.meta.url), 'utf8');
 
 const requiredTables = [
   'site_config', 'site_locales', 'content_pages', 'products', 'product_locales',
@@ -30,6 +33,12 @@ for (const table of fixedTenantTables) {
 assert.match(schema, /REVOKE ALL ON ALL TABLES IN SCHEMA company_site FROM web_anon/);
 assert.match(schema, /REVOKE ALL ON ALL TABLES IN SCHEMA company_site FROM web_user/);
 assert.match(schema, /ALTER TABLE company_site\.%I ENABLE ROW LEVEL SECURITY/);
+assert.match(schema, /published_snapshot JSONB NOT NULL DEFAULT '\{\}'::jsonb/);
+assert.match(snapshotMigration, /ADD COLUMN IF NOT EXISTS published_snapshot JSONB NOT NULL DEFAULT '\{\}'::jsonb/);
+assert.match(snapshotMigration, /SET published_snapshot = to_jsonb\(c\) - 'published_snapshot'/);
+assert.match(snapshotMigration, /WHERE c\.status = 'published'/);
+assert.match(snapshotRollback, /DROP COLUMN IF EXISTS published_snapshot/);
+assert.match(snapshotPostcheck, /column_name = 'published_snapshot'/);
 assert.match(seed, /'primary'/);
 assert.match(seed, /junleyuan\.eissys\.top/);
 assert.match(seed, /台州君乐缘体育用品有限公司/);

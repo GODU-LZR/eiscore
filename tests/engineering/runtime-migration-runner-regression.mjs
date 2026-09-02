@@ -19,6 +19,15 @@ assert.equal(plan.migrations.length, 10)
 assert.equal(plan.migrations[0].transaction, 'runner')
 assert.equal(plan.migrations[2].transaction, 'file')
 
+const companySitePlan = loadRuntimeMigrationPlan({
+  repoRoot,
+  manifestPath: 'database/migrations/company-site.json'
+})
+assert.equal(companySitePlan.name, 'company-site')
+assert.equal(companySitePlan.migrations.length, 1)
+assert.equal(companySitePlan.migrations[0].id, 'company-site-001')
+assert.equal(companySitePlan.migrations[0].rollbackStrategy, 'sql')
+
 assert.deepEqual(
   parseRuntimeMigrationArgs([
     '--manifest', 'database/migrations/runtime-v2.json',

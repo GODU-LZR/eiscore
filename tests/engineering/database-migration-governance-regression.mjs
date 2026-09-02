@@ -22,6 +22,21 @@ assert.deepEqual(result.migrations.slice(0, 2).map((entry) => entry.transaction)
 assert.ok(result.migrations.slice(2).every((entry) => entry.transaction === 'file'))
 assert.ok(result.migrations.every((entry) => entry.rollbackStrategy === 'backup-restore'))
 
+const companySiteResult = loadAndValidateMigrationManifest({
+  repoRoot,
+  manifestPath: 'database/migrations/company-site.json'
+})
+assert.deepEqual(companySiteResult.errors, [])
+assert.equal(companySiteResult.manifest.name, 'company-site')
+assert.equal(companySiteResult.migrations.length, 1)
+assert.equal(companySiteResult.migrations[0].id, 'company-site-001')
+assert.equal(companySiteResult.migrations[0].rollbackStrategy, 'sql')
+assert.equal(
+  companySiteResult.migrations[0].rollbackPath,
+  'database/migrations/rollback/company-site-001-add-published-snapshot.sql'
+)
+assert.equal(companySiteResult.legacySqlCount, 0)
+
 const mutate = (callback) => {
   const value = structuredClone(result.manifest)
   callback(value)

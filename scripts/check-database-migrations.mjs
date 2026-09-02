@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const defaultRepoRoot = resolve(scriptDir, '..')
 const defaultManifestPath = 'database/migrations/runtime-v2.json'
-const idPattern = /^runtime-v2-(\d{3})$/
+const namePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const shaPattern = /^[0-9a-f]{64}$/
 
 const normalizeRepoPath = (value) => String(value || '').replaceAll('\\', '/').replace(/^\.\//, '')
@@ -37,9 +37,10 @@ const countDirectSqlFiles = (absoluteDirectory) => readdirSync(absoluteDirectory
 export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepoRoot } = {}) => {
   const errors = []
   if (manifest?.schemaVersion !== 1) errors.push('schemaVersion must equal 1')
-  if (manifest?.name !== 'runtime-v2') errors.push('name must equal runtime-v2')
+  const manifestName = String(manifest?.name || '')
+  if (!namePattern.test(manifestName)) errors.push('name must be a lowercase kebab-case identifier')
 
-  for (const field of ['ledger', 'postcheck', 'legacyManifest']) {
+  for (const field of ['ledger', 'postcheck']) {
     const repoPath = normalizeRepoPath(manifest?.[field])
     try {
       const absolute = resolveInsideRepo(repoRoot, repoPath)
@@ -49,8 +50,24 @@ export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepo
     }
   }
 
+  const hasLegacyManifest = typeof manifest?.legacyManifest === 'string' && manifest.legacyManifest.trim() !== ''
+  if (hasLegacyManifest) {
+    const repoPath = normalizeRepoPath(manifest.legacyManifest)
+    try {
+      const absolute = resolveInsideRepo(repoRoot, repoPath)
+      if (!existsSync(absolute)) errors.push(`legacyManifest does not exist: ${repoPath}`)
+    } catch (error) {
+      errors.push(error.message)
+    }
+  }
+
   const inventory = Array.isArray(manifest?.legacyInventory) ? manifest.legacyInventory : []
-  if (inventory.length !== 5) errors.push('legacyInventory must contain the five accepted SQL roots')
+  if (hasLegacyManifest && inventory.length !== 5) {
+    errors.push('legacyInventory must contain the five accepted SQL roots')
+  }
+  if (!hasLegacyManifest && inventory.length) {
+    errors.push('legacyInventory requires legacyManifest')
+  }
   let legacySqlCount = 0
   for (const entry of inventory) {
     const repoPath = normalizeRepoPath(entry?.path)
@@ -74,10 +91,9 @@ export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepo
   const validated = []
 
   migrations.forEach((entry, index) => {
-    const expectedId = `runtime-v2-${String(index + 1).padStart(3, '0')}`
+    const expectedId = `${manifestName}-${String(index + 1).padStart(3, '0')}`
     const id = String(entry?.id || '')
-    const match = id.match(idPattern)
-    if (!match || id !== expectedId) errors.push(`migration ${index + 1} id must be ${expectedId}`)
+    if (id !== expectedId) errors.push(`migration ${index + 1} id must be ${expectedId}`)
     if (ids.has(id)) errors.push(`duplicate migration id: ${id}`)
     ids.add(id)
 
@@ -115,9 +131,29 @@ export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepo
       errors.push(`file-managed migration must contain exactly one BEGIN/COMMIT pair: ${id}`)
     }
 
-    const rollback = entry?.rollback
-    if (rollback?.strategy !== 'backup-restore' || rollback?.backupRequired !== true) {
-      errors.push(`legacy migration must declare backup-restore rollback: ${id}`)
+    const rollback = entry?.rollback || {}
+    let rollbackPath = ''
+    if (rollback.strategy === 'backup-restore') {
+      if (rollback.backupRequired !== true) {
+        errors.push(`backup-restore rollback must require backup evidence: ${id}`)
+      }
+    } else if (rollback.strategy === 'sql') {
+      rollbackPath = normalizeRepoPath(rollback.path)
+      try {
+        const absoluteRollbackPath = resolveInsideRepo(repoRoot, rollbackPath)
+        if (!existsSync(absoluteRollbackPath)) {
+          errors.push(`rollback file does not exist: ${rollbackPath}`)
+        } else {
+          const actualRollbackSha = sha256(readFileSync(absoluteRollbackPath))
+          const expectedRollbackSha = String(rollback.sha256 || '')
+          if (!shaPattern.test(expectedRollbackSha)) errors.push(`rollback checksum is invalid: ${id}`)
+          if (actualRollbackSha !== expectedRollbackSha) errors.push(`rollback checksum drift: ${id} (${rollbackPath})`)
+        }
+      } catch (error) {
+        errors.push(error.message)
+      }
+    } else {
+      errors.push(`unsupported rollback strategy: ${id}`)
     }
 
     validated.push({
@@ -125,18 +161,21 @@ export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepo
       path: repoPath,
       sha256: expectedSha,
       transaction,
-      rollbackStrategy: rollback?.strategy || ''
+      rollbackStrategy: rollback.strategy || '',
+      rollbackPath
     })
   })
 
-  try {
-    const legacyPaths = readLegacyManifest(resolveInsideRepo(repoRoot, manifest.legacyManifest))
-    const governedPaths = validated.map((entry) => entry.path)
-    if (JSON.stringify(legacyPaths) !== JSON.stringify(governedPaths)) {
-      errors.push('JSON migration order differs from sql/runtime_v2_patch_manifest.txt')
+  if (hasLegacyManifest) {
+    try {
+      const legacyPaths = readLegacyManifest(resolveInsideRepo(repoRoot, manifest.legacyManifest))
+      const governedPaths = validated.map((entry) => entry.path)
+      if (JSON.stringify(legacyPaths) !== JSON.stringify(governedPaths)) {
+        errors.push('JSON migration order differs from legacy manifest')
+      }
+    } catch (error) {
+      errors.push(`legacy manifest cannot be read: ${error.message}`)
     }
-  } catch (error) {
-    errors.push(`legacy manifest cannot be read: ${error.message}`)
   }
 
   return { errors, migrations: validated, legacySqlCount }
