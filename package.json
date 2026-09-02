@@ -111,6 +111,7 @@
     "test:business-chain": "node tests/business/full-chain.mjs",
     "test:business-chain:remote": "EISCORE_CHAIN_BASE_URL=https://nanpai.eissys.top node tests/business/full-chain.mjs",
     "test:e2e": "playwright test",
+    "test:e2e:enterprise-profile-merge": "playwright test tests/e2e/enterprise-profile-merge.spec.mjs --config=playwright.enterprise-profile.config.mjs --workers=1",
     "test:e2e:remote": "EISCORE_E2E_BASE_URL=https://nanpai.eissys.top playwright test",
     "test:e2e:clicks": "playwright test tests/e2e/ui-clicks.spec.mjs",
     "test:e2e:clicks:remote": "EISCORE_E2E_BASE_URL=https://nanpai.eissys.top playwright test tests/e2e/ui-clicks.spec.mjs",
