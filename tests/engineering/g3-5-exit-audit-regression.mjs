@@ -2,11 +2,13 @@
 // Copyright (c) 2026 林志荣
 
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const audit = readFileSync(resolve(repoRoot, 'docs/engineering/G3_5_EXIT_AUDIT.md'), 'utf8')
+const progress = readFileSync(resolve(repoRoot, 'docs/engineering/REFACTOR_PROGRESS.md'), 'utf8')
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
 
 for (const marker of [
@@ -39,4 +41,22 @@ for (const scriptName of [
 }
 
 assert.match(packageJson.scripts?.['test:quality'] || '', /npm run test:g3\.5-exit/)
-console.log('PASS: G3.5 exit audit keeps runtime, CI, smoke, business-chain, E2E, isolation and accepted-risk evidence')
+
+assert.ok(!progress.includes('本文件所在提交'), 'refactor progress ledger contains unresolved commit placeholders')
+const progressCommitRefs = [...new Set([...progress.matchAll(/`([0-9a-f]{7})`/g)].map((match) => match[1]))]
+assert.ok(progressCommitRefs.length > 0, 'refactor progress ledger lost commit references')
+const progressCommitTypes = execFileSync(
+  'git',
+  ['cat-file', '--batch-check=%(objectname) %(objecttype)'],
+  {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    input: progressCommitRefs.map((hash) => `${hash}^{commit}`).join('\n')
+  }
+).trim().split(/\r?\n/)
+assert.equal(progressCommitTypes.length, progressCommitRefs.length, 'refactor progress ledger commit verification count drifted')
+for (const [index, line] of progressCommitTypes.entries()) {
+  assert.match(line, /^[0-9a-f]{40} commit$/, `invalid refactor progress commit reference: ${progressCommitRefs[index]}`)
+}
+
+console.log(`PASS: G3.5 exit audit keeps runtime, CI, smoke, business-chain, E2E, isolation, accepted-risk and ${progressCommitRefs.length} ledger commit references`)
