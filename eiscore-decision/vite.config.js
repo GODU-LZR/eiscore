@@ -6,9 +6,11 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import qiankun from 'vite-plugin-qiankun'
 import { createBuildOptions } from '../scripts/vite-build-config.mjs'
+import { loadViteDevProxyTargets } from '../scripts/vite-dev-proxy-config.mjs'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const devProxyTargets = loadViteDevProxyTargets()
   const allowedOrigins = (env.VITE_DEV_CORS_ORIGIN || '')
     .split(',')
     .map((value) => value.trim())
@@ -38,7 +40,7 @@ export default defineConfig(({ mode }) => {
       },
       proxy: {
         '/api': {
-          target: 'http://localhost:3000',
+          target: devProxyTargets.api,
           changeOrigin: true,
           rewrite: (path) => (
             path
@@ -48,7 +50,7 @@ export default defineConfig(({ mode }) => {
           )
         },
         '/decision/api': {
-          target: 'http://localhost:3000',
+          target: devProxyTargets.api,
           changeOrigin: true,
           rewrite: (path) => (
             path
@@ -58,13 +60,13 @@ export default defineConfig(({ mode }) => {
           )
         },
         '/agent': {
-          target: 'http://localhost:8078',
+          target: devProxyTargets.agent,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/agent/, ''),
           ws: true
         },
         '/decision/agent': {
-          target: 'http://localhost:8078',
+          target: devProxyTargets.agent,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/decision\/agent/, ''),
           ws: true

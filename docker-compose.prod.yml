@@ -15,7 +15,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./env/init_roles.sql:/docker-entrypoint-initdb.d/00_init_roles.sql:ro
-      - ./env/db_schema_and_data.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
+      - ./db_schema_and_data.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d eiscore"]
       interval: 10s

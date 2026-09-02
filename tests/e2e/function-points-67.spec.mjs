@@ -179,6 +179,18 @@ async function expectInteractiveSurface(page, point) {
       'svg'
     ], functionPointContentTimeoutMs)
     expect(special, `${point.id} ${point.name} should expose interactive content`).toBeTruthy()
+
+    if (point.id === 'FP64') {
+      await expect(page.getByRole('button', { name: /推理引擎/ })).not.toContainText('0 facts', { timeout: 20_000 })
+      await expect(page.getByRole('button', { name: /KG 查询/ })).not.toContainText('0/0', { timeout: 20_000 })
+      await expect(page.getByRole('button', { name: /洞察审计/ })).not.toContainText('unknown', { timeout: 20_000 })
+
+      const graphNode = page.locator('.graph-node').first()
+      await expect(graphNode, 'FP64 should render ontology relation graph nodes').toBeVisible({ timeout: 20_000 })
+      await graphNode.click()
+      await expect(page.locator('.column-semantic-panel')).not.toContainText('列语义 0 条', { timeout: 20_000 })
+      await expect(page.locator('.column-semantic-panel .el-table')).toBeVisible({ timeout: 20_000 })
+    }
   }
 }
 

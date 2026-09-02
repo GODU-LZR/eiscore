@@ -184,17 +184,21 @@ await expect('08 app_settings is readable', async () => {
   addResult('08 app_settings is readable', true, `rows=${rows.length}`, res.status)
 })
 
-await expect('09 ai_glm_config is readable', async () => {
-  const res = await request('/api/system_configs?key=eq.ai_glm_config', {
-    headers: { ...authHeaders(), 'Accept-Profile': 'public' }
+if (SKIP_AI) {
+  addResult('09 ai_glm_config check skipped', true, 'EISCORE_SMOKE_SKIP_AI=1')
+} else {
+  await expect('09 ai_glm_config is readable', async () => {
+    const res = await request('/api/system_configs?key=eq.ai_glm_config', {
+      headers: { ...authHeaders(), 'Accept-Profile': 'public' }
+    })
+    const rows = await ensureJson(res)
+    if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`)
+    ensureArray(rows, 'ai config rows should be array')
+    const value = rows?.[0]?.value
+    if (!value?.api_url || !value?.api_key) throw new Error('ai_glm_config missing api_url/api_key')
+    addResult('09 ai_glm_config is readable', true, `${value.provider || 'unknown'} / ${value.model || 'unknown'}`, res.status)
   })
-  const rows = await ensureJson(res)
-  if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`)
-  ensureArray(rows, 'ai config rows should be array')
-  const value = rows?.[0]?.value
-  if (!value?.api_url || !value?.api_key) throw new Error('ai_glm_config missing api_url/api_key')
-  addResult('09 ai_glm_config is readable', true, `${value.provider || 'unknown'} / ${value.model || 'unknown'}`, res.status)
-})
+}
 
 await expect('10 sys_field_acl is readable', async () => {
   const res = await request('/api/sys_field_acl?module=eq.hr_employee&limit=5', {

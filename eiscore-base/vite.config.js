@@ -6,8 +6,9 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import { createBuildOptions } from '../scripts/vite-build-config.mjs'
+import { loadViteDevProxyTargets } from '../scripts/vite-dev-proxy-config.mjs'
 
-const ideProxyTarget = process.env.VITE_FLASH_IDE_PROXY_TARGET || 'http://localhost:8443'
+const devProxyTargets = loadViteDevProxyTargets()
 
 // https://vite.dev/config/
 export default defineConfig(({ command }) => ({
@@ -83,7 +84,7 @@ export default defineConfig(({ command }) => ({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: devProxyTargets.api,
         changeOrigin: true,
         rewrite: (path) => (
           path
@@ -93,13 +94,13 @@ export default defineConfig(({ command }) => ({
         )
       },
       '/agent': {
-        target: 'http://localhost:8078',
+        target: devProxyTargets.agent,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/agent/, ''),
         ws: true
       },
       '/rpc': {
-        target: 'http://localhost:3000/rpc',
+        target: `${devProxyTargets.api}/rpc`,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/rpc/, '')
       },
@@ -214,7 +215,7 @@ export default defineConfig(({ command }) => ({
         rewrite: (path) => path.replace(/^\/flash-preview/, '')
       },
       '/ide': {
-        target: ideProxyTarget,
+        target: devProxyTargets.ide,
         // Keep original host so code-server's WS origin/host check passes.
         // If host is rewritten to :8443, WS handshake from :8080 gets 403/1006.
         changeOrigin: false,

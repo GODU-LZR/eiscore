@@ -7,6 +7,9 @@ import vue from '@vitejs/plugin-vue'
 import Components from 'unplugin-vue-components/vite'
 import { VantResolver } from '@vant/auto-import-resolver'
 import { createBuildOptions } from '../scripts/vite-build-config.mjs'
+import { loadViteDevProxyTargets } from '../scripts/vite-dev-proxy-config.mjs'
+
+const devProxyTargets = loadViteDevProxyTargets()
 
 export default defineConfig({
   base: '/mobile/',
@@ -28,12 +31,12 @@ export default defineConfig({
     cors: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: devProxyTargets.api,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       },
       '/agent': {
-        target: 'http://localhost:8078',
+        target: devProxyTargets.agent,
         changeOrigin: true
       }
     }

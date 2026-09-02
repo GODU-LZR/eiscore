@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
@@ -27,6 +27,23 @@ const safeEnvironment = {
   PGRST_JWT_SECRET: 'Jwt8_Zp3Lm7Qx2Vc9Bn5Ks1Hd6Rt4Wy0Fa',
   EISCORE_PUBLIC_BASE_URL: 'https://erp.acme.test'
 }
+
+const snapshotPath = resolve(repoRoot, 'db_schema_and_data.sql')
+assert.ok(statSync(snapshotPath).isFile(), 'database bootstrap snapshot must be a regular file')
+for (const composePath of ['docker-compose.yml', 'docker-compose.prod.yml']) {
+  const composeSource = readFileSync(resolve(repoRoot, composePath), 'utf8')
+  assert.match(
+    composeSource,
+    /\.\/db_schema_and_data\.sql:\/docker-entrypoint-initdb\.d\/01_init_schema\.sql:ro/,
+    `${composePath} must mount the tracked root bootstrap snapshot read-only`
+  )
+  assert.doesNotMatch(
+    composeSource,
+    /\.\/env\/db_schema_and_data\.sql/,
+    `${composePath} must not reference the nonexistent env snapshot path`
+  )
+}
+
 const validCompose = spawnSync('docker', ['compose', '-f', 'docker-compose.prod.yml', 'config', '--quiet'], {
   cwd: repoRoot,
   env: safeEnvironment,

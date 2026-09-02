@@ -17,7 +17,7 @@ services:
       # 🟢 挂载顺序：先创建角色 (00)
       - ./env/init_roles.sql:/docker-entrypoint-initdb.d/00_init_roles.sql
       # 🟢 再导入数据 (01)
-      - ./env/db_schema_and_data.sql:/docker-entrypoint-initdb.d/01_init_schema.sql
+      - ./db_schema_and_data.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
       # 🟢 应用中心 Schema (02)
       - ./sql/app_center_schema.sql:/docker-entrypoint-initdb.d/02_app_center_schema.sql
 

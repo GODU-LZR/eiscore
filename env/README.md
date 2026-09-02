@@ -5,7 +5,7 @@
 - `.env`：本机或部署环境变量，不得提交到 Git。
 - `.env.example`：可提交的变量契约模板，其中占位符不能直接部署。
 - init_roles.sql：数据库初始化角色脚本（供 docker-compose 使用）。
-- db_schema_and_data.sql：数据库结构与数据快照（供初始化/备份）。
+- `../db_schema_and_data.sql`：仓库根目录的数据库结构与数据快照（供初始化/备份）；Compose 直接以只读方式挂载该已跟踪文件。
 - insert_ai_config.sql：AI 配置初始化脚本。
 - login_payload.json：登录测试载荷示例。
 

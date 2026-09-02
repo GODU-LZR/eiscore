@@ -7,8 +7,10 @@ import vue from '@vitejs/plugin-vue'
 import qiankun from 'vite-plugin-qiankun'
 import { createBuildOptions } from '../scripts/vite-build-config.mjs'
 import { sharedFrontendDedupe } from '../scripts/vite-shared-source-config.mjs'
+import { loadViteDevProxyTargets } from '../scripts/vite-dev-proxy-config.mjs'
 
 const useDevMode = true
+const devProxyTargets = loadViteDevProxyTargets()
 const enablePollingWatch = String(process.env.VITE_FLASH_WATCH_POLLING || 'true').toLowerCase() !== 'false'
 
 const redirectRootPlugin = () => ({
@@ -65,7 +67,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: devProxyTargets.api,
         changeOrigin: true,
         rewrite: (path) => (
           path
@@ -75,7 +77,7 @@ export default defineConfig({
         )
       },
       '/agent': {
-        target: 'http://localhost:8078',
+        target: devProxyTargets.agent,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/agent/, ''),
         ws: true
