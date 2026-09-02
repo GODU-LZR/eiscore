@@ -201,41 +201,41 @@
 | `400653f` | 抽离 DocumentIntakeCenter 入库结果详情投影 | 服务端优先、列表行兜底、五类集合与失败行 metadata 回退进入纯模块 |
 | `688f349` | 抽离 DocumentIntakeCenter 设备操作计划 | 启停状态/确认/Loading Key 与授权码重置确认计划进入纯模块 |
 | `2ce7db4` | 抽离 DocumentIntakeCenter 列表查询投影 | 4 类筛选参数、limit 与分页 offset 进入纯模块 |
-| 本文件所在提交 | 完成 DocumentIntakeCenter 纯策略阶段退出审计 | 锁定 1,973 行、6 个纯模块、54 个导出及组合副作用上限 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 详情动作策略 | 供应商/需求/订单/到货状态资格、权限键、动作顺序与 SOP 元数据进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail Schema 策略 | 回退 Schema、字段 Widget、单号字段与基础/扩展分区进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 字段值策略 | 嵌套字段读写、级联失效值清理与文件列素材投影进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 模板策略 | 模板过滤、作用域合并与事件选择优先级进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 业务流程查询策略 | 链路查询编码、ID/单号列表查询 URL 与来源/目标行匹配优先级进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 表单值策略 | 模板值键/查询 URL、已知属性与扩展属性分流、保存 Payload 过滤进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 模板编辑策略 | 模板新增/改名/删除列表变换、作用域封装与当前选择回退进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 状态 Payload 策略 | 供应商、需求、订单、到货状态动作 Payload 构造进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 数量与到货 Payload 策略 | 待到货量、合格量、关联到货量及登记到货/确认入库 Payload 进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 订单生成策略 | 重复订单查询 URL 与采购订单草稿 Payload 进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 到货关联策略 | 候选订单查询、首行选择与到货关联 Patch 进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 流程投影策略 | 五节点投影、撤销资格与入库链路状态映射进入纯模块 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 反审核执行计划 | 链路反转 Patch、需求关闭 Patch 与审计描述进入纯计划 |
-| 本文件所在提交 | 抽离 PurchaseDocumentDetail 文档流审计 Payload | 动作、来源、目标、原因、操作者与业务 Payload 映射进入纯模块 |
-| 本文件所在提交 | 完成 PurchaseDocumentDetail 纯策略阶段退出审计 | 锁定 1,916 行、11 个纯模块、54 个导出及组合副作用上限 |
-| 本文件所在提交 | 抽离 EquipmentHome 驾驶舱展示投影策略 | 数值格式、占比、状态/类型分布、健康风险、计划进度、标准覆盖、工单、问题等级和状态色调进入纯模块 |
-| 本文件所在提交 | 抽离 EquipmentHome KPI/风险摘要策略 | 12 项驾驶舱指标、风险权重与上限、KPI、流程节点和维保摘要进入纯模块 |
-| 本文件所在提交 | 抽离 EquipmentHome 日期趋势与告警策略 | 显式参考时间、日期格式、7 天点检桶、设备/异常/计划告警优先级与 8 条上限进入纯模块 |
-| 本文件所在提交 | 抽离 EquipmentHome 数据同步策略 | 顶层稳定签名、行序等值判断、非数组归一、Realtime Payload 解析与六表资格进入纯模块 |
-| 本文件所在提交 | 抽离 EquipmentHome 加载策略 | 六路查询 URL/顺序/method/limit、完整演示快照和全空回退资格进入纯模块 |
-| 本文件所在提交 | 抽离 EquipmentHome 壳层投影策略 | 颜色、时钟/同步文案、滚动周期、状态饼图及应用/记录路由描述进入纯模块 |
-| 本文件所在提交 | 完成 EquipmentHome 纯策略阶段退出审计 | 锁定 1,642 行、6 个纯模块、43 个导出及组合副作用上限 |
-| 本文件所在提交 | 抽离 SalesCockpit 展示基础策略 | 数值/金额/日期、滚动规则及五类有效记录筛选进入纯模块 |
-| 本文件所在提交 | 抽离 SalesCockpit 经营摘要策略 | 指标、KPI、漏斗、订单阶段、授信占用及回款仪表盘进入纯模块 |
-| 本文件所在提交 | 抽离 SalesCockpit 排行策略 | 负责人聚合/排名与应收客户排序/比例进入纯模块 |
-| 本文件所在提交 | 抽离 SalesCockpit 风险与行动策略 | 三天/七天窗口、风险/行动筛选、排序上限和展示投影进入显式时间纯模块 |
-| 本文件所在提交 | 抽离 SalesCockpit 销售动态策略 | 订单、回款、跟进事件映射、跨类型日期排序和十二条上限进入纯模块 |
-| 本文件所在提交 | 抽离 SalesCockpit AI Context 策略 | 上下文元数据、应收客户投影和驾驶舱数据聚合进入纯模块 |
-| 本文件所在提交 | 抽离 SalesCockpit 查询策略 | 客户、订单、商机、回款、跟进五路 PostgREST 查询描述、过滤条件、排序、method 与 Promise.all 顺序进入纯模块 |
-| 本文件所在提交 | 抽离 SalesCockpit 壳层策略 | 16:9 设计尺寸、最小可视尺寸、响应式缩放和舞台尺寸投影进入纯模块；窗口/Fullscreen/ResizeObserver 仍由页面持有 |
-| 本文件所在提交 | 抽离 SalesCockpit 时钟与刷新倒计时策略 | 本地化时钟格式与倒计时递减进入纯模块；页面继续持有 Date、1 秒定时器、刷新定时器和生命周期清理 |
-| 本文件所在提交 | 抽离 SalesCockpit 响应归一化策略 | 五路查询响应统一为显式数据投影，保留非数组回退为空数组与请求顺序；页面继续持有 Request、加载状态、时间戳和 AI Context 副作用 |
-| 本文件所在提交 | 抽离 SalesCockpit 全屏动作策略 | 全屏进入/退出判定进入纯模块；页面继续持有 DOM 目标、Fullscreen API、异常处理、状态同步与缩放调度 |
-| 本文件所在提交 | 建立 SalesCockpit 组合层退出门禁 | 锁定 1,753 行、11 个纯策略模块/37 个导出，以及 Request、Router、Watch、定时器、全屏、ResizeObserver、窗口事件、AI Context 与生命周期副作用库存 |
+| `6b513c8` | 完成 DocumentIntakeCenter 纯策略阶段退出审计 | 锁定 1,973 行、6 个纯模块、54 个导出及组合副作用上限 |
+| `e3d57cf` | 抽离 PurchaseDocumentDetail 详情动作策略 | 供应商/需求/订单/到货状态资格、权限键、动作顺序与 SOP 元数据进入纯模块 |
+| `53be320` | 抽离 PurchaseDocumentDetail Schema 策略 | 回退 Schema、字段 Widget、单号字段与基础/扩展分区进入纯模块 |
+| `08bbbd3` | 抽离 PurchaseDocumentDetail 字段值策略 | 嵌套字段读写、级联失效值清理与文件列素材投影进入纯模块 |
+| `89f899d` | 抽离 PurchaseDocumentDetail 模板策略 | 模板过滤、作用域合并与事件选择优先级进入纯模块 |
+| `dc2f2ab` | 抽离 PurchaseDocumentDetail 业务流程查询策略 | 链路查询编码、ID/单号列表查询 URL 与来源/目标行匹配优先级进入纯模块 |
+| `5f3acc9` | 抽离 PurchaseDocumentDetail 表单值策略 | 模板值键/查询 URL、已知属性与扩展属性分流、保存 Payload 过滤进入纯模块 |
+| `b342844` | 抽离 PurchaseDocumentDetail 模板编辑策略 | 模板新增/改名/删除列表变换、作用域封装与当前选择回退进入纯模块 |
+| `ef8d614` | 抽离 PurchaseDocumentDetail 状态 Payload 策略 | 供应商、需求、订单、到货状态动作 Payload 构造进入纯模块 |
+| `d205b06` | 抽离 PurchaseDocumentDetail 数量与到货 Payload 策略 | 待到货量、合格量、关联到货量及登记到货/确认入库 Payload 进入纯模块 |
+| `8315e75` | 抽离 PurchaseDocumentDetail 订单生成策略 | 重复订单查询 URL 与采购订单草稿 Payload 进入纯模块 |
+| `c26db33` | 抽离 PurchaseDocumentDetail 到货关联策略 | 候选订单查询、首行选择与到货关联 Patch 进入纯模块 |
+| `c3c66ef` | 抽离 PurchaseDocumentDetail 流程投影策略 | 五节点投影、撤销资格与入库链路状态映射进入纯模块 |
+| `482b3ff` | 抽离 PurchaseDocumentDetail 反审核执行计划 | 链路反转 Patch、需求关闭 Patch 与审计描述进入纯计划 |
+| `4b15993` | 抽离 PurchaseDocumentDetail 文档流审计 Payload | 动作、来源、目标、原因、操作者与业务 Payload 映射进入纯模块 |
+| `3e48980` | 完成 PurchaseDocumentDetail 纯策略阶段退出审计 | 锁定 1,916 行、11 个纯模块、54 个导出及组合副作用上限 |
+| `7b5c172` | 抽离 EquipmentHome 驾驶舱展示投影策略 | 数值格式、占比、状态/类型分布、健康风险、计划进度、标准覆盖、工单、问题等级和状态色调进入纯模块 |
+| `6738116` | 抽离 EquipmentHome KPI/风险摘要策略 | 12 项驾驶舱指标、风险权重与上限、KPI、流程节点和维保摘要进入纯模块 |
+| `5a16f2a` | 抽离 EquipmentHome 日期趋势与告警策略 | 显式参考时间、日期格式、7 天点检桶、设备/异常/计划告警优先级与 8 条上限进入纯模块 |
+| `9461360` | 抽离 EquipmentHome 数据同步策略 | 顶层稳定签名、行序等值判断、非数组归一、Realtime Payload 解析与六表资格进入纯模块 |
+| `b263c4a` | 抽离 EquipmentHome 加载策略 | 六路查询 URL/顺序/method/limit、完整演示快照和全空回退资格进入纯模块 |
+| `4cab6bd` | 抽离 EquipmentHome 壳层投影策略 | 颜色、时钟/同步文案、滚动周期、状态饼图及应用/记录路由描述进入纯模块 |
+| `835c936` | 完成 EquipmentHome 纯策略阶段退出审计 | 锁定 1,642 行、6 个纯模块、43 个导出及组合副作用上限 |
+| `00a3afd` | 抽离 SalesCockpit 展示基础策略 | 数值/金额/日期、滚动规则及五类有效记录筛选进入纯模块 |
+| `7788403` | 抽离 SalesCockpit 经营摘要策略 | 指标、KPI、漏斗、订单阶段、授信占用及回款仪表盘进入纯模块 |
+| `3c3bc9d` | 抽离 SalesCockpit 排行策略 | 负责人聚合/排名与应收客户排序/比例进入纯模块 |
+| `f1655c9` | 抽离 SalesCockpit 风险与行动策略 | 三天/七天窗口、风险/行动筛选、排序上限和展示投影进入显式时间纯模块 |
+| `938db68` | 抽离 SalesCockpit 销售动态策略 | 订单、回款、跟进事件映射、跨类型日期排序和十二条上限进入纯模块 |
+| `d4a6c04` | 抽离 SalesCockpit AI Context 策略 | 上下文元数据、应收客户投影和驾驶舱数据聚合进入纯模块 |
+| `0f0476f` | 抽离 SalesCockpit 查询策略 | 客户、订单、商机、回款、跟进五路 PostgREST 查询描述、过滤条件、排序、method 与 Promise.all 顺序进入纯模块 |
+| `a3d86e1` | 抽离 SalesCockpit 壳层策略 | 16:9 设计尺寸、最小可视尺寸、响应式缩放和舞台尺寸投影进入纯模块；窗口/Fullscreen/ResizeObserver 仍由页面持有 |
+| `60479ad` | 抽离 SalesCockpit 时钟与刷新倒计时策略 | 本地化时钟格式与倒计时递减进入纯模块；页面继续持有 Date、1 秒定时器、刷新定时器和生命周期清理 |
+| `47c1b35` | 抽离 SalesCockpit 响应归一化策略 | 五路查询响应统一为显式数据投影，保留非数组回退为空数组与请求顺序；页面继续持有 Request、加载状态、时间戳和 AI Context 副作用 |
+| `974cabf` | 抽离 SalesCockpit 全屏动作策略 | 全屏进入/退出判定进入纯模块；页面继续持有 DOM 目标、Fullscreen API、异常处理、状态同步与缩放调度 |
+| `8e44fd3` | 建立 SalesCockpit 组合层退出门禁 | 锁定 1,753 行、11 个纯策略模块/37 个导出，以及 Request、Router、Watch、定时器、全屏、ResizeObserver、窗口事件、AI Context 与生命周期副作用库存 |
 | `da66ab2` | 合并企业资料与企业站点运营 | 已发布站点配置成为唯一公开档案；君乐缘/经纬网厂成果迁入，生命周期、契约与双前端构建通过 |
 | `c630a5c` | 加固企业资料合并检查点 | 鉴权、存储和入口边界受门禁保护 |
 | `e90287d` | 增加真实 Chromium 交互验收 | 登录、系统设置只读、运营跳转、草稿、发布与刷新闭环 1/1 |
