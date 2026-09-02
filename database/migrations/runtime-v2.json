@@ -7,7 +7,7 @@
   "legacyInventory": [
     { "path": ".", "recursive": false, "expectedSqlFiles": 3 },
     { "path": "env", "recursive": false, "expectedSqlFiles": 2 },
-    { "path": "sql", "recursive": false, "expectedSqlFiles": 65 },
+    { "path": "sql", "recursive": false, "expectedSqlFiles": 70 },
     { "path": "eiscore-hr/sql", "recursive": false, "expectedSqlFiles": 30 },
     { "path": "eiscore-materials/sql", "recursive": false, "expectedSqlFiles": 2 }
   ],

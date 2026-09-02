@@ -83,6 +83,13 @@ const appDefinitions = [
     container: QIANKUN_CONTAINER,
     activeRule: withContainerRule('/apps'),
   },
+  {
+    moduleId: 'company-site',
+    name: 'eiscore-company-site',
+    entry: '/company-site/index.html',
+    container: QIANKUN_CONTAINER,
+    activeRule: withContainerRule('/company-site'),
+  },
 ]
 
 export function createMicroApps(enterpriseConfig = DEFAULT_ENTERPRISE_CONFIG) {

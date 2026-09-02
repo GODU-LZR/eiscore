@@ -1,0 +1,15 @@
+visual_slot,visual_component_code,manufacturing_group,pricing_rule_key,default_variant_id,source_status,notes
+CUE_ROOT,CUE_ROOT,cue_assembly,base_model_price,BASE-PLAYING-OEM-P01,prototype,Total length weight and balance are provisional
+TIP,TIP,tip_and_ferrule,tip_variant_delta,TIP-LAYERED-MEDIUM-01,prototype,Diameter must match shaft constraint
+FERRULE,FERRULE,tip_and_ferrule,ferrule_variant_delta,FERRULE-IVORY-10,prototype,Prototype material only
+SHAFT,SHAFT,shaft_assembly,shaft_variant_delta,SHAFT-MAPLE-125-JF01,prototype,Joint family JF01 in prototype catalog
+JOINT,JOINT,joint_assembly,joint_variant_delta,JOINT-JF01-SS,prototype,Compatibility is data-driven
+FOREARM,FOREARM,forearm_assembly,wood_variant_delta,WOOD-MAPLE-NAT-01,prototype,Material asset is not production approved
+INLAY,INLAY,inlay_assembly,inlay_variant_delta,INLAY-NONE-01,prototype,Factory sample preview only; geometry and process need confirmation
+HANDLE,HANDLE,handle_assembly,handle_variant_delta,HANDLE-MAPLE-NAT-01,prototype,Parameter geometry
+WRAP,WRAP,wrap_operation,wrap_variant_delta,WRAP-LINEN-BLK-01,prototype,Zone/length rule is provisional
+BUTT_SLEEVE,BUTT_SLEEVE,butt_sleeve_assembly,wood_variant_delta,WOOD-WALNUT-DARK-01,prototype,Material asset is not production approved
+BUTT_PLATE,BUTT_PLATE,butt_finish,butt_plate_variant_delta,BUTT-PLATE-BLK-01,prototype,Prototype option
+WEIGHT_SYSTEM,WEIGHT_SYSTEM,weight_adjustment,weight_delta,WEIGHT-19OZ-01,prototype,Target weight validation is provisional
+BUMPER,BUMPER,bumper_installation,bumper_variant_delta,BUMPER-EXT-READY-01,prototype,Extension interface follows bumper family
+EXTENSION_INTERFACE,EXTENSION_INTERFACE,bumper_installation,extension_variant_delta,EXT-JF01-01,prototype,Needs factory confirmation

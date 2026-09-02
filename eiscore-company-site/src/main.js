@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (c) 2026 林志荣
+
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
+import App from './App.vue'
+import router from './router'
+import { renderWithQiankun, qiankunWindow } from 'vite-plugin-qiankun/dist/helper'
+import ElementPlus from 'element-plus'
+import 'element-plus/dist/index.css'
+import 'element-plus/theme-chalk/dark/css-vars.css'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import * as ElementPlusIconsVue from '@element-plus/icons-vue'
+import { patchElMessage } from '@/utils/message-patch'
+import { installEisThemeSync } from '@shared/eis-theme-sync'
+
+patchElMessage()
+
+const MICRO_APP_NAME = 'eiscore-company-site'
+const DEV_STANDALONE_PORT = '8092'
+
+let app = null
+let themeDispose = null
+
+function isRunningInQiankun() {
+  if (typeof window === 'undefined') return false
+  return Boolean(
+    qiankunWindow.__POWERED_BY_QIANKUN__ ||
+    window.__POWERED_BY_QIANKUN__ ||
+    window.proxy?.__POWERED_BY_QIANKUN__ ||
+    window.__INJECTED_PUBLIC_PATH_BY_QIANKUN__
+  )
+}
+
+function ensureQiankunLifecycleBucket(lifecycle) {
+  if (typeof window === 'undefined' || !isRunningInQiankun()) return
+  window.moudleQiankunAppLifeCycles = window.moudleQiankunAppLifeCycles || {}
+  window.moudleQiankunAppLifeCycles[MICRO_APP_NAME] = lifecycle
+}
+
+function hasQiankunHostContainer() {
+  return typeof document !== 'undefined' && !!document.querySelector('#subapp-viewport')
+}
+
+function shouldRenderStandalone() {
+  if (isRunningInQiankun() || hasQiankunHostContainer()) return false
+  if (import.meta.env.DEV) return window.location.port === DEV_STANDALONE_PORT
+  return true
+}
+
+function resolveMountTarget(container) {
+  if (container) {
+    const target = container.querySelector('#app')
+    if (!target) console.warn(`[${MICRO_APP_NAME}] missing #app inside qiankun container`)
+    return target
+  }
+  return document.querySelector('#app')
+}
+
+function unmountApp() {
+  if (themeDispose) {
+    themeDispose()
+    themeDispose = null
+  }
+  if (!app) return
+  app.unmount()
+  app = null
+}
+
+async function render(props = {}) {
+  const { container } = props
+  app = createApp(App)
+  const currentApp = app
+
+  if (props && typeof props.setGlobalState === 'function') {
+    window.__EIS_BASE_ACTIONS__ = props
+  }
+
+  app.use(ElementPlus, { locale: zhCn })
+  for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+    app.component(key, component)
+  }
+  app.use(createPinia())
+  app.use(router)
+
+  const mountPoint = resolveMountTarget(container)
+  if (!mountPoint) return
+  await router.isReady().catch(() => {})
+  if (app !== currentApp) return
+  themeDispose = installEisThemeSync(mountPoint, { container })
+  app.mount(mountPoint)
+}
+
+const lifecycle = {
+  bootstrap() {},
+  mount(props) {
+    return render(props)
+  },
+  unmount() {
+    unmountApp()
+  },
+  update() {}
+}
+
+renderWithQiankun(lifecycle)
+ensureQiankunLifecycleBucket(lifecycle)
+
+if (shouldRenderStandalone()) {
+  render()
+}

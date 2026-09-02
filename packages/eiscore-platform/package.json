@@ -8,6 +8,7 @@
     "./axios-client": "./src/axios-client.mjs",
     "./auth-session": "./src/auth-session.mjs",
     "./enterprise-config": "./src/enterprise-config.mjs",
+    "./enterprise-profile": "./src/enterprise-profile.mjs",
     "./http-client": "./src/http-client.mjs",
     "./login-branding": "./src/login-branding.mjs",
     "./navigation": "./src/navigation.mjs",

@@ -11,6 +11,9 @@ const { createDocumentPlanWorker } = require('./document-planner');
 const { createDocumentEntryWorker } = require('./document-entry');
 const { createDocumentFixedEntryWorker } = require('./document-fixed-entry');
 const { createHttpRequestHandler } = require('./http-router');
+const { createCompanyHttpModule } = require('./company-http');
+const { createCompanySiteHandlers } = require('./company-site');
+const { createCompanySalesHandlers } = require('./company-sales-agent');
 const { createTwinResourceHttpHandlers } = require('./twin-resource-http');
 const { createAiHttpHandlers } = require('./ai-http');
 const { createAiChatHttpHandler } = require('./ai-chat-http');
@@ -183,7 +186,7 @@ const getRequestPath = (req) => {
 const setCorsHeaders = (res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
 };
 
 const sendJson = (res, status, payload, extraHeaders = {}) => {
@@ -314,6 +317,12 @@ const parseJsonMaybe = (rawText) => {
   } catch {
     return null;
   }
+};
+
+const sendText = (res, status, payload, extraHeaders = {}) => {
+  setCorsHeaders(res);
+  res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', ...extraHeaders });
+  res.end(String(payload || ''));
 };
 
 const flashPostgrestAdapter = createFlashPostgrestAdapter({
@@ -578,11 +587,26 @@ const twinResourceHttpHandlers = createTwinResourceHttpHandlers({
   port
 });
 
+const companyQuery = (...args) => databaseNotifier.query(...args);
+const companySiteHandlers = createCompanySiteHandlers({ query: companyQuery, sendJson, sendText, readJsonBody });
+const companySalesHandlers = createCompanySalesHandlers({ query: companyQuery, sendJson, readJsonBody });
+const companyHttp = createCompanyHttpModule({
+  companySiteHandlers,
+  companySalesHandlers,
+  getRequestPath,
+  getBearerFromAuthHeader,
+  verifyToken,
+  asUser,
+  readJsonBody,
+  sendJson
+});
+
 const server = http.createServer(createHttpRequestHandler({
   getRequestPath,
   setCorsHeaders,
   authorizers: {
-    documentIntakeAdmin: authorizeDocumentIntakeAdminRequest
+    documentIntakeAdmin: authorizeDocumentIntakeAdminRequest,
+    ...companyHttp.authorizers
   },
   handlers: {
     health: (_req, res) => sendJson(res, 200, { ok: true, channel }),
@@ -597,7 +621,8 @@ const server = http.createServer(createHttpRequestHandler({
     twin: {
       handleChat: handleTwinChat,
       ...twinResourceHttpHandlers
-    }
+    },
+    company: companyHttp.handlers
   }
 }));
 

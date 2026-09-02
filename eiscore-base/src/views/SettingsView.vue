@@ -21,40 +21,25 @@
       <el-form v-if="canManage" label-width="140px" class="settings-form">
         <el-tabs v-model="activeTab" class="settings-tabs">
           <el-tab-pane label="基础设置" name="basic">
-            <el-divider content-position="left">基础配置</el-divider>
-            <el-form-item label="系统标题">
-              <el-input v-model="form.title" placeholder="请输入左上角显示标题" />
-            </el-form-item>
-
-            <el-form-item label="主题颜色">
-              <div class="theme-row">
-                <el-color-picker v-model="form.themeColor" />
-                <div class="preset-colors">
-                  <button
-                    v-for="color in predefineColors"
-                    :key="color"
-                    type="button"
-                    class="color-block"
-                    :style="{ backgroundColor: color }"
-                    @click="form.themeColor = color"
-                  />
-                </div>
-              </div>
-            </el-form-item>
-
-            <el-form-item label="开启通知">
-              <el-switch v-model="form.notifications" />
-            </el-form-item>
-
-            <el-form-item label="物料分类层级">
-              <el-radio-group v-model="form.materialsCategoryDepth">
-                <el-radio :label="2">二级</el-radio>
-                <el-radio :label="3">三级</el-radio>
-              </el-radio-group>
-            </el-form-item>
+            <BasicSystemSettings :form="form" :predefine-colors="predefineColors" />
           </el-tab-pane>
 
-          <el-tab-pane label="登录门户" name="login">
+          <el-tab-pane label="企业资料" name="login">
+            <PublishedEnterpriseProfile
+              v-if="hasPublishedEnterpriseProfile"
+              :summary="enterpriseProfileSummary"
+              @open-operations="openEnterpriseOperations"
+              @open-public-site="previewLoginPage"
+            />
+            <template v-else>
+              <el-alert
+                title="尚未读取到已发布企业档案"
+                description="当前继续使用部署配置与历史登录门户设置。企业站点档案首次发布后，本页会自动切换为只读摘要。"
+                type="warning"
+                show-icon
+                :closable="false"
+                class="section-alert"
+              />
             <el-divider content-position="left">登录门户品牌信息</el-divider>
         <el-form-item label="企业 Logo">
           <div class="logo-config">
@@ -344,6 +329,7 @@
         <el-form-item label="备案信息">
           <el-input v-model="form.loginBranding.icpText" placeholder="例如：粤ICP备xxxxxxxx号" />
         </el-form-item>
+            </template>
 
           </el-tab-pane>
 
@@ -446,7 +432,7 @@
 
         <el-form-item v-if="canManage" class="settings-actions">
           <el-button type="primary" :loading="savingSettings" @click="saveSettings">保存并生效</el-button>
-          <el-button @click="previewLoginPage">预览登录页</el-button>
+          <el-button @click="previewLoginPage">{{ hasPublishedEnterpriseProfile ? '打开企业独立站' : '预览登录页' }}</el-button>
           <el-button @click="resetSettings">重置默认</el-button>
         </el-form-item>
       </el-form>
@@ -459,6 +445,9 @@
 // Copyright (c) 2026 林志荣
 
 import { reactive, ref, onMounted, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import BasicSystemSettings from '@/components/settings/BasicSystemSettings.vue'
+import PublishedEnterpriseProfile from '@/components/settings/PublishedEnterpriseProfile.vue'
 import { useSystemStore } from '@/stores/system'
 import { useUserStore } from '@/stores/user'
 import { getHostHttpClient, getHostSystemConfigService } from '@/platform/http-client'
@@ -470,9 +459,15 @@ import {
 } from '@shared/eis-display-control'
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
+import {
+  createEnterpriseProfileSummary,
+  isPublishedEnterpriseProfile,
+  resolveEnterpriseProfilePreviewUrl
+} from '@/domain/settings-enterprise-profile-policy'
 
 const systemStore = useSystemStore()
 const userStore = useUserStore()
+const router = useRouter()
 const activeTab = ref('basic')
 const savingSettings = ref(false)
 const agentConfig = reactive({
@@ -510,6 +505,8 @@ const defaultForm = () => {
 }
 
 const form = reactive(defaultForm())
+const hasPublishedEnterpriseProfile = computed(() => isPublishedEnterpriseProfile(systemStore.enterpriseProfile))
+const enterpriseProfileSummary = computed(() => createEnterpriseProfileSummary(systemStore.enterpriseProfile))
 
 const canManage = computed(() => {
   const info = userStore.userInfo || {}
@@ -919,9 +916,11 @@ const saveSettings = async () => {
   }
 }
 
-const previewLoginPage = () => {
-  window.open('/login', '_blank', 'noopener,noreferrer')
-}
+const previewLoginPage = () => window.open(
+  resolveEnterpriseProfilePreviewUrl(systemStore.enterpriseProfile), '_blank', 'noopener,noreferrer'
+)
+
+const openEnterpriseOperations = () => router.push('/company-site')
 
 const resetSettings = () => {
   const next = defaultForm()

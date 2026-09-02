@@ -89,6 +89,7 @@
     "hr": true,
     "materials": true,
     "apps": true,
+    "company-site": true,
     "sales": true,
     "purchase": true,
     "production": true,

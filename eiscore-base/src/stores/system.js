@@ -7,7 +7,15 @@ import { setThemeColor } from '@/utils/theme' // 引入工具
 import { normalizeDisplayVisibility } from '@shared/eis-display-control'
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding as normalizeEnterpriseLoginBranding } from '@eiscore/platform/login-branding'
-import { getHostSystemConfigService } from '@/platform/http-client'
+import {
+  DEFAULT_ENTERPRISE_PROFILE,
+  mergeEnterpriseProfileIntoSystemConfig,
+  stripEnterpriseProfileFromSystemConfig
+} from '@eiscore/platform/enterprise-profile'
+import {
+  getHostEnterpriseProfileService,
+  getHostSystemConfigService
+} from '@/platform/http-client'
 
 const normalizeLoginBranding = (input) => {
   const source = input && typeof input === 'object' ? input : {}
@@ -43,6 +51,7 @@ export const useSystemStore = defineStore('system', () => {
   const config = ref({
     ...defaultConfig
   })
+  const enterpriseProfile = ref(DEFAULT_ENTERPRISE_PROFILE)
 
   // 2. 定义动作
   const updateConfig = (newConfig = {}) => {
@@ -60,23 +69,26 @@ export const useSystemStore = defineStore('system', () => {
   }
 
   const loadConfig = async () => {
-    try {
-      const value = await getHostSystemConfigService().readValue('app_settings')
-      if (value && typeof value === 'object') {
-        const next = normalizeConfig({ ...defaultConfig, ...value })
-        updateConfig(next)
-      }
-    } catch (e) {}
+    const [value, profile] = await Promise.all([
+      getHostSystemConfigService().readValue('app_settings').catch(() => null),
+      getHostEnterpriseProfileService().readProfile()
+    ])
+    enterpriseProfile.value = profile
+    const systemConfig = value && typeof value === 'object'
+      ? normalizeConfig({ ...defaultConfig, ...value })
+      : defaultConfig
+    updateConfig(mergeEnterpriseProfileIntoSystemConfig(systemConfig, profile))
   }
 
   const saveConfig = async (nextConfig) => {
-    const payload = normalizeConfig({
+    const runtimePayload = normalizeConfig(mergeEnterpriseProfileIntoSystemConfig({
       ...(config.value || {}),
       ...(nextConfig || {})
-    })
-    updateConfig(payload)
+    }, enterpriseProfile.value))
+    const persistedPayload = stripEnterpriseProfileFromSystemConfig(runtimePayload)
+    updateConfig(runtimePayload)
     try {
-      await getHostSystemConfigService().saveValue('app_settings', payload, {
+      await getHostSystemConfigService().saveValue('app_settings', persistedPayload, {
         description: '系统全局设置'
       })
       return true
@@ -92,5 +104,5 @@ export const useSystemStore = defineStore('system', () => {
     }
   }
 
-  return { config, updateConfig, loadConfig, saveConfig, initTheme }
+  return { config, enterpriseProfile, updateConfig, loadConfig, saveConfig, initTheme }
 })

@@ -4,11 +4,13 @@
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { createPlatformHttpClient } from '@eiscore/platform/http-client'
 import { createSystemConfigService } from '@eiscore/platform/system-config'
+import { createEnterpriseProfileService } from '@eiscore/platform/enterprise-profile'
 import { clearAuthAndRedirect, getToken } from '@/utils/auth'
 
 let cachedEnterpriseConfig = null
 let cachedHttpClient = null
 let cachedSystemConfigService = null
+let cachedEnterpriseProfileService = null
 
 export function getHostHttpClient() {
   const enterpriseConfig = getEnterpriseConfig(globalThis)
@@ -23,6 +25,7 @@ export function getHostHttpClient() {
   })
   cachedEnterpriseConfig = enterpriseConfig
   cachedSystemConfigService = null
+  cachedEnterpriseProfileService = null
   return cachedHttpClient
 }
 
@@ -31,4 +34,11 @@ export function getHostSystemConfigService() {
   if (cachedSystemConfigService) return cachedSystemConfigService
   cachedSystemConfigService = createSystemConfigService({ httpClient })
   return cachedSystemConfigService
+}
+
+export function getHostEnterpriseProfileService() {
+  const httpClient = getHostHttpClient()
+  if (cachedEnterpriseProfileService) return cachedEnterpriseProfileService
+  cachedEnterpriseProfileService = createEnterpriseProfileService({ httpClient })
+  return cachedEnterpriseProfileService
 }

@@ -43,6 +43,7 @@
           <el-icon><Grid /></el-icon>
           <template #title>应用中心</template>
         </el-menu-item>
+        <el-menu-item v-if="canCompanySite" index="/company-site" data-guide="menu-company-site" @mouseenter="warmMicroApp('company-site')" @focus="warmMicroApp('company-site')"><el-icon><Promotion /></el-icon><template #title>企业站点运营</template></el-menu-item>
         <el-menu-item v-if="canSales" index="/sales" data-guide="menu-sales" @mouseenter="warmMicroApp('sales')" @focus="warmMicroApp('sales')">
           <el-icon><Sell /></el-icon>
           <template #title>销售管理</template>
@@ -227,7 +228,6 @@
     </el-container>
 
     <AiCopilot v-if="showWorkerAssistant" mode="worker" data-guide="worker-assistant" />
-
     <el-dialog
       v-model="guideWelcomeVisible"
       title="新手指引"
@@ -274,7 +274,7 @@ import { isEnterprisePathEnabled } from '@/platform/enterprise-routing'
 import { getHostHttpClient } from '@/platform/http-client'
 import { useHostDarkMode } from '@/platform/theme-mode'
 import { ElMessage } from 'element-plus'
-import { House, Box, User, Grid, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
+import { House, Box, User, Grid, Promotion, Sell, ShoppingCart, Tools, CircleCheck, Monitor, DataBoard, Expand, Fold, Moon, Sunny, QuestionFilled, ArrowDown, Close } from '@element-plus/icons-vue'
 import { isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
 import { getAppRuntimeTitle } from '@shared/eis-app-runtime-title-store.mjs'
 import {
@@ -504,6 +504,7 @@ const getVisibleMicroAppWarmKeys = () => getVisibleBaseMicroAppKeys({
   materials: canMms.value,
   hr: canHr.value,
   apps: canApps.value,
+  'company-site': canCompanySite.value,
   sales: canSales.value,
   purchase: canPurchase.value,
   production: canProduction.value,
@@ -792,6 +793,7 @@ const activeMenu = computed(() => {
   if (route.path.startsWith('/materials')) return '/materials'
   if (route.path.startsWith('/hr')) return '/hr'
   if (route.path.startsWith('/apps')) return '/apps/'
+  if (route.path.startsWith('/company-site')) return '/company-site'
   if (route.path.startsWith('/sales')) return '/sales'
   if (route.path.startsWith('/purchase')) return '/purchase'
   if (route.path.startsWith('/production')) return '/production'
@@ -825,18 +827,10 @@ const canPurchase = computed(() => canShowModule('purchase') && (hasPerm('module
 const canProduction = computed(() => canShowModule('production') && (hasPerm('module:production') || isSuperAdmin.value))
 const canQuality = computed(() => canShowModule('quality') && (hasPerm('module:quality') || isSuperAdmin.value))
 const canEquipment = computed(() => canShowModule('equipment') && (hasPerm('module:equipment') || isSuperAdmin.value))
-const canDecision = computed(() =>
-  canShowModule('decision') && (
-  hasPerm('module:decision') ||
-  hasPerm('module:sales') ||
-  hasPerm('module:mms') ||
-  hasPerm('module:purchase') ||
-  hasPerm('module:production') ||
-  hasPerm('module:quality') ||
-  hasPerm('module:equipment') ||
-  isSuperAdmin.value
-  )
-)
+const decisionPermissionKeys = ['decision', 'sales', 'mms', 'purchase', 'production', 'quality', 'equipment']
+const canDecision = computed(() => canShowModule('decision') && (
+  decisionPermissionKeys.some((key) => hasPerm(`module:${key}`)) || isSuperAdmin.value
+))
 const hasAnyAppCenterEntryPerm = computed(() => {
   const perms = Array.isArray(userStore.userInfo?.permissions) ? userStore.userInfo.permissions : []
   return perms.some((perm) => typeof perm === 'string' && perm.startsWith('app:app_'))
@@ -849,6 +843,9 @@ const canApps = computed(() =>
   isSuperAdmin.value
   )
 )
+const canCompanySite = computed(() => canShowModule('company-site') && (
+  ['module:company-site', 'module:company_site'].some(hasPerm) || isSuperAdmin.value
+))
 
 const currentSopRole = computed(() => normalizeBaseSopRole(
   userStore.userInfo?.sop_role ||

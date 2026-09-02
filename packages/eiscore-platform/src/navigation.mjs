@@ -105,3 +105,24 @@ export function navigateEnterprisePath(target, options = {}) {
   locationTarget.assign(plan.href)
   return { ...plan, mode: 'location-assign' }
 }
+
+export function navigateExternalHttps(target, options = {}) {
+  const runtimeTarget = options.runtimeTarget || globalThis
+  const locationTarget = options.locationTarget || runtimeTarget?.location
+  const raw = String(target || '').trim()
+  let parsed
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return { ok: false, reason: 'invalid-target', href: '', mode: 'none' }
+  }
+  const localDevelopment = parsed.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(parsed.hostname)
+  if ((parsed.protocol !== 'https:' && !localDevelopment) || parsed.username || parsed.password) {
+    return { ok: false, reason: 'invalid-target', href: '', mode: 'none' }
+  }
+  if (typeof locationTarget?.assign !== 'function') {
+    return { ok: false, reason: 'location-unavailable', href: parsed.toString(), mode: 'none' }
+  }
+  locationTarget.assign(parsed.toString())
+  return { ok: true, reason: '', href: parsed.toString(), mode: 'location-assign' }
+}

@@ -27,7 +27,8 @@ assert.deepEqual(
     'eiscore-quality',
     'eiscore-equipment',
     'eiscore-decision',
-    'eiscore-apps'
+    'eiscore-apps',
+    'eiscore-company-site'
   ],
   'the default enterprise profile must preserve all existing qiankun registrations'
 )

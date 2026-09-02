@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { DEFAULT_ENTERPRISE_CONFIG } from '../../packages/eiscore-platform/src/enterprise-config.mjs'
 import {
   ENTERPRISE_NAVIGATION_EVENT,
+  navigateExternalHttps,
   navigateEnterprisePath,
   planEnterpriseNavigation
 } from '../../packages/eiscore-platform/src/navigation.mjs'
@@ -119,5 +120,14 @@ const blockedResult = navigateEnterprisePath('/purchase/app/demands', {
 assert.equal(blockedResult.ok, false)
 assert.equal(blockedResult.reason, 'module-disabled')
 assert.equal(blockedSideEffect, false)
+
+const externalAssignments = []
+assert.equal(navigateExternalHttps('https://admin.example.test/auth/handoff?handoff=opaque', {
+  locationTarget: { assign: (href) => externalAssignments.push(href) }
+}).ok, true)
+assert.deepEqual(externalAssignments, ['https://admin.example.test/auth/handoff?handoff=opaque'])
+for (const unsafeTarget of ['http://admin.example.test/auth/handoff', 'javascript:alert(1)', 'https://user:pass@admin.example.test/']) {
+  assert.equal(navigateExternalHttps(unsafeTarget, { locationTarget: { assign: () => { blockedSideEffect = true } } }).ok, false)
+}
 
 console.log('PASS: enterprise navigation contract')

@@ -15,9 +15,10 @@ import {
 } from '../../eiscore-base/src/domain/base-layout-micro-app-policy.js'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
-assert.deepEqual(BASE_MICRO_APP_KEYS, ['materials', 'hr', 'apps', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision'])
+assert.deepEqual(BASE_MICRO_APP_KEYS, ['materials', 'hr', 'apps', 'company-site', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision'])
 assert.equal(getBaseModuleLoadingTitle('materials'), '仓储管理')
 assert.equal(getBaseModuleLoadingTitle('decision'), '决策支持')
+assert.equal(getBaseModuleLoadingTitle('company-site'), '企业站点运营')
 assert.equal(getBaseModuleLoadingTitle('unknown'), '模块')
 assert.equal(getBaseModuleKeyFromPath('/sales/app/orders?x=1'), 'sales')
 assert.equal(getBaseModuleKeyFromPath('/unknown#apps'), '')

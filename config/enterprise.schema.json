@@ -154,11 +154,12 @@
     "modules": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["hr", "materials", "apps", "sales", "purchase", "production", "quality", "equipment", "decision", "mobile"],
+      "required": ["hr", "materials", "apps", "company-site", "sales", "purchase", "production", "quality", "equipment", "decision", "mobile"],
       "properties": {
         "hr": { "type": "boolean" },
         "materials": { "type": "boolean" },
         "apps": { "type": "boolean" },
+        "company-site": { "type": "boolean" },
         "sales": { "type": "boolean" },
         "purchase": { "type": "boolean" },
         "production": { "type": "boolean" },

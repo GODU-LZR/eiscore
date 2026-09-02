@@ -9,7 +9,7 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const sourceExtensions = new Set(['.js', '.jsx', '.mjs', '.ts', '.tsx', '.vue'])
 const routerCallPattern = /\brouter\.(?:push|replace)\s*\(/g
 const directLocationMethodPattern = /\b(?:window\.)?location\.(?:assign|replace)\s*\(/
-const childFullModuleRoutePattern = /\brouter\.(?:push|replace)\s*\(\s*(['"`])\/(?:apps|decision|equipment|hr|materials|mobile|production|purchase|quality|sales)\/[^'"`\r\n]*\1/
+const childFullModuleRoutePattern = /\brouter\.(?:push|replace)\s*\(\s*(['"`])\/(?:apps|company-site|decision|equipment|hr|materials|mobile|production|purchase|quality|sales)\/[^'"`\r\n]*\1/
 
 const walk = (directory, files = []) => {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -44,8 +44,8 @@ for (const path of sourceFiles) {
   }
 }
 
-assert.equal(routerFiles.length, 61)
-assert.equal(routerCallCount, 120)
+assert.equal(routerFiles.length, 65)
+assert.equal(routerCallCount, 125)
 assert.deepEqual(directLocationMethods, [])
 assert.deepEqual(childFullModuleRoutes, [])
 
@@ -62,4 +62,4 @@ assert.match(baseRouterSource, /resolveEnterpriseNavigation\(/)
 assert.match(baseRouterSource, /enterpriseNavigation\.type === ['"]redirect['"]/)
 assert.match(baseRouterSource, /module_unavailable:\s*enterpriseNavigation\.moduleId/)
 
-console.log('PASS: dynamic router boundary audit (61 files/120 calls, no child full-module literals or direct location methods)')
+console.log('PASS: dynamic router boundary audit (65 files/125 calls, no child full-module literals or direct location methods)')

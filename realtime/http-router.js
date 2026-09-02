@@ -3,6 +3,8 @@
 
 'use strict';
 
+const { COMPANY_HTTP_ROUTE_MANIFEST } = require('./company-http');
+
 const route = (method, match, matcher, handler, authorize) => Object.freeze({
   method,
   match,
@@ -17,7 +19,7 @@ const prefix = (method, path, handler, authorize) => route(method, 'prefix', pat
 
 const DOCUMENT_INTAKE_ADMIN = 'documentIntakeAdmin';
 
-const HTTP_ROUTE_MANIFEST = Object.freeze([
+const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('*', '/health', 'health'),
   exact('POST', '/document-intake/devices/bind', 'documentIntake.handleBindDevice'),
   exact('GET', '/document-intake/admin/overview', 'documentIntake.handleGetOverview', DOCUMENT_INTAKE_ADMIN),
@@ -59,6 +61,11 @@ const HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('GET', '/twin/knowledge', 'twin.handleKnowledgeList'),
   exact('POST', '/twin/knowledge/upload', 'twin.handleKnowledgeUpload'),
   exact('DELETE', '/twin/knowledge', 'twin.handleKnowledgeDelete')
+]);
+
+const HTTP_ROUTE_MANIFEST = Object.freeze([
+  ...CORE_HTTP_ROUTE_MANIFEST,
+  ...COMPANY_HTTP_ROUTE_MANIFEST
 ]);
 
 const matchesRoute = (entry, method, pathname) => {
@@ -122,6 +129,7 @@ const createHttpRequestHandler = ({
 };
 
 module.exports = {
+  CORE_HTTP_ROUTE_MANIFEST,
   HTTP_ROUTE_MANIFEST,
   createHttpRequestHandler,
   matchesRoute

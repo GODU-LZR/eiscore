@@ -69,6 +69,11 @@ const router = createRouter({
           component: EmptyView
         },
         {
+          path: 'company-site/:page(.*)*',
+          name: 'company-site',
+          component: EmptyView
+        },
+        {
           path: 'sales/:page(.*)*',
           name: 'sales',
           component: EmptyView

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 export const BASE_MICRO_APP_KEYS = [
-  'materials', 'hr', 'apps', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision'
+  'materials', 'hr', 'apps', 'company-site', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision'
 ]
 
 const ENTRY_PREFIX = Object.fromEntries(BASE_MICRO_APP_KEYS.map((key) => [key, `/${key}/`]))
@@ -11,6 +11,7 @@ const MODULE_TITLES = {
   materials: '仓储管理',
   hr: '人事管理',
   apps: '应用中心',
+  'company-site': '企业站点运营',
   sales: '销售管理',
   purchase: '采购管理',
   production: '生产管理',

@@ -10,6 +10,7 @@ const MODULE_ENTRY_TITLES = {
   '/materials': '仓储管理',
   '/hr': '人事管理',
   '/apps/': '应用中心',
+  '/company-site': '企业站点运营',
   '/sales': '销售管理',
   '/purchase': '采购管理',
   '/production': '生产管理',
@@ -88,6 +89,7 @@ const MODULE_DIRECT_APP_ROUTES = [
 export const normalizeHostTabPath = (value) => {
   const raw = canonicalizeMicroChainPath(ensureAbsoluteHostPath(value))
   if (raw === '/apps' || raw === '/apps/index.html') return '/apps/'
+  if (raw === '/company-site/' || raw === '/company-site/index.html') return '/company-site'
   if (raw === '/materials/' || raw === '/materials/index.html' || raw === '/materials/apps' || raw === '/materials/apps/') return '/materials'
   if (raw === '/hr/' || raw === '/hr/index.html' || raw === '/hr/apps' || raw === '/hr/apps/') return '/hr'
   if (raw === '/sales/' || raw === '/sales/index.html' || raw === '/sales/apps' || raw === '/sales/apps/') return '/sales'
@@ -106,6 +108,7 @@ export const normalizeHostTabPath = (value) => {
   if (raw === '/decision' || raw.startsWith('/decision/')) return raw
   if (raw.startsWith('/apps/config-center')) return '/apps/config-center'
   if (raw.startsWith('/apps/')) return raw
+  if (raw === '/company-site' || raw.startsWith('/company-site/')) return raw
   if (raw === '/settings') return '/settings'
   if (raw.startsWith('/ai/enterprise')) return '/ai/enterprise'
   return raw
@@ -141,7 +144,7 @@ export const buildHostTabRouteId = (path, query = {}) => {
 
 export const resolveHostTabDot = (path) => {
   if (path === '/') return 'home'
-  for (const moduleName of ['materials', 'hr', 'apps', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision']) {
+  for (const moduleName of ['materials', 'hr', 'apps', 'company-site', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision']) {
     if (path.startsWith(`/${moduleName}`)) return moduleName
   }
   return 'default'
@@ -155,6 +158,7 @@ export const isHostModuleEntryPath = (path) => [
   '/hr',
   '/apps/',
   '/apps',
+  '/company-site',
   '/sales',
   '/purchase',
   '/production',

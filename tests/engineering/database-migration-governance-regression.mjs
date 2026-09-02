@@ -13,7 +13,7 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const result = loadAndValidateMigrationManifest({ repoRoot })
 assert.deepEqual(result.errors, [])
 assert.equal(result.migrations.length, 10)
-assert.equal(result.legacySqlCount, 102)
+assert.equal(result.legacySqlCount, 107)
 assert.deepEqual(
   result.migrations.map((entry) => entry.id),
   Array.from({ length: 10 }, (_, index) => `runtime-v2-${String(index + 1).padStart(3, '0')}`)

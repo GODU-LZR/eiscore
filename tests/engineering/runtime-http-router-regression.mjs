@@ -10,9 +10,11 @@ const require = createRequire(import.meta.url)
 const repoRoot = resolve(import.meta.dirname, '../..')
 const indexSource = readFileSync(resolve(repoRoot, 'realtime/index.js'), 'utf8')
 const {
+  CORE_HTTP_ROUTE_MANIFEST,
   HTTP_ROUTE_MANIFEST,
   createHttpRequestHandler
 } = require(resolve(repoRoot, 'realtime/http-router.js'))
+const { COMPANY_HTTP_ROUTE_MANIFEST } = require(resolve(repoRoot, 'realtime/company-http.js'))
 
 const descriptor = (method, match, matcher, handler, authorize = '') => [
   method,
@@ -63,7 +65,14 @@ const expectedRoutes = [
   descriptor('GET', 'exact', '/twin/messages', 'twin.handleMessagesGet'),
   descriptor('GET', 'exact', '/twin/knowledge', 'twin.handleKnowledgeList'),
   descriptor('POST', 'exact', '/twin/knowledge/upload', 'twin.handleKnowledgeUpload'),
-  descriptor('DELETE', 'exact', '/twin/knowledge', 'twin.handleKnowledgeDelete')
+  descriptor('DELETE', 'exact', '/twin/knowledge', 'twin.handleKnowledgeDelete'),
+  ...COMPANY_HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
+    entry.method,
+    entry.match,
+    entry.match === 'pattern' ? entry.pattern : entry.path,
+    entry.handler,
+    entry.authorize
+  ))
 ]
 
 const actualRoutes = HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
@@ -74,7 +83,8 @@ const actualRoutes = HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
   entry.authorize
 ))
 
-assert.equal(HTTP_ROUTE_MANIFEST.length, 41)
+assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 41)
+assert.equal(HTTP_ROUTE_MANIFEST.length, CORE_HTTP_ROUTE_MANIFEST.length + COMPANY_HTTP_ROUTE_MANIFEST.length)
 assert.deepEqual(actualRoutes, expectedRoutes)
 assert.ok(Object.isFrozen(HTTP_ROUTE_MANIFEST))
 assert.ok(HTTP_ROUTE_MANIFEST.every(Object.isFrozen))
@@ -186,4 +196,4 @@ assert.doesNotMatch(indexSource, /pathname\s*===\s*['"]\/(?:health|document-inta
 assert.doesNotMatch(indexSource, /pathname\.startsWith\(['"]\/document-intake/)
 assert.doesNotMatch(indexSource, /\/\^\\\/document-intake[\s\S]*?\.test\(pathname\)/)
 
-console.log('PASS: runtime HTTP router manifest and dispatch contract (41 routes)')
+console.log(`PASS: runtime HTTP router manifest and dispatch contract (${HTTP_ROUTE_MANIFEST.length} routes)`)

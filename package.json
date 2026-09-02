@@ -18,6 +18,7 @@
     "lint:changed": "node scripts/lint-changed.mjs",
     "test:toolchain": "node tests/engineering/toolchain-contract.mjs",
     "test:enterprise-config": "node tests/engineering/enterprise-config-regression.mjs",
+    "test:enterprise-profile": "node tests/engineering/enterprise-profile-regression.mjs && node tests/engineering/enterprise-profile-lifecycle-regression.mjs && node tests/engineering/settings-enterprise-profile-regression.mjs && node tests/engineering/company-http-regression.mjs",
     "test:enterprise-bootstrap": "node tests/engineering/base-enterprise-bootstrap-regression.mjs",
     "test:enterprise-routing": "node tests/engineering/enterprise-module-routing-regression.mjs",
     "test:enterprise-dependencies": "node tests/engineering/enterprise-module-dependencies-regression.mjs",

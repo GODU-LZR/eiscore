@@ -62,6 +62,12 @@ export const DISPLAY_MODULE_CATALOG = [
     ]
   },
   {
+    key: 'company-site',
+    label: '企业站点运营',
+    route: '/company-site',
+    apps: []
+  },
+  {
     key: 'sales',
     label: '销售管理',
     route: '/sales',
