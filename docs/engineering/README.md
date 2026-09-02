@@ -93,6 +93,6 @@ EISCore 的工程化目标不是减少文件行数，也不是追求一次性“
 - G3 数据库迁移治理：当前 107 份历史 SQL 作为只读库存锁定，已有顺序证据的 10 个 Runtime V2 补丁进入带 ID、SHA-256、事务归属、postcheck 与回退声明的 Manifest；企业站 Schema/seed 尚未进入该有序链，决策见 `adr/0009-database-migration-governance.md`。
 - G3 Vue 复杂度治理：当前 148 个有效 Vue 文件中 51 个达到 800 行，巨页债务 83,332/85,045 行；既有逐文件、总债务和 1,200/2,000 行分层门禁仍只允许下降。总体结论见 `G3_EXIT_AUDIT.md`，库存见 `G3_VUE_COMPLEXITY_INVENTORY.md`，决策见 `adr/0010-incremental-vue-decomposition.md`。
 
-G2、G3 和 G3.5 均已通过退出审计。G3.5 后的企业资料合并检查点也已关闭：已发布站点配置成为唯一企业公开档案，“系统设置”只读展示，“企业站点运营”统一编辑和发布；见 `ENTERPRISE_PROFILE_MERGE_EXIT_AUDIT.md` 与 `adr/0011-enterprise-profile-single-source.md`。这不代表进入 G4，既有页面仍只按真实业务与视觉证据渐进拆分。
+G2、G3 和 G3.5 均已通过退出审计。G3.5 后的企业资料合并检查点也已关闭：已发布站点配置成为唯一企业公开档案，“系统设置”只读展示，“企业站点运营”统一编辑和发布；见 `ENTERPRISE_PROFILE_MERGE_EXIT_AUDIT.md` 与 `adr/0011-enterprise-profile-single-source.md`。G4 尚未开始，进入前的真实证据、建议边界和待确认项见 `G4_DECISION_PACKET.md`；既有页面仍只按真实业务与视觉证据渐进拆分。
 
 长期重构的当前状态、验证证据和下一切片记录在 `REFACTOR_PROGRESS.md`；最终交付结论持续汇总到 `REFACTOR_FINAL_REPORT.md`。
