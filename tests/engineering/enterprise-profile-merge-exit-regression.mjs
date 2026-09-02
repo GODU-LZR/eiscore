@@ -61,6 +61,8 @@ assert.match(staticServer, /prefix:\s*'\/company-site',\s*target:\s*'http:\/\/12
 assert.doesNotMatch(e2e, /page\.route\(`\$\{HOST_URL\}\/company-site/)
 assert.match(fullStackE2e, /status: 'suspended'/)
 assert.match(fullStackE2e, /expect\(publicSuspended\.status\(\)\)\.toBe\(404\)/)
+assert.match(fullStackE2e, /locator\('\.enterprise-profile-empty'\)/)
+assert.match(fullStackE2e, /emptyProfile\.locator\('input, textarea'\)\)\.toHaveCount\(0\)/)
 for (const marker of [
   '企业公开资料已合并到企业站点运营',
   "page.locator('.login-btn').click()",

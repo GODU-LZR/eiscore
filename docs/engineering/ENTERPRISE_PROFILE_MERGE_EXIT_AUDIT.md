@@ -19,7 +19,7 @@
 
 ## 用户可见结果
 
-- “系统设置 → 企业资料”改为只读发布摘要，展示资料状态、名称、Logo、联系方式、官网和版本，并跳转到 `/company-site`。
+- “系统设置 → 企业资料”改为只读发布摘要，展示资料状态、名称、Logo、联系方式、官网和版本，并跳转到 `/company-site`；没有发布档案时也只提示前往运营台，不再显示旧登录门户编辑器。
 - “企业站点运营”成为唯一资料编辑入口；草稿不会提前污染公开站或系统外壳，发布后才成为运行时事实。
 - 企业站模块禁用、接口不可用或尚无发布档案时，基座保留部署配置和旧 `loginBranding` 兼容兜底，不阻断现有登录与系统设置加载。
 - 君乐缘球杆配置器、材料资产与研究成果，以及经纬网厂独立站、研究资产和页面成果均已迁入独立重构仓库并保留。
@@ -46,13 +46,13 @@
 | 完整质量门禁 | `npm run test:quality` 通过；变更代码 lint、文本秘密扫描、运行镜像与基础设施契约均通过 |
 | 完整生命周期（离线行为） | 保存草稿 → 发布 → 公开 API → 基座重新加载通过；发布版本由 1 增至 2，未发布草稿不会被公开读取；覆盖二次保存不覆盖首个发布快照 |
 | 合并后浏览器交互 | `npm run test:e2e:enterprise-profile-merge` 1/1 通过；真实 Chromium 加载基座与企业站两个真实 Vite 前端，填写超级管理员登录表单并验证系统设置只读、进入运营台、草稿隔离、显式发布、基座同步和刷新后持久化 |
-| 合并后真实完整栈 | `npm run test:e2e:enterprise-profile-full-stack` 1/1 通过；真实 Chromium + 基座/企业站 Vite + PostgREST + Agent + PostgreSQL，真实登录、两次草稿保存、旧品牌/旧发布域名保持、新草稿域名返回 404、发布后品牌与域名同时切换、停用后公开 API 返回 404；测试前后备份/恢复 `company_site` schema，隔离数据库恢复为 `published|君乐缘台球|v1` |
+| 合并后真实完整栈 | `npm run test:e2e:enterprise-profile-full-stack` 1/1 通过；真实 Chromium + 基座/企业站 Vite + PostgREST + Agent + PostgreSQL，真实登录、两次草稿保存、旧品牌/旧发布域名保持、新草稿域名返回 404、发布后品牌与域名同时切换、停用后公开 API 返回 404，且设置页切换为无编辑器的未发布提示；测试前后备份/恢复 `company_site` schema，隔离数据库恢复为 `published|君乐缘台球|v1` |
 | 企业站单元与契约 | 25/25 通过，覆盖君乐缘配置器、经纬网厂模型/素材、公开档案优先级、能力开关、运营契约和安全存储 |
 | 企业站数据库契约 | 28 张表通过 Schema 静态检查；Schema/Handler 回归已接入 `test:unit` 的 `test:company-site-runtime` 门禁 |
 | Realtime | 路由 Manifest 80 条；组合根 796 行、31 个本地模块、28 个传输/配置辅助职责，均在既有上限内 |
 | 数据库治理 | 107 份 SQL 被库存门禁识别；Runtime V2 的 10 个迁移继续受顺序、校验和、事务、账本与 postcheck 治理；新增 `company-site-001` 有序迁移、SQL 回滚和 postcheck，并在隔离数据库真实执行 1 applied/0 skipped |
-| 前端复杂度 | 148 个 Vue 文件，52 个达到 800 行，巨页债务 83,986/85,045 行；没有扩大巨页白名单或债务基线 |
-| Node 语法 | 249 个文件通过语法检查 |
+| 前端复杂度 | 148 个 Vue 文件，51 个达到 800 行，巨页债务 83,332/85,045 行；旧设置页编辑器移除后 `SettingsView.vue` 降到 800 行以下 |
+| Node 语法 | 251 个文件通过语法检查 |
 | 生产构建 | 企业站加入后的完整前端 12/12 成功；企业站 1,718 modules、基座 5,901 modules |
 
 合并前 G3.5 已有隔离完整栈 77/77 Playwright 证据。合并后保留 1 条状态化契约模拟浏览器验收（`npm run test:e2e:enterprise-profile-merge`，1/1），用于快速锁定前端交互；另新增真实完整栈验收（`npm run test:e2e:enterprise-profile-full-stack`，1/1），不 mock API，直接通过 `eiscore-g35` 的 PostgreSQL、PostgREST、Agent 和两个真实 Vite 服务验证发布可见性。真实完整栈用例只接受 localhost、显式 `eiscore-g35` 项目和 `eiscore-g35-db`，并在 afterAll 中恢复 `company_site` 备份。

@@ -2,7 +2,7 @@
 
 ## 结论
 
-2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。初始库存为 139 个 Vue 文件、115,805 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid、四个 PurchaseAppGrid、七个 DocumentIntakeCenter、十四个 PurchaseDocumentDetail、六个 EquipmentHome 及八个 SalesCockpit 纯策略切片后，企业资料合并检查点的当前库存为 148 个 Vue 文件、112,062 行，52 个巨页承载 83,986/85,045 行债务，≥2,000 行极端页为 7 个；新增企业站页面没有扩大巨页白名单或债务基线。
+2026-09-01 对全部 `eiscore-*/src/**/*.vue` 做物理行审计，排除构建产物、依赖、覆盖率目录和 Flash 运行期 `.app-drafts`。初始库存为 139 个 Vue 文件、115,805 行；其中 52 个文件达到 800 行，占文件数 37.4%，初始承载 90,948 行、占 Vue 总行数 78.5%。十三个 AppRuntime、四个 SalesAppGrid、七个 AiCopilot、四个 FlashBuilder、四个基座布局、三个 OntologyWorkbench、四个 ProductionAppGrid、四个 PurchaseAppGrid、七个 DocumentIntakeCenter、十四个 PurchaseDocumentDetail、六个 EquipmentHome 及八个 SalesCockpit 纯策略切片后，企业资料合并检查点继续移除旧设置页回退编辑器；当前库存为 148 个 Vue 文件、111,396 行，51 个巨页承载 83,332/85,045 行债务，≥2,000 行极端页为 7 个。`SettingsView.vue` 已从 800 行巨页库存退出，新增企业站页面没有扩大白名单或债务基线。
 
 该结果证明巨页是系统性维护风险，不能靠一次整体重写解决。基线已进入 `config/engineering/vue-complexity-baseline.json`，质量门禁禁止既有巨页增长、禁止新增巨页，并要求总债务、极端页和关键页数量只降不增。
 
@@ -55,7 +55,7 @@
 
 - 扫描范围内新 Vue 文件不得达到 800 行。
 - 52 个基线文件逐文件不得超过各自基线行数；文件删除或降到阈值以下视为债务下降。
-- 巨页总行数的初始基线为 90,948，受持续棘轮约束的基线为 85,045，当前值为 83,986；≥1,200 行当前为 32 个，≥2,000 行当前为 7 个。质量门禁继续执行逐文件上限和总量只降不增，EquipmentHome 与 SalesCockpit 等专项门禁继续锁定各自组合层上限。
+- 巨页总行数的初始基线为 90,948，受持续棘轮约束的基线为 85,045，当前值为 83,332；≥1,200 行当前为 32 个，≥2,000 行当前为 7 个。质量门禁继续执行逐文件上限和总量只降不增，EquipmentHome 与 SalesCockpit 等专项门禁继续锁定各自组合层上限。
 - 不允许通过重命名、移动目录、生成文件或扩充排除项规避门禁。
 - 基线扩张不是普通维护动作；确有必要时必须记录 ADR、替代方案和回收计划。
 

@@ -193,6 +193,16 @@ test('real database keeps the published enterprise profile online until a draft 
   const publicSuspended = await request.get('/agent/company-site/public/site-config')
   expect(publicSuspended.status()).toBe(404)
 
+  await page.goto('/settings')
+  await expectShellReady(page)
+  await page.getByRole('tab', { name: '企业资料' }).click()
+  const emptyProfile = page.locator('.enterprise-profile-empty')
+  await expect(emptyProfile).toContainText('尚未读取到已发布企业档案')
+  const unavailableUi = createUiErrorMonitor(page)
+  await expect(emptyProfile.getByRole('button', { name: '进入企业站点运营' })).toBeVisible()
+  await expect(emptyProfile.locator('input, textarea')).toHaveCount(0)
+  await unavailableUi.expectClean('suspended enterprise profile remains read-only after the expected profile 404')
+
   const backupHash = createHash('sha256').update(readFileSync(backupOnHost)).digest('hex')
   expect(backupHash).toMatch(/^[0-9a-f]{64}$/)
 })
