@@ -14,7 +14,7 @@ const fullAuthAdapters = [
   'eiscore-purchase',
   'eiscore-production'
 ]
-const minimalAuthAdapters = ['eiscore-quality', 'eiscore-equipment']
+const minimalAuthAdapters = ['eiscore-quality', 'eiscore-equipment', 'eiscore-company-site']
 const allMicroApps = [...fullAuthAdapters, ...minimalAuthAdapters]
 
 for (const app of allMicroApps) {

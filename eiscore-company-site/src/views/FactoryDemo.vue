@@ -344,11 +344,11 @@ import {
   DEFAULT_DEMO_STEP,
   DEMO_PRODUCT,
   DEMO_ROLES,
-  DEMO_STORAGE_KEY,
   MODULE_ROUTES,
   PRODUCTION_OPERATIONS,
   createDemoSnapshot
 } from '@/demo/factory-demo.js'
+import { getFactoryDemoState, saveFactoryDemoState } from '@/domain/company-site-storage.js'
 
 const router = useRouter()
 
@@ -361,18 +361,14 @@ const SourceBadge = defineComponent({
 })
 
 const readLocalState = () => {
-  try {
-    const value = JSON.parse(localStorage.getItem(DEMO_STORAGE_KEY) || '{}')
-    return {
-      step: Number.isInteger(value.step) ? value.step : DEFAULT_DEMO_STEP,
-      role: DEMO_ROLES.some((item) => item.id === value.role) ? value.role : 'owner'
-    }
-  } catch {
-    return { step: DEFAULT_DEMO_STEP, role: 'owner' }
+  const value = getFactoryDemoState()
+  return {
+    step: Number.isInteger(value.step) ? value.step : DEFAULT_DEMO_STEP,
+    role: DEMO_ROLES.some((item) => item.id === value.role) ? value.role : 'owner'
   }
 }
 
-const initialState = typeof localStorage === 'undefined' ? { step: DEFAULT_DEMO_STEP, role: 'owner' } : readLocalState()
+const initialState = readLocalState()
 const demoStep = ref(initialState.step)
 const selectedRole = ref(initialState.role)
 const activePanel = ref('overview')
@@ -441,11 +437,7 @@ const selectRole = (role) => {
 }
 
 const persistState = () => {
-  try {
-    localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify({ step: demoStep.value, role: selectedRole.value }))
-  } catch {
-    // The demo remains usable when browser storage is unavailable.
-  }
+  saveFactoryDemoState({ step: demoStep.value, role: selectedRole.value })
 }
 
 watch([demoStep, selectedRole], persistState)

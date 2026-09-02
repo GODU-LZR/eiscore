@@ -51,6 +51,21 @@ for (const [moduleId, timeoutMs, defaultProfile, expectedAccept, expectedSilence
 console.log('PASS: profile-aware Request migration contract (8 applications)')
 
 {
+  const source = readFileSync(resolve(repoRoot, 'eiscore-company-site/src/utils/request.js'), 'utf8')
+  assert.match(source, /createPlatformAxiosClient/)
+  assert.match(source, /from '@eiscore\/platform\/axios-client'/)
+  assert.match(source, /service: 'agent'/)
+  assert.match(source, /getAccessToken: getToken/)
+  assert.match(source, /timeoutMs: 12000/)
+  assert.match(source, /defaultAccept: 'application\/json'/)
+  assert.match(source, /clearAuthAndRedirect\('\/login'\)/)
+  assert.match(source, /暂无企业站点运营权限/)
+  assert.doesNotMatch(source, /axios\.create|interceptors\.(request|response)/)
+}
+
+console.log('PASS: company-site admin Request uses the platform Agent boundary')
+
+{
   const source = readFileSync(resolve(repoRoot, 'eiscore-base/src/utils/request.js'), 'utf8')
   assert.match(source, /createPlatformAxiosClient/)
   assert.match(source, /service: 'auto'/)

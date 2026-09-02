@@ -84,15 +84,15 @@ EISCore 的工程化目标不是减少文件行数，也不是追求一次性“
 - G1 工具链与依赖治理：CI 运行时、npm、lockfile 契约和升级规则见 `DEPENDENCY_POLICY.md`。
 - G2 企业配置契约：品牌、域名、模块和功能开关的 v1 schema 与迁移边界见 `ENTERPRISE_CONFIG.md`。
 - G2 平台 HTTP 边界：企业端点解析、认证注入、超时、401 所有权和错误脱敏规则见 `adr/0003-platform-http-boundary.md`。
-- G2 Auth/Session 与安全存储：10 个前端工具及真实消费者已统一，兼容 Token 格式、JWT UTF-8 解码、长度限制、失效判断和存储异常边界见 `adr/0004-platform-auth-session-boundary.md`。
+- G2 Auth/Session 与安全存储：企业站加入后当前 11 个前端工具及真实消费者已统一，兼容 Token 格式、JWT UTF-8 解码、长度限制、失效判断和存储异常边界见 `adr/0004-platform-auth-session-boundary.md`。
 - G2 前端权限判断：9 个权限适配器共享同一平台服务，兼容规则见 `adr/0005-platform-permission-boundary.md`。
 - G2 非会话本地存储：领域缓存通过安全适配器渐进迁移，Key/格式/异常降级边界见 `adr/0006-domain-local-storage-boundary.md`。
 - G2 Grid/UI 单一来源：共享入口与实现主体由 8 个薄适配器消费，9 个具名扩展受专项契约锁定，边界见 `adr/0007-grid-single-source.md`。
-- G3 Realtime 模块化单体：41 条 HTTP、9 类 WebSocket、PostgreSQL 通知、AI 配置/上游/OCR/企业输出守卫/十二域上下文、Agent 策略/访问/AI 适配/任务/工具/终端，以及 Flash PostgREST、43 项注册表、调用策略、执行矩阵、Cline 全生命周期和草稿/附件工作区均进入独立边界；组合根已减少 6,616 行并受 800 行门禁约束，决策见 `adr/0008-realtime-modular-monolith.md`。
-- G3 Realtime 后端退出审计：组合根只保留配置、装配、通用传输/鉴权和生命周期，28 个模块依赖与 26 个辅助职责受精确门禁锁定，结论见 `G3_REALTIME_EXIT_AUDIT.md`。
-- G3 数据库迁移治理：102 份历史 SQL 作为只读库存锁定，已有顺序证据的 10 个 Runtime V2 补丁进入带 ID、SHA-256、事务归属、postcheck 与回退声明的 Manifest；双平台执行入口共享离线校验、备份门槛、幂等账本和强制 postcheck，决策见 `adr/0009-database-migration-governance.md`。
-- G3 Vue 复杂度治理：139 个有效 Vue 文件中 52 个达到 800 行，当前债务 83,990/85,045 行；13 个重点组合页均完成当前纯策略阶段退出，逐文件、总债务和 1,200/2,000 行分层门禁只允许下降。总体结论见 `G3_EXIT_AUDIT.md`，库存见 `G3_VUE_COMPLEXITY_INVENTORY.md`，决策见 `adr/0010-incremental-vue-decomposition.md`。
+- G3 Realtime 模块化单体：G3 建立的 41 条 HTTP 边界已扩展为当前 80 条路由；9 类 WebSocket、PostgreSQL 通知、AI、Agent、Flash 与企业站处理器均保持在独立模块。组合根当前 796 行，受 800 行门禁约束，决策见 `adr/0008-realtime-modular-monolith.md`。
+- G3 Realtime 后端持续门禁：组合根只保留配置、装配、通用传输/鉴权和生命周期，当前 31 个模块依赖与 28 个辅助职责受精确门禁锁定；G3 历史快照见 `G3_REALTIME_EXIT_AUDIT.md`。
+- G3 数据库迁移治理：当前 107 份历史 SQL 作为只读库存锁定，已有顺序证据的 10 个 Runtime V2 补丁进入带 ID、SHA-256、事务归属、postcheck 与回退声明的 Manifest；企业站 Schema/seed 尚未进入该有序链，决策见 `adr/0009-database-migration-governance.md`。
+- G3 Vue 复杂度治理：当前 148 个有效 Vue 文件中 52 个达到 800 行，巨页债务 83,986/85,045 行；既有逐文件、总债务和 1,200/2,000 行分层门禁仍只允许下降。总体结论见 `G3_EXIT_AUDIT.md`，库存见 `G3_VUE_COMPLEXITY_INVENTORY.md`，决策见 `adr/0010-incremental-vue-decomposition.md`。
 
-G2 和 G3 均已通过退出审计；接受库存和持续门禁见 `G2_EXIT_AUDIT.md` 与 `G3_EXIT_AUDIT.md`。G3 覆盖 Realtime、数据库迁移治理、Vue 复杂度及 13 个重点组合页；后续工作转入 G4 产品配置化，既有页面只按真实业务与视觉证据继续渐进拆分。
+G2、G3 和 G3.5 均已通过退出审计。G3.5 后的企业资料合并检查点也已关闭：已发布站点配置成为唯一企业公开档案，“系统设置”只读展示，“企业站点运营”统一编辑和发布；见 `ENTERPRISE_PROFILE_MERGE_EXIT_AUDIT.md` 与 `adr/0011-enterprise-profile-single-source.md`。这不代表进入 G4，既有页面仍只按真实业务与视觉证据渐进拆分。
 
 长期重构的当前状态、验证证据和下一切片记录在 `REFACTOR_PROGRESS.md`；最终交付结论持续汇总到 `REFACTOR_FINAL_REPORT.md`。

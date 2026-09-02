@@ -160,9 +160,14 @@ import OptionGroup from '@/components/configurator/OptionGroup.vue'
 import CueStage from '@/components/configurator/CueStage.vue'
 import { BASE_MODELS, CUE_BUILDER_STEPS as stepsCatalog, getVariants } from '@/configurator/catalog'
 import { buildConfigurationSnapshot, createDefaultDesign, isVariantCompatible, setCustomization, updateBaseModel, updateComponent } from '@/configurator/engine'
+import {
+  getCueConfiguration,
+  getCueDesign,
+  saveCueConfiguration,
+  saveCueDesign
+} from '@/domain/company-site-storage.js'
 
 const router = useRouter()
-const STORAGE_KEY = 'eiscore.cue-builder.design.v1'
 const steps = stepsCatalog
 const baseModels = BASE_MODELS
 const design = ref(createDefaultDesign())
@@ -272,7 +277,7 @@ const applyRemoteSnapshot = (payload) => {
   else if (remote.design?.designId) design.value = remote.design
   remoteSnapshot.value = remote
   remoteRevision.value = Number(payload?.configuration?.revision || remote.design?.revision || design.value.revision)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(design.value))
+  saveCueDesign(design.value)
 }
 
 const restoreConfiguration = async () => {
@@ -314,7 +319,7 @@ const syncConfiguration = async () => {
     }
     configurationId.value = saved.configuration?.id || configurationId.value
     configurationToken.value = saved.configurationToken || configurationToken.value
-    localStorage.setItem(`${STORAGE_KEY}.meta`, JSON.stringify({ configurationId: configurationId.value, configurationToken: configurationToken.value }))
+    saveCueConfiguration({ configurationId: configurationId.value, configurationToken: configurationToken.value })
     applyRemoteSnapshot(saved)
     const authHeaders = { 'X-Configuration-Token': configurationToken.value }
     const [validated, quoted, bommed] = await Promise.all([
@@ -340,7 +345,7 @@ const syncConfiguration = async () => {
 }
 
 const saveDesign = async () => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(design.value))
+  saveCueDesign(design.value)
   const synced = await syncConfiguration()
   if (synced) ElMessage.success('Design JSON 已保存并完成服务端校验')
 }
@@ -418,20 +423,11 @@ const downloadBom = () => {
 const goBack = () => router.push('/')
 
 onMounted(() => {
-  try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-    if (stored?.designId) design.value = stored
-  } catch {
-    // Ignore malformed local drafts and keep a clean prototype design.
-  }
-  try {
-    const metadata = JSON.parse(localStorage.getItem(`${STORAGE_KEY}.meta`) || 'null')
-    configurationId.value = metadata?.configurationId || ''
-    configurationToken.value = metadata?.configurationToken || ''
-  } catch {
-    configurationId.value = ''
-    configurationToken.value = ''
-  }
+  const stored = getCueDesign()
+  if (stored?.designId) design.value = stored
+  const metadata = getCueConfiguration()
+  configurationId.value = metadata?.configurationId || ''
+  configurationToken.value = metadata?.configurationToken || ''
   engravingText.value = design.value.customization?.engravingText || ''
   logoRequested.value = Boolean(design.value.customization?.logoAssetId)
   if (configurationId.value && configurationToken.value) restoreConfiguration()

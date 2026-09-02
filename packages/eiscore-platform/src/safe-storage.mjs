@@ -9,7 +9,16 @@ function hasMethod(storage, method) {
   }
 }
 
-export function createSafeStorage(storage) {
+function resolveBrowserStorage() {
+  if (typeof globalThis.window === 'undefined') return null
+  try {
+    return globalThis.localStorage
+  } catch {
+    return null
+  }
+}
+
+export function createSafeStorage(storage = resolveBrowserStorage()) {
   function getText(key) {
     try {
       if (!hasMethod(storage, 'getItem')) return null

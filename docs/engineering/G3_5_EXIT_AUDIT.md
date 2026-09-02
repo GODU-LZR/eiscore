@@ -6,6 +6,8 @@ G3.5 在 2026-09-02 完成并通过。重构仓库已在独立、可销毁的本
 
 本结论不等于生产发布批准：真实 AI 上游、三家企业配置包、客户数据迁移、备份恢复演练和生产发布治理仍未验收。G4、G5 未开始，本轮未进入 G4。
 
+本文件保留 G3.5 退出当时的证据快照。后续企业资料合并使当前库存变为 107 份 SQL、80 条 HTTP 路由和 148 个 Vue 文件；这些变化及其验证单独记录在 `ENTERPRISE_PROFILE_MERGE_EXIT_AUDIT.md`，没有改写下列历史验收数字。
+
 ## 隔离与不可变边界
 
 - 唯一写入仓库：`C:\Users\Twist\Documents\eiscore\github-eiscore-refactor`，分支 `codex/systematic-refactor`。

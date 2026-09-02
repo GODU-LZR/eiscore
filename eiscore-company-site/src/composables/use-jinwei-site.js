@@ -12,6 +12,13 @@ import { enterpriseProfileFromSiteConfig } from '@eiscore/platform/enterprise-pr
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { navigateExternalHttps } from '@eiscore/platform/navigation'
 import { requestPublicJson } from '@/platform/public-http'
+import {
+  forgetUsername,
+  getRememberedUsername,
+  getSiteLocale,
+  rememberUsername,
+  saveSiteLocale
+} from '@/domain/company-site-storage.js'
 
 export function useJinweiSite() {
 // SPDX-License-Identifier: AGPL-3.0-or-later
@@ -21,7 +28,7 @@ export function useJinweiSite() {
 
 
 
-const locale = ref(typeof localStorage !== 'undefined' && localStorage.getItem('jinwei.site.locale') === 'en-US' ? 'en-US' : 'zh-CN')
+const locale = ref(getSiteLocale() === 'en-US' ? 'en-US' : 'zh-CN')
 const publishedEnterpriseProfile = ref(null)
 const isEnglish = computed(() => locale.value === 'en-US')
 const tx = (zh, en) => (isEnglish.value ? en : zh)
@@ -201,7 +208,7 @@ const localizedHeroSlides = computed(() => HERO_SLIDES.map((slide) => ({
 
 const setLocale = (nextLocale) => {
   locale.value = nextLocale === 'en-US' ? 'en-US' : 'zh-CN'
-  if (typeof localStorage !== 'undefined') localStorage.setItem('jinwei.site.locale', locale.value)
+  saveSiteLocale(locale.value)
   if (typeof document !== 'undefined') document.documentElement.lang = locale.value
   installPublicSeo()
 }
@@ -214,10 +221,7 @@ const loginOpen = ref(false)
 const loginLoading = ref(false)
 const loginMessage = ref('')
 const loginTone = ref('normal')
-const LOGIN_USERNAME_STORAGE_KEY = 'jinwei.login.username'
-const rememberedLoginUsername = typeof localStorage !== 'undefined'
-  ? String(localStorage.getItem(LOGIN_USERNAME_STORAGE_KEY) || '')
-  : ''
+const rememberedLoginUsername = getRememberedUsername()
 const loginForm = reactive({ username: rememberedLoginUsername, password: '', remember: Boolean(rememberedLoginUsername) })
 const activeHeroSlide = ref(0)
 const heroAutoplayPaused = ref(false)
@@ -436,10 +440,8 @@ const submitPortalLogin = async () => {
     }
     if (!handoffPayload?.code) throw new Error('handoff-failed')
 
-    if (typeof localStorage !== 'undefined') {
-      if (loginForm.remember) localStorage.setItem(LOGIN_USERNAME_STORAGE_KEY, loginForm.username)
-      else localStorage.removeItem(LOGIN_USERNAME_STORAGE_KEY)
-    }
+    if (loginForm.remember) rememberUsername(loginForm.username)
+    else forgetUsername()
     loginTone.value = 'success'
     loginMessage.value = copy.value.login.verified
     const navigation = navigateExternalHttps(`${systemUrl.value}/auth/handoff?handoff=${encodeURIComponent(handoffPayload.code)}`)
