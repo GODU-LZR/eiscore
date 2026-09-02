@@ -51,6 +51,8 @@
 
 本次运行环境仍为 Node 26.1.0/npm 11.13.0，因此保留“正式发布前必须在规范 Node 20.19.0/npm 10.8.2 重跑”的限制。构建中既有循环 chunk、大包、Sass legacy API 和第三方 PURE 注释告警仍存在，未被本次通过结论掩盖或改写为已解决。
 
+同一轮在提交 `fa0a017` 上复验真实浏览器链：`npm run test:e2e:enterprise-profile-full-stack` 1/1 通过，结果 JSON 为 3,533 字节、SHA-256 `8c64883e203039c6260d5c5b1204a2cb0103d54ae8ae9d0f1ee3c17eefd2d70c`；`npm run test:e2e:junleyuan-materials` 1/1 通过，结果 JSON 为 3,662 字节、SHA-256 `4c14fe42cec1e6aae3ffb774ed7a40dc584154dba142245031a58aa784bf406c`。前者仅接受显式 localhost、`eiscore-g35` 和 `eiscore-g35-db`，测试后数据库核对为 `published|君乐缘台球|v1`；8092/18000 无残留监听。凭据只从隔离数据库注入测试进程，没有写入文档、命令参数或 Git。
+
 ## 已观察到但不阻断的错误与告警
 
 - 规范发布工具链是 Node 20.19.0/npm 10.8.2；本轮部分复核运行在兼容范围内的 Node 26.1.0/npm 11.13.0，正式发布前仍需使用规范工具链重跑。
