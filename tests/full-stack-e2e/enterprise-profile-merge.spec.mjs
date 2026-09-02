@@ -82,7 +82,7 @@ test.afterAll(() => {
   expect(restored).toMatch(/^1\|/)
 })
 
-test('real database keeps the published enterprise profile online until a draft is published', async ({ page }) => {
+test('real database keeps the published enterprise profile online until a draft is published', async ({ page, request }) => {
   const ui = createUiErrorMonitor(page)
 
   await page.goto('/login')
@@ -97,8 +97,10 @@ test('real database keeps the published enterprise profile online until a draft 
   })
   expect(initialPublic.status).toBe(200)
   const initialBrandName = initialPublic.payload.site.brandName
+  const initialDomain = initialPublic.payload.site.domain
   const initialVersion = Number(initialPublic.payload.site.publishedVersion)
   expect(initialBrandName).toBeTruthy()
+  expect(initialDomain).toBeTruthy()
   expect(initialVersion).toBeGreaterThanOrEqual(1)
 
   await page.goto('/settings')
@@ -116,7 +118,9 @@ test('real database keeps the published enterprise profile online until a draft 
 
   const draftBrandName = `全栈草稿-${Date.now()}`
   const secondDraftBrandName = `${draftBrandName}-二次保存`
+  const draftDomain = `full-stack-${Date.now()}.example.test`
   await formInput(page, '品牌名称').fill(draftBrandName)
+  await formInput(page, '站点域名').fill(draftDomain)
   await page.getByRole('button', { name: '保存设置' }).click()
   await expect(page.locator('.el-message--success')).toContainText('站点设置已保存为草稿')
 
@@ -130,7 +134,13 @@ test('real database keeps the published enterprise profile online until a draft 
   })
   expect(publicDuringDraft.status).toBe(200)
   expect(publicDuringDraft.payload.site.brandName).toBe(initialBrandName)
+  expect(publicDuringDraft.payload.site.domain).toBe(initialDomain)
   expect(publicDuringDraft.payload.site.publishedVersion).toBe(initialVersion)
+
+  const publicAtDraftDomain = await request.get('/agent/company-site/public/site-config', {
+    params: { domain: draftDomain }
+  })
+  expect(publicAtDraftDomain.status()).toBe(404)
 
   await page.goto('/settings')
   await expectShellReady(page)
@@ -151,7 +161,13 @@ test('real database keeps the published enterprise profile online until a draft 
   })
   expect(publicAfterPublish.status).toBe(200)
   expect(publicAfterPublish.payload.site.brandName).toBe(secondDraftBrandName)
+  expect(publicAfterPublish.payload.site.domain).toBe(draftDomain)
   expect(publicAfterPublish.payload.site.publishedVersion).toBe(initialVersion + 1)
+
+  const publicAtOldDomain = await request.get('/agent/company-site/public/site-config', {
+    params: { domain: initialDomain }
+  })
+  expect(publicAtOldDomain.status()).toBe(404)
 
   await page.goto('/settings')
   await expectShellReady(page)

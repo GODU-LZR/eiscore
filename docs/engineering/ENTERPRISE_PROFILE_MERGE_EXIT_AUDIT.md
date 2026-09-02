@@ -46,7 +46,7 @@
 | 完整质量门禁 | `npm run test:quality` 通过；70 个变更代码文件 lint、1,368 个文本文件秘密扫描、运行镜像与基础设施契约均通过 |
 | 完整生命周期（离线行为） | 保存草稿 → 发布 → 公开 API → 基座重新加载通过；发布版本由 1 增至 2，未发布草稿不会被公开读取；覆盖二次保存不覆盖首个发布快照 |
 | 合并后浏览器交互 | `npm run test:e2e:enterprise-profile-merge` 1/1 通过；真实 Chromium 加载基座与企业站两个真实 Vite 前端，填写超级管理员登录表单并验证系统设置只读、进入运营台、草稿隔离、显式发布、基座同步和刷新后持久化 |
-| 合并后真实完整栈 | `npm run test:e2e:enterprise-profile-full-stack` 1/1 通过；真实 Chromium + 基座/企业站 Vite + PostgREST + Agent + PostgreSQL，真实登录、两次草稿保存、公开旧版保持、发布切换新版；测试前后备份/恢复 `company_site` schema，隔离数据库恢复为 `published|君乐缘台球|v1` |
+| 合并后真实完整栈 | `npm run test:e2e:enterprise-profile-full-stack` 1/1 通过；真实 Chromium + 基座/企业站 Vite + PostgREST + Agent + PostgreSQL，真实登录、两次草稿保存、旧品牌/旧发布域名保持、新草稿域名返回 404、发布后品牌与域名同时切换；测试前后备份/恢复 `company_site` schema，隔离数据库恢复为 `published|君乐缘台球|v1` |
 | 企业站单元与契约 | 25/25 通过，覆盖君乐缘配置器、经纬网厂模型/素材、公开档案优先级、能力开关、运营契约和安全存储 |
 | 企业站数据库契约 | 28 张表通过 Schema 静态检查 |
 | Realtime | 路由 Manifest 80 条；组合根 796 行、31 个本地模块、28 个传输/配置辅助职责，均在既有上限内 |
