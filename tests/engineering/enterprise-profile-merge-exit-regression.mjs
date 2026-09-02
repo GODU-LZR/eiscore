@@ -11,6 +11,8 @@ const adr = readFileSync(resolve(repoRoot, 'docs/engineering/adr/0011-enterprise
 const enterpriseConfig = readFileSync(resolve(repoRoot, 'docs/engineering/ENTERPRISE_CONFIG.md'), 'utf8')
 const progress = readFileSync(resolve(repoRoot, 'docs/engineering/REFACTOR_PROGRESS.md'), 'utf8')
 const readiness = readFileSync(resolve(repoRoot, 'docs/engineering/PRE_G4_ENGINEERING_READINESS.md'), 'utf8')
+const finalReport = readFileSync(resolve(repoRoot, 'docs/engineering/REFACTOR_FINAL_REPORT.md'), 'utf8')
+const junleyuanAudit = readFileSync(resolve(repoRoot, 'docs/engineering/JUNLEYUAN_LATEST_RESULT_MERGE_AUDIT.md'), 'utf8')
 const e2e = readFileSync(resolve(repoRoot, 'tests/e2e/enterprise-profile-merge.spec.mjs'), 'utf8')
 const fullStackE2e = readFileSync(resolve(repoRoot, 'tests/full-stack-e2e/enterprise-profile-merge.spec.mjs'), 'utf8')
 const e2eConfig = readFileSync(resolve(repoRoot, 'playwright.enterprise-profile.config.mjs'), 'utf8')
@@ -46,6 +48,25 @@ assert.match(progress, /真实 PostgreSQL\/PostgREST\/Agent\/双 Vite 完整栈 
 assert.doesNotMatch(progress, /未验证：合并场景在恢复后的/)
 assert.match(readiness, /当前自动化范围内没有未处理的阻断错误/)
 assert.match(readiness, /G4 产品配置化 \| 未开始/)
+for (const marker of [
+  '企业站 26/26',
+  '252 个 Node 文件语法',
+  '君乐缘材质 Chromium 1/1',
+  '42 个 V2/V3 材料文件',
+  'JUNLEYUAN_LATEST_RESULT_MERGE_AUDIT.md'
+]) {
+  assert.ok(finalReport.includes(marker), `refactor final report lost current enterprise merge evidence: ${marker}`)
+}
+assert.doesNotMatch(finalReport, /企业站 25\/25/)
+assert.doesNotMatch(finalReport, /251 个 Node 文件语法/)
+for (const marker of [
+  '42 个文件、5,140,758 字节',
+  '9ab4082ff091231f4b000995d93f1b675f5f7970ee438b0a2cde524aa1380673',
+  'candidate / approved=false / commercial_use=false / supplier_authorization_pending',
+  '不代表启动 G4'
+]) {
+  assert.ok(junleyuanAudit.includes(marker), `Junleyuan latest-result audit lost required evidence: ${marker}`)
+}
 assert.match(packageJson.scripts?.['test:quality'] || '', /npm run test:enterprise-profile/)
 assert.match(packageJson.scripts?.['test:g3.5-exit'] || '', /enterprise-profile-merge-exit-regression/)
 assert.match(packageJson.scripts?.['test:unit'] || '', /npm run test:company-site-runtime/)
