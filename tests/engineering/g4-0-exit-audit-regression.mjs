@@ -25,7 +25,7 @@ for (const marker of [
 }
 assert.match(adr, /状态：接受/)
 assert.match(adr, /用户于 2026-09-03 确认/)
-assert.match(progress, /G4 产品配置化 \| 进行中/)
+assert.match(progress, /G4 产品配置化 \| 已暂停（G4\.0 已完成）/)
 assert.match(packageJson.scripts?.['test:g4.0-exit'] || '', /g4-0-exit-audit-regression\.mjs/)
 assert.match(packageJson.scripts?.['test:quality'] || '', /npm run test:g4\.0-exit/)
 
