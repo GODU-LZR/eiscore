@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eiscore.local/schemas/enterprise-package-v1.json",
+  "title": "EISCore Enterprise Package Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "packageSchemaVersion",
+    "packageId",
+    "packageVersion",
+    "status",
+    "enterprise",
+    "coreCompatibility",
+    "runtime",
+    "files",
+    "governance",
+    "createdAt"
+  ],
+  "$defs": {
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9._/-]+$"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "packageSchemaVersion": { "const": 1 },
+    "packageId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "maxLength": 100
+    },
+    "packageVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$",
+      "maxLength": 80
+    },
+    "status": {
+      "enum": ["template", "draft", "candidate", "approved"]
+    },
+    "enterprise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "maxLength": 64
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        }
+      }
+    },
+    "coreCompatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageApiVersion", "enterpriseConfigSchemaVersion"],
+      "properties": {
+        "packageApiVersion": { "const": 1 },
+        "enterpriseConfigSchemaVersion": { "const": 2 }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["configPath", "mountPath"],
+      "properties": {
+        "configPath": { "$ref": "#/$defs/relativePath" },
+        "mountPath": { "const": "/config/eiscore-enterprise.json" }
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "bytes", "sha256"],
+        "properties": {
+          "path": { "$ref": "#/$defs/relativePath" },
+          "kind": {
+            "enum": ["runtime-config", "seed", "asset", "evidence"]
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 536870912
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "contains": {
+        "type": "object",
+        "required": ["kind"],
+        "properties": { "kind": { "const": "runtime-config" } }
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factStatus", "assetStatus", "productionApproved"],
+      "properties": {
+        "factStatus": { "enum": ["example", "pending", "confirmed"] },
+        "assetStatus": { "enum": ["not-applicable", "pending", "authorized"] },
+        "productionApproved": { "type": "boolean" },
+        "confirmedBy": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "confirmedAt": { "type": "string", "format": "date-time" },
+        "notes": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "status": { "const": "approved" } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "governance": {
+            "properties": {
+              "factStatus": { "const": "confirmed" },
+              "productionApproved": { "const": true }
+            },
+            "required": ["confirmedBy", "confirmedAt"]
+          }
+        }
+      }
+    }
+  ]
+}

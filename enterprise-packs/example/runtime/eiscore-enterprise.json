@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../config/enterprise.v2.schema.json",
+  "schemaVersion": 2,
+  "enterprise": {
+    "id": "example-enterprise-pack",
+    "displayName": "示例企业包",
+    "shortName": "示例包"
+  },
+  "branding": {
+    "productName": "EISCore 企业数字化平台",
+    "themeColor": "#409EFF",
+    "logoUrl": ""
+  },
+  "endpoints": {
+    "publicBaseUrl": "https://erp.example.com",
+    "apiBasePath": "/api",
+    "agentBasePath": "/agent",
+    "realtimeWsPath": "/agent/ws"
+  },
+  "modules": {
+    "hr": true,
+    "materials": true,
+    "apps": true,
+    "company-site": true,
+    "sales": true,
+    "purchase": true,
+    "production": true,
+    "quality": true,
+    "equipment": true,
+    "decision": true,
+    "mobile": true
+  },
+  "features": {
+    "documentIntake": true,
+    "enterpriseAi": true
+  }
+}
