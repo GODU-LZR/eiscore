@@ -1,6 +1,6 @@
 # 数据库后端工程化治理计划
 
-> 状态：进行中。DB0、DB1、DB2、DB3 已完成，下一步 DB4；G4.1～G4.4 暂停。本计划只操作独立重构仓库和隔离测试栈，不连接客户生产环境。
+> 状态：进行中。DB0、DB1、DB2、DB3、DB4 已完成，下一步 DB5；G4.1～G4.4 暂停。本计划只操作独立重构仓库和隔离测试栈，不连接客户生产环境。
 
 ## 目标边界
 
@@ -63,7 +63,7 @@ PostgreSQL 表、视图、函数、触发器、RLS、角色与授权是 EISCore 
 
 结果：`eiscore-db-contract-v2` 已固定数据库目录和七个 PostgREST Schema 的 OpenAPI 指纹；隔离测试同时验证 fresh install、旧角色路径升级、重复迁移、JWT Claims、RPC 正/负参数以及 Schema Cache reload。离线结构棘轮进入 `test:quality`，真实数据库完整套件进入默认 CI。详见 `DB3_EXIT_AUDIT.md`。
 
-### DB4：版本化发布与部署
+### DB4：版本化发布与部署（已完成）
 
 - 生成数据库 Release Manifest，绑定代码提交、镜像、基线、迁移、目录指纹和 postcheck。
 - 建立一次性 migrator、预检、备份、升级、健康检查和发布记录。
@@ -71,6 +71,8 @@ PostgreSQL 表、视图、函数、触发器、RLS、角色与授权是 EISCore 
 - Schema Drift、账本冲突、缺失备份和 postcheck 失败均停止发布。
 
 退出：同一数据库发布制品可重复部署到隔离环境，失败时不会继续切流量。
+
+结果：`eiscore-db-v2` Release Manifest 精确绑定 Git 提交、39 个执行/验证输入、固定镜像、规范基线、13 个迁移、postcheck 和 DB/PostgREST 指纹。一次性发布作业按离线验签、漂移/账本预检、可验证备份、迁移、密钥注入、候选 API 契约和成功账本执行；隔离演练证明升级与重复部署通过，Schema Drift 和账本冲突均在新增备份与成功记录前失败。详见 `DB4_EXIT_AUDIT.md`。
 
 ### DB5：恢复、运行治理与退出审计
 

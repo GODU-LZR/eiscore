@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process'
 import {
   buildDatabaseReleaseManifest,
   databaseReleaseManifestSha256,
+  loadAndValidateDatabaseRelease,
   validateDatabaseReleaseManifest
 } from '../../scripts/database-release-contract.mjs'
 
@@ -35,6 +36,12 @@ assert.deepEqual(manifest.migrationManifests.map(({ terminal }) => terminal.id),
 assert.ok(manifest.artifacts.some(({ path }) => path === 'database/release-ledger.sql'))
 assert.ok(manifest.artifacts.some(({ path }) => path === 'database/contracts/eiscore-db-contract-v2.json'))
 assert.ok(manifest.artifacts.some(({ purpose }) => purpose === 'verification-only'))
+
+const fixedRelease = loadAndValidateDatabaseRelease({ repoRoot })
+assert.deepEqual(fixedRelease.errors, [])
+assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v2')
+assert.equal(fixedRelease.manifest.sourceRevision, '0ae0c946f0747f15041d5cf6ba6e1fe2f3251ca3')
+assert.equal(fixedRelease.manifestSha256, 'aed30ee9d2a55c615974e4cfa782acebcbc93ae3748e9f8e9f79ac9979bd7074')
 
 const mutation = (callback) => {
   const value = structuredClone(manifest)

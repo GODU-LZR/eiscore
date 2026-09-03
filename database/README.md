@@ -43,3 +43,13 @@ npm run test:database-baseline:docker
 ```
 
 PowerShell 使用同名参数 `-BackupEvidence`、`-ReleaseRevision` 与 `-Operator`。执行器先完成离线 Manifest 校验，随后才检查 Docker 和数据库；相同 ID/校验和跳过，相同 ID/不同校验和失败。runner-managed SQL 和历史文件自带事务都会把账本写入同一事务，所有迁移结束后强制运行 postcheck。`company-site-001` 已在隔离 `eiscore-g35` 数据库真实执行并通过 postcheck；生产环境仍必须在获授权的发布演练中验证备份恢复。
+
+## 版本化数据库发布
+
+`releases/eiscore-db-v2/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、全部执行输入、数据库目录和 PostgREST 契约绑定为同一发布制品。离线验证：
+
+```bash
+npm run db:release:check
+```
+
+获得明确目标环境授权后，一次性发布作业还必须提供备份目录、候选 PostgREST 和三个独立秘密；示意参数见 `docs/engineering/DB4_EXIT_AUDIT.md`。作业不负责流量切换，只有最终数据库/API 契约通过并写入 `eiscore_meta.database_releases` 后，外部部署编排才可继续。当前禁止对客户或生产环境执行该命令。

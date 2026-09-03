@@ -58,7 +58,8 @@ assert.doesNotMatch(contractTest, /:remote/)
 
 assert.match(packageJson.scripts?.['test:database-contracts:docker'] || '', /test-database-contracts\.mjs/)
 for (const command of [
-  'test:database-baseline:docker', 'test:database-roles:docker', 'test:database-contracts:docker'
+  'test:database-baseline:docker', 'test:database-roles:docker',
+  'test:database-contracts:docker', 'test:database-release:docker'
 ]) assert.ok(packageJson.scripts?.['test:database:docker']?.includes(command), `database suite lost ${command}`)
 assert.match(ciSource, /run: npm run test:database:docker/)
 
