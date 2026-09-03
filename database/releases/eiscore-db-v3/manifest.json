@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "eiscore-db-v3",
+  "sourceRevision": "59f84149752e8e9b3f9da61ec275b0195bb0e3a3",
+  "images": {
+    "postgres": "postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f",
+    "postgrest": "postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa"
+  },
+  "baseline": {
+    "path": "database/baselines/eiscore-db-v1/manifest.json",
+    "id": "eiscore-db-v1",
+    "fingerprintSha256": "bdf72f613055c419aff40e58776d2725fcc460cf44c5b17d7a28a7379b93e72e",
+    "schemaSha256": "dbcd35e8cc93254dd285a89a9fa210151a9490a60fa55cc287b2f566a7874a28",
+    "objectCatalogSha256": "596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265"
+  },
+  "migrationManifests": [
+    {
+      "path": "database/migrations/runtime-v2.json",
+      "name": "runtime-v2",
+      "portableSha256": "4a4c0bd9c39a40481af24ac0b2b4722e763b0f4f9a50011d43e6d862511b3853",
+      "terminal": { "id": "runtime-v2-010", "sha256": "aa6758a6e1043a2680a9464da35fd864706b1cdc4882c5f4d29bc60dc6bf39d4" },
+      "postcheck": { "path": "sql/runtime_v2_postcheck.sql", "portableSha256": "48e1fc98b0d1d42835a148313fa0d364c0598a0c7529ca1b664bfca33f0b84ed" },
+      "migrations": [
+        { "id": "runtime-v2-001", "sha256": "762ec169102bba3a016fafe8a72b486e89e9dd864e6de455e94a331dca001580" },
+        { "id": "runtime-v2-002", "sha256": "d44540f9e039a2823d0b0705b7e8deb29c3f1d68d8977a83674c32bcb1bbc3b3" },
+        { "id": "runtime-v2-003", "sha256": "3a14a43c71d2b94035e6793ceef3a44503624d493c3917b75e487c5741c55a93" },
+        { "id": "runtime-v2-004", "sha256": "acf9d0ecd5920cc6385a47c79c8236823d3f22fc2bb5b36195031889d0ee4bdf" },
+        { "id": "runtime-v2-005", "sha256": "2040bf34351ee6bcaa9ca196ec70c74a1f83d587436b7bb574ad1da70db1278b" },
+        { "id": "runtime-v2-006", "sha256": "ba4eb04ef6a7e19f7f8b05961f8101391715000014faea37a5f55e64fa67107d" },
+        { "id": "runtime-v2-007", "sha256": "378ed86f77cef6958cdd89256f70c55c2611ee8cd64245216165a55a2c2856c7" },
+        { "id": "runtime-v2-008", "sha256": "6386919b81b1b3772063bdafb4ef3058e37fec2d915811d24494221d053f531c" },
+        { "id": "runtime-v2-009", "sha256": "72a89d592c2ea26d429f7a04d0b63addc9ad02839164588eb3f75314c739f9f6" },
+        { "id": "runtime-v2-010", "sha256": "aa6758a6e1043a2680a9464da35fd864706b1cdc4882c5f4d29bc60dc6bf39d4" }
+      ]
+    },
+    {
+      "path": "database/migrations/company-site.json",
+      "name": "company-site",
+      "portableSha256": "cdcee2dd49910e3e9756e3d988f95b4aff8a6bdaea0928ca5cefc7c15d89dae8",
+      "terminal": { "id": "company-site-001", "sha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4" },
+      "postcheck": { "path": "database/migrations/postchecks/company-site.sql", "portableSha256": "4ff943ec40d81a773733c5ae4e7562ac7efd5693ebb0d8e8bcaa96f9d42c7b6c" },
+      "migrations": [
+        { "id": "company-site-001", "sha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4" }
+      ]
+    },
+    {
+      "path": "database/migrations/core.json",
+      "name": "core",
+      "portableSha256": "fa8448901df5beb4fb37fee8e4f0d1766a1e6a52de1c3e0f654fca9ec2fd201b",
+      "terminal": { "id": "core-002", "sha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc" },
+      "postcheck": { "path": "database/migrations/postchecks/core.sql", "portableSha256": "89ec2b29a6f6b589f21371a1b235de7c87ecbeb3aeb17185ae2307d2973804a4" },
+      "migrations": [
+        { "id": "core-001", "sha256": "70ff80d137a15f3312eb8fdce5e1b25157cb43f0013a7c03ab03e83086cd4ffc" },
+        { "id": "core-002", "sha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc" }
+      ]
+    }
+  ],
+  "databaseContract": {
+    "path": "database/contracts/eiscore-db-contract-v2.json",
+    "id": "eiscore-db-contract-v2",
+    "databaseCatalogSha256": "80130591dd32cc615f00abe68c64b5d3292c0b88109c7f447f2016e0994f5a81",
+    "postgrestOpenApiSha256": "e0e8d6ec06402b3b564c33ba356fd90656fc20fb0f59dca1bf2e78973515e9d0"
+  },
+  "predecessors": [
+    { "id": "eiscore-db-v1-runtime", "databaseCatalogSha256": "13a49b00a78cfd67b6195f129b01dfe18e0fb92f74bdc8e5e1d57a9aab85e025" }
+  ],
+  "releasePolicy": {
+    "backupRequired": true,
+    "backupStorageEvidenceRequired": true,
+    "rollbackStrategy": "backup-restore",
+    "schemaDrift": "fail",
+    "ledgerConflict": "fail",
+    "postcheckFailure": "fail",
+    "trafficSwitch": "external-after-release-record"
+  },
+  "artifacts": [
+    { "path": "database/baselines/eiscore-db-v1/manifest.json", "purpose": "execution", "portableSha256": "f148469e9cf1d780556aaae1ea2bf58ba69a9ab0fefaca59b055fb24c6af06f2" },
+    { "path": "database/baselines/eiscore-db-v1/object-catalog.json", "purpose": "execution", "portableSha256": "596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265" },
+    { "path": "database/baselines/eiscore-db-v1/register.sql", "purpose": "execution", "portableSha256": "9404916fcac56cd07c06d2789fe7fc433678c9f7183bc6fae51c45926a932de9" },
+    { "path": "database/baselines/eiscore-db-v1/schema.sql", "purpose": "execution", "portableSha256": "2f3981fd14cf451df07e828799ac0f89c7f8fa2328e951354dba14322c1679dd" },
+    { "path": "database/bootstrap/roles-v2.sql", "purpose": "execution", "portableSha256": "363c8c60baf24a8bce8c0541eccc63b41f5d0811870b9183fdb878b4ef2a352c" },
+    { "path": "database/contracts/eiscore-db-contract-v2.json", "purpose": "execution", "portableSha256": "bd2a81feda126722e3ca5ec0f6c200ed76c8eb4da180a87a2d68b564918eddd1" },
+    { "path": "database/migration-ledger.sql", "purpose": "execution", "portableSha256": "02003368612143b04b830e8c07d4ab8efcf5a41f8a80ecedb035099315a552cb" },
+    { "path": "database/migrations/company-site.json", "purpose": "execution", "portableSha256": "cdcee2dd49910e3e9756e3d988f95b4aff8a6bdaea0928ca5cefc7c15d89dae8" },
+    { "path": "database/migrations/core.json", "purpose": "execution", "portableSha256": "fa8448901df5beb4fb37fee8e4f0d1766a1e6a52de1c3e0f654fca9ec2fd201b" },
+    { "path": "database/migrations/postchecks/company-site.sql", "purpose": "execution", "portableSha256": "4ff943ec40d81a773733c5ae4e7562ac7efd5693ebb0d8e8bcaa96f9d42c7b6c" },
+    { "path": "database/migrations/postchecks/core.sql", "purpose": "execution", "portableSha256": "89ec2b29a6f6b589f21371a1b235de7c87ecbeb3aeb17185ae2307d2973804a4" },
+    { "path": "database/migrations/rollback/company-site-001-add-published-snapshot.sql", "purpose": "execution", "portableSha256": "263541d8976c7269321f645fdfe7dcf0251a451d7449e31dec9ce0fbbdea81f3" },
+    { "path": "database/migrations/runtime-v2.json", "purpose": "execution", "portableSha256": "4a4c0bd9c39a40481af24ac0b2b4722e763b0f4f9a50011d43e6d862511b3853" },
+    { "path": "database/migrations/sql/company-site-001-add-published-snapshot.sql", "purpose": "execution", "portableSha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4" },
+    { "path": "database/migrations/sql/core-001-externalize-database-credentials.sql", "purpose": "execution", "portableSha256": "70ff80d137a15f3312eb8fdce5e1b25157cb43f0013a7c03ab03e83086cd4ffc" },
+    { "path": "database/migrations/sql/core-002-role-boundaries.sql", "purpose": "execution", "portableSha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc" },
+    { "path": "database/operations/policy.json", "purpose": "execution", "portableSha256": "5bc22ddd08574d5129f2e0b1e739f7c1a1f01bb18e2537075a33f83d63dcd8c7" },
+    { "path": "database/recovery-ledger.sql", "purpose": "execution", "portableSha256": "9d8d7e69bfb26e079f57f08fd830c50900f562add1c9473d7c67856688bf520e" },
+    { "path": "database/recovery/post-restore-v2.sql", "purpose": "execution", "portableSha256": "bb710fd5b9b1a7348275cdc05485b96173aa58a9a491beaf32b304599eba188c" },
+    { "path": "database/release-ledger.sql", "purpose": "execution", "portableSha256": "5a7ff5bdf925c6122ab304256e9df4929b09ed3df3a11744fcb1d495682a49e8" },
+    { "path": "env/init_roles.sql", "purpose": "verification-only", "portableSha256": "d18a17ec5800ddb7a0c53341ef3c7e21d26c368dcfd05cf28841fcd8235f4b4d" },
+    { "path": "scripts/apply-runtime-migrations.mjs", "purpose": "execution", "portableSha256": "959b2e7cd4f7d31dfd9687e5f87420d0155f196641b7d82925d3bea7970ef2bb" },
+    { "path": "scripts/audit-database-runtime.mjs", "purpose": "execution", "portableSha256": "10816e5217653de219c12be40c695b8f6e2a7fb800a5ec50abda001c9e144f11" },
+    { "path": "scripts/check-database-backups.mjs", "purpose": "execution", "portableSha256": "6175ff276fb7ee57e6e5f7be471007a0da77cde132ad298349a66527976b643c" },
+    { "path": "scripts/check-database-baseline.mjs", "purpose": "execution", "portableSha256": "7edd1522973bd6e6ecb98d4e40ea2440c0df6ca88c7cbc344888d306ea3f6d06" },
+    { "path": "scripts/check-database-migrations.mjs", "purpose": "execution", "portableSha256": "eddf4be65ac76dc747c54b8066cc25ebd32598cfa00f8ba69c8690d09b53aea7" },
+    { "path": "scripts/configure-database-runtime-secret.sh", "purpose": "verification-only", "portableSha256": "4ad6a68aaec7ada537d91d2b3f8f30dab9ece8d91b36b12777dda4b68bbd67c7" },
+    { "path": "scripts/configure-database-runtime-secrets-v2.sh", "purpose": "execution", "portableSha256": "508948bc69cf1952fe044cecce4771bed72dd1962bf9b82d24746c0224054950" },
+    { "path": "scripts/database-baseline-contract.mjs", "purpose": "execution", "portableSha256": "dfe1b8bebac7a91f9408162b4cc85263ff2f44d0861c94408850f71106f9e0da" },
+    { "path": "scripts/database-contract-catalog.mjs", "purpose": "execution", "portableSha256": "2465416bce4eb780f874a0987748e5829a945160985b2e604534021e8ec94ddb" },
+    { "path": "scripts/database-release-contract.mjs", "purpose": "execution", "portableSha256": "a7392af2d9265b2d5c429d7d4245482b3f863f27a987821d9647fc500ed02884" },
+    { "path": "scripts/deploy-database-release.mjs", "purpose": "execution", "portableSha256": "a065ce0ff15f8373cad8e1079c711d91d5a2fbba1509a51dfe1a0be127b6a12d" },
+    { "path": "scripts/restore-database-release-backup.mjs", "purpose": "execution", "portableSha256": "dadd8bc25862ed7de7d039fe73a3451f2840ccc2d80b1537dee17d9cc5004e33" },
+    { "path": "sql/company_site_platform_v1.sql", "purpose": "verification-only", "portableSha256": "af964b29414eeeca87ded5e4f72352dd972e44c5b3c02e7ba6ef7c09fdacce62" },
+    { "path": "sql/patch_add_ontology_relations_app.sql", "purpose": "execution", "portableSha256": "ed36a6db174a6c1baf8ab19ea8adbb985c53455fee785f7bac1fd168de73adb4" },
+    { "path": "sql/patch_agent_ontology_secure_context_v1.sql", "purpose": "execution", "portableSha256": "263d3680c37a05d1b76da0eee0800190e61fdda4eda94c6bd03b6c1b99b8e0f1" },
+    { "path": "sql/patch_ai_document_intake_mvp.sql", "purpose": "execution", "portableSha256": "33ab0477225f2d8b839b82a9ee5370684cfe96820c5e12a34d327607a1b2613b" },
+    { "path": "sql/patch_document_intake_rls_hardening_v1.sql", "purpose": "execution", "portableSha256": "43919f166b736cac86f5c06262a6616bfa95a39b37c0a3b2282c40b1c4798573" },
+    { "path": "sql/patch_fix_ontology_semantic_qmarks_20260618.sql", "purpose": "execution", "portableSha256": "371f6e723b34a99ee3b2ca0b2efe33b6ece85f6665fbcc20c95bd7511989f2a3" },
+    { "path": "sql/patch_lightweight_ontology_runtime.sql", "purpose": "execution", "portableSha256": "01c5ef18c94956f40707de90de6c62acb38ed7b9a8f2467ccb77461236be75e3" },
+    { "path": "sql/patch_ontology_graph_query_v1.sql", "purpose": "execution", "portableSha256": "6f0d436c5e54f63c69179cfbb9b9e615142f61dcb0d765f1f40f13318ad5bce8" },
+    { "path": "sql/patch_ontology_reasoning_engine_v1.sql", "purpose": "execution", "portableSha256": "76dc1dbeb6d1ab9a89abef7a41117916d8196a12998048e03d94aff558092cbf" },
+    { "path": "sql/patch_ontology_reasoning_insights_v1.sql", "purpose": "execution", "portableSha256": "10966623fa721cd0a31caffd00dfa205b898e0dd590916842615828a70d841dc" },
+    { "path": "sql/patch_ontology_semantic_coverage_v2.sql", "purpose": "execution", "portableSha256": "b54806f38c6cbf651c94b05042ac3baf27b877c4b7146dd5f9405386a4c5f0bc" },
+    { "path": "sql/runtime_v2_postcheck.sql", "purpose": "execution", "portableSha256": "48e1fc98b0d1d42835a148313fa0d364c0598a0c7529ca1b664bfca33f0b84ed" }
+  ]
+}

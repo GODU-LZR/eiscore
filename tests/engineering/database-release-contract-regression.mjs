@@ -18,7 +18,7 @@ const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
 const predecessorCatalogs = [{ id: 'eiscore-db-v1-runtime', databaseCatalogSha256: 'a'.repeat(64) }]
 const manifest = buildDatabaseReleaseManifest({
   repoRoot,
-  releaseId: 'eiscore-db-v2',
+  releaseId: 'eiscore-db-v3',
   sourceRevision: revision,
   predecessorCatalogs
 })
@@ -39,9 +39,9 @@ assert.ok(manifest.artifacts.some(({ purpose }) => purpose === 'verification-onl
 
 const fixedRelease = loadAndValidateDatabaseRelease({ repoRoot })
 assert.deepEqual(fixedRelease.errors, [])
-assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v2')
-assert.equal(fixedRelease.manifest.sourceRevision, '0ae0c946f0747f15041d5cf6ba6e1fe2f3251ca3')
-assert.equal(fixedRelease.manifestSha256, 'aed30ee9d2a55c615974e4cfa782acebcbc93ae3748e9f8e9f79ac9979bd7074')
+assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v3')
+assert.equal(fixedRelease.manifest.sourceRevision, '59f84149752e8e9b3f9da61ec275b0195bb0e3a3')
+assert.equal(fixedRelease.manifestSha256, 'bcb594fa44b66363509a0a0415f3da3ede7dd35064a7835bbd5bcc30ca592e20')
 
 const mutation = (callback) => {
   const value = structuredClone(manifest)

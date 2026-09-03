@@ -21,7 +21,7 @@ const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
-const releaseManifestSha256 = 'aed30ee9d2a55c615974e4cfa782acebcbc93ae3748e9f8e9f79ac9979bd7074'
+const releaseManifestSha256 = 'bcb594fa44b66363509a0a0415f3da3ede7dd35064a7835bbd5bcc30ca592e20'
 const core002Sha256 = 'fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc'
 const maxOutput = 256 * 1024 * 1024
 
@@ -76,6 +76,8 @@ const releaseArgs = (apiUrl) => [
   '--api-container', apiContainer,
   '--api-url', apiUrl,
   '--backup-dir', backupRoot,
+  '--environment', 'isolated',
+  '--backup-storage-evidence', 'isolated://db4-release-test-tmpfs',
   '--operator', 'db4-isolated-release-test'
 ]
 const releaseEnv = {
@@ -135,7 +137,7 @@ try {
   const first = executeRelease(apiUrl)
   assert.match(first.stdout, /Preflight passed: 13a49b00/)
   assert.match(first.stdout, /core migration execution passed: 1 applied, 1 skipped/)
-  assert.match(first.stdout, /Database release passed: eiscore-db-v2/)
+  assert.match(first.stdout, /Database release passed: eiscore-db-v3/)
   assert.equal(backupDirectories().length, 1)
 
   const firstEvidencePath = resolve(backupRoot, backupDirectories()[0].name, 'backup-evidence.json')
@@ -152,7 +154,7 @@ try {
   `).stdout.trim()
   assert.equal(
     releaseRow,
-    `eiscore-db-v2|${releaseManifestSha256}|0ae0c946f0747f15041d5cf6ba6e1fe2f3251ca3`
+    `eiscore-db-v3|${releaseManifestSha256}|59f84149752e8e9b3f9da61ec275b0195bb0e3a3`
   )
   assert.equal(psql(`
     SELECT tableowner FROM pg_tables

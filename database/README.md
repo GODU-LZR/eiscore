@@ -22,7 +22,7 @@
 
 ```bash
 npm run db:migrations:check
- npm run db:baseline:check
+npm run db:baseline:check
 node scripts/check-database-migrations.mjs --format=tsv
 npm run db:runtime-patches:dry-run
 pwsh -File scripts/apply-runtime-patches.ps1 -DryRun
@@ -46,10 +46,22 @@ PowerShell 使用同名参数 `-BackupEvidence`、`-ReleaseRevision` 与 `-Opera
 
 ## 版本化数据库发布
 
-`releases/eiscore-db-v2/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、全部执行输入、数据库目录和 PostgREST 契约绑定为同一发布制品。离线验证：
+`releases/eiscore-db-v3/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、全部执行输入、数据库目录、PostgREST 契约和 DB5 运维/恢复机制绑定为同一发布制品。规范 Manifest SHA-256 为 `bcb594fa44b66363509a0a0415f3da3ede7dd35064a7835bbd5bcc30ca592e20`。离线验证：
 
 ```bash
 npm run db:release:check
 ```
 
-获得明确目标环境授权后，一次性发布作业还必须提供备份目录、候选 PostgREST 和三个独立秘密；示意参数见 `docs/engineering/DB4_EXIT_AUDIT.md`。作业不负责流量切换，只有最终数据库/API 契约通过并写入 `eiscore_meta.database_releases` 后，外部部署编排才可继续。当前禁止对客户或生产环境执行该命令。
+获得明确目标环境授权后，一次性发布作业还必须提供备份目录、候选 PostgREST、三个独立秘密、`--environment=isolated|production` 和 `--backup-storage-evidence=<evidence-uri>`；生产环境只接受 `kms://`、`vault://` 或 `volume://` 证明，不接受 `isolated://`。示意参数见 `docs/engineering/DB4_EXIT_AUDIT.md` 和 `docs/engineering/DB5_EXIT_AUDIT.md`。作业不负责流量切换，只有最终数据库/API 契约通过并写入 `eiscore_meta.database_releases` 后，外部部署编排才可继续。当前禁止对客户或生产环境执行该命令。
+
+## 备份、恢复与运行审计
+
+`database/operations/policy.json` 固定 RPO 24 小时、RTO 2 小时、每日 14/每周 8/每月 12 的保留下限，以及 0 运行时超级用户、0 角色越界和 0 阻塞查询阈值。对应入口为：
+
+```bash
+npm run db:backup:check -- --backup-root=<backup-root> --environment=isolated
+npm run db:recovery -- --evidence=<backup-evidence.json> --confirm-empty-target=eiscore-db-v3 --dry-run
+npm run db:runtime:audit -- --api-url=<candidate-postgrest-url>
+```
+
+实际恢复还必须指定空目标 PostgreSQL/PostgREST 容器、操作者和三个独立运行秘密；它会重新校验备份、恢复角色/Schema/数据、比较 DB/PostgREST 契约并写恢复账本，但不会切换流量。`npm run test:database-recovery:docker` 只创建随机命名的临时隔离栈，并在结束时销毁。生产命令必须先取得目标环境授权。

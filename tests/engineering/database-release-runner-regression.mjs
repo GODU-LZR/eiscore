@@ -23,7 +23,7 @@ const catalog = createDatabaseCatalog({})
 const catalogSha256 = sha256CanonicalJson(catalog)
 const manifest = buildDatabaseReleaseManifest({
   repoRoot,
-  releaseId: 'eiscore-db-v2',
+  releaseId: 'eiscore-db-v3',
   sourceRevision: revision,
   predecessorCatalogs: [{ id: 'test-predecessor', databaseCatalogSha256: 'a'.repeat(64) }]
 })
@@ -32,11 +32,12 @@ manifest.databaseContract.databaseCatalogSha256 = catalogSha256
 assert.deepEqual(parseDatabaseReleaseArgs([
   '--release', 'release.json', '--db-container', 'db-test', '--db-name', 'app',
   '--db-user', 'admin', '--api-container', 'api-test', '--api-url', 'http://127.0.0.1:3210/',
-  '--backup-dir', 'test-backups', '--operator', 'release-bot', '--dry-run'
+  '--backup-dir', 'test-backups', '--environment', 'isolated',
+  '--backup-storage-evidence', 'isolated://unit-test', '--operator', 'release-bot', '--dry-run'
 ]), {
   releasePath: 'release.json', dbContainer: 'db-test', dbName: 'app', dbUser: 'admin',
   apiContainer: 'api-test', apiUrl: 'http://127.0.0.1:3210/', backupDir: 'test-backups',
-  operator: 'release-bot', dryRun: true
+  environment: 'isolated', backupStorageEvidence: 'isolated://unit-test', operator: 'release-bot', dryRun: true
 })
 assert.throws(() => parseDatabaseReleaseArgs(['--unknown']), /unknown argument/)
 assert.throws(() => parseDatabaseReleaseArgs(['--api-url']), /missing value/)
@@ -48,14 +49,22 @@ const secrets = {
   USERNAME: 'release-tester'
 }
 const execution = resolveDatabaseReleaseExecution({
-  backupDir: 'tests/.artifacts/db4-unit', apiUrl: 'http://127.0.0.1:1/', operator: ''
+  backupDir: 'tests/.artifacts/db4-unit', apiUrl: 'http://127.0.0.1:1/',
+  environment: 'isolated', backupStorageEvidence: 'isolated://unit-test', operator: ''
 }, secrets)
 assert.equal(execution.operator, 'release-tester')
 assert.equal(execution.apiUrl, 'http://127.0.0.1:1')
 assert.throws(() => resolveDatabaseReleaseExecution({ backupDir: 'x', apiUrl: 'x', operator: 'x' }, {
   ...secrets, AGENT_DB_PASSWORD: secrets.POSTGREST_DB_PASSWORD
 }), /independent/)
-assert.throws(() => resolveDatabaseReleaseExecution({ backupDir: 'x', apiUrl: '', operator: 'x' }, secrets), /--api-url/)
+assert.throws(() => resolveDatabaseReleaseExecution({
+  backupDir: 'x', apiUrl: '', operator: 'x', environment: 'isolated',
+  backupStorageEvidence: 'isolated://unit-test'
+}, secrets), /--api-url/)
+assert.throws(() => resolveDatabaseReleaseExecution({
+  backupDir: 'x', apiUrl: 'x', operator: 'x', environment: 'production',
+  backupStorageEvidence: 'isolated://not-production'
+}, secrets), /encrypted storage/)
 
 const baselineState = {
   baselines: [{
@@ -136,6 +145,7 @@ try {
     options: { apiContainer: 'isolated-api' },
     execution: {
       backupDir: 'unused', operator: 'tester', apiUrl: `http://127.0.0.1:${port}`,
+      environment: 'isolated', backupStorageEvidence: 'isolated://unit-test',
       secrets: {
         jwtSecret: secrets.PGRST_JWT_SECRET,
         postgrestPassword: secrets.POSTGREST_DB_PASSWORD,
