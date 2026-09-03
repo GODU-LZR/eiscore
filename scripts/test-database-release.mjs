@@ -136,7 +136,7 @@ try {
 
   const first = executeRelease(apiUrl)
   assert.match(first.stdout, /Preflight passed: 13a49b00/)
-  assert.match(first.stdout, /core migration execution passed: 1 applied, 1 skipped/)
+  assert.match(first.stdout, /core migration execution passed: 3 applied, 1 skipped/)
   assert.match(first.stdout, /Database release passed: eiscore-db-v4/)
   assert.equal(backupDirectories().length, 1)
 
@@ -162,7 +162,7 @@ try {
   `).stdout.trim(), 'eiscore_owner')
 
   const second = executeRelease(apiUrl)
-  assert.match(second.stdout, /core migration execution passed: 0 applied, 2 skipped/)
+  assert.match(second.stdout, /core migration execution passed: 0 applied, 4 skipped/)
   assert.equal(backupDirectories().length, 2)
   assert.equal(psql('SELECT count(*) FROM eiscore_meta.database_releases;').stdout.trim(), '1')
 

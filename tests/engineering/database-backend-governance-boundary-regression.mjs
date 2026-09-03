@@ -18,7 +18,7 @@ assert.deepEqual(result.legacyRoots.map(({ path, count }) => [path, count]), [
   ['eiscore-materials/sql', 2]
 ])
 assert.equal(result.legacySqlFiles, 106)
-assert.equal(result.governedMigrationFiles, 13)
+assert.equal(result.governedMigrationFiles, 15)
 assert.equal(result.governedLegacySqlFiles, 10)
 assert.equal(result.ungovernedLegacySqlFiles, 96)
 assert.equal(result.files.length, 106)
@@ -57,7 +57,7 @@ assert.deepEqual(
 assert.deepEqual(result.manifests.map(({ name, count }) => [name, count]), [
   ['runtime-v2', 10],
   ['company-site', 1],
-  ['core', 2]
+  ['core', 4]
 ])
 assert.deepEqual(result.productionCompose.runtimeSuperuserConnections, [])
 assert.deepEqual(result.productionCompose.exposedSchemas, ['public', 'hr', 'scm', 'app_center', 'workflow', 'app_data'])
