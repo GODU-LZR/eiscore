@@ -40,6 +40,9 @@ jobs:
           EISCORE_QUALITY_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: npm run test:quality
 
+      - name: Run isolated database integration gates
+        run: npm run test:database:docker
+
       - name: Run offline regression tests
         run: npm run test:unit
 

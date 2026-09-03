@@ -149,7 +149,7 @@ const dumpAndVerify = (name, outputName, label) => {
 const manifests = [
   'database/migrations/runtime-v2.json',
   'database/migrations/company-site.json',
-  'database/migrations/core.json'
+  'database/baselines/eiscore-db-v1/core-through-001.json'
 ]
 
 withDatabase('fresh', (name) => {
@@ -175,7 +175,7 @@ withDatabase('upgrade', (name) => {
   psqlFile(name, '/repo/sql/runtime_v2_postcheck.sql', 'upgrade predecessor postcheck')
   psqlFile(name, '/repo/sql/company_site_platform_v1.sql', 'upgrade company-site schema adoption')
   runManifest(name, 'database/migrations/company-site.json', 'upgrade-company-site')
-  runManifest(name, 'database/migrations/core.json', 'upgrade-core')
+  runManifest(name, 'database/baselines/eiscore-db-v1/core-through-001.json', 'upgrade-core')
   psqlFile(name, '/repo/database/baselines/eiscore-db-v1/register.sql', 'upgrade baseline registration')
   assertCount(name, 'eiscore_meta.database_baselines', 1)
   assertCount(name, 'eiscore_meta.baseline_migration_coverage', manifest.coveredMigrations.length)

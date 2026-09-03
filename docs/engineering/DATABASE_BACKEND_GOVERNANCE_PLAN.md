@@ -1,6 +1,6 @@
 # 数据库后端工程化治理计划
 
-> 状态：进行中。DB0、DB1、DB2 已完成，下一步 DB3；G4.1～G4.4 暂停。本计划只操作独立重构仓库和隔离测试栈，不连接客户生产环境。
+> 状态：进行中。DB0、DB1、DB2、DB3 已完成，下一步 DB4；G4.1～G4.4 暂停。本计划只操作独立重构仓库和隔离测试栈，不连接客户生产环境。
 
 ## 目标边界
 
@@ -12,13 +12,13 @@ PostgreSQL 表、视图、函数、触发器、RLS、角色与授权是 EISCore 
 
 | 项目 | 当前状态 | 目标状态 |
 | --- | --- | --- |
-| 历史 SQL | 106 份仍在工作树；10 份 Runtime V2 历史补丁受治理，96 份未排序；旧完整转储仅在 Git 历史/隔离证据中 | 全部分类；规范基线与后续迁移具有唯一执行入口 |
-| 新迁移 | company-site 1 份受独立 Manifest 治理 | 所有新增变化只进入不可变迁移集合 |
-| 空库初始化 | `database/baselines/eiscore-db-v1` + `env/init_roles.sql` + 部署密钥注入 | 去客户数据/秘密的版本化基线 + 迁移器 |
-| PostgREST 身份 | `postgres` 超级用户连接 | 专用 authenticator 与最小角色切换 |
-| Agent 身份 | `postgres` 超级用户连接 | 专用服务角色和最小权限 |
-| 镜像 | `postgres:16`、`postgrest/postgrest` 漂移标签 | 固定版本/摘要并记录兼容矩阵 |
-| API/RLS 证据 | 大量模拟契约，少量真实完整栈证据 | 每次发布运行真实角色、RLS、RPC 和 Schema Cache 契约 |
+| 历史 SQL | 106 份仍在工作树；13 个迁移受三个 Manifest 治理，96 份历史 SQL 尚未纳入迁移链；旧完整转储仅在 Git 历史/隔离证据中 | 全部分类；规范基线与后续迁移具有唯一执行入口 |
+| 新迁移 | Runtime V2、company-site、core 共 13 个不可变迁移受 Manifest 与 checksum 治理 | 所有新增变化只进入不可变迁移集合 |
+| 空库初始化 | `database/baselines/eiscore-db-v1` + `roles-v2.sql` + 后续迁移 + 部署密钥注入；fresh/upgrade 目录等价 | 去客户数据/秘密的版本化基线 + 迁移器 |
+| PostgREST 身份 | 专用非超级用户 `eiscore_authenticator`，只切换 Web 角色 | 在发布门禁持续验证最小角色切换 |
+| Agent 身份 | 专用非超级用户 `eiscore_agent`，无 DELETE、DDL、owner 提权或 BYPASSRLS | 在发布门禁持续验证最小权限 |
+| 镜像 | PostgreSQL、PostgREST、Swagger、code-server 均固定摘要 | 固定版本/摘要并记录兼容矩阵 |
+| API/RLS 证据 | 隔离栈已覆盖真实角色、RLS、RPC、七 Schema OpenAPI 与 Schema Cache reload | 每次发布运行相同真实契约门禁 |
 | 恢复 | 有备份证据要求，未完成破坏后恢复演练 | 隔离环境恢复演练和可审计恢复点 |
 
 ## 执行阶段
@@ -52,7 +52,7 @@ PostgreSQL 表、视图、函数、触发器、RLS、角色与授权是 EISCore 
 
 结果：`core-002` 建立 owner/migrator/authenticator/agent 与 Web 角色边界，PostgREST 和 Agent Runtime 均改用独立非超级用户身份；应用对象 owner、PUBLIC 函数权限、默认权限和 `SECURITY DEFINER search_path` 已收敛。隔离 PostgreSQL/PostgREST 的密码认证、角色切换、RLS 差异和越权拒绝已由 `npm run test:database-roles:docker` 验证。详见 `DB2_EXIT_AUDIT.md`。
 
-### DB3：数据库与 PostgREST 契约测试
+### DB3：数据库与 PostgREST 契约测试（已完成）
 
 - 在临时 PostgreSQL/PostgREST 栈执行空库、升级和重复迁移测试。
 - 生成并对比 Schema、函数、权限、RLS 与 PostgREST API 目录指纹。
@@ -60,6 +60,8 @@ PostgreSQL 表、视图、函数、触发器、RLS、角色与授权是 EISCore 
 - 将最小完整栈门禁接入默认 CI；远程测试继续禁止默认运行。
 
 退出：核心数据库变化无法绕过真实数据库与 HTTP 契约门禁。
+
+结果：`eiscore-db-contract-v2` 已固定数据库目录和七个 PostgREST Schema 的 OpenAPI 指纹；隔离测试同时验证 fresh install、旧角色路径升级、重复迁移、JWT Claims、RPC 正/负参数以及 Schema Cache reload。离线结构棘轮进入 `test:quality`，真实数据库完整套件进入默认 CI。详见 `DB3_EXIT_AUDIT.md`。
 
 ### DB4：版本化发布与部署
 
