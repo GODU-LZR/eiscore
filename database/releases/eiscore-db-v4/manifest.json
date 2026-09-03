@@ -128,6 +128,10 @@
   },
   "predecessors": [
     {
+      "id": "eiscore-db-v1-runtime",
+      "databaseCatalogSha256": "13a49b00a78cfd67b6195f129b01dfe18e0fb92f74bdc8e5e1d57a9aab85e025"
+    },
+    {
       "id": "eiscore-db-v3",
       "databaseCatalogSha256": "80130591dd32cc615f00abe68c64b5d3292c0b88109c7f447f2016e0994f5a81"
     }

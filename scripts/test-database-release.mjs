@@ -21,7 +21,7 @@ const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
-const releaseManifestSha256 = '2d7464401915e92a460584c20119d9aa2c770147b9c6276195a7f7b7fbb8899a'
+const releaseManifestSha256 = '8113f0325ac11ca5e1fa056f35e1ceaf603b4a3709a9a71493b08f9dc85fcbda'
 const core002Sha256 = 'fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc'
 const maxOutput = 256 * 1024 * 1024
 

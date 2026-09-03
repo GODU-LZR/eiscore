@@ -41,7 +41,7 @@ const fixedRelease = loadAndValidateDatabaseRelease({ repoRoot })
 assert.deepEqual(fixedRelease.errors, [])
 assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v4')
 assert.equal(fixedRelease.manifest.sourceRevision, '50e86666cad0b7e8054f37d42551bc9e41b2a406')
-assert.equal(fixedRelease.manifestSha256, '2d7464401915e92a460584c20119d9aa2c770147b9c6276195a7f7b7fbb8899a')
+assert.equal(fixedRelease.manifestSha256, '8113f0325ac11ca5e1fa056f35e1ceaf603b4a3709a9a71493b08f9dc85fcbda')
 
 const mutation = (callback) => {
   const value = structuredClone(manifest)
