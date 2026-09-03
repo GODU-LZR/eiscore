@@ -19,7 +19,8 @@ const legacyRoots = [
 
 const manifestPaths = [
   'database/migrations/runtime-v2.json',
-  'database/migrations/company-site.json'
+  'database/migrations/company-site.json',
+  'database/migrations/core.json'
 ]
 
 const normalizePath = (value) => String(value).replaceAll('\\', '/')

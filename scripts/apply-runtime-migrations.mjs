@@ -185,6 +185,22 @@ export class DockerPsqlAdapter {
     if (rows.length > 1) throw new Error(`migration ledger returned duplicate rows: ${migrationId}`)
     return rows[0] || ''
   }
+
+  readBaselineCoverage(migrationId) {
+    const query = [
+      'SELECT checksum_sha256',
+      'FROM eiscore_meta.baseline_migration_coverage',
+      `WHERE migration_id = ${quoteSqlLiteral(migrationId)}`,
+      'ORDER BY baseline_id DESC;'
+    ].join(' ')
+    const output = runDocker(this.psqlArgs(['-Atc', query]), {
+      label: `baseline migration coverage lookup (${migrationId})`,
+      quiet: true
+    })
+    const rows = [...new Set(output.split(/\r?\n/).filter(Boolean))]
+    if (rows.length > 1) throw new Error(`installed baselines disagree on migration checksum: ${migrationId}`)
+    return rows[0] || ''
+  }
 }
 
 export const loadRuntimeMigrationPlan = ({
@@ -221,6 +237,18 @@ export const executeRuntimeMigrationPlan = ({ plan, adapter, metadata, log = con
     }
     if (existingChecksum) {
       throw new Error(`migration checksum conflict: ${migration.id} (ledger ${existingChecksum}, manifest ${migration.sha256})`)
+    }
+
+    const baselineChecksum = typeof adapter.readBaselineCoverage === 'function'
+      ? adapter.readBaselineCoverage(migration.id)
+      : ''
+    if (baselineChecksum === migration.sha256) {
+      skipped += 1
+      log(`[${sequence}] skip ${migration.id}: covered by installed baseline`)
+      continue
+    }
+    if (baselineChecksum) {
+      throw new Error(`baseline migration checksum conflict: ${migration.id} (baseline ${baselineChecksum}, manifest ${migration.sha256})`)
     }
 
     log(`[${sequence}] apply ${migration.id}: ${migration.path} (${migration.transaction})`)

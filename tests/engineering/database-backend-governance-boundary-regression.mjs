@@ -11,22 +11,21 @@ const result = auditDatabaseBackend({ repoRoot })
 
 assert.equal(result.schemaVersion, 1)
 assert.deepEqual(result.legacyRoots.map(({ path, count }) => [path, count]), [
-  ['.', 3],
+  ['.', 2],
   ['env', 2],
   ['sql', 70],
   ['eiscore-hr/sql', 30],
   ['eiscore-materials/sql', 2]
 ])
-assert.equal(result.legacySqlFiles, 107)
-assert.equal(result.governedMigrationFiles, 11)
+assert.equal(result.legacySqlFiles, 106)
+assert.equal(result.governedMigrationFiles, 12)
 assert.equal(result.governedLegacySqlFiles, 10)
-assert.equal(result.ungovernedLegacySqlFiles, 97)
-assert.equal(result.files.length, 107)
+assert.equal(result.ungovernedLegacySqlFiles, 96)
+assert.equal(result.files.length, 106)
 assert.ok(result.files.every((entry) => entry.bytes > 0))
 assert.ok(result.files.every((entry) => /^[0-9a-f]{64}$/.test(entry.sha256)))
 assert.ok(result.files.every((entry) => entry.category !== 'data-or-operation'))
 assert.deepEqual(result.categories, {
-  'baseline-snapshot': 1,
   'customer-seed': 6,
   'demo-or-test': 9,
   'environment-bootstrap': 4,
@@ -46,18 +45,19 @@ assert.deepEqual(
     result.files.reduce((total, entry) => total + entry.signals[key], 0)
   ])),
   {
-    createTable: 152,
-    createFunction: 172,
-    createPolicy: 219,
-    enableRls: 73,
-    securityDefiner: 80,
-    grants: 302,
-    inserts: 312
+    createTable: 127,
+    createFunction: 141,
+    createPolicy: 215,
+    enableRls: 72,
+    securityDefiner: 73,
+    grants: 250,
+    inserts: 293
   }
 )
 assert.deepEqual(result.manifests.map(({ name, count }) => [name, count]), [
   ['runtime-v2', 10],
-  ['company-site', 1]
+  ['company-site', 1],
+  ['core', 1]
 ])
 assert.deepEqual(result.productionCompose.runtimeSuperuserConnections, [
   { service: 'api', setting: 'PGRST_DB_URI', role: 'postgres' },
@@ -70,7 +70,12 @@ assert.deepEqual(result.productionCompose.images, [
   'swaggerapi/swagger-ui',
   'codercom/code-server:4.108.2'
 ])
-assert.deepEqual(result.productionCompose.initializationInputs, ['env/init_roles.sql', 'db_schema_and_data.sql'])
+assert.deepEqual(result.productionCompose.initializationInputs, [
+  'env/init_roles.sql',
+  'database/baselines/eiscore-db-v1/schema.sql',
+  'database/baselines/eiscore-db-v1/register.sql',
+  'scripts/configure-database-runtime-secret.sh'
+])
 
 const hardenedCompose = `
     image: postgres:16.6@sha256:abc
@@ -109,10 +114,10 @@ for (const marker of [
 const classification = readFileSync(resolve(repoRoot, 'database/LEGACY_SQL_CLASSIFICATION.md'), 'utf8')
 for (const marker of [
   '迁移期只读库存，不是执行清单',
-  '所有文件均已分类',
-  '仍有 97 份历史 SQL 未被迁移链接管',
-  '80 处 `SECURITY DEFINER`',
-  '不删除、重命名、合并或批量执行任何历史 SQL'
+  '所有仍在工作树中的文件均已分类',
+  '因此仍有 96 份历史 SQL 未被迁移链接管',
+  '73 处 `SECURITY DEFINER`',
+  '历史 SQL 仍不删除、重命名、合并或批量执行'
 ]) assert.ok(classification.includes(marker), `legacy SQL classification lost marker: ${marker}`)
 
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))

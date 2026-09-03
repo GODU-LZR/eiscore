@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "eiscore-db-v1",
+  "postgres": {
+    "major": 16,
+    "version": "16.11 (Debian 16.11-1.pgdg13+1)",
+    "image": "postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f",
+    "restrictKey": "EISCOREDBBASELINEV100000000000000000000000000000000000000000000"
+  },
+  "sourceEvidence": {
+    "kind": "local-custom-dump-audit-evidence",
+    "sha256": "c79e8d8f9640dd07a20fb6f03f4c5d036dbe7b8510c52eaea9f00cd8b2e9a9e5",
+    "releaseInput": false,
+    "verifiedBy": "sql/runtime_v2_postcheck.sql"
+  },
+  "roleBootstrap": {
+    "path": "env/init_roles.sql",
+    "sha256": "903dd9592141b0cb3f8f45717af06299f3532195a60c77103e50394fdc2db451"
+  },
+  "runtimeSecretBootstrap": {
+    "path": "scripts/configure-database-runtime-secret.sh",
+    "sha256": "4ad6a68aaec7ada537d91d2b3f8f30dab9ece8d91b36b12777dda4b68bbd67c7"
+  },
+  "legacySchemaAdoptions": [
+    {
+      "id": "company-site-platform-v1",
+      "path": "sql/company_site_platform_v1.sql",
+      "sha256": "dcb467a0b5487be9d548f5423265a7c3e9b90f258911b6fa80fd29e9b7d07892",
+      "classification": "schema-fragment",
+      "releaseInput": false
+    }
+  ],
+  "schema": {
+    "path": "database/baselines/eiscore-db-v1/schema.sql",
+    "sha256": "dbcd35e8cc93254dd285a89a9fa210151a9490a60fa55cc287b2f566a7874a28",
+    "bytes": 759924
+  },
+  "objectCatalog": {
+    "path": "database/baselines/eiscore-db-v1/object-catalog.json",
+    "sha256": "596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265",
+    "objectCount": 1792
+  },
+  "coveredMigrations": [
+    {
+      "id": "runtime-v2-001",
+      "sha256": "762ec169102bba3a016fafe8a72b486e89e9dd864e6de455e94a331dca001580",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "runtime-v2-002",
+      "sha256": "d44540f9e039a2823d0b0705b7e8deb29c3f1d68d8977a83674c32bcb1bbc3b3",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "runtime-v2-003",
+      "sha256": "3a14a43c71d2b94035e6793ceef3a44503624d493c3917b75e487c5741c55a93",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "runtime-v2-004",
+      "sha256": "acf9d0ecd5920cc6385a47c79c8236823d3f22fc2bb5b36195031889d0ee4bdf",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "runtime-v2-005",
+      "sha256": "2040bf34351ee6bcaa9ca196ec70c74a1f83d587436b7bb574ad1da70db1278b",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "runtime-v2-006",
+      "sha256": "ba4eb04ef6a7e19f7f8b05961f8101391715000014faea37a5f55e64fa67107d",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "runtime-v2-007",
+      "sha256": "378ed86f77cef6958cdd89256f70c55c2611ee8cd64245216165a55a2c2856c7",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "runtime-v2-008",
+      "sha256": "6386919b81b1b3772063bdafb4ef3058e37fec2d915811d24494221d053f531c",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "runtime-v2-009",
+      "sha256": "72a89d592c2ea26d429f7a04d0b63addc9ad02839164588eb3f75314c739f9f6",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "runtime-v2-010",
+      "sha256": "aa6758a6e1043a2680a9464da35fd864706b1cdc4882c5f4d29bc60dc6bf39d4",
+      "sourceManifest": "database/migrations/runtime-v2.json"
+    },
+    {
+      "id": "company-site-001",
+      "sha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4",
+      "sourceManifest": "database/migrations/company-site.json"
+    },
+    {
+      "id": "core-001",
+      "sha256": "70ff80d137a15f3312eb8fdce5e1b25157cb43f0013a7c03ab03e83086cd4ffc",
+      "sourceManifest": "database/migrations/core.json"
+    }
+  ],
+  "installOrder": [
+    "env/init_roles.sql",
+    "database/baselines/eiscore-db-v1/schema.sql",
+    "database/baselines/eiscore-db-v1/register.sql",
+    "scripts/configure-database-runtime-secret.sh"
+  ],
+  "upgradeProfiles": [
+    {
+      "predecessorId": "g35-runtime-v2",
+      "verifiedPreexistingManifests": [
+        "database/migrations/runtime-v2.json"
+      ],
+      "schemaAdoptions": [
+        "company-site-platform-v1"
+      ],
+      "pendingMigrationManifests": [
+        "database/migrations/company-site.json",
+        "database/migrations/core.json"
+      ],
+      "equivalenceTargetSha256": "dbcd35e8cc93254dd285a89a9fa210151a9490a60fa55cc287b2f566a7874a28"
+    }
+  ],
+  "excludedReleaseInputs": [
+    "db_schema_and_data.sql",
+    "tests/.artifacts/eiscore-g35-baseline.dump",
+    "sql/company_site_platform_v1.sql"
+  ],
+  "contentGuarantees": {
+    "businessRows": 0,
+    "customerBindings": 0,
+    "embeddedCredentials": 0,
+    "ownerStatements": 0,
+    "privilegeStatements": 369,
+    "registrationRows": 13
+  },
+  "fingerprintSha256": "bdf72f613055c419aff40e58776d2725fcc460cf44c5b17d7a28a7379b93e72e",
+  "registration": {
+    "path": "database/baselines/eiscore-db-v1/register.sql",
+    "sha256": "9404916fcac56cd07c06d2789fe7fc433678c9f7183bc6fae51c45926a932de9",
+    "rows": 13
+  }
+}

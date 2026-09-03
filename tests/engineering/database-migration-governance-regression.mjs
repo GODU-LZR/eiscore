@@ -13,7 +13,7 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const result = loadAndValidateMigrationManifest({ repoRoot })
 assert.deepEqual(result.errors, [])
 assert.equal(result.migrations.length, 10)
-assert.equal(result.legacySqlCount, 107)
+assert.equal(result.legacySqlCount, 106)
 assert.deepEqual(
   result.migrations.map((entry) => entry.id),
   Array.from({ length: 10 }, (_, index) => `runtime-v2-${String(index + 1).padStart(3, '0')}`)
@@ -36,6 +36,16 @@ assert.equal(
   'database/migrations/rollback/company-site-001-add-published-snapshot.sql'
 )
 assert.equal(companySiteResult.legacySqlCount, 0)
+
+const coreResult = loadAndValidateMigrationManifest({
+  repoRoot,
+  manifestPath: 'database/migrations/core.json'
+})
+assert.deepEqual(coreResult.errors, [])
+assert.equal(coreResult.manifest.name, 'core')
+assert.equal(coreResult.migrations.length, 1)
+assert.equal(coreResult.migrations[0].id, 'core-001')
+assert.equal(coreResult.migrations[0].rollbackStrategy, 'backup-restore')
 
 const mutate = (callback) => {
   const value = structuredClone(result.manifest)
@@ -82,5 +92,15 @@ assert.match(ledgerSource, /REVOKE ALL ON SCHEMA eiscore_meta FROM PUBLIC/)
 assert.match(ledgerSource, /REVOKE ALL ON TABLE eiscore_meta\.schema_migrations FROM PUBLIC/)
 assert.match(ledgerSource, /ADD COLUMN IF NOT EXISTS backup_evidence text/)
 assert.match(ledgerSource, /ALTER COLUMN backup_evidence SET NOT NULL/)
+for (const marker of [
+  'CREATE TABLE IF NOT EXISTS eiscore_meta.database_baselines',
+  'baseline_fingerprint_sha256 text NOT NULL',
+  'schema_sha256 text NOT NULL',
+  'object_catalog_sha256 text NOT NULL',
+  'CREATE TABLE IF NOT EXISTS eiscore_meta.baseline_migration_coverage',
+  'PRIMARY KEY (baseline_id, migration_id)',
+  'REVOKE ALL ON TABLE eiscore_meta.database_baselines FROM PUBLIC',
+  'REVOKE ALL ON TABLE eiscore_meta.baseline_migration_coverage FROM PUBLIC'
+]) assert.ok(ledgerSource.includes(marker), marker)
 
 console.log('PASS: database migration ids, order, checksums, transactions, rollback declarations, ledger and legacy inventory')

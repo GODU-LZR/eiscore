@@ -5,7 +5,7 @@
   "postcheck": "sql/runtime_v2_postcheck.sql",
   "legacyManifest": "sql/runtime_v2_patch_manifest.txt",
   "legacyInventory": [
-    { "path": ".", "recursive": false, "expectedSqlFiles": 3 },
+    { "path": ".", "recursive": false, "expectedSqlFiles": 2 },
     { "path": "env", "recursive": false, "expectedSqlFiles": 2 },
     { "path": "sql", "recursive": false, "expectedSqlFiles": 70 },
     { "path": "eiscore-hr/sql", "recursive": false, "expectedSqlFiles": 30 },

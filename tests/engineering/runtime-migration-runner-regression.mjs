@@ -28,6 +28,14 @@ assert.equal(companySitePlan.migrations.length, 1)
 assert.equal(companySitePlan.migrations[0].id, 'company-site-001')
 assert.equal(companySitePlan.migrations[0].rollbackStrategy, 'sql')
 
+const corePlan = loadRuntimeMigrationPlan({
+  repoRoot,
+  manifestPath: 'database/migrations/core.json'
+})
+assert.equal(corePlan.name, 'core')
+assert.equal(corePlan.migrations.length, 1)
+assert.equal(corePlan.migrations[0].id, 'core-001')
+
 assert.deepEqual(
   parseRuntimeMigrationArgs([
     '--manifest', 'database/migrations/runtime-v2.json',
@@ -97,8 +105,9 @@ assert.throws(() => runRuntimeMigrations({
 assert.equal(adapterCreated, false)
 
 class FakeAdapter {
-  constructor(checksums, { failLabel = '' } = {}) {
+  constructor(checksums, { baselineCoverage = new Map(), failLabel = '' } = {}) {
     this.checksums = checksums
+    this.baselineCoverage = baselineCoverage
     this.failLabel = failLabel
     this.events = []
     this.executions = []
@@ -111,6 +120,11 @@ class FakeAdapter {
   readChecksum(id) {
     this.events.push(`read:${id}`)
     return this.checksums.get(id) || ''
+  }
+
+  readBaselineCoverage(id) {
+    this.events.push(`baseline:${id}`)
+    return this.baselineCoverage.get(id) || ''
   }
 
   executeSql(label, sql) {
@@ -167,6 +181,30 @@ assert.throws(() => executeRuntimeMigrationPlan({
 }), /migration checksum conflict/)
 assert.equal(conflictAdapter.executions.some((entry) => entry.label.startsWith('migration execution')), false)
 assert.equal(conflictAdapter.executions.some((entry) => entry.label === 'Runtime V2 postcheck'), false)
+
+const baselineAdapter = new FakeAdapter(new Map(), {
+  baselineCoverage: new Map(plan.migrations.map((migration) => [migration.id, migration.sha256]))
+})
+const baselineLogs = []
+assert.deepEqual(executeRuntimeMigrationPlan({
+  plan,
+  adapter: baselineAdapter,
+  metadata: { backupEvidence: 'baseline', releaseRevision: 'abc', operator: 'tester' },
+  log: (message) => baselineLogs.push(message)
+}), { applied: 0, skipped: 10 })
+assert.equal(baselineAdapter.executions.some((entry) => entry.label.startsWith('migration execution')), false)
+assert.equal(baselineLogs.filter((message) => message.includes('covered by installed baseline')).length, 10)
+
+const baselineConflictAdapter = new FakeAdapter(new Map(), {
+  baselineCoverage: new Map([[plan.migrations[0].id, 'f'.repeat(64)]])
+})
+assert.throws(() => executeRuntimeMigrationPlan({
+  plan,
+  adapter: baselineConflictAdapter,
+  metadata: { backupEvidence: 'baseline', releaseRevision: 'abc', operator: 'tester' },
+  log: () => {}
+}), /baseline migration checksum conflict/)
+assert.equal(baselineConflictAdapter.executions.some((entry) => entry.label.startsWith('migration execution')), false)
 
 const postcheckAdapter = new FakeAdapter(
   new Map(plan.migrations.map((migration) => [migration.id, migration.sha256])),

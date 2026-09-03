@@ -28,21 +28,28 @@ const safeEnvironment = {
   EISCORE_PUBLIC_BASE_URL: 'https://erp.acme.test'
 }
 
-const snapshotPath = resolve(repoRoot, 'db_schema_and_data.sql')
-assert.ok(statSync(snapshotPath).isFile(), 'database bootstrap snapshot must be a regular file')
+const baselinePaths = [
+  'database/baselines/eiscore-db-v1/schema.sql',
+  'database/baselines/eiscore-db-v1/register.sql',
+  'database/baselines/eiscore-db-v1/manifest.json'
+]
+for (const path of baselinePaths) {
+  assert.ok(statSync(resolve(repoRoot, path)).isFile(), `database baseline input must be a regular file: ${path}`)
+}
 for (const composePath of ['docker-compose.yml', 'docker-compose.prod.yml']) {
   const composeSource = readFileSync(resolve(repoRoot, composePath), 'utf8')
-  assert.match(
-    composeSource,
-    /\.\/db_schema_and_data\.sql:\/docker-entrypoint-initdb\.d\/01_init_schema\.sql:ro/,
-    `${composePath} must mount the tracked root bootstrap snapshot read-only`
-  )
-  assert.doesNotMatch(
-    composeSource,
-    /\.\/env\/db_schema_and_data\.sql/,
-    `${composePath} must not reference the nonexistent env snapshot path`
-  )
+  for (const marker of [
+    './database/baselines/eiscore-db-v1/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro',
+    './database/baselines/eiscore-db-v1/register.sql:/docker-entrypoint-initdb.d/02_register.sql:ro',
+    './scripts/configure-database-runtime-secret.sh:/docker-entrypoint-initdb.d/03_runtime_secret.sh:ro'
+  ]) assert.ok(composeSource.includes(marker), `${composePath} lost baseline input: ${marker}`)
+  assert.doesNotMatch(composeSource, /db_schema_and_data\.sql/, `${composePath} must not use the retired data dump`)
 }
+
+const runtimeSecretBootstrap = readFileSync(resolve(repoRoot, 'scripts/configure-database-runtime-secret.sh'), 'utf8')
+assert.match(runtimeSecretBootstrap, /\\getenv jwt_secret PGRST_JWT_SECRET/)
+assert.match(runtimeSecretBootstrap, /ALTER DATABASE %I SET app\.jwt_secret TO %L/)
+assert.doesNotMatch(runtimeSecretBootstrap, /echo[^\n]*PGRST_JWT_SECRET/)
 
 const validCompose = spawnSync('docker', ['compose', '-f', 'docker-compose.prod.yml', 'config', '--quiet'], {
   cwd: repoRoot,
