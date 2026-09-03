@@ -9,7 +9,7 @@ import { canonicalJson } from './database-contract-catalog.mjs'
 import { loadAndValidateMigrationManifest } from './check-database-migrations.mjs'
 import { validateDatabaseBaseline } from './check-database-baseline.mjs'
 
-export const defaultDatabaseReleasePath = 'database/releases/eiscore-db-v2/manifest.json'
+export const defaultDatabaseReleasePath = 'database/releases/eiscore-db-v3/manifest.json'
 export const defaultMigrationManifestPaths = [
   'database/migrations/runtime-v2.json',
   'database/migrations/company-site.json',
@@ -90,7 +90,13 @@ export const buildDatabaseReleaseManifest = ({
     'scripts/check-database-baseline.mjs',
     'scripts/check-database-migrations.mjs',
     'scripts/apply-runtime-migrations.mjs',
-    'scripts/deploy-database-release.mjs'
+    'scripts/deploy-database-release.mjs',
+    'scripts/restore-database-release-backup.mjs',
+    'scripts/check-database-backups.mjs',
+    'scripts/audit-database-runtime.mjs',
+    'database/recovery-ledger.sql',
+    'database/recovery/post-restore-v2.sql',
+    'database/operations/policy.json'
   ]) addArtifact(artifacts, repoRoot, path, 'execution')
 
   for (const descriptor of [
@@ -145,6 +151,7 @@ export const buildDatabaseReleaseManifest = ({
     predecessors: predecessorCatalogs,
     releasePolicy: {
       backupRequired: true,
+      backupStorageEvidenceRequired: true,
       rollbackStrategy: 'backup-restore',
       schemaDrift: 'fail',
       ledgerConflict: 'fail',
@@ -170,6 +177,7 @@ export const validateDatabaseReleaseManifest = ({
   for (const [key, value] of Object.entries(manifest?.releasePolicy || {})) {
     if (key === 'backupRequired' && value !== true) fail('release backup must be required')
   }
+  if (manifest?.releasePolicy?.backupStorageEvidenceRequired !== true) fail('backup storage evidence must be required')
   if (manifest?.releasePolicy?.rollbackStrategy !== 'backup-restore') fail('release rollback strategy must be backup-restore')
   if (manifest?.releasePolicy?.schemaDrift !== 'fail') fail('schema drift policy must fail closed')
   if (manifest?.releasePolicy?.ledgerConflict !== 'fail') fail('ledger conflict policy must fail closed')

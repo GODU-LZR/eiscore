@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "policyId": "eiscore-database-operations-v1",
+  "backup": {
+    "recoveryPointObjectiveSeconds": 86400,
+    "retention": {
+      "daily": 14,
+      "weekly": 8,
+      "monthly": 12
+    },
+    "requiredEvidence": [
+      "releaseManifestSha256",
+      "sourceRevision",
+      "databaseDump.sha256",
+      "globals.sha256",
+      "verifiedBy",
+      "createdAt"
+    ],
+    "productionStorageEncryptionEvidenceRequired": true,
+    "rolePasswordsInGlobalsAllowed": false
+  },
+  "recovery": {
+    "recoveryTimeObjectiveSeconds": 7200,
+    "minimumVerifiedDrillsPerRelease": 1,
+    "requireEmptyTarget": true,
+    "requireDatabaseCatalogMatch": true,
+    "requirePostgrestContractMatch": true,
+    "requireDataCanary": true
+  },
+  "health": {
+    "maximumConnectionUtilization": 0.8,
+    "maximumBlockedQueries": 0,
+    "maximumRuntimeSuperuserConnections": 0,
+    "maximumRoleBoundaryViolations": 0,
+    "activeQueryFailureSeconds": 300,
+    "idleTransactionFailureSeconds": 300,
+    "cacheHitRatioWarningBelow": 0.95
+  },
+  "slowQuery": {
+    "activeQueryWarningSeconds": 30,
+    "captureQueryText": false,
+    "pgStatStatementsRecommended": true
+  }
+}

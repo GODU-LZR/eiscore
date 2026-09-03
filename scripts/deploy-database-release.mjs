@@ -36,6 +36,8 @@ const optionNames = new Map([
   ['--api-container', 'apiContainer'],
   ['--api-url', 'apiUrl'],
   ['--backup-dir', 'backupDir'],
+  ['--environment', 'environment'],
+  ['--backup-storage-evidence', 'backupStorageEvidence'],
   ['--operator', 'operator']
 ])
 
@@ -48,6 +50,8 @@ export const parseDatabaseReleaseArgs = (argv) => {
     apiContainer: 'eiscore-api',
     apiUrl: '',
     backupDir: '',
+    environment: '',
+    backupStorageEvidence: '',
     operator: '',
     dryRun: false
   }
@@ -90,10 +94,21 @@ export const resolveDatabaseReleaseExecution = (options, env = process.env) => {
   if (env.POSTGRES_PASSWORD && [postgrestPassword, agentPassword].includes(env.POSTGRES_PASSWORD)) {
     throw new Error('database service passwords must not reuse POSTGRES_PASSWORD')
   }
+  const environment = requireValue('--environment', options.environment)
+  if (!['isolated', 'production'].includes(environment)) throw new Error('--environment must be isolated or production')
+  const backupStorageEvidence = requireValue('--backup-storage-evidence', options.backupStorageEvidence, 1024)
+  if (!/^(isolated|kms|vault|volume):\/\/.+/.test(backupStorageEvidence)) {
+    throw new Error('--backup-storage-evidence must be an isolated/kms/vault/volume evidence URI')
+  }
+  if (environment === 'production' && backupStorageEvidence.startsWith('isolated://')) {
+    throw new Error('production backup storage evidence must prove encrypted storage')
+  }
   return {
     backupDir: resolve(requireValue('--backup-dir', options.backupDir)),
     apiUrl: requireValue('--api-url', options.apiUrl).replace(/\/+$/, ''),
     operator: requireValue('--operator, USERNAME or USER', options.operator || env.USERNAME || env.USER, 256),
+    environment,
+    backupStorageEvidence,
     secrets: { postgrestPassword, agentPassword, jwtSecret, postgresPassword: env.POSTGRES_PASSWORD || '' }
   }
 }
@@ -183,7 +198,7 @@ export class DatabaseReleaseDockerAdapter extends DockerPsqlAdapter {
     }
   }
 
-  createBackup({ backupRoot, manifest, manifestSha256, operator }) {
+  createBackup({ backupRoot, manifest, manifestSha256, operator, environment, backupStorageEvidence }) {
     const suffix = `${new Date().toISOString().replaceAll(/[:.]/g, '-')}-${randomBytes(4).toString('hex')}`
     const directory = resolve(backupRoot, `${manifest.releaseId}-${suffix}`)
     mkdirSync(directory, { recursive: true })
@@ -216,6 +231,8 @@ export class DatabaseReleaseDockerAdapter extends DockerPsqlAdapter {
       databaseDump: { path: dumpPath, sha256: sha256(databaseDump), bytes: databaseDump.length },
       globals: { path: globalsPath, sha256: sha256(Buffer.from(globals, 'utf8')), passwordsIncluded: false },
       verifiedBy: 'pg_restore --list',
+      environment,
+      storageEncryptionEvidence: backupStorageEvidence,
       operator,
       createdAt: new Date().toISOString()
     }
@@ -402,7 +419,12 @@ export const executeDatabaseRelease = async ({
   log(`Preflight passed: ${beforeCatalogSha256}`)
 
   const backupEvidence = adapter.createBackup({
-    backupRoot: execution.backupDir, manifest, manifestSha256, operator: execution.operator
+    backupRoot: execution.backupDir,
+    manifest,
+    manifestSha256,
+    operator: execution.operator,
+    environment: execution.environment,
+    backupStorageEvidence: execution.backupStorageEvidence
   })
   const backupReference = `backup://${manifest.releaseId}/${backupEvidence.databaseDump.sha256}`
   log(`Verified backup: ${backupEvidence.evidencePath}`)
