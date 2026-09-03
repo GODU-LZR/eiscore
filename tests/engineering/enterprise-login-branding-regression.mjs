@@ -14,6 +14,10 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const runtimeProfilePath = resolve(repoRoot, 'eiscore-base/public/config/eiscore-enterprise.json')
 const runtimeProfile = JSON.parse(readFileSync(runtimeProfilePath, 'utf8'))
 const enterpriseConfig = parseEnterpriseConfig(runtimeProfile, { source: 'compatibility runtime profile' })
+const v2Profile = parseEnterpriseConfig(
+  JSON.parse(readFileSync(resolve(repoRoot, 'config/enterprise.v2.example.json'), 'utf8')),
+  { source: 'v2 runtime profile' }
+)
 
 const desktop = normalizeLoginBranding({}, { enterpriseConfig })
 assert.equal(desktop.companyName, '广东南派食品有限公司')
@@ -32,6 +36,17 @@ assert.equal(mobile.showSecondaryAction, false)
 assert.equal(mobile.passBadgeText, '员工通行')
 assert.equal(mobile.businessChainTitle, '从产地到交付的服务路径')
 assert.equal(mobile.footerText, 'Copyright © 广东南派食品有限公司')
+
+const v2Neutral = normalizeLoginBranding({}, { enterpriseConfig: v2Profile })
+assert.equal(v2Neutral.companyName, '示例制造企业')
+assert.equal(v2Neutral.logo, '/config/assets/logo.svg')
+assert.equal(v2Neutral.slogan, '连接业务、数据与智能协作')
+assert.equal(v2Neutral.siteTag, '企业数字化平台')
+assert.deepEqual(v2Neutral.navItems, [])
+assert.deepEqual(v2Neutral.metrics, [])
+assert.deepEqual(v2Neutral.businessChain, [])
+assert.deepEqual(v2Neutral.capabilities, [])
+assert.deepEqual(v2Neutral.leaders, [])
 
 const custom = normalizeLoginBranding({
   companyName: '运行期自定义企业',
