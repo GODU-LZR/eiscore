@@ -407,7 +407,6 @@ export const executeDatabaseRelease = async ({
   const backupReference = `backup://${manifest.releaseId}/${backupEvidence.databaseDump.sha256}`
   log(`Verified backup: ${backupEvidence.evidencePath}`)
 
-  adapter.initializeReleaseLedger()
   for (const descriptor of manifest.migrationManifests) {
     const plan = loadRuntimeMigrationPlan({ repoRoot, manifestPath: descriptor.path })
     executeRuntimeMigrationPlan({
@@ -421,6 +420,9 @@ export const executeDatabaseRelease = async ({
       log
     })
   }
+  // The predecessor may not have eiscore_owner yet. Initialise this ledger
+  // only after role migrations so its final owner is always non-login.
+  adapter.initializeReleaseLedger()
   adapter.configureRuntimeSecrets(execution.secrets)
 
   const afterCatalogSha256 = sha256CanonicalJson(adapter.readCatalog())

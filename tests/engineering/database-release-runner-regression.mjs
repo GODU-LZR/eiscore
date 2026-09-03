@@ -146,7 +146,7 @@ try {
     log: () => {}
   })
   assert.equal(result.releaseId, manifest.releaseId)
-  assert.ok(adapter.events.indexOf('backup') < adapter.events.indexOf('release-ledger'))
+  assert.ok(adapter.events.indexOf('backup') < adapter.events.findIndex((event) => event.startsWith('sql:migration ledger')))
   assert.ok(adapter.events.indexOf('release-ledger') < adapter.events.indexOf('secrets'))
   assert.ok(adapter.events.indexOf('secrets') < adapter.events.indexOf('api-ready'))
   assert.equal(adapter.events.at(-1), 'release-record')
