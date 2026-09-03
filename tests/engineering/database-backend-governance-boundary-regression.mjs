@@ -91,10 +91,20 @@ for (const marker of [
 ]) assert.ok(adr.includes(marker), `ADR-0013 lost marker: ${marker}`)
 
 const plan = readFileSync(resolve(repoRoot, 'docs/engineering/DATABASE_BACKEND_GOVERNANCE_PLAN.md'), 'utf8')
-for (const phase of ['DB0', 'DB1', 'DB2', 'DB3', 'DB4', 'DB5']) {
+assert.match(plan, /### DB0：决策与现状基线（已完成）/)
+for (const phase of ['DB1', 'DB2', 'DB3', 'DB4', 'DB5']) {
   assert.ok(plan.includes(`### ${phase}：`), `database governance plan lost phase ${phase}`)
 }
 assert.match(plan, /G4\.1～G4\.4 暂停/)
+
+const exitAudit = readFileSync(resolve(repoRoot, 'docs/engineering/DB0_EXIT_AUDIT.md'), 'utf8')
+for (const marker of [
+  'DB0 已完成',
+  '97 份尚未进入可信迁移链',
+  '两个超级用户运行连接',
+  '空库路径与升级路径',
+  '不能把当前双仓库工作树描述为完全干净'
+]) assert.ok(exitAudit.includes(marker), `DB0 exit audit lost marker: ${marker}`)
 
 const classification = readFileSync(resolve(repoRoot, 'database/LEGACY_SQL_CLASSIFICATION.md'), 'utf8')
 for (const marker of [
