@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-export const ENTERPRISE_CONFIG_SCHEMA_VERSION = 1
+export const ENTERPRISE_CONFIG_SCHEMA_VERSION = 2
+export const ENTERPRISE_CONFIG_SUPPORTED_SCHEMA_VERSIONS = Object.freeze([1, 2])
 export const ENTERPRISE_CONFIG_GLOBAL = '__EISCORE_ENTERPRISE_CONFIG__'
 export const ENTERPRISE_MODULE_IDS = Object.freeze([
   'hr',
@@ -40,14 +41,7 @@ const DEFAULT_SOURCE = {
   branding: {
     productName: 'EISCore 企业数字化平台',
     themeColor: '#409EFF',
-    logoUrl: '',
-    login: {
-      slogan: '连接业务、数据与智能协作',
-      description: '',
-      siteTag: '企业数字化平台',
-      backgroundImage: '',
-      footerText: 'Copyright © EISCore'
-    }
+    logoUrl: ''
   },
   endpoints: {
     publicBaseUrl: '',
@@ -61,7 +55,8 @@ const DEFAULT_SOURCE = {
 
 const TOP_LEVEL_KEYS = new Set(['$schema', 'schemaVersion', 'enterprise', 'branding', 'endpoints', 'modules', 'features'])
 const ENTERPRISE_KEYS = new Set(['id', 'displayName', 'shortName'])
-const BRANDING_KEYS = new Set(['productName', 'themeColor', 'logoUrl', 'login'])
+const BRANDING_KEYS_V1 = new Set(['productName', 'themeColor', 'logoUrl', 'login'])
+const BRANDING_KEYS_V2 = new Set(['productName', 'themeColor', 'logoUrl'])
 const LOGIN_TEXT_FIELDS = Object.freeze({
   slogan: 200,
   description: 1000,
@@ -228,7 +223,7 @@ export function validateEnterpriseConfig(input) {
   if (input.$schema !== undefined && typeof input.$schema !== 'string') {
     issues.push(pathValue('$.$schema', 'text-required'))
   }
-  if (input.schemaVersion !== ENTERPRISE_CONFIG_SCHEMA_VERSION) {
+  if (!ENTERPRISE_CONFIG_SUPPORTED_SCHEMA_VERSIONS.includes(input.schemaVersion)) {
     issues.push(pathValue('$.schemaVersion', 'unsupported-version'))
   }
 
@@ -245,7 +240,8 @@ export function validateEnterpriseConfig(input) {
 
   if (!isObject(input.branding)) issues.push(pathValue('$.branding', 'object-required'))
   else {
-    issues.push(...unknownKeyIssues(input.branding, BRANDING_KEYS, '$.branding'))
+    const brandingKeys = input.schemaVersion === 1 ? BRANDING_KEYS_V1 : BRANDING_KEYS_V2
+    issues.push(...unknownKeyIssues(input.branding, brandingKeys, '$.branding'))
     requiredText(issues, input.branding.productName, '$.branding.productName', 120)
     if (typeof input.branding.themeColor !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(input.branding.themeColor)) {
       issues.push(pathValue('$.branding.themeColor', 'invalid-color'))
@@ -253,10 +249,12 @@ export function validateEnterpriseConfig(input) {
     if (typeof input.branding.logoUrl !== 'string' || !isSafeAssetUrl(input.branding.logoUrl)) {
       issues.push(pathValue('$.branding.logoUrl', 'unsafe-url'))
     }
-    validateLoginProfile(issues, input.branding.login, '$.branding.login', {
-      requiredCore: true,
-      allowMobile: true
-    })
+    if (input.schemaVersion === 1) {
+      validateLoginProfile(issues, input.branding.login, '$.branding.login', {
+        requiredCore: true,
+        allowMobile: true
+      })
+    }
   }
 
   if (!isObject(input.endpoints)) issues.push(pathValue('$.endpoints', 'object-required'))
@@ -342,7 +340,7 @@ function normalizeLoginProfile(input, { includeMissing = true, allowMobile = fal
 
 function normalizeConfig(input) {
   return {
-    schemaVersion: ENTERPRISE_CONFIG_SCHEMA_VERSION,
+    schemaVersion: input.schemaVersion,
     enterprise: {
       id: input.enterprise.id.trim(),
       displayName: input.enterprise.displayName.trim(),
@@ -352,7 +350,9 @@ function normalizeConfig(input) {
       productName: input.branding.productName.trim(),
       themeColor: input.branding.themeColor.toUpperCase(),
       logoUrl: input.branding.logoUrl.trim(),
-      login: normalizeLoginProfile(input.branding.login, { allowMobile: true })
+      ...(input.schemaVersion === 1
+        ? { login: normalizeLoginProfile(input.branding.login, { allowMobile: true }) }
+        : {})
     },
     endpoints: {
       publicBaseUrl: trimTrailingSlash(input.endpoints.publicBaseUrl.trim()),

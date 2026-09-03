@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eiscore.local/schemas/enterprise-config-v2.json",
+  "title": "EISCore Enterprise Runtime Configuration v2",
+  "description": "Deployment-only configuration. Public enterprise content belongs to published company_site.site_config.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "enterprise", "branding", "endpoints", "modules", "features"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 2 },
+    "enterprise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "displayName", "shortName"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "maxLength": 64 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "shortName": { "type": "string", "minLength": 1, "maxLength": 40 }
+      }
+    },
+    "branding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productName", "themeColor", "logoUrl"],
+      "properties": {
+        "productName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "themeColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "logoUrl": { "type": "string" }
+      }
+    },
+    "endpoints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publicBaseUrl", "apiBasePath", "agentBasePath", "realtimeWsPath"],
+      "properties": {
+        "publicBaseUrl": { "type": "string" },
+        "apiBasePath": { "type": "string", "pattern": "^/(?!/)" },
+        "agentBasePath": { "type": "string", "pattern": "^/(?!/)" },
+        "realtimeWsPath": { "type": "string", "pattern": "^/(?!/)" }
+      }
+    },
+    "modules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hr", "materials", "apps", "company-site", "sales", "purchase", "production", "quality", "equipment", "decision", "mobile"],
+      "properties": {
+        "hr": { "type": "boolean" },
+        "materials": { "type": "boolean" },
+        "apps": { "type": "boolean" },
+        "company-site": { "type": "boolean" },
+        "sales": { "type": "boolean" },
+        "purchase": { "type": "boolean" },
+        "production": { "type": "boolean" },
+        "quality": { "type": "boolean" },
+        "equipment": { "type": "boolean" },
+        "decision": { "type": "boolean" },
+        "mobile": { "type": "boolean" }
+      }
+    },
+    "features": {
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][A-Za-z0-9]*$" },
+      "additionalProperties": { "type": "boolean" }
+    }
+  }
+}
