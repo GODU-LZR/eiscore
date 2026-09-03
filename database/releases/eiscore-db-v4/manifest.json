@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "releaseId": "eiscore-db-v4",
-  "sourceRevision": "98d288f087f208ed7eb6aa3dc9e75f3e9ac74874",
+  "sourceRevision": "50e86666cad0b7e8054f37d42551bc9e41b2a406",
   "images": {
     "postgres": "postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f",
     "postgrest": "postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa"
@@ -305,7 +305,7 @@
     {
       "path": "scripts/database-release-contract.mjs",
       "purpose": "execution",
-      "portableSha256": "a7392af2d9265b2d5c429d7d4245482b3f863f27a987821d9647fc500ed02884"
+      "portableSha256": "4143bca7ab6dd526c8ce0412b137618e37540544fd769b8214031666467ceb7d"
     },
     {
       "path": "scripts/deploy-database-release.mjs",
@@ -315,7 +315,7 @@
     {
       "path": "scripts/restore-database-release-backup.mjs",
       "purpose": "execution",
-      "portableSha256": "dadd8bc25862ed7de7d039fe73a3451f2840ccc2d80b1537dee17d9cc5004e33"
+      "portableSha256": "822fcb10ccc207599c270d131309820e1945a87fac1cd0d66a8fdcd7afdff313"
     },
     {
       "path": "sql/company_site_platform_v1.sql",

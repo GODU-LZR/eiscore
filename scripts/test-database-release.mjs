@@ -21,7 +21,7 @@ const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
-const releaseManifestSha256 = 'bff211224a1f9a2dc8b3ac7c93ee712ac62d6fb914f0d3972966472ca97dae90'
+const releaseManifestSha256 = '2d7464401915e92a460584c20119d9aa2c770147b9c6276195a7f7b7fbb8899a'
 const core002Sha256 = 'fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc'
 const maxOutput = 256 * 1024 * 1024
 
@@ -154,7 +154,7 @@ try {
   `).stdout.trim()
   assert.equal(
     releaseRow,
-    `eiscore-db-v4|${releaseManifestSha256}|98d288f087f208ed7eb6aa3dc9e75f3e9ac74874`
+    `eiscore-db-v4|${releaseManifestSha256}|50e86666cad0b7e8054f37d42551bc9e41b2a406`
   )
   assert.equal(psql(`
     SELECT tableowner FROM pg_tables
