@@ -18,11 +18,11 @@ assert.deepEqual(release.errors, [])
 assert.deepEqual(parseDatabaseRestoreArgs([
   '--evidence', 'backup.json', '--db-container', 'recovery-db', '--db-name', 'app',
   '--db-user', 'admin', '--api-container', 'recovery-api', '--api-url', 'http://127.0.0.1:3001',
-  '--operator', 'operator', '--confirm-empty-target', 'eiscore-db-v3', '--dry-run'
+  '--operator', 'operator', '--confirm-empty-target', 'eiscore-db-v4', '--dry-run'
 ]), {
-  evidencePath: 'backup.json', releasePath: 'database/releases/eiscore-db-v3/manifest.json',
+  evidencePath: 'backup.json', releasePath: 'database/releases/eiscore-db-v4/manifest.json',
   dbContainer: 'recovery-db', dbName: 'app', dbUser: 'admin', apiContainer: 'recovery-api',
-  apiUrl: 'http://127.0.0.1:3001', operator: 'operator', confirmation: 'eiscore-db-v3', dryRun: true
+  apiUrl: 'http://127.0.0.1:3001', operator: 'operator', confirmation: 'eiscore-db-v4', dryRun: true
 })
 assert.throws(() => parseDatabaseRestoreArgs(['--unknown']), /unknown argument/)
 

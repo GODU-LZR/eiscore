@@ -9,7 +9,7 @@ import { canonicalJson } from './database-contract-catalog.mjs'
 import { loadAndValidateMigrationManifest } from './check-database-migrations.mjs'
 import { validateDatabaseBaseline } from './check-database-baseline.mjs'
 
-export const defaultDatabaseReleasePath = 'database/releases/eiscore-db-v3/manifest.json'
+export const defaultDatabaseReleasePath = 'database/releases/eiscore-db-v4/manifest.json'
 export const defaultMigrationManifestPaths = [
   'database/migrations/runtime-v2.json',
   'database/migrations/company-site.json',

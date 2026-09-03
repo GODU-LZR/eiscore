@@ -164,7 +164,7 @@ try {
   const operationalBackup = backupDirectories().at(-1)
   const evidencePath = resolve(backupRoot, operationalBackup, 'backup-evidence.json')
   const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'))
-  assert.equal(evidence.releaseId, 'eiscore-db-v3')
+  assert.equal(evidence.releaseId, 'eiscore-db-v4')
   const backupAudit = execute(process.execPath, [
     'scripts/check-database-backups.mjs', `--backup-root=${backupRoot}`, '--environment=isolated'
   ])
@@ -188,7 +188,7 @@ try {
     '--api-container', recoveryApi,
     '--api-url', recoveryUrl,
     '--operator', 'db5-isolated-recovery-test',
-    '--confirm-empty-target', 'eiscore-db-v3'
+    '--confirm-empty-target', 'eiscore-db-v4'
   ], { env: executionEnv, allowFailure: true })
   if (recovery.status !== 0) {
     const recoveredCatalogSections = catalogSectionHashes(recoveryDb)
@@ -208,7 +208,7 @@ try {
       }]))
     )}\nfunction drift: ${JSON.stringify(functionDrift)}`)
   }
-  assert.match(recovery.stdout, /Database recovery passed: eiscore-db-v3-/)
+  assert.match(recovery.stdout, /Database recovery passed: eiscore-db-v4-/)
 
   assert.equal(psql(recoveryDb, `
     SELECT count(*) FROM public.document_assets
@@ -221,7 +221,7 @@ try {
     SELECT release_id || '|' || database_dump_sha256 || '|' || (recovery_ms >= 0)::text
     FROM eiscore_meta.database_recoveries;
   `).stdout.trim()
-  assert.equal(recoveryEvidence, `eiscore-db-v3|${evidence.databaseDump.sha256}|true`)
+  assert.equal(recoveryEvidence, `eiscore-db-v4|${evidence.databaseDump.sha256}|true`)
   assert.equal(psql(recoveryDb, `
     SELECT tableowner FROM pg_tables
     WHERE schemaname = 'eiscore_meta' AND tablename = 'database_recoveries';

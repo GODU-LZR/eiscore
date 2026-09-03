@@ -23,7 +23,7 @@ const catalog = createDatabaseCatalog({})
 const catalogSha256 = sha256CanonicalJson(catalog)
 const manifest = buildDatabaseReleaseManifest({
   repoRoot,
-  releaseId: 'eiscore-db-v3',
+  releaseId: 'eiscore-db-v4',
   sourceRevision: revision,
   predecessorCatalogs: [{ id: 'test-predecessor', databaseCatalogSha256: 'a'.repeat(64) }]
 })
