@@ -21,6 +21,40 @@ assert.equal(result.legacySqlFiles, 107)
 assert.equal(result.governedMigrationFiles, 11)
 assert.equal(result.governedLegacySqlFiles, 10)
 assert.equal(result.ungovernedLegacySqlFiles, 97)
+assert.equal(result.files.length, 107)
+assert.ok(result.files.every((entry) => entry.bytes > 0))
+assert.ok(result.files.every((entry) => /^[0-9a-f]{64}$/.test(entry.sha256)))
+assert.ok(result.files.every((entry) => entry.category !== 'data-or-operation'))
+assert.deepEqual(result.categories, {
+  'baseline-snapshot': 1,
+  'customer-seed': 6,
+  'demo-or-test': 9,
+  'environment-bootstrap': 4,
+  'governed-migration': 10,
+  'legacy-patch': 39,
+  postcheck: 1,
+  'reference-seed': 3,
+  'schema-fragment': 34
+})
+assert.deepEqual(result.duplicateContentGroups, [
+  ['env/init_roles.sql', 'init_roles.sql'],
+  ['env/insert_ai_config.sql', 'insert_ai_config.sql']
+])
+assert.deepEqual(
+  Object.fromEntries(Object.keys(result.files[0].signals).map((key) => [
+    key,
+    result.files.reduce((total, entry) => total + entry.signals[key], 0)
+  ])),
+  {
+    createTable: 152,
+    createFunction: 172,
+    createPolicy: 219,
+    enableRls: 73,
+    securityDefiner: 80,
+    grants: 302,
+    inserts: 312
+  }
+)
 assert.deepEqual(result.manifests.map(({ name, count }) => [name, count]), [
   ['runtime-v2', 10],
   ['company-site', 1]
@@ -61,6 +95,15 @@ for (const phase of ['DB0', 'DB1', 'DB2', 'DB3', 'DB4', 'DB5']) {
   assert.ok(plan.includes(`### ${phase}：`), `database governance plan lost phase ${phase}`)
 }
 assert.match(plan, /G4\.1～G4\.4 暂停/)
+
+const classification = readFileSync(resolve(repoRoot, 'database/LEGACY_SQL_CLASSIFICATION.md'), 'utf8')
+for (const marker of [
+  '迁移期只读库存，不是执行清单',
+  '所有文件均已分类',
+  '仍有 97 份历史 SQL 未被迁移链接管',
+  '80 处 `SECURITY DEFINER`',
+  '不删除、重命名、合并或批量执行任何历史 SQL'
+]) assert.ok(classification.includes(marker), `legacy SQL classification lost marker: ${marker}`)
 
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
 assert.match(packageJson.scripts?.['db:backend:audit'] || '', /audit-database-backend\.mjs/)
