@@ -14,6 +14,10 @@ const shaPattern = /^[0-9a-f]{64}$/
 
 const normalizeRepoPath = (value) => String(value || '').replaceAll('\\', '/').replace(/^\.\//, '')
 const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex')
+const canonicalSqlBytes = (source, lineEnding) => {
+  const lf = String(source).replace(/\r\n/g, '\n')
+  return Buffer.from(lineEnding === 'crlf' ? lf.replace(/\n/g, '\r\n') : lf, 'utf8')
+}
 
 const resolveInsideRepo = (repoRoot, repoPath) => {
   const absolute = resolve(repoRoot, repoPath)
@@ -39,6 +43,8 @@ export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepo
   if (manifest?.schemaVersion !== 1) errors.push('schemaVersion must equal 1')
   const manifestName = String(manifest?.name || '')
   if (!namePattern.test(manifestName)) errors.push('name must be a lowercase kebab-case identifier')
+  const checksumLineEnding = manifest?.checksumLineEnding
+  if (!['lf', 'crlf'].includes(checksumLineEnding)) errors.push('checksumLineEnding must equal lf or crlf')
 
   for (const field of ['ledger', 'postcheck']) {
     const repoPath = normalizeRepoPath(manifest?.[field])
@@ -110,7 +116,7 @@ export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepo
       } else {
         const bytes = readFileSync(absolute)
         sql = bytes.toString('utf8')
-        actualSha = sha256(bytes)
+        actualSha = sha256(canonicalSqlBytes(sql, checksumLineEnding))
       }
     } catch (error) {
       errors.push(error.message)
@@ -144,7 +150,8 @@ export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepo
         if (!existsSync(absoluteRollbackPath)) {
           errors.push(`rollback file does not exist: ${rollbackPath}`)
         } else {
-          const actualRollbackSha = sha256(readFileSync(absoluteRollbackPath))
+          const rollbackSource = readFileSync(absoluteRollbackPath, 'utf8')
+          const actualRollbackSha = sha256(canonicalSqlBytes(rollbackSource, checksumLineEnding))
           const expectedRollbackSha = String(rollback.sha256 || '')
           if (!shaPattern.test(expectedRollbackSha)) errors.push(`rollback checksum is invalid: ${id}`)
           if (actualRollbackSha !== expectedRollbackSha) errors.push(`rollback checksum drift: ${id} (${rollbackPath})`)

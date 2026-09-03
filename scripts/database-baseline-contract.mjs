@@ -7,16 +7,21 @@ import { readFileSync } from 'node:fs'
 export const sha256 = (value) => createHash('sha256').update(value).digest('hex')
 export const sha256File = (path) => sha256(readFileSync(path))
 
+const immutableDescriptor = (descriptor) => {
+  const { portableSha256, portableBytes, ...immutable } = descriptor || {}
+  return immutable
+}
+
 export const baselineFingerprintPayload = (manifest) => ({
   schemaVersion: manifest.schemaVersion,
   baselineId: manifest.baselineId,
   postgres: manifest.postgres,
   sourceEvidence: manifest.sourceEvidence,
-  roleBootstrap: manifest.roleBootstrap,
-  runtimeSecretBootstrap: manifest.runtimeSecretBootstrap,
-  legacySchemaAdoptions: manifest.legacySchemaAdoptions,
-  schema: manifest.schema,
-  objectCatalog: manifest.objectCatalog,
+  roleBootstrap: immutableDescriptor(manifest.roleBootstrap),
+  runtimeSecretBootstrap: immutableDescriptor(manifest.runtimeSecretBootstrap),
+  legacySchemaAdoptions: manifest.legacySchemaAdoptions?.map(immutableDescriptor),
+  schema: immutableDescriptor(manifest.schema),
+  objectCatalog: immutableDescriptor(manifest.objectCatalog),
   coveredMigrations: manifest.coveredMigrations,
   installOrder: manifest.installOrder,
   upgradeProfiles: manifest.upgradeProfiles,

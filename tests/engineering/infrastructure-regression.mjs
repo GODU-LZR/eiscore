@@ -25,6 +25,8 @@ const safeEnvironment = {
   ...process.env,
   POSTGRES_PASSWORD: 'Db9_Nx2pL7vQ4sK8mT5wY1cR6aH3',
   PGRST_JWT_SECRET: 'Jwt8_Zp3Lm7Qx2Vc9Bn5Ks1Hd6Rt4Wy0Fa',
+  POSTGREST_DB_PASSWORD: 'Api6_Qm9Xv4Rs2Lp8Nk5Wd7Hy3Tz1',
+  AGENT_DB_PASSWORD: 'Agent4_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_PUBLIC_BASE_URL: 'https://erp.acme.test'
 }
 
@@ -39,9 +41,11 @@ for (const path of baselinePaths) {
 for (const composePath of ['docker-compose.yml', 'docker-compose.prod.yml']) {
   const composeSource = readFileSync(resolve(repoRoot, composePath), 'utf8')
   for (const marker of [
+    './database/bootstrap/roles-v2.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro',
     './database/baselines/eiscore-db-v1/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro',
     './database/baselines/eiscore-db-v1/register.sql:/docker-entrypoint-initdb.d/02_register.sql:ro',
-    './scripts/configure-database-runtime-secret.sh:/docker-entrypoint-initdb.d/03_runtime_secret.sh:ro'
+    './database/migrations/sql/core-002-role-boundaries.sql:/docker-entrypoint-initdb.d/03_role_boundaries.sql:ro',
+    './scripts/configure-database-runtime-secrets-v2.sh:/docker-entrypoint-initdb.d/04_runtime_secrets.sh:ro'
   ]) assert.ok(composeSource.includes(marker), `${composePath} lost baseline input: ${marker}`)
   assert.doesNotMatch(composeSource, /db_schema_and_data\.sql/, `${composePath} must not use the retired data dump`)
 }
@@ -51,6 +55,11 @@ assert.match(runtimeSecretBootstrap, /\\getenv jwt_secret PGRST_JWT_SECRET/)
 assert.match(runtimeSecretBootstrap, /ALTER DATABASE %I SET app\.jwt_secret TO %L/)
 assert.doesNotMatch(runtimeSecretBootstrap, /echo[^\n]*PGRST_JWT_SECRET/)
 
+const runtimeSecretsV2Bootstrap = readFileSync(resolve(repoRoot, 'scripts/configure-database-runtime-secrets-v2.sh'), 'utf8')
+assert.match(runtimeSecretsV2Bootstrap, /\\getenv postgrest_password POSTGREST_DB_PASSWORD/)
+assert.match(runtimeSecretsV2Bootstrap, /\\getenv agent_password AGENT_DB_PASSWORD/)
+assert.doesNotMatch(runtimeSecretsV2Bootstrap, /echo[^\n]*\$(?:POSTGREST_DB_PASSWORD|AGENT_DB_PASSWORD)/)
+
 const validCompose = spawnSync('docker', ['compose', '-f', 'docker-compose.prod.yml', 'config', '--quiet'], {
   cwd: repoRoot,
   env: safeEnvironment,
@@ -59,7 +68,7 @@ const validCompose = spawnSync('docker', ['compose', '-f', 'docker-compose.prod.
 })
 assert.equal(validCompose.status, 0, `production Compose rejected the valid contract:\n${validCompose.stderr || validCompose.stdout}`)
 
-for (const missingKey of ['POSTGRES_PASSWORD', 'PGRST_JWT_SECRET', 'EISCORE_PUBLIC_BASE_URL']) {
+for (const missingKey of ['POSTGRES_PASSWORD', 'PGRST_JWT_SECRET', 'POSTGREST_DB_PASSWORD', 'AGENT_DB_PASSWORD', 'EISCORE_PUBLIC_BASE_URL']) {
   const missingEnvironment = { ...safeEnvironment }
   delete missingEnvironment[missingKey]
   const invalidCompose = spawnSync('docker', ['compose', '-f', 'docker-compose.prod.yml', 'config', '--quiet'], {

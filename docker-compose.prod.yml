@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16
+    image: postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f
     container_name: eiscore-db
     restart: unless-stopped
     env_file:
@@ -10,15 +10,18 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
       POSTGRES_DB: eiscore
+      POSTGREST_DB_PASSWORD: "${POSTGREST_DB_PASSWORD:?POSTGREST_DB_PASSWORD is required}"
+      AGENT_DB_PASSWORD: "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./env/init_roles.sql:/docker-entrypoint-initdb.d/00_init_roles.sql:ro
+      - ./database/bootstrap/roles-v2.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro
       - ./database/baselines/eiscore-db-v1/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./database/baselines/eiscore-db-v1/register.sql:/docker-entrypoint-initdb.d/02_register.sql:ro
-      - ./scripts/configure-database-runtime-secret.sh:/docker-entrypoint-initdb.d/03_runtime_secret.sh:ro
+      - ./database/migrations/sql/core-002-role-boundaries.sql:/docker-entrypoint-initdb.d/03_role_boundaries.sql:ro
+      - ./scripts/configure-database-runtime-secrets-v2.sh:/docker-entrypoint-initdb.d/04_runtime_secrets.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d eiscore"]
       interval: 10s
@@ -26,7 +29,7 @@ services:
       retries: 12
 
   api:
-    image: postgrest/postgrest
+    image: postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa
     container_name: eiscore-api
     restart: unless-stopped
     ports:
@@ -35,7 +38,7 @@ services:
       - path: ./env/.env
         required: false
     environment:
-      PGRST_DB_URI: "postgres://postgres:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/eiscore"
+      PGRST_DB_URI: "postgres://eiscore_authenticator:${POSTGREST_DB_PASSWORD:?POSTGREST_DB_PASSWORD is required}@db:5432/eiscore"
       PGRST_DB_SCHEMAS: "public,hr,scm,app_center,workflow,app_data"
       PGRST_DB_ANON_ROLE: "web_anon"
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
@@ -45,7 +48,7 @@ services:
         condition: service_healthy
 
   swagger:
-    image: swaggerapi/swagger-ui
+    image: swaggerapi/swagger-ui@sha256:080804ac62c9d5d358662cc6f0db96ba0be76af7af393014a1a1305d967298cc
     container_name: eiscore-swagger
     restart: unless-stopped
     ports:
@@ -69,11 +72,11 @@ services:
       - path: ./env/.env
         required: false
     environment:
-      PGHOST: db
-      PGPORT: 5432
-      PGUSER: postgres
-      PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
-      PGDATABASE: eiscore
+      EISCORE_DB_HOST: db
+      EISCORE_DB_PORT: 5432
+      EISCORE_DB_NAME: eiscore
+      EISCORE_AGENT_DB_USER: eiscore_agent
+      AGENT_DB_PASSWORD: "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"
       CHANNEL: eis_events
       AGENT_POSTGREST_URL: "http://api:3000"
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
@@ -100,7 +103,7 @@ services:
         condition: service_started
 
   code-server:
-    image: codercom/code-server:4.108.2
+    image: codercom/code-server@sha256:31ad23cda720476e7eb3371a9b02fd7a5738843f6ef43beef97e9edf1960fc47
     container_name: eiscore-ide
     restart: unless-stopped
     user: "${PUID:-1000}:${PGID:-1000}"

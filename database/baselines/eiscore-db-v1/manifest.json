@@ -15,17 +15,20 @@
   },
   "roleBootstrap": {
     "path": "env/init_roles.sql",
-    "sha256": "903dd9592141b0cb3f8f45717af06299f3532195a60c77103e50394fdc2db451"
+    "sha256": "903dd9592141b0cb3f8f45717af06299f3532195a60c77103e50394fdc2db451",
+    "portableSha256": "d18a17ec5800ddb7a0c53341ef3c7e21d26c368dcfd05cf28841fcd8235f4b4d"
   },
   "runtimeSecretBootstrap": {
     "path": "scripts/configure-database-runtime-secret.sh",
-    "sha256": "4ad6a68aaec7ada537d91d2b3f8f30dab9ece8d91b36b12777dda4b68bbd67c7"
+    "sha256": "4ad6a68aaec7ada537d91d2b3f8f30dab9ece8d91b36b12777dda4b68bbd67c7",
+    "portableSha256": "4ad6a68aaec7ada537d91d2b3f8f30dab9ece8d91b36b12777dda4b68bbd67c7"
   },
   "legacySchemaAdoptions": [
     {
       "id": "company-site-platform-v1",
       "path": "sql/company_site_platform_v1.sql",
       "sha256": "dcb467a0b5487be9d548f5423265a7c3e9b90f258911b6fa80fd29e9b7d07892",
+      "portableSha256": "af964b29414eeeca87ded5e4f72352dd972e44c5b3c02e7ba6ef7c09fdacce62",
       "classification": "schema-fragment",
       "releaseInput": false
     }
@@ -33,11 +36,14 @@
   "schema": {
     "path": "database/baselines/eiscore-db-v1/schema.sql",
     "sha256": "dbcd35e8cc93254dd285a89a9fa210151a9490a60fa55cc287b2f566a7874a28",
-    "bytes": 759924
+    "bytes": 759924,
+    "portableSha256": "2f3981fd14cf451df07e828799ac0f89c7f8fa2328e951354dba14322c1679dd",
+    "portableBytes": 759636
   },
   "objectCatalog": {
     "path": "database/baselines/eiscore-db-v1/object-catalog.json",
     "sha256": "596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265",
+    "portableSha256": "596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265",
     "objectCount": 1792
   },
   "coveredMigrations": [
@@ -141,6 +147,7 @@
   "registration": {
     "path": "database/baselines/eiscore-db-v1/register.sql",
     "sha256": "9404916fcac56cd07c06d2789fe7fc433678c9f7183bc6fae51c45926a932de9",
+    "portableSha256": "9404916fcac56cd07c06d2789fe7fc433678c9f7183bc6fae51c45926a932de9",
     "rows": 13
   }
 }

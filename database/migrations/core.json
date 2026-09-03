@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "name": "core",
+  "checksumLineEnding": "lf",
   "ledger": "database/migration-ledger.sql",
   "postcheck": "database/migrations/postchecks/core.sql",
   "migrations": [
@@ -8,6 +9,16 @@
       "id": "core-001",
       "path": "database/migrations/sql/core-001-externalize-database-credentials.sql",
       "sha256": "70ff80d137a15f3312eb8fdce5e1b25157cb43f0013a7c03ab03e83086cd4ffc",
+      "transaction": "runner",
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-002",
+      "path": "database/migrations/sql/core-002-role-boundaries.sql",
+      "sha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc",
       "transaction": "runner",
       "rollback": {
         "strategy": "backup-restore",

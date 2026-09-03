@@ -5,18 +5,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { Pool } = require('pg');
+const { createAgentDatabaseConfig, positiveInteger } = require('./database-config');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
 const defaultStorageRoot = path.join(__dirname, 'data', 'document-intake');
 const storageRoot = envText(process.env.DOCUMENT_INTAKE_STORAGE_DIR) || defaultStorageRoot;
 const bootstrapBindCode = envText(process.env.COLLECTOR_BIND_AUTH_CODE, '');
-
-function positiveInteger(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.min(max, Math.max(min, Math.floor(numeric)));
-}
 
 const maxUploadBytes = positiveInteger(
   process.env.DOCUMENT_INTAKE_MAX_UPLOAD_BYTES,
@@ -29,14 +24,10 @@ const maxChunkBytes = positiveInteger(
   { min: 256 * 1024, max: 64 * 1024 * 1024 }
 );
 
-const pool = new Pool({
-  host: process.env.PGHOST || 'localhost',
-  port: positiveInteger(process.env.PGPORT, 5432, { min: 1, max: 65535 }),
-  user: process.env.PGUSER || 'postgres',
-  password: process.env.PGPASSWORD || 'postgres',
-  database: process.env.PGDATABASE || 'postgres',
-  max: positiveInteger(process.env.DOCUMENT_INTAKE_PG_POOL_MAX, 5, { min: 1, max: 50 })
-});
+const pool = new Pool(createAgentDatabaseConfig({
+  poolMaxEnv: 'DOCUMENT_INTAKE_PG_POOL_MAX',
+  fallbackMax: 5
+}));
 
 function sha256(value) {
   const hash = crypto.createHash('sha256');

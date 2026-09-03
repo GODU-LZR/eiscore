@@ -6,6 +6,9 @@ DECLARE
   login_definition text := pg_get_functiondef('public.login(text,text)'::regprocedure);
   insert_definition text := pg_get_functiondef('public.tg_v_users_manage_insert()'::regprocedure);
   login_config text[];
+  role_row record;
+  superuser_count integer;
+  bypassrls_count integer;
 BEGIN
   SELECT proconfig
     INTO login_config
@@ -24,6 +27,109 @@ BEGIN
   IF position('gen_random_bytes' IN insert_definition) = 0
      OR position(concat('123', '456') IN insert_definition) > 0 THEN
     RAISE EXCEPTION 'public.tg_v_users_manage_insert still has a fixed password fallback';
+  END IF;
+
+  FOR role_row IN
+    SELECT rolname, rolcanlogin, rolinherit
+    FROM pg_roles
+    WHERE rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'web_anon', 'web_user')
+  LOOP
+    IF role_row.rolname IN ('eiscore_owner', 'eiscore_migrator', 'web_anon', 'web_user') AND role_row.rolcanlogin THEN
+      RAISE EXCEPTION '% must not be a login role', role_row.rolname;
+    END IF;
+    IF role_row.rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent')
+       AND role_row.rolinherit THEN
+      RAISE EXCEPTION '% must be NOINHERIT', role_row.rolname;
+    END IF;
+  END LOOP;
+
+  SELECT count(*) INTO superuser_count
+  FROM pg_roles
+  WHERE rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'web_anon', 'web_user')
+    AND rolsuper;
+  IF superuser_count <> 0 THEN
+    RAISE EXCEPTION 'database service roles must not be superusers';
+  END IF;
+
+  SELECT count(*) INTO bypassrls_count
+  FROM pg_roles
+  WHERE rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'web_anon', 'web_user')
+    AND rolbypassrls;
+  IF bypassrls_count <> 0 THEN
+    RAISE EXCEPTION 'database service roles must not bypass RLS';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_roles authenticator
+    JOIN pg_auth_members m ON m.member = authenticator.oid
+    JOIN pg_roles target ON target.oid = m.roleid
+    WHERE authenticator.rolname = 'eiscore_authenticator' AND target.rolname = 'web_anon'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_roles authenticator
+    JOIN pg_auth_members m ON m.member = authenticator.oid
+    JOIN pg_roles target ON target.oid = m.roleid
+    WHERE authenticator.rolname = 'eiscore_authenticator' AND target.rolname = 'web_user'
+  ) THEN
+    RAISE EXCEPTION 'authenticator role must be able to switch to web_anon and web_user';
+  END IF;
+
+  IF NOT has_schema_privilege('eiscore_agent', 'public', 'USAGE')
+     OR NOT has_table_privilege('eiscore_agent', 'public.document_assets', 'SELECT')
+     OR NOT has_function_privilege('eiscore_agent', 'public.document_intake_can_manage()', 'EXECUTE')
+     OR NOT has_function_privilege('eiscore_agent', 'scm.stock_in(integer,uuid,numeric,text,text,text,text,date,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'agent role is missing its documented database access';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname IN ('public', 'app_center', 'app_data', 'company_site', 'hr', 'scm', 'workflow')
+      AND has_function_privilege('public', p.oid, 'EXECUTE')
+  ) THEN
+    RAISE EXCEPTION 'PUBLIC still has execute privileges on an application function';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname IN ('public', 'app_center', 'app_data', 'company_site', 'hr', 'scm', 'workflow')
+      AND p.prosecdef
+      AND NOT EXISTS (
+        SELECT 1 FROM unnest(coalesce(p.proconfig, ARRAY[]::text[])) setting
+        WHERE setting LIKE 'search_path=%'
+      )
+  ) THEN
+    RAISE EXCEPTION 'a SECURITY DEFINER function does not pin search_path';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_namespace n
+    WHERE n.nspname IN ('public', 'app_center', 'app_data', 'company_site', 'hr', 'scm', 'workflow')
+      AND has_schema_privilege('public', n.oid, 'CREATE')
+  ) THEN
+    RAISE EXCEPTION 'PUBLIC can still create objects in an application schema';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN pg_roles r ON r.oid = c.relowner
+    WHERE n.nspname IN ('public', 'app_center', 'app_data', 'company_site', 'hr', 'scm', 'workflow')
+      AND c.relkind IN ('r', 'p', 'v', 'm', 'f', 'S')
+      AND r.rolname <> 'eiscore_owner'
+  ) OR EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    JOIN pg_roles r ON r.oid = p.proowner
+    WHERE n.nspname IN ('public', 'app_center', 'app_data', 'company_site', 'hr', 'scm', 'workflow')
+      AND r.rolname <> 'eiscore_owner'
+  ) THEN
+    RAISE EXCEPTION 'an application object is not owned by eiscore_owner';
   END IF;
 END
 $$;

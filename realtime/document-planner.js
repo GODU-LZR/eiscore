@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 const { Pool } = require('pg');
+const { createAgentDatabaseConfig } = require('./database-config');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 function positiveInteger(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
@@ -14,14 +15,10 @@ const plannerEnabled = envText(process.env.DOCUMENT_PLAN_WORKER_ENABLED, 'true')
 const pollIntervalMs = positiveInteger(process.env.DOCUMENT_PLAN_POLL_INTERVAL_MS, 10000, { min: 2000, max: 10 * 60 * 1000 });
 const maxTextChars = positiveInteger(process.env.DOCUMENT_PLAN_MAX_TEXT_CHARS, 120000, { min: 10000, max: 1000 * 1000 });
 
-const pool = new Pool({
-  host: process.env.PGHOST || 'localhost',
-  port: positiveInteger(process.env.PGPORT, 5432, { min: 1, max: 65535 }),
-  user: process.env.PGUSER || 'postgres',
-  password: process.env.PGPASSWORD || 'postgres',
-  database: process.env.PGDATABASE || 'postgres',
-  max: positiveInteger(process.env.DOCUMENT_PLAN_PG_POOL_MAX, 3, { min: 1, max: 20 })
-});
+const pool = new Pool(createAgentDatabaseConfig({
+  poolMaxEnv: 'DOCUMENT_PLAN_PG_POOL_MAX',
+  fallbackMax: 3
+}));
 
 const fixedRules = [
   {

@@ -43,9 +43,9 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 1)
-assert.equal(coreResult.migrations[0].id, 'core-001')
-assert.equal(coreResult.migrations[0].rollbackStrategy, 'backup-restore')
+assert.equal(coreResult.migrations.length, 2)
+assert.deepEqual(coreResult.migrations.map((entry) => entry.id), ['core-001', 'core-002'])
+assert.ok(coreResult.migrations.every((entry) => entry.rollbackStrategy === 'backup-restore'))
 
 const mutate = (callback) => {
   const value = structuredClone(result.manifest)

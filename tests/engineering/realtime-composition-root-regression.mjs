@@ -27,6 +27,7 @@ assert.deepEqual(localDependencies, [
   './company-http',
   './company-sales-agent',
   './company-site',
+  './database-config',
   './database-notifier',
   './document-entry',
   './document-fixed-entry',

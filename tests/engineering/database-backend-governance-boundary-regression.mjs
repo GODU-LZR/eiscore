@@ -18,7 +18,7 @@ assert.deepEqual(result.legacyRoots.map(({ path, count }) => [path, count]), [
   ['eiscore-materials/sql', 2]
 ])
 assert.equal(result.legacySqlFiles, 106)
-assert.equal(result.governedMigrationFiles, 12)
+assert.equal(result.governedMigrationFiles, 13)
 assert.equal(result.governedLegacySqlFiles, 10)
 assert.equal(result.ungovernedLegacySqlFiles, 96)
 assert.equal(result.files.length, 106)
@@ -57,24 +57,22 @@ assert.deepEqual(
 assert.deepEqual(result.manifests.map(({ name, count }) => [name, count]), [
   ['runtime-v2', 10],
   ['company-site', 1],
-  ['core', 1]
+  ['core', 2]
 ])
-assert.deepEqual(result.productionCompose.runtimeSuperuserConnections, [
-  { service: 'api', setting: 'PGRST_DB_URI', role: 'postgres' },
-  { service: 'agent-runtime', setting: 'PGUSER', role: 'postgres' }
-])
+assert.deepEqual(result.productionCompose.runtimeSuperuserConnections, [])
 assert.deepEqual(result.productionCompose.exposedSchemas, ['public', 'hr', 'scm', 'app_center', 'workflow', 'app_data'])
 assert.deepEqual(result.productionCompose.images, [
-  'postgres:16',
-  'postgrest/postgrest',
-  'swaggerapi/swagger-ui',
-  'codercom/code-server:4.108.2'
+  'postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f',
+  'postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa',
+  'swaggerapi/swagger-ui@sha256:080804ac62c9d5d358662cc6f0db96ba0be76af7af393014a1a1305d967298cc',
+  'codercom/code-server@sha256:31ad23cda720476e7eb3371a9b02fd7a5738843f6ef43beef97e9edf1960fc47'
 ])
 assert.deepEqual(result.productionCompose.initializationInputs, [
-  'env/init_roles.sql',
+  'database/bootstrap/roles-v2.sql',
   'database/baselines/eiscore-db-v1/schema.sql',
   'database/baselines/eiscore-db-v1/register.sql',
-  'scripts/configure-database-runtime-secret.sh'
+  'database/migrations/sql/core-002-role-boundaries.sql',
+  'scripts/configure-database-runtime-secrets-v2.sh'
 ])
 
 const hardenedCompose = `

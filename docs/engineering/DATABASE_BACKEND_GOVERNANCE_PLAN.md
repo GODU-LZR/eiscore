@@ -1,6 +1,6 @@
 # 数据库后端工程化治理计划
 
-> 状态：进行中。DB0、DB1 已完成，下一步 DB2；G4.1～G4.4 暂停。本计划只操作独立重构仓库和隔离测试栈，不连接客户生产环境。
+> 状态：进行中。DB0、DB1、DB2 已完成，下一步 DB3；G4.1～G4.4 暂停。本计划只操作独立重构仓库和隔离测试栈，不连接客户生产环境。
 
 ## 目标边界
 
@@ -41,7 +41,7 @@ PostgreSQL 表、视图、函数、触发器、RLS、角色与授权是 EISCore 
 
 退出：空库重建和升级等价，历史 SQL 不再是隐含执行入口。详见 `docs/engineering/DB1_EXIT_AUDIT.md`。
 
-### DB2：运行身份、函数与权限治理
+### DB2：运行身份、函数与权限治理（已完成）
 
 - 建立 owner/migrator/authenticator/web_anon/web_user/agent_service 角色边界。
 - 迁移 PostgREST 与 Agent Runtime，消除 `postgres` 运行依赖。
@@ -49,6 +49,8 @@ PostgreSQL 表、视图、函数、触发器、RLS、角色与授权是 EISCore 
 - 为权限收紧提供兼容迁移和回退路径。
 
 退出：隔离完整栈不以超级用户运行；真实匿名、登录与服务角色正/负向测试通过。
+
+结果：`core-002` 建立 owner/migrator/authenticator/agent 与 Web 角色边界，PostgREST 和 Agent Runtime 均改用独立非超级用户身份；应用对象 owner、PUBLIC 函数权限、默认权限和 `SECURITY DEFINER search_path` 已收敛。隔离 PostgreSQL/PostgREST 的密码认证、角色切换、RLS 差异和越权拒绝已由 `npm run test:database-roles:docker` 验证。详见 `DB2_EXIT_AUDIT.md`。
 
 ### DB3：数据库与 PostgREST 契约测试
 

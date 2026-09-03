@@ -2,13 +2,9 @@
 // Copyright (c) 2026 林志荣
 
 const { Pool } = require('pg');
+const { createAgentDatabaseConfig, positiveInteger } = require('./database-config');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
-function positiveInteger(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.min(max, Math.max(min, Math.floor(numeric)));
-}
 
 const fixedEntryWorkerEnabled = envText(process.env.DOCUMENT_FIXED_ENTRY_WORKER_ENABLED, 'true').toLowerCase() !== 'false';
 const pollIntervalMs = positiveInteger(process.env.DOCUMENT_FIXED_ENTRY_POLL_INTERVAL_MS, 12000, { min: 2000, max: 10 * 60 * 1000 });
@@ -18,14 +14,10 @@ const defaultIoType = envText(process.env.DOCUMENT_FIXED_ENTRY_DEFAULT_IO_TYPE, 
 const defaultWarehouseCode = envText(process.env.DOCUMENT_FIXED_ENTRY_DEFAULT_WAREHOUSE_CODE, '');
 const defaultWarehouseName = envText(process.env.DOCUMENT_FIXED_ENTRY_DEFAULT_WAREHOUSE_NAME, '');
 
-const pool = new Pool({
-  host: process.env.PGHOST || 'localhost',
-  port: positiveInteger(process.env.PGPORT, 5432, { min: 1, max: 65535 }),
-  user: process.env.PGUSER || 'postgres',
-  password: process.env.PGPASSWORD || 'postgres',
-  database: process.env.PGDATABASE || 'postgres',
-  max: positiveInteger(process.env.DOCUMENT_FIXED_ENTRY_PG_POOL_MAX, 3, { min: 1, max: 20 })
-});
+const pool = new Pool(createAgentDatabaseConfig({
+  poolMaxEnv: 'DOCUMENT_FIXED_ENTRY_PG_POOL_MAX',
+  fallbackMax: 3
+}));
 
 const fieldDefinitions = [
   {

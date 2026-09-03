@@ -57,6 +57,13 @@ export function validateProductionEnv(values) {
   const issues = []
   validateSecret(values, 'POSTGRES_PASSWORD', 24, issues)
   validateSecret(values, 'PGRST_JWT_SECRET', 32, issues)
+  validateSecret(values, 'POSTGREST_DB_PASSWORD', 24, issues)
+  validateSecret(values, 'AGENT_DB_PASSWORD', 24, issues)
+  const databaseSecrets = ['POSTGRES_PASSWORD', 'POSTGREST_DB_PASSWORD', 'AGENT_DB_PASSWORD']
+  const configuredDatabaseSecrets = databaseSecrets.map((key) => String(values?.[key] || '')).filter(Boolean)
+  if (configuredDatabaseSecrets.length === databaseSecrets.length && new Set(configuredDatabaseSecrets).size !== configuredDatabaseSecrets.length) {
+    issues.push('database role passwords must be independent')
+  }
   validatePublicBaseUrl(values.EISCORE_PUBLIC_BASE_URL, issues)
 
   if (issues.length) throw new ProductionEnvValidationError(issues)

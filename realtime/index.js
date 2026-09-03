@@ -47,6 +47,7 @@ const { createFlashClineRuntime } = require('./flash-cline-runtime');
 const { createFlashClineService } = require('./flash-cline-service');
 const { loadFlashClineConfig } = require('./flash-cline-config');
 const { createFlashWorkspaceService } = require('./flash-workspace-service');
+const { createAgentDatabaseConfig } = require('./database-config');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 
@@ -632,13 +633,7 @@ const databaseNotifier = createDatabaseNotifier({
   channel,
   workflowChannel,
   enableWorkflowAutoTransition,
-  pgConfig: {
-    host: process.env.PGHOST || 'localhost',
-    port: Number(process.env.PGPORT || 5432),
-    user: process.env.PGUSER || 'postgres',
-    password: process.env.PGPASSWORD || 'postgres',
-    database: process.env.PGDATABASE || 'postgres'
-  },
+  pgConfig: createAgentDatabaseConfig(),
   log: console
 });
 

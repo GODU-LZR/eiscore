@@ -18,14 +18,19 @@ const deployScripts = [read('scripts/deploy-simple.sh'), read('scripts/deploy-pm
 
 assert.doesNotMatch(compose, /POSTGRES_PASSWORD:-/, 'production Compose must not provide a database password fallback')
 assert.doesNotMatch(compose, /PGRST_JWT_SECRET:-/, 'production Compose must not provide a JWT secret fallback')
+assert.doesNotMatch(compose, /POSTGREST_DB_PASSWORD:-|AGENT_DB_PASSWORD:-/, 'production Compose must not provide service password fallbacks')
 assert.doesNotMatch(compose, /nanpai\.eissys\.top/i, 'production Compose must not hardcode a customer domain')
 assert.match(compose, /\$\{POSTGRES_PASSWORD:\?POSTGRES_PASSWORD is required\}/, 'production Compose should require the database password')
 assert.match(compose, /\$\{PGRST_JWT_SECRET:\?PGRST_JWT_SECRET is required\}/, 'production Compose should require the JWT secret')
+assert.match(compose, /\$\{POSTGREST_DB_PASSWORD:\?POSTGREST_DB_PASSWORD is required\}/, 'production Compose should require the PostgREST role password')
+assert.match(compose, /\$\{AGENT_DB_PASSWORD:\?AGENT_DB_PASSWORD is required\}/, 'production Compose should require the agent role password')
 assert.match(compose, /\$\{EISCORE_PUBLIC_BASE_URL:\?EISCORE_PUBLIC_BASE_URL is required\}\/api/, 'production Compose should derive the API origin from enterprise configuration')
 assert.equal((compose.match(/required: false/g) || []).length, 3, 'service env files should be optional when variables are supplied by the deployment environment')
 
 assert.match(template, /^POSTGRES_PASSWORD=replace_me_/m, 'environment template should expose the database password contract')
 assert.match(template, /^PGRST_JWT_SECRET=replace_me_/m, 'environment template should expose the JWT contract')
+assert.match(template, /^POSTGREST_DB_PASSWORD=replace_me_/m, 'environment template should expose the PostgREST role password contract')
+assert.match(template, /^AGENT_DB_PASSWORD=replace_me_/m, 'environment template should expose the agent role password contract')
 assert.match(template, /^EISCORE_PUBLIC_BASE_URL=https:\/\//m, 'environment template should expose the public origin contract')
 assert.throws(
   () => validateProductionEnv(parseEnvFile(template)),
@@ -42,6 +47,8 @@ for (const source of deployScripts) {
 const valid = {
   POSTGRES_PASSWORD: 'Db9_Nx2pL7vQ4sK8mT5wY1cR6aH3',
   PGRST_JWT_SECRET: 'Jwt8_Zp3Lm7Qx2Vc9Bn5Ks1Hd6Rt4Wy0Fa',
+  POSTGREST_DB_PASSWORD: 'Api6_Qm9Xv4Rs2Lp8Nk5Wd7Hy3Tz1',
+  AGENT_DB_PASSWORD: 'Agent4_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_PUBLIC_BASE_URL: 'https://erp.acme.test',
   ANTHROPIC_API_KEY: ''
 }
@@ -54,6 +61,7 @@ for (const [name, value] of [
   ['missing values', {}],
   ['known weak password', { ...valid, POSTGRES_PASSWORD: 'postgres123' }],
   ['short JWT secret', { ...valid, PGRST_JWT_SECRET: 'too-short' }],
+  ['reused role password', { ...valid, AGENT_DB_PASSWORD: valid.POSTGREST_DB_PASSWORD }],
   ['customer placeholder URL', { ...valid, EISCORE_PUBLIC_BASE_URL: 'https://erp.example.com' }],
   ['non-HTTPS URL', { ...valid, EISCORE_PUBLIC_BASE_URL: 'http://erp.acme.test' }],
   ['URL with path', { ...valid, EISCORE_PUBLIC_BASE_URL: 'https://erp.acme.test/eiscore' }]

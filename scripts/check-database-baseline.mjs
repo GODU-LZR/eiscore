@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -32,9 +33,14 @@ const checkFile = ({ root, descriptor, label, errors }) => {
       errors.push(`${label} does not exist: ${path}`)
       return null
     }
-    const actualSha = sha256File(absolute)
-    if (actualSha !== expectedSha) errors.push(`${label} checksum drift: ${path}`)
-    return { absolute, path, buffer: readFileSync(absolute) }
+    const bytes = readFileSync(absolute)
+    const portableSha = String(descriptor?.portableSha256 || '')
+    const portableBytes = Buffer.from(bytes.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')
+    if (!shaPattern.test(portableSha)) errors.push(`${label} portable checksum is invalid`)
+    if (createHash('sha256').update(portableBytes).digest('hex') !== portableSha) {
+      errors.push(`${label} portable checksum drift: ${path}`)
+    }
+    return { absolute, path, buffer: bytes }
   } catch (error) {
     errors.push(error.message)
     return null
@@ -69,7 +75,8 @@ export const validateDatabaseBaseline = ({
   }
 
   if (schemaFile) {
-    if (schemaFile.buffer.length !== manifest.schema.bytes) errors.push('schema byte count drift')
+    const portableSchemaBytes = Buffer.from(schemaFile.buffer.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')
+    if (portableSchemaBytes.length !== manifest.schema.portableBytes) errors.push('schema portable byte count drift')
     const schemaText = schemaFile.buffer.toString('utf8')
     for (const [pattern, label] of [
       [/^-- Data for Name:/m, 'table data marker'],
@@ -101,7 +108,8 @@ export const validateDatabaseBaseline = ({
 
     try {
       const expectedCatalogText = serializeDatabaseObjectCatalog(buildDatabaseObjectCatalog(schemaFile.buffer))
-      if (!catalogFile || !catalogFile.buffer.equals(Buffer.from(expectedCatalogText, 'utf8'))) {
+      const normalizedCatalog = catalogFile && Buffer.from(catalogFile.buffer.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')
+      if (!normalizedCatalog || !normalizedCatalog.equals(Buffer.from(expectedCatalogText, 'utf8'))) {
         errors.push('object catalog does not exactly match schema.sql')
       }
     } catch (error) {
@@ -125,21 +133,20 @@ export const validateDatabaseBaseline = ({
     if (!shaPattern.test(entry.sha256 || '')) errors.push(`invalid covered migration checksum: ${entry.id}`)
   }
   const sourceManifests = [...new Set(coveredMigrations.map(({ sourceManifest }) => sourceManifest))]
-  const expectedCoverage = []
+  const sourceMigrations = new Map()
   for (const sourceManifest of sourceManifests) {
     try {
       const data = JSON.parse(readFileSync(resolveInsideRepo(root, sourceManifest), 'utf8'))
-      expectedCoverage.push(...data.migrations.map(({ id, sha256: checksum }) => ({
-        id,
-        sha256: checksum,
-        sourceManifest
-      })))
+      sourceMigrations.set(sourceManifest, new Map(data.migrations.map((entry) => [entry.id, entry.sha256])))
     } catch (error) {
       errors.push(`covered migration manifest cannot be read (${sourceManifest}): ${error.message}`)
     }
   }
-  if (JSON.stringify(coveredMigrations) !== JSON.stringify(expectedCoverage)) {
-    errors.push('baseline migration coverage differs from source manifests')
+  for (const entry of coveredMigrations) {
+    const sourceChecksum = sourceMigrations.get(entry.sourceManifest)?.get(entry.id)
+    if (sourceChecksum !== entry.sha256) {
+      errors.push(`baseline-covered migration differs from source manifest: ${entry.id}`)
+    }
   }
 
   const expectedFingerprint = computeBaselineFingerprint(manifest)

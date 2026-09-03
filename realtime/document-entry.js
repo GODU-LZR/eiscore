@@ -2,26 +2,18 @@
 // Copyright (c) 2026 林志荣
 
 const { Pool } = require('pg');
+const { createAgentDatabaseConfig, positiveInteger } = require('./database-config');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
-function positiveInteger(value, fallback, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return fallback;
-  return Math.min(max, Math.max(min, Math.floor(numeric)));
-}
 
 const entryWorkerEnabled = envText(process.env.DOCUMENT_ENTRY_WORKER_ENABLED, 'true').toLowerCase() !== 'false';
 const pollIntervalMs = positiveInteger(process.env.DOCUMENT_ENTRY_POLL_INTERVAL_MS, 12000, { min: 2000, max: 10 * 60 * 1000 });
 const maxRowsPerPlan = positiveInteger(process.env.DOCUMENT_ENTRY_MAX_ROWS_PER_PLAN, 200, { min: 1, max: 5000 });
 
-const pool = new Pool({
-  host: process.env.PGHOST || 'localhost',
-  port: positiveInteger(process.env.PGPORT, 5432, { min: 1, max: 65535 }),
-  user: process.env.PGUSER || 'postgres',
-  password: process.env.PGPASSWORD || 'postgres',
-  database: process.env.PGDATABASE || 'postgres',
-  max: positiveInteger(process.env.DOCUMENT_ENTRY_PG_POOL_MAX, 3, { min: 1, max: 20 })
-});
+const pool = new Pool(createAgentDatabaseConfig({
+  poolMaxEnv: 'DOCUMENT_ENTRY_PG_POOL_MAX',
+  fallbackMax: 3
+}));
 
 const remarkFields = ['remarks', 'remark', 'notes', 'note', 'comment', 'comments'];
 
