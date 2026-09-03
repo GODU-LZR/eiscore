@@ -131,5 +131,99 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'an application object is not owned by eiscore_owner';
   END IF;
+
+  IF (
+    SELECT count(*)
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'company_site'
+      AND c.relkind = 'r'
+      AND c.relname = ANY (ARRAY[
+        'site_config', 'site_locales', 'content_pages', 'products',
+        'product_locales', 'solutions', 'cases', 'media_assets',
+        'evidence_records', 'knowledge_documents', 'leads', 'lead_events',
+        'audit_events', 'certificates', 'seo_metadata', 'seo_keywords',
+        'seo_checks', 'geo_answer_snapshots', 'content_revisions',
+        'agent_sessions', 'agent_messages', 'agent_qualification_rules',
+        'opportunity_drafts', 'quote_drafts', 'sales_order_drafts',
+        'production_work_order_drafts', 'sync_jobs', 'agent_audit_events'
+      ])
+      AND c.relrowsecurity
+  ) <> 28 THEN
+    RAISE EXCEPTION 'company_site must keep RLS enabled on all 28 tables';
+  END IF;
+
+  IF (
+    SELECT count(*)
+    FROM pg_policy p
+    JOIN pg_class c ON c.oid = p.polrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'company_site'
+      AND c.relname = ANY (ARRAY[
+        'site_config', 'site_locales', 'content_pages', 'products',
+        'product_locales', 'solutions', 'cases', 'media_assets',
+        'evidence_records', 'knowledge_documents', 'leads', 'lead_events',
+        'audit_events', 'certificates', 'seo_metadata', 'seo_keywords',
+        'seo_checks', 'geo_answer_snapshots', 'content_revisions',
+        'agent_sessions', 'agent_messages', 'agent_qualification_rules',
+        'opportunity_drafts', 'quote_drafts', 'sales_order_drafts',
+        'production_work_order_drafts', 'sync_jobs', 'agent_audit_events'
+      ])
+      AND p.polname = 'company_site_agent_access'
+  ) <> 28 THEN
+    RAISE EXCEPTION 'company_site Agent policy coverage is incomplete';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'hr'
+      AND c.relname IN (
+        'archives', 'attendance_month_overrides', 'attendance_records',
+        'attendance_shifts', 'employee_profiles', 'payroll'
+      )
+      AND NOT c.relrowsecurity
+  ) THEN
+    RAISE EXCEPTION 'all HR base tables must have RLS enabled';
+  END IF;
+
+  IF (
+    SELECT count(*)
+    FROM pg_policy p
+    JOIN pg_class c ON c.oid = p.polrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'hr'
+      AND p.polname = 'hr_agent_access'
+  ) <> 6 THEN
+    RAISE EXCEPTION 'HR Agent policy coverage is incomplete';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policy p
+    JOIN pg_class c ON c.oid = p.polrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'hr'
+      AND c.relname = 'payroll'
+      AND p.polname = 'hr_payroll_select'
+  ) THEN
+    RAISE EXCEPTION 'payroll must have an explicit narrow select policy';
+  END IF;
+
+  IF (
+    SELECT count(*)
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'hr'
+      AND c.relname IN ('v_attendance_daily', 'v_attendance_monthly')
+      AND c.reloptions @> ARRAY['security_invoker=true']::text[]
+  ) <> 2 THEN
+    RAISE EXCEPTION 'attendance views must use security_invoker';
+  END IF;
+
+  IF to_regclass('app_data.eiscore_chain_test_records') IS NOT NULL THEN
+    RAISE EXCEPTION 'the reusable full-chain test table must not remain in the installed product database';
+  END IF;
 END
 $$;

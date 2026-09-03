@@ -26,17 +26,17 @@
       "sha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4"
     },
     "core": {
-      "id": "core-002",
-      "sha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc"
+      "id": "core-004",
+      "sha256": "7f51f2a3565d844ab15e1e6ec8aee1cc41974b8840254ed93e3a866244266947"
     }
   },
   "databaseCatalog": {
-    "sha256": "80130591dd32cc615f00abe68c64b5d3292c0b88109c7f447f2016e0994f5a81",
+    "sha256": "8774f45d426a0892e8ac9812cd415bf8832a2929053d30768c084c0120e1e740",
     "counts": {
       "schemas": 7,
-      "relations": 197,
+      "relations": 196,
       "functions": 161,
-      "policies": 239,
+      "policies": 297,
       "triggers": 82,
       "roles": 6,
       "memberships": 3,
@@ -45,26 +45,26 @@
     }
   },
   "postgrestOpenApi": {
-    "sha256": "e0e8d6ec06402b3b564c33ba356fd90656fc20fb0f59dca1bf2e78973515e9d0",
+    "sha256": "705b8b62a80a981042f2d536747a7df5a7102c1d0575b43e1805f1e9a15e574a",
     "roleSha256": {
-      "web_anon": "5b8de00135c87b4245c6042ca2e6688c478e74c974e15ffc2147a93889e67563",
-      "web_user": "47adeeb3438cecce5add961789630717c083a1995b64ba1fec2290396b0c0473"
+      "web_anon": "5fb2c655125c374135b06e7b6331a13073a005f26e444c6d64962ee34912f49b",
+      "web_user": "2ca0da7dec5ecc9bf9a70833b58e1654307efb5b6c89e1c06c1ea328a6cb0cb8"
     },
     "schemaSha256": {
       "web_anon": {
         "app_center": "e502e812176eee337d610acd3e13baf67a023d750998348c423daee8d00fe11f",
-        "app_data": "1f797af92202c1b7a3b84ceb168557f23c92c6ae5012f64fbe1a071ea1d0edfa",
-        "company_site": "15b19ed0b6e2a5b0fda5904dacb2c71e1d785d02b41fa195ed31e2ef66552720",
-        "hr": "6d1ccff245c0e68a5e9e2d4e314fe184c14ea2c481980842224a35e9b5e9ad8d",
+        "app_data": "b9818699c14aaf51d4bb231eb5ddf9b920b62d0372bd9a17341298cbc49e2a41",
+        "company_site": "bc9c2eb6cf484c7091d2f7b2da17e4a53155dada5e619af15aedfa6e2c5a8c30",
+        "hr": "d5a8ad132ef9198ca7e06ae2c68dda85b62506b59222b870aadf54f0ccaddf21",
         "public": "78933202036a18f1dcf4df074ea1166cb87ab9255f09f9cd1c38f14d9331e87a",
         "scm": "195153f4f29b83a60ddbe63cc8245643f74368119cf5cac638dcdcda03ada7dd",
         "workflow": "6d1ccff245c0e68a5e9e2d4e314fe184c14ea2c481980842224a35e9b5e9ad8d"
       },
       "web_user": {
         "app_center": "589fb66a5cc8a9967ab53b7e446d5fed3cf97c600e8278a7fe1e766a3dd7ea4c",
-        "app_data": "1f797af92202c1b7a3b84ceb168557f23c92c6ae5012f64fbe1a071ea1d0edfa",
-        "company_site": "15b19ed0b6e2a5b0fda5904dacb2c71e1d785d02b41fa195ed31e2ef66552720",
-        "hr": "e3c49e5c1f054bc4430dd1652f1bc4fdb438eed2b5b43e7fc32ee135745cfdc5",
+        "app_data": "b9818699c14aaf51d4bb231eb5ddf9b920b62d0372bd9a17341298cbc49e2a41",
+        "company_site": "bc9c2eb6cf484c7091d2f7b2da17e4a53155dada5e619af15aedfa6e2c5a8c30",
+        "hr": "cc5360de23ade73bbcfd54430000f7329fd7206025ae00978e70d68bf1db3f56",
         "public": "b404ea9d5200198f1e057e05bca4fadb17e2fdc5d2d4711aa92b79fc0e7f9dc7",
         "scm": "187c5c0777c3ca3160e9fb1d0d83bb6f19e118f3b4ebbcd676e0b0b6a9598820",
         "workflow": "8fe4c8b62fed03e43c6b817c8ed52c548f3148112de43a2a40462322f26f4960"
@@ -73,9 +73,9 @@
     "counts": {
       "roles": 2,
       "schemaProfiles": 14,
-      "paths": 294,
+      "paths": 292,
       "rpcPaths": 74,
-      "definitions": 206
+      "definitions": 204
     }
   }
 }

@@ -24,6 +24,26 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-003",
+      "path": "database/migrations/sql/core-003-rls-boundaries.sql",
+      "sha256": "42d0abd02bd41c4746f32d0641f8a1ebb1c7c56d2733fa280fcd00e5bc82bc78",
+      "transaction": "runner",
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-004",
+      "path": "database/migrations/sql/core-004-retire-chain-test-table.sql",
+      "sha256": "7f51f2a3565d844ab15e1e6ec8aee1cc41974b8840254ed93e3a866244266947",
+      "transaction": "runner",
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

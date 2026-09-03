@@ -132,6 +132,28 @@ try {
     UPDATE workflow.instances SET status = status WHERE id = -1;
   `)
   assert.match(agentPositive.stdout, /eiscore_agent\|eiscore_agent\|t/)
+
+  psql('postgres', `
+    INSERT INTO company_site.site_config (legal_name, domain)
+    VALUES ('DB3 RLS Test', 'db3-rls.invalid');
+    INSERT INTO hr.archives (name, employee_no, base_salary)
+    VALUES ('DB3 Employee', 'db3-e1', 10000);
+    INSERT INTO hr.payroll (archive_id, month, total_amount)
+    VALUES (1, '2026-09', 10000);
+  `)
+
+  const agentBusinessData = psql('eiscore_agent', `
+    SELECT count(*) FROM company_site.site_config;
+    INSERT INTO company_site.leads (public_ref, site_key, company_name)
+    VALUES ('db3-rls-lead', 'primary', 'RLS Test Buyer')
+    RETURNING public_ref;
+    SELECT count(*) FROM hr.archives;
+    INSERT INTO hr.attendance_records (att_date, employee_id, employee_name, dept_name)
+    VALUES ('2026-09-03', 1, 'DB3 Employee', 'RLS Test')
+    RETURNING employee_name;
+  `)
+  assert.match(agentBusinessData.stdout, /db3-rls-lead/)
+  assert.match(agentBusinessData.stdout, /DB3 Employee/)
   assertDenied('agent DELETE', 'eiscore_agent', 'DELETE FROM public.document_assets WHERE false;')
   assertDenied('agent public DDL', 'eiscore_agent', 'CREATE TABLE public.db2_forbidden(id integer);')
   assertDenied('authenticator owner escalation', 'eiscore_authenticator', 'SET ROLE eiscore_owner;')
@@ -179,6 +201,19 @@ try {
   assert.equal(adminRead.status, 200, adminReadBody)
   assert.equal(JSON.parse(adminReadBody).length, 1, 'admin claim should pass the document RLS policy')
 
+  const userPayroll = await fetch(`${baseUrl}/payroll?select=id`, {
+    headers: { ...userHeaders, 'accept-profile': 'hr' }
+  })
+  const userPayrollBody = await userPayroll.text()
+  assert.equal(userPayroll.status, 200, userPayrollBody)
+  assert.deepEqual(JSON.parse(userPayrollBody), [], 'ordinary HR user must not read payroll')
+  const adminPayroll = await fetch(`${baseUrl}/payroll?select=id`, {
+    headers: { ...adminHeaders, 'accept-profile': 'hr' }
+  })
+  const adminPayrollBody = await adminPayroll.text()
+  assert.equal(adminPayroll.status, 200, adminPayrollBody)
+  assert.equal(JSON.parse(adminPayrollBody).length, 1, 'HR admin claim should read payroll')
+
   const runtimeUsers = psql('postgres', `
     SELECT usename, count(*)
     FROM pg_stat_activity
@@ -195,7 +230,7 @@ try {
   `).stdout.trim()
   assert.equal(roleFlags, '0')
 
-  console.log('PASS: isolated DB2 PostgreSQL/PostgREST roles, RLS, password authentication and denial contracts')
+  console.log('PASS: isolated DB3 PostgreSQL/PostgREST roles, company-site Agent RLS, HR payroll RLS and denial contracts')
 } finally {
   command(['rm', '-f', apiContainer], { allowFailure: true })
   command(['rm', '-f', dbContainer], { allowFailure: true })
