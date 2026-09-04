@@ -33,7 +33,7 @@ const writeMutation = (name, mutate) => {
 const codes = (result) => new Set(result.issues.map(({ code }) => code))
 
 try {
-  assert.equal(schema.oneOf.length, 3)
+  assert.equal(schema.oneOf.length, 4)
   assert.equal(schema.$defs.confirmationRequestDocument.properties.documentType.const, 'enterprise-package-confirmation-request')
   assert.equal(schema.$defs.confirmationRequestDocument.properties.responsePolicy.properties.responseMustReferenceRequest.const, true)
   assert.equal(schema.$defs.confirmationRequestDocument.properties.responsePolicy.properties.secretsForbidden.const, true)
@@ -71,7 +71,7 @@ try {
   for (const marker of ['99 个字段决策', '4 个素材决策', '不包含待确认字段值', 'authorize', 'approve']) {
     assert.ok(handoffReadme.includes(marker), `handoff README lost confirmation boundary: ${marker}`)
   }
-  for (const marker of ['99 个字段决策', '4 个素材决策', '确认响应仍须经过后续受控回填']) {
+  for (const marker of ['99 个字段决策', '4 个素材决策', '确认响应须经过失败关闭校验和受控回填']) {
     assert.ok(readinessDoc.includes(marker), `G4.2 readiness doc lost confirmation boundary: ${marker}`)
   }
   assert.match(siteGuide, /确认请求由 readiness 确定生成/)

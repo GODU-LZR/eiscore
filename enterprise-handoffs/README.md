@@ -24,6 +24,25 @@ npm run enterprise-confirmation:validate -- enterprise-handoffs/first-wave-confi
 - `approve`：只处理独立的包生产批准；字段和素材门禁仍须分别满足。
 - `reject/replace/complete-inventory/provide-inventory`：驳回、替换或补齐当前候选输入。
 
+## 确认响应与受控回填
+
+确认结果使用同一 Schema 中的 `enterprise-package-confirmation-response` 文档类型。响应可以只覆盖本次实际完成的决策，但每条决策都必须：
+
+- 引用原确认请求的 `requestId` 和 `requestSha256`，且只能选择该请求为对应字段或素材列出的决策。
+- 绑定与 `confirmationOwner` 一致的确认来源；素材 `authorize` 只能绑定 `asset-authorization/rights-holder`。
+- 通过 `externalReference` 保存受控系统中的非敏感证据编号；响应文件不保存字段值、个人信息、秘密、凭据、授权原件或本机路径。
+- 以 `responseSha256` 固定完整响应；删项、改项、请求漂移、来源冲突和责任方错配都会失败关闭。
+
+```powershell
+npm run enterprise-response:validate -- path/to/confirmation-response.json
+npm run enterprise-response:plan -- path/to/confirmation-response.json
+npm run enterprise-response:apply -- path/to/confirmation-response.json enterprise-handoffs/new-readiness.json
+```
+
+`applyMode=new-snapshot-only`：`apply` 要求一个仓库内且尚不存在的输出路径，只写新的 readiness，并在 `appliedResponses` 中登记响应哈希；不会原地覆盖来源快照。`confirm`、`provide-and-confirm`、`confirm-not-applicable` 和已满足前置门禁的治理复核可以更新字段状态，`authorize` 可以更新完整素材集的授权状态。`provide-inventory`、`complete-inventory`、`replace` 与一般驳回只登记为 `record-only-refresh-required`，必须先由实施人员重建素材库存或 readiness，再生成下一轮请求。
+
+受控回填不会创建企业包、写入数据库、发布站点、覆盖现场数据或把 `productionEligible` 自动改为 `true`。事实、素材和生产批准仍是相互独立的门禁；`governance.factStatus`、`governance.assetStatus` 与 `governance.productionApproval` 的响应在前置项未满足时会被拒绝。
+
 状态边界：
 
 - `missing`：没有可用于该字段的候选来源。

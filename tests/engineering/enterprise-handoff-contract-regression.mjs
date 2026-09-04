@@ -22,10 +22,11 @@ const finalReport = readFileSync(resolve(repoRoot, 'docs/engineering/REFACTOR_FI
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
 const result = validateEnterpriseHandoff({ snapshotPath, repoRoot })
 
-assert.equal(schema.oneOf.length, 3)
+assert.equal(schema.oneOf.length, 4)
 assert.equal(schema.$defs.fieldCatalogDocument.properties.documentType.const, 'enterprise-package-handoff-field-catalog')
 assert.equal(schema.$defs.readinessSnapshotDocument.properties.documentType.const, 'enterprise-package-readiness-snapshot')
 assert.equal(schema.$defs.confirmationRequestDocument.properties.documentType.const, 'enterprise-package-confirmation-request')
+assert.equal(schema.$defs.confirmationResponseDocument.properties.documentType.const, 'enterprise-package-confirmation-response')
 assert.equal(schema.$defs.readinessSnapshotDocument.properties.handoffPolicy.properties.siteKey.const, 'primary')
 assert.equal(schema.$defs.readinessSnapshotDocument.properties.handoffPolicy.properties.applyMode.const, 'initialize-only')
 assert.equal(schema.$defs.readinessSnapshotDocument.properties.handoffPolicy.properties.initialStatus.const, 'draft')
@@ -68,7 +69,7 @@ for (const marker of ['不是企业包 payload', 'trackingId', 'enterprise-hando
   assert.ok(handoffReadme.includes(marker), `enterprise handoff README lost boundary: ${marker}`)
 }
 assert.match(index, /G4\.2 已建立 33 组实施运营台字段映射/)
-for (const marker of ['e2665c7', 'G4.2 已建立交接/readiness 基线', '继续 G4.2']) {
+for (const marker of ['e2665c7', 'G4.2 已建立交接/readiness 与确认请求基线', '继续 G4.2']) {
   assert.ok(progress.includes(marker), `progress ledger lost G4.2 handoff checkpoint: ${marker}`)
 }
 assert.match(finalReport, /G4\.2 已建立 33 组实施运营台字段映射/)

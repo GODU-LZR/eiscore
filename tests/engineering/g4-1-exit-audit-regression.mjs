@@ -39,7 +39,7 @@ for (const marker of [
 }
 
 assert.match(index, /G4\.1[^\n]*已完成/)
-assert.match(progress, /G4 产品配置化 \| 进行中（G4\.0～G4\.1 已完成）/)
+assert.match(progress, /G4 产品配置化 \| 进行中（G4\.0～G4\.1 已完成[^）]*）/)
 assert.match(packageJson.scripts?.['test:g4.1-exit'] || '', /g4-1-exit-audit-regression\.mjs/)
 assert.match(packageJson.scripts?.['test:quality'] || '', /npm run test:g4\.1-exit/)
 assert.match(packageJson.scripts?.['test:enterprise-package'] || '', /enterprise-package-cli-regression\.mjs/)

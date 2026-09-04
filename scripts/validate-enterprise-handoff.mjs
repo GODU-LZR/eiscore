@@ -36,12 +36,16 @@ const SOURCE_TYPES = new Set([
   'repository-audit',
   'enterprise-confirmation',
   'deployment-confirmation',
+  'implementation-confirmation',
+  'product-engineering-confirmation',
   'asset-authorization'
 ])
 const SOURCE_AUTHORITIES = new Set([
   'enterprise-provided',
   'enterprise-confirmed',
   'deployment-confirmed',
+  'implementation-confirmed',
+  'product-engineering-confirmed',
   'repository-legacy',
   'implementation-audit',
   'public-research',
@@ -56,7 +60,20 @@ const PACKAGE_STATUSES = new Set(['not-created', 'draft', 'candidate', 'approved
 const ASSET_STATUSES = new Set(['absent', 'candidate', 'incomplete', 'authorized', 'not-applicable'])
 const AUTHORIZATION_STATUSES = new Set(['not-requested', 'pending', 'confirmed', 'not-required'])
 const APPROVAL_STATUSES = new Set(['not-requested', 'pending', 'approved', 'rejected'])
-const CONFIRMATION_SOURCE_TYPES = new Set(['enterprise-confirmation', 'deployment-confirmation', 'asset-authorization'])
+const CONFIRMATION_SOURCE_TYPES = new Set([
+  'enterprise-confirmation',
+  'deployment-confirmation',
+  'implementation-confirmation',
+  'product-engineering-confirmation',
+  'asset-authorization'
+])
+const CONFIRMATION_SOURCE_AUTHORITIES = new Map([
+  ['enterprise-confirmation', 'enterprise-confirmed'],
+  ['deployment-confirmation', 'deployment-confirmed'],
+  ['implementation-confirmation', 'implementation-confirmed'],
+  ['product-engineering-confirmation', 'product-engineering-confirmed'],
+  ['asset-authorization', 'rights-holder']
+])
 
 const issue = (code, path = '.', detail = '') => ({ code, path, detail })
 const isObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -217,7 +234,7 @@ const validateFieldCatalog = (catalog) => {
 
 const validateSource = (source, path, issues, repoRoot) => {
   if (!checkObject(issues, source, path, {
-    allowed: ['sourceId', 'type', 'authority', 'repositoryPath', 'assessedAt', 'factUse', 'containsSensitiveData', 'status', 'notes'],
+    allowed: ['sourceId', 'type', 'authority', 'repositoryPath', 'externalReference', 'assessedAt', 'factUse', 'containsSensitiveData', 'status', 'notes'],
     required: ['sourceId', 'type', 'authority', 'assessedAt', 'factUse', 'containsSensitiveData', 'status', 'notes']
   })) return
   checkText(issues, source.sourceId, `${path}.sourceId`, { max: 120, pattern: IDENTIFIER })
@@ -235,14 +252,23 @@ const validateSource = (source, path, issues, repoRoot) => {
     if (!absolute) issues.push(issue('unsafe-repository-path', `${path}.repositoryPath`))
     else if (!existsSync(absolute)) issues.push(issue('repository-source-missing', `${path}.repositoryPath`))
     if (source.containsSensitiveData) issues.push(issue('sensitive-source-cannot-be-repository-bound', `${path}.repositoryPath`))
-  } else if (!['controlled-external-workbook', 'enterprise-confirmation', 'deployment-confirmation', 'asset-authorization'].includes(source.type)) {
+  } else if (source.type !== 'controlled-external-workbook' && !CONFIRMATION_SOURCE_TYPES.has(source.type)) {
     issues.push(issue('repository-path-required', `${path}.repositoryPath`))
+  }
+  if (source.externalReference !== undefined) {
+    checkText(issues, source.externalReference, `${path}.externalReference`, { max: 120, pattern: IDENTIFIER })
+    if (!CONFIRMATION_SOURCE_TYPES.has(source.type)) issues.push(issue('external-reference-confirmation-only', `${path}.externalReference`))
+  } else if (CONFIRMATION_SOURCE_TYPES.has(source.type)) {
+    issues.push(issue('confirmation-external-reference-required', `${path}.externalReference`))
   }
   if (source.factUse === 'confirmation' && !CONFIRMATION_SOURCE_TYPES.has(source.type)) {
     issues.push(issue('invalid-confirmation-source', `${path}.factUse`))
   }
   if (CONFIRMATION_SOURCE_TYPES.has(source.type) && source.factUse !== 'confirmation') {
     issues.push(issue('confirmation-source-use-required', `${path}.factUse`))
+  }
+  if (CONFIRMATION_SOURCE_TYPES.has(source.type) && source.authority !== CONFIRMATION_SOURCE_AUTHORITIES.get(source.type)) {
+    issues.push(issue('confirmation-source-authority-mismatch', `${path}.authority`))
   }
   if (source.containsSensitiveData && source.factUse !== 'candidate-only') {
     issues.push(issue('sensitive-source-candidate-only', `${path}.factUse`))
@@ -407,16 +433,19 @@ const validateEnterprise = (enterprise, path, issues, { fields, sources, repoRoo
 
 export const validateEnterpriseHandoff = ({
   snapshotPath = 'enterprise-handoffs/first-wave-readiness.json',
+  snapshotInput,
   repoRoot = resolve(import.meta.dirname, '..')
 } = {}) => {
   const root = resolve(repoRoot)
   const issues = []
   const absoluteSnapshot = resolve(snapshotPath)
-  const snapshot = readJson(absoluteSnapshot, snapshotPath, issues)
+  const snapshot = snapshotInput === undefined
+    ? readJson(absoluteSnapshot, snapshotPath, issues)
+    : structuredClone(snapshotInput)
   if (!snapshot) return { ok: false, issues, snapshot: null, catalog: null }
 
   if (!checkObject(issues, snapshot, '$', {
-    allowed: ['$schema', 'documentType', 'schemaVersion', 'snapshotId', 'snapshotAt', 'mapping', 'handoffPolicy', 'sources', 'enterprises'],
+    allowed: ['$schema', 'documentType', 'schemaVersion', 'snapshotId', 'snapshotAt', 'mapping', 'handoffPolicy', 'sources', 'enterprises', 'appliedResponses'],
     required: ['$schema', 'documentType', 'schemaVersion', 'snapshotId', 'snapshotAt', 'mapping', 'handoffPolicy', 'sources', 'enterprises']
   })) return { ok: false, issues, snapshot, catalog: null }
   if (snapshot.documentType !== READINESS_SNAPSHOT_TYPE) issues.push(issue('invalid-document-type', '$.documentType'))
@@ -468,6 +497,22 @@ export const validateEnterpriseHandoff = ({
   const fields = new Map((catalog?.fields || []).map((field) => [field.fieldId, field]))
   for (const [index, enterprise] of (Array.isArray(snapshot.enterprises) ? snapshot.enterprises : []).entries()) {
     validateEnterprise(enterprise, `$.enterprises[${index}]`, issues, { fields, sources, repoRoot: root })
+  }
+
+  if (snapshot.appliedResponses !== undefined) {
+    checkSortedObjects(issues, snapshot.appliedResponses, '$.appliedResponses', 'responseId')
+    for (const [index, response] of (Array.isArray(snapshot.appliedResponses) ? snapshot.appliedResponses : []).entries()) {
+      const path = `$.appliedResponses[${index}]`
+      if (!checkObject(issues, response, path, {
+        allowed: ['responseId', 'responseSha256', 'requestId', 'requestSha256', 'appliedAt'],
+        required: ['responseId', 'responseSha256', 'requestId', 'requestSha256', 'appliedAt']
+      })) continue
+      checkText(issues, response.responseId, `${path}.responseId`, { max: 120, pattern: IDENTIFIER })
+      checkText(issues, response.responseSha256, `${path}.responseSha256`, { max: 64, pattern: SHA256 })
+      checkText(issues, response.requestId, `${path}.requestId`, { max: 120, pattern: IDENTIFIER })
+      checkText(issues, response.requestSha256, `${path}.requestSha256`, { max: 64, pattern: SHA256 })
+      checkDateTime(issues, response.appliedAt, `${path}.appliedAt`)
+    }
   }
 
   scanUnsafeValue(snapshot, '$', issues)
