@@ -18,6 +18,12 @@
   },
   "files": [
     {
+      "path": "data/company-site.json",
+      "kind": "seed",
+      "bytes": 1223,
+      "sha256": "7ceb903596f2fefeebc82279e789081ee0f4fd76d79696bbfac240c60e8f704d"
+    },
+    {
       "path": "runtime/eiscore-enterprise.json",
       "kind": "runtime-config",
       "bytes": 819,
@@ -30,5 +36,6 @@
     "productionApproved": false,
     "notes": "Neutral template only; contains no customer facts or production approval."
   },
-  "createdAt": "2026-09-03T00:00:00+08:00"
+  "createdAt": "2026-09-03T00:00:00+08:00",
+  "packageSha256": "8e6c0d15ac889de3c99209d71e1b1766dd455dd77d65daa3a499ab267fa82e7e"
 }

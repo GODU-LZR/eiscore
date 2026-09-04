@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eiscore.local/schemas/company-site-seed-v1.json",
+  "title": "EISCore Company Site Initialization Seed",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "seedType",
+    "enterpriseId",
+    "siteKey",
+    "applyMode",
+    "initialStatus",
+    "site",
+    "content",
+    "governance"
+  ],
+  "$defs": {
+    "assetPath": {
+      "type": "string",
+      "maxLength": 300,
+      "pattern": "^(?:|assets/(?!.*(?:^|/)\\.\\.(?:/|$))[A-Za-z0-9._/-]+)$"
+    },
+    "draftRecord": {
+      "type": "object",
+      "properties": {
+        "status": { "enum": ["draft"] }
+      }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "seedType": { "const": "company-site" },
+    "enterpriseId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "maxLength": 64
+    },
+    "siteKey": { "const": "primary" },
+    "applyMode": { "const": "initialize-only" },
+    "initialStatus": { "const": "draft" },
+    "site": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legalName",
+        "brandName",
+        "brandShortName",
+        "factoryName",
+        "domain",
+        "templateKey",
+        "defaultLocale",
+        "enabledLocales",
+        "theme",
+        "contact",
+        "socialLinks",
+        "trademark",
+        "settings",
+        "seo"
+      ],
+      "properties": {
+        "legalName": { "type": "string", "maxLength": 240 },
+        "brandName": { "type": "string", "maxLength": 160 },
+        "brandShortName": { "type": "string", "maxLength": 80 },
+        "factoryName": { "type": "string", "maxLength": 240 },
+        "domain": { "type": "string", "maxLength": 255 },
+        "templateKey": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "defaultLocale": { "type": "string", "minLength": 2, "maxLength": 32 },
+        "enabledLocales": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 2, "maxLength": 32 }
+        },
+        "theme": { "type": "object" },
+        "contact": { "type": "object" },
+        "socialLinks": { "type": "object" },
+        "trademark": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["logoAssetPath", "faviconAssetPath"],
+          "properties": {
+            "logoAssetPath": { "$ref": "#/$defs/assetPath" },
+            "faviconAssetPath": { "$ref": "#/$defs/assetPath" },
+            "name": { "type": "string", "maxLength": 160 },
+            "registrationNumber": { "type": "string", "maxLength": 120 }
+          }
+        },
+        "settings": { "type": "object" },
+        "seo": { "type": "object" }
+      }
+    },
+    "content": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pages": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "products": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "productLocales": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "solutions": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "cases": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "certificates": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "downloads": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "knowledge": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "seo": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "keywords": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "externalProfiles": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } }
+      }
+    },
+    "governance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factStatus", "notes"],
+      "properties": {
+        "factStatus": { "enum": ["example", "pending", "confirmed"] },
+        "notes": { "type": "string", "maxLength": 1000 }
+      }
+    }
+  }
+}

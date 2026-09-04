@@ -14,7 +14,8 @@
     "runtime",
     "files",
     "governance",
-    "createdAt"
+    "createdAt",
+    "packageSha256"
   ],
   "$defs": {
     "relativePath": {
@@ -120,7 +121,11 @@
         "notes": { "type": "string", "maxLength": 1000 }
       }
     },
-    "createdAt": { "type": "string", "format": "date-time" }
+    "createdAt": { "type": "string", "format": "date-time" },
+    "packageSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
   },
   "allOf": [
     {
@@ -133,9 +138,25 @@
           "governance": {
             "properties": {
               "factStatus": { "const": "confirmed" },
+              "assetStatus": { "enum": ["not-applicable", "authorized"] },
               "productionApproved": { "const": true }
             },
             "required": ["confirmedBy", "confirmedAt"]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "status": { "enum": ["template", "draft", "candidate"] } },
+        "required": ["status"]
+      },
+      "then": {
+        "properties": {
+          "governance": {
+            "properties": {
+              "productionApproved": { "const": false }
+            }
           }
         }
       }

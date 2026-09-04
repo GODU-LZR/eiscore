@@ -1,0 +1,52 @@
+{
+  "$schema": "../../../config/company-site-seed.schema.json",
+  "schemaVersion": 1,
+  "seedType": "company-site",
+  "enterpriseId": "example-enterprise-pack",
+  "siteKey": "primary",
+  "applyMode": "initialize-only",
+  "initialStatus": "draft",
+  "site": {
+    "legalName": "示例制造企业",
+    "brandName": "示例制造",
+    "brandShortName": "示例",
+    "factoryName": "",
+    "domain": "site.example.com",
+    "templateKey": "manufacturer-editorial-v1",
+    "defaultLocale": "zh-CN",
+    "enabledLocales": [
+      "zh-CN"
+    ],
+    "theme": {
+      "accent": "#409EFF"
+    },
+    "contact": {},
+    "socialLinks": {},
+    "trademark": {
+      "logoAssetPath": "",
+      "faviconAssetPath": ""
+    },
+    "settings": {},
+    "seo": {
+      "title": "示例制造企业"
+    }
+  },
+  "content": {
+    "pages": [],
+    "products": [],
+    "productLocales": [],
+    "solutions": [],
+    "cases": [],
+    "certificates": [],
+    "downloads": [],
+    "evidence": [],
+    "knowledge": [],
+    "seo": [],
+    "keywords": [],
+    "externalProfiles": []
+  },
+  "governance": {
+    "factStatus": "example",
+    "notes": "Neutral template data. It is imported as a draft and never publishes a site automatically."
+  }
+}

@@ -6,11 +6,16 @@ import { createHash } from 'node:crypto'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { relative, resolve, sep } from 'node:path'
 import { parseEnterpriseConfig } from '../../packages/eiscore-platform/src/enterprise-config.mjs'
+import {
+  computeEnterprisePackageSha256,
+  validateEnterprisePackage
+} from '../../scripts/enterprise-package.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const packRoot = resolve(repoRoot, 'enterprise-packs/example')
 const manifest = JSON.parse(readFileSync(resolve(packRoot, 'manifest.json'), 'utf8'))
 const schema = JSON.parse(readFileSync(resolve(repoRoot, 'config/enterprise-package.schema.json'), 'utf8'))
+const siteSeedSchema = JSON.parse(readFileSync(resolve(repoRoot, 'config/company-site-seed.schema.json'), 'utf8'))
 const adr = readFileSync(resolve(repoRoot, 'docs/engineering/adr/0012-isolated-single-tenant-enterprise-packages.md'), 'utf8')
 const readme = readFileSync(resolve(repoRoot, 'enterprise-packs/README.md'), 'utf8')
 
@@ -25,11 +30,15 @@ const safeRelativePath = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))(?!.*\\)[A-Za-z0-9._/
 assert.equal(schema.properties.packageSchemaVersion.const, 1)
 assert.equal(schema.properties.coreCompatibility.properties.enterpriseConfigSchemaVersion.const, 2)
 assert.equal(schema.properties.runtime.properties.mountPath.const, '/config/eiscore-enterprise.json')
+assert.ok(schema.required.includes('packageSha256'))
+assert.equal(siteSeedSchema.properties.applyMode.const, 'initialize-only')
+assert.equal(siteSeedSchema.properties.initialStatus.const, 'draft')
 assert.equal(manifest.packageSchemaVersion, 1)
 assert.equal(manifest.status, 'template')
 assert.equal(manifest.governance.productionApproved, false)
 assert.equal(manifest.coreCompatibility.enterpriseConfigSchemaVersion, 2)
 assert.equal(manifest.runtime.mountPath, '/config/eiscore-enterprise.json')
+assert.equal(manifest.packageSha256, computeEnterprisePackageSha256(manifest))
 
 const paths = manifest.files.map((entry) => entry.path)
 assert.equal(new Set(paths).size, paths.length, 'enterprise package manifest paths must be unique')
@@ -55,12 +64,20 @@ assert.equal(runtimeConfig.schemaVersion, 2)
 assert.equal(runtimeConfig.enterprise.id, manifest.enterprise.id)
 assert.equal('login' in runtimeConfig.branding, false)
 assert.equal(manifest.files.filter((entry) => entry.kind === 'runtime-config').length, 1)
+assert.equal(manifest.files.filter((entry) => entry.kind === 'seed').length, 1)
+
+const siteSeed = JSON.parse(readFileSync(resolve(packRoot, 'data/company-site.json'), 'utf8'))
+assert.equal(siteSeed.enterpriseId, manifest.enterprise.id)
+assert.equal(siteSeed.siteKey, 'primary')
+assert.equal(siteSeed.applyMode, 'initialize-only')
+assert.equal(siteSeed.initialStatus, 'draft')
+assert.equal(validateEnterprisePackage({ packRoot }).ok, true)
 
 for (const marker of ['状态：接受', '独立数据库', '同一核心制品', '企业包', 'v1', 'v2', '回退']) {
   assert.ok(adr.includes(marker), `ADR-0012 lost enterprise package boundary: ${marker}`)
 }
-for (const marker of ['template', 'draft', 'candidate', 'approved', 'company_site.site_config', '不得猜测']) {
+for (const marker of ['template', 'draft', 'candidate', 'approved', 'company_site.site_config', '不得猜测', '确定性生成', 'SQL/DDL']) {
   assert.ok(readme.includes(marker), `enterprise package guide lost governance marker: ${marker}`)
 }
 
-console.log(`PASS: enterprise package v${manifest.packageSchemaVersion} boundary (${manifest.files.length} payload file)`)
+console.log(`PASS: enterprise package v${manifest.packageSchemaVersion} boundary (${manifest.files.length} payload files, package digest verified)`)
