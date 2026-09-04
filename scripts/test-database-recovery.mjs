@@ -110,6 +110,11 @@ const catalogFunctions = (container) => JSON.parse(execute(process.execPath, [
   "import { DatabaseReleaseDockerAdapter } from './scripts/deploy-database-release.mjs'; const adapter = new DatabaseReleaseDockerAdapter({dbContainer: process.argv[1], dbName: 'eiscore', dbUser: 'postgres'}); process.stdout.write(JSON.stringify(adapter.readCatalog().functions));",
   container
 ]).stdout)
+const catalogRelations = (container) => JSON.parse(execute(process.execPath, [
+  '--input-type=module', '-e',
+  "import { DatabaseReleaseDockerAdapter } from './scripts/deploy-database-release.mjs'; const adapter = new DatabaseReleaseDockerAdapter({dbContainer: process.argv[1], dbName: 'eiscore', dbUser: 'postgres'}); process.stdout.write(JSON.stringify(adapter.readCatalog().relations));",
+  container
+]).stdout)
 const backupDirectories = () => readdirSync(backupRoot, { withFileTypes: true })
   .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort()
 
@@ -164,7 +169,7 @@ try {
   const operationalBackup = backupDirectories().at(-1)
   const evidencePath = resolve(backupRoot, operationalBackup, 'backup-evidence.json')
   const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'))
-  assert.equal(evidence.releaseId, 'eiscore-db-v5')
+  assert.equal(evidence.releaseId, 'eiscore-db-v6')
   const backupAudit = execute(process.execPath, [
     'scripts/check-database-backups.mjs', `--backup-root=${backupRoot}`, '--environment=isolated'
   ])
@@ -188,7 +193,7 @@ try {
     '--api-container', recoveryApi,
     '--api-url', recoveryUrl,
     '--operator', 'db5-isolated-recovery-test',
-    '--confirm-empty-target', 'eiscore-db-v5'
+    '--confirm-empty-target', 'eiscore-db-v6'
   ], { env: executionEnv, allowFailure: true })
   if (recovery.status !== 0) {
     const recoveredCatalogSections = catalogSectionHashes(recoveryDb)
@@ -202,13 +207,20 @@ try {
       source: entry,
       recovered: recoveredFunctions[index]
     })).filter(({ source, recovered }) => JSON.stringify(source) !== JSON.stringify(recovered)).slice(0, 3)
+    const sourceRelations = catalogRelations(sourceDb)
+    const recoveredRelations = catalogRelations(recoveryDb)
+    const recoveredRelationsByKey = new Map(recoveredRelations.map((entry) => [`${entry.schema}.${entry.name}`, entry]))
+    const sourceRelationsByKey = new Map(sourceRelations.map((entry) => [`${entry.schema}.${entry.name}`, entry]))
+    const relationDrift = [...new Set([...sourceRelationsByKey.keys(), ...recoveredRelationsByKey.keys()])]
+      .map((key) => ({ key, source: sourceRelationsByKey.get(key), recovered: recoveredRelationsByKey.get(key) }))
+      .filter(({ source, recovered }) => JSON.stringify(source) !== JSON.stringify(recovered)).slice(0, 5)
     throw new Error(`recovery failed: ${recovery.stderr || recovery.stdout}\nsection drift: ${JSON.stringify(
       Object.fromEntries(differingSections.map((section) => [section, {
         source: sourceCatalogSections[section], recovered: recoveredCatalogSections[section]
       }]))
-    )}\nfunction drift: ${JSON.stringify(functionDrift)}`)
+    )}\nrelation drift: ${JSON.stringify(relationDrift)}\nfunction drift: ${JSON.stringify(functionDrift)}`)
   }
-  assert.match(recovery.stdout, /Database recovery passed: eiscore-db-v5-/)
+  assert.match(recovery.stdout, /Database recovery passed: eiscore-db-v6-/)
 
   assert.equal(psql(recoveryDb, `
     SELECT count(*) FROM public.document_assets
@@ -221,7 +233,7 @@ try {
     SELECT release_id || '|' || database_dump_sha256 || '|' || (recovery_ms >= 0)::text
     FROM eiscore_meta.database_recoveries;
   `).stdout.trim()
-  assert.equal(recoveryEvidence, `eiscore-db-v5|${evidence.databaseDump.sha256}|true`)
+  assert.equal(recoveryEvidence, `eiscore-db-v6|${evidence.databaseDump.sha256}|true`)
   assert.equal(psql(recoveryDb, `
     SELECT tableowner FROM pg_tables
     WHERE schemaname = 'eiscore_meta' AND tablename = 'database_recoveries';
@@ -244,7 +256,7 @@ try {
   assert.equal(runtimeReport.slowQuery.queryTextCaptured, false)
   assert.equal(runtimeReport.postgrest.profiles.length, 7)
 
-  console.log('PASS: database recovery drills transactional SQL rollback, destroys the source schema, and restores v5 roles, data, DB contract and PostgREST into an empty stack')
+  console.log('PASS: database recovery drills transactional SQL rollback, destroys the source schema, and restores v6 roles, data, DB contract and stable PostgREST into an empty stack')
 } finally {
   for (const name of [sourceApi, recoveryApi, sourceDb, recoveryDb]) {
     docker(['rm', '-f', name], { allowFailure: true })

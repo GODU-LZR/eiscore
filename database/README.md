@@ -49,7 +49,7 @@ PowerShell 使用同名参数 `-BackupEvidence`、`-ReleaseRevision` 与 `-Opera
 
 ## 版本化数据库发布
 
-`releases/eiscore-db-v6/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、动态 DDL 边界、数据库/PostgREST 契约、统一操作锁及时间预算绑定为同一发布制品。发布和恢复在目标数据库使用同一会话级 PostgreSQL advisory lock；等待锁、迁移语句、备份/恢复命令、PostgREST HTTP、reload 和总作业均有上限。PostgREST 只有在日志确认一次新的 `schema cache loaded` 且完整双角色/七 Schema 指纹连续稳定三次后才算就绪；失败会报告具体角色/Schema 指纹差异。离线验证：
+`releases/eiscore-db-v6/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、动态 DDL 边界、数据库/PostgREST 契约、统一操作锁及时间预算绑定为同一发布制品。源码锚点为 `c5fa8aa4f317100e854eab03a7fb25883b334ef1`，规范 Manifest SHA-256 为 `f73f7257afce5a010f2e8cba8e5f7b8980e3aaae4d5a1f699ad245e816e8add4`。发布和恢复在目标数据库使用同一会话级 PostgreSQL advisory lock；等待锁、迁移语句、备份/恢复命令、PostgREST HTTP、reload 和总作业均有上限。PostgREST 只有在日志确认一次新的 `schema cache loaded` 且完整双角色/七 Schema 指纹连续稳定三次后才算就绪；失败会报告具体角色/Schema 指纹差异。离线验证：
 
 ```bash
 npm run db:release:check

@@ -1,0 +1,455 @@
+{
+  "schemaVersion": 2,
+  "releaseId": "eiscore-db-v6",
+  "sourceRevision": "c5fa8aa4f317100e854eab03a7fb25883b334ef1",
+  "images": {
+    "postgres": "postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f",
+    "postgrest": "postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa"
+  },
+  "baseline": {
+    "path": "database/baselines/eiscore-db-v1/manifest.json",
+    "id": "eiscore-db-v1",
+    "fingerprintSha256": "bdf72f613055c419aff40e58776d2725fcc460cf44c5b17d7a28a7379b93e72e",
+    "schemaSha256": "dbcd35e8cc93254dd285a89a9fa210151a9490a60fa55cc287b2f566a7874a28",
+    "objectCatalogSha256": "596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265"
+  },
+  "migrationManifests": [
+    {
+      "path": "database/migrations/runtime-v2.json",
+      "name": "runtime-v2",
+      "portableSha256": "c98dd1c896c39981a579d8809bb223f0f1314205c60f6beceedf4b7e5e88df03",
+      "terminal": {
+        "id": "runtime-v2-010",
+        "sha256": "aa6758a6e1043a2680a9464da35fd864706b1cdc4882c5f4d29bc60dc6bf39d4"
+      },
+      "postcheck": {
+        "path": "sql/runtime_v2_postcheck.sql",
+        "portableSha256": "48e1fc98b0d1d42835a148313fa0d364c0598a0c7529ca1b664bfca33f0b84ed"
+      },
+      "migrations": [
+        {
+          "id": "runtime-v2-001",
+          "sha256": "762ec169102bba3a016fafe8a72b486e89e9dd864e6de455e94a331dca001580"
+        },
+        {
+          "id": "runtime-v2-002",
+          "sha256": "d44540f9e039a2823d0b0705b7e8deb29c3f1d68d8977a83674c32bcb1bbc3b3"
+        },
+        {
+          "id": "runtime-v2-003",
+          "sha256": "3a14a43c71d2b94035e6793ceef3a44503624d493c3917b75e487c5741c55a93"
+        },
+        {
+          "id": "runtime-v2-004",
+          "sha256": "acf9d0ecd5920cc6385a47c79c8236823d3f22fc2bb5b36195031889d0ee4bdf"
+        },
+        {
+          "id": "runtime-v2-005",
+          "sha256": "2040bf34351ee6bcaa9ca196ec70c74a1f83d587436b7bb574ad1da70db1278b"
+        },
+        {
+          "id": "runtime-v2-006",
+          "sha256": "ba4eb04ef6a7e19f7f8b05961f8101391715000014faea37a5f55e64fa67107d"
+        },
+        {
+          "id": "runtime-v2-007",
+          "sha256": "378ed86f77cef6958cdd89256f70c55c2611ee8cd64245216165a55a2c2856c7"
+        },
+        {
+          "id": "runtime-v2-008",
+          "sha256": "6386919b81b1b3772063bdafb4ef3058e37fec2d915811d24494221d053f531c"
+        },
+        {
+          "id": "runtime-v2-009",
+          "sha256": "72a89d592c2ea26d429f7a04d0b63addc9ad02839164588eb3f75314c739f9f6"
+        },
+        {
+          "id": "runtime-v2-010",
+          "sha256": "aa6758a6e1043a2680a9464da35fd864706b1cdc4882c5f4d29bc60dc6bf39d4"
+        }
+      ]
+    },
+    {
+      "path": "database/migrations/company-site.json",
+      "name": "company-site",
+      "portableSha256": "4a574b87bb7accf99c2d2cfe1748ac32694aa469415bd80672226c13ee4bd3ca",
+      "terminal": {
+        "id": "company-site-001",
+        "sha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4"
+      },
+      "postcheck": {
+        "path": "database/migrations/postchecks/company-site.sql",
+        "portableSha256": "4ff943ec40d81a773733c5ae4e7562ac7efd5693ebb0d8e8bcaa96f9d42c7b6c"
+      },
+      "migrations": [
+        {
+          "id": "company-site-001",
+          "sha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4"
+        }
+      ]
+    },
+    {
+      "path": "database/migrations/core.json",
+      "name": "core",
+      "portableSha256": "8cf9a2df5994690291df5cbc0237446e6bbb3153bfa2775b25a34c4dd628ba6f",
+      "terminal": {
+        "id": "core-007",
+        "sha256": "38e898e4573b14cd9197a4a8ab9cae33f551156a09bfa1318431fe8a402db98a"
+      },
+      "postcheck": {
+        "path": "database/migrations/postchecks/core.sql",
+        "portableSha256": "56757325bcf9b3efcfd30d61986eaaad3805e947668760dc97221ef237a7e682"
+      },
+      "migrations": [
+        {
+          "id": "core-001",
+          "sha256": "70ff80d137a15f3312eb8fdce5e1b25157cb43f0013a7c03ab03e83086cd4ffc"
+        },
+        {
+          "id": "core-002",
+          "sha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc"
+        },
+        {
+          "id": "core-003",
+          "sha256": "42d0abd02bd41c4746f32d0641f8a1ebb1c7c56d2733fa280fcd00e5bc82bc78"
+        },
+        {
+          "id": "core-004",
+          "sha256": "7f51f2a3565d844ab15e1e6ec8aee1cc41974b8840254ed93e3a866244266947"
+        },
+        {
+          "id": "core-005",
+          "sha256": "7a6eb017560ad2f7570a2bd300124fde0daf362081da2e269503b7456a0da3bc"
+        },
+        {
+          "id": "core-006",
+          "sha256": "b1a57f6deddc46f7901c5a00a47d624fe1c9bbac750353b0f8e77699811ba8f0"
+        },
+        {
+          "id": "core-007",
+          "sha256": "38e898e4573b14cd9197a4a8ab9cae33f551156a09bfa1318431fe8a402db98a"
+        }
+      ]
+    }
+  ],
+  "databaseContract": {
+    "path": "database/contracts/eiscore-db-contract-v3.json",
+    "id": "eiscore-db-contract-v3",
+    "databaseCatalogSha256": "c45944529f41b5be49487e637b291676d470a35f02b4423a68372b123fc0afde",
+    "postgrestOpenApiSha256": "8deef985f62ad1020b4107dc46e5cec054fe7f1d912b77aaef3c6ad86a720001"
+  },
+  "predecessors": [
+    {
+      "id": "eiscore-db-v1-runtime",
+      "databaseCatalogSha256": "4e6b7bd39b39ea421c4d021fcf6e54d2855d44bd4eb196f486d3b9a647dbbc16"
+    },
+    {
+      "id": "eiscore-db-v3",
+      "databaseCatalogSha256": "2bf293da00a9519e6db05f0c18935521ecd2a60da739c02f8fa4122da4501ebe"
+    },
+    {
+      "id": "eiscore-db-v4",
+      "databaseCatalogSha256": "354224cb76cef28136b0684972cbfb98b2f8c2df497adda05de00f1564f4c9a7"
+    },
+    {
+      "id": "eiscore-db-v5",
+      "databaseCatalogSha256": "b89b8858897996130c84e989a70989be4083eed145e13d8a91997ed8f127f585"
+    }
+  ],
+  "operationPolicy": {
+    "advisoryLockKey": "748526865738823304",
+    "lockWaitTimeoutMs": 30000,
+    "holderExitTimeoutMs": 5000,
+    "releaseTimeoutMs": 1200000,
+    "recoveryTimeoutMs": 1800000,
+    "postgrest": {
+      "httpRequestTimeoutMs": 5000,
+      "readinessTimeoutMs": 45000,
+      "reloadTimeoutMs": 30000,
+      "pollIntervalMs": 250,
+      "stableFingerprintSamples": 3
+    }
+  },
+  "releasePolicy": {
+    "backupRequired": true,
+    "backupStorageEvidenceRequired": true,
+    "rollbackStrategy": "backup-restore",
+    "schemaDrift": "fail",
+    "ledgerConflict": "fail",
+    "postcheckFailure": "fail",
+    "trafficSwitch": "external-after-release-record"
+  },
+  "artifacts": [
+    {
+      "path": "database/baselines/eiscore-db-v1/manifest.json",
+      "purpose": "execution",
+      "portableSha256": "f148469e9cf1d780556aaae1ea2bf58ba69a9ab0fefaca59b055fb24c6af06f2"
+    },
+    {
+      "path": "database/baselines/eiscore-db-v1/object-catalog.json",
+      "purpose": "execution",
+      "portableSha256": "596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265"
+    },
+    {
+      "path": "database/baselines/eiscore-db-v1/register.sql",
+      "purpose": "execution",
+      "portableSha256": "9404916fcac56cd07c06d2789fe7fc433678c9f7183bc6fae51c45926a932de9"
+    },
+    {
+      "path": "database/baselines/eiscore-db-v1/schema.sql",
+      "purpose": "execution",
+      "portableSha256": "2f3981fd14cf451df07e828799ac0f89c7f8fa2328e951354dba14322c1679dd"
+    },
+    {
+      "path": "database/bootstrap/roles-v2.sql",
+      "purpose": "execution",
+      "portableSha256": "363c8c60baf24a8bce8c0541eccc63b41f5d0811870b9183fdb878b4ef2a352c"
+    },
+    {
+      "path": "database/contracts/eiscore-db-contract-v3.json",
+      "purpose": "execution",
+      "portableSha256": "b9a0e40ef0e152132c9d29eb7eae194309d1fbb28007fad5c5ef12466c5d2f8d"
+    },
+    {
+      "path": "database/legacy-sql-resolution.json",
+      "purpose": "execution",
+      "portableSha256": "51560265fccbd1595d99aff2fd1cfeaf0f4f4b13cafabe2c5cac73d5f73b50a8"
+    },
+    {
+      "path": "database/migration-ledger.sql",
+      "purpose": "execution",
+      "portableSha256": "02003368612143b04b830e8c07d4ab8efcf5a41f8a80ecedb035099315a552cb"
+    },
+    {
+      "path": "database/migrations/company-site.json",
+      "purpose": "execution",
+      "portableSha256": "4a574b87bb7accf99c2d2cfe1748ac32694aa469415bd80672226c13ee4bd3ca"
+    },
+    {
+      "path": "database/migrations/core.json",
+      "purpose": "execution",
+      "portableSha256": "8cf9a2df5994690291df5cbc0237446e6bbb3153bfa2775b25a34c4dd628ba6f"
+    },
+    {
+      "path": "database/migrations/postchecks/company-site.sql",
+      "purpose": "execution",
+      "portableSha256": "4ff943ec40d81a773733c5ae4e7562ac7efd5693ebb0d8e8bcaa96f9d42c7b6c"
+    },
+    {
+      "path": "database/migrations/postchecks/core.sql",
+      "purpose": "execution",
+      "portableSha256": "56757325bcf9b3efcfd30d61986eaaad3805e947668760dc97221ef237a7e682"
+    },
+    {
+      "path": "database/migrations/rollback/company-site-001-add-published-snapshot.sql",
+      "purpose": "execution",
+      "portableSha256": "263541d8976c7269321f645fdfe7dcf0251a451d7449e31dec9ce0fbbdea81f3"
+    },
+    {
+      "path": "database/migrations/runtime-v2.json",
+      "purpose": "execution",
+      "portableSha256": "c98dd1c896c39981a579d8809bb223f0f1314205c60f6beceedf4b7e5e88df03"
+    },
+    {
+      "path": "database/migrations/sql/company-site-001-add-published-snapshot.sql",
+      "purpose": "execution",
+      "portableSha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4"
+    },
+    {
+      "path": "database/migrations/sql/core-001-externalize-database-credentials.sql",
+      "purpose": "execution",
+      "portableSha256": "70ff80d137a15f3312eb8fdce5e1b25157cb43f0013a7c03ab03e83086cd4ffc"
+    },
+    {
+      "path": "database/migrations/sql/core-002-role-boundaries.sql",
+      "purpose": "execution",
+      "portableSha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc"
+    },
+    {
+      "path": "database/migrations/sql/core-003-rls-boundaries.sql",
+      "purpose": "execution",
+      "portableSha256": "42d0abd02bd41c4746f32d0641f8a1ebb1c7c56d2733fa280fcd00e5bc82bc78"
+    },
+    {
+      "path": "database/migrations/sql/core-004-retire-chain-test-table.sql",
+      "purpose": "execution",
+      "portableSha256": "7f51f2a3565d844ab15e1e6ec8aee1cc41974b8840254ed93e3a866244266947"
+    },
+    {
+      "path": "database/migrations/sql/core-005-hr-employee-identity-scope.sql",
+      "purpose": "execution",
+      "portableSha256": "7a6eb017560ad2f7570a2bd300124fde0daf362081da2e269503b7456a0da3bc"
+    },
+    {
+      "path": "database/migrations/sql/core-006-remove-public-debug-view.sql",
+      "purpose": "execution",
+      "portableSha256": "b1a57f6deddc46f7901c5a00a47d624fe1c9bbac750353b0f8e77699811ba8f0"
+    },
+    {
+      "path": "database/migrations/sql/core-007-govern-dynamic-data-app-ddl.sql",
+      "purpose": "execution",
+      "portableSha256": "38e898e4573b14cd9197a4a8ab9cae33f551156a09bfa1318431fe8a402db98a"
+    },
+    {
+      "path": "database/operations/policy.json",
+      "purpose": "execution",
+      "portableSha256": "5fea4e05604473b216614e14e7b9e832f6373a18b8eb35cbe9172588fdc6dee0"
+    },
+    {
+      "path": "database/public-schema-ratchet.json",
+      "purpose": "execution",
+      "portableSha256": "6227a067e0a6d76262618d9c96462a536452752a8a82ce7ae70b9368f2a2e160"
+    },
+    {
+      "path": "database/recovery-ledger.sql",
+      "purpose": "execution",
+      "portableSha256": "9d8d7e69bfb26e079f57f08fd830c50900f562add1c9473d7c67856688bf520e"
+    },
+    {
+      "path": "database/recovery/post-restore-v2.sql",
+      "purpose": "execution",
+      "portableSha256": "bb710fd5b9b1a7348275cdc05485b96173aa58a9a491beaf32b304599eba188c"
+    },
+    {
+      "path": "database/release-ledger.sql",
+      "purpose": "execution",
+      "portableSha256": "5a7ff5bdf925c6122ab304256e9df4929b09ed3df3a11744fcb1d495682a49e8"
+    },
+    {
+      "path": "env/init_roles.sql",
+      "purpose": "verification-only",
+      "portableSha256": "d18a17ec5800ddb7a0c53341ef3c7e21d26c368dcfd05cf28841fcd8235f4b4d"
+    },
+    {
+      "path": "scripts/apply-runtime-migrations.mjs",
+      "purpose": "execution",
+      "portableSha256": "2aeca4d5bee5d75ddb57580c0101055f5bd1823e45a1ecd9ed0455fa55bc13a3"
+    },
+    {
+      "path": "scripts/audit-database-runtime.mjs",
+      "purpose": "execution",
+      "portableSha256": "10816e5217653de219c12be40c695b8f6e2a7fb800a5ec50abda001c9e144f11"
+    },
+    {
+      "path": "scripts/check-database-backups.mjs",
+      "purpose": "execution",
+      "portableSha256": "6175ff276fb7ee57e6e5f7be471007a0da77cde132ad298349a66527976b643c"
+    },
+    {
+      "path": "scripts/check-database-baseline.mjs",
+      "purpose": "execution",
+      "portableSha256": "7edd1522973bd6e6ecb98d4e40ea2440c0df6ca88c7cbc344888d306ea3f6d06"
+    },
+    {
+      "path": "scripts/check-database-migrations.mjs",
+      "purpose": "execution",
+      "portableSha256": "3a7aa7c24cf8b9a6a58cae8a4bd038c5a9b068b0c31def07e684a347abf4955e"
+    },
+    {
+      "path": "scripts/configure-database-runtime-secret.sh",
+      "purpose": "verification-only",
+      "portableSha256": "4ad6a68aaec7ada537d91d2b3f8f30dab9ece8d91b36b12777dda4b68bbd67c7"
+    },
+    {
+      "path": "scripts/configure-database-runtime-secrets-v2.sh",
+      "purpose": "execution",
+      "portableSha256": "508948bc69cf1952fe044cecce4771bed72dd1962bf9b82d24746c0224054950"
+    },
+    {
+      "path": "scripts/database-baseline-contract.mjs",
+      "purpose": "execution",
+      "portableSha256": "dfe1b8bebac7a91f9408162b4cc85263ff2f44d0861c94408850f71106f9e0da"
+    },
+    {
+      "path": "scripts/database-contract-catalog.mjs",
+      "purpose": "execution",
+      "portableSha256": "2d407bbbce8f79cea6f8edc4d6bb15a32569ca17d8f3aa642afede1f201808b4"
+    },
+    {
+      "path": "scripts/database-operation-lock.mjs",
+      "purpose": "execution",
+      "portableSha256": "944d57465460b1794d79a9bd052f607d6d33abad831688a51eb0e6bdad8e864c"
+    },
+    {
+      "path": "scripts/database-release-contract.mjs",
+      "purpose": "execution",
+      "portableSha256": "b3978523ffa1b92f31fff2ce12e4037e5b007a33afbe6ed69709f56b65bd5f01"
+    },
+    {
+      "path": "scripts/deploy-database-release.mjs",
+      "purpose": "execution",
+      "portableSha256": "797f18181733ac2690cd1458cc3e7268ae92f7eaa327d67d3100968745877bb5"
+    },
+    {
+      "path": "scripts/public-schema-ratchet.mjs",
+      "purpose": "execution",
+      "portableSha256": "4d3e761c167e76bd638cd482350ca1bbad35c7abc52a87d85b4578a98a1ab435"
+    },
+    {
+      "path": "scripts/restore-database-release-backup.mjs",
+      "purpose": "execution",
+      "portableSha256": "467baa84f7ba00a59715d2d44c103dafbabab718727c8451a9e6ed5cc340df6f"
+    },
+    {
+      "path": "sql/company_site_platform_v1.sql",
+      "purpose": "verification-only",
+      "portableSha256": "af964b29414eeeca87ded5e4f72352dd972e44c5b3c02e7ba6ef7c09fdacce62"
+    },
+    {
+      "path": "sql/patch_add_ontology_relations_app.sql",
+      "purpose": "execution",
+      "portableSha256": "ed36a6db174a6c1baf8ab19ea8adbb985c53455fee785f7bac1fd168de73adb4"
+    },
+    {
+      "path": "sql/patch_agent_ontology_secure_context_v1.sql",
+      "purpose": "execution",
+      "portableSha256": "263d3680c37a05d1b76da0eee0800190e61fdda4eda94c6bd03b6c1b99b8e0f1"
+    },
+    {
+      "path": "sql/patch_ai_document_intake_mvp.sql",
+      "purpose": "execution",
+      "portableSha256": "33ab0477225f2d8b839b82a9ee5370684cfe96820c5e12a34d327607a1b2613b"
+    },
+    {
+      "path": "sql/patch_document_intake_rls_hardening_v1.sql",
+      "purpose": "execution",
+      "portableSha256": "43919f166b736cac86f5c06262a6616bfa95a39b37c0a3b2282c40b1c4798573"
+    },
+    {
+      "path": "sql/patch_fix_ontology_semantic_qmarks_20260618.sql",
+      "purpose": "execution",
+      "portableSha256": "371f6e723b34a99ee3b2ca0b2efe33b6ece85f6665fbcc20c95bd7511989f2a3"
+    },
+    {
+      "path": "sql/patch_lightweight_ontology_runtime.sql",
+      "purpose": "execution",
+      "portableSha256": "01c5ef18c94956f40707de90de6c62acb38ed7b9a8f2467ccb77461236be75e3"
+    },
+    {
+      "path": "sql/patch_ontology_graph_query_v1.sql",
+      "purpose": "execution",
+      "portableSha256": "6f0d436c5e54f63c69179cfbb9b9e615142f61dcb0d765f1f40f13318ad5bce8"
+    },
+    {
+      "path": "sql/patch_ontology_reasoning_engine_v1.sql",
+      "purpose": "execution",
+      "portableSha256": "76dc1dbeb6d1ab9a89abef7a41117916d8196a12998048e03d94aff558092cbf"
+    },
+    {
+      "path": "sql/patch_ontology_reasoning_insights_v1.sql",
+      "purpose": "execution",
+      "portableSha256": "10966623fa721cd0a31caffd00dfa205b898e0dd590916842615828a70d841dc"
+    },
+    {
+      "path": "sql/patch_ontology_semantic_coverage_v2.sql",
+      "purpose": "execution",
+      "portableSha256": "b54806f38c6cbf651c94b05042ac3baf27b877c4b7146dd5f9405386a4c5f0bc"
+    },
+    {
+      "path": "sql/runtime_v2_postcheck.sql",
+      "purpose": "execution",
+      "portableSha256": "48e1fc98b0d1d42835a148313fa0d364c0598a0c7529ca1b664bfca33f0b84ed"
+    }
+  ]
+}
+

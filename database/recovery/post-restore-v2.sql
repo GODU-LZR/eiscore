@@ -33,3 +33,15 @@ BEGIN
   END LOOP;
 END
 $$;
+
+-- PostgreSQL restores identity-sequence ACLs after relation ownership and can
+-- materialize only USAGE for the new owner even though a fresh core-007
+-- install exposes the owner's canonical SELECT/UPDATE/USAGE ACL. Normalize
+-- that archive-order difference before catalog comparison.
+DO $$
+BEGIN
+  IF to_regclass('app_center.data_app_ddl_audit_id_seq') IS NOT NULL THEN
+    GRANT ALL PRIVILEGES ON SEQUENCE app_center.data_app_ddl_audit_id_seq TO eiscore_owner;
+  END IF;
+END
+$$;

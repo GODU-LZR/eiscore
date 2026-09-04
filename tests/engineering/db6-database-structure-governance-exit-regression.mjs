@@ -23,6 +23,7 @@ assert.deepEqual(migrationManifests[2].migrations.map(({ id }) => id), [
 const release = loadAndValidateDatabaseRelease({ repoRoot })
 assert.deepEqual(release.errors, [])
 assert.equal(release.manifest.releaseId, 'eiscore-db-v6')
+assert.equal(release.manifestSha256, 'f73f7257afce5a010f2e8cba8e5f7b8980e3aaae4d5a1f699ad245e816e8add4')
 assert.deepEqual(release.manifest.predecessors, [
   {
     id: 'eiscore-db-v1-runtime',
@@ -35,6 +36,10 @@ assert.deepEqual(release.manifest.predecessors, [
   {
     id: 'eiscore-db-v4',
     databaseCatalogSha256: '354224cb76cef28136b0684972cbfb98b2f8c2df497adda05de00f1564f4c9a7'
+  },
+  {
+    id: 'eiscore-db-v5',
+    databaseCatalogSha256: 'b89b8858897996130c84e989a70989be4083eed145e13d8a91997ed8f127f585'
   }
 ])
 
@@ -86,7 +91,7 @@ for (const marker of [
 
 const plan = read('docs/engineering/DATABASE_BACKEND_GOVERNANCE_PLAN.md')
 assert.ok(plan.includes('### DB6：数据库结构与领域权限收口（已完成）'))
-assert.ok(plan.includes('DB0～DB6 全部退出'))
+assert.ok(plan.includes('DB0～DB8 全部退出'))
 
 const databaseReadme = read('database/README.md')
 assert.ok(databaseReadme.includes('company-site 1 个、core 7 个迁移，共 18 个不可变迁移'))

@@ -21,7 +21,7 @@ const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
-const releaseManifestSha256 = '74c45f43d415a5775ce7f8f7bedc4fc99f629dc8141f712e6871765599060a8a'
+const releaseManifestSha256 = 'f73f7257afce5a010f2e8cba8e5f7b8980e3aaae4d5a1f699ad245e816e8add4'
 const core002Sha256 = 'fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc'
 const maxOutput = 256 * 1024 * 1024
 
@@ -136,8 +136,8 @@ try {
 
   const first = executeRelease(apiUrl)
   assert.match(first.stdout, /Preflight passed: 4e6b7bd3/)
-  assert.match(first.stdout, /core migration execution passed: 5 applied, 1 skipped/)
-  assert.match(first.stdout, /Database release passed: eiscore-db-v5/)
+  assert.match(first.stdout, /core migration execution passed: 6 applied, 1 skipped/)
+  assert.match(first.stdout, /Database release passed: eiscore-db-v6/)
   assert.equal(backupDirectories().length, 1)
 
   const firstEvidencePath = resolve(backupRoot, backupDirectories()[0].name, 'backup-evidence.json')
@@ -154,7 +154,7 @@ try {
   `).stdout.trim()
   assert.equal(
     releaseRow,
-    `eiscore-db-v5|${releaseManifestSha256}|dc1745614d9fce1f3cb8dab8695bce0046dac03d`
+    `eiscore-db-v6|${releaseManifestSha256}|c5fa8aa4f317100e854eab03a7fb25883b334ef1`
   )
   assert.equal(psql(`
     SELECT tableowner FROM pg_tables
@@ -162,7 +162,7 @@ try {
   `).stdout.trim(), 'eiscore_owner')
 
   const second = executeRelease(apiUrl)
-  assert.match(second.stdout, /core migration execution passed: 0 applied, 6 skipped/)
+  assert.match(second.stdout, /core migration execution passed: 0 applied, 7 skipped/)
   assert.equal(backupDirectories().length, 2)
   assert.equal(psql('SELECT count(*) FROM eiscore_meta.database_releases;').stdout.trim(), '1')
 
@@ -190,7 +190,7 @@ try {
   assert.equal(backupDirectories().length, beforeConflictAttempt, 'ledger conflict must fail before backup')
   psql(`UPDATE eiscore_meta.schema_migrations SET checksum_sha256 = '${core002Sha256}' WHERE migration_id = 'core-002';`)
 
-  console.log('PASS: DB5 release artifact upgrades, backs up, verifies DB/PostgREST, repeats, and fails closed on drift/conflict')
+  console.log('PASS: DB6 release artifact upgrades, locks, backs up, verifies stable DB/PostgREST, repeats, and fails closed on drift/conflict')
 } finally {
   docker(['rm', '-f', apiContainer], { allowFailure: true })
   docker(['rm', '-f', databaseContainer], { allowFailure: true })
