@@ -44,6 +44,26 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-005",
+      "path": "database/migrations/sql/core-005-hr-employee-identity-scope.sql",
+      "sha256": "7a6eb017560ad2f7570a2bd300124fde0daf362081da2e269503b7456a0da3bc",
+      "transaction": "runner",
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-006",
+      "path": "database/migrations/sql/core-006-remove-public-debug-view.sql",
+      "sha256": "b1a57f6deddc46f7901c5a00a47d624fe1c9bbac750353b0f8e77699811ba8f0",
+      "transaction": "runner",
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

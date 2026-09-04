@@ -22,6 +22,7 @@ const manifestPaths = [
   'database/migrations/company-site.json',
   'database/migrations/core.json'
 ]
+const resolutionPath = 'database/legacy-sql-resolution.json'
 
 const normalizePath = (value) => String(value).replaceAll('\\', '/')
 const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex')
@@ -84,6 +85,74 @@ const inspectLegacySql = ({ repoRoot, path, governedPaths }) => {
   }
 }
 
+const validateLegacyResolution = ({ repoRoot, files }) => {
+  const errors = []
+  const bytes = readFileSync(resolve(repoRoot, resolutionPath))
+  const ledger = JSON.parse(bytes.toString('utf8'))
+  if (ledger.schemaVersion !== 1) errors.push('legacy SQL resolution schemaVersion must equal 1')
+  if (JSON.stringify(ledger.columns) !== JSON.stringify(['path', 'sha256', 'category', 'finalDisposition'])) {
+    errors.push('legacy SQL resolution columns are invalid')
+  }
+  if (ledger.defaultExecutionPolicy !== 'deny') errors.push('legacy SQL default execution policy must deny')
+
+  const contracts = ledger.dispositionContracts || {}
+  for (const [name, contract] of Object.entries(contracts)) {
+    if (typeof contract.executable !== 'boolean') errors.push(`resolution disposition ${name} must declare executable`)
+    if (!contract.target || !contract.evidence) errors.push(`resolution disposition ${name} must declare target and evidence`)
+    if (contract.executable && !contract.context) errors.push(`executable disposition ${name} must declare a restricted context`)
+  }
+
+  const resolvedRows = Array.isArray(ledger.entries) ? ledger.entries : []
+  const resolved = new Map()
+  for (const row of resolvedRows) {
+    if (!Array.isArray(row) || row.length !== 4) {
+      errors.push('legacy SQL resolution entry must follow the declared four columns')
+      continue
+    }
+    const [path, checksum, category, finalDisposition] = row
+    if (resolved.has(path)) errors.push(`duplicate legacy SQL resolution: ${path}`)
+    if (!contracts[finalDisposition]) errors.push(`unknown final disposition for ${path}: ${finalDisposition}`)
+    resolved.set(path, { path, sha256: checksum, category, finalDisposition, ...contracts[finalDisposition] })
+  }
+
+  const inventory = files.filter((entry) => !entry.governed)
+  const byPath = new Map(inventory.map((entry) => [entry.path, entry]))
+  for (const file of inventory) {
+    const entry = resolved.get(file.path)
+    if (!entry) {
+      errors.push(`unresolved legacy SQL: ${file.path}`)
+      continue
+    }
+    if (entry.sha256 !== file.sha256) errors.push(`legacy SQL resolution checksum drift: ${file.path}`)
+    if (entry.category !== file.category) errors.push(`legacy SQL resolution category drift: ${file.path}`)
+  }
+  for (const path of resolved.keys()) {
+    if (!byPath.has(path)) errors.push(`resolution references non-inventory SQL: ${path}`)
+  }
+
+  if (ledger.inventory?.totalLegacySqlFiles !== files.length) errors.push('resolved total legacy SQL count drift')
+  if (ledger.inventory?.governedMigrationFiles !== files.filter((entry) => entry.governed).length) {
+    errors.push('resolved governed migration count drift')
+  }
+  if (ledger.inventory?.resolvedNonMigrationFiles !== resolved.size) errors.push('resolved non-migration count drift')
+
+  const finalDispositions = Object.fromEntries(
+    [...new Set([...resolved.values()].map((entry) => entry.finalDisposition))]
+      .sort()
+      .map((disposition) => [
+        disposition,
+        [...resolved.values()].filter((entry) => entry.finalDisposition === disposition).length
+      ])
+  )
+  return {
+    path: resolutionPath,
+    sha256: sha256(bytes),
+    errors,
+    entries: [...resolved.values()],
+    finalDispositions
+  }
+}
+
 export const analyzeProductionCompose = (source) => {
   const runtimeSuperuserConnections = []
   if (/PGRST_DB_URI:\s*["']?postgres:\/\/postgres:/i.test(source)) {
@@ -122,6 +191,7 @@ export const auditDatabaseBackend = ({ repoRoot = defaultRepoRoot } = {}) => {
   const governedPaths = new Set(manifests.flatMap((entry) => entry.migrations))
   const files = legacyFiles.map((path) => inspectLegacySql({ repoRoot, path, governedPaths }))
   const governedLegacyFiles = files.filter((entry) => entry.governed)
+  const resolution = validateLegacyResolution({ repoRoot, files })
   const categories = Object.fromEntries(
     [...new Set(files.map((entry) => entry.category))]
       .sort()
@@ -148,6 +218,12 @@ export const auditDatabaseBackend = ({ repoRoot = defaultRepoRoot } = {}) => {
     governedMigrationFiles: governedPaths.size,
     governedLegacySqlFiles: governedLegacyFiles.length,
     ungovernedLegacySqlFiles: legacyFiles.length - governedLegacyFiles.length,
+    resolvedLegacySqlFiles: resolution.entries.length,
+    unresolvedLegacySqlFiles: Math.max(
+      0,
+      legacyFiles.length - governedLegacyFiles.length - resolution.entries.length
+    ),
+    resolution,
     categories,
     duplicateContentGroups,
     files,
@@ -163,14 +239,20 @@ if (isMain) {
     console.log(JSON.stringify(result, null, 2))
   } else {
     console.log([
-      'PASS: database backend transition baseline',
+      result.resolution.errors.length ? 'FAIL: database backend resolution drift' : 'PASS: database backend transition baseline',
       `${result.legacySqlFiles} legacy SQL files`,
       `${result.governedLegacySqlFiles} governed legacy SQL files`,
       `${result.ungovernedLegacySqlFiles} ungoverned legacy SQL files`,
+      `${result.resolvedLegacySqlFiles} resolved non-migration SQL files`,
+      `${result.unresolvedLegacySqlFiles} unresolved SQL files`,
       `${result.governedMigrationFiles} governed migrations`,
       `${result.productionCompose.runtimeSuperuserConnections.length} runtime superuser connections`,
       `${result.duplicateContentGroups.length} duplicate content groups`,
       `categories ${JSON.stringify(result.categories)}`
     ].join(', '))
+  }
+  if (result.resolution.errors.length) {
+    for (const error of result.resolution.errors) console.error(`[error] ${error}`)
+    process.exitCode = 1
   }
 }

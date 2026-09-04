@@ -98,6 +98,16 @@ PostgreSQL 表、视图、函数、触发器、RLS、角色与授权是 EISCore 
 
 结果：`core-003` 新增 company-site/HR 的最小 RLS 和考勤视图调用者安全，`core-004` 退出固定测试表；数据库契约固定为 196 个关系、161 个函数、297 个 Policy、82 个触发器和 292 个 PostgREST Path。真实 HTTP 回归使用 `eiscore_agent` 覆盖公开读取、后台鉴权、草稿、发布、询盘、销售 Agent、资格判断、审批和报价；v4 Manifest SHA-256 为 `8113f0325ac11ca5e1fa056f35e1ceaf603b4a3709a9a71493b08f9dc85fcbda`。
 
+### DB7：主要剩余数据库债务收口（已完成）
+
+- 为 96 份非迁移历史 SQL 建立逐文件最终处置账本和默认拒绝执行门禁。
+- 以一对一外键桥接登录用户与员工档案，把 `self/dept/dept_tree/all` 应用于 HR 员工行。
+- 以规范对象目录建立 `public` Schema 静态、真实 Catalog 和发布前后三层新增对象棘轮。
+- 删除无消费者且暴露 JWT/数据库角色的 `public.debug_me`，启动 public 存量只减不增。
+- 生成 `eiscore-db-v5` 并复验迁移、权限、数据库/PostgREST、发布、恢复和企业站 BFF。
+
+退出：96/96 文件有可验证最终处置；HR 不使用姓名/工号/部门文本推断身份；新增 `public` 对象必须绑定迁移与 ADR；主要仓库债务不再作为未决项。三家客户数据、生产 KMS/备份和容量仍等待外部环境授权。详见 ADR-0015 与 `DATABASE_MAJOR_DEBT_EXIT_AUDIT.md`。
+
 ## 不可变约束
 
 - 原仓库、客户环境、客户数据库和既有 WSL 数据卷保持只读。

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "schema": "public",
+  "mode": "deny-additions-not-in-baseline",
+  "baselineObjectCatalog": {
+    "path": "database/baselines/eiscore-db-v1/object-catalog.json",
+    "sha256": "596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265"
+  },
+  "governedObjectTypes": [
+    "TABLE",
+    "VIEW",
+    "MATERIALIZED VIEW",
+    "FOREIGN TABLE",
+    "SEQUENCE",
+    "FUNCTION",
+    "PROCEDURE",
+    "TYPE",
+    "TRIGGER"
+  ],
+  "approvedAdditions": [],
+  "extensionPolicy": "Extension-owned objects are excluded from application catalog queries; every application-owned exception requires a migration and accepted ADR.",
+  "removalPolicy": "Baseline objects may be removed or moved behind a compatibility facade; removals do not expand this allowlist."
+}

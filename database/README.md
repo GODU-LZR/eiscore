@@ -4,7 +4,7 @@
 
 当前工作树有 106 份历史 SQL：根目录 2、`env/` 2、`sql/` 70、HR 30、材料 2。它们混合了模块 schema、演示数据、修复补丁和运维脚本，不能按文件名安全推断统一执行顺序。旧的 `db_schema_and_data.sql` 已由 DB1 规范基线替代并从发布树移除，只保留在 Git 历史和隔离审计证据中。
 
-当前已有明确顺序的集合包括 Runtime V2 的 10 个历史补丁，以及 company-site 1 个、core 4 个迁移，共 15 个不可变迁移。`migrations/runtime-v2.json` 在不修改历史 SQL 的前提下为 Runtime V2 补充不可变 ID、SHA-256、事务所有权和备份回退策略，并与原 `sql/runtime_v2_patch_manifest.txt` 双向校验；`company-site-001` 为企业站发布快照字段提供 SQL 回滚和 postcheck；`core-001` 外置数据库凭据，`core-002` 建立数据库运行角色、对象 owner、函数、默认权限和 Agent RLS 边界，`core-003` 收敛 company-site/HR RLS，`core-004` 从安装库退出固定测试表。`migration-ledger.sql` 定义数据库执行账本、基线身份和迁移覆盖账本；账本只允许数据库管理员访问。
+当前已有明确顺序的集合包括 Runtime V2 的 10 个历史补丁，以及 company-site 1 个、core 6 个迁移，共 17 个不可变迁移。`migrations/runtime-v2.json` 在不修改历史 SQL 的前提下为 Runtime V2 补充不可变 ID、SHA-256、事务所有权和备份回退策略，并与原 `sql/runtime_v2_patch_manifest.txt` 双向校验；`company-site-001` 为企业站发布快照字段提供 SQL 回滚和 postcheck；`core-001` 外置数据库凭据，`core-002` 建立数据库运行角色、对象 owner、函数、默认权限和 Agent RLS 边界，`core-003` 收敛 company-site/HR RLS，`core-004` 从安装库退出固定测试表，`core-005` 建立 HR 用户—员工稳定身份和数据范围，`core-006` 删除公开 JWT 调试视图。`migration-ledger.sql` 定义数据库执行账本、基线身份和迁移覆盖账本；账本只允许数据库管理员访问。
 
 规范空库基线位于 `database/baselines/eiscore-db-v1/`，由 `manifest.json`、`schema.sql`、`object-catalog.json` 和 `register.sql` 组成。基线固定覆盖创建时的 12 个迁移；后续新增迁移可以继续追加到来源 Manifest，基线校验只验证自己声明的不可变子集。覆盖项只写入 `baseline_migration_coverage`，不会伪写入 `schema_migrations`；迁移运行器据此区分“结构已覆盖”和“迁移已实际执行”。DB2 的新装角色引导位于 `database/bootstrap/roles-v2.sql`，运行密码由 `configure-database-runtime-secrets-v2.sh` 注入。
 
@@ -16,7 +16,8 @@
 4. 新迁移默认由运行器包裹事务；确实不能在事务中运行时必须显式记录原因和恢复步骤。
 5. 执行前校验 Manifest 和目标账本；相同 ID/校验和跳过，不同校验和立即失败；成功后记录提交、操作者、耗时和回退策略。
 6. 每个 Manifest 的 postcheck 是对应集合的执行后验证；没有通过 postcheck 的运行不得作为发布证据。
-7. 106 份历史 SQL 是接受库存，不得继续向旧目录投放新补丁；后续数据库变化一律进入受治理迁移目录。旧完整转储不再是初始化入口。
+7. 106 份历史 SQL 不得继续接收新补丁；10 份受 Runtime V2 Manifest 管理，其余 96 份由 `legacy-sql-resolution.json` 固定最终处置且默认禁止执行。后续变化一律进入受治理迁移目录。
+8. `public-schema-ratchet.json` 固定存量允许集；新应用对象不得进入 `public`，例外必须同时绑定新迁移和接受 ADR。删除或迁出不会扩大允许集。
 
 本地只读校验：
 
@@ -46,7 +47,7 @@ PowerShell 使用同名参数 `-BackupEvidence`、`-ReleaseRevision` 与 `-Opera
 
 ## 版本化数据库发布
 
-`releases/eiscore-db-v4/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、全部执行输入、数据库目录、PostgREST 契约、DB5 运维/恢复机制和 DB6 授权收紧绑定为同一发布制品。规范 Manifest SHA-256 为 `8113f0325ac11ca5e1fa056f35e1ceaf603b4a3709a9a71493b08f9dc85fcbda`。离线验证：
+`releases/eiscore-db-v5/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、历史 SQL 处置、public Schema 棘轮、HR 身份/范围、数据库/PostgREST 契约及发布恢复机制绑定为同一发布制品。规范 Manifest SHA-256 以该文件的规范 JSON 校验结果为准。离线验证：
 
 ```bash
 npm run db:release:check
@@ -60,7 +61,7 @@ npm run db:release:check
 
 ```bash
 npm run db:backup:check -- --backup-root=<backup-root> --environment=isolated
-npm run db:recovery -- --evidence=<backup-evidence.json> --confirm-empty-target=eiscore-db-v4 --dry-run
+npm run db:recovery -- --evidence=<backup-evidence.json> --confirm-empty-target=eiscore-db-v5 --dry-run
 npm run db:runtime:audit -- --api-url=<candidate-postgrest-url>
 ```
 

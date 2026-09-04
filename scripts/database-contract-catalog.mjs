@@ -98,6 +98,7 @@ export const databaseCatalogQueries = {
       'schema', n.nspname,
       'name', p.proname,
       'identityArguments', pg_get_function_identity_arguments(p.oid),
+      'identityTypes', oidvectortypes(p.proargtypes),
       'result', pg_get_function_result(p.oid),
       'kind', p.prokind,
       'language', language.lanname,
@@ -108,6 +109,15 @@ export const databaseCatalogQueries = {
       'volatility', p.provolatile,
       'parallel', p.proparallel,
       'config', coalesce(to_jsonb(p.proconfig), '[]'::jsonb),
+      'extension', (
+        SELECT extension.extname
+        FROM pg_depend dependency
+        JOIN pg_extension extension ON extension.oid = dependency.refobjid
+        WHERE dependency.classid = 'pg_proc'::regclass
+          AND dependency.objid = p.oid
+          AND dependency.deptype = 'e'
+        LIMIT 1
+      ),
       'definition', CASE WHEN p.prokind IN ('f', 'p') THEN pg_get_functiondef(p.oid) ELSE NULL END,
       'acl', coalesce((
         SELECT jsonb_agg(jsonb_build_object(
@@ -126,6 +136,39 @@ export const databaseCatalogQueries = {
     JOIN pg_roles owner_role ON owner_role.oid = p.proowner
     WHERE n.nspname = ANY (${schemaArraySql})
     ORDER BY n.nspname, p.proname, pg_get_function_identity_arguments(p.oid);
+  `,
+  types: `
+    SELECT jsonb_build_object(
+      'schema', n.nspname,
+      'name', t.typname,
+      'kind', t.typtype,
+      'category', t.typcategory,
+      'owner', owner_role.rolname,
+      'extension', (
+        SELECT extension.extname
+        FROM pg_depend dependency
+        JOIN pg_extension extension ON extension.oid = dependency.refobjid
+        WHERE dependency.classid = 'pg_type'::regclass
+          AND dependency.objid = t.oid
+          AND dependency.deptype = 'e'
+        LIMIT 1
+      ),
+      'definition', CASE
+        WHEN t.typtype = 'e' THEN (
+          SELECT string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder)
+          FROM pg_enum e WHERE e.enumtypid = t.oid
+        )
+        WHEN t.typtype = 'd' THEN format_type(t.typbasetype, t.typtypmod)
+        ELSE NULL
+      END
+    )::text
+    FROM pg_type t
+    JOIN pg_namespace n ON n.oid = t.typnamespace
+    JOIN pg_roles owner_role ON owner_role.oid = t.typowner
+    LEFT JOIN pg_class type_class ON type_class.oid = t.typrelid
+    WHERE n.nspname = ANY (${schemaArraySql})
+      AND (t.typtype IN ('e', 'd') OR (t.typtype = 'c' AND type_class.relkind = 'c'))
+    ORDER BY n.nspname, t.typname;
   `,
   policies: `
     SELECT jsonb_build_object(
@@ -249,6 +292,7 @@ export const createDatabaseCatalog = (sections) => ({
   schemas: sections.schemas || [],
   relations: sections.relations || [],
   functions: sections.functions || [],
+  types: sections.types || [],
   policies: sections.policies || [],
   triggers: sections.triggers || [],
   roles: sections.roles || [],
@@ -262,6 +306,7 @@ export const summarizeDatabaseCatalog = (catalog) => ({
   schemas: catalog.schemas.length,
   relations: catalog.relations.length,
   functions: catalog.functions.length,
+  types: catalog.types.length,
   policies: catalog.policies.length,
   triggers: catalog.triggers.length,
   roles: catalog.roles.length,

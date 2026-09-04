@@ -18,9 +18,24 @@ assert.deepEqual(result.legacyRoots.map(({ path, count }) => [path, count]), [
   ['eiscore-materials/sql', 2]
 ])
 assert.equal(result.legacySqlFiles, 106)
-assert.equal(result.governedMigrationFiles, 15)
+assert.equal(result.governedMigrationFiles, 17)
 assert.equal(result.governedLegacySqlFiles, 10)
 assert.equal(result.ungovernedLegacySqlFiles, 96)
+assert.equal(result.resolvedLegacySqlFiles, 96)
+assert.equal(result.unresolvedLegacySqlFiles, 0)
+assert.deepEqual(result.resolution.errors, [])
+assert.match(result.resolution.sha256, /^[0-9a-f]{64}$/)
+assert.deepEqual(result.resolution.finalDispositions, {
+  'covered-by-baseline': 73,
+  'customer-data': 6,
+  'demo-fixture': 9,
+  duplicate: 2,
+  'operations-only': 1,
+  'reference-seed': 3,
+  'still-required': 1,
+  'superseded-by-migration': 1
+})
+assert.equal(result.resolution.entries.filter((entry) => entry.executable).length, 2)
 assert.equal(result.files.length, 106)
 assert.ok(result.files.every((entry) => entry.bytes > 0))
 assert.ok(result.files.every((entry) => /^[0-9a-f]{64}$/.test(entry.sha256)))
@@ -57,7 +72,7 @@ assert.deepEqual(
 assert.deepEqual(result.manifests.map(({ name, count }) => [name, count]), [
   ['runtime-v2', 10],
   ['company-site', 1],
-  ['core', 4]
+  ['core', 6]
 ])
 assert.deepEqual(result.productionCompose.runtimeSuperuserConnections, [])
 assert.deepEqual(result.productionCompose.exposedSchemas, ['public', 'hr', 'scm', 'app_center', 'workflow', 'app_data'])
@@ -113,10 +128,15 @@ const classification = readFileSync(resolve(repoRoot, 'database/LEGACY_SQL_CLASS
 for (const marker of [
   '迁移期只读库存，不是执行清单',
   '所有仍在工作树中的文件均已分类',
-  '因此仍有 96 份历史 SQL 未被迁移链接管',
+  '96 份历史 SQL 不进入迁移链',
+  'legacy-sql-resolution.json',
   '73 处 `SECURITY DEFINER`',
   '历史 SQL 仍不删除、重命名、合并或批量执行'
 ]) assert.ok(classification.includes(marker), `legacy SQL classification lost marker: ${marker}`)
+
+const resolutionLedger = JSON.parse(readFileSync(resolve(repoRoot, 'database/legacy-sql-resolution.json'), 'utf8'))
+assert.equal(resolutionLedger.entries.length, 96)
+assert.equal(resolutionLedger.defaultExecutionPolicy, 'deny')
 
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
 assert.match(packageJson.scripts?.['db:backend:audit'] || '', /audit-database-backend\.mjs/)

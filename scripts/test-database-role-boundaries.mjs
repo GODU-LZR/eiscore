@@ -140,6 +140,55 @@ try {
     VALUES ('DB3 Employee', 'db3-e1', 10000);
     INSERT INTO hr.payroll (archive_id, month, total_amount)
     VALUES (1, '2026-09', 10000);
+
+    INSERT INTO public.departments (id, name, parent_id) VALUES
+      ('10000000-0000-0000-0000-000000000001', 'Scope Root', NULL),
+      ('10000000-0000-0000-0000-000000000002', 'Scope Child', '10000000-0000-0000-0000-000000000001'),
+      ('10000000-0000-0000-0000-000000000003', 'Scope Other', NULL);
+    INSERT INTO public.users (id, username, password, dept_id) VALUES
+      (9101, 'scope-actor', encode(gen_random_bytes(32), 'hex'), '10000000-0000-0000-0000-000000000001'),
+      (9102, 'scope-peer', encode(gen_random_bytes(32), 'hex'), '10000000-0000-0000-0000-000000000001'),
+      (9103, 'scope-child', encode(gen_random_bytes(32), 'hex'), '10000000-0000-0000-0000-000000000002'),
+      (9104, 'scope-other', encode(gen_random_bytes(32), 'hex'), '10000000-0000-0000-0000-000000000003');
+    INSERT INTO public.roles (id, code, name) VALUES
+      ('20000000-0000-0000-0000-000000000001', 'hr_scope_self', 'HR scope self'),
+      ('20000000-0000-0000-0000-000000000002', 'hr_scope_dept', 'HR scope department'),
+      ('20000000-0000-0000-0000-000000000003', 'hr_scope_tree', 'HR scope department tree'),
+      ('20000000-0000-0000-0000-000000000004', 'hr_scope_all', 'HR scope all');
+    INSERT INTO public.role_data_scopes (role_id, module, scope_type)
+    SELECT role_id, module, scope_type
+    FROM (VALUES
+      ('20000000-0000-0000-0000-000000000001'::uuid, 'self'),
+      ('20000000-0000-0000-0000-000000000002'::uuid, 'dept'),
+      ('20000000-0000-0000-0000-000000000003'::uuid, 'dept_tree'),
+      ('20000000-0000-0000-0000-000000000004'::uuid, 'all')
+    ) role_scope(role_id, scope_type)
+    CROSS JOIN (VALUES ('hr_employee'), ('hr_attendance'), ('hr_payroll')) module_name(module);
+    INSERT INTO hr.archives (id, name, employee_no, department, base_salary) VALUES
+      (101, 'Scope Actor', 'scope-101', 'Scope Root', 10100),
+      (102, 'Scope Peer', 'scope-102', 'Scope Root', 10200),
+      (103, 'Scope Child', 'scope-103', 'Scope Child', 10300),
+      (104, 'Scope Other', 'scope-104', 'Scope Other', 10400);
+    INSERT INTO hr.user_employee_links (user_id, archive_id) VALUES
+      (9101, 101), (9102, 102), (9103, 103), (9104, 104);
+    INSERT INTO hr.employee_profiles (archive_id, payload) VALUES
+      (101, '{"scope":"actor"}'), (102, '{"scope":"peer"}'),
+      (103, '{"scope":"child"}'), (104, '{"scope":"other"}');
+    INSERT INTO hr.attendance_records (att_date, person_type, employee_id, employee_name, temp_name, dept_name, remark) VALUES
+      ('2026-09-04', 'employee', 101, 'Scope Actor', NULL, 'Scope Root', 'actor-original'),
+      ('2026-09-04', 'employee', 102, 'Scope Peer', NULL, 'Scope Root', 'peer-original'),
+      ('2026-09-04', 'employee', 103, 'Scope Child', NULL, 'Scope Child', 'child-original'),
+      ('2026-09-04', 'employee', 104, 'Scope Other', NULL, 'Scope Other', 'other-original'),
+      ('2026-09-04', 'temp', NULL, NULL, 'Scope Temporary', 'Scope Root', 'temporary-original');
+    INSERT INTO hr.attendance_month_overrides (att_month, person_type, employee_id, employee_name, temp_name, dept_name) VALUES
+      ('2026-09-01', 'employee', 101, 'Scope Actor', NULL, 'Scope Root'),
+      ('2026-09-01', 'employee', 102, 'Scope Peer', NULL, 'Scope Root'),
+      ('2026-09-01', 'employee', 103, 'Scope Child', NULL, 'Scope Child'),
+      ('2026-09-01', 'employee', 104, 'Scope Other', NULL, 'Scope Other'),
+      ('2026-09-01', 'temp', NULL, NULL, 'Scope Temporary', 'Scope Root');
+    INSERT INTO hr.payroll (id, archive_id, month, total_amount) VALUES
+      (101, 101, '2026-09', 10100), (102, 102, '2026-09', 10200),
+      (103, 103, '2026-09', 10300), (104, 104, '2026-09', 10400);
   `)
 
   const agentBusinessData = psql('eiscore_agent', `
@@ -192,6 +241,19 @@ try {
   const now = Math.floor(Date.now() / 1000)
   const userHeaders = { authorization: `Bearer ${token({ role: 'web_user', app_role: 'employee', username: 'db2-user', exp: now + 300 })}` }
   const adminHeaders = { authorization: `Bearer ${token({ role: 'web_user', app_role: 'super_admin', username: 'db2-admin', exp: now + 300 })}` }
+  const scopedHeaders = (appRole, permissions = ['module:hr']) => ({
+    authorization: `Bearer ${token({
+      role: 'web_user', app_role: appRole, username: 'scope-actor', permissions, exp: now + 300
+    })}`
+  })
+  const readHr = async (resource, headers, select = 'id', order = 'id') => {
+    const response = await fetch(`${baseUrl}/${resource}?select=${select}&order=${order}`, {
+      headers: { ...headers, 'accept-profile': 'hr' }
+    })
+    const body = await response.text()
+    assert.equal(response.status, 200, body)
+    return JSON.parse(body)
+  }
   const userRead = await fetch(`${baseUrl}/document_assets?select=id`, { headers: userHeaders })
   const userReadBody = await userRead.text()
   assert.equal(userRead.status, 200, userReadBody)
@@ -200,6 +262,78 @@ try {
   const adminReadBody = await adminRead.text()
   assert.equal(adminRead.status, 200, adminReadBody)
   assert.equal(JSON.parse(adminReadBody).length, 1, 'admin claim should pass the document RLS policy')
+
+  assert.deepEqual(
+    (await readHr('archives', scopedHeaders('hr_scope_self'))).map(({ id }) => id),
+    [101],
+    'self scope must resolve through the stable user-to-archive bridge'
+  )
+  assert.deepEqual(
+    (await readHr('archives', {
+      authorization: `Bearer ${token({
+        role: 'web_user', app_role: 'hr_scope_self', sub: '9101', permissions: ['module:hr'], exp: now + 300
+      })}`
+    })).map(({ id }) => id),
+    [101],
+    'numeric JWT subject must resolve to the same stable user identity without a username claim'
+  )
+  assert.deepEqual(
+    (await readHr('archives', scopedHeaders('hr_scope_dept'))).map(({ id }) => id),
+    [101, 102],
+    'department scope must not include child or unrelated departments'
+  )
+  assert.deepEqual(
+    (await readHr('archives', scopedHeaders('hr_scope_tree'))).map(({ id }) => id),
+    [101, 102, 103],
+    'department-tree scope must include descendants but not unrelated departments'
+  )
+  const allArchives = (await readHr('archives', scopedHeaders('hr_scope_all'))).map(({ id }) => id)
+  for (const archiveId of [1, 101, 102, 103, 104]) assert.ok(allArchives.includes(archiveId))
+
+  const selfAttendance = await readHr(
+    'attendance_records', scopedHeaders('hr_scope_self'), 'id,employee_id,person_type'
+  )
+  assert.deepEqual(selfAttendance.map(({ employee_id: employeeId }) => employeeId), [101])
+  const allAttendance = await readHr(
+    'attendance_records', scopedHeaders('hr_scope_all'), 'id,employee_id,person_type'
+  )
+  assert.ok(allAttendance.some((entry) => entry.person_type === 'temp' && entry.employee_id === null),
+    'all scope must be the only non-admin role scope that can see unlinked temporary attendance')
+
+  const selfPayrollHeaders = scopedHeaders('hr_scope_self', ['module:hr', 'op:hr_payroll.view'])
+  assert.deepEqual(
+    (await readHr('payroll', selfPayrollHeaders)).map(({ id }) => id),
+    [101],
+    'payroll self scope must still require explicit salary-view permission'
+  )
+  assert.deepEqual(await readHr('payroll', scopedHeaders('hr_scope_self')), [],
+    'generic HR permission must not reveal even the caller payroll row')
+
+  assert.deepEqual(await readHr('user_employee_links', scopedHeaders('hr_scope_self'), 'user_id', 'user_id'), [],
+    'ordinary employees must not enumerate or alter the identity bridge')
+  const adminLinks = await readHr('user_employee_links', adminHeaders, 'user_id', 'user_id')
+  assert.equal(adminLinks.length, 4, 'administrators must be able to audit identity links')
+
+  const scopedEditHeaders = {
+    ...scopedHeaders('hr_scope_self', ['module:hr', 'op:hr_attendance.edit']),
+    'content-type': 'application/json',
+    'content-profile': 'hr',
+    prefer: 'return=representation'
+  }
+  const deniedPeerUpdate = await fetch(`${baseUrl}/attendance_records?employee_id=eq.102`, {
+    method: 'PATCH', headers: scopedEditHeaders, body: JSON.stringify({ remark: 'forbidden-peer-update' })
+  })
+  const deniedPeerUpdateBody = await deniedPeerUpdate.text()
+  assert.equal(deniedPeerUpdate.status, 200, deniedPeerUpdateBody)
+  assert.deepEqual(JSON.parse(deniedPeerUpdateBody), [])
+  const ownUpdate = await fetch(`${baseUrl}/attendance_records?employee_id=eq.101`, {
+    method: 'PATCH', headers: scopedEditHeaders, body: JSON.stringify({ remark: 'allowed-self-update' })
+  })
+  const ownUpdateBody = await ownUpdate.text()
+  assert.equal(ownUpdate.status, 200, ownUpdateBody)
+  assert.equal(JSON.parse(ownUpdateBody).length, 1)
+  assert.equal(psql('postgres', "SELECT remark FROM hr.attendance_records WHERE employee_id = 102;").stdout.trim(), 'peer-original')
+  assert.equal(psql('postgres', "SELECT remark FROM hr.attendance_records WHERE employee_id = 101;").stdout.trim(), 'allowed-self-update')
 
   const userPayroll = await fetch(`${baseUrl}/payroll?select=id`, {
     headers: { ...userHeaders, 'accept-profile': 'hr' }
@@ -212,7 +346,7 @@ try {
   })
   const adminPayrollBody = await adminPayroll.text()
   assert.equal(adminPayroll.status, 200, adminPayrollBody)
-  assert.equal(JSON.parse(adminPayrollBody).length, 1, 'HR admin claim should read payroll')
+  assert.equal(JSON.parse(adminPayrollBody).length, 5, 'administrator claim should read all payroll rows')
 
   const runtimeUsers = psql('postgres', `
     SELECT usename, count(*)

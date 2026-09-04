@@ -17,6 +17,10 @@ import {
   summarizeDatabaseCatalog,
   summarizePostgrestOpenApiCatalog
 } from './database-contract-catalog.mjs'
+import {
+  validatePublicSchemaCatalog,
+  validatePublicSchemaRatchet
+} from './public-schema-ratchet.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const expectedPath = resolve(repoRoot, 'database/contracts/eiscore-db-contract-v2.json')
@@ -159,6 +163,19 @@ const startApi = async (databaseContainer) => {
   throw new Error(`PostgREST did not initialize:\n${logs.stderr || logs.stdout}`)
 }
 
+const schemaCacheLoadCount = () => {
+  const logs = docker(['logs', apiContainer], { allowFailure: true })
+  return (`${logs.stdout}\n${logs.stderr}`.match(/schema cache loaded/gi) || []).length
+}
+
+const waitForSchemaCacheReload = async (previousCount) => {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (schemaCacheLoadCount() > previousCount) return
+    await sleep(250)
+  }
+  throw new Error('PostgREST did not acknowledge the requested schema-cache reload')
+}
+
 const jwt = (claims) => {
   const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url')
   const body = `${encode({ alg: 'HS256', typ: 'JWT' })}.${encode(claims)}`
@@ -182,6 +199,11 @@ const fetchRoleOpenApiCatalog = async (baseUrl, authorization) => ({
   web_anon: await fetchOpenApiCatalog(baseUrl),
   web_user: await fetchOpenApiCatalog(baseUrl, { authorization })
 })
+const describeOpenApiDifference = (left, right) => Object.keys(left).flatMap((role) =>
+  Object.keys(left[role]).filter((schema) =>
+    sha256CanonicalJson(left[role][schema]) !== sha256CanonicalJson(right[role][schema])
+  ).map((schema) => `${role}/${schema}: ${sha256CanonicalJson(left[role][schema])} != ${sha256CanonicalJson(right[role][schema])}`)
+).join('; ')
 
 const terminalMigrations = () => Object.fromEntries(
   ['runtime-v2', 'company-site', 'core'].map((name) => {
@@ -202,6 +224,13 @@ try {
 
   const freshCatalog = readCatalog(freshContainer)
   const upgradeCatalog = readCatalog(upgradeContainer)
+  const publicRatchet = validatePublicSchemaRatchet({ repoRoot })
+  assert.deepEqual(publicRatchet.errors, [])
+  assert.deepEqual(validatePublicSchemaCatalog({
+    catalog: freshCatalog,
+    descriptor: publicRatchet.descriptor,
+    baselineCatalog: publicRatchet.baselineCatalog
+  }).errors, [])
   const freshHash = sha256CanonicalJson(freshCatalog)
   assert.equal(
     sha256CanonicalJson(upgradeCatalog),
@@ -216,6 +245,23 @@ try {
   const now = Math.floor(Date.now() / 1000)
   const claims = { role: 'web_user', app_role: 'employee', username: 'db3-contract-user', exp: now + 300 }
   const authorization = `Bearer ${jwt(claims)}`
+  // The first root response only proves the public profile is serving.  Ask
+  // PostgREST to finish one explicit all-profile cache generation before the
+  // catalog snapshot so a concurrent startup reload cannot become the fixture.
+  const startupCacheLoads = schemaCacheLoadCount()
+  psql(freshContainer, "NOTIFY pgrst, 'reload schema';")
+  await waitForSchemaCacheReload(startupCacheLoads)
+  let hrContractReady = false
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const hrDocument = await fetchOpenApi(baseUrl, 'hr', { authorization })
+    if (hrDocument.paths?.['/user_employee_links']
+      && hrDocument.paths?.['/rpc/current_employee_archive_id']) {
+      hrContractReady = true
+      break
+    }
+    await sleep(250)
+  }
+  assert.equal(hrContractReady, true, 'PostgREST did not publish the core-005 HR contract')
   const openApiCatalog = await fetchRoleOpenApiCatalog(baseUrl, authorization)
   const initialApiHash = sha256CanonicalJson(openApiCatalog)
 
@@ -245,7 +291,11 @@ try {
     reloadedApi = await fetchRoleOpenApiCatalog(baseUrl, authorization)
     if (sha256CanonicalJson(reloadedApi) === initialApiHash) break
   }
-  assert.equal(sha256CanonicalJson(reloadedApi), initialApiHash, 'schema-cache reload changed the API contract')
+  assert.equal(
+    sha256CanonicalJson(reloadedApi),
+    initialApiHash,
+    `schema-cache reload changed the API contract (${describeOpenApiDifference(openApiCatalog, reloadedApi)})`
+  )
 
   const baseline = JSON.parse(readFileSync(resolve(repoRoot, 'database/baselines/eiscore-db-v1/manifest.json'), 'utf8'))
   const actualContract = {

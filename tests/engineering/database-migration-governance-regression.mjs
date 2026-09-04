@@ -43,8 +43,10 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 4)
-assert.deepEqual(coreResult.migrations.map((entry) => entry.id), ['core-001', 'core-002', 'core-003', 'core-004'])
+assert.equal(coreResult.migrations.length, 6)
+assert.deepEqual(coreResult.migrations.map((entry) => entry.id), [
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006'
+])
 assert.ok(coreResult.migrations.every((entry) => entry.rollbackStrategy === 'backup-restore'))
 
 const mutate = (callback) => {

@@ -9,6 +9,7 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const read = (path) => readFileSync(resolve(repoRoot, path), 'utf8')
 const composePaths = ['docker-compose.yml', 'docker-compose.prod.yml']
 const roleSql = read('database/migrations/sql/core-002-role-boundaries.sql')
+const hrScopeSql = read('database/migrations/sql/core-005-hr-employee-identity-scope.sql')
 const roleBootstrap = read('database/bootstrap/roles-v2.sql')
 const secretBootstrap = read('scripts/configure-database-runtime-secrets-v2.sh')
 
@@ -29,6 +30,21 @@ for (const marker of [
 ]) assert.ok(roleSql.includes(marker), `core-002 lost boundary: ${marker}`)
 assert.doesNotMatch(roleSql, /GRANT\s+(?:ALL|DELETE).*TABLES.*eiscore_agent/i)
 assert.doesNotMatch(roleSql, /ALTER ROLE [^\n]+\s(?:SUPERUSER|BYPASSRLS)\b/i)
+
+for (const marker of [
+  'CREATE TABLE hr.user_employee_links',
+  'REFERENCES public.users(id)',
+  'REFERENCES hr.archives(id)',
+  'CREATE OR REPLACE FUNCTION hr.current_employee_archive_id()',
+  'CREATE OR REPLACE FUNCTION hr.can_access_employee(',
+  "scope_row.scope_type = 'dept_tree'",
+  "hr.can_access_employee(employee_id, 'hr_attendance')",
+  "hr.can_access_employee(archive_id, 'hr_payroll')",
+  'Temporary workers deliberately',
+  'payroll permission'
+]) assert.ok(hrScopeSql.includes(marker), `core-005 lost HR identity/scope boundary: ${marker}`)
+assert.doesNotMatch(hrScopeSql, /employee_name\s*=|employee_no\s*=|department\s*=/i,
+  'HR identity scope must not infer relationships from employee text fields')
 
 for (const composePath of composePaths) {
   const compose = read(composePath)

@@ -9,7 +9,7 @@ import { canonicalJson } from './database-contract-catalog.mjs'
 import { loadAndValidateMigrationManifest } from './check-database-migrations.mjs'
 import { validateDatabaseBaseline } from './check-database-baseline.mjs'
 
-export const defaultDatabaseReleasePath = 'database/releases/eiscore-db-v4/manifest.json'
+export const defaultDatabaseReleasePath = 'database/releases/eiscore-db-v5/manifest.json'
 export const defaultMigrationManifestPaths = [
   'database/migrations/runtime-v2.json',
   'database/migrations/company-site.json',
@@ -96,7 +96,10 @@ export const buildDatabaseReleaseManifest = ({
     'scripts/audit-database-runtime.mjs',
     'database/recovery-ledger.sql',
     'database/recovery/post-restore-v2.sql',
-    'database/operations/policy.json'
+    'database/operations/policy.json',
+    'database/legacy-sql-resolution.json',
+    'database/public-schema-ratchet.json',
+    'scripts/public-schema-ratchet.mjs'
   ]) addArtifact(artifacts, repoRoot, path, 'execution')
 
   for (const descriptor of [

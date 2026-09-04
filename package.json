@@ -93,7 +93,7 @@
     "test:g3.5-exit": "node tests/engineering/g3-5-exit-audit-regression.mjs && node tests/engineering/enterprise-profile-merge-exit-regression.mjs",
     "test:g4.0-exit": "node tests/engineering/g4-0-exit-audit-regression.mjs",
     "test:database-backend-governance": "node tests/engineering/database-backend-governance-boundary-regression.mjs",
-    "test:database-structure-exit": "node tests/engineering/db6-database-structure-governance-exit-regression.mjs",
+    "test:database-structure-exit": "node tests/engineering/database-public-schema-ratchet-regression.mjs && node tests/engineering/db6-database-structure-governance-exit-regression.mjs",
     "test:secrets": "node tests/engineering/secret-scanner-regression.mjs && node scripts/scan-secrets.mjs",
     "test:runtime-image": "node tests/engineering/runtime-image-contract.mjs && npm run test:vite-dev-proxy",
     "test:vite-dev-proxy": "node tests/engineering/vite-dev-proxy-contract.mjs",

@@ -32,7 +32,7 @@ const optionNames = new Map([
 export const parseDatabaseRestoreArgs = (argv) => {
   const options = {
     evidencePath: '',
-    releasePath: 'database/releases/eiscore-db-v4/manifest.json',
+    releasePath: 'database/releases/eiscore-db-v5/manifest.json',
     dbContainer: 'eiscore-db-recovery',
     dbName: 'eiscore',
     dbUser: 'postgres',

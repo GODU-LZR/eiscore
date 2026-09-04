@@ -38,7 +38,7 @@ assert.ok(contract.postgrestOpenApi.counts.paths > 0)
 assert.ok(contract.postgrestOpenApi.counts.rpcPaths > 0)
 
 for (const section of [
-  'schemas', 'relations', 'functions', 'policies', 'triggers', 'roles',
+  'schemas', 'relations', 'functions', 'types', 'policies', 'triggers', 'roles',
   'memberships', 'defaultPrivileges', 'extensions', 'databaseSettingNames'
 ]) assert.match(catalogSource, new RegExp(`\\b${section}:`), `catalog lost ${section}`)
 

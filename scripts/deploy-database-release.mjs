@@ -25,6 +25,10 @@ import {
   loadRuntimeMigrationPlan,
   quoteSqlLiteral
 } from './apply-runtime-migrations.mjs'
+import {
+  validatePublicSchemaCatalog,
+  validatePublicSchemaRatchet
+} from './public-schema-ratchet.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const maxOutput = 256 * 1024 * 1024
@@ -409,7 +413,20 @@ export const executeDatabaseRelease = async ({
   log = console.log
 }) => {
   adapter.preflight(manifest)
-  const beforeCatalogSha256 = sha256CanonicalJson(adapter.readCatalog())
+  const publicRatchet = validatePublicSchemaRatchet({ repoRoot })
+  if (publicRatchet.errors.length) {
+    throw new Error(`public Schema ratchet is invalid:\n- ${publicRatchet.errors.join('\n- ')}`)
+  }
+  const beforeCatalog = adapter.readCatalog()
+  const beforePublicErrors = validatePublicSchemaCatalog({
+    catalog: beforeCatalog,
+    descriptor: publicRatchet.descriptor,
+    baselineCatalog: publicRatchet.baselineCatalog
+  }).errors
+  if (beforePublicErrors.length) {
+    throw new Error(`public Schema preflight failed:\n- ${beforePublicErrors.join('\n- ')}`)
+  }
+  const beforeCatalogSha256 = sha256CanonicalJson(beforeCatalog)
   const preflightErrors = validateDatabaseReleasePreflight({
     manifest,
     catalogSha256: beforeCatalogSha256,
@@ -447,7 +464,16 @@ export const executeDatabaseRelease = async ({
   adapter.initializeReleaseLedger()
   adapter.configureRuntimeSecrets(execution.secrets)
 
-  const afterCatalogSha256 = sha256CanonicalJson(adapter.readCatalog())
+  const afterCatalog = adapter.readCatalog()
+  const afterPublicErrors = validatePublicSchemaCatalog({
+    catalog: afterCatalog,
+    descriptor: publicRatchet.descriptor,
+    baselineCatalog: publicRatchet.baselineCatalog
+  }).errors
+  if (afterPublicErrors.length) {
+    throw new Error(`public Schema post-release check failed:\n- ${afterPublicErrors.join('\n- ')}`)
+  }
+  const afterCatalogSha256 = sha256CanonicalJson(afterCatalog)
   if (afterCatalogSha256 !== contract.databaseCatalog.sha256) {
     throw new Error(`post-release database catalog drift: ${afterCatalogSha256}`)
   }

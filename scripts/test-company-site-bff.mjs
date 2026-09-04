@@ -57,8 +57,13 @@ const availablePort = () => new Promise((resolvePromise, reject) => {
 })
 const waitForDatabase = async () => {
   for (let attempt = 0; attempt < 160; attempt += 1) {
+    const logsResult = docker(['logs', dbContainer], { allowFailure: true })
+    const logs = `${logsResult.stdout}\n${logsResult.stderr}`
     const ready = docker(['exec', dbContainer, 'pg_isready', '-U', 'postgres', '-d', 'eiscore'], { allowFailure: true })
-    if (ready.status === 0) return
+    const readyEvents = (logs.match(/database system is ready to accept connections/gi) || []).length
+    if (ready.status === 0
+      && logs.includes('PostgreSQL init process complete; ready for start up.')
+      && readyEvents >= 2) return
     await sleep(250)
   }
   throw new Error('isolated DB6 company-site database did not become ready')
@@ -173,7 +178,7 @@ try {
     '--backup-evidence', 'isolated://db6-company-site-bff', '--release-revision', 'db6-bff-test',
     '--operator', 'db6-company-site-bff-test'
   ])
-  assert.match(migration.stdout, /core migration execution passed: 3 applied, 1 skipped/)
+  assert.match(migration.stdout, /core migration execution passed: 5 applied, 1 skipped/)
 
   psql(`
     INSERT INTO company_site.site_config (

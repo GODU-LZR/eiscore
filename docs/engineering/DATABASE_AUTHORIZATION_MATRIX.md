@@ -28,19 +28,22 @@
 
 | 表 | `web_user` 查询 | `web_user` 写入 | 删除 | Agent |
 |---|---|---|---|---|
-| `archives` | `module:hr`、HR 应用或查看操作 | HR 创建/编辑操作 | 管理员或 HR 管理员/编辑权限 | 直连读写 |
+| `archives` | HR 查看权限 + `hr_employee` 数据范围 | HR 写权限 + 同一数据范围 | 管理权限 + 同一数据范围 | 直连读写 |
 | `employee_profiles` | 同上 | 同上 | 同上 | 直连读写 |
-| `attendance_records` | 同上 | 同上 | 同上 | 直连读写 |
+| `attendance_records` | HR 查看权限 + `hr_attendance` 数据范围 | HR 写权限 + 同一数据范围 | 管理权限 + 同一数据范围 | 直连读写 |
 | `attendance_month_overrides` | 同上 | 同上 | 同上 | 直连读写 |
 | `attendance_shifts` | 同上 | 同上 | 同上 | 直连读写 |
-| `payroll` | 仅管理员、HR 管理员或 `op:hr_payroll.view` | 仅管理员、HR 管理员或 payroll 创建/编辑操作 | 同写入边界 | 直连读写 |
+| `payroll` | 薪资专项授权 + `hr_payroll` 数据范围 | 薪资写授权 + 同一数据范围 | 同写入边界 | 直连读写 |
+| `user_employee_links` | 仅管理员或具备 HR 用户/员工管理权限的 `hr_admin` | 同查询；触发器固定审计时间和操作者 | 同查询 | 直连读写，不可 DELETE |
 | `v_attendance_daily/monthly` | 继承底层考勤 RLS | 只读 | 不适用 | 不作为 Agent 写入口 |
 
 两个考勤视图设置 `security_invoker = true`，避免视图 Owner 绕过底层 RLS。
 
-## 尚未承诺的细粒度能力
+## 身份与数据范围
 
-当前 HR 表只有 `employee_no`、`employee_id` 和部门快照字段，没有稳定的“登录用户—员工档案”外键。因此本阶段先实现逐表、逐操作权限；本人/部门行级隔离要在建立身份桥接字段后单独迁移，不能用姓名猜测身份。
+`core-005` 建立 `public.users.id` 到 `hr.archives.id` 的一对一稳定桥接。`self` 是无显式范围时的失败关闭默认；`dept`、`dept_tree` 只使用目标用户的部门 UUID 和 `public.dept_tree_ids`；`all` 可访问未桥接员工与临时工。姓名、工号、部门文本和考勤快照字段都不参与身份推断。JWT 可通过 `username`、数字 `sub` 或兼容用户名式 `sub` 定位稳定用户 ID。
+
+未建立桥接的普通登录用户看不到员工明细；部署企业数据时必须把桥接数据作为显式、可审计的客户初始化步骤。薪资在数据范围之外继续要求薪资专项权限，不能由宽泛 `module:hr` 获取。
 
 ## 动态表和测试表
 

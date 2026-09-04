@@ -181,7 +181,8 @@ BEGIN
     WHERE n.nspname = 'hr'
       AND c.relname IN (
         'archives', 'attendance_month_overrides', 'attendance_records',
-        'attendance_shifts', 'employee_profiles', 'payroll'
+        'attendance_shifts', 'employee_profiles', 'payroll',
+        'user_employee_links'
       )
       AND NOT c.relrowsecurity
   ) THEN
@@ -195,8 +196,66 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'hr'
       AND p.polname = 'hr_agent_access'
-  ) <> 6 THEN
+  ) <> 7 THEN
     RAISE EXCEPTION 'HR Agent policy coverage is incomplete';
+  END IF;
+
+  IF to_regclass('hr.user_employee_links') IS NULL
+     OR to_regprocedure('hr.current_user_id()') IS NULL
+     OR to_regprocedure('hr.current_employee_archive_id()') IS NULL
+     OR to_regprocedure('hr.can_access_employee(bigint,text)') IS NULL
+     OR to_regprocedure('hr.can_manage_employee_links()') IS NULL THEN
+    RAISE EXCEPTION 'HR stable user-to-employee identity bridge is incomplete';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'hr.user_employee_links'::regclass
+      AND contype = 'p'
+  ) OR (
+    SELECT count(*)
+    FROM pg_constraint
+    WHERE conrelid = 'hr.user_employee_links'::regclass
+      AND contype = 'f'
+  ) <> 3 OR NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'hr.user_employee_links'::regclass
+      AND contype = 'u'
+  ) THEN
+    RAISE EXCEPTION 'HR identity bridge keys are incomplete';
+  END IF;
+
+  IF (
+    SELECT count(*)
+    FROM pg_policy p
+    JOIN pg_class c ON c.oid = p.polrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'hr'
+      AND c.relname IN (
+        'archives', 'employee_profiles', 'attendance_records',
+        'attendance_month_overrides', 'payroll'
+      )
+      AND p.polcmd = 'r'
+      AND position('can_access_employee' IN pg_get_expr(p.polqual, p.polrelid)) > 0
+  ) <> 5 THEN
+    RAISE EXCEPTION 'employee-bearing HR select policies must enforce stable row scope';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_policy p
+    JOIN pg_class c ON c.oid = p.polrelid
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'hr'
+      AND c.relname IN (
+        'archives', 'attendance_month_overrides', 'attendance_records',
+        'attendance_shifts', 'employee_profiles'
+      )
+      AND p.polname LIKE 'hr_hr_%'
+  ) THEN
+    RAISE EXCEPTION 'legacy generated HR policy names remain installed';
   END IF;
 
   IF NOT EXISTS (
@@ -224,6 +283,10 @@ BEGIN
 
   IF to_regclass('app_data.eiscore_chain_test_records') IS NOT NULL THEN
     RAISE EXCEPTION 'the reusable full-chain test table must not remain in the installed product database';
+  END IF;
+
+  IF to_regclass('public.debug_me') IS NOT NULL THEN
+    RAISE EXCEPTION 'the unaudited public JWT debug view must not remain installed';
   END IF;
 END
 $$;
