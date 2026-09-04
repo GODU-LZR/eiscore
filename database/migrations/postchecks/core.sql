@@ -281,6 +281,82 @@ BEGIN
     RAISE EXCEPTION 'attendance views must use security_invoker';
   END IF;
 
+  IF to_regclass('app_center.data_app_table_registry') IS NULL
+     OR to_regclass('app_center.data_app_ddl_audit') IS NULL
+     OR to_regprocedure('app_center.create_data_app_table(uuid,text,jsonb)') IS NULL
+     OR to_regprocedure('app_center.create_data_app_table_legacy_v1(uuid,text,jsonb)') IS NULL
+     OR to_regprocedure('app_center.apply_data_app_table_security(text)') IS NULL THEN
+    RAISE EXCEPTION 'dynamic data-app DDL governance objects are incomplete';
+  END IF;
+
+  IF has_function_privilege('web_anon', 'app_center.create_data_app_table(uuid,text,jsonb)', 'EXECUTE')
+     OR NOT has_function_privilege('web_user', 'app_center.create_data_app_table(uuid,text,jsonb)', 'EXECUTE')
+     OR NOT has_function_privilege('eiscore_agent', 'app_center.create_data_app_table(uuid,text,jsonb)', 'EXECUTE')
+     OR has_function_privilege('web_user', 'app_center.create_data_app_table_legacy_v1(uuid,text,jsonb)', 'EXECUTE')
+     OR has_function_privilege('eiscore_agent', 'app_center.create_data_app_table_legacy_v1(uuid,text,jsonb)', 'EXECUTE')
+     OR has_function_privilege('web_user', 'app_center.apply_data_app_table_security(text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'dynamic data-app DDL function privileges are unsafe';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    LEFT JOIN app_center.data_app_table_registry r
+      ON r.table_schema = n.nspname AND r.table_name = c.relname
+    WHERE n.nspname = 'app_data'
+      AND c.relkind IN ('r', 'p')
+      AND c.relname LIKE 'data_app\_%' ESCAPE '\'
+      AND r.table_name IS NULL
+  ) THEN
+    RAISE EXCEPTION 'a legacy dynamic data-app table is missing recovery metadata';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM app_center.data_app_table_registry r
+    LEFT JOIN pg_class c
+      ON c.oid = to_regclass(format('%I.%I', r.table_schema, r.table_name))
+    WHERE c.oid IS NULL
+       OR NOT c.relrowsecurity
+       OR has_table_privilege('web_anon', c.oid, 'SELECT')
+  ) THEN
+    RAISE EXCEPTION 'a governed dynamic data-app table is missing RLS or still grants anonymous access';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM app_center.data_app_table_registry r
+    WHERE r.lifecycle = 'managed' AND r.app_id IS NULL
+       OR r.lifecycle = 'quarantined' AND r.app_id IS NOT NULL
+  ) OR EXISTS (
+    SELECT app_id
+    FROM app_center.data_app_table_registry
+    WHERE app_id IS NOT NULL
+    GROUP BY app_id
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'dynamic data-app registry one-to-one binding is invalid';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM app_center.data_app_table_registry r
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM pg_policy p
+      WHERE p.polrelid = to_regclass(format('%I.%I', r.table_schema, r.table_name))
+        AND p.polname = 'dynamic_data_app_web_user'
+    ) OR NOT EXISTS (
+      SELECT 1
+      FROM pg_policy p
+      WHERE p.polrelid = to_regclass(format('%I.%I', r.table_schema, r.table_name))
+        AND p.polname = 'dynamic_data_app_agent'
+    )
+  ) THEN
+    RAISE EXCEPTION 'dynamic data-app RLS policy coverage is incomplete';
+  END IF;
+
   IF to_regclass('app_data.eiscore_chain_test_records') IS NOT NULL THEN
     RAISE EXCEPTION 'the reusable full-chain test table must not remain in the installed product database';
   END IF;

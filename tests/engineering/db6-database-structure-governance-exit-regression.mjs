@@ -15,15 +15,14 @@ const migrationManifests = [
   json('database/migrations/company-site.json'),
   json('database/migrations/core.json')
 ]
-assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 17)
+assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 18)
 assert.deepEqual(migrationManifests[2].migrations.map(({ id }) => id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006'
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007'
 ])
 
 const release = loadAndValidateDatabaseRelease({ repoRoot })
 assert.deepEqual(release.errors, [])
-assert.equal(release.manifest.releaseId, 'eiscore-db-v5')
-assert.equal(release.manifestSha256, '74c45f43d415a5775ce7f8f7bedc4fc99f629dc8141f712e6871765599060a8a')
+assert.equal(release.manifest.releaseId, 'eiscore-db-v6')
 assert.deepEqual(release.manifest.predecessors, [
   {
     id: 'eiscore-db-v1-runtime',
@@ -39,22 +38,22 @@ assert.deepEqual(release.manifest.predecessors, [
   }
 ])
 
-const contract = json('database/contracts/eiscore-db-contract-v2.json')
+const contract = json('database/contracts/eiscore-db-contract-v3.json')
 assert.deepEqual(contract.databaseCatalog.counts, {
   schemas: 7,
-  relations: 196,
-  functions: 166,
+  relations: 199,
+  functions: 168,
   types: 1,
-  policies: 299,
+  policies: 319,
   triggers: 83,
   roles: 6,
   memberships: 3,
   defaultPrivileges: 19,
   extensions: 2
 })
-assert.equal(contract.postgrestOpenApi.counts.paths, 296)
+assert.equal(contract.postgrestOpenApi.counts.paths, 286)
 assert.equal(contract.postgrestOpenApi.counts.rpcPaths, 78)
-assert.equal(contract.postgrestOpenApi.counts.definitions, 204)
+assert.equal(contract.postgrestOpenApi.counts.definitions, 194)
 
 const packageJson = json('package.json')
 assert.equal(packageJson.scripts['test:database-company-site-bff:docker'], 'node scripts/test-company-site-bff.mjs')
@@ -90,8 +89,8 @@ assert.ok(plan.includes('### DB6：数据库结构与领域权限收口（已完
 assert.ok(plan.includes('DB0～DB6 全部退出'))
 
 const databaseReadme = read('database/README.md')
-assert.ok(databaseReadme.includes('company-site 1 个、core 6 个迁移，共 17 个不可变迁移'))
-assert.ok(databaseReadme.includes('releases/eiscore-db-v5/manifest.json'))
-assert.ok(databaseReadme.includes('--confirm-empty-target=eiscore-db-v5'))
+assert.ok(databaseReadme.includes('company-site 1 个、core 7 个迁移，共 18 个不可变迁移'))
+assert.ok(databaseReadme.includes('releases/eiscore-db-v6/manifest.json'))
+assert.ok(databaseReadme.includes('--confirm-empty-target=eiscore-db-v6'))
 
 console.log('PASS: DB6 database structure governance evidence and drift anchors')

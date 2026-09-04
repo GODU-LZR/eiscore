@@ -29,6 +29,10 @@ import {
   validatePublicSchemaCatalog,
   validatePublicSchemaRatchet
 } from './public-schema-ratchet.mjs'
+import {
+  acquirePostgresAdvisoryLock,
+  withDatabaseOperationLock
+} from './database-operation-lock.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const maxOutput = 256 * 1024 * 1024
@@ -142,6 +146,33 @@ export class DatabaseReleaseDockerAdapter extends DockerPsqlAdapter {
   constructor(options) {
     super(options)
     this.options = options
+    this.operationDeadline = 0
+    this.operationName = ''
+  }
+
+  acquireOperationLock(policy) {
+    return acquirePostgresAdvisoryLock({
+      dbContainer: this.dbContainer,
+      dbName: this.dbName,
+      dbUser: this.dbUser,
+      key: policy.advisoryLockKey,
+      waitTimeoutMs: policy.lockWaitTimeoutMs,
+      holderExitTimeoutMs: policy.holderExitTimeoutMs,
+      operation: policy.operation,
+      cwd: repoRoot
+    })
+  }
+
+  beginOperationBudget({ operation, timeoutMs }) {
+    this.operationName = operation
+    this.operationDeadline = Date.now() + timeoutMs
+  }
+
+  assertOperationBudget(stage) {
+    this.operationLockGuard?.assertHeld()
+    if (this.operationDeadline && Date.now() > this.operationDeadline) {
+      throw new Error(`database ${this.operationName} timeout exceeded at ${stage}`)
+    }
   }
 
   query(sql, { user = this.dbUser, password = '', host = '' } = {}) {
@@ -271,23 +302,51 @@ export class DatabaseReleaseDockerAdapter extends DockerPsqlAdapter {
     if (!authenticator.split(/\r?\n/).includes('web_user')) throw new Error('PostgREST role-switch verification failed')
   }
 
-  async ensureApi(manifest, apiContainer, apiUrl) {
+  readPostgrestSchemaCacheEvents(apiContainer, since) {
+    const result = execute(['logs', '--since', since, apiContainer], { allowFailure: true })
+    const output = `${result.stdout || ''}\n${result.stderr || ''}`
+    return (output.match(/schema cache loaded/gi) || []).length
+  }
+
+  createPostgrestReloadMarker(apiContainer) {
+    const since = new Date(Date.now() - 1_000).toISOString()
+    return { since, count: this.readPostgrestSchemaCacheEvents(apiContainer, since) }
+  }
+
+  hasPostgrestReloaded(apiContainer, marker) {
+    return this.readPostgrestSchemaCacheEvents(apiContainer, marker.since) > marker.count
+  }
+
+  async ensureApi(manifest, apiContainer, apiUrl, policy) {
     if (this.containerImage(apiContainer) !== manifest.images.postgrest) {
       throw new Error('target PostgREST container image does not match the release manifest')
     }
     if (this.inspectState(apiContainer) !== 'running') execute(['start', apiContainer])
     let lastError
-    for (let attempt = 0; attempt < 160; attempt += 1) {
+    let stableResponses = 0
+    const deadline = Date.now() + policy.readinessTimeoutMs
+    while (Date.now() <= deadline) {
       try {
-        const response = await fetch(`${apiUrl}/`)
-        if (response.ok) return
-        lastError = new Error(`HTTP ${response.status}: ${await response.text()}`)
+        const response = await fetch(`${apiUrl}/`, {
+          signal: AbortSignal.timeout(policy.httpRequestTimeoutMs)
+        })
+        const body = await response.text()
+        if (response.ok) {
+          stableResponses += 1
+          if (stableResponses >= policy.stableFingerprintSamples) return
+        } else {
+          stableResponses = 0
+          lastError = new Error(`HTTP ${response.status}: ${body}`)
+        }
       } catch (error) {
+        stableResponses = 0
         lastError = error
       }
-      await sleep(250)
+      await sleep(policy.pollIntervalMs)
     }
-    throw new Error(`PostgREST candidate did not become ready: ${lastError?.message || 'unknown error'}`)
+    throw new Error(
+      `PostgREST candidate did not become stably ready within ${policy.readinessTimeoutMs} ms: ${lastError?.message || 'unknown error'}`
+    )
   }
 
   recordRelease({ manifest, manifestSha256, contract, backupEvidence, operator }) {
@@ -357,25 +416,55 @@ const token = (claims, secret) => {
   return `${body}.${createHmac('sha256', secret).update(body).digest('base64url')}`
 }
 
-const fetchOpenApi = async (apiUrl, schema, authorization = '') => {
+const fetchOpenApi = async (apiUrl, schema, authorization = '', timeoutMs = 5_000) => {
   const headers = { accept: 'application/openapi+json', 'accept-profile': schema }
   if (authorization) headers.authorization = authorization
-  const response = await fetch(`${apiUrl}/`, { headers })
+  const response = await fetch(`${apiUrl}/`, {
+    headers,
+    signal: AbortSignal.timeout(timeoutMs)
+  })
   const body = await response.text()
   assert.equal(response.status, 200, body)
   return normalizePostgrestOpenApi(JSON.parse(body))
 }
 
-const fetchOpenApiCatalog = async (apiUrl, authorization) => ({
+const fetchOpenApiCatalog = async (apiUrl, authorization, timeoutMs) => ({
   web_anon: Object.fromEntries(await Promise.all(applicationSchemas.map(async (schema) => [
-    schema, await fetchOpenApi(apiUrl, schema)
+    schema, await fetchOpenApi(apiUrl, schema, '', timeoutMs)
   ]))),
   web_user: Object.fromEntries(await Promise.all(applicationSchemas.map(async (schema) => [
-    schema, await fetchOpenApi(apiUrl, schema, authorization)
+    schema, await fetchOpenApi(apiUrl, schema, authorization, timeoutMs)
   ])))
 })
 
-export const verifyReleasedPostgrest = async ({ adapter, apiUrl, contract, jwtSecret }) => {
+export const describePostgrestContractDifference = (contract, catalog) => {
+  const differences = []
+  for (const role of ['web_anon', 'web_user']) {
+    const actualRole = sha256CanonicalJson(catalog?.[role] || {})
+    const expectedRole = contract.postgrestOpenApi.roleSha256?.[role]
+    if (expectedRole && actualRole !== expectedRole) {
+      differences.push(`${role}: expected ${expectedRole}, received ${actualRole}`)
+    }
+    for (const schema of applicationSchemas) {
+      const actualSchema = sha256CanonicalJson(catalog?.[role]?.[schema] || {})
+      const expectedSchema = contract.postgrestOpenApi.schemaSha256?.[role]?.[schema]
+      if (expectedSchema && actualSchema !== expectedSchema) {
+        differences.push(`${role}/${schema}: expected ${expectedSchema}, received ${actualSchema}`)
+      }
+    }
+  }
+  return differences
+}
+
+export const verifyReleasedPostgrest = async ({
+  adapter,
+  apiContainer,
+  apiUrl,
+  contract,
+  jwtSecret,
+  policy
+}) => {
+  const reloadMarker = adapter.createPostgrestReloadMarker(apiContainer)
   adapter.executeSql('PostgREST schema cache reload', "NOTIFY pgrst, 'reload schema';")
   const claims = {
     role: 'web_user', app_role: 'employee', username: 'db4-release-verifier',
@@ -384,19 +473,42 @@ export const verifyReleasedPostgrest = async ({ adapter, apiUrl, contract, jwtSe
   const authorization = `Bearer ${token(claims, jwtSecret)}`
   let catalog
   let actualHash = ''
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    catalog = await fetchOpenApiCatalog(apiUrl, authorization)
-    actualHash = sha256CanonicalJson(catalog)
-    if (actualHash === contract.postgrestOpenApi.sha256) break
-    await sleep(250)
+  let stableSamples = 0
+  let reloadAcknowledged = false
+  let lastError
+  const deadline = Date.now() + policy.reloadTimeoutMs
+  while (Date.now() <= deadline) {
+    reloadAcknowledged = reloadAcknowledged || adapter.hasPostgrestReloaded(apiContainer, reloadMarker)
+    try {
+      catalog = await fetchOpenApiCatalog(apiUrl, authorization, policy.httpRequestTimeoutMs)
+      actualHash = sha256CanonicalJson(catalog)
+      stableSamples = reloadAcknowledged && actualHash === contract.postgrestOpenApi.sha256
+        ? stableSamples + 1
+        : 0
+      if (stableSamples >= policy.stableFingerprintSamples) break
+    } catch (error) {
+      stableSamples = 0
+      lastError = error
+    }
+    await sleep(policy.pollIntervalMs)
   }
-  if (actualHash !== contract.postgrestOpenApi.sha256) {
-    throw new Error(`PostgREST OpenAPI contract drift: ${actualHash}`)
+  if (!reloadAcknowledged || stableSamples < policy.stableFingerprintSamples) {
+    const differences = catalog ? describePostgrestContractDifference(contract, catalog) : []
+    throw new Error([
+      `PostgREST schema-cache readiness failed within ${policy.reloadTimeoutMs} ms`,
+      `reloadAcknowledged=${reloadAcknowledged}`,
+      `stableSamples=${stableSamples}/${policy.stableFingerprintSamples}`,
+      `expected=${contract.postgrestOpenApi.sha256}`,
+      `actual=${actualHash || '<unavailable>'}`,
+      ...(lastError ? [`lastError=${lastError.message}`] : []),
+      ...differences
+    ].join('; '))
   }
   const rpc = await fetch(`${apiUrl}/rpc/ontology_current_claims`, {
     method: 'POST',
     headers: { authorization, 'content-type': 'application/json', 'content-profile': 'public' },
-    body: '{}'
+    body: '{}',
+    signal: AbortSignal.timeout(policy.httpRequestTimeoutMs)
   })
   const body = await rpc.text()
   assert.equal(rpc.status, 200, body)
@@ -412,6 +524,8 @@ export const executeDatabaseRelease = async ({
   adapter,
   log = console.log
 }) => {
+  const postgrestPolicy = manifest.operationPolicy.postgrest
+  adapter.assertOperationBudget?.('preflight')
   adapter.preflight(manifest)
   const publicRatchet = validatePublicSchemaRatchet({ repoRoot })
   if (publicRatchet.errors.length) {
@@ -434,6 +548,7 @@ export const executeDatabaseRelease = async ({
   })
   if (preflightErrors.length) throw new Error(`database release preflight failed:\n- ${preflightErrors.join('\n- ')}`)
   log(`Preflight passed: ${beforeCatalogSha256}`)
+  adapter.assertOperationBudget?.('backup')
 
   const backupEvidence = adapter.createBackup({
     backupRoot: execution.backupDir,
@@ -447,6 +562,7 @@ export const executeDatabaseRelease = async ({
   log(`Verified backup: ${backupEvidence.evidencePath}`)
 
   for (const descriptor of manifest.migrationManifests) {
+    adapter.assertOperationBudget?.(`migration manifest ${descriptor.name}`)
     const plan = loadRuntimeMigrationPlan({ repoRoot, manifestPath: descriptor.path })
     executeRuntimeMigrationPlan({
       plan,
@@ -463,6 +579,7 @@ export const executeDatabaseRelease = async ({
   // only after role migrations so its final owner is always non-login.
   adapter.initializeReleaseLedger()
   adapter.configureRuntimeSecrets(execution.secrets)
+  adapter.assertOperationBudget?.('database contract verification')
 
   const afterCatalog = adapter.readCatalog()
   const afterPublicErrors = validatePublicSchemaCatalog({
@@ -477,10 +594,16 @@ export const executeDatabaseRelease = async ({
   if (afterCatalogSha256 !== contract.databaseCatalog.sha256) {
     throw new Error(`post-release database catalog drift: ${afterCatalogSha256}`)
   }
-  await adapter.ensureApi(manifest, options.apiContainer, execution.apiUrl)
+  await adapter.ensureApi(manifest, options.apiContainer, execution.apiUrl, postgrestPolicy)
   await verifyReleasedPostgrest({
-    adapter, apiUrl: execution.apiUrl, contract, jwtSecret: execution.secrets.jwtSecret
+    adapter,
+    apiContainer: options.apiContainer,
+    apiUrl: execution.apiUrl,
+    contract,
+    jwtSecret: execution.secrets.jwtSecret,
+    policy: postgrestPolicy
   })
+  adapter.assertOperationBudget?.('release record')
   adapter.recordRelease({
     manifest, manifestSha256, contract, backupEvidence, operator: execution.operator
   })
@@ -507,14 +630,20 @@ export const runDatabaseRelease = async ({
   const adapter = adapterFactory({
     dbContainer: options.dbContainer, dbName: options.dbName, dbUser: options.dbUser
   })
-  return executeDatabaseRelease({
-    manifest: release.manifest,
-    manifestSha256: databaseReleaseManifestSha256(release.manifest),
-    contract,
-    options,
-    execution,
+  return withDatabaseOperationLock({
     adapter,
-    log
+    policy: release.manifest.operationPolicy,
+    operation: 'release',
+    log,
+    task: () => executeDatabaseRelease({
+      manifest: release.manifest,
+      manifestSha256: databaseReleaseManifestSha256(release.manifest),
+      contract,
+      options,
+      execution,
+      adapter,
+      log
+    })
   })
 }
 

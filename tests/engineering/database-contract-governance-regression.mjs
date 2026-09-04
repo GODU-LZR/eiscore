@@ -7,7 +7,7 @@ import { resolve } from 'node:path'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const read = (path) => readFileSync(resolve(repoRoot, path), 'utf8')
-const contract = JSON.parse(read('database/contracts/eiscore-db-contract-v2.json'))
+const contract = JSON.parse(read('database/contracts/eiscore-db-contract-v3.json'))
 const packageJson = JSON.parse(read('package.json'))
 const contractTest = read('scripts/test-database-contracts.mjs')
 const catalogSource = read('scripts/database-contract-catalog.mjs')
@@ -15,7 +15,7 @@ const ciSource = read('.github/workflows/ci.yml')
 const sha256Pattern = /^[0-9a-f]{64}$/
 
 assert.equal(contract.schemaVersion, 1)
-assert.equal(contract.contractId, 'eiscore-db-contract-v2')
+assert.equal(contract.contractId, 'eiscore-db-contract-v3')
 assert.match(contract.postgresImage, /@sha256:[0-9a-f]{64}$/)
 assert.match(contract.postgrestImage, /@sha256:[0-9a-f]{64}$/)
 assert.deepEqual(contract.exposedSchemas, [
@@ -46,6 +46,8 @@ for (const marker of [
   'fresh install and role-upgrade catalogs differ',
   'repeated migrations changed the database contract',
   "NOTIFY pgrst, 'reload schema'",
+  'waitForSchemaCacheReload',
+  'dynamic data-app tables',
   'schema-cache reload changed the API contract',
   '/rpc/ontology_current_claims',
   'PGRST202',

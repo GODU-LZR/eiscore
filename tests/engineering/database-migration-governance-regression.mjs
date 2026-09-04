@@ -21,6 +21,11 @@ assert.deepEqual(
 assert.deepEqual(result.migrations.slice(0, 2).map((entry) => entry.transaction), ['runner', 'runner'])
 assert.ok(result.migrations.slice(2).every((entry) => entry.transaction === 'file'))
 assert.ok(result.migrations.every((entry) => entry.rollbackStrategy === 'backup-restore'))
+for (const migration of result.migrations) {
+  assert.equal(migration.lockTimeoutMs, 10_000)
+  assert.equal(migration.statementTimeoutMs, 300_000)
+  assert.equal(migration.idleTransactionTimeoutMs, 60_000)
+}
 
 const companySiteResult = loadAndValidateMigrationManifest({
   repoRoot,
@@ -43,11 +48,15 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 6)
+assert.equal(coreResult.migrations.length, 7)
 assert.deepEqual(coreResult.migrations.map((entry) => entry.id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006'
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007'
 ])
 assert.ok(coreResult.migrations.every((entry) => entry.rollbackStrategy === 'backup-restore'))
+assert.ok([...result.migrations, ...companySiteResult.migrations, ...coreResult.migrations]
+  .every((entry) => Number.isInteger(entry.lockTimeoutMs)
+    && Number.isInteger(entry.statementTimeoutMs)
+    && Number.isInteger(entry.idleTransactionTimeoutMs)))
 
 const mutate = (callback) => {
   const value = structuredClone(result.manifest)
@@ -73,6 +82,10 @@ assert.ok(mutate((value) => { value.legacyInventory[2].expectedSqlFiles -= 1 })
   .some((error) => error.includes('inventory drift')))
 assert.ok(mutate((value) => { value.postcheck = 'sql/does-not-exist.sql' })
   .some((error) => error.includes('postcheck does not exist')))
+assert.ok(mutate((value) => { delete value.migrations[0].lockTimeoutMs })
+  .some((error) => error.includes('lockTimeoutMs')))
+assert.ok(mutate((value) => { value.migrations[0].statementTimeoutMs = 0 })
+  .some((error) => error.includes('statementTimeoutMs')))
 assert.ok(mutate((value) => { [value.migrations[0], value.migrations[1]] = [value.migrations[1], value.migrations[0]] })
   .some((error) => error.includes('id must be') || error.includes('differs')))
 

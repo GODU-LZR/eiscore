@@ -10,6 +10,9 @@
       "path": "database/migrations/sql/company-site-001-add-published-snapshot.sql",
       "sha256": "6fe9262a5d59da7962546121136d0629f2e9f23e5dca06bbed7a6497aaee25d4",
       "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
       "rollback": {
         "strategy": "sql",
         "path": "database/migrations/rollback/company-site-001-add-published-snapshot.sql",

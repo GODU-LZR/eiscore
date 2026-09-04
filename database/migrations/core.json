@@ -10,6 +10,9 @@
       "path": "database/migrations/sql/core-001-externalize-database-credentials.sql",
       "sha256": "70ff80d137a15f3312eb8fdce5e1b25157cb43f0013a7c03ab03e83086cd4ffc",
       "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
       "rollback": {
         "strategy": "backup-restore",
         "backupRequired": true
@@ -20,6 +23,9 @@
       "path": "database/migrations/sql/core-002-role-boundaries.sql",
       "sha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc",
       "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
       "rollback": {
         "strategy": "backup-restore",
         "backupRequired": true
@@ -30,6 +36,9 @@
       "path": "database/migrations/sql/core-003-rls-boundaries.sql",
       "sha256": "42d0abd02bd41c4746f32d0641f8a1ebb1c7c56d2733fa280fcd00e5bc82bc78",
       "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
       "rollback": {
         "strategy": "backup-restore",
         "backupRequired": true
@@ -40,6 +49,9 @@
       "path": "database/migrations/sql/core-004-retire-chain-test-table.sql",
       "sha256": "7f51f2a3565d844ab15e1e6ec8aee1cc41974b8840254ed93e3a866244266947",
       "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
       "rollback": {
         "strategy": "backup-restore",
         "backupRequired": true
@@ -50,6 +62,9 @@
       "path": "database/migrations/sql/core-005-hr-employee-identity-scope.sql",
       "sha256": "7a6eb017560ad2f7570a2bd300124fde0daf362081da2e269503b7456a0da3bc",
       "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
       "rollback": {
         "strategy": "backup-restore",
         "backupRequired": true
@@ -60,6 +75,22 @@
       "path": "database/migrations/sql/core-006-remove-public-debug-view.sql",
       "sha256": "b1a57f6deddc46f7901c5a00a47d624fe1c9bbac750353b0f8e77699811ba8f0",
       "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-007",
+      "path": "database/migrations/sql/core-007-govern-dynamic-data-app-ddl.sql",
+      "sha256": "38e898e4573b14cd9197a4a8ab9cae33f551156a09bfa1318431fe8a402db98a",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
       "rollback": {
         "strategy": "backup-restore",
         "backupRequired": true

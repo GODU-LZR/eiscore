@@ -1,6 +1,20 @@
 {
-  "schemaVersion": 1,
-  "policyId": "eiscore-database-operations-v1",
+  "schemaVersion": 2,
+  "policyId": "eiscore-database-operations-v2",
+  "operationControl": {
+    "advisoryLockKey": "748526865738823304",
+    "lockWaitTimeoutMs": 30000,
+    "holderExitTimeoutMs": 5000,
+    "releaseTimeoutMs": 1200000,
+    "recoveryTimeoutMs": 1800000,
+    "postgrest": {
+      "httpRequestTimeoutMs": 5000,
+      "readinessTimeoutMs": 45000,
+      "reloadTimeoutMs": 30000,
+      "pollIntervalMs": 250,
+      "stableFingerprintSamples": 3
+    }
+  },
   "backup": {
     "recoveryPointObjectiveSeconds": 86400,
     "retention": {

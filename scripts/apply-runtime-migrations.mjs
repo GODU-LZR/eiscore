@@ -77,9 +77,14 @@ const ledgerInsert = (migration, metadata) => [
 export const renderGovernedMigrationSql = ({ migration, sql, metadata }) => {
   const statement = ledgerInsert(migration, metadata)
   const source = String(sql).replace(/\s*$/, '\n')
+  const timeoutSettings = [
+    `SET LOCAL lock_timeout = '${migration.lockTimeoutMs}ms';`,
+    `SET LOCAL statement_timeout = '${migration.statementTimeoutMs}ms';`,
+    `SET LOCAL idle_in_transaction_session_timeout = '${migration.idleTransactionTimeoutMs}ms';`
+  ].join('\n')
 
   if (migration.transaction === 'runner') {
-    return `BEGIN;\n${source}${statement}\nCOMMIT;\n`
+    return `BEGIN;\n${timeoutSettings}\n${source}${statement}\nCOMMIT;\n`
   }
 
   if (migration.transaction === 'file') {
@@ -87,7 +92,11 @@ export const renderGovernedMigrationSql = ({ migration, sql, metadata }) => {
     if (commits.length !== 1) {
       throw new Error(`file-managed migration must contain exactly one COMMIT: ${migration.id}`)
     }
-    return source.replace(/^\s*COMMIT\s*;/im, `${statement}\nCOMMIT;`)
+    const governedSource = source.replace(
+      /(^\s*BEGIN\s*;)/im,
+      `$1\n${timeoutSettings}`
+    )
+    return governedSource.replace(/^\s*COMMIT\s*;/im, `${statement}\nCOMMIT;`)
   }
 
   throw new Error(`unsupported transaction mode: ${migration.transaction}`)
@@ -126,11 +135,12 @@ export const resolveExecutionMetadata = (options, { repoRoot = defaultRepoRoot, 
   )
 })
 
-const runDocker = (args, { input, label, quiet = false } = {}) => {
+const runDocker = (args, { input, label, quiet = false, timeout = 120_000 } = {}) => {
   const result = spawnSync('docker', args, {
     input,
     encoding: 'utf8',
     maxBuffer: maxCommandOutput,
+    timeout,
     windowsHide: true
   })
   if (result.error) throw new Error(`${label}: ${result.error.message}`)
@@ -171,8 +181,8 @@ export class DockerPsqlAdapter {
     })
   }
 
-  executeSql(label, sql) {
-    runDocker(this.psqlArgs(), { input: sql, label })
+  executeSql(label, sql, { timeoutMs = 120_000 } = {}) {
+    runDocker(this.psqlArgs(), { input: sql, label, timeout: timeoutMs })
   }
 
   readChecksum(migrationId) {
@@ -257,7 +267,9 @@ export const executeRuntimeMigrationPlan = ({ plan, adapter, metadata, log = con
       sql: readFileSync(migration.absolutePath, 'utf8'),
       metadata
     })
-    adapter.executeSql(`migration execution (${migration.id})`, sql)
+    adapter.executeSql(`migration execution (${migration.id})`, sql, {
+      timeoutMs: migration.statementTimeoutMs + migration.idleTransactionTimeoutMs + 30_000
+    })
     applied += 1
   }
 

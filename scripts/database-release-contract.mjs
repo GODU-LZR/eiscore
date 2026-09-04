@@ -9,7 +9,8 @@ import { canonicalJson } from './database-contract-catalog.mjs'
 import { loadAndValidateMigrationManifest } from './check-database-migrations.mjs'
 import { validateDatabaseBaseline } from './check-database-baseline.mjs'
 
-export const defaultDatabaseReleasePath = 'database/releases/eiscore-db-v5/manifest.json'
+export const defaultDatabaseReleasePath = 'database/releases/eiscore-db-v6/manifest.json'
+export const defaultDatabaseContractPath = 'database/contracts/eiscore-db-contract-v3.json'
 export const defaultMigrationManifestPaths = [
   'database/migrations/runtime-v2.json',
   'database/migrations/company-site.json',
@@ -65,13 +66,14 @@ export const buildDatabaseReleaseManifest = ({
   releaseId,
   sourceRevision,
   predecessorCatalogs,
-  migrationManifestPaths = defaultMigrationManifestPaths
+  migrationManifestPaths = defaultMigrationManifestPaths,
+  contractPath = defaultDatabaseContractPath
 }) => {
   if (!repoRoot) throw new Error('repoRoot is required')
   const baselinePath = 'database/baselines/eiscore-db-v1/manifest.json'
-  const contractPath = 'database/contracts/eiscore-db-contract-v2.json'
   const baseline = readJson(resolve(repoRoot, baselinePath))
   const contract = readJson(resolve(repoRoot, contractPath))
+  const operationsPolicy = readJson(resolve(repoRoot, 'database/operations/policy.json'))
   const artifacts = new Map()
 
   for (const path of [
@@ -91,6 +93,7 @@ export const buildDatabaseReleaseManifest = ({
     'scripts/check-database-migrations.mjs',
     'scripts/apply-runtime-migrations.mjs',
     'scripts/deploy-database-release.mjs',
+    'scripts/database-operation-lock.mjs',
     'scripts/restore-database-release-backup.mjs',
     'scripts/check-database-backups.mjs',
     'scripts/audit-database-runtime.mjs',
@@ -133,7 +136,7 @@ export const buildDatabaseReleaseManifest = ({
   })
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     releaseId,
     sourceRevision,
     images: { postgres: contract.postgresImage, postgrest: contract.postgrestImage },
@@ -152,6 +155,7 @@ export const buildDatabaseReleaseManifest = ({
       postgrestOpenApiSha256: contract.postgrestOpenApi.sha256
     },
     predecessors: predecessorCatalogs,
+    operationPolicy: operationsPolicy.operationControl,
     releasePolicy: {
       backupRequired: true,
       backupStorageEvidenceRequired: true,
@@ -172,7 +176,7 @@ export const validateDatabaseReleaseManifest = ({
 }) => {
   const errors = []
   const fail = (message) => errors.push(message)
-  if (manifest?.schemaVersion !== 1) fail('release schemaVersion must be 1')
+  if (![1, 2].includes(manifest?.schemaVersion)) fail('release schemaVersion must be 1 or 2')
   if (!/^eiscore-db-v[1-9][0-9]*$/.test(manifest?.releaseId || '')) fail('releaseId is invalid')
   if (!/^[0-9a-f]{40}$/.test(manifest?.sourceRevision || '')) fail('sourceRevision must be a full Git commit SHA')
   if (!String(manifest?.images?.postgres || '').includes('@sha256:')) fail('PostgreSQL image must be digest-pinned')
@@ -189,6 +193,48 @@ export const validateDatabaseReleaseManifest = ({
   for (const predecessor of manifest?.predecessors || []) {
     if (!predecessor?.id || !/^[0-9a-f]{64}$/.test(predecessor?.databaseCatalogSha256 || '')) {
       fail('predecessor catalog entry is invalid')
+    }
+  }
+
+  if (manifest?.schemaVersion === 2) {
+    const operation = manifest.operationPolicy || {}
+    try {
+      const key = BigInt(operation.advisoryLockKey)
+      if (key < -(2n ** 63n) || key > (2n ** 63n) - 1n) throw new Error()
+    } catch {
+      fail('operation advisory lock key must be a signed 64-bit integer')
+    }
+    for (const [field, minimum, maximum] of [
+      ['lockWaitTimeoutMs', 100, 300_000],
+      ['holderExitTimeoutMs', 100, 30_000],
+      ['releaseTimeoutMs', 60_000, 7_200_000],
+      ['recoveryTimeoutMs', 60_000, 14_400_000]
+    ]) {
+      const value = operation[field]
+      if (!Number.isInteger(value) || value < minimum || value > maximum) {
+        fail(`operation ${field} is invalid`)
+      }
+    }
+    const postgrest = operation.postgrest || {}
+    for (const [field, minimum, maximum] of [
+      ['httpRequestTimeoutMs', 100, 30_000],
+      ['readinessTimeoutMs', 1_000, 300_000],
+      ['reloadTimeoutMs', 1_000, 300_000],
+      ['pollIntervalMs', 50, 5_000],
+      ['stableFingerprintSamples', 2, 10]
+    ]) {
+      const value = postgrest[field]
+      if (!Number.isInteger(value) || value < minimum || value > maximum) {
+        fail(`PostgREST ${field} is invalid`)
+      }
+    }
+    try {
+      const governedPolicy = readJson(resolve(repoRoot, 'database/operations/policy.json')).operationControl
+      if (canonicalJson(operation) !== canonicalJson(governedPolicy)) {
+        fail('release operation policy drift')
+      }
+    } catch (error) {
+      fail(`release operation policy validation failed: ${error.message}`)
     }
   }
 

@@ -9,8 +9,14 @@ import { parseDatabaseRestoreArgs } from '../../scripts/restore-database-release
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const policy = JSON.parse(readFileSync(resolve(repoRoot, 'database/operations/policy.json'), 'utf8'))
-assert.equal(policy.schemaVersion, 1)
-assert.equal(policy.policyId, 'eiscore-database-operations-v1')
+assert.equal(policy.schemaVersion, 2)
+assert.equal(policy.policyId, 'eiscore-database-operations-v2')
+assert.match(policy.operationControl.advisoryLockKey, /^-?[0-9]+$/)
+assert.ok(policy.operationControl.lockWaitTimeoutMs > 0)
+assert.ok(policy.operationControl.releaseTimeoutMs > policy.operationControl.lockWaitTimeoutMs)
+assert.ok(policy.operationControl.recoveryTimeoutMs >= policy.operationControl.releaseTimeoutMs)
+assert.ok(policy.operationControl.postgrest.stableFingerprintSamples >= 2)
+assert.ok(policy.operationControl.postgrest.reloadTimeoutMs > 0)
 assert.ok(policy.backup.recoveryPointObjectiveSeconds > 0)
 assert.ok(policy.recovery.recoveryTimeObjectiveSeconds > 0)
 assert.ok(policy.backup.retention.daily >= 7)
@@ -39,8 +45,19 @@ const restoreSource = readFileSync(resolve(repoRoot, 'scripts/restore-database-r
 const recoveryPostcheck = readFileSync(resolve(repoRoot, 'database/recovery/post-restore-v2.sql'), 'utf8')
 for (const marker of [
   '--confirm-empty-target', 'assertEmptyTarget', 'verifyArchive', 'bootstrapRoles',
-  'normalizeRestoredCatalog', 'verifyReleasedPostgrest', 'recordRecovery'
+  'normalizeRestoredCatalog', 'verifyReleasedPostgrest', 'recordRecovery',
+  'withDatabaseOperationLock'
 ]) assert.ok(restoreSource.includes(marker), `recovery lost ${marker}`)
+
+const releaseSource = readFileSync(resolve(repoRoot, 'scripts/deploy-database-release.mjs'), 'utf8')
+const lockSource = readFileSync(resolve(repoRoot, 'scripts/database-operation-lock.mjs'), 'utf8')
+for (const marker of [
+  'withDatabaseOperationLock', 'createPostgrestReloadMarker',
+  'hasPostgrestReloaded', 'stableFingerprintSamples'
+]) assert.ok(releaseSource.includes(marker), `release lost ${marker}`)
+for (const marker of ['pg_advisory_lock', 'lock_timeout', 'pg_advisory_unlock', 'finally']) {
+  assert.ok(lockSource.includes(marker), `operation lock lost ${marker}`)
+}
 assert.match(recoveryPostcheck, /ALTER %s %I\.%I\(%s\) OWNER TO eiscore_owner/)
 
 const runtimeAudit = readFileSync(resolve(repoRoot, 'scripts/audit-database-runtime.mjs'), 'utf8')
@@ -55,7 +72,7 @@ assert.match(recoveryLedger, /CREATE TABLE IF NOT EXISTS eiscore_meta\.database_
 assert.match(recoveryLedger, /recovery_ms bigint NOT NULL/)
 assert.match(recoveryLedger, /REVOKE ALL ON TABLE eiscore_meta\.database_recoveries FROM PUBLIC/)
 
-const restoreOptions = parseDatabaseRestoreArgs(['--evidence', 'x', '--confirm-empty-target', 'eiscore-db-v5'])
-assert.equal(restoreOptions.confirmation, 'eiscore-db-v5')
+const restoreOptions = parseDatabaseRestoreArgs(['--evidence', 'x', '--confirm-empty-target', 'eiscore-db-v6'])
+assert.equal(restoreOptions.confirmation, 'eiscore-db-v6')
 
 console.log('PASS: DB operations policy locks RPO/RTO, retention, restore safety, runtime health and redacted slow-query evidence')

@@ -14,6 +14,7 @@ import {
   verifyReleasedPostgrest
 } from './deploy-database-release.mjs'
 import { quoteSqlLiteral } from './apply-runtime-migrations.mjs'
+import { withDatabaseOperationLock } from './database-operation-lock.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const maxOutput = 512 * 1024 * 1024
@@ -32,7 +33,7 @@ const optionNames = new Map([
 export const parseDatabaseRestoreArgs = (argv) => {
   const options = {
     evidencePath: '',
-    releasePath: 'database/releases/eiscore-db-v5/manifest.json',
+    releasePath: 'database/releases/eiscore-db-v6/manifest.json',
     dbContainer: 'eiscore-db-recovery',
     dbName: 'eiscore',
     dbUser: 'postgres',
@@ -204,27 +205,37 @@ export const executeDatabaseRecovery = async ({
   adapter,
   log = console.log
 }) => {
+  const postgrestPolicy = release.manifest.operationPolicy.postgrest
   if (options.confirmation !== release.manifest.releaseId) {
     throw new Error(`--confirm-empty-target must equal ${release.manifest.releaseId}`)
   }
+  adapter.assertOperationBudget?.('empty target preflight')
   adapter.preflight(release.manifest)
   adapter.assertEmptyTarget()
   const databaseDump = readFileSync(backup.evidence.databaseDump.path)
   const globalsSql = readFileSync(backup.evidence.globals.path, 'utf8')
   adapter.verifyArchive(databaseDump)
+  adapter.assertOperationBudget?.('database restore')
   const started = process.hrtime.bigint()
   adapter.bootstrapRoles(globalsSql)
   adapter.restoreDatabase(databaseDump)
   adapter.normalizeRestoredCatalog()
   adapter.configureRuntimeSecrets(execution.secrets)
+  adapter.assertOperationBudget?.('recovered database contract verification')
   const catalogSha256 = sha256CanonicalJson(adapter.readCatalog())
   if (catalogSha256 !== contract.databaseCatalog.sha256) {
     throw new Error(`recovered database catalog drift: ${catalogSha256}`)
   }
-  await adapter.ensureApi(release.manifest, options.apiContainer, execution.apiUrl)
+  await adapter.ensureApi(release.manifest, options.apiContainer, execution.apiUrl, postgrestPolicy)
   await verifyReleasedPostgrest({
-    adapter, apiUrl: execution.apiUrl, contract, jwtSecret: execution.secrets.jwtSecret
+    adapter,
+    apiContainer: options.apiContainer,
+    apiUrl: execution.apiUrl,
+    contract,
+    jwtSecret: execution.secrets.jwtSecret,
+    policy: postgrestPolicy
   })
+  adapter.assertOperationBudget?.('recovery record')
   adapter.initializeRecoveryLedger()
   const recoveryMs = Number(process.hrtime.bigint() - started) / 1_000_000
   const recoveryId = adapter.recordRecovery({
@@ -260,7 +271,13 @@ export const runDatabaseRecovery = async ({
   const adapter = adapterFactory({
     dbContainer: options.dbContainer, dbName: options.dbName, dbUser: options.dbUser
   })
-  return executeDatabaseRecovery({ release, backup, contract, options, execution, adapter, log })
+  return withDatabaseOperationLock({
+    adapter,
+    policy: release.manifest.operationPolicy,
+    operation: 'recovery',
+    log,
+    task: () => executeDatabaseRecovery({ release, backup, contract, options, execution, adapter, log })
+  })
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)

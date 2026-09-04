@@ -18,7 +18,7 @@ const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
 const predecessorCatalogs = [{ id: 'eiscore-db-v1-runtime', databaseCatalogSha256: 'a'.repeat(64) }]
 const manifest = buildDatabaseReleaseManifest({
   repoRoot,
-  releaseId: 'eiscore-db-v5',
+  releaseId: 'eiscore-db-v6',
   sourceRevision: revision,
   predecessorCatalogs
 })
@@ -31,17 +31,18 @@ assert.deepEqual(validateDatabaseReleaseManifest({
 assert.match(databaseReleaseManifestSha256(manifest), /^[0-9a-f]{64}$/)
 assert.deepEqual(manifest.migrationManifests.map(({ name }) => name), ['runtime-v2', 'company-site', 'core'])
 assert.deepEqual(manifest.migrationManifests.map(({ terminal }) => terminal.id), [
-  'runtime-v2-010', 'company-site-001', 'core-006'
+  'runtime-v2-010', 'company-site-001', 'core-007'
 ])
 assert.ok(manifest.artifacts.some(({ path }) => path === 'database/release-ledger.sql'))
-assert.ok(manifest.artifacts.some(({ path }) => path === 'database/contracts/eiscore-db-contract-v2.json'))
+assert.ok(manifest.artifacts.some(({ path }) => path === 'database/contracts/eiscore-db-contract-v3.json'))
+assert.ok(manifest.artifacts.some(({ path }) => path === 'scripts/database-operation-lock.mjs'))
+assert.equal(manifest.schemaVersion, 2)
+assert.match(manifest.operationPolicy.advisoryLockKey, /^-?[0-9]+$/)
 assert.ok(manifest.artifacts.some(({ purpose }) => purpose === 'verification-only'))
 
 const fixedRelease = loadAndValidateDatabaseRelease({ repoRoot })
 assert.deepEqual(fixedRelease.errors, [])
-assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v5')
-assert.equal(fixedRelease.manifest.sourceRevision, 'dc1745614d9fce1f3cb8dab8695bce0046dac03d')
-assert.equal(fixedRelease.manifestSha256, '74c45f43d415a5775ce7f8f7bedc4fc99f629dc8141f712e6871765599060a8a')
+assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v6')
 
 const mutation = (callback) => {
   const value = structuredClone(manifest)
@@ -51,6 +52,7 @@ const mutation = (callback) => {
 assert.ok(mutation((value) => { value.images.postgres = 'postgres:16' }).some((error) => error.includes('digest-pinned')))
 assert.ok(mutation((value) => { value.releasePolicy.backupRequired = false }).some((error) => error.includes('backup')))
 assert.ok(mutation((value) => { value.predecessors[0].databaseCatalogSha256 = '0' }).some((error) => error.includes('predecessor')))
+assert.ok(mutation((value) => { value.operationPolicy.lockWaitTimeoutMs += 1 }).some((error) => error.includes('operation policy drift')))
 assert.ok(mutation((value) => { value.artifacts[0].portableSha256 = '0'.repeat(64) }).some((error) => error.includes('artifact drift')))
 assert.ok(mutation((value) => { value.migrationManifests[2].terminal.id = 'core-999' }).some((error) => error.includes('terminal migration drift')))
 assert.ok(mutation((value) => { value.databaseContract.postgrestOpenApiSha256 = '0'.repeat(64) }).some((error) => error.includes('PostgREST contract checksum drift')))

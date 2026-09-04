@@ -23,7 +23,7 @@ const catalog = createDatabaseCatalog({})
 const catalogSha256 = sha256CanonicalJson(catalog)
 const manifest = buildDatabaseReleaseManifest({
   repoRoot,
-  releaseId: 'eiscore-db-v5',
+  releaseId: 'eiscore-db-v6',
   sourceRevision: revision,
   predecessorCatalogs: [{ id: 'test-predecessor', databaseCatalogSha256: 'a'.repeat(64) }]
 })
@@ -133,6 +133,8 @@ class FakeAdapter {
   readBaselineCoverage() { return '' }
   configureRuntimeSecrets() { this.events.push('secrets') }
   async ensureApi() { this.events.push('api-ready') }
+  createPostgrestReloadMarker() { this.events.push('reload-marker'); return { count: 0 } }
+  hasPostgrestReloaded() { this.events.push('reload-ack'); return true }
   recordRelease() { this.events.push('release-record') }
 }
 

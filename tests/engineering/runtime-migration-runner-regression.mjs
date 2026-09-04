@@ -33,9 +33,9 @@ const corePlan = loadRuntimeMigrationPlan({
   manifestPath: 'database/migrations/core.json'
 })
 assert.equal(corePlan.name, 'core')
-assert.equal(corePlan.migrations.length, 6)
+assert.equal(corePlan.migrations.length, 7)
 assert.deepEqual(corePlan.migrations.map((entry) => entry.id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006'
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007'
 ])
 
 assert.deepEqual(
@@ -163,6 +163,9 @@ assert.ok(runnerExecution)
 assert.equal((runnerExecution.sql.match(/^\s*BEGIN\s*;/gim) || []).length, 1)
 assert.equal((runnerExecution.sql.match(/^\s*COMMIT\s*;/gim) || []).length, 1)
 assert.match(runnerExecution.sql, /INSERT INTO eiscore_meta\.schema_migrations/)
+assert.match(runnerExecution.sql, /SET LOCAL lock_timeout = '10000ms'/)
+assert.match(runnerExecution.sql, /SET LOCAL statement_timeout = '300000ms'/)
+assert.match(runnerExecution.sql, /SET LOCAL idle_in_transaction_session_timeout = '60000ms'/)
 assert.match(runnerExecution.sql, /backup-''42/)
 assert.match(runnerExecution.sql, /O''Brien/)
 assert.ok(runnerExecution.sql.indexOf('INSERT INTO eiscore_meta.schema_migrations') < runnerExecution.sql.lastIndexOf('COMMIT;'))
@@ -172,6 +175,7 @@ assert.ok(fileExecution)
 assert.equal((fileExecution.sql.match(/^\s*BEGIN\s*;/gim) || []).length, 1)
 assert.equal((fileExecution.sql.match(/^\s*COMMIT\s*;/gim) || []).length, 1)
 assert.ok(fileExecution.sql.indexOf('INSERT INTO eiscore_meta.schema_migrations') < fileExecution.sql.lastIndexOf('COMMIT;'))
+assert.ok(fileExecution.sql.indexOf('SET LOCAL lock_timeout') > fileExecution.sql.indexOf('BEGIN;'))
 
 const conflictChecksums = new Map([[plan.migrations[0].id, '0'.repeat(64)]])
 const conflictAdapter = new FakeAdapter(conflictChecksums)

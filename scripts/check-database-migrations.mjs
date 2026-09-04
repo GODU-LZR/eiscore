@@ -11,6 +11,11 @@ const defaultRepoRoot = resolve(scriptDir, '..')
 const defaultManifestPath = 'database/migrations/runtime-v2.json'
 const namePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const shaPattern = /^[0-9a-f]{64}$/
+const migrationTimeoutLimits = {
+  lockTimeoutMs: { minimum: 100, maximum: 60_000 },
+  statementTimeoutMs: { minimum: 1_000, maximum: 1_800_000 },
+  idleTransactionTimeoutMs: { minimum: 1_000, maximum: 300_000 }
+}
 
 const normalizeRepoPath = (value) => String(value || '').replaceAll('\\', '/').replace(/^\.\//, '')
 const sha256 = (buffer) => createHash('sha256').update(buffer).digest('hex')
@@ -137,6 +142,16 @@ export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepo
       errors.push(`file-managed migration must contain exactly one BEGIN/COMMIT pair: ${id}`)
     }
 
+    const timeouts = {}
+    for (const [field, limits] of Object.entries(migrationTimeoutLimits)) {
+      const value = entry?.[field]
+      if (!Number.isInteger(value) || value < limits.minimum || value > limits.maximum) {
+        errors.push(`${field} for ${id} must be an integer between ${limits.minimum} and ${limits.maximum}`)
+      } else {
+        timeouts[field] = value
+      }
+    }
+
     const rollback = entry?.rollback || {}
     let rollbackPath = ''
     if (rollback.strategy === 'backup-restore') {
@@ -168,6 +183,7 @@ export const validateMigrationManifestData = (manifest, { repoRoot = defaultRepo
       path: repoPath,
       sha256: expectedSha,
       transaction,
+      ...timeouts,
       rollbackStrategy: rollback.strategy || '',
       rollbackPath
     })

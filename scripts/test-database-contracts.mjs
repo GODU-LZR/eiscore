@@ -23,7 +23,7 @@ import {
 } from './public-schema-ratchet.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
-const expectedPath = resolve(repoRoot, 'database/contracts/eiscore-db-contract-v2.json')
+const expectedPath = resolve(repoRoot, 'database/contracts/eiscore-db-contract-v3.json')
 const suffix = `${process.pid}-${randomBytes(4).toString('hex')}`
 const networkName = `eiscore-db3-net-${suffix}`
 const freshContainer = `eiscore-db3-fresh-${suffix}`
@@ -300,7 +300,7 @@ try {
   const baseline = JSON.parse(readFileSync(resolve(repoRoot, 'database/baselines/eiscore-db-v1/manifest.json'), 'utf8'))
   const actualContract = {
     schemaVersion: 1,
-    contractId: 'eiscore-db-contract-v2',
+    contractId: 'eiscore-db-contract-v3',
     postgresImage,
     postgrestImage,
     exposedSchemas: applicationSchemas,
@@ -321,6 +321,118 @@ try {
       counts: summarizePostgrestOpenApiCatalog(openApiCatalog)
     }
   }
+
+  // Dynamic DDL is exercised only after the immutable contract snapshot so
+  // the temporary table cannot become part of the release fingerprint.
+  const dynamicAppId = '00000000-0000-4000-8000-000000000071'
+  const serviceAppId = '00000000-0000-4000-8000-000000000072'
+  const dynamicTable = 'db7_dynamic_orders'
+  const serviceTable = 'data_app_00000000'
+  psql(freshContainer, `
+    INSERT INTO app_center.apps (id, name, app_type, config, created_by)
+    VALUES
+      ('${dynamicAppId}', 'DB7 governed DDL test', 'data', '{}'::jsonb, 'database-contract-test'),
+      ('${serviceAppId}', 'DB7 service DDL test', 'data', '{}'::jsonb, 'database-contract-test');
+  `)
+
+  const rpc = (authorizationHeader, body) => fetch(`${baseUrl}/rpc/create_data_app_table`, {
+    method: 'POST',
+    headers: {
+      authorization: authorizationHeader,
+      'content-type': 'application/json',
+      'accept-profile': 'app_center',
+      'content-profile': 'app_center'
+    },
+    body: JSON.stringify(body)
+  })
+  const ddlRequest = {
+    app_id: dynamicAppId,
+    table_name: dynamicTable,
+    columns: [{ field: 'order_no', type: 'text', label: 'Order number' }, { field: 'amount', type: 'numeric' }]
+  }
+  const deniedDdl = await rpc(authorization, ddlRequest)
+  assert.equal(deniedDdl.status, 403, await deniedDdl.text())
+  assert.equal(psql(freshContainer, `SELECT to_regclass('app_data.${dynamicTable}') IS NULL;`).stdout.trim(), 't')
+
+  const adminAuthorization = `Bearer ${jwt({
+    role: 'web_user', app_role: 'super_admin', username: 'db7-contract-admin', exp: now + 300
+  })}`
+  const dynamicCacheLoads = schemaCacheLoadCount()
+  const createdDdl = await rpc(adminAuthorization, ddlRequest)
+  assert.equal(createdDdl.status, 200, await createdDdl.text())
+  await waitForSchemaCacheReload(dynamicCacheLoads)
+  assert.equal(psql(freshContainer, `
+    SELECT concat_ws('|', r.app_id, r.lifecycle, c.relrowsecurity,
+      has_table_privilege('web_anon', c.oid, 'SELECT'),
+      has_table_privilege('web_user', c.oid, 'SELECT'))
+    FROM app_center.data_app_table_registry r
+    JOIN pg_class c ON c.oid = to_regclass(format('%I.%I', r.table_schema, r.table_name))
+    WHERE r.table_name = '${dynamicTable}';
+  `).stdout.trim(), `${dynamicAppId}|managed|t|f|t`)
+  assert.equal(psql(freshContainer, `
+    SELECT count(*) FROM pg_policy
+    WHERE polrelid = 'app_data.${dynamicTable}'::regclass
+      AND polname IN ('dynamic_data_app_web_user', 'dynamic_data_app_agent');
+  `).stdout.trim(), '2')
+
+  const anonymousRead = await fetch(`${baseUrl}/${dynamicTable}`, {
+    headers: { 'accept-profile': 'app_data' }
+  })
+  assert.notEqual(anonymousRead.status, 200, 'anonymous role must not read dynamic data-app tables')
+  const authenticatedInsert = await fetch(`${baseUrl}/${dynamicTable}`, {
+    method: 'POST',
+    headers: {
+      authorization,
+      'content-type': 'application/json',
+      'content-profile': 'app_data',
+      prefer: 'return=representation'
+    },
+    body: JSON.stringify({ order_no: 'DB7-001', amount: 17.5 })
+  })
+  assert.equal(authenticatedInsert.status, 201, await authenticatedInsert.text())
+
+  const repeatedDdl = await rpc(adminAuthorization, ddlRequest)
+  assert.equal(repeatedDdl.status, 200, await repeatedDdl.text())
+  assert.equal(psql(freshContainer, `
+    SELECT count(*) FROM app_center.data_app_ddl_audit
+    WHERE app_id = '${dynamicAppId}' AND table_name = '${dynamicTable}';
+  `).stdout.trim(), '2')
+
+  const collision = await rpc(adminAuthorization, { ...ddlRequest, app_id: serviceAppId })
+  assert.equal(collision.status, 409, await collision.text())
+  const invalidIdentifier = await rpc(adminAuthorization, {
+    ...ddlRequest,
+    columns: [{ field: 'unsafe-column', type: 'text' }]
+  })
+  assert.equal(invalidIdentifier.status, 400, await invalidIdentifier.text())
+  const typeConflict = await rpc(adminAuthorization, {
+    ...ddlRequest,
+    columns: [{ field: 'amount', type: 'text' }]
+  })
+  assert.equal(typeConflict.status, 400, await typeConflict.text())
+  assert.equal(psql(freshContainer, `
+    SELECT format_type(a.atttypid, a.atttypmod)
+    FROM pg_attribute a
+    WHERE a.attrelid = 'app_data.${dynamicTable}'::regclass
+      AND a.attname = 'amount';
+  `).stdout.trim(), 'numeric')
+
+  assert.equal(psql(freshContainer, `
+    SET SESSION AUTHORIZATION eiscore_agent;
+    SELECT app_center.create_data_app_table('${serviceAppId}'::uuid, NULL, '[{"field":"source_ref","type":"text"}]'::jsonb);
+  `).stdout.trim().split(/\r?\n/).at(-1), `app_data.${serviceTable}`)
+  assert.equal(psql(freshContainer, `
+    SELECT count(*) FROM app_center.data_app_table_registry
+    WHERE lifecycle = 'quarantined' AND app_id IS NULL;
+  `).stdout.trim(), '10')
+
+  psql(freshContainer, `
+    DELETE FROM app_center.data_app_ddl_audit WHERE app_id IN ('${dynamicAppId}', '${serviceAppId}');
+    DELETE FROM app_center.data_app_table_registry WHERE app_id IN ('${dynamicAppId}', '${serviceAppId}');
+    DROP TABLE app_data.${dynamicTable};
+    DROP TABLE app_data.${serviceTable};
+    DELETE FROM app_center.apps WHERE id IN ('${dynamicAppId}', '${serviceAppId}');
+  `)
 
   if (process.argv.includes('--print-contract')) {
     process.stdout.write(`${JSON.stringify(actualContract, null, 2)}\n`)
