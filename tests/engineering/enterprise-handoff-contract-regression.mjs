@@ -16,6 +16,9 @@ const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8'))
 const audit = readFileSync(resolve(repoRoot, 'docs/engineering/G4_2_HANDOFF_READINESS.md'), 'utf8')
 const guide = readFileSync(resolve(repoRoot, 'docs/engineering/ENTERPRISE_SITE_CONFIGURATION.md'), 'utf8')
 const handoffReadme = readFileSync(resolve(repoRoot, 'enterprise-handoffs/README.md'), 'utf8')
+const index = readFileSync(resolve(repoRoot, 'docs/engineering/README.md'), 'utf8')
+const progress = readFileSync(resolve(repoRoot, 'docs/engineering/REFACTOR_PROGRESS.md'), 'utf8')
+const finalReport = readFileSync(resolve(repoRoot, 'docs/engineering/REFACTOR_FINAL_REPORT.md'), 'utf8')
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
 const result = validateEnterpriseHandoff({ snapshotPath, repoRoot })
 
@@ -63,6 +66,12 @@ for (const marker of ['实施运营台交接', 'missing/candidate/confirmed/not-
 for (const marker of ['不是企业包 payload', 'trackingId', 'enterprise-handoff:validate']) {
   assert.ok(handoffReadme.includes(marker), `enterprise handoff README lost boundary: ${marker}`)
 }
+assert.match(index, /G4\.2 已建立 33 组实施运营台字段映射/)
+for (const marker of ['e2665c7', 'G4.2 已建立交接/readiness 基线', '继续 G4.2']) {
+  assert.ok(progress.includes(marker), `progress ledger lost G4.2 handoff checkpoint: ${marker}`)
+}
+assert.match(finalReport, /G4\.2 已建立 33 组实施运营台字段映射/)
+assert.match(finalReport, /三家企业包仍等待权威确认/)
 assert.match(packageJson.scripts?.['enterprise-handoff:validate'] || '', /validate-enterprise-handoff\.mjs/)
 assert.match(packageJson.scripts?.['test:enterprise-handoff'] || '', /enterprise-handoff-validator-regression\.mjs/)
 assert.match(packageJson.scripts?.['test:quality'] || '', /npm run test:enterprise-handoff/)
