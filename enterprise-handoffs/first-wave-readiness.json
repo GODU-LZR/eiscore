@@ -1,0 +1,322 @@
+{
+  "$schema": "../config/enterprise-package-handoff.schema.json",
+  "documentType": "enterprise-package-readiness-snapshot",
+  "schemaVersion": 1,
+  "snapshotId": "first-wave-2026-09-04",
+  "snapshotAt": "2026-09-04T00:00:00+08:00",
+  "mapping": {
+    "path": "config/enterprise-package-handoff-fields.json",
+    "mappingVersion": 1,
+    "sha256": "5fe6735855b08b23d274bc57184339b847a809142529e0f912d56ec3007d7de2"
+  },
+  "handoffPolicy": {
+    "controller": "implementation-operations-console",
+    "runtimeConsumer": "eiscore",
+    "siteKey": "primary",
+    "applyMode": "initialize-only",
+    "initialStatus": "draft",
+    "productionRequiresExplicitApproval": true
+  },
+  "sources": [
+    {
+      "sourceId": "jinwei-admin-branding",
+      "type": "repository-seed",
+      "authority": "repository-legacy",
+      "repositoryPath": "sql/company_site_jinwei_admin_branding.sql",
+      "assessedAt": "2026-09-04T00:00:00+08:00",
+      "factUse": "candidate-only",
+      "containsSensitiveData": false,
+      "status": "available",
+      "notes": "历史管理端品牌配置仅提供内部标题、标识和地址线索，不能作为正式企业或部署确认。"
+    },
+    {
+      "sourceId": "jinwei-gallery-inventory",
+      "type": "repository-audit",
+      "authority": "implementation-audit",
+      "repositoryPath": "eiscore-company-site/public/assets/jinwei/research-gallery",
+      "assessedAt": "2026-09-04T00:00:00+08:00",
+      "factUse": "governance-only",
+      "containsSensitiveData": false,
+      "status": "partial",
+      "notes": "原研究图库登记 31 个文件，当前工作树保留 28 个；只核对库存，不证明商用授权。"
+    },
+    {
+      "sourceId": "jinwei-legacy-seed",
+      "type": "repository-seed",
+      "authority": "repository-legacy",
+      "repositoryPath": "sql/company_site_jinwei_seed.sql",
+      "assessedAt": "2026-09-04T00:00:00+08:00",
+      "factUse": "candidate-only",
+      "containsSensitiveData": false,
+      "status": "available",
+      "notes": "历史 SQL 中的名称、域名、页面、产品和 SEO 只能作为迁移候选；其中 published 语义迁移时必须降为 draft。"
+    },
+    {
+      "sourceId": "jinwei-research-register",
+      "type": "repository-research",
+      "authority": "public-research",
+      "repositoryPath": "eiscore-company-site/docs/jinwei",
+      "assessedAt": "2026-09-04T00:00:00+08:00",
+      "factUse": "candidate-only",
+      "containsSensitiveData": false,
+      "status": "available",
+      "notes": "研究文档支持内容与素材追溯，但公开网络资料和产业信息不能替代企业事实或权利人授权。"
+    },
+    {
+      "sourceId": "junleyuan-asset-register",
+      "type": "repository-asset-register",
+      "authority": "supplier-candidate",
+      "repositoryPath": "eiscore-company-site/assets/manifests/asset_manifest.json",
+      "assessedAt": "2026-09-04T00:00:00+08:00",
+      "factUse": "candidate-only",
+      "containsSensitiveData": false,
+      "status": "available",
+      "notes": "14 个 V1 来源素材与 42 个 V2/V3 派生素材均为 candidate、approved=false、commercial_use=false。"
+    },
+    {
+      "sourceId": "junleyuan-legacy-seed",
+      "type": "repository-seed",
+      "authority": "repository-legacy",
+      "repositoryPath": "sql/company_site_junleyuan_seed.sql",
+      "assessedAt": "2026-09-04T00:00:00+08:00",
+      "factUse": "candidate-only",
+      "containsSensitiveData": false,
+      "status": "available",
+      "notes": "历史 SQL 中的法律主体、品牌、域名、页面、产品和 SEO 只能作为候选；published 语义不得进入企业包 Seed。"
+    },
+    {
+      "sourceId": "junleyuan-merge-audit",
+      "type": "repository-audit",
+      "authority": "implementation-audit",
+      "repositoryPath": "docs/engineering/JUNLEYUAN_LATEST_RESULT_MERGE_AUDIT.md",
+      "assessedAt": "2026-09-04T00:00:00+08:00",
+      "factUse": "governance-only",
+      "containsSensitiveData": false,
+      "status": "available",
+      "notes": "证明候选素材文件和配置器成果已保留，不证明产品参数、域名或生产使用授权。"
+    },
+    {
+      "sourceId": "lundu-intake-audit",
+      "type": "controlled-external-workbook",
+      "authority": "enterprise-provided",
+      "assessedAt": "2026-09-04T00:00:00+08:00",
+      "factUse": "candidate-only",
+      "containsSensitiveData": true,
+      "status": "partial",
+      "notes": "18 个工作表的受控采集工作簿只读审计；敏感字段和原文件位置不进入仓库，13 个业务表尚无可迁移记录。"
+    }
+  ],
+  "enterprises": [
+    {
+      "trackingId": "jinwei-netting",
+      "displayName": "经纬网厂",
+      "collectionStatus": "candidate-inputs",
+      "packageStatus": "not-created",
+      "productionEligible": false,
+      "fieldReadiness": [
+        { "fieldId": "acceptance.businessFlows", "status": "missing", "sourceIds": [], "blockers": ["business-flow-confirmation-required"] },
+        { "fieldId": "acceptance.rolesAndPermissions", "status": "missing", "sourceIds": [], "blockers": ["role-matrix-required"] },
+        { "fieldId": "content.cases", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["enterprise-fact-confirmation-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.certificates", "status": "missing", "sourceIds": [], "blockers": ["certificate-scope-confirmation-required"] },
+        { "fieldId": "content.downloads", "status": "missing", "sourceIds": [], "blockers": ["download-scope-confirmation-required"] },
+        { "fieldId": "content.evidence", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["enterprise-evidence-review-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.externalProfiles", "status": "missing", "sourceIds": [], "blockers": ["channel-control-confirmation-required"] },
+        { "fieldId": "content.keywords", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["market-keyword-confirmation-required"] },
+        { "fieldId": "content.knowledge", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["enterprise-copy-review-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.pages", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["enterprise-copy-review-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.productLocales", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["product-scope-confirmation-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.products", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["product-scope-confirmation-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.seo", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["domain-control-confirmation-required", "enterprise-copy-review-required"] },
+        { "fieldId": "content.solutions", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["enterprise-fact-confirmation-required", "source-translation-to-draft-required"] },
+        { "fieldId": "governance.assetStatus", "status": "candidate", "sourceIds": ["jinwei-gallery-inventory", "jinwei-research-register"], "blockers": ["asset-authorization-required", "complete-source-inventory-required"] },
+        { "fieldId": "governance.factStatus", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["enterprise-fact-confirmation-required"] },
+        { "fieldId": "governance.productionApproval", "status": "missing", "sourceIds": [], "blockers": ["production-approval-required"] },
+        { "fieldId": "migration.scope", "status": "missing", "sourceIds": [], "blockers": ["migration-scope-required", "published-to-draft-rule-approval-required"] },
+        { "fieldId": "runtime.branding", "status": "candidate", "sourceIds": ["jinwei-admin-branding", "jinwei-legacy-seed"], "blockers": ["enterprise-brand-confirmation-required", "logo-authorization-required"] },
+        { "fieldId": "runtime.endpoints", "status": "candidate", "sourceIds": ["jinwei-admin-branding", "jinwei-legacy-seed"], "blockers": ["deployment-confirmation-required", "domain-control-confirmation-required"] },
+        { "fieldId": "runtime.enterprise", "status": "candidate", "sourceIds": ["jinwei-admin-branding", "jinwei-legacy-seed"], "blockers": ["enterprise-identity-confirmation-required"] },
+        { "fieldId": "runtime.features", "status": "candidate", "sourceIds": ["jinwei-legacy-seed"], "blockers": ["feature-scope-confirmation-required"] },
+        { "fieldId": "runtime.modules", "status": "missing", "sourceIds": [], "blockers": ["module-scope-confirmation-required"] },
+        { "fieldId": "site.contact", "status": "missing", "sourceIds": [], "blockers": ["privacy-review-required", "public-contact-confirmation-required"] },
+        { "fieldId": "site.domain", "status": "candidate", "sourceIds": ["jinwei-legacy-seed"], "blockers": ["domain-control-confirmation-required"] },
+        { "fieldId": "site.identity", "status": "candidate", "sourceIds": ["jinwei-admin-branding", "jinwei-legacy-seed"], "blockers": ["enterprise-identity-confirmation-required"] },
+        { "fieldId": "site.locales", "status": "candidate", "sourceIds": ["jinwei-legacy-seed"], "blockers": ["market-language-confirmation-required"] },
+        { "fieldId": "site.seo", "status": "candidate", "sourceIds": ["jinwei-legacy-seed", "jinwei-research-register"], "blockers": ["enterprise-copy-review-required"] },
+        { "fieldId": "site.settings", "status": "candidate", "sourceIds": ["jinwei-legacy-seed"], "blockers": ["implementation-review-required"] },
+        { "fieldId": "site.socialLinks", "status": "missing", "sourceIds": [], "blockers": ["channel-control-confirmation-required"] },
+        { "fieldId": "site.template", "status": "candidate", "sourceIds": ["jinwei-legacy-seed"], "blockers": ["template-review-required"] },
+        { "fieldId": "site.theme", "status": "candidate", "sourceIds": ["jinwei-admin-branding", "jinwei-legacy-seed"], "blockers": ["enterprise-brand-confirmation-required"] },
+        { "fieldId": "site.trademark", "status": "candidate", "sourceIds": ["jinwei-admin-branding", "jinwei-research-register"], "blockers": ["logo-authorization-required", "trademark-confirmation-required"] }
+      ],
+      "assetSets": [
+        {
+          "assetSetId": "jinwei-research-gallery",
+          "status": "incomplete",
+          "sourceIds": ["jinwei-gallery-inventory", "jinwei-research-register"],
+          "inventoryPath": "eiscore-company-site/public/assets/jinwei/research-gallery",
+          "declaredFileCount": 31,
+          "presentFileCount": 28,
+          "authorizationStatus": "pending",
+          "commercialUse": false,
+          "notes": "研究图库缺少 3 个已由用户删除的文件，现有文件也仍需企业原片或权利人书面授权。"
+        }
+      ],
+      "approvals": {
+        "facts": "pending",
+        "assets": "pending",
+        "package": "not-requested"
+      },
+      "blockers": [
+        "enterprise-identity-and-domain-confirmation",
+        "module-feature-and-business-flow-confirmation",
+        "published-content-to-draft-migration-plan",
+        "research-gallery-completeness-and-commercial-authorization",
+        "roles-permissions-and-migration-scope"
+      ]
+    },
+    {
+      "trackingId": "junleyuan",
+      "displayName": "君乐缘",
+      "collectionStatus": "candidate-inputs",
+      "packageStatus": "not-created",
+      "productionEligible": false,
+      "fieldReadiness": [
+        { "fieldId": "acceptance.businessFlows", "status": "missing", "sourceIds": [], "blockers": ["business-flow-confirmation-required"] },
+        { "fieldId": "acceptance.rolesAndPermissions", "status": "missing", "sourceIds": [], "blockers": ["role-matrix-required"] },
+        { "fieldId": "content.cases", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-fact-confirmation-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.certificates", "status": "missing", "sourceIds": [], "blockers": ["certificate-scope-confirmation-required"] },
+        { "fieldId": "content.downloads", "status": "missing", "sourceIds": [], "blockers": ["download-scope-confirmation-required"] },
+        { "fieldId": "content.evidence", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-evidence-review-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.externalProfiles", "status": "missing", "sourceIds": [], "blockers": ["channel-control-confirmation-required"] },
+        { "fieldId": "content.keywords", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["market-keyword-confirmation-required"] },
+        { "fieldId": "content.knowledge", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-copy-review-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.pages", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-copy-review-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.productLocales", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["product-scope-confirmation-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.products", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["product-scope-confirmation-required", "source-translation-to-draft-required"] },
+        { "fieldId": "content.seo", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["domain-control-confirmation-required", "enterprise-copy-review-required"] },
+        { "fieldId": "content.solutions", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-fact-confirmation-required", "source-translation-to-draft-required"] },
+        { "fieldId": "governance.assetStatus", "status": "candidate", "sourceIds": ["junleyuan-asset-register", "junleyuan-merge-audit"], "blockers": ["asset-authorization-required"] },
+        { "fieldId": "governance.factStatus", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-fact-confirmation-required"] },
+        { "fieldId": "governance.productionApproval", "status": "missing", "sourceIds": [], "blockers": ["production-approval-required"] },
+        { "fieldId": "migration.scope", "status": "missing", "sourceIds": [], "blockers": ["migration-scope-required", "published-to-draft-rule-approval-required"] },
+        { "fieldId": "runtime.branding", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-brand-confirmation-required", "logo-authorization-required"] },
+        { "fieldId": "runtime.endpoints", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["deployment-confirmation-required", "domain-control-confirmation-required"] },
+        { "fieldId": "runtime.enterprise", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-identity-confirmation-required"] },
+        { "fieldId": "runtime.features", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["feature-scope-confirmation-required"] },
+        { "fieldId": "runtime.modules", "status": "missing", "sourceIds": [], "blockers": ["module-scope-confirmation-required"] },
+        { "fieldId": "site.contact", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["privacy-review-required", "public-contact-confirmation-required"] },
+        { "fieldId": "site.domain", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["domain-control-confirmation-required"] },
+        { "fieldId": "site.identity", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-identity-confirmation-required"] },
+        { "fieldId": "site.locales", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["market-language-confirmation-required"] },
+        { "fieldId": "site.seo", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-copy-review-required"] },
+        { "fieldId": "site.settings", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["implementation-review-required"] },
+        { "fieldId": "site.socialLinks", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["channel-control-confirmation-required"] },
+        { "fieldId": "site.template", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["template-review-required"] },
+        { "fieldId": "site.theme", "status": "candidate", "sourceIds": ["junleyuan-legacy-seed"], "blockers": ["enterprise-brand-confirmation-required"] },
+        { "fieldId": "site.trademark", "status": "candidate", "sourceIds": ["junleyuan-asset-register", "junleyuan-legacy-seed"], "blockers": ["logo-authorization-required", "trademark-confirmation-required"] }
+      ],
+      "assetSets": [
+        {
+          "assetSetId": "junleyuan-derived-materials-v2-v3",
+          "status": "candidate",
+          "sourceIds": ["junleyuan-asset-register", "junleyuan-merge-audit"],
+          "inventoryPath": "eiscore-company-site/public/assets/junleyuan-materials-v2",
+          "declaredFileCount": 42,
+          "presentFileCount": 42,
+          "authorizationStatus": "pending",
+          "commercialUse": false,
+          "notes": "派生素材完整且哈希受清单保护，但继承来源素材的供应商书面授权缺口。"
+        },
+        {
+          "assetSetId": "junleyuan-source-materials-v1",
+          "status": "candidate",
+          "sourceIds": ["junleyuan-asset-register", "junleyuan-merge-audit"],
+          "inventoryPath": "eiscore-company-site/public/assets/junleyuan-materials",
+          "declaredFileCount": 14,
+          "presentFileCount": 14,
+          "authorizationStatus": "pending",
+          "commercialUse": false,
+          "notes": "来源素材文件完整，但清单明确为 supplier_authorization_pending。"
+        }
+      ],
+      "approvals": {
+        "facts": "pending",
+        "assets": "pending",
+        "package": "not-requested"
+      },
+      "blockers": [
+        "enterprise-identity-and-domain-confirmation",
+        "material-and-trademark-commercial-authorization",
+        "module-feature-and-business-flow-confirmation",
+        "published-content-to-draft-migration-plan",
+        "roles-permissions-and-migration-scope"
+      ]
+    },
+    {
+      "trackingId": "lundu-electromechanical",
+      "displayName": "伦度机电",
+      "collectionStatus": "collecting",
+      "packageStatus": "not-created",
+      "productionEligible": false,
+      "fieldReadiness": [
+        { "fieldId": "acceptance.businessFlows", "status": "missing", "sourceIds": [], "blockers": ["p0-business-data-required"] },
+        { "fieldId": "acceptance.rolesAndPermissions", "status": "missing", "sourceIds": [], "blockers": ["role-matrix-required"] },
+        { "fieldId": "content.cases", "status": "missing", "sourceIds": [], "blockers": ["public-case-scope-required"] },
+        { "fieldId": "content.certificates", "status": "missing", "sourceIds": [], "blockers": ["certificate-scope-confirmation-required"] },
+        { "fieldId": "content.downloads", "status": "missing", "sourceIds": [], "blockers": ["download-scope-confirmation-required"] },
+        { "fieldId": "content.evidence", "status": "missing", "sourceIds": [], "blockers": ["public-evidence-required"] },
+        { "fieldId": "content.externalProfiles", "status": "missing", "sourceIds": [], "blockers": ["channel-control-confirmation-required"] },
+        { "fieldId": "content.keywords", "status": "missing", "sourceIds": [], "blockers": ["market-keyword-confirmation-required"] },
+        { "fieldId": "content.knowledge", "status": "missing", "sourceIds": [], "blockers": ["public-knowledge-scope-required"] },
+        { "fieldId": "content.pages", "status": "missing", "sourceIds": [], "blockers": ["public-copy-required"] },
+        { "fieldId": "content.productLocales", "status": "missing", "sourceIds": [], "blockers": ["product-scope-confirmation-required"] },
+        { "fieldId": "content.products", "status": "missing", "sourceIds": [], "blockers": ["p0-product-data-required"] },
+        { "fieldId": "content.seo", "status": "missing", "sourceIds": [], "blockers": ["domain-and-public-copy-required"] },
+        { "fieldId": "content.solutions", "status": "missing", "sourceIds": [], "blockers": ["solution-scope-confirmation-required"] },
+        { "fieldId": "governance.assetStatus", "status": "missing", "sourceIds": [], "blockers": ["asset-inventory-and-authorization-required"] },
+        { "fieldId": "governance.factStatus", "status": "missing", "sourceIds": [], "blockers": ["enterprise-fact-confirmation-required"] },
+        { "fieldId": "governance.productionApproval", "status": "missing", "sourceIds": [], "blockers": ["production-approval-required"] },
+        { "fieldId": "migration.scope", "status": "candidate", "sourceIds": ["lundu-intake-audit"], "blockers": ["p0-scope-confirmation-required", "thirteen-empty-business-sheets"] },
+        { "fieldId": "runtime.branding", "status": "missing", "sourceIds": [], "blockers": ["enterprise-brand-confirmation-required", "logo-authorization-required"] },
+        { "fieldId": "runtime.endpoints", "status": "missing", "sourceIds": [], "blockers": ["deployment-confirmation-required"] },
+        { "fieldId": "runtime.enterprise", "status": "candidate", "sourceIds": ["lundu-intake-audit"], "blockers": ["enterprise-identity-confirmation-required", "sensitive-source-review-required"] },
+        { "fieldId": "runtime.features", "status": "candidate", "sourceIds": ["lundu-intake-audit"], "blockers": ["feature-scope-confirmation-required"] },
+        { "fieldId": "runtime.modules", "status": "candidate", "sourceIds": ["lundu-intake-audit"], "blockers": ["module-scope-confirmation-required"] },
+        { "fieldId": "site.contact", "status": "missing", "sourceIds": [], "blockers": ["privacy-review-required", "public-contact-confirmation-required"] },
+        { "fieldId": "site.domain", "status": "missing", "sourceIds": [], "blockers": ["domain-control-confirmation-required"] },
+        { "fieldId": "site.identity", "status": "candidate", "sourceIds": ["lundu-intake-audit"], "blockers": ["brand-and-public-identity-required", "sensitive-source-review-required"] },
+        { "fieldId": "site.locales", "status": "missing", "sourceIds": [], "blockers": ["market-language-confirmation-required"] },
+        { "fieldId": "site.seo", "status": "missing", "sourceIds": [], "blockers": ["public-copy-required"] },
+        { "fieldId": "site.settings", "status": "missing", "sourceIds": [], "blockers": ["implementation-scope-required"] },
+        { "fieldId": "site.socialLinks", "status": "missing", "sourceIds": [], "blockers": ["channel-control-confirmation-required"] },
+        { "fieldId": "site.template", "status": "missing", "sourceIds": [], "blockers": ["public-site-scope-required"] },
+        { "fieldId": "site.theme", "status": "missing", "sourceIds": [], "blockers": ["enterprise-brand-confirmation-required"] },
+        { "fieldId": "site.trademark", "status": "missing", "sourceIds": [], "blockers": ["logo-and-trademark-authorization-required"] }
+      ],
+      "assetSets": [
+        {
+          "assetSetId": "lundu-site-assets",
+          "status": "absent",
+          "sourceIds": [],
+          "declaredFileCount": 0,
+          "presentFileCount": 0,
+          "authorizationStatus": "not-requested",
+          "commercialUse": false,
+          "notes": "采集工作簿尚未提供可迁移的独立站素材清单。"
+        }
+      ],
+      "approvals": {
+        "facts": "not-requested",
+        "assets": "not-requested",
+        "package": "not-requested"
+      },
+      "blockers": [
+        "brand-domain-language-contact-and-public-product-scope",
+        "module-feature-role-and-business-flow-confirmation",
+        "p0-product-bom-process-quality-data",
+        "site-asset-inventory-and-authorization",
+        "thirteen-business-sheets-without-migratable-records"
+      ]
+    }
+  ]
+}

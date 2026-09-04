@@ -1,0 +1,292 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eiscore.local/schemas/enterprise-package-handoff-v1.json",
+  "title": "EISCore Enterprise Package Handoff",
+  "oneOf": [
+    { "$ref": "#/$defs/fieldCatalogDocument" },
+    { "$ref": "#/$defs/readinessSnapshotDocument" }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][A-Za-z0-9.-]*$",
+      "maxLength": 120
+    },
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9._/-]+$"
+    },
+    "stringList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+    },
+    "fieldMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fieldId",
+        "operatorPath",
+        "targetFile",
+        "targetPaths",
+        "scope",
+        "requirement",
+        "productionRule",
+        "confirmationOwner",
+        "description"
+      ],
+      "properties": {
+        "fieldId": { "$ref": "#/$defs/identifier" },
+        "operatorPath": {
+          "type": "string",
+          "pattern": "^[a-z][A-Za-z0-9]*(?:\\.[a-z][A-Za-z0-9]*)*$",
+          "maxLength": 200
+        },
+        "targetFile": {
+          "enum": [
+            "runtime/eiscore-enterprise.json",
+            "data/company-site.json",
+            "manifest.json",
+            "evidence/handoff.json"
+          ]
+        },
+        "targetPaths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^\\$\\.", "maxLength": 240 }
+        },
+        "scope": { "enum": ["internal", "public", "delivery-governance"] },
+        "requirement": { "enum": ["required", "conditional"] },
+        "productionRule": {
+          "enum": ["confirmed", "confirmed-or-not-applicable", "authorized", "explicit-approval"]
+        },
+        "confirmationOwner": {
+          "enum": ["enterprise", "deployment", "implementation", "product-engineering"]
+        },
+        "description": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "fieldCatalogDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["$schema", "documentType", "schemaVersion", "mappingVersion", "fields"],
+      "properties": {
+        "$schema": { "type": "string" },
+        "documentType": { "const": "enterprise-package-handoff-field-catalog" },
+        "schemaVersion": { "const": 1 },
+        "mappingVersion": { "const": 1 },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": { "$ref": "#/$defs/fieldMapping" }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "type",
+        "authority",
+        "assessedAt",
+        "factUse",
+        "containsSensitiveData",
+        "status",
+        "notes"
+      ],
+      "properties": {
+        "sourceId": { "$ref": "#/$defs/identifier" },
+        "type": {
+          "enum": [
+            "controlled-external-workbook",
+            "repository-seed",
+            "repository-asset-register",
+            "repository-research",
+            "repository-audit",
+            "enterprise-confirmation",
+            "deployment-confirmation",
+            "asset-authorization"
+          ]
+        },
+        "authority": {
+          "enum": [
+            "enterprise-provided",
+            "enterprise-confirmed",
+            "deployment-confirmed",
+            "repository-legacy",
+            "implementation-audit",
+            "public-research",
+            "supplier-candidate",
+            "rights-holder"
+          ]
+        },
+        "repositoryPath": { "$ref": "#/$defs/relativePath" },
+        "assessedAt": { "type": "string", "format": "date-time" },
+        "factUse": { "enum": ["candidate-only", "confirmation", "governance-only"] },
+        "containsSensitiveData": { "type": "boolean" },
+        "status": { "enum": ["available", "partial", "superseded"] },
+        "notes": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "fieldReadiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fieldId", "status", "sourceIds", "blockers"],
+      "properties": {
+        "fieldId": { "$ref": "#/$defs/identifier" },
+        "status": { "enum": ["missing", "candidate", "confirmed", "not-applicable"] },
+        "sourceIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "blockers": { "$ref": "#/$defs/stringList" },
+        "notes": { "type": "string", "minLength": 1, "maxLength": 500 }
+      }
+    },
+    "assetSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assetSetId",
+        "status",
+        "sourceIds",
+        "declaredFileCount",
+        "presentFileCount",
+        "authorizationStatus",
+        "commercialUse",
+        "notes"
+      ],
+      "properties": {
+        "assetSetId": { "$ref": "#/$defs/identifier" },
+        "status": { "enum": ["absent", "candidate", "incomplete", "authorized", "not-applicable"] },
+        "sourceIds": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "inventoryPath": { "$ref": "#/$defs/relativePath" },
+        "declaredFileCount": { "type": "integer", "minimum": 0, "maximum": 100000 },
+        "presentFileCount": { "type": "integer", "minimum": 0, "maximum": 100000 },
+        "authorizationStatus": { "enum": ["not-requested", "pending", "confirmed", "not-required"] },
+        "commercialUse": { "type": "boolean" },
+        "notes": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "approvals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["facts", "assets", "package"],
+      "properties": {
+        "facts": { "enum": ["not-requested", "pending", "approved", "rejected"] },
+        "assets": { "enum": ["not-requested", "pending", "approved", "rejected"] },
+        "package": { "enum": ["not-requested", "pending", "approved", "rejected"] }
+      }
+    },
+    "enterpriseReadiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trackingId",
+        "displayName",
+        "collectionStatus",
+        "packageStatus",
+        "productionEligible",
+        "fieldReadiness",
+        "assetSets",
+        "approvals",
+        "blockers"
+      ],
+      "properties": {
+        "trackingId": { "$ref": "#/$defs/identifier" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "collectionStatus": { "enum": ["not-started", "collecting", "candidate-inputs", "ready"] },
+        "packageStatus": { "enum": ["not-created", "draft", "candidate", "approved"] },
+        "productionEligible": { "type": "boolean" },
+        "fieldReadiness": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": { "$ref": "#/$defs/fieldReadiness" }
+        },
+        "assetSets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/assetSet" }
+        },
+        "approvals": { "$ref": "#/$defs/approvals" },
+        "blockers": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "readinessSnapshotDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "$schema",
+        "documentType",
+        "schemaVersion",
+        "snapshotId",
+        "snapshotAt",
+        "mapping",
+        "handoffPolicy",
+        "sources",
+        "enterprises"
+      ],
+      "properties": {
+        "$schema": { "type": "string" },
+        "documentType": { "const": "enterprise-package-readiness-snapshot" },
+        "schemaVersion": { "const": 1 },
+        "snapshotId": { "$ref": "#/$defs/identifier" },
+        "snapshotAt": { "type": "string", "format": "date-time" },
+        "mapping": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "mappingVersion", "sha256"],
+          "properties": {
+            "path": { "$ref": "#/$defs/relativePath" },
+            "mappingVersion": { "const": 1 },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        },
+        "handoffPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "controller",
+            "runtimeConsumer",
+            "siteKey",
+            "applyMode",
+            "initialStatus",
+            "productionRequiresExplicitApproval"
+          ],
+          "properties": {
+            "controller": { "const": "implementation-operations-console" },
+            "runtimeConsumer": { "const": "eiscore" },
+            "siteKey": { "const": "primary" },
+            "applyMode": { "const": "initialize-only" },
+            "initialStatus": { "const": "draft" },
+            "productionRequiresExplicitApproval": { "const": true }
+          }
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/source" }
+        },
+        "enterprises": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/enterpriseReadiness" }
+        }
+      }
+    }
+  }
+}

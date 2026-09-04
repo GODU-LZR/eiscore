@@ -59,3 +59,5 @@ npm run enterprise-pack:validate -- enterprise-packs/<enterprise-id> --productio
 已发布 `company_site.site_config` 始终是公开企业档案唯一运行时事实源。企业包 Seed 只负责新环境初始化或显式升级，不能成为系统设置之外的新编辑器，也不能覆盖运营人员尚未发布的草稿。
 
 `example/` 是不含真实客户信息的模板包。三家企业的候选包只能从权威资料逐字段生成；未知内容保持缺失或 `pending`，不得猜测。
+
+实施运营台交接记录保存在同级的 `enterprise-handoffs/`，不属于企业包 payload。生成三家真实包前先执行 `npm run enterprise-handoff:validate`，确保字段来源、素材库存、授权和审批状态完整；交接记录通过不等于允许创建或部署生产包。
