@@ -244,7 +244,7 @@ try {
   assert.equal(runtimeReport.slowQuery.queryTextCaptured, false)
   assert.equal(runtimeReport.postgrest.profiles.length, 7)
 
-  console.log('PASS: DB5 drills transactional SQL rollback, destroys the source schema, and restores v3 roles, data, DB contract and PostgREST into an empty stack')
+  console.log('PASS: database recovery drills transactional SQL rollback, destroys the source schema, and restores v4 roles, data, DB contract and PostgREST into an empty stack')
 } finally {
   for (const name of [sourceApi, recoveryApi, sourceDb, recoveryDb]) {
     docker(['rm', '-f', name], { allowFailure: true })

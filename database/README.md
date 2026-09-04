@@ -4,7 +4,7 @@
 
 当前工作树有 106 份历史 SQL：根目录 2、`env/` 2、`sql/` 70、HR 30、材料 2。它们混合了模块 schema、演示数据、修复补丁和运维脚本，不能按文件名安全推断统一执行顺序。旧的 `db_schema_and_data.sql` 已由 DB1 规范基线替代并从发布树移除，只保留在 Git 历史和隔离审计证据中。
 
-当前已有明确顺序的集合包括 Runtime V2 的 10 个历史补丁，以及 company-site 1 个、core 2 个迁移。`migrations/runtime-v2.json` 在不修改历史 SQL 的前提下为 Runtime V2 补充不可变 ID、SHA-256、事务所有权和备份回退策略，并与原 `sql/runtime_v2_patch_manifest.txt` 双向校验；`company-site-001` 为企业站发布快照字段提供 SQL 回滚和 postcheck；`core-001` 外置数据库凭据，`core-002` 建立数据库运行角色、对象 owner、函数、默认权限和 Agent RLS 边界。`migration-ledger.sql` 定义数据库执行账本、基线身份和迁移覆盖账本；账本只允许数据库管理员访问。
+当前已有明确顺序的集合包括 Runtime V2 的 10 个历史补丁，以及 company-site 1 个、core 4 个迁移，共 15 个不可变迁移。`migrations/runtime-v2.json` 在不修改历史 SQL 的前提下为 Runtime V2 补充不可变 ID、SHA-256、事务所有权和备份回退策略，并与原 `sql/runtime_v2_patch_manifest.txt` 双向校验；`company-site-001` 为企业站发布快照字段提供 SQL 回滚和 postcheck；`core-001` 外置数据库凭据，`core-002` 建立数据库运行角色、对象 owner、函数、默认权限和 Agent RLS 边界，`core-003` 收敛 company-site/HR RLS，`core-004` 从安装库退出固定测试表。`migration-ledger.sql` 定义数据库执行账本、基线身份和迁移覆盖账本；账本只允许数据库管理员访问。
 
 规范空库基线位于 `database/baselines/eiscore-db-v1/`，由 `manifest.json`、`schema.sql`、`object-catalog.json` 和 `register.sql` 组成。基线固定覆盖创建时的 12 个迁移；后续新增迁移可以继续追加到来源 Manifest，基线校验只验证自己声明的不可变子集。覆盖项只写入 `baseline_migration_coverage`，不会伪写入 `schema_migrations`；迁移运行器据此区分“结构已覆盖”和“迁移已实际执行”。DB2 的新装角色引导位于 `database/bootstrap/roles-v2.sql`，运行密码由 `configure-database-runtime-secrets-v2.sh` 注入。
 
@@ -46,13 +46,13 @@ PowerShell 使用同名参数 `-BackupEvidence`、`-ReleaseRevision` 与 `-Opera
 
 ## 版本化数据库发布
 
-`releases/eiscore-db-v3/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、全部执行输入、数据库目录、PostgREST 契约和 DB5 运维/恢复机制绑定为同一发布制品。规范 Manifest SHA-256 为 `bcb594fa44b66363509a0a0415f3da3ede7dd35064a7835bbd5bcc30ca592e20`。离线验证：
+`releases/eiscore-db-v4/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、全部执行输入、数据库目录、PostgREST 契约、DB5 运维/恢复机制和 DB6 授权收紧绑定为同一发布制品。规范 Manifest SHA-256 为 `8113f0325ac11ca5e1fa056f35e1ceaf603b4a3709a9a71493b08f9dc85fcbda`。离线验证：
 
 ```bash
 npm run db:release:check
 ```
 
-获得明确目标环境授权后，一次性发布作业还必须提供备份目录、候选 PostgREST、三个独立秘密、`--environment=isolated|production` 和 `--backup-storage-evidence=<evidence-uri>`；生产环境只接受 `kms://`、`vault://` 或 `volume://` 证明，不接受 `isolated://`。示意参数见 `docs/engineering/DB4_EXIT_AUDIT.md` 和 `docs/engineering/DB5_EXIT_AUDIT.md`。作业不负责流量切换，只有最终数据库/API 契约通过并写入 `eiscore_meta.database_releases` 后，外部部署编排才可继续。当前禁止对客户或生产环境执行该命令。
+获得明确目标环境授权后，一次性发布作业还必须提供备份目录、候选 PostgREST、三个独立秘密、`--environment=isolated|production` 和 `--backup-storage-evidence=<evidence-uri>`；生产环境只接受 `kms://`、`vault://` 或 `volume://` 证明，不接受 `isolated://`。示意参数见 `docs/engineering/DB4_EXIT_AUDIT.md`、`docs/engineering/DB5_EXIT_AUDIT.md` 和 `docs/engineering/DB6_DATABASE_STRUCTURE_GOVERNANCE_EXIT_AUDIT.md`。作业不负责流量切换，只有最终数据库/API 契约通过并写入 `eiscore_meta.database_releases` 后，外部部署编排才可继续。当前禁止对客户或生产环境执行该命令。
 
 ## 备份、恢复与运行审计
 
@@ -60,7 +60,7 @@ npm run db:release:check
 
 ```bash
 npm run db:backup:check -- --backup-root=<backup-root> --environment=isolated
-npm run db:recovery -- --evidence=<backup-evidence.json> --confirm-empty-target=eiscore-db-v3 --dry-run
+npm run db:recovery -- --evidence=<backup-evidence.json> --confirm-empty-target=eiscore-db-v4 --dry-run
 npm run db:runtime:audit -- --api-url=<candidate-postgrest-url>
 ```
 

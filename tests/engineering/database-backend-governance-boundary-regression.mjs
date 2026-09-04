@@ -95,7 +95,7 @@ for (const marker of [
 
 const plan = readFileSync(resolve(repoRoot, 'docs/engineering/DATABASE_BACKEND_GOVERNANCE_PLAN.md'), 'utf8')
 assert.match(plan, /### DB0：决策与现状基线（已完成）/)
-for (const phase of ['DB1', 'DB2', 'DB3', 'DB4', 'DB5']) {
+for (const phase of ['DB1', 'DB2', 'DB3', 'DB4', 'DB5', 'DB6']) {
   assert.ok(plan.includes(`### ${phase}：`), `database governance plan lost phase ${phase}`)
 }
 assert.match(plan, /G4\.1～G4\.4 暂停/)
