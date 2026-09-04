@@ -4,11 +4,25 @@
 
 `first-wave-readiness.json` 是首批三家企业的基线快照，遵循 `config/enterprise-package-handoff.schema.json`，并通过 SHA-256 固定 `config/enterprise-package-handoff-fields.json` 的 33 组字段映射。快照刻意不保存采集表中的敏感值、个人联系方式、合同原件、秘密、本机路径或待确认的完整企业配置。
 
+`first-wave-confirmation-request.json` 是从该快照确定性生成的确认请求，当前包含 99 个字段决策和 4 个素材决策。它同时绑定 readiness 与字段目录的 SHA-256；来源或缺口变化后必须重新生成，不能手工删除问题来制造就绪状态。请求只描述当前状态、责任人、可选决策和阻断项，不包含待确认字段值，也不表示任何事实、授权或生产批准已经获得。
+
 验证命令：
 
 ```powershell
 npm run enterprise-handoff:validate -- enterprise-handoffs/first-wave-readiness.json
+npm run enterprise-confirmation:generate -- enterprise-handoffs/first-wave-readiness.json enterprise-handoffs/first-wave-confirmation-request.json
+npm run enterprise-confirmation:validate -- enterprise-handoffs/first-wave-confirmation-request.json
 ```
+
+确认请求的决策含义：
+
+- `provide-and-confirm`：补充缺失值并由责任方确认。
+- `confirm`：确认现有候选值；候选来源自身不能执行这个决策。
+- `confirm-not-applicable`：由责任方明确确认该条件字段或素材集不适用。
+- `authorize`：权利人确认素材完整、允许商用；不等于批准企业包生产部署。
+- `review-and-confirm`：实施或产品工程根据前置确认执行派生审查。
+- `approve`：只处理独立的包生产批准；字段和素材门禁仍须分别满足。
+- `reject/replace/complete-inventory/provide-inventory`：驳回、替换或补齐当前候选输入。
 
 状态边界：
 

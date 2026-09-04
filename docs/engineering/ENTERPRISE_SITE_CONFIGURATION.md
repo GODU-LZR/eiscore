@@ -97,9 +97,10 @@ G4.2 使用 `config/enterprise-package-handoff-fields.json` 将实施运营台�
 
 ```powershell
 npm run enterprise-handoff:validate -- enterprise-handoffs/first-wave-readiness.json
+npm run enterprise-confirmation:validate -- enterprise-handoffs/first-wave-confirmation-request.json
 ```
 
-交接记录是控制面证据，不是运行时事实。它不会自动生成企业包、写入数据库或发布站点；字段达到门禁后才形成新的 `draft`/`candidate` 包版本。
+确认请求由 readiness 确定生成，绑定 readiness、字段目录和自身 SHA-256；它只列出责任人、决策选项与阻断项，不包含待确认值，也不能靠手工删项制造就绪状态。交接记录是控制面证据，不是运行时事实。它不会自动生成企业包、写入数据库或发布站点；字段达到门禁后才形成新的 `draft`/`candidate` 包版本。
 
 ## 首批三家资料状态
 

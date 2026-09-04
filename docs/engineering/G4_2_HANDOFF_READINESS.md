@@ -6,7 +6,7 @@
 
 ## 结论
 
-实施运营台到企业包的交接现在有机器可验证的边界：33 组字段分别映射到运行配置、独立站初始化 Seed、Manifest 治理或非敏感交付证据；8 个来源记录明确区分候选、确认和治理证据；首批三家企业均有完整字段覆盖的 readiness 快照。
+实施运营台到企业包的交接现在有机器可验证的边界：33 组字段分别映射到运行配置、独立站初始化 Seed、Manifest 治理或非敏感交付证据；8 个来源记录明确区分候选、确认和治理证据；首批三家企业均有完整字段覆盖的 readiness 快照。该快照又确定性生成 99 个字段决策和 4 个素材决策的确认请求，供企业、部署、实施和权利人按职责回填。
 
 本基线没有把历史 SQL、公开网络研究或采集工作簿改写成已确认事实。三家 `packageStatus` 均为 `not-created`，`productionEligible` 均为 `false`，没有生成看似完整的 `draft`/`candidate`，也没有恢复用户删除的经纬图库文件。
 
@@ -18,6 +18,8 @@
 | `config/enterprise-package-handoff-fields.json` | 固定 33 组运营台字段到企业包路径的映射、范围、责任人和生产规则 |
 | `enterprise-handoffs/first-wave-readiness.json` | 记录三家字段状态、8 个来源、素材库存、审批和阻断项，不保存待确认值 |
 | `scripts/validate-enterprise-handoff.mjs` | 核对目录哈希、来源路径、完整字段覆盖、状态语义、素材实际数量及生产批准条件 |
+| `enterprise-handoffs/first-wave-confirmation-request.json` | 从 readiness 确定生成 99 个字段与 4 个素材决策，不携带待确认值或批准结果 |
+| `scripts/enterprise-confirmation-request.mjs` | 生成/校验确认请求，绑定 readiness、字段目录及请求自身 SHA-256，拒绝手工删项和来源漂移 |
 
 字段目录按目标分为：
 
@@ -75,6 +77,8 @@
 ```powershell
 npm run test:enterprise-handoff
 npm run enterprise-handoff:validate -- enterprise-handoffs/first-wave-readiness.json
+npm run test:enterprise-confirmation
+npm run enterprise-confirmation:validate -- enterprise-handoffs/first-wave-confirmation-request.json
 ```
 
-下一步不是继续猜字段，而是取得三家企业对以下内容的权威确认：公开主体/品牌/域名和控制权、市场语言、公开产品及文案、公开联系与隐私要求、内部系统标题、模块/功能开关、角色权限、至少一条上线业务链、迁移范围，以及 Logo/图片/商标的商用授权。确认来源进入 readiness 后，才能逐家生成新的 `draft`/`candidate` 包并继续 G4.2。
+下一步不是继续猜字段，而是按已生成的确认请求取得三家企业对以下内容的权威确认：公开主体/品牌/域名和控制权、市场语言、公开产品及文案、公开联系与隐私要求、内部系统标题、模块/功能开关、角色权限、至少一条上线业务链、迁移范围，以及 Logo/图片/商标的商用授权。确认响应仍须经过后续受控回填，不能直接编辑请求文件；确认来源进入 readiness 后，才能逐家生成新的 `draft`/`candidate` 包并继续 G4.2。

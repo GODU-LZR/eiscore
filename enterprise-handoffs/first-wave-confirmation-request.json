@@ -1,0 +1,1926 @@
+{
+  "$schema": "../config/enterprise-package-handoff.schema.json",
+  "documentType": "enterprise-package-confirmation-request",
+  "schemaVersion": 1,
+  "requestId": "first-wave-2026-09-04-confirmation-request",
+  "createdAt": "2026-09-04T00:00:00+08:00",
+  "snapshot": {
+    "path": "enterprise-handoffs/first-wave-readiness.json",
+    "sha256": "7542b59eeedfdd8e1d7bdb96acaf96e427964c1654d5dc6bb29a44f072b5535d"
+  },
+  "mapping": {
+    "path": "config/enterprise-package-handoff-fields.json",
+    "mappingVersion": 1,
+    "sha256": "5fe6735855b08b23d274bc57184339b847a809142529e0f912d56ec3007d7de2"
+  },
+  "responsePolicy": {
+    "responseMustReferenceRequest": true,
+    "secretsForbidden": true,
+    "candidateSourcesCannotConfirm": true,
+    "productionApprovalNotImplied": true
+  },
+  "enterprises": [
+    {
+      "trackingId": "jinwei-netting",
+      "displayName": "经纬网厂",
+      "packageStatus": "not-created",
+      "fieldRequests": [
+        {
+          "fieldId": "acceptance.businessFlows",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "business-flow-confirmation-required"
+          ],
+          "description": "至少一条上线必需业务链及其受控验收样本；不进入公开站点内容。"
+        },
+        {
+          "fieldId": "acceptance.rolesAndPermissions",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "role-matrix-required"
+          ],
+          "description": "角色、权限和账号来源确认；只保存非秘密、非个人凭据的交付证据。"
+        },
+        {
+          "fieldId": "content.cases",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "enterprise-fact-confirmation-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "经授权公开的案例草稿；客户名称、合同和交付数据默认不公开。"
+        },
+        {
+          "fieldId": "content.certificates",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "certificate-scope-confirmation-required"
+          ],
+          "description": "证书与认证草稿；必须确认主体、有效期和公开授权。"
+        },
+        {
+          "fieldId": "content.downloads",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "download-scope-confirmation-required"
+          ],
+          "description": "公开下载资料草稿及其素材引用。"
+        },
+        {
+          "fieldId": "content.evidence",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "enterprise-evidence-review-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "支持公开主张的非敏感证据索引；原始敏感资料保留在受控来源系统。"
+        },
+        {
+          "fieldId": "content.externalProfiles",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "channel-control-confirmation-required"
+          ],
+          "description": "企业确认拥有或控制的外部公开档案。"
+        },
+        {
+          "fieldId": "content.keywords",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "market-keyword-confirmation-required"
+          ],
+          "description": "独立站关键词草稿，不能把研究词直接解释为企业事实。"
+        },
+        {
+          "fieldId": "content.knowledge",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "enterprise-copy-review-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "FAQ、公开知识和禁用主张，全部作为草稿导入。"
+        },
+        {
+          "fieldId": "content.pages",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "enterprise-copy-review-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "页面结构和公开文案草稿。"
+        },
+        {
+          "fieldId": "content.productLocales",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "product-scope-confirmation-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "产品多语言名称、描述、图片和 FAQ 草稿。"
+        },
+        {
+          "fieldId": "content.products",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "product-scope-confirmation-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "企业确认可公开的产品范围；SKU、规格、价格、MOQ、库存和交期分别确认。"
+        },
+        {
+          "fieldId": "content.seo",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "domain-control-confirmation-required",
+            "enterprise-copy-review-required"
+          ],
+          "description": "逐路径 SEO/GEO 草稿及结构化数据。"
+        },
+        {
+          "fieldId": "content.solutions",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "enterprise-fact-confirmation-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "经企业确认的场景与解决方案草稿。"
+        },
+        {
+          "fieldId": "governance.assetStatus",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "jinwei-gallery-inventory",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "asset-authorization-required",
+            "complete-source-inventory-required"
+          ],
+          "description": "由素材清单、完整性与书面商用授权共同推导，不能人工跳过。"
+        },
+        {
+          "fieldId": "governance.factStatus",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "enterprise-fact-confirmation-required"
+          ],
+          "description": "只在必需事实逐项获得权威确认后汇总为 confirmed。"
+        },
+        {
+          "fieldId": "governance.productionApproval",
+          "currentStatus": "missing",
+          "confirmationOwner": "implementation",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "approve",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "production-approval-required"
+          ],
+          "description": "生产批准是独立显式决策；候选资料、通过校验或存在旧发布记录均不能替代。"
+        },
+        {
+          "fieldId": "migration.scope",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "migration-scope-required",
+            "published-to-draft-rule-approval-required"
+          ],
+          "description": "旧数据、内容与素材的纳入/排除范围及清洗规则；旧 published 状态必须转换为 draft。"
+        },
+        {
+          "fieldId": "runtime.branding",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-admin-branding",
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-brand-confirmation-required",
+            "logo-authorization-required"
+          ],
+          "description": "EISCore 内部产品标题、主题色与系统 Logo，不承载公开企业介绍。"
+        },
+        {
+          "fieldId": "runtime.endpoints",
+          "currentStatus": "candidate",
+          "confirmationOwner": "deployment",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-admin-branding",
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "deployment-confirmation-required",
+            "domain-control-confirmation-required"
+          ],
+          "description": "每套隔离环境的公开根地址和 API/Agent/WebSocket 路径；不包含凭据。"
+        },
+        {
+          "fieldId": "runtime.enterprise",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-admin-branding",
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-identity-confirmation-required"
+          ],
+          "description": "部署内稳定企业 ID 和内部显示名；跟踪 ID 不是自动批准的运行值。"
+        },
+        {
+          "fieldId": "runtime.features",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "feature-scope-confirmation-required"
+          ],
+          "description": "模块内功能开关，须与模块依赖和实际验收范围一致。"
+        },
+        {
+          "fieldId": "runtime.modules",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "module-scope-confirmation-required"
+          ],
+          "description": "11 个部署模块的显式开关；需求候选不能直接解释为已启用范围。"
+        },
+        {
+          "fieldId": "site.contact",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "privacy-review-required",
+            "public-contact-confirmation-required"
+          ],
+          "description": "允许公开的联系方式和询盘渠道；私人联系方式不进入一般工程文件。"
+        },
+        {
+          "fieldId": "site.domain",
+          "currentStatus": "candidate",
+          "confirmationOwner": "deployment",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "domain-control-confirmation-required"
+          ],
+          "description": "正式公开域名及控制权确认；历史或候选域名不能直接进入批准包。"
+        },
+        {
+          "fieldId": "site.identity",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-admin-branding",
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-identity-confirmation-required"
+          ],
+          "description": "公开法律主体、品牌和工厂名称；合同内部字段不能自动公开。"
+        },
+        {
+          "fieldId": "site.locales",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "market-language-confirmation-required"
+          ],
+          "description": "目标市场语言、默认语言和翻译责任范围。"
+        },
+        {
+          "fieldId": "site.seo",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "enterprise-copy-review-required"
+          ],
+          "description": "站点级标题、描述和关键词草稿。"
+        },
+        {
+          "fieldId": "site.settings",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "implementation-review-required"
+          ],
+          "description": "公开站点行为配置；不能包含密钥、数据库连接或发布捷径。"
+        },
+        {
+          "fieldId": "site.socialLinks",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "channel-control-confirmation-required"
+          ],
+          "description": "企业确认拥有的公开社交或渠道链接。"
+        },
+        {
+          "fieldId": "site.template",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "template-review-required"
+          ],
+          "description": "核心制品支持的站点模板选择，不产生客户专属源码。"
+        },
+        {
+          "fieldId": "site.theme",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-admin-branding",
+            "jinwei-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-brand-confirmation-required"
+          ],
+          "description": "公开站点主题变量，与内部系统主题分开确认。"
+        },
+        {
+          "fieldId": "site.trademark",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "jinwei-admin-branding",
+            "jinwei-research-register"
+          ],
+          "blockers": [
+            "logo-authorization-required",
+            "trademark-confirmation-required"
+          ],
+          "description": "Logo、favicon 与商标信息；名称线索和图片存在不等于对外使用授权。"
+        }
+      ],
+      "assetRequests": [
+        {
+          "assetSetId": "jinwei-research-gallery",
+          "currentStatus": "incomplete",
+          "declaredFileCount": 31,
+          "presentFileCount": 28,
+          "authorizationStatus": "pending",
+          "commercialUse": false,
+          "sourceIds": [
+            "jinwei-gallery-inventory",
+            "jinwei-research-register"
+          ],
+          "decisionOptions": [
+            "complete-inventory",
+            "reject",
+            "replace"
+          ],
+          "notes": "研究图库缺少 3 个已由用户删除的文件，现有文件也仍需企业原片或权利人书面授权。"
+        }
+      ],
+      "approvalRequests": {
+        "facts": "pending",
+        "assets": "pending",
+        "package": "not-requested"
+      },
+      "blockingSummary": [
+        "enterprise-identity-and-domain-confirmation",
+        "module-feature-and-business-flow-confirmation",
+        "published-content-to-draft-migration-plan",
+        "research-gallery-completeness-and-commercial-authorization",
+        "roles-permissions-and-migration-scope"
+      ]
+    },
+    {
+      "trackingId": "junleyuan",
+      "displayName": "君乐缘",
+      "packageStatus": "not-created",
+      "fieldRequests": [
+        {
+          "fieldId": "acceptance.businessFlows",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "business-flow-confirmation-required"
+          ],
+          "description": "至少一条上线必需业务链及其受控验收样本；不进入公开站点内容。"
+        },
+        {
+          "fieldId": "acceptance.rolesAndPermissions",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "role-matrix-required"
+          ],
+          "description": "角色、权限和账号来源确认；只保存非秘密、非个人凭据的交付证据。"
+        },
+        {
+          "fieldId": "content.cases",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-fact-confirmation-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "经授权公开的案例草稿；客户名称、合同和交付数据默认不公开。"
+        },
+        {
+          "fieldId": "content.certificates",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "certificate-scope-confirmation-required"
+          ],
+          "description": "证书与认证草稿；必须确认主体、有效期和公开授权。"
+        },
+        {
+          "fieldId": "content.downloads",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "download-scope-confirmation-required"
+          ],
+          "description": "公开下载资料草稿及其素材引用。"
+        },
+        {
+          "fieldId": "content.evidence",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-evidence-review-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "支持公开主张的非敏感证据索引；原始敏感资料保留在受控来源系统。"
+        },
+        {
+          "fieldId": "content.externalProfiles",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "channel-control-confirmation-required"
+          ],
+          "description": "企业确认拥有或控制的外部公开档案。"
+        },
+        {
+          "fieldId": "content.keywords",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "market-keyword-confirmation-required"
+          ],
+          "description": "独立站关键词草稿，不能把研究词直接解释为企业事实。"
+        },
+        {
+          "fieldId": "content.knowledge",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-copy-review-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "FAQ、公开知识和禁用主张，全部作为草稿导入。"
+        },
+        {
+          "fieldId": "content.pages",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-copy-review-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "页面结构和公开文案草稿。"
+        },
+        {
+          "fieldId": "content.productLocales",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "product-scope-confirmation-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "产品多语言名称、描述、图片和 FAQ 草稿。"
+        },
+        {
+          "fieldId": "content.products",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "product-scope-confirmation-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "企业确认可公开的产品范围；SKU、规格、价格、MOQ、库存和交期分别确认。"
+        },
+        {
+          "fieldId": "content.seo",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "domain-control-confirmation-required",
+            "enterprise-copy-review-required"
+          ],
+          "description": "逐路径 SEO/GEO 草稿及结构化数据。"
+        },
+        {
+          "fieldId": "content.solutions",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-fact-confirmation-required",
+            "source-translation-to-draft-required"
+          ],
+          "description": "经企业确认的场景与解决方案草稿。"
+        },
+        {
+          "fieldId": "governance.assetStatus",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "junleyuan-asset-register",
+            "junleyuan-merge-audit"
+          ],
+          "blockers": [
+            "asset-authorization-required"
+          ],
+          "description": "由素材清单、完整性与书面商用授权共同推导，不能人工跳过。"
+        },
+        {
+          "fieldId": "governance.factStatus",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-fact-confirmation-required"
+          ],
+          "description": "只在必需事实逐项获得权威确认后汇总为 confirmed。"
+        },
+        {
+          "fieldId": "governance.productionApproval",
+          "currentStatus": "missing",
+          "confirmationOwner": "implementation",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "approve",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "production-approval-required"
+          ],
+          "description": "生产批准是独立显式决策；候选资料、通过校验或存在旧发布记录均不能替代。"
+        },
+        {
+          "fieldId": "migration.scope",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "migration-scope-required",
+            "published-to-draft-rule-approval-required"
+          ],
+          "description": "旧数据、内容与素材的纳入/排除范围及清洗规则；旧 published 状态必须转换为 draft。"
+        },
+        {
+          "fieldId": "runtime.branding",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-brand-confirmation-required",
+            "logo-authorization-required"
+          ],
+          "description": "EISCore 内部产品标题、主题色与系统 Logo，不承载公开企业介绍。"
+        },
+        {
+          "fieldId": "runtime.endpoints",
+          "currentStatus": "candidate",
+          "confirmationOwner": "deployment",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "deployment-confirmation-required",
+            "domain-control-confirmation-required"
+          ],
+          "description": "每套隔离环境的公开根地址和 API/Agent/WebSocket 路径；不包含凭据。"
+        },
+        {
+          "fieldId": "runtime.enterprise",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-identity-confirmation-required"
+          ],
+          "description": "部署内稳定企业 ID 和内部显示名；跟踪 ID 不是自动批准的运行值。"
+        },
+        {
+          "fieldId": "runtime.features",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "feature-scope-confirmation-required"
+          ],
+          "description": "模块内功能开关，须与模块依赖和实际验收范围一致。"
+        },
+        {
+          "fieldId": "runtime.modules",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "module-scope-confirmation-required"
+          ],
+          "description": "11 个部署模块的显式开关；需求候选不能直接解释为已启用范围。"
+        },
+        {
+          "fieldId": "site.contact",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "privacy-review-required",
+            "public-contact-confirmation-required"
+          ],
+          "description": "允许公开的联系方式和询盘渠道；私人联系方式不进入一般工程文件。"
+        },
+        {
+          "fieldId": "site.domain",
+          "currentStatus": "candidate",
+          "confirmationOwner": "deployment",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "domain-control-confirmation-required"
+          ],
+          "description": "正式公开域名及控制权确认；历史或候选域名不能直接进入批准包。"
+        },
+        {
+          "fieldId": "site.identity",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-identity-confirmation-required"
+          ],
+          "description": "公开法律主体、品牌和工厂名称；合同内部字段不能自动公开。"
+        },
+        {
+          "fieldId": "site.locales",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "market-language-confirmation-required"
+          ],
+          "description": "目标市场语言、默认语言和翻译责任范围。"
+        },
+        {
+          "fieldId": "site.seo",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-copy-review-required"
+          ],
+          "description": "站点级标题、描述和关键词草稿。"
+        },
+        {
+          "fieldId": "site.settings",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "implementation-review-required"
+          ],
+          "description": "公开站点行为配置；不能包含密钥、数据库连接或发布捷径。"
+        },
+        {
+          "fieldId": "site.socialLinks",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm",
+            "confirm-not-applicable",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "channel-control-confirmation-required"
+          ],
+          "description": "企业确认拥有的公开社交或渠道链接。"
+        },
+        {
+          "fieldId": "site.template",
+          "currentStatus": "candidate",
+          "confirmationOwner": "implementation",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "template-review-required"
+          ],
+          "description": "核心制品支持的站点模板选择，不产生客户专属源码。"
+        },
+        {
+          "fieldId": "site.theme",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "enterprise-brand-confirmation-required"
+          ],
+          "description": "公开站点主题变量，与内部系统主题分开确认。"
+        },
+        {
+          "fieldId": "site.trademark",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "junleyuan-asset-register",
+            "junleyuan-legacy-seed"
+          ],
+          "blockers": [
+            "logo-authorization-required",
+            "trademark-confirmation-required"
+          ],
+          "description": "Logo、favicon 与商标信息；名称线索和图片存在不等于对外使用授权。"
+        }
+      ],
+      "assetRequests": [
+        {
+          "assetSetId": "junleyuan-derived-materials-v2-v3",
+          "currentStatus": "candidate",
+          "declaredFileCount": 42,
+          "presentFileCount": 42,
+          "authorizationStatus": "pending",
+          "commercialUse": false,
+          "sourceIds": [
+            "junleyuan-asset-register",
+            "junleyuan-merge-audit"
+          ],
+          "decisionOptions": [
+            "authorize",
+            "reject",
+            "replace"
+          ],
+          "notes": "派生素材完整且哈希受清单保护，但继承来源素材的供应商书面授权缺口。"
+        },
+        {
+          "assetSetId": "junleyuan-source-materials-v1",
+          "currentStatus": "candidate",
+          "declaredFileCount": 14,
+          "presentFileCount": 14,
+          "authorizationStatus": "pending",
+          "commercialUse": false,
+          "sourceIds": [
+            "junleyuan-asset-register",
+            "junleyuan-merge-audit"
+          ],
+          "decisionOptions": [
+            "authorize",
+            "reject",
+            "replace"
+          ],
+          "notes": "来源素材文件完整，但清单明确为 supplier_authorization_pending。"
+        }
+      ],
+      "approvalRequests": {
+        "facts": "pending",
+        "assets": "pending",
+        "package": "not-requested"
+      },
+      "blockingSummary": [
+        "enterprise-identity-and-domain-confirmation",
+        "material-and-trademark-commercial-authorization",
+        "module-feature-and-business-flow-confirmation",
+        "published-content-to-draft-migration-plan",
+        "roles-permissions-and-migration-scope"
+      ]
+    },
+    {
+      "trackingId": "lundu-electromechanical",
+      "displayName": "伦度机电",
+      "packageStatus": "not-created",
+      "fieldRequests": [
+        {
+          "fieldId": "acceptance.businessFlows",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "p0-business-data-required"
+          ],
+          "description": "至少一条上线必需业务链及其受控验收样本；不进入公开站点内容。"
+        },
+        {
+          "fieldId": "acceptance.rolesAndPermissions",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "role-matrix-required"
+          ],
+          "description": "角色、权限和账号来源确认；只保存非秘密、非个人凭据的交付证据。"
+        },
+        {
+          "fieldId": "content.cases",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "public-case-scope-required"
+          ],
+          "description": "经授权公开的案例草稿；客户名称、合同和交付数据默认不公开。"
+        },
+        {
+          "fieldId": "content.certificates",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "certificate-scope-confirmation-required"
+          ],
+          "description": "证书与认证草稿；必须确认主体、有效期和公开授权。"
+        },
+        {
+          "fieldId": "content.downloads",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "download-scope-confirmation-required"
+          ],
+          "description": "公开下载资料草稿及其素材引用。"
+        },
+        {
+          "fieldId": "content.evidence",
+          "currentStatus": "missing",
+          "confirmationOwner": "implementation",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "public-evidence-required"
+          ],
+          "description": "支持公开主张的非敏感证据索引；原始敏感资料保留在受控来源系统。"
+        },
+        {
+          "fieldId": "content.externalProfiles",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "channel-control-confirmation-required"
+          ],
+          "description": "企业确认拥有或控制的外部公开档案。"
+        },
+        {
+          "fieldId": "content.keywords",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "market-keyword-confirmation-required"
+          ],
+          "description": "独立站关键词草稿，不能把研究词直接解释为企业事实。"
+        },
+        {
+          "fieldId": "content.knowledge",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "public-knowledge-scope-required"
+          ],
+          "description": "FAQ、公开知识和禁用主张，全部作为草稿导入。"
+        },
+        {
+          "fieldId": "content.pages",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "public-copy-required"
+          ],
+          "description": "页面结构和公开文案草稿。"
+        },
+        {
+          "fieldId": "content.productLocales",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "product-scope-confirmation-required"
+          ],
+          "description": "产品多语言名称、描述、图片和 FAQ 草稿。"
+        },
+        {
+          "fieldId": "content.products",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "p0-product-data-required"
+          ],
+          "description": "企业确认可公开的产品范围；SKU、规格、价格、MOQ、库存和交期分别确认。"
+        },
+        {
+          "fieldId": "content.seo",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "domain-and-public-copy-required"
+          ],
+          "description": "逐路径 SEO/GEO 草稿及结构化数据。"
+        },
+        {
+          "fieldId": "content.solutions",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "solution-scope-confirmation-required"
+          ],
+          "description": "经企业确认的场景与解决方案草稿。"
+        },
+        {
+          "fieldId": "governance.assetStatus",
+          "currentStatus": "missing",
+          "confirmationOwner": "implementation",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "asset-inventory-and-authorization-required"
+          ],
+          "description": "由素材清单、完整性与书面商用授权共同推导，不能人工跳过。"
+        },
+        {
+          "fieldId": "governance.factStatus",
+          "currentStatus": "missing",
+          "confirmationOwner": "implementation",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "enterprise-fact-confirmation-required"
+          ],
+          "description": "只在必需事实逐项获得权威确认后汇总为 confirmed。"
+        },
+        {
+          "fieldId": "governance.productionApproval",
+          "currentStatus": "missing",
+          "confirmationOwner": "implementation",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "approve",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "production-approval-required"
+          ],
+          "description": "生产批准是独立显式决策；候选资料、通过校验或存在旧发布记录均不能替代。"
+        },
+        {
+          "fieldId": "migration.scope",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "delivery-governance",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "lundu-intake-audit"
+          ],
+          "blockers": [
+            "p0-scope-confirmation-required",
+            "thirteen-empty-business-sheets"
+          ],
+          "description": "旧数据、内容与素材的纳入/排除范围及清洗规则；旧 published 状态必须转换为 draft。"
+        },
+        {
+          "fieldId": "runtime.branding",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "enterprise-brand-confirmation-required",
+            "logo-authorization-required"
+          ],
+          "description": "EISCore 内部产品标题、主题色与系统 Logo，不承载公开企业介绍。"
+        },
+        {
+          "fieldId": "runtime.endpoints",
+          "currentStatus": "missing",
+          "confirmationOwner": "deployment",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "deployment-confirmation-required"
+          ],
+          "description": "每套隔离环境的公开根地址和 API/Agent/WebSocket 路径；不包含凭据。"
+        },
+        {
+          "fieldId": "runtime.enterprise",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "lundu-intake-audit"
+          ],
+          "blockers": [
+            "enterprise-identity-confirmation-required",
+            "sensitive-source-review-required"
+          ],
+          "description": "部署内稳定企业 ID 和内部显示名；跟踪 ID 不是自动批准的运行值。"
+        },
+        {
+          "fieldId": "runtime.features",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "lundu-intake-audit"
+          ],
+          "blockers": [
+            "feature-scope-confirmation-required"
+          ],
+          "description": "模块内功能开关，须与模块依赖和实际验收范围一致。"
+        },
+        {
+          "fieldId": "runtime.modules",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "internal",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "lundu-intake-audit"
+          ],
+          "blockers": [
+            "module-scope-confirmation-required"
+          ],
+          "description": "11 个部署模块的显式开关；需求候选不能直接解释为已启用范围。"
+        },
+        {
+          "fieldId": "site.contact",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "privacy-review-required",
+            "public-contact-confirmation-required"
+          ],
+          "description": "允许公开的联系方式和询盘渠道；私人联系方式不进入一般工程文件。"
+        },
+        {
+          "fieldId": "site.domain",
+          "currentStatus": "missing",
+          "confirmationOwner": "deployment",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "domain-control-confirmation-required"
+          ],
+          "description": "正式公开域名及控制权确认；历史或候选域名不能直接进入批准包。"
+        },
+        {
+          "fieldId": "site.identity",
+          "currentStatus": "candidate",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "confirm",
+            "reject"
+          ],
+          "sourceIds": [
+            "lundu-intake-audit"
+          ],
+          "blockers": [
+            "brand-and-public-identity-required",
+            "sensitive-source-review-required"
+          ],
+          "description": "公开法律主体、品牌和工厂名称；合同内部字段不能自动公开。"
+        },
+        {
+          "fieldId": "site.locales",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "market-language-confirmation-required"
+          ],
+          "description": "目标市场语言、默认语言和翻译责任范围。"
+        },
+        {
+          "fieldId": "site.seo",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "public-copy-required"
+          ],
+          "description": "站点级标题、描述和关键词草稿。"
+        },
+        {
+          "fieldId": "site.settings",
+          "currentStatus": "missing",
+          "confirmationOwner": "implementation",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "implementation-scope-required"
+          ],
+          "description": "公开站点行为配置；不能包含密钥、数据库连接或发布捷径。"
+        },
+        {
+          "fieldId": "site.socialLinks",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "conditional",
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "channel-control-confirmation-required"
+          ],
+          "description": "企业确认拥有的公开社交或渠道链接。"
+        },
+        {
+          "fieldId": "site.template",
+          "currentStatus": "missing",
+          "confirmationOwner": "implementation",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "reject",
+            "review-and-confirm"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "public-site-scope-required"
+          ],
+          "description": "核心制品支持的站点模板选择，不产生客户专属源码。"
+        },
+        {
+          "fieldId": "site.theme",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "enterprise-brand-confirmation-required"
+          ],
+          "description": "公开站点主题变量，与内部系统主题分开确认。"
+        },
+        {
+          "fieldId": "site.trademark",
+          "currentStatus": "missing",
+          "confirmationOwner": "enterprise",
+          "scope": "public",
+          "requirement": "required",
+          "decisionOptions": [
+            "provide-and-confirm",
+            "reject"
+          ],
+          "sourceIds": [],
+          "blockers": [
+            "logo-and-trademark-authorization-required"
+          ],
+          "description": "Logo、favicon 与商标信息；名称线索和图片存在不等于对外使用授权。"
+        }
+      ],
+      "assetRequests": [
+        {
+          "assetSetId": "lundu-site-assets",
+          "currentStatus": "absent",
+          "declaredFileCount": 0,
+          "presentFileCount": 0,
+          "authorizationStatus": "not-requested",
+          "commercialUse": false,
+          "sourceIds": [],
+          "decisionOptions": [
+            "confirm-not-applicable",
+            "provide-inventory",
+            "reject"
+          ],
+          "notes": "采集工作簿尚未提供可迁移的独立站素材清单。"
+        }
+      ],
+      "approvalRequests": {
+        "facts": "not-requested",
+        "assets": "not-requested",
+        "package": "not-requested"
+      },
+      "blockingSummary": [
+        "brand-domain-language-contact-and-public-product-scope",
+        "module-feature-role-and-business-flow-confirmation",
+        "p0-product-bom-process-quality-data",
+        "site-asset-inventory-and-authorization",
+        "thirteen-business-sheets-without-migratable-records"
+      ]
+    }
+  ],
+  "requestSha256": "38b24835227882c6a8d6421f8826cc3e36a35548553e689e17234befd7e28b95"
+}

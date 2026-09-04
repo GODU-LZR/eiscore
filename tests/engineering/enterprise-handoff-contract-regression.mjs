@@ -22,9 +22,10 @@ const finalReport = readFileSync(resolve(repoRoot, 'docs/engineering/REFACTOR_FI
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
 const result = validateEnterpriseHandoff({ snapshotPath, repoRoot })
 
-assert.equal(schema.oneOf.length, 2)
+assert.equal(schema.oneOf.length, 3)
 assert.equal(schema.$defs.fieldCatalogDocument.properties.documentType.const, 'enterprise-package-handoff-field-catalog')
 assert.equal(schema.$defs.readinessSnapshotDocument.properties.documentType.const, 'enterprise-package-readiness-snapshot')
+assert.equal(schema.$defs.confirmationRequestDocument.properties.documentType.const, 'enterprise-package-confirmation-request')
 assert.equal(schema.$defs.readinessSnapshotDocument.properties.handoffPolicy.properties.siteKey.const, 'primary')
 assert.equal(schema.$defs.readinessSnapshotDocument.properties.handoffPolicy.properties.applyMode.const, 'initialize-only')
 assert.equal(schema.$defs.readinessSnapshotDocument.properties.handoffPolicy.properties.initialStatus.const, 'draft')
