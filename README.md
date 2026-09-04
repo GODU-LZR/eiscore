@@ -14,7 +14,7 @@ text, copyright notice, and commercial authorization boundary.
 
 ## 工程化状态
 
-G0～G3.5、企业资料合并和 DB0～DB6 数据库后端工程化已完成。G4.0～G4.1 已完成；G4.2 已建立 33 组交接字段、首批三家 readiness，以及由其确定生成的 99 个字段决策和 4 个素材决策确认请求（`a68c44b`）。三家企业事实、素材授权和生产批准仍待权威确认，因此三家企业包均未创建，G4.3～G4.4 与 G5 尚未完成。
+G0～G3.5、企业资料合并和 DB0～DB6 数据库后端工程化已完成。G4.0～G4.1 已完成；G4.2 已建立 33 组交接字段、首批三家 readiness、99 个字段/4 个素材决策的确定性确认请求（`a68c44b`），以及绑定请求、责任方与外部证据的确认响应和 `new-snapshot-only` 受控回填（`cff0035`）。三家企业事实、素材授权和生产批准仍待权威确认，因此三家企业包均未创建，G4.3～G4.4 与 G5 尚未完成。
 
 - 长期进度：[docs/engineering/REFACTOR_PROGRESS.md](docs/engineering/REFACTOR_PROGRESS.md)
 - G3.5 退出审计：[docs/engineering/G3_5_EXIT_AUDIT.md](docs/engineering/G3_5_EXIT_AUDIT.md)

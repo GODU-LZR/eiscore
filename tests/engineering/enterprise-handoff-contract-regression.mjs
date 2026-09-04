@@ -69,7 +69,7 @@ for (const marker of ['不是企业包 payload', 'trackingId', 'enterprise-hando
   assert.ok(handoffReadme.includes(marker), `enterprise handoff README lost boundary: ${marker}`)
 }
 assert.match(index, /G4\.2 已建立 33 组实施运营台字段映射/)
-for (const marker of ['e2665c7', 'G4.2 已建立交接/readiness 与确认请求基线', '继续 G4.2']) {
+for (const marker of ['e2665c7', 'G4.2 已建立交接/readiness、确认请求、确认响应与受控回填基线', '继续 G4.2']) {
   assert.ok(progress.includes(marker), `progress ledger lost G4.2 handoff checkpoint: ${marker}`)
 }
 assert.match(finalReport, /G4\.2 已建立 33 组实施运营台字段映射/)
