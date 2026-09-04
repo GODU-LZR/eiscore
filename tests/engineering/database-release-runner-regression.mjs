@@ -23,7 +23,7 @@ const catalog = createDatabaseCatalog({})
 const catalogSha256 = sha256CanonicalJson(catalog)
 const manifest = buildDatabaseReleaseManifest({
   repoRoot,
-  releaseId: 'eiscore-db-v4',
+  releaseId: 'eiscore-db-v5',
   sourceRevision: revision,
   predecessorCatalogs: [{ id: 'test-predecessor', databaseCatalogSha256: 'a'.repeat(64) }]
 })
@@ -49,7 +49,7 @@ const secrets = {
   USERNAME: 'release-tester'
 }
 const execution = resolveDatabaseReleaseExecution({
-  backupDir: 'tests/.artifacts/db4-unit', apiUrl: 'http://127.0.0.1:1/',
+  backupDir: 'tests/.artifacts/db5-unit', apiUrl: 'http://127.0.0.1:1/',
   environment: 'isolated', backupStorageEvidence: 'isolated://unit-test', operator: ''
 }, secrets)
 assert.equal(execution.operator, 'release-tester')

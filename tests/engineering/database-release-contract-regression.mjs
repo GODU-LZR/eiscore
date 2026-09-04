@@ -18,7 +18,7 @@ const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
 const predecessorCatalogs = [{ id: 'eiscore-db-v1-runtime', databaseCatalogSha256: 'a'.repeat(64) }]
 const manifest = buildDatabaseReleaseManifest({
   repoRoot,
-  releaseId: 'eiscore-db-v4',
+  releaseId: 'eiscore-db-v5',
   sourceRevision: revision,
   predecessorCatalogs
 })
@@ -31,7 +31,7 @@ assert.deepEqual(validateDatabaseReleaseManifest({
 assert.match(databaseReleaseManifestSha256(manifest), /^[0-9a-f]{64}$/)
 assert.deepEqual(manifest.migrationManifests.map(({ name }) => name), ['runtime-v2', 'company-site', 'core'])
 assert.deepEqual(manifest.migrationManifests.map(({ terminal }) => terminal.id), [
-  'runtime-v2-010', 'company-site-001', 'core-004'
+  'runtime-v2-010', 'company-site-001', 'core-006'
 ])
 assert.ok(manifest.artifacts.some(({ path }) => path === 'database/release-ledger.sql'))
 assert.ok(manifest.artifacts.some(({ path }) => path === 'database/contracts/eiscore-db-contract-v2.json'))
@@ -39,9 +39,9 @@ assert.ok(manifest.artifacts.some(({ purpose }) => purpose === 'verification-onl
 
 const fixedRelease = loadAndValidateDatabaseRelease({ repoRoot })
 assert.deepEqual(fixedRelease.errors, [])
-assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v4')
-assert.equal(fixedRelease.manifest.sourceRevision, '50e86666cad0b7e8054f37d42551bc9e41b2a406')
-assert.equal(fixedRelease.manifestSha256, '8113f0325ac11ca5e1fa056f35e1ceaf603b4a3709a9a71493b08f9dc85fcbda')
+assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v5')
+assert.equal(fixedRelease.manifest.sourceRevision, 'dc1745614d9fce1f3cb8dab8695bce0046dac03d')
+assert.equal(fixedRelease.manifestSha256, '74c45f43d415a5775ce7f8f7bedc4fc99f629dc8141f712e6871765599060a8a')
 
 const mutation = (callback) => {
   const value = structuredClone(manifest)

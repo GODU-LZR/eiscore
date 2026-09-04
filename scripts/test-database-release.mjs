@@ -10,18 +10,18 @@ import { spawnSync } from 'node:child_process'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const artifactsRoot = resolve(repoRoot, 'tests/.artifacts')
-const backupRoot = mkdtempSync(resolve(artifactsRoot, 'db4-release-'))
+const backupRoot = mkdtempSync(resolve(artifactsRoot, 'db5-release-'))
 const suffix = `${process.pid}-${randomBytes(4).toString('hex')}`
-const databaseContainer = `eiscore-db4-db-${suffix}`
-const apiContainer = `eiscore-db4-api-${suffix}`
-const networkName = `eiscore-db4-net-${suffix}`
+const databaseContainer = `eiscore-db5-db-${suffix}`
+const apiContainer = `eiscore-db5-api-${suffix}`
+const networkName = `eiscore-db5-net-${suffix}`
 const postgresImage = 'postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f'
 const postgrestImage = 'postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa'
 const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
-const releaseManifestSha256 = '8113f0325ac11ca5e1fa056f35e1ceaf603b4a3709a9a71493b08f9dc85fcbda'
+const releaseManifestSha256 = '74c45f43d415a5775ce7f8f7bedc4fc99f629dc8141f712e6871765599060a8a'
 const core002Sha256 = 'fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc'
 const maxOutput = 256 * 1024 * 1024
 
@@ -66,7 +66,7 @@ const waitForDatabase = async () => {
     if (ready.status === 0) return
     await sleep(250)
   }
-  throw new Error('isolated DB4 predecessor database did not become ready')
+  throw new Error('isolated DB5 predecessor database did not become ready')
 }
 const releaseArgs = (apiUrl) => [
   'scripts/deploy-database-release.mjs',
@@ -77,8 +77,8 @@ const releaseArgs = (apiUrl) => [
   '--api-url', apiUrl,
   '--backup-dir', backupRoot,
   '--environment', 'isolated',
-  '--backup-storage-evidence', 'isolated://db4-release-test-tmpfs',
-  '--operator', 'db4-isolated-release-test'
+  '--backup-storage-evidence', 'isolated://db5-release-test-tmpfs',
+  '--operator', 'db5-isolated-release-test'
 ]
 const releaseEnv = {
   ...process.env,
@@ -135,9 +135,9 @@ try {
   ])
 
   const first = executeRelease(apiUrl)
-  assert.match(first.stdout, /Preflight passed: 13a49b00/)
-  assert.match(first.stdout, /core migration execution passed: 3 applied, 1 skipped/)
-  assert.match(first.stdout, /Database release passed: eiscore-db-v4/)
+  assert.match(first.stdout, /Preflight passed: 4e6b7bd3/)
+  assert.match(first.stdout, /core migration execution passed: 5 applied, 1 skipped/)
+  assert.match(first.stdout, /Database release passed: eiscore-db-v5/)
   assert.equal(backupDirectories().length, 1)
 
   const firstEvidencePath = resolve(backupRoot, backupDirectories()[0].name, 'backup-evidence.json')
@@ -154,7 +154,7 @@ try {
   `).stdout.trim()
   assert.equal(
     releaseRow,
-    `eiscore-db-v4|${releaseManifestSha256}|50e86666cad0b7e8054f37d42551bc9e41b2a406`
+    `eiscore-db-v5|${releaseManifestSha256}|dc1745614d9fce1f3cb8dab8695bce0046dac03d`
   )
   assert.equal(psql(`
     SELECT tableowner FROM pg_tables
@@ -162,17 +162,25 @@ try {
   `).stdout.trim(), 'eiscore_owner')
 
   const second = executeRelease(apiUrl)
-  assert.match(second.stdout, /core migration execution passed: 0 applied, 4 skipped/)
+  assert.match(second.stdout, /core migration execution passed: 0 applied, 6 skipped/)
   assert.equal(backupDirectories().length, 2)
   assert.equal(psql('SELECT count(*) FROM eiscore_meta.database_releases;').stdout.trim(), '1')
 
-  psql('CREATE TABLE public.db4_schema_drift_probe(id integer);')
+  psql('CREATE TABLE public.db5_schema_drift_probe(id integer);')
   const beforeDriftAttempt = backupDirectories().length
   const drift = executeRelease(apiUrl, true)
   assert.notEqual(drift.status, 0)
-  assert.match(`${drift.stdout}\n${drift.stderr}`, /schema drift: unrecognized database catalog/)
-  assert.equal(backupDirectories().length, beforeDriftAttempt, 'schema drift must fail before backup')
-  psql('DROP TABLE public.db4_schema_drift_probe;')
+  assert.match(`${drift.stdout}\n${drift.stderr}`, /unapproved public object addition: TABLE:db5_schema_drift_probe/)
+  assert.equal(backupDirectories().length, beforeDriftAttempt, 'public Schema drift must fail before backup')
+  psql('DROP TABLE public.db5_schema_drift_probe;')
+
+  psql('CREATE TABLE app_data.db5_schema_drift_probe(id integer);')
+  const beforeCatalogDriftAttempt = backupDirectories().length
+  const catalogDrift = executeRelease(apiUrl, true)
+  assert.notEqual(catalogDrift.status, 0)
+  assert.match(`${catalogDrift.stdout}\n${catalogDrift.stderr}`, /schema drift: unrecognized database catalog/)
+  assert.equal(backupDirectories().length, beforeCatalogDriftAttempt, 'catalog drift must fail before backup')
+  psql('DROP TABLE app_data.db5_schema_drift_probe;')
 
   psql("UPDATE eiscore_meta.schema_migrations SET checksum_sha256 = repeat('0', 64) WHERE migration_id = 'core-002';")
   const beforeConflictAttempt = backupDirectories().length
@@ -182,7 +190,7 @@ try {
   assert.equal(backupDirectories().length, beforeConflictAttempt, 'ledger conflict must fail before backup')
   psql(`UPDATE eiscore_meta.schema_migrations SET checksum_sha256 = '${core002Sha256}' WHERE migration_id = 'core-002';`)
 
-  console.log('PASS: DB4 release artifact upgrades, backs up, verifies DB/PostgREST, repeats, and fails closed on drift/conflict')
+  console.log('PASS: DB5 release artifact upgrades, backs up, verifies DB/PostgREST, repeats, and fails closed on drift/conflict')
 } finally {
   docker(['rm', '-f', apiContainer], { allowFailure: true })
   docker(['rm', '-f', databaseContainer], { allowFailure: true })

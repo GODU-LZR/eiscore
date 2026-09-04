@@ -47,7 +47,7 @@ PowerShell 使用同名参数 `-BackupEvidence`、`-ReleaseRevision` 与 `-Opera
 
 ## 版本化数据库发布
 
-`releases/eiscore-db-v5/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、历史 SQL 处置、public Schema 棘轮、HR 身份/范围、数据库/PostgREST 契约及发布恢复机制绑定为同一发布制品。规范 Manifest SHA-256 以该文件的规范 JSON 校验结果为准。离线验证：
+`releases/eiscore-db-v5/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、历史 SQL 处置、public Schema 棘轮、HR 身份/范围、数据库/PostgREST 契约及发布恢复机制绑定为同一发布制品。源码锚点为 `dc1745614d9fce1f3cb8dab8695bce0046dac03d`，规范 Manifest SHA-256 为 `74c45f43d415a5775ce7f8f7bedc4fc99f629dc8141f712e6871765599060a8a`。离线验证：
 
 ```bash
 npm run db:release:check

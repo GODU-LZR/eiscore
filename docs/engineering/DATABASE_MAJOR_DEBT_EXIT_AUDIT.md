@@ -27,7 +27,9 @@
 
 ## 当前数据库契约
 
-三个 Manifest 共 17 个不可变迁移。目标 Catalog 为 7 个应用 Schema、196 个关系、166 个函数、1 个显式应用类型、299 个 Policy、83 个触发器；PostgREST 双角色七 Profile 合计 296 个 Path、78 个 RPC Path 和 204 个 Definition。最终数字和 SHA 以 `database/contracts/eiscore-db-contract-v2.json` 与 `eiscore-db-v5` Release Manifest 为准。
+三个 Manifest 共 17 个不可变迁移。目标 Catalog 为 7 个应用 Schema、196 个关系、166 个函数、1 个显式应用类型、299 个 Policy、83 个触发器；PostgREST 双角色七 Profile 合计 296 个 Path、78 个 RPC Path 和 204 个 Definition。数据库 Catalog SHA 为 `b89b8858897996130c84e989a70989be4083eed145e13d8a91997ed8f127f585`，PostgREST 契约 SHA 为 `86012b2daa80cab596e6f5e043f0451e9d018f5291f9a3a2b2acb0384341373b`。最终制品 `eiscore-db-v5` 锚定源码提交 `dc1745614d9fce1f3cb8dab8695bce0046dac03d`，规范 Manifest SHA 为 `74c45f43d415a5775ce7f8f7bedc4fc99f629dc8141f712e6871765599060a8a`。
+
+v5 将应用类型纳入 Catalog 后，前驱必须按同一新版算法重新规范化，不能沿用不含类型维度的旧发布指纹。隔离重建得到 v1-runtime `4e6b7bd39b39ea421c4d021fcf6e54d2855d44bd4eb196f486d3b9a647dbbc16`、v3 `2bf293da00a9519e6db05f0c18935521ecd2a60da739c02f8fa4122da4501ebe`、v4 `354224cb76cef28136b0684972cbfb98b2f8c2df497adda05de00f1564f4c9a7`；对象计数与各旧版本一致。旧 v2/v3/v4 Manifest 保持不可变，v5 只接受这三个由当前算法实测得到的升级入口或自身目标目录。
 
 ## 验证与边界
 

@@ -55,7 +55,7 @@ assert.match(recoveryLedger, /CREATE TABLE IF NOT EXISTS eiscore_meta\.database_
 assert.match(recoveryLedger, /recovery_ms bigint NOT NULL/)
 assert.match(recoveryLedger, /REVOKE ALL ON TABLE eiscore_meta\.database_recoveries FROM PUBLIC/)
 
-const restoreOptions = parseDatabaseRestoreArgs(['--evidence', 'x', '--confirm-empty-target', 'eiscore-db-v4'])
-assert.equal(restoreOptions.confirmation, 'eiscore-db-v4')
+const restoreOptions = parseDatabaseRestoreArgs(['--evidence', 'x', '--confirm-empty-target', 'eiscore-db-v5'])
+assert.equal(restoreOptions.confirmation, 'eiscore-db-v5')
 
 console.log('PASS: DB operations policy locks RPO/RTO, retention, restore safety, runtime health and redacted slow-query evidence')

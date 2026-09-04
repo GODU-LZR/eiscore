@@ -22,23 +22,38 @@ assert.deepEqual(migrationManifests[2].migrations.map(({ id }) => id), [
 
 const release = loadAndValidateDatabaseRelease({ repoRoot })
 assert.deepEqual(release.errors, [])
-assert.equal(release.manifest.releaseId, 'eiscore-db-v4')
-assert.equal(release.manifestSha256, '8113f0325ac11ca5e1fa056f35e1ceaf603b4a3709a9a71493b08f9dc85fcbda')
-assert.deepEqual(release.manifest.predecessors.map(({ id }) => id), ['eiscore-db-v1-runtime', 'eiscore-db-v3'])
+assert.equal(release.manifest.releaseId, 'eiscore-db-v5')
+assert.equal(release.manifestSha256, '74c45f43d415a5775ce7f8f7bedc4fc99f629dc8141f712e6871765599060a8a')
+assert.deepEqual(release.manifest.predecessors, [
+  {
+    id: 'eiscore-db-v1-runtime',
+    databaseCatalogSha256: '4e6b7bd39b39ea421c4d021fcf6e54d2855d44bd4eb196f486d3b9a647dbbc16'
+  },
+  {
+    id: 'eiscore-db-v3',
+    databaseCatalogSha256: '2bf293da00a9519e6db05f0c18935521ecd2a60da739c02f8fa4122da4501ebe'
+  },
+  {
+    id: 'eiscore-db-v4',
+    databaseCatalogSha256: '354224cb76cef28136b0684972cbfb98b2f8c2df497adda05de00f1564f4c9a7'
+  }
+])
 
 const contract = json('database/contracts/eiscore-db-contract-v2.json')
 assert.deepEqual(contract.databaseCatalog.counts, {
   schemas: 7,
   relations: 196,
-  functions: 161,
-  policies: 297,
-  triggers: 82,
+  functions: 166,
+  types: 1,
+  policies: 299,
+  triggers: 83,
   roles: 6,
   memberships: 3,
   defaultPrivileges: 19,
   extensions: 2
 })
-assert.equal(contract.postgrestOpenApi.counts.paths, 292)
+assert.equal(contract.postgrestOpenApi.counts.paths, 296)
+assert.equal(contract.postgrestOpenApi.counts.rpcPaths, 78)
 assert.equal(contract.postgrestOpenApi.counts.definitions, 204)
 
 const packageJson = json('package.json')
@@ -76,7 +91,7 @@ assert.ok(plan.includes('DB0～DB6 全部退出'))
 
 const databaseReadme = read('database/README.md')
 assert.ok(databaseReadme.includes('company-site 1 个、core 6 个迁移，共 17 个不可变迁移'))
-assert.ok(databaseReadme.includes('releases/eiscore-db-v4/manifest.json'))
-assert.ok(databaseReadme.includes('--confirm-empty-target=eiscore-db-v4'))
+assert.ok(databaseReadme.includes('releases/eiscore-db-v5/manifest.json'))
+assert.ok(databaseReadme.includes('--confirm-empty-target=eiscore-db-v5'))
 
 console.log('PASS: DB6 database structure governance evidence and drift anchors')
