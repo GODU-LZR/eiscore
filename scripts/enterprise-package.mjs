@@ -20,6 +20,7 @@ const ID = /^[a-z0-9][a-z0-9-]*$/
 const SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z.-]+)?$/
 const SHA256 = /^[0-9a-f]{64}$/
 const FORBIDDEN_EXECUTABLE = /(?:^|\/)(?:[^/]+\.)?(?:sql|psql)$/i
+const FORBIDDEN_PROGRAM_FILE = /\.(?:bat|c|cc|cmd|cpp|cs|cxx|dll|exe|fs|go|h|hpp|htm|html|java|jar|js|jsx|mjs|cjs|php|ps1|py|rb|rs|sh|svelte|ts|tsx|vue|wasm|zsh)$/i
 const DATABASE_CODE = /(?:^|[;\r\n])\s*(?:(?:create(?:\s+or\s+replace)?|alter|drop)\s+(?:table|view|materialized\s+view|function|procedure|trigger|policy|role|schema|type|extension|index|sequence|database|domain|collation|publication|subscription)|truncate(?:\s+table)?\s+|(?:grant|revoke)\s+(?:all|select|insert|update|delete|truncate|references|trigger|usage|execute|create|connect|temporary|temp|set)\b|comment\s+on\s+|set\s+role\b|(?:select\s+.+\s+from|insert\s+into|update\s+.+\s+set|delete\s+from|merge\s+into|copy\s+))/i
 const SECRET_KEY = /(?:^|_)(?:password|passwd|pwd|token|secret|api_key|private_key|client_secret|credential|authorization|access_key|connection_string|database_url)(?:$|_)/i
 const CREDENTIAL_URL = /^[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@/i
@@ -319,6 +320,7 @@ const inspectPayload = ({ packRoot, paths, manifest, production }) => {
       continue
     }
     if (FORBIDDEN_EXECUTABLE.test(path)) issues.push(issue('database-code-file-forbidden', path))
+    if (FORBIDDEN_PROGRAM_FILE.test(path)) issues.push(issue('customer-code-file-forbidden', path))
     const kind = classifyEnterprisePackagePath(path)
     if (!kind) issues.push(issue('unknown-payload-file', path))
     const stats = statSync(absolute)

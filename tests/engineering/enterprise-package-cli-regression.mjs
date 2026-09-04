@@ -64,6 +64,11 @@ try {
   writeFileSync(resolve(sql, 'data/tenant.sql'), 'CREATE TABLE forbidden_customer_table (id integer);\n', 'utf8')
   expectGenerateIssue(sql, 'database-code-file-forbidden')
 
+  const customerCode = createPack('customer-code')
+  mkdirSync(resolve(customerCode, 'assets'), { recursive: true })
+  writeFileSync(resolve(customerCode, 'assets/customer-override.js'), 'export const customerOverride = true\n', 'utf8')
+  expectGenerateIssue(customerCode, 'customer-code-file-forbidden')
+
   const duplicate = createPack('duplicate')
   rewriteManifestDigest(duplicate, (manifest) => manifest.files.push(structuredClone(manifest.files[0])))
   assert.ok(issueCodes(validateEnterprisePackage({ packRoot: duplicate })).includes('duplicate-path'))
