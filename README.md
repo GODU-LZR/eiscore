@@ -14,10 +14,12 @@ text, copyright notice, and commercial authorization boundary.
 
 ## 工程化状态
 
-G0～G3 已完成；G3.5 产品级集成与功能验收已于 2026-09-02 通过。G3.5 后“企业资料/企业站点运营”重复入口也已合并为单一已发布事实源，专项生命周期、完整质量门禁、单元总集和 12/12 前端生产构建通过；这是一项独立检查点，G4/G5 尚未开始。
+G0～G3.5、企业资料合并和 DB0～DB6 数据库后端工程化已完成。G4.0～G4.1 已完成；G4.2 已建立 33 组交接字段、首批三家 readiness，以及由其确定生成的 99 个字段决策和 4 个素材决策确认请求（`a68c44b`）。三家企业事实、素材授权和生产批准仍待权威确认，因此三家企业包均未创建，G4.3～G4.4 与 G5 尚未完成。
 
 - 长期进度：[docs/engineering/REFACTOR_PROGRESS.md](docs/engineering/REFACTOR_PROGRESS.md)
 - G3.5 退出审计：[docs/engineering/G3_5_EXIT_AUDIT.md](docs/engineering/G3_5_EXIT_AUDIT.md)
 - 企业资料合并审计：[docs/engineering/ENTERPRISE_PROFILE_MERGE_EXIT_AUDIT.md](docs/engineering/ENTERPRISE_PROFILE_MERGE_EXIT_AUDIT.md)
 - G4 前可运行性审计：[docs/engineering/PRE_G4_ENGINEERING_READINESS.md](docs/engineering/PRE_G4_ENGINEERING_READINESS.md)
+- G4.1 企业包退出审计：[docs/engineering/G4_1_EXIT_AUDIT.md](docs/engineering/G4_1_EXIT_AUDIT.md)
+- G4.2 交接与确认基线：[docs/engineering/G4_2_HANDOFF_READINESS.md](docs/engineering/G4_2_HANDOFF_READINESS.md)
 - 累积报告：[docs/engineering/REFACTOR_FINAL_REPORT.md](docs/engineering/REFACTOR_FINAL_REPORT.md)
