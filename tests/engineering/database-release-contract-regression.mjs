@@ -43,8 +43,8 @@ assert.ok(manifest.artifacts.some(({ purpose }) => purpose === 'verification-onl
 const fixedRelease = loadAndValidateDatabaseRelease({ repoRoot })
 assert.deepEqual(fixedRelease.errors, [])
 assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v6')
-assert.equal(fixedRelease.manifest.sourceRevision, 'c5fa8aa4f317100e854eab03a7fb25883b334ef1')
-assert.equal(fixedRelease.manifestSha256, 'f73f7257afce5a010f2e8cba8e5f7b8980e3aaae4d5a1f699ad245e816e8add4')
+assert.equal(fixedRelease.manifest.sourceRevision, 'b9a3831d08aeb7056ee8a5997ca8b57ae270ca08')
+assert.equal(fixedRelease.manifestSha256, '58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d')
 
 const mutation = (callback) => {
   const value = structuredClone(manifest)

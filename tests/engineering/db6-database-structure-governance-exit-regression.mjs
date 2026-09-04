@@ -23,7 +23,7 @@ assert.deepEqual(migrationManifests[2].migrations.map(({ id }) => id), [
 const release = loadAndValidateDatabaseRelease({ repoRoot })
 assert.deepEqual(release.errors, [])
 assert.equal(release.manifest.releaseId, 'eiscore-db-v6')
-assert.equal(release.manifestSha256, 'f73f7257afce5a010f2e8cba8e5f7b8980e3aaae4d5a1f699ad245e816e8add4')
+assert.equal(release.manifestSha256, '58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d')
 assert.deepEqual(release.manifest.predecessors, [
   {
     id: 'eiscore-db-v1-runtime',

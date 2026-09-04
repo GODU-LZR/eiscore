@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "releaseId": "eiscore-db-v6",
-  "sourceRevision": "c5fa8aa4f317100e854eab03a7fb25883b334ef1",
+  "sourceRevision": "b9a3831d08aeb7056ee8a5997ca8b57ae270ca08",
   "images": {
     "postgres": "postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f",
     "postgrest": "postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa"
@@ -308,7 +308,7 @@
     {
       "path": "database/recovery/post-restore-v2.sql",
       "purpose": "execution",
-      "portableSha256": "bb710fd5b9b1a7348275cdc05485b96173aa58a9a491beaf32b304599eba188c"
+      "portableSha256": "67cb34e13f5b97ad303b72c40f86e4c18fe0779f9a0d1d119b2cda99647c89b6"
     },
     {
       "path": "database/release-ledger.sql",
@@ -452,4 +452,3 @@
     }
   ]
 }
-

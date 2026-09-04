@@ -18,7 +18,7 @@ assert.deepEqual(result.legacyRoots.map(({ path, count }) => [path, count]), [
   ['eiscore-materials/sql', 2]
 ])
 assert.equal(result.legacySqlFiles, 106)
-assert.equal(result.governedMigrationFiles, 17)
+assert.equal(result.governedMigrationFiles, 18)
 assert.equal(result.governedLegacySqlFiles, 10)
 assert.equal(result.ungovernedLegacySqlFiles, 96)
 assert.equal(result.resolvedLegacySqlFiles, 96)
@@ -72,7 +72,7 @@ assert.deepEqual(
 assert.deepEqual(result.manifests.map(({ name, count }) => [name, count]), [
   ['runtime-v2', 10],
   ['company-site', 1],
-  ['core', 6]
+  ['core', 7]
 ])
 assert.deepEqual(result.productionCompose.runtimeSuperuserConnections, [])
 assert.deepEqual(result.productionCompose.exposedSchemas, ['public', 'hr', 'scm', 'app_center', 'workflow', 'app_data'])
@@ -110,10 +110,10 @@ for (const marker of [
 
 const plan = readFileSync(resolve(repoRoot, 'docs/engineering/DATABASE_BACKEND_GOVERNANCE_PLAN.md'), 'utf8')
 assert.match(plan, /### DB0：决策与现状基线（已完成）/)
-for (const phase of ['DB1', 'DB2', 'DB3', 'DB4', 'DB5', 'DB6']) {
+for (const phase of ['DB1', 'DB2', 'DB3', 'DB4', 'DB5', 'DB6', 'DB7', 'DB8']) {
   assert.ok(plan.includes(`### ${phase}：`), `database governance plan lost phase ${phase}`)
 }
-assert.match(plan, /G4\.1～G4\.4 暂停/)
+assert.match(plan, /G4 保持暂停/)
 
 const exitAudit = readFileSync(resolve(repoRoot, 'docs/engineering/DB0_EXIT_AUDIT.md'), 'utf8')
 for (const marker of [

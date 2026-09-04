@@ -43,6 +43,9 @@ jobs:
       - name: Run isolated database integration gates
         run: npm run test:database:docker
 
+      - name: Run database release/recovery concurrency gate
+        run: node scripts/test-database-operation-lock.mjs
+
       - name: Run offline regression tests
         run: npm run test:unit
 

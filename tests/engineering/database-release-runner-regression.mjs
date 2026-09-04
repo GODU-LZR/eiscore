@@ -12,6 +12,7 @@ import {
   executeDatabaseRelease,
   parseDatabaseReleaseArgs,
   resolveDatabaseReleaseExecution,
+  describePostgrestContractDifference,
   validateDatabaseReleasePreflight
 } from '../../scripts/deploy-database-release.mjs'
 
@@ -99,6 +100,17 @@ const contract = {
   databaseCatalog: { sha256: catalogSha256 },
   postgrestOpenApi: { sha256: sha256CanonicalJson(openApiCatalog) }
 }
+const driftCatalog = structuredClone(openApiCatalog)
+driftCatalog.web_user.hr = { ...openApi, paths: { '/drift': {} } }
+assert.ok(describePostgrestContractDifference({
+  postgrestOpenApi: {
+    roleSha256: Object.fromEntries(Object.entries(openApiCatalog).map(([role, documents]) => [role, sha256CanonicalJson(documents)])),
+    schemaSha256: Object.fromEntries(Object.entries(openApiCatalog).map(([role, documents]) => [
+      role,
+      Object.fromEntries(Object.entries(documents).map(([schema, document]) => [schema, sha256CanonicalJson(document)]))
+    ]))
+  }
+}, driftCatalog).some((entry) => entry.startsWith('web_user/hr:')))
 const server = createServer((request, response) => {
   response.setHeader('content-type', 'application/json')
   if (request.method === 'POST' && request.url === '/rpc/ontology_current_claims') {

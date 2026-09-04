@@ -65,5 +65,6 @@ for (const command of [
   'test:database-recovery:docker'
 ]) assert.ok(packageJson.scripts?.['test:database:docker']?.includes(command), `database suite lost ${command}`)
 assert.match(ciSource, /run: npm run test:database:docker/)
+assert.match(ciSource, /run: node scripts\/test-database-operation-lock\.mjs/)
 
 console.log('PASS: versioned database/PostgREST contract and default CI integration')

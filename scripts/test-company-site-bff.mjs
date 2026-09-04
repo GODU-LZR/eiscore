@@ -178,7 +178,7 @@ try {
     '--backup-evidence', 'isolated://db6-company-site-bff', '--release-revision', 'db6-bff-test',
     '--operator', 'db6-company-site-bff-test'
   ])
-  assert.match(migration.stdout, /core migration execution passed: 5 applied, 1 skipped/)
+  assert.match(migration.stdout, /core migration execution passed: 6 applied, 1 skipped/)
 
   psql(`
     INSERT INTO company_site.site_config (
