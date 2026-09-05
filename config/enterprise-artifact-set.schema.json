@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eiscore.local/schemas/enterprise-artifact-set-v1.json",
+  "title": "EISCore Enterprise Artifact Set v1",
+  "description": "Offline evidence that one core artifact is paired with isolated enterprise packages.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "releaseId", "coreArtifact", "enterprisePackages"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "releaseId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$", "maxLength": 120 },
+    "coreArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactId", "sourceCommit", "files", "sha256"],
+      "properties": {
+        "artifactId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$", "maxLength": 120 },
+        "sourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "bytes", "sha256"],
+            "properties": {
+              "path": { "type": "string", "pattern": "^(?!/)(?!.*\\\\)(?!.*(^|/)\\.\\.(\/|$)).+$" },
+              "bytes": { "type": "integer", "minimum": 0 },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+            }
+          }
+        },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "enterprisePackages": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["packageId", "packagePath", "packageSha256", "enterpriseId"],
+        "properties": {
+          "packageId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]*$", "maxLength": 120 },
+          "packagePath": { "type": "string", "pattern": "^(?!/)(?!.*\\\\)(?!.*(^|/)\\.\\.(\/|$)).+$" },
+          "enterpriseId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "maxLength": 64 },
+          "packageSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+        }
+      }
+    }
+  }
+}
