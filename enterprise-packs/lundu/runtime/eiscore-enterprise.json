@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../config/enterprise.v2.schema.json",
+  "schemaVersion": 2,
+  "enterprise": {
+    "id": "lundu",
+    "displayName": "伦度机电有限公司",
+    "shortName": "伦度机电"
+  },
+  "branding": {
+    "productName": "伦度机电数字化工厂",
+    "themeColor": "#0B6E69",
+    "logoUrl": ""
+  },
+  "endpoints": {
+    "publicBaseUrl": "",
+    "apiBasePath": "/api",
+    "agentBasePath": "/agent",
+    "realtimeWsPath": "/agent/ws"
+  },
+  "modules": {
+    "hr": true,
+    "materials": true,
+    "apps": true,
+    "company-site": true,
+    "sales": true,
+    "purchase": true,
+    "production": true,
+    "quality": true,
+    "equipment": true,
+    "decision": true,
+    "mobile": true
+  },
+  "features": {
+    "documentIntake": true,
+    "enterpriseAi": true
+  }
+}

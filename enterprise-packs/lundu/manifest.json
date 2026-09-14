@@ -1,0 +1,107 @@
+{
+  "$schema": "../../config/enterprise-package.schema.json",
+  "packageSchemaVersion": 1,
+  "packageVersion": "0.1.0-draft",
+  "status": "draft",
+  "enterprise": {
+    "id": "lundu",
+    "displayName": "伦度机电有限公司"
+  },
+  "coreCompatibility": {
+    "packageApiVersion": 1,
+    "enterpriseConfigSchemaVersion": 2
+  },
+  "runtime": {
+    "configPath": "runtime/eiscore-enterprise.json",
+    "mountPath": "/config/eiscore-enterprise.json"
+  },
+  "governance": {
+    "factStatus": "pending",
+    "assetStatus": "pending",
+    "productionApproved": false,
+    "notes": "Source-backed draft for isolated Lundu deployment; facts, specifications and asset authorization require confirmation."
+  },
+  "createdAt": "2026-09-04T00:00:00+08:00",
+  "packageId": "lundu",
+  "files": [
+    {
+      "path": "assets/site/favicon.svg",
+      "kind": "asset",
+      "bytes": 180,
+      "sha256": "19a37ccb4bbe2389b1ca634a377ef2c02d040f0825dc888aacf06ce594236d5c"
+    },
+    {
+      "path": "assets/site/official-1.jpg",
+      "kind": "asset",
+      "bytes": 367396,
+      "sha256": "b7e12e0ad16f303c338cd472b4fd66089463dfbfd0564357392aba68ac6d930c"
+    },
+    {
+      "path": "assets/site/official-2.jpg",
+      "kind": "asset",
+      "bytes": 236511,
+      "sha256": "0fc597a8167c54be51aba8cc0f0d3c8600a908b5ef6dae0701b7f4008a08cf48"
+    },
+    {
+      "path": "assets/site/official-3.jpg",
+      "kind": "asset",
+      "bytes": 161482,
+      "sha256": "f02aff590f0c087de4300dc260f968c2c9f25373160efdf7604ad5b1f8267cd8"
+    },
+    {
+      "path": "assets/site/official-4.png",
+      "kind": "asset",
+      "bytes": 219782,
+      "sha256": "5c08e58a8904fefe182d515a738adbb86b817be22d44e8abc9f69feca6ad3b41"
+    },
+    {
+      "path": "assets/site/official-5.png",
+      "kind": "asset",
+      "bytes": 263901,
+      "sha256": "81e9fd1ec584799df1a2d8d3b7753c57db3611318eb5abb7cf3a6d34e63472db"
+    },
+    {
+      "path": "assets/site/official-6.png",
+      "kind": "asset",
+      "bytes": 207597,
+      "sha256": "8cdc8551f3624cffa498b20e19111516aeaba319dfade80067affc7cd93a56df"
+    },
+    {
+      "path": "assets/site/official-7.png",
+      "kind": "asset",
+      "bytes": 251398,
+      "sha256": "994307f519b1a93b89117fbb8d0f4ddf288873cf320a06bcc5bb83e172201fd6"
+    },
+    {
+      "path": "data/company-site.json",
+      "kind": "seed",
+      "bytes": 58512,
+      "sha256": "2b9d89360a698a6391f3076694cbe8a891e789c7deae2b203b7d2ca2416b435c"
+    },
+    {
+      "path": "evidence/PACKAGE-GUIDE.md",
+      "kind": "evidence",
+      "bytes": 2186,
+      "sha256": "ca64825b938f2c31ffc3a2263c729f9e8dc1dc2fb315ca7f9102f208c5ced464"
+    },
+    {
+      "path": "evidence/asset-sources.json",
+      "kind": "evidence",
+      "bytes": 6144,
+      "sha256": "57cc9c40daf5d3bca699bb1148fc66ed6902e74911742138c09fbe90f86aac46"
+    },
+    {
+      "path": "evidence/research-sources.json",
+      "kind": "evidence",
+      "bytes": 10009,
+      "sha256": "b1c039864ffe3309a1bd2bf8b566794b702fc5f6d66f68290bdd1b9750cbe7e1"
+    },
+    {
+      "path": "runtime/eiscore-enterprise.json",
+      "kind": "runtime-config",
+      "bytes": 825,
+      "sha256": "a1da6639d9f3f686d573a06235db65297ca07711bf5ccc0e1dd3f3c7dfb97b7f"
+    }
+  ],
+  "packageSha256": "5ca412d461685f2be52607f2ae7129da9a1f127704af4d6a6b5bc1413282c731"
+}
