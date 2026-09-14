@@ -40,7 +40,7 @@
     },
     "seo": {
       "title": "伦度机电｜电机与水泵制造",
-      "description": "伦度机电有限公司电机、水泵与工业泵产品公开资料门户。"
+      "description": "伦度机电有限公司电机、水泵与数字化工厂公开资料门户。"
     }
   },
   "content": {
@@ -50,81 +50,35 @@
         "locale": "zh-CN",
         "slug": "home",
         "pageType": "home",
-        "title": "把南方水果，做成适配不同应用的产品。",
-        "summary": "依据企业官网、广东海洋大学及公开媒体资料，呈现南派食品在南方水果深加工、产品应用和产学研合作方面的公开信息。",
+        "title": "电机与水泵制造，让每一股流量稳定可靠。",
+        "summary": "伦度机电有限公司集设计、开发、制造、销售与服务于一体，覆盖电机、潜水泵、管道离心泵与自吸泵。",
         "blocks": {
           "homepage": {
             "hero": {
-              "eyebrow": "电机与水泵制造 · 公开资料门户",
+              "eyebrow": "电机与水泵制造",
               "titleLines": [
                 "让每一台泵",
                 "稳定地工作。"
               ],
-              "summary": "伦度机电有限公司集设计、开发、制造、销售与服务于一体，产品覆盖电机、潜水泵、管道离心泵与自吸泵。",
+              "summary": "基于官网、采集表和产品介绍整理的伦度机电公开资料门户。",
               "signals": [
                 "浙江温岭",
                 "电机制造",
                 "水泵系统"
               ]
             },
-            "carouselImages": [
-              {
-                "url": "/enterprise-assets/site/official-1.jpg",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Factory overview",
-                "subtitle": "官网图片候选 · 草稿"
-              },
-              {
-                "url": "/enterprise-assets/site/official-2.jpg",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Pump product",
-                "subtitle": "官网图片候选 · 草稿"
-              },
-              {
-                "url": "/enterprise-assets/site/official-3.jpg",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Motor product",
-                "subtitle": "官网图片候选 · 草稿"
-              },
-              {
-                "url": "/enterprise-assets/site/official-4.png",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Pump application",
-                "subtitle": "官网图片候选 · 草稿"
-              },
-              {
-                "url": "/enterprise-assets/site/official-5.png",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Manufacturing",
-                "subtitle": "官网图片候选 · 草稿"
-              },
-              {
-                "url": "/enterprise-assets/site/official-6.png",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Product detail",
-                "subtitle": "官网图片候选 · 草稿"
-              }
-            ],
             "navItems": [
               {
                 "label": "企业概况",
                 "anchor": "overview"
               },
               {
-                "label": "公开信息",
-                "anchor": "metrics"
-              },
-              {
-                "label": "业务方向",
-                "anchor": "capabilities"
-              },
-              {
                 "label": "产品方向",
                 "anchor": "products"
               },
               {
-                "label": "应用场景",
-                "anchor": "solutions"
+                "label": "制造能力",
+                "anchor": "capabilities"
               }
             ],
             "announcement": "员工与合作伙伴入口",
@@ -134,16 +88,16 @@
             "authSafeNote": "账号由管理员统一分配",
             "authFootnote": "该入口仅供授权人员使用",
             "primaryActionText": "员工登录",
-            "scrollCueText": "了解公开资料",
+            "scrollCueText": "了解产品方向",
             "metricsSectionKicker": "公开信息",
-            "metricsSectionTitle": "从公开来源认识南派食品",
-            "aboutSectionKicker": "关于南派",
-            "capabilitiesSectionKicker": "业务方向",
-            "capabilitiesSectionTitle": "公开资料呈现的水果加工与研发合作链路",
+            "metricsSectionTitle": "从公开资料认识伦度机电",
+            "aboutSectionKicker": "关于伦度",
+            "capabilitiesSectionKicker": "制造能力",
+            "capabilitiesSectionTitle": "电机、水泵与数字化运营",
             "productSectionKicker": "产品方向",
-            "productSectionTitle": "围绕五类南方水果整理的产品方向",
-            "solutionSectionKicker": "应用场景",
-            "solutionSectionTitle": "面向食品与饮品开发的应用方向",
+            "productSectionTitle": "官网公开的电机与水泵系列",
+            "solutionSectionKicker": "数字化运营",
+            "solutionSectionTitle": "让生产数据连接经营决策",
             "metrics": [
               {
                 "label": "企业所在地",
@@ -154,7 +108,7 @@
                 "value": "电机与水泵"
               },
               {
-                "label": "Email",
+                "label": "官网邮箱",
                 "value": "info@lundujd.com"
               }
             ],
@@ -162,47 +116,85 @@
               {
                 "number": "01",
                 "title": "电机系列",
-                "description": "YE4、YE3、YD、YVF2、YEJ2 三相异步电动机，以及 YC、YL、YY 单相异步电动机。"
+                "description": "YE4、YE3、YD、YVF2、YEJ2，以及 YC、YL、YY 等公开方向。"
               },
               {
                 "number": "02",
                 "title": "潜水泵系列",
-                "description": "QDX/QX、QD、WQD/WQ、WQX、JYWQ、GNWQ、QY 等公开产品方向。"
+                "description": "QDX/QX、QD、WQD/WQ、WQX、JYWQ、GNWQ、QY 等公开方向。"
               },
               {
                 "number": "03",
                 "title": "工业泵系列",
-                "description": "PST 标准管道离心泵，以及 ISW/IRG 单级单吸管道离心泵。"
+                "description": "PST 标准管道离心泵及 ISW/IRG 管道泵方向。"
               },
               {
                 "number": "04",
-                "title": "数字化协同",
-                "description": "通过数字化系统连接物料、生产、质量、设备、销售与智能 BI。"
+                "title": "数字化运营",
+                "description": "通过平台连接物料、生产、质量、设备、销售与智能 BI。"
               }
             ],
             "capabilities": [
               {
-                "title": "雷州产业区位",
-                "description": "公开调研资料显示企业位于雷州市英利镇科技园，并参与雷州菠萝产业园相关建设。"
+                "title": "电机产品",
+                "description": "覆盖单相与三相异步电动机系列，具体型号和参数以企业确认资料为准。"
               },
               {
-                "title": "水果产品形态",
-                "description": "公开资料覆盖果汁、果馅、果泥、原汁、果粒、果干和罐头等方向，具体SKU与参数待企业确认。"
+                "title": "水泵产品",
+                "description": "覆盖潜水泵、管道离心泵和自吸喷射泵等方向，支持按工况选型。"
               },
               {
-                "title": "产学研协同",
-                "description": "公开合作方向涉及热带水果保鲜加工、产品研发、技术研究、项目申报与人才培养。"
+                "title": "数字化工厂",
+                "description": "EISCore 基座通过 DeepSeek Harness iframe 插件提供数字分身与智能 BI。"
+              }
+            ],
+            "carouselImages": [
+              {
+                "url": "/enterprise-assets/site/official-1.jpg",
+                "assetPath": "assets/site/official-1.jpg",
+                "title": "Factory overview",
+                "subtitle": "官网图片候选 · 草稿"
+              },
+              {
+                "url": "/enterprise-assets/site/official-2.jpg",
+                "assetPath": "assets/site/official-2.jpg",
+                "title": "Pump product",
+                "subtitle": "官网图片候选 · 草稿"
+              },
+              {
+                "url": "/enterprise-assets/site/official-3.jpg",
+                "assetPath": "assets/site/official-3.jpg",
+                "title": "Motor product",
+                "subtitle": "官网图片候选 · 草稿"
+              },
+              {
+                "url": "/enterprise-assets/site/official-4.png",
+                "assetPath": "assets/site/official-4.png",
+                "title": "Pump application",
+                "subtitle": "官网图片候选 · 草稿"
+              },
+              {
+                "url": "/enterprise-assets/site/official-5.png",
+                "assetPath": "assets/site/official-5.png",
+                "title": "Manufacturing",
+                "subtitle": "官网图片候选 · 草稿"
+              },
+              {
+                "url": "/enterprise-assets/site/official-6.png",
+                "assetPath": "assets/site/official-6.png",
+                "title": "Product detail",
+                "subtitle": "官网图片候选 · 草稿"
               }
             ],
             "ui": {
-              "productDisclaimer": "本页依据公开资料展示产品方向，不构成规格、库存、产能、价格、认证有效性或交期承诺。"
+              "productDisclaimer": "公开资料草稿，不构成规格、价格、库存、产能、认证或交期承诺。"
             },
-            "footerNote": "本页为隔离环境中的公开资料测试内容；产品规格、价格、库存、产能、认证有效性和交期均须由企业授权人员确认。"
+            "footerNote": "本页为授权审核用公开资料草稿；规格、价格、库存、产能、认证有效性和交期须由企业确认。"
           }
         },
         "seo": {
-          "title": "南派食品｜南方水果深加工与产品应用",
-          "description": "了解南派食品在菠萝、芒果、百香果、椰子、木瓜等南方水果加工，以及果汁、果馅、果泥和产学研合作方面的公开信息。"
+          "title": "伦度机电｜电机与水泵制造",
+          "description": "伦度机电有限公司电机、水泵与数字化工厂公开资料门户。"
         }
       },
       {
@@ -210,84 +202,35 @@
         "locale": "en-US",
         "slug": "home",
         "pageType": "home",
-        "title": "Turning southern fruit into products for varied applications.",
-        "summary": "A source-based overview of Nanpai Food's publicly reported work in southern-fruit processing, product applications and industry-academia collaboration.",
+        "title": "Motor and pump manufacturing for stable flow.",
+        "summary": "Lundu Electromechanical integrates design, manufacturing, sales and service for motors and pumps.",
         "blocks": {
           "homepage": {
-            "legalName": "Guangdong Nanpai Food Co., Ltd.",
-            "brandName": "Nanpai Food",
-            "brandShortName": "Nanpai",
             "hero": {
-              "eyebrow": "Motor and pump manufacturing · Source-based portal",
+              "eyebrow": "Motor and pump manufacturing",
               "titleLines": [
                 "Reliable motion,",
                 "stable flow."
               ],
-              "summary": "Lundu Electromechanical integrates design, manufacturing, sales and service for motors and pumps.",
+              "summary": "A source-based Lundu portal for motors, pumps and digital operations.",
               "signals": [
                 "Wenling, Zhejiang",
                 "Motors",
                 "Pump systems"
               ]
             },
-            "carouselImages": [
-              {
-                "url": "/enterprise-assets/site/official-1.jpg",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Factory overview",
-                "subtitle": "Official website image candidate · draft"
-              },
-              {
-                "url": "/enterprise-assets/site/official-2.jpg",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Pump product",
-                "subtitle": "Official website image candidate · draft"
-              },
-              {
-                "url": "/enterprise-assets/site/official-3.jpg",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Motor product",
-                "subtitle": "Official website image candidate · draft"
-              },
-              {
-                "url": "/enterprise-assets/site/official-4.png",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Pump application",
-                "subtitle": "Official website image candidate · draft"
-              },
-              {
-                "url": "/enterprise-assets/site/official-5.png",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Manufacturing",
-                "subtitle": "Official website image candidate · draft"
-              },
-              {
-                "url": "/enterprise-assets/site/official-6.png",
-                "assetPath": "assets/site/official-1.jpg",
-                "title": "Product detail",
-                "subtitle": "Official website image candidate · draft"
-              }
-            ],
             "navItems": [
               {
                 "label": "Company",
                 "anchor": "overview"
               },
               {
-                "label": "Public facts",
-                "anchor": "metrics"
-              },
-              {
-                "label": "Business",
-                "anchor": "capabilities"
-              },
-              {
                 "label": "Products",
                 "anchor": "products"
               },
               {
-                "label": "Applications",
-                "anchor": "solutions"
+                "label": "Capabilities",
+                "anchor": "capabilities"
               }
             ],
             "announcement": "Employee and partner access",
@@ -297,23 +240,23 @@
             "authSafeNote": "Accounts are issued by an administrator",
             "authFootnote": "Authorized personnel only",
             "primaryActionText": "Sign in",
-            "scrollCueText": "Explore public information",
+            "scrollCueText": "Explore products",
             "metricsSectionKicker": "Public facts",
-            "metricsSectionTitle": "Nanpai Food through public sources",
-            "aboutSectionKicker": "About Nanpai",
-            "capabilitiesSectionKicker": "Business directions",
-            "capabilitiesSectionTitle": "Publicly reported fruit processing and research collaboration",
-            "productSectionKicker": "Product directions",
-            "productSectionTitle": "Directions organized around five southern fruits",
-            "solutionSectionKicker": "Applications",
-            "solutionSectionTitle": "Directions for food and beverage development",
+            "metricsSectionTitle": "Lundu through public sources",
+            "aboutSectionKicker": "About Lundu",
+            "capabilitiesSectionKicker": "Capabilities",
+            "capabilitiesSectionTitle": "Motors, pumps and digital operations",
+            "productSectionKicker": "Products",
+            "productSectionTitle": "Publicly listed motor and pump families",
+            "solutionSectionKicker": "Digital operations",
+            "solutionSectionTitle": "Connect production data with decisions",
             "metrics": [
               {
                 "label": "Location",
                 "value": "Wenling"
               },
               {
-                "label": "Products",
+                "label": "Product focus",
                 "value": "Motors & pumps"
               },
               {
@@ -325,7 +268,7 @@
               {
                 "number": "01",
                 "title": "Motor series",
-                "description": "YE4, YE3, YD, YVF2 and YEJ2 three-phase motors; YC, YL and YY single-phase motors."
+                "description": "YE4, YE3, YD, YVF2, YEJ2, YC, YL and YY directions."
               },
               {
                 "number": "02",
@@ -335,40 +278,357 @@
               {
                 "number": "03",
                 "title": "Industrial pumps",
-                "description": "PST standard pipeline centrifugal pumps and ISW/IRG pipeline pumps."
+                "description": "PST and ISW/IRG pipeline centrifugal pump directions."
               },
               {
                 "number": "04",
                 "title": "Digital operations",
-                "description": "Connect materials, production, quality, equipment, sales and BI."
+                "description": "Materials, production, quality, equipment, sales and BI in one platform."
               }
             ],
             "capabilities": [
               {
-                "title": "Leizhou industry location",
-                "description": "Public reports place the company in Yingli Town Science and Technology Park and connect it with the Leizhou pineapple industrial park."
+                "title": "Motors",
+                "description": "Single-phase and three-phase motor families; exact models and specifications require confirmation."
               },
               {
-                "title": "Fruit product forms",
-                "description": "Public materials cover juice, filling, puree, original juice, fruit pieces, dried fruit and canned products; exact SKUs and parameters require confirmation."
+                "title": "Pumps",
+                "description": "Submersible, pipeline centrifugal and self-priming pump directions for varied operating conditions."
               },
               {
-                "title": "Industry-academia collaboration",
-                "description": "Published cooperation directions include tropical-fruit preservation and processing, product R&D, technical research, project applications and talent development."
+                "title": "Digital factory",
+                "description": "The EISCore host exposes Digital Twin and Smart BI through the DeepSeek Harness iframe plugin."
+              }
+            ],
+            "carouselImages": [
+              {
+                "url": "/enterprise-assets/site/official-1.jpg",
+                "assetPath": "assets/site/official-1.jpg",
+                "title": "Factory overview",
+                "subtitle": "Official website image candidate · draft"
+              },
+              {
+                "url": "/enterprise-assets/site/official-2.jpg",
+                "assetPath": "assets/site/official-2.jpg",
+                "title": "Pump product",
+                "subtitle": "Official website image candidate · draft"
+              },
+              {
+                "url": "/enterprise-assets/site/official-3.jpg",
+                "assetPath": "assets/site/official-3.jpg",
+                "title": "Motor product",
+                "subtitle": "Official website image candidate · draft"
+              },
+              {
+                "url": "/enterprise-assets/site/official-4.png",
+                "assetPath": "assets/site/official-4.png",
+                "title": "Pump application",
+                "subtitle": "Official website image candidate · draft"
+              },
+              {
+                "url": "/enterprise-assets/site/official-5.png",
+                "assetPath": "assets/site/official-5.png",
+                "title": "Manufacturing",
+                "subtitle": "Official website image candidate · draft"
+              },
+              {
+                "url": "/enterprise-assets/site/official-6.png",
+                "assetPath": "assets/site/official-6.png",
+                "title": "Product detail",
+                "subtitle": "Official website image candidate · draft"
               }
             ],
             "ui": {
-              "productDisclaimer": "This page presents directions from public sources and does not promise specifications, availability, capacity, pricing, certification validity or lead time."
+              "productDisclaimer": "Public-source draft; specifications, price, stock, capacity, certification and lead time require confirmation."
             },
-            "footerNote": "Source-based test content in an isolated environment. Specifications, pricing, availability, capacity, certification validity and lead times require confirmation by authorized company personnel."
+            "footerNote": "Source-based draft for authorized review. Specifications, pricing, availability, capacity, certification validity and lead times require confirmation."
           }
         },
         "seo": {
-          "title": "Nanpai Food | Southern Fruit Processing and Applications",
-          "description": "Explore public information about Nanpai Food's pineapple, mango, passion fruit, coconut and papaya processing directions, product forms and research collaboration."
+          "title": "Lundu Electromechanical | Motors and Pumps",
+          "description": "Lundu Electromechanical motors, pumps and digital factory portal."
         }
       }
     ],
+    "products": [
+      {
+        "status": "draft",
+        "productCode": "LUNDU-MOTOR-YE3",
+        "slug": "ye3-motors",
+        "category": "Three-phase motors",
+        "applications": [],
+        "specifications": {},
+        "delivery": {},
+        "evidenceRefs": [
+          "lundu-official-website",
+          "lundu-source-sheet",
+          "lundu-product-deck"
+        ]
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-MOTOR-YC",
+        "slug": "yc-single-phase",
+        "category": "Single-phase motors",
+        "applications": [],
+        "specifications": {},
+        "delivery": {},
+        "evidenceRefs": [
+          "lundu-official-website",
+          "lundu-source-sheet",
+          "lundu-product-deck"
+        ]
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-PUMP-PST",
+        "slug": "pst-pumps",
+        "category": "Pipeline centrifugal pumps",
+        "applications": [],
+        "specifications": {},
+        "delivery": {},
+        "evidenceRefs": [
+          "lundu-official-website",
+          "lundu-source-sheet",
+          "lundu-product-deck"
+        ]
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-PUMP-WQ",
+        "slug": "submersible-pumps",
+        "category": "Submersible sewage pumps",
+        "applications": [],
+        "specifications": {},
+        "delivery": {},
+        "evidenceRefs": [
+          "lundu-official-website",
+          "lundu-source-sheet",
+          "lundu-product-deck"
+        ]
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-PUMP-JET",
+        "slug": "jet-pumps",
+        "category": "Self-priming jet pumps",
+        "applications": [],
+        "specifications": {},
+        "delivery": {},
+        "evidenceRefs": [
+          "lundu-official-website",
+          "lundu-source-sheet",
+          "lundu-product-deck"
+        ]
+      }
+    ],
+    "productLocales": [
+      {
+        "status": "draft",
+        "productCode": "LUNDU-MOTOR-YE3",
+        "locale": "zh-CN",
+        "name": "YE3 三相异步电动机",
+        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-MOTOR-YE3",
+        "locale": "en-US",
+        "name": "Three-phase motors",
+        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-MOTOR-YC",
+        "locale": "zh-CN",
+        "name": "YC/ YL/ YY 单相异步电动机",
+        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-MOTOR-YC",
+        "locale": "en-US",
+        "name": "Single-phase motors",
+        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-PUMP-PST",
+        "locale": "zh-CN",
+        "name": "PST 标准管道离心泵",
+        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-PUMP-PST",
+        "locale": "en-US",
+        "name": "Pipeline centrifugal pumps",
+        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-PUMP-WQ",
+        "locale": "zh-CN",
+        "name": "潜水排污泵",
+        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-PUMP-WQ",
+        "locale": "en-US",
+        "name": "Submersible sewage pumps",
+        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-PUMP-JET",
+        "locale": "zh-CN",
+        "name": "JET 自吸喷射泵",
+        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      },
+      {
+        "status": "draft",
+        "productCode": "LUNDU-PUMP-JET",
+        "locale": "en-US",
+        "name": "Self-priming jet pumps",
+        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "description": "",
+        "imageUrls": [],
+        "seo": {},
+        "faq": []
+      }
+    ],
+    "solutions": [
+      {
+        "status": "draft",
+        "locale": "zh-CN",
+        "slug": "motor-selection",
+        "title": "电机选型",
+        "industry": "机电制造",
+        "scenario": "围绕工况、物料、生产和质量数据整理合作需求，具体范围待确认。",
+        "content": {
+          "description": "",
+          "image": {
+            "assetPath": "assets/site/official-1.jpg"
+          }
+        },
+        "seo": {}
+      },
+      {
+        "status": "draft",
+        "locale": "en-US",
+        "slug": "motor-selection",
+        "title": "Motor selection",
+        "industry": "Electromechanical manufacturing",
+        "scenario": "Organize operating conditions, materials, production and quality data; exact scope requires confirmation.",
+        "content": {
+          "description": "",
+          "image": {
+            "assetPath": "assets/site/official-1.jpg"
+          }
+        },
+        "seo": {}
+      },
+      {
+        "status": "draft",
+        "locale": "zh-CN",
+        "slug": "pump-selection",
+        "title": "水泵选型",
+        "industry": "机电制造",
+        "scenario": "围绕工况、物料、生产和质量数据整理合作需求，具体范围待确认。",
+        "content": {
+          "description": "",
+          "image": {
+            "assetPath": "assets/site/official-1.jpg"
+          }
+        },
+        "seo": {}
+      },
+      {
+        "status": "draft",
+        "locale": "en-US",
+        "slug": "pump-selection",
+        "title": "Pump selection",
+        "industry": "Electromechanical manufacturing",
+        "scenario": "Organize operating conditions, materials, production and quality data; exact scope requires confirmation.",
+        "content": {
+          "description": "",
+          "image": {
+            "assetPath": "assets/site/official-1.jpg"
+          }
+        },
+        "seo": {}
+      },
+      {
+        "status": "draft",
+        "locale": "zh-CN",
+        "slug": "production-digitalization",
+        "title": "生产数字化",
+        "industry": "机电制造",
+        "scenario": "围绕工况、物料、生产和质量数据整理合作需求，具体范围待确认。",
+        "content": {
+          "description": "",
+          "image": {
+            "assetPath": "assets/site/official-1.jpg"
+          }
+        },
+        "seo": {}
+      },
+      {
+        "status": "draft",
+        "locale": "en-US",
+        "slug": "production-digitalization",
+        "title": "Production digitalization",
+        "industry": "Electromechanical manufacturing",
+        "scenario": "Organize operating conditions, materials, production and quality data; exact scope requires confirmation.",
+        "content": {
+          "description": "",
+          "image": {
+            "assetPath": "assets/site/official-1.jpg"
+          }
+        },
+        "seo": {}
+      }
+    ],
+    "cases": [],
+    "certificates": [],
+    "downloads": [],
     "evidence": [
       {
         "status": "draft",
@@ -417,1054 +677,97 @@
         }
       }
     ],
-    "products": [
-      {
-        "status": "draft",
-        "productCode": "LUNDU-MOTOR-YE3",
-        "slug": "ye3-motors",
-        "category": "Three-phase motors",
-        "applications": [],
-        "specifications": {},
-        "delivery": {},
-        "evidenceRefs": [
-          "lundu-official-website"
-        ]
-      },
-      {
-        "status": "draft",
-        "productCode": "LUNDU-MOTOR-YC",
-        "slug": "yc-single-phase",
-        "category": "Single-phase motors",
-        "applications": [],
-        "specifications": {},
-        "delivery": {},
-        "evidenceRefs": [
-          "lundu-official-website"
-        ]
-      },
-      {
-        "status": "draft",
-        "productCode": "LUNDU-PUMP-PST",
-        "slug": "pst-pumps",
-        "category": "Pipeline centrifugal pumps",
-        "applications": [],
-        "specifications": {},
-        "delivery": {},
-        "evidenceRefs": [
-          "lundu-official-website"
-        ]
-      },
-      {
-        "status": "draft",
-        "productCode": "LUNDU-PUMP-WQ",
-        "slug": "submersible-pumps",
-        "category": "Submersible sewage pumps",
-        "applications": [],
-        "specifications": {},
-        "delivery": {},
-        "evidenceRefs": [
-          "lundu-official-website"
-        ]
-      },
-      {
-        "status": "draft",
-        "productCode": "LUNDU-PUMP-JET",
-        "slug": "jet-pumps",
-        "category": "Self-priming jet pumps",
-        "applications": [],
-        "specifications": {},
-        "delivery": {},
-        "evidenceRefs": [
-          "lundu-official-website"
-        ]
-      }
-    ],
-    "productLocales": [
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-PINEAPPLE",
-        "locale": "zh-CN",
-        "name": "菠萝制品",
-        "summary": "公开资料将菠萝列为主要加工水果，并列出果汁、果馅、果泥、果粒等产品形态；菠萝对应的具体形态与参数待企业确认。",
-        "description": "面向饮料、茶饮、烘焙与餐饮开发的菠萝产品方向。",
-        "applications": [
-          "饮料",
-          "茶饮",
-          "烘焙",
-          "餐饮"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/pineapple-field.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "南派食品官网展示的菠萝原料场景",
-            "label": "原料场景"
-          }
-        ],
-        "seo": {
-          "title": "菠萝制品｜南派食品",
-          "description": "南派食品菠萝加工产品与食品饮品应用方向。",
-          "category": "南方水果制品"
-        },
-        "faq": []
-      },
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-PINEAPPLE",
-        "locale": "en-US",
-        "name": "Pineapple products",
-        "summary": "Public sources list pineapple among the main fruits processed and describe juice, filling, puree and fruit-piece forms; exact pineapple formats and parameters require confirmation.",
-        "description": "Pineapple product directions for beverage, tea, bakery and foodservice development.",
-        "applications": [
-          "Beverages",
-          "Tea drinks",
-          "Bakery",
-          "Foodservice"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/pineapple-field.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "Pineapple input scene shown on the Nanpai Food website",
-            "label": "Input scene"
-          }
-        ],
-        "seo": {
-          "title": "Pineapple Products | Nanpai Food",
-          "description": "Nanpai Food pineapple-processing and food-and-beverage application directions.",
-          "category": "Southern fruit products"
-        },
-        "faq": []
-      },
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-MANGO",
-        "locale": "zh-CN",
-        "name": "芒果制品",
-        "summary": "公开资料将芒果列为主要加工水果，并列出果汁、果馅、果泥、果干等产品形态；芒果对应的具体形态与参数待企业确认。",
-        "description": "面向饮料、茶饮、烘焙与乳品开发的芒果产品方向。",
-        "applications": [
-          "饮料",
-          "茶饮",
-          "烘焙",
-          "乳品"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/mango-fruit.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "南派食品官网展示的芒果原料场景",
-            "label": "原料场景"
-          }
-        ],
-        "seo": {
-          "title": "芒果制品｜南派食品",
-          "description": "南派食品芒果加工产品与食品饮品应用方向。",
-          "category": "南方水果制品"
-        },
-        "faq": []
-      },
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-MANGO",
-        "locale": "en-US",
-        "name": "Mango products",
-        "summary": "Public sources list mango among the main fruits processed and describe juice, filling, puree and dried-fruit forms; exact mango formats and parameters require confirmation.",
-        "description": "Mango product directions for beverage, tea, bakery and dairy development.",
-        "applications": [
-          "Beverages",
-          "Tea drinks",
-          "Bakery",
-          "Dairy"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/mango-fruit.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "Mango input scene shown on the Nanpai Food website",
-            "label": "Input scene"
-          }
-        ],
-        "seo": {
-          "title": "Mango Products | Nanpai Food",
-          "description": "Nanpai Food mango-processing and food-and-beverage application directions.",
-          "category": "Southern fruit products"
-        },
-        "faq": []
-      },
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-PASSION-FRUIT",
-        "locale": "zh-CN",
-        "name": "百香果制品",
-        "summary": "公开资料将百香果列为主要加工水果；可用于果汁、果泥和风味原料等方向，具体产品形态与参数待企业确认。",
-        "description": "面向茶饮、饮料、冷饮与餐饮开发的百香果产品方向。",
-        "applications": [
-          "茶饮",
-          "饮料",
-          "冷饮",
-          "餐饮"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/passion-fruit.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "南派食品官网展示的百香果原料场景",
-            "label": "原料场景"
-          }
-        ],
-        "seo": {
-          "title": "百香果制品｜南派食品",
-          "description": "南派食品百香果加工产品与茶饮饮料应用方向。",
-          "category": "南方水果制品"
-        },
-        "faq": []
-      },
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-PASSION-FRUIT",
-        "locale": "en-US",
-        "name": "Passion fruit products",
-        "summary": "Public sources list passion fruit among the main fruits processed; juice, puree and flavor-ingredient directions are presented here, with exact formats and parameters pending confirmation.",
-        "description": "Passion fruit product directions for tea, beverage, frozen-dessert and foodservice development.",
-        "applications": [
-          "Tea drinks",
-          "Beverages",
-          "Frozen desserts",
-          "Foodservice"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/passion-fruit.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "Passion fruit input scene shown on the Nanpai Food website",
-            "label": "Input scene"
-          }
-        ],
-        "seo": {
-          "title": "Passion Fruit Products | Nanpai Food",
-          "description": "Nanpai Food passion-fruit processing and tea-and-beverage application directions.",
-          "category": "Southern fruit products"
-        },
-        "faq": []
-      },
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-COCONUT",
-        "locale": "zh-CN",
-        "name": "椰子制品",
-        "summary": "公开资料将椰子列为主要加工水果，企业官网另展示椰皇水及代加工、定制、贴牌方向；具体合作范围待企业确认。",
-        "description": "面向饮料、冷饮、乳品与餐饮开发的椰子产品方向。",
-        "applications": [
-          "饮料",
-          "冷饮",
-          "乳品",
-          "餐饮"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/coconut-beverage.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "南派食品官网产品中心展示的椰子饮品方向",
-            "label": "官网产品图"
-          }
-        ],
-        "seo": {
-          "title": "椰子制品与椰子饮品方向｜南派食品",
-          "description": "南派食品椰子加工、椰子饮品与应用方向。",
-          "category": "南方水果制品"
-        },
-        "faq": []
-      },
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-COCONUT",
-        "locale": "en-US",
-        "name": "Coconut products",
-        "summary": "Public sources list coconut among the main fruits processed, while the company website presents coconut water and OEM, customization and private-label directions; exact scope requires confirmation.",
-        "description": "Coconut product directions for beverage, frozen-dessert, dairy and foodservice development.",
-        "applications": [
-          "Beverages",
-          "Frozen desserts",
-          "Dairy",
-          "Foodservice"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/coconut-beverage.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "Coconut beverage direction shown in the Nanpai Food product center",
-            "label": "Official product image"
-          }
-        ],
-        "seo": {
-          "title": "Coconut Product and Beverage Directions | Nanpai Food",
-          "description": "Nanpai Food coconut processing, coconut beverage and application directions.",
-          "category": "Southern fruit products"
-        },
-        "faq": []
-      },
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-PAPAYA",
-        "locale": "zh-CN",
-        "name": "木瓜制品",
-        "summary": "公开资料将木瓜列为主要加工水果，并列出果汁、果泥、果干和罐头等产品形态；木瓜对应的具体形态与参数待企业确认。",
-        "description": "面向饮料、烘焙、乳品与餐饮开发的木瓜产品方向。",
-        "applications": [
-          "饮料",
-          "烘焙",
-          "乳品",
-          "餐饮"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/bakery-application.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "南派食品官网产品中心展示的烘焙应用场景",
-            "label": "应用场景图"
-          }
-        ],
-        "seo": {
-          "title": "木瓜制品｜南派食品",
-          "description": "南派食品木瓜加工产品与食品饮品应用方向。",
-          "category": "南方水果制品"
-        },
-        "faq": []
-      },
-      {
-        "status": "draft",
-        "productCode": "NP-DEMO-PAPAYA",
-        "locale": "en-US",
-        "name": "Papaya products",
-        "summary": "Public sources list papaya among the main fruits processed and describe juice, puree, dried-fruit and canned forms; exact papaya formats and parameters require confirmation.",
-        "description": "Papaya product directions for beverage, bakery, dairy and foodservice development.",
-        "applications": [
-          "Beverages",
-          "Bakery",
-          "Dairy",
-          "Foodservice"
-        ],
-        "imageUrls": [
-          {
-            "url": "/enterprise-assets/site/bakery-application.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "Bakery application scene shown in the Nanpai Food product center",
-            "label": "Application scene"
-          }
-        ],
-        "seo": {
-          "title": "Papaya Products | Nanpai Food",
-          "description": "Nanpai Food papaya-processing and food-and-beverage application directions.",
-          "category": "Southern fruit products"
-        },
-        "faq": []
-      }
-    ],
-    "solutions": [
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "slug": "tea-and-beverage",
-        "title": "茶饮与饮料应用",
-        "industry": "茶饮 / 饮料",
-        "scenario": "围绕果汁、果泥、果粒和风味适配整理产品需求，具体配方、规格和起订条件待企业确认。",
-        "content": {
-          "description": "适用于茶饮与饮料研发沟通的水果原料方向。",
-          "image": {
-            "url": "/enterprise-assets/site/beverage-products.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "南派食品官网产品中心展示的饮品应用方向",
-            "label": "应用场景图"
-          }
-        },
-        "seo": {
-          "title": "茶饮与饮料水果原料应用｜南派食品"
-        }
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "slug": "tea-and-beverage",
-        "title": "Tea and beverage applications",
-        "industry": "Tea / Beverage",
-        "scenario": "Organize requirements around juice, puree, fruit pieces and flavor fit; formulas, specifications and minimum orders require confirmation.",
-        "content": {
-          "description": "Fruit ingredient directions for tea and beverage development discussions.",
-          "image": {
-            "url": "/enterprise-assets/site/beverage-products.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "Beverage application direction shown in the Nanpai Food product center",
-            "label": "Application scene"
-          }
-        },
-        "seo": {
-          "title": "Fruit Ingredients for Tea and Beverages | Nanpai Food"
-        }
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "slug": "bakery-and-filling",
-        "title": "烘焙与果馅应用",
-        "industry": "烘焙 / 果馅",
-        "scenario": "围绕水果果馅、月饼专用馅和风味适配梳理选型方向，具体参数待企业确认。",
-        "content": {
-          "description": "适用于烘焙和馅料产品开发沟通的水果制品方向。",
-          "image": {
-            "url": "/enterprise-assets/site/bakery-application.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "南派食品官网产品中心展示的烘焙应用场景",
-            "label": "应用场景图"
-          }
-        },
-        "seo": {
-          "title": "烘焙与水果果馅应用｜南派食品"
-        }
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "slug": "bakery-and-filling",
-        "title": "Bakery and fruit-filling applications",
-        "industry": "Bakery / Filling",
-        "scenario": "Organize selection around fruit fillings, mooncake-filling directions and flavor fit; exact parameters require confirmation.",
-        "content": {
-          "description": "Fruit-product directions for bakery and filling development discussions.",
-          "image": {
-            "url": "/enterprise-assets/site/bakery-application.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "Bakery application scene shown in the Nanpai Food product center",
-            "label": "Application scene"
-          }
-        },
-        "seo": {
-          "title": "Fruit Ingredients for Bakery and Fillings | Nanpai Food"
-        }
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "slug": "frozen-dessert-and-dairy",
-        "title": "冷饮与乳品应用",
-        "industry": "冷饮 / 乳品",
-        "scenario": "围绕果泥、果粒和水果风味的加工适配整理方向，稳定性和工艺参数待双方确认。",
-        "content": {
-          "description": "适用于冷饮、冰淇淋和乳品开发沟通的水果原料方向。",
-          "image": {
-            "url": "/enterprise-assets/site/coconut-beverage.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "南派食品官网产品中心展示的椰子饮品方向",
-            "label": "应用场景图"
-          }
-        },
-        "seo": {
-          "title": "冷饮与乳品水果原料应用｜南派食品"
-        }
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "slug": "frozen-dessert-and-dairy",
-        "title": "Frozen-dessert and dairy applications",
-        "industry": "Frozen dessert / Dairy",
-        "scenario": "Organize directions around puree, fruit pieces and fruit flavor; stability and process parameters require joint confirmation.",
-        "content": {
-          "description": "Fruit ingredient directions for frozen dessert, ice cream and dairy development discussions.",
-          "image": {
-            "url": "/enterprise-assets/site/coconut-beverage.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "Coconut beverage direction shown in the Nanpai Food product center",
-            "label": "Application scene"
-          }
-        },
-        "seo": {
-          "title": "Fruit Ingredients for Frozen Desserts and Dairy | Nanpai Food"
-        }
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "slug": "foodservice-and-retail",
-        "title": "餐饮与零售应用",
-        "industry": "餐饮 / 零售",
-        "scenario": "按产品形态、包装、储运和使用场景形成待企业核对的合作需求。",
-        "content": {
-          "description": "适用于餐饮和零售渠道沟通的水果制品方向。",
-          "image": {
-            "url": "/enterprise-assets/site/fruit-preparation.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "南派食品官网产品中心展示的水果果酱果馅方向",
-            "label": "应用场景图"
-          }
-        },
-        "seo": {
-          "title": "餐饮与零售水果制品应用｜南派食品"
-        }
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "slug": "foodservice-and-retail",
-        "title": "Foodservice and retail applications",
-        "industry": "Foodservice / Retail",
-        "scenario": "Define company-reviewable requirements around product form, packaging, storage, transport and usage scenario.",
-        "content": {
-          "description": "Fruit-product directions for foodservice and retail discussions.",
-          "image": {
-            "url": "/enterprise-assets/site/fruit-preparation.jpg",
-            "assetPath": "assets/site/official-1.jpg",
-            "alt": "Fruit preparation and filling direction shown in the Nanpai Food product center",
-            "label": "Application scene"
-          }
-        },
-        "seo": {
-          "title": "Fruit Products for Foodservice and Retail | Nanpai Food"
-        }
-      }
-    ],
-    "cases": [
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "slug": "gdou-field-research-2024",
-        "title": "广东海洋大学食品企业调研",
-        "industry": "食品科技 / 企业调研",
-        "scope": "公开调研报道记录企业区位、主要加工水果、产品形态与市场方向。",
-        "deliveryDate": "2024-08-21",
-        "content": {
-          "description": "作为企业概况、产品分类与GEO知识问答的公开来源基线。",
-          "sourceStatus": "public-report"
-        },
-        "evidenceRefs": [
-          "lundu-official-website"
-        ],
-        "publicLevel": "named"
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "slug": "gdou-field-research-2024",
-        "title": "Guangdong Ocean University food-enterprise field research",
-        "industry": "Food science / Field research",
-        "scope": "The public report records the company's location, principal fruits, product forms and market directions.",
-        "deliveryDate": "2024-08-21",
-        "content": {
-          "description": "A public-source baseline for the company profile, product taxonomy and GEO knowledge answers.",
-          "sourceStatus": "public-report"
-        },
-        "evidenceRefs": [
-          "lundu-official-website"
-        ],
-        "publicLevel": "named"
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "slug": "gdou-framework-cooperation-2024",
-        "title": "校企合作框架协议",
-        "industry": "产学研合作",
-        "scope": "公开报道所述合作涉及热带水果保鲜加工、产品研发、技术研究、项目申报和人才培养。",
-        "deliveryDate": "2024-09-06",
-        "content": {
-          "description": "用于研发合作内容与知识库测试，不推导未公开成果。",
-          "sourceStatus": "public-report"
-        },
-        "evidenceRefs": [
-          "lundu-official-website"
-        ],
-        "publicLevel": "named"
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "slug": "gdou-framework-cooperation-2024",
-        "title": "Industry-academia cooperation framework",
-        "industry": "Research collaboration",
-        "scope": "The public report covers tropical-fruit preservation and processing, product R&D, technical research, project applications and talent development.",
-        "deliveryDate": "2024-09-06",
-        "content": {
-          "description": "Used to test collaboration content and the knowledge base without inferring undisclosed outcomes.",
-          "sourceStatus": "public-report"
-        },
-        "evidenceRefs": [
-          "lundu-official-website"
-        ],
-        "publicLevel": "named"
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "slug": "gdou-integration-base-2024",
-        "title": "科产教融合基地建设",
-        "industry": "科产教融合",
-        "scope": "广东海洋大学公开报道双方签订基地建设协议并挂牌。",
-        "deliveryDate": "2024-11-26",
-        "content": {
-          "description": "用于企业合作事件与GEO时点信息测试；后续运行成果待更新来源。",
-          "sourceStatus": "public-report"
-        },
-        "evidenceRefs": [
-          "lundu-official-website"
-        ],
-        "publicLevel": "named"
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "slug": "gdou-integration-base-2024",
-        "title": "Industry-education integration base",
-        "industry": "Industry-education integration",
-        "scope": "Guangdong Ocean University reported that both parties signed the base-construction agreement and unveiled the plaque.",
-        "deliveryDate": "2024-11-26",
-        "content": {
-          "description": "Used to test company collaboration events and time-specific GEO answers; later outcomes require newer sources.",
-          "sourceStatus": "public-report"
-        },
-        "evidenceRefs": [
-          "lundu-official-website"
-        ],
-        "publicLevel": "named"
-      }
-    ],
-    "certificates": [],
-    "downloads": [],
-    "knowledge": [
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "documentType": "faq",
-        "title": "南派食品位于哪里，主要从事什么业务？",
-        "content": "广东海洋大学2024年8月的公开调研报道显示，南派食品位于雷州市英利镇科技园内，主要开展菠萝、芒果、百香果、椰子、木瓜等南方水果深加工。",
-        "citations": [
-          {
-            "title": "广东海洋大学食品企业调研",
-            "url": "https://www.gdou.edu.cn/info/1092/66761.htm"
-          }
-        ],
-        "forbiddenClaims": [
-          "未经确认的精确厂区面积、产能、产值和工厂数量"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "documentType": "faq",
-        "title": "公开资料中有哪些水果和产品形态？",
-        "content": "公开调研报道列出菠萝、芒果、百香果、椰子和木瓜等水果，产品形态包括鲜榨果汁、水果果馅、月饼专用馅、冷冻果泥、速冻原汁、速冻果粒、果干和罐头。具体SKU、规格与供货能力仍须企业确认。",
-        "citations": [
-          {
-            "title": "广东海洋大学食品企业调研",
-            "url": "https://www.gdou.edu.cn/info/1092/66761.htm"
-          }
-        ],
-        "forbiddenClaims": [
-          "把产品方向解释为实时库存或交付承诺"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "documentType": "faq",
-        "title": "南派食品与广东海洋大学有哪些公开合作？",
-        "content": "广东海洋大学分别于2024年9月和11月报道双方签订校企合作框架协议，以及签订科产教融合基地建设协议并挂牌。公开合作方向涉及热带水果保鲜加工、产品研发、技术研究、项目申报和人才培养。",
-        "citations": [
-          {
-            "title": "校企合作框架协议",
-            "url": "https://www.gdou.edu.cn/info/1092/66937.htm"
-          },
-          {
-            "title": "科产教融合基地",
-            "url": "https://www.gdou.edu.cn/info/1092/68400.htm"
-          }
-        ],
-        "forbiddenClaims": [
-          "推导未公开的研发成果、投入金额或商业转化结果"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "documentType": "faq",
-        "title": "南派食品与雷州菠萝产业园有什么关系？",
-        "content": "南方农村报/南方+公开报道将南派食品列为雷州市菠萝产业园培育、引进的产加销融合经营主体之一。产业园整体统计不能归属于南派食品单体。",
-        "citations": [
-          {
-            "title": "雷州菠萝产业园相关报道",
-            "url": "https://static.nfapp.southcn.com/content/202205/26/c6530151.html"
-          }
-        ],
-        "forbiddenClaims": [
-          "把产业园总产值、农户数或种植面积归属于南派食品"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "documentType": "faq",
-        "title": "南派食品有哪些认证或企业荣誉？",
-        "content": "广东海洋大学2024年8月的报道提及HACCP、ISO22000以及国家高新技术企业、广东省农业重点龙头企业等信息。本测试包只记录该报道，证书原件、授予主体、当前有效期和最新状态仍须企业确认，因此不写入已确认资质列表。",
-        "citations": [
-          {
-            "title": "广东海洋大学食品企业调研",
-            "url": "https://www.gdou.edu.cn/info/1092/66761.htm"
-          }
-        ],
-        "forbiddenClaims": [
-          "把媒体或院校报道当作当前有效证书原件",
-          "宣称认证永久有效"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "documentType": "faq",
-        "title": "页面中的产品信息是否可以直接用于采购？",
-        "content": "不可以。本页用于公开资料与站点配置测试；具体产品形态、规格、价格、库存、产能、认证有效性、起订量和交期均需由企业授权人员确认。",
-        "citations": [],
-        "forbiddenClaims": [
-          "未经确认的规格、价格、库存、产能、认证有效性和交期"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "documentType": "faq",
-        "title": "Where is Nanpai Food located and what does it do?",
-        "content": "A Guangdong Ocean University field report from August 2024 places Nanpai Food in Yingli Town Science and Technology Park, Leizhou, and describes the processing of southern fruits including pineapple, mango, passion fruit, coconut and papaya.",
-        "citations": [
-          {
-            "title": "Guangdong Ocean University field research",
-            "url": "https://www.gdou.edu.cn/info/1092/66761.htm"
-          }
-        ],
-        "forbiddenClaims": [
-          "Unconfirmed exact footprint, capacity, revenue or factory count"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "documentType": "faq",
-        "title": "Which fruits and product forms appear in public sources?",
-        "content": "The public field report lists pineapple, mango, passion fruit, coconut and papaya. Reported forms include fresh-pressed juice, fruit fillings, mooncake fillings, frozen puree, quick-frozen juice and fruit pieces, dried fruit and canned products. Exact SKUs, specifications and supply capability require company confirmation.",
-        "citations": [
-          {
-            "title": "Guangdong Ocean University field research",
-            "url": "https://www.gdou.edu.cn/info/1092/66761.htm"
-          }
-        ],
-        "forbiddenClaims": [
-          "Treating product directions as live inventory or delivery commitments"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "documentType": "faq",
-        "title": "What public collaboration exists between Nanpai Food and Guangdong Ocean University?",
-        "content": "Guangdong Ocean University reported a cooperation framework in September 2024 and an agreement and plaque for an industry-education integration base in November 2024. Reported directions include tropical-fruit preservation and processing, product R&D, technical research, project applications and talent development.",
-        "citations": [
-          {
-            "title": "Industry-academia cooperation framework",
-            "url": "https://www.gdou.edu.cn/info/1092/66937.htm"
-          },
-          {
-            "title": "Industry-education integration base",
-            "url": "https://www.gdou.edu.cn/info/1092/68400.htm"
-          }
-        ],
-        "forbiddenClaims": [
-          "Inferring undisclosed research outcomes, investment or commercialization results"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "documentType": "faq",
-        "title": "How is Nanpai Food connected with the Leizhou pineapple industrial park?",
-        "content": "A South China media report identifies Nanpai Food as one of the integrated operators cultivated or introduced by the Leizhou pineapple industrial park. Park-wide statistics must not be attributed to Nanpai Food alone.",
-        "citations": [
-          {
-            "title": "Leizhou pineapple industrial park report",
-            "url": "https://static.nfapp.southcn.com/content/202205/26/c6530151.html"
-          }
-        ],
-        "forbiddenClaims": [
-          "Attributing total park output, household counts or planting area to Nanpai Food"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "documentType": "faq",
-        "title": "Which certifications or honors are associated with Nanpai Food?",
-        "content": "An August 2024 Guangdong Ocean University report mentions HACCP, ISO 22000 and several enterprise recognitions. This test package records the report only: original certificates, issuers, current validity and latest status require company confirmation, so the confirmed-certificate list remains empty.",
-        "citations": [
-          {
-            "title": "Guangdong Ocean University field research",
-            "url": "https://www.gdou.edu.cn/info/1092/66761.htm"
-          }
-        ],
-        "forbiddenClaims": [
-          "Treating a media or university report as a currently valid certificate",
-          "Claiming permanent certification validity"
-        ]
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "documentType": "faq",
-        "title": "Can the product information on this page be used directly for purchasing?",
-        "content": "No. This page is for public-source and site-configuration testing. Product forms, specifications, pricing, availability, capacity, certification validity, minimum orders and lead times must be confirmed by authorized company personnel.",
-        "citations": [],
-        "forbiddenClaims": [
-          "Unconfirmed specifications, pricing, availability, capacity, certification validity or lead times"
-        ]
-      }
-    ],
+    "knowledge": [],
     "seo": [
       {
         "status": "draft",
         "locale": "zh-CN",
         "path": "/login",
-        "title": "南派食品｜南方水果深加工与产品应用",
-        "description": "了解南派食品在菠萝、芒果、百香果、椰子和木瓜深加工，以及果汁、果馅、果泥、果粒与产学研合作方面的公开信息。",
+        "title": "伦度机电｜电机与水泵制造",
+        "description": "伦度机电有限公司电机、水泵与数字化工厂公开资料门户。",
         "canonical": "",
-        "robots": "noindex,nofollow",
-        "keywords": [
-          "南派食品",
-          "雷州水果加工",
-          "南方水果深加工",
-          "菠萝制品",
-          "芒果制品",
-          "百香果制品",
-          "椰子制品",
-          "木瓜制品",
-          "水果果馅",
-          "冷冻果泥"
-        ],
-        "structuredData": {
-          "@type": "WebPage",
-          "name": "南派食品公开资料门户",
-          "inLanguage": "zh-CN",
-          "about": "南方水果深加工与产品应用"
-        }
+        "robots": "index,follow",
+        "keywords": [],
+        "structuredData": {}
       },
       {
         "status": "draft",
         "locale": "en-US",
         "path": "/login",
-        "title": "Nanpai Food | Southern Fruit Processing and Applications",
-        "description": "Explore public information about Nanpai Food's pineapple, mango, passion fruit, coconut and papaya processing, product forms and research collaboration.",
+        "title": "Lundu Electromechanical | Motors and Pumps",
+        "description": "Lundu Electromechanical motors, pumps and digital factory portal.",
         "canonical": "",
-        "robots": "noindex,nofollow",
-        "keywords": [
-          "Nanpai Food",
-          "Leizhou fruit processing",
-          "southern fruit processing",
-          "pineapple products",
-          "mango products",
-          "passion fruit products",
-          "coconut products",
-          "papaya products",
-          "fruit fillings",
-          "frozen fruit puree"
-        ],
-        "structuredData": {
-          "@type": "WebPage",
-          "name": "Nanpai Food Public Information Portal",
-          "inLanguage": "en-US",
-          "about": "Southern fruit processing and product applications"
-        }
+        "robots": "index,follow",
+        "keywords": [],
+        "structuredData": {}
       }
     ],
     "keywords": [
       {
         "status": "draft",
         "locale": "zh-CN",
-        "keyword": "南派食品",
         "market": "CN",
-        "intent": "navigational",
+        "keyword": "伦度机电",
+        "intent": "commercial",
         "targetPath": "/login",
-        "priority": 5
+        "priority": 20,
+        "notes": "Draft keyword; confirm before publication."
       },
       {
         "status": "draft",
         "locale": "zh-CN",
-        "keyword": "雷州水果加工",
         "market": "CN",
+        "keyword": "电机水泵",
         "intent": "commercial",
         "targetPath": "/login",
-        "priority": 10
+        "priority": 20,
+        "notes": "Draft keyword; confirm before publication."
       },
       {
         "status": "draft",
         "locale": "zh-CN",
-        "keyword": "南方水果深加工",
         "market": "CN",
-        "intent": "informational",
-        "targetPath": "/login",
-        "priority": 15
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "keyword": "菠萝制品",
-        "market": "CN",
+        "keyword": "温岭水泵",
         "intent": "commercial",
         "targetPath": "/login",
-        "priority": 20
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "keyword": "芒果制品",
-        "market": "CN",
-        "intent": "commercial",
-        "targetPath": "/login",
-        "priority": 25
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "keyword": "百香果制品",
-        "market": "CN",
-        "intent": "commercial",
-        "targetPath": "/login",
-        "priority": 30
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "keyword": "椰子制品",
-        "market": "CN",
-        "intent": "commercial",
-        "targetPath": "/login",
-        "priority": 35
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "keyword": "水果果馅",
-        "market": "CN",
-        "intent": "commercial",
-        "targetPath": "/login",
-        "priority": 40
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "keyword": "冷冻果泥",
-        "market": "CN",
-        "intent": "commercial",
-        "targetPath": "/login",
-        "priority": 45
-      },
-      {
-        "status": "draft",
-        "locale": "zh-CN",
-        "keyword": "热带水果产学研合作",
-        "market": "CN",
-        "intent": "informational",
-        "targetPath": "/login",
-        "priority": 50
+        "priority": 20,
+        "notes": "Draft keyword; confirm before publication."
       },
       {
         "status": "draft",
         "locale": "en-US",
-        "keyword": "Nanpai Food",
         "market": "Global",
-        "intent": "navigational",
-        "targetPath": "/login",
-        "priority": 5
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "keyword": "Leizhou fruit processing",
-        "market": "Global",
+        "keyword": "Lundu Electromechanical",
         "intent": "commercial",
         "targetPath": "/login",
-        "priority": 10
+        "priority": 20,
+        "notes": "Draft keyword; confirm before publication."
       },
       {
         "status": "draft",
         "locale": "en-US",
-        "keyword": "southern fruit processing",
         "market": "Global",
-        "intent": "informational",
-        "targetPath": "/login",
-        "priority": 15
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "keyword": "pineapple products",
-        "market": "Global",
+        "keyword": "motors and pumps",
         "intent": "commercial",
         "targetPath": "/login",
-        "priority": 20
+        "priority": 20,
+        "notes": "Draft keyword; confirm before publication."
       },
       {
         "status": "draft",
         "locale": "en-US",
-        "keyword": "mango products",
         "market": "Global",
+        "keyword": "Wenling pump manufacturer",
         "intent": "commercial",
         "targetPath": "/login",
-        "priority": 25
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "keyword": "passion fruit products",
-        "market": "Global",
-        "intent": "commercial",
-        "targetPath": "/login",
-        "priority": 30
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "keyword": "coconut products",
-        "market": "Global",
-        "intent": "commercial",
-        "targetPath": "/login",
-        "priority": 35
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "keyword": "fruit fillings",
-        "market": "Global",
-        "intent": "commercial",
-        "targetPath": "/login",
-        "priority": 40
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "keyword": "frozen fruit puree",
-        "market": "Global",
-        "intent": "commercial",
-        "targetPath": "/login",
-        "priority": 45
-      },
-      {
-        "status": "draft",
-        "locale": "en-US",
-        "keyword": "tropical fruit research collaboration",
-        "market": "Global",
-        "intent": "informational",
-        "targetPath": "/login",
-        "priority": 50
+        "priority": 20,
+        "notes": "Draft keyword; confirm before publication."
       }
     ],
     "externalProfiles": []
   },
   "governance": {
     "factStatus": "pending",
-    "notes": "Public-source research package for isolated local testing. All records remain draft; contact details, commercial metrics, certification validity, exact specifications, capacity, pricing and delivery commitments require direct company confirmation."
+    "notes": "Source-backed draft; specifications, pricing, availability, capacity, certification validity and lead times require confirmation. Official website assets remain pending authorization."
   }
 }
