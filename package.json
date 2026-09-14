@@ -121,6 +121,7 @@
     "test:company-site-runtime": "node tests/engineering/company-site-schema-regression.mjs && node tests/engineering/company-site-handlers-regression.mjs",
     "test:company-site": "npm --prefix eiscore-company-site test",
     "test:smart-bi": "node tests/smart-bi/config-regression.mjs",
+    "test:eiscore-embed": "node tests/engineering/eiscore-embed-route-regression.mjs",
     "test:grid-agent": "node tests/grid-agent/query-regression.mjs",
     "test:grid-utils": "node tests/grid-utils/shared-regression.mjs",
     "test:grid-paging": "node tests/engineering/grid-paging-regression.mjs",

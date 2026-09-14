@@ -24,7 +24,8 @@ export function resolveEnterpriseNavigation({
   }
 
   const mobileEnabled = isEnterpriseModuleEnabled(enterpriseConfig, 'mobile')
-  if (mobileDevice && mobileEnabled && !skipMobileRedirect && !publicLanding && moduleId !== 'mobile') {
+  const embeddedPath = String(path).startsWith('/embed/')
+  if (mobileDevice && mobileEnabled && !skipMobileRedirect && !publicLanding && !embeddedPath && moduleId !== 'mobile') {
     return { type: 'external', path: '/mobile/', reason: 'mobile-device', moduleId: 'mobile' }
   }
 

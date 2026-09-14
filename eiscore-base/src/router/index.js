@@ -29,6 +29,12 @@ const router = createRouter({
       meta: { requiresAuth: false, publicLanding: true }
     },
     {
+      path: '/embed/:feature(digital-twin|smart-bi)',
+      name: 'embed-feature',
+      component: () => import('../views/EmbedView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/',
       component: Layout,
       meta: { requiresAuth: true },
@@ -120,7 +126,7 @@ const shouldSkipMobileRedirect = (to) => {
   if (typeof window !== 'undefined' && window.__EIS_SKIP_MOBILE_REDIRECT__) return true
   const path = String(to.path || '')
   const querySkip = String(to.query?.eis_skip_mobile_redirect || '') === '1'
-  return querySkip || path.startsWith('/ide')
+  return querySkip || path.startsWith('/ide') || path.startsWith('/embed/')
 }
 
 router.beforeEach((to, from, next) => {
@@ -159,9 +165,11 @@ router.beforeEach((to, from, next) => {
   const expired = isTokenExpired(token)
   if (to.meta.requiresAuth && (!token || expired)) {
     clearAuthStorage()
-    next('/login')
+    next({ path: '/login', query: { redirect: to.fullPath } })
   } else if (to.path === '/login' && token && !expired) {
-    next('/')
+    const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : ''
+    const safeRedirect = /^\/(?!\/)/.test(redirect) ? redirect : '/'
+    next(safeRedirect)
   } else {
     next()
   }

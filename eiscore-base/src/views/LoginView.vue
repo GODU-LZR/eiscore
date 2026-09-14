@@ -410,7 +410,7 @@
 // Copyright (c) 2026 林志荣
 
 import { computed, ref, reactive, watch, nextTick, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { useSystemStore } from '@/stores/system'
@@ -423,6 +423,7 @@ const Product3DViewer = defineAsyncComponent(() => import('@/components/Product3
 const PineappleProcessViewer = defineAsyncComponent(() => import('@/components/PineappleProcessViewer.vue'))
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const systemStore = useSystemStore()
 const loading = ref(false)
@@ -868,7 +869,9 @@ const handleLogin = async () => {
 
       userStore.login(userData)
       ElMessage.success(`${portalUi.value.loginSuccess} ${userData.user.name}`)
-      router.push('/')
+      const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
+      const safeRedirect = /^\/(?!\/)/.test(redirect) ? redirect : '/'
+      router.push(safeRedirect)
     } catch (error) {
       ElMessage.error(error.message || portalUi.value.loginError)
     } finally {

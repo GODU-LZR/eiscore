@@ -66,5 +66,10 @@ assert.equal(resolveEnterpriseNavigation({
   mobileDevice: true,
   skipMobileRedirect: true
 }).type, 'allow')
+assert.equal(resolveEnterpriseNavigation({
+  path: '/embed/digital-twin',
+  enterpriseConfig: DEFAULT_ENTERPRISE_CONFIG,
+  mobileDevice: true
+}).type, 'allow')
 
 console.log(`PASS: enterprise module routing (${ENTERPRISE_MODULE_IDS.length} modules)`)
