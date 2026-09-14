@@ -25,6 +25,42 @@
   "packageId": "lundu",
   "files": [
     {
+      "path": "assets/site/crops/application-wide.jpg",
+      "kind": "asset",
+      "bytes": 126761,
+      "sha256": "53c1399936aafde82dfac076a9fa59a5efa93c0a1592e19c763196a87d309b0d"
+    },
+    {
+      "path": "assets/site/crops/detail-card.jpg",
+      "kind": "asset",
+      "bytes": 103448,
+      "sha256": "a269eaedd3ec2376bddfc9a455624a41e2a087b0cb3ed73fb1f7598ba37e439e"
+    },
+    {
+      "path": "assets/site/crops/factory-wide.jpg",
+      "kind": "asset",
+      "bytes": 184481,
+      "sha256": "c900c37e1d7119fa428794115358b02e2645d696bd56d1c4e9bc9b3f350f9399"
+    },
+    {
+      "path": "assets/site/crops/hero-wide.jpg",
+      "kind": "asset",
+      "bytes": 165206,
+      "sha256": "28a7f86a82addca30ea2ef0e766c575eea2d5a4c6d8968f052a4f3f09821b92a"
+    },
+    {
+      "path": "assets/site/crops/product-card-motor.jpg",
+      "kind": "asset",
+      "bytes": 124509,
+      "sha256": "4966b8a25d912fb15ce355989cbcac35589b2b03ed9beaeee4f75db9da800bf9"
+    },
+    {
+      "path": "assets/site/crops/product-card.jpg",
+      "kind": "asset",
+      "bytes": 85392,
+      "sha256": "8d3a6d2c089e2dea0fa232be8c305a422cd24f51d07f768b45700ebee637f64d"
+    },
+    {
       "path": "assets/site/favicon.svg",
       "kind": "asset",
       "bytes": 180,
@@ -75,26 +111,26 @@
     {
       "path": "data/company-site.json",
       "kind": "seed",
-      "bytes": 28694,
-      "sha256": "cf00493ec3582b1c45d31cd725b73a0a2d9a6f5622eaf90ebebd5788405cdf77"
+      "bytes": 29078,
+      "sha256": "6cdeebed0010e540fd394e011231a6f9f26eeba568fd13d2af7dd1f26da03dd5"
     },
     {
       "path": "evidence/PACKAGE-GUIDE.md",
       "kind": "evidence",
-      "bytes": 2186,
-      "sha256": "ca64825b938f2c31ffc3a2263c729f9e8dc1dc2fb315ca7f9102f208c5ced464"
+      "bytes": 1956,
+      "sha256": "63be84fbd71c65b681bfb00779d77bf8d2e83fba171d80ef519ab1f92a02d9ff"
     },
     {
       "path": "evidence/asset-sources.json",
       "kind": "evidence",
-      "bytes": 6144,
-      "sha256": "57cc9c40daf5d3bca699bb1148fc66ed6902e74911742138c09fbe90f86aac46"
+      "bytes": 10337,
+      "sha256": "144d14402c08f8c425f095e6c3b821360f2e2f55cc0279c4190df928072c18c6"
     },
     {
       "path": "evidence/research-sources.json",
       "kind": "evidence",
-      "bytes": 10009,
-      "sha256": "b1c039864ffe3309a1bd2bf8b566794b702fc5f6d66f68290bdd1b9750cbe7e1"
+      "bytes": 7553,
+      "sha256": "2c81a9a1217796d977caf9f7f634651fa9fd5df108f002f8497fdd94cc52ea43"
     },
     {
       "path": "runtime/eiscore-enterprise.json",
@@ -103,5 +139,5 @@
       "sha256": "a1da6639d9f3f686d573a06235db65297ca07711bf5ccc0e1dd3f3c7dfb97b7f"
     }
   ],
-  "packageSha256": "fe69ebc861e470ee96e1ee8ceb3557eafa162483db88c1affd3dfba73da0bbba"
+  "packageSha256": "189bc6db9cdf6e7547f2816b6a36ff7a639ca7bc616b879b3caeda4b0712c580"
 }

@@ -150,40 +150,40 @@
             ],
             "carouselImages": [
               {
-                "url": "/enterprise-assets/site/official-1.jpg",
-                "assetPath": "assets/site/official-1.jpg",
+                "url": "/enterprise-assets/site/crops/hero-wide.jpg",
+                "assetPath": "assets/site/crops/hero-wide.jpg",
                 "title": "Factory overview",
-                "subtitle": "官网图片候选 · 草稿"
+                "subtitle": "官网图片候选 · 裁切草稿"
               },
               {
-                "url": "/enterprise-assets/site/official-2.jpg",
-                "assetPath": "assets/site/official-2.jpg",
+                "url": "/enterprise-assets/site/crops/product-card.jpg",
+                "assetPath": "assets/site/crops/product-card.jpg",
                 "title": "Pump product",
-                "subtitle": "官网图片候选 · 草稿"
+                "subtitle": "官网图片候选 · 裁切草稿"
               },
               {
-                "url": "/enterprise-assets/site/official-3.jpg",
-                "assetPath": "assets/site/official-3.jpg",
+                "url": "/enterprise-assets/site/crops/product-card-motor.jpg",
+                "assetPath": "assets/site/crops/product-card-motor.jpg",
                 "title": "Motor product",
-                "subtitle": "官网图片候选 · 草稿"
+                "subtitle": "官网图片候选 · 裁切草稿"
               },
               {
-                "url": "/enterprise-assets/site/official-4.png",
-                "assetPath": "assets/site/official-4.png",
+                "url": "/enterprise-assets/site/crops/application-wide.jpg",
+                "assetPath": "assets/site/crops/application-wide.jpg",
                 "title": "Pump application",
-                "subtitle": "官网图片候选 · 草稿"
+                "subtitle": "官网图片候选 · 裁切草稿"
               },
               {
-                "url": "/enterprise-assets/site/official-5.png",
-                "assetPath": "assets/site/official-5.png",
+                "url": "/enterprise-assets/site/crops/factory-wide.jpg",
+                "assetPath": "assets/site/crops/factory-wide.jpg",
                 "title": "Manufacturing",
-                "subtitle": "官网图片候选 · 草稿"
+                "subtitle": "官网图片候选 · 裁切草稿"
               },
               {
-                "url": "/enterprise-assets/site/official-6.png",
-                "assetPath": "assets/site/official-6.png",
+                "url": "/enterprise-assets/site/crops/detail-card.jpg",
+                "assetPath": "assets/site/crops/detail-card.jpg",
                 "title": "Product detail",
-                "subtitle": "官网图片候选 · 草稿"
+                "subtitle": "官网图片候选 · 裁切草稿"
               }
             ],
             "ui": {
@@ -302,40 +302,40 @@
             ],
             "carouselImages": [
               {
-                "url": "/enterprise-assets/site/official-1.jpg",
-                "assetPath": "assets/site/official-1.jpg",
+                "url": "/enterprise-assets/site/crops/hero-wide.jpg",
+                "assetPath": "assets/site/crops/hero-wide.jpg",
                 "title": "Factory overview",
-                "subtitle": "Official website image candidate · draft"
+                "subtitle": "Official website image candidate · cropped draft"
               },
               {
-                "url": "/enterprise-assets/site/official-2.jpg",
-                "assetPath": "assets/site/official-2.jpg",
+                "url": "/enterprise-assets/site/crops/product-card.jpg",
+                "assetPath": "assets/site/crops/product-card.jpg",
                 "title": "Pump product",
-                "subtitle": "Official website image candidate · draft"
+                "subtitle": "Official website image candidate · cropped draft"
               },
               {
-                "url": "/enterprise-assets/site/official-3.jpg",
-                "assetPath": "assets/site/official-3.jpg",
+                "url": "/enterprise-assets/site/crops/product-card-motor.jpg",
+                "assetPath": "assets/site/crops/product-card-motor.jpg",
                 "title": "Motor product",
-                "subtitle": "Official website image candidate · draft"
+                "subtitle": "Official website image candidate · cropped draft"
               },
               {
-                "url": "/enterprise-assets/site/official-4.png",
-                "assetPath": "assets/site/official-4.png",
+                "url": "/enterprise-assets/site/crops/application-wide.jpg",
+                "assetPath": "assets/site/crops/application-wide.jpg",
                 "title": "Pump application",
-                "subtitle": "Official website image candidate · draft"
+                "subtitle": "Official website image candidate · cropped draft"
               },
               {
-                "url": "/enterprise-assets/site/official-5.png",
-                "assetPath": "assets/site/official-5.png",
+                "url": "/enterprise-assets/site/crops/factory-wide.jpg",
+                "assetPath": "assets/site/crops/factory-wide.jpg",
                 "title": "Manufacturing",
-                "subtitle": "Official website image candidate · draft"
+                "subtitle": "Official website image candidate · cropped draft"
               },
               {
-                "url": "/enterprise-assets/site/official-6.png",
-                "assetPath": "assets/site/official-6.png",
+                "url": "/enterprise-assets/site/crops/detail-card.jpg",
+                "assetPath": "assets/site/crops/detail-card.jpg",
                 "title": "Product detail",
-                "subtitle": "Official website image candidate · draft"
+                "subtitle": "Official website image candidate · cropped draft"
               }
             ],
             "ui": {
@@ -684,7 +684,9 @@
         "documentType": "faq",
         "title": "采集表中的物料范围",
         "content": "底座、泵头、叶轮、油缸、油缸盖、机械密封、转子、线圈、机筒、花板、上帽、电缆线、轴承。型号、材质、单位、供应商、BOM 和工艺参数仍待企业确认。",
-        "citations": [],
+        "citations": [
+          "lundu-source-sheet"
+        ],
         "forbiddenClaims": [
           "Do not infer material specifications, supplier identity, pricing or availability."
         ]
@@ -695,7 +697,9 @@
         "documentType": "faq",
         "title": "Material scope in the collection sheets",
         "content": "The collection sheets list base, pump head, impeller, oil cylinder, cylinder cover, mechanical seal, rotor, coil, barrel, tube plate, upper cap, cable and bearing. Models, materials, units, suppliers, BOM and process parameters require confirmation.",
-        "citations": [],
+        "citations": [
+          "lundu-source-sheet"
+        ],
         "forbiddenClaims": [
           "Do not infer material specifications, supplier identity, pricing or availability."
         ]
