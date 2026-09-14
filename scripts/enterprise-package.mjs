@@ -237,6 +237,28 @@ const validateCompanySiteSeed = (input, { enterpriseId, packageStatus }) => {
         else if (record.status !== undefined && record.status !== 'draft') issues.push(issue('seed-content-must-be-draft', `${recordPath}.status`))
       })
     }
+    const evidenceKeys = new Set()
+    for (const [index, record] of (input.content.evidence || []).entries()) {
+      const recordPath = `$.content.evidence[${index}]`
+      requireText(issues, record?.sourceKey, `${recordPath}.sourceKey`, { max: 80, pattern: ID })
+      requireText(issues, record?.claim, `${recordPath}.claim`, { max: 1200 })
+      requireText(issues, record?.sourceType, `${recordPath}.sourceType`, { max: 80 })
+      requireText(issues, record?.sourceRef, `${recordPath}.sourceRef`, { allowEmpty: true, max: 1200 })
+      if (record?.sourceKey && evidenceKeys.has(record.sourceKey)) issues.push(issue('duplicate-evidence-source-key', `${recordPath}.sourceKey`))
+      if (record?.sourceKey) evidenceKeys.add(record.sourceKey)
+    }
+    for (const collection of ['products', 'cases']) {
+      for (const [index, record] of (input.content[collection] || []).entries()) {
+        if (record?.evidenceRefs === undefined) continue
+        if (!Array.isArray(record.evidenceRefs)) {
+          issues.push(issue('array-required', `$.content.${collection}[${index}].evidenceRefs`))
+          continue
+        }
+        record.evidenceRefs.forEach((sourceKey, refIndex) => {
+          if (!evidenceKeys.has(sourceKey)) issues.push(issue('unknown-evidence-source-key', `$.content.${collection}[${index}].evidenceRefs[${refIndex}]`))
+        })
+      }
+    }
   }
 
   if (requireObject(issues, input.governance, '$.governance')) {

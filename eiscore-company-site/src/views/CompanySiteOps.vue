@@ -301,6 +301,24 @@
             <span v-for="gap in keywordMapReport.gaps" :key="`${gap.path}-${gap.issueCode}`" class="keyword-gap">{{ gap.issueCode }} · {{ gap.path }}</span>
           </div>
         </div>
+
+        <div v-if="featureAvailability.geoSnapshots" class="governance-panel geo-panel seo-geo-panel">
+          <div class="panel-heading">
+            <div><h2>GEO 回答快照</h2><p>根据当前语言的 FAQ 知识生成机器可读回答基线，保留引用和人工复核状态。</p></div>
+            <div class="toolbar-actions">
+              <span class="panel-count"><el-icon><Tickets /></el-icon>{{ geoSnapshots.length }} 条</span>
+              <el-button v-if="canAudit" type="primary" plain :loading="geoLoading" @click="generateGeoSnapshots"><el-icon><DataAnalysis /></el-icon>生成快照</el-button>
+            </div>
+          </div>
+          <el-table v-loading="geoLoading" :data="geoSnapshots" class="ops-table" table-layout="fixed">
+            <el-table-column prop="question" label="问题" min-width="260" show-overflow-tooltip />
+            <el-table-column label="平台 / 语言" width="180"><template #default="{ row }">{{ row.platform }} · {{ row.locale }}</template></el-table-column>
+            <el-table-column label="准确性" width="110"><template #default="{ row }"><el-tag size="small" :type="accuracyStatusType(row.accuracyStatus || row.accuracy_status)" effect="light">{{ accuracyStatusText(row.accuracyStatus || row.accuracy_status) }}</el-tag></template></el-table-column>
+            <el-table-column prop="answer" label="回答" min-width="340" show-overflow-tooltip />
+            <el-table-column label="生成时间" width="170"><template #default="{ row }">{{ formatDate(row.checkedAt || row.checked_at || row.createdAt || row.created_at) }}</template></el-table-column>
+          </el-table>
+          <el-empty v-if="!geoLoading && !geoSnapshots.length" description="还没有 GEO 快照，可从 FAQ 生成一组基线问题" :image-size="72" />
+        </div>
       </section>
 
       <section v-else-if="activeSection === 'facts'" class="facts-section">
@@ -443,6 +461,11 @@
           <el-form-item v-if="hasSlugField" label="Slug / 路径" required><el-input v-model="editingForm.slugOrPath" placeholder="about-us 或 /company/" /></el-form-item>
           <el-form-item v-if="editingType === 'product'" label="产品编号" required><el-input v-model="editingForm.productCode" placeholder="产品唯一编号" /></el-form-item>
           <el-form-item v-if="editingType === 'product'" label="产品分类"><el-input v-model="editingForm.category" placeholder="按产品线或应用分类" /></el-form-item>
+          <el-form-item v-if="editingType === 'product_locale'" label="产品主数据" required>
+            <el-select v-model="editingForm.productId" filterable style="width:100%" placeholder="选择产品编号">
+              <el-option v-for="product in contentCollections.products" :key="product.id" :label="product.productCode || product.product_code || product.slug" :value="product.id" />
+            </el-select>
+          </el-form-item>
           <el-form-item v-if="editingType === 'page'" label="页面类型"><el-input v-model="editingForm.pageType" placeholder="page / landing / home" /></el-form-item>
           <el-form-item v-if="editingType === 'knowledge'" label="文档类型"><el-input v-model="editingForm.documentType" placeholder="faq / policy / product" /></el-form-item>
           <el-form-item v-if="editingType === 'case'" label="公开级别"><el-select v-model="editingForm.publicLevel" style="width:100%"><el-option label="公开" value="named" /><el-option label="匿名公开" value="anonymous" /><el-option label="内部" value="internal" /></el-select></el-form-item>
@@ -458,7 +481,7 @@
           <el-form-item v-if="editingType === 'keyword'" label="目标市场"><el-input v-model="editingForm.market" placeholder="US / UK / CN" /></el-form-item>
           <el-form-item v-if="editingType === 'keyword'" label="客户角色"><el-input v-model="editingForm.customerRole" placeholder="玩家、球房、经销商、OEM" /></el-form-item>
           <el-form-item v-if="editingType === 'keyword'" label="目标路径"><el-input v-model="editingForm.targetPath" placeholder="/products/billiard-cues" /></el-form-item>
-          <el-form-item v-if="editingType === 'keyword'" label="优先级"><el-input-number v-model="editingForm.priority" :min="1" :max="5" controls-position="right" style="width:100%" /></el-form-item>
+          <el-form-item v-if="editingType === 'keyword'" label="优先级"><el-input-number v-model="editingForm.priority" :min="1" :max="100" controls-position="right" style="width:100%" /></el-form-item>
           <el-form-item v-if="editingType === 'externalProfile'" label="档案类型"><el-select v-model="editingForm.profileType" style="width:100%"><el-option label="行业目录" value="directory" /><el-option label="协会" value="association" /><el-option label="合作伙伴" value="partner" /><el-option label="媒体" value="media" /></el-select></el-form-item>
           <el-form-item v-if="editingType === 'externalProfile'" label="核验状态"><el-select v-model="editingForm.verificationStatus" style="width:100%"><el-option label="待核验" value="pending" /><el-option label="已核验" value="verified" /><el-option label="需复核" value="needs_review" /><el-option label="阻断" value="blocked" /></el-select></el-form-item>
           <el-form-item v-if="editingType === 'externalProfile'" label="市场 / 语言"><el-input v-model="editingForm.market" placeholder="US · en-US" /></el-form-item>
@@ -466,11 +489,14 @@
         </div>
 
         <el-form-item v-if="hasTitleField" label="标题" required><el-input v-model="editingForm.title" placeholder="公开展示标题" /></el-form-item>
+        <el-form-item v-if="editingType === 'product_locale'" label="产品名称" required><el-input v-model="editingForm.title" placeholder="当前语言的公开产品名称" /></el-form-item>
         <el-form-item v-if="editingType === 'evidence'" label="可验证声明" required><el-input v-model="editingForm.claim" type="textarea" :rows="3" placeholder="只能填写可被证据支持的事实" /></el-form-item>
         <el-form-item v-if="editingType === 'solution'" label="应用场景"><el-input v-model="editingForm.scenario" type="textarea" :rows="3" /></el-form-item>
         <el-form-item v-if="editingType === 'case'" label="项目范围"><el-input v-model="editingForm.scope" type="textarea" :rows="3" /></el-form-item>
         <el-form-item v-if="editingType === 'certificate' || editingType === 'download'" label="公开说明"><el-input v-model="editingForm.description" type="textarea" :rows="3" placeholder="说明公开范围和资料用途，不填写未经确认的商业承诺" /></el-form-item>
         <el-form-item v-if="editingType === 'page' || editingType === 'solution' || editingType === 'case'" label="摘要 / 说明"><el-input v-model="editingForm.summary" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item v-if="editingType === 'product_locale'" label="产品摘要"><el-input v-model="editingForm.summary" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item v-if="editingType === 'product_locale'" label="产品说明"><el-input v-model="editingForm.description" type="textarea" :rows="5" /></el-form-item>
         <div v-if="editingType === 'certificate'" class="form-grid form-grid-two">
           <el-form-item label="生效日期"><el-input v-model="editingForm.validFrom" placeholder="YYYY-MM-DD" /></el-form-item>
           <el-form-item label="有效期至"><el-input v-model="editingForm.validTo" placeholder="YYYY-MM-DD" /></el-form-item>
@@ -500,6 +526,11 @@
           <el-form-item label="规格 JSON"><el-input v-model="editingForm.specificationsText" type="textarea" :rows="4" placeholder='{"capacity":""}' /></el-form-item>
           <el-form-item label="交付 JSON"><el-input v-model="editingForm.deliveryText" type="textarea" :rows="4" placeholder='{"leadTime":""}' /></el-form-item>
           <el-form-item label="证据 ID JSON"><el-input v-model="editingForm.evidenceIdsText" type="textarea" :rows="4" placeholder='[]' /></el-form-item>
+        </div>
+        <div v-if="editingType === 'product_locale'" class="form-grid form-grid-two">
+          <el-form-item label="图片地址 JSON"><el-input v-model="editingForm.imageUrlsText" type="textarea" :rows="5" placeholder='[]' /></el-form-item>
+          <el-form-item label="SEO JSON"><el-input v-model="editingForm.seoText" type="textarea" :rows="5" placeholder='{"title":"","description":"","applications":[]}' /></el-form-item>
+          <el-form-item label="产品 FAQ JSON"><el-input v-model="editingForm.faqText" type="textarea" :rows="5" placeholder='[]' /></el-form-item>
         </div>
         <div v-if="editingType === 'page'" class="form-grid form-grid-two">
           <el-form-item label="页面区块 JSON"><el-input v-model="editingForm.blocksText" type="textarea" :rows="6" placeholder='[{"type":"hero","title":""}]' /></el-form-item>

@@ -122,22 +122,27 @@ const mapPage = (row) => ({
   publishedAt: row?.published_at || null
 });
 
-const mapProduct = (row) => ({
-  id: row?.id || '',
-  productCode: text(row?.product_code, 100),
-  slug: safeSlug(row?.slug),
-  category: text(row?.category, 120),
-  applications: Array.isArray(row?.applications) ? row.applications : [],
-  specifications: safeJson(row?.specifications),
-  delivery: safeJson(row?.delivery),
-  locale: safeLocale(row?.locale),
-  name: text(row?.name, 240),
-  summary: text(row?.summary, 1200),
-  description: text(row?.description, 6000),
-  imageUrls: Array.isArray(row?.image_urls) ? row.image_urls : [],
-  seo: safeJson(row?.product_seo || row?.seo),
-  faq: Array.isArray(row?.faq) ? row.faq : []
-});
+const mapProduct = (row) => {
+  const seo = safeJson(row?.product_seo || row?.seo);
+  return {
+    id: row?.id || '',
+    productCode: text(row?.product_code, 100),
+    slug: safeSlug(row?.slug),
+    category: text(seo.category, 120) || text(row?.category, 120),
+    applications: Array.isArray(seo.applications)
+      ? seo.applications
+      : (Array.isArray(row?.applications) ? row.applications : []),
+    specifications: safeJson(row?.specifications),
+    delivery: safeJson(row?.delivery),
+    locale: safeLocale(row?.locale),
+    name: text(row?.name, 240),
+    summary: text(row?.summary, 1200),
+    description: text(row?.description, 6000),
+    imageUrls: Array.isArray(row?.image_urls) ? row.image_urls : [],
+    seo,
+    faq: Array.isArray(row?.faq) ? row.faq : []
+  };
+};
 
 const mapSolution = (row) => ({
   id: row?.id || '',
@@ -174,6 +179,29 @@ const mapFaq = (row) => ({
   status: text(row?.status, 32),
   version: Number(row?.version || 1),
   updatedAt: row?.updated_at || null
+});
+
+const mapSeo = (row) => ({
+  id: row?.id || '',
+  locale: safeLocale(row?.locale),
+  path: text(row?.path, 500),
+  title: text(row?.title, 240),
+  description: text(row?.description, 1200),
+  canonical: text(row?.canonical, 500),
+  robots: text(row?.robots, 120),
+  keywords: Array.isArray(row?.keywords) ? row.keywords : [],
+  structuredData: safeJson(row?.structured_data),
+  status: text(row?.status, 32)
+});
+
+const mapKeyword = (row) => ({
+  id: row?.id || '',
+  locale: safeLocale(row?.locale),
+  market: text(row?.market, 80),
+  keyword: text(row?.keyword, 240),
+  intent: text(row?.intent, 80),
+  targetPath: text(row?.target_path, 500),
+  priority: Number(row?.priority || 50)
 });
 
 const ADMIN_CONTENT_DEFINITIONS = {
@@ -246,6 +274,15 @@ const ADMIN_CONTENT_DEFINITIONS = {
       ['keywords', 'keywords', 'json'], ['structuredData', 'structured_data', 'json']
     ],
     required: ['locale', 'path', 'title']
+  },
+  keyword: {
+    table: 'seo_keywords',
+    fields: [
+      ['locale', 'locale', 'locale'], ['market', 'market', 'text'], ['keyword', 'keyword', 'text'],
+      ['intent', 'intent', 'text'], ['targetPath', 'target_path', 'path'], ['priority', 'priority', 'integer'],
+      ['notes', 'notes', 'text']
+    ],
+    required: ['locale', 'keyword', 'targetPath']
   }
 };
 
@@ -258,7 +295,7 @@ const getLocaleCandidates = (requested, fallback) => {
   return out;
 };
 
-function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, now = () => new Date(), siteKey = process.env.COMPANY_SITE_KEY || DEFAULT_SITE_KEY }) {
+function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, now = () => new Date(), siteKey = process.env.COMPANY_SITE_KEY || DEFAULT_SITE_KEY, env = process.env }) {
   const SITE_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(String(siteKey || ''))
     ? String(siteKey)
     : DEFAULT_SITE_KEY;
@@ -267,6 +304,8 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
   if (typeof readJsonBody !== 'function') throw new Error('company-site readJsonBody function is required');
 
   const rateBuckets = new Map();
+  const previewDraftEnabled = String(env.COMPANY_SITE_PREVIEW_ALLOW_DRAFT || '').toLowerCase() === 'true'
+    && String(env.NODE_ENV || 'development').toLowerCase() !== 'production';
 
   const readUrl = (req) => new URL(req?.url || '/', 'http://company-site.local');
 
@@ -316,27 +355,28 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
     return firstRow(result);
   };
 
-  const loadPublicContent = async (site, requestedLocale) => {
+  const loadPublicContent = async (site, requestedLocale, { allowDraft = false } = {}) => {
     const localeCandidates = getLocaleCandidates(requestedLocale, site.default_locale);
-    const [localeResult, pageResult, productResult, solutionResult, caseResult, faqResult] = await Promise.all([
+    const visibleStatuses = allowDraft ? ['draft', 'review', 'approved', 'published'] : ['published'];
+    const [localeResult, pageResult, productResult, solutionResult, caseResult, faqResult, seoResult, keywordResult] = await Promise.all([
       query(
         `SELECT locale, fallback_locale, status, translation_owner
            FROM company_site.site_locales
           WHERE site_key = $1
-            AND status = 'published'
+            AND status = ANY($3::text[])
             AND locale = ANY($2::text[])
           ORDER BY array_position($2::text[], locale)`,
-        [SITE_KEY, localeCandidates]
+        [SITE_KEY, localeCandidates, visibleStatuses]
       ),
       query(
         `SELECT id, locale, slug, page_type, title, summary, blocks, seo,
                 status, version, published_at
            FROM company_site.content_pages
           WHERE site_key = $1
-            AND status = 'published'
+            AND status = ANY($3::text[])
             AND locale = ANY($2::text[])
           ORDER BY array_position($2::text[], locale), slug`,
-        [SITE_KEY, localeCandidates]
+        [SITE_KEY, localeCandidates, visibleStatuses]
       ),
       query(
         `SELECT p.id, p.product_code, p.slug, p.category, p.applications,
@@ -346,42 +386,61 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
            FROM company_site.products p
            JOIN company_site.product_locales pl
              ON pl.product_id = p.id
-            AND pl.status = 'published'
+             AND pl.status = ANY($3::text[])
             AND pl.locale = ANY($2::text[])
           WHERE p.site_key = $1
-            AND p.status = 'published'
+            AND p.status = ANY($3::text[])
           ORDER BY array_position($2::text[], pl.locale), p.product_code`,
-        [SITE_KEY, localeCandidates]
+        [SITE_KEY, localeCandidates, visibleStatuses]
       ),
       query(
         `SELECT id, locale, slug, title, industry, scenario, content, seo, status
            FROM company_site.solutions
           WHERE site_key = $1
-            AND status = 'published'
+            AND status = ANY($3::text[])
             AND locale = ANY($2::text[])
           ORDER BY array_position($2::text[], locale), slug`,
-        [SITE_KEY, localeCandidates]
+        [SITE_KEY, localeCandidates, visibleStatuses]
       ),
       query(
         `SELECT id, locale, slug, title, industry, scope, delivery_date,
                 content, public_level, status
            FROM company_site.cases
           WHERE site_key = $1
-            AND status = 'published'
+            AND status = ANY($3::text[])
             AND public_level <> 'internal'
             AND locale = ANY($2::text[])
           ORDER BY array_position($2::text[], locale), slug`,
-        [SITE_KEY, localeCandidates]
+        [SITE_KEY, localeCandidates, visibleStatuses]
       ),
       query(
         `SELECT id, locale, document_type, title, content, citations,
                 status, version, updated_at
            FROM company_site.knowledge_documents
           WHERE site_key = $1
-            AND status = 'published'
+            AND status = ANY($3::text[])
             AND document_type = 'faq'
             AND locale = ANY($2::text[])
           ORDER BY array_position($2::text[], locale), title`,
+        [SITE_KEY, localeCandidates, visibleStatuses]
+      ),
+      query(
+        `SELECT id, locale, path, title, description, canonical, robots,
+                keywords, structured_data, status
+           FROM company_site.seo_metadata
+          WHERE site_key = $1
+            AND status = ANY($3::text[])
+            AND locale = ANY($2::text[])
+          ORDER BY array_position($2::text[], locale), path`,
+        [SITE_KEY, localeCandidates, visibleStatuses]
+      ),
+      query(
+        `SELECT id, locale, market, keyword, intent, target_path, priority
+           FROM company_site.seo_keywords
+          WHERE site_key = $1
+            AND status = 'active'
+            AND locale = ANY($2::text[])
+          ORDER BY array_position($2::text[], locale), priority, keyword`,
         [SITE_KEY, localeCandidates]
       )
     ]);
@@ -394,6 +453,10 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
       }
       return [...picked.values()];
     };
+    const preferRequestedLocale = (items) => {
+      const requestedItems = items.filter((item) => safeLocale(item?.locale, '') === localeCandidates[0]);
+      return requestedItems.length ? requestedItems : items;
+    };
 
     return {
       requestedLocale: localeCandidates[0],
@@ -402,19 +465,21 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
       products: pickByKey(rows(productResult), (item) => `${item.slug}`).map(mapProduct),
       solutions: pickByKey(rows(solutionResult), (item) => `${item.slug}`).map(mapSolution),
       cases: pickByKey(rows(caseResult), (item) => `${item.slug}`).map(mapCase),
-      faq: rows(faqResult).map(mapFaq)
+      faq: preferRequestedLocale(rows(faqResult)).map(mapFaq),
+      seo: pickByKey(rows(seoResult), (item) => `${item.path}`).map(mapSeo),
+      keywords: pickByKey(preferRequestedLocale(rows(keywordResult)), (item) => `${item.keyword}`).map(mapKeyword)
     };
   };
 
   const getPublicSiteConfig = async (req, res) => {
     try {
-      const site = await loadPublishedSite(req);
+      const site = await loadPublishedSite(req, { allowDraft: previewDraftEnabled });
       if (!site) {
         sendJson(res, 404, { code: 'SITE_NOT_FOUND', message: 'Published site configuration was not found' });
         return;
       }
       const url = readUrl(req);
-      const content = await loadPublicContent(site, url.searchParams.get('locale'));
+      const content = await loadPublicContent(site, url.searchParams.get('locale'), { allowDraft: previewDraftEnabled });
       sendJson(res, 200, {
         ok: true,
         site: mapSite(site, SITE_KEY),
@@ -921,6 +986,28 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
         sendJson(res, 404, { code: 'SITE_NOT_FOUND', message: 'Site configuration was not found' });
         return;
       }
+      if (body.enabledLocales !== undefined && Array.isArray(body.enabledLocales)) {
+        const locales = [...new Set(body.enabledLocales.map((item) => safeLocale(item, '')).filter(Boolean))];
+        if (locales.length) {
+          await query(
+            `INSERT INTO company_site.site_locales
+              (site_key, locale, fallback_locale, status, translation_owner)
+             SELECT $1, locale, '', 'draft', $3
+               FROM unnest($2::text[]) AS locale
+             ON CONFLICT (site_key, locale) DO UPDATE
+               SET status = CASE WHEN company_site.site_locales.status = 'archived' THEN 'draft' ELSE company_site.site_locales.status END,
+                   translation_owner = EXCLUDED.translation_owner,
+                   updated_at = now()`,
+            [SITE_KEY, locales, text(user?.id || user?.username, 160)]
+          );
+          await query(
+            `UPDATE company_site.site_locales
+                SET status = 'archived', updated_at = now()
+              WHERE site_key = $1 AND NOT (locale = ANY($2::text[]))`,
+            [SITE_KEY, locales]
+          );
+        }
+      }
       await query(
         `INSERT INTO company_site.audit_events
           (site_key, actor_type, actor_id, action, object_type, object_id, result_code, details)
@@ -937,11 +1024,13 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
     const definitions = {
       pages: { table: 'content_pages', columns: 'id, site_key, locale, slug, page_type, title, summary, blocks, seo, status, version, published_at, updated_at' },
       products: { table: 'products', columns: 'id, site_key, product_code, slug, category, applications, specifications, delivery, status, updated_at' },
+      productLocales: { table: 'product_locales', columns: 'id, product_id, locale, name, summary, description, image_urls, seo, faq, status, updated_at' },
       solutions: { table: 'solutions', columns: 'id, site_key, locale, slug, title, industry, scenario, content, seo, status, updated_at' },
       cases: { table: 'cases', columns: 'id, site_key, locale, slug, title, industry, scope, delivery_date, content, evidence_ids, public_level, status, updated_at' },
       evidence: { table: 'evidence_records', columns: 'id, site_key, claim, source_type, source_ref, evidence, verified_by, verified_at, expires_at, status, updated_at' },
       seo: { table: 'seo_metadata', columns: 'id, site_key, locale, path, title, description, canonical, robots, keywords, structured_data, status, updated_at' },
-      knowledge: { table: 'knowledge_documents', columns: 'id, site_key, locale, document_type, title, content, citations, forbidden_claims, status, version, effective_from, expires_at, updated_at' }
+      knowledge: { table: 'knowledge_documents', columns: 'id, site_key, locale, document_type, title, content, citations, forbidden_claims, status, version, effective_from, expires_at, updated_at' },
+      keywords: { table: 'seo_keywords', columns: 'id, site_key, locale, market, keyword, intent, target_path, priority, status, notes, updated_at' }
     };
     const definition = definitions[objectType];
     if (!definition) {
@@ -952,6 +1041,21 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
     const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get('limit') || '50', 10) || 50, 1), 200);
     const offset = Math.max(Number.parseInt(url.searchParams.get('offset') || '0', 10) || 0, 0);
     try {
+      if (objectType === 'productLocales') {
+        const result = await query(
+          `SELECT pl.id, pl.product_id, p.product_code, p.slug, pl.locale, pl.name,
+                  pl.summary, pl.description, pl.image_urls, pl.seo, pl.faq,
+                  pl.status, pl.updated_at
+             FROM company_site.product_locales pl
+             JOIN company_site.products p ON p.id = pl.product_id
+            WHERE p.site_key = $1
+            ORDER BY pl.updated_at DESC
+            LIMIT $2 OFFSET $3`,
+          [SITE_KEY, limit, offset]
+        );
+        sendJson(res, 200, { ok: true, objectType, limit, offset, items: rows(result) });
+        return;
+      }
       const result = await query(
         `SELECT ${definition.columns}
            FROM company_site.${definition.table}
@@ -1002,6 +1106,7 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
     if (kind === 'locale') return { value: safeLocale(value, ''), sqlType: 'text' };
     if (kind === 'slug') return { value: safeSlug(value), sqlType: 'text' };
     if (kind === 'id') return { value: text(value, 80), sqlType: 'text' };
+    if (kind === 'integer') return { value: Math.min(100, Math.max(1, Number.parseInt(value, 10) || 50)), sqlType: 'integer' };
     if (kind === 'date' || kind === 'dateTime') return { value: value ? text(value, 80) : null, sqlType: 'date' };
     if (kind === 'textLong') return { value: text(value, 12000), sqlType: 'text' };
     if (kind === 'path') {
@@ -1098,7 +1203,7 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
           return `${item.column} = $${params.length}${item.sqlType === 'jsonb' ? '::jsonb' : ''}`;
         });
       if (!assignments.length) return { error: 'NO_ALLOWED_FIELDS' };
-      assignments.push("status = 'draft'", 'updated_at = now()');
+      assignments.push(`status = '${definition.table === 'seo_keywords' ? 'active' : 'draft'}'`, 'updated_at = now()');
       if (Object.prototype.hasOwnProperty.call(existing, 'version')) assignments.push('version = COALESCE(version, 1) + 1');
       if (Object.prototype.hasOwnProperty.call(existing, 'updated_by')) {
         params.push(userId);
@@ -1128,38 +1233,28 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
         ));
       }
     } else {
-      const params = [SITE_KEY];
-      const columns = ['site_key'];
-      const placeholders = ['$1'];
-      for (const item of values) {
-        columns.push(item.column);
-        params.push(item.value);
-        placeholders.push(`$${params.length}${item.sqlType === 'jsonb' ? '::jsonb' : ''}`);
-      }
-      columns.push('status', 'version', 'created_by', 'updated_by');
-      params.push('draft', 1, userId, userId);
-      placeholders.push(`$${params.length - 3}`, `$${params.length - 2}`, `$${params.length - 1}`, `$${params.length}`);
-      if (definition.table === 'product_locales') {
-        const productIndex = values.findIndex((item) => item.input === 'productId');
-        const productParam = productIndex >= 0 ? productIndex + 2 : 0;
-        const localeParams = params.slice(1);
-        const localePlaceholders = values.map((item, index) => `$${index + 1}${item.sqlType === 'jsonb' ? '::jsonb' : ''}`);
-        localePlaceholders.push(`$${localeParams.length - 3}`, `$${localeParams.length - 2}`, `$${localeParams.length - 1}`, `$${localeParams.length}`);
-        saved = firstRow(await query(
-          `INSERT INTO company_site.product_locales (${columns.slice(1).join(', ')})
-           VALUES (${localePlaceholders.join(', ')})
-           RETURNING *`,
-          localeParams
-        ));
-        if (!saved || !productParam) return { error: 'CONTENT_CREATE_FAILED' };
-      } else {
-        saved = firstRow(await query(
-          `INSERT INTO company_site.${definition.table} (${columns.join(', ')})
-           VALUES (${placeholders.join(', ')})
-           RETURNING *`,
-          params
-        ));
-      }
+      const isProductLocale = definition.table === 'product_locales';
+      const params = [];
+      const columns = [];
+      const placeholders = [];
+      const appendColumn = (column, value, sqlType = 'text') => {
+        columns.push(column);
+        params.push(value);
+        placeholders.push(`$${params.length}${sqlType === 'jsonb' ? '::jsonb' : ''}`);
+      };
+      if (!isProductLocale) appendColumn('site_key', SITE_KEY);
+      for (const item of values) appendColumn(item.column, item.value, item.sqlType);
+      appendColumn('status', definition.table === 'seo_keywords' ? 'active' : 'draft');
+      if (['content_pages', 'knowledge_documents'].includes(definition.table)) appendColumn('version', 1);
+      if (['content_pages', 'products', 'knowledge_documents'].includes(definition.table)) appendColumn('created_by', userId);
+      if (['content_pages', 'products', 'knowledge_documents', 'seo_metadata'].includes(definition.table)) appendColumn('updated_by', userId);
+      saved = firstRow(await query(
+        `INSERT INTO company_site.${definition.table} (${columns.join(', ')})
+         VALUES (${placeholders.join(', ')})
+         RETURNING *`,
+        params
+      ));
+      if (!saved) return { error: 'CONTENT_CREATE_FAILED' };
     }
     if (!saved) return { error: 'CONTENT_SAVE_FAILED' };
     const revisionRow = definition.table === 'product_locales' ? await getContentRow(definition, saved.id) : saved;
@@ -1188,7 +1283,7 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
         sendJson(res, status, { code: result.error, message: result.missing ? `Missing fields: ${result.missing.join(', ')}` : 'Content could not be saved' });
         return;
       }
-      sendJson(res, result.created ? 201 : 200, { ok: true, item: result.row, status: 'draft' });
+      sendJson(res, result.created ? 201 : 200, { ok: true, item: result.row, status: result.row?.status || 'draft' });
     } catch {
       sendJson(res, 503, { code: 'CONTENT_SAVE_UNAVAILABLE', message: 'Content save is temporarily unavailable' });
     }
@@ -1374,6 +1469,52 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
     }
   };
 
+  const generateGeoSnapshots = async (req, res, user = {}) => {
+    let body = {};
+    try {
+      body = await readJsonBody(req, 16 * 1024);
+    } catch {
+      sendJson(res, 400, { code: 'BAD_REQUEST', message: 'Invalid JSON body' });
+      return;
+    }
+    const locale = safeLocale(body?.locale, 'zh-CN');
+    const platform = text(body?.platform, 80) || 'internal-baseline';
+    try {
+      const source = await query(
+        `SELECT title, content, citations
+           FROM company_site.knowledge_documents
+          WHERE site_key = $1
+            AND locale = $2
+            AND document_type = 'faq'
+            AND status <> 'archived'
+          ORDER BY updated_at DESC
+          LIMIT 50`,
+        [SITE_KEY, locale]
+      );
+      const inserted = [];
+      for (const item of rows(source)) {
+        const result = await query(
+          `INSERT INTO company_site.geo_answer_snapshots
+            (site_key, locale, platform, question, answer, citations, accuracy_status, checked_by, checked_at)
+           VALUES ($1, $2, $3, $4, $5, $6::jsonb, 'pending', $7, now())
+           RETURNING id, locale, platform, question, answer, citations, accuracy_status, checked_by, checked_at, created_at`,
+          [SITE_KEY, locale, platform, text(item.title, 2000), text(item.content, 12000), JSON.stringify(item.citations || []), text(user?.id || user?.username, 160)]
+        );
+        const snapshot = firstRow(result);
+        if (snapshot) inserted.push(snapshot);
+      }
+      await query(
+        `INSERT INTO company_site.audit_events
+          (site_key, actor_type, actor_id, action, object_type, object_id, result_code, details)
+         VALUES ($1, 'employee', $2, 'geo.snapshot.generate', 'geo_answer_snapshot', $1, 'OK', $3::jsonb)`,
+        [SITE_KEY, text(user?.id || user?.username, 160), JSON.stringify({ locale, platform, count: inserted.length })]
+      );
+      sendJson(res, 201, { ok: true, count: inserted.length, items: inserted });
+    } catch {
+      sendJson(res, 503, { code: 'GEO_SNAPSHOT_GENERATE_UNAVAILABLE', message: 'GEO snapshot generation is temporarily unavailable' });
+    }
+  };
+
   const listGeoSnapshots = async (req, res) => {
     const url = readUrl(req);
     const limit = Math.min(Math.max(Number.parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1), 500);
@@ -1389,6 +1530,44 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
       sendJson(res, 200, { ok: true, limit, items: rows(result) });
     } catch {
       sendJson(res, 503, { code: 'GEO_SNAPSHOTS_UNAVAILABLE', message: 'GEO snapshots are temporarily unavailable' });
+    }
+  };
+
+  const reviewGeoSnapshot = async (req, res, snapshotId, user = {}) => {
+    let body = {};
+    try {
+      body = await readJsonBody(req, 8 * 1024);
+    } catch {
+      sendJson(res, 400, { code: 'BAD_REQUEST', message: 'Invalid JSON body' });
+      return;
+    }
+    const accuracyStatus = text(body?.accuracyStatus || body?.accuracy_status, 32).toLowerCase();
+    if (!snapshotId || !['pending', 'accurate', 'needs_correction', 'obsolete'].includes(accuracyStatus)) {
+      sendJson(res, 400, { code: 'VALIDATION_FAILED', message: 'snapshot id and a valid accuracyStatus are required' });
+      return;
+    }
+    try {
+      const result = await query(
+        `UPDATE company_site.geo_answer_snapshots
+            SET accuracy_status = $1, checked_by = $2, checked_at = now()
+          WHERE id = $3 AND site_key = $4
+          RETURNING id, locale, platform, question, answer, citations, accuracy_status, checked_by, checked_at, created_at`,
+        [accuracyStatus, text(user?.id || user?.username, 160), snapshotId, SITE_KEY]
+      );
+      const snapshot = firstRow(result);
+      if (!snapshot) {
+        sendJson(res, 404, { code: 'GEO_SNAPSHOT_NOT_FOUND', message: 'GEO snapshot was not found' });
+        return;
+      }
+      await query(
+        `INSERT INTO company_site.audit_events
+          (site_key, actor_type, actor_id, action, object_type, object_id, result_code, details)
+         VALUES ($1, 'employee', $2, 'geo.snapshot.review', 'geo_answer_snapshot', $3, 'OK', $4::jsonb)`,
+        [SITE_KEY, text(user?.id || user?.username, 160), snapshotId, JSON.stringify({ accuracyStatus })]
+      );
+      sendJson(res, 200, { ok: true, snapshot });
+    } catch {
+      sendJson(res, 503, { code: 'GEO_SNAPSHOT_REVIEW_UNAVAILABLE', message: 'GEO snapshot review is temporarily unavailable' });
     }
   };
 
@@ -1412,10 +1591,15 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
       solution: { table: 'solutions', publishedBy: false },
       case: { table: 'cases', publishedBy: false },
       evidence: { table: 'evidence_records', publishedBy: false },
-      knowledge: { table: 'knowledge_documents', publishedBy: false }
+      knowledge: { table: 'knowledge_documents', publishedBy: false },
+      seo: { table: 'seo_metadata', publishedBy: false },
+      keyword: { table: 'seo_keywords', publishedBy: false }
     };
     const target = tableMap[objectType];
-    if (!target || !objectId || !allowedStatuses.has(status)) {
+    const statusAllowed = objectType === 'keyword'
+      ? ['active', 'paused', 'archived'].includes(status)
+      : allowedStatuses.has(status);
+    if (!target || !objectId || !statusAllowed) {
       sendJson(res, 400, { code: 'VALIDATION_FAILED', message: 'objectType, id and a valid status are required' });
       return;
     }
@@ -1451,6 +1635,19 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
         if (!site) {
           sendJson(res, 404, { code: 'CONTENT_NOT_FOUND', message: 'Site configuration was not found' });
           return;
+        }
+        if (status === 'published') {
+          await query(
+            `UPDATE company_site.site_locales
+                SET status = 'published', updated_at = now()
+              WHERE site_key = $1
+                AND locale IN (
+                  SELECT jsonb_array_elements_text(enabled_locales)
+                    FROM company_site.site_config
+                   WHERE site_key = $1
+                )`,
+            [SITE_KEY]
+          );
         }
         await query(
           `INSERT INTO company_site.audit_events
@@ -1523,6 +1720,8 @@ function createCompanySiteHandlers({ query, sendJson, sendText, readJsonBody, no
     handleRunSeoCheck: runSeoCheck,
     handleListSeoChecks: listSeoChecks,
     handleRecordGeoSnapshot: recordGeoSnapshot,
+    handleGenerateGeoSnapshots: generateGeoSnapshots,
+    handleReviewGeoSnapshot: reviewGeoSnapshot,
     handleListGeoSnapshots: listGeoSnapshots,
     handlePublishContent: publishContent,
     _private: { normalizeLead, mapSite, mapPage, mapProduct, mapSolution, mapCase, mapFaq, loadPublishedSite }

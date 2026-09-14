@@ -1,0 +1,62 @@
+services:
+  db:
+    image: postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f
+    container_name: eiscore-company-site-preview-db
+    restart: unless-stopped
+    env_file:
+      - ../../env/.env
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      POSTGRES_DB: eiscore
+      POSTGREST_DB_PASSWORD: "${POSTGREST_DB_PASSWORD:?POSTGREST_DB_PASSWORD is required}"
+      AGENT_DB_PASSWORD: "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
+      EISCORE_AUTH_JWT_SECRET: "${EISCORE_AUTH_JWT_SECRET:-}"
+    ports:
+      - "25432:5432"
+    volumes:
+      - company_site_preview_pgdata:/var/lib/postgresql/data
+      - ../../database/bootstrap/roles-v2.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro
+      - ../../database/baselines/eiscore-db-v1/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ../../database/baselines/eiscore-db-v1/register.sql:/docker-entrypoint-initdb.d/02_register.sql:ro
+      - ../../database/migrations/sql/core-002-role-boundaries.sql:/docker-entrypoint-initdb.d/03_role_boundaries.sql:ro
+      - ../../database/migrations/sql/core-003-rls-boundaries.sql:/docker-entrypoint-initdb.d/04_rls_boundaries.sql:ro
+      - ../../scripts/configure-database-runtime-secrets-v2.sh:/docker-entrypoint-initdb.d/05_runtime_secrets.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d eiscore"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  agent-runtime:
+    build: ../../realtime
+    container_name: eiscore-company-site-preview-agent
+    restart: unless-stopped
+    command: sh -lc "node index.js"
+    env_file:
+      - ../../env/.env
+    environment:
+      NODE_ENV: development
+      COMPANY_SITE_PREVIEW_ALLOW_DRAFT: "true"
+      EISCORE_DB_HOST: db
+      EISCORE_DB_PORT: 5432
+      EISCORE_DB_NAME: eiscore
+      EISCORE_AGENT_DB_USER: eiscore_agent
+      AGENT_DB_PASSWORD: "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
+      EISCORE_AUTH_JWT_SECRET: "${EISCORE_AUTH_JWT_SECRET:-}"
+      CHANNEL: eis_events
+    ports:
+      - "28078:8078"
+    volumes:
+      - ../../realtime:/app
+      - ../../eiscore-base:/workspace/eiscore-base
+      - ../../eiscore-company-site:/workspace/eiscore-company-site
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  company_site_preview_pgdata:
+    name: eiscore_company_site_preview_pgdata

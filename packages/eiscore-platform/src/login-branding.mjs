@@ -73,6 +73,7 @@ const TEXT_FIELDS = Object.freeze([
   'footerText',
   'icpText'
 ])
+const EXPLICIT_OPTIONAL_MEDIA_FIELDS = new Set(['logo', 'backgroundImage'])
 
 const text = (value, fallback = '') => String(value || fallback || '').trim()
 const cloneList = (value) => value.map((item) => ({ ...item }))
@@ -86,7 +87,11 @@ function normalizeList(input, fallback, mapper, { fallbackOnEmpty = false, max =
 function normalizeWithFallback(input, fallback, { surface = 'desktop' } = {}) {
   const source = input && typeof input === 'object' ? input : {}
   const result = {}
-  for (const key of TEXT_FIELDS) result[key] = text(source[key], fallback[key])
+  for (const key of TEXT_FIELDS) {
+    const preservesExplicitEmpty = EXPLICIT_OPTIONAL_MEDIA_FIELDS.has(key)
+      && Object.hasOwn(source, key)
+    result[key] = preservesExplicitEmpty ? text(source[key]) : text(source[key], fallback[key])
+  }
   result.showSecondaryAction = source.showSecondaryAction === undefined
     ? fallback.showSecondaryAction === true
     : source.showSecondaryAction === true

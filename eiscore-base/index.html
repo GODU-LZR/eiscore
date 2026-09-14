@@ -10,6 +10,39 @@
         if (!('serviceWorker' in navigator)) return
         if (location.protocol !== 'https:' && location.hostname !== 'localhost') return
 
+        // Vite serves source modules directly. A previously installed production
+        // worker would otherwise return stale /src/*.js and CSS from cache.
+        var isViteDevelopment = Boolean(document.querySelector('script[src="/@vite/client"]'))
+        if (isViteDevelopment) {
+          var DEV_CLEANUP_KEY = 'eiscore-vite-dev-cache-cleanup-v1'
+          Promise.all([
+            navigator.serviceWorker.getRegistrations()
+              .then(function (registrations) {
+                return Promise.all(registrations.map(function (registration) {
+                  return registration.unregister()
+                }))
+              })
+              .catch(function () { return [] }),
+            ('caches' in window ? caches.keys() : Promise.resolve([]))
+              .then(function (keys) {
+                return Promise.all(keys
+                  .filter(function (key) { return key.indexOf('eiscore-client-assets-') === 0 })
+                  .map(function (key) { return caches.delete(key) }))
+              })
+              .catch(function () { return [] })
+          ]).then(function () {
+            if (!navigator.serviceWorker.controller) return
+            try {
+              if (sessionStorage.getItem(DEV_CLEANUP_KEY) === 'done') return
+              sessionStorage.setItem(DEV_CLEANUP_KEY, 'done')
+            } catch (e) {}
+            var next = new URL(location.href)
+            next.searchParams.set('__vite_fresh', Date.now().toString())
+            location.replace(next.toString())
+          })
+          return
+        }
+
         var RELEASE_VERSION = '20260612224947'
         var CACHE_PREFIX = 'eiscore-client-assets-v' + RELEASE_VERSION + '-'
         var VERSION_KEY = 'eiscore-client-version'

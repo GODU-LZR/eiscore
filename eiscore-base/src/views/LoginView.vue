@@ -41,8 +41,23 @@
 
     <main>
       <section class="hero-section" id="overview">
-        <div class="hero-media" :class="{ 'has-image': heroImage }" aria-hidden="true">
-          <img v-if="heroImage" :src="heroImage" alt="" />
+        <div
+          class="hero-media"
+          :class="{ 'has-image': heroImage }"
+          aria-hidden="true"
+          @mouseenter="stopHeroAutoplay"
+          @mouseleave="startHeroAutoplay"
+          @focusin="stopHeroAutoplay"
+          @focusout="startHeroAutoplay"
+        >
+          <Transition name="hero-slide" mode="out-in">
+            <img
+              v-if="activeHeroSlide"
+              :key="activeHeroSlide.url"
+              :src="activeHeroSlide.url"
+              alt=""
+            />
+          </Transition>
         </div>
         <div class="hero-shade" />
 
@@ -62,7 +77,6 @@
               </span>
             </div>
           </div>
-
         </div>
 
         <div v-if="heroFacts.length" class="hero-facts" :aria-label="portalUi.highlightsAriaLabel">
@@ -72,10 +86,92 @@
           </span>
         </div>
 
+        <div
+          v-if="carouselItems.length > 1"
+          class="hero-carousel"
+          @mouseenter="stopHeroAutoplay"
+          @mouseleave="startHeroAutoplay"
+          @focusin="stopHeroAutoplay"
+          @focusout="startHeroAutoplay"
+        >
+          <div class="hero-carousel-caption" aria-live="polite">
+            <span>{{ activeHeroSlide?.subtitle }}</span>
+            <strong>{{ activeHeroSlide?.title }}</strong>
+          </div>
+          <div class="hero-carousel-controls">
+            <button
+              type="button"
+              class="hero-carousel-arrow"
+              :aria-label="activeLocale.toLowerCase().startsWith('en') ? 'Previous slide' : '上一张图片'"
+              title="上一张"
+              @click="previousHeroSlide"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+            <div class="hero-carousel-dots" role="tablist" aria-label="首屏图片">
+              <button
+                v-for="(item, index) in carouselItems"
+                :key="item.url"
+                type="button"
+                role="tab"
+                class="hero-carousel-dot"
+                :class="{ 'is-active': index === activeHeroIndex }"
+                :aria-selected="index === activeHeroIndex"
+                :aria-label="`${activeLocale.toLowerCase().startsWith('en') ? 'Slide' : '第'} ${index + 1}`"
+                @click="setHeroSlide(index)"
+              />
+            </div>
+            <button
+              type="button"
+              class="hero-carousel-arrow"
+              :aria-label="activeLocale.toLowerCase().startsWith('en') ? 'Next slide' : '下一张图片'"
+              title="下一张"
+              @click="nextHeroSlide"
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+            <button
+              type="button"
+              class="hero-carousel-toggle"
+              :aria-label="heroPaused ? (activeLocale.toLowerCase().startsWith('en') ? 'Play slideshow' : '播放轮播') : (activeLocale.toLowerCase().startsWith('en') ? 'Pause slideshow' : '暂停轮播')"
+              :title="heroPaused ? '播放轮播' : '暂停轮播'"
+              @click="toggleHeroAutoplay"
+            >
+              <span aria-hidden="true">{{ heroPaused ? '▶' : 'Ⅱ' }}</span>
+            </button>
+          </div>
+        </div>
+
         <button type="button" class="scroll-cue" @click="scrollToSection('metrics')" :aria-label="portalUi.scrollAriaLabel">
           <span>{{ branding.scrollCueText }}</span>
           <i />
         </button>
+      </section>
+
+      <section
+        class="product-3d-band"
+        :aria-label="activeLocale.toLowerCase().startsWith('en') ? 'Product 3D viewer' : '产品三维展示'"
+      >
+        <div class="product-3d-band-inner">
+          <PineappleProcessViewer
+            v-if="viewerIsPineapple"
+            class="hero-product-viewer login-product-viewer"
+            :product-name="viewerProduct.name"
+            :category="viewerProduct.category"
+            :summary="viewerProduct.summary"
+            :accent-color="safeThemeColor"
+            :locale="activeLocale"
+          />
+          <Product3DViewer
+            v-else
+            class="hero-product-viewer"
+            :product-name="viewerProduct.name"
+            :category="viewerProduct.category"
+            :summary="viewerProduct.summary"
+            :accent-color="safeThemeColor"
+            :locale="activeLocale"
+          />
+        </div>
       </section>
 
       <section class="metrics-band reveal" id="metrics">
@@ -313,7 +409,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { computed, ref, reactive, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, reactive, watch, nextTick, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -322,6 +418,9 @@ import { mix } from '@/utils/theme'
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 import { applyEnterpriseSeoHead, buildEnterpriseSeoHead } from '@eiscore/platform/enterprise-seo'
+
+const Product3DViewer = defineAsyncComponent(() => import('@/components/Product3DViewer.vue'))
+const PineappleProcessViewer = defineAsyncComponent(() => import('@/components/PineappleProcessViewer.vue'))
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -333,6 +432,9 @@ const headerLoginRef = ref(null)
 const pageScrolled = ref(false)
 const switchingLocale = ref(false)
 const activeSolutionIndex = ref(0)
+const activeHeroIndex = ref(0)
+const heroPaused = ref(false)
+let heroTimer = null
 let restoreSeoHead = () => {}
 
 const loginForm = reactive({
@@ -375,6 +477,17 @@ const loginRules = computed(() => ({
   password: [{ required: true, message: portalUi.value.passwordRequired, trigger: 'blur' }]
 }))
 const publicProducts = computed(() => Array.isArray(portal.value.products) ? portal.value.products : [])
+const viewerProduct = computed(() => {
+  const product = publicProducts.value[0] || {}
+  return {
+    name: String(product.name || companyName.value || '').trim(),
+    category: String(product.category || (activeLocale.value.toLowerCase().startsWith('en') ? 'PRODUCT SYSTEM' : '产品系统')).trim(),
+    summary: String(product.summary || '').trim()
+  }
+})
+const viewerIsPineapple = computed(() => /菠萝|pineapple/i.test(
+  viewerProduct.value.name + ' ' + viewerProduct.value.category
+))
 const publicSolutions = computed(() => Array.isArray(portal.value.solutions) ? portal.value.solutions : [])
 const activeSolutionMedia = computed(() => (
   publicSolutions.value[activeSolutionIndex.value] || publicSolutions.value[0] || null
@@ -382,6 +495,7 @@ const activeSolutionMedia = computed(() => (
 const siteTagText = computed(() => branding.value.siteTag)
 const brandInitial = computed(() => companyName.value.slice(0, 1))
 const heroImage = computed(() => branding.value.backgroundImage || carouselItems.value[0]?.url || '')
+const activeHeroSlide = computed(() => carouselItems.value[activeHeroIndex.value] || carouselItems.value[0] || null)
 const introLead = computed(() => {
   const text = branding.value.description.trim()
   const chinese = activeLocale.value.toLowerCase().startsWith('zh')
@@ -447,6 +561,47 @@ const carouselItems = computed(() => branding.value.carouselImages
   }))
   .filter((item) => item.url))
 
+const prefersReducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+
+const stopHeroAutoplay = () => {
+  if (heroTimer) {
+    window.clearInterval(heroTimer)
+    heroTimer = null
+  }
+}
+
+const startHeroAutoplay = () => {
+  stopHeroAutoplay()
+  if (heroPaused.value || prefersReducedMotion() || carouselItems.value.length < 2) return
+  heroTimer = window.setInterval(() => {
+    activeHeroIndex.value = (activeHeroIndex.value + 1) % carouselItems.value.length
+  }, 6500)
+}
+
+const setHeroSlide = (index) => {
+  if (index < 0 || index >= carouselItems.value.length) return
+  activeHeroIndex.value = index
+  startHeroAutoplay()
+}
+
+const previousHeroSlide = () => {
+  const length = carouselItems.value.length
+  if (length < 2) return
+  setHeroSlide((activeHeroIndex.value - 1 + length) % length)
+}
+
+const nextHeroSlide = () => {
+  const length = carouselItems.value.length
+  if (length < 2) return
+  setHeroSlide((activeHeroIndex.value + 1) % length)
+}
+
+const toggleHeroAutoplay = () => {
+  heroPaused.value = !heroPaused.value
+  if (heroPaused.value) stopHeroAutoplay()
+  else startHeroAutoplay()
+}
+
 const leaderItems = computed(() => branding.value.leaders
   .map((item) => ({
     name: String(item?.name || '').trim(),
@@ -509,6 +664,13 @@ watch(loginVisible, (visible) => {
 
 watch(activeLocale, () => {
   activeSolutionIndex.value = 0
+  activeHeroIndex.value = 0
+  startHeroAutoplay()
+})
+
+watch(carouselItems, () => {
+  if (activeHeroIndex.value >= carouselItems.value.length) activeHeroIndex.value = 0
+  startHeroAutoplay()
 })
 
 const openSecondaryAction = () => {
@@ -546,6 +708,7 @@ onMounted(async () => {
   const requestedLocale = new URLSearchParams(window.location.search).get('lang') || ''
   await systemStore.loadConfig({ locale: requestedLocale })
   systemStore.initTheme()
+  startHeroAutoplay()
   refreshSeoHead()
   handleScroll()
   window.addEventListener('scroll', handleScroll, { passive: true })
@@ -568,6 +731,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  stopHeroAutoplay()
   window.removeEventListener('scroll', handleScroll)
   document.body.classList.remove('employee-login-open')
   restoreSeoHead()

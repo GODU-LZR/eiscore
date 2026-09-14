@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "enterpriseId": "nanpai-demo",
+  "researchScope": "Public-web research for an isolated local case configuration and company-site test package",
+  "retrievedAt": "2026-09-04",
+  "publicationPolicy": {
+    "packageStatus": "draft",
+    "factStatus": "pending",
+    "productionApproved": false,
+    "contactDetails": "excluded-until-company-confirmed",
+    "externalImagesAndLogos": "six official-site image candidates included for isolated local draft testing; production authorization pending; logos excluded",
+    "commercialMetrics": "internal-research-only-until-company-confirmed"
+  },
+  "sources": [
+    {
+      "sourceKey": "nanpai-official-home",
+      "publisher": "广东南派食品有限公司官网",
+      "title": "广东南派食品有限公司官网首页",
+      "url": "http://www.nanpainc.com/",
+      "sourceType": "company_website",
+      "confidence": "medium",
+      "usableClaims": ["品牌与产品方向入口"],
+      "restrictions": ["首页模板、联系方式和宣传性数字不直接进入测试站", "厂区图片仅作为本地草稿候选素材，生产使用前须取得权利方授权"]
+    },
+    {
+      "sourceKey": "nanpai-official-company",
+      "publisher": "广东南派食品有限公司官网",
+      "title": "企业简介",
+      "url": "http://www.nanpainc.com/h-col-101.html",
+      "sourceType": "company_website",
+      "confidence": "medium",
+      "usableClaims": [
+        "企业公开定位涉及水果种植、加工、研发、销售与服务",
+        "公开产品方向包括原汁原浆、果酱果馅、鲜果加工、饮料与果粒酱"
+      ],
+      "restrictions": [
+        "页面存在模板残留和联系方式冲突",
+        "两个工厂、生产线数量和产能数字只保留为待企业确认线索",
+        "官网所述2009年与现法人主体工商索引年份不一致，不用于公开成立年份"
+      ]
+    },
+    {
+      "sourceKey": "nanpai-official-products",
+      "publisher": "广东南派食品有限公司官网",
+      "title": "产品中心",
+      "url": "http://www.nanpainc.com/h-col-103.html",
+      "sourceType": "company_website",
+      "confidence": "medium",
+      "usableClaims": [
+        "公开应用方向涉及饮料、冷饮、冰淇淋、烘焙、乳品、调味品与糖果"
+      ],
+      "restrictions": [
+        "不推导具体SKU、规格、库存、产能、价格或交期",
+        "6张官网图片仅作为本地草稿候选素材并单独登记来源；Logo、视频和客户商标不纳入企业包"
+      ]
+    },
+    {
+      "sourceKey": "nanpai-official-coconut-oem",
+      "publisher": "广东南派食品有限公司官网",
+      "title": "椰皇水产品页",
+      "url": "http://www.nanpainc.com/sys-pd/2.html",
+      "sourceType": "company_website",
+      "confidence": "medium",
+      "usableClaims": [
+        "官网展示椰子相关产品与代加工、定制、贴牌方向"
+      ],
+      "restrictions": [
+        "具体合作范围、配方、包装和交付能力须由企业确认"
+      ]
+    },
+    {
+      "sourceKey": "nanpai-official-news-coconut-10",
+      "publisher": "广东南派食品有限公司官网",
+      "title": "南派农场椰皇水相关企业新闻",
+      "url": "http://www.nanpainc.com/sys-nd/10.html",
+      "sourceType": "company_marketing_article",
+      "confidence": "low-medium",
+      "usableClaims": [],
+      "restrictions": ["宣传性口味、健康功效、客户与产销数据均不进入公开测试站"]
+    },
+    {
+      "sourceKey": "nanpai-official-news-pineapple-9",
+      "publisher": "广东南派食品有限公司官网",
+      "title": "南派农场凤梨汁相关企业新闻",
+      "url": "http://www.nanpainc.com/sys-nd/9.html",
+      "sourceType": "company_marketing_article",
+      "confidence": "low-medium",
+      "usableClaims": [],
+      "restrictions": ["市场规模、行业地位、客户、产能和招商联系方式均不进入公开测试站"]
+    },
+    {
+      "sourceKey": "nanpai-official-news-coconut-8",
+      "publisher": "广东南派食品有限公司官网",
+      "title": "椰子水相关企业新闻",
+      "url": "http://www.nanpainc.com/sys-nd/8.html",
+      "sourceType": "company_marketing_article",
+      "confidence": "low-medium",
+      "usableClaims": [],
+      "restrictions": ["口味、复购、健康功效和来源地宣传不作为已核验事实"]
+    },
+    {
+      "sourceKey": "gdou-field-research-2024",
+      "publisher": "广东海洋大学",
+      "title": "食品科技学院开展雷州食品企业调研",
+      "url": "https://www.gdou.edu.cn/info/1092/66761.htm",
+      "publishedAt": "2024-08-21",
+      "sourceType": "university_news",
+      "confidence": "high",
+      "usableClaims": [
+        "企业位于雷州市英利镇科技园内",
+        "主要深加工菠萝、芒果、百香果、椰子、木瓜等南方水果",
+        "公开产品形态包括鲜榨果汁、水果果馅、月饼专用馅、冷冻果泥、速冻原汁、速冻果粒、果干和罐头",
+        "报道所述市场覆盖珠三角、长三角、国内其他地区及东南亚"
+      ],
+      "restrictions": [
+        "厂区面积、认证和荣誉按报道归因，不作为已核验证书或实时经营指标",
+        "认证当前有效期与证书原件仍需企业确认"
+      ]
+    },
+    {
+      "sourceKey": "gdou-framework-cooperation-2024",
+      "publisher": "广东海洋大学",
+      "title": "食品科技学院与广东南派食品有限公司签订校企合作框架协议",
+      "url": "https://www.gdou.edu.cn/info/1092/66937.htm",
+      "publishedAt": "2024-09-06",
+      "sourceType": "university_news",
+      "confidence": "high",
+      "usableClaims": [
+        "双方签订校企合作框架协议",
+        "合作方向涉及热带水果保鲜加工、产品研发、技术研究、项目申报与人才培养"
+      ],
+      "restrictions": [
+        "不推导未公开的项目成果、投入金额或商业转化结果"
+      ]
+    },
+    {
+      "sourceKey": "gdou-integration-base-2024",
+      "publisher": "广东海洋大学",
+      "title": "食品科技学院与广东南派食品有限公司共建科产教融合基地",
+      "url": "https://www.gdou.edu.cn/info/1092/68400.htm",
+      "publishedAt": "2024-11-26",
+      "sourceType": "university_news",
+      "confidence": "high",
+      "usableClaims": [
+        "双方签订科产教融合基地建设协议并挂牌"
+      ],
+      "restrictions": [
+        "基地后续成果和运行范围须以双方后续公开信息为准"
+      ]
+    },
+    {
+      "sourceKey": "nfapp-pineapple-park-2022",
+      "publisher": "南方农村报 / 南方+",
+      "title": "雷州菠萝产业园相关报道",
+      "url": "https://static.nfapp.southcn.com/content/202205/26/c6530151.html",
+      "publishedAt": "2022-05-26",
+      "sourceType": "news_media",
+      "confidence": "medium-high",
+      "usableClaims": [
+        "南派食品是雷州市菠萝产业园培育、引进的产加销融合经营主体之一"
+      ],
+      "restrictions": [
+        "产业园整体产值、农户数和种植面积不得归属于南派食品单体"
+      ]
+    },
+    {
+      "sourceKey": "zhanjiang-daily-2023",
+      "publisher": "湛江日报",
+      "title": "乡村振兴相关企业报道",
+      "url": "https://www.gdzjdaily.com.cn/p/2867868.html",
+      "publishedAt": "2023-11-21",
+      "sourceType": "news_media",
+      "confidence": "medium-high",
+      "usableClaims": [
+        "报道企业通过新理念、新技术和新模式推动农业现代化"
+      ],
+      "restrictions": [
+        "报道中的人员职务和带动农户数量属于时点性媒体信息，公开使用前须企业确认"
+      ]
+    },
+    {
+      "sourceKey": "nfdaily-rd-center-2024",
+      "publisher": "南方日报（东方财富转载）",
+      "title": "雷州菠萝产业与企业研发合作相关报道",
+      "url": "https://finance.eastmoney.com/a/202401052952780236.html",
+      "publishedAt": "2024-01-05",
+      "sourceType": "news_reprint",
+      "confidence": "medium-high",
+      "usableClaims": [
+        "报道南派食品为省级现代农业雷州菠萝产业园实施主体之一",
+        "报道企业与中国热带农业科学院、广东省农业科学院共建菠萝技术研发中心"
+      ],
+      "restrictions": [
+        "项目数量、税惠金额等经营或财务数字不进入公开测试站",
+        "研发中心当前运行状态与成果须企业确认"
+      ]
+    }
+  ],
+  "conflictsAndOpenQuestions": [
+    {
+      "field": "establishmentYear",
+      "issue": "企业官网称业务或企业起始于2009年，公开工商搜索索引显示现法人主体成立于2015-11-17",
+      "decision": "独立站暂不展示成立年份，等待企业提供营业执照或沿革说明"
+    },
+    {
+      "field": "contact",
+      "issue": "官网不同页面的电话、邮箱互相矛盾且存在模板占位特征",
+      "decision": "测试包和独立站不写入电话、邮箱或招商联系人"
+    },
+    {
+      "field": "capacityAndFootprint",
+      "issue": "官网和报道含工厂数、生产线、年产能及厂区面积等数字",
+      "decision": "仅作为内部核验线索，不作为公开站硬指标"
+    },
+    {
+      "field": "certifications",
+      "issue": "广东海洋大学报道提及HACCP、ISO22000及相关荣誉，但当前证书和有效期未核验",
+      "decision": "以来源型FAQ说明，证书列表保持为空"
+    }
+  ],
+  "rejectedForPublicUse": [
+    "矛盾或占位联系方式",
+    "未授权招商联系人和客户名单",
+    "健康、减肥、治疗或营养功效宣传",
+    "无法独立验证的行业第一、领军品牌等广告声明",
+    "未获授权的客户Logo、视频，以及未经权利方确认用于生产发布的企业图片",
+    "未经企业确认的产能、产值、面积、项目数量及带动农户数字"
+  ]
+}

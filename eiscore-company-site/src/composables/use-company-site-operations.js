@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Box,
@@ -21,6 +21,7 @@ import {
 import request from '@/utils/request'
 import { getUserInfo } from '@/utils/auth'
 import { COMPANY_SITE_CAPABILITIES, isCompanyContentTypeEnabled } from '@/domain/company-site-capabilities'
+import { applyEnterpriseDocumentBranding } from '@/domain/enterprise-document-branding'
 import { useRouter } from 'vue-router'
 
 export function useCompanySiteOperations() {
@@ -74,6 +75,7 @@ const canSalesWrite = ref(false)
 const canSalesApprove = ref(false)
 const canSalesPrecheck = ref(false)
 const site = ref(null)
+watch(site, (currentSite) => applyEnterpriseDocumentBranding(currentSite))
 const leads = ref([])
 const drafts = ref([])
 const seoChecks = ref([])
@@ -89,6 +91,7 @@ const correctionFilter = ref('open')
   const contentCollections = reactive({
   pages: [],
   products: [],
+  productLocales: [],
   solutions: [],
   cases: [],
   certificates: [],
@@ -103,6 +106,7 @@ const correctionFilter = ref('open')
 const contentTypes = [
   { key: 'pages', label: '页面', singular: 'page' },
   { key: 'products', label: '产品', singular: 'product' },
+  { key: 'productLocales', label: '产品多语言', singular: 'product_locale' },
   { key: 'solutions', label: '行业方案', singular: 'solution' },
   { key: 'cases', label: '客户案例', singular: 'case' },
   { key: 'certificates', label: '证书验证', singular: 'certificate' },
@@ -121,6 +125,7 @@ const emptyContentForm = () => ({
   slugOrPath: '',
   pageType: 'page',
   productCode: '',
+  productId: '',
   category: '',
   title: '',
   summary: '',
@@ -164,6 +169,8 @@ const emptyContentForm = () => ({
   canonical: '',
   robots: 'index,follow',
   applicationsText: '[]',
+  imageUrlsText: '[]',
+  faqText: '[]',
   specificationsText: '{}',
   deliveryText: '{}',
   evidenceIdsText: '[]',
@@ -182,8 +189,8 @@ const editingForm = reactive(emptyContentForm())
 const activeContentTypeInfo = computed(() => contentTypes.find((item) => item.key === activeContentType.value) || contentTypes[0])
 const activeContentTypeLabel = computed(() => activeContentTypeInfo.value.label)
 const activeContentRows = computed(() => contentCollections[activeContentType.value] || [])
-const hasLocaleField = computed(() => ['pages', 'solutions', 'cases', 'certificates', 'downloads', 'knowledge', 'seo', 'keywords', 'externalProfiles'].includes(activeContentType.value) || ['page', 'solution', 'case', 'certificate', 'download', 'knowledge', 'seo', 'keyword', 'externalProfile'].includes(editingType.value))
-const hasSlugField = computed(() => ['pages', 'solutions', 'cases', 'certificates', 'downloads'].includes(activeContentType.value) || ['page', 'solution', 'case', 'certificate', 'download'].includes(editingType.value))
+const hasLocaleField = computed(() => ['pages', 'productLocales', 'solutions', 'cases', 'certificates', 'downloads', 'knowledge', 'seo', 'keywords', 'externalProfiles'].includes(activeContentType.value) || ['page', 'product_locale', 'solution', 'case', 'certificate', 'download', 'knowledge', 'seo', 'keyword', 'externalProfile'].includes(editingType.value))
+const hasSlugField = computed(() => ['pages', 'products', 'solutions', 'cases', 'certificates', 'downloads'].includes(activeContentType.value) || ['page', 'product', 'solution', 'case', 'certificate', 'download'].includes(editingType.value))
 const hasTitleField = computed(() => ['pages', 'solutions', 'cases', 'certificates', 'downloads', 'seo'].includes(activeContentType.value) || ['page', 'solution', 'case', 'certificate', 'download', 'seo'].includes(editingType.value))
 const draftFilter = ref('')
 
@@ -346,8 +353,8 @@ const severityText = (value) => ({ critical: '严重', error: '错误', warning:
 const severityTagType = (value) => ({ critical: 'danger', error: 'danger', warning: 'warning', info: 'info' }[value] || 'info')
 const correctionStatusText = (value) => ({ open: '待处理', in_progress: '处理中', resolved: '已解决', dismissed: '已忽略' }[value] || value || '未知')
 const correctionStatusType = (value) => ({ open: 'danger', in_progress: 'warning', resolved: 'success', dismissed: 'info' }[value] || 'info')
-const accuracyStatusText = (value) => ({ pending: '待复核', verified: '准确', incorrect: '错误', needs_review: '待复核' }[value] || value || '待复核')
-const accuracyStatusType = (value) => ({ pending: 'warning', verified: 'success', incorrect: 'danger', needs_review: 'warning' }[value] || 'info')
+const accuracyStatusText = (value) => ({ pending: '待复核', accurate: '准确', needs_correction: '需纠偏', obsolete: '已过期' }[value] || value || '待复核')
+const accuracyStatusType = (value) => ({ pending: 'warning', accurate: 'success', needs_correction: 'danger', obsolete: 'info' }[value] || 'info')
 
 const formatDate = (value) => {
   if (!value) return '-'
@@ -366,6 +373,7 @@ const contentTitle = (row, type) => {
   if (!row) return '-'
   if (type === 'pages') return row.title || row.slug || '-'
   if (type === 'products') return row.productCode || row.product_code || row.slug || '-'
+  if (type === 'productLocales') return row.name || row.productCode || row.product_code || '-'
   if (type === 'keywords') return row.keyword || '-'
   if (type === 'externalProfiles') return row.name || row.canonicalName || '-'
   if (type === 'evidence') return row.claim || row.sourceRef || '-'
@@ -378,6 +386,7 @@ const contentTitle = (row, type) => {
 const contentMeta = (row, type) => {
   if (!row) return '-'
   if (type === 'products') return row.category || row.slug || '-'
+  if (type === 'productLocales') return `${row.productCode || row.product_code || '产品'} · ${row.locale || '-'}`
   if (type === 'keywords') return `${row.market || '未设市场'} · ${row.targetPath || '未映射'}`
   if (type === 'externalProfiles') return `${row.profileType || 'directory'} · ${row.verificationStatus || 'pending'}`
   if (type === 'evidence') return row.sourceType || '-'
@@ -516,7 +525,7 @@ const loadCorrectionTasks = async () => {
 }
 
 const loadGeoSnapshots = async () => {
-  if (!featureAvailability.factGovernance || !canAudit.value) return
+  if (!featureAvailability.geoSnapshots || !canAudit.value) return
   geoLoading.value = true
   try {
     const response = await request.get('/company-site/admin/geo/snapshots', { params: { locale: site.value?.defaultLocale || 'zh-CN' } })
@@ -539,7 +548,7 @@ const loadAll = async () => {
   }
   loading.value = true
   loadError.value = ''
-  const results = await Promise.allSettled([loadSite(), loadContentCatalog(), loadLeads(), loadSeoChecks()])
+  const results = await Promise.allSettled([loadSite(), loadContentCatalog(), loadLeads(), loadSeoChecks(), loadGeoSnapshots()])
   const failed = results.find((item) => item.status === 'rejected')
   if (failed) loadError.value = '部分运营数据暂时无法加载，请检查运行时服务或稍后重试。'
   loading.value = false
@@ -603,8 +612,7 @@ const publishSite = async () => {
 const newContent = (type) => {
   if (!canContentWrite.value) return
   const info = contentTypes.find((item) => item.key === type)
-  if (!info?.enabled || type === 'seo') {
-    if (type === 'seo') ElMessage.info('SEO 元数据可通过站点内容或 SEO 检查结果继续维护')
+  if (!info?.enabled) {
     return
   }
   editingType.value = info.singular
@@ -627,8 +635,10 @@ const editContent = (type, row) => {
   editingForm.slugOrPath = textValue(readRowValue(row, 'slug', 'path'))
   editingForm.pageType = textValue(readRowValue(row, 'pageType', 'page_type'), 'page')
   editingForm.productCode = textValue(readRowValue(row, 'productCode', 'product_code'))
+  editingForm.productId = textValue(readRowValue(row, 'productId', 'product_id'))
   editingForm.category = textValue(readRowValue(row, 'category'))
   editingForm.title = textValue(readRowValue(row, 'title'))
+  if (editingType.value === 'product_locale') editingForm.title = textValue(readRowValue(row, 'name'))
   editingForm.summary = textValue(readRowValue(row, 'summary'))
   editingForm.industry = textValue(readRowValue(row, 'industry'))
   editingForm.scenario = textValue(readRowValue(row, 'scenario'))
@@ -671,6 +681,8 @@ const editContent = (type, row) => {
   editingForm.canonical = textValue(readRowValue(row, 'canonical'))
   editingForm.robots = textValue(readRowValue(row, 'robots'), 'index,follow')
   editingForm.applicationsText = jsonText(readRowValue(row, 'applications'), [])
+  editingForm.imageUrlsText = jsonText(readRowValue(row, 'imageUrls', 'image_urls'), [])
+  editingForm.faqText = jsonText(readRowValue(row, 'faq'), [])
   editingForm.specificationsText = jsonText(readRowValue(row, 'specifications'), {})
   editingForm.deliveryText = jsonText(readRowValue(row, 'delivery'), {})
   editingForm.evidenceIdsText = jsonText(readRowValue(row, 'evidenceIds', 'evidence_ids'), [])
@@ -689,6 +701,7 @@ const buildContentPayload = () => {
   const form = editingForm
   if (editingType.value === 'page') return { locale: form.locale, slug: form.slugOrPath, pageType: form.pageType, title: form.title, summary: form.summary, blocks: parseJson(form.blocksText, []), seo: parseJson(form.seoText, {}) }
   if (editingType.value === 'product') return { productCode: form.productCode, slug: form.slugOrPath, category: form.category, applications: parseJson(form.applicationsText, []), specifications: parseJson(form.specificationsText, {}), delivery: parseJson(form.deliveryText, {}), evidenceIds: parseJson(form.evidenceIdsText, []) }
+  if (editingType.value === 'product_locale') return { productId: form.productId, locale: form.locale, name: form.title, summary: form.summary, description: form.description, imageUrls: parseJson(form.imageUrlsText, []), seo: parseJson(form.seoText, {}), faq: parseJson(form.faqText, []) }
   if (editingType.value === 'solution') return { locale: form.locale, slug: form.slugOrPath, title: form.title, industry: form.industry, scenario: form.scenario, content: parseJson(form.contentText, {}), seo: parseJson(form.seoText, {}) }
   if (editingType.value === 'case') return { locale: form.locale, slug: form.slugOrPath, title: form.title, industry: form.industry, scope: form.scope, publicLevel: form.publicLevel, content: parseJson(form.contentText, {}), evidenceIds: parseJson(form.evidenceIdsText, []) }
   if (editingType.value === 'certificate') return { locale: form.locale, slug: form.slugOrPath, name: form.title, description: form.description, issuer: form.issuer, number: form.certificateNumber, validFrom: form.validFrom, validTo: form.validTo, publicLevel: form.publicLevel, evidence: parseJson(form.evidenceText, {}) }
@@ -703,6 +716,7 @@ const buildContentPayload = () => {
 const saveContent = async () => {
   if (!canContentWrite.value) return
   if (!editingId.value && editingType.value === 'product' && !editingForm.productCode) return ElMessage.warning('请输入产品编号')
+  if (!editingId.value && editingType.value === 'product_locale' && (!editingForm.productId || !editingForm.locale || !editingForm.title)) return ElMessage.warning('请选择产品并补充语言和名称')
   if (!editingId.value && ['page', 'solution', 'case'].includes(editingType.value) && (!editingForm.locale || !editingForm.slugOrPath || !editingForm.title)) return ElMessage.warning('请补充语言、标识和标题')
   if (!editingId.value && editingType.value === 'knowledge' && (!editingForm.locale || !editingForm.question || !editingForm.answer)) return ElMessage.warning('请补充语言、问题和回答内容')
   if (!editingId.value && editingType.value === 'evidence' && !editingForm.claim) return ElMessage.warning('请输入可验证声明')
@@ -722,7 +736,8 @@ const saveContent = async () => {
 }
 
 const nextStatus = (row, type) => {
-  if ((!canContentWrite.value && !canPublish.value) || type === 'seo') return ''
+  if (!canContentWrite.value && !canPublish.value) return ''
+  if (type === 'keywords') return ''
   const status = textValue(row?.status, 'draft')
   const chain = ['draft', 'review', 'approved', 'published']
   const index = chain.indexOf(status)
@@ -775,12 +790,15 @@ const scanFacts = async () => {
 }
 
 const generateGeoSnapshots = async () => {
-  if (!featureAvailability.factGovernance || !canAudit.value) return
+  if (!featureAvailability.geoSnapshots || !canAudit.value) return
   geoLoading.value = true
   try {
-    await request.post('/company-site/admin/geo/snapshots/generate', { platform: 'internal-baseline', locale: site.value?.defaultLocale || 'zh-CN' })
+    const locales = Array.isArray(site.value?.enabledLocales) && site.value.enabledLocales.length
+      ? site.value.enabledLocales
+      : [site.value?.defaultLocale || 'zh-CN']
+    await Promise.all(locales.map((locale) => request.post('/company-site/admin/geo/snapshots/generate', { platform: 'internal-baseline', locale })))
     await loadGeoSnapshots()
-    ElMessage.success('GEO 快照已生成，等待人工复核')
+    ElMessage.success('各语言 GEO 快照已生成，等待人工复核')
   } finally {
     geoLoading.value = false
   }

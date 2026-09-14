@@ -6,9 +6,11 @@ export const COMPANY_SITE_CAPABILITIES = Object.freeze({
   customerMatch: false,
   keywordMapReport: false,
   factGovernance: false,
+  geoSnapshots: true,
   contentTypes: Object.freeze({
     pages: true,
     products: true,
+    productLocales: true,
     solutions: true,
     cases: true,
     certificates: false,
@@ -16,7 +18,7 @@ export const COMPANY_SITE_CAPABILITIES = Object.freeze({
     evidence: true,
     knowledge: true,
     seo: true,
-    keywords: false,
+    keywords: true,
     externalProfiles: false
   })
 })

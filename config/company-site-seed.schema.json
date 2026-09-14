@@ -26,6 +26,22 @@
       "properties": {
         "status": { "enum": ["draft"] }
       }
+    },
+    "evidenceRecord": {
+      "allOf": [
+        { "$ref": "#/$defs/draftRecord" },
+        {
+          "type": "object",
+          "required": ["sourceKey", "claim", "sourceType", "sourceRef", "evidence"],
+          "properties": {
+            "sourceKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "maxLength": 80 },
+            "claim": { "type": "string", "minLength": 1, "maxLength": 1200 },
+            "sourceType": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "sourceRef": { "type": "string", "maxLength": 1200 },
+            "evidence": { "type": "object" }
+          }
+        }
+      ]
     }
   },
   "properties": {
@@ -103,7 +119,7 @@
         "cases": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
         "certificates": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
         "downloads": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
-        "evidence": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
+        "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidenceRecord" } },
         "knowledge": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
         "seo": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },
         "keywords": { "type": "array", "items": { "$ref": "#/$defs/draftRecord" } },

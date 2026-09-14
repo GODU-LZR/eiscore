@@ -79,6 +79,8 @@ const query = async (sql, params = []) => {
     return { rows: [{ ...state }] }
   }
   if (statement.includes('INSERT INTO company_site.audit_events')) return { rows: [] }
+  if (statement.includes('INSERT INTO company_site.site_locales')) return { rows: [] }
+  if (statement.includes('UPDATE company_site.site_locales')) return { rows: [] }
   if (statement.includes('FROM company_site.site_config c')) {
     const candidate = statement.includes('jsonb_populate_record') && state.status !== 'published'
       ? state.published_snapshot
@@ -89,6 +91,8 @@ const query = async (sql, params = []) => {
     return { rows: published && statusAllowed && domainMatches ? [{ ...candidate }] : [] }
   }
   if (statement.includes('FROM company_site.site_locales')) return { rows: [] }
+  if (statement.includes('FROM company_site.seo_metadata')) return { rows: [] }
+  if (statement.includes('FROM company_site.seo_keywords')) return { rows: [] }
   if (/FROM company_site\.(content_pages|products|solutions|cases|knowledge_documents)/.test(statement)) return { rows: [] }
   throw new Error(`Unexpected lifecycle query: ${statement}`)
 }

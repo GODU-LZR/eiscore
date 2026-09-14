@@ -13,6 +13,7 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import { patchElMessage } from '@/utils/message-patch'
 import { installEisThemeSync } from '@shared/eis-theme-sync'
+import { applyEnterpriseDocumentBranding } from '@/domain/enterprise-document-branding'
 
 patchElMessage()
 
@@ -46,6 +47,20 @@ function shouldRenderStandalone() {
   if (isRunningInQiankun() || hasQiankunHostContainer()) return false
   if (import.meta.env.DEV) return window.location.port === DEV_STANDALONE_PORT
   return true
+}
+
+async function loadPublicEnterpriseBranding() {
+  try {
+    const response = await fetch('/agent/company-site/public/site-config', {
+      headers: { Accept: 'application/json' },
+      credentials: 'same-origin'
+    })
+    if (!response.ok) return
+    const payload = await response.json()
+    applyEnterpriseDocumentBranding(payload?.site)
+  } catch {
+    // Keep the neutral EISCore title and icon when the public profile is unavailable.
+  }
 }
 
 function resolveMountTarget(container) {
@@ -106,5 +121,6 @@ renderWithQiankun(lifecycle)
 ensureQiankunLifecycleBucket(lifecycle)
 
 if (shouldRenderStandalone()) {
+  void loadPublicEnterpriseBranding()
   render()
 }

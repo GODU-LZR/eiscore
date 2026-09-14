@@ -83,6 +83,8 @@ async function testPublishedSiteOnly() {
       if (sql.includes('FROM company_site.solutions')) return { rows: [] };
       if (sql.includes('FROM company_site.cases')) return { rows: [] };
       if (sql.includes('FROM company_site.knowledge_documents')) return { rows: [] };
+      if (sql.includes('FROM company_site.seo_metadata')) return { rows: [] };
+      if (sql.includes('FROM company_site.seo_keywords')) return { rows: [] };
       throw new Error(`unexpected query: ${sql}`);
     }
   });
@@ -92,7 +94,7 @@ async function testPublishedSiteOnly() {
   const payload = readPayload(res);
   assert.equal(payload.site.siteKey, 'primary');
   assert.equal(payload.content.pages[0].status, 'published');
-  assert.match(calls.find((call) => call.sql.includes('FROM company_site.content_pages')).sql, /status = 'published'/);
+  assert.match(calls.find((call) => call.sql.includes('FROM company_site.content_pages')).sql, /status = ANY/);
 
   const unpublishedHarness = createHarness({
     query: (sql) => sql.includes('FROM company_site.site_config') ? { rows: [] } : { rows: [] }
@@ -142,7 +144,7 @@ async function testPublicProductsAndSitemap() {
             id: 'product-1', product_code: 'JL-001', slug: 'maple-cue', category: '台球杆',
             applications: ['俱乐部'], specifications: { material: '枫木' }, delivery: { leadTime: '待确认' },
             locale: 'zh-CN', name: '枫木台球杆', summary: '已发布产品', description: '产品说明',
-            image_urls: [], product_seo: { title: '枫木台球杆' }, faq: []
+            image_urls: [], product_seo: { title: '枫木台球杆', category: 'Localized cue category' }, faq: []
           }]
         };
       }
@@ -158,6 +160,7 @@ async function testPublicProductsAndSitemap() {
   await handler.handleGetPublicProducts(request({ url: '/company-site/public/products?locale=zh-CN' }), productsRes);
   assert.equal(productsRes.statusCode, 200);
   assert.equal(readPayload(productsRes).items[0].slug, 'maple-cue');
+  assert.equal(readPayload(productsRes).items[0].category, 'Localized cue category');
 
   const sitemapRes = response();
   await handler.handleGetPublicSitemap(request({ url: '/company-site/public/sitemap.xml' }), sitemapRes);
@@ -315,6 +318,7 @@ async function testAdminConfigContentAndSitePublish() {
   const publishHarness = createHarness({
     query: (sql) => {
       if (sql.includes('UPDATE company_site.site_config') && sql.includes('published_version')) return { rows: [{ site_key: 'primary', status: 'published', published_version: 2 }] };
+      if (sql.includes('UPDATE company_site.site_locales')) return { rows: [] };
       if (sql.includes('INSERT INTO company_site.audit_events')) return { rows: [] };
       throw new Error(`unexpected site publish query: ${sql}`);
     }
@@ -345,6 +349,45 @@ async function testAdminContentSaveRevisionAndRollback() {
   assert.equal(createRes.statusCode, 201);
   assert.equal(readPayload(createRes).status, 'draft');
   assert.equal(createHarnessForPage.calls.filter((call) => call.sql.includes('INSERT INTO company_site.content_revisions')).length, 1);
+
+  const evidenceHarness = createHarness({
+    query: (sql) => {
+      if (sql.includes('INSERT INTO company_site.evidence_records')) {
+        assert.doesNotMatch(sql, /\bversion\b|\bcreated_by\b|\bupdated_by\b/);
+        return { rows: [{ id: 'evidence-1', site_key: 'primary', claim: '公开资料声明', status: 'draft' }] };
+      }
+      if (sql.includes('SELECT COALESCE(MAX(version)')) return { rows: [{ version: 1 }] };
+      if (sql.includes('INSERT INTO company_site.content_revisions')) return { rows: [] };
+      if (sql.includes('INSERT INTO company_site.audit_events')) return { rows: [] };
+      throw new Error(`unexpected evidence create query: ${sql}`);
+    }
+  });
+  const evidenceRes = response();
+  await evidenceHarness.handler.handleSaveAdminContent(request({ body: {
+    claim: '公开资料声明', sourceType: 'university_news', sourceRef: 'https://example.test/source', evidence: {}
+  } }), evidenceRes, 'evidence', '', { id: 'editor-1' });
+  assert.equal(evidenceRes.statusCode, 201);
+  assert.equal(readPayload(evidenceRes).status, 'draft');
+
+  const keywordHarness = createHarness({
+    query: (sql) => {
+      if (sql.includes('INSERT INTO company_site.seo_keywords')) {
+        assert.match(sql, /\bpriority\b/);
+        assert.doesNotMatch(sql, /\bversion\b|\bcreated_by\b|\bupdated_by\b/);
+        return { rows: [{ id: 'keyword-1', site_key: 'primary', locale: 'zh-CN', keyword: '水果加工', status: 'active' }] };
+      }
+      if (sql.includes('SELECT COALESCE(MAX(version)')) return { rows: [{ version: 1 }] };
+      if (sql.includes('INSERT INTO company_site.content_revisions')) return { rows: [] };
+      if (sql.includes('INSERT INTO company_site.audit_events')) return { rows: [] };
+      throw new Error(`unexpected keyword create query: ${sql}`);
+    }
+  });
+  const keywordRes = response();
+  await keywordHarness.handler.handleSaveAdminContent(request({ body: {
+    locale: 'zh-CN', keyword: '水果加工', targetPath: '/login', priority: 20
+  } }), keywordRes, 'keyword', '', { id: 'editor-1' });
+  assert.equal(keywordRes.statusCode, 201);
+  assert.equal(readPayload(keywordRes).status, 'active');
 
   const updated = { ...page, title: '关于君乐缘', version: 2 };
   const updateHarness = createHarness({
@@ -387,6 +430,7 @@ async function testSeoCheckAndGeoSnapshotOperations() {
       if (sql.includes('FROM company_site.content_pages')) return { rows: [{ locale: 'zh-CN', slug: 'about', title: '关于企业', metadata_path: null }] };
       if (sql.includes('INSERT INTO company_site.seo_checks')) return { rows: [] };
       if (sql.includes('INSERT INTO company_site.geo_answer_snapshots')) return { rows: [{ id: 'geo-1', platform: 'deepseek', accuracy_status: 'pending' }] };
+      if (sql.includes('UPDATE company_site.geo_answer_snapshots')) return { rows: [{ id: 'geo-1', platform: 'deepseek', accuracy_status: 'obsolete' }] };
       if (sql.includes('SELECT id, run_id, path')) return { rows: [{ id: 'check-1', severity: 'warning' }] };
       if (sql.includes('SELECT id, locale, platform')) return { rows: [{ id: 'geo-1', platform: 'deepseek', accuracy_status: 'pending' }] };
       if (sql.includes('INSERT INTO company_site.audit_events')) return { rows: [] };
@@ -410,6 +454,11 @@ async function testSeoCheckAndGeoSnapshotOperations() {
   } }), geoRes, { id: 'seo-operator' });
   assert.equal(geoRes.statusCode, 201);
   assert.equal(readPayload(geoRes).snapshot.id, 'geo-1');
+
+  const geoReviewRes = response();
+  await handler.handleReviewGeoSnapshot(request({ body: { accuracyStatus: 'obsolete' } }), geoReviewRes, 'geo-1', { id: 'seo-operator' });
+  assert.equal(geoReviewRes.statusCode, 200);
+  assert.equal(readPayload(geoReviewRes).snapshot.accuracy_status, 'obsolete');
 
   const geoListRes = response();
   await handler.handleListGeoSnapshots(request({ url: '/company-site/admin/geo/snapshots?limit=10' }), geoListRes);

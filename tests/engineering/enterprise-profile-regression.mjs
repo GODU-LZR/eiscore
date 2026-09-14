@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import {
   createEnterpriseProfileService,
+  enterprisePortalFromSiteConfig,
   enterpriseProfileFromSiteConfig,
   mergeEnterpriseProfileIntoSystemConfig,
   stripEnterpriseProfileFromSystemConfig
@@ -49,6 +50,66 @@ assert.equal(profile.publicSiteUrl, 'https://factory.example.test/company/')
 assert.deepEqual(profile.enabledLocales, ['zh-CN', 'en-US'])
 assert.equal(profile.contact.email, 'sales@example.test')
 assert.equal(profile.publishedVersion, 7)
+
+const noLogoProfile = enterpriseProfileFromSiteConfig({
+  site: {
+    siteKey: 'primary',
+    legalName: '无标识示例企业',
+    trademark: { asset: '' }
+  }
+}, { enterpriseConfig: DEFAULT_ENTERPRISE_CONFIG })
+assert.equal(noLogoProfile.logoUrl, '')
+
+const portal = enterprisePortalFromSiteConfig({
+  site: {
+    legalName: '示例制造有限公司',
+    status: 'draft-preview',
+    settings: { previewMode: true, previewLabel: '本地案例演示' }
+  },
+  content: {
+    pages: [{
+      slug: 'home',
+      title: '从原料到交付',
+      blocks: {
+        homepage: {
+          hero: {
+            eyebrow: '示例制造',
+            titleLines: ['从原料，', '到稳定交付。'],
+            summary: '公开门户介绍',
+            signals: ['批次协同']
+          },
+          metrics: [{ label: '业务重点', value: '制造协同' }],
+          businessChain: [{ title: '原料管理', description: '按批次进入生产。' }],
+          capabilities: [{ title: '过程追踪', description: '保持业务上下文。' }]
+        }
+      }
+    }],
+    products: [{ productCode: 'DEMO-001', name: '示例产品', applications: ['应用一'] }],
+    solutions: [{ slug: 'solution-one', title: '示例方案', industry: '示例行业' }]
+  },
+  governance: { factStatus: 'pending' }
+})
+
+assert.equal(portal.loginBranding.slogan, '从原料，到稳定交付。')
+assert.equal(portal.loginBranding.metrics[0].value, '制造协同')
+assert.equal(portal.products[0].code, 'DEMO-001')
+assert.deepEqual(portal.products[0].applications, ['应用一'])
+assert.equal(portal.solutions[0].name, '示例方案')
+assert.equal(portal.previewMode, true)
+assert.equal(portal.factStatus, 'pending')
+assert.ok(Object.isFrozen(portal.products))
+
+const englishPortal = enterprisePortalFromSiteConfig({
+  site: { legalName: '示例制造有限公司', defaultLocale: 'zh-CN' },
+  content: {
+    requestedLocale: 'en-US',
+    pages: [{
+      slug: 'home',
+      blocks: { homepage: { hero: { titleLines: ['Example foods,', 'made reliably.'] } } }
+    }]
+  }
+})
+assert.equal(englishPortal.loginBranding.slogan, 'Example foods, made reliably.')
 
 const merged = mergeEnterpriseProfileIntoSystemConfig({
   title: '内部系统标题',

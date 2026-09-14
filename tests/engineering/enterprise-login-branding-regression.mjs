@@ -57,6 +57,13 @@ assert.equal(custom.companyName, '运行期自定义企业')
 assert.equal(custom.slogan, '运行期自定义口号')
 assert.deepEqual(custom.metrics, [])
 assert.notEqual(custom, desktop)
+
+const withoutOptionalMedia = normalizeLoginBranding({
+  logo: '',
+  backgroundImage: ''
+}, { enterpriseConfig })
+assert.equal(withoutOptionalMedia.logo, '')
+assert.equal(withoutOptionalMedia.backgroundImage, '')
 assert.equal(Object.isFrozen(custom), false)
 
 const unsafe = structuredClone(runtimeProfile)

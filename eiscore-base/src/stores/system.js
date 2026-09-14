@@ -52,6 +52,9 @@ export const useSystemStore = defineStore('system', () => {
     ...defaultConfig
   })
   const enterpriseProfile = ref(DEFAULT_ENTERPRISE_PROFILE)
+  const enterpriseLocale = ref(DEFAULT_ENTERPRISE_PROFILE.defaultLocale || 'zh-CN')
+  const baseSystemConfig = ref(defaultConfig)
+  let profileRequestId = 0
 
   // 2. 定义动作
   const updateConfig = (newConfig = {}) => {
@@ -68,15 +71,27 @@ export const useSystemStore = defineStore('system', () => {
     }
   }
 
-  const loadConfig = async () => {
+  const loadEnterpriseProfile = async (locale = enterpriseLocale.value) => {
+    const requestId = ++profileRequestId
+    const profile = await getHostEnterpriseProfileService().readProfile({ locale })
+    if (requestId !== profileRequestId) return enterpriseProfile.value
+    enterpriseProfile.value = profile
+    enterpriseLocale.value = profile.locale || locale || profile.defaultLocale || 'zh-CN'
+    updateConfig(mergeEnterpriseProfileIntoSystemConfig(baseSystemConfig.value, profile))
+    return profile
+  }
+
+  const loadConfig = async ({ locale = enterpriseLocale.value } = {}) => {
     const [value, profile] = await Promise.all([
       getHostSystemConfigService().readValue('app_settings').catch(() => null),
-      getHostEnterpriseProfileService().readProfile()
+      getHostEnterpriseProfileService().readProfile({ locale })
     ])
     enterpriseProfile.value = profile
+    enterpriseLocale.value = profile.locale || locale || profile.defaultLocale || 'zh-CN'
     const systemConfig = value && typeof value === 'object'
       ? normalizeConfig({ ...defaultConfig, ...value })
       : defaultConfig
+    baseSystemConfig.value = systemConfig
     updateConfig(mergeEnterpriseProfileIntoSystemConfig(systemConfig, profile))
   }
 
@@ -86,6 +101,7 @@ export const useSystemStore = defineStore('system', () => {
       ...(nextConfig || {})
     }, enterpriseProfile.value))
     const persistedPayload = stripEnterpriseProfileFromSystemConfig(runtimePayload)
+    baseSystemConfig.value = normalizeConfig(persistedPayload)
     updateConfig(runtimePayload)
     try {
       await getHostSystemConfigService().saveValue('app_settings', persistedPayload, {
@@ -104,5 +120,5 @@ export const useSystemStore = defineStore('system', () => {
     }
   }
 
-  return { config, enterpriseProfile, updateConfig, loadConfig, saveConfig, initTheme }
+  return { config, enterpriseProfile, enterpriseLocale, updateConfig, loadConfig, loadEnterpriseProfile, saveConfig, initTheme }
 })

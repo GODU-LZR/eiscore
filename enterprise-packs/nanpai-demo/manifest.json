@@ -1,0 +1,113 @@
+{
+  "$schema": "../../config/enterprise-package.schema.json",
+  "packageSchemaVersion": 1,
+  "packageId": "nanpai-demo",
+  "packageVersion": "0.5.0-demo",
+  "status": "draft",
+  "enterprise": {
+    "id": "nanpai-demo",
+    "displayName": "广东南派食品有限公司"
+  },
+  "coreCompatibility": {
+    "packageApiVersion": 1,
+    "enterpriseConfigSchemaVersion": 2
+  },
+  "runtime": {
+    "configPath": "runtime/eiscore-enterprise.json",
+    "mountPath": "/config/eiscore-enterprise.json"
+  },
+  "files": [
+    {
+      "path": "assets/site/bakery-application.jpg",
+      "kind": "asset",
+      "bytes": 528373,
+      "sha256": "2a21200c9a30fed623c975b411107a13a7b89a6aeafea1e063235d1e2ff5612d"
+    },
+    {
+      "path": "assets/site/beverage-products.jpg",
+      "kind": "asset",
+      "bytes": 541212,
+      "sha256": "67e060bdf7e76978c051fdd50c2bc4b88aae9a4e4967e4e96cb665a2dcd08a1b"
+    },
+    {
+      "path": "assets/site/coconut-beverage.jpg",
+      "kind": "asset",
+      "bytes": 308034,
+      "sha256": "0f7ed9c4ae9eeeaeea06716be92207ff00b0610575ee7dfeae83f09800753cc6"
+    },
+    {
+      "path": "assets/site/factory-overview.jpg",
+      "kind": "asset",
+      "bytes": 846546,
+      "sha256": "91448496dfc9e4ccd17236d64be29ad11da81b91819dcccb7d67b607f39d68b8"
+    },
+    {
+      "path": "assets/site/favicon.svg",
+      "kind": "asset",
+      "bytes": 517,
+      "sha256": "c0ea33ef98eacfa158d501396a7ccf102ee1ccbb8c8a7e0c3fa2b56280124492"
+    },
+    {
+      "path": "assets/site/fruit-preparation.jpg",
+      "kind": "asset",
+      "bytes": 285241,
+      "sha256": "0d1bb042f3ba6e8b46572077bc4c8f98894b7636a426f7178519c24a7a5556ac"
+    },
+    {
+      "path": "assets/site/mango-fruit.jpg",
+      "kind": "asset",
+      "bytes": 133359,
+      "sha256": "8681cce315eb5a2e07f2dc6069a7b3866b5467151998d3b1e9de56f9c1ac4fad"
+    },
+    {
+      "path": "assets/site/passion-fruit.jpg",
+      "kind": "asset",
+      "bytes": 177678,
+      "sha256": "1033475e143dfb69278a31dcd655b89b5b9bd40618c52e4560cbe37c456b8937"
+    },
+    {
+      "path": "assets/site/pineapple-field.jpg",
+      "kind": "asset",
+      "bytes": 152889,
+      "sha256": "a04062579dd194263048e1c108e83fd8574f9f568a6c1dea893382077d46de63"
+    },
+    {
+      "path": "data/company-site.json",
+      "kind": "seed",
+      "bytes": 51348,
+      "sha256": "837def88a6ab85c0e3a541c3cb5d94ac314be6846a8cb5feee900e5639ba29a1"
+    },
+    {
+      "path": "evidence/PACKAGE-GUIDE.md",
+      "kind": "evidence",
+      "bytes": 2186,
+      "sha256": "ca64825b938f2c31ffc3a2263c729f9e8dc1dc2fb315ca7f9102f208c5ced464"
+    },
+    {
+      "path": "evidence/asset-sources.json",
+      "kind": "evidence",
+      "bytes": 6144,
+      "sha256": "57cc9c40daf5d3bca699bb1148fc66ed6902e74911742138c09fbe90f86aac46"
+    },
+    {
+      "path": "evidence/research-sources.json",
+      "kind": "evidence",
+      "bytes": 10009,
+      "sha256": "b1c039864ffe3309a1bd2bf8b566794b702fc5f6d66f68290bdd1b9750cbe7e1"
+    },
+    {
+      "path": "runtime/eiscore-enterprise.json",
+      "kind": "runtime-config",
+      "bytes": 797,
+      "sha256": "023e45a0f6ac631d80f109135cc4267e84c3f2b84bd6cba2c0be242ed979fe52"
+    }
+  ],
+  "governance": {
+    "factStatus": "pending",
+    "assetStatus": "pending",
+    "productionApproved": false,
+    "notes": "Source-backed Nanpai case and company-site test package for an isolated local environment. Eight official-site image candidates are included for local draft testing; asset authorization and facts remain pending, and the package is not eligible for production deployment."
+  },
+  "createdAt": "2026-09-04T00:00:00+08:00",
+  "packageSha256": "36a426069520d2db1c5ea47f18822e75112b697bcb405021cd04d54883aab3d2"
+}

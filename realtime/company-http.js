@@ -4,6 +4,8 @@
 'use strict';
 
 const crypto = require('crypto');
+const { lstatSync, readFileSync } = require('node:fs');
+const { extname, relative, resolve, sep } = require('node:path');
 
 const route = (method, match, matcher, handler, authorize) => Object.freeze({
   method,
@@ -24,6 +26,7 @@ const COMPANY_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('POST', '/company-site/auth/handoff', 'company.handleCreateAuthHandoff'),
   exact('POST', '/company-site/auth/handoff/consume', 'company.handleConsumeAuthHandoff'),
   exact('GET', '/company-site/public/site-config', 'company.handleGetPublicSiteConfig'),
+  pattern('GET', /^\/company-site\/public\/assets\/.+$/, 'company.handleGetPublicAsset'),
   pattern('GET', /^\/company-site\/public\/pages\/[^/]+$/, 'company.handleGetPublicPage'),
   exact('GET', '/company-site/public/products', 'company.handleGetPublicProducts'),
   pattern('GET', /^\/company-site\/public\/products\/[^/]+$/, 'company.handleGetPublicProduct'),
@@ -48,8 +51,10 @@ const COMPANY_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('POST', '/company-site/admin/seo/check', 'company.handleRunSeoCheck', SITE_MANAGE),
   exact('GET', '/company-site/admin/seo/checks', 'company.handleListSeoChecks', SITE_READ),
   exact('POST', '/company-site/admin/geo/snapshots', 'company.handleRecordGeoSnapshot', SITE_MANAGE),
+  exact('POST', '/company-site/admin/geo/snapshots/generate', 'company.handleGenerateGeoSnapshots', SITE_MANAGE),
+  pattern('PATCH', /^\/company-site\/admin\/geo\/snapshots\/[^/]+\/review$/, 'company.handleReviewGeoSnapshot', SITE_MANAGE),
   exact('GET', '/company-site/admin/geo/snapshots', 'company.handleListGeoSnapshots', SITE_READ),
-  pattern('GET', /^\/company-site\/admin\/(?:pages|products|solutions|cases|evidence|seo|knowledge)$/, 'company.handleListAdminContent', SITE_READ),
+  pattern('GET', /^\/company-site\/admin\/(?:pages|products|productLocales|solutions|cases|evidence|seo|knowledge|keywords)$/, 'company.handleListAdminContent', SITE_READ),
   exact('POST', '/sales/sessions', 'company.handleCreateSalesSession'),
   pattern('POST', /^\/sales\/sessions\/[^/]+\/messages$/, 'company.handleSendSalesMessage'),
   pattern('POST', /^\/sales\/sessions\/[^/]+\/leads$/, 'company.handleCreateSalesLead'),
@@ -74,6 +79,16 @@ const decodePart = (value) => {
     return '';
   }
 };
+const PUBLIC_ASSET_PREFIX = '/company-site/public/assets/';
+const PUBLIC_ASSET_CONTENT_TYPES = Object.freeze({
+  '.avif': 'image/avif',
+  '.gif': 'image/gif',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp'
+});
 
 function createCompanyHttpModule({
   companySiteHandlers,
@@ -127,6 +142,35 @@ function createCompanyHttpModule({
       if (entry.expiresAt <= current) handoffs.delete(code);
     }
   };
+  const sendPublicAsset = (req, res) => {
+    const assetRootInput = text(env.COMPANY_SITE_ASSET_ROOT);
+    const rawSuffix = pathname(req).slice(PUBLIC_ASSET_PREFIX.length);
+    const suffix = decodePart(rawSuffix);
+    if (!assetRootInput || !suffix || suffix.includes('\\') || suffix.split('/').includes('..')) {
+      sendJson(res, 404, { code: 'ASSET_NOT_FOUND', message: 'Public asset not found' }, { 'Cache-Control': 'no-store' });
+      return;
+    }
+    const assetRoot = resolve(assetRootInput);
+    const assetPath = resolve(assetRoot, suffix);
+    const relativePath = relative(assetRoot, assetPath);
+    if (!relativePath || relativePath === '..' || relativePath.startsWith(`..${sep}`)) {
+      sendJson(res, 404, { code: 'ASSET_NOT_FOUND', message: 'Public asset not found' }, { 'Cache-Control': 'no-store' });
+      return;
+    }
+    try {
+      const stats = lstatSync(assetPath);
+      const contentType = PUBLIC_ASSET_CONTENT_TYPES[extname(assetPath).toLowerCase()];
+      if (!stats.isFile() || stats.isSymbolicLink() || !contentType) throw new Error('Unsupported asset');
+      res.statusCode = 200;
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', stats.size);
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.end(readFileSync(assetPath));
+    } catch {
+      sendJson(res, 404, { code: 'ASSET_NOT_FOUND', message: 'Public asset not found' }, { 'Cache-Control': 'no-store' });
+    }
+  };
 
   const handlers = {
     async handleCreateAuthHandoff(req, res) {
@@ -164,6 +208,7 @@ function createCompanyHttpModule({
       sendJson(res, 200, { token: entry.token, app_role: payload.app_role || '', permissions: Array.isArray(payload.permissions) ? payload.permissions : [] }, { 'Cache-Control': 'no-store' });
     },
     handleGetPublicSiteConfig: (req, res) => companySiteHandlers.handleGetPublicSiteConfig(req, res),
+    handleGetPublicAsset: (req, res) => sendPublicAsset(req, res),
     handleGetPublicPage: (req, res) => companySiteHandlers.handleGetPublicPage(req, res, partsAfter(req, '/company-site/public/pages/')[0]),
     handleGetPublicProducts: (req, res) => companySiteHandlers.handleGetPublicProducts(req, res),
     handleGetPublicProduct: (req, res) => companySiteHandlers.handleGetPublicProducts(req, res, partsAfter(req, '/company-site/public/products/')[0]),
@@ -192,6 +237,13 @@ function createCompanyHttpModule({
     handleRunSeoCheck: (req, res) => companySiteHandlers.handleRunSeoCheck(req, res, req.companySiteUser),
     handleListSeoChecks: (req, res) => companySiteHandlers.handleListSeoChecks(req, res),
     handleRecordGeoSnapshot: (req, res) => companySiteHandlers.handleRecordGeoSnapshot(req, res, req.companySiteUser),
+    handleGenerateGeoSnapshots: (req, res) => companySiteHandlers.handleGenerateGeoSnapshots(req, res, req.companySiteUser),
+    handleReviewGeoSnapshot: (req, res) => companySiteHandlers.handleReviewGeoSnapshot(
+      req,
+      res,
+      partsAfter(req, '/company-site/admin/geo/snapshots/')[0],
+      req.companySiteUser
+    ),
     handleListGeoSnapshots: (req, res) => companySiteHandlers.handleListGeoSnapshots(req, res),
     handleListAdminContent: (req, res) => companySiteHandlers.handleListAdminContent(req, res, partsAfter(req, '/company-site/admin/')[0]),
     handleCreateSalesSession: (req, res) => companySalesHandlers.handleCreateSession(req, res),

@@ -59,6 +59,14 @@ await requestHandler({ method: 'PATCH', url: '/agent/company-site/admin/site-con
 assert.equal(calls.at(-1).target, 'site.handleUpdateAdminSiteConfig')
 assert.equal(calls.at(-1).args[2].id, 'u1')
 
+await requestHandler({ method: 'GET', url: '/agent/company-site/admin/keywords', headers: { authorization: 'Bearer manager-token' } }, response())
+assert.equal(calls.at(-1).target, 'site.handleListAdminContent')
+assert.equal(calls.at(-1).args[2], 'keywords')
+
+await requestHandler({ method: 'PATCH', url: '/agent/company-site/admin/geo/snapshots/geo-1/review', headers: { authorization: 'Bearer manager-token' } }, response())
+assert.equal(calls.at(-1).target, 'site.handleReviewGeoSnapshot')
+assert.equal(calls.at(-1).args[2], 'geo-1')
+
 await requestHandler({ method: 'POST', url: '/agent/sales/drafts/quote/q-1/approval', headers: { authorization: 'Bearer manager-token' } }, response())
 assert.equal(calls.at(-1).target, 'sales.handleApproveDraft')
 assert.deepEqual(calls.at(-1).args.slice(2, 4), ['quote', 'q-1'])

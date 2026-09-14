@@ -57,7 +57,10 @@ const rawChannel = envText(process.env.CHANNEL, 'eis_events') || 'eis_events';
 const channel = /^[a-zA-Z0-9_]+$/.test(rawChannel) ? rawChannel : 'eis_events';
 const workflowChannel = 'workflow_event';
 const enableWorkflowAutoTransition = envText(process.env.WORKFLOW_AUTO_TRANSITION, '0') === '1';
-const jwtSecret = envText(process.env.PGRST_JWT_SECRET, envText(process.env.JWT_SECRET, ''));
+const jwtSecret = envText(
+  process.env.EISCORE_AUTH_JWT_SECRET,
+  envText(process.env.PGRST_JWT_SECRET, envText(process.env.JWT_SECRET, ''))
+);
 const aiConfigKey = envText(process.env.AI_CONFIG_KEY, 'ai_glm_config') || 'ai_glm_config';
 const aiVisionConfigKey = envText(process.env.AI_VISION_CONFIG_KEY, 'ai_vision_config') || 'ai_vision_config';
 const aiConfigTtlMs = Number(process.env.AI_CONFIG_TTL_MS || 30 * 1000);

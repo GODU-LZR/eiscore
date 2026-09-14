@@ -6,6 +6,7 @@ import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import qiankun from 'vite-plugin-qiankun'
 import { createBuildOptions } from '../scripts/vite-build-config.mjs'
+import { enterprisePreviewPlugin } from '../scripts/vite-enterprise-preview.mjs'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -18,7 +19,8 @@ export default defineConfig(({ mode }) => {
     base: '/company-site/',
     plugins: [
       vue(),
-      qiankun('eiscore-company-site', { useDevMode: true })
+      qiankun('eiscore-company-site', { useDevMode: true }),
+      enterprisePreviewPlugin(env.VITE_ENTERPRISE_PREVIEW_PACK)
     ],
     resolve: {
       alias: {
@@ -43,13 +45,13 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path
         },
         '/agent': {
-          target: 'http://localhost:8078',
+          target: env.VITE_DEV_AGENT_PROXY_TARGET || 'http://localhost:8078',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/agent/, ''),
           ws: true
         },
         '/company-site/agent': {
-          target: 'http://localhost:8078',
+          target: env.VITE_DEV_AGENT_PROXY_TARGET || 'http://localhost:8078',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/company-site\/agent/, ''),
           ws: true

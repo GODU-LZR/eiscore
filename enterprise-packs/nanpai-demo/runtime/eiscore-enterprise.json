@@ -1,0 +1,37 @@
+{
+  "$schema": "../../../config/enterprise.v2.schema.json",
+  "schemaVersion": 2,
+  "enterprise": {
+    "id": "nanpai-demo",
+    "displayName": "广东南派食品有限公司",
+    "shortName": "南派食品"
+  },
+  "branding": {
+    "productName": "海边姑娘管理系统",
+    "themeColor": "#1F6B53",
+    "logoUrl": ""
+  },
+  "endpoints": {
+    "publicBaseUrl": "",
+    "apiBasePath": "/api",
+    "agentBasePath": "/agent",
+    "realtimeWsPath": "/agent/ws"
+  },
+  "modules": {
+    "hr": true,
+    "materials": true,
+    "apps": true,
+    "company-site": true,
+    "sales": true,
+    "purchase": true,
+    "production": true,
+    "quality": true,
+    "equipment": true,
+    "decision": true,
+    "mobile": true
+  },
+  "features": {
+    "documentIntake": true,
+    "enterpriseAi": true
+  }
+}
