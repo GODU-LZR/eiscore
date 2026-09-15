@@ -238,7 +238,6 @@
         <div class="public-section-heading">
           <span>{{ portal.productSectionKicker }}</span>
           <h2>{{ portal.productSectionTitle }}</h2>
-          <p>{{ portalUi.productDisclaimer }}</p>
         </div>
         <div class="public-product-grid">
           <article v-for="(product, index) in publicProducts" :key="product.id" class="public-product-card">

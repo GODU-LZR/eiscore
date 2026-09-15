@@ -19,7 +19,7 @@
   padding: 14px clamp(18px, 4vw, 68px);
   box-sizing: border-box;
   color: #fff;
-  background: linear-gradient(180deg, rgba(2, 6, 23, 0.56), rgba(2, 6, 23, 0));
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.38), rgba(2, 6, 23, 0));
   transition: min-height 220ms ease, background 220ms ease, border-color 220ms ease, color 220ms ease;
 }
 
@@ -199,9 +199,9 @@
 .hero-media img {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   object-position: center;
-  background: #e7ebe6;
+  background: #dfe6e2;
 }
 
 .hero-slide-enter-active,
@@ -226,8 +226,8 @@
 .hero-shade {
   z-index: 1;
   background:
-    linear-gradient(90deg, rgba(2, 6, 23, 0.78) 0%, rgba(2, 6, 23, 0.54) 46%, rgba(2, 6, 23, 0.24) 100%),
-    linear-gradient(180deg, rgba(2, 6, 23, 0.12) 0%, rgba(2, 6, 23, 0.64) 100%);
+    linear-gradient(90deg, rgba(2, 6, 23, 0.58) 0%, rgba(2, 6, 23, 0.28) 46%, rgba(2, 6, 23, 0.08) 100%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.04) 0%, rgba(2, 6, 23, 0.38) 100%);
 }
 
 .hero-inner {
@@ -281,17 +281,17 @@
 }
 
 .hero-copy {
-  max-width: 780px;
+  max-width: 680px;
   animation: copyRise 900ms ease both;
 }
 
 .brand-kicker {
   width: fit-content;
-  margin: 0 0 22px;
-  padding-left: 42px;
+  margin: 0 0 18px;
+  padding-left: 36px;
   position: relative;
   color: rgba(255, 255, 255, 0.82);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -300,7 +300,7 @@
   position: absolute;
   left: 0;
   top: 50%;
-  width: 30px;
+  width: 24px;
   height: 1px;
   background: rgba(255, 255, 255, 0.72);
 }
@@ -309,45 +309,46 @@
   max-width: 860px;
   margin: 0;
   color: #fff;
-  font-size: clamp(44px, 5.7vw, 78px);
-  line-height: 1.05;
+  font-size: clamp(42px, 4.6vw, 66px);
+  line-height: 1.08;
   font-weight: 800;
   letter-spacing: 0;
 }
 
 .brand-slogan {
   max-width: 760px;
-  margin: 28px 0 0;
+  margin: 20px 0 0;
   color: rgba(255, 255, 255, 0.92);
-  font-size: clamp(22px, 2.3vw, 34px);
-  line-height: 1.38;
+  font-size: clamp(20px, 1.9vw, 28px);
+  line-height: 1.42;
   font-weight: 700;
 }
 
 .brand-intro {
   max-width: 660px;
-  margin: 18px 0 0;
+  margin: 14px 0 0;
   color: rgba(255, 255, 255, 0.74);
-  font-size: 16px;
-  line-height: 1.85;
+  font-size: 15px;
+  line-height: 1.75;
 }
 
 .trust-strip {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 30px;
+  gap: 0;
+  margin-top: 26px;
 }
 
 .trust-strip span {
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
-  padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
+  min-height: 26px;
+  padding: 0 16px;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.44);
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
   color: rgba(255, 255, 255, 0.88);
   font-size: 13px;
   font-weight: 700;
@@ -355,6 +356,11 @@
   transform: translateY(12px);
   animation: chipIn 560ms ease forwards;
   animation-delay: 620ms;
+}
+
+.trust-strip span:first-child {
+  padding-left: 0;
+  border-left: 0;
 }
 
 .auth-overlay {
@@ -583,12 +589,13 @@
 }
 
 .hero-facts span {
-  min-width: 98px;
-  padding: 13px 14px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(16px);
+  min-width: 0;
+  padding: 0 0 0 16px;
+  border: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
   color: rgba(255, 255, 255, 0.8);
   font-size: 12px;
   animation: factIn 720ms ease both;
@@ -606,8 +613,13 @@
   display: block;
   margin-bottom: 3px;
   color: #fff;
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1;
+}
+
+.hero-facts span:first-child {
+  padding-left: 0;
+  border-left: 0;
 }
 
 .hero-carousel {
@@ -655,11 +667,11 @@
   max-width: 100%;
   box-sizing: border-box;
   gap: 7px;
-  padding: 4px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 999px;
-  background: rgba(2, 6, 23, 0.2);
-  backdrop-filter: blur(14px);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .hero-carousel-arrow,
@@ -667,14 +679,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   border: 1px solid rgba(255, 255, 255, 0.34);
   border-radius: 50%;
   color: #fff;
-  background: rgba(2, 6, 23, 0.22);
-  backdrop-filter: blur(12px);
+  background: rgba(2, 6, 23, 0.12);
+  backdrop-filter: blur(8px);
   cursor: pointer;
   transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
 }
@@ -1801,5 +1813,158 @@
 
   .gallery-track {
     animation-duration: 36s;
+  }
+}
+
+/* Lundu editorial pass: give the product and image sections a calmer rhythm. */
+.metrics-band {
+  padding-top: clamp(48px, 6vw, 78px);
+}
+
+.section-heading h2,
+.story-copy h2 {
+  font-size: clamp(28px, 3.4vw, 46px);
+}
+
+.story-section {
+  grid-template-columns: minmax(0, 0.82fr) minmax(420px, 1.18fr);
+  gap: clamp(28px, 4vw, 64px);
+}
+
+.story-copy {
+  max-width: 560px;
+}
+
+.story-media {
+  height: clamp(320px, 34vw, 520px);
+  background: #dfe6e2;
+}
+
+.public-products-section {
+  background: #f0f3ef;
+}
+
+.public-section-heading h2,
+.solution-heading h2 {
+  font-size: clamp(32px, 3.8vw, 52px);
+  letter-spacing: 0;
+}
+
+.public-product-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(18px, 2vw, 28px);
+}
+
+.public-product-card,
+.public-product-card:nth-last-child(2):nth-child(3n + 1) {
+  grid-column: auto;
+  aspect-ratio: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card-media {
+  width: 100%;
+  flex: 0 0 auto;
+  aspect-ratio: 16 / 9;
+  background: #dfe6e2;
+}
+
+.product-card-media img {
+  object-fit: cover;
+}
+
+.product-card-media::after {
+  background: linear-gradient(180deg, rgba(10, 28, 22, 0.02), transparent 55%, rgba(10, 28, 22, 0.2));
+}
+
+.product-card-body {
+  min-height: 220px;
+  padding: 22px 24px 24px;
+}
+
+.public-product-card h3 {
+  margin-top: 8px;
+  font-size: 21px;
+}
+
+.product-card-body > p {
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.product-tags span {
+  border-radius: 3px;
+}
+
+.solution-feature-media {
+  aspect-ratio: 16 / 10;
+  margin-top: clamp(26px, 3vw, 42px);
+  background: #dfe6e2;
+  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.07);
+}
+
+.gallery-track figure {
+  width: min(520px, 76vw);
+  height: clamp(280px, 25vw, 360px);
+  border-radius: 4px;
+}
+
+.gallery-track img {
+  object-fit: cover;
+}
+
+.gallery-track figcaption {
+  padding: 18px 20px;
+  background: linear-gradient(180deg, transparent, rgba(2, 6, 23, 0.62));
+}
+
+@media (max-width: 1280px) {
+  .public-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-product-card:last-child:nth-child(odd) {
+    width: 100%;
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+}
+
+@media (max-width: 760px) {
+  .hero-shade {
+    background:
+      linear-gradient(90deg, rgba(2, 6, 23, 0.52), rgba(2, 6, 23, 0.18)),
+      linear-gradient(180deg, rgba(2, 6, 23, 0.06), rgba(2, 6, 23, 0.4));
+  }
+
+  .hero-copy h1 {
+    font-size: 40px;
+  }
+
+  .brand-slogan {
+    font-size: 20px;
+  }
+
+  .trust-strip span {
+    padding: 0 10px;
+    font-size: 12px;
+  }
+
+  .trust-strip span:first-child {
+    padding-left: 0;
+  }
+
+  .public-product-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .public-product-card:last-child:nth-child(odd) {
+    width: 100%;
+  }
+
+  .product-card-body {
+    min-height: 0;
+    padding: 20px;
   }
 }

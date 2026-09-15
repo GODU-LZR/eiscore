@@ -111,8 +111,8 @@
     {
       "path": "data/company-site.json",
       "kind": "seed",
-      "bytes": 29078,
-      "sha256": "6cdeebed0010e540fd394e011231a6f9f26eeba568fd13d2af7dd1f26da03dd5"
+      "bytes": 29636,
+      "sha256": "24673bbd3fad0ace90a6f14aafd0139e9bda597431ca3b639980b2e336511837"
     },
     {
       "path": "evidence/PACKAGE-GUIDE.md",
@@ -139,5 +139,5 @@
       "sha256": "a1da6639d9f3f686d573a06235db65297ca07711bf5ccc0e1dd3f3c7dfb97b7f"
     }
   ],
-  "packageSha256": "189bc6db9cdf6e7547f2816b6a36ff7a639ca7bc616b879b3caeda4b0712c580"
+  "packageSha256": "32e4f2fdadc9611eae2a90ed1ac1587dcd3e4ef6e5c7420a6cfdb6b7e6e35bec"
 }
