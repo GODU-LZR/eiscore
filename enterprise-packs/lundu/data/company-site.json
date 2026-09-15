@@ -171,19 +171,19 @@
                 "url": "/enterprise-assets/site/crops/application-wide.jpg",
                 "assetPath": "assets/site/crops/application-wide.jpg",
                 "title": "Pump application",
-                "subtitle": "官网图片候选 · 裁切草稿"
+                "subtitle": "持续改进的应用场景"
               },
               {
                 "url": "/enterprise-assets/site/crops/factory-wide.jpg",
                 "assetPath": "assets/site/crops/factory-wide.jpg",
                 "title": "Manufacturing",
-                "subtitle": "官网图片候选 · 裁切草稿"
+                "subtitle": "精密制造现场"
               },
               {
                 "url": "/enterprise-assets/site/crops/detail-card.jpg",
                 "assetPath": "assets/site/crops/detail-card.jpg",
                 "title": "Product detail",
-                "subtitle": "官网图片候选 · 裁切草稿"
+                "subtitle": "关键部件细节"
               }
             ],
             "ui": {
@@ -323,19 +323,19 @@
                 "url": "/enterprise-assets/site/crops/application-wide.jpg",
                 "assetPath": "assets/site/crops/application-wide.jpg",
                 "title": "Pump application",
-                "subtitle": "Official website image candidate · cropped draft"
+                "subtitle": "Applications built for improvement"
               },
               {
                 "url": "/enterprise-assets/site/crops/factory-wide.jpg",
                 "assetPath": "assets/site/crops/factory-wide.jpg",
                 "title": "Manufacturing",
-                "subtitle": "Official website image candidate · cropped draft"
+                "subtitle": "Precision manufacturing"
               },
               {
                 "url": "/enterprise-assets/site/crops/detail-card.jpg",
                 "assetPath": "assets/site/crops/detail-card.jpg",
                 "title": "Product detail",
-                "subtitle": "Official website image candidate · cropped draft"
+                "subtitle": "Details that support reliability"
               }
             ],
             "ui": {
