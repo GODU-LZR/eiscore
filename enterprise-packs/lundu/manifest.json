@@ -43,6 +43,114 @@
       "sha256": "c900c37e1d7119fa428794115358b02e2645d696bd56d1c4e9bc9b3f350f9399"
     },
     {
+      "path": "assets/site/crops/generated-application-flow-card.jpg",
+      "kind": "asset",
+      "bytes": 137908,
+      "sha256": "756eb576cc7c93101f9cc35d591373978540e7dfab9fcb1014b2179c7361558d"
+    },
+    {
+      "path": "assets/site/crops/generated-application-flow-wide.jpg",
+      "kind": "asset",
+      "bytes": 245576,
+      "sha256": "475021118559698e8b37cac3fe97941c30f1c9db69229c0181a3ee236534a0e9"
+    },
+    {
+      "path": "assets/site/crops/generated-component-detail-card.jpg",
+      "kind": "asset",
+      "bytes": 126815,
+      "sha256": "cb1fcaa43ac75c820e8a02c116d3de6f2fdcb3760d7c182bb80f41475fdba9b1"
+    },
+    {
+      "path": "assets/site/crops/generated-component-detail-wide.jpg",
+      "kind": "asset",
+      "bytes": 230698,
+      "sha256": "cefe9a94eb5e9c90ce988a73b90cb90400903879cbc9b8e0abea4dfb09e218b1"
+    },
+    {
+      "path": "assets/site/crops/generated-digital-production-card.jpg",
+      "kind": "asset",
+      "bytes": 108879,
+      "sha256": "c6766a0b5a42290f9c45597eaa25463165f23cab7bacd04b515cd82a3858908d"
+    },
+    {
+      "path": "assets/site/crops/generated-digital-production-wide.jpg",
+      "kind": "asset",
+      "bytes": 187319,
+      "sha256": "57a744209eaf8c1b3a69b16d9ef724b8171d0f4fba7d3f372afb047285901221"
+    },
+    {
+      "path": "assets/site/crops/generated-factory-floor-card.jpg",
+      "kind": "asset",
+      "bytes": 151056,
+      "sha256": "0d1d72fd69982ad688d429f89e3725e2308b7be8f801613a1d01b0dc590b4e70"
+    },
+    {
+      "path": "assets/site/crops/generated-factory-floor-wide.jpg",
+      "kind": "asset",
+      "bytes": 273184,
+      "sha256": "d1489ccafde2587b3f6785e675752dfcd93c9ef8c5f2f750eacf089dc39bbaaa"
+    },
+    {
+      "path": "assets/site/crops/generated-factory-quality-card.jpg",
+      "kind": "asset",
+      "bytes": 146239,
+      "sha256": "1d8cf37ac81e54b3c907e15afcd617a46907ae5733bc5198c8f81953f2e0d296"
+    },
+    {
+      "path": "assets/site/crops/generated-factory-quality-wide.jpg",
+      "kind": "asset",
+      "bytes": 256910,
+      "sha256": "4e89dbfce1c571905c622ca1391d4e19d780b3d05e84bb125fba1756c1dccd55"
+    },
+    {
+      "path": "assets/site/crops/generated-hero-industrial-line-card.jpg",
+      "kind": "asset",
+      "bytes": 64048,
+      "sha256": "c0a8a8ff21a1af04205023254d088c6e1864c16a8fff86bae9bb819950cb4597"
+    },
+    {
+      "path": "assets/site/crops/generated-hero-industrial-line-wide.jpg",
+      "kind": "asset",
+      "bytes": 128908,
+      "sha256": "3dae097c99d874a4d25695dae91f579767b6fdaf91515173aaffcb1b9525e002"
+    },
+    {
+      "path": "assets/site/crops/generated-motor-product-card.jpg",
+      "kind": "asset",
+      "bytes": 93104,
+      "sha256": "827f02c06138947f9a21b5f298a6d464deff323ea8e1fd342ef9ee8ccf98d625"
+    },
+    {
+      "path": "assets/site/crops/generated-motor-product-wide.jpg",
+      "kind": "asset",
+      "bytes": 193947,
+      "sha256": "06bd2602a13682f7ef195f64f88ee46908913e063b0c756c8d323735aac7a3d3"
+    },
+    {
+      "path": "assets/site/crops/generated-pump-product-card.jpg",
+      "kind": "asset",
+      "bytes": 98851,
+      "sha256": "771e6c2201c80339e6df962f93762ded162cfe23afdef78154b0bd9e7226fee5"
+    },
+    {
+      "path": "assets/site/crops/generated-pump-product-wide.jpg",
+      "kind": "asset",
+      "bytes": 214057,
+      "sha256": "a54a0dcdd2967a55cb43666d2bd375bdcc2188ef96b48318093c3fba0a98c177"
+    },
+    {
+      "path": "assets/site/crops/generated-pump-selection-card.jpg",
+      "kind": "asset",
+      "bytes": 95270,
+      "sha256": "105efa3b10d64c7beee7375ddbbc2d01c3b308b7c1a5340601861d37042f86fe"
+    },
+    {
+      "path": "assets/site/crops/generated-pump-selection-wide.jpg",
+      "kind": "asset",
+      "bytes": 179815,
+      "sha256": "17fc5a62f57d0541e4dcb14796443151d16d673ddeebd6ec78854f4ec0e9af02"
+    },
+    {
       "path": "assets/site/crops/hero-wide.jpg",
       "kind": "asset",
       "bytes": 165206,
@@ -65,6 +173,120 @@
       "kind": "asset",
       "bytes": 180,
       "sha256": "19a37ccb4bbe2389b1ca634a377ef2c02d040f0825dc888aacf06ce594236d5c"
+    },
+    {
+      "path": "assets/site/framed/product-jet-card.jpg",
+      "kind": "asset",
+      "bytes": 36832,
+      "sha256": "0f69c1b8c857560a12368017eb08af63a15c7cb16cb646d416861fa4b3072321"
+    },
+    {
+      "path": "assets/site/framed/product-jet.png",
+      "kind": "asset",
+      "bytes": 1369984,
+      "sha256": "b7ae7bb60b0f9fc75f86cbd04a75e79f6d99bc864cff9783dc81c038a8302448"
+    },
+    {
+      "path": "assets/site/framed/product-pst-card.jpg",
+      "kind": "asset",
+      "bytes": 38222,
+      "sha256": "cd0ff3af90e1bfdcca106436813342c6a4f172ab3b4442a0e4d673873e689747"
+    },
+    {
+      "path": "assets/site/framed/product-pst.png",
+      "kind": "asset",
+      "bytes": 1322865,
+      "sha256": "e40cb8a30e7ff1b4ca86e7774e5a82c970392ab5317e9f2639aa456b8e7d46d8"
+    },
+    {
+      "path": "assets/site/framed/product-wq-card.jpg",
+      "kind": "asset",
+      "bytes": 29370,
+      "sha256": "a4f83e5c9e240db96d8fb10261cdd8bb2db475877fa1395a402335d211130204"
+    },
+    {
+      "path": "assets/site/framed/product-wq.png",
+      "kind": "asset",
+      "bytes": 1230959,
+      "sha256": "4d3781e4fd8c03ea4ddc6ccdd1af142ee245df5c634799af0e742599ce28428a"
+    },
+    {
+      "path": "assets/site/framed/product-yc-card.jpg",
+      "kind": "asset",
+      "bytes": 28396,
+      "sha256": "4268abb4eaa93068c3cf59c14f7744ea98772eab8b7c954839ade334b150a016"
+    },
+    {
+      "path": "assets/site/framed/product-yc.png",
+      "kind": "asset",
+      "bytes": 1205388,
+      "sha256": "02c98531e55947ce887e403af13b5b96cfe1a926d41f01354430b3369ca07d75"
+    },
+    {
+      "path": "assets/site/framed/product-ye3-card.jpg",
+      "kind": "asset",
+      "bytes": 37561,
+      "sha256": "962590f826edb243e75dc591233c3a2d51f95f81e0597d0094722d19d401b12b"
+    },
+    {
+      "path": "assets/site/framed/product-ye3.png",
+      "kind": "asset",
+      "bytes": 1356716,
+      "sha256": "9a8de803d9d0eba9ae72524a25557be8c4df4f5e205d04b7997a9168775e7d1c"
+    },
+    {
+      "path": "assets/site/generated/application-flow.png",
+      "kind": "asset",
+      "bytes": 2460202,
+      "sha256": "8ced0cf94158a836fb2aa171e2d231896fa82bf005ace4631d3ad7b49d902159"
+    },
+    {
+      "path": "assets/site/generated/component-detail.png",
+      "kind": "asset",
+      "bytes": 2394604,
+      "sha256": "a9ec821fa015ebc1e22366f303a9cf97ca07db2b0bf7cf35a5f24177b9693b3c"
+    },
+    {
+      "path": "assets/site/generated/digital-production.png",
+      "kind": "asset",
+      "bytes": 2234547,
+      "sha256": "36712c3d1fcaccea97054a1b2a54d1823419fc87d4f2a2ffbf08bd6d7fc52b2d"
+    },
+    {
+      "path": "assets/site/generated/factory-floor.png",
+      "kind": "asset",
+      "bytes": 2574125,
+      "sha256": "2d92d1f64166a1bbbce92e577de596b7045045b5125736f2e62038dce44c5a55"
+    },
+    {
+      "path": "assets/site/generated/factory-quality.png",
+      "kind": "asset",
+      "bytes": 2588438,
+      "sha256": "2c4732da48f4ab84de0ce36131cd3c8b4a62471cce66639c2677caef2d029c64"
+    },
+    {
+      "path": "assets/site/generated/hero-industrial-line.png",
+      "kind": "asset",
+      "bytes": 1647626,
+      "sha256": "96e010eb84c64ac9b89510707130112d9039d1c4c41a4f75783afcb09b59edb2"
+    },
+    {
+      "path": "assets/site/generated/motor-product.png",
+      "kind": "asset",
+      "bytes": 1695116,
+      "sha256": "7eb94117982bacf1bc198981363f15e71ca1ce212c14fe294c100d69e50f588a"
+    },
+    {
+      "path": "assets/site/generated/pump-product.png",
+      "kind": "asset",
+      "bytes": 2040562,
+      "sha256": "bf6cfe5295f42e0e94bacc0b47208de19e7e39de854bbbe7754c5a4ac737e7c3"
+    },
+    {
+      "path": "assets/site/generated/pump-selection.png",
+      "kind": "asset",
+      "bytes": 2148568,
+      "sha256": "6d4be2740edc3bcbe79ee271be96b2dac9cff98c38d6f6ce06583d2d76b4a28c"
     },
     {
       "path": "assets/site/official-1.jpg",
@@ -109,22 +331,196 @@
       "sha256": "994307f519b1a93b89117fbb8d0f4ddf288873cf320a06bcc5bb83e172201fd6"
     },
     {
+      "path": "assets/site/products/jet-self-priming-pump.jpg",
+      "kind": "asset",
+      "bytes": 86855,
+      "sha256": "9b5e5f011ffe4430acceaa2a6ccc8691d5c088222c21b59b3db9a93eef9dd306"
+    },
+    {
+      "path": "assets/site/products/jet-self-priming-pump.png",
+      "kind": "asset",
+      "bytes": 1726789,
+      "sha256": "26af5929fc06e612b7956e661f666b49ee052798a72c9348e4a5115397079565"
+    },
+    {
+      "path": "assets/site/products/pst-centrifugal-pump.jpg",
+      "kind": "asset",
+      "bytes": 86142,
+      "sha256": "7ee611592a76fbccc35692b48ab9933a4121aee840ee48985d06ea7e8b3cccda"
+    },
+    {
+      "path": "assets/site/products/pst-centrifugal-pump.png",
+      "kind": "asset",
+      "bytes": 1795223,
+      "sha256": "fc32e15dc2bdcf1282991616111e93322a9728e8f04e50b1f0e78dc071d8c73c"
+    },
+    {
+      "path": "assets/site/products/wq-submersible-pump.jpg",
+      "kind": "asset",
+      "bytes": 62729,
+      "sha256": "04028b505ec1f7a613908b3f2f01aa1f5a3fb83daefeefa4777eddc022fa5015"
+    },
+    {
+      "path": "assets/site/products/wq-submersible-pump.png",
+      "kind": "asset",
+      "bytes": 1632208,
+      "sha256": "4be38a5b04e901499d8d3839dc063e599eed55e362ec59d679948b7b4307dc2f"
+    },
+    {
+      "path": "assets/site/products/yc-single-motor.jpg",
+      "kind": "asset",
+      "bytes": 87277,
+      "sha256": "c90e539c25c391591eb1eb350c030939db8fd9f0601e3ac15b47e71da965e752"
+    },
+    {
+      "path": "assets/site/products/yc-single-motor.png",
+      "kind": "asset",
+      "bytes": 1835174,
+      "sha256": "c259804fb3c12447ffd8e0d3a2bbd6a7567e382d6ba12eff0989ba326a11f043"
+    },
+    {
+      "path": "assets/site/products/ye3-motor.jpg",
+      "kind": "asset",
+      "bytes": 94955,
+      "sha256": "9e502dcd45c206a5651a1112cf2642b343baadff2a4955797d9f7898f053ca03"
+    },
+    {
+      "path": "assets/site/products/ye3-motor.png",
+      "kind": "asset",
+      "bytes": 1923860,
+      "sha256": "6617f7512d7bbc6d03f5c190b3c70767c060dd13685101856fb48c5b7ad36b56"
+    },
+    {
+      "path": "assets/site/ratio/application-wide.png",
+      "kind": "asset",
+      "bytes": 2139425,
+      "sha256": "e58d7776c9670af145f4eb2ad79a6ad9ac867bbb03aab533ff7a89472aa44889"
+    },
+    {
+      "path": "assets/site/ratio/detail-wide.png",
+      "kind": "asset",
+      "bytes": 2539357,
+      "sha256": "52fa5f5e17a96653ad4beb18145fb14861ad2ca2e8f2ad6f54a9496b2fbe6c0b"
+    },
+    {
+      "path": "assets/site/ratio/factory-wide.png",
+      "kind": "asset",
+      "bytes": 2652166,
+      "sha256": "b02a60e9437fac930ab2a70912f48852110840ab74367cc856922755a919ec6d"
+    },
+    {
+      "path": "assets/site/ratio/hero-wide.png",
+      "kind": "asset",
+      "bytes": 2188324,
+      "sha256": "e9c3610c1e59e22edb638717ef91b9ee65c8b233a89ae463718317bfc89fc7da"
+    },
+    {
+      "path": "assets/site/ratio/motor-wide.png",
+      "kind": "asset",
+      "bytes": 1999986,
+      "sha256": "af7101be8c75396b229186d882168ea54748f2b3049fbdd69d47dae5e66aaf73"
+    },
+    {
+      "path": "assets/site/ratio/product-jet.png",
+      "kind": "asset",
+      "bytes": 1817163,
+      "sha256": "4ad254ee4b410e65de252f64bc01676dfa4e86be75c854cc5101a075ae872a4c"
+    },
+    {
+      "path": "assets/site/ratio/product-pst.png",
+      "kind": "asset",
+      "bytes": 1705376,
+      "sha256": "a22940164c93d3f715588d672af9877cbe6a2cf48789de04e6d7b97cd972129f"
+    },
+    {
+      "path": "assets/site/ratio/product-wq.png",
+      "kind": "asset",
+      "bytes": 1754027,
+      "sha256": "248ebaa9afd0adf8fe8ef1367f9e6a998bc25b3f4c004ec4c47cf91ba9c6bb48"
+    },
+    {
+      "path": "assets/site/ratio/product-yc.png",
+      "kind": "asset",
+      "bytes": 1881942,
+      "sha256": "465806014e5ade8211e8fac5fbb569e0a26a5790cf5f5a4932c0df6d20fc8414"
+    },
+    {
+      "path": "assets/site/ratio/product-ye3.png",
+      "kind": "asset",
+      "bytes": 1672543,
+      "sha256": "842291362a02146e2b435780af5252e3f471a3a0b0e94faaeb4ee6c046566969"
+    },
+    {
+      "path": "assets/site/ratio/pump-wide.png",
+      "kind": "asset",
+      "bytes": 1969248,
+      "sha256": "753281fdc5bc410155c3865b1e2e21a98cf3a65410e58b3eb660a44bad62fe17"
+    },
+    {
+      "path": "assets/site/ratio/solution-digital.png",
+      "kind": "asset",
+      "bytes": 2157767,
+      "sha256": "ca40d696aa8664bd325ea7452260aa081d13ab164253f736a196e567ef9b5e37"
+    },
+    {
+      "path": "assets/site/ratio/solution-motor.png",
+      "kind": "asset",
+      "bytes": 1979052,
+      "sha256": "f844e1a6dbc611ed213601da8654ec89e48320e262ec75774807df15a25db440"
+    },
+    {
+      "path": "assets/site/ratio/solution-pump.png",
+      "kind": "asset",
+      "bytes": 2022655,
+      "sha256": "bb3ea1f15244d43505a4fa1eea5b6a7e22e7cda0360498ea094097efcec205e3"
+    },
+    {
+      "path": "assets/site/transparent-products/jet-self-priming-pump.png",
+      "kind": "asset",
+      "bytes": 1089418,
+      "sha256": "6343c811118d36d86023ee81ee51c25bd0db97a2525a278482390b849fa42bee"
+    },
+    {
+      "path": "assets/site/transparent-products/pst-centrifugal-pump.png",
+      "kind": "asset",
+      "bytes": 1202905,
+      "sha256": "7c0af67d98dc06ca6e206d009c4260a624266d97d83b9e08dc30e6ecd27f777b"
+    },
+    {
+      "path": "assets/site/transparent-products/wq-submersible-pump.png",
+      "kind": "asset",
+      "bytes": 921632,
+      "sha256": "9084f019c4938fcbe78a9325811fc9d7c190cc7db64b2d08322957c51561811a"
+    },
+    {
+      "path": "assets/site/transparent-products/yc-single-motor.png",
+      "kind": "asset",
+      "bytes": 1208346,
+      "sha256": "48a72e1704ae31dc39e6518649c32ca5af11a3adb05044f7bcc492f5089f2666"
+    },
+    {
+      "path": "assets/site/transparent-products/ye3-motor.png",
+      "kind": "asset",
+      "bytes": 1187546,
+      "sha256": "c6622849b4433b9d79276c58ff44c0149ab2b3f2b0002aad96b1a88db477e88a"
+    },
+    {
       "path": "data/company-site.json",
       "kind": "seed",
-      "bytes": 29636,
-      "sha256": "24673bbd3fad0ace90a6f14aafd0139e9bda597431ca3b639980b2e336511837"
+      "bytes": 32114,
+      "sha256": "8764b08013765404fae9820a3117ee4db24e76a9a92281376e5aaad5c95c0cd6"
     },
     {
       "path": "evidence/PACKAGE-GUIDE.md",
       "kind": "evidence",
-      "bytes": 1956,
-      "sha256": "63be84fbd71c65b681bfb00779d77bf8d2e83fba171d80ef519ab1f92a02d9ff"
+      "bytes": 1971,
+      "sha256": "fee3d049af351e03ab641c6066c3bc4c621e04bb7576d92e4d379523ffb2c161"
     },
     {
       "path": "evidence/asset-sources.json",
       "kind": "evidence",
-      "bytes": 10337,
-      "sha256": "144d14402c08f8c425f095e6c3b821360f2e2f55cc0279c4190df928072c18c6"
+      "bytes": 10313,
+      "sha256": "37fbde399e3049b916a2f51e2b2ca52967e151f25f89c7bc20d923f0503a1988"
     },
     {
       "path": "evidence/research-sources.json",
@@ -139,5 +535,5 @@
       "sha256": "a1da6639d9f3f686d573a06235db65297ca07711bf5ccc0e1dd3f3c7dfb97b7f"
     }
   ],
-  "packageSha256": "32e4f2fdadc9611eae2a90ed1ac1587dcd3e4ef6e5c7420a6cfdb6b7e6e35bec"
+  "packageSha256": "04303e57fac08b3b8fab21a1027459f9ae5a5aca735e61c0595e5ac744e6b307"
 }

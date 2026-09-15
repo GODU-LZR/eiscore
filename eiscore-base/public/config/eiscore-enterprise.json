@@ -2,18 +2,18 @@
   "$schema": "../../../config/enterprise.schema.json",
   "schemaVersion": 1,
   "enterprise": {
-    "id": "current-compatibility",
-    "displayName": "广东南派食品有限公司",
-    "shortName": "南派食品"
+    "id": "lundu",
+    "displayName": "伦度机电有限公司",
+    "shortName": "伦度机电"
   },
   "branding": {
-    "productName": "海边姑娘管理系统",
-    "themeColor": "#409EFF",
-    "logoUrl": "https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3MisnwYo8JqKqQYw9AM49AM.jpg",
+    "productName": "伦度机电数字化工厂",
+    "themeColor": "#0B6E69",
+    "logoUrl": "",
     "login": {
-      "slogan": "深耕热带水果全产业链，打造高品质水果制品方案",
-      "description": "根据企业官网公开信息：公司成立于 2009 年，注册资金 1000 万元，总部位于中国雷州半岛；拥有湛江、广西两大加工基地和多条水果加工生产线，面向茶饮、烘焙、饮料与生鲜客户提供一站式水果制品解决方案。",
-      "siteTag": "热带水果制品解决方案提供商",
+      "slogan": "让每一台泵稳定地工作。",
+      "description": "伦度机电有限公司集设计、开发、制造、销售与服务于一体，覆盖电机、潜水泵、管道离心泵与自吸泵。",
+      "siteTag": "电机与水泵制造",
       "announcement": "员工与合作伙伴入口",
       "headerLoginText": "员工通道",
       "authKicker": "员工入口",
@@ -25,57 +25,141 @@
       "secondaryActionUrl": "/eiscore",
       "showSecondaryAction": false,
       "passBadgeText": "员工通行",
-      "businessChainTitle": "从产地到交付的服务路径",
-      "scrollCueText": "向下了解企业",
-      "metricsSectionKicker": "企业实力",
-      "metricsSectionTitle": "多年深耕热带水果产业",
-      "aboutSectionKicker": "关于企业",
-      "capabilitiesSectionKicker": "产品与服务",
-      "capabilitiesSectionTitle": "从产地原料到客户应用的完整服务",
-      "leadersSectionKicker": "管理团队",
-      "leadersSectionTitle": "管理团队",
-      "backgroundImage": "https://29761748.s21i.faiusr.com/2/ABUIABACGAAgx6CtnwYoh8fKtgcwgA84vAU!1500x1500.jpg",
+      "businessChainTitle": "从制造链到客户场景，逐项核验",
+      "scrollCueText": "了解产品方向",
+      "metricsSectionKicker": "企业概况与公开口径",
+      "metricsSectionTitle": "把能力、服务方向和经营信息说清楚",
+      "aboutSectionKicker": "关于伦度",
+      "capabilitiesSectionKicker": "资质与服务能力",
+      "capabilitiesSectionTitle": "从制造链到客户场景，逐项核验",
+      "leadersSectionKicker": "企业联系人",
+      "leadersSectionTitle": "企业联系人",
+      "backgroundImage": "/enterprise-assets/site/ratio/hero-wide.png",
       "navItems": [
-        { "label": "企业概况", "anchor": "overview" },
-        { "label": "关于企业", "anchor": "about" },
-        { "label": "产品服务", "anchor": "capabilities" },
-        { "label": "企业实力", "anchor": "metrics" }
+        {
+          "label": "企业概况",
+          "anchor": "overview"
+        },
+        {
+          "label": "产品方向",
+          "anchor": "products"
+        },
+        {
+          "label": "制造能力",
+          "anchor": "capabilities"
+        }
       ],
       "metrics": [
-        { "label": "成立时间", "value": "2009" },
-        { "label": "加工基地", "value": "2" },
-        { "label": "注册资金", "value": "1000万" }
+        {
+          "label": "企业所在地",
+          "value": "温岭沈岙"
+        },
+        {
+          "label": "资质与业务范围",
+          "value": "设计·开发·制造·销售·服务"
+        },
+        {
+          "label": "客户与服务场景",
+          "value": "待企业确认"
+        },
+        {
+          "label": "产量 / 订单（含官网口径）",
+          "value": "待确认 · 官网口径 6000项目 / 4500吨 / 35亿 / 13+国（待核验）"
+        }
       ],
       "trustBadges": [
-        { "label": "雷州半岛产地优势" },
-        { "label": "双加工基地" },
-        { "label": "多场景客户服务" }
+        {
+          "label": "设计·开发·制造·销售·服务"
+        },
+        {
+          "label": "电机与水泵产品方向"
+        },
+        {
+          "label": "温岭沈岙工业园区"
+        }
       ],
       "businessChain": [
-        { "title": "原料甄选", "description": "依托热带水果产区资源，关注原料风味、成熟度与稳定供应。", "status": "产地直采" },
-        { "title": "加工制造", "description": "围绕果浆、果粒、果酱等产品形态，支持规模化与定制化生产。", "status": "稳定交付" },
-        { "title": "客户服务", "description": "面向茶饮、烘焙、饮料与生鲜渠道，提供产品方案和交付支持。", "status": "多场景适配" }
+        {
+          "title": "电机系列",
+          "description": "YE4、YE3、YD、YVF2、YEJ2，以及 YC、YL、YY 等公开方向。"
+        },
+        {
+          "title": "潜水泵系列",
+          "description": "QDX/QX、QD、WQD/WQ、WQX、JYWQ、GNWQ、QY 等公开方向。"
+        },
+        {
+          "title": "工业泵系列",
+          "description": "PST 标准管道离心泵及 ISW/IRG 管道泵方向。"
+        },
+        {
+          "title": "核心部件与制造协同",
+          "description": "底座、泵头、叶轮、油缸、机械密封、转子、线圈、机筒、花板、电缆线、轴承等物料方向来自客户资料。"
+        },
+        {
+          "title": "服务对象与经营数字（待核验）",
+          "description": "适配电机设备采购、水泵系统集成、工业供水与排污、工程项目配套及维修备件采购；官网首页曾出现 6000 个项目、4500 吨装车量、35 亿合同额、13+ 国家，仅作为待企业确认的宣传线索。"
+        }
       ],
       "capabilities": [
-        { "title": "热带水果制品", "description": "围绕芒果、菠萝、百香果等热带水果，提供多形态原料产品。" },
-        { "title": "规模化加工", "description": "依托湛江、广西加工基地，保障稳定产能与产品一致性。" },
-        { "title": "应用方案支持", "description": "结合茶饮、烘焙、饮料等使用场景，提供选型与应用建议。" }
+        {
+          "title": "设计、开发、制造、销售与服务",
+          "description": "公开资料明确的业务范围，覆盖电机、水泵及相关配套服务。"
+        },
+        {
+          "title": "资质与合规资料",
+          "description": "证书名称、编号、有效期和适用范围尚未取得企业确认，暂不展示为已认证事实。"
+        },
+        {
+          "title": "客户与服务场景",
+          "description": "面向采购商、系统集成商、工程项目和维修备件等服务方向；客户名称与 Logo 待授权确认。"
+        },
+        {
+          "title": "产量与订单数据",
+          "description": "官网宣传数字已保留为待核验线索；年产量、月产量、订单数量与合同额需企业提供口径后公开。"
+        }
       ],
       "carouselImages": [
-        { "url": "https://29761748.s21i.faiusr.com/2/ABUIABACGAAg5uqnnwYoiNO9CjDcCziIBQ.jpg", "title": "热带水果全产业链布局", "subtitle": "覆盖种植、加工、研发、销售与服务" },
-        { "url": "https://29761748.s21i.faiusr.com/2/ABUIABACGAAg3-CwnwYo_qL0ggIwjgI4nwM.jpg", "title": "加工与品控能力", "subtitle": "支持多品类水果制品的规模化生产" },
-        { "url": "https://29761748.s21i.faiusr.com/2/ABUIABACGAAgheiwnwYoj7jo0QQwjgI4nwM.jpg", "title": "面向多场景客户", "subtitle": "服务茶饮、烘焙、饮料与生鲜渠道" }
+        {
+          "url": "/enterprise-assets/site/ratio/hero-wide.png",
+          "title": "设备与产品",
+          "subtitle": "稳定可靠的产品呈现"
+        },
+        {
+          "url": "/enterprise-assets/site/ratio/pump-wide.png",
+          "title": "泵产品",
+          "subtitle": "面向多种工况的泵系统"
+        },
+        {
+          "url": "/enterprise-assets/site/ratio/motor-wide.png",
+          "title": "电机产品",
+          "subtitle": "高效稳定的动力单元"
+        },
+        {
+          "url": "/enterprise-assets/site/ratio/application-wide.png",
+          "title": "应用场景",
+          "subtitle": "适配真实工况需求"
+        },
+        {
+          "url": "/enterprise-assets/site/ratio/factory-wide.png",
+          "title": "制造现场",
+          "subtitle": "整洁有序的制造流程"
+        },
+        {
+          "url": "/enterprise-assets/site/ratio/detail-wide.png",
+          "title": "关键部件",
+          "subtitle": "精密制造细节"
+        }
       ],
       "leaders": [],
-      "footerText": "Copyright © EISCore",
+      "footerText": "Copyright © 伦度机电有限公司",
       "icpText": "",
       "mobile": {
-        "description": "根据企业官网公开信息：公司成立于 2009 年，总部位于中国雷州半岛；拥有湛江、广西两大加工基地和多条水果加工生产线，面向茶饮、烘焙、饮料与生鲜客户提供一站式水果制品解决方案。",
-        "authFootnote": "仅授权人员使用",
+        "description": "伦度机电有限公司集设计、开发、制造、销售与服务于一体，覆盖电机、潜水泵、管道离心泵与自吸泵。",
+        "authFootnote": "该入口仅供授权人员使用",
         "showSecondaryAction": false,
         "passBadgeText": "员工通行",
-        "businessChainTitle": "从产地到交付的服务路径",
-        "footerText": "Copyright © 广东南派食品有限公司"
+        "businessChainTitle": "从制造链到客户场景，逐项核验",
+        "footerText": "Copyright © 伦度机电有限公司"
       }
     }
   },

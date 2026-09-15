@@ -89,11 +89,11 @@
             "authFootnote": "该入口仅供授权人员使用",
             "primaryActionText": "员工登录",
             "scrollCueText": "了解产品方向",
-            "metricsSectionKicker": "公开信息",
-            "metricsSectionTitle": "从公开资料认识伦度机电",
+            "metricsSectionKicker": "企业概况与公开口径",
+            "metricsSectionTitle": "把能力、服务方向和经营信息说清楚",
             "aboutSectionKicker": "关于伦度",
-            "capabilitiesSectionKicker": "制造能力",
-            "capabilitiesSectionTitle": "电机、水泵与数字化运营",
+            "capabilitiesSectionKicker": "资质与服务能力",
+            "capabilitiesSectionTitle": "从制造链到客户场景，逐项核验",
             "productSectionKicker": "产品方向",
             "productSectionTitle": "官网公开的电机与水泵系列",
             "solutionSectionKicker": "数字化运营",
@@ -104,12 +104,16 @@
                 "value": "温岭沈岙"
               },
               {
-                "label": "产品方向",
-                "value": "电机与水泵"
+                "label": "资质与业务范围",
+                "value": "设计·开发·制造·销售·服务"
               },
               {
-                "label": "官网邮箱",
-                "value": "info@lundujd.com"
+                "label": "客户与服务场景",
+                "value": "待企业确认"
+              },
+              {
+                "label": "产量 / 订单（含官网口径）",
+                "value": "待确认 · 官网口径 6000项目 / 4500吨 / 35亿 / 13+国（待核验）"
               }
             ],
             "businessChain": [
@@ -130,22 +134,31 @@
               },
               {
                 "number": "04",
-                "title": "数字化运营",
-                "description": "通过平台连接物料、生产、质量、设备、销售与智能 BI。"
+                "title": "核心部件与制造协同",
+                "description": "底座、泵头、叶轮、油缸、机械密封、转子、线圈、机筒、花板、电缆线、轴承等物料方向来自客户资料。"
+              },
+              {
+                "number": "05",
+                "title": "服务对象与经营数字（待核验）",
+                "description": "适配电机设备采购、水泵系统集成、工业供水与排污、工程项目配套及维修备件采购；官网首页曾出现 6000 个项目、4500 吨装车量、35 亿合同额、13+ 国家，仅作为待企业确认的宣传线索。"
               }
             ],
             "capabilities": [
               {
-                "title": "电机产品",
-                "description": "覆盖单相与三相异步电动机系列，具体型号和参数以企业确认资料为准。"
+                "title": "设计、开发、制造、销售与服务",
+                "description": "公开资料明确的业务范围，覆盖电机、水泵及相关配套服务。"
               },
               {
-                "title": "水泵产品",
-                "description": "覆盖潜水泵、管道离心泵和自吸喷射泵等方向，支持按工况选型。"
+                "title": "资质与合规资料",
+                "description": "证书名称、编号、有效期和适用范围尚未取得企业确认，暂不展示为已认证事实。"
               },
               {
-                "title": "数字化工厂",
-                "description": "连接物料、生产、质量、设备与经营数据，支持持续改进。"
+                "title": "客户与服务场景",
+                "description": "面向采购商、系统集成商、工程项目和维修备件等服务方向；客户名称与 Logo 待授权确认。"
+              },
+              {
+                "title": "产量与订单数据",
+                "description": "官网宣传数字已保留为待核验线索；年产量、月产量、订单数量与合同额需企业提供口径后公开。"
               }
             ],
             "carouselImages": [
@@ -189,7 +202,7 @@
             "ui": {
               "productDisclaimer": "公开资料草稿，不构成规格、价格、库存、产能、认证或交期承诺。"
             },
-            "footerNote": "本页为授权审核用公开资料草稿；规格、价格、库存、产能、认证有效性和交期须由企业确认。"
+            "footerNote": "本页为授权审核用公开资料草稿；资质、客户、产量、订单与官网宣传数字均需企业确认后再作为正式对外信息。"
           }
         },
         "seo": {
@@ -241,11 +254,11 @@
             "authFootnote": "Authorized personnel only",
             "primaryActionText": "Sign in",
             "scrollCueText": "Explore products",
-            "metricsSectionKicker": "Public facts",
-            "metricsSectionTitle": "Lundu through public sources",
+            "metricsSectionKicker": "Company profile and public figures",
+            "metricsSectionTitle": "Make capabilities, service scope and operating data clear",
             "aboutSectionKicker": "About Lundu",
-            "capabilitiesSectionKicker": "Capabilities",
-            "capabilitiesSectionTitle": "Motors, pumps and digital operations",
+            "capabilitiesSectionKicker": "Qualifications and service capability",
+            "capabilitiesSectionTitle": "From the manufacturing chain to customer scenarios",
             "productSectionKicker": "Products",
             "productSectionTitle": "Publicly listed motor and pump families",
             "solutionSectionKicker": "Digital operations",
@@ -256,12 +269,16 @@
                 "value": "Wenling"
               },
               {
-                "label": "Product focus",
-                "value": "Motors & pumps"
+                "label": "Qualifications and scope",
+                "value": "Design · make · sell · serve"
               },
               {
-                "label": "Email",
-                "value": "info@lundujd.com"
+                "label": "Customers and service scenarios",
+                "value": "To be confirmed"
+              },
+              {
+                "label": "Output / orders (website figures)",
+                "value": "To be confirmed · website cites 6,000 projects / 4,500 t / RMB 3.5B / 13+ countries (unverified)"
               }
             ],
             "businessChain": [
@@ -282,22 +299,31 @@
               },
               {
                 "number": "04",
-                "title": "Digital operations",
-                "description": "Materials, production, quality, equipment, sales and BI in one platform."
+                "title": "Components and manufacturing coordination",
+                "description": "Base plates, pump heads, impellers, cylinders, mechanical seals, rotors, coils, barrels, cables, bearings and related items from the customer source sheet."
+              },
+              {
+                "number": "05",
+                "title": "Service audiences and figures (unverified)",
+                "description": "Motor buyers, pump system integrators, industrial water and drainage, project supply and service-parts procurement; the homepage cites 6,000 projects, 4,500 tonnes loaded, RMB 3.5 billion in contracts and 13+ countries, pending confirmation."
               }
             ],
             "capabilities": [
               {
-                "title": "Motors",
-                "description": "Single-phase and three-phase motor families; exact models and specifications require confirmation."
+                "title": "Design, development, manufacturing, sales and service",
+                "description": "The public source describes this operating scope across motors, pumps and related support."
               },
               {
-                "title": "Pumps",
-                "description": "Submersible, pipeline centrifugal and self-priming pump directions for varied operating conditions."
+                "title": "Qualifications and compliance records",
+                "description": "Certificate names, numbers, validity and scope have not been confirmed and are not presented as verified certifications."
               },
               {
-                "title": "Digital factory",
-                "description": "Connect materials, production, quality, equipment and business data for continuous improvement."
+                "title": "Customers and service scenarios",
+                "description": "Service directions include buyers, system integrators, projects and spare-parts procurement; customer names and logos require authorization."
+              },
+              {
+                "title": "Output and order data",
+                "description": "Website figures are retained as unverified leads; annual output, order count and contract figures require an approved company data definition."
               }
             ],
             "carouselImages": [
@@ -341,7 +367,7 @@
             "ui": {
               "productDisclaimer": "Public-source draft; specifications, price, stock, capacity, certification and lead time require confirmation."
             },
-            "footerNote": "Source-based draft for authorized review. Specifications, pricing, availability, capacity, certification validity and lead times require confirmation."
+            "footerNote": "Source-based draft for authorized review. Qualifications, customers, output, orders and website figures require company confirmation before public use."
           }
         },
         "seo": {
