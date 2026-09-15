@@ -7,7 +7,7 @@
     "usageScope": "isolated-local-draft-preview-only",
     "productionEligible": false,
     "authorizationRequired": true,
-    "notes": "Official Lundu website images remain source candidates. GPT Image 2 assets were generated through the configured YouC endpoint and stored under assets/site/generated plus cropped component derivatives under assets/site/crops. Generated images contain no factual product claims; website-derived images remain pending rights-holder authorization."
+    "notes": "Official Lundu website images remain source candidates. GPT Image 2 assets were generated through the configured YouC endpoint, including ratio-matched 1536x1024 assets under assets/site/ratio and earlier derivatives under assets/site/generated and assets/site/crops. Generated images contain no factual product claims; website-derived images remain pending rights-holder authorization."
   },
   "assets": [
     {
