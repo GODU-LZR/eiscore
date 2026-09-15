@@ -60,7 +60,7 @@
                 "让每一台泵",
                 "稳定地工作。"
               ],
-              "summary": "基于官网、采集表和产品介绍整理的伦度机电公开资料门户。",
+              "summary": "专注电机与水泵产品，为稳定运行提供可靠动力。",
               "signals": [
                 "浙江温岭",
                 "电机制造",
@@ -145,27 +145,27 @@
               },
               {
                 "title": "数字化工厂",
-                "description": "EISCore 基座通过 DeepSeek Harness iframe 插件提供数字分身与智能 BI。"
+                "description": "连接物料、生产、质量、设备与经营数据，支持持续改进。"
               }
             ],
             "carouselImages": [
               {
-                "url": "/enterprise-assets/site/crops/hero-wide.jpg",
-                "assetPath": "assets/site/crops/hero-wide.jpg",
-                "title": "Factory overview",
-                "subtitle": "官网图片候选 · 裁切草稿"
+                "url": "/enterprise-assets/site/crops/generated-hero-industrial-line-wide.jpg",
+                "assetPath": "assets/site/crops/generated-hero-industrial-line-wide.jpg",
+                "title": "设备与产品",
+                "subtitle": "稳定可靠的产品呈现"
               },
               {
-                "url": "/enterprise-assets/site/crops/product-card.jpg",
-                "assetPath": "assets/site/crops/product-card.jpg",
-                "title": "Pump product",
-                "subtitle": "官网图片候选 · 裁切草稿"
+                "url": "/enterprise-assets/site/crops/generated-pump-product-wide.jpg",
+                "assetPath": "assets/site/crops/generated-pump-product-wide.jpg",
+                "title": "泵产品",
+                "subtitle": "面向多种工况的泵系统"
               },
               {
-                "url": "/enterprise-assets/site/crops/product-card-motor.jpg",
-                "assetPath": "assets/site/crops/product-card-motor.jpg",
-                "title": "Motor product",
-                "subtitle": "官网图片候选 · 裁切草稿"
+                "url": "/enterprise-assets/site/crops/generated-factory-quality-wide.jpg",
+                "assetPath": "assets/site/crops/generated-factory-quality-wide.jpg",
+                "title": "制造现场",
+                "subtitle": "整洁有序的制造流程"
               },
               {
                 "url": "/enterprise-assets/site/crops/application-wide.jpg",
@@ -212,7 +212,7 @@
                 "Reliable motion,",
                 "stable flow."
               ],
-              "summary": "A source-based Lundu portal for motors, pumps and digital operations.",
+              "summary": "Motors and pump systems built for dependable everyday operation.",
               "signals": [
                 "Wenling, Zhejiang",
                 "Motors",
@@ -297,27 +297,27 @@
               },
               {
                 "title": "Digital factory",
-                "description": "The EISCore host exposes Digital Twin and Smart BI through the DeepSeek Harness iframe plugin."
+                "description": "Connect materials, production, quality, equipment and business data for continuous improvement."
               }
             ],
             "carouselImages": [
               {
-                "url": "/enterprise-assets/site/crops/hero-wide.jpg",
-                "assetPath": "assets/site/crops/hero-wide.jpg",
-                "title": "Factory overview",
-                "subtitle": "Official website image candidate · cropped draft"
+                "url": "/enterprise-assets/site/crops/generated-hero-industrial-line-wide.jpg",
+                "assetPath": "assets/site/crops/generated-hero-industrial-line-wide.jpg",
+                "title": "Equipment and products",
+                "subtitle": "Dependable product presentation"
               },
               {
-                "url": "/enterprise-assets/site/crops/product-card.jpg",
-                "assetPath": "assets/site/crops/product-card.jpg",
-                "title": "Pump product",
-                "subtitle": "Official website image candidate · cropped draft"
+                "url": "/enterprise-assets/site/crops/generated-pump-product-wide.jpg",
+                "assetPath": "assets/site/crops/generated-pump-product-wide.jpg",
+                "title": "Pump systems",
+                "subtitle": "Pump systems for diverse applications"
               },
               {
-                "url": "/enterprise-assets/site/crops/product-card-motor.jpg",
-                "assetPath": "assets/site/crops/product-card-motor.jpg",
-                "title": "Motor product",
-                "subtitle": "Official website image candidate · cropped draft"
+                "url": "/enterprise-assets/site/crops/generated-factory-quality-wide.jpg",
+                "assetPath": "assets/site/crops/generated-factory-quality-wide.jpg",
+                "title": "Manufacturing",
+                "subtitle": "An orderly manufacturing flow"
               },
               {
                 "url": "/enterprise-assets/site/crops/application-wide.jpg",

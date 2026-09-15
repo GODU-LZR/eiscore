@@ -7,7 +7,7 @@
     "usageScope": "isolated-local-draft-preview-only",
     "productionEligible": false,
     "authorizationRequired": true,
-    "notes": "Official Lundu website images are retained as source candidates and locally cropped preview derivatives. Public availability is not a commercial-use license. GPT Image 2 generation was attempted but unavailable because the configured provider returned a seven-day quota_exceeded response; no generated image is included. Keep all website-derived images out of production until the rights holder authorizes use."
+    "notes": "Official Lundu website images remain source candidates. GPT Image 2 assets were generated through the configured YouC endpoint and stored under assets/site/generated plus cropped component derivatives under assets/site/crops. Generated images contain no factual product claims; website-derived images remain pending rights-holder authorization."
   },
   "assets": [
     {
