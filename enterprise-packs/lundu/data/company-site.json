@@ -162,28 +162,28 @@
                 "subtitle": "面向多种工况的泵系统"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-factory-quality-wide.jpg",
-                "assetPath": "assets/site/crops/generated-factory-quality-wide.jpg",
+                "url": "/enterprise-assets/site/crops/generated-motor-product-wide.jpg",
+                "assetPath": "assets/site/crops/generated-motor-product-wide.jpg",
+                "title": "电机产品",
+                "subtitle": "高效稳定的动力单元"
+              },
+              {
+                "url": "/enterprise-assets/site/crops/generated-application-flow-wide.jpg",
+                "assetPath": "assets/site/crops/generated-application-flow-wide.jpg",
+                "title": "应用场景",
+                "subtitle": "适配真实工况需求"
+              },
+              {
+                "url": "/enterprise-assets/site/crops/generated-factory-floor-wide.jpg",
+                "assetPath": "assets/site/crops/generated-factory-floor-wide.jpg",
                 "title": "制造现场",
                 "subtitle": "整洁有序的制造流程"
               },
               {
-                "url": "/enterprise-assets/site/crops/application-wide.jpg",
-                "assetPath": "assets/site/crops/application-wide.jpg",
-                "title": "Pump application",
-                "subtitle": "持续改进的应用场景"
-              },
-              {
-                "url": "/enterprise-assets/site/crops/factory-wide.jpg",
-                "assetPath": "assets/site/crops/factory-wide.jpg",
-                "title": "Manufacturing",
-                "subtitle": "精密制造现场"
-              },
-              {
-                "url": "/enterprise-assets/site/crops/detail-card.jpg",
-                "assetPath": "assets/site/crops/detail-card.jpg",
-                "title": "Product detail",
-                "subtitle": "关键部件细节"
+                "url": "/enterprise-assets/site/crops/generated-component-detail-wide.jpg",
+                "assetPath": "assets/site/crops/generated-component-detail-wide.jpg",
+                "title": "关键部件",
+                "subtitle": "精密制造细节"
               }
             ],
             "ui": {
@@ -314,28 +314,28 @@
                 "subtitle": "Pump systems for diverse applications"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-factory-quality-wide.jpg",
-                "assetPath": "assets/site/crops/generated-factory-quality-wide.jpg",
+                "url": "/enterprise-assets/site/crops/generated-motor-product-wide.jpg",
+                "assetPath": "assets/site/crops/generated-motor-product-wide.jpg",
+                "title": "Motor products",
+                "subtitle": "Efficient and stable power units"
+              },
+              {
+                "url": "/enterprise-assets/site/crops/generated-application-flow-wide.jpg",
+                "assetPath": "assets/site/crops/generated-application-flow-wide.jpg",
+                "title": "Applications",
+                "subtitle": "Built around real operating needs"
+              },
+              {
+                "url": "/enterprise-assets/site/crops/generated-factory-floor-wide.jpg",
+                "assetPath": "assets/site/crops/generated-factory-floor-wide.jpg",
                 "title": "Manufacturing",
                 "subtitle": "An orderly manufacturing flow"
               },
               {
-                "url": "/enterprise-assets/site/crops/application-wide.jpg",
-                "assetPath": "assets/site/crops/application-wide.jpg",
-                "title": "Pump application",
-                "subtitle": "Applications built for improvement"
-              },
-              {
-                "url": "/enterprise-assets/site/crops/factory-wide.jpg",
-                "assetPath": "assets/site/crops/factory-wide.jpg",
-                "title": "Manufacturing",
-                "subtitle": "Precision manufacturing"
-              },
-              {
-                "url": "/enterprise-assets/site/crops/detail-card.jpg",
-                "assetPath": "assets/site/crops/detail-card.jpg",
-                "title": "Product detail",
-                "subtitle": "Details that support reliability"
+                "url": "/enterprise-assets/site/crops/generated-component-detail-wide.jpg",
+                "assetPath": "assets/site/crops/generated-component-detail-wide.jpg",
+                "title": "Components",
+                "subtitle": "Precision in every detail"
               }
             ],
             "ui": {
@@ -545,7 +545,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/official-1.jpg"
+            "assetPath": "assets/site/crops/generated-motor-product-wide.jpg"
           }
         },
         "seo": {}
@@ -560,7 +560,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/official-1.jpg"
+            "assetPath": "assets/site/crops/generated-motor-product-wide.jpg"
           }
         },
         "seo": {}
@@ -575,7 +575,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/official-1.jpg"
+            "assetPath": "assets/site/crops/generated-pump-selection-wide.jpg"
           }
         },
         "seo": {}
@@ -590,7 +590,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/official-1.jpg"
+            "assetPath": "assets/site/crops/generated-pump-selection-wide.jpg"
           }
         },
         "seo": {}
@@ -605,7 +605,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/official-1.jpg"
+            "assetPath": "assets/site/crops/generated-digital-production-wide.jpg"
           }
         },
         "seo": {}
@@ -620,7 +620,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/official-1.jpg"
+            "assetPath": "assets/site/crops/generated-digital-production-wide.jpg"
           }
         },
         "seo": {}
