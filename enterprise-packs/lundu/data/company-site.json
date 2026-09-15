@@ -150,38 +150,38 @@
             ],
             "carouselImages": [
               {
-                "url": "/enterprise-assets/site/crops/generated-hero-industrial-line-wide.jpg",
-                "assetPath": "assets/site/crops/generated-hero-industrial-line-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/hero-wide.png",
+                "assetPath": "assets/site/ratio/hero-wide.png",
                 "title": "设备与产品",
                 "subtitle": "稳定可靠的产品呈现"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-pump-product-wide.jpg",
-                "assetPath": "assets/site/crops/generated-pump-product-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/pump-wide.png",
+                "assetPath": "assets/site/ratio/pump-wide.png",
                 "title": "泵产品",
                 "subtitle": "面向多种工况的泵系统"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-motor-product-wide.jpg",
-                "assetPath": "assets/site/crops/generated-motor-product-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/motor-wide.png",
+                "assetPath": "assets/site/ratio/motor-wide.png",
                 "title": "电机产品",
                 "subtitle": "高效稳定的动力单元"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-application-flow-wide.jpg",
-                "assetPath": "assets/site/crops/generated-application-flow-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/application-wide.png",
+                "assetPath": "assets/site/ratio/application-wide.png",
                 "title": "应用场景",
                 "subtitle": "适配真实工况需求"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-factory-floor-wide.jpg",
-                "assetPath": "assets/site/crops/generated-factory-floor-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/factory-wide.png",
+                "assetPath": "assets/site/ratio/factory-wide.png",
                 "title": "制造现场",
                 "subtitle": "整洁有序的制造流程"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-component-detail-wide.jpg",
-                "assetPath": "assets/site/crops/generated-component-detail-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/detail-wide.png",
+                "assetPath": "assets/site/ratio/detail-wide.png",
                 "title": "关键部件",
                 "subtitle": "精密制造细节"
               }
@@ -302,38 +302,38 @@
             ],
             "carouselImages": [
               {
-                "url": "/enterprise-assets/site/crops/generated-hero-industrial-line-wide.jpg",
-                "assetPath": "assets/site/crops/generated-hero-industrial-line-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/hero-wide.png",
+                "assetPath": "assets/site/ratio/hero-wide.png",
                 "title": "Equipment and products",
                 "subtitle": "Dependable product presentation"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-pump-product-wide.jpg",
-                "assetPath": "assets/site/crops/generated-pump-product-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/pump-wide.png",
+                "assetPath": "assets/site/ratio/pump-wide.png",
                 "title": "Pump systems",
                 "subtitle": "Pump systems for diverse applications"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-motor-product-wide.jpg",
-                "assetPath": "assets/site/crops/generated-motor-product-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/motor-wide.png",
+                "assetPath": "assets/site/ratio/motor-wide.png",
                 "title": "Motor products",
                 "subtitle": "Efficient and stable power units"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-application-flow-wide.jpg",
-                "assetPath": "assets/site/crops/generated-application-flow-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/application-wide.png",
+                "assetPath": "assets/site/ratio/application-wide.png",
                 "title": "Applications",
                 "subtitle": "Built around real operating needs"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-factory-floor-wide.jpg",
-                "assetPath": "assets/site/crops/generated-factory-floor-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/factory-wide.png",
+                "assetPath": "assets/site/ratio/factory-wide.png",
                 "title": "Manufacturing",
                 "subtitle": "An orderly manufacturing flow"
               },
               {
-                "url": "/enterprise-assets/site/crops/generated-component-detail-wide.jpg",
-                "assetPath": "assets/site/crops/generated-component-detail-wide.jpg",
+                "url": "/enterprise-assets/site/ratio/detail-wide.png",
+                "assetPath": "assets/site/ratio/detail-wide.png",
                 "title": "Components",
                 "subtitle": "Precision in every detail"
               }
@@ -431,7 +431,7 @@
         "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/ye3-motor.jpg"
+          "/enterprise-assets/site/ratio/product-ye3.png"
         ],
         "seo": {},
         "faq": []
@@ -444,7 +444,7 @@
         "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/ye3-motor.jpg"
+          "/enterprise-assets/site/ratio/product-ye3.png"
         ],
         "seo": {},
         "faq": []
@@ -457,7 +457,7 @@
         "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/yc-single-motor.jpg"
+          "/enterprise-assets/site/ratio/product-yc.png"
         ],
         "seo": {},
         "faq": []
@@ -470,7 +470,7 @@
         "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/yc-single-motor.jpg"
+          "/enterprise-assets/site/ratio/product-yc.png"
         ],
         "seo": {},
         "faq": []
@@ -483,7 +483,7 @@
         "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/pst-centrifugal-pump.jpg"
+          "/enterprise-assets/site/ratio/product-pst.png"
         ],
         "seo": {},
         "faq": []
@@ -496,7 +496,7 @@
         "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/pst-centrifugal-pump.jpg"
+          "/enterprise-assets/site/ratio/product-pst.png"
         ],
         "seo": {},
         "faq": []
@@ -509,7 +509,7 @@
         "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/wq-submersible-pump.jpg"
+          "/enterprise-assets/site/ratio/product-wq.png"
         ],
         "seo": {},
         "faq": []
@@ -522,7 +522,7 @@
         "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/wq-submersible-pump.jpg"
+          "/enterprise-assets/site/ratio/product-wq.png"
         ],
         "seo": {},
         "faq": []
@@ -535,7 +535,7 @@
         "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/jet-self-priming-pump.jpg"
+          "/enterprise-assets/site/ratio/product-jet.png"
         ],
         "seo": {},
         "faq": []
@@ -548,7 +548,7 @@
         "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
         "description": "",
         "imageUrls": [
-          "/enterprise-assets/site/products/jet-self-priming-pump.jpg"
+          "/enterprise-assets/site/ratio/product-jet.png"
         ],
         "seo": {},
         "faq": []
@@ -565,7 +565,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/crops/generated-motor-product-wide.jpg"
+            "assetPath": "assets/site/ratio/solution-motor.png"
           }
         },
         "seo": {}
@@ -580,7 +580,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/crops/generated-motor-product-wide.jpg"
+            "assetPath": "assets/site/ratio/solution-motor.png"
           }
         },
         "seo": {}
@@ -595,7 +595,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/crops/generated-pump-selection-wide.jpg"
+            "assetPath": "assets/site/ratio/solution-pump.png"
           }
         },
         "seo": {}
@@ -610,7 +610,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/crops/generated-pump-selection-wide.jpg"
+            "assetPath": "assets/site/ratio/solution-pump.png"
           }
         },
         "seo": {}
@@ -625,7 +625,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/crops/generated-digital-production-wide.jpg"
+            "assetPath": "assets/site/ratio/solution-digital.png"
           }
         },
         "seo": {}
@@ -640,7 +640,7 @@
         "content": {
           "description": "",
           "image": {
-            "assetPath": "assets/site/crops/generated-digital-production-wide.jpg"
+            "assetPath": "assets/site/ratio/solution-digital.png"
           }
         },
         "seo": {}
