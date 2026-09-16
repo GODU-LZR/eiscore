@@ -166,12 +166,22 @@ const buildPump = () => {
   const rubber = material('#293632', { roughness: 0.68, metalness: 0.08 })
 
   // The pump axis runs left-to-right so the assembled product reads as a real pump.
-  addPart('base', mesh(new THREE.BoxGeometry(7.4, 0.28, 2.7), darkSteel, [0, -1.56, 0]))
-  addPart('barrel', mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true), steel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
+  const baseGroup = new THREE.Group()
+  baseGroup.add(mesh(new THREE.BoxGeometry(7.4, 0.28, 2.7), darkSteel, [0, -1.56, 0]))
+  baseGroup.add(mesh(new THREE.BoxGeometry(2.3, 0.34, 0.36), darkSteel, [-1.15, -1.32, -0.92]))
+  baseGroup.add(mesh(new THREE.BoxGeometry(2.3, 0.34, 0.36), darkSteel, [-1.15, -1.32, 0.92]))
+  addPart('base', baseGroup)
+
+  const barrelGroup = new THREE.Group()
+  barrelGroup.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true), steel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
+  barrelGroup.add(mesh(new THREE.TorusGeometry(1.18, 0.09, 12, 48), darkSteel, [-2.27, 0, 0], [0, Math.PI / 2, 0]))
+  barrelGroup.add(mesh(new THREE.TorusGeometry(1.18, 0.09, 12, 48), darkSteel, [1.47, 0, 0], [0, Math.PI / 2, 0]))
+  addPart('barrel', barrelGroup)
 
   const coilGroup = new THREE.Group()
   for (let index = 0; index < 8; index += 1) {
-    coilGroup.add(mesh(new THREE.TorusGeometry(1.28, 0.075, 10, 32), copper, [-1.65 + index * 0.29, 0, 0], [0, Math.PI / 2, 0]))
+    // Keep the winding inside the barrel wall with a small radial clearance.
+    coilGroup.add(mesh(new THREE.TorusGeometry(1.04, 0.075, 10, 32), copper, [-1.65 + index * 0.29, 0, 0], [0, Math.PI / 2, 0]))
   }
   addPart('coil', coilGroup)
 
@@ -195,8 +205,14 @@ const buildPump = () => {
 
   const head = new THREE.Group()
   head.add(mesh(new THREE.CylinderGeometry(1.36, 1.2, 0.72, 48, 1, true), teal, [2.9, 0, 0], [0, 0, Math.PI / 2]))
+  head.add(mesh(new THREE.CylinderGeometry(1.28, 1.28, 0.12, 48), teal, [2.54, 0, 0], [0, 0, Math.PI / 2]))
+  head.add(mesh(new THREE.CylinderGeometry(1.22, 1.22, 0.12, 48), teal, [3.26, 0, 0], [0, 0, Math.PI / 2]))
   head.add(mesh(new THREE.TorusGeometry(1.45, 0.06, 12, 48), steel, [3.38, 0, 0], [0, Math.PI / 2, 0]))
   head.add(mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.52, 28), steel, [2.9, 0, 1.42], [Math.PI / 2, 0, 0]))
+  for (let index = 0; index < 6; index += 1) {
+    const angle = (Math.PI * 2 * index) / 6
+    head.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.14, 16), darkSteel, [3.36, Math.cos(angle) * 1.12, Math.sin(angle) * 1.12], [0, 0, Math.PI / 2]))
+  }
   addPart('pump-head', head)
   addPart('oil-cylinder', mesh(new THREE.CylinderGeometry(0.68, 0.68, 0.48, 40), steel, [3.76, 0, 0], [0, 0, Math.PI / 2]))
   addPart('cover', mesh(new THREE.CylinderGeometry(0.94, 0.94, 0.16, 40), steel, [4.12, 0, 0], [0, 0, Math.PI / 2]))
@@ -204,10 +220,10 @@ const buildPump = () => {
   addPart('upper-cap', mesh(new THREE.ConeGeometry(0.78, 0.3, 40), teal, [4.62, 0, 0], [0, 0, Math.PI / 2]))
 
   const cableCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0.35, 1.6, 0.75),
-    new THREE.Vector3(1.35, 1.6, 1.0),
-    new THREE.Vector3(2.4, 1.5, 1.45),
-    new THREE.Vector3(3.5, 1.35, 1.75)
+    new THREE.Vector3(3.42, 1.25, 0.72),
+    new THREE.Vector3(3.72, 1.95, 0.95),
+    new THREE.Vector3(4.35, 2.35, 1.15),
+    new THREE.Vector3(5.05, 2.1, 1.22)
   ])
   addPart('cable', mesh(new THREE.TubeGeometry(cableCurve, 36, 0.055, 12, false), rubber))
   arrangeExplodedParts()
@@ -220,7 +236,7 @@ const arrangeExplodedParts = () => {
     const center = bounds.getCenter(new THREE.Vector3())
     const halfSize = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5)
     const radius = Math.abs(explosionAxis.x) * halfSize.x + Math.abs(explosionAxis.y) * halfSize.y + Math.abs(explosionAxis.z) * halfSize.z
-    return { part, center, radius, centerDistance: center.dot(explosionAxis) }
+    return { part, bounds, center, radius, centerDistance: center.dot(explosionAxis) }
   })
   const gap = 0.14
   const totalWidth = intervals.reduce((sum, item) => sum + item.radius * 2, 0) + gap * Math.max(0, intervals.length - 1)
@@ -228,31 +244,69 @@ const arrangeExplodedParts = () => {
   const assembledMax = Math.max(...intervals.map(({ center, radius }) => center.x + radius))
   assembledSpan = Math.max(8, assembledMax - assembledMin)
   explodedSpan = totalWidth
+  const clearanceSeeds = {
+    base: [0, 0.15, 0],
+    barrel: [0, 1.15, -1.7],
+    coil: [0, 1.8, 3.2],
+    rotor: [0, 1.8, -3.2],
+    bearing: [0, 2.35, 4.4],
+    seal: [0, 2.35, -4.4],
+    impeller: [0, 2.9, 5.6],
+    'pump-head': [0, 1.15, -2.5],
+    'oil-cylinder': [0, 1.6, -3.3],
+    cover: [0, 2.05, -4.1],
+    'tube-plate': [0, 2.5, -4.9],
+    'upper-cap': [0, 2.95, -5.7],
+    cable: [0, 3.25, 2.1]
+  }
+  const clearanceGap = 0.1
+  const laneSpacing = 3.05
+  const placedClearances = []
+  const intersects = (first, second) => (
+    first.min.x < second.max.x && first.max.x > second.min.x &&
+    first.min.y < second.max.y && first.max.y > second.min.y &&
+    first.min.z < second.max.z && first.max.z > second.min.z
+  )
+  const clearanceCandidates = (seed) => {
+    const candidates = [new THREE.Vector3(...seed)]
+    for (let ring = 1; ring <= 8; ring += 1) {
+      const distance = ring * laneSpacing
+      candidates.push(
+        new THREE.Vector3(seed[0], seed[1], seed[2] + distance),
+        new THREE.Vector3(seed[0], seed[1], seed[2] - distance),
+        new THREE.Vector3(seed[0], seed[1] + distance, seed[2]),
+        new THREE.Vector3(seed[0], Math.max(0.15, seed[1] - distance), seed[2]),
+        new THREE.Vector3(seed[0], seed[1] + distance, seed[2] + distance),
+        new THREE.Vector3(seed[0], seed[1] + distance, seed[2] - distance),
+        new THREE.Vector3(seed[0], Math.max(0.15, seed[1] - distance), seed[2] + distance),
+        new THREE.Vector3(seed[0], Math.max(0.15, seed[1] - distance), seed[2] - distance)
+      )
+    }
+    return candidates
+  }
   let cursor = -totalWidth / 2
-  intervals.forEach(({ part, radius, centerDistance }) => {
+  intervals.forEach(({ part, bounds, radius, centerDistance }) => {
     const targetDistance = cursor + radius
     part.group.userData.explodedPosition.copy(explosionAxis).multiplyScalar(targetDistance - centerDistance)
-    // Internal parts leave the casing through alternating depth lanes before
-    // moving to their final horizontal BOM slot. The cable gets a higher lane
-    // so its long tube never sweeps through the pump head.
-    const clearance = {
-      base: [0, 0.15, 0],
-      barrel: [0, 1.15, -1.7],
-      coil: [0, 1.8, 3.2],
-      rotor: [0, 1.8, -3.2],
-      bearing: [0, 2.35, 4.4],
-      seal: [0, 2.35, -4.4],
-      impeller: [0, 2.9, 5.6],
-      'pump-head': [0, 1.15, -1.7],
-      'oil-cylinder': [0, 1.6, -1.7],
-      cover: [0, 2.05, -1.7],
-      'tube-plate': [0, 2.5, -1.7],
-      'upper-cap': [0, 2.95, -1.7],
-      cable: [0, 3.25, 2.1]
-    }[part.id] || [0, 0, 0]
-    part.group.userData.clearancePosition = new THREE.Vector3(...clearance)
+    const seed = clearanceSeeds[part.id] || [0, 0, 0]
+    const clearance = clearanceCandidates(seed).find((candidate) => {
+      const candidateBounds = bounds.clone().translate(candidate).expandByScalar(clearanceGap)
+      return !placedClearances.some((placed) => intersects(candidateBounds, placed.bounds))
+    }) || new THREE.Vector3(...seed)
+    part.group.userData.clearancePosition = clearance
+    placedClearances.push({ bounds: bounds.clone().translate(clearance).expandByScalar(clearanceGap) })
     cursor += radius * 2 + gap
   })
+}
+
+const panelReserveForWidth = (width) => width >= 760
+  ? Math.min(340, Math.max(280, width * 0.24))
+  : 0
+
+const defaultTargetX = () => {
+  const stage = root.value?.querySelector('.pump-bom-stage')
+  const width = Math.max(1, stage?.clientWidth || 1)
+  return width >= 760 ? 3.2 : 0.55
 }
 
 const resize = () => {
@@ -260,7 +314,7 @@ const resize = () => {
   const stage = root.value.querySelector('.pump-bom-stage')
   const width = Math.max(1, stage?.clientWidth || 1)
   const height = Math.max(1, stage?.clientHeight || 1)
-  const panelReserve = width >= 760 ? Math.min(260, Math.max(180, width * 0.18)) : 0
+  const panelReserve = panelReserveForWidth(width)
   const availableWidth = Math.max(1, width - panelReserve)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
   renderer.setSize(width, height, false)
@@ -275,23 +329,34 @@ const cameraDistanceForProgress = (value) => {
   const stage = root.value.querySelector('.pump-bom-stage')
   const width = Math.max(1, stage?.clientWidth || 1)
   const height = Math.max(1, stage?.clientHeight || 1)
-  const panelReserve = width >= 760 ? Math.min(260, Math.max(180, width * 0.18)) : 0
+  const panelReserve = panelReserveForWidth(width)
   const aspect = Math.max(1, width - panelReserve) / height
-  const span = THREE.MathUtils.lerp(assembledSpan, explodedSpan, THREE.MathUtils.clamp(value, 0, 1)) + 1.8
+  const span = THREE.MathUtils.lerp(assembledSpan, explodedSpan, THREE.MathUtils.clamp(value, 0, 1)) + 3.4
   const visibleWidthFactor = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * Math.max(aspect, 0.35)
-  return THREE.MathUtils.clamp((span / visibleWidthFactor) * 1.08, 12, 105)
+  const framingScale = panelReserve > 0
+    ? THREE.MathUtils.lerp(1.12, 1.34, THREE.MathUtils.clamp(value, 0, 1))
+    : 1.08
+  return THREE.MathUtils.clamp((span / visibleWidthFactor) * framingScale, 12, 105)
 }
 
 const fitCameraToProgress = (value, immediate = false) => {
   if (!camera) return
   const distance = cameraDistanceForProgress(value)
-  camera.position.z = immediate ? distance : THREE.MathUtils.damp(camera.position.z, distance, 4, 1 / 60)
+  const focus = controls?.target || new THREE.Vector3(0.55, 0.05, 0)
+  const offset = camera.position.clone().sub(focus)
+  const currentDepth = Math.max(Math.abs(offset.z), 0.001)
+  const nextDepth = immediate ? distance : THREE.MathUtils.damp(currentDepth, distance, 4, 1 / 60)
+  // Scale the complete orbit vector so the camera keeps its elevation and
+  // azimuth while the horizontal BOM span changes.
+  camera.position.copy(focus).add(offset.multiplyScalar(nextDepth / currentDepth))
 }
 
 const resetView = () => {
   if (!camera || !controls) return
-  camera.position.set(5, 5.5, cameraDistanceForProgress(progress.value))
-  controls.target.set(0, 0.05, 0)
+  controls.target.set(defaultTargetX(), 0.05, 0)
+  const focus = controls.target
+  const baseOffset = new THREE.Vector3(5, 5.5, 24).sub(new THREE.Vector3(defaultTargetX(), 0.05, 0))
+  camera.position.copy(focus).add(baseOffset.multiplyScalar(cameraDistanceForProgress(progress.value) / 24))
   controls.update()
 }
 
@@ -304,6 +369,30 @@ const setExploded = (value) => {
 const togglePlaying = () => {
   playing.value = !playing.value
   if (playing.value) lastTime = performance.now()
+}
+
+const disposeResources = () => {
+  if (animationFrame) window.cancelAnimationFrame(animationFrame)
+  resizeObserver?.disconnect?.()
+  controls?.dispose?.()
+  const geometries = new Set()
+  const materials = new Set()
+  scene?.traverse((child) => {
+    if (child.geometry) geometries.add(child.geometry)
+    const surfaces = Array.isArray(child.material) ? child.material : [child.material]
+    surfaces.filter(Boolean).forEach((surface) => materials.add(surface))
+  })
+  geometries.forEach((geometry) => geometry.dispose?.())
+  materials.forEach((surface) => surface.dispose?.())
+  renderer?.dispose?.()
+  animationFrame = 0
+  resizeObserver = undefined
+  controls = undefined
+  renderer = undefined
+  scene = undefined
+  camera = undefined
+  parts = []
+  rotor = undefined
 }
 
 const updateParts = (value) => {
@@ -389,7 +478,7 @@ onMounted(() => {
     controls.enablePan = false
     controls.minDistance = 5.4
     controls.maxDistance = 120
-    controls.target.set(0, 0.05, 0)
+    controls.target.set(defaultTargetX(), 0.05, 0)
     explosionAxis.set(1, 0, 0)
     scene.add(new THREE.HemisphereLight('#ffffff', '#c4d4ce', 2.5))
     const key = new THREE.DirectionalLight('#ffffff', 4.2)
@@ -411,29 +500,22 @@ onMounted(() => {
     scene.add(grid)
     buildPump()
     updateParts(0)
-    resizeObserver = new ResizeObserver(resize)
-    resizeObserver.observe(root.value)
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(resize)
+      resizeObserver.observe(root.value)
+    }
     resize()
     ready.value = true
     lastTime = performance.now()
     animate(lastTime)
   } catch (error) {
     ready.value = false
+    disposeResources()
     console.warn('[pump-bom-viewer] WebGL unavailable', error)
   }
 })
 
-onBeforeUnmount(() => {
-  if (animationFrame) window.cancelAnimationFrame(animationFrame)
-  resizeObserver?.disconnect?.()
-  controls?.dispose?.()
-  parts.forEach(({ group }) => group.traverse((child) => {
-    child.geometry?.dispose?.()
-    const materials = Array.isArray(child.material) ? child.material : [child.material]
-    materials.filter(Boolean).forEach((surface) => surface.dispose?.())
-  }))
-  renderer?.dispose?.()
-})
+onBeforeUnmount(disposeResources)
 </script>
 
 <style scoped>
@@ -450,9 +532,9 @@ onBeforeUnmount(() => {
 .pump-bom-status i { width: 6px; height: 6px; border-radius: 50%; background: #9aa8a2; }
 .pump-bom-status.is-ready { color: #26734f; }
 .pump-bom-status.is-ready i { background: #67c98c; box-shadow: 0 0 0 4px rgba(103, 201, 140, .14); }
-.pump-bom-list { position: absolute; top: 50%; right: clamp(20px, 4vw, 68px); z-index: 2; width: min(190px, 18vw); padding: 14px 15px; border: 1px solid rgba(23, 50, 43, .12); background: rgba(255, 255, 255, .8); box-shadow: 0 20px 60px rgba(41, 77, 63, .1); transform: translateY(-50%); backdrop-filter: blur(12px); }
-.pump-bom-list ol { display: grid; gap: 5px; margin: 10px 0 0; padding: 0; list-style: none; }
-.pump-bom-list li { display: flex; align-items: center; gap: 8px; padding: 5px 0; color: rgba(23, 50, 43, .56); font-size: 10px; transition: color 160ms ease, transform 160ms ease; }
+.pump-bom-list { position: absolute; top: clamp(104px, 14vh, 144px); right: clamp(20px, 4vw, 68px); z-index: 2; width: min(220px, 20vw); padding: 12px 14px; border: 1px solid rgba(23, 50, 43, .12); background: rgba(255, 255, 255, .56); box-shadow: 0 20px 60px rgba(41, 77, 63, .08); backdrop-filter: blur(8px); }
+.pump-bom-list ol { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 12px; margin: 8px 0 0; padding: 0; list-style: none; }
+.pump-bom-list li { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 3px 0; color: rgba(23, 50, 43, .56); font-size: 10px; transition: color 160ms ease, transform 160ms ease; }
 .pump-bom-list li > span { color: rgba(23, 50, 43, .36); font: 9px "IBM Plex Mono", Consolas, monospace; }
 .pump-bom-list li.is-active { color: var(--viewer-accent); transform: translateX(-3px); }
 .pump-bom-list li.is-active > span { color: var(--viewer-accent); }
@@ -467,8 +549,8 @@ onBeforeUnmount(() => {
   .pump-bom-heading { padding: 14px 14px 48px; gap: 10px; }
   .pump-bom-heading h2 { max-width: calc(100vw - 120px); font-size: clamp(20px, 6vw, 25px); }
   .pump-bom-heading p { max-width: calc(100vw - 28px); font-size: 9px; line-height: 1.45; }
-  .pump-bom-list { top: 160px; right: 12px; width: 150px; padding: 9px 10px; transform: none; }
-  .pump-bom-list ol { grid-template-columns: repeat(2, minmax(0, 1fr)); display: grid; gap: 2px 7px; margin-top: 6px; }
+  .pump-bom-list { top: auto; right: 12px; bottom: 108px; left: 12px; width: auto; padding: 8px 10px; }
+  .pump-bom-list ol { grid-template-columns: repeat(4, minmax(0, 1fr)); display: grid; gap: 2px 8px; margin-top: 6px; }
   .pump-bom-list li { padding: 3px 0; font-size: 8px; }
   .pump-bom-footer { padding: 54px 12px max(18px, calc(env(safe-area-inset-bottom) + 8px)); }
   .pump-bom-progress { right: 12px; bottom: 72px; left: 12px; }
