@@ -13,7 +13,7 @@
         <div>
           <span class="pump-bom-kicker">{{ isEnglish ? 'PUMP / BOM ANIMATION' : '水泵 / BOM 动画' }}</span>
           <h2>{{ displayName }}</h2>
-          <p>{{ isEnglish ? 'Parts separate in sequence, then return to the assembled pump.' : '零件按 BOM 顺序拆分，再回到完整装配。' }}</p>
+          <p>{{ isEnglish ? 'Parts separate horizontally in BOM order, then return to the assembled pump.' : '零件按 BOM 顺序横向拆分，再回到完整装配。' }}</p>
         </div>
         <span class="pump-bom-status" :class="{ 'is-ready': ready }">
           <i aria-hidden="true" />{{ ready ? (isEnglish ? 'READY' : '已就绪') : (isEnglish ? 'LOADING' : '载入中') }}
@@ -79,22 +79,23 @@ const playLabel = computed(() => playing.value ? (isEnglish.value ? 'Pause anima
 const explodeLabel = computed(() => isEnglish.value ? 'Explode BOM' : '拆分 BOM')
 const assembleLabel = computed(() => isEnglish.value ? 'Assemble BOM' : '组装 BOM')
 const resetLabel = computed(() => isEnglish.value ? 'Reset view' : '重置视角')
-const explodedScale = 0.52
+const explodedScale = 0.34
 
 const bomItems = Object.freeze([
-  { id: 'base', zh: '底座', en: 'Base plate', offset: [-0.2, -2.2, 0.25] },
-  { id: 'barrel', zh: '机筒', en: 'Barrel', offset: [0.12, -1.55, 0.2] },
-  { id: 'coil', zh: '线圈', en: 'Coil', offset: [-0.1, -0.95, 0.34] },
-  { id: 'rotor', zh: '转子', en: 'Rotor', offset: [0.08, -0.35, 0.5] },
-  { id: 'bearing', zh: '轴承', en: 'Bearing', offset: [-0.12, 0.25, 0.58] },
-  { id: 'seal', zh: '机械密封', en: 'Mechanical seal', offset: [0.15, 0.85, 0.5] },
-  { id: 'impeller', zh: '叶轮', en: 'Impeller', offset: [-0.18, 1.4, 0.35] },
-  { id: 'pump-head', zh: '泵头', en: 'Pump head', offset: [0.2, 2.05, 0.25] },
-  { id: 'oil-cylinder', zh: '油缸', en: 'Oil cylinder', offset: [-0.3, 2.65, 0.05] },
-  { id: 'cover', zh: '油缸盖', en: 'Cylinder cover', offset: [0.22, 3.15, -0.08] },
-  { id: 'tube-plate', zh: '花板', en: 'Tube plate', offset: [-0.16, 3.62, -0.18] },
-  { id: 'upper-cap', zh: '上帽', en: 'Upper cap', offset: [0.12, 4.05, -0.22] },
-  { id: 'cable', zh: '电缆线', en: 'Cable', offset: [0.38, 1.4, 1.1] }
+  // The diagonal camera uses this screen-right axis for a true horizontal explode.
+  { id: 'base', zh: '底座', en: 'Base plate', offset: [-7.2, 0, 6.36] },
+  { id: 'barrel', zh: '机筒', en: 'Barrel', offset: [-6, 0, 5.3] },
+  { id: 'coil', zh: '线圈', en: 'Coil', offset: [-4.8, 0, 4.24] },
+  { id: 'rotor', zh: '转子', en: 'Rotor', offset: [-3.6, 0, 3.18] },
+  { id: 'bearing', zh: '轴承', en: 'Bearing', offset: [-2.4, 0, 2.12] },
+  { id: 'seal', zh: '机械密封', en: 'Mechanical seal', offset: [-1.2, 0, 1.06] },
+  { id: 'impeller', zh: '叶轮', en: 'Impeller', offset: [0, 0, 0] },
+  { id: 'pump-head', zh: '泵头', en: 'Pump head', offset: [1.2, 0, -1.06] },
+  { id: 'oil-cylinder', zh: '油缸', en: 'Oil cylinder', offset: [2.4, 0, -2.12] },
+  { id: 'cover', zh: '油缸盖', en: 'Cylinder cover', offset: [3.6, 0, -3.18] },
+  { id: 'tube-plate', zh: '花板', en: 'Tube plate', offset: [4.8, 0, -4.24] },
+  { id: 'upper-cap', zh: '上帽', en: 'Upper cap', offset: [6, 0, -5.3] },
+  { id: 'cable', zh: '电缆线', en: 'Cable', offset: [7.2, 0, -6.36] }
 ])
 
 let renderer
