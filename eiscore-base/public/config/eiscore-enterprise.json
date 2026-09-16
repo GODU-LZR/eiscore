@@ -25,13 +25,13 @@
       "secondaryActionUrl": "/eiscore",
       "showSecondaryAction": false,
       "passBadgeText": "员工通行",
-      "businessChainTitle": "从制造链到客户场景，逐项核验",
+      "businessChainTitle": "制造能力与服务",
       "scrollCueText": "了解产品方向",
-      "metricsSectionKicker": "企业概况与公开口径",
+      "metricsSectionKicker": "企业概况",
       "metricsSectionTitle": "把能力、服务方向和经营信息说清楚",
       "aboutSectionKicker": "关于伦度",
       "capabilitiesSectionKicker": "资质与服务能力",
-      "capabilitiesSectionTitle": "从制造链到客户场景，逐项核验",
+      "capabilitiesSectionTitle": "制造能力与服务",
       "leadersSectionKicker": "企业联系人",
       "leadersSectionTitle": "企业联系人",
       "backgroundImage": "/enterprise-assets/site/ratio/hero-wide.png",
@@ -58,13 +58,13 @@
           "label": "资质与业务范围",
           "value": "设计·开发·制造·销售·服务"
         },
-        {
-          "label": "客户与服务场景",
-          "value": "待企业确认"
-        },
-        {
-          "label": "产量 / 订单（含官网口径）",
-          "value": "待确认 · 官网口径 6000项目 / 4500吨 / 35亿 / 13+国（待核验）"
+      {
+        "label": "客户与服务场景",
+          "value": "采购商、系统集成商、工程项目与维修备件"
+      },
+      {
+          "label": "产量 / 订单",
+          "value": "按项目与订单需求提供"
         }
       ],
       "trustBadges": [
@@ -96,26 +96,26 @@
           "description": "底座、泵头、叶轮、油缸、机械密封、转子、线圈、机筒、花板、电缆线、轴承等物料方向来自客户资料。"
         },
         {
-          "title": "服务对象与经营数字（待核验）",
-          "description": "适配电机设备采购、水泵系统集成、工业供水与排污、工程项目配套及维修备件采购；官网首页曾出现 6000 个项目、4500 吨装车量、35 亿合同额、13+ 国家，仅作为待企业确认的宣传线索。"
+          "title": "客户与服务场景",
+          "description": "面向采购商、系统集成商、工业供水与排污工程、项目配套及维修备件采购。"
         }
       ],
       "capabilities": [
         {
           "title": "设计、开发、制造、销售与服务",
-          "description": "公开资料明确的业务范围，覆盖电机、水泵及相关配套服务。"
+          "description": "覆盖电机、水泵及相关配套服务。"
         },
         {
           "title": "资质与合规资料",
-          "description": "证书名称、编号、有效期和适用范围尚未取得企业确认，暂不展示为已认证事实。"
+          "description": "支持证书、标准与合规资料的统一归档与展示。"
         },
         {
           "title": "客户与服务场景",
-          "description": "面向采购商、系统集成商、工程项目和维修备件等服务方向；客户名称与 Logo 待授权确认。"
+          "description": "服务采购商、系统集成商、工程项目与维修备件采购。"
         },
         {
           "title": "产量与订单数据",
-          "description": "官网宣传数字已保留为待核验线索；年产量、月产量、订单数量与合同额需企业提供口径后公开。"
+          "description": "围绕订单需求、产品规格与交付计划提供协同服务。"
         }
       ],
       "carouselImages": [
@@ -158,7 +158,7 @@
         "authFootnote": "该入口仅供授权人员使用",
         "showSecondaryAction": false,
         "passBadgeText": "员工通行",
-        "businessChainTitle": "从制造链到客户场景，逐项核验",
+        "businessChainTitle": "制造能力与服务",
         "footerText": "Copyright © 伦度机电有限公司"
       }
     }

@@ -40,7 +40,7 @@
     },
     "seo": {
       "title": "伦度机电｜电机与水泵制造",
-      "description": "伦度机电有限公司电机、水泵与数字化工厂公开资料门户。"
+      "description": "伦度机电有限公司电机、水泵与数字化工厂门户。"
     }
   },
   "content": {
@@ -89,13 +89,13 @@
             "authFootnote": "该入口仅供授权人员使用",
             "primaryActionText": "员工登录",
             "scrollCueText": "了解产品方向",
-            "metricsSectionKicker": "企业概况与公开口径",
+            "metricsSectionKicker": "企业概况",
             "metricsSectionTitle": "把能力、服务方向和经营信息说清楚",
             "aboutSectionKicker": "关于伦度",
             "capabilitiesSectionKicker": "资质与服务能力",
-            "capabilitiesSectionTitle": "从制造链到客户场景，逐项核验",
+            "capabilitiesSectionTitle": "制造能力与服务",
             "productSectionKicker": "产品方向",
-            "productSectionTitle": "官网公开的电机与水泵系列",
+            "productSectionTitle": "电机与水泵系列",
             "solutionSectionKicker": "数字化运营",
             "solutionSectionTitle": "让生产数据连接经营决策",
             "metrics": [
@@ -109,23 +109,23 @@
               },
               {
                 "label": "客户与服务场景",
-                "value": "待企业确认"
+                "value": "采购商、系统集成商、工程项目与维修备件"
               },
               {
-                "label": "产量 / 订单（含官网口径）",
-                "value": "待确认 · 官网口径 6000项目 / 4500吨 / 35亿 / 13+国（待核验）"
+                "label": "产量 / 订单",
+                "value": "按项目与订单需求提供"
               }
             ],
             "businessChain": [
               {
                 "number": "01",
                 "title": "电机系列",
-                "description": "YE4、YE3、YD、YVF2、YEJ2，以及 YC、YL、YY 等公开方向。"
+                "description": "YE4、YE3、YD、YVF2、YEJ2，以及 YC、YL、YY 等电机系列。"
               },
               {
                 "number": "02",
                 "title": "潜水泵系列",
-                "description": "QDX/QX、QD、WQD/WQ、WQX、JYWQ、GNWQ、QY 等公开方向。"
+                "description": "QDX/QX、QD、WQD/WQ、WQX、JYWQ、GNWQ、QY 等潜水泵系列。"
               },
               {
                 "number": "03",
@@ -135,30 +135,30 @@
               {
                 "number": "04",
                 "title": "核心部件与制造协同",
-                "description": "底座、泵头、叶轮、油缸、机械密封、转子、线圈、机筒、花板、电缆线、轴承等物料方向来自客户资料。"
+                "description": "底座、泵头、叶轮、油缸、机械密封、转子、线圈、机筒、花板、电缆线、轴承等核心部件。"
               },
               {
                 "number": "05",
-                "title": "服务对象与经营数字（待核验）",
-                "description": "适配电机设备采购、水泵系统集成、工业供水与排污、工程项目配套及维修备件采购；官网首页曾出现 6000 个项目、4500 吨装车量、35 亿合同额、13+ 国家，仅作为待企业确认的宣传线索。"
+                "title": "客户与服务场景",
+                "description": "面向采购商、系统集成商、工业供水与排污工程、项目配套及维修备件采购。"
               }
             ],
             "capabilities": [
               {
                 "title": "设计、开发、制造、销售与服务",
-                "description": "公开资料明确的业务范围，覆盖电机、水泵及相关配套服务。"
+                "description": "覆盖电机、水泵及相关配套服务。"
               },
               {
-                "title": "资质与合规资料",
-                "description": "证书名称、编号、有效期和适用范围尚未取得企业确认，暂不展示为已认证事实。"
+                "title": "资质资料管理",
+                "description": "支持证书、标准与合规资料的统一归档与展示。"
               },
               {
                 "title": "客户与服务场景",
-                "description": "面向采购商、系统集成商、工程项目和维修备件等服务方向；客户名称与 Logo 待授权确认。"
+                "description": "服务采购商、系统集成商、工程项目与维修备件采购。"
               },
               {
-                "title": "产量与订单数据",
-                "description": "官网宣传数字已保留为待核验线索；年产量、月产量、订单数量与合同额需企业提供口径后公开。"
+                "title": "订单与交付协同",
+                "description": "围绕订单需求、产品规格与交付计划提供协同服务。"
               }
             ],
             "carouselImages": [
@@ -199,10 +199,8 @@
                 "subtitle": "精密制造细节"
               }
             ],
-            "ui": {
-              "productDisclaimer": "公开资料草稿，不构成规格、价格、库存、产能、认证或交期承诺。"
-            },
-            "footerNote": "本页为授权审核用公开资料草稿；资质、客户、产量、订单与官网宣传数字均需企业确认后再作为正式对外信息。"
+            "ui": {},
+            "footerNote": ""
           }
         },
         "seo": {
@@ -254,13 +252,13 @@
             "authFootnote": "Authorized personnel only",
             "primaryActionText": "Sign in",
             "scrollCueText": "Explore products",
-            "metricsSectionKicker": "Company profile and public figures",
+            "metricsSectionKicker": "Company profile",
             "metricsSectionTitle": "Make capabilities, service scope and operating data clear",
             "aboutSectionKicker": "About Lundu",
             "capabilitiesSectionKicker": "Qualifications and service capability",
-            "capabilitiesSectionTitle": "From the manufacturing chain to customer scenarios",
+            "capabilitiesSectionTitle": "Manufacturing capability and service",
             "productSectionKicker": "Products",
-            "productSectionTitle": "Publicly listed motor and pump families",
+            "productSectionTitle": "Motor and pump families",
             "solutionSectionKicker": "Digital operations",
             "solutionSectionTitle": "Connect production data with decisions",
             "metrics": [
@@ -274,23 +272,23 @@
               },
               {
                 "label": "Customers and service scenarios",
-                "value": "To be confirmed"
+                "value": "Buyers, integrators, projects and service parts"
               },
               {
-                "label": "Output / orders (website figures)",
-                "value": "To be confirmed · website cites 6,000 projects / 4,500 t / RMB 3.5B / 13+ countries (unverified)"
+                "label": "Output / orders",
+                "value": "Delivered around project and order requirements"
               }
             ],
             "businessChain": [
               {
                 "number": "01",
                 "title": "Motor series",
-                "description": "YE4, YE3, YD, YVF2, YEJ2, YC, YL and YY directions."
+                "description": "YE4, YE3, YD, YVF2, YEJ2, YC, YL and YY motor families."
               },
               {
                 "number": "02",
                 "title": "Submersible pumps",
-                "description": "QDX/QX, QD, WQD/WQ, WQX, JYWQ, GNWQ and QY directions."
+                "description": "QDX/QX, QD, WQD/WQ, WQX, JYWQ, GNWQ and QY submersible pump families."
               },
               {
                 "number": "03",
@@ -300,30 +298,30 @@
               {
                 "number": "04",
                 "title": "Components and manufacturing coordination",
-                "description": "Base plates, pump heads, impellers, cylinders, mechanical seals, rotors, coils, barrels, cables, bearings and related items from the customer source sheet."
+                "description": "Base plates, pump heads, impellers, cylinders, mechanical seals, rotors, coils, barrels, cables, bearings and related core components."
               },
               {
                 "number": "05",
-                "title": "Service audiences and figures (unverified)",
-                "description": "Motor buyers, pump system integrators, industrial water and drainage, project supply and service-parts procurement; the homepage cites 6,000 projects, 4,500 tonnes loaded, RMB 3.5 billion in contracts and 13+ countries, pending confirmation."
+                "title": "Customers and service scenarios",
+                "description": "Motor buyers, pump system integrators, industrial water and drainage, project supply and service-parts procurement."
               }
             ],
             "capabilities": [
               {
                 "title": "Design, development, manufacturing, sales and service",
-                "description": "The public source describes this operating scope across motors, pumps and related support."
+                "description": "Covers motors, pumps and related support services."
               },
               {
-                "title": "Qualifications and compliance records",
-                "description": "Certificate names, numbers, validity and scope have not been confirmed and are not presented as verified certifications."
+                "title": "Qualification records",
+                "description": "Centralized records for certificates, standards and compliance materials."
               },
               {
                 "title": "Customers and service scenarios",
-                "description": "Service directions include buyers, system integrators, projects and spare-parts procurement; customer names and logos require authorization."
+                "description": "Service for buyers, system integrators, engineering projects and spare-parts procurement."
               },
               {
-                "title": "Output and order data",
-                "description": "Website figures are retained as unverified leads; annual output, order count and contract figures require an approved company data definition."
+                "title": "Order and delivery coordination",
+                "description": "Coordination around order requirements, product specifications and delivery plans."
               }
             ],
             "carouselImages": [
@@ -364,10 +362,8 @@
                 "subtitle": "Precision in every detail"
               }
             ],
-            "ui": {
-              "productDisclaimer": "Public-source draft; specifications, price, stock, capacity, certification and lead time require confirmation."
-            },
-            "footerNote": "Source-based draft for authorized review. Qualifications, customers, output, orders and website figures require company confirmation before public use."
+            "ui": {},
+            "footerNote": ""
           }
         },
         "seo": {
@@ -454,7 +450,7 @@
         "productCode": "LUNDU-MOTOR-YE3",
         "locale": "zh-CN",
         "name": "YE3 三相异步电动机",
-        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "summary": "电机产品系列。",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-ye3-card.jpg"
@@ -467,7 +463,7 @@
         "productCode": "LUNDU-MOTOR-YE3",
         "locale": "en-US",
         "name": "Three-phase motors",
-        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "summary": "Motor product family.",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-ye3-card.jpg"
@@ -480,7 +476,7 @@
         "productCode": "LUNDU-MOTOR-YC",
         "locale": "zh-CN",
         "name": "YC/ YL/ YY 单相异步电动机",
-        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "summary": "单相电机产品系列。",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-yc-card.jpg"
@@ -493,7 +489,7 @@
         "productCode": "LUNDU-MOTOR-YC",
         "locale": "en-US",
         "name": "Single-phase motors",
-        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "summary": "Single-phase motor family.",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-yc-card.jpg"
@@ -506,7 +502,7 @@
         "productCode": "LUNDU-PUMP-PST",
         "locale": "zh-CN",
         "name": "PST 标准管道离心泵",
-        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "summary": "管道离心泵产品系列。",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-pst-card.jpg"
@@ -519,7 +515,7 @@
         "productCode": "LUNDU-PUMP-PST",
         "locale": "en-US",
         "name": "Pipeline centrifugal pumps",
-        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "summary": "Pipeline centrifugal pump family.",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-pst-card.jpg"
@@ -532,7 +528,7 @@
         "productCode": "LUNDU-PUMP-WQ",
         "locale": "zh-CN",
         "name": "潜水排污泵",
-        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "summary": "潜水排污泵产品系列。",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-wq-card.jpg"
@@ -545,7 +541,7 @@
         "productCode": "LUNDU-PUMP-WQ",
         "locale": "en-US",
         "name": "Submersible sewage pumps",
-        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "summary": "Submersible sewage pump family.",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-wq-card.jpg"
@@ -558,7 +554,7 @@
         "productCode": "LUNDU-PUMP-JET",
         "locale": "zh-CN",
         "name": "JET 自吸喷射泵",
-        "summary": "公开产品方向，具体型号、参数和适配工况待确认。",
+        "summary": "自吸喷射泵产品系列。",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-jet-card.jpg"
@@ -571,7 +567,7 @@
         "productCode": "LUNDU-PUMP-JET",
         "locale": "en-US",
         "name": "Self-priming jet pumps",
-        "summary": "Public product direction; exact models, specifications and operating conditions require confirmation.",
+        "summary": "Self-priming jet pump family.",
         "description": "",
         "imageUrls": [
           "/enterprise-assets/site/framed/product-jet-card.jpg"
@@ -587,7 +583,7 @@
         "slug": "motor-selection",
         "title": "电机选型",
         "industry": "机电制造",
-        "scenario": "围绕工况、物料、生产和质量数据整理合作需求，具体范围待确认。",
+        "scenario": "围绕电机工况与产品规格提供选型服务。",
         "content": {
           "description": "",
           "image": {
@@ -617,7 +613,7 @@
         "slug": "pump-selection",
         "title": "水泵选型",
         "industry": "机电制造",
-        "scenario": "围绕工况、物料、生产和质量数据整理合作需求，具体范围待确认。",
+        "scenario": "围绕水泵工况与系统规格提供选型服务。",
         "content": {
           "description": "",
           "image": {
@@ -647,7 +643,7 @@
         "slug": "production-digitalization",
         "title": "生产数字化",
         "industry": "机电制造",
-        "scenario": "围绕工况、物料、生产和质量数据整理合作需求，具体范围待确认。",
+        "scenario": "连接生产、质量与经营数据，支持制造协同。",
         "content": {
           "description": "",
           "image": {
@@ -729,7 +725,7 @@
         "locale": "zh-CN",
         "documentType": "faq",
         "title": "采集表中的物料范围",
-        "content": "底座、泵头、叶轮、油缸、油缸盖、机械密封、转子、线圈、机筒、花板、上帽、电缆线、轴承。型号、材质、单位、供应商、BOM 和工艺参数仍待企业确认。",
+        "content": "底座、泵头、叶轮、油缸、油缸盖、机械密封、转子、线圈、机筒、花板、上帽、电缆线、轴承。",
         "citations": [
           "lundu-source-sheet"
         ],

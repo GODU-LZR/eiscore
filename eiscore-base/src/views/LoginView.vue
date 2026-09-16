@@ -153,8 +153,16 @@
         :aria-label="activeLocale.toLowerCase().startsWith('en') ? 'Product 3D viewer' : '产品三维展示'"
       >
         <div class="product-3d-band-inner">
+          <PumpBomViewer
+            v-if="viewerIsPump"
+            class="hero-product-viewer login-product-viewer"
+            :product-name="pumpViewerName"
+            :category="viewerProduct.category"
+            :accent-color="safeThemeColor"
+            :locale="activeLocale"
+          />
           <PineappleProcessViewer
-            v-if="viewerIsPineapple"
+            v-else-if="viewerIsPineapple"
             class="hero-product-viewer login-product-viewer"
             :product-name="viewerProduct.name"
             :category="viewerProduct.category"
@@ -420,6 +428,7 @@ import { applyEnterpriseSeoHead, buildEnterpriseSeoHead } from '@eiscore/platfor
 
 const Product3DViewer = defineAsyncComponent(() => import('@/components/Product3DViewer.vue'))
 const PineappleProcessViewer = defineAsyncComponent(() => import('@/components/PineappleProcessViewer.vue'))
+const PumpBomViewer = defineAsyncComponent(() => import('@/components/PumpBomViewer.vue'))
 
 const router = useRouter()
 const route = useRoute()
@@ -487,6 +496,16 @@ const viewerProduct = computed(() => {
 })
 const viewerIsPineapple = computed(() => /菠萝|pineapple/i.test(
   viewerProduct.value.name + ' ' + viewerProduct.value.category
+))
+const pumpViewerProduct = computed(() => (
+  publicProducts.value.find((product) => /泵|pump/i.test(
+    `${product?.name || ''} ${product?.category || ''}`
+  )) || null
+))
+const viewerIsPump = computed(() => Boolean(pumpViewerProduct.value))
+const pumpViewerName = computed(() => (
+  pumpViewerProduct.value?.name ||
+  (activeLocale.value.toLowerCase().startsWith('en') ? 'Pump assembly' : '水泵总成')
 ))
 const publicSolutions = computed(() => Array.isArray(portal.value.solutions) ? portal.value.solutions : [])
 const activeSolutionMedia = computed(() => (
