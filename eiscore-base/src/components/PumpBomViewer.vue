@@ -79,23 +79,20 @@ const playLabel = computed(() => playing.value ? (isEnglish.value ? 'Pause anima
 const explodeLabel = computed(() => isEnglish.value ? 'Explode BOM' : '拆分 BOM')
 const assembleLabel = computed(() => isEnglish.value ? 'Assemble BOM' : '组装 BOM')
 const resetLabel = computed(() => isEnglish.value ? 'Reset view' : '重置视角')
-const explodedScale = 0.34
-
 const bomItems = Object.freeze([
-  // The diagonal camera uses this screen-right axis for a true horizontal explode.
-  { id: 'base', zh: '底座', en: 'Base plate', offset: [-7.2, 0, 6.36] },
-  { id: 'barrel', zh: '机筒', en: 'Barrel', offset: [-6, 0, 5.3] },
-  { id: 'coil', zh: '线圈', en: 'Coil', offset: [-4.8, 0, 4.24] },
-  { id: 'rotor', zh: '转子', en: 'Rotor', offset: [-3.6, 0, 3.18] },
-  { id: 'bearing', zh: '轴承', en: 'Bearing', offset: [-2.4, 0, 2.12] },
-  { id: 'seal', zh: '机械密封', en: 'Mechanical seal', offset: [-1.2, 0, 1.06] },
-  { id: 'impeller', zh: '叶轮', en: 'Impeller', offset: [0, 0, 0] },
-  { id: 'pump-head', zh: '泵头', en: 'Pump head', offset: [1.2, 0, -1.06] },
-  { id: 'oil-cylinder', zh: '油缸', en: 'Oil cylinder', offset: [2.4, 0, -2.12] },
-  { id: 'cover', zh: '油缸盖', en: 'Cylinder cover', offset: [3.6, 0, -3.18] },
-  { id: 'tube-plate', zh: '花板', en: 'Tube plate', offset: [4.8, 0, -4.24] },
-  { id: 'upper-cap', zh: '上帽', en: 'Upper cap', offset: [6, 0, -5.3] },
-  { id: 'cable', zh: '电缆线', en: 'Cable', offset: [7.2, 0, -6.36] }
+  { id: 'base', zh: '底座', en: 'Base plate' },
+  { id: 'barrel', zh: '机筒', en: 'Barrel' },
+  { id: 'coil', zh: '线圈', en: 'Coil' },
+  { id: 'rotor', zh: '转子', en: 'Rotor' },
+  { id: 'bearing', zh: '轴承', en: 'Bearing' },
+  { id: 'seal', zh: '机械密封', en: 'Mechanical seal' },
+  { id: 'impeller', zh: '叶轮', en: 'Impeller' },
+  { id: 'pump-head', zh: '泵头', en: 'Pump head' },
+  { id: 'oil-cylinder', zh: '油缸', en: 'Oil cylinder' },
+  { id: 'cover', zh: '油缸盖', en: 'Cylinder cover' },
+  { id: 'tube-plate', zh: '花板', en: 'Tube plate' },
+  { id: 'upper-cap', zh: '上帽', en: 'Upper cap' },
+  { id: 'cable', zh: '电缆线', en: 'Cable' }
 ])
 
 let renderer
@@ -109,6 +106,7 @@ let animationClock = 0
 let targetProgress = null
 let parts = []
 let rotor
+let explosionAxis = new THREE.Vector3(1, 0, 0)
 
 const material = (color, options = {}) => new THREE.MeshPhysicalMaterial({
   color,
@@ -135,7 +133,7 @@ const addPart = (id, object) => {
   group.name = `bom-${id}`
   group.add(object)
   group.userData.basePosition = group.position.clone()
-  group.userData.explodedPosition = new THREE.Vector3(...item.offset)
+  group.userData.explodedPosition = new THREE.Vector3()
   parts.push({ id, group, index: bomItems.indexOf(item) })
   scene.add(group)
   return group
@@ -189,6 +187,26 @@ const buildPump = () => {
     new THREE.Vector3(0.72, 1.25, 1.08)
   ])
   addPart('cable', mesh(new THREE.TubeGeometry(cableCurve, 36, 0.055, 12, false), rubber))
+  arrangeExplodedParts()
+}
+
+const arrangeExplodedParts = () => {
+  const intervals = parts.map((part) => {
+    part.group.updateMatrixWorld(true)
+    const bounds = new THREE.Box3().setFromObject(part.group)
+    const center = bounds.getCenter(new THREE.Vector3())
+    const halfSize = bounds.getSize(new THREE.Vector3()).multiplyScalar(0.5)
+    const radius = Math.abs(explosionAxis.x) * halfSize.x + Math.abs(explosionAxis.y) * halfSize.y + Math.abs(explosionAxis.z) * halfSize.z
+    return { part, center, radius, centerDistance: center.dot(explosionAxis) }
+  })
+  const gap = 0.14
+  const totalWidth = intervals.reduce((sum, item) => sum + item.radius * 2, 0) + gap * Math.max(0, intervals.length - 1)
+  let cursor = -totalWidth / 2
+  intervals.forEach(({ part, radius, centerDistance }) => {
+    const targetDistance = cursor + radius
+    part.group.userData.explodedPosition.copy(explosionAxis).multiplyScalar(targetDistance - centerDistance)
+    cursor += radius * 2 + gap
+  })
 }
 
 const resize = () => {
@@ -204,8 +222,8 @@ const resize = () => {
 
 const resetView = () => {
   if (!camera || !controls) return
-  camera.position.set(7.8, 4.8, 8.8)
-  controls.target.set(0, 0.35, 0)
+  camera.position.set(5, 5.5, 24)
+  controls.target.set(0, 0.05, 0)
   controls.update()
 }
 
@@ -225,9 +243,8 @@ const updateParts = (value) => {
   let nearest = -1
   let nearestDistance = Number.POSITIVE_INFINITY
   parts.forEach(({ group, index }) => {
-    const item = bomItems[index]
-    const position = item.offset.map((coordinate) => coordinate * eased * explodedScale)
-    group.position.set(...position)
+    const position = group.userData.explodedPosition.clone().multiplyScalar(eased)
+    group.position.copy(position)
     const distance = Math.abs(value - ((index + 1) / bomItems.length))
     if (distance < nearestDistance && value > 0.08 && value < 0.92) {
       nearest = index
@@ -269,8 +286,8 @@ onMounted(() => {
     scene = new THREE.Scene()
     scene.background = new THREE.Color('#f5f8f6')
     scene.fog = new THREE.Fog('#f5f8f6', 20, 42)
-    camera = new THREE.PerspectiveCamera(32, 1, 0.1, 60)
-    camera.position.set(7.8, 4.8, 8.8)
+    camera = new THREE.PerspectiveCamera(40, 1, 0.1, 80)
+    camera.position.set(5, 5.5, 24)
     renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false, powerPreference: 'high-performance' })
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
@@ -281,8 +298,11 @@ onMounted(() => {
     controls.enableDamping = true
     controls.enablePan = false
     controls.minDistance = 5.4
-    controls.maxDistance = 17
-    controls.target.set(0, 0.35, 0)
+    controls.maxDistance = 60
+    controls.target.set(0, 0.05, 0)
+    explosionAxis
+      .set(controls.target.z - camera.position.z, 0, camera.position.x - controls.target.x)
+      .normalize()
     scene.add(new THREE.HemisphereLight('#ffffff', '#c4d4ce', 2.5))
     const key = new THREE.DirectionalLight('#ffffff', 4.2)
     key.position.set(6, 9, 7)
@@ -291,12 +311,12 @@ onMounted(() => {
     const fill = new THREE.DirectionalLight(accent.value, 1.8)
     fill.position.set(-6, 3, 5)
     scene.add(fill)
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(6.4, 64), new THREE.MeshStandardMaterial({ color: '#e9f0ec', roughness: 0.9, metalness: 0 }))
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(18, 96), new THREE.MeshStandardMaterial({ color: '#e9f0ec', roughness: 0.9, metalness: 0 }))
     ground.rotation.x = -Math.PI / 2
     ground.position.y = -1.28
     ground.receiveShadow = true
     scene.add(ground)
-    const grid = new THREE.GridHelper(10, 20, '#cddbd4', '#e4ece7')
+    const grid = new THREE.GridHelper(32, 48, '#cddbd4', '#e4ece7')
     grid.position.y = -1.26
     grid.material.transparent = true
     grid.material.opacity = 0.42
