@@ -107,6 +107,25 @@ let targetProgress = null
 let parts = []
 let rotor
 let explosionAxis = new THREE.Vector3(1, 0, 0)
+const rotorAxis = new THREE.Vector3(1, 0, 0)
+let explodedSpan = 0
+let assembledSpan = 8
+
+const explodeDelays = Object.freeze({
+  base: 0,
+  barrel: 0.08,
+  'pump-head': 0.14,
+  'oil-cylinder': 0.18,
+  cover: 0.22,
+  'tube-plate': 0.26,
+  'upper-cap': 0.3,
+  cable: 0.34,
+  coil: 0.4,
+  rotor: 0.48,
+  bearing: 0.54,
+  seal: 0.6,
+  impeller: 0.66
+})
 
 const material = (color, options = {}) => new THREE.MeshPhysicalMaterial({
   color,
@@ -146,45 +165,49 @@ const buildPump = () => {
   const copper = material('#c68143', { roughness: 0.28, metalness: 0.7 })
   const rubber = material('#293632', { roughness: 0.68, metalness: 0.08 })
 
-  addPart('base', mesh(new THREE.BoxGeometry(3.2, 0.22, 1.85), darkSteel, [0, -1.15, 0]))
-  addPart('barrel', mesh(new THREE.CylinderGeometry(1.06, 1.06, 1.75, 48), steel, [0, -0.12, 0], [Math.PI / 2, 0, 0]))
+  // The pump axis runs left-to-right so the assembled product reads as a real pump.
+  addPart('base', mesh(new THREE.BoxGeometry(7.4, 0.28, 2.7), darkSteel, [0, -1.56, 0]))
+  addPart('barrel', mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true), steel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
 
   const coilGroup = new THREE.Group()
   for (let index = 0; index < 8; index += 1) {
-    coilGroup.add(mesh(new THREE.TorusGeometry(0.82, 0.075, 10, 32), copper, [0, -0.42 + index * 0.12, 0], [Math.PI / 2, 0, 0]))
+    coilGroup.add(mesh(new THREE.TorusGeometry(1.28, 0.075, 10, 32), copper, [-1.65 + index * 0.29, 0, 0], [0, Math.PI / 2, 0]))
   }
   addPart('coil', coilGroup)
 
-  rotor = mesh(new THREE.CylinderGeometry(0.26, 0.26, 2.5, 32), darkSteel, [0, 0, 0], [Math.PI / 2, 0, 0])
-  rotor.add(mesh(new THREE.CylinderGeometry(0.52, 0.52, 0.22, 32), copper, [0, 0.15, 0], [Math.PI / 2, 0, 0]))
-  addPart('rotor', rotor)
+  const rotorGroup = new THREE.Group()
+  rotorGroup.add(mesh(new THREE.CylinderGeometry(0.32, 0.32, 4.35, 32), darkSteel, [-0.15, 0, 0], [0, 0, Math.PI / 2]))
+  rotorGroup.add(mesh(new THREE.CylinderGeometry(0.58, 0.58, 0.24, 32), copper, [2.05, 0, 0], [0, 0, Math.PI / 2]))
+  rotor = rotorGroup
+  addPart('rotor', rotorGroup)
 
-  addPart('bearing', mesh(new THREE.TorusGeometry(0.68, 0.15, 16, 40), steel, [0, 0.88, 0], [Math.PI / 2, 0, 0]))
-  addPart('seal', mesh(new THREE.TorusGeometry(0.7, 0.1, 14, 40), rubber, [0, 1.24, 0], [Math.PI / 2, 0, 0]))
+  addPart('bearing', mesh(new THREE.TorusGeometry(0.72, 0.15, 16, 40), steel, [1.72, 0, 0], [0, Math.PI / 2, 0]))
+  addPart('seal', mesh(new THREE.TorusGeometry(0.79, 0.1, 14, 40), rubber, [2.04, 0, 0], [0, Math.PI / 2, 0]))
 
   const impellerGroup = new THREE.Group()
-  impellerGroup.add(mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.13, 32), teal, [0, 0, 0], [Math.PI / 2, 0, 0]))
+  impellerGroup.add(mesh(new THREE.CylinderGeometry(0.82, 0.82, 0.14, 32), teal, [2.42, 0, 0], [0, 0, Math.PI / 2]))
   for (let index = 0; index < 7; index += 1) {
-    const blade = mesh(new THREE.BoxGeometry(0.11, 0.8, 0.06), teal, [0, 0.22, 0], [0, (Math.PI * 2 * index) / 7, -0.4])
+    const angle = (Math.PI * 2 * index) / 7
+    const blade = mesh(new THREE.BoxGeometry(0.09, 0.85, 0.1), teal, [2.42, Math.cos(angle) * 0.34, Math.sin(angle) * 0.34], [angle, 0, -0.38])
     impellerGroup.add(blade)
   }
   addPart('impeller', impellerGroup)
 
   const head = new THREE.Group()
-  head.add(mesh(new THREE.CylinderGeometry(1.2, 1.12, 0.6, 48), teal, [0, 0, 0], [Math.PI / 2, 0, 0]))
-  head.add(mesh(new THREE.TorusGeometry(1.03, 0.07, 12, 48), steel, [0, 0.08, 0], [Math.PI / 2, 0, 0]))
-  head.add(mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.48, 28), steel, [0.2, 0.05, 0.86], [Math.PI / 2, 0, 0]))
+  head.add(mesh(new THREE.CylinderGeometry(1.36, 1.2, 0.72, 48, 1, true), teal, [2.9, 0, 0], [0, 0, Math.PI / 2]))
+  head.add(mesh(new THREE.TorusGeometry(1.45, 0.06, 12, 48), steel, [3.38, 0, 0], [0, Math.PI / 2, 0]))
+  head.add(mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.52, 28), steel, [2.9, 0, 1.42], [Math.PI / 2, 0, 0]))
   addPart('pump-head', head)
-  addPart('oil-cylinder', mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.4, 40), steel, [0, 0, 0], [Math.PI / 2, 0, 0]))
-  addPart('cover', mesh(new THREE.CylinderGeometry(0.88, 0.88, 0.16, 40), steel, [0, 0, 0], [Math.PI / 2, 0, 0]))
-  addPart('tube-plate', mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.1, 40), darkSteel, [0, 0, 0], [Math.PI / 2, 0, 0]))
-  addPart('upper-cap', mesh(new THREE.ConeGeometry(0.72, 0.22, 40), teal, [0, 0, 0], [Math.PI / 2, 0, 0]))
+  addPart('oil-cylinder', mesh(new THREE.CylinderGeometry(0.68, 0.68, 0.48, 40), steel, [3.76, 0, 0], [0, 0, Math.PI / 2]))
+  addPart('cover', mesh(new THREE.CylinderGeometry(0.94, 0.94, 0.16, 40), steel, [4.12, 0, 0], [0, 0, Math.PI / 2]))
+  addPart('tube-plate', mesh(new THREE.CylinderGeometry(0.98, 0.98, 0.12, 40), darkSteel, [4.34, 0, 0], [0, 0, Math.PI / 2]))
+  addPart('upper-cap', mesh(new THREE.ConeGeometry(0.78, 0.3, 40), teal, [4.62, 0, 0], [0, 0, Math.PI / 2]))
 
   const cableCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0.85, -0.72, 0.35),
-    new THREE.Vector3(1.45, -0.2, 0.72),
-    new THREE.Vector3(1.15, 0.55, 1.05),
-    new THREE.Vector3(0.72, 1.25, 1.08)
+    new THREE.Vector3(0.35, 1.6, 0.75),
+    new THREE.Vector3(1.35, 1.6, 1.0),
+    new THREE.Vector3(2.4, 1.5, 1.45),
+    new THREE.Vector3(3.5, 1.35, 1.75)
   ])
   addPart('cable', mesh(new THREE.TubeGeometry(cableCurve, 36, 0.055, 12, false), rubber))
   arrangeExplodedParts()
@@ -201,10 +224,33 @@ const arrangeExplodedParts = () => {
   })
   const gap = 0.14
   const totalWidth = intervals.reduce((sum, item) => sum + item.radius * 2, 0) + gap * Math.max(0, intervals.length - 1)
+  const assembledMin = Math.min(...intervals.map(({ center, radius }) => center.x - radius))
+  const assembledMax = Math.max(...intervals.map(({ center, radius }) => center.x + radius))
+  assembledSpan = Math.max(8, assembledMax - assembledMin)
+  explodedSpan = totalWidth
   let cursor = -totalWidth / 2
   intervals.forEach(({ part, radius, centerDistance }) => {
     const targetDistance = cursor + radius
     part.group.userData.explodedPosition.copy(explosionAxis).multiplyScalar(targetDistance - centerDistance)
+    // Internal parts leave the casing through alternating depth lanes before
+    // moving to their final horizontal BOM slot. The cable gets a higher lane
+    // so its long tube never sweeps through the pump head.
+    const clearance = {
+      base: [0, 0.15, 0],
+      barrel: [0, 1.15, -1.7],
+      coil: [0, 1.8, 3.2],
+      rotor: [0, 1.8, -3.2],
+      bearing: [0, 2.35, 4.4],
+      seal: [0, 2.35, -4.4],
+      impeller: [0, 2.9, 5.6],
+      'pump-head': [0, 1.15, -1.7],
+      'oil-cylinder': [0, 1.6, -1.7],
+      cover: [0, 2.05, -1.7],
+      'tube-plate': [0, 2.5, -1.7],
+      'upper-cap': [0, 2.95, -1.7],
+      cable: [0, 3.25, 2.1]
+    }[part.id] || [0, 0, 0]
+    part.group.userData.clearancePosition = new THREE.Vector3(...clearance)
     cursor += radius * 2 + gap
   })
 }
@@ -214,15 +260,37 @@ const resize = () => {
   const stage = root.value.querySelector('.pump-bom-stage')
   const width = Math.max(1, stage?.clientWidth || 1)
   const height = Math.max(1, stage?.clientHeight || 1)
+  const panelReserve = width >= 760 ? Math.min(260, Math.max(180, width * 0.18)) : 0
+  const availableWidth = Math.max(1, width - panelReserve)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
   renderer.setSize(width, height, false)
   camera.aspect = width / height
+  camera.setViewOffset(width, height, 0, 0, availableWidth, height)
   camera.updateProjectionMatrix()
+  fitCameraToProgress(progress.value, true)
+}
+
+const cameraDistanceForProgress = (value) => {
+  if (!camera || !root.value || !explodedSpan) return 24
+  const stage = root.value.querySelector('.pump-bom-stage')
+  const width = Math.max(1, stage?.clientWidth || 1)
+  const height = Math.max(1, stage?.clientHeight || 1)
+  const panelReserve = width >= 760 ? Math.min(260, Math.max(180, width * 0.18)) : 0
+  const aspect = Math.max(1, width - panelReserve) / height
+  const span = THREE.MathUtils.lerp(assembledSpan, explodedSpan, THREE.MathUtils.clamp(value, 0, 1)) + 1.8
+  const visibleWidthFactor = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * Math.max(aspect, 0.35)
+  return THREE.MathUtils.clamp((span / visibleWidthFactor) * 1.08, 12, 105)
+}
+
+const fitCameraToProgress = (value, immediate = false) => {
+  if (!camera) return
+  const distance = cameraDistanceForProgress(value)
+  camera.position.z = immediate ? distance : THREE.MathUtils.damp(camera.position.z, distance, 4, 1 / 60)
 }
 
 const resetView = () => {
   if (!camera || !controls) return
-  camera.position.set(5, 5.5, 24)
+  camera.position.set(5, 5.5, cameraDistanceForProgress(progress.value))
   controls.target.set(0, 0.05, 0)
   controls.update()
 }
@@ -239,11 +307,30 @@ const togglePlaying = () => {
 }
 
 const updateParts = (value) => {
-  const eased = value * value * (3 - 2 * value)
   let nearest = -1
   let nearestDistance = Number.POSITIVE_INFINITY
   parts.forEach(({ group, index }) => {
-    const position = group.userData.explodedPosition.clone().multiplyScalar(eased)
+    const stagger = 0.24 * (index / Math.max(1, bomItems.length - 1))
+    const delay = explodeDelays[group.name.replace('bom-', '')] ?? stagger
+    const partValue = THREE.MathUtils.clamp((value - delay) / (1 - delay), 0, 1)
+    const partEased = partValue * partValue * (3 - 2 * partValue)
+    const clearance = group.userData.clearancePosition || new THREE.Vector3()
+    const exploded = group.userData.explodedPosition
+    const release = THREE.MathUtils.smoothstep(THREE.MathUtils.clamp(partValue / 0.22, 0, 1), 0, 1)
+    const horizontal = THREE.MathUtils.smoothstep(THREE.MathUtils.clamp((partValue - 0.22) / 0.56, 0, 1), 0, 1)
+    const settle = THREE.MathUtils.smoothstep(THREE.MathUtils.clamp((partValue - 0.78) / 0.22, 0, 1), 0, 1)
+    const position = new THREE.Vector3()
+    if (clearance.lengthSq() > 0) {
+      if (partValue <= 0.22) {
+        position.copy(clearance).multiplyScalar(release)
+      } else if (partValue < 0.78) {
+        position.set(exploded.x * horizontal, clearance.y, clearance.z)
+      } else {
+        position.set(exploded.x, clearance.y * (1 - settle), clearance.z * (1 - settle))
+      }
+    } else {
+      position.copy(exploded).multiplyScalar(partEased)
+    }
     group.position.copy(position)
     const distance = Math.abs(value - ((index + 1) / bomItems.length))
     if (distance < nearestDistance && value > 0.08 && value < 0.92) {
@@ -276,7 +363,8 @@ const animate = (time = 0) => {
       updateParts(next)
     }
   }
-  if (rotor && playing.value) rotor.rotation.y += delta * 1.6
+  fitCameraToProgress(progress.value)
+  if (rotor && playing.value) rotor.rotateOnAxis(rotorAxis, delta * 1.6)
   controls?.update()
   renderer?.render(scene, camera)
 }
@@ -285,8 +373,10 @@ onMounted(() => {
   try {
     scene = new THREE.Scene()
     scene.background = new THREE.Color('#f5f8f6')
-    scene.fog = new THREE.Fog('#f5f8f6', 20, 42)
-    camera = new THREE.PerspectiveCamera(40, 1, 0.1, 80)
+    // The narrow layout needs a longer camera distance for the horizontal BOM.
+    // Keep the far clip and fog beyond that distance so the exploded parts stay visible.
+    scene.fog = new THREE.Fog('#f5f8f6', 34, 180)
+    camera = new THREE.PerspectiveCamera(40, 1, 0.1, 180)
     camera.position.set(5, 5.5, 24)
     renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false, powerPreference: 'high-performance' })
     renderer.outputColorSpace = THREE.SRGBColorSpace
@@ -298,11 +388,9 @@ onMounted(() => {
     controls.enableDamping = true
     controls.enablePan = false
     controls.minDistance = 5.4
-    controls.maxDistance = 60
+    controls.maxDistance = 120
     controls.target.set(0, 0.05, 0)
-    explosionAxis
-      .set(controls.target.z - camera.position.z, 0, camera.position.x - controls.target.x)
-      .normalize()
+    explosionAxis.set(1, 0, 0)
     scene.add(new THREE.HemisphereLight('#ffffff', '#c4d4ce', 2.5))
     const key = new THREE.DirectionalLight('#ffffff', 4.2)
     key.position.set(6, 9, 7)
@@ -313,11 +401,11 @@ onMounted(() => {
     scene.add(fill)
     const ground = new THREE.Mesh(new THREE.CircleGeometry(18, 96), new THREE.MeshStandardMaterial({ color: '#e9f0ec', roughness: 0.9, metalness: 0 }))
     ground.rotation.x = -Math.PI / 2
-    ground.position.y = -1.28
+    ground.position.y = -1.72
     ground.receiveShadow = true
     scene.add(ground)
     const grid = new THREE.GridHelper(32, 48, '#cddbd4', '#e4ece7')
-    grid.position.y = -1.26
+    grid.position.y = -1.7
     grid.material.transparent = true
     grid.material.opacity = 0.42
     scene.add(grid)

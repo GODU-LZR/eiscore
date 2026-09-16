@@ -502,7 +502,9 @@ const pumpViewerProduct = computed(() => (
     `${product?.name || ''} ${product?.category || ''}`
   )) || null
 ))
-const viewerIsPump = computed(() => Boolean(pumpViewerProduct.value))
+const viewerIsPump = computed(() => Boolean(pumpViewerProduct.value) || /泵|pump/i.test(
+  `${companyName.value} ${branding.value.description} ${viewerProduct.value.category}`
+))
 const pumpViewerName = computed(() => (
   pumpViewerProduct.value?.name ||
   (activeLocale.value.toLowerCase().startsWith('en') ? 'Pump assembly' : '水泵总成')
