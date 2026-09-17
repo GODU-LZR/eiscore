@@ -127,11 +127,11 @@ const explodeDelays = Object.freeze({
   impeller: 0.66
 })
 
-const casingShellCloseStart = 0.04
-const casingShellOpenEnd = 0.18
-const casingClearanceEnd = 0.24
-const casingHorizontalEnd = 0.44
-const casingShellSpread = 1.42
+const casingShellCloseStart = 0.02
+const casingShellOpenEnd = 0.08
+const casingClearanceEnd = 0.08
+const casingHorizontalEnd = 0.14
+const casingShellSpread = 1.55
 
 const partProgressFor = (id, value) => {
   const stagger = 0.24 * (bomItems.findIndex((item) => item.id === id) / Math.max(1, bomItems.length - 1))
@@ -192,18 +192,21 @@ const buildPump = () => {
   // The pump axis runs left-to-right so the assembled product reads as a real pump.
   const baseGroup = new THREE.Group()
   baseGroup.add(mesh(new THREE.BoxGeometry(7.4, 0.28, 2.7), darkSteel, [0, -1.56, 0]))
-  baseGroup.add(mesh(new THREE.BoxGeometry(2.3, 0.34, 0.36), darkSteel, [-1.15, -1.32, -0.92]))
-  baseGroup.add(mesh(new THREE.BoxGeometry(2.3, 0.34, 0.36), darkSteel, [-1.15, -1.32, 0.92]))
+  baseGroup.add(mesh(new THREE.BoxGeometry(2.3, 0.34, 0.36), darkSteel, [-1.15, -1.35, -0.92]))
+  baseGroup.add(mesh(new THREE.BoxGeometry(2.3, 0.34, 0.36), darkSteel, [-1.15, -1.35, 0.92]))
   addPart('base', baseGroup)
 
   const barrelGroup = new THREE.Group()
-  // The casing is two front/back half-shells. They meet on the pump axis and
-  // separate in Z, keeping the lower half above the base throughout the BOM
-  // animation while still reading as a true clamshell assembly.
+  // The casing is two front/back half-shells split on the Z=0 seam. They move
+  // apart along Z, then close around the internals after those parts settle.
   const frontShell = new THREE.Group()
   const backShell = new THREE.Group()
   frontShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, -Math.PI / 2, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
   backShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, Math.PI / 2, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
+  for (const seamY of [-1.18, 1.18]) {
+    frontShell.add(mesh(new THREE.BoxGeometry(3.7, 0.045, 0.045), darkSteel, [-0.4, seamY, 0.022]))
+    backShell.add(mesh(new THREE.BoxGeometry(3.7, 0.045, 0.045), darkSteel, [-0.4, seamY, -0.022]))
+  }
   for (const flangeX of [-2.27, 1.47]) {
     const frontFlange = new THREE.TorusGeometry(1.18, 0.09, 12, 48, Math.PI)
     frontFlange.rotateZ(Math.PI / 2)
@@ -402,7 +405,7 @@ const resetView = () => {
   if (!camera || !controls) return
   controls.target.set(defaultTargetX(), 0.05, 0)
   const focus = controls.target
-  const baseOffset = new THREE.Vector3(11, 6.5, 24).sub(new THREE.Vector3(defaultTargetX(), 0.05, 0))
+  const baseOffset = new THREE.Vector3(18, 8, 16).sub(new THREE.Vector3(defaultTargetX(), 0.05, 0))
   camera.position.copy(focus).add(baseOffset.multiplyScalar(cameraDistanceForProgress(progress.value) / 24))
   controls.update()
 }
@@ -485,8 +488,9 @@ const updateParts = (value) => {
         1
       )
       const shellSpread = casingShellSpread * shellOpen
-      group.userData.shells[0].position.z = shellSpread
-      group.userData.shells[1].position.z = -shellSpread
+      const shellAxialOffset = 0.22 * shellOpen
+      group.userData.shells[0].position.set(shellAxialOffset, 0, shellSpread)
+      group.userData.shells[1].position.set(-shellAxialOffset, 0, -shellSpread)
     }
     const distance = Math.abs(value - ((index + 1) / bomItems.length))
     if (distance < nearestDistance && value > 0.08 && value < 0.92) {
@@ -533,7 +537,7 @@ onMounted(() => {
     // Keep the far clip and fog beyond that distance so the exploded parts stay visible.
     scene.fog = new THREE.Fog('#f5f8f6', 34, 180)
     camera = new THREE.PerspectiveCamera(40, 1, 0.1, 180)
-    camera.position.set(11, 6.5, 24)
+    camera.position.set(18, 8, 16)
     renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false, powerPreference: 'high-performance' })
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
