@@ -131,6 +131,7 @@ const material = (color, options = {}) => new THREE.MeshPhysicalMaterial({
   color,
   roughness: options.roughness ?? 0.32,
   metalness: options.metalness ?? 0.55,
+  side: options.side ?? THREE.FrontSide,
   clearcoat: options.clearcoat ?? 0.4,
   clearcoatRoughness: 0.18,
   emissive: options.emissive || '#000000',
@@ -160,6 +161,7 @@ const addPart = (id, object) => {
 
 const buildPump = () => {
   const steel = material('#b6c3c0', { roughness: 0.2, metalness: 0.76 })
+  const shellSteel = material('#b6c3c0', { roughness: 0.2, metalness: 0.76, side: THREE.DoubleSide })
   const darkSteel = material('#445955', { roughness: 0.26, metalness: 0.78 })
   const teal = material(accent.value, { roughness: 0.24, metalness: 0.32, clearcoat: 0.6 })
   const copper = material('#c68143', { roughness: 0.28, metalness: 0.7 })
@@ -173,9 +175,21 @@ const buildPump = () => {
   addPart('base', baseGroup)
 
   const barrelGroup = new THREE.Group()
-  barrelGroup.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true), steel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
-  barrelGroup.add(mesh(new THREE.TorusGeometry(1.18, 0.09, 12, 48), darkSteel, [-2.27, 0, 0], [0, Math.PI / 2, 0]))
-  barrelGroup.add(mesh(new THREE.TorusGeometry(1.18, 0.09, 12, 48), darkSteel, [1.47, 0, 0], [0, Math.PI / 2, 0]))
+  // The casing is built as two clamshells. They meet when assembled and open
+  // vertically during the first stage of the BOM animation, leaving a clean
+  // path for the internal rotor, coil and seals.
+  const upperShell = new THREE.Group()
+  const lowerShell = new THREE.Group()
+  upperShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, 0, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
+  lowerShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, Math.PI, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
+  for (const flangeX of [-2.27, 1.47]) {
+    upperShell.add(mesh(new THREE.TorusGeometry(1.18, 0.09, 12, 48, Math.PI), darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
+    const lowerFlange = new THREE.TorusGeometry(1.18, 0.09, 12, 48, Math.PI)
+    lowerFlange.rotateZ(Math.PI)
+    lowerShell.add(mesh(lowerFlange, darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
+  }
+  barrelGroup.add(upperShell, lowerShell)
+  barrelGroup.userData.shells = [upperShell, lowerShell]
   addPart('barrel', barrelGroup)
 
   const coilGroup = new THREE.Group()
@@ -421,6 +435,11 @@ const updateParts = (value) => {
       position.copy(exploded).multiplyScalar(partEased)
     }
     group.position.copy(position)
+    if (group.name === 'bom-barrel' && group.userData.shells) {
+      const shellSpread = 0.28 * release
+      group.userData.shells[0].position.y = shellSpread
+      group.userData.shells[1].position.y = -shellSpread
+    }
     const distance = Math.abs(value - ((index + 1) / bomItems.length))
     if (distance < nearestDistance && value > 0.08 && value < 0.92) {
       nearest = index
