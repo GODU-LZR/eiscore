@@ -127,6 +127,28 @@ const explodeDelays = Object.freeze({
   impeller: 0.66
 })
 
+const casingShellCloseStart = 0.04
+const casingShellOpenEnd = 0.18
+const casingClearanceEnd = 0.24
+const casingHorizontalEnd = 0.44
+const casingShellSpread = 1.42
+
+const partProgressFor = (id, value) => {
+  const stagger = 0.24 * (bomItems.findIndex((item) => item.id === id) / Math.max(1, bomItems.length - 1))
+  const delay = explodeDelays[id] ?? stagger
+  return THREE.MathUtils.clamp((value - delay) / (1 - delay), 0, 1)
+}
+
+const barrelPositionFor = (value, clearance, exploded) => {
+  if (value < casingClearanceEnd) return clearance.clone()
+  const horizontal = THREE.MathUtils.smoothstep(
+    THREE.MathUtils.clamp((value - casingClearanceEnd) / (casingHorizontalEnd - casingClearanceEnd), 0, 1),
+    0,
+    1
+  )
+  return clearance.clone().lerp(exploded, horizontal)
+}
+
 const material = (color, options = {}) => new THREE.MeshPhysicalMaterial({
   color,
   roughness: options.roughness ?? 0.32,
@@ -175,21 +197,23 @@ const buildPump = () => {
   addPart('base', baseGroup)
 
   const barrelGroup = new THREE.Group()
-  // The casing is built as two clamshells. They meet when assembled and open
-  // vertically during the first stage of the BOM animation, leaving a clean
-  // path for the internal rotor, coil and seals.
-  const upperShell = new THREE.Group()
-  const lowerShell = new THREE.Group()
-  upperShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, 0, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
-  lowerShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, Math.PI, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
+  // The casing is two front/back half-shells. They meet on the pump axis and
+  // separate in Z, keeping the lower half above the base throughout the BOM
+  // animation while still reading as a true clamshell assembly.
+  const frontShell = new THREE.Group()
+  const backShell = new THREE.Group()
+  frontShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, -Math.PI / 2, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
+  backShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, Math.PI / 2, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
   for (const flangeX of [-2.27, 1.47]) {
-    upperShell.add(mesh(new THREE.TorusGeometry(1.18, 0.09, 12, 48, Math.PI), darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
-    const lowerFlange = new THREE.TorusGeometry(1.18, 0.09, 12, 48, Math.PI)
-    lowerFlange.rotateZ(Math.PI)
-    lowerShell.add(mesh(lowerFlange, darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
+    const frontFlange = new THREE.TorusGeometry(1.18, 0.09, 12, 48, Math.PI)
+    frontFlange.rotateZ(Math.PI / 2)
+    frontShell.add(mesh(frontFlange, darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
+    const backFlange = new THREE.TorusGeometry(1.18, 0.09, 12, 48, Math.PI)
+    backFlange.rotateZ(-Math.PI / 2)
+    backShell.add(mesh(backFlange, darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
   }
-  barrelGroup.add(upperShell, lowerShell)
-  barrelGroup.userData.shells = [upperShell, lowerShell]
+  barrelGroup.add(frontShell, backShell)
+  barrelGroup.userData.shells = [frontShell, backShell]
   addPart('barrel', barrelGroup)
 
   const coilGroup = new THREE.Group()
@@ -260,7 +284,7 @@ const arrangeExplodedParts = () => {
   explodedSpan = totalWidth
   const clearanceSeeds = {
     base: [0, 0.15, 0],
-    barrel: [0, 1.15, -1.7],
+    barrel: [0, 0, 0],
     coil: [0, 1.8, 3.2],
     rotor: [0, 1.8, -3.2],
     bearing: [0, 2.35, 4.4],
@@ -305,10 +329,19 @@ const arrangeExplodedParts = () => {
     const seed = clearanceSeeds[part.id] || [0, 0, 0]
     const clearance = clearanceCandidates(seed).find((candidate) => {
       const candidateBounds = bounds.clone().translate(candidate).expandByScalar(clearanceGap)
-      return !placedClearances.some((placed) => intersects(candidateBounds, placed.bounds))
+      return !placedClearances.some((placed) => {
+        // The assembled barrel intentionally seats over the base supports. Its
+        // front/back shells separate in Z, so this contact must not force the
+        // clearance solver to choose an artificial diagonal lane.
+        if (part.id === 'barrel' && placed.id === 'base') return false
+        return intersects(candidateBounds, placed.bounds)
+      })
     }) || new THREE.Vector3(...seed)
     part.group.userData.clearancePosition = clearance
-    placedClearances.push({ bounds: bounds.clone().translate(clearance).expandByScalar(clearanceGap) })
+    placedClearances.push({
+      id: part.id,
+      bounds: bounds.clone().translate(clearance).expandByScalar(clearanceGap)
+    })
     cursor += radius * 2 + gap
   })
 }
@@ -369,7 +402,7 @@ const resetView = () => {
   if (!camera || !controls) return
   controls.target.set(defaultTargetX(), 0.05, 0)
   const focus = controls.target
-  const baseOffset = new THREE.Vector3(5, 5.5, 24).sub(new THREE.Vector3(defaultTargetX(), 0.05, 0))
+  const baseOffset = new THREE.Vector3(11, 6.5, 24).sub(new THREE.Vector3(defaultTargetX(), 0.05, 0))
   camera.position.copy(focus).add(baseOffset.multiplyScalar(cameraDistanceForProgress(progress.value) / 24))
   controls.update()
 }
@@ -413,9 +446,8 @@ const updateParts = (value) => {
   let nearest = -1
   let nearestDistance = Number.POSITIVE_INFINITY
   parts.forEach(({ group, index }) => {
-    const stagger = 0.24 * (index / Math.max(1, bomItems.length - 1))
-    const delay = explodeDelays[group.name.replace('bom-', '')] ?? stagger
-    const partValue = THREE.MathUtils.clamp((value - delay) / (1 - delay), 0, 1)
+    const partId = group.name.replace('bom-', '')
+    const partValue = partProgressFor(partId, value)
     const partEased = partValue * partValue * (3 - 2 * partValue)
     const clearance = group.userData.clearancePosition || new THREE.Vector3()
     const exploded = group.userData.explodedPosition
@@ -434,11 +466,27 @@ const updateParts = (value) => {
     } else {
       position.copy(exploded).multiplyScalar(partEased)
     }
-    group.position.copy(position)
-    if (group.name === 'bom-barrel' && group.userData.shells) {
-      const shellSpread = 0.28 * release
-      group.userData.shells[0].position.y = shellSpread
-      group.userData.shells[1].position.y = -shellSpread
+    if (partId === 'barrel') {
+      group.position.copy(barrelPositionFor(value, clearance, exploded))
+    } else {
+      group.position.copy(position)
+    }
+    if (partId === 'barrel' && group.userData.shells) {
+      // Keep the casing closed until the internal parts have started to clear.
+      // During assembly the same interval closes the shells last, while the
+      // group remains centered on the pump axis.
+      const shellOpen = THREE.MathUtils.smoothstep(
+        THREE.MathUtils.clamp(
+          (value - casingShellCloseStart) / (casingShellOpenEnd - casingShellCloseStart),
+          0,
+          1
+        ),
+        0,
+        1
+      )
+      const shellSpread = casingShellSpread * shellOpen
+      group.userData.shells[0].position.z = shellSpread
+      group.userData.shells[1].position.z = -shellSpread
     }
     const distance = Math.abs(value - ((index + 1) / bomItems.length))
     if (distance < nearestDistance && value > 0.08 && value < 0.92) {
@@ -485,7 +533,7 @@ onMounted(() => {
     // Keep the far clip and fog beyond that distance so the exploded parts stay visible.
     scene.fog = new THREE.Fog('#f5f8f6', 34, 180)
     camera = new THREE.PerspectiveCamera(40, 1, 0.1, 180)
-    camera.position.set(5, 5.5, 24)
+    camera.position.set(11, 6.5, 24)
     renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false, powerPreference: 'high-performance' })
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
