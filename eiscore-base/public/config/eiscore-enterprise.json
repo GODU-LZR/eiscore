@@ -11,29 +11,29 @@
     "themeColor": "#0B6E69",
     "logoUrl": "",
     "login": {
-      "slogan": "让每一台泵稳定地工作。",
-      "description": "伦度机电有限公司集设计、开发、制造、销售与服务于一体，覆盖电机、潜水泵、管道离心泵与自吸泵。",
+      "slogan": "专注电机与水泵产品，服务稳定运行。",
+      "description": "伦度机电有限公司位于浙江省台州市温岭市沈岙工业园区，专注于电机与水泵产品的研发、制造、销售及服务，形成从产品开发、生产制造到交付服务的完整业务体系。",
       "siteTag": "电机与水泵制造",
-      "announcement": "员工与合作伙伴入口",
-      "headerLoginText": "员工通道",
-      "authKicker": "员工入口",
-      "authTitle": "账号登录",
-      "authSafeNote": "账号由管理员统一分配",
-      "authFootnote": "该入口仅供授权人员使用",
-      "primaryActionText": "员工登录",
+      "announcement": "面向授权人员的企业协同入口",
+      "headerLoginText": "企业登录",
+      "authKicker": "企业协同",
+      "authTitle": "登录企业系统",
+      "authSafeNote": "授权账号",
+      "authFootnote": "账号由企业统一创建",
+      "primaryActionText": "登录",
       "secondaryActionText": "了解平台",
       "secondaryActionUrl": "/eiscore",
       "showSecondaryAction": false,
-      "passBadgeText": "员工通行",
-      "businessChainTitle": "制造能力与服务",
-      "scrollCueText": "了解产品方向",
+      "passBadgeText": "企业账户",
+      "businessChainTitle": "产品体系与制造能力",
+      "scrollCueText": "查看企业信息",
       "metricsSectionKicker": "企业概况",
-      "metricsSectionTitle": "把能力、服务方向和经营信息说清楚",
-      "aboutSectionKicker": "关于伦度",
-      "capabilitiesSectionKicker": "资质与服务能力",
-      "capabilitiesSectionTitle": "制造能力与服务",
-      "leadersSectionKicker": "企业联系人",
-      "leadersSectionTitle": "企业联系人",
+      "metricsSectionTitle": "专注产品与稳定交付",
+      "aboutSectionKicker": "公司简介",
+      "capabilitiesSectionKicker": "业务体系",
+      "capabilitiesSectionTitle": "从产品开发到交付服务",
+      "leadersSectionKicker": "联系伦度",
+      "leadersSectionTitle": "联系伦度",
       "backgroundImage": "/enterprise-assets/site/ratio/hero-wide.png",
       "navItems": [
         {
@@ -52,114 +52,114 @@
       "metrics": [
         {
           "label": "企业所在地",
-          "value": "温岭沈岙"
-        },
-        {
-          "label": "资质与业务范围",
-          "value": "设计·开发·制造·销售·服务"
+          "value": "浙江·温岭"
         },
       {
-        "label": "客户与服务场景",
-          "value": "采购商、系统集成商、工程项目与维修备件"
+        "label": "主营产品",
+          "value": "电机与水泵"
       },
       {
-          "label": "产量 / 订单",
-          "value": "按项目与订单需求提供"
+        "label": "业务体系",
+          "value": "研发·制造·销售·服务"
+      },
+      {
+          "label": "官网邮箱",
+          "value": "info@lundujd.com"
         }
       ],
       "trustBadges": [
         {
-          "label": "设计·开发·制造·销售·服务"
+          "label": "研发·制造·销售·服务"
         },
         {
-          "label": "电机与水泵产品方向"
+          "label": "电机与水泵产品"
         },
         {
-          "label": "温岭沈岙工业园区"
+          "label": "浙江台州温岭"
         }
       ],
       "businessChain": [
         {
-          "title": "电机系列",
-          "description": "YE4、YE3、YD、YVF2、YEJ2，以及 YC、YL、YY 等公开方向。"
+          "title": "电机产品",
+          "description": "覆盖 YE4、YE3、YD、YVF2、YEJ2 三相异步电动机，以及 YC、YL、YY 单相异步电动机。"
         },
         {
-          "title": "潜水泵系列",
-          "description": "QDX/QX、QD、WQD/WQ、WQX、JYWQ、GNWQ、QY 等公开方向。"
+          "title": "潜水泵产品",
+          "description": "覆盖 QDX/QX、QD、WQD/WQ、WQX、JYWQ、GNWQ、QY 等系列，适配排水、排污及工程应用。"
         },
         {
-          "title": "工业泵系列",
-          "description": "PST 标准管道离心泵及 ISW/IRG 管道泵方向。"
+          "title": "管道泵与自吸泵",
+          "description": "提供 PST 标准管道离心泵、ISW/IRG 管道泵及 JET 自吸喷射泵产品。"
         },
         {
-          "title": "核心部件与制造协同",
-          "description": "底座、泵头、叶轮、油缸、机械密封、转子、线圈、机筒、花板、电缆线、轴承等物料方向来自客户资料。"
+          "title": "品质与交付",
+          "description": "建立覆盖生产、装配与检测的制造流程，围绕产品规格与交付计划组织生产。"
         },
         {
-          "title": "客户与服务场景",
-          "description": "面向采购商、系统集成商、工业供水与排污工程、项目配套及维修备件采购。"
+          "title": "技术与服务",
+          "description": "面向采购、工程配套与维修备件场景，提供产品选型、配套交付与售后服务。"
         }
       ],
       "capabilities": [
         {
-          "title": "设计、开发、制造、销售与服务",
-          "description": "覆盖电机、水泵及相关配套服务。"
+          "title": "研发与产品开发",
+          "description": "围绕电机与水泵产品持续开展设计开发，完善产品系列与应用适配。"
         },
         {
-          "title": "资质与合规资料",
-          "description": "支持证书、标准与合规资料的统一归档与展示。"
+          "title": "生产制造",
+          "description": "以规范工艺组织生产、装配与过程管理，保障产品稳定交付。"
         },
         {
-          "title": "客户与服务场景",
-          "description": "服务采购商、系统集成商、工程项目与维修备件采购。"
+          "title": "质量管理",
+          "description": "配备产品检测与质量控制环节，对关键工序和出厂产品进行检验。"
         },
         {
-          "title": "产量与订单数据",
-          "description": "围绕订单需求、产品规格与交付计划提供协同服务。"
+          "title": "交付与售后",
+          "description": "面向工程项目、配套采购与维修备件提供交付协同和售后支持。"
         }
       ],
       "carouselImages": [
         {
           "url": "/enterprise-assets/site/ratio/hero-wide.png",
-          "title": "设备与产品",
-          "subtitle": "稳定可靠的产品呈现"
+          "title": "产品体系",
+          "subtitle": "电机与水泵产品"
         },
         {
           "url": "/enterprise-assets/site/ratio/pump-wide.png",
-          "title": "泵产品",
-          "subtitle": "面向多种工况的泵系统"
+          "title": "水泵产品",
+          "subtitle": "覆盖多种应用工况"
         },
         {
           "url": "/enterprise-assets/site/ratio/motor-wide.png",
           "title": "电机产品",
-          "subtitle": "高效稳定的动力单元"
+          "subtitle": "稳定可靠的动力单元"
         },
         {
           "url": "/enterprise-assets/site/ratio/application-wide.png",
-          "title": "应用场景",
-          "subtitle": "适配真实工况需求"
+          "title": "应用服务",
+          "subtitle": "面向工程与配套需求"
         },
         {
           "url": "/enterprise-assets/site/ratio/factory-wide.png",
           "title": "制造现场",
-          "subtitle": "整洁有序的制造流程"
+          "subtitle": "规范组织生产与装配"
         },
         {
           "url": "/enterprise-assets/site/ratio/detail-wide.png",
-          "title": "关键部件",
-          "subtitle": "精密制造细节"
+          "title": "质量控制",
+          "subtitle": "关注产品细节与检验"
         }
       ],
       "leaders": [],
-      "footerText": "Copyright © 伦度机电有限公司",
+      "footerText": "伦度机电有限公司 · 浙江省台州市温岭市沈岙工业园区 · info@lundujd.com",
       "icpText": "",
       "mobile": {
-        "description": "伦度机电有限公司集设计、开发、制造、销售与服务于一体，覆盖电机、潜水泵、管道离心泵与自吸泵。",
-        "authFootnote": "该入口仅供授权人员使用",
+        "description": "伦度机电有限公司位于浙江省台州市温岭市沈岙工业园区，专注于电机与水泵产品的研发、制造、销售及服务，形成从产品开发、生产制造到交付服务的完整业务体系。",
+        "authFootnote": "账号由企业统一创建",
         "showSecondaryAction": false,
-        "passBadgeText": "员工通行",
-        "businessChainTitle": "制造能力与服务",
-        "footerText": "Copyright © 伦度机电有限公司"
+        "passBadgeText": "企业账户",
+        "businessChainTitle": "产品体系与制造能力",
+        "footerText": "伦度机电有限公司 · 浙江省台州市温岭市沈岙工业园区 · info@lundujd.com"
       }
     }
   },

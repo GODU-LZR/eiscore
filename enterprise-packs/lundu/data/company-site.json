@@ -40,7 +40,7 @@
     },
     "seo": {
       "title": "伦度机电｜电机与水泵制造",
-      "description": "伦度机电有限公司电机、水泵与数字化工厂门户。"
+      "description": "伦度机电有限公司专注电机与水泵产品的研发、制造、销售及服务。"
     }
   },
   "content": {
@@ -50,17 +50,17 @@
         "locale": "zh-CN",
         "slug": "home",
         "pageType": "home",
-        "title": "电机与水泵制造，让每一股流量稳定可靠。",
-        "summary": "伦度机电有限公司集设计、开发、制造、销售与服务于一体，覆盖电机、潜水泵、管道离心泵与自吸泵。",
+            "title": "专注电机与水泵产品，服务稳定运行。",
+        "summary": "伦度机电有限公司位于浙江省台州市温岭市沈岙工业园区，专注于电机与水泵产品的研发、制造、销售及服务。",
         "blocks": {
           "homepage": {
             "hero": {
               "eyebrow": "电机与水泵制造",
               "titleLines": [
-                "让每一台泵",
-                "稳定地工作。"
+                "专注电机与水泵产品，",
+                "服务稳定运行。"
               ],
-              "summary": "专注电机与水泵产品，为稳定运行提供可靠动力。",
+              "summary": "从产品开发、生产制造到交付服务，形成完整业务体系。",
               "signals": [
                 "浙江温岭",
                 "电机制造",
@@ -81,19 +81,19 @@
                 "anchor": "capabilities"
               }
             ],
-            "announcement": "员工与合作伙伴入口",
-            "headerLoginText": "员工通道",
-            "authKicker": "员工入口",
-            "authTitle": "账号登录",
-            "authSafeNote": "账号由管理员统一分配",
-            "authFootnote": "该入口仅供授权人员使用",
-            "primaryActionText": "员工登录",
-            "scrollCueText": "了解产品方向",
+            "announcement": "面向授权人员的企业协同入口",
+            "headerLoginText": "企业登录",
+            "authKicker": "企业协同",
+            "authTitle": "登录企业系统",
+            "authSafeNote": "授权账号",
+            "authFootnote": "账号由企业统一创建",
+            "primaryActionText": "登录",
+            "scrollCueText": "查看企业信息",
             "metricsSectionKicker": "企业概况",
-            "metricsSectionTitle": "把能力、服务方向和经营信息说清楚",
-            "aboutSectionKicker": "关于伦度",
-            "capabilitiesSectionKicker": "资质与服务能力",
-            "capabilitiesSectionTitle": "制造能力与服务",
+            "metricsSectionTitle": "专注产品与稳定交付",
+            "aboutSectionKicker": "公司简介",
+            "capabilitiesSectionKicker": "业务体系",
+            "capabilitiesSectionTitle": "从产品开发到交付服务",
             "productSectionKicker": "产品方向",
             "productSectionTitle": "电机与水泵系列",
             "solutionSectionKicker": "数字化运营",
@@ -104,16 +104,16 @@
                 "value": "温岭沈岙"
               },
               {
-                "label": "资质与业务范围",
-                "value": "设计·开发·制造·销售·服务"
+                "label": "主营产品",
+                "value": "电机与水泵"
               },
               {
-                "label": "客户与服务场景",
-                "value": "采购商、系统集成商、工程项目与维修备件"
+                "label": "业务体系",
+                "value": "研发·制造·销售·服务"
               },
               {
-                "label": "产量 / 订单",
-                "value": "按项目与订单需求提供"
+                "label": "官网邮箱",
+                "value": "info@lundujd.com"
               }
             ],
             "businessChain": [
@@ -134,31 +134,31 @@
               },
               {
                 "number": "04",
-                "title": "核心部件与制造协同",
-                "description": "底座、泵头、叶轮、油缸、机械密封、转子、线圈、机筒、花板、电缆线、轴承等核心部件。"
+                "title": "品质与交付",
+                "description": "建立覆盖生产、装配与检测的制造流程，围绕产品规格与交付计划组织生产。"
               },
               {
                 "number": "05",
-                "title": "客户与服务场景",
-                "description": "面向采购商、系统集成商、工业供水与排污工程、项目配套及维修备件采购。"
+                "title": "技术与服务",
+                "description": "面向采购、工程配套与维修备件场景，提供产品选型、配套交付与售后服务。"
               }
             ],
             "capabilities": [
               {
-                "title": "设计、开发、制造、销售与服务",
-                "description": "覆盖电机、水泵及相关配套服务。"
+                "title": "研发与产品开发",
+                "description": "围绕电机与水泵产品持续开展设计开发，完善产品系列与应用适配。"
               },
               {
-                "title": "资质资料管理",
-                "description": "支持证书、标准与合规资料的统一归档与展示。"
+                "title": "生产制造",
+                "description": "以规范工艺组织生产、装配与过程管理，保障产品稳定交付。"
               },
               {
-                "title": "客户与服务场景",
-                "description": "服务采购商、系统集成商、工程项目与维修备件采购。"
+                "title": "质量管理",
+                "description": "配备产品检测与质量控制环节，对关键工序和出厂产品进行检验。"
               },
               {
-                "title": "订单与交付协同",
-                "description": "围绕订单需求、产品规格与交付计划提供协同服务。"
+                "title": "交付与售后",
+                "description": "面向工程项目、配套采购与维修备件提供交付协同和售后支持。"
               }
             ],
             "carouselImages": [
@@ -213,17 +213,17 @@
         "locale": "en-US",
         "slug": "home",
         "pageType": "home",
-        "title": "Motor and pump manufacturing for stable flow.",
-        "summary": "Lundu Electromechanical integrates design, manufacturing, sales and service for motors and pumps.",
+        "title": "Motors and pumps for dependable operation.",
+        "summary": "Lundu Electromechanical develops, manufactures, sells and supports motors and pump products.",
         "blocks": {
           "homepage": {
             "hero": {
               "eyebrow": "Motor and pump manufacturing",
               "titleLines": [
-                "Reliable motion,",
-                "stable flow."
+                "Motors and pumps,",
+                "dependable operation."
               ],
-              "summary": "Motors and pump systems built for dependable everyday operation.",
+              "summary": "A complete path from product development and manufacturing to delivery service.",
               "signals": [
                 "Wenling, Zhejiang",
                 "Motors",
@@ -244,19 +244,19 @@
                 "anchor": "capabilities"
               }
             ],
-            "announcement": "Employee and partner access",
-            "headerLoginText": "Employee access",
-            "authKicker": "Employee portal",
-            "authTitle": "Sign in",
-            "authSafeNote": "Accounts are issued by an administrator",
-            "authFootnote": "Authorized personnel only",
+            "announcement": "Enterprise collaboration access for authorized users",
+            "headerLoginText": "Enterprise login",
+            "authKicker": "Enterprise collaboration",
+            "authTitle": "Sign in to the enterprise system",
+            "authSafeNote": "Authorized account",
+            "authFootnote": "Accounts are created by the enterprise",
             "primaryActionText": "Sign in",
             "scrollCueText": "Explore products",
             "metricsSectionKicker": "Company profile",
-            "metricsSectionTitle": "Make capabilities, service scope and operating data clear",
-            "aboutSectionKicker": "About Lundu",
-            "capabilitiesSectionKicker": "Qualifications and service capability",
-            "capabilitiesSectionTitle": "Manufacturing capability and service",
+            "metricsSectionTitle": "Product focus and dependable delivery",
+            "aboutSectionKicker": "Company profile",
+            "capabilitiesSectionKicker": "Business system",
+            "capabilitiesSectionTitle": "From product development to delivery service",
             "productSectionKicker": "Products",
             "productSectionTitle": "Motor and pump families",
             "solutionSectionKicker": "Digital operations",
@@ -267,16 +267,16 @@
                 "value": "Wenling"
               },
               {
-                "label": "Qualifications and scope",
-                "value": "Design · make · sell · serve"
+                "label": "Main products",
+                "value": "Motors and pumps"
               },
               {
-                "label": "Customers and service scenarios",
-                "value": "Buyers, integrators, projects and service parts"
+                "label": "Business system",
+                "value": "Develop · make · sell · serve"
               },
               {
-                "label": "Output / orders",
-                "value": "Delivered around project and order requirements"
+                "label": "Contact email",
+                "value": "info@lundujd.com"
               }
             ],
             "businessChain": [
@@ -297,31 +297,31 @@
               },
               {
                 "number": "04",
-                "title": "Components and manufacturing coordination",
-                "description": "Base plates, pump heads, impellers, cylinders, mechanical seals, rotors, coils, barrels, cables, bearings and related core components."
+                "title": "Quality and delivery",
+                "description": "Production, assembly and inspection are organized around product specifications and delivery plans."
               },
               {
                 "number": "05",
-                "title": "Customers and service scenarios",
-                "description": "Motor buyers, pump system integrators, industrial water and drainage, project supply and service-parts procurement."
+                "title": "Technical and service support",
+                "description": "Product selection, coordinated delivery and after-sales support for projects, procurement and service parts."
               }
             ],
             "capabilities": [
               {
-                "title": "Design, development, manufacturing, sales and service",
-                "description": "Covers motors, pumps and related support services."
+                "title": "Research and product development",
+                "description": "Continued design and development for motor and pump families and their application fit."
               },
               {
-                "title": "Qualification records",
-                "description": "Centralized records for certificates, standards and compliance materials."
+                "title": "Manufacturing",
+                "description": "Standardized processes organize production, assembly and process control for dependable delivery."
               },
               {
-                "title": "Customers and service scenarios",
-                "description": "Service for buyers, system integrators, engineering projects and spare-parts procurement."
+                "title": "Quality management",
+                "description": "Inspection and quality-control steps cover key processes and finished products."
               },
               {
-                "title": "Order and delivery coordination",
-                "description": "Coordination around order requirements, product specifications and delivery plans."
+                "title": "Delivery and after-sales",
+                "description": "Delivery coordination and after-sales support for projects, procurement and service parts."
               }
             ],
             "carouselImages": [

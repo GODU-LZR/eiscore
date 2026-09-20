@@ -41,34 +41,24 @@
           </div>
         </div>
         <button type="button" class="desktop-link" @click="goDesktop">
-          桌面版
+          桌面网站
         </button>
       </div>
 
       <div class="hero-copy mobile-reveal is-visible">
-        <p class="brand-kicker">{{ branding.announcement }}</p>
+        <p class="brand-kicker">{{ siteTagText }}</p>
         <h1>{{ companyName }}</h1>
         <p class="brand-slogan">{{ branding.slogan }}</p>
-        <div class="scene-note">
-          <span>{{ heroSceneTitle }}</span>
-          <small>{{ heroSceneSubtitle }}</small>
-        </div>
-        <div v-if="sceneProgressItems.length > 1" class="scene-progress" aria-hidden="true">
-          <span
-            v-for="item in sceneProgressItems"
-            :key="item"
-            :class="{ active: item === activeSceneNumber }"
-          ></span>
-        </div>
+        <p class="hero-intro">{{ introLead }}</p>
       </div>
 
-      <div v-if="trustBadgeItems.length" class="trust-float" aria-label="企业能力标签">
+      <div v-if="trustBadgeItems.length" class="trust-float" aria-label="企业信息">
         <span v-for="(item, index) in trustBadgeItems" :key="item.label" :style="{ '--delay': `${index * 120}ms` }">
           {{ item.label }}
         </span>
       </div>
 
-      <div v-if="metricItems.length" class="metric-carousel" aria-label="企业实力">
+      <div v-if="metricItems.length" class="metric-carousel" aria-label="企业概况">
         <article v-for="item in metricItems.slice(0, 4)" :key="`${item.label}-${item.value}`">
           <strong>{{ item.value }}</strong>
           <span>{{ item.label }}</span>
@@ -76,22 +66,11 @@
       </div>
 
       <section ref="loginCardRef" class="access-sheet mobile-reveal is-visible" aria-label="移动端登录">
-        <div class="access-handle" aria-hidden="true"></div>
-        <div class="access-pass">
-          <div class="pass-mark">
-            <img v-if="branding.logo" :src="branding.logo" alt="" />
-            <span v-else>{{ brandInitial }}</span>
-          </div>
-        <div>
-          <span>移动员工通行证</span>
-          <strong>{{ companyName }}</strong>
-        </div>
-          <em v-if="displayPassBadgeText">{{ displayPassBadgeText }}</em>
-        </div>
         <div class="access-header">
           <div class="access-title">
             <span>{{ branding.authKicker }}</span>
             <strong>{{ branding.authTitle }}</strong>
+            <p>{{ branding.announcement }}</p>
           </div>
           <div class="access-status">
             <i aria-hidden="true"></i>
@@ -166,14 +145,26 @@
     </section>
 
     <main class="company-content">
-      <section v-if="carouselItems.length" ref="storyRef" class="story-section mobile-reveal">
+      <section ref="storyRef" class="intro-section mobile-reveal" id="mobile-about">
+        <div class="section-heading">
+          <span>{{ branding.aboutSectionKicker }}</span>
+          <h2>{{ branding.slogan }}</h2>
+        </div>
+        <p>{{ branding.description }}</p>
+        <p class="company-address">浙江省台州市温岭市沈岙工业园区 · info@lundujd.com</p>
+        <button v-if="showSecondaryAction" type="button" class="text-action" @click="openSecondaryAction">
+          {{ branding.secondaryActionText }}
+        </button>
+      </section>
+
+      <section v-if="carouselItems.length" class="story-section mobile-reveal">
         <div class="section-heading">
           <span>企业现场</span>
-          <h2>把产地、加工和客户应用放进口袋里</h2>
+          <h2>产品与制造现场</h2>
         </div>
         <div class="story-lane">
           <figure v-for="(item, index) in carouselItems" :key="item.url" class="story-card">
-            <img :src="item.url" alt="" />
+            <img :src="item.url" :alt="item.title" loading="lazy" />
             <figcaption>
               <span>{{ String(index + 1).padStart(2, '0') }}</span>
               <strong>{{ item.title }}</strong>
@@ -183,20 +174,9 @@
         </div>
       </section>
 
-      <section class="intro-section mobile-reveal" id="mobile-about">
-        <div class="section-heading">
-          <span>{{ branding.aboutSectionKicker }}</span>
-          <h2>{{ branding.slogan }}</h2>
-        </div>
-        <p>{{ branding.description }}</p>
-        <button v-if="showSecondaryAction" type="button" class="text-action" @click="openSecondaryAction">
-          {{ branding.secondaryActionText }}
-        </button>
-      </section>
-
       <section v-if="businessChainItems.length" class="chain-section mobile-reveal">
         <div class="section-heading">
-          <span>业务链路</span>
+          <span>产品体系</span>
           <h2>{{ sanitizedBusinessChainTitle }}</h2>
         </div>
         <div class="chain-timeline">
@@ -1520,6 +1500,136 @@ function handlePageScroll(event) {
 .mobile-reveal.is-visible {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* Formal public-site treatment for the mobile entry page. */
+.mobile-hero {
+  background: #f4f7f5;
+}
+
+.hero-media {
+  height: min(46svh, 390px);
+  border-radius: 0;
+}
+
+.hero-shade {
+  height: min(48svh, 410px);
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.08), rgba(2, 6, 23, 0.7)),
+    linear-gradient(90deg, rgba(2, 6, 23, 0.48), rgba(2, 6, 23, 0.08));
+}
+
+.brand-logo,
+.desktop-link,
+.brand-kicker,
+.metric-carousel article,
+.access-status,
+.text-action,
+.mobile-dock button,
+.story-card,
+.chain-item > div,
+.capability-card {
+  border-radius: 4px;
+}
+
+.hero-copy {
+  margin-top: clamp(44px, 13svh, 96px);
+  padding-bottom: 4px;
+}
+
+.brand-kicker {
+  background: rgba(255, 255, 255, 0.12);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-copy h1 {
+  max-width: 100%;
+  font-size: clamp(32px, 9vw, 44px);
+  line-height: 1.1;
+}
+
+.brand-slogan {
+  max-width: 22em;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.hero-intro {
+  max-width: 34em;
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.metric-carousel {
+  gap: 0;
+  margin-top: auto;
+  padding-bottom: 12px;
+}
+
+.metric-carousel article {
+  min-height: 58px;
+  padding: 11px 10px;
+  background: rgba(7, 17, 30, 0.36);
+  box-shadow: none;
+}
+
+.access-sheet {
+  margin: 0 -16px;
+  padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
+  border-radius: 4px 4px 0 0;
+  border: 1px solid #dce5e1;
+  border-bottom: 0;
+  box-shadow: 0 -10px 28px rgba(15, 23, 42, 0.12);
+  backdrop-filter: none;
+}
+
+.access-header {
+  padding: 0 0 12px;
+}
+
+.access-title p {
+  margin: 7px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.access-form :deep(.van-cell-group--inset) {
+  border-radius: 4px;
+  background: #f4f7f8;
+}
+
+.submit-area :deep(.van-button--primary) {
+  border-radius: 4px;
+}
+
+.story-card {
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+}
+
+.company-address {
+  margin-top: 10px !important;
+  color: #0f766e !important;
+  font-size: 13px !important;
+}
+
+.section-heading h2 {
+  font-size: 25px;
+}
+
+.chain-item > strong {
+  border-radius: 4px;
+}
+
+.capability-card {
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
+}
+
+.login-footer {
+  border-top: 1px solid #e3e9e6;
 }
 
 @keyframes imageDrift {
