@@ -95,13 +95,18 @@ for (const path of productSources) {
 }
 
 const mobileMainSource = readFileSync(resolve(repoRoot, 'eiscore-mobile/src/main.js'), 'utf8')
+const mobileLoginSource = readFileSync(resolve(repoRoot, 'eiscore-mobile/src/views/LoginView.vue'), 'utf8')
 const loadIndex = mobileMainSource.indexOf('await loadEnterpriseConfig')
 const publishIndex = mobileMainSource.indexOf('publishEnterpriseConfig(enterpriseConfig')
 const mountIndex = mobileMainSource.indexOf('mountMobileApplication()')
 assert.ok(loadIndex >= 0 && publishIndex > loadIndex && mountIndex > publishIndex)
 assert.match(mobileMainSource, /required:\s*import\.meta\.env\.PROD/)
+assert.match(mobileLoginSource, /PumpBomViewer/)
+assert.match(mobileLoginSource, /showPumpViewer/)
+assert.match(mobileLoginSource, /水泵 BOM 三维动画/)
 
 const mobilePackage = JSON.parse(readFileSync(resolve(repoRoot, 'eiscore-mobile/package.json'), 'utf8'))
 assert.equal(mobilePackage.dependencies['@eiscore/platform'], 'file:../packages/eiscore-platform')
+assert.equal(mobilePackage.dependencies.three, '^0.185.1')
 
 console.log('PASS: enterprise login branding compatibility')

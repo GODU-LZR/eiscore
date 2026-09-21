@@ -157,6 +157,21 @@
         </button>
       </section>
 
+      <section v-if="showPumpViewer" class="pump-bom-section mobile-reveal" aria-label="水泵 BOM 三维动画">
+        <div class="section-heading">
+          <span>产品拆解</span>
+          <h2>水泵 BOM 三维动画</h2>
+        </div>
+        <div class="pump-bom-frame">
+          <PumpBomViewer
+            :product-name="pumpViewerName"
+            category="水泵产品"
+            :accent-color="safeThemeColor"
+            :locale="enterpriseConfig.locale || 'zh-CN'"
+          />
+        </div>
+      </section>
+
       <section v-if="carouselItems.length" class="story-section mobile-reveal">
         <div class="section-heading">
           <span>企业现场</span>
@@ -235,7 +250,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { computed, ref, reactive, onBeforeUnmount, onMounted } from 'vue'
+import { computed, ref, reactive, onBeforeUnmount, onMounted, defineAsyncComponent } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showFailToast } from 'vant'
 import { setAuth, parseJwt, isAuthenticated } from '@/utils/auth'
@@ -247,6 +262,8 @@ import {
   getRememberedUsername,
   rememberUsername
 } from '@shared/eis-remembered-username.mjs'
+
+const PumpBomViewer = defineAsyncComponent(() => import('../../../eiscore-base/src/components/PumpBomViewer.vue'))
 
 const enterpriseConfig = getEnterpriseConfig(globalThis)
 const defaultLoginBranding = normalizeLoginBranding({}, {
@@ -352,6 +369,15 @@ const metricItems = computed(() => branding.value.metrics)
 const trustBadgeItems = computed(() => branding.value.trustBadges)
 const businessChainItems = computed(() => branding.value.businessChain)
 const capabilityItems = computed(() => branding.value.capabilities)
+const pumpViewerName = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en') ? 'Pump assembly' : '水泵总成'
+))
+const showPumpViewer = computed(() => /泵|pump/i.test([
+  companyName.value,
+  branding.value.siteTag,
+  branding.value.description,
+  branding.value.slogan
+].join(' ')))
 const showSecondaryAction = computed(() => {
   if (!branding.value.showSecondaryAction) return false
   const url = branding.value.secondaryActionUrl
@@ -1211,10 +1237,35 @@ function handlePageScroll(event) {
 
 .story-section,
 .intro-section,
+.pump-bom-section,
 .chain-section,
 .capability-section {
   padding: 0 16px;
   margin-top: 24px;
+}
+
+.pump-bom-section {
+  padding-inline: 0;
+}
+
+.pump-bom-section .section-heading {
+  padding-inline: 16px;
+}
+
+.pump-bom-frame {
+  height: min(760px, calc(100svh - 40px));
+  min-height: 620px;
+  margin-top: 16px;
+  overflow: hidden;
+  border-top: 1px solid #dce5e1;
+  border-bottom: 1px solid #dce5e1;
+  background: #f5f8f6;
+}
+
+.pump-bom-frame :deep(.pump-bom-viewer),
+.pump-bom-frame :deep(.pump-bom-stage) {
+  min-height: 100%;
+  height: 100%;
 }
 
 .section-heading {
@@ -1707,6 +1758,10 @@ function handlePageScroll(event) {
 
   .capability-card {
     flex-basis: 88%;
+  }
+
+  .pump-bom-frame {
+    min-height: 560px;
   }
 }
 
