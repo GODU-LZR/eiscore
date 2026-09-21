@@ -40,8 +40,8 @@
             <span>{{ siteTagText }}</span>
           </div>
         </div>
-        <button type="button" class="desktop-link" @click="goDesktop">
-          桌面网站
+        <button v-if="showLoginPanel" type="button" class="desktop-link" @click="goDesktop">
+          返回官网
         </button>
       </div>
 
@@ -65,7 +65,7 @@
         </article>
       </div>
 
-      <section ref="loginCardRef" class="access-sheet mobile-reveal is-visible" aria-label="移动端登录">
+      <section v-if="showLoginPanel" ref="loginCardRef" class="access-sheet mobile-reveal is-visible" aria-label="企业人员登录">
         <div class="access-header">
           <div class="access-title">
             <span>{{ branding.authKicker }}</span>
@@ -234,7 +234,7 @@
       </section>
     </main>
 
-    <nav v-show="showDock" class="mobile-dock" :class="{ single: !showSecondaryAction }" aria-label="移动端快捷入口">
+    <nav v-if="showLoginPanel" v-show="showDock" class="mobile-dock" :class="{ single: !showSecondaryAction }" aria-label="企业登录快捷入口">
       <button type="button" @click="scrollToLogin">{{ branding.primaryActionText }}</button>
       <button v-if="showSecondaryAction" type="button" @click="openSecondaryAction">{{ branding.secondaryActionText }}</button>
     </nav>
@@ -273,6 +273,7 @@ const defaultLoginBranding = normalizeLoginBranding({}, {
 
 const router = useRouter()
 const route = useRoute()
+const showLoginPanel = computed(() => String(route.query.login || '') === '1' || Boolean(route.query.redirect))
 const loading = ref(false)
 const showPassword = ref(false)
 const loginFeedback = ref({ type: 'idle', message: '' })
@@ -426,7 +427,7 @@ const loadAppSettings = async () => {
 onMounted(async () => {
   await loadAppSettings()
 
-  if (isAuthenticated()) {
+  if (isAuthenticated() && showLoginPanel.value) {
     const redirect = route.query.redirect || '/'
     router.replace(redirect)
   }

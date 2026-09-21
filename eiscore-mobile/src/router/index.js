@@ -11,7 +11,7 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('@/views/LoginView.vue'),
-      meta: { requiresAuth: false, title: '登录' }
+      meta: { requiresAuth: false, title: '伦度机电' }
     },
     {
       path: '/',
@@ -137,7 +137,7 @@ router.beforeEach((to, _from, next) => {
 
   const token = getToken()
   if (!token) {
-    next({ name: 'login', query: { redirect: to.fullPath } })
+    next({ name: 'login', query: { login: '1', redirect: to.fullPath } })
     return
   }
 
