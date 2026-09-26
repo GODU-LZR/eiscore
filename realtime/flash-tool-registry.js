@@ -136,7 +136,7 @@ const sanitizeToolId = (value) => {
   return text.replace(/[^a-zA-Z0-9._-]/g, '');
 };
 
-const createFlashToolRegistry = ({ now = () => new Date() } = {}) => {
+const createFlashToolRegistry = ({ now = () => new Date(), getVisibleToolIds } = {}) => {
   const toolMap = new Map(TOOL_REGISTRY.map((tool) => [tool.tool_id, tool]));
 
   const resolveFlashToolId = (rawToolId) => {
@@ -147,12 +147,15 @@ const createFlashToolRegistry = ({ now = () => new Date() } = {}) => {
 
   const getFlashToolDefinition = (toolId) => toolMap.get(toolId);
 
-  const getFlashToolRegistryPayload = () => ({
-    registry_version: REGISTRY_VERSION,
-    tools_count: TOOL_REGISTRY.length,
-    generated_at: now().toISOString(),
-    domain: 'flash',
-    tools: TOOL_REGISTRY.map((tool) => ({
+  const buildPayload = (visibleToolIds) => {
+    const visible = visibleToolIds ? new Set(visibleToolIds) : null;
+    const tools = TOOL_REGISTRY.filter((tool) => !visible || visible.has(tool.tool_id));
+    return {
+      registry_version: REGISTRY_VERSION,
+      tools_count: tools.length,
+      generated_at: now().toISOString(),
+      domain: 'flash',
+      tools: tools.map((tool) => ({
       tool_id: tool.tool_id,
       tool_name_zh: tool.tool_name_zh,
       intent: tool.intent,
@@ -161,8 +164,15 @@ const createFlashToolRegistry = ({ now = () => new Date() } = {}) => {
       confirm_required: tool.confirm_required,
       batch: tool.batch,
       api: cloneJsonValue(tool.api)
-    }))
-  });
+      }))
+    };
+  };
+
+  const getFlashToolRegistryPayload = (user) => {
+    if (typeof getVisibleToolIds !== 'function') return buildPayload(null);
+    if (!user) return buildPayload([]);
+    return Promise.resolve(getVisibleToolIds(user)).then(buildPayload);
+  };
 
   return Object.freeze({
     getFlashToolDefinition,

@@ -7,6 +7,7 @@ const { FlashToolError } = require('./flash-postgrest-adapter');
 
 const createFlashToolService = ({
   idempotencyTtlMs,
+  authorizeTool,
   getToolDefinition,
   resolveToolId,
   registryVersion,
@@ -123,6 +124,23 @@ const createFlashToolService = ({
       return { status: 404, payload: errorResponse };
     }
 
+    const authorization = typeof authorizeTool === 'function'
+      ? await authorizeTool(user, call.toolId, call.arguments, call)
+      : { allowed: true, context: null };
+    if (authorization?.allowed !== true) {
+      return {
+        status: 403,
+        payload: {
+          ok: false,
+          code: 'PERMISSION_DENIED',
+          message: 'Current user is not authorized for this EISCore capability',
+          tool_id: call.toolId,
+          trace_id: call.traceId,
+          error: { reason_code: 'PERMISSION_DENIED', http_status: 403 }
+        }
+      };
+    }
+
     const isWriteTool = tool.confirm_required || tool.risk_level !== 'low';
     if (isWriteTool && !call.confirmed) {
       const errorResponse = {
@@ -164,7 +182,10 @@ const createFlashToolService = ({
     }
 
     try {
-      const result = await executeSemanticTool(call.toolId, call.arguments, user, call);
+      const executionContext = authorization.context
+        ? { ...call, authorizationContext: authorization.context }
+        : call;
+      const result = await executeSemanticTool(call.toolId, call.arguments, user, executionContext);
       const responsePayload = {
         ok: true,
         code: 'OK',

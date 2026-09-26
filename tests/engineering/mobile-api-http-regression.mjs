@@ -78,7 +78,7 @@ const adapter = read('eiscore-mobile/src/platform/http-client.js')
 assert.match(adapter, /export function getMobileHttpClient\(\)/)
 assert.match(adapter, /onUnauthorized:\s*\(\)\s*=>\s*\{/)
 assert.match(adapter, /clearAuth\(\)/)
-assert.match(adapter, /window\.location\.href\s*=\s*['"]\/mobile\/login['"]/)
+assert.match(adapter, /redirectToEnterpriseLogin\(\)/)
 assert.match(adapter, /resolveErrorMessage:\s*\(data\)\s*=>\s*data\?\.message/)
 
 for (const path of [

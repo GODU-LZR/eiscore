@@ -806,30 +806,24 @@ const activeMenu = computed(() => {
 const canShowModule = (moduleKey) => (
   enterpriseConfig.modules?.[moduleKey] !== false && isModuleVisible(displayVisibility.value, moduleKey)
 )
-const canHome = computed(() => canShowModule('home') && hasPerm('module:home'))
-const canHr = computed(() => canShowModule('hr') && hasPerm('module:hr'))
-const canMms = computed(() => canShowModule('materials') && hasPerm('module:mms'))
-const isSuperAdmin = computed(() => {
+const roleValues = computed(() => {
   const info = userStore.userInfo || {}
-  const roleValues = [
-    info.app_role,
-    info.appRole,
-    info.role,
-    info.role_code,
-    info.roleCode,
-    info.dbRole,
-    info.db_role
-  ].map((value) => String(value || '').trim().toLowerCase())
-  return roleValues.includes('super_admin') || roleValues.includes('超级管理员')
+  return [info.app_role, info.appRole, info.role, info.role_code, info.roleCode, info.dbRole, info.db_role]
+    .map((value) => String(value || '').trim().toLowerCase())
 })
-const canSales = computed(() => canShowModule('sales') && (hasPerm('module:sales') || isSuperAdmin.value))
-const canPurchase = computed(() => canShowModule('purchase') && (hasPerm('module:purchase') || isSuperAdmin.value))
-const canProduction = computed(() => canShowModule('production') && (hasPerm('module:production') || isSuperAdmin.value))
-const canQuality = computed(() => canShowModule('quality') && (hasPerm('module:quality') || isSuperAdmin.value))
-const canEquipment = computed(() => canShowModule('equipment') && (hasPerm('module:equipment') || isSuperAdmin.value))
+const isSuperAdmin = computed(() => roleValues.value.includes('super_admin') || roleValues.value.includes('超级管理员'))
+const isPlatformAdmin = computed(() => isSuperAdmin.value || roleValues.value.includes('admin') || roleValues.value.includes('system_admin'))
+const canHome = computed(() => canShowModule('home') && (hasPerm('module:home') || isPlatformAdmin.value))
+const canHr = computed(() => canShowModule('hr') && (hasPerm('module:hr') || isPlatformAdmin.value))
+const canMms = computed(() => canShowModule('materials') && (hasPerm('module:mms') || isPlatformAdmin.value))
+const canSales = computed(() => canShowModule('sales') && (hasPerm('module:sales') || isPlatformAdmin.value))
+const canPurchase = computed(() => canShowModule('purchase') && (hasPerm('module:purchase') || isPlatformAdmin.value))
+const canProduction = computed(() => canShowModule('production') && (hasPerm('module:production') || isPlatformAdmin.value))
+const canQuality = computed(() => canShowModule('quality') && (hasPerm('module:quality') || isPlatformAdmin.value))
+const canEquipment = computed(() => canShowModule('equipment') && (hasPerm('module:equipment') || isPlatformAdmin.value))
 const decisionPermissionKeys = ['decision', 'sales', 'mms', 'purchase', 'production', 'quality', 'equipment']
 const canDecision = computed(() => canShowModule('decision') && (
-  decisionPermissionKeys.some((key) => hasPerm(`module:${key}`)) || isSuperAdmin.value
+  decisionPermissionKeys.some((key) => hasPerm(`module:${key}`)) || isPlatformAdmin.value
 ))
 const hasAnyAppCenterEntryPerm = computed(() => {
   const perms = Array.isArray(userStore.userInfo?.permissions) ? userStore.userInfo.permissions : []
@@ -840,11 +834,11 @@ const canApps = computed(() =>
   hasPerm('module:app') ||
   hasPerm('module:apps') ||
   hasAnyAppCenterEntryPerm.value ||
-  isSuperAdmin.value
+  isPlatformAdmin.value
   )
 )
 const canCompanySite = computed(() => canShowModule('company-site') && (
-  ['module:company-site', 'module:company_site'].some(hasPerm) || isSuperAdmin.value
+  ['module:company-site', 'module:company_site'].some(hasPerm) || isPlatformAdmin.value
 ))
 
 const currentSopRole = computed(() => normalizeBaseSopRole(

@@ -2,7 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import { createRouter, createWebHistory } from 'vue-router'
-import { clearAuth, getToken, parseJwt } from '@/utils/auth'
+import { clearAuth, getToken, parseJwt, redirectToEnterpriseLogin } from '@/utils/auth'
 
 const router = createRouter({
   history: createWebHistory('/mobile/'),
@@ -130,6 +130,12 @@ router.beforeEach((to, _from, next) => {
     document.title = `${to.meta.title} - 企业移动端`
   }
 
+  if (to.name === 'login') {
+    redirectToEnterpriseLogin(to.query.redirect || '/mobile/')
+    next(false)
+    return
+  }
+
   if (to.meta.requiresAuth === false) {
     next()
     return
@@ -137,7 +143,8 @@ router.beforeEach((to, _from, next) => {
 
   const token = getToken()
   if (!token) {
-    next({ name: 'login', query: { login: '1', redirect: to.fullPath } })
+    redirectToEnterpriseLogin(`/mobile${to.fullPath}`)
+    next(false)
     return
   }
 
@@ -145,7 +152,8 @@ router.beforeEach((to, _from, next) => {
   const payload = parseJwt(token)
   if (payload && payload.exp && Date.now() / 1000 >= payload.exp) {
     clearAuth()
-    next({ name: 'login', query: { redirect: to.fullPath } })
+    redirectToEnterpriseLogin(`/mobile${to.fullPath}`)
+    next(false)
     return
   }
 

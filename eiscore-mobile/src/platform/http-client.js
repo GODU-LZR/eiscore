@@ -4,7 +4,7 @@
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { createPlatformHttpClient } from '@eiscore/platform/http-client'
 import { createSystemConfigService } from '@eiscore/platform/system-config'
-import { clearAuth, getToken } from '@/utils/auth'
+import { clearAuth, getToken, redirectToEnterpriseLogin } from '@/utils/auth'
 
 let cachedEnterpriseConfig = null
 let cachedHttpClient = null
@@ -20,7 +20,7 @@ export function getMobileHttpClient() {
     getAccessToken: getToken,
     onUnauthorized: () => {
       clearAuth()
-      window.location.href = '/mobile/login'
+      redirectToEnterpriseLogin()
     },
     resolveErrorMessage: (data) => data?.message
   })

@@ -244,6 +244,42 @@ assert.equal(generic.payload.error.reason_code, 'INTERNAL_ERROR')
 assert.equal(generic.payload.error.http_status, 500)
 assert.equal(generic.payload.error.data, null)
 
+let guardedAllowed = true
+let guardedAuthorizationCalls = 0
+let guardedExecutionCalls = 0
+const guardedService = createFlashToolService({
+  idempotencyTtlMs: 1000,
+  authorizeTool: async () => {
+    guardedAuthorizationCalls += 1
+    return { allowed: guardedAllowed, context: { permissions: [] } }
+  },
+  getToolDefinition: (toolId) => definitions.get(toolId),
+  resolveToolId: (toolId) => String(toolId || '').replace(/[^a-zA-Z0-9._-]/g, ''),
+  registryVersion: 'flash-tools-v2',
+  registryCount: 43,
+  executeSemanticTool: async () => {
+    guardedExecutionCalls += 1
+    return { data: { saved: true } }
+  },
+  logAgentEvent() {},
+  normalizeText: (value) => String(value ?? '').trim(),
+  sanitizePathToken: (value) => String(value || 'default'),
+  now: () => clock,
+  random: () => 0.5
+})
+const guardedWrite = {
+  tool_id: 'flash.write',
+  confirmed: true,
+  idempotency_key: 'guarded-write',
+  arguments: { value: 1 }
+}
+assert.equal((await guardedService.executeFlashToolCall(userOne, guardedWrite)).status, 200)
+guardedAllowed = false
+const revokedReplay = await guardedService.executeFlashToolCall(userOne, guardedWrite)
+assert.equal(revokedReplay.status, 403, 'cached writes must still re-check current permissions')
+assert.equal(guardedAuthorizationCalls, 2)
+assert.equal(guardedExecutionCalls, 1)
+
 const compositionRoot = readFileSync(resolve(repoRoot, 'realtime/index.js'), 'utf8')
 assert.match(compositionRoot, /require\('\.\/flash-tool-service'\)/)
 assert.match(compositionRoot, /createFlashToolService\(/)

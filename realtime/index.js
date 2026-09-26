@@ -41,6 +41,7 @@ const {
 } = require('./ai-agent-policy');
 const { FlashToolError, createFlashPostgrestAdapter } = require('./flash-postgrest-adapter');
 const { createFlashToolRegistry } = require('./flash-tool-registry');
+const { createFlashAuthorization } = require('./flash-authorization');
 const { createFlashToolService } = require('./flash-tool-service');
 const { createFlashSemanticExecutor } = require('./flash-semantic-executor');
 const { createFlashClineRuntime } = require('./flash-cline-runtime');
@@ -154,8 +155,12 @@ if (!process.env.NODE_USE_ENV_PROXY) {
 }
 
 let shuttingDown = false;
-
-const flashToolRegistry = createFlashToolRegistry();
+const flashAuthorization = createFlashAuthorization({
+  callPostgrestWithUser: (...args) => callPostgrestWithUser(...args)
+});
+const flashToolRegistry = createFlashToolRegistry({
+  getVisibleToolIds: (user) => flashAuthorization.getVisibleToolIds(user)
+});
 const {
   getFlashToolDefinition,
   getFlashToolRegistryPayload,
@@ -166,6 +171,7 @@ const {
 
 const flashToolService = createFlashToolService({
   idempotencyTtlMs: flashToolIdempotencyTtlMs,
+  authorizeTool: (...args) => flashAuthorization.authorizeFlashTool(...args),
   getToolDefinition: getFlashToolDefinition,
   resolveToolId: resolveFlashToolId,
   registryVersion: flashSemanticToolRegistryVersion,

@@ -35,6 +35,18 @@ export const getUserInfo = () => authSession.getUserInfo()
 /** 检查当前是否已登录（token 存在且未过期） */
 export const isAuthenticated = () => authSession.isAuthenticated()
 
+export const buildEnterpriseLoginUrl = (redirect = '') => {
+  const url = new URL('/login', window.location.origin)
+  url.searchParams.set('login', '1')
+  const target = String(redirect || `${window.location.pathname}${window.location.search}${window.location.hash}`)
+  if (target && target !== '/login') url.searchParams.set('redirect', target)
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
+export const redirectToEnterpriseLogin = (redirect = '') => {
+  window.location.assign(buildEnterpriseLoginUrl(redirect))
+}
+
 /** 带 Authorization 的 fetch 兼容封装 */
 export async function authFetch(url, options = {}) {
   const token = getToken()
@@ -48,7 +60,7 @@ export async function authFetch(url, options = {}) {
   const res = await fetch(url, { ...options, headers })
   if (res.status === 401) {
     clearAuth()
-    window.location.href = '/mobile/login'
+    redirectToEnterpriseLogin()
   }
   return res
 }

@@ -31,16 +31,24 @@
 
       <div class="hero-topbar">
         <div class="brand-lockup">
-          <div class="brand-logo">
+          <div class="brand-logo" :class="{ 'has-logo': branding.logo }">
             <img v-if="branding.logo" :src="branding.logo" alt="企业标识" />
             <span v-else>{{ brandInitial }}</span>
           </div>
-          <div>
+          <div v-if="!branding.logo">
             <strong>{{ companyName }}</strong>
             <span>{{ siteTagText }}</span>
           </div>
         </div>
-        <button v-if="showLoginPanel" type="button" class="desktop-link" @click="goDesktop">
+        <button
+          v-if="!showLoginPanel"
+          type="button"
+          class="desktop-link enterprise-login-link"
+          @click="openEnterpriseLogin"
+        >
+          企业人员
+        </button>
+        <button v-else type="button" class="desktop-link" @click="goDesktop">
           返回官网
         </button>
       </div>
@@ -250,7 +258,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { computed, ref, reactive, onBeforeUnmount, onMounted, defineAsyncComponent } from 'vue'
+import { computed, ref, reactive, nextTick, onBeforeUnmount, onMounted, defineAsyncComponent } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { showToast, showFailToast } from 'vant'
 import { setAuth, parseJwt, isAuthenticated } from '@/utils/auth'
@@ -370,9 +378,7 @@ const metricItems = computed(() => branding.value.metrics)
 const trustBadgeItems = computed(() => branding.value.trustBadges)
 const businessChainItems = computed(() => branding.value.businessChain)
 const capabilityItems = computed(() => branding.value.capabilities)
-const pumpViewerName = computed(() => (
-  activeLocale.value.toLowerCase().startsWith('en') ? 'Pump assembly' : '水泵总成'
-))
+const pumpViewerName = computed(() => '水泵总成')
 const showPumpViewer = computed(() => /泵|pump/i.test([
   companyName.value,
   branding.value.siteTag,
@@ -416,7 +422,10 @@ const loadAppSettings = async () => {
     if (value && typeof value === 'object') {
       appSettings.value = {
         themeColor: normalizeText(value.themeColor, enterpriseConfig.branding.themeColor),
-        loginBranding: normalizeBranding(value.loginBranding)
+        loginBranding: normalizeBranding({
+          ...value.loginBranding,
+          logo: value.loginBranding?.logo || enterpriseConfig.branding.logoUrl
+        })
       }
     }
   } catch {
@@ -551,6 +560,15 @@ async function handleLogin() {
 
 function goDesktop() {
   window.location.href = '/'
+}
+
+async function openEnterpriseLogin() {
+  await router.replace({
+    name: 'login',
+    query: { ...route.query, login: '1' }
+  })
+  await nextTick()
+  loginCardRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
 }
 
 function openSecondaryAction() {
@@ -719,7 +737,17 @@ function handlePageScroll(event) {
 .brand-logo img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+}
+
+.brand-logo.has-logo {
+  width: 158px;
+  height: 42px;
+  border-radius: 3px;
+  background: #fff;
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .brand-lockup strong,

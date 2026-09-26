@@ -18,6 +18,13 @@
 
 'use strict';
 
+const {
+  filterVisibleFields,
+  prepareFieldAclRead,
+  resolveAclModule,
+  stripFieldAcl
+} = require('./flash-field-acl');
+
 const MAX_RESULT_ROWS = 30;             // 工具单次最多返回行数
 const MAX_RESULT_CHARS = 6000;          // 工具输出最大字符数
 const KB_SEARCH_LIMIT = 8;             // 知识库搜索最大返回条目
@@ -61,6 +68,70 @@ const INVENTORY_CURRENT_FIELDS = [
   'warehouse_code', 'warehouse_name', 'available_qty', 'locked_qty', 'total_qty', 'unit',
   'production_date', 'expiry_date', 'status', 'last_transaction_at'
 ];
+
+const TWIN_TOOL_PERMISSIONS = Object.freeze({
+  query_employees: ['module:hr', 'app:hr_employee', 'op:hr_employee.view'],
+  query_departments: ['module:hr', 'app:hr_org', 'op:hr_org.view'],
+  query_materials: ['module:materials', 'app:mms_ledger'],
+  query_inventory: ['module:materials', 'app:mms_ledger'],
+  query_warehouses: ['module:materials', 'app:mms_ledger'],
+  query_apps: ['module:app']
+});
+
+// A role-scoped ACL snapshot can be globally available while still missing
+// the module needed by a particular tool. Keep those tools fail-closed.
+const TWIN_TOOL_ACL_REQUIREMENTS = Object.freeze({
+  query_employees: [['hr.archives', 'hr_employee']],
+  query_departments: [['public.departments', 'hr_org']],
+  query_materials: [['public.raw_materials', 'mms_ledger']],
+  query_inventory: [['scm.v_inventory_current', 'mms_ledger']],
+  query_warehouses: [['scm.warehouses', 'mms_ledger']],
+  query_apps: [['app_center.apps', 'app_center']]
+});
+
+function hasTwinPermission(context, codes) {
+  if (context?.accessPolicy?.roleScoped !== true) return false;
+  if (context?.accessPolicy?.superUser === true) return true;
+  const permissions = new Set((Array.isArray(context.permissions) ? context.permissions : [])
+    .map((permission) => String(permission?.code || '')));
+  return codes.some((code) => permissions.has(code));
+}
+
+function hasTwinFieldAcl(context, module) {
+  if (context?.accessPolicy?.roleScoped !== true || context?.fieldAclAvailable !== true || !module) return false;
+  if (context?.accessPolicy?.superUser === true) return true;
+  const acl = context?.fieldAcl?.[module];
+  return Boolean(acl && typeof acl === 'object' && !Array.isArray(acl) && Object.keys(acl).length > 0);
+}
+
+function assertTwinFieldAcl(context, module) {
+  if (hasTwinFieldAcl(context, module)) return;
+  const error = new Error(`Field permissions are unavailable for the ${module || 'requested'} digital twin module`);
+  error.code = 'PERMISSION_DENIED';
+  error.httpStatus = 403;
+  error.status = 403;
+  throw error;
+}
+
+function hasTwinToolFieldAcl(context, name) {
+  const requirements = TWIN_TOOL_ACL_REQUIREMENTS[name] || [];
+  return requirements.every(([table, fallback]) => {
+    const module = resolveAclModule(context, table, fallback);
+    return hasTwinFieldAcl(context, module);
+  });
+}
+
+function prepareTwinRead(query, context, table, module, defaultFields, explicitSelect) {
+  const safeQuery = { ...query };
+  const aclModule = resolveAclModule(context, table, module);
+  assertTwinFieldAcl(context, aclModule);
+  if (!explicitSelect) {
+    safeQuery.select = filterVisibleFields(defaultFields, context, aclModule).join(',');
+  }
+  const fieldPolicy = prepareFieldAclRead(safeQuery, context, table, module);
+  assertTwinFieldAcl(context, fieldPolicy.module);
+  return fieldPolicy;
+}
 
 const HR_ARCHIVE_ALIASES = {
   full_name: 'name',
@@ -196,10 +267,13 @@ function normalizeAppRecord(row = {}) {
  * @param {Object}   user    - 当前用户对象 { username, role, token }
  * @returns {Object} tools map: { toolName: { description, parameters, execute } }
  */
-function createTwinTools(pgQuery, user) {
+function createTwinTools(pgQuery, user, accessContext = null, refreshAccessContext = null) {
   const username = user?.username || '';
+  const getAccessContext = async () => typeof refreshAccessContext === 'function'
+    ? await refreshAccessContext(user)
+    : accessContext;
 
-  return {
+  const tools = {
     // ──────── 员工与组织查询 ────────
     query_employees: {
       description: '查询员工信息（姓名、部门、职位、入职日期等HR数据）',
@@ -208,7 +282,7 @@ function createTwinTools(pgQuery, user) {
         select: '(可选) 字段列表，逗号分隔',
         limit: '(可选) 返回数量，默认20'
       },
-      async execute(params) {
+      async execute(params, currentContext = accessContext) {
         const opts = params || {};
         const query = {
           select: normalizeSelect(opts.select, 'id,employee_no,name,department,position,entry_date,status,phone', HR_ARCHIVE_FIELDS, HR_ARCHIVE_ALIASES),
@@ -218,26 +292,29 @@ function createTwinTools(pgQuery, user) {
         applySimpleFilter(query, opts.filter, HR_ARCHIVE_FIELDS, HR_ARCHIVE_ALIASES);
 
         try {
+          const fieldPolicy = prepareTwinRead(query, currentContext, 'hr.archives', 'hr_employee', HR_ARCHIVE_FIELDS, Boolean(opts.select));
           const res = await pgQuery({
-            method: 'GET', path: '/archives', query,
+            method: 'GET', path: '/archives', query: fieldPolicy.query,
             acceptProfile: 'hr', timeoutMs: 8000
           });
-          const rows = Array.isArray(res?.data) ? res.data.map(row => normalizeEmployeeRecord(row, 'hr.archives')) : res?.data;
+          const visibleRows = stripFieldAcl(res?.data, currentContext, fieldPolicy.module);
+          const rows = Array.isArray(visibleRows) ? visibleRows.map(row => normalizeEmployeeRecord(row, 'hr.archives')) : visibleRows;
           return truncateResult(limitRows(rows));
         } catch (error) {
+          if (error?.code === 'PERMISSION_DENIED' || error?.httpStatus === 401 || error?.httpStatus === 403 || error?.status === 401 || error?.status === 403) throw error;
           const fallbackQuery = {
             select: normalizeSelect(opts.select, 'id,name,department,position,created_at', PUBLIC_EMPLOYEE_FIELDS, PUBLIC_EMPLOYEE_ALIASES),
             limit: String(Math.min(Number(opts.limit) || 20, MAX_RESULT_ROWS)),
             order: normalizeOrder(opts.order, 'created_at.desc', PUBLIC_EMPLOYEE_FIELDS, PUBLIC_EMPLOYEE_ALIASES)
           };
           applySimpleFilter(fallbackQuery, opts.filter, PUBLIC_EMPLOYEE_FIELDS, PUBLIC_EMPLOYEE_ALIASES);
+          const fallbackPolicy = prepareTwinRead(fallbackQuery, currentContext, 'public.employees', 'hr_employee', PUBLIC_EMPLOYEE_FIELDS, Boolean(opts.select));
           const fallback = await pgQuery({
-            method: 'GET', path: '/employees', query: fallbackQuery,
+            method: 'GET', path: '/employees', query: fallbackPolicy.query,
             acceptProfile: 'public', timeoutMs: 8000
           });
-          const rows = Array.isArray(fallback?.data)
-            ? fallback.data.map(row => normalizeEmployeeRecord(row, 'public.employees'))
-            : fallback?.data;
+          const visibleRows = stripFieldAcl(fallback?.data, currentContext, fallbackPolicy.module);
+          const rows = Array.isArray(visibleRows) ? visibleRows.map(row => normalizeEmployeeRecord(row, 'public.employees')) : visibleRows;
           return truncateResult({
             rows: limitRows(rows),
             warning: `HR档案查询失败，已回退公共员工表：${String(error?.message || error).slice(0, 160)}`
@@ -253,7 +330,7 @@ function createTwinTools(pgQuery, user) {
         filter: '(可选) 过滤条件',
         limit: '(可选) 返回数量'
       },
-      async execute(params) {
+      async execute(params, currentContext = accessContext) {
         const opts = params || {};
         const query = {
           select: normalizeSelect(opts.select, 'id,name,parent_id,leader_id,sort,status', DEPARTMENT_FIELDS, DEPARTMENT_ALIASES),
@@ -261,11 +338,13 @@ function createTwinTools(pgQuery, user) {
           order: normalizeOrder(opts.order, 'sort.asc', DEPARTMENT_FIELDS, DEPARTMENT_ALIASES)
         };
         applySimpleFilter(query, opts.filter, DEPARTMENT_FIELDS, DEPARTMENT_ALIASES);
+        const fieldPolicy = prepareTwinRead(query, currentContext, 'public.departments', 'hr_org', DEPARTMENT_FIELDS, Boolean(opts.select));
         const res = await pgQuery({
-          method: 'GET', path: '/departments', query,
+          method: 'GET', path: '/departments', query: fieldPolicy.query,
           acceptProfile: 'public', timeoutMs: 5000
         });
-        const rows = Array.isArray(res?.data) ? res.data.map(normalizeDepartmentRecord) : res?.data;
+        const visibleRows = stripFieldAcl(res?.data, currentContext, fieldPolicy.module);
+        const rows = Array.isArray(visibleRows) ? visibleRows.map(normalizeDepartmentRecord) : visibleRows;
         return truncateResult(limitRows(rows));
       }
     },
@@ -278,7 +357,7 @@ function createTwinTools(pgQuery, user) {
         select: '(可选) 字段列表',
         limit: '(可选) 返回数量'
       },
-      async execute(params) {
+      async execute(params, currentContext = accessContext) {
         const opts = params || {};
         const query = {
           select: normalizeSelect(opts.select, 'id,batch_no,name,category,weight_kg,entry_date,updated_at', MATERIAL_FIELDS, MATERIAL_ALIASES),
@@ -286,11 +365,13 @@ function createTwinTools(pgQuery, user) {
           order: normalizeOrder(opts.order, 'updated_at.desc', MATERIAL_FIELDS, MATERIAL_ALIASES)
         };
         applySimpleFilter(query, opts.filter, MATERIAL_FIELDS, MATERIAL_ALIASES);
+        const fieldPolicy = prepareTwinRead(query, currentContext, 'public.raw_materials', 'mms_ledger', MATERIAL_FIELDS, Boolean(opts.select));
         const res = await pgQuery({
-          method: 'GET', path: '/raw_materials', query,
+          method: 'GET', path: '/raw_materials', query: fieldPolicy.query,
           acceptProfile: 'public', timeoutMs: 8000
         });
-        const rows = Array.isArray(res?.data) ? res.data.map(normalizeMaterialRecord) : res?.data;
+        const visibleRows = stripFieldAcl(res?.data, currentContext, fieldPolicy.module);
+        const rows = Array.isArray(visibleRows) ? visibleRows.map(normalizeMaterialRecord) : visibleRows;
         return truncateResult(limitRows(rows));
       }
     },
@@ -303,7 +384,7 @@ function createTwinTools(pgQuery, user) {
         filter: '(可选) 过滤条件',
         limit: '(可选) 返回数量'
       },
-      async execute(params) {
+      async execute(params, currentContext = accessContext) {
         const opts = params || {};
         const isTransactions = String(opts.type || '').toLowerCase() === 'transactions';
         const viewPath = isTransactions ? '/v_inventory_transactions' : '/v_inventory_current';
@@ -318,11 +399,12 @@ function createTwinTools(pgQuery, user) {
           order: normalizeOrder(opts.order, isTransactions ? 'transaction_date.desc' : 'material_name.asc', fields, aliases)
         };
         applySimpleFilter(query, opts.filter, fields, aliases);
+        const fieldPolicy = prepareTwinRead(query, currentContext, `scm.${isTransactions ? 'v_inventory_transactions' : 'v_inventory_current'}`, 'mms_ledger', fields, Boolean(opts.select));
         const res = await pgQuery({
-          method: 'GET', path: viewPath, query,
+          method: 'GET', path: viewPath, query: fieldPolicy.query,
           acceptProfile: 'scm', timeoutMs: 8000
         });
-        return truncateResult(limitRows(res?.data));
+        return truncateResult(limitRows(stripFieldAcl(res?.data, currentContext, fieldPolicy.module)));
       }
     },
 
@@ -332,18 +414,20 @@ function createTwinTools(pgQuery, user) {
       parameters: {
         limit: '(可选) 返回数量'
       },
-      async execute(params) {
+      async execute(params, currentContext = accessContext) {
         const opts = params || {};
+        const query = {
+          select: normalizeSelect(opts.select, 'id,code,name,parent_id,level,sort,status,manager_id,capacity,unit', WAREHOUSE_FIELDS),
+          limit: String(Math.min(Number(opts.limit) || 20, 50)),
+          order: normalizeOrder(opts.order, 'level.asc,sort.asc', WAREHOUSE_FIELDS)
+        };
+        const fieldPolicy = prepareTwinRead(query, currentContext, 'scm.warehouses', 'mms_ledger', WAREHOUSE_FIELDS, Boolean(opts.select));
         const res = await pgQuery({
           method: 'GET', path: '/warehouses',
-          query: {
-            select: normalizeSelect(opts.select, 'id,code,name,parent_id,level,sort,status,manager_id,capacity,unit', WAREHOUSE_FIELDS),
-            limit: String(Math.min(Number(opts.limit) || 20, 50)),
-            order: normalizeOrder(opts.order, 'level.asc,sort.asc', WAREHOUSE_FIELDS)
-          },
+          query: fieldPolicy.query,
           acceptProfile: 'scm', timeoutMs: 5000
         });
-        return truncateResult(limitRows(res?.data));
+        return truncateResult(limitRows(stripFieldAcl(res?.data, currentContext, fieldPolicy.module)));
       }
     },
 
@@ -354,7 +438,7 @@ function createTwinTools(pgQuery, user) {
         filter: '(可选) 过滤条件',
         limit: '(可选) 返回数量'
       },
-      async execute(params) {
+      async execute(params, currentContext = accessContext) {
         const opts = params || {};
         const query = {
           select: normalizeSelect(opts.select, 'id,name,app_type,status,description,created_at,updated_at', APP_FIELDS, APP_ALIASES),
@@ -362,11 +446,13 @@ function createTwinTools(pgQuery, user) {
           order: normalizeOrder(opts.order, 'created_at.desc', APP_FIELDS, APP_ALIASES)
         };
         applySimpleFilter(query, opts.filter, APP_FIELDS, APP_ALIASES);
+        const fieldPolicy = prepareTwinRead(query, currentContext, 'app_center.apps', 'app_center', APP_FIELDS, Boolean(opts.select));
         const res = await pgQuery({
-          method: 'GET', path: '/apps', query,
+          method: 'GET', path: '/apps', query: fieldPolicy.query,
           acceptProfile: 'app_center', timeoutMs: 5000
         });
-        const rows = Array.isArray(res?.data) ? res.data.map(normalizeAppRecord) : res?.data;
+        const visibleRows = stripFieldAcl(res?.data, currentContext, fieldPolicy.module);
+        const rows = Array.isArray(visibleRows) ? visibleRows.map(normalizeAppRecord) : visibleRows;
         return truncateResult(limitRows(rows));
       }
     },
@@ -375,23 +461,25 @@ function createTwinTools(pgQuery, user) {
     get_my_info: {
       description: '获取当前登录员工的个人信息（姓名、部门、角色、权限等）',
       parameters: {},
-      async execute() {
+      async execute(_params, currentContext = accessContext) {
         let account = null;
         let departmentName = '';
         let employee = null;
         const notes = [];
 
         try {
+          const userQuery = prepareTwinRead({
+            select: 'id,username,role,full_name,phone,email,status,dept_id,position_id,sop_role',
+            username: `eq.${username}`,
+            limit: '1'
+          }, currentContext, 'public.users', 'hr_user', ['id', 'username', 'role', 'full_name', 'phone', 'email', 'status', 'dept_id', 'position_id', 'sop_role'], false);
           const userRes = await pgQuery({
             method: 'GET', path: '/users',
-            query: {
-              select: 'id,username,role,full_name,phone,email,status,dept_id,position_id,sop_role',
-              username: `eq.${username}`,
-              limit: '1'
-            },
+            query: userQuery.query,
             acceptProfile: 'public', timeoutMs: 5000
           });
-          account = Array.isArray(userRes?.data) ? userRes.data[0] : null;
+          const visibleUsers = stripFieldAcl(userRes?.data, currentContext, userQuery.module);
+          account = Array.isArray(visibleUsers) ? visibleUsers[0] : null;
         } catch (error) {
           notes.push(`账号表查询失败：${String(error?.message || error).slice(0, 120)}`);
         }
@@ -400,10 +488,11 @@ function createTwinTools(pgQuery, user) {
           try {
             const deptRes = await pgQuery({
               method: 'GET', path: '/departments',
-              query: { select: 'id,name', id: `eq.${account.dept_id}`, limit: '1' },
+              query: prepareTwinRead({ select: 'id,name', id: `eq.${account.dept_id}`, limit: '1' }, currentContext, 'public.departments', 'hr_org', DEPARTMENT_FIELDS, true).query,
               acceptProfile: 'public', timeoutMs: 5000
             });
-            const dept = Array.isArray(deptRes?.data) ? deptRes.data[0] : null;
+            const visibleDepartments = stripFieldAcl(deptRes?.data, currentContext, 'hr_org');
+            const dept = Array.isArray(visibleDepartments) ? visibleDepartments[0] : null;
             departmentName = dept?.name || '';
           } catch (error) {
             notes.push(`部门查询失败：${String(error?.message || error).slice(0, 120)}`);
@@ -415,14 +504,15 @@ function createTwinTools(pgQuery, user) {
           if (account?.full_name) orParts.push(`name.eq.${account.full_name}`);
           const empRes = await pgQuery({
             method: 'GET', path: '/archives',
-            query: {
+            query: prepareTwinRead({
               select: 'id,employee_no,name,department,position,entry_date,status,phone,updated_at',
               or: `(${orParts.join(',')})`,
               limit: '1'
-            },
+            }, currentContext, 'hr.archives', 'hr_employee', HR_ARCHIVE_FIELDS, false).query,
             acceptProfile: 'hr', timeoutMs: 5000
           });
-          const emp = Array.isArray(empRes?.data) ? empRes.data[0] : null;
+          const empRows = stripFieldAcl(empRes?.data, currentContext, 'hr_employee');
+          const emp = Array.isArray(empRows) ? empRows[0] : null;
           employee = emp ? normalizeEmployeeRecord(emp, 'hr.archives') : null;
         } catch (error) {
           notes.push(`HR员工档案查询失败：${String(error?.message || error).slice(0, 120)}`);
@@ -583,6 +673,28 @@ function createTwinTools(pgQuery, user) {
       }
     }
   };
+
+  const contextTools = new Set([...Object.keys(TWIN_TOOL_PERMISSIONS), 'get_my_info']);
+  return Object.fromEntries(Object.entries(tools)
+    .filter(([name]) => !TWIN_TOOL_PERMISSIONS[name] || (
+      hasTwinToolFieldAcl(accessContext, name) && hasTwinPermission(accessContext, TWIN_TOOL_PERMISSIONS[name])
+    ))
+    .map(([name, tool]) => {
+      if (!contextTools.has(name)) return [name, tool];
+      return [name, {
+        ...tool,
+        async execute(params) {
+          const currentContext = await getAccessContext();
+          const required = TWIN_TOOL_PERMISSIONS[name];
+          if (required && (!hasTwinToolFieldAcl(currentContext, name) || !hasTwinPermission(currentContext, required))) {
+            const error = new Error('Current user is not authorized for this EISCore capability');
+            error.code = 'PERMISSION_DENIED';
+            throw error;
+          }
+          return tool.execute(params, currentContext);
+        }
+      }];
+    }));
 }
 
 function compactWhitespace(value) {

@@ -19,7 +19,9 @@ for (const marker of [
   'id="solutions"',
   'class="login-form"',
   'v-if="loginVisible"',
-  '@click="focusLogin"'
+  '@click="focusLogin"',
+  "route.query.login === '1'",
+  'safeRedirect.startsWith(\'/mobile/\')'
 ]) {
   assert.ok(loginView.includes(marker), `login portal integration lost ${marker}`)
 }
@@ -29,6 +31,13 @@ assert.match(previewPlugin, /apply:\s*'serve'/)
 assert.match(previewPlugin, /\/agent\/company-site\/public\/site-config/)
 assert.match(previewPlugin, /\/enterprise-assets\//)
 assert.match(previewPlugin, /productionApproved/)
+
+const baseRouter = read('eiscore-base/src/router/index.js')
+assert.match(baseRouter, /path === '\/login'/)
+
+const mobileRouter = read('eiscore-mobile/src/router/index.js')
+assert.match(mobileRouter, /to\.name === 'login'/)
+assert.match(mobileRouter, /redirectToEnterpriseLogin\(`\/mobile\$\{to\.fullPath\}`\)/)
 
 const customerHardcodePattern = /广东南派|热带水果|faiusr\.com|海边姑娘|NANPAI/i
 for (const path of [

@@ -66,8 +66,15 @@
     </div>
 
     <!-- 数字分身聊天区域 -->
-    <div v-show="activeMode === 'twin'" class="twin-wrapper">
-      <div class="twin-body">
+    <div v-if="activeMode === 'twin'" class="twin-wrapper">
+      <iframe
+        v-if="harnessWebEnabled && harnessAuthReady && !harnessFrameFailed"
+        class="harness-frame"
+        :src="harnessFrameUrl('digital-twin')"
+        title="DeepSeek Harness 数字分身"
+        @error="harnessFrameFailed = true"
+      ></iframe>
+      <div v-if="!harnessWebEnabled || !harnessAuthReady || harnessFrameFailed" class="twin-body">
         <!-- 侧边栏 -->
         <div class="history-sidebar" :class="{ show: showSidebar }">
           <el-tabs v-model="sidebarTab" class="sidebar-tabs">
@@ -216,7 +223,14 @@
 
     <!-- 智能 BI（内联嵌入） -->
     <div v-if="activeMode === 'enterprise'" class="enterprise-wrapper">
-      <AiCopilot mode="enterprise" :auto-open="true" />
+      <iframe
+        v-if="harnessWebEnabled && harnessAuthReady && !harnessFrameFailed"
+        class="harness-frame"
+        :src="harnessFrameUrl('enterprise-bi')"
+        title="DeepSeek Harness 智能 BI"
+        @error="harnessFrameFailed = true"
+      ></iframe>
+      <AiCopilot v-else mode="enterprise" :auto-open="true" />
     </div>
 
     <div v-show="activeMode === 'flow'" class="flow-wrapper">
@@ -234,6 +248,7 @@ import { defineAsyncComponent, ref, reactive, computed, onMounted, nextTick, wat
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { getAuthHeader } from '@/utils/auth'
+import { prepareHarnessAuth as prepareHarnessAuthRequest } from '@/services/harness-auth-client'
 import { createTwinJsonClient } from '@/utils/twin-json-client'
 import { streamAgentEvents } from '@shared/eis-agent-sse-client'
 import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
@@ -400,8 +415,9 @@ const router = useRouter()
 const userStore = useUserStore()
 
 const isAdmin = computed(() => {
-  const role = userStore.userInfo?.role
-  return role === 'super_admin' || role === 'admin'
+  const info = userStore.userInfo || {}
+  const role = String(info.role || info.app_role || info.appRole || '').trim().toLowerCase()
+  return ['super_admin', 'system_admin', 'admin'].includes(role)
 })
 
 const getAuthHeaders = () => ({
@@ -412,6 +428,26 @@ const getAuthHeaders = () => ({
 // ── 模式切换 ──
 const DEFAULT_WORKBENCH_MODE = 'flow'
 const activeMode = ref(DEFAULT_WORKBENCH_MODE)
+const harnessFrameFailed = ref(false)
+const harnessWebEnabled = Boolean(import.meta.env.VITE_HARNESS_WEB_URL || import.meta.env.PROD)
+const harnessWebUrl = import.meta.env.VITE_HARNESS_WEB_URL || '/harness/'
+const harnessAuthReady = ref(false)
+let harnessAuthRequestId = 0
+const harnessFrameUrl = (surface) => {
+  return `${harnessWebUrl}#${surface}`
+}
+
+const prepareHarnessAuth = async () => {
+  if (!harnessWebEnabled) return true
+  const requestId = ++harnessAuthRequestId
+  harnessAuthReady.value = false
+  const ready = await prepareHarnessAuthRequest({
+    harnessWebUrl,
+    authorization: getAuthHeader().Authorization || ''
+  })
+  if (requestId === harnessAuthRequestId) harnessAuthReady.value = ready
+  return ready
+}
 const modeOptions = [
   { label: '数字分身', value: 'twin', desc: '个人工作助手', badge: 'AI', icon: Service },
   { label: '智能 BI', value: 'enterprise', desc: '经营数据分析', badge: 'BI', icon: DataAnalysis },
@@ -427,7 +463,10 @@ const activeModeMeta = computed(() => {
 const showEnterpriseHistory = ref(false)
 
 watch(activeMode, (val) => {
+  harnessFrameFailed.value = false
   showEnterpriseHistory.value = false
+  if (val === 'twin' || val === 'enterprise') void prepareHarnessAuth()
+  else harnessAuthReady.value = false
   if (val === 'enterprise') {
     // 内联显示智能 BI
     aiBridge.setMode('enterprise')
@@ -1460,6 +1499,15 @@ $border-color: var(--el-border-color, #dcdfe6);
   background: var(--ai-panel-surface);
   border-top: 1px solid $border-color;
   padding: 8px 10px;
+}
+
+.harness-frame {
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  background: #fff;
 }
 
 .input-box {

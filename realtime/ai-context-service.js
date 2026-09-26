@@ -3,6 +3,40 @@
 
 'use strict';
 
+const { filterVisibleFields, prepareFieldAclRead, stripFieldAcl } = require('./flash-field-acl');
+
+// Snapshot domains are capability-gated independently of the broad AI role.
+// The database has legacy public read policies for several tables, so the
+// assistant must not treat a successful PostgREST response as authorization.
+const SNAPSHOT_SOURCE_POLICIES = Object.freeze({
+  warehouses: { domain: 'inventory', module: 'mms_ledger', permissions: ['module:materials', 'module:mms', 'app:mms_ledger'] },
+  inventory: { domain: 'inventory', module: 'mms_ledger', permissions: ['module:materials', 'module:mms', 'app:mms_ledger'] },
+  transactions: { domain: 'inventory', module: 'mms_ledger', permissions: ['module:materials', 'module:mms', 'app:mms_ledger'] },
+  materials: { domain: 'inventory', module: 'mms_ledger', permissions: ['module:materials', 'module:mms', 'app:mms_ledger'] },
+  checks: { domain: 'inventory', module: 'mms_ledger', permissions: ['module:materials', 'module:mms', 'app:mms_ledger'] },
+  productionOrders: { domain: 'production', module: 'production', permissions: ['module:production', 'app:production_plan', 'app:production_work_order'] },
+  hrArchives: { domain: 'employees', module: 'hr_employee', permissions: ['module:hr', 'app:hr_employee', 'op:hr_employee.view'] },
+  employeesFallback: { domain: 'employees', module: 'hr_employee', permissions: ['module:hr', 'app:hr_employee', 'op:hr_employee.view'] },
+  salesCustomers: { domain: 'sales', module: 'sales', permissions: ['module:sales', 'app:sales_dashboard', 'app:sales_cockpit', 'app:sales_customer'] },
+  salesOrders: { domain: 'sales', module: 'sales', permissions: ['module:sales', 'app:sales_dashboard', 'app:sales_cockpit', 'app:sales_order'] },
+  salesOpportunities: { domain: 'sales', module: 'sales', permissions: ['module:sales', 'app:sales_dashboard', 'app:sales_cockpit', 'app:sales_opportunity'] },
+  salesPayments: { domain: 'sales', module: 'sales', permissions: ['module:sales', 'app:sales_dashboard', 'app:sales_cockpit', 'app:sales_payment'] },
+  purchaseSuppliers: { domain: 'purchase', module: 'purchase', permissions: ['module:purchase', 'app:purchase_dashboard', 'app:purchase_supplier'] },
+  purchaseDemands: { domain: 'purchase', module: 'purchase', permissions: ['module:purchase', 'app:purchase_dashboard', 'app:purchase_demand'] },
+  purchaseOrders: { domain: 'purchase', module: 'purchase', permissions: ['module:purchase', 'app:purchase_dashboard', 'app:purchase_order'] },
+  purchaseArrivals: { domain: 'purchase', module: 'purchase', permissions: ['module:purchase', 'app:purchase_dashboard', 'app:purchase_arrival'] },
+  qualityInspections: { domain: 'quality', module: 'quality', permissions: ['module:quality', 'app:quality_dashboard', 'app:quality_inspection'] },
+  qualityNcrs: { domain: 'quality', module: 'quality', permissions: ['module:quality', 'app:quality_dashboard', 'app:quality_ncr'] },
+  qualityActions: { domain: 'quality', module: 'quality', permissions: ['module:quality', 'app:quality_dashboard', 'app:quality_action'] },
+  qualityAudits: { domain: 'quality', module: 'quality', permissions: ['module:quality', 'app:quality_dashboard', 'app:quality_audit'] },
+  equipmentAssets: { domain: 'equipment', module: 'equipment', permissions: ['module:equipment', 'app:equipment_dashboard', 'app:equipment_asset'] },
+  equipmentChecks: { domain: 'equipment', module: 'equipment', permissions: ['module:equipment', 'app:equipment_dashboard', 'app:equipment_check'] },
+  equipmentIssues: { domain: 'equipment', module: 'equipment', permissions: ['module:equipment', 'app:equipment_dashboard', 'app:equipment_issue'] },
+  equipmentWorkOrders: { domain: 'equipment', module: 'equipment', permissions: ['module:equipment', 'app:equipment_dashboard', 'app:equipment_work_order'] },
+  equipmentPlans: { domain: 'equipment', module: 'equipment', permissions: ['module:equipment', 'app:equipment_dashboard', 'app:equipment_plan'] },
+  apps: { domain: 'apps', module: 'app_center', permissions: ['module:app', 'app:app_center'] }
+});
+
 const createAiContextService = ({
   callPostgrestWithUser,
   log = console,
@@ -14,108 +48,186 @@ const createAiContextService = ({
 
 // ── 轻量本体语义上下文采集 ───────────────────────────────────
   const fetchSemanticContext = async (user) => {
-  const semantic = {};
-  const safeQuery = async (label, opts) => {
+  let context = null;
+  try {
+    const result = await callPostgrestWithUser(user, {
+      method: 'POST',
+      path: '/rpc/agent_ontology_context',
+      body: { p_query: '', p_limit: 200 },
+      acceptProfile: 'public',
+      contentProfile: 'public',
+      timeoutMs: 5000
+    });
+    context = result?.data;
+  } catch (e) {
+    log.warn('[semantic-ctx] role-scoped ontology context failed:', e?.message || e);
+    return null;
+  }
+
+  if (!context || typeof context !== 'object' || Array.isArray(context) ||
+    context.source !== 'agent_ontology_context_v1' || context.accessPolicy?.roleScoped !== true) {
+    log.warn('[semantic-ctx] rejected non role-scoped ontology context');
+    return null;
+  }
+
+  const roleCodes = [...new Set((Array.isArray(context.accessPolicy?.roles) ? context.accessPolicy.roles : [])
+    .map((role) => String(role || '').trim())
+    .filter((role) => /^[a-zA-Z0-9_-]+$/.test(role)))];
+  let fieldAcl = {};
+  let fieldAclAvailable = false;
+  if (roleCodes.length) {
     try {
-      const result = await callPostgrestWithUser(user, { ...opts, timeoutMs: 5000 });
-      return result?.data;
-    } catch (e) {
-      log.warn(`[semantic-ctx] ${label} failed:`, e?.message || e);
-      return null;
+      const roleResult = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/roles',
+        query: {
+          select: 'id,code',
+          code: `in.(${roleCodes.join(',')})`,
+          limit: String(roleCodes.length)
+        },
+        acceptProfile: 'public',
+        timeoutMs: 5000
+      });
+      const roleRows = Array.isArray(roleResult?.data) ? roleResult.data : [];
+      const resolvedRoleCodes = new Set(roleRows.map((role) => String(role?.code || '').trim().toLowerCase()));
+      if (roleCodes.some((role) => !resolvedRoleCodes.has(role.toLowerCase()))) {
+        throw new Error('Not all effective roles resolved for field permissions');
+      }
+      const roleIds = [...new Set(roleRows
+        .map((role) => String(role?.id || '').trim())
+        .filter((id) => /^[0-9a-f-]{36}$/i.test(id)))];
+      if (!roleIds.length) throw new Error('No persisted role ids resolved for effective roles');
+
+      const aclResult = await callPostgrestWithUser(user, {
+        method: 'GET',
+        path: '/sys_field_acl',
+        query: {
+          select: 'module,field_code,can_view,can_edit',
+          role_id: `in.(${roleIds.join(',')})`,
+          limit: '5001'
+        },
+        acceptProfile: 'public',
+        timeoutMs: 5000
+      });
+      const rows = Array.isArray(aclResult?.data) ? aclResult.data : [];
+      if (rows.length > 5000) throw new Error('Field ACL result exceeded the safe limit');
+      for (const row of rows) {
+        const module = String(row?.module || '').trim();
+        const field = String(row?.field_code || '').trim();
+        if (!module || !field) continue;
+        const entry = fieldAcl[module]?.[field] || { canView: false, canEdit: false };
+        entry.canView ||= row.can_view === true;
+        entry.canEdit ||= row.can_edit === true;
+        (fieldAcl[module] ||= {})[field] = entry;
+      }
+      fieldAclAvailable = true;
+    } catch (error) {
+      log.warn('[semantic-ctx] role field ACL failed:', error?.message || error);
     }
+  }
+
+  const semantic = {
+    fetchedAt: context.fetchedAt || now().toISOString(),
+    source: context.source || 'agent_ontology_context',
+    accessPolicy: context.accessPolicy || {},
+    tables: (Array.isArray(context.tables) ? context.tables : []).map((table) => ({
+      schema: table.table_schema,
+      table: table.table_name,
+      name: table.semantic_name,
+      desc: table.semantic_description || '',
+      tags: table.tags || [],
+      access: table.access_level || 'read'
+    })),
+    columns: context.columns && typeof context.columns === 'object' && !Array.isArray(context.columns)
+      ? context.columns
+      : {},
+    relations: (Array.isArray(context.relations) ? context.relations : []).map((relation) => ({
+      from: relation.subject_table,
+      to: relation.object_table,
+      predicate: relation.predicate || '',
+      fromName: relation.subject_semantic_name || '',
+      toName: relation.object_semantic_name || ''
+    })),
+    apps: Array.isArray(context.apps) ? context.apps : [],
+    fieldAcl,
+    fieldAclAvailable,
+    permissions: (Array.isArray(context.permissions) ? context.permissions : []).map((permission) => ({
+      code: permission.code,
+      scope: permission.scope,
+      kind: permission.semantic_kind,
+      entity: permission.entity_key || '',
+      action: permission.action_key || ''
+    }))
   };
 
-  // 1. 表级语义（仅激活的）
-  const tables = await safeQuery('table_semantics', {
-    method: 'GET', path: '/ontology_table_semantics',
-    query: { select: 'table_schema,table_name,semantic_name,semantic_description,tags', is_active: 'eq.true', order: 'table_schema.asc,table_name.asc', limit: '200' },
-    acceptProfile: 'public'
-  });
-  if (Array.isArray(tables) && tables.length) {
-    semantic.tables = tables.map(t => ({
-      schema: t.table_schema,
-      table: t.table_name,
-      name: t.semantic_name,
-      desc: t.semantic_description || '',
-      tags: t.tags || []
-    }));
-  }
-
-  // 2. 列级语义（仅激活的，按表分组压缩）
-  const columns = await safeQuery('column_semantics', {
-    method: 'GET', path: '/ontology_column_semantics',
-    query: { select: 'table_schema,table_name,column_name,semantic_name,semantic_class,data_type,ui_type', is_active: 'eq.true', order: 'table_schema.asc,table_name.asc,column_name.asc', limit: '1000' },
-    acceptProfile: 'public'
-  });
-  if (Array.isArray(columns) && columns.length) {
-    const grouped = {};
-    for (const c of columns) {
-      const key = `${c.table_schema}.${c.table_name}`;
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push({
-        col: c.column_name,
-        name: c.semantic_name,
-        cls: c.semantic_class || '',
-        type: c.data_type || '',
-        ui: c.ui_type || ''
-      });
-    }
-    semantic.columns = grouped;
-  }
-
-  // 3. 表间关系
-  const relations = await safeQuery('table_relations', {
-    method: 'GET', path: '/ontology_table_relations',
-    query: { select: 'subject_table,predicate,object_table,subject_semantic_name,object_semantic_name,relation_type', relation_type: 'eq.ontology', limit: '200' },
-    acceptProfile: 'app_data'
-  });
-  if (Array.isArray(relations) && relations.length) {
-    semantic.relations = relations.map(r => ({
-      from: r.subject_table,
-      to: r.object_table,
-      predicate: r.predicate || '',
-      fromName: r.subject_semantic_name || '',
-      toName: r.object_semantic_name || ''
-    }));
-  }
-
-  // 4. 权限语义视图（压缩输出）
-  const permissions = await safeQuery('permission_ontology', {
-    method: 'GET', path: '/v_permission_ontology',
-    query: { select: 'code,scope,semantic_kind,entity_key,action_key', limit: '200' },
-    acceptProfile: 'public'
-  });
-  if (Array.isArray(permissions) && permissions.length) {
-    semantic.permissions = permissions.map(p => ({
-      code: p.code,
-      scope: p.scope,
-      kind: p.semantic_kind,
-      entity: p.entity_key || '',
-      action: p.action_key || ''
-    }));
-  }
-
-  semantic.fetchedAt = now().toISOString();
-
-  const tableCnt = semantic.tables?.length || 0;
-  const colCnt = columns?.length || 0;
-  const relCnt = semantic.relations?.length || 0;
-  const permCnt = semantic.permissions?.length || 0;
+  const tableCnt = semantic.tables.length;
+  const colCnt = Object.values(semantic.columns).reduce((total, rows) => total + (Array.isArray(rows) ? rows.length : 0), 0);
+  const relCnt = semantic.relations.length;
+  const permCnt = semantic.permissions.length;
   log.log(`[semantic-ctx] user=${user?.username || '?'} => tables:${tableCnt}, columns:${colCnt}, relations:${relCnt}, permissions:${permCnt}`);
 
-  return (tableCnt + colCnt + relCnt + permCnt) > 0 ? semantic : null;
+  return tableCnt + colCnt + relCnt + permCnt > 0 ? semantic : null;
 };
 
 // ── 企业经营助手：业务数据快照采集 ───────────────────────────
-  const fetchBusinessSnapshot = async (user) => {
+  const fetchBusinessSnapshot = async (user, accessContext) => {
+  if (accessContext === undefined) accessContext = await fetchSemanticContext(user);
   const snapshot = {};
   const queryFailures = [];
+  const deniedDomains = new Set();
+  const permissionCodes = new Set((Array.isArray(accessContext?.permissions) ? accessContext.permissions : [])
+    .map((permission) => String(permission?.code || permission || '').trim().toLowerCase())
+    .filter(Boolean));
+  const isSuperUser = accessContext?.accessPolicy?.superUser === true;
+  const roleScopedAclReady = accessContext?.accessPolicy?.roleScoped === true &&
+    (accessContext?.fieldAclAvailable === true || isSuperUser);
+  const canReadSnapshotSource = (policy) => {
+    if (!roleScopedAclReady || !policy) return false;
+    if (isSuperUser) return true;
+    return policy.permissions.some((permission) => permissionCodes.has(String(permission).toLowerCase()));
+  };
   const safeQuery = async (label, opts) => {
+    const policy = SNAPSHOT_SOURCE_POLICIES[label];
+    if (!canReadSnapshotSource(policy)) {
+      if (policy?.domain) deniedDomains.add(policy.domain);
+      return null;
+    }
+    if (!isSuperUser && (!accessContext?.fieldAcl?.[policy.module] ||
+      Object.keys(accessContext.fieldAcl[policy.module]).length === 0)) {
+      deniedDomains.add(policy.domain);
+      return null;
+    }
+
     try {
-      const result = await callPostgrestWithUser(user, { ...opts, timeoutMs: 5000 });
-      return result?.data;
+      let query = opts.query;
+      if (!isSuperUser || accessContext?.fieldAclAvailable === true) {
+        const requestedFields = String(opts?.query?.select || '')
+          .split(',')
+          .map((field) => field.trim())
+          .filter(Boolean);
+        const visibleFields = filterVisibleFields(requestedFields, accessContext, policy.module);
+        if (!visibleFields.length) {
+          deniedDomains.add(policy.domain);
+          return null;
+        }
+        query = prepareFieldAclRead(
+          { ...opts.query, select: visibleFields.join(',') },
+          accessContext,
+          '',
+          policy.module
+        ).query;
+      }
+      const result = await callPostgrestWithUser(user, {
+        ...opts,
+        query,
+        timeoutMs: 5000
+      });
+      return isSuperUser && accessContext?.fieldAclAvailable !== true
+        ? result?.data
+        : stripFieldAcl(result?.data, accessContext, policy.module);
     } catch (e) {
       const message = String(e?.message || e || 'unknown error').slice(0, 300);
+      deniedDomains.add(policy.domain);
       queryFailures.push({ label, message });
       log.warn(`[biz-snapshot] ${label} failed:`, message);
       return null;
@@ -466,7 +578,9 @@ const createAiContextService = ({
 
   snapshot.snapshotTime = now().toISOString();
   snapshot._meta = {
-    partial: queryFailures.length > 0,
+    partial: queryFailures.length > 0 || deniedDomains.size > 0,
+    accessControlled: roleScopedAclReady,
+    deniedDomains: [...deniedDomains].sort(),
     failedSourceCount: queryFailures.length,
     failedSources: queryFailures.slice(0, 12)
   };
@@ -477,7 +591,7 @@ const createAiContextService = ({
     const v = snapshot[k];
     return `${k}:${v?.total ?? (v?.totalRecords ?? '?')}`;
   }).join(', ');
-  log.log(`[biz-snapshot] user=${user?.username || '?'} partial=${queryFailures.length > 0 ? 'yes' : 'no'} => ${summary}`);
+  log.log(`[biz-snapshot] user=${user?.username || '?'} partial=${queryFailures.length > 0 || deniedDomains.size > 0 ? 'yes' : 'no'} => ${summary}`);
 
   return snapshot;
 };
@@ -496,9 +610,12 @@ const createAiContextService = ({
   };
 };
 
-  const safeFetchBusinessSnapshot = async (user, source = 'biz-snapshot') => {
+  const safeFetchBusinessSnapshot = async (user, source = 'biz-snapshot', accessContext) => {
   try {
-    return await fetchBusinessSnapshot(user);
+    const context = accessContext === undefined
+      ? await fetchSemanticContext(user)
+      : accessContext;
+    return await fetchBusinessSnapshot(user, context);
   } catch (error) {
     log.warn(`[${source}] business snapshot fallback:`, error?.message || error);
     return buildBusinessSnapshotFallback(error);

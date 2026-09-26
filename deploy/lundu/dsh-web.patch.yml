@@ -1,0 +1,10 @@
+- id: ui-eiscore-embed
+  disabled: true
+
+- insert:
+    - id: eiscore-auth
+      name: '/opt/eiscore-harness/client-plugins/eiscore-auth/lib/index.js'
+    - id: eiscore-digital-twin
+      name: '/opt/eiscore-harness/client-plugins/digital-twin/lib/index.js'
+    - id: eiscore-enterprise-bi
+      name: '/opt/eiscore-harness/client-plugins/enterprise-bi/lib/index.js'

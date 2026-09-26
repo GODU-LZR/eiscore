@@ -11,13 +11,21 @@ const { createAiContextService } = require('../../realtime/ai-context-service')
 const repoRoot = resolve(import.meta.dirname, '../..')
 
 const dataByPath = new Map([
-  ['/ontology_table_semantics', [{ table_schema: 'scm', table_name: 'inventory', semantic_name: '库存', semantic_description: '实时库存', tags: ['stock'] }]],
-  ['/ontology_column_semantics', [
-    { table_schema: 'scm', table_name: 'inventory', column_name: 'qty', semantic_name: '数量', semantic_class: 'measure', data_type: 'numeric', ui_type: 'number' },
-    { table_schema: 'scm', table_name: 'inventory', column_name: 'warehouse_id', semantic_name: '仓库', semantic_class: 'dimension', data_type: 'uuid', ui_type: 'select' }
-  ]],
-  ['/ontology_table_relations', [{ subject_table: 'scm.inventory', predicate: 'belongs_to', object_table: 'public.materials', subject_semantic_name: '库存', object_semantic_name: '物料', relation_type: 'ontology' }]],
-  ['/v_permission_ontology', [{ code: 'inventory.read', scope: 'tenant', semantic_kind: 'module', entity_key: 'inventory', action_key: 'read' }]],
+  ['/rpc/agent_ontology_context', {
+    source: 'agent_ontology_context_v1',
+    fetchedAt: '2026-09-01T01:02:03.000Z',
+    accessPolicy: { roleScoped: true, superUser: true, roles: ['super_admin'], permissionCount: 1 },
+    tables: [{ table_schema: 'scm', table_name: 'inventory', semantic_name: '库存', semantic_description: '实时库存', tags: ['stock'], access_level: 'read' }],
+    columns: {
+      'scm.inventory': [
+        { col: 'qty', name: '数量', cls: 'measure', type: 'numeric', ui: 'number', sensitive: false },
+        { col: 'warehouse_id', name: '仓库', cls: 'dimension', type: 'uuid', ui: 'select', sensitive: false }
+      ]
+    },
+    relations: [{ subject_table: 'scm.inventory', predicate: 'belongs_to', object_table: 'public.materials', subject_semantic_name: '库存', object_semantic_name: '物料', relation_type: 'ontology' }],
+    apps: [{ app_id: 'inventory-app', app_name: '库存应用', acl_module: 'mms_ledger', qualified_table: 'scm.inventory' }],
+    permissions: [{ code: 'app:mms_ledger', scope: 'app', semantic_kind: 'app', entity_key: 'mms_ledger', action_key: null }]
+  }],
   ['/warehouses', [
     { id: 1, code: 'W1', name: '一号仓', level: 1, status: '启用' },
     { id: 2, code: 'W2', name: '二号仓', level: 1, status: '停用' }
@@ -74,6 +82,14 @@ const dataByPath = new Map([
   ['/equipment_work_orders', [{ downtime_hours: 3, work_status: '完成' }, { downtime_hours: 2, work_status: '处理中' }]],
   ['/equipment_maintenance_plans', [{ completion_rate: 80 }, { completion_rate: 100 }]],
   ['/apps', [{ name: '库存应用', app_type: 'data', status: 'published' }, { name: '质量应用', app_type: 'workflow', status: 'draft' }]]
+  ,['/roles', [
+    { id: '11111111-1111-4111-8111-111111111111', code: 'super_admin' }
+  ]]
+  ,['/sys_field_acl', [
+    { module: 'mms_ledger', field_code: 'qty', can_view: true, can_edit: false },
+    { module: 'mms_ledger', field_code: 'qty', can_view: false, can_edit: true },
+    { module: 'mms_ledger', field_code: 'cost', can_view: false, can_edit: false }
+  ]]
 ])
 
 const calls = []
@@ -94,25 +110,31 @@ assert.equal(Object.isFrozen(service), true)
 
 const semantic = await service.fetchSemanticContext(user)
 assert.deepEqual(semantic, {
-  tables: [{ schema: 'scm', table: 'inventory', name: '库存', desc: '实时库存', tags: ['stock'] }],
+  fetchedAt: '2026-09-01T01:02:03.000Z',
+  source: 'agent_ontology_context_v1',
+  accessPolicy: { roleScoped: true, superUser: true, roles: ['super_admin'], permissionCount: 1 },
+  tables: [{ schema: 'scm', table: 'inventory', name: '库存', desc: '实时库存', tags: ['stock'], access: 'read' }],
   columns: {
     'scm.inventory': [
-      { col: 'qty', name: '数量', cls: 'measure', type: 'numeric', ui: 'number' },
-      { col: 'warehouse_id', name: '仓库', cls: 'dimension', type: 'uuid', ui: 'select' }
+      { col: 'qty', name: '数量', cls: 'measure', type: 'numeric', ui: 'number', sensitive: false },
+      { col: 'warehouse_id', name: '仓库', cls: 'dimension', type: 'uuid', ui: 'select', sensitive: false }
     ]
   },
   relations: [{ from: 'scm.inventory', to: 'public.materials', predicate: 'belongs_to', fromName: '库存', toName: '物料' }],
-  permissions: [{ code: 'inventory.read', scope: 'tenant', kind: 'module', entity: 'inventory', action: 'read' }],
-  fetchedAt: '2026-09-01T01:02:03.000Z'
+  apps: [{ app_id: 'inventory-app', app_name: '库存应用', acl_module: 'mms_ledger', qualified_table: 'scm.inventory' }],
+  fieldAcl: { mms_ledger: { qty: { canView: true, canEdit: true }, cost: { canView: false, canEdit: false } } },
+  fieldAclAvailable: true,
+  permissions: [{ code: 'app:mms_ledger', scope: 'app', kind: 'app', entity: 'mms_ledger', action: '' }]
 })
-assert.deepEqual(calls.slice(0, 4).map((call) => [call.options.path, call.options.acceptProfile, call.options.timeoutMs]), [
-  ['/ontology_table_semantics', 'public', 5000],
-  ['/ontology_column_semantics', 'public', 5000],
-  ['/ontology_table_relations', 'app_data', 5000],
-  ['/v_permission_ontology', 'public', 5000]
+assert.deepEqual(calls.slice(0, 1).map((call) => [call.options.path, call.options.method, call.options.body, call.options.acceptProfile, call.options.contentProfile, call.options.timeoutMs]), [
+  ['/rpc/agent_ontology_context', 'POST', { p_query: '', p_limit: 200 }, 'public', 'public', 5000]
+])
+assert.deepEqual(calls.slice(1, 3).map((call) => [call.options.path, call.options.query?.select]), [
+  ['/roles', 'id,code'],
+  ['/sys_field_acl', 'module,field_code,can_view,can_edit']
 ])
 
-const snapshot = await service.fetchBusinessSnapshot(user)
+const snapshot = await service.fetchBusinessSnapshot(user, semantic)
 assert.deepEqual(snapshot.warehouses, {
   total: 2,
   list: [
@@ -175,9 +197,9 @@ assert.deepEqual(snapshot.apps, {
   ]
 })
 assert.equal(snapshot.snapshotTime, '2026-09-01T01:02:03.000Z')
-assert.deepEqual(snapshot._meta, { partial: false, failedSourceCount: 0, failedSources: [] })
+assert.deepEqual(snapshot._meta, { partial: false, accessControlled: true, deniedDomains: [], failedSourceCount: 0, failedSources: [] })
 
-const snapshotCalls = calls.slice(4)
+const snapshotCalls = calls.slice(3)
 assert.equal(snapshotCalls.length, 25)
 assert.equal(snapshotCalls.every((call) => call.actualUser === user && call.options.timeoutMs === 5000), true)
 assert.deepEqual(snapshotCalls.map((call) => [call.options.path, call.options.acceptProfile]), [
@@ -209,6 +231,47 @@ assert.deepEqual(snapshotCalls.map((call) => [call.options.path, call.options.ac
 ])
 assert.equal(logs.some((entry) => entry[0] === 'log' && String(entry[1]).includes('tables:1, columns:2, relations:1, permissions:1')), true)
 assert.equal(logs.some((entry) => entry[0] === 'log' && String(entry[1]).includes('partial=no')), true)
+
+const restrictedCalls = []
+const restrictedService = createAiContextService({
+  callPostgrestWithUser: async (actualUser, options) => {
+    restrictedCalls.push({ actualUser, options })
+    const data = dataByPath.get(options.path)
+    if (options.path === '/v_inventory_current' && Array.isArray(data)) {
+      // Keep the forbidden source field in the fixture so result filtering is
+      // exercised independently from the generated PostgREST select list.
+      return { data: data.map((row) => ({ ...row, cost: 999 })) }
+    }
+    return { data }
+  },
+  log: { log() {}, warn() {} },
+  now: () => new Date('2026-09-01T01:02:03.000Z')
+})
+const restrictedContext = {
+  accessPolicy: { roleScoped: true, superUser: false, roles: ['inventory_viewer'] },
+  permissions: [{ code: 'app:mms_ledger' }],
+  fieldAcl: {
+    mms_ledger: {
+      material_name: { canView: false, canEdit: false },
+      cost: { canView: false, canEdit: false }
+    }
+  },
+  fieldAclAvailable: true
+}
+const restrictedSnapshot = await restrictedService.fetchBusinessSnapshot(user, restrictedContext)
+assert.equal(restrictedSnapshot.inventory.totalRecords, 2)
+assert.equal(restrictedSnapshot.inventory.totalQty, 20)
+assert.equal(restrictedSnapshot.inventory.top10[0].material, undefined)
+assert.equal(restrictedSnapshot.sales, undefined)
+assert.equal(restrictedSnapshot.quality, undefined)
+assert.equal(restrictedSnapshot.equipment, undefined)
+assert.equal(restrictedSnapshot.production, undefined)
+assert.equal(restrictedSnapshot._meta.accessControlled, true)
+assert.deepEqual(restrictedSnapshot._meta.deniedDomains, ['apps', 'employees', 'equipment', 'production', 'purchase', 'quality', 'sales'])
+assert.equal(restrictedCalls.some((call) => ['/sales_customers', '/sales_orders', '/quality_ncrs', '/equipment_assets'].includes(call.options.path)), false)
+const restrictedInventoryCall = restrictedCalls.find((call) => call.options.path === '/v_inventory_current')
+assert.equal(restrictedInventoryCall.options.query.select.includes('material_name'), false)
+assert.equal(restrictedInventoryCall.options.query.select.includes('cost'), false)
 
 const partialCalls = []
 const partialService = createAiContextService({
@@ -245,6 +308,30 @@ const emptyService = createAiContextService({
 })
 assert.equal(await emptyService.fetchSemanticContext(user), null)
 
+const failedSemanticService = createAiContextService({
+  callPostgrestWithUser: async (_user, options) => {
+    assert.equal(options.path, '/rpc/agent_ontology_context')
+    throw new Error('role context unavailable')
+  },
+  log: { log() {}, warn() {} }
+})
+assert.equal(await failedSemanticService.fetchSemanticContext(user), null)
+
+const untrustedSemanticService = createAiContextService({
+  callPostgrestWithUser: async (_user, options) => {
+    assert.equal(options.path, '/rpc/agent_ontology_context')
+    return {
+      data: {
+        source: 'legacy_unscoped_context',
+        accessPolicy: { roleScoped: true, superUser: true },
+        tables: [{ table_schema: 'public', table_name: 'users' }]
+      }
+    }
+  },
+  log: { log() {}, warn() {} }
+})
+assert.equal(await untrustedSemanticService.fetchSemanticContext(user), null)
+
 const indexSource = readFileSync(resolve(repoRoot, 'realtime/index.js'), 'utf8')
 assert.match(indexSource, /createAiContextService\(\{/)
 for (const forbidden of [
@@ -255,6 +342,8 @@ for (const forbidden of [
 ]) {
   assert.equal(indexSource.includes(forbidden), false, `composition root reintroduced ${forbidden}`)
 }
+assert.match(readFileSync(resolve(repoRoot, 'realtime/ai-context-service.js'), 'utf8'), /path: '\/rpc\/agent_ontology_context'/)
+assert.doesNotMatch(readFileSync(resolve(repoRoot, 'realtime/ai-context-service.js'), 'utf8'), /path: '\/v_permission_ontology'/)
 assert.ok(indexSource.split(/\r?\n/).length <= 1030, 'realtime/index.js must not grow past the context extraction baseline')
 
 console.log('AI context service regression passed')

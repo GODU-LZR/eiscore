@@ -9,7 +9,7 @@
   "branding": {
     "productName": "伦度机电数字化工厂",
     "themeColor": "#0B6E69",
-    "logoUrl": "",
+    "logoUrl": "/enterprise-assets/site/lundu-logo.png",
     "login": {
       "slogan": "专注电机与水泵产品，服务稳定运行。",
       "description": "伦度机电有限公司位于浙江省台州市温岭市沈岙工业园区，专注于电机与水泵产品的研发、制造、销售及服务，形成从产品开发、生产制造到交付服务的完整业务体系。",
@@ -34,7 +34,7 @@
       "capabilitiesSectionTitle": "从产品开发到交付服务",
       "leadersSectionKicker": "联系伦度",
       "leadersSectionTitle": "联系伦度",
-      "backgroundImage": "/enterprise-assets/site/ratio/hero-wide.png",
+      "backgroundImage": "/enterprise-assets/site/crops/hero-wide.jpg",
       "navItems": [
         {
           "label": "企业概况",
@@ -120,32 +120,32 @@
       ],
       "carouselImages": [
         {
-          "url": "/enterprise-assets/site/ratio/hero-wide.png",
+          "url": "/enterprise-assets/site/crops/hero-wide.jpg",
           "title": "产品体系",
           "subtitle": "电机与水泵产品"
         },
         {
-          "url": "/enterprise-assets/site/ratio/pump-wide.png",
+          "url": "/enterprise-assets/site/crops/generated-pump-product-wide.jpg",
           "title": "水泵产品",
           "subtitle": "覆盖多种应用工况"
         },
         {
-          "url": "/enterprise-assets/site/ratio/motor-wide.png",
+          "url": "/enterprise-assets/site/crops/generated-motor-product-wide.jpg",
           "title": "电机产品",
           "subtitle": "稳定可靠的动力单元"
         },
         {
-          "url": "/enterprise-assets/site/ratio/application-wide.png",
+          "url": "/enterprise-assets/site/crops/application-wide.jpg",
           "title": "应用服务",
           "subtitle": "面向工程与配套需求"
         },
         {
-          "url": "/enterprise-assets/site/ratio/factory-wide.png",
+          "url": "/enterprise-assets/site/crops/factory-wide.jpg",
           "title": "制造现场",
           "subtitle": "规范组织生产与装配"
         },
         {
-          "url": "/enterprise-assets/site/ratio/detail-wide.png",
+          "url": "/enterprise-assets/site/crops/generated-component-detail-wide.jpg",
           "title": "质量控制",
           "subtitle": "关注产品细节与检验"
         }

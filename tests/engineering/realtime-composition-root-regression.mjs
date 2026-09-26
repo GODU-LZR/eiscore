@@ -34,6 +34,7 @@ assert.deepEqual(localDependencies, [
   './document-intake',
   './document-parser',
   './document-planner',
+  './flash-authorization',
   './flash-cline-config',
   './flash-cline-runtime',
   './flash-cline-service',

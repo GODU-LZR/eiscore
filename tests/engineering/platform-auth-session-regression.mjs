@@ -163,6 +163,7 @@ for (const path of ['eiscore-base/src/utils/auth.js', 'eiscore-mobile/src/utils/
 const baseAuthSource = readFileSync(resolve(repoRoot, 'eiscore-base/src/utils/auth.js'), 'utf8')
 assert.match(baseAuthSource, /loginPath\s*=\s*['"]\/login['"]/)
 const mobileAuthSource = readFileSync(resolve(repoRoot, 'eiscore-mobile/src/utils/auth.js'), 'utf8')
-assert.match(mobileAuthSource, /window\.location\.href\s*=\s*['"]\/mobile\/login['"]/)
+assert.match(mobileAuthSource, /buildEnterpriseLoginUrl/)
+assert.match(mobileAuthSource, /url\.searchParams\.set\('login', '1'\)/)
 
 console.log('PASS: platform auth session and safe storage contract')

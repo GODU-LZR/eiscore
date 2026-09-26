@@ -2,11 +2,11 @@
   <div class="login-page" :class="{ 'is-scrolled': pageScrolled }" :style="pageStyle">
     <header class="site-header">
       <div class="brand-lockup">
-        <div class="brand-mark">
+        <div class="brand-mark" :class="{ 'has-logo': branding.logo }">
           <img v-if="branding.logo" :src="branding.logo" :alt="portalUi.logoAlt" />
           <span v-else>{{ brandInitial }}</span>
         </div>
-        <div class="site-name">
+        <div v-if="!branding.logo" class="site-name">
           <strong>{{ companyName }}</strong>
         </div>
       </div>
@@ -731,6 +731,15 @@ onMounted(async () => {
   systemStore.initTheme()
   startHeroAutoplay()
   refreshSeoHead()
+  if (
+    route.query.login === '1' ||
+    typeof route.query.redirect === 'string' ||
+    (typeof route.query.dsh_return === 'string' && route.query.dsh_return)
+  ) {
+    loginVisible.value = true
+    await nextTick()
+    loginFormRef.value?.$el?.querySelector?.('input')?.focus?.()
+  }
   handleScroll()
   window.addEventListener('scroll', handleScroll, { passive: true })
   requestAnimationFrame(() => {
@@ -889,9 +898,27 @@ const handleLogin = async () => {
 
       userStore.login(userData)
       ElMessage.success(`${portalUi.value.loginSuccess} ${userData.user.name}`)
+      const dshReturn = typeof route.query.dsh_return === 'string' ? route.query.dsh_return : ''
+      if (dshReturn) {
+        const returnUrl = new URL(dshReturn, window.location.origin)
+        if (returnUrl.origin !== window.location.origin) throw new Error('无效的 Harness 回调地址')
+        const handoffResponse = await fetch('/agent/company-site/auth/handoff', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${realToken}` }
+        })
+        const handoff = await handoffResponse.json().catch(() => ({}))
+        if (!handoffResponse.ok || !handoff.code) throw new Error('Harness 登录交接失败，请重试')
+        returnUrl.searchParams.set('code', handoff.code)
+        window.location.assign(returnUrl.href)
+        return
+      }
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
       const safeRedirect = /^\/(?!\/)/.test(redirect) ? redirect : '/'
-      router.push(safeRedirect)
+      if (safeRedirect.startsWith('/mobile/')) {
+        window.location.assign(safeRedirect)
+      } else {
+        router.push(safeRedirect)
+      }
     } catch (error) {
       ElMessage.error(error.message || portalUi.value.loginError)
     } finally {

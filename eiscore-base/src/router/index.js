@@ -126,7 +126,7 @@ const shouldSkipMobileRedirect = (to) => {
   if (typeof window !== 'undefined' && window.__EIS_SKIP_MOBILE_REDIRECT__) return true
   const path = String(to.path || '')
   const querySkip = String(to.query?.eis_skip_mobile_redirect || '') === '1'
-  return querySkip || path.startsWith('/ide') || path.startsWith('/embed/')
+  return querySkip || path === '/login' || path.startsWith('/ide') || path.startsWith('/embed/')
 }
 
 router.beforeEach((to, from, next) => {

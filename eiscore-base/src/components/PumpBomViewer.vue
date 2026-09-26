@@ -59,7 +59,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 const props = defineProps({
   productName: { type: String, default: '' },
   category: { type: String, default: '' },
-  accentColor: { type: String, default: '#0b6e69' },
+  accentColor: { type: String, default: '#1d6fae' },
   locale: { type: String, default: 'zh-CN' }
 })
 
@@ -71,7 +71,7 @@ const progress = ref(0)
 const activePartIndex = ref(-1)
 
 const isEnglish = computed(() => props.locale.toLowerCase().startsWith('en'))
-const accent = computed(() => /^#[0-9a-f]{6}$/i.test(props.accentColor) ? props.accentColor : '#0b6e69')
+const accent = computed(() => /^#[0-9a-f]{6}$/i.test(props.accentColor) ? props.accentColor : '#1d6fae')
 const displayName = computed(() => String(props.productName || '').trim() || (isEnglish.value ? 'Centrifugal pump' : '管道离心泵'))
 const viewerLabel = computed(() => isEnglish.value ? `${displayName.value} BOM animation` : `${displayName.value} BOM 三维动画`)
 const canvasLabel = computed(() => isEnglish.value ? 'Interactive pump assembly. Drag to rotate and scroll to zoom.' : '交互式水泵装配动画，可拖动旋转并滚动缩放。')
@@ -114,24 +114,24 @@ let assembledSpan = 8
 const explodeDelays = Object.freeze({
   base: 0,
   barrel: 0.08,
-  'pump-head': 0.14,
-  'oil-cylinder': 0.18,
-  cover: 0.22,
-  'tube-plate': 0.26,
-  'upper-cap': 0.3,
-  cable: 0.34,
-  coil: 0.4,
-  rotor: 0.48,
-  bearing: 0.54,
-  seal: 0.6,
-  impeller: 0.66
+  'pump-head': 0.46,
+  'oil-cylinder': 0.5,
+  cover: 0.54,
+  'tube-plate': 0.58,
+  'upper-cap': 0.62,
+  cable: 0.66,
+  coil: 0.5,
+  rotor: 0.56,
+  bearing: 0.62,
+  seal: 0.68,
+  impeller: 0.74
 })
 
-const casingShellCloseStart = 0.02
-const casingShellOpenEnd = 0.08
-const casingClearanceEnd = 0.08
-const casingHorizontalEnd = 0.14
-const casingShellSpread = 1.55
+const casingShellOpenStart = 0.04
+const casingShellOpenEnd = 0.38
+const casingHorizontalStart = 0.42
+const casingHorizontalEnd = 0.56
+const casingShellSpread = 3.05
 
 const partProgressFor = (id, value) => {
   const stagger = 0.24 * (bomItems.findIndex((item) => item.id === id) / Math.max(1, bomItems.length - 1))
@@ -140,9 +140,9 @@ const partProgressFor = (id, value) => {
 }
 
 const barrelPositionFor = (value, clearance, exploded) => {
-  if (value < casingClearanceEnd) return clearance.clone()
+  if (value <= casingHorizontalStart) return clearance.clone()
   const horizontal = THREE.MathUtils.smoothstep(
-    THREE.MathUtils.clamp((value - casingClearanceEnd) / (casingHorizontalEnd - casingClearanceEnd), 0, 1),
+    THREE.MathUtils.clamp((value - casingHorizontalStart) / (casingHorizontalEnd - casingHorizontalStart), 0, 1),
     0,
     1
   )
@@ -174,6 +174,8 @@ const addPart = (id, object) => {
   const group = new THREE.Group()
   group.name = `bom-${id}`
   group.add(object)
+  if (object.userData.shells) group.userData.shells = object.userData.shells
+  if (object.userData.closureShell) group.userData.closureShell = object.userData.closureShell
   group.userData.basePosition = group.position.clone()
   group.userData.explodedPosition = new THREE.Vector3()
   parts.push({ id, group, index: bomItems.indexOf(item) })
@@ -183,9 +185,11 @@ const addPart = (id, object) => {
 
 const buildPump = () => {
   const steel = material('#b6c3c0', { roughness: 0.2, metalness: 0.76 })
-  const shellSteel = material('#b6c3c0', { roughness: 0.2, metalness: 0.76, side: THREE.DoubleSide })
-  const darkSteel = material('#445955', { roughness: 0.26, metalness: 0.78 })
-  const teal = material(accent.value, { roughness: 0.24, metalness: 0.32, clearcoat: 0.6 })
+  const shellSteel = material('#1d6fae', { roughness: 0.24, metalness: 0.34, side: THREE.DoubleSide, clearcoat: 0.58 })
+  const innerShellSteel = material('#164d78', { roughness: 0.3, metalness: 0.42, side: THREE.DoubleSide, clearcoat: 0.32 })
+  const darkSteel = material('#173d63', { roughness: 0.26, metalness: 0.78 })
+  // Lundu's horizontal pumps use a painted blue casing and end covers.
+  const pumpBlue = material('#1d6fae', { roughness: 0.24, metalness: 0.32, clearcoat: 0.6 })
   const copper = material('#c68143', { roughness: 0.28, metalness: 0.7 })
   const rubber = material('#293632', { roughness: 0.68, metalness: 0.08 })
 
@@ -201,28 +205,43 @@ const buildPump = () => {
   // apart along Z, then close around the internals after those parts settle.
   const frontShell = new THREE.Group()
   const backShell = new THREE.Group()
+  // CylinderGeometry is rotated so its axis is X; its radial z coordinate is
+  // radius*cos(theta), so -PI/2..PI/2 is the front z>=0 half and
+  // PI/2..3PI/2 is the back z<=0 half. Their straight edges meet at z=0
+  // when closed, then separate along Z.
   frontShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, -Math.PI / 2, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
   backShell.add(mesh(new THREE.CylinderGeometry(1.18, 1.18, 3.7, 48, 1, true, Math.PI / 2, Math.PI), shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
-  for (const seamY of [-1.18, 1.18]) {
-    frontShell.add(mesh(new THREE.BoxGeometry(3.7, 0.045, 0.045), darkSteel, [-0.4, seamY, 0.022]))
-    backShell.add(mesh(new THREE.BoxGeometry(3.7, 0.045, 0.045), darkSteel, [-0.4, seamY, -0.022]))
-  }
+  frontShell.add(mesh(new THREE.CylinderGeometry(1.08, 1.08, 3.7, 48, 1, true, -Math.PI / 2, Math.PI), innerShellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
+  backShell.add(mesh(new THREE.CylinderGeometry(1.08, 1.08, 3.7, 48, 1, true, Math.PI / 2, Math.PI), innerShellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
   for (const flangeX of [-2.27, 1.47]) {
     const frontFlange = new THREE.TorusGeometry(1.18, 0.09, 12, 48, Math.PI)
     frontFlange.rotateZ(Math.PI / 2)
     frontShell.add(mesh(frontFlange, darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
     const backFlange = new THREE.TorusGeometry(1.18, 0.09, 12, 48, Math.PI)
     backFlange.rotateZ(-Math.PI / 2)
-    backShell.add(mesh(backFlange, darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
+      backShell.add(mesh(backFlange, darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
   }
-  barrelGroup.add(frontShell, backShell)
+  const closureShell = new THREE.Group()
+  // Put the cylinder's vertex seam on the side of the casing, away from the
+  // default camera, so the closed shell reads as one continuous surface.
+  const closureGeometry = new THREE.CylinderGeometry(1.18, 1.18, 3.7, 64, 1, true)
+  closureGeometry.rotateY(Math.PI / 2)
+  closureShell.add(mesh(closureGeometry, shellSteel, [-0.4, 0, 0], [0, 0, Math.PI / 2]))
+  for (const flangeX of [-2.27, 1.47]) {
+    closureShell.add(mesh(new THREE.TorusGeometry(1.18, 0.09, 12, 64), darkSteel, [flangeX, 0, 0], [0, Math.PI / 2, 0]))
+  }
+  closureShell.visible = true
+  frontShell.visible = false
+  backShell.visible = false
+  barrelGroup.add(frontShell, backShell, closureShell)
   barrelGroup.userData.shells = [frontShell, backShell]
+  barrelGroup.userData.closureShell = closureShell
   addPart('barrel', barrelGroup)
 
   const coilGroup = new THREE.Group()
   for (let index = 0; index < 8; index += 1) {
     // Keep the winding inside the barrel wall with a small radial clearance.
-    coilGroup.add(mesh(new THREE.TorusGeometry(1.04, 0.075, 10, 32), copper, [-1.65 + index * 0.29, 0, 0], [0, Math.PI / 2, 0]))
+    coilGroup.add(mesh(new THREE.TorusGeometry(0.98, 0.075, 10, 32), copper, [-1.65 + index * 0.29, 0, 0], [0, Math.PI / 2, 0]))
   }
   addPart('coil', coilGroup)
 
@@ -236,18 +255,18 @@ const buildPump = () => {
   addPart('seal', mesh(new THREE.TorusGeometry(0.79, 0.1, 14, 40), rubber, [2.04, 0, 0], [0, Math.PI / 2, 0]))
 
   const impellerGroup = new THREE.Group()
-  impellerGroup.add(mesh(new THREE.CylinderGeometry(0.82, 0.82, 0.14, 32), teal, [2.42, 0, 0], [0, 0, Math.PI / 2]))
+  impellerGroup.add(mesh(new THREE.CylinderGeometry(0.82, 0.82, 0.14, 32), pumpBlue, [2.42, 0, 0], [0, 0, Math.PI / 2]))
   for (let index = 0; index < 7; index += 1) {
     const angle = (Math.PI * 2 * index) / 7
-    const blade = mesh(new THREE.BoxGeometry(0.09, 0.85, 0.1), teal, [2.42, Math.cos(angle) * 0.34, Math.sin(angle) * 0.34], [angle, 0, -0.38])
+    const blade = mesh(new THREE.BoxGeometry(0.09, 0.85, 0.1), pumpBlue, [2.42, Math.cos(angle) * 0.34, Math.sin(angle) * 0.34], [angle, 0, -0.38])
     impellerGroup.add(blade)
   }
   addPart('impeller', impellerGroup)
 
   const head = new THREE.Group()
-  head.add(mesh(new THREE.CylinderGeometry(1.36, 1.2, 0.72, 48, 1, true), teal, [2.9, 0, 0], [0, 0, Math.PI / 2]))
-  head.add(mesh(new THREE.CylinderGeometry(1.28, 1.28, 0.12, 48), teal, [2.54, 0, 0], [0, 0, Math.PI / 2]))
-  head.add(mesh(new THREE.CylinderGeometry(1.22, 1.22, 0.12, 48), teal, [3.26, 0, 0], [0, 0, Math.PI / 2]))
+  head.add(mesh(new THREE.CylinderGeometry(1.36, 1.2, 0.72, 48, 1, true), pumpBlue, [2.9, 0, 0], [0, 0, Math.PI / 2]))
+  head.add(mesh(new THREE.CylinderGeometry(1.28, 1.28, 0.12, 48), pumpBlue, [2.54, 0, 0], [0, 0, Math.PI / 2]))
+  head.add(mesh(new THREE.CylinderGeometry(1.22, 1.22, 0.12, 48), pumpBlue, [3.26, 0, 0], [0, 0, Math.PI / 2]))
   head.add(mesh(new THREE.TorusGeometry(1.45, 0.06, 12, 48), steel, [3.38, 0, 0], [0, Math.PI / 2, 0]))
   head.add(mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.52, 28), steel, [2.9, 0, 1.42], [Math.PI / 2, 0, 0]))
   for (let index = 0; index < 6; index += 1) {
@@ -258,7 +277,7 @@ const buildPump = () => {
   addPart('oil-cylinder', mesh(new THREE.CylinderGeometry(0.68, 0.68, 0.48, 40), steel, [3.76, 0, 0], [0, 0, Math.PI / 2]))
   addPart('cover', mesh(new THREE.CylinderGeometry(0.94, 0.94, 0.16, 40), steel, [4.12, 0, 0], [0, 0, Math.PI / 2]))
   addPart('tube-plate', mesh(new THREE.CylinderGeometry(0.98, 0.98, 0.12, 40), darkSteel, [4.34, 0, 0], [0, 0, Math.PI / 2]))
-  addPart('upper-cap', mesh(new THREE.ConeGeometry(0.78, 0.3, 40), teal, [4.62, 0, 0], [0, 0, Math.PI / 2]))
+  addPart('upper-cap', mesh(new THREE.ConeGeometry(0.78, 0.3, 40), pumpBlue, [4.62, 0, 0], [0, 0, Math.PI / 2]))
 
   const cableCurve = new THREE.CatmullRomCurve3([
     new THREE.Vector3(3.42, 1.25, 0.72),
@@ -288,7 +307,10 @@ const arrangeExplodedParts = () => {
   const clearanceSeeds = {
     base: [0, 0.15, 0],
     barrel: [0, 0, 0],
-    coil: [0, 1.8, 3.2],
+    // Lift the coil above the opened casing before it takes its horizontal
+    // BOM lane. Keeping Z at zero avoids crossing either half-shell during
+    // the release and return paths.
+    coil: [0, 4.2, 0],
     rotor: [0, 1.8, -3.2],
     bearing: [0, 2.35, 4.4],
     seal: [0, 2.35, -4.4],
@@ -394,18 +416,18 @@ const fitCameraToProgress = (value, immediate = false) => {
   const distance = cameraDistanceForProgress(value)
   const focus = controls?.target || new THREE.Vector3(0.55, 0.05, 0)
   const offset = camera.position.clone().sub(focus)
-  const currentDepth = Math.max(Math.abs(offset.z), 0.001)
-  const nextDepth = immediate ? distance : THREE.MathUtils.damp(currentDepth, distance, 4, 1 / 60)
+  const currentDistance = Math.max(offset.length(), 0.001)
+  const nextDistance = immediate ? distance : THREE.MathUtils.damp(currentDistance, distance, 4, 1 / 60)
   // Scale the complete orbit vector so the camera keeps its elevation and
   // azimuth while the horizontal BOM span changes.
-  camera.position.copy(focus).add(offset.multiplyScalar(nextDepth / currentDepth))
+  camera.position.copy(focus).add(offset.multiplyScalar(nextDistance / currentDistance))
 }
 
 const resetView = () => {
   if (!camera || !controls) return
   controls.target.set(defaultTargetX(), 0.05, 0)
   const focus = controls.target
-  const baseOffset = new THREE.Vector3(18, 8, 16).sub(new THREE.Vector3(defaultTargetX(), 0.05, 0))
+  const baseOffset = new THREE.Vector3(12, 10, 0).sub(new THREE.Vector3(defaultTargetX(), 0.05, 0))
   camera.position.copy(focus).add(baseOffset.multiplyScalar(cameraDistanceForProgress(progress.value) / 24))
   controls.update()
 }
@@ -475,22 +497,23 @@ const updateParts = (value) => {
       group.position.copy(position)
     }
     if (partId === 'barrel' && group.userData.shells) {
-      // Keep the casing closed until the internal parts have started to clear.
-      // During assembly the same interval closes the shells last, while the
-      // group remains centered on the pump axis.
+      // Open both half-shells while the casing is centered, move the opened
+      // casing aside, then release the internals. Assembly reverses the order.
       const shellOpen = THREE.MathUtils.smoothstep(
-        THREE.MathUtils.clamp(
-          (value - casingShellCloseStart) / (casingShellOpenEnd - casingShellCloseStart),
-          0,
-          1
-        ),
+        THREE.MathUtils.clamp((value - casingShellOpenStart) / (casingShellOpenEnd - casingShellOpenStart), 0, 1),
         0,
         1
       )
+      const closureVisible = shellOpen < 0.06
+      group.userData.shells.forEach((shell) => { shell.visible = !closureVisible })
+      if (group.userData.closureShell) group.userData.closureShell.visible = closureVisible
       const shellSpread = casingShellSpread * shellOpen
-      const shellAxialOffset = 0.22 * shellOpen
-      group.userData.shells[0].position.set(shellAxialOffset, 0, shellSpread)
-      group.userData.shells[1].position.set(-shellAxialOffset, 0, -shellSpread)
+      const shellLift = 0.28 * shellOpen
+      // Offset along the pump axis as well as the split normal so the two
+      // half-shells remain visibly distinct in the default side view.
+      const shellAxialOffset = 1.15 * shellOpen
+      group.userData.shells[0].position.set(shellAxialOffset, shellLift, shellSpread)
+      group.userData.shells[1].position.set(-shellAxialOffset, -shellLift, -shellSpread)
     }
     const distance = Math.abs(value - ((index + 1) / bomItems.length))
     if (distance < nearestDistance && value > 0.08 && value < 0.92) {
@@ -509,7 +532,8 @@ const animate = (time = 0) => {
   if (playing.value) {
     if (targetProgress !== null) {
       const current = progress.value
-      const next = THREE.MathUtils.damp(current, targetProgress, 2.8, delta)
+      const step = Math.min(Math.abs(targetProgress - current), delta * 0.28)
+      const next = current + Math.sign(targetProgress - current) * step
       updateParts(next)
       if (Math.abs(next - targetProgress) < 0.008) {
         updateParts(targetProgress)
@@ -537,7 +561,9 @@ onMounted(() => {
     // Keep the far clip and fog beyond that distance so the exploded parts stay visible.
     scene.fog = new THREE.Fog('#f5f8f6', 34, 180)
     camera = new THREE.PerspectiveCamera(40, 1, 0.1, 180)
-    camera.position.set(18, 8, 16)
+    // Balance the view so the X-axis BOM remains horizontal while the Z-split
+    // half-shells still project as two visible pieces when opened.
+    camera.position.set(12, 10, 0)
     renderer = new THREE.WebGLRenderer({ canvas: canvas.value, antialias: true, alpha: false, powerPreference: 'high-performance' })
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping

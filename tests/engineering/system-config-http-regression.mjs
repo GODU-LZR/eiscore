@@ -59,7 +59,7 @@ const mobileAdapter = readFileSync(resolve(repoRoot, 'eiscore-mobile/src/platfor
 assert.match(baseStore, /getHostSystemConfigService\(\)/)
 assert.match(mobileLogin, /getMobileSystemConfigService\(\)/)
 assert.match(baseStore, /normalizeConfig\(\{ \.\.\.defaultConfig, \.\.\.value \}\)/)
-assert.match(mobileLogin, /loginBranding:\s*normalizeBranding\(value\.loginBranding\)/)
+assert.match(mobileLogin, /loginBranding:\s*normalizeBranding\(\{/)
 assert.doesNotMatch(baseStore, /fetch\(['"]\/api\/system_configs/)
 assert.doesNotMatch(mobileLogin, /fetch\(['"]\/api\/system_configs/)
 assert.match(hostAdapter, /onUnauthorized:\s*\(\)\s*=>\s*clearAuthAndRedirect\('\/login'\)/)

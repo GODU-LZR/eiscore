@@ -25,6 +25,18 @@ const callContext = {
     moduleName: '库存',
     appName: '库存应用',
     routePath: '/inventory'
+  },
+  authorizationContext: {
+    apps: [{ app_id: 'orders-app', acl_module: 'orders_app', qualified_table: 'app_data.orders' }],
+    columns: {
+      'app_data.orders': [
+        { col: 'id' },
+        { col: 'name' },
+        { col: 'secret' }
+      ]
+    },
+    fieldAcl: { orders_app: { secret: { canView: false, canEdit: false } } },
+    fieldAclAvailable: true
   }
 }
 
@@ -138,6 +150,39 @@ assert.deepEqual(ensureCalls.shift(), [
   ]
 ])
 assert.equal(gridCreate.data.item.id, 9)
+
+ensureResults.push({ data: [{ id: 10, name: 'visible', secret: 'must not escape' }] })
+const gridList = await executor.executeFlashSemanticTool('flash.data.grid.list', {
+  table: 'app_data.orders',
+  query: { select: '*' }
+}, user, callContext)
+assert.equal(ensureCalls.shift()[3].query.select, 'id,name')
+assert.deepEqual(gridList.data.items, [{ id: 10, name: 'visible' }])
+
+const callsBeforeDeniedFields = ensureCalls.length
+await assert.rejects(
+  executor.executeFlashSemanticTool('flash.data.grid.list', {
+    table: 'app_data.orders',
+    query: { secret: 'eq.hidden' }
+  }, user, callContext),
+  (error) => error.code === 'PERMISSION_DENIED'
+)
+await assert.rejects(
+  executor.executeFlashSemanticTool('flash.data.grid.update', {
+    table: 'app_data.orders', id: '10', payload: { secret: 'changed' }
+  }, user, callContext),
+  (error) => error.code === 'PERMISSION_DENIED'
+)
+assert.equal(ensureCalls.length, callsBeforeDeniedFields, 'denied field filters and writes stop before the database call')
+
+await assert.rejects(
+  executor.executeFlashSemanticTool('flash.hr.archive.list', {}, user, {
+    ...callContext,
+    authorizationContext: { fieldAclAvailable: false }
+  }),
+  (error) => error.code === 'PERMISSION_DENIED',
+  'field ACL lookup failure fails closed for fixed HR tables'
+)
 
 pgResults.push({ data: { id: 33, status: 'completed' } })
 const transitioned = await executor.executeFlashSemanticTool('flash.workflow.instance.transition', {

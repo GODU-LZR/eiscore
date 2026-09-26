@@ -4,6 +4,7 @@
 'use strict';
 
 const { FlashToolError } = require('./flash-postgrest-adapter');
+const { assertFieldAclWrite, prepareFieldAclRead, stripFieldAcl } = require('./flash-field-acl');
 
 const createFlashSemanticExecutor = ({
   callPostgrestWithFlashTableEnsure,
@@ -48,6 +49,20 @@ const createFlashSemanticExecutor = ({
   const toJsonObjectOrNull = (value) => {
     if (value && typeof value === 'object' && !Array.isArray(value)) return value;
     return null;
+  };
+
+  const authorizationContext = (callContext) => callContext?.authorizationContext || {};
+  const protectRead = (query, table, callContext, moduleFallback = '') =>
+    prepareFieldAclRead(query, authorizationContext(callContext), table, moduleFallback);
+  const protectWrite = (payload, table, callContext, moduleFallback = '') =>
+    assertFieldAclWrite(payload, authorizationContext(callContext), table, moduleFallback);
+  const protectResult = (value, module, callContext) =>
+    stripFieldAcl(value, authorizationContext(callContext), module);
+  const protectRpcWrite = (payload, module, callContext) => {
+    const aclPayload = Object.fromEntries(Object.entries(payload || {}).map(([field, value]) => [
+      field.replace(/^p_/, ''), value
+    ]));
+    return protectWrite(aclPayload, `public.${module}`, callContext, module);
   };
 
   const normalizeOperationLocation = (src = {}, callContext = {}) => {
@@ -237,14 +252,15 @@ const createFlashSemanticExecutor = ({
       const { schema, table } = target;
       const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
       if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 50, 500);
+      const fieldPolicy = protectRead(query, `${schema}.${table}`, callContext);
       const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'GET',
         path: `/${table}`,
-        query,
+        query: fieldPolicy.query,
         acceptProfile: schema,
         traceId: callContext.traceId
       });
-      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      const items = protectResult(Array.isArray(upstream.data) ? upstream.data : [], fieldPolicy.module, callContext);
       return { message: '表格列表查询成功', data: { schema, table, items }, rowsAffected: items.length };
     }
     case 'flash.data.grid.detail': {
@@ -254,14 +270,15 @@ const createFlashSemanticExecutor = ({
       const query = sanitizeQueryParams(requestArgs.query);
       query.id = `eq.${recordId}`;
       if (!query.limit) query.limit = '1';
+      const fieldPolicy = protectRead(query, `${schema}.${table}`, callContext);
       const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'GET',
         path: `/${table}`,
-        query,
+        query: fieldPolicy.query,
         acceptProfile: schema,
         traceId: callContext.traceId
       });
-      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      const item = protectResult(Array.isArray(upstream.data) ? (upstream.data[0] || null) : null, fieldPolicy.module, callContext);
       return { message: item ? '表格详情查询成功' : '数据不存在', data: { schema, table, item }, rowsAffected: item ? 1 : 0 };
     }
     case 'flash.data.grid.export': {
@@ -270,14 +287,15 @@ const createFlashSemanticExecutor = ({
       const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
       if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 500, 5000);
       if (!query.order && requestArgs.order) query.order = String(requestArgs.order);
+      const fieldPolicy = protectRead(query, `${schema}.${table}`, callContext);
       const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'GET',
         path: `/${table}`,
-        query,
+        query: fieldPolicy.query,
         acceptProfile: schema,
         traceId: callContext.traceId
       });
-      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      const items = protectResult(Array.isArray(upstream.data) ? upstream.data : [], fieldPolicy.module, callContext);
       return { message: '表格导出数据查询成功', data: { schema, table, items }, rowsAffected: items.length };
     }
     case 'flash.data.table.ensure': {
@@ -314,6 +332,7 @@ const createFlashSemanticExecutor = ({
       if (!Object.keys(payload).length) {
         throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.data.grid.create', { httpStatus: 400 });
       }
+      const fieldModule = protectWrite(payload, `${schema}.${table}`, callContext);
       const ensureColumns = inferFlashDataColumnsFromPayload(payload);
       const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'POST',
@@ -324,7 +343,7 @@ const createFlashSemanticExecutor = ({
         prefer: 'return=representation',
         traceId: callContext.traceId
       }, ensureColumns);
-      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      const item = protectResult(Array.isArray(upstream.data) ? (upstream.data[0] || null) : null, fieldModule, callContext);
       return { message: '表格记录创建成功', data: { schema, table, item }, rowsAffected: item ? 1 : 0 };
     }
     case 'flash.data.grid.update': {
@@ -335,6 +354,7 @@ const createFlashSemanticExecutor = ({
       if (!Object.keys(payload).length) {
         throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.data.grid.update', { httpStatus: 400 });
       }
+      const fieldModule = protectWrite(payload, `${schema}.${table}`, callContext);
       const ensureColumns = inferFlashDataColumnsFromPayload(payload);
       const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'PATCH',
@@ -346,13 +366,14 @@ const createFlashSemanticExecutor = ({
         prefer: 'return=representation',
         traceId: callContext.traceId
       }, ensureColumns);
-      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      const item = protectResult(Array.isArray(upstream.data) ? (upstream.data[0] || null) : null, fieldModule, callContext);
       return { message: '表格记录更新成功', data: { schema, table, item }, rowsAffected: item ? 1 : 0 };
     }
     case 'flash.data.grid.delete': {
       const target = resolveDataTableTarget(requestArgs.table);
       const { schema, table } = target;
       const recordId = requireNonEmptyText(requestArgs.id || requestArgs.recordId, 'id');
+      const fieldPolicy = protectRead({ id: `eq.${recordId}` }, `${schema}.${table}`, callContext);
       const upstream = await callPostgrestWithFlashTableEnsure(user, target, callContext.appId, {
         method: 'DELETE',
         path: `/${table}`,
@@ -362,7 +383,7 @@ const createFlashSemanticExecutor = ({
         prefer: 'return=representation',
         traceId: callContext.traceId
       });
-      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      const items = protectResult(Array.isArray(upstream.data) ? upstream.data : [], fieldPolicy.module, callContext);
       return { message: '表格记录删除成功', data: { schema, table, items }, rowsAffected: items.length };
     }
     case 'flash.workflow.definition.list': {
@@ -682,14 +703,15 @@ const createFlashSemanticExecutor = ({
     case 'flash.inventory.current.list': {
       const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
       if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 80, 500);
+      const fieldPolicy = protectRead(query, 'scm.v_inventory_current', callContext, 'mms_ledger');
       const upstream = await callPostgrestWithUser(user, {
         method: 'GET',
         path: '/v_inventory_current',
-        query,
+        query: fieldPolicy.query,
         acceptProfile: 'scm',
         traceId: callContext.traceId
       });
-      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      const items = protectResult(Array.isArray(upstream.data) ? upstream.data : [], fieldPolicy.module, callContext);
       return { message: '库存查询成功', data: { items }, rowsAffected: items.length };
     }
     case 'flash.inventory.draft.list': {
@@ -698,56 +720,60 @@ const createFlashSemanticExecutor = ({
       if (draftType && !query.draft_type) query.draft_type = `eq.${draftType}`;
       if (!query.order) query.order = 'created_at.desc';
       if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 80, 500);
+      const fieldPolicy = protectRead(query, 'scm.v_inventory_drafts', callContext, 'mms_ledger');
       const upstream = await callPostgrestWithUser(user, {
         method: 'GET',
         path: '/v_inventory_drafts',
-        query,
+        query: fieldPolicy.query,
         acceptProfile: 'scm',
         traceId: callContext.traceId
       });
-      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      const items = protectResult(Array.isArray(upstream.data) ? upstream.data : [], fieldPolicy.module, callContext);
       return { message: '库存草稿查询成功', data: { items }, rowsAffected: items.length };
     }
     case 'flash.material.master.list': {
       const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
       if (!query.order) query.order = 'id.asc';
       if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 100, 500);
+      const fieldPolicy = protectRead(query, 'public.raw_materials', callContext, 'mms_ledger');
       const upstream = await callPostgrestWithUser(user, {
         method: 'GET',
         path: '/raw_materials',
-        query,
+        query: fieldPolicy.query,
         acceptProfile: 'public',
         traceId: callContext.traceId
       });
-      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      const items = protectResult(Array.isArray(upstream.data) ? upstream.data : [], fieldPolicy.module, callContext);
       return { message: '物料主数据查询成功', data: { items }, rowsAffected: items.length };
     }
     case 'flash.warehouse.list': {
       const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
       if (!query.order) query.order = 'code.asc';
       if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 100, 500);
+      const fieldPolicy = protectRead(query, 'scm.warehouses', callContext, 'mms_ledger');
       const upstream = await callPostgrestWithUser(user, {
         method: 'GET',
         path: '/warehouses',
-        query,
+        query: fieldPolicy.query,
         acceptProfile: 'scm',
         traceId: callContext.traceId
       });
-      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      const items = protectResult(Array.isArray(upstream.data) ? upstream.data : [], fieldPolicy.module, callContext);
       return { message: '仓库列表查询成功', data: { items }, rowsAffected: items.length };
     }
     case 'flash.hr.archive.list': {
       const query = sanitizeQueryParams(requestArgs.query || requestArgs.filters);
       if (!query.order) query.order = 'id.desc';
       if (!query.limit) query.limit = normalizeLimit(requestArgs.limit, 80, 500);
+      const fieldPolicy = protectRead(query, 'hr.archives', callContext, 'hr_employee');
       const upstream = await callPostgrestWithUser(user, {
         method: 'GET',
         path: '/archives',
-        query,
+        query: fieldPolicy.query,
         acceptProfile: 'hr',
         traceId: callContext.traceId
       });
-      const items = Array.isArray(upstream.data) ? upstream.data : [];
+      const items = protectResult(Array.isArray(upstream.data) ? upstream.data : [], fieldPolicy.module, callContext);
       return { message: '人事档案查询成功', data: { items }, rowsAffected: items.length };
     }
     case 'flash.hr.archive.update': {
@@ -756,6 +782,7 @@ const createFlashSemanticExecutor = ({
       if (!Object.keys(payload).length) {
         throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.hr.archive.update', { httpStatus: 400 });
       }
+      const fieldModule = protectWrite(payload, 'hr.archives', callContext, 'hr_employee');
       const upstream = await callPostgrestWithUser(user, {
         method: 'PATCH',
         path: '/archives',
@@ -766,12 +793,13 @@ const createFlashSemanticExecutor = ({
         prefer: 'return=representation',
         traceId: callContext.traceId
       });
-      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      const item = protectResult(Array.isArray(upstream.data) ? (upstream.data[0] || null) : null, fieldModule, callContext);
       return { message: '人事档案更新成功', data: { item }, rowsAffected: item ? 1 : 0 };
     }
     case 'flash.hr.attendance.init': {
       const date = requireNonEmptyText(requestArgs.date || requestArgs.attDate || requestArgs.p_date, 'date');
       const dept = requestArgs.deptName ?? requestArgs.dept_name ?? requestArgs.p_dept_name ?? null;
+      protectRpcWrite({ p_date: date, p_dept_name: dept }, 'hr_attendance', callContext);
       const upstream = await callPostgrestWithUser(user, {
         method: 'POST',
         path: '/rpc/init_attendance_records',
@@ -791,6 +819,7 @@ const createFlashSemanticExecutor = ({
       if (!Object.keys(payload).length) {
         throw new FlashToolError('VALIDATION_FAILED', 'payload is required for flash.inventory.draft.create', { httpStatus: 400 });
       }
+      const fieldModule = protectWrite(payload, 'scm.inventory_drafts', callContext, 'mms_ledger');
       const upstream = await callPostgrestWithUser(user, {
         method: 'POST',
         path: '/inventory_drafts',
@@ -800,7 +829,7 @@ const createFlashSemanticExecutor = ({
         prefer: 'return=representation',
         traceId: callContext.traceId
       });
-      const item = Array.isArray(upstream.data) ? (upstream.data[0] || null) : null;
+      const item = protectResult(Array.isArray(upstream.data) ? (upstream.data[0] || null) : null, fieldModule, callContext);
       return { message: '库存草稿创建成功', data: { item }, rowsAffected: item ? 1 : 0 };
     }
     case 'flash.inventory.batchno.generate': {
@@ -810,6 +839,7 @@ const createFlashSemanticExecutor = ({
         p_manual_override: requestArgs.manualOverride ?? requestArgs.manual_override ?? requestArgs.p_manual_override ?? null
       };
       payload.p_rule_id = requireNonEmptyText(payload.p_rule_id, 'ruleId');
+      protectRpcWrite(payload, 'mms_ledger', callContext);
       const materialId = Number.parseInt(String(payload.p_material_id || ''), 10);
       if (!Number.isFinite(materialId) || materialId <= 0) {
         throw new FlashToolError('VALIDATION_FAILED', 'materialId must be a positive integer', { httpStatus: 400 });
@@ -856,6 +886,7 @@ const createFlashSemanticExecutor = ({
       if (toolId === 'flash.inventory.stock.out') {
         delete payload.p_production_date;
       }
+      protectRpcWrite(payload, 'mms_ledger', callContext);
       const rpcPath = toolId === 'flash.inventory.stock.out' ? '/rpc/stock_out' : '/rpc/stock_in';
       const upstream = await callPostgrestWithUser(user, {
         method: 'POST',
@@ -865,7 +896,7 @@ const createFlashSemanticExecutor = ({
         contentProfile: 'scm',
         traceId: callContext.traceId
       });
-      const item = toPlainObject(upstream.data);
+      const item = protectResult(toPlainObject(upstream.data), 'mms_ledger', callContext);
       return {
         message: toolId === 'flash.inventory.stock.out' ? '库存出库执行成功' : '库存入库执行成功',
         data: { item },

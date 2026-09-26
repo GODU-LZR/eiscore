@@ -92,7 +92,7 @@ const createTwinChatHttpHandler = ({
       console.warn('[twin-chat] semantic context failed:', error?.message);
     }
 
-    const tools = createTwinTools(pgQuery, user);
+    const tools = createTwinTools(pgQuery, user, semanticCtx, () => fetchSemanticContext(user));
     const systemPrompt = buildTwinSystemPrompt(user, semanticCtx);
 
     const aiCaller = async ({ model, messages }) => {

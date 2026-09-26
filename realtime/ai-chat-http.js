@@ -40,8 +40,9 @@ const createAiChatHttpHandler = ({
     const sanitizedMessages = ocrResult.messages;
     const route = resolveAgentRoute({ user, body, messages: sanitizedMessages });
 
+    let semanticCtx = null;
     try {
-      const semanticCtx = await fetchSemanticContext(user);
+      semanticCtx = await fetchSemanticContext(user);
       if (semanticCtx) {
         if (!route.context) route.context = {};
         route.context.semanticContext = semanticCtx;
@@ -51,7 +52,7 @@ const createAiChatHttpHandler = ({
     }
 
     if (route.agentId === 'enterprise_analyst') {
-      const snapshot = await safeFetchBusinessSnapshot(user, 'ai-chat');
+      const snapshot = await safeFetchBusinessSnapshot(user, 'ai-chat', semanticCtx);
       if (!route.context) route.context = {};
       route.context.businessSnapshot = snapshot;
     }

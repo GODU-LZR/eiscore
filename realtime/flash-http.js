@@ -18,7 +18,11 @@ const createFlashHttpHandlers = ({
   const handleToolsRegistryGet = async (req, res) => {
     const user = authorizeAgentHttpRequest(req, res);
     if (!user) return;
-    sendJson(res, 200, getFlashToolRegistryPayload());
+    try {
+      sendJson(res, 200, await getFlashToolRegistryPayload(user));
+    } catch {
+      sendJson(res, 200, await getFlashToolRegistryPayload(null));
+    }
   };
 
   const handleToolCall = async (req, res) => {
