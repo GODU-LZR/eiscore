@@ -62,11 +62,11 @@
         <div class="hero-shade" />
 
         <div class="hero-inner">
-          <div class="hero-copy reveal is-visible">
+          <div v-if="!activeHeroSlide?.hasEmbeddedText" class="hero-copy reveal is-visible">
             <p class="brand-kicker">{{ siteTagText }}</p>
             <h1>{{ companyName }}</h1>
-            <p class="brand-slogan">{{ branding.slogan }}</p>
-            <p class="brand-intro">{{ introLead }}</p>
+            <p class="brand-slogan">{{ publicHeroSlogan }}</p>
+            <p class="brand-intro">{{ publicHeroIntro }}</p>
             <div v-if="trustBadgeItems.length" class="trust-strip" :aria-label="portalUi.trustAriaLabel">
               <span
                 v-for="(item, index) in trustBadgeItems"
@@ -79,7 +79,7 @@
           </div>
         </div>
 
-        <div v-if="heroFacts.length" class="hero-facts" :aria-label="portalUi.highlightsAriaLabel">
+        <div v-if="heroFacts.length && !activeHeroSlide?.hasEmbeddedText" class="hero-facts" :aria-label="portalUi.highlightsAriaLabel">
           <span v-for="item in heroFacts" :key="`${item.value}-${item.label}`">
             <strong>{{ item.value }}</strong>
             {{ item.label }}
@@ -94,7 +94,7 @@
           @focusin="stopHeroAutoplay"
           @focusout="startHeroAutoplay"
         >
-          <div class="hero-carousel-caption" aria-live="polite">
+          <div v-if="!activeHeroSlide?.hasEmbeddedText" class="hero-carousel-caption" aria-live="polite">
             <span>{{ activeHeroSlide?.subtitle }}</span>
             <strong>{{ activeHeroSlide?.title }}</strong>
           </div>
@@ -183,22 +183,25 @@
       </section>
 
       <section class="metrics-band reveal" id="metrics">
-        <div class="section-heading narrow">
-          <span>{{ branding.metricsSectionKicker }}</span>
-          <h2>{{ branding.metricsSectionTitle }}</h2>
-        </div>
-        <div v-if="metricItems.length" class="metrics-section">
-          <article v-for="item in metricItems" :key="`${item.label}-${item.value}`" class="metric-card">
-            <strong>{{ item.value }}</strong>
-            <span>{{ item.label }}</span>
-          </article>
+        <div class="company-profile">
+          <div class="company-profile-intro">
+            <span>{{ branding.metricsSectionKicker }}</span>
+            <h2>{{ publicMetricsTitle }}</h2>
+            <p>{{ branding.description }}</p>
+          </div>
+          <dl v-if="metricItems.length" class="company-facts">
+            <div v-for="item in metricItems" :key="`${item.label}-${item.value}`" class="company-fact">
+              <dt>{{ item.label }}</dt>
+              <dd>{{ item.value }}</dd>
+            </div>
+          </dl>
         </div>
       </section>
 
       <section class="story-section reveal" id="about">
         <div class="story-copy">
           <span>{{ branding.aboutSectionKicker }}</span>
-          <h2>{{ branding.slogan }}</h2>
+          <h2>{{ publicHeroSlogan }}</h2>
           <p>{{ branding.description }}</p>
           <button v-if="branding.showSecondaryAction" type="button" class="text-link" @click="openSecondaryAction">
             {{ branding.secondaryActionText }}
@@ -215,8 +218,8 @@
         id="capabilities"
       >
         <div class="section-heading narrow">
-          <span>{{ branding.capabilitiesSectionKicker }}</span>
-          <h2>{{ branding.capabilitiesSectionTitle }}</h2>
+          <span>{{ publicCapabilitiesKicker }}</span>
+          <h2>{{ publicCapabilitiesTitle }}</h2>
         </div>
 
         <div v-if="businessChainItems.length" class="chain-list">
@@ -259,6 +262,7 @@
               <span class="product-category">{{ product.category }}</span>
               <h3>{{ product.name }}</h3>
               <p>{{ product.summary }}</p>
+              <small v-if="product.code" class="product-card-code">{{ product.code }}</small>
               <div v-if="product.applications.length" class="product-tags">
                 <span v-for="application in product.applications.slice(0, 4)" :key="application">{{ application }}</span>
               </div>
@@ -273,8 +277,8 @@
       <section v-if="publicSolutions.length" class="public-solutions-section reveal" id="solutions">
         <div class="solution-intro">
           <div class="solution-heading">
-            <span>{{ portal.solutionSectionKicker }}</span>
-            <h2>{{ portal.solutionSectionTitle }}</h2>
+            <span>{{ publicSolutionsKicker }}</span>
+            <h2>{{ publicSolutionsTitle }}</h2>
           </div>
           <figure v-if="activeSolutionMedia?.imageUrl" class="solution-feature-media">
             <Transition name="solution-image" mode="out-in">
@@ -425,6 +429,7 @@ import { mix } from '@/utils/theme'
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 import { applyEnterpriseSeoHead, buildEnterpriseSeoHead } from '@eiscore/platform/enterprise-seo'
+import { completeHarnessAuth } from '@/services/harness-auth-client'
 
 const Product3DViewer = defineAsyncComponent(() => import('@/components/Product3DViewer.vue'))
 const PineappleProcessViewer = defineAsyncComponent(() => import('@/components/PineappleProcessViewer.vue'))
@@ -469,6 +474,31 @@ const activeLocale = computed(() => systemStore.enterpriseLocale || systemStore.
 const productActionText = computed(() => (
   activeLocale.value.toLowerCase().startsWith('en') ? 'View applications' : '查看应用方向'
 ))
+const publicMetricsTitle = computed(() => branding.value.metricsSectionTitle || (
+  activeLocale.value.toLowerCase().startsWith('en') ? 'Focused motor and pump manufacturing' : '专注电机与水泵制造'
+))
+const publicHeroSlogan = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en')
+    ? 'Motors and pumps for equipment, water supply and project service.'
+    : '电机与水泵系列，面向设备配套与供水工程。'
+))
+const publicHeroIntro = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en')
+    ? 'Series selection, coordinated delivery and service parts for equipment and water systems.'
+    : '覆盖系列选型、配套交付与服务备件，面向设备和供水系统。'
+))
+const publicCapabilitiesKicker = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en') ? 'Manufacturing service' : '制造服务'
+))
+const publicCapabilitiesTitle = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en') ? 'Development, manufacturing and service' : '产品开发、制造与服务'
+))
+const publicSolutionsKicker = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en') ? 'Application service' : '应用服务'
+))
+const publicSolutionsTitle = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en') ? 'Selection and production support' : '选型与生产协同'
+))
 const loginCloseLabel = computed(() => (
   activeLocale.value.toLowerCase().startsWith('en') ? 'Close sign in' : '关闭登录'
 ))
@@ -485,7 +515,43 @@ const loginRules = computed(() => ({
   username: [{ required: true, message: portalUi.value.usernameRequired, trigger: 'blur' }],
   password: [{ required: true, message: portalUi.value.passwordRequired, trigger: 'blur' }]
 }))
-const publicProducts = computed(() => Array.isArray(portal.value.products) ? portal.value.products : [])
+const PRODUCT_DETAILS = Object.freeze({
+  'LUNDU-MOTOR-YC': {
+    category: '单相异步电动机',
+    summary: 'YC、YL、YY 系列单相异步电动机，面向小型设备、通风、供水及通用动力配套。',
+    applications: ['单相动力', '通用设备', '配套采购']
+  },
+  'LUNDU-MOTOR-YE3': {
+    category: '三相异步电动机',
+    summary: 'YE3 系列三相异步电动机，面向泵组、风机、传动设备及工业动力配套。',
+    applications: ['三相动力', '泵组配套', '工业设备']
+  },
+  'LUNDU-PUMP-PST': {
+    category: '标准管道离心泵',
+    summary: 'PST 标准管道离心泵，适用于建筑给排水、循环输送与一般工业管路配套。',
+    applications: ['管路输送', '循环供水', '工程配套']
+  },
+  'LUNDU-PUMP-WQ': {
+    category: '潜水排污泵',
+    summary: '潜水排污泵系列，面向排水、排污及工程现场的潜水输送工况。',
+    applications: ['排水', '排污', '工程现场']
+  },
+  'LUNDU-PUMP-JET': {
+    category: 'JET 自吸喷射泵',
+    summary: 'JET 自吸喷射泵，面向小型供水、增压及需要自吸能力的配套场景。',
+    applications: ['自吸供水', '增压', '小型系统']
+  }
+})
+const publicProducts = computed(() => (Array.isArray(portal.value.products) ? portal.value.products : []).map((product) => {
+  const detail = PRODUCT_DETAILS[product.code]
+  if (!detail || activeLocale.value.toLowerCase().startsWith('en')) return product
+  return {
+    ...product,
+    category: detail.category,
+    summary: detail.summary,
+    applications: detail.applications
+  }
+}))
 const viewerProduct = computed(() => {
   const product = publicProducts.value[0] || {}
   return {
@@ -578,7 +644,8 @@ const carouselItems = computed(() => branding.value.carouselImages
   .map((item) => ({
     url: String(item?.url || '').trim(),
     title: String(item?.title || '').trim(),
-    subtitle: String(item?.subtitle || '').trim()
+    subtitle: String(item?.subtitle || '').trim(),
+    hasEmbeddedText: item?.hasEmbeddedText === true
   }))
   .filter((item) => item.url))
 
@@ -901,15 +968,19 @@ const handleLogin = async () => {
       const dshReturn = typeof route.query.dsh_return === 'string' ? route.query.dsh_return : ''
       if (dshReturn) {
         const returnUrl = new URL(dshReturn, window.location.origin)
-        if (returnUrl.origin !== window.location.origin) throw new Error('无效的 Harness 回调地址')
+        if (returnUrl.origin !== window.location.origin || returnUrl.pathname !== '/harness-embed-api/eiscore/auth/handoff') {
+          throw new Error('无效的 Harness 回调地址')
+        }
         const handoffResponse = await fetch('/agent/company-site/auth/handoff', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${realToken}` }
+          headers: { Authorization: `Bearer ${realToken}`, Accept: 'application/json' }
         })
         const handoff = await handoffResponse.json().catch(() => ({}))
         if (!handoffResponse.ok || !handoff.code) throw new Error('Harness 登录交接失败，请重试')
-        returnUrl.searchParams.set('code', handoff.code)
-        window.location.assign(returnUrl.href)
+        if (!await completeHarnessAuth({ code: handoff.code, callbackPath: returnUrl.pathname })) {
+          throw new Error('Harness 登录交接失败，请重试')
+        }
+        window.location.assign('/harness')
         return
       }
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''

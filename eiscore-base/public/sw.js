@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-const RELEASE_VERSION = '20260612224947'
+const RELEASE_VERSION = '20260929140000'
 const CACHE_PREFIX = `eiscore-client-assets-v${RELEASE_VERSION}-`
 const MANIFEST_URL = '/asset-manifest.json'
 const STATIC_EXT_RE = /\.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|avif|woff2?|ttf|eot)$/i

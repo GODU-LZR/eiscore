@@ -40,7 +40,7 @@
     },
     "seo": {
       "title": "伦度机电｜电机与水泵制造",
-      "description": "伦度机电有限公司专注电机与水泵产品的研发、制造、销售及服务。"
+      "description": "伦度机电有限公司位于浙江省台州市温岭市沈岙工业园区，是集设计、开发、制造、销售与服务为一体的现代化企业，专业生产三相与单相异步电动机，以及管道泵、陆上泵、潜水泵和污水泵等产品。公司以技术力量、生产经验和检测设备为基础，组织受控的生产流程，持续提供稳定质量、完善售后与面向项目的定制配套服务。"
     }
   },
   "content": {
@@ -60,7 +60,7 @@
                 "专注电机与水泵产品，",
                 "服务稳定运行。"
               ],
-              "summary": "从产品开发、生产制造到交付服务，形成完整业务体系。",
+            "summary": "伦度机电有限公司位于浙江省台州市温岭市沈岙工业园区，是集设计、开发、制造、销售与服务为一体的现代化企业，专业生产三相与单相异步电动机，以及管道泵、陆上泵、潜水泵和污水泵等产品。公司以技术力量、生产经验和检测设备为基础，组织受控的生产流程，持续提供稳定质量、完善售后与面向项目的定制配套服务。",
               "signals": [
                 "浙江温岭",
                 "电机制造",
@@ -90,7 +90,7 @@
             "primaryActionText": "登录",
             "scrollCueText": "查看企业信息",
             "metricsSectionKicker": "企业概况",
-            "metricsSectionTitle": "专注产品与稳定交付",
+        "metricsSectionTitle": "企业规模与产品范围",
             "aboutSectionKicker": "公司简介",
             "capabilitiesSectionKicker": "业务体系",
             "capabilitiesSectionTitle": "从产品开发到交付服务",
@@ -100,20 +100,20 @@
             "solutionSectionTitle": "让生产数据连接经营决策",
             "metrics": [
               {
+                "label": "项目",
+                "value": "6000 个项目"
+              },
+              {
+                "label": "装车量",
+                "value": "4500 吨装车量"
+              },
+              {
+                "label": "合同额",
+                "value": "35 亿合同额"
+              },
+              {
                 "label": "企业所在地",
-                "value": "温岭沈岙"
-              },
-              {
-                "label": "主营产品",
-                "value": "电机与水泵"
-              },
-              {
-                "label": "业务体系",
-                "value": "研发·制造·销售·服务"
-              },
-              {
-                "label": "官网邮箱",
-                "value": "info@lundujd.com"
+                "value": "浙江省台州市温岭市沈岙工业园区"
               }
             ],
             "businessChain": [
@@ -135,30 +135,30 @@
               {
                 "number": "04",
                 "title": "品质与交付",
-                "description": "建立覆盖生产、装配与检测的制造流程，围绕产品规格与交付计划组织生产。"
+                "description": "官网公开信息显示，生产流程处于受控状态，配备检测设备，围绕产品质量与交付计划组织制造。"
               },
               {
                 "number": "05",
                 "title": "技术与服务",
-                "description": "面向采购、工程配套与维修备件场景，提供产品选型、配套交付与售后服务。"
+                "description": "面向采购、工程配套与维修备件场景，提供产品选型、定制配套、交付协同与售后服务。"
               }
             ],
             "capabilities": [
               {
-                "title": "研发与产品开发",
-                "description": "围绕电机与水泵产品持续开展设计开发，完善产品系列与应用适配。"
+                "title": "设计开发与技术力量",
+                "description": "以电机与水泵产品为核心开展设计开发，依托技术力量与生产经验完善产品系列。"
               },
               {
-                "title": "生产制造",
-                "description": "以规范工艺组织生产、装配与过程管理，保障产品稳定交付。"
+                "title": "生产制造与过程控制",
+                "description": "生产流程处于受控状态，围绕产品规格组织制造、装配和过程管理。"
               },
               {
-                "title": "质量管理",
-                "description": "配备产品检测与质量控制环节，对关键工序和出厂产品进行检验。"
+                "title": "检测与质量管理",
+                "description": "配备完善的检测设备，对关键工序和产品质量进行检验，保持产品质量稳定。"
               },
               {
-                "title": "交付与售后",
-                "description": "面向工程项目、配套采购与维修备件提供交付协同和售后支持。"
+                "title": "定制配套与售后服务",
+                "description": "面向工程项目、配套采购与维修备件提供定制配套、交付协同和售后支持。"
               }
             ],
             "carouselImages": [
@@ -166,7 +166,8 @@
                 "url": "/enterprise-assets/site/crops/hero-wide.jpg",
                 "assetPath": "assets/site/crops/hero-wide.jpg",
                 "title": "设备与产品",
-                "subtitle": "稳定可靠的产品呈现"
+                "subtitle": "稳定可靠的产品呈现",
+                "hasEmbeddedText": true
               },
               {
                 "url": "/enterprise-assets/site/crops/generated-pump-product-wide.jpg",
@@ -181,14 +182,14 @@
                 "subtitle": "高效稳定的动力单元"
               },
               {
-                "url": "/enterprise-assets/site/crops/application-wide.jpg",
-                "assetPath": "assets/site/crops/application-wide.jpg",
+                "url": "/enterprise-assets/site/crops/generated-application-flow-wide.jpg",
+                "assetPath": "assets/site/crops/generated-application-flow-wide.jpg",
                 "title": "应用场景",
                 "subtitle": "适配真实工况需求"
               },
               {
-                "url": "/enterprise-assets/site/crops/factory-wide.jpg",
-                "assetPath": "assets/site/crops/factory-wide.jpg",
+                "url": "/enterprise-assets/site/crops/generated-factory-floor-wide.jpg",
+                "assetPath": "assets/site/crops/generated-factory-floor-wide.jpg",
                 "title": "制造现场",
                 "subtitle": "整洁有序的制造流程"
               },
@@ -223,7 +224,7 @@
                 "Motors and pumps,",
                 "dependable operation."
               ],
-              "summary": "A complete path from product development and manufacturing to delivery service.",
+            "summary": "Lundu Electromechanical is a Zhejiang manufacturer providing motor and pump design, development, manufacturing, sales and service.",
               "signals": [
                 "Wenling, Zhejiang",
                 "Motors",
@@ -253,7 +254,7 @@
             "primaryActionText": "Sign in",
             "scrollCueText": "Explore products",
             "metricsSectionKicker": "Company profile",
-            "metricsSectionTitle": "Product focus and dependable delivery",
+            "metricsSectionTitle": "Company scale and product scope",
             "aboutSectionKicker": "Company profile",
             "capabilitiesSectionKicker": "Business system",
             "capabilitiesSectionTitle": "From product development to delivery service",
@@ -263,20 +264,20 @@
             "solutionSectionTitle": "Connect production data with decisions",
             "metrics": [
               {
+                "label": "Projects",
+                "value": "6,000 projects"
+              },
+              {
+                "label": "Loading volume",
+                "value": "4,500 tonnes"
+              },
+              {
+                "label": "Contract value",
+                "value": "3.5 billion"
+              },
+              {
                 "label": "Location",
-                "value": "Wenling"
-              },
-              {
-                "label": "Main products",
-                "value": "Motors and pumps"
-              },
-              {
-                "label": "Business system",
-                "value": "Develop · make · sell · serve"
-              },
-              {
-                "label": "Contact email",
-                "value": "info@lundujd.com"
+                "value": "Wenling, Taizhou, Zhejiang"
               }
             ],
             "businessChain": [
@@ -329,7 +330,8 @@
                 "url": "/enterprise-assets/site/crops/hero-wide.jpg",
                 "assetPath": "assets/site/crops/hero-wide.jpg",
                 "title": "Equipment and products",
-                "subtitle": "Dependable product presentation"
+                "subtitle": "Dependable product presentation",
+                "hasEmbeddedText": true
               },
               {
                 "url": "/enterprise-assets/site/crops/generated-pump-product-wide.jpg",
@@ -344,14 +346,14 @@
                 "subtitle": "Efficient and stable power units"
               },
               {
-                "url": "/enterprise-assets/site/crops/application-wide.jpg",
-                "assetPath": "assets/site/crops/application-wide.jpg",
+                "url": "/enterprise-assets/site/crops/generated-application-flow-wide.jpg",
+                "assetPath": "assets/site/crops/generated-application-flow-wide.jpg",
                 "title": "Applications",
                 "subtitle": "Built around real operating needs"
               },
               {
-                "url": "/enterprise-assets/site/crops/factory-wide.jpg",
-                "assetPath": "assets/site/crops/factory-wide.jpg",
+                "url": "/enterprise-assets/site/crops/generated-factory-floor-wide.jpg",
+                "assetPath": "assets/site/crops/generated-factory-floor-wide.jpg",
                 "title": "Manufacturing",
                 "subtitle": "An orderly manufacturing flow"
               },
@@ -675,16 +677,22 @@
       {
         "status": "draft",
         "sourceKey": "lundu-official-website",
-        "claim": "官网公开企业介绍、产品中心、联系方式和备案信息。",
+        "claim": "官网公开公司定位、产品分类、技术与制造描述、定制服务、联系方式和备案信息；公司简介页说明其集设计、开发、制造、销售与服务于一体，官网产品中心列出电机、管道泵、陆上泵、潜水泵和污水泵分类。",
         "sourceType": "company_website",
         "sourceRef": "http://www.lundujd.com/",
         "evidence": {
           "publisher": "伦度机电有限公司官网",
-          "retrievedAt": "2026-09-15",
+          "retrievedAt": "2026-09-29",
           "confidence": "medium",
           "publicUse": "attributed-summary-only",
+          "pages": [
+            "http://www.lundujd.com/",
+            "http://www.lundujd.com/About.aspx?ClassID=11",
+            "http://www.lundujd.com/Product.aspx",
+            "http://www.lundujd.com/Contact.aspx?ClassID=50"
+          ],
           "restrictions": [
-            "规格、价格、产能、认证和交期需企业确认"
+            "官网首页中的项目数、装车量和合同额按用户要求作为来源标注的公开宣传口径展示；仍不作为审计或经营核验指标，国家数量、规格、价格、产能、客户、认证和交期需企业确认"
           ]
         }
       },
@@ -753,7 +761,7 @@
         "locale": "zh-CN",
         "path": "/login",
         "title": "伦度机电｜电机与水泵制造",
-        "description": "伦度机电有限公司电机、水泵与数字化工厂公开资料门户。",
+    "description": "伦度机电有限公司位于浙江省台州市温岭市沈岙工业园区，是集设计、开发、制造、销售与服务为一体的现代化企业，专业生产三相与单相异步电动机，以及管道泵、陆上泵、潜水泵和污水泵等产品。",
         "canonical": "",
         "robots": "index,follow",
         "keywords": [],
@@ -764,7 +772,7 @@
         "locale": "en-US",
         "path": "/login",
         "title": "Lundu Electromechanical | Motors and Pumps",
-        "description": "Lundu Electromechanical motors, pumps and digital factory portal.",
+    "description": "Lundu Electromechanical is a Zhejiang manufacturer providing motor and pump design, development, manufacturing, sales and service.",
         "canonical": "",
         "robots": "index,follow",
         "keywords": [],

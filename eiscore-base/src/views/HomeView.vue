@@ -430,7 +430,7 @@ const DEFAULT_WORKBENCH_MODE = 'flow'
 const activeMode = ref(DEFAULT_WORKBENCH_MODE)
 const harnessFrameFailed = ref(false)
 const harnessWebEnabled = Boolean(import.meta.env.VITE_HARNESS_WEB_URL || import.meta.env.PROD)
-const harnessWebUrl = import.meta.env.VITE_HARNESS_WEB_URL || '/harness/'
+const harnessWebUrl = import.meta.env.VITE_HARNESS_WEB_URL || '/harness-embed/'
 const harnessAuthReady = ref(false)
 let harnessAuthRequestId = 0
 const harnessFrameUrl = (surface) => {

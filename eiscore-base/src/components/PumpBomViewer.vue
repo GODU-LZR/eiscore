@@ -74,7 +74,9 @@ const isEnglish = computed(() => props.locale.toLowerCase().startsWith('en'))
 const accent = computed(() => /^#[0-9a-f]{6}$/i.test(props.accentColor) ? props.accentColor : '#1d6fae')
 const displayName = computed(() => String(props.productName || '').trim() || (isEnglish.value ? 'Centrifugal pump' : '管道离心泵'))
 const viewerLabel = computed(() => isEnglish.value ? `${displayName.value} BOM animation` : `${displayName.value} BOM 三维动画`)
-const canvasLabel = computed(() => isEnglish.value ? 'Interactive pump assembly. Drag to rotate and scroll to zoom.' : '交互式水泵装配动画，可拖动旋转并滚动缩放。')
+const canvasLabel = computed(() => isEnglish.value
+  ? 'Fixed-view pump assembly animation. Use the controls to play, explode, or assemble the BOM.'
+  : '固定视角水泵装配动画。请使用下方按钮播放、拆解或组装 BOM。')
 const playLabel = computed(() => playing.value ? (isEnglish.value ? 'Pause animation' : '暂停动画') : (isEnglish.value ? 'Play animation' : '播放动画'))
 const explodeLabel = computed(() => isEnglish.value ? 'Explode BOM' : '拆分 BOM')
 const assembleLabel = computed(() => isEnglish.value ? 'Assemble BOM' : '组装 BOM')
@@ -390,6 +392,12 @@ const resize = () => {
   const availableWidth = Math.max(1, width - panelReserve)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
   renderer.setSize(width, height, false)
+  if (controls) {
+    controls.enableRotate = false
+    controls.enableZoom = false
+    controls.enablePan = false
+    if (canvas.value) canvas.value.style.touchAction = 'pan-y'
+  }
   camera.aspect = width / height
   camera.setViewOffset(width, height, 0, 0, availableWidth, height)
   camera.updateProjectionMatrix()
@@ -571,8 +579,10 @@ onMounted(() => {
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     controls = new OrbitControls(camera, canvas.value)
-    controls.enableDamping = true
+    controls.enableDamping = false
     controls.enablePan = false
+    controls.enableRotate = false
+    controls.enableZoom = false
     controls.minDistance = 5.4
     controls.maxDistance = 120
     controls.target.set(defaultTargetX(), 0.05, 0)
@@ -652,6 +662,7 @@ onBeforeUnmount(disposeResources)
   .pump-bom-footer { padding: 54px 12px max(18px, calc(env(safe-area-inset-bottom) + 8px)); }
   .pump-bom-progress { right: 12px; bottom: 72px; left: 12px; }
   .pump-bom-controls button { width: 42px; height: 42px; }
+  .pump-bom-stage canvas { cursor: default; touch-action: pan-y; }
 }
 @media (prefers-reduced-motion: reduce) { .pump-bom-stage canvas { cursor: default; } }
 </style>

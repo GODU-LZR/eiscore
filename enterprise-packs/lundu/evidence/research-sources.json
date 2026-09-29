@@ -9,7 +9,7 @@
     "productionApproved": false,
     "contactDetails": "The official contact page lists an address, email and mobile number; the draft keeps only the address and email already selected in the seed and requires company confirmation before publication.",
     "externalImagesAndLogos": "Seven official-site image candidates and local crop derivatives are registered with pending authorization; official logo, video and third-party marks are excluded.",
-    "commercialMetrics": "Homepage marketing figures are retained only as review leads and are not treated as verified metrics."
+    "commercialMetrics": "Homepage figures are displayed only as source-attributed public-site figures at the user's request; they remain unverified commercial claims and are not presented as audited metrics."
   },
   "sources": [
     {
@@ -26,7 +26,7 @@
       ],
       "restrictions": [
         "首页出现“默认站”、外部技术支持和模板化导航痕迹",
-        "6000个项目、4500吨装车量、35亿合同额和13+国家等数字仅作营销线索，不作为已核验经营指标",
+        "6000个项目、4500吨装车量和35亿合同额按用户要求作为官网公开口径展示；这些数字仍是未核验的宣传信息，不作为审计或经营核验指标",
         "官网图片只作为本地草稿候选素材，生产使用须取得权利方授权"
       ]
     },
@@ -135,7 +135,7 @@
     {
       "field": "homepageMetrics",
       "issue": "首页展示6000个项目、4500吨装车量、35亿合同额和13+国家等宣传数字",
-      "decision": "不写入硬指标或结构化事实，保留为内部核验线索"
+      "decision": "按用户要求写入企业概况展示，并在来源登记中明确其为官网公开宣传口径；不扩展为审计、产能或客户经营承诺"
     },
     {
       "field": "contact",
@@ -150,7 +150,7 @@
   ],
   "rejectedForPublicUse": [
     "模板残留的其他公司名称和外部技术支持信息",
-    "未确认的项目、装车量、合同额、国家数、产能、认证、客户和交期数字",
+    "未确认的国家数、产能、认证、客户和交期数字；项目、装车量和合同额仅可按来源标注的官网宣传口径展示",
     "未授权的官方图片、Logo、视频和第三方商标",
     "采集表和PPT中的空白字段或无法独立核验的参数"
   ]
