@@ -78,3 +78,19 @@
 - Playwright 390x844 实测标题为“伦度机电｜电机与水泵制造”，Logo 可见，无横向溢出、无“君乐缘”、无控制台错误。
 
 本次没有重新构建或重启任何服务。后续 Agent 发布前仍须声明目标服务、分支/提交和完整制品路径；涉及 `web` 时只允许使用当前 `github-eiscore-refactor` 的完整 dist，并在发布后再次报告入口主包、manifest 数量和验收结果。
+
+## 2026-09-30 制造服务页面发布
+
+本次发布目标为远端伦度开发/验收 Compose 环境的 `web` 服务。使用分支 `codex/systematic-refactor`、提交 `f5ce958` 生成的完整 12 个前端入口制品 `output/lundu-manufacturing-release-20260930051151.tar.gz`，没有使用备份目录或旧的单入口 dist。发布前制品校验通过：根入口 6258 字节，manifest version `7073b8d28f023d37`、568 项、备份 URL 为 0，入口配置为 `enterprise.id=lundu` 并引用伦度 Logo。
+
+远端旧 release 已备份至 `/opt/lundu-eiscore/backups/release-pre-manufacturing-20260930051151`。解压校验通过后切换 `/opt/lundu-eiscore/release`，仅执行以下 web-only 重建：
+
+```sh
+docker compose --env-file /opt/lundu-eiscore/.env \
+  -f /opt/lundu-eiscore/compose.yml \
+  up -d --no-deps --force-recreate web
+```
+
+没有重建或重启 DB、API、Agent、DeepSeek Web 或 Harness。线上入口引用 `/assets/index-B__AF6n9.js`，入口 SHA-256 为 `9b7ca2c569a7cc274753609735b657e19cb3f2ef0ac017aa56f77b89787ba0f7`，主包 SHA-256 为 `a4ef7c025218857e591dcea974daa64043b8c66fb50277c8e0cfe75eafa61195`。`/login`、`/asset-manifest.json`、公开企业配置和 Logo 均返回 200；manifest 返回 568 项 JSON，配置返回 `enterprise.id=lundu`。
+
+Playwright 线上验收通过：390×844 和 1440×900 均无横向溢出，页面标题为“伦度机电｜电机与水泵制造”，伦度 Logo、制造服务产品卡片和产品图片正常加载，按钮保持单行，DOM 不含“君乐缘”。控制台仅有既有 Three.js `PCFSoftShadowMap` 弃用警告，没有页面错误。Nginx 配置检查成功；发布期间通过 `/opt/lundu-eiscore/.lundu-web-publish.lock` 避免与其他 web 发布并发切换。
