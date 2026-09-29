@@ -217,30 +217,41 @@
         class="operation-section reveal"
         id="capabilities"
       >
-        <div class="section-heading narrow">
+        <div class="operation-heading">
           <span>{{ publicCapabilitiesKicker }}</span>
           <h2>{{ publicCapabilitiesTitle }}</h2>
+          <p>{{ publicCapabilitiesIntro }}</p>
         </div>
 
-        <div v-if="businessChainItems.length" class="chain-list">
-          <article v-for="(item, index) in businessChainItems" :key="item.title || item.description" class="chain-item">
-            <strong>{{ String(index + 1).padStart(2, '0') }}</strong>
-            <div>
-              <span v-if="item.status">{{ item.status }}</span>
+        <div v-if="manufacturingSeries.length" class="manufacturing-series-grid">
+          <article v-for="item in manufacturingSeries" :key="item.title || item.description" class="manufacturing-series-card">
+            <figure class="manufacturing-series-media">
+              <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.imageAlt" loading="lazy" />
+              <span v-else aria-hidden="true">{{ item.title.slice(0, 1) }}</span>
+              <figcaption>{{ item.number }}</figcaption>
+            </figure>
+            <div class="manufacturing-series-body">
+              <span class="manufacturing-series-label">{{ item.status || item.label }}</span>
               <h3>{{ item.title }}</h3>
               <p>{{ item.description }}</p>
+              <button type="button" class="manufacturing-link" @click="scrollToSection('products')">
+                {{ manufacturingProductAction }}<span aria-hidden="true">→</span>
+              </button>
             </div>
           </article>
         </div>
 
-        <div v-if="capabilityItems.length" class="capability-list">
-          <article v-for="(item, index) in capabilityItems" :key="item.title || item.description" class="capability-card">
-            <img v-if="galleryImages[index]" :src="galleryImages[index].url" :alt="galleryImages[index].title || item.title" />
+        <div v-if="manufacturingServiceItems.length" class="manufacturing-service-list">
+          <article v-for="item in manufacturingServiceItems" :key="item.title || item.description" class="manufacturing-service-item">
+            <span class="manufacturing-service-number">{{ item.number }}</span>
             <div>
-              <span>{{ String(index + 1).padStart(2, '0') }}</span>
+              <span class="manufacturing-series-label">{{ item.status || item.label }}</span>
               <h3>{{ item.title }}</h3>
               <p>{{ item.description }}</p>
             </div>
+            <button type="button" class="manufacturing-link" @click="scrollToSection('solutions')">
+              {{ manufacturingServiceAction }}<span aria-hidden="true">→</span>
+            </button>
           </article>
         </div>
       </section>
@@ -493,6 +504,17 @@ const publicCapabilitiesKicker = computed(() => (
 const publicCapabilitiesTitle = computed(() => (
   activeLocale.value.toLowerCase().startsWith('en') ? 'Development, manufacturing and service' : '产品开发、制造与服务'
 ))
+const publicCapabilitiesIntro = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en')
+    ? 'Motor and pump series supported by controlled production, inspection and delivery coordination.'
+    : '围绕电机与水泵系列，提供产品开发、受控制造、检测与交付协同。'
+))
+const manufacturingProductAction = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en') ? 'View products' : '查看产品'
+))
+const manufacturingServiceAction = computed(() => (
+  activeLocale.value.toLowerCase().startsWith('en') ? 'View service' : '了解服务'
+))
 const publicSolutionsKicker = computed(() => (
   activeLocale.value.toLowerCase().startsWith('en') ? 'Application service' : '应用服务'
 ))
@@ -542,16 +564,41 @@ const PRODUCT_DETAILS = Object.freeze({
     applications: ['自吸供水', '增压', '小型系统']
   }
 })
+const PRODUCT_IMAGE_BY_CODE = Object.freeze({
+  'LUNDU-MOTOR-YE3': '/enterprise-assets/site/framed/product-ye3-card.jpg',
+  'LUNDU-MOTOR-YC': '/enterprise-assets/site/framed/product-yc-card.jpg',
+  'LUNDU-PUMP-PST': '/enterprise-assets/site/framed/product-pst-card.jpg',
+  'LUNDU-PUMP-WQ': '/enterprise-assets/site/framed/product-wq-card.jpg',
+  'LUNDU-PUMP-JET': '/enterprise-assets/site/framed/product-jet-card.jpg'
+})
 const publicProducts = computed(() => (Array.isArray(portal.value.products) ? portal.value.products : []).map((product) => {
   const detail = PRODUCT_DETAILS[product.code]
-  if (!detail || activeLocale.value.toLowerCase().startsWith('en')) return product
+  const imageUrl = product.imageUrl || PRODUCT_IMAGE_BY_CODE[product.code] || ''
+  if (!detail || activeLocale.value.toLowerCase().startsWith('en')) return { ...product, imageUrl }
   return {
     ...product,
+    imageUrl,
     category: detail.category,
     summary: detail.summary,
     applications: detail.applications
   }
 }))
+const manufacturingSeriesCodes = ['LUNDU-MOTOR-YE3', 'LUNDU-PUMP-WQ', 'LUNDU-PUMP-PST']
+const manufacturingSeries = computed(() => businessChainItems.value.slice(0, 3).map((item, index) => {
+  const product = publicProducts.value.find((entry) => entry.code === manufacturingSeriesCodes[index])
+  return {
+    ...item,
+    number: String(index + 1).padStart(2, '0'),
+    label: activeLocale.value.toLowerCase().startsWith('en') ? 'Product series' : '产品系列',
+    imageUrl: product?.imageUrl || PRODUCT_IMAGE_BY_CODE[manufacturingSeriesCodes[index]] || galleryImages.value[index]?.url || '',
+    imageAlt: product?.imageAlt || item.title
+  }
+}))
+const manufacturingServiceItems = computed(() => businessChainItems.value.slice(3).map((item, index) => ({
+  ...item,
+  number: String(index + 4).padStart(2, '0'),
+  label: activeLocale.value.toLowerCase().startsWith('en') ? 'Manufacturing service' : '制造服务'
+})))
 const viewerProduct = computed(() => {
   const product = publicProducts.value[0] || {}
   return {
