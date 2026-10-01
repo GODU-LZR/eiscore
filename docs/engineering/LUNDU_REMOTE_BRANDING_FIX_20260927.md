@@ -120,3 +120,20 @@ docker compose --env-file /opt/lundu-eiscore/.env \
 没有重建 DB、API、Agent、DeepSeek Web 或 Harness。发布后的入口为 6258 字节，主包 `/assets/index-CVLDTJOW.js`；manifest 版本 `b4066abdde0ebe27`、564 项、备份 URL 为 0。远端 `/opt/lundu-eiscore/release/enterprise-assets/site/crops/hero-wide.jpg` 为 `2048×1024` JPEG，SHA-256 为 `377821b9f3eab6f2ff30754830606f72d2fd27d8a3eb23697aca8a38b16b3da7`。
 
 HTTP 验收通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json`、`/enterprise-assets/site/lundu-logo.png` 和 `/enterprise-assets/site/crops/hero-wide.jpg` 均返回 200；配置为 `enterprise.id=lundu`，页面标题为“伦度机电｜电机与水泵制造”，线上页面和入口资源不含“君乐缘/junleyuan”。远端 web 容器为 `lundu-eiscore-web-1`，状态为 Up。
+
+## 2026-10-02 全部图片插槽比例修复与发布
+
+用户要求将首屏扩图和容器铺满方法应用到独立站其他含图片的 div。审计 `LoginView.vue` 和 `login-view.scss` 后按素材性质分开处理：
+
+- 企业介绍 `.story-media` 使用现有宽幅场景素材，容器统一为 `16:7`，图片使用 `object-fit: cover`，不再在容器上下留下空带。
+- 底部画廊 `.gallery-track figure` 与宽幅素材统一为 `16:7`，图片使用 `cover`；移动端保持单列并隐藏后续重复画面。
+- 制造服务 `.manufacturing-series-media` 使用产品卡素材的 `16:9` 比例，图片继续 `contain`，保留产品四周留白和完整主体。
+- 产品卡 `.product-card-media` 保持 `contain`，补充 `min/max-width` 与 `min/max-height` 约束，避免固有比例图片撑破 div。
+- 解决方案主图和移动端行图使用产品素材的 `16:9` 容器，图片继续 `contain` 并保留内边距，避免泵体被 `cover` 裁掉。
+- Logo 继续使用 `contain`，不修改伦度官方 Logo。
+
+源码提交为 `dd0e72d fix(lundu): align image containers with asset ratios` 和 `db22e70 fix(lundu): constrain product card images`。本次未重新生成图片；现有 GPT Image 2 宽幅/卡片素材的比例已经覆盖各插槽，重新生成会造成不必要的视觉漂移。构建 `eiscore-base` 的 `npm run build` 通过，仅有既有 Sass `@import` 弃用、circular chunk 和大 chunk 警告。
+
+发布前声明：目标服务为 `web`；分支 `codex/systematic-refactor`；完整制品为 `output/lundu-image-slots-final-20261002053327.tar.gz`，由 12 入口基底叠加当前 `eiscore-base/dist` 生成；影响范围仅为独立站图片容器 CSS 和静态 web 制品。发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，旧 release 备份至 `/opt/lundu-eiscore/backups/release-pre-image-slots-final-20261001215010`，仅执行 web-only Compose 重建，没有重建 DB、API、Agent、DeepSeek Web 或 Harness。
+
+发布后根入口为 6258 字节，主包 `/assets/index-BUN5FU0_.js`；manifest 版本 `9ade523b9428a2c0`、590 项、备份 URL 为 0；远端首屏图保持 `2048×1024` JPEG，SHA-256 `377821b9f3eab6f2ff30754830606f72d2fd27d8a3eb23697aca8a38b16b3da7`。HTTP 资源、企业配置、Logo、产品图均返回 200。Playwright 线上验收在 `390×844`、`414×896`、`768×1024` 和 `1440×900` 通过：scrollWidth 等于 viewport、23 个图片节点无断图、页面标题正确、DOM 不含君乐缘。
