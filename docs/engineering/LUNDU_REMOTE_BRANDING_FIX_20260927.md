@@ -102,3 +102,21 @@ Playwright 线上验收通过：390×844 和 1440×900 均无横向溢出，页�
 发布前声明目标服务为 `web`，分支为 `codex/systematic-refactor`，影响范围仅为首屏图片和 `web` 容器；原图已备份至 `/opt/lundu-eiscore/backups/hero-wide-before-expand-20261002.jpg`。远端新图 SHA-256 为 `377821b9f3eab6f2ff30754830606f72d2fd27d8a3eb23697aca8a38b16b3da7`，与本地产物一致。仅执行 `docker compose --env-file /opt/lundu-eiscore/.env -f /opt/lundu-eiscore/compose.yml up -d --no-deps --force-recreate web`，没有重启 DB、API、Agent、DeepSeek Web 或 Harness。
 
 线上验收结果：图片 URL HTTP 200、`image/jpeg`、2048×1024；`/login` HTTP 200，页面标题为“伦度机电｜电机与水泵制造”，桌面 1440×900 无横向溢出，DOM 不含“君乐缘”，Logo 和首屏泵/电机背景正常加载。manifest 版本 `6298eacfb43ccce0`、570 项；Nginx 配置检查通过。控制台只有既有 Three.js `PCFSoftShadowMap` 弃用警告，没有页面错误。
+
+## 2026-10-02 首屏容器铺满修复
+
+用户反馈首屏图片上下出现深色空带。根因是首屏图片使用 `object-fit: contain`，在桌面首屏容器和图片宽高比不一致时保留了上下空白。提交 `1e4434b50abaeac8e39a42b8a1a2c0b3386e7817`（`fix(lundu): fill hero image container`）将桌面和移动端 `.hero-media img` 统一改为 `object-fit: cover`，保留居中定位；同时使用已确认的 GPT Image 2 扩图素材 `2048×1024`。
+
+发布前声明：目标服务为 `web`；分支 `codex/systematic-refactor`；完整制品为 `output/lundu-hero-cover-release-20261002041358-v2.tar.gz`，由 `output/lundu-no-legacy-release-20261002033412` 的 12 入口基底叠加当前 `eiscore-base/dist` 生成；影响范围为首屏 CSS/图片及 web 静态制品，不涉及其他 Agent 的后端服务或未提交改动。
+
+发布过程使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，当前 release 备份至 `/opt/lundu-eiscore/backups/release-pre-hero-cover-20261001202343`，随后原子替换完整 `/opt/lundu-eiscore/release`。实际仅执行：
+
+```sh
+docker compose --env-file /opt/lundu-eiscore/.env \
+  -f /opt/lundu-eiscore/compose.yml \
+  up -d --no-deps --force-recreate web
+```
+
+没有重建 DB、API、Agent、DeepSeek Web 或 Harness。发布后的入口为 6258 字节，主包 `/assets/index-CVLDTJOW.js`；manifest 版本 `b4066abdde0ebe27`、564 项、备份 URL 为 0。远端 `/opt/lundu-eiscore/release/enterprise-assets/site/crops/hero-wide.jpg` 为 `2048×1024` JPEG，SHA-256 为 `377821b9f3eab6f2ff30754830606f72d2fd27d8a3eb23697aca8a38b16b3da7`。
+
+HTTP 验收通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json`、`/enterprise-assets/site/lundu-logo.png` 和 `/enterprise-assets/site/crops/hero-wide.jpg` 均返回 200；配置为 `enterprise.id=lundu`，页面标题为“伦度机电｜电机与水泵制造”，线上页面和入口资源不含“君乐缘/junleyuan”。远端 web 容器为 `lundu-eiscore-web-1`，状态为 Up。
