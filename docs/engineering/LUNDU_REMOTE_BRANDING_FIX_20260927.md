@@ -94,3 +94,11 @@ docker compose --env-file /opt/lundu-eiscore/.env \
 没有重建或重启 DB、API、Agent、DeepSeek Web 或 Harness。线上入口引用 `/assets/index-B__AF6n9.js`，入口 SHA-256 为 `9b7ca2c569a7cc274753609735b657e19cb3f2ef0ac017aa56f77b89787ba0f7`，主包 SHA-256 为 `a4ef7c025218857e591dcea974daa64043b8c66fb50277c8e0cfe75eafa61195`。`/login`、`/asset-manifest.json`、公开企业配置和 Logo 均返回 200；manifest 返回 568 项 JSON，配置返回 `enterprise.id=lundu`。
 
 Playwright 线上验收通过：390×844 和 1440×900 均无横向溢出，页面标题为“伦度机电｜电机与水泵制造”，伦度 Logo、制造服务产品卡片和产品图片正常加载，按钮保持单行，DOM 不含“君乐缘”。控制台仅有既有 Three.js `PCFSoftShadowMap` 弃用警告，没有页面错误。Nginx 配置检查成功；发布期间通过 `/opt/lundu-eiscore/.lundu-web-publish.lock` 避免与其他 web 发布并发切换。
+
+## 2026-10-02 首屏背景扩图替换
+
+用户确认的 GPT Image 2 扩图素材为 `output/lundu-hero-expand-20261002/hero-expanded-gptimage2-final-v4.png`，已转换为高质量 JPG `hero-wide-expanded-20261002.jpg`（2048×1024），替换远端同一路径 `/opt/lundu-eiscore/release/enterprise-assets/site/crops/hero-wide.jpg`。公开 URL 保持 `/enterprise-assets/site/crops/hero-wide.jpg` 不变，入口和企业配置无需修改。
+
+发布前声明目标服务为 `web`，分支为 `codex/systematic-refactor`，影响范围仅为首屏图片和 `web` 容器；原图已备份至 `/opt/lundu-eiscore/backups/hero-wide-before-expand-20261002.jpg`。远端新图 SHA-256 为 `377821b9f3eab6f2ff30754830606f72d2fd27d8a3eb23697aca8a38b16b3da7`，与本地产物一致。仅执行 `docker compose --env-file /opt/lundu-eiscore/.env -f /opt/lundu-eiscore/compose.yml up -d --no-deps --force-recreate web`，没有重启 DB、API、Agent、DeepSeek Web 或 Harness。
+
+线上验收结果：图片 URL HTTP 200、`image/jpeg`、2048×1024；`/login` HTTP 200，页面标题为“伦度机电｜电机与水泵制造”，桌面 1440×900 无横向溢出，DOM 不含“君乐缘”，Logo 和首屏泵/电机背景正常加载。manifest 版本 `6298eacfb43ccce0`、570 项；Nginx 配置检查通过。控制台只有既有 Three.js `PCFSoftShadowMap` 弃用警告，没有页面错误。
