@@ -153,3 +153,13 @@ docker compose --env-file /opt/lundu-eiscore/.env \
 ```
 
 实际重建服务为 `lundu-eiscore-web-1`；DB、API、Agent、DeepSeek Web 和 Harness 未重建。远端入口 6258 字节，线上 `/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json`、伦度 Logo、首屏图和产品图均返回 HTTP 200；manifest 为 `b2282d37b8f50532` / 590 项，企业配置为 `enterprise.id=lundu`。远端浏览器在 `390×844`、`414×896`、`768×1024`、`1440×900` 验收：标题为“伦度机电｜电机与水泵制造”，`scrollWidth` 等于 viewport，页面 DOM 无君乐缘，页面错误和控制台错误均为 0。下方产品图片使用 `loading=lazy`，未滚动时报告未完成加载；逐一请求资源均返回正常尺寸和 HTTP 200，不属于断图。
+
+## 2026-10-03 第二幅轮播图扩图替换与发布
+
+用户反馈轮播第二幅水泵图片视觉上没有扩图。核对配置后确认：第一幅 `hero-wide.jpg` 已是 GPT Image 2 扩图后的 `2048×1024` 素材，但第二幅仍使用原始 `generated-pump-product-wide.jpg`（`1600×700`），因此第二幅在 `cover` 容器中被裁切，产品周围没有足够留白。
+
+本次使用 GPT Image 2 对第二幅原图执行 outpainting：保持蓝色离心泵和电机的结构、透视、颜色与光照不变，只向四周补齐浅灰背景和地面空间；生成结果为 `2048×1152`，产品主体居中，泵头、底座、电机端盖和后罩完整可见。最终 JPG 已替换源码资源 `eiscore-base/public/enterprise-assets/site/crops/generated-pump-product-wide.jpg`，公开 URL 保持不变。新素材 SHA-256 为 `2a8027d143ddf51fd93a424e59d31482a83ff0364cd55b5c0ec68a665cb59506`。
+
+发布前声明：目标服务为 `web`；分支为 `codex/systematic-refactor`；完整制品为 `output/lundu-carousel-expand-release-202610030.tar.gz`，本地与远端 SHA-256 均为 `773f64f6fc0a1004bd0420b318e3d8ba09766f0afe13836202ddae07e5ba723e`；manifest version `de12e415e871e152`、605 项、84,491,819 bytes，备份 URL 为 0。入口主包为 `/assets/index--SFwBGTj.js`，配置 `enterprise.id=lundu`，入口和公开配置没有君乐缘品牌。
+
+远端旧 release 已备份至 `/opt/lundu-eiscore/backups/release-pre-image-fill-20261002181918`，通过 `/opt/lundu-eiscore/.lundu-web-publish.lock` 完成原子替换。实际只重建 `lundu-eiscore-web-1`，没有重建 DB、API、Agent、DeepSeek Web 或 Harness。线上第二幅图片 URL 返回 `2048×1152`、HTTP 200，SHA-256 与本地产物一致；`/login`、公开配置、Logo 和 manifest 均返回 200。浏览器在 `390×844`、`414×896`、`768×1024`、`1440×900` 切换到第二个轮播点后验证：水泵完整居中、四周浅灰留白、没有黑边或主体裁切，页面无横向溢出、无君乐缘正文、页面错误和控制台错误均为 0。
