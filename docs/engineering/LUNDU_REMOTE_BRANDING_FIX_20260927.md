@@ -137,3 +137,19 @@ HTTP 验收通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 发布前声明：目标服务为 `web`；分支 `codex/systematic-refactor`；完整制品为 `output/lundu-image-slots-final-20261002053327.tar.gz`，由 12 入口基底叠加当前 `eiscore-base/dist` 生成；影响范围仅为独立站图片容器 CSS 和静态 web 制品。发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，旧 release 备份至 `/opt/lundu-eiscore/backups/release-pre-image-slots-final-20261001215010`，仅执行 web-only Compose 重建，没有重建 DB、API、Agent、DeepSeek Web 或 Harness。
 
 发布后根入口为 6258 字节，主包 `/assets/index-BUN5FU0_.js`；manifest 版本 `9ade523b9428a2c0`、590 项、备份 URL 为 0；远端首屏图保持 `2048×1024` JPEG，SHA-256 `377821b9f3eab6f2ff30754830606f72d2fd27d8a3eb23697aca8a38b16b3da7`。HTTP 资源、企业配置、Logo、产品图均返回 200。Playwright 线上验收在 `390×844`、`414×896`、`768×1024` 和 `1440×900` 通过：scrollWidth 等于 viewport、23 个图片节点无断图、页面标题正确、DOM 不含君乐缘。
+
+## 2026-10-03 产品图片安全放大与全插槽铺满发布
+
+用户继续反馈产品图片在容器中视觉留白过大。本轮只调整伦度登录页图片插槽样式：宽幅场景图和画廊使用 `cover` 铺满 `16:7` 容器；制造服务和产品卡继续使用 `contain` 保持泵体、电机和端盖完整，并通过安全 `scale` 放大素材自身的浅色外围留白；解决方案图使用 `16:9` 容器与轻度放大。没有重新生成 GPT Image 2 素材，也没有修改 DeepSeek、Harness 或后端服务。源码提交为 `3990fb6 fix(lundu): enlarge product media within slots`，构建命令为 `npm run build`，通过既有 Sass/circular chunk/large chunk 警告。
+
+发布前声明：目标服务为 `web`；分支为 `codex/systematic-refactor`；完整 12 入口制品为 `output/lundu-image-fill-final-20261003001315.tar.gz`，本地 SHA-256 为 `93ffe0e4aec9162387a330563f2accf075e4efe9c216fcc8a0d804df40bb13c3`，manifest version `b2282d37b8f50532`、590 项、83,730,314 bytes，备份 URL 为 0。制品入口和公开配置未包含“君乐缘/junleyuan”；manifest 中保留的君乐缘路径仅属于仓库内合法历史子应用资产，未出现在伦度根入口和公开正文。
+
+远端发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`。当前 release 已备份至 `/opt/lundu-eiscore/backups/release-pre-image-fill-20261002164443`，随后原子替换 `/opt/lundu-eiscore/release`。实际只执行：
+
+```sh
+docker compose --env-file /opt/lundu-eiscore/.env \
+  -f /opt/lundu-eiscore/compose.yml \
+  up -d --no-deps --force-recreate web
+```
+
+实际重建服务为 `lundu-eiscore-web-1`；DB、API、Agent、DeepSeek Web 和 Harness 未重建。远端入口 6258 字节，线上 `/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json`、伦度 Logo、首屏图和产品图均返回 HTTP 200；manifest 为 `b2282d37b8f50532` / 590 项，企业配置为 `enterprise.id=lundu`。远端浏览器在 `390×844`、`414×896`、`768×1024`、`1440×900` 验收：标题为“伦度机电｜电机与水泵制造”，`scrollWidth` 等于 viewport，页面 DOM 无君乐缘，页面错误和控制台错误均为 0。下方产品图片使用 `loading=lazy`，未滚动时报告未完成加载；逐一请求资源均返回正常尺寸和 HTTP 200，不属于断图。
