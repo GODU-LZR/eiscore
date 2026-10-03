@@ -3097,3 +3097,10 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - `node scripts/validate-lundu-harness-artifacts.mjs --harness-root "" --patch deploy/lundu/dsh-web.patch.yml` 仍故障关闭：`LUNDU_HARNESS_ROOT: required`；当前分支仍没有可追溯的三组 Web client-plugin `lib/index.js` 发布输入，未使用仓库外候选目录或缓存制品冒充。
 - `npm run db:release:drift` 仍故障关闭。当前冻结 manifest SHA-256 为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`，候选为 `d17d677381f10c8cf387f802d670affbcdaa5aaf8541bd54b8d24fca39e82302`；候选 source revision 为当前提交 `6ed3b0ec43c1f896876b6ec54ca0fd133660da09`，并继续包含 core `core-007` 到 `core-009`、database contract/catalog/PostgREST checksum drift。未修改冻结 manifest、未执行真实迁移、未写入数据库卷。
 - 本轮未连接远端/生产、未启动持久 Compose、未使用真实 Provider、未发布。全局目标保持 `active`；下一步硬门槛仍是恢复可复现前端构建资源、获得同源 Web plugin/tool/profile 制品、解决 DB v6 provenance 并完成 Docker/远端验收。
+
+## 全局目标继续推进记录（2026-10-03，Linux 隔离容器完成完整前端构建）
+
+- Windows 宿主两次构建分别受 `node_modules/.pnpm` `realpath` 和进程内存分配限制影响后，改用当前工作树只读挂载到缓存的 `node:20.19.0-bookworm-slim` 临时容器；构建上下文明确包含当前分支的 `eiscore-base`、`packages/eiscore-platform`、仓库级 `scripts` 和 `shared`，没有使用其他分支、仓库外候选制品或历史 dist。
+- 容器内执行 `npm ci --ignore-scripts` 及 `GOMAXPROCS=1 NODE_OPTIONS=--max-old-space-size=2048 npm run build` 成功：Vite 转换 5914 个模块，`dist/index.html` 6258 bytes，构建耗时约 58 秒。
+- 对同一次临时构建产物执行伦度品牌门禁：`dist` 共 140 个文件，`dist/config/eiscore-enterprise.json` 存在；`dist/index.html`、`dist/assets`、`dist/config` 未命中 `君乐缘` 或 `junleyuan`。容器退出后产物未写回工作树。该证据闭合本地完整前端构建和公开品牌门禁，不等价于远端发布或线上页面验收。
+- 本轮仍未连接远端/生产、未启动持久 Compose、未执行真实迁移、未写入数据库卷、未使用真实 Provider。全局目标保持 `active`；同源 Web client-plugin 制品、Docker/Compose 运行态、DB v6 provenance、真实 Provider、在线双租户 RLS/Smart BI 和远端验收仍待闭合。
