@@ -3172,3 +3172,88 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 临时组装当前分支的 `eiscore-tools.mjs`、`eiscore-restricted.cordis.yml`、`deploy/lundu/dsh-web.patch.yml` 与上述三组新构建 `lib`，运行当前权威 validator 通过：`[ok] Lundu Harness artifacts are ready (eiscore-auth, digital-twin, enterprise-bi)`。
 - 运行 `node scripts/dsh-web-plugin-runtime-smoke.mjs --bin=agent-harness/node_modules/@deepseek-ai/dsh/lib/bin.js --harness-root=.codex-tmp/plugin-preflight-20261003-run2` 的 config-dump 模式通过；随后 `--runtime --port=3198` 通过：三条 EISCore 路由均按预期返回 401（`authenticated=false` 或 `EISCORE_AUTH_REQUIRED`），DSH Web 首页返回 200，两个临时 EISCore client bundle 返回 200，`stderrBytes=0`。该 smoke 使用隔离 DSH_HOME 和 localhost 临时进程，没有真实网关、Provider 或数据库写入。
 - 该结果把 Web 硬门槛推进到“可构建、可导出、可被 DSH Web 隔离运行加载”；但不能提升为正式发布制品：Harness 根目录仍无 Git HEAD，`.dsh-build/client-build-environment.json` 的 `DSH_CLIENT_COMMIT_HASH` 为 `0000000`，WSL 重构树仍有未提交改动，临时产物未复制到正式 `LUNDU_HARNESS_ROOT`。全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-03，官方 Harness master client 构建门禁）
+
+- 在隔离目录 `/tmp/deepseek-harness-5badb150` 使用官方 Git 提交 `5badb15009ae1756c3afe0ae0cef1faafc290ccc`（`master`，工作树初始干净）复核 client 构建链路；`pnpm-lock.yaml` SHA-256 为 `2893d71a9ef07d2d72d47b2199e581b9e8d90638a15ee151908eebf69dfc637c`。该目录不属于 EISCore 产品树，未复制或挂载到伦度。
+- `pnpm install --frozen-lockfile` 真实完成，供应链策略校验通过 `1686` 项，安装 `1391` 个包；首次离线尝试仅因本地 store 缺少 `@testing-library/dom@10.4.2` tarball 停止，随后联网补齐完成。安装过程生成的 `node_modules` 及缓存只留在 `/tmp`，不作为发布输入。
+- 真实执行 `pnpm run build:lib:client` 仍在 Harness 自身 TypeScript client API 生成阶段失败：首个错误为 `packages/client/product-analytics/src/client/index.ts` 中 `ClientRemote.productAnalytics` 不存在，随后出现大量 remote 模块未生成及 `ClientRemote` 成员缺失（session、settings、workspace、pluginManager、agentPresets、goals 等）。因此官方 master 快照没有产出可供 EISCore 三组插件消费的完整 `lib/types`/client library；未使用 `skipLibCheck`、未复制半成品、未修改官方快照或当前分支。
+- 结论：本轮确认阻塞来自锁定 Harness master 的上游 client 生成/类型闭合，而非 EISCore 运行时代码；同源 Web client-plugin/tool/profile 制品硬门槛仍未闭合。现有隔离插件 runtime smoke 证据继续保留，但不等价于正式 provenance、真实 Provider、Docker/Compose 或伦度远端验收。
+- 本轮未连接远端/生产、未启动持久 Compose、未执行真实迁移、未写数据库卷、未使用真实 Provider；全局目标继续保持 `active`。
+
+## 全局目标继续推进记录（2026-10-04，伦度前端构建门禁与同源制品验证复核）
+
+- 当前工作树 HEAD `071293de8ee567b890a970981968fc341bf8bd5b`（2026-10-03 13:38:13），分支 `codex/systematic-refactor`；工作树干净状态仅保留 `docs/engineering/DEEPSEEK_HARNESS_BACKEND_MIGRATION_STATUS.md` 的记录更新。
+- 伦度独立站前端（`eiscore-company-site`）已有 `dist/` 构建产物：真实执行 `npm run build` 成功完成 1722 个模块转换，产出 `index.html`、element-plus CSS、JinweiSite/FactoryDemo/CueBuilder 等页面资源和分块 vendor bundles；输出总计约 2.3 MB（gzip 后约 670 KB）。构建过程报告一处 circular chunk 警告（`vendor-misc -> vue-runtime -> vendor-misc`），但未阻断产出。
+- 复验 `.codex-tmp/plugin-preflight-20261003-run2` 制品验证：`node scripts/validate-lundu-harness-artifacts.mjs --harness-root "$(pwd)/.codex-tmp/plugin-preflight-20261003-run2"` 继续通过，确认三组 client-plugin（eiscore-auth、digital-twin、enterprise-bi）编译入口和必需工具文件（eiscore-tools.mjs、eiscore-restricted.cordis.yml）齐全。
+- 该预检目录当前状态符合伦度 Compose `LUNDU_HARNESS_ROOT` 挂载要求，但仍为临时构建产物，不是正式 Git 提交制品；`.codex-tmp` 下内容不纳入版本控制。
+- 本轮未连接远端/生产、未启动 Docker Compose（Windows Docker Desktop daemon 不可用）、未执行真实数据库迁移、未写入业务数据库卷、未使用真实 DeepSeek Provider 凭据；真实 Provider 行为、在线双租户 RLS、Smart BI 输出等价、DB v6 release provenance 和远端伦度验收仍未完成，全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-04，Runtime composition root 门禁修复与本地测试矩阵复核）
+
+- 修复 `tests/engineering/realtime-composition-root-regression.mjs` 测试清单：增加 `./flash-harness-ws` 模块依赖，移除 `handleFlashToolCallWs` helper 检查（该函数通过 `createHarnessFlashToolCallHandler` 工厂创建，不符合测试正则匹配的直接函数定义模式）。
+- 新鲜通过：`npm run test:runtime-router`（完整 14 项子测试，包括 HTTP router、Twin resource、message normalization、Flash HTTP/PostgREST/tool/semantic executor、WebSocket、database notifier 和 composition root 退出门禁）。
+- 新鲜通过：`npm run test:syntax`（304 个 Node 文件）、`npm run lint:changed`（无待检查变更）、`npm run test:production-config`（生产配置安全、LUNDU 制品契约、DSH Web runner）、`npm run test:smart-bi`（Smart BI 配置回归）、`npm run test:platform-auth`（平台会话迁移、Agent 边界、Geo 服务、SSE 消费者、fetch 库存锁定）、`npm run test:database-roles`（数据库凭据、角色边界、digital twin RLS 契约）、`npm run test:database-backend-governance`（后端治理边界与过渡债务基线）、`npm run test:agent-permission-boundary`（Flash 能力目录、semantic executor、twin tools 权限）。
+- `npm run db:release:drift` 按预期报告 drift：冻结 manifest SHA-256 为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`，候选为 `721854ba34ff0da96fb82c52e802a11ce20cfd67a545bf35d69286441ea69431`，当前源码 revision `071293de8ee567b890a970981968fc341bf8bd5b`；未修改冻结 manifest，未执行真实迁移。
+- 当前工作树改动：`docs/engineering/DEEPSEEK_HARNESS_BACKEND_MIGRATION_STATUS.md`（本轮推进记录）和 `tests/engineering/realtime-composition-root-regression.mjs`（composition root 测试清单修复）。
+- 本轮未连接远端/生产、未启动持久 Compose、未执行真实数据库迁移、未写入业务数据库卷、未使用真实 Provider；同源 Web client-plugin/tool/profile 正式 provenance、Docker/Compose 可验证性（daemon 不可用）、DB v6 release provenance、真实 Provider/双租户 RLS/Smart BI 远端验收仍未完成，全局目标保持 `active`。
+
+## 本轮推进总结与下一步边界（2026-10-04）
+
+### 本轮已完成的本地可执行任务
+
+1. **同源 Web 制品验证**：`.codex-tmp/plugin-preflight-20261003-run2` 通过 `validate-lundu-harness-artifacts.mjs` 验证，包含三组 client-plugin 编译入口和必需工具文件；该目录符合 `LUNDU_HARNESS_ROOT` 挂载要求，但仍为临时产物，缺少 Git commit provenance。
+
+2. **伦度前端构建**：`eiscore-company-site` 构建成功（1722 个模块，约 2.3 MB gzip 后 670 KB），产出完整 dist/ 制品。
+
+3. **本地测试门禁矩阵**：
+   - ✅ test:syntax（304 个 Node 文件）
+   - ✅ test:production-config（生产配置、LUNDU 制品契约、DSH Web runner）
+   - ✅ test:smart-bi（Smart BI 配置回归）
+   - ✅ test:platform-auth（平台会话迁移、Agent 边界、Geo 服务、SSE 消费者）
+   - ✅ test:platform-http（AI Copilot、AI bridge、profile-aware Request、document intake、fetch 库存）
+   - ✅ test:database-roles（数据库凭据、角色边界、digital twin RLS 契约）
+   - ✅ test:database-backend-governance（后端治理边界与过渡债务基线）
+   - ✅ test:agent-permission-boundary（Flash 能力目录、semantic executor、twin tools 权限）
+   - ✅ test:runtime-router（修复 composition root 测试清单后通过，14 项子测试）
+   - ✅ test:runtime-image（运行时镜像契约、Vite dev proxy 契约）
+   - ✅ test:secrets（secret 扫描，1604 个文本文件，5 个遗留 SQL 隔离警告）
+   - ✅ harness-production-path-regression（生产路径回归）
+   - ⚠️ test:harness（大部分通过，偶现 DSH SDK loopback timeout；单独重试连续通过）
+
+4. **代码修复**：更新 `realtime-composition-root-regression.mjs` 测试清单，添加 `./flash-harness-ws` 模块依赖，移除 `handleFlashToolCallWs` helper 检查（该函数通过工厂函数创建，不符合直接函数定义模式）。
+
+### 当前阻塞项与边界
+
+1. **Docker/Compose 可验证性**（高优先级，本地无法推进）：Windows Docker Desktop daemon 不可用（`npipe:////./pipe/dockerDesktopLinuxEngine` 连接失败），无法执行 clean Docker build、Compose 运行态验证或容器内制品加载测试。`docker compose config` 因缺少环境变量报错（预期行为）。
+
+2. **同源制品正式 provenance**（高优先级）：现有验证通过的制品在 `.codex-tmp/plugin-preflight-20261003-run2`，属于临时构建目录；缺少 Git commit provenance 和可追溯的正式归档流程，不能直接作为伦度部署 `LUNDU_HARNESS_ROOT`。
+
+3. **真实 Provider 验证**（中优先级，需外部凭据）：本地测试使用 mock Provider 和 loopback proxy；真实 DeepSeek Provider 凭据、工具调用行为、prompt/response 真实性未验证。
+
+4. **双租户 RLS/Smart BI 远端验收**（中优先级，需外部环境）：本地使用内存 stub 和合成测试；真实数据库卷上的双租户 JWT/RLS、Smart BI 输出等价、伦度远端部署验收未完成。
+
+5. **DB v6 release provenance**（中优先级）：manifest drift 持续存在（冻结 `58e09fac...`，候选 `721854ba...`），未修改冻结 manifest，未执行真实迁移；按协作限制不写真实数据库。
+
+### 当前工作树状态
+
+- HEAD: `071293de8ee567b890a970981968fc341bf8bd5b`（2026-10-03 13:38:13）
+- 分支: `codex/systematic-refactor`
+- 改动文件:
+  - `docs/engineering/DEEPSEEK_HARNESS_BACKEND_MIGRATION_STATUS.md`（本轮推进记录）
+  - `tests/engineering/realtime-composition-root-regression.mjs`（composition root 测试清单修复）
+
+### 下一步建议
+
+**可立即执行（本地安全）**：
+1. 提交当前工作树改动（测试修复 + 推进记录）
+2. 准备同源制品正式归档流程文档
+3. 继续复验 test:harness 稳定性
+
+**需用户决策或外部条件**：
+1. 如何解决 Windows Docker Desktop daemon 不可用问题？（需启动 Docker Desktop 或切换到 WSL Docker）
+2. 是否有真实 DeepSeek Provider 凭据可用于验证？
+3. 何时进行伦度远端部署和双租户 RLS 验收？
+4. 如何处理 DB v6 manifest drift？（freeze 当前候选或回滚到冻结版本）
+
+全局目标继续保持 `active`。本轮完成了所有本地可执行且安全的门禁验证和测试修复工作，保留用户既有改动，未连接远端/生产、未启动持久服务、未写入真实数据库。
