@@ -3165,3 +3165,10 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 当前 WSL `/home/lzr/eiscore-refactor` 是 `codex/systematic-refactor` 工作树，但存在大量未提交改动，三组 `agent-harness/client-plugins/*` 仍为未跟踪内容；其官方插件构建脚本要求 Node `>=22`，当前 WSL 默认 Node 为 `v20.18.1`。该目录不是本 Windows 工作树的已提交制品来源。
 - 对该 WSL 候选根目录运行 `node scripts/validate-lundu-harness-artifacts.mjs --harness-root \\wsl.localhost\Ubuntu\home\lzr\eiscore-refactor\agent-harness --patch .../dsh-eiscore.patch.yml` 真实失败：缺少必需的 `eiscore-tools.mjs`；当前 Windows 外部候选目录同样缺少 `eiscore-tools.mjs` 与 `eiscore-restricted.cordis.yml`。没有复制候选 `lib`、没有修改 WSL 工作树、没有将其挂载到 Compose。
 - 本轮因此没有新增正式 Web client-plugin/tool/profile 制品；硬门槛仍要求带有效 Harness commit、匹配 lockfile、完整工具/profile 文件和可重复构建记录的正式归档。全局目标保持 `active`，未连接远端/生产、未启动持久 Compose、未执行真实迁移或写入数据库卷。
+
+## 全局目标继续推进记录（2026-10-03，隔离重建与 DSH Web runtime smoke）
+
+- 在 WSL 隔离目录使用 `/home/lzr/.nvm/versions/node/v24.12.0/bin/node`、Harness `/home/lzr/deepseek-harness` 现有依赖和 WSL 重构树三组插件源码，运行当前分支 `scripts/build-harness-client-plugins.mjs` 成功重建 `eiscore-auth`、`digital-twin`、`enterprise-bi`；三组均生成 `lib/index.js`，业务插件同时生成 `lib/client.js`。输出只写入临时目录，没有回写 WSL 或 Windows 产品树。
+- 临时组装当前分支的 `eiscore-tools.mjs`、`eiscore-restricted.cordis.yml`、`deploy/lundu/dsh-web.patch.yml` 与上述三组新构建 `lib`，运行当前权威 validator 通过：`[ok] Lundu Harness artifacts are ready (eiscore-auth, digital-twin, enterprise-bi)`。
+- 运行 `node scripts/dsh-web-plugin-runtime-smoke.mjs --bin=agent-harness/node_modules/@deepseek-ai/dsh/lib/bin.js --harness-root=.codex-tmp/plugin-preflight-20261003-run2` 的 config-dump 模式通过；随后 `--runtime --port=3198` 通过：三条 EISCore 路由均按预期返回 401（`authenticated=false` 或 `EISCORE_AUTH_REQUIRED`），DSH Web 首页返回 200，两个临时 EISCore client bundle 返回 200，`stderrBytes=0`。该 smoke 使用隔离 DSH_HOME 和 localhost 临时进程，没有真实网关、Provider 或数据库写入。
+- 该结果把 Web 硬门槛推进到“可构建、可导出、可被 DSH Web 隔离运行加载”；但不能提升为正式发布制品：Harness 根目录仍无 Git HEAD，`.dsh-build/client-build-environment.json` 的 `DSH_CLIENT_COMMIT_HASH` 为 `0000000`，WSL 重构树仍有未提交改动，临时产物未复制到正式 `LUNDU_HARNESS_ROOT`。全局目标保持 `active`。
