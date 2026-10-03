@@ -3088,3 +3088,12 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 该结果与 `npm run db:release:drift` 和既有 DB6 结构门禁一致；未修改冻结 manifest、未执行真实迁移、未写入任何业务数据库卷。
 - 套件退出后只读检查 Docker 资源：未发现本次恢复套件遗留的 `db5`/`db6`/`recovery` 容器、网络或卷；已有其他项目容器保持原状态，未停止、重建或覆盖。
 - 本轮仅追加状态证据；真实 DB v6 provenance 对齐、完整恢复发布、真实 Provider、同源 Web client-plugin、伦度远端验收仍未完成，全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-03，Harness/Smart BI/前端门禁复验）
+
+- 串行重新执行 `npm run test:harness`，全套通过：Plugin Registry、写确认/权限/幂等/审计、Gateway/Tool Gateway、Runtime HTTP、多模态/聊天、数字分身 RLS 会话与消息、Flash WebSocket、文档/销售写入、生产路径、查询读取、输出策略、Bridge/DSH SDK tool-call continuation 和 migration switch。此前并行执行时出现一次 `HARNESS_RUNTIME_RPC_TIMEOUT`；将 Bridge 单独连续运行三次以及随后串行完整套件均通过，确认不是稳定代码回归。
+- `npm run test:smart-bi` 通过（`PASS: smart BI config regression`），`node deploy/lundu/test-dsh-web-runner.mjs` 通过（启动时 DSH profile 约束）。这些是本地契约证据，不等价于真实 Provider 或线上 Smart BI 等价验收。
+- 使用 `GOMAXPROCS=1`、`NODE_OPTIONS=--max-old-space-size=2048` 两次执行 `eiscore-base/npm run build`：第一次在 2236 个模块转换后因 Windows `node_modules/.pnpm/.../axios/...` `realpath` 报 `UNKNOWN` 失败；第二次同样转换阶段后报进程级 `memory allocation of 26396180 bytes failed`。没有出现源码 TypeScript/Vue 编译诊断；未修改构建配置或源码。当前 `eiscore-base/dist` 的 106 个文件只是既有产物，不能作为本轮新构建证据。
+- `node scripts/validate-lundu-harness-artifacts.mjs --harness-root "" --patch deploy/lundu/dsh-web.patch.yml` 仍故障关闭：`LUNDU_HARNESS_ROOT: required`；当前分支仍没有可追溯的三组 Web client-plugin `lib/index.js` 发布输入，未使用仓库外候选目录或缓存制品冒充。
+- `npm run db:release:drift` 仍故障关闭。当前冻结 manifest SHA-256 为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`，候选为 `d17d677381f10c8cf387f802d670affbcdaa5aaf8541bd54b8d24fca39e82302`；候选 source revision 为当前提交 `6ed3b0ec43c1f896876b6ec54ca0fd133660da09`，并继续包含 core `core-007` 到 `core-009`、database contract/catalog/PostgREST checksum drift。未修改冻结 manifest、未执行真实迁移、未写入数据库卷。
+- 本轮未连接远端/生产、未启动持久 Compose、未使用真实 Provider、未发布。全局目标保持 `active`；下一步硬门槛仍是恢复可复现前端构建资源、获得同源 Web plugin/tool/profile 制品、解决 DB v6 provenance 并完成 Docker/远端验收。
