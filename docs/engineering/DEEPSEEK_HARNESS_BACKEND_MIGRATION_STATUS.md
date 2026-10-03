@@ -3104,3 +3104,12 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 容器内执行 `npm ci --ignore-scripts` 及 `GOMAXPROCS=1 NODE_OPTIONS=--max-old-space-size=2048 npm run build` 成功：Vite 转换 5914 个模块，`dist/index.html` 6258 bytes，构建耗时约 58 秒。
 - 对同一次临时构建产物执行伦度品牌门禁：`dist` 共 140 个文件，`dist/config/eiscore-enterprise.json` 存在；`dist/index.html`、`dist/assets`、`dist/config` 未命中 `君乐缘` 或 `junleyuan`。容器退出后产物未写回工作树。该证据闭合本地完整前端构建和公开品牌门禁，不等价于远端发布或线上页面验收。
 - 本轮仍未连接远端/生产、未启动持久 Compose、未执行真实迁移、未写入数据库卷、未使用真实 Provider。全局目标保持 `active`；同源 Web client-plugin 制品、Docker/Compose 运行态、DB v6 provenance、真实 Provider、在线双租户 RLS/Smart BI 和远端验收仍待闭合。
+
+## 全局目标继续推进记录（2026-10-03，Bridge/伦度 Compose 门禁复核）
+
+- 正式执行 `docker build --pull=false --tag eiscore-local-check-bridge:current --file agent-harness/Dockerfile .` 仍在加载固定 `node:22.19.0-bookworm-slim@sha256:cff78eb5aa1cf27dc2b6aeea9d31366415a43e9a9ea0ddec00d780b2b66fad0f` 时因 Docker Hub anonymous token 网络连接失败；没有使用 digest 不同的本地缓存镜像冒充正式构建，Bridge 镜像未生成。
+- `npm run test:harness-bridge` 的本地 Bridge/SDK 套件在单独执行路径通过；本轮与其他命令并行时再次出现一次 `HARNESS_RUNTIME_RPC_TIMEOUT`，与此前现象一致。该并行宿主时序问题不改变连续单独运行和串行完整 `npm run test:harness` 的通过证据，未修改超时逻辑或放宽测试。
+- `npm run test:runtime-image` 通过（28 个 composition-root 模块、2 个 Dockerfile 及 Vite dev proxy contract）。
+- `docker compose -f deploy/lundu/compose.yml config --quiet` 在临时、被 `.gitignore` 忽略的 `deploy/lundu/.env` 占位配置下通过；随后立即删除 `.env`，未执行 `up`、build、迁移或卷操作，工作树保持干净。没有 `LUNDU_HARNESS_ROOT` 的真实值时 Compose 仍按设计拒绝解析，和 Web 制品 provenance 门禁一致。
+- `node scripts/validate-lundu-harness-artifacts.mjs --harness-root "" --patch deploy/lundu/dsh-web.patch.yml` 继续故障关闭：`LUNDU_HARNESS_ROOT: required`。当前分支仍没有可追溯的三组 Web client-plugin 制品。
+- 本轮未连接远端/生产、未启动持久 Compose、未写入数据库卷、未执行真实迁移、未使用真实 Provider。全局目标保持 `active`；正式 Bridge digest 构建、同源 Web 制品、DB v6 provenance、在线双租户 RLS/Smart BI 和远端验收仍未完成。
