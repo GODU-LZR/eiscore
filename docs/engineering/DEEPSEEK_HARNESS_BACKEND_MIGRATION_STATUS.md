@@ -3121,3 +3121,12 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 套件在 `test:database-release:docker` 阶段按预期故障关闭，仍报告同一组 8 项 DB v6 provenance drift（database contract、core migration/postcheck、manifest checksum、terminal/list、catalog、PostgREST checksum）；没有进入真实 release 或 recovery 发布阶段。未修改冻结 manifest、未执行迁移、未写入业务数据库卷。
 - 退出后只读检查未发现本轮数据库测试遗留的命名容器/网络；现有项目容器和卷保持原状态，工作树保持干净。
 - 本轮未连接远端/生产、未启动持久 Compose、未使用真实 Provider。全局目标保持 `active`；DB release provenance 对齐、同源 Web client-plugin、正式 Bridge digest 构建、在线双租户 RLS/Smart BI 和远端验收仍未完成。
+
+## 全局目标继续推进记录（2026-10-03，官方 Harness workspace 插件重建复核）
+
+- 在 `.codex-tmp/plugin-rebuild-20261003-3` 建立隔离 workspace：官方 Harness 固定快照 `da00f7f5358f2949383b35c14f548bc20187d80c`，加入仓库外三组 EISCore plugin 源码，并将插件 `tsdown.config.ts` 的绝对 WSL 路径改为临时 workspace 相对路径；没有修改当前分支、外部候选目录或正式发布输入。
+- 严格 `pnpm install --offline --frozen-lockfile` 先通过官方 lockfile 供应链 1686 项校验，但因三个插件新增 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-client-connection` workspace specifier 未登记而按设计拒绝（`ERR_PNPM_OUTDATED_LOCKFILE`）。这再次确认外部候选源码没有与锁定 Harness commit 配套的完整 lockfile。
+- 为验证是否只是锁文件缺口，在同一隔离目录使用 `pnpm install --no-frozen-lockfile --prefer-offline`；官方 1686 项供应链校验通过，网络补齐后 1391 个包安装完成。该过程只生成临时 lockfile/依赖，不作为正式 provenance。
+- 官方 client library 生成尝试 `pnpm run build:lib:client` 在 Harness 自身 `packages/client/product-analytics` 类型阶段失败：`ClientRemote.productAnalytics` 缺失（两个 TS2339）。因此官方 workspace 尚未产出完整 `lib/types`，EISCore 三组插件尚未完成可信的同源编译；没有使用 `skipLibCheck`、没有复制半成品或提交缓存产物。
+- 该隔离复核进一步把 Web 制品阻塞收敛为：需插件作者提供与固定 Harness commit 配套的完整 workspace lockfile，并修复/提供可成功生成官方 client library 的源码或正式构建归档。当前 artifact preflight 仍返回 `LUNDU_HARNESS_ROOT: required`。
+- 本轮未连接远端/生产、未启动持久 Compose、未执行真实迁移、未写数据库卷、未使用真实 Provider、未发布。全局目标保持 `active`。
