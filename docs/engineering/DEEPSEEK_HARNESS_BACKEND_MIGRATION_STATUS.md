@@ -3033,3 +3033,12 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 外部门禁本轮仍失败：`node scripts/validate-lundu-harness-artifacts.mjs --harness-root ""` 返回 `LUNDU_HARNESS_ROOT: required`；Docker CLI 只有 Windows client `29.1.3`，`dockerDesktopLinuxEngine` named pipe 不存在，无法做 clean build、容器启动或 Compose 验收。
 - 因此当前分层判断为：后端 Harness 逻辑与边界约 85%–90%（以本地契约通过为依据）；伦度接线设计约 70%–80%；可交付的伦度完整版本仍约 55%–65%，主要差距是同源 Web 插件制品、Docker/Compose 运行态、真实 Provider、数据库 release provenance、在线双租户 RLS/Smart BI 等价和远端验收。该比例是工程状态估计，不是发布批准。
 - 本轮只读核实并追加状态文档；未修改运行时代码、前端视觉或部署配置，未提交/推送、未连接远端或生产、未启动持久服务、未执行真实迁移、未写业务数据库或部署环境；全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-03，伦度/Harness 变更提交与远端推送）
+
+- 在当前 `github-eiscore-refactor` 工作树 `codex/systematic-refactor` 上整理并提交了伦度独立站、DeepSeek Harness 原生前端入口/视图、Harness Bridge/Gateway/Runtime、后端迁移门禁、数据库迁移文件、部署配置、测试和工程文档；提交为 `f767cfa166512245319dce6fbe10e0a945e1eb37`，标题 `feat: integrate DeepSeek Harness and Lundu site refactor`，包含 268 个产品文件变更。
+- 明确排除 `.codex-tmp/`、`.playwright-cli/`、dist、output、备份目录、历史 tarball、截图和其他构建缓存；提交后工作树剩余仅四个未跟踪临时目录：根级 `.codex-tmp/`、`.playwright-cli/` 与 `eiscore-base/` 下对应目录，未将其删除或提交。
+- 提交前验证：正确重构工作树中的 `eiscore-base/npm run build` 通过；产物 `dist/index.html` 6258 bytes、伦度公开配置与 Logo 存在，入口/公开配置资源扫描未命中 `君乐缘/junleyuan`。`npm run test:harness`、`npm run test:production-config`、`npm run test:syntax`、`npm run test:secrets` 和 staged `git diff --check` 通过；secret scanner 仅保留既有 checksum-locked legacy SQL quarantine 警告及测试夹具/环境模板占位值。
+- 远端推送前确认 GitHub `codex/systematic-refactor` 原指针 `02b6588441a3620f29cfc9cee049035aa222fda2` 是本地提交祖先，本地领先 14 个提交；使用显式 fetch URL `https://github.com/GODU-LZR/eiscore.git` 执行快进推送，成功更新远端到 `f767cfa166512245319dce6fbe10e0a945e1eb37`。仓库配置的 push URL 仍是占位地址 `example.invalid`，本轮未修改它。
+- 推送后只读核验：本地 HEAD 与远端 `refs/heads/codex/systematic-refactor` 均为 `f767cfa166512245319dce6fbe10e0a945e1eb37`，同步状态 `SYNC=YES`。本轮没有部署远端伦度 Compose、没有重建容器、没有写入数据库卷或生产环境。
+- 未完成阻塞保持：三组同源 DeepSeek Web client-plugin 编译制品尚未作为独立 `LUNDU_HARNESS_ROOT` 输入闭合；Docker Linux daemon 当前不可用；真实 Provider、DB v6 release provenance、在线双租户 RLS、Smart BI 等价及伦度线上运行态仍需后续验收。
