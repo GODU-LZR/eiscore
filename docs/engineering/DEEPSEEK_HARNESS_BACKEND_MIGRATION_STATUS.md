@@ -3081,3 +3081,10 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 当前分支权威 artifact preflight 仍返回 LUNDU_HARNESS_ROOT: required；未复制、挂载或提交候选插件，未启动 DeepSeek Web/伦度 Compose，未连接远端或生产，未写数据库卷。真实 Provider、双租户在线 RLS、Smart BI 等价、DB v6 provenance 和远端验收仍未完成，全局目标保持 active。
 - 2026-10-03 官方 workspace 重建尝试：从官方 Harness 固定 commit da00f7f5358f2949383b35c14f548bc20187d80c 的 codeload 归档取得临时输入，归档 SHA-256 为 954FE8573D73315A23B481B60EBD6992F2B210B18D15AB84420C74429080C190，未进入产品源码。将外部三组插件源码复制到 /tmp 隔离 workspace 后，在 Node 22.19.0 容器内运行 pnpm 11.7.0；官方 lockfile 供应链校验 1686 项通过，但 pnpm install --offline --frozen-lockfile 故障关闭，明确报告插件 package.json 新增 @deepseek-ai/cordis 与 @deepseek-ai/dsh-client-connection workspace 依赖而未登记在官方 pnpm-lock.yaml。没有放宽 frozen lockfile、没有改写官方锁文件、没有复制半成品或当前仓库制品。
 - 该结果确认当前外部插件候选源码不能直接作为官方 master 的可复现正式制品；仍需插件作者提供与锁定 Harness commit 配套的 workspace/lockfile 或正式构建归档。当前分支 artifact preflight 继续返回 LUNDU_HARNESS_ROOT: required，全局目标保持 active。
+
+## 全局目标继续推进记录（2026-10-03，隔离数据库恢复套件）
+
+- 真实执行 `npm run test:database-recovery:docker`。套件在临时恢复链路的 database release 校验阶段按预期故障关闭，报告与冻结 DB v6 manifest 不一致的 8 项 provenance drift：`database/contracts/eiscore-db-contract-v3.json`、`database/migrations/core.json`、`database/migrations/postchecks/core.sql`、release manifest checksum、terminal migration/list、database catalog checksum 和 PostgREST contract checksum。未进入恢复完成、切换或真实发布阶段。
+- 该结果与 `npm run db:release:drift` 和既有 DB6 结构门禁一致；未修改冻结 manifest、未执行真实迁移、未写入任何业务数据库卷。
+- 套件退出后只读检查 Docker 资源：未发现本次恢复套件遗留的 `db5`/`db6`/`recovery` 容器、网络或卷；已有其他项目容器保持原状态，未停止、重建或覆盖。
+- 本轮仅追加状态证据；真实 DB v6 provenance 对齐、完整恢复发布、真实 Provider、同源 Web client-plugin、伦度远端验收仍未完成，全局目标保持 `active`。
