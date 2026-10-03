@@ -43,3 +43,9 @@ collector-desktop/artifacts/
 **/bin/
 **/obj/
 softcopyright_extract/
+
+# Local Codex and Playwright run artifacts; never product source.
+/.codex-tmp/
+/.playwright-cli/
+/eiscore-base/.codex-tmp/
+/eiscore-base/.playwright-cli/
