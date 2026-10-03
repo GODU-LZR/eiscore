@@ -3158,3 +3158,10 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 随后连续两次独立执行 `node scripts/dsh-sdk-tool-loopback-smoke.mjs` 均通过，输出 `ok=true`、`proxyCalls=1`、`modelRequests=2`；单独 `npm run test:harness-bridge` 通过，完整串行 `npm run test:harness` 也通过（含 migration switch）。本轮未修改 bridge timeout、未放宽测试条件。
 - 结论更新为：当前 DSH tool-call continuation 在已初始化本地 profile 上有连续通过证据；此前冷启动 timeout 的根因尚未由真实部署环境验证，不能据此宣称线上稳定性或真实 Provider 已闭合。
 - 本轮仍未连接远端/生产、未启动持久 Compose、未执行真实迁移、未写入数据库卷、未使用真实 Provider、未复制临时制品。同源 Web client-plugin/tool/profile 制品、正式 Bridge digest 构建、DB v6 provenance、在线双租户 RLS/Smart BI 等价和远端伦度验收仍未完成，全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-03，WSL 候选来源与制品 provenance 复核）
+
+- 当前 WSL `/home/lzr/deepseek-harness` 目录可读，含完整 `pnpm-lock.yaml`（SHA-256 `274c2bc329a44233fd497a1ea764ff4d0335d9b0dc78e41e0a7e679c601804db`）和 `.dsh-build/client-build-environment.json`，但目录没有 Git 元数据/HEAD；其构建元数据 `DSH_CLIENT_COMMIT_HASH` 为 `0000000`，不能作为同源可追溯 Harness 发布输入。
+- 当前 WSL `/home/lzr/eiscore-refactor` 是 `codex/systematic-refactor` 工作树，但存在大量未提交改动，三组 `agent-harness/client-plugins/*` 仍为未跟踪内容；其官方插件构建脚本要求 Node `>=22`，当前 WSL 默认 Node 为 `v20.18.1`。该目录不是本 Windows 工作树的已提交制品来源。
+- 对该 WSL 候选根目录运行 `node scripts/validate-lundu-harness-artifacts.mjs --harness-root \\wsl.localhost\Ubuntu\home\lzr\eiscore-refactor\agent-harness --patch .../dsh-eiscore.patch.yml` 真实失败：缺少必需的 `eiscore-tools.mjs`；当前 Windows 外部候选目录同样缺少 `eiscore-tools.mjs` 与 `eiscore-restricted.cordis.yml`。没有复制候选 `lib`、没有修改 WSL 工作树、没有将其挂载到 Compose。
+- 本轮因此没有新增正式 Web client-plugin/tool/profile 制品；硬门槛仍要求带有效 Harness commit、匹配 lockfile、完整工具/profile 文件和可重复构建记录的正式归档。全局目标保持 `active`，未连接远端/生产、未启动持久 Compose、未执行真实迁移或写入数据库卷。
