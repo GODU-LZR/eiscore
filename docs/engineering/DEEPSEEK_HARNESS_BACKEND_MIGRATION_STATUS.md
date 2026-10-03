@@ -3151,3 +3151,10 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - `npm run test:smart-bi`、`node tests/engineering/lundu-harness-artifact-regression.mjs`、`npm run test:runtime-image` 和 `docker compose -f deploy/lundu/compose.yml config --no-interpolate --quiet` 均通过。它们分别证明 Smart BI 配置、伦度制品校验逻辑、运行时镜像契约/Vite proxy 契约和 Compose 结构可解析，不等价于真实 Provider、正式 Web 制品或线上验收。
 - `npm run db:release:drift` 按预期故障关闭：冻结 manifest SHA-256 为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`，本轮候选为 `0f8c520eb641e53bf3184753cd15ff995fc613c1d9d982e59e2a723129dcbe4a`，候选 source revision 为 `5624754557caac66bfe8cf34a1619396a7d7d465`；core 终点、database contract/catalog 和 PostgREST checksum drift 仍存在。未修改冻结 manifest，未执行真实迁移。
 - 本轮没有连接远端/生产、没有启动持久 Compose、没有写入数据库卷、没有使用真实 Provider，也没有复制仓库外插件或 `.codex-tmp` 临时产物。当前同源 Web client-plugin/tool/profile 制品、正式 Bridge digest 构建、DB v6 provenance、在线双租户 RLS/Smart BI 等价和远端伦度验收仍未完成，全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-03，DSH loopback 连续复验恢复）
+
+- 对此前 `HARNESS_RUNTIME_RPC_TIMEOUT` 做了隔离诊断：宿主 Node `v26.1.0` 与 WSL Node `v20.18.1` 均曾复现，但带 stderr/事件观测的同一 mock Provider + Tool Proxy 链路能够完成 `initialize -> session/prompt -> tool call -> tool result -> 第二轮模型请求 -> idle`。没有使用真实 Provider、密钥或数据库。
+- 随后连续两次独立执行 `node scripts/dsh-sdk-tool-loopback-smoke.mjs` 均通过，输出 `ok=true`、`proxyCalls=1`、`modelRequests=2`；单独 `npm run test:harness-bridge` 通过，完整串行 `npm run test:harness` 也通过（含 migration switch）。本轮未修改 bridge timeout、未放宽测试条件。
+- 结论更新为：当前 DSH tool-call continuation 在已初始化本地 profile 上有连续通过证据；此前冷启动 timeout 的根因尚未由真实部署环境验证，不能据此宣称线上稳定性或真实 Provider 已闭合。
+- 本轮仍未连接远端/生产、未启动持久 Compose、未执行真实迁移、未写入数据库卷、未使用真实 Provider、未复制临时制品。同源 Web client-plugin/tool/profile 制品、正式 Bridge digest 构建、DB v6 provenance、在线双租户 RLS/Smart BI 等价和远端伦度验收仍未完成，全局目标保持 `active`。
