@@ -3130,3 +3130,10 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 官方 client library 生成尝试 `pnpm run build:lib:client` 在 Harness 自身 `packages/client/product-analytics` 类型阶段失败：`ClientRemote.productAnalytics` 缺失（两个 TS2339）。因此官方 workspace 尚未产出完整 `lib/types`，EISCore 三组插件尚未完成可信的同源编译；没有使用 `skipLibCheck`、没有复制半成品或提交缓存产物。
 - 该隔离复核进一步把 Web 制品阻塞收敛为：需插件作者提供与固定 Harness commit 配套的完整 workspace lockfile，并修复/提供可成功生成官方 client library 的源码或正式构建归档。当前 artifact preflight 仍返回 `LUNDU_HARNESS_ROOT: required`。
 - 本轮未连接远端/生产、未启动持久 Compose、未执行真实迁移、未写数据库卷、未使用真实 Provider、未发布。全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-03，官方 client 类型生成链路复核）
+
+- 在同一忽略的 `.codex-tmp/plugin-rebuild-20261003-3` workspace 继续按官方推荐入口执行 `pnpm run build:lib:client`，确认不是只缺 EISCore 插件所需的 client package 输出：官方 Harness TypeScript build 报告大量 `ClientRemote` 成员缺失（包括 `dynamicCordisRunner`、`commands`、`skills`、`workspaceFiles`、`schedule`、`goals`、`messageFeedback`、`session`、`agentPresets`、`productAnalytics` 等）和相关隐式 any；没有产出完整 client library。
+- 继续只在隔离快照运行官方 `gen-cordis-api`、`gen-client-catalog`、`gen-cordis-catalog` 后重试 build。`gen-cordis-api` 在快照内持续运行数分钟、CPU 活跃但没有日志或产出进展；检查确认容器只挂载 `.codex-tmp`。为避免并发写入同一隔离目录，先停止同属本任务的旧 `build:lib:client` 容器；随后因生成器长时间无进展而停止当前临时容器。没有停止既有业务容器，也没有修改当前仓库/远端。
+- 因而当前官方快照的 client 生成链路不能作为 EISCore 插件正式构建输入：严格 lockfile 仍缺新增 workspace specifier，官方 client API/type 生成链路有广泛缺项，生成器在快照归档内无法及时完成。临时输出不作为正式制品；权威 artifact preflight 仍需 `LUNDU_HARNESS_ROOT`。
+- 当前工作树保持干净；没有真实 Provider 凭据可用于外部调用，本轮未连接远端/生产、未启动持久 Compose、未执行迁移或写入数据库卷。全局目标保持 `active`。下一步需要完整、可追溯且能生成 client library 的官方 Harness workspace/构建归档，以及插件作者提供匹配 lockfile 的源码交付。
