@@ -3144,3 +3144,10 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 该结果证明仓库外候选插件并非固定 Harness commit `da00f7f5358f2949383b35c14f548bc20187d80c` 的可复现配套版本；即使完成临时依赖安装，仍无法生成数字分身/Smart BI 的同源正式 Web bundles。没有修改候选源码、没有添加兼容垫片、没有把 `eiscore-auth` 的临时类型输出或任何 `lib/index.js` 复制到当前分支。
 - 当前 Web 制品硬门槛进一步明确为：需要插件作者提供与锁定 Harness snapshot 相匹配的 conversation UI/slot API 源码和完整 lockfile，或提供可追溯的正式三插件构建归档。当前分支 artifact preflight 仍要求 `LUNDU_HARNESS_ROOT`，全局目标保持 `active`。
 - 本轮仍未连接远端/生产、未启动持久 Compose、未执行迁移、未写入数据库卷、未使用真实 Provider。
+
+## 全局目标继续推进记录（2026-10-03，本轮门禁复验与稳定阻塞确认）
+
+- 串行执行 `npm run test:harness`，Plugin Registry、写边界、Gateway/Tool Gateway、Runtime HTTP/WS、数字分身 RLS 会话、文档/销售写入、查询/输出策略和 Bridge 前置契约均通过；但在 `scripts/dsh-sdk-tool-loopback-smoke.mjs` 阶段最终退出失败，错误为 `HARNESS_RUNTIME_RPC_TIMEOUT`。随后单独重跑 `npm run test:harness-bridge`，同一 SDK loopback 再次失败于相同 timeout；未修改 timeout、未放宽测试，也未把本轮全套标记为通过。
+- `npm run test:smart-bi`、`node tests/engineering/lundu-harness-artifact-regression.mjs`、`npm run test:runtime-image` 和 `docker compose -f deploy/lundu/compose.yml config --no-interpolate --quiet` 均通过。它们分别证明 Smart BI 配置、伦度制品校验逻辑、运行时镜像契约/Vite proxy 契约和 Compose 结构可解析，不等价于真实 Provider、正式 Web 制品或线上验收。
+- `npm run db:release:drift` 按预期故障关闭：冻结 manifest SHA-256 为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`，本轮候选为 `0f8c520eb641e53bf3184753cd15ff995fc613c1d9d982e59e2a723129dcbe4a`，候选 source revision 为 `5624754557caac66bfe8cf34a1619396a7d7d465`；core 终点、database contract/catalog 和 PostgREST checksum drift 仍存在。未修改冻结 manifest，未执行真实迁移。
+- 本轮没有连接远端/生产、没有启动持久 Compose、没有写入数据库卷、没有使用真实 Provider，也没有复制仓库外插件或 `.codex-tmp` 临时产物。当前同源 Web client-plugin/tool/profile 制品、正式 Bridge digest 构建、DB v6 provenance、在线双租户 RLS/Smart BI 等价和远端伦度验收仍未完成，全局目标保持 `active`。
