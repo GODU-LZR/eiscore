@@ -154,11 +154,13 @@ API 文档：
 http://localhost/doc/
 ```
 
-AI Runtime 代理入口：
+Runtime canonical 代理入口：
 
 ```text
-http://localhost/agent/
+http://localhost/ai/
 ```
+
+说明：AI、数字分身、Flash 和文档入口使用各自的 canonical 路径（`/ai/*`、`/twin/*`、`/flash/*`、`/document-intake/*`）。`/agent/*` 仅为 company-site 等历史业务协议保留的兼容别名，不是新的 Agent 编排入口。
 
 ### 4.2 Docker Compose 服务
 
@@ -1591,11 +1593,13 @@ realtime
 8078
 ```
 
-Nginx 代理：
+Runtime canonical HTTP 代理：
 
 ```text
-/agent/
+/ai/、/twin/、/flash/、/document-intake/
 ```
+
+历史 company-site 业务协议仍使用 `/agent/company-site/*` 兼容路径；新 AI/Harness 客户端不得以 `/agent/ai/*` 或 `/agent/twin/*` 作为新接口。
 
 WebSocket 默认路径：
 
@@ -1616,12 +1620,13 @@ Runtime 监听 PostgreSQL 通知：
 
 ### 17.3 AI 配置
 
-AI Runtime 从 `system_configs` 中读取配置：
+当前 AI 请求不再从 `system_configs` 读取模型或供应商配置，也不允许客户端提交模型 URL、API key 或旧模型标识。生产可达链路固定为：
 
-1. 文本模型配置 key：`ai_glm_config`。
-2. 视觉模型配置 key：`ai_vision_config`。
+1. 数字分身、经营助手和其他业务入口进入 EISCore Harness Gateway。
+2. Gateway 按插件 capability 执行权限、租户/RLS、会话、写确认、幂等、超时和审计校验。
+3. 通过部署侧配置的 DeepSeek Harness HTTP Bridge 调用锁定的 SDK/Provider；密钥只存在部署密钥或运行时环境中，不写入 `system_configs`。
 
-实际密钥应放在环境变量或数据库配置中，生产环境必须避免提交真实密钥。
+历史 `ai_glm_config`（GLM/Zhipu）配置已退役。`core-008` 迁移会删除历史行并在 RLS policy 中排除该键；`ai_vision_config` 也不是当前 Harness 的配置入口。需要切换 Provider 或模型时，应修改受保护的部署配置并重新执行对应的配置门禁，不要恢复旧表键或直连模型 API。
 
 ### 17.4 Flash 工具调用
 
@@ -1917,11 +1922,13 @@ CC BY-NC-SA 4.0
 
 ### 21.1 Docker 统一启动
 
-推荐在项目根目录执行：
+本地 Harness 验收应只启动本次需要的服务，推荐在项目根目录执行：
 
 ```bash
-docker compose up -d
+docker compose up -d db api agent-runtime harness-bridge nginx swagger code-server
 ```
+
+不要使用无范围的 `docker compose up -d`：它可能顺带重建 web 或其他不在本次验收范围内的服务。后端/Harness 变更只重建 `agent-runtime harness-bridge`；独立站 web 发布遵守伦度发布协作记录中的 web-only 流程。
 
 或只启动 Nginx：
 
@@ -2029,7 +2036,7 @@ http://localhost/api/
 6. 能打开至少一个通用表格应用。
 7. 能新增、编辑、搜索、导出一条测试数据。
 8. 能打开 Swagger。
-9. 能访问 `/agent/` 健康或配置接口。
+9. 能访问 `/ai/config` 或 `/ai/agents`，并按当前用户权限只看到可用 Harness capability。
 
 ### 22.2 权限验收
 
@@ -2115,7 +2122,7 @@ http://localhost/api/
 | 决策支持 | `/decision` |
 | 移动端 | `/mobile` |
 | API 文档 | `/doc/` |
-| Agent Runtime | `/agent/` |
+| Harness Runtime | `/ai/`、`/twin/`、`/flash/`、`/document-intake/` |
 
 ## 25. 维护建议
 

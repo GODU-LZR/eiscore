@@ -154,7 +154,7 @@ const main = async () => {
     printJson({
       ok: false,
       code: 'UNAUTHORIZED',
-      message: 'FLASH_AGENT_TOKEN is empty; this command must run inside flash Cline runtime.'
+      message: 'FLASH_AGENT_TOKEN is empty; this command must run inside the Flash Harness runtime.'
     }, true);
     process.exit(1);
     return;
@@ -166,7 +166,7 @@ const main = async () => {
 
   if (parsed.registry) {
     const registryResult = await fetchJson(
-      `${baseUrl}/agent/flash/tools/registry`,
+      `${baseUrl}/flash/tools/registry`,
       {
         method: 'GET',
         headers
@@ -188,7 +188,7 @@ const main = async () => {
   }
   const args = parseJson(argsRaw, parsed.argsBase64 ? '--args64' : '--args');
   const registryResult = await fetchJson(
-    `${baseUrl}/agent/flash/tools/registry`,
+    `${baseUrl}/flash/tools/registry`,
     {
       method: 'GET',
       headers
@@ -224,7 +224,7 @@ const main = async () => {
   }
 
   const callResult = await fetchJson(
-    `${baseUrl}/agent/flash/tools/call`,
+    `${baseUrl}/flash/tools/call`,
     {
       method: 'POST',
       headers: {

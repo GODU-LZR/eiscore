@@ -48,7 +48,6 @@
     "eiscore-materials/src/views/InventoryDashboard_tech.vue": 1134,
     "eiscore-purchase/src/views/PurchaseDashboard.vue": 1130,
     "eiscore-mobile/src/views/check/CheckOverview.vue": 1100,
-    "eiscore-base/src/views/DigitalTwinView.vue": 1079,
     "eiscore-apps/src/views/AppDashboard.vue": 1068,
     "eiscore-materials/src/components/AppCenterGrid.vue": 1067,
     "eiscore-hr/src/views/EmployeeDetail.vue": 1057,

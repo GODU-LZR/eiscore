@@ -37,7 +37,7 @@ assert.equal(buildFlashDraftFromPublishedHtml('', { extractBody: () => '' }), ''
 const source = { name: 'app', flash: { keep: true, mode: 'old' } }
 assert.deepEqual(buildFlashSourceCodeWithDraft(source, '<template />', {
   draftFile: 'src/Draft.vue',
-  mode: 'legacy',
+  mode: 'shell',
   updatedAt: '2026-09-01T00:00:00.000Z',
   extraFlash: { mode: 'override', extra: 1 }
 }), {
@@ -73,7 +73,7 @@ assert.equal(resolveFlashDraftIsolation(isolationCases[0][0], { defaultDraft: 'f
 assert.deepEqual(buildFlashBuilderConfig({ keep: true, flash: { old: 1 } }, {
   codeServerEnabled: true,
   mode: 'code_server',
-  legacyMode: 'legacy',
+  shellMode: 'shell',
   draftRoot: 'src/views/drafts',
   draftFile: 'src/views/drafts/FlashDraft.vue',
   previewRoute: '/apps/preview/flash-draft',
@@ -90,7 +90,7 @@ assert.deepEqual(buildFlashBuilderConfig({ keep: true, flash: { old: 1 } }, {
     updatedAt: 'now'
   }
 })
-assert.equal(buildFlashBuilderConfig({}, { codeServerEnabled: false, mode: 'code_server', legacyMode: 'legacy' }).flash.mode, 'legacy')
+assert.equal(buildFlashBuilderConfig({}, { codeServerEnabled: false, mode: 'code_server', shellMode: 'shell' }).flash.mode, 'shell')
 
 const moduleSource = readFileSync(resolve(repoRoot, 'eiscore-apps/src/domain/flash-builder-draft-policy.js'), 'utf8')
 for (const forbidden of ['from \'vue\'', 'element-plus', 'requestJson', 'axios', 'window.', 'document.', 'localStorage', 'sessionStorage', 'Date.now', 'new Date']) {

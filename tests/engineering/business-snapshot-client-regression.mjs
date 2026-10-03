@@ -29,7 +29,7 @@ assert.deepEqual(await loadSnapshot(), {
   sales: { orders: 3 }
 })
 assert.deepEqual(calls, [{
-  url: '/agent/ai/business-snapshot',
+  url: '/ai/business-snapshot',
   options: {
     method: 'GET',
     headers: { Authorization: 'Bearer snapshot-token', 'X-Trace': 'trace-1' }

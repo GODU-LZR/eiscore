@@ -1,6 +1,3 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (c) 2026 林志荣
-
 const http = require('http');
 const WebSocket = require('ws');
 const jwt = require('jsonwebtoken');
@@ -10,48 +7,31 @@ const { createDocumentParseWorker } = require('./document-parser');
 const { createDocumentPlanWorker } = require('./document-planner');
 const { createDocumentEntryWorker } = require('./document-entry');
 const { createDocumentFixedEntryWorker } = require('./document-fixed-entry');
-const { createHttpRequestHandler } = require('./http-router');
+const { createHttpRequestHandler, normalizeAgentRequestPath } = require('./http-router');
 const { createCompanyHttpModule } = require('./company-http');
 const { createCompanySiteHandlers } = require('./company-site');
 const { createCompanySalesHandlers } = require('./company-sales-agent');
 const { createTwinResourceHttpHandlers } = require('./twin-resource-http');
-const { createAiHttpHandlers } = require('./ai-http');
-const { createAiChatHttpHandler } = require('./ai-chat-http');
 const { createFlashHttpHandlers } = require('./flash-http');
-const { createTwinChatHttpHandler } = require('./twin-chat-http');
 const { attachWebSocketServer } = require('./websocket-server');
-const { createAgentTaskService } = require('./agent-task-service');
-const { createAgentAccessService } = require('./agent-access-service');
+const { createHarnessFlashToolCallHandler } = require('./flash-harness-ws');
 const { createDatabaseNotifier } = require('./database-notifier');
-const { createAiRuntimeService } = require('./ai-runtime-service');
-const { createAiOcrService } = require('./ai-ocr-service');
-const { createAiOutputGuard } = require('./ai-output-guard');
-const { createAiContextService } = require('./ai-context-service');
-const {
-  buildAgentCatalog,
-  cleanModelText,
-  composeAgentMessages,
-  extractCompletionText,
-  extractStreamDeltaText,
-  normalizeAiText,
-  normalizeToolsWhitelist,
-  resolveAgentRoute,
-  resolveAgentRuntimeConfig,
-  sanitizeConversationMessages
-} = require('./ai-agent-policy');
+const { normalizeText: normalizeAiText } = require('./message-normalization');
 const { FlashToolError, createFlashPostgrestAdapter } = require('./flash-postgrest-adapter');
 const { createFlashToolRegistry } = require('./flash-tool-registry');
 const { createFlashAuthorization } = require('./flash-authorization');
 const { createFlashToolService } = require('./flash-tool-service');
 const { createFlashSemanticExecutor } = require('./flash-semantic-executor');
-const { createFlashClineRuntime } = require('./flash-cline-runtime');
-const { createFlashClineService } = require('./flash-cline-service');
-const { loadFlashClineConfig } = require('./flash-cline-config');
+const { loadFlashWorkspaceConfig } = require('./flash-workspace-config');
 const { createFlashWorkspaceService } = require('./flash-workspace-service');
 const { createAgentDatabaseConfig } = require('./database-config');
+const { createHarnessRuntime } = require('./harness-runtime');
+const { createHarnessSalesWriteExecutor } = require('./harness-sales-write');
+const { createAiContextService } = require('./ai-context-service');
+const { createTwinTools, createPersistence } = require('./twin-tools');
+const { createHarnessTwinContextExecutor } = require('./harness-twin-context-capability');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
-
 const port = Number(process.env.PORT || 8078);
 const wsPath = envText(process.env.WS_PATH, '/ws') || '/ws';
 const rawChannel = envText(process.env.CHANNEL, 'eis_events') || 'eis_events';
@@ -62,14 +42,6 @@ const jwtSecret = envText(
   process.env.EISCORE_AUTH_JWT_SECRET,
   envText(process.env.PGRST_JWT_SECRET, envText(process.env.JWT_SECRET, ''))
 );
-const aiConfigKey = envText(process.env.AI_CONFIG_KEY, 'ai_glm_config') || 'ai_glm_config';
-const aiVisionConfigKey = envText(process.env.AI_VISION_CONFIG_KEY, 'ai_vision_config') || 'ai_vision_config';
-const aiConfigTtlMs = Number(process.env.AI_CONFIG_TTL_MS || 30 * 1000);
-const aiUpstreamTimeoutMs = Number(process.env.AI_UPSTREAM_TIMEOUT_MS || 120 * 1000);
-const aiHttpProxyUrl = envText(
-  process.env.AI_HTTP_PROXY_URL,
-  envText(process.env.HTTPS_PROXY, envText(process.env.HTTP_PROXY, ''))
-);
 const postgrestBaseUrl = envText(process.env.AGENT_POSTGREST_URL, 'http://api:3000').replace(/\/+$/, '');
 const postgrestUserRole = envText(
   process.env.AGENT_POSTGREST_ROLE,
@@ -77,56 +49,17 @@ const postgrestUserRole = envText(
 ) || 'web_user';
 const flashToolCallTimeoutMs = Number(process.env.FLASH_TOOL_CALL_TIMEOUT_MS || 30 * 1000);
 const flashToolIdempotencyTtlMs = Number(process.env.FLASH_TOOL_IDEMPOTENCY_TTL_MS || 10 * 60 * 1000);
-const flashClineConfig = loadFlashClineConfig({ port });
-const {
-  enabled: flashCliEnabled,
-  command: flashCliCommand,
-  projectPath: flashCliProjectPath,
-  workdirConfigured: flashCliWorkdirConfigured,
-  configRoot: flashCliConfigRoot,
-  taskTimeoutMs: flashCliTaskTimeoutMs,
-  authTimeoutMs: flashCliAuthTimeoutMs,
-  provider: flashCliProvider,
-  historyLimit: flashCliHistoryLimit,
-  buildValidateEnabled: flashCliBuildValidateEnabled,
-  buildWorkdirConfigured: flashCliBuildWorkdirConfigured,
-  buildTimeoutMs: flashCliBuildTimeoutMs,
-  installTimeoutMs: flashCliInstallTimeoutMs,
-  selfHealMaxRounds: flashCliSelfHealMaxRounds,
-  autoInstallDeps: flashCliAutoInstallDeps,
-  draftFileName: flashDraftFileName,
-  attachmentDirName: flashAttachmentDirName,
-  attachmentMaxBytes: flashAttachmentMaxBytes,
-  attachmentPreviewMaxChars: flashAttachmentPreviewMaxChars,
-  semanticCliScript: flashSemanticCliScript,
-  agentBaseUrl: flashAgentBaseUrl
-} = flashClineConfig;
+const flashConfig = loadFlashWorkspaceConfig();
 
-const agentAccessService = createAgentAccessService({
-  normalizeProjectPath,
-  normalizeRelativeAgentPath,
-  normalizeText: normalizeAiText,
-  cleanModelText,
-  extractCompletionText,
-  callAiUpstreamWithRetry: (...args) => callAiUpstreamWithRetry(...args)
-});
-const {
-  canUseAgent,
-  createAgentTaskAiInvoker,
-  isAllowedProject,
-  logAgentEvent,
-  normalizeAgentTaskErrorMessage,
-  resolveDefaultWritePolicy,
-  sanitizeWritePolicy
-} = agentAccessService;
+const logAgentEvent = (type, user, details = {}) => console.log('[agent-event]', JSON.stringify({ type, user: { id: user?.id || '', role: user?.role || '' }, details }));
 
 const flashWorkspaceService = createFlashWorkspaceService({
-  projectPath: flashCliProjectPath,
-  workdirConfigured: flashCliWorkdirConfigured,
-  draftFileName: flashDraftFileName,
-  attachmentDirName: flashAttachmentDirName,
-  attachmentMaxBytes: flashAttachmentMaxBytes,
-  attachmentPreviewMaxChars: flashAttachmentPreviewMaxChars,
+  projectPath: flashConfig.projectPath,
+  workdirConfigured: flashConfig.workdirConfigured,
+  draftFileName: flashConfig.draftFileName,
+  attachmentDirName: flashConfig.attachmentDirName,
+  attachmentMaxBytes: flashConfig.attachmentMaxBytes,
+  attachmentPreviewMaxChars: flashConfig.attachmentPreviewMaxChars,
   moduleRoot: __dirname,
   normalizeText: normalizeAiText,
   normalizeProjectPath,
@@ -135,21 +68,12 @@ const flashWorkspaceService = createFlashWorkspaceService({
   logAgentEvent
 });
 const {
-  ensureDir,
-  hasFingerprintChanged: hasFlashFingerprintChanged,
-  normalizeAppId: normalizeFlashAppId,
-  readDraftFingerprintsSafe: readFlashDraftFingerprintsSafe,
   readDraftSource: readFlashDraftSource,
   requireNonEmptyText,
-  resolveWorkdir: resolveFlashCliWorkdir,
-  sanitizeUploadFileName,
-  syncPreviewDraftToScoped,
-  syncScopedDraftToPreview,
   uploadAttachment: uploadFlashAttachment,
   writeDraftSource: writeFlashDraftSource
 } = flashWorkspaceService;
 
-// In proxy-based environments, Node fetch reads proxy vars when this flag is enabled.
 if (!process.env.NODE_USE_ENV_PROXY) {
   process.env.NODE_USE_ENV_PROXY = '1';
 }
@@ -187,10 +111,7 @@ const {
 } = flashToolService;
 
 const getRequestPath = (req) => {
-  const rawPath = String(req?.url || '/').split('?')[0] || '/';
-  if (rawPath === '/agent') return '/';
-  if (rawPath.startsWith('/agent/')) return rawPath.slice('/agent'.length);
-  return rawPath;
+  return normalizeAgentRequestPath(req?.url);
 };
 
 const setCorsHeaders = (res) => {
@@ -216,9 +137,33 @@ const asUser = (payload, token) => ({
   id: payload?.user_id || payload?.sub || payload?.username || payload?.email || '',
   username: payload?.username || '',
   role: payload?.app_role || payload?.role || '',
+  tenant_id: payload?.tenant_id || payload?.tenantId || payload?.tenant || payload?.org_id || payload?.organization_id || '',
   permissions: Array.isArray(payload?.permissions) ? payload.permissions.map((p) => String(p)) : [],
   token: token || ''
 });
+
+const hasHarnessTenantContext = (user = {}) => Boolean(
+  String(user.id || user.sub || user.username || '').trim()
+  && String(user.tenant_id || user.tenantId || user.tenant || user.org_id || user.organization_id || '').trim()
+  && String(user.token || '').trim()
+);
+
+const hasDocumentIntakeAdminAccess = (user = {}) => {
+  const role = String(user.role || '').trim().toLowerCase();
+  const roles = String(process.env.DOCUMENT_INTAKE_ADMIN_ROLES || 'super_admin,admin,document_admin,document_intake_admin')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  const permissions = Array.isArray(user.permissions)
+    ? user.permissions.map((value) => String(value || '').trim().toLowerCase())
+    : [];
+  return roles.includes(role) || permissions.some((permission) => [
+    'document:admin',
+    'document-intake:admin',
+    'document_intake:admin',
+    'admin:document-intake'
+  ].includes(permission));
+};
 
 const readJsonBody = (req, maxBytes = 25 * 1024 * 1024) => {
   return new Promise((resolve, reject) => {
@@ -260,59 +205,7 @@ const documentParseWorker = createDocumentParseWorker({ log: console });
 const documentPlanWorker = createDocumentPlanWorker({ log: console });
 const documentEntryWorker = createDocumentEntryWorker({ log: console });
 const documentFixedEntryWorker = createDocumentFixedEntryWorker({ log: console });
-
-const aiAllowedRoles = normalizeStringList(process.env.AI_ALLOWED_ROLES || '').map((role) => String(role).toLowerCase());
-const aiAllowAll = String(process.env.AI_ALLOW_ALL || 'true').toLowerCase() !== 'false';
-
-const canUseAi = (user) => {
-  if (aiAllowAll) return true;
-  if (aiAllowedRoles.length === 0) return true;
-  const role = String(user?.role || '').toLowerCase();
-  return aiAllowedRoles.includes(role);
-};
-
-const aiRuntimeService = createAiRuntimeService({
-  queryConfig: (...args) => databaseNotifier.query(...args),
-  configKey: aiConfigKey,
-  visionConfigKey: aiVisionConfigKey,
-  configTtlMs: aiConfigTtlMs,
-  upstreamTimeoutMs: aiUpstreamTimeoutMs,
-  proxyUrl: aiHttpProxyUrl,
-  normalizeText: normalizeAiText,
-  normalizeToolsWhitelist,
-  log: console
-});
-const {
-  getAiConfig,
-  getAiVisionConfig,
-  callAiUpstreamWithRetry,
-  callAiVisionUpstreamWithRetry,
-  iterateAiStreamChunks,
-  waitMs
-} = aiRuntimeService;
-
-const aiOcrService = createAiOcrService({
-  getAiVisionConfig,
-  callAiVisionUpstreamWithRetry,
-  normalizeText: normalizeAiText,
-  cleanModelText,
-  extractCompletionText
-});
-const {
-  runImageOcr,
-  enrichMessagesWithOcr
-} = aiOcrService;
-
-const aiOutputGuard = createAiOutputGuard({
-  normalizeText: normalizeAiText,
-  callAiUpstreamWithRetry,
-  cleanModelText,
-  extractCompletionText
-});
-const {
-  shouldApplyEnterpriseOutputGuard,
-  applyEnterpriseOutputGuard
-} = aiOutputGuard;
+let companySalesHandlers = null;
 
 const sendWsJson = (ws, payload) => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -344,8 +237,7 @@ const flashPostgrestAdapter = createFlashPostgrestAdapter({
   fetchImpl: (...args) => fetch(...args),
   sanitizeQueryParams,
   parseJson: parseJsonMaybe,
-  normalizeText: normalizeAiText,
-  wait: waitMs
+  normalizeText: normalizeAiText
 });
 const {
   bindPgQueryForUser,
@@ -354,6 +246,7 @@ const {
   inferFlashDataColumnsFromPayload,
   resolveDataTableTarget
 } = flashPostgrestAdapter;
+const aiContextService = createAiContextService({ callPostgrestWithUser, log: console });
 
 const flashSemanticExecutor = createFlashSemanticExecutor({
   callPostgrestWithFlashTableEnsure,
@@ -370,68 +263,18 @@ const flashSemanticExecutor = createFlashSemanticExecutor({
 });
 const { executeFlashSemanticTool } = flashSemanticExecutor;
 
-const flashClineRuntime = createFlashClineRuntime({
-  command: flashCliCommand,
-  projectPath: flashCliProjectPath,
-  buildWorkdirConfigured: flashCliBuildWorkdirConfigured,
-  taskTimeoutMs: flashCliTaskTimeoutMs,
-  buildTimeoutMs: flashCliBuildTimeoutMs,
-  installTimeoutMs: flashCliInstallTimeoutMs,
-  selfHealMaxRounds: flashCliSelfHealMaxRounds,
-  autoInstallDeps: flashCliAutoInstallDeps,
-  historyLimit: flashCliHistoryLimit,
-  attachmentPreviewMaxChars: flashAttachmentPreviewMaxChars,
-  agentBaseUrl: flashAgentBaseUrl,
-  semanticCliScript: flashSemanticCliScript,
-  httpProxyUrl: aiHttpProxyUrl,
-  buildValidateEnabled: flashCliBuildValidateEnabled,
-  normalizeText: normalizeAiText,
-  normalizeProjectPath,
-  normalizeRelativeAgentPath,
-  sanitizeUploadFileName,
-  parseJsonMaybe,
-  sendWsJson
-});
-flashClineRuntime.ensureBashCompat();
-const {
-  buildFlashCliArgs,
-  buildFlashCliEnv,
-  buildFlashCliPrompt,
-  clampFlashHistory,
-  deriveOpenAiBaseUrl,
-  normalizeFlashAttachmentList,
-  normalizeFlashCliError,
-  parseClineRetryMessage,
-  resolveClineBin,
-  runFlashBuildSelfHeal,
-  runSpawnCapture,
-  shouldForwardClineSay
-} = flashClineRuntime;
-
-const writeSsePayload = (res, payload) => {
-  if (!res.writableEnded) {
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
-  }
-};
-
-const writeSseDone = (res) => {
-  if (!res.writableEnded) {
-    res.write('data: [DONE]\n\n');
-    res.end();
-  }
-};
-
 const streamTextAsSse = (res, text, chunkSize = 800) => {
   const output = normalizeAiText(text);
   if (!output) {
-    writeSseDone(res);
+    res.write('data: [DONE]\n\n');
+    res.end();
     return;
   }
   for (let start = 0; start < output.length; start += chunkSize) {
     const chunk = output.slice(start, start + chunkSize);
-    writeSsePayload(res, { choices: [{ delta: { content: chunk } }] });
+    if (!res.writableEnded) res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: chunk } }] })}\n\n`);
   }
-  writeSseDone(res);
+  if (!res.writableEnded) { res.write('data: [DONE]\n\n'); res.end(); }
 };
 
 const authorizeHttpRequest = (req, res) => {
@@ -442,57 +285,12 @@ const authorizeHttpRequest = (req, res) => {
     return null;
   }
   const user = asUser(payload, token);
-  if (!canUseAi(user)) {
-    sendJson(res, 403, { code: 'FORBIDDEN', message: 'AI access denied for current role' });
+  if (!hasHarnessTenantContext(user)) {
+    sendJson(res, 401, { code: 'HARNESS_AUTH_REQUIRED', message: 'Authenticated tenant context is required' });
     return null;
   }
   return user;
 };
-
-const aiContextService = createAiContextService({
-  callPostgrestWithUser
-});
-const {
-  fetchSemanticContext,
-  safeFetchBusinessSnapshot
-} = aiContextService;
-
-const aiHttpHandlers = createAiHttpHandlers({
-  authorizeHttpRequest,
-  getAiConfig,
-  getAiVisionConfig,
-  buildAgentCatalog,
-  safeFetchBusinessSnapshot,
-  readJsonBody,
-  normalizeAiText,
-  callAiUpstreamWithRetry,
-  callAiVisionUpstreamWithRetry,
-  runImageOcr,
-  cleanModelText,
-  extractCompletionText,
-  sendJson
-});
-
-const handleAiChat = createAiChatHttpHandler({
-  authorizeHttpRequest,
-  readJsonBody,
-  sendJson,
-  getAiConfig,
-  sanitizeConversationMessages,
-  enrichMessagesWithOcr,
-  resolveAgentRoute,
-  fetchSemanticContext,
-  safeFetchBusinessSnapshot,
-  resolveAgentRuntimeConfig,
-  shouldApplyEnterpriseOutputGuard,
-  composeAgentMessages,
-  callAiUpstreamWithRetry,
-  applyEnterpriseOutputGuard,
-  setCorsHeaders,
-  streamTextAsSse,
-  extractCompletionText
-});
-
 
 const authorizeAgentHttpRequest = (req, res) => {
   const token = getBearerFromAuthHeader(req);
@@ -502,33 +300,21 @@ const authorizeAgentHttpRequest = (req, res) => {
     return null;
   }
   const user = asUser(payload);
-  if (!canUseAgent(user)) {
-    sendJson(res, 403, { code: 'FORBIDDEN', message: 'Agent access denied for current role' });
+  user.token = token;
+  if (!hasHarnessTenantContext(user)) {
+    sendJson(res, 401, { code: 'HARNESS_AUTH_REQUIRED', message: 'Authenticated tenant context is required' });
     return null;
   }
-  user.token = token;
   return user;
 };
 
-const handleFlashToolCallWs = async (ws, payload) => {
-  if (!canUseAgent(ws.user)) {
-    sendWsJson(ws, {
-      type: 'flash:tool_result',
-      ok: false,
-      code: 'PERMISSION_DENIED',
-      message: 'Forbidden: agent access denied'
-    });
-    return;
-  }
-  const requestId = String(payload?.requestId || payload?.request_id || '').trim();
-  const body = payload?.payload && typeof payload.payload === 'object' ? payload.payload : payload;
-  const result = await executeFlashToolCall(ws.user, body, 'ws');
-  sendWsJson(ws, {
-    type: 'flash:tool_result',
-    requestId,
-    ...result.payload
-  });
-};
+const handleFlashToolCallWs = createHarnessFlashToolCallHandler({
+  execute: (...args) => harnessRuntime.toolGateway.execute(...args),
+  getToolDefinition: flashToolRegistry.getFlashToolDefinition,
+  resolveToolId: flashToolRegistry.resolveFlashToolId,
+  sendWsJson,
+  enabled: harnessRuntime.enabled
+});
 
 const flashHttpHandlers = createFlashHttpHandlers({
   authorizeAgentHttpRequest,
@@ -539,7 +325,7 @@ const flashHttpHandlers = createFlashHttpHandlers({
   writeFlashDraftSource,
   uploadFlashAttachment,
   resolveFlashToolErrorStatus: (error) => error instanceof FlashToolError ? error.httpStatus : 500,
-  flashAttachmentMaxBytes,
+  flashAttachmentMaxBytes: flashConfig.attachmentMaxBytes,
   sendJson
 });
 
@@ -557,7 +343,120 @@ const authorizeTwinRequest = (req, res) => {
     sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Invalid or missing token' });
     return null;
   }
-  return asUser(payload, token);
+  const user = asUser(payload, token);
+  if (!hasHarnessTenantContext(user)) {
+    sendJson(res, 401, { code: 'HARNESS_AUTH_REQUIRED', message: 'Authenticated tenant context is required' });
+    return null;
+  }
+  return user;
+};
+const executeDigitalTwinContext = createHarnessTwinContextExecutor({
+  fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user),
+  createTools: createTwinTools,
+  queryForUser: bindPgQueryForUser
+});
+const executeDocumentPlan = async (user, payload = {}) => {
+  const planId = String(payload.plan_id || payload.planId || '').trim();
+  const assetId = String(payload.asset_id || payload.assetId || '').trim();
+  if (!planId && !assetId) {
+    const error = new Error('plan_id or asset_id is required');
+    error.code = 'HARNESS_PLAN_ID_REQUIRED';
+    error.httpStatus = 400;
+    throw error;
+  }
+  if (planId && !/^[0-9a-f-]{36}$/i.test(planId) || assetId && !/^[0-9a-f-]{36}$/i.test(assetId)) {
+    const error = new Error('plan identifier is invalid');
+    error.code = 'HARNESS_PLAN_ID_INVALID';
+    error.httpStatus = 400;
+    throw error;
+  }
+  const query = {
+    select: 'id,asset_id,batch_id,target_module,target_document_type,target_kind,app_id,app_name,target_schema,target_table,mode,document_count,line_count,confidence,reason,columns_snapshot,documents,status,metadata,created_at,updated_at',
+    limit: planId ? '1' : '20',
+    order: 'created_at.desc'
+  };
+  if (planId) query.id = `eq.${planId}`;
+  if (assetId) query.asset_id = `eq.${assetId}`;
+  const result = await callPostgrestWithUser(user, { method: 'GET', path: '/document_entry_plans', query, acceptProfile: 'public', timeoutMs: 8000 });
+  return { plans: Array.isArray(result?.data) ? result.data : [] };
+};
+const executeSalesWrite = createHarnessSalesWriteExecutor({ getHandlers: () => companySalesHandlers });
+const harnessRuntime = createHarnessRuntime({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeEnterpriseSnapshot: (user, options = {}) => aiContextService.fetchBusinessSnapshot(user, options.accessContext), executeDigitalTwinContext, executeDocumentPlan, executeSalesWrite, documentEntryWorker, documentFixedEntryWorker, createTwinPersistence: (user) => createPersistence(bindPgQueryForUser(user), user.username || user.id), callPostgrestWithUser, fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user), envText });
+
+const handleFlashHarnessTaskWs = async (ws, payload = {}) => {
+  const sessionId = sanitizePathToken(payload.sessionId || payload.session_id, 'flash-default');
+  if (!harnessRuntime.enabled) {
+    sendWsJson(ws, { type: 'flash:harness_error', sessionId, error: 'DeepSeek Harness is disabled', code: 'HARNESS_DISABLED' });
+    sendWsJson(ws, { type: 'flash:harness_done', sessionId, success: false });
+    return;
+  }
+  const requestId = String(payload.requestId || payload.request_id || `flash_ws_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`)
+    .replace(/[^a-zA-Z0-9._:-]/g, '_')
+    .slice(0, 256);
+  const prompt = String(payload.prompt || '').trim().slice(0, 10000);
+  if (!prompt) {
+    sendWsJson(ws, { type: 'flash:harness_error', sessionId, error: '请输入任务内容' });
+    sendWsJson(ws, { type: 'flash:harness_done', sessionId, success: false });
+    return;
+  }
+  const history = (Array.isArray(payload.history) ? payload.history : [])
+    .filter((item) => item && (item.role === 'user' || item.role === 'assistant'))
+    .map((item) => ({ role: item.role, content: String(item.content || '').slice(0, 10000) }))
+    .filter((item) => item.content)
+    .slice(-24);
+  const attachments = (Array.isArray(payload.attachments) ? payload.attachments : [])
+    .slice(-12)
+    .map((item) => ({
+      name: String(item?.name || '').slice(0, 160),
+      relativePath: String(item?.relativePath || item?.path || '').slice(0, 512),
+      mimeType: String(item?.mimeType || item?.type || '').slice(0, 160),
+      textPreview: String(item?.textPreview || '').slice(0, 8000)
+    }))
+    .filter((item) => item.name || item.relativePath || item.textPreview);
+  const confirmed = payload.confirmed === true;
+  const idempotencyKey = String(payload.idempotencyKey || payload.idempotency_key || '')
+    .trim()
+    .slice(0, 128);
+  sendWsJson(ws, { type: 'flash:harness_status', sessionId, status: 'running' });
+  let result;
+  try {
+    result = await harnessRuntime.gateway.execute({
+      kind: 'chat',
+      request_id: requestId,
+      session_id: sessionId,
+      plugin_id: 'flash-builder',
+      agent_id: 'flash_builder',
+      capability_id: 'eiscore_flash_read',
+      confirmed,
+      idempotency_key: idempotencyKey,
+      user: ws.user,
+      payload: {
+        messages: [...history, { role: 'user', content: prompt }],
+        stream: false,
+        context: {
+          app_id: String(payload.appId || payload.app_id || '').slice(0, 128),
+          source: 'flash_builder',
+          attachments
+        }
+      }
+    });
+  } catch (error) {
+    result = { ok: false, code: error?.code || 'HARNESS_UPSTREAM_UNAVAILABLE', message: 'DeepSeek Harness is unavailable' };
+  }
+  if (!result?.ok) {
+    sendWsJson(ws, { type: 'flash:harness_error', sessionId, error: result?.message || 'Harness task failed', code: result?.code || 'HARNESS_UPSTREAM_UNAVAILABLE' });
+    sendWsJson(ws, { type: 'flash:harness_done', sessionId, success: false });
+    return;
+  }
+  const data = result.data || {};
+  const content = String(data.text || data.output_text || data.choices?.[0]?.message?.content || '').trim();
+  if (content) sendWsJson(ws, { type: 'flash:harness_output', sessionId, content });
+  sendWsJson(ws, { type: 'flash:harness_done', sessionId, success: true, draftChanged: undefined });
+};
+
+const handleFlashHarnessResetWs = async (ws, payload = {}) => {
+  const sessionId = sanitizePathToken(payload.sessionId || payload.session_id, 'flash-default');
+  sendWsJson(ws, { type: 'flash:harness_status', sessionId, status: 'reset', message: '会话已重置' });
 };
 
 const authorizeDocumentIntakeAdminRequest = (req, res) => {
@@ -567,27 +466,17 @@ const authorizeDocumentIntakeAdminRequest = (req, res) => {
     sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Invalid or missing token' });
     return null;
   }
-  return asUser(payload, token);
+  const user = asUser(payload, token);
+  if (!hasHarnessTenantContext(user)) {
+    sendJson(res, 401, { code: 'HARNESS_AUTH_REQUIRED', message: 'Authenticated tenant context is required' });
+    return null;
+  }
+  if (!hasDocumentIntakeAdminAccess(user)) {
+    sendJson(res, 403, { code: 'FORBIDDEN', message: 'Document intake administration denied for current role' });
+    return null;
+  }
+  return user;
 };
-
-const handleTwinChat = createTwinChatHttpHandler({
-  authorizeTwinRequest,
-  readJsonBody,
-  normalizeAiText,
-  sendJson,
-  getAiConfig,
-  bindPgQueryForUser,
-  fetchSemanticContext,
-  callAiUpstreamWithRetry,
-  setCorsHeaders,
-  extractCompletionText,
-  waitMs,
-  writeSsePayload,
-  iterateAiStreamChunks,
-  extractStreamDeltaText,
-  writeSseDone,
-  aiUpstreamTimeoutMs
-});
 
 const twinResourceHttpHandlers = createTwinResourceHttpHandlers({
   authorizeTwinRequest,
@@ -599,7 +488,7 @@ const twinResourceHttpHandlers = createTwinResourceHttpHandlers({
 
 const companyQuery = (...args) => databaseNotifier.query(...args);
 const companySiteHandlers = createCompanySiteHandlers({ query: companyQuery, sendJson, sendText, readJsonBody });
-const companySalesHandlers = createCompanySalesHandlers({ query: companyQuery, sendJson, readJsonBody });
+companySalesHandlers = createCompanySalesHandlers({ query: companyQuery, sendJson, readJsonBody });
 const companyHttp = createCompanyHttpModule({
   companySiteHandlers,
   companySalesHandlers,
@@ -607,6 +496,7 @@ const companyHttp = createCompanyHttpModule({
   getBearerFromAuthHeader,
   verifyToken,
   asUser,
+  hasTenantContext: hasHarnessTenantContext,
   readJsonBody,
   sendJson
 });
@@ -621,15 +511,12 @@ const server = http.createServer(createHttpRequestHandler({
   handlers: {
     health: (_req, res) => sendJson(res, 200, { ok: true, channel }),
     documentIntake: documentIntakeHandlers,
-    ai: {
-      ...aiHttpHandlers,
-      handleChat: handleAiChat
-    },
+    ai: {},
+    harness: harnessRuntime.handlers,
     flash: {
       ...flashHttpHandlers
     },
     twin: {
-      handleChat: handleTwinChat,
       ...twinResourceHttpHandlers
     },
     company: companyHttp.handlers
@@ -712,50 +599,6 @@ function sanitizePathToken(value, fallback = 'default') {
   return raw.slice(0, 64);
 }
 
-const agentTaskService = createAgentTaskService({
-  canUseAgent,
-  logAgentEvent,
-  normalizeProjectPath,
-  isAllowedProject,
-  getAiConfig,
-  sanitizeWritePolicy,
-  resolveDefaultWritePolicy,
-  createAgentTaskAiInvoker,
-  normalizeAgentTaskErrorMessage
-});
-
-const flashClineService = createFlashClineService({
-  enabled: flashCliEnabled,
-  nodeVersion: process.versions.node,
-  projectPath: flashCliProjectPath,
-  configRoot: flashCliConfigRoot,
-  taskTimeoutMs: flashCliTaskTimeoutMs,
-  authTimeoutMs: flashCliAuthTimeoutMs,
-  provider: flashCliProvider,
-  registryVersion: flashSemanticToolRegistryVersion,
-  registryCount: flashSemanticToolRegistryCount,
-  runtime: flashClineRuntime,
-  normalizeText: normalizeAiText,
-  normalizeAppId: normalizeFlashAppId,
-  normalizeProjectPath,
-  isAllowedProject,
-  canUseAgent,
-  getAiConfig,
-  resolveTaskWorkdir: resolveFlashCliWorkdir,
-  ensureDir,
-  syncScopedDraftToPreview,
-  readDraftFingerprintsSafe: readFlashDraftFingerprintsSafe,
-  syncPreviewDraftToScoped,
-  hasFingerprintChanged: hasFlashFingerprintChanged,
-  sendWsJson,
-  logAgentEvent
-});
-const {
-  createFlashCliSession,
-  killFlashCliSessionProcess,
-  runFlashClineTask
-} = flashClineService;
-
 async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
@@ -788,12 +631,11 @@ attachWebSocketServer({
   extractToken,
   verifyToken,
   asUser,
+  hasHarnessTenantContext,
   channel,
   normalizeStringList,
   handleFlashToolCallWs,
-  runFlashClineTask,
-  killFlashCliSessionProcess,
-  sendWsJson,
-  createFlashCliSession,
-  agentTaskService
+  handleFlashHarnessTaskWs,
+  handleFlashHarnessResetWs,
+  sendWsJson
 });

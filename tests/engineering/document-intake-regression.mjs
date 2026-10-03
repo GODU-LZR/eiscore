@@ -361,6 +361,9 @@ assert.deepEqual(documentIntakeAdminRoutes, [
 ])
 assert.match(realtimeIndexSource, /documentIntakeAdmin:\s*authorizeDocumentIntakeAdminRequest/)
 assert.match(realtimeIndexSource, /documentIntake:\s*documentIntakeHandlers/)
+assert.match(realtimeIndexSource, /const hasDocumentIntakeAdminAccess = /)
+assert.match(realtimeIndexSource, /authorizeDocumentIntakeAdminRequest[\s\S]+hasHarnessTenantContext\(user\)/)
+assert.match(realtimeIndexSource, /authorizeDocumentIntakeAdminRequest[\s\S]+hasDocumentIntakeAdminAccess\(user\)/)
 
 function resetState() {
   state.authorized = true

@@ -11,7 +11,7 @@ export function createTwinJsonClient({ getAuthHeaders, fetchImpl = defaultFetch 
     if (typeof path !== 'string' || !path.startsWith('/twin/')) {
       throw new TypeError('Twin JSON path must start with /twin/')
     }
-    const response = await fetchImpl(`/agent${path}`, {
+    const response = await fetchImpl(path, {
       method: options.method || 'GET',
       headers: getAuthHeaders(),
       body: options.body ? JSON.stringify(options.body) : undefined

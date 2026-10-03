@@ -80,7 +80,8 @@ const portal = enterprisePortalFromSiteConfig({
           },
           metrics: [{ label: '业务重点', value: '制造协同' }],
           businessChain: [{ title: '原料管理', description: '按批次进入生产。' }],
-          capabilities: [{ title: '过程追踪', description: '保持业务上下文。' }]
+          capabilities: [{ title: '过程追踪', description: '保持业务上下文。' }],
+          carouselImages: [{ url: '/hero.jpg', title: '设备与产品', hasEmbeddedText: true }]
         }
       }
     }],
@@ -92,6 +93,7 @@ const portal = enterprisePortalFromSiteConfig({
 
 assert.equal(portal.loginBranding.slogan, '从原料，到稳定交付。')
 assert.equal(portal.loginBranding.metrics[0].value, '制造协同')
+assert.equal(portal.loginBranding.carouselImages[0].hasEmbeddedText, true)
 assert.equal(portal.products[0].code, 'DEMO-001')
 assert.deepEqual(portal.products[0].applications, ['应用一'])
 assert.equal(portal.solutions[0].name, '示例方案')
@@ -111,6 +113,27 @@ const englishPortal = enterprisePortalFromSiteConfig({
 })
 assert.equal(englishPortal.loginBranding.slogan, 'Example foods, made reliably.')
 
+const legacyLunduPortal = enterprisePortalFromSiteConfig({
+  site: { legalName: '伦度机电有限公司' },
+  content: {
+    pages: [{
+      slug: 'home',
+      blocks: {
+        homepage: {
+          carouselImages: [
+            { url: '/enterprise-assets/site/ratio/hero-wide.png', title: '设备与产品' },
+            { url: '/enterprise-assets/site/ratio/application-wide.png', title: '应用场景' },
+            { url: '/enterprise-assets/site/ratio/factory-wide.png', title: '制造现场' }
+          ]
+        }
+      }
+    }]
+  }
+})
+assert.equal(legacyLunduPortal.loginBranding.carouselImages[0].hasEmbeddedText, true)
+assert.equal(legacyLunduPortal.loginBranding.carouselImages[1].url, '/enterprise-assets/site/crops/generated-application-flow-wide.jpg')
+assert.equal(legacyLunduPortal.loginBranding.carouselImages[2].url, '/enterprise-assets/site/crops/generated-factory-floor-wide.jpg')
+
 const merged = mergeEnterpriseProfileIntoSystemConfig({
   title: '内部系统标题',
   themeColor: '#409EFF',
@@ -120,7 +143,8 @@ const merged = mergeEnterpriseProfileIntoSystemConfig({
     logo: '/legacy-logo.png',
     description: '历史重复企业介绍',
     authTitle: '登录内部系统',
-    secondaryActionUrl: '/legacy-site'
+    secondaryActionUrl: '/legacy-site',
+    carouselImages: [{ url: '/hero.jpg', hasEmbeddedText: true }]
   }
 }, profile)
 
@@ -133,6 +157,20 @@ assert.equal(merged.loginBranding.description, '示例企业公开介绍')
 assert.equal(merged.loginBranding.siteTag, '示例制造有限公司')
 assert.equal(merged.loginBranding.authTitle, '登录内部系统')
 assert.equal(merged.loginBranding.secondaryActionUrl, 'https://factory.example.test/company/')
+
+const mergedSlides = mergeEnterpriseProfileIntoSystemConfig({
+  loginBranding: { carouselImages: [{ url: '/hero.jpg', hasEmbeddedText: true }] }
+}, {
+  ...profile,
+  portal: {
+    ...profile.portal,
+    loginBranding: {
+      ...profile.portal.loginBranding,
+      carouselImages: [{ url: '/hero.jpg', title: '旧站点标题', subtitle: '旧站点副标题' }]
+    }
+  }
+})
+assert.equal(mergedSlides.loginBranding.carouselImages[0].hasEmbeddedText, true)
 
 const persisted = stripEnterpriseProfileFromSystemConfig(merged)
 assert.equal(Object.hasOwn(persisted.loginBranding, 'companyName'), false)

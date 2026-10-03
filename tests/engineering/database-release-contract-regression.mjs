@@ -31,7 +31,7 @@ assert.deepEqual(validateDatabaseReleaseManifest({
 assert.match(databaseReleaseManifestSha256(manifest), /^[0-9a-f]{64}$/)
 assert.deepEqual(manifest.migrationManifests.map(({ name }) => name), ['runtime-v2', 'company-site', 'core'])
 assert.deepEqual(manifest.migrationManifests.map(({ terminal }) => terminal.id), [
-  'runtime-v2-010', 'company-site-001', 'core-007'
+  'runtime-v2-010', 'company-site-001', 'core-009'
 ])
 assert.ok(manifest.artifacts.some(({ path }) => path === 'database/release-ledger.sql'))
 assert.ok(manifest.artifacts.some(({ path }) => path === 'database/contracts/eiscore-db-contract-v3.json'))

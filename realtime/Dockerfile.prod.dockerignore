@@ -1,0 +1,12 @@
+*
+!realtime/
+realtime/*
+!realtime/*.js
+!realtime/package.json
+!realtime/package-lock.json
+!realtime/Dockerfile.prod
+!agent-harness/
+agent-harness/*
+!agent-harness/plugin-registry.js
+!agent-harness/audit-ledger.js
+!agent-harness/plugin-contract.v1.json

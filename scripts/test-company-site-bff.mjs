@@ -119,6 +119,7 @@ const bearer = (req) => String(req?.headers?.authorization || '').replace(/^Bear
 const asUser = (payload, token) => ({
   id: payload?.user_id || payload?.sub || payload?.username || payload?.email || '',
   username: payload?.username || '',
+  tenant_id: payload?.tenant_id || payload?.tenantId || payload?.tenant || '',
   role: payload?.app_role || payload?.role || '',
   permissions: Array.isArray(payload?.permissions) ? payload.permissions.map(String) : [],
   token
@@ -178,7 +179,7 @@ try {
     '--backup-evidence', 'isolated://db6-company-site-bff', '--release-revision', 'db6-bff-test',
     '--operator', 'db6-company-site-bff-test'
   ])
-  assert.match(migration.stdout, /core migration execution passed: 6 applied, 1 skipped/)
+  assert.match(migration.stdout, /core migration execution passed: 8 applied, 1 skipped/)
 
   psql(`
     INSERT INTO company_site.site_config (
@@ -237,9 +238,9 @@ try {
     server.listen(0, '127.0.0.1', resolvePromise)
   })
   const port = server.address().port
-  const adminToken = jwt.sign({ sub: 'db6-admin', username: 'db6-admin', app_role: 'company_site_admin' }, jwtSecret, { expiresIn: 300 })
-  const salesToken = jwt.sign({ sub: 'db6-sales', username: 'db6-sales', app_role: 'sales' }, jwtSecret, { expiresIn: 300 })
-  const approverToken = jwt.sign({ sub: 'db6-manager', username: 'db6-manager', app_role: 'sales_manager' }, jwtSecret, { expiresIn: 300 })
+  const adminToken = jwt.sign({ sub: 'db6-admin', username: 'db6-admin', tenant_id: 'db6-tenant', app_role: 'company_site_admin' }, jwtSecret, { expiresIn: 300 })
+  const salesToken = jwt.sign({ sub: 'db6-sales', username: 'db6-sales', tenant_id: 'db6-tenant', app_role: 'sales' }, jwtSecret, { expiresIn: 300 })
+  const approverToken = jwt.sign({ sub: 'db6-manager', username: 'db6-manager', tenant_id: 'db6-tenant', app_role: 'sales_manager' }, jwtSecret, { expiresIn: 300 })
 
   const publicBefore = await request({ port, path: '/agent/company-site/public/site-config', host: domainBefore })
   assert.equal(publicBefore.status, 200, publicBefore.raw)

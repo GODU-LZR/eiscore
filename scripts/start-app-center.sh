@@ -15,14 +15,7 @@ echo "🚀 启动 EISCore 应用中心..."
 if [ ! -f .env ]; then
     echo "⚠️  未找到 .env 文件，从模板创建..."
     cp .env.example .env
-    echo "❗ 请编辑 .env 文件并配置 ANTHROPIC_API_KEY"
-    exit 1
-fi
-
-# Check ANTHROPIC_API_KEY
-if ! grep -q "ANTHROPIC_API_KEY=sk-ant-" .env; then
-    echo "❌ ANTHROPIC_API_KEY 未配置！"
-    echo "请在 .env 文件中设置有效的 Anthropic API Key"
+    echo "❗ 请编辑 .env 文件并配置 EISCORE_HARNESS_* 参数"
     exit 1
 fi
 
@@ -37,18 +30,18 @@ docker exec -i eiscore-db psql -U postgres -d eiscore < sql/app_center_schema.sq
     echo "   ✅ Schema 已存在，跳过"
 }
 
-# Step 2: Build and start agent-runtime
+# Step 2: Build and start the Runtime and Harness bridge
 echo ""
-echo "🤖 Step 2/7: 构建 Agent Runtime..."
-docker-compose build agent-runtime
+echo "🤖 Step 2/7: 构建 Agent Runtime 与 Harness Bridge..."
+docker-compose build agent-runtime harness-bridge
 
-echo "   启动 Agent Runtime..."
-docker-compose up -d agent-runtime
+echo "   启动 Agent Runtime 与 Harness Bridge..."
+docker-compose up -d agent-runtime harness-bridge
 
 # Step 3: Start other services
 echo ""
-echo "🐳 Step 3/7: 启动其他服务..."
-docker-compose up -d
+echo "🐳 Step 3/7: 启动其他本地服务..."
+docker-compose up -d api nginx swagger code-server
 
 echo ""
 echo "🧩 Step 4/7: 应用 Workflow 运行时补丁..."

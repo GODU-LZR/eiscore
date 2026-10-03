@@ -967,7 +967,7 @@ const sendMessage = async (text, options = {}) => {
     }
 
     await streamAgentEvents({
-      path: '/agent/ai/chat/completions',
+      path: '/ai/chat/completions',
       headers: buildAuthHeaders(),
       payload,
       signal: streamController.signal,

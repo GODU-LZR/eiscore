@@ -34,6 +34,7 @@ assert.match(previewPlugin, /productionApproved/)
 
 const baseRouter = read('eiscore-base/src/router/index.js')
 assert.match(baseRouter, /path === '\/login'/)
+assert.match(baseRouter, /safeRedirect\.startsWith\('\/mobile\/'\)/)
 
 const mobileRouter = read('eiscore-mobile/src/router/index.js')
 assert.match(mobileRouter, /to\.name === 'login'/)

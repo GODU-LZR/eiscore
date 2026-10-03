@@ -52,7 +52,8 @@
       "properties": {
         "url": { "type": "string", "maxLength": 500 },
         "title": { "type": "string", "maxLength": 120 },
-        "subtitle": { "type": "string", "maxLength": 200 }
+        "subtitle": { "type": "string", "maxLength": 200 },
+        "hasEmbeddedText": { "type": "boolean" }
       }
     },
     "leader": {

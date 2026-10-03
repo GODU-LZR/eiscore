@@ -54,7 +54,6 @@ function limitRows(arr, max = MAX_RESULT_ROWS) {
 }
 
 const HR_ARCHIVE_FIELDS = ['id', 'employee_no', 'name', 'department', 'position', 'entry_date', 'status', 'phone', 'updated_at'];
-const PUBLIC_EMPLOYEE_FIELDS = ['id', 'name', 'department', 'position', 'created_at'];
 const DEPARTMENT_FIELDS = ['id', 'name', 'parent_id', 'leader_id', 'sort', 'status', 'created_at', 'updated_at'];
 const MATERIAL_FIELDS = ['id', 'batch_no', 'name', 'category', 'weight_kg', 'entry_date', 'created_by', 'updated_at', 'dept_id'];
 const WAREHOUSE_FIELDS = ['id', 'code', 'name', 'parent_id', 'level', 'sort', 'status', 'manager_id', 'capacity', 'unit', 'updated_at'];
@@ -137,14 +136,6 @@ const HR_ARCHIVE_ALIASES = {
   full_name: 'name',
   hire_date: 'entry_date',
   username: 'employee_no'
-};
-const PUBLIC_EMPLOYEE_ALIASES = {
-  full_name: 'name',
-  employee_no: 'id',
-  hire_date: 'created_at',
-  status: '',
-  phone: '',
-  email: ''
 };
 const DEPARTMENT_ALIASES = {
   code: 'id',
@@ -291,35 +282,14 @@ function createTwinTools(pgQuery, user, accessContext = null, refreshAccessConte
         };
         applySimpleFilter(query, opts.filter, HR_ARCHIVE_FIELDS, HR_ARCHIVE_ALIASES);
 
-        try {
-          const fieldPolicy = prepareTwinRead(query, currentContext, 'hr.archives', 'hr_employee', HR_ARCHIVE_FIELDS, Boolean(opts.select));
-          const res = await pgQuery({
-            method: 'GET', path: '/archives', query: fieldPolicy.query,
-            acceptProfile: 'hr', timeoutMs: 8000
-          });
-          const visibleRows = stripFieldAcl(res?.data, currentContext, fieldPolicy.module);
-          const rows = Array.isArray(visibleRows) ? visibleRows.map(row => normalizeEmployeeRecord(row, 'hr.archives')) : visibleRows;
-          return truncateResult(limitRows(rows));
-        } catch (error) {
-          if (error?.code === 'PERMISSION_DENIED' || error?.httpStatus === 401 || error?.httpStatus === 403 || error?.status === 401 || error?.status === 403) throw error;
-          const fallbackQuery = {
-            select: normalizeSelect(opts.select, 'id,name,department,position,created_at', PUBLIC_EMPLOYEE_FIELDS, PUBLIC_EMPLOYEE_ALIASES),
-            limit: String(Math.min(Number(opts.limit) || 20, MAX_RESULT_ROWS)),
-            order: normalizeOrder(opts.order, 'created_at.desc', PUBLIC_EMPLOYEE_FIELDS, PUBLIC_EMPLOYEE_ALIASES)
-          };
-          applySimpleFilter(fallbackQuery, opts.filter, PUBLIC_EMPLOYEE_FIELDS, PUBLIC_EMPLOYEE_ALIASES);
-          const fallbackPolicy = prepareTwinRead(fallbackQuery, currentContext, 'public.employees', 'hr_employee', PUBLIC_EMPLOYEE_FIELDS, Boolean(opts.select));
-          const fallback = await pgQuery({
-            method: 'GET', path: '/employees', query: fallbackPolicy.query,
-            acceptProfile: 'public', timeoutMs: 8000
-          });
-          const visibleRows = stripFieldAcl(fallback?.data, currentContext, fallbackPolicy.module);
-          const rows = Array.isArray(visibleRows) ? visibleRows.map(row => normalizeEmployeeRecord(row, 'public.employees')) : visibleRows;
-          return truncateResult({
-            rows: limitRows(rows),
-            warning: `HR档案查询失败，已回退公共员工表：${String(error?.message || error).slice(0, 160)}`
-          });
-        }
+        const fieldPolicy = prepareTwinRead(query, currentContext, 'hr.archives', 'hr_employee', HR_ARCHIVE_FIELDS, Boolean(opts.select));
+        const res = await pgQuery({
+          method: 'GET', path: '/archives', query: fieldPolicy.query,
+          acceptProfile: 'hr', timeoutMs: 8000
+        });
+        const visibleRows = stripFieldAcl(res?.data, currentContext, fieldPolicy.module);
+        const rows = Array.isArray(visibleRows) ? visibleRows.map(row => normalizeEmployeeRecord(row, 'hr.archives')) : visibleRows;
+        return truncateResult(limitRows(rows));
       }
     },
 
@@ -844,7 +814,7 @@ function buildTwinSystemPrompt(user, semanticCtx) {
  * 创建持久化接口（通过 PostgREST 写入 PostgreSQL）
  * @param {Function} pgQuery - callPostgrestWithUser 的绑定版本
  * @param {string}   employeeId - 当前员工 username
- * @returns {Object} { createSession, saveMessage, saveToolLog, loadHistory, listSessions, deleteSession }
+ * @returns {Object} { createSession, getSession, saveMessage, saveToolLog, loadHistory, listSessions, deleteSession }
  */
 function createPersistence(pgQuery, employeeId) {
   return {
@@ -854,7 +824,7 @@ function createPersistence(pgQuery, employeeId) {
     async createSession(title = '新对话') {
       const res = await pgQuery({
         method: 'POST', path: '/twin_sessions',
-        body: { employee_id: employeeId, title },
+        body: { employee_id: employeeId, title, model: 'deepseek-harness' },
         acceptProfile: 'app_data',
         contentProfile: 'app_data',
         prefer: 'return=representation',
@@ -862,6 +832,20 @@ function createPersistence(pgQuery, employeeId) {
       });
       const row = Array.isArray(res?.data) ? res.data[0] : res?.data;
       return row?.id || null;
+    },
+
+    /**
+     * Read one session through the caller's JWT/RLS context.
+     */
+    async getSession(sessionId) {
+      if (!sessionId) return null;
+      const res = await pgQuery({
+        method: 'GET', path: '/twin_sessions',
+        query: { id: `eq.${sessionId}`, select: 'id,employee_id,title', limit: '1' },
+        acceptProfile: 'app_data',
+        timeoutMs: 5000
+      });
+      return Array.isArray(res?.data) ? (res.data[0] || null) : (res?.data || null);
     },
 
     /**

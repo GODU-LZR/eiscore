@@ -16,7 +16,6 @@ const SNAPSHOT_SOURCE_POLICIES = Object.freeze({
   checks: { domain: 'inventory', module: 'mms_ledger', permissions: ['module:materials', 'module:mms', 'app:mms_ledger'] },
   productionOrders: { domain: 'production', module: 'production', permissions: ['module:production', 'app:production_plan', 'app:production_work_order'] },
   hrArchives: { domain: 'employees', module: 'hr_employee', permissions: ['module:hr', 'app:hr_employee', 'op:hr_employee.view'] },
-  employeesFallback: { domain: 'employees', module: 'hr_employee', permissions: ['module:hr', 'app:hr_employee', 'op:hr_employee.view'] },
   salesCustomers: { domain: 'sales', module: 'sales', permissions: ['module:sales', 'app:sales_dashboard', 'app:sales_cockpit', 'app:sales_customer'] },
   salesOrders: { domain: 'sales', module: 'sales', permissions: ['module:sales', 'app:sales_dashboard', 'app:sales_cockpit', 'app:sales_order'] },
   salesOpportunities: { domain: 'sales', module: 'sales', permissions: ['module:sales', 'app:sales_dashboard', 'app:sales_cockpit', 'app:sales_opportunity'] },
@@ -312,19 +311,12 @@ const createAiContextService = ({
     snapshot.materials = { total: materials.length, byCategory: categories };
   }
 
-  // 5. 员工统计（真实 HR 档案在 hr.archives，public.employees 仅保留兼容样例数据）
-  let employees = await safeQuery('hrArchives', {
+  // 5. 员工统计（仅使用真实 HR 档案，禁止回退到兼容样例数据）
+  const employees = await safeQuery('hrArchives', {
     method: 'GET', path: '/archives',
     query: { select: 'id,department,status', limit: '500' },
     acceptProfile: 'hr'
   });
-  if (!Array.isArray(employees)) {
-    employees = await safeQuery('employeesFallback', {
-      method: 'GET', path: '/employees',
-      query: { select: 'id,department', limit: '500' },
-      acceptProfile: 'public'
-    });
-  }
   if (Array.isArray(employees)) {
     const depts = {};
     employees.forEach(e => { const d = e.department || '未分配'; depts[d] = (depts[d] || 0) + 1; });
@@ -596,38 +588,9 @@ const createAiContextService = ({
   return snapshot;
 };
 
-  const buildBusinessSnapshotFallback = (error) => {
-  const message = String(error?.message || error || '业务快照读取失败').slice(0, 500);
-  return {
-    snapshotTime: now().toISOString(),
-    _meta: {
-      partial: true,
-      fallback: true,
-      error: message,
-      failedSourceCount: 1,
-      failedSources: [{ label: 'businessSnapshot', message }]
-    }
-  };
-};
-
-  const safeFetchBusinessSnapshot = async (user, source = 'biz-snapshot', accessContext) => {
-  try {
-    const context = accessContext === undefined
-      ? await fetchSemanticContext(user)
-      : accessContext;
-    return await fetchBusinessSnapshot(user, context);
-  } catch (error) {
-    log.warn(`[${source}] business snapshot fallback:`, error?.message || error);
-    return buildBusinessSnapshotFallback(error);
-  }
-};
-
-
   return Object.freeze({
-    buildBusinessSnapshotFallback,
     fetchBusinessSnapshot,
-    fetchSemanticContext,
-    safeFetchBusinessSnapshot
+    fetchSemanticContext
   });
 };
 

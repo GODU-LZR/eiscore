@@ -144,8 +144,8 @@ assert.equal(clients[0].connectCount, 1)
 assert.deepEqual(clients[0].queries, ['LISTEN eis_events', 'LISTEN workflow_event'])
 assert.equal(engines.length, 1)
 assert.equal(engines[0].initializeCount, 1)
-await notifier.query('SELECT value FROM public.system_configs WHERE key = $1', ['ai_glm_config'])
-assert.equal(clients[0].queries.at(-1), 'SELECT value FROM public.system_configs WHERE key = $1')
+await notifier.query('SELECT 1')
+assert.equal(clients[0].queries.at(-1), 'SELECT 1')
 
 clients[0].emit('notification', {
   channel: 'eis_events',

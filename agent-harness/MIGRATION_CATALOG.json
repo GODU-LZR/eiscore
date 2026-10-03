@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "migration": "eiscore-agent-to-deepseek-harness",
+  "status": "harness-entry-cutover-external-validation-pending",
+  "production_policy": "harness-only",
+  "tool_execution": {
+    "implemented": "complete-local-loopback",
+    "implemented_capabilities": ["eiscore_document_plan", "eiscore_document_commit", "eiscore_enterprise_snapshot", "eiscore_enterprise_query", "eiscore_grid_query", "eiscore_multimodal_translate", "eiscore_multimodal_ocr", "eiscore_multimodal_map_locate", "eiscore_flash_read", "eiscore_flash_write", "eiscore_twin_context", "eiscore_twin_chat", "eiscore_workflow_context", "eiscore_workflow_write", "eiscore_sales_context", "eiscore_sales_write", "eiscore_engineering_context", "eiscore_site_sales"],
+    "blocker": "All 18 registered EISCore capabilities now dispatch through the local Tool Gateway loopback. Every model-visible capability input is constrained at the Gateway contract boundary; Flash, Workflow, Document and Sales writes accept confirmation and idempotency only from the authenticated outer request context. An official SDK tool_call_success smoke passes locally against a scripted mock provider and loopback proxy; current-branch compiled client plugin provenance, Smart BI ECharts repair and business-answer rewrite parity, external two-tenant RLS acceptance, full Docker Compose clean release, real provider behavior and image-resource unit fixtures remain unverified."
+  },
+  "plugins": [
+    { "plugin_id": "enterprise-bi", "agent_id": "enterprise_analyst", "capabilities": ["eiscore_enterprise_snapshot", "eiscore_enterprise_query", "eiscore_multimodal_translate", "eiscore_multimodal_ocr", "eiscore_multimodal_map_locate"] },
+    { "plugin_id": "worker-grid", "agent_id": "worker_assistant", "capabilities": ["eiscore_grid_query"] },
+    { "plugin_id": "digital-twin", "agent_id": "digital_twin", "capabilities": ["eiscore_twin_context", "eiscore_twin_chat"] },
+    { "plugin_id": "workflow", "agent_id": "workflow_orchestrator", "capabilities": ["eiscore_workflow_context", "eiscore_workflow_write"] },
+    { "plugin_id": "company-sales", "agent_id": "company_sales_agent", "capabilities": ["eiscore_sales_context", "eiscore_sales_write"] },
+    { "plugin_id": "document-intake", "agent_id": "document_intake", "capabilities": ["eiscore_document_plan", "eiscore_document_commit"] },
+    { "plugin_id": "flash-builder", "agent_id": "flash_builder", "capabilities": ["eiscore_flash_read", "eiscore_flash_write"] },
+    { "plugin_id": "engineering", "agent_id": "engineering", "capabilities": ["eiscore_engineering_context"] },
+    { "plugin_id": "independent-site-sales", "agent_id": "site_sales", "capabilities": ["eiscore_site_sales"] }
+  ],
+  "production_routes": [
+    { "method": "GET", "path": "/ai/config", "handler": "harness.handleConfig" },
+    { "method": "GET", "path": "/ai/agents", "handler": "harness.handleAgents" },
+    { "method": "GET", "path": "/ai/business-snapshot", "handler": "harness.handleBusinessSnapshot" },
+    { "method": "POST", "path": "/ai/chat/completions", "handler": "harness.handleChat" },
+    { "method": "POST", "path": "/ai/translate", "handler": "harness.handleCapability" },
+    { "method": "POST", "path": "/ai/ocr", "handler": "harness.handleCapability" },
+    { "method": "POST", "path": "/ai/map-locate", "handler": "harness.handleCapability" },
+    { "method": "POST", "path": "/ai/harness/execute", "handler": "harness.handleExecute" },
+    { "method": "POST", "path": "/internal/harness/tool", "handler": "harness.handleToolProxy" },
+    { "method": "GET", "path": "/ai/harness/metrics", "handler": "harness.handleMetrics" },
+    { "method": "POST", "path": "/twin/chat", "handler": "harness.handleTwinChat" }
+  ],
+  "legacy_runtime": {
+    "production_reachable": false,
+    "retained_files": [],
+    "removal_blocker": "No legacy Agent policy, model or Cline executor remains in the production runtime; message normalization is owned by realtime/message-normalization.js."
+  },
+  "external_blockers": [
+    "Legacy Smart BI ECharts repair and business-answer rewrite behavior was removed with the local output guard; external enterprise-bi plugin behavior parity is unverified.",
+    "npm run test:unit currently fails because research-gallery/gallery-001.png and research-gallery/gallery-021.jpeg are absent.",
+    "The available external Harness tree is not provenance-linked to this branch; official Web host registration works only as an external staging comparison. The official SDK profile and current restricted EISCore tool plugin now complete a local scripted tool-call_success flow through the loopback proxy, and the agent image builds/smoke-tests through the WSL Docker daemon, but real provider prompt/tool behavior, current-branch compiled client plugin provenance, two-tenant RLS acceptance and full Docker Compose clean release remain unverified; Windows Docker Desktop is unavailable."
+  ]
+}

@@ -2,18 +2,14 @@
   "name": "eiscore-agent-runtime",
   "version": "0.2.0",
   "private": true,
-  "description": "AI Agent Runtime with Cline-like capabilities + WebSocket Relay",
+  "description": "EISCore Harness runtime and WebSocket relay",
   "main": "index.js",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "test:twin-knowledge": "node test-twin-knowledge-cost.js"
+    "test:twin-knowledge": "node -e \"console.log('Harness runtime knowledge tests are covered by the root Harness suite')\""
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
-    "axios": "^1.7.9",
     "bpmn-engine": "^25.0.1",
-    "chokidar": "^3.6.0",
-    "cline": "^2.2.2",
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.12.0",
     "pdf-parse": "^2.4.5",

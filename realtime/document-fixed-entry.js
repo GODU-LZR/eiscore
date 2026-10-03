@@ -590,10 +590,12 @@ class DocumentFixedEntryWorker {
     }
   }
 
-  async processOne() {
+  async processOne(planId = '') {
     const client = await pool.connect();
     try {
       await client.query('begin');
+      const planFilter = planId ? 'and p.id = $1::uuid' : '';
+      const planParams = planId ? [planId] : [];
       const result = await client.query(
         `select
            p.*,
@@ -618,9 +620,11 @@ class DocumentFixedEntryWorker {
           and p.target_kind = 'fixed_module_table'
           and p.target_module = 'materials'
           and p.target_document_type = '采购入库单'
+          ${planFilter}
         order by p.created_at asc
         for update of p skip locked
-        limit 1`
+        limit 1`,
+        planParams
       );
       const row = result.rows[0] || null;
       if (!row) {
@@ -791,6 +795,12 @@ class DocumentFixedEntryWorker {
     } finally {
       client.release();
     }
+  }
+
+  async runPlan(planId) {
+    if (this.running || this.stopping) return false;
+    this.running = true;
+    try { return await this.processOne(planId); } finally { this.running = false; }
   }
 }
 

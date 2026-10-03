@@ -108,6 +108,7 @@ const createFlashPostgrestAdapter = ({
     const payload = {
       sub: String(user?.id || user?.username || ''),
       username: String(user?.username || ''),
+      tenant_id: String(user?.tenant_id || user?.tenantId || user?.tenant || ''),
       role: userRole,
       app_role: String(user?.role || ''),
       permissions: Array.isArray(user?.permissions) ? user.permissions : []

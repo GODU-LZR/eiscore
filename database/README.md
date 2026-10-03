@@ -4,7 +4,7 @@
 
 当前工作树有 106 份历史 SQL：根目录 2、`env/` 2、`sql/` 70、HR 30、材料 2。它们混合了模块 schema、演示数据、修复补丁和运维脚本，不能按文件名安全推断统一执行顺序。旧的 `db_schema_and_data.sql` 已由 DB1 规范基线替代并从发布树移除，只保留在 Git 历史和隔离审计证据中。
 
-当前已有明确顺序的集合包括 Runtime V2 的 10 个历史补丁，以及 company-site 1 个、core 7 个迁移，共 18 个不可变迁移。`migrations/runtime-v2.json` 在不修改历史 SQL 的前提下为 Runtime V2 补充不可变 ID、SHA-256、事务所有权、执行超时和备份回退策略，并与原 `sql/runtime_v2_patch_manifest.txt` 双向校验；`company-site-001` 为企业站发布快照字段提供 SQL 回滚和 postcheck；`core-001`～`core-006` 分别治理凭据、运行角色/RLS、测试对象、HR 身份范围和调试端点，`core-007` 将动态 `app_data` DDL 收敛到应用—表一对一注册、管理员/Agent 授权、严格标识符、登录用户 RLS、匿名撤权及成功操作审计。`migration-ledger.sql` 定义数据库执行账本、基线身份和迁移覆盖账本；账本只允许数据库管理员访问。
+当前已有明确顺序的集合包括 Runtime V2 的 10 个历史补丁，以及 company-site 1 个、core 9 个迁移，共 20 个不可变迁移。`migrations/runtime-v2.json` 在不修改历史 SQL 的前提下为 Runtime V2 补充不可变 ID、SHA-256、事务所有权、执行超时和备份回退策略，并与原 `sql/runtime_v2_patch_manifest.txt` 双向校验；`company-site-001` 为企业站发布快照字段提供 SQL 回滚和 postcheck；`core-001`～`core-006` 分别治理凭据、运行角色/RLS、测试对象、HR 身份范围和调试端点，`core-007` 将动态 `app_data` DDL 收敛到应用—表一对一注册、管理员/Agent 授权、严格标识符、登录用户 RLS、匿名撤权及成功操作审计，`core-008` 退役 `system_configs.ai_glm_config` 并在 RLS policy 中排除该旧键，`core-009` 将数字分身会话默认模型和既有会话统一为 `deepseek-harness`。`migration-ledger.sql` 定义数据库执行账本、基线身份和迁移覆盖账本；账本只允许数据库管理员访问。
 
 规范空库基线位于 `database/baselines/eiscore-db-v1/`，由 `manifest.json`、`schema.sql`、`object-catalog.json` 和 `register.sql` 组成。基线固定覆盖创建时的 12 个迁移；后续新增迁移可以继续追加到来源 Manifest，基线校验只验证自己声明的不可变子集。覆盖项只写入 `baseline_migration_coverage`，不会伪写入 `schema_migrations`；迁移运行器据此区分“结构已覆盖”和“迁移已实际执行”。DB2 的新装角色引导位于 `database/bootstrap/roles-v2.sql`，运行密码由 `configure-database-runtime-secrets-v2.sh` 注入。
 

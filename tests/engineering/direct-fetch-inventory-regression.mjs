@@ -12,6 +12,7 @@ const fetchPattern = /\bfetch\s*\(/g
 const expectedInventory = new Map([
   ['shared/eis-geo-services.js', ['geo-hybrid', 1]],
   ['shared/eis-agent-sse-client.js', ['agent-protocol', 1]],
+  ['eiscore-apps/src/utils/agent-client-examples.js', ['harness-client', 1]],
   ['eiscore-apps/src/utils/flash-agent-client.js', ['agent-protocol', 1]],
   ['eiscore-base/src/utils/document-intake-client.js', ['agent-protocol', 1]],
   ['eiscore-base/src/utils/twin-json-client.js', ['agent-protocol', 1]],
@@ -30,6 +31,7 @@ const expectedInventory = new Map([
 const expectedCategoryCounts = new Map([
   ['geo-hybrid', 1],
   ['agent-protocol', 5],
+  ['harness-client', 1],
   ['static-assets', 4],
   ['service-probe', 1],
   ['login-bootstrap', 7],
@@ -81,5 +83,5 @@ assert.deepEqual([...categoryCounts.entries()].sort(), [...expectedCategoryCount
 assert.deepEqual(literalApiFetches, [], 'protected /api calls must use the platform HTTP client')
 
 const total = [...actualInventory.values()].reduce((sum, count) => sum + count, 0)
-assert.equal(total, 22)
-console.log(`PASS: direct fetch inventory locked (${actualInventory.size} files, ${total} calls, 8 categories)`)
+assert.equal(total, 23)
+console.log(`PASS: direct fetch inventory locked (${actualInventory.size} files, ${total} calls, 9 categories)`)

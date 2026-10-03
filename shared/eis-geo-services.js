@@ -85,14 +85,14 @@ export function createGeoServices({
     return headers
   }
 
-  const translateWithGlm = async (text) => {
+  const translateWithHarness = async (text) => {
     const trimmed = text ? String(text).trim() : ''
     if (!trimmed) return ''
     const cached = translationCache.get(trimmed)
     if (cached) return cached
     const systemPrompt = '你是翻译助手。把用户输入翻译成简洁、自然的中文地址，只输出翻译结果，不要添加任何解释。若输入已是中文，原样输出。'
     try {
-      const response = await fetchImpl('/agent/ai/translate', {
+      const response = await fetchImpl('/ai/translate', {
         method: 'POST',
         headers: buildAuthHeaders(),
         body: JSON.stringify({ text: trimmed, prompt: systemPrompt })
@@ -112,8 +112,8 @@ export function createGeoServices({
     const trimmed = text ? String(text).trim() : ''
     if (!trimmed) return ''
     if (translationCache.has(trimmed)) return translationCache.get(trimmed)
-    if (config.translateProvider === 'glm' || !config.translateApiUrl) {
-      const translated = await translateWithGlm(trimmed)
+    if (config.translateProvider !== 'external' || !config.translateApiUrl) {
+      const translated = await translateWithHarness(trimmed)
       translationCache.set(trimmed, translated)
       return translated
     }
@@ -151,11 +151,11 @@ export function createGeoServices({
     }
   }
 
-  const askGlmForMapLocation = async (imageUrl, lat, lng) => {
+  const askHarnessForMapLocation = async (imageUrl, lat, lng) => {
     const config = getConfig() || {}
     const prompt = config.mapAiPrompt || `请根据地图截图上的中文地名，且以蓝色圆点为用户当前位置，找出离蓝点最近的街道级位置。输出严格格式的中文位置：“省-市-区/县/县级市-街道/乡镇”。必须包含街道级；如果无法确定街道，请用“某街道”或“附近街道”占位，但仍要输出四段。只输出位置，不要解释，不要多余的话。坐标：${lng},${lat}`
     try {
-      const response = await fetchImpl('/agent/ai/map-locate', {
+      const response = await fetchImpl('/ai/map-locate', {
         method: 'POST',
         headers: buildAuthHeaders(),
         body: JSON.stringify({ imageUrl, lat, lng, prompt })
@@ -201,5 +201,5 @@ export function createGeoServices({
     }
   }
 
-  return { askGlmForMapLocation, fetchIpLocation, fetchReverseAddress, translateText }
+  return { askHarnessForMapLocation, fetchIpLocation, fetchReverseAddress, translateText }
 }

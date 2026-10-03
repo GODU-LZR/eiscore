@@ -27,13 +27,13 @@ responses.push(
 )
 const payload = { tool_id: 'flash.app.save', arguments: { name: '测试应用' } }
 assert.deepEqual(await client.callTool({
-  urls: ['/agent/flash/tools/call', 'http://localhost:8078/flash/tools/call'],
+  urls: ['/flash/tools/call', 'http://localhost:8078/flash/tools/call'],
   token: 'flash-token',
   payload
 }), { ok: true, data: { id: 'tool-result' } })
 assert.deepEqual(calls.slice(0, 2), [
   {
-    url: '/agent/flash/tools/call',
+    url: '/flash/tools/call',
     options: {
       method: 'POST',
       headers: {
@@ -63,7 +63,7 @@ for (const [body, status, message] of [
 ]) {
   responses.push({ ok: status < 400, status, json: async () => body })
   await assert.rejects(
-    client.callTool({ urls: ['/agent/flash/tools/call'], token: 'flash-token', payload: {} }),
+    client.callTool({ urls: ['/flash/tools/call'], token: 'flash-token', payload: {} }),
     (error) => error.message === message
   )
 }
@@ -77,12 +77,12 @@ responses.push(
   }
 )
 assert.equal(await client.fetchDraftSource({
-  urls: ['/agent/flash/draft?appId=demo', 'http://localhost:8078/flash/draft?appId=demo'],
+  urls: ['/flash/draft?appId=demo', 'http://localhost:8078/flash/draft?appId=demo'],
   token: 'draft-token'
 }), 'top-level draft')
 assert.deepEqual(calls.slice(-2), [
   {
-    url: '/agent/flash/draft?appId=demo',
+    url: '/flash/draft?appId=demo',
     options: {
       headers: { Authorization: 'Bearer draft-token' },
       cache: 'no-store'
@@ -98,9 +98,9 @@ assert.deepEqual(calls.slice(-2), [
 ])
 
 responses.push({ ok: true, status: 200, json: async () => ({ data: { content: 'nested draft' } }) })
-assert.equal(await client.fetchDraftSource({ urls: ['/agent/flash/draft'], token: '' }), 'nested draft')
+assert.equal(await client.fetchDraftSource({ urls: ['/flash/draft'], token: '' }), 'nested draft')
 assert.deepEqual(calls.at(-1), {
-  url: '/agent/flash/draft',
+  url: '/flash/draft',
   options: { headers: {}, cache: 'no-store' }
 })
 
@@ -109,7 +109,7 @@ responses.push(
   new Error('direct endpoint unavailable')
 )
 await assert.rejects(
-  client.fetchDraftSource({ urls: ['/agent/flash/draft', 'http://localhost:8078/flash/draft'] }),
+  client.fetchDraftSource({ urls: ['/flash/draft', 'http://localhost:8078/flash/draft'] }),
   (error) => error.message === 'direct endpoint unavailable'
 )
 

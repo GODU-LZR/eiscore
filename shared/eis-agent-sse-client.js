@@ -3,9 +3,9 @@
 
 const defaultFetch = (...args) => globalThis.fetch(...args)
 
-const assertAgentPath = (path) => {
-  if (typeof path !== 'string' || !path.startsWith('/agent/')) {
-    throw new TypeError('Agent SSE path must start with /agent/')
+const assertHarnessPath = (path) => {
+  if (typeof path !== 'string' || !/^\/(?:ai|twin)\//.test(path)) {
+    throw new TypeError('Harness SSE path must start with /ai/ or /twin/')
   }
 }
 
@@ -21,7 +21,7 @@ export const createAgentSseClient = ({ fetchImpl = defaultFetch } = {}) => {
     onOpen,
     onData
   }) => {
-    assertAgentPath(path)
+    assertHarnessPath(path)
     const options = {
       method: 'POST',
       headers,

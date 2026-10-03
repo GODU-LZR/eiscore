@@ -32,7 +32,6 @@ const http = createHttpClient({
 const generatedAt = new Date().toISOString()
 const results = []
 let token = ''
-let aiModel = process.env.EISCORE_SMOKE_AI_MODEL || ''
 
 function addResult(name, pass, detail, statusCode = null) {
   results.push({ name, pass, detail, statusCode })
@@ -185,18 +184,16 @@ await expect('08 app_settings is readable', async () => {
 })
 
 if (SKIP_AI) {
-  addResult('09 ai_glm_config check skipped', true, 'EISCORE_SMOKE_SKIP_AI=1')
+  addResult('09 Harness config check skipped', true, 'EISCORE_SMOKE_SKIP_AI=1')
 } else {
-  await expect('09 ai_glm_config is readable', async () => {
-    const res = await request('/api/system_configs?key=eq.ai_glm_config', {
-      headers: { ...authHeaders(), 'Accept-Profile': 'public' }
-    })
+  await expect('09 DeepSeek Harness config is readable', async () => {
+    const res = await request('/ai/config', { headers: { ...authHeaders() } })
     const rows = await ensureJson(res)
     if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`)
-    ensureArray(rows, 'ai config rows should be array')
-    const value = rows?.[0]?.value
-    if (!value?.api_url || !value?.api_key) throw new Error('ai_glm_config missing api_url/api_key')
-    addResult('09 ai_glm_config is readable', true, `${value.provider || 'unknown'} / ${value.model || 'unknown'}`, res.status)
+    if (rows?.provider !== 'deepseek-harness' || rows?.stream !== true || !Array.isArray(rows?.agents)) {
+      throw new Error('DeepSeek Harness config contract is incomplete')
+    }
+    addResult('09 DeepSeek Harness config is readable', true, `agents=${rows.agents.length}`, res.status)
   })
 }
 
@@ -280,26 +277,24 @@ await expect('17 agent health returns ok', async () => {
 
 if (!SKIP_AI) {
   await expect('18 ai config rejects missing token', async () => {
-    const res = await request('/agent/ai/config')
+    const res = await request('/ai/config')
     if (res.status !== 401) throw new Error(`Expected 401, got ${res.status}`)
     addResult('18 ai config rejects missing token', true, 'status=401', res.status)
   })
 
   await expect('19 ai config accepts token', async () => {
-    const res = await request('/agent/ai/config', { headers: { ...authHeaders() } })
+    const res = await request('/ai/config', { headers: { ...authHeaders() } })
     const json = await ensureJson(res)
     if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}`)
     if (!json || typeof json !== 'object') throw new Error('Invalid ai config response')
-    aiModel = aiModel || json.model || ''
-    addResult('19 ai config accepts token', true, `enabled=${!!json.enabled}, model=${json.model || ''}`, res.status)
+    addResult('19 Harness config accepts token', true, `enabled=${!!json.enabled}, agents=${json.agents?.length || 0}`, res.status)
   })
 
   await expect('20 ai chat non-stream returns content', async () => {
-    const res = await request('/agent/ai/chat/completions', {
+    const res = await request('/ai/chat/completions', {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        ...(aiModel ? { model: aiModel } : {}),
         stream: false,
         messages: [
           { role: 'system', content: 'Return a short answer.' },
@@ -316,11 +311,10 @@ if (!SKIP_AI) {
   })
 
   await expect('21 ai chat stream returns SSE data', async () => {
-    const res = await request('/agent/ai/chat/completions', {
+    const res = await request('/ai/chat/completions', {
       method: 'POST',
       headers: { ...authHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        ...(aiModel ? { model: aiModel } : {}),
         stream: true,
         messages: [
           { role: 'system', content: 'Return a short answer.' },
@@ -350,7 +344,7 @@ if (!SKIP_AI) {
     addResult('21 ai chat stream returns SSE data', true, `chunk_count=${count}`, res.status)
   })
 } else {
-  addResult('18-21 ai checks skipped', true, 'EISCORE_SMOKE_SKIP_AI=1', null)
+  addResult('18-21 Harness checks skipped', true, 'EISCORE_SMOKE_SKIP_AI=1', null)
 }
 
 if (!SKIP_WS) {

@@ -4,7 +4,10 @@
 - insert:
     - id: eiscore-auth
       name: '/opt/eiscore-harness/client-plugins/eiscore-auth/lib/index.js'
+      inject: [connection]
     - id: eiscore-digital-twin
       name: '/opt/eiscore-harness/client-plugins/digital-twin/lib/index.js'
+      inject: [connection]
     - id: eiscore-enterprise-bi
       name: '/opt/eiscore-harness/client-plugins/enterprise-bi/lib/index.js'
+      inject: [connection]

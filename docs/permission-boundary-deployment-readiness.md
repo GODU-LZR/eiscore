@@ -1,10 +1,10 @@
 # EISCore 权限边界与经营助手部署前检查
 
-检查日期：2026-09-24
+检查日期：2026-09-30（Harness 迁移复核）
 
 ## 结论
 
-本地权限边界与经营助手业务快照接入已完成回归验证，当前可以进入人工审核和独立部署演练阶段。本次实现与回归验证没有连接远端、没有写入数据库、没有部署线上服务。
+本地权限边界与经营助手业务快照已迁移到 Harness Gateway/Tool Gateway，并完成离线回归验证。本次复核没有连接远端、没有写入业务数据库卷、没有部署线上服务；真实 Provider、外部 client-plugin 制品和双租户线上验收仍未完成。
 
 ## 已验证范围
 
@@ -18,23 +18,18 @@
 
 ## 回归命令
 
-以下命令均在 `github-eiscore-refactor` 本地执行并通过：
+以下命令在 `github-eiscore-refactor` 本地执行并通过：
 
 ```text
-node tests/engineering/ai-context-service-regression.mjs
-node tests/engineering/ai-chat-http-regression.mjs
-node tests/engineering/ai-agent-policy-regression.mjs
-node tests/engineering/flash-authorization-regression.mjs
-node tests/engineering/flash-semantic-executor-regression.mjs
-node tests/engineering/flash-tool-service-regression.mjs
-node tests/engineering/flash-http-regression.mjs
-node tests/engineering/twin-tools-permission-regression.mjs
-node tests/engineering/twin-chat-http-regression.mjs
-node tests/engineering/business-snapshot-client-regression.mjs
-node --check realtime/ai-context-service.js
-node --check realtime/ai-chat-http.js
-node --check realtime/twin-tools.js
-git diff --check -- realtime/ai-context-service.js realtime/ai-chat-http.js realtime/twin-tools.js tests/engineering/ai-context-service-regression.mjs tests/engineering/twin-tools-permission-regression.mjs
+npm run test:harness
+npm run test:database-backend-governance
+npm run test:database-roles
+npm run test:production-config
+npm run test:harness-production-path
+npm run test:runtime-image
+npm run test:syntax
+npm run lint:changed
+git diff --check
 ```
 
 ## 部署前人工确认
@@ -47,3 +42,9 @@ git diff --check -- realtime/ai-context-service.js realtime/ai-chat-http.js real
 ## 已知部署前置条件
 
 非超级用户的业务域读取还要求对应 `acl_module` 已有 `sys_field_acl` 记录。销售、采购、质量、设备、生产等模块若尚未完成字段 ACL 初始化，会按设计被拒绝读取并记录到 `deniedDomains`，不会回退为公开读取。
+
+## Harness 外部前置条件
+
+- 部署前必须设置 `LUNDU_HARNESS_ROOT`，并通过 `node scripts/validate-lundu-harness-artifacts.mjs` 检查 `eiscore-auth`、`digital-twin`、`enterprise-bi` 三组编译入口。
+- 当前重构分支和可追溯远端重构提交均不包含这些 client-plugin 制品；未获得同源制品前，不能宣称 Web 插件或完整 Compose 验收通过，也不得复制 WSL/外部未跟踪目录。
+- 真实 DeepSeek Provider 行为、Smart BI 业务回答等价、双租户 RLS 和远端验收必须在对应隔离环境完成后单独记录。

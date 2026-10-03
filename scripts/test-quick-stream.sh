@@ -9,12 +9,12 @@ echo "Token length: ${#TOKEN}"
 echo "Token: $TOKEN"
 echo "---"
 echo "Testing auth..."
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8078/agent/ai/config -H "Authorization: Bearer $TOKEN")
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8078/ai/config -H "Authorization: Bearer $TOKEN")
 echo "Auth test: $HTTP_CODE"
 echo "---"
 echo "Sending enterprise request (stream)..."
 timeout 30 curl -s --no-buffer \
-  -X POST http://localhost:8078/agent/ai/chat/completions \
+  -X POST http://localhost:8078/ai/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"stream":true,"assistant_mode":"enterprise","messages":[{"role":"user","content":"简述仓库和库存概况"}]}' \

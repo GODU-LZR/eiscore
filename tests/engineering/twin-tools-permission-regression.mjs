@@ -103,6 +103,17 @@ assert.equal(calls.length, 1)
 assert.equal(calls[0].query.select.includes('phone'), false, 'denied fields are removed from default projections')
 assert.equal(employeeResult[0].phone, '', 'restricted fields are stripped before record normalization')
 
+const failedEmployeeCalls = []
+const failedEmployeeTools = createTwinTools(async (options) => {
+  failedEmployeeCalls.push(options.path)
+  throw new Error('HR unavailable')
+}, user, allowedContext)
+await assert.rejects(
+  failedEmployeeTools.query_employees.execute({}),
+  (error) => error.message === 'HR unavailable'
+)
+assert.deepEqual(failedEmployeeCalls, ['/archives'], 'HR failures must not fall back to public employees')
+
 await assert.rejects(
   activeTools.query_employees.execute({ select: 'phone' }),
   (error) => error.code === 'PERMISSION_DENIED'

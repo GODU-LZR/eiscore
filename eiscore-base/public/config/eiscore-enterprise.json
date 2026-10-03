@@ -169,7 +169,7 @@
     "publicBaseUrl": "",
     "apiBasePath": "/api",
     "agentBasePath": "/agent",
-    "realtimeWsPath": "/agent/ws"
+    "realtimeWsPath": "/ws"
   },
   "modules": {
     "hr": true,

@@ -28,9 +28,9 @@
    - 应用中心：`eiscore-apps`
    - HR：`eiscore-hr`
    - 物料：`eiscore-materials`
-2. Agent 运行时
-   - HTTP：`/agent/ai/*`、`/agent/flash/*`
-   - WS：`/agent/ws`（`agent:task`、`agent:tool_use`、`agent:terminal`）
+2. Harness 运行时
+   - HTTP：`/ai/*`、`/ai/harness/execute`、`/flash/*`
+   - WebSocket：仅保留事件订阅、取消和 Flash 工具调用；旧 `agent:task`、`agent:tool_use`、`agent:terminal` 已退出生产路径。
 3. 数据核心
    - 应用中心：`app_center.*`
    - 工作流：`workflow.*`
@@ -129,27 +129,27 @@
 | `cap.ontology.semantic.list` | `read_list` | `ontology_semantic` | `/api/ontology_table_semantics` | GET | `app:ontology_workbench` 或系统可见 | low | false |
 | `cap.ontology.semantic.enrich` | `semantic_enrich` | `ontology_semantic` | `Agent + upsert ontology_table_semantics` | internal | `op:{aclModule}.config` | medium | false |
 
-## 8. Agent Runtime 能力（已存在）
+## 8. Harness Runtime 能力（已存在）
 
 ## 8.1 HTTP 能力
 
-1. `GET /agent/health`
-2. `GET /agent/ai/config`
-3. `GET /agent/ai/agents`
-4. `POST /agent/ai/chat/completions`
-5. `POST /agent/ai/translate`
-6. `POST /agent/ai/map-locate`
-7. `GET /agent/flash/draft`
-8. `POST /agent/flash/draft`
-9. `POST /agent/flash/attachments`
+1. `GET /ai/config`
+2. `GET /ai/agents`
+3. `POST /ai/chat/completions`
+4. `POST /ai/harness/execute`
+5. `POST /ai/translate`
+6. `POST /ai/ocr`
+7. `POST /ai/map-locate`
+8. `GET|POST /flash/draft`
+9. `POST /flash/tools/call`
 
 ## 8.2 WebSocket 能力
 
-1. `agent:task`（启动任务）
-2. `agent:tool_use`（调用工具）
-3. `agent:terminal`（受限命令）
-4. `flash:cline_task`（闪念任务）
-5. `subscribe/unsubscribe`（事件订阅）
+1. `flash:tool_call`（受 Harness Gateway 约束的 Flash 工具调用）
+2. `subscribe/unsubscribe`（事件订阅）
+3. `cancel`（请求取消）
+
+旧 `/agent/*` HTTP/WS 示例仅作为历史文档保留，不是可调用的生产协议。
 
 ## 9. 语义别名池（首批建议）
 

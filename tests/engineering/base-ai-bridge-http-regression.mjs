@@ -27,8 +27,10 @@ assert.match(section, /return null/)
 
 const fetchCalls = source.match(/\bfetch\s*\(/g) || []
 assert.equal(fetchCalls.length, 0)
+assert.doesNotMatch(source, /\bmodel\s*:\s*this\.config\?\.model/)
+assert.doesNotMatch(source, /glm-4\.6v/)
 assert.match(source, /from\s*['"]@shared\/eis-agent-sse-client['"]/)
-assert.match(source, /path:\s*['"]\/agent\/ai\/chat\/completions['"]/)
+assert.match(source, /path:\s*['"]\/ai\/chat\/completions['"]/)
 assert.match(request, /config\.silentError !== true/)
 assert.match(request, /config\.suppressErrorMessage !== true/)
 assert.match(request, /error\?\.response\?\.status !== 404/)

@@ -8,6 +8,25 @@ import { fileURLToPath } from 'node:url'
 const PLACEHOLDER_PATTERN = /change[_-]?me|replace[_-]?me|example\.com|postgres123|your-secret|my_super_secret/i
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/
 
+// These variables belong to the retired direct-model/Cline/fallback path.
+// Reject non-empty values before Compose can inject them through env_file.
+const RETIRED_RUNTIME_ENV_KEYS = [
+  'ANTHROPIC_API_KEY',
+  'AI_HTTP_PROXY_URL',
+  'CLINE_OPENAI_BASE_URL',
+  'CLINE_OPENAI_API_KEY',
+  'CLINE_OPENAI_MODEL',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
+  'DEEPSEEK_API_KEY',
+  'AI_API_KEY',
+  'AI_BASE_URL',
+  'EISCORE_HARNESS_FALLBACK',
+  'EISCORE_HARNESS_SHADOW',
+  'EISCORE_HARNESS_TWIN_SHADOW',
+  'EISCORE_HARNESS_SITE_SALES_SHADOW'
+]
+
 export class ProductionEnvValidationError extends Error {
   constructor(issues) {
     super(`Production environment validation failed with ${issues.length} issue(s).`)
@@ -55,6 +74,9 @@ export function readProductionEnvFile(filePath) {
 
 export function validateProductionEnv(values) {
   const issues = []
+  for (const key of RETIRED_RUNTIME_ENV_KEYS) {
+    if (String(values?.[key] ?? '').trim()) issues.push(`legacy model configuration is not allowed: ${key}`)
+  }
   validateSecret(values, 'POSTGRES_PASSWORD', 24, issues)
   validateSecret(values, 'PGRST_JWT_SECRET', 32, issues)
   validateSecret(values, 'POSTGREST_DB_PASSWORD', 24, issues)
@@ -65,11 +87,47 @@ export function validateProductionEnv(values) {
     issues.push('database role passwords must be independent')
   }
   validatePublicBaseUrl(values.EISCORE_PUBLIC_BASE_URL, issues)
+  if (String(values.EISCORE_HARNESS_ENABLED || '').toLowerCase() !== 'true') {
+    issues.push('EISCORE_HARNESS_ENABLED: must be true for production')
+  }
+  validateHarnessUrl(values.EISCORE_HARNESS_URL, issues)
+  const auditFile = String(values.EISCORE_HARNESS_AUDIT_FILE || '')
+  if (!auditFile || !auditFile.startsWith('/')) issues.push('EISCORE_HARNESS_AUDIT_FILE: absolute path is required')
+  validateSecret(values, 'EISCORE_HARNESS_AUDIT_HASH_KEY', 32, issues)
+  validateSecret(values, 'EISCORE_HARNESS_BRIDGE_SECRET', 32, issues)
+  validateSecret(values, 'EISCORE_TOOL_PROXY_SECRET', 32, issues)
+  const bridgeSecret = String(values?.EISCORE_HARNESS_BRIDGE_SECRET || '')
+  const toolProxySecret = String(values?.EISCORE_TOOL_PROXY_SECRET || '')
+  if (bridgeSecret && toolProxySecret && bridgeSecret === toolProxySecret) {
+    issues.push('Harness bridge and tool proxy secrets must be independent')
+  }
+  for (const key of ['BRIDGE_PROMPT_TIMEOUT_MS', 'BRIDGE_SESSION_DRAIN_TIMEOUT_MS', 'BRIDGE_RPC_TIMEOUT_MS', 'BRIDGE_SHUTDOWN_TIMEOUT_MS']) {
+    validatePositiveInteger(values, key, issues)
+  }
+  validateDshIdentifier(values, 'DSH_PROVIDER', issues)
+  validateDshIdentifier(values, 'DSH_MODEL', issues)
 
   if (issues.length) throw new ProductionEnvValidationError(issues)
   return {
     publicBaseUrl: values.EISCORE_PUBLIC_BASE_URL,
-    aiConfigured: Boolean(values.ANTHROPIC_API_KEY || values.CLINE_OPENAI_API_KEY)
+    harnessConfigured: true
+  }
+}
+
+function validateDshIdentifier(values, key, issues) {
+  const value = String(values?.[key] || '')
+  if (!value) {
+    issues.push(`${key}: required`)
+    return
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/.test(value)) issues.push(`${key}: invalid identifier`)
+}
+
+function validatePositiveInteger(values, key, issues) {
+  const value = String(values?.[key] ?? '')
+  if (!value) return
+  if (!/^[1-9][0-9]*$/.test(value) || Number(value) > 2_147_483_647) {
+    issues.push(`${key}: must be a positive integer no greater than 2147483647 when provided`)
   }
 }
 
@@ -105,6 +163,26 @@ function validatePublicBaseUrl(rawValue, issues) {
   }
 }
 
+function validateHarnessUrl(rawValue, issues) {
+  const value = String(rawValue || '')
+  if (!value) {
+    issues.push('EISCORE_HARNESS_URL: required')
+    return
+  }
+  try {
+    const url = new URL(value)
+    if (!['http:', 'https:'].includes(url.protocol)) issues.push('EISCORE_HARNESS_URL: HTTP(S) is required')
+    if (url.username || url.password) issues.push('EISCORE_HARNESS_URL: credentials are not allowed')
+    if (url.pathname !== '/' || url.search || url.hash) issues.push('EISCORE_HARNESS_URL: use an origin without path, query, or fragment')
+    if (['localhost', '127.0.0.1', '::1'].includes(url.hostname)) issues.push('EISCORE_HARNESS_URL: loopback is not a production bridge origin')
+    if (url.hostname.toLowerCase() === 'deepseek-web') {
+      issues.push('EISCORE_HARNESS_URL: deepseek-web is the Harness Web UI, not the HTTP-to-SDK bridge')
+    }
+  } catch {
+    issues.push('EISCORE_HARNESS_URL: invalid URL')
+  }
+}
+
 function parseArgs(args) {
   const inline = args.find((arg) => arg.startsWith('--env-file='))
   if (inline) return inline.slice('--env-file='.length)
@@ -123,7 +201,7 @@ if (isMain) {
   try {
     const summary = validateProductionEnv(readProductionEnvFile(envFile))
     console.log(`[ok] production environment is valid for ${summary.publicBaseUrl}`)
-    console.log(`[info] AI credentials configured: ${summary.aiConfigured ? 'yes' : 'no'}`)
+    console.log(`[info] DeepSeek Harness configured: ${summary.harnessConfigured ? 'yes' : 'no'}`)
   } catch (error) {
     console.error(`[fail] ${error.message}`)
     for (const issue of error.issues || []) console.error(`- ${issue}`)

@@ -8,7 +8,7 @@ TOKEN=$(node scripts/gen-test-token.js 2>/dev/null)
 echo "Token obtained (${#TOKEN} chars)"
 
 timeout 60 curl -s --no-buffer \
-  -X POST http://localhost:8078/agent/ai/chat/completions \
+  -X POST http://localhost:8078/ai/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"stream":true,"assistant_mode":"enterprise","messages":[{"role":"user","content":"简述仓库和库存概况"}]}' \

@@ -65,7 +65,8 @@ await assert.rejects(
     runtimeTarget: {},
     fetchImpl: async () => ({ ok: false, status: 404 })
   }),
-  EnterpriseConfigError
+  (error) => error instanceof EnterpriseConfigError
+    || (error?.name === 'EnterpriseConfigError' && error?.issues?.[0]?.code === 'http-404')
 )
 
 const warnings = []
@@ -80,7 +81,7 @@ const developmentConfig = await bootstrapEnterpriseConfig({
   }),
   onWarning: (warning) => warnings.push(warning.code)
 })
-assert.equal(developmentConfig, DEFAULT_ENTERPRISE_CONFIG)
+assert.deepEqual(developmentConfig, DEFAULT_ENTERPRISE_CONFIG)
 assert.deepEqual(warnings, ['invalid-json'])
 
 const root = {

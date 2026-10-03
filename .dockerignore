@@ -1,0 +1,30 @@
+# Keep legacy Docker builders from uploading repository dependencies and build output.
+**/node_modules
+**/dist
+**/.git
+**/.codex-tmp
+**/.playwright-cli
+**/coverage
+**/*.log
+
+# The runtime image Dockerfiles only need these top-level inputs.
+*
+!realtime/
+!realtime/*.js
+!realtime/package.json
+!realtime/package-lock.json
+!realtime/Dockerfile
+!realtime/Dockerfile.prod
+!agent-harness/
+!agent-harness/*.js
+!agent-harness/*.mjs
+!agent-harness/*.json
+!agent-harness/*.yml
+!agent-harness/plugin-registry.js
+!agent-harness/audit-ledger.js
+!agent-harness/plugin-contract.v1.json
+!agent-harness/dsh-http-bridge.mjs
+!agent-harness/http-bridge.js
+!agent-harness/package.json
+!agent-harness/package-lock.json
+!agent-harness/Dockerfile

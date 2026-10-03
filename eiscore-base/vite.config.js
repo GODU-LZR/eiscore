@@ -103,6 +103,31 @@ export default defineConfig(({ command }) => ({
         rewrite: (path) => path.replace(/^\/agent/, ''),
         ws: true
       },
+      '/ai': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
+      '/flash': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
+      '/twin': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
+      '/document-intake': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
+      '/company-site/auth': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
       '/rpc': {
         target: `${devProxyTargets.api}/rpc`,
         changeOrigin: true,

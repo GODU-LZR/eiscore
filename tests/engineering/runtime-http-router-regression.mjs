@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
@@ -12,7 +13,8 @@ const indexSource = readFileSync(resolve(repoRoot, 'realtime/index.js'), 'utf8')
 const {
   CORE_HTTP_ROUTE_MANIFEST,
   HTTP_ROUTE_MANIFEST,
-  createHttpRequestHandler
+  createHttpRequestHandler,
+  normalizeAgentRequestPath
 } = require(resolve(repoRoot, 'realtime/http-router.js'))
 const { COMPANY_HTTP_ROUTE_MANIFEST } = require(resolve(repoRoot, 'realtime/company-http.js'))
 
@@ -47,19 +49,22 @@ const expectedRoutes = [
   descriptor('POST', 'exact', '/document-intake/assets/chunks/upload', 'documentIntake.handleUploadChunk'),
   descriptor('POST', 'exact', '/document-intake/assets/chunks/complete', 'documentIntake.handleCompleteChunkUpload'),
   descriptor('POST', 'exact', '/document-intake/client-logs/batch', 'documentIntake.handleLogBatch'),
-  descriptor('GET', 'exact', '/ai/config', 'ai.handleConfig'),
-  descriptor('GET', 'exact', '/ai/agents', 'ai.handleAgents'),
-  descriptor('GET', 'exact', '/ai/business-snapshot', 'ai.handleBusinessSnapshot'),
-  descriptor('POST', 'exact', '/ai/chat/completions', 'ai.handleChat'),
-  descriptor('POST', 'exact', '/ai/translate', 'ai.handleTranslate'),
-  descriptor('POST', 'exact', '/ai/ocr', 'ai.handleOcr'),
-  descriptor('POST', 'exact', '/ai/map-locate', 'ai.handleMapLocate'),
+  descriptor('GET', 'exact', '/ai/config', 'harness.handleConfig'),
+  descriptor('GET', 'exact', '/ai/agents', 'harness.handleAgents'),
+  descriptor('GET', 'exact', '/ai/business-snapshot', 'harness.handleBusinessSnapshot'),
+  descriptor('POST', 'exact', '/ai/chat/completions', 'harness.handleChat'),
+  descriptor('POST', 'exact', '/ai/translate', 'harness.handleCapability'),
+  descriptor('POST', 'exact', '/ai/ocr', 'harness.handleCapability'),
+  descriptor('POST', 'exact', '/ai/map-locate', 'harness.handleCapability'),
+  descriptor('POST', 'exact', '/ai/harness/execute', 'harness.handleExecute'),
+  descriptor('POST', 'exact', '/internal/harness/tool', 'harness.handleToolProxy'),
+  descriptor('GET', 'exact', '/ai/harness/metrics', 'harness.handleMetrics'),
   descriptor('GET', 'exact', '/flash/draft', 'flash.handleDraftGet'),
   descriptor('POST', 'exact', '/flash/draft', 'flash.handleDraftWrite'),
   descriptor('POST', 'exact', '/flash/attachments', 'flash.handleAttachmentUpload'),
   descriptor('GET', 'exact', '/flash/tools/registry', 'flash.handleToolsRegistryGet'),
   descriptor('POST', 'exact', '/flash/tools/call', 'flash.handleToolCall'),
-  descriptor('POST', 'exact', '/twin/chat', 'twin.handleChat'),
+  descriptor('POST', 'exact', '/twin/chat', 'harness.handleTwinChat'),
   descriptor('GET', 'exact', '/twin/sessions', 'twin.handleSessionsList'),
   descriptor('DELETE', 'exact', '/twin/sessions', 'twin.handleSessionDelete'),
   descriptor('GET', 'exact', '/twin/messages', 'twin.handleMessagesGet'),
@@ -83,21 +88,33 @@ const actualRoutes = HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
   entry.authorize
 ))
 
-assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 41)
+assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 44)
 assert.equal(HTTP_ROUTE_MANIFEST.length, CORE_HTTP_ROUTE_MANIFEST.length + COMPANY_HTTP_ROUTE_MANIFEST.length)
 assert.deepEqual(actualRoutes, expectedRoutes)
 assert.ok(Object.isFrozen(HTTP_ROUTE_MANIFEST))
 assert.ok(HTTP_ROUTE_MANIFEST.every(Object.isFrozen))
+assert.equal(normalizeAgentRequestPath('/agent/ai/translate?tenant=demo'), '/ai/translate')
+assert.equal(normalizeAgentRequestPath('/ai/translate?tenant=demo'), '/ai/translate')
+assert.equal(normalizeAgentRequestPath('/agent'), '/')
+assert.equal(normalizeAgentRequestPath('/agent/ai/translate/extra'), '/ai/translate/extra')
 
-const createResponse = () => ({
+const capabilityRoute = HTTP_ROUTE_MANIFEST.find((entry) => (
+  entry.method === 'POST' && entry.match === 'exact' && entry.path === '/ai/translate'
+))
+assert.equal(capabilityRoute?.handler, 'harness.handleCapability')
+assert.equal(HTTP_ROUTE_MANIFEST.some((entry) => entry.path === '/agent/ai/translate'), false)
+
+const createResponse = () => Object.assign(new EventEmitter(), {
   status: null,
   cors: false,
   ended: false,
+  writableEnded: false,
   writeHead(status) {
     this.status = status
   },
   end() {
     this.ended = true
+    this.writableEnded = true
   }
 })
 
@@ -134,9 +151,14 @@ const requestHandler = createHttpRequestHandler({
         events.push('entry-result-detail')
       }
     },
-    ai: {
+    ai: {},
+    harness: {
       handleConfig() {
         events.push('ai-config')
+      },
+      async handleChat(req) {
+        events.push('ai-chat')
+        await new Promise((resolve) => req.signal.addEventListener('abort', resolve, { once: true }))
       }
     }
   }
@@ -162,6 +184,15 @@ assert.deepEqual(events, ['health'])
 events.length = 0
 await dispatch('GET', '/ai/config?tenant=demo')
 assert.deepEqual(events, ['ai-config'])
+
+events.length = 0
+const disconnectedResponse = createResponse()
+const disconnectedRequest = requestHandler({ method: 'POST', url: '/ai/chat/completions' }, disconnectedResponse)
+await new Promise((resolve) => setImmediate(resolve))
+assert.deepEqual(events, ['ai-chat'])
+disconnectedResponse.emit('close')
+await disconnectedRequest
+assert.equal(disconnectedResponse.ended, false)
 
 events.length = 0
 await dispatch('GET', '/document-intake/admin/devices/device-1/watch-folders')

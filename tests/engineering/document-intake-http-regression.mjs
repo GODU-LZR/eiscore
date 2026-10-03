@@ -25,20 +25,20 @@ const client = clientModule.createDocumentIntakeClient({
 })
 
 assert.deepEqual(
-  await client.requestJson('/agent/document-intake/admin/overview', {
+  await client.requestJson('/document-intake/admin/overview', {
     method: 'GET',
     errorMessage: '智能收单总览加载失败'
   }),
   { rows: [1] }
 )
 assert.deepEqual(calls[0], {
-  url: '/agent/document-intake/admin/overview',
+  url: '/document-intake/admin/overview',
   options: { method: 'GET', headers: { Authorization: 'Bearer token-1' } }
 })
 
 nextResponse = { ok: true, status: 200, json: async () => ({ enabled: true }) }
 assert.deepEqual(
-  await client.requestJson('/agent/document-intake/admin/devices/device-1/watch-folders/folder-1/status', {
+  await client.requestJson('/document-intake/admin/devices/device-1/watch-folders/folder-1/status', {
     method: 'POST',
     data: { enabled: true },
     errorMessage: '监听目录状态更新失败'
@@ -46,7 +46,7 @@ assert.deepEqual(
   { enabled: true }
 )
 assert.deepEqual(calls[1], {
-  url: '/agent/document-intake/admin/devices/device-1/watch-folders/folder-1/status',
+  url: '/document-intake/admin/devices/device-1/watch-folders/folder-1/status',
   options: {
     method: 'POST',
     headers: {
@@ -63,7 +63,7 @@ nextResponse = {
   text: async () => '监听目录已存在'
 }
 await assert.rejects(
-  client.requestJson('/agent/document-intake/admin/devices/device-1/watch-folders', {
+  client.requestJson('/document-intake/admin/devices/device-1/watch-folders', {
     method: 'POST',
     data: {},
     errorMessage: '监听目录新增失败'
@@ -77,7 +77,7 @@ nextResponse = {
   text: async () => { throw new Error('body unavailable') }
 }
 await assert.rejects(
-  client.requestJson('/agent/document-intake/admin/assets', {
+  client.requestJson('/document-intake/admin/assets', {
     errorMessage: '资产列表加载失败'
   }),
   (error) => error.message === '资产列表加载失败：503'
@@ -85,7 +85,7 @@ await assert.rejects(
 
 await assert.rejects(
   client.requestJson('/api/document-intake/admin/assets'),
-  /document intake path must start with \/agent\/document-intake\//
+  /document intake path must start with \/document-intake\//
 )
 
 const apiSource = read('eiscore-base/src/utils/document-intake-api.js')

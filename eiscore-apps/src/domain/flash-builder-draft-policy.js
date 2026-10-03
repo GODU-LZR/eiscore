@@ -116,7 +116,7 @@ export const buildFlashBuilderConfig = (
   {
     codeServerEnabled,
     mode,
-    legacyMode,
+    shellMode,
     draftRoot,
     draftFile,
     previewRoute,
@@ -126,7 +126,7 @@ export const buildFlashBuilderConfig = (
   ...baseConfig,
   flash: {
     ...(baseConfig.flash || {}),
-    mode: codeServerEnabled ? mode : legacyMode,
+    mode: codeServerEnabled ? mode : shellMode,
     draftRoot,
     draftFile,
     previewRoute,

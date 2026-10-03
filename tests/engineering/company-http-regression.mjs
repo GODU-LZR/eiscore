@@ -28,8 +28,10 @@ const module = createCompanyHttpModule({
   companySalesHandlers: salesHandlers,
   getRequestPath,
   getBearerFromAuthHeader: (req) => req.headers?.authorization?.replace(/^Bearer\s+/i, '') || '',
-  verifyToken: (token) => token === 'manager-token' ? { sub: 'u1', app_role: 'company_site_admin' } : null,
-  asUser: (payload, token) => ({ id: payload.sub, role: payload.app_role, permissions: [], token }),
+  verifyToken: (token) => token === 'manager-token'
+    ? { sub: 'u1', tenant_id: 'tenant-a', app_role: 'company_site_admin' }
+    : (token === 'manager-no-tenant-token' ? { sub: 'u1', app_role: 'company_site_admin' } : null),
+  asUser: (payload, token) => ({ id: payload.sub, tenant_id: payload.tenant_id, role: payload.app_role, permissions: [], token }),
   readJsonBody: async (req) => req.body || {},
   sendJson: (res, status, payload) => {
     res.status = status
@@ -54,6 +56,30 @@ assert.equal(calls.at(-1).args[2], 'about')
 const denied = response()
 await requestHandler({ method: 'PATCH', url: '/agent/company-site/admin/site-config', headers: {} }, denied)
 assert.equal(denied.status, 401)
+
+const missingTenant = response()
+await requestHandler({ method: 'PATCH', url: '/agent/company-site/admin/site-config', headers: { authorization: 'Bearer manager-no-tenant-token' } }, missingTenant)
+assert.equal(missingTenant.status, 401)
+assert.equal(missingTenant.payload?.code, 'HARNESS_AUTH_REQUIRED')
+
+const handoffDenied = response()
+await requestHandler({ method: 'POST', url: '/agent/company-site/auth/handoff', headers: { authorization: 'Bearer manager-no-tenant-token' } }, handoffDenied)
+assert.equal(handoffDenied.status, 401)
+assert.equal(handoffDenied.payload?.code, 'HARNESS_AUTH_REQUIRED')
+
+const handoffCreated = response()
+await requestHandler({ method: 'POST', url: '/agent/company-site/auth/handoff', headers: { authorization: 'Bearer manager-token' } }, handoffCreated)
+assert.equal(handoffCreated.status, 201)
+assert.match(handoffCreated.payload?.code || '', /^[A-Za-z0-9_-]{43}$/)
+
+const handoffConsumed = response()
+await requestHandler({ method: 'POST', url: '/agent/company-site/auth/handoff/consume', headers: {}, body: { code: handoffCreated.payload.code } }, handoffConsumed)
+assert.equal(handoffConsumed.status, 200)
+assert.equal(handoffConsumed.payload?.token, 'manager-token')
+
+const handoffReplay = response()
+await requestHandler({ method: 'POST', url: '/agent/company-site/auth/handoff/consume', headers: {}, body: { code: handoffCreated.payload.code } }, handoffReplay)
+assert.equal(handoffReplay.status, 410)
 
 await requestHandler({ method: 'PATCH', url: '/agent/company-site/admin/site-config', headers: { authorization: 'Bearer manager-token' } }, response())
 assert.equal(calls.at(-1).target, 'site.handleUpdateAdminSiteConfig')

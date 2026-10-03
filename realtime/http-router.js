@@ -17,6 +17,13 @@ const exact = (method, path, handler, authorize) => route(method, 'exact', path,
 const pattern = (method, matcher, handler, authorize) => route(method, 'pattern', matcher, handler, authorize);
 const prefix = (method, path, handler, authorize) => route(method, 'prefix', path, handler, authorize);
 
+const normalizeAgentRequestPath = (value) => {
+  const rawPath = String(value || '/').split('?')[0] || '/';
+  if (rawPath === '/agent') return '/';
+  if (rawPath.startsWith('/agent/')) return rawPath.slice('/agent'.length);
+  return rawPath;
+};
+
 const DOCUMENT_INTAKE_ADMIN = 'documentIntakeAdmin';
 
 const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
@@ -42,19 +49,22 @@ const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('POST', '/document-intake/assets/chunks/upload', 'documentIntake.handleUploadChunk'),
   exact('POST', '/document-intake/assets/chunks/complete', 'documentIntake.handleCompleteChunkUpload'),
   exact('POST', '/document-intake/client-logs/batch', 'documentIntake.handleLogBatch'),
-  exact('GET', '/ai/config', 'ai.handleConfig'),
-  exact('GET', '/ai/agents', 'ai.handleAgents'),
-  exact('GET', '/ai/business-snapshot', 'ai.handleBusinessSnapshot'),
-  exact('POST', '/ai/chat/completions', 'ai.handleChat'),
-  exact('POST', '/ai/translate', 'ai.handleTranslate'),
-  exact('POST', '/ai/ocr', 'ai.handleOcr'),
-  exact('POST', '/ai/map-locate', 'ai.handleMapLocate'),
+  exact('GET', '/ai/config', 'harness.handleConfig'),
+  exact('GET', '/ai/agents', 'harness.handleAgents'),
+  exact('GET', '/ai/business-snapshot', 'harness.handleBusinessSnapshot'),
+  exact('POST', '/ai/chat/completions', 'harness.handleChat'),
+  exact('POST', '/ai/translate', 'harness.handleCapability'),
+  exact('POST', '/ai/ocr', 'harness.handleCapability'),
+  exact('POST', '/ai/map-locate', 'harness.handleCapability'),
+  exact('POST', '/ai/harness/execute', 'harness.handleExecute'),
+  exact('POST', '/internal/harness/tool', 'harness.handleToolProxy'),
+  exact('GET', '/ai/harness/metrics', 'harness.handleMetrics'),
   exact('GET', '/flash/draft', 'flash.handleDraftGet'),
   exact('POST', '/flash/draft', 'flash.handleDraftWrite'),
   exact('POST', '/flash/attachments', 'flash.handleAttachmentUpload'),
   exact('GET', '/flash/tools/registry', 'flash.handleToolsRegistryGet'),
   exact('POST', '/flash/tools/call', 'flash.handleToolCall'),
-  exact('POST', '/twin/chat', 'twin.handleChat'),
+  exact('POST', '/twin/chat', 'harness.handleTwinChat'),
   exact('GET', '/twin/sessions', 'twin.handleSessionsList'),
   exact('DELETE', '/twin/sessions', 'twin.handleSessionDelete'),
   exact('GET', '/twin/messages', 'twin.handleMessagesGet'),
@@ -124,7 +134,23 @@ const createHttpRequestHandler = ({
     }
 
     const { callable: handler, owner } = resolveCallable(handlers, matchedRoute.handler, 'HTTP handler');
-    await handler.call(owner, req, res);
+    if (!matchedRoute.handler.startsWith('harness.') || typeof res.once !== 'function') {
+      await handler.call(owner, req, res);
+      return;
+    }
+
+    const controller = new AbortController();
+    const onClose = () => {
+      if (!res.writableEnded) controller.abort(new Error('HTTP client disconnected'));
+    };
+    req.signal = controller.signal;
+    if (res.destroyed && !res.writableEnded) onClose();
+    else res.once('close', onClose);
+    try {
+      await handler.call(owner, req, res);
+    } finally {
+      res.off?.('close', onClose);
+    }
   };
 };
 
@@ -132,5 +158,6 @@ module.exports = {
   CORE_HTTP_ROUTE_MANIFEST,
   HTTP_ROUTE_MANIFEST,
   createHttpRequestHandler,
-  matchesRoute
+  matchesRoute,
+  normalizeAgentRequestPath
 };

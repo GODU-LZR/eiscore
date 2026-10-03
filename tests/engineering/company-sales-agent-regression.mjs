@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const { createCompanySalesHandlers } = require('../../realtime/company-sales-agent.js');
@@ -33,7 +34,6 @@ const createHarness = (query, options = {}) => {
       res.end(JSON.stringify(payload));
     },
     readJsonBody: async (req) => req.body || {},
-    answerWithAi: options.answerWithAi,
     now: () => new Date('2026-08-12T12:00:00.000Z')
   });
   return { handler, calls };
@@ -72,26 +72,6 @@ async function testSessionAndKnowledgeAnswer() {
   assert.equal(message.citations[0].id, 'doc-1');
   assert.equal(messageHarness.calls.filter((call) => call.sql.includes('INSERT INTO company_site.agent_messages')).length, 1);
 
-  const aiHarness = createHarness((sql) => {
-    if (sql.includes('FROM company_site.agent_sessions')) return { rows: [session] };
-    if (sql.includes('FROM company_site.knowledge_documents')) return {
-      rows: [{ id: 'doc-1', title: '采购数量', content: '采购数量和交期需要人工确认。', version: 2, updated_at: '2026-08-12T00:00:00.000Z' }]
-    };
-    if (sql.includes('INSERT INTO company_site.agent_messages')) return { rows: [] };
-    if (sql.includes('UPDATE company_site.agent_sessions')) return { rows: [] };
-    if (sql.includes('INSERT INTO company_site.agent_audit_events')) return { rows: [] };
-    throw new Error(`unexpected AI message query: ${sql}`);
-  }, {
-    answerWithAi: async ({ knowledge, message }) => {
-      assert.equal(knowledge[0].id, 'doc-1');
-      assert.equal(message, '采购数量和交期怎么确认？');
-      return { answer: 'AI 已依据审核知识回答。', needsHuman: false, model: 'deepseek-v4-flash' };
-    }
-  });
-  const aiRes = response();
-  await aiHarness.handler.handleSendMessage(request({ message: '采购数量和交期怎么确认？' }), aiRes, session.id);
-  assert.equal(aiRes.statusCode, 200);
-  assert.equal(readPayload(aiRes).answer, 'AI 已依据审核知识回答。');
 }
 
 async function testConsentAndLeadIdempotency() {
@@ -241,4 +221,5 @@ await testLeadQualificationAndOpportunityDraft();
 await testQuoteOrderAndProductionDraftGates();
 await testApprovedDraftSyncQueueAndOpportunityAdapter();
 testApprovalRouteUsesApprovalAuthorization();
+assert.doesNotMatch(readFileSync(new URL('../../realtime/company-sales-agent.js', import.meta.url), 'utf8'), /answerWithAi|aiModel|aiUsed/);
 console.log('company-sales-agent-regression: PASS');

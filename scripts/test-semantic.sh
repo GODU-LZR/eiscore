@@ -9,7 +9,7 @@ echo "Token: ${#TOKEN} chars"
 
 # Send a short request
 timeout 30 curl -s --no-buffer \
-  -X POST http://localhost:8078/agent/ai/chat/completions \
+  -X POST http://localhost:8078/ai/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"stream":true,"assistant_mode":"enterprise","messages":[{"role":"user","content":"系统都有哪些数据表，简述其作用"}]}' \

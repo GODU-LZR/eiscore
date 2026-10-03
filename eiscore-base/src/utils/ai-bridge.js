@@ -145,7 +145,7 @@ class AiBridge {
     if (this.config) return
     try {
       const res = await request({
-        url: '/agent/ai/config',
+        url: '/ai/config',
         method: 'get',
         headers: { 'Accept': 'application/json' }
       })
@@ -529,7 +529,6 @@ class AiBridge {
       }
 
       const payload = {
-        model: this.config?.model || 'glm-4.6v',
         stream: true,
         assistant_mode: this.state.assistantMode,
         context: contextPayload || null,
@@ -538,7 +537,7 @@ class AiBridge {
       }
 
       await streamAgentEvents({
-        path: '/agent/ai/chat/completions',
+        path: '/ai/chat/completions',
         headers: this.buildAuthHeaders(),
         payload,
         signal: streamController.signal,

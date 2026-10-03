@@ -148,7 +148,7 @@ const getGeoConfig = () => {
     translateTargetField: colCfg.translateTargetField || globalCfg.translateTargetField || 'target',
     translateExtra: colCfg.translateExtra || globalCfg.translateExtra || {},
     translateResultField: colCfg.translateResultField || globalCfg.translateResultField || '',
-    translateProvider: colCfg.translateProvider || globalCfg.translateProvider || 'glm',
+    translateProvider: colCfg.translateProvider || globalCfg.translateProvider || 'harness',
     translatePrompt: colCfg.translatePrompt || globalCfg.translatePrompt || '',
     mapAiPrompt: colCfg.mapAiPrompt || globalCfg.mapAiPrompt || '',
     mapImageDelay: colCfg.mapImageDelay || globalCfg.mapImageDelay || 800
@@ -156,7 +156,7 @@ const getGeoConfig = () => {
 }
 
 const {
-  askGlmForMapLocation,
+  askHarnessForMapLocation,
   fetchIpLocation,
   fetchReverseAddress,
   translateText
@@ -238,7 +238,7 @@ const inferAddressFromMap = async (lat, lng) => {
   try {
     const snapshot = await captureMapSnapshot()
     if (!snapshot) return
-    const result = await askGlmForMapLocation(snapshot, lat, lng)
+    const result = await askHarnessForMapLocation(snapshot, lat, lng)
     if (!result) return
     form.aiAddress = result
     if (!form.address || !hasChinese(form.address)) {

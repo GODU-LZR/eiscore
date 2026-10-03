@@ -46,8 +46,8 @@ sleep 3
 echo "   导入数据库 schema..."
 docker exec -i eiscore-db psql -U postgres -d eiscore < sql/app_center_schema.sql 2>/dev/null || echo "   Schema 已存在"
 
-"${COMPOSE[@]}" build agent-runtime 2>&1 | grep -E "(Step|Successfully|built)" || true
-"${COMPOSE[@]}" up -d
+"${COMPOSE[@]}" build agent-runtime harness-bridge 2>&1 | grep -E "(Step|Successfully|built)" || true
+"${COMPOSE[@]}" up -d db api agent-runtime harness-bridge
 
 echo ""
 echo "🧩 Step 3/7: 应用 Workflow 运行时补丁..."

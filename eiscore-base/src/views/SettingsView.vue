@@ -5,7 +5,7 @@
         <div class="card-header">
           <div>
             <h2>系统全局设置</h2>
-            <p>内部系统偏好、企业资料状态与 AI Agent 接入配置</p>
+            <p>内部系统偏好、企业资料状态与智能协作运行状态</p>
           </div>
         </div>
       </template>
@@ -45,37 +45,19 @@
           </el-tab-pane>
 
           <el-tab-pane label="AI Agent" name="agent">
-            <el-divider content-position="left">Agent 接入配置</el-divider>
+            <el-divider content-position="left">DeepSeek Harness 运行状态</el-divider>
             <el-alert
-              title="该配置会写入 system_configs.ai_glm_config，Agent Runtime 将读取 api_url 与 api_key。"
+              title="智能能力统一由 DeepSeek Harness 插件链路提供。模型地址、密钥和插件运行参数由部署环境管理。"
               type="info"
               show-icon
               :closable="false"
               class="section-alert"
             />
-            <el-form-item label="Base URL">
-              <el-input
-                v-model="agentConfig.apiUrl"
-                clearable
-                placeholder="例如：https://open.bigmodel.cn/api/paas/v4/chat/completions"
-                @input="markAgentConfigDirty"
-              />
+            <el-form-item label="运行提供方">
+              <el-tag type="success">deepseek-harness</el-tag>
             </el-form-item>
-            <el-form-item label="API Key">
-              <el-input
-                v-model="agentConfig.apiKey"
-                type="password"
-                show-password
-                clearable
-                autocomplete="off"
-                placeholder="请输入 Agent/大模型服务 API Key"
-                @input="markAgentConfigDirty"
-              />
-            </el-form-item>
-            <el-form-item label="状态">
-              <el-tag :type="agentConfig.apiUrl && agentConfig.apiKey ? 'success' : 'warning'">
-                {{ agentConfig.apiUrl && agentConfig.apiKey ? '已配置' : '待配置' }}
-              </el-tag>
+            <el-form-item label="配置方式">
+              <span>由服务端 Harness Bridge 和部署环境统一管理</span>
             </el-form-item>
           </el-tab-pane>
 
@@ -163,7 +145,7 @@ import BasicSystemSettings from '@/components/settings/BasicSystemSettings.vue'
 import PublishedEnterpriseProfile from '@/components/settings/PublishedEnterpriseProfile.vue'
 import { useSystemStore } from '@/stores/system'
 import { useUserStore } from '@/stores/user'
-import { getHostHttpClient, getHostSystemConfigService } from '@/platform/http-client'
+import { getHostHttpClient } from '@/platform/http-client'
 import {
   DISPLAY_MODULE_CATALOG,
   normalizeDisplayVisibility,
@@ -181,14 +163,6 @@ const userStore = useUserStore()
 const router = useRouter()
 const activeTab = ref('basic')
 const savingSettings = ref(false)
-const agentConfig = reactive({
-  apiUrl: '',
-  apiKey: ''
-})
-const agentRawConfig = ref({})
-const agentConfigLoaded = ref(false)
-const agentConfigDirty = ref(false)
-const AI_AGENT_CONFIG_KEY = 'ai_glm_config'
 const moduleFilterText = ref('')
 const visibilityForm = reactive(normalizeDisplayVisibility())
 const appCenterDynamicApps = ref([])
@@ -296,22 +270,6 @@ const setVisibilityAppShown = (moduleKey, appKey, shown) => {
   }
 }
 
-const markAgentConfigDirty = () => {
-  agentConfigDirty.value = true
-}
-
-const parseConfigValue = (value) => {
-  if (!value) return {}
-  if (typeof value === 'object') return value
-  if (typeof value !== 'string') return {}
-  try {
-    const parsed = JSON.parse(value)
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
-}
-
 const loadAppCenterDynamicApps = async () => {
   if (!canManage.value) return
   try {
@@ -335,42 +293,6 @@ const loadAppCenterDynamicApps = async () => {
   }
 }
 
-const loadAgentConfig = async () => {
-  if (!canManage.value) return
-  try {
-    const storedValue = await getHostSystemConfigService().readValue(AI_AGENT_CONFIG_KEY)
-    const value = parseConfigValue(storedValue)
-    agentRawConfig.value = { ...value }
-    agentConfig.apiUrl = String(value.api_url || '')
-    agentConfig.apiKey = String(value.api_key || '')
-    agentConfigLoaded.value = true
-    agentConfigDirty.value = false
-  } catch {
-    agentConfigLoaded.value = false
-    ElMessage.warning('Agent 配置读取失败，请检查系统配置权限或服务状态')
-  }
-}
-
-const saveAgentConfig = async () => {
-  if (!canManage.value || !agentConfigDirty.value) return true
-  const value = {
-    ...(agentRawConfig.value || {}),
-    api_url: String(agentConfig.apiUrl || '').trim(),
-    api_key: String(agentConfig.apiKey || '').trim()
-  }
-  try {
-    await getHostSystemConfigService().saveValue(AI_AGENT_CONFIG_KEY, value, {
-      description: 'AI Agent 接入配置'
-    })
-    agentRawConfig.value = { ...value }
-    agentConfigLoaded.value = true
-    agentConfigDirty.value = false
-    return true
-  } catch {
-    return false
-  }
-}
-
 const syncFromStore = (cfg) => {
   const source = cfg && typeof cfg === 'object' ? cfg : {}
   const next = defaultForm()
@@ -383,7 +305,6 @@ const syncFromStore = (cfg) => {
 
 onMounted(() => {
   syncFromStore(systemStore.config)
-  loadAgentConfig()
   loadAppCenterDynamicApps()
 })
 
@@ -392,7 +313,6 @@ watch(() => systemStore.config, (value) => {
 }, { deep: true })
 
 watch(canManage, (allowed) => {
-  if (allowed && !agentConfigLoaded.value) loadAgentConfig()
   if (allowed && appCenterDynamicApps.value.length === 0) loadAppCenterDynamicApps()
 })
 
@@ -410,11 +330,6 @@ const saveSettings = async () => {
     const appOk = await systemStore.saveConfig(payload)
     if (!appOk) {
       ElMessage.error('系统设置保存失败，请稍后重试')
-      return
-    }
-    const agentOk = await saveAgentConfig()
-    if (!agentOk) {
-      ElMessage.error('系统设置已保存，但 Agent 配置保存失败')
       return
     }
     saveStoredDisplayVisibility(payload.visibility)

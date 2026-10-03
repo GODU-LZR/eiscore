@@ -38,12 +38,6 @@ else
     exit 1
 fi
 
-# Check ANTHROPIC_API_KEY (warning only, not required)
-if ! grep -q "^ANTHROPIC_API_KEY=sk-ant-" "$ENV_FILE" 2>/dev/null; then
-    echo "⚠️  ANTHROPIC_API_KEY 未配置，AI Agent 功能将不可用"
-    echo "   如需使用 Flash Builder，请在 .env 中配置有效的 API Key"
-fi
-
 # Check if pm2 is installed
 if ! command -v pm2 &> /dev/null; then
     echo "❌ PM2 未安装，正在安装..."
@@ -69,8 +63,8 @@ docker exec -i eiscore-db psql -U postgres -d eiscore < sql/app_center_schema.sq
 }
 
 echo "   构建并启动 agent-runtime..."
-"${COMPOSE[@]}" build agent-runtime
-"${COMPOSE[@]}" up -d
+"${COMPOSE[@]}" build agent-runtime harness-bridge
+"${COMPOSE[@]}" up -d db api agent-runtime harness-bridge
 
 echo ""
 echo "🧩 Step 4/9: 应用 Workflow 运行时补丁..."

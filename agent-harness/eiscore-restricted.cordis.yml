@@ -1,0 +1,47 @@
+# EISCore profile overlay: remove generic model-visible escape hatches and add
+# only the reviewed EISCore capability tools.
+- id: tool-bash
+  disabled: true
+- id: tool-pwsh
+  disabled: true
+- id: tool-jobs
+  disabled: true
+- id: tool-fs
+  disabled: true
+- id: tool-fs-search
+  disabled: true
+- id: tool-skill
+  disabled: true
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-workflow
+  disabled: true
+- id: tool-todo
+  disabled: true
+- id: tool-goal
+  disabled: true
+- id: tool-ralph
+  disabled: true
+- id: tool-str-replace-editor
+  disabled: true
+- id: tool-web
+  disabled: true
+- id: commands
+  disabled: true
+- id: command-compact
+  disabled: true
+- id: command-feedback
+  disabled: true
+- id: command-goal
+  disabled: true
+- id: plan-mode
+  disabled: true
+- insert:
+    - id: eiscore-tools
+      name: './eiscore-tools.mjs'

@@ -24,10 +24,19 @@ assert.equal(desktop.companyName, '伦度机电有限公司')
 assert.equal(desktop.logo, '/enterprise-assets/site/lundu-logo.png')
 assert.equal(desktop.slogan, '专注电机与水泵产品，服务稳定运行。')
 assert.equal(desktop.metrics.length, 4)
+assert.equal(desktop.metricsSectionTitle, '企业规模与产品范围')
+assert.deepEqual(desktop.metrics.map(({ label, value }) => ({ label, value })), [
+  { label: '项目', value: '6000 个项目' },
+  { label: '装车量', value: '4500 吨装车量' },
+  { label: '合同额', value: '35 亿合同额' },
+  { label: '企业所在地', value: '浙江省台州市温岭市沈岙工业园区' }
+])
 assert.equal(desktop.businessChain.length, 5)
 assert.equal(desktop.capabilities.length, 4)
 assert.equal(desktop.carouselImages.length, 6)
-assert.equal(desktop.footerText, '伦度机电有限公司 · 浙江省台州市温岭市沈岙工业园区 · info@lundujd.com')
+assert.equal(desktop.carouselImages[0].hasEmbeddedText, true)
+assert.equal(desktop.carouselImages[1].hasEmbeddedText, false)
+assert.equal(desktop.footerText, '伦度机电有限公司 · 浙江省台州市温岭市沈岙工业园区 · 电话 15857606321 · info@lundujd.com · 统一社会信用代码 91331081095226001F')
 
 const mobile = normalizeLoginBranding({}, { enterpriseConfig, surface: 'mobile' })
 assert.equal(mobile.companyName, desktop.companyName)
@@ -36,7 +45,7 @@ assert.equal(mobile.authFootnote, '账号由企业统一创建')
 assert.equal(mobile.showSecondaryAction, false)
 assert.equal(mobile.passBadgeText, '企业账户')
 assert.equal(mobile.businessChainTitle, '产品体系与制造能力')
-assert.equal(mobile.footerText, '伦度机电有限公司 · 浙江省台州市温岭市沈岙工业园区 · info@lundujd.com')
+assert.equal(mobile.footerText, '伦度机电有限公司 · 浙江省台州市温岭市沈岙工业园区 · 电话 15857606321 · info@lundujd.com · 统一社会信用代码 91331081095226001F')
 
 const v2Neutral = normalizeLoginBranding({}, { enterpriseConfig: v2Profile })
 assert.equal(v2Neutral.companyName, '示例制造企业')
@@ -83,6 +92,14 @@ assert.throws(
     error.issues.some((issue) => issue.path === '$.branding.login.metrics[0].internalNote' && issue.code === 'unknown-key')
 )
 
+const invalidEmbeddedText = structuredClone(runtimeProfile)
+invalidEmbeddedText.branding.login.carouselImages[0].hasEmbeddedText = 'true'
+assert.throws(
+  () => parseEnterpriseConfig(invalidEmbeddedText, { source: 'invalid embedded text flag' }),
+  (error) => error instanceof EnterpriseConfigError &&
+    error.issues.some((issue) => issue.path === '$.branding.login.carouselImages[0].hasEmbeddedText' && issue.code === 'boolean-required')
+)
+
 const productSources = [
   'eiscore-base/src/stores/system.js',
   'eiscore-base/src/views/LoginView.vue',
@@ -99,6 +116,7 @@ const mobileMainSource = readFileSync(resolve(repoRoot, 'eiscore-mobile/src/main
 const mobileLoginSource = readFileSync(resolve(repoRoot, 'eiscore-mobile/src/views/LoginView.vue'), 'utf8')
 const desktopLoginSource = readFileSync(resolve(repoRoot, 'eiscore-base/src/views/LoginView.vue'), 'utf8')
 assert.match(desktopLoginSource, /'has-logo': branding\.logo/)
+assert.match(desktopLoginSource, /activeHeroSlide\?\.hasEmbeddedText/)
 assert.match(mobileLoginSource, /'has-logo': branding\.logo/)
 assert.ok(readFileSync(resolve(repoRoot, 'eiscore-base/public/enterprise-assets/site/lundu-logo.png')).length > 0)
 assert.match(mobileLoginSource, /logo: value\.loginBranding\?\.logo \|\| enterpriseConfig\.branding\.logoUrl/)

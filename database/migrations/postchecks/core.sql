@@ -9,6 +9,7 @@ DECLARE
   role_row record;
   superuser_count integer;
   bypassrls_count integer;
+  twin_model_default text;
 BEGIN
   SELECT proconfig
     INTO login_config
@@ -363,6 +364,50 @@ BEGIN
 
   IF to_regclass('public.debug_me') IS NOT NULL THEN
     RAISE EXCEPTION 'the unaudited public JWT debug view must not remain installed';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM public.system_configs
+    WHERE key = 'ai_glm_config'
+  ) THEN
+    RAISE EXCEPTION 'legacy ai_glm_config must not remain in system_configs';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_policy p
+    WHERE p.polrelid = 'public.system_configs'::regclass
+      AND p.polname = 'system_configs_web_anon_select'
+      AND pg_get_expr(p.polqual, p.polrelid) LIKE '%ai_glm_config%'
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_policy p
+    WHERE p.polrelid = 'public.system_configs'::regclass
+      AND p.polname = 'system_configs_web_user_manage'
+      AND pg_get_expr(p.polqual, p.polrelid) LIKE '%ai_glm_config%'
+      AND pg_get_expr(p.polwithcheck, p.polrelid) LIKE '%ai_glm_config%'
+  ) THEN
+    RAISE EXCEPTION 'system_configs legacy AI key exclusion policies are incomplete';
+  END IF;
+
+  SELECT pg_get_expr(d.adbin, d.adrelid)
+    INTO twin_model_default
+  FROM pg_attrdef d
+  JOIN pg_attribute a ON a.attrelid = d.adrelid AND a.attnum = d.adnum
+  WHERE d.adrelid = 'app_data.twin_sessions'::regclass
+    AND a.attname = 'model';
+
+  IF twin_model_default NOT LIKE '%deepseek-harness%' THEN
+    RAISE EXCEPTION 'digital twin sessions must default to DeepSeek Harness';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM app_data.twin_sessions
+    WHERE model IS DISTINCT FROM 'deepseek-harness'
+  ) THEN
+    RAISE EXCEPTION 'digital twin sessions contain a retired model marker';
   END IF;
 END
 $$;

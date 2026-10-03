@@ -95,6 +95,32 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-008",
+      "path": "database/migrations/sql/core-008-retire-legacy-ai-config.sql",
+      "sha256": "c2cdd79f03145dbf63bb48b4b13b176aafb0dd6fcb13da49e2ac6ff54338087e",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-009",
+      "path": "database/migrations/sql/core-009-retire-legacy-twin-model.sql",
+      "sha256": "6e7195aff8b1dad8a66258b2e37587efc653b8ba8ec4c6c15af788a60929f980",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

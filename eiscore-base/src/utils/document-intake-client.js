@@ -12,8 +12,8 @@ export function createDocumentIntakeClient({ getAuthHeader, fetchImpl = defaultF
     data,
     errorMessage = '智能收单请求失败'
   } = {}) => {
-    if (typeof path !== 'string' || !path.startsWith('/agent/document-intake/')) {
-      throw new TypeError('document intake path must start with /agent/document-intake/')
+    if (typeof path !== 'string' || !path.startsWith('/document-intake/')) {
+      throw new TypeError('document intake path must start with /document-intake/')
     }
     const headers = { ...getAuthHeader() }
     const options = { method, headers }

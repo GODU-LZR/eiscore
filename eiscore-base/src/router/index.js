@@ -35,6 +35,12 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/harness',
+      name: 'harness',
+      component: () => import('../views/HarnessView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/',
       component: Layout,
       meta: { requiresAuth: true },
@@ -57,7 +63,7 @@ const router = createRouter({
         {
           path: 'ai/enterprise',
           name: 'ai-enterprise',
-          component: () => import('../views/EnterpriseAiView.vue')
+          redirect: '/embed/smart-bi'
         },
         {
           path: 'materials/:page(.*)*',
@@ -169,7 +175,11 @@ router.beforeEach((to, from, next) => {
   } else if (to.path === '/login' && token && !expired) {
     const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : ''
     const safeRedirect = /^\/(?!\/)/.test(redirect) ? redirect : '/'
-    next(safeRedirect)
+    if (safeRedirect.startsWith('/mobile/')) {
+      window.location.href = safeRedirect
+    } else {
+      next(safeRedirect)
+    }
   } else {
     next()
   }

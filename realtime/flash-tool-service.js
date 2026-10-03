@@ -6,7 +6,8 @@
 const { FlashToolError } = require('./flash-postgrest-adapter');
 
 const createFlashToolService = ({
-  idempotencyTtlMs,
+  idempotencyTtlMs = 10 * 60 * 1000,
+  maxIdempotencyEntries = 10000,
   authorizeTool,
   getToolDefinition,
   resolveToolId,
@@ -20,6 +21,12 @@ const createFlashToolService = ({
   random = Math.random
 }) => {
   const idempotencyCache = new Map();
+  const idempotencyTtl = Number.isFinite(Number(idempotencyTtlMs)) && Number(idempotencyTtlMs) > 0
+    ? Number(idempotencyTtlMs)
+    : 10 * 60 * 1000;
+  const idempotencyCapacity = Number.isInteger(Number(maxIdempotencyEntries)) && Number(maxIdempotencyEntries) > 0
+    ? Number(maxIdempotencyEntries)
+    : 10000;
 
   const toPlainObject = (value) => {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -41,8 +48,7 @@ const createFlashToolService = ({
 
   const sanitizeIdempotencyKey = (value) => {
     const text = String(value || '').trim();
-    if (!text) return '';
-    return text.replace(/[^a-zA-Z0-9._:-]/g, '').slice(0, 128);
+    return /^[a-zA-Z0-9._:-]{16,128}$/.test(text) ? text : '';
   };
 
   const sanitizeTraceId = (value) => {
@@ -85,7 +91,7 @@ const createFlashToolService = ({
 
   const cleanupIdempotencyCache = (currentTime = now()) => {
     for (const [key, record] of idempotencyCache.entries()) {
-      if (!record || !record.expireAt || record.expireAt <= currentTime) {
+      if (!record || (!record.pending && (!record.expireAt || record.expireAt <= currentTime))) {
         idempotencyCache.delete(key);
       }
     }
@@ -93,7 +99,8 @@ const createFlashToolService = ({
 
   const makeIdempotencyCacheKey = (user, toolId, idempotencyKey) => {
     const userId = String(user?.id || 'anonymous');
-    return `${userId}:${toolId}:${idempotencyKey}`;
+    const tenantId = String(user?.tenant_id || user?.tenantId || user?.tenant || user?.org_id || user?.organization_id || '');
+    return `${tenantId}:${userId}:${toolId}:${idempotencyKey}`;
   };
 
   const executeFlashToolCall = async (user, rawPayload = {}, source = 'http') => {
@@ -168,6 +175,7 @@ const createFlashToolService = ({
 
     cleanupIdempotencyCache();
     let cacheKey = '';
+    let pendingRecord = null;
     if (isWriteTool && call.idempotencyKey) {
       cacheKey = makeIdempotencyCacheKey(user, call.toolId, call.idempotencyKey);
       const cached = idempotencyCache.get(cacheKey);
@@ -179,32 +187,78 @@ const createFlashToolService = ({
         };
         return { status: 200, payload: replay };
       }
+      if (cached?.pending) {
+        const outcome = await cached.promise;
+        if (outcome.failed) {
+          return {
+            status: 502,
+            payload: {
+              ok: false,
+              code: 'INTERNAL_ERROR',
+              message: 'Tool execution failed',
+              tool_id: call.toolId,
+              trace_id: call.traceId,
+              error: { reason_code: 'INTERNAL_ERROR', http_status: 502 }
+            }
+          };
+        }
+        const replay = cloneJsonValue(outcome.value.payload);
+        replay.meta = { ...toPlainObject(replay.meta), idempotent_replay: true };
+        return { status: outcome.value.status, payload: replay };
+      }
+      if (idempotencyCache.size >= idempotencyCapacity) {
+        return {
+          status: 429,
+          payload: {
+            ok: false,
+            code: 'CAPACITY_EXCEEDED',
+            message: 'Idempotency capacity is full; retry after existing entries expire',
+            tool_id: call.toolId,
+            trace_id: call.traceId,
+            error: { reason_code: 'CAPACITY_EXCEEDED', http_status: 429 }
+          }
+        };
+      }
+      pendingRecord = { pending: true, promise: null, expireAt: 0 };
+      idempotencyCache.set(cacheKey, pendingRecord);
     }
 
     try {
       const executionContext = authorization.context
         ? { ...call, authorizationContext: authorization.context }
         : call;
-      const result = await executeSemanticTool(call.toolId, call.arguments, user, executionContext);
-      const responsePayload = {
-        ok: true,
-        code: 'OK',
-        message: normalizeText(result?.message) || 'OK',
-        tool_id: call.toolId,
-        trace_id: call.traceId,
-        registry_version: registryVersion,
-        registry_tools_count_actual: registryCount,
-        data: cloneJsonValue(result?.data),
-        meta: {
-          risk_level: tool.risk_level,
-          duration_ms: now() - startedAt,
-          rows_affected: Number(result?.rowsAffected || 0),
-          source
-        }
-      };
+      const executionPromise = Promise.resolve().then(async () => {
+        const result = await executeSemanticTool(call.toolId, call.arguments, user, executionContext);
+        return {
+          status: 200,
+          payload: {
+            ok: true,
+            code: 'OK',
+            message: normalizeText(result?.message) || 'OK',
+            tool_id: call.toolId,
+            trace_id: call.traceId,
+            registry_version: registryVersion,
+            registry_tools_count_actual: registryCount,
+            data: cloneJsonValue(result?.data),
+            meta: {
+              risk_level: tool.risk_level,
+              duration_ms: now() - startedAt,
+              rows_affected: Number(result?.rowsAffected || 0),
+              source
+            }
+          }
+        };
+      });
+      if (pendingRecord) pendingRecord.promise = executionPromise.then(
+        (value) => ({ value }),
+        () => ({ failed: true })
+      );
+      const executed = await executionPromise;
+      const responsePayload = executed.payload;
       if (cacheKey) {
         idempotencyCache.set(cacheKey, {
-          expireAt: now() + idempotencyTtlMs,
+          pending: false,
+          expireAt: now() + idempotencyTtl,
           payload: cloneJsonValue(responsePayload)
         });
       }
@@ -214,8 +268,9 @@ const createFlashToolService = ({
         source,
         duration_ms: responsePayload.meta.duration_ms
       });
-      return { status: 200, payload: responsePayload };
+      return executed;
     } catch (error) {
+      if (cacheKey && idempotencyCache.get(cacheKey) === pendingRecord) idempotencyCache.delete(cacheKey);
       const isTypedError = error instanceof FlashToolError;
       const code = isTypedError ? error.code : 'INTERNAL_ERROR';
       const httpStatus = isTypedError ? error.httpStatus : 500;

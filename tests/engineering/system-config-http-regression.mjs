@@ -42,6 +42,15 @@ await assert.rejects(
   service.readValue('app_settings&select=secret'),
   (error) => error instanceof SystemConfigError && error.code === 'invalid-key'
 )
+await assert.rejects(
+  service.readValue('ai_glm_config'),
+  (error) => error instanceof SystemConfigError && error.code === 'retired-key'
+)
+await assert.rejects(
+  service.saveValue('ai_glm_config', { api_key: 'must-not-send' }),
+  (error) => error instanceof SystemConfigError && error.code === 'retired-key'
+)
+assert.equal(requests.some(({ path }) => path.includes('ai_glm_config')), false)
 
 const invalidResponseService = createSystemConfigService({
   httpClient: { requestJson: async () => ({ status: 200, data: { unexpected: true } }) }
@@ -56,6 +65,7 @@ const baseStore = readFileSync(resolve(repoRoot, 'eiscore-base/src/stores/system
 const mobileLogin = readFileSync(resolve(repoRoot, 'eiscore-mobile/src/views/LoginView.vue'), 'utf8')
 const hostAdapter = readFileSync(resolve(repoRoot, 'eiscore-base/src/platform/http-client.js'), 'utf8')
 const mobileAdapter = readFileSync(resolve(repoRoot, 'eiscore-mobile/src/platform/http-client.js'), 'utf8')
+const aiCopilot = readFileSync(resolve(repoRoot, 'eiscore-base/src/components/AiCopilot.vue'), 'utf8')
 assert.match(baseStore, /getHostSystemConfigService\(\)/)
 assert.match(mobileLogin, /getMobileSystemConfigService\(\)/)
 assert.match(baseStore, /normalizeConfig\(\{ \.\.\.defaultConfig, \.\.\.value \}\)/)
@@ -65,5 +75,8 @@ assert.doesNotMatch(mobileLogin, /fetch\(['"]\/api\/system_configs/)
 assert.match(hostAdapter, /onUnauthorized:\s*\(\)\s*=>\s*clearAuthAndRedirect\('\/login'\)/)
 assert.match(hostAdapter, /getAccessToken:\s*getToken/)
 assert.match(mobileAdapter, /getAccessToken:\s*getToken/)
+assert.match(aiCopilot, /getHostSystemConfigService/)
+assert.doesNotMatch(aiCopilot, /requestJson\(\s*['"]\/system_configs['"]/)
+assert.doesNotMatch(aiCopilot, /requestJson\(\s*`\/system_configs/)
 
 console.log('PASS: system configuration HTTP migration')

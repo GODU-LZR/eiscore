@@ -27,7 +27,7 @@ const baseUrl = String(
   'https://nanpai.eissys.top'
 ).replace(/\/+$/, '')
 
-const defaultAgentWsUrl = baseUrl.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:') + '/agent/ws'
+const defaultAgentWsUrl = baseUrl.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:') + '/ws'
 const agentWsUrl = String(args.get('agent-ws-url') || process.env.EISCORE_ENGINEERING_AGENT_WS_URL || process.env.EISCORE_AGENT_WS_URL || defaultAgentWsUrl)
 const artifactsDir = resolve(repoRoot, String(args.get('artifacts-dir') || process.env.EISCORE_ENGINEERING_ARTIFACTS_DIR || 'tests/.artifacts'))
 const runId = new Date().toISOString().replace(/[:.]/g, '-')

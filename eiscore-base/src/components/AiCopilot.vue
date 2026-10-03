@@ -515,7 +515,7 @@
 import { ref, computed, nextTick, watch, onMounted, onUpdated, onBeforeUnmount } from 'vue'
 import { aiBridge } from '@/utils/ai-bridge'
 import { getToken, parseJwtPayload } from '@/utils/auth'
-import { getHostHttpClient } from '@/platform/http-client'
+import { getHostHttpClient, getHostSystemConfigService } from '@/platform/http-client'
 import { useHostDarkMode } from '@/platform/theme-mode'
 import { createBusinessSnapshotLoader } from '@shared/eis-business-snapshot'
 import {
@@ -1050,11 +1050,8 @@ const getCurrentTemplateLibraryKey = () => resolveAiTemplateLibraryKey(state.cur
 
 const loadTemplateLibrary = async () => {
   try {
-    const key = encodeURIComponent(getCurrentTemplateLibraryKey())
-    const { data } = await getHostHttpClient().requestJson(`/system_configs?key=eq.${key}`, {
-      headers: { 'Accept-Profile': 'public' }
-    })
-    return Array.isArray(data) && data.length > 0 ? (data[0].value || []) : []
+    const value = await getHostSystemConfigService().readValue(getCurrentTemplateLibraryKey())
+    return Array.isArray(value) ? value : []
   } catch (e) {
     return []
   }
@@ -1062,15 +1059,7 @@ const loadTemplateLibrary = async () => {
 
 const saveTemplateLibrary = async (templates) => {
   const key = getCurrentTemplateLibraryKey()
-  await getHostHttpClient().requestJson('/system_configs', {
-    method: 'POST',
-    headers: {
-      'Accept-Profile': 'public',
-      'Content-Profile': 'public',
-      Prefer: 'resolution=merge-duplicates'
-    },
-    body: { key, value: templates }
-  })
+  await getHostSystemConfigService().saveValue(key, templates)
   return true
 }
 
@@ -1318,15 +1307,7 @@ const saveSystemConfig = async (key, value) => {
     throw new Error('登录已过期')
   }
   try {
-    await getHostHttpClient().requestJson('/system_configs', {
-      method: 'POST',
-      headers: {
-        'Accept-Profile': 'public',
-        'Content-Profile': 'public',
-        Prefer: 'resolution=merge-duplicates'
-      },
-      body: { key, value }
-    })
+    await getHostSystemConfigService().saveValue(key, value)
   } catch (error) {
     if (error?.code === 'unauthorized') throw new Error('登录已过期')
     throw new Error('保存失败')

@@ -6,11 +6,11 @@ import { createDocumentIntakeClient } from './document-intake-client.js'
 
 const documentIntakeClient = createDocumentIntakeClient({ getAuthHeader })
 
-export const DOCUMENT_INTAKE_ASSETS_ENDPOINT = '/agent/document-intake/admin/assets'
-export const DOCUMENT_INTAKE_DEVICES_ENDPOINT = '/agent/document-intake/admin/devices'
-export const DOCUMENT_INTAKE_LOGS_ENDPOINT = '/agent/document-intake/admin/logs'
-export const DOCUMENT_INTAKE_ENTRY_RESULTS_ENDPOINT = '/agent/document-intake/admin/entry-results'
-export const DOCUMENT_INTAKE_OVERVIEW_ENDPOINT = '/agent/document-intake/admin/overview'
+export const DOCUMENT_INTAKE_ASSETS_ENDPOINT = '/document-intake/admin/assets'
+export const DOCUMENT_INTAKE_DEVICES_ENDPOINT = '/document-intake/admin/devices'
+export const DOCUMENT_INTAKE_LOGS_ENDPOINT = '/document-intake/admin/logs'
+export const DOCUMENT_INTAKE_ENTRY_RESULTS_ENDPOINT = '/document-intake/admin/entry-results'
+export const DOCUMENT_INTAKE_OVERVIEW_ENDPOINT = '/document-intake/admin/overview'
 
 export const duplicateFilterOptions = [
   { label: '全部', value: '' },

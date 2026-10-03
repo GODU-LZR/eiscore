@@ -19,15 +19,15 @@ let config = {
   ipLangParam: 'lang',
   reverseApiUrl: 'https://geo.example/reverse?lat={lat}&lng={lng}',
   reverseLangParam: 'accept-language',
-  translateProvider: 'glm',
+  translateProvider: 'harness',
   translateApiUrl: '',
   translateLang: 'zh-CN',
   mapAiPrompt: '地图提示 113.9,22.5'
 }
 const calls = []
 const responses = new Map([
-  ['/agent/ai/translate', { text: '广东省深圳市' }],
-  ['/agent/ai/map-locate', { address: '广东省-深圳市-南山区-粤海街道' }],
+  ['/ai/translate', { text: '广东省深圳市' }],
+  ['/ai/map-locate', { address: '广东省-深圳市-南山区-粤海街道' }],
   ['https://geo.example/ip?lang=zh-CN', {
     ip: '203.0.113.10',
     latitude: 22.5,
@@ -53,17 +53,17 @@ const services = geo.createGeoServices({
 
 assert.equal(await services.translateText('Shenzhen'), '广东省深圳市')
 assert.equal(await services.translateText('Shenzhen'), '广东省深圳市', 'translation should use the shared cache')
-assert.equal(calls.filter(({ url }) => url === '/agent/ai/translate').length, 1)
-const translateCall = calls.find(({ url }) => url === '/agent/ai/translate')
+assert.equal(calls.filter(({ url }) => url === '/ai/translate').length, 1)
+const translateCall = calls.find(({ url }) => url === '/ai/translate')
 assert.equal(translateCall.options.method, 'POST')
 assert.equal(translateCall.options.headers.Authorization, 'Bearer test-token')
 assert.equal(JSON.parse(translateCall.options.body).text, 'Shenzhen')
 
 assert.equal(
-  await services.askGlmForMapLocation('data:image/png;base64,abc', 22.5, 113.9),
+  await services.askHarnessForMapLocation('data:image/png;base64,abc', 22.5, 113.9),
   '广东省-深圳市-南山区-粤海街道'
 )
-const mapCall = calls.find(({ url }) => url === '/agent/ai/map-locate')
+const mapCall = calls.find(({ url }) => url === '/ai/map-locate')
 assert.equal(mapCall.options.headers.Authorization, 'Bearer test-token')
 assert.deepEqual(JSON.parse(mapCall.options.body), {
   imageUrl: 'data:image/png;base64,abc',
@@ -116,14 +116,25 @@ assert.deepEqual(JSON.parse(externalPost.options.body), {
 })
 
 const failing = geo.createGeoServices({
-  getConfig: () => ({ translateProvider: 'glm' }),
+  getConfig: () => ({ translateProvider: 'harness' }),
   getToken: () => '',
   fetchImpl: async () => { throw new Error('offline') }
 })
 assert.equal(await failing.translateText('Original'), 'Original')
-assert.equal(await failing.askGlmForMapLocation('', 0, 0), '')
+assert.equal(await failing.askHarnessForMapLocation('', 0, 0), '')
 assert.equal(await failing.fetchIpLocation(), null)
 assert.equal(await failing.fetchReverseAddress(0, 0), '')
+
+const legacyProviderCalls = []
+const legacyProvider = geo.createGeoServices({
+  getConfig: () => ({ translateProvider: 'glm', translateApiUrl: 'https://legacy.invalid/translate' }),
+  fetchImpl: async (url) => {
+    legacyProviderCalls.push(url)
+    return { ok: true, json: async () => ({ text: 'Harness translation' }) }
+  }
+})
+assert.equal(await legacyProvider.translateText('Legacy marker'), 'Harness translation')
+assert.deepEqual(legacyProviderCalls, ['/ai/translate'], 'legacy glm provider markers must route through Harness')
 
 const geoDialogSources = [
   'shared/eis-data-grid-v2/components/GeoDialog.vue',

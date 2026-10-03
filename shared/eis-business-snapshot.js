@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-const BUSINESS_SNAPSHOT_ENDPOINT = '/agent/ai/business-snapshot'
+const BUSINESS_SNAPSHOT_ENDPOINT = '/ai/business-snapshot'
 const defaultFetch = (...args) => globalThis.fetch(...args)
 
 export function createBusinessSnapshotLoader({ getAuthHeaders, fetchImpl = defaultFetch } = {}) {

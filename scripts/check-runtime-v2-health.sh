@@ -9,6 +9,7 @@ DB_NAME="${EISCORE_DB_NAME:-eiscore}"
 DB_USER="${EISCORE_DB_USER:-postgres}"
 AGENT_HEALTH_URL="${EISCORE_AGENT_HEALTH_URL:-http://127.0.0.1:8078/health}"
 POSTGREST_URL="${EISCORE_POSTGREST_URL:-http://127.0.0.1:3000/}"
+HARNESS_HEALTH_URL="${EISCORE_HARNESS_HEALTH_URL:-http://127.0.0.1:3080/readyz}"
 START_SERVICES="false"
 SKIP_POSTCHECK="false"
 SKIP_ACCESS_SMOKE="false"
@@ -28,6 +29,7 @@ Options:
   --db-user <n>        Database user. Default: postgres.
   --agent-health <url> Agent runtime health URL. Default: http://127.0.0.1:8078/health.
   --postgrest <url>    PostgREST root URL. Default: http://127.0.0.1:3000/.
+  --harness-health <url> Harness bridge readiness URL. Default: http://127.0.0.1:3080/readyz.
   -h, --help           Show this help.
 EOF
 }
@@ -70,6 +72,10 @@ while [[ $# -gt 0 ]]; do
       POSTGREST_URL="$2"
       shift 2
       ;;
+    --harness-health)
+      HARNESS_HEALTH_URL="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -88,6 +94,7 @@ DIAGNOSTIC_CONTAINERS=(
   "${DB_CONTAINER}"
   "eiscore-api"
   "eiscore-agent-runtime"
+  "eiscore-harness-bridge"
   "eiscore-nginx"
   "eiscore-swagger"
   "eiscore-ide"
@@ -161,7 +168,7 @@ if [[ "${START_SERVICES}" == "true" ]]; then
   echo "Starting Runtime V2 docker compose services from ${REPO_ROOT}..."
   (
     cd "${REPO_ROOT}"
-    docker compose up -d db api agent-runtime nginx swagger code-server
+    docker compose up -d db api agent-runtime harness-bridge nginx swagger code-server
   )
 fi
 
@@ -169,6 +176,7 @@ required_containers=(
   "${DB_CONTAINER}"
   "eiscore-api"
   "eiscore-agent-runtime"
+  "eiscore-harness-bridge"
   "eiscore-nginx"
   "eiscore-swagger"
   "eiscore-ide"
@@ -191,6 +199,9 @@ wait_until "PostgREST responds at ${POSTGREST_URL}" http_ok "${POSTGREST_URL}" \
 
 wait_until "agent runtime responds at ${AGENT_HEALTH_URL}" http_ok "${AGENT_HEALTH_URL}" \
   || fail "agent runtime did not become ready: ${AGENT_HEALTH_URL}"
+
+wait_until "Harness bridge responds at ${HARNESS_HEALTH_URL}" http_ok "${HARNESS_HEALTH_URL}" \
+  || fail "Harness bridge did not become ready: ${HARNESS_HEALTH_URL}"
 
 if [[ "${SKIP_POSTCHECK}" != "true" ]]; then
   echo "Running Runtime V2 database postcheck..."

@@ -74,7 +74,7 @@ const parseContact = (body) => ({
   message: text(body?.message, 4000)
 });
 
-const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, answerWithAi = null, now = () => new Date(), siteKey = process.env.COMPANY_SITE_KEY || DEFAULT_SITE_KEY }) => {
+const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, now = () => new Date(), siteKey = process.env.COMPANY_SITE_KEY || DEFAULT_SITE_KEY }) => {
   const SITE_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(String(siteKey || ''))
     ? String(siteKey)
     : DEFAULT_SITE_KEY;
@@ -209,30 +209,10 @@ const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, answerWithA
     );
     const matched = rows(knowledgeResult).filter((item) => containsKnowledgeTerm(message, item)).slice(0, 3);
     const citations = matched.map((item) => ({ id: item.id, title: item.title, version: item.version, updatedAt: item.updated_at }));
-    let generated = null;
-    if (matched.length && typeof answerWithAi === 'function') {
-      try {
-        generated = await answerWithAi({
-          message,
-          locale: session.locale,
-          knowledge: matched.map((item) => ({
-            id: item.id,
-            title: item.title,
-            content: item.content,
-            citations: item.citations,
-            forbiddenClaims: item.forbidden_claims,
-            version: item.version,
-            updatedAt: item.updated_at
-          }))
-        });
-      } catch {
-        generated = null;
-      }
-    }
-    const answer = generated?.answer || (matched.length
+    const answer = matched.length
       ? matched.map((item) => item.content).join('\n\n')
-      : '我已记录你的问题。当前公开知识中没有足够依据确认这个事项，销售人员会人工跟进；请同时留下产品、数量、目标日期和联系方式。');
-    const handoff = generated?.needsHuman === true || matched.length === 0;
+      : '我已记录你的问题。当前公开知识中没有足够依据确认这个事项，销售人员会人工跟进；请同时留下产品、数量、目标日期和联系方式。';
+    const handoff = matched.length === 0;
     await query(
       `INSERT INTO company_site.agent_messages (site_key, session_id, role, content_redacted, citations, tool_calls)
        VALUES ($1, $2, 'user', $3, '[]'::jsonb, '[]'::jsonb),
@@ -247,7 +227,7 @@ const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, answerWithA
         WHERE id = $1 AND site_key = $4`,
       [sessionId, handoff, now(), SITE_KEY]
     );
-    await audit({ traceId: `sales_message_${sessionId}_${Date.now()}`, sessionId, toolId: 'sales.message.answer', input: { message }, details: { citations: citations.length, handoff, aiModel: text(generated?.model, 120), aiUsed: Boolean(generated?.answer) } });
+    await audit({ traceId: `sales_message_${sessionId}_${Date.now()}`, sessionId, toolId: 'sales.message.answer', input: { message }, details: { citations: citations.length, handoff } });
     sendJson(res, 200, { ok: true, session: { id: sessionId, status: handoff ? 'human_handoff' : session.status }, answer, citations, needsHuman: handoff });
   };
 

@@ -48,6 +48,16 @@ function safePublicAssetUrl(value) {
   return safeAbsoluteUrl(raw)
 }
 
+const LUNDU_LEGACY_CAROUSEL_ASSETS = Object.freeze({
+  '/enterprise-assets/site/ratio/application-wide.png': '/enterprise-assets/site/crops/generated-application-flow-wide.jpg',
+  '/enterprise-assets/site/ratio/factory-wide.png': '/enterprise-assets/site/crops/generated-factory-floor-wide.jpg'
+})
+
+function normalizeCarouselAssetUrl(value) {
+  const url = safePublicAssetUrl(value)
+  return LUNDU_LEGACY_CAROUSEL_ASSETS[url] || url
+}
+
 function portalList(value, mapper, max = 12) {
   if (!Array.isArray(value)) return Object.freeze([])
   return Object.freeze(value.map(mapper).filter(Boolean).slice(0, max).map((item) => Object.freeze(item)))
@@ -156,8 +166,14 @@ export function enterprisePortalFromSiteConfig(payload) {
     ...(Array.isArray(homepage.carouselImages) ? homepage.carouselImages : []),
     ...(isObject(hero.image) ? [{ url: hero.image.src, title: hero.image.alt }] : [])
   ], (item) => {
-    const url = safePublicAssetUrl(isObject(item) ? (item.url || item.src) : item)
-    return url ? { url, title: text(item?.title || item?.alt), subtitle: text(item?.subtitle) } : null
+    const url = normalizeCarouselAssetUrl(isObject(item) ? (item.url || item.src) : item)
+    return url ? {
+      url,
+      title: text(item?.title || item?.alt),
+      subtitle: text(item?.subtitle),
+      // Lundu's legacy hero-wide crops include their own bilingual headline.
+      hasEmbeddedText: item?.hasEmbeddedText === true || /(?:^|\/)hero-wide\.(?:jpe?g|png|webp)$/i.test(url)
+    } : null
   }, 6)
 
   const requestedLocale = text(content.requestedLocale, text(site.defaultLocale, 'zh-CN'))
@@ -400,11 +416,20 @@ export function mergeEnterpriseProfileIntoSystemConfig(systemConfig, profile) {
   const portalBranding = isObject(enterpriseProfile.portal?.loginBranding)
     ? enterpriseProfile.portal.loginBranding
     : {}
+  const legacySlides = Array.isArray(legacyBranding.carouselImages) ? legacyBranding.carouselImages : []
+  const portalSlides = Array.isArray(portalBranding.carouselImages) ? portalBranding.carouselImages : []
+  const carouselImages = portalSlides.map((slide) => {
+    const legacySlide = legacySlides.find((item) => item?.url && item.url === slide?.url)
+    return legacySlide?.hasEmbeddedText === true && slide?.hasEmbeddedText !== true
+      ? { ...slide, hasEmbeddedText: true }
+      : slide
+  })
   return {
     ...source,
     loginBranding: {
       ...legacyBranding,
       ...portalBranding,
+      ...(portalSlides.length ? { carouselImages } : {}),
       companyName: enterpriseProfile.displayName,
       logo: enterpriseProfile.logoUrl,
       siteTag: enterpriseProfile.legalName,

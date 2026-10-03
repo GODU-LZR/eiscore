@@ -43,7 +43,7 @@ for (const app of apps) {
   assert.match(geoSource, /import\s*{\s*createGeoServices,\s*hasChinese\s*}\s*from\s*['"]@shared\/eis-geo-services['"]/)
   assert.doesNotMatch(geoSource, /localStorage\.getItem\(\s*['"]auth_token['"]\s*\)|const getAuthToken/)
   assert.match(geoSource, /createGeoServices\(\{\s*getConfig:\s*getGeoConfig,\s*getToken\s*\}\)/)
-  assert.doesNotMatch(geoSource, /buildAuthHeaders|translateWithGlm|\bfetch\s*\(/)
+  assert.doesNotMatch(geoSource, /buildAuthHeaders|translateWithGlm|askGlmForMapLocation|\bfetch\s*\(/)
 }
 
 assert.doesNotMatch(geoServiceSource, /localStorage|auth_token|user_info/)
@@ -51,6 +51,8 @@ assert.match(geoServiceSource, /const buildAuthHeaders = \(\) =>\s*{/)
 assert.match(geoServiceSource, /const headers = { ['"]Content-Type['"]: ['"]application\/json['"] }/)
 assert.match(geoServiceSource, /const token = getToken\(\)/)
 assert.match(geoServiceSource, /if \(token\) headers\.Authorization = `Bearer \$\{token}`/)
-assert.match(geoServiceSource, /const translateWithGlm = async \(text\) =>/)
+assert.match(geoServiceSource, /const translateWithHarness = async \(text\) =>/)
+assert.match(geoServiceSource, /const askHarnessForMapLocation = async \(imageUrl, lat, lng\) =>/)
+assert.doesNotMatch(geoServiceSource, /translateWithGlm|askGlmForMapLocation/)
 
 console.log(`PASS: shared Grid and Geo consumers use platform session (${apps.length} applications)`)

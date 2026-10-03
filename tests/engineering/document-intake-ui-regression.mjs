@@ -291,21 +291,21 @@ assert.equal(api.normalizeDuplicateFilter(''), '')
 const duplicateUrl = api.buildDocumentIntakeAssetListUrl({ duplicate: true, q: '合同', status: 'uploaded', limit: 20, offset: 40 })
 assert.equal(
   duplicateUrl,
-  '/agent/document-intake/admin/assets?duplicate=true&q=%E5%90%88%E5%90%8C&status=uploaded&limit=20&offset=40',
+  '/document-intake/admin/assets?duplicate=true&q=%E5%90%88%E5%90%8C&status=uploaded&limit=20&offset=40',
   'duplicate=true should be encoded as an explicit API query parameter.'
 )
 
 const todayDuplicateUrl = api.buildDocumentIntakeAssetListUrl({ today: true, duplicate: true, limit: 20 })
 assert.equal(
   todayDuplicateUrl,
-  '/agent/document-intake/admin/assets?today=true&duplicate=true&limit=20&offset=0',
+  '/document-intake/admin/assets?today=true&duplicate=true&limit=20&offset=0',
   'asset overview filters should encode today=true with duplicate=true.'
 )
 
 const nonDuplicateUrl = api.buildDocumentIntakeAssetListUrl({ duplicate: false })
 assert.equal(
   nonDuplicateUrl,
-  '/agent/document-intake/admin/assets?duplicate=false&limit=50&offset=0',
+  '/document-intake/admin/assets?duplicate=false&limit=50&offset=0',
   'duplicate=false should be encoded as an explicit API query parameter.'
 )
 
@@ -319,38 +319,38 @@ const traceableAssetUrl = api.buildDocumentIntakeAssetListUrl({
 })
 assert.equal(
   traceableAssetUrl,
-  '/agent/document-intake/admin/assets?deviceId=warehouse-pc-01&user=%E4%BB%93%E5%BA%93%E5%91%98&operatorSource=web_login_user&sourceFolder=C%3A%5CEISCore%5CWatch%5Cwarehouse&watchFolderSource=remote_config&limit=10&offset=0',
+  '/document-intake/admin/assets?deviceId=warehouse-pc-01&user=%E4%BB%93%E5%BA%93%E5%91%98&operatorSource=web_login_user&sourceFolder=C%3A%5CEISCore%5CWatch%5Cwarehouse&watchFolderSource=remote_config&limit=10&offset=0',
   'asset list traceability filters should encode source device, uploaded user/role, operator source and watch folder source.'
 )
 
 const allUrl = api.buildDocumentIntakeAssetListUrl({ duplicate: '' })
 assert.equal(
   allUrl,
-  '/agent/document-intake/admin/assets?limit=50&offset=0',
+  '/document-intake/admin/assets?limit=50&offset=0',
   'empty duplicate filter should omit duplicate from the API query.'
 )
 
 assert.equal(
   api.buildDocumentIntakeOverviewUrl(),
-  '/agent/document-intake/admin/overview',
+  '/document-intake/admin/overview',
   'overview endpoint URL should point to the admin document intake overview endpoint.'
 )
 
 assert.equal(
   api.buildDocumentIntakeDeviceStatusUrl('00000000-0000-4000-8000-000000000501'),
-  '/agent/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/status',
+  '/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/status',
   'device status update endpoint should be encoded from the device id.'
 )
 
 assert.equal(
   api.buildDocumentIntakeDeviceResetBindingCodeUrl('00000000-0000-4000-8000-000000000501'),
-  '/agent/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/reset-binding-code',
+  '/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/reset-binding-code',
   'device binding-code reset endpoint should be encoded from the device id.'
 )
 
 assert.equal(
   api.buildDocumentIntakeDeviceWatchFoldersUrl('00000000-0000-4000-8000-000000000501'),
-  '/agent/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/watch-folders',
+  '/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/watch-folders',
   'device watch folder list endpoint should be encoded from the device id.'
 )
 
@@ -359,7 +359,7 @@ assert.equal(
     '00000000-0000-4000-8000-000000000501',
     '00000000-0000-4000-8000-000000000601'
   ),
-  '/agent/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/watch-folders/00000000-0000-4000-8000-000000000601/status',
+  '/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/watch-folders/00000000-0000-4000-8000-000000000601/status',
   'watch folder status endpoint should be encoded from the device and folder ids.'
 )
 
@@ -368,21 +368,21 @@ assert.equal(
     '00000000-0000-4000-8000-000000000501',
     '00000000-0000-4000-8000-000000000601'
   ),
-  '/agent/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/watch-folders/00000000-0000-4000-8000-000000000601',
+  '/document-intake/admin/devices/00000000-0000-4000-8000-000000000501/watch-folders/00000000-0000-4000-8000-000000000601',
   'watch folder detail endpoint should be encoded from the device and folder ids.'
 )
 
 const assetDeviceUrl = api.buildDocumentIntakeAssetListUrl({ deviceId: 'warehouse-pc-01', limit: 10 })
 assert.equal(
   assetDeviceUrl,
-  '/agent/document-intake/admin/assets?deviceId=warehouse-pc-01&limit=10&offset=0',
+  '/document-intake/admin/assets?deviceId=warehouse-pc-01&limit=10&offset=0',
   'asset device filters should be encoded for the admin asset endpoint.'
 )
 
 const deviceUrl = api.buildDocumentIntakeDeviceListUrl({ status: 'active', q: '仓库', limit: 20, offset: 20 })
 assert.equal(
   deviceUrl,
-  '/agent/document-intake/admin/devices?q=%E4%BB%93%E5%BA%93&status=active&limit=20&offset=20',
+  '/document-intake/admin/devices?q=%E4%BB%93%E5%BA%93&status=active&limit=20&offset=20',
   'device status and keyword filters should be encoded for the admin device endpoint.'
 )
 
@@ -398,7 +398,7 @@ const traceableDeviceUrl = api.buildDocumentIntakeDeviceListUrl({
 })
 assert.equal(
   traceableDeviceUrl,
-  '/agent/document-intake/admin/devices?q=%E4%BB%93%E5%BA%93&status=active&user=%E4%BB%93%E5%BA%93%E5%91%98&serverBaseUrl=nanpai&clientVersion=0.1&webviewVersion=121&limit=20&offset=20',
+  '/document-intake/admin/devices?q=%E4%BB%93%E5%BA%93&status=active&user=%E4%BB%93%E5%BA%93%E5%91%98&serverBaseUrl=nanpai&clientVersion=0.1&webviewVersion=121&limit=20&offset=20',
   'device traceability filters should be encoded for default user/role, server URL, client version and WebView version.'
 )
 
@@ -420,28 +420,28 @@ const logUrl = api.buildDocumentIntakeLogListUrl({
 })
 assert.equal(
   logUrl,
-  '/agent/document-intake/admin/logs?q=WebView&level=error&traceId=trace-1&deviceId=warehouse-pc-01&batchId=batch-1&eventType=webview_navigation_failed&sourceFileHash=hash-1&sourceFolder=C%3A%5CEISCore%5CWatch%5Cwarehouse&watchFolderSource=remote_config&user=operator&appModule=collector-desktop&route=%2Fdocument-intake&limit=10&offset=30',
+  '/document-intake/admin/logs?q=WebView&level=error&traceId=trace-1&deviceId=warehouse-pc-01&batchId=batch-1&eventType=webview_navigation_failed&sourceFileHash=hash-1&sourceFolder=C%3A%5CEISCore%5CWatch%5Cwarehouse&watchFolderSource=remote_config&user=operator&appModule=collector-desktop&route=%2Fdocument-intake&limit=10&offset=30',
   'log list traceability filters should encode source file, watch folder, user, module, route and device filters.'
 )
 
 const entryResultUrl = api.buildDocumentIntakeEntryResultListUrl({ status: 'partial', targetKind: 'fixed_module_table', q: '采购', limit: 10, offset: 20 })
 assert.equal(
   entryResultUrl,
-  '/agent/document-intake/admin/entry-results?q=%E9%87%87%E8%B4%AD&status=partial&targetKind=fixed_module_table&limit=10&offset=20',
+  '/document-intake/admin/entry-results?q=%E9%87%87%E8%B4%AD&status=partial&targetKind=fixed_module_table&limit=10&offset=20',
   'entry result filters should be encoded for the admin entry result endpoint.'
 )
 
 const entryResultAssetUrl = api.buildDocumentIntakeEntryResultListUrl({ assetId: '00000000-0000-4000-8000-000000000201', limit: 10 })
 assert.equal(
   entryResultAssetUrl,
-  '/agent/document-intake/admin/entry-results?assetId=00000000-0000-4000-8000-000000000201&limit=10&offset=0',
+  '/document-intake/admin/entry-results?assetId=00000000-0000-4000-8000-000000000201&limit=10&offset=0',
   'entry result source asset filters should be encoded for the admin entry result endpoint.'
 )
 
 const entryResultBatchUrl = api.buildDocumentIntakeEntryResultListUrl({ batchId: '00000000-0000-4000-8000-000000000301', limit: 10 })
 assert.equal(
   entryResultBatchUrl,
-  '/agent/document-intake/admin/entry-results?batchId=00000000-0000-4000-8000-000000000301&limit=10&offset=0',
+  '/document-intake/admin/entry-results?batchId=00000000-0000-4000-8000-000000000301&limit=10&offset=0',
   'entry result import batch filters should be encoded for the admin entry result endpoint.'
 )
 
@@ -460,14 +460,14 @@ const entryResultTraceUrl = api.buildDocumentIntakeEntryResultListUrl({
 })
 assert.equal(
   entryResultTraceUrl,
-  '/agent/document-intake/admin/entry-results?today=true&q=%E9%87%87%E8%B4%AD&status=partial&targetKind=fixed_module_table&duplicate=true&deviceId=warehouse-pc-01&user=%E4%BB%93%E5%BA%93%E5%91%98&operatorSource=web_login_user&lowConfidence=true&limit=10&offset=20',
+  '/document-intake/admin/entry-results?today=true&q=%E9%87%87%E8%B4%AD&status=partial&targetKind=fixed_module_table&duplicate=true&deviceId=warehouse-pc-01&user=%E4%BB%93%E5%BA%93%E5%91%98&operatorSource=web_login_user&lowConfidence=true&limit=10&offset=20',
   'entry result traceability filters should be encoded for today, duplicate status, source device, uploaded user/role, operator source and low confidence.'
 )
 
 const entryResultDetailUrl = api.buildDocumentIntakeEntryResultDetailUrl('00000000-0000-4000-8000-000000000101')
 assert.equal(
   entryResultDetailUrl,
-  '/agent/document-intake/admin/entry-results/00000000-0000-4000-8000-000000000101',
+  '/document-intake/admin/entry-results/00000000-0000-4000-8000-000000000101',
   'entry result detail id should be encoded into the admin detail endpoint.'
 )
 

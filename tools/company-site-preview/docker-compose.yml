@@ -30,7 +30,9 @@ services:
       retries: 30
 
   agent-runtime:
-    build: ../../realtime
+    build:
+      context: ../..
+      dockerfile: realtime/Dockerfile
     container_name: eiscore-company-site-preview-agent
     restart: unless-stopped
     command: sh -lc "node index.js"
@@ -51,6 +53,7 @@ services:
       - "28078:8078"
     volumes:
       - ../../realtime:/app
+      - ../../agent-harness:/agent-harness:ro
       - ../../eiscore-base:/workspace/eiscore-base
       - ../../eiscore-company-site:/workspace/eiscore-company-site
     depends_on:

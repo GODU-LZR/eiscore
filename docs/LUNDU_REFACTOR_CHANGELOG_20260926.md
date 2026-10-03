@@ -125,7 +125,7 @@ npm run test:agent-permission-boundary
 npm run test:syntax
 node tests/engineering/ai-context-service-regression.mjs
 node tests/engineering/ai-chat-http-regression.mjs
-node tests/engineering/ai-agent-policy-regression.mjs
+node tests/engineering/message-normalization-regression.mjs
 node tests/engineering/flash-http-regression.mjs
 node tests/engineering/twin-chat-http-regression.mjs
 node --check realtime/ai-context-service.js

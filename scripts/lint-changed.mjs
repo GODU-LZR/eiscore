@@ -8,6 +8,7 @@ import { ESLint } from 'eslint'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const supportedExtensions = new Set(['.js', '.mjs', '.cjs', '.vue'])
+const generatedPathPattern = /(^|\/)\.(?:codex-tmp|playwright-cli)\//
 
 function git(args, { optional = false } = {}) {
   try {
@@ -69,6 +70,8 @@ function collectChangedFiles(base) {
   for (const path of nulPaths(git(['ls-files', '--others', '--exclude-standard', '-z']))) paths.add(path)
 
   return [...paths]
+    .map((path) => path.replaceAll('\\', '/'))
+    .filter((path) => !generatedPathPattern.test(path))
     .filter((path) => supportedExtensions.has(path.slice(path.lastIndexOf('.'))))
     .filter((path) => existsSync(resolve(repoRoot, path)))
     .sort()

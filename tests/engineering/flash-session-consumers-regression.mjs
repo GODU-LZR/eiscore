@@ -29,7 +29,7 @@ assert.doesNotMatch(draftPreview, directSessionStorage)
 assert.doesNotMatch(draftPreview, /const readAuthToken/)
 assert.match(draftPreview, /requestFlashDraftSource\(\{\s*urls:\s*getDraftUrls\(\),\s*token:\s*getToken\(\)\s*}\)/)
 assert.doesNotMatch(draftPreview, /Authorization: `Bearer \$\{token}`/)
-assert.match(draftPreview, /\/agent\/flash\/draft/)
+assert.match(draftPreview, /\/flash\/draft/)
 
 const agentClient = read('eiscore-apps/src/utils/flash-agent-client.js')
 assert.match(agentClient, /Authorization:\s*`Bearer \$\{token}`/)

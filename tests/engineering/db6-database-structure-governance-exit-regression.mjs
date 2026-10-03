@@ -15,9 +15,9 @@ const migrationManifests = [
   json('database/migrations/company-site.json'),
   json('database/migrations/core.json')
 ]
-assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 18)
+assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 20)
 assert.deepEqual(migrationManifests[2].migrations.map(({ id }) => id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007'
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009'
 ])
 
 const release = loadAndValidateDatabaseRelease({ repoRoot })
@@ -49,7 +49,7 @@ assert.deepEqual(contract.databaseCatalog.counts, {
   relations: 199,
   functions: 168,
   types: 1,
-  policies: 319,
+  policies: 321,
   triggers: 83,
   roles: 6,
   memberships: 3,
@@ -94,7 +94,7 @@ assert.ok(plan.includes('### DB6：数据库结构与领域权限收口（已完
 assert.ok(plan.includes('DB0～DB8 全部退出'))
 
 const databaseReadme = read('database/README.md')
-assert.ok(databaseReadme.includes('company-site 1 个、core 7 个迁移，共 18 个不可变迁移'))
+assert.ok(databaseReadme.includes('company-site 1 个、core 9 个迁移，共 20 个不可变迁移'))
 assert.ok(databaseReadme.includes('releases/eiscore-db-v6/manifest.json'))
 assert.ok(databaseReadme.includes('--confirm-empty-target=eiscore-db-v6'))
 

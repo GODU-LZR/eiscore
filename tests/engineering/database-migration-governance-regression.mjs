@@ -48,11 +48,22 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 7)
+assert.equal(coreResult.migrations.length, 9)
 assert.deepEqual(coreResult.migrations.map((entry) => entry.id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007'
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009'
 ])
 assert.ok(coreResult.migrations.every((entry) => entry.rollbackStrategy === 'backup-restore'))
+const core009Sql = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-009-retire-legacy-twin-model.sql'), 'utf8')
+const corePostcheckSql = readFileSync(resolve(repoRoot, 'database/migrations/postchecks/core.sql'), 'utf8')
+for (const marker of [
+  "UPDATE app_data.twin_sessions",
+  "SET model = 'deepseek-harness'",
+  'twin_sessions_harness_model_check'
+]) assert.ok(core009Sql.includes(marker), `core-009 lost Harness model guard: ${marker}`)
+for (const marker of [
+  'digital twin sessions must default to DeepSeek Harness',
+  'digital twin sessions contain a retired model marker'
+]) assert.ok(corePostcheckSql.includes(marker), `core postcheck lost Harness model guard: ${marker}`)
 assert.ok([...result.migrations, ...companySiteResult.migrations, ...coreResult.migrations]
   .every((entry) => Number.isInteger(entry.lockTimeoutMs)
     && Number.isInteger(entry.statementTimeoutMs)

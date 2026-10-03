@@ -15,15 +15,7 @@ const localDependencies = [...source.matchAll(/require\(['"](\.\/[^'"]+)['"]\)/g
   .map((match) => match[1])
   .sort()
 assert.deepEqual(localDependencies, [
-  './agent-access-service',
-  './agent-task-service',
-  './ai-agent-policy',
-  './ai-chat-http',
   './ai-context-service',
-  './ai-http',
-  './ai-ocr-service',
-  './ai-output-guard',
-  './ai-runtime-service',
   './company-http',
   './company-sales-agent',
   './company-site',
@@ -35,18 +27,20 @@ assert.deepEqual(localDependencies, [
   './document-parser',
   './document-planner',
   './flash-authorization',
-  './flash-cline-config',
-  './flash-cline-runtime',
-  './flash-cline-service',
   './flash-http',
   './flash-postgrest-adapter',
   './flash-semantic-executor',
   './flash-tool-registry',
   './flash-tool-service',
+  './flash-workspace-config',
   './flash-workspace-service',
+  './harness-runtime',
+  './harness-sales-write',
+  './harness-twin-context-capability',
   './http-router',
-  './twin-chat-http',
+  './message-normalization',
   './twin-resource-http',
+  './twin-tools',
   './websocket-server'
 ])
 
@@ -61,13 +55,18 @@ assert.deepEqual(helperDefinitions, [
   'authorizeDocumentIntakeAdminRequest',
   'authorizeHttpRequest',
   'authorizeTwinRequest',
-  'canUseAi',
   'companyQuery',
   'envText',
+  'executeDocumentPlan',
   'extractToken',
   'getBearerFromAuthHeader',
   'getRequestPath',
+  'handleFlashHarnessResetWs',
+  'handleFlashHarnessTaskWs',
   'handleFlashToolCallWs',
+  'hasDocumentIntakeAdminAccess',
+  'hasHarnessTenantContext',
+  'logAgentEvent',
   'normalizeProjectPath',
   'normalizeRelativeAgentPath',
   'normalizeStringList',
@@ -81,9 +80,7 @@ assert.deepEqual(helperDefinitions, [
   'setCorsHeaders',
   'shutdown',
   'streamTextAsSse',
-  'verifyToken',
-  'writeSseDone',
-  'writeSsePayload'
+  'verifyToken'
 ])
 
 for (const forbidden of [
@@ -114,5 +111,6 @@ assert.equal((source.match(/server\.listen\(/g) || []).length, 1)
 assert.equal((source.match(/attachWebSocketServer\(\{/g) || []).length, 1)
 assert.equal((source.match(/process\.on\('SIG(?:TERM|INT)'/g) || []).length, 2)
 assert.match(source, /Promise\.allSettled\(\[/)
+assert.doesNotMatch(source, /\bwait:\s*waitMs\b/, 'composition root must not pass an undefined waitMs dependency')
 
 console.log(`PASS: Realtime composition-root exit gate (${lines.length} lines, ${localDependencies.length} modules, ${helperDefinitions.length} transport/config helpers)`)

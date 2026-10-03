@@ -16,7 +16,7 @@ assert.deepEqual(baseline.excludedDirectories, ['.app-drafts', 'coverage', 'dist
 
 const excluded = new Set(baseline.excludedDirectories)
 const baselineEntries = Object.entries(baseline.files)
-assert.equal(baselineEntries.length, 52)
+assert.equal(baselineEntries.length, 51)
 for (const [file, cap] of baselineEntries) {
   assert.equal(file.includes('\\'), false, `baseline path must use POSIX separators: ${file}`)
   assert.ok(Number.isInteger(cap) && cap >= baseline.thresholdLines, `invalid line cap for ${file}`)
@@ -59,9 +59,9 @@ for (const [file, cap] of baselineEntries) {
 
 const currentDebtLines = baselineEntries.reduce((sum, [file]) => sum + (currentByFile.get(file) || 0), 0)
 const baselineDebtLines = baselineEntries.reduce((sum, [, lines]) => sum + lines, 0)
-assert.equal(baselineDebtLines, 85045)
+assert.equal(baselineDebtLines, 83966)
 assert.ok(currentDebtLines <= baselineDebtLines, `giant Vue debt grew from ${baselineDebtLines} to ${currentDebtLines} lines`)
-assert.ok(currentGiants.length <= 52, `giant Vue count grew from 52 to ${currentGiants.length}`)
+assert.ok(currentGiants.length <= 51, `giant Vue count grew from 51 to ${currentGiants.length}`)
 assert.ok(currentGiants.filter((item) => item.lines >= 1200).length <= 32, 'critical Vue count (>=1200 lines) grew')
 assert.ok(currentGiants.filter((item) => item.lines >= 2000).length <= 9, 'extreme Vue count (>=2000 lines) grew')
 

@@ -167,7 +167,7 @@ resultData.items[0].id = 2
 const writePayload = {
   toolId: 'cap.write',
   confirm: 'true',
-  idempotencyKey: ' key!*:01 ',
+  idempotencyKey: 'flash-write-key-0001',
   sessionId: 'write-session',
   appId: 'app-write',
   traceId: 'write-first',
@@ -177,7 +177,7 @@ const writeFirst = await service.executeFlashToolCall(userOne, writePayload, 'ht
 assert.equal(writeFirst.status, 200)
 assert.equal(writeFirst.payload.meta.idempotent_replay, undefined)
 assert.equal(semanticCalls.length, 2)
-assert.equal(semanticCalls[1].call.idempotencyKey, 'key:01')
+assert.equal(semanticCalls[1].call.idempotencyKey, 'flash-write-key-0001')
 assert.equal(semanticCalls[1].call.confirmed, true)
 
 const replay = await service.executeFlashToolCall(userOne, {
@@ -198,6 +198,99 @@ assert.equal(semanticCalls.length, 3, 'idempotency cache must be isolated by use
 clock += 1001
 await service.executeFlashToolCall(userOne, writePayload)
 assert.equal(semanticCalls.length, 4, 'expired idempotency entry must execute again')
+
+const invalidKey = await service.executeFlashToolCall(userOne, {
+  ...writePayload,
+  idempotencyKey: 'key!*:01'
+})
+assert.equal(invalidKey.status, 400, 'idempotency keys must be rejected, not normalized into collision-prone values')
+assert.equal(invalidKey.payload.code, 'VALIDATION_FAILED')
+
+let releaseExecution
+let markExecutionStarted
+const executionStarted = new Promise((resolveStarted) => { markExecutionStarted = resolveStarted })
+const concurrencyCalls = []
+const boundedService = createFlashToolService({
+  idempotencyTtlMs: 1000,
+  maxIdempotencyEntries: 1,
+  authorizeTool: async () => ({ allowed: true }),
+  getToolDefinition: (toolId) => definitions.get(toolId),
+  resolveToolId: (toolId) => String(toolId || ''),
+  registryVersion: 'flash-tools-v2',
+  registryCount: 43,
+  executeSemanticTool: async (_toolId, _args, user) => {
+    concurrencyCalls.push(user.tenant_id)
+    markExecutionStarted()
+    await new Promise((resolveExecution) => { releaseExecution = resolveExecution })
+    return { data: { tenant: user.tenant_id } }
+  },
+  logAgentEvent() {},
+  normalizeText: (value) => String(value ?? '').trim(),
+  sanitizePathToken: (value) => String(value || 'default'),
+  now: () => clock,
+  random: () => 0.5
+})
+const concurrentWrite = {
+  tool_id: 'flash.write',
+  confirmed: true,
+  idempotency_key: 'concurrent-write-key-01',
+  arguments: { value: 1 }
+}
+const tenantA = { id: 'shared-user', tenant_id: 'tenant-a' }
+const firstConcurrent = boundedService.executeFlashToolCall(tenantA, concurrentWrite)
+await executionStarted
+const secondConcurrent = boundedService.executeFlashToolCall(tenantA, { ...concurrentWrite, trace_id: 'concurrent-retry' })
+const saturatedWrite = await boundedService.executeFlashToolCall(tenantA, {
+  ...concurrentWrite,
+  idempotency_key: 'another-write-key-0001'
+})
+assert.equal(saturatedWrite.status, 429, 'idempotency cache capacity must fail closed before executing a new write')
+releaseExecution()
+const [concurrentFirstResult, concurrentReplayResult] = await Promise.all([firstConcurrent, secondConcurrent])
+assert.equal(concurrentFirstResult.status, 200)
+assert.equal(concurrentReplayResult.status, 200)
+assert.equal(concurrentReplayResult.payload.meta.idempotent_replay, true)
+assert.equal(concurrencyCalls.length, 1, 'concurrent calls with one idempotency key must execute once')
+const tenantScopeCalls = []
+const tenantScopedService = createFlashToolService({
+  idempotencyTtlMs: 1000,
+  authorizeTool: async () => ({ allowed: true }),
+  getToolDefinition: (toolId) => definitions.get(toolId),
+  resolveToolId: (toolId) => String(toolId || ''),
+  registryVersion: 'flash-tools-v2',
+  registryCount: 43,
+  executeSemanticTool: async (_toolId, _args, user) => {
+    tenantScopeCalls.push(user.tenant_id)
+    return { data: { tenant: user.tenant_id } }
+  },
+  logAgentEvent() {},
+  normalizeText: (value) => String(value ?? '').trim(),
+  sanitizePathToken: (value) => String(value || 'default'),
+  now: () => clock,
+  random: () => 0.5
+})
+await tenantScopedService.executeFlashToolCall(tenantA, concurrentWrite)
+const tenantBResult = await tenantScopedService.executeFlashToolCall({ id: 'shared-user', tenant_id: 'tenant-b' }, concurrentWrite)
+assert.equal(tenantBResult.status, 200)
+assert.deepEqual(tenantScopeCalls, ['tenant-a', 'tenant-b'], 'idempotency cache must be isolated by tenant as well as subject')
+
+const defaultTtlResults = []
+const defaultTtlService = createFlashToolService({
+  idempotencyTtlMs: Number.NaN,
+  getToolDefinition: (toolId) => definitions.get(toolId),
+  resolveToolId: (toolId) => String(toolId || ''),
+  registryVersion: 'flash-tools-v2',
+  registryCount: 43,
+  executeSemanticTool: async () => { defaultTtlResults.push(true); return { data: { ok: true } } },
+  logAgentEvent() {},
+  normalizeText: (value) => String(value ?? '').trim(),
+  sanitizePathToken: (value) => String(value || 'default'),
+  now: () => clock,
+  random: () => 0.5
+})
+await defaultTtlService.executeFlashToolCall(tenantA, concurrentWrite)
+await defaultTtlService.executeFlashToolCall(tenantA, concurrentWrite)
+assert.equal(defaultTtlResults.length, 1, 'invalid TTL configuration must fall back to a working idempotency TTL')
 
 const typed = await service.executeFlashToolCall(userOne, {
   tool_id: 'flash.read',
@@ -270,7 +363,7 @@ const guardedService = createFlashToolService({
 const guardedWrite = {
   tool_id: 'flash.write',
   confirmed: true,
-  idempotency_key: 'guarded-write',
+  idempotency_key: 'guarded-write-key-0001',
   arguments: { value: 1 }
 }
 assert.equal((await guardedService.executeFlashToolCall(userOne, guardedWrite)).status, 200)

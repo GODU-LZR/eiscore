@@ -72,6 +72,7 @@ const createHarness = (overrides = {}) => {
 const user = {
   id: 17,
   username: 'operator',
+  tenant_id: 'tenant-a',
   role: 'manager',
   permissions: ['apps.read'],
   token: 'original-user-token'
@@ -113,6 +114,7 @@ assert.deepEqual(state.signCalls[0], {
   payload: {
     sub: '17',
     username: 'operator',
+    tenant_id: 'tenant-a',
     role: 'web_user',
     app_role: 'manager',
     permissions: ['apps.read']
@@ -122,6 +124,11 @@ assert.deepEqual(state.signCalls[0], {
 })
 assert.equal(state.scheduled[0].ms, 4321)
 assert.equal(state.cancelled[0], state.scheduled[0])
+
+const aliasTenantHarness = createHarness()
+aliasTenantHarness.state.queue.push(jsonResponse(200, []))
+await aliasTenantHarness.adapter.callPostgrestWithUser({ id: 18, tenantId: 'tenant-b', token: 'raw' }, { path: '/tenant-alias' })
+assert.equal(aliasTenantHarness.state.signCalls[0].payload.tenant_id, 'tenant-b')
 
 state.queue.push(jsonResponse(201, [{ id: 2 }]))
 await adapter.callPostgrestWithUser(user, {

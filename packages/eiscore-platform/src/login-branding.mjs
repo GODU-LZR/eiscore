@@ -124,7 +124,12 @@ function normalizeWithFallback(input, fallback, { surface = 'desktop' } = {}) {
   result.carouselImages = normalizeList(source.carouselImages, fallback.carouselImages, (item) => {
     const url = typeof item === 'string' ? text(item) : text(item?.url)
     if (!url) return null
-    return { url, title: text(item?.title), subtitle: text(item?.subtitle) }
+    return {
+      url,
+      title: text(item?.title),
+      subtitle: text(item?.subtitle),
+      hasEmbeddedText: item?.hasEmbeddedText === true
+    }
   }, { fallbackOnEmpty, max: 6 })
   result.leaders = normalizeList(source.leaders, fallback.leaders, (item) => {
     const name = text(item?.name)

@@ -1,14 +1,11 @@
 services:
   deepseek-web:
-    image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
+    build: {context: ./source, dockerfile: agent-harness/Dockerfile}
     restart: unless-stopped
     init: true
     user: "10001:10001"
     read_only: true
-    security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
-    tmpfs:
-      - /tmp
     entrypoint: ["node"]
     command: ["--expose-internals", "/opt/eiscore-harness/dsh-web-runner.mjs"]
     environment:
@@ -17,7 +14,9 @@ services:
       EISCORE_AUTH_URL: https://lundu.eiscore.top
     volumes:
       - deepseek_web_dsh_home:/var/lib/dsh
-      - /opt/codex-dev/eiscore-refactor/agent-harness:/opt/eiscore-harness:ro
+      - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
+      - ./dsh-web.patch.yml:/opt/eiscore-harness/dsh-web.patch.yml:ro
+      - ./dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
     networks:
       - lundu-net
       - agent-internal

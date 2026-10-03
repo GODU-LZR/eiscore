@@ -55,7 +55,7 @@ for (const app of apps) {
   assert.doesNotMatch(realtimeSource, /localStorage|auth_token/)
   assert.match(realtimeSource, /DEFAULT_PORT\s*=\s*8078/)
   assert.match(realtimeSource, /DEFAULT_PATH\s*=\s*['"]\/ws['"]/)
-  assert.match(realtimeSource, /PROXY_WS_PATH\s*=\s*['"]\/agent\/ws['"]/)
+  assert.match(realtimeSource, /PROXY_WS_PATH\s*=\s*['"]\/ws['"]/)
   assert.match(realtimeSource, /\['bearer',\s*token]/)
   assert.match(realtimeSource, /},\s*1000\)/)
   if (compactPermissionApps.has(app)) {

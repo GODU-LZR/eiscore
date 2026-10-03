@@ -1,0 +1,188 @@
+{
+  "$schema": "https://eiscore.local/agent-harness/plugin-contract.v1.json",
+  "contract_version": "1.0.0",
+  "plugins": [
+    {
+      "plugin_id": "enterprise-bi",
+      "agent_id": "enterprise_analyst",
+      "capabilities": ["eiscore_enterprise_snapshot", "eiscore_enterprise_query", "eiscore_multimodal_translate", "eiscore_multimodal_ocr", "eiscore_multimodal_map_locate"],
+      "capability_policies": {
+        "eiscore_enterprise_snapshot": { "intent": "read_snapshot", "object": "enterprise_snapshot", "risk": "low", "permissions": ["module:bi", "app:enterprise_bi"], "input_schema": { "type": "object", "additionalProperties": false }, "output_schema": { "type": "object", "additionalProperties": true }, "audit_required": true, "timeout_ms": 30000 },
+        "eiscore_enterprise_query": { "intent": "query_business_dataset", "object": "enterprise_dataset", "risk": "low", "permissions": ["module:bi", "app:enterprise_bi"], "input_schema": { "type": "object", "additionalProperties": false, "required": ["dataset"], "properties": { "dataset": { "type": "string" }, "select": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] }, "filters": { "type": "object", "additionalProperties": true }, "limit": { "type": "integer" }, "order": { "type": "string" } } }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["dataset", "rows", "limit"], "properties": { "dataset": { "type": "string" }, "rows": { "type": "array", "items": { "type": "object" } }, "limit": { "type": "integer" } } }, "chat_input_schema": { "type": "object", "additionalProperties": false, "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } } }, "chat_output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "audit_required": true, "timeout_ms": 30000 },
+        "eiscore_multimodal_translate": { "intent": "translate_multimodal", "object": "image_text", "risk": "low", "permissions": ["module:bi", "app:enterprise_bi"], "input_schema": { "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" }, "prompt": { "type": "string" } } }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, "audit_required": true, "timeout_ms": 30000 },
+        "eiscore_multimodal_ocr": { "intent": "extract_multimodal_text", "object": "image_ocr", "risk": "low", "permissions": ["module:bi", "app:enterprise_bi"], "input_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["image_url"], "properties": { "image_url": { "type": "string" }, "prompt": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["imageUrl"], "properties": { "imageUrl": { "type": "string" }, "prompt": { "type": "string" } } }] }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, "audit_required": true, "timeout_ms": 30000 },
+        "eiscore_multimodal_map_locate": { "intent": "locate_map_image", "object": "map_location", "risk": "low", "permissions": ["module:bi", "app:enterprise_bi"], "input_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["image_url"], "properties": { "image_url": { "type": "string" }, "prompt": { "type": "string" }, "lat": { "oneOf": [{ "type": "number" }, { "type": "string" }, { "type": "null" }] }, "lng": { "oneOf": [{ "type": "number" }, { "type": "string" }, { "type": "null" }] } } }, { "type": "object", "additionalProperties": false, "required": ["imageUrl"], "properties": { "imageUrl": { "type": "string" }, "prompt": { "type": "string" }, "lat": { "oneOf": [{ "type": "number" }, { "type": "string" }, { "type": "null" }] }, "lng": { "oneOf": [{ "type": "number" }, { "type": "string" }, { "type": "null" }] } } }] }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["address"], "properties": { "address": { "type": "string" } } }, "audit_required": true, "timeout_ms": 30000 }
+      },
+      "permissions": ["module:bi", "app:enterprise_bi"],
+      "risk": "low",
+      "input_schema": {"type": "object", "additionalProperties": true},
+      "output_schema": {"type": "object", "additionalProperties": true},
+      "confirm_required": false,
+      "idempotency_required": false,
+      "audit_required": true,
+      "timeout_ms": 30000
+    },
+    {
+      "plugin_id": "worker-grid",
+      "agent_id": "worker_assistant",
+      "capabilities": ["eiscore_grid_query"],
+      "capability_policies": {
+        "eiscore_grid_query": { "intent": "query_grid", "object": "grid_dataset", "risk": "low", "permissions": ["module:materials", "module:production", "module:hr"], "input_schema": { "type": "object", "additionalProperties": false, "required": ["dataset"], "properties": { "dataset": { "type": "string" }, "select": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] }, "filters": { "type": "object", "additionalProperties": true }, "limit": { "type": "integer" }, "order": { "type": "string" } } }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["dataset", "rows", "limit"], "properties": { "dataset": { "type": "string" }, "rows": { "type": "array", "items": { "type": "object" } }, "limit": { "type": "integer" } } }, "chat_input_schema": { "type": "object", "additionalProperties": false, "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } } }, "chat_output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "audit_required": true, "timeout_ms": 30000 }
+      },
+      "permissions": ["module:materials", "module:production", "module:hr"],
+      "risk": "low",
+      "input_schema": {"type": "object", "additionalProperties": true},
+      "output_schema": {"type": "object", "additionalProperties": true},
+      "confirm_required": false,
+      "idempotency_required": false,
+      "audit_required": true,
+      "timeout_ms": 30000
+    },
+    {
+      "plugin_id": "digital-twin",
+      "agent_id": "digital_twin",
+      "capabilities": ["eiscore_twin_context", "eiscore_twin_chat"],
+      "capability_policies": {
+        "eiscore_twin_context": { "intent": "read_twin_context", "object": "twin_context", "risk": "low", "permissions": ["twin:read"], "input_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["tool_id"], "properties": { "tool_id": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true } } }, { "type": "object", "additionalProperties": false, "required": ["toolId"], "properties": { "toolId": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true } } }, { "type": "object", "additionalProperties": false, "required": ["tool_name"], "properties": { "tool_name": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true } } }, { "type": "object", "additionalProperties": false, "required": ["toolName"], "properties": { "toolName": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true } } }] }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["tool_id", "result"], "properties": { "tool_id": { "type": "string" }, "result": { "oneOf": [{ "type": "object" }, { "type": "array" }, { "type": "string" }, { "type": "number" }, { "type": "boolean" }, { "type": "null" }] } } }, "audit_required": true, "timeout_ms": 60000 },
+        "eiscore_twin_chat": { "intent": "chat_with_twin", "object": "twin_session", "risk": "low", "permissions": ["twin:read"], "input_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["message"], "properties": { "message": { "type": "string" }, "session_id": { "type": "string" }, "sessionId": { "type": "string" }, "stream": { "type": "boolean" } } }, { "type": "object", "additionalProperties": false, "required": ["content"], "properties": { "content": { "type": "string" }, "session_id": { "type": "string" }, "sessionId": { "type": "string" }, "stream": { "type": "boolean" } } }] }, "output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": true, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": true, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": true, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "chat_input_schema": { "type": "object", "additionalProperties": false, "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } } }, "chat_output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "audit_required": true, "timeout_ms": 60000 }
+      },
+      "permissions": ["twin:read"],
+      "risk": "low",
+      "input_schema": {"type": "object", "additionalProperties": true},
+      "output_schema": {"type": "object", "additionalProperties": true},
+      "confirm_required": false,
+      "idempotency_required": false,
+      "audit_required": true,
+      "timeout_ms": 60000
+    },
+    {
+      "plugin_id": "workflow",
+      "agent_id": "workflow_orchestrator",
+      "capabilities": ["eiscore_workflow_context", "eiscore_workflow_write"],
+      "capability_policies": {
+        "eiscore_workflow_context": { "intent": "read_workflow_context", "object": "workflow", "risk": "low", "permissions": ["workflow:read"], "input_schema": { "type": "object", "additionalProperties": false, "properties": { "tool_id": { "type": "string" }, "toolId": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true }, "args": { "type": "object", "additionalProperties": true } } }, "output_schema": { "type": "object", "additionalProperties": true }, "chat_input_schema": { "type": "object", "additionalProperties": false, "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } } }, "chat_output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "audit_required": true, "timeout_ms": 60000 },
+        "eiscore_workflow_write": { "intent": "execute_workflow_write", "object": "workflow", "risk": "high", "permissions": ["workflow:write"], "input_schema": { "type": "object", "additionalProperties": false, "properties": { "tool_id": { "type": "string" }, "toolId": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true }, "args": { "type": "object", "additionalProperties": true } } }, "output_schema": { "type": "object", "additionalProperties": true }, "confirm_required": true, "idempotency_required": true, "audit_required": true, "timeout_ms": 60000 }
+      },
+      "permissions": ["workflow:read", "workflow:write"],
+      "risk": "high",
+      "input_schema": {"type": "object", "additionalProperties": true},
+      "output_schema": {"type": "object", "additionalProperties": true},
+      "confirm_required": true,
+      "idempotency_required": true,
+      "audit_required": true,
+      "timeout_ms": 60000
+    },
+    {
+      "plugin_id": "company-sales",
+      "agent_id": "company_sales_agent",
+      "capabilities": ["eiscore_sales_context", "eiscore_sales_write"],
+      "capability_policies": {
+        "eiscore_sales_context": { "intent": "read_sales_context", "object": "sales_order", "risk": "low", "permissions": ["sales:read"], "input_schema": { "type": "object", "additionalProperties": false, "properties": { "dataset": { "type": "string", "enum": ["sales_orders"] }, "select": { "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }] }, "filters": { "type": "object", "additionalProperties": true }, "limit": { "type": "integer" }, "order": { "type": "string" } } }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["dataset", "rows", "limit"], "properties": { "dataset": { "type": "string" }, "rows": { "type": "array", "items": { "type": "object" } }, "limit": { "type": "integer" } } }, "chat_input_schema": { "type": "object", "additionalProperties": false, "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } } }, "chat_output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "audit_required": true, "timeout_ms": 60000 },
+        "eiscore_sales_write": {
+          "intent": "execute_sales_write",
+          "object": "sales_order",
+          "risk": "high",
+          "permissions": ["sales:write"],
+          "input_schema": {
+            "type": "object",
+            "oneOf": [
+              { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "type": "string", "enum": ["qualify_lead"] }, "action": { "type": "string", "enum": ["qualify_lead"] }, "lead_id": { "type": "string" }, "leadId": { "type": "string" }, "score": { "type": "number" }, "reasons": { "type": "array", "items": { "type": "string" } } } },
+              { "type": "object", "additionalProperties": false, "required": ["action"], "properties": { "operation": { "type": "string", "enum": ["qualify_lead"] }, "action": { "type": "string", "enum": ["qualify_lead"] }, "lead_id": { "type": "string" }, "leadId": { "type": "string" }, "score": { "type": "number" }, "reasons": { "type": "array", "items": { "type": "string" } } } },
+              { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "type": "string", "enum": ["opportunity_draft_create"] }, "action": { "type": "string", "enum": ["opportunity_draft_create"] }, "lead_id": { "type": "string" }, "leadId": { "type": "string" }, "productItems": { "type": "array", "items": { "type": "object" } }, "estimatedAmount": { "type": "number" }, "currency": { "type": "string" }, "stage": { "type": "string" }, "qualification": { "type": "object", "additionalProperties": true }, "sourceSessionId": { "type": "string" }, "source_session_id": { "type": "string" } } },
+              { "type": "object", "additionalProperties": false, "required": ["action"], "properties": { "operation": { "type": "string", "enum": ["opportunity_draft_create"] }, "action": { "type": "string", "enum": ["opportunity_draft_create"] }, "lead_id": { "type": "string" }, "leadId": { "type": "string" }, "productItems": { "type": "array", "items": { "type": "object" } }, "estimatedAmount": { "type": "number" }, "currency": { "type": "string" }, "stage": { "type": "string" }, "qualification": { "type": "object", "additionalProperties": true }, "sourceSessionId": { "type": "string" }, "source_session_id": { "type": "string" } } },
+              { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "type": "string", "enum": ["quote_draft_create"] }, "action": { "type": "string", "enum": ["quote_draft_create"] }, "opportunity_id": { "type": "string" }, "opportunityId": { "type": "string" }, "currency": { "type": "string" }, "items": { "type": "array", "items": { "type": "object" } }, "validUntil": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "valid_until": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "priceSource": { "type": "string" }, "price_source": { "type": "string" } } },
+              { "type": "object", "additionalProperties": false, "required": ["action"], "properties": { "operation": { "type": "string", "enum": ["quote_draft_create"] }, "action": { "type": "string", "enum": ["quote_draft_create"] }, "opportunity_id": { "type": "string" }, "opportunityId": { "type": "string" }, "currency": { "type": "string" }, "items": { "type": "array", "items": { "type": "object" } }, "validUntil": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "valid_until": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "priceSource": { "type": "string" }, "price_source": { "type": "string" } } },
+              { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "type": "string", "enum": ["sales_order_draft_create"] }, "action": { "type": "string", "enum": ["sales_order_draft_create"] }, "quote_id": { "type": "string" }, "quoteId": { "type": "string" }, "items": { "type": "array", "items": { "type": "object" } }, "deliveryDate": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "delivery_date": { "oneOf": [{ "type": "string" }, { "type": "null" }] } } },
+              { "type": "object", "additionalProperties": false, "required": ["action"], "properties": { "operation": { "type": "string", "enum": ["sales_order_draft_create"] }, "action": { "type": "string", "enum": ["sales_order_draft_create"] }, "quote_id": { "type": "string" }, "quoteId": { "type": "string" }, "items": { "type": "array", "items": { "type": "object" } }, "deliveryDate": { "oneOf": [{ "type": "string" }, { "type": "null" }] }, "delivery_date": { "oneOf": [{ "type": "string" }, { "type": "null" }] } } },
+              { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "type": "string", "enum": ["production_draft_create"] }, "action": { "type": "string", "enum": ["production_draft_create"] }, "sales_order_id": { "type": "string" }, "salesOrderId": { "type": "string" }, "plannedItems": { "type": "array", "items": { "type": "object" } }, "materialRequirements": { "type": "array", "items": { "type": "object" } }, "capacityRisk": { "type": "object", "additionalProperties": true } } },
+              { "type": "object", "additionalProperties": false, "required": ["action"], "properties": { "operation": { "type": "string", "enum": ["production_draft_create"] }, "action": { "type": "string", "enum": ["production_draft_create"] }, "sales_order_id": { "type": "string" }, "salesOrderId": { "type": "string" }, "plannedItems": { "type": "array", "items": { "type": "object" } }, "materialRequirements": { "type": "array", "items": { "type": "object" } }, "capacityRisk": { "type": "object", "additionalProperties": true } } },
+              { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "type": "string", "enum": ["sales_approval"] }, "action": { "type": "string", "enum": ["sales_approval"] }, "object_type": { "type": "string", "enum": ["opportunity", "quote", "sales_order", "production"] }, "objectType": { "type": "string", "enum": ["opportunity", "quote", "sales_order", "production"] }, "object_id": { "type": "string" }, "objectId": { "type": "string" }, "decision": { "type": "string", "enum": ["approve", "reject"] }, "comment": { "type": "string" } } },
+              { "type": "object", "additionalProperties": false, "required": ["action"], "properties": { "operation": { "type": "string", "enum": ["sales_approval"] }, "action": { "type": "string", "enum": ["sales_approval"] }, "object_type": { "type": "string", "enum": ["opportunity", "quote", "sales_order", "production"] }, "objectType": { "type": "string", "enum": ["opportunity", "quote", "sales_order", "production"] }, "object_id": { "type": "string" }, "objectId": { "type": "string" }, "decision": { "type": "string", "enum": ["approve", "reject"] }, "comment": { "type": "string" } } },
+              { "type": "object", "additionalProperties": false, "required": ["operation"], "properties": { "operation": { "type": "string", "enum": ["sales_sync_enqueue"] }, "action": { "type": "string", "enum": ["sales_sync_enqueue"] }, "object_type": { "type": "string", "enum": ["opportunity", "quote", "sales_order", "production"] }, "objectType": { "type": "string", "enum": ["opportunity", "quote", "sales_order", "production"] }, "object_id": { "type": "string" }, "objectId": { "type": "string" }, "targetSystem": { "type": "string" }, "target_system": { "type": "string" } } },
+              { "type": "object", "additionalProperties": false, "required": ["action"], "properties": { "operation": { "type": "string", "enum": ["sales_sync_enqueue"] }, "action": { "type": "string", "enum": ["sales_sync_enqueue"] }, "object_type": { "type": "string", "enum": ["opportunity", "quote", "sales_order", "production"] }, "objectType": { "type": "string", "enum": ["opportunity", "quote", "sales_order", "production"] }, "object_id": { "type": "string" }, "objectId": { "type": "string" }, "targetSystem": { "type": "string" }, "target_system": { "type": "string" } } }
+            ]
+          },
+          "output_schema": { "type": "object", "additionalProperties": true },
+          "confirm_required": true,
+          "idempotency_required": true,
+          "audit_required": true,
+          "timeout_ms": 60000
+        }
+      },
+      "permissions": ["sales:read", "sales:write"],
+      "risk": "high",
+      "input_schema": {"type": "object", "additionalProperties": true},
+      "output_schema": {"type": "object", "additionalProperties": true},
+      "confirm_required": true,
+      "idempotency_required": true,
+      "audit_required": true,
+      "timeout_ms": 60000
+    },
+    {
+      "plugin_id": "document-intake",
+      "agent_id": "document_intake",
+      "capabilities": ["eiscore_document_plan", "eiscore_document_commit"],
+      "capability_policies": {
+        "eiscore_document_plan": { "intent": "read_document_plan", "object": "document_plan", "risk": "low", "permissions": ["document:read"], "input_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["plan_id"], "properties": { "plan_id": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["planId"], "properties": { "planId": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["asset_id"], "properties": { "asset_id": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["assetId"], "properties": { "assetId": { "type": "string" } } }] }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["plans"], "properties": { "plans": { "type": "array", "items": { "type": "object" } } } }, "chat_input_schema": { "type": "object", "additionalProperties": false, "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } } }, "chat_output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "audit_required": true, "timeout_ms": 60000 },
+        "eiscore_document_commit": { "intent": "commit_document_plan", "object": "document_plan", "risk": "high", "permissions": ["document:write"], "input_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["plan_id", "plan_version"], "properties": { "plan_id": { "type": "string" }, "plan_version": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["plan_id", "planVersion"], "properties": { "plan_id": { "type": "string" }, "planVersion": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["planId", "plan_version"], "properties": { "planId": { "type": "string" }, "plan_version": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["planId", "planVersion"], "properties": { "planId": { "type": "string" }, "planVersion": { "type": "string" } } }] }, "output_schema": { "type": "object", "additionalProperties": true, "required": ["plan", "processed", "queued"], "properties": { "plan": { "type": "object" }, "processed": { "type": "boolean" }, "queued": { "type": "boolean" }, "idempotent_replay": { "type": "boolean" } } }, "confirm_required": true, "idempotency_required": true, "audit_required": true, "timeout_ms": 60000 }
+      },
+      "permissions": ["document:read", "document:write"],
+      "risk": "high",
+      "input_schema": {"type": "object", "additionalProperties": true},
+      "output_schema": {"type": "object", "additionalProperties": true},
+      "confirm_required": true,
+      "idempotency_required": true,
+      "audit_required": true,
+      "timeout_ms": 60000
+    },
+    {
+      "plugin_id": "flash-builder",
+      "agent_id": "flash_builder",
+      "capabilities": ["eiscore_flash_read", "eiscore_flash_write"],
+      "capability_policies": {
+        "eiscore_flash_read": { "intent": "read_flash_tool", "object": "flash_tool", "risk": "low", "permissions": ["flash:read"], "input_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["tool_id"], "properties": { "tool_id": { "type": "string" }, "toolId": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true }, "args": { "type": "object", "additionalProperties": true } } }, { "type": "object", "additionalProperties": false, "required": ["toolId"], "properties": { "tool_id": { "type": "string" }, "toolId": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true }, "args": { "type": "object", "additionalProperties": true } } }] }, "output_schema": { "type": "object", "additionalProperties": true }, "chat_input_schema": { "type": "object", "additionalProperties": false, "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } } }, "chat_output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "audit_required": true, "timeout_ms": 60000 },
+        "eiscore_flash_write": { "intent": "execute_flash_tool", "object": "flash_tool", "risk": "high", "permissions": ["flash:write"], "input_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["tool_id"], "properties": { "tool_id": { "type": "string" }, "toolId": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true }, "args": { "type": "object", "additionalProperties": true } } }, { "type": "object", "additionalProperties": false, "required": ["toolId"], "properties": { "tool_id": { "type": "string" }, "toolId": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true }, "args": { "type": "object", "additionalProperties": true } } }] }, "output_schema": { "type": "object", "additionalProperties": true }, "confirm_required": true, "idempotency_required": true, "audit_required": true, "timeout_ms": 60000 }
+      },
+      "permissions": ["flash:read", "flash:write"],
+      "risk": "high",
+      "input_schema": {"type": "object", "additionalProperties": true},
+      "output_schema": {"type": "object", "additionalProperties": true},
+      "confirm_required": true,
+      "idempotency_required": true,
+      "audit_required": true,
+      "timeout_ms": 60000
+    },
+    {
+      "plugin_id": "engineering",
+      "agent_id": "engineering",
+      "capabilities": ["eiscore_engineering_context"],
+      "capability_policies": {
+        "eiscore_engineering_context": { "intent": "read_engineering_context", "object": "engineering_view", "risk": "low", "permissions": ["engineering:read"], "input_schema": { "type": "object", "additionalProperties": false, "properties": { "view": { "type": "string" }, "view_id": { "type": "string" } } }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["context", "view", "data"], "properties": { "context": { "type": "string" }, "view": { "type": "string" }, "data": { "type": "object" } } }, "chat_input_schema": { "type": "object", "additionalProperties": false, "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } } }, "chat_output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "audit_required": true, "timeout_ms": 30000 }
+      },
+      "permissions": ["engineering:read"],
+      "risk": "low",
+      "input_schema": {"type": "object", "additionalProperties": true},
+      "output_schema": {"type": "object", "additionalProperties": true},
+      "confirm_required": false,
+      "idempotency_required": false,
+      "audit_required": true,
+      "timeout_ms": 30000
+    },
+    {
+      "plugin_id": "independent-site-sales",
+      "agent_id": "site_sales",
+      "capabilities": ["eiscore_site_sales"],
+      "capability_policies": {
+        "eiscore_site_sales": { "intent": "read_site_sales_context", "object": "site_catalog", "risk": "low", "permissions": ["site:sales"], "input_schema": { "type": "object", "additionalProperties": false, "properties": { "view": { "type": "string" }, "view_id": { "type": "string" } } }, "output_schema": { "type": "object", "additionalProperties": false, "required": ["context", "view", "data"], "properties": { "context": { "type": "string" }, "view": { "type": "string" }, "data": { "type": "object" } } }, "chat_input_schema": { "type": "object", "additionalProperties": false, "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } } }, "chat_output_schema": { "type": "object", "oneOf": [{ "type": "object", "additionalProperties": false, "required": ["text"], "properties": { "text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["output_text"], "properties": { "output_text": { "type": "string" } } }, { "type": "object", "additionalProperties": false, "required": ["choices"], "properties": { "choices": { "type": "array", "items": { "type": "object" } } } }] }, "audit_required": true, "timeout_ms": 30000 }
+      },
+      "permissions": ["site:sales"],
+      "risk": "low",
+      "input_schema": {"type": "object", "additionalProperties": true},
+      "output_schema": {"type": "object", "additionalProperties": true},
+      "confirm_required": false,
+      "idempotency_required": false,
+      "audit_required": true,
+      "timeout_ms": 30000
+    }
+  ]
+}

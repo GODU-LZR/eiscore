@@ -11,13 +11,14 @@ const directSessionStorage = /localStorage\.(?:getItem|setItem|removeItem)\(\s*(
 
 assert.match(source, /import\s*{\s*getToken\s*}\s*from\s*['"]@\/utils\/auth['"]/)
 assert.doesNotMatch(source, directSessionStorage)
-assert.equal((source.match(/const token = getToken\(\)/g) || []).length, 9)
-
-assert.match(source, /const wsUrl = `ws:\/\/\$\{window\.location\.hostname}:8078\/ws`/)
-assert.match(source, /new WebSocket\(wsUrl, \[['"]bearer['"], token\]\)/)
-assert.match(source, /new WebSocket\(['"]ws:\/\/localhost:8078\/ws['"], \[['"]bearer['"], token\]\)/)
-assert.match(source, /projectPath: ['"]eiscore-apps['"]/)
-assert.match(source, /setTimeout\(\(\) => {[\s\S]*?}, 120000\)/)
-assert.match(source, /module\.exports = { AgentClient }/)
+assert.match(source, /class HarnessClient/)
+assert.match(source, /Authorization:\s*`Bearer \$\{token\}`/)
+assert.match(source, /\/ai\/harness\/execute/)
+assert.match(source, /\/flash\/tools\/call/)
+assert.match(source, /plugin_id: pluginId/)
+assert.match(source, /capability_id: capabilityId/)
+assert.match(source, /idempotency_key: idempotencyKey/)
+assert.match(source, /pluginId: ['"]enterprise-bi['"]/)
+assert.match(source, /capabilityId: ['"]eiscore_enterprise_snapshot['"]/ )
 
 console.log('PASS: Agent example client uses platform session (1 file)')

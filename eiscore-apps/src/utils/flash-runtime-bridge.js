@@ -66,11 +66,11 @@ const normalizeToolArgs = (args) => (
 )
 
 const getAgentToolCallUrls = () => {
-  if (typeof window === 'undefined') return ['/agent/flash/tools/call']
+  if (typeof window === 'undefined') return ['/flash/tools/call']
   const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
   const hostname = window.location.hostname || 'localhost'
   return Array.from(new Set([
-    '/agent/flash/tools/call',
+    '/flash/tools/call',
     `${protocol}://${hostname}:8078/flash/tools/call`
   ]))
 }

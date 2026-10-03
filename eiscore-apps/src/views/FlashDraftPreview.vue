@@ -48,7 +48,7 @@ const getDraftUrls = () => {
   const protocol = window.location.protocol === 'https:' ? 'https' : 'http'
   const hostname = window.location.hostname || 'localhost'
   return Array.from(new Set([
-    `/agent/flash/draft${query}`,
+    `/flash/draft${query}`,
     `${protocol}://${hostname}:8078/flash/draft${query}`
   ]))
 }

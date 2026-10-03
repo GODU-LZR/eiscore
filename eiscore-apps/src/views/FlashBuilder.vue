@@ -9,7 +9,7 @@
       <div class="header-right">
         <el-radio-group v-if="codeServerEnabled" v-model="flashMode" size="small">
           <el-radio-button label="code_server">专业模式</el-radio-button>
-          <el-radio-button label="legacy">壳模式</el-radio-button>
+          <el-radio-button label="shell">壳模式</el-radio-button>
         </el-radio-group>
         <el-tag v-else size="small" type="success">只聊天壳</el-tag>
         <el-button @click="saveApp" :loading="saving">保存</el-button>
@@ -55,7 +55,7 @@
                 <el-space>
                   <el-button type="primary" :loading="ideChecking" @click="reloadIdeEmbed">重试加载</el-button>
                   <el-button @click="openIdeInNewTab">新窗口打开</el-button>
-                  <el-button @click="flashMode = 'legacy'">切换壳模式</el-button>
+                  <el-button @click="flashMode = 'shell'">切换壳模式</el-button>
                 </el-space>
               </template>
             </el-result>
@@ -432,7 +432,7 @@ const router = useRouter()
 
 const FLASH_MODES = {
   CODE_SERVER: 'code_server',
-  LEGACY: 'legacy'
+  SHELL: 'shell'
 }
 
 const DRAFT_ROOT_PATH = 'src/views/drafts'
@@ -476,7 +476,7 @@ const appData = ref(null)
 const saving = ref(false)
 const publishing = ref(false)
 
-const flashMode = ref(FLASH_MODES.LEGACY)
+const flashMode = ref(FLASH_MODES.SHELL)
 const ideChecking = ref(false)
 const ideReachable = ref(false)
 const ideProbeError = ref('')
@@ -550,7 +550,7 @@ const codeServerFlagRaw = String(import.meta.env.VITE_FLASH_CODE_SERVER_ENABLED 
 const codeServerEnabled = codeServerFlagRaw === ''
   ? true
   : ['1', 'true', 'yes', 'on'].includes(codeServerFlagRaw)
-const defaultMode = FLASH_MODES.LEGACY
+const defaultMode = FLASH_MODES.SHELL
 const normalizeUrlBase = (value) => {
   const raw = String(value || '').trim()
   if (!raw) return ''
@@ -719,7 +719,7 @@ const callFlashTool = async (toolId, toolArgs = {}, options = {}) => {
   }
 
   try {
-    const response = await axios.post('/agent/flash/tools/call', payload, {
+    const response = await axios.post('/flash/tools/call', payload, {
       headers: {
         ...getAgentHeaders(token),
         'Content-Type': 'application/json'
@@ -827,7 +827,7 @@ const buildFlashConfig = (baseConfig = {}) => {
   return buildFlashBuilderConfig(baseConfig, {
     codeServerEnabled,
     mode: flashMode.value,
-    legacyMode: FLASH_MODES.LEGACY,
+    shellMode: FLASH_MODES.SHELL,
     draftRoot: DRAFT_ROOT_PATH,
     draftFile: DRAFT_FILE_PATH,
     previewRoute: PREVIEW_ROUTE,
@@ -1035,7 +1035,7 @@ const buildShellWsCandidates = () => {
   const host = window.location.host
   const hostname = window.location.hostname || 'localhost'
   const defaults = [
-    `${protocol}://${host}/agent/ws`,
+    `${protocol}://${host}/ws`,
     `${protocol}://${hostname}:8078/ws`
   ]
   const deduped = []
@@ -1586,7 +1586,7 @@ const dispatchShellTask = ({ prompt, history, attachments = [] }, options = {}) 
   }
 
   shellSocket.send(JSON.stringify({
-    type: 'flash:cline_task',
+    type: 'flash:harness_task',
     sessionId: shellSessionId.value,
     appId: appId.value,
     prompt,
@@ -1680,10 +1680,10 @@ const handleShellEvent = (event) => {
     })
     return
   }
-  if (!String(event.type).startsWith('flash:cline_')) return
+  if (!String(event.type).startsWith('flash:harness_')) return
   if (event.sessionId && event.sessionId !== shellSessionId.value) return
 
-  if (event.type === 'flash:cline_output') {
+  if (event.type === 'flash:harness_output') {
     const { answer, thought, toolCalls, registryClaimedCount } = parseThoughtAndAnswer(event.content)
     if (!answer && !thought && (!Array.isArray(toolCalls) || toolCalls.length === 0) && registryClaimedCount <= 0) return
     shellHasFirstChunk.value = true
@@ -1715,7 +1715,7 @@ const handleShellEvent = (event) => {
     }
     return
   }
-  if (event.type === 'flash:cline_summary') {
+  if (event.type === 'flash:harness_summary') {
     const active = shellMessages.value.find((item) => item.id === shellActiveAssistantId)
     const hasQueue = shellStreamQueue.length > 0
     // summary 只在没有正文时兜底，避免重复回显
@@ -1746,8 +1746,8 @@ const handleShellEvent = (event) => {
     }
     return
   }
-  if (event.type === 'flash:cline_error') {
-    const errorText = String(event.error || 'Cline 任务失败')
+  if (event.type === 'flash:harness_error') {
+    const errorText = String(event.error || 'Harness 任务失败')
     if (tryShellAutoRetry(errorText)) return
     shellError.value = errorText
     shellBusy.value = false
@@ -1760,7 +1760,7 @@ const handleShellEvent = (event) => {
     syncCurrentConversationMessages()
     return
   }
-  if (event.type === 'flash:cline_status') {
+  if (event.type === 'flash:harness_status') {
     if (event.status === 'registry_meta') {
       const count = Number(event.registryCount || 0)
       if (Number.isFinite(count) && count > 0) shellRegistryActualCount.value = count
@@ -1775,7 +1775,7 @@ const handleShellEvent = (event) => {
     }
     return
   }
-  if (event.type === 'flash:cline_done') {
+  if (event.type === 'flash:harness_done') {
     if (!event.success && shellAutoRetryTimer) {
       return
     }
@@ -1899,7 +1899,7 @@ const connectShellSocket = async () => {
     shellConnecting.value = false
     shellBusy.value = false
     disarmShellSlowHint()
-    shellError.value = '无法连接到 agent-runtime (/agent/ws)'
+    shellError.value = '无法连接到 Harness Runtime (/ws)'
     scheduleShellReconnect()
   }
 }
@@ -1923,7 +1923,7 @@ const resetShellSession = () => {
   shellActiveAssistantId = ''
   if (shellSocket && shellSocket.readyState === WebSocket.OPEN) {
     shellSocket.send(JSON.stringify({
-      type: 'flash:cline_reset',
+      type: 'flash:harness_reset',
       sessionId: shellSessionId.value
     }))
   }
@@ -2165,10 +2165,10 @@ const loadAppData = async () => {
     const configuredMode = String(cfg?.flash?.mode || '').toLowerCase()
     const routeMode = String(route.query.mode || '').toLowerCase()
     if (!codeServerEnabled) {
-      flashMode.value = FLASH_MODES.LEGACY
-    } else if (routeMode === FLASH_MODES.LEGACY || routeMode === FLASH_MODES.CODE_SERVER) {
+      flashMode.value = FLASH_MODES.SHELL
+    } else if (routeMode === FLASH_MODES.SHELL || routeMode === FLASH_MODES.CODE_SERVER) {
       flashMode.value = routeMode
-    } else if (configuredMode === FLASH_MODES.LEGACY || configuredMode === FLASH_MODES.CODE_SERVER) {
+    } else if (configuredMode === FLASH_MODES.SHELL || configuredMode === FLASH_MODES.CODE_SERVER) {
       flashMode.value = configuredMode
     } else {
       flashMode.value = defaultMode
@@ -2331,11 +2331,11 @@ const goBack = () => {
 
 watch(flashMode, (value) => {
   if (!codeServerEnabled && value === FLASH_MODES.CODE_SERVER) {
-    flashMode.value = FLASH_MODES.LEGACY
+    flashMode.value = FLASH_MODES.SHELL
     return
   }
   ideBaseIndex.value = 0
-  if (value === FLASH_MODES.LEGACY) {
+  if (value === FLASH_MODES.SHELL) {
     clearIdeLoadTimer()
     clearIdeAgentFullscreenTimer()
     ideIframeLoaded.value = false

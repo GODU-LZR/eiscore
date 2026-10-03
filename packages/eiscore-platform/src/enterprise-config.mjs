@@ -47,7 +47,7 @@ const DEFAULT_SOURCE = {
     publicBaseUrl: '',
     apiBasePath: '/api',
     agentBasePath: '/agent',
-    realtimeWsPath: '/agent/ws'
+    realtimeWsPath: '/ws'
   },
   modules: Object.fromEntries(ENTERPRISE_MODULE_IDS.map((id) => [id, true])),
   features: {}
@@ -89,7 +89,7 @@ const LOGIN_LIST_FIELDS = Object.freeze({
   trustBadges: Object.freeze({ max: 5, keys: Object.freeze({ label: 120 }) }),
   businessChain: Object.freeze({ max: 5, keys: Object.freeze({ title: 120, description: 500, status: 80 }) }),
   capabilities: Object.freeze({ max: 4, keys: Object.freeze({ title: 120, description: 500 }) }),
-  carouselImages: Object.freeze({ max: 6, keys: Object.freeze({ url: 500, title: 120, subtitle: 200 }), urlKey: 'url' }),
+  carouselImages: Object.freeze({ max: 6, keys: Object.freeze({ url: 500, title: 120, subtitle: 200 }), booleans: Object.freeze(['hasEmbeddedText']), urlKey: 'url' }),
   leaders: Object.freeze({ max: 20, keys: Object.freeze({ name: 80, title: 120, intro: 500, avatar: 500 }), urlKey: 'avatar' })
 })
 const LOGIN_PROFILE_KEYS = Object.freeze([
@@ -142,7 +142,7 @@ function validateLoginList(issues, value, path, contract) {
     return
   }
   if (value.length > contract.max) issues.push(pathValue(path, 'array-too-long'))
-  const allowed = new Set(Object.keys(contract.keys))
+    const allowed = new Set([...Object.keys(contract.keys), ...(contract.booleans || [])])
   value.forEach((item, index) => {
     const itemPath = `${path}[${index}]`
     if (!isObject(item)) {
@@ -152,6 +152,11 @@ function validateLoginList(issues, value, path, contract) {
     issues.push(...unknownKeyIssues(item, allowed, itemPath))
     for (const [key, maxLength] of Object.entries(contract.keys)) {
       if (item[key] !== undefined) textField(issues, item[key], `${itemPath}.${key}`, maxLength)
+    }
+    for (const key of contract.booleans || []) {
+      if (item[key] !== undefined && typeof item[key] !== 'boolean') {
+        issues.push(pathValue(`${itemPath}.${key}`, 'boolean-required'))
+      }
     }
     if (contract.urlKey && item[contract.urlKey] !== undefined && !isSafeAssetUrl(item[contract.urlKey])) {
       issues.push(pathValue(`${itemPath}.${contract.urlKey}`, 'unsafe-url'))
@@ -310,11 +315,16 @@ function trimTrailingSlash(value) {
 
 function normalizeLoginList(value, contract) {
   if (!Array.isArray(value)) return []
-  return value.slice(0, contract.max).map((item) => Object.fromEntries(
-    Object.keys(contract.keys)
+  return value.slice(0, contract.max).map((item) => ({
+    ...Object.fromEntries(
+      Object.keys(contract.keys)
+        .filter((key) => item?.[key] !== undefined)
+        .map((key) => [key, String(item[key] || '').trim()])
+    ),
+    ...Object.fromEntries((contract.booleans || [])
       .filter((key) => item?.[key] !== undefined)
-      .map((key) => [key, String(item[key] || '').trim()])
-  ))
+      .map((key) => [key, item[key] === true]))
+  }))
 }
 
 function normalizeLoginProfile(input, { includeMissing = true, allowMobile = false } = {}) {

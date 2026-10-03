@@ -10,6 +10,9 @@
       "path": "database/migrations/sql/core-001-externalize-database-credentials.sql",
       "sha256": "70ff80d137a15f3312eb8fdce5e1b25157cb43f0013a7c03ab03e83086cd4ffc",
       "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
       "rollback": {
         "strategy": "backup-restore",
         "backupRequired": true

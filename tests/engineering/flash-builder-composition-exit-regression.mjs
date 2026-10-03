@@ -93,7 +93,7 @@ for (const forbidden of [
 }
 
 for (const retainedBoundary of [
-  "axios.post('/agent/flash/tools/call'",
+  "axios.post('/flash/tools/call'",
   'fetch(targetUrl, {',
   'new WebSocket(target, getWsProtocols())',
   'loadFlashConversations(appId.value)',

@@ -1018,7 +1018,7 @@ const handleLogin = async () => {
         if (returnUrl.origin !== window.location.origin || returnUrl.pathname !== '/harness-embed-api/eiscore/auth/handoff') {
           throw new Error('无效的 Harness 回调地址')
         }
-        const handoffResponse = await fetch('/agent/company-site/auth/handoff', {
+        const handoffResponse = await fetch('/company-site/auth/handoff', {
           method: 'POST',
           headers: { Authorization: `Bearer ${realToken}`, Accept: 'application/json' }
         })

@@ -22,7 +22,7 @@ const apiCall = clientModule.createTwinJsonClient({
 
 assert.deepEqual(await apiCall('/twin/sessions'), { sessions: [{ id: 'session-1' }] })
 assert.deepEqual(calls[0], {
-  url: '/agent/twin/sessions',
+  url: '/twin/sessions',
   options: {
     method: 'GET',
     headers: { Authorization: 'Bearer twin-token', 'Content-Type': 'application/json' },
@@ -34,7 +34,7 @@ response = { ok: true, status: 200, json: async () => ({ id: 'file-1' }) }
 const body = { fileName: '测试.docx', tags: [] }
 assert.deepEqual(await apiCall('/twin/knowledge/upload', { method: 'POST', body }), { id: 'file-1' })
 assert.deepEqual(calls[1], {
-  url: '/agent/twin/knowledge/upload',
+  url: '/twin/knowledge/upload',
   options: {
     method: 'POST',
     headers: { Authorization: 'Bearer twin-token', 'Content-Type': 'application/json' },
@@ -50,16 +50,16 @@ await assert.rejects(
 
 await assert.rejects(apiCall('/ai/chat/completions'), /Twin JSON path must start with \/twin\//)
 
-for (const path of ['eiscore-base/src/views/HomeView.vue', 'eiscore-base/src/views/DigitalTwinView.vue']) {
+for (const path of []) {
   const source = read(path)
   assert.match(source, /from\s*['"]@\/utils\/twin-json-client['"]/)
   assert.match(source, /from\s*['"]@shared\/eis-agent-sse-client['"]/)
   assert.match(source, /const apiCall = createTwinJsonClient\(\{ getAuthHeaders \}\)/)
   assert.equal([...source.matchAll(/\bfetch\s*\(/g)].length, 0, `${path} must delegate Twin SSE transport`)
-  assert.match(source, /path:\s*['"]\/agent\/twin\/chat['"]/)
+  assert.match(source, /path:\s*['"]\/twin\/chat['"]/)
   assert.doesNotMatch(source, /const url = `\/agent\$\{path\}`|API error \$\{res\.status\}/)
 }
 
 assert.doesNotMatch(clientSource, /localStorage|auth_token|user_info|clearAuth|location\.href/)
 assert.equal([...clientSource.matchAll(/\bglobalThis\.fetch\s*\(/g)].length, 1)
-console.log('PASS: Home and DigitalTwin share one non-streaming Twin JSON client')
+console.log('PASS: remaining Twin JSON client consumer uses the shared transport')

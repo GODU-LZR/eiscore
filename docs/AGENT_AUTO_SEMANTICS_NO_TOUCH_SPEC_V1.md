@@ -46,7 +46,7 @@
 ## 3.2 Agent 运行时模块
 
 1. 服务入口：`realtime/index.js`
-   - AI 对话接口：`/agent/ai/config`、`/agent/ai/agents`、`/agent/ai/chat/completions`。
+   - AI/Harness 对话接口：`/ai/config`、`/ai/agents`、`/ai/chat/completions`。历史 `/agent/ai/*` 只由 Runtime 路由归一化兼容，不得作为新客户端或验收脚本入口。
    - Agent 任务权限：`canUseAgent`（默认角色约束更严）。
    - AI 对话权限：`canUseAi`（用于工作助手/经营助手场景）。
 2. 工作流运行时：`realtime/workflow-engine.js`

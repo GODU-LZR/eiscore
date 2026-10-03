@@ -994,7 +994,7 @@ const prepareFlashRuntimeSource = async (row) => {
   }
 
   try {
-    const response = await axios.post('/agent/flash/draft', {
+    const response = await axios.post('/flash/draft', {
       appId: row.id || runtimeAppId.value || '',
       content: runtimeDraft,
       reason: `runtime_open:${row.id || runtimeAppId.value || 'unknown'}`

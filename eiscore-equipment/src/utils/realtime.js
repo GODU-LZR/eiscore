@@ -5,7 +5,7 @@ import { getToken } from '@/utils/auth'
 
 const DEFAULT_PORT = 8078
 const DEFAULT_PATH = '/ws'
-const PROXY_WS_PATH = '/agent/ws'
+const PROXY_WS_PATH = '/ws'
 
 let client = null
 

@@ -30,13 +30,11 @@ const expectedStorageInventory = new Map([
 
 const expectedFullPageNavigationInventory = new Map([
   ['eiscore-apps/src/utils/auth.js', 1],
-  ['eiscore-base/src/router/index.js', 1],
+  ['eiscore-base/src/router/index.js', 2],
   ['eiscore-base/src/utils/auth.js', 1],
   ['eiscore-equipment/src/utils/auth.js', 1],
   ['eiscore-hr/src/utils/auth.js', 1],
   ['eiscore-materials/src/utils/auth.js', 1],
-  ['eiscore-mobile/src/platform/http-client.js', 1],
-  ['eiscore-mobile/src/utils/auth.js', 1],
   ['eiscore-mobile/src/views/HomeView.vue', 1],
   ['eiscore-mobile/src/views/LoginView.vue', 3],
   ['eiscore-production/src/utils/auth.js', 1],

@@ -223,7 +223,6 @@ Defaults:
 | `EISCORE_SMOKE_RESULT` | unset |
 | `EISCORE_SMOKE_SKIP_AI` | unset |
 | `EISCORE_SMOKE_SKIP_WS` | unset |
-| `EISCORE_SMOKE_AI_MODEL` | model returned by `/agent/ai/config` |
 | `EISCORE_SMOKE_AI_TIMEOUT_MS` | `60000` |
 | `EISCORE_SMOKE_REQUEST_ATTEMPTS` | remote targets: `3`; local targets: `1` |
 
@@ -237,7 +236,7 @@ Remote Nanpai environment:
 
 ```bash
 EISCORE_BASE_URL=https://nanpai.eissys.top \
-EISCORE_AGENT_WS_URL=wss://nanpai.eissys.top/agent/ws \
+EISCORE_AGENT_WS_URL=wss://nanpai.eissys.top/ws \
 EISCORE_SMOKE_RESULT=tests/.artifacts/nanpai-smoke-result.json \
 npm run test:smoke
 ```

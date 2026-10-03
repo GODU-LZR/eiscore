@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 const CONFIG_KEY_PATTERN = /^[a-z][a-z0-9_.-]{0,127}$/i
+const RETIRED_CONFIG_KEYS = new Set(['ai_glm_config'])
 
 export class SystemConfigError extends Error {
   constructor(code) {
@@ -14,6 +15,9 @@ export class SystemConfigError extends Error {
 function assertConfigKey(key) {
   if (typeof key !== 'string' || !CONFIG_KEY_PATTERN.test(key)) {
     throw new SystemConfigError('invalid-key')
+  }
+  if (RETIRED_CONFIG_KEYS.has(key.toLowerCase())) {
+    throw new SystemConfigError('retired-key')
   }
   return key
 }

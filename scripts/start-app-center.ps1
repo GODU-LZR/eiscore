@@ -8,15 +8,7 @@ Write-Host "🚀 启动 EISCore 应用中心..." -ForegroundColor Green
 if (-not (Test-Path .env)) {
     Write-Host "⚠️  未找到 .env 文件，从模板创建..." -ForegroundColor Yellow
     Copy-Item .env.example .env
-    Write-Host "❗ 请编辑 .env 文件并配置 ANTHROPIC_API_KEY" -ForegroundColor Red
-    exit 1
-}
-
-# Check ANTHROPIC_API_KEY
-$envContent = Get-Content .env -Raw
-if ($envContent -notmatch "ANTHROPIC_API_KEY=sk-ant-") {
-    Write-Host "❌ ANTHROPIC_API_KEY 未配置！" -ForegroundColor Red
-    Write-Host "请在 .env 文件中设置有效的 Anthropic API Key"
+    Write-Host "❗ 请编辑 .env 文件并配置 EISCORE_HARNESS_* 参数" -ForegroundColor Red
     exit 1
 }
 
@@ -32,18 +24,18 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "   ✅ Schema 已存在，跳过" -ForegroundColor Green
 }
 
-# Step 2: Build and start agent-runtime
+# Step 2: Build and start the Runtime and Harness bridge
 Write-Host ""
-Write-Host "🤖 Step 2/7: 构建 Agent Runtime..." -ForegroundColor Cyan
-docker-compose build agent-runtime
+Write-Host "🤖 Step 2/7: 构建 Agent Runtime 与 Harness Bridge..." -ForegroundColor Cyan
+docker-compose build agent-runtime harness-bridge
 
-Write-Host "   启动 Agent Runtime..."
-docker-compose up -d agent-runtime
+Write-Host "   启动 Agent Runtime 与 Harness Bridge..."
+docker-compose up -d agent-runtime harness-bridge
 
 # Step 3: Start other services
 Write-Host ""
-Write-Host "🐳 Step 3/7: 启动其他服务..." -ForegroundColor Cyan
-docker-compose up -d
+Write-Host "🐳 Step 3/7: 启动其他本地服务..." -ForegroundColor Cyan
+docker-compose up -d api nginx swagger code-server
 
 # Step 4: Workflow runtime patches
 Write-Host ""

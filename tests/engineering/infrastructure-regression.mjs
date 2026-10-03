@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
@@ -11,7 +11,9 @@ const shellFiles = execFileSync('git', ['ls-files', '-z', '*.sh'], {
   cwd: repoRoot,
   encoding: 'utf8',
   windowsHide: true
-}).split('\0').filter(Boolean)
+}).split('\0').filter((path) => path && existsSync(resolve(repoRoot, path)))
+
+assert.equal(existsSync(resolve(repoRoot, 'scripts/setup_cline_code_server.sh')), false, 'retired Cline setup script must remain removed')
 
 assert.ok(shellFiles.length > 0, 'repository should expose tracked shell scripts')
 for (const path of shellFiles) {
@@ -27,7 +29,15 @@ const safeEnvironment = {
   PGRST_JWT_SECRET: 'Jwt8_Zp3Lm7Qx2Vc9Bn5Ks1Hd6Rt4Wy0Fa',
   POSTGREST_DB_PASSWORD: 'Api6_Qm9Xv4Rs2Lp8Nk5Wd7Hy3Tz1',
   AGENT_DB_PASSWORD: 'Agent4_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
-  EISCORE_PUBLIC_BASE_URL: 'https://erp.acme.test'
+  EISCORE_PUBLIC_BASE_URL: 'https://erp.acme.test',
+  EISCORE_HARNESS_ENABLED: 'true',
+  EISCORE_HARNESS_URL: 'http://harness-bridge:3080',
+  EISCORE_HARNESS_AUDIT_FILE: '/var/lib/eiscore/harness-audit.jsonl',
+  EISCORE_HARNESS_AUDIT_HASH_KEY: 'HarnessAudit9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
+  EISCORE_HARNESS_BRIDGE_SECRET: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
+  EISCORE_TOOL_PROXY_SECRET: 'HarnessProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
+  DSH_PROVIDER: 'deepseek-official',
+  DSH_MODEL: 'deepseek-chat'
 }
 
 const baselinePaths = [
@@ -68,7 +78,15 @@ const validCompose = spawnSync('docker', ['compose', '-f', 'docker-compose.prod.
 })
 assert.equal(validCompose.status, 0, `production Compose rejected the valid contract:\n${validCompose.stderr || validCompose.stdout}`)
 
-for (const missingKey of ['POSTGRES_PASSWORD', 'PGRST_JWT_SECRET', 'POSTGREST_DB_PASSWORD', 'AGENT_DB_PASSWORD', 'EISCORE_PUBLIC_BASE_URL']) {
+for (const missingKey of [
+  'POSTGRES_PASSWORD',
+  'PGRST_JWT_SECRET',
+  'POSTGREST_DB_PASSWORD',
+  'AGENT_DB_PASSWORD',
+  'EISCORE_PUBLIC_BASE_URL',
+  'EISCORE_HARNESS_BRIDGE_SECRET',
+  'EISCORE_TOOL_PROXY_SECRET'
+]) {
   const missingEnvironment = { ...safeEnvironment }
   delete missingEnvironment[missingKey]
   const invalidCompose = spawnSync('docker', ['compose', '-f', 'docker-compose.prod.yml', 'config', '--quiet'], {

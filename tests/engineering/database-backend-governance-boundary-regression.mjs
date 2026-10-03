@@ -18,7 +18,7 @@ assert.deepEqual(result.legacyRoots.map(({ path, count }) => [path, count]), [
   ['eiscore-materials/sql', 2]
 ])
 assert.equal(result.legacySqlFiles, 106)
-assert.equal(result.governedMigrationFiles, 18)
+assert.equal(result.governedMigrationFiles, 20)
 assert.equal(result.governedLegacySqlFiles, 10)
 assert.equal(result.ungovernedLegacySqlFiles, 96)
 assert.equal(result.resolvedLegacySqlFiles, 96)
@@ -72,7 +72,7 @@ assert.deepEqual(
 assert.deepEqual(result.manifests.map(({ name, count }) => [name, count]), [
   ['runtime-v2', 10],
   ['company-site', 1],
-  ['core', 7]
+  ['core', 9]
 ])
 assert.deepEqual(result.productionCompose.runtimeSuperuserConnections, [])
 assert.deepEqual(result.productionCompose.exposedSchemas, ['public', 'hr', 'scm', 'app_center', 'workflow', 'app_data'])
@@ -137,6 +137,17 @@ for (const marker of [
 const resolutionLedger = JSON.parse(readFileSync(resolve(repoRoot, 'database/legacy-sql-resolution.json'), 'utf8'))
 assert.equal(resolutionLedger.entries.length, 96)
 assert.equal(resolutionLedger.defaultExecutionPolicy, 'deny')
+assert.deepEqual(
+  resolutionLedger.entries.find(([path]) => path === 'env/insert_ai_config.sql')?.slice(2),
+  ['environment-bootstrap', 'superseded-by-migration'],
+  'legacy model configuration SQL must remain retired from executable migration inputs'
+)
+assert.equal(resolutionLedger.dispositionContracts['superseded-by-migration'].executable, false)
+assert.equal(result.productionCompose.initializationInputs.includes('env/insert_ai_config.sql'), false)
+assert.equal(result.productionCompose.initializationInputs.includes('insert_ai_config.sql'), false)
+
+const envReadme = readFileSync(resolve(repoRoot, 'env/README.md'), 'utf8')
+assert.match(envReadme, /insert_ai_config\.sql.*已退役.*禁止手动执行/)
 
 const packageJson = JSON.parse(readFileSync(resolve(repoRoot, 'package.json'), 'utf8'))
 assert.match(packageJson.scripts?.['db:backend:audit'] || '', /audit-database-backend\.mjs/)

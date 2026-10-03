@@ -1,0 +1,9 @@
+*
+!agent-harness/
+!agent-harness/Dockerfile
+!agent-harness/package.json
+!agent-harness/package-lock.json
+!agent-harness/dsh-http-bridge.mjs
+!agent-harness/http-bridge.js
+!agent-harness/plugin-registry.js
+!agent-harness/plugin-contract.v1.json

@@ -40,7 +40,6 @@ const dataByPath = new Map([
   ]],
   ['/raw_materials', [{ id: 1, name: '钢材', category: '金属' }, { id: 2, name: '铜材', category: '金属' }, { id: 3, name: '辅料', category: null }]],
   ['/archives', [{ id: 1, department: '生产部', status: '在职' }, { id: 2, department: '生产部', status: '在职' }, { id: 3, department: null, status: '离职' }]],
-  ['/employees', [{ id: 9, department: '兼容部门' }]],
   ['/inventory_checks', [{ id: 1, status: '已完成' }, { id: 2, status: '草稿' }]],
   ['/sales_customers', [
     { name: '客户A', level: 'A', credit_limit: 100, receivable_balance: 120 },
@@ -283,23 +282,14 @@ const partialService = createAiContextService({
   log: { log() {}, warn() {} },
   now: () => new Date('2026-09-01T01:02:03.000Z')
 })
-const partialSnapshot = await partialService.safeFetchBusinessSnapshot(user)
-assert.deepEqual(partialSnapshot.employees, { total: 1, byDepartment: { 兼容部门: 1 } })
+const partialSnapshot = await partialService.fetchBusinessSnapshot(user, semantic)
 assert.equal(partialSnapshot._meta.partial, true)
 assert.equal(partialSnapshot._meta.failedSourceCount, 1)
 assert.deepEqual(partialSnapshot._meta.failedSources, [{ label: 'hrArchives', message: 'hr unavailable' }])
-assert.equal(partialCalls.includes('/employees'), true)
-
-assert.deepEqual(service.buildBusinessSnapshotFallback(new Error('snapshot failed')), {
-  snapshotTime: '2026-09-01T01:02:03.000Z',
-  _meta: {
-    partial: true,
-    fallback: true,
-    error: 'snapshot failed',
-    failedSourceCount: 1,
-    failedSources: [{ label: 'businessSnapshot', message: 'snapshot failed' }]
-  }
-})
+assert.equal(partialSnapshot.employees, undefined)
+assert.equal(partialCalls.includes('/employees'), false)
+assert.equal(typeof service.safeFetchBusinessSnapshot, 'undefined')
+assert.equal(typeof service.buildBusinessSnapshotFallback, 'undefined')
 
 const emptyService = createAiContextService({
   callPostgrestWithUser: async () => ({ data: [] }),

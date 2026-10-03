@@ -79,7 +79,13 @@ const startDatabase = async (name) => {
   ])
   for (let attempt = 0; attempt < 160; attempt += 1) {
     const ready = docker(['exec', name, 'pg_isready', '-U', 'postgres', '-d', 'eiscore'], { allowFailure: true })
-    if (ready.status === 0) return
+    if (ready.status === 0) {
+      const probe = docker([
+        'exec', name, 'psql', '-v', 'ON_ERROR_STOP=1', '-At',
+        '-U', 'postgres', '-d', 'eiscore', '-c', 'SELECT 1'
+      ], { allowFailure: true })
+      if (probe.status === 0 && probe.stdout.trim() === '1') return
+    }
     await sleep(250)
   }
   throw new Error(`${name} did not become ready`)

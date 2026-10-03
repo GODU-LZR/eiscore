@@ -7,12 +7,8 @@ const WEBSOCKET_MESSAGE_MANIFEST = Object.freeze([
   Object.freeze({ type: 'subscribe', handler: 'subscribe' }),
   Object.freeze({ type: 'unsubscribe', handler: 'unsubscribe' }),
   Object.freeze({ type: 'flash:tool_call', handler: 'flashToolCall' }),
-  Object.freeze({ type: 'flash:cline_task', handler: 'flashClineTask' }),
-  Object.freeze({ type: 'flash:cline_stop', handler: 'flashClineStop' }),
-  Object.freeze({ type: 'flash:cline_reset', handler: 'flashClineReset' }),
-  Object.freeze({ type: 'agent:task', handler: 'agentTask' }),
-  Object.freeze({ type: 'agent:tool_use', handler: 'agentToolUse' }),
-  Object.freeze({ type: 'agent:terminal', handler: 'agentTerminal' })
+  Object.freeze({ type: 'flash:harness_task', handler: 'flashHarnessTask' }),
+  Object.freeze({ type: 'flash:harness_reset', handler: 'flashHarnessReset' }),
 ]);
 
 const normalizeFlashSessionId = (value) =>
@@ -21,11 +17,9 @@ const normalizeFlashSessionId = (value) =>
 const createWebSocketMessageHandler = ({
   normalizeStringList,
   handleFlashToolCallWs,
-  runFlashClineTask,
-  killFlashCliSessionProcess,
+  handleFlashHarnessTaskWs,
+  handleFlashHarnessResetWs,
   sendWsJson,
-  createFlashCliSession,
-  agentTaskService,
   manifest = WEBSOCKET_MESSAGE_MANIFEST
 }) => {
   const handlers = {
@@ -38,39 +32,8 @@ const createWebSocketMessageHandler = ({
       list.forEach((channel) => ws.channels.delete(channel));
     },
     flashToolCall: handleFlashToolCallWs,
-    flashClineTask: runFlashClineTask,
-    flashClineStop: async (ws, data) => {
-      const sessionId = normalizeFlashSessionId(data?.sessionId);
-      const session = ws.flashCliSessions?.get(sessionId);
-      if (session) {
-        killFlashCliSessionProcess(session);
-        sendWsJson(ws, {
-          type: 'flash:cline_status',
-          sessionId,
-          status: 'stopped',
-          message: '已停止当前 Cline 任务'
-        });
-      }
-    },
-    flashClineReset: async (ws, data) => {
-      const sessionId = normalizeFlashSessionId(data?.sessionId);
-      const session = ws.flashCliSessions?.get(sessionId);
-      if (session) {
-        killFlashCliSessionProcess(session);
-        session.taskId = '';
-      } else if (ws.flashCliSessions) {
-        ws.flashCliSessions.set(sessionId, createFlashCliSession());
-      }
-      sendWsJson(ws, {
-        type: 'flash:cline_status',
-        sessionId,
-        status: 'reset',
-        message: '会话已重置'
-      });
-    },
-    agentTask: agentTaskService.runTask,
-    agentToolUse: agentTaskService.runTool,
-    agentTerminal: agentTaskService.runTerminal
+    flashHarnessTask: handleFlashHarnessTaskWs,
+    flashHarnessReset: handleFlashHarnessResetWs
   };
 
   const routeByType = new Map(manifest.map((entry) => [entry.type, entry.handler]));
@@ -92,14 +55,11 @@ const attachWebSocketServer = ({
   extractToken,
   verifyToken,
   asUser,
+  hasHarnessTenantContext,
   channel,
-  killFlashCliSessionProcess,
-  agentTaskService,
   ...messageDependencies
 }) => {
   const handleMessage = createWebSocketMessageHandler({
-    killFlashCliSessionProcess,
-    agentTaskService,
     ...messageDependencies
   });
 
@@ -111,18 +71,15 @@ const attachWebSocketServer = ({
       return;
     }
     ws.user = { ...asUser(payload), token };
+    if (typeof hasHarnessTenantContext !== 'function' || !hasHarnessTenantContext(ws.user)) {
+      ws.close(1008, 'tenant_context_required');
+      return;
+    }
     ws.channels = new Set([channel]);
-    ws.agentConversation = null;
-    ws.fileWatcher = null;
-    ws.flashCliSessions = new Map();
 
     ws.on('message', (message) => handleMessage(ws, message));
     ws.on('close', () => {
-      agentTaskService.cleanup(ws);
-      if (ws.flashCliSessions) {
-        ws.flashCliSessions.forEach((session) => killFlashCliSessionProcess(session));
-        ws.flashCliSessions.clear();
-      }
+      ws.channels?.clear();
     });
   });
 };

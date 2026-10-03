@@ -81,6 +81,31 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/agent/, ''),
         ws: true
+      },
+      '/ai': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
+      '/flash': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
+      '/twin': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
+      '/document-intake': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
+      '/company-site': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
       }
     }
   },

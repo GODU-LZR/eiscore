@@ -99,6 +99,7 @@ function createCompanyHttpModule({
   asUser,
   readJsonBody,
   sendJson,
+  hasTenantContext,
   now = () => Date.now(),
   env = process.env
 }) {
@@ -110,6 +111,13 @@ function createCompanyHttpModule({
   const siteManageRoles = roleList(env.COMPANY_SITE_MANAGE_ROLES, 'super_admin,admin,company_site_admin,site_admin,content_reviewer');
   const salesRoles = roleList(env.COMPANY_SALES_ROLES, 'super_admin,admin,company_site_admin,site_admin,sales_manager,sales_owner,sales');
   const salesApprovalRoles = roleList(env.COMPANY_SALES_APPROVER_ROLES, 'super_admin,admin,company_site_admin,site_admin,sales_manager,production_manager,production_planner');
+  const tenantContextGuard = typeof hasTenantContext === 'function'
+    ? hasTenantContext
+    : (user = {}) => Boolean(
+      String(user.id || user.sub || user.username || '').trim()
+      && String(user.tenant_id || user.tenantId || user.tenant || user.org_id || user.organization_id || '').trim()
+      && String(user.token || '').trim()
+    );
   const handoffs = new Map();
   const handoffTtlMs = Math.max(10_000, Number(env.COMPANY_AUTH_HANDOFF_TTL_MS) || 60_000);
 
@@ -129,6 +137,10 @@ function createCompanyHttpModule({
       return false;
     }
     const user = asUser(payload, token);
+    if (!tenantContextGuard(user)) {
+      sendJson(res, 401, { code: 'HARNESS_AUTH_REQUIRED', message: 'Authenticated tenant context is required' });
+      return false;
+    }
     if (!roles.includes(text(user?.role).toLowerCase()) && !permissionAllows(user, actions)) {
       sendJson(res, 403, { code: 'FORBIDDEN', message: deniedMessage });
       return false;
@@ -175,8 +187,14 @@ function createCompanyHttpModule({
   const handlers = {
     async handleCreateAuthHandoff(req, res) {
       const token = getBearerFromAuthHeader(req);
-      if (!verifyToken(token)) {
+      const payload = verifyToken(token);
+      const user = payload ? asUser(payload, token) : null;
+      if (!payload) {
         sendJson(res, 401, { code: 'UNAUTHORIZED', message: 'Invalid or missing token' }, { 'Cache-Control': 'no-store' });
+        return;
+      }
+      if (!tenantContextGuard(user)) {
+        sendJson(res, 401, { code: 'HARNESS_AUTH_REQUIRED', message: 'Authenticated tenant context is required' }, { 'Cache-Control': 'no-store' });
         return;
       }
       purgeHandoffs();
@@ -201,7 +219,8 @@ function createCompanyHttpModule({
       const entry = handoffs.get(code);
       handoffs.delete(code);
       const payload = entry && entry.expiresAt > now() ? verifyToken(entry.token) : null;
-      if (!payload) {
+      const user = payload ? asUser(payload, entry.token) : null;
+      if (!payload || !tenantContextGuard(user)) {
         sendJson(res, 410, { code: 'HANDOFF_EXPIRED', message: 'Login handoff has expired or was already used' }, { 'Cache-Control': 'no-store' });
         return;
       }

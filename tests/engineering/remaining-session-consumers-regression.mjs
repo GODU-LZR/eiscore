@@ -13,7 +13,6 @@ const targets = [
   'eiscore-base/src/utils/ai-bridge.js',
   'eiscore-base/src/views/SettingsView.vue',
   'eiscore-base/src/views/HomeView.vue',
-  'eiscore-base/src/views/DigitalTwinView.vue',
   'eiscore-base/src/micro/index.js'
 ]
 
@@ -33,15 +32,14 @@ assert.match(bridge, /import\s*\{\s*getToken\s*\}\s*from\s*['"]@\/utils\/auth['"
 assert.match(bridge, /getAuthToken\(\)\s*\{\s*return getToken\(\)\s*\}/)
 
 const settings = readSource('eiscore-base/src/views/SettingsView.vue')
-assert.match(settings, /import\s*{\s*getHostHttpClient,\s*getHostSystemConfigService\s*}\s*from\s*['"]@\/platform\/http-client['"]/)
+assert.match(settings, /import\s*{\s*getHostHttpClient\s*}\s*from\s*['"]@\/platform\/http-client['"]/)
+assert.doesNotMatch(settings, /getHostSystemConfigService/)
 assert.doesNotMatch(settings, /import\s*{\s*getToken\s*}\s*from\s*['"]@\/utils\/auth['"]/)
 assert.doesNotMatch(settings, /const getAuthToken/)
 
-for (const path of ['eiscore-base/src/views/HomeView.vue', 'eiscore-base/src/views/DigitalTwinView.vue']) {
-  const source = readSource(path)
-  assert.match(source, /import\s*\{\s*getAuthHeader\s*\}\s*from\s*['"]@\/utils\/auth['"]/)
-  assert.match(source, /const getAuthHeaders = \(\) => \(\{\s*['"]Content-Type['"]:\s*['"]application\/json['"],\s*\.\.\.getAuthHeader\(\)\s*\}\)/s)
-}
+const home = readSource('eiscore-base/src/views/HomeView.vue')
+assert.match(home, /prepareHarnessAuth as prepareHarnessAuthRequest/)
+assert.match(home, /authorization: getAuthHeader\(\)\.Authorization/)
 
 const micro = readSource('eiscore-base/src/micro/index.js')
 assert.match(micro, /import\s*\{\s*setUserInfo\s*\}\s*from\s*['"]@\/utils\/auth['"]/)
