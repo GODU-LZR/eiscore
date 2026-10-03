@@ -3042,3 +3042,11 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 远端推送前确认 GitHub `codex/systematic-refactor` 原指针 `02b6588441a3620f29cfc9cee049035aa222fda2` 是本地提交祖先，本地领先 14 个提交；使用显式 fetch URL `https://github.com/GODU-LZR/eiscore.git` 执行快进推送，成功更新远端到 `f767cfa166512245319dce6fbe10e0a945e1eb37`。仓库配置的 push URL 仍是占位地址 `example.invalid`，本轮未修改它。
 - 推送后只读核验：本地 HEAD 与远端 `refs/heads/codex/systematic-refactor` 均为 `f767cfa166512245319dce6fbe10e0a945e1eb37`，同步状态 `SYNC=YES`。本轮没有部署远端伦度 Compose、没有重建容器、没有写入数据库卷或生产环境。
 - 未完成阻塞保持：三组同源 DeepSeek Web client-plugin 编译制品尚未作为独立 `LUNDU_HARNESS_ROOT` 输入闭合；Docker Linux daemon 当前不可用；真实 Provider、DB v6 release provenance、在线双租户 RLS、Smart BI 等价及伦度线上运行态仍需后续验收。
+
+## 全局目标继续推进记录（2026-10-03，当前 HEAD 门禁与 DB v6 漂移复核）
+
+- 当前 `github-eiscore-refactor` 工作树为 `codex/systematic-refactor @ be7723cdb6ebbc09186b021b59062dd7c4bb04f3`，`git status --short --branch` 显示工作树干净。远端 fetch URL 为 `https://github.com/GODU-LZR/eiscore.git`，push URL 仍为占位地址 `https://example.invalid/eiscore-no-push.git`；本轮未推送。
+- 仓库内 `agent-harness/` 目前包含后端 Bridge、Tool Gateway、profile 和测试，但不包含 `client-plugins/eiscore-auth/lib/index.js`、`client-plugins/digital-twin/lib/index.js`、`client-plugins/enterprise-bi/lib/index.js` 三组 Web 编译入口。`agent-harness/package-lock.json` 仅能证明锁定了官方 DSH Web 依赖（包括 `@deepseek-ai/dsh-web-app`、`@deepseek-ai/dsh-web-frontend`），不能证明 EISCore 私有插件制品已构建或可发布。
+- 真实执行 `node scripts/validate-lundu-harness-artifacts.mjs --harness-root \"\" --patch deploy/lundu/dsh-web.patch.yml` 失败，结果为 `LUNDU_HARNESS_ROOT: required`。因此没有启动伦度 Compose，也没有把仓库外未提交的 `C:/Users/Twist/Documents/eiscore/agent-harness` 候选目录复制、挂载或冒充同源发布输入。
+- 真实执行 `npm run db:release:drift` 仍报告 DB v6 provenance drift：冻结 manifest SHA-256 为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`，当前候选为 `eb0a268509db1696f93f859f02cec2fe8321a93753448702dade047ba4feb396`；冻结 source revision 为 `b9a3831d08aeb7056ee8a5997ca8b57ae270ca08`，候选为当前 `be7723cdb6ebbc09186b021b59062dd7c4bb04f3`。同时 `core` 从冻结 `core-007` 漂移到候选 `core-009`，database contract/catalog/PostgREST checksum 也存在差异。未修改冻结 manifest，未执行迁移，未写入任何数据库卷。
+- 本轮只做本地只读门禁和状态记录；未修改运行时代码、前端视觉或部署配置，未连接远端/生产，未启动持久 Docker Compose，未使用真实 Provider，未发布、提交或推送。当前全局目标保持 `active`；下一步硬门槛仍是获得可追溯的同源 Web 插件制品、恢复 Docker Linux daemon，并由发布负责人决定 DB v6 provenance 对齐方案。
