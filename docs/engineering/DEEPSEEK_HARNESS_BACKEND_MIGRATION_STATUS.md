@@ -3113,3 +3113,11 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - `docker compose -f deploy/lundu/compose.yml config --quiet` 在临时、被 `.gitignore` 忽略的 `deploy/lundu/.env` 占位配置下通过；随后立即删除 `.env`，未执行 `up`、build、迁移或卷操作，工作树保持干净。没有 `LUNDU_HARNESS_ROOT` 的真实值时 Compose 仍按设计拒绝解析，和 Web 制品 provenance 门禁一致。
 - `node scripts/validate-lundu-harness-artifacts.mjs --harness-root "" --patch deploy/lundu/dsh-web.patch.yml` 继续故障关闭：`LUNDU_HARNESS_ROOT: required`。当前分支仍没有可追溯的三组 Web client-plugin 制品。
 - 本轮未连接远端/生产、未启动持久 Compose、未写入数据库卷、未执行真实迁移、未使用真实 Provider。全局目标保持 `active`；正式 Bridge digest 构建、同源 Web 制品、DB v6 provenance、在线双租户 RLS/Smart BI 和远端验收仍未完成。
+
+## 全局目标继续推进记录（2026-10-03，数据库隔离套件复验）
+
+- 真实执行 `npm run test:database:docker`。DB1 fresh install/predecessor upgrade schema equivalence 通过，checksum 为 `dbcd35e8cc93254dd285a89a9fa210151a9490a60fa55cc287b2f566a7874a28`。
+- DB3 PostgreSQL/PostgREST role boundary、company-site Agent RLS、HR payroll RLS 和 denial contracts 通过；company-site BFF 真实 `eiscore_agent` public/admin/publish/inquiry/sales HTTP chains 通过；DB3 fresh/upgrade/repeat catalog 与 PostgREST contract 通过，checksum 为 `869cb978e1c396c0c0b7bc6e0acfc55434e845fe9ea08919e873fd98223c84bd`。
+- 套件在 `test:database-release:docker` 阶段按预期故障关闭，仍报告同一组 8 项 DB v6 provenance drift（database contract、core migration/postcheck、manifest checksum、terminal/list、catalog、PostgREST checksum）；没有进入真实 release 或 recovery 发布阶段。未修改冻结 manifest、未执行迁移、未写入业务数据库卷。
+- 退出后只读检查未发现本轮数据库测试遗留的命名容器/网络；现有项目容器和卷保持原状态，工作树保持干净。
+- 本轮未连接远端/生产、未启动持久 Compose、未使用真实 Provider。全局目标保持 `active`；DB release provenance 对齐、同源 Web client-plugin、正式 Bridge digest 构建、在线双租户 RLS/Smart BI 和远端验收仍未完成。
