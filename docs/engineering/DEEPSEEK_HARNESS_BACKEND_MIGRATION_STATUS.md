@@ -3257,3 +3257,12 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 4. 如何处理 DB v6 manifest drift？（freeze 当前候选或回滚到冻结版本）
 
 全局目标继续保持 `active`。本轮完成了所有本地可执行且安全的门禁验证和测试修复工作，保留用户既有改动，未连接远端/生产、未启动持久服务、未写入真实数据库。
+
+## 全局目标继续推进记录（2026-10-04，Docker 可用性复核与网络阻塞确认）
+
+- Docker Desktop 已启动并可用：Client 29.1.3，Server 29.1.3（desktop-linux context），docker-compose v2.40.3。本地缓存包含所需基础镜像 `node:22.19.0-bookworm-slim`。
+- 尝试构建 `agent-harness/Dockerfile` 时遇到网络连接问题：Docker Hub token 获取失败（`dial tcp 128.242.245.253:443: connectex: A connection attempt failed`）。即使镜像在本地缓存，Dockerfile 使用 `@sha256` 固定哈希导致 Docker 仍尝试验证远端元数据。
+- 成功验证 `deploy/lundu/compose.yml` 可解析：`docker compose config --no-interpolate` 通过，Compose 结构、网络、卷和依赖配置有效。缺少 `.env` 文件时按预期报 required 环境变量错误（安全正确行为）。
+- 继续通过本地 Harness 测试：`test:harness-twin-chat`（数字分身 RLS 会话、Tool Gateway capability、Harness 会话标记）全部通过。
+- 当前 Docker/Compose 可验证性阻塞更新为：Docker daemon 可用，但网络连接问题阻止镜像构建；clean Docker build 和容器运行态验证需要网络畅通或移除 Dockerfile `@sha256` 固定哈希（后者会降低供应链安全性，不推荐）。
+- 本轮未连接远端/生产、未启动持久 Compose、未执行真实数据库迁移、未写入业务数据库卷、未使用真实 Provider；同源制品正式 provenance、DB v6 release provenance、真实 Provider/双租户 RLS/Smart BI 远端验收仍未完成，全局目标保持 `active`。
