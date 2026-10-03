@@ -3137,3 +3137,10 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 继续只在隔离快照运行官方 `gen-cordis-api`、`gen-client-catalog`、`gen-cordis-catalog` 后重试 build。`gen-cordis-api` 在快照内持续运行数分钟、CPU 活跃但没有日志或产出进展；检查确认容器只挂载 `.codex-tmp`。为避免并发写入同一隔离目录，先停止同属本任务的旧 `build:lib:client` 容器；随后因生成器长时间无进展而停止当前临时容器。没有停止既有业务容器，也没有修改当前仓库/远端。
 - 因而当前官方快照的 client 生成链路不能作为 EISCore 插件正式构建输入：严格 lockfile 仍缺新增 workspace specifier，官方 client API/type 生成链路有广泛缺项，生成器在快照归档内无法及时完成。临时输出不作为正式制品；权威 artifact preflight 仍需 `LUNDU_HARNESS_ROOT`。
 - 当前工作树保持干净；没有真实 Provider 凭据可用于外部调用，本轮未连接远端/生产、未启动持久 Compose、未执行迁移或写入数据库卷。全局目标保持 `active`。下一步需要完整、可追溯且能生成 client library 的官方 Harness workspace/构建归档，以及插件作者提供匹配 lockfile 的源码交付。
+
+## 全局目标继续推进记录（2026-10-03，EISCore Web plugin/Harness 版本兼容矩阵）
+
+- 在同一临时 Harness workspace 中利用已生成的官方 `lib/types` 做三组插件逐项 TypeScript 检查：`eiscore-auth` 通过；`digital-twin` 与 `enterprise-bi` 均失败于相同兼容性边界：找不到 `@deepseek-ai/dsh-client-ui-conversation/client`，并且候选源码使用 `conversation.session.header.actions`、`conversation.input.dock`、`conversation.hero.agentPreset` 等 slot 名称，而锁定 Harness snapshot 的 slot 类型只包含 settings/root 等集合；同时 `inputActions` 等属性也不存在。
+- 该结果证明仓库外候选插件并非固定 Harness commit `da00f7f5358f2949383b35c14f548bc20187d80c` 的可复现配套版本；即使完成临时依赖安装，仍无法生成数字分身/Smart BI 的同源正式 Web bundles。没有修改候选源码、没有添加兼容垫片、没有把 `eiscore-auth` 的临时类型输出或任何 `lib/index.js` 复制到当前分支。
+- 当前 Web 制品硬门槛进一步明确为：需要插件作者提供与锁定 Harness snapshot 相匹配的 conversation UI/slot API 源码和完整 lockfile，或提供可追溯的正式三插件构建归档。当前分支 artifact preflight 仍要求 `LUNDU_HARNESS_ROOT`，全局目标保持 `active`。
+- 本轮仍未连接远端/生产、未启动持久 Compose、未执行迁移、未写入数据库卷、未使用真实 Provider。
