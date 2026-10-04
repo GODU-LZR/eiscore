@@ -163,3 +163,15 @@ docker compose --env-file /opt/lundu-eiscore/.env \
 发布前声明：目标服务为 `web`；分支为 `codex/systematic-refactor`；完整制品为 `output/lundu-carousel-expand-release-202610030.tar.gz`，本地与远端 SHA-256 均为 `773f64f6fc0a1004bd0420b318e3d8ba09766f0afe13836202ddae07e5ba723e`；manifest version `de12e415e871e152`、605 项、84,491,819 bytes，备份 URL 为 0。入口主包为 `/assets/index--SFwBGTj.js`，配置 `enterprise.id=lundu`，入口和公开配置没有君乐缘品牌。
 
 远端旧 release 已备份至 `/opt/lundu-eiscore/backups/release-pre-image-fill-20261002181918`，通过 `/opt/lundu-eiscore/.lundu-web-publish.lock` 完成原子替换。实际只重建 `lundu-eiscore-web-1`，没有重建 DB、API、Agent、DeepSeek Web 或 Harness。线上第二幅图片 URL 返回 `2048×1152`、HTTP 200，SHA-256 与本地产物一致；`/login`、公开配置、Logo 和 manifest 均返回 200。浏览器在 `390×844`、`414×896`、`768×1024`、`1440×900` 切换到第二个轮播点后验证：水泵完整居中、四周浅灰留白、没有黑边或主体裁切，页面无横向溢出、无君乐缘正文、页面错误和控制台错误均为 0。
+
+## 2026-10-05 全部图片插槽 GPT Image 2 扩图发布
+
+用户确认将独立站所有非 Logo、非图标、非 3D Canvas 的图片插槽逐一扩图。本轮盘点登录页实际渲染的唯一素材，保留已经完成的首屏 `hero-wide.jpg` 与第二幅泵图，并使用 GPT Image 2 outpainting 重新处理其余 11 张：4 张轮播/场景图（电机、应用、制造现场、部件细节）、5 张产品卡（YE3、YC、PST、WQ、JET）和 2 张解决方案图（水泵选型、生产数字化；电机选型复用扩展后的电机宽幅图）。
+
+扩图规则按插槽比例执行：宽幅场景与解决方案统一为 `2048x1152`，产品卡统一为 `1600x900`；每张图均要求主体位于中央安全区、四周补齐自然背景、产品结构保持完整，不裁切泵头、法兰、轴、底座、电机端盖或电缆，不添加文字、Logo、水印和黑边。生成结果先制作接触表逐张检查，再替换运行时资源 `eiscore-base/public/enterprise-assets/site`，同时同步 `enterprise-packs/lundu/assets/site`，避免后续企业包重建把旧素材带回。生成与检查产物目录为 `output/lundu-all-image-expansion-20261005`。
+
+发布前声明：目标服务为 `web`；分支为 `codex/systematic-refactor`；完整 12 入口制品为 `output/lundu-all-images-release-20261005.tar.gz`，本地与远端 SHA-256 均为 `6377d89a4288a0c7114fbb83355a26d972fb8c236784566e91eba24d7238a1e2`；manifest version `1fc106518c10bb50`、619 项、87,943,073 bytes，备份 URL 为 0。入口 6258 字节，主包为当前构建生成的 `/assets/index-UcXqmSUy.js`；入口、公开配置和首屏正文没有“君乐缘/junleyuan”。
+
+远端旧 release 已备份至 `/opt/lundu-eiscore/backups/release-pre-all-images-20261004210649`。发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，原子替换 release，实际只重建 `lundu-eiscore-web-1`；DB、API、Agent、DeepSeek Web 和 Harness 未重建。线上 13 张唯一图片资源均返回 HTTP 200，扩图后的宽幅资源为 `2048x1152`，产品卡为 `1600x900`；`enterprise.id=lundu`，Logo 正常，页面标题为“伦度机电｜电机与水泵制造”。
+
+Playwright 线上验收在 `390x844`、`414x896`、`768x1024`、`1440x900` 完成：每个视口 `scrollWidth` 等于 viewport，23 个图片节点全部加载，6 个轮播点均可切换，产品主体完整居中且无黑边，页面 DOM 不含君乐缘，页面错误和控制台错误均为 0。构建 `npm run build` 通过，仅保留既有 Sass import 弃用、circular chunk 和大 chunk 警告。
