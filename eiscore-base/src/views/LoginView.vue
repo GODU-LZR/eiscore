@@ -36,6 +36,10 @@
         <button ref="headerLoginRef" type="button" class="header-login" @click="focusLogin">
           {{ branding.headerLoginText }}
         </button>
+        <button type="button" class="quote-trigger" @click="openQuoteList">
+          <span aria-hidden="true">▢</span>
+          {{ commerceUi.listLabel }}<b v-if="quoteCount">{{ quoteCount }}</b>
+        </button>
       </div>
     </header>
 
@@ -277,11 +281,34 @@
               <div v-if="product.applications.length" class="product-tags">
                 <span v-for="application in product.applications.slice(0, 4)" :key="application">{{ application }}</span>
               </div>
-              <button type="button" class="product-card-link" @click="scrollToSection('solutions')">
-                {{ productActionText }}<span aria-hidden="true">→</span>
-              </button>
+              <div class="product-card-actions">
+                <button type="button" class="product-card-link" @click="openProductDetail(product)">
+                  {{ commerceUi.detailLabel }}<span aria-hidden="true">→</span>
+                </button>
+                <button type="button" class="product-card-quote" @click="addToQuote(product)">
+                  {{ commerceUi.addLabel }}
+                </button>
+              </div>
             </div>
           </article>
+        </div>
+      </section>
+
+      <section v-if="publicProducts.length" class="commerce-section reveal" id="procurement">
+        <div>
+          <span class="commerce-kicker">{{ commerceUi.kicker }}</span>
+          <h2>{{ commerceUi.title }}</h2>
+          <p>{{ commerceUi.intro }}</p>
+        </div>
+        <div class="commerce-actions">
+          <button type="button" class="commerce-primary" @click="openQuoteList">{{ commerceUi.listLabel }}<b v-if="quoteCount"> · {{ quoteCount }}</b></button>
+          <button type="button" class="commerce-secondary" @click="openSalesAgent">{{ commerceUi.agentLabel }}</button>
+        </div>
+        <div class="commerce-steps" :aria-label="commerceUi.flowLabel">
+          <span><b>01</b>{{ commerceUi.stepInquiry }}</span>
+          <span><b>02</b>{{ commerceUi.stepQuote }}</span>
+          <span><b>03</b>{{ commerceUi.stepOrder }}</span>
+          <span><b>04</b>{{ commerceUi.stepPayment }}</span>
         </div>
       </section>
 
@@ -363,6 +390,92 @@
     </main>
 
     <Teleport to="body">
+      <Transition name="commerce-dialog">
+        <div v-if="productDetail" class="commerce-overlay" @click.self="productDetail = null">
+          <section class="commerce-modal product-detail-modal" role="dialog" aria-modal="true">
+            <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" @click="productDetail = null">×</button>
+            <div class="product-detail-media"><img v-if="productDetail.imageUrl" :src="productDetail.imageUrl" :alt="productDetail.imageAlt || productDetail.name" /></div>
+            <div class="product-detail-copy">
+              <span>{{ productDetail.category }}</span>
+              <h2>{{ productDetail.name }}</h2>
+              <p>{{ productDetail.summary }}</p>
+              <small v-if="productDetail.code">{{ productDetail.code }}</small>
+              <div v-if="productDetail.applications?.length" class="product-tags"><span v-for="item in productDetail.applications" :key="item">{{ item }}</span></div>
+              <div class="commerce-modal-actions">
+                <button type="button" class="commerce-primary" @click="addToQuote(productDetail); productDetail = null">{{ commerceUi.addLabel }}</button>
+                <button type="button" class="commerce-secondary" @click="openSalesAgent">{{ commerceUi.agentLabel }}</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </Transition>
+
+      <Transition name="commerce-dialog">
+        <div v-if="quoteVisible" class="commerce-overlay" @click.self="quoteVisible = false">
+          <section class="commerce-modal quote-modal" role="dialog" aria-modal="true" :aria-label="commerceUi.listLabel">
+            <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" @click="quoteVisible = false">×</button>
+            <div class="commerce-modal-heading"><span>{{ commerceUi.kicker }}</span><h2>{{ commerceUi.listTitle }}</h2><p>{{ commerceUi.listIntro }}</p></div>
+            <div v-if="quoteItems.length" class="quote-lines">
+              <article v-for="item in quoteItems" :key="item.code" class="quote-line">
+                <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name" />
+                <div><strong>{{ item.name }}</strong><small>{{ item.category }}</small></div>
+                <label><span class="sr-only">{{ commerceUi.quantityLabel }}</span><input v-model.number="item.quantity" type="number" min="1" max="99999" @change="normalizeQuoteQuantity(item)" /></label>
+                <button type="button" class="quote-remove" :aria-label="commerceUi.removeLabel" @click="removeFromQuote(item.code)">×</button>
+              </article>
+            </div>
+            <div v-else class="quote-empty">{{ commerceUi.emptyList }}</div>
+            <div class="quote-flow">
+              <span class="is-current"><b>01</b>{{ commerceUi.stepInquiry }}</span><i />
+              <span><b>02</b>{{ commerceUi.stepQuote }}</span><i /><span><b>03</b>{{ commerceUi.stepOrder }}</span><i /><span><b>04</b>{{ commerceUi.stepPayment }}</span>
+            </div>
+            <div class="commerce-status-panel">
+              <span class="commerce-status-label">{{ commerceUi.statusLabel }}</span>
+              <strong>{{ commerceStageLabel }}</strong>
+              <p>{{ commerceStageDescription }}</p>
+              <button v-if="commerceStage === 'quote'" type="button" class="commerce-secondary" @click="advanceCommerceStage('order')">{{ commerceUi.confirmQuoteLabel }}</button>
+              <button v-else-if="commerceStage === 'order'" type="button" class="commerce-secondary" @click="advanceCommerceStage('payment')">{{ commerceUi.confirmOrderLabel }}</button>
+              <button v-else-if="commerceStage === 'payment'" type="button" class="commerce-secondary" @click="reservePayment">{{ commerceUi.paymentButtonLabel }}</button>
+            </div>
+            <div class="lead-form">
+              <div class="lead-form-heading"><h3>{{ commerceUi.contactTitle }}</h3><p>{{ commerceUi.contactIntro }}</p></div>
+              <div class="lead-fields">
+                <input v-model.trim="leadForm.companyName" :placeholder="commerceUi.companyPlaceholder" autocomplete="organization" />
+                <input v-model.trim="leadForm.contactName" :placeholder="commerceUi.namePlaceholder" autocomplete="name" />
+                <input v-model.trim="leadForm.email" type="email" :placeholder="commerceUi.emailPlaceholder" autocomplete="email" />
+                <input v-model.trim="leadForm.phone" :placeholder="commerceUi.phonePlaceholder" autocomplete="tel" />
+                <input v-model.trim="leadForm.targetDate" type="date" :aria-label="commerceUi.dateLabel" />
+                <textarea v-model.trim="leadForm.message" rows="3" :placeholder="commerceUi.messagePlaceholder" />
+              </div>
+              <div v-if="commerceStage === 'inquiry'" class="commerce-modal-actions"><button type="button" class="commerce-primary" :disabled="salesBusy || !quoteItems.length" @click="submitLead">{{ salesBusy ? commerceUi.sendingLabel : commerceUi.submitLabel }}</button><button type="button" class="commerce-secondary" @click="openSalesAgent">{{ commerceUi.agentLabel }}</button></div>
+              <p class="commerce-reservation">{{ commerceUi.paymentReservation }}</p>
+            </div>
+          </section>
+        </div>
+      </Transition>
+
+      <Transition name="commerce-dialog">
+        <div v-if="agentVisible" class="commerce-overlay" @click.self="agentVisible = false">
+          <section class="commerce-modal agent-modal" role="dialog" aria-modal="true" :aria-label="commerceUi.agentLabel">
+            <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" @click="agentVisible = false">×</button>
+            <div class="commerce-modal-heading"><span>{{ commerceUi.kicker }}</span><h2>{{ commerceUi.agentTitle }}</h2><p>{{ commerceUi.agentIntro }}</p></div>
+            <div class="agent-messages"><div v-for="(message, index) in agentMessages" :key="`${index}-${message.role}`" :class="['agent-message', message.role]">{{ message.content }}</div><div v-if="salesBusy" class="agent-message assistant">{{ commerceUi.thinkingLabel }}</div></div>
+            <form class="agent-composer" @submit.prevent="sendSalesMessage"><input v-model.trim="agentDraft" :placeholder="commerceUi.agentPlaceholder" :disabled="salesBusy" /><button type="submit" :disabled="salesBusy || !agentDraft">{{ commerceUi.sendLabel }}</button></form>
+            <button type="button" class="agent-quote-link" @click="openQuoteList">{{ commerceUi.openListLabel }}</button>
+          </section>
+        </div>
+      </Transition>
+
+      <Transition name="commerce-dialog">
+        <div v-if="paymentVisible" class="commerce-overlay" @click.self="paymentVisible = false">
+          <section class="commerce-modal payment-modal" role="dialog" aria-modal="true" :aria-label="commerceStatusUi.paymentTitle">
+            <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" @click="paymentVisible = false">×</button>
+            <div class="commerce-modal-heading"><span>{{ commerceUi.stepPayment }}</span><h2>{{ commerceStatusUi.paymentTitle }}</h2><p>{{ commerceStatusUi.paymentDescription }}</p></div>
+            <div class="payment-reserved-card"><strong>{{ commerceStatusUi.paymentReserved }}</strong><span>{{ commerceStatusUi.paymentMethods }}</span></div>
+            <button type="button" class="commerce-secondary" @click="paymentVisible = false; quoteVisible = true">{{ commerceStatusUi.backToInquiry }}</button>
+          </section>
+        </div>
+      </Transition>
+
       <Transition name="auth-dialog">
         <div v-if="loginVisible" class="auth-overlay" @click.self="closeLogin">
           <section
@@ -452,6 +565,18 @@ const userStore = useUserStore()
 const systemStore = useSystemStore()
 const loading = ref(false)
 const loginVisible = ref(false)
+const quoteVisible = ref(false)
+const productDetail = ref(null)
+const agentVisible = ref(false)
+const paymentVisible = ref(false)
+const quoteItems = ref([])
+const agentMessages = ref([])
+const agentDraft = ref('')
+const salesSessionId = ref('')
+const salesBusy = ref(false)
+const commerceStage = ref('inquiry')
+const paymentReserved = ref(false)
+const leadForm = reactive({ companyName: '', contactName: '', email: '', phone: '', targetDate: '', message: '' })
 const loginFormRef = ref(null)
 const headerLoginRef = ref(null)
 const pageScrolled = ref(false)
@@ -485,6 +610,26 @@ const activeLocale = computed(() => systemStore.enterpriseLocale || systemStore.
 const productActionText = computed(() => (
   activeLocale.value.toLowerCase().startsWith('en') ? 'View applications' : '查看应用方向'
 ))
+const isEnglish = computed(() => activeLocale.value.toLowerCase().startsWith('en'))
+const commerceUi = computed(() => isEnglish.value ? {
+  kicker: 'Procurement', title: 'Plan your purchase', intro: 'Select a product, send an inquiry and let the sales team confirm specification, price, lead time and payment terms.', listLabel: 'Inquiry list', detailLabel: 'Details', addLabel: 'Add to inquiry', agentLabel: 'Ask sales Agent', flowLabel: 'Purchase flow', stepInquiry: 'Inquiry', stepQuote: 'Quote', stepOrder: 'Order', stepPayment: 'Payment', closeLabel: 'Close', listTitle: 'Your inquiry list', listIntro: 'Add products and quantities, then send one request for quotation.', quantityLabel: 'Quantity', removeLabel: 'Remove', emptyList: 'No products selected yet.', contactTitle: 'Contact and requirements', contactIntro: 'A sales representative will confirm the quote before any order or payment is created.', companyPlaceholder: 'Company name', namePlaceholder: 'Contact name', emailPlaceholder: 'Business email', phonePlaceholder: 'Phone or WhatsApp', dateLabel: 'Target delivery date', messagePlaceholder: 'Specification, destination, voltage, head/flow or other requirements', sendingLabel: 'Sending...', submitLabel: 'Send inquiry', paymentReservation: 'Payment: interface reserved; no charge is made on this page.', agentTitle: 'Lundu sales Agent', agentIntro: 'Ask about product selection, applications, lead time or quotation preparation.', thinkingLabel: 'Checking the published product information...', agentPlaceholder: 'Describe your product or project requirements', sendLabel: 'Send', openListLabel: 'Open inquiry list', statusLabel: 'Order status', inquiryStatus: 'Waiting for inquiry', quoteStatus: 'Waiting for sales quote', orderStatus: 'Waiting for order confirmation', paymentStatus: 'Payment interface reserved', statusInquiryDescription: 'Submit products and contact details to start a sales review.', statusQuoteDescription: 'The sales team will confirm specification, price, inventory and lead time.', statusOrderDescription: 'Review the confirmed commercial terms before creating an order.', statusPaymentDescription: 'Payment provider integration is reserved; no funds are captured here.', confirmQuoteLabel: 'Review quote', confirmOrderLabel: 'Confirm order', paymentButtonLabel: 'Open payment placeholder'
+} : {
+  kicker: '采购协同', title: '从选型到询价', intro: '选择产品、提交询单，由销售人员确认规格、价格、交期和支付条款。', listLabel: '询价单', detailLabel: '产品详情', addLabel: '加入询价单', agentLabel: '询问销售 Agent', flowLabel: '采购流程', stepInquiry: '询价', stepQuote: '报价', stepOrder: '订单', stepPayment: '支付', closeLabel: '关闭', listTitle: '我的询价单', listIntro: '添加产品和数量，一次提交采购需求。', quantityLabel: '数量', removeLabel: '移除', emptyList: '暂未选择产品。', contactTitle: '联系方式与需求', contactIntro: '销售人员会先确认报价，确认后再进入订单和支付。', companyPlaceholder: '公司名称', namePlaceholder: '联系人', emailPlaceholder: '商务邮箱', phonePlaceholder: '电话或 WhatsApp', dateLabel: '目标交付日期', messagePlaceholder: '规格、目的地、电压、流量/扬程或其他要求', sendingLabel: '提交中...', submitLabel: '提交询价', paymentReservation: '支付：已预留接口，本页面不会产生扣款。', agentTitle: '伦度销售 Agent', agentIntro: '可询问产品选型、应用场景、交期或报价准备。', thinkingLabel: '正在核对已发布的产品资料……', agentPlaceholder: '描述产品或项目需求', sendLabel: '发送', openListLabel: '打开询价单', statusLabel: '采购状态', inquiryStatus: '待提交询价', quoteStatus: '待销售报价', orderStatus: '待确认订单', paymentStatus: '支付接口已预留', statusInquiryDescription: '提交产品、数量和联系方式，开始销售审核。', statusQuoteDescription: '销售人员会确认规格、价格、库存和交期。', statusOrderDescription: '核对确认后的商务条款，再创建订单。', statusPaymentDescription: '支付渠道适配器已预留，本页面不会产生扣款。', confirmQuoteLabel: '确认报价', confirmOrderLabel: '确认订单', paymentButtonLabel: '打开支付占位'
+})
+const quoteCount = computed(() => quoteItems.value.reduce((sum, item) => sum + Number(item.quantity || 0), 0))
+const commerceStatusUi = computed(() => isEnglish.value ? {
+  paymentTitle: 'Payment interface reserved', paymentDescription: 'The payment provider adapter is ready for a future integration. No payment credentials are collected and no charge is made here.', paymentReserved: 'Awaiting confirmed order and payment provider configuration', paymentMethods: 'Reserved adapter: payment intent, redirect or invoice collection', backToInquiry: 'Back to inquiry list'
+} : {
+  paymentTitle: '支付接口预留', paymentDescription: '支付适配器已预留，等待订单确认和支付渠道配置。本页面不会收集密钥，也不会产生扣款。', paymentReserved: '等待已确认订单与支付渠道配置', paymentMethods: '预留适配器：支付意图、跳转支付或发票收款', backToInquiry: '返回询价单'
+})
+const commerceStageLabel = computed(() => {
+  const ui = commerceUi.value
+  return commerceStage.value === 'quote' ? ui.quoteStatus : commerceStage.value === 'order' ? ui.orderStatus : commerceStage.value === 'payment' ? ui.paymentStatus : ui.inquiryStatus
+})
+const commerceStageDescription = computed(() => {
+  const ui = commerceUi.value
+  return commerceStage.value === 'quote' ? ui.statusQuoteDescription : commerceStage.value === 'order' ? ui.statusOrderDescription : commerceStage.value === 'payment' ? ui.statusPaymentDescription : ui.statusInquiryDescription
+})
 const publicMetricsTitle = computed(() => branding.value.metricsSectionTitle || (
   activeLocale.value.toLowerCase().startsWith('en') ? 'Focused motor and pump manufacturing' : '专注电机与水泵制造'
 ))
@@ -774,6 +919,140 @@ const scrollToSection = (anchor) => {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
+const openProductDetail = (product) => {
+  productDetail.value = product || null
+}
+
+const normalizeQuoteQuantity = (item) => {
+  item.quantity = Math.min(99999, Math.max(1, Number.parseInt(item.quantity, 10) || 1))
+}
+
+const addToQuote = (product) => {
+  if (!product?.code) return
+  const existing = quoteItems.value.find((item) => item.code === product.code)
+  if (existing) {
+    existing.quantity = Math.min(99999, Number(existing.quantity || 1) + 1)
+  } else {
+    quoteItems.value.push({ ...product, quantity: 1 })
+  }
+  quoteVisible.value = true
+}
+
+const removeFromQuote = (code) => {
+  quoteItems.value = quoteItems.value.filter((item) => item.code !== code)
+}
+
+const openQuoteList = () => {
+  quoteVisible.value = true
+  agentVisible.value = false
+  productDetail.value = null
+}
+
+const advanceCommerceStage = (stage) => {
+  commerceStage.value = stage
+  if (stage !== 'payment') paymentReserved.value = false
+}
+
+const reservePayment = () => {
+  paymentReserved.value = true
+  paymentVisible.value = true
+}
+
+const openSalesAgent = async () => {
+  agentVisible.value = true
+  quoteVisible.value = false
+  productDetail.value = null
+  if (!agentMessages.value.length) {
+    agentMessages.value.push({ role: 'assistant', content: commerceUi.value.agentIntro })
+  }
+  try {
+    await ensureSalesSession()
+  } catch (error) {
+    agentMessages.value.push({ role: 'assistant', content: error.message || commerceUi.value.thinkingLabel })
+  }
+}
+
+const ensureSalesSession = async () => {
+  if (salesSessionId.value) return salesSessionId.value
+  const stored = window.localStorage?.getItem('lundu-sales-session') || ''
+  if (stored) salesSessionId.value = stored
+  if (salesSessionId.value) return salesSessionId.value
+  const response = await fetch('/agent/sales/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ channel: 'website', locale: activeLocale.value, consent: true })
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || !data.session?.id) throw new Error(data.message || '销售 Agent 暂时不可用')
+  salesSessionId.value = data.session.id
+  window.localStorage?.setItem('lundu-sales-session', salesSessionId.value)
+  return salesSessionId.value
+}
+
+const sendSalesMessage = async () => {
+  const message = agentDraft.value.trim()
+  if (!message || salesBusy.value) return
+  agentDraft.value = ''
+  agentMessages.value.push({ role: 'user', content: message })
+  salesBusy.value = true
+  try {
+    const sessionId = await ensureSalesSession()
+    const response = await fetch(`/agent/sales/sessions/${encodeURIComponent(sessionId)}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ message })
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.message || '销售 Agent 暂时不可用')
+    agentMessages.value.push({ role: 'assistant', content: data.answer || commerceUi.value.thinkingLabel })
+  } catch (error) {
+    agentMessages.value.push({ role: 'assistant', content: error.message || '销售 Agent 暂时不可用' })
+  } finally {
+    salesBusy.value = false
+  }
+}
+
+const submitLead = async () => {
+  if (!quoteItems.value.length || salesBusy.value) return
+  if (!leadForm.companyName && !leadForm.contactName) {
+    ElMessage.warning(commerceUi.value.namePlaceholder)
+    return
+  }
+  if (!leadForm.email && !leadForm.phone) {
+    ElMessage.warning(commerceUi.value.emailPlaceholder)
+    return
+  }
+  salesBusy.value = true
+  try {
+    const sessionId = await ensureSalesSession()
+    const response = await fetch(`/agent/sales/sessions/${encodeURIComponent(sessionId)}/leads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        consent: true,
+        pagePath: window.location.pathname,
+        companyName: leadForm.companyName,
+        contactName: leadForm.contactName,
+        email: leadForm.email,
+        phone: leadForm.phone,
+        targetDate: leadForm.targetDate,
+        productSlugs: quoteItems.value.map((item) => item.code),
+        quantity: quoteItems.value.map((item) => `${item.name} × ${item.quantity}`).join('; '),
+        message: leadForm.message
+      })
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(data.message || '询价提交失败，请稍后重试')
+    ElMessage.success(isEnglish.value ? 'Inquiry sent. Sales will follow up.' : '询价已提交，销售人员会尽快联系。')
+    commerceStage.value = 'quote'
+    quoteVisible.value = true
+  } catch (error) {
+    ElMessage.error(error.message || '询价提交失败，请稍后重试')
+  } finally {
+    salesBusy.value = false
+  }
+}
+
 const focusLogin = async () => {
   loginVisible.value = true
   await nextTick()
@@ -802,6 +1081,12 @@ watch(activeLocale, () => {
   activeHeroIndex.value = 0
   startHeroAutoplay()
 })
+
+watch(quoteItems, (items) => {
+  try {
+    window.localStorage?.setItem('lundu-inquiry-list', JSON.stringify(items.map(({ quantity, code }) => ({ quantity, code }))))
+  } catch {}
+}, { deep: true })
 
 watch(carouselItems, () => {
   if (activeHeroIndex.value >= carouselItems.value.length) activeHeroIndex.value = 0
@@ -840,6 +1125,15 @@ const switchLocale = async (locale) => {
 }
 
 onMounted(async () => {
+  try {
+    const storedQuotes = JSON.parse(window.localStorage?.getItem('lundu-inquiry-list') || '[]')
+    if (Array.isArray(storedQuotes)) {
+      quoteItems.value = storedQuotes.map((item) => {
+        const product = publicProducts.value.find((entry) => entry.code === item?.code)
+        return product ? { ...product, quantity: Math.min(99999, Math.max(1, Number.parseInt(item.quantity, 10) || 1)) } : null
+      }).filter(Boolean)
+    }
+  } catch {}
   const requestedLocale = new URLSearchParams(window.location.search).get('lang') || ''
   await systemStore.loadConfig({ locale: requestedLocale })
   systemStore.initTheme()
