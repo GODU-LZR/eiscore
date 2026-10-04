@@ -1053,6 +1053,17 @@ const submitLead = async () => {
   }
 }
 
+const hydrateInquiryList = () => {
+  try {
+    const storedQuotes = JSON.parse(window.localStorage?.getItem('lundu-inquiry-list') || '[]')
+    if (!Array.isArray(storedQuotes)) return
+    quoteItems.value = storedQuotes.map((item) => {
+      const product = publicProducts.value.find((entry) => entry.code === item?.code)
+      return product ? { ...product, quantity: Math.min(99999, Math.max(1, Number.parseInt(item.quantity, 10) || 1)) } : null
+    }).filter(Boolean)
+  } catch {}
+}
+
 const focusLogin = async () => {
   loginVisible.value = true
   await nextTick()
@@ -1125,17 +1136,9 @@ const switchLocale = async (locale) => {
 }
 
 onMounted(async () => {
-  try {
-    const storedQuotes = JSON.parse(window.localStorage?.getItem('lundu-inquiry-list') || '[]')
-    if (Array.isArray(storedQuotes)) {
-      quoteItems.value = storedQuotes.map((item) => {
-        const product = publicProducts.value.find((entry) => entry.code === item?.code)
-        return product ? { ...product, quantity: Math.min(99999, Math.max(1, Number.parseInt(item.quantity, 10) || 1)) } : null
-      }).filter(Boolean)
-    }
-  } catch {}
   const requestedLocale = new URLSearchParams(window.location.search).get('lang') || ''
   await systemStore.loadConfig({ locale: requestedLocale })
+  hydrateInquiryList()
   systemStore.initTheme()
   startHeroAutoplay()
   refreshSeoHead()
