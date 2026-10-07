@@ -3489,3 +3489,12 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 回归复核通过：`node tests/engineering/runtime-image-contract.mjs`、`node tests/engineering/production-config-regression.mjs`、`npm run test:harness-bridge`（含 loopback `ok=true`、`proxyCalls=1`、`modelRequests=2`）和 `git diff --check`。
 - `npm run db:release:check` 仍 fail-closed，真实报告 21 项 DB6 provenance drift；冻结 `database/releases/eiscore-db-v6/manifest.json` 未修改，未执行正式 release/recovery，未触碰业务数据库卷。当前运行中的 Compose Bridge 仍为旧镜像，clean-build 标签未发布。
 - 没有连接远端/生产、没有重启 Compose。全局目标保持 `active`，剩余硬门槛是正式 DB6 manifest provenance/审批，以及主工作树七项既有未提交修改的归属；Bridge 当前 HEAD clean-build 与真实 Provider completion 已闭合。
+
+## 全局目标继续推进记录（2026-10-07，工作树分类与临时制品归档）
+
+- 重新核对当前分支 `codex/systematic-refactor`，HEAD 仍为 `0808ba26`，工作树没有新增未跟踪文件，只保留七项既有修改：DB2–DB6 release manifest、伦度客户服务交接文档和登录样式。没有执行 reset、checkout、覆盖或 stage 这些文件。
+- DB6 v2–v6 manifest 的修改内容是 `runtime-v2-003` 与 `core-002` checksum 从旧值更新到当前源文件值；这些修改仍属于用户/协作者未提交工作，不代表正式冻结 v6 已获批准。`npm run db:release:check` 复核仍 fail-closed，报告 21 项真实 provenance drift，未执行正式 release/recovery，未触碰业务数据库卷。
+- `.codex-tmp` 中保留的验收证据包括三份 DB6 candidate manifest、DB6 drift/catalog/OpenAPI/基线证据、伦度验收报告和本地回归脚本；这些目录均由 `.gitignore` 忽略，不会误提交。candidate manifest 只作为隔离验收证据，不等于正式 `database/releases/eiscore-db-v6/manifest.json` release approval。
+- 约 468 MB 的历史 Harness/plugin `node_modules`、重建副本和大 tar 包已从仓库临时目录移动到可恢复归档：`C:/Users/Twist/Documents/eiscore/worktree-archive-20261007-144856/codex-tmp-history-20261007/`。已确认没有运行进程或当前测试依赖这些副本。没有删除 DB6/伦度验收证据。
+- `current-harness-loopback-20261007`、`.codex-tmp/deploy` 等已确认为空目录或空重解析点，已安全清理；主工作树仍无新增未跟踪文件。清理后 `.codex-tmp` 只保留小型证据/脚本和 DB6/伦度验收材料。
+- 本轮没有连接远端/生产、没有重启 Compose、没有替换运行中的 Bridge。Bridge 当前 HEAD clean-build 与真实 Provider completion 已闭合；正式发布仍受 DB6 manifest provenance/审批和七项未提交修改归属约束，全局目标保持 `active`。
