@@ -59,7 +59,7 @@ const BRIDGE_ERROR_CODES = new Set([
   'HARNESS_REQUEST_INVALID', 'HARNESS_REQUEST_REPLAY', 'HARNESS_OWNER_REQUIRED',
   'HARNESS_PLUGIN_REQUIRED', 'HARNESS_PLUGIN_UNAVAILABLE', 'HARNESS_SESSION_OWNERSHIP_DENIED',
   'HARNESS_SESSION_CAPACITY_EXCEEDED', 'HARNESS_REQUEST_CAPACITY_EXCEEDED', 'HARNESS_BODY_TOO_LARGE', 'HARNESS_BAD_REQUEST',
-  'HARNESS_UPSTREAM_UNAVAILABLE', 'HARNESS_TOOL_UNAVAILABLE'
+  'HARNESS_UPSTREAM_UNAVAILABLE', 'HARNESS_RUNTIME_EMPTY_COMPLETION', 'HARNESS_TOOL_UNAVAILABLE'
 ]);
 const TOOL_PROXY_SESSION_RE = /^[a-zA-Z0-9._:-]{1,256}$/;
 const TOOL_PROXY_FORBIDDEN_KEYS = new Set([
@@ -111,6 +111,7 @@ const normalizeHarnessToolProxyFailure = (result = {}) => {
   else if (code === 'HARNESS_CAPACITY_EXCEEDED' || code === 'HARNESS_REQUEST_CAPACITY_EXCEEDED') message = 'Harness request capacity is full';
   else if (code === 'HARNESS_AUDIT_UNAVAILABLE') message = 'Harness audit is unavailable';
   else if (code === 'HARNESS_UPSTREAM_TIMEOUT') message = 'DeepSeek Harness request timed out';
+  else if (code === 'HARNESS_RUNTIME_EMPTY_COMPLETION') message = 'DeepSeek Harness provider returned an empty completion';
   else if (code === 'HARNESS_UPSTREAM_UNAVAILABLE') message = 'DeepSeek Harness is unavailable';
   else if (code === 'HARNESS_INPUT_SCHEMA_INVALID') message = 'Harness capability payload does not match its contract';
   else if (code === 'HARNESS_OUTPUT_SCHEMA_INVALID') message = 'Harness capability returned an invalid result';

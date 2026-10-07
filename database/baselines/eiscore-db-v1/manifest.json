@@ -59,7 +59,7 @@
     },
     {
       "id": "runtime-v2-003",
-      "sha256": "3a14a43c71d2b94035e6793ceef3a44503624d493c3917b75e487c5741c55a93",
+      "sha256": "05df97b622b2e94637821af60750817dd86b8c375a703860f039f1fba28bfcfc",
       "sourceManifest": "database/migrations/runtime-v2.json"
     },
     {
@@ -143,11 +143,11 @@
     "privilegeStatements": 369,
     "registrationRows": 13
   },
-  "fingerprintSha256": "bdf72f613055c419aff40e58776d2725fcc460cf44c5b17d7a28a7379b93e72e",
+  "fingerprintSha256": "eaa3456dbe92d99a7a89bef4dc829dae873086e1f83fc64241051772ee827d5f",
   "registration": {
     "path": "database/baselines/eiscore-db-v1/register.sql",
-    "sha256": "9404916fcac56cd07c06d2789fe7fc433678c9f7183bc6fae51c45926a932de9",
-    "portableSha256": "9404916fcac56cd07c06d2789fe7fc433678c9f7183bc6fae51c45926a932de9",
+    "sha256": "d53023fde0a01b3837de2818202663adb1ffd8116c58438b0e63f90792ed8395",
+    "portableSha256": "d53023fde0a01b3837de2818202663adb1ffd8116c58438b0e63f90792ed8395",
     "rows": 13
   }
 }

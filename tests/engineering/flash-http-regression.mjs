@@ -175,7 +175,8 @@ assert.deepEqual(responses, [{
 assert.ok(Object.isFrozen(handlers))
 assert.match(indexSource, /createFlashHttpHandlers\(\{/)
 assert.match(indexSource, /\.\.\.flashHttpHandlers/)
-assert.match(indexSource, /const handleFlashToolCallWs/)
+assert.match(indexSource, /let handleFlashToolCallWs/)
+assert.match(indexSource, /handleFlashToolCallWs = createHarnessFlashToolCallHandler\(\{/)
 assert.doesNotMatch(indexSource, /const handleFlash(?:ToolsRegistryGet|ToolCallHttp|DraftGet|DraftWrite|AttachmentUpload)/)
 
 console.log('PASS: Flash HTTP handlers preserve authorization, body limits, app ids, tool results and error mapping')

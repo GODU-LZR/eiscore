@@ -36,7 +36,7 @@
     {
       "id": "runtime-v2-003",
       "path": "sql/patch_ontology_semantic_coverage_v2.sql",
-      "sha256": "3a14a43c71d2b94035e6793ceef3a44503624d493c3917b75e487c5741c55a93",
+      "sha256": "05df97b622b2e94637821af60750817dd86b8c375a703860f039f1fba28bfcfc",
       "transaction": "file",
       "lockTimeoutMs": 10000,
       "statementTimeoutMs": 300000,

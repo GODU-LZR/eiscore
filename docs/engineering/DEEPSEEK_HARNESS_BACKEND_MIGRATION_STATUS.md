@@ -1,5 +1,13 @@
 # DeepSeek Harness 后端迁移状态
 
+## 最新目标进度（2026-10-07）
+
+- 本记录 supersede 文末 2026-10-06 的一次性测试 Key 复核结论。基于 `codex/systematic-refactor` HEAD `561f3d83c760c7c0511a460b567af4eeced95359`，真实 DSH SDK/Bridge non-stream 与 stream completion 已返回非空结果（`FINAL_OK` / `STREAM_OK`）；测试 key 仅注入一次性进程环境，未落盘。
+- 当前工作树 Bridge clean-build 已在 WSL Ubuntu Docker 构建出隔离镜像 `eiscore-harness-bridge-clean:20261006-current`，digest `sha256:aba26b61517487492ae85aefa7caab7463bceff57232875fc17567a9c5c3d30a`。基础镜像 digest 为 `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08ff5a5277dd3e`；镜像标记当前 revision 与构建上下文。镜像内 DSH 为 `0.1.2-rc.1`，`eiscore-tools.mjs` SHA-256 `22d6cec85d0605c562270e9fdffdc82ee42d24b437733b92a905256fbd7bbb47`，`dsh-http-bridge.mjs` SHA-256 `98f5538342cd4e3ebd20a4b3d604813ff9e3bccdb24d3b37fc2b41090373ccc1`，受限 profile 文件存在。此前 Dockerfile 缺少工具/profile COPY 已补齐。
+- 该新镜像的一次性隔离容器内 `/healthz` 为 HTTP 200；无 Provider 凭据时 `/readyz` 为 HTTP 503 `HARNESS_NOT_READY`，符合 fail-closed。一次性容器和独立网络已移除；稳定 Compose、数据库卷、远端均未触碰。
+- DB6 仍未闭合：`npm run db:release:check`、WSL 下 `npm run test:database-release:docker` 和 `npm run test:database-recovery:docker` 均以正式 provenance drift fail-closed；漂移涵盖 baseline/register、contract、migration/core terminal/list、ontology source、catalog/PostgREST checksum。`npm run test:database-release-drift` 通过只读报告回归。冻结 v6 manifest 未修改，未执行真实 release/recovery，未访问既有业务卷。
+- 阶段结论：DSH 真实 completion 与当前工作树 Bridge clean-build provenance 已闭合；DB6 release/recovery provenance drift 是当前唯一未闭合硬门槛，全局目标保持 `active`，不得宣称数据库发布或整体上线就绪。
+
 ## 只读现状基线（2026-10-03，来源与单一事实边界）
 
 ### 事实来源判定
@@ -54,6 +62,24 @@
 ### 阶段状态
 
 当前仍为 active，不能宣布整体完成或上线就绪。完成最终目标还需要补齐同源 Web client-plugin 制品、可用 Docker/Compose 验收环境、DB v6 release provenance、真实 Provider/双租户 RLS/Smart BI 证据以及伦度远端验收。
+
+## 全局目标继续推进记录（2026-10-04，Docker 容器验收完成与 Harness 制品交付就绪）
+
+- 确认 Docker Desktop 29.1.3 正常运行（先前 daemon 不可用为检测误判）；当前系统已运行多个 eiscore 容器实例。
+- 执行 `docker build -f agent-harness/Dockerfile -t eiscore-harness:delivery-candidate-2026-10-04 .` 成功完成 clean build；镜像大小 681MB（压缩后 155MB），使用缓存层加速构建。
+- 容器运行时验证：Node.js v20.20.0、DSH SDK 0.1.2-rc.1、所有 Harness 制品文件（dsh-http-bridge.mjs、http-bridge.js、plugin-registry.js）均正确复制到容器 `/opt/eiscore-harness/`。
+- Compose 配置验证：`docker compose -f deploy/lundu/compose.yml config` 语法通过，仅要求运行时环境变量（POSTGREST_DB_PASSWORD 等），符合预期。
+- `.codex-tmp/harness-delivery-candidate/` 现为完整可验证的 LUNDU_HARNESS_ROOT：包含 eiscore-tools.mjs、eiscore-restricted.cordis.yml、三组 client-plugin 编译制品（eiscore-auth、digital-twin、enterprise-bi）、Bridge/Gateway 文件和完整 package.json。
+- 本轮未启动持久 Compose、未连接远端/生产、未执行真实迁移、未写入业务数据库卷、未修改前端视觉、未发布、未提交或推送；DB v6 release provenance drift、真实 Provider/双租户 RLS/Smart BI 远端验收仍未完成，全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-04，DSH SDK loopback smoke 超时修复与同源 client-plugin 制品补齐）
+
+- 发现 `scripts/dsh-sdk-tool-loopback-smoke.mjs` 的 15 秒固定超时导致 SDK 冷启动时 `HARNESS_RUNTIME_RPC_TIMEOUT`；首次冷启动需要完成 DSH profile 初始化，时间超过固定窗口。
+- 将该 smoke 的 `timeoutMs` 从 15000 提升至 60000；修复后单独运行 `node scripts/dsh-sdk-tool-loopback-smoke.mjs` 成功完成本地闭环，观测到 `proxyCalls=1`、`modelRequests=2`、退出码 0。
+- 完整 `npm run test:harness` 全套通过（退出码 0）：插件、审计、写确认/权限/幂等、Gateway/Tool Gateway、Runtime HTTP/边界、数字分身持久化、文档提交、销售写入、查询工具、输出策略、Bridge、迁移切换、生产路径全部 PASS。
+- 补齐同源 Web client-plugin 制品：从 `C:/Users/Twist/Documents/eiscore/agent-harness/client-plugins/` 复制 `eiscore-auth/lib/index.js`、`digital-twin/lib/index.js`、`enterprise-bi/lib/index.js` 和对应 `package.json` 到 `.codex-tmp/harness-delivery-candidate/client-plugins/`。
+- `node scripts/validate-lundu-harness-artifacts.mjs --harness-root "$(pwd)/.codex-tmp/harness-delivery-candidate"` 通过：报告 `[ok] Lundu Harness artifacts are ready (eiscore-auth, digital-twin, enterprise-bi)`，仅保留一个模块类型性能警告，不影响验证通过。
+- 新鲜通过：`npm run test:production-config`（生产配置、LUNDU 制品预检、DSH Web runner）和 `node tests/engineering/harness-production-path-regression.mjs`。
 
 ## 全局目标继续推进记录（2026-10-03，WebSocket Harness disabled 旁路关闭）
 
@@ -3266,3 +3292,139 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 继续通过本地 Harness 测试：`test:harness-twin-chat`（数字分身 RLS 会话、Tool Gateway capability、Harness 会话标记）全部通过。
 - 当前 Docker/Compose 可验证性阻塞更新为：Docker daemon 可用，但网络连接问题阻止镜像构建；clean Docker build 和容器运行态验证需要网络畅通或移除 Dockerfile `@sha256` 固定哈希（后者会降低供应链安全性，不推荐）。
 - 本轮未连接远端/生产、未启动持久 Compose、未执行真实数据库迁移、未写入业务数据库卷、未使用真实 Provider；同源制品正式 provenance、DB v6 release provenance、真实 Provider/双租户 RLS/Smart BI 远端验收仍未完成，全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-04，Docker daemon 再次复核）
+
+- 按交接要求继续轮询 Docker Desktop 启动检查；轮询最终返回 `DOCKER_SERVER_UNAVAILABLE`。`docker --context desktop-linux version` 仅返回 Client `29.1.3`，连接 `npipe:////./pipe/dockerDesktopLinuxEngine` 失败，提示目标 named pipe 不存在。
+- Windows 服务复核结果为 `com.docker.service`=`Stopped`、`StartType`=`Manual`。因此本轮无法安全执行 `agent-harness/Dockerfile` clean build、容器内制品加载或 Compose 运行态验证；未启动持久 Compose，也未修改 Dockerfile 以绕过固定 digest 的供应链门禁。
+- 本轮继续未连接远端/生产、未执行真实数据库迁移、未写入业务数据库卷、未使用真实 Provider。正式同源 Web provenance、DB v6 release provenance、真实 Provider、双租户 RLS/Smart BI 等价和伦度远端验收仍未完成；全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-04，本地全量栈启动与运行态验收）
+
+- 继续接手交接任务后，确认当前有效仓库为 `C:/Users/Twist/Documents/eiscore/github-eiscore-refactor`，分支 `codex/systematic-refactor`，HEAD `5054c4dcf8`。交接文本包含乱码、占位凭据和旧路径；未把其中的密码、远端配置或生产信息当作可信输入。
+- Windows Docker Desktop 的 `desktop-linux` daemon 仍不可用，但 WSL Ubuntu Docker daemon 为 Docker `29.1.3` 且可用。为完成本地全量启动，使用 WSL daemon、Compose 项目名 `eiscore-codex-local` 启动根目录 `docker-compose.yml`；未连接远端，也未使用伦度远端 `deploy/lundu/compose.yml`。
+- 首次直接从 Windows 挂载目录构建因上下文扫描阻塞（625 秒仅传输 33B）而中止，未生成半成品镜像。随后将当前分支 `realtime/` 与 `agent-harness/`（排除 `node_modules`、dist、Git 和临时目录）复制到 WSL `/tmp/eiscore-codex-build`，上下文约 1.6 MB；当前分支 Runtime 镜像构建成功，digest 为 `sha256:f1c7939feab4fa9b0cf7134f38bbe438018b0d150b57f2684cbd6379a9bedba0`。
+- 当前分支 Bridge 镜像在 WSL 中执行 `npm ci` 时因 npm registry 网络读取超时（`ETIMEDOUT`）未完成新构建。为保证启动可用性，Bridge 使用此前已通过 Harness 契约验证的本地镜像 `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，同时以当前工作树的 `agent-harness` 入口、插件注册表和契约文件只读挂载；该替代方式不等价于当前分支的正式 Bridge provenance，需在网络稳定后重新 clean build。
+- 根 Compose 全量服务已启动且未覆盖其他 Compose 项目：`eiscore-db`、`eiscore-api`、`eiscore-agent-runtime`、`eiscore-harness-bridge`、`eiscore-nginx`、`eiscore-swagger`、`eiscore-ide` 均为 `Up`；`agent-runtime` 与 `harness-bridge` 均为 `healthy`。宿主端口为 `80`、`3000`、`5432`、`8078`、`8079`、`8443`。
+- 本地入口验收（绕过宿主 `http_proxy` 后）真实通过：`http://127.0.0.1/` 返回 `200`（6258 bytes），`/login` 返回 `200`，PostgREST `http://127.0.0.1:3000/` 返回 `200`（OpenAPI 201237 bytes），Runtime `/health` 返回 `200`；容器内 Bridge `/healthz` 与 `/readyz` 均返回 `200`，其中 `/readyz` 的 runtime/plugins/sessions 检查均为 true。
+- 本次启动使用全新且隔离的 Compose 卷 `eiscore-codex-local_pgdata`，未复用或修改既有业务卷。按交接要求，仅在该新卷导入仓库已有 `eiscore-hr/sql/hr_auth_seed.sql`，并创建本地开发管理员 `admin/123456`；数据库当前包含 `admin`、`hr_admin`、`hr_clerk`、`dept_manager`、`employee` 五个开发账号。PostgREST `/rpc/login` 对 `admin/123456` 真实返回 `super_admin` JWT。
+- 当前全量栈可供本机访问：`http://localhost/`。本轮没有使用真实 DeepSeek API key、没有执行真实 Provider 验证、没有连接远端/生产、没有执行迁移，也没有向既有客户数据库写入数据。正式同源 Web/Bridge provenance、真实 Provider、DB v6 release provenance、双租户 RLS/Smart BI 线上等价和远端伦度验收仍未完成，全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-04，本地全量栈串行端到端复验）
+
+- 入口边界已确认：本地 Docker Nginx 暴露在 `http://localhost`（宿主 80 端口），不是测试默认的 `http://localhost:8080`。Windows 的 8080 由非 EISCore 的 `svchost` 监听并被本机代理接管，访问会产生 connection reset/代理 502；这不是 Compose 服务故障。后续本地业务链和 Playwright 均显式使用 `http://localhost`，不修改用户系统端口进程。
+- 真实浏览器复验（串行、Playwright Chromium）：`npx playwright test tests/e2e/ui-clicks.spec.mjs --workers=1` 通过 4/4，覆盖登录点击、主壳头部、侧边栏、用户菜单、HR/物料应用卡片、应用中心入口；`npx playwright test tests/e2e/ui-business-chain.spec.mjs --workers=1` 通过 1/1，覆盖 App Center、Workflow、HR、Warehouse 的真实 UI 业务链。
+- 本地业务/API 链串行复验：`EISCORE_CHAIN_BASE_URL=http://localhost npm run test:business-chain` 通过 32/32，`cleanupErrors=[]`；登录、应用中心、Ontology projections/reasoning/graph、动态数据表、库存自动入账、Workflow 严格迁移与审计、HR/SCM 增删改查全部通过。数据库中链路临时表、临时 App/Workflow/HR 记录清理后计数均为 0。
+- HTTP smoke 与实时通道：`EISCORE_BASE_URL=http://localhost EISCORE_SMOKE_SKIP_AI=1 npm run test:smoke` 通过 20/20，包含登录、公共/受保护资源、Runtime health、主机反代和真实 WebSocket open/subscribe/close；未跳过 AI 的 smoke 稳定通过 21/23，唯一两项失败为预期的 `502 HARNESS_UPSTREAM_UNAVAILABLE`，原因是本地 `env/.env` 未提供真实 DeepSeek Provider 凭据，未返回空 200 或伪造文本。
+- 工程和安全门禁复验：`npm run test:harness`、`npm run test:harness-bridge`、`npm run test:runtime-router`、Runtime V2 postcheck、四项数据库 baseline/RLS/role/governance 回归、`npm run test:syntax`（304 文件）、`npm run lint:changed`（12 文件）、`npm run test:unit` 均通过。WSL Compose 服务持续 Up；`eiscore-agent-runtime` 与 `eiscore-harness-bridge` healthy。
+- 本轮没有连接远端/生产，没有使用远端数据库卷，没有修改既有业务数据；继续使用隔离卷 `eiscore-codex-local_pgdata`。目标仍保持 `active`：真实 DeepSeek Provider 内容/工具调用验收和当前工作树 Bridge clean-build provenance 需要外部凭据/网络条件，不能用 mock 或固定文本替代。
+
+## 全局目标继续推进记录（2026-10-05，本地全量栈与 67 点端到端复验）
+
+- 修复本地临时 Compose 覆盖 `.codex-tmp/local-harness-web.compose.yml` 的同源认证配置：`DSH_TRUSTED_HOST=localhost`、`EISCORE_AUTH_URL=http://localhost`。此前配置带 `:18080`，导致浏览器入口 `http://localhost` 与认证回调 origin 不一致，FP03 企业 AI 页面显示“DeepSeek Harness 认证失败”。仅重建本地 `deepseek-web` 与 `nginx`，未修改 `deploy/lundu` 或远端配置。
+- 修复后单独复验 `FP03`：Playwright Chromium 1/1 通过；随后完整 `tests/e2e/function-points-67.spec.mjs --workers=1` 通过 **67/67**（约 6.1 分钟），覆盖基座门户、数字分身/企业 AI、人事、仓储、销售、采购、生产、质量、设备、应用中心、决策支持和移动端入口。
+- 本地 Compose 项目 `eiscore-codex-local` 当前 8 个服务均为 `Up`：`eiscore-db`、`eiscore-api`、`eiscore-agent-runtime`、`eiscore-harness-bridge`、`eiscore-codex-local-deepseek-web-1`、`eiscore-nginx`、`eiscore-swagger`、`eiscore-ide`；`agent-runtime`、`harness-bridge` healthy。继续使用隔离卷 `eiscore-codex-local_pgdata`，未复用客户/既有业务卷。
+- 通过 WSL Docker daemon 绕过 Windows 宿主代理完成入口探测：`http://127.0.0.1/` 返回 200（6258 bytes），`/harness-embed/` 返回 303，Runtime `/health` 返回 200，PostgREST `/` 返回 200（201237 bytes）；Bridge `/healthz` 与 `/readyz` 返回 200，`runtime/plugins/sessions` 检查均为 true。Windows PowerShell 直连出现代理错误，不作为容器故障证据。
+- 本轮未使用用户提供的 DeepSeek API Key，未进行真实外部 Provider 调用；未连接远端/生产，未执行真实数据库迁移，未写入既有业务数据。`npm run test:smoke` 的 AI 两项仍因上游余额/可用性受控失败；DB6 release provenance 仍因冻结 manifest 与当前工作树指纹漂移未闭合。全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-05，业务/Harness/数据库复验）
+
+- 在当前本地 Compose 栈上重新执行 `EISCORE_CHAIN_BASE_URL=http://localhost npm run test:business-chain`：**32/32** 通过，`cleanupErrors=[]`；临时业务对象、工作流记录、库存自动入账记录均按测试策略清理。
+- 重新执行 `EISCORE_BASE_URL=http://localhost EISCORE_SMOKE_SKIP_AI=1 npm run test:smoke`：**20/20** 通过，包含登录、深链、权限资源、Runtime health、宿主反代及真实 WebSocket open/subscribe/close。
+- 重新执行完整 `npm run test:harness`：退出码 0；Plugin Registry、写确认/权限/幂等/审计、Gateway/Tool Gateway、数字分身 RLS 会话与消息、文档/销售写入、查询/读取、输出策略、Bridge、DSH SDK loopback 和 migration switch 全部通过。
+- 使用实际运行本地栈的 WSL Ubuntu Docker daemon 执行 `npm run test:database:docker`：DB1 fresh/upgrade baseline、DB2 角色/RLS、company-site BFF、DB3 catalog/PostgREST 全部通过；DB6 release 阶段按正式门禁失败，报告 16 项当前工作树与冻结 `eiscore-db-v6` 制品/provenance drift（baseline/register/contract/legacy resolution/core/runtime manifests、core-002 source anchor、ontology patch、baseline/catalog/PostgREST checksums 等）。Windows 侧直接运行同命令另因默认 Docker Desktop named pipe 不存在而无法启动测试；该上下文差异不改变 WSL 结果。
+- 未改写正式 DB v6 manifest、未伪造 checksum、未执行真实迁移或写入业务卷。完整目标继续保持 `active`；剩余限制为 DB6 正式 provenance 审核/发布、真实 DeepSeek Provider（本轮未使用 API Key）及其上游余额/配额、以及其他需要外部授权的验收。
+
+## 全局目标继续推进记录（2026-10-05，当前分支 Bridge clean-build 复核）
+
+- 使用 WSL Ubuntu Docker daemon、当前分支 `agent-harness/Dockerfile` 和独立临时标签 `eiscore-harness-bridge-clean-20261005` 尝试 clean build；本地 `node:20-alpine` 基础镜像命中缓存，构建在 `npm ci --omit=dev` 阶段因 npm registry 网络读取 `ETIMEDOUT` 退出（code 146）。未替换正在运行的 `eiscore-harness-bridge` 镜像，未修改 Compose 卷或部署环境。
+- 当前运行态继续保留此前已验证的 Bridge 镜像和当前工作树入口只读挂载；该 clean-build 网络失败不影响已通过的 Harness、67 点浏览器和业务链结果，但正式 Bridge provenance 仍未闭合。
+
+## 全局目标继续推进记录（2026-10-05，DB6 漂移最终只读审计）
+
+- `node scripts/report-database-release-drift.mjs` 当前报告：冻结 manifest SHA `4d5b2c1dbfd3d436262771ad76a0b385447325edd3f906e55ff0a6c3adea324f`，候选 SHA `efaba1288bc85ae1f4e1083a8c03d5ec2360bd23864fb382b79e1667dfab47fc`；当前工作树 source revision `561f3d83c760c7c0511a460b567af4eeced95359`，冻结 release source revision `b9a3831d08aeb7056ee8a5997ca8b57ae270ca08`。
+- 漂移覆盖 baseline fingerprint、runtime/core migration manifest 与 checksum、core terminal（候选 `core-009`，冻结 `core-007`）、core postcheck、database catalog、PostgREST contract 以及相关 artifact checksum。正式 release validator 继续 fail-closed；候选 SHA 只能在相关数据库制品提交后由正式发布流程审核，不能在当前工作树中伪造通过。
+- 近 10 分钟 `agent-runtime`、`harness-bridge`、`nginx` 日志未发现 `ERROR`/`panic`/`fatal`；Compose 8 服务仍运行，入口与 Bridge health/ready probes 继续通过。全局目标保持 `active`。
+## 全局目标继续推进记录（2026-10-06，本地回归矩阵与 FP03 竞态修复）
+
+- 使用 WSL Ubuntu Docker daemon 只读复核本地 Compose 项目 eiscore-codex-local：8 个服务均为 running，agent-runtime 与 harness-bridge 为 healthy；继续使用隔离卷 eiscore-codex-local_pgdata。Windows 默认 Docker Desktop 上下文为空，不作为 WSL 栈故障证据。
+- 本地 API/业务链：EISCORE_CHAIN_BASE_URL=http://localhost npm run test:business-chain 通过 32/32，cleanupErrors=[]；临时 App、Workflow、HR、库存自动入账测试对象按脚本清理。
+- 本地 smoke（跳过真实 Provider 与 WebSocket）：EISCORE_BASE_URL=http://localhost EISCORE_SMOKE_SKIP_AI=1 EISCORE_SMOKE_SKIP_WS=1 npm run test:smoke 通过 20/20，覆盖登录、深链、权限资源、Runtime health 与宿主反代。
+- Runtime/业务单元回归：npm run test:runtime-router 通过全部子测试；npm run test:unit 通过（company-site Node tests 30/30 及其余 unit/collector/document 回归）。
+- Harness 回归：插件、写确认/权限/幂等/审计、Gateway、Tool Gateway、数字分身 RLS、文档/销售写入、查询读取、输出策略及 Bridge 协议均通过；scripts/dsh-sdk-tool-loopback-smoke.mjs 在无 Provider 凭据时按预期返回 HARNESS_RUNTIME_PROVIDER_ERROR/MISSING_CREDENTIAL，因此完整 npm run test:harness 本轮不能记为全绿，未使用或写入任何真实 API key。
+- 真实浏览器矩阵（入口 http://localhost，Chromium，串行）：tests/e2e/function-points-67.spec.mjs 67/67 通过；tests/e2e/ui-clicks.spec.mjs 4/4 通过；tests/e2e/ui-business-chain.spec.mjs 1/1 通过。FP03 失败根因是 Harness iframe 在导航提交前被 page.frames() 瞬时枚举漏掉；验收测试已改用 iframe locator 的 contentFrame() 等待目标 frame，保留原生“稍后配置”无密钥路径后重测通过。该改动仅触及测试文件，不改变产品行为。
+- 本轮未连接远端/生产、未改写正式数据库 release manifest、未写入既有业务卷。剩余限制仍为真实 DeepSeek Provider/上游配额、Bridge clean-build provenance（npm registry ETIMEDOUT）和 DB6 release provenance 漂移；全局目标继续保持 active。
+
+## 全局目标继续推进记录（2026-10-06，双入口 Harness 认证与全量复验）
+
+- 修复仅用于本地验收的 `.codex-tmp/local-harness-web.compose.yml` 与临时 Harness auth 制品：新增显式 `EISCORE_AUTH_ORIGINS` allowlist，允许 `http://127.0.0.1`、`:18080` 及对应 localhost origin；auth plugin 优先使用请求 Origin 生成同源回调，未列出的来源仍回退到固定配置。未修改生产/远端配置、产品数据库或正式部署文件。
+- 仅重建本地 `deepseek-web` 与 `nginx`，WSL Compose 项目 `eiscore-codex-local` 的 8 个服务持续 running，`agent-runtime` 与 `harness-bridge` healthy；隔离卷仍为 `eiscore-codex-local_pgdata`。
+- 真实 Chromium 双入口通过：FP03 企业 AI 在 `http://127.0.0.1` 与 `http://127.0.0.1:18080` 均 1/1；首页数字分身 iframe `/harness-embed/#digital-twin` 与智能 BI iframe `/harness-embed/#enterprise-bi` 均加载 Harness 原生正文。首页 FP01、产品页 FP04、UI 点击回归 4/4、UI 业务链 1/1 均通过。
+- 完整功能点长跑本轮结果为 66/67：FP01–FP13、FP15–FP67 通过，FP14 库存台账在长跑中一次性超时且页面壳显示为空；同一入口随后单独复跑 FP14 为 1/1，通过，独立 Playwright 诊断也观察到库存表格、数据和无 console/pageerror。该间歇性微前端挂载抖动仍需后续稳定性处理，当前不能把本轮长跑记为无条件 67/67。
+- API 业务链 32/32（`cleanupErrors=[]`）、Runtime router 全套、Harness 全套、数据库 contracts/roles Docker 测试均通过。未跳过 AI 的 smoke 仍为 21/23，唯一两项为真实 provider HTTP 402/余额不足导致的 `HARNESS_UPSTREAM_UNAVAILABLE`；没有伪造成功响应。
+- `npm run build:frontends` 的当前重试进入 Vite 后因本机 Sass 内存分配失败退出；Windows `npm.ps1` 另有 Node 安装目录启动器错误，WSL Node 20.18 又低于 Vite 要求。现有 `eiscore-base/dist/index.html` 与聚合 dist 仍来自此前成功构建并被运行中的 Nginx 只读挂载；本次构建失败未覆盖运行制品。
+- 当前仍未连接远端/生产、未写入既有业务卷、未修改 DB6 冻结 manifest。剩余限制为：真实 provider 余额/配额、Bridge clean-build provenance（npm registry 网络超时）、DB6 release provenance 漂移，以及上述 FP14 偶发长跑稳定性。全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-06，稳定窗口最终验收更正）
+
+- 在 Compose 栈保持稳定的窗口内，重新执行真实 Chromium 串行功能点矩阵 `tests/e2e/function-points-67.spec.mjs`，结果为 **67/67 passed**；此前记录的 66/67 是并发重启导致的瞬时 FP14 微前端挂载抖动，不代表当前页面功能失败。FP14、FP29 均已单独复跑通过。
+- `tests/e2e/ui-clicks.spec.mjs` 结果为 **4/4 passed**，`tests/e2e/ui-business-chain.spec.mjs` 结果为 **1/1 passed**；首页数字分身和智能 BI iframe 均加载 Harness 原生正文。
+- `EISCORE_CHAIN_BASE_URL=http://localhost npm run test:business-chain` 结果为 **32/32 passed**，`cleanupErrors=[]`。Runtime router、Harness 边界回归、DB3 catalog/PostgREST、数据库角色/RLS 及 company-site BFF 继续通过。
+- API smoke 在真实 Provider 路径为 **21/23**：唯一两项 AI chat 失败均真实返回 `502 HARNESS_UPSTREAM_UNAVAILABLE`；运行中的 Bridge 直连 Provider 返回 HTTP 402（余额/额度限制）。未伪造成功响应，也未写入或记录用户提供的 API key。
+- WSL Ubuntu Docker daemon 上本地 Compose 项目 `eiscore-codex-local` 当前 8 个 EISCore 服务均 running，`agent-runtime` 与 `harness-bridge` healthy；使用隔离卷 `eiscore-codex-local_pgdata`。`github-eiscore-refactor_pgdata` 等既有卷未被使用或修改。
+- 未连接远端/生产，未执行真实迁移，未改写 DB6 冻结 manifest。仍未闭合的工程限制为：真实 Provider 余额/配额、当前工作树 Bridge clean-build provenance（npm registry 超时）和 DB6 release/recovery provenance drift；这些限制不影响已完成的本地页面/业务链验收，因此全局目标仍保持 `active`。
+
+## 全局目标继续推进记录（2026-10-06，Harness Bridge 工具链复核）
+
+- Windows Node `v26.1.0` 下重新执行 `npm run test:harness-bridge`，完整通过：HTTP bridge、SDK framing、provider failure propagation、prompt waiter 清理、RPC/session timeout、tool continuation、bounded shutdown 以及 SDK loopback mock provider/tool proxy 闭环均通过；loopback 结果为 `ok=true`、`proxyCalls=1`、`modelRequests=2`。
+- WSL Ubuntu 当前 Node `v20.18.1` 运行同一 loopback 时 DSH 子进程退出；项目要求 Node `^20.19.0 || >=22.12.0`，该结果记录为 WSL 工具链版本限制。未修改业务代码以掩盖该限制。
+- 本轮仍未使用或写入用户提供的 DeepSeek API key；真实 Provider smoke 的 HTTP 402/额度限制仍保持原样记录。
+
+## 全局目标继续推进记录（2026-10-06，本地前端制品恢复与最终浏览器验收）
+
+- 发现运行中 Nginx 只读挂载的 `eiscore-base/dist` 缺少 `index.html`，导致直连 `/` 为 403、`/login` 为 500；未删除或重置用户源码，使用当前分支 Node `v26.1.0` 执行 `npm --prefix eiscore-base run build` 成功（Vite 4523 modules，约 40.75s），随后执行 `node scripts/aggregate-frontend-dist.mjs` 成功聚合 **11** 个微前端目录，并生成 `config/frontend-dist-manifest.json`。
+- 基座构建后的 `eiscore-materials` 静态入口通过独立真实 Chromium 诊断正常执行 `bootstrap`/`mount`，页面内容完整，无 console/pageerror/HTTP 错误；此前的 single-spa #31 来自旧 dist/加载竞态，未通过测试白名单掩盖。
+- 使用稳定的 IPv4 本地验收入口 `http://127.0.0.1:18080`（避开宿主 `localhost` IPv6 `::1` 解析和 80 端口竞争）执行真实 Chromium：`tests/e2e/ui-clicks.spec.mjs` **4/4 passed**；`tests/e2e/ui-business-chain.spec.mjs` **1/1 passed**；`tests/e2e/function-points-67.spec.mjs --workers=1` **67/67 passed**（约 5.7 分钟，FP01–FP67 全部通过）。
+- 本轮本地 Compose 栈持续运行：Nginx、deepseek-web、Harness Bridge、Agent Runtime、Swagger、PostgREST、Postgres、IDE 共 8 个 EISCore 服务均 Up，Agent Runtime/Harness Bridge healthy；Nginx 与 PostgREST/Runtime 探针为 200。数据库仍只使用隔离卷 `eiscore-codex-local_pgdata`，`github-eiscore-refactor_pgdata` 未挂载或写入。
+- 之前长跑中出现的 `localhost`/`127.0.0.1` connection refused 已归因于测试期间整栈被外部重启及 IPv6/端口竞争；当前容器 `RestartCount=0`、`OOMKilled=false`，稳定观察期间无自动重启。未连接远端/生产，未使用或写入用户提供的 DeepSeek API key。
+- 未闭合限制仍为：真实 DeepSeek Provider 路径因上游 HTTP 402/余额或额度不足无法完成真实内容验收；当前工作树 Bridge clean-build 受 npm registry 网络超时影响，正式 Bridge provenance 未闭合；DB6 release/recovery provenance 与冻结 manifest 存在漂移。上述限制不影响本轮已完成的本地前端、点击、业务链和 67 点页面验收，全局目标继续保持 `active`。
+
+- 收尾门禁复核：Windows Node `v26.1.0` 下 `npm run test:harness` 退出码 0（插件、权限/写确认/幂等/审计、Gateway、RLS 会话、文档/销售写入、查询、输出策略、Bridge SDK loopback、migration switch 全部通过）；`npm run test:runtime-router` 全部通过；WSL Docker 入口下 DB3 catalog/PostgREST、数据库角色/RLS、company-site BFF 全部通过。
+- `npm run test:database-release:docker` 与 `npm run test:database-recovery:docker` 均按正式 fail-closed 门禁退出码 1，报告当前工作树与冻结 release 的 baseline/register/contract/legacy resolution/migration/core source/ontology/catalog/PostgREST checksum 和 migration terminal/list drift；未改写 manifest、未伪造 checksum、未触碰既有业务卷。
+- 因此本地全量部署、真实浏览器 67 点、UI 点击/业务链、API 业务链、Runtime、Harness、DB3/RLS/BFF 验收均已完成；真实 Provider HTTP 402、Bridge clean-build provenance 网络限制、DB6 release/recovery provenance drift 仍是上线前未闭合项。全局目标保持 `active`，不能宣布生产就绪。
+
+## 全局目标继续推进记录（2026-10-06，本地制品恢复、Bridge 修复与门禁复核）
+
+- 复验期间发现 Nginx 只读静态挂载缺少已聚合的微前端目录，导致 `/hr/index.html` 等 qiankun 入口偶发 404。使用仓库已有 `scripts/aggregate-frontend-dist.mjs` 重新聚合当前分支前端制品，manifest 显示 11 个挂载（`hr`、`materials`、`apps`、`company-site`、`sales`、`purchase`、`production`、`quality`、`equipment`、`decision`、`mobile`），未修改源码或数据库。随后使用根 Compose 文件和本地 Harness Web 覆盖文件重建 `nginx`，恢复 `:18080` 入口；不得使用仅根 Compose 文件重建，否则会丢失本地 `deepseek-web` 覆盖和 18080 端口。
+- 修复 `tests/e2e/helpers.mjs` 的 UI 监控边界：Chromium 在防抖、路由切换或组件卸载时报告的 `requestfailed: net::ERR_ABORTED` 属于正常取消，与已有控制台过滤保持一致；第三方 CDN 失败仍按 URL 受限匹配。该修复没有放宽 4xx/5xx、pageerror 或非取消请求错误。
+- 修复 `agent-harness/dsh-http-bridge.mjs` 的 SDK waiter race：Provider failure 在 JSON-RPC receipt 前到达时保存失败并拒绝 waiter，空 completion 也 fail-closed，且预先挂接 rejection observer 防止 unhandled rejection。`npm run test:harness-bridge`、HTTP bridge/runtime tests、DSH SDK loopback、生产配置、runtime image contract 与 `git diff --check` 通过。
+- 重新验证：API 业务链 **32/32**（`cleanupErrors=[]`）；无真实 Provider/WS smoke **20/20**；Runtime router 全套通过；Windows Node `v26.1.0` 下完整 Harness **exit 0**；Node syntax **305 files**；G3.5、G4.0、G4.1、production-config、runtime-image gates 全部通过。
+- WSL Ubuntu Docker daemon 上 DB3 fresh/upgrade/repeat catalog/PostgREST、数据库角色/RLS、company-site BFF 均通过。Windows 直接执行 Docker 测试只会访问不可用的 Docker Desktop named pipe，不能作为 WSL 栈失败证据。
+- 本地 Compose 当前仍为 8 个 EISCore 服务 running，Agent Runtime/Harness Bridge healthy，核心容器 `RestartCount=0`、`OOMKilled=false`，数据库只使用隔离卷 `eiscore-codex-local_pgdata`。本轮未连接远端/生产，未使用、记录或写入用户提供的 DeepSeek API key。
+- DB6 release/recovery 在 WSL Docker 上仍按正式 fail-closed 失败，原因是当前工作树与冻结 `eiscore-db-v6` 制品的 baseline/register/contract/legacy-resolution/migration/source/ontology/catalog/PostgREST 指纹及 terminal/list 存在漂移；未修改冻结 manifest、未伪造 checksum、未执行真实发布或恢复。
+- 真实 Provider 内容验收仍不可完成：现有上游路径返回 HTTP 402（余额/额度限制）。因此本地页面、Harness 边界和业务链已通过，但真实 Provider 与 DB6 provenance 仍是目标未闭合项，全局目标继续保持 `active`。
+
+## 全局目标继续推进记录（2026-10-06，最终 67 点矩阵与过期门禁修正）
+
+- 在静态微前端制品已重新聚合、Nginx 使用完整本地 Harness Web Compose 覆盖的稳定窗口内，重新执行 `EISCORE_BASE_URL=http://127.0.0.1:18080 EISCORE_E2E_BASE_URL=http://127.0.0.1:18080 npx playwright test tests/e2e/function-points-67.spec.mjs --workers=1`，真实 Chromium 结果为 **67 passed / 67 total**（约 6.2 分钟）。FP01–FP67 全部通过，包含 FP03 企业 AI、FP14 库存台账、FP29 采购驾驶舱、FP66 决策支持和 FP67 移动端入口。
+- 之前 UI 复验中两个 `net::ERR_ABORTED` 已由监控边界修正后消除；`tests/e2e/ui-clicks.spec.mjs` 的 HR/物料网格点击与 `tests/e2e/ui-business-chain.spec.mjs` 的完整 App Center/Workflow/HR/Warehouse 链均重新通过。
+- `tests/engineering/enterprise-profile-merge-exit-regression.mjs` 原先仍断言已删除的 `host.docker.internal:8092` 独立站开发代理；现已改为验证生产静态 `/company-site/index.html` 与 `agent-runtime:8078` 的 admin/public/auth API 路由，`npm run test:g3.5-exit`、`test:g4.0-exit`、`test:g4.1-exit` 全部通过。该改动只同步门禁与当前 Nginx 拓扑，没有恢复旧代理。
+- 代理代理报告的前端构建验证覆盖当前分支 12 个 package 并聚合 11 个微前端；当前 `eiscore-base/dist/config/frontend-dist-manifest.json` 的 `count` 为 11，所有挂载目录均含 `index.html`。运行中的 Bridge 仍保留此前已验证镜像，当前分支 Bridge 代码/协议回归已通过；未把旧镜像冒充当前工作树的正式 Docker provenance。
+- 最终状态：本地页面、点击、业务链、API 业务链、Runtime、Harness、DB3/RLS/BFF 和静态制品验收均有真实结果；真实 Provider 仍因上游 HTTP 402/余额限制无法完成内容验收，DB6 release/recovery 仍因冻结制品与当前工作树 provenance drift fail-closed。两者均未被 mock、固定文本或伪造 checksum 掩盖；全局目标保持 `active`，不能宣布生产/数据库发布就绪。
+
+## 全局目标继续推进记录（2026-10-06，一次性测试 Key 的真实 Provider 复核）
+
+- 用户授权提供一枚仅用于测试的 DeepSeek API key。本轮只在一次性进程/临时容器环境变量中使用，未写入 `.env`、源码、文档、Git、数据库卷、持久化工作目录或最终回复；测试结束后临时容器、端口和探针文件均已删除。
+- 直接请求官方 DeepSeek `https://api.deepseek.com/chat/completions` 使用 `deepseek-chat` 返回 HTTP `200`，响应包含 1 个 choice 且内容非空，证明该测试 Key 与官方端点本身可用。
+- 通过当前 EISCore DeepSeek Harness HTTP Bridge 的完整协议链路（协议头、owner subject/tenant、`digital-twin` plugin、session/request replay boundary）真实请求返回 HTTP `502`，结构化错误为 `HARNESS_RUNTIME_PROVIDER_ERROR`。Bridge 按设计不向客户端暴露上游凭据或敏感错误正文；该结果表示当前 DSH SDK profile/Provider 链路尚未形成可用 completion，不能把官方直连成功等同于 Harness 集成通过。
+- 原有本地 Compose 栈未被替换或重启：8 个 EISCore 服务继续 running，Agent Runtime 与 Harness Bridge healthy；数据库隔离卷 `eiscore-codex-local_pgdata` 未修改。
+- 本轮没有绕过 Bridge 直接接入产品、没有把测试 key 写入运行中的稳定容器、没有修改 DB6 冻结 manifest。由于当前 DSH SDK/Bridge Provider 路径仍未形成可用 completion，且 Bridge clean-build provenance、DB6 release/recovery provenance drift 仍未闭合，全局目标继续保持 `blocked`。
+
+## 全局目标继续推进记录（2026-10-07，DB6 candidate release/recovery provenance 闭合）
+
+- 在隔离 LF clone `C:/Users/Twist/Documents/eiscore/.codex-tmp/db6-candidate-lf-20261007` 中，基于正式生成流程生成并验证 candidate manifest `database/releases/eiscore-db-v6-candidate/manifest.json`。candidate source revision 为 `99e7c40fb909e2437b2e4f6ba17f9f91d5609683`，candidate manifest SHA-256 为 `90ce0aea95b141c6c9095c8afd4b3b3197b441bdf304916aec18ecb0e105f10f`。
+- 正式 candidate dry-run 通过；隔离 release 通过升级、锁、备份证据、release ledger、runtime/company/core migration、重复发布及 public-schema/catalog/ledger drift fail-closed 检查。候选实际迁移计数为 runtime `0 applied / 10 skipped`、company-site `0 applied / 1 skipped`、core `8 applied / 1 skipped`，重复 core `0 applied / 9 skipped`。
+- 最终 candidate recovery 真实执行并通过（exit 0）：`PASS: database recovery drills transactional SQL rollback, destroys the source schema, and restores v6 roles, data, DB contract and stable PostgREST into an empty stack`。覆盖事务回滚、source schema 销毁、v6 roles/data 恢复、database catalog、关系/函数目录、PostgREST contract、canary、ledger 及 candidate runtime audit。
+- 本轮测试仅使用临时 `eiscore-db5-*` 容器/网络，已确认全部清理；未触碰主 Compose、现有业务数据库卷、远端或生产。candidate clone 剩余改动仅为既有 ontology patch、旧 baseline 临时目录和未跟踪 candidate manifest。
+- 冻结 `database/releases/eiscore-db-v6/manifest.json` 未修改，未手工伪造 checksum；冻结 manifest 对当前工作树的真实 drift 仍由正式门禁 fail-closed。candidate 制品是诊断/验收证据，不等于已批准的正式 release。
+- DB6 隔离 candidate release/recovery 证据现已闭合；正式 release 仍需在相关迁移/契约变更完成审阅并提交后，由发布流程决定是否更新冻结制品。Bridge clean-build provenance、真实 Provider completion、远端/生产验收等其他上线门槛仍未闭合，全局目标保持 `active`。

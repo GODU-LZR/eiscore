@@ -175,3 +175,132 @@ docker compose --env-file /opt/lundu-eiscore/.env \
 远端旧 release 已备份至 `/opt/lundu-eiscore/backups/release-pre-all-images-20261004210649`。发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，原子替换 release，实际只重建 `lundu-eiscore-web-1`；DB、API、Agent、DeepSeek Web 和 Harness 未重建。线上 13 张唯一图片资源均返回 HTTP 200，扩图后的宽幅资源为 `2048x1152`，产品卡为 `1600x900`；`enterprise.id=lundu`，Logo 正常，页面标题为“伦度机电｜电机与水泵制造”。
 
 Playwright 线上验收在 `390x844`、`414x896`、`768x1024`、`1440x900` 完成：每个视口 `scrollWidth` 等于 viewport，23 个图片节点全部加载，6 个轮播点均可切换，产品主体完整居中且无黑边，页面 DOM 不含君乐缘，页面错误和控制台错误均为 0。构建 `npm run build` 通过，仅保留既有 Sass import 弃用、circular chunk 和大 chunk 警告。
+## 2026-10-05 采购商城与销售 Agent 发布
+
+前端制品来自 codex/systematic-refactor 当前提交 561f3d83c760c7c0511a460b567af4eeced95359，完整制品目录为 output/lundu-shop-release-20261005，上传归档 SHA-256 为 325275a042e3ee6164c501ac2233ffcadfcdb95361adc2f94eba912d9260a760。制品门禁：入口 6258 字节、主包 /assets/index-BZXjBFdi.js、enterprise.id=lundu、manifest version 24a9dfe4594e25bc、634 项、88,502,432 bytes，入口/配置/主包没有“君乐缘/junleyuan”。
+
+发布前声明目标服务为 web；影响范围是完整伦度静态入口及资源。远端旧 release 已原子备份至 /opt/lundu-eiscore/backups/lundu-shop-before-20261004231319，使用锁 /opt/lundu-eiscore/.lundu-web-publish.lock。实际只重建 lundu-eiscore-web-1；DB、API、Agent、DeepSeek Web 和 Harness 没有被重建。
+
+发布后复核发现销售 Agent 返回 SITE_NOT_FOUND，原因是数据库中已有的 primary / lundu.eiscore.top 站点记录是 draft、published_version=0，而销售路由只接受 published。按 realtime/company-site.js 的既有发布语义，将该现有伦度站点配置发布为 published，版本变为 1，并同步 zh-CN、en-US 站点语言；没有创建新客户内容或修改数据库结构。发布前数据备份为 /opt/lundu-eiscore/backups/site-config-before-sales-publish-20261004232143.sql，后端容器没有重启。
+
+销售 Agent 端到端接口验收通过：POST /agent/sales/sessions -> HTTP 201；POST /agent/sales/sessions/{id}/messages -> HTTP 200，缺少公开依据时正确转人工；POST /agent/sales/sessions/{id}/leads -> HTTP 201，返回测试询价编号 INQ-20261004-454E4ECD。
+
+浏览器端到端验收通过：远端标题为“伦度机电｜电机与水泵制造”，Logo 可见；JET 产品详情弹层可打开；加入询价单后徽标为 1，询价单显示产品、数量和联系方式字段；销售 Agent 面板可打开；采购状态显示“待提交询价”，支付说明为“接口已预留，本页面不会产生扣款”。四视口 390x844、414x896、768x1024、1440x900 的静态检查均满足 scrollWidth <= viewport，DOM 无君乐缘品牌。支付仍是前端占位流程，不会收款。
+
+后续 Agent 协作要求：不要把 company_site.site_config.primary 退回 draft；涉及站点内容发布时使用现有发布处理器的快照和审计逻辑，并在发布前声明目标服务与影响范围。web 发布继续只使用当前重构分支的完整 dist，不得复制旧客户入口或单独替换主 JS。
+
+## 2026-10-05 商城视觉精修与移动端首屏布局修复 v9
+
+本轮目标是把已存在的产品详情、询价单、销售 Agent、采购状态和支付预留收口为正式的伦度工业独立站界面，并修复移动端首屏图片被旧断点样式覆盖的问题。源码位于 codex/systematic-refactor 工作区，主要修改 eiscore-base/src/views/LoginView.vue 和 eiscore-base/src/styles/login-view.scss：商品卡、产品详情弹层、询价单和 Agent 使用统一伦度深绿色主操作样式；弹层使用统一品牌线；短按钮在移动端保持单行；产品图使用 contain，场景图使用 cover；轮播 Transition 移除 mode="out-in"，避免切换空档；文件 EOF 的移动端覆盖规则将图片带、文案带、轮播控制和企业入口恢复为正常文档流，避免 .hero-inner 绝对定位遮住图片。
+
+发布前声明：目标服务为 web；当前分支为 codex/systematic-refactor，工作树含其他 Agent 未提交改动，本轮只使用当前工作区完整构建结果；完整制品目录为 output/lundu-shop-polish-release-20261005-v9，归档为 output/lundu-shop-polish-release-20261005-v9.tar.gz，归档 SHA-256 为 7EE8FA19DE6A124B07C78894416FEEC023500CE1B2F283F7D824734029FAD090。入口 index.html 为 6258 bytes，主包为 /assets/index-DGkoAd94.js；asset-manifest.json version 01aeac7693f23a7b、569 项、89467037 bytes。制品入口、公开配置和主资源未包含君乐缘公开品牌。
+
+远端发布前将旧 release 备份至 /opt/lundu-eiscore/backups/lundu-shop-polish-before-v9-20261005133411.tgz，使用 /opt/lundu-eiscore/.lundu-web-publish.lock，原子替换完整 /opt/lundu-eiscore/release，实际只执行 docker compose --env-file /opt/lundu-eiscore/.env -f /opt/lundu-eiscore/compose.yml up -d --no-deps --force-recreate web。实际重建服务为 lundu-eiscore-web-1；DB、API、Agent、DeepSeek Web 和 Harness 未重建。远端入口、manifest、企业配置和 Logo 校验通过，enterprise.id=lundu。
+
+Playwright 线上验收：标题为“伦度机电｜电机与水泵制造”，Logo 正常，控制台 0 errors（仅既有 Three.js PCFSoftShadowMap 弃用 warning）。390×844、414×896、768×1024、1440×900 均无横向溢出；移动端图片带为 16:9，六张轮播图均自然尺寸加载、透明度为 1，产品主体不被文案层遮挡；全页滚动后所有可见图片均完成加载。产品详情弹层、加入询价单徽标/数量/移除、采购四阶段和支付接口预留、销售 Agent 面板均通过交互检查。BOM 区域保持固定视角，移动端页面滚动不被 Canvas 抢占。后续发布必须继续使用当前重构分支构建出的完整 dist，并在发布前声明目标服务、分支/提交、制品路径和影响范围。
+
+## 2026-10-06 商城视觉精修 v11 与移动端弹层边界修复
+
+本轮在 v9 的基础上继续收口采购界面：产品卡增加项目规格询价提示；询价单增加产品数量摘要和四阶段状态视觉；销售 Agent 增加快速提问入口；采购状态按询价、报价、订单、支付阶段使用一致的伦度工业色彩；轮播图片移除独立淡出过渡，使图片和文案在同一更新帧切换，避免瞬态错配。移动端最终断点将询价遮罩和弹层固定为视口宽度、`box-sizing: border-box`，修复 390px 设备上弹层宽 404px 的左右溢出。
+
+发布前声明：目标服务为 `web`；分支/提交为 `codex/systematic-refactor @ 561f3d83c760c7c0511a460b567af4eeced95359`；完整制品为 `output/lundu-shop-polish-release-20261006-v11.tar.gz`，本地和远端 SHA-256 均为 `dd45df267d263161e840c237cde0a4d98b6116ef79281962084fa039aa6e7a6a`。入口 `6258` 字节，主包 `/assets/index-BVC3yn1A.js`；manifest version `38ed484e4be24934`、569 项、89472094 bytes，备份 URL 为 0；入口、配置和主资源没有“君乐缘/junleyuan”。
+
+远端发布前 release 备份为 `/opt/lundu-eiscore/backups/lundu-shop-polish-before-v11-20261005192749.tgz`。使用 `/opt/lundu-eiscore/.lundu-web-publish.lock` 原子替换完整 release，实际只执行 `docker compose --env-file /opt/lundu-eiscore/.env -f /opt/lundu-eiscore/compose.yml up -d --no-deps --force-recreate web`，实际重建 `lundu-eiscore-web-1`；DB、API、Agent、DeepSeek Web 和 Harness 未重建。Compose 仅报告既有 orphan 容器提示，没有清理其他服务。
+
+线上 HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json` 和伦度 Logo 均返回 200，配置 `enterprise.id=lundu`。Playwright 线上验收通过：390×844、414×896、768×1024、1440×900 的 `scrollWidth` 分别等于视口宽度，Logo 可见，产品卡 5 个；390px 询价弹层为 `x=0/right=390/width=390`，桌面 1440px 弹层为 `760px`，销售 Agent 弹层为 `620px`；产品详情→加入询价单→数量/联系方式→报价→订单→支付占位→销售 Agent 流程通过；浏览器无页面错误和控制台错误，正文无君乐缘品牌。
+
+## 2026-10-06 伦度白色 UI 收口 v12
+
+本轮针对用户反馈的页面颜色不统一完成白色 UI 收口。`eiscore-base/src/views/LoginView.vue` 移除根页面动态蓝灰渐变，`eiscore-base/src/styles/login-view.scss` 将 `.login-page`、`.public-products-section`、`.commerce-section` 及采购弹层基线收口为纯白，并保留伦度绿色用于按钮、品牌线和状态强调；产品图片承载区与采购状态面板的局部浅色保持不变，避免产品图和流程状态失去层次。没有修改产品资料、销售 Agent、支付占位或后端服务。
+
+发布前声明：目标服务为 `web`；分支/提交为 `codex/systematic-refactor @ 561f3d83c760c7c0511a460b567af4eeced95359`；完整制品为 `output/lundu-shop-polish-release-20261006-v12.tar.gz`，本地与远端归档 SHA-256 均为 `FE3CAF7B2FBBAAA862D4B486C75A94340F07271B2239141552D5AABDDBA7C0D3`。制品由当前工作区 `npm run build:frontends` 和 `node scripts/generate-client-cache-manifest.mjs eiscore-base/dist` 生成，入口 `6258` 字节，主包为 `/assets/index-QbRhdywN.js`；manifest version `30a748b48609988b`、`569` 项、`89472167` bytes，归档包含根入口及 `apps`、`company-site`、`equipment`、`hr`、`materials`、`mobile`、`production`、`quality`、`decision`、`purchase`、`sales` 共 12 个入口。构建通过，仅有既有 Sass import 弃用、circular chunk 和大 chunk 警告；`npm run test:syntax`、`npm run lint:changed`、`git diff --check` 均通过。
+
+远端发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，旧 release 已备份至 `/opt/lundu-eiscore/backups/lundu-shop-polish-before-v12-20261006000839`。远端归档 SHA 校验通过后原子替换完整 `/opt/lundu-eiscore/release`，实际只执行：
+
+```sh
+docker compose --env-file /opt/lundu-eiscore/.env \
+  -f /opt/lundu-eiscore/compose.yml \
+  up -d --no-deps --force-recreate web
+```
+
+实际重建服务为 `lundu-eiscore-web-1`；DB、API、Agent、DeepSeek Web 和 Harness 未重建。Compose 仅报告既有 `lundu-eiscore-deepseek-web-1` orphan 提示，没有使用 `--remove-orphans`，其他容器保持运行。远端 `/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json` 和 `/enterprise-assets/site/lundu-logo.png` 均返回 HTTP 200；配置 `enterprise.id=lundu`，入口正文和主资源没有 `君乐缘/junleyuan`。
+
+白色 UI 视觉验收脚本 `output/playwright/lundu-v12-remote-color-qa.cjs` 在真实伦度域名通过 `390×844`、`414×896`、`768×1024`、`1440×900`：页面标题为“伦度机电｜电机与水泵制造”，四个视口 `scrollWidth` 分别等于视口宽度，`.login-page`、`.public-products-section`、`.commerce-section` 的计算背景均为 `rgb(255, 255, 255)` 且无背景图，Logo 可见，产品卡 5 个，正文无君乐缘，页面错误和控制台错误均为 0。截图保存为 `output/playwright/lundu-color-after-390.png`、`lundu-color-after-414.png`、`lundu-color-after-768.png`、`lundu-color-after-1440.png`。
+
+商城交互验收脚本 `output/playwright/lundu-v12-remote-commerce-qa.cjs` 通过：产品详情可打开，询价单包含 1 个产品，390px 询价弹层为 `x=0/right=390/width=390`；状态依次经过“待提交询价”“待确认订单”“支付接口已预留”，支付占位和销售 Agent 均可打开并发送测试问题；页面错误和控制台错误为 0。
+
+## 2026-10-06 产品详情箭头 hover 修复 v13
+
+用户反馈产品详情按钮的箭头 hover 向右移动时被按钮边界裁切或与右侧询价按钮覆盖。根因是后置通用紧凑按钮规则设置了 overflow hidden，而箭头使用 translateX(4px)，按钮没有为位移预留尾部空间。本轮在 eiscore-base/src/styles/login-view.scss 文件末尾增加最终级联保护：产品详情按钮使用 overflow visible !important 和 padding-right: 8px !important，箭头 span 保持独立 flex 项并预留右侧间距。未修改产品数据、按钮文案、询价流程或后端服务。
+
+发布前声明：目标服务为 web；分支/提交为 codex/systematic-refactor @ 561f3d83c760c7c0511a460b567af4eeced95359；完整 12 入口制品为 output/lundu-arrow-fix-release-20261006-v13.tar.gz，本地与远端归档 SHA-256 均为 6E7902C3DA9CE4A55B1602CFBC4435515E64EFA479D0A8F8E38B1EBA12991D94。manifest version 930f4ed6c854981e、569 项、89473006 bytes，入口 6258 字节；构建和聚合通过，入口和主资源没有君乐缘品牌。
+
+远端发布使用 /opt/lundu-eiscore/.lundu-web-publish.lock，旧 release 已备份至 /opt/lundu-eiscore/backups/lundu-arrow-before-v13-20261006011850。归档 SHA 校验通过后原子替换完整 release，实际只执行 web-only Compose 重建；实际重建服务为 lundu-eiscore-web-1，DB、API、Agent、DeepSeek Web 和 Harness 未重建。Compose 仅报告既有 DeepSeek Web orphan 提示，没有清理其他容器。
+
+线上门禁通过：/login、/asset-manifest.json、/config/eiscore-enterprise.json、/enterprise-assets/site/lundu-logo.png 均 HTTP 200；配置为 enterprise.id=lundu，入口主包为 /assets/index-CG3sdnEz.js，manifest 为 930f4ed6c854981e / 569 项，页面标题为“伦度机电｜电机与水泵制造”，正文没有君乐缘品牌。
+
+浏览器脚本 output/playwright/lundu-arrow-remote-qa.cjs 在真实伦度域名通过 390x844 和 1440x900：hover 前后箭头均在详情按钮范围内，箭头向右移动 4px；移动端箭头右边界为 127.5px、详情按钮右边界为 137.5px、询价按钮左边界为 149.5px，桌面端箭头右边界为 184px、详情按钮右边界为 194px、询价按钮左边界为 206px，均无覆盖；按钮实际计算样式为 overflow visible、padding-right: 8px。浏览器页面错误和控制台错误均为 0，截图为 output/playwright/lundu-arrow-390.png 和 output/playwright/lundu-arrow-1440.png。
+
+## 2026-10-06 产品图片铺满展示框与顶部横条移除 v14
+
+用户反馈产品方向区域的水泵图片在展示框内留白过大，并要求移除产品展示栏上方的棕色/深色横条。本轮仅修改 eiscore-base/src/styles/login-view.scss 文件末尾的最终级联规则：.public-product-card 的 border-top 设为 0；产品图移除内边距并保持 object-fit: contain，防止产品主体被裁切；普通电机使用 scale(1.18)，JET/PST 水泵使用 scale(1.28)，WQ 潜水泵使用 scale(1.35)，图片容器保持 overflow: hidden。规则放在文件末尾，用于覆盖历史移动端、采购视觉和制造卡片规则，避免再次被 transform: none 或 object-fit: cover 覆盖。
+
+发布前声明：目标服务为 web；当前分支为 codex/systematic-refactor，工作树包含其他 Agent 未提交改动，本轮只发布当前工作区生成的完整静态 dist；完整制品为 output/lundu-product-fill-final-20261006103100.tar.gz，本地与远端 SHA-256 均为 99A69426CD28C7A9FDDDA3732DF52F096F30B053D8F6C504197BE701A80CB84D，大小 53,580,429 字节。制品入口 6,258 字节，主包为 /assets/index-RHmY7e4A.js；manifest version 222c6db2e6eca7ed、569 项、89,473,958 bytes；入口、配置和主资源未包含君乐缘/junleyuan。影响范围仅为完整伦度静态 web；DB、API、Agent、DeepSeek Web 和 Harness 未重建。
+
+远端发布使用 /opt/lundu-eiscore/.lundu-web-publish.lock。旧 release 已备份至 /opt/lundu-eiscore/backups/lundu-product-fill-final-before-20261006025004.tgz，校验归档后完成原子替换。实际执行 docker compose --env-file /opt/lundu-eiscore/.env -f /opt/lundu-eiscore/compose.yml up -d --no-deps --force-recreate web。实际重建服务为 lundu-eiscore-web-1；Compose 仅报告既有 lundu-eiscore-deepseek-web-1 orphan 提示，没有清理或重建其他服务。
+
+真实线上 Playwright 在 390x844、414x896、768x1024、1440x900 完成验收：四个视口 scrollWidth 分别等于视口宽度；Logo 可见，正文不含君乐缘；5 个产品图片全部加载且自然尺寸为 1600x900；产品卡顶部计算样式为 0px none；图片均为 contain、无内边距，JET/PST 放大矩阵为 1.28，WQ 放大矩阵为 1.35；页面错误和控制台错误均为 0。截图保存为 output/playwright/lundu-product-final-390.png、lundu-product-final-414.png、lundu-product-final-768.png、lundu-product-final-1440.png。
+
+## 2026-10-06 产品图片铺满展示框与顶部横条移除 v15
+
+本轮重新从当前 `codex/systematic-refactor` 工作区构建并发布完整 web 制品，修复上轮源码最终级联规则未进入真正 EOF、导致 YC/YE3 电机图仍被旧 `transform: none` 覆盖的问题。`eiscore-base/src/styles/login-view.scss` 文件末尾现在统一保护产品卡：`.public-product-card { border-top: 0 !important; }`；产品图使用 `width/height: 100%`、`padding: 0 !important`、`object-fit: contain !important`、居中定位和容器 `overflow: hidden`；普通电机 `scale(1.18)`，JET/PST `scale(1.28)`，WQ `scale(1.35)`。
+
+发布前声明：目标服务为 `web`；分支为 `codex/systematic-refactor`；工作树含其他 Agent 未提交改动，本轮没有覆盖或回退这些改动。先执行 `npm --prefix eiscore-base run build`，再执行 `node scripts/aggregate-frontend-dist.mjs` 和 `node scripts/generate-client-cache-manifest.mjs eiscore-base/dist`。`npm run test:syntax`（305 个脚本）、`npm run lint:changed`（23 个 JS/Vue 文件）和 `git diff --check` 通过。当前完整 12 入口制品归档为 `output/lundu-product-fill-final-20261006115144.tar.gz`，大小 `40,669,221` bytes，SHA-256 为 `30995167C126B02F26B1F8E026540E38A4C705D53E6EB2886549D88C23B6E9A4`；入口 `6,258` bytes，主包 `/assets/index-BVVQQPYd.js`，manifest `353e757b68f91784`、`561` 项、`76,532,280` bytes，归档中的文件数为 `565`。入口、公开配置和主资源没有 `君乐缘/junleyuan`，配置为 `enterprise.id=lundu`，Logo 为 `/enterprise-assets/site/lundu-logo.png`。
+
+远端发布前通过 `/opt/lundu-eiscore/.lundu-web-publish.lock` 的 `flock` 独占锁，归档 SHA-256 与本地一致；旧 release 备份为 `/opt/lundu-eiscore/backups/lundu-product-fill-before-20261006035912.tgz`。临时目录校验通过后原子替换 `/opt/lundu-eiscore/release`，随后实际只执行：
+
+```sh
+docker compose --env-file /opt/lundu-eiscore/.env \
+  -f /opt/lundu-eiscore/compose.yml \
+  up -d --no-deps --force-recreate web
+```
+
+实际重建服务为 `lundu-eiscore-web-1`；DB、API、Agent、DeepSeek Web 和 Harness 均未重建。Compose 只报告既有 `lundu-eiscore-deepseek-web-1` orphan 提示，没有清理其他容器。远端入口 `6,258` bytes，主包 `/assets/index-BVVQQPYd.js`，manifest 为 `353e757b68f91784` / `561` 项 / `76,532,280` bytes；发布后 web 容器状态为 `Up`。
+
+HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json`、伦度 Logo 和五张产品图均返回 HTTP 200；五张产品图均为 `1600x900` JPEG。入口、主包和公开配置的明确品牌匹配均为 false，公开配置 `enterprise.id=lundu`。
+
+真实线上 Playwright 视觉验收脚本 `output/playwright/lundu-product-fill-final-qa.cjs` 及结果 `output/playwright/lundu-product-fill-final-qa.json` 在 `390x844`、`414x896`、`768x1024`、`1440x900` 全部通过：页面 `scrollWidth` 不超过视口，Logo 可见，正文没有君乐缘；5 个产品图片全部加载；每张图计算样式为 `object-fit: contain`、`padding: 0`、居中，媒体容器为 `overflow: hidden`，卡片顶部为 `0px none`，YC/YE3 为 `scale(1.18)`、JET/PST 为 `scale(1.28)`、WQ 为 `scale(1.35)`；页面错误和控制台错误均为 0。截图保存为 `output/playwright/lundu-product-fill-final-390.png`、`lundu-product-fill-final-414.png`、`lundu-product-fill-final-768.png`、`lundu-product-fill-final-1440.png`。
+
+## 2026-10-06 制造服务卡顶部绿条移除 v16
+
+用户反馈制造服务产品卡顶部出现绿色横条。根因是 `.manufacturing-series-card` 同时受历史商城通用 `border-top` 和制造卡局部 `border-top: 3px solid var(--login-theme)` 规则影响；绿色横条来自卡片 CSS 边框，不是图片内容或伪元素。本轮在 `eiscore-base/src/styles/login-view.scss` 的最终级联区域增加 `.manufacturing-series-card { border-top: 0 !important; }`，并在实际发布 CSS 中保留带 Vue scope 的选择器，确保三张制造服务卡均无顶部边框。没有修改产品图片、产品数据、询价流程或后端服务。
+
+发布前声明：目标服务为 `web`；当前分支为 `codex/systematic-refactor`，基线提交为 `561f3d83c760c7c0511a460b567af4eeced95359`；工作树包含其他 Agent 未提交改动，本轮未覆盖或回退这些改动。全量构建在 Windows 上因 `VirtualAlloc` 内存不足导致 Vite/esbuild 服务退出，因此没有使用失败构建的半成品；使用上一轮已通过四视口验收的完整 12 入口制品作为基底，仅对实际引用的 `assets/LoginView-C_DBAQB8.css` 做确定性 CSS 后处理。完整归档为 `output/lundu-product-fill-v15-202610061227.tar.gz`，SHA-256 `A76252AC8268F0A4B6E92662B2E79A25547D2139D24E84CC69BBB1CF4CEEA0E8`，归档大小 `40,669,197` bytes；manifest `e25f3e96431cad8d`、`561` 项、`76,532,435` bytes，入口 `6,258` bytes，主包 `/assets/index-BVVQQPYd.js`。入口、公开配置和主资源没有“君乐缘/junleyuan”，配置为 `enterprise.id=lundu`，Logo 为 `/enterprise-assets/site/lundu-logo.png`。
+
+远端发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock` 完成原子替换；旧 release 备份为 `/opt/lundu-eiscore/backups/lundu-product-fill-v15-before-20261006043805.tgz`。实际只重建 `lundu-eiscore-web-1`，`db`、`api`、`agent`、`deepseek-web` 和 `Harness` 均未重建。远端发布后入口仍为 `6,258` bytes，主包为 `/assets/index-BVVQQPYd.js`，manifest 为 `e25f3e96431cad8d / 561 / 76,532,435`，web 容器状态为 `Up`。
+
+真实线上 Playwright 验收脚本 `output/playwright/lundu-greenbar-final-qa.cjs` 在 `390x844`、`414x896`、`768x1024`、`1440x900` 全部通过，结果保存在 `output/playwright/lundu-greenbar-final-qa.json`，截图为 `output/playwright/lundu-greenbar-final-390.png`、`lundu-greenbar-final-414.png`、`lundu-greenbar-final-768.png`、`lundu-greenbar-final-1440.png`。四个视口的 `scrollWidth` 分别等于视口宽度；页面标题为“伦度机电｜电机与水泵制造”；Logo 可见；三张 `.manufacturing-series-card` 的计算 `border-top` 均为 `0px none`；五张产品图全部加载且自然尺寸为 `1600x900`；正文无君乐缘品牌，页面错误和控制台错误均为 0。
+
+## 2026-10-06 采购单与客服智能体悬浮组件 v17
+
+本轮根据用户要求将独立站的用户可见“询价单/询单”统一为“采购单”，并将销售询单入口改为“客服智能体”。`eiscore-base/src/views/LoginView.vue` 保留现有 `/agent/sales/sessions` 会话接口和内部 `quoteItems` 兼容字段，只调整客户侧文案：产品卡使用“加入采购单”，顶部和采购弹层使用“采购单/我的采购单”，提交按钮使用“提交采购单”，支付返回使用“返回采购单”；客服文案统一为“客服智能体”，移除页面可见的“询问销售/销售 Agent/询价单”旧称。
+
+客服面板不再使用整页遮罩，改为 `customer-service-widget` 固定在页面右下角：收起时显示“客服智能体”按钮，点击后展开同一消息流、快速提问、输入框和采购单入口，再次点击可收起。组件使用 `position: fixed`、安全区域和移动端宽高限制，面板不捕获页面滚动，也不产生横向溢出。
+
+发布前声明：目标服务为 `web`；当前分支为 `codex/systematic-refactor`，基线提交为 `561f3d83c760c7c0511a460b567af4eeced95359`；工作树包含其他 Agent 未提交改动，本轮仅修改独立站 `LoginView.vue`、`login-view.scss` 与 QA/交接记录，没有覆盖或回退其他改动。`npm --prefix eiscore-base run build` 通过；`npm run test:syntax`、`npm run lint:changed`、`git diff --check` 通过（仅保留既有 Sass import、circular chunk 和大 chunk 警告）。完整 12 入口制品由当前 `eiscore-base/dist` 聚合生成：`output/lundu-procurement-customer-service-release-20261006.tar.gz`，SHA-256 `F9927FD52A081117531EDD6963605A433ED51C8D88782F6EAB7A9D6A75C6D6FE`；入口 `6,258` bytes；manifest `371c700348c5ed4a` / `561` 项 / `76,537,309` bytes；入口、配置和主资源没有 `君乐缘/junleyuan`，公开配置 `enterprise.id=lundu`。
+
+远端发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`。旧 release 备份为 `/opt/lundu-eiscore/backups/lundu-procurement-customer-service-before-20261006114716.tgz`；归档校验通过后原子替换完整 `/opt/lundu-eiscore/release`，实际只重建 `lundu-eiscore-web-1`。`db`、`api`、`agent`、`deepseek-web` 和 Harness 未重建；Compose 仅报告既有 `lundu-eiscore-deepseek-web-1` orphan 提示，没有清理其他容器。远端发布后入口仍为 `6,258` bytes，主包 `/assets/index-DkcveSVK.js`，manifest 为 `371c700348c5ed4a / 561 / 76,537,309`，web 状态为 `Up`。
+
+线上 HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json`、`/enterprise-assets/site/lundu-logo.png` 均返回 HTTP 200，配置返回 JSON 且 `enterprise.id=lundu`；入口和公开配置没有君乐缘品牌。线上 Playwright 脚本 `output/playwright/lundu-procurement-customer-service-qa.cjs` 及结果 `output/playwright/lundu-procurement-customer-service-qa.json` 在 `390x844`、`414x896`、`768x1024`、`1440x900` 全部通过：页面标题为“伦度机电｜电机与水泵制造”，四个视口 `scrollWidth` 等于视口宽度，客服入口文本为“客服智能体”且父容器计算 `position: fixed`；展开后面板完整位于视口内，`aria-expanded=true`，收起后面板从 DOM 移除且 `aria-expanded=false`；页面可见文案包含“采购单”且不含“询价单/询问销售/销售 Agent/询单”，页面错误和控制台错误均为 0。截图保存在 `output/playwright/lundu-procurement-customer-service-390-expanded.png`、`414-expanded.png`、`768-expanded.png`、`1440-expanded.png` 及对应收起状态截图。
+
+## 2026-10-06 竖向客服面板与销售消息 SSE v18
+
+本轮把客服智能体改成竖向长方形面板，并让消息列表成为主体区域。`eiscore-base/src/views/LoginView.vue` 为每次提问先创建一条空的 assistant 消息，再读取 `ReadableStream` 的 SSE 增量，逐段更新同一条消息；响应不是 `text/event-stream` 时仍回退到原 JSON `answer`。重复发送会中止上一条请求，异常时保留已经显示的增量。`eiscore-base/src/styles/login-view.scss` 的最终级联规则将桌面面板限制为 `390×720`（受视口高度约束），移动端使用 `calc(100vw - 24px)` 和 `min(78dvh, 680px)`；标题和说明压缩，消息区使用 `flex: 1`，快捷问题、输入区和采购单入口固定在底部。
+
+公开销售接口保留默认 JSON 兼容行为；当请求体包含 `stream: true` 或 `Accept: text/event-stream` 时返回 `text/event-stream; charset=utf-8`，按短片段发送 OpenAI 兼容的 `choices[0].delta.content` 事件并以 `[DONE]` 结束。远端现有销售运行时源码仍保留其他 Agent 的旧模型兼容字段，本轮只追加 SSE 传输分支，没有覆盖远端后端源码树。
+
+发布前声明：目标服务为 `web` 和承载 `/agent/sales` 的 `agent`；当前分支为 `codex/systematic-refactor`，基线提交为 `561f3d83c760c7c0511a460b567af4eeced95359`；本地工作树含其他 Agent 未提交改动，本轮只修改客服视图/样式、销售 SSE 分支和 QA 脚本，没有回退或覆盖无关改动。完整 12 入口制品为 `output/lundu-customer-service-streaming-release-20261006.tar.gz`，SHA-256 `F46817A3E4C05E5B100789C3030FADB008D694CA79B5E1482AEF67D61F0789A1`，归档大小 `40,669,692` bytes；本地 manifest 为 `e8ca82a1b2779f43` / `561` 项 / `76,540,707` bytes，入口 `6,258` bytes，主包 `/assets/index-CmNu499U.js`。本地入口、公开配置和主包没有 `君乐缘/junleyuan`，公开配置 `enterprise.id=lundu`。
+
+远端发布前使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`。销售后端源码先备份为 `/opt/lundu-eiscore/backups/company-sales-agent-before-sse-<timestamp>.js` 和 `/opt/lundu-eiscore/backups/realtime-index-before-sales-sse-<timestamp>.js`，通过 `node --check` 后仅重建 `lundu-eiscore-agent-1`；数据库、API、DeepSeek Web 和 Harness 未重建。静态 release 先原子备份为 `/opt/lundu-eiscore/backups/lundu-customer-service-streaming-before-20261006151026`，再替换完整 12 入口制品，实际只重建 `lundu-eiscore-web-1`；Compose 仅报告既有 `lundu-eiscore-deepseek-web-1` orphan，没有清理其他容器。
+
+发布后远端入口为 `6,258` bytes，主包 `/assets/index-CmNu499U.js`；manifest `e8ca82a1b2779f43` / `561` 项 / `76,540,707` bytes；`web` 与 `agent` 均为 `Up`/healthy。HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json`、伦度 Logo 均返回 200，配置为 `enterprise.id=lundu`，入口、配置和主包无君乐缘品牌。真实销售链路创建公开会话返回 201，发送 `{stream:true}` 消息返回 `text/event-stream; charset=utf-8`，收到 `data` 增量和 `[DONE]`。线上 Playwright 使用 `output/playwright/lundu-procurement-customer-service-qa.cjs`，在 `390×844`、`414×896`、`768×1024`、`1440×900` 全部通过：标题为“伦度机电｜电机与水泵制造”，消息区高度分别约 `357/381/416/408px`，输入区 `58px`，面板均高于宽，入口固定右下角，展开/收起、采购单文案、无横向溢出和无控制台错误均通过。

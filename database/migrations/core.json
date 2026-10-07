@@ -21,7 +21,7 @@
     {
       "id": "core-002",
       "path": "database/migrations/sql/core-002-role-boundaries.sql",
-      "sha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc",
+      "sha256": "d24b37dd37b71d7a2789c7ba736316b8a9ba40ef410a11bf91815cc5e299f0a1",
       "transaction": "runner",
       "lockTimeoutMs": 10000,
       "statementTimeoutMs": 300000,

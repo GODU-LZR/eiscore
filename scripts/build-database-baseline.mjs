@@ -202,7 +202,10 @@ export const buildDatabaseBaseline = ({ sourceDump, outputDir }) => {
     psqlFile('/repo/database/migrations/sql/company-site-001-add-published-snapshot.sql', 'company-site migration')
     psqlFile('/repo/database/migrations/postchecks/company-site.sql', 'company-site postcheck')
     psqlFile('/repo/database/migrations/sql/core-001-externalize-database-credentials.sql', 'core credential migration')
-    psqlFile('/repo/database/migrations/postchecks/core.sql', 'core postcheck')
+    // The generated baseline is captured after core-001 only. The full core
+    // postcheck requires the DB2 role boundary migration, so use the matching
+    // core-001 postcheck at this stage.
+    psqlFile('/repo/database/migrations/postchecks/core-001.sql', 'core-001 postcheck')
     psqlFile('/repo/database/migration-ledger.sql', 'migration metadata schema')
     runDocker([
       'exec', containerName, 'pg_dump', '--schema-only', '--no-owner',
@@ -239,7 +242,9 @@ export const buildDatabaseBaseline = ({ sourceDump, outputDir }) => {
   const coveredMigrations = [
     ...readManifestMigrations('database/migrations/runtime-v2.json'),
     ...readManifestMigrations('database/migrations/company-site.json'),
-    ...readManifestMigrations('database/migrations/core.json')
+    // The baseline is captured after core-001. Later core migrations must be
+    // applied by the upgrade path and therefore must not be marked covered.
+    ...readManifestMigrations('database/migrations/core.json').slice(0, 1)
   ]
   const manifest = {
     schemaVersion: 1,

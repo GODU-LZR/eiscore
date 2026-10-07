@@ -359,6 +359,7 @@ import { buildSalesCockpitQueryRequests } from '@/domain/sales-cockpit-query-pol
 import { decrementSalesCockpitRefreshCountdown, formatSalesCockpitClock } from '@/domain/sales-cockpit-clock-policy.js'
 import { normalizeSalesCockpitData } from '@/domain/sales-cockpit-data-policy.js'
 import { getSalesCockpitFullscreenAction } from '@/domain/sales-cockpit-fullscreen-policy.js'
+import { buildSalesCockpitFrame } from '@/domain/sales-cockpit-shell-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
@@ -1750,4 +1751,3 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   }
 }
 </style>
-import { buildSalesCockpitFrame } from '@/domain/sales-cockpit-shell-policy.js'

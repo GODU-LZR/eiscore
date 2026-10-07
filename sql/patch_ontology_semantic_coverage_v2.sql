@@ -652,6 +652,10 @@ GRANT SELECT ON public.v_ontology_coverage_audit TO web_user;
 GRANT SELECT ON public.v_permission_ontology TO web_user;
 GRANT SELECT ON public.v_role_permissions TO web_user;
 
+-- Coverage audit is an internal diagnostic surface; expose only its scoped
+-- health RPC to the application role, never the raw audit view.
+REVOKE ALL ON public.v_ontology_coverage_audit FROM web_user;
+
 SELECT pg_notify('pgrst', 'reload schema');
 
 COMMIT;

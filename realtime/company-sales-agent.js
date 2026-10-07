@@ -74,13 +74,25 @@ const parseContact = (body) => ({
   message: text(body?.message, 4000)
 });
 
-const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, now = () => new Date(), siteKey = process.env.COMPANY_SITE_KEY || DEFAULT_SITE_KEY }) => {
+const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, streamTextAsSse, now = () => new Date(), siteKey = process.env.COMPANY_SITE_KEY || DEFAULT_SITE_KEY }) => {
   const SITE_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(String(siteKey || ''))
     ? String(siteKey)
     : DEFAULT_SITE_KEY;
   if (typeof query !== 'function') throw new Error('company-sales query function is required');
   if (typeof sendJson !== 'function') throw new Error('company-sales sendJson function is required');
   if (typeof readJsonBody !== 'function') throw new Error('company-sales readJsonBody function is required');
+  const streamAnswer = (res, answer) => {
+    if (typeof streamTextAsSse === 'function') {
+      streamTextAsSse(res, answer, 120);
+      return;
+    }
+    const output = String(answer || '');
+    for (let start = 0; start < output.length; start += 120) {
+      if (typeof res.write === 'function') res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: output.slice(start, start + 120) } }] })}\n\n`);
+    }
+    if (typeof res.write === 'function') res.write('data: [DONE]\n\n');
+    if (typeof res.end === 'function') res.end();
+  };
 
   const rateBuckets = new Map();
   const checkRateLimit = (req, res) => {
@@ -228,6 +240,17 @@ const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, now = () =>
       [sessionId, handoff, now(), SITE_KEY]
     );
     await audit({ traceId: `sales_message_${sessionId}_${Date.now()}`, sessionId, toolId: 'sales.message.answer', input: { message }, details: { citations: citations.length, handoff } });
+    const wantsStream = body?.stream === true || /(^|,)\s*text\/event-stream\s*(;|,|$)/i.test(String(req?.headers?.accept || ''));
+    if (wantsStream && typeof res.writeHead === 'function') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      });
+      streamAnswer(res, answer);
+      return;
+    }
     sendJson(res, 200, { ok: true, session: { id: sessionId, status: handoff ? 'human_handoff' : session.status }, answer, citations, needsHuman: handoff });
   };
 

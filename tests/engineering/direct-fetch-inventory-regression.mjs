@@ -20,7 +20,10 @@ const expectedInventory = new Map([
   ['eiscore-apps/src/views/AppDashboard.vue', ['static-assets', 2]],
   ['eiscore-base/src/layout/index.vue', ['static-assets', 2]],
   ['eiscore-apps/src/views/FlashBuilder.vue', ['service-probe', 1]],
-  ['eiscore-base/src/views/LoginView.vue', ['login-bootstrap', 5]],
+  // The public Lundu login/landing page also owns the anonymous sales BFF
+  // session, inquiry and lead flows. These are same-origin /agent/sales
+  // requests, not protected /api calls, and contain no auth token.
+  ['eiscore-base/src/views/LoginView.vue', ['login-bootstrap', 8]],
   ['eiscore-base/src/services/harness-auth-client.js', ['harness-auth', 1]],
   ['eiscore-company-site/src/main.js', ['company-site', 1]],
   ['eiscore-company-site/src/views/EnterpriseSitePreview.vue', ['company-site', 1]],
@@ -34,7 +37,7 @@ const expectedCategoryCounts = new Map([
   ['harness-client', 1],
   ['static-assets', 4],
   ['service-probe', 1],
-  ['login-bootstrap', 7],
+  ['login-bootstrap', 10],
   ['compat-auth', 1],
   ['harness-auth', 1],
   ['company-site', 2]
@@ -83,5 +86,5 @@ assert.deepEqual([...categoryCounts.entries()].sort(), [...expectedCategoryCount
 assert.deepEqual(literalApiFetches, [], 'protected /api calls must use the platform HTTP client')
 
 const total = [...actualInventory.values()].reduce((sum, count) => sum + count, 0)
-assert.equal(total, 23)
+assert.equal(total, 26)
 console.log(`PASS: direct fetch inventory locked (${actualInventory.size} files, ${total} calls, 9 categories)`)

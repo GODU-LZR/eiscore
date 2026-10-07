@@ -37,7 +37,7 @@ const safeEnvironment = {
   EISCORE_HARNESS_BRIDGE_SECRET: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_TOOL_PROXY_SECRET: 'HarnessProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   DSH_PROVIDER: 'deepseek-official',
-  DSH_MODEL: 'deepseek-chat'
+  DSH_MODEL: 'deepseek-v4-flash'
 }
 
 const baselinePaths = [

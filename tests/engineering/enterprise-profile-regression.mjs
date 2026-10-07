@@ -183,6 +183,7 @@ assert.equal(persisted.loginBranding.authTitle, '登录内部系统')
 const calls = []
 const service = createEnterpriseProfileService({
   enterpriseConfig: DEFAULT_ENTERPRISE_CONFIG,
+  getRequestHost: () => 'factory.example.test',
   httpClient: {
     async requestJson(path, options) {
       calls.push({ path, options })
@@ -196,6 +197,22 @@ assert.deepEqual(calls, [{
   path: '/company-site/public/site-config',
   options: { service: 'agent' }
 }])
+
+const domainWarnings = []
+const mismatchedDomainService = createEnterpriseProfileService({
+  enterpriseConfig: DEFAULT_ENTERPRISE_CONFIG,
+  getRequestHost: () => 'localhost',
+  httpClient: {
+    async requestJson() {
+      return { data: sitePayload }
+    }
+  },
+  onWarning: (event) => domainWarnings.push(event)
+})
+const mismatchedDomainProfile = await mismatchedDomainService.readProfile()
+assert.equal(mismatchedDomainProfile.source, 'deployment-fallback')
+assert.equal(mismatchedDomainProfile.displayName, DEFAULT_ENTERPRISE_CONFIG.enterprise.displayName)
+assert.equal(domainWarnings[0].code, 'profile-domain-mismatch')
 
 const fallbackWarnings = []
 const fallbackService = createEnterpriseProfileService({

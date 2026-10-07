@@ -296,6 +296,12 @@ function publicOriginFromDomain(value) {
   }
 }
 
+function requestHostMatchesSite(site, requestHost) {
+  const siteHost = text(site?.domain).toLowerCase().replace(/:\d+$/, '')
+  const currentHost = text(requestHost).toLowerCase().replace(/:\d+$/, '')
+  return !!siteHost && !!currentHost && siteHost === currentHost
+}
+
 function normalizedThemeColor(site, enterpriseConfig) {
   const candidate = text(
     site?.theme?.primaryColor || site?.theme?.primary || site?.theme?.accentColor,
@@ -454,6 +460,7 @@ export function stripEnterpriseProfileFromSystemConfig(systemConfig) {
 export function createEnterpriseProfileService({
   httpClient,
   enterpriseConfig = getEnterpriseConfig(globalThis),
+  getRequestHost = () => globalThis.location?.hostname || '',
   onWarning = () => {}
 } = {}) {
   if (!httpClient || typeof httpClient.requestJson !== 'function') {
@@ -464,7 +471,12 @@ export function createEnterpriseProfileService({
     try {
       const requestPath = text(locale) ? `${PROFILE_PATH}?locale=${encodeURIComponent(text(locale))}` : PROFILE_PATH
       const result = await httpClient.requestJson(requestPath, { service: 'agent' })
-      return enterpriseProfileFromSiteConfig(result.data, { enterpriseConfig })
+      const profile = enterpriseProfileFromSiteConfig(result.data, { enterpriseConfig })
+      if (profile.source === 'published-site' && !requestHostMatchesSite(profile, getRequestHost())) {
+        onWarning({ code: 'profile-domain-mismatch', path: PROFILE_PATH })
+        return deploymentFallback(enterpriseConfig)
+      }
+      return profile
     } catch (error) {
       if (required) throw error
       onWarning({ code: 'profile-unavailable', path: PROFILE_PATH })

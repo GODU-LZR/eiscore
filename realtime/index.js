@@ -133,14 +133,21 @@ const getBearerFromAuthHeader = (req) => {
   return match ? match[1].trim() : '';
 };
 
-const asUser = (payload, token) => ({
-  id: payload?.user_id || payload?.sub || payload?.username || payload?.email || '',
-  username: payload?.username || '',
-  role: payload?.app_role || payload?.role || '',
-  tenant_id: payload?.tenant_id || payload?.tenantId || payload?.tenant || payload?.org_id || payload?.organization_id || '',
-  permissions: Array.isArray(payload?.permissions) ? payload.permissions.map((p) => String(p)) : [],
-  token: token || ''
-});
+const asUser = (payload, token) => {
+  const role = payload?.app_role || payload?.role || '';
+  const permissions = Array.isArray(payload?.permissions) ? payload.permissions.map((p) => String(p)) : [];
+  // The platform treats super_admin as a wildcard role. Keep the JWT compact
+  // while preserving that established authorization contract for Harness.
+  if (String(role).trim().toLowerCase() === 'super_admin' && !permissions.includes('*')) permissions.push('*');
+  return {
+    id: payload?.user_id || payload?.sub || payload?.username || payload?.email || '',
+    username: payload?.username || '',
+    role,
+    tenant_id: payload?.tenant_id || payload?.tenantId || payload?.tenant || payload?.org_id || payload?.organization_id || '',
+    permissions,
+    token: token || ''
+  };
+};
 
 const hasHarnessTenantContext = (user = {}) => Boolean(
   String(user.id || user.sub || user.username || '').trim()
@@ -308,13 +315,8 @@ const authorizeAgentHttpRequest = (req, res) => {
   return user;
 };
 
-const handleFlashToolCallWs = createHarnessFlashToolCallHandler({
-  execute: (...args) => harnessRuntime.toolGateway.execute(...args),
-  getToolDefinition: flashToolRegistry.getFlashToolDefinition,
-  resolveToolId: flashToolRegistry.resolveFlashToolId,
-  sendWsJson,
-  enabled: harnessRuntime.enabled
-});
+// Placeholder - will be initialized after harnessRuntime is created
+let handleFlashToolCallWs;
 
 const flashHttpHandlers = createFlashHttpHandlers({
   authorizeAgentHttpRequest,
@@ -382,6 +384,15 @@ const executeDocumentPlan = async (user, payload = {}) => {
 };
 const executeSalesWrite = createHarnessSalesWriteExecutor({ getHandlers: () => companySalesHandlers });
 const harnessRuntime = createHarnessRuntime({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeEnterpriseSnapshot: (user, options = {}) => aiContextService.fetchBusinessSnapshot(user, options.accessContext), executeDigitalTwinContext, executeDocumentPlan, executeSalesWrite, documentEntryWorker, documentFixedEntryWorker, createTwinPersistence: (user) => createPersistence(bindPgQueryForUser(user), user.username || user.id), callPostgrestWithUser, fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user), envText });
+
+// Now initialize handleFlashToolCallWs after harnessRuntime is available
+handleFlashToolCallWs = createHarnessFlashToolCallHandler({
+  execute: (...args) => harnessRuntime.toolGateway.execute(...args),
+  getToolDefinition: flashToolRegistry.getFlashToolDefinition,
+  resolveToolId: flashToolRegistry.resolveFlashToolId,
+  sendWsJson,
+  enabled: harnessRuntime.enabled
+});
 
 const handleFlashHarnessTaskWs = async (ws, payload = {}) => {
   const sessionId = sanitizePathToken(payload.sessionId || payload.session_id, 'flash-default');
@@ -488,7 +499,7 @@ const twinResourceHttpHandlers = createTwinResourceHttpHandlers({
 
 const companyQuery = (...args) => databaseNotifier.query(...args);
 const companySiteHandlers = createCompanySiteHandlers({ query: companyQuery, sendJson, sendText, readJsonBody });
-companySalesHandlers = createCompanySalesHandlers({ query: companyQuery, sendJson, readJsonBody });
+companySalesHandlers = createCompanySalesHandlers({ query: companyQuery, sendJson, readJsonBody, streamTextAsSse });
 const companyHttp = createCompanyHttpModule({
   companySiteHandlers,
   companySalesHandlers,

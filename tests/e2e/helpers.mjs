@@ -108,6 +108,7 @@ export async function gotoWithRetry(page, url, options = {}) {
 
 export function createUiErrorMonitor(page) {
   const errors = []
+  const benignExternalFailures = []
   page.on('pageerror', (error) => {
     errors.push(`pageerror: ${error.message}`)
   })
@@ -115,7 +116,29 @@ export function createUiErrorMonitor(page) {
     if (message.type() !== 'error') return
     const text = message.text()
     if (ignoredConsoleErrorPatterns.some((pattern) => pattern.test(text))) return
+    // Chromium emits a URL-less `Failed to load resource` console event for
+    // third-party assets. Match it to the requestfailed event so a transient
+    // CDN timeout cannot masquerade as an application failure.
+    if (/^Failed to load resource:.*net::ERR_/i.test(text) && benignExternalFailures.length > 0) {
+      benignExternalFailures.shift()
+      return
+    }
     errors.push(`console.error: ${text}`)
+  })
+  page.on('requestfailed', (request) => {
+    const failure = request.failure()?.errorText || 'request failed'
+    // Fetches cancelled by a debounce, route change, or component unmount are
+    // reported as requestfailed by Chromium even though the UI is healthy.
+    // Keep this aligned with the existing console ERR_ABORTED filter.
+    if (/net::ERR_ABORTED/i.test(failure)) return
+    // Browser-aborted third-party image loads are benign and already ignored
+    // by the console-error filter above; keep requestfailed diagnostics aligned.
+    if (/cube\.elemecdn\.com|faiusr\.com/i.test(request.url())) {
+      benignExternalFailures.push({ at: Date.now() })
+      setTimeout(() => benignExternalFailures.shift(), 5_000)
+      return
+    }
+    errors.push(`requestfailed: ${request.method()} ${request.url()} (${failure})`)
   })
   return {
     errors,

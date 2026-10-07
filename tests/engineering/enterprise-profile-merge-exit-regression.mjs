@@ -77,7 +77,14 @@ assert.match(e2eConfig, /enterprise-profile-playwright-result\.json/)
 assert.match(e2eConfig, /VITE_DEV_CORS_ORIGIN/)
 assert.match(baseVite, /rawPath\.startsWith\('\/company-site'\)/)
 assert.match(baseVite, /'\/company-site':\s*\{\s*target:\s*'http:\/\/localhost:8092'/s)
-assert.match(nginx, /location \/company-site\/ \{\s*proxy_pass http:\/\/host\.docker\.internal:8092\/company-site\//s)
+// Production Nginx serves the built company-site micro-frontend statically;
+// only its authenticated/public API namespaces are proxied to the EISCore
+// Agent Runtime. The old host.docker.internal:8092 assertion described the
+// removed dev-only Vite proxy and made this exit gate stale.
+assert.match(nginx, /location = \/company-site\/index\.html \{\s*root \/usr\/share\/nginx\/html;\s*try_files \$uri =404;\s*\}/s)
+for (const namespace of ['admin', 'public', 'auth']) {
+  assert.match(nginx, new RegExp(`location /company-site/${namespace}/ \u007b\\s*proxy_pass http://agent-runtime:8078/company-site/${namespace}/`))
+}
 assert.match(staticServer, /prefix:\s*'\/company-site',\s*target:\s*'http:\/\/127\.0\.0\.1:8092'/)
 assert.doesNotMatch(e2e, /page\.route\(`\$\{HOST_URL\}\/company-site/)
 assert.match(fullStackE2e, /status: 'suspended'/)

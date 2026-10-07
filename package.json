@@ -6,7 +6,7 @@
   "packageManager": "npm@10.8.2",
   "scripts": {
     "ci:install": "node scripts/install-packages.mjs --group=ci",
-    "build:frontends": "node scripts/run-package-script.mjs build --group=frontends",
+    "build:frontends": "node scripts/run-package-script.mjs build --group=frontends && node scripts/aggregate-frontend-dist.mjs",
     "db:runtime-patches": "bash scripts/apply-runtime-patches.sh",
     "db:runtime-patches:dry-run": "bash scripts/apply-runtime-patches.sh --dry-run",
     "db:migrations:check": "node scripts/check-database-migrations.mjs && node scripts/check-database-migrations.mjs --manifest=database/migrations/company-site.json && node scripts/check-database-migrations.mjs --manifest=database/migrations/core.json",

@@ -63,7 +63,7 @@ const router = createRouter({
         {
           path: 'ai/enterprise',
           name: 'ai-enterprise',
-          redirect: '/embed/smart-bi'
+          component: () => import('../views/EmbedView.vue')
         },
         {
           path: 'materials/:page(.*)*',

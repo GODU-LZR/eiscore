@@ -2,7 +2,7 @@
   min-height: 100vh;
   overflow-x: hidden;
   color: #111827;
-  background: #f4f5f1;
+  background: #fff;
 }
 :global(body.employee-login-open) {
   overflow: hidden;
@@ -926,7 +926,7 @@
   padding: clamp(72px, 8vw, 118px) max(clamp(18px, 5vw, 76px), calc((100vw - 1420px) / 2));
   box-sizing: border-box;
   color: #111827;
-  background: #eef1ec;
+  background: #fff;
 }
 
 .public-section-heading {
@@ -1397,7 +1397,7 @@
 
 .capability-card:not(:has(img)) {
   min-height: 220px;
-  border-top: 3px solid var(--login-theme);
+  border-top: 0;
   box-shadow: none;
 }
 
@@ -1900,6 +1900,2497 @@
   }
 }
 
+/* Keep the launcher icon secondary to its label. */
+.customer-service-widget .customer-service-trigger-icon {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  font-size: 16px;
+}
+
+/* Customer service: a vertical conversation surface with the transcript as the main area. */
+.customer-service-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(390px, calc(100vw - 32px));
+  height: min(720px, calc(100dvh - 120px));
+  max-height: min(720px, calc(100dvh - 120px));
+  padding: 18px 18px 14px;
+  overflow: hidden;
+}
+
+.customer-service-panel .commerce-modal-heading {
+  flex: 0 0 auto;
+  padding: 0 30px 10px 0;
+}
+
+.customer-service-panel .commerce-modal-heading h2 {
+  margin: 3px 0 4px;
+  font-size: clamp(22px, 2.8vw, 29px);
+}
+
+.customer-service-panel .commerce-modal-heading p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.customer-service-panel .agent-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  margin: 8px 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.customer-service-panel .agent-quick-prompts {
+  flex: 0 0 auto;
+  max-height: 78px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
+.customer-service-panel .agent-quick-prompts button {
+  white-space: nowrap;
+}
+
+.customer-service-panel .agent-composer {
+  flex: 0 0 auto;
+}
+
+.customer-service-panel .agent-quote-link {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .customer-service-panel {
+    width: calc(100vw - 24px);
+    height: min(78dvh, 680px);
+    max-height: min(78dvh, 680px);
+    padding: 16px 14px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .customer-service-panel .agent-messages {
+    min-height: 0;
+  }
+
+  .customer-service-panel .agent-quick-prompts {
+    max-height: 66px;
+  }
+}
+
+/* EOF trigger rule: preserve the original broad green launcher at every viewport. */
+.customer-service-widget .customer-service-trigger {
+  box-sizing: border-box;
+  width: min(256px, calc(100vw - 32px));
+  min-height: 88px;
+  padding: 0 28px;
+  gap: 15px;
+  border: 0;
+  border-radius: 5px;
+  color: #fff;
+  background: #1f6b4a;
+  box-shadow: 0 8px 24px rgba(18, 59, 42, .2);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.customer-service-widget .customer-service-trigger:hover,
+.customer-service-widget .customer-service-trigger:focus-visible {
+  border-color: transparent;
+  background: #185f43;
+}
+
+.customer-service-widget .customer-service-trigger-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-color: rgba(255, 255, 255, .72);
+  font-size: 22px;
+}
+
+@media (max-width: 760px) {
+  .customer-service-widget .customer-service-trigger {
+    width: min(256px, calc(100vw - 32px));
+    min-height: 88px;
+    padding: 0 24px;
+    gap: 13px;
+    font-size: clamp(21px, 6.4vw, 26px);
+  }
+
+  .customer-service-widget .customer-service-trigger-icon {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+    font-size: 20px;
+  }
+}
+
+/* Remove residual green separators from the quote flow and composer. */
+.quote-flow,
+.agent-composer {
+  border-top: 0 !important;
+}
+
+/* Keep storefront surfaces clean: top green rules are decorative, not part
+   of the product, manufacturing, or commerce information hierarchy. */
+.capability-card:not(:has(img)),
+.public-product-card,
+.manufacturing-series-card,
+.commerce-modal {
+  border-top: 0 !important;
+}
+
+.commerce-modal::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* Lundu white UI baseline: keep the page and commerce sections neutral white.
+   Product surfaces and semantic status panels retain their local soft tint. */
+.login-page,
+.public-products-section,
+.commerce-section {
+  background: #fff !important;
+  background-image: none !important;
+}
+
+.commerce-modal,
+.agent-modal,
+.payment-modal {
+  background: #fff;
+}
+
+/* Procurement polish: keep the buying path explicit without turning it into a chat UI. */
+.product-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+  margin-top: 15px;
+  padding-top: 11px;
+  border-top: 1px solid rgba(17, 24, 39, .1);
+}
+
+.product-card-meta-label {
+  min-width: 0;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-card-meta-action {
+  flex: 0 0 auto;
+  color: var(--login-theme);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.product-card-meta-action b {
+  display: inline-block;
+  margin-left: 3px;
+  font-size: 14px;
+  line-height: .8;
+}
+
+.quote-heading {
+  padding-right: 30px;
+}
+
+.quote-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+  margin-top: 22px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--login-theme);
+  background: #edf3ef;
+}
+
+.quote-summary strong {
+  grid-row: span 2;
+  color: var(--login-theme);
+  font: 800 27px/1 ui-monospace, Consolas, monospace;
+}
+
+.quote-summary span {
+  color: #17322b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.quote-summary small {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.quote-flow span {
+  min-width: 0;
+  transition: color 160ms ease;
+}
+
+.quote-flow span b {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border: 1px solid rgba(17, 24, 39, .18);
+  border-radius: 50%;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.quote-flow .is-current {
+  color: #17322b;
+}
+
+.quote-flow .is-current b {
+  border-color: var(--login-theme);
+  color: #fff;
+  background: var(--login-theme);
+}
+
+.quote-flow .is-complete {
+  color: var(--login-theme);
+}
+
+.quote-flow .is-complete b {
+  border-color: rgba(50, 127, 88, .35);
+  color: var(--login-theme);
+  background: #e4f0e9;
+}
+
+.commerce-status-panel {
+  border-left-width: 4px;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.commerce-status-panel.stage-inquiry { border-left-color: #82938b; background: #f0f4f1; }
+.commerce-status-panel.stage-quote { border-left-color: #b47c28; background: #fbf5e9; }
+.commerce-status-panel.stage-order { border-left-color: #397aa2; background: #eef5f8; }
+.commerce-status-panel.stage-payment { border-left-color: var(--login-theme); background: #edf3ef; }
+.commerce-status-panel.stage-quote strong { color: #765318; }
+.commerce-status-panel.stage-order strong { color: #235773; }
+
+.agent-quick-prompts {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.agent-quick-prompts > span {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.agent-quick-prompts button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(16, 42, 42, .18);
+  border-radius: 2px;
+  color: #36564c;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.agent-quick-prompts button:hover,
+.agent-quick-prompts button:focus-visible {
+  border-color: var(--login-theme);
+  color: var(--login-theme);
+}
+
+@media (max-width: 760px) {
+  .product-card-meta { margin-top: 12px; }
+  .product-card-meta-label { max-width: 64%; }
+  .quote-summary { grid-template-columns: 42px minmax(0, 1fr); margin-top: 18px; padding: 12px; }
+  .quote-summary strong { font-size: 23px; }
+  .quote-summary span { font-size: 12px; }
+  .quote-summary small { font-size: 10px; }
+  .quote-flow span { gap: 7px; padding-top: 10px; font-size: 11px; }
+  .agent-quick-prompts { margin-top: 14px; padding-bottom: 2px; }
+  .agent-quick-prompts > span { display: none; }
+  .agent-composer { align-items: stretch; }
+  .agent-composer button { min-width: 62px; padding: 0 10px; }
+}
+
+/* Final packshot and procurement overrides: keep these after component-specific rules. */
+.product-card-media img,
+.product-card-media img[src*='product-wq-card'],
+.manufacturing-series-media img,
+.manufacturing-series-media img[src*='product-wq-card'] {
+  transform: none;
+}
+
+/* Final mobile storefront flow: keep the hero copy in document flow after the
+   image. Earlier legacy rules positioned it over the media and hid the image
+   behind an opaque panel on narrow screens. */
+@media (max-width: 760px) {
+  .hero-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: auto;
+    padding-top: 68px;
+    background: #101a2d;
+  }
+
+  .hero-media {
+    position: relative;
+    inset: auto;
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .hero-inner {
+    position: relative;
+    inset: auto;
+    display: block;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    padding: 18px 18px 14px;
+    box-sizing: border-box;
+    background: #101a2d;
+    pointer-events: auto;
+  }
+
+  .hero-copy {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .hero-carousel {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    margin-top: 0;
+    transform: none;
+  }
+
+  .scroll-cue {
+    position: static;
+    align-self: flex-start;
+    margin: 0 18px 16px;
+  }
+}
+
+/* Earlier cascade guard for the product detail action; EOF guard follows. */
+.product-card-actions .product-card-link {
+  overflow: visible !important;
+  padding-right: 8px !important;
+}
+
+.product-card-actions .product-card-link > span {
+  display: inline-block;
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+
+/* Final EOF product media rule: fill the frame, keep the centered subject complete. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media {
+  overflow: hidden;
+}
+
+.product-card-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center;
+  transform: scale(1.18) !important;
+  transform-origin: center;
+}
+
+.product-card-media img[src*='product-jet-card'],
+.product-card-media img[src*='product-pst-card'] {
+  transform: scale(1.28) !important;
+}
+
+.product-card-media img[src*='product-wq-card'] {
+  transform: scale(1.35) !important;
+}
+
+/* Final manufacturing-card frame: remove the decorative green cap. */
+.manufacturing-series-card {
+  border-top: 0 !important;
+}
+
+/* Remove every remaining green cap from public cards and modal surfaces. */
+.capability-card:not(:has(img)),
+.public-product-card,
+.manufacturing-series-card,
+.commerce-modal {
+  border-top: 0 !important;
+}
+
+.commerce-modal::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* EOF customer-service override: vertical panel, transcript as the main area. */
+.customer-service-panel { display: flex !important; flex-direction: column !important; width: min(390px, calc(100vw - 32px)) !important; height: min(720px, calc(100dvh - 120px)) !important; max-height: min(720px, calc(100dvh - 120px)) !important; padding: 18px 18px 14px !important; overflow: hidden !important; }
+.customer-service-panel .commerce-modal-heading { flex: 0 0 auto; padding: 0 30px 10px 0; }
+.customer-service-panel .commerce-modal-heading h2 { margin: 3px 0 4px; font-size: clamp(22px, 2.8vw, 29px); }
+.customer-service-panel .commerce-modal-heading p { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.customer-service-panel .agent-messages { flex: 1 1 auto !important; min-height: 0 !important; max-height: none !important; margin: 8px 0 0; overflow-y: auto !important; overscroll-behavior: contain; }
+.customer-service-panel .agent-quick-prompts { flex: 0 0 auto; max-height: 78px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; }
+.customer-service-panel .agent-quick-prompts button { white-space: nowrap; }
+.customer-service-panel .agent-composer, .customer-service-panel .agent-quote-link { flex: 0 0 auto; }
+@media (max-width: 760px) { .customer-service-panel { width: calc(100vw - 24px) !important; height: min(78dvh, 680px) !important; max-height: min(78dvh, 680px) !important; padding: 16px 14px max(12px, env(safe-area-inset-bottom)) !important; } .customer-service-panel .agent-quick-prompts { max-height: 66px; } }
+
+/* EOF override for customer service panel. */
+.customer-service-panel { display: flex !important; flex-direction: column !important; width: min(390px, calc(100vw - 32px)) !important; height: min(720px, calc(100dvh - 120px)) !important; max-height: min(720px, calc(100dvh - 120px)) !important; padding: 18px 18px 14px !important; overflow: hidden !important; }
+.customer-service-panel .commerce-modal-heading { flex: 0 0 auto; padding: 0 30px 10px 0; }
+.customer-service-panel .commerce-modal-heading h2 { margin: 3px 0 4px; font-size: clamp(22px, 2.8vw, 29px); }
+.customer-service-panel .commerce-modal-heading p { display: -webkit-box; margin: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.customer-service-panel .agent-messages { flex: 1 1 auto !important; min-height: 0 !important; max-height: none !important; margin: 8px 0 0; overflow-y: auto !important; overscroll-behavior: contain; }
+.customer-service-panel .agent-quick-prompts { flex: 0 0 auto; max-height: 78px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; }
+.customer-service-panel .agent-quick-prompts button { white-space: nowrap; }
+.customer-service-panel .agent-composer, .customer-service-panel .agent-quote-link { flex: 0 0 auto; }
+@media (max-width: 760px) { .customer-service-panel { width: calc(100vw - 24px) !important; height: min(78dvh, 680px) !important; max-height: min(78dvh, 680px) !important; padding: 16px 14px max(12px, env(safe-area-inset-bottom)) !important; } .customer-service-panel .agent-quick-prompts { max-height: 66px; } }
+
+/* EOF customer-service override: vertical panel, transcript as the main area. */
+.customer-service-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  width: min(390px, calc(100vw - 32px)) !important;
+  height: min(720px, calc(100dvh - 120px)) !important;
+  max-height: min(720px, calc(100dvh - 120px)) !important;
+  padding: 18px 18px 14px !important;
+  overflow: hidden !important;
+}
+
+.customer-service-panel .commerce-modal-heading {
+  flex: 0 0 auto;
+  padding: 0 30px 10px 0;
+}
+
+.customer-service-panel .commerce-modal-heading h2 {
+  margin: 3px 0 4px;
+  font-size: clamp(22px, 2.8vw, 29px);
+}
+
+.customer-service-panel .commerce-modal-heading p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.customer-service-panel .agent-messages {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 8px 0 0;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+.customer-service-panel .agent-quick-prompts {
+  flex: 0 0 auto;
+  max-height: 78px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
+.customer-service-panel .agent-quick-prompts button { white-space: nowrap; }
+.customer-service-panel .agent-composer,
+.customer-service-panel .agent-quote-link { flex: 0 0 auto; }
+
+@media (max-width: 760px) {
+  .customer-service-panel {
+    width: calc(100vw - 24px) !important;
+    height: min(78dvh, 680px) !important;
+    max-height: min(78dvh, 680px) !important;
+    padding: 16px 14px max(12px, env(safe-area-inset-bottom)) !important;
+  }
+  .customer-service-panel .agent-quick-prompts { max-height: 66px; }
+}
+
+/* Final customer service layout: keep the panel vertical and give the transcript the main area. */
+.customer-service-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  width: min(390px, calc(100vw - 32px)) !important;
+  height: min(720px, calc(100dvh - 120px)) !important;
+  max-height: min(720px, calc(100dvh - 120px)) !important;
+  padding: 18px 18px 14px !important;
+  overflow: hidden !important;
+}
+
+.customer-service-panel .commerce-modal-heading {
+  flex: 0 0 auto;
+  padding: 0 30px 10px 0;
+}
+
+.customer-service-panel .commerce-modal-heading h2 {
+  margin: 3px 0 4px;
+  font-size: clamp(22px, 2.8vw, 29px);
+}
+
+.customer-service-panel .commerce-modal-heading p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.customer-service-panel .agent-messages {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 8px 0 0;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+.customer-service-panel .agent-quick-prompts {
+  flex: 0 0 auto;
+  max-height: 78px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
+.customer-service-panel .agent-quick-prompts button {
+  white-space: nowrap;
+}
+
+.customer-service-panel .agent-composer,
+.customer-service-panel .agent-quote-link {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .customer-service-panel {
+    width: calc(100vw - 24px) !important;
+    height: min(78dvh, 680px) !important;
+    max-height: min(78dvh, 680px) !important;
+    padding: 16px 14px max(12px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .customer-service-panel .agent-quick-prompts {
+    max-height: 66px;
+  }
+}
+
+/* Absolute EOF trigger rule: restore the broad launcher from the reference. */
+.customer-service-widget .customer-service-trigger {
+  box-sizing: border-box;
+  width: min(256px, calc(100vw - 32px));
+  min-height: 88px;
+  padding: 0 28px;
+  gap: 15px;
+  border: 0;
+  border-radius: 5px;
+  color: #fff;
+  background: #1f6b4a;
+  box-shadow: 0 8px 24px rgba(18, 59, 42, .2);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.customer-service-widget .customer-service-trigger:hover,
+.customer-service-widget .customer-service-trigger:focus-visible {
+  border-color: transparent;
+  background: #185f43;
+}
+
+.customer-service-widget .customer-service-trigger-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-color: rgba(255, 255, 255, .72);
+  font-size: 22px;
+}
+
+@media (max-width: 760px) {
+  .customer-service-widget .customer-service-trigger {
+    width: min(256px, calc(100vw - 32px));
+    min-height: 88px;
+    padding: 0 24px;
+    gap: 13px;
+    font-size: clamp(21px, 6.4vw, 26px);
+  }
+
+  .customer-service-widget .customer-service-trigger-icon {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+    font-size: 20px;
+  }
+}
+
+/* Restore the broad Lundu customer-service launcher shown in the reference. */
+.customer-service-widget .customer-service-trigger {
+  box-sizing: border-box;
+  width: min(256px, calc(100vw - 32px));
+  min-height: 88px;
+  padding: 0 28px;
+  gap: 15px;
+  border: 0;
+  border-radius: 5px;
+  background: #1f6b4a;
+  box-shadow: 0 8px 24px rgba(18, 59, 42, .2);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.customer-service-widget .customer-service-trigger:hover,
+.customer-service-widget .customer-service-trigger:focus-visible {
+  border-color: transparent;
+  background: #185f43;
+}
+
+.customer-service-widget .customer-service-trigger-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-color: rgba(255, 255, 255, .72);
+  font-size: 22px;
+}
+
+@media (max-width: 760px) {
+  .customer-service-widget .customer-service-trigger {
+    width: min(256px, calc(100vw - 32px));
+    min-height: 88px;
+    padding: 0 24px;
+    gap: 13px;
+    font-size: clamp(21px, 6.4vw, 26px);
+  }
+
+  .customer-service-widget .customer-service-trigger-icon {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+    font-size: 20px;
+  }
+}
+
+/* Final storefront rule: remove decorative green top bars from every card
+   and commerce modal while keeping green action and status colors. */
+.capability-card:not(:has(img)),
+.public-product-card,
+.manufacturing-series-card,
+.commerce-modal {
+  border-top: 0 !important;
+}
+
+.commerce-modal::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* Keep the storefront surfaces clean: top green rules are decorative, not
+   part of the product, manufacturing, or commerce information hierarchy. */
+.capability-card:not(:has(img)),
+.public-product-card,
+.manufacturing-series-card,
+.commerce-modal {
+  border-top: 0 !important;
+}
+
+.commerce-modal::before {
+  display: none !important;
+  content: none !important;
+}
+
+/* Final customer service layout: the transcript owns the panel height. */
+.customer-service-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(390px, calc(100vw - 32px));
+  height: min(720px, calc(100dvh - 120px));
+  max-height: min(720px, calc(100dvh - 120px));
+  padding: 18px 18px 14px;
+  overflow: hidden;
+}
+
+.customer-service-panel .commerce-modal-heading {
+  flex: 0 0 auto;
+  padding: 0 30px 10px 0;
+}
+
+.customer-service-panel .commerce-modal-heading h2 {
+  margin: 3px 0 4px;
+  font-size: clamp(22px, 2.8vw, 29px);
+}
+
+.customer-service-panel .commerce-modal-heading p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.customer-service-panel .agent-messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  margin: 8px 0 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.customer-service-panel .agent-quick-prompts {
+  flex: 0 0 auto;
+  max-height: 78px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
+.customer-service-panel .agent-quick-prompts button {
+  white-space: nowrap;
+}
+
+.customer-service-panel .agent-composer,
+.customer-service-panel .agent-quote-link {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .customer-service-panel {
+    width: calc(100vw - 24px);
+    height: min(78dvh, 680px);
+    max-height: min(78dvh, 680px);
+    padding: 16px 14px max(12px, env(safe-area-inset-bottom));
+  }
+
+  .customer-service-panel .agent-quick-prompts {
+    max-height: 66px;
+  }
+}
+
+/* Customer service stays available without blocking the public site. */
+.customer-service-widget {
+  position: fixed;
+  right: clamp(16px, 3vw, 34px);
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 95;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.customer-service-widget > * {
+  pointer-events: auto;
+}
+
+.customer-service-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid #1f6b4a;
+  border-radius: 3px;
+  color: #fff;
+  background: #1f6b4a;
+  box-shadow: 0 8px 24px rgba(18, 59, 42, .22);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.customer-service-trigger:hover,
+.customer-service-trigger:focus-visible {
+  border-color: #174c37;
+  background: #174c37;
+}
+
+.customer-service-trigger-icon {
+  display: inline-grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .6);
+  border-radius: 50%;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.customer-service-panel {
+  width: min(420px, calc(100vw - 32px));
+  max-height: min(650px, calc(100dvh - 100px));
+  padding: 24px 22px 20px;
+  overflow: auto;
+}
+
+.customer-service-panel .commerce-modal-heading h2 {
+  font-size: clamp(24px, 3vw, 34px);
+}
+
+.customer-service-panel .agent-quote-link {
+  width: 100%;
+}
+
+.customer-service-panel-enter-active,
+.customer-service-panel-leave-active {
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.customer-service-panel-enter-from,
+.customer-service-panel-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+@media (max-width: 760px) {
+  .customer-service-widget {
+    right: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .customer-service-trigger {
+    min-height: 42px;
+    padding: 0 14px;
+  }
+
+  .customer-service-panel {
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(72dvh, 560px);
+    padding: 22px 16px 16px;
+    border-radius: 6px;
+  }
+}
+
+/* Manufacturing product cards use the same neutral frame as the rest of the site. */
+.manufacturing-series-card {
+  border-top: 0 !important;
+}
+
+/* Product images fill their slots while retaining the complete centered item. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media {
+  overflow: hidden;
+}
+
+.product-card-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center;
+  transform: scale(1.18) !important;
+  transform-origin: center;
+}
+
+.product-card-media img[src*='product-jet-card'],
+.product-card-media img[src*='product-pst-card'] {
+  transform: scale(1.28) !important;
+}
+
+.product-card-media img[src*='product-wq-card'] {
+  transform: scale(1.35) !important;
+}
+
+/* EOF guard: final product media fit wins over legacy breakpoint rules. */
+/* Final manufacturing-card frame: remove the decorative green cap. */
+.manufacturing-series-card {
+  border-top: 0 !important;
+}
+
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media {
+  overflow: hidden;
+}
+
+.product-card-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center;
+  transform: scale(1.18) !important;
+  transform-origin: center;
+}
+
+.product-card-media img[src*='product-jet-card'],
+.product-card-media img[src*='product-pst-card'] {
+  transform: scale(1.28) !important;
+}
+
+.product-card-media img[src*='product-wq-card'] {
+  transform: scale(1.35) !important;
+}
+
+/* Final manufacturing-card frame: remove the decorative green cap. */
+.manufacturing-series-card {
+  border-top: 0 !important;
+}
+
+/* Final EOF cascade: product media fills its slot without cropping the subject. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media {
+  overflow: hidden;
+}
+
+.product-card-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center;
+  transform: scale(1.18) !important;
+  transform-origin: center;
+}
+
+.product-card-media img[src*='product-jet-card'],
+.product-card-media img[src*='product-pst-card'] {
+  transform: scale(1.28) !important;
+}
+
+.product-card-media img[src*='product-wq-card'] {
+  transform: scale(1.35) !important;
+}
+
+/* Final product media treatment: full frame, complete centered packshots, no card bar. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media {
+  overflow: hidden;
+}
+
+.product-card-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center;
+  transform: scale(1.18) !important;
+  transform-origin: center;
+}
+
+.product-card-media img[src*='product-jet-card'],
+.product-card-media img[src*='product-pst-card'] {
+  transform: scale(1.28) !important;
+}
+
+.product-card-media img[src*='product-wq-card'] {
+  transform: scale(1.35) !important;
+}
+
+/* Absolute final product-card media cascade. Keep every packshot centered,
+   complete, and visually large after all legacy breakpoint overrides. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media {
+  overflow: hidden;
+}
+
+.product-card-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center;
+  transform: scale(1.18) !important;
+  transform-origin: center;
+}
+
+.product-card-media img[src*='product-jet-card'],
+.product-card-media img[src*='product-pst-card'] {
+  transform: scale(1.28) !important;
+}
+
+.product-card-media img[src*='product-wq-card'] {
+  transform: scale(1.35) !important;
+}
+
+/* Final product media cascade: fill each slot without cropping the packshot. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media {
+  overflow: hidden;
+}
+
+.product-card-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center;
+  transform: scale(1.18) !important;
+  transform-origin: center;
+}
+
+.product-card-media img[src*='product-jet-card'],
+.product-card-media img[src*='product-pst-card'] {
+  transform: scale(1.28) !important;
+}
+
+.product-card-media img[src*='product-wq-card'] {
+  transform: scale(1.35) !important;
+}
+
+/* Product showcase finish: let the supplied 16:9 packshot reach the media
+   edges and remove the decorative top rule from public product cards. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media,
+.manufacturing-series-media {
+  background: #f5f8f6;
+}
+
+.product-card-media img,
+.manufacturing-series-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Product media: use the full slot and remove the decorative card cap.
+   Keep contain so the pump remains complete while the source framing fills the slot. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media img {
+  padding: 0 !important;
+  transform: scale(1.18) !important;
+  transform-origin: center;
+}
+
+.product-card-media img[src*='product-wq-card'] {
+  transform: scale(1.35) !important;
+}
+
+.product-card-media img[src*='product-jet-card'],
+.product-card-media img[src*='product-pst-card'] {
+  transform: scale(1.28) !important;
+}
+
+/* Product showcase finish: let the supplied 16:9 packshot reach the media
+   edges and remove the decorative top rule from public product cards. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media,
+.manufacturing-series-media {
+  background: #f5f8f6;
+}
+
+.product-card-media img,
+.manufacturing-series-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Keep the detail arrow visible while it moves on hover. A shared compact
+   button rule clips overflow, so reserve a little tail space and allow the
+   translated arrow to remain visible. */
+.product-card-actions .product-card-link {
+  overflow: visible;
+  padding-right: 6px;
+}
+
+.product-card-actions .product-card-link span {
+  display: inline-block;
+  flex: 0 0 auto;
+  margin-right: 4px;
+}
+
+/* Final mobile commerce bounds: the sheet must use the viewport edge-to-edge.
+   Keep padding inside the box so 390px devices never get a 404px dialog. */
+@media (max-width: 760px) {
+  .commerce-overlay {
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  .commerce-modal {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    box-sizing: border-box;
+  }
+}
+
+/* Final mobile hero flow: image, copy, controls, then the next section.
+   Keep this at EOF so legacy breakpoint rules cannot place the copy over the image. */
+@media (max-width: 760px) {
+  .hero-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: auto;
+    padding-top: 68px;
+  }
+
+  .hero-media {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    flex: 0 0 auto;
+  }
+
+  .hero-media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .hero-shade {
+    display: none;
+  }
+
+  .hero-inner {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    padding: 18px 18px 14px;
+    box-sizing: border-box;
+    background: #101a2d;
+  }
+
+  .hero-copy {
+    width: 100%;
+    max-width: none;
+  }
+
+  .hero-carousel {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    margin-top: 16px;
+    transform: none;
+  }
+
+  .scroll-cue {
+    position: static;
+    align-self: flex-start;
+    margin: 0 18px 16px;
+  }
+}
+
+/* The shared compact button rule clips overflow. Keep the translated detail
+   arrow inside its own reserved space so it stays clear of the quote button. */
+.product-card-actions .product-card-link {
+  overflow: visible !important;
+  padding-right: 8px !important;
+}
+
+.product-card-actions .product-card-link span {
+  display: inline-block;
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+
+/* Mobile hero must remain a real image band followed by a content band.
+   This final rule wins over the legacy absolute hero overlay rule. */
+@media (max-width: 760px) {
+  .hero-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: auto;
+  }
+
+  .hero-media {
+    position: relative;
+    inset: auto;
+    flex: 0 0 auto;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    height: auto;
+  }
+
+  .hero-inner {
+    position: relative;
+    inset: auto;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    box-sizing: border-box;
+  }
+}
+
+/* Final storefront polish: keep commerce actions readable across enterprise
+   themes and give every modal the same Lundu green rule. */
+.product-card-quote,
+.commerce-primary,
+.agent-composer button {
+  border-color: #1f6b4a;
+  color: #fff;
+  background: #1f6b4a;
+}
+
+.product-card-quote:hover,
+.product-card-quote:focus-visible,
+.commerce-primary:hover,
+.commerce-primary:focus-visible,
+.agent-composer button:hover,
+.agent-composer button:focus-visible {
+  border-color: #174c37;
+  background: #174c37;
+}
+
+.commerce-primary:disabled,
+.agent-composer button:disabled {
+  border-color: #9fb7aa;
+  background: #9fb7aa;
+}
+
+.commerce-modal::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  display: none !important;
+  background: #1f6b4a;
+  content: none !important;
+}
+
+.commerce-modal-heading h2,
+.product-detail-copy h2 {
+  letter-spacing: 0;
+}
+
+/* Keep primary actions visible when a host theme resets button appearance.
+   The commerce surface owns this contrast on both light and dark themes. */
+.commerce-modal .commerce-primary,
+.commerce-modal .agent-composer button,
+.public-product-card .product-card-quote {
+  border: 1px solid #1f6b4a !important;
+  color: #fff !important;
+  background: #1f6b4a !important;
+  box-shadow: none;
+}
+
+.commerce-modal .commerce-primary:hover,
+.commerce-modal .commerce-primary:focus-visible,
+.commerce-modal .agent-composer button:hover,
+.commerce-modal .agent-composer button:focus-visible,
+.public-product-card .product-card-quote:hover,
+.public-product-card .product-card-quote:focus-visible {
+  border-color: #174c37 !important;
+  background: #174c37 !important;
+}
+
+/* On phones the hero image and copy are separate bands. This prevents the
+   carousel caption and enterprise facts from competing for one overlay. */
+@media (max-width: 760px) {
+  .site-header {
+    gap: 5px;
+    padding-inline: 10px;
+  }
+
+  .brand-mark.has-logo {
+    width: 118px;
+    height: 34px;
+  }
+
+  .header-actions {
+    gap: 3px;
+  }
+
+  .locale-switch {
+    padding: 2px;
+  }
+
+  .locale-switch button {
+    min-width: 26px;
+    height: 28px;
+    padding-inline: 4px;
+    font-size: 10px;
+  }
+
+  .header-login,
+  .quote-trigger {
+    max-width: 72px;
+    height: 34px;
+    padding-inline: 7px;
+    font-size: 11px;
+  }
+
+  .hero-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-top: 68px;
+    background: #101a2d;
+  }
+
+  .hero-media {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+    flex: 0 0 auto;
+  }
+
+  .hero-shade {
+    display: none;
+  }
+
+  .hero-inner {
+    position: relative;
+    inset: auto;
+    display: block;
+    min-height: 0;
+    height: auto;
+    padding: 18px 18px 14px;
+    background: #101a2d;
+  }
+
+  .hero-copy {
+    width: 100%;
+    animation: none;
+  }
+
+  .hero-copy h1 {
+    font-size: clamp(32px, 9vw, 40px);
+  }
+
+  .brand-kicker {
+    margin-bottom: 8px;
+    padding-left: 22px;
+    font-size: 11px;
+  }
+
+  .brand-kicker::before {
+    width: 15px;
+  }
+
+  .brand-slogan {
+    margin-top: 9px;
+    font-size: 15px;
+  }
+
+  .brand-intro {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  .trust-strip {
+    margin-top: 14px;
+  }
+
+  .trust-strip span {
+    min-height: 22px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  .hero-carousel {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    margin-top: 16px;
+    transform: none;
+  }
+
+  .hero-carousel-caption {
+    max-width: calc(100% - 96px);
+  }
+
+  .hero-facts {
+    display: none;
+  }
+
+  .scroll-cue {
+    position: static;
+    align-self: flex-start;
+    margin: 0 18px 16px;
+    color: rgba(255, 255, 255, .86);
+  }
+
+  .scroll-cue i {
+    width: 34px;
+    height: 34px;
+  }
+
+  .product-card-quote,
+  .commerce-primary,
+  .agent-composer button {
+    background: #1f6b4a;
+  }
+
+  .commerce-modal::before {
+    height: 2px;
+  }
+}
+
+/* Final commerce surface: one restrained Lundu system for products, inquiry and sales handoff. */
+.public-product-card,
+.manufacturing-series-card {
+  border: 1px solid rgba(18, 48, 39, .14);
+  border-top: 0;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(18, 48, 39, .055);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.public-product-card:hover,
+.public-product-card:focus-within,
+.manufacturing-series-card:hover,
+.manufacturing-series-card:focus-within {
+  border-color: rgba(32, 97, 67, .38);
+  box-shadow: 0 16px 32px rgba(18, 48, 39, .09);
+  transform: translateY(-2px);
+}
+
+.public-product-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.product-card-media,
+.manufacturing-series-media {
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+  background: #edf3ef;
+}
+
+.product-card-media img,
+.manufacturing-series-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: clamp(12px, 2vw, 26px);
+  box-sizing: border-box;
+  object-fit: contain;
+  object-position: center;
+  transform: none !important;
+  transition: filter 160ms ease;
+}
+
+.public-product-card:hover .product-card-media img,
+.manufacturing-series-card:hover .manufacturing-series-media img {
+  filter: saturate(1.03) contrast(1.02);
+}
+
+.product-card-body,
+.manufacturing-series-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.product-card-body {
+  padding: clamp(18px, 2.2vw, 26px);
+}
+
+.public-product-card h3 {
+  margin-top: 8px;
+  color: #17322b;
+  font-size: clamp(20px, 2vw, 26px);
+  line-height: 1.2;
+}
+
+.product-card-body > p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  min-height: 4.8em;
+  margin-top: 11px;
+  line-height: 1.6;
+}
+
+.product-card-actions {
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.product-card-link,
+.product-card-quote,
+.commerce-primary,
+.commerce-secondary,
+.agent-composer button,
+.agent-quote-link,
+.header-login,
+.quote-trigger {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.product-card-link,
+.product-card-quote,
+.commerce-primary,
+.commerce-secondary,
+.agent-composer button,
+.agent-quote-link {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 800;
+}
+
+.commerce-section {
+  border-top: 1px solid rgba(18, 48, 39, .14);
+  border-bottom: 1px solid rgba(18, 48, 39, .14);
+  background: #fff;
+}
+
+.commerce-section h2 {
+  color: #17322b;
+}
+
+.commerce-section p {
+  max-width: 620px;
+}
+
+.commerce-actions {
+  align-items: center;
+}
+
+.commerce-steps {
+  gap: 0;
+}
+
+.commerce-steps span {
+  min-width: 0;
+  padding-right: 16px;
+}
+
+.commerce-modal {
+  overscroll-behavior: contain;
+}
+
+.commerce-modal-actions > button,
+.commerce-status-panel > button {
+  white-space: nowrap;
+}
+
+.product-detail-media {
+  min-height: 250px;
+  padding: clamp(10px, 2vw, 24px);
+  box-sizing: border-box;
+}
+
+.product-detail-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.quote-line {
+  min-width: 0;
+}
+
+.quote-line > div {
+  min-width: 0;
+}
+
+.quote-line strong,
+.quote-line small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote-line input {
+  min-width: 0;
+  font: 700 13px/1 ui-monospace, Consolas, monospace;
+}
+
+.quote-empty {
+  background: #fff;
+}
+
+.agent-modal {
+  background: #f7f8f4;
+}
+
+.agent-messages {
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(32, 97, 67, .35) transparent;
+}
+
+.agent-composer input {
+  min-width: 0;
+}
+
+.payment-reserved-card {
+  border-left: 3px solid var(--login-theme);
+}
+
+@media (max-width: 760px) {
+  .public-product-card:hover,
+  .public-product-card:focus-within,
+  .manufacturing-series-card:hover,
+  .manufacturing-series-card:focus-within {
+    transform: none;
+  }
+
+  .product-card-media,
+  .manufacturing-series-media {
+    aspect-ratio: 16 / 10;
+  }
+
+  .product-card-media img,
+  .manufacturing-series-media img {
+    padding: 12px 18px;
+  }
+
+  .product-card-body {
+    padding: 18px;
+  }
+
+  .product-card-body > p {
+    min-height: 0;
+    -webkit-line-clamp: 4;
+  }
+
+  .commerce-section {
+    gap: 22px;
+    padding-top: 48px;
+    padding-bottom: 56px;
+  }
+
+  .commerce-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .commerce-actions > button {
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  .commerce-steps span {
+    min-height: 42px;
+    padding: 12px 8px 0 0;
+    font-size: 11px;
+  }
+
+  .commerce-overlay {
+    padding: 0;
+  }
+
+  .commerce-modal {
+    width: 100%;
+    max-height: min(94dvh, 820px);
+    padding: 24px 16px max(18px, env(safe-area-inset-bottom));
+    border-radius: 8px 8px 0 0;
+  }
+
+  .commerce-close {
+    top: 14px;
+    right: 14px;
+  }
+
+  .product-detail-media {
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+    padding: 10px 20px;
+  }
+
+  .product-detail-copy h2 {
+    max-width: calc(100% - 34px);
+    font-size: clamp(27px, 8vw, 34px);
+  }
+
+  .commerce-modal-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .commerce-modal-actions > button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .quote-line {
+    grid-template-columns: 44px minmax(0, 1fr) 58px 28px;
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .quote-line img {
+    width: 44px;
+    height: 42px;
+  }
+
+  .quote-flow {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .quote-flow span {
+    min-width: 0;
+    min-height: 34px;
+    padding: 6px 0;
+    font-size: 11px;
+  }
+
+  .quote-flow span b {
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+  }
+
+  .lead-fields {
+    gap: 9px;
+  }
+
+  .agent-messages {
+    min-height: 150px;
+    max-height: 34dvh;
+  }
+
+  .agent-message {
+    max-width: 90%;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .agent-composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .agent-composer button {
+    min-width: 66px;
+    padding-inline: 10px;
+  }
+}
+
+/* Commerce refinement: use the same quiet, precise system as the Lundu site. */
+.commerce-overlay {
+  padding: 20px;
+  background: rgba(12, 25, 21, .48);
+  backdrop-filter: blur(4px);
+}
+
+.commerce-modal {
+  border: 1px solid rgba(18, 48, 39, .16);
+  border-radius: 2px;
+  background: #f7f8f4;
+  box-shadow: 0 24px 70px rgba(11, 31, 25, .24);
+  scrollbar-color: rgba(32, 97, 67, .35) transparent;
+}
+
+.commerce-modal-heading {
+  max-width: 680px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(18, 48, 39, .12);
+}
+
+.commerce-modal-heading h2 {
+  max-width: 600px;
+  letter-spacing: -.02em;
+}
+
+.commerce-modal-heading p {
+  max-width: 600px;
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.commerce-close {
+  top: 18px;
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  border-color: rgba(18, 48, 39, .18);
+  color: #315344;
+  background: transparent;
+  font-size: 20px;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.commerce-close:hover,
+.commerce-close:focus-visible {
+  border-color: var(--login-theme);
+  color: #fff;
+  background: var(--login-theme);
+}
+
+.product-detail-modal {
+  width: min(960px, 100%);
+  grid-template-columns: minmax(290px, .9fr) minmax(0, 1.1fr);
+  gap: clamp(28px, 5vw, 64px);
+}
+
+.product-detail-media {
+  aspect-ratio: 1 / 1;
+  border: 1px solid rgba(18, 48, 39, .1);
+  background: #e7ece8;
+}
+
+.product-detail-copy > span,
+.commerce-kicker,
+.commerce-modal-heading > span {
+  letter-spacing: .12em;
+}
+
+.product-detail-copy h2 {
+  margin-top: 12px;
+  font-size: clamp(28px, 4vw, 44px);
+}
+
+.product-detail-copy p {
+  max-width: 510px;
+  margin: 16px 0;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.product-detail-copy .product-tags {
+  margin-top: 18px;
+}
+
+.commerce-modal-actions {
+  gap: 9px;
+  margin-top: 26px;
+}
+
+.commerce-primary,
+.commerce-secondary,
+.product-card-quote,
+.agent-composer button,
+.agent-quote-link {
+  min-height: 42px;
+  border-radius: 2px;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.commerce-primary:hover,
+.commerce-primary:focus-visible,
+.product-card-quote:hover,
+.product-card-quote:focus-visible,
+.agent-composer button:hover,
+.agent-composer button:focus-visible {
+  transform: translateY(-1px);
+  background: #285f43;
+}
+
+.commerce-secondary:hover,
+.commerce-secondary:focus-visible,
+.agent-quote-link:hover,
+.agent-quote-link:focus-visible {
+  border-color: var(--login-theme);
+  color: var(--login-theme);
+  background: #f1f6f2;
+}
+
+.quote-modal {
+  width: min(820px, 100%);
+}
+
+.quote-summary {
+  margin-top: 20px;
+  padding: 16px 18px;
+  border-left-width: 3px;
+  background: #eaf1ec;
+}
+
+.quote-lines {
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.quote-line {
+  min-height: 68px;
+  padding: 10px 12px;
+  border-color: rgba(18, 48, 39, .12);
+  background: #fff;
+}
+
+.quote-line:focus-within {
+  border-color: rgba(32, 97, 67, .45);
+  box-shadow: 0 0 0 2px rgba(32, 97, 67, .08);
+}
+
+.quote-line img {
+  border: 1px solid rgba(18, 48, 39, .08);
+  background: #f0f4f0;
+}
+
+.quote-line strong {
+  color: #1f382d;
+  font-size: 14px;
+}
+
+.quote-line input {
+  border-color: rgba(18, 48, 39, .2);
+  border-radius: 2px;
+  color: #1f382d;
+  background: #fbfcfa;
+  text-align: center;
+}
+
+.quote-remove {
+  border-radius: 2px;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.quote-remove:hover,
+.quote-remove:focus-visible {
+  color: #a74b3e;
+  background: #faefed;
+}
+
+.quote-flow {
+  margin: 28px 0 22px;
+}
+
+.commerce-status-panel {
+  margin-top: 0;
+  padding: 18px 18px 17px;
+  border-left-width: 3px;
+}
+
+.commerce-status-panel p {
+  max-width: 560px;
+  margin-bottom: 14px;
+}
+
+.lead-form {
+  margin-top: 28px;
+  padding-top: 24px;
+}
+
+.lead-form-heading h3 {
+  color: #1f382d;
+  font-size: 20px;
+}
+
+.lead-fields {
+  gap: 11px;
+  margin-top: 16px;
+}
+
+.lead-fields input,
+.lead-fields textarea,
+.agent-composer input {
+  min-height: 42px;
+  border-color: rgba(18, 48, 39, .18);
+  border-radius: 2px;
+  color: #1f382d;
+  background: #fff;
+  outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.lead-fields textarea {
+  min-height: 88px;
+}
+
+.lead-fields input:focus,
+.lead-fields textarea:focus,
+.agent-composer input:focus {
+  border-color: rgba(32, 97, 67, .62);
+  box-shadow: 0 0 0 2px rgba(32, 97, 67, .1);
+}
+
+.agent-modal {
+  width: min(680px, 100%);
+}
+
+.agent-messages {
+  min-height: 170px;
+  max-height: 330px;
+  margin-top: 20px;
+  padding: 12px;
+  border: 1px solid rgba(18, 48, 39, .1);
+  background: #edf2ee;
+}
+
+.agent-message {
+  max-width: 82%;
+  padding: 12px 14px;
+  border-radius: 2px;
+  line-height: 1.7;
+}
+
+.agent-message.assistant {
+  border-color: rgba(18, 48, 39, .12);
+  background: #fff;
+}
+
+.agent-message.user {
+  background: #286746;
+}
+
+.agent-quick-prompts {
+  margin-top: 14px;
+  padding-bottom: 3px;
+}
+
+.agent-quick-prompts button {
+  border-radius: 2px;
+  color: #315344;
+  background: #fff;
+}
+
+.agent-composer {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(18, 48, 39, .1);
+}
+
+.agent-composer button {
+  min-width: 76px;
+}
+
+.agent-quote-link {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.payment-modal {
+  width: min(640px, 100%);
+}
+
+.payment-reserved-card {
+  margin: 24px 0;
+  padding: 22px;
+  border-color: rgba(18, 48, 39, .12);
+  background: #fff;
+}
+
+@media (max-width: 760px) {
+  .commerce-overlay {
+    align-items: end;
+    padding: 0;
+  }
+
+  .commerce-modal {
+    width: 100%;
+    max-height: min(92dvh, 760px);
+    padding: 26px 18px 20px;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+  }
+
+  .commerce-modal-heading {
+    padding-right: 36px;
+  }
+
+  .commerce-modal-heading h2 {
+    font-size: clamp(26px, 8vw, 34px);
+  }
+
+  .commerce-modal-heading p {
+    font-size: 13px;
+  }
+
+  .product-detail-modal {
+    gap: 18px;
+  }
+
+  .product-detail-media {
+    aspect-ratio: 16 / 9;
+  }
+
+  .product-detail-copy p {
+    margin: 12px 0;
+    font-size: 14px;
+  }
+
+  .commerce-modal-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .commerce-modal-actions > button {
+    min-width: 0;
+    padding: 0 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .quote-line {
+    grid-template-columns: 48px minmax(0, 1fr) 64px 28px;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .quote-line strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .quote-flow {
+    gap: 8px 10px;
+    margin: 22px 0 18px;
+  }
+
+  .quote-flow span {
+    min-height: 30px;
+    padding-top: 0;
+    white-space: nowrap;
+  }
+
+  .lead-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .lead-fields textarea {
+    grid-column: auto;
+  }
+
+  .agent-messages {
+    min-height: 140px;
+    max-height: 280px;
+  }
+
+  .agent-quick-prompts button {
+    min-height: 32px;
+  }
+
+  .agent-composer button {
+    min-width: 64px;
+    padding: 0 10px;
+  }
+}
+
+.quote-summary {
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+}
+
+.quote-summary strong {
+  grid-row: span 2;
+  font: 800 26px/1 ui-monospace, Consolas, monospace;
+}
+
+.quote-flow span {
+  min-width: 0;
+}
+
+.quote-flow span b {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border: 1px solid rgba(17, 24, 39, .18);
+  border-radius: 50%;
+  color: #64748b;
+  font-size: 10px;
+}
+
+.quote-flow span.is-current b {
+  border-color: var(--login-theme);
+  color: #fff;
+  background: var(--login-theme);
+}
+
+.quote-flow span.is-complete b {
+  border-color: rgba(50, 127, 88, .35);
+  color: var(--login-theme);
+  background: #e4f0e9;
+}
+
+.commerce-status-panel {
+  border-left-width: 4px;
+}
+
+.commerce-status-panel.stage-inquiry { border-left-color: #82938b; background: #f0f4f1; }
+.commerce-status-panel.stage-quote { border-left-color: #b47c28; background: #fbf5e9; }
+.commerce-status-panel.stage-order { border-left-color: #397aa2; background: #eef5f8; }
+.commerce-status-panel.stage-payment { border-left-color: var(--login-theme); background: #edf3ef; }
+.commerce-status-panel.stage-quote strong { color: #765318; }
+.commerce-status-panel.stage-order strong { color: #235773; }
+
+.agent-quick-prompts {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.agent-quick-prompts > span {
+  flex: 0 0 auto;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.agent-quick-prompts button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(16, 42, 42, .18);
+  border-radius: 2px;
+  color: #36564c;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.agent-quick-prompts button:hover,
+.agent-quick-prompts button:focus-visible {
+  border-color: var(--login-theme);
+  color: var(--login-theme);
+}
+
+@media (max-width: 760px) {
+  .quote-summary { grid-template-columns: 36px minmax(0, 1fr); padding: 12px; }
+  .quote-summary strong { font-size: 23px; }
+  .quote-summary span { font-size: 12px; }
+  .quote-summary small { font-size: 10px; }
+  .quote-flow span { gap: 7px; font-size: 11px; }
+  .agent-quick-prompts { margin-top: 14px; padding-bottom: 2px; }
+  .agent-quick-prompts > span { display: none; }
+  .agent-composer { align-items: stretch; }
+  .agent-composer button { min-width: 62px; padding: 0 10px; }
+}
+
+/* Procurement polish: preserve complete packshots and keep the purchase action legible. */
+.product-card-media img,
+.product-card-media img[src*='product-wq-card'],
+.manufacturing-series-media img,
+.manufacturing-series-media img[src*='product-wq-card'] {
+  transform: none;
+}
+
+.product-card-media {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, .72), rgba(231, 238, 234, .64)),
+    #f5f8f6;
+}
+
+.product-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(17, 24, 39, .1);
+  color: #64748b;
+  font-size: 11px;
+}
+
+.product-card-meta-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-card-meta-action {
+  flex: 0 0 auto;
+  color: var(--login-theme);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.product-card-meta-action b {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.product-card-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.product-card-actions .product-card-link {
+  width: auto;
+  min-width: 0;
+  margin-top: 0;
+  padding: 0;
+  border-top: 0;
+  justify-content: flex-start;
+}
+
+.product-card-quote {
+  min-height: 36px;
+  padding: 0 13px;
+}
+
+.quote-heading {
+  padding-right: 44px;
+}
+
+.quote-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: 11px;
+  margin-top: 22px;
+  padding: 15px 16px;
+  border-left: 3px solid var(--login-theme);
+  background: #edf3ef;
+}
+
+.quote-summary strong {
+  color: var(--login-theme);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.quote-summary span {
+  color: #17322b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.quote-summary small {
+  grid-column: 2;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.quote-flow span.is-complete {
+  color: #17322b;
+}
+
+.quote-flow span.is-complete b {
+  color: #5b8f79;
+}
+
+.commerce-status-panel.stage-quote,
+.commerce-status-panel.stage-order,
+.commerce-status-panel.stage-payment {
+  background: #f0f5f1;
+}
+
+@media (max-width: 760px) {
+  .site-header {
+    gap: 8px;
+  }
+
+  .brand-lockup {
+    flex: 1 1 auto;
+  }
+
+  .brand-mark.has-logo {
+    width: 126px;
+    height: 36px;
+  }
+
+  .header-actions {
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+
+  .locale-switch button {
+    min-width: 27px;
+    padding: 0 5px;
+    font-size: 11px;
+  }
+
+  .header-login,
+  .quote-trigger {
+    max-width: 76px;
+    padding: 0 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 11px;
+  }
+
+  .product-card-actions {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .product-card-meta {
+    margin-top: 13px;
+  }
+
+  .quote-summary {
+    margin-top: 18px;
+    padding: 13px 14px;
+  }
+
+  .quote-flow {
+    margin: 20px 0;
+  }
+}
+
 /* Public procurement handoff: the site collects a product inquiry before the employee login. */
 .quote-trigger {
   position: relative;
@@ -2067,6 +4558,262 @@
   .commerce-status-panel .commerce-secondary { width: 100%; }
 }
 
+/* Final Lundu procurement surface: one deliberate visual layer after the
+   legacy compatibility rules above. Keep the same industrial rhythm in the
+   product detail, inquiry, sales and payment panels. */
+.commerce-overlay {
+  padding: clamp(14px, 3vw, 28px);
+  background: rgba(12, 25, 21, .56);
+  backdrop-filter: blur(6px);
+}
+
+.commerce-modal {
+  box-sizing: border-box;
+  border-top: 0 !important;
+  border-radius: 3px;
+  background: #f8faf7;
+  box-shadow: 0 26px 80px rgba(11, 31, 25, .28);
+}
+
+.commerce-modal-heading {
+  padding-bottom: 18px;
+}
+
+.commerce-modal-heading > span,
+.product-detail-copy > span,
+.commerce-status-label {
+  color: #1f6b4a;
+  letter-spacing: .1em;
+}
+
+.commerce-modal-heading h2,
+.product-detail-copy h2 {
+  color: #15251f;
+  letter-spacing: -.015em;
+}
+
+.commerce-modal-heading p,
+.product-detail-copy p {
+  color: #53665d;
+}
+
+.product-detail-media {
+  border-color: rgba(31, 107, 74, .16);
+  border-radius: 2px;
+  background: #eef3ef;
+}
+
+.product-detail-media img {
+  padding: clamp(12px, 2vw, 24px);
+  box-sizing: border-box;
+}
+
+.commerce-primary,
+.product-card-quote,
+.agent-composer button {
+  background: #1f6b4a;
+  border-color: #1f6b4a;
+  box-shadow: 0 3px 0 rgba(13, 59, 39, .12);
+}
+
+.commerce-primary:hover,
+.commerce-primary:focus-visible,
+.product-card-quote:hover,
+.product-card-quote:focus-visible,
+.agent-composer button:hover,
+.agent-composer button:focus-visible {
+  background: #174c37;
+  border-color: #174c37;
+  box-shadow: 0 5px 12px rgba(23, 76, 55, .18);
+}
+
+.commerce-secondary,
+.agent-quote-link {
+  border-color: rgba(31, 107, 74, .28);
+  color: #1f6b4a;
+  background: #fff;
+}
+
+.commerce-secondary:hover,
+.commerce-secondary:focus-visible,
+.agent-quote-link:hover,
+.agent-quote-link:focus-visible {
+  border-color: #1f6b4a;
+  color: #174c37;
+  background: #eef6f1;
+}
+
+.quote-summary {
+  border-left-color: #1f6b4a;
+  background: #edf4ef;
+}
+
+.quote-lines {
+  gap: 8px;
+}
+
+.quote-line {
+  min-height: 72px;
+  border-color: rgba(31, 107, 74, .14);
+  border-radius: 2px;
+  background: #fff;
+}
+
+.quote-line img {
+  border-radius: 2px;
+  background: #f1f5f2;
+}
+
+.quote-line strong {
+  color: #1d3429;
+}
+
+.quote-line input {
+  min-height: 34px;
+  border-color: rgba(31, 107, 74, .24);
+  border-radius: 2px;
+  background: #fbfdfb;
+}
+
+.quote-flow {
+  margin: 24px 0 18px;
+  padding-top: 15px;
+  border-top: 0;
+}
+
+.commerce-status-panel {
+  border-left-width: 3px;
+  border-radius: 0 2px 2px 0;
+}
+
+.lead-form {
+  margin-top: 24px;
+  padding-top: 22px;
+}
+
+.lead-fields input,
+.lead-fields textarea,
+.agent-composer input {
+  border-color: rgba(31, 107, 74, .2);
+  background: #fff;
+}
+
+.lead-fields input:focus,
+.lead-fields textarea:focus,
+.agent-composer input:focus {
+  border-color: #1f6b4a;
+  box-shadow: 0 0 0 2px rgba(31, 107, 74, .1);
+}
+
+.agent-messages {
+  min-height: 132px;
+  max-height: min(38dvh, 330px);
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid rgba(31, 107, 74, .14);
+  border-radius: 2px;
+  background: #edf3ef;
+}
+
+.agent-message {
+  max-width: min(86%, 560px);
+  border-radius: 2px;
+}
+
+.agent-message.assistant {
+  border-color: rgba(31, 107, 74, .14);
+  color: #30483d;
+  background: #fff;
+}
+
+.agent-message.user {
+  border-color: #1f6b4a;
+  background: #1f6b4a;
+}
+
+.agent-quick-prompts {
+  margin-top: 14px;
+}
+
+.agent-quick-prompts button {
+  border-color: rgba(31, 107, 74, .22);
+  color: #315344;
+  background: #fff;
+}
+
+.agent-quick-prompts button:hover,
+.agent-quick-prompts button:focus-visible {
+  border-color: #1f6b4a;
+  color: #1f6b4a;
+  background: #eef6f1;
+}
+
+.agent-composer {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 0;
+}
+
+.payment-reserved-card {
+  border-left: 3px solid #1f6b4a;
+  background: #fff;
+}
+
+.commerce-modal button:focus-visible,
+.commerce-modal input:focus-visible,
+.commerce-modal textarea:focus-visible {
+  outline: 2px solid rgba(31, 107, 74, .48);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .commerce-overlay {
+    padding: 0;
+    align-items: end;
+  }
+
+  .commerce-modal {
+    width: 100%;
+    max-height: min(94dvh, 820px);
+    padding: 24px 16px max(18px, env(safe-area-inset-bottom));
+    border-radius: 8px 8px 0 0;
+  }
+
+  .commerce-modal-heading h2,
+  .product-detail-copy h2 {
+    font-size: clamp(25px, 7.2vw, 32px);
+  }
+
+  .commerce-modal-actions > button,
+  .commerce-status-panel > button,
+  .agent-composer button {
+    min-height: 42px;
+    white-space: nowrap;
+  }
+
+  .agent-messages {
+    min-height: 118px;
+    max-height: 31dvh;
+    padding: 10px;
+  }
+
+  .agent-message {
+    max-width: 94%;
+    padding: 10px 11px;
+    font-size: 13px;
+  }
+
+  .agent-quick-prompts {
+    margin-right: -2px;
+    margin-left: -2px;
+    padding-bottom: 4px;
+  }
+
+  .agent-composer {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
 /* Lundu editorial pass: give the product and image sections a calmer rhythm. */
 .metrics-band {
   padding-top: clamp(48px, 6vw, 78px);
@@ -2094,7 +4841,7 @@
 }
 
 .public-products-section {
-  background: #f0f3ef;
+  background: #fff;
 }
 
 .public-section-heading h2,
@@ -2489,7 +5236,7 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid rgba(17, 24, 39, 0.12);
-  border-top: 3px solid var(--login-theme);
+  border-top: 0;
   background: #fff;
   box-shadow: 0 12px 28px rgba(17, 24, 39, 0.05);
 }
@@ -2689,5 +5436,197 @@
     grid-column: 2;
     justify-self: start;
     margin-top: 4px;
+  }
+}
+
+/* Keep packshots complete in every breakpoint, including manufacturing cards. */
+.product-card-media img,
+.product-card-media img[src*='product-wq-card'],
+.manufacturing-series-media img,
+.manufacturing-series-media img[src*='product-wq-card'] {
+  transform: none;
+}
+
+/* EOF mobile override: the hero image, copy and controls stay in document flow. */
+@media (max-width: 760px) {
+  .hero-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: auto;
+    padding-top: 68px;
+    background: #101a2d;
+  }
+
+  .hero-media {
+    position: relative;
+    inset: auto;
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .hero-media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+  }
+
+  .hero-shade {
+    display: none;
+  }
+
+  .hero-inner {
+    position: relative;
+    inset: auto;
+    display: block;
+    flex: 0 0 auto;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    padding: 18px 18px 14px;
+    box-sizing: border-box;
+    background: #101a2d;
+    pointer-events: auto;
+  }
+
+  .hero-copy {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .hero-carousel {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    margin-top: 16px;
+    transform: none;
+  }
+
+  .scroll-cue {
+    position: static;
+    align-self: flex-start;
+    margin: 0 18px 16px;
+  }
+}
+
+/* Final cascade guard for the product detail action. */
+.product-card-actions .product-card-link {
+  overflow: visible !important;
+  padding-right: 8px !important;
+}
+
+.product-card-actions .product-card-link > span {
+  display: inline-block;
+  flex: 0 0 auto;
+  margin-right: 6px;
+}
+
+/* EOF guard: final product media fit wins over legacy breakpoint rules. */
+.public-product-card {
+  border-top: 0 !important;
+}
+
+.product-card-media {
+  overflow: hidden;
+}
+
+.product-card-media img {
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+  object-fit: contain !important;
+  object-position: center;
+  transform: scale(1.18) !important;
+  transform-origin: center;
+}
+
+.product-card-media img[src*='product-jet-card'],
+.product-card-media img[src*='product-pst-card'] {
+  transform: scale(1.28) !important;
+}
+
+.product-card-media img[src*='product-wq-card'] {
+  transform: scale(1.35) !important;
+}
+
+/* Final manufacturing-card frame: remove the decorative green cap. */
+.manufacturing-series-card {
+  border-top: 0 !important;
+}
+
+/* Final manufacturing-card frame: remove the decorative green cap. */
+.manufacturing-series-card {
+  border-top: 0 !important;
+}
+
+/* EOF customer-service override: vertical panel, transcript as the main area. */
+.customer-service-panel {
+  display: flex !important;
+  flex-direction: column !important;
+  width: min(390px, calc(100vw - 32px)) !important;
+  height: min(720px, calc(100dvh - 120px)) !important;
+  max-height: min(720px, calc(100dvh - 120px)) !important;
+  padding: 18px 18px 14px !important;
+  overflow: hidden !important;
+}
+
+.customer-service-panel .commerce-modal-heading {
+  flex: 0 0 auto;
+  padding: 0 30px 10px 0;
+}
+
+.customer-service-panel .commerce-modal-heading h2 {
+  margin: 3px 0 4px;
+  font-size: clamp(22px, 2.8vw, 29px);
+}
+
+.customer-service-panel .commerce-modal-heading p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.customer-service-panel .agent-messages {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 8px 0 0;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+.customer-service-panel .agent-quick-prompts {
+  flex: 0 0 auto;
+  max-height: 78px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
+.customer-service-panel .agent-quick-prompts button {
+  white-space: nowrap;
+}
+
+.customer-service-panel .agent-composer,
+.customer-service-panel .agent-quote-link {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .customer-service-panel {
+    width: calc(100vw - 24px) !important;
+    height: min(78dvh, 680px) !important;
+    max-height: min(78dvh, 680px) !important;
+    padding: 16px 14px max(12px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .customer-service-panel .agent-quick-prompts {
+    max-height: 66px;
   }
 }

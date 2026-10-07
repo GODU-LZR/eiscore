@@ -137,7 +137,7 @@ EISCORE_HARNESS_AUDIT_FILE=/var/lib/eiscore/harness-audit.jsonl
 EISCORE_HARNESS_AUDIT_HASH_KEY=replace-with-a-random-secret-at-least-32-chars
 EISCORE_TOOL_PROXY_SECRET=replace-with-a-random-tool-proxy-secret
 DSH_PROVIDER=deepseek-official
-DSH_MODEL=deepseek-chat
+DSH_MODEL=deepseek-v4-flash
 POSTGRES_PASSWORD=your_password
 PGRST_JWT_SECRET=your_jwt_secret
 ```

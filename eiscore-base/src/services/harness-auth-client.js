@@ -14,7 +14,10 @@ export async function prepareHarnessAuth({ harnessWebUrl, authorization = '' } =
     })
     const startResponse = await request('/harness-embed-api/eiscore/auth/start', {
       method: 'POST',
-      headers: { Accept: 'application/json' }
+      headers: {
+        Accept: 'application/json',
+        ...(authorization ? { Authorization: authorization } : {})
+      }
     })
     if (!startResponse.ok) return false
     const start = await startResponse.json().catch(() => ({}))

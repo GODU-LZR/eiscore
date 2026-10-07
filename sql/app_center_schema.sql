@@ -93,6 +93,11 @@ CREATE TABLE IF NOT EXISTS app_center.execution_logs (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Keep the seed/schema script idempotent against older local baselines that
+-- already have execution_logs without the newer location column.
+ALTER TABLE app_center.execution_logs
+    ADD COLUMN IF NOT EXISTS operation_location JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 COMMENT ON TABLE app_center.execution_logs IS 'Runtime execution logs for workflows';
 COMMENT ON COLUMN app_center.execution_logs.operation_location IS 'Operation context displayed by the grid geo/location column. address records module/app/action.';
 

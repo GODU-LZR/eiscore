@@ -115,7 +115,29 @@ async function expectPageVisible(page, point) {
 
 async function expectInteractiveSurface(page, point) {
   await expectPageVisible(page, point)
-  await expectAnyText(page, point.expected || [point.name], `${point.id} ${point.name}`)
+  const expectedTexts = point.expected || [point.name]
+  if (point.route?.startsWith('/ai/enterprise')) {
+    await page.locator('iframe[src*="/harness-embed/"]').first().waitFor({ state: 'attached', timeout: 30_000 })
+  }
+  // The iframe is attached before its navigation commits. Resolve the frame
+  // through the locator so the assertion cannot race page.frames() discovery.
+  const harnessFrame = point.route?.startsWith('/ai/enterprise')
+    ? await page.locator('iframe[src*="/harness-embed/"]').first().contentFrame()
+    : page.frames().find((frame) => frame !== page.mainFrame() && frame.url().includes('/harness-embed/'))
+  if (harnessFrame) {
+    // The native Harness onboarding asks first-time, keyless users whether
+    // they want to configure the official provider.  Selecting "Configure
+    // later" is the supported no-secret path; it must happen before the
+    // embedded business surface can be asserted.
+    const configureLater = harnessFrame.locator('button').filter({ hasText: /Configure later|稍后配置/i }).first()
+    if (await configureLater.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true).catch(() => false)) {
+      await configureLater.click()
+      await harnessFrame.locator('body').waitFor({ state: 'visible', timeout: 2_000 }).catch(() => {})
+    }
+    await expect(harnessFrame.locator('body'), `${point.id} Harness iframe should render visible content`).toContainText(/企业经营助手|对话|DeepSeek Harness|Digital Twin|Smart BI/i, { timeout: 30_000 })
+    return
+  }
+  await expectAnyText(page, expectedTexts, `${point.id} ${point.name}`)
 
   if (['grid', 'stock'].includes(point.type)) {
     const grid = await firstVisible(page, [

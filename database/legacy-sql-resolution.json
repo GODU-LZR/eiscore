@@ -19,7 +19,7 @@
     ["env/init_roles.sql","d18a17ec5800ddb7a0c53341ef3c7e21d26c368dcfd05cf28841fcd8235f4b4d","environment-bootstrap","operations-only"],
     ["env/insert_ai_config.sql","eaf34de4c776dbda44e4f3dd4cbfda22633a5c1a526ed28baa11307aa1fd57bb","environment-bootstrap","superseded-by-migration"],
     ["sql/app_center_data_tables.sql","d22a1402ef227a60c355fcee9212963f704143fdcf699a88911c90f2b3c90398","schema-fragment","covered-by-baseline"],
-    ["sql/app_center_schema.sql","6ac3a8f9d81027d016071fa180f69361178b4ce1be6f8682d76fc6728a05a353","schema-fragment","covered-by-baseline"],
+    ["sql/app_center_schema.sql","cf2bfc57e734fead869c938c6ff4c55f0c3d156d29ffc6e14e0018f139f19cd8","schema-fragment","covered-by-baseline"],
     ["sql/backfill_app_semantic_config_defaults.sql","7bb3463a9417935b7022a1f5759423de8c3ac885f9b0517508e91a7d3207dac6","legacy-patch","covered-by-baseline"],
     ["sql/backfill_ontology_column_semantics_all_tables.sql","216580bb796cf8b322f4228f2ff2b086292c6d251bf89d18d0d2f9052f192f7e","legacy-patch","covered-by-baseline"],
     ["sql/company_site_jinwei_admin_branding.sql","e584b63e76d8b1a82a80343fccdfec9047977aeb92f2943ff728224903432f68","customer-seed","customer-data"],

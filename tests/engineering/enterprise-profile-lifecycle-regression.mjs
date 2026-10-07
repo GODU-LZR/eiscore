@@ -188,6 +188,7 @@ assert.equal(retiredDomainResponse.status, 404)
 
 const service = createEnterpriseProfileService({
   enterpriseConfig: DEFAULT_ENTERPRISE_CONFIG,
+  getRequestHost: () => 'merged.example.test',
   httpClient: {
     async requestJson(path, options) {
       assert.equal(path, '/company-site/public/site-config')

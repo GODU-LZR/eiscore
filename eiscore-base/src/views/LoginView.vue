@@ -54,14 +54,12 @@
           @focusin="stopHeroAutoplay"
           @focusout="startHeroAutoplay"
         >
-          <Transition name="hero-slide" mode="out-in">
-            <img
-              v-if="activeHeroSlide"
-              :key="activeHeroSlide.url"
-              :src="activeHeroSlide.url"
-              alt=""
-            />
-          </Transition>
+          <img
+            v-if="activeHeroSlide"
+            :key="activeHeroSlide.url"
+            :src="activeHeroSlide.url"
+            alt=""
+          />
         </div>
         <div class="hero-shade" />
 
@@ -281,6 +279,10 @@
               <div v-if="product.applications.length" class="product-tags">
                 <span v-for="application in product.applications.slice(0, 4)" :key="application">{{ application }}</span>
               </div>
+              <div class="product-card-meta">
+                <span class="product-card-meta-label">{{ commerceUi.quoteNote }}</span>
+                <span class="product-card-meta-action">{{ commerceUi.detailLabel }} <b aria-hidden="true">↗</b></span>
+              </div>
               <div class="product-card-actions">
                 <button type="button" class="product-card-link" @click="openProductDetail(product)">
                   {{ commerceUi.detailLabel }}<span aria-hidden="true">→</span>
@@ -414,7 +416,8 @@
         <div v-if="quoteVisible" class="commerce-overlay" @click.self="quoteVisible = false">
           <section class="commerce-modal quote-modal" role="dialog" aria-modal="true" :aria-label="commerceUi.listLabel">
             <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" @click="quoteVisible = false">×</button>
-            <div class="commerce-modal-heading"><span>{{ commerceUi.kicker }}</span><h2>{{ commerceUi.listTitle }}</h2><p>{{ commerceUi.listIntro }}</p></div>
+            <div class="commerce-modal-heading quote-heading"><h2>{{ commerceUi.listTitle }}</h2></div>
+            <div v-if="quoteCount" class="quote-summary"><strong>{{ quoteCount }}</strong><span>{{ commerceUi.quoteSummary }}</span></div>
             <div v-if="quoteItems.length" class="quote-lines">
               <article v-for="item in quoteItems" :key="item.code" class="quote-line">
                 <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name" />
@@ -425,19 +428,20 @@
             </div>
             <div v-else class="quote-empty">{{ commerceUi.emptyList }}</div>
             <div class="quote-flow">
-              <span class="is-current"><b>01</b>{{ commerceUi.stepInquiry }}</span><i />
-              <span><b>02</b>{{ commerceUi.stepQuote }}</span><i /><span><b>03</b>{{ commerceUi.stepOrder }}</span><i /><span><b>04</b>{{ commerceUi.stepPayment }}</span>
+              <span :class="{ 'is-current': commerceStage === 'inquiry', 'is-complete': commerceStage !== 'inquiry' }"><b>01</b>{{ commerceUi.stepInquiry }}</span><i />
+              <span :class="{ 'is-current': commerceStage === 'quote', 'is-complete': commerceStage === 'order' || commerceStage === 'payment' }"><b>02</b>{{ commerceUi.stepQuote }}</span><i />
+              <span :class="{ 'is-current': commerceStage === 'order', 'is-complete': commerceStage === 'payment' }"><b>03</b>{{ commerceUi.stepOrder }}</span><i />
+              <span :class="{ 'is-current': commerceStage === 'payment' }"><b>04</b>{{ commerceUi.stepPayment }}</span>
             </div>
-            <div class="commerce-status-panel">
+            <div class="commerce-status-panel" :class="'stage-' + commerceStage">
               <span class="commerce-status-label">{{ commerceUi.statusLabel }}</span>
               <strong>{{ commerceStageLabel }}</strong>
-              <p>{{ commerceStageDescription }}</p>
               <button v-if="commerceStage === 'quote'" type="button" class="commerce-secondary" @click="advanceCommerceStage('order')">{{ commerceUi.confirmQuoteLabel }}</button>
               <button v-else-if="commerceStage === 'order'" type="button" class="commerce-secondary" @click="advanceCommerceStage('payment')">{{ commerceUi.confirmOrderLabel }}</button>
               <button v-else-if="commerceStage === 'payment'" type="button" class="commerce-secondary" @click="reservePayment">{{ commerceUi.paymentButtonLabel }}</button>
             </div>
             <div class="lead-form">
-              <div class="lead-form-heading"><h3>{{ commerceUi.contactTitle }}</h3><p>{{ commerceUi.contactIntro }}</p></div>
+              <div class="lead-form-heading"><h3>{{ commerceUi.contactTitle }}</h3></div>
               <div class="lead-fields">
                 <input v-model.trim="leadForm.companyName" :placeholder="commerceUi.companyPlaceholder" autocomplete="organization" />
                 <input v-model.trim="leadForm.contactName" :placeholder="commerceUi.namePlaceholder" autocomplete="name" />
@@ -453,23 +457,36 @@
         </div>
       </Transition>
 
-      <Transition name="commerce-dialog">
-        <div v-if="agentVisible" class="commerce-overlay" @click.self="agentVisible = false">
-          <section class="commerce-modal agent-modal" role="dialog" aria-modal="true" :aria-label="commerceUi.agentLabel">
+      <div class="customer-service-widget" :class="{ 'is-open': agentVisible }">
+        <Transition name="customer-service-panel">
+          <section v-if="agentVisible" class="commerce-modal agent-modal customer-service-panel" role="dialog" aria-modal="false" :aria-label="commerceUi.agentLabel">
             <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" @click="agentVisible = false">×</button>
-            <div class="commerce-modal-heading"><span>{{ commerceUi.kicker }}</span><h2>{{ commerceUi.agentTitle }}</h2><p>{{ commerceUi.agentIntro }}</p></div>
-            <div class="agent-messages"><div v-for="(message, index) in agentMessages" :key="`${index}-${message.role}`" :class="['agent-message', message.role]">{{ message.content }}</div><div v-if="salesBusy" class="agent-message assistant">{{ commerceUi.thinkingLabel }}</div></div>
+            <div class="commerce-modal-heading"><h2>{{ commerceUi.agentTitle }}</h2></div>
+            <div class="agent-messages" aria-live="polite"><div v-for="(message, index) in agentMessages" :key="`${index}-${message.role}`" :class="['agent-message', message.role]">{{ message.content || (salesBusy && index === agentMessages.length - 1 ? commerceUi.thinkingLabel : '') }}</div></div>
+            <div class="agent-quick-prompts" :aria-label="commerceUi.quickPromptLabel">
+              <button v-for="prompt in commerceUi.quickPrompts" :key="prompt" type="button" @click="agentDraft = prompt">{{ prompt }}</button>
+            </div>
             <form class="agent-composer" @submit.prevent="sendSalesMessage"><input v-model.trim="agentDraft" :placeholder="commerceUi.agentPlaceholder" :disabled="salesBusy" /><button type="submit" :disabled="salesBusy || !agentDraft">{{ commerceUi.sendLabel }}</button></form>
             <button type="button" class="agent-quote-link" @click="openQuoteList">{{ commerceUi.openListLabel }}</button>
           </section>
-        </div>
-      </Transition>
+        </Transition>
+        <button
+          type="button"
+          class="customer-service-trigger"
+          :aria-expanded="agentVisible"
+          :aria-label="agentVisible ? commerceUi.collapseAgentLabel : commerceUi.agentLabel"
+          @click="toggleCustomerService"
+        >
+          <span class="customer-service-trigger-icon" aria-hidden="true">{{ agentVisible ? '−' : '◌' }}</span>
+          <span>{{ agentVisible ? commerceUi.collapseAgentLabel : commerceUi.agentLabel }}</span>
+        </button>
+      </div>
 
       <Transition name="commerce-dialog">
         <div v-if="paymentVisible" class="commerce-overlay" @click.self="paymentVisible = false">
           <section class="commerce-modal payment-modal" role="dialog" aria-modal="true" :aria-label="commerceStatusUi.paymentTitle">
             <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" @click="paymentVisible = false">×</button>
-            <div class="commerce-modal-heading"><span>{{ commerceUi.stepPayment }}</span><h2>{{ commerceStatusUi.paymentTitle }}</h2><p>{{ commerceStatusUi.paymentDescription }}</p></div>
+            <div class="commerce-modal-heading"><h2>{{ commerceStatusUi.paymentTitle }}</h2></div>
             <div class="payment-reserved-card"><strong>{{ commerceStatusUi.paymentReserved }}</strong><span>{{ commerceStatusUi.paymentMethods }}</span></div>
             <button type="button" class="commerce-secondary" @click="paymentVisible = false; quoteVisible = true">{{ commerceStatusUi.backToInquiry }}</button>
           </section>
@@ -574,6 +591,7 @@ const agentMessages = ref([])
 const agentDraft = ref('')
 const salesSessionId = ref('')
 const salesBusy = ref(false)
+let salesStreamAbortController = null
 const commerceStage = ref('inquiry')
 const paymentReserved = ref(false)
 const leadForm = reactive({ companyName: '', contactName: '', email: '', phone: '', targetDate: '', message: '' })
@@ -611,16 +629,43 @@ const productActionText = computed(() => (
   activeLocale.value.toLowerCase().startsWith('en') ? 'View applications' : '查看应用方向'
 ))
 const isEnglish = computed(() => activeLocale.value.toLowerCase().startsWith('en'))
-const commerceUi = computed(() => isEnglish.value ? {
-  kicker: 'Procurement', title: 'Plan your purchase', intro: 'Select a product, send an inquiry and let the sales team confirm specification, price, lead time and payment terms.', listLabel: 'Inquiry list', detailLabel: 'Details', addLabel: 'Add to inquiry', agentLabel: 'Ask sales Agent', flowLabel: 'Purchase flow', stepInquiry: 'Inquiry', stepQuote: 'Quote', stepOrder: 'Order', stepPayment: 'Payment', closeLabel: 'Close', listTitle: 'Your inquiry list', listIntro: 'Add products and quantities, then send one request for quotation.', quantityLabel: 'Quantity', removeLabel: 'Remove', emptyList: 'No products selected yet.', contactTitle: 'Contact and requirements', contactIntro: 'A sales representative will confirm the quote before any order or payment is created.', companyPlaceholder: 'Company name', namePlaceholder: 'Contact name', emailPlaceholder: 'Business email', phonePlaceholder: 'Phone or WhatsApp', dateLabel: 'Target delivery date', messagePlaceholder: 'Specification, destination, voltage, head/flow or other requirements', sendingLabel: 'Sending...', submitLabel: 'Send inquiry', paymentReservation: 'Payment: interface reserved; no charge is made on this page.', agentTitle: 'Lundu sales Agent', agentIntro: 'Ask about product selection, applications, lead time or quotation preparation.', thinkingLabel: 'Checking the published product information...', agentPlaceholder: 'Describe your product or project requirements', sendLabel: 'Send', openListLabel: 'Open inquiry list', statusLabel: 'Order status', inquiryStatus: 'Waiting for inquiry', quoteStatus: 'Waiting for sales quote', orderStatus: 'Waiting for order confirmation', paymentStatus: 'Payment interface reserved', statusInquiryDescription: 'Submit products and contact details to start a sales review.', statusQuoteDescription: 'The sales team will confirm specification, price, inventory and lead time.', statusOrderDescription: 'Review the confirmed commercial terms before creating an order.', statusPaymentDescription: 'Payment provider integration is reserved; no funds are captured here.', confirmQuoteLabel: 'Review quote', confirmOrderLabel: 'Confirm order', paymentButtonLabel: 'Open payment placeholder'
+const baseCommerceUi = computed(() => isEnglish.value ? {
+  kicker: 'Procurement', title: 'Plan your purchase', intro: 'Select products and send a purchase request. Our team will confirm specification, price, lead time and payment terms.', listLabel: 'Purchase order', detailLabel: 'Details', addLabel: 'Add to purchase order', quoteNote: 'Project specification', quoteSummary: 'products in this purchase order', quoteSummaryNote: 'Our team will confirm specification, quantity, lead time and destination before issuing terms.', agentLabel: 'Customer service', collapseAgentLabel: 'Close customer service', quickPromptLabel: 'Quick questions', quickPrompts: ['Recommend a motor for my pump', 'Which parameters should I confirm?', 'How do I prepare a purchase request?'], flowLabel: 'Purchase flow', stepInquiry: 'Purchase request', stepQuote: 'Quote', stepOrder: 'Order', stepPayment: 'Payment', closeLabel: 'Close', listTitle: 'Your purchase order', listIntro: 'Add products and quantities, then send one purchase request.', quantityLabel: 'Quantity', removeLabel: 'Remove', emptyList: 'No products selected yet.', contactTitle: 'Contact and requirements', contactIntro: 'Our team will confirm the quote before any order or payment is created.', companyPlaceholder: 'Company name', namePlaceholder: 'Contact name', emailPlaceholder: 'Business email', phonePlaceholder: 'Phone or WhatsApp', dateLabel: 'Target delivery date', messagePlaceholder: 'Specification, destination, voltage, head/flow or other requirements', sendingLabel: 'Sending...', submitLabel: 'Submit purchase request', paymentReservation: 'Payment interface reserved', agentTitle: 'Lundu customer service', agentIntro: 'Ask about product selection, applications, lead time or purchase preparation.', thinkingLabel: '...', agentPlaceholder: 'Describe your product or project requirements', sendLabel: 'Send', openListLabel: 'Open purchase order', statusLabel: 'Order status', inquiryStatus: 'Purchase request pending', quoteStatus: 'Waiting for sales quote', orderStatus: 'Waiting for order confirmation', paymentStatus: 'Payment interface reserved', statusInquiryDescription: 'Submit products and contact details to start a purchase review.', statusQuoteDescription: 'Our team will confirm specification, price, inventory and lead time.', statusOrderDescription: 'Review the confirmed commercial terms before creating an order.', statusPaymentDescription: 'Payment provider integration is reserved; no funds are captured here.', confirmQuoteLabel: 'Review quote', confirmOrderLabel: 'Confirm order', paymentButtonLabel: 'Open payment placeholder'
 } : {
-  kicker: '采购协同', title: '从选型到询价', intro: '选择产品、提交询单，由销售人员确认规格、价格、交期和支付条款。', listLabel: '询价单', detailLabel: '产品详情', addLabel: '加入询价单', agentLabel: '询问销售 Agent', flowLabel: '采购流程', stepInquiry: '询价', stepQuote: '报价', stepOrder: '订单', stepPayment: '支付', closeLabel: '关闭', listTitle: '我的询价单', listIntro: '添加产品和数量，一次提交采购需求。', quantityLabel: '数量', removeLabel: '移除', emptyList: '暂未选择产品。', contactTitle: '联系方式与需求', contactIntro: '销售人员会先确认报价，确认后再进入订单和支付。', companyPlaceholder: '公司名称', namePlaceholder: '联系人', emailPlaceholder: '商务邮箱', phonePlaceholder: '电话或 WhatsApp', dateLabel: '目标交付日期', messagePlaceholder: '规格、目的地、电压、流量/扬程或其他要求', sendingLabel: '提交中...', submitLabel: '提交询价', paymentReservation: '支付：已预留接口，本页面不会产生扣款。', agentTitle: '伦度销售 Agent', agentIntro: '可询问产品选型、应用场景、交期或报价准备。', thinkingLabel: '正在核对已发布的产品资料……', agentPlaceholder: '描述产品或项目需求', sendLabel: '发送', openListLabel: '打开询价单', statusLabel: '采购状态', inquiryStatus: '待提交询价', quoteStatus: '待销售报价', orderStatus: '待确认订单', paymentStatus: '支付接口已预留', statusInquiryDescription: '提交产品、数量和联系方式，开始销售审核。', statusQuoteDescription: '销售人员会确认规格、价格、库存和交期。', statusOrderDescription: '核对确认后的商务条款，再创建订单。', statusPaymentDescription: '支付渠道适配器已预留，本页面不会产生扣款。', confirmQuoteLabel: '确认报价', confirmOrderLabel: '确认订单', paymentButtonLabel: '打开支付占位'
+  kicker: '采购协同', title: '准备采购', intro: '选择产品并提交采购单，由团队确认规格、价格、交期和支付条款。', listLabel: '采购单', detailLabel: '产品详情', addLabel: '加入采购单', quoteNote: '项目规格', quoteSummary: '项产品已加入采购单', quoteSummaryNote: '团队会根据规格、数量、交期和目的地确认报价。', agentLabel: '客服智能体', collapseAgentLabel: '收起客服', quickPromptLabel: '快速提问', quickPrompts: ['推荐适合泵组的电机', '需要确认哪些参数？', '如何准备采购单？'], flowLabel: '采购流程', stepInquiry: '采购单', stepQuote: '报价', stepOrder: '订单', stepPayment: '支付', closeLabel: '关闭', listTitle: '我的采购单', listIntro: '添加产品和数量，一次提交采购需求。', quantityLabel: '数量', removeLabel: '移除', emptyList: '暂未选择产品。', contactTitle: '联系方式与需求', contactIntro: '团队会先确认报价，确认后再进入订单和支付。', companyPlaceholder: '公司名称', namePlaceholder: '联系人', emailPlaceholder: '商务邮箱', phonePlaceholder: '电话或 WhatsApp', dateLabel: '目标交付日期', messagePlaceholder: '规格、目的地、电压、流量/扬程或其他要求', sendingLabel: '提交中...', submitLabel: '提交采购单', paymentReservation: '支付接口已预留', agentTitle: '伦度客服智能体', agentIntro: '可咨询产品选型、应用场景、交期或采购准备。', thinkingLabel: '…', agentPlaceholder: '描述产品或项目需求', sendLabel: '发送', openListLabel: '打开采购单', statusLabel: '采购状态', inquiryStatus: '待提交采购单', quoteStatus: '待报价', orderStatus: '待确认订单', paymentStatus: '支付接口已预留', statusInquiryDescription: '提交产品、数量和联系方式，开始采购审核。', statusQuoteDescription: '团队会确认规格、价格、库存和交期。', statusOrderDescription: '核对确认后的商务条款，再创建订单。', statusPaymentDescription: '支付渠道适配器已预留，本页面不会产生扣款。', confirmQuoteLabel: '确认报价', confirmOrderLabel: '确认订单', paymentButtonLabel: '打开支付占位'
+})
+const commerceUi = computed(() => {
+  const base = baseCommerceUi.value
+  const labels = isEnglish.value
+    ? {
+        title: 'Plan your purchase',
+        intro: 'Select products and submit a purchase order for the service team to confirm specification, price, lead time and payment terms.',
+        listLabel: 'Purchase order', addLabel: 'Add to purchase order', quoteNote: 'Project specification procurement',
+        quoteSummary: 'products in this purchase order', quoteSummaryNote: 'The service team will confirm specification, quantity, lead time and destination before quoting.',
+        agentLabel: 'Customer service', quickPrompts: ['Recommend a motor for my pump', 'Which parameters should I confirm?', 'How do I prepare a purchase order?'],
+        stepInquiry: 'Purchase order', listTitle: 'Your purchase order', listIntro: 'Add products and quantities, then send one purchase order request.',
+        contactIntro: 'Our service team will confirm the quote before any order or payment is created.', submitLabel: 'Submit purchase order',
+        agentTitle: 'Lundu customer service', agentIntro: 'Ask about product selection, applications, lead time or purchase preparation.',
+        openListLabel: 'Open purchase order', inquiryStatus: 'Waiting for purchase order', quoteStatus: 'Waiting for service quote',
+        statusInquiryDescription: 'Submit products and contact details to start a service review.', statusQuoteDescription: 'Our service team will confirm specification, price, inventory and lead time.'
+      }
+    : {
+        title: '从选型到采购', intro: '选择产品、提交采购单，由客服团队确认规格、价格、交期和支付条款。',
+        listLabel: '采购单', addLabel: '加入采购单', quoteNote: '支持按项目规格采购', quoteSummary: '项产品已加入采购单',
+        quoteSummaryNote: '客服团队会根据规格、数量、交期和目的地确认报价。', agentLabel: '客服智能体',
+        quickPrompts: ['推荐适合泵组的电机', '需要确认哪些参数？', '如何准备采购单？'], stepInquiry: '采购单',
+        listTitle: '我的采购单', listIntro: '添加产品和数量，一次提交采购需求。', contactIntro: '客服团队会先确认报价，确认后再进入订单和支付。',
+        submitLabel: '提交采购单', agentTitle: '伦度客服智能体', agentIntro: '可咨询产品选型、应用场景、交期或采购准备。',
+        openListLabel: '打开采购单', inquiryStatus: '待提交采购单', quoteStatus: '待客服报价',
+        statusInquiryDescription: '提交产品、数量和联系方式，开始客服审核。', statusQuoteDescription: '客服团队会确认规格、价格、库存和交期。'
+      }
+  return { ...base, ...labels }
 })
 const quoteCount = computed(() => quoteItems.value.reduce((sum, item) => sum + Number(item.quantity || 0), 0))
 const commerceStatusUi = computed(() => isEnglish.value ? {
-  paymentTitle: 'Payment interface reserved', paymentDescription: 'The payment provider adapter is ready for a future integration. No payment credentials are collected and no charge is made here.', paymentReserved: 'Awaiting confirmed order and payment provider configuration', paymentMethods: 'Reserved adapter: payment intent, redirect or invoice collection', backToInquiry: 'Back to inquiry list'
+  paymentTitle: 'Payment interface reserved', paymentDescription: 'The payment provider adapter is ready for a future integration. No payment credentials are collected and no charge is made here.', paymentReserved: 'Payment setup pending', paymentMethods: 'Payment adapter reserved', backToInquiry: 'Back to purchase order'
 } : {
-  paymentTitle: '支付接口预留', paymentDescription: '支付适配器已预留，等待订单确认和支付渠道配置。本页面不会收集密钥，也不会产生扣款。', paymentReserved: '等待已确认订单与支付渠道配置', paymentMethods: '预留适配器：支付意图、跳转支付或发票收款', backToInquiry: '返回询价单'
+  paymentTitle: '支付接口预留', paymentDescription: '支付适配器已预留，等待订单确认和支付渠道配置。本页面不会收集密钥，也不会产生扣款。', paymentReserved: '等待支付配置', paymentMethods: '支付适配器已预留', backToInquiry: '返回采购单'
 })
 const commerceStageLabel = computed(() => {
   const ui = commerceUi.value
@@ -897,15 +942,12 @@ const pageStyle = computed(() => {
   const ink = mix(theme, '#0f172a', 0.72)
   const surface = mix(theme, '#ffffff', 0.18)
   const tintLight = mix(theme, '#ffffff', 0.22)
-  const background = branding.value.backgroundImage
-    ? `linear-gradient(180deg, #f8fafc 0%, #eef2f7 46%, #ffffff 100%)`
-    : `linear-gradient(180deg, #f8fafc 0%, ${mix(surface, '#f8fafc', 0.78)} 48%, #ffffff 100%)`
-
   return {
     '--login-theme': theme,
     '--login-theme-light': tintLight,
     '--login-ink': ink,
-    backgroundImage: background
+    backgroundColor: '#fff',
+    backgroundImage: 'none'
   }
 })
 
@@ -963,13 +1005,21 @@ const openSalesAgent = async () => {
   quoteVisible.value = false
   productDetail.value = null
   if (!agentMessages.value.length) {
-    agentMessages.value.push({ role: 'assistant', content: commerceUi.value.agentIntro })
+    agentMessages.value = []
   }
   try {
     await ensureSalesSession()
   } catch (error) {
     agentMessages.value.push({ role: 'assistant', content: error.message || commerceUi.value.thinkingLabel })
   }
+}
+
+const toggleCustomerService = () => {
+  if (agentVisible.value) {
+    agentVisible.value = false
+    return
+  }
+  void openSalesAgent()
 }
 
 const ensureSalesSession = async () => {
@@ -983,7 +1033,7 @@ const ensureSalesSession = async () => {
     body: JSON.stringify({ channel: 'website', locale: activeLocale.value, consent: true })
   })
   const data = await response.json().catch(() => ({}))
-  if (!response.ok || !data.session?.id) throw new Error(data.message || '销售 Agent 暂时不可用')
+  if (!response.ok || !data.session?.id) throw new Error(data.message || '客服智能体暂时不可用')
   salesSessionId.value = data.session.id
   window.localStorage?.setItem('lundu-sales-session', salesSessionId.value)
   return salesSessionId.value
@@ -994,20 +1044,64 @@ const sendSalesMessage = async () => {
   if (!message || salesBusy.value) return
   agentDraft.value = ''
   agentMessages.value.push({ role: 'user', content: message })
+  const assistantMessage = { role: 'assistant', content: '' }
+  agentMessages.value.push(assistantMessage)
   salesBusy.value = true
   try {
     const sessionId = await ensureSalesSession()
+    salesStreamAbortController?.abort()
+    salesStreamAbortController = new AbortController()
     const response = await fetch(`/agent/sales/sessions/${encodeURIComponent(sessionId)}/messages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ message })
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' },
+      body: JSON.stringify({ message, stream: true }),
+      signal: salesStreamAbortController.signal
     })
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(data.message || '销售 Agent 暂时不可用')
-    agentMessages.value.push({ role: 'assistant', content: data.answer || commerceUi.value.thinkingLabel })
+    const contentType = response.headers.get('content-type') || ''
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.message || '客服智能体暂时不可用')
+    }
+    if (!contentType.includes('text/event-stream') || !response.body) {
+      const data = await response.json().catch(() => ({}))
+      if (!data.answer) throw new Error('客服智能体暂时不可用')
+      assistantMessage.content = data.answer
+      return
+    }
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    const appendEvent = (raw) => {
+      const dataLine = raw.split(/\r?\n/).find((line) => line.startsWith('data:'))
+      if (!dataLine) return false
+      const payload = dataLine.slice(5).trim()
+      if (payload === '[DONE]') return true
+      try {
+        const event = JSON.parse(payload)
+        assistantMessage.content += event.delta || event.text || event.choices?.[0]?.delta?.content || ''
+      } catch {
+        // Ignore incomplete or non-data SSE frames.
+      }
+      return false
+    }
+    let done = false
+    while (!done) {
+      const chunk = await reader.read()
+      buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done })
+      const frames = buffer.split(/\r?\n\r?\n/)
+      buffer = frames.pop() || ''
+      for (const frame of frames) {
+        if (appendEvent(frame)) done = true
+      }
+      if (chunk.done) break
+    }
+    if (buffer.trim()) appendEvent(buffer)
+    if (!assistantMessage.content) assistantMessage.content = commerceUi.value.thinkingLabel
   } catch (error) {
-    agentMessages.value.push({ role: 'assistant', content: error.message || '销售 Agent 暂时不可用' })
+    if (error?.name === 'AbortError') return
+    assistantMessage.content = assistantMessage.content || error.message || '客服智能体暂时不可用'
   } finally {
+    salesStreamAbortController = null
     salesBusy.value = false
   }
 }
@@ -1042,12 +1136,12 @@ const submitLead = async () => {
       })
     })
     const data = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(data.message || '询价提交失败，请稍后重试')
-    ElMessage.success(isEnglish.value ? 'Inquiry sent. Sales will follow up.' : '询价已提交，销售人员会尽快联系。')
+    if (!response.ok) throw new Error(data.message || '采购单提交失败，请稍后重试')
+    ElMessage.success(isEnglish.value ? 'Purchase request sent. Our service team will follow up.' : '采购单已提交，客服团队会尽快联系。')
     commerceStage.value = 'quote'
     quoteVisible.value = true
   } catch (error) {
-    ElMessage.error(error.message || '询价提交失败，请稍后重试')
+    ElMessage.error(error.message || '采购单提交失败，请稍后重试')
   } finally {
     salesBusy.value = false
   }

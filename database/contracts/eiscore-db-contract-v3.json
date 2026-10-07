@@ -14,7 +14,7 @@
   ],
   "baseline": {
     "id": "eiscore-db-v1",
-    "fingerprintSha256": "bdf72f613055c419aff40e58776d2725fcc460cf44c5b17d7a28a7379b93e72e"
+    "fingerprintSha256": "eaa3456dbe92d99a7a89bef4dc829dae873086e1f83fc64241051772ee827d5f"
   },
   "terminalMigrations": {
     "runtime-v2": {
@@ -31,7 +31,7 @@
     }
   },
   "databaseCatalog": {
-    "sha256": "869cb978e1c396c0c0b7bc6e0acfc55434e845fe9ea08919e873fd98223c84bd",
+    "sha256": "a473c2d932a046c6df278acff03c97ed4afeb919762ea6bdebbb88c7b1e28ff8",
     "counts": {
       "schemas": 7,
       "relations": 199,
@@ -46,10 +46,10 @@
     }
   },
   "postgrestOpenApi": {
-    "sha256": "5d14a8a0a82d506486f239b7c819d85384a6742a4e264c5d11db39940da04b24",
+    "sha256": "cb5c41defeac0c36e307b06a538d50c3abe60b17c9dcbaac25b4ae63cdbe1cd1",
     "roleSha256": {
       "web_anon": "afae88bcbe74147fd95e1cc043fb4034b43d407fa2fbe7f3f053ebecd58868ef",
-      "web_user": "d3b826e37b119429323e5d2750ff5d76b82a4d047d9719a971bcc29f8d22857c"
+      "web_user": "e3f90b458d02394d09d2554525af9ba1fb17bd7d402dd31463dc4404cabc0615"
     },
     "schemaSha256": {
       "web_anon": {
@@ -66,7 +66,7 @@
         "app_data": "e84e6f4ac0112f5bb958563fd60646b7efc13c049956cab2fb3c7b9438d35e05",
         "company_site": "bc9c2eb6cf484c7091d2f7b2da17e4a53155dada5e619af15aedfa6e2c5a8c30",
         "hr": "ec0b82d99206fec25aa575c2f5cb1c8bf0007cc39941ad19c4b7a425dea88010",
-        "public": "4484df47efb899d371498db716882ef7eed1c8dcabe813eebf89a19e95f29a01",
+        "public": "b21d672168caed8e95c1067b295dadf2897b54b5923fc2c101bf4d9caaa1cd53",
         "scm": "187c5c0777c3ca3160e9fb1d0d83bb6f19e118f3b4ebbcd676e0b0b6a9598820",
         "workflow": "8fe4c8b62fed03e43c6b817c8ed52c548f3148112de43a2a40462322f26f4960"
       }
@@ -74,8 +74,8 @@
     "counts": {
       "roles": 2,
       "schemaProfiles": 14,
-      "paths": 286,
-      "rpcPaths": 78,
+      "paths": 291,
+      "rpcPaths": 83,
       "definitions": 194
     }
   }

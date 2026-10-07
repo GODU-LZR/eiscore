@@ -164,11 +164,11 @@ assert.match(template, /^EISCORE_HARNESS_ENABLED=true$/m, 'environment template 
 assert.match(template, /^EISCORE_HARNESS_URL=http:\/\/harness-bridge:3080$/m, 'environment template should point at the dedicated Harness bridge')
 assert.match(template, /^EISCORE_HARNESS_BRIDGE_SECRET=replace_me_/m, 'environment template should expose the Runtime-to-Bridge secret contract')
 assert.match(template, /^DSH_PROVIDER=deepseek-official$/m, 'environment template should select the DeepSeek provider')
-assert.match(template, /^DSH_MODEL=deepseek-chat$/m, 'environment template should select the DeepSeek model')
+assert.match(template, /^DSH_MODEL=deepseek-v4-flash$/m, 'environment template should select the DeepSeek model')
 assert.match(lunduTemplate, /^LUNDU_HARNESS_ROOT=\S+$/m, 'Lundu environment template should expose the external Harness artifact root')
 assert.match(lunduTemplate, /^EISCORE_HARNESS_BRIDGE_SECRET=replace_me_/m, 'Lundu environment template should expose the Runtime-to-Bridge secret contract')
 assert.match(lunduTemplate, /^DSH_PROVIDER=deepseek-official$/m, 'Lundu environment template should expose the SDK provider route')
-assert.match(lunduTemplate, /^DSH_MODEL=deepseek-chat$/m, 'Lundu environment template should expose the SDK model route')
+assert.match(lunduTemplate, /^DSH_MODEL=deepseek-v4-flash$/m, 'Lundu environment template should expose the SDK model route')
 assert.match(lunduTemplate, /^BRIDGE_STATE_FILE=\/var\/lib\/dsh\/bridge-state\.json$/m, 'Lundu environment template should expose the bridge state file')
 assert.match(lunduTemplate, /^BRIDGE_PROMPT_TIMEOUT_MS=120000$/m, 'Lundu environment template should expose the prompt timeout')
 assert.match(lunduTemplate, /^BRIDGE_SESSION_DRAIN_TIMEOUT_MS=120000$/m, 'Lundu environment template should expose the session drain timeout')
@@ -199,7 +199,7 @@ const valid = {
   EISCORE_HARNESS_BRIDGE_SECRET: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_TOOL_PROXY_SECRET: 'HarnessProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   DSH_PROVIDER: 'deepseek-official',
-  DSH_MODEL: 'deepseek-chat'
+  DSH_MODEL: 'deepseek-v4-flash'
 }
 assert.deepEqual(validateProductionEnv(valid), {
   publicBaseUrl: valid.EISCORE_PUBLIC_BASE_URL,

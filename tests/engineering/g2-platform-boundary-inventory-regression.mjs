@@ -15,6 +15,11 @@ const piniaPersistencePattern = /\bpersist\s*:\s*(?:true|\{)/g
 const fullPageNavigationPattern = /\bwindow\.location\.href\s*=/g
 
 const expectedStorageInventory = new Map([
+  // Anonymous public-site sales sessions are intentionally scoped to the
+  // landing page and do not contain authentication or tenant credentials.
+  // The public Lundu site keeps an anonymous sales session and inquiry list;
+  // the list is read and written as separate guarded operations.
+  ['eiscore-base/src/views/LoginView.vue', 4],
   ['shared/eis-app-runtime-title-store.mjs', 1],
   ['shared/eis-assistant-history.mjs', 1],
   ['shared/eis-check-cache.mjs', 1],
