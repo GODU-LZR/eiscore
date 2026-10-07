@@ -35,7 +35,6 @@ const retiredRuntimeEnvKeys = [
   'CLINE_OPENAI_MODEL',
   'OPENAI_API_KEY',
   'OPENAI_BASE_URL',
-  'DEEPSEEK_API_KEY',
   'AI_API_KEY',
   'AI_BASE_URL',
   'EISCORE_HARNESS_FALLBACK',
@@ -64,6 +63,7 @@ assert.match(compose, /\$\{EISCORE_HARNESS_AUDIT_FILE:\?EISCORE_HARNESS_AUDIT_FI
 assert.match(compose, /\$\{EISCORE_HARNESS_AUDIT_HASH_KEY:\?EISCORE_HARNESS_AUDIT_HASH_KEY is required\}/, 'production Compose should require Harness audit key')
 assert.match(compose, /\$\{EISCORE_HARNESS_BRIDGE_SECRET:\?EISCORE_HARNESS_BRIDGE_SECRET is required\}/, 'production Compose should require Runtime-to-Bridge secret')
 assert.match(compose, /\$\{EISCORE_TOOL_PROXY_SECRET:\?EISCORE_TOOL_PROXY_SECRET is required\}/, 'production Compose should require the Harness tool proxy secret')
+assert.match(compose, /harness-bridge:[\s\S]+DEEPSEEK_API_KEY: "\$\{DEEPSEEK_API_KEY:\?DEEPSEEK_API_KEY is required\}"/, 'production bridge must require the DeepSeek provider key')
 assert.doesNotMatch(operationsManual, /^docker compose up -d\s*$/m, 'operations manual must not advertise unscoped Compose startup')
 assert.match(operationsManual, /docker compose up -d db api agent-runtime harness-bridge nginx swagger code-server/, 'operations manual should document scoped local Harness startup')
 assert.match(rootCompose, /^  harness-bridge:$/m, 'local Compose must provide a first-class Harness bridge service')
@@ -71,6 +71,7 @@ assert.match(rootCompose, /EISCORE_HARNESS_URL: "\$\{EISCORE_HARNESS_URL:-http:\
 assert.doesNotMatch(rootCompose, /host\.docker\.internal:3080/, 'local Compose must not default to an external Harness process')
 assert.match(rootCompose, /harness-bridge:[\s\S]+dockerfile: agent-harness\/Dockerfile/, 'local Harness bridge must use the repository-built image')
 assert.match(rootCompose, /harness-bridge:[\s\S]+EISCORE_TOOL_PROXY_URL: http:\/\/agent-runtime:8078\/internal\/harness\/tool/, 'local Harness bridge must call the authenticated Runtime Tool Proxy')
+assert.match(rootCompose, /harness-bridge:[\s\S]+DEEPSEEK_API_KEY: "\$\{DEEPSEEK_API_KEY:\?DEEPSEEK_API_KEY is required\}"/, 'local bridge must require the DeepSeek provider key')
 assert.match(compose, /^  harness-bridge:$/m, 'production Compose must provide the configured Harness bridge service')
 assert.match(bridgeDockerfile, /ENTRYPOINT \["node"\]/, 'Harness bridge image must expose the node entrypoint used by Compose commands')
 assert.match(compose, /harness-bridge:\n\s+build:\n\s+context: \.\n\s+dockerfile: agent-harness\/Dockerfile/, 'production bridge must use the repository-built Harness image')
@@ -115,6 +116,7 @@ assert.match(lunduCompose, /\.\/source\/agent-harness\/http-bridge\.js:\/opt\/ht
 assert.match(lunduCompose, /DSH_BIN: \/opt\/bridge\/node_modules\/\.bin\/dsh/, 'Lundu bridge must launch the locked DSH CLI')
 assert.match(lunduCompose, /DSH_PROVIDER: "\$\{DSH_PROVIDER:\?DSH_PROVIDER is required\}"/, 'Lundu bridge must require an explicit DSH provider')
 assert.match(lunduCompose, /DSH_MODEL: "\$\{DSH_MODEL:\?DSH_MODEL is required\}"/, 'Lundu bridge must require an explicit DSH model')
+assert.match(lunduCompose, /harness-bridge:[\s\S]+DEEPSEEK_API_KEY: "\$\{DEEPSEEK_API_KEY:\?DEEPSEEK_API_KEY is required\}"/, 'Lundu bridge must require the DeepSeek provider key')
 assert.match(lunduCompose, /healthcheck:[\s\S]+\/readyz/, 'Lundu bridge healthcheck must use the SDK readiness endpoint')
 assert.match(lunduCompose, /BRIDGE_STATE_FILE: .*bridge-state\.json/, 'Lundu bridge must persist session and replay state on its DSH volume')
 for (const [key, fallback] of [['BRIDGE_PROMPT_TIMEOUT_MS', '120000'], ['BRIDGE_SESSION_DRAIN_TIMEOUT_MS', '120000'], ['BRIDGE_RPC_TIMEOUT_MS', '120000'], ['BRIDGE_SHUTDOWN_TIMEOUT_MS', '1000']]) {
@@ -169,6 +171,7 @@ assert.match(lunduTemplate, /^LUNDU_HARNESS_ROOT=\S+$/m, 'Lundu environment temp
 assert.match(lunduTemplate, /^EISCORE_HARNESS_BRIDGE_SECRET=replace_me_/m, 'Lundu environment template should expose the Runtime-to-Bridge secret contract')
 assert.match(lunduTemplate, /^DSH_PROVIDER=deepseek-official$/m, 'Lundu environment template should expose the SDK provider route')
 assert.match(lunduTemplate, /^DSH_MODEL=deepseek-v4-flash$/m, 'Lundu environment template should expose the SDK model route')
+assert.match(lunduTemplate, /^DEEPSEEK_API_KEY=replace_me_/m, 'Lundu environment template should expose the DeepSeek provider key contract')
 assert.match(lunduTemplate, /^BRIDGE_STATE_FILE=\/var\/lib\/dsh\/bridge-state\.json$/m, 'Lundu environment template should expose the bridge state file')
 assert.match(lunduTemplate, /^BRIDGE_PROMPT_TIMEOUT_MS=120000$/m, 'Lundu environment template should expose the prompt timeout')
 assert.match(lunduTemplate, /^BRIDGE_SESSION_DRAIN_TIMEOUT_MS=120000$/m, 'Lundu environment template should expose the session drain timeout')
@@ -199,7 +202,8 @@ const valid = {
   EISCORE_HARNESS_BRIDGE_SECRET: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_TOOL_PROXY_SECRET: 'HarnessProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   DSH_PROVIDER: 'deepseek-official',
-  DSH_MODEL: 'deepseek-v4-flash'
+  DSH_MODEL: 'deepseek-v4-flash',
+  DEEPSEEK_API_KEY: 'DeepSeekKey9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6'
 }
 assert.deepEqual(validateProductionEnv(valid), {
   publicBaseUrl: valid.EISCORE_PUBLIC_BASE_URL,

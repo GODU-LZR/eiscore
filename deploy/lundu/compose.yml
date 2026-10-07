@@ -112,6 +112,7 @@ services:
       DSH_HOME: /var/lib/dsh
       DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
       DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
       DSH_CWD: /opt/eiscore-harness
       DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
       EISCORE_TOOL_PROXY_URL: http://agent:8078/internal/harness/tool

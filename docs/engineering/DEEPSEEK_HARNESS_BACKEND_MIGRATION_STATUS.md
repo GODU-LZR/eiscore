@@ -3428,3 +3428,13 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 本轮测试仅使用临时 `eiscore-db5-*` 容器/网络，已确认全部清理；未触碰主 Compose、现有业务数据库卷、远端或生产。candidate clone 剩余改动仅为既有 ontology patch、旧 baseline 临时目录和未跟踪 candidate manifest。
 - 冻结 `database/releases/eiscore-db-v6/manifest.json` 未修改，未手工伪造 checksum；冻结 manifest 对当前工作树的真实 drift 仍由正式门禁 fail-closed。candidate 制品是诊断/验收证据，不等于已批准的正式 release。
 - DB6 隔离 candidate release/recovery 证据现已闭合；正式 release 仍需在相关迁移/契约变更完成审阅并提交后，由发布流程决定是否更新冻结制品。Bridge clean-build provenance、真实 Provider completion、远端/生产验收等其他上线门槛仍未闭合，全局目标保持 `active`。
+
+## 全局目标继续推进记录（2026-10-07，Bridge 凭据契约与当前门禁复核）
+
+- 修正 DeepSeek Bridge 的凭据边界：`DEEPSEEK_API_KEY` 现在只由根 Compose、生产 Compose 和伦度 Compose 注入 `harness-bridge`，并在 `env/.env.example`、`deploy/lundu/.env.example` 中以占位符声明；未写入真实 key、源码、Git、数据库或持久化卷。
+- `scripts/validate-production-env.mjs` 现在要求 `DEEPSEEK_API_KEY` 通过长度、占位符、字符集和多样性校验；旧 OpenAI/Anthropic/Cline、AI 直连和 Harness fallback/shadow 变量仍被拒绝。生产配置回归与 Harness 生产路径回归均通过。
+- `npm run test:harness-bridge` 通过：HTTP bridge、SDK framing、provider failure propagation、waiter/rpc/session timeout、tool continuation、bounded shutdown 和 loopback 闭环均通过；loopback 为 `ok=true`、`proxyCalls=1`、`modelRequests=2`。
+- 使用 `.codex-tmp/db6-candidate-20261007/manifest.json` 的 WSL 隔离 release 真实执行按门禁失败：临时数据库 catalog `4e6b7bd3...` 不在 candidate 可接受集合中；随后重新生成的正式路径 candidate 又因 `scripts/check-database-backups.mjs` provenance drift fail-closed。未执行真实 release/recovery，未修改冻结 v6 manifest，未触碰业务数据库卷。
+- 当前工作树仍非 clean，且存在用户/协作者未提交的 DB2-DB6 manifest、伦度登录样式、数据库测试/治理和文档改动；这些未被覆盖或回退。candidate manifest 已移入 `.codex-tmp/db6-candidate-20261007-current/manifest.json` 作为临时验收证据，不等于批准的正式 release。
+- 声明的 `harness-bridge` 隔离 clean-build 使用当前分支实际 HEAD `abb19556`、临时标签 `eiscore-harness-bridge:clean-build-20261007`；WSL 旧版 Docker builder 不支持 `--progress`，去掉参数后在 npm 安装阶段长时间无输出，已安全中止。没有生成该标签、没有替换运行中 Bridge、没有重建任何服务。Bridge clean-build provenance 仍未闭合。
+- 本轮未连接远端/生产，未重启 Compose，未使用或持久化用户提供的 API key；全局目标保持 `active`，正式 DB6 release、真实 Provider completion 和 clean-build provenance 仍是上线前阻塞项。

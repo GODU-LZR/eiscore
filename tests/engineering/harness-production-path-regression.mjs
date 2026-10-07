@@ -196,7 +196,7 @@ assert.match(harnessDockerfile, /npm ci --omit=dev/, 'Harness image must omit de
 for (const [name, source] of deploymentConfigSources) {
   for (const retiredModelConfig of [
     'ANTHROPIC_API_KEY', 'AI_HTTP_PROXY_URL', 'CLINE_OPENAI', 'CLINE_MODEL',
-    'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'DEEPSEEK_API_KEY', 'AI_API_KEY', 'AI_BASE_URL',
+    'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'AI_API_KEY', 'AI_BASE_URL',
     'EISCORE_HARNESS_FALLBACK', 'EISCORE_HARNESS_SHADOW', 'EISCORE_HARNESS_TWIN_SHADOW',
     'EISCORE_HARNESS_SITE_SALES_SHADOW'
   ]) {

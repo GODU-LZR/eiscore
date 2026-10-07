@@ -18,7 +18,6 @@ const RETIRED_RUNTIME_ENV_KEYS = [
   'CLINE_OPENAI_MODEL',
   'OPENAI_API_KEY',
   'OPENAI_BASE_URL',
-  'DEEPSEEK_API_KEY',
   'AI_API_KEY',
   'AI_BASE_URL',
   'EISCORE_HARNESS_FALLBACK',
@@ -96,6 +95,7 @@ export function validateProductionEnv(values) {
   validateSecret(values, 'EISCORE_HARNESS_AUDIT_HASH_KEY', 32, issues)
   validateSecret(values, 'EISCORE_HARNESS_BRIDGE_SECRET', 32, issues)
   validateSecret(values, 'EISCORE_TOOL_PROXY_SECRET', 32, issues)
+  validateSecret(values, 'DEEPSEEK_API_KEY', 32, issues)
   const bridgeSecret = String(values?.EISCORE_HARNESS_BRIDGE_SECRET || '')
   const toolProxySecret = String(values?.EISCORE_TOOL_PROXY_SECRET || '')
   if (bridgeSecret && toolProxySecret && bridgeSecret === toolProxySecret) {
