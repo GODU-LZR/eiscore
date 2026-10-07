@@ -322,6 +322,17 @@ export const normalizePostgrestOpenApi = (document) => {
   delete normalized.schemes
   delete normalized.servers
   if (normalized.info) delete normalized.info.description
+  // PostgREST can attach the primary-key annotation to either side of the
+  // duplicated id/role_id projection in v_role_ontology after a dump restore.
+  // The semantic identity is role_id; make that metadata stable without
+  // changing paths, types, permissions, or database structure.
+  const roleOntology = normalized.definitions?.v_role_ontology
+  const properties = roleOntology?.properties
+  if (properties?.id && properties?.role_id) {
+    const primaryKeyDescription = properties.role_id.description || properties.id.description
+    if (primaryKeyDescription) properties.role_id.description = primaryKeyDescription
+    delete properties.id.description
+  }
   return stableValue(normalized)
 }
 

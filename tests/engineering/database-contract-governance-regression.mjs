@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { normalizePostgrestOpenApi } from '../../scripts/database-contract-catalog.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const read = (path) => readFileSync(resolve(repoRoot, path), 'utf8')
@@ -66,5 +67,21 @@ for (const command of [
 ]) assert.ok(packageJson.scripts?.['test:database:docker']?.includes(command), `database suite lost ${command}`)
 assert.match(ciSource, /run: npm run test:database:docker/)
 assert.match(ciSource, /run: node scripts\/test-database-operation-lock\.mjs/)
+
+const roleOntology = normalizePostgrestOpenApi({
+  definitions: {
+    v_role_ontology: {
+      properties: {
+        id: { description: 'Note:\nThis is a Primary Key.<pk/>', type: 'string' },
+        role_id: { type: 'string' }
+      }
+    }
+  }
+})
+assert.equal(roleOntology.definitions.v_role_ontology.properties.id.description, undefined)
+assert.equal(
+  roleOntology.definitions.v_role_ontology.properties.role_id.description,
+  'Note:\nThis is a Primary Key.<pk/>'
+)
 
 console.log('PASS: versioned database/PostgREST contract and default CI integration')
