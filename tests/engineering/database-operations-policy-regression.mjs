@@ -36,6 +36,7 @@ assert.deepEqual(parseDatabaseRuntimeAuditArgs([
   '--db-container', 'db', '--db-name', 'app', '--db-user', 'auditor',
   '--api-container', 'api', '--api-url', 'http://127.0.0.1:3000/', '--output', 'audit.json'
 ]), {
+  releasePath: 'database/releases/eiscore-db-v6/manifest.json',
   dbContainer: 'db', dbName: 'app', dbUser: 'auditor', apiContainer: 'api',
   apiUrl: 'http://127.0.0.1:3000', output: 'audit.json'
 })
@@ -61,6 +62,9 @@ for (const marker of ['pg_advisory_lock', 'lock_timeout', 'pg_advisory_unlock', 
 assert.match(recoveryPostcheck, /ALTER %s %I\.%I\(%s\) OWNER TO eiscore_owner/)
 
 const runtimeAudit = readFileSync(resolve(repoRoot, 'scripts/audit-database-runtime.mjs'), 'utf8')
+assert.ok(runtimeAudit.includes("['--release', 'releasePath']"))
+assert.ok(runtimeAudit.includes("releasePath: 'database/releases/eiscore-db-v6/manifest.json'"))
+assert.ok(runtimeAudit.includes('loadAndValidateDatabaseRelease({ repoRoot, releasePath: options.releasePath })'))
 assert.match(runtimeAudit, /pg_blocking_pids/)
 assert.match(runtimeAudit, /queryTextCaptured.*false/)
 assert.match(runtimeAudit, /runtimeSuperuserConnections/)

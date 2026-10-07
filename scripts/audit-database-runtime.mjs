@@ -9,12 +9,13 @@ import { loadAndValidateDatabaseRelease } from './database-release-contract.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const optionsMap = new Map([
-  ['--db-container', 'dbContainer'], ['--db-name', 'dbName'], ['--db-user', 'dbUser'],
+  ['--release', 'releasePath'], ['--db-container', 'dbContainer'], ['--db-name', 'dbName'], ['--db-user', 'dbUser'],
   ['--api-container', 'apiContainer'], ['--api-url', 'apiUrl'], ['--output', 'output']
 ])
 
 export const parseDatabaseRuntimeAuditArgs = (argv) => {
   const options = {
+    releasePath: 'database/releases/eiscore-db-v6/manifest.json',
     dbContainer: 'eiscore-db', dbName: 'eiscore', dbUser: 'postgres',
     apiContainer: 'eiscore-api', apiUrl: '', output: ''
   }
@@ -36,7 +37,7 @@ const listQuery = (adapter, sql) => adapter.query(sql).split(/\r?\n/).filter(Boo
 
 export const auditDatabaseRuntime = async ({ options, adapter }) => {
   const policy = JSON.parse(readFileSync(resolve(repoRoot, 'database/operations/policy.json'), 'utf8'))
-  const release = loadAndValidateDatabaseRelease({ repoRoot })
+  const release = loadAndValidateDatabaseRelease({ repoRoot, releasePath: options.releasePath })
   if (release.errors.length) throw new Error(`database release validation failed: ${release.errors.join('; ')}`)
   adapter.preflight(release.manifest)
   if (adapter.containerImage(options.apiContainer) !== release.manifest.images.postgrest) {
