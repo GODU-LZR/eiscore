@@ -9,9 +9,14 @@ import { loadAndValidateDatabaseBackupEvidence } from './restore-database-releas
 
 const repoRoot = resolve(import.meta.dirname, '..')
 
-export const evaluateDatabaseBackupInventory = ({ backupRoot, environment = 'isolated', now = Date.now() }) => {
+export const evaluateDatabaseBackupInventory = ({
+  backupRoot,
+  environment = 'isolated',
+  releasePath = process.env.DB_RELEASE_PATH,
+  now = Date.now()
+}) => {
   const policy = JSON.parse(readFileSync(resolve(repoRoot, 'database/operations/policy.json'), 'utf8'))
-  const release = loadAndValidateDatabaseRelease({ repoRoot })
+  const release = loadAndValidateDatabaseRelease({ repoRoot, ...(releasePath ? { releasePath } : {}) })
   const errors = [...release.errors]
   const warnings = []
   const root = resolve(backupRoot)
@@ -65,10 +70,12 @@ if (isMain) {
   try {
     const rootArgument = process.argv.find((argument) => argument.startsWith('--backup-root='))
     const environmentArgument = process.argv.find((argument) => argument.startsWith('--environment='))
+    const releaseArgument = process.argv.find((argument) => argument.startsWith('--release='))
     if (!rootArgument) throw new Error('--backup-root=<path> is required')
     const report = evaluateDatabaseBackupInventory({
       backupRoot: rootArgument.slice('--backup-root='.length),
-      environment: environmentArgument?.slice('--environment='.length) || 'isolated'
+      environment: environmentArgument?.slice('--environment='.length) || 'isolated',
+      releasePath: releaseArgument?.slice('--release='.length)
     })
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
     if (report.errors.length) process.exitCode = 1

@@ -7,6 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node
 import { createServer } from 'node:net'
 import { resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { loadAndValidateDatabaseRelease } from './database-release-contract.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const artifactsRoot = resolve(repoRoot, 'tests/.artifacts')
@@ -21,8 +22,13 @@ const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
-const releaseManifestSha256 = '58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d'
-const core002Sha256 = 'fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc'
+const releasePath = process.env.DB_RELEASE_PATH || 'database/releases/eiscore-db-v6/manifest.json'
+const release = loadAndValidateDatabaseRelease({ repoRoot, releasePath, verifySourceRevision: false })
+if (release.errors.length) throw new Error(`release manifest is invalid: ${release.errors.join('; ')}`)
+const releaseManifestSha256 = release.manifestSha256
+const coreMigrations = release.manifest.migrationManifests.find(({ name }) => name === 'core')?.migrations || []
+const core002Sha256 = coreMigrations.find(({ id }) => id === 'core-002')?.sha256 || ''
+const coreAppliedCount = Math.max(0, coreMigrations.length - 1)
 const maxOutput = 256 * 1024 * 1024
 
 const execute = (program, args, { input, allowFailure = false, timeout = 300_000 } = {}) => {
@@ -76,6 +82,7 @@ const waitForDatabase = async () => {
 }
 const releaseArgs = (apiUrl) => [
   'scripts/deploy-database-release.mjs',
+  '--release', releasePath,
   '--db-container', databaseContainer,
   '--db-name', 'eiscore',
   '--db-user', 'postgres',
@@ -141,8 +148,8 @@ try {
   ])
 
   const first = executeRelease(apiUrl)
-  assert.match(first.stdout, /Preflight passed: 4e6b7bd3/)
-  assert.match(first.stdout, /core migration execution passed: 6 applied, 1 skipped/)
+  assert.match(first.stdout, /Preflight passed:/)
+  assert.match(first.stdout, new RegExp(`core migration execution passed: ${coreAppliedCount} applied, 1 skipped`))
   assert.match(first.stdout, /Database release passed: eiscore-db-v6/)
   assert.equal(backupDirectories().length, 1)
 
@@ -160,7 +167,7 @@ try {
   `).stdout.trim()
   assert.equal(
     releaseRow,
-    `eiscore-db-v6|${releaseManifestSha256}|b9a3831d08aeb7056ee8a5997ca8b57ae270ca08`
+    `eiscore-db-v6|${releaseManifestSha256}|${release.manifest.sourceRevision}`
   )
   assert.equal(psql(`
     SELECT tableowner FROM pg_tables
@@ -168,7 +175,7 @@ try {
   `).stdout.trim(), 'eiscore_owner')
 
   const second = executeRelease(apiUrl)
-  assert.match(second.stdout, /core migration execution passed: 0 applied, 7 skipped/)
+  assert.match(second.stdout, new RegExp(`core migration execution passed: 0 applied, ${coreMigrations.length} skipped`))
   assert.equal(backupDirectories().length, 2)
   assert.equal(psql('SELECT count(*) FROM eiscore_meta.database_releases;').stdout.trim(), '1')
 

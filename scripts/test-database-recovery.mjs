@@ -7,6 +7,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { loadAndValidateDatabaseRelease } from './database-release-contract.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const artifactsRoot = resolve(repoRoot, 'tests/.artifacts')
@@ -31,6 +32,9 @@ const executionEnv = {
   AGENT_DB_PASSWORD: agentPassword,
   PGRST_JWT_SECRET: jwtSecret
 }
+const releasePath = process.env.DB_RELEASE_PATH || 'database/releases/eiscore-db-v6/manifest.json'
+const release = loadAndValidateDatabaseRelease({ repoRoot, releasePath, verifySourceRevision: false })
+if (release.errors.length) throw new Error(`release manifest is invalid: ${release.errors.join('; ')}`)
 
 const execute = (program, args, { input, allowFailure = false, timeout = 600_000, env } = {}) => {
   const result = spawnSync(program, args, {
@@ -98,7 +102,7 @@ const createApi = async (name, database, port) => docker([
   postgrestImage
 ])
 const releaseArgs = (apiUrl) => [
-  'scripts/deploy-database-release.mjs', '--db-container', sourceDb,
+  'scripts/deploy-database-release.mjs', '--release', releasePath, '--db-container', sourceDb,
   '--api-container', sourceApi, '--api-url', apiUrl,
   '--backup-dir', backupRoot,
   '--environment', 'isolated',
@@ -177,7 +181,8 @@ try {
   const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'))
   assert.equal(evidence.releaseId, 'eiscore-db-v6')
   const backupAudit = execute(process.execPath, [
-    'scripts/check-database-backups.mjs', `--backup-root=${backupRoot}`, '--environment=isolated'
+    'scripts/check-database-backups.mjs', `--backup-root=${backupRoot}`, '--environment=isolated',
+    `--release=${releasePath}`
   ])
   const backupReport = JSON.parse(backupAudit.stdout)
   assert.equal(backupReport.status, 'healthy')
@@ -194,6 +199,7 @@ try {
   await createApi(recoveryApi, recoveryDb, recoveryPort)
   const recovery = execute(process.execPath, [
     'scripts/restore-database-release-backup.mjs',
+    '--release', releasePath,
     '--evidence', evidencePath,
     '--db-container', recoveryDb,
     '--api-container', recoveryApi,
@@ -252,7 +258,8 @@ try {
     '--db-container', recoveryDb,
     '--api-container', recoveryApi,
     '--api-url', recoveryUrl,
-    '--output', runtimeAuditPath
+    '--output', runtimeAuditPath,
+    '--release', releasePath
   ])
   const runtimeReport = JSON.parse(runtimeAudit.stdout)
   assert.equal(runtimeReport.status, 'healthy')
