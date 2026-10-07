@@ -14,11 +14,20 @@ apply(ctx)
 assert.deepEqual(registrations.map(({ name }) => name), [...capabilities])
 assert.equal(registrations.find(({ name }) => name === 'eiscore_enterprise_snapshot').parameters.additionalProperties, false)
 const flashWriteParameters = registrations.find(({ name }) => name === 'eiscore_flash_write').parameters
-assert.equal(flashWriteParameters.type, undefined)
-assert.equal(flashWriteParameters.oneOf.length, 2)
+assert.equal(flashWriteParameters.type, 'object')
+assert.equal(flashWriteParameters.oneOf, undefined)
+assert.ok(flashWriteParameters.properties.tool_id)
+assert.ok(flashWriteParameters.properties.toolId)
+const salesWriteParameters = registrations.find(({ name }) => name === 'eiscore_sales_write').parameters
+assert.deepEqual(salesWriteParameters.properties.operation.enum, [
+  'qualify_lead', 'opportunity_draft_create', 'quote_draft_create',
+  'sales_order_draft_create', 'production_draft_create', 'sales_approval',
+  'sales_sync_enqueue'
+])
 const normalizedRoot = normalizeDshSchema({ type: 'object', oneOf: [{ type: 'object', properties: { value: { type: 'string' } } }, { type: 'object' }] })
-assert.equal(normalizedRoot.type, undefined)
-assert.equal(normalizedRoot.oneOf[0].type, 'object')
+assert.equal(normalizedRoot.type, 'object')
+assert.equal(normalizedRoot.oneOf, undefined)
+assert.ok(normalizedRoot.properties.value)
 const normalizedNested = normalizeDshSchema({ type: 'object', properties: { value: { type: 'object', oneOf: [{ type: 'string' }, { type: 'null' }] } } })
 assert.equal(normalizedNested.type, 'object')
 assert.equal(normalizedNested.properties.value.type, undefined)

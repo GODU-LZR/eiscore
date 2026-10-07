@@ -227,19 +227,48 @@ const TOOL_SCHEMAS = Object.freeze({
 const proxyUrl = () => String(process.env.EISCORE_TOOL_PROXY_URL || '').replace(/\/+$/, '')
 const proxySecret = () => String(process.env.EISCORE_TOOL_PROXY_SECRET || '')
 
-// DSH accepts the JSON Schema subset where a oneOf root omits the redundant type.
-// Keep the richer contract shape in plugin-contract.v1.json and normalize only at registration.
-const normalizeDshSchema = (schema) => {
+// DSH requires function parameter schemas to be a single object root; it does
+// not accept a root `oneOf`, even when every branch is an object. Merge those
+// branches at registration time. Nested mixed unions (for example string/null)
+// remain `oneOf` and omit their contradictory `type`.
+const normalizeDshSchema = (schema, { root = true } = {}) => {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return schema
   const normalized = {}
   for (const [key, value] of Object.entries(schema)) {
-    if (key === 'oneOf' && Array.isArray(value)) normalized[key] = value.map(normalizeDshSchema)
+    if (key === 'oneOf' && Array.isArray(value)) normalized[key] = value.map((item) => normalizeDshSchema(item, { root: false }))
     else if (key === 'properties' && value && typeof value === 'object' && !Array.isArray(value)) {
-      normalized[key] = Object.fromEntries(Object.entries(value).map(([name, child]) => [name, normalizeDshSchema(child)]))
-    } else if (key === 'items') normalized[key] = normalizeDshSchema(value)
+      normalized[key] = Object.fromEntries(Object.entries(value).map(([name, child]) => [name, normalizeDshSchema(child, { root: false })]))
+    } else if (key === 'items') normalized[key] = normalizeDshSchema(value, { root: false })
     else normalized[key] = value
   }
-  if (Array.isArray(normalized.oneOf)) delete normalized.type
+  if (Array.isArray(normalized.oneOf)) {
+    const objectOnly = normalized.oneOf.length > 0 && normalized.oneOf.every((variant) => variant?.type === 'object')
+    if (root && objectOnly) {
+      const branches = normalized.oneOf
+      const properties = {}
+      for (const branch of branches) {
+        for (const [name, property] of Object.entries(branch.properties || {})) {
+          const previous = properties[name]
+          if (!previous) {
+            properties[name] = property
+            continue
+          }
+          const merged = { ...previous, ...property }
+          if (Array.isArray(previous.enum) && Array.isArray(property.enum)) {
+            merged.enum = [...new Set([...previous.enum, ...property.enum])]
+          }
+          properties[name] = merged
+        }
+      }
+      const requiredSets = branches.map((branch) => new Set(Array.isArray(branch.required) ? branch.required : []))
+      const required = requiredSets.length && requiredSets.every((set) => set.size === requiredSets[0].size && [...set].every((key) => requiredSets[0].has(key)))
+        ? [...requiredSets[0]]
+        : []
+      const additionalProperties = branches.every((branch) => branch.additionalProperties === false) ? false : true
+      return { type: 'object', additionalProperties, properties, ...(required.length ? { required } : {}) }
+    }
+    delete normalized.type
+  }
   return normalized
 }
 

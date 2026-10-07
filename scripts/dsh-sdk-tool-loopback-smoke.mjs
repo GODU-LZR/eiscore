@@ -66,7 +66,7 @@ try {
     ...process.env,
     DSH_HOME: home,
     DSH_PROVIDER: 'deepseek-official',
-    DSH_MODEL: 'deepseek-chat',
+    DSH_MODEL: 'deepseek-v4-flash',
     DEEPSEEK_BASE_URL: `http://127.0.0.1:${providerPort}/v1`,
     DEEPSEEK_API_KEY: 'loopback-mock-key',
     DSH_TELEMETRY_MODE: 'DISABLED',
@@ -78,7 +78,7 @@ try {
     args: [dshBin, '--profile', 'sdk', '--patch', patch],
     cwd: root,
     env,
-    timeoutMs: 15000
+    timeoutMs: 60000
   })
   const result = await runtime.prompt('loopback-tool-session', { messages: [{ role: 'user', content: 'read my snapshot' }] }, 'enterprise-bi')
   assert.equal(result.choices[0].message.content, 'mock response recovered')

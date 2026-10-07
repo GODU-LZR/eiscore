@@ -88,6 +88,19 @@ assert.equal(concurrentResult.payload.choices[0].message.content, 'ok')
 await runtime.close()
 console.log('PASS: DeepSeek SDK bridge framing and response aggregation')
 
+const providerFailureChildScript = [
+  "process.stdin.setEncoding('utf8');",
+  "let b=''; process.stdin.on('data', c => { b+=c; let i; while((i=b.indexOf('\\n'))>=0){ const f=JSON.parse(b.slice(0,i)); b=b.slice(i+1); if(f.method==='initialize') process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:f.id,result:{serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.0.1'}}})+'\\n'); if(f.method==='session/prompt'){ const sid=f.params.sessionId; process.stdout.write(JSON.stringify({jsonrpc:'2.0',method:'session.event',params:{sessionId:sid,event:{type:'assistant/chunk',data:{chunk:{type:'finish',reason:{kind:'error',failure:{code:'MISSING_CREDENTIAL',message:'No API key configured'}}}}}}})+'\\n'); process.stdout.write(JSON.stringify({jsonrpc:'2.0',method:'session.event',params:{sessionId:sid,event:{type:'turn/end',data:{reason:{kind:'error',error:{code:'MISSING_CREDENTIAL',message:'No API key configured'}}}}}})+'\\n'); process.stdout.write(JSON.stringify({jsonrpc:'2.0',method:'session.status',params:{sessionId:sid,status:'idle'}})+'\\n'); process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:f.id,result:{messageId:'m-provider-error'}})+'\\n'); } if(f.method==='shutdown') process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:f.id,result:{}})+'\\n'); }});"
+].join('')
+const providerFailureRuntime = new DshSdkProcess({ command: process.execPath, args: ['-e', providerFailureChildScript], timeoutMs: 2000 })
+const providerFailureInvoke = createInvoke({ runtime: providerFailureRuntime })
+await assert.rejects(
+  providerFailureInvoke({ body: { messages: [{ role: 'user', content: 'test missing credentials' }] }, sessionId: 'session-provider-failure', headers: { 'x-eis-plugin-id': 'enterprise-bi' } }),
+  (error) => error?.code === 'HARNESS_RUNTIME_PROVIDER_ERROR' && /No API key configured/.test(error.message)
+)
+await providerFailureRuntime.close()
+console.log('PASS: DeepSeek SDK bridge propagates provider failures instead of returning empty completions')
+
 const promptErrorChildScript = [
   "process.stdin.setEncoding('utf8');",
   "let b='', prompts=0; process.stdin.on('data', c => { b+=c; let i; while((i=b.indexOf('\\n'))>=0){ const f=JSON.parse(b.slice(0,i)); b=b.slice(i+1); if(f.method==='initialize') process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:f.id,result:{serverInfo:{name:'deepseek-harness-sdk-runtime',version:'0.0.1'}}})+'\\n'); if(f.method==='session/prompt'){ prompts++; if(prompts===1) process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:f.id,error:{code:-32001,message:'provider rejected prompt'}})+'\\n'); else { const sid=f.params.sessionId; process.stdout.write(JSON.stringify({jsonrpc:'2.0',method:'session.event',params:{sessionId:sid,event:{type:'assistant/message',data:{message:{content:[{type:'text',text:'ok-after-error'}]}}}}})+'\\n'); process.stdout.write(JSON.stringify({jsonrpc:'2.0',method:'session.status',params:{sessionId:sid,status:'idle'}})+'\\n'); process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:f.id,result:{messageId:'m3'}})+'\\n'); } } if(f.method==='shutdown') process.stdout.write(JSON.stringify({jsonrpc:'2.0',id:f.id,result:{}})+'\\n'); }});"

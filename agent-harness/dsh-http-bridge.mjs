@@ -157,7 +157,8 @@ class DshSdkProcess {
       const params = {
         cwd: this.cwd,
         provider: this.env.DSH_PROVIDER || 'deepseek-official',
-        model: this.env.DSH_MODEL || 'deepseek-chat'
+        // Keep the SDK init model aligned with the installed DeepSeek adapter catalog.
+        model: this.env.DSH_MODEL || 'deepseek-v4-flash'
       }
       try {
         await this.request('initialize', params)
@@ -185,9 +186,14 @@ class DshSdkProcess {
         this.waiters.delete(sessionId)
         reject(Object.assign(new Error('DeepSeek Harness prompt timed out'), { code: 'HARNESS_PROMPT_TIMEOUT' }))
       }, this.timeoutMs)
-      waiterState = { resolve, reject, timer, text: '' }
+      waiterState = { resolve, reject, timer, text: '', error: null }
       this.waiters.set(sessionId, waiterState)
     })
+    // The SDK may emit a terminal failure and session.status=idle before the
+    // session/prompt JSON-RPC receipt arrives. Observe early rejection so that
+    // Node does not treat the still-unreturned waiter as an unhandled promise;
+    // the original promise remains returned to the caller below.
+    void waiter.catch(() => {})
     try {
       await this.request('session/prompt', { sessionId, contentBlocks: requestContentBlocks(body, pluginId) })
     } catch (error) {
@@ -274,6 +280,18 @@ class DshSdkProcess {
         // loop and return the final assistant message.
         const text = assistantText(frame.params)
         if (waiter && text) waiter.text += text
+        // DSH reports provider failures as an assistant/chunk finish event,
+        // followed by turn/end and session.status=idle. Preserve that failure
+        // instead of resolving a misleading 200 response with empty content.
+        const failure = event?.type === 'assistant/chunk' && event.data?.chunk?.type === 'finish'
+          ? event.data.chunk.reason?.failure
+          : null
+        if (waiter && failure) {
+          waiter.error = Object.assign(new Error(String(failure.message || 'DeepSeek Harness provider failed')), {
+            code: 'HARNESS_RUNTIME_PROVIDER_ERROR',
+            details: failure
+          })
+        }
       } else if (frame.method === 'session.status' && frame.params?.status === 'idle') {
         const sessionId = String(frame.params?.sessionId || '')
         this.#markSessionIdle(sessionId)
@@ -281,7 +299,11 @@ class DshSdkProcess {
         if (!waiter) continue
         this.waiters.delete(sessionId)
         clearTimeout(waiter.timer)
-        waiter.resolve({ choices: [{ index: 0, message: { role: 'assistant', content: waiter.text }, finish_reason: 'stop' }] })
+        if (waiter.error) waiter.reject(waiter.error)
+        else if (!waiter.text.trim()) waiter.reject(Object.assign(new Error('DeepSeek Harness returned an empty completion; provider response is unavailable'), {
+          code: 'HARNESS_RUNTIME_EMPTY_COMPLETION'
+        }))
+        else waiter.resolve({ choices: [{ index: 0, message: { role: 'assistant', content: waiter.text }, finish_reason: 'stop' }] })
       }
     }
   }

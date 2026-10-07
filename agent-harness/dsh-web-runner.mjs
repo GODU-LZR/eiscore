@@ -63,7 +63,7 @@ const dsh = spawn(process.execPath, ['--expose-internals', '/opt/bridge/node_mod
   '--profile', 'web',
   '--patch', '/opt/eiscore-harness/dsh-web.patch.yml',
   '--port', '3080',
-  '--trusted-host', 'lundu.eiscore.top',
+  '--trusted-host', process.env.DSH_TRUSTED_HOST || 'lundu.eiscore.top',
   '--no-open'
 ], { env: process.env, stdio: ['inherit', 'pipe', 'inherit'] })
 

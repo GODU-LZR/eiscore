@@ -14,7 +14,7 @@ const homeInput = arg('--home', process.env.DSH_HOME || '')
 const bin = binInput ? resolve(binInput) : ''
 const home = homeInput ? resolve(homeInput) : ''
 const provider = arg('--provider', process.env.DSH_PROVIDER || 'deepseek-official')
-const model = arg('--model', process.env.DSH_MODEL || 'deepseek-chat')
+const model = arg('--model', process.env.DSH_MODEL || 'deepseek-v4-flash')
 const timeoutMs = Number(arg('--timeout-ms', '45000'))
 
 if (!bin || !existsSync(bin)) throw new Error('DSH SDK smoke requires --bin=<absolute path to dsh/lib/bin.js>')
