@@ -3480,3 +3480,12 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - `npm run db:release:check` 仍 fail-closed，报告 21 项真实 drift；冻结 `database/releases/eiscore-db-v6/manifest.json` 未修改，未执行正式 release/recovery，未触碰业务数据库卷。
 - 没有连接远端/生产、没有重启或替换现有 Compose Bridge。全局目标保持 `active`：Bridge 当前提交的真实 Provider completion、正式 DB6 manifest provenance/审批，以及主工作树七项既有未提交修改的归属仍未闭合。
 - 随后在最新 HEAD `d2818208`（仅新增本状态文档提交）上再次使用约 `532.5 kB` 的 `git archive` 上下文完成 clean-build，临时标签 `eiscore-harness-bridge:clean-build-20261007-head`，镜像 digest `sha256:35f58ee363c481c81d2d6013a9c656d709c594b8168c2956d6914fd03f04fec9`，labels 为 revision `d2818208`、source `github-eiscore-refactor`。构建命中已验证依赖层，未替换运行中的 Bridge。该 digest 的静态 symlink/DSH 解析契约与前一修复镜像一致；真实 Provider completion 仍未在该隔离镜像上形成稳定可重复证据。
+## 全局目标继续推进记录（2026-10-07，Node 22 clean-build 与真实 Provider completion 闭合）
+
+- 真实 Provider 复核发现上一版 clean-build 使用 `node:20-alpine`，但已解析到的 `@earendil-works/pi-ai@0.84.4`、`@earendil-works/pi-telemetry@0.84.4`、`undici@8.11.2` 要求 Node `>=22.19.0`，`commander@15.0.0` 要求 Node `>=22.12.0`。该不兼容解释了 Node 20 镜像首次真实 completion 时的 `502 HARNESS_RUNTIME_EXIT`。
+- 提交 `0e955b9e` 将 `agent-harness/Dockerfile` 基础镜像升级为 `node:22.19.0-alpine`，并在 runtime image contract 中锁定该 Node engine floor；没有改变 DSH 依赖版本或 API key 边界。
+- 当前 HEAD `0e955b9e` 使用约 `532.5 kB` 的干净归档上下文完成 clean-build，临时标签 `eiscore-harness-bridge:clean-build-20261007-node22`，镜像 digest `sha256:9d13895208906a56a0efd0c6ad7be4dd4454ae550c2daf0eff4e5cfd707c7114`，labels 为 revision `0e955b9e`、source `github-eiscore-refactor`。构建安装 524 个生产包，无 EBADENGINE；仅有既有 deprecated 包提示。镜像内 Node `v22.19.0`、DSH `0.1.2-rc.1`，并可从 `DSH_CWD` 解析 session persistence 插件。
+- 该 Node 22 clean-build 在独立只读容器中通过 `/readyz` HTTP 200（`runtime=true`、`plugins=true`、`sessions=true`），并完整通过真实 DeepSeek Provider completion：`HTTP 200`、`hasChoices=true`、内容长度 `2`。探针只输出状态码/结构化错误码/choices/长度，没有输出或持久化 API key、secret 或响应正文；容器在测试后清理。
+- 回归复核通过：`node tests/engineering/runtime-image-contract.mjs`、`node tests/engineering/production-config-regression.mjs`、`npm run test:harness-bridge`（含 loopback `ok=true`、`proxyCalls=1`、`modelRequests=2`）和 `git diff --check`。
+- `npm run db:release:check` 仍 fail-closed，真实报告 21 项 DB6 provenance drift；冻结 `database/releases/eiscore-db-v6/manifest.json` 未修改，未执行正式 release/recovery，未触碰业务数据库卷。当前运行中的 Compose Bridge 仍为旧镜像，clean-build 标签未发布。
+- 没有连接远端/生产、没有重启 Compose。全局目标保持 `active`，剩余硬门槛是正式 DB6 manifest provenance/审批，以及主工作树七项既有未提交修改的归属；Bridge 当前 HEAD clean-build 与真实 Provider completion 已闭合。
