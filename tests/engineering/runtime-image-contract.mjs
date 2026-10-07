@@ -62,6 +62,7 @@ for (const dockerignore of ['Dockerfile.dockerignore', 'Dockerfile.prod.dockerig
   assert.match(ignoreSource, /!realtime\/\*\.js/)
 }
 const harnessDockerfile = readFileSync(resolve(repoRoot, 'agent-harness/Dockerfile'), 'utf8')
+assert.match(harnessDockerfile, /ln -s \/opt\/bridge\/node_modules \/opt\/eiscore-harness\/node_modules/, 'Harness image must expose its installed dependencies from the DSH working directory')
 for (const runtimeDependency of ['plugin-registry.js', 'plugin-contract.v1.json']) {
   assert.match(harnessDockerfile, new RegExp(`^COPY agent-harness/${runtimeDependency.replace('.', '\\.')} /opt/eiscore-harness/${runtimeDependency.replace('.', '\\.')}$`, 'm'), `Harness image must package ${runtimeDependency} beside its embedded Bridge entrypoint`)
   assert.match(harnessDockerfile, new RegExp(`^COPY agent-harness/${runtimeDependency.replace('.', '\\.')} /opt/${runtimeDependency.replace('.', '\\.')}$`, 'm'), `Harness image must package ${runtimeDependency} beside the Bridge entrypoint`)

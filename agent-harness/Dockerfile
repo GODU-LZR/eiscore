@@ -19,6 +19,7 @@ COPY agent-harness/plugin-contract.v1.json /opt/plugin-contract.v1.json
 
 RUN mkdir -p /var/lib/dsh /opt/eiscore-harness \
   && chown -R 10001:10001 /var/lib/dsh /opt/eiscore-harness \
+  && ln -s /opt/bridge/node_modules /opt/eiscore-harness/node_modules \
   && node -e "if (process.versions.node.split('.')[0] < 20) process.exit(1)" \
   && test -x /opt/bridge/node_modules/.bin/dsh
 
