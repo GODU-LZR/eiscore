@@ -45,3 +45,41 @@ BEGIN
   END IF;
 END
 $$;
+
+-- pg_restore can omit a dependent asset foreign key when its archive order
+-- was produced before the document-assets relation was present.  The v1
+-- baseline and current runtime catalog require these links, so restore them
+-- idempotently before contract verification.  A data violation intentionally
+-- fails recovery instead of weakening the relationship.
+DO $$
+DECLARE
+  foreign_key record;
+BEGIN
+  FOR foreign_key IN
+    SELECT * FROM (VALUES
+      ('document_business_links', 'document_business_links_asset_id_fkey'),
+      ('document_classification_results', 'document_classification_results_asset_id_fkey'),
+      ('document_entry_plans', 'document_entry_plans_asset_id_fkey'),
+      ('document_parse_jobs', 'document_parse_jobs_asset_id_fkey'),
+      ('document_parse_results', 'document_parse_results_asset_id_fkey')
+    ) AS required(table_name, constraint_name)
+  LOOP
+    IF to_regclass(format('public.%I', foreign_key.table_name)) IS NOT NULL
+       AND to_regclass('public.document_assets') IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1
+         FROM pg_constraint constraint_row
+         JOIN pg_class table_row ON table_row.oid = constraint_row.conrelid
+         JOIN pg_namespace schema_row ON schema_row.oid = table_row.relnamespace
+         WHERE schema_row.nspname = 'public'
+           AND table_row.relname = foreign_key.table_name
+           AND constraint_row.conname = foreign_key.constraint_name
+       ) THEN
+      EXECUTE format(
+        'ALTER TABLE public.%I ADD CONSTRAINT %I FOREIGN KEY (asset_id) REFERENCES public.document_assets(id) ON DELETE CASCADE',
+        foreign_key.table_name, foreign_key.constraint_name
+      );
+    END IF;
+  END LOOP;
+END
+$$;
