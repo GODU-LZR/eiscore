@@ -5,5 +5,9 @@
 !agent-harness/package-lock.json
 !agent-harness/dsh-http-bridge.mjs
 !agent-harness/http-bridge.js
+!agent-harness/eiscore-tools.mjs
+!agent-harness/eiscore-restricted.cordis.yml
+!agent-harness/dsh-web-runner.mjs
+!agent-harness/dsh-web.patch.yml
 !agent-harness/plugin-registry.js
 !agent-harness/plugin-contract.v1.json
