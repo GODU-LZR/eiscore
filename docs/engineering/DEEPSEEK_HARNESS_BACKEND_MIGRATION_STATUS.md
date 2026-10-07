@@ -3438,3 +3438,13 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 当前工作树仍非 clean，且存在用户/协作者未提交的 DB2-DB6 manifest、伦度登录样式、数据库测试/治理和文档改动；这些未被覆盖或回退。candidate manifest 已移入 `.codex-tmp/db6-candidate-20261007-current/manifest.json` 作为临时验收证据，不等于批准的正式 release。
 - 声明的 `harness-bridge` 隔离 clean-build 使用启动时工作树 HEAD `cf44cb1a`、临时标签 `eiscore-harness-bridge:clean-build-20261007`；WSL 旧版 Docker builder 不支持 `--progress`，去掉参数后在 npm 安装阶段长时间无输出，已安全中止。没有生成该标签、没有替换运行中 Bridge、没有重建任何服务。Bridge clean-build provenance 仍未闭合。
 - 本轮未连接远端/生产，未重启 Compose，未使用或持久化用户提供的 API key；全局目标保持 `active`，正式 DB6 release、真实 Provider completion 和 clean-build provenance 仍是上线前阻塞项。
+
+## 全局目标继续推进记录（2026-10-07，正式门槛与 Bridge/Provider 复核）
+
+- 主工作树在当前 HEAD `4d9be4e61a057f9e29ecb2cc0913eb10e223b009` 上仍非 clean，但未提交内容仅保留为既有用户/协作者变更：`database/releases/eiscore-db-v2/manifest.json`、`eiscore-db-v3/manifest.json`、`eiscore-db-v4/manifest.json`、`eiscore-db-v5/manifest.json`、`eiscore-db-v6/manifest.json`、伦度客户服务交接文档和登录样式。没有执行 reset、checkout 或覆盖；这些修改必须由后续审阅/发布流程明确归属后才能形成正式 release source。
+- DB6 candidate provenance 已在隔离 clone/临时容器中闭合：candidate `database/releases/eiscore-db-v6-candidate/manifest.json` 的 source revision 为 `99e7c40fb909e2437b2e4f6ba17f9f91d5609683`，manifest SHA-256 以候选目录实际文件为准（最近复核值 `2fc8a391030e6862d07b690cf1d66772199dbac0efacad9d35a8973a885352eb`）；candidate dry-run、`test:database-release:docker` 和 `test:database-recovery:docker` 均通过。该证据覆盖 release/recovery 行为，但不批准或替换冻结 `database/releases/eiscore-db-v6/manifest.json`。
+- 正式 DB6 门禁仍 fail-closed：冻结 manifest 与当前工作树的 baseline/register、contract、migration/source、core terminal/list、ontology、catalog 和 PostgREST 指纹存在真实 provenance drift；未伪造 checksum、未执行真实正式 release/recovery、未触碰业务数据库卷。
+- Bridge clean-build provenance 本轮再次使用当前 HEAD 的 `git archive` 干净上下文（上下文约 532.5 kB）尝试构建临时标签 `eiscore-harness-bridge:clean-build-20261007-current`。旧 Docker legacy builder 能进入 `npm ci`，但依赖安装持续无输出后安全中止；临时标签未生成，运行中的 `eiscore-harness-bridge` 未替换。当前运行镜像 digest 仍为 `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，不能视为当前工作树 clean-build。
+- 运行态配置复核发现本地 Compose 的 `DSH_PROVIDER=deepseek-official`、`DSH_MODEL=deepseek-chat`，而仓库示例/适配器默认模型为 `deepseek-v4-flash`；当前 checkout 的 DSH SDK 对 `deepseek-chat` 和 `deepseek-v4-flash` 均能完成无外部请求的 initialize smoke（两者均返回 `deepseek-harness-sdk-runtime`），因此模型名差异不是已证实的唯一根因。真实 completion 历史仍是官方 API 直连 200、经 Harness Bridge 502 `HARNESS_RUNTIME_PROVIDER_ERROR`；本轮没有再次写入或回显任何真实 API key，也没有绕过 Bridge 接入产品。
+- `.gitignore` 已覆盖根和 `eiscore-base` 下的 `.codex-tmp/`、`.playwright-cli/`；临时目录中的少量 DB6 candidate/回归证据保留在 `.codex-tmp`，没有把历史缓存或大文件加入 Git。
+- 综合结论：candidate 隔离验收通过，但正式冻结制品审批、主工作树 clean source、Bridge clean-build provenance 和真实 Provider completion 仍未闭合；全局目标保持 `active`，不能宣布正式发布或生产就绪。
