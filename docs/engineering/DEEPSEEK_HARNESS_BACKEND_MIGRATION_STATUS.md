@@ -3448,3 +3448,10 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 运行态配置复核发现本地 Compose 的 `DSH_PROVIDER=deepseek-official`、`DSH_MODEL=deepseek-chat`，而仓库示例/适配器默认模型为 `deepseek-v4-flash`；当前 checkout 的 DSH SDK 对 `deepseek-chat` 和 `deepseek-v4-flash` 均能完成无外部请求的 initialize smoke（两者均返回 `deepseek-harness-sdk-runtime`），因此模型名差异不是已证实的唯一根因。真实 completion 历史仍是官方 API 直连 200、经 Harness Bridge 502 `HARNESS_RUNTIME_PROVIDER_ERROR`；本轮没有再次写入或回显任何真实 API key，也没有绕过 Bridge 接入产品。
 - `.gitignore` 已覆盖根和 `eiscore-base` 下的 `.codex-tmp/`、`.playwright-cli/`；临时目录中的少量 DB6 candidate/回归证据保留在 `.codex-tmp`，没有把历史缓存或大文件加入 Git。
 - 综合结论：candidate 隔离验收通过，但正式冻结制品审批、主工作树 clean source、Bridge clean-build provenance 和真实 Provider completion 仍未闭合；全局目标保持 `active`，不能宣布正式发布或生产就绪。
+
+## 全局目标继续推进记录（2026-10-07，构建上下文修复与回归依赖状态）
+
+- 提交 `faf704c5c3847e286449fda7b73e7fb57b2cac4e` 修复 `agent-harness/Dockerfile.dockerignore`：补回 Dockerfile 明确 `COPY` 的 `eiscore-tools.mjs`、`eiscore-restricted.cordis.yml`、`dsh-web-runner.mjs` 和 `dsh-web.patch.yml`。该提交已位于当前分支 HEAD 历史，没有 stage 或覆盖其他未提交文件。
+- `node tests/engineering/runtime-image-contract.mjs` 通过（28 composition-root modules、2 Dockerfiles）；`node tests/engineering/production-config-regression.mjs` 通过；`node --check agent-harness/dsh-http-bridge.mjs` 通过；`git diff --check` 通过。
+- `npm run test:harness-bridge` 的 HTTP bridge、SDK framing、provider-failure、waiter/RPC timeout、tool continuation 和 bounded shutdown 子项通过，但最后的 DSH SDK loopback 因主工作树 `agent-harness/node_modules` 为空、缺少 `@deepseek-ai/dsh/lib/bin.js` 而退出码 1。锁文件与临时验收目录的 `package-lock.json` SHA-256 均为 `9DF040BFFE1118D9BC580BF5366D640DF46C1531FCC048C12936710D25721842`；没有把临时依赖复制进主工作树，也没有把该失败记为通过。
+- 因此当前阻塞分为两层：Bridge clean-build 仍受 WSL legacy Docker builder 的 npm registry `ETIMEDOUT` 阻塞；本地完整 Harness loopback 还需要可复现的依赖安装/缓存后再复验。运行中的 Bridge 仍未替换，正式上线门槛仍未闭合。
