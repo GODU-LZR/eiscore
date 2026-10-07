@@ -3455,3 +3455,19 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - `node tests/engineering/runtime-image-contract.mjs` 通过（28 composition-root modules、2 Dockerfiles）；`node tests/engineering/production-config-regression.mjs` 通过；`node --check agent-harness/dsh-http-bridge.mjs` 通过；`git diff --check` 通过。
 - `npm run test:harness-bridge` 的 HTTP bridge、SDK framing、provider-failure、waiter/RPC timeout、tool continuation 和 bounded shutdown 子项通过，但最后的 DSH SDK loopback 因主工作树 `agent-harness/node_modules` 为空、缺少 `@deepseek-ai/dsh/lib/bin.js` 而退出码 1。锁文件与临时验收目录的 `package-lock.json` SHA-256 均为 `9DF040BFFE1118D9BC580BF5366D640DF46C1531FCC048C12936710D25721842`；没有把临时依赖复制进主工作树，也没有把该失败记为通过。
 - 因此当前阻塞分为两层：Bridge clean-build 仍受 WSL legacy Docker builder 的 npm registry `ETIMEDOUT` 阻塞；本地完整 Harness loopback 还需要可复现的依赖安装/缓存后再复验。运行中的 Bridge 仍未替换，正式上线门槛仍未闭合。
+
+## 全局目标继续推进记录（2026-10-07，真实 Provider completion 探针）
+
+- 在本地 Compose 重新稳定为 `eiscore-harness-bridge` 与 `eiscore-agent-runtime` healthy 后，从当前 Bridge 容器内存中执行一次性探针，完整走 `/v1/chat/completions`、协议头、`digital-twin` plugin、owner subject/tenant、session/request boundary 和当前运行态 Provider。探针只输出摘要：`HTTP 200`、`hasChoices=true`、`contentLength=2`；没有输出响应正文、API key 或 secret。
+- 该结果证明当前运行镜像的真实 Provider completion 已成功一次；此前的 `502 HARNESS_RUNTIME_PROVIDER_ERROR` 仍应保留为历史失败证据，不能被删除或改写。当前仍不能把旧运行镜像的成功等同于当前工作树 clean-build，因为镜像 digest 尚未由当前 HEAD 重新构建得到。
+- 隔离 DSH SDK loopback 也已使用 `.codex-tmp/harness-delivery-candidate/node_modules`（与主 `agent-harness/package-lock.json` SHA-256 一致）复验通过：`ok=true`、`proxyCalls=1`、`modelRequests=2`。临时副本及探针源码已清理；主工作树没有新增跟踪文件或依赖生成物。
+- 正式门槛结论不变：DB6 candidate 隔离 release/recovery 已通过，但冻结 manifest 审批、主工作树 clean source、Bridge clean-build provenance 仍未闭合；全局目标继续保持 `active`。
+
+## 全局目标继续推进记录（2026-10-07，当前 HEAD clean-build 与正式门禁复核）
+
+- 在当前 HEAD `4be4248ce572fc0c305665a946ac059bf20df1c3` 上，使用 `git archive --format=tar HEAD agent-harness` 生成约 `532.5 kB` 的干净构建上下文，并通过 WSL Docker host network 与一次性代理参数完成 Bridge 构建。临时标签：`eiscore-harness-bridge:clean-build-20261007-current`；镜像 ID/digest：`sha256:efde05770f2755ead0bdfcef2665e299610b2d3db64178e54e46ca8a62b26e95`；image labels 的 revision 为当前 HEAD，source 为 `github-eiscore-refactor`。
+- 该 clean-build 镜像在独立临时容器中以只读根文件系统、临时 `/tmp` 与 `/var/lib/dsh` 启动，`/healthz` 返回 HTTP 200，`/readyz` 返回 HTTP 200，且 `runtime=true`、`plugins=true`、`sessions=true`。临时容器已清理；没有替换或重启现有 `eiscore-harness-bridge`，没有触碰数据库卷。
+- 主工作树的 `agent-harness/node_modules` 已按锁文件恢复（`npm ci --omit=dev --ignore-scripts --no-audit --no-fund`，521 packages）；`npm run test:harness-bridge` 现已全绿，包含 HTTP bridge、SDK framing、provider failure propagation、waiter/RPC/session timeout、tool continuation、bounded shutdown 和 DSH SDK loopback（`ok=true`、`proxyCalls=1`、`modelRequests=2`）。依赖目录仍由 `.gitignore` 排除，没有新增跟踪文件。
+- `npm run db:release:check` 仍按正式门禁 fail-closed，当前报告 21 项真实 drift，涉及 baseline/register、database contract、legacy resolution、core/runtime migration manifests、`core-002` source、recovery SQL、runtime audit/backup/catalog scripts、ontology patch、baseline/catalog/PostgREST checksum 以及 core terminal/list。没有修改冻结 `database/releases/eiscore-db-v6/manifest.json`，没有执行正式数据库发布或恢复。
+- 当前运行中的 Compose Bridge 仍是旧镜像；clean-build 标签仅用于隔离验证，不能被当作已发布版本。此前真实 Provider 运行态探针已返回 HTTP 200/choices，当前代码路径与隔离镜像 health/ready 均有证据；正式发布仍受 DB6 冻结制品审批和主工作树未 clean 两项边界约束。
+- 当前工作树仍只保留七项既有未提交修改：DB2–DB6 manifest、伦度客户服务交接文档、伦度登录样式及本状态文档待提交；没有执行 reset/checkout/覆盖。全局目标继续保持 `active`。
