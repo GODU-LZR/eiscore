@@ -2,7 +2,18 @@
 
 ## 最新目标进度（2026-10-08，当前提交 Bridge 隔离重建）
 
-### 2026-10-08 SDK 契约兼容候选与浏览器验证（最新）
+### 2026-10-08 登录候选修复、完整插件构建与 Node 22 验收（最新）
+
+- 五份 DB2–DB6 历史 manifest 已按授权备份恢复，再次核对无 diff；没有重复恢复。其他任务的伦度/企业配置工作已增长为 17 份跟踪修改和两份未跟踪素材，全部保留，主工作树仍非 clean。
+- 隔离候选新增共享认证 hook，修复 connect 锁、服务器 handoff 后原面板不刷新、关闭/超时无法重试及重复 popup 问题；保留消息校验和重放保护。两个 client 已从当前候选源代码新鲜构建，构建时修复 CSS Modules 跨插件类名碰撞并断言无冲突，没有改写源 CSS 视觉。
+- Linux Node `22.19.0`、DSH `0.1.2-rc.1`、Cordis `4.0.4`、TS `6.0.3` 下，三组类型检查、三个 host 和两个 client 构建通过。候选镜像 `eiscore-dsh-web-candidate:clean-node22-20261008` 为 `sha256:4c4085bd951f4f5a6146add9e86d92ad7ff773c740a13abe3b3ef6c9a8d6e935`，明确标记 `uncommitted-candidate` 并绑定源码归档 SHA；它不是正式归并制品。
+- 首次无缓存 `npm ci` 安装 SDK 628 个包、工具 2 个包；最终验证器/来源标记修正复用这两层依赖。镜像构建产物与另一临时路径重建的五份文件完全一致，Windows Node `26.1.0` 构建也逐一 SHA 相同，不宣称两次独立 clean install。
+- 实际认证 hook 的 34 项确定性边界检查，以及实际 DSH SDK 的 35 项合成 Gateway HTTP/认证/转发/SSE 检查全部通过，Node 22 最终验收退出 `0`、HTTP stderr 为 0。候选初次验收的 tmpfs `noexec`/esbuild `EACCES` 和报告导出 `EPERM` 均保留为失败，修正测试工具后重新取得通过。
+- 浏览器在桌面/手机下完成数字分身的合成登录、列表、历史、发送和 SSE 回复，以及智能 BI 的服务器 handoff、snapshot 和 query。四张截图已查看。主页面 100 条 error 均为等待登录时 auth/status 401，popup 有一条 favicon 404，均无 warning；不宣称零 console error。最后 bundle 与浏览器验收 bundle 仅生成的 CSS 来源注释不同，完整对比已通过，不冒称新的浏览器运行。
+- 浏览器及 probe 已正常停止，stop `204`、进程退出 `0`、本轮进程/listener 为 0；Node 22 专用容器已移除。四份此前合成 Temp 状态目录因安全策略拒绝清理仍保留，没有绕过拒绝或读取 credentials。
+- 真实 Provider 和 Bridge clean-build 已有证据不变，Harness Git tree 仍一致，没有重复收费调用。外部插件正式归并、完整可复现的仓库构建入口、隔离完整栈/真实业务验收、DB7 正式批准以及其他任务工作树整理仍未完成。没有替换 Compose、访问业务卷、连接远端、推送或部署。详细制品 SHA、测试范围及失败见 [DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md](DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md)，全局目标继续 `active`。
+
+### 2026-10-08 SDK 契约兼容候选与浏览器验证（上一阶段）
 
 - DB2–DB6 五份历史 manifest 的备份恢复已完成，本轮再次核对无 diff；没有重复恢复。九份伦度修改仍未覆盖、stage 或代为提交，主工作树不能声明 clean。
 - 外部三个插件的隔离候选使用正式 DSH API：GET 走 `connection.fetch`，POST 走 `webServer` 并保留 `requestRejection` 的认证边界；三组 TypeScript 检查均退出 `0`。callback 候选改用配置的公开认证 origin 和 `/harness-embed-api/eiscore/auth/handoff`，未修改外部工作树或正式登录页。

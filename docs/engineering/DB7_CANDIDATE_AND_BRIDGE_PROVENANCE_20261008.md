@@ -4,7 +4,47 @@
 
 本记录只证明明确提交及制品的本地隔离验收。没有正式批准数据库发布，没有替换既有 Compose，没有连接远端或生产，没有写入业务数据库卷。
 
-## 2026-10-08 SDK 正式契约候选与浏览器验证（最新）
+## 2026-10-08 登录候选、完整插件构建与 Node 22 验收（最新）
+
+本轮主仓库 HEAD 为 `2dad6a669d12300020e8c1c7283362ee63a36250`，分支仍为 `codex/systematic-refactor`。用户授权恢复的 DB2–DB6 五份历史 manifest 再次核对无 diff，恢复前备份保留；没有重复恢复。其他任务的修改已增长为 17 份跟踪文件及两份未跟踪的 `lundu-world-routes-20261008.webp`，涉及伦度登录/素材、企业配置、平台配置模块及其回归，本任务均未覆盖、stage 或代为提交。当前工作树仍不是 clean。
+
+候选继续位于 `.codex-tmp/dsh-sdk-contract-candidate-20261008/`，外部 WSL 工作树仍只读。本轮修复候选的共享 `client-auth.ts`：释放 connect 的 busy 锁；在用户点击时同步打开 popup 并校验目标 URL；popup 存在期间每秒检查服务端认证状态，并在 focus 时检查；成功后同步两个面板；关闭、120 秒截止和失败均允许重试；重复 connect 聚焦已有 popup，不重新请求 auth state。保留消息 source/origin/type/code 及重放检查。该修复兼容当前登录页的服务端 handoff，不修改其他任务的 `LoginView.vue`。
+
+两个 client bundle 已从当前候选源码重新生成。浏览器检查发现分别构建的 CSS Modules 类名冲突，导致两个面板样式相互影响；构建脚本用插件名称区分虚拟 CSS 文件，并增加冲突断言，没有改写源 CSS 的视觉设计。随后把虚拟文件路径改为相对路径，避免构建输出带入 Windows 绝对路径；Windows Node `26.1.0` 和 Linux Node `22.19.0` 生成的五份 host/client 文件逐一 SHA-256 相同。与浏览器已验收的两份旧 bundle 比较，除生成的 CSS 来源路径注释外，完整 bundle 内容相同；证据为 `cross-platform-report.json`，不将该比较称为一次新的浏览器运行。
+
+### Node 22 候选构建及制品
+
+独立 Docker 候选镜像为 `eiscore-dsh-web-candidate:clean-node22-20261008`，image ID 为 `sha256:4c4085bd951f4f5a6146add9e86d92ad7ff773c740a13abe3b3ef6c9a8d6e935`，运行用户 `10001:10001`。基础镜像为前文已核实的 Bridge clean image `sha256:8eff62dd447a808bec637b9fa0e0d5bc00ecc8d90bf2b0dd37738589a97f2cd8`。最终源码归档 `clean-node22-source.tar` 为 566784 bytes，raw SHA-256 为 `9452c0f1b609b1765eac13506f9cfd929416ed03ec203f4e5e93090fdfb48b88`，也写入镜像的 `eiscore.candidate.source-archive-sha256` label。OCI revision 明确为 `uncommitted-candidate`，source 为 `isolated-dsh-sdk-candidate`，没有沿用基础镜像的 Git revision 冒充插件已提交。
+
+依赖来自上一阶段诊断目录的 SDK package/lock 副本及独立 esbuild `0.27.2` 锁文件。首次无缓存安装分别取得 628 和 2 个包；SDK 锁文件 SHA 为 `fe1410e9f8bebd7d330b07ffa22f71edbe1cda5c9b0a0f2cf444b750650754ee`，构建工具锁文件 SHA 为 `8e0accbd6cf76f3bc931e38487974e7ec572a112090ba3124ee27e3e897eebf5`。最终镜像修正验证器和来源标记时复用了这两层已完成的 clean `npm ci`，重新执行三组 TypeScript 检查及 host/client 构建；不能称为两次独立 clean install。原绝对路径 tsdown 配置未执行，候选使用本目录的 esbuild 脚本，尚未成为正式仓库构建入口。
+
+| 候选产物 | bytes | SHA-256 |
+| --- | ---: | --- |
+| `eiscore-auth/lib/index.js` | 9130 | `3999cd5cb454479f77d0151686fa69b4e25a3b7e38b2ccba284683784789d918` |
+| `digital-twin/lib/index.js` | 4904 | `2eb4162dca19dcb8570c15b0c2e993798e193ae4b9d29d39df9d86bde01a5a4a` |
+| `enterprise-bi/lib/index.js` | 4803 | `cbe1597037fc07aec4462d3ce31ff5d970503c781c5ea539727f475fd881bb87` |
+| `digital-twin/lib/client.js` | 24396 | `4d7e4affd7bdf1bbe6944ea0c21f6e1e330f45db390a6dc8b16018fb8697767e` |
+| `enterprise-bi/lib/client.js` | 32241 | `0a3ed20d97920b0f9c6e5583fcce996fc9885955d699055ee5d73a82169d31d6` |
+
+隔离容器 `eiscore-dsh-web-candidate-node22-20261008` 使用 `network none`、只读根文件系统、非 root 用户、专用 tmpfs 和仅报告输出的 bind；没有发布端口，没有业务卷。镜像内 `/opt/candidate` 产物与 `/tmp/candidate` 重建的五份文件完全相同，三组 TypeScript 检查退出 `0`；真实认证 hook 在确定性网络/window/React 边界 stub 中的 34 项检查通过；实际 DSH SDK 的同一组 35 项合成 Gateway HTTP/认证/转发/SSE 检查通过，`stderrBytes=0`。最终脚本退出 `0`，容器已移除。`evidence-clean-node22/node22-build-report.json` 记录 36 项输入，输入清单 JSON 的 SHA 为 `4cf1d59a3c161d648a30386c2b9c17c4090b5bbbd731ce4d295339cc56408170`；其余四份报告保存构建、认证和 HTTP 明细。
+
+更早的 Node 22 HTTP-only 探针也通过同一组 35 项检查，使用归档 `node22-probe-source.tar`，SHA 为 `962a8ce0d0209a8b009f21e4b815dca5bed49caa4b3121e92ced1e16a8b6f4c7`，证据在 `evidence-node22/`。它使用既有 Linux SDK 依赖，不能替代上述完整候选构建，也不累计为额外 35 种覆盖。
+
+### 浏览器结果与失败保留
+
+Playwright session `eiscore-login-final` 在桌面 `1440x900` 和手机 `390x844` 下完成：数字分身 message handoff、会话列表、合成历史、发送及合成 SSE 回复；注销后由智能 BI 发起服务器 handoff，实际调用仓库 `harness-auth-client.js`，popup 跳转 `/harness`，原面板自动显示合成 snapshot，并取得合成经营分析回复。两套面板共四张截图已查看。Twin body 为 flex、BI body 为 block，桌面 BI viewportWidth/scrollWidth 均为 1440。手机截图没有可见控件裁切；收尾时浏览器 session 已变成 `about:blank`，额外手机几何和兄弟面板同步检查未重跑，不补写这些指标。
+
+截图位于 `output/playwright/dsh-login-{twin,bi}-final-{desktop,mobile}-20261008.png`。当时的 Windows client bundle SHA 分别为 `8d08faaea28aa54839c6c53a926703d7532dbe24cf03d4ea588079c2c3a2ecfb` 和 `ffa64a84fcad95ab40dfd547c029256492eeb5f9ba362be46a8009440aee072a`；它们和原构建报告保存在候选的 `evidence-windows-browser/`。主页面 console 的 100 条 error 全为等待登录期间的 auth/status 401，其他 error 为 0、warning 为 0；popup 有一条 favicon 404、零 warning，不能宣称零 console error。此前的遮挡点击 timeout 和 stale ref 通过新 snapshot 重试后正常，收尾几何命令的引号错误和空页面错误也保留为测试操作失败。
+
+构建验收中的失败没有被包装为通过：首次 HTTP-only 探针在 tmpfs 停止后取报告失败，改为停止前导出后退出 `0`；完整候选初次重复构建因 tmpfs `noexec` 返回 esbuild `EACCES`，仅为专用临时挂载增加 exec 后解决；其后 Node `cpSync` 向 WSL/Windows 报告 bind 导出返回 `EPERM`，改用读写报告字节后解决。最终结果来自修正后的实际运行。跨平台对比首次仅去除 CSS 内注释，漏掉 JS 内的 CSS 来源注释而误报；同时规范化这两类生成注释后，完整 bundle 比较通过。
+
+浏览器已关闭，loopback probe 的 stop 返回 `204`，进程最终退出 `0`；复核本轮 probe/DSH Node 进程和 61881 listener 均为 0。两类 Node 22 专用容器也已移除。此前异常退出留下的四份系统 Temp 合成 DSH 状态目录仍保留；清理曾被安全策略拒绝，没有绕过拒绝，也没有读取其中的 credentials。镜像和小型候选证据保留供评审。
+
+### 正式发布边界
+
+本轮补齐的是可追踪的完整候选构建、合成登录/业务交互和 Node 22 SDK 验收，外部三个插件仍未正式归并。主工作树的伦度/企业配置修改仍由其他任务持有；DB7 仍为 candidate only，DB6 历史门禁不变；没有真实身份、业务数据库/RLS、完整 Compose 或多模态业务链验收。当前 `HEAD:agent-harness` 与已验收 Bridge 提交 `e0f26c20:agent-harness` 的 tree 同为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`，没有重复收费 Provider 调用。现有 Compose 未替换或重启，原 Web 挂载缺入口的运行态没有修复，没有推送、部署或连接远端。正式源码归并及 DB7 批准问题仍待答复，全局目标保持 `active`。
+
+## 2026-10-08 SDK 正式契约候选与浏览器验证（上一阶段）
 
 本轮开始的主仓库 HEAD 为 `76767ced2e00699aeaad5436fa5ee572cdc4bf94`。DB2–DB6 五份历史 manifest 已按用户授权备份恢复，本轮 `git diff --exit-code` 再次为 `0`，没有重复恢复。九份伦度既有修改仍完整保留，未被本任务覆盖、stage 或提交。本轮只完善隔离候选和验收记录，没有归并外部插件源码、替换 Compose、连接远端或访问业务数据库。
 
@@ -44,7 +84,7 @@ Web 诊断使用 `.codex-tmp/dsh-client-compatibility-20261008/`，其中 24 份
 
 剩余正式边界不变：DB7 为 candidate only，历史 v6 面对当前源码仍 fail-closed；九份伦度修改属于其他任务；既有 Compose 没有切到 clean Bridge image，Web 挂载仍缺三个编译入口。完整栈需要把插件源码、SDK 正式契约、嵌入 callback 与构建制品一起收口，不能把临时产物恢复到挂载目录就视为正式修复。全局目标保持 `active`。
 
-## 2026-10-08 源码提交 `e0f26c20` 本地复核（最新）
+## 2026-10-08 源码提交 `e0f26c20` 本地复核（历史 Bridge 基线）
 
 本节取代后续历史章节中的“当前提交”和数量描述。基于 `codex/systematic-refactor@e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd` 的 `git archive`（仅 `agent-harness/`，542720 bytes）完成无缓存 Bridge 构建，临时镜像为 `eiscore-harness-bridge:clean-build-20261008-e0f26c20-labeled`，本地 image ID 为 `sha256:8eff62dd447a808bec637b9fa0e0d5bc00ecc8d90bf2b0dd37738589a97f2cd8`。镜像 OCI labels 为 `org.opencontainers.image.revision=e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd`、`org.opencontainers.image.source=github-eiscore-refactor`；运行用户为 `10001:10001`，Node `22.19.0`，DSH `0.1.2-rc.1`，生产依赖安装数量为 524。8 个 Bridge/tool/profile/contract 文件及 package.json/package-lock.json 的镜像内 SHA-256 与 archive 解压文件逐项一致；核对容器使用 `--rm --network none --read-only`，未使用主工作树未提交文件。archive SHA-256 为 `b658b58fbf266b13c1565ef26b0155179bc2da0d9deb1b6c2d92666c0d2dc1e5`。
 
@@ -104,14 +144,14 @@ DB7 candidate 绑定 `sourceRevision=e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd`�
 
 本证据不证明整个本地栈已用新制品运行。七项保留修改尚未由所有者处置，v7 仍 candidate only，默认 v6 不变，既有 Compose 未发布更新；本任务不会代替正式审批或覆盖其他任务变更。全局目标保持 active。
 
-## 四项问题的实际状态
+## 四项问题的实际状态（以文首最新验收为准）
 
 | 问题 | 已完成 | 尚未完成 |
 | --- | --- | --- |
-| 主工作树未干净 | 十四项原有修改逐文件备份；用户授权恢复的五份历史 manifest 已与 HEAD 一致；使用独立干净 clone 验收 | 九份伦度修改仍保留，需要由负责其实现和验收的任务处置，不能声明主仓库 clean |
+| 主工作树未干净 | 十四项原有修改逐文件备份；用户授权恢复的五份历史 manifest 已与 HEAD 一致；使用独立干净 clone 验收 | 当前 17 份其他任务修改及两份未跟踪素材仍保留，不能声明主仓库 clean |
 | candidate 与正式 v6 混淆 | 恢复不可变历史；准备独立 v7；原 v6 → v7 release 和破坏后 recovery 真实通过 | v7 仅待评审，不是正式 release approval；默认 v6 面对当前源码仍 fail-closed |
 | 真实 Provider 曾经 502 | DSH_CWD 解析链接及 Node engine 修复；当前提交的 Node 22 clean image 已在隔离 Bridge 取得真实 completion 200，并验证 401/409/403 边界 | 未把一次真实 completion 扩大为所有业务场景上线保证 |
-| Bridge clean-build 来源不完整 | 当前提交的 Git archive、镜像 label、Harness tree、8 个文件 SHA 和真实 completion 已关联 | 当前 Compose 仍使用旧镜像；新镜像尚未发布替换 |
+| Bridge clean-build 来源不完整 | Git archive、镜像 label、Harness tree、8 个文件 SHA 和真实 completion 已关联；完整 Web 插件候选也在 Node 22 构建并通过合成验收 | 外部插件正式源码归并未完成；当前 Compose 未替换，不能声明完整栈健康 |
 
 ## 实现提交与兼容边界
 
@@ -180,7 +220,7 @@ Docker 测试使用随机命名临时容器、独立网络和 tmpfs，结束后�
 
 当前 Compose `eiscore-harness-bridge` 的 image ID 仍为 `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，核对时 running/healthy。没有将新镜像称为已部署版本，也没有把本地 image ID 称为 registry manifest digest。
 
-## 主工作树保留项与下一步
+## 主工作树保留项与下一步（历史 `c9cf2662`，恢复后的状态见文首）
 
 | 保留文件 | 差异与建议 |
 | --- | --- |
