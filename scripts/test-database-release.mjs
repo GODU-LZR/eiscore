@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import { createHash, randomBytes } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -14,6 +14,7 @@ import { sha256CanonicalJson } from './database-contract-catalog.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const artifactsRoot = resolve(repoRoot, 'tests/.artifacts')
+mkdirSync(artifactsRoot, { recursive: true })
 const backupRoot = mkdtempSync(resolve(artifactsRoot, 'db5-release-'))
 const suffix = `${process.pid}-${randomBytes(4).toString('hex')}`
 const databaseContainer = `eiscore-db5-db-${suffix}`

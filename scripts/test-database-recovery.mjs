@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -11,6 +11,7 @@ import { loadAndValidateDatabaseRelease } from './database-release-contract.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const artifactsRoot = resolve(repoRoot, 'tests/.artifacts')
+mkdirSync(artifactsRoot, { recursive: true })
 const backupRoot = mkdtempSync(resolve(artifactsRoot, 'db5-recovery-'))
 const suffix = `${process.pid}-${randomBytes(4).toString('hex')}`
 const sourceDb = `eiscore-db5-source-db-${suffix}`
