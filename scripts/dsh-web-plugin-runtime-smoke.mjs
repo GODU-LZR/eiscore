@@ -99,14 +99,19 @@ try {
           checks.push({ path, status: candidate.status, body: candidateBody.slice(0, 200) })
           if (candidate.status !== 401 || !candidateBody.includes(marker)) break
         }
-        if (checks.length === runtimeRoutes.length) break
+        if (checks.length === runtimeRoutes.length && checks.every((check, index) =>
+          check.status === 401 && check.body.includes(runtimeRoutes[index][1]))) break
       }
       await new Promise((resolveWait) => setTimeout(resolveWait, 250))
     } catch {
       await new Promise((resolveWait) => setTimeout(resolveWait, 250))
     }
   }
-  assert.equal(checks.length, runtimeRoutes.length, `EISCore Web plugin routes did not register: ${JSON.stringify(checks)}; childPid=${child.pid}; childExit=${child.exitCode}; stdout=${stdout.slice(-1000)}; stderr=${stderr.slice(-1000)}`)
+  assert.equal(checks.length, runtimeRoutes.length, `EISCore Web plugin routes did not register; childExit=${child.exitCode}; stdoutBytes=${Buffer.byteLength(stdout)}; stderrBytes=${Buffer.byteLength(stderr)}`)
+  for (const [index, check] of checks.entries()) {
+    assert.equal(check.status, 401, `EISCore Web plugin route returned an unexpected status: ${check.path}`)
+    assert.ok(check.body.includes(runtimeRoutes[index][1]), `EISCore Web plugin route returned an unexpected body: ${check.path}`)
+  }
   const indexResponse = await fetch(`http://127.0.0.1:${port}/`, { headers: { cookie } })
   const indexHtml = await indexResponse.text()
   assert.equal(indexResponse.status, 200, `Authenticated DSH Web index returned ${indexResponse.status}`)

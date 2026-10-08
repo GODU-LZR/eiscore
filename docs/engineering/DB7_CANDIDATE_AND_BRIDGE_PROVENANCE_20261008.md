@@ -4,6 +4,28 @@
 
 本记录只证明明确提交及制品的本地隔离验收。没有正式批准数据库发布，没有替换既有 Compose，没有连接远端或生产，没有写入业务数据库卷。
 
+## 2026-10-08 Web HTTP 与验收门禁复核（本轮最新）
+
+本轮开始的主仓库 HEAD 为 `6f519792f802dc57cdfd0a348dd84910883b0958`。用户授权“备份后恢复五份历史 manifest”已经执行；再次核对 DB2–DB6 五份文件的 `git diff --exit-code` 退出 `0`。恢复前副本仍保存在 `.codex-tmp/protected-changes-20261008-e0f26c20-review/`。九份伦度修改继续保留，尤其登录视图和样式有其他任务后续修改，不能再用旧备份覆盖它们。主工作树仍不是 clean；本次恢复没有批准 DB7 或替换本地服务。
+
+Web 诊断使用 `.codex-tmp/dsh-client-compatibility-20261008/`，其中 24 份源文件来自 WSL `/home/lzr/eiscore-refactor/agent-harness/client-plugins` 的未提交外部源码，复制时逐项核对 SHA-256。它们不属于主仓库正式源码，也不是可正式部署的同源制品；esbuild 生成的临时 bundle 只用于诊断。固定 SDK 为 DSH `0.1.2-rc.1`，Cordis `4.0.4`，TypeScript `6.0.3`；本轮 host 运行于 Windows Node `v26.1.0`，不能将其描述为 Node 22 Docker 验收。
+
+三组 `tsc --noEmit` 仍失败：auth host 使用的 `requestBody` 不在 `ConnectionFetchRoute` 类型中，digital-twin 和 enterprise-bi 的 `POST` 不属于 `ConnectionFetchMethod`（正式声明仅为 GET/HEAD）。但该版本 SDK 的 JS 实现没有检查方法白名单，实际会匹配已注册的 POST；因此“类型不兼容”不等于“运行时路由一定无法注册”。本轮一次性启动探针确认三个 Cordis fiber 都为 active，GET 路由、HTML 和两个组合 bundle 返回预期状态。最初路由未注册/空 stdout 的失败报告保留，尚未证实其原因，不能把它作为确定性根因，也不能用类型断言擦除正式兼容性问题。
+
+仓库 Web smoke 存在独立误报：它只按响应数量判断就绪，第三个路由的状态或响应 marker 错误也能继续并输出成功。本轮修复 `scripts/dsh-web-plugin-runtime-smoke.mjs`，就绪条件检查全部三个状态及 marker，结束时逐项断言；失败诊断仅记录退出信息及日志字节数，避免输出 startup token。新增 `tests/engineering/dsh-web-plugin-smoke-regression.mjs`（stdlib、自身作为临时 DSH child），验证正常结果、最后路由 503、最后路由错误 marker 三种实际进程退出行为。提供 `npm run test:harness-web-smoke` 并接入 `test:production-config`。这项修复只收紧验收工具，不修改面板、插件、Bridge、数据库或部署配置。
+
+修复后的 smoke 对上述诊断制品退出 `0`：三个未登录路由均 401，index 200，两组 bundle 200，stderr 为 0。该结果仅证明 host 激活及资源可获取，不证明 browser JS 执行、真实登录、数据库权限或正式制品来源。
+
+本轮相关仓库验证取得最终退出码 `0`：`node tests/engineering/dsh-web-plugin-smoke-regression.mjs`、`npm run test:production-config`（包含新三场景回归）和 `npm run test:syntax`（308 份脚本）。五份 manifest 恢复前备份的原始 SHA-256 也再次与 `checksums.json` 一致。`HEAD:agent-harness` 与 `e0f26c20:agent-harness` 的 Git tree 都为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`，本轮未改变已验证的 Bridge 源码，不重复构建或调用收费 Provider。未执行浏览器、真实业务链、正式 release/recovery 或远端测试。
+
+进一步的一次性 loopback HTTP 探针取得 22 项通过：无 DSH cookie 401、错误 Origin 403、五个未登录业务 GET/POST 401、坏 JSON 400、无 state 的 handoff 403、错误 method 404、auth-start 的 HttpOnly/SameSite=Strict，以及临时 Gateway 的合成身份 handoff 200、state 重放 403、auth status 200、三个认证后 GET 和两个 POST 200、logout 后会话撤销且不再调用 Gateway。认证后转发验证 body/query/idempotency/request-id/client marker 保留，Bearer 来自服务端会话，浏览器 cookie 和伪造 tenant header 未转发；数字分身 SSE 第一块可在 Gateway 放行第二块之前被读取。这些请求全部进入随机 loopback 端口的 stub Gateway，合成 JWT 仅在内存中存在，不代表真实 JWT 验签、租户/RLS、模型或业务功能验收。
+
+认证 callback 仍有可复现的不一致：没有转发头时 auth-start 使用 SDK Request 的 `http://dsh.internal` 作为返回 origin；提供当前 Nginx 使用的转发头后，外部 origin 正确，但生成 `/api/eiscore/auth/handoff`，主仓库登录页仅接受 `/harness-embed-api/eiscore/auth/handoff`。诊断报告明确记录 `embeddedLoginCallbackMatches=false`；它的 HTTP 边界通过不表示 EISCore 嵌入登录链通过。这里只定位了外部待归并源码，未改写 WSL 插件或其他任务的登录页。
+
+证据位于忽略目录的 `startup-probe-report.json`、`runtime-strict-recheck.json`、`http-boundary-forwarded-report.json` 和 `auth-proxy-synthetic-report.json`。最初 runtime 失败、误写 bootstrap 302（实际 SDK 为 303）的失败和无转发头 callback 不匹配的失败报告均保留，没有覆写为成功；本轮随机临时 DSH home 与 child、stub Gateway 均清理。没有重复收费 Provider completion，没有读取业务数据库或既有 DSH 状态卷，没有发布/重启现有 Compose。
+
+剩余正式边界不变：DB7 为 candidate only，历史 v6 面对当前源码仍 fail-closed；九份伦度修改属于其他任务；既有 Compose 没有切到 clean Bridge image，Web 挂载仍缺三个编译入口。完整栈需要把插件源码、SDK 正式契约、嵌入 callback 与构建制品一起收口，不能把临时产物恢复到挂载目录就视为正式修复。全局目标保持 `active`。
+
 ## 2026-10-08 源码提交 `e0f26c20` 本地复核（最新）
 
 本节取代后续历史章节中的“当前提交”和数量描述。基于 `codex/systematic-refactor@e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd` 的 `git archive`（仅 `agent-harness/`，542720 bytes）完成无缓存 Bridge 构建，临时镜像为 `eiscore-harness-bridge:clean-build-20261008-e0f26c20-labeled`，本地 image ID 为 `sha256:8eff62dd447a808bec637b9fa0e0d5bc00ecc8d90bf2b0dd37738589a97f2cd8`。镜像 OCI labels 为 `org.opencontainers.image.revision=e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd`、`org.opencontainers.image.source=github-eiscore-refactor`；运行用户为 `10001:10001`，Node `22.19.0`，DSH `0.1.2-rc.1`，生产依赖安装数量为 524。8 个 Bridge/tool/profile/contract 文件及 package.json/package-lock.json 的镜像内 SHA-256 与 archive 解压文件逐项一致；核对容器使用 `--rm --network none --read-only`，未使用主工作树未提交文件。archive SHA-256 为 `b658b58fbf266b13c1565ef26b0155179bc2da0d9deb1b6c2d92666c0d2dc1e5`。

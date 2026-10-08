@@ -2,6 +2,15 @@
 
 ## 最新目标进度（2026-10-08，当前提交 Bridge 隔离重建）
 
+### 2026-10-08 Web HTTP 诊断与验收门禁修复（本轮最新）
+
+- DB2–DB6 五份历史 manifest 已按用户授权恢复，`git diff --exit-code` 再次退出 `0`，恢复前备份保留。九份其他任务的伦度修改没有被覆盖、stage 或提交，主工作树仍非 clean。DB7 未提升为正式 release，既有 Compose 未替换。
+- WSL 外部未提交的三个 client plugin 在隔离 DSH `0.1.2-rc.1` 下能实际激活；三组类型检查仍因 Fetch 契约仅允许 GET/HEAD、没有 `requestBody` 而失败。不能把类型失败推断为路由必然未注册，也不能把临时 bundle 视为正式同源制品。
+- 修复 Web smoke 最后路由错误仍可能报成功的问题，增加状态/marker 的完整断言，失败输出不再包含 startup 日志；新增三种进程退出行为回归并接入 `test:production-config`。严格 smoke 实测通过 GET 401、index/bundle 200。
+- 本轮 `test:production-config`（含新三场景回归）及 `test:syntax`（308 份脚本）均退出 `0`。Harness Git tree 与已取得 clean-build/真实 completion 证据的 `e0f26c20` 一致，没有重复构建或收费 Provider 调用。
+- 临时 loopback stub Gateway 的 22 项 HTTP/认证/转发检查通过，包括合成 handoff、一次性 state、服务端 Bearer、请求体/查询/幂等头、逐块 SSE 和注销撤销；没有真实身份、数据库、业务数据或 Provider 调用。这些证据不替代浏览器和真实业务验收。
+- 外部插件的 callback 路径仍与当前嵌入登录页不一致：生成 `/api/eiscore/auth/handoff`，登录页只接受 `/harness-embed-api/eiscore/auth/handoff`；没有转发头时 origin 还是 `dsh.internal`。既有 Web 缺编译入口的运行态未被更改。详细版本、通过及失败证据见 [DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md](DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md)。全局目标保持 `active`，不能宣称完整栈已修复。
+
 ### 2026-10-08 `e0f26c20` provenance 与隔离验收（最新）
 
 - 从 `codex/systematic-refactor@e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd` 的 Git archive 构建了无缓存镜像 `eiscore-harness-bridge:clean-build-20261008-e0f26c20-labeled`，image ID `sha256:8eff62dd447a808bec637b9fa0e0d5bc00ecc8d90bf2b0dd37738589a97f2cd8`。镜像 label 绑定当前提交和 `github-eiscore-refactor`，运行用户 `10001:10001`，Node `22.19.0`、DSH `0.1.2-rc.1`，锁定生产依赖 524 个；构建上下文来自 archive，未包含主工作树未提交改动。
