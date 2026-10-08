@@ -156,3 +156,11 @@ docs/engineering/LUNDU_REMOTE_BRANDING_FIX_20260927.md
 ## 当前状态
 
 本文件创建时，伦度线上已恢复为当前重构分支制品。最近一次恢复只重建 web，未重启数据库、API、Agent 或 Harness。之后三个 Agent 均可发布自己负责的服务，但必须按本文件的声明、范围和验收流程协作。
+
+## 2026-10-08 公司简介全球线路图发布
+
+公司简介右侧媒体改为独立配置 `aboutImage`，不改变首屏轮播；伦度部署配置及中英文企业包均指向 `/enterprise-assets/site/lundu-world-routes-20261008.webp`（2048×1152 WebP）。图片在媒体容器中按 16:9、`object-fit: contain` 展示，点击可查看原图。修正后平板也采用单列布局，避免 768px 视口挤窄公司文字。
+
+发布声明：目标服务 `web`；工作区 `github-eiscore-refactor`，分支 `codex/systematic-refactor`，基线 `2dad6a669d12300020e8c1c7283362ee63a36250`。使用完整 11 微前端构建，归档 `output/lundu-about-map-release-20261008.tar.gz`，SHA-256 `A3B597C954D0C39B1400BFFBF1551A251476BB6167733F65C1068555C62AA729`。品牌门禁通过，配置为 `enterprise.id=lundu`，入口 `/assets/index-BnbPYGd9.js`，manifest `59c9ccedef69c60a` / 562 项 / 76,686,588 bytes。地图本地与线上 SHA-256 一致：`923f6d77730de5e1217bec3175411e6d5c1a4d66b12e0fd784f862678297fe84`。
+
+远端使用共享发布锁完成原子替换，旧版备份为 `/opt/lundu-eiscore/backups/lundu-about-map-before-20261008083134.tgz`；实际只重建 `lundu-eiscore-web-1`。DB、API、Agent、DeepSeek Web 和 Harness 均未重建。Compose 提示既有 `lundu-eiscore-deepseek-web-1` orphan，本次未清理或更改它。线上 `/login`、公开配置、manifest、伦度 Logo 与地图均返回 200；真实站点 Playwright 在 390×844、414×896、768×1024、1440×900 全部通过，地图完整加载、无横向溢出、无君乐缘文本和浏览器错误。

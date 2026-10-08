@@ -25,6 +25,8 @@ assert.equal(desktop.logo, '/enterprise-assets/site/lundu-logo.png')
 assert.equal(desktop.slogan, '专注电机与水泵产品，服务稳定运行。')
 assert.equal(desktop.metrics.length, 4)
 assert.equal(desktop.metricsSectionTitle, '企业规模与产品范围')
+assert.equal(desktop.overviewProductImage, '/enterprise-assets/site/lundu-overview-motors.png')
+assert.equal(desktop.overviewFactoryImage, '/enterprise-assets/site/lundu-overview-factory.png')
 assert.deepEqual(desktop.metrics.map(({ label, value }) => ({ label, value })), [
   { label: '项目', value: '6000 个项目' },
   { label: '装车量', value: '4500 吨装车量' },
@@ -57,6 +59,43 @@ assert.deepEqual(v2Neutral.metrics, [])
 assert.deepEqual(v2Neutral.businessChain, [])
 assert.deepEqual(v2Neutral.capabilities, [])
 assert.deepEqual(v2Neutral.leaders, [])
+assert.equal(v2Neutral.aboutImage, '')
+assert.equal(v2Neutral.aboutImageAlt, '')
+assert.equal(v2Neutral.overviewProductImage, '')
+assert.equal(v2Neutral.overviewFactoryImage, '')
+
+const aboutImageProfile = structuredClone(runtimeProfile)
+aboutImageProfile.branding.login.aboutImage = '/company-assets/about-map.png'
+aboutImageProfile.branding.login.aboutImageAlt = 'Company service map'
+const aboutImageConfig = parseEnterpriseConfig(aboutImageProfile)
+const aboutImageFallback = normalizeLoginBranding({}, { enterpriseConfig: aboutImageConfig })
+assert.equal(aboutImageFallback.aboutImage, '/company-assets/about-map.png')
+assert.equal(aboutImageFallback.aboutImageAlt, 'Company service map')
+const mobileAboutImage = normalizeLoginBranding({}, { enterpriseConfig: aboutImageConfig, surface: 'mobile' })
+assert.equal(mobileAboutImage.aboutImage, aboutImageFallback.aboutImage)
+assert.equal(mobileAboutImage.aboutImageAlt, aboutImageFallback.aboutImageAlt)
+for (const surface of ['desktop', 'mobile']) {
+  const clearedAboutImage = normalizeLoginBranding({ aboutImage: '', aboutImageAlt: '' }, {
+    enterpriseConfig: aboutImageConfig,
+    surface
+  })
+  assert.equal(clearedAboutImage.aboutImage, '')
+  assert.equal(clearedAboutImage.aboutImageAlt, '')
+}
+const customAboutImage = normalizeLoginBranding({
+  aboutImage: '  /company-assets/new-map.png  ',
+  aboutImageAlt: '  New service map  '
+}, { enterpriseConfig: aboutImageConfig })
+assert.equal(customAboutImage.aboutImage, '/company-assets/new-map.png')
+assert.equal(customAboutImage.aboutImageAlt, 'New service map')
+const customOverviewImages = normalizeLoginBranding({
+  overviewProductImage: '/company-assets/motors.png',
+  overviewProductImageAlt: 'Motors',
+  overviewFactoryImage: '/company-assets/factory.png',
+  overviewFactoryImageAlt: 'Factory'
+}, { enterpriseConfig: aboutImageConfig })
+assert.equal(customOverviewImages.overviewProductImage, '/company-assets/motors.png')
+assert.equal(customOverviewImages.overviewFactoryImage, '/company-assets/factory.png')
 
 const custom = normalizeLoginBranding({
   companyName: '运行期自定义企业',

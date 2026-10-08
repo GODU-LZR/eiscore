@@ -10,6 +10,7 @@ import {
   stripEnterpriseProfileFromSystemConfig
 } from '../../packages/eiscore-platform/src/enterprise-profile.mjs'
 import { DEFAULT_ENTERPRISE_CONFIG } from '../../packages/eiscore-platform/src/enterprise-config.mjs'
+import { normalizeLoginBranding } from '../../packages/eiscore-platform/src/login-branding.mjs'
 
 const sitePayload = {
   ok: true,
@@ -101,6 +102,74 @@ assert.equal(portal.previewMode, true)
 assert.equal(portal.factStatus, 'pending')
 assert.ok(Object.isFrozen(portal.products))
 
+assert.equal(Object.hasOwn(portal.loginBranding, 'aboutImage'), false)
+assert.equal(Object.hasOwn(portal.loginBranding, 'aboutImageAlt'), false)
+const aboutDeploymentConfig = {
+  ...DEFAULT_ENTERPRISE_CONFIG,
+  branding: {
+    ...DEFAULT_ENTERPRISE_CONFIG.branding,
+    login: { aboutImage: '/deployment/about.png', aboutImageAlt: 'Deployment map' }
+  }
+}
+const deploymentAboutBranding = normalizeLoginBranding(
+  mergeEnterpriseProfileIntoSystemConfig({}, { ...profile, portal }).loginBranding,
+  { enterpriseConfig: aboutDeploymentConfig }
+)
+assert.equal(deploymentAboutBranding.aboutImage, '/deployment/about.png')
+assert.equal(deploymentAboutBranding.aboutImageAlt, 'Deployment map')
+
+const aboutPayload = {
+  content: {
+    pages: [{
+      slug: 'home',
+      blocks: { homepage: {
+        aboutImage: './assets/about.png',
+        aboutImageAlt: '  Service map  ',
+        overviewProductImage: './assets/motors.png',
+        overviewProductImageAlt: '  Motor range  ',
+        overviewFactoryImage: './assets/factory.png',
+        overviewFactoryImageAlt: '  Factory  '
+      } }
+    }]
+  }
+}
+const aboutPortal = enterprisePortalFromSiteConfig(aboutPayload)
+assert.equal(aboutPortal.loginBranding.aboutImage, '/company-site/assets/about.png')
+assert.equal(aboutPortal.loginBranding.aboutImageAlt, 'Service map')
+assert.equal(aboutPortal.loginBranding.overviewProductImage, '/company-site/assets/motors.png')
+assert.equal(aboutPortal.loginBranding.overviewProductImageAlt, 'Motor range')
+assert.equal(aboutPortal.loginBranding.overviewFactoryImage, '/company-site/assets/factory.png')
+assert.equal(aboutPortal.loginBranding.overviewFactoryImageAlt, 'Factory')
+const portalAboutBranding = normalizeLoginBranding(
+  mergeEnterpriseProfileIntoSystemConfig({}, { ...profile, portal: aboutPortal }).loginBranding,
+  { enterpriseConfig: aboutDeploymentConfig }
+)
+assert.equal(portalAboutBranding.aboutImage, '/company-site/assets/about.png')
+assert.equal(portalAboutBranding.aboutImageAlt, 'Service map')
+assert.equal(portalAboutBranding.overviewProductImage, '/company-site/assets/motors.png')
+assert.equal(portalAboutBranding.overviewFactoryImage, '/company-site/assets/factory.png')
+
+const aboutWithoutAltPayload = structuredClone(aboutPayload)
+delete aboutWithoutAltPayload.content.pages[0].blocks.homepage.aboutImageAlt
+const aboutWithoutAltPortal = enterprisePortalFromSiteConfig(aboutWithoutAltPayload)
+const aboutWithoutAltBranding = normalizeLoginBranding(
+  mergeEnterpriseProfileIntoSystemConfig({}, { ...profile, portal: aboutWithoutAltPortal }).loginBranding,
+  { enterpriseConfig: aboutDeploymentConfig }
+)
+assert.equal(aboutWithoutAltBranding.aboutImageAlt, '')
+for (const aboutImage of ['', 'javascript:alert(1)', '//example.test/about.png']) {
+  const clearedAboutPayload = structuredClone(aboutWithoutAltPayload)
+  clearedAboutPayload.content.pages[0].blocks.homepage.aboutImage = aboutImage
+  const clearedAboutPortal = enterprisePortalFromSiteConfig(clearedAboutPayload)
+  assert.equal(Object.hasOwn(clearedAboutPortal.loginBranding, 'aboutImage'), true)
+  const clearedAboutBranding = normalizeLoginBranding(
+    mergeEnterpriseProfileIntoSystemConfig({}, { ...profile, portal: clearedAboutPortal }).loginBranding,
+    { enterpriseConfig: aboutDeploymentConfig }
+  )
+  assert.equal(clearedAboutBranding.aboutImage, '')
+  assert.equal(clearedAboutBranding.aboutImageAlt, '')
+}
+
 const englishPortal = enterprisePortalFromSiteConfig({
   site: { legalName: '示例制造有限公司', defaultLocale: 'zh-CN' },
   content: {
@@ -179,6 +248,14 @@ assert.equal(Object.hasOwn(persisted.loginBranding, 'description'), false)
 assert.equal(Object.hasOwn(persisted.loginBranding, 'siteTag'), false)
 assert.equal(Object.hasOwn(persisted.loginBranding, 'secondaryActionUrl'), false)
 assert.equal(persisted.loginBranding.authTitle, '登录内部系统')
+for (const key of [
+  'overviewProductImage',
+  'overviewProductImageAlt',
+  'overviewFactoryImage',
+  'overviewFactoryImageAlt'
+]) {
+  assert.equal(Object.hasOwn(persisted.loginBranding, key), false)
+}
 
 const calls = []
 const service = createEnterpriseProfileService({

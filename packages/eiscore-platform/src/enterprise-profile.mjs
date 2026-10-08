@@ -234,6 +234,18 @@ export function enterprisePortalFromSiteConfig(payload) {
       metricsSectionKicker: text(homepage.metricsSectionKicker, english ? 'Capabilities' : '企业能力'),
       metricsSectionTitle: text(homepage.metricsSectionTitle, english ? 'Operations and service focus' : '业务布局与服务方向'),
       aboutSectionKicker: text(homepage.aboutSectionKicker, english ? 'About' : '关于企业'),
+      ...(Object.hasOwn(homepage, 'aboutImage') ? {
+        aboutImage: safePublicAssetUrl(homepage.aboutImage),
+        aboutImageAlt: text(homepage.aboutImageAlt)
+      } : {}),
+      ...(Object.hasOwn(homepage, 'overviewProductImage') ? {
+        overviewProductImage: safePublicAssetUrl(homepage.overviewProductImage),
+        overviewProductImageAlt: text(homepage.overviewProductImageAlt)
+      } : {}),
+      ...(Object.hasOwn(homepage, 'overviewFactoryImage') ? {
+        overviewFactoryImage: safePublicAssetUrl(homepage.overviewFactoryImage),
+        overviewFactoryImageAlt: text(homepage.overviewFactoryImageAlt)
+      } : {}),
       capabilitiesSectionKicker: text(homepage.capabilitiesSectionKicker, english ? 'Value chain' : '产业协同'),
       capabilitiesSectionTitle: text(homepage.capabilitiesSectionTitle, english ? 'Coordinated service from sourcing to customer applications' : '从原料进入到客户应用的完整服务'),
       navItems: Object.freeze(navItems.map((item) => Object.freeze(item))),
@@ -448,7 +460,19 @@ export function mergeEnterpriseProfileIntoSystemConfig(systemConfig, profile) {
 export function stripEnterpriseProfileFromSystemConfig(systemConfig) {
   const source = isObject(systemConfig) ? systemConfig : {}
   const loginBranding = isObject(source.loginBranding) ? { ...source.loginBranding } : {}
-  for (const key of ['companyName', 'logo', 'siteTag', 'description', 'secondaryActionUrl']) {
+  for (const key of [
+    'companyName',
+    'logo',
+    'siteTag',
+    'description',
+    'secondaryActionUrl',
+    'aboutImage',
+    'aboutImageAlt',
+    'overviewProductImage',
+    'overviewProductImageAlt',
+    'overviewFactoryImage',
+    'overviewFactoryImageAlt'
+  ]) {
     delete loginBranding[key]
   }
   return {

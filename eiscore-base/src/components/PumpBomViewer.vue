@@ -564,10 +564,10 @@ const animate = (time = 0) => {
 onMounted(() => {
   try {
     scene = new THREE.Scene()
-    scene.background = new THREE.Color('#f5f8f6')
+    scene.background = new THREE.Color('#f5f8fc')
     // The narrow layout needs a longer camera distance for the horizontal BOM.
     // Keep the far clip and fog beyond that distance so the exploded parts stay visible.
-    scene.fog = new THREE.Fog('#f5f8f6', 34, 180)
+    scene.fog = new THREE.Fog('#f5f8fc', 34, 180)
     camera = new THREE.PerspectiveCamera(40, 1, 0.1, 180)
     // Balance the view so the X-axis BOM remains horizontal while the Z-split
     // half-shells still project as two visible pieces when opened.
@@ -626,13 +626,13 @@ onBeforeUnmount(disposeResources)
 </script>
 
 <style scoped>
-.pump-bom-viewer { --viewer-accent: #0b6e69; position: relative; width: 100%; height: 100%; min-height: 100svh; color: #17322b; background: #f5f8f6; }
-.pump-bom-stage { position: relative; width: 100%; height: 100%; min-height: 100svh; overflow: hidden; background: #f5f8f6; }
+.pump-bom-viewer { --viewer-accent: #1557a6; position: relative; width: 100%; height: 100%; min-height: 100svh; color: #173a5c; background: #f5f8fc; }
+.pump-bom-stage { position: relative; width: 100%; height: 100%; min-height: 100svh; overflow: hidden; background: #f5f8fc; }
 .pump-bom-stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .pump-bom-stage canvas:active { cursor: grabbing; }
 .pump-bom-heading, .pump-bom-footer { position: absolute; left: 0; right: 0; z-index: 2; display: flex; justify-content: space-between; gap: 20px; box-sizing: border-box; pointer-events: none; }
-.pump-bom-heading { top: 0; align-items: flex-start; padding: clamp(22px, 3vw, 42px) clamp(20px, 4vw, 68px) 72px; background: linear-gradient(180deg, rgba(245, 248, 246, .98), rgba(245, 248, 246, .76) 52%, transparent); }
-.pump-bom-heading h2 { margin: 8px 0 0; color: #17322b; font-family: "Noto Serif SC", "Source Han Serif SC", serif; font-size: clamp(25px, 2.7vw, 44px); line-height: 1.12; }
+.pump-bom-heading { top: 0; align-items: flex-start; padding: clamp(22px, 3vw, 42px) clamp(20px, 4vw, 68px) 72px; background: linear-gradient(180deg, rgba(245, 248, 252, .98), rgba(245, 248, 252, .76) 52%, transparent); }
+.pump-bom-heading h2 { margin: 8px 0 0; color: #173a5c; font-family: "Noto Serif SC", "Source Han Serif SC", serif; font-size: clamp(25px, 2.7vw, 44px); line-height: 1.12; }
 .pump-bom-heading p { margin: 10px 0 0; color: rgba(23, 50, 43, .62); font-size: clamp(11px, 1vw, 14px); }
 .pump-bom-kicker, .pump-bom-list-title, .pump-bom-status { color: rgba(23, 50, 43, .58); font: 700 10px/1.25 "IBM Plex Mono", Consolas, monospace; letter-spacing: .14em; text-transform: uppercase; }
 .pump-bom-status { display: inline-flex; align-items: center; gap: 7px; padding: 9px 12px; border: 1px solid rgba(23, 50, 43, .16); background: rgba(255, 255, 255, .76); white-space: nowrap; }
@@ -645,7 +645,7 @@ onBeforeUnmount(disposeResources)
 .pump-bom-list li > span { color: rgba(23, 50, 43, .36); font: 9px "IBM Plex Mono", Consolas, monospace; }
 .pump-bom-list li.is-active { color: var(--viewer-accent); transform: translateX(-3px); }
 .pump-bom-list li.is-active > span { color: var(--viewer-accent); }
-.pump-bom-footer { bottom: 0; align-items: flex-end; padding: 82px clamp(20px, 4vw, 68px) clamp(20px, 2.4vw, 34px); background: linear-gradient(0deg, rgba(245, 248, 246, .99), rgba(245, 248, 246, .86) 52%, transparent); }
+.pump-bom-footer { bottom: 0; align-items: flex-end; padding: 82px clamp(20px, 4vw, 68px) clamp(20px, 2.4vw, 34px); background: linear-gradient(0deg, rgba(245, 248, 252, .99), rgba(245, 248, 252, .86) 52%, transparent); }
 .pump-bom-progress { position: absolute; right: clamp(20px, 4vw, 68px); bottom: 84px; left: clamp(20px, 4vw, 68px); height: 2px; overflow: hidden; background: rgba(23, 50, 43, .12); }
 .pump-bom-progress span { display: block; width: 100%; height: 100%; background: var(--viewer-accent); transform-origin: left; }
 .pump-bom-controls { display: flex; gap: 6px; margin-left: auto; pointer-events: auto; }

@@ -8,7 +8,7 @@
   },
   "branding": {
     "productName": "伦度机电数字化工厂",
-    "themeColor": "#0B6E69",
+    "themeColor": "#1557A6",
     "logoUrl": "/enterprise-assets/site/lundu-logo.png",
     "login": {
       "slogan": "专注电机与水泵产品，服务稳定运行。",
@@ -30,6 +30,12 @@
       "metricsSectionKicker": "企业概况",
       "metricsSectionTitle": "企业规模与产品范围",
       "aboutSectionKicker": "公司简介",
+      "aboutImage": "/enterprise-assets/site/lundu-world-routes-20261008.webp",
+      "aboutImageAlt": "伦度机电位于浙江台州温岭，蓝色路线连接欧美及中东主要国家",
+      "overviewProductImage": "/enterprise-assets/site/lundu-overview-motors.png",
+      "overviewProductImageAlt": "伦度电机产品组合",
+      "overviewFactoryImage": "/enterprise-assets/site/lundu-overview-factory.png",
+      "overviewFactoryImageAlt": "伦度机电生产厂房",
       "capabilitiesSectionKicker": "业务体系",
       "capabilitiesSectionTitle": "从产品开发到交付服务",
       "leadersSectionKicker": "联系伦度",

@@ -75,6 +75,9 @@ const LOGIN_TEXT_FIELDS = Object.freeze({
   metricsSectionKicker: 120,
   metricsSectionTitle: 200,
   aboutSectionKicker: 120,
+  aboutImageAlt: 200,
+  overviewProductImageAlt: 200,
+  overviewFactoryImageAlt: 200,
   capabilitiesSectionKicker: 120,
   capabilitiesSectionTitle: 200,
   leadersSectionKicker: 120,
@@ -82,7 +85,13 @@ const LOGIN_TEXT_FIELDS = Object.freeze({
   footerText: 200,
   icpText: 200
 })
-const LOGIN_URL_FIELDS = Object.freeze(['secondaryActionUrl', 'backgroundImage'])
+const LOGIN_URL_FIELDS = Object.freeze([
+  'secondaryActionUrl',
+  'backgroundImage',
+  'aboutImage',
+  'overviewProductImage',
+  'overviewFactoryImage'
+])
 const LOGIN_LIST_FIELDS = Object.freeze({
   navItems: Object.freeze({ max: 6, keys: Object.freeze({ label: 80, anchor: 80 }) }),
   metrics: Object.freeze({ max: 4, keys: Object.freeze({ label: 80, value: 80 }) }),

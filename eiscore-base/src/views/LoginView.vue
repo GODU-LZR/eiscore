@@ -185,12 +185,18 @@
       </section>
 
       <section class="metrics-band reveal" id="metrics">
-        <div class="company-profile">
+        <div class="company-profile" :class="{ 'has-overview-media': branding.overviewProductImage || branding.overviewFactoryImage }">
           <div class="company-profile-intro">
             <span>{{ branding.metricsSectionKicker }}</span>
             <h2>{{ publicMetricsTitle }}</h2>
             <p>{{ branding.description }}</p>
           </div>
+          <figure v-if="branding.overviewProductImage" class="company-profile-media company-profile-product">
+            <img :src="branding.overviewProductImage" :alt="branding.overviewProductImageAlt" loading="lazy" />
+          </figure>
+          <figure v-if="branding.overviewFactoryImage" class="company-profile-media company-profile-factory">
+            <img :src="branding.overviewFactoryImage" :alt="branding.overviewFactoryImageAlt" loading="lazy" />
+          </figure>
           <dl v-if="metricItems.length" class="company-facts">
             <div v-for="item in metricItems" :key="`${item.label}-${item.value}`" class="company-fact">
               <dt>{{ item.label }}</dt>
@@ -209,9 +215,9 @@
             {{ branding.secondaryActionText }}
           </button>
         </div>
-        <div v-if="highlightImage" class="story-media" aria-hidden="true">
-          <img :src="highlightImage" alt="" />
-        </div>
+        <component :is="branding.aboutImage ? 'a' : 'div'" v-if="highlightImage" class="story-media" :class="{ 'has-about-image': branding.aboutImage }" :href="branding.aboutImage || undefined" :target="branding.aboutImage ? '_blank' : undefined" :rel="branding.aboutImage ? 'noopener' : undefined" :aria-hidden="branding.aboutImage ? undefined : true">
+          <img :src="highlightImage" :alt="branding.aboutImage ? branding.aboutImageAlt : ''" loading="lazy" />
+        </component>
       </section>
 
       <section
@@ -420,7 +426,7 @@
             <div v-if="quoteCount" class="quote-summary"><strong>{{ quoteCount }}</strong><span>{{ commerceUi.quoteSummary }}</span></div>
             <div v-if="quoteItems.length" class="quote-lines">
               <article v-for="item in quoteItems" :key="item.code" class="quote-line">
-                <img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name" />
+                <div class="quote-line-media"><img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name" /></div>
                 <div><strong>{{ item.name }}</strong><small>{{ item.category }}</small></div>
                 <label><span class="sr-only">{{ commerceUi.quantityLabel }}</span><input v-model.number="item.quantity" type="number" min="1" max="99999" @change="normalizeQuoteQuantity(item)" /></label>
                 <button type="button" class="quote-remove" :aria-label="commerceUi.removeLabel" @click="removeFromQuote(item.code)">×</button>
@@ -612,7 +618,7 @@ const loginForm = reactive({
 })
 
 const safeThemeColor = computed(() => {
-  const color = String(systemStore.enterpriseProfile?.themeColor || systemStore.config?.themeColor || '#409EFF').trim()
+  const color = String(systemStore.config?.themeColor || systemStore.enterpriseProfile?.themeColor || '#409EFF').trim()
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#409EFF'
 })
 
@@ -826,7 +832,7 @@ const introLead = computed(() => {
   const firstSentence = text.split(chinese ? /[。！？]/ : /[.!?]/).find(Boolean)
   return firstSentence ? `${firstSentence}${chinese ? '。' : '.'}` : text
 })
-const highlightImage = computed(() => carouselItems.value[1]?.url || carouselItems.value[0]?.url || heroImage.value)
+const highlightImage = computed(() => branding.value.aboutImage || carouselItems.value[1]?.url || carouselItems.value[0]?.url || heroImage.value)
 const galleryImages = computed(() => {
   const items = carouselItems.value.length ? carouselItems.value : [{ url: heroImage.value }]
   return items.filter((item) => item.url)

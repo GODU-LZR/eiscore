@@ -40,6 +40,40 @@ assert.ok(Object.isFrozen(parsed.branding.login))
 assert.ok(Object.isFrozen(parsedV2.branding))
 assert.throws(() => { parsed.modules.hr = false }, TypeError)
 
+assert.equal(schema.$defs.loginFields.properties.aboutImage.maxLength, 500)
+assert.equal(schema.$defs.loginFields.properties.aboutImageAlt.maxLength, 200)
+assert.equal(schema.$defs.loginFields.properties.overviewProductImage.maxLength, 500)
+assert.equal(schema.$defs.loginFields.properties.overviewProductImageAlt.maxLength, 200)
+assert.equal(schema.$defs.loginFields.properties.overviewFactoryImage.maxLength, 500)
+assert.equal(schema.$defs.loginFields.properties.overviewFactoryImageAlt.maxLength, 200)
+for (const aboutImage of ['', '/company-assets/about.png', 'https://example.test/about.png']) {
+  const aboutConfig = structuredClone(example)
+  aboutConfig.branding.login.aboutImage = aboutImage
+  aboutConfig.branding.login.aboutImageAlt = '  Company service map  '
+  const parsedAboutConfig = parseEnterpriseConfig(aboutConfig)
+  assert.equal(parsedAboutConfig.branding.login.aboutImage, aboutImage)
+  assert.equal(parsedAboutConfig.branding.login.aboutImageAlt, 'Company service map')
+}
+for (const aboutImage of ['javascript:alert(1)', 'data:image/png;base64,AA==', '//example.test/about.png']) {
+  const unsafeAboutConfig = structuredClone(example)
+  unsafeAboutConfig.branding.login.aboutImage = aboutImage
+  assert.ok(validateEnterpriseConfig(unsafeAboutConfig).some((issue) => (
+    issue.path === '$.branding.login.aboutImage' && issue.code === 'unsafe-url'
+  )))
+}
+const longAboutAlt = structuredClone(example)
+longAboutAlt.branding.login.aboutImageAlt = 'a'.repeat(201)
+assert.ok(validateEnterpriseConfig(longAboutAlt).some((issue) => (
+  issue.path === '$.branding.login.aboutImageAlt' && issue.code === 'text-too-long'
+)))
+for (const key of ['overviewProductImage', 'overviewFactoryImage']) {
+  const invalidImage = structuredClone(example)
+  invalidImage.branding.login[key] = 'javascript:alert(1)'
+  assert.ok(validateEnterpriseConfig(invalidImage).some((issue) => (
+    issue.path === `$.branding.login.${key}` && issue.code === 'unsafe-url'
+  )))
+}
+
 const v2WithLegacyLogin = structuredClone(v2Example)
 v2WithLegacyLogin.branding.login = { slogan: 'must remain in company_site.site_config' }
 assert.ok(validateEnterpriseConfig(v2WithLegacyLogin).some((issue) => (

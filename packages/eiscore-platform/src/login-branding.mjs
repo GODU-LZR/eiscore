@@ -28,6 +28,12 @@ const NEUTRAL_LOGIN_BRANDING = Object.freeze({
   metricsSectionKicker: '企业实力',
   metricsSectionTitle: '企业经营与交付能力',
   aboutSectionKicker: '关于企业',
+  aboutImage: '',
+  aboutImageAlt: '',
+  overviewProductImage: '',
+  overviewProductImageAlt: '',
+  overviewFactoryImage: '',
+  overviewFactoryImageAlt: '',
   capabilitiesSectionKicker: '产品与服务',
   capabilitiesSectionTitle: '产品、制造与服务能力',
   leadersSectionKicker: '管理团队',
@@ -65,6 +71,12 @@ const TEXT_FIELDS = Object.freeze([
   'metricsSectionKicker',
   'metricsSectionTitle',
   'aboutSectionKicker',
+  'aboutImage',
+  'aboutImageAlt',
+  'overviewProductImage',
+  'overviewProductImageAlt',
+  'overviewFactoryImage',
+  'overviewFactoryImageAlt',
   'capabilitiesSectionKicker',
   'capabilitiesSectionTitle',
   'leadersSectionKicker',
@@ -73,7 +85,16 @@ const TEXT_FIELDS = Object.freeze([
   'footerText',
   'icpText'
 ])
-const EXPLICIT_OPTIONAL_MEDIA_FIELDS = new Set(['logo', 'backgroundImage'])
+const EXPLICIT_OPTIONAL_MEDIA_FIELDS = new Set([
+  'logo',
+  'backgroundImage',
+  'aboutImage',
+  'aboutImageAlt',
+  'overviewProductImage',
+  'overviewProductImageAlt',
+  'overviewFactoryImage',
+  'overviewFactoryImageAlt'
+])
 
 const text = (value, fallback = '') => String(value || fallback || '').trim()
 const cloneList = (value) => value.map((item) => ({ ...item }))
