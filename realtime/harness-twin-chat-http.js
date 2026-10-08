@@ -23,7 +23,7 @@ const createHarnessTwinChatHttpHandler = ({ authorize, readJsonBody, sendJson, g
         capability_id: 'eiscore_twin_chat',
         user,
         signal: req.signal,
-        payload: { message, session_id: requestedSessionId || undefined, stream: body.stream !== false }
+        payload: { message, ...(requestedSessionId ? { session_id: requestedSessionId } : {}), stream: body.stream !== false }
       });
     } catch {
       sendJson(res, 502, { code: 'HARNESS_UPSTREAM_UNAVAILABLE', message: 'DeepSeek Harness is unavailable' });

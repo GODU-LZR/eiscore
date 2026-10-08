@@ -134,6 +134,19 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-011",
+      "path": "database/migrations/sql/core-011-harness-signed-permissions.sql",
+      "sha256": "a4b6a04c90aa240f5a2a81352143f1fa6ab64479e9bf4b220574a26f6b750e39",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

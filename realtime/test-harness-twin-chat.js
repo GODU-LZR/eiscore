@@ -2,6 +2,9 @@
 
 const assert = require('node:assert/strict');
 const { createHarnessTwinChatHttpHandler } = require('./harness-twin-chat-http');
+const { createHarnessGateway } = require('./harness-gateway');
+const { createHarnessToolGateway } = require('./harness-tool-gateway');
+const { loadPluginRegistry } = require('../agent-harness/plugin-registry');
 
 const SESSION_ID = '11111111-1111-4111-8111-111111111111';
 const user = { id: 'u1', username: 'operator', tenant_id: 't1', token: 'jwt' };
@@ -96,7 +99,32 @@ const handler = createHarnessTwinChatHttpHandler({
   await toolGatewayHandler({}, gatewayResponse);
   assert.equal(routedRequest.capability_id, 'eiscore_twin_chat');
   assert.equal(routedRequest.payload.history, undefined);
+  assert.equal(Object.hasOwn(routedRequest.payload, 'session_id'), false, 'new sessions must omit the optional session id');
   assert.equal(gatewayResponse.headers['X-Eis-Session'], SESSION_ID);
+
+  const validatedPayloads = [];
+  const actualGateway = createHarnessGateway({
+    registry: loadPluginRegistry(),
+    auditKey: 'test-audit-key-that-is-long-enough',
+    audit: async () => {},
+    dispatch: createHarnessToolGateway({
+      executeFlashToolCall: async () => ({}),
+      executeDigitalTwinChat: async (_owner, payload) => { validatedPayloads.push(payload); return { text: 'schema-valid answer' }; }
+    }).execute
+  });
+  const validatedHandler = createHarnessTwinChatHttpHandler({
+    authorize: () => ({ ...user, permissions: ['twin:read'] }),
+    readJsonBody: async () => ({ message: 'new session' }),
+    sendJson: (_res, status, payload) => { response = { status, payload }; },
+    gateway: actualGateway,
+    managePersistence: true,
+    setCorsHeaders: () => {},
+    streamTextAsSse: (res, text) => { res.write(text); res.end(); }
+  });
+  const validatedResponse = createResponse();
+  await validatedHandler({}, validatedResponse);
+  assert.equal(validatedResponse.status, 200, 'new-session request must pass the registered capability schema');
+  assert.deepEqual(validatedPayloads, [{ message: 'new session', stream: true }]);
 
   let throwingTwinResponse;
   const throwingTwinHandler = createHarnessTwinChatHttpHandler({

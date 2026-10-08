@@ -30,6 +30,10 @@ BEGIN
     RAISE EXCEPTION 'Harness login must bind a non-empty tenant identity';
   END IF;
 
+  IF position('''permissions''' IN split_part(split_part(login_definition, 'token_claims := json_build_object(', 2), ');', 1)) = 0 THEN
+    RAISE EXCEPTION 'Harness login must sign database-authorized permissions into JWT claims';
+  END IF;
+
   IF EXISTS (
     SELECT 1
     FROM unnest(ARRAY[

@@ -344,7 +344,7 @@ try {
   }
 
   // Verify the moved auth/security fix through HTTP, not just catalog markers.
-  psql(freshContainer, "INSERT INTO public.users(username,password,role,tenant_id) VALUES ('db10-login-user','isolated-test-password','employee','test-tenant');")
+  psql(freshContainer, "INSERT INTO public.users(username,password,role,tenant_id,permissions) VALUES ('db10-login-user','isolated-test-password','employee','test-tenant',ARRAY['module:bi','twin:read']),('db11-restricted-user','isolated-test-password','employee','test-tenant',ARRAY[]::text[]); DELETE FROM public.user_roles WHERE user_id IN (SELECT id FROM public.users WHERE username IN ('db10-login-user','db11-restricted-user'));")
   for (const body of [
     { username: 'db10-login-user', password: 'isolated-test-password' },
     { payload: { username: 'db10-login-user', password: 'isolated-test-password' } }
@@ -356,9 +356,21 @@ try {
     assert.equal(response.status, 200, 'tenant login HTTP contract failed')
     const result = await response.json()
     assert.equal(result.tenant_id, 'test-tenant')
-    const claims = JSON.parse(Buffer.from(result.token.split('.')[1], 'base64url').toString('utf8'))
+    const [header, encodedClaims, signature] = result.token.split('.')
+    assert.equal(signature, createHmac('sha256', jwtSecret).update(`${header}.${encodedClaims}`).digest('base64url'))
+    const claims = JSON.parse(Buffer.from(encodedClaims, 'base64url').toString('utf8'))
     assert.equal(claims.tenant_id, 'test-tenant')
+    assert.deepEqual(claims.permissions, ['module:bi', 'twin:read'])
+    assert.deepEqual(claims.permissions, result.permissions, 'Harness must receive the same permissions through signed claims')
   }
+  const restrictedLogin = await fetch(`${baseUrl}/rpc/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'content-profile': 'public' },
+    body: JSON.stringify({ username: 'db11-restricted-user', password: 'isolated-test-password' })
+  })
+  assert.equal(restrictedLogin.status, 200)
+  const restricted = await restrictedLogin.json()
+  assert.deepEqual(JSON.parse(Buffer.from(restricted.token.split('.')[1], 'base64url')).permissions, [])
+  assert.deepEqual(restricted.permissions, [])
   for (const path of ['/ontology_table_semantics', '/v_ontology_coverage_audit']) {
     const response = await fetch(`${baseUrl}${path}?select=*&limit=1`, {
       headers: { authorization, 'accept-profile': 'public' }

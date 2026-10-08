@@ -49,9 +49,9 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 10)
+assert.equal(coreResult.migrations.length, 11)
 assert.deepEqual(coreResult.migrations.map((entry) => entry.id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009', 'core-010'
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009', 'core-010', 'core-011'
 ])
 
 // Rehashing a rewritten published migration must not make governance pass.

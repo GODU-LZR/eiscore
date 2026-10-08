@@ -11,14 +11,15 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const read = (path) => readFileSync(resolve(repoRoot, path), 'utf8')
 const json = (path) => JSON.parse(read(path))
 
+// Current migration inventory is separate from the immutable DB6 evidence below.
 const migrationManifests = [
   json('database/migrations/runtime-v2.json'),
   json('database/migrations/company-site.json'),
   json('database/migrations/core.json')
 ]
-assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 21)
+assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 22)
 assert.deepEqual(migrationManifests[2].migrations.map(({ id }) => id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009', 'core-010'
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009', 'core-010', 'core-011'
 ])
 
 // This exit audit describes the original DB6 release, not approval of today's tree.
@@ -26,6 +27,10 @@ const manifest = JSON.parse(readPublishedDb6(publishedDb6Path))
 const release = { manifest, manifestSha256: databaseReleaseManifestSha256(manifest) }
 assert.equal(release.manifest.releaseId, 'eiscore-db-v6')
 assert.equal(release.manifestSha256, '58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d')
+assert.equal(release.manifest.migrationManifests.reduce((total, entry) => total + entry.migrations.length, 0), 18)
+assert.deepEqual(release.manifest.migrationManifests.find(({ name }) => name === 'core').migrations.map(({ id }) => id), [
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007'
+])
 assert.deepEqual(release.manifest.predecessors, [
   {
     id: 'eiscore-db-v1-runtime',
