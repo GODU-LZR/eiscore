@@ -4,7 +4,43 @@
 
 本记录只证明明确提交及制品的本地隔离验收。没有正式批准数据库发布，没有替换既有 Compose，没有连接远端或生产，没有写入业务数据库卷。
 
-## 2026-10-08 当前提交 Bridge clean-build 复核
+## 2026-10-08 源码提交 `e0f26c20` 本地复核（最新）
+
+本节取代后续历史章节中的“当前提交”和数量描述。基于 `codex/systematic-refactor@e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd` 的 `git archive`（仅 `agent-harness/`，542720 bytes）完成无缓存 Bridge 构建，临时镜像为 `eiscore-harness-bridge:clean-build-20261008-e0f26c20-labeled`，本地 image ID 为 `sha256:8eff62dd447a808bec637b9fa0e0d5bc00ecc8d90bf2b0dd37738589a97f2cd8`。镜像 OCI labels 为 `org.opencontainers.image.revision=e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd`、`org.opencontainers.image.source=github-eiscore-refactor`；运行用户为 `10001:10001`，Node `22.19.0`，DSH `0.1.2-rc.1`，生产依赖安装数量为 524。8 个 Bridge/tool/profile/contract 文件及 package.json/package-lock.json 的镜像内 SHA-256 与 archive 解压文件逐项一致；核对容器使用 `--rm --network none --read-only`，未使用主工作树未提交文件。archive SHA-256 为 `b658b58fbf266b13c1565ef26b0155179bc2da0d9deb1b6c2d92666c0d2dc1e5`。
+
+该镜像的真实 Provider 探针容器名为 `eiscore-bridge-provenance-e0f26c20`，使用默认 Docker bridge 网络、固定 `-p 38080:3080`（未限制绑定到 loopback）、非 root、只读根文件系统，以及 `/tmp` 和 `/var/lib/dsh` tmpfs。这里的隔离指独立容器和临时状态，不表示独立网络或随机端口。摘要为：`/healthz=200`、`/readyz=200`（`runtime/plugins/sessions` 全部 `true`）、插件数 `9`；使用现有本地 Bridge 环境中的 Provider 配置仅在内存中注入一次 `deepseek-official` / `deepseek-chat` completion，结果为 HTTP `200`、choices 存在、内容长度 `2`；相同 request 重放为 `409 HARNESS_REQUEST_REPLAY`，同一 session 跨 tenant 为 `403 HARNESS_SESSION_OWNERSHIP_DENIED`。未输出、持久化或写入任何 API key、secret 或响应正文。工具代理指向 `127.0.0.1:9/unused`，没有进入业务工具或数据库链路。一次性容器已清理，Docker 清单复核确认其不再存在；没有挂载主机路径或数据库卷。
+
+源码字节边界已核实：Windows 系统 Git 配置为 `core.autocrlf=true`，archive 中 JS/JSON 的 CRLF 与 Git blob 的 LF 存在原始 SHA 差异；十个文件均仅换行转换，LF 规范化后完全相同。不能把镜像/archive SHA 冒称为 Git blob SHA。用 `git -c core.autocrlf=true archive --format=tar e0f26c20 agent-harness` 独立重生成 archive，取得同一 raw SHA；因此构建上下文可按已记录规则从提交复现。基础镜像本地 ID 为 `sha256:d2166de198f26e17e5a442f537754dd616ab069c47cc57b889310a717e0abbf9`，平台 `linux/amd64`。
+
+失败记录保留：首次 WSL curl 请求受代理影响返回 502，使用 `--noproxy '*'` 后本地请求正常，不能将这些代理响应归因于 Bridge Provider；错误协议头 `1` 返回 426；PowerShell HTTP helper 未使用 `.GetEnumerator()` 导致请求头缺失，也返回 426。最终成功探针使用 `eiscore-agent-v1` 协议头。只有最终一次请求实际完成 Provider completion。
+
+当前提交的回归也通过：`npm run test:harness-bridge`（loopback `ok=true`、`proxyCalls=1`、`modelRequests=2`）、`npm run test:database-migrations`，以及 `npm run db:release:check -- --release database/release-candidates/eiscore-db-v7/manifest.json`。后者报告 candidate canonical SHA `1b4e6982ed2d086ddd9a23d0bace2a4f49776afc1133bfd17ea2999446d343bd`，无 Docker、数据库、备份或流量切换。
+
+DB7 candidate 绑定 `sourceRevision=e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd`、58 个 artifact，migration terminal 为 `runtime-v2-010`、`company-site-001`、`core-011`。在 WSL 原生 `/tmp/eiscore-db7-source-e0f26c20` 的 `core.autocrlf=false` clone 中，使用 candidate 临时 manifest 和随机临时数据库容器、独立网络、tmpfs 完成以下测试，均退出码 `0`：`DB_RELEASE_PATH=.codex-tmp/db7-candidate-20261008/manifest.json DB_RELEASE_PREDECESSOR=eiscore-db-v6 npm run test:database-release:docker`、`DB_RELEASE_PATH=.codex-tmp/db7-candidate-20261008/manifest.json npm run test:database-recovery:docker`、`npm run test:database-contracts:docker`、`npm run test:database-roles:docker`。测试前后 `git status --porcelain=v1` 均为空；复核时没有本轮 DB3/DB5 临时容器或网络。历史 DB2 容器和网络仍保留，未清理其他任务资源。数据库 contract fingerprint 为 `ef59503c0208dbb3f9cb081dce45fb265fcf71a9f1735731f4301edd9da3aec9`。Windows 首次路径错误与 Docker Desktop named-pipe 不可用的失败发生在数据库操作前；Windows clone 的换行转换造成差异，因此成功验收使用上述 WSL 原生 clone，没有将 Windows 失败包装为通过。
+
+新鲜回归另通过 Gateway、Runtime/multimodal/HTTP/WS 边界、输出策略、runtime-image、production-config 和 production-path 六组命令。没有额外调用收费 Provider。五份历史 manifest 恢复后重新执行默认 `npm run db:release:check`，仍退出 `1`，漂移错误由 17 项减至 14 项；错误涉及当前 database contract、legacy resolution、core manifest/postcheck、recovery、审计/备份/基线/catalog 脚本、core terminal/list、catalog 与 PostgREST 指纹。这是历史 v6 与当前源码不匹配的拒绝，不被 DB7 candidate 的成功替代。同轮显式 DB7 candidate dry-run 再次退出 `0`，canonical SHA 未变化，没有执行数据库操作。
+
+本轮没有替换现有 Compose。运行中的 `eiscore-harness-bridge` 仍使用 image `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，状态 healthy，挂载主工作树 `agent-harness/` 和既有 DSH 状态卷；它不等同于无挂载的新 clean image。`deepseek-web` 仍处于 `Restarting (1)`，所以不能宣称完整本地栈健康。DB7 仍是 candidate only，正式冻结 v6 没有重新批准或发布。
+
+恢复前主工作树共 17 项修改：本任务的 DB7 candidate 和两份验收文档，以及 14 项保留改动。14 项已复制至 `.codex-tmp/protected-changes-20261008-e0f26c20-review/` 并逐文件核对 SHA-256。收到用户明确答复“备份后恢复五份历史 manifest”后，仅恢复了 `database/releases/eiscore-db-v2/manifest.json` 至 `eiscore-db-v6/manifest.json` 的历史 checksum；`git diff --exit-code` 对这五份文件退出 `0`，它们已与 HEAD 一致。14 份备份再次全部通过 SHA-256 校验，五份 manifest 的恢复前内容仍可从副本取回。没有修改历史 SQL 或账本，也没有把当前结构重新包装为历史 v6。
+
+恢复后剩下本任务三项修改和九份伦度修改；九份均与备份字节一致，本任务没有覆盖、stage 或提交它们。主工作树没有未跟踪产品文件，仍不能声明 clean。九份保留文件的准确范围为：
+
+- `docs/engineering/LUNDU_CUSTOMER_SERVICE_TRIGGER_RESTORE_20261007.md`
+- `eiscore-base/public/config/eiscore-enterprise.json`
+- `eiscore-base/public/enterprise-assets/site/favicon.svg`
+- `eiscore-base/src/components/PumpBomViewer.vue`
+- `eiscore-base/src/styles/login-view.scss`
+- `eiscore-base/src/views/LoginView.vue`
+- `enterprise-packs/lundu/assets/site/favicon.svg`
+- `enterprise-packs/lundu/data/company-site.json`
+- `enterprise-packs/lundu/runtime/eiscore-enterprise.json`
+
+本次授权只处置五份历史 manifest。DB7 candidate 的正式本地制品批准问题仍未得到答复，因此没有提升到 `database/releases/`，没有切换默认 release。九份伦度变更继续由负责其实现和验收的任务处置。
+
+本轮脱敏摘要保存于 `.codex-tmp/bridge-provenance-20261008-e0f26c20/report.json`；该文件记录实际拓扑、源码/镜像字节核对和执行结果，不包含密钥或 completion 正文。本任务制品可提交不等于正式 release 批准，目标保持 `active`。
+
+## 历史复核：2026-10-08 提交 `7e0774aa`
 
 基于 `codex/systematic-refactor@7e0774aa9e0770ecd6c097c59d6c3350ee9b9222`，从 Git archive（不是工作树、旧 tarball 或运行中容器）构建了无缓存镜像 `eiscore-harness-bridge:clean-build-20261008-7e0774aa`。镜像 ID 为 `sha256:539ce844874c9755bf5475048a5d98ce017db6941ff0fe7202045e8fd3d81373`，标签 `org.opencontainers.image.revision=7e0774aa9e0770ecd6c097c59d6c3350ee9b9222`、`org.opencontainers.image.source=github-eiscore-refactor`；基础镜像为 `node@sha256:d2166de198f26e17e5a442f537754dd616ab069c47cc57b889310a717e0abbf9`。镜像内 Node `22.19.0`、DSH `0.1.2-rc.1`，Harness tree 为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`，8 个 Bridge/tool/profile/contract 文件与 archive 字节一致。
 
@@ -24,7 +60,7 @@
 
 | 问题 | 已完成 | 尚未完成 |
 | --- | --- | --- |
-| 主工作树未干净 | 本任务实现已按范围提交；七项其他任务修改逐文件备份；使用独立干净 clone 验收 | 七项修改仍保留在主工作树，需要明确归属和处置，不能声明主仓库 clean |
+| 主工作树未干净 | 十四项原有修改逐文件备份；用户授权恢复的五份历史 manifest 已与 HEAD 一致；使用独立干净 clone 验收 | 九份伦度修改仍保留，需要由负责其实现和验收的任务处置，不能声明主仓库 clean |
 | candidate 与正式 v6 混淆 | 恢复不可变历史；准备独立 v7；原 v6 → v7 release 和破坏后 recovery 真实通过 | v7 仅待评审，不是正式 release approval；默认 v6 面对当前源码仍 fail-closed |
 | 真实 Provider 曾经 502 | DSH_CWD 解析链接及 Node engine 修复；当前提交的 Node 22 clean image 已在隔离 Bridge 取得真实 completion 200，并验证 401/409/403 边界 | 未把一次真实 completion 扩大为所有业务场景上线保证 |
 | Bridge clean-build 来源不完整 | 当前提交的 Git archive、镜像 label、Harness tree、8 个文件 SHA 和真实 completion 已关联 | 当前 Compose 仍使用旧镜像；新镜像尚未发布替换 |
@@ -47,9 +83,9 @@
 
 修复采用 Git 原生 `*.sql -text`，保存当前已核实的历史字节。提交涉及 91 份 SQL blob 的换行差异；`git diff --ignore-space-at-eol c9cf2662^ c9cf2662 -- '*.sql'` 为空，没有 SQL 内容变更。96 项 legacy 原 raw checksum 均一致，混合换行的 `sql/company_site_platform_v1.sql` 也原样保存。没有修改历史审计 ledger 或重算冻结 catalog 来绕过失败。
 
-## 待批准 v7 制品
+## 历史待批准 v7 制品（`c9cf2662`；当前候选见文首）
 
-评审文件：[manifest.json](../../database/release-candidates/eiscore-db-v7/manifest.json)。它与隔离验收中的 candidate 完全相同，只改变保存路径。
+本节记录上一阶段 `c9cf2662` 的候选；当前评审文件 [manifest.json](../../database/release-candidates/eiscore-db-v7/manifest.json) 已更新为文首绑定 `e0f26c20`、58 个 artifact 和 `core-011` 的隔离验收候选，以下历史 SHA 和数量不能用于批准当前制品。
 
 | 字段 | 值 |
 | --- | --- |
@@ -65,7 +101,7 @@
 
 源码锚点是实现提交；后续保存候选和验收文档的提交不会改变其 57 个绑定 artifact。默认 `verifySourceRevision=true`，未关闭来源验证。
 
-冻结 v6 正式路径及默认命令保持不变。主工作树既有未提交 v6 canonical SHA 为 `4d5b2c1dbfd3d436262771ad76a0b385447325edd3f906e55ff0a6c3adea324f`；干净历史描述符为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`。当前 `loadAndValidateDatabaseRelease` 分别报告 17 与 14 项错误。这是版本不匹配的正确拒绝，不应把当前源码强行包装成 v6。
+冻结 v6 正式路径及默认命令保持不变。恢复前主工作树的未提交 v6 canonical SHA 为 `4d5b2c1dbfd3d436262771ad76a0b385447325edd3f906e55ff0a6c3adea324f`；历史描述符为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`。当时 `loadAndValidateDatabaseRelease` 分别报告 17 与 14 项错误；用户授权恢复后主工作树使用历史描述符，最新复核为 14 项错误。这是版本不匹配的正确拒绝，不应把当前源码强行包装成 v6。
 
 ## 实际验收
 

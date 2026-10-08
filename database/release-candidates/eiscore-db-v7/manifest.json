@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "releaseId": "eiscore-db-v7",
-  "sourceRevision": "c9cf266281872a01d82d22ade24f7efcd5691983",
+  "sourceRevision": "e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd",
   "images": {
     "postgres": "postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f",
     "postgrest": "postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa"
@@ -91,14 +91,14 @@
     {
       "path": "database/migrations/core.json",
       "name": "core",
-      "portableSha256": "15541dc7938ad472cd0a97f6eabc8a2c4f75c06decbcdfda324f020b02777b2e",
+      "portableSha256": "b27415ab3554f2413f94aab5275e21bf6eaccc96f6f5ad7b383b7723e5521954",
       "terminal": {
-        "id": "core-010",
-        "sha256": "5818fa75d521e4f1b3aa84f0cc933944fee6097da28abe958d8aa00506bf3055"
+        "id": "core-011",
+        "sha256": "a4b6a04c90aa240f5a2a81352143f1fa6ab64479e9bf4b220574a26f6b750e39"
       },
       "postcheck": {
         "path": "database/migrations/postchecks/core.sql",
-        "portableSha256": "999458ce83a35bc4b14bc80a3058dff82e5c4636ff2dbf23fd3e580c744555d6"
+        "portableSha256": "34f1e12ff445c8ca97a75e32ce08ace8ac8b65029000334399f439091fda96da"
       },
       "migrations": [
         {
@@ -140,6 +140,10 @@
         {
           "id": "core-010",
           "sha256": "5818fa75d521e4f1b3aa84f0cc933944fee6097da28abe958d8aa00506bf3055"
+        },
+        {
+          "id": "core-011",
+          "sha256": "a4b6a04c90aa240f5a2a81352143f1fa6ab64479e9bf4b220574a26f6b750e39"
         }
       ]
     }
@@ -147,7 +151,7 @@
   "databaseContract": {
     "path": "database/contracts/eiscore-db-contract-v3.json",
     "id": "eiscore-db-contract-v3",
-    "databaseCatalogSha256": "a473c2d932a046c6df278acff03c97ed4afeb919762ea6bdebbb88c7b1e28ff8",
+    "databaseCatalogSha256": "ef59503c0208dbb3f9cb081dce45fb265fcf71a9f1735731f4301edd9da3aec9",
     "postgrestOpenApiSha256": "cb5c41defeac0c36e307b06a538d50c3abe60b17c9dcbaac25b4ae63cdbe1cd1"
   },
   "predecessors": [
@@ -224,7 +228,7 @@
     {
       "path": "database/contracts/eiscore-db-contract-v3.json",
       "purpose": "execution",
-      "portableSha256": "8e1479bb0fe9bf4694380f66864201c3e2d0669f2b77547ab5ecf6acc43602a8"
+      "portableSha256": "185ad1584d799fd0033685d4297a0ef133966bf66475e065dc40780f70d23e23"
     },
     {
       "path": "database/legacy-sql-resolution.json",
@@ -244,7 +248,7 @@
     {
       "path": "database/migrations/core.json",
       "purpose": "execution",
-      "portableSha256": "15541dc7938ad472cd0a97f6eabc8a2c4f75c06decbcdfda324f020b02777b2e"
+      "portableSha256": "b27415ab3554f2413f94aab5275e21bf6eaccc96f6f5ad7b383b7723e5521954"
     },
     {
       "path": "database/migrations/postchecks/company-site.sql",
@@ -254,7 +258,7 @@
     {
       "path": "database/migrations/postchecks/core.sql",
       "purpose": "execution",
-      "portableSha256": "999458ce83a35bc4b14bc80a3058dff82e5c4636ff2dbf23fd3e580c744555d6"
+      "portableSha256": "34f1e12ff445c8ca97a75e32ce08ace8ac8b65029000334399f439091fda96da"
     },
     {
       "path": "database/migrations/rollback/company-site-001-add-published-snapshot.sql",
@@ -320,6 +324,11 @@
       "path": "database/migrations/sql/core-010-harness-tenant-auth-boundaries.sql",
       "purpose": "execution",
       "portableSha256": "5818fa75d521e4f1b3aa84f0cc933944fee6097da28abe958d8aa00506bf3055"
+    },
+    {
+      "path": "database/migrations/sql/core-011-harness-signed-permissions.sql",
+      "purpose": "execution",
+      "portableSha256": "a4b6a04c90aa240f5a2a81352143f1fa6ab64479e9bf4b220574a26f6b750e39"
     },
     {
       "path": "database/operations/policy.json",

@@ -2,7 +2,20 @@
 
 ## 最新目标进度（2026-10-08，当前提交 Bridge 隔离重建）
 
-- 当前 `codex/systematic-refactor@7e0774aa` 的 Git archive 无缓存构建成功，镜像 `eiscore-harness-bridge:clean-build-20261008-7e0774aa`，image ID `sha256:539ce844874c9755bf5475048a5d98ce017db6941ff0fe7202045e8fd3d81373`。Node `22.19.0`、DSH `0.1.2-rc.1`，镜像 label 与提交一致，8 个 Bridge/tool/profile/contract 文件 SHA 与 archive 一致。
+### 2026-10-08 `e0f26c20` provenance 与隔离验收（最新）
+
+- 从 `codex/systematic-refactor@e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd` 的 Git archive 构建了无缓存镜像 `eiscore-harness-bridge:clean-build-20261008-e0f26c20-labeled`，image ID `sha256:8eff62dd447a808bec637b9fa0e0d5bc00ecc8d90bf2b0dd37738589a97f2cd8`。镜像 label 绑定当前提交和 `github-eiscore-refactor`，运行用户 `10001:10001`，Node `22.19.0`、DSH `0.1.2-rc.1`，锁定生产依赖 524 个；构建上下文来自 archive，未包含主工作树未提交改动。
+- 该镜像的真实 Provider 探针通过：`/healthz=200`、`/readyz=200` 且 `runtime/plugins/sessions=true`，9 个插件，`deepseek-official`/`deepseek-chat` completion HTTP `200`、choices 存在/内容长度 `2`；重放返回 `409 HARNESS_REQUEST_REPLAY`，跨租户 session 返回 `403 HARNESS_SESSION_OWNERSHIP_DENIED`。容器名为 `eiscore-bridge-provenance-e0f26c20`，实际使用默认 Docker bridge 网络及固定 `-p 38080:3080`（未限定 loopback），并非独立网络/随机端口；非 root、只读根文件系统、仅 tmpfs 状态目录、无宿主挂载，工具代理指向不可用地址。没有记录 key、secret 或响应正文；复核已确认容器移除。代理 502、错误协议头和缺失请求头的 426 保留为失败记录，详见验收文档。
+- 回归通过：`npm run test:harness-bridge`（loopback `ok=true`、`proxyCalls=1`、`modelRequests=2`）、`npm run test:database-migrations`，以及 DB7 candidate dry-run。candidate 绑定当前 source revision、58 个 artifact、core terminal `core-011`，canonical manifest SHA 为 `1b4e6982ed2d086ddd9a23d0bace2a4f49776afc1133bfd17ea2999446d343bd`。
+- WSL 原生干净 clone 的隔离 Docker 测试全部通过：`test:database-release:docker`、`test:database-recovery:docker`、`test:database-contracts:docker`、`test:database-roles:docker`。它们使用随机临时容器、独立网络和 tmpfs，未使用业务卷；测试后 clone 状态仍为空，本轮临时容器/网络已清理。DB7 candidate 未批准/发布；没有重新批准或发布正式冻结 DB6。
+- 镜像内 8 个运行文件及两个依赖描述文件与 archive SHA-256 逐项一致，核对在无网络只读容器中完成。Windows `core.autocrlf=true` 导致部分 archive 文件与 Git blob 仅 CRLF/LF 不同，十项 LF 规范化后一致；相同 Git 配置独立重生成的 archive raw SHA 也一致。新鲜 Gateway、Runtime、输出策略、runtime-image、production-config、production-path 回归通过。
+- 十四项原有修改已在 `.codex-tmp/protected-changes-20261008-e0f26c20-review/` 逐文件备份并核对 SHA-256。收到用户“备份后恢复五份历史 manifest”的明确授权后，仅恢复 DB2–DB6 manifest 的已提交历史 checksum，五份文件的 `git diff --exit-code` 均通过，恢复前副本仍完整。九份伦度改动与备份字节一致，未被本任务覆盖、stage 或提交；主工作树仍不能声明 clean。
+- 恢复后显式 DB7 candidate dry-run 再次退出 `0`，canonical SHA 未变化；默认正式 v6 dry-run 仍退出 `1`，错误数从 17 减至 14，说明历史 v6 仍不适用于当前源码。本轮只恢复历史，不重新冻结 v6、不修改账本、不执行数据库发布。DB7 正式本地制品批准仍待答复，candidate 未提升到正式 release 路径，默认 v6 未切换。
+- 现有 Compose 未切换到新镜像：`eiscore-harness-bridge` 仍为旧 image `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e` 且 healthy，`deepseek-web` 仍在 `Restarting (1)`。因此 Bridge clean-build provenance 已闭合，但完整本地栈和正式数据库发布仍未就绪；全局目标继续 `active`。
+
+### 历史复核：2026-10-08 提交 `7e0774aa`
+
+- `codex/systematic-refactor@7e0774aa` 的 Git archive 无缓存构建成功，镜像 `eiscore-harness-bridge:clean-build-20261008-7e0774aa`，image ID `sha256:539ce844874c9755bf5475048a5d98ce017db6941ff0fe7202045e8fd3d81373`。Node `22.19.0`、DSH `0.1.2-rc.1`，镜像 label 与提交一致，8 个 Bridge/tool/profile/contract 文件 SHA 与 archive 一致。
 - 该镜像的独立只读容器真实验证 `/readyz=200`、9 个插件、错误密钥 `401`、`deepseek-official` / `deepseek-chat` completion `200`、choices 存在/内容长度 `2`、请求重放 `409`、会话跨租户 `403`。仅一次真实 completion，没有输出或保存密钥/正文；无宿主挂载或发布端口，只使用 tmpfs，容器/独立网络已清理。
 - 同一镜像的无外网容器内 Bridge/SDK、Gateway/Runtime、chat 和 SDK 工具 loopback 回归全部退出 `0`，工具闭环 proxyCalls=1/modelRequests=2。主目录各 Harness 契约组、production path/config、runtime image 和 release-drift 回归通过，干净 clone 的 v7 candidate dry-run 再次通过；未重复数据库 Docker release/recovery。
 - 不隐去失败：默认网络 npm clean install 的 `ECONNRESET` 日志保留，host-network 重试成功。真实探测脚本的最终整体退出仍为 `1`，其 `report.json` 不覆写；事后 reconciliation 证明 Compose 容器 ID/image/mount 集合未替换，原整体比较还包括 mount 顺序和既有 deepseek-web 启动时间变化。隔离镜像可用与既有栈稳定是两件事，不能由此宣称整个本地栈上线就绪。
