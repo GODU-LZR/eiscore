@@ -1,6 +1,19 @@
 # DeepSeek Harness 后端迁移状态
 
-## 最新目标进度（2026-10-08，取代下方历史阶段结论）
+## 最新目标进度（2026-10-08，v7 干净检出与隔离发布/恢复验收）
+
+- 本轮实现提交为 `codex/systematic-refactor@c9cf266281872a01d82d22ade24f7efcd5691983`。此前的 `f9aa189e` 恢复不可变历史并追加 `core-010`，`49cb07d2` 修复全新 checkout 缺失测试目录，`c9cf2662` 保存历史 SQL 原始字节。完整说明及批准边界见 [DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md](DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md)。
+- 主工作树仍保留七项其他任务修改：DB2–DB6 manifest、伦度客服交接文档、伦度登录样式。本任务未覆盖、回退、stage 或提交它们；已在忽略的 `.codex-tmp/protected-changes-20261008-c9cf2662/` 保存逐文件副本并核对 SHA-256。主工作树仍不能声明 clean；验收使用独立、干净的 detached clone。
+- 冻结历史中被改写的 `core-002`、`runtime-v2-003`、v1 baseline manifest/register 已恢复；新增租户登录、用户 tenant 回填、RLS helper 授权和原始本体撤权进入新的 `core-010`。Compose initdb 不再直挂无账本的 `core-002`，空库必须执行批准 release 后才能开放业务流量。未改写五份既有 release manifest。
+- 干净 clone 初次暴露了真实失败：Git text conversion 改变 SQL raw SHA，基线函数体中的 CRLF 丢失又改变 PostgreSQL catalog。`.gitattributes` 现以 `*.sql -text` 保留字节；91 份 SQL 的 Git blob 调整只有换行差异，没有 SQL 内容修改。96 项 legacy raw checksum 和原混合换行 baseline SHA 均一致，未重算历史 checksum 或 catalog。
+- 待评审 v7 manifest 已保存到 `database/release-candidates/eiscore-db-v7/manifest.json`，绑定源码 `c9cf2662`、57 个 artifact、终点 `core-010`，canonical SHA-256 为 `088aee81f4289a20f56d39a32b0e94ae2631d8ec6c75423573e6a51fb630b486`。默认源码校验和显式 candidate dry-run 均通过。该目录不表示正式批准，也不改变默认冻结 v6 路径。
+- 本轮干净 clone 的真实 WSL Docker 测试全部退出 0：原冻结 v6 → v7 release、空库 v7 release 后破坏/恢复、fresh/原 v6 upgrade/repeat DB 与 PostgREST 契约、真实角色/RLS/拒绝契约。完整 `test:database-migrations` 在主工作树与干净 clone 均通过。release 覆盖锁、备份、重复执行、schema/catalog drift 和账本 checksum 冲突拒绝；recovery 覆盖测试数据、角色、恢复账本及健康审计。
+- 默认冻结 v6 校验仍正确失败：主工作树读取其既有修改得到 17 项错误；干净 clone 读取历史冻结描述符得到 14 项错误。原 v6 canonical SHA 保持 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`，既有未提交 v6 为 `4d5b2c1dbfd3d436262771ad76a0b385447325edd3f906e55ff0a6c3adea324f`。通过 v7 候选不能用于宣称当前源码适用于 v6 或 v6 已获重新批准。
+- Bridge 的本地 clean-build 与真实 Provider 证据仍对应同一源码：隔离 Node `22.19.0` 镜像 image ID 为 `sha256:9d13895208906a56a0efd0c6ad7be4dd4454ae550c2daf0eff4e5cfd707c7114`，revision label `0e955b9e`；当前源码及构建源码的 Harness Git tree 同为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`。此前该镜像 `/readyz` 200、真实 completion 200/choices=true/内容长度 2，本轮未重复收费调用。历史 502 保留为失败记录。
+- 当前运行的 Compose Bridge 仍为旧 image ID `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，本轮核对为 running/healthy。未替换或重启既有 Compose，未访问远端/生产，未触碰业务数据库卷。测试仅使用随机命名临时容器、独立网络和 tmpfs，结束后清理。
+- 尚待处理：七项其他任务修改的归属与处置、v7 正式批准及目标环境发布决定。实现与本地隔离验收已有证据，不等于主工作树干净、运行态已更新或整体上线就绪。全局目标保持 `active`。
+
+## 上一阶段评估（2026-10-08，以下记录已被最新进度取代）
 
 - 本轮核对的代码提交为 `codex/systematic-refactor@e2933ac6d58910fe3fdcfa027fd41e1d577c24b8`。工作树仍有七项既有修改：DB2–DB6 manifest、伦度客户服务交接文档、伦度登录样式；另有本状态文档的本任务修改。没有未跟踪文件，没有覆盖、回退或 stage 七项既有修改。主工作树不能声明为 clean 或正式发布源。
 - 正式路径 `database/releases/eiscore-db-v6/manifest.json` **确实存在未提交修改**，涉及 `runtime-v2-003`、`core-002` 及其 artifact 的三个 checksum。其 canonical manifest SHA-256 为 `4d5b2c1dbfd3d436262771ad76a0b385447325edd3f906e55ff0a6c3adea324f`，而 HEAD 中已提交文件的 canonical SHA-256 为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`；两者都声明 source revision `b9a3831d08aeb7056ee8a5997ca8b57ae270ca08` 和 `core-007` terminal。历史记录中的“冻结 manifest 未修改”只能理解为本任务未改写该文件，不能理解为该文件与 HEAD 一致。

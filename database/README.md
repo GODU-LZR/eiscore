@@ -51,6 +51,8 @@ PowerShell 使用同名参数 `-BackupEvidence`、`-ReleaseRevision` 与 `-Opera
 
 ## 版本化数据库发布
 
+待评审的新版本位于 `release-candidates/eiscore-db-v7/manifest.json`，绑定实现提交 `c9cf2662`。该候选已在干净 checkout 通过原 v6 升级、空库发布、备份恢复及角色/API 契约测试；它尚未批准，也没有改变默认冻结 v6 路径。详细证据见 `docs/engineering/DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md`。只读候选检查使用 `npm run db:release:check -- --release database/release-candidates/eiscore-db-v7/manifest.json`。
+
 v6 是历史冻结制品，不能用当前源码重新计算 checksum 覆盖它。新增迁移需创建独立的新版本候选，并绑定实际已提交源码。候选校验和隔离 release/recovery 通过都不等于正式批准。当前默认命令仍检查冻结 v6，面对当前源码应失败关闭；验收新候选必须显式传入其 manifest 路径。历史 v6 契约测试从 Git 源码 `b9a3831d` 与冻结描述符提交 `09c2f201` 重建，避免读取工作树既有 manifest 修改。
 
 本次恢复被后续提交改写的 `core-002`、`runtime-v2-003` 及 v1 基线登记到原发布内容，并把新增权限修复迁入 `core-010`。升级支持原冻结 v6 的真实 SQL/账本状态；曾执行改写版本、账本包含不同 checksum 的数据库不在这个升级证据内，预检必须拒绝。遇到这类库先保留备份和账本证据、单独评估恢复方案，不得直接更新账本 checksum、重登记基线或删除业务卷。`core-010` 回退使用发布前备份恢复。
