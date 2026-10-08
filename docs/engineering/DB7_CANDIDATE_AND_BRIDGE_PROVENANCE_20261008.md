@@ -53,7 +53,7 @@
 
 ## 实际验收
 
-独立 clone：`.codex-tmp/db7-source-20261008-f9aa189e`。目录名是首次创建时的提交名，最终 detached HEAD 为 `c9cf2662`，测试前后 `git status --porcelain` 为空。没有 stash 或覆盖主工作树。
+独立 clone：`.codex-tmp/db7-source-20261008-f9aa189e`。目录名是首次创建时的提交名，实际执行 Docker 测试时的 detached HEAD 为 `c9cf2662`，测试前后 `git status --porcelain` 为空。交付时又检出保存候选和文档的 `958e81cb`，正式评审路径的 candidate dry-run 再次通过；源码锚点和 manifest SHA 未变化。没有 stash 或覆盖主工作树。
 
 以下测试均取得最终退出码 0：
 
