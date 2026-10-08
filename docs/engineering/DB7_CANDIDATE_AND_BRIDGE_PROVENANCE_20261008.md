@@ -232,3 +232,13 @@ Docker 测试使用随机命名临时容器、独立网络和 tmpfs，结束后�
 七个当前文件已复制到忽略的 `.codex-tmp/protected-changes-20261008-c9cf2662/`，`checksums.json` 记录逐文件原始 SHA-256 和字节数。副本与主文件核对一致；备份不等于已经授权回退原文件，也不包含后续其他任务继续修改的内容。
 
 推荐保持 v6 历史冻结，把本次通过的 v7 作为待批准新版本。批准前不要移动候选到正式 releases、修改默认 release 或执行目标环境 release/recovery。清理七项其他任务修改需要先明确处置，不能由本任务擅自 stage、提交或回退。全局目标继续 active，不能声明主工作树干净或系统正式上线就绪。
+
+## 当前 HEAD clean-build 复核（2026-10-08）
+
+本轮在用户授权恢复 DB2–DB6 历史 manifest 后进行，未重新触碰五份 manifest；五份文件与 HEAD 无 diff。当前 HEAD 为 `eb23ac2cb9dfaf68ad420c09f24ca1477599cffe`，`HEAD:agent-harness` tree 为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`。
+
+从该 HEAD 的 Git archive（仅 `agent-harness/`，532480 bytes，SHA-256 `6f3a9a257ee30328f2387f9c5f8b945b576109105f02e62f56b1e2d1e178bad4`）以无缓存方式构建 `eiscore-harness-bridge:clean-build-20261008-eb23ac2c`。镜像 ID 为 `sha256:089b5f6a84b29e9b9f7a62ca6542138785ad39b3252a19b12e90d498769cea6c`，labels 为 `org.opencontainers.image.revision=eb23ac2cb9dfaf68ad420c09f24ca1477599cffe`、`org.opencontainers.image.source=github-eiscore-refactor`。镜像内 8 个 Bridge/tool/profile/contract 文件及两份 package 文件与 archive 逐项 SHA-256 一致；隔离只读、无网络容器通过 Node `22.19.0`、DSH `0.1.2-rc.1`、入口和 node_modules 链接检查。
+
+第一次默认网络构建只因 npm registry `ECONNRESET` 失败，未生成镜像；同一 archive/锁文件使用 Docker host 网络重试后成功。host 网络只作用于构建依赖下载，未改变运行中的 Compose 网络。构建前后 `eiscore-harness-bridge` 容器 ID `e084cfc64b6f` 与 `deepseek-web` 容器 ID `45701b32cd9f`、运行镜像均未改变，未替换服务，也没有重复调用真实 Provider。
+
+同轮回归：`npm run test:harness-bridge`、`node tests/engineering/runtime-image-contract.mjs`、`npm run test:production-config`、`git diff --check` 均退出 0。默认 `npm run db:release:check` 仍退出 1，报告 14 项正式 DB6 provenance drift（contract、legacy resolution、core migration/postcheck、recovery/audit/backup/baseline/catalog、terminal/list、database catalog 和 PostgREST checksum）；没有执行正式 release/recovery，没有写入业务数据库卷。外部 Web client-plugin 仍来自临时候选挂载，尚未归并为正式仓库来源。

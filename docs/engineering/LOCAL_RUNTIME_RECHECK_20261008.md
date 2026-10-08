@@ -22,3 +22,11 @@
 
 本轮通过：真实运行态 Bridge completion、Bridge health/ready、Web embed HTTP 200、页面实际 revision 资源三项 HTTP 200、三个插件入口存在且 Web 重启计数归零；`npm run test:harness-bridge`、`node tests/engineering/runtime-image-contract.mjs`、`npm run test:production-config` 和 `git diff --check` 均通过。正式 DB6 门禁保持失败是预期的发布阻断，不将 candidate 验收冒充正式批准。
 
+## 当前 HEAD Bridge clean-build provenance（2026-10-08）
+
+- 从当前 `HEAD` `eb23ac2cb9dfaf68ad420c09f24ca1477599cffe` 的 Git archive（仅 `agent-harness/`）构建，archive 为 532480 bytes，SHA-256 为 `6f3a9a257ee30328f2387f9c5f8b945b576109105f02e62f56b1e2d1e178bad4`。
+- 无缓存构建标签为 `eiscore-harness-bridge:clean-build-20261008-eb23ac2c`，镜像 ID 为 `sha256:089b5f6a84b29e9b9f7a62ca6542138785ad39b3252a19b12e90d498769cea6c`；OCI revision label 精确指向上述 HEAD，source label 为 `github-eiscore-refactor`。
+- 镜像中的 8 个 Bridge/tool/profile/contract 文件及 `package.json`、`package-lock.json` 与 archive 对应文件逐项 SHA-256 一致；隔离只读、`--network none` 容器确认 Node `22.19.0`、DSH `0.1.2-rc.1`、入口可执行且 node_modules 链接存在。
+- 首次默认网络构建因 npm registry `ECONNRESET` 在依赖下载阶段失败；同一 archive、锁文件和提交使用 Docker host 网络仅重试构建阶段后成功。没有替换运行服务，也没有进行新的 Provider 调用。
+- 构建前后 `eiscore-harness-bridge` 容器 ID `e084cfc64b6f`、`deepseek-web` 容器 ID `45701b32cd9f` 及其运行镜像保持不变；新镜像只是隔离验收制品，未部署到 Compose。
+
