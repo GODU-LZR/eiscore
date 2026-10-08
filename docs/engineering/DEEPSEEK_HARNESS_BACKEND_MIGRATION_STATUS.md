@@ -1,6 +1,15 @@
 # DeepSeek Harness 后端迁移状态
 
-## 最新目标进度（2026-10-08，v7 干净检出与隔离发布/恢复验收）
+## 最新目标进度（2026-10-08，当前提交 Bridge 隔离重建）
+
+- 当前 `codex/systematic-refactor@7e0774aa` 的 Git archive 无缓存构建成功，镜像 `eiscore-harness-bridge:clean-build-20261008-7e0774aa`，image ID `sha256:539ce844874c9755bf5475048a5d98ce017db6941ff0fe7202045e8fd3d81373`。Node `22.19.0`、DSH `0.1.2-rc.1`，镜像 label 与提交一致，8 个 Bridge/tool/profile/contract 文件 SHA 与 archive 一致。
+- 该镜像的独立只读容器真实验证 `/readyz=200`、9 个插件、错误密钥 `401`、`deepseek-official` / `deepseek-chat` completion `200`、choices 存在/内容长度 `2`、请求重放 `409`、会话跨租户 `403`。仅一次真实 completion，没有输出或保存密钥/正文；无宿主挂载或发布端口，只使用 tmpfs，容器/独立网络已清理。
+- 同一镜像的无外网容器内 Bridge/SDK、Gateway/Runtime、chat 和 SDK 工具 loopback 回归全部退出 `0`，工具闭环 proxyCalls=1/modelRequests=2。主目录各 Harness 契约组、production path/config、runtime image 和 release-drift 回归通过，干净 clone 的 v7 candidate dry-run 再次通过；未重复数据库 Docker release/recovery。
+- 不隐去失败：默认网络 npm clean install 的 `ECONNRESET` 日志保留，host-network 重试成功。真实探测脚本的最终整体退出仍为 `1`，其 `report.json` 不覆写；事后 reconciliation 证明 Compose 容器 ID/image/mount 集合未替换，原整体比较还包括 mount 顺序和既有 deepseek-web 启动时间变化。隔离镜像可用与既有栈稳定是两件事，不能由此宣称整个本地栈上线就绪。
+- 现有 Compose Bridge 仍用旧 image ID `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，本任务未发出 restart/up。伦度文档和样式被其他任务继续修改，最新副本另存 `.codex-tmp/protected-changes-20261008-7e0774aa/`；五份旧 release manifest 保留。本任务未覆盖、stage 或提交这七项改动。
+- v7 仍待正式批准，默认冻结 v6 仍 fail-closed；七项修改处置和目标运行态更新未完成。详细证据见 [DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md](DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md)，全局目标保持 `active`。
+
+## 上一阶段进度（2026-10-08，v7 干净检出与隔离发布/恢复验收）
 
 - 本轮实现提交为 `codex/systematic-refactor@c9cf266281872a01d82d22ade24f7efcd5691983`。此前的 `f9aa189e` 恢复不可变历史并追加 `core-010`，`49cb07d2` 修复全新 checkout 缺失测试目录，`c9cf2662` 保存历史 SQL 原始字节。完整说明及批准边界见 [DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md](DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md)。
 - 主工作树仍保留七项其他任务修改：DB2–DB6 manifest、伦度客服交接文档、伦度登录样式。本任务未覆盖、回退、stage 或提交它们；已在忽略的 `.codex-tmp/protected-changes-20261008-c9cf2662/` 保存逐文件副本并核对 SHA-256。主工作树仍不能声明 clean；验收使用独立、干净的 detached clone。

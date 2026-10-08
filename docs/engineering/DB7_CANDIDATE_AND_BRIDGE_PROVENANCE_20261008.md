@@ -4,14 +4,30 @@
 
 本记录只证明明确提交及制品的本地隔离验收。没有正式批准数据库发布，没有替换既有 Compose，没有连接远端或生产，没有写入业务数据库卷。
 
+## 2026-10-08 当前提交 Bridge clean-build 复核
+
+基于 `codex/systematic-refactor@7e0774aa9e0770ecd6c097c59d6c3350ee9b9222`，从 Git archive（不是工作树、旧 tarball 或运行中容器）构建了无缓存镜像 `eiscore-harness-bridge:clean-build-20261008-7e0774aa`。镜像 ID 为 `sha256:539ce844874c9755bf5475048a5d98ce017db6941ff0fe7202045e8fd3d81373`，标签 `org.opencontainers.image.revision=7e0774aa9e0770ecd6c097c59d6c3350ee9b9222`、`org.opencontainers.image.source=github-eiscore-refactor`；基础镜像为 `node@sha256:d2166de198f26e17e5a442f537754dd616ab069c47cc57b889310a717e0abbf9`。镜像内 Node `22.19.0`、DSH `0.1.2-rc.1`，Harness tree 为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`，8 个 Bridge/tool/profile/contract 文件与 archive 字节一致。
+
+真实 Provider 隔离容器使用随机名称、独立 Docker 网络、只读根文件系统、非 root 用户、无宿主挂载/发布端口和 tmpfs 状态目录，已清理。使用现有本地 Bridge 环境中的 Provider 配置在内存中注入一次真实 `deepseek-official` / `deepseek-chat` completion，未记录密钥或响应正文：`/healthz=200`、`/readyz=200`（runtime/plugins/sessions 全部 true）、插件数 `9`、错误 Bridge secret `401`、completion `200` 且 choices 存在/内容长度 `2`；同一请求重放返回 `409 HARNESS_REQUEST_REPLAY`，同一会话跨租户返回 `403 HARNESS_SESSION_OWNERSHIP_DENIED`。另一 `--network=none` 容器内的 Bridge/SDK 错误、Gateway、Runtime 边界及 loopback 工具回归也全部退出 `0`（proxyCalls=1、modelRequests=2）；该工具回归不是额外真实 Provider 调用。证据目录为 `.codex-tmp/bridge-provenance-20261008-7e0774aa/`，其中 `report.json`、`loopback-report.json`、`reconciliation.json` 保存摘要和 SHA-256。
+
+该镜像没有替换当前 Compose。运行中的 `eiscore-harness-bridge` 仍为容器 `e084cfc64b6ff26b5a9964ebef176885369e6d4decdef9771a778ddfa75bf140`、image `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，状态 `running`；隔离前后其容器 ID、image ID、挂载集合未改变。测试容器从未挂载业务数据库卷，本任务未向既有数据库发送请求。隔离期间既有 `deepseek-web` 的启动时间发生变化，但容器身份/image/mount 没有替换，该变化不归因于本任务，也不作为稳定性证据。
+
+失败也保留：首次脚本因伦度交接文档较旧备份已变化而在预检查处停止；WSL legacy builder 拒绝 `--progress` 后移除该显示选项；默认网络的首次无缓存 `npm ci` 因 `ECONNRESET` 失败，host 网络重试以同一提交/锁文件安装 524 个包并完成构建，未更换 registry 或绕过 integrity。成功隔离探测的原始 `report.json` 仍为 `ok=false`/退出 `1`，因为整体保护检查使用未排序的 mount 数组和所有服务启动时间逐字比较；事后 `reconciliation.json` 用原始快照确认 8 个既有服务 ID/image/mount 集合不变，只有既有 `deepseek-web` 启动时间变化。没有覆写失败报告或重跑收费 completion 来包装总体成功。
+
+本轮未改产品代码。主目录新鲜通过 runtime-image、production-config、harness-production-path、database-release-drift，以及 Harness plugin/gateway/tool/runtime/write/twin/document/sales/query/read/output/migration-switch 各组回归；独立干净 clone 的正式候选路径 dry-run 再次退出 `0`，canonical SHA 不变。数据库 release/recovery 的 Docker 证据仍为上节列出的上一阶段结果，本轮未重复。
+
+伦度交接文档和样式在本轮被其他任务继续更新，旧备份不能代表其最新版本；本任务未覆盖这些文件，另存最新副本于 `.codex-tmp/protected-changes-20261008-7e0774aa/`。本轮核对时文档 SHA 为 `3224c73973fdc291b8cce002b5c769c9d39c1806e335debafc0320412cc1ac69`，样式为 `6673c1eb596c94fb82374ce9ee5ea73f8796f3be180fa793a7328148de4489db`；五份 manifest 与原备份仍一致。备份不是回退授权，之后的新修改仍需重新核实。
+
+本证据不证明整个本地栈已用新制品运行。七项保留修改尚未由所有者处置，v7 仍 candidate only，默认 v6 不变，既有 Compose 未发布更新；本任务不会代替正式审批或覆盖其他任务变更。全局目标保持 active。
+
 ## 四项问题的实际状态
 
 | 问题 | 已完成 | 尚未完成 |
 | --- | --- | --- |
 | 主工作树未干净 | 本任务实现已按范围提交；七项其他任务修改逐文件备份；使用独立干净 clone 验收 | 七项修改仍保留在主工作树，需要明确归属和处置，不能声明主仓库 clean |
 | candidate 与正式 v6 混淆 | 恢复不可变历史；准备独立 v7；原 v6 → v7 release 和破坏后 recovery 真实通过 | v7 仅待评审，不是正式 release approval；默认 v6 面对当前源码仍 fail-closed |
-| 真实 Provider 曾经 502 | DSH_CWD 解析链接及 Node engine 修复；Node 22 clean image 的真实 Bridge completion 已返回 200 | 未把该结果扩大为所有业务场景上线保证，本轮未再次调用 Provider |
-| Bridge clean-build 来源不完整 | 干净 Git archive 构建的镜像、提交 label、Harness tree 和真实 completion 已关联 | 当前 Compose 仍使用旧镜像；新镜像尚未发布替换 |
+| 真实 Provider 曾经 502 | DSH_CWD 解析链接及 Node engine 修复；当前提交的 Node 22 clean image 已在隔离 Bridge 取得真实 completion 200，并验证 401/409/403 边界 | 未把一次真实 completion 扩大为所有业务场景上线保证 |
+| Bridge clean-build 来源不完整 | 当前提交的 Git archive、镜像 label、Harness tree、8 个文件 SHA 和真实 completion 已关联 | 当前 Compose 仍使用旧镜像；新镜像尚未发布替换 |
 
 ## 实现提交与兼容边界
 
@@ -70,13 +86,13 @@
 
 Docker 测试使用随机命名临时容器、独立网络和 tmpfs，结束后清理；测试 canary 只进入这些临时数据库。没有使用现有业务卷。
 
-## Bridge 与真实 Provider 证据
+## Bridge 与真实 Provider 上一阶段证据
 
 构建修复为 `6795249b` 的 DSH_CWD 依赖链接和 `0e955b9e` 的 Node `22.19.0`。Node 20 的 `HARNESS_RUNTIME_EXIT` 与 SDK 依赖要求 Node >=22.19.0 一致；历史 `HARNESS_RUNTIME_PROVIDER_ERROR` 不能被直连 API 200 或 mock 成功覆盖。
 
-已验证镜像：`eiscore-harness-bridge:clean-build-20261007-node22`，本地 image ID `sha256:9d13895208906a56a0efd0c6ad7be4dd4454ae550c2daf0eff4e5cfd707c7114`。它由该构建提交的干净 Git archive 生成，安装锁定的 524 个生产包；revision label 是 `0e955b9e`，source label 是 `github-eiscore-refactor`。当前实现提交与构建提交的 Harness tree 同为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`，该组件源码没有变化。本轮再次只读 inspect 核对上述 ID、labels 和 tree。
+此前已验证镜像：`eiscore-harness-bridge:clean-build-20261007-node22`，本地 image ID `sha256:9d13895208906a56a0efd0c6ad7be4dd4454ae550c2daf0eff4e5cfd707c7114`。它由该构建提交的干净 Git archive 生成，安装锁定的 524 个生产包；revision label 是 `0e955b9e`，source label 是 `github-eiscore-refactor`。实现提交与构建提交的 Harness tree 同为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`，该组件源码没有变化。上一阶段只读 inspect 核对上述 ID、labels 和 tree；本轮重新构建及调用的新证据见文首。
 
-上一阶段同一 Node 22 镜像的隔离只读容器已经取得 `/readyz` HTTP 200（runtime/plugins/sessions 均为 true）和真实 Bridge Provider completion HTTP 200、choices 存在、内容长度 2。没有输出或保存密钥和响应正文。本轮未重复收费调用；这是一条实际 completion 证据，不是全部业务场景或稳定性测试结论。
+上一阶段同一 Node 22 镜像的隔离只读容器已经取得 `/readyz` HTTP 200（runtime/plugins/sessions 均为 true）和真实 Bridge Provider completion HTTP 200、choices 存在、内容长度 2。没有输出或保存密钥和响应正文；这是一条实际 completion 证据，不是全部业务场景或稳定性测试结论。
 
 当前 Compose `eiscore-harness-bridge` 的 image ID 仍为 `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，核对时 running/healthy。没有将新镜像称为已部署版本，也没有把本地 image ID 称为 registry manifest digest。
 
