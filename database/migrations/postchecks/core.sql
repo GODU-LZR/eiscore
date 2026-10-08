@@ -25,6 +25,35 @@ BEGIN
     RAISE EXCEPTION 'public.login does not pin its search_path';
   END IF;
 
+  IF position('tenant_id' IN login_definition) = 0
+     OR EXISTS (SELECT 1 FROM public.users WHERE tenant_id IS NULL OR btrim(tenant_id) = '') THEN
+    RAISE EXCEPTION 'Harness login must bind a non-empty tenant identity';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM unnest(ARRAY[
+      'ontology_column_semantics', 'ontology_inference_rules', 'ontology_inferred_facts',
+      'ontology_reasoning_runs', 'ontology_table_semantics', 'v_ontology_coverage_audit',
+      'v_ontology_kg_nodes', 'v_ontology_reasoning_edges', 'v_ontology_reasoning_facts',
+      'v_ontology_reasoning_health', 'v_ontology_reasoning_rule_stats',
+      'v_ontology_reasoning_summary', 'v_ontology_role_access_insights',
+      'v_ontology_sensitive_access_paths', 'v_ontology_table_dependency_paths',
+      'v_ontology_table_impact_insights'
+    ]) AS relation_name
+    WHERE has_table_privilege('web_user', format('public.%I', relation_name), 'SELECT')
+  ) THEN
+    RAISE EXCEPTION 'raw ontology diagnostics must not be readable by web_user';
+  END IF;
+
+  IF has_function_privilege('web_user', 'public.search_ontology_kg_nodes(text,text,integer)', 'EXECUTE')
+     OR has_function_privilege('web_user', 'public.query_ontology_kg_neighbors(text,text,text,integer,integer,text)', 'EXECUTE')
+     OR has_function_privilege('web_user', 'public.find_ontology_kg_paths(text,text,text,text,integer,text,integer)', 'EXECUTE')
+     OR has_function_privilege('web_user', 'public.explain_ontology_path(text,text,text,text,integer)', 'EXECUTE')
+     OR has_function_privilege('web_user', 'public.explain_role_ontology_access(text,integer)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'raw ontology graph RPCs must remain behind the scoped Agent boundary';
+  END IF;
+
   IF position('gen_random_bytes' IN insert_definition) = 0
      OR position(concat('123', '456') IN insert_definition) > 0 THEN
     RAISE EXCEPTION 'public.tg_v_users_manage_insert still has a fixed password fallback';

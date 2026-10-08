@@ -21,7 +21,7 @@
     {
       "id": "core-002",
       "path": "database/migrations/sql/core-002-role-boundaries.sql",
-      "sha256": "d24b37dd37b71d7a2789c7ba736316b8a9ba40ef410a11bf91815cc5e299f0a1",
+      "sha256": "fbcda56cea86589f4ffd40ee273456ee1bac84a3b10890eca4cd04218723dafc",
       "transaction": "runner",
       "lockTimeoutMs": 10000,
       "statementTimeoutMs": 300000,
@@ -113,6 +113,19 @@
       "id": "core-009",
       "path": "database/migrations/sql/core-009-retire-legacy-twin-model.sql",
       "sha256": "6e7195aff8b1dad8a66258b2e37587efc653b8ba8ec4c6c15af788a60929f980",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-010",
+      "path": "database/migrations/sql/core-010-harness-tenant-auth-boundaries.sql",
+      "sha256": "5818fa75d521e4f1b3aa84f0cc933944fee6097da28abe958d8aa00506bf3055",
       "transaction": "runner",
       "lockTimeoutMs": 10000,
       "statementTimeoutMs": 300000,

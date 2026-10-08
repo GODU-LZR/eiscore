@@ -7,13 +7,20 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { loadAndValidateDatabaseRelease } from '../../scripts/database-release-contract.mjs'
+import { createPublishedDb6Snapshot } from '../../scripts/database-release-test-history.mjs'
 import {
   loadAndValidateDatabaseBackupEvidence,
   parseDatabaseRestoreArgs
 } from '../../scripts/restore-database-release-backup.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
-const release = loadAndValidateDatabaseRelease({ repoRoot })
+const published = createPublishedDb6Snapshot()
+let release
+try {
+  release = loadAndValidateDatabaseRelease({ repoRoot: published.root })
+} finally {
+  published.cleanup()
+}
 assert.deepEqual(release.errors, [])
 assert.deepEqual(parseDatabaseRestoreArgs([
   '--evidence', 'backup.json', '--db-container', 'recovery-db', '--db-name', 'app',

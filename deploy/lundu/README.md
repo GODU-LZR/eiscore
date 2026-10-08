@@ -8,7 +8,8 @@
 2. 将官方 DeepSeek Harness 的 EISCore client plugin 编译产物放在 `LUNDU_HARNESS_ROOT` 指向的目录中；该目录必须至少包含 `client-plugins/eiscore-auth/lib/index.js`、`client-plugins/digital-twin/lib/index.js` 和 `client-plugins/enterprise-bi/lib/index.js`。这些制品不是本后端分支源码，部署前必须作为外部 Harness 输入提供。
 3. 在远端部署目录执行只读前置检查：`node source/scripts/validate-lundu-harness-artifacts.mjs --harness-root "$LUNDU_HARNESS_ROOT" --patch ./dsh-web.patch.yml`；缺少任一编译入口时必须停止，不启动容器。
    同时必须在远端 `.env` 显式设置 `DSH_PROVIDER` 和 `DSH_MODEL`；伦度 Compose 对这两个值使用缺失即失败语义，不会静默采用默认 Provider 或模型。
-4. `docker compose up -d db api agent web deepseek-web harness-bridge`，等待数据库、Agent、Harness Web UI 和独立 bridge 健康。Web UI 通过 `dsh-web-runner.mjs` 对外提供容器内 3081 端口，Nginx 必须代理到该端口；runner 固定 Web profile 使用启动时 patch，避免依赖 HMR 服务。
+4. 新空库先只启动 `db`，完成角色、v1 基线和运行密钥初始化，再按 `source/database/README.md` 对已批准 release 执行一次性数据库发布作业，使用尚未开放业务流量的候选 PostgREST 验证全部迁移、postcheck 和 DB/API 契约。Compose initdb 不直接执行 `core-002` 等受治理迁移；`pg_isready` 成功不能替代发布完成。已有卷先核对目录与账本、验证备份，再执行批准的升级，不能重新初始化或删卷。当前冻结 v6 与新源码不同，独立 candidate 的隔离测试通过也不代表可部署批准。
+   只有数据库发布作业成功并写入发布账本后，才执行 `docker compose up -d api agent web deepseek-web harness-bridge`，等待 Agent、Harness Web UI 和独立 bridge 健康。Web UI 通过 `dsh-web-runner.mjs` 对外提供容器内 3081 端口，Nginx 必须代理到该端口；runner 固定 Web profile 使用启动时 patch，避免依赖 HMR 服务。
 5. 使用 `scripts/import-company-site-seed.mjs` 导入 `enterprise-packs/lundu/data/company-site.json`。导入只创建 `draft` 数据，开发环境通过 `COMPANY_SITE_PREVIEW_ALLOW_DRAFT=true` 提供预览。
 6. 在公共入口 Nginx 中代理 `lundu.eiscore.top` 到 `lundu-eiscore-web-1`，先执行 `nginx -t` 并保留配置备份。
 

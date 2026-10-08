@@ -4,9 +4,11 @@
 
 当前工作树有 106 份历史 SQL：根目录 2、`env/` 2、`sql/` 70、HR 30、材料 2。它们混合了模块 schema、演示数据、修复补丁和运维脚本，不能按文件名安全推断统一执行顺序。旧的 `db_schema_and_data.sql` 已由 DB1 规范基线替代并从发布树移除，只保留在 Git 历史和隔离审计证据中。
 
-当前已有明确顺序的集合包括 Runtime V2 的 10 个历史补丁，以及 company-site 1 个、core 9 个迁移，共 20 个不可变迁移。`migrations/runtime-v2.json` 在不修改历史 SQL 的前提下为 Runtime V2 补充不可变 ID、SHA-256、事务所有权、执行超时和备份回退策略，并与原 `sql/runtime_v2_patch_manifest.txt` 双向校验；`company-site-001` 为企业站发布快照字段提供 SQL 回滚和 postcheck；`core-001`～`core-006` 分别治理凭据、运行角色/RLS、测试对象、HR 身份范围和调试端点，`core-007` 将动态 `app_data` DDL 收敛到应用—表一对一注册、管理员/Agent 授权、严格标识符、登录用户 RLS、匿名撤权及成功操作审计，`core-008` 退役 `system_configs.ai_glm_config` 并在 RLS policy 中排除该旧键，`core-009` 将数字分身会话默认模型和既有会话统一为 `deepseek-harness`。`migration-ledger.sql` 定义数据库执行账本、基线身份和迁移覆盖账本；账本只允许数据库管理员访问。
+当前已有明确顺序的集合包括 Runtime V2 的 10 个历史补丁，以及 company-site 1 个、core 10 个迁移，共 21 个不可变迁移。`migrations/runtime-v2.json` 在不修改历史 SQL 的前提下为 Runtime V2 补充不可变 ID、SHA-256、事务所有权、执行超时和备份回退策略，并与原 `sql/runtime_v2_patch_manifest.txt` 双向校验；`company-site-001` 为企业站发布快照字段提供 SQL 回滚和 postcheck；`core-001`～`core-006` 分别治理凭据、运行角色/RLS、测试对象、HR 身份范围和调试端点，`core-007` 将动态 `app_data` DDL 收敛到应用—表一对一注册、管理员/Agent 授权、严格标识符、登录用户 RLS、匿名撤权及成功操作审计，`core-008` 退役 `system_configs.ai_glm_config` 并在 RLS policy 中排除该旧键，`core-009` 将数字分身会话默认模型和既有会话统一为 `deepseek-harness`，`core-010` 将 Harness 租户登录、RLS helper 授权和原始本体撤权以追加迁移应用到旧库。`migration-ledger.sql` 定义数据库执行账本、基线身份和迁移覆盖账本；账本只允许数据库管理员访问。
 
 规范空库基线位于 `database/baselines/eiscore-db-v1/`，由 `manifest.json`、`schema.sql`、`object-catalog.json` 和 `register.sql` 组成。基线固定覆盖创建时的 12 个迁移；后续新增迁移可以继续追加到来源 Manifest，基线校验只验证自己声明的不可变子集。覆盖项只写入 `baseline_migration_coverage`，不会伪写入 `schema_migrations`；迁移运行器据此区分“结构已覆盖”和“迁移已实际执行”。DB2 的新装角色引导位于 `database/bootstrap/roles-v2.sql`，运行密码由 `configure-database-runtime-secrets-v2.sh` 注入。
+
+Compose 的 initdb 挂载只初始化 v1 基线、角色和密钥，不执行 core 迁移。原 initdb 直挂 `core-002` 已移除，防止它在没有账本记录的情况下执行一次、随后迁移器再次执行并重复包裹 RLS 条件。新空库必须在开放业务流量前通过已批准 release 的一次性发布作业，执行所有 Manifest 及 postcheck；`pg_isready` 成功不能替代该步骤。不能把 `core-010` 单独加到 initdb 或绕过迁移账本。当前隔离契约测试复现 Compose 初始化后执行完整链，并与原始 v6 升级结果比较。
 
 ## 规则
 
@@ -31,10 +33,9 @@ npm run db:runtime-patches:dry-run
 pwsh -File scripts/apply-runtime-patches.ps1 -DryRun
 npm run db:company-site-patches:dry-run
 npm run db:core-patches:dry-run
-npm run test:database-baseline:docker
 ```
 
-上述命令不会要求 Docker，也不会连接或修改数据库。Bash 与 PowerShell 入口共用 `apply-runtime-migrations.mjs`，避免两套执行语义漂移；company-site 迁移使用同一 Node 执行核心和独立 Manifest。
+上述命令不会要求 Docker，也不会连接或修改数据库。`npm run test:database-baseline:docker` 则会创建一次性隔离数据库。Bash 与 PowerShell 入口共用 `apply-runtime-migrations.mjs`，避免两套执行语义漂移；company-site 迁移使用同一 Node 执行核心和独立 Manifest。
 
 获得目标环境授权后，实际执行还必须提供可审计的备份证据；提交号与操作者会连同证据写入账本：
 
@@ -48,6 +49,10 @@ npm run test:database-baseline:docker
 PowerShell 使用同名参数 `-BackupEvidence`、`-ReleaseRevision` 与 `-Operator`。执行器先完成离线 Manifest 校验，随后才检查 Docker 和数据库；相同 ID/校验和跳过，相同 ID/不同校验和失败。runner-managed SQL 和历史文件自带事务都会把账本写入同一事务，所有迁移结束后强制运行 postcheck。`company-site-001` 已在隔离 `eiscore-g35` 数据库真实执行并通过 postcheck；生产环境仍必须在获授权的发布演练中验证备份恢复。
 
 ## 版本化数据库发布
+
+v6 是历史冻结制品，不能用当前源码重新计算 checksum 覆盖它。新增迁移需创建独立的新版本候选，并绑定实际已提交源码。候选校验和隔离 release/recovery 通过都不等于正式批准。当前默认命令仍检查冻结 v6，面对当前源码应失败关闭；验收新候选必须显式传入其 manifest 路径。历史 v6 契约测试从 Git 源码 `b9a3831d` 与冻结描述符提交 `09c2f201` 重建，避免读取工作树既有 manifest 修改。
+
+本次恢复被后续提交改写的 `core-002`、`runtime-v2-003` 及 v1 基线登记到原发布内容，并把新增权限修复迁入 `core-010`。升级支持原冻结 v6 的真实 SQL/账本状态；曾执行改写版本、账本包含不同 checksum 的数据库不在这个升级证据内，预检必须拒绝。遇到这类库先保留备份和账本证据、单独评估恢复方案，不得直接更新账本 checksum、重登记基线或删除业务卷。`core-010` 回退使用发布前备份恢复。
 
 `releases/eiscore-db-v6/manifest.json` 将源码提交、固定镜像、规范基线、三个迁移 Manifest、动态 DDL 边界、数据库/PostgREST 契约、统一操作锁及时间预算绑定为同一发布制品。源码锚点为 `b9a3831d08aeb7056ee8a5997ca8b57ae270ca08`，规范 Manifest SHA-256 为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`。发布和恢复在目标数据库使用同一会话级 PostgreSQL advisory lock；等待锁、迁移语句、备份/恢复命令、PostgREST HTTP、reload 和总作业均有上限。PostgREST 只有在日志确认一次新的 `schema cache loaded` 且完整双角色/七 Schema 指纹连续稳定三次后才算就绪；失败会报告具体角色/Schema 指纹差异。离线验证：
 

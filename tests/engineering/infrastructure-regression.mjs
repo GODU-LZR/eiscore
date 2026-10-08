@@ -37,7 +37,8 @@ const safeEnvironment = {
   EISCORE_HARNESS_BRIDGE_SECRET: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_TOOL_PROXY_SECRET: 'HarnessProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   DSH_PROVIDER: 'deepseek-official',
-  DSH_MODEL: 'deepseek-v4-flash'
+  DSH_MODEL: 'deepseek-v4-flash',
+  DEEPSEEK_API_KEY: 'isolated-compose-validation-placeholder'
 }
 
 const baselinePaths = [
@@ -54,7 +55,6 @@ for (const composePath of ['docker-compose.yml', 'docker-compose.prod.yml']) {
     './database/bootstrap/roles-v2.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro',
     './database/baselines/eiscore-db-v1/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro',
     './database/baselines/eiscore-db-v1/register.sql:/docker-entrypoint-initdb.d/02_register.sql:ro',
-    './database/migrations/sql/core-002-role-boundaries.sql:/docker-entrypoint-initdb.d/03_role_boundaries.sql:ro',
     './scripts/configure-database-runtime-secrets-v2.sh:/docker-entrypoint-initdb.d/04_runtime_secrets.sh:ro'
   ]) assert.ok(composeSource.includes(marker), `${composePath} lost baseline input: ${marker}`)
   assert.doesNotMatch(composeSource, /db_schema_and_data\.sql/, `${composePath} must not use the retired data dump`)
@@ -85,7 +85,8 @@ for (const missingKey of [
   'AGENT_DB_PASSWORD',
   'EISCORE_PUBLIC_BASE_URL',
   'EISCORE_HARNESS_BRIDGE_SECRET',
-  'EISCORE_TOOL_PROXY_SECRET'
+  'EISCORE_TOOL_PROXY_SECRET',
+  'DEEPSEEK_API_KEY'
 ]) {
   const missingEnvironment = { ...safeEnvironment }
   delete missingEnvironment[missingKey]

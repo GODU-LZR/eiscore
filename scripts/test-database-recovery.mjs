@@ -33,7 +33,7 @@ const executionEnv = {
   PGRST_JWT_SECRET: jwtSecret
 }
 const releasePath = process.env.DB_RELEASE_PATH || 'database/releases/eiscore-db-v6/manifest.json'
-const release = loadAndValidateDatabaseRelease({ repoRoot, releasePath, verifySourceRevision: false })
+const release = loadAndValidateDatabaseRelease({ repoRoot, releasePath })
 if (release.errors.length) throw new Error(`release manifest is invalid: ${release.errors.join('; ')}`)
 
 const execute = (program, args, { input, allowFailure = false, timeout = 600_000, env } = {}) => {
@@ -179,7 +179,7 @@ try {
   const operationalBackup = backupDirectories().at(-1)
   const evidencePath = resolve(backupRoot, operationalBackup, 'backup-evidence.json')
   const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'))
-  assert.equal(evidence.releaseId, 'eiscore-db-v6')
+  assert.equal(evidence.releaseId, release.manifest.releaseId)
   const backupAudit = execute(process.execPath, [
     'scripts/check-database-backups.mjs', `--backup-root=${backupRoot}`, '--environment=isolated',
     `--release=${releasePath}`
@@ -205,7 +205,7 @@ try {
     '--api-container', recoveryApi,
     '--api-url', recoveryUrl,
     '--operator', 'db5-isolated-recovery-test',
-    '--confirm-empty-target', 'eiscore-db-v6'
+    '--confirm-empty-target', release.manifest.releaseId
   ], { env: executionEnv, allowFailure: true })
   if (recovery.status !== 0) {
     const recoveredCatalogSections = catalogSectionHashes(recoveryDb)
@@ -232,7 +232,7 @@ try {
       }]))
     )}\nrelation drift: ${JSON.stringify(relationDrift)}\nfunction drift: ${JSON.stringify(functionDrift)}`)
   }
-  assert.match(recovery.stdout, /Database recovery passed: eiscore-db-v6-/)
+  assert.match(recovery.stdout, new RegExp(`Database recovery passed: ${release.manifest.releaseId}-`))
 
   assert.equal(psql(recoveryDb, `
     SELECT count(*) FROM public.document_assets
@@ -245,7 +245,7 @@ try {
     SELECT release_id || '|' || database_dump_sha256 || '|' || (recovery_ms >= 0)::text
     FROM eiscore_meta.database_recoveries;
   `).stdout.trim()
-  assert.equal(recoveryEvidence, `eiscore-db-v6|${evidence.databaseDump.sha256}|true`)
+  assert.equal(recoveryEvidence, `${release.manifest.releaseId}|${evidence.databaseDump.sha256}|true`)
   assert.equal(psql(recoveryDb, `
     SELECT tableowner FROM pg_tables
     WHERE schemaname = 'eiscore_meta' AND tablename = 'database_recoveries';
@@ -269,7 +269,7 @@ try {
   assert.equal(runtimeReport.slowQuery.queryTextCaptured, false)
   assert.equal(runtimeReport.postgrest.profiles.length, 7)
 
-  console.log('PASS: database recovery drills transactional SQL rollback, destroys the source schema, and restores v6 roles, data, DB contract and stable PostgREST into an empty stack')
+  console.log(`PASS: database recovery drills transactional SQL rollback, destroys the source schema, and restores ${release.manifest.releaseId} roles, data, DB contract and stable PostgREST into an empty stack`)
 } finally {
   for (const name of [sourceApi, recoveryApi, sourceDb, recoveryDb]) {
     docker(['rm', '-f', name], { allowFailure: true })

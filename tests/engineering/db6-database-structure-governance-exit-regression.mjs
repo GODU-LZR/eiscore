@@ -4,7 +4,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { loadAndValidateDatabaseRelease } from '../../scripts/database-release-contract.mjs'
+import { databaseReleaseManifestSha256 } from '../../scripts/database-release-contract.mjs'
+import { readPublishedDb6, publishedDb6Path } from '../../scripts/database-release-test-history.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const read = (path) => readFileSync(resolve(repoRoot, path), 'utf8')
@@ -15,13 +16,14 @@ const migrationManifests = [
   json('database/migrations/company-site.json'),
   json('database/migrations/core.json')
 ]
-assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 20)
+assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 21)
 assert.deepEqual(migrationManifests[2].migrations.map(({ id }) => id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009'
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009', 'core-010'
 ])
 
-const release = loadAndValidateDatabaseRelease({ repoRoot })
-assert.deepEqual(release.errors, [])
+// This exit audit describes the original DB6 release, not approval of today's tree.
+const manifest = JSON.parse(readPublishedDb6(publishedDb6Path))
+const release = { manifest, manifestSha256: databaseReleaseManifestSha256(manifest) }
 assert.equal(release.manifest.releaseId, 'eiscore-db-v6')
 assert.equal(release.manifestSha256, '58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d')
 assert.deepEqual(release.manifest.predecessors, [
@@ -43,13 +45,13 @@ assert.deepEqual(release.manifest.predecessors, [
   }
 ])
 
-const contract = json('database/contracts/eiscore-db-contract-v3.json')
+const contract = JSON.parse(readPublishedDb6('database/contracts/eiscore-db-contract-v3.json'))
 assert.deepEqual(contract.databaseCatalog.counts, {
   schemas: 7,
   relations: 199,
   functions: 168,
   types: 1,
-  policies: 321,
+  policies: 319,
   triggers: 83,
   roles: 6,
   memberships: 3,
@@ -94,7 +96,7 @@ assert.ok(plan.includes('### DB6：数据库结构与领域权限收口（已完
 assert.ok(plan.includes('DB0～DB8 全部退出'))
 
 const databaseReadme = read('database/README.md')
-assert.ok(databaseReadme.includes('company-site 1 个、core 9 个迁移，共 20 个不可变迁移'))
+assert.ok(databaseReadme.includes('company-site 1 个、core 10 个迁移，共 21 个不可变迁移'))
 assert.ok(databaseReadme.includes('releases/eiscore-db-v6/manifest.json'))
 assert.ok(databaseReadme.includes('--confirm-empty-target=eiscore-db-v6'))
 

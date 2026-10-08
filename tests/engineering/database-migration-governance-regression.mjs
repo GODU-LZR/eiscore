@@ -8,6 +8,7 @@ import {
   loadAndValidateMigrationManifest,
   validateMigrationManifestData
 } from '../../scripts/check-database-migrations.mjs'
+import { readPublishedDb6 } from '../../scripts/database-release-test-history.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const result = loadAndValidateMigrationManifest({ repoRoot })
@@ -48,10 +49,29 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 9)
+assert.equal(coreResult.migrations.length, 10)
 assert.deepEqual(coreResult.migrations.map((entry) => entry.id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009'
+  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009', 'core-010'
 ])
+
+// Rehashing a rewritten published migration must not make governance pass.
+const portable = (text) => text.replaceAll('\r\n', '\n')
+for (const path of ['database/migrations/runtime-v2.json', 'database/migrations/company-site.json', 'database/migrations/core.json']) {
+  const published = JSON.parse(readPublishedDb6(path))
+  const current = JSON.parse(readFileSync(resolve(repoRoot, path), 'utf8'))
+  for (const migration of published.migrations) {
+    const actual = current.migrations.find(({ id }) => id === migration.id)
+    assert.equal(actual?.sha256, migration.sha256, `published checksum changed: ${migration.id}`)
+    assert.equal(actual?.path, migration.path, `published migration moved: ${migration.id}`)
+    assert.equal(portable(readFileSync(resolve(repoRoot, migration.path), 'utf8')),
+      portable(readPublishedDb6(migration.path)), `published SQL changed: ${migration.id}`)
+  }
+}
+for (const path of ['manifest.json', 'register.sql', 'schema.sql', 'object-catalog.json']) {
+  const baselinePath = `database/baselines/eiscore-db-v1/${path}`
+  assert.equal(portable(readFileSync(resolve(repoRoot, baselinePath), 'utf8')),
+    portable(readPublishedDb6(baselinePath)), `published baseline changed: ${path}`)
+}
 assert.ok(coreResult.migrations.every((entry) => entry.rollbackStrategy === 'backup-restore'))
 const core009Sql = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-009-retire-legacy-twin-model.sql'), 'utf8')
 const corePostcheckSql = readFileSync(resolve(repoRoot, 'database/migrations/postchecks/core.sql'), 'utf8')

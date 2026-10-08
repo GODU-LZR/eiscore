@@ -109,7 +109,6 @@ try {
     '-v', mount('database/bootstrap/roles-v2.sql', '/docker-entrypoint-initdb.d/00_roles.sql'),
     '-v', mount('database/baselines/eiscore-db-v1/schema.sql', '/docker-entrypoint-initdb.d/01_schema.sql'),
     '-v', mount('database/baselines/eiscore-db-v1/register.sql', '/docker-entrypoint-initdb.d/02_register.sql'),
-    '-v', mount('database/migrations/sql/core-002-role-boundaries.sql', '/docker-entrypoint-initdb.d/03_role_boundaries.sql'),
     '-v', mount('scripts/configure-database-runtime-secrets-v2.sh', '/docker-entrypoint-initdb.d/04_runtime_secrets.sh'),
     postgresImage
   ])

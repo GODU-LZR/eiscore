@@ -107,7 +107,13 @@ export const validateDatabaseBaseline = ({
     }
 
     try {
-      const expectedCatalogText = serializeDatabaseObjectCatalog(buildDatabaseObjectCatalog(schemaFile.buffer))
+      // Published metadata records the original dump's mixed line endings.
+      // Git/archives normalize those bytes; compare content through the verified
+      // portable checksum while retaining the immutable published metadata.
+      const rebuiltCatalog = buildDatabaseObjectCatalog(portableSchemaBytes)
+      rebuiltCatalog.schemaSha256 = manifest.schema.sha256
+      rebuiltCatalog.schemaBytes = manifest.schema.bytes
+      const expectedCatalogText = serializeDatabaseObjectCatalog(rebuiltCatalog)
       const normalizedCatalog = catalogFile && Buffer.from(catalogFile.buffer.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')
       if (!normalizedCatalog || !normalizedCatalog.equals(Buffer.from(expectedCatalogText, 'utf8'))) {
         errors.push('object catalog does not exactly match schema.sql')

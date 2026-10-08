@@ -13,7 +13,7 @@ BEGIN
     FROM eiscore_meta.database_baselines
     WHERE baseline_id = 'eiscore-db-v1'
       AND (
-        baseline_fingerprint_sha256 <> 'eaa3456dbe92d99a7a89bef4dc829dae873086e1f83fc64241051772ee827d5f'
+        baseline_fingerprint_sha256 <> 'bdf72f613055c419aff40e58776d2725fcc460cf44c5b17d7a28a7379b93e72e'
         OR schema_sha256 <> 'dbcd35e8cc93254dd285a89a9fa210151a9490a60fa55cc287b2f566a7874a28'
         OR object_catalog_sha256 <> '596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265'
       )
@@ -27,7 +27,7 @@ BEGIN
     JOIN (VALUES
   ('eiscore-db-v1', 'runtime-v2-001', '762ec169102bba3a016fafe8a72b486e89e9dd864e6de455e94a331dca001580', 'database/migrations/runtime-v2.json'),
   ('eiscore-db-v1', 'runtime-v2-002', 'd44540f9e039a2823d0b0705b7e8deb29c3f1d68d8977a83674c32bcb1bbc3b3', 'database/migrations/runtime-v2.json'),
-  ('eiscore-db-v1', 'runtime-v2-003', '05df97b622b2e94637821af60750817dd86b8c375a703860f039f1fba28bfcfc', 'database/migrations/runtime-v2.json'),
+  ('eiscore-db-v1', 'runtime-v2-003', '3a14a43c71d2b94035e6793ceef3a44503624d493c3917b75e487c5741c55a93', 'database/migrations/runtime-v2.json'),
   ('eiscore-db-v1', 'runtime-v2-004', 'acf9d0ecd5920cc6385a47c79c8236823d3f22fc2bb5b36195031889d0ee4bdf', 'database/migrations/runtime-v2.json'),
   ('eiscore-db-v1', 'runtime-v2-005', '2040bf34351ee6bcaa9ca196ec70c74a1f83d587436b7bb574ad1da70db1278b', 'database/migrations/runtime-v2.json'),
   ('eiscore-db-v1', 'runtime-v2-006', 'ba4eb04ef6a7e19f7f8b05961f8101391715000014faea37a5f55e64fa67107d', 'database/migrations/runtime-v2.json'),
@@ -55,7 +55,7 @@ INSERT INTO eiscore_meta.database_baselines (
   object_catalog_sha256
 ) VALUES (
   'eiscore-db-v1',
-  'eaa3456dbe92d99a7a89bef4dc829dae873086e1f83fc64241051772ee827d5f',
+  'bdf72f613055c419aff40e58776d2725fcc460cf44c5b17d7a28a7379b93e72e',
   'dbcd35e8cc93254dd285a89a9fa210151a9490a60fa55cc287b2f566a7874a28',
   '596e8a54406314001a8788bb0f006da48f014d7e9c057aaa0ac19aa535d59265'
 )
@@ -69,7 +69,7 @@ INSERT INTO eiscore_meta.baseline_migration_coverage (
 ) VALUES
   ('eiscore-db-v1', 'runtime-v2-001', '762ec169102bba3a016fafe8a72b486e89e9dd864e6de455e94a331dca001580', 'database/migrations/runtime-v2.json'),
   ('eiscore-db-v1', 'runtime-v2-002', 'd44540f9e039a2823d0b0705b7e8deb29c3f1d68d8977a83674c32bcb1bbc3b3', 'database/migrations/runtime-v2.json'),
-  ('eiscore-db-v1', 'runtime-v2-003', '05df97b622b2e94637821af60750817dd86b8c375a703860f039f1fba28bfcfc', 'database/migrations/runtime-v2.json'),
+  ('eiscore-db-v1', 'runtime-v2-003', '3a14a43c71d2b94035e6793ceef3a44503624d493c3917b75e487c5741c55a93', 'database/migrations/runtime-v2.json'),
   ('eiscore-db-v1', 'runtime-v2-004', 'acf9d0ecd5920cc6385a47c79c8236823d3f22fc2bb5b36195031889d0ee4bdf', 'database/migrations/runtime-v2.json'),
   ('eiscore-db-v1', 'runtime-v2-005', '2040bf34351ee6bcaa9ca196ec70c74a1f83d587436b7bb574ad1da70db1278b', 'database/migrations/runtime-v2.json'),
   ('eiscore-db-v1', 'runtime-v2-006', 'ba4eb04ef6a7e19f7f8b05961f8101391715000014faea37a5f55e64fa67107d', 'database/migrations/runtime-v2.json'),

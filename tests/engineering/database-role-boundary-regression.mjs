@@ -13,6 +13,9 @@ const hrScopeSql = read('database/migrations/sql/core-005-hr-employee-identity-s
 const roleBootstrap = read('database/bootstrap/roles-v2.sql')
 const secretBootstrap = read('scripts/configure-database-runtime-secrets-v2.sh')
 
+assert.doesNotMatch(read('deploy/lundu/compose.yml'), /migrations\/sql\/.+?:\/docker-entrypoint-initdb\.d\//,
+  'Lundu bootstrap must also execute governed migrations only through the runner')
+
 for (const role of ['eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'web_anon', 'web_user']) {
   assert.ok(roleSql.includes(role), `core-002 lost role ${role}`)
   assert.ok(roleBootstrap.includes(role), `role bootstrap lost role ${role}`)
@@ -48,6 +51,8 @@ assert.doesNotMatch(hrScopeSql, /employee_name\s*=|employee_no\s*=|department\s*
 
 for (const composePath of composePaths) {
   const compose = read(composePath)
+  assert.doesNotMatch(compose, /migrations\/sql\/.+?:\/docker-entrypoint-initdb\.d\//,
+    'governed migrations must not bypass the ledger during Compose bootstrap')
   assert.match(compose, /postgres:\/\/eiscore_authenticator:\$\{POSTGREST_DB_PASSWORD:\?POSTGREST_DB_PASSWORD is required\}@db:5432\/eiscore/)
   assert.match(compose, /EISCORE_AGENT_DB_USER:\s*eiscore_agent/)
   assert.match(compose, /AGENT_DB_PASSWORD:\s*"\$\{AGENT_DB_PASSWORD:\?AGENT_DB_PASSWORD is required\}"/)

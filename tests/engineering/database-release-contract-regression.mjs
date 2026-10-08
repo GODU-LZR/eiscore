@@ -10,6 +10,7 @@ import {
   loadAndValidateDatabaseRelease,
   validateDatabaseReleaseManifest
 } from '../../scripts/database-release-contract.mjs'
+import { createPublishedDb6Snapshot } from '../../scripts/database-release-test-history.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
@@ -18,7 +19,7 @@ const revision = spawnSync('git', ['rev-parse', 'HEAD'], {
 const predecessorCatalogs = [{ id: 'eiscore-db-v1-runtime', databaseCatalogSha256: 'a'.repeat(64) }]
 const manifest = buildDatabaseReleaseManifest({
   repoRoot,
-  releaseId: 'eiscore-db-v6',
+  releaseId: 'eiscore-db-v7',
   sourceRevision: revision,
   predecessorCatalogs
 })
@@ -31,7 +32,7 @@ assert.deepEqual(validateDatabaseReleaseManifest({
 assert.match(databaseReleaseManifestSha256(manifest), /^[0-9a-f]{64}$/)
 assert.deepEqual(manifest.migrationManifests.map(({ name }) => name), ['runtime-v2', 'company-site', 'core'])
 assert.deepEqual(manifest.migrationManifests.map(({ terminal }) => terminal.id), [
-  'runtime-v2-010', 'company-site-001', 'core-009'
+  'runtime-v2-010', 'company-site-001', 'core-010'
 ])
 assert.ok(manifest.artifacts.some(({ path }) => path === 'database/release-ledger.sql'))
 assert.ok(manifest.artifacts.some(({ path }) => path === 'database/contracts/eiscore-db-contract-v3.json'))
@@ -40,11 +41,19 @@ assert.equal(manifest.schemaVersion, 2)
 assert.match(manifest.operationPolicy.advisoryLockKey, /^-?[0-9]+$/)
 assert.ok(manifest.artifacts.some(({ purpose }) => purpose === 'verification-only'))
 
-const fixedRelease = loadAndValidateDatabaseRelease({ repoRoot })
+const published = createPublishedDb6Snapshot()
+let fixedRelease
+try {
+  fixedRelease = loadAndValidateDatabaseRelease({ repoRoot: published.root })
+} finally {
+  published.cleanup()
+}
 assert.deepEqual(fixedRelease.errors, [])
 assert.equal(fixedRelease.manifest.releaseId, 'eiscore-db-v6')
 assert.equal(fixedRelease.manifest.sourceRevision, 'b9a3831d08aeb7056ee8a5997ca8b57ae270ca08')
 assert.equal(fixedRelease.manifestSha256, '58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d')
+assert.ok(loadAndValidateDatabaseRelease({ repoRoot }).errors.length > 0,
+  'frozen v6 must reject current sources; a passing candidate does not approve a historical release')
 
 const mutation = (callback) => {
   const value = structuredClone(manifest)

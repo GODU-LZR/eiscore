@@ -21,6 +21,7 @@ import {
   validatePublicSchemaCatalog,
   validatePublicSchemaRatchet
 } from './public-schema-ratchet.mjs'
+import { createPublishedDb6Snapshot } from './database-release-test-history.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const expectedPath = resolve(repoRoot, 'database/contracts/eiscore-db-contract-v3.json')
@@ -115,6 +116,7 @@ const installPath = (name, roleBootstrap) => {
   psqlFile(name, roleBootstrap)
   psqlFile(name, 'database/baselines/eiscore-db-v1/schema.sql')
   psqlFile(name, 'database/baselines/eiscore-db-v1/register.sql')
+  // Compose bootstraps the baseline; execute migrations only through the runner.
   runManifest(name)
   configureSecrets(name)
   psql(name, readFileSync(resolve(repoRoot, 'database/migrations/postchecks/core.sql'), 'utf8'))
@@ -213,6 +215,8 @@ const terminalMigrations = () => Object.fromEntries(
   })
 )
 
+const published = createPublishedDb6Snapshot()
+
 try {
   docker(['version'])
   docker(['network', 'create', networkName])
@@ -220,7 +224,24 @@ try {
   await startDatabase(upgradeContainer)
 
   installPath(freshContainer, 'database/bootstrap/roles-v2.sql')
-  installPath(upgradeContainer, 'env/init_roles.sql')
+  psqlFile(upgradeContainer, 'env/init_roles.sql')
+  psqlFile(upgradeContainer, 'database/baselines/eiscore-db-v1/schema.sql')
+  psqlFile(upgradeContainer, 'database/baselines/eiscore-db-v1/register.sql')
+  execute(process.execPath, [
+    resolve(published.root, 'scripts/apply-runtime-migrations.mjs'),
+    '--manifest', 'database/migrations/core.json', '--db-container', upgradeContainer,
+    '--backup-evidence', 'test://published-v6-isolated-tmpfs',
+    '--release-revision', 'published-v6-upgrade-test', '--operator', 'database-contract-test'
+  ])
+  configureSecrets(upgradeContainer)
+  const publishedContract = JSON.parse(readFileSync(resolve(
+    published.root, 'database/contracts/eiscore-db-contract-v3.json'
+  ), 'utf8'))
+  assert.equal(sha256CanonicalJson(readCatalog(upgradeContainer)), publishedContract.databaseCatalog.sha256,
+    'upgrade predecessor must be the original published v6 catalog')
+  psql(upgradeContainer, "INSERT INTO public.users(username,password,role) VALUES ('db10-upgrade-user','isolated-test-password','employee');")
+  runManifest(upgradeContainer)
+  assert.equal(psql(upgradeContainer, "SELECT tenant_id FROM public.users WHERE username='db10-upgrade-user';").stdout.trim(), 'default')
 
   const freshCatalog = readCatalog(freshContainer)
   const upgradeCatalog = readCatalog(upgradeContainer)
@@ -235,7 +256,7 @@ try {
   assert.equal(
     sha256CanonicalJson(upgradeCatalog),
     freshHash,
-    `fresh install and role-upgrade catalogs differ (${describeCatalogDifference(freshCatalog, upgradeCatalog)})`
+    `fresh install and original-v6 upgrade catalogs differ (${describeCatalogDifference(freshCatalog, upgradeCatalog)})`
   )
 
   runManifest(freshContainer)
@@ -321,6 +342,34 @@ try {
       counts: summarizePostgrestOpenApiCatalog(openApiCatalog)
     }
   }
+
+  // Verify the moved auth/security fix through HTTP, not just catalog markers.
+  psql(freshContainer, "INSERT INTO public.users(username,password,role,tenant_id) VALUES ('db10-login-user','isolated-test-password','employee','test-tenant');")
+  for (const body of [
+    { username: 'db10-login-user', password: 'isolated-test-password' },
+    { payload: { username: 'db10-login-user', password: 'isolated-test-password' } }
+  ]) {
+    const response = await fetch(`${baseUrl}/rpc/login`, {
+      method: 'POST', headers: { 'content-type': 'application/json', 'content-profile': 'public' },
+      body: JSON.stringify(body)
+    })
+    assert.equal(response.status, 200, 'tenant login HTTP contract failed')
+    const result = await response.json()
+    assert.equal(result.tenant_id, 'test-tenant')
+    const claims = JSON.parse(Buffer.from(result.token.split('.')[1], 'base64url').toString('utf8'))
+    assert.equal(claims.tenant_id, 'test-tenant')
+  }
+  for (const path of ['/ontology_table_semantics', '/v_ontology_coverage_audit']) {
+    const response = await fetch(`${baseUrl}${path}?select=*&limit=1`, {
+      headers: { authorization, 'accept-profile': 'public' }
+    })
+    assert.ok([401, 403, 404].includes(response.status), `raw ontology route exposed: ${path}`)
+  }
+  const rawRpc = await fetch(`${baseUrl}/rpc/search_ontology_kg_nodes`, {
+    method: 'POST', headers: { authorization, 'content-type': 'application/json', 'content-profile': 'public' },
+    body: JSON.stringify({ p_query: '', p_node_type: null, p_limit: 1 })
+  })
+  assert.ok([401, 403, 404].includes(rawRpc.status), 'raw ontology RPC must remain unavailable')
 
   // Dynamic DDL is exercised only after the immutable contract snapshot so
   // the temporary table cannot become part of the release fingerprint.
@@ -447,4 +496,5 @@ try {
   docker(['rm', '-f', freshContainer], { allowFailure: true })
   docker(['rm', '-f', upgradeContainer], { allowFailure: true })
   docker(['network', 'rm', networkName], { allowFailure: true })
+  published.cleanup()
 }

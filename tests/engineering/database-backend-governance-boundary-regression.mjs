@@ -18,7 +18,7 @@ assert.deepEqual(result.legacyRoots.map(({ path, count }) => [path, count]), [
   ['eiscore-materials/sql', 2]
 ])
 assert.equal(result.legacySqlFiles, 106)
-assert.equal(result.governedMigrationFiles, 20)
+assert.equal(result.governedMigrationFiles, 21)
 assert.equal(result.governedLegacySqlFiles, 10)
 assert.equal(result.ungovernedLegacySqlFiles, 96)
 assert.equal(result.resolvedLegacySqlFiles, 96)
@@ -72,7 +72,7 @@ assert.deepEqual(
 assert.deepEqual(result.manifests.map(({ name, count }) => [name, count]), [
   ['runtime-v2', 10],
   ['company-site', 1],
-  ['core', 9]
+  ['core', 10]
 ])
 assert.deepEqual(result.productionCompose.runtimeSuperuserConnections, [])
 assert.deepEqual(result.productionCompose.exposedSchemas, ['public', 'hr', 'scm', 'app_center', 'workflow', 'app_data'])
@@ -86,7 +86,6 @@ assert.deepEqual(result.productionCompose.initializationInputs, [
   'database/bootstrap/roles-v2.sql',
   'database/baselines/eiscore-db-v1/schema.sql',
   'database/baselines/eiscore-db-v1/register.sql',
-  'database/migrations/sql/core-002-role-boundaries.sql',
   'scripts/configure-database-runtime-secrets-v2.sh'
 ])
 

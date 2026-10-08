@@ -8,6 +8,9 @@ import { createServer } from 'node:net'
 import { resolve, sep } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { loadAndValidateDatabaseRelease } from './database-release-contract.mjs'
+import { createPublishedDb6Snapshot, publishedDb6Path } from './database-release-test-history.mjs'
+import { DatabaseReleaseDockerAdapter } from './deploy-database-release.mjs'
+import { sha256CanonicalJson } from './database-contract-catalog.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '..')
 const artifactsRoot = resolve(repoRoot, 'tests/.artifacts')
@@ -23,12 +26,16 @@ const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
 const releasePath = process.env.DB_RELEASE_PATH || 'database/releases/eiscore-db-v6/manifest.json'
-const release = loadAndValidateDatabaseRelease({ repoRoot, releasePath, verifySourceRevision: false })
+const release = loadAndValidateDatabaseRelease({ repoRoot, releasePath })
 if (release.errors.length) throw new Error(`release manifest is invalid: ${release.errors.join('; ')}`)
 const releaseManifestSha256 = release.manifestSha256
 const coreMigrations = release.manifest.migrationManifests.find(({ name }) => name === 'core')?.migrations || []
 const core002Sha256 = coreMigrations.find(({ id }) => id === 'core-002')?.sha256 || ''
-const coreAppliedCount = Math.max(0, coreMigrations.length - 1)
+const fromPublishedV6 = process.env.DB_RELEASE_PREDECESSOR === 'eiscore-db-v6'
+if (process.env.DB_RELEASE_PREDECESSOR && !fromPublishedV6) throw new Error('unsupported release predecessor')
+if (fromPublishedV6 && release.manifest.releaseId === 'eiscore-db-v6') throw new Error('v6 upgrade requires a distinct candidate release ID')
+const coreSkippedCount = fromPublishedV6 ? 7 : 1
+const coreAppliedCount = coreMigrations.length - coreSkippedCount
 const maxOutput = 256 * 1024 * 1024
 
 const execute = (program, args, { input, allowFailure = false, timeout = 300_000 } = {}) => {
@@ -117,6 +124,7 @@ const executeRelease = (apiUrl, allowFailure = false) => {
 }
 const backupDirectories = () => readdirSync(backupRoot, { withFileTypes: true }).filter((entry) => entry.isDirectory())
 const sha256File = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
+let published
 
 try {
   docker(['version'])
@@ -147,10 +155,32 @@ try {
     postgrestImage
   ])
 
+  if (fromPublishedV6) {
+    published = createPublishedDb6Snapshot()
+    const predecessor = loadAndValidateDatabaseRelease({ repoRoot: published.root, releasePath: publishedDb6Path })
+    assert.deepEqual(predecessor.errors, [])
+    // Reconstruct the original v6 SQL/ledger state, without inventing a past
+    // deployment/backup record. The candidate still runs the real release tool.
+    execute(process.execPath, [
+      resolve(published.root, 'scripts/apply-runtime-migrations.mjs'),
+      '--manifest', 'database/migrations/core.json', '--db-container', databaseContainer,
+      '--backup-evidence', 'test://original-v6-tmpfs',
+      '--release-revision', predecessor.manifest.sourceRevision, '--operator', 'original-v6-upgrade-test'
+    ])
+    docker(['exec', '-e', 'POSTGRES_USER=postgres', '-e', 'POSTGRES_DB=eiscore',
+      '-e', `POSTGRES_PASSWORD=${rootPassword}`, '-e', `PGRST_JWT_SECRET=${jwtSecret}`,
+      '-e', `POSTGREST_DB_PASSWORD=${postgrestPassword}`, '-e', `AGENT_DB_PASSWORD=${agentPassword}`,
+      databaseContainer, 'bash', '/repo/scripts/configure-database-runtime-secrets-v2.sh'])
+    const adapter = new DatabaseReleaseDockerAdapter({ dbContainer: databaseContainer, dbName: 'eiscore', dbUser: 'postgres' })
+    assert.equal(sha256CanonicalJson(adapter.readCatalog()), predecessor.manifest.databaseContract.databaseCatalogSha256)
+    psql("INSERT INTO public.users(username,password,role) VALUES ('db10-release-canary','isolated-test-password','employee');")
+  }
+
   const first = executeRelease(apiUrl)
   assert.match(first.stdout, /Preflight passed:/)
-  assert.match(first.stdout, new RegExp(`core migration execution passed: ${coreAppliedCount} applied, 1 skipped`))
-  assert.match(first.stdout, /Database release passed: eiscore-db-v6/)
+  assert.match(first.stdout, new RegExp(`core migration execution passed: ${coreAppliedCount} applied, ${coreSkippedCount} skipped`))
+  assert.match(first.stdout, new RegExp(`Database release passed: ${release.manifest.releaseId}`))
+  if (fromPublishedV6) assert.equal(psql("SELECT tenant_id FROM public.users WHERE username='db10-release-canary';").stdout.trim(), 'default')
   assert.equal(backupDirectories().length, 1)
 
   const firstEvidencePath = resolve(backupRoot, backupDirectories()[0].name, 'backup-evidence.json')
@@ -163,11 +193,11 @@ try {
 
   const releaseRow = psql(`
     SELECT release_id || '|' || manifest_sha256 || '|' || source_revision
-    FROM eiscore_meta.database_releases;
+    FROM eiscore_meta.database_releases WHERE release_id = '${release.manifest.releaseId}';
   `).stdout.trim()
   assert.equal(
     releaseRow,
-    `eiscore-db-v6|${releaseManifestSha256}|${release.manifest.sourceRevision}`
+    `${release.manifest.releaseId}|${releaseManifestSha256}|${release.manifest.sourceRevision}`
   )
   assert.equal(psql(`
     SELECT tableowner FROM pg_tables
@@ -203,11 +233,12 @@ try {
   assert.equal(backupDirectories().length, beforeConflictAttempt, 'ledger conflict must fail before backup')
   psql(`UPDATE eiscore_meta.schema_migrations SET checksum_sha256 = '${core002Sha256}' WHERE migration_id = 'core-002';`)
 
-  console.log('PASS: DB6 release artifact upgrades, locks, backs up, verifies stable DB/PostgREST, repeats, and fails closed on drift/conflict')
+  console.log(`PASS: ${release.manifest.releaseId} from ${fromPublishedV6 ? 'original published v6' : 'baseline'} upgrades, locks, backs up, verifies stable DB/PostgREST, repeats, and fails closed on drift/conflict`)
 } finally {
   docker(['rm', '-f', apiContainer], { allowFailure: true })
   docker(['rm', '-f', databaseContainer], { allowFailure: true })
   docker(['network', 'rm', networkName], { allowFailure: true })
   const relativeBackup = backupRoot.startsWith(`${artifactsRoot}${sep}`)
   if (relativeBackup) rmSync(backupRoot, { recursive: true, force: true })
+  published?.cleanup()
 }

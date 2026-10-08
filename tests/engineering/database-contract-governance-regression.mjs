@@ -44,7 +44,7 @@ for (const section of [
 ]) assert.match(catalogSource, new RegExp(`\\b${section}:`), `catalog lost ${section}`)
 
 for (const marker of [
-  'fresh install and role-upgrade catalogs differ',
+  'fresh install and original-v6 upgrade catalogs differ',
   'repeated migrations changed the database contract',
   "NOTIFY pgrst, 'reload schema'",
   'waitForSchemaCacheReload',
