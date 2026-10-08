@@ -2,7 +2,16 @@
 
 ## 最新目标进度（2026-10-08，当前提交 Bridge 隔离重建）
 
-### 2026-10-08 Web HTTP 诊断与验收门禁修复（本轮最新）
+### 2026-10-08 SDK 契约兼容候选与浏览器验证（最新）
+
+- DB2–DB6 五份历史 manifest 的备份恢复已完成，本轮再次核对无 diff；没有重复恢复。九份伦度修改仍未覆盖、stage 或代为提交，主工作树不能声明 clean。
+- 外部三个插件的隔离候选使用正式 DSH API：GET 走 `connection.fetch`，POST 走 `webServer` 并保留 `requestRejection` 的认证边界；三组 TypeScript 检查均退出 `0`。callback 候选改用配置的公开认证 origin 和 `/harness-embed-api/eiscore/auth/handoff`，未修改外部工作树或正式登录页。
+- 实际 DSH SDK 的 35 项合成 Gateway HTTP/认证/转发/SSE 检查通过；严格 runtime smoke 通过。Playwright 在桌面 `1440x900` 和手机 `390x844` 下验证两个入口、面板、关闭与未登录提示，四张截图已查看。临时代理的 WebSocket 转发补齐后 SDK connection 警告消失，最终仅有两个预期 auth-status 401、零 warning。
+- 这不是正式插件交付：候选只重建 host，两个 client bundle 仍来自旧诊断副本，外部 tsdown 仍依赖 WSL 绝对源码路径。没有真实 EISCore popup 登录、真实业务链/RLS 或本轮 Provider 调用，不能将类型及浏览器基础检查等同于完整上线验收。临时全新 DSH profile 的首次使用弹窗不代表既有部署状态。
+- Browser/probe/DSH child 已停止；停止会话的 exec 退出码为 `1`，事后确认没有该 probe 或 proxy listener。系统 Temp 中两份合成 DSH 状态目录的显式清理被安全策略拒绝，仍留存，不读取其 credentials、不提交。详细通过、失败和制品边界见 [DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md](DB7_CANDIDATE_AND_BRIDGE_PROVENANCE_20261008.md)。
+- Bridge clean-build/真实 completion 的已有证据不变，不重复收费调用；DB7 仍未正式批准，现有 Compose 未替换，Web 缺编译入口的故障未更改。全局目标保持 `active`，下一步是正式源码及完整制品来源收口，不是直接恢复临时挂载包装成功。
+
+### 2026-10-08 Web HTTP 诊断与验收门禁修复（上一阶段）
 
 - DB2–DB6 五份历史 manifest 已按用户授权恢复，`git diff --exit-code` 再次退出 `0`，恢复前备份保留。九份其他任务的伦度修改没有被覆盖、stage 或提交，主工作树仍非 clean。DB7 未提升为正式 release，既有 Compose 未替换。
 - WSL 外部未提交的三个 client plugin 在隔离 DSH `0.1.2-rc.1` 下能实际激活；三组类型检查仍因 Fetch 契约仅允许 GET/HEAD、没有 `requestBody` 而失败。不能把类型失败推断为路由必然未注册，也不能把临时 bundle 视为正式同源制品。

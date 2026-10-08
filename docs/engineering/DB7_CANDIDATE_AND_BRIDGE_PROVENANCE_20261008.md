@@ -4,7 +4,25 @@
 
 本记录只证明明确提交及制品的本地隔离验收。没有正式批准数据库发布，没有替换既有 Compose，没有连接远端或生产，没有写入业务数据库卷。
 
-## 2026-10-08 Web HTTP 与验收门禁复核（本轮最新）
+## 2026-10-08 SDK 正式契约候选与浏览器验证（最新）
+
+本轮开始的主仓库 HEAD 为 `76767ced2e00699aeaad5436fa5ee572cdc4bf94`。DB2–DB6 五份历史 manifest 已按用户授权备份恢复，本轮 `git diff --exit-code` 再次为 `0`，没有重复恢复。九份伦度既有修改仍完整保留，未被本任务覆盖、stage 或提交。本轮只完善隔离候选和验收记录，没有归并外部插件源码、替换 Compose、连接远端或访问业务数据库。
+
+隔离候选位于 `.codex-tmp/dsh-sdk-contract-candidate-20261008/`，从上一节的诊断副本复制插件源码，依赖目录仅以 Windows junction 指向原诊断依赖。WSL `/home/lzr/eiscore-refactor/agent-harness/client-plugins` 仍只读，三个外部未提交插件仍不是主仓库正式源码。候选新增共享 `http-routes.ts`：GET 使用正式 `connection.fetch.register`；POST 使用正式 `webServer.register`，先调用 `connection.requestRejection` 保留 DSH cookie、Host/Origin 认证边界，再处理 method、body 和 response。保留 abort、body 上限及流式响应，使用 Node `pipeline` 保留 SSE 和 backpressure；未修改 SDK 类型，也未用断言将 POST 冒充 GET/HEAD。
+
+三个候选 host 都注入 `connection` 和 `webServer`。auth callback 改为配置的 `EISCORE_AUTH_URL` origin 加 `/harness-embed-api/eiscore/auth/handoff`，不从 forwarded header 或 SDK 的 `dsh.internal` 生成返回 origin；auth body 上限为 4096 bytes。本次没有改写其他任务的 `LoginView.vue`，也没有证明真实 EISCore 登录 popup 已完成。
+
+固定 DSH `0.1.2-rc.1`、Cordis `4.0.4`、TypeScript `6.0.3` 下，三个候选插件的 `tsc --noEmit --rootDir <candidate>/client-plugins` 均退出 `0`。使用仓库已安装的 esbuild 构建三个 host bundle，SHA-256 写入 `host-build-report.json`；该报告已区分 bundler 和 typeChecker。两个 browser `client.js` 仍沿用旧诊断 bundle，没有在本轮重新完整构建；原插件 tsdown 配置仍引用 WSL Harness 源码绝对路径。因此这里闭合的是隔离候选的 SDK host 契约，不是正式、完整、同源的插件发布制品。
+
+`http-probe.mjs` 启动实际已发布 DSH SDK 和随机 loopback stub Gateway，35 项检查全部通过，`stderrBytes=0`。覆盖 DSH cookie 必需、错误 Origin 拒绝、method 检查、handoff 格式/state/replay、callback origin/path、未登录业务请求不进入 Gateway、4097-byte auth body 返回 413 后合法 handoff 仍成功、认证后 GET/POST、服务端 Bearer、cookie/伪造 tenant header 不转发、query/body/idempotency/request-id 保留、SSE 首块在第二块放行前可读，以及 logout 后写入返回 401 且不进入 Gateway。合成 JWT 仅用于该 stub 认证，不证明真实 JWT 验签、租户/RLS、Provider 或业务操作。严格仓库 runtime smoke 对此候选也退出 `0`：三个未登录路由 401、HTML 200、两组组合 bundle 200、stderr 为 0。
+
+Playwright CLI 的独立 session `eiscore-sdk-contract` 在 `1440x900` 和 `390x844` 下，验证数字分身、智能 BI 两个 sidebar 入口、各自面板打开、关闭和未登录连接提示。四张截图已查看，标题、关闭按钮与提示在视口内；没有做视觉重构。初次代理只转发 HTTP，导致 SDK connection 未就绪警告；给临时代理补上 WebSocket upgrade tunnel 后警告消失，最终 console 是两个预期的 `/api/eiscore/auth/status` 401、零 warning，无新增运行时 JS 异常。全新临时 DSH profile 出现 SDK 内测声明和 API key 首次设置弹窗，测试只点击继续与稍后配置，没有填写 key；首次点击数字分身被设置弹窗遮挡的 timeout 记录保留。该全新 profile 不等于既有 EISCore 部署，不能据此宣称原部署弹窗回归或已修复。
+
+浏览器证据位于 `output/playwright/dsh-sdk-contract-{twin,bi}-{desktop,mobile}-20261008.png`，HTTP 证据为候选目录的 `http-contract-report.json`，类型检查与构建命令在该目录脚本和本节中保留。Playwright session 已关闭；临时 probe 停止时 Windows exec 返回 `1`，不是测试失败改写为通过。事后进程及 listener 复核确认 probe、DSH child 和代理已停止。两次 browser probe 的临时 DSH home 仍位于系统 Temp；显式清理请求被执行环境安全策略拒绝，不能声称其已删除。本任务不读取或输出其中的 credentials，也不把临时状态加入 Git。
+
+剩余发布边界：九份伦度改动仍由其他任务持有；DB7 为 candidate only，历史 DB6 门禁仍正确 fail-closed；Bridge clean-build/真实 Provider 证据与当前 Harness Git tree 一致，但运行中 Compose 没有切到该镜像；原 Web 缺三个编译入口的挂载故障未被更改。下一步须收口外部源码来源、可复现完整 host/client 构建和正式制品，再另行执行允许的隔离完整栈验收。全局目标保持 `active`，不宣称完整系统或正式发布完成。
+
+## 2026-10-08 Web HTTP 与验收门禁复核（上一阶段）
 
 本轮开始的主仓库 HEAD 为 `6f519792f802dc57cdfd0a348dd84910883b0958`。用户授权“备份后恢复五份历史 manifest”已经执行；再次核对 DB2–DB6 五份文件的 `git diff --exit-code` 退出 `0`。恢复前副本仍保存在 `.codex-tmp/protected-changes-20261008-e0f26c20-review/`。九份伦度修改继续保留，尤其登录视图和样式有其他任务后续修改，不能再用旧备份覆盖它们。主工作树仍不是 clean；本次恢复没有批准 DB7 或替换本地服务。
 
