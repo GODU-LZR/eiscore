@@ -164,3 +164,13 @@ docs/engineering/LUNDU_REMOTE_BRANDING_FIX_20260927.md
 发布声明：目标服务 `web`；工作区 `github-eiscore-refactor`，分支 `codex/systematic-refactor`，基线 `2dad6a669d12300020e8c1c7283362ee63a36250`。使用完整 11 微前端构建，归档 `output/lundu-about-map-release-20261008.tar.gz`，SHA-256 `A3B597C954D0C39B1400BFFBF1551A251476BB6167733F65C1068555C62AA729`。品牌门禁通过，配置为 `enterprise.id=lundu`，入口 `/assets/index-BnbPYGd9.js`，manifest `59c9ccedef69c60a` / 562 项 / 76,686,588 bytes。地图本地与线上 SHA-256 一致：`923f6d77730de5e1217bec3175411e6d5c1a4d66b12e0fd784f862678297fe84`。
 
 远端使用共享发布锁完成原子替换，旧版备份为 `/opt/lundu-eiscore/backups/lundu-about-map-before-20261008083134.tgz`；实际只重建 `lundu-eiscore-web-1`。DB、API、Agent、DeepSeek Web 和 Harness 均未重建。Compose 提示既有 `lundu-eiscore-deepseek-web-1` orphan，本次未清理或更改它。线上 `/login`、公开配置、manifest、伦度 Logo 与地图均返回 200；真实站点 Playwright 在 390×844、414×896、768×1024、1440×900 全部通过，地图完整加载、无横向溢出、无君乐缘文本和浏览器错误。
+
+## 2026-10-08 独立站完整制品同步
+
+本次发布目标服务为 `web`，来源工作区 `github-eiscore-refactor`、分支 `codex/systematic-refactor`、提交 `7071483d`。制品为完整 12 入口静态目录（根站加 11 个微前端），归档 `output/lundu-independent-site-7071483.tar.gz`，SHA-256 `75F57DD6A0EFD1CA9E3A741DB434970F31D89AB520A15C599483C1B11E31A172`。入口为 `6,258` 字节，主包 `/assets/index-C8MjTKaw.js`；manifest 为 `e53bbae10ffacf7d`、`564` 个 URL、`78,214,680` 字节。入口、公开配置和主资源未包含君乐缘品牌，配置 `enterprise.id=lundu`。
+
+发布前通过 `/opt/lundu-eiscore/.lundu-web-publish.lock` 校验归档和品牌门禁，旧 release 已备份为 `/opt/lundu-eiscore/backups/release-pre-7071483-20261008120939`，随后原子替换 `/opt/lundu-eiscore/release`。实际只执行 web-only Compose 重建，重建服务为 `lundu-eiscore-web-1`；`db`、`api`、`agent`、`deepseek-web` 和 Harness 未重建。Compose 仅报告既有 `lundu-eiscore-deepseek-web-1` orphan，没有清理或修改它。
+
+线上验收通过：`/login`、`/config/eiscore-enterprise.json`、`/asset-manifest.json` 和 `/enterprise-assets/site/lundu-logo.png` 均返回 HTTP 200；配置返回 JSON 且 `enterprise.id=lundu`，页面标题为“伦度机电｜电机与水泵制造”，入口不含君乐缘。线上 Playwright 在 `390x844`、`414x896`、`768x1024`、`1440x900` 通过，采购单和客服智能体流式面板可用，页面无横向溢出、无旧询价文案和浏览器错误。
+
+Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的 `codex/systematic-refactor`。本地 `origin` 仍指向 `deepseek-ai/deepseek-harness`，未向错误仓库推送；`upstream` 的 push URL 仍为无效地址。
