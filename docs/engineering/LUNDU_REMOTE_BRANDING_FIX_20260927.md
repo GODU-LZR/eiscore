@@ -304,3 +304,13 @@ HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 远端发布前使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`。销售后端源码先备份为 `/opt/lundu-eiscore/backups/company-sales-agent-before-sse-<timestamp>.js` 和 `/opt/lundu-eiscore/backups/realtime-index-before-sales-sse-<timestamp>.js`，通过 `node --check` 后仅重建 `lundu-eiscore-agent-1`；数据库、API、DeepSeek Web 和 Harness 未重建。静态 release 先原子备份为 `/opt/lundu-eiscore/backups/lundu-customer-service-streaming-before-20261006151026`，再替换完整 12 入口制品，实际只重建 `lundu-eiscore-web-1`；Compose 仅报告既有 `lundu-eiscore-deepseek-web-1` orphan，没有清理其他容器。
 
 发布后远端入口为 `6,258` bytes，主包 `/assets/index-CmNu499U.js`；manifest `e8ca82a1b2779f43` / `561` 项 / `76,540,707` bytes；`web` 与 `agent` 均为 `Up`/healthy。HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterprise.json`、伦度 Logo 均返回 200，配置为 `enterprise.id=lundu`，入口、配置和主包无君乐缘品牌。真实销售链路创建公开会话返回 201，发送 `{stream:true}` 消息返回 `text/event-stream; charset=utf-8`，收到 `data` 增量和 `[DONE]`。线上 Playwright 使用 `output/playwright/lundu-procurement-customer-service-qa.cjs`，在 `390×844`、`414×896`、`768×1024`、`1440×900` 全部通过：标题为“伦度机电｜电机与水泵制造”，消息区高度分别约 `357/381/416/408px`，输入区 `58px`，面板均高于宽，入口固定右下角，展开/收起、采购单文案、无横向溢出和无控制台错误均通过。
+
+## 2026-10-08 电机概况图片左下角背景修补
+
+用户反馈企业概况电机图片左下角出现缺口。本轮确认根因是 PNG 原始背景区域存在白色像素，网页容器没有裁切；仅修补两份运行时与企业包资源的背景区域 `(x=0..55, y=910..919)`，产品主体、文字和其他像素均未改动，尺寸保持 `1920×920`。两份文件逐字节一致，修补后 SHA-256 均为 `c5dc0deaad5fe31f9a4ae69de5661da30b027826d35ef6906a146ca5050ccd47`；差异 bbox 为 `(0,910,56,920)`，共改变 537 个像素，区域外像素哈希保持 `91cf404de1942b8f55fb827229de83f3700dfa72c97d3430284c910db208da68`。
+
+发布前声明：目标服务为 `web`；分支/提交为 `codex/systematic-refactor @ 2cd5076c`；完整 12 入口制品为 `output/lundu-motor-corner-release-2cd5076c.tar.gz`，SHA-256 `E323B01186147711443C7526BBA36EB013506C87BE0F3C71E74EEBA1896DB238`；manifest 为 `e76b6d03cda554ae`、564 项。运行时 PNG 与 `enterprise-packs/lundu` PNG 同步更新，避免后续重建恢复旧图片。
+
+远端发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，旧 release 备份为 `/opt/lundu-eiscore/backups/release-pre-motor-corner-2cd5076c-20261008130105`，原子替换完整 release 后只执行 `docker compose ... up -d --no-deps --force-recreate web`，实际重建 `lundu-eiscore-web-1`；DB、API、Agent、DeepSeek Web 和 Harness 均未重建。
+
+本地与线上 Playwright 在 `390×844`、`414×896`、`768×1024`、`1440×900` 全部通过：图片哈希一致、Logo 可见、页面品牌为伦度、无横向溢出、无浏览器错误。截图及 `remote-qa.json` 保存在 `output/lundu-motor-corner/`。

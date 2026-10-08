@@ -174,3 +174,11 @@ docs/engineering/LUNDU_REMOTE_BRANDING_FIX_20260927.md
 线上验收通过：`/login`、`/config/eiscore-enterprise.json`、`/asset-manifest.json` 和 `/enterprise-assets/site/lundu-logo.png` 均返回 HTTP 200；配置返回 JSON 且 `enterprise.id=lundu`，页面标题为“伦度机电｜电机与水泵制造”，入口不含君乐缘。线上 Playwright 在 `390x844`、`414x896`、`768x1024`、`1440x900` 通过，采购单和客服智能体流式面板可用，页面无横向溢出、无旧询价文案和浏览器错误。
 
 Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的 `codex/systematic-refactor`。本地 `origin` 仍指向 `deepseek-ai/deepseek-harness`，未向错误仓库推送；`upstream` 的 push URL 仍为无效地址。
+
+## 2026-10-08 电机概况图片修补交接
+
+独立站 Agent 完成提交 `2cd5076c`（`fix(lundu): repair motor overview image corner`）。本次只修补 `lundu-overview-motors.png` 的左下角背景区域 `(0,910,56,920)`，并同步运行时资源与 `enterprise-packs/lundu` 资源；图片尺寸仍为 `1920×920`，修补后两份 SHA-256 均为 `c5dc0deaad5fe31f9a4ae69de5661da30b027826d35ef6906a146ca5050ccd47`。产品主体、文字和区域外像素未改动。
+
+本轮 web 发布声明：目标服务 `web`；制品 `output/lundu-motor-corner-release-2cd5076c.tar.gz`，SHA-256 `E323B01186147711443C7526BBA36EB013506C87BE0F3C71E74EEBA1896DB238`；manifest `e76b6d03cda554ae` / 564 项；远端备份 `/opt/lundu-eiscore/backups/release-pre-motor-corner-2cd5076c-20261008130105`。使用共享锁原子替换完整 12 入口 dist，实际仅重建 `lundu-eiscore-web-1`，其他 Agent 的 DB、API、Agent、DeepSeek Web、Harness 未重建。
+
+线上与本地四视口验收均通过（`390×844`、`414×896`、`768×1024`、`1440×900`）：图片哈希一致、伦度 Logo/标题可见、无君乐缘品牌、无横向溢出、无页面或控制台错误。后续 Agent 发布 web 前必须从当前分支重新生成完整 dist，并保留本节记录的资源同步约束，避免旧图片或旧品牌回滚。
