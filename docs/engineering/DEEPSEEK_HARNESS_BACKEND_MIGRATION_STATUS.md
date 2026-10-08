@@ -1,6 +1,20 @@
 # DeepSeek Harness 后端迁移状态
 
-## 最新目标进度（2026-10-07）
+## 最新目标进度（2026-10-08，取代下方历史阶段结论）
+
+- 本轮核对的代码提交为 `codex/systematic-refactor@e2933ac6d58910fe3fdcfa027fd41e1d577c24b8`。工作树仍有七项既有修改：DB2–DB6 manifest、伦度客户服务交接文档、伦度登录样式；另有本状态文档的本任务修改。没有未跟踪文件，没有覆盖、回退或 stage 七项既有修改。主工作树不能声明为 clean 或正式发布源。
+- 正式路径 `database/releases/eiscore-db-v6/manifest.json` **确实存在未提交修改**，涉及 `runtime-v2-003`、`core-002` 及其 artifact 的三个 checksum。其 canonical manifest SHA-256 为 `4d5b2c1dbfd3d436262771ad76a0b385447325edd3f906e55ff0a6c3adea324f`，而 HEAD 中已提交文件的 canonical SHA-256 为 `58e09fac34c04a7a14f7ec1476c35735f8e14c3999e9245f6e91ac66c101661d`；两者都声明 source revision `b9a3831d08aeb7056ee8a5997ca8b57ae270ca08` 和 `core-007` terminal。历史记录中的“冻结 manifest 未修改”只能理解为本任务未改写该文件，不能理解为该文件与 HEAD 一致。
+- `npm run db:release:check` 本轮退出码 1，实际返回 **20 项**错误，不沿用旧记录中的 21 项计数。错误覆盖 baseline/register、contract、legacy resolution、core/runtime manifests、postcheck、`core-002` source revision、recovery、audit/backup/catalog scripts、ontology、catalog/PostgREST 和 core terminal/list。正式门禁仍 fail-closed；没有执行正式数据库发布或恢复。
+- 诊断 candidate 位于 `.codex-tmp/db6-candidate-current-20261007/manifest.json`，source revision 为上述 `e2933ac6`，canonical SHA-256 为 `36239307ec7af79e6d8f488f75b4c48a7079dd28af910b1efa40975d91111606`，包含 56 个 artifact 和 `core-009` terminal。本轮使用默认 `verifySourceRevision=true` 的 `loadAndValidateDatabaseRelease` 核对，返回零错误；因此候选制品与其声明的已提交源码一致，但这不是正式 release approval。
+- 上轮 release 进程的最终输出无法恢复，本轮补跑 `DB_RELEASE_PATH=.codex-tmp/db6-candidate-current-20261007/manifest.json npm run test:database-release:docker`，WSL Docker 实际退出码 0；覆盖升级、锁、备份、稳定 DB/PostgREST、重复执行及 drift/conflict 故障关闭。同一 candidate 的 recovery 在上一阶段已返回退出码 0，本轮未重复执行。测试使用随机 `eiscore-db5-*` 临时容器、独立网络和 tmpfs，不使用业务数据库卷。该 candidate 没有覆盖正式 DB6 manifest，也没有被批准为正式版本。
+- Bridge 两项修复已提交：`6795249b` 补齐 DSH 工作目录的依赖解析，`0e955b9e` 将运行时提升至依赖要求的 Node `22.19.0`。隔离 clean-build 镜像 `eiscore-harness-bridge:clean-build-20261007-node22` 的 image ID 为 `sha256:9d13895208906a56a0efd0c6ad7be4dd4454ae550c2daf0eff4e5cfd707c7114`，revision label 为 `0e955b9e`，source label 为 `github-eiscore-refactor`。本轮验证当前 HEAD 与构建提交的 `agent-harness` Git tree 均为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`，且该目录无工作树差异；后续文档提交不改变该源码等价关系。这里记录的是本地 image ID，不将其冒称为 registry manifest digest。
+- 上一阶段该 Node 22 隔离只读镜像已通过 `/readyz` HTTP 200（runtime/plugins/sessions 均为 true）及真实 DeepSeek completion（HTTP 200、choices 存在、内容长度 2）。本轮没有再次调用收费 Provider。此前官方直连 200、Bridge `502 HARNESS_RUNTIME_PROVIDER_ERROR` 及 Node 20 `502 HARNESS_RUNTIME_EXIT` 均保留为历史失败，不能用 mock 结果替代真实 completion 证据，也不能以一次 completion 证明全部上线场景已覆盖。
+- **运行态未发布替换**：本轮核对 Compose 中 `eiscore-harness-bridge` 仍使用 image ID `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，状态为 running/healthy。已验证的新镜像不能被描述为当前 Compose 已部署版本。
+- 本轮新鲜回归通过：runtime image contract、production configuration security、完整 `test:harness-bridge`（loopback `ok=true`、`proxyCalls=1`、`modelRequests=2`）、`test:database-release-drift`。没有修改前端或数据库制品，没有连接远端/生产，没有下发 Compose 重启或替换命令，没有写入业务数据库卷。
+- 剩余决定：七项既有修改需要所有者明确是否可纳入提交；正式数据库版本需要选择保留 DB6 冻结历史并准备新版本，或授权重新冻结 DB6。两种方式都不能由 candidate 通过自动代替正式审批。已请求用户选择；本任务不会自行批准、覆盖冻结制品或执行真实 release。全局目标保持 `active`。
+- 旧归档记录中的“约 468 MB”和“没有运行依赖”未在本轮获得完整复核，不作为当前验收证据；已核实可恢复归档路径仍存在，本轮没有继续删除历史目录。
+
+## 历史阶段记录（2026-10-07，不作为当前发布结论）
 
 - 本记录 supersede 文末 2026-10-06 的一次性测试 Key 复核结论。基于 `codex/systematic-refactor` HEAD `561f3d83c760c7c0511a460b567af4eeced95359`，真实 DSH SDK/Bridge non-stream 与 stream completion 已返回非空结果（`FINAL_OK` / `STREAM_OK`）；测试 key 仅注入一次性进程环境，未落盘。
 - 当前工作树 Bridge clean-build 已在 WSL Ubuntu Docker 构建出隔离镜像 `eiscore-harness-bridge-clean:20261006-current`，digest `sha256:aba26b61517487492ae85aefa7caab7463bceff57232875fc17567a9c5c3d30a`。基础镜像 digest 为 `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08ff5a5277dd3e`；镜像标记当前 revision 与构建上下文。镜像内 DSH 为 `0.1.2-rc.1`，`eiscore-tools.mjs` SHA-256 `22d6cec85d0605c562270e9fdffdc82ee42d24b437733b92a905256fbd7bbb47`，`dsh-http-bridge.mjs` SHA-256 `98f5538342cd4e3ebd20a4b3d604813ff9e3bccdb24d3b37fc2b41090373ccc1`，受限 profile 文件存在。此前 Dockerfile 缺少工具/profile COPY 已补齐。
@@ -3498,3 +3512,9 @@ DeepSeek Harness Plugin -> EISCore Harness Gateway -> Tool/业务服务 -> Postg
 - 约 468 MB 的历史 Harness/plugin `node_modules`、重建副本和大 tar 包已从仓库临时目录移动到可恢复归档：`C:/Users/Twist/Documents/eiscore/worktree-archive-20261007-144856/codex-tmp-history-20261007/`。已确认没有运行进程或当前测试依赖这些副本。没有删除 DB6/伦度验收证据。
 - `current-harness-loopback-20261007`、`.codex-tmp/deploy` 等已确认为空目录或空重解析点，已安全清理；主工作树仍无新增未跟踪文件。清理后 `.codex-tmp` 只保留小型证据/脚本和 DB6/伦度验收材料。
 - 本轮没有连接远端/生产、没有重启 Compose、没有替换运行中的 Bridge。Bridge 当前 HEAD clean-build 与真实 Provider completion 已闭合；正式发布仍受 DB6 manifest provenance/审批和七项未提交修改归属约束，全局目标保持 `active`。
+
+## 事实更正（2026-10-08，DB6 冻结路径工作树状态）
+
+- 前文部分记录将冻结 v6 manifest 写成“未修改”，与当前工作树事实不符。准确状态是：`database/releases/eiscore-db-v6/manifest.json` 在主工作树存在三处未提交 checksum 修改，分别对应 `runtime-v2-003`、`core-002` 及 `core-002` artifact。
+- 这些修改没有被本目标 stage、提交、回退或覆盖；它们仍属于用户/协作者未提交工作，不能被解释为正式 release approval，也不能绕过 provenance 门禁。上一阶段对正式路径执行的 `npm run db:release:check`、`test:database-release:docker` 和 `test:database-recovery:docker` 均因真实 artifact/provenance drift 在隔离容器启动前 fail-closed；这与指定独立 candidate 路径的通过结果不是同一项验收。
+- DB6 candidate manifest 与正式冻结路径不是同一制品：candidate 证据包含 `core-009` terminal，而冻结路径仍声明 `core-007`；因此 candidate release/recovery 通过不能批准正式 v6。
