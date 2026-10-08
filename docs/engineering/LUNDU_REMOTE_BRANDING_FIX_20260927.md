@@ -314,3 +314,13 @@ HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 远端发布使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，旧 release 备份为 `/opt/lundu-eiscore/backups/release-pre-motor-corner-2cd5076c-20261008130105`，原子替换完整 release 后只执行 `docker compose ... up -d --no-deps --force-recreate web`，实际重建 `lundu-eiscore-web-1`；DB、API、Agent、DeepSeek Web 和 Harness 均未重建。
 
 本地与线上 Playwright 在 `390×844`、`414×896`、`768×1024`、`1440×900` 全部通过：图片哈希一致、Logo 可见、页面品牌为伦度、无横向溢出、无浏览器错误。截图及 `remote-qa.json` 保存在 `output/lundu-motor-corner/`。
+
+## 2026-10-08 两个制造服务详情页发布
+
+源码提交 `20573070` 将首页 04 品质与交付、05 技术与服务链接至独立公开详情页，中英文内容以 `/enterprise-assets/site/service-pages.json` 配置并同步企业包。页面保留伦度白底蓝色、Logo、产品选择、采购单和客服入口。
+
+完整 12 入口制品为 `output/lundu-service-pages/full-dist-final`，归档 `lundu-service-details-20573070.tar.gz`，SHA-256 `a596513039cfe1d31e228272d61e56cf47e7d4dc6eca90f2ecbe711337700632`；入口 6258 字节、主包 `/assets/index-B82MCbhh.js`，manifest `78294f227a301616` / 600 项 / 77,234,068 字节。主站由当前源码在远端独立 staging 构建；11 个微应用源码未变，使用同源码已验收制品，发布锁内逐文件确认与线上一致。本地陈旧共享 dist 已被拦截，没有发布。详见多 Agent 协作文档与 `output/lundu-service-pages/micro-entry-provenance.json`。
+
+使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，确认旧版仍为 `e76b6d03cda554ae` 后切换完整 release。备份 `/opt/lundu-eiscore/backups/release-pre-service-details-20573070-20261008150642`；实际只重建 `lundu-eiscore-web-1`，容器 ID 比较确认其他服务未变化。回退时在同一锁内把备份恢复为 release，再执行 web-only 重建，禁止回退业务数据。
+
+线上 24 个 HTTP 资源与本地逐字节一致，配置 `enterprise.id=lundu`，Logo 正常、页面无君乐缘品牌。验收脚本及证据位于 `output/lundu-service-pages/`；没有提交真实订单或测试真实客服模型回复。

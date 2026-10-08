@@ -182,3 +182,15 @@ Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的
 本轮 web 发布声明：目标服务 `web`；制品 `output/lundu-motor-corner-release-2cd5076c.tar.gz`，SHA-256 `E323B01186147711443C7526BBA36EB013506C87BE0F3C71E74EEBA1896DB238`；manifest `e76b6d03cda554ae` / 564 项；远端备份 `/opt/lundu-eiscore/backups/release-pre-motor-corner-2cd5076c-20261008130105`。使用共享锁原子替换完整 12 入口 dist，实际仅重建 `lundu-eiscore-web-1`，其他 Agent 的 DB、API、Agent、DeepSeek Web、Harness 未重建。
 
 线上与本地四视口验收均通过（`390×844`、`414×896`、`768×1024`、`1440×900`）：图片哈希一致、伦度 Logo/标题可见、无君乐缘品牌、无横向溢出、无页面或控制台错误。后续 Agent 发布 web 前必须从当前分支重新生成完整 dist，并保留本节记录的资源同步约束，避免旧图片或旧品牌回滚。
+
+## 2026-10-08 品质与交付、技术与服务详情页发布
+
+本轮独立站 Agent 将首页 04、05 接入 `/services/quality-delivery` 与 `/services/technical-support`，增加中英文服务说明、资料清单、流程、FAQ、产品选择及采购/客服入口，沿用白底蓝色样式。服务内容通过公开 JSON 配置，企业包副本同步；没有新增认证、产量、固定交期或质保承诺。采购模板和客服问题只填空字段，不覆盖客户输入。
+
+发布声明：目标仅 `web`；工作区 `github-eiscore-refactor`，分支 `codex/systematic-refactor`，源码提交 `20573070d11adbd8c636862f755c00c8b6fa4f5d`。制品目录 `output/lundu-service-pages/full-dist-final`，归档 `output/lundu-service-pages/lundu-service-details-20573070.tar.gz`，SHA-256 `a596513039cfe1d31e228272d61e56cf47e7d4dc6eca90f2ecbe711337700632`。入口 6258 字节、主包 `/assets/index-B82MCbhh.js`；manifest `78294f227a301616`、600 项、77,234,068 字节。已提前通知 DeepSeek 整合聊天，未纳入另一 Agent 的本地业务验收文件。
+
+构建来源：Windows 构建因内存不足失败，失败产物未发布。当前源码快照在远端独立目录 `/opt/lundu-eiscore/staging/service-details-20261008-20261008143945` 完整构建主站，未写运行源码。最初发现本地共享微应用 dist 陈旧，未发布该制品；11 个微应用及共享构建脚本源码相对 `2cd5076c` 没有变化，使用同源码已验收的 `output/lundu-motor-corner/full-dist/<mount>`。来源与入口哈希见 `output/lundu-service-pages/micro-entry-provenance.json`；发布锁内逐文件验证 11 个微应用与远端运行版本完全一致。后续 Agent 必须按来源核对完整 dist，不能直接沿用仓库中未验证的 dist。
+
+远端共享锁内确认旧 manifest 仍为 `e76b6d03cda554ae`，校验归档、600 个资源、12 入口和伦度品牌后替换完整 release，备份为 `/opt/lundu-eiscore/backups/release-pre-service-details-20573070-20261008150642`。实际仅重建 `lundu-eiscore-web-1`，新容器 `8c0540eb3032`；发布前后容器 ID 核对确认其他服务未变化。没有清理既有 DeepSeek Web orphan。
+
+线上 HTTP 核验 24 个入口/配置/Logo/服务 JSON/产品图均 200 且与本地逐字节一致，配置 `enterprise.id=lundu`；600 个 manifest URL 均存在，未检出错误品牌。服务 JSON SHA-256 `0fc00d690bc4a0c736d2328fb6536d3ff529519c08f711748c02d4d4dcce0f7c`，企业包 53 个 payload 通过标准 manifest 验证。本地语法、变更 lint、服务内容及相关品牌/路由回归、四视口视觉验收已通过。
