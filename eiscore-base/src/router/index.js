@@ -23,6 +23,12 @@ const router = createRouter({
       meta: { requiresAuth: false }
     },
     {
+      path: '/services/:serviceId(quality-delivery|technical-support)',
+      name: 'public-service',
+      component: () => import('../views/LoginView.vue'),
+      meta: { requiresAuth: false, publicLanding: true }
+    },
+    {
       path: '/eiscore',
       name: 'eiscore-landing',
       component: () => import('../views/EiscoreLanding.vue'),

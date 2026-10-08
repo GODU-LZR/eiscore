@@ -1,0 +1,445 @@
+{
+  "schemaVersion": 1,
+  "locales": {
+    "zh-CN": {
+      "ui": {
+        "kicker": "制造服务",
+        "navigation": "服务分类",
+        "purchase": "提交采购需求",
+        "support": "咨询客服",
+        "faqTitle": "常见问题",
+        "productsTitle": "选择产品系列",
+        "productsIntro": "查看产品详情，或将需要的产品加入采购单。",
+        "addProduct": "加入采购单"
+      },
+      "pages": [
+        {
+          "id": "quality-delivery",
+          "title": "品质与交付",
+          "summary": "围绕电机与水泵规格组织制造、装配与检验，从产品要求到包装发运，让采购与交付信息清楚一致。",
+          "imageUrl": "/enterprise-assets/site/crops/generated-factory-quality-wide.jpg",
+          "imageAlt": "电机与水泵装配场景示意",
+          "imageCaption": "制造场景示意",
+          "sections": [
+            {
+              "title": "生产与品质管理",
+              "intro": "产品规格是制造与检验的共同依据。采购前明确使用条件，有助于确认适用型号与质量要求。",
+              "items": [
+                {
+                  "title": "产品规格确认",
+                  "description": "确认电机或水泵系列、供电条件、安装尺寸与使用工况；替换现有设备时，可提供铭牌照片或原型号资料。"
+                },
+                {
+                  "title": "生产与装配",
+                  "description": "按产品规格组织制造、装配和过程管理，围绕电机与水泵的配套要求开展生产协同。"
+                },
+                {
+                  "title": "检验要求沟通",
+                  "description": "结合型号与使用要求确认检测项目。如采购需要检验资料、验收条件或其他质量文件，请在订单确认前提出。"
+                }
+              ]
+            },
+            {
+              "title": "包装与交付确认",
+              "intro": "把数量、时间、包装与收货要求提前说明，方便核对供货安排和交付条件。",
+              "items": [
+                {
+                  "title": "数量与交期",
+                  "description": "提交所需型号、采购数量和期望到货时间，由客服团队结合产品与订单情况确认供货安排。"
+                },
+                {
+                  "title": "包装与运输",
+                  "description": "说明收货地址、运输安排、包装及装卸要求。具体包装方式、运费与交付条款在采购确认时沟通。"
+                },
+                {
+                  "title": "随货与收货核对",
+                  "description": "提前确认所需产品资料和随货文件。收货时核对型号、数量与外包装；如有问题，请保留采购信息与现场照片，联系客户服务。"
+                }
+              ]
+            }
+          ],
+          "requirementsTitle": "采购前需要确认",
+          "requirementsIntro": "把以下信息写入采购需求，有助于团队准确核对产品、价格和交付条件。",
+          "requirements": [
+            {
+              "label": "型号规格",
+              "value": "产品系列、型号、供电条件、安装尺寸和使用工况"
+            },
+            {
+              "label": "数量与时间",
+              "value": "采购数量、是否分批，以及期望到货日期"
+            },
+            {
+              "label": "收货与运输",
+              "value": "收货地址、联系人、运输及装卸要求"
+            },
+            {
+              "label": "包装与资料",
+              "value": "包装要求、所需产品资料和随货文件"
+            }
+          ],
+          "stepsTitle": "从需求到交付",
+          "steps": [
+            {
+              "title": "提交需求",
+              "description": "选择产品，填写数量、规格与收货要求。"
+            },
+            {
+              "title": "核对条件",
+              "description": "确认适用型号、商务条款和交付安排。"
+            },
+            {
+              "title": "订单与供货",
+              "description": "按确认后的订单要求协同生产和发运。"
+            },
+            {
+              "title": "收货与反馈",
+              "description": "核对产品与资料，沟通后续配套及服务需求。"
+            }
+          ],
+          "faq": [
+            {
+              "question": "能否直接确定价格和交期？",
+              "answer": "请提交产品型号、规格、数量、收货地址及期望日期。客服团队核对需求后确认价格与交期。"
+            },
+            {
+              "question": "采购需要指定检测项目怎么办？",
+              "answer": "请说明验收要求或提供项目文件，由团队结合型号确认检测范围及所需资料。"
+            },
+            {
+              "question": "是否可以提出特殊包装和随货资料要求？",
+              "answer": "可以在采购需求中写明包装、运输和资料要求，具体方案及商务条件由客服团队确认。"
+            }
+          ],
+          "contactTitle": "准备好您的采购需求",
+          "contactIntro": "选择产品并填写数量、规格和期望交期；对检测或交付条件有疑问，可直接咨询客服。",
+          "purchaseTemplate": "服务主题：品质与交付\n产品型号/规格：\n采购数量：\n期望到货日期：\n收货地址：\n检测、包装与随货资料要求：",
+          "supportPrompt": "我想咨询品质与交付，需要确认检测要求、包装和交期。"
+        },
+        {
+          "id": "technical-support",
+          "title": "技术与服务",
+          "summary": "面向设备配套、工程采购与维修备件，提供电机与水泵选型、定制配套沟通和售后支持。",
+          "imageUrl": "/enterprise-assets/site/crops/generated-pump-selection-wide.jpg",
+          "imageAlt": "水泵与管路配套场景示意",
+          "imageCaption": "产品应用示意",
+          "sections": [
+            {
+              "title": "产品选型与配套",
+              "intro": "从使用条件出发确认产品。电机与水泵的选型资料各有侧重，完整信息有助于进一步核对。",
+              "items": [
+                {
+                  "title": "电机选型",
+                  "description": "请提供功率需求、电压、频率、配套设备、安装方式与运行环境。替换现有电机时，铭牌照片和安装尺寸可帮助核对。"
+                },
+                {
+                  "title": "水泵选型",
+                  "description": "请提供输送介质、流量、扬程、安装位置、管路条件和运行方式。已有设备可附原型号或现场照片。"
+                },
+                {
+                  "title": "接口与设备配套",
+                  "description": "提交连接尺寸、安装空间、配套设备资料或项目图纸，结合实际工况确认适配要求。"
+                }
+              ]
+            },
+            {
+              "title": "定制、售后与备件",
+              "intro": "围绕具体产品与项目沟通服务范围，明确技术要求和后续处理方式。",
+              "items": [
+                {
+                  "title": "定制需求确认",
+                  "description": "将所需电气规格、接口尺寸、外观或包装要求提交客服。具体可调整范围、费用和交期结合产品型号确认。"
+                },
+                {
+                  "title": "安装与使用咨询",
+                  "description": "咨询时请说明产品型号、安装条件和运行环境。如需安装资料或使用说明，可在采购前或服务沟通时提出。"
+                },
+                {
+                  "title": "问题反馈与备件",
+                  "description": "提供铭牌照片、采购信息、运行情况和问题表现；备件需求请说明部件名称、原型号或尺寸，便于核对后续处理。"
+                }
+              ]
+            }
+          ],
+          "requirementsTitle": "咨询前准备哪些资料",
+          "requirementsIntro": "可把文字需求填入采购单，也可向客服说明现有型号、使用条件和项目目标。",
+          "requirements": [
+            {
+              "label": "电机需求",
+              "value": "功率、电压、频率、配套设备、安装方式、使用环境"
+            },
+            {
+              "label": "水泵需求",
+              "value": "介质、流量、扬程、安装位置、管路和运行方式"
+            },
+            {
+              "label": "定制配套",
+              "value": "图纸、接口尺寸、规格调整和数量要求"
+            },
+            {
+              "label": "售后备件",
+              "value": "型号铭牌、采购信息、问题描述、现场或部件照片"
+            }
+          ],
+          "stepsTitle": "技术服务沟通流程",
+          "steps": [
+            {
+              "title": "描述工况",
+              "description": "说明使用场景、产品要求或现有设备问题。"
+            },
+            {
+              "title": "提交资料",
+              "description": "提供型号、参数、图纸或相关照片。"
+            },
+            {
+              "title": "核对方案",
+              "description": "沟通选型、配套范围与具体服务条件。"
+            },
+            {
+              "title": "采购或服务",
+              "description": "确认需求后进入采购或后续服务处理。"
+            }
+          ],
+          "faq": [
+            {
+              "question": "暂时不知道型号，可以先咨询吗？",
+              "answer": "可以。请先说明用途、供电与安装条件；水泵还需流量、扬程和介质等信息，客服可据此进一步了解需求。"
+            },
+            {
+              "question": "定制需要提供哪些信息？",
+              "answer": "请提供现有型号、所需调整、图纸或尺寸，以及数量和时间要求。实际适配范围和商务条件需结合产品确认。"
+            },
+            {
+              "question": "设备出现问题时如何反馈？",
+              "answer": "请说明型号、使用条件和问题表现，并准备铭牌及现场照片。若涉及安全风险，请按设备使用说明处理，再联系客户服务。"
+            }
+          ],
+          "contactTitle": "让选型与配套更明确",
+          "contactIntro": "告诉我们使用工况和项目要求，或从产品目录中选择系列，开始采购与技术沟通。",
+          "purchaseTemplate": "服务主题：技术与服务\n产品型号/用途：\n电压、功率或流量/扬程：\n安装及配套要求：\n采购数量/时间：\n定制或售后需求：",
+          "supportPrompt": "我想咨询电机或水泵的选型与配套，应该提供哪些参数？"
+        }
+      ]
+    },
+    "en-US": {
+      "ui": {
+        "kicker": "Manufacturing services",
+        "navigation": "Service topics",
+        "purchase": "Purchase request",
+        "support": "Contact service",
+        "faqTitle": "Frequently asked questions",
+        "productsTitle": "Choose a product series",
+        "productsIntro": "View product details or add a product to your purchase request.",
+        "addProduct": "Add to purchase"
+      },
+      "pages": [
+        {
+          "id": "quality-delivery",
+          "title": "Quality & delivery",
+          "summary": "Manufacturing, assembly and inspection for motor and pump specifications, with clear coordination of product requirements, packing and shipment.",
+          "imageUrl": "/enterprise-assets/site/crops/generated-factory-quality-wide.jpg",
+          "imageAlt": "Illustration of motor and pump assembly",
+          "imageCaption": "Manufacturing illustration",
+          "sections": [
+            {
+              "title": "Production & quality",
+              "intro": "Product specifications guide manufacturing and inspection. Share operating conditions before purchasing to confirm the model and quality requirements.",
+              "items": [
+                {
+                  "title": "Confirm specifications",
+                  "description": "Provide the product series, power supply, mounting dimensions and operating conditions. A nameplate photo or original model helps with replacement purchases."
+                },
+                {
+                  "title": "Production and assembly",
+                  "description": "Manufacturing, assembly and process coordination follow the product specifications and equipment requirements."
+                },
+                {
+                  "title": "Discuss inspection requirements",
+                  "description": "Confirm inspection requirements for the model and application. Specify acceptance criteria and any inspection documents before order confirmation."
+                }
+              ]
+            },
+            {
+              "title": "Packing & delivery",
+              "intro": "Discuss quantity, timing, packing and destination in advance so supply and delivery conditions can be confirmed.",
+              "items": [
+                {
+                  "title": "Quantity and lead time",
+                  "description": "Submit the model, order quantity and target arrival date. Customer service confirms supply arrangements for the product and order."
+                },
+                {
+                  "title": "Packing and transport",
+                  "description": "Provide the delivery address, transport arrangements and packing or handling requirements. Packing methods, freight and delivery terms are discussed before purchase confirmation."
+                },
+                {
+                  "title": "Documents and receipt",
+                  "description": "Confirm required product information and shipment documents in advance. Check model, quantity and packaging on arrival; keep order information and photos available when reporting an issue."
+                }
+              ]
+            }
+          ],
+          "requirementsTitle": "Before you purchase",
+          "requirementsIntro": "Include these details in your purchase request to help our team confirm products, prices and delivery terms.",
+          "requirements": [
+            {
+              "label": "Specifications",
+              "value": "Series, model, power supply, mounting dimensions and operating conditions"
+            },
+            {
+              "label": "Quantity & date",
+              "value": "Order quantity, staged delivery needs and target arrival date"
+            },
+            {
+              "label": "Destination",
+              "value": "Delivery address, contact, transport and handling requirements"
+            },
+            {
+              "label": "Packing & files",
+              "value": "Packing requirements, product information and shipment documents"
+            }
+          ],
+          "stepsTitle": "From request to delivery",
+          "steps": [
+            {
+              "title": "Send a request",
+              "description": "Select products and provide quantity, specifications and delivery needs."
+            },
+            {
+              "title": "Confirm terms",
+              "description": "Review the model, commercial terms and delivery arrangements."
+            },
+            {
+              "title": "Order and supply",
+              "description": "Coordinate supply and shipment against confirmed order requirements."
+            },
+            {
+              "title": "Receipt and feedback",
+              "description": "Check products and documents, then discuss any further support."
+            }
+          ],
+          "faq": [
+            {
+              "question": "Can price and lead time be confirmed immediately?",
+              "answer": "Send the model, specifications, quantity, destination and target date. Customer service reviews the request before confirming price and lead time."
+            },
+            {
+              "question": "What if a project needs specific inspections?",
+              "answer": "Share acceptance criteria or project documents so the team can confirm inspection scope and required documentation for the model."
+            },
+            {
+              "question": "Can I request packing or shipment documents?",
+              "answer": "Include packing, transport and document requirements in your purchase request. The team confirms arrangements and commercial terms."
+            }
+          ],
+          "contactTitle": "Prepare your purchase request",
+          "contactIntro": "Select products and provide quantity, specifications and timing. Contact customer service to discuss inspection or delivery requirements.",
+          "purchaseTemplate": "Service: Quality and delivery\nModel/specifications:\nQuantity:\nTarget arrival date:\nDestination:\nInspection, packing and document requirements:",
+          "supportPrompt": "I would like to discuss inspection requirements, packing and lead time."
+        },
+        {
+          "id": "technical-support",
+          "title": "Technical support",
+          "summary": "Motor and pump selection, customization coordination and after-sales support for equipment, project procurement and service parts.",
+          "imageUrl": "/enterprise-assets/site/crops/generated-pump-selection-wide.jpg",
+          "imageAlt": "Illustration of a pump and piping application",
+          "imageCaption": "Application illustration",
+          "sections": [
+            {
+              "title": "Selection & equipment",
+              "intro": "Selection starts with operating conditions. Motors and pumps require different information to review the application.",
+              "items": [
+                {
+                  "title": "Motor selection",
+                  "description": "Provide power requirements, voltage, frequency, driven equipment, mounting method and operating environment. Include a nameplate photo and dimensions for replacement motors."
+                },
+                {
+                  "title": "Pump selection",
+                  "description": "Provide the fluid, flow, head, installation position, piping conditions and operating requirements. Include the existing model or site photos where available."
+                },
+                {
+                  "title": "Connections and mounting",
+                  "description": "Share connection dimensions, installation space, equipment information or drawings to confirm compatibility requirements."
+                }
+              ]
+            },
+            {
+              "title": "Customization & support",
+              "intro": "Discuss the specific product and project to define technical requirements and the scope of service.",
+              "items": [
+                {
+                  "title": "Customization requirements",
+                  "description": "Send requested electrical specifications, connection dimensions, appearance or packing requirements. Available adjustments, cost and lead time are confirmed for the model."
+                },
+                {
+                  "title": "Installation and operation",
+                  "description": "Include the model, installation conditions and operating environment. Request installation or operating documents before purchase or during service discussions."
+                },
+                {
+                  "title": "Issue reporting and parts",
+                  "description": "Share the nameplate, order information, operating conditions and symptoms. For parts, provide the component name, original model or dimensions for review."
+                }
+              ]
+            }
+          ],
+          "requirementsTitle": "Information for consultation",
+          "requirementsIntro": "Describe your model, operating conditions and project needs in a purchase request or customer service conversation.",
+          "requirements": [
+            {
+              "label": "Motor",
+              "value": "Power, voltage, frequency, driven equipment, mounting and environment"
+            },
+            {
+              "label": "Pump",
+              "value": "Fluid, flow, head, position, piping and operating requirements"
+            },
+            {
+              "label": "Customization",
+              "value": "Drawings, connection dimensions, adjustments and quantities"
+            },
+            {
+              "label": "After-sales",
+              "value": "Nameplate, order information, symptoms and site or component photos"
+            }
+          ],
+          "stepsTitle": "Technical service process",
+          "steps": [
+            {
+              "title": "Describe the use",
+              "description": "Explain the application, product requirements or equipment issue."
+            },
+            {
+              "title": "Share information",
+              "description": "Provide the model, parameters, drawings or relevant photos."
+            },
+            {
+              "title": "Review the scope",
+              "description": "Discuss selection, compatibility and service arrangements."
+            },
+            {
+              "title": "Purchase or support",
+              "description": "Proceed with procurement or support after confirming requirements."
+            }
+          ],
+          "faq": [
+            {
+              "question": "Can I ask before I know the model?",
+              "answer": "Yes. Describe the application, power supply and installation conditions. For pumps, provide flow, head and fluid details so customer service can understand your needs."
+            },
+            {
+              "question": "What is needed for customization?",
+              "answer": "Share the existing model, required adjustments, drawings or dimensions, quantity and target date. Compatibility and commercial terms are confirmed for the product."
+            },
+            {
+              "question": "How should I report an equipment issue?",
+              "answer": "Describe the model, operating conditions and symptoms, and prepare nameplate and site photos. Follow the equipment instructions if a safety issue is involved, then contact customer service."
+            }
+          ],
+          "contactTitle": "Discuss selection and compatibility",
+          "contactIntro": "Share your operating conditions and project requirements, or choose a product series to begin procurement and technical discussions.",
+          "purchaseTemplate": "Service: Technical support\nModel/application:\nVoltage, power or flow/head:\nMounting and connection needs:\nQuantity/timing:\nCustomization or support request:",
+          "supportPrompt": "I need help selecting a motor or pump. Which application parameters should I provide?"
+        }
+      ]
+    }
+  }
+}

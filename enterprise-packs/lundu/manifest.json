@@ -51,8 +51,8 @@
     {
       "path": "assets/site/crops/generated-application-flow-wide.jpg",
       "kind": "asset",
-      "bytes": 245576,
-      "sha256": "475021118559698e8b37cac3fe97941c30f1c9db69229c0181a3ee236534a0e9"
+      "bytes": 749791,
+      "sha256": "a3461652637a87293e7cd47d08b0173caac7a276d623c3044545b008d7261bf8"
     },
     {
       "path": "assets/site/crops/generated-component-detail-card.jpg",
@@ -63,8 +63,8 @@
     {
       "path": "assets/site/crops/generated-component-detail-wide.jpg",
       "kind": "asset",
-      "bytes": 230698,
-      "sha256": "cefe9a94eb5e9c90ce988a73b90cb90400903879cbc9b8e0abea4dfb09e218b1"
+      "bytes": 580108,
+      "sha256": "99938b3af0456e6b1ac91e7526d729bdd8e604ca41826d21df58742e9f37b97e"
     },
     {
       "path": "assets/site/crops/generated-digital-production-card.jpg",
@@ -75,8 +75,8 @@
     {
       "path": "assets/site/crops/generated-digital-production-wide.jpg",
       "kind": "asset",
-      "bytes": 187319,
-      "sha256": "57a744209eaf8c1b3a69b16d9ef724b8171d0f4fba7d3f372afb047285901221"
+      "bytes": 673593,
+      "sha256": "eeafd31937dd5a4701fc06c4c1c7f04585725d22501281dea5e75ab3d088846b"
     },
     {
       "path": "assets/site/crops/generated-factory-floor-card.jpg",
@@ -87,8 +87,8 @@
     {
       "path": "assets/site/crops/generated-factory-floor-wide.jpg",
       "kind": "asset",
-      "bytes": 273184,
-      "sha256": "d1489ccafde2587b3f6785e675752dfcd93c9ef8c5f2f750eacf089dc39bbaaa"
+      "bytes": 794082,
+      "sha256": "eb6425bb5492aabfb66e23d27446de2a33bb9fd36d8718d944b996cb82056d1a"
     },
     {
       "path": "assets/site/crops/generated-factory-quality-card.jpg",
@@ -123,8 +123,8 @@
     {
       "path": "assets/site/crops/generated-motor-product-wide.jpg",
       "kind": "asset",
-      "bytes": 193947,
-      "sha256": "06bd2602a13682f7ef195f64f88ee46908913e063b0c756c8d323735aac7a3d3"
+      "bytes": 342532,
+      "sha256": "b4410920fb2c94d855eb799585a9b2a4945341d52c3c3bbdad662a9102b7fc18"
     },
     {
       "path": "assets/site/crops/generated-pump-product-card.jpg",
@@ -147,8 +147,8 @@
     {
       "path": "assets/site/crops/generated-pump-selection-wide.jpg",
       "kind": "asset",
-      "bytes": 179815,
-      "sha256": "17fc5a62f57d0541e4dcb14796443151d16d673ddeebd6ec78854f4ec0e9af02"
+      "bytes": 559811,
+      "sha256": "1aa60e3ec5ce001f0360a78c0b339d451b9714dab7a35afb8aadfc385341bbaa"
     },
     {
       "path": "assets/site/crops/hero-wide.jpg",
@@ -171,38 +171,62 @@
     {
       "path": "assets/site/favicon.svg",
       "kind": "asset",
-      "bytes": 180,
-      "sha256": "19a37ccb4bbe2389b1ca634a377ef2c02d040f0825dc888aacf06ce594236d5c"
+      "bytes": 181,
+      "sha256": "214ad39ec8bce6fe642505aa1a1cd046f02e78dffaca84c900ddafb7488dd5c8"
     },
     {
       "path": "assets/site/framed/product-jet-card.jpg",
       "kind": "asset",
-      "bytes": 36832,
-      "sha256": "0f69c1b8c857560a12368017eb08af63a15c7cb16cb646d416861fa4b3072321"
+      "bytes": 146867,
+      "sha256": "b075fd6cdd62008cfff1abe5a5539eebe3f3d6659e279227978627866e85e1a6"
     },
     {
       "path": "assets/site/framed/product-pst-card.jpg",
       "kind": "asset",
-      "bytes": 38222,
-      "sha256": "cd0ff3af90e1bfdcca106436813342c6a4f172ab3b4442a0e4d673873e689747"
+      "bytes": 181211,
+      "sha256": "1fba10b87eaa8bccfcdcf05c02fd225d78a310ea2ecef727c74f596cfae1d3c3"
     },
     {
       "path": "assets/site/framed/product-wq-card.jpg",
       "kind": "asset",
-      "bytes": 29370,
-      "sha256": "a4f83e5c9e240db96d8fb10261cdd8bb2db475877fa1395a402335d211130204"
+      "bytes": 127273,
+      "sha256": "11d9d60486db9a00a8dfee7919d81cdb5eae4156bf8ea12faa6b04074499e279"
     },
     {
       "path": "assets/site/framed/product-yc-card.jpg",
       "kind": "asset",
-      "bytes": 28396,
-      "sha256": "4268abb4eaa93068c3cf59c14f7744ea98772eab8b7c954839ade334b150a016"
+      "bytes": 135037,
+      "sha256": "72e97c4cf1b33f1bbc7a2766c11cd166743d97bf1095f719fc8ddff80fad064d"
     },
     {
       "path": "assets/site/framed/product-ye3-card.jpg",
       "kind": "asset",
-      "bytes": 37561,
-      "sha256": "962590f826edb243e75dc591233c3a2d51f95f81e0597d0094722d19d401b12b"
+      "bytes": 154072,
+      "sha256": "f1490272b0514ccd18ee686ccf0ebdc397cc728ccac4c23a94414a214ea73cd9"
+    },
+    {
+      "path": "assets/site/lundu-logo.png",
+      "kind": "asset",
+      "bytes": 26404,
+      "sha256": "06f34f14697bcf764386002b59f843e77f2d463b682d709462d4600d54eacc72"
+    },
+    {
+      "path": "assets/site/lundu-overview-factory.png",
+      "kind": "asset",
+      "bytes": 679345,
+      "sha256": "6274d47129442203ce413440a762b222b6bbdaaa177867e73a9252f1ef26f0f6"
+    },
+    {
+      "path": "assets/site/lundu-overview-motors.png",
+      "kind": "asset",
+      "bytes": 675244,
+      "sha256": "c5dc0deaad5fe31f9a4ae69de5661da30b027826d35ef6906a146ca5050ccd47"
+    },
+    {
+      "path": "assets/site/lundu-world-routes-20261008.webp",
+      "kind": "asset",
+      "bytes": 142884,
+      "sha256": "923f6d77730de5e1217bec3175411e6d5c1a4d66b12e0fd784f862678297fe84"
     },
     {
       "path": "assets/site/official-1.jpg",
@@ -277,6 +301,12 @@
       "sha256": "9e502dcd45c206a5651a1112cf2642b343baadff2a4955797d9f7898f053ca03"
     },
     {
+      "path": "assets/site/service-pages.json",
+      "kind": "asset",
+      "bytes": 23188,
+      "sha256": "0fc00d690bc4a0c736d2328fb6536d3ff529519c08f711748c02d4d4dcce0f7c"
+    },
+    {
       "path": "assets/site/transparent-products/wq-submersible-pump.png",
       "kind": "asset",
       "bytes": 921632,
@@ -285,14 +315,14 @@
     {
       "path": "data/company-site.json",
       "kind": "seed",
-      "bytes": 30104,
-      "sha256": "e8ab797345e08f1bfdc62a0f598301bfe95e7865be9b5e832e0b42d8f0832c01"
+      "bytes": 32282,
+      "sha256": "e38290890b9d109ea80c9ff217c06570c66916abc7bad7d188e40716ad967bbf"
     },
     {
       "path": "evidence/PACKAGE-GUIDE.md",
       "kind": "evidence",
-      "bytes": 1965,
-      "sha256": "4e0a2d70862eda7aa8793c6aff786aca17052ac348f27cda736f04b737532280"
+      "bytes": 2088,
+      "sha256": "a32a650110bb7146d0894492990056b210766ce314ba4edbb0e26087e7e6cb80"
     },
     {
       "path": "evidence/asset-sources.json",
@@ -303,15 +333,15 @@
     {
       "path": "evidence/research-sources.json",
       "kind": "evidence",
-      "bytes": 7553,
-      "sha256": "2c81a9a1217796d977caf9f7f634651fa9fd5df108f002f8497fdd94cc52ea43"
+      "bytes": 7823,
+      "sha256": "9f36bfb3dd520c7867e5c95c126e89b5d034890e3cebb7d401c7d62291dc8987"
     },
     {
       "path": "runtime/eiscore-enterprise.json",
       "kind": "runtime-config",
-      "bytes": 824,
-      "sha256": "0869185a8ac92ea8a088b05c6d31f2de4fa043909ebacb1cfbdc5791db0938c1"
+      "bytes": 788,
+      "sha256": "28a2db431448c74e6676b473f4c3713d6e7a3140791506a01bfb3200054d67d0"
     }
   ],
-  "packageSha256": "9ef80eb65acc17f45da709adb3f469b29ebe7a4e5ab722a19e3e606a3c194ff5"
+  "packageSha256": "e2d8757c2e4de421c45d0deb77181b746f48f3e0b34c3690cc65e49eaa463d5a"
 }

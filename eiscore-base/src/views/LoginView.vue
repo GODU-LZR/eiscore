@@ -1,5 +1,5 @@
 <template>
-  <div class="login-page" :class="{ 'is-scrolled': pageScrolled }" :style="pageStyle">
+  <div class="login-page" :class="{ 'is-scrolled': pageScrolled || isServicePage }" :style="pageStyle">
     <header class="site-header">
       <div class="brand-lockup">
         <div class="brand-mark" :class="{ 'has-logo': branding.logo }">
@@ -43,7 +43,21 @@
       </div>
     </header>
 
-    <main>
+    <PublicServiceDetail
+      v-if="isServicePage"
+      :key="serviceId"
+      :service="currentService"
+      :pages="servicePages"
+      :ui="serviceUi"
+      :locale="activeLocale"
+      :products="publicProducts"
+      :loading="servicesLoading"
+      @purchase="openServicePurchase"
+      @support="openServiceSupport"
+      @product="openProductDetail"
+      @add-product="addServiceProduct"
+    />
+    <main v-else>
       <section class="hero-section" id="overview">
         <div
           class="hero-media"
@@ -257,7 +271,11 @@
               <h3>{{ item.title }}</h3>
               <p>{{ item.description }}</p>
             </div>
-            <button type="button" class="manufacturing-link" @click="scrollToSection('solutions')">
+            <RouterLink v-if="item.serviceId" class="manufacturing-link"
+              :to="{ name: 'public-service', params: { serviceId: item.serviceId }, query: { lang: activeLocale } }">
+              {{ manufacturingServiceAction }}<span aria-hidden="true">→</span>
+            </RouterLink>
+            <button v-else type="button" class="manufacturing-link" @click="scrollToSection('solutions')">
               {{ manufacturingServiceAction }}<span aria-hidden="true">→</span>
             </button>
           </article>
@@ -432,7 +450,10 @@
                 <button type="button" class="quote-remove" :aria-label="commerceUi.removeLabel" @click="removeFromQuote(item.code)">×</button>
               </article>
             </div>
-            <div v-else class="quote-empty">{{ commerceUi.emptyList }}</div>
+            <div v-else class="quote-empty">
+              {{ commerceUi.emptyList }}
+              <button type="button" class="commerce-secondary" @click="quoteVisible = false; scrollToSection('products')">{{ isEnglish ? 'Choose products' : '选择产品' }}</button>
+            </div>
             <div class="quote-flow">
               <span :class="{ 'is-current': commerceStage === 'inquiry', 'is-complete': commerceStage !== 'inquiry' }"><b>01</b>{{ commerceUi.stepInquiry }}</span><i />
               <span :class="{ 'is-current': commerceStage === 'quote', 'is-complete': commerceStage === 'order' || commerceStage === 'payment' }"><b>02</b>{{ commerceUi.stepQuote }}</span><i />
@@ -577,10 +598,12 @@ import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 import { applyEnterpriseSeoHead, buildEnterpriseSeoHead } from '@eiscore/platform/enterprise-seo'
 import { completeHarnessAuth } from '@/services/harness-auth-client'
+import { readPublicServiceContent, localizedPublicServices } from '@/services/public-service-content'
 
 const Product3DViewer = defineAsyncComponent(() => import('@/components/Product3DViewer.vue'))
 const PineappleProcessViewer = defineAsyncComponent(() => import('@/components/PineappleProcessViewer.vue'))
 const PumpBomViewer = defineAsyncComponent(() => import('@/components/PumpBomViewer.vue'))
+const PublicServiceDetail = defineAsyncComponent(() => import('@/components/PublicServiceDetail.vue'))
 
 const router = useRouter()
 const route = useRoute()
@@ -595,6 +618,8 @@ const paymentVisible = ref(false)
 const quoteItems = ref([])
 const agentMessages = ref([])
 const agentDraft = ref('')
+const serviceContent = ref(null)
+const servicesLoading = ref(true)
 const salesSessionId = ref('')
 const salesBusy = ref(false)
 let salesStreamAbortController = null
@@ -610,6 +635,7 @@ const activeHeroIndex = ref(0)
 const heroPaused = ref(false)
 let heroTimer = null
 let restoreSeoHead = () => {}
+let revealObserver = null
 
 const loginForm = reactive({
   username: '',
@@ -635,6 +661,12 @@ const productActionText = computed(() => (
   activeLocale.value.toLowerCase().startsWith('en') ? 'View applications' : '查看应用方向'
 ))
 const isEnglish = computed(() => activeLocale.value.toLowerCase().startsWith('en'))
+const isServicePage = computed(() => route.name === 'public-service')
+const serviceId = computed(() => String(route.params.serviceId || ''))
+const localizedServices = computed(() => localizedPublicServices(serviceContent.value, activeLocale.value))
+const servicePages = computed(() => localizedServices.value?.pages || [])
+const serviceUi = computed(() => localizedServices.value?.ui || {})
+const currentService = computed(() => servicePages.value.find(page => page.id === serviceId.value) || null)
 const baseCommerceUi = computed(() => isEnglish.value ? {
   kicker: 'Procurement', title: 'Plan your purchase', intro: 'Select products and send a purchase request. Our team will confirm specification, price, lead time and payment terms.', listLabel: 'Purchase order', detailLabel: 'Details', addLabel: 'Add to purchase order', quoteNote: 'Project specification', quoteSummary: 'products in this purchase order', quoteSummaryNote: 'Our team will confirm specification, quantity, lead time and destination before issuing terms.', agentLabel: 'Customer service', collapseAgentLabel: 'Close customer service', quickPromptLabel: 'Quick questions', quickPrompts: ['Recommend a motor for my pump', 'Which parameters should I confirm?', 'How do I prepare a purchase request?'], flowLabel: 'Purchase flow', stepInquiry: 'Purchase request', stepQuote: 'Quote', stepOrder: 'Order', stepPayment: 'Payment', closeLabel: 'Close', listTitle: 'Your purchase order', listIntro: 'Add products and quantities, then send one purchase request.', quantityLabel: 'Quantity', removeLabel: 'Remove', emptyList: 'No products selected yet.', contactTitle: 'Contact and requirements', contactIntro: 'Our team will confirm the quote before any order or payment is created.', companyPlaceholder: 'Company name', namePlaceholder: 'Contact name', emailPlaceholder: 'Business email', phonePlaceholder: 'Phone or WhatsApp', dateLabel: 'Target delivery date', messagePlaceholder: 'Specification, destination, voltage, head/flow or other requirements', sendingLabel: 'Sending...', submitLabel: 'Submit purchase request', paymentReservation: 'Payment interface reserved', agentTitle: 'Lundu customer service', agentIntro: 'Ask about product selection, applications, lead time or purchase preparation.', thinkingLabel: '...', agentPlaceholder: 'Describe your product or project requirements', sendLabel: 'Send', openListLabel: 'Open purchase order', statusLabel: 'Order status', inquiryStatus: 'Purchase request pending', quoteStatus: 'Waiting for sales quote', orderStatus: 'Waiting for order confirmation', paymentStatus: 'Payment interface reserved', statusInquiryDescription: 'Submit products and contact details to start a purchase review.', statusQuoteDescription: 'Our team will confirm specification, price, inventory and lead time.', statusOrderDescription: 'Review the confirmed commercial terms before creating an order.', statusPaymentDescription: 'Payment provider integration is reserved; no funds are captured here.', confirmQuoteLabel: 'Review quote', confirmOrderLabel: 'Confirm order', paymentButtonLabel: 'Open payment placeholder'
 } : {
@@ -792,6 +824,9 @@ const manufacturingSeries = computed(() => businessChainItems.value.slice(0, 3).
 }))
 const manufacturingServiceItems = computed(() => businessChainItems.value.slice(3).map((item, index) => ({
   ...item,
+  title: servicePages.value[index]?.title || item.title,
+  description: servicePages.value[index]?.summary || item.description,
+  serviceId: servicePages.value[index]?.id || '',
   number: String(index + 4).padStart(2, '0'),
   label: activeLocale.value.toLowerCase().startsWith('en') ? 'Manufacturing service' : '制造服务'
 })))
@@ -903,7 +938,7 @@ const stopHeroAutoplay = () => {
 
 const startHeroAutoplay = () => {
   stopHeroAutoplay()
-  if (heroPaused.value || prefersReducedMotion() || carouselItems.value.length < 2) return
+  if (isServicePage.value || heroPaused.value || prefersReducedMotion() || carouselItems.value.length < 2) return
   heroTimer = window.setInterval(() => {
     activeHeroIndex.value = (activeHeroIndex.value + 1) % carouselItems.value.length
   }, 6500)
@@ -961,8 +996,12 @@ const handleScroll = () => {
   pageScrolled.value = window.scrollY > 28
 }
 
-const scrollToSection = (anchor) => {
+const scrollToSection = async (anchor) => {
   if (!anchor) return
+  if (isServicePage.value) {
+    await router.push({ path: '/login', query: { lang: activeLocale.value }, hash: `#${anchor}` })
+    return
+  }
   const el = document.getElementById(anchor)
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
@@ -994,6 +1033,28 @@ const openQuoteList = () => {
   quoteVisible.value = true
   agentVisible.value = false
   productDetail.value = null
+}
+
+const prepareServicePurchase = () => {
+  const template = currentService.value?.purchaseTemplate || ''
+  if (template && !leadForm.message.trim()) leadForm.message = template
+}
+
+const openServicePurchase = () => {
+  prepareServicePurchase()
+  openQuoteList()
+}
+
+const addServiceProduct = (product) => {
+  prepareServicePurchase()
+  addToQuote(product)
+}
+
+const openServiceSupport = async () => {
+  if (!agentDraft.value.trim()) agentDraft.value = currentService.value?.supportPrompt || ''
+  await openSalesAgent()
+  await nextTick()
+  document.querySelector('.agent-composer input')?.focus()
 }
 
 const advanceCommerceStage = (stage) => {
@@ -1191,6 +1252,34 @@ watch(activeLocale, () => {
   activeSolutionIndex.value = 0
   activeHeroIndex.value = 0
   startHeroAutoplay()
+  refreshSeoHead()
+})
+
+const revealSections = () => {
+  revealObserver?.disconnect()
+  const targets = Array.from(document.querySelectorAll('.reveal'))
+  if (!targets.length) return
+  if (!('IntersectionObserver' in window)) {
+    targets.forEach(item => item.classList.add('is-visible'))
+    return
+  }
+  revealObserver = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return
+      entry.target.classList.add('is-visible')
+      revealObserver.unobserve(entry.target)
+    })
+  }, { threshold: 0.18 })
+  targets.forEach(item => revealObserver.observe(item))
+}
+
+watch(() => route.fullPath, async () => {
+  await nextTick()
+  startHeroAutoplay()
+  refreshSeoHead()
+  revealSections()
+  if (route.hash) scrollToSection(route.hash.slice(1))
+  else window.scrollTo({ top: 0, behavior: 'instant' })
 })
 
 watch(quoteItems, (items) => {
@@ -1217,7 +1306,9 @@ const openSecondaryAction = () => {
 const refreshSeoHead = () => {
   restoreSeoHead()
   const head = buildEnterpriseSeoHead(systemStore.enterpriseProfile, { pathname: window.location.pathname })
-  restoreSeoHead = applyEnterpriseSeoHead(document, head)
+  restoreSeoHead = applyEnterpriseSeoHead(document, currentService.value
+    ? { ...head, title: `${currentService.value.title}｜${companyName.value}`, description: currentService.value.summary }
+    : head)
 }
 
 const switchLocale = async (locale) => {
@@ -1237,7 +1328,11 @@ const switchLocale = async (locale) => {
 
 onMounted(async () => {
   const requestedLocale = new URLSearchParams(window.location.search).get('lang') || ''
-  await systemStore.loadConfig({ locale: requestedLocale })
+  await Promise.all([
+    systemStore.loadConfig({ locale: requestedLocale }),
+    readPublicServiceContent().then(content => { serviceContent.value = content }).catch(() => {})
+      .finally(() => { servicesLoading.value = false })
+  ])
   hydrateInquiryList()
   systemStore.initTheme()
   startHeroAutoplay()
@@ -1254,25 +1349,14 @@ onMounted(async () => {
   handleScroll()
   window.addEventListener('scroll', handleScroll, { passive: true })
   requestAnimationFrame(() => {
-    const targets = Array.from(document.querySelectorAll('.reveal'))
-    if (!targets.length) return
-    if (!('IntersectionObserver' in window)) {
-      targets.forEach((item) => item.classList.add('is-visible'))
-      return
-    }
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return
-        entry.target.classList.add('is-visible')
-        observer.unobserve(entry.target)
-      })
-    }, { threshold: 0.18 })
-    targets.forEach((item) => observer.observe(item))
+    revealSections()
+    if (route.hash) scrollToSection(route.hash.slice(1))
   })
 })
 
 onBeforeUnmount(() => {
   stopHeroAutoplay()
+  revealObserver?.disconnect()
   window.removeEventListener('scroll', handleScroll)
   document.body.classList.remove('employee-login-open')
   restoreSeoHead()

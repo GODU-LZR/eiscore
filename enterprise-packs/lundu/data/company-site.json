@@ -141,12 +141,12 @@
               {
                 "number": "04",
                 "title": "品质与交付",
-                "description": "官网公开信息显示，生产流程处于受控状态，配备检测设备，围绕产品质量与交付计划组织制造。"
+                "description": "围绕电机与水泵规格组织制造、装配与检验，从产品要求到包装发运，让采购与交付信息清楚一致。"
               },
               {
                 "number": "05",
                 "title": "技术与服务",
-                "description": "面向采购、工程配套与维修备件场景，提供产品选型、定制配套、交付协同与售后服务。"
+                "description": "面向设备配套、工程采购与维修备件，提供电机与水泵选型、定制配套沟通和售后支持。"
               }
             ],
             "capabilities": [
@@ -311,12 +311,12 @@
               {
                 "number": "04",
                 "title": "Quality and delivery",
-                "description": "Production, assembly and inspection are organized around product specifications and delivery plans."
+                "description": "Manufacturing, assembly and inspection for motor and pump specifications, with clear coordination of product requirements, packing and shipment."
               },
               {
                 "number": "05",
                 "title": "Technical and service support",
-                "description": "Product selection, coordinated delivery and after-sales support for projects, procurement and service parts."
+                "description": "Motor and pump selection, customization coordination and after-sales support for equipment, project procurement and service parts."
               }
             ],
             "capabilities": [
