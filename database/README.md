@@ -22,6 +22,7 @@ Compose 的 initdb 挂载只初始化 v1 基线、角色和密钥，不执行 co
 8. `public-schema-ratchet.json` 固定存量允许集；新应用对象不得进入 `public`，例外必须同时绑定新迁移和接受 ADR。删除或迁出不会扩大允许集。
 9. 每个迁移必须声明 `lockTimeoutMs`、`statementTimeoutMs` 和 `idleTransactionTimeoutMs`；运行器以事务内 `SET LOCAL` 强制执行，禁止继承集群的无限超时默认值。
 10. 动态表只允许 `super_admin` 或 `eiscore_agent` 通过 `app_center.create_data_app_table` 创建或加列。存量孤儿表只隔离、不删除；不得直接绕过注册表执行产品 DDL。
+11. SQL 使用 `.gitattributes` 的 `-text` 保留原始字节，禁止 Git 自动转换换行。历史审计 SHA-256 与基线中的混合换行必须原样保存；dollar-quoted 函数体中的换行会进入 PostgreSQL definition，改变目录指纹。portable 内容校验不能替代真实空库、升级与恢复验收，不得为适配 checkout 重算冻结 checksum 或目录指纹。
 
 本地只读校验：
 
