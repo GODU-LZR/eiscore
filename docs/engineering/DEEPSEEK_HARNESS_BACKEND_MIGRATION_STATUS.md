@@ -12,6 +12,8 @@
 - 十四项原有修改已在 `.codex-tmp/protected-changes-20261008-e0f26c20-review/` 逐文件备份并核对 SHA-256。收到用户“备份后恢复五份历史 manifest”的明确授权后，仅恢复 DB2–DB6 manifest 的已提交历史 checksum，五份文件的 `git diff --exit-code` 均通过，恢复前副本仍完整。九份伦度改动与备份字节一致，未被本任务覆盖、stage 或提交；主工作树仍不能声明 clean。
 - 恢复后显式 DB7 candidate dry-run 再次退出 `0`，canonical SHA 未变化；默认正式 v6 dry-run 仍退出 `1`，错误数从 17 减至 14，说明历史 v6 仍不适用于当前源码。本轮只恢复历史，不重新冻结 v6、不修改账本、不执行数据库发布。DB7 正式本地制品批准仍待答复，candidate 未提升到正式 release 路径，默认 v6 未切换。
 - 现有 Compose 未切换到新镜像：`eiscore-harness-bridge` 仍为旧 image `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e` 且 healthy，`deepseek-web` 仍在 `Restarting (1)`。因此 Bridge clean-build provenance 已闭合，但完整本地栈和正式数据库发布仍未就绪；全局目标继续 `active`。
+- 候选及验收记录已本地提交为 `1c1f636d`，其 Harness Git tree 与测试源码 `e0f26c20` 相同。主工作树提交后仅剩九份伦度变更，与仍在进行的“伦度独立站”任务及其蓝色主题交接记录对应；本任务保留这些文件，没有发消息或代为提交。
+- 既有 DeepSeek Web 的只读定位发现：它将 `.codex-tmp/harness-delivery-candidate/client-plugins` 挂载至插件根，但 `eiscore-auth`、`digital-twin`、`enterprise-bi` 的三个 `lib/index.js` 均缺失，Cordis 启动日志也明确报告这三个插件无法解析。该故障属于 Web 编译制品/挂载缺失，不是本轮已验证的 Bridge Provider completion 失败；尚未修复运行态，不知道临时入口缺失的原因。完整本地栈验收需要可追溯的前端插件制品，不使用历史临时目录包装通过。
 
 ### 历史复核：2026-10-08 提交 `7e0774aa`
 

@@ -38,6 +38,14 @@ DB7 candidate 绑定 `sourceRevision=e0f26c20c77ba108f2a6e8c371ab1c2dc1ce21fd`�
 
 本次授权只处置五份历史 manifest。DB7 candidate 的正式本地制品批准问题仍未得到答复，因此没有提升到 `database/releases/`，没有切换默认 release。九份伦度变更继续由负责其实现和验收的任务处置。
 
+候选与上述验收记录已本地提交为 `1c1f636d07aa596de37131caec3f4164dcf60074`，提交范围仅三个本任务文件。提交后的 index 为空，主工作树仅剩上述九份伦度变更；`1c1f636d:agent-harness` 与构建源码 `e0f26c20:agent-harness` 的 Git tree 均为 `6ec1bfe00814d514d16ccde2d917e90af2368be1`。后续记录提交不改变 Harness 源码或 DB7 绑定的执行 artifact，无需为文档提交重复构建或调用 Provider。只读核对 Codex 任务“伦度独立站”仍处于 active/inProgress；该任务的交接文档记录了同一组蓝色主题源码/公开配置/企业包修改。本任务不向该任务发送消息，也不代为提交其未收口变更。
+
+### 既有 DeepSeek Web 重启故障的只读定位
+
+`eiscore-codex-local-deepseek-web-1` 实际仍使用旧 image `sha256:7e7192e90910b669b0d537ec31025f345ef3aad41f8c8b08beaf5f8a5277dd3e`，Node `22.19.0`、非 root、只读根文件系统。日志报告 Cordis 无法加载三个 client plugin，inspect 显示 `/opt/eiscore-harness/client-plugins` 绑定至主工作树的 `.codex-tmp/harness-delivery-candidate/client-plugins`；该目录存在，但 `eiscore-auth/lib/index.js`、`digital-twin/lib/index.js` 和 `enterprise-bi/lib/index.js` 三个文件逐项 `Test-Path` 均为 `false`。因此当前 Web 的确定性阻塞是缺少所挂载的编译插件入口，不能用 Bridge 的模型 completion 成功代替 Web 启动验收。
+
+本轮只读定位没有恢复临时目录、修改挂载、读取 DSH 状态卷或重启服务。后续完整栈验收需要从可追溯的前端插件源码生成完整制品并验证实际加载，不能把历史临时目录或仅有后端文件的 Bridge 镜像当作完整 Web 交付。本记录没有证据确定这些临时入口缺失的原因。
+
 本轮脱敏摘要保存于 `.codex-tmp/bridge-provenance-20261008-e0f26c20/report.json`；该文件记录实际拓扑、源码/镜像字节核对和执行结果，不包含密钥或 completion 正文。本任务制品可提交不等于正式 release 批准，目标保持 `active`。
 
 ## 历史复核：2026-10-08 提交 `7e0774aa`
