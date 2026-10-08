@@ -324,3 +324,5 @@ HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 使用 `/opt/lundu-eiscore/.lundu-web-publish.lock`，确认旧版仍为 `e76b6d03cda554ae` 后切换完整 release。备份 `/opt/lundu-eiscore/backups/release-pre-service-details-20573070-20261008150642`；实际只重建 `lundu-eiscore-web-1`，容器 ID 比较确认其他服务未变化。回退时在同一锁内把备份恢复为 release，再执行 web-only 重建，禁止回退业务数据。
 
 线上 24 个 HTTP 资源与本地逐字节一致，配置 `enterprise.id=lundu`，Logo 正常、页面无君乐缘品牌。验收脚本及证据位于 `output/lundu-service-pages/`；没有提交真实订单或测试真实客服模型回复。
+
+最终线上四视口视觉验收覆盖两个详情页共 8 项，全部通过：图片加载、Logo、单行按钮、无横向溢出、无错误品牌及浏览器错误。首页返回、FAQ、采购单资料模板、产品选择、客服窗体及中英文切换通过。启用 Service Worker 的首页进入详情/刷新 smoke 也通过，manifest 保持 `78294f227a301616`。对应证据为 `remote-qa.json`、`remote-http-qa.json` 与 `remote-cache-smoke.json`；流式客服使用 mock，未调用真实模型。运行目录为 `/opt/lundu-eiscore/release`，后续发布须保留完整 12 入口。

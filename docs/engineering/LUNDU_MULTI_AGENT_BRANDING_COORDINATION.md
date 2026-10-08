@@ -194,3 +194,5 @@ Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的
 远端共享锁内确认旧 manifest 仍为 `e76b6d03cda554ae`，校验归档、600 个资源、12 入口和伦度品牌后替换完整 release，备份为 `/opt/lundu-eiscore/backups/release-pre-service-details-20573070-20261008150642`。实际仅重建 `lundu-eiscore-web-1`，新容器 `8c0540eb3032`；发布前后容器 ID 核对确认其他服务未变化。没有清理既有 DeepSeek Web orphan。
 
 线上 HTTP 核验 24 个入口/配置/Logo/服务 JSON/产品图均 200 且与本地逐字节一致，配置 `enterprise.id=lundu`；600 个 manifest URL 均存在，未检出错误品牌。服务 JSON SHA-256 `0fc00d690bc4a0c736d2328fb6536d3ff529519c08f711748c02d4d4dcce0f7c`，企业包 53 个 payload 通过标准 manifest 验证。本地语法、变更 lint、服务内容及相关品牌/路由回归、四视口视觉验收已通过。
+
+最终线上视觉验收：两个服务页在 `390×844`、`414×896`、`768×1024`、`1440×900` 共 8 项通过；图片完整加载、Logo 正常、按钮单行、无横向溢出、无错误品牌和浏览器错误。采购单模板、产品选择、FAQ、客服展开/收起与中英文切换通过。另在启用 Service Worker 后完成首页进入详情及刷新，版本仍为 `78294f227a301616`。客服流式交互使用 mock，未验证真实模型回复或提交真实订单。证据为 `output/lundu-service-pages/remote-qa.json`、`remote-http-qa.json` 与 `remote-cache-smoke.json`。发布完成已通知 DeepSeek 整合聊天；远端运行制品为 `/opt/lundu-eiscore/release`，staging 的 `base-dist` 只有主站，不能单独覆盖完整 release。
