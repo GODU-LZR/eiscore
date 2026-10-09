@@ -75,6 +75,9 @@ export const useSystemStore = defineStore('system', () => {
     const requestId = ++profileRequestId
     const profile = await getHostEnterpriseProfileService().readProfile({ locale })
     if (requestId !== profileRequestId) return enterpriseProfile.value
+    if (profile.source === 'deployment-fallback' && enterpriseProfile.value?.source === 'published-site') {
+      return enterpriseProfile.value
+    }
     enterpriseProfile.value = profile
     enterpriseLocale.value = profile.locale || locale || profile.defaultLocale || 'zh-CN'
     updateConfig(mergeEnterpriseProfileIntoSystemConfig(baseSystemConfig.value, profile))
@@ -82,10 +85,15 @@ export const useSystemStore = defineStore('system', () => {
   }
 
   const loadConfig = async ({ locale = enterpriseLocale.value } = {}) => {
+    const requestId = ++profileRequestId
     const [value, profile] = await Promise.all([
       getHostSystemConfigService().readValue('app_settings').catch(() => null),
       getHostEnterpriseProfileService().readProfile({ locale })
     ])
+    if (requestId !== profileRequestId) return enterpriseProfile.value
+    if (profile.source === 'deployment-fallback' && enterpriseProfile.value?.source === 'published-site') {
+      return enterpriseProfile.value
+    }
     enterpriseProfile.value = profile
     enterpriseLocale.value = profile.locale || locale || profile.defaultLocale || 'zh-CN'
     const systemConfig = value && typeof value === 'object'
