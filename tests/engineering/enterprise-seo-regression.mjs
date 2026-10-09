@@ -47,6 +47,8 @@ assert.deepEqual(head.keywords, ['fruit products'])
 assert.ok(head.structuredData['@graph'].some((item) => item['@type'] === 'Organization'))
 assert.ok(head.structuredData['@graph'].some((item) => item['@type'] === 'Product'))
 assert.ok(head.structuredData['@graph'].some((item) => item['@type'] === 'FAQPage'))
+assert.equal(head.openGraph['og:image'], undefined)
+assert.equal(head.twitter['twitter:card'], 'summary')
 
 const published = enterpriseProfileFromSiteConfig({
   ...payload,
@@ -56,5 +58,10 @@ const publishedHead = buildEnterpriseSeoHead(published, { pathname: '/login' })
 assert.equal(publishedHead.canonical, 'https://www.example.com/login')
 assert.equal(publishedHead.robots, 'index,follow')
 assert.equal(publishedHead.alternates.length, 2)
+assert.equal(publishedHead.openGraph['og:image'], undefined)
+assert.equal(publishedHead.openGraph['og:image:width'], undefined)
+assert.equal(publishedHead.openGraph['og:image:height'], undefined)
+assert.equal(publishedHead.twitter['twitter:card'], 'summary')
+assert.equal(publishedHead.favicon, '')
 
 console.log('enterprise-seo-regression: PASS')

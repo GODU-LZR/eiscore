@@ -157,6 +157,14 @@ docs/engineering/LUNDU_REMOTE_BRANDING_FIX_20260927.md
 
 本文件创建时，伦度线上已恢复为当前重构分支制品。最近一次恢复只重建 web，未重启数据库、API、Agent 或 Harness。之后三个 Agent 均可发布自己负责的服务，但必须按本文件的声明、范围和验收流程协作。
 
+## 2026-10-09 分享卡片与网站图标构建交接
+
+本轮目标是让外部爬虫和支持 Open Graph 的分享入口读取伦度网站标题、描述、1200×630 分享图与站点图标。微信自定义菜单分享仍需要认证公众号、JS 接口安全域名、服务端 `access_token`/`jsapi_ticket` 签名；抖音 H5 官方能力主要面向图片/视频发布页，不承诺任意 URL 的聊天卡片。没有把平台密钥放入前端。
+
+源码改动范围：`eiscore-base/index.html`、`eiscore-base/vite.config.js`、`scripts/vite-enterprise-share-metadata.mjs`、`packages/eiscore-platform/src/enterprise-seo.mjs`、分享回归测试、伦度企业包 SEO 字段和资源 Manifest。核心模板默认恢复为 `/favicon.ico`，分享图和 favicon 由企业构建变量注入；运行时 SEO 未配置资源时不再 fallback 到伦度资源。伦度企业包显式配置 `assets/site/share-card.jpg` 和 `assets/site/favicon.svg`，新增 `lundu-favicon.png` 供 Apple touch icon 使用。
+
+发布声明：目标服务 `web`；工作区 `github-eiscore-refactor`，分支 `codex/systematic-refactor`；构建变量使用 `VITE_ENTERPRISE_SHARE_ORIGIN=https://lundu.eiscore.top`、伦度分享图、favicon 和标题描述。制品为 `output/lundu-share-metadata-20261009/full-dist`，根站由本轮源码构建，11 个微前端沿用上一轮已验收的完整入口并逐目录合并；发布前生成 `asset-manifest.json`，版本和数量以最终归档为准。预计影响只有 `lundu-eiscore-web-1`，不重建 DB、API、Agent、DeepSeek Web 或 Harness。发布完成后必须检查 HTML 的绝对 OG 图片 URL、favicon、`enterprise.id=lundu`、HTTP 200 资源和四视口页面。
+
 ## 2026-10-08 公司简介全球线路图发布
 
 公司简介右侧媒体改为独立配置 `aboutImage`，不改变首屏轮播；伦度部署配置及中英文企业包均指向 `/enterprise-assets/site/lundu-world-routes-20261008.webp`（2048×1152 WebP）。图片在媒体容器中按 16:9、`object-fit: contain` 展示，点击可查看原图。修正后平板也采用单列布局，避免 768px 视口挤窄公司文字。

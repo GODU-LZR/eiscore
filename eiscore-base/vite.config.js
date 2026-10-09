@@ -8,6 +8,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import { createBuildOptions } from '../scripts/vite-build-config.mjs'
 import { loadViteDevProxyTargets } from '../scripts/vite-dev-proxy-config.mjs'
 import { enterprisePreviewPlugin } from '../scripts/vite-enterprise-preview.mjs'
+import { enterpriseShareMetadataPlugin } from '../scripts/vite-enterprise-share-metadata.mjs'
 
 const devProxyTargets = loadViteDevProxyTargets()
 
@@ -17,6 +18,7 @@ export default defineConfig(({ command }) => ({
     vue(),
     command === 'serve' ? vueDevTools() : null,
     enterprisePreviewPlugin(process.env.VITE_ENTERPRISE_PREVIEW_PACK),
+    enterpriseShareMetadataPlugin(),
   ].filter(Boolean),
   server: {
     port: 8080,

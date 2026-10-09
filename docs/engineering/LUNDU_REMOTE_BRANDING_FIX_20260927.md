@@ -349,6 +349,12 @@ HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 
 ## 2026-10-09 客服窗口美化同步
 
+### 分享卡片与站点图标交接
+
+本轮源码把标准 Open Graph/Twitter 分享元数据与 favicon 做成企业构建注入。伦度构建使用绝对地址 `https://lundu.eiscore.top/enterprise-assets/site/share-card.jpg`，图片尺寸 `1200×630`；同时输出伦度标题、描述、站点名、SVG favicon 和 Apple touch icon。核心模板不再硬编码伦度资源，未配置分享图或 favicon 的其他企业不会继承伦度路径。微信菜单内自定义分享仍需认证公众号和服务端 JSSDK 签名；抖音 H5 官方能力主要为图片/视频发布，不保证任意网址聊天卡片。
+
+发布前声明：目标仅 `web`；分支 `codex/systematic-refactor`；制品目录 `output/lundu-share-metadata-20261009/full-dist`，根站使用本轮构建，11 个微前端来自上一轮已验收完整制品。远端发布必须持有 `/opt/lundu-eiscore/.lundu-web-publish.lock`，只重建 `lundu-eiscore-web-1`，不能重建 DB、API、Agent、DeepSeek Web 或 Harness。验收至少包括 `/login`、`/config/eiscore-enterprise.json`、`/asset-manifest.json`、分享图、favicon 的 HTTPS 200，以及 HTML 中绝对 OG URL 和无君乐缘品牌。
+
 提交 `cece9665`、`ff05d042` 将客服窗体调整为白底蓝色、380×600 上限，缩小标题和头部头像、扩大对话主体，使用灰色客服/蓝色用户气泡及多行输入和图标发送。欢迎语与快捷问题仅出现在首次对话；原 48×48 头像入口保留。修复客服消息 reactive 引用，流式回复会逐段显示；阅读历史不抢滚动，手机键盘弹出时按 visualViewport 调整窗体。
 
 仅发布 `web`，构建来源提交 `ff05d042cab17617161db381af2568a193413ecc`，完整 12 入口目录 `output/lundu-support-window-20261009/full-dist-final`；归档 SHA-256 `d179a00f1d2bb27a60df8e9deaf195591922ab320869d3bf8238ca8a18ca0f9e`。Windows 构建因内存不足失败后，改用远端隔离源码快照构建主站；11 个源码未变的微应用在锁内与运行版本逐文件核对一致。失败产物和同目录旧 `full-dist` 没有发布。入口 6295 字节、主包 `/assets/index-DVSuB0h1.js`，manifest `3f41e8af83c33350` / 601 项 / 77,277,578 字节。

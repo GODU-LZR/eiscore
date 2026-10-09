@@ -171,8 +171,8 @@
     {
       "path": "assets/site/favicon.svg",
       "kind": "asset",
-      "bytes": 181,
-      "sha256": "214ad39ec8bce6fe642505aa1a1cd046f02e78dffaca84c900ddafb7488dd5c8"
+      "bytes": 337,
+      "sha256": "771b2bd7d8c7bfa454612847c37f7e0cf72bf918ac544001736f862286d0f602"
     },
     {
       "path": "assets/site/framed/product-jet-card.jpg",
@@ -203,6 +203,12 @@
       "kind": "asset",
       "bytes": 154072,
       "sha256": "f1490272b0514ccd18ee686ccf0ebdc397cc728ccac4c23a94414a214ea73cd9"
+    },
+    {
+      "path": "assets/site/lundu-favicon.png",
+      "kind": "asset",
+      "bytes": 1928,
+      "sha256": "3a4ae1d0659a930df5492ac1150c9345d4893e3902f77ff840eb1402fcf73c42"
     },
     {
       "path": "assets/site/lundu-logo.png",
@@ -307,6 +313,12 @@
       "sha256": "0fc00d690bc4a0c736d2328fb6536d3ff529519c08f711748c02d4d4dcce0f7c"
     },
     {
+      "path": "assets/site/share-card.jpg",
+      "kind": "asset",
+      "bytes": 94400,
+      "sha256": "1921e298d33e3af5913f4b3dd8649ec03bfed0ca636e4ef33ee69577a65a7766"
+    },
+    {
       "path": "assets/site/transparent-products/wq-submersible-pump.png",
       "kind": "asset",
       "bytes": 921632,
@@ -315,8 +327,8 @@
     {
       "path": "data/company-site.json",
       "kind": "seed",
-      "bytes": 32282,
-      "sha256": "e38290890b9d109ea80c9ff217c06570c66916abc7bad7d188e40716ad967bbf"
+      "bytes": 32394,
+      "sha256": "3adc1ef0bae5e7d94e440bce8558808c4b0daab6f829eb6bd1f0ba5fdb3d49c0"
     },
     {
       "path": "evidence/PACKAGE-GUIDE.md",
@@ -343,5 +355,5 @@
       "sha256": "28a2db431448c74e6676b473f4c3713d6e7a3140791506a01bfb3200054d67d0"
     }
   ],
-  "packageSha256": "e2d8757c2e4de421c45d0deb77181b746f48f3e0b34c3690cc65e49eaa463d5a"
+  "packageSha256": "27322d85c4c7ec6c7ab74cc0a7a3c317e91176e66617f28b923fd208261eb13a"
 }
