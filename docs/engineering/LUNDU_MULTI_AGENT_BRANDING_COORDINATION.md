@@ -222,3 +222,21 @@ Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的
 本地语法、变更 lint、登录入口/品牌与 system-profile-request 回归、主站构建均通过。本地及远端 `/login` 在 390×844、414×896、768×1024、1440×900 中英两种语言的头像加载、48px 尺寸、点击、Enter、关闭及往返切换均通过；已视觉检查桌面、手机展开/收起截图。无横向溢出、君乐缘正文或页面异常。25 个 HTTPS 资源与制品逐字节一致，含头像、主包、Logo、公开配置及 11 个微应用入口；Service Worker 开启后的服务页刷新、首页英文切换与刷新通过。只验证客服界面，未提交真实消息或订单。证据见 `output/playwright/lundu-support-avatar-20261009/{local,remote}-qa.json` 和 `output/lundu-support-avatar-20261009/{release-proof,remote-http-qa,remote-cache-smoke}.json`。
 
 验收环境备注：本机 DNS 当时将域名解析为 `103.73.220.77`，服务器解析为 `149.104.26.71`，默认自动化请求超时；HTTPS 验收固定到已授权部署 IP `149.104.26.71`，仍使用 `lundu.eiscore.top` 主机名且未跳过证书验证。没有改动 DNS 或全局 hosts。其他 Agent 后续发布 web 时必须保留本次头像和之前语言修复，并重新生成完整 dist。
+
+## 2026-10-09 客服窗口美化发布
+
+用户授权美化客服窗口并推送、部署。源码提交 `cece9665`、`ff05d042` 仅修改 `eiscore-base/src/views/LoginView.vue` 和 `eiscore-base/src/styles/login-view.scss`。窗口改为白底蓝色、桌面 380×600 上限、紧凑头像与标题、灰色客服/蓝色用户气泡和一体式多行输入框。首次欢迎语及三个简短问题在开始对话后隐藏；快捷问题只填入输入框，不自动发送。头像入口仍为 48×48。中文标题使用现有企业文案配置，没有新增客户名称硬编码。
+
+同步修复流式回复更新：将被逐段修改的客服消息建为 Vue reactive 对象，使已渲染气泡逐段更新。阅读历史时停止自动跟尾，用户发送新问题或重新打开后恢复跟尾。输入区支持 Shift+Enter 换行、Enter 发送和 IME composing 保护；移动端通过 visualViewport 调整键盘弹出后的高度与底部位置，卸载时移除监听并取消流请求。客服和采购接口没有改变。
+
+发布声明：目标仅 `web`；工作区 `github-eiscore-refactor`，分支 `codex/systematic-refactor`，构建提交 `ff05d042cab17617161db381af2568a193413ecc`。已提前向 DeepSeek 整合聊天声明服务、提交、制品和其他 Agent 的影响。完整制品目录 `output/lundu-support-window-20261009/full-dist-final`，归档 `lundu-support-window-ff05d042.tar.gz`，SHA-256 `d179a00f1d2bb27a60df8e9deaf195591922ab320869d3bf8238ca8a18ca0f9e`。入口 6295 字节、主包 `/assets/index-DVSuB0h1.js`；manifest `3f41e8af83c33350` / 601 项 / 77,277,578 字节 / 完整 12 入口。
+
+构建来源：Windows 最终构建两次因 esbuild 内存不足失败，失败 dist 未发布。将该提交的 `git archive` 放到远端隔离目录 `/opt/lundu-eiscore/staging/support-window-ff05d042-build`，复用已安装的 Linux 依赖，并把 `@eiscore/platform` 指向当前快照中的平台源码；主站构建成功，未写运行源码。11 个微应用及共享构建源码相对 `2cd5076c` 未变，使用已验收的 `output/lundu-support-avatar-20261009/full-dist/<mount>`，并在发布锁内逐文件 SHA-256 核对与远端 live 完全一致。只有 `full-dist-final` 是本次可发布目录，同目录旧 `full-dist` 和失败的源目录 dist 不可发布。
+
+2026-10-09 08:57 UTC，持有 `/opt/lundu-eiscore/.lundu-web-publish.lock`，确认旧 manifest `2051dc0c3fd37e54`、归档 SHA、601 资源、12 入口、伦度品牌及微应用门禁后原子替换 `/opt/lundu-eiscore/release`。实际只重建 `lundu-eiscore-web-1`，容器 `5043104240b8`；发布前后比较确认其他容器 ID 未变。未清理既有 DeepSeek Web orphan。备份 `/opt/lundu-eiscore/backups/release-pre-support-window-ff05d042-20261009085740`。回退需持有同一锁，恢复该完整目录并只重建 web，不回退业务数据。
+
+验证记录：语法检查、变更 lint、登录入口/品牌与 system-profile-request 回归通过。源码提交已推送到 `https://github.com/GODU-LZR/eiscore.git` 的 `codex/systematic-refactor`；没有向指向 DeepSeek Harness 的本地 origin 推送。25 个 HTTPS 资源与制品逐字节一致；Service Worker 开启后的服务页刷新及首页英文切换/刷新通过，manifest 保持 `3f41e8af83c33350`，无错误品牌或控制台错误。本地及远端均完成 390×844、414×896、768×1024、1440×900 中英文 8/8 场景，全部 PASS，客服窗体无裁切、重叠或横向溢出；主 Agent 和只读 Agent 已人工检查截图。证据见 `output/playwright/lundu-support-window-20261009/{local,remote}-qa.json`。首次远端重展开检查曾在头像解码前断言失败；测试补齐每次展开的 decode 等待并加入 console error 收集后重跑，未为此修改线上代码。
+
+验收边界：客服请求使用可控 ReadableStream mock，覆盖逐段显示、多行发送、长回复跟尾、历史阅读不抢滚动、重新发送、展开/关闭及采购单入口；未调用真实模型或提交订单。手机键盘几何为 Chromium visualViewport 模拟，未宣称真实 iOS/Android 设备验证。后续发布应保留语言修复、头像、窗口样式及 reactive 流式消息修复，从当前源码生成完整制品并重复品牌门禁。详细来源、资源核对和缓存证据位于 `output/lundu-support-window-20261009/`。
+
+另见既有移动英文导航按钮 `Enterprise login` / `Purchase order` 在窄屏发生省略或右侧裁切，位置在客服窗体之外，本次未改导航；后续独立处理移动导航布局时应复用本次四视口截图基线。

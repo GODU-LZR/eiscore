@@ -346,3 +346,13 @@ HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 备份 `/opt/lundu-eiscore/backups/release-pre-avatar-a2db08bc-20261009072645`。回退必须持有 `/opt/lundu-eiscore/.lundu-web-publish.lock`，恢复该完整目录并只重建 web。后续发布保留头像及 `014f5a72`、`10dde8b6` 语言修复，不得发布陈旧入口。
 
 本地及远端 `/login` 四视口中英头像/交互验收通过，已检查桌面与手机截图；无横向溢出、错误品牌或页面异常。25 个 HTTPS 资源和制品逐字节一致；Service Worker 开启的详情刷新及首页英文刷新通过。未发送真实客服消息或订单。证据位于 `output/playwright/lundu-support-avatar-20261009`、`output/lundu-support-avatar-20261009`。当时本机 DNS 返回 `103.73.220.77`，服务器返回 `149.104.26.71`；验收固定部署 IP，保留域名与证书验证，未修改 DNS/hosts。详细制品来源及发布记录见协作文档同日“客服头像入口发布”。
+
+## 2026-10-09 客服窗口美化同步
+
+提交 `cece9665`、`ff05d042` 将客服窗体调整为白底蓝色、380×600 上限，缩小标题和头部头像、扩大对话主体，使用灰色客服/蓝色用户气泡及多行输入和图标发送。欢迎语与快捷问题仅出现在首次对话；原 48×48 头像入口保留。修复客服消息 reactive 引用，流式回复会逐段显示；阅读历史不抢滚动，手机键盘弹出时按 visualViewport 调整窗体。
+
+仅发布 `web`，构建来源提交 `ff05d042cab17617161db381af2568a193413ecc`，完整 12 入口目录 `output/lundu-support-window-20261009/full-dist-final`；归档 SHA-256 `d179a00f1d2bb27a60df8e9deaf195591922ab320869d3bf8238ca8a18ca0f9e`。Windows 构建因内存不足失败后，改用远端隔离源码快照构建主站；11 个源码未变的微应用在锁内与运行版本逐文件核对一致。失败产物和同目录旧 `full-dist` 没有发布。入口 6295 字节、主包 `/assets/index-DVSuB0h1.js`，manifest `3f41e8af83c33350` / 601 项 / 77,277,578 字节。
+
+共享锁内验证旧版 `2051dc0c3fd37e54` 后原子替换 release，实际仅重建 `lundu-eiscore-web-1`，容器 `5043104240b8`；其他容器 ID 未变。备份 `/opt/lundu-eiscore/backups/release-pre-support-window-ff05d042-20261009085740`。回退须持有 `/opt/lundu-eiscore/.lundu-web-publish.lock`，恢复完整备份并只重建 web。
+
+语法、变更 lint、登录/品牌/配置回归通过。25 个 HTTPS 资源与制品逐字节一致；Service Worker 下服务页刷新、首页英文切换与刷新通过，无错误品牌及控制台错误。源码已推送至正确的 EISCore Git 远端。本地及远端四视口中英文客服交互各 8/8 PASS，已人工检查截图，客服窗口无裁切、重叠和横向溢出；证据位于 `output/playwright/lundu-support-window-20261009`，制品与 HTTP/cache 证据位于 `output/lundu-support-window-20261009`。流式请求使用 mock，键盘几何使用模拟 visualViewport；未验证真实模型、提交订单或宣称真机键盘验证。后续 Agent 发布 web 时必须保留语言修复、头像和本次窗口/流式更新，不能用旧入口覆盖。详细发布声明、来源及既有移动英文导航按钮裁切记录见多 Agent 协作文档同日“客服窗口美化发布”。
