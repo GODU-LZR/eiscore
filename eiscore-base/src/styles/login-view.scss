@@ -5514,7 +5514,7 @@
   height: 32px;
 }
 
-.customer-service-title {
+.customer-service-panel .customer-service-title {
   flex: 1;
   min-width: 0;
   margin: 0;
@@ -5641,6 +5641,7 @@
   margin: 0 14px 14px;
   padding: 8px;
   border: 1px solid #dce4ee;
+  border-top: 1px solid #dce4ee !important;
   border-radius: 9px;
   background: #fff;
   transition: border-color .15s ease, box-shadow .15s ease;
@@ -5740,7 +5741,7 @@
   }
 
   .customer-service-panel {
-    width: calc(100vw - 24px) !important;
+    width: min(380px, calc(100vw - 24px)) !important;
     height: min(600px, calc(var(--support-viewport-height, 100dvh) - 144px)) !important;
     max-height: min(600px, calc(var(--support-viewport-height, 100dvh) - 144px)) !important;
   }
