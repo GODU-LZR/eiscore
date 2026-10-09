@@ -484,17 +484,31 @@
         </div>
       </Transition>
 
-      <div class="customer-service-widget" :class="{ 'is-open': agentVisible }">
+      <div class="customer-service-widget" :class="{ 'is-open': agentVisible }" :style="customerServiceViewportStyle">
         <Transition name="customer-service-panel">
-          <section v-if="agentVisible" class="commerce-modal agent-modal customer-service-panel" role="dialog" aria-modal="false" :aria-label="commerceUi.agentLabel">
-            <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" @click="agentVisible = false">×</button>
-            <div class="commerce-modal-heading"><h2>{{ commerceUi.agentTitle }}</h2></div>
-            <div class="agent-messages" aria-live="polite"><div v-for="(message, index) in agentMessages" :key="`${index}-${message.role}`" :class="['agent-message', message.role]">{{ message.content || (salesBusy && index === agentMessages.length - 1 ? commerceUi.thinkingLabel : '') }}</div></div>
-            <div class="agent-quick-prompts" :aria-label="commerceUi.quickPromptLabel">
-              <button v-for="prompt in commerceUi.quickPrompts" :key="prompt" type="button" @click="agentDraft = prompt">{{ prompt }}</button>
+          <section v-if="agentVisible" class="commerce-modal agent-modal customer-service-panel" role="dialog" aria-modal="false" :aria-label="commerceUi.agentLabel" @keydown.esc="agentVisible = false">
+            <header class="customer-service-header">
+              <img :src="customerServiceAvatar" alt="" width="32" height="32" :draggable="false" />
+              <h2 class="customer-service-title">{{ customerServiceUi.title }}</h2>
+              <button type="button" class="agent-quote-link" :aria-label="commerceUi.openListLabel" :title="commerceUi.listLabel" @click="openQuoteList"><ShoppingCart aria-hidden="true" /></button>
+              <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" :title="commerceUi.closeLabel" @click="agentVisible = false"><Close aria-hidden="true" /></button>
+            </header>
+            <div ref="agentTranscriptRef" class="agent-messages" role="log" aria-live="polite" :aria-label="commerceUi.agentLabel" @scroll="updateAgentFollowTail">
+              <div v-if="!agentMessages.length" class="agent-welcome">
+                <div class="agent-message assistant">{{ customerServiceUi.welcome }}</div>
+                <div class="agent-quick-prompts" :aria-label="commerceUi.quickPromptLabel">
+                  <button v-for="(prompt, index) in commerceUi.quickPrompts" :key="prompt" type="button" @click="selectAgentPrompt(prompt)">{{ customerServiceUi.quickLabels[index] || prompt }}</button>
+                </div>
+              </div>
+              <div v-for="(message, index) in agentMessages" :key="`${index}-${message.role}`" :class="['agent-message', message.role]">
+                <span v-if="!message.content && salesBusy && index === agentMessages.length - 1" class="agent-typing" :aria-label="customerServiceUi.replying"><i /><i /><i /></span>
+                <template v-else>{{ message.content }}</template>
+              </div>
             </div>
-            <form class="agent-composer" @submit.prevent="sendSalesMessage"><input v-model.trim="agentDraft" :placeholder="commerceUi.agentPlaceholder" :disabled="salesBusy" /><button type="submit" :disabled="salesBusy || !agentDraft">{{ commerceUi.sendLabel }}</button></form>
-            <button type="button" class="agent-quote-link" @click="openQuoteList">{{ commerceUi.openListLabel }}</button>
+            <form class="agent-composer" @submit.prevent="sendSalesMessage">
+              <textarea ref="agentComposerRef" v-model="agentDraft" rows="1" :placeholder="customerServiceUi.placeholder" :aria-label="commerceUi.agentPlaceholder" :disabled="salesBusy" @keydown="onAgentDraftKeydown" />
+              <button type="submit" class="agent-send" :disabled="salesBusy || !agentDraft.trim()" :aria-label="commerceUi.sendLabel" :title="commerceUi.sendLabel"><Promotion aria-hidden="true" /></button>
+            </form>
           </section>
         </Transition>
         <button
@@ -592,6 +606,7 @@
 import { computed, ref, reactive, watch, nextTick, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Close, Promotion, ShoppingCart } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useSystemStore } from '@/stores/system'
 import { mix } from '@/utils/theme'
@@ -620,6 +635,10 @@ const paymentVisible = ref(false)
 const quoteItems = ref([])
 const agentMessages = ref([])
 const agentDraft = ref('')
+const agentTranscriptRef = ref(null)
+const agentComposerRef = ref(null)
+const agentFollowTail = ref(true)
+const customerServiceViewportStyle = ref({})
 const serviceContent = ref(null)
 const servicesLoading = ref(true)
 const salesSessionId = ref('')
@@ -702,6 +721,13 @@ const commerceUi = computed(() => {
   return { ...base, ...labels }
 })
 const quoteCount = computed(() => quoteItems.value.reduce((sum, item) => sum + Number(item.quantity || 0), 0))
+const customerServiceUi = computed(() => isEnglish.value ? {
+  title: 'Customer service', welcome: 'Hello, which product would you like to learn about?',
+  quickLabels: ['Products', 'Specifications', 'Purchasing'], placeholder: 'Your question or requirements', replying: 'Replying'
+} : {
+  title: commerceUi.value.agentTitle.replace(/智能体$/, ''), welcome: '您好，请问您需要了解哪款产品？',
+  quickLabels: ['产品选型', '参数确认', '采购咨询'], placeholder: '请输入您的问题或需求', replying: '正在回复'
+})
 const commerceStatusUi = computed(() => isEnglish.value ? {
   paymentTitle: 'Payment interface reserved', paymentDescription: 'The payment provider adapter is ready for a future integration. No payment credentials are collected and no charge is made here.', paymentReserved: 'Payment setup pending', paymentMethods: 'Payment adapter reserved', backToInquiry: 'Back to purchase order'
 } : {
@@ -1057,8 +1083,45 @@ const openServiceSupport = async () => {
   if (!agentDraft.value.trim()) agentDraft.value = currentService.value?.supportPrompt || ''
   await openSalesAgent()
   await nextTick()
-  document.querySelector('.agent-composer input')?.focus()
+  agentComposerRef.value?.focus()
 }
+
+const resizeAgentComposer = () => {
+  const input = agentComposerRef.value
+  if (!input) return
+  input.style.height = 'auto'
+  input.style.height = `${Math.min(input.scrollHeight, 104)}px`
+}
+
+const selectAgentPrompt = (prompt) => {
+  agentDraft.value = prompt
+  void nextTick(() => agentComposerRef.value?.focus())
+}
+
+const onAgentDraftKeydown = (event) => {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return
+  event.preventDefault()
+  void sendSalesMessage()
+}
+
+const updateAgentFollowTail = () => {
+  const transcript = agentTranscriptRef.value
+  if (transcript) agentFollowTail.value = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 48
+}
+
+const updateCustomerServiceViewport = () => {
+  const viewport = window.visualViewport
+  customerServiceViewportStyle.value = {
+    '--support-viewport-height': `${viewport?.height || window.innerHeight}px`,
+    '--support-keyboard-offset': `${Math.max(0, window.innerHeight - (viewport?.height || window.innerHeight) - (viewport?.offsetTop || 0))}px`
+  }
+}
+
+watch([agentDraft, agentVisible], resizeAgentComposer, { flush: 'post' })
+watch(() => [agentVisible.value, agentMessages.value.length, agentMessages.value.at(-1)?.content], () => {
+  const transcript = agentTranscriptRef.value
+  if (transcript && agentFollowTail.value) transcript.scrollTop = transcript.scrollHeight
+}, { flush: 'post' })
 
 const advanceCommerceStage = (stage) => {
   commerceStage.value = stage
@@ -1071,12 +1134,10 @@ const reservePayment = () => {
 }
 
 const openSalesAgent = async () => {
+  agentFollowTail.value = true
   agentVisible.value = true
   quoteVisible.value = false
   productDetail.value = null
-  if (!agentMessages.value.length) {
-    agentMessages.value = []
-  }
   try {
     await ensureSalesSession()
   } catch (error) {
@@ -1112,9 +1173,10 @@ const ensureSalesSession = async () => {
 const sendSalesMessage = async () => {
   const message = agentDraft.value.trim()
   if (!message || salesBusy.value) return
+  agentFollowTail.value = true
   agentDraft.value = ''
   agentMessages.value.push({ role: 'user', content: message })
-  const assistantMessage = { role: 'assistant', content: '' }
+  const assistantMessage = reactive({ role: 'assistant', content: '' })
   agentMessages.value.push(assistantMessage)
   salesBusy.value = true
   try {
@@ -1173,6 +1235,8 @@ const sendSalesMessage = async () => {
   } finally {
     salesStreamAbortController = null
     salesBusy.value = false
+    await nextTick()
+    agentComposerRef.value?.focus()
   }
 }
 
@@ -1334,6 +1398,9 @@ const switchLocale = async (locale) => {
 }
 
 onMounted(async () => {
+  updateCustomerServiceViewport()
+  window.visualViewport?.addEventListener('resize', updateCustomerServiceViewport)
+  window.visualViewport?.addEventListener('scroll', updateCustomerServiceViewport)
   const requestedLocale = new URLSearchParams(window.location.search).get('lang') || ''
   await Promise.all([
     systemStore.loadConfig({ locale: requestedLocale }),
@@ -1362,6 +1429,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  salesStreamAbortController?.abort()
+  window.visualViewport?.removeEventListener('resize', updateCustomerServiceViewport)
+  window.visualViewport?.removeEventListener('scroll', updateCustomerServiceViewport)
   stopHeroAutoplay()
   revealObserver?.disconnect()
   window.removeEventListener('scroll', handleScroll)

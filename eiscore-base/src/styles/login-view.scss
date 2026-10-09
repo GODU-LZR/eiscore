@@ -5476,71 +5476,277 @@
   border-top: 0 !important;
 }
 
-/* EOF customer-service override: vertical panel, transcript as the main area. */
+/* Customer service uses the site's white surface and restrained blue accent. */
+.customer-service-widget {
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + var(--support-keyboard-offset, 0px));
+}
+
 .customer-service-panel {
   display: flex !important;
   flex-direction: column !important;
-  width: min(390px, calc(100vw - 32px)) !important;
-  height: min(720px, calc(100dvh - 120px)) !important;
-  max-height: min(720px, calc(100dvh - 120px)) !important;
-  padding: 18px 18px 14px !important;
+  width: min(380px, calc(100vw - 32px)) !important;
+  height: min(600px, calc(var(--support-viewport-height, 100dvh) - 146px)) !important;
+  max-height: min(600px, calc(var(--support-viewport-height, 100dvh) - 146px)) !important;
+  padding: 0 !important;
   overflow: hidden !important;
+  border: 1px solid #dce4ee;
+  border-radius: 12px;
+  color: #24364b;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(19, 42, 72, .16), 0 2px 6px rgba(19, 42, 72, .05);
 }
 
-.customer-service-panel .commerce-modal-heading {
+.customer-service-header {
+  display: flex;
   flex: 0 0 auto;
-  padding: 0 30px 10px 0;
+  align-items: center;
+  gap: 10px;
+  min-height: 66px;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border-bottom: 1px solid #edf0f5;
 }
 
-.customer-service-panel .commerce-modal-heading h2 {
-  margin: 3px 0 4px;
-  font-size: clamp(22px, 2.8vw, 29px);
+.customer-service-header > img {
+  display: block;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
 }
 
-.customer-service-panel .commerce-modal-heading p {
-  display: -webkit-box;
+.customer-service-title {
+  flex: 1;
+  min-width: 0;
   margin: 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  color: #1e334d;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.customer-service-header .agent-quote-link,
+.customer-service-header .commerce-close {
+  display: grid;
+  position: static;
+  flex: 0 0 32px;
+  place-items: center;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: #61728a;
+  background: transparent;
+  cursor: pointer;
+}
+
+.customer-service-header .agent-quote-link:hover,
+.customer-service-header .commerce-close:hover {
+  color: #1557a6;
+  background: #eef4fb;
+}
+
+.customer-service-header svg {
+  width: 18px;
+  height: 18px;
 }
 
 .customer-service-panel .agent-messages {
+  display: flex;
   flex: 1 1 auto !important;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
   min-height: 0 !important;
   max-height: none !important;
-  margin: 8px 0 0;
+  margin: 0;
+  padding: 22px 16px;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
   overflow-y: auto !important;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.customer-service-panel .agent-message {
+  flex: 0 0 auto;
+  max-width: 92%;
+  box-sizing: border-box;
+  padding: 11px 13px;
+  border: 0;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.customer-service-panel .agent-message.assistant {
+  color: #344860;
+  background: #f2f5f9;
+  border-top-left-radius: 3px;
+}
+
+.customer-service-panel .agent-message.user {
+  align-self: flex-end;
+  color: #fff;
+  background: #1557a6;
+  border-top-right-radius: 3px;
+}
+
+.agent-welcome {
+  width: 100%;
 }
 
 .customer-service-panel .agent-quick-prompts {
-  flex: 0 0 auto;
-  max-height: 78px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  max-height: none;
+  margin: 14px 0 0;
+  overflow: visible;
 }
 
 .customer-service-panel .agent-quick-prompts button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid #dde6f1;
+  border-radius: 6px;
+  color: #42648e;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
   white-space: nowrap;
+  cursor: pointer;
 }
 
-.customer-service-panel .agent-composer,
-.customer-service-panel .agent-quote-link {
+.customer-service-panel .agent-quick-prompts button:hover {
+  border-color: #b9cee8;
+  background: #f4f8fd;
+}
+
+.customer-service-panel .agent-composer {
+  display: flex;
   flex: 0 0 auto;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 0 14px 14px;
+  padding: 8px;
+  border: 1px solid #dce4ee;
+  border-radius: 9px;
+  background: #fff;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.customer-service-panel .agent-composer:focus-within {
+  border-color: #87abd6;
+  box-shadow: 0 0 0 3px rgba(21, 87, 166, .06);
+}
+
+.customer-service-panel .agent-composer textarea {
+  flex: 1;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 36px;
+  max-height: 104px;
+  padding: 6px 5px;
+  border: 0;
+  outline: none;
+  resize: none;
+  color: #24364b;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 24px;
+  overflow-y: auto;
+}
+
+.customer-service-panel .agent-composer textarea:focus-visible {
+  outline: none;
+}
+
+.customer-service-panel .agent-composer textarea::placeholder {
+  color: #8b98a9;
+}
+
+.customer-service-panel .agent-composer .agent-send {
+  display: grid;
+  flex: 0 0 36px;
+  place-items: center;
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: #fff;
+  background: #1557a6;
+  cursor: pointer;
+}
+
+.customer-service-panel .agent-send svg {
+  width: 18px;
+  height: 18px;
+}
+
+.customer-service-panel .agent-send:disabled {
+  color: #839bb7;
+  background: #edf2f8;
+  opacity: 1;
+}
+
+.customer-service-panel button:focus-visible {
+  outline: 2px solid #1557a6;
+  outline-offset: 2px;
+}
+
+.agent-typing {
+  display: flex;
+  gap: 4px;
+  padding: 5px 0;
+}
+
+.agent-typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8295ad;
+  animation: support-typing 1.2s ease-in-out infinite;
+}
+
+.agent-typing i:nth-child(2) { animation-delay: .15s; }
+.agent-typing i:nth-child(3) { animation-delay: .3s; }
+
+@keyframes support-typing {
+  50% { opacity: .35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-typing i { animation: none; }
 }
 
 @media (max-width: 760px) {
-  .customer-service-panel {
-    width: calc(100vw - 24px) !important;
-    height: min(78dvh, 680px) !important;
-    max-height: min(78dvh, 680px) !important;
-    padding: 16px 14px max(12px, env(safe-area-inset-bottom)) !important;
+  .customer-service-widget {
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--support-keyboard-offset, 0px));
   }
 
-  .customer-service-panel .agent-quick-prompts {
-    max-height: 66px;
+  .customer-service-panel {
+    width: calc(100vw - 24px) !important;
+    height: min(600px, calc(var(--support-viewport-height, 100dvh) - 144px)) !important;
+    max-height: min(600px, calc(var(--support-viewport-height, 100dvh) - 144px)) !important;
+  }
+
+  .customer-service-panel .agent-composer textarea {
+    font-size: 16px;
   }
 }
 
