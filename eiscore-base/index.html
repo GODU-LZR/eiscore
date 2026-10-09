@@ -4,6 +4,51 @@
     <meta charset="UTF-8">
     <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      #eiscore-bootstrap-loading {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: grid;
+        place-items: center;
+        gap: 14px;
+        align-content: center;
+        color: #1557a6;
+        background: #f8fafc;
+        transition: opacity 180ms ease, visibility 180ms ease;
+      }
+
+      #eiscore-bootstrap-loading.is-dismissing {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+
+      .eiscore-bootstrap-loading__ring {
+        width: 34px;
+        height: 34px;
+        border: 3px solid rgba(21, 87, 166, 0.18);
+        border-top-color: currentColor;
+        border-radius: 50%;
+        animation: eiscore-bootstrap-loading-spin 800ms linear infinite;
+      }
+
+      .eiscore-bootstrap-loading__label {
+        margin: 0;
+        color: #475569;
+        font: 500 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+        letter-spacing: 0.02em;
+      }
+
+      @keyframes eiscore-bootstrap-loading-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #eiscore-bootstrap-loading { transition-duration: 0ms; }
+        .eiscore-bootstrap-loading__ring { animation: none; }
+      }
+    </style>
     <script>
       (function () {
         if (!('serviceWorker' in navigator)) return
@@ -128,6 +173,10 @@
     </script>
   </head>
   <body>
+    <div id="eiscore-bootstrap-loading" role="status" aria-live="polite" aria-label="正在加载">
+      <span class="eiscore-bootstrap-loading__ring" aria-hidden="true"></span>
+      <p class="eiscore-bootstrap-loading__label">正在加载</p>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>

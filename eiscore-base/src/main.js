@@ -17,6 +17,17 @@ import { patchElMessage } from '@/utils/message-patch'
 
 patchElMessage()
 
+const dismissBootstrapLoading = () => {
+  const loading = document.getElementById('eiscore-bootstrap-loading')
+  if (!loading) return
+  loading.classList.add('is-dismissing')
+  window.setTimeout(() => loading.remove(), 220)
+}
+
+const removeBootstrapLoading = () => {
+  document.getElementById('eiscore-bootstrap-loading')?.remove()
+}
+
 const mountHostApplication = () => {
   const app = createApp(App)
   app.use(createPinia()) // 👈 挂载 Pinia
@@ -87,6 +98,9 @@ const bootstrap = async () => {
 
   // Start qiankun only after the authenticated layout has rendered its sub-app mount point.
   await router.isReady()
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(dismissBootstrapLoading)
+  })
   window.requestAnimationFrame(startQiankunWhenContainerReady)
   router.afterEach(() => {
     window.requestAnimationFrame(startQiankunWhenContainerReady)
@@ -95,5 +109,6 @@ const bootstrap = async () => {
 
 bootstrap().catch(() => {
   console.error('[enterprise-config] host bootstrap failed')
+  removeBootstrapLoading()
   renderEnterpriseConfigFailure()
 })

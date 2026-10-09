@@ -14,6 +14,17 @@ import {
 // 这里只需要引入全局样式
 import 'vant/lib/index.css'
 
+const dismissBootstrapLoading = () => {
+  const loading = document.getElementById('eiscore-bootstrap-loading')
+  if (!loading) return
+  loading.classList.add('is-dismissing')
+  window.setTimeout(() => loading.remove(), 220)
+}
+
+const removeBootstrapLoading = () => {
+  document.getElementById('eiscore-bootstrap-loading')?.remove()
+}
+
 const mountMobileApplication = () => {
   const app = createApp(App)
   app.use(createPinia())
@@ -36,9 +47,13 @@ const bootstrap = async () => {
   })
   publishEnterpriseConfig(enterpriseConfig, globalThis)
   mountMobileApplication()
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(dismissBootstrapLoading)
+  })
 }
 
 bootstrap().catch(() => {
   console.error('[enterprise-config] mobile bootstrap failed')
+  removeBootstrapLoading()
   renderEnterpriseConfigFailure()
 })
