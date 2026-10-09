@@ -502,10 +502,11 @@
           class="customer-service-trigger"
           :aria-expanded="agentVisible"
           :aria-label="agentVisible ? commerceUi.collapseAgentLabel : commerceUi.agentLabel"
+          :title="agentVisible ? commerceUi.collapseAgentLabel : commerceUi.agentLabel"
           @click="toggleCustomerService"
         >
-          <span class="customer-service-trigger-icon" aria-hidden="true">{{ agentVisible ? '−' : '◌' }}</span>
-          <span>{{ agentVisible ? commerceUi.collapseAgentLabel : commerceUi.agentLabel }}</span>
+          <img class="customer-service-trigger-avatar" :src="customerServiceAvatar" alt="" :draggable="false" width="48" height="48" />
+          <span class="customer-service-trigger-label">{{ agentVisible ? commerceUi.collapseAgentLabel : commerceUi.agentLabel }}</span>
         </button>
       </div>
 
@@ -599,6 +600,7 @@ import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 import { applyEnterpriseSeoHead, buildEnterpriseSeoHead } from '@eiscore/platform/enterprise-seo'
 import { completeHarnessAuth } from '@/services/harness-auth-client'
 import { readPublicServiceContent, localizedPublicServices } from '@/services/public-service-content'
+import customerServiceAvatar from '@/assets/customer-service-avatar.png'
 
 const Product3DViewer = defineAsyncComponent(() => import('@/components/Product3DViewer.vue'))
 const PineappleProcessViewer = defineAsyncComponent(() => import('@/components/PineappleProcessViewer.vue'))

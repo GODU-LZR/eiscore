@@ -5544,49 +5544,46 @@
   }
 }
 
-/* Final customer-service launcher: scale the complete green button as one
-   object so its background, label, icon, spacing, radius, and shadow stay proportional. */
+/* Compact avatar launcher with the same touch target on every viewport. */
 .customer-service-widget .customer-service-trigger {
   box-sizing: border-box;
-  width: min(256px, calc(100vw - 32px));
-  min-height: 88px;
-  padding: 0 28px;
-  gap: 15px;
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  padding: 0;
+  gap: 0;
   border: 0;
-  border-radius: 5px;
-  color: #fff;
-  background: #1557A6;
-  box-shadow: 0 8px 24px rgba(18, 59, 42, .2);
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: 0;
-  transform: scale(.55);
-  transform-origin: bottom right;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 3px 12px rgba(15, 67, 136, .22);
+  transform: none;
 }
 
-.customer-service-widget .customer-service-trigger-icon {
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  border-color: rgba(255, 255, 255, .72);
-  font-size: 22px;
+.customer-service-widget .customer-service-trigger:hover,
+.customer-service-widget .customer-service-trigger:focus-visible {
+  background: transparent;
 }
 
-@media (max-width: 760px) {
-  .customer-service-widget .customer-service-trigger {
-    width: min(256px, calc(100vw - 32px));
-    min-height: 88px;
-    padding: 0 24px;
-    gap: 13px;
-    font-size: clamp(21px, 6.4vw, 26px);
-  }
+.customer-service-widget .customer-service-trigger:focus-visible {
+  outline: 2px solid #1557A6;
+  outline-offset: 3px;
+}
 
-  .customer-service-widget .customer-service-trigger-icon {
-    width: 42px;
-    height: 42px;
-    flex-basis: 42px;
-    font-size: 20px;
-  }
+.customer-service-trigger-avatar {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.customer-service-trigger-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .story-media.has-about-image {
