@@ -196,3 +196,17 @@ Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的
 线上 HTTP 核验 24 个入口/配置/Logo/服务 JSON/产品图均 200 且与本地逐字节一致，配置 `enterprise.id=lundu`；600 个 manifest URL 均存在，未检出错误品牌。服务 JSON SHA-256 `0fc00d690bc4a0c736d2328fb6536d3ff529519c08f711748c02d4d4dcce0f7c`，企业包 53 个 payload 通过标准 manifest 验证。本地语法、变更 lint、服务内容及相关品牌/路由回归、四视口视觉验收已通过。
 
 最终线上视觉验收：两个服务页在 `390×844`、`414×896`、`768×1024`、`1440×900` 共 8 项通过；图片完整加载、Logo 正常、按钮单行、无横向溢出、无错误品牌和浏览器错误。采购单模板、产品选择、FAQ、客服展开/收起与中英文切换通过。另在启用 Service Worker 后完成首页进入详情及刷新，版本仍为 `78294f227a301616`。客服流式交互使用 mock，未验证真实模型回复或提交真实订单。证据为 `output/lundu-service-pages/remote-qa.json`、`remote-http-qa.json` 与 `remote-cache-smoke.json`。发布完成已通知 DeepSeek 整合聊天；远端运行制品为 `/opt/lundu-eiscore/release`，staging 的 `base-dist` 只有主站，不能单独覆盖完整 release。
+
+## 2026-10-09 中英文控件竞态与故障回退修复
+
+用户确认反馈发生于远端桌面首页 `https://lundu.eiscore.top`。检查时远端公开配置仍为 `enabledLocales=["zh-CN","en-US"]`，浏览器多数场景能看到按钮；本次未直接捕获用户那次消失的请求过程。确定性回归确认两项隐藏隐患：`App.vue` 与 `LoginView.vue` 并发加载配置，迟到的旧请求可能覆盖新语言状态；profile 接口失败返回仅中文的 `deployment-fallback`，原先会覆盖已加载的发布资料并隐藏语言入口。
+
+源码提交 `014f5a72` 为 `loadConfig` 增加与 `loadEnterpriseProfile` 共用的请求序号保护，并让两个加载动作保留已有 `published-site`，避免失败回退覆盖。提交 `10dde8b6` 在初次加载仅有 fallback 时，从公开服务内容的已配置语言保留中英文入口；正常发布资料继续遵循其语言列表。切换接口失败会提示重试，不将 URL 标记为未成功加载的语言。真实 store/service 的回归覆盖并发迟到、故障保留、首载回退及正常加载/保存兼容。
+
+发布声明：目标仅 `web`；工作区 `github-eiscore-refactor`，分支 `codex/systematic-refactor`，构建提交 `10dde8b64a006c37d221f1ad75e5eb915f856c0e`。主站从 `git archive HEAD` 的隔离源码构建，未纳入其他 Agent 的未提交业务改动。完整制品目录 `output/lundu-locale-fix-20261009/full-dist`，归档 `lundu-locale-10dde8b6.tar.gz`，SHA-256 `495b49636c38d697b443c9938296991285e8e7666ea35abd57e0b7cea8a8f529`。入口 6295 字节、主包 `/assets/index-Dac0SPOV.js`，manifest `a38aab250e541bcc` / 566 项 / 78,061,435 字节 / 12 入口。11 个微应用源码未变，来源为同源码已验收的 `output/lundu-service-pages/full-dist-final/<mount>`；发布锁内逐文件确认其 SHA-256 与远端完全一致。600→566 是主站重新构建删除 75 个旧 hashed assets、新增 41 个 assets 的净变化；微应用资源完整。
+
+2026-10-09 06:19 UTC 使用 `/opt/lundu-eiscore/.lundu-web-publish.lock` 校验旧 manifest `78294f227a301616`、归档、566 个资源、12 入口及品牌后原子替换 release，备份为 `/opt/lundu-eiscore/backups/release-pre-locale-10dde8b6-20261009061902`。实际仅重建 `lundu-eiscore-web-1`，新容器 `96b0626f5f08`；发布前后容器 ID 核对确认 DB、API、Agent、DeepSeek Web 和 Harness 均未变化。
+
+验收通过：真实远端在 `390×844`、`414×896`、`768×1024`、`1440×900` 的首页及两个服务页共 12 场景完成中文→英文→中文切换，按钮可见、单行、可点击，URL 与语言一致，Logo 正常、无横向溢出、无错误品牌和页面错误。已视觉查看桌面及手机截图。24 个 HTTPS 入口/配置/Logo/资源与完整制品逐字节一致；Service Worker 启用后首页进入详情、刷新、根地址进入首页并切换英文刷新均通过，manifest 保持 `a38aab250e541bcc`，无页面或控制台错误。本地额外验证首载 profile 503 仍显示入口且切换失败不伪造 URL。证据位于 `output/playwright/lundu-locale-20261009/{local,remote}-qa.json` 和 `output/lundu-locale-fix-20261009/{remote-http-qa,remote-cache-smoke}.json`。
+
+后续整合 Agent 发布 web 时须保留上述两项修复，从当前分支生成完整 dist；不得用旧主站构建覆盖语言修复。回退须在同一共享锁内把本节备份恢复为 `/opt/lundu-eiscore/release`，仅执行规定的 web-only Compose 重建，并重新检查品牌、配置和语言入口。

@@ -326,3 +326,13 @@ HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 线上 24 个 HTTP 资源与本地逐字节一致，配置 `enterprise.id=lundu`，Logo 正常、页面无君乐缘品牌。验收脚本及证据位于 `output/lundu-service-pages/`；没有提交真实订单或测试真实客服模型回复。
 
 最终线上四视口视觉验收覆盖两个详情页共 8 项，全部通过：图片加载、Logo、单行按钮、无横向溢出、无错误品牌及浏览器错误。首页返回、FAQ、采购单资料模板、产品选择、客服窗体及中英文切换通过。启用 Service Worker 的首页进入详情/刷新 smoke 也通过，manifest 保持 `78294f227a301616`。对应证据为 `remote-qa.json`、`remote-http-qa.json` 与 `remote-cache-smoke.json`；流式客服使用 mock，未调用真实模型。运行目录为 `/opt/lundu-eiscore/release`，后续发布须保留完整 12 入口。
+
+## 2026-10-09 远端中英文按钮稳定性修复
+
+用户反馈远端桌面首页语言按钮消失。检查时远端发布配置仍支持中英文，未直接捕获该次现场过程；回归已复现并修复并发旧响应覆盖新语言资料、接口失败 fallback 覆盖已发布资料这两项隐患。提交 `014f5a72`、`10dde8b6` 统一请求序号保护、保留已发布 profile，并在首载故障时依据公开服务配置显示语言入口。失败切换会提示重试，URL 只反映成功加载的语言。
+
+目标服务仅 `web`；完整 12 入口制品 `output/lundu-locale-fix-20261009/full-dist` 来自提交 `10dde8b6` 的隔离主站构建和源码未变的已验收 11 微应用。归档 SHA-256 `495b49636c38d697b443c9938296991285e8e7666ea35abd57e0b7cea8a8f529`；入口 6295 字节、主包 `/assets/index-Dac0SPOV.js`；manifest `a38aab250e541bcc` / 566 项 / 78,061,435 字节。静态审计确认 2337 个本地资源引用完整，微应用逐文件 SHA-256 与此前远端一致。
+
+共享锁内确认旧 manifest `78294f227a301616` 后原子替换 release；备份 `/opt/lundu-eiscore/backups/release-pre-locale-10dde8b6-20261009061902`，实际只重建 `lundu-eiscore-web-1`，新容器 `96b0626f5f08`。其他容器 ID 未变化。回退时在同一锁内恢复备份并只重建 web。
+
+远端四视口首页/两个服务页共 12 场景的中英往返、24 个 HTTPS 资源与本地字节核对均通过；Logo 为伦度，正文无君乐缘、无横向溢出或页面错误。桌面与手机截图已视觉检查。Service Worker 开启后，根地址进入首页、英文切换与刷新仍显示两个按钮并保留 `lang=en-US`；manifest 为 `a38aab250e541bcc`，无页面/控制台错误。证据目录 `output/playwright/lundu-locale-20261009`、`output/lundu-locale-fix-20261009`。后续 web 发布应保留这两项源码修复并使用当前完整制品来源，避免旧构建覆盖。
