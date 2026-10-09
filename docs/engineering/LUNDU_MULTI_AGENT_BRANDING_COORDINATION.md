@@ -248,3 +248,11 @@ Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的
 验收边界：客服请求使用可控 ReadableStream mock，覆盖逐段显示、多行发送、长回复跟尾、历史阅读不抢滚动、重新发送、展开/关闭及采购单入口；未调用真实模型或提交订单。手机键盘几何为 Chromium visualViewport 模拟，未宣称真实 iOS/Android 设备验证。后续发布应保留语言修复、头像、窗口样式及 reactive 流式消息修复，从当前源码生成完整制品并重复品牌门禁。详细来源、资源核对和缓存证据位于 `output/lundu-support-window-20261009/`。
 
 另见既有移动英文导航按钮 `Enterprise login` / `Purchase order` 在窄屏发生省略或右侧裁切，位置在客服窗体之外，本次未改导航；后续独立处理移动导航布局时应复用本次四视口截图基线。
+
+## 2026-10-09 分享卡片与站点图标远端发布
+
+本轮目标服务仅为 `web`；工作区 `github-eiscore-refactor`，分支 `codex/systematic-refactor`，提交 `093d05cf`。制品目录 `output/lundu-share-metadata-20261009/full-dist`，归档 `lundu-share-metadata-093d05cf.tar.gz`，SHA-256 `fb2ab1a60c18ee9523b32a168b0c9948231c33ff879ac465fc0b23f26417bc0c`；manifest `7555e59f25c2b26d` / 569 项 / 78,221,469 bytes，入口 `7,617` bytes，主包 `/assets/index-5G3f1K6B.js`。影响仅为完整静态站替换和 `lundu-eiscore-web-1` 重建，其他服务未重建。
+
+2026-10-09 11:55 UTC 持有 `/opt/lundu-eiscore/.lundu-web-publish.lock`，校验旧 manifest `3f41e8af83c33350`、归档 SHA、12 入口、路径安全、`enterprise.id=lundu`、伦度 Logo、无“君乐缘”和微应用入口门禁后原子替换 `/opt/lundu-eiscore/release`。旧 release 备份为 `/opt/lundu-eiscore/backups/release-pre-share-metadata-093d05cf-20261009115516`。实际只重建 `lundu-eiscore-web-1`，新容器 `21d774403df2`；DB、API、Agent、DeepSeek Web 和 Harness 未重建，既有 orphan 未清理。
+
+线上 HTTPS 验收通过：`/login`、公开配置、manifest、分享图、SVG favicon、PNG Apple touch icon 和 `/favicon.ico` 均 HTTP 200；分享图为 `image/jpeg`、94,400 bytes，PNG 图标为 `image/png`、1,928 bytes。HTML 已包含绝对 `og:title`、`og:description`、`og:image`、1200×630 尺寸、`twitter:card=summary_large_image`、SVG favicon 和 Apple touch icon；页面标题为“伦度机电｜电机与水泵制造”，配置为 `enterprise.id=lundu`。Playwright CLI 因本机缺少 Chrome distribution 未启动，已使用真实 HTTPS 请求完成 HTML、Content-Type、字节数和资源门禁。

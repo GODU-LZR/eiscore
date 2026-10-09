@@ -359,6 +359,14 @@ HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 
 仅发布 `web`，构建来源提交 `ff05d042cab17617161db381af2568a193413ecc`，完整 12 入口目录 `output/lundu-support-window-20261009/full-dist-final`；归档 SHA-256 `d179a00f1d2bb27a60df8e9deaf195591922ab320869d3bf8238ca8a18ca0f9e`。Windows 构建因内存不足失败后，改用远端隔离源码快照构建主站；11 个源码未变的微应用在锁内与运行版本逐文件核对一致。失败产物和同目录旧 `full-dist` 没有发布。入口 6295 字节、主包 `/assets/index-DVSuB0h1.js`，manifest `3f41e8af83c33350` / 601 项 / 77,277,578 字节。
 
+## 2026-10-09 分享卡片与站点图标发布
+
+发布前声明：目标服务为 `web`；分支 `codex/systematic-refactor`，提交 `093d05cf`；制品目录 `output/lundu-share-metadata-20261009/full-dist`，归档 SHA-256 `fb2ab1a60c18ee9523b32a168b0c9948231c33ff879ac465fc0b23f26417bc0c`；完整 12 入口，manifest `7555e59f25c2b26d` / 569 项 / 78,221,469 bytes，入口 `7,617` bytes，主包 `/assets/index-5G3f1K6B.js`。影响范围仅为完整静态 web release，其他服务不重建。
+
+2026-10-09 11:55 UTC 在 `/opt/lundu-eiscore/.lundu-web-publish.lock` 内完成发布。旧 manifest `3f41e8af83c33350` 和归档 SHA 校验通过后，旧 release 备份为 `/opt/lundu-eiscore/backups/release-pre-share-metadata-093d05cf-20261009115516`，原子替换 release，实际执行 `docker compose ... up -d --no-deps --force-recreate web`，仅重建 `lundu-eiscore-web-1`，容器 `21d774403df2`；DB、API、Agent、DeepSeek Web 和 Harness 均未重建。
+
+线上验收：`/login`、`/config/eiscore-enterprise.json`、`/asset-manifest.json`、分享图、SVG favicon、PNG Apple touch icon 和 `/favicon.ico` 全部 HTTP 200，分享图 `image/jpeg` 94,400 bytes，Apple 图标 `image/png` 1,928 bytes。HTML 已输出绝对 Open Graph/Twitter 元数据和 favicon，配置为 `enterprise.id=lundu`，页面无“君乐缘”。Playwright CLI 因本机缺少 Chrome distribution 未启动；已完成真实 HTTPS HTML、Content-Type、字节数和资源门禁。
+
 共享锁内验证旧版 `2051dc0c3fd37e54` 后原子替换 release，实际仅重建 `lundu-eiscore-web-1`，容器 `5043104240b8`；其他容器 ID 未变。备份 `/opt/lundu-eiscore/backups/release-pre-support-window-ff05d042-20261009085740`。回退须持有 `/opt/lundu-eiscore/.lundu-web-publish.lock`，恢复完整备份并只重建 web。
 
 语法、变更 lint、登录/品牌/配置回归通过。25 个 HTTPS 资源与制品逐字节一致；Service Worker 下服务页刷新、首页英文切换与刷新通过，无错误品牌及控制台错误。源码已推送至正确的 EISCore Git 远端。本地及远端四视口中英文客服交互各 8/8 PASS，已人工检查截图，客服窗口无裁切、重叠和横向溢出；证据位于 `output/playwright/lundu-support-window-20261009`，制品与 HTTP/cache 证据位于 `output/lundu-support-window-20261009`。流式请求使用 mock，键盘几何使用模拟 visualViewport；未验证真实模型、提交订单或宣称真机键盘验证。后续 Agent 发布 web 时必须保留语言修复、头像和本次窗口/流式更新，不能用旧入口覆盖。详细发布声明、来源及既有移动英文导航按钮裁切记录见多 Agent 协作文档同日“客服窗口美化发布”。
