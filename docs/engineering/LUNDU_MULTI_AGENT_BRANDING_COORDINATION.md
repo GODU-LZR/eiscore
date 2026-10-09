@@ -256,3 +256,10 @@ Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的
 2026-10-09 11:55 UTC 持有 `/opt/lundu-eiscore/.lundu-web-publish.lock`，校验旧 manifest `3f41e8af83c33350`、归档 SHA、12 入口、路径安全、`enterprise.id=lundu`、伦度 Logo、无“君乐缘”和微应用入口门禁后原子替换 `/opt/lundu-eiscore/release`。旧 release 备份为 `/opt/lundu-eiscore/backups/release-pre-share-metadata-093d05cf-20261009115516`。实际只重建 `lundu-eiscore-web-1`，新容器 `21d774403df2`；DB、API、Agent、DeepSeek Web 和 Harness 未重建，既有 orphan 未清理。
 
 线上 HTTPS 验收通过：`/login`、公开配置、manifest、分享图、SVG favicon、PNG Apple touch icon 和 `/favicon.ico` 均 HTTP 200；分享图为 `image/jpeg`、94,400 bytes，PNG 图标为 `image/png`、1,928 bytes。HTML 已包含绝对 `og:title`、`og:description`、`og:image`、1200×630 尺寸、`twitter:card=summary_large_image`、SVG favicon 和 Apple touch icon；页面标题为“伦度机电｜电机与水泵制造”，配置为 `enterprise.id=lundu`。Playwright CLI 因本机缺少 Chrome distribution 未启动，已使用真实 HTTPS 请求完成 HTML、Content-Type、字节数和资源门禁。
+## 2026-10-09 独立站首屏加载环发布
+
+用户要求独立站在配置请求和 Vue 首屏挂载期间显示加载环。本轮只修改 `eiscore-base/index.html`、`eiscore-base/src/main.js`、`eiscore-mobile/index.html`、`eiscore-mobile/src/main.js` 和 `tests/engineering/enterprise-bootstrap-loading-regression.mjs`，提交 `acf45ee7`（`feat(lundu): add bootstrap loading ring`）。加载环为 HTML 根入口中的纯 CSS 蓝色旋转环，支持 `prefers-reduced-motion`；桌面端在路由 ready 后双 `requestAnimationFrame` 淡出，移动端挂载后淡出，配置失败时移除遮罩并保留错误提示。
+
+发布前声明：目标服务为 `web`；分支 `codex/systematic-refactor`，提交 `acf45ee7`；制品目录 `output/lundu-loading-ring-20261009/full-dist`，归档 `output/lundu-loading-ring-20261009/lundu-loading-ring-acf45ee7.tar.gz`，SHA-256 `29D7012981B77F74DD02A05BB179113CEE1A01A72C1D392060C26BFB1483C590`。完整制品包含 12 个入口，根入口 `9,183` bytes，移动入口 `2,694` bytes，manifest 在发布前重新生成；根站和 `/mobile` 来自干净提交构建，其他 10 个微应用及 `agent` 资源沿用上一轮已验收目录并逐文件 SHA-256 核对无变化。预计只影响 `lundu-eiscore-web-1`，不重建 DB、API、Agent、DeepSeek Web 或 Harness。
+
+验证通过：`enterprise-bootstrap-loading-regression`、桌面/移动 `npm run build`、`node --check`、`git diff --check`；制品 manifest `65e11b70e6639491` / 570 项 / 78,226,463 bytes，`enterprise.id=lundu`，根和移动入口均包含 `eiscore-bootstrap-loading`，入口无“君乐缘”。

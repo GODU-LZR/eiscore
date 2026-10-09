@@ -367,6 +367,10 @@ HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 
 线上验收：`/login`、`/config/eiscore-enterprise.json`、`/asset-manifest.json`、分享图、SVG favicon、PNG Apple touch icon 和 `/favicon.ico` 全部 HTTP 200，分享图 `image/jpeg` 94,400 bytes，Apple 图标 `image/png` 1,928 bytes。HTML 已输出绝对 Open Graph/Twitter 元数据和 favicon，配置为 `enterprise.id=lundu`，页面无“君乐缘”。Playwright CLI 因本机缺少 Chrome distribution 未启动；已完成真实 HTTPS HTML、Content-Type、字节数和资源门禁。
 
+## 2026-10-09 独立站首屏加载环发布交接
+
+加载环功能已在提交 `acf45ee7` 完成，目标服务为 `web`。发布制品 `output/lundu-loading-ring-20261009/full-dist`，归档 SHA-256 `29D7012981B77F74DD02A05BB179113CEE1A01A72C1D392060C26BFB1483C590`；构建来源为干净提交，根站和 `/mobile` 入口分别为 `9,183` 与 `2,694` bytes，manifest `65e11b70e6639491` / 570 项 / 78,226,463 bytes。其他 10 个微应用及 agent 资源与上一轮已验收版本逐文件一致。发布只能在 `/opt/lundu-eiscore/.lundu-web-publish.lock` 内原子替换完整 release，并只重建 `lundu-eiscore-web-1`；不得重建后端服务或覆盖其他 Agent 未提交改动。发布后报告入口版本、manifest、容器 ID、`enterprise.id=lundu`、加载环存在及无“君乐缘”。
+
 共享锁内验证旧版 `2051dc0c3fd37e54` 后原子替换 release，实际仅重建 `lundu-eiscore-web-1`，容器 `5043104240b8`；其他容器 ID 未变。备份 `/opt/lundu-eiscore/backups/release-pre-support-window-ff05d042-20261009085740`。回退须持有 `/opt/lundu-eiscore/.lundu-web-publish.lock`，恢复完整备份并只重建 web。
 
 语法、变更 lint、登录/品牌/配置回归通过。25 个 HTTPS 资源与制品逐字节一致；Service Worker 下服务页刷新、首页英文切换与刷新通过，无错误品牌及控制台错误。源码已推送至正确的 EISCore Git 远端。本地及远端四视口中英文客服交互各 8/8 PASS，已人工检查截图，客服窗口无裁切、重叠和横向溢出；证据位于 `output/playwright/lundu-support-window-20261009`，制品与 HTTP/cache 证据位于 `output/lundu-support-window-20261009`。流式请求使用 mock，键盘几何使用模拟 visualViewport；未验证真实模型、提交订单或宣称真机键盘验证。后续 Agent 发布 web 时必须保留语言修复、头像和本次窗口/流式更新，不能用旧入口覆盖。详细发布声明、来源及既有移动英文导航按钮裁切记录见多 Agent 协作文档同日“客服窗口美化发布”。
