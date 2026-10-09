@@ -753,9 +753,10 @@ const loginCloseLabel = computed(() => (
   activeLocale.value.toLowerCase().startsWith('en') ? 'Close sign in' : '关闭登录'
 ))
 const availableLocales = computed(() => {
-  const values = Array.isArray(systemStore.enterpriseProfile?.enabledLocales)
-    ? systemStore.enterpriseProfile.enabledLocales
-    : []
+  const profile = systemStore.enterpriseProfile
+  const values = profile?.source === 'published-site'
+    ? profile.enabledLocales
+    : Object.keys(serviceContent.value?.locales || {})
   return values.map((value) => ({
     value,
     label: value.toLowerCase().startsWith('zh') ? '中文' : value.toLowerCase().startsWith('en') ? 'EN' : value
@@ -1316,6 +1317,10 @@ const switchLocale = async (locale) => {
   switchingLocale.value = true
   try {
     await systemStore.loadEnterpriseProfile(locale)
+    if (activeLocale.value !== locale) {
+      ElMessage.warning(isEnglish.value ? 'Language service is unavailable. Please try again.' : '语言服务暂时不可用，请重试。')
+      return
+    }
     systemStore.initTheme()
     const url = new URL(window.location.href)
     url.searchParams.set('lang', locale)
