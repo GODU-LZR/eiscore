@@ -263,3 +263,7 @@ Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的
 发布前声明：目标服务为 `web`；分支 `codex/systematic-refactor`，提交 `acf45ee7`；制品目录 `output/lundu-loading-ring-20261009/full-dist`，归档 `output/lundu-loading-ring-20261009/lundu-loading-ring-acf45ee7.tar.gz`，SHA-256 `29D7012981B77F74DD02A05BB179113CEE1A01A72C1D392060C26BFB1483C590`。完整制品包含 12 个入口，根入口 `9,183` bytes，移动入口 `2,694` bytes，manifest 在发布前重新生成；根站和 `/mobile` 来自干净提交构建，其他 10 个微应用及 `agent` 资源沿用上一轮已验收目录并逐文件 SHA-256 核对无变化。预计只影响 `lundu-eiscore-web-1`，不重建 DB、API、Agent、DeepSeek Web 或 Harness。
 
 验证通过：`enterprise-bootstrap-loading-regression`、桌面/移动 `npm run build`、`node --check`、`git diff --check`；制品 manifest `65e11b70e6639491` / 570 项 / 78,226,463 bytes，`enterprise.id=lundu`，根和移动入口均包含 `eiscore-bootstrap-loading`，入口无“君乐缘”。
+
+2026-10-09 15:03 UTC 已在共享锁内完成发布。旧 manifest `7555e59f25c2b26d` 已备份至 `/opt/lundu-eiscore/backups/release-pre-loading-ring-acf45ee7-20261009150309`；实际只重建 `lundu-eiscore-web-1`，新容器 ID `b49e14e812bb35bb9dd3a7557b83cf406b89dfd766bc4ec3444aa4d2dadaa278`。DB、API、Agent、DeepSeek Web 和 Harness 未重建，既有 orphan 未清理。线上 manifest 为 `65e11b70e6639491` / 570 项 / 78,226,463 bytes，manifest 所列资源全部存在。
+
+线上验收通过：`/login`、`/mobile/`、`/asset-manifest.json`、`/config/eiscore-enterprise.json` 和 Logo 均 HTTP 200；配置 `enterprise.id=lundu`，页面标题为“伦度机电｜电机与水泵制造”，桌面和移动入口均包含加载环，公开入口无“君乐缘”。`nginx -t` 成功，仅保留既有 duplicate MIME type 警告。
