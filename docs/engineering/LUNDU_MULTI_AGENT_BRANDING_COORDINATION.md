@@ -210,3 +210,15 @@ Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的
 验收通过：真实远端在 `390×844`、`414×896`、`768×1024`、`1440×900` 的首页及两个服务页共 12 场景完成中文→英文→中文切换，按钮可见、单行、可点击，URL 与语言一致，Logo 正常、无横向溢出、无错误品牌和页面错误。已视觉查看桌面及手机截图。24 个 HTTPS 入口/配置/Logo/资源与完整制品逐字节一致；Service Worker 启用后首页进入详情、刷新、根地址进入首页并切换英文刷新均通过，manifest 保持 `a38aab250e541bcc`，无页面或控制台错误。本地额外验证首载 profile 503 仍显示入口且切换失败不伪造 URL。证据位于 `output/playwright/lundu-locale-20261009/{local,remote}-qa.json` 和 `output/lundu-locale-fix-20261009/{remote-http-qa,remote-cache-smoke}.json`。
 
 后续整合 Agent 发布 web 时须保留上述两项修复，从当前分支生成完整 dist；不得用旧主站构建覆盖语言修复。回退须在同一共享锁内把本节备份恢复为 `/opt/lundu-eiscore/release`，仅执行规定的 web-only Compose 重建，并重新检查品牌、配置和语言入口。
+
+## 2026-10-09 客服头像入口发布
+
+独立站 Agent 将右下角客服文字按钮替换为 GPT Image 2 生成的蓝白耳麦人物头像。源码提交 `a2db08bcb1dde4893393518fa519ccd24d559b7a`，修改仅为 `LoginView.vue`、`login-view.scss` 与 `src/assets/customer-service-avatar.png`；头像为 192×192 透明 PNG，页面入口固定 48×48，保留中英文无障碍名称、点击与键盘展开/收起。未调整客服流式面板或业务接口。生成记录位于 `output/imagegen/lundu-support-avatar-20261009-prompt.md`，资源 SHA-256 为 `472d409657bd6852f0565215393c569c2df3e6d5ccfa67bd5f3de5e4488c2c32`。
+
+发布前已通知 DeepSeek 整合聊天。目标仅 `web`；工作区 `github-eiscore-refactor`，分支 `codex/systematic-refactor`。主站从该提交的 `git archive` 隔离源码构建，其他 Agent 的未提交 layout、HR、nginx、Grid 文件未纳入。11 个微应用及共享构建源码相对已验收版本未变，使用 `output/lundu-locale-fix-20261009/full-dist/<mount>`；发布锁内逐文件确认与运行版本一致。完整 12 入口制品为 `output/lundu-support-avatar-20261009/full-dist`，归档 `lundu-support-avatar-a2db08bc.tar.gz`，SHA-256 `c3a121994d013a90c48c87be4d7874662b630cc164e54b3eea36543cfbd838b6`。入口 6295 字节，主包 `/assets/index-C7FhDJnR.js`；manifest `2051dc0c3fd37e54` / 567 项 / 78,114,439 字节。头像路径 `/assets/customer-service-avatar-CQpezFol.png`。
+
+2026-10-09 07:26 UTC，在共享锁内确认旧 manifest `a38aab250e541bcc`，通过完整资源、品牌及微应用门禁后原子切换 release。备份 `/opt/lundu-eiscore/backups/release-pre-avatar-a2db08bc-20261009072645`。实际仅重建 `lundu-eiscore-web-1`，容器 `b9f3b78e49b3`；容器 ID 比较确认其余服务未变化。回退须在同一锁内恢复该备份并仅重建 web。
+
+本地语法、变更 lint、登录入口/品牌与 system-profile-request 回归、主站构建均通过。本地及远端 `/login` 在 390×844、414×896、768×1024、1440×900 中英两种语言的头像加载、48px 尺寸、点击、Enter、关闭及往返切换均通过；已视觉检查桌面、手机展开/收起截图。无横向溢出、君乐缘正文或页面异常。25 个 HTTPS 资源与制品逐字节一致，含头像、主包、Logo、公开配置及 11 个微应用入口；Service Worker 开启后的服务页刷新、首页英文切换与刷新通过。只验证客服界面，未提交真实消息或订单。证据见 `output/playwright/lundu-support-avatar-20261009/{local,remote}-qa.json` 和 `output/lundu-support-avatar-20261009/{release-proof,remote-http-qa,remote-cache-smoke}.json`。
+
+验收环境备注：本机 DNS 当时将域名解析为 `103.73.220.77`，服务器解析为 `149.104.26.71`，默认自动化请求超时；HTTPS 验收固定到已授权部署 IP `149.104.26.71`，仍使用 `lundu.eiscore.top` 主机名且未跳过证书验证。没有改动 DNS 或全局 hosts。其他 Agent 后续发布 web 时必须保留本次头像和之前语言修复，并重新生成完整 dist。

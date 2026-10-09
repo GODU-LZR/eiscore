@@ -336,3 +336,13 @@ HTTP 门禁通过：`/login`、`/asset-manifest.json`、`/config/eiscore-enterpr
 共享锁内确认旧 manifest `78294f227a301616` 后原子替换 release；备份 `/opt/lundu-eiscore/backups/release-pre-locale-10dde8b6-20261009061902`，实际只重建 `lundu-eiscore-web-1`，新容器 `96b0626f5f08`。其他容器 ID 未变化。回退时在同一锁内恢复备份并只重建 web。
 
 远端四视口首页/两个服务页共 12 场景的中英往返、24 个 HTTPS 资源与本地字节核对均通过；Logo 为伦度，正文无君乐缘、无横向溢出或页面错误。桌面与手机截图已视觉检查。Service Worker 开启后，根地址进入首页、英文切换与刷新仍显示两个按钮并保留 `lang=en-US`；manifest 为 `a38aab250e541bcc`，无页面/控制台错误。证据目录 `output/playwright/lundu-locale-20261009`、`output/lundu-locale-fix-20261009`。后续 web 发布应保留这两项源码修复并使用当前完整制品来源，避免旧构建覆盖。
+
+## 2026-10-09 客服头像同步
+
+提交 `a2db08bc` 将客服入口改为 GPT Image 2 蓝白耳麦人物头像，固定 48×48，保持中英文名称、键盘与展开/收起操作。资源为 `eiscore-base/src/assets/customer-service-avatar.png`，192×192 透明 PNG，SHA-256 `472d409657bd6852f0565215393c569c2df3e6d5ccfa67bd5f3de5e4488c2c32`。
+
+发布前已向 DeepSeek 整合聊天声明仅更新 web。完整 12 入口制品 `output/lundu-support-avatar-20261009/full-dist`，来自提交 `a2db08bcb1dde4893393518fa519ccd24d559b7a` 的隔离主站构建和源码未变的已验收 11 微应用；归档 SHA-256 `c3a121994d013a90c48c87be4d7874662b630cc164e54b3eea36543cfbd838b6`。入口 6295 字节、主包 `/assets/index-C7FhDJnR.js`，manifest `2051dc0c3fd37e54` / 567 项 / 78,114,439 字节。锁内校验旧版 `a38aab250e541bcc`、全部 manifest 资源、伦度品牌及微应用逐文件哈希后原子替换，仅重建 `lundu-eiscore-web-1`，新容器 `b9f3b78e49b3`；其他容器 ID 未变。
+
+备份 `/opt/lundu-eiscore/backups/release-pre-avatar-a2db08bc-20261009072645`。回退必须持有 `/opt/lundu-eiscore/.lundu-web-publish.lock`，恢复该完整目录并只重建 web。后续发布保留头像及 `014f5a72`、`10dde8b6` 语言修复，不得发布陈旧入口。
+
+本地及远端 `/login` 四视口中英头像/交互验收通过，已检查桌面与手机截图；无横向溢出、错误品牌或页面异常。25 个 HTTPS 资源和制品逐字节一致；Service Worker 开启的详情刷新及首页英文刷新通过。未发送真实客服消息或订单。证据位于 `output/playwright/lundu-support-avatar-20261009`、`output/lundu-support-avatar-20261009`。当时本机 DNS 返回 `103.73.220.77`，服务器返回 `149.104.26.71`；验收固定部署 IP，保留域名与证书验证，未修改 DNS/hosts。详细制品来源及发布记录见协作文档同日“客服头像入口发布”。
