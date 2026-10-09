@@ -5360,7 +5360,7 @@
   transform: none;
 }
 
-/* EOF mobile override: the hero image, copy and controls stay in document flow. */
+/* EOF mobile override: keep the slide title and controls inside the image frame. */
 @media (max-width: 760px) {
   .hero-section {
     display: flex;
@@ -5378,6 +5378,7 @@
     width: 100%;
     height: auto;
     aspect-ratio: 16 / 9;
+    overflow: hidden;
   }
 
   .hero-media img {
@@ -5388,8 +5389,12 @@
     object-position: center;
   }
 
-  .hero-shade {
-    display: none;
+  .hero-media .hero-shade {
+    display: block;
+    inset: 0;
+    height: auto;
+    z-index: 1;
+    pointer-events: none;
   }
 
   .hero-inner {
@@ -5412,11 +5417,18 @@
   }
 
   .hero-carousel {
-    position: relative;
-    inset: auto;
-    width: 100%;
-    margin-top: 16px;
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 18px;
+    z-index: 4;
+    width: auto;
+    margin: 0;
     transform: none;
+  }
+
+  .hero-carousel-caption {
+    max-width: calc(100% - 112px);
   }
 
   .scroll-cue {

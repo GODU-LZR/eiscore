@@ -62,7 +62,6 @@
         <div
           class="hero-media"
           :class="{ 'has-image': heroImage }"
-          aria-hidden="true"
           @mouseenter="stopHeroAutoplay"
           @mouseleave="startHeroAutoplay"
           @focusin="stopHeroAutoplay"
@@ -73,9 +72,65 @@
             :key="activeHeroSlide.url"
             :src="activeHeroSlide.url"
             alt=""
+            aria-hidden="true"
           />
+          <div
+            v-if="carouselItems.length > 1"
+            class="hero-carousel"
+            @mouseenter="stopHeroAutoplay"
+            @mouseleave="startHeroAutoplay"
+            @focusin="stopHeroAutoplay"
+            @focusout="startHeroAutoplay"
+          >
+            <div v-if="!activeHeroSlide?.hasEmbeddedText" class="hero-carousel-caption" aria-live="polite">
+              <span>{{ activeHeroSlide?.subtitle }}</span>
+              <strong>{{ activeHeroSlide?.title }}</strong>
+            </div>
+            <div class="hero-carousel-controls">
+              <button
+                type="button"
+                class="hero-carousel-arrow"
+                :aria-label="activeLocale.toLowerCase().startsWith('en') ? 'Previous slide' : '上一张图片'"
+                title="上一张"
+                @click="previousHeroSlide"
+              >
+                <span aria-hidden="true">‹</span>
+              </button>
+              <div class="hero-carousel-dots" role="tablist" aria-label="首屏图片">
+                <button
+                  v-for="(item, index) in carouselItems"
+                  :key="item.url"
+                  type="button"
+                  role="tab"
+                  class="hero-carousel-dot"
+                  :class="{ 'is-active': index === activeHeroIndex }"
+                  :aria-selected="index === activeHeroIndex"
+                  :aria-label="`${activeLocale.toLowerCase().startsWith('en') ? 'Slide' : '第'} ${index + 1}`"
+                  @click="setHeroSlide(index)"
+                />
+              </div>
+              <button
+                type="button"
+                class="hero-carousel-arrow"
+                :aria-label="activeLocale.toLowerCase().startsWith('en') ? 'Next slide' : '下一张图片'"
+                title="下一张"
+                @click="nextHeroSlide"
+              >
+                <span aria-hidden="true">›</span>
+              </button>
+              <button
+                type="button"
+                class="hero-carousel-toggle"
+                :aria-label="heroPaused ? (activeLocale.toLowerCase().startsWith('en') ? 'Play slideshow' : '播放轮播') : (activeLocale.toLowerCase().startsWith('en') ? 'Pause slideshow' : '暂停轮播')"
+                :title="heroPaused ? '播放轮播' : '暂停轮播'"
+                @click="toggleHeroAutoplay"
+              >
+                <span aria-hidden="true">{{ heroPaused ? '▶' : 'Ⅱ' }}</span>
+              </button>
+            </div>
+          </div>
+          <div class="hero-shade" />
         </div>
-        <div class="hero-shade" />
 
         <div class="hero-inner">
           <div v-if="!activeHeroSlide?.hasEmbeddedText" class="hero-copy reveal is-visible">
@@ -100,62 +155,6 @@
             <strong>{{ item.value }}</strong>
             {{ item.label }}
           </span>
-        </div>
-
-        <div
-          v-if="carouselItems.length > 1"
-          class="hero-carousel"
-          @mouseenter="stopHeroAutoplay"
-          @mouseleave="startHeroAutoplay"
-          @focusin="stopHeroAutoplay"
-          @focusout="startHeroAutoplay"
-        >
-          <div v-if="!activeHeroSlide?.hasEmbeddedText" class="hero-carousel-caption" aria-live="polite">
-            <span>{{ activeHeroSlide?.subtitle }}</span>
-            <strong>{{ activeHeroSlide?.title }}</strong>
-          </div>
-          <div class="hero-carousel-controls">
-            <button
-              type="button"
-              class="hero-carousel-arrow"
-              :aria-label="activeLocale.toLowerCase().startsWith('en') ? 'Previous slide' : '上一张图片'"
-              title="上一张"
-              @click="previousHeroSlide"
-            >
-              <span aria-hidden="true">‹</span>
-            </button>
-            <div class="hero-carousel-dots" role="tablist" aria-label="首屏图片">
-              <button
-                v-for="(item, index) in carouselItems"
-                :key="item.url"
-                type="button"
-                role="tab"
-                class="hero-carousel-dot"
-                :class="{ 'is-active': index === activeHeroIndex }"
-                :aria-selected="index === activeHeroIndex"
-                :aria-label="`${activeLocale.toLowerCase().startsWith('en') ? 'Slide' : '第'} ${index + 1}`"
-                @click="setHeroSlide(index)"
-              />
-            </div>
-            <button
-              type="button"
-              class="hero-carousel-arrow"
-              :aria-label="activeLocale.toLowerCase().startsWith('en') ? 'Next slide' : '下一张图片'"
-              title="下一张"
-              @click="nextHeroSlide"
-            >
-              <span aria-hidden="true">›</span>
-            </button>
-            <button
-              type="button"
-              class="hero-carousel-toggle"
-              :aria-label="heroPaused ? (activeLocale.toLowerCase().startsWith('en') ? 'Play slideshow' : '播放轮播') : (activeLocale.toLowerCase().startsWith('en') ? 'Pause slideshow' : '暂停轮播')"
-              :title="heroPaused ? '播放轮播' : '暂停轮播'"
-              @click="toggleHeroAutoplay"
-            >
-              <span aria-hidden="true">{{ heroPaused ? '▶' : 'Ⅱ' }}</span>
-            </button>
-          </div>
         </div>
 
         <button type="button" class="scroll-cue" @click="scrollToSection('metrics')" :aria-label="portalUi.scrollAriaLabel">

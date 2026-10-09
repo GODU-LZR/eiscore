@@ -1,7 +1,7 @@
 <template>
   <div ref="pageRef" class="mobile-login" :style="pageStyle" @scroll.passive="handlePageScroll">
     <section class="mobile-hero" id="mobile-overview">
-      <div class="hero-media" aria-hidden="true">
+      <div class="hero-media">
         <div
           v-for="(scene, index) in heroScenes"
           :key="scene.url || index"
@@ -13,6 +13,7 @@
             class="hero-scene-bg"
             :src="scene.url"
             alt=""
+            aria-hidden="true"
             loading="eager"
             decoding="async"
           />
@@ -21,13 +22,25 @@
             class="hero-scene-main"
             :src="scene.url"
             alt=""
+            aria-hidden="true"
             loading="eager"
             decoding="async"
           />
         </div>
         <div class="hero-texture"></div>
+        <div class="hero-shade"></div>
+        <div v-if="heroScenes.length" class="hero-scene-caption" aria-live="polite">
+          <span>{{ heroSceneSubtitle }}</span>
+          <strong>{{ heroSceneTitle }}</strong>
+          <div v-if="sceneProgressItems.length > 1" class="scene-progress" aria-hidden="true">
+            <span
+              v-for="index in sceneProgressItems"
+              :key="index"
+              :class="{ active: index === activeSceneNumber }"
+            ></span>
+          </div>
+        </div>
       </div>
-      <div class="hero-shade"></div>
 
       <div class="hero-topbar">
         <div class="brand-lockup">
@@ -633,6 +646,7 @@ function handlePageScroll(event) {
   border-radius: 0 0 28px 28px;
   overflow: hidden;
   transform: translateY(var(--mobile-hero-shift, 0px));
+  z-index: 2;
   will-change: transform;
 }
 
@@ -695,6 +709,44 @@ function handlePageScroll(event) {
     linear-gradient(135deg, color-mix(in srgb, var(--mobile-login-theme) 34%, transparent) 0%, transparent 42%);
 }
 
+.hero-scene-caption {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 3;
+  display: grid;
+  gap: 4px;
+  max-width: min(82%, 360px);
+  color: #fff;
+  text-shadow: 0 2px 16px rgba(2, 6, 23, 0.52);
+  pointer-events: none;
+}
+
+.hero-scene-caption span,
+.hero-scene-caption strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-scene-caption span {
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.hero-scene-caption strong {
+  font-size: 21px;
+  line-height: 1.15;
+  font-weight: 850;
+}
+
+.hero-scene-caption .scene-progress {
+  margin-top: 4px;
+}
+
 .hero-topbar,
 .hero-copy,
 .metric-carousel,
@@ -702,7 +754,7 @@ function handlePageScroll(event) {
 .access-sheet,
 .scroll-cue {
   position: relative;
-  z-index: 1;
+  z-index: 4;
 }
 
 .hero-topbar {
