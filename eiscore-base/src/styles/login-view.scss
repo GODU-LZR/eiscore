@@ -1648,6 +1648,230 @@
   }
 }
 
+/* Follow the browser/OS theme while keeping Lundu's blue accent. Images stay
+   unfiltered so product and factory details remain inspectable. */
+@media (prefers-color-scheme: dark) {
+  .login-page {
+    color: #e5edf7;
+    background: #0b1420 !important;
+    color-scheme: dark;
+  }
+
+  .is-scrolled .site-header {
+    border-bottom-color: rgba(148, 163, 184, 0.18);
+    color: #e5edf7;
+    background: rgba(11, 20, 32, 0.92);
+  }
+
+  .is-scrolled .site-nav button,
+  .is-scrolled .locale-switch button,
+  .is-scrolled .header-login {
+    color: #e5edf7;
+  }
+
+  .is-scrolled .header-login {
+    border-color: rgba(148, 163, 184, 0.32);
+    background: rgba(30, 41, 59, 0.72);
+  }
+
+  .is-scrolled .brand-mark.has-logo,
+  .brand-mark.has-logo {
+    background: #fff;
+  }
+
+  .is-scrolled .site-nav button:hover {
+    background: color-mix(in srgb, var(--login-theme) 24%, #0f1c2b);
+  }
+
+  .locale-switch {
+    border-color: rgba(148, 163, 184, 0.34);
+  }
+
+  .locale-switch button.is-active {
+    color: #0b1420;
+    background: #e5edf7;
+  }
+
+  .is-scrolled .locale-switch button.is-active {
+    color: #fff;
+    background: var(--login-theme);
+  }
+
+  .metrics-band,
+  .story-section,
+  .operation-section,
+  .gallery-section,
+  .leader-section,
+  .public-solutions-section,
+  .company-profile {
+    color: #e5edf7;
+  }
+
+  .public-products-section,
+  .login-page,
+  .commerce-section {
+    background: #0b1420 !important;
+  }
+
+  .section-heading h2,
+  .story-copy h2,
+  .public-section-heading h2,
+  .solution-heading h2,
+  .company-fact dd,
+  .public-product-card h3,
+  .public-solution-list h3,
+  .chain-item h3,
+  .capability-card h3,
+  .leader-card h4,
+  .auth-card h2 {
+    color: #e5edf7;
+  }
+
+  .company-profile,
+  .company-fact,
+  .public-solution-list,
+  .public-solution-list article,
+  .chain-list,
+  .chain-item,
+  .site-footer,
+  .product-card-link,
+  .product-card-meta {
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+
+  .company-profile-intro p,
+  .story-copy p,
+  .public-section-heading > p,
+  .public-solution-list p,
+  .chain-item p,
+  .capability-card p,
+  .company-fact dt,
+  .product-card-body > p,
+  .site-footer,
+  .leader-title,
+  .leader-intro,
+  .auth-subtitle,
+  .auth-footnote,
+  .safe-note {
+    color: #a9b8ca;
+  }
+
+  .public-product-card,
+  .capability-card,
+  .manufacturing-series-card,
+  .quote-flow,
+  .commerce-modal,
+  .agent-modal,
+  .payment-modal,
+  .auth-card {
+    border-color: rgba(148, 163, 184, 0.22);
+    background: #111e2d;
+    color: #e5edf7;
+    box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+  }
+
+  .product-card-media,
+  .capability-card img,
+  .manufacturing-series-media,
+  .company-profile-media,
+  .solution-row-media {
+    background: #162638;
+  }
+
+  .product-card-link,
+  .product-card-meta-label,
+  .product-card-code,
+  .public-solution-list small,
+  .quote-flow span,
+  .quote-flow span b {
+    color: #a9b8ca;
+  }
+
+  .product-tags span,
+  .chain-item span {
+    border-color: color-mix(in srgb, var(--login-theme) 42%, #334155);
+    background: color-mix(in srgb, var(--login-theme) 16%, #111e2d);
+  }
+
+  .chain-item:hover,
+  .public-solution-list article.is-active,
+  .public-solution-list article:focus-visible {
+    background: color-mix(in srgb, var(--login-theme) 12%, #0b1420);
+  }
+
+  .commerce-modal::before {
+    background: var(--login-theme);
+  }
+
+  .quote-summary,
+  .commerce-status-panel.stage-inquiry,
+  .commerce-status-panel.stage-quote,
+  .commerce-status-panel.stage-order,
+  .commerce-status-panel.stage-payment {
+    background: #162638;
+  }
+
+  .quote-summary span,
+  .quote-summary small,
+  .commerce-status-panel strong,
+  .commerce-status-panel p {
+    color: #c2d0df;
+  }
+
+  .agent-quick-prompts button {
+    border-color: rgba(148, 163, 184, 0.28);
+    color: #b9c9da;
+    background: #162638;
+  }
+
+  .login-form :deep(.el-input__wrapper) {
+    background: #0e1a29;
+    box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.3) inset;
+  }
+
+  .login-form :deep(.el-input__wrapper.is-focus) {
+    background: #111e2d;
+    box-shadow: 0 0 0 1px var(--login-theme) inset, 0 8px 18px rgba(0, 0, 0, 0.24);
+  }
+
+  .login-form :deep(.el-input__inner),
+  .login-form :deep(.el-form-item__label) {
+    color: #e5edf7;
+  }
+
+  .auth-overlay {
+    background: rgba(2, 8, 18, 0.78);
+  }
+
+  .auth-close {
+    color: #b9c9da;
+    background: #1b2b3e;
+  }
+
+  .site-footer {
+    background: #0b1420;
+  }
+
+  :global(html:has(.login-page)) {
+    scrollbar-color: #526d89 #101d2d;
+  }
+
+  :global(html:has(.login-page)::-webkit-scrollbar-track),
+  .commerce-modal::-webkit-scrollbar-track,
+  .agent-messages::-webkit-scrollbar-track,
+  .agent-quick-prompts::-webkit-scrollbar-track {
+    background: #101d2d;
+  }
+
+  :global(html:has(.login-page)::-webkit-scrollbar-thumb),
+  .commerce-modal::-webkit-scrollbar-thumb,
+  .agent-messages::-webkit-scrollbar-thumb,
+  .agent-quick-prompts::-webkit-scrollbar-thumb {
+    border-color: #101d2d;
+    background: #526d89;
+  }
+}
+
 @media (max-width: 1280px) {
   .hero-inner,
   .story-section {
@@ -5901,5 +6125,131 @@
   .quote-line img {
     min-height: 80px;
     transform: scale(1.12);
+  }
+}
+
+/* Final cascade guard: later storefront rules must also follow system dark mode. */
+@media (prefers-color-scheme: dark) {
+  .login-page,
+  .public-products-section,
+  .commerce-section,
+  .site-footer {
+    background: #0b1420 !important;
+    color: #e5edf7;
+  }
+
+  .public-product-card,
+  .capability-card,
+  .manufacturing-series-card,
+  .commerce-modal,
+  .agent-modal,
+  .payment-modal,
+  .auth-card {
+    border-color: rgba(148, 163, 184, 0.22) !important;
+    background: #111e2d !important;
+    color: #e5edf7;
+  }
+
+  .company-profile-media,
+  .product-card-media,
+  .capability-card img,
+  .manufacturing-series-media,
+  .solution-row-media,
+  .product-card-media {
+    background: #162638;
+  }
+
+  .section-heading h2,
+  .story-copy h2,
+  .public-section-heading h2,
+  .solution-heading h2,
+  .company-fact dd,
+  .public-product-card h3,
+  .public-solution-list h3,
+  .chain-item h3,
+  .capability-card h3,
+  .leader-card h4,
+  .product-card-link,
+  .auth-card h2 {
+    color: #e5edf7;
+  }
+
+  .company-profile-intro p,
+  .story-copy p,
+  .public-section-heading > p,
+  .public-solution-list p,
+  .chain-item p,
+  .capability-card p,
+  .company-fact dt,
+  .product-card-body > p,
+  .leader-title,
+  .leader-intro,
+  .site-footer,
+  .auth-subtitle,
+  .auth-footnote,
+  .safe-note,
+  .product-card-meta-label,
+  .product-card-code {
+    color: #a9b8ca;
+  }
+
+  .company-profile,
+  .company-fact,
+  .public-solution-list,
+  .public-solution-list article,
+  .chain-list,
+  .chain-item,
+  .site-footer,
+  .product-card-link,
+  .product-card-meta {
+    border-color: rgba(148, 163, 184, 0.2);
+  }
+
+  .public-solution-list article.is-active,
+  .public-solution-list article:focus-visible,
+  .chain-item:hover {
+    background: color-mix(in srgb, var(--login-theme) 12%, #0b1420);
+  }
+
+  .login-form :deep(.el-input__wrapper) {
+    background: #0e1a29;
+    box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.3) inset;
+  }
+
+  .login-form :deep(.el-input__wrapper.is-focus) {
+    background: #111e2d;
+  }
+
+  .login-form :deep(.el-input__inner),
+  .login-form :deep(.el-form-item__label) {
+    color: #e5edf7;
+  }
+
+  .auth-overlay {
+    background: rgba(2, 8, 18, 0.78);
+  }
+
+  .auth-close {
+    color: #b9c9da;
+    background: #1b2b3e;
+  }
+
+  :global(html:has(.login-page)) {
+    scrollbar-color: #526d89 #101d2d;
+  }
+
+  :global(html:has(.login-page)::-webkit-scrollbar-track),
+  .commerce-modal::-webkit-scrollbar-track,
+  .agent-messages::-webkit-scrollbar-track,
+  .agent-quick-prompts::-webkit-scrollbar-track {
+    background: #101d2d;
+  }
+
+  :global(html:has(.login-page)::-webkit-scrollbar-thumb),
+  .commerce-modal::-webkit-scrollbar-thumb,
+  .agent-messages::-webkit-scrollbar-thumb,
+  .agent-quick-prompts::-webkit-scrollbar-thumb {
+    border-color: #101d2d;
+    background: #526d89;
   }
 }

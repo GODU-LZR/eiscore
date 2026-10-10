@@ -1874,4 +1874,97 @@ function handlePageScroll(event) {
     transition: none;
   }
 }
+
+@media (prefers-color-scheme: dark) {
+  .mobile-login {
+    color-scheme: dark;
+    color: #e5edf7;
+    background: #0b1420;
+  }
+
+  .mobile-hero,
+  .hero-inner {
+    background: #0b1420;
+  }
+
+  .access-sheet {
+    border-color: #2a3c50;
+    background: linear-gradient(180deg, rgba(17, 30, 45, 0.98), rgba(11, 20, 32, 0.98));
+    box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.32);
+  }
+
+  .access-title strong,
+  .section-heading h2,
+  .chain-item h3,
+  .capability-card h3 {
+    color: #e5edf7;
+  }
+
+  .access-title p,
+  .intro-section > p,
+  .chain-item p,
+  .capability-card p,
+  .login-footer p {
+    color: #a9b8ca;
+  }
+
+  .access-handle {
+    background: rgba(203, 213, 225, 0.28);
+  }
+
+  .access-status {
+    color: #b9d4c7;
+    background: #18312e;
+  }
+
+  .access-form :deep(.van-cell-group--inset),
+  .access-form :deep(.van-cell:focus-within) {
+    background: #0e1a29;
+  }
+
+  .access-form :deep(.van-cell) {
+    color: #e5edf7;
+  }
+
+  .access-form :deep(.van-field__label),
+  .access-form :deep(.van-field__control) {
+    color: #e5edf7;
+  }
+
+  .access-form :deep(.van-field__control::placeholder),
+  .form-actions span {
+    color: #8295aa;
+  }
+
+  .chain-item > div,
+  .capability-card,
+  .story-card {
+    border-color: #2a3c50;
+    background: #111e2d;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.26);
+  }
+
+  .company-address {
+    color: #80b7d2 !important;
+  }
+
+  .mobile-dock {
+    background: linear-gradient(180deg, rgba(11, 20, 32, 0), rgba(11, 20, 32, 0.96) 38%);
+  }
+
+  .mobile-dock button:last-child {
+    color: #dbe7f2;
+    border-color: #2a3c50;
+    background: #111e2d;
+  }
+
+  .login-footer {
+    border-top-color: #2a3c50;
+  }
+
+  .pump-bom-frame {
+    border-color: #2a3c50;
+    background: #101d2c;
+  }
+}
 </style>

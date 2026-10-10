@@ -15,6 +15,7 @@
 
 <style>
 :root {
+  color-scheme: light dark;
   --eis-primary: #1677ff;
   --eis-primary-dark: #0958d9;
   --eis-bg: #f5f7fa;
@@ -44,6 +45,16 @@ html, body, #app {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --eis-bg: #0b1420;
+    --eis-card-bg: #111e2d;
+    --eis-text: #e5edf7;
+    --eis-text-secondary: #a9b8ca;
+    --eis-border: #2a3c50;
+  }
 }
 
 /* 安全区适配 */
