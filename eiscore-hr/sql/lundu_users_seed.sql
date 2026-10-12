@@ -44,11 +44,37 @@ begin
 end;
 $$;
 
--- Remove the five original demo accounts and the previous small-enterprise demo accounts.
+-- Remove the four original demo accounts and the previous small-enterprise demo accounts.
 delete from public.users
- where username in ('hr_admin', 'hr_clerk', 'dept_manager', 'employee', 'admin')
+ where username in ('hr_admin', 'hr_clerk', 'dept_manager', 'employee')
     or sop_role = 'small_enterprise_department_account'
     or sop_role = 'lundu_excel_import';
+
+-- Keep the protected system administrator available for maintenance.
+insert into public.users
+  (username, password, role, full_name, permissions, dept_id, status, sop_role, tenant_id)
+select 'admin', '123456', 'super_admin', '超级管理员', array(select code from public.permissions order by code),
+       null, 'active', 'system_super_admin', 'default'
+on conflict (username) do update
+  set password = excluded.password,
+      role = excluded.role,
+      full_name = excluded.full_name,
+      permissions = excluded.permissions,
+      dept_id = null,
+      status = excluded.status,
+      sop_role = excluded.sop_role,
+      tenant_id = excluded.tenant_id;
+
+insert into public.user_roles (user_id, role_id)
+select u.id, r.id
+  from public.users u
+  join public.roles r on r.code = 'super_admin'
+ where u.username = 'admin'
+on conflict (user_id, role_id) do nothing;
+
+delete from public.user_roles ur
+ where ur.user_id = (select id from public.users where username = 'admin')
+   and ur.role_id <> (select id from public.roles where code = 'super_admin');
 
 insert into public.users
   (username, password, role, full_name, permissions, dept_id, status, sop_role, tenant_id)

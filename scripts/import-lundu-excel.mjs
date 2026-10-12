@@ -91,6 +91,7 @@ const LUNDU_USER_ACCOUNTS = new Map([
 ])
 
 const LUNDU_USER_PERMISSIONS = ['module:home', 'module:hr', 'app:hr_employee', 'app:hr_org', 'op:hr_employee.view', 'op:hr_org.view']
+const SUPER_ADMIN_ACCOUNT = { username: 'admin', fullName: '超级管理员', role: 'super_admin', password: '123456' }
 
 const numberOrNull = (value) => {
   const text = clean(value).replaceAll(',', '')
@@ -250,7 +251,8 @@ const report = {
     '产品使用 LUNDU 来源编码；物料按 LUNDU-MAT-### 生成正式编码，并在 sourceFields 保留原始列。',
     '产品公开字段为空，完整型号产品为 review，缺型号电机为 draft，不直接公开。',
     '库存按仓库/楼层/库位建立树；库存补充物料按名称写入 01/02/03 分类编码。',
-    '组织表未提供系统账号、角色或密码；按姓名拼音首字母写入伦度登录名，初始密码按示例统一为 123456，并关联员工档案。'
+    '组织表未提供系统账号、角色或密码；按姓名拼音首字母写入伦度登录名，初始密码按示例统一为 123456，并关联员工档案。',
+    '保留 admin/123456 作为受保护的超级管理员账号，导入时幂等恢复全量权限。'
   ]
 }
 
@@ -337,9 +339,29 @@ async function replaceUsers(db, employees) {
 
   await db.query(`
     DELETE FROM public.users
-     WHERE username IN ('hr_admin', 'hr_clerk', 'dept_manager', 'employee', 'admin')
+     WHERE username IN ('hr_admin', 'hr_clerk', 'dept_manager', 'employee')
         OR sop_role IN ('small_enterprise_department_account', 'lundu_excel_import')
   `)
+
+  const allPermissions = (await db.query(`SELECT array_agg(code ORDER BY code) AS permissions FROM public.permissions`)).rows[0].permissions
+  const admin = await db.query(
+    `INSERT INTO public.users (username,password,role,full_name,permissions,dept_id,status,sop_role,tenant_id)
+     VALUES ($1,$2,$3,$4,$5,NULL,'active','system_super_admin','default')
+     ON CONFLICT (username) DO UPDATE SET password=EXCLUDED.password,role=EXCLUDED.role,full_name=EXCLUDED.full_name,
+       permissions=EXCLUDED.permissions,dept_id=NULL,status='active',sop_role=EXCLUDED.sop_role,tenant_id=EXCLUDED.tenant_id
+     RETURNING id`,
+    [SUPER_ADMIN_ACCOUNT.username, SUPER_ADMIN_ACCOUNT.password, SUPER_ADMIN_ACCOUNT.role, SUPER_ADMIN_ACCOUNT.fullName, allPermissions]
+  )
+  const superAdminRole = await db.query(`SELECT id FROM public.roles WHERE code = 'super_admin' LIMIT 1`)
+  if (!superAdminRole.rowCount) fail('超级管理员角色不存在')
+  await db.query(
+    `DELETE FROM public.user_roles WHERE user_id = $1 AND role_id <> $2`,
+    [admin.rows[0].id, superAdminRole.rows[0].id]
+  )
+  await db.query(
+    `INSERT INTO public.user_roles (user_id,role_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+    [admin.rows[0].id, superAdminRole.rows[0].id]
+  )
 
   for (const employee of accounts) {
     const permissions = employee.account.role === 'super_admin'
