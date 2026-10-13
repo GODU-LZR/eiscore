@@ -41,7 +41,7 @@ docker-compose up -d agent-runtime harness-bridge
 # Step 3: Start other services
 echo ""
 echo "🐳 Step 3/7: 启动其他本地服务..."
-docker-compose up -d api nginx swagger code-server
+docker-compose up -d api nginx
 
 echo ""
 echo "🧩 Step 4/7: 应用 Workflow 运行时补丁..."

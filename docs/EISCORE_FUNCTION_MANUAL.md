@@ -84,7 +84,7 @@ EISCore 是面向中小制造企业的 AI+企业信息化系统核心底座。�
 
 | 层级 | 组成 | 说明 |
 |---|---|---|
-| 统一入口层 | Nginx、基座前端 | 通过 `http://localhost` 作为统一入口，承载主应用、子应用、API、Swagger、Agent Runtime 和 code-server 代理。 |
+| 统一入口层 | Nginx、基座前端 | 通过 `http://localhost` 作为统一入口，承载主应用、子应用、API 和 Agent Runtime 代理。 |
 | 前端基座层 | `eiscore-base` | 登录、主布局、侧边栏、页签、主题、系统设置、业务流程图、AI Copilot、qiankun 容器。 |
 | 微前端业务层 | HR、Materials、Apps、Mobile、Sales、Purchase、Production、Quality、Equipment、Decision | 按业务域拆分为子应用，由 qiankun 在基座中装载。 |
 | 数据 API 层 | PostgREST | 将 PostgreSQL schema、表、视图和 RPC 暴露为 REST API。 |
@@ -123,7 +123,7 @@ EISCore 是面向中小制造企业的 AI+企业信息化系统核心底座。�
 | 数据库 | PostgreSQL 16 |
 | API | PostgREST |
 | 权限 | JWT、RLS、角色权限码、字段 ACL、数据范围 |
-| 智能体 | Node.js、WebSocket、AI Chat、工具调用、Cline/code-server 集成 |
+| 智能体 | Node.js、WebSocket、AI Chat、工具调用和受控运行时集成 |
 | 部署 | Docker Compose、Nginx |
 
 ## 4. 访问入口与服务端口
@@ -148,12 +148,6 @@ http://localhost/eiscore
 http://localhost/login
 ```
 
-API 文档：
-
-```text
-http://localhost/doc/
-```
-
 Runtime canonical 代理入口：
 
 ```text
@@ -168,10 +162,8 @@ http://localhost/ai/
 |---|---|---:|---|
 | `db` | `eiscore-db` | 5432 | PostgreSQL 数据库。 |
 | `api` | `eiscore-api` | 3000 | PostgREST API。 |
-| `swagger` | `eiscore-swagger` | 8079 | Swagger UI。 |
 | `nginx` | `eiscore-nginx` | 80 | 统一入口和代理。 |
 | `agent-runtime` | `eiscore-agent-runtime` | 8078 | AI、WebSocket、工具调用、工作流运行时。 |
-| `code-server` | `eiscore-ide` | 8443 | Flash Builder 专业模式草稿工作区。 |
 
 ### 4.3 开发端口
 
@@ -189,7 +181,6 @@ http://localhost/ai/
 | `eiscore-equipment` | 8090 |
 | `eiscore-decision` | 8091 |
 | `realtime` | 8078 |
-| Swagger | 8079 |
 
 说明：开发调试时可直接使用 Vite 端口，但对外展示和统一入口应以 Nginx 的 `http://localhost` 为准。
 
@@ -1925,7 +1916,7 @@ CC BY-NC-SA 4.0
 本地 Harness 验收应只启动本次需要的服务，推荐在项目根目录执行：
 
 ```bash
-docker compose up -d db api agent-runtime harness-bridge nginx swagger code-server
+docker compose up -d db api agent-runtime harness-bridge nginx
 ```
 
 不要使用无范围的 `docker compose up -d`：它可能顺带重建 web 或其他不在本次验收范围内的服务。后端/Harness 变更只重建 `agent-runtime harness-bridge`；独立站 web 发布遵守伦度发布协作记录中的 web-only 流程。
@@ -2006,12 +1997,6 @@ Docker Compose 中数据库初始化挂载顺序：
 
 ### 21.5 API 调试
 
-Swagger UI：
-
-```text
-http://localhost/doc/
-```
-
 PostgREST API：
 
 ```text
@@ -2035,7 +2020,6 @@ http://localhost/api/
 5. 能打开各模块应用卡片页。
 6. 能打开至少一个通用表格应用。
 7. 能新增、编辑、搜索、导出一条测试数据。
-8. 能打开 Swagger。
 9. 能访问 `/ai/config` 或 `/ai/agents`，并按当前用户权限只看到可用 Harness capability。
 
 ### 22.2 权限验收
@@ -2121,7 +2105,6 @@ http://localhost/api/
 | 设备管理 | `/equipment` |
 | 决策支持 | `/decision` |
 | 移动端 | `/mobile` |
-| API 文档 | `/doc/` |
 | Harness Runtime | `/ai/`、`/twin/`、`/flash/`、`/document-intake/` |
 
 ## 25. 维护建议

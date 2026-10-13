@@ -35,7 +35,7 @@ docker-compose up -d agent-runtime harness-bridge
 # Step 3: Start other services
 Write-Host ""
 Write-Host "🐳 Step 3/7: 启动其他本地服务..." -ForegroundColor Cyan
-docker-compose up -d api nginx swagger code-server
+docker-compose up -d api nginx
 
 # Step 4: Workflow runtime patches
 Write-Host ""
