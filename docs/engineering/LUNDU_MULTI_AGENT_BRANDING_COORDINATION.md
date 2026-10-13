@@ -267,3 +267,19 @@ Git 提交 `7071483d` 已同步到 `https://github.com/GODU-LZR/eiscore.git` 的
 2026-10-09 15:03 UTC 已在共享锁内完成发布。旧 manifest `7555e59f25c2b26d` 已备份至 `/opt/lundu-eiscore/backups/release-pre-loading-ring-acf45ee7-20261009150309`；实际只重建 `lundu-eiscore-web-1`，新容器 ID `b49e14e812bb35bb9dd3a7557b83cf406b89dfd766bc4ec3444aa4d2dadaa278`。DB、API、Agent、DeepSeek Web 和 Harness 未重建，既有 orphan 未清理。线上 manifest 为 `65e11b70e6639491` / 570 项 / 78,226,463 bytes，manifest 所列资源全部存在。
 
 线上验收通过：`/login`、`/mobile/`、`/asset-manifest.json`、`/config/eiscore-enterprise.json` 和 Logo 均 HTTP 200；配置 `enterprise.id=lundu`，页面标题为“伦度机电｜电机与水泵制造”，桌面和移动入口均包含加载环，公开入口无“君乐缘”。`nginx -t` 成功，仅保留既有 duplicate MIME type 警告。
+
+## 2026-10-10 伦度客服 Harness 接入（源码待发布）
+
+本轮目标服务为 `agent`；当前分支 `codex/systematic-refactor`。已将 `/agent/sales/sessions/:id/messages` 接入 `independent-site-sales` / `site_sales` / `eiscore_site_sales` Harness 能力，保留现有会话同意、消息持久化、引用、人工转交、采购单和审计契约。成功回复继续支持 JSON 与 SSE；Harness 错误 fail-closed，不回退旧关键词固定回复。公开客服使用服务端固定身份，访客请求不能注入 JWT、租户、权限或站点键。
+
+站点上下文覆盖为数据库 BFF 读取器，仅允许 `primary` 站点的 `published` 配置、产品和知识文档字段；模型不能传入 SQL、表名或任意 `site_key`。`COMPANY_SITE_HARNESS_SUBJECT`、`COMPANY_SITE_HARNESS_TENANT` 和 `COMPANY_SITE_HARNESS_TOKEN` 可由部署侧覆盖，未配置 token 时使用进程内短期标识，不能作为外部认证凭据。
+
+源码修改：`realtime/company-sales-agent.js`、`realtime/index.js`；回归覆盖位于 `tests/engineering/company-sales-agent-regression.mjs`。已通过 Node 语法、客服回归、组合根门禁、Harness gateway/tool/context 测试及 `git diff --check`。`harness-production-path-regression.mjs` 仍受其他 Agent 修改的 `FlashBuilder.vue` 缺少 `/ws` 断言影响，本轮未触碰该文件。
+
+本轮尚未提交、构建、重建或发布远端。后续发布前必须声明目标服务 `agent`、提交与制品路径；不得重建 `web` 或覆盖其他 Agent 的静态站制品。远端需先确认 `agent` 与 `harness-bridge` 网络互通及 Harness 环境变量完整，再做 agent-only 重建和客服真实流式验收。
+
+### 2026-10-10 远端 Harness 预检结果
+
+已对 `149.104.26.71:/opt/lundu-eiscore` 做只读核验，没有读取密钥值、重建容器或写入远端。当前远端 Compose 仅声明 `db`、`api`、`agent`、`web` 四个服务；运行中的 `lundu-eiscore-agent-1` 没有 `EISCORE_HARNESS_*`、`DSH_*` 或 `DEEPSEEK_API_KEY` 环境变量，Compose 也没有 `harness-bridge` 服务。Agent 只连接 `lundu-eiscore_default`，DeepSeek Web 另外连接 `eiscore-agent-internal`，因此不能把 DeepSeek Web 当作 Harness Bridge，也不能证明 Agent 到 Bridge 网络互通。
+
+结论：本轮源码和本地 Harness 回归已完成，但远端真实客服链路仍阻塞。后续发布必须先提供与当前分支同源的 `deploy/lundu/compose.yml`、Harness artifact root 和完整 Harness 环境变量；目标服务声明为 `agent` 与 `harness-bridge`，按协作锁内 agent-only 重建。不得只重启旧 `agent`，不得重建 `web`，不得覆盖其他 Agent 的静态 release。发布后必须报告实际重建服务、Agent/Bridge 镜像或提交、网络互通、Harness readiness、JSON/SSE 客服回复、采购单/审计回归结果。

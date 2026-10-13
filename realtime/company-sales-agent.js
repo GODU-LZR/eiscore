@@ -74,7 +74,7 @@ const parseContact = (body) => ({
   message: text(body?.message, 4000)
 });
 
-const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, streamTextAsSse, now = () => new Date(), siteKey = process.env.COMPANY_SITE_KEY || DEFAULT_SITE_KEY }) => {
+const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, streamTextAsSse, executeHarness, now = () => new Date(), siteKey = process.env.COMPANY_SITE_KEY || DEFAULT_SITE_KEY }) => {
   const SITE_KEY = /^[a-z0-9][a-z0-9_-]{0,63}$/i.test(String(siteKey || ''))
     ? String(siteKey)
     : DEFAULT_SITE_KEY;
@@ -90,6 +90,19 @@ const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, streamTextA
     for (let start = 0; start < output.length; start += 120) {
       if (typeof res.write === 'function') res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: output.slice(start, start + 120) } }] })}\n\n`);
     }
+    if (typeof res.write === 'function') res.write('data: [DONE]\n\n');
+    if (typeof res.end === 'function') res.end();
+  };
+  const streamError = (res, code, message) => {
+    if (typeof res.writeHead === 'function') {
+      res.writeHead(502, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      });
+    }
+    if (typeof res.write === 'function') res.write(`data: ${JSON.stringify({ error: { code, message } })}\n\n`);
     if (typeof res.write === 'function') res.write('data: [DONE]\n\n');
     if (typeof res.end === 'function') res.end();
   };
@@ -221,10 +234,73 @@ const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, streamTextA
     );
     const matched = rows(knowledgeResult).filter((item) => containsKnowledgeTerm(message, item)).slice(0, 3);
     const citations = matched.map((item) => ({ id: item.id, title: item.title, version: item.version, updatedAt: item.updated_at }));
-    const answer = matched.length
-      ? matched.map((item) => item.content).join('\n\n')
-      : '我已记录你的问题。当前公开知识中没有足够依据确认这个事项，销售人员会人工跟进；请同时留下产品、数量、目标日期和联系方式。';
-    const handoff = matched.length === 0;
+    const wantsStream = body?.stream === true || /(^|,)\s*text\/event-stream\s*(;|,|$)/i.test(String(req?.headers?.accept || ''));
+    let answer;
+    let handoff = false;
+    let backend = 'local-knowledge';
+    if (typeof executeHarness === 'function') {
+      let history = [];
+      try {
+        const historyResult = await query(
+          `SELECT role, content_redacted
+             FROM company_site.agent_messages
+            WHERE site_key = $1 AND session_id = $2
+            ORDER BY created_at DESC, role ASC
+            LIMIT 24`,
+          [SITE_KEY, sessionId]
+        );
+        history = rows(historyResult)
+          .filter((item) => item?.role === 'user' || item?.role === 'assistant')
+          .map((item) => ({ role: item.role, content: normalizeMessage(item.content_redacted) }))
+          .filter((item) => item.content)
+          .reverse();
+      } catch {
+        history = [];
+      }
+      let harnessResult;
+      try {
+        harnessResult = await executeHarness({
+          session,
+          sessionId,
+          message,
+          history,
+          siteKey: SITE_KEY,
+          requestId: `sales_${sessionId}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+          signal: req?.signal
+        });
+      } catch {
+        harnessResult = { ok: false, code: 'HARNESS_UPSTREAM_UNAVAILABLE', status: 502 };
+      }
+      if (!harnessResult?.ok) {
+        const code = text(harnessResult?.code, 80) || 'HARNESS_UPSTREAM_UNAVAILABLE';
+        const messageText = code === 'HARNESS_UPSTREAM_TIMEOUT'
+          ? 'DeepSeek Harness request timed out'
+          : 'DeepSeek Harness is unavailable';
+        try {
+          await audit({ traceId: `sales_message_${sessionId}_${Date.now()}`, sessionId, toolId: 'sales.message.answer', input: { message }, resultCode: code, details: { backend: 'harness' } });
+        } catch { /* preserve the stable upstream error response */ }
+        if (wantsStream) streamError(res, code, messageText);
+        else sendJson(res, Number(harnessResult?.status) >= 400 ? Number(harnessResult.status) : 502, { code, message: messageText });
+        return;
+      }
+      answer = text(harnessResult?.data?.text || harnessResult?.data?.output_text || harnessResult?.data?.choices?.[0]?.message?.content, MAX_MESSAGE_LENGTH);
+      handoff = harnessResult?.data?.needsHuman === true;
+      backend = 'deepseek-harness';
+      if (!answer) {
+        const code = 'HARNESS_RUNTIME_EMPTY_COMPLETION';
+        try {
+          await audit({ traceId: `sales_message_${sessionId}_${Date.now()}`, sessionId, toolId: 'sales.message.answer', input: { message }, resultCode: code, details: { backend } });
+        } catch { /* preserve the stable upstream error response */ }
+        if (wantsStream) streamError(res, code, 'DeepSeek Harness is unavailable');
+        else sendJson(res, 502, { code, message: 'DeepSeek Harness is unavailable' });
+        return;
+      }
+    } else {
+      answer = matched.length
+        ? matched.map((item) => item.content).join('\n\n')
+        : '我已记录你的问题。当前公开知识中没有足够依据确认这个事项，销售人员会人工跟进；请同时留下产品、数量、目标日期和联系方式。';
+      handoff = matched.length === 0;
+    }
     await query(
       `INSERT INTO company_site.agent_messages (site_key, session_id, role, content_redacted, citations, tool_calls)
        VALUES ($1, $2, 'user', $3, '[]'::jsonb, '[]'::jsonb),
@@ -239,8 +315,7 @@ const createCompanySalesHandlers = ({ query, sendJson, readJsonBody, streamTextA
         WHERE id = $1 AND site_key = $4`,
       [sessionId, handoff, now(), SITE_KEY]
     );
-    await audit({ traceId: `sales_message_${sessionId}_${Date.now()}`, sessionId, toolId: 'sales.message.answer', input: { message }, details: { citations: citations.length, handoff } });
-    const wantsStream = body?.stream === true || /(^|,)\s*text\/event-stream\s*(;|,|$)/i.test(String(req?.headers?.accept || ''));
+    await audit({ traceId: `sales_message_${sessionId}_${Date.now()}`, sessionId, toolId: 'sales.message.answer', input: { message }, details: { citations: citations.length, handoff, backend } });
     if (wantsStream && typeof res.writeHead === 'function') {
       res.writeHead(200, {
         'Content-Type': 'text/event-stream; charset=utf-8',

@@ -10,7 +10,9 @@ const response = () => ({
   statusCode: 0,
   payload: null,
   headers: {},
+  chunks: [],
   writeHead(status, headers) { this.statusCode = status; this.headers = headers || {}; },
+  write(chunk) { this.chunks.push(String(chunk)); },
   end(payload) { this.payload = payload; }
 });
 
@@ -34,6 +36,7 @@ const createHarness = (query, options = {}) => {
       res.end(JSON.stringify(payload));
     },
     readJsonBody: async (req) => req.body || {},
+    executeHarness: options.executeHarness,
     now: () => new Date('2026-08-12T12:00:00.000Z')
   });
   return { handler, calls };
@@ -72,6 +75,111 @@ async function testSessionAndKnowledgeAnswer() {
   assert.equal(message.citations[0].id, 'doc-1');
   assert.equal(messageHarness.calls.filter((call) => call.sql.includes('INSERT INTO company_site.agent_messages')).length, 1);
 
+}
+
+async function testHarnessSalesAnswerAndErrors() {
+  const harnessCalls = [];
+  const harness = createHarness((sql) => {
+    if (sql.includes('FROM company_site.agent_sessions')) return { rows: [session] };
+    if (sql.includes('FROM company_site.knowledge_documents')) return { rows: [] };
+    if (sql.includes('INSERT INTO company_site.agent_messages')) return { rows: [] };
+    if (sql.includes('UPDATE company_site.agent_sessions')) return { rows: [] };
+    if (sql.includes('INSERT INTO company_site.agent_audit_events')) return { rows: [] };
+    throw new Error(`unexpected Harness query: ${sql}`);
+  }, {
+    executeHarness: async (input) => {
+      harnessCalls.push(input);
+      if (harnessCalls.length === 2) return { ok: true, data: { output_text: 'DeepSeek 输出字段回复。' } };
+      if (harnessCalls.length === 3) return { ok: true, data: { choices: [{ message: { content: 'DeepSeek choices 回复。' } }] } };
+      return { ok: true, data: { text: 'DeepSeek 已收到采购需求。' } };
+    }
+  });
+  const jsonRes = response();
+  await harness.handler.handleSendMessage(request({ message: '请介绍水泵交期' }), jsonRes, session.id);
+  assert.equal(jsonRes.statusCode, 200);
+  assert.equal(readPayload(jsonRes).answer, 'DeepSeek 已收到采购需求。');
+  assert.equal(readPayload(jsonRes).needsHuman, false);
+  assert.equal(harnessCalls.length, 1);
+  assert.equal(harnessCalls[0].sessionId, session.id);
+  assert.equal(harnessCalls[0].message, '请介绍水泵交期');
+  assert.equal(harnessCalls[0].siteKey, 'primary');
+  assert.equal(harnessCalls[0].requestId.startsWith(`sales_${session.id}_`), true);
+  for (const [message, expected] of [['请给出输出字段', 'DeepSeek 输出字段回复。'], ['请给出 choices 字段', 'DeepSeek choices 回复。']]) {
+    const variantRes = response();
+    await harness.handler.handleSendMessage(request({ message }), variantRes, session.id);
+    assert.equal(variantRes.statusCode, 200);
+    assert.equal(readPayload(variantRes).answer, expected);
+  }
+  assert.equal(harnessCalls.length, 3);
+
+  const errorHarness = createHarness((sql) => {
+    if (sql.includes('FROM company_site.agent_sessions')) return { rows: [session] };
+    if (sql.includes('FROM company_site.knowledge_documents')) return { rows: [] };
+    if (sql.includes('INSERT INTO company_site.agent_audit_events')) return { rows: [] };
+    throw new Error(`unexpected Harness error query: ${sql}`);
+  }, {
+    executeHarness: async () => ({ ok: false, code: 'HARNESS_UPSTREAM_TIMEOUT', status: 504 })
+  });
+  const errorRes = response();
+  await errorHarness.handler.handleSendMessage(request({ message: '请查询订单状态' }), errorRes, session.id);
+  assert.equal(errorRes.statusCode, 504);
+  assert.deepEqual(readPayload(errorRes), {
+    code: 'HARNESS_UPSTREAM_TIMEOUT',
+    message: 'DeepSeek Harness request timed out'
+  });
+  assert.equal(errorHarness.calls.filter((call) => call.sql.includes('INSERT INTO company_site.agent_messages')).length, 0);
+  const streamErrorRes = response();
+  await errorHarness.handler.handleSendMessage(request({ message: '请流式查询订单状态', stream: true }), streamErrorRes, session.id);
+  assert.equal(streamErrorRes.statusCode, 502);
+  assert.equal(streamErrorRes.headers['Content-Type'], 'text/event-stream; charset=utf-8');
+  assert.match(streamErrorRes.chunks.join(''), /HARNESS_UPSTREAM_TIMEOUT/);
+  assert.match(streamErrorRes.chunks.join(''), /data: \[DONE\]/);
+
+  const streamHarness = createHarness((sql) => {
+    if (sql.includes('FROM company_site.agent_sessions')) return { rows: [session] };
+    if (sql.includes('FROM company_site.knowledge_documents')) return { rows: [] };
+    if (sql.includes('INSERT INTO company_site.agent_messages')) return { rows: [] };
+    if (sql.includes('UPDATE company_site.agent_sessions')) return { rows: [] };
+    if (sql.includes('INSERT INTO company_site.agent_audit_events')) return { rows: [] };
+    throw new Error(`unexpected Harness stream query: ${sql}`);
+  }, {
+    executeHarness: async () => ({ ok: true, data: { text: '流式客服回复' } })
+  });
+  const streamRes = response();
+  await streamHarness.handler.handleSendMessage(request({ message: '请流式回复', stream: true }), streamRes, session.id);
+  assert.equal(streamRes.statusCode, 200);
+  assert.equal(streamRes.headers['Content-Type'], 'text/event-stream; charset=utf-8');
+  assert.match(streamRes.chunks.join(''), /流式客服回复/);
+  assert.match(streamRes.chunks.join(''), /data: \[DONE\]/);
+
+  const historyRows = Array.from({ length: 30 }, (_, index) => ({
+    role: index % 2 === 0 ? 'user' : 'assistant',
+    content_redacted: `历史消息-${index + 1}`
+  }));
+  const historyHarnessCalls = [];
+  const historyHarness = createHarness((sql) => {
+    if (sql.includes('FROM company_site.agent_sessions')) return { rows: [session] };
+    if (sql.includes('FROM company_site.knowledge_documents')) return { rows: [] };
+    if (sql.includes('FROM company_site.agent_messages')) {
+      assert.match(sql, /ORDER BY created_at DESC, role ASC/);
+      return { rows: historyRows.slice(-24).reverse() };
+    }
+    if (sql.includes('INSERT INTO company_site.agent_messages')) return { rows: [] };
+    if (sql.includes('UPDATE company_site.agent_sessions')) return { rows: [] };
+    if (sql.includes('INSERT INTO company_site.agent_audit_events')) return { rows: [] };
+    throw new Error(`unexpected history query: ${sql}`);
+  }, {
+    executeHarness: async (input) => {
+      historyHarnessCalls.push(input);
+      return { ok: true, data: { text: '带最近上下文的回复' } };
+    }
+  });
+  const historyRes = response();
+  await historyHarness.handler.handleSendMessage(request({ message: '请结合最近对话', stream: false }), historyRes, session.id);
+  assert.equal(historyRes.statusCode, 200);
+  assert.equal(historyHarnessCalls[0].history.length, 24);
+  assert.equal(historyHarnessCalls[0].history[0].content, '历史消息-7');
+  assert.equal(historyHarnessCalls[0].history.at(-1).content, '历史消息-30');
 }
 
 async function testConsentAndLeadIdempotency() {
@@ -216,10 +324,15 @@ function testApprovalRouteUsesApprovalAuthorization() {
 }
 
 await testSessionAndKnowledgeAnswer();
+await testHarnessSalesAnswerAndErrors();
 await testConsentAndLeadIdempotency();
 await testLeadQualificationAndOpportunityDraft();
 await testQuoteOrderAndProductionDraftGates();
 await testApprovedDraftSyncQueueAndOpportunityAdapter();
 testApprovalRouteUsesApprovalAuthorization();
 assert.doesNotMatch(readFileSync(new URL('../../realtime/company-sales-agent.js', import.meta.url), 'utf8'), /answerWithAi|aiModel|aiUsed/);
+const realtimeIndex = readFileSync(new URL('../../realtime/index.js', import.meta.url), 'utf8');
+assert.match(realtimeIndex, /source: 'public_company_site'/);
+assert.doesNotMatch(realtimeIndex, /sort_order|cover_image/, 'site-sales context must use the company-site public schema');
+assert.doesNotMatch(realtimeIndex, /published\.published_snapshot|fields: '[^']*published_snapshot/, 'site-sales context must not expose the raw published snapshot');
 console.log('company-sales-agent-regression: PASS');
