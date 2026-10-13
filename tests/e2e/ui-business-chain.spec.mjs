@@ -73,6 +73,10 @@ async function api(request, auth, path, { method = 'GET', schema = 'public', dat
 async function optionalDelete(request, auth, path, schema, description) {
   try {
     await api(request, auth, path, { method: 'DELETE', schema })
+    const verify = await api(request, auth, `${path}&select=id&limit=1`, { schema })
+    if (!Array.isArray(verify.data) || verify.data.length !== 0) {
+      throw new Error('DELETE left matching rows; cleanup was not applied')
+    }
     return null
   } catch (error) {
     return `${description}: ${error?.message || String(error)}`

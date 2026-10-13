@@ -27,14 +27,20 @@ const sideMenuTargets = [
   { selector: '[data-guide="menu-production"]', name: 'production' },
   { selector: '[data-guide="menu-quality"]', name: 'quality' },
   { selector: '[data-guide="menu-equipment"]', name: 'equipment' },
-  { selector: '[data-guide="menu-decision"]', name: 'decision' }
+  { selector: '[data-guide="menu-decision"]', name: 'decision', route: /\/decision(?:\/|$)/ }
 ]
 
 async function clickSideMenu(page, target, monitor) {
   const menu = await firstVisible(page, target.selector, 1_000)
   if (!menu) return false
   await menu.click()
+  if (target.route) await expect(page).toHaveURL(target.route, { timeout: 45_000 })
   await expectSubAppReady(page)
+  if (target.name === 'decision') {
+    const decisionPage = page.locator('[data-guide="app-list-page"]')
+    await expect(decisionPage).toBeVisible({ timeout: 45_000 })
+    await expect(decisionPage).toContainText('决策支持', { timeout: 45_000 })
+  }
   await monitor.expectClean(`side menu ${target.name}`)
   return true
 }

@@ -29,7 +29,7 @@ export const autoEntryTypes = [
       required: true,
       suite: 'tests/business/full-chain.mjs',
       marker: 'AUTO_ENTRY_CHAIN:fixed-stock-in-document-entry',
-      scope: 'Calls scm.stock_in with a generated batch/transaction, verifies scm.v_inventory_transactions, and cleans up the generated inventory artifacts.'
+      scope: 'Calls scm.stock_in with a generated batch/transaction, verifies scm.v_inventory_transactions, and balances test inventory through scm.stock_out while retaining the audit ledger.'
     }
   }
 ]

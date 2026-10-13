@@ -4,6 +4,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { createHttpClient, isRemoteTarget, normalizePositiveInteger, sleep } from '../engineering/http-client.mjs'
+import { balanceTestInventory } from './inventory-cleanup.mjs'
 
 const BASE_URL = (process.env.EISCORE_CHAIN_BASE_URL || process.env.EISCORE_BASE_URL || 'http://localhost:8080').replace(/\/+$/, '')
 const USERNAME = process.env.EISCORE_CHAIN_USERNAME || process.env.EISCORE_SMOKE_USERNAME || 'admin'
@@ -156,6 +157,8 @@ async function fetchDataRecord() {
 async function cleanupPath(path, schema, description) {
   try {
     const out = await api(path, { method: 'DELETE', headers: profileHeaders(schema) })
+    const verify = await api(`${path}&select=id&limit=1`, { headers: profileHeaders(schema) })
+    ensure(Array.isArray(verify.data) && verify.data.length === 0, 'DELETE left matching rows; cleanup was not applied')
     return { description, statusCode: out.status }
   } catch (error) {
     cleanupErrors.push(`${description}: ${error?.message || String(error)}`)
@@ -205,12 +208,14 @@ async function cleanupArtifacts() {
     if (archive) completed.push(archive.description)
   }
   if (created.stockInTransactionNo) {
-    const transaction = await cleanupPath(`/api/inventory_transactions?transaction_no=eq.${filterValue(created.stockInTransactionNo)}`, 'scm', 'auto-entry stock-in transaction')
-    if (transaction) completed.push(transaction.description)
-  }
-  if (created.stockInBatchNo) {
-    const batch = await cleanupPath(`/api/inventory_batches?batch_no=eq.${filterValue(created.stockInBatchNo)}`, 'scm', 'auto-entry stock-in batch')
-    if (batch) completed.push(batch.description)
+    try {
+      completed.push(await balanceTestInventory(
+        (path, options = {}) => api(path, { ...options, headers: profileHeaders('scm') }),
+        { runId, batchNo: created.stockInBatchNo, transactionNo: created.stockInTransactionNo }
+      ))
+    } catch (error) {
+      cleanupErrors.push(`stock-in compensation: ${error?.message || String(error)}`)
+    }
   }
   if (created.warehouseId) {
     const warehouse = await cleanupPath(`/api/warehouses?id=eq.${filterValue(created.warehouseId)}`, 'scm', 'scm warehouse')
@@ -218,7 +223,7 @@ async function cleanupArtifacts() {
   }
 
   addResult(
-    '99 cleanup removes generated business artifacts',
+    '99 cleanup removes generated records and balances test inventory',
     cleanupErrors.length === 0,
     cleanupErrors.length === 0 ? completed.join(', ') : cleanupErrors.join('; '),
     null
