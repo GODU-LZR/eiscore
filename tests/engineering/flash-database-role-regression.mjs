@@ -19,6 +19,8 @@ assert.match(bootstrap, /ALTER ROLE eiscore_flash_agent NOLOGIN NOINHERIT NOBYPA
 assert.match(secrets, /FLASH_AGENT_DB_PASSWORD/)
 assert.match(secrets, /FLASH_AGENT_DB_PASSWORD must be independent/)
 assert.match(secrets, /ALTER ROLE eiscore_flash_agent LOGIN PASSWORD/)
+assert.match(secrets, /SELECT set_config\('app\.flash_agent_password',[\s\S]*?\\gset\s*\\unset flash_agent_password_configured/,
+  'Flash password configuration must capture the query result without printing the secret')
 assert.ok(entry, 'core-026 must be registered in the ordered core manifest')
 assert.equal(entry.path, 'database/migrations/sql/core-026-flash-agent-role-boundary.sql')
 assert.match(entry.sha256, /^[0-9a-f]{64}$/)

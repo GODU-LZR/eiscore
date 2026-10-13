@@ -220,7 +220,7 @@ export const databaseCatalogQueries = {
       'bypassRls', r.rolbypassrls
     )::text
     FROM pg_roles r
-    WHERE r.rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'web_anon', 'web_user')
+    WHERE r.rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'eiscore_flash_agent', 'web_anon', 'web_user')
     ORDER BY r.rolname;
   `,
   memberships: `
@@ -236,7 +236,7 @@ export const databaseCatalogQueries = {
     JOIN pg_roles granted ON granted.oid = membership.roleid
     JOIN pg_roles member_role ON member_role.oid = membership.member
     JOIN pg_roles grantor_role ON grantor_role.oid = membership.grantor
-    WHERE granted.rolname IN ('eiscore_owner', 'web_anon', 'web_user')
+    WHERE granted.rolname IN ('eiscore_owner', 'eiscore_flash_agent', 'web_anon', 'web_user')
        OR member_role.rolname IN ('eiscore_migrator', 'eiscore_authenticator')
     ORDER BY granted.rolname, member_role.rolname;
   `,

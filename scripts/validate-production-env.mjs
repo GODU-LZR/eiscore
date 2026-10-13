@@ -80,7 +80,10 @@ export function validateProductionEnv(values) {
   validateSecret(values, 'PGRST_JWT_SECRET', 32, issues)
   validateSecret(values, 'POSTGREST_DB_PASSWORD', 24, issues)
   validateSecret(values, 'AGENT_DB_PASSWORD', 24, issues)
-  const databaseSecrets = ['POSTGRES_PASSWORD', 'POSTGREST_DB_PASSWORD', 'AGENT_DB_PASSWORD']
+  const flashDbUser = String(values?.FLASH_AGENT_DB_USER || '').trim()
+  if (flashDbUser !== 'eiscore_flash_agent') issues.push('FLASH_AGENT_DB_USER: must be eiscore_flash_agent')
+  validateSecret(values, 'FLASH_AGENT_DB_PASSWORD', 24, issues)
+  const databaseSecrets = ['POSTGRES_PASSWORD', 'POSTGREST_DB_PASSWORD', 'AGENT_DB_PASSWORD', 'FLASH_AGENT_DB_PASSWORD']
   const configuredDatabaseSecrets = databaseSecrets.map((key) => String(values?.[key] || '')).filter(Boolean)
   if (configuredDatabaseSecrets.length === databaseSecrets.length && new Set(configuredDatabaseSecrets).size !== configuredDatabaseSecrets.length) {
     issues.push('database role passwords must be independent')
@@ -96,10 +99,25 @@ export function validateProductionEnv(values) {
   validateSecret(values, 'EISCORE_HARNESS_BRIDGE_SECRET', 32, issues)
   validateSecret(values, 'EISCORE_TOOL_PROXY_SECRET', 32, issues)
   validateSecret(values, 'DEEPSEEK_API_KEY', 32, issues)
+  validateSecret(values, 'FLASH_DEEPSEEK_API_KEY', 32, issues)
+  validateSecret(values, 'FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY', 32, issues)
+  validateSecret(values, 'FLASH_EISCORE_HARNESS_BRIDGE_SECRET', 32, issues)
+  validateSecret(values, 'FLASH_EISCORE_TOOL_PROXY_SECRET', 32, issues)
   const bridgeSecret = String(values?.EISCORE_HARNESS_BRIDGE_SECRET || '')
   const toolProxySecret = String(values?.EISCORE_TOOL_PROXY_SECRET || '')
   if (bridgeSecret && toolProxySecret && bridgeSecret === toolProxySecret) {
     issues.push('Harness bridge and tool proxy secrets must be independent')
+  }
+  const flashSecrets = [
+    ['FLASH_EISCORE_HARNESS_BRIDGE_SECRET', values?.FLASH_EISCORE_HARNESS_BRIDGE_SECRET],
+    ['FLASH_EISCORE_TOOL_PROXY_SECRET', values?.FLASH_EISCORE_TOOL_PROXY_SECRET],
+    ['FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY', values?.FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY]
+  ].map(([key, value]) => [key, String(value || '')]).filter(([, value]) => value)
+  if (flashSecrets.length === 3 && new Set(flashSecrets.map(([, value]) => value)).size !== 3) {
+    issues.push('Flash Harness secrets must be independent')
+  }
+  if (String(values?.FLASH_DEEPSEEK_API_KEY || '') === String(values?.DEEPSEEK_API_KEY || '')) {
+    issues.push('FLASH_DEEPSEEK_API_KEY must be independent from DEEPSEEK_API_KEY')
   }
   for (const key of ['BRIDGE_PROMPT_TIMEOUT_MS', 'BRIDGE_SESSION_DRAIN_TIMEOUT_MS', 'BRIDGE_RPC_TIMEOUT_MS', 'BRIDGE_SHUTDOWN_TIMEOUT_MS']) {
     validatePositiveInteger(values, key, issues)

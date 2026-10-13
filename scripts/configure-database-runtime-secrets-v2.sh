@@ -9,6 +9,7 @@ set -Eeuo pipefail
 : "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
 : "${POSTGREST_DB_PASSWORD:?POSTGREST_DB_PASSWORD is required}"
 : "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"
+flash_agent_password="${FLASH_AGENT_DB_PASSWORD:-}"
 
 validate_secret() {
   local name="$1"
@@ -33,6 +34,9 @@ validate_secret() {
 validate_secret PGRST_JWT_SECRET "$PGRST_JWT_SECRET" 32
 validate_secret POSTGREST_DB_PASSWORD "$POSTGREST_DB_PASSWORD" 24
 validate_secret AGENT_DB_PASSWORD "$AGENT_DB_PASSWORD" 24
+if [[ -n "$flash_agent_password" ]]; then
+  validate_secret FLASH_AGENT_DB_PASSWORD "$flash_agent_password" 24
+fi
 if [[ "$POSTGREST_DB_PASSWORD" == "$AGENT_DB_PASSWORD" ]]; then
   echo "POSTGREST_DB_PASSWORD and AGENT_DB_PASSWORD must be independent secrets" >&2
   return 1 2>/dev/null || exit 1
@@ -41,8 +45,12 @@ if [[ "${POSTGRES_PASSWORD:-}" == "$POSTGREST_DB_PASSWORD" || "${POSTGRES_PASSWO
   echo "service-role passwords must not reuse POSTGRES_PASSWORD" >&2
   return 1 2>/dev/null || exit 1
 fi
+if [[ -n "$flash_agent_password" && ( "$flash_agent_password" == "$POSTGREST_DB_PASSWORD" || "$flash_agent_password" == "$AGENT_DB_PASSWORD" || "${POSTGRES_PASSWORD:-}" == "$flash_agent_password" ) ]]; then
+  echo "FLASH_AGENT_DB_PASSWORD must be independent from every other database secret" >&2
+  return 1 2>/dev/null || exit 1
+fi
 
-psql --set=ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
+psql --set=ON_ERROR_STOP=1 --set=flash_password="$flash_agent_password" --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'SQL'
 \getenv jwt_secret PGRST_JWT_SECRET
 SELECT format(
   'ALTER DATABASE %I SET app.jwt_secret TO %L',
@@ -52,12 +60,24 @@ SELECT format(
 
 \getenv postgrest_password POSTGREST_DB_PASSWORD
 \getenv agent_password AGENT_DB_PASSWORD
+SELECT set_config('app.flash_agent_password', coalesce(:'flash_password', ''), false)
+  AS flash_agent_password_configured \gset
+\unset flash_agent_password_configured
 ALTER ROLE eiscore_authenticator LOGIN PASSWORD :'postgrest_password';
 ALTER ROLE eiscore_agent LOGIN PASSWORD :'agent_password';
+DO $flash$
+BEGIN
+  IF NULLIF(current_setting('app.flash_agent_password', true), '') IS NULL THEN
+    ALTER ROLE eiscore_flash_agent NOLOGIN;
+  ELSE
+    EXECUTE format('ALTER ROLE eiscore_flash_agent LOGIN PASSWORD %L', current_setting('app.flash_agent_password'));
+  END IF;
+END
+$flash$;
 ALTER ROLE eiscore_owner NOLOGIN;
 ALTER ROLE eiscore_migrator NOLOGIN;
 ALTER ROLE web_anon NOLOGIN;
 ALTER ROLE web_user NOLOGIN;
 SQL
 
-unset PGRST_JWT_SECRET POSTGREST_DB_PASSWORD AGENT_DB_PASSWORD
+unset PGRST_JWT_SECRET POSTGREST_DB_PASSWORD AGENT_DB_PASSWORD FLASH_AGENT_DB_PASSWORD

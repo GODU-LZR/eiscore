@@ -25,6 +25,7 @@ const postgresImage = 'postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6
 const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
+const flashAgentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
 const domainBefore = 'db6-before.example.test'
 const domainAfter = 'db6-after.example.test'
@@ -165,6 +166,7 @@ try {
     '-e', `PGRST_JWT_SECRET=${jwtSecret}`,
     '-e', `POSTGREST_DB_PASSWORD=${postgrestPassword}`,
     '-e', `AGENT_DB_PASSWORD=${agentPassword}`,
+    '-e', `FLASH_AGENT_DB_PASSWORD=${flashAgentPassword}`,
     '-v', mount('database/bootstrap/roles-v2.sql', '/docker-entrypoint-initdb.d/00_roles.sql'),
     '-v', mount('database/baselines/eiscore-db-v1/schema.sql', '/docker-entrypoint-initdb.d/01_schema.sql'),
     '-v', mount('database/baselines/eiscore-db-v1/register.sql', '/docker-entrypoint-initdb.d/02_register.sql'),

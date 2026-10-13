@@ -148,7 +148,7 @@ export class DatabaseRecoveryDockerAdapter extends DatabaseReleaseDockerAdapter 
     if (/PASSWORD\s+'[^']+'/i.test(globalsSql)) throw new Error('role backup unexpectedly contains passwords')
     for (const role of [
       'eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator',
-      'eiscore_agent', 'web_anon', 'web_user'
+      'eiscore_agent', 'eiscore_flash_agent', 'web_anon', 'web_user'
     ]) {
       if (!globalsSql.includes(`CREATE ROLE ${role}`)) throw new Error(`role backup is missing ${role}`)
     }

@@ -97,9 +97,10 @@ const validateSecret = (name, value, minimum) => {
 export const resolveDatabaseReleaseExecution = (options, env = process.env) => {
   const postgrestPassword = validateSecret('POSTGREST_DB_PASSWORD', env.POSTGREST_DB_PASSWORD, 24)
   const agentPassword = validateSecret('AGENT_DB_PASSWORD', env.AGENT_DB_PASSWORD, 24)
+  const flashAgentPassword = validateSecret('FLASH_AGENT_DB_PASSWORD', env.FLASH_AGENT_DB_PASSWORD, 24)
   const jwtSecret = validateSecret('PGRST_JWT_SECRET', env.PGRST_JWT_SECRET, 32)
-  if (postgrestPassword === agentPassword) throw new Error('database service passwords must be independent')
-  if (env.POSTGRES_PASSWORD && [postgrestPassword, agentPassword].includes(env.POSTGRES_PASSWORD)) {
+  if (new Set([postgrestPassword, agentPassword, flashAgentPassword]).size !== 3) throw new Error('database service passwords must be independent')
+  if (env.POSTGRES_PASSWORD && [postgrestPassword, agentPassword, flashAgentPassword].includes(env.POSTGRES_PASSWORD)) {
     throw new Error('database service passwords must not reuse POSTGRES_PASSWORD')
   }
   const environment = requireValue('--environment', options.environment)
@@ -117,7 +118,7 @@ export const resolveDatabaseReleaseExecution = (options, env = process.env) => {
     operator: requireValue('--operator, USERNAME or USER', options.operator || env.USERNAME || env.USER, 256),
     environment,
     backupStorageEvidence,
-    secrets: { postgrestPassword, agentPassword, jwtSecret, postgresPassword: env.POSTGRES_PASSWORD || '' }
+    secrets: { postgrestPassword, agentPassword, flashAgentPassword, jwtSecret, postgresPassword: env.POSTGRES_PASSWORD || '' }
   }
 }
 
@@ -287,7 +288,8 @@ export class DatabaseReleaseDockerAdapter extends DockerPsqlAdapter {
       '-e', `POSTGRES_DB=${this.dbName}`,
       '-e', `PGRST_JWT_SECRET=${secrets.jwtSecret}`,
       '-e', `POSTGREST_DB_PASSWORD=${secrets.postgrestPassword}`,
-      '-e', `AGENT_DB_PASSWORD=${secrets.agentPassword}`
+      '-e', `AGENT_DB_PASSWORD=${secrets.agentPassword}`,
+      '-e', `FLASH_AGENT_DB_PASSWORD=${secrets.flashAgentPassword}`
     ]
     if (secrets.postgresPassword) args.push('-e', `POSTGRES_PASSWORD=${secrets.postgresPassword}`)
     args.push(this.dbContainer, 'bash', '-s')

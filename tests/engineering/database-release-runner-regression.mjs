@@ -46,6 +46,7 @@ assert.throws(() => parseDatabaseReleaseArgs(['--api-url']), /missing value/)
 const secrets = {
   POSTGREST_DB_PASSWORD: randomBytes(32).toString('base64url'),
   AGENT_DB_PASSWORD: randomBytes(32).toString('base64url'),
+  FLASH_AGENT_DB_PASSWORD: randomBytes(32).toString('base64url'),
   PGRST_JWT_SECRET: randomBytes(40).toString('base64url'),
   USERNAME: 'release-tester'
 }
@@ -163,7 +164,8 @@ try {
       secrets: {
         jwtSecret: secrets.PGRST_JWT_SECRET,
         postgrestPassword: secrets.POSTGREST_DB_PASSWORD,
-        agentPassword: secrets.AGENT_DB_PASSWORD
+        agentPassword: secrets.AGENT_DB_PASSWORD,
+        flashAgentPassword: secrets.FLASH_AGENT_DB_PASSWORD
       }
     },
     adapter,

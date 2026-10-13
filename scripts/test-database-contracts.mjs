@@ -36,6 +36,7 @@ const jwtSecret = randomBytes(40).toString('base64url')
 const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
+const flashAgentPassword = randomBytes(32).toString('base64url')
 const maxOutput = 128 * 1024 * 1024
 
 const execute = (program, args, { input, allowFailure = false, timeout = 120_000 } = {}) => {
@@ -108,7 +109,7 @@ const runManifest = (name) => execute(process.execPath, [
 const configureSecrets = (name) => docker([
   'exec', '-e', 'POSTGRES_USER=postgres', '-e', 'POSTGRES_DB=eiscore',
   '-e', `POSTGRES_PASSWORD=${rootPassword}`, '-e', `PGRST_JWT_SECRET=${jwtSecret}`,
-  '-e', `POSTGREST_DB_PASSWORD=${postgrestPassword}`, '-e', `AGENT_DB_PASSWORD=${agentPassword}`,
+  '-e', `POSTGREST_DB_PASSWORD=${postgrestPassword}`, '-e', `AGENT_DB_PASSWORD=${agentPassword}`, '-e', `FLASH_AGENT_DB_PASSWORD=${flashAgentPassword}`,
   name, 'bash', '/repo/scripts/configure-database-runtime-secrets-v2.sh'
 ])
 
@@ -344,7 +345,7 @@ try {
   }
 
   // Verify the moved auth/security fix through HTTP, not just catalog markers.
-  psql(freshContainer, "INSERT INTO public.users(username,password,role,tenant_id,permissions) VALUES ('db10-login-user','isolated-test-password','employee','test-tenant',ARRAY['module:bi','twin:read']),('db11-restricted-user','isolated-test-password','employee','test-tenant',ARRAY[]::text[]); DELETE FROM public.user_roles WHERE user_id IN (SELECT id FROM public.users WHERE username IN ('db10-login-user','db11-restricted-user'));")
+  psql(freshContainer, "INSERT INTO public.users(username,password,role,tenant_id,permissions,status) VALUES ('db10-login-user','isolated-test-password','employee','test-tenant',ARRAY['module:bi','twin:read'],'active'),('db11-restricted-user','isolated-test-password','employee','test-tenant',ARRAY[]::text[],'active'); DELETE FROM public.user_roles WHERE user_id IN (SELECT id FROM public.users WHERE username IN ('db10-login-user','db11-restricted-user'));")
   for (const body of [
     { username: 'db10-login-user', password: 'isolated-test-password' },
     { payload: { username: 'db10-login-user', password: 'isolated-test-password' } }

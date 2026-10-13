@@ -25,6 +25,7 @@ const postgrestImage = 'postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab
 const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
+const flashAgentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
 const releasePath = process.env.DB_RELEASE_PATH || 'database/releases/eiscore-db-v6/manifest.json'
 const release = loadAndValidateDatabaseRelease({ repoRoot, releasePath })
@@ -106,6 +107,7 @@ const releaseEnv = {
   POSTGRES_PASSWORD: rootPassword,
   POSTGREST_DB_PASSWORD: postgrestPassword,
   AGENT_DB_PASSWORD: agentPassword,
+  FLASH_AGENT_DB_PASSWORD: flashAgentPassword,
   PGRST_JWT_SECRET: jwtSecret
 }
 // execute() intentionally owns the stable process contract; release execution
@@ -171,6 +173,7 @@ try {
     docker(['exec', '-e', 'POSTGRES_USER=postgres', '-e', 'POSTGRES_DB=eiscore',
       '-e', `POSTGRES_PASSWORD=${rootPassword}`, '-e', `PGRST_JWT_SECRET=${jwtSecret}`,
       '-e', `POSTGREST_DB_PASSWORD=${postgrestPassword}`, '-e', `AGENT_DB_PASSWORD=${agentPassword}`,
+      '-e', `FLASH_AGENT_DB_PASSWORD=${flashAgentPassword}`,
       databaseContainer, 'bash', '/repo/scripts/configure-database-runtime-secrets-v2.sh'])
     const adapter = new DatabaseReleaseDockerAdapter({ dbContainer: databaseContainer, dbName: 'eiscore', dbUser: 'postgres' })
     assert.equal(sha256CanonicalJson(adapter.readCatalog()), predecessor.manifest.databaseContract.databaseCatalogSha256)

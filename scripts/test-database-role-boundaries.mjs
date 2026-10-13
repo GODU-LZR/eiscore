@@ -18,6 +18,7 @@ const postgrestImage = 'postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab
 const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
+const flashAgentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
 
 const command = (args, { input = undefined, allowFailure = false, timeout = 120_000 } = {}) => {
@@ -106,6 +107,7 @@ try {
     '-e', 'POSTGRES_USER=postgres', '-e', 'POSTGRES_DB=eiscore', '-e', `POSTGRES_PASSWORD=${rootPassword}`,
     '-e', `PGRST_JWT_SECRET=${jwtSecret}`, '-e', `POSTGREST_DB_PASSWORD=${postgrestPassword}`,
     '-e', `AGENT_DB_PASSWORD=${agentPassword}`,
+    '-e', `FLASH_AGENT_DB_PASSWORD=${flashAgentPassword}`,
     '-v', mount('database/bootstrap/roles-v2.sql', '/docker-entrypoint-initdb.d/00_roles.sql'),
     '-v', mount('database/baselines/eiscore-db-v1/schema.sql', '/docker-entrypoint-initdb.d/01_schema.sql'),
     '-v', mount('database/baselines/eiscore-db-v1/register.sql', '/docker-entrypoint-initdb.d/02_register.sql'),
@@ -358,7 +360,7 @@ try {
 
   const roleFlags = psql('postgres', `
     SELECT count(*) FROM pg_roles
-    WHERE rolname IN ('eiscore_owner','eiscore_migrator','eiscore_authenticator','eiscore_agent','web_anon','web_user')
+    WHERE rolname IN ('eiscore_owner','eiscore_migrator','eiscore_authenticator','eiscore_agent','eiscore_flash_agent','web_anon','web_user')
       AND (rolsuper OR rolbypassrls);
   `).stdout.trim()
   assert.equal(roleFlags, '0')

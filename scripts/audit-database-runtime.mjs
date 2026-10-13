@@ -74,7 +74,7 @@ export const auditDatabaseRuntime = async ({ options, adapter }) => {
   `)
   const roleBoundaryViolations = Number(adapter.query(`
     SELECT count(*) FROM pg_roles
-    WHERE rolname IN ('eiscore_owner','eiscore_migrator','eiscore_authenticator','eiscore_agent','web_anon','web_user')
+    WHERE rolname IN ('eiscore_owner','eiscore_migrator','eiscore_authenticator','eiscore_agent','eiscore_flash_agent','web_anon','web_user')
       AND (rolsuper OR rolbypassrls);
   `))
   const slowActivity = listQuery(adapter, `

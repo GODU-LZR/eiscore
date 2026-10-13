@@ -24,6 +24,7 @@ const postgrestImage = 'postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab
 const rootPassword = randomBytes(32).toString('base64url')
 const postgrestPassword = randomBytes(32).toString('base64url')
 const agentPassword = randomBytes(32).toString('base64url')
+const flashAgentPassword = randomBytes(32).toString('base64url')
 const jwtSecret = randomBytes(40).toString('base64url')
 const maxOutput = 512 * 1024 * 1024
 const executionEnv = {
@@ -31,6 +32,7 @@ const executionEnv = {
   POSTGRES_PASSWORD: rootPassword,
   POSTGREST_DB_PASSWORD: postgrestPassword,
   AGENT_DB_PASSWORD: agentPassword,
+  FLASH_AGENT_DB_PASSWORD: flashAgentPassword,
   PGRST_JWT_SECRET: jwtSecret
 }
 const releasePath = process.env.DB_RELEASE_PATH || 'database/releases/eiscore-db-v6/manifest.json'
