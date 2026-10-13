@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { DEFAULT_PLUGINS } from '../../agent-harness/dsh-http-bridge.mjs'
+import { load } from 'js-yaml'
+import { DEFAULT_PLUGINS, BUSINESS_PLUGINS, FLASH_PLUGINS } from '../../agent-harness/dsh-http-bridge.mjs'
 import { loadPluginRegistry } from '../../agent-harness/plugin-registry.js'
 
 const root = resolve(import.meta.dirname, '../..')
@@ -13,13 +14,17 @@ const catalogPlugins = catalog.plugins.map((plugin) => plugin.plugin_id)
 const registry = loadPluginRegistry()
 const compose = read('deploy/lundu/compose.yml')
 const productionCompose = read('docker-compose.prod.yml')
-const composeMatch = compose.match(/HARNESS_PLUGINS:\s*([^\r\n]+)/)
-
-assert.ok(composeMatch, 'Lundu Compose must declare HARNESS_PLUGINS')
-const composePlugins = composeMatch[1].split(',').map((plugin) => plugin.trim()).filter(Boolean)
 assert.deepEqual(DEFAULT_PLUGINS, contractPlugins, 'DSH Bridge defaults must match the plugin contract')
 assert.deepEqual(catalogPlugins, contractPlugins, 'migration catalog must match the plugin contract')
-assert.deepEqual(composePlugins, contractPlugins, 'Lundu Compose plugins must match the plugin contract')
+assert.deepEqual(BUSINESS_PLUGINS, contractPlugins.filter((plugin) => plugin !== 'flash-builder'))
+assert.deepEqual(FLASH_PLUGINS, ['flash-builder'])
+for (const source of [compose, productionCompose]) {
+  const { services } = load(source)
+  const pluginsFor = (name) => String(services[name].environment.HARNESS_PLUGINS)
+    .split(',').map((plugin) => plugin.trim()).filter(Boolean)
+  assert.deepEqual(pluginsFor('harness-bridge'), BUSINESS_PLUGINS, 'business Bridge must exclude Flash')
+  assert.deepEqual(pluginsFor('flash-harness-bridge'), FLASH_PLUGINS, 'Flash Bridge must exclude business plugins')
+}
 const contractCapabilities = Object.fromEntries(contract.plugins.map((plugin) => [plugin.plugin_id, [...plugin.capabilities].sort()]))
 const catalogCapabilities = Object.fromEntries(catalog.plugins.map((plugin) => [plugin.plugin_id, [...plugin.capabilities].sort()]))
 const registryCapabilities = Object.fromEntries(registry.list().map((plugin) => [plugin.plugin_id, [...plugin.capabilities].sort()]))

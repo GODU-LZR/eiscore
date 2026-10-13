@@ -29,6 +29,8 @@
     { "method": "POST", "path": "/ai/map-locate", "handler": "harness.handleCapability" },
     { "method": "POST", "path": "/ai/harness/execute", "handler": "harness.handleExecute" },
     { "method": "POST", "path": "/internal/harness/tool", "handler": "harness.handleToolProxy" },
+    { "method": "POST", "path": "/internal/harness/session", "handler": "harness.handleSessionRegister" },
+    { "method": "DELETE", "path": "/internal/harness/session", "handler": "harness.handleSessionUnregister" },
     { "method": "GET", "path": "/ai/harness/metrics", "handler": "harness.handleMetrics" },
     { "method": "POST", "path": "/twin/chat", "handler": "harness.handleTwinChat" }
   ],
