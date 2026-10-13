@@ -270,6 +270,7 @@ const redirectToLogin = async (request, response, headers, bootstrapCookies = []
     if (target.pathname !== '/login' || !authOrigin || !allowedOrigins.includes(authOrigin) || target.origin !== authOrigin) throw new Error('invalid login target')
     target.searchParams.set('dsh_return', `${authOrigin}${getHarnessAuthReturnPath()}`)
     response.writeHead(302, {
+      location: target.href,
       'cache-control': 'no-store',
       ...(bootstrapCookies.length || start.headers['set-cookie'] ? {
         'set-cookie': mapAuthSetCookiesToBrowser([...bootstrapCookies, ...cookieHeaders(start.headers['set-cookie'])], authCookiePrefix)

@@ -84,7 +84,7 @@ const flashPatch = readFileSync(resolve(repoRoot, 'agent-harness/dsh-flash-web.p
 assert.match(flashPatch, /id: eiscore-auth/)
 assert.match(flashPatch, /id: eiscore-flash-context/)
 assert.doesNotMatch(flashPatch, /digital-twin|enterprise-bi/)
-const flashCompose = readFileSync(resolve(repoRoot, '.codex-tmp/local-harness-web.compose.yml'), 'utf8')
+const flashCompose = readFileSync(resolve(repoRoot, 'deploy/lundu/compose.harness-web.yml'), 'utf8')
 assert.match(flashCompose, /EISCORE_AUTH_COOKIE_PREFIX: flash-/)
 assert.match(flashCompose, /EISCORE_HARNESS_AUTH_RETURN_PATH: \/harness-flash-embed-api\/eiscore\/auth\/handoff/)
 const runner = readFileSync(resolve(repoRoot, 'agent-harness/dsh-web-runner.mjs'), 'utf8')
