@@ -52,7 +52,7 @@
       }
     </style>
     <script>
-      if (/^\/(?:login(?:\/|$)|services\/(?:quality-delivery|technical-support)(?:\/|$))/.test(location.pathname)) {
+      if (/^\/(?:$|index\.html$|login(?:\/|$)|services\/(?:quality-delivery|technical-support)(?:\/|$))/.test(location.pathname)) {
         document.documentElement.classList.add('has-eiscore-site-loading')
       }
     </script>

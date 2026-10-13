@@ -1,12 +1,39 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { runInNewContext } from 'node:vm'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const indexSource = readFileSync(resolve(repoRoot, 'eiscore-base/index.html'), 'utf8')
 const mainSource = readFileSync(resolve(repoRoot, 'eiscore-base/src/main.js'), 'utf8')
 const mobileIndexSource = readFileSync(resolve(repoRoot, 'eiscore-mobile/index.html'), 'utf8')
 const mobileMainSource = readFileSync(resolve(repoRoot, 'eiscore-mobile/src/main.js'), 'utf8')
+
+const loadingScript = [...indexSource.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
+  .map((match) => match[1])
+  .find((script) => script.includes("classList.add('has-eiscore-site-loading')"))
+assert.ok(loadingScript, 'the loading ring must be enabled before application modules load')
+for (const [pathname, expected] of [
+  ['/', true],
+  ['/index.html', true],
+  ['/login', true],
+  ['/login/', true],
+  ['/services/quality-delivery', true],
+  ['/services/technical-support', true],
+  ['/hr/employees', false],
+  ['/apps', false],
+  ['/company-site', false],
+  ['/settings', false],
+  ['/logins', false],
+  ['/index.html/other', false]
+]) {
+  const classes = new Set()
+  runInNewContext(loadingScript, {
+    location: { pathname },
+    document: { documentElement: { classList: { add: (name) => classes.add(name) } } }
+  })
+  assert.equal(classes.has('has-eiscore-site-loading'), expected, `loading ring for ${pathname}`)
+}
 
 assert.match(indexSource, /id="eiscore-bootstrap-loading"/)
 assert.match(indexSource, /display:\s*none/)
