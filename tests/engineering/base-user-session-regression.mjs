@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { runInNewContext } from 'node:vm'
 import {
   AUTH_TOKEN_KEY,
   USER_INFO_KEY,
@@ -55,5 +56,39 @@ assert.match(userStore, /const token = ref\(getToken\(\)\)/)
 assert.match(userStore, /const userInfo = ref\(getUserInfo\(\) \|\| \{\}\)/)
 assert.match(userStore, /setAuth\(userData\.token, userData\.user\)/)
 assert.match(userStore, /clearAuthStorage\(\)/)
+
+for (const storageAvailable of [true, false]) {
+  const storage = new MemoryStorage()
+  const session = createAuthSession({ storage, tokenStorageFormat: 'plain' })
+  session.setAuth('old-token', { id: 'old-user' })
+  if (!storageAvailable) storage.setItem = () => { throw new Error('storage unavailable') }
+  const storeSource = userStore.replace(/^import[\s\S]*?from [^\n]+\n/gm, '').replace('export const', 'const')
+  const store = runInNewContext(`${storeSource}\nuseUserStore()`, {
+    defineStore: (_name, setup) => setup,
+    ref: (value) => ({ value }),
+    getToken: session.getToken,
+    getUserInfo: session.getUserInfo,
+    setAuth: session.setAuth,
+    clearAuthStorage: session.clearAuth
+  })
+  const user = { id: 'new-user' }
+  let navigated = false
+  if (storageAvailable) {
+    store.login({ token: 'new-token', user })
+    assert.equal(store.token.value, 'new-token')
+    assert.equal(store.userInfo.value, user)
+    assert.equal(session.getToken(), 'new-token')
+  } else {
+    assert.throws(() => {
+      store.login({ token: 'new-token', user })
+      navigated = true
+    }, /登录信息保存失败.*浏览器存储.*联系管理员/)
+    assert.equal(navigated, false, 'failed desktop login must stop before success/navigation')
+    assert.equal(store.token.value, '')
+    assert.equal(Object.keys(store.userInfo.value).length, 0)
+    assert.equal(session.getToken(), '')
+    assert.equal(session.getUserInfo(), null)
+  }
+}
 
 console.log('PASS: base user store plain-token session migration')

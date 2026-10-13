@@ -2,10 +2,12 @@
 // Copyright (c) 2026 林志荣
 
 import assert from 'node:assert/strict'
+import { createHmac, randomBytes } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
   AUTH_TOKEN_KEY,
+  DEFAULT_MAX_TOKEN_LENGTH,
   USER_INFO_KEY,
   createAuthSession,
   isTokenExpired,
@@ -44,6 +46,7 @@ const encodeJwt = (payload) => {
 
 assert.equal(AUTH_TOKEN_KEY, 'auth_token')
 assert.equal(USER_INFO_KEY, 'user_info')
+assert.equal(DEFAULT_MAX_TOKEN_LENGTH, 12 * 1024)
 assert.equal(parseStoredToken('plain-token'), 'plain-token')
 assert.equal(parseStoredToken(JSON.stringify({ token: 'json-token' })), 'json-token')
 assert.equal(parseStoredToken(JSON.stringify({ token: 42 })), '42')
@@ -68,18 +71,18 @@ assert.equal(isTokenExpired('invalid', { now: boundaryNow }), true)
 
 {
   const storage = new MemoryStorage({
-    [AUTH_TOKEN_KEY]: 'x'.repeat(8192),
+    [AUTH_TOKEN_KEY]: 'x'.repeat(DEFAULT_MAX_TOKEN_LENGTH),
     [USER_INFO_KEY]: JSON.stringify({ name: '保留用户' })
   })
   const session = createAuthSession({ storage, now: boundaryNow })
-  assert.equal(session.getToken().length, 8192)
+  assert.equal(session.getToken().length, DEFAULT_MAX_TOKEN_LENGTH)
   assert.deepEqual(session.getUserInfo(), { name: '保留用户' })
-  assert.deepEqual(session.getAuthHeader(), { Authorization: `Bearer ${'x'.repeat(8192)}` })
+  assert.deepEqual(session.getAuthHeader(), { Authorization: `Bearer ${'x'.repeat(DEFAULT_MAX_TOKEN_LENGTH)}` })
 }
 
 {
   const storage = new MemoryStorage({
-    [AUTH_TOKEN_KEY]: 'x'.repeat(8193),
+    [AUTH_TOKEN_KEY]: 'x'.repeat(DEFAULT_MAX_TOKEN_LENGTH + 1),
     [USER_INFO_KEY]: JSON.stringify({ name: '必须清理' })
   })
   const session = createAuthSession({ storage, now: boundaryNow })
@@ -94,10 +97,43 @@ assert.equal(isTokenExpired('invalid', { now: boundaryNow }), true)
     [USER_INFO_KEY]: JSON.stringify({ name: '旧会话' })
   })
   const session = createAuthSession({ storage })
-  assert.equal(session.setAuth('x'.repeat(8193), { name: '不应写入' }), false)
+  assert.equal(session.setAuth('x'.repeat(DEFAULT_MAX_TOKEN_LENGTH + 1), { name: '不应写入' }), false)
   assert.deepEqual(storage.removed, [AUTH_TOKEN_KEY, USER_INFO_KEY])
   assert.equal(storage.getItem(AUTH_TOKEN_KEY), null)
   assert.equal(storage.getItem(USER_INFO_KEY), null)
+}
+
+{
+  const claims = {
+    username: 'test-user', role: 'web_user', app_role: 'super_admin', exp: 1_700_000_001,
+    permissions: Array.from({ length: 322 }, (_, index) => `module:test-perm-${String(index).padStart(6, '0')}`)
+  }
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url')
+  const body = Buffer.from(JSON.stringify(claims)).toString('base64url')
+  const signature = createHmac('sha256', randomBytes(32)).update(`${header}.${body}`).digest('base64url')
+  const token = `${header}.${body}.${signature}`
+  assert.ok(token.length > 11 * 1024 && token.length < DEFAULT_MAX_TOKEN_LENGTH)
+  for (const tokenStorageFormat of ['plain', 'json']) {
+    let now = boundaryNow
+    const session = createAuthSession({ storage: new MemoryStorage(), now: () => now, tokenStorageFormat })
+    assert.equal(session.setAuth(token, { username: claims.username, permissions: claims.permissions }), true)
+    assert.equal(session.getToken(), token)
+    assert.deepEqual(parseJwtPayload(session.getToken()), claims)
+    assert.deepEqual(session.getUserInfo().permissions, claims.permissions)
+    assert.equal(session.isAuthenticated(), true)
+    now += 1000
+    assert.equal(session.isAuthenticated(), false)
+  }
+}
+
+{
+  const storage = new MemoryStorage()
+  const session = createAuthSession({ storage, maxTokenLength: 512 })
+  assert.equal(session.setAuth('x'.repeat(512), { name: '自定义边界' }), true)
+  assert.equal(session.getToken().length, 512)
+  assert.equal(session.setAuth('x'.repeat(513), { name: '超过自定义边界' }), false)
+  assert.equal(session.getToken(), '')
+  assert.equal(session.getUserInfo(), null)
 }
 
 {
