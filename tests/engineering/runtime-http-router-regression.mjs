@@ -12,6 +12,8 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const indexSource = readFileSync(resolve(repoRoot, 'realtime/index.js'), 'utf8')
 const {
   CORE_HTTP_ROUTE_MANIFEST,
+  BUSINESS_HTTP_ROUTE_MANIFEST,
+  FLASH_HTTP_ROUTE_MANIFEST,
   HTTP_ROUTE_MANIFEST,
   createHttpRequestHandler,
   normalizeAgentRequestPath
@@ -225,7 +227,73 @@ assert.deepEqual(events, [])
 assert.equal(missingResponse.status, 404)
 assert.equal(missingResponse.ended, true)
 
+const profileCases = [
+  ['GET', '/company-site/public/site-config?locale=zh-CN', 'company.handleGetPublicSiteConfig', true, false],
+  ['POST', '/company-site/auth/handoff', 'company.handleCreateAuthHandoff', true, false],
+  ['POST', '/company-site/auth/handoff/consume', 'company.handleConsumeAuthHandoff', true, false],
+  ['POST', '/internal/harness/session', 'harness.handleSessionRegister', true, true],
+  ['DELETE', '/internal/harness/session', 'harness.handleSessionUnregister', true, true],
+  ['POST', '/internal/harness/tool', 'harness.handleToolProxy', true, true],
+  ['GET', '/flash/draft', 'flash.handleDraftGet', false, true],
+  ['GET', '/ai/config', 'harness.handleConfig', true, false],
+  ['POST', '/twin/chat', 'harness.handleTwinChat', true, false],
+  ['PUT', '/health', 'health', true, true]
+]
+const recordDispatch = (name) => (_req, res) => {
+  events.push(name)
+  res.writeHead(200)
+  res.end()
+}
+for (const [profile, routes, allowedIndex] of [
+  ['business', BUSINESS_HTTP_ROUTE_MANIFEST, 3],
+  ['flash', FLASH_HTTP_ROUTE_MANIFEST, 4]
+]) {
+  const profileHandler = createHttpRequestHandler({
+    routes,
+    getRequestPath: (req) => normalizeAgentRequestPath(req.url),
+    setCorsHeaders: () => {},
+    handlers: {
+      health: recordDispatch('health'),
+      company: {
+        handleGetPublicSiteConfig: recordDispatch('company.handleGetPublicSiteConfig'),
+        handleCreateAuthHandoff: recordDispatch('company.handleCreateAuthHandoff'),
+        handleConsumeAuthHandoff: recordDispatch('company.handleConsumeAuthHandoff')
+      },
+      harness: {
+        handleSessionRegister: recordDispatch('harness.handleSessionRegister'),
+        handleSessionUnregister: recordDispatch('harness.handleSessionUnregister'),
+        handleToolProxy: recordDispatch('harness.handleToolProxy'),
+        handleConfig: recordDispatch('harness.handleConfig'),
+        handleTwinChat: recordDispatch('harness.handleTwinChat')
+      },
+      flash: { handleDraftGet: recordDispatch('flash.handleDraftGet') }
+    }
+  })
+  for (const testCase of profileCases) {
+    const [method, path, handler] = testCase
+    for (const url of [path, `/agent${path}`]) {
+      events.length = 0
+      const response = createResponse()
+      await profileHandler({ method, url }, response)
+      const allowed = testCase[allowedIndex]
+      assert.equal(response.status, allowed ? 200 : 404, `${profile}: ${method} ${url}`)
+      assert.deepEqual(events, allowed ? [handler] : [], `${profile}: ${method} ${url}`)
+    }
+  }
+  assert.ok(Object.isFrozen(routes))
+}
+assert.equal(BUSINESS_HTTP_ROUTE_MANIFEST.length, 84)
+for (const entry of HTTP_ROUTE_MANIFEST) {
+  assert.equal(BUSINESS_HTTP_ROUTE_MANIFEST.includes(entry), !entry.path?.startsWith('/flash/'), entry.handler)
+}
+assert.deepEqual(FLASH_HTTP_ROUTE_MANIFEST, CORE_HTTP_ROUTE_MANIFEST.filter((entry) => [
+  '/health', '/internal/harness/tool', '/internal/harness/session',
+  '/flash/draft', '/flash/attachments', '/flash/tools/registry', '/flash/tools/call'
+].includes(entry.path)))
+assert.equal(FLASH_HTTP_ROUTE_MANIFEST.length, 9)
+
 assert.match(indexSource, /http\.createServer\(createHttpRequestHandler\(/)
+assert.match(indexSource, /routes:\s*flashRuntime\s*\?\s*FLASH_HTTP_ROUTE_MANIFEST\s*:\s*BUSINESS_HTTP_ROUTE_MANIFEST/)
 assert.doesNotMatch(indexSource, /pathname\s*===\s*['"]\/(?:health|document-intake|ai|flash|twin)/)
 assert.doesNotMatch(indexSource, /pathname\.startsWith\(['"]\/document-intake/)
 assert.doesNotMatch(indexSource, /\/\^\\\/document-intake[\s\S]*?\.test\(pathname\)/)
