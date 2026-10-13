@@ -4,7 +4,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { workspaceForProfileOwner, requireHarnessProfile } = require('./profile-policy');
+const { workspaceForProfileOwner, pluginsForProfile, requireHarnessProfile } = require('./profile-policy');
 
 const PROTOCOL = 'eiscore-agent-v1';
 const BRIDGE_ERROR_CODES = new Set([
@@ -93,6 +93,14 @@ const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async 
   if (typeof readiness !== 'function') throw new TypeError('Bridge readiness is required');
   if (stateFile && !path.isAbsolute(stateFile)) throw new TypeError('Bridge stateFile must be absolute');
   const bridgeProfile = profile ? requireHarnessProfile(profile, 'HARNESS_PROFILE') : '';
+  const effectivePluginList = () => {
+    const configured = pluginList();
+    if (!bridgeProfile) return configured;
+    const allowed = new Set(pluginsForProfile(bridgeProfile));
+    return (Array.isArray(configured) ? configured : []).filter((entry) => allowed.has(
+      String(typeof entry === 'string' ? entry : entry?.plugin_id || '').trim()
+    ));
+  };
   const concurrencyLimit = positiveInteger(maxConcurrent, 16);
   const sessionLimit = positiveInteger(maxSessions, 1000);
   const bodyLimit = positiveInteger(maxBodyBytes, 2 * 1024 * 1024);
@@ -148,7 +156,7 @@ const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async 
     }
     if (req.method === 'GET' && req.url === '/v1/plugins') {
       if (req.headers['x-eis-harness-protocol'] !== PROTOCOL) return json(res, 426, { code: 'HARNESS_PROTOCOL_REQUIRED' });
-      return json(res, 200, { protocol: PROTOCOL, plugins: pluginList() });
+      return json(res, 200, { protocol: PROTOCOL, plugins: effectivePluginList() });
     }
     if (req.method === 'GET' && req.url === '/metrics') {
       if (req.headers['x-eis-harness-protocol'] !== PROTOCOL) return json(res, 426, { code: 'HARNESS_PROTOCOL_REQUIRED' });
@@ -185,7 +193,7 @@ const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async 
     if (mode !== 'standard') return json(res, 403, { code: 'HARNESS_MODE_FORBIDDEN' });
     const plugin = String(req.headers['x-eis-plugin-id'] || '').trim();
     if (!plugin) return json(res, 400, { code: 'HARNESS_PLUGIN_REQUIRED' });
-    if (!normalizePluginIds(pluginList()).has(plugin)) return json(res, 404, { code: 'HARNESS_PLUGIN_UNAVAILABLE', message: 'Harness plugin is unavailable' });
+    if (!normalizePluginIds(effectivePluginList()).has(plugin)) return json(res, 404, { code: 'HARNESS_PLUGIN_UNAVAILABLE', message: 'Harness plugin is unavailable' });
     const owner = strictIdentity
       ? expectedOwner(ownerSubject, ownerTenant, workspace, 'standard')
       : `${hashIdentity(ownerSubject)}:${hashIdentity(ownerTenant)}`;

@@ -81,7 +81,7 @@ const bridgeSecret = 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6';
 const bridgeAuthServer = http.createServer(createBridgeHandler({
   bridgeSecret,
   profile: 'business',
-  pluginList: () => [{ plugin_id: 'enterprise-bi' }],
+  pluginList: () => [{ plugin_id: 'enterprise-bi' }, { plugin_id: 'flash-builder' }],
   invoke: async (request) => { bridgeAuthCalls += 1; assert.equal(request.headers['x-eis-harness-bridge-secret'], undefined); return { status: 200, payload: { ok: true } }; }
 }));
 await new Promise((resolve) => bridgeAuthServer.listen(0, resolve));
@@ -96,6 +96,11 @@ assert.equal(response.status, 401);
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
 assert.equal(response.status, 200);
 assert.equal(bridgeAuthCalls, 1);
+response = await requestAt(bridgeAuthPort, { method: 'GET', path: '/v1/plugins', headers: { 'x-eis-harness-protocol': PROTOCOL } });
+assert.deepEqual(response.body.plugins, [{ plugin_id: 'enterprise-bi' }], 'business Bridge must filter a misconfigured Flash plugin');
+response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-ai-session': 'bridge-auth-flash-plugin', 'x-eis-request-id': 'bridge-auth-flash-plugin-request', 'x-eis-plugin-id': 'flash-builder', 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
+assert.equal(response.status, 404);
+assert.equal(response.body.code, 'HARNESS_PLUGIN_UNAVAILABLE');
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-ai-session': 'bridge-auth-forged-workspace', 'x-eis-request-id': 'bridge-auth-forged-workspace-request', 'x-eis-workspace-id': 'ws_forged', 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
 assert.equal(response.status, 403);
 assert.equal(response.body.code, 'HARNESS_WORKSPACE_FORBIDDEN');
