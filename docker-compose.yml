@@ -52,7 +52,76 @@ services:
       - ./eiscore-base/dist:/usr/share/nginx/html:ro
     depends_on:
       - api
+      - deepseek-web
+      - deepseek-flash-web
     networks: [data-plane, business-internal, flash-internal]
+
+  deepseek-web:
+    build:
+      context: .
+      dockerfile: agent-harness/Dockerfile
+    container_name: eiscore-deepseek-web
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m"]
+    command: ["/opt/eiscore-harness/dsh-web-runner.mjs"]
+    environment:
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/business
+      DSH_DEFAULT_WORKSPACE_TITLE: 业务助手工作区
+      EISCORE_HARNESS_CAPABILITY_PROFILE: business
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
+      EISCORE_GATEWAY_URL: http://agent-runtime:8078
+      EISCORE_TOOL_PROXY_URL: http://agent-runtime:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: "${EISCORE_TOOL_PROXY_SECRET:?EISCORE_TOOL_PROXY_SECRET is required}"
+    volumes:
+      - deepseek_web_dsh_home:/var/lib/dsh
+      - ./agent-harness:/opt/eiscore-harness:ro
+      - ./agent-harness/dsh-web.patch.yml:/opt/eiscore-harness/dsh-web.patch.yml:ro
+      - ./agent-harness/dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
+      - ./agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+    depends_on:
+      - agent-runtime
+    networks: [business-internal]
+
+  deepseek-flash-web:
+    build:
+      context: .
+      dockerfile: agent-harness/Dockerfile
+    container_name: eiscore-deepseek-flash-web
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m"]
+    command: ["/opt/eiscore-harness/dsh-web-runner.mjs"]
+    environment:
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/flash
+      DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
+      DSH_PATCH_PATH: /opt/eiscore-harness/dsh-flash-web.patch.yml
+      EISCORE_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
+      EISCORE_HARNESS_CAPABILITY_PROFILE: flash
+      DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
+      EISCORE_GATEWAY_URL: http://flash-agent-runtime:8078
+      EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+    volumes:
+      - deepseek_flash_web_dsh_home:/var/lib/dsh
+      - ./agent-harness:/opt/eiscore-harness:ro
+      - ./agent-harness/dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
+      - ./agent-harness/dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
+      - ./agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+    depends_on:
+      - flash-agent-runtime
+    networks: [flash-internal]
 
   agent-runtime:
     build:
@@ -157,6 +226,8 @@ services:
       PORT: 3080
       DSH_BIN: /opt/bridge/node_modules/.bin/dsh
       DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/business
+      DSH_DEFAULT_WORKSPACE_TITLE: 业务助手工作区
       DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
       DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
       HARNESS_PROFILE: business
@@ -207,6 +278,8 @@ services:
       PORT: 3080
       DSH_BIN: /opt/bridge/node_modules/.bin/dsh
       DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/flash
+      DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
       DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
       DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
       HARNESS_PROFILE: flash
@@ -237,6 +310,8 @@ volumes:
   harness_bridge_dsh_home:
   flash_harness_audit:
   flash_harness_bridge_dsh_home:
+  deepseek_web_dsh_home:
+  deepseek_flash_web_dsh_home:
 
 networks:
   data-plane:

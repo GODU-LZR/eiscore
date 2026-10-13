@@ -132,6 +132,7 @@
     "test:harness-gateway": "node realtime/test-harness-gateway.js",
     "test:harness-tool-gateway": "node realtime/test-harness-tool-gateway.js && node realtime/test-harness-context-capabilities.js && node realtime/test-harness-twin-context-capability.js",
     "test:harness-runtime-boundaries": "node realtime/test-harness-runtime-boundaries.js && node realtime/test-harness-runtime-context-defaults.js && node realtime/test-harness-multimodal.js && node realtime/test-harness-capability-http.js && node realtime/test-harness-chat-http.js && node realtime/test-harness-http.js && node realtime/test-flash-harness-ws.js",
+    "test:harness-web-isolation": "node tests/engineering/harness-web-isolation-regression.mjs",
     "test:harness-twin-chat": "node realtime/test-harness-twin-chat.js && node realtime/test-harness-twin-chat-capability.js && node realtime/test-harness-twin-persistence.js",
     "test:harness-document-commit": "node realtime/test-harness-document-commit.js",
     "test:harness-production-path": "node tests/engineering/harness-production-path-regression.mjs",
