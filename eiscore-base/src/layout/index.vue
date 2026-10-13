@@ -43,7 +43,7 @@
           <el-icon><Grid /></el-icon>
           <template #title>应用中心</template>
         </el-menu-item>
-        <el-menu-item v-if="canCompanySite" index="/company-site" data-guide="menu-company-site" @mouseenter="warmMicroApp('company-site')" @focus="warmMicroApp('company-site')"><el-icon><Promotion /></el-icon><template #title>企业站点运营</template></el-menu-item>
+        <el-menu-item v-if="canCompanySite" index="/company-site" data-guide="menu-company-site" @mouseenter="warmMicroApp('company-site')" @focus="warmMicroApp('company-site')"><el-icon><Promotion /></el-icon><template #title>网站运营</template></el-menu-item>
         <el-menu-item v-if="canSales" index="/sales" data-guide="menu-sales" @mouseenter="warmMicroApp('sales')" @focus="warmMicroApp('sales')">
           <el-icon><Sell /></el-icon>
           <template #title>销售管理</template>
@@ -1177,9 +1177,9 @@ const SOP_APP_FUNCTIONS = {
       action: '进入后按角色核对模块权限、操作权限和数据范围。'
     },
     user: {
-      purpose: '管理系统用户、角色绑定和 SOP 岗位。',
-      scenario: '开通账号、停用账号或配置岗位推荐 SOP 时使用。',
-      action: '进入后确认账号状态、绑定角色、员工关系和 SOP 岗位。'
+      purpose: '管理系统用户、角色绑定和操作指引岗位。',
+      scenario: '开通账号、停用账号或配置岗位操作指引时使用。',
+      action: '进入后确认账号状态、绑定角色、员工关系和操作指引岗位。'
     },
     b: {
       purpose: '记录岗位、部门或职务变动。',
