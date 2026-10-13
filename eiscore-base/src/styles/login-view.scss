@@ -4615,6 +4615,9 @@
 .commerce-steps { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid rgba(17,24,39,.12); }
 .commerce-steps span, .quote-flow span { display: flex; align-items: center; gap: 10px; padding-top: 14px; color: #64748b; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .commerce-steps b, .quote-flow b { color: var(--login-theme); font: 700 11px/1 ui-monospace, monospace; }
+.commerce-payment-note { display: flex; align-items: center; gap: 10px; margin-top: 20px; color: #64748b; font-size: 12px; line-height: 1.5; }
+.commerce-payment-note strong { margin-right: 4px; color: #173A5C; }
+.commerce-payment-note .payment-provider-mark { flex: 0 0 26px; width: 26px; height: 26px; font-size: 15px; }
 
 .commerce-overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; background: rgba(7, 20, 17, .58); backdrop-filter: blur(8px); }
 .commerce-modal { position: relative; width: min(920px, 100%); max-height: min(90dvh, 860px); overflow: auto; padding: clamp(24px, 4vw, 48px); border: 1px solid rgba(16,42,42,.14); border-radius: 4px; background: #F8FAFE; box-shadow: 0 30px 90px rgba(0,0,0,.22); }
@@ -4646,6 +4649,10 @@
 .payment-reserved-card { display: grid; gap: 8px; margin: 26px 0; padding: 24px; border: 1px solid rgba(17,24,39,.12); background: #fff; }
 .payment-reserved-card strong { color: #173A5C; font-size: 18px; }
 .payment-reserved-card span { color: #64748b; font-size: 13px; line-height: 1.6; }
+.payment-provider-row { display: flex; align-items: center; gap: 12px; }
+.payment-provider-row > div { display: grid; gap: 3px; }
+.payment-provider-mark { display: inline-grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; color: #fff !important; background: #0070ba; font: 700 19px/1 Arial, sans-serif; }
+.payment-reserved-card > p { margin: 4px 0 0; color: #173A5C; font-size: 14px; line-height: 1.6; }
 .lead-form { margin-top: 26px; padding-top: 22px; border-top: 1px solid rgba(17,24,39,.12); }
 .lead-form h3 { margin: 0; font-size: 20px; }
 .lead-form p { margin: 8px 0 0; color: #64748b; font-size: 13px; line-height: 1.6; }
@@ -6191,6 +6198,14 @@
   .product-card-meta-label,
   .product-card-code {
     color: #a9b8ca;
+  }
+
+  .commerce-payment-note {
+    color: #a9b8ca;
+  }
+
+  .commerce-payment-note strong {
+    color: #d7e6f5;
   }
 
   .company-profile,

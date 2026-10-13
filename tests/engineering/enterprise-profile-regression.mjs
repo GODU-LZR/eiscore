@@ -52,6 +52,23 @@ assert.deepEqual(profile.enabledLocales, ['zh-CN', 'en-US'])
 assert.equal(profile.contact.email, 'sales@example.test')
 assert.equal(profile.publishedVersion, 7)
 
+for (const [field, value, expected] of [
+  ['faviconAssetPath', 'assets/brand/favicon.ico', '/enterprise-assets/brand/favicon.ico'],
+  ['favicon_asset_path', 'assets/brand/favicon.png', '/enterprise-assets/brand/favicon.png'],
+  ['faviconUrl', '/company-assets/favicon.ico', '/company-assets/favicon.ico'],
+  ['favicon_url', 'https://cdn.example.test/favicon.ico', 'https://cdn.example.test/favicon.ico'],
+  ['faviconAssetPath', 'assets/../private/favicon.ico', ''],
+  ['faviconAssetPath', 'assets/brand\\favicon.ico', ''],
+  ['faviconAssetPath', '//example.test/favicon.ico', ''],
+  ['faviconUrl', 'javascript:alert(1)', ''],
+  ['faviconUrl', 'https://user:pass@example.test/favicon.ico', '']
+]) {
+  const faviconProfile = enterpriseProfileFromSiteConfig({
+    site: { ...sitePayload.site, trademark: { [field]: value } }
+  })
+  assert.equal(faviconProfile.faviconUrl, expected, `${field}: ${value}`)
+}
+
 const noLogoProfile = enterpriseProfileFromSiteConfig({
   site: {
     siteKey: 'primary',

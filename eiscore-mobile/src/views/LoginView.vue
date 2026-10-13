@@ -447,7 +447,13 @@ const loadAppSettings = async () => {
 }
 
 onMounted(async () => {
-  await loadAppSettings()
+  try {
+    await loadAppSettings()
+  } finally {
+    await nextTick()
+    window.__EISCORE_INITIAL_CONTENT_READY__ = true
+    window.dispatchEvent(new Event('eiscore:initial-content-ready'))
+  }
 
   if (isAuthenticated() && showLoginPanel.value) {
     const redirect = route.query.redirect || '/'

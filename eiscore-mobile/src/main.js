@@ -21,6 +21,54 @@ const dismissBootstrapLoading = () => {
   window.setTimeout(() => loading.remove(), 220)
 }
 
+const waitWithTimeout = (promise, timeout = 12000) => new Promise((resolve) => {
+  const timer = window.setTimeout(resolve, timeout)
+  Promise.resolve(promise).then(resolve, resolve).finally(() => window.clearTimeout(timer))
+})
+
+const waitForWindowLoad = () => {
+  if (document.readyState === 'complete') return Promise.resolve()
+  return waitWithTimeout(new Promise((resolve) => window.addEventListener('load', resolve, { once: true })))
+}
+
+const waitForPublicLandingContent = () => {
+  if (!/^\/(?:mobile\/)?login(?:\/|$)/.test(window.location.pathname) || window.__EISCORE_INITIAL_CONTENT_READY__) {
+    return Promise.resolve()
+  }
+  return waitWithTimeout(new Promise((resolve) => {
+    window.addEventListener('eiscore:initial-content-ready', resolve, { once: true })
+  }))
+}
+
+const waitForImage = (image) => {
+  if (image.complete) return Promise.resolve()
+  return waitWithTimeout(new Promise((resolve) => {
+    image.addEventListener('load', resolve, { once: true })
+    image.addEventListener('error', resolve, { once: true })
+  }))
+}
+
+const waitForInitialPageResources = async () => {
+  const isPublicLanding = /^\/(?:mobile\/)?login(?:\/|$)/.test(window.location.pathname)
+  if (!isPublicLanding) return
+
+  await Promise.all([
+    waitForWindowLoad(),
+    waitForPublicLandingContent(),
+    waitWithTimeout(document.fonts?.ready?.catch?.(() => {}))
+  ])
+  await new Promise((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(resolve))
+  })
+  const visibleImages = [...document.querySelectorAll('#app img')].filter((image) => {
+    const bounds = image.getBoundingClientRect()
+    return bounds.width > 0 && bounds.height > 0 &&
+      bounds.top < window.innerHeight && bounds.bottom > 0 &&
+      bounds.left < window.innerWidth && bounds.right > 0
+  })
+  await Promise.all(visibleImages.map(waitForImage))
+}
+
 const removeBootstrapLoading = () => {
   document.getElementById('eiscore-bootstrap-loading')?.remove()
 }
@@ -47,9 +95,8 @@ const bootstrap = async () => {
   })
   publishEnterpriseConfig(enterpriseConfig, globalThis)
   mountMobileApplication()
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(dismissBootstrapLoading)
-  })
+  await waitForInitialPageResources()
+  dismissBootstrapLoading()
 }
 
 bootstrap().catch(() => {

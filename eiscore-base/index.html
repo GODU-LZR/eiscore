@@ -9,7 +9,7 @@
         position: fixed;
         inset: 0;
         z-index: 2147483647;
-        display: grid;
+        display: none;
         place-items: center;
         gap: 14px;
         align-content: center;
@@ -17,6 +17,8 @@
         background: #f8fafc;
         transition: opacity 180ms ease, visibility 180ms ease;
       }
+
+      .has-eiscore-site-loading #eiscore-bootstrap-loading { display: grid; }
 
       #eiscore-bootstrap-loading.is-dismissing {
         opacity: 0;
@@ -49,6 +51,11 @@
         .eiscore-bootstrap-loading__ring { animation: none; }
       }
     </style>
+    <script>
+      if (/^\/(?:login(?:\/|$)|services\/(?:quality-delivery|technical-support)(?:\/|$))/.test(location.pathname)) {
+        document.documentElement.classList.add('has-eiscore-site-loading')
+      }
+    </script>
     <script>
       (function () {
         if (!('serviceWorker' in navigator)) return

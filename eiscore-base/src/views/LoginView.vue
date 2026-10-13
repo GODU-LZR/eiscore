@@ -319,7 +319,7 @@
         </div>
       </section>
 
-      <section v-if="publicProducts.length" class="commerce-section reveal" id="procurement">
+      <section class="commerce-section reveal" id="procurement">
         <div>
           <span class="commerce-kicker">{{ commerceUi.kicker }}</span>
           <h2>{{ commerceUi.title }}</h2>
@@ -334,6 +334,10 @@
           <span><b>02</b>{{ commerceUi.stepQuote }}</span>
           <span><b>03</b>{{ commerceUi.stepOrder }}</span>
           <span><b>04</b>{{ commerceUi.stepPayment }}</span>
+        </div>
+        <div class="commerce-payment-note">
+          <span class="payment-provider-mark" aria-hidden="true">P</span>
+          <span><strong>{{ commerceUi.paymentSupportLabel }}</strong>{{ commerceUi.paymentSupportNote }}</span>
         </div>
       </section>
 
@@ -528,7 +532,17 @@
           <section class="commerce-modal payment-modal" role="dialog" aria-modal="true" :aria-label="commerceStatusUi.paymentTitle">
             <button type="button" class="commerce-close" :aria-label="commerceUi.closeLabel" @click="paymentVisible = false">×</button>
             <div class="commerce-modal-heading"><h2>{{ commerceStatusUi.paymentTitle }}</h2></div>
-            <div class="payment-reserved-card"><strong>{{ commerceStatusUi.paymentReserved }}</strong><span>{{ commerceStatusUi.paymentMethods }}</span></div>
+            <div class="payment-reserved-card">
+              <div class="payment-provider-row">
+                <span class="payment-provider-mark" aria-hidden="true">P</span>
+                <div>
+                  <strong>{{ commerceStatusUi.paymentProviderLabel }}</strong>
+                  <span>{{ commerceStatusUi.paymentProviderNote }}</span>
+                </div>
+              </div>
+              <p>{{ commerceStatusUi.paymentReserved }}</p>
+              <span>{{ commerceStatusUi.paymentMethods }}</span>
+            </div>
             <button type="button" class="commerce-secondary" @click="paymentVisible = false; quoteVisible = true">{{ commerceStatusUi.backToInquiry }}</button>
           </section>
         </div>
@@ -688,9 +702,9 @@ const servicePages = computed(() => localizedServices.value?.pages || [])
 const serviceUi = computed(() => localizedServices.value?.ui || {})
 const currentService = computed(() => servicePages.value.find(page => page.id === serviceId.value) || null)
 const baseCommerceUi = computed(() => isEnglish.value ? {
-  kicker: 'Procurement', title: 'Plan your purchase', intro: 'Select products and send a purchase request. Our team will confirm specification, price, lead time and payment terms.', listLabel: 'Purchase order', detailLabel: 'Details', addLabel: 'Add to purchase order', quoteNote: 'Project specification', quoteSummary: 'products in this purchase order', quoteSummaryNote: 'Our team will confirm specification, quantity, lead time and destination before issuing terms.', agentLabel: 'Customer service', collapseAgentLabel: 'Close customer service', quickPromptLabel: 'Quick questions', quickPrompts: ['Recommend a motor for my pump', 'Which parameters should I confirm?', 'How do I prepare a purchase request?'], flowLabel: 'Purchase flow', stepInquiry: 'Purchase request', stepQuote: 'Quote', stepOrder: 'Order', stepPayment: 'Payment', closeLabel: 'Close', listTitle: 'Your purchase order', listIntro: 'Add products and quantities, then send one purchase request.', quantityLabel: 'Quantity', removeLabel: 'Remove', emptyList: 'No products selected yet.', contactTitle: 'Contact and requirements', contactIntro: 'Our team will confirm the quote before any order or payment is created.', companyPlaceholder: 'Company name', namePlaceholder: 'Contact name', emailPlaceholder: 'Business email', phonePlaceholder: 'Phone or WhatsApp', dateLabel: 'Target delivery date', messagePlaceholder: 'Specification, destination, voltage, head/flow or other requirements', sendingLabel: 'Sending...', submitLabel: 'Submit purchase request', paymentReservation: 'Payment interface reserved', agentTitle: 'Lundu customer service', agentIntro: 'Ask about product selection, applications, lead time or purchase preparation.', thinkingLabel: '...', agentPlaceholder: 'Describe your product or project requirements', sendLabel: 'Send', openListLabel: 'Open purchase order', statusLabel: 'Order status', inquiryStatus: 'Purchase request pending', quoteStatus: 'Waiting for sales quote', orderStatus: 'Waiting for order confirmation', paymentStatus: 'Payment interface reserved', statusInquiryDescription: 'Submit products and contact details to start a purchase review.', statusQuoteDescription: 'Our team will confirm specification, price, inventory and lead time.', statusOrderDescription: 'Review the confirmed commercial terms before creating an order.', statusPaymentDescription: 'Payment provider integration is reserved; no funds are captured here.', confirmQuoteLabel: 'Review quote', confirmOrderLabel: 'Confirm order', paymentButtonLabel: 'Open payment placeholder'
+  kicker: 'Procurement', title: 'Plan your purchase', intro: 'Select products and send a purchase request. Our team will confirm specification, price, lead time and payment terms.', listLabel: 'Purchase order', detailLabel: 'Details', addLabel: 'Add to purchase order', quoteNote: 'Project specification', quoteSummary: 'products in this purchase order', quoteSummaryNote: 'Our team will confirm specification, quantity, lead time and destination before issuing terms.', agentLabel: 'Customer service', collapseAgentLabel: 'Close customer service', quickPromptLabel: 'Quick questions', quickPrompts: ['Recommend a motor for my pump', 'Which parameters should I confirm?', 'How do I prepare a purchase request?'], flowLabel: 'Purchase flow', stepInquiry: 'Purchase request', stepQuote: 'Quote', stepOrder: 'Order', stepPayment: 'Payment', paymentSupportLabel: 'PayPal supported', paymentSupportNote: ' · Checkout connection reserved for confirmed orders', closeLabel: 'Close', listTitle: 'Your purchase order', listIntro: 'Add products and quantities, then send one purchase request.', quantityLabel: 'Quantity', removeLabel: 'Remove', emptyList: 'No products selected yet.', contactTitle: 'Contact and requirements', contactIntro: 'Our team will confirm the quote before any order or payment is created.', companyPlaceholder: 'Company name', namePlaceholder: 'Contact name', emailPlaceholder: 'Business email', phonePlaceholder: 'Phone or WhatsApp', dateLabel: 'Target delivery date', messagePlaceholder: 'Specification, destination, voltage, head/flow or other requirements', sendingLabel: 'Sending...', submitLabel: 'Submit purchase request', paymentReservation: 'PayPal payment support reserved', agentTitle: 'Lundu customer service', agentIntro: 'Ask about product selection, applications, lead time or purchase preparation.', thinkingLabel: '...', agentPlaceholder: 'Describe your product or project requirements', sendLabel: 'Send', openListLabel: 'Open purchase order', statusLabel: 'Order status', inquiryStatus: 'Purchase request pending', quoteStatus: 'Waiting for sales quote', orderStatus: 'Waiting for order confirmation', paymentStatus: 'PayPal payment support reserved', statusInquiryDescription: 'Submit products and contact details to start a purchase review.', statusQuoteDescription: 'Our team will confirm specification, price, inventory and lead time.', statusOrderDescription: 'Review the confirmed commercial terms before creating an order.', statusPaymentDescription: 'PayPal Checkout integration is reserved; no funds are captured here.', confirmQuoteLabel: 'Review quote', confirmOrderLabel: 'Confirm order', paymentButtonLabel: 'Open payment placeholder'
 } : {
-  kicker: '采购协同', title: '准备采购', intro: '选择产品并提交采购单，由团队确认规格、价格、交期和支付条款。', listLabel: '采购单', detailLabel: '产品详情', addLabel: '加入采购单', quoteNote: '项目规格', quoteSummary: '项产品已加入采购单', quoteSummaryNote: '团队会根据规格、数量、交期和目的地确认报价。', agentLabel: '客服智能体', collapseAgentLabel: '收起客服', quickPromptLabel: '快速提问', quickPrompts: ['推荐适合泵组的电机', '需要确认哪些参数？', '如何准备采购单？'], flowLabel: '采购流程', stepInquiry: '采购单', stepQuote: '报价', stepOrder: '订单', stepPayment: '支付', closeLabel: '关闭', listTitle: '我的采购单', listIntro: '添加产品和数量，一次提交采购需求。', quantityLabel: '数量', removeLabel: '移除', emptyList: '暂未选择产品。', contactTitle: '联系方式与需求', contactIntro: '团队会先确认报价，确认后再进入订单和支付。', companyPlaceholder: '公司名称', namePlaceholder: '联系人', emailPlaceholder: '商务邮箱', phonePlaceholder: '电话或 WhatsApp', dateLabel: '目标交付日期', messagePlaceholder: '规格、目的地、电压、流量/扬程或其他要求', sendingLabel: '提交中...', submitLabel: '提交采购单', paymentReservation: '支付接口已预留', agentTitle: '伦度客服智能体', agentIntro: '可咨询产品选型、应用场景、交期或采购准备。', thinkingLabel: '…', agentPlaceholder: '描述产品或项目需求', sendLabel: '发送', openListLabel: '打开采购单', statusLabel: '采购状态', inquiryStatus: '待提交采购单', quoteStatus: '待报价', orderStatus: '待确认订单', paymentStatus: '支付接口已预留', statusInquiryDescription: '提交产品、数量和联系方式，开始采购审核。', statusQuoteDescription: '团队会确认规格、价格、库存和交期。', statusOrderDescription: '核对确认后的商务条款，再创建订单。', statusPaymentDescription: '支付渠道适配器已预留，本页面不会产生扣款。', confirmQuoteLabel: '确认报价', confirmOrderLabel: '确认订单', paymentButtonLabel: '打开支付占位'
+  kicker: '采购协同', title: '准备采购', intro: '选择产品并提交采购单，由团队确认规格、价格、交期和支付条款。', listLabel: '采购单', detailLabel: '产品详情', addLabel: '加入采购单', quoteNote: '项目规格', quoteSummary: '项产品已加入采购单', quoteSummaryNote: '团队会根据规格、数量、交期和目的地确认报价。', agentLabel: '客服智能体', collapseAgentLabel: '收起客服', quickPromptLabel: '快速提问', quickPrompts: ['推荐适合泵组的电机', '需要确认哪些参数？', '如何准备采购单？'], flowLabel: '采购流程', stepInquiry: '采购单', stepQuote: '报价', stepOrder: '订单', stepPayment: '支付', paymentSupportLabel: '支持 PayPal 支付', paymentSupportNote: ' · 订单确认后接入 Checkout 接口', closeLabel: '关闭', listTitle: '我的采购单', listIntro: '添加产品和数量，一次提交采购需求。', quantityLabel: '数量', removeLabel: '移除', emptyList: '暂未选择产品。', contactTitle: '联系方式与需求', contactIntro: '团队会先确认报价，确认后再进入订单和支付。', companyPlaceholder: '公司名称', namePlaceholder: '联系人', emailPlaceholder: '商务邮箱', phonePlaceholder: '电话或 WhatsApp', dateLabel: '目标交付日期', messagePlaceholder: '规格、目的地、电压、流量/扬程或其他要求', sendingLabel: '提交中...', submitLabel: '提交采购单', paymentReservation: '支持 PayPal 支付（接口预留）', agentTitle: '伦度客服智能体', agentIntro: '可咨询产品选型、应用场景、交期或采购准备。', thinkingLabel: '…', agentPlaceholder: '描述产品或项目需求', sendLabel: '发送', openListLabel: '打开采购单', statusLabel: '采购状态', inquiryStatus: '待提交采购单', quoteStatus: '待报价', orderStatus: '待确认订单', paymentStatus: '支持 PayPal 支付（接口预留）', statusInquiryDescription: '提交产品、数量和联系方式，开始采购审核。', statusQuoteDescription: '团队会确认规格、价格、库存和交期。', statusOrderDescription: '核对确认后的商务条款，再创建订单。', statusPaymentDescription: 'PayPal Checkout 支付适配器已预留，本页面不会产生扣款。', confirmQuoteLabel: '确认报价', confirmOrderLabel: '确认订单', paymentButtonLabel: '打开支付占位'
 })
 const commerceUi = computed(() => {
   const base = baseCommerceUi.value
@@ -728,9 +742,9 @@ const customerServiceUi = computed(() => isEnglish.value ? {
   quickLabels: ['产品选型', '参数确认', '采购咨询'], placeholder: '请输入您的问题或需求', replying: '正在回复'
 })
 const commerceStatusUi = computed(() => isEnglish.value ? {
-  paymentTitle: 'Payment interface reserved', paymentDescription: 'The payment provider adapter is ready for a future integration. No payment credentials are collected and no charge is made here.', paymentReserved: 'Payment setup pending', paymentMethods: 'Payment adapter reserved', backToInquiry: 'Back to purchase order'
+  paymentTitle: 'Payment interface reserved', paymentDescription: 'The payment provider adapter is ready for a future integration. No payment credentials are collected and no charge is made here.', paymentProviderLabel: 'PayPal', paymentProviderNote: 'Available after order confirmation', paymentReserved: 'PayPal payment support reserved', paymentMethods: 'The PayPal Checkout adapter can be connected after order confirmation. This page does not collect credentials or charge a payment.', backToInquiry: 'Back to purchase order'
 } : {
-  paymentTitle: '支付接口预留', paymentDescription: '支付适配器已预留，等待订单确认和支付渠道配置。本页面不会收集密钥，也不会产生扣款。', paymentReserved: '等待支付配置', paymentMethods: '支付适配器已预留', backToInquiry: '返回采购单'
+  paymentTitle: '支付接口预留', paymentDescription: '支付适配器已预留，等待订单确认和支付渠道配置。本页面不会收集密钥，也不会产生扣款。', paymentProviderLabel: 'PayPal', paymentProviderNote: '订单确认后接入', paymentReserved: '支持 PayPal 支付（接口预留）', paymentMethods: '订单确认后可接入 PayPal Checkout；当前仅展示支付方式，不收集凭证或发起扣款。', backToInquiry: '返回采购单'
 })
 const commerceStageLabel = computed(() => {
   const ui = commerceUi.value
@@ -1401,11 +1415,17 @@ onMounted(async () => {
   window.visualViewport?.addEventListener('resize', updateCustomerServiceViewport)
   window.visualViewport?.addEventListener('scroll', updateCustomerServiceViewport)
   const requestedLocale = new URLSearchParams(window.location.search).get('lang') || ''
-  await Promise.all([
-    systemStore.loadConfig({ locale: requestedLocale }),
-    readPublicServiceContent().then(content => { serviceContent.value = content }).catch(() => {})
-      .finally(() => { servicesLoading.value = false })
-  ])
+  try {
+    await Promise.all([
+      systemStore.loadConfig({ locale: requestedLocale }),
+      readPublicServiceContent().then(content => { serviceContent.value = content }).catch(() => {})
+        .finally(() => { servicesLoading.value = false })
+    ])
+  } finally {
+    await nextTick()
+    window.__EISCORE_INITIAL_CONTENT_READY__ = true
+    window.dispatchEvent(new Event('eiscore:initial-content-ready'))
+  }
   hydrateInquiryList()
   systemStore.initTheme()
   startHeroAutoplay()
@@ -1572,7 +1592,11 @@ const handleLogin = async () => {
       const dshReturn = typeof route.query.dsh_return === 'string' ? route.query.dsh_return : ''
       if (dshReturn) {
         const returnUrl = new URL(dshReturn, window.location.origin)
-        if (returnUrl.origin !== window.location.origin || returnUrl.pathname !== '/harness-embed-api/eiscore/auth/handoff') {
+        const returnPaths = [
+          '/harness-embed-api/eiscore/auth/handoff',
+          '/harness-flash-embed-api/eiscore/auth/handoff'
+        ]
+        if (returnUrl.origin !== window.location.origin || !returnPaths.includes(returnUrl.pathname)) {
           throw new Error('无效的 Harness 回调地址')
         }
         const handoffResponse = await fetch('/company-site/auth/handoff', {
@@ -1584,7 +1608,9 @@ const handleLogin = async () => {
         if (!await completeHarnessAuth({ code: handoff.code, callbackPath: returnUrl.pathname })) {
           throw new Error('Harness 登录交接失败，请重试')
         }
-        window.location.assign('/harness')
+        window.location.assign(returnUrl.pathname.startsWith('/harness-flash-embed-api/')
+          ? '/harness-flash-embed/#flash-builder'
+          : '/harness')
         return
       }
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''

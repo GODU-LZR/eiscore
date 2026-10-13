@@ -48,6 +48,14 @@ function safePublicAssetUrl(value) {
   return safeAbsoluteUrl(raw)
 }
 
+function enterpriseAssetUrl(value) {
+  const raw = text(value)
+  if (raw.startsWith('assets/') && !raw.includes('..') && !raw.includes('\\')) {
+    return `/enterprise-assets/${raw.slice('assets/'.length)}`
+  }
+  return safePublicAssetUrl(raw)
+}
+
 const LUNDU_LEGACY_CAROUSEL_ASSETS = Object.freeze({
   '/enterprise-assets/site/ratio/application-wide.png': '/enterprise-assets/site/crops/generated-application-flow-wide.jpg',
   '/enterprise-assets/site/ratio/factory-wide.png': '/enterprise-assets/site/crops/generated-factory-floor-wide.jpg'
@@ -413,6 +421,9 @@ export function enterpriseProfileFromSiteConfig(payload, {
     logoUrl: hasExplicitLogo
       ? text(trademark.asset || trademark.logoUrl || site.logoUrl)
       : text(enterpriseConfig?.branding?.logoUrl),
+    faviconUrl: enterpriseAssetUrl(
+      trademark.faviconAssetPath || trademark.favicon_asset_path || trademark.faviconUrl || trademark.favicon_url
+    ),
     themeColor: normalizedThemeColor(site, enterpriseConfig),
     publicSiteUrl: resolveEnterprisePublicSiteUrl(site, { enterpriseConfig }),
     description: text(seo.description, enterpriseConfig?.branding?.login?.description),
