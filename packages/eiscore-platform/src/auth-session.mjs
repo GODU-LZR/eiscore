@@ -5,7 +5,7 @@ import { createSafeStorage } from './safe-storage.mjs'
 
 export const AUTH_TOKEN_KEY = 'auth_token'
 export const USER_INFO_KEY = 'user_info'
-export const DEFAULT_MAX_TOKEN_LENGTH = 8192
+export const DEFAULT_MAX_TOKEN_LENGTH = 12 * 1024
 
 export function parseStoredToken(raw) {
   if (!raw) return ''
