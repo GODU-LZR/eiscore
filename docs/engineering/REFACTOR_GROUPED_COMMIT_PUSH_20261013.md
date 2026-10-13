@@ -73,6 +73,6 @@ Harness 组合首次发现两个过期门禁：业务服务被要求加载 Flash
 - 隔离构建源码提交：`a40051808d3292b8455fafa1123a508ad90ba762`；后续提交只修改门禁/目录/记录，没有修改前端源码。
 - 完整前端隔离构建：12/12 构建成功，汇总 11 个子应用 mount，12 个入口齐全；独立 checkout 构建后工作树干净。报告为 `output/commit-clean-20261013/run-064b1d0a-d51e-40b3-837f-d934cbdc5cf0/verification-report.json`，详细日志为同目录 `frontend-build.log`。已有依赖复用，但平台源码解析到独立 checkout，未使用主仓库未提交源码。构建约 4 分 43 秒，保留 Sass 弃用、循环 chunk 和大包警告，未将其解释为构建失败。
 - 主仓库 12 份 dist 共 1,039 个文件，构建前后摘要逐份相同；基座目录摘要仍为 `f72c1d3a6bfb78d91f4f90c4921b619a5b19831140c5b33fffdf6a51a2487cd7`。没有切换本地验收制品。
-- Git 推送：待本轮最终验证后执行并补齐实际远端证据。
+- Git 推送：新增专用 remote `eiscore=https://github.com/GODU-LZR/eiscore.git`，保留原有 origin/upstream 配置。普通非强制推送已成功，将远端从 `9d4fb782` 推进到包含本记录的 `79f10acc68fa5018a8c847f213c233e0bade8ed2`；随后 `git ls-remote` 返回相同提交，工作树干净，分支已跟踪 `eiscore/codex/systematic-refactor`。本次证据补记也会独立提交并推送；没有向 DeepSeek Harness 或占位地址推送，没有执行伦度部署。
 
 这些输出仅为本机验收证据，不作为产品源码提交。完成源码整理和推送不能替代后续运行态切换与人工验收。
