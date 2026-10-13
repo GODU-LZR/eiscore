@@ -150,11 +150,13 @@ function getApiProxy(rawPath) {
   if (rawPath === '/rpc' || rawPath.startsWith('/rpc/')) {
     return { target: 'http://127.0.0.1:3000', rewrite: (value) => value }
   }
+  // Canonical realtime endpoint. Keep /agent as a legacy HTTP alias, but
+  // WebSocket clients use the same-origin /ws path in the browser.
+  if (rawPath === '/ws') {
+    return { target: 'http://127.0.0.1:8078', rewrite: (value) => value }
+  }
   if (rawPath === '/agent' || rawPath.startsWith('/agent/')) {
     return { target: 'http://127.0.0.1:8078', rewrite: (value) => value.replace(/^\/agent\b/, '') || '/' }
-  }
-  if (rawPath === '/ide' || rawPath.startsWith('/ide/')) {
-    return { target: 'http://127.0.0.1:8443', rewrite: (value) => value.replace(/^\/ide\b/, '') || '/' }
   }
   if (rawPath === '/production/agent' || rawPath.startsWith('/production/agent/')) {
     return { target: 'http://127.0.0.1:8078', rewrite: (value) => value.replace(/^\/production\/agent\b/, '') || '/' }
@@ -189,7 +191,19 @@ function getMicroProxy(rawPath) {
     restPath.startsWith('/static/')
   )
 
-  return shouldProxyMicroRoute || shouldProxyMicroAsset ? target : null
+  if (shouldProxyMicroRoute) {
+    if (target.prefix === '/mobile' && existsFile(path.resolve(root, 'mobile', 'index.html'))) return null
+    return target
+  }
+  if (!shouldProxyMicroAsset) return null
+
+  // The packaged click-test server owns the generated micro-app files. Only
+  // fall back to a dev-server port when a requested asset is absent locally.
+  const candidate = path.resolve(root, `.${rawPath}`)
+  if (candidate === root || candidate.startsWith(`${root}${path.sep}`)) {
+    if (existsFile(candidate)) return null
+  }
+  return target
 }
 
 function serveStatic(req, res, rawPath) {
@@ -200,6 +214,9 @@ function serveStatic(req, res, rawPath) {
 
   let relativePath = base === '/' ? rawPath : rawPath.slice(base.length) || '/'
   if (relativePath === '/') relativePath = '/index.html'
+  if ((relativePath === '/mobile' || relativePath === '/mobile/') && existsFile(path.join(root, 'mobile', 'index.html'))) {
+    relativePath = '/mobile/index.html'
+  }
 
   let filePath
   try {
@@ -224,7 +241,14 @@ function serveStatic(req, res, rawPath) {
   const shouldFallback = req.method === 'GET' || req.method === 'HEAD'
   const ext = path.extname(filePath)
   if (shouldFallback && (!ext || acceptsHtml(req))) {
-    sendFile(req, res, path.join(root, 'index.html'), rawPath)
+    const standaloneApp = relativePath === '/mobile' || relativePath.startsWith('/mobile/')
+      ? 'mobile'
+      : isStandaloneAppsPreviewPath(rawPath) ? 'apps' : ''
+    const standaloneIndex = path.join(root, standaloneApp, 'index.html')
+    const fallbackPath = standaloneApp && existsFile(standaloneIndex)
+      ? standaloneIndex
+      : path.join(root, 'index.html')
+    sendFile(req, res, fallbackPath, rawPath)
     return
   }
 
@@ -329,6 +353,10 @@ function proxyRequest(req, res, target, rewrittenPath) {
   }
 
   const upstream = client.request(options, (upstreamRes) => {
+    upstreamRes.on('error', (error) => {
+      if (!res.headersSent) sendText(res, 502, `Proxy error: ${error.message}`)
+      else res.destroy()
+    })
     Object.entries(upstreamRes.headers).forEach(([key, value]) => {
       if (value !== undefined) res.setHeader(key, value)
     })
@@ -340,6 +368,8 @@ function proxyRequest(req, res, target, rewrittenPath) {
   upstream.on('error', (error) => {
     sendText(res, 502, `Proxy error: ${error.message}`)
   })
+  req.on('error', () => upstream.destroy())
+  res.on('error', () => upstream.destroy())
 
   req.pipe(upstream)
 }
@@ -361,21 +391,26 @@ function proxyUpgrade(req, socket, head, target, rewrittenPath) {
   }
 
   const upstream = client.request(options)
+  upstream.on('error', () => {
+    socket.destroy()
+  })
+  socket.on('error', () => {
+    upstream.destroy()
+  })
   upstream.on('upgrade', (upstreamRes, upstreamSocket, upstreamHead) => {
-    socket.write([
-      'HTTP/1.1 101 Switching Protocols',
-      'Upgrade: websocket',
-      'Connection: Upgrade',
-      '',
-      ''
-    ].join('\r\n'))
+    upstreamSocket.on('error', () => socket.destroy())
+    const responseLines = [
+      `HTTP/1.1 ${upstreamRes.statusCode || 101} ${upstreamRes.statusMessage || 'Switching Protocols'}`
+    ]
+    for (let index = 0; index < upstreamRes.rawHeaders.length; index += 2) {
+      responseLines.push(`${upstreamRes.rawHeaders[index]}: ${upstreamRes.rawHeaders[index + 1]}`)
+    }
+    responseLines.push('', '')
+    socket.write(responseLines.join('\r\n'))
     if (upstreamHead?.length) socket.write(upstreamHead)
     if (head?.length) upstreamSocket.write(head)
     upstreamSocket.pipe(socket)
     socket.pipe(upstreamSocket)
-  })
-  upstream.on('error', () => {
-    socket.destroy()
   })
   upstream.end()
 }

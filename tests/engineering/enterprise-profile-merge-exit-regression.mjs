@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { loadViteDevProxyTargets } from '../../scripts/vite-dev-proxy-config.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
 const audit = readFileSync(resolve(repoRoot, 'docs/engineering/ENTERPRISE_PROFILE_MERGE_EXIT_AUDIT.md'), 'utf8')
@@ -76,7 +77,9 @@ assert.match(packageJson.scripts?.['test:e2e:enterprise-profile-merge'] || '', /
 assert.match(e2eConfig, /enterprise-profile-playwright-result\.json/)
 assert.match(e2eConfig, /VITE_DEV_CORS_ORIGIN/)
 assert.match(baseVite, /rawPath\.startsWith\('\/company-site'\)/)
-assert.match(baseVite, /'\/company-site':\s*\{\s*target:\s*'http:\/\/localhost:8092'/s)
+assert.match(baseVite, /const devProxyTargets = loadViteDevProxyTargets\(\)/)
+assert.match(baseVite, /'\/company-site':\s*\{\s*target:\s*devProxyTargets\.microApps\b/s)
+assert.equal(loadViteDevProxyTargets({}).microApps, 'http://127.0.0.1:18080')
 // Production Nginx serves the built company-site micro-frontend statically;
 // only its authenticated/public API namespaces are proxied to the EISCore
 // Agent Runtime. The old host.docker.internal:8092 assertion described the

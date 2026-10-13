@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const repoRoot = resolve(import.meta.dirname, '..')
@@ -32,6 +32,9 @@ for (const [mount, packageName] of Object.entries(apps)) {
     throw new Error(`Frontend dist is missing index.html: ${source}`)
   }
   const destination = resolve(hostDist, mount)
+  // Replace the mount as a unit so stale hashed chunks cannot remain in the
+  // host dist and be picked up by an old entry or cache manifest.
+  rmSync(destination, { recursive: true, force: true })
   mkdirSync(destination, { recursive: true })
   cpSync(source, destination, { recursive: true, force: true })
   count += 1
