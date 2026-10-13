@@ -20,6 +20,9 @@ const lunduPatch = read('deploy/lundu/dsh-web.patch.yml')
 const lunduTemplate = read('deploy/lundu/.env.example')
 const lunduNginx = read('deploy/lundu/nginx/lundu-eiscore.conf')
 const rootNginx = read('nginx/conf.d/default.conf')
+for (const source of [rootNginx, lunduNginx]) {
+  assert.match(source, /large_client_header_buffers\s+4\s+16k\s*;/, 'Nginx must admit permission-bearing JWTs within a bounded header buffer')
+}
 const bridgeDockerfile = read('agent-harness/Dockerfile')
 const sdkBridge = read('agent-harness/dsh-http-bridge.mjs')
 const harnessAuthClient = read('eiscore-base/src/services/harness-auth-client.js')
