@@ -66,12 +66,12 @@ BEGIN
   FOR role_row IN
     SELECT rolname, rolcanlogin, rolinherit
     FROM pg_roles
-    WHERE rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'web_anon', 'web_user')
+    WHERE rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'eiscore_flash_agent', 'web_anon', 'web_user')
   LOOP
     IF role_row.rolname IN ('eiscore_owner', 'eiscore_migrator', 'web_anon', 'web_user') AND role_row.rolcanlogin THEN
       RAISE EXCEPTION '% must not be a login role', role_row.rolname;
     END IF;
-    IF role_row.rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent')
+    IF role_row.rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'eiscore_flash_agent')
        AND role_row.rolinherit THEN
       RAISE EXCEPTION '% must be NOINHERIT', role_row.rolname;
     END IF;
@@ -79,7 +79,7 @@ BEGIN
 
   SELECT count(*) INTO superuser_count
   FROM pg_roles
-  WHERE rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'web_anon', 'web_user')
+  WHERE rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'eiscore_flash_agent', 'web_anon', 'web_user')
     AND rolsuper;
   IF superuser_count <> 0 THEN
     RAISE EXCEPTION 'database service roles must not be superusers';
@@ -87,10 +87,51 @@ BEGIN
 
   SELECT count(*) INTO bypassrls_count
   FROM pg_roles
-  WHERE rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'web_anon', 'web_user')
+  WHERE rolname IN ('eiscore_owner', 'eiscore_migrator', 'eiscore_authenticator', 'eiscore_agent', 'eiscore_flash_agent', 'web_anon', 'web_user')
     AND rolbypassrls;
   IF bypassrls_count <> 0 THEN
     RAISE EXCEPTION 'database service roles must not bypass RLS';
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'eiscore_flash_agent')
+     OR NOT has_schema_privilege('eiscore_flash_agent', 'public', 'USAGE')
+     OR NOT has_schema_privilege('eiscore_flash_agent', 'app_center', 'USAGE')
+     OR NOT has_schema_privilege('eiscore_flash_agent', 'app_data', 'USAGE')
+     OR NOT has_function_privilege('eiscore_flash_agent', 'public.flash_agent_context()', 'EXECUTE')
+     OR NOT has_function_privilege('eiscore_flash_agent', 'app_center.create_flash_data_app_table(uuid,text,jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Flash role is missing its documented isolated access';
+  END IF;
+
+  IF has_schema_privilege('eiscore_flash_agent', 'hr', 'USAGE')
+     OR has_schema_privilege('eiscore_flash_agent', 'scm', 'USAGE')
+     OR has_schema_privilege('eiscore_flash_agent', 'workflow', 'USAGE')
+     OR has_schema_privilege('eiscore_flash_agent', 'company_site', 'USAGE')
+     OR has_function_privilege('eiscore_flash_agent', 'public.agent_ontology_context(text,integer)', 'EXECUTE')
+     OR has_function_privilege('eiscore_flash_agent', 'app_center.create_data_app_table(uuid,text,jsonb)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Flash role has access outside its isolated boundary';
+  END IF;
+
+  IF NOT has_table_privilege('eiscore_flash_agent', 'app_center.apps', 'SELECT')
+     OR NOT has_table_privilege('eiscore_flash_agent', 'app_center.apps', 'INSERT')
+     OR NOT has_table_privilege('eiscore_flash_agent', 'app_center.apps', 'UPDATE')
+     OR NOT has_table_privilege('eiscore_flash_agent', 'app_center.apps', 'DELETE')
+     OR NOT has_table_privilege('eiscore_flash_agent', 'app_center.published_routes', 'SELECT')
+     OR NOT has_table_privilege('eiscore_flash_agent', 'app_center.published_routes', 'INSERT')
+     OR NOT has_table_privilege('eiscore_flash_agent', 'app_center.published_routes', 'UPDATE')
+     OR NOT has_table_privilege('eiscore_flash_agent', 'app_center.published_routes', 'DELETE')
+     OR NOT has_table_privilege('eiscore_flash_agent', 'app_center.execution_logs', 'SELECT')
+     OR NOT has_table_privilege('eiscore_flash_agent', 'app_center.execution_logs', 'INSERT')
+     OR has_table_privilege('eiscore_flash_agent', 'app_center.execution_logs', 'UPDATE')
+     OR has_table_privilege('eiscore_flash_agent', 'app_center.execution_logs', 'DELETE') THEN
+    RAISE EXCEPTION 'Flash role app-center table privileges are not least privilege';
+  END IF;
+
+  IF has_table_privilege('eiscore_flash_agent', 'public.users', 'SELECT')
+     OR has_table_privilege('eiscore_flash_agent', 'public.roles', 'SELECT')
+     OR has_table_privilege('eiscore_flash_agent', 'public.permissions', 'SELECT')
+     OR has_table_privilege('eiscore_flash_agent', 'app_data.twin_sessions', 'SELECT')
+     OR has_table_privilege('eiscore_flash_agent', 'app_data.twin_messages', 'SELECT') THEN
+    RAISE EXCEPTION 'Flash role has direct business or digital-twin table access';
   END IF;
 
   IF NOT EXISTS (

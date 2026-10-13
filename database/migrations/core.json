@@ -147,6 +147,201 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-012",
+      "path": "database/migrations/sql/core-012-user-lifecycle-and-timestamps.sql",
+      "sha256": "36855f437164018273b7860e163a26bf01eeaaf66e3d341aafde0be25fbb3d52",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-013",
+      "path": "database/migrations/sql/core-013-acl-lifecycle-and-dynamic-matrices.sql",
+      "sha256": "e1d8d6fb96a3ef79b0eabe40f0d338b32f435dedf62bd0edf90772cb9c718c7a",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-014",
+      "path": "database/migrations/sql/core-014-static-application-permissions.sql",
+      "sha256": "56abc307a20a3ac90b59093abfff1d5cdce3747655917fd3b10bb2fa9cdedd8b",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-015",
+      "path": "database/migrations/sql/core-015-department-scope-catalog.sql",
+      "sha256": "104f438869b948c21af17de1da4ed5a7adfe50ddcd563833aa66f4359fc0b2a8",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-016",
+      "path": "database/migrations/sql/core-016-execution-log-location.sql",
+      "sha256": "e17a009fa7fe272102a5701f286fd8dc62a452276e1c5d9908a03f58f1aa2cc3",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-017",
+      "path": "database/migrations/sql/core-017-dynamic-app-permission-lifecycle.sql",
+      "sha256": "9fa07fc55c3eca5e22e40ec9c3c9c4c21bce2f6605e892aef269e63fb2404cd6",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-018",
+      "path": "database/migrations/sql/core-018-preserve-dynamic-app-acl-state.sql",
+      "sha256": "e9b968d3f823d2ef9373d9839f0c26aa834dfaac3b33cea98d96834257803a66",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-019",
+      "path": "database/migrations/sql/core-019-scope-dynamic-field-acl.sql",
+      "sha256": "4acc48651446f56470bdfd7c053a748930bd31425ee1903c02a48c6d10af5226",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-020",
+      "path": "database/migrations/sql/core-020-dynamic-field-acl-effective-module.sql",
+      "sha256": "a70a3e42e49305568b2ab282b243c35c3da77b302898e10d135845e9d3304a13",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-021",
+      "path": "database/migrations/sql/core-021-acl-lifecycle-correction.sql",
+      "sha256": "3c619424a44dc11f0cf171116c8c7778ccca649040137728016021a46cef6369",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-022",
+      "path": "database/migrations/sql/core-022-complete-department-scope-catalog.sql",
+      "sha256": "7bc70b9604cf589ce6593b8fee087cde8523eb61596c989bf59bdd05acf9b5ed",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-023",
+      "path": "database/migrations/sql/core-023-terminal-acl-lock.sql",
+      "sha256": "3e3ae8fe9436d760142b9bd367df9a9c949b4b1a4472728798d8d74d105c7c8e",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-024",
+      "path": "database/migrations/sql/core-024-activate-static-field-acl.sql",
+      "sha256": "3412f8e3ad9799d01a05784baa926f6b4e75dbe4ec6b995c4540db10726c2214",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-025",
+      "path": "database/migrations/sql/core-025-twin-admin-session-overview.sql",
+      "sha256": "8f9a4d7a619decbb5e38868601b38e2e8025d34ad8050c7ffe31b6984df4dc6e",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-026",
+      "path": "database/migrations/sql/core-026-flash-agent-role-boundary.sql",
+      "sha256": "e2a59f77765ae7eb385d554d5a957c8186da79b12e4ac2d056acc7ce01397cce",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

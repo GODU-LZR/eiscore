@@ -905,49 +905,14 @@ const printDoc = () => {
   const container = docContainerRef.value
   const paper = container ? container.querySelector('.eis-document-paper') : null
   if (!paper) return
-  const printWindow = window.open('', '_blank')
-  if (!printWindow) return
-  const sanitizePrintContent = (element) => {
-    const clone = element.cloneNode(true)
-    if (typeof document === 'undefined' || !document.createTreeWalker) return clone.outerHTML
-    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT)
-    while (walker.nextNode()) {
-      const node = walker.currentNode
-      if (node.tagName === 'SCRIPT') {
-        node.remove()
-        continue
-      }
-      Array.from(node.attributes || []).forEach((attr) => {
-        if (attr.name.toLowerCase().startsWith('on')) {
-          node.removeAttribute(attr.name)
-        }
-      })
-    }
-    return clone.outerHTML
+  const root = document.documentElement
+  const cleanup = () => {
+    root.classList.remove('eis-document-print-mode')
+    window.removeEventListener('afterprint', cleanup)
   }
-  const safePaper = sanitizePrintContent(paper)
-  const styleText = `
-    body { margin: 0; padding: 20px; background: #fff; }
-    .eis-document-paper { max-width: 900px; margin: 0 auto; font-family: "SimSun", "Songti SC", serif; color: #000; }
-    .doc-header { text-align: center; margin-bottom: 20px; position: relative; }
-    .doc-title { font-size: 24px; font-weight: bold; margin: 0; padding-bottom: 10px; border-bottom: 2px solid #000; display: inline-block; }
-    .doc-no { position: absolute; right: 0; top: 5px; font-size: 12px; font-family: sans-serif; }
-    .grid-row { border-top: 1px solid #000; border-left: 1px solid #000; }
-    .grid-cell { border-right: 1px solid #000; border-bottom: 1px solid #000; padding: 8px; min-height: 40px; display: flex; align-items: center; }
-    .field-label { font-weight: bold; margin-right: 8px; white-space: nowrap; font-size: 14px; }
-    .field-content { flex: 1; font-size: 14px; }
-    .section-title { font-weight: bold; padding: 5px 0; border-bottom: 1px solid #000; }
-    .custom-doc-table { width: 100%; border: 1px solid #000; border-collapse: collapse; }
-    .custom-doc-table th, .custom-doc-table td { border: 1px solid #000; padding: 6px; text-align: center; }
-    .table-toolbar, .image-actions, button, input, textarea, select { display: none !important; }
-  `
-  printWindow.document.write(`<!DOCTYPE html><html><head><title>单据打印</title><style>${styleText}</style></head><body>${safePaper}</body></html>`)
-  printWindow.document.close()
-  printWindow.focus()
-  setTimeout(() => {
-    printWindow.print()
-    printWindow.close()
-  }, 200)
+  root.classList.add('eis-document-print-mode')
+  window.addEventListener('afterprint', cleanup, { once: true })
+  requestAnimationFrame(() => window.print())
 }
 
 onMounted(() => {
@@ -1052,5 +1017,23 @@ watch([() => dynamicColumns.value, () => formData.value?.id], () => {
   .detail-page { background: white; padding: 0; height: auto; }
   .page-header { display: none; }
   .form-container { overflow: visible; padding: 0; }
+}
+
+@media print {
+  :global(html.eis-document-print-mode body *) { visibility: hidden !important; }
+  :global(html.eis-document-print-mode .detail-page),
+  :global(html.eis-document-print-mode .eis-document-paper),
+  :global(html.eis-document-print-mode .eis-document-paper *) { visibility: visible !important; }
+  :global(html.eis-document-print-mode .detail-page) {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    z-index: 2147483647 !important;
+  }
 }
 </style>

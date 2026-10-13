@@ -8,8 +8,41 @@ export const MODULE_LABELS = {
   home: '首页',
   hr: '人事',
   mms: '物料',
-  app: '应用中心'
+  materials: '物料管理',
+  app: '应用中心',
+  apps: '应用中心',
+  sales: '销售管理',
+  purchase: '采购管理',
+  production: '生产管理',
+  quality: '质量管理',
+  equipment: '设备管理',
+  decision: '决策支持',
+  'company-site': '企业站点运营',
+  company_site: '企业站点运营',
+  bi: '智能 BI'
 }
+
+// The module matrix follows the top-level sidebar. Legacy aliases remain in
+// MODULE_LABELS so existing grants can still be rendered and checked, but are
+// not seeded as separate module permissions.
+export const SIDEBAR_MODULE_KEYS = Object.freeze([
+  'home', 'mms', 'hr', 'app', 'company-site', 'sales', 'purchase',
+  'production', 'quality', 'equipment', 'decision'
+])
+
+export const SIDEBAR_MODULE_LABELS = Object.freeze({
+  home: '工作台',
+  mms: '仓储管理',
+  hr: '人事管理',
+  app: '应用中心',
+  'company-site': '企业站点运营',
+  sales: '销售管理',
+  purchase: '采购管理',
+  production: '生产管理',
+  quality: '质量管理',
+  equipment: '设备管理',
+  decision: '决策支持'
+})
 
 export const APP_LABELS = {
   hr_employee: '人事花名册',
@@ -18,7 +51,39 @@ export const APP_LABELS = {
   hr_change: '调岗记录',
   hr_acl: '权限管理',
   hr_user: '用户管理',
-  mms_ledger: '物料台账'
+  mms_ledger: '物料台账',
+  mms_batch_rule: '批次号规则',
+  mms_warehouse: '仓库管理',
+  mms_inventory: '库存台账',
+  mms_dashboard: '库存大屏',
+  mms_bom: '产品配方',
+  production_plan: '生产建议',
+  production_work_order: '生产工单',
+  quality_dashboard: '质量总览',
+  quality_inspection: '检验台账',
+  quality_ncr: '质量异常',
+  quality_action: '整改任务',
+  quality_audit: '质量审核',
+  quality_standard: '检验标准',
+  equipment_dashboard: '设备总览',
+  equipment_asset: '设备台账',
+  equipment_check: '点检记录',
+  equipment_issue: '设备异常',
+  equipment_work_order: '维保工单',
+  equipment_plan: '巡检计划',
+  equipment_standard: '保养标准',
+  sales_customer: '客户档案',
+  sales_follow_up: '客户跟进',
+  sales_opportunity: '销售商机',
+  sales_order: '销售订单',
+  sales_payment: '回款记录',
+  sales_dashboard: '销售看板',
+  sales_cockpit: '销售驾驶舱',
+  purchase_dashboard: '采购驾驶舱',
+  purchase_supplier: '供应商档案',
+  purchase_demand: '采购需求',
+  purchase_order: '采购订单',
+  purchase_arrival: '到货跟踪'
 }
 
 export const OP_ACTION_LABELS = {
@@ -32,7 +97,27 @@ export const OP_ACTION_LABELS = {
   save_layout: '保存布局',
   member_manage: '成员管理',
   shift_manage: '班次管理',
-  shift_create: '班次新增'
+  shift_create: '班次新增',
+  stock_in: '入库',
+  stock_out: '出库',
+  workflow_start: '流程发起',
+  workflow_transition: '流程流转',
+  workflow_complete: '流程完结',
+  status_transition: '状态变更',
+  review: '审核',
+  pause: '暂停',
+  resume: '恢复',
+  create_order: '生成订单',
+  submit: '提交',
+  close: '关闭',
+  reopen: '重新打开',
+  register_arrival: '登记到货',
+  confirm: '确认',
+  cancel: '取消',
+  confirm_inbound: '确认入库',
+  mark_exception: '标记异常',
+  reverse: '反向处理',
+  audit: '审计'
 }
 
 export const PERMISSION_MODULE_OPTIONS = [
@@ -45,7 +130,9 @@ export const PERMISSION_MODULE_OPTIONS = [
   { label: APP_LABELS.hr_change, value: APP_LABELS.hr_change },
   { label: APP_LABELS.hr_acl, value: APP_LABELS.hr_acl },
   { label: APP_LABELS.hr_user, value: APP_LABELS.hr_user },
-  { label: APP_LABELS.mms_ledger, value: APP_LABELS.mms_ledger }
+  ...Object.entries(APP_LABELS)
+    .filter(([key]) => !['hr_employee', 'hr_org', 'hr_attendance', 'hr_change', 'hr_acl', 'hr_user', 'mms_ledger'].includes(key))
+    .map(([key, label]) => ({ label, value: label }))
 ]
 
 export const PERMISSION_ACTION_OPTIONS = [
@@ -62,6 +149,13 @@ export const PERMISSION_ACTION_OPTIONS = [
   { label: '班次管理', value: '班次管理' },
   { label: '班次新增', value: '班次新增' },
   { label: '成员管理', value: '成员管理' }
+  ,{ label: '入库', value: '入库' }
+  ,{ label: '出库', value: '出库' }
+  ,{ label: '审核', value: '审核' }
+  ,{ label: '提交', value: '提交' }
+  ,{ label: '确认', value: '确认' }
+  ,{ label: '取消', value: '取消' }
+  ,{ label: '流程流转', value: '流程流转' }
 ]
 
 export const buildModulePerm = (key) => `module:${key}`

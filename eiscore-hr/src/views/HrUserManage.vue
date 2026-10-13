@@ -12,6 +12,7 @@
       <eis-data-grid
         ref="gridRef"
         view-id="hr_user_manage"
+        acl-module="hr_user"
         api-url="/v_users_manage?order=id.asc"
         write-url="/v_users_manage"
         write-mode="patch"
@@ -77,6 +78,7 @@ import { pushAiContext } from '@/utils/ai-context'
 import { getUserInfo, setUserInfo } from '@/utils/auth'
 import { pushStandardGridAgentContext } from '@shared/eis-grid-standard-agent-context'
 import { buildGridLoadState } from '@shared/eis-grid-agent-context'
+import { getRoleLabel } from '@shared/eis-role-labels.mjs'
 
 const router = useRouter()
 const gridRef = ref(null)
@@ -102,12 +104,12 @@ const sopRoleOptions = [
 
 const staticColumnsAll = computed(() => ([
   { label: '用户名', prop: 'username', width: 140 },
-  { label: '登录密码', prop: 'password', width: 140, valueFormatter: (params) => (params.value ? '******' : '') },
+  { label: '登录密码', prop: 'password', width: 140, suppressCsvExport: true, formatter: (params) => (params.value ? '******' : '') },
   { label: '姓名', prop: 'full_name', width: 140 },
   { label: '手机号', prop: 'phone', width: 140 },
   { label: '邮箱', prop: 'email', width: 180 },
   { label: '部门', prop: 'dept_id', width: 160, type: 'select', options: deptOptions.value },
-  { label: 'SOP岗位', prop: 'sop_role', width: 150, type: 'select', options: sopRoleOptions },
+  { label: '操作指引岗位', prop: 'sop_role', width: 150, type: 'select', options: sopRoleOptions },
   { label: '头像', prop: 'avatar', width: 120, type: 'file', fileMaxCount: 1, fileMaxSizeMb: 2, fileAccept: 'image/*', fileStoreMode: 'url' },
   { label: '角色', prop: 'role_id', width: 160, type: 'select', options: roleOptions.value }
 ]))
@@ -230,7 +232,7 @@ const loadRoles = async () => {
       headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
     })
     roleOptions.value = Array.isArray(res)
-      ? res.map((r) => ({ label: r.name || r.code, value: r.id }))
+      ? res.map((r) => ({ label: getRoleLabel(r), value: r.id }))
       : []
   } catch (e) {
     console.error(e)
@@ -264,7 +266,7 @@ const handleCreate = async () => {
         username: `user_${suffix}`,
         password: '123456',
         full_name: '新用户',
-        status: 'active'
+        status: 'created'
       }
     })
     const newUser = Array.isArray(userRes) ? userRes[0] : userRes
