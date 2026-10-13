@@ -11,6 +11,7 @@ services:
       POSTGRES_DB: eiscore
       POSTGREST_DB_PASSWORD: "${POSTGREST_DB_PASSWORD:?POSTGREST_DB_PASSWORD is required}"
       AGENT_DB_PASSWORD: "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"
+      FLASH_AGENT_DB_PASSWORD: "${FLASH_AGENT_DB_PASSWORD:?FLASH_AGENT_DB_PASSWORD is required}"
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
     volumes:
       - lundu_eiscore_pgdata:/var/lib/postgresql/data
@@ -23,6 +24,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+    networks: [data-plane]
 
   api:
     image: postgrest/postgrest:latest
@@ -34,6 +36,7 @@ services:
       PGRST_DB_ANON_ROLE: web_anon
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
     depends_on: {db: {condition: service_healthy}}
+    networks: [data-plane]
 
   agent:
     build: {context: ./source, dockerfile: realtime/Dockerfile.prod}
@@ -43,6 +46,7 @@ services:
       NODE_ENV: development
       COMPANY_SITE_PREVIEW_ALLOW_DRAFT: "true"
       PORT: 8078
+      RUNTIME_PROFILE: business
       EISCORE_DB_HOST: db
       EISCORE_DB_PORT: 5432
       EISCORE_DB_NAME: eiscore
@@ -61,6 +65,38 @@ services:
     volumes:
       - lundu_harness_audit:/var/lib/eiscore
     depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
+    networks: [data-plane, business-internal]
+
+  flash-agent-runtime:
+    build: {context: ./source, dockerfile: realtime/Dockerfile.prod}
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      NODE_ENV: development
+      COMPANY_SITE_PREVIEW_ALLOW_DRAFT: "false"
+      PORT: 8078
+      RUNTIME_PROFILE: flash
+      EISCORE_DB_HOST: db
+      EISCORE_DB_PORT: 5432
+      EISCORE_DB_NAME: eiscore
+      EISCORE_AGENT_DB_USER: eiscore_flash_agent
+      AGENT_DB_PASSWORD: "${FLASH_AGENT_DB_PASSWORD:?FLASH_AGENT_DB_PASSWORD is required}"
+      AGENT_POSTGREST_ROLE: eiscore_flash_agent
+      AGENT_POSTGREST_URL: http://api:3000
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
+      EISCORE_HARNESS_ENABLED: "${EISCORE_HARNESS_ENABLED:?EISCORE_HARNESS_ENABLED is required}"
+      EISCORE_HARNESS_URL: "${FLASH_EISCORE_HARNESS_URL:-http://flash-harness-bridge:3080}"
+      EISCORE_HARNESS_AUDIT_FILE: "${FLASH_EISCORE_HARNESS_AUDIT_FILE:?FLASH_EISCORE_HARNESS_AUDIT_FILE is required}"
+      EISCORE_HARNESS_AUDIT_HASH_KEY: "${FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY:?FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY is required}"
+      EISCORE_HARNESS_BRIDGE_SECRET: "${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?FLASH_EISCORE_HARNESS_BRIDGE_SECRET is required}"
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+      FLASH_PROJECT_PATH: "${FLASH_PROJECT_PATH:-eiscore-apps/src/views/drafts}"
+      FLASH_WORKDIR: "${FLASH_WORKDIR:-/workspace/eiscore-apps/src/views/drafts}"
+    volumes:
+      - ./source/eiscore-apps:/workspace/eiscore-apps
+      - lundu_flash_harness_audit:/var/lib/eiscore
+    depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
+    networks: [data-plane, flash-internal]
 
   web:
     image: nginx:1.27-alpine
@@ -69,7 +105,8 @@ services:
     volumes:
       - ./release:/usr/share/nginx/html:ro
       - ./nginx/lundu-eiscore.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on: [api, agent]
+    depends_on: [api, agent, flash-agent-runtime, deepseek-web, deepseek-flash-web]
+    networks: [data-plane, business-internal, flash-internal]
 
   deepseek-web:
     build: {context: ./source, dockerfile: agent-harness/Dockerfile}
@@ -83,17 +120,54 @@ services:
     command: ["/opt/eiscore-harness/dsh-web-runner.mjs"]
     environment:
       DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/business
+      DSH_DEFAULT_WORKSPACE_TITLE: 业务助手工作区
+      EISCORE_HARNESS_CAPABILITY_PROFILE: business
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
       EISCORE_GATEWAY_URL: http://agent:8078
       EISCORE_AUTH_URL: https://lundu.eiscore.top
+      EISCORE_TOOL_PROXY_URL: http://agent:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: "${EISCORE_TOOL_PROXY_SECRET:?EISCORE_TOOL_PROXY_SECRET is required}"
     volumes:
       - deepseek_web_dsh_home:/var/lib/dsh
       - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
       - ./dsh-web.patch.yml:/opt/eiscore-harness/dsh-web.patch.yml:ro
       - ./dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
-    networks:
-      - default
-      - agent-internal
+      - ./source/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+    networks: [business-internal]
     depends_on: [agent]
+
+  deepseek-flash-web:
+    build: {context: ./source, dockerfile: agent-harness/Dockerfile}
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m"]
+    command: ["/opt/eiscore-harness/dsh-web-runner.mjs"]
+    environment:
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/flash
+      DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
+      DSH_PATCH_PATH: /opt/eiscore-harness/dsh-flash-web.patch.yml
+      EISCORE_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
+      EISCORE_HARNESS_CAPABILITY_PROFILE: flash
+      DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
+      EISCORE_GATEWAY_URL: http://flash-agent-runtime:8078
+      EISCORE_AUTH_URL: https://lundu.eiscore.top
+      EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+    volumes:
+      - deepseek_flash_web_dsh_home:/var/lib/dsh
+      - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
+      - ./dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
+      - ./dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
+      - ./source/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+    networks: [flash-internal]
+    depends_on: [flash-agent-runtime]
 
   harness-bridge:
     build: {context: ./source, dockerfile: agent-harness/Dockerfile}
@@ -111,13 +185,14 @@ services:
       DSH_HOME: /var/lib/dsh
       DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
       DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
+      HARNESS_PROFILE: business
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
       DSH_CWD: /opt/eiscore-harness
       DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
       EISCORE_TOOL_PROXY_URL: http://agent:8078/internal/harness/tool
       EISCORE_HARNESS_BRIDGE_SECRET: "${EISCORE_HARNESS_BRIDGE_SECRET:?EISCORE_HARNESS_BRIDGE_SECRET is required}"
       EISCORE_TOOL_PROXY_SECRET: "${EISCORE_TOOL_PROXY_SECRET:?EISCORE_TOOL_PROXY_SECRET is required}"
-      HARNESS_PLUGINS: enterprise-bi,worker-grid,digital-twin,workflow,company-sales,document-intake,flash-builder,engineering,independent-site-sales
+      HARNESS_PLUGINS: enterprise-bi,worker-grid,digital-twin,workflow,company-sales,document-intake,engineering,independent-site-sales
       BRIDGE_MAX_CONCURRENT_REQUESTS: "${BRIDGE_MAX_CONCURRENT_REQUESTS:-16}"
       BRIDGE_MAX_SESSIONS: "${BRIDGE_MAX_SESSIONS:-1000}"
       BRIDGE_MAX_TRACKED_REQUESTS: "${BRIDGE_MAX_TRACKED_REQUESTS:-10000}"
@@ -141,20 +216,66 @@ services:
       - ./source/agent-harness/http-bridge.js:/opt/http-bridge.js:ro
       - ./source/agent-harness/plugin-registry.js:/opt/plugin-registry.js:ro
       - ./source/agent-harness/plugin-contract.v1.json:/opt/plugin-contract.v1.json:ro
-    networks:
-      - default
-      - agent-internal
+    networks: [business-internal]
     depends_on:
       agent:
+        condition: service_started
+
+  flash-harness-bridge:
+    build: {context: ./source, dockerfile: agent-harness/Dockerfile}
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m"]
+    command: ["/opt/dsh-http-bridge.mjs"]
+    environment:
+      PORT: 3080
+      DSH_BIN: /opt/bridge/node_modules/.bin/dsh
+      DSH_HOME: /var/lib/dsh
+      DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
+      DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
+      HARNESS_PROFILE: flash
+      HARNESS_PLUGINS: flash-builder
+      DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
+      DSH_CWD: /opt/eiscore-harness
+      DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
+      EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
+      EISCORE_HARNESS_BRIDGE_SECRET: "${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?FLASH_EISCORE_HARNESS_BRIDGE_SECRET is required}"
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+      BRIDGE_STATE_FILE: "${FLASH_BRIDGE_STATE_FILE:-/var/lib/dsh/flash-bridge-state.json}"
+    healthcheck:
+      test: [CMD-SHELL, "node -e \"fetch('http://127.0.0.1:3080/readyz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - lundu_flash_harness_bridge_dsh_home:/var/lib/dsh
+      - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
+      - ./source/agent-harness/dsh-http-bridge.mjs:/opt/dsh-http-bridge.mjs:ro
+      - ./source/agent-harness/http-bridge.js:/opt/http-bridge.js:ro
+      - ./source/agent-harness/plugin-registry.js:/opt/plugin-registry.js:ro
+      - ./source/agent-harness/plugin-contract.v1.json:/opt/plugin-contract.v1.json:ro
+    networks: [flash-internal]
+    depends_on:
+      flash-agent-runtime:
         condition: service_started
 
 volumes:
   lundu_eiscore_pgdata:
   deepseek_web_dsh_home:
+  deepseek_flash_web_dsh_home:
   harness_bridge_dsh_home:
   lundu_harness_audit:
+  lundu_flash_harness_audit:
+  lundu_flash_harness_bridge_dsh_home:
 
 networks:
-  agent-internal:
-    external: true
-    name: eiscore-agent-internal
+  data-plane:
+    name: lundu-eiscore-data-plane
+  business-internal:
+    name: lundu-eiscore-business-internal
+  flash-internal:
+    name: lundu-eiscore-flash-internal

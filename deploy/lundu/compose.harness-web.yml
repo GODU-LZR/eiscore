@@ -10,27 +10,64 @@ services:
     command: ["--expose-internals", "/opt/eiscore-harness/dsh-web-runner.mjs"]
     environment:
       DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/business
+      DSH_DEFAULT_WORKSPACE_TITLE: 业务助手工作区
+      EISCORE_HARNESS_CAPABILITY_PROFILE: business
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
       EISCORE_GATEWAY_URL: http://agent:8078
       EISCORE_AUTH_URL: https://lundu.eiscore.top
+      EISCORE_TOOL_PROXY_URL: http://agent:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: "${EISCORE_TOOL_PROXY_SECRET:?EISCORE_TOOL_PROXY_SECRET is required}"
     volumes:
       - deepseek_web_dsh_home:/var/lib/dsh
       - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
       - ./dsh-web.patch.yml:/opt/eiscore-harness/dsh-web.patch.yml:ro
       - ./dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
-    networks:
-      - lundu-net
-      - agent-internal
+      - ./source/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+    networks: [business-internal]
     depends_on:
       agent:
         condition: service_started
 
+  deepseek-flash-web:
+    build: {context: ./source, dockerfile: agent-harness/Dockerfile}
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    entrypoint: ["node"]
+    command: ["--expose-internals", "/opt/eiscore-harness/dsh-web-runner.mjs"]
+    environment:
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/flash
+      DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
+      DSH_PATCH_PATH: /opt/eiscore-harness/dsh-flash-web.patch.yml
+      EISCORE_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
+      EISCORE_HARNESS_CAPABILITY_PROFILE: flash
+      DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
+      EISCORE_GATEWAY_URL: http://flash-agent-runtime:8078
+      EISCORE_AUTH_URL: https://lundu.eiscore.top
+      EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+    volumes:
+      - deepseek_flash_web_dsh_home:/var/lib/dsh
+      - ${LUNDU_HARNESS_ROOT:?LUNDU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
+      - ./dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
+      - ./dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
+      - ./source/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+    networks: [flash-internal]
+    depends_on:
+      flash-agent-runtime:
+        condition: service_started
+
 volumes:
   deepseek_web_dsh_home:
+  deepseek_flash_web_dsh_home:
 
 networks:
-  lundu-net:
-    external: true
-    name: lundu-eiscore_default
-  agent-internal:
-    external: true
-    name: eiscore-agent-internal
+  business-internal:
+    name: lundu-eiscore-business-internal
+  flash-internal:
+    name: lundu-eiscore-flash-internal

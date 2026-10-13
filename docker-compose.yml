@@ -12,6 +12,7 @@ services:
       POSTGRES_DB: eiscore
       POSTGREST_DB_PASSWORD: "${POSTGREST_DB_PASSWORD:?POSTGREST_DB_PASSWORD is required}"
       AGENT_DB_PASSWORD: "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"
+      FLASH_AGENT_DB_PASSWORD: "${FLASH_AGENT_DB_PASSWORD:?FLASH_AGENT_DB_PASSWORD is required}"
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
     ports:
       - "5432:5432"
@@ -21,6 +22,7 @@ services:
       - ./database/baselines/eiscore-db-v1/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./database/baselines/eiscore-db-v1/register.sql:/docker-entrypoint-initdb.d/02_register.sql:ro
       - ./scripts/configure-database-runtime-secrets-v2.sh:/docker-entrypoint-initdb.d/04_runtime_secrets.sh:ro
+    networks: [data-plane]
 
   api:
     image: postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa
@@ -37,18 +39,7 @@ services:
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
     depends_on:
        - db
-
-  swagger:
-    image: swaggerapi/swagger-ui@sha256:080804ac62c9d5d358662cc6f0db96ba0be76af7af393014a1a1305d967298cc
-    container_name: eiscore-swagger
-    restart: always
-    ports:
-      - "8079:8080"
-    environment:
-      BASE_URL: /doc
-      API_URL: /api/
-    depends_on:
-      - api
+    networks: [data-plane]
 
   nginx:
     image: nginx@sha256:4870c12cd2ca986de501a804b4f506ad3875a0b1874940ba0a2c7f763f1855b2
@@ -61,7 +52,7 @@ services:
       - ./eiscore-base/dist:/usr/share/nginx/html:ro
     depends_on:
       - api
-      - swagger
+    networks: [data-plane, business-internal, flash-internal]
 
   agent-runtime:
     build:
@@ -80,9 +71,14 @@ services:
       EISCORE_DB_NAME: eiscore
       EISCORE_AGENT_DB_USER: eiscore_agent
       AGENT_DB_PASSWORD: "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"
+      # Local click-test environments seed the company site as draft first.
+      # Allow the public profile reader to use that draft without changing production behavior.
+      NODE_ENV: development
+      COMPANY_SITE_PREVIEW_ALLOW_DRAFT: "true"
       CHANNEL: eis_events
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
       EISCORE_HARNESS_ENABLED: "${EISCORE_HARNESS_ENABLED:-true}"
+      RUNTIME_PROFILE: business
       EISCORE_HARNESS_URL: "${EISCORE_HARNESS_URL:-http://harness-bridge:3080}"
       EISCORE_HARNESS_AUDIT_FILE: "${EISCORE_HARNESS_AUDIT_FILE:-/var/lib/eiscore/harness-audit.jsonl}"
       EISCORE_HARNESS_AUDIT_HASH_KEY: "${EISCORE_HARNESS_AUDIT_HASH_KEY:?EISCORE_HARNESS_AUDIT_HASH_KEY is required}"
@@ -104,6 +100,45 @@ services:
       - harness_audit:/var/lib/eiscore
     depends_on:
       - db
+    networks: [data-plane, business-internal]
+
+  flash-agent-runtime:
+    build:
+      context: .
+      dockerfile: realtime/Dockerfile
+    container_name: eiscore-flash-agent-runtime
+    restart: always
+    command: sh -lc "node index.js"
+    env_file:
+      - ./env/.env
+    environment:
+      RUNTIME_PROFILE: flash
+      EISCORE_DB_HOST: db
+      EISCORE_DB_PORT: 5432
+      EISCORE_DB_NAME: eiscore
+      EISCORE_AGENT_DB_USER: "${FLASH_AGENT_DB_USER:?FLASH_AGENT_DB_USER is required}"
+      AGENT_DB_PASSWORD: "${FLASH_AGENT_DB_PASSWORD:?FLASH_AGENT_DB_PASSWORD is required}"
+      AGENT_POSTGREST_ROLE: eiscore_flash_agent
+      NODE_ENV: development
+      COMPANY_SITE_PREVIEW_ALLOW_DRAFT: "false"
+      CHANNEL: eis_events
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
+      EISCORE_HARNESS_ENABLED: "${EISCORE_HARNESS_ENABLED:-true}"
+      EISCORE_HARNESS_URL: "${FLASH_EISCORE_HARNESS_URL:-http://flash-harness-bridge:3080}"
+      EISCORE_HARNESS_AUDIT_FILE: "${FLASH_EISCORE_HARNESS_AUDIT_FILE:-/var/lib/eiscore/flash-harness-audit.jsonl}"
+      EISCORE_HARNESS_AUDIT_HASH_KEY: "${FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY:?FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY is required}"
+      EISCORE_HARNESS_BRIDGE_SECRET: "${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?FLASH_EISCORE_HARNESS_BRIDGE_SECRET is required}"
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+      FLASH_PROJECT_PATH: "${FLASH_PROJECT_PATH:-eiscore-apps/src/views/drafts}"
+      FLASH_WORKDIR: "${FLASH_WORKDIR:-/workspace/eiscore-apps/src/views/drafts}"
+    volumes:
+      - ./realtime:/app
+      - ./agent-harness:/agent-harness:ro
+      - ./eiscore-apps:/workspace/eiscore-apps
+      - flash_harness_audit:/var/lib/eiscore
+    depends_on:
+      - db
+    networks: [data-plane, flash-internal]
 
   harness-bridge:
     build:
@@ -124,13 +159,14 @@ services:
       DSH_HOME: /var/lib/dsh
       DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
       DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
+      HARNESS_PROFILE: business
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
       DSH_CWD: /opt/eiscore-harness
       DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
       EISCORE_TOOL_PROXY_URL: http://agent-runtime:8078/internal/harness/tool
       EISCORE_HARNESS_BRIDGE_SECRET: "${EISCORE_HARNESS_BRIDGE_SECRET:?EISCORE_HARNESS_BRIDGE_SECRET is required}"
       EISCORE_TOOL_PROXY_SECRET: "${EISCORE_TOOL_PROXY_SECRET:?EISCORE_TOOL_PROXY_SECRET is required}"
-      HARNESS_PLUGINS: enterprise-bi,worker-grid,digital-twin,workflow,company-sales,document-intake,flash-builder,engineering,independent-site-sales
+      HARNESS_PLUGINS: enterprise-bi,worker-grid,digital-twin,workflow,company-sales,document-intake,engineering,independent-site-sales
       BRIDGE_MAX_CONCURRENT_REQUESTS: "${BRIDGE_MAX_CONCURRENT_REQUESTS:-16}"
       BRIDGE_MAX_SESSIONS: "${BRIDGE_MAX_SESSIONS:-1000}"
       BRIDGE_MAX_TRACKED_REQUESTS: "${BRIDGE_MAX_TRACKED_REQUESTS:-10000}"
@@ -152,47 +188,60 @@ services:
       - ./agent-harness:/opt/eiscore-harness:ro
     depends_on:
       - agent-runtime
+    networks: [business-internal]
 
-  code-server:
-    image: codercom/code-server@sha256:31ad23cda720476e7eb3371a9b02fd7a5738843f6ef43beef97e9edf1960fc47
-    container_name: eiscore-ide
+  flash-harness-bridge:
+    build:
+      context: .
+      dockerfile: agent-harness/Dockerfile
+    container_name: eiscore-flash-harness-bridge
     restart: unless-stopped
-    user: "${PUID:-1000}:${PGID:-1000}"
-    command:
-      - --bind-addr
-      - 0.0.0.0:8443
-      - --auth
-      - none
-      - --user-data-dir
-      - /config/data
-      - --extensions-dir
-      - /config/extensions
-      - --disable-telemetry
-      - /config/workspace/drafts
-    environment:
-      TZ: "${TZ:-Asia/Shanghai}"
-      HOME: /home/coder
-      XDG_CONFIG_HOME: /config/.config
-      NODE_OPTIONS: "--no-experimental-global-navigator"
-      VSCODE_NODE_OPTIONS: "--max-old-space-size=4096 --no-experimental-global-navigator"
-    ports:
-      - "8443:8443"
+    init: true
+    user: "10001:10001"
     read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m"]
+    command: ["/opt/eiscore-harness/dsh-http-bridge.mjs"]
+    environment:
+      PORT: 3080
+      DSH_BIN: /opt/bridge/node_modules/.bin/dsh
+      DSH_HOME: /var/lib/dsh
+      DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
+      DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
+      HARNESS_PROFILE: flash
+      HARNESS_PLUGINS: flash-builder
+      DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
+      DSH_CWD: /opt/eiscore-harness
+      DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
+      EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
+      EISCORE_HARNESS_BRIDGE_SECRET: "${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?FLASH_EISCORE_HARNESS_BRIDGE_SECRET is required}"
+      EISCORE_TOOL_PROXY_SECRET: "${FLASH_EISCORE_TOOL_PROXY_SECRET:?FLASH_EISCORE_TOOL_PROXY_SECRET is required}"
+      BRIDGE_STATE_FILE: /var/lib/dsh/flash-bridge-state.json
+    healthcheck:
+      test: [CMD-SHELL, "node -e \"fetch('http://127.0.0.1:3080/readyz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     volumes:
-      # 只读根文件系统下，提供运行时可执行/可写目录
-      - code_server_tmp:/tmp
-      - code_server_run:/run
-      - code_server_home:/home/coder
-      # code-server 配置与插件目录（可写）
-      - ./config/code-server:/config
-      # 仅挂载闪念草稿目录，避免误改工程其它文件
-      - ./eiscore-apps/src/views/drafts:/config/workspace/drafts
+      - flash_harness_bridge_dsh_home:/var/lib/dsh
+      - ./agent-harness:/opt/eiscore-harness:ro
+    depends_on:
+      - flash-agent-runtime
+    networks: [flash-internal]
 
 volumes:
   pgdata:
-  code_server_tmp:
-  code_server_run:
-  code_server_home:
   document_intake_data:
   harness_audit:
   harness_bridge_dsh_home:
+  flash_harness_audit:
+  flash_harness_bridge_dsh_home:
+
+networks:
+  data-plane:
+    name: eiscore-data-plane
+  business-internal:
+    name: eiscore-business-internal
+  flash-internal:
+    name: eiscore-flash-internal

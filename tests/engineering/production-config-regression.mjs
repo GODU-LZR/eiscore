@@ -65,7 +65,13 @@ assert.match(compose, /\$\{EISCORE_HARNESS_BRIDGE_SECRET:\?EISCORE_HARNESS_BRIDG
 assert.match(compose, /\$\{EISCORE_TOOL_PROXY_SECRET:\?EISCORE_TOOL_PROXY_SECRET is required\}/, 'production Compose should require the Harness tool proxy secret')
 assert.match(compose, /harness-bridge:[\s\S]+DEEPSEEK_API_KEY: "\$\{DEEPSEEK_API_KEY:\?DEEPSEEK_API_KEY is required\}"/, 'production bridge must require the DeepSeek provider key')
 assert.doesNotMatch(operationsManual, /^docker compose up -d\s*$/m, 'operations manual must not advertise unscoped Compose startup')
-assert.match(operationsManual, /docker compose up -d db api agent-runtime harness-bridge nginx swagger code-server/, 'operations manual should document scoped local Harness startup')
+assert.match(operationsManual, /docker compose up -d db api agent-runtime harness-bridge nginx/, 'operations manual should document scoped local Harness startup')
+assert.doesNotMatch(rootCompose, /^  code-server:$/m, 'local Compose must not define code-server')
+assert.doesNotMatch(compose, /^  code-server:$/m, 'production Compose must not define code-server')
+assert.doesNotMatch(rootNginx, /proxy_pass http:\/\/code-server:8443\//, 'Nginx must not depend on code-server')
+assert.doesNotMatch(rootCompose, /^  swagger:$/m, 'local Compose must not define Swagger UI')
+assert.doesNotMatch(compose, /^  swagger:$/m, 'production Compose must not define Swagger UI')
+assert.doesNotMatch(rootNginx, /proxy_pass http:\/\/swagger:/, 'Nginx must not depend on Swagger UI')
 assert.match(rootCompose, /^  harness-bridge:$/m, 'local Compose must provide a first-class Harness bridge service')
 assert.match(rootCompose, /EISCORE_HARNESS_URL: "\$\{EISCORE_HARNESS_URL:-http:\/\/harness-bridge:3080\}"/, 'local Runtime must default to the in-Compose Harness bridge')
 assert.doesNotMatch(rootCompose, /host\.docker\.internal:3080/, 'local Compose must not default to an external Harness process')
@@ -96,7 +102,7 @@ for (const [name, source] of composeSources) {
   )
 }
 assert.match(compose, /\$\{EISCORE_PUBLIC_BASE_URL:\?EISCORE_PUBLIC_BASE_URL is required\}\/api/, 'production Compose should derive the API origin from enterprise configuration')
-assert.equal((compose.match(/required: false/g) || []).length, 3, 'service env files should be optional when variables are supplied by the deployment environment')
+assert.equal((compose.match(/required: false/g) || []).length, 4, 'service env files should be optional when variables are supplied by the deployment environment')
 assert.match(lunduCompose, /security_opt:\s*\[no-new-privileges:true\]/, 'base Lundu Compose should disable privilege escalation')
 assert.doesNotMatch(lunduHarnessCompose, /^\s+security_opt:/m, 'Harness override should inherit security options without duplicating Compose sequence values')
 assert.match(lunduCompose, /tmpfs:\s*\["\/tmp:rw,noexec,nosuid,size=256m"\]/, 'base Lundu Compose should keep the Harness temporary filesystem non-executable')
@@ -134,9 +140,14 @@ for (const [name, source] of [['Lundu Compose', lunduCompose], ['Lundu Harness o
   assert.match(source, /\$\{LUNDU_HARNESS_ROOT:\?LUNDU_HARNESS_ROOT is required\}:\/opt\/eiscore-harness:ro/, `${name} should require an explicit Harness artifact root`)
 }
 assert.match(lunduPatch, /id: ui-eiscore-embed\s+disabled: true/, 'Lundu patch must disable the legacy EISCore embed')
+assert.doesNotMatch(lunduPatch, /id: eiscore-flash-context/, 'Business Lundu patch must not load Flash-only context')
+const lunduFlashPatch = read('deploy/lundu/dsh-flash-web.patch.yml')
+assert.match(lunduFlashPatch, /id: eiscore-flash-context/, 'Flash Lundu patch must load Flash-only context')
+assert.match(lunduFlashPatch, /client-plugins\/flash-context\/lib\/index\.js/, 'Flash patch must load the Flash context client plugin')
 assert.match(homeView, /VITE_HARNESS_WEB_URL \|\| '\/harness-embed\/'/, 'EISCore should embed Harness through the protected path')
-assert.match(harnessAuthClient, /\/harness-embed-api\/eiscore\/auth\/start/, 'Harness auth should start through the protected embed API')
-assert.match(harnessAuthClient, /\/harness-embed-api\/eiscore\/auth\/handoff/, 'Harness auth should finish through the protected embed API')
+assert.match(harnessAuthClient, /HARNESS_AUTH_API_PREFIXES = new Set\(\[[\s\S]*['"]\/harness-embed-api['"][\s\S]*['"]\/harness-flash-embed-api['"]/, 'Harness auth should restrict requests to the business and Flash protected API prefixes')
+assert.match(harnessAuthClient, /`\$\{apiPrefix\}\/eiscore\/auth\/start`/, 'Harness auth should start through the selected protected embed API')
+assert.match(harnessAuthClient, /`\$\{apiPrefix\}\/eiscore\/auth\/handoff`/, 'Harness auth should finish through the selected protected embed API')
 assert.doesNotMatch(harnessAuthClient, /\/harness-api\//, 'EISCore must not call the externally blocked Harness API path')
 assert.match(lunduNginx, /\$http_sec_fetch_dest = "iframe"/, 'Lundu Harness embed should accept iframe navigations')
 assert.match(lunduNginx, /\$http_referer ~ "\^https:\/\/lundu\\\.eiscore\\\.top\/"/, 'Lundu Harness embed should accept same-origin auth bootstrap fetches')
@@ -147,8 +158,13 @@ for (const route of ['admin', 'public', 'auth']) {
 }
 assert.doesNotMatch(lunduNginx, /location \/company-site\/ \{ proxy_pass/, 'Lundu company-site static entry must not be swallowed by the Agent proxy')
 for (const [name, source, upstream] of [['Lundu Nginx', lunduNginx, 'agent:8078'], ['Root Nginx', rootNginx, 'agent-runtime:8078']]) {
-  assert.match(source, /\^\/\(ai\|flash\|twin\|document-intake\)\//, `${name} should proxy canonical Harness routes`)
-  assert.match(source, new RegExp(`proxy_pass http://${upstream.replace(':', '\\:')}`), `${name} should proxy canonical routes to the Runtime`)
+  // Flash is deliberately isolated from the business Runtime. Keep these
+  // route assertions separate so a future broad regex cannot silently merge
+  // the two capability boundaries again.
+  assert.match(source, /location ~ \^\/flash\//, `${name} should expose an isolated Flash route`)
+  assert.match(source, /location ~ \^\/flash\/[\s\S]+?proxy_pass http:\/\/flash-agent-runtime:8078/, `${name} Flash routes must reach the Flash Runtime`)
+  assert.match(source, /location ~ \^\/\(ai\|twin\|document-intake\)\//, `${name} should proxy business Harness routes`)
+  assert.match(source, new RegExp(`location ~ \\^\\/\\(ai\\|twin\\|document-intake\\)\\/[\\s\\S]+?proxy_pass http://${upstream.replace(':', '\\:')}`), `${name} business routes must reach the business Runtime`)
   assert.match(source, /proxy_set_header Upgrade \$http_upgrade/, `${name} should preserve WebSocket upgrades`)
   assert.match(source, /proxy_set_header Connection "upgrade"/, `${name} should preserve WebSocket connection upgrades`)
 }
@@ -161,6 +177,8 @@ assert.match(template, /^POSTGRES_PASSWORD=replace_me_/m, 'environment template 
 assert.match(template, /^PGRST_JWT_SECRET=replace_me_/m, 'environment template should expose the JWT contract')
 assert.match(template, /^POSTGREST_DB_PASSWORD=replace_me_/m, 'environment template should expose the PostgREST role password contract')
 assert.match(template, /^AGENT_DB_PASSWORD=replace_me_/m, 'environment template should expose the agent role password contract')
+assert.match(template, /^FLASH_AGENT_DB_USER=eiscore_flash_agent$/m, 'environment template should expose the isolated Flash database role')
+assert.match(template, /^FLASH_AGENT_DB_PASSWORD=replace_me_/m, 'environment template should expose the Flash role password contract')
 assert.match(template, /^EISCORE_PUBLIC_BASE_URL=https:\/\//m, 'environment template should expose the public origin contract')
 assert.match(template, /^EISCORE_HARNESS_ENABLED=true$/m, 'environment template should enable Harness explicitly')
 assert.match(template, /^EISCORE_HARNESS_URL=http:\/\/harness-bridge:3080$/m, 'environment template should point at the dedicated Harness bridge')
@@ -172,6 +190,7 @@ assert.match(lunduTemplate, /^EISCORE_HARNESS_BRIDGE_SECRET=replace_me_/m, 'Lund
 assert.match(lunduTemplate, /^DSH_PROVIDER=deepseek-official$/m, 'Lundu environment template should expose the SDK provider route')
 assert.match(lunduTemplate, /^DSH_MODEL=deepseek-v4-flash$/m, 'Lundu environment template should expose the SDK model route')
 assert.match(lunduTemplate, /^DEEPSEEK_API_KEY=replace_me_/m, 'Lundu environment template should expose the DeepSeek provider key contract')
+assert.match(lunduTemplate, /^FLASH_DEEPSEEK_API_KEY=replace_me_/m, 'Lundu environment template should expose the isolated Flash provider key contract')
 assert.match(lunduTemplate, /^BRIDGE_STATE_FILE=\/var\/lib\/dsh\/bridge-state\.json$/m, 'Lundu environment template should expose the bridge state file')
 assert.match(lunduTemplate, /^BRIDGE_PROMPT_TIMEOUT_MS=120000$/m, 'Lundu environment template should expose the prompt timeout')
 assert.match(lunduTemplate, /^BRIDGE_SESSION_DRAIN_TIMEOUT_MS=120000$/m, 'Lundu environment template should expose the session drain timeout')
@@ -194,6 +213,8 @@ const valid = {
   PGRST_JWT_SECRET: 'Jwt8_Zp3Lm7Qx2Vc9Bn5Ks1Hd6Rt4Wy0Fa',
   POSTGREST_DB_PASSWORD: 'Api6_Qm9Xv4Rs2Lp8Nk5Wd7Hy3Tz1',
   AGENT_DB_PASSWORD: 'Agent4_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
+  FLASH_AGENT_DB_USER: 'eiscore_flash_agent',
+  FLASH_AGENT_DB_PASSWORD: 'FlashAgent4_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_PUBLIC_BASE_URL: 'https://erp.acme.test',
   EISCORE_HARNESS_ENABLED: 'true',
   EISCORE_HARNESS_URL: 'http://harness-bridge:3080',
@@ -201,6 +222,10 @@ const valid = {
   EISCORE_HARNESS_AUDIT_HASH_KEY: 'HarnessAudit9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_HARNESS_BRIDGE_SECRET: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_TOOL_PROXY_SECRET: 'HarnessProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
+  FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY: 'FlashAudit9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
+  FLASH_EISCORE_HARNESS_BRIDGE_SECRET: 'FlashBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
+  FLASH_EISCORE_TOOL_PROXY_SECRET: 'FlashProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
+  FLASH_DEEPSEEK_API_KEY: 'FlashDeepSeek9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   DSH_PROVIDER: 'deepseek-official',
   DSH_MODEL: 'deepseek-v4-flash',
   DEEPSEEK_API_KEY: 'DeepSeekKey9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6'

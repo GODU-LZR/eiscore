@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { ensureStartupProfile } from './dsh-web-runner.mjs'
+import { ensureStartupProfile, resolveDefaultWorkspace, resolveHarnessPatchPath } from './dsh-web-runner.mjs'
 
 const home = mkdtempSync(join(tmpdir(), 'eiscore-dsh-web-profile-'))
 try {
@@ -32,6 +32,10 @@ try {
   }
 
   assert.throws(() => ensureStartupProfile(''), /DSH_HOME is required/)
+  assert.equal(resolveHarnessPatchPath(''), '/opt/eiscore-harness/dsh-web.patch.yml')
+  assert.equal(resolveHarnessPatchPath('/opt/eiscore-harness/dsh-flash-web.patch.yml'), '/opt/eiscore-harness/dsh-flash-web.patch.yml')
+  assert.equal(resolveDefaultWorkspace('/var/lib/dsh/workspaces/flash', home), '/var/lib/dsh/workspaces/flash')
+  assert.throws(() => resolveDefaultWorkspace('relative/path', home), /DSH_DEFAULT_WORKSPACE must be an absolute path/)
 } finally {
   rmSync(home, { recursive: true, force: true })
 }
