@@ -36,8 +36,9 @@ const countMatches = (source, pattern) => (source.match(pattern) || []).length
 
 export const classifyLegacySql = ({ path, source, governed }) => {
   const filename = path.split('/').at(-1).toLowerCase()
-  const customerNamed = /(jinwei|junleyuan|nanpai)/.test(filename)
+  const customerNamed = /(jinwei|junleyuan|nanpai|lundu)/.test(filename)
   const demoOrTestNamed = /(demo|test_account)/.test(filename)
+    || ['hr_small_enterprise_org_seed.sql', 'hr_small_enterprise_users_roles_seed.sql'].includes(filename)
   const patchNamed = /(^patch_|_patch\.sql$|^fix_|_fix\.sql$|^backfill_|^normalize_|dedupe)/.test(filename)
   const referenceSeedNamed = /(permission_seed|field_acl_templates|role_permission_templates_v2)/.test(filename)
   const schemaFragmentNamed = /(_views?\.sql$|_api\.sql$|_wrapper\.sql$|_comments\.sql$)/.test(filename)

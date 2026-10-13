@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "inventory": { "totalLegacySqlFiles": 106, "governedMigrationFiles": 10, "resolvedNonMigrationFiles": 96 },
+  "inventory": { "totalLegacySqlFiles": 109, "governedMigrationFiles": 10, "resolvedNonMigrationFiles": 99 },
   "columns": ["path", "sha256", "category", "finalDisposition"],
   "defaultExecutionPolicy": "deny",
   "dispositionContracts": {
@@ -95,7 +95,10 @@
     ["eiscore-hr/sql/form_values.sql","5d0875985610005acd377bdb8712de05e951a7bb921bf0dde941caad479ba1a3","schema-fragment","covered-by-baseline"],
     ["eiscore-hr/sql/hr_auth_core.sql","4bea525a88a61ae3c6542a597a7341c2ae0a304d955ed1f4754cddebff594b05","schema-fragment","covered-by-baseline"],
     ["eiscore-hr/sql/hr_auth_seed.sql","b8dfa94c77dac7bac4af55ebcd4af205b2a0ba9af2b21a241228b3ea9a8022df","demo-or-test","demo-fixture"],
+    ["eiscore-hr/sql/hr_small_enterprise_org_seed.sql","d89d5a8fd1cd624e82b1cabf1680a7f194c08b2ba16588d09e76d95418e565bf","demo-or-test","demo-fixture"],
+    ["eiscore-hr/sql/hr_small_enterprise_users_roles_seed.sql","fbc6a47b439ce89b20250a527cba1c2a2905308d46a8f10332c7932cf5bc7010","demo-or-test","demo-fixture"],
     ["eiscore-hr/sql/login_json_wrapper.sql","2161704c85e47810601cd6542a5c7881da25e5e9b4c09373d7ead80df354e142","schema-fragment","covered-by-baseline"],
+    ["eiscore-hr/sql/lundu_users_seed.sql","b2679dd5355459b60f781d1a06489a9067c01ecada9333fa4f76a276fe005eb2","customer-seed","customer-data"],
     ["eiscore-hr/sql/normalize_system_config_labels.sql","be1f68e2a4d449584d7c3878004af5899a9a6ba042a57e439e7ae3f64ad0b473","legacy-patch","covered-by-baseline"],
     ["eiscore-hr/sql/permission_ai_api.sql","0ada3c48226dbffa9582ea3b40d8622b527d339a0fff9c8ecfdc8faf1872683b","schema-fragment","covered-by-baseline"],
     ["eiscore-hr/sql/permission_seed.sql","6df9785810e3b5a2f9e17f762d4e3086d2bc2af931b6b2f5ac0c141e51e8fe14","reference-seed","reference-seed"],

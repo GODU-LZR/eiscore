@@ -190,7 +190,7 @@
     {
       "id": "core-015",
       "path": "database/migrations/sql/core-015-department-scope-catalog.sql",
-      "sha256": "104f438869b948c21af17de1da4ed5a7adfe50ddcd563833aa66f4359fc0b2a8",
+      "sha256": "a128eccfe8bf88b47140210a02459b3c060fcdf4afa80cfb1f120e5980a11cfa",
       "transaction": "runner",
       "lockTimeoutMs": 10000,
       "statementTimeoutMs": 300000,
@@ -320,7 +320,7 @@
     {
       "id": "core-025",
       "path": "database/migrations/sql/core-025-twin-admin-session-overview.sql",
-      "sha256": "8f9a4d7a619decbb5e38868601b38e2e8025d34ad8050c7ffe31b6984df4dc6e",
+      "sha256": "95127c1dad074f7c125a392cfea373eb7104b3ade998577e124ce259670ddb8f",
       "transaction": "runner",
       "lockTimeoutMs": 10000,
       "statementTimeoutMs": 300000,
@@ -334,6 +334,19 @@
       "id": "core-026",
       "path": "database/migrations/sql/core-026-flash-agent-role-boundary.sql",
       "sha256": "e2a59f77765ae7eb385d554d5a957c8186da79b12e4ac2d056acc7ce01397cce",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-027",
+      "path": "database/migrations/sql/core-027-reject-missing-twin-admin-role.sql",
+      "sha256": "c8f5a92cd795499069483b3e29b9f903aa7f990d1c63872cddd09a8c6de6724e",
       "transaction": "runner",
       "lockTimeoutMs": 10000,
       "statementTimeoutMs": 300000,

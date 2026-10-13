@@ -17,10 +17,9 @@ const migrationManifests = [
   json('database/migrations/company-site.json'),
   json('database/migrations/core.json')
 ]
-assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 22)
-assert.deepEqual(migrationManifests[2].migrations.map(({ id }) => id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009', 'core-010', 'core-011'
-])
+assert.equal(migrationManifests.reduce((total, manifest) => total + manifest.migrations.length, 0), 38)
+assert.deepEqual(migrationManifests[2].migrations.map(({ id }) => id),
+  Array.from({ length: 27 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
 
 // This exit audit describes the original DB6 release, not approval of today's tree.
 const manifest = JSON.parse(readPublishedDb6(publishedDb6Path))

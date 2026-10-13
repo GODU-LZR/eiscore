@@ -14,21 +14,21 @@ assert.deepEqual(result.legacyRoots.map(({ path, count }) => [path, count]), [
   ['.', 2],
   ['env', 2],
   ['sql', 70],
-  ['eiscore-hr/sql', 30],
+  ['eiscore-hr/sql', 33],
   ['eiscore-materials/sql', 2]
 ])
-assert.equal(result.legacySqlFiles, 106)
-assert.equal(result.governedMigrationFiles, 22)
+assert.equal(result.legacySqlFiles, 109)
+assert.equal(result.governedMigrationFiles, 38)
 assert.equal(result.governedLegacySqlFiles, 10)
-assert.equal(result.ungovernedLegacySqlFiles, 96)
-assert.equal(result.resolvedLegacySqlFiles, 96)
+assert.equal(result.ungovernedLegacySqlFiles, 99)
+assert.equal(result.resolvedLegacySqlFiles, 99)
 assert.equal(result.unresolvedLegacySqlFiles, 0)
 assert.deepEqual(result.resolution.errors, [])
 assert.match(result.resolution.sha256, /^[0-9a-f]{64}$/)
 assert.deepEqual(result.resolution.finalDispositions, {
   'covered-by-baseline': 73,
-  'customer-data': 6,
-  'demo-fixture': 9,
+  'customer-data': 7,
+  'demo-fixture': 11,
   duplicate: 2,
   'operations-only': 1,
   'reference-seed': 3,
@@ -36,13 +36,13 @@ assert.deepEqual(result.resolution.finalDispositions, {
   'superseded-by-migration': 1
 })
 assert.equal(result.resolution.entries.filter((entry) => entry.executable).length, 2)
-assert.equal(result.files.length, 106)
+assert.equal(result.files.length, 109)
 assert.ok(result.files.every((entry) => entry.bytes > 0))
 assert.ok(result.files.every((entry) => /^[0-9a-f]{64}$/.test(entry.sha256)))
 assert.ok(result.files.every((entry) => entry.category !== 'data-or-operation'))
 assert.deepEqual(result.categories, {
-  'customer-seed': 6,
-  'demo-or-test': 9,
+  'customer-seed': 7,
+  'demo-or-test': 11,
   'environment-bootstrap': 4,
   'governed-migration': 10,
   'legacy-patch': 39,
@@ -65,22 +65,20 @@ assert.deepEqual(
     createPolicy: 215,
     enableRls: 72,
     securityDefiner: 73,
-    grants: 250,
-    inserts: 293
+    grants: 251,
+    inserts: 307
   }
 )
 assert.deepEqual(result.manifests.map(({ name, count }) => [name, count]), [
   ['runtime-v2', 10],
   ['company-site', 1],
-  ['core', 11]
+  ['core', 27]
 ])
 assert.deepEqual(result.productionCompose.runtimeSuperuserConnections, [])
 assert.deepEqual(result.productionCompose.exposedSchemas, ['public', 'hr', 'scm', 'app_center', 'workflow', 'app_data'])
 assert.deepEqual(result.productionCompose.images, [
   'postgres@sha256:f992505e18f114c1e5102ac4dcf00f791b44462f6a423d899320f0bbf80e386f',
   'postgrest/postgrest@sha256:00c1ec8a9339f52a7e765cb3bd3ab5b001f0b5dd954cfb69b43b9de494a9a0aa',
-  'swaggerapi/swagger-ui@sha256:080804ac62c9d5d358662cc6f0db96ba0be76af7af393014a1a1305d967298cc',
-  'codercom/code-server@sha256:31ad23cda720476e7eb3371a9b02fd7a5738843f6ef43beef97e9edf1960fc47'
 ])
 assert.deepEqual(result.productionCompose.initializationInputs, [
   'database/bootstrap/roles-v2.sql',
@@ -127,15 +125,26 @@ const classification = readFileSync(resolve(repoRoot, 'database/LEGACY_SQL_CLASS
 for (const marker of [
   '迁移期只读库存，不是执行清单',
   '所有仍在工作树中的文件均已分类',
-  '96 份历史 SQL 不进入迁移链',
+  '99 份历史 SQL 不进入迁移链',
   'legacy-sql-resolution.json',
   '73 处 `SECURITY DEFINER`',
   '历史 SQL 仍不删除、重命名、合并或批量执行'
 ]) assert.ok(classification.includes(marker), `legacy SQL classification lost marker: ${marker}`)
 
 const resolutionLedger = JSON.parse(readFileSync(resolve(repoRoot, 'database/legacy-sql-resolution.json'), 'utf8'))
-assert.equal(resolutionLedger.entries.length, 96)
+assert.equal(resolutionLedger.entries.length, 99)
 assert.equal(resolutionLedger.defaultExecutionPolicy, 'deny')
+for (const [path, category, disposition] of [
+  ['eiscore-hr/sql/hr_small_enterprise_org_seed.sql', 'demo-or-test', 'demo-fixture'],
+  ['eiscore-hr/sql/hr_small_enterprise_users_roles_seed.sql', 'demo-or-test', 'demo-fixture'],
+  ['eiscore-hr/sql/lundu_users_seed.sql', 'customer-seed', 'customer-data']
+]) {
+  const entry = result.resolution.entries.find((entry) => entry.path === path)
+  assert.equal(entry?.category, category)
+  assert.equal(entry?.finalDisposition, disposition)
+  assert.equal(entry?.executable, false, `${path} must stay outside automatic production execution`)
+  assert.equal(result.files.find((entry) => entry.path === path)?.governed, false)
+}
 assert.deepEqual(
   resolutionLedger.entries.find(([path]) => path === 'env/insert_ai_config.sql')?.slice(2),
   ['environment-bootstrap', 'superseded-by-migration'],

@@ -96,8 +96,6 @@ DIAGNOSTIC_CONTAINERS=(
   "eiscore-agent-runtime"
   "eiscore-harness-bridge"
   "eiscore-nginx"
-  "eiscore-swagger"
-  "eiscore-ide"
 )
 
 print_container_diagnostics() {
@@ -168,7 +166,7 @@ if [[ "${START_SERVICES}" == "true" ]]; then
   echo "Starting Runtime V2 docker compose services from ${REPO_ROOT}..."
   (
     cd "${REPO_ROOT}"
-    docker compose up -d db api agent-runtime harness-bridge nginx swagger code-server
+    docker compose up -d db api agent-runtime harness-bridge nginx
   )
 fi
 
@@ -178,8 +176,6 @@ required_containers=(
   "eiscore-agent-runtime"
   "eiscore-harness-bridge"
   "eiscore-nginx"
-  "eiscore-swagger"
-  "eiscore-ide"
 )
 
 for container in "${required_containers[@]}"; do

@@ -17,9 +17,70 @@ const read = (path) => readFileSync(resolve(repoRoot, path), 'utf8')
 const result = validatePublicSchemaRatchet({ repoRoot })
 assert.deepEqual(result.errors, [])
 assert.equal(result.descriptor.mode, 'deny-additions-not-in-baseline')
-assert.deepEqual(result.descriptor.approvedAdditions, [])
+assert.deepEqual(result.descriptor.approvedAdditions, [{
+  migrationId: 'core-012',
+  adr: 'docs/engineering/adr/0017-user-lifecycle-and-server-timestamps.md',
+  objects: [
+    'TRIGGER:users tg_users_lifecycle',
+    'TRIGGER:user_roles tg_user_roles_lifecycle',
+    'TRIGGER:user_roles tg_user_roles_updated_at'
+  ]
+}, {
+  migrationId: 'core-017',
+  adr: 'docs/engineering/adr/0018-dynamic-app-permission-lifecycle.md',
+  objects: [
+    'FUNCTION:sync_dynamic_app_permissions(uuid, text, text, jsonb)',
+    'FUNCTION:cleanup_dynamic_app_permissions(uuid, text)',
+    'FUNCTION:sync_app_permission_lifecycle()',
+    'TRIGGER:apps tg_apps_permission_lifecycle'
+  ]
+}, {
+  migrationId: 'core-025',
+  adr: 'docs/engineering/adr/0019-twin-admin-session-overview.md',
+  objects: [
+    'FUNCTION:admin_twin_sessions'
+  ]
+}, {
+  migrationId: 'core-013',
+  adr: 'docs/engineering/adr/0020-acl-lifecycle-public-contract.md',
+  objects: [
+    'FUNCTION:enforce_role_acl_lifecycle()',
+    'FUNCTION:enforce_role_acl_child_lifecycle()',
+    'FUNCTION:enforce_role_user_assignment_lifecycle()',
+    'FUNCTION:tg_v_roles_manage_insert()',
+    'FUNCTION:tg_v_roles_manage_update()',
+    'FUNCTION:tg_v_role_permissions_matrix_update()',
+    'FUNCTION:tg_v_role_data_scopes_matrix_update()',
+    'FUNCTION:upsert_field_acl()',
+    'FUNCTION:upsert_permissions()',
+    'FUNCTION:apply_role_permission_templates()',
+    'FUNCTION:document_current_role_codes()',
+    'FUNCTION:document_current_permissions()',
+    'FUNCTION:ontology_current_role_codes()',
+    'FUNCTION:ontology_current_permissions()',
+    'FUNCTION:ensure_field_acl()',
+    'TRIGGER:roles tg_roles_acl_lifecycle',
+    'TRIGGER:role_permissions tg_role_permissions_acl_lifecycle',
+    'TRIGGER:role_data_scopes tg_role_data_scopes_acl_lifecycle',
+    'TRIGGER:sys_field_acl tg_sys_field_acl_lifecycle',
+    'TRIGGER:user_roles tg_user_roles_acl_lifecycle',
+    'TRIGGER:role_permissions tg_role_permissions_updated_at',
+    'TRIGGER:v_role_permissions_matrix tg_v_role_permissions_matrix_update',
+    'TRIGGER:v_role_data_scopes_matrix tg_v_role_data_scopes_matrix_update'
+  ]
+}, {
+  migrationId: 'core-026',
+  adr: 'docs/engineering/adr/0021-flash-agent-public-context.md',
+  objects: [
+    'FUNCTION:flash_agent_context()'
+  ]
+}])
 
 const allowed = baselinePublicObjects(result.baselineCatalog, result.descriptor)
+for (const exception of result.descriptor.approvedAdditions) {
+  for (const key of exception.objects) allowed.add(key)
+  assert.ok(/Accepted|接受。/.test(read(exception.adr)), 'public exception requires an accepted ADR')
+}
 assert.ok(allowed.size > 100, 'public Schema baseline allowlist is unexpectedly small')
 for (const marker of [
   'TABLE:users',
@@ -67,4 +128,4 @@ assert.deepEqual(extractExplicitPublicCreations(`
   { type: 'TRIGGER', name: 'users forbidden_touch' }
 ])
 
-console.log(`PASS: public Schema additive ratchet (${allowed.size} grandfathered object identities, zero approved additions)`)
+console.log(`PASS: public Schema additive ratchet (${allowed.size} allowed identities, approved lifecycle additions registered)`)

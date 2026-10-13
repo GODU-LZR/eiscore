@@ -9,7 +9,7 @@
     { "path": ".", "recursive": false, "expectedSqlFiles": 2 },
     { "path": "env", "recursive": false, "expectedSqlFiles": 2 },
     { "path": "sql", "recursive": false, "expectedSqlFiles": 70 },
-    { "path": "eiscore-hr/sql", "recursive": false, "expectedSqlFiles": 30 },
+    { "path": "eiscore-hr/sql", "recursive": false, "expectedSqlFiles": 33 },
     { "path": "eiscore-materials/sql", "recursive": false, "expectedSqlFiles": 2 }
   ],
   "migrations": [

@@ -14,7 +14,7 @@ const repoRoot = resolve(import.meta.dirname, '../..')
 const result = loadAndValidateMigrationManifest({ repoRoot })
 assert.deepEqual(result.errors, [])
 assert.equal(result.migrations.length, 10)
-assert.equal(result.legacySqlCount, 106)
+assert.equal(result.legacySqlCount, 109)
 assert.deepEqual(
   result.migrations.map((entry) => entry.id),
   Array.from({ length: 10 }, (_, index) => `runtime-v2-${String(index + 1).padStart(3, '0')}`)
@@ -49,10 +49,14 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 11)
-assert.deepEqual(coreResult.migrations.map((entry) => entry.id), [
-  'core-001', 'core-002', 'core-003', 'core-004', 'core-005', 'core-006', 'core-007', 'core-008', 'core-009', 'core-010', 'core-011'
-])
+assert.equal(coreResult.migrations.length, 27)
+assert.deepEqual(coreResult.migrations.map((entry) => entry.id),
+  Array.from({ length: 27 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
+const twinAdminHistory = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-025-twin-admin-session-overview.sql'), 'utf8')
+const twinAdminCorrection = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-027-reject-missing-twin-admin-role.sql'), 'utf8')
+assert.match(twinAdminHistory, /IF app_role <> 'super_admin' THEN/, 'the original migration must remain immutable')
+assert.match(twinAdminCorrection, /IF app_role IS DISTINCT FROM 'super_admin' THEN/)
+assert.equal(coreResult.migrations.at(-1).path, 'database/migrations/sql/core-027-reject-missing-twin-admin-role.sql')
 
 // Rehashing a rewritten published migration must not make governance pass.
 const portable = (text) => text.replaceAll('\r\n', '\n')
@@ -84,6 +88,13 @@ for (const marker of [
   'digital twin sessions must default to DeepSeek Harness',
   'digital twin sessions contain a retired model marker'
 ]) assert.ok(corePostcheckSql.includes(marker), `core postcheck lost Harness model guard: ${marker}`)
+for (const marker of [
+  "ARRAY['{}', '{\"app_role\":\"\"}', '{\"app_role\":\"employee\"}']",
+  'PERFORM public.admin_twin_sessions(1)',
+  'EXCEPTION WHEN insufficient_privilege THEN',
+  "'{\"app_role\":\"super_admin\"}'",
+  "set_config('request.jwt.claims', coalesce(saved_claims, ''), true)"
+]) assert.ok(corePostcheckSql.includes(marker), `core postcheck lost Twin administrator authorization case: ${marker}`)
 assert.ok([...result.migrations, ...companySiteResult.migrations, ...coreResult.migrations]
   .every((entry) => Number.isInteger(entry.lockTimeoutMs)
     && Number.isInteger(entry.statementTimeoutMs)

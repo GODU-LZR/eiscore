@@ -485,3 +485,26 @@ BEGIN
   END IF;
 END
 $$;
+
+DO $twin_admin_authorization$
+DECLARE
+  saved_claims text := current_setting('request.jwt.claims', true);
+  saved_role text := current_setting('request.jwt.claim.app_role', true);
+  rejected_claims text;
+BEGIN
+  PERFORM set_config('request.jwt.claim.app_role', '', true);
+  FOREACH rejected_claims IN ARRAY ARRAY['{}', '{"app_role":""}', '{"app_role":"employee"}'] LOOP
+    PERFORM set_config('request.jwt.claims', rejected_claims, true);
+    BEGIN
+      PERFORM public.admin_twin_sessions(1);
+      RAISE EXCEPTION 'admin twin sessions must reject missing, empty and non-admin role claims';
+    EXCEPTION WHEN insufficient_privilege THEN
+      NULL;
+    END;
+  END LOOP;
+  PERFORM set_config('request.jwt.claims', '{"app_role":"super_admin"}', true);
+  PERFORM public.admin_twin_sessions(1);
+  PERFORM set_config('request.jwt.claims', coalesce(saved_claims, ''), true);
+  PERFORM set_config('request.jwt.claim.app_role', coalesce(saved_role, ''), true);
+END
+$twin_admin_authorization$;
