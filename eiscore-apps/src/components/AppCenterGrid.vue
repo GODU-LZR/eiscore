@@ -307,7 +307,7 @@ import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
 import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import { hasPerm } from '@/utils/permission'
 import { getRealtimeClient } from '@/utils/realtime'
-import { buildDefaultOps, ensureAppAclConfig, ensureAppPermissions } from '@/utils/app-permissions'
+import { buildDefaultOps, ensureAppAclConfig } from '@/utils/app-permissions'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
 
 const props = defineProps({
@@ -826,10 +826,6 @@ const loadConfigFromApp = async () => {
     } catch (error) {
       console.warn('Failed to normalize app config', error)
     }
-  }
-
-  if (props.appData) {
-    ensureAppPermissions(props.appData, { config: nextConfig, appId: props.appId })
   }
 
   await syncFieldAclForColumns()

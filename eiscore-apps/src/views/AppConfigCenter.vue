@@ -221,7 +221,7 @@ import {
   Warning
 } from '@element-plus/icons-vue'
 import axios from 'axios'
-import { ensureAppAclConfig, ensureAppPermissions, cleanupAppPermissions, resolveAppAclModule } from '@/utils/app-permissions'
+import { ensureAppAclConfig } from '@/utils/app-permissions'
 import { DATA_APP_COLUMN_TYPES, normalizeColumnType } from '@/utils/data-app-columns'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
 import { getToken } from '@/utils/auth'
@@ -482,9 +482,6 @@ const saveApp = async () => {
 
     ElMessage.success('配置已保存')
     await loadApps()
-    if (selectedApp.value?.app_type === 'data') {
-      ensureAppPermissions(selectedApp.value, { config: nextConfig, appId: selectedApp.value.id })
-    }
   } catch (error) {
     ElMessage.error('保存失败: ' + error.message)
   } finally {
@@ -506,8 +503,6 @@ const deleteApp = async () => {
     ElMessage.warning('系统内置应用不允许删除')
     return
   }
-  const targetApp = selectedApp.value
-  const moduleKey = resolveAppAclModule(targetApp, targetApp?.config, targetApp?.id)
   try {
     await ElMessageBox.confirm(
       '确定要删除该应用吗？此操作不可恢复。',
@@ -528,9 +523,6 @@ const deleteApp = async () => {
     await axios.delete(`/api/apps?id=eq.${selectedAppId.value}`, {
       headers: getAppCenterHeaders(token)
     })
-    if (moduleKey) {
-      cleanupAppPermissions(moduleKey)
-    }
     ElMessage.success('应用已删除')
     selectedAppId.value = null
     selectedApp.value = null
@@ -587,7 +579,6 @@ const createApp = async () => {
         } catch (e) {
           // ignore patch failures
         }
-        ensureAppPermissions(app, { config, appId: app.id })
       }
       selectApp(app)
       navigateToBuilder(app)

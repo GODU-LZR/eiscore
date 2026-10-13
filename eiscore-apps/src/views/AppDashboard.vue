@@ -203,7 +203,7 @@ import {
   Warning
 } from '@element-plus/icons-vue'
 import axios from 'axios'
-import { ensureAppAclConfig, ensureAppPermissions, resolveAppAclModule } from '@/utils/app-permissions'
+import { ensureAppAclConfig, resolveAppAclModule } from '@/utils/app-permissions'
 import { hasPerm } from '@/utils/permission'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
 import { getToken } from '@/utils/auth'
@@ -554,7 +554,6 @@ async function createApp() {
       } catch (e) {
         // ignore patch failures
       }
-      ensureAppPermissions(app, { config, appId: app.id })
     }
     await loadApps()
     if (app) {
