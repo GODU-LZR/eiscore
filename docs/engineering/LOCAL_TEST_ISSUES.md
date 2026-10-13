@@ -8,8 +8,11 @@
 | EIS-002 | 用户已导入伦度真实数据，重启后却看到经纬演示资料；启动时误用 Ubuntu Docker 隔离库 | 统筹 / 独立站窗口 | 原 Desktop 数据卷保留；公开配置及业务页面读取伦度资料；不重新导入、不覆盖或迁移数据库 | 已定位两个 Docker 引擎与不同数据库卷；见本地恢复记录 | 已停止 Ubuntu EISCore 栈，恢复 Desktop `github-eiscore-refactor_pgdata`；15员工、83产品、39物料、39库存 | 待验收 |
 | EIS-003 | 当前源码要求独立 Flash Runtime/Bridge，但旧运行环境尚未部署，Nginx 因缺失 upstream 无法启动 | 统筹；待完整隔离部署安排 | 主业务入口正常；Flash 保持隔离，完整部署须有受控升级与独立配置 | 不把未应用的隔离迁移误报为已部署 | 临时 Nginx 配置恢复入口，7处Flash路由返回503；未执行core-025/core-026或创建数据库角色 | 待后续部署 |
 | EIS-004 | Chrome进入首页时既有 role_data_scopes 自动同步请求返回409；页面仍能加载 | 待分配 | 先获取409具体约束与触发链，再独立修复并回归 | 本轮仅保留浏览器错误证据，未修复 | 未变更相关权限数据/代码 | 未验收 |
+| EIS-005 | `/asset-manifest.json` 返回200但内容为SPA HTML，manifest JSON验收失败 | 待分配 / 独立站窗口 | 先核对正式制品清单的约定路径；正确路径提供可解析JSON并与实际静态文件一致 | 已只读确认：`text/html`、10012 bytes；dist中无该文件；不能据此认定完整静态release通过 | 普通业务入口可访问；完整制品清单验收未通过 | 未验收 |
 
 后端、前端和独立站窗口均已完成独立工作树接入确认。EIS-001 已按协作流程整合并本地生效。
+独立站窗口已回报伦度配置、Logo、品牌及12入口HTTP检查通过；manifest失败另列EIS-005，
+不与EIS-001业务路由修复或用户人工验收混用。
 本轮环境与真实数据核对见 [LOCAL_STARTUP_LUNDU_DATA_RECOVERY_20261013.md](LOCAL_STARTUP_LUNDU_DATA_RECOVERY_20261013.md)。
 本轮没有执行真实数据重导、数据库迁移或替换现有数据库卷；面板加载通过不代表真实 Provider completion 或完整业务链已验收。
 
