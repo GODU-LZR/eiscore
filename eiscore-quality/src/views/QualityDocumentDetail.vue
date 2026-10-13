@@ -61,6 +61,7 @@ import request from '@/utils/request'
 import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { findQualityApp } from '@/utils/quality-apps'
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
+import { cloneDocumentForPrint } from '@shared/eis-document-print.js'
 import {
   applyDocumentFormulaUpdates,
   buildDocumentAgentContext,
@@ -325,7 +326,8 @@ const printDoc = () => {
   if (!paper) return
   const printWindow = window.open('', '_blank')
   if (!printWindow) return
-  printWindow.document.write(`<!doctype html><html><head><title>质量单据</title></head><body>${paper.outerHTML}</body></html>`)
+  const styleText = '.table-toolbar, .image-actions, button, input, textarea, select { display: none !important; } .el-select, .el-date-editor, .el-input-number { width: 100% !important; } .el-select__wrapper, .el-date-editor .el-input__wrapper, .el-input-number .el-input__wrapper { min-height: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; } .el-select__caret, .el-select .el-input__suffix, .el-select .el-input__prefix, .el-date-editor .el-input__suffix, .el-date-editor .el-input__prefix, .el-input-number__decrease, .el-input-number__increase { display: none !important; } .el-select__selected-item, .el-select .el-input__inner, .el-date-editor .el-input__inner, .el-input-number .el-input__inner { color: #000 !important; padding: 0 !important; height: auto !important; line-height: inherit !important; }'
+  printWindow.document.write(`<!doctype html><html><head><title>质量单据</title><style>${styleText}</style></head><body>${cloneDocumentForPrint(paper).outerHTML}</body></html>`)
   printWindow.document.close()
   printWindow.focus()
   setTimeout(() => {

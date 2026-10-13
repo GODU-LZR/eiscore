@@ -131,6 +131,7 @@ import {
 } from '@shared/eis-document-agent-context'
 
 import EisDocumentEngine from '@/components/eis-document-engine/EisDocumentEngine.vue'
+import { cloneDocumentForPrint } from '@shared/eis-document-print.js'
 import { documentSchemaExample } from '@/components/eis-document-engine/documentSchemaExample'
 
 const route = useRoute()
@@ -881,25 +882,7 @@ const printDoc = () => {
   if (!paper) return
   const printWindow = window.open('', '_blank')
   if (!printWindow) return
-  const sanitizePrintContent = (element) => {
-    const clone = element.cloneNode(true)
-    if (typeof document === 'undefined' || !document.createTreeWalker) return clone.outerHTML
-    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_ELEMENT)
-    while (walker.nextNode()) {
-      const node = walker.currentNode
-      if (node.tagName === 'SCRIPT') {
-        node.remove()
-        continue
-      }
-      Array.from(node.attributes || []).forEach((attr) => {
-        if (attr.name.toLowerCase().startsWith('on')) {
-          node.removeAttribute(attr.name)
-        }
-      })
-    }
-    return clone.outerHTML
-  }
-  const safePaper = sanitizePrintContent(paper)
+  const safePaper = cloneDocumentForPrint(paper).outerHTML
   const styleText = `
     body { margin: 0; padding: 20px; background: #fff; }
     .eis-document-paper { max-width: 900px; margin: 0 auto; font-family: "SimSun", "Songti SC", serif; color: #000; }
@@ -914,6 +897,10 @@ const printDoc = () => {
     .custom-doc-table { width: 100%; border: 1px solid #000; border-collapse: collapse; }
     .custom-doc-table th, .custom-doc-table td { border: 1px solid #000; padding: 6px; text-align: center; }
     .table-toolbar, .image-actions, button, input, textarea, select { display: none !important; }
+    .el-select, .el-date-editor, .el-input-number { width: 100% !important; }
+    .el-select__wrapper, .el-date-editor .el-input__wrapper, .el-input-number .el-input__wrapper { min-height: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; }
+    .el-select__caret, .el-select .el-input__suffix, .el-select .el-input__prefix, .el-date-editor .el-input__suffix, .el-date-editor .el-input__prefix, .el-input-number__decrease, .el-input-number__increase { display: none !important; }
+    .el-select__selected-item, .el-select .el-input__inner, .el-date-editor .el-input__inner, .el-input-number .el-input__inner { color: #000 !important; padding: 0 !important; height: auto !important; line-height: inherit !important; }
   `
   printWindow.document.write(`<!DOCTYPE html><html><head><title>单据打印</title><style>${styleText}</style></head><body>${safePaper}</body></html>`)
   printWindow.document.close()

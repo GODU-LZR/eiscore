@@ -157,15 +157,41 @@
               :align="col.align || 'center'"
             >
               <template #default="scope">
-                <span v-if="!isTableEditable(section, col)">{{ scope.row[col.field] }}</span>
+                <span v-if="!isTableEditable(section, col)">{{ resolveTableDisplayValue(col, scope.row[col.field], scope.row) }}</span>
+                <el-select
+                  v-else-if="isTableSelectWidget(col)"
+                  size="small"
+                  :model-value="scope.row[col.field]"
+                  @change="(val) => updateTableValue(section.field, scope.$index, col.field, val)"
+                >
+                  <el-option
+                    v-for="opt in resolveTableSelectOptions(col, scope.row)"
+                    :key="opt.value"
+                    :label="opt.label"
+                    :value="opt.value"
+                  />
+                </el-select>
+                <el-select
+                  v-else-if="isTableCascaderWidget(col)"
+                  size="small"
+                  :model-value="scope.row[col.field]"
+                  @change="(val) => updateTableValue(section.field, scope.$index, col.field, val)"
+                >
+                  <el-option
+                    v-for="opt in resolveTableCascaderOptions(col, scope.row)"
+                    :key="opt.value"
+                    :label="opt.label"
+                    :value="opt.value"
+                  />
+                </el-select>
                 <el-input
-                  v-else-if="col.widget === 'input' || !col.widget"
+                  v-else-if="isTableInputWidget(col)"
                   size="small"
                   :model-value="scope.row[col.field]"
                   @update:modelValue="(val) => updateTableValue(section.field, scope.$index, col.field, val)"
                 />
                 <el-date-picker
-                  v-else-if="col.widget === 'date'"
+                  v-else-if="resolveTableWidgetType(col) === 'date'"
                   size="small"
                   type="date"
                   value-format="YYYY-MM-DD"
@@ -173,7 +199,7 @@
                   @update:modelValue="(val) => updateTableValue(section.field, scope.$index, col.field, val)"
                 />
                 <el-input-number
-                  v-else-if="col.widget === 'number'"
+                  v-else-if="resolveTableWidgetType(col) === 'number'"
                   size="small"
                   controls-position="right"
                   :model-value="scope.row[col.field]"
@@ -406,6 +432,26 @@ const resolveCascaderOptions = (item) => {
   return resolveSelectOptions(item)
 }
 
+const resolveTableWidgetType = (col) => col?.widget || getColumnMeta(col?.field)?.type || ''
+const isTableInputWidget = (col) => col?.widget === 'input' || ['text', ''].includes(resolveTableWidgetType(col))
+const isTableSelectWidget = (col) => resolveTableWidgetType(col) === 'select'
+const isTableCascaderWidget = (col) => resolveTableWidgetType(col) === 'cascader'
+
+const resolveTableSelectOptions = (col) => {
+  const meta = getColumnMeta(col?.field)
+  return normalizeOptions(col?.options || meta?.options || [])
+}
+
+const resolveTableCascaderOptions = (col, row = {}) => {
+  const meta = getColumnMeta(col?.field)
+  const options = col?.cascaderOptions || col?.cascaderOptionsMap || meta?.cascaderOptions || meta?.cascaderOptionsMap
+  if (Array.isArray(options)) return normalizeOptions(options)
+  const dependsOn = col?.dependsOn || col?.dependsOnField || meta?.dependsOn || meta?.dependsOnField
+  const parentValue = dependsOn ? getValueByPath(dependsOn, row) : undefined
+  const key = normalizeOptionKey(parentValue)
+  return normalizeOptions(options?.[key] || options?.[parentValue] || resolveTableSelectOptions(col))
+}
+
 const formatScalarValue = (value) => {
   if (value === null || value === undefined) return ''
   if (Array.isArray(value)) {
@@ -460,6 +506,12 @@ const resolveDisplayValue = (item, contentTemplate) => {
   }
   if (col?.type === 'file') return formatScalarValue(raw)
   return formatScalarValue(raw)
+}
+
+const resolveTableDisplayValue = (col, value, row = {}) => {
+  if (isTableSelectWidget(col)) return resolveOptionLabel(value, resolveTableSelectOptions(col))
+  if (isTableCascaderWidget(col)) return resolveOptionLabel(value, resolveTableCascaderOptions(col, row))
+  return formatScalarValue(value)
 }
 
 const resolveImageValue = (item) => {
@@ -558,7 +610,7 @@ const isTableEditable = (section, col) => {
   if (meta && typeof meta.statusEditable === 'function' && !meta.statusEditable(props.modelValue || {})) return false
   if (meta?.statusEditable === false) return false
   if (!meta) return true
-  return meta.type === 'text'
+  return ['text', 'select', 'cascader', 'date', 'number'].includes(meta.type)
 }
 
 const appliedImageDefaults = new Set()
@@ -766,6 +818,40 @@ watch(
   .image-actions,
   :deep(.el-button) {
     display: none !important;
+  }
+
+  :deep(.el-select),
+  :deep(.el-date-editor),
+  :deep(.el-input-number) {
+    width: 100% !important;
+  }
+  :deep(.el-select__wrapper),
+  :deep(.el-date-editor .el-input__wrapper),
+  :deep(.el-input-number .el-input__wrapper) {
+    min-height: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+  :deep(.el-select__caret),
+  :deep(.el-select .el-input__suffix),
+  :deep(.el-select .el-input__prefix),
+  :deep(.el-date-editor .el-input__suffix),
+  :deep(.el-date-editor .el-input__prefix),
+  :deep(.el-input-number__decrease),
+  :deep(.el-input-number__increase) {
+    display: none !important;
+  }
+  :deep(.el-select__selected-item),
+  :deep(.el-select .el-input__inner),
+  :deep(.el-date-editor .el-input__inner),
+  :deep(.el-input-number .el-input__inner) {
+    color: #000 !important;
+    padding: 0 !important;
+    height: auto !important;
+    line-height: inherit !important;
   }
 }
 </style>
