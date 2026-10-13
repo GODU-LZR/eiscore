@@ -72,7 +72,6 @@ import {
   numberValue,
   percentText
 } from '@/utils/quality-attention'
-import { sortByAttention } from '@shared/app-card-attention'
 import {
   combineQueryParts,
   countStat,
@@ -299,8 +298,7 @@ const visibleApps = computed(() => QUALITY_APPS
       ],
       brief: app.desc
     }
-  }))
-  .sort(sortByAttention))
+  })))
 
 const openApp = (app) => {
   if (!app?.route) return

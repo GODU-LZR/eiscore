@@ -207,7 +207,7 @@ import { ensureAppAclConfig, resolveAppAclModule } from '@/utils/app-permissions
 import { hasPerm } from '@/utils/permission'
 import { ensureSemanticConfig } from '@/utils/semantics-config'
 import { getToken } from '@/utils/auth'
-import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
+import { cardFromScore } from '@shared/app-card-attention'
 import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 import { rememberAppRuntimeTitle } from '@shared/eis-app-runtime-title-store.mjs'
 
@@ -483,8 +483,7 @@ const attentionApps = computed(() => apps.value
   .map((app) => ({
     ...app,
     card: getAppAttentionCard(app)
-  }))
-  .sort(sortByAttention))
+  })))
 
 const getAppTabTitle = (app) => String(getDisplayName(app) || app?.name || '').trim()
 
@@ -675,7 +674,7 @@ async function loadApps() {
     const token = getToken()
     const response = await axios.get(toAbsoluteApiUrl(`${apiBase}/apps`), {
       headers: getAppCenterHeaders(token),
-      params: { order: 'created_at.desc' }
+      params: { order: 'created_at.desc,id.asc' }
     })
     const list = response.data || []
     apps.value = list.filter((app) => {

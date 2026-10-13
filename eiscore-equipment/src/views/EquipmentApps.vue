@@ -71,7 +71,6 @@ import {
   getEquipmentAppAttention,
   numberValue
 } from '@/utils/equipment-attention'
-import { sortByAttention } from '@shared/app-card-attention'
 import {
   avgStat,
   combineQueryParts,
@@ -339,8 +338,7 @@ const visibleApps = computed(() => EQUIPMENT_APPS
       ],
       brief: app.desc
     }
-  }))
-  .sort(sortByAttention))
+  })))
 
 const openApp = (app) => {
   if (!app?.route) return

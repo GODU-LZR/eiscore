@@ -70,8 +70,7 @@ import {
   buildGenericCard,
   cardFromScore,
   daysBetween,
-  numberValue,
-  sortByAttention
+  numberValue
 } from '@shared/app-card-attention'
 import {
   combineQueryParts,
@@ -331,8 +330,7 @@ const visibleApps = computed(() => apps
     card: cardLoading.value && !rowsOf('archives').length
       ? buildGenericCard(app, [], true)
       : (cardMap.value[app.key] || buildGenericCard(app, rowsOf('archives'), cardLoading.value))
-  }))
-  .sort(sortByAttention))
+  })))
 
 const openApp = (app) => {
   if (!app?.route) return

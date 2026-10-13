@@ -80,8 +80,7 @@ import {
   daysBetween,
   moneyText,
   numberValue,
-  percentText,
-  sortByAttention
+  percentText
 } from '@shared/app-card-attention'
 import {
   combineQueryParts,
@@ -316,8 +315,7 @@ const visibleApps = computed(() => SALES_APPS
     card: cardLoading.value && !rowsOf(sourceKeyOf(app)).length
       ? buildGenericCard(app, rowsOf(sourceKeyOf(app)), true)
       : (cardMap.value[app.key] || cardMap.value[sourceKeyOf(app)] || buildGenericCard(app, rowsOf(sourceKeyOf(app)), cardLoading.value))
-  }))
-  .sort(sortByAttention))
+  })))
 
 const buildSalesAppsContext = () => {
   const apps = visibleApps.value.map((app) => ({
