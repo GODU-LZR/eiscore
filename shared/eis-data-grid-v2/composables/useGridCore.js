@@ -7,6 +7,7 @@ import request from '@/utils/request'
 import { buildSearchQuery } from '@/utils/grid-query'
 import { createPagedGridLoader } from '@shared/eis-data-grid-paging'
 import { createGridLocalLayout } from '@shared/eis-grid-local-layout'
+import { formatSelectLabel, formatStatusLabel } from '@shared/eis-grid-export.mjs'
 import StatusEditor from '@shared/eis-data-grid-v2/components/renderers/StatusEditor.vue'
 import SelectEditor from '@shared/eis-data-grid-v2/components/renderers/SelectEditor.vue'
 import FileRenderer from '@shared/eis-data-grid-v2/components/renderers/FileRenderer.vue'
@@ -111,7 +112,9 @@ export function useGridCore(
   const normalizeStatus = (value) => {
     if (value === null || value === undefined || value === '') return ''
     const text = String(value).toLowerCase()
-    if (text === 'disabled') return 'locked'
+    // ACL lifecycle keeps disabled distinct from locked. Other business grids
+    // retain the legacy disabled-to-locked compatibility mapping.
+    if (text === 'disabled' && !['hr_user', 'hr_acl'].includes(aclModule.value)) return 'locked'
     if (text === 'draft') return 'created'
     if (text === 'created' || text === 'active' || text === 'locked') return text
     return text
@@ -119,6 +122,7 @@ export function useGridCore(
 
   const toStoredStatus = (value) => {
     const normalized = normalizeStatus(value)
+    if (['hr_user', 'hr_acl'].includes(aclModule.value)) return normalized
     if (normalized === 'locked') return 'disabled'
     if (normalized === 'created') return 'draft'
     return normalized
@@ -134,6 +138,12 @@ export function useGridCore(
     const from = normalizeStatus(fromStatus)
     const to = normalizeStatus(toStatus)
     if (!from || !to || from === to) return true
+    if (['hr_user', 'hr_acl'].includes(aclModule.value)) {
+      const transitions = aclModule.value === 'hr_acl'
+        ? { created: ['active'], active: ['locked', 'disabled'], locked: [], disabled: ['active'] }
+        : { created: ['active'], active: ['created', 'locked'], locked: ['active'], disabled: ['created', 'active'] }
+      if (!transitions[from]?.includes(to)) return false
+    }
     if (!shouldEnforceStatusTransitionPermission()) return true
     if (!aclModule.value) return true
     const exactCode = `op:${aclModule.value}.${STATUS_TRANSITION_ACTION}.${from}_${to}`
@@ -197,7 +207,9 @@ export function useGridCore(
   }
 
   const getFieldAcl = (colDef) => {
-    if (!aclModule.value || !aclRoleId.value) return null
+    // The ACL editor must remain usable while its own field rules are being
+    // activated. Its static columns are not subject to hr_acl field ACLs.
+    if (!aclModule.value || aclModule.value === 'hr_acl' || !aclRoleId.value) return null
     const key = getFieldKeyFromColDef(colDef)
     if (!key) return null
     return fieldAcl.value?.[key] || null
@@ -225,7 +237,7 @@ export function useGridCore(
   }
 
   const loadFieldAcl = async () => {
-    if (!aclModule.value) {
+    if (!aclModule.value || aclModule.value === 'hr_acl') {
       fieldAcl.value = {}
       return
     }
@@ -258,7 +270,16 @@ export function useGridCore(
       })
       const map = {}
       ;(Array.isArray(res) ? res : []).forEach((item) => {
-        map[item.field_code] = { canView: item.can_view, canEdit: item.can_edit }
+        const rawStatus = String(item.status ?? 'active').trim().toLowerCase()
+        const lifecycleStatus = rawStatus === 'draft' ? 'created' : rawStatus
+        const effective = ['active', 'locked'].includes(lifecycleStatus)
+        map[item.field_code] = {
+          // A created/disabled field ACL is a pending grant, so it cannot
+          // expose or edit the field before explicit activation.
+          canView: effective && item.can_view !== false,
+          canEdit: effective && item.can_edit !== false,
+          status: lifecycleStatus
+        }
       })
       fieldAcl.value = map
       applyFieldAclVisibility()
@@ -267,14 +288,39 @@ export function useGridCore(
     }
   }
 
+  const isAclStatusField = (field) => ['status', 'assignment_status', 'scope_status'].includes(field)
+
+  const resolveAclRowStatus = (data) => normalizeStatus(
+    data?.status ?? data?.assignment_status ?? data?.scope_status
+  )
+
+  const isRowLocked = (data) => {
+    if (data?.properties?.row_locked_by) return true
+    if (aclModule.value === 'hr_user') return data?.status === 'locked'
+    if (aclModule.value === 'hr_acl') {
+      return normalizeStatus(data?.role_status) === 'locked' || resolveAclRowStatus(data) === 'locked'
+    }
+    return false
+  }
+
+  const canUnlockAclRow = (data, field) => {
+    if (aclModule.value !== 'hr_acl' || !isAclStatusField(field)) return false
+    return false
+  }
+
   // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
     const colId = legacyAppColumns ? params.colDef.field : (params.colDef.colId || params.colDef.field)
     if (props.canEdit === false && !params.node.rowPinned) return true
+    if (aclModule.value === 'hr_user' && params.data?._userStatusPending) return true
     if (!legacyAppColumns && (colId === 'rowCheckbox' || params.colDef.checkboxSelection)) return true
     if (colId === '_status') {
       const currentStatus = params.data?.properties?.status ?? params.data?.status
       return !hasOutgoingTransitionPermission(currentStatus)
+    }
+    if (aclModule.value === 'hr_acl' && isRowLocked(params.data)) {
+      // A locked ACL row, including its status cell, is immutable.
+      if (!canUnlockAclRow(params.data, colId)) return true
     }
     if (colId === '_actions') return true // ⚠️ 关键：操作列必须只读！
     if (params.node.rowPinned) return true
@@ -288,7 +334,7 @@ export function useGridCore(
       if (params.colDef.statusEditable === false) return true
     }
     if (props.enableColumnLock !== false && columnLockState[colId]) return true
-    if (params.data?.properties?.row_locked_by) return true
+    if (isRowLocked(params.data) && !canUnlockAclRow(params.data, colId)) return true
     if (params.colDef.type === 'formula') return true
     const acl = getFieldAcl(params.colDef)
     if (acl?.canView === false) return true
@@ -304,7 +350,7 @@ export function useGridCore(
     'cell-locked-pattern': (params) => {
       if (props.enableColumnLock === false) return false
       const colId = params.colDef.field
-      if (params.data?.properties?.row_locked_by) return true
+      if (isRowLocked(params.data)) return true
       if (colId && columnLockState[colId]) return true
       return false
     },
@@ -322,12 +368,12 @@ export function useGridCore(
 
   const rowClassRules = attentionEnabled
     ? {
-        'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by,
+        'row-locked-bg': (params) => isRowLocked(params.data),
         'attention-row-critical': (params) => resolveAttention(params.data)?.level === 'critical',
         'attention-row-warning': (params) => resolveAttention(params.data)?.level === 'warning',
         'attention-row-focus': (params) => resolveAttention(params.data)?.level === 'focus'
       }
-    : { 'row-locked-bg': (params) => !!params.data?.properties?.row_locked_by }
+    : { 'row-locked-bg': (params) => isRowLocked(params.data) }
 
   const getCellStyle = (params) => {
     const base = { 'line-height': '34px' }
@@ -337,7 +383,7 @@ export function useGridCore(
       const attentionCursor = materialColumns && params.colDef.editable === false ? 'default' : 'pointer'
       return { ...base, cursor: attentionCursor }
     }
-    if (params.data?.properties?.row_locked_by) return base
+    if (isRowLocked(params.data)) return base
     const acl = getFieldAcl(params.colDef)
     if (acl?.canView === false) return { ...base, backgroundColor: '#f5f7fa', color: '#c0c4cc' }
     if (acl?.canView !== false && acl?.canEdit === false) return { ...base, backgroundColor: '#f5f7fa', color: '#909399' }
@@ -361,6 +407,7 @@ export function useGridCore(
       if (acl?.canView === false) return '*******'
       if (materialColumns && typeof col?.valueFormatter === 'function') return col.valueFormatter(params)
       if (typeof col?.formatter === 'function') return col.formatter(params)
+      if (isSelectColumn(col)) return formatSelectLabel(params.value, resolveSelectOptions(col))
       if (Array.isArray(params.value)) return params.value.join('  ')
       return params.value
     }
@@ -612,10 +659,21 @@ export function useGridCore(
   }
 
 
+  const getHeaderMinWidth = (label) => {
+    const text = String(label || '')
+    const textWidth = Array.from(text).reduce((width, char) => {
+      if (/\s/.test(char)) return width + 4
+      if (/[\u2e80-\u9fff\uff00-\uffef]/.test(char)) return width + 13
+      return width + 7.5
+    }, 0)
+    // Reserve space for the sort/lock/filter tools rendered beside the label.
+    return Math.ceil(textWidth + 78)
+  }
+
   const createColDef = (col, isDynamic) => {
     const field = isDynamic ? `properties.${col.prop}` : col.prop
     const colId = isDynamic ? `properties.${col.prop}` : col.prop
-    const minWidth = col.minWidth ?? 150
+    const minWidth = Math.max(Number(col.minWidth) || 0, getHeaderMinWidth(col.label), 150)
     const configuredWidth = getStoredColumnWidth(colId, col.width)
     const widthConfig = configuredWidth
       ? { width: configuredWidth, minWidth, suppressSizeToFit: true }
@@ -641,6 +699,7 @@ export function useGridCore(
       field: field,
       colId,
       type: col.type,
+      context: { suppressCsvExport: col.suppressCsvExport === true },
       editable: col.editable !== false && ((params) => !isCellReadOnly(params)),
       cellStyle: getCellStyle,
       cellClassRules: cellClassRules,
@@ -649,6 +708,21 @@ export function useGridCore(
       headerClass: isDynamic ? 'dynamic-header' : '',
       ...widthConfig,
       ...extraColDef
+    }
+
+    if (aclModule.value === 'hr_acl' && isAclStatusField(col.prop)) {
+      colDef.valueSetter = (params) => {
+        if (isRowLocked(params.data) && !canUnlockAclRow(params.data, col.prop)) return false
+        const fromStatus = normalizeStatus(params.data?.[field]) || 'created'
+        const toStatus = normalizeStatus(params.newValue)
+        if (!canTransitionStatus(fromStatus, toStatus)) {
+          ElMessage.warning('状态变更不可用：创建需先生效，生效后才能锁定')
+          return false
+        }
+        if (params.data?.[field] === toStatus) return false
+        params.data[field] = toStatus
+        return true
+      }
     }
 
     if (!colDef.valueFormatter) {
@@ -706,6 +780,7 @@ export function useGridCore(
         cellRenderer: 'CheckRenderer',
         editable: false,
         checkEditable: (params) => !isCellReadOnly(params),
+        allowDoubleClickToggle: col.allowDoubleClickToggle === true,
         suppressClickEdit: true,
         suppressDoubleClickEdit: true,
         suppressKeyboardEvent: () => true,
@@ -850,6 +925,8 @@ export function useGridCore(
       filter: true, sortable: false, resizable: false, suppressHeaderMenuButton: false,
       editable: (params) => !params.node.rowPinned && !isCellReadOnly(params),
       cellRenderer: 'StatusRenderer', cellEditor: 'StatusEditor', cellEditorPopup: true, cellEditorPopupPosition: 'under',
+      cellRendererParams: { userLifecycle: aclModule.value === 'hr_user' },
+      cellEditorParams: (params) => ({ canSelectStatus: (status) => canTransitionStatus(params.value, status) }),
       cellClassRules: cellClassRules,
       valueGetter: params => {
         if (params.node.rowPinned) return params.data?._status || activeSummaryConfig.label
@@ -857,21 +934,22 @@ export function useGridCore(
         const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
         const raw = hasStatus ? params.data?.status : params.data?.properties?.status
         if (!raw) return 'created'
-        const text = String(raw).toLowerCase()
-        if (text === 'disabled') return 'locked'
-        if (text === 'draft' || text === 'created') return 'created'
-        if (text === 'active') return 'active'
-        if (text === 'locked') return 'locked'
-        return raw
+        return normalizeStatus(raw)
       },
+      valueFormatter: params => formatStatusLabel(params.value),
       valueSetter: params => { 
         if(params.node.rowPinned || params.newValue===params.oldValue) return false; 
+        if (isCellReadOnly(params)) return false
         const hasStatus = params.data && Object.prototype.hasOwnProperty.call(params.data, 'status')
         const currentRaw = hasStatus ? params.data?.status : params.data?.properties?.status
         const fromStatus = normalizeStatus(currentRaw) || 'created'
         const toStatus = normalizeStatus(params.newValue)
         if (!toStatus) return false
         if (!canTransitionStatus(fromStatus, toStatus)) {
+          if (aclModule.value === 'hr_user') {
+            ElMessage.warning('该状态变更不可用：创建用户需先生效，锁定用户需先解除锁定')
+            return false
+          }
           const code = `op:${aclModule.value}.${STATUS_TRANSITION_ACTION}.${fromStatus}_${toStatus}`
           ElMessage.warning(`无权限变更状态：缺少 ${code}`)
           return false
@@ -885,6 +963,10 @@ export function useGridCore(
         if (hasStatus) {
           const mapped = toStoredStatus(toStatus)
           params.data.status = mapped
+          if (aclModule.value === 'hr_user') {
+            params.data._userStatusBeforeSave = currentRaw
+            params.data._userStatusPending = true
+          }
         }
         return true; 
       } 
@@ -998,7 +1080,7 @@ export function useGridCore(
 
   return {
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
-    isLoadingMore, hasMoreRows, loadData, loadNextPage, handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules, columnLockState,
+    isLoadingMore, hasMoreRows, loadData, loadNextPage, handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules, columnLockState,
     setWorkflowBinding, getRowHeight, handleColumnResized, onGridReadyLayout,
     stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
   }

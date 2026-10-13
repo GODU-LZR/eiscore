@@ -21,12 +21,11 @@
       :can-export="canExport"
       :can-recalculate-formulas="canConfig && canRecalculateFormulas"
       :formula-recalculating="formulaRecalculateState.loading"
-      :calculation-state="calculationState"
       @search="loadData"
       @create="$emit('create')"
       @config-columns="$emit('config-columns')"
-      @delete="deleteSelectedRows"
-      @export="gridApi && gridApi.exportDataAsCsv({ fileName: '导出数据.csv' })"
+      @delete="handleDeleteSelectedRows"
+      @export="handleExport"
       @recalculate-formulas="recalculateServerFormulas"
     >
       <slot name="toolbar"></slot>
@@ -42,6 +41,7 @@
         :class="['ag-theme-alpine', 'no-user-select', { 'ag-theme-dark': isDark }]"
         :columnDefs="gridColumns"
         :rowData="gridData"
+        :loading="isLoading"
         :pinnedBottomRowData="pinnedBottomRowData"
         :defaultColDef="defaultColDef"
         :columnTypes="columnTypes"
@@ -122,6 +122,7 @@ import { useGridFormula } from '@shared/eis-data-grid-v2/composables/useGridForm
 import { useGridHistory } from '@shared/eis-data-grid-v2/composables/useGridHistory'
 import { useGridSelection } from '@shared/eis-data-grid-v2/composables/useGridSelection'
 import { useGridClipboard } from '@shared/eis-data-grid-v2/composables/useGridClipboard'
+import { exportGridCsv } from '@shared/eis-grid-export.mjs'
 
 import GridToolbar from '@shared/eis-data-grid-v2/components/GridToolbar.vue'
 import ConfigDialog from '@shared/eis-data-grid-v2/components/ConfigDialog.vue'
@@ -222,6 +223,7 @@ const props = defineProps({
   fieldDefaults: { type: Object, default: () => ({}) },
   patchRequiredFields: { type: Array, default: () => [] },
   viewId: { type: String, required: false, default: null },
+  exportName: { type: String, default: '' },
   staticColumns: { type: Array, default: () => [] },
   extraColumns: { type: Array, default: () => [] },
   summary: { type: Object, default: () => ({ label: '合计', rules: {}, expressions: {} }) },
@@ -273,7 +275,7 @@ const adapterServices = entryAdapter.services || {}
 const GeoDialog = entryAdapter.GeoDialog
 
 // 🟢 声明事件：增加 view-document
-const emit = defineEmits(['create', 'config-columns', 'view-document', 'row-action', 'data-loaded', 'data-load-error', 'cell-value-changed', 'selection-changed'])
+const emit = defineEmits(['create', 'config-columns', 'view-document', 'row-action', 'data-loaded', 'data-load-error', 'cell-value-changed', 'selection-changed', 'delete-complete'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = String(currentUser).toLowerCase() === 'admin'
@@ -300,7 +302,7 @@ const workflowBinding = ref(null)
 const {
   gridData, gridColumns, context, gridComponents, searchText, isLoading,
   isLoadingMore, hasMoreRows, loadData, loadNextPage,
-  handleToggleColumnLock, getCellStyle, isCellReadOnly, rowClassRules,
+  handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules,
   columnLockState, setWorkflowBinding, getRowHeight, handleColumnResized,
   onGridReadyLayout, stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
 } = useGridCore(
@@ -320,6 +322,7 @@ const {
 
 const openFileDialog = (params) => {
   if (!params || params.node?.rowPinned) return
+  if (gridProps.aclModule === 'hr_user' && isCellReadOnly(params)) return
   fileDialog.params = params
   fileDialog.visible = true
 }
@@ -334,7 +337,7 @@ context.componentParent.onHeaderLabelClick = (params, event) => {
 const formulaDependencyHooks = {}
 const {
   pinnedBottomRowData, calculateRowFormulas, calculateTotals, refreshTotals,
-  formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas, calculationState,
+  formulaRecalculateState, canRecalculateFormulas, recalculateServerFormulas,
   configDialog, isSavingConfig, availableColumns,
   openConfigDialog, saveConfig, loadGridConfig
 } = useGridFormula(gridProps, gridApi, gridData, activeSummaryConfig, { value: currentUser }, formulaDependencyHooks, columnLockState, {
@@ -348,13 +351,20 @@ const historyHooks = useGridHistory(
   gridData,
   { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals },
   entryAdapter.historyOptions || {},
-  { debounce: adapterServices.debounce }
+  { debounce: adapterServices.debounce, isCellReadOnly, isRowLocked }
 )
 const {
   history, isSystemOperation,
   onCellValueChanged, deleteSelectedRows, pushPendingChange, sanitizeValue,
   debouncedSave, performUndoRedo
 } = historyHooks
+
+const handleDeleteSelectedRows = async () => {
+  const deleted = await deleteSelectedRows()
+  if (deleted) emit('delete-complete')
+}
+
+const handleExport = () => exportGridCsv(gridApi.value, { appName: gridProps.exportName })
 
 const handleCellValueChanged = (params) => {
   onCellValueChanged(params)
@@ -387,8 +397,8 @@ const { handleGlobalPaste, onCellKeyDown } = useGridClipboard(
 
 const defaultColDef = {
   sortable: true, filter: true, resizable: true, minWidth: 100,
-  wrapHeaderText: true,
-  autoHeaderHeight: true,
+  wrapHeaderText: false,
+  autoHeaderHeight: false,
   editable: (params) => !isCellReadOnly(params),
   suppressKeyboardEvent: (params) => {
     const e = params.event; const k = e.key.toLowerCase(); const c = e.ctrlKey || e.metaKey;
@@ -542,10 +552,12 @@ const onCellDoubleClicked = (params) => {
     return
   }
   if (params.node?.rowPinned) return
-  if (params.colDef?.type === 'check') {
+  if (params.colDef?.type === 'check' && params.colDef?.allowDoubleClickToggle === true) {
     const editable = typeof params.colDef.editable === 'function'
       ? params.colDef.editable(params)
-      : params.colDef.editable !== false
+      : (typeof params.colDef.checkEditable === 'function'
+          ? params.colDef.checkEditable(params)
+          : params.colDef.editable !== false)
     if (!editable) return
     const current = !!params.value
     params.node.setDataValue(params.colDef.field, !current)
@@ -661,8 +673,9 @@ defineExpose({
   background-color: #eef6ff;
 }
 
-.eis-grid-wrapper:not(.eis-grid-wrapper--legacy-columns) .ag-theme-alpine .ag-row:hover .ag-cell:not([col-id="_rowHeight"]) {
-  background-image: linear-gradient(to bottom, transparent calc(100% - 8px), rgba(64, 158, 255, 0.08) calc(100% - 8px));
+.eis-grid-wrapper:not(.eis-grid-wrapper--legacy-columns) .ag-theme-alpine .ag-row:hover .ag-cell:not([col-id="_rowHeight"]):not(.custom-range-selected) {
+  background-color: rgba(64, 158, 255, 0.18);
+  background-image: linear-gradient(to bottom, transparent calc(100% - 3px), rgba(64, 158, 255, 0.7) calc(100% - 3px));
 }
 
 .eis-grid-wrapper:not(.eis-grid-wrapper--legacy-columns) .ag-theme-alpine .ag-row:hover .ag-cell[col-id="_rowHeight"] {
@@ -683,7 +696,8 @@ defineExpose({
   border-color: #e5e7eb;
 }
 
-.custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 1px solid rgba(0, 120, 215, 0.6) !important; z-index: 1; }
+.custom-range-selected { background-color: rgba(0, 120, 215, 0.15) !important; border: 0 !important; z-index: auto; }
+.ag-theme-alpine .ag-row:has(.custom-range-selected) { border-bottom-color: transparent !important; }
 .cell-locked-pattern { background-image: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 10px, #ffffff 10px, #ffffff 20px); color: #a8abb2; cursor: not-allowed; }
 .row-locked-bg { background-color: #fafafa !important; }
 .ag-theme-alpine .attention-row-critical.ag-row,
@@ -713,9 +727,9 @@ defineExpose({
 .eis-grid-wrapper--bordered-attention .ag-theme-alpine .attention-row-focus { background: #f4f8ff; }
 .eis-grid-wrapper--bordered-attention .attention-cell-normal { font-weight: 500; }
 
-.custom-header-wrapper { display: flex !important; align-items: flex-start !important; width: 100%; height: 100%; justify-content: space-between; overflow: visible; }
-.custom-header-main { display: flex !important; align-items: flex-start !important; flex: 1; overflow: visible; cursor: pointer; padding-right: 8px; min-width: 0; }
-.custom-header-label { overflow: visible; text-overflow: clip; white-space: normal; font-weight: 600; font-size: 13px; color: var(--ag-header-foreground-color); line-height: 16px; word-break: break-all; }
+.custom-header-wrapper { display: flex !important; align-items: center !important; width: max-content; min-width: 100%; height: 100%; justify-content: space-between; overflow: visible; }
+.custom-header-main { display: flex !important; align-items: center !important; flex: 0 0 auto; overflow: visible; cursor: pointer; padding-right: 8px; min-width: 0; }
+.custom-header-label { flex: 0 0 auto; overflow: visible; text-overflow: clip; white-space: nowrap; font-weight: 600; font-size: 13px; color: var(--ag-header-foreground-color); line-height: 16px; word-break: normal; }
 .custom-header-tools { display: flex !important; align-items: center !important; gap: 2px; flex-shrink: 0; }
 .custom-header-icon { display: flex !important; align-items: center !important; padding: 4px; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }
 .custom-header-icon:hover { background-color: #e6e8eb; }
@@ -723,9 +737,9 @@ defineExpose({
 .custom-header-wrapper:hover .header-unlock-icon, .custom-header-wrapper:hover .menu-btn { opacity: 1; }
 .ag-theme-alpine .perm-granted-header .custom-header-main { overflow: visible; }
 .ag-theme-alpine .perm-granted-header .custom-header-label { overflow: visible; text-overflow: clip; white-space: nowrap; }
-.ag-theme-alpine .ag-header-cell-label { align-items: flex-start; overflow: visible !important; }
+.ag-theme-alpine .ag-header-cell-label { align-items: center; overflow: visible !important; }
 .ag-theme-alpine .ag-header-cell { overflow: visible !important; }
-.ag-theme-alpine .ag-header-cell-text { white-space: normal !important; line-height: 16px; word-break: break-all; overflow: visible !important; text-overflow: clip !important; }
+.ag-theme-alpine .ag-header-cell-text { white-space: nowrap !important; line-height: 16px; word-break: normal; overflow: visible !important; text-overflow: clip !important; }
 
 .ag-theme-alpine.ag-theme-dark {
   --ag-foreground-color: #f3f4f6;

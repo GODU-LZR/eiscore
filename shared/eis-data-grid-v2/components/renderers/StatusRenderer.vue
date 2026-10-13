@@ -19,6 +19,7 @@ const statusMap = {
   'created': { label: '创建', icon: CirclePlus, color: '#409EFF' },
   'active': { label: '生效', icon: CircleCheck, color: '#67C23A' },
   'locked': { label: '锁定', icon: Lock, color: '#F56C6C' },
+  'disabled': { label: '停用', icon: Lock, color: '#909399' },
   'total': { icon: null, color: 'var(--el-color-primary)', fontWeight: 'bold' }
 }
 
@@ -29,7 +30,7 @@ const currStatus = computed(() => {
   const raw = data?.status ?? data?.properties?.status
   if (!raw) return 'created'
   const text = String(raw).toLowerCase()
-  if (text === 'disabled') return 'locked'
+  if (text === 'disabled') return props.params.userLifecycle ? 'disabled' : 'locked'
   if (text === 'draft') return 'created'
   if (text === 'active' || text === 'locked' || text === 'created') return text
   return raw

@@ -20,7 +20,8 @@ export function useGridHistory(
   historyOptions = {},
   historyServices = {}
 ) {
-  const { debounce } = historyServices
+  const { debounce, isCellReadOnly, isRowLocked } = historyServices
+  const isUserLifecycle = () => props.aclModule === 'hr_user'
   const history = reactive({ undoStack: [], redoStack: [] })
   const pendingChanges = []
   const isRemoteUpdating = ref(false)
@@ -93,7 +94,12 @@ export function useGridHistory(
     } else {
       delete payload.properties
     }
-    if (Object.prototype.hasOwnProperty.call(payload, 'updated_at')) {
+    if (isUserLifecycle()) {
+      delete payload.created_at
+      delete payload.updated_at
+      delete payload._userStatusPending
+      delete payload._userStatusBeforeSave
+    } else if (Object.prototype.hasOwnProperty.call(payload, 'updated_at')) {
       payload.updated_at = new Date().toISOString()
     }
     return payload
@@ -133,7 +139,10 @@ export function useGridHistory(
         payload[field] = rowValue !== undefined ? applyFieldDefaults(field, rowValue) : applyFieldDefaults(field, null)
       }
     })
-    if (entry.rowNode?.data && Object.prototype.hasOwnProperty.call(entry.rowNode.data, 'updated_at') && !Object.prototype.hasOwnProperty.call(payload, 'updated_at')) {
+    if (isUserLifecycle()) {
+      delete payload.created_at
+      delete payload.updated_at
+    } else if (entry.rowNode?.data && Object.prototype.hasOwnProperty.call(entry.rowNode.data, 'updated_at') && !Object.prototype.hasOwnProperty.call(payload, 'updated_at')) {
       payload.updated_at = new Date().toISOString()
     }
     return payload
@@ -204,12 +213,19 @@ export function useGridHistory(
                 const patchPayload = buildPatchPayload(entry)
                 if (!patchPayload || Object.keys(patchPayload).length === 0) return
                 const patchUrl = appendQuery(resolveWriteUrl(), `id=eq.${safeFilterValue(rowId)}`)
-                await request({
+                const savedRows = await request({
                   url: patchUrl,
                   method: 'patch',
                   headers: { 'Accept-Profile': resolveProfile(props.acceptProfile), 'Content-Profile': resolveProfile(props.contentProfile), 'Prefer': 'return=representation' },
                   data: patchPayload
                 })
+                if (isUserLifecycle()) {
+                  const saved = Array.isArray(savedRows) ? savedRows.find(row => String(row.id) === String(rowId)) : null
+                  if (!saved) throw new Error('用户保存未返回数据，请刷新后确认')
+                  Object.assign(entry.rowNode.data, saved)
+                  delete entry.rowNode.data._userStatusPending
+                  delete entry.rowNode.data._userStatusBeforeSave
+                }
               }))
               gridApi.value.refreshCells({ rowNodes: entries.map(i => i.rowNode), force: false })
               writeGridOperationLog({
@@ -252,6 +268,22 @@ export function useGridHistory(
             }
         }
     } catch (e) {
+      if (isUserLifecycle()) {
+        const affectedNodes = [...new Set(changesToProcess.map(change => change.rowNode))]
+        affectedNodes.forEach(node => {
+          if (node.data._userStatusPending) node.data.status = node.data._userStatusBeforeSave
+          delete node.data._userStatusPending
+          delete node.data._userStatusBeforeSave
+        })
+        for (const { rowNode, colDef, newValue, oldValue } of [...changesToProcess].reverse()) {
+          if (colDef.field === '_status') continue
+          const keys = colDef.field.split('.')
+          const target = keys.slice(0, -1).reduce((value, key) => value?.[key], rowNode.data)
+          const key = keys[keys.length - 1]
+          if (target && target[key] === newValue) target[key] = oldValue
+        }
+        gridApi.value.refreshCells({ rowNodes: affectedNodes, force: true })
+      }
       const detail = e?.response?.data?.message || e?.response?.data?.details || e?.message
       ElMessage.error(detail || '保存失败')
     } 
@@ -394,16 +426,23 @@ export function useGridHistory(
     const reverseStack = action === 'undo' ? history.redoStack : history.undoStack
     if (stack.length === 0) return ElMessage.info('没有可操作记录')
 
-    const transaction = stack.pop()
+    const transaction = stack[stack.length - 1]
+    const changes = transaction.type === 'batch' ? transaction.changes : [transaction]
+    if (isUserLifecycle() && changes.some(change => {
+      const node = gridApi.value.getRowNode(String(change.rowId))
+      const colDef = gridApi.value.getColumn(change.colId)?.getColDef() || { field: change.colId }
+      return node && isCellReadOnly?.({ node, data: node.data, colDef })
+    })) return ElMessage.warning('用户已锁定或状态正在保存，无法撤销或重做该编辑')
+    stack.pop()
     reverseStack.push(transaction)
     isSystemOperation.value = true
 
-    const changes = transaction.type === 'batch' ? transaction.changes : [transaction]
     changes.forEach(c => {
         const rowNode = gridApi.value.getRowNode(String(c.rowId))
         if (rowNode) {
             const val = action === 'undo' ? c.oldValue : c.newValue
-            rowNode.setDataValue(c.colId, val)
+            const changed = rowNode.setDataValue(c.colId, val)
+            if (isUserLifecycle() && changed === false) return
             pendingChanges.push({ rowNode, colDef: { field: c.colId }, newValue: val, oldValue: action==='undo'?c.newValue:c.oldValue })
         }
     })
@@ -415,9 +454,20 @@ export function useGridHistory(
 
   const deleteSelectedRows = async () => {
     const selectedNodes = gridApi.value.getSelectedNodes()
-    if (selectedNodes.length === 0) return
-    const lockedNodes = selectedNodes.filter(n => n.data.properties?.row_locked_by)
-    if (lockedNodes.length > 0) return ElMessage.warning(`选中行中有 ${lockedNodes.length} 行已被锁定，无法删除`)
+    if (selectedNodes.length === 0) return false
+    if (isUserLifecycle() && props.canEdit === false) {
+      ElMessage.warning('无权限删除用户')
+      return false
+    }
+    const lockedNodes = selectedNodes.filter(n => isRowLocked ? isRowLocked(n.data) : n.data.properties?.row_locked_by)
+    if (lockedNodes.length > 0) {
+      ElMessage.warning(`选中行中有 ${lockedNodes.length} 行已被锁定，无法删除`)
+      return false
+    }
+    if (isUserLifecycle() && selectedNodes.some(n => n.data._userStatusPending)) {
+      ElMessage.warning('用户状态正在保存，请稍后操作')
+      return false
+    }
     try {
         debouncedSave.cancel()
         pendingChanges.length = 0
@@ -434,7 +484,11 @@ export function useGridHistory(
         })
         refreshSummaryTotals()
         ElMessage.success('删除成功'); selectedRowsCount.value = 0; history.undoStack = []; history.redoStack = []
-    } catch (e) { if (e !== 'cancel') ElMessage.error('删除失败') }
+        return true
+    } catch (e) {
+      if (e !== 'cancel') ElMessage.error('删除失败')
+      return false
+    }
   }
 
   // 供 Formula Hook 回调使用

@@ -15,20 +15,6 @@
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
 
-        <el-tooltip
-          v-if="calculationState"
-          :content="calculationState.detail"
-          placement="top"
-        >
-          <el-tag
-            class="calculation-tag"
-            :type="calculationState.type || 'info'"
-            effect="plain"
-          >
-            {{ calculationState.label }}
-          </el-tag>
-        </el-tooltip>
-
         <el-button-group class="ml-2" data-guide="grid-actions">
           <el-button v-if="canCreate" data-guide="grid-create" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
           <el-button v-if="canConfig" data-guide="grid-config" type="primary" plain icon="Operation" @click="$emit('config-columns')">列管理</el-button>
@@ -89,20 +75,6 @@
         <slot name="table-tools"></slot>
       </div>
 
-      <el-tooltip
-        v-if="calculationState"
-        :content="calculationState.detail"
-        placement="top"
-      >
-        <el-tag
-          class="calculation-tag"
-          :type="calculationState.type || 'info'"
-          effect="plain"
-        >
-          {{ calculationState.label }}
-        </el-tag>
-      </el-tooltip>
-
       <div class="table-actions" data-guide="grid-actions">
         <el-button v-if="canCreate" data-guide="grid-create" type="primary" plain icon="CirclePlus" @click="$emit('create')">新增行</el-button>
         <el-button v-if="canConfig" data-guide="grid-config" type="primary" plain icon="Operation" @click="$emit('config-columns')">列管理</el-button>
@@ -144,7 +116,7 @@
 // Copyright (c) 2026 林志荣
 
 import { computed } from 'vue'
-import { ElInput, ElButton, ElButtonGroup, ElIcon, ElTag, ElTooltip } from 'element-plus'
+import { ElInput, ElButton, ElButtonGroup, ElIcon } from 'element-plus'
 import { Search, CirclePlus, Operation, Delete, Download, Refresh } from '@element-plus/icons-vue'
 
 const props = defineProps([
@@ -158,7 +130,6 @@ const props = defineProps([
   'canExport',
   'canRecalculateFormulas',
   'formulaRecalculating',
-  'calculationState',
   'layout',
   'fullWidthRows'
 ])
@@ -280,17 +251,6 @@ const realRangeColCount = computed(() => {
   color: #909399;
   font-family: monospace;
   white-space: nowrap;
-}
-
-.calculation-tag {
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.is-split .calculation-tag {
-  margin-left: 8px;
 }
 
 .is-split .tip-text {

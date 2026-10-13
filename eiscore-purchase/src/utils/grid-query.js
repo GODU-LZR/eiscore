@@ -42,6 +42,7 @@ const isNumberField = (field) => {
     field?.searchType === 'integer' ||
     ['currency', 'percent', 'formula'].includes(field?.type) ||
     prop === 'id' ||
+    prop === 'sort' ||
     prop === 'line_no' ||
     prop === 'quantity' ||
     prop.endsWith('_qty') ||

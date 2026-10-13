@@ -4,7 +4,8 @@
       v-for="opt in options" 
       :key="opt.value"
       class="status-editor-item"
-      :class="{ 'is-selected': opt.value === selectedValue }"
+      :class="{ 'is-selected': opt.value === selectedValue, 'is-disabled': !canSelect(opt.value) }"
+      :aria-disabled="!canSelect(opt.value)"
       @click="onSelect(opt.value)"
     >
       <el-icon :color="opt.color" :size="16" style="margin-right: 8px;"><component :is="opt.icon" /></el-icon>
@@ -39,9 +40,12 @@ onMounted(() => {
 })
 
 const onSelect = (val) => {
+  if (!canSelect(val)) return
   selectedValue.value = val
   props.params.stopEditing()
 }
+
+const canSelect = (val) => !props.params.canSelectStatus || props.params.canSelectStatus(val)
 
 defineExpose({ getValue: () => selectedValue.value })
 </script>
@@ -71,6 +75,7 @@ defineExpose({ getValue: () => selectedValue.value })
 }
 .status-editor-item:hover { background-color: #f5f7fa; }
 .status-editor-item.is-selected { background-color: #ecf5ff; color: #409EFF; font-weight: 500; }
+.status-editor-item.is-disabled { opacity: 0.45; cursor: not-allowed; }
 .status-label { margin-left: 0; flex: 1; }
 .status-check-mark { width: 6px; height: 6px; border-radius: 50%; background-color: #409EFF; }
 </style>

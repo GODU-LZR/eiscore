@@ -190,17 +190,17 @@ export function createPagedGridLoader({
 
   const loadData = async () => {
     const seq = ++loadSeq
-    await loadFieldAcl()
-    if (seq !== loadSeq) return
-    resetLoadedRows()
-    const url = buildDataUrl(0, canPageCurrentUrl.value)
-    if (!url) {
-      emitDataLoaded(false)
-      return
-    }
-
     isLoading.value = true
     try {
+      await loadFieldAcl()
+      if (seq !== loadSeq) return
+      resetLoadedRows()
+      const url = buildDataUrl(0, canPageCurrentUrl.value)
+      if (!url) {
+        emitDataLoaded(false)
+        return
+      }
+
       const usePaging = canPageCurrentUrl.value
       const res = await request({
         url,
