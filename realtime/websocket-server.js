@@ -20,7 +20,8 @@ const createWebSocketMessageHandler = ({
   handleFlashHarnessTaskWs,
   handleFlashHarnessResetWs,
   sendWsJson,
-  manifest = WEBSOCKET_MESSAGE_MANIFEST
+  manifest = WEBSOCKET_MESSAGE_MANIFEST,
+  runtimeProfile = 'business'
 }) => {
   const handlers = {
     subscribe: async (ws, data) => {
@@ -36,7 +37,10 @@ const createWebSocketMessageHandler = ({
     flashHarnessReset: handleFlashHarnessResetWs
   };
 
-  const routeByType = new Map(manifest.map((entry) => [entry.type, entry.handler]));
+  const effectiveManifest = String(runtimeProfile || '').toLowerCase() === 'flash'
+    ? manifest
+    : manifest.filter((entry) => !entry.type.startsWith('flash:'));
+  const routeByType = new Map(effectiveManifest.map((entry) => [entry.type, entry.handler]));
   return async (ws, message) => {
     try {
       const data = JSON.parse(String(message));
@@ -57,10 +61,12 @@ const attachWebSocketServer = ({
   asUser,
   hasHarnessTenantContext,
   channel,
+  runtimeProfile = 'business',
   ...messageDependencies
 }) => {
   const handleMessage = createWebSocketMessageHandler({
-    ...messageDependencies
+    ...messageDependencies,
+    runtimeProfile
   });
 
   wss.on('connection', (ws, req) => {

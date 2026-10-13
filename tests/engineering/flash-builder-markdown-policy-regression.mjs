@@ -57,7 +57,7 @@ for (const forbidden of ['from \'vue\'', 'element-plus', 'requestJson', 'axios',
 }
 
 const pageSource = readFileSync(resolve(repoRoot, 'eiscore-apps/src/views/FlashBuilder.vue'), 'utf8')
-assert.match(pageSource, /from ['"]@\/domain\/flash-builder-markdown-policy['"]/)
+assert.doesNotMatch(pageSource, /from ['"]@\/domain\/flash-builder-markdown-policy['"]/)
 for (const removedDefinition of [
   'const escapeHtml =',
   'const isSafeMarkdownUrl =',
@@ -66,7 +66,7 @@ for (const removedDefinition of [
 ]) {
   assert.equal(pageSource.includes(removedDefinition), false, `FlashBuilder reintroduced ${removedDefinition}`)
 }
-assert.equal(pageSource.includes('renderFlashMarkdown(source)'), true)
-assert.ok(pageSource.split(/\r?\n/).length <= 3808)
+assert.equal(pageSource.includes('renderFlashMarkdown('), false)
+assert.ok(pageSource.split(/\r?\n/).length <= 3741)
 
-console.log('PASS: FlashBuilder markdown policy preserves escaping, safe links, inline syntax, tables, blocks and code fences')
+console.log('PASS: FlashBuilder markdown policy remains independently testable while the page has no markdown chat UI contract')

@@ -208,7 +208,7 @@ const createFlashPostgrestAdapter = ({
     if (!normalizedAppId) return false;
     await callPostgrestWithUser(user, {
       method: 'POST',
-      path: '/rpc/create_data_app_table',
+      path: '/rpc/create_flash_data_app_table',
       body: {
         app_id: normalizedAppId,
         table_name: target.table,

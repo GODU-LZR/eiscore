@@ -11,7 +11,9 @@ const createTwinResourceHttpHandlers = ({
   readJsonBody,
   sendJson,
   port,
-  createPersistence = defaultCreatePersistence
+  createPersistence = defaultCreatePersistence,
+  authorizeTwinAdminRequest,
+  audit
 }) => {
   const handleSessionsList = async (req, res) => {
     const user = authorizeTwinRequest(req, res);
@@ -23,6 +25,41 @@ const createTwinResourceHttpHandlers = ({
       sendJson(res, 200, { sessions });
     } catch (error) {
       sendJson(res, 500, { code: 'TWIN_SESSIONS_FAILED', message: error?.message || 'Failed to list sessions' });
+    }
+  };
+
+  const handleAdminSessionsList = async (req, res) => {
+    const authorize = typeof authorizeTwinAdminRequest === 'function'
+      ? authorizeTwinAdminRequest
+      : authorizeTwinRequest;
+    const user = authorize(req, res);
+    if (!user) return;
+    const url = new URL(req.url || '/', `http://localhost:${port}`);
+    const rawLimit = Number(url.searchParams.get('limit') || 100);
+    const limit = Number.isInteger(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 100;
+    try {
+      const pgQuery = bindPgQueryForUser(user);
+      const result = await pgQuery({
+        method: 'POST',
+        path: '/rpc/admin_twin_sessions',
+        body: { p_limit: limit },
+        acceptProfile: 'public',
+        contentProfile: 'public',
+        timeoutMs: 5000
+      });
+      const sessions = Array.isArray(result?.data) ? result.data : [];
+      if (typeof audit === 'function') await audit('twin.admin.sessions.list', user, { count: sessions.length, limit });
+      sendJson(res, 200, { sessions, total: sessions.length });
+    } catch (error) {
+      if (error?.httpStatus === 403 || error?.status === 403) {
+        sendJson(res, 403, { code: 'FORBIDDEN', message: 'Super administrator access is required' });
+        return;
+      }
+      if (error?.code === 'TWIN_AUDIT_UNAVAILABLE') {
+        sendJson(res, 503, { code: 'TWIN_AUDIT_UNAVAILABLE', message: 'Session access audit is unavailable' });
+        return;
+      }
+      sendJson(res, 503, { code: 'TWIN_ADMIN_SESSIONS_FAILED', message: 'Failed to list administrator sessions' });
     }
   };
 
@@ -119,6 +156,7 @@ const createTwinResourceHttpHandlers = ({
 
   return Object.freeze({
     handleSessionsList,
+    handleAdminSessionsList,
     handleSessionDelete,
     handleMessagesGet,
     handleKnowledgeUpload,

@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const http = require('node:http');
 const fs = require('node:fs/promises');
 const os = require('node:os');
@@ -51,6 +52,9 @@ response = await request({ method: 'POST', path: '/v1/chat/completions', headers
 assert.equal(response.body.code, 'HARNESS_OWNER_REQUIRED');
 response = await request({ method: 'POST', path: '/v1/chat/completions', headers: { 'x-eis-harness-protocol': PROTOCOL, 'x-eis-ai-session': 'session-plugin', 'x-eis-request-id': 'req-plugin', 'x-eis-owner-subject': 'u1', 'x-eis-owner-tenant': 't1' } }, {});
 assert.equal(response.body.code, 'HARNESS_PLUGIN_REQUIRED');
+response = await request({ method: 'POST', path: '/v1/chat/completions', headers: { 'x-eis-harness-protocol': PROTOCOL, 'x-eis-ai-session': 'session-nonstandard', 'x-eis-request-id': 'req-nonstandard', 'x-eis-plugin-id': 'enterprise-bi', 'x-eis-owner-subject': 'u1', 'x-eis-owner-tenant': 't1', 'x-eis-harness-mode': 'worker' } }, {});
+assert.equal(response.status, 403);
+assert.equal(response.body.code, 'HARNESS_MODE_FORBIDDEN');
 response = await request({ method: 'POST', path: '/v1/chat/completions', headers: { 'x-eis-harness-protocol': PROTOCOL, 'x-eis-ai-session': 'session-1', 'x-eis-request-id': 'req-1', 'x-eis-plugin-id': 'enterprise-bi', 'x-eis-owner-subject': 'u1', 'x-eis-owner-tenant': 't1', 'content-type': 'application/json' } }, { messages: [] });
 assert.equal(response.status, 200);
 assert.equal(calls[0].sessionId, 'session-1');
@@ -82,7 +86,8 @@ const bridgeAuthServer = http.createServer(createBridgeHandler({
 }));
 await new Promise((resolve) => bridgeAuthServer.listen(0, resolve));
 const bridgeAuthPort = bridgeAuthServer.address().port;
-const bridgeAuthHeaders = { 'x-eis-harness-protocol': PROTOCOL, 'x-eis-ai-session': 'bridge-auth-session', 'x-eis-request-id': 'bridge-auth-request', 'x-eis-plugin-id': 'enterprise-bi', 'x-eis-owner-subject': 'u1', 'x-eis-owner-tenant': 't1', 'content-type': 'application/json' };
+const bridgeAuthWorkspace = `ws_${crypto.createHash('sha256').update(JSON.stringify(['t1', 'u1'])).digest('hex')}`;
+const bridgeAuthHeaders = { 'x-eis-harness-protocol': PROTOCOL, 'x-eis-ai-session': 'bridge-auth-session', 'x-eis-request-id': 'bridge-auth-request', 'x-eis-plugin-id': 'enterprise-bi', 'x-eis-owner-subject': 'u1', 'x-eis-owner-tenant': 't1', 'x-eis-workspace-id': bridgeAuthWorkspace, 'x-eis-harness-mode': 'standard', 'content-type': 'application/json' };
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: bridgeAuthHeaders }, { messages: [] });
 assert.equal(response.status, 401);
 assert.equal(response.body.code, 'HARNESS_BRIDGE_UNAUTHORIZED');
@@ -91,6 +96,12 @@ assert.equal(response.status, 401);
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
 assert.equal(response.status, 200);
 assert.equal(bridgeAuthCalls, 1);
+response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-ai-session': 'bridge-auth-forged-workspace', 'x-eis-request-id': 'bridge-auth-forged-workspace-request', 'x-eis-workspace-id': 'ws_forged', 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
+assert.equal(response.status, 403);
+assert.equal(response.body.code, 'HARNESS_WORKSPACE_FORBIDDEN');
+response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-ai-session': 'bridge-auth-nonstandard-mode', 'x-eis-request-id': 'bridge-auth-nonstandard-mode-request', 'x-eis-harness-mode': 'worker', 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
+assert.equal(response.status, 403);
+assert.equal(response.body.code, 'HARNESS_MODE_FORBIDDEN');
 await new Promise((resolve) => bridgeAuthServer.close(resolve));
 
  let oversizedCalls = 0;

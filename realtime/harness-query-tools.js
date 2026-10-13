@@ -3,11 +3,12 @@
 const { filterVisibleFields, prepareFieldAclRead, stripFieldAcl } = require('./flash-field-acl');
 
 const DATASETS = Object.freeze({
-  materials: Object.freeze({ path: '/raw_materials', profile: 'public', module: 'mms_ledger', permissions: ['module:materials', 'app:mms_ledger'], fields: ['id', 'name', 'category', 'weight_kg', 'entry_date', 'updated_at'], order: 'updated_at.desc' }),
-  inventory: Object.freeze({ path: '/v_inventory_current', profile: 'scm', module: 'mms_ledger', permissions: ['module:materials', 'app:mms_ledger'], fields: ['id', 'material_code', 'material_name', 'warehouse_name', 'available_qty', 'total_qty', 'unit', 'status', 'last_transaction_at'], order: 'material_name.asc' }),
+  materials: Object.freeze({ path: '/raw_materials', profile: 'public', module: 'mms_ledger', permissions: ['module:mms', 'module:materials', 'app:mms_ledger'], fields: ['id', 'name', 'category', 'weight_kg', 'entry_date', 'updated_at'], order: 'updated_at.desc' }),
+  inventory: Object.freeze({ path: '/v_inventory_current', profile: 'scm', module: 'mms_ledger', permissions: ['module:mms', 'module:materials', 'app:mms_ledger'], fields: ['id', 'material_code', 'material_name', 'warehouse_name', 'available_qty', 'total_qty', 'unit', 'status', 'last_transaction_at'], order: 'material_name.asc' }),
   sales_orders: Object.freeze({ path: '/sales_orders', profile: 'public', module: 'sales', permissions: ['module:sales', 'app:sales_dashboard', 'app:sales_order'], fields: ['id', 'order_no', 'customer_name', 'product_name', 'quantity', 'total_amount', 'order_date', 'delivery_date', 'order_status'], order: 'order_date.desc' }),
   production_orders: Object.freeze({ path: '/production_orders', profile: 'production', module: 'production', permissions: ['module:production', 'app:production_plan', 'app:production_work_order'], fields: ['id', 'work_order_no', 'product_material_name', 'planned_qty', 'planned_start_date', 'planned_finish_date', 'work_order_status', 'priority'], order: 'planned_finish_date.asc' }),
   employees: Object.freeze({ path: '/archives', profile: 'hr', module: 'hr_employee', permissions: ['module:hr', 'app:hr_employee', 'op:hr_employee.view'], fields: ['id', 'employee_no', 'name', 'department', 'position', 'entry_date', 'status'], order: 'entry_date.desc' }),
+  users: Object.freeze({ path: '/v_users_manage', profile: 'public', module: 'hr_user', permissions: ['app:hr_user', 'op:hr_user.view'], fields: ['id', 'username', 'full_name', 'role_name', 'status'], fieldAliases: { role_name: 'role_id' }, order: 'username.asc' }),
   apps: Object.freeze({ path: '/apps', profile: 'app_center', module: 'app_center', permissions: ['module:app', 'app:app_center'], fields: ['id', 'name', 'app_type', 'status', 'version', 'created_at', 'updated_at'], order: 'created_at.desc' })
 });
 
@@ -32,12 +33,19 @@ const createHarnessQueryTools = ({ callPostgrestWithUser, fetchSemanticContext, 
     const datasetId = text(payload.dataset || payload.dataset_id || payload.dataSet);
     const dataset = DATASETS[datasetId];
     if (!dataset) reject('dataset is not available');
-    if (pluginId === 'worker-grid' && !['materials', 'inventory', 'production_orders', 'employees'].includes(datasetId)) reject('dataset is not available');
+    if (pluginId === 'worker-grid' && !['materials', 'inventory', 'production_orders', 'employees', 'users'].includes(datasetId)) reject('dataset is not available');
     if (payload.table || payload.table_name || payload.schema || payload.sql || payload.url || payload.tenant_id || payload.user_id || payload.jwt) {
       reject('query contains an unsupported authorization or database field');
     }
-    const context = await fetchSemanticContext(user);
+    let context = await fetchSemanticContext(user);
     if (!context?.accessPolicy?.roleScoped || context.fieldAclAvailable !== true) reject('role-scoped field permissions are unavailable', 'HARNESS_PERMISSION_DENIED');
+    if (dataset.fieldAliases) {
+      const moduleAcl = context.fieldAcl?.[dataset.module] || {};
+      const aliases = Object.fromEntries(Object.entries(dataset.fieldAliases)
+        .filter(([, source]) => moduleAcl[source]?.canView === false)
+        .map(([alias]) => [alias, { ...(moduleAcl[alias] || {}), canView: false }]));
+      context = { ...context, fieldAcl: { ...context.fieldAcl, [dataset.module]: { ...moduleAcl, ...aliases } } };
+    }
     const effectivePermissions = new Set((Array.isArray(context.permissions) ? context.permissions : [])
       .map((permission) => text(permission?.code || permission).toLowerCase()).filter(Boolean));
     if (context.accessPolicy?.superUser !== true && !dataset.permissions.some((permission) => effectivePermissions.has(permission.toLowerCase()))) {
@@ -65,7 +73,9 @@ const createHarnessQueryTools = ({ callPostgrestWithUser, fetchSemanticContext, 
     }
     const fieldPolicy = prepareFieldAclRead(query, context, dataset.path.slice(1), dataset.module);
     const result = await callPostgrestWithUser(user, { method: 'GET', path: dataset.path, query: fieldPolicy.query, acceptProfile: dataset.profile, timeoutMs: 8000 });
-    return { dataset: datasetId, rows: stripFieldAcl(Array.isArray(result?.data) ? result.data : [], context, fieldPolicy.module), limit: Number(query.limit) };
+    const rows = stripFieldAcl(Array.isArray(result?.data) ? result.data : [], context, fieldPolicy.module)
+      .map((row) => Object.fromEntries(visibleFields.filter((field) => Object.hasOwn(row, field)).map((field) => [field, row[field]])));
+    return { dataset: datasetId, rows, limit: Number(query.limit) };
   };
 
   return Object.freeze({ execute, datasets: DATASETS });

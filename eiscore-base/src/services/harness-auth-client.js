@@ -6,13 +6,23 @@ const request = (url, options = {}) => globalThis.fetch(url, {
   ...options
 })
 
-export async function prepareHarnessAuth({ harnessWebUrl, authorization = '' } = {}) {
+const HARNESS_AUTH_API_PREFIXES = new Set([
+  '/harness-embed-api',
+  '/harness-flash-embed-api'
+])
+
+export async function prepareHarnessAuth({ harnessWebUrl, authApiPrefix = '/harness-embed-api', authorization = '' } = {}) {
+  const apiPrefix = String(authApiPrefix || '').trim()
+  if (!HARNESS_AUTH_API_PREFIXES.has(apiPrefix)) return false
   try {
     await request(harnessWebUrl, {
       method: 'GET',
+      // The local Vite proxy may receive an absolute Harness login redirect.
+      // Keep the handoff same-origin; the following API calls complete auth.
+      redirect: 'manual',
       headers: { Accept: 'text/html' }
     })
-    const startResponse = await request('/harness-embed-api/eiscore/auth/start', {
+    const startResponse = await request(`${apiPrefix}/eiscore/auth/start`, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -30,7 +40,7 @@ export async function prepareHarnessAuth({ harnessWebUrl, authorization = '' } =
     })
     const handoff = await handoffResponse.json().catch(() => ({}))
     if (!handoffResponse.ok || !handoff?.code) return false
-    const bridgeResponse = await request('/harness-embed-api/eiscore/auth/handoff', {
+    const bridgeResponse = await request(`${apiPrefix}/eiscore/auth/handoff`, {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ code: handoff.code })
@@ -44,7 +54,7 @@ export async function prepareHarnessAuth({ harnessWebUrl, authorization = '' } =
 export async function completeHarnessAuth({ code, callbackPath = '/harness-embed-api/eiscore/auth/handoff' } = {}) {
   const path = String(callbackPath || '').trim()
   const handoffCode = String(code || '').trim()
-  if (path !== '/harness-embed-api/eiscore/auth/handoff' || !handoffCode) return false
+  if (![...HARNESS_AUTH_API_PREFIXES].some((prefix) => path === `${prefix}/eiscore/auth/handoff`) || !handoffCode) return false
   try {
     const response = await request(path, {
       method: 'POST',

@@ -53,19 +53,62 @@ export const ensureStartupProfile = (homeValue = process.env.DSH_HOME) => {
   return { profileDir, manifestPath, patchPath, manifest }
 }
 
+const AUTH_COOKIE_NAMES = ['eiscore-session', 'eiscore-auth-state']
+export const mapAuthCookiesToUpstream = (cookieHeader = '', prefix = '') => {
+  if (!prefix) return String(cookieHeader || '')
+  return String(cookieHeader || '').split(';').map((part) => part.trim()).filter(Boolean).flatMap((part) => {
+    const separator = part.indexOf('=')
+    if (separator < 1) return []
+    const name = part.slice(0, separator)
+    if (AUTH_COOKIE_NAMES.includes(name)) return []
+    return name.startsWith(prefix) && AUTH_COOKIE_NAMES.includes(name.slice(prefix.length))
+      ? [`${name.slice(prefix.length)}${part.slice(separator)}`]
+      : [part]
+  }).join('; ')
+}
+
+export const mapAuthSetCookiesToBrowser = (setCookies, prefix = '') => {
+  const values = Array.isArray(setCookies) ? setCookies : setCookies ? [setCookies] : []
+  if (!prefix) return values
+  return values.map((value) => String(value).replace(
+    /(^|,\s*)(eiscore-session|eiscore-auth-state)=/g,
+    (_match, separator, name) => `${separator}${prefix}${name}=`
+  ))
+}
+
+export const getHarnessAuthReturnPath = (value = process.env.EISCORE_HARNESS_AUTH_RETURN_PATH) =>
+  String(value || '').trim() === '/harness-flash-embed-api/eiscore/auth/handoff'
+    ? '/harness-flash-embed-api/eiscore/auth/handoff'
+    : '/harness-embed-api/eiscore/auth/handoff'
+
 const start = () => {
 ensureStartupProfile()
+
+const defaultWorkspace = String(
+  process.env.DSH_DEFAULT_WORKSPACE
+  || `${String(process.env.DSH_HOME || process.cwd()).replace(/[\\/]$/, '')}/workspaces/flash`
+).trim()
+if (!defaultWorkspace.startsWith('/')) throw new Error('DSH_DEFAULT_WORKSPACE must be an absolute path')
+mkdirSync(defaultWorkspace, { recursive: true })
 
 let startupToken = ''
 // Resolve shipped bundles from the immutable image installation. The DSH
 // profile owns only its manifest and patch layer.
 const dsh = spawn(process.execPath, ['--expose-internals', '/opt/bridge/node_modules/@deepseek-ai/dsh/lib/bin.js',
   '--profile', 'web',
-  '--patch', '/opt/eiscore-harness/dsh-web.patch.yml',
+  '--patch', process.env.DSH_PATCH_PATH || '/opt/eiscore-harness/dsh-web.patch.yml',
   '--port', '3080',
   '--trusted-host', process.env.DSH_TRUSTED_HOST || 'lundu.eiscore.top',
   '--no-open'
-], { env: process.env, stdio: ['inherit', 'pipe', 'inherit'] })
+], {
+  cwd: defaultWorkspace,
+  env: {
+    ...process.env,
+    DSH_CWD: process.env.DSH_MODULE_HOME || '/opt/eiscore-harness',
+    DSH_DEFAULT_WORKSPACE: defaultWorkspace
+  },
+  stdio: ['inherit', 'pipe', 'inherit']
+})
 
 dsh.stdout.on('data', (chunk) => {
   const text = chunk.toString()
@@ -85,33 +128,268 @@ const withToken = (path, headers = {}, force = false) => {
   return `${path}${joiner}token=${encodeURIComponent(startupToken)}`
 }
 
+const authCookiePrefix = /^[a-z0-9_-]*$/i.test(process.env.EISCORE_AUTH_COOKIE_PREFIX || '')
+  ? process.env.EISCORE_AUTH_COOKIE_PREFIX || ''
+  : ''
+const cookieHeaders = (value) => Array.isArray(value) ? value : value ? [value] : []
+
+const PUBLIC_ROUTES = new Map([
+  ['/api/eiscore/auth/start', new Set(['POST'])],
+  ['/api/eiscore/auth/handoff', new Set(['POST'])],
+  ['/api/eiscore/auth/status', new Set(['GET'])],
+  ['/api/eiscore/auth/logout', new Set(['POST'])],
+  ['/readyz', new Set(['GET'])]
+])
+
+const isPublicPath = (path = '', method = 'GET') => {
+  const pathname = String(path).split('?', 1)[0]
+  return PUBLIC_ROUTES.get(pathname)?.has(String(method).toUpperCase()) === true
+}
+
+const isHtmlNavigation = (request) => {
+  if (request.method !== 'GET') return false
+  const destination = String(request.headers['sec-fetch-dest'] || '').toLowerCase()
+  if (destination === 'document' || destination === 'iframe') return true
+  return String(request.headers.accept || '').toLowerCase().includes('text/html')
+}
+
+const rejectUnauthenticated = (response) => {
+  response.writeHead(401, {
+    'cache-control': 'no-store',
+    'content-type': 'application/json; charset=utf-8'
+  }).end(JSON.stringify({ authenticated: false, code: 'EISCORE_AUTH_REQUIRED' }))
+}
+
+const requestUpstream = (path, headers = {}, method = 'GET') => new Promise((resolve, reject) => {
+  const upstream = http.request({
+    hostname: '127.0.0.1',
+    port: 3080,
+    method,
+    path: withToken(path, headers),
+    headers: {
+      host: headers.host || process.env.DSH_TRUSTED_HOST || 'localhost',
+      cookie: headers.cookie || '',
+      accept: 'application/json',
+      'accept-encoding': 'identity',
+      ...(headers.authorization ? { authorization: headers.authorization } : {}),
+      ...(headers['x-forwarded-proto'] ? { 'x-forwarded-proto': headers['x-forwarded-proto'] } : {}),
+      ...(headers['x-forwarded-host'] ? { 'x-forwarded-host': headers['x-forwarded-host'] } : {})
+    }
+  }, (response) => {
+    const chunks = []
+    response.on('data', (chunk) => chunks.push(chunk))
+    response.on('end', () => resolve({
+      statusCode: response.statusCode || 502,
+      headers: response.headers,
+      body: Buffer.concat(chunks).toString('utf8')
+    }))
+  })
+  upstream.on('error', reject)
+  upstream.end()
+})
+
+const cookiePairs = (value) => cookieHeaders(value).map((item) => String(item).split(';', 1)[0]).filter(Boolean)
+const withoutDshAuth = (headers = {}) => ({
+  ...headers,
+  cookie: String(headers.cookie || '').split(';')
+    .map((part) => part.trim())
+    .filter((part) => part && !/^dsh-auth-[^=]+=/.test(part))
+    .join('; ')
+})
+const mergeCookies = (header, additions) => {
+  const values = new Map()
+  for (const part of String(header || '').split(';')) {
+    const at = part.indexOf('=')
+    if (at > 0) values.set(part.slice(0, at).trim(), part.slice(at + 1).trim())
+  }
+  for (const part of cookiePairs(additions)) {
+    const at = part.indexOf('=')
+    if (at > 0) values.set(part.slice(0, at).trim(), part.slice(at + 1).trim())
+  }
+  return [...values].map(([name, value]) => `${name}=${value}`).join('; ')
+}
+
+const bootstrapDshAuth = async (headers) => {
+  const cleanHeaders = withoutDshAuth(headers)
+  try {
+    const startup = await requestUpstream('/', cleanHeaders, 'GET')
+    const setCookies = cookieHeaders(startup.headers['set-cookie'])
+      .filter((value) => /^dsh-auth-[^=]+=/.test(value))
+    return { headers: { ...cleanHeaders, cookie: mergeCookies(cleanHeaders.cookie, setCookies) }, setCookies }
+  } catch {
+    return { headers: cleanHeaders, setCookies: [] }
+  }
+}
+
+const requestOrigin = (headers = {}) => {
+  const proto = String(headers['x-forwarded-proto'] || 'http').split(',')[0].trim()
+  const host = String(headers['x-forwarded-host'] || headers.host || '').split(',')[0].trim()
+  if (!host) return ''
+  try { return new URL(`${proto}://${host}`).origin } catch { return '' }
+}
+
+const allowedAuthOrigin = (headers = {}) => {
+  const configured = (() => { try { return new URL(String(process.env.EISCORE_AUTH_URL || '')).origin } catch { return '' } })()
+  const allowed = String(process.env.EISCORE_AUTH_ORIGINS || configured).split(',').map((value) => value.trim()).filter(Boolean)
+  const current = requestOrigin(headers)
+  return current && allowed.includes(current) ? current : configured
+}
+
+const setOrigin = (target, origin) => {
+  const value = new URL(origin)
+  target.protocol = value.protocol
+  target.hostname = value.hostname
+  target.port = value.port
+  return target
+}
+
+const rewriteAuthStartBody = (body, headers = {}) => {
+  const origin = allowedAuthOrigin(headers)
+  if (!origin) return body
+  try {
+    const payload = JSON.parse(body || '{}')
+    const target = new URL(String(payload.url || ''))
+    setOrigin(target, origin)
+    target.searchParams.set('dsh_return', `${origin}${getHarnessAuthReturnPath()}`)
+    payload.url = target.href
+    payload.origin = origin
+    return JSON.stringify(payload)
+  } catch {
+    return body
+  }
+}
+
+const redirectToLogin = async (request, response, headers, bootstrapCookies = []) => {
+  try {
+    const start = await requestUpstream('/api/eiscore/auth/start', headers, 'POST')
+    if (start.statusCode < 200 || start.statusCode >= 300) {
+      response.writeHead(503, { 'cache-control': 'no-store' }).end('EISCore login unavailable')
+      return
+    }
+    const payload = JSON.parse(start.body || '{}')
+    const target = new URL(String(payload.url || ''))
+    const configuredOrigin = new URL(String(process.env.EISCORE_AUTH_URL || '')).origin
+    const allowedOrigins = String(process.env.EISCORE_AUTH_ORIGINS || configuredOrigin)
+      .split(',').map((value) => value.trim()).filter(Boolean)
+    const authOrigin = allowedAuthOrigin(headers)
+    if (target.pathname !== '/login' || !configuredOrigin || !authOrigin || !allowedOrigins.includes(authOrigin)) throw new Error('invalid login target')
+    // The auth plugin has one server-side default origin. Rewrite it to the
+    // same explicit origin the browser used, so localhost and 127.0.0.1 do
+    // not become a cross-origin handoff.
+    setOrigin(target, authOrigin)
+    target.searchParams.set('dsh_return', `${authOrigin}${getHarnessAuthReturnPath()}`)
+    response.writeHead(302, {
+      location: target.href,
+      'cache-control': 'no-store',
+      ...(bootstrapCookies.length || start.headers['set-cookie'] ? {
+        'set-cookie': mapAuthSetCookiesToBrowser([
+          ...bootstrapCookies,
+          ...cookieHeaders(start.headers['set-cookie'])
+        ], authCookiePrefix)
+      } : {})
+    }).end()
+  } catch {
+    response.writeHead(503, { 'cache-control': 'no-store' }).end('EISCore login unavailable')
+  }
+}
+
+const isAuthenticated = async (headers) => {
+  try {
+    const status = await requestUpstream('/api/eiscore/auth/status', headers, 'GET')
+    if (status.statusCode !== 200) return false
+    return JSON.parse(status.body || '{}').authenticated === true
+  } catch {
+    return false
+  }
+}
+
 const proxy = http.createServer((request, response) => {
+  const path = request.url || '/'
+  const headers = {
+    ...request.headers,
+    cookie: mapAuthCookiesToUpstream(request.headers.cookie, authCookiePrefix)
+  }
+  bootstrapDshAuth(headers).then(({ headers: authenticatedHeaders, setCookies }) => {
+    if (!isPublicPath(path, request.method)) {
+      return isAuthenticated(authenticatedHeaders).then((authenticated) => {
+        if (!authenticated) {
+          if (isHtmlNavigation(request)) return redirectToLogin(request, response, authenticatedHeaders, setCookies)
+          return rejectUnauthenticated(response)
+        }
+        proxyAuthenticatedRequest(request, response, authenticatedHeaders, setCookies)
+      })
+    }
+    proxyAuthenticatedRequest(request, response, authenticatedHeaders, setCookies)
+  }).catch(() => {
+    if (!response.headersSent) response.writeHead(503).end('DeepSeek Harness unavailable')
+  })
+})
+
+const proxyAuthenticatedRequest = (request, response, headers = request.headers, bootstrapCookies = []) => {
+  const rewriteAuthStart = request.method === 'POST' && (request.url || '').split('?', 1)[0] === '/api/eiscore/auth/start'
+  const upstreamHeaders = rewriteAuthStart ? { ...headers, 'accept-encoding': 'identity' } : headers
   const upstream = http.request({
     hostname: '127.0.0.1',
     port: 3080,
     method: request.method,
-    path: withToken(request.url || '/', request.headers),
-    headers: request.headers
+    path: withToken(request.url || '/', headers),
+    headers: upstreamHeaders
   }, (upstreamResponse) => {
-    response.writeHead(upstreamResponse.statusCode || 502, upstreamResponse.headers)
+    const responseHeaders = { ...upstreamResponse.headers }
+    const setCookies = mapAuthSetCookiesToBrowser([
+      ...bootstrapCookies,
+      ...cookieHeaders(upstreamResponse.headers['set-cookie'])
+    ], authCookiePrefix)
+    if (setCookies.length) responseHeaders['set-cookie'] = setCookies
+    if (rewriteAuthStart) {
+      const chunks = []
+      upstreamResponse.on('data', (chunk) => chunks.push(chunk))
+      upstreamResponse.on('end', () => {
+        const body = rewriteAuthStartBody(Buffer.concat(chunks).toString('utf8'), headers)
+        delete responseHeaders['transfer-encoding']
+        delete responseHeaders['content-encoding']
+        delete responseHeaders.etag
+        responseHeaders['content-length'] = Buffer.byteLength(body)
+        response.writeHead(upstreamResponse.statusCode || 502, responseHeaders)
+        response.end(body)
+      })
+      return
+    }
+    response.writeHead(upstreamResponse.statusCode || 502, responseHeaders)
     upstreamResponse.pipe(response)
   })
   upstream.on('error', () => response.writeHead(502).end('DeepSeek Harness unavailable'))
   request.pipe(upstream)
-})
+}
 
 proxy.on('upgrade', (request, socket, head) => {
-  const upstream = net.connect(3080, '127.0.0.1', () => {
-    const path = withToken(request.url || '/', request.headers, true)
-    const headers = Object.entries(request.headers).map(([key, value]) => `${key}: ${value}`).join('\r\n')
-    upstream.write(`GET ${path} HTTP/1.1\r\n${headers}\r\n\r\n`)
-    if (head.length) upstream.write(head)
-    socket.pipe(upstream)
-    upstream.pipe(socket)
-  })
-  const close = () => { socket.destroy(); upstream.destroy() }
-  socket.on('error', close)
-  upstream.on('error', close)
+  const reject = (status, message) => {
+    if (!socket.destroyed) socket.end(`HTTP/1.1 ${status}\r\nConnection: close\r\nCache-Control: no-store\r\nContent-Length: ${Buffer.byteLength(message)}\r\n\r\n${message}`)
+  }
+  const connect = (headers) => {
+    const upstream = net.connect(3080, '127.0.0.1', () => {
+      const path = withToken(request.url || '/', headers, true)
+      const wireHeaders = Object.entries(headers).map(([key, value]) => `${key}: ${value}`).join('\r\n')
+      upstream.write(`GET ${path} HTTP/1.1\r\n${wireHeaders}\r\n\r\n`)
+      if (head.length) upstream.write(head)
+      socket.pipe(upstream)
+      upstream.pipe(socket)
+    })
+    const close = () => { socket.destroy(); upstream.destroy() }
+    socket.on('error', close)
+    upstream.on('error', close)
+  }
+  const headers = {
+    ...request.headers,
+    cookie: mapAuthCookiesToUpstream(request.headers.cookie, authCookiePrefix)
+  }
+  bootstrapDshAuth(headers).then(({ headers: authenticatedHeaders }) => {
+    if (isPublicPath(request.url || '/', request.method)) return connect(authenticatedHeaders)
+    return isAuthenticated(authenticatedHeaders).then((authenticated) => {
+      if (authenticated) return connect(authenticatedHeaders)
+      reject(401, 'EISCore authentication required')
+    })
+  }).catch(() => reject(401, 'EISCore authentication required'))
 })
 proxy.listen(3081, '0.0.0.0')
 

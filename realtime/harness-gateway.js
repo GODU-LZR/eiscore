@@ -8,6 +8,7 @@ const text = (value) => String(value ?? '').trim();
 const GATEWAY_ERROR_CODES = new Set([
   'HARNESS_CAPABILITY_REQUIRED', 'HARNESS_PLUGIN_UNAVAILABLE', 'HARNESS_AUTH_REQUIRED',
   'HARNESS_PLUGIN_MISMATCH', 'HARNESS_AGENT_MISMATCH', 'HARNESS_CAPABILITY_MISMATCH',
+  'HARNESS_MODE_FORBIDDEN',
   'HARNESS_INPUT_SCHEMA_INVALID', 'HARNESS_PERMISSION_DENIED', 'HARNESS_WRITE_SHADOW_FORBIDDEN',
   'HARNESS_CONFIRMATION_REQUIRED', 'HARNESS_IDEMPOTENCY_REQUIRED', 'HARNESS_AUDIT_UNAVAILABLE',
   'HARNESS_REQUEST_INVALID', 'HARNESS_REQUEST_REPLAY', 'HARNESS_CAPACITY_EXCEEDED',
@@ -28,6 +29,7 @@ const stableDispatchMessage = (code, status) => {
   if (code === 'HARNESS_UPSTREAM_TIMEOUT') return 'DeepSeek Harness request timed out';
   if (code === 'HARNESS_REQUEST_CANCELLED') return 'Harness request was cancelled';
   if (code === 'HARNESS_PERMISSION_DENIED') return 'Harness capability is not permitted';
+  if (code === 'HARNESS_MODE_FORBIDDEN') return 'Only standard Harness mode is permitted';
   if (code === 'HARNESS_CONFIRMATION_REQUIRED') return 'Explicit confirmation is required';
   if (code === 'HARNESS_IDEMPOTENCY_REQUIRED') return 'A 16-128 character idempotency key is required';
   if (code === 'HARNESS_REQUEST_REPLAY') return 'Harness request has already been processed';
@@ -57,6 +59,7 @@ const isWrite = (plugin, capabilityId) => {
   return policy?.confirm_required === true || policy?.idempotency_required === true || policy?.risk === 'high' || policy?.risk === 'critical';
 };
 const isObjectPayload = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const resolveHarnessMode = (request = {}) => text(request.mode || request.harness_mode || request.harnessMode || 'standard').toLowerCase();
 const schemaError = (code, message, status = 400) => stableError(code, status, message);
 const matchesSchemaType = (value, type) => ({
   object: isObjectPayload(value),
@@ -148,16 +151,34 @@ const createHarnessGateway = ({
     const plugin = registry.getById(request.plugin_id) || registry.getByAgent(request.agent_id) || registry.resolveCapability(capabilityId);
     if (!plugin) return stableError('HARNESS_PLUGIN_UNAVAILABLE', 404, 'Harness plugin is unavailable');
     const user = request.user || {};
+    const mode = resolveHarnessMode(request);
     const tenantId = text(user.tenant_id || user.tenantId || user.tenant || user.org_id || user.organization_id);
     const subject = text(user.id || user.sub || user.username);
     if (!subject || !tenantId || !text(user.token)) return stableError('HARNESS_AUTH_REQUIRED', 401, 'Authenticated tenant context is required');
+    if (mode !== 'standard') return stableError('HARNESS_MODE_FORBIDDEN', 403, 'Only standard Harness mode is permitted');
     if (request.plugin_id && request.plugin_id !== plugin.plugin_id) return stableError('HARNESS_PLUGIN_MISMATCH', 403, 'Plugin identity mismatch');
     if (request.agent_id && request.agent_id !== plugin.agent_id) return stableError('HARNESS_AGENT_MISMATCH', 403, 'Agent identity mismatch');
     if (!plugin.capabilities.includes(capabilityId)) return stableError('HARNESS_CAPABILITY_MISMATCH', 403, 'Capability is not registered for plugin');
     const policy = policyFor(plugin, capabilityId);
     const isChatRequest = request.kind === 'chat';
     const inputSchema = isChatRequest ? (policy?.chat_input_schema || policy?.input_schema) : policy?.input_schema;
-    const inputSchemaError = validateSchema(inputSchema, request.payload === undefined ? {} : request.payload);
+    // FlashBuilder binds app identity server-side. Keep the bound metadata in
+    // the execution envelope for audit/authorization, while excluding it from
+    // the model-facing Flash capability contract.
+    const schemaPayload = !isChatRequest && (capabilityId === 'eiscore_flash_read' || capabilityId === 'eiscore_flash_write')
+      ? (() => {
+        const value = request.payload && typeof request.payload === 'object' && !Array.isArray(request.payload)
+          ? { ...request.payload }
+          : request.payload;
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          delete value.app_id;
+          delete value.appId;
+          delete value.context;
+        }
+        return value;
+      })()
+      : request.payload;
+    const inputSchemaError = validateSchema(inputSchema, schemaPayload === undefined ? {} : schemaPayload);
     if (inputSchemaError) return schemaError('HARNESS_INPUT_SCHEMA_INVALID', 'Harness capability payload does not match its contract', 400);
     const requiredPermissions = policy.permissions || plugin.permissions;
     const permissions = new Set(Array.isArray(user.permissions) ? user.permissions.map(String) : []);
@@ -170,7 +191,7 @@ const createHarnessGateway = ({
       const key = text(request.idempotency_key || request.idempotencyKey);
       if (key.length < 16 || key.length > 128) return stableError('HARNESS_IDEMPOTENCY_REQUIRED', 409, 'A 16-128 character idempotency key is required');
     }
-    return { ok: true, plugin, subject, tenantId };
+    return { ok: true, plugin, subject, tenantId, mode };
   };
 
   const execute = async (request = {}) => {
@@ -194,6 +215,7 @@ const createHarnessGateway = ({
       timeout_ms: Number(policy?.timeout_ms || auth.plugin?.timeout_ms || 0),
       subject_hash: auth.subject ? digest(auth.subject, normalizedAuditKey) : '',
       tenant_hash: auth.tenantId ? digest(auth.tenantId, normalizedAuditKey) : '',
+      harness_mode: auth.mode || resolveHarnessMode(request),
       idempotency_hash: text(request.idempotency_key || request.idempotencyKey) ? digest(request.idempotency_key || request.idempotencyKey, normalizedAuditKey) : '',
       started_at: new Date(clock()).toISOString()
     };
@@ -212,7 +234,7 @@ const createHarnessGateway = ({
     } catch {
       return stableError('HARNESS_AUDIT_UNAVAILABLE', 503, 'Harness audit is unavailable');
     }
-    const replayScope = JSON.stringify([auth.tenantId, auth.subject, auth.plugin.plugin_id, capabilityId]);
+    const replayScope = JSON.stringify([auth.tenantId, auth.subject, auth.plugin.plugin_id, capabilityId, auth.mode]);
     const idempotencyKey = isWrite(auth.plugin, capabilityId)
       ? text(request.idempotency_key || request.idempotencyKey)
       : '';
@@ -253,7 +275,7 @@ const createHarnessGateway = ({
       try {
         if (request.signal?.aborted) throw Object.assign(new Error('Harness request was cancelled'), { code: 'HARNESS_REQUEST_CANCELLED', httpStatus: 499 });
         result = await Promise.race([
-          dispatch({ ...request, request_id: id, plugin: auth.plugin, user: request.user, signal: controller.signal }),
+          dispatch({ ...request, request_id: id, plugin: auth.plugin, user: request.user, harness_mode: auth.mode, signal: controller.signal }),
           timeoutPromise,
           cancellationPromise
         ]);

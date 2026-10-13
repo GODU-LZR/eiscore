@@ -11,6 +11,9 @@ assert.ok(capabilities.includes('eiscore_site_sales'))
 const registrations = []
 const ctx = { tools: { register: (definition) => registrations.push(definition) } }
 apply(ctx)
+assert.match(registrations.find(({ name }) => name === 'eiscore_flash_write').description, /^Execute the authenticated EISCore capability\./)
+assert.match(registrations.find(({ name }) => name === 'eiscore_grid_query').description, /users \(user management/)
+assert.match(registrations.find(({ name }) => name === 'eiscore_grid_query').description, /User creation is unsupported/)
 assert.deepEqual(registrations.map(({ name }) => name), [...capabilities])
 assert.equal(registrations.find(({ name }) => name === 'eiscore_enterprise_snapshot').parameters.additionalProperties, false)
 const flashWriteParameters = registrations.find(({ name }) => name === 'eiscore_flash_write').parameters
@@ -61,6 +64,22 @@ for (const name of capabilities) {
   assert.equal(CAPABILITY_TIMEOUTS[name], sourcePolicy.timeout_ms, `${name} timeout inventory must match the plugin contract`)
 }
 assert.deepEqual(Object.keys(CAPABILITY_TIMEOUTS).sort(), [...capabilities].sort(), 'DSH timeout inventory must cover exactly the registered capabilities')
+
+const previousCapabilityProfile = process.env.EISCORE_HARNESS_CAPABILITY_PROFILE
+process.env.EISCORE_HARNESS_CAPABILITY_PROFILE = 'flash'
+try {
+  const flashProfile = await import(`./eiscore-tools.mjs?flash-profile-test=${Date.now()}`)
+  const flashRegistrations = []
+  flashProfile.apply({ tools: { register: (definition) => flashRegistrations.push(definition) } })
+  assert.deepEqual(flashProfile.capabilities, ['eiscore_flash_read', 'eiscore_flash_write'])
+  const flashWriteDescription = flashRegistrations.find(({ name }) => name === 'eiscore_flash_write').description
+  assert.match(flashWriteDescription, /do not only return source code in chat/)
+  assert.match(flashWriteDescription, /tool_id=flash\.draft\.write/)
+  assert.match(flashWriteDescription, /write must finish successfully before reporting completion/)
+} finally {
+  if (previousCapabilityProfile === undefined) delete process.env.EISCORE_HARNESS_CAPABILITY_PROFILE
+  else process.env.EISCORE_HARNESS_CAPABILITY_PROFILE = previousCapabilityProfile
+}
 
 const received = []
 const server = http.createServer((request, response) => {

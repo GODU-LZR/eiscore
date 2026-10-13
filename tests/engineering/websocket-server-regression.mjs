@@ -36,28 +36,34 @@ const createSocket = () => ({
   close(code, reason) { this.closed = { code, reason } }
 })
 
-const wss = {
+const createWss = () => ({
   listeners: new Map(),
   on(event, handler) { this.listeners.set(event, handler) }
-}
-
-attachWebSocketServer({
-  wss,
-  extractToken() { calls.push(['extractToken']); return 'token' },
-  verifyToken(token) { calls.push(['verifyToken', token]); return tokenValid ? { sub: 'u-1' } : null },
-  asUser(payload) { calls.push(['asUser', payload]); return { username: 'operator', role: 'manager', tenant_id: 'tenant-a' } },
-  hasHarnessTenantContext(user) { return Boolean(user.username && user.tenant_id && user.token) },
-  channel: 'eis_events',
-  normalizeStringList(value) {
-    return Array.isArray(value) ? value.map(String).filter(Boolean) : []
-  },
-  async handleFlashToolCallWs(_ws, data) { calls.push(['flashTool', data.type]) },
-  async handleFlashHarnessTaskWs(_ws, data) { calls.push(['flashHarnessTask', data.type]) },
-  async handleFlashHarnessResetWs(_ws, data) { calls.push(['flashHarnessReset', data.type]) },
-  sendWsJson(ws, payload) { ws.sent.push(payload) },
 })
 
-const connect = (socket = createSocket()) => {
+const attachTestServer = (runtimeProfile = 'business', eventCalls = calls) => {
+  const wss = createWss()
+  attachWebSocketServer({
+    wss,
+    extractToken() { eventCalls.push(['extractToken']); return 'token' },
+    verifyToken(token) { eventCalls.push(['verifyToken', token]); return tokenValid ? { sub: 'u-1' } : null },
+    asUser(payload) { eventCalls.push(['asUser', payload]); return { username: 'operator', role: 'manager', tenant_id: 'tenant-a' } },
+    hasHarnessTenantContext(user) { return Boolean(user.username && user.tenant_id && user.token) },
+    channel: 'eis_events',
+    runtimeProfile,
+    normalizeStringList(value) {
+      return Array.isArray(value) ? value.map(String).filter(Boolean) : []
+    },
+    async handleFlashToolCallWs(_ws, data) { eventCalls.push(['flashTool', data.type]) },
+    async handleFlashHarnessTaskWs(_ws, data) { eventCalls.push(['flashHarnessTask', data.type]) },
+    async handleFlashHarnessResetWs(_ws, data) { eventCalls.push(['flashHarnessReset', data.type]) },
+    sendWsJson(ws, payload) { ws.sent.push(payload) },
+  })
+  return wss
+}
+
+const businessWss = attachTestServer('business')
+const connect = (wss, socket = createSocket()) => {
   wss.listeners.get('connection')(socket, { headers: {} })
   return socket
 }
@@ -69,13 +75,13 @@ const message = async (socket, data) => {
 
 calls.length = 0
 tokenValid = false
-const deniedSocket = connect()
+const deniedSocket = connect(businessWss)
 assert.deepEqual(deniedSocket.closed, { code: 1008, reason: 'unauthorized' })
 assert.equal(deniedSocket.listeners.has('message'), false)
 
 calls.length = 0
 tokenValid = true
-const socket = connect()
+const socket = connect(businessWss)
 assert.deepEqual(socket.user, { username: 'operator', role: 'manager', tenant_id: 'tenant-a', token: 'token' })
 assert.deepEqual([...socket.channels], ['eis_events'])
 assert.equal(socket.flashCliSessions, undefined)
@@ -85,12 +91,11 @@ assert.deepEqual([...socket.channels], ['one', 'two'])
 await message(socket, { type: 'unsubscribe', channels: ['one'] })
 assert.deepEqual([...socket.channels], ['two'])
 
+const businessCallsBeforeFlash = calls.length
 await message(socket, { type: 'flash:tool_call' })
-assert.ok(calls.some((call) => call[0] === 'flashTool'))
 await message(socket, { type: 'flash:harness_task' })
-assert.ok(calls.some((call) => call[0] === 'flashHarnessTask'))
 await message(socket, { type: 'flash:harness_reset' })
-assert.ok(calls.some((call) => call[0] === 'flashHarnessReset'))
+assert.equal(calls.length, businessCallsBeforeFlash)
 
 const beforeUnknown = socket.sent.length
 await message(socket, { type: 'unknown:type' })
@@ -100,6 +105,16 @@ assert.ok(socket.sent.some((entry) => entry.type === 'error'))
 
 await socket.listeners.get('close')()
 assert.equal(socket.flashCliSessions, undefined)
+
+const flashCalls = []
+const flashWss = attachTestServer('flash', flashCalls)
+const flashSocket = connect(flashWss)
+await message(flashSocket, { type: 'flash:tool_call' })
+assert.ok(flashCalls.some((call) => call[0] === 'flashTool'))
+await message(flashSocket, { type: 'flash:harness_task' })
+assert.ok(flashCalls.some((call) => call[0] === 'flashHarnessTask'))
+await message(flashSocket, { type: 'flash:harness_reset' })
+assert.ok(flashCalls.some((call) => call[0] === 'flashHarnessReset'))
 
 const missingTenantSocket = createSocket()
 attachWebSocketServer({

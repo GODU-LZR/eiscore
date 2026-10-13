@@ -13,6 +13,7 @@ const { createFlashHttpHandlers } = require(resolve(repoRoot, 'realtime/flash-ht
 
 const user = Object.freeze({ username: 'builder', role: 'manager' })
 let authorized = true
+let draftAuthorized = true
 let requestBody = {}
 let readError = null
 let toolResult = { status: 200, payload: { ok: true } }
@@ -28,6 +29,10 @@ const responses = []
 const handlers = createFlashHttpHandlers({
   authorizeAgentHttpRequest() {
     return authorized ? user : null
+  },
+  async authorizeFlashTool(value, toolId, args, call) {
+    calls.push(['authorizeFlashTool', value, toolId, args, call])
+    return { allowed: draftAuthorized, context: {} }
   },
   getFlashToolRegistryPayload() {
     calls.push(['registry'])
@@ -68,6 +73,7 @@ const handlers = createFlashHttpHandlers({
 
 const reset = () => {
   authorized = true
+  draftAuthorized = true
   requestBody = {}
   readError = null
   toolResult = { status: 200, payload: { ok: true } }
@@ -121,12 +127,23 @@ await handlers.handleDraftGet({
   url: '/flash/draft?appId=app-camel&app_id=app-snake',
   headers: { host: 'agent.local' }
 }, {})
-assert.deepEqual(calls, [['readFlashDraftSource', 'app-camel']])
+assert.deepEqual(calls, [
+  ['authorizeFlashTool', user, 'flash.draft.read', { appId: 'app-camel' }, { appId: 'app-camel', source: 'flash-draft-http' }],
+  ['readFlashDraftSource', 'app-camel']
+])
 assert.deepEqual(responses, [{ status: 200, payload: draftReadResult }])
 
 reset()
-draftReadError = new Error('draft unavailable')
 await handlers.handleDraftGet({ url: '/flash/draft', headers: {} }, {})
+assert.deepEqual(calls, [])
+assert.deepEqual(responses, [{
+  status: 400,
+  payload: { code: 'APP_ID_REQUIRED', message: 'appId is required for flash draft access' }
+}])
+
+reset()
+draftReadError = new Error('draft unavailable')
+await handlers.handleDraftGet({ url: '/flash/draft?appId=read-error-app', headers: {} }, {})
 assert.deepEqual(responses, [{
   status: 500,
   payload: { code: 'FLASH_DRAFT_READ_FAILED', message: 'draft unavailable' }
@@ -137,6 +154,7 @@ requestBody = { content: '<template />', reason: 'update', app_id: 'legacy-app' 
 await handlers.handleDraftWrite({}, {})
 assert.deepEqual(calls, [
   ['readJsonBody', 2 * 1024 * 1024],
+  ['authorizeFlashTool', user, 'flash.draft.write', { appId: 'legacy-app' }, { appId: 'legacy-app', source: 'flash-draft-http' }],
   ['writeFlashDraftSource', '<template />', 'update', user, 'legacy-app']
 ])
 assert.deepEqual(responses, [{
@@ -145,6 +163,20 @@ assert.deepEqual(responses, [{
 }])
 
 reset()
+draftAuthorized = false
+requestBody = { content: '<template />', appId: 'denied-app' }
+await handlers.handleDraftWrite({}, {})
+assert.deepEqual(calls, [
+  ['readJsonBody', 2 * 1024 * 1024],
+  ['authorizeFlashTool', user, 'flash.draft.write', { appId: 'denied-app' }, { appId: 'denied-app', source: 'flash-draft-http' }]
+])
+assert.deepEqual(responses, [{
+  status: 403,
+  payload: { code: 'PERMISSION_DENIED', message: 'Current user is not authorized for this flash app' }
+}])
+
+reset()
+requestBody = { content: '', appId: 'error-app' }
 draftWriteError = Object.assign(new Error('content required'), { flashStatus: 400 })
 await handlers.handleDraftWrite({}, {})
 assert.deepEqual(responses, [{
@@ -174,6 +206,7 @@ assert.deepEqual(responses, [{
 
 assert.ok(Object.isFrozen(handlers))
 assert.match(indexSource, /createFlashHttpHandlers\(\{/)
+assert.match(indexSource, /authorizeFlashTool: \(\.\.\.args\) => flashAuthorization\.authorizeFlashTool\(\.\.\.args\)/)
 assert.match(indexSource, /\.\.\.flashHttpHandlers/)
 assert.match(indexSource, /let handleFlashToolCallWs/)
 assert.match(indexSource, /handleFlashToolCallWs = createHarnessFlashToolCallHandler\(\{/)

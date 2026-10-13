@@ -24,10 +24,10 @@ const CONTEXTS = Object.freeze({
     permission: 'site:sales',
     views: Object.freeze({
       site: Object.freeze([
-        Object.freeze({ key: 'site', path: '/site_config', profile: 'company_site', fields: 'site_key,domain,default_locale,enabled_locales,status,published_snapshot,updated_at', order: 'site_key.asc', limit: 1 })
+        Object.freeze({ key: 'site', path: '/site_config', profile: 'company_site', fields: 'site_key,domain,default_locale,enabled_locales,status,updated_at', order: 'site_key.asc', limit: 1 })
       ]),
       catalog: Object.freeze([
-        Object.freeze({ key: 'products', path: '/products', profile: 'company_site', fields: 'id,slug,status,sort_order,category,cover_image,updated_at', order: 'sort_order.asc,updated_at.desc', limit: 100 })
+        Object.freeze({ key: 'products', path: '/products', profile: 'company_site', fields: 'id,product_code,slug,category,applications,specifications,delivery,status,updated_at', order: 'updated_at.desc,product_code.asc', limit: 100 })
       ]),
       knowledge: Object.freeze([
         Object.freeze({ key: 'knowledge', path: '/knowledge_documents', profile: 'company_site', fields: 'id,locale,document_type,title,content,citations,forbidden_claims,status,version,updated_at', order: 'updated_at.desc', limit: 30 })

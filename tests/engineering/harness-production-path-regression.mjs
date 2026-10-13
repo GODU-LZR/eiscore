@@ -276,5 +276,9 @@ for (const source of flashProtocolSources) {
   assert.equal(source.includes('flash:cline_'), false, 'application center Flash clients must not emit retired Cline messages')
   assert.equal(source.includes('/agent/ws'), false, 'application center WebSocket clients must use the canonical Runtime path')
 }
-assert.match(read('eiscore-apps/src/views/FlashBuilder.vue'), /\/ws/)
+const flashBuilderSource = read('eiscore-apps/src/views/FlashBuilder.vue')
+assert.match(flashBuilderSource, /const harnessFrameUrl = ['"]\/harness-flash-embed\//, 'Flash Builder must embed the isolated Flash Harness Web UI')
+assert.match(flashBuilderSource, /harnessWebUrl:\s*['"]\/harness-flash-embed\//, 'Flash Builder auth must target the isolated Harness embed')
+assert.match(flashBuilderSource, /authApiPrefix:\s*['"]\/harness-flash-embed-api['"]/, 'Flash Builder auth must use the isolated Harness API prefix')
+assert.match(flashBuilderSource, /['"]\/flash-agent\/internal\/harness\/session['"]/, 'Flash Builder sessions must use the Flash Runtime boundary')
 console.log('PASS: production HTTP/WebSocket composition reaches Harness without legacy AI/Twin entrypoints')

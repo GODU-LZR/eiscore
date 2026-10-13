@@ -105,6 +105,11 @@ export default defineConfig(({ command }) => ({
         rewrite: (path) => path.replace(/^\/agent/, ''),
         ws: true
       },
+      '/ws': {
+        target: devProxyTargets.agent,
+        changeOrigin: true,
+        ws: true
+      },
       '/ai': {
         target: devProxyTargets.agent,
         changeOrigin: true,
@@ -125,6 +130,34 @@ export default defineConfig(({ command }) => ({
         changeOrigin: true,
         ws: true
       },
+      // Keep the local click-test entry self-contained: Harness Web is served
+      // by the isolated Compose gateway, while the browser stays on :8080.
+      '/harness-embed-api': {
+        target: 'http://127.0.0.1:18080',
+        // Preserve the browser's :8080 Host so the Harness auth origin
+        // matches the same-origin callback used by the click-test UI.
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-embed-assets': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false
+      },
+      '/harness-embed-plugins': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-embed': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/plugins': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
       '/company-site/auth': {
         target: devProxyTargets.agent,
         changeOrigin: true,
@@ -135,8 +168,10 @@ export default defineConfig(({ command }) => ({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/rpc/, '')
       },
+      // The Docker nginx bundle owns built qiankun entries by default. Set
+      // VITE_DEV_MICRO_APPS_PROXY_TARGET to a local Vite app cluster when needed.
       '/hr': {
-        target: 'http://localhost:8082',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -147,7 +182,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/materials': {
-        target: 'http://localhost:8081',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -158,7 +193,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/apps': {
-        target: 'http://localhost:8083',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -174,7 +209,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/company-site': {
-        target: 'http://localhost:8092',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -185,7 +220,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/sales': {
-        target: 'http://localhost:8085',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -196,7 +231,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/purchase': {
-        target: 'http://localhost:8088',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -207,7 +242,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/production': {
-        target: 'http://localhost:8087',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -218,7 +253,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/quality': {
-        target: 'http://localhost:8089',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -229,7 +264,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/equipment': {
-        target: 'http://localhost:8090',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -240,7 +275,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/decision': {
-        target: 'http://localhost:8091',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         bypass: (req) => {
@@ -251,7 +286,7 @@ export default defineConfig(({ command }) => ({
         }
       },
       '/flash-preview': {
-        target: 'http://localhost:8083',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
         rewrite: (path) => path.replace(/^\/flash-preview/, '')
@@ -266,7 +301,7 @@ export default defineConfig(({ command }) => ({
         rewrite: (path) => path.replace(/^\/ide/, '')
       },
       '/mobile': {
-        target: 'http://localhost:8084',
+        target: devProxyTargets.microApps,
         changeOrigin: true,
         ws: true,
       },

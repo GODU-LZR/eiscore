@@ -14,7 +14,8 @@ const {
   buildHarnessBridgeHeaders,
   normalizeHarnessBridgeResult,
   resolveHarnessDispatchScope,
-  resolveHarnessOwnerTenant
+  resolveHarnessOwnerTenant,
+  resolveHarnessWorkspaceId
 } = require('./harness-runtime');
 
 assert.deepEqual(normalizeHarnessBridgeResult({ ok: false, status: 500 }, { code: 'DB_INTERNAL', message: 'postgres password at /etc/secrets' }), {
@@ -29,6 +30,13 @@ assert.deepEqual(normalizeHarnessBridgeResult({ ok: false, status: 409 }, { code
   status: 409,
   data: undefined,
   code: 'HARNESS_REQUEST_REPLAY',
+  message: 'DeepSeek Harness request was rejected'
+});
+assert.deepEqual(normalizeHarnessBridgeResult({ ok: false, status: 403 }, { code: 'HARNESS_WORKSPACE_FORBIDDEN', status: 403, message: 'internal detail' }), {
+  ok: false,
+  status: 403,
+  data: undefined,
+  code: 'HARNESS_WORKSPACE_FORBIDDEN',
   message: 'DeepSeek Harness request was rejected'
 });
 assert.deepEqual(normalizeHarnessBridgeResult({ ok: true, status: 200 }, { ok: false, code: 'HARNESS_REQUEST_REPLAY', status: 409, message: 'internal detail' }), {
@@ -244,6 +252,11 @@ else process.env.EISCORE_HARNESS_BRIDGE_SECRET = previousBridgeSecret;
     resolveHarnessDispatchScope({ plugin: { plugin_id: 'enterprise-bi' }, user: { id: 'a', tenant_id: 'b\u0000c' } }),
     'session scopes must remain collision-resistant when identity fields contain delimiters'
   );
+  assert.notEqual(
+    resolveHarnessWorkspaceId({ id: 'b:c', tenant_id: 'a' }),
+    resolveHarnessWorkspaceId({ id: 'c', tenant_id: 'a:b' }),
+    'workspace ids must remain collision-resistant when identity fields contain delimiters'
+  );
 
   const proxyCalls = [];
   const proxyRegistry = {
@@ -263,11 +276,24 @@ else process.env.EISCORE_HARNESS_BRIDGE_SECRET = previousBridgeSecret;
     },
     depth: 1
   }]]);
+  const registeredDispatches = new Map([['flash-session-1', {
+    request: {
+      request_id: 'registered-request-1',
+      session_id: 'flash-session-1',
+      plugin: { plugin_id: 'flash-builder' },
+      plugin_id: 'flash-builder',
+      user: { id: 'flash-user', tenant_id: 'flash-tenant', token: 'jwt-secret' },
+      payload: { app_id: 'flash-app-1', context: { source: 'flash_builder_harness_embed', app_id: 'flash-app-1' } }
+    },
+    scope: resolveHarnessDispatchScope({ plugin: { plugin_id: 'flash-builder' }, user: { id: 'flash-user', tenant_id: 'flash-tenant' } }),
+    expiresAt: Date.now() + 60_000
+  }]]);
   const proxyReadJson = async (req) => req.body;
   const proxySendJson = (res, status, payload) => { res.status = status; res.payload = payload; };
   const proxy = createHarnessToolProxyHandler({
     registry: proxyRegistry,
     activeDispatches,
+    registeredDispatches,
     secret: '01234567890123456789012345678901',
     readJsonBody: proxyReadJson,
     sendJson: proxySendJson,
@@ -290,6 +316,33 @@ else process.env.EISCORE_HARNESS_BRIDGE_SECRET = previousBridgeSecret;
   assert.equal(proxyCalls[0].payload.tenant_id, undefined);
   assert.equal(proxyCalls[0].payload.token, undefined);
   assert.equal(proxyCalls[0].payload.query, 'sales');
+  const registeredRead = {};
+  await proxy({ headers: { 'x-eis-tool-secret': '01234567890123456789012345678901' }, body: { session_id: 'flash-session-1', tool_name: 'eiscore_flash_read', arguments: { appId: 'forged-app' } } }, registeredRead);
+  assert.equal(registeredRead.status, 404, 'registered Flash session must only resolve registered capabilities');
+  const flashRegistry = {
+    resolveCapability: (name) => name === 'eiscore_flash_read' ? { plugin_id: 'flash-builder', agent_id: 'flash_builder' } : null
+  };
+  const flashCalls = [];
+  const flashProxy = createHarnessToolProxyHandler({
+    registry: flashRegistry,
+    activeDispatches: new Map(),
+    registeredDispatches,
+    secret: '01234567890123456789012345678901',
+    readJsonBody: proxyReadJson,
+    sendJson: proxySendJson,
+    execute: async (request) => { flashCalls.push(request); return { ok: true, status: 200, data: { content: '<template />' } }; }
+  });
+  const flashResult = {};
+  await flashProxy({ headers: { 'x-eis-tool-secret': '01234567890123456789012345678901' }, body: { session_id: 'flash-session-1', tool_name: 'eiscore_flash_read', arguments: { tool_id: 'flash.draft.read', arguments: { appId: 'forged-app' } } } }, flashResult);
+  assert.equal(flashResult.status, 200);
+  assert.equal(flashCalls[0].user.id, 'flash-user');
+  assert.equal(flashCalls[0].payload.app_id, 'flash-app-1');
+  assert.equal(flashCalls[0].payload.appId, 'flash-app-1');
+  assert.equal(flashCalls[0].payload.arguments.appId, 'flash-app-1');
+  registeredDispatches.get('flash-session-1').expiresAt = Date.now() - 1;
+  const expiredFlash = {};
+  await flashProxy({ headers: { 'x-eis-tool-secret': '01234567890123456789012345678901' }, body: { session_id: 'flash-session-1', tool_name: 'eiscore_flash_read', arguments: {} } }, expiredFlash);
+  assert.equal(expiredFlash.status, 409);
   const prototypePayload = {};
   await proxy({ headers: { 'x-eis-tool-secret': '01234567890123456789012345678901' }, body: JSON.parse('{"session_id":"dsh-session-1","tool_name":"eiscore_enterprise_snapshot","arguments":{"__proto__":{"polluted":true},"constructor":{"polluted":true},"prototype":{"polluted":true},"query":"safe"}}') }, prototypePayload);
   assert.equal(prototypePayload.status, 200);

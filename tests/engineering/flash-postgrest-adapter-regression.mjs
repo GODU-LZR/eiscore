@@ -261,7 +261,7 @@ const ensured = await ensureHarness.adapter.callPostgrestWithFlashTableEnsure(
 assert.deepEqual(ensured.data, [{ id: 9 }])
 assert.deepEqual(ensureHarness.state.calls.map((call) => call.url), [
   'http://postgrest.local/orders',
-  'http://postgrest.local/rpc/create_data_app_table',
+  'http://postgrest.local/rpc/create_flash_data_app_table',
   'http://postgrest.local/rpc/reload_schema_cache',
   'http://postgrest.local/orders',
   'http://postgrest.local/orders'

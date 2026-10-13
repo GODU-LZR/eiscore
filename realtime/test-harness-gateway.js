@@ -37,6 +37,7 @@ assert.equal(audits.at(-1).object, 'enterprise_dataset');
 assert.equal(audits.at(-1).risk, 'low');
 assert.equal(audits.at(-1).audit_required, true);
 assert.equal(audits.at(-1).timeout_ms, 30000);
+assert.equal(audits.at(-1).harness_mode, 'standard');
 for (const event of audits) {
   const serialized = JSON.stringify(event);
   assert.equal(serialized.includes('jwt'), false);
@@ -92,6 +93,25 @@ result = await gateway.execute({
 });
 assert.equal(result.code, 'HARNESS_INPUT_SCHEMA_INVALID');
 assert.equal(dispatched, chatDispatches);
+
+result = await gateway.execute({
+  plugin_id: 'enterprise-bi',
+  agent_id: 'enterprise_analyst',
+  capability_id: 'eiscore_enterprise_query',
+  mode: 'workflow',
+  user,
+  payload: { dataset: 'sales_orders' }
+});
+assert.equal(result.code, 'HARNESS_MODE_FORBIDDEN');
+assert.equal(result.status, 403);
+assert.equal(dispatched, chatDispatches, 'non-standard Harness mode must be rejected before dispatch');
+result = await gateway.execute({
+  plugin_id: 'enterprise-bi',
+  agent_id: 'enterprise_analyst',
+  capability_id: 'eiscore_enterprise_query',
+  mode: 'workflow'
+});
+assert.equal(result.code, 'HARNESS_AUTH_REQUIRED', 'mode errors must not bypass authentication');
 
 const invalidQueryOutputGateway = createHarnessGateway({
   audit: async () => {},

@@ -56,6 +56,7 @@ const disabledHandler = createHarnessChatHttpHandler({
   assert.equal(captured.length, 1);
   assert.equal(captured[0].capability_id, DEFAULT_CHAT_CAPABILITIES['enterprise-bi']);
   assert.equal(captured[0].kind, 'chat');
+  assert.equal(captured[0].mode, 'standard', 'chat requests must use standard Harness mode');
   assert.equal(captured[0].signal, incomingSignal, 'chat must forward the HTTP disconnect signal to the gateway');
   assert.equal(captured[0].payload.context.apiUrl, undefined);
   assert.equal(captured[0].payload.context.nested.token, undefined);
@@ -74,6 +75,26 @@ const disabledHandler = createHarnessChatHttpHandler({
   });
   await workerHandler({ body: { assistant_mode: 'worker', messages: [{ role: 'user', content: '排产' }] } }, {});
   assert.equal(workerCapture[0].capability_id, DEFAULT_CHAT_CAPABILITIES['worker-grid']);
+  assert.equal(workerCapture[0].mode, 'standard', 'plugin selection must not change Harness mode');
+
+  let nonStandardResponse;
+  let nonStandardDispatches = 0;
+  const nonStandardGateway = createHarnessGateway({
+    audit: async () => {},
+    auditKey: '0123456789abcdef0123456789abcdef',
+    dispatch: async () => { nonStandardDispatches += 1; return { ok: true, status: 200, data: { text: 'must not dispatch' } }; }
+  });
+  const nonStandardHandler = createHarnessChatHttpHandler({
+    authorize: () => ({ id: 'u1', tenant_id: 't1', token: 'jwt', permissions: ['module:bi'] }),
+    readJsonBody: async () => ({ harness_mode: 'workflow', messages: [{ role: 'user', content: '拒绝非标准模式' }] }),
+    sendJson: (_res, status, payload) => { nonStandardResponse = { status, payload }; },
+    gateway: nonStandardGateway,
+    setCorsHeaders: () => {},
+    streamTextAsSse: () => {}
+  });
+  await nonStandardHandler({}, {});
+  assert.equal(nonStandardDispatches, 0, 'non-standard Harness mode must be rejected before provider dispatch');
+  assert.deepEqual(nonStandardResponse, { status: 403, payload: { code: 'HARNESS_MODE_FORBIDDEN', message: 'Only standard Harness mode is permitted' } });
 
   let throwingResponse;
   const throwingHandler = createHarnessChatHttpHandler({
@@ -110,6 +131,7 @@ const disabledHandler = createHarnessChatHttpHandler({
     assert.equal(realResponses.at(-1).status, 200, `${pluginId} chat must pass the real Gateway contract`);
     assert.equal(realDispatches.at(-1).capability_id, capabilityId);
     assert.equal(realDispatches.at(-1).kind, 'chat');
+    assert.equal(realDispatches.at(-1).mode, 'standard');
   }
   assert.equal(realDispatches.length, Object.keys(DEFAULT_CHAT_CAPABILITIES).length);
 

@@ -4,8 +4,8 @@
 'use strict';
 
 const STATIC_POLICIES = Object.freeze({
-  'flash.draft.read': { public: true },
-  'flash.draft.write': { public: true },
+  'flash.draft.read': { app: 'read' },
+  'flash.draft.write': { app: 'config' },
   'flash.attachment.upload': { public: true },
   'flash.app.list': { permissions: ['module:app'] },
   'flash.app.detail': { app: 'read' },
@@ -22,30 +22,6 @@ const STATIC_POLICIES = Object.freeze({
   'flash.data.grid.create': { table: 'create', fieldAcl: true },
   'flash.data.grid.update': { table: 'edit', fieldAcl: true },
   'flash.data.grid.delete': { table: 'delete', fieldAcl: true },
-  'flash.workflow.definition.list': { app: 'read' },
-  'flash.workflow.instance.list': { app: 'read' },
-  'flash.workflow.event.list': { app: 'read' },
-  'flash.workflow.assignment.list': { app: 'read' },
-  'flash.workflow.mapping.list': { app: 'read' },
-  'flash.workflow.definition.upsert': { app: 'config' },
-  'flash.workflow.assignment.upsert': { app: 'config' },
-  'flash.workflow.mapping.upsert': { app: 'config' },
-  'flash.workflow.instance.start': { app: 'workflow_start' },
-  'flash.workflow.instance.transition': { app: 'workflow_transition' },
-  'flash.hr.archive.list': { tableName: 'hr.archives', permissions: ['module:hr', 'app:hr_employee', 'op:hr_employee.view'], fieldAcl: true },
-  'flash.hr.archive.update': { permissions: ['op:hr_employee.edit'], fieldAcl: true },
-  'flash.hr.attendance.init': { permissions: ['op:hr_attendance.config'], fieldAcl: true },
-  'flash.inventory.current.list': { permissions: ['app:mms_ledger', 'module:materials'], fieldAcl: true },
-  'flash.inventory.draft.list': { permissions: ['app:mms_ledger', 'module:materials'], fieldAcl: true },
-  'flash.inventory.draft.create': { permissions: ['op:mms_ledger.create'], fieldAcl: true },
-  'flash.inventory.batchno.generate': { permissions: ['op:mms_ledger.edit'], fieldAcl: true },
-  'flash.inventory.stock.in': { permissions: ['op:mms_ledger.workflow_transition', 'op:mms_ledger.edit'], fieldAcl: true },
-  'flash.inventory.stock.out': { permissions: ['op:mms_ledger.workflow_transition', 'op:mms_ledger.edit'], fieldAcl: true },
-  'flash.material.master.list': { permissions: ['app:mms_ledger', 'module:materials'], fieldAcl: true },
-  'flash.warehouse.list': { permissions: ['app:mms_ledger', 'module:materials'], fieldAcl: true },
-  'flash.ontology.relation.list': { permissions: ['app:ontology_workbench'] },
-  'flash.ontology.semantic.list': { permissions: ['app:ontology_workbench'] },
-  'flash.ontology.semantic.enrich': { permissions: ['op:ontology_workbench.config'] },
   'flash.audit.write': { permissions: ['op:app_center.audit', 'op:app_center.config'] }
 });
 
@@ -63,14 +39,14 @@ const createFlashAuthorization = ({ callPostgrestWithUser }) => {
   const loadAccessContext = async (user) => {
     const result = await callPostgrestWithUser(user, {
       method: 'POST',
-      path: '/rpc/agent_ontology_context',
-      body: { p_query: '', p_limit: 200 },
+      path: '/rpc/flash_agent_context',
+      body: {},
       acceptProfile: 'public',
       contentProfile: 'public',
       timeoutMs: 5000
     });
     const context = result?.data;
-    if (!context || context.source !== 'agent_ontology_context_v1' || context.accessPolicy?.roleScoped !== true) {
+    if (!context || context.source !== 'flash_agent_context_v1' || context.accessPolicy?.roleScoped !== true) {
       throw new Error('Role-scoped authorization context is unavailable');
     }
     let fieldAcl = context.fieldAcl && typeof context.fieldAcl === 'object' ? context.fieldAcl : {};

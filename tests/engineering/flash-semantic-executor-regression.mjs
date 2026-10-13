@@ -87,7 +87,20 @@ const executor = createFlashSemanticExecutor({
   }
 })
 assert.equal(Object.isFrozen(executor), true)
-assert.deepEqual(Object.keys(executor), ['executeFlashSemanticTool'])
+assert.deepEqual(Object.keys(executor), ['executeFlashSemanticTool', 'executeBusinessWorkflowTool'])
+
+pgResults.push({ data: [] })
+const workflowContext = await executor.executeBusinessWorkflowTool('flash.workflow.definition.list', {
+  appId: 'business-app'
+}, user, callContext)
+assert.deepEqual(workflowContext, { message: '流程定义查询成功', data: { items: [] }, rowsAffected: 0 })
+assert.deepEqual(pgCalls.shift(), [user, {
+  method: 'GET',
+  path: '/definitions',
+  query: { app_id: 'eq.business-app', order: 'id.desc', limit: '20' },
+  acceptProfile: 'workflow',
+  traceId: 'trace-17'
+}])
 
 pgResults.push({ data: [{ id: 2 }, { id: 1 }] })
 const appList = await executor.executeFlashSemanticTool('flash.app.list', {
@@ -114,7 +127,7 @@ const ensuredTable = await executor.executeFlashSemanticTool('flash.data.table.e
 }, user, callContext)
 assert.deepEqual(pgCalls.shift(), [user, {
   method: 'POST',
-  path: '/rpc/create_data_app_table',
+  path: '/rpc/create_flash_data_app_table',
   body: { app_id: 'app-context', table_name: 'orders', columns: [{ field: 'name' }] },
   acceptProfile: 'app_center',
   contentProfile: 'app_center',
@@ -175,90 +188,12 @@ await assert.rejects(
 )
 assert.equal(ensureCalls.length, callsBeforeDeniedFields, 'denied field filters and writes stop before the database call')
 
-await assert.rejects(
-  executor.executeFlashSemanticTool('flash.hr.archive.list', {}, user, {
-    ...callContext,
-    authorizationContext: { fieldAclAvailable: false }
-  }),
-  (error) => error.code === 'PERMISSION_DENIED',
-  'field ACL lookup failure fails closed for fixed HR tables'
-)
-
-pgResults.push({ data: { id: 33, status: 'completed' } })
-const transitioned = await executor.executeFlashSemanticTool('flash.workflow.instance.transition', {
-  instanceId: '33',
-  nextTaskId: 'Task_Next',
-  complete: 'yes',
-  variables: { approved: true }
-}, user, callContext)
-assert.deepEqual(pgCalls.shift(), [user, {
-  method: 'POST',
-  path: '/rpc/transition_workflow_instance',
-  body: {
-    p_instance_id: 33,
-    p_next_task_id: null,
-    p_complete: true,
-    p_variables: { approved: true }
-  },
-  acceptProfile: 'workflow',
-  contentProfile: 'workflow',
-  traceId: 'trace-17'
-}])
-assert.deepEqual(transitioned.data.item, { id: 33, status: 'completed' })
-
-pgResults.push({ data: { transaction_id: 8 } })
-const stockOut = await executor.executeFlashSemanticTool('flash.inventory.stock.out', {
-  materialId: '7',
-  warehouseId: 'WH-A',
-  quantity: '2.5',
-  unit: 'kg',
-  batchNo: 'B-1',
-  productionDate: '2026-08-31',
-  remark: 'issued'
-}, user, callContext)
-const stockCall = pgCalls.shift()
-assert.equal(stockCall[1].path, '/rpc/stock_out')
-assert.equal(stockCall[1].acceptProfile, 'scm')
-assert.equal(stockCall[1].contentProfile, 'scm')
-assert.deepEqual(stockCall[1].body, {
-  p_material_id: 7,
-  p_warehouse_id: 'WH-A',
-  p_quantity: 2.5,
-  p_unit: 'kg',
-  p_batch_no: 'B-1',
-  p_transaction_no: null,
-  p_operator: null,
-  p_remark: 'issued'
-})
-assert.equal(stockOut.message, '库存出库执行成功')
-assert.equal(stockOut.rowsAffected, 1)
-
-pgResults.push(
-  { data: [{ id: 6, table_schema: 'app_data', table_name: 'orders' }] },
-  { data: [{ id: 6, semantic_name: '订单' }] }
-)
-const enriched = await executor.executeFlashSemanticTool('flash.ontology.semantic.enrich', {
-  table: 'orders',
-  payload: { semantic_name: '订单', created_at: 'remove-me' }
-}, user, callContext)
-assert.deepEqual(pgCalls.shift()[1], {
-  method: 'GET',
-  path: '/ontology_table_semantics',
-  query: { table_schema: 'eq.app_data', table_name: 'eq.orders', limit: '1' },
-  acceptProfile: 'public',
-  traceId: 'trace-17'
-})
-const enrichPatch = pgCalls.shift()[1]
-assert.equal(enrichPatch.method, 'PATCH')
-assert.equal(enrichPatch.contentProfile, 'public')
-assert.deepEqual(enrichPatch.query, { table_schema: 'eq.app_data', table_name: 'eq.orders' })
-assert.deepEqual(enrichPatch.body, {
-  semantic_name: '订单',
-  table_schema: 'app_data',
-  table_name: 'orders',
-  is_active: true
-})
-assert.equal(enriched.message, '本体语义已更新')
+for (const forbiddenTool of ['flash.hr.archive.list', 'flash.workflow.instance.transition', 'flash.inventory.stock.out', 'flash.ontology.semantic.enrich']) {
+  await assert.rejects(
+    executor.executeFlashSemanticTool(forbiddenTool, {}, user, callContext),
+    (error) => error instanceof FlashToolError && error.code === 'TOOL_NOT_FOUND' && error.httpStatus === 404
+  )
+}
 
 assert.deepEqual(
   await executor.executeFlashSemanticTool('flash.draft.read', { app_id: 'draft-app' }, user, callContext),
@@ -349,9 +284,9 @@ const registrySource = readFileSync(resolve(repoRoot, 'realtime/flash-tool-regis
 const executorSource = readFileSync(resolve(repoRoot, 'realtime/flash-semantic-executor.js'), 'utf8')
 const registryIds = [...registrySource.matchAll(/defineTool\('(flash\.[^']+)'/g)].map((match) => match[1])
 const executorIds = [...executorSource.matchAll(/case '(flash\.[^']+)'/g)].map((match) => match[1])
-assert.equal(registryIds.length, 43)
-assert.equal(executorIds.length, 43)
-assert.deepEqual([...new Set(executorIds)].sort(), [...new Set(registryIds)].sort())
+assert.equal(registryIds.length, 19)
+assert.equal(executorIds.filter((toolId) => registryIds.includes(toolId)).length, 19)
+assert.match(executorSource, /PROGRAMMING_TOOL_IDS/)
 
 const compositionRoot = readFileSync(resolve(repoRoot, 'realtime/index.js'), 'utf8')
 assert.match(compositionRoot, /require\('\.\/flash-semantic-executor'\)/)
@@ -362,4 +297,4 @@ assert.doesNotMatch(
 )
 assert.ok(compositionRoot.split(/\r?\n/).length <= 3290, 'Realtime composition root must not regain Flash semantic tool matrix')
 
-console.log('PASS: Flash semantic executor covers all 43 registry tools and preserves representative app, data, workflow, inventory, ontology, draft, publish and audit contracts')
+console.log('PASS: Flash semantic executor covers the 19 programming-only tools and rejects business capabilities')

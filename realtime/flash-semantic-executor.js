@@ -6,6 +6,25 @@
 const { FlashToolError } = require('./flash-postgrest-adapter');
 const { assertFieldAclWrite, prepareFieldAclRead, stripFieldAcl } = require('./flash-field-acl');
 
+// Flash is a programming workspace. Business workflows, HR, SCM and ontology
+// operations are intentionally not part of this runtime, even if an old caller
+// still reaches the semantic executor directly.
+const PROGRAMMING_TOOL_IDS = Object.freeze(new Set([
+  'flash.app.list', 'flash.app.detail', 'flash.route.resolve',
+  'flash.data.grid.list', 'flash.data.grid.detail', 'flash.data.grid.export',
+  'flash.app.create', 'flash.app.delete', 'flash.data.table.ensure',
+  'flash.data.grid.create', 'flash.data.grid.update', 'flash.data.grid.delete',
+  'flash.draft.read', 'flash.draft.write', 'flash.attachment.upload',
+  'flash.app.save', 'flash.app.publish', 'flash.route.upsert', 'flash.audit.write'
+]));
+const BUSINESS_WORKFLOW_TOOL_IDS = Object.freeze(new Set([
+  'flash.workflow.definition.list', 'flash.workflow.instance.list', 'flash.workflow.event.list',
+  'flash.workflow.assignment.list', 'flash.workflow.mapping.list',
+  'flash.workflow.definition.upsert', 'flash.workflow.assignment.upsert',
+  'flash.workflow.mapping.upsert', 'flash.workflow.instance.start',
+  'flash.workflow.instance.transition'
+]));
+
 const createFlashSemanticExecutor = ({
   callPostgrestWithFlashTableEnsure,
   callPostgrestWithUser,
@@ -17,7 +36,8 @@ const createFlashSemanticExecutor = ({
   resolveDataTableTarget,
   sanitizeQueryParams,
   uploadFlashAttachment,
-  writeFlashDraftSource
+  writeFlashDraftSource,
+  allowedToolIds = PROGRAMMING_TOOL_IDS
 }) => {
   const toPlainObject = (value) => {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -163,7 +183,10 @@ const createFlashSemanticExecutor = ({
     return `in.(${list.join(',')})`;
   };
 
-  const executeFlashSemanticTool = async (toolId, args, user, callContext) => {
+  const executeSemanticTool = async (toolId, args, user, callContext, allowedToolIds) => {
+  if (!allowedToolIds.has(toolId)) {
+    throw new FlashToolError('TOOL_NOT_FOUND', `Unsupported programming tool_id: ${toolId}`, { httpStatus: 404 });
+  }
   const requestArgs = toPlainObject(args);
   switch (toolId) {
     case 'flash.app.list': {
@@ -308,7 +331,7 @@ const createFlashSemanticExecutor = ({
           : [];
       const upstream = await callPostgrestWithUser(user, {
         method: 'POST',
-        path: '/rpc/create_data_app_table',
+        path: '/rpc/create_flash_data_app_table',
         body: {
           app_id: appId,
           table_name: tableName,
@@ -1151,12 +1174,16 @@ const createFlashSemanticExecutor = ({
   }
   };
 
-
   return Object.freeze({
-    executeFlashSemanticTool
+    executeFlashSemanticTool: (toolId, args, user, callContext) =>
+      executeSemanticTool(toolId, args, user, callContext, allowedToolIds),
+    executeBusinessWorkflowTool: (toolId, args, user, callContext) =>
+      executeSemanticTool(toolId, args, user, callContext, BUSINESS_WORKFLOW_TOOL_IDS)
   });
 };
 
 module.exports = {
-  createFlashSemanticExecutor
+  createFlashSemanticExecutor,
+  BUSINESS_WORKFLOW_TOOL_IDS,
+  PROGRAMMING_TOOL_IDS
 };

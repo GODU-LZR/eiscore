@@ -10,34 +10,6 @@ const SNAPSHOT_DYNAMIC_SELECTORS = [
   'link[rel="preload"][as="script"]'
 ]
 
-export const isLikelyFlashCodeServerHtml = (html) => {
-  const text = String(html || '').slice(0, 12000).toLowerCase()
-  return ['code-server', 'vscode', 'monaco', 'workbench'].some((marker) => text.includes(marker))
-}
-
-export const isLikelyFlashEiscoreShellHtml = (html) => {
-  const text = String(html || '').slice(0, 12000).toLowerCase()
-  return [
-    '<title>eiscore',
-    'eiscore-client-assets',
-    '/mobile/index.html',
-    '/asset-manifest.json'
-  ].some((marker) => text.includes(marker))
-}
-
-export const resolveFlashPreviewGlassText = ({
-  shellBusy = false,
-  hasFirstChunk = false,
-  previewFatal = false,
-  maskText = ''
-} = {}) => {
-  if (shellBusy && !hasFirstChunk) return 'AI 正在加工界面...'
-  if (shellBusy) return 'AI 正在完善细节...'
-  if (previewFatal) return '预览恢复中，请稍候...'
-  if (maskText) return maskText
-  return '正在加载预览...'
-}
-
 export const parseFlashPreviewRatio = (width, height) => {
   const widthText = String(width || '').trim()
   const heightText = String(height || '').trim()
@@ -51,8 +23,8 @@ export const parseFlashPreviewRatio = (width, height) => {
   return ratio < 0.4 || ratio > 4 ? null : ratio
 }
 
-export const buildFlashPreviewStageStyle = (ratio, { codeServerMode = false } = {}) => {
-  if (!ratio || codeServerMode) return null
+export const buildFlashPreviewStageStyle = (ratio) => {
+  if (!ratio) return null
   return {
     width: `min(100%, calc((100dvh - 240px) * ${ratio}))`,
     maxWidth: '100%',

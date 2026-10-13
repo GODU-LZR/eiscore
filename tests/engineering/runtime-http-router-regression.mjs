@@ -58,6 +58,8 @@ const expectedRoutes = [
   descriptor('POST', 'exact', '/ai/map-locate', 'harness.handleCapability'),
   descriptor('POST', 'exact', '/ai/harness/execute', 'harness.handleExecute'),
   descriptor('POST', 'exact', '/internal/harness/tool', 'harness.handleToolProxy'),
+  descriptor('POST', 'exact', '/internal/harness/session', 'harness.handleSessionRegister'),
+  descriptor('DELETE', 'exact', '/internal/harness/session', 'harness.handleSessionUnregister'),
   descriptor('GET', 'exact', '/ai/harness/metrics', 'harness.handleMetrics'),
   descriptor('GET', 'exact', '/flash/draft', 'flash.handleDraftGet'),
   descriptor('POST', 'exact', '/flash/draft', 'flash.handleDraftWrite'),
@@ -66,6 +68,7 @@ const expectedRoutes = [
   descriptor('POST', 'exact', '/flash/tools/call', 'flash.handleToolCall'),
   descriptor('POST', 'exact', '/twin/chat', 'harness.handleTwinChat'),
   descriptor('GET', 'exact', '/twin/sessions', 'twin.handleSessionsList'),
+  descriptor('GET', 'exact', '/twin/admin/sessions', 'twin.handleAdminSessionsList'),
   descriptor('DELETE', 'exact', '/twin/sessions', 'twin.handleSessionDelete'),
   descriptor('GET', 'exact', '/twin/messages', 'twin.handleMessagesGet'),
   descriptor('GET', 'exact', '/twin/knowledge', 'twin.handleKnowledgeList'),
@@ -88,7 +91,7 @@ const actualRoutes = HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
   entry.authorize
 ))
 
-assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 44)
+assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 47)
 assert.equal(HTTP_ROUTE_MANIFEST.length, CORE_HTTP_ROUTE_MANIFEST.length + COMPANY_HTTP_ROUTE_MANIFEST.length)
 assert.deepEqual(actualRoutes, expectedRoutes)
 assert.ok(Object.isFrozen(HTTP_ROUTE_MANIFEST))

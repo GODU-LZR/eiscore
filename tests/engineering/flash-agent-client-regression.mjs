@@ -104,6 +104,12 @@ assert.deepEqual(calls.at(-1), {
   options: { headers: {}, cache: 'no-store' }
 })
 
+responses.push({ ok: false, status: 401, json: async () => ({ code: 'AUTH_REQUIRED', message: '登录已过期' }) })
+await assert.rejects(
+  client.fetchDraftSource({ urls: ['/flash/draft'], token: 'expired-token' }),
+  (error) => error.status === 401 && error.code === 'AUTH_REQUIRED' && error.message === '登录已过期'
+)
+
 responses.push(
   { ok: false, status: 404, json: async () => ({ message: 'not found' }) },
   new Error('direct endpoint unavailable')

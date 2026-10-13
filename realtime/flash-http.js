@@ -5,6 +5,7 @@
 
 const createFlashHttpHandlers = ({
   authorizeAgentHttpRequest,
+  authorizeFlashTool,
   getFlashToolRegistryPayload,
   readJsonBody,
   executeFlashToolCall,
@@ -15,6 +16,22 @@ const createFlashHttpHandlers = ({
   flashAttachmentMaxBytes,
   sendJson
 }) => {
+  const authorizeDraft = async (user, res, toolId, appId) => {
+    const targetAppId = String(appId || '').trim();
+    if (!targetAppId) {
+      sendJson(res, 400, { code: 'APP_ID_REQUIRED', message: 'appId is required for flash draft access' });
+      return false;
+    }
+    if (typeof authorizeFlashTool !== 'function') {
+      sendJson(res, 403, { code: 'PERMISSION_DENIED', message: 'Flash draft authorization is unavailable' });
+      return false;
+    }
+    const authorization = await authorizeFlashTool(user, toolId, { appId: targetAppId }, { appId: targetAppId, source: 'flash-draft-http' });
+    if (authorization?.allowed === true) return true;
+    sendJson(res, 403, { code: 'PERMISSION_DENIED', message: 'Current user is not authorized for this flash app' });
+    return false;
+  };
+
   const handleToolsRegistryGet = async (req, res) => {
     const user = authorizeAgentHttpRequest(req, res);
     if (!user) return;
@@ -45,6 +62,7 @@ const createFlashHttpHandlers = ({
     try {
       const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
       const appId = url.searchParams.get('appId') || url.searchParams.get('app_id') || '';
+      if (!await authorizeDraft(user, res, 'flash.draft.read', appId)) return;
       const data = await readFlashDraftSource(appId);
       sendJson(res, 200, data);
     } catch (error) {
@@ -68,7 +86,9 @@ const createFlashHttpHandlers = ({
     }
 
     try {
-      const data = await writeFlashDraftSource(body?.content, body?.reason, user, body?.appId || body?.app_id);
+      const appId = body?.appId || body?.app_id;
+      if (!await authorizeDraft(user, res, 'flash.draft.write', appId)) return;
+      const data = await writeFlashDraftSource(body?.content, body?.reason, user, appId);
       sendJson(res, 200, { ok: true, ...data });
     } catch (error) {
       const status = resolveFlashToolErrorStatus(error);

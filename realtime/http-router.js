@@ -58,6 +58,8 @@ const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('POST', '/ai/map-locate', 'harness.handleCapability'),
   exact('POST', '/ai/harness/execute', 'harness.handleExecute'),
   exact('POST', '/internal/harness/tool', 'harness.handleToolProxy'),
+  exact('POST', '/internal/harness/session', 'harness.handleSessionRegister'),
+  exact('DELETE', '/internal/harness/session', 'harness.handleSessionUnregister'),
   exact('GET', '/ai/harness/metrics', 'harness.handleMetrics'),
   exact('GET', '/flash/draft', 'flash.handleDraftGet'),
   exact('POST', '/flash/draft', 'flash.handleDraftWrite'),
@@ -66,12 +68,28 @@ const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('POST', '/flash/tools/call', 'flash.handleToolCall'),
   exact('POST', '/twin/chat', 'harness.handleTwinChat'),
   exact('GET', '/twin/sessions', 'twin.handleSessionsList'),
+  exact('GET', '/twin/admin/sessions', 'twin.handleAdminSessionsList'),
   exact('DELETE', '/twin/sessions', 'twin.handleSessionDelete'),
   exact('GET', '/twin/messages', 'twin.handleMessagesGet'),
   exact('GET', '/twin/knowledge', 'twin.handleKnowledgeList'),
   exact('POST', '/twin/knowledge/upload', 'twin.handleKnowledgeUpload'),
   exact('DELETE', '/twin/knowledge', 'twin.handleKnowledgeDelete')
 ]);
+
+// Runtime profiles are an isolation boundary. Flash is served by a separate
+// process/network and must not inherit the business route surface.
+const FLASH_HTTP_ROUTE_MANIFEST = Object.freeze(CORE_HTTP_ROUTE_MANIFEST.filter((entry) => {
+  const path = entry.path || '';
+  return path === '/health'
+    || path === '/internal/harness/tool'
+    || path === '/internal/harness/session'
+    || path.startsWith('/flash/');
+}));
+
+const BUSINESS_HTTP_ROUTE_MANIFEST = Object.freeze(CORE_HTTP_ROUTE_MANIFEST.filter((entry) => {
+  const path = entry.path || '';
+  return !path.startsWith('/flash/') && path !== '/internal/harness/session';
+}));
 
 const HTTP_ROUTE_MANIFEST = Object.freeze([
   ...CORE_HTTP_ROUTE_MANIFEST,
@@ -156,6 +174,8 @@ const createHttpRequestHandler = ({
 
 module.exports = {
   CORE_HTTP_ROUTE_MANIFEST,
+  FLASH_HTTP_ROUTE_MANIFEST,
+  BUSINESS_HTTP_ROUTE_MANIFEST,
   HTTP_ROUTE_MANIFEST,
   createHttpRequestHandler,
   matchesRoute,

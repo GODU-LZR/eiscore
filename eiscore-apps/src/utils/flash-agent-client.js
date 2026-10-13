@@ -18,7 +18,10 @@ export const createFlashAgentClient = ({ fetchImpl = defaultFetch } = {}) => {
         })
         const result = await response.json().catch(() => ({}))
         if (!response.ok || result?.ok === false) {
-          throw new Error(String(result?.message || result?.code || `工具调用失败 (${response.status})`))
+          const error = new Error(String(result?.message || result?.code || `工具调用失败 (${response.status})`))
+          error.status = Number(response.status) || 0
+          error.code = String(result?.code || '')
+          throw error
         }
         return result
       } catch (error) {
@@ -37,7 +40,12 @@ export const createFlashAgentClient = ({ fetchImpl = defaultFetch } = {}) => {
           cache: 'no-store'
         })
         const result = await response.json().catch(() => ({}))
-        if (!response.ok) throw new Error(result?.message || `HTTP ${response.status}`)
+        if (!response.ok) {
+          const error = new Error(result?.message || `HTTP ${response.status}`)
+          error.status = Number(response.status) || 0
+          error.code = String(result?.code || '')
+          throw error
+        }
         return String(result?.content || result?.data?.content || '')
       } catch (error) {
         lastError = error

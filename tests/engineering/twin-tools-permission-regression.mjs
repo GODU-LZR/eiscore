@@ -58,11 +58,11 @@ assert.equal(selfInfo.warnings.length >= 2, true)
 
 const inventoryContext = {
   ...allowedContext,
-  permissions: [{ code: 'app:mms_ledger' }],
+  permissions: [{ code: 'module:mms' }],
   fieldAcl: { mms_ledger: { material_name: { canView: true, canEdit: false } } }
 }
 const inventoryTools = createTwinTools(pgQuery, user, inventoryContext)
-assert.equal(typeof inventoryTools.query_inventory.execute, 'function', 'a complete ACL for one module does not require unrelated modules')
+assert.equal(typeof inventoryTools.query_inventory.execute, 'function', 'canonical module:mms grants inventory access without unrelated permissions')
 
 const adminTools = createTwinTools(pgQuery, user, {
   ...allowedContext,

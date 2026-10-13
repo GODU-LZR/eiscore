@@ -89,6 +89,19 @@ const createFlashToolService = ({
     };
   };
 
+  const hasConsistentFlashHarnessScope = (call) => {
+    if (call.context?.source !== 'flash_builder_harness_embed' || call.context?.mode !== 'harness-embed') return true;
+    const appId = String(call.appId || '').trim();
+    const sessionId = String(call.sessionId || '').trim();
+    const contextAppId = String(call.context.app_id || call.context.appId || '').trim();
+    const contextSessionId = String(call.context.session_id || call.context.sessionId || '').trim();
+    const argsAppId = String(call.arguments.appId || call.arguments.app_id || '').trim();
+    if (!appId || !sessionId || appId !== contextAppId || sessionId !== contextSessionId) return false;
+    if (argsAppId && argsAppId !== appId) return false;
+    const expectedSessionId = `flash-${appId.replace(/[^a-zA-Z0-9_-]/g, '')}`.slice(0, 96);
+    return sessionId === expectedSessionId;
+  };
+
   const cleanupIdempotencyCache = (currentTime = now()) => {
     for (const [key, record] of idempotencyCache.entries()) {
       if (!record || (!record.pending && (!record.expireAt || record.expireAt <= currentTime))) {
@@ -116,6 +129,20 @@ const createFlashToolService = ({
         error: { reason_code: 'VALIDATION_FAILED', http_status: 400 }
       };
       return { status: 400, payload: errorResponse };
+    }
+
+    if (!hasConsistentFlashHarnessScope(call)) {
+      return {
+        status: 400,
+        payload: {
+          ok: false,
+          code: 'FLASH_SESSION_APP_MISMATCH',
+          message: 'Flash Harness session does not match the requested app context',
+          tool_id: call.toolId,
+          trace_id: call.traceId,
+          error: { reason_code: 'FLASH_SESSION_APP_MISMATCH', http_status: 400 }
+        }
+      };
     }
 
     const tool = getToolDefinition(call.toolId);

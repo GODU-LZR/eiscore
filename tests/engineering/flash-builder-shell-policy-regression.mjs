@@ -89,7 +89,7 @@ for (const forbidden of ['from \'vue\'', 'element-plus', 'requestJson', 'axios',
 }
 
 const pageSource = readFileSync(resolve(repoRoot, 'eiscore-apps/src/views/FlashBuilder.vue'), 'utf8')
-assert.match(pageSource, /from ['"]@\/domain\/flash-builder-shell-policy['"]/)
+assert.doesNotMatch(pageSource, /from ['"]@\/domain\/flash-builder-shell-policy['"]/)
 for (const removedDefinition of [
   'const SHELL_PROMPT_ECHO_LINE_PATTERNS =',
   'const sanitizeConversationTitle =',
@@ -101,7 +101,7 @@ for (const removedDefinition of [
 ]) {
   assert.equal(pageSource.includes(removedDefinition), false, `FlashBuilder reintroduced ${removedDefinition}`)
 }
-for (const requiredUse of [
+for (const removedUse of [
   'normalizeFlashShellToolCall(',
   'createFlashShellMessage(',
   'normalizeFlashSavedMessage(',
@@ -113,8 +113,8 @@ for (const requiredUse of [
   'buildFlashShellHistory(',
   'formatFlashConversationMeta('
 ]) {
-  assert.equal(pageSource.includes(requiredUse), true, `FlashBuilder lost ${requiredUse}`)
+  assert.equal(pageSource.includes(removedUse), false, `FlashBuilder retained removed shell UI call: ${removedUse}`)
 }
-assert.ok(pageSource.split(/\r?\n/).length <= 3947)
+assert.ok(pageSource.split(/\r?\n/).length <= 3741)
 
-console.log('PASS: FlashBuilder shell policy preserves messages, tools, thoughts, attachments, conversations, history and retry rules')
+console.log('PASS: FlashBuilder shell policy remains independently testable while the page has no shell UI contract')

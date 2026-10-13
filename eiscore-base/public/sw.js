@@ -6,7 +6,7 @@ const CACHE_PREFIX = `eiscore-client-assets-v${RELEASE_VERSION}-`
 const MANIFEST_URL = '/asset-manifest.json'
 const STATIC_EXT_RE = /\.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|avif|woff2?|ttf|eot)$/i
 const HTML_ENTRY_RE = /^\/(?:index\.html|(?:hr|materials|apps|sales|purchase|production|quality|equipment|decision|mobile)\/index\.html)$/
-const RUNTIME_PREFIXES = ['/api/', '/rpc/', '/agent/', '/ai/', '/flash/', '/twin/', '/document-intake/', '/company-site/', '/doc/']
+const RUNTIME_PREFIXES = ['/api/', '/rpc/', '/agent/', '/ai/', '/flash/', '/twin/', '/document-intake/', '/company-site/']
 
 let manifestPromise = null
 
@@ -137,6 +137,12 @@ async function networkFirst(request, fallbackUrl = '/index.html') {
   }
 }
 
+function getNavigationFallback(pathname) {
+  return pathname === '/apps/preview/flash-draft' || pathname.startsWith('/apps/preview/')
+    ? '/apps/index.html'
+    : '/index.html'
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting())
 })
@@ -165,7 +171,7 @@ self.addEventListener('fetch', (event) => {
   if (!isSameOrigin(url) || isRuntimePath(url.pathname)) return
 
   if (event.request.mode === 'navigate') {
-    event.respondWith(networkFirst(event.request))
+    event.respondWith(networkFirst(event.request, getNavigationFallback(url.pathname)))
     return
   }
 

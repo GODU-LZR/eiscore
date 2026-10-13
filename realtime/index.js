@@ -2,12 +2,10 @@ const http = require('http');
 const WebSocket = require('ws');
 const jwt = require('jsonwebtoken');
 const path = require('path');
-const { createDocumentIntakeHandlers } = require('./document-intake');
-const { createDocumentParseWorker } = require('./document-parser');
-const { createDocumentPlanWorker } = require('./document-planner');
-const { createDocumentEntryWorker } = require('./document-entry');
-const { createDocumentFixedEntryWorker } = require('./document-fixed-entry');
-const { createHttpRequestHandler, normalizeAgentRequestPath } = require('./http-router');
+// Document intake/workers create PostgreSQL pools at module load. Keep these
+// requires behind the business-profile boundary so Flash never initializes a
+// database-backed document runtime just by starting its process.
+const { createHttpRequestHandler, normalizeAgentRequestPath, FLASH_HTTP_ROUTE_MANIFEST, BUSINESS_HTTP_ROUTE_MANIFEST } = require('./http-router');
 const { createCompanyHttpModule } = require('./company-http');
 const { createCompanySiteHandlers } = require('./company-site');
 const { createCompanySalesHandlers } = require('./company-sales-agent');
@@ -21,7 +19,7 @@ const { FlashToolError, createFlashPostgrestAdapter } = require('./flash-postgre
 const { createFlashToolRegistry } = require('./flash-tool-registry');
 const { createFlashAuthorization } = require('./flash-authorization');
 const { createFlashToolService } = require('./flash-tool-service');
-const { createFlashSemanticExecutor } = require('./flash-semantic-executor');
+const { createFlashSemanticExecutor, BUSINESS_WORKFLOW_TOOL_IDS } = require('./flash-semantic-executor');
 const { loadFlashWorkspaceConfig } = require('./flash-workspace-config');
 const { createFlashWorkspaceService } = require('./flash-workspace-service');
 const { createAgentDatabaseConfig } = require('./database-config');
@@ -50,7 +48,8 @@ const postgrestUserRole = envText(
 const flashToolCallTimeoutMs = Number(process.env.FLASH_TOOL_CALL_TIMEOUT_MS || 30 * 1000);
 const flashToolIdempotencyTtlMs = Number(process.env.FLASH_TOOL_IDEMPOTENCY_TTL_MS || 10 * 60 * 1000);
 const flashConfig = loadFlashWorkspaceConfig();
-
+const runtimeProfile = envText(process.env.RUNTIME_PROFILE, 'business').toLowerCase() || 'business';
+const flashRuntime = runtimeProfile === 'flash';
 const logAgentEvent = (type, user, details = {}) => console.log('[agent-event]', JSON.stringify({ type, user: { id: user?.id || '', role: user?.role || '' }, details }));
 
 const flashWorkspaceService = createFlashWorkspaceService({
@@ -132,7 +131,6 @@ const getBearerFromAuthHeader = (req) => {
   const match = String(header).match(/^Bearer\s+(.+)$/i);
   return match ? match[1].trim() : '';
 };
-
 const asUser = (payload, token) => {
   const role = payload?.app_role || payload?.role || '';
   const permissions = Array.isArray(payload?.permissions) ? payload.permissions.map((p) => String(p)) : [];
@@ -154,6 +152,28 @@ const hasHarnessTenantContext = (user = {}) => Boolean(
   && String(user.tenant_id || user.tenantId || user.tenant || user.org_id || user.organization_id || '').trim()
   && String(user.token || '').trim()
 );
+const hasTwinAdminAccess = (user = {}) => String(user.role || '').trim().toLowerCase() === 'super_admin';
+
+const authorizeTwinAdminRequest = (req, res) => {
+  const user = authorizeTwinRequest(req, res);
+  if (!user) return null;
+  if (!hasTwinAdminAccess(user)) {
+    sendJson(res, 403, { code: 'FORBIDDEN', message: 'Super administrator access is required' });
+    return null;
+  }
+  return user;
+};
+
+// Keep the admin read audit in the existing durable agent audit ledger. The
+// function is invoked only after startup, once databaseNotifier is mounted.
+async function auditTwinAdminView(toolId, user, details = {}) {
+  await databaseNotifier.query(
+    `INSERT INTO company_site.agent_audit_events
+      (site_key, trace_id, actor_type, actor_id, tool_id, input_hash, result_code, details)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)`,
+    ['primary', `twin_admin_${Date.now()}`, 'employee', user?.id || user?.username || '', toolId, '', 'OK', JSON.stringify(details)]
+  );
+}
 
 const hasDocumentIntakeAdminAccess = (user = {}) => {
   const role = String(user.role || '').trim().toLowerCase();
@@ -204,15 +224,19 @@ const readJsonBody = (req, maxBytes = 25 * 1024 * 1024) => {
   });
 };
 
-const documentIntakeHandlers = createDocumentIntakeHandlers({
-  sendJson,
-  readJsonBody
-});
-const documentParseWorker = createDocumentParseWorker({ log: console });
-const documentPlanWorker = createDocumentPlanWorker({ log: console });
-const documentEntryWorker = createDocumentEntryWorker({ log: console });
-const documentFixedEntryWorker = createDocumentFixedEntryWorker({ log: console });
-let companySalesHandlers = null;
+const documentModules = flashRuntime ? null : {
+  createDocumentIntakeHandlers: require('./document-intake').createDocumentIntakeHandlers,
+  createDocumentParseWorker: require('./document-parser').createDocumentParseWorker,
+  createDocumentPlanWorker: require('./document-planner').createDocumentPlanWorker,
+  createDocumentEntryWorker: require('./document-entry').createDocumentEntryWorker,
+  createDocumentFixedEntryWorker: require('./document-fixed-entry').createDocumentFixedEntryWorker
+};
+const documentIntakeHandlers = flashRuntime ? {} : documentModules.createDocumentIntakeHandlers({ sendJson, readJsonBody });
+const documentParseWorker = flashRuntime ? null : documentModules.createDocumentParseWorker({ log: console });
+const documentPlanWorker = flashRuntime ? null : documentModules.createDocumentPlanWorker({ log: console });
+const documentEntryWorker = flashRuntime ? null : documentModules.createDocumentEntryWorker({ log: console });
+const documentFixedEntryWorker = flashRuntime ? null : documentModules.createDocumentFixedEntryWorker({ log: console });
+let companySalesHandlers = flashRuntime ? {} : null;
 
 const sendWsJson = (ws, payload) => {
   if (!ws || ws.readyState !== WebSocket.OPEN) return;
@@ -253,7 +277,7 @@ const {
   inferFlashDataColumnsFromPayload,
   resolveDataTableTarget
 } = flashPostgrestAdapter;
-const aiContextService = createAiContextService({ callPostgrestWithUser, log: console });
+const aiContextService = flashRuntime ? null : createAiContextService({ callPostgrestWithUser, log: console });
 
 const flashSemanticExecutor = createFlashSemanticExecutor({
   callPostgrestWithFlashTableEnsure,
@@ -268,7 +292,22 @@ const flashSemanticExecutor = createFlashSemanticExecutor({
   uploadFlashAttachment,
   writeFlashDraftSource
 });
+const businessWorkflowSemanticExecutor = createFlashSemanticExecutor({
+  callPostgrestWithFlashTableEnsure,
+  callPostgrestWithUser,
+  inferFlashDataColumnsFromPayload,
+  normalizeText: normalizeAiText,
+  normalizeToolCallBoolean,
+  readFlashDraftSource,
+  requireNonEmptyText,
+  resolveDataTableTarget,
+  sanitizeQueryParams,
+  uploadFlashAttachment,
+  writeFlashDraftSource,
+  allowedToolIds: BUSINESS_WORKFLOW_TOOL_IDS
+});
 const { executeFlashSemanticTool } = flashSemanticExecutor;
+const { executeFlashSemanticTool: executeBusinessWorkflowTool } = businessWorkflowSemanticExecutor;
 
 const streamTextAsSse = (res, text, chunkSize = 800) => {
   const output = normalizeAiText(text);
@@ -320,6 +359,7 @@ let handleFlashToolCallWs;
 
 const flashHttpHandlers = createFlashHttpHandlers({
   authorizeAgentHttpRequest,
+  authorizeFlashTool: (...args) => flashAuthorization.authorizeFlashTool(...args),
   getFlashToolRegistryPayload,
   readJsonBody,
   executeFlashToolCall,
@@ -352,7 +392,7 @@ const authorizeTwinRequest = (req, res) => {
   }
   return user;
 };
-const executeDigitalTwinContext = createHarnessTwinContextExecutor({
+const executeDigitalTwinContext = flashRuntime ? null : createHarnessTwinContextExecutor({
   fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user),
   createTools: createTwinTools,
   queryForUser: bindPgQueryForUser
@@ -382,8 +422,78 @@ const executeDocumentPlan = async (user, payload = {}) => {
   const result = await callPostgrestWithUser(user, { method: 'GET', path: '/document_entry_plans', query, acceptProfile: 'public', timeoutMs: 8000 });
   return { plans: Array.isArray(result?.data) ? result.data : [] };
 };
-const executeSalesWrite = createHarnessSalesWriteExecutor({ getHandlers: () => companySalesHandlers });
-const harnessRuntime = createHarnessRuntime({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeEnterpriseSnapshot: (user, options = {}) => aiContextService.fetchBusinessSnapshot(user, options.accessContext), executeDigitalTwinContext, executeDocumentPlan, executeSalesWrite, documentEntryWorker, documentFixedEntryWorker, createTwinPersistence: (user) => createPersistence(bindPgQueryForUser(user), user.username || user.id), callPostgrestWithUser, fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user), envText });
+const executeSalesWrite = flashRuntime ? null : createHarnessSalesWriteExecutor({ getHandlers: () => companySalesHandlers });
+const publicSiteSalesUser = Object.freeze({
+  id: envText(process.env.COMPANY_SITE_HARNESS_SUBJECT, 'public-site-sales'),
+  tenant_id: envText(process.env.COMPANY_SITE_HARNESS_TENANT, 'public-site'),
+  token: envText(process.env.COMPANY_SITE_HARNESS_TOKEN, `public-site-sales:${process.pid}:${Date.now()}`),
+  permissions: ['site:sales']
+});
+const harnessRuntime = createHarnessRuntime({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall: flashRuntime ? null : async (user, payload = {}, source = '') => executeBusinessWorkflowTool(payload.tool_id || payload.toolId, payload.arguments || payload.args || {}, user, { traceId: payload.trace_id || payload.traceId, appId: payload.app_id || payload.appId, context: payload.context || {}, source }), executeEnterpriseSnapshot: flashRuntime ? null : (user, options = {}) => aiContextService.fetchBusinessSnapshot(user, options.accessContext), executeDigitalTwinContext, executeDocumentPlan: flashRuntime ? null : executeDocumentPlan, executeSalesWrite, executeSiteSales: flashRuntime ? null : async (_user, payload = {}) => {
+  const view = envText(payload?.view || payload?.view_id, 'site');
+  const locale = envText(payload?.locale, 'zh-CN');
+  if (!['site', 'catalog', 'knowledge'].includes(view)) {
+    const error = new Error('Harness context view is unavailable');
+    error.code = 'HARNESS_CONTEXT_INVALID';
+    error.httpStatus = 400;
+    throw error;
+  }
+
+  let result;
+  if (view === 'site') {
+    // Expose the published public snapshot only; unpublished/internal settings stay in the BFF.
+    result = await companyQuery(
+      `SELECT published.site_key, published.legal_name, published.brand_name,
+              published.brand_short_name, published.factory_name, published.domain,
+              published.template_key, published.default_locale,
+              published.enabled_locales, published.theme, published.contact,
+              published.social_links, published.trademark, published.seo,
+              published.status, published.published_version, published.published_at
+         FROM company_site.site_config c
+        CROSS JOIN LATERAL jsonb_populate_record(
+          NULL::company_site.site_config,
+          CASE
+            WHEN c.status = 'published' THEN to_jsonb(c) - 'published_snapshot'
+            ELSE c.published_snapshot
+          END
+        ) AS published
+        WHERE c.site_key = $1
+          AND (c.status = 'published' OR c.status = 'draft')
+          AND published.status = 'published'
+        LIMIT 1`,
+      ['primary']
+    );
+  } else if (view === 'catalog') {
+    result = await companyQuery(
+      `SELECT p.id, p.product_code, p.slug, p.category, p.applications,
+              p.specifications, p.delivery, pl.locale, pl.name,
+              pl.summary, pl.description, pl.image_urls, pl.seo, pl.faq
+         FROM company_site.products p
+         JOIN company_site.product_locales pl
+           ON pl.product_id = p.id
+          AND pl.status = 'published'
+          AND pl.locale = ANY($2::text[])
+        WHERE p.site_key = $1
+          AND p.status = 'published'
+        ORDER BY array_position($2::text[], pl.locale), p.product_code
+        LIMIT 100`,
+      ['primary', locale === 'zh-CN' ? ['zh-CN'] : [locale, 'zh-CN']]
+    );
+  } else {
+    result = await companyQuery(
+      `SELECT id, locale, document_type, title, content, citations,
+              forbidden_claims, version, updated_at
+         FROM company_site.knowledge_documents
+        WHERE site_key = $1
+          AND status = 'published'
+          AND locale = ANY($2::text[])
+        ORDER BY updated_at DESC
+        LIMIT 30`,
+      ['primary', locale === 'zh-CN' ? ['zh-CN'] : [locale, 'zh-CN']]
+    );
+  }
+  return { context: 'site_sales', view, data: { [view === 'site' ? 'site' : view === 'catalog' ? 'products' : 'knowledge']: Array.isArray(result?.rows) ? result.rows : [] } };
+}, documentEntryWorker, documentFixedEntryWorker, createTwinPersistence: flashRuntime ? null : (user) => createPersistence(bindPgQueryForUser(user), user.username || user.id), callPostgrestWithUser, fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user), envText });
 
 // Now initialize handleFlashToolCallWs after harnessRuntime is available
 handleFlashToolCallWs = createHarnessFlashToolCallHandler({
@@ -491,15 +601,42 @@ const authorizeDocumentIntakeAdminRequest = (req, res) => {
 
 const twinResourceHttpHandlers = createTwinResourceHttpHandlers({
   authorizeTwinRequest,
+  authorizeTwinAdminRequest,
   bindPgQueryForUser,
   readJsonBody,
   sendJson,
-  port
+  port,
+  audit: (toolId, user, details) => auditTwinAdminView(toolId, user, details)
 });
 
 const companyQuery = (...args) => databaseNotifier.query(...args);
-const companySiteHandlers = createCompanySiteHandlers({ query: companyQuery, sendJson, sendText, readJsonBody });
-companySalesHandlers = createCompanySalesHandlers({ query: companyQuery, sendJson, readJsonBody, streamTextAsSse });
+const companySiteHandlers = flashRuntime
+  ? { disabled: true }
+  : createCompanySiteHandlers({ query: companyQuery, sendJson, sendText, readJsonBody });
+companySalesHandlers = flashRuntime ? { disabled: true } : createCompanySalesHandlers({
+  query: companyQuery,
+  sendJson,
+  readJsonBody,
+  streamTextAsSse,
+  executeHarness: async ({ session, sessionId, message, history = [], requestId, signal }) => {
+    if (!harnessRuntime.enabled) return { ok: false, status: 503, code: 'HARNESS_DISABLED' };
+    return harnessRuntime.gateway.execute({
+      kind: 'chat',
+      request_id: requestId,
+      session_id: sessionId,
+      plugin_id: 'independent-site-sales',
+      agent_id: 'site_sales',
+      capability_id: 'eiscore_site_sales',
+      user: publicSiteSalesUser,
+      signal,
+      payload: {
+        messages: [...history, { role: 'user', content: message }],
+        stream: false,
+        context: { source: 'public_company_site', locale: session?.locale || 'zh-CN' }
+      }
+    });
+  }
+});
 const companyHttp = createCompanyHttpModule({
   companySiteHandlers,
   companySalesHandlers,
@@ -513,6 +650,7 @@ const companyHttp = createCompanyHttpModule({
 });
 
 const server = http.createServer(createHttpRequestHandler({
+  routes: flashRuntime ? FLASH_HTTP_ROUTE_MANIFEST : BUSINESS_HTTP_ROUTE_MANIFEST,
   getRequestPath,
   setCorsHeaders,
   authorizers: {
@@ -535,14 +673,20 @@ const server = http.createServer(createHttpRequestHandler({
 }));
 
 const wss = new WebSocket.Server({ server, path: wsPath });
-const databaseNotifier = createDatabaseNotifier({
-  wss,
-  channel,
-  workflowChannel,
-  enableWorkflowAutoTransition,
-  pgConfig: createAgentDatabaseConfig(),
-  log: console
-});
+const databaseNotifier = flashRuntime
+  ? {
+    start: () => {},
+    shutdown: async () => {},
+    query: () => { throw new Error('Database notifier is unavailable in Flash runtime'); }
+  }
+  : createDatabaseNotifier({
+    wss,
+    channel,
+    workflowChannel,
+    enableWorkflowAutoTransition,
+    pgConfig: createAgentDatabaseConfig(),
+    log: console
+  });
 
 function extractToken(req) {
   const header = req.headers['sec-websocket-protocol'];
@@ -631,10 +775,12 @@ process.on('SIGINT', shutdown);
 
 server.listen(port, () => {
   databaseNotifier.start();
-  documentParseWorker.start();
-  documentPlanWorker.start();
-  documentEntryWorker.start();
-  documentFixedEntryWorker.start();
+  if (!flashRuntime) {
+    documentParseWorker.start();
+    documentPlanWorker.start();
+    documentEntryWorker.start();
+    documentFixedEntryWorker.start();
+  }
 });
 
 attachWebSocketServer({
@@ -644,6 +790,7 @@ attachWebSocketServer({
   asUser,
   hasHarnessTenantContext,
   channel,
+  runtimeProfile,
   normalizeStringList,
   handleFlashToolCallWs,
   handleFlashHarnessTaskWs,

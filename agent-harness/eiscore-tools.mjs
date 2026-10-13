@@ -1,7 +1,7 @@
 // Same-process DeepSeek Harness tools. The parent EISCore runtime owns the
 // authenticated session context; this plugin only forwards a capability call.
 
-const CAPABILITIES = Object.freeze([
+const ALL_CAPABILITIES = Object.freeze([
   'eiscore_enterprise_snapshot',
   'eiscore_enterprise_query',
   'eiscore_multimodal_translate',
@@ -21,6 +21,13 @@ const CAPABILITIES = Object.freeze([
   'eiscore_engineering_context',
   'eiscore_site_sales'
 ])
+const FLASH_CAPABILITIES = Object.freeze(['eiscore_flash_read', 'eiscore_flash_write'])
+const BUSINESS_CAPABILITIES = Object.freeze(ALL_CAPABILITIES.filter((capability) => !FLASH_CAPABILITIES.includes(capability)))
+const FLASH_PROFILE = String(process.env.EISCORE_HARNESS_CAPABILITY_PROFILE || '').trim() === 'flash'
+const BUSINESS_PROFILE = String(process.env.EISCORE_HARNESS_CAPABILITY_PROFILE || '').trim() === 'business'
+const CAPABILITIES = Object.freeze(
+  FLASH_PROFILE ? FLASH_CAPABILITIES : (BUSINESS_PROFILE ? BUSINESS_CAPABILITIES : ALL_CAPABILITIES)
+)
 
 // Keep the SDK-side cooperative deadline aligned with the server-side
 // capability contract. The Gateway remains the authoritative hard timeout.
@@ -226,6 +233,19 @@ const TOOL_SCHEMAS = Object.freeze({
 
 const proxyUrl = () => String(process.env.EISCORE_TOOL_PROXY_URL || '').replace(/\/+$/, '')
 const proxySecret = () => String(process.env.EISCORE_TOOL_PROXY_SECRET || '')
+const FLASH_CONTEXT_KEY = Symbol.for('eiscore.dsh.flash-context')
+
+const flashContextSessionId = (exec) => {
+  const currentSessionId = String(exec?.agent?.session?.id || '').trim()
+  const context = globalThis[FLASH_CONTEXT_KEY]
+  if (!context || typeof context.get !== 'function' || !currentSessionId) return ''
+  const binding = context.get(currentSessionId)
+  if (!binding || Number(binding.expiresAt || 0) <= Date.now()) {
+    if (binding) context.delete?.(currentSessionId)
+    return ''
+  }
+  return String(binding.sessionId || '').trim()
+}
 
 // DSH requires function parameter schemas to be a single object root; it does
 // not accept a root `oneOf`, even when every branch is an object. Merge those
@@ -275,7 +295,7 @@ const normalizeDshSchema = (schema, { root = true } = {}) => {
 const callProxy = async (name, args, exec) => {
   const baseUrl = proxyUrl()
   const secret = proxySecret()
-  const sessionId = String(exec?.agent?.session?.id || '')
+  const sessionId = flashContextSessionId(exec) || String(exec?.agent?.session?.id || '')
   if (!baseUrl || !sessionId || secret.length < 32) throw new Error('EISCore authorized tool proxy is unavailable')
   const response = await fetch(baseUrl, {
     method: 'POST',
@@ -292,12 +312,26 @@ export const name = 'eiscore-tools'
 export const inject = ['tools']
 export const capabilities = CAPABILITIES
 
+const capabilityDescription = (capability) => {
+  const base = 'Execute the authenticated EISCore capability. Never provide identity, tenant, JWT, SQL, URL or authorization fields; the server binds those to the current session.'
+  if (FLASH_PROFILE && capability === 'eiscore_flash_write') {
+    return `${base} This is the Flash Builder coding workspace. For a request to create or change a page, do not only return source code in chat: produce a complete Vue single-file component and call this capability with tool_id=flash.draft.write and arguments={content:<the complete Vue SFC>,reason:<short reason>}. The write must finish successfully before reporting completion. Keep the generated page scoped to the current Flash app and never call business, digital-twin, BI or unrelated capabilities.`
+  }
+  if (FLASH_PROFILE && capability === 'eiscore_flash_read') {
+    return `${base} This is the Flash Builder coding workspace. Use this capability to inspect the current Flash draft when needed. Keep the generated page scoped to the current Flash app and never call business, digital-twin, BI or unrelated capabilities.`
+  }
+  if (capability === 'eiscore_grid_query') {
+    return `${base} Read-only datasets: materials, inventory, production_orders, employees (employee archives), users (user management; id, username, full_name, role_name, status only). Results are limited rows, not a full-table count. User creation is unsupported. Access is checked on every call.`
+  }
+  return base
+}
+
 export function apply(ctx) {
   for (const capability of CAPABILITIES) {
     const schema = TOOL_SCHEMAS[capability]
     ctx.tools.register({
       name: capability,
-      description: `Execute the authenticated EISCore capability ${capability}. Never provide identity, tenant, JWT, SQL, URL or authorization fields; the server binds those to the current session.`,
+      description: capabilityDescription(capability),
       parameters: normalizeDshSchema(schema?.parameters || { type: 'object', additionalProperties: capability === 'eiscore_enterprise_snapshot' ? false : true }),
       output: { schema: normalizeDshSchema(schema?.output || { type: 'object' }), render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
       timeoutMs: CAPABILITY_TIMEOUTS[capability] || 30000,

@@ -21,6 +21,8 @@ const json = (res, status, payload) => {
 const validSession = (value) => /^[a-zA-Z0-9._:-]{1,256}$/.test(String(value || ''));
 const validReplayKey = (value) => /^[a-zA-Z0-9._:-]{1,1024}$/.test(String(value || ''));
 const hashIdentity = (value) => crypto.createHash('sha256').update(String(value || '')).digest('hex');
+const workspaceForOwner = (subject, tenant) => `ws_${hashIdentity(JSON.stringify([String(tenant || ''), String(subject || '')]))}`;
+const expectedOwner = (subject, tenant, workspace, mode) => `${hashIdentity(subject)}:${hashIdentity(tenant)}:${hashIdentity(workspace)}:${mode}`;
 const sameSecret = (received, expected) => {
   const left = Buffer.from(String(received || ''));
   const right = Buffer.from(String(expected || ''));
@@ -71,7 +73,7 @@ const normalizeState = (value) => {
   for (const entry of value.sessions) {
     if (!Array.isArray(entry) || entry.length !== 2 || !validSession(entry[0])) throw new Error('invalid bridge session state');
     const [key, session] = entry;
-    if (!session || typeof session !== 'object' || !/^[a-f0-9]{64}:[a-f0-9]{64}$/.test(String(session.owner)) || !String(session.plugin || '').trim() || !Number.isFinite(Number(session.lastUsedAt))) throw new Error('invalid bridge session state');
+    if (!session || typeof session !== 'object' || !/^[a-f0-9]{64}:[a-f0-9]{64}(?::[a-f0-9]{64}:standard)?$/.test(String(session.owner)) || !String(session.plugin || '').trim() || !Number.isFinite(Number(session.lastUsedAt))) throw new Error('invalid bridge session state');
     sessions.set(String(key), { owner: String(session.owner), plugin: String(session.plugin).trim(), lastUsedAt: Number(session.lastUsedAt) });
   }
   const requests = new Map();
@@ -169,10 +171,19 @@ const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async 
     const ownerSubject = String(req.headers['x-eis-owner-subject'] || '').trim();
     const ownerTenant = String(req.headers['x-eis-owner-tenant'] || '').trim();
     if (!ownerSubject || !ownerTenant) return json(res, 401, { code: 'HARNESS_OWNER_REQUIRED' });
+    const requestedWorkspace = String(req.headers['x-eis-workspace-id'] || '').trim();
+    const requestedMode = String(req.headers['x-eis-harness-mode'] || '').trim().toLowerCase();
+    const strictIdentity = Boolean(bridgeSecret);
+    const workspace = requestedWorkspace || workspaceForOwner(ownerSubject, ownerTenant);
+    const mode = requestedMode || 'standard';
+    if (strictIdentity && requestedWorkspace !== workspaceForOwner(ownerSubject, ownerTenant)) return json(res, 403, { code: 'HARNESS_WORKSPACE_FORBIDDEN' });
+    if (mode !== 'standard') return json(res, 403, { code: 'HARNESS_MODE_FORBIDDEN' });
     const plugin = String(req.headers['x-eis-plugin-id'] || '').trim();
     if (!plugin) return json(res, 400, { code: 'HARNESS_PLUGIN_REQUIRED' });
     if (!normalizePluginIds(pluginList()).has(plugin)) return json(res, 404, { code: 'HARNESS_PLUGIN_UNAVAILABLE', message: 'Harness plugin is unavailable' });
-    const owner = `${hashIdentity(ownerSubject)}:${hashIdentity(ownerTenant)}`;
+    const owner = strictIdentity
+      ? expectedOwner(ownerSubject, ownerTenant, workspace, 'standard')
+      : `${hashIdentity(ownerSubject)}:${hashIdentity(ownerTenant)}`;
     const replayKey = `${owner}:${plugin}:${requestId}`;
     if (requests.has(requestId) || requests.has(`legacy:${requestId}`) || requests.has(replayKey)) return json(res, 409, { code: 'HARNESS_REQUEST_REPLAY' });
     const existing = sessions.get(sessionId);

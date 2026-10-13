@@ -143,7 +143,11 @@ const loadDraft = async () => {
     try {
       source = await fetchDraftSource()
     } catch (error) {
-      source = DEFAULT_FLASH_DRAFT_SOURCE
+      // A missing draft is safe to seed with the default canvas. Auth and
+      // server failures must stay visible; silently rendering the default
+      // canvas makes a generated page look as if it was never written.
+      if (Number(error?.status) === 404) source = DEFAULT_FLASH_DRAFT_SOURCE
+      else throw error
     }
     if (!String(source || '').trim()) source = DEFAULT_FLASH_DRAFT_SOURCE
     const template = extractBlock(source, 'template')

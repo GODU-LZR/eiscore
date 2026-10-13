@@ -22,6 +22,8 @@ for (const [key, value] of Object.entries({
 
 const user = { id: 'u1', tenant_id: 'tenant-a', token: 'jwt-a', permissions: ['engineering:read', 'site:sales'] };
 const postgrestCalls = [];
+const flashCalls = [];
+const workflowCalls = [];
 
 (async () => {
 try {
@@ -32,7 +34,11 @@ try {
     sendJson: () => {},
     setCorsHeaders: () => {},
     streamTextAsSse: () => {},
-    executeFlashToolCall: async () => ({ status: 200, payload: { ok: true, data: {} } }),
+    executeFlashToolCall: async (...args) => { flashCalls.push(args); return { status: 200, payload: { ok: true, data: {} } }; },
+    executeWorkflowToolCall: async (requestUser, payload, request) => {
+      workflowCalls.push({ requestUser, payload, request });
+      return { message: '流程定义查询成功', data: { items: [] }, rowsAffected: 0 };
+    },
     executeEnterpriseSnapshot: async () => ({}),
     executeDigitalTwinContext: async () => ({}),
     executeDigitalTwinChat: async () => ({}),
@@ -48,6 +54,20 @@ try {
     fetchSemanticContext: async () => ({ accessPolicy: { roleScoped: true }, fieldAclAvailable: true, permissions: user.permissions })
   });
   assert.equal(runtime.enabled, false);
+
+  const workflow = await runtime.toolGateway.execute({
+    request_id: 'runtime-workflow-1',
+    plugin_id: 'workflow',
+    agent_id: 'workflow_orchestrator',
+    capability_id: 'eiscore_workflow_context',
+    user: { ...user, permissions: ['workflow:read'] },
+    payload: { tool_id: 'flash.workflow.definition.list', arguments: { appId: 'business-app' } }
+  });
+  assert.equal(workflow.ok, true);
+  assert.deepEqual(workflow.data, { items: [] });
+  assert.equal(workflowCalls.length, 1, 'Business workflow must use its dedicated semantic executor');
+  assert.equal(flashCalls.length, 0, 'Business workflow must not call the Flash tool service');
+  assert.equal(workflowCalls[0].payload.tool_id, 'flash.workflow.definition.list');
 
   const engineering = await runtime.toolGateway.execute({
     request_id: 'runtime-engineering-1',

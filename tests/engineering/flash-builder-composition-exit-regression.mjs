@@ -10,6 +10,19 @@ const pagePath = resolve(repoRoot, 'eiscore-apps/src/views/FlashBuilder.vue')
 const source = readFileSync(pagePath, 'utf8')
 const lines = source.split(/\r?\n/)
 
+for (const forbidden of [
+  'codeServerEnabled',
+  'isCodeServerMode',
+  'VITE_FLASH_CODE_SERVER_ENABLED',
+  'VITE_FLASH_IDE_URL',
+  '专业模式',
+  'Code-Server',
+  'ideIframe',
+  'reloadIdeEmbed'
+]) {
+  assert.equal(source.includes(forbidden), false, `FlashBuilder retained removed IDE contract: ${forbidden}`)
+}
+
 assert.ok(lines.length <= 3741, `FlashBuilder grew beyond its 3741-line exit baseline: ${lines.length}`)
 
 const markerLine = (marker) => lines.findIndex((line) => line === marker)
@@ -32,9 +45,7 @@ const policyImports = [...source.matchAll(/from ['"](@\/domain\/flash-builder-[^
   .sort()
 assert.deepEqual(policyImports, [
   '@/domain/flash-builder-draft-policy',
-  '@/domain/flash-builder-markdown-policy',
-  '@/domain/flash-builder-preview-policy',
-  '@/domain/flash-builder-shell-policy'
+  '@/domain/flash-builder-preview-policy'
 ])
 
 const policyFiles = policyImports.map((specifier) => resolve(
@@ -62,14 +73,14 @@ for (const file of policyFiles) {
     assert.equal(policySource.includes(forbidden), false, `${file} gained runtime dependency: ${forbidden}`)
   }
 }
-assert.equal(policyExports, 39)
+assert.equal(policyExports, 16)
 
 const count = (pattern) => (source.match(pattern) || []).length
 assert.ok(count(/axios\./g) <= 1, 'FlashBuilder added direct Agent HTTP orchestration')
-assert.ok(count(/\bfetch\s*\(/g) <= 1, 'FlashBuilder added IDE probe requests')
-assert.ok(count(/new\s+WebSocket\s*\(/g) <= 1, 'FlashBuilder added WebSocket transports')
-assert.ok(count(/callFlashTool\(/g) <= 12, 'FlashBuilder added Flash tool orchestration')
-assert.ok(count(/ElMessage(?:Box)?\./g) <= 13, 'FlashBuilder added message/confirmation orchestration')
+assert.equal(count(/\bfetch\s*\(/g), 0, 'FlashBuilder retained an IDE probe request')
+assert.equal(count(/new\s+WebSocket\s*\(/g), 0, 'FlashBuilder retained a WebSocket transport')
+assert.ok(count(/callFlashTool\(/g) <= 18, 'FlashBuilder added Flash tool orchestration')
+assert.ok(count(/ElMessage(?:Box)?\./g) <= 6, 'FlashBuilder added message/confirmation orchestration')
 assert.ok(count(/router\.(?:push|replace)\(/g) <= 2, 'FlashBuilder added Router orchestration')
 assert.ok(count(/\bwatch\(/g) <= 4, 'FlashBuilder added reactive watcher orchestration')
 assert.ok(count(/\bsetTimeout\(/g) <= 14, 'FlashBuilder added timer orchestration')
@@ -94,16 +105,33 @@ for (const forbidden of [
 
 for (const retainedBoundary of [
   "axios.post('/flash/tools/call'",
-  'fetch(targetUrl, {',
-  'new WebSocket(target, getWsProtocols())',
-  'loadFlashConversations(appId.value)',
-  'saveFlashConversations(appId.value, shellConversations.value)',
-  'sanitizeFlashPreviewSnapshotHtml(rawHtml, {',
+  "harnessFrameUrl = '/harness-flash-embed/#flash-builder'",
+  'prepareHarnessAuth({',
+  "type: 'flash:context'",
+  "data.type === 'flash:harness:ready'",
+  'isTrustedFlashHarnessMessage(event, {',
+  'isFlashHarnessChangeMessage(data)',
+  'getFlashHarnessEventKey(data)',
+  "await syncDraft(); refreshPreview('正在呈现最新草稿...')",
+  'sanitizeFlashPreviewSnapshotHtml(String(previewIframeRef.value?.contentDocument?.documentElement?.outerHTML || \'\'), {',
   "callFlashTool('flash.app.publish'",
   'router.push(`/app/${appId.value}`)',
   'onUnmounted(() => {'
 ]) {
   assert.equal(source.includes(retainedBoundary), true, `FlashBuilder lost retained composition boundary: ${retainedBoundary}`)
+}
+
+for (const removedBoundary of [
+  'new WebSocket(',
+  'loadFlashConversations(',
+  'saveFlashConversations(',
+  'shellConversations',
+  'attachment',
+  '附件',
+  'localStorage',
+  'sessionStorage'
+]) {
+  assert.equal(source.toLowerCase().includes(removedBoundary.toLowerCase()), false, `FlashBuilder retained removed local UI boundary: ${removedBoundary}`)
 }
 
 console.log(`PASS: FlashBuilder composition exit gate (${lines.length} lines, ${policyImports.length} policy modules, ${policyExports} policy exports, ${count(/callFlashTool\(/g)} Flash tool operations)`)

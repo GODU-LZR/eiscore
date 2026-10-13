@@ -71,9 +71,9 @@ const INVENTORY_CURRENT_FIELDS = [
 const TWIN_TOOL_PERMISSIONS = Object.freeze({
   query_employees: ['module:hr', 'app:hr_employee', 'op:hr_employee.view'],
   query_departments: ['module:hr', 'app:hr_org', 'op:hr_org.view'],
-  query_materials: ['module:materials', 'app:mms_ledger'],
-  query_inventory: ['module:materials', 'app:mms_ledger'],
-  query_warehouses: ['module:materials', 'app:mms_ledger'],
+  query_materials: ['module:mms', 'module:materials', 'app:mms_ledger'],
+  query_inventory: ['module:mms', 'module:materials', 'app:mms_ledger'],
+  query_warehouses: ['module:mms', 'module:materials', 'app:mms_ledger'],
   query_apps: ['module:app']
 });
 

@@ -19,6 +19,8 @@ export const DEFAULT_FLASH_BUILDER_DRAFT_SOURCE = `<template>
 </style>
 `
 
+export const FLASH_BUILDER_MODE = 'shell'
+
 const normalizeObjectValue = (value) => {
   if (!value) return {}
   if (typeof value === 'object') return value
@@ -64,7 +66,6 @@ export const buildFlashSourceCodeWithDraft = (
   draftSource,
   {
     draftFile,
-    mode,
     updatedAt,
     extraFlash = {}
   } = {}
@@ -75,11 +76,11 @@ export const buildFlashSourceCodeWithDraft = (
     ...source,
     flash: {
       ...flash,
+      ...extraFlash,
       draft_file: draftFile,
       draft_source: String(draftSource || ''),
       draft_updated_at: updatedAt,
-      mode,
-      ...extraFlash
+      mode: FLASH_BUILDER_MODE
     }
   }
 }
@@ -114,9 +115,6 @@ export const resolveFlashDraftIsolation = (
 export const buildFlashBuilderConfig = (
   baseConfig = {},
   {
-    codeServerEnabled,
-    mode,
-    shellMode,
     draftRoot,
     draftFile,
     previewRoute,
@@ -126,7 +124,7 @@ export const buildFlashBuilderConfig = (
   ...baseConfig,
   flash: {
     ...(baseConfig.flash || {}),
-    mode: codeServerEnabled ? mode : shellMode,
+    mode: FLASH_BUILDER_MODE,
     draftRoot,
     draftFile,
     previewRoute,

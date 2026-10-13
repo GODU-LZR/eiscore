@@ -108,6 +108,9 @@ const createHarnessChatHttpHandler = ({ authorize, readJsonBody, sendJson, gatew
       plugin_id: pluginId,
       agent_id: agentId,
       capability_id: capabilityId,
+      // Plugin selection (assistant_mode/mode) is separate from the Harness
+      // execution mode. All EISCore chat traffic runs in standard mode.
+      mode: body.harness_mode || body.harnessMode || 'standard',
       confirmed: body.confirmed === true,
       idempotency_key: body.idempotency_key || body.idempotencyKey,
       signal: req.signal,

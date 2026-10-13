@@ -28,7 +28,7 @@ const service = createFlashToolService({
     'cap.write': 'flash.write',
     'cap.risky': 'flash.risky'
   }[String(toolId || '').replace(/[^a-zA-Z0-9._-]/g, '')] || String(toolId || '').replace(/[^a-zA-Z0-9._-]/g, '')),
-  registryVersion: 'flash-tools-v2',
+  registryVersion: 'flash-tools-v3-programming-only',
   registryCount: 43,
   executeSemanticTool: async (toolId, args, user, call) => {
     semanticCalls.push({ toolId, args, user, call })
@@ -106,7 +106,7 @@ assert.deepEqual(read.payload, {
   message: 'completed',
   tool_id: 'flash.read',
   trace_id: 'trace:1',
-  registry_version: 'flash-tools-v2',
+  registry_version: 'flash-tools-v3-programming-only',
   registry_tools_count_actual: 43,
   data: { items: [{ id: 1 }] },
   meta: {
@@ -147,6 +147,23 @@ assert.equal(unconfirmed.status, 403)
 assert.equal(unconfirmed.payload.code, 'PERMISSION_DENIED')
 assert.equal(unconfirmed.payload.message, 'write tool requires confirmed=true')
 assert.equal(semanticCalls.length, 1)
+
+const mismatchedHarnessScope = await service.executeFlashToolCall(userOne, {
+  tool_id: 'flash.read',
+  trace_id: 'flash-scope-mismatch',
+  app_id: 'orders-app',
+  session_id: 'flash-other-app',
+  arguments: { appId: 'orders-app' },
+  context: {
+    source: 'flash_builder_harness_embed',
+    mode: 'harness-embed',
+    app_id: 'orders-app',
+    session_id: 'flash-other-app'
+  }
+})
+assert.equal(mismatchedHarnessScope.status, 400)
+assert.equal(mismatchedHarnessScope.payload.code, 'FLASH_SESSION_APP_MISMATCH')
+assert.equal(semanticCalls.length, 1, 'mismatched Flash Harness scope must not execute a tool')
 
 const riskyUnconfirmed = await service.executeFlashToolCall(userOne, {
   tool_id: 'flash.risky',
@@ -216,7 +233,7 @@ const boundedService = createFlashToolService({
   authorizeTool: async () => ({ allowed: true }),
   getToolDefinition: (toolId) => definitions.get(toolId),
   resolveToolId: (toolId) => String(toolId || ''),
-  registryVersion: 'flash-tools-v2',
+  registryVersion: 'flash-tools-v3-programming-only',
   registryCount: 43,
   executeSemanticTool: async (_toolId, _args, user) => {
     concurrencyCalls.push(user.tenant_id)
@@ -257,7 +274,7 @@ const tenantScopedService = createFlashToolService({
   authorizeTool: async () => ({ allowed: true }),
   getToolDefinition: (toolId) => definitions.get(toolId),
   resolveToolId: (toolId) => String(toolId || ''),
-  registryVersion: 'flash-tools-v2',
+  registryVersion: 'flash-tools-v3-programming-only',
   registryCount: 43,
   executeSemanticTool: async (_toolId, _args, user) => {
     tenantScopeCalls.push(user.tenant_id)
@@ -279,7 +296,7 @@ const defaultTtlService = createFlashToolService({
   idempotencyTtlMs: Number.NaN,
   getToolDefinition: (toolId) => definitions.get(toolId),
   resolveToolId: (toolId) => String(toolId || ''),
-  registryVersion: 'flash-tools-v2',
+  registryVersion: 'flash-tools-v3-programming-only',
   registryCount: 43,
   executeSemanticTool: async () => { defaultTtlResults.push(true); return { data: { ok: true } } },
   logAgentEvent() {},
@@ -305,7 +322,7 @@ assert.deepEqual(typed, {
     message: 'already exists',
     tool_id: 'flash.read',
     trace_id: 'typed-trace',
-    registry_version: 'flash-tools-v2',
+    registry_version: 'flash-tools-v3-programming-only',
     registry_tools_count_actual: 43,
     error: {
       reason_code: 'DUPLICATE',
@@ -348,7 +365,7 @@ const guardedService = createFlashToolService({
   },
   getToolDefinition: (toolId) => definitions.get(toolId),
   resolveToolId: (toolId) => String(toolId || '').replace(/[^a-zA-Z0-9._-]/g, ''),
-  registryVersion: 'flash-tools-v2',
+  registryVersion: 'flash-tools-v3-programming-only',
   registryCount: 43,
   executeSemanticTool: async () => {
     guardedExecutionCalls += 1
@@ -372,6 +389,22 @@ const revokedReplay = await guardedService.executeFlashToolCall(userOne, guarded
 assert.equal(revokedReplay.status, 403, 'cached writes must still re-check current permissions')
 assert.equal(guardedAuthorizationCalls, 2)
 assert.equal(guardedExecutionCalls, 1)
+
+const scopedHarnessCall = await service.executeFlashToolCall(userOne, {
+  tool_id: 'flash.read',
+  trace_id: 'flash-scope-valid',
+  app_id: 'orders-app',
+  session_id: 'flash-orders-app',
+  arguments: { appId: 'orders-app' },
+  context: {
+    source: 'flash_builder_harness_embed',
+    mode: 'harness-embed',
+    app_id: 'orders-app',
+    session_id: 'flash-orders-app'
+  }
+})
+assert.equal(scopedHarnessCall.status, 200)
+assert.equal(semanticCalls.at(-1).call.sessionId, 'flash-orders-app')
 
 const compositionRoot = readFileSync(resolve(repoRoot, 'realtime/index.js'), 'utf8')
 assert.match(compositionRoot, /require\('\.\/flash-tool-service'\)/)
