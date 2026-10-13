@@ -52,9 +52,11 @@ const helperDefinitions = [...source.matchAll(
   .sort()
 assert.deepEqual(helperDefinitions, [
   'asUser',
+  'auditTwinAdminView',
   'authorizeAgentHttpRequest',
   'authorizeDocumentIntakeAdminRequest',
   'authorizeHttpRequest',
+  'authorizeTwinAdminRequest',
   'authorizeTwinRequest',
   'companyQuery',
   'envText',
@@ -66,6 +68,7 @@ assert.deepEqual(helperDefinitions, [
   'handleFlashHarnessTaskWs',
   'hasDocumentIntakeAdminAccess',
   'hasHarnessTenantContext',
+  'hasTwinAdminAccess',
   'logAgentEvent',
   'normalizeProjectPath',
   'normalizeRelativeAgentPath',

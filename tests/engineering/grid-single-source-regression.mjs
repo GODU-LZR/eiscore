@@ -316,7 +316,7 @@ const historySource = readFileSync(
 )
 assert.match(historySource, /historyOptions\s*=\s*{}/)
 assert.match(historySource, /historyServices\s*=\s*{}/)
-assert.match(historySource, /const\s*{\s*debounce\s*}\s*=\s*historyServices/)
+assert.match(historySource, /const\s*{\s*debounce,\s*isCellReadOnly,\s*isRowLocked\s*}\s*=\s*historyServices/)
 assert.doesNotMatch(historySource, /from\s*['"]lodash['"]/)
 for (const option of [
   'defaultProfile',
