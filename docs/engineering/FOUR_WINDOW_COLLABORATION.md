@@ -43,3 +43,14 @@ codex queue --thread "目标会话 UUID" --message "问题编号、目标、状�
 - 远端仓库推送不等于远端伦度部署。部署任务必须另有具体指令，遵守 `LUNDU_MULTI_AGENT_BRANDING_COORDINATION.md` 和 `LUNDU_REMOTE_BRANDING_FIX_20260927.md` 的服务范围、完整制品、品牌与发布锁规则。
 
 当前启动只落实分工、通信、工作树和台账；等待用户新反馈，不自行重跑写库业务链或修改业务代码。
+
+## 接入确认（2026-10-13）
+
+三个执行窗口的独立工作树已创建，均已回复实际路径、分支、HEAD 和干净状态；源码共同基线为
+`8bfa69459b14a46a9a67a1c95bc45ee20f252d38`。各窗口已阅读协作规则和问题台账，等待问题分配，未修改业务代码或操作运行服务。
+
+协作规则提交 `8bfa6945` 已推送到 `eiscore/codex/systematic-refactor`，并通过
+`git ls-remote --heads eiscore codex/systematic-refactor` 核对远端完整提交号一致。
+GitHub 直连失败后使用现有本机代理完成推送，没有更改仓库 remote 或持久化 Git 网络配置。
+
+本次仅完成协作接入，不代表新增问题已经修复或验收通过；本轮问题台账仍为空。
