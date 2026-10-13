@@ -30,7 +30,8 @@
 - `public.raw_materials`：39条，包括原始14条物料与后续25条库存映射物料。
 - `scm.inventory_batches`：39条。
 - `hr.archives`：15条；`public.users`：16条。
-- 公开配置接口返回伦度品牌、`publishedVersion=2`、83个产品。
+- 配置接口返回伦度品牌、`publishedVersion=2`、`content.products`预览集合83条；
+  这个数量不代表产品已经公开发布，见下方追加核对。
 
 `.tmp/eiscore-before-lundu-import.dump` 是导入前备份，不能当作伦度导入后的数据备份恢复。
 本轮未使用此备份，也未运行 `scripts/import-lundu-excel.mjs --apply`。
@@ -93,9 +94,30 @@ Chrome登录和面板交接会触发现有认证/会话请求，不应把页面�
 现有Flash Web仍为旧共享Gateway配置，不能把它误报为已完成彻底隔离。
 本轮将Flash入口保持503，而不绕回业务Runtime；没有以创建一个角色代替受控迁移。
 
-前端静态企业配置仍含历史“6000个项目/4500吨装车量/35亿合同额”指标。
-这些是企业展示配置，不能当作业务数据库统计；本轮未改其内容或重新构建前端。
-恢复真实库不能自动证明所有页面文案已清除演示值，应在人工验收时单独核对并登记。
+前端静态企业配置包含“6000个项目/4500吨装车量/35亿合同额”。
+证据登记 `enterprise-packs/lundu/evidence/research-sources.json` 明确说明：这些数字是按用户
+要求保留的官网公开宣传口径，仍为未核验商业声明，不能当作业务数据库统计，也不能直接
+认定为演示数据。本轮未删除这些内容或重新构建前端。
 
 本轮没有重跑67项或全写入业务链，没有验收真实Provider completion、Flash发布或远端部署。
 普通业务可继续从 `http://127.0.0.1:18080/login` 人工验收；Flash尚不能作为完整功能交付。
+
+## 追加只读核对：宣传口径与产品发布状态
+
+独立站窗口回报后，统筹与只读子Agent复核公开接口及产品状态，未修改业务代码、dist或数据库。
+
+- 三项宣传数字位于 `eiscore-base/public/config/eiscore-enterprise.json` 的
+  `branding.login.metrics` 和 `enterprise-packs/lundu/data/company-site.json`；
+  当前配置文件不存在 `enterprise.loginBranding.metrics` 路径。
+- `GET /company-site/public/site-config` 为200 JSON；伦度主体、`status=published`，
+  `settings.publicClaimsStatus=待确认`。`site`对象没有`metrics`字段，整个响应未命中三项数字。
+- `GET /company-site/public/pages/home` 为200 JSON；首页仅包含
+  `hero/company-facts/product-catalog/contact`，未包含三项数字。
+- `GET /company-site/public/products` 的正确集合字段是`items`，实际为0条。
+  SQL聚合确认83条产品中67条`review`、16条`draft`，没有`published`产品。
+- 本地业务Runtime启用了 `NODE_ENV=development`、`COMPANY_SITE_PREVIEW_ALLOW_DRAFT=true`。
+  `realtime/company-site.js` 的配置接口因此加载草稿/待审产品，返回`content.products=83`；
+  独立产品列表接口始终只加载已发布产品及已发布本地化条目，因此`items=0`。
+
+两个接口的数量差异来自本地预览规则与发布状态，不是产品丢失。当前站点主体已发布，
+不代表每个产品都已发布；产品审核/公开发布仍未完成，本轮未自动改变其状态。
