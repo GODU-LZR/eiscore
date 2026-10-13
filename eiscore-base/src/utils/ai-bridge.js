@@ -64,7 +64,6 @@ const loadMammoth = async () => {
 class AiBridge {
   constructor() {
     this.actions = null
-    this.config = null
     this.lastCommandId = null
     this.eventBound = false
     this.activeStreamController = null
@@ -141,22 +140,6 @@ class AiBridge {
     }
   }
 
-  async loadConfig() {
-    if (this.config) return
-    try {
-      const res = await request({
-        url: '/ai/config',
-        method: 'get',
-        headers: { 'Accept': 'application/json' }
-      })
-      if (res && typeof res === 'object') {
-        this.config = res
-      }
-    } catch (e) {
-      console.error('[AiBridge] Config Load Failed', e)
-    }
-  }
-
   getAuthToken() {
     return getToken()
   }
@@ -172,9 +155,15 @@ class AiBridge {
     if (!shouldPrefetchGridAgentQuery(userText, context)) return null
     const payload = buildGridAgentQueryPayload({ context, userText })
     if (!payload) return null
+    const isUserManagement = context?.viewId === 'hr_user_manage' || context?.gridAgent?.viewId === 'hr_user_manage'
+    const userFields = ['id', 'username', 'full_name', 'role_name', 'status']
+    if (isUserManagement && Array.isArray(payload.columns)) {
+      payload.columns = payload.columns.filter((column) => userFields.includes(column.prop))
+    }
+    if (isUserManagement && payload.group_by && !userFields.includes(payload.group_by)) return null
 
     try {
-      return await request({
+      const result = await request({
         url: '/api/rpc/eis_grid_agent_query',
         method: 'post',
         headers: {
@@ -184,6 +173,10 @@ class AiBridge {
         data: { payload },
         silentError: true
       })
+      if (isUserManagement && Array.isArray(result?.sample)) {
+        return { ...result, sample: result.sample.map((row) => Object.fromEntries(userFields.filter((field) => Object.hasOwn(row, field)).map((field) => [field, row[field]]))) }
+      }
+      return result
     } catch (e) {
       console.warn('[AiBridge] EISGrid server query skipped', {
         code: e?.code || 'request-failed',
@@ -210,7 +203,8 @@ class AiBridge {
 
   createNewSession() {
     const newSession = {
-      id: Date.now().toString(),
+      id: globalThis.crypto.randomUUID?.()
+        || Array.from(globalThis.crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join(''),
       title: '新对话',
       messages: [
         {
@@ -432,7 +426,7 @@ class AiBridge {
   }
 
   async buildPayloadMessages(messages) {
-    const recentMessages = messages.slice(-HISTORY_WINDOW)
+    const recentMessages = messages.filter((message) => message.content || message.files?.length).slice(-HISTORY_WINDOW)
 
     return Promise.all(recentMessages.map(async (message) => {
       const contentParts = []
@@ -493,7 +487,6 @@ class AiBridge {
     const streamController = new AbortController()
     this.activeStreamController = streamController
 
-    if (!this.config) await this.loadConfig()
     let silentRetryNeeded = false
     try {
       const serverGridResult = await this.prefetchGridAgentQuery(effectivePayloadText || effectiveUserText, context)
@@ -503,10 +496,8 @@ class AiBridge {
         replaceLatestUserPayloadText(historyWindow, effectivePayloadText)
       }
       if (serverGridText && historyWindow.length) {
-        const lastMessage = historyWindow[historyWindow.length - 1]
-        if (Array.isArray(lastMessage?.content)) {
-          lastMessage.content.push({ type: 'text', text: serverGridText })
-        }
+        const latestUserMessage = [...historyWindow].reverse().find((message) => message.role === 'user')
+        latestUserMessage?.content.push({ type: 'text', text: serverGridText })
       }
       const smartBiContextPayload = this.state.assistantMode === 'enterprise'
         ? (smartBiContext || buildSmartBiContext(effectivePayloadText || effectiveUserText))
@@ -531,6 +522,7 @@ class AiBridge {
       const payload = {
         stream: true,
         assistant_mode: this.state.assistantMode,
+        session_id: `host-${this.state.assistantMode}-${session.id}`,
         context: contextPayload || null,
         messages: historyWindow,
         thinking: { type: 'enabled' }
@@ -553,7 +545,7 @@ class AiBridge {
               const text = await response.text()
               detail = String(text || '').slice(0, 180)
             } catch {}
-            const error = new Error(`网络错误: ${response.status}${detail ? ` ${detail}` : ''}`)
+            const error = new Error(`助手请求失败: ${response.status}${detail ? ` ${detail}` : ''}`)
             error.status = response.status
             throw error
           }
@@ -578,8 +570,8 @@ class AiBridge {
         const message = String(e?.message || '')
         const status = Number(e?.status || 0)
         const isTransientStatus = [429, 500, 502, 503, 504].includes(status)
-        const isTransientStreamError = /input stream|networkerror|failed to fetch|stream|网络错误:\s*(429|500|502|503|504)/i.test(message.toLowerCase()) || isTransientStatus
-        if (silentRetryCount < 2 && isTransientStreamError) {
+        const isTransientStreamError = /input stream|networkerror|failed to fetch|stream/i.test(message) || isTransientStatus
+        if (silentRetryCount < 2 && isTransientStreamError && !aiMsg.content) {
           silentRetryNeeded = true
           const idx = session.messages.indexOf(aiMsg)
           if (idx >= 0) session.messages.splice(idx, 1)

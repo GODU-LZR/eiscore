@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { runInNewContext } from 'node:vm'
+import { webcrypto } from 'node:crypto'
 
 // Run the actual bridge class with browser/platform adapters stubbed out.
 const source = readFileSync(new URL('../../eiscore-base/src/utils/ai-bridge.js', import.meta.url), 'utf8')
@@ -9,8 +10,11 @@ const source = readFileSync(new URL('../../eiscore-base/src/utils/ai-bridge.js',
 const payloads = []
 const requests = []
 let streamBehavior = 'success'
+class FixedDate extends Date {
+  static now() { return 1791892412374 }
+}
 const sandbox = {
-  console, AbortController, Date, setTimeout,
+  console, AbortController, Date: FixedDate, crypto: webcrypto, setTimeout,
   reactive: (value) => value, watch: () => {}, getToken: () => 'current-user-jwt',
   createAssistantModeHistory: () => ({ load: () => ({}), saveMode: (value) => value }),
   shouldPrefetchGridAgentQuery: (text) => !/创建/.test(text),
@@ -48,6 +52,7 @@ assert.ok(payloads.at(-1).messages.at(-1).content.every((part) => !part.text.inc
 bridge.createNewSession()
 await bridge.sendMessage('当前有多少用户')
 assert.notEqual(payloads[0].session_id, payloads.at(-1).session_id)
+assert.equal(new Set(bridge.state.sessions.map(({ id }) => id)).size, bridge.state.sessions.length, 'sessions created within one millisecond must remain isolated')
 bridge.setMode('enterprise')
 await bridge.sendMessage('经营情况')
 assert.match(payloads.at(-1).session_id, /^host-enterprise-/)
@@ -76,4 +81,12 @@ sandbox.buildGridAgentQueryPayload = () => ({ columns: [{ prop: 'email' }], grou
 const beforePrivateQuery = requests.length
 assert.equal(await bridge.prefetchGridAgentQuery('按邮箱统计', { viewId: 'hr_user_manage' }), null)
 assert.equal(requests.length, beforePrivateQuery, 'sensitive grouping must not reach the users RPC')
+
+// HTTP development origins expose getRandomValues without randomUUID.
+sandbox.crypto = { getRandomValues: webcrypto.getRandomValues.bind(webcrypto) }
+const beforeFallback = bridge.state.currentSessionId
+bridge.createNewSession()
+const firstFallback = bridge.state.currentSessionId
+bridge.createNewSession()
+assert.equal(new Set([beforeFallback, firstFallback, bridge.state.currentSessionId]).size, 3, 'sessions must also remain isolated without randomUUID')
 console.log('PASS: host assistant stable sessions, query provenance and visible pre-completion failures')

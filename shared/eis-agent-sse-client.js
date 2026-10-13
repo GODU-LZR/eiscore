@@ -37,22 +37,36 @@ export const createAgentSseClient = ({ fetchImpl = defaultFetch } = {}) => {
     if (onOpen) onOpen(response)
     const decoder = new TextDecoder()
     let buffer = ''
+    const consumeLine = (line) => {
+      const candidate = trimLines ? line.trim() : line
+      if (!candidate || !candidate.startsWith('data:')) return false
+      const data = candidate.slice(5).trim()
+      if (data === '[DONE]') return true
+      if (data && onData) onData(data)
+      return false
+    }
 
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        buffer += decoder.decode(value, { stream: !done })
+        if (done) {
+          consumeLine(buffer)
+          break
+        }
 
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
 
-      for (const line of lines) {
-        const candidate = trimLines ? line.trim() : line
-        if (!candidate || !candidate.startsWith('data:')) continue
-        const data = candidate.slice(5).trim()
-        if (!data || data === '[DONE]') continue
-        if (onData) onData(data)
+        for (const line of lines) {
+          if (!consumeLine(line)) continue
+          // Completion is terminal even if the server keeps the connection open.
+          try { await reader.cancel?.() } catch {}
+          return
+        }
       }
+    } finally {
+      reader.releaseLock?.()
     }
   }
 

@@ -119,6 +119,48 @@ await assert.rejects(
 )
 assert.equal(calls.length, 4)
 
+for (const terminalLine of ['data: [DONE]\n', 'data: [DONE]\r\n']) {
+  let reads = 0
+  let canceled = false
+  let released = false
+  const terminalClient = clientModule.createAgentSseClient({
+    fetchImpl: async () => ({ body: { getReader: () => ({
+      async read() {
+        reads += 1
+        if (reads > 1) throw new Error('connection failed after completed response')
+        return { done: false, value: encoder.encode(`data: {"text":"成功"}\n${terminalLine}`) }
+      },
+      async cancel() { canceled = true; throw new Error('already disconnected') },
+      releaseLock() { released = true }
+    }) } })
+  })
+  const events = []
+  await terminalClient.streamAgentEvents({ path: '/ai/chat/completions', payload: {}, onData: (data) => events.push(data) })
+  assert.deepEqual(events, ['{"text":"成功"}'])
+  assert.equal(reads, 1, 'DONE must not wait for connection EOF or read errors')
+  assert.equal(canceled, true)
+  assert.equal(released, true)
+}
+
+const tailEvents = []
+const tailClient = clientModule.createAgentSseClient({ fetchImpl: async () => ({ body: makeBody('data: {"text":"尾行"}') }) })
+await tailClient.streamAgentEvents({ path: '/twin/chat', payload: {}, onData: (data) => tailEvents.push(data) })
+assert.deepEqual(tailEvents, ['{"text":"尾行"}'], 'EOF must flush the last buffered line')
+
+let partialReads = 0
+const partialEvents = []
+const partialClient = clientModule.createAgentSseClient({ fetchImpl: async () => ({ body: { getReader: () => ({
+  async read() {
+    if (partialReads++ === 0) return { done: false, value: encoder.encode('data: {"text":"partial"}\n') }
+    throw new Error('connection failed before DONE')
+  }
+}) } }) })
+await assert.rejects(
+  partialClient.streamAgentEvents({ path: '/ai/chat/completions', payload: {}, onData: (data) => partialEvents.push(data) }),
+  /connection failed before DONE/
+)
+assert.deepEqual(partialEvents, ['{"text":"partial"}'], 'errors before completion must remain visible')
+
 const abortController = new AbortController()
 const abortClient = clientModule.createAgentSseClient({
   fetchImpl: async (url, options) => new Promise((resolve, reject) => {
@@ -157,7 +199,7 @@ for (const path of consumers) {
 const bridge = read(consumers[0])
 assert.match(bridge, /path:\s*['"]\/ai\/chat\/completions['"]/)
 assert.match(bridge, /response\.headers\.get\(['"]x-eis-ai-agent['"]\)/)
-assert.match(bridge, /网络错误: \$\{response\.status}/)
+assert.match(bridge, /助手请求失败: \$\{response\.status}/)
 assert.match(bridge, /missingBodyMessage:\s*['"]无可用的流式响应['"]/)
 assert.match(bridge, /console\.warn\(['"]\[AiBridge] SSE Parse Failed['"]/)
 assert.match(bridge, /if \(this\.activeStreamController === streamController\)\s*\{/)
