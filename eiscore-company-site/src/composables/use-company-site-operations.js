@@ -46,7 +46,7 @@ const COMPANY_SITE_SCOPES = ['company_site', 'company-site', 'companysite', 'sit
 const READ_ACTIONS = ['read', 'view', 'list', 'manage', 'admin']
 const MANAGE_ACTIONS = ['write', 'publish', 'manage', 'admin']
 
-const activeSection = ref('overview')
+const activeSection = ref(null)
 const router = useRouter()
 const activeContentType = ref('pages')
 const loading = ref(false)

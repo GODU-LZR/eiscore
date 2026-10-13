@@ -1,36 +1,14 @@
 <template>
-  <div class="company-site-ops" data-guide="company-site-ops">
-    <header class="page-header">
-      <div class="page-heading">
-        <div class="eyebrow"><span class="eyebrow-dot"></span>企业站点运营</div>
-        <h1>把官网内容、线索与发布流程放进 EISCore</h1>
-        <p>统一管理独立站的品牌资料、内容资产、搜索优化和销售线索，并沿用系统权限与主题。</p>
+  <div class="company-site-ops" data-guide="app-list-page">
+    <div class="apps-header" data-guide="app-list-header">
+      <div class="header-text">
+        <h2>网站运营</h2>
+        <p>选择一个业务模块进入管理</p>
       </div>
-      <div class="page-actions">
-        <el-tag :type="siteStatusType(site?.status)" effect="plain" class="status-pill">
-          {{ siteStatusText(site?.status) }}
-        </el-tag>
-        <el-button :loading="loading" @click="loadAll">
-          <el-icon><Refresh /></el-icon>
-          刷新数据
-        </el-button>
-        <el-button type="primary" plain @click="openCueBuilder">
-          <el-icon><Box /></el-icon>
-          3D 定制器 / BOM
-        </el-button>
-        <el-button type="primary" @click="openFactoryDemo">
-          <el-icon><DataBoard /></el-icon>
-          全厂演示调度台
-        </el-button>
-        <el-button v-if="canPublish" type="primary" :loading="publishingSite" @click="publishSite">
-          <el-icon><Promotion /></el-icon>
-          发布站点
-        </el-button>
-      </div>
-    </header>
+    </div>
 
     <el-alert
-      v-if="loadError"
+      v-if="loadError && activeSection"
       class="load-alert"
       type="warning"
       :closable="false"
@@ -38,44 +16,71 @@
       :title="loadError"
     />
 
-    <el-row :gutter="16" class="summary-grid">
-      <el-col v-for="card in summaryCards" :key="card.key" :xs="12" :sm="6">
-        <el-card shadow="never" class="summary-card" :class="`summary-${card.tone}`">
-          <div class="summary-card-top">
-            <span class="summary-label">{{ card.label }}</span>
-            <span class="summary-icon"><el-icon><component :is="card.icon" /></el-icon></span>
+    <el-row v-if="!activeSection" :gutter="20" class="site-module-grid" data-guide="app-list-grid" aria-label="网站运营业务模块">
+      <el-col
+        v-for="card in moduleCards"
+        :key="card.key"
+        :xs="24"
+        :sm="12"
+        :md="12"
+        :lg="8"
+        :xl="8"
+      >
+        <el-card
+          class="app-card"
+          data-guide="app-card"
+          :data-guide-key="card.key"
+          :class="[`attention-${card.card.attentionLevel || 'normal'}`, { 'is-active': activeSection === card.key && !card.externalAction, 'is-disabled': card.disabled }]"
+          shadow="hover"
+          :aria-disabled="card.disabled ? 'true' : undefined"
+          @click="openModuleCard(card)"
+        >
+          <div class="app-card-body">
+            <div class="app-icon" :class="`tone-${card.tone}`">
+              <el-icon size="20"><component :is="card.icon" /></el-icon>
+            </div>
+            <div class="app-info">
+              <div class="app-title-line">
+                <div class="app-name">{{ card.name }}</div>
+                <span class="app-status" data-guide="app-card-status" :class="`status-${card.card.status}`">{{ card.card.statusText }}</span>
+              </div>
+              <div class="app-desc">{{ card.desc }}</div>
+            </div>
           </div>
-          <div class="summary-value">{{ card.value }}</div>
-          <div class="summary-foot">{{ card.foot }}</div>
+          <div class="app-metrics" data-guide="app-card-metrics">
+            <div v-for="metric in card.card.metrics" :key="metric.label" class="metric-item" :title="metric.label">
+              <strong :aria-label="metric.label">{{ metric.value }}</strong>
+            </div>
+          </div>
+          <div class="app-enter" data-guide="app-card-enter">
+            <span class="app-brief">{{ card.card.brief }}</span>
+            <span>进入</span>
+          </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-card shadow="never" class="workspace-card">
-      <div class="workspace-tabs-wrap">
-        <el-tabs v-model="activeSection" class="workspace-tabs">
-          <el-tab-pane name="overview">
-            <template #label><span><el-icon><DataBoard /></el-icon>运营总览</span></template>
-          </el-tab-pane>
-          <el-tab-pane name="content">
-            <template #label><span><el-icon><Collection /></el-icon>内容资产</span></template>
-          </el-tab-pane>
-          <el-tab-pane name="leads">
-            <template #label><span><el-icon><User /></el-icon>询盘线索</span></template>
-          </el-tab-pane>
-          <el-tab-pane name="drafts" :disabled="!featureAvailability.salesDrafts">
-            <template #label><span><el-icon><Document /></el-icon>销售草稿（待接入）</span></template>
-          </el-tab-pane>
-          <el-tab-pane name="seo">
-            <template #label><span><el-icon><TrendCharts /></el-icon>SEO / GEO</span></template>
-          </el-tab-pane>
-          <el-tab-pane name="facts" :disabled="!featureAvailability.factGovernance">
-            <template #label><span><el-icon><DocumentChecked /></el-icon>事实治理（待接入）</span></template>
-          </el-tab-pane>
-          <el-tab-pane name="settings">
-            <template #label><span><el-icon><Setting /></el-icon>站点设置</span></template>
-          </el-tab-pane>
-        </el-tabs>
+    <div v-else class="workspace-card">
+      <div class="workspace-nav">
+        <div class="workspace-nav-context">
+          <div class="workspace-breadcrumb">
+            <span>网站运营</span>
+            <span class="workspace-breadcrumb-separator">/</span>
+            <strong>{{ activeSectionMeta.title }}</strong>
+          </div>
+          <div class="workspace-nav-hint">{{ activeSectionMeta.hint }}</div>
+        </div>
+        <el-button class="workspace-back" type="primary" plain @click="activeSection = null">返回业务模块</el-button>
+        <div class="workspace-nav-actions">
+          <el-button :loading="loading" @click="loadAll">
+            <el-icon><Refresh /></el-icon>
+            刷新数据
+          </el-button>
+          <el-button v-if="canPublish" type="primary" :loading="publishingSite" @click="publishSite">
+            <el-icon><Promotion /></el-icon>
+            发布站点
+          </el-button>
+        </div>
       </div>
 
       <section v-if="activeSection === 'overview'" class="overview-section">
@@ -159,7 +164,7 @@
           </div>
         </div>
 
-        <el-table v-loading="contentLoading" :data="activeContentRows" class="ops-table content-table" table-layout="fixed">
+        <el-table v-if="contentLoading || activeContentRows.length" v-loading="contentLoading" :data="activeContentRows" class="ops-table content-table" table-layout="fixed">
           <el-table-column label="名称 / 标识" min-width="230" show-overflow-tooltip>
             <template #default="{ row }">{{ contentTitle(row, activeContentType) }}</template>
           </el-table-column>
@@ -192,7 +197,7 @@
           </div>
           <el-button @click="loadLeads" :loading="leadsLoading"><el-icon><Refresh /></el-icon>刷新线索</el-button>
         </div>
-        <el-table v-loading="leadsLoading" :data="leads" class="ops-table leads-table" table-layout="fixed">
+        <el-table v-if="leadsLoading || leads.length" v-loading="leadsLoading" :data="leads" class="ops-table leads-table" table-layout="fixed">
           <el-table-column label="线索编号" width="175" show-overflow-tooltip><template #default="{ row }">{{ row.publicRef || row.public_ref || '-' }}</template></el-table-column>
           <el-table-column label="企业 / 联系人" min-width="190" show-overflow-tooltip>
             <template #default="{ row }">{{ row.companyName || row.company_name || '-' }} / {{ row.contactName || row.contact_name || '-' }}</template>
@@ -229,7 +234,7 @@
           </div>
         </div>
         <el-alert class="draft-boundary-alert" type="warning" :closable="false" show-icon title="人工确认边界：这里的记录不会直接创建正式客户、订单、库存或生产任务。" />
-        <el-table v-loading="draftsLoading" :data="drafts" class="ops-table drafts-table" table-layout="fixed">
+        <el-table v-if="draftsLoading || drafts.length" v-loading="draftsLoading" :data="drafts" class="ops-table drafts-table" table-layout="fixed">
           <el-table-column label="类型 / 草稿编号" min-width="210" show-overflow-tooltip>
             <template #default="{ row }"><strong>{{ draftTypeText(row.draftType) }}</strong><span class="table-secondary">{{ row.id }}</span></template>
           </el-table-column>
@@ -266,7 +271,7 @@
           <div class="seo-stat"><span>严重 / 错误</span><strong class="is-danger">{{ seoSummary.critical }}</strong></div>
           <div class="seo-stat"><span>已解决</span><strong class="is-success">{{ seoSummary.resolved }}</strong></div>
         </div>
-        <el-table v-loading="seoLoading" :data="seoChecks" class="ops-table" table-layout="fixed">
+        <el-table v-if="seoLoading || seoChecks.length" v-loading="seoLoading" :data="seoChecks" class="ops-table" table-layout="fixed">
           <el-table-column prop="path" label="路径" min-width="190" show-overflow-tooltip />
           <el-table-column label="检查项" min-width="160" show-overflow-tooltip><template #default="{ row }">{{ row.checkType || row.check_type || '-' }}</template></el-table-column>
           <el-table-column label="级别" width="110"><template #default="{ row }"><el-tag size="small" :type="severityTagType(row.severity)" effect="light">{{ severityText(row.severity) }}</el-tag></template></el-table-column>
@@ -288,7 +293,7 @@
             <div><span>主词数量</span><strong>{{ keywordMapReport?.summary?.primary || 0 }}</strong></div>
             <div><span>缺口</span><strong :class="{ 'is-danger': keywordMapReport?.summary?.gaps }">{{ keywordMapReport?.summary?.gaps || 0 }}</strong></div>
           </div>
-          <el-table v-loading="keywordMapLoading" :data="keywordMapReport?.items || []" class="ops-table keyword-table" table-layout="fixed">
+          <el-table v-if="keywordMapLoading || (keywordMapReport?.items || []).length" v-loading="keywordMapLoading" :data="keywordMapReport?.items || []" class="ops-table keyword-table" table-layout="fixed">
             <el-table-column prop="keyword" label="关键词" min-width="220" show-overflow-tooltip />
             <el-table-column label="类型 / 意图" width="150"><template #default="{ row }">{{ keywordTypeText(row.keywordType) }} · {{ keywordIntentText(row.intent) }}</template></el-table-column>
             <el-table-column prop="market" label="市场" width="100" show-overflow-tooltip />
@@ -310,7 +315,7 @@
               <el-button v-if="canAudit" type="primary" plain :loading="geoLoading" @click="generateGeoSnapshots"><el-icon><DataAnalysis /></el-icon>生成快照</el-button>
             </div>
           </div>
-          <el-table v-loading="geoLoading" :data="geoSnapshots" class="ops-table" table-layout="fixed">
+          <el-table v-if="geoLoading || geoSnapshots.length" v-loading="geoLoading" :data="geoSnapshots" class="ops-table" table-layout="fixed">
             <el-table-column prop="question" label="问题" min-width="260" show-overflow-tooltip />
             <el-table-column label="平台 / 语言" width="180"><template #default="{ row }">{{ row.platform }} · {{ row.locale }}</template></el-table-column>
             <el-table-column label="准确性" width="110"><template #default="{ row }"><el-tag size="small" :type="accuracyStatusType(row.accuracyStatus || row.accuracy_status)" effect="light">{{ accuracyStatusText(row.accuracyStatus || row.accuracy_status) }}</el-tag></template></el-table-column>
@@ -356,7 +361,7 @@
               <el-icon class="panel-heading-icon"><WarningFilled /></el-icon>
             </div>
           </div>
-          <el-table v-loading="correctionsLoading" :data="correctionTasks" class="ops-table facts-desktop-table" table-layout="fixed">
+          <el-table v-if="correctionsLoading || correctionTasks.length" v-loading="correctionsLoading" :data="correctionTasks" class="ops-table facts-desktop-table" table-layout="fixed">
             <el-table-column label="对象 / 问题" min-width="230" show-overflow-tooltip>
               <template #default="{ row }"><strong>{{ row.objectType }}</strong><span class="table-secondary">{{ row.issueCode }}</span></template>
             </el-table-column>
@@ -391,7 +396,7 @@
             <div><h2>GEO 回答快照</h2><p>固定问题集的回答、引用和人工准确性状态。</p></div>
             <span class="panel-count"><el-icon><Tickets /></el-icon>{{ geoSnapshots.length }} 条</span>
           </div>
-          <el-table v-loading="geoLoading" :data="geoSnapshots" class="ops-table facts-desktop-table" table-layout="fixed">
+          <el-table v-if="geoLoading || geoSnapshots.length" v-loading="geoLoading" :data="geoSnapshots" class="ops-table facts-desktop-table" table-layout="fixed">
             <el-table-column label="问题" min-width="250" show-overflow-tooltip><template #default="{ row }">{{ row.question }}</template></el-table-column>
             <el-table-column label="平台 / 语言" width="155"><template #default="{ row }">{{ row.platform }} · {{ row.locale }}</template></el-table-column>
             <el-table-column label="准确性" width="110"><template #default="{ row }"><el-tag size="small" :type="accuracyStatusType(row.accuracyStatus)" effect="light">{{ accuracyStatusText(row.accuracyStatus) }}</el-tag></template></el-table-column>
@@ -452,7 +457,7 @@
           </div>
         </el-form>
       </section>
-    </el-card>
+    </div>
 
     <el-dialog v-model="editDialogVisible" :title="editingId ? `编辑${activeContentTypeLabel}` : `新建${activeContentTypeLabel}`" width="min(760px, calc(100vw - 28px))" class="ops-dialog" destroy-on-close>
       <el-form :model="editingForm" label-position="top" class="content-form">
@@ -735,7 +740,6 @@ const {
   site,
   siteForm,
   siteStatusText,
-  siteStatusType,
   statusTagType,
   statusText,
   summaryCards,
@@ -744,6 +748,201 @@ const {
   updateCorrectionStatus,
   useRouter,
 } = useCompanySiteOperations()
+
+const appStatusClass = (statusType) => ({
+  success: 'ok',
+  warning: 'warn',
+  danger: 'danger',
+  info: 'info'
+}[statusType] || 'info')
+
+const numericMetricValue = (value) => {
+  const number = Number(value)
+  return Number.isFinite(number) ? number : 0
+}
+
+const appCard = (card) => ({
+  ...card,
+  name: card.label,
+  desc: card.description,
+  card: {
+    attentionLevel: card.statusType === 'warning' ? 'warning' : card.statusType === 'danger' ? 'critical' : 'normal',
+    status: appStatusClass(card.statusType),
+    statusText: card.status,
+    metrics: (card.metrics || [
+      { label: '当前数量', value: card.value ?? 0 },
+      { label: '待处理', value: card.pending ?? 0 }
+    ]).map((metric) => ({ ...metric, value: numericMetricValue(metric.value) })),
+    brief: card.brief || '查看详情'
+  }
+})
+
+const moduleCards = computed(() => [
+  {
+    key: 'overview',
+    label: '运营总览',
+    description: '查看站点版本、内容状态与待处理事项。',
+    icon: DataBoard,
+    tone: 'blue',
+    metrics: [
+      { label: '已发布版本', value: site.value?.publishedVersion || 0 },
+      { label: '待处理事项', value: attentionItems.value.length }
+    ],
+    detail: siteStatusText(site.value?.status),
+    brief: '查看运营状态',
+    status: site.value?.status === 'published' ? '正常' : ['draft', 'suspended'].includes(site.value?.status) ? '预警' : '待配置',
+    statusType: site.value?.status === 'published' ? 'success' : ['draft', 'suspended'].includes(site.value?.status) ? 'warning' : 'info'
+  },
+  {
+    key: 'content',
+    label: '内容资产',
+    description: '维护页面、产品、方案、案例与知识内容。',
+    icon: Collection,
+    tone: 'green',
+    metrics: [
+      { label: '内容总数', value: contentCount.value },
+      { label: '已发布', value: publishedContentCount.value }
+    ],
+    detail: `${publishedContentCount.value} 条已发布`,
+    brief: '维护内容资产',
+    status: contentLoading.value ? '同步中' : '正常',
+    statusType: contentLoading.value ? 'info' : 'success'
+  },
+  {
+    key: 'leads',
+    label: '询盘线索',
+    description: '集中查看访客询盘与客户跟进状态。',
+    icon: User,
+    tone: 'teal',
+    metrics: [
+      { label: '线索总数', value: leads.value.length },
+      { label: '待跟进', value: newLeadCount.value }
+    ],
+    detail: `${newLeadCount.value} 条待跟进`,
+    brief: '跟进询盘线索',
+    status: leadsLoading.value ? '同步中' : newLeadCount.value ? '重点' : '正常',
+    statusType: leadsLoading.value ? 'info' : newLeadCount.value ? 'warning' : 'success'
+  },
+  {
+    key: 'drafts',
+    label: '销售草稿',
+    description: '审核商机、报价、订单与生产建议草稿。',
+    icon: Document,
+    tone: 'orange',
+    metrics: [
+      { label: '草稿总数', value: featureAvailability.salesDrafts ? drafts.value.length : 0 },
+      { label: '待审批', value: featureAvailability.salesDrafts ? drafts.value.filter((row) => row.approvalStatus !== 'approved').length : 0 }
+    ],
+    detail: featureAvailability.salesDrafts ? '内部审核队列' : '功能暂未开放',
+    brief: '审核销售草稿',
+    status: featureAvailability.salesDrafts ? (drafts.value.length ? '预警' : '正常') : '待接入',
+    statusType: featureAvailability.salesDrafts ? (drafts.value.length ? 'warning' : 'success') : 'info',
+    disabled: !featureAvailability.salesDrafts
+  },
+  {
+    key: 'seo',
+    label: '搜索优化',
+    description: '检查搜索基础、关键词映射与智能问答快照。',
+    icon: TrendCharts,
+    tone: 'purple',
+    metrics: [
+      { label: '待处理', value: seoOpenCount.value },
+      { label: '检查项', value: seoChecks.value.length }
+    ],
+    detail: seoOpenCount.value ? '项待处理' : '当前无问题',
+    brief: '检查搜索质量',
+    status: seoLoading.value ? '同步中' : (seoOpenCount.value ? '预警' : '正常'),
+    statusType: seoLoading.value ? 'info' : seoOpenCount.value ? 'warning' : 'success'
+  },
+  {
+    key: 'facts',
+    label: '事实治理',
+    description: '核验公开事实、纠偏任务与智能问答引用证据。',
+    icon: DocumentChecked,
+    tone: 'red',
+    metrics: [
+      { label: '待处理', value: featureAvailability.factGovernance ? factSummary.value.openTasks : 0 },
+      { label: '冲突事实', value: featureAvailability.factGovernance ? factSummary.value.conflicts : 0 }
+    ],
+    detail: featureAvailability.factGovernance ? factSummary.value.detail : '功能暂未开放',
+    brief: '核验公开事实',
+    status: featureAvailability.factGovernance ? (factSummary.value.openTasks ? '预警' : factReport.value ? '正常' : '待检查') : '待接入',
+    statusType: featureAvailability.factGovernance ? (factSummary.value.openTasks ? 'warning' : factReport.value ? 'success' : 'info') : 'info',
+    disabled: !featureAvailability.factGovernance
+  },
+  {
+    key: 'settings',
+    label: '站点设置',
+    description: '配置品牌资料、站点地址、语言、主题与搜索基线。',
+    icon: Setting,
+    tone: 'slate',
+    metrics: [
+      { label: '站点配置', value: site.value?.domain ? 1 : 0 },
+      { label: '启用语言', value: Array.isArray(site.value?.enabledLocales || site.value?.enabled_locales) ? (site.value.enabledLocales || site.value.enabled_locales).length : 0 }
+    ],
+    detail: site.value?.domain ? (canSiteWrite.value ? '已配置，可编辑' : '已配置，只读') : (canSiteWrite.value ? '待配置' : '待配置，只读'),
+    brief: '配置站点信息',
+    status: canSiteWrite.value ? '正常' : '只读',
+    statusType: canSiteWrite.value ? 'success' : 'info'
+  },
+  {
+    key: 'cue-builder',
+    label: '产品定制',
+    description: '配置产品选项、材质和物料清单预览。',
+    icon: Box,
+    tone: 'indigo',
+    metrics: [
+      { label: '工作台', value: 1 },
+      { label: '配置项', value: 0 }
+    ],
+    detail: '打开配置工作台',
+    brief: '打开配置工作台',
+    status: '正常',
+    statusType: 'info',
+    externalAction: 'cue-builder'
+  },
+  {
+    key: 'factory-demo',
+    label: '全厂演示调度台',
+    description: '查看制造现场演示与跨模块业务链路。',
+    icon: DataBoard,
+    tone: 'cyan',
+    metrics: [
+      { label: '调度台', value: 1 },
+      { label: '待处理', value: 0 }
+    ],
+    detail: '打开演示调度台',
+    brief: '打开演示调度台',
+    status: '正常',
+    statusType: 'info',
+    externalAction: 'factory-demo'
+  }
+].map(appCard))
+
+const sectionMeta = {
+  overview: { title: '运营总览', hint: '查看站点版本、内容状态与待处理事项' },
+  content: { title: '内容资产', hint: '统一维护公开内容与发布状态' },
+  leads: { title: '询盘线索', hint: '查看公开站点提交的线索并跟进' },
+  drafts: { title: '销售草稿', hint: '审核需要人工确认的业务草稿' },
+  seo: { title: '搜索优化', hint: '检查搜索基础与智能问答可发现性' },
+  facts: { title: '事实治理', hint: '核验公开事实、引用证据与纠偏任务' },
+  settings: { title: '站点设置', hint: '配置品牌资料、语言与站点基础信息' }
+}
+
+const activeSectionMeta = computed(() => sectionMeta[activeSection.value] || sectionMeta.overview)
+
+const openModuleCard = (card) => {
+  if (!card || card.disabled) return
+  if (card.externalAction === 'cue-builder') {
+    openCueBuilder()
+    return
+  }
+  if (card.externalAction === 'factory-demo') {
+    openFactoryDemo()
+    return
+  }
+  activeSection.value = card.key
+}
 </script>
 
 <style scoped src="../styles/company-site-operations.css"></style>
