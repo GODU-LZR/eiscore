@@ -16,6 +16,7 @@ const { createHarnessDocumentCommitExecutor } = require('./harness-document-comm
 const { createHarnessContextCapabilities } = require('./harness-context-capabilities');
 const { sanitizeMultimodalPayload } = require('./harness-multimodal');
 const { createHarnessTwinChatExecutor } = require('./harness-twin-chat-capability');
+const { requireHarnessProfile, workspaceForProfileOwner } = require('../agent-harness/profile-policy');
 
 const WORKFLOW_CONTEXT_TOOL_ALLOWLIST = Object.freeze([
   'flash.workflow.definition.list',
@@ -140,18 +141,21 @@ const normalizeHarnessBridgeResult = (response, data = {}) => {
 };
 const resolveHarnessOwnerTenant = (user = {}) => String(user.tenant_id || user.tenantId || user.tenant || user.org_id || user.organization_id || '').trim();
 const resolveHarnessOwnerSubject = (user = {}) => String(user.id || user.sub || user.username || '').trim();
-const resolveHarnessWorkspaceId = (user = {}) => {
+const resolveHarnessRuntimeProfile = (value = process.env.RUNTIME_PROFILE || 'business') =>
+  requireHarnessProfile(value, 'RUNTIME_PROFILE');
+const resolveHarnessWorkspaceId = (user = {}, profile = resolveHarnessRuntimeProfile()) => {
   const subject = resolveHarnessOwnerSubject(user);
   const tenant = resolveHarnessOwnerTenant(user);
   if (!subject || !tenant) return '';
-  return `ws_${crypto.createHash('sha256').update(JSON.stringify([tenant, subject])).digest('hex')}`;
+  return workspaceForProfileOwner(profile, subject, tenant);
 };
 const resolveHarnessMode = () => 'standard';
 const resolveHarnessDispatchScope = (request = {}) => {
   const subject = resolveHarnessOwnerSubject(request.user);
   const tenant = resolveHarnessOwnerTenant(request.user);
   const plugin = String(request.plugin?.plugin_id || request.plugin_id || '').trim();
-  return JSON.stringify([subject, tenant, resolveHarnessWorkspaceId(request.user), plugin, resolveHarnessMode(request)]);
+  const profile = resolveHarnessRuntimeProfile(request.runtime_profile || request.runtimeProfile);
+  return JSON.stringify([profile, subject, tenant, resolveHarnessWorkspaceId(request.user, profile), plugin, resolveHarnessMode(request)]);
 };
 const buildHarnessBridgeHeaders = (request = {}) => ({
   'content-type': 'application/json',
@@ -404,7 +408,9 @@ const createHarnessProviderDispatch = ({ bridgeUrl, activeDispatches, fetchImpl 
 
 const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall, executeEnterpriseSnapshot, executeDigitalTwinContext, executeDigitalTwinChat, executeDocumentPlan, executeSalesWrite, executeEngineeringContext, executeSiteSales, documentEntryWorker, documentFixedEntryWorker, createTwinPersistence, callPostgrestWithUser, fetchSemanticContext, envText = (value, fallback = '') => String(value ?? fallback).trim() }) => {
   const registry = loadPluginRegistry();
-  const runtimeProfile = envText(process.env.RUNTIME_PROFILE, 'business').toLowerCase() || 'business';
+  const runtimeProfile = resolveHarnessRuntimeProfile(
+    envText(process.env.RUNTIME_PROFILE, 'business').toLowerCase() || 'business'
+  );
   const flashOnly = runtimeProfile === 'flash';
   const allowedCapabilities = flashOnly
     ? new Set(['eiscore_flash_read', 'eiscore_flash_write'])
@@ -599,6 +605,7 @@ module.exports = {
   normalizeHarnessBridgeResult,
   resolveHarnessOwnerSubject,
   resolveHarnessOwnerTenant,
+  resolveHarnessRuntimeProfile,
   resolveHarnessWorkspaceId,
   resolveHarnessMode,
   resolveHarnessDispatchScope

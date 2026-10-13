@@ -4,6 +4,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { workspaceForProfileOwner, requireHarnessProfile } = require('./profile-policy');
 
 const PROTOCOL = 'eiscore-agent-v1';
 const BRIDGE_ERROR_CODES = new Set([
@@ -21,7 +22,10 @@ const json = (res, status, payload) => {
 const validSession = (value) => /^[a-zA-Z0-9._:-]{1,256}$/.test(String(value || ''));
 const validReplayKey = (value) => /^[a-zA-Z0-9._:-]{1,1024}$/.test(String(value || ''));
 const hashIdentity = (value) => crypto.createHash('sha256').update(String(value || '')).digest('hex');
-const workspaceForOwner = (subject, tenant) => `ws_${hashIdentity(JSON.stringify([String(tenant || ''), String(subject || '')]))}`;
+const workspaceForOwner = (subject, tenant, profile = '') => {
+  if (profile) return workspaceForProfileOwner(profile, subject, tenant);
+  return `ws_${hashIdentity(JSON.stringify([String(tenant || ''), String(subject || '')]))}`;
+};
 const expectedOwner = (subject, tenant, workspace, mode) => `${hashIdentity(subject)}:${hashIdentity(tenant)}:${hashIdentity(workspace)}:${mode}`;
 const sameSecret = (received, expected) => {
   const left = Buffer.from(String(received || ''));
@@ -84,10 +88,11 @@ const normalizeState = (value) => {
   return { sessions, requests };
 };
 
-const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async () => ({ ok: true }), maxConcurrent = 16, maxSessions = 1000, maxTrackedRequests = 10000, maxBodyBytes = 2 * 1024 * 1024, maxResponseBytes = 2 * 1024 * 1024, sessionTtlMs = 24 * 60 * 60 * 1000, stateFile = '', bridgeSecret = '', clock = () => Date.now() } = {}) => {
+const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async () => ({ ok: true }), maxConcurrent = 16, maxSessions = 1000, maxTrackedRequests = 10000, maxBodyBytes = 2 * 1024 * 1024, maxResponseBytes = 2 * 1024 * 1024, sessionTtlMs = 24 * 60 * 60 * 1000, stateFile = '', bridgeSecret = '', profile = '', clock = () => Date.now() } = {}) => {
   if (typeof invoke !== 'function') throw new TypeError('Bridge invoke is required');
   if (typeof readiness !== 'function') throw new TypeError('Bridge readiness is required');
   if (stateFile && !path.isAbsolute(stateFile)) throw new TypeError('Bridge stateFile must be absolute');
+  const bridgeProfile = profile ? requireHarnessProfile(profile, 'HARNESS_PROFILE') : '';
   const concurrencyLimit = positiveInteger(maxConcurrent, 16);
   const sessionLimit = positiveInteger(maxSessions, 1000);
   const bodyLimit = positiveInteger(maxBodyBytes, 2 * 1024 * 1024);
@@ -174,9 +179,9 @@ const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async 
     const requestedWorkspace = String(req.headers['x-eis-workspace-id'] || '').trim();
     const requestedMode = String(req.headers['x-eis-harness-mode'] || '').trim().toLowerCase();
     const strictIdentity = Boolean(bridgeSecret);
-    const workspace = requestedWorkspace || workspaceForOwner(ownerSubject, ownerTenant);
+    const workspace = requestedWorkspace || workspaceForOwner(ownerSubject, ownerTenant, bridgeProfile);
     const mode = requestedMode || 'standard';
-    if (strictIdentity && requestedWorkspace !== workspaceForOwner(ownerSubject, ownerTenant)) return json(res, 403, { code: 'HARNESS_WORKSPACE_FORBIDDEN' });
+    if (strictIdentity && requestedWorkspace !== workspaceForOwner(ownerSubject, ownerTenant, bridgeProfile)) return json(res, 403, { code: 'HARNESS_WORKSPACE_FORBIDDEN' });
     if (mode !== 'standard') return json(res, 403, { code: 'HARNESS_MODE_FORBIDDEN' });
     const plugin = String(req.headers['x-eis-plugin-id'] || '').trim();
     if (!plugin) return json(res, 400, { code: 'HARNESS_PLUGIN_REQUIRED' });
@@ -232,4 +237,4 @@ const startBridge = ({ port = Number(process.env.PORT || 3080), ...options } = {
   return server;
 };
 
-module.exports = { BRIDGE_ERROR_CODES, PROTOCOL, createBridgeHandler, forwardedHeaders, normalizeInvokeResult, normalizePluginIds, startBridge, validSession };
+module.exports = { BRIDGE_ERROR_CODES, PROTOCOL, createBridgeHandler, forwardedHeaders, normalizeInvokeResult, normalizePluginIds, startBridge, validSession, workspaceForOwner };

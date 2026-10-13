@@ -1,12 +1,11 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const crypto = require('node:crypto');
 const http = require('node:http');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { createBridgeHandler, forwardedHeaders, normalizeInvokeResult, normalizePluginIds, PROTOCOL } = require('./http-bridge');
+const { createBridgeHandler, forwardedHeaders, normalizeInvokeResult, normalizePluginIds, PROTOCOL, workspaceForOwner } = require('./http-bridge');
 
 assert.deepEqual(forwardedHeaders({ authorization: 'Bearer secret', 'x-eis-owner-subject': 'u1', 'x-eis-owner-tenant': 't1' }, 'session-1', 'req-1', 'enterprise-bi'), {
   'x-eis-harness-protocol': PROTOCOL,
@@ -81,12 +80,13 @@ let bridgeAuthCalls = 0;
 const bridgeSecret = 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6';
 const bridgeAuthServer = http.createServer(createBridgeHandler({
   bridgeSecret,
+  profile: 'business',
   pluginList: () => [{ plugin_id: 'enterprise-bi' }],
   invoke: async (request) => { bridgeAuthCalls += 1; assert.equal(request.headers['x-eis-harness-bridge-secret'], undefined); return { status: 200, payload: { ok: true } }; }
 }));
 await new Promise((resolve) => bridgeAuthServer.listen(0, resolve));
 const bridgeAuthPort = bridgeAuthServer.address().port;
-const bridgeAuthWorkspace = `ws_${crypto.createHash('sha256').update(JSON.stringify(['t1', 'u1'])).digest('hex')}`;
+const bridgeAuthWorkspace = workspaceForOwner('u1', 't1', 'business');
 const bridgeAuthHeaders = { 'x-eis-harness-protocol': PROTOCOL, 'x-eis-ai-session': 'bridge-auth-session', 'x-eis-request-id': 'bridge-auth-request', 'x-eis-plugin-id': 'enterprise-bi', 'x-eis-owner-subject': 'u1', 'x-eis-owner-tenant': 't1', 'x-eis-workspace-id': bridgeAuthWorkspace, 'x-eis-harness-mode': 'standard', 'content-type': 'application/json' };
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: bridgeAuthHeaders }, { messages: [] });
 assert.equal(response.status, 401);

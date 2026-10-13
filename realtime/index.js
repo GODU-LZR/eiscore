@@ -28,6 +28,7 @@ const { createHarnessSalesWriteExecutor } = require('./harness-sales-write');
 const { createAiContextService } = require('./ai-context-service');
 const { createTwinTools, createPersistence } = require('./twin-tools');
 const { createHarnessTwinContextExecutor } = require('./harness-twin-context-capability');
+const { requireHarnessProfile } = require('../agent-harness/profile-policy');
 
 const envText = (value, fallback = '') => String(value ?? fallback).trim();
 const port = Number(process.env.PORT || 8078);
@@ -48,7 +49,10 @@ const postgrestUserRole = envText(
 const flashToolCallTimeoutMs = Number(process.env.FLASH_TOOL_CALL_TIMEOUT_MS || 30 * 1000);
 const flashToolIdempotencyTtlMs = Number(process.env.FLASH_TOOL_IDEMPOTENCY_TTL_MS || 10 * 60 * 1000);
 const flashConfig = loadFlashWorkspaceConfig();
-const runtimeProfile = envText(process.env.RUNTIME_PROFILE, 'business').toLowerCase() || 'business';
+const runtimeProfile = requireHarnessProfile(
+  envText(process.env.RUNTIME_PROFILE, 'business').toLowerCase() || 'business',
+  'RUNTIME_PROFILE'
+);
 const flashRuntime = runtimeProfile === 'flash';
 const logAgentEvent = (type, user, details = {}) => console.log('[agent-event]', JSON.stringify({ type, user: { id: user?.id || '', role: user?.role || '' }, details }));
 

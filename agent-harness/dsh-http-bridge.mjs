@@ -8,13 +8,13 @@ import { pathToFileURL } from 'node:url'
 const require = createRequire(import.meta.url)
 const { createBridgeHandler, PROTOCOL } = require('./http-bridge.js')
 const { loadPluginRegistry } = require('./plugin-registry.js')
+const { PROFILE_PLUGINS, normalizeProfile, pluginsForProfile, requireHarnessProfile } = require('./profile-policy.js')
 
+const BUSINESS_PLUGINS = PROFILE_PLUGINS.business
+const FLASH_PLUGINS = PROFILE_PLUGINS.flash
 const DEFAULT_PLUGINS = Object.freeze([
-  'enterprise-bi', 'worker-grid', 'digital-twin', 'workflow', 'company-sales',
-  'document-intake', 'flash-builder', 'engineering', 'independent-site-sales'
+  ...BUSINESS_PLUGINS.slice(0, 6), ...FLASH_PLUGINS, ...BUSINESS_PLUGINS.slice(6)
 ])
-const FLASH_PLUGINS = Object.freeze(['flash-builder'])
-const BUSINESS_PLUGINS = Object.freeze(DEFAULT_PLUGINS.filter((pluginId) => pluginId !== 'flash-builder'))
 const PLUGIN_REGISTRY = loadPluginRegistry()
 const REGISTERED_PLUGIN_IDS = new Set(PLUGIN_REGISTRY.list().map(({ plugin_id }) => plugin_id))
 const MAX_TIMER_MS = 2_147_483_647
@@ -389,11 +389,16 @@ const createInvoke = ({ runtime = new DshSdkProcess(), queue = new Map() } = {})
 }
 
 const pluginList = (configured = process.env.HARNESS_PLUGINS) => {
-  const profile = String(process.env.HARNESS_PROFILE || '').trim().toLowerCase()
+  const configuredProfile = normalizeProfile(process.env.HARNESS_PROFILE)
+  // An explicitly supplied invalid profile must never fall back to the
+  // all-plugin development catalog. Startup enforces this as fatal; returning
+  // an empty list also keeps readiness and direct probes fail-closed.
+  if (configuredProfile && !['business', 'flash'].includes(configuredProfile)) return []
+  const profile = configuredProfile
   const source = profile === 'flash'
-    ? FLASH_PLUGINS.join(',')
+    ? pluginsForProfile(profile).join(',')
     : profile === 'business'
-      ? BUSINESS_PLUGINS.join(',')
+      ? pluginsForProfile(profile).join(',')
       : (configured === undefined ? DEFAULT_PLUGINS.join(',') : String(configured))
   const seen = new Set()
   return source.split(',').map((value) => value.trim()).filter((plugin_id) => {
@@ -406,6 +411,7 @@ const pluginList = (configured = process.env.HARNESS_PLUGINS) => {
 const start = () => {
   validateHarnessToolArtifacts()
   const secrets = validateBridgeSecrets()
+  const harnessProfile = requireHarnessProfile(process.env.HARNESS_PROFILE)
   const profile = process.env.DSH_PROFILE || 'sdk'
   const args = ['--profile', profile]
   if (process.env.DSH_PATCH) args.push('--patch', process.env.DSH_PATCH)
@@ -426,6 +432,7 @@ const start = () => {
       }
     },
     pluginList,
+    profile: harnessProfile,
     bridgeSecret: secrets.bridgeSecret,
     maxConcurrent: envInt(process.env, 'BRIDGE_MAX_CONCURRENT_REQUESTS', 16),
     maxSessions: envInt(process.env, 'BRIDGE_MAX_SESSIONS', 1000),
