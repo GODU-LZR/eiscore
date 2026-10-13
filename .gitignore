@@ -49,3 +49,7 @@ softcopyright_extract/
 /.playwright-cli/
 /eiscore-base/.codex-tmp/
 /eiscore-base/.playwright-cli/
+
+# Flash runtime drafts are generated under the application workspace. Keep
+# historical tracked fixtures, but do not add new runtime drafts by accident.
+/eiscore-apps/src/views/drafts/.app-drafts/*.vue

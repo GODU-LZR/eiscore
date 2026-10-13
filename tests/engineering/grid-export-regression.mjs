@@ -203,7 +203,7 @@ assert.match(entrySource, /@export="handleExport"/)
 assert.match(entrySource, /const handleExport = \(\) => exportGridCsv\(gridApi\.value, \{ appName: gridProps\.exportName \}\)/)
 assert.match(entrySource, /exportName: \{ type: String, default: '' \}/)
 assert.match(entrySource, /import\s*{\s*exportGridCsv\s*}\s*from\s*['"]@shared\/eis-grid-export\.mjs['"]/)
-assert.match(coreSource, /import\s*{\s*formatSelectLabel\s*,\s*formatStatusLabel\s*}\s*from\s*['"]@shared\/eis-grid-export\.mjs['"])/
+assert.match(coreSource, new RegExp(String.raw`import\s*{\s*formatSelectLabel\s*,\s*formatStatusLabel\s*}\s*from\s*['"]@shared/eis-grid-export\.mjs['"]`))
 assert.match(coreSource, /formatStatusLabel\(params\.value\)/)
 
 console.log('PASS: offline Grid CSV labels, exclusions, ACL, summary and shared-entry regression (synthetic fixtures only)')
