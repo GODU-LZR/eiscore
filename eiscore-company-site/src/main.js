@@ -121,6 +121,7 @@ renderWithQiankun(lifecycle)
 ensureQiankunLifecycleBucket(lifecycle)
 
 if (shouldRenderStandalone()) {
-  void loadPublicEnterpriseBranding()
+  const isHuizhongStaticRoute = typeof window !== 'undefined' && window.location.pathname.endsWith('/huizhong')
+  if (!isHuizhongStaticRoute) void loadPublicEnterpriseBranding()
   render()
 }

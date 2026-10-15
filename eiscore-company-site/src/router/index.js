@@ -37,6 +37,12 @@ const router = createRouter({
       meta: { title: '湛江市经纬网厂 · 网具制造' }
     },
     {
+      path: '/huizhong',
+      name: 'HuizhongSite',
+      component: () => import('@/views/HuizhongSite.vue'),
+      meta: { title: '广东惠众消防科技有限公司 · 消防设备与技术服务' }
+    },
+    {
       path: '/preview',
       name: 'EnterpriseSitePreview',
       component: () => import('@/views/EnterpriseSitePreview.vue'),
