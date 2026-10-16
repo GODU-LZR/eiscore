@@ -458,7 +458,9 @@ export function mergeEnterpriseProfileIntoSystemConfig(systemConfig, profile) {
     loginBranding: {
       ...legacyBranding,
       ...portalBranding,
-      ...(portalSlides.length ? { carouselImages } : {}),
+      // An empty portal carousel means that the portal has no override. Keep
+      // the deployment's static carousel so the public login still has media.
+      carouselImages: portalSlides.length ? carouselImages : legacySlides,
       companyName: enterpriseProfile.displayName,
       logo: enterpriseProfile.logoUrl,
       siteTag: enterpriseProfile.legalName,

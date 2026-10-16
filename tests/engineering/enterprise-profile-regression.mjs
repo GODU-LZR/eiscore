@@ -258,6 +258,22 @@ const mergedSlides = mergeEnterpriseProfileIntoSystemConfig({
 })
 assert.equal(mergedSlides.loginBranding.carouselImages[0].hasEmbeddedText, true)
 
+const legacySlidesPreservedWhenPortalIsEmpty = mergeEnterpriseProfileIntoSystemConfig({
+  loginBranding: { carouselImages: [{ url: '/legacy-hero.jpg', hasEmbeddedText: true }] }
+}, {
+  ...profile,
+  portal: {
+    ...profile.portal,
+    loginBranding: {
+      ...profile.portal.loginBranding,
+      carouselImages: []
+    }
+  }
+})
+assert.deepEqual(legacySlidesPreservedWhenPortalIsEmpty.loginBranding.carouselImages, [
+  { url: '/legacy-hero.jpg', hasEmbeddedText: true }
+])
+
 const persisted = stripEnterpriseProfileFromSystemConfig(merged)
 assert.equal(Object.hasOwn(persisted.loginBranding, 'companyName'), false)
 assert.equal(Object.hasOwn(persisted.loginBranding, 'logo'), false)
