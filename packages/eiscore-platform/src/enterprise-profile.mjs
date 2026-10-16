@@ -139,11 +139,30 @@ export function enterprisePortalFromSiteConfig(payload) {
   if (!isObject(home)) return EMPTY_ENTERPRISE_PORTAL
 
   const homepage = isObject(home?.blocks?.homepage) ? home.blocks.homepage : {}
+  const pageBlocks = Array.isArray(home?.blocks) ? home.blocks : []
+  const catalogBlock = pageBlocks.find((block) => block?.type === 'product-catalog')
   const hero = isObject(homepage.hero) ? homepage.hero : {}
   const titleLines = Array.isArray(hero.titleLines)
     ? hero.titleLines.map((entry) => text(entry)).filter(Boolean).slice(0, 3)
     : []
-  const products = portalList(content.products, normalizePortalCard)
+  const catalogProductCodes = (Array.isArray(homepage.productCodes)
+    ? homepage.productCodes
+    : catalogBlock?.productCodes
+  )
+    ?.map((code) => text(code))
+    .filter(Boolean) || []
+  const rawProducts = Array.isArray(content.products) ? content.products : []
+  const productsByCode = new Map(rawProducts.map((product) => [
+    text(product?.productCode || product?.code),
+    product
+  ]).filter(([code]) => code))
+  const orderedProducts = catalogProductCodes.length
+    ? [
+        ...catalogProductCodes.map((code) => productsByCode.get(code)).filter(Boolean),
+        ...rawProducts.filter((product) => !catalogProductCodes.includes(text(product?.productCode || product?.code)))
+      ]
+    : rawProducts
+  const products = portalList(orderedProducts, normalizePortalCard)
   const solutions = portalList(content.solutions, normalizePortalCard)
   const faq = portalList(content.faq, (item, index) => {
     if (!isObject(item)) return null
@@ -445,6 +464,20 @@ export function mergeEnterpriseProfileIntoSystemConfig(systemConfig, profile) {
   const portalBranding = isObject(enterpriseProfile.portal?.loginBranding)
     ? enterpriseProfile.portal.loginBranding
     : {}
+  const portalBrandingOverlay = Object.fromEntries(Object.entries(portalBranding).filter(([key, value]) => {
+    if (Array.isArray(value)) return value.length > 0
+    if (typeof value === 'string' && !value.trim()) {
+      return [
+        'aboutImage',
+        'aboutImageAlt',
+        'overviewProductImage',
+        'overviewProductImageAlt',
+        'overviewFactoryImage',
+        'overviewFactoryImageAlt'
+      ].includes(key)
+    }
+    return true
+  }))
   const legacySlides = Array.isArray(legacyBranding.carouselImages) ? legacyBranding.carouselImages : []
   const portalSlides = Array.isArray(portalBranding.carouselImages) ? portalBranding.carouselImages : []
   const carouselImages = portalSlides.map((slide) => {
@@ -457,7 +490,7 @@ export function mergeEnterpriseProfileIntoSystemConfig(systemConfig, profile) {
     ...source,
     loginBranding: {
       ...legacyBranding,
-      ...portalBranding,
+      ...portalBrandingOverlay,
       // An empty portal carousel means that the portal has no override. Keep
       // the deployment's static carousel so the public login still has media.
       carouselImages: portalSlides.length ? carouselImages : legacySlides,
