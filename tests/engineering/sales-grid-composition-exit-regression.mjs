@@ -6,8 +6,13 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
+const salesPackage = JSON.parse(readFileSync(resolve(repoRoot, 'eiscore-sales/package.json'), 'utf8'))
+assert.equal(salesPackage.name, 'eiscore-sales')
+assert.equal(typeof salesPackage.scripts?.build, 'string', 'composition gate targets the buildable sales package')
 const pagePath = resolve(repoRoot, 'eiscore-sales/src/components/SalesAppGrid.vue')
+const flowPath = resolve(repoRoot, 'eiscore-sales/src/composables/use-sales-document-flow.js')
 const source = readFileSync(pagePath, 'utf8')
+const flowSource = readFileSync(flowPath, 'utf8')
 const lines = source.split(/\r?\n/)
 
 assert.ok(lines.length <= 3822, `SalesAppGrid grew beyond its 3822-line exit baseline: ${lines.length}`)
@@ -51,6 +56,33 @@ for (const file of policyFiles) {
   }
 }
 assert.equal(policyExports, 40)
+
+assert.match(source, /from ['"]@\/composables\/use-sales-document-flow['"]/, 'SalesAppGrid delegates sales-document runtime flow')
+assert.match(flowSource, /export\s+const\s+useSalesDocumentFlow\s*=\s*\(/, 'sales document-flow composable has an explicit entry point')
+for (const flowName of [
+  'openQuoteItems',
+  'saveQuoteItems',
+  'createContractFromQuote',
+  'createOrdersFromContract',
+  'createReceivableFromOrder',
+  'pushOrdersToReceivables',
+  'submitQuickPayment',
+  'resolveExtendedRowActions',
+  'handleExtendedRowAction'
+]) {
+  assert.match(flowSource, new RegExp(`\\b${flowName}\\b`), `composable retains ${flowName}`)
+  assert.match(source, new RegExp(`\\b${flowName}\\b`), `SalesAppGrid wires ${flowName}`)
+}
+for (const duplicateWatcher of [
+  /watch\(selectedQuickOrder\s*,/,
+  /watch\(selectedQuickReceivable\s*,/,
+  /watch\(\(\)\s*=>\s*paymentForm\.amount\s*,/
+]) {
+  assert.equal(duplicateWatcher.test(source), false, `SalesAppGrid retained a watcher owned by use-sales-document-flow: ${duplicateWatcher}`)
+}
+assert.match(flowSource, /watch\(selectedQuickOrder\s*,/, 'order-payment watcher remains in the composable')
+assert.match(flowSource, /watch\(selectedQuickReceivable\s*,/, 'receivable-payment watcher remains in the composable')
+assert.match(flowSource, /watch\(\(\)\s*=>\s*paymentForm\.amount\s*,/, 'payment amount watcher remains in the composable')
 
 const count = (pattern) => (source.match(pattern) || []).length
 assert.ok(count(/\brequest\(\{/g) <= 53, 'SalesAppGrid added Request orchestration')

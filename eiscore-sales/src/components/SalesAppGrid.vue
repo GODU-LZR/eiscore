@@ -40,6 +40,8 @@
         :can-delete="canDelete"
         :can-export="canExport"
         :can-config="canConfig"
+        :show-status-col="app.showStatusCol !== false"
+        :show-action-col="app.showActionCol !== false"
         :auto-size-columns="false"
         :local-layout-key="gridLocalLayoutKey"
         :enable-row-height-resize="!!gridLocalLayoutKey"
@@ -94,6 +96,16 @@
           </el-button>
           <el-button
             v-if="app.key === 'orders' && canCreate"
+            type="warning"
+            plain
+            icon="Money"
+            :loading="flowActionLoading"
+            @click="pushOrdersToReceivables"
+          >
+            生成应收计划
+          </el-button>
+          <el-button
+            v-if="app.key === 'orders' && canCreate"
             type="success"
             plain
             icon="Position"
@@ -120,6 +132,33 @@
             @click="openOpportunityDialog()"
           >
             新建商机
+          </el-button>
+          <el-button
+            v-if="app.key === 'quotes' && canCreate"
+            type="primary"
+            plain
+            icon="Tickets"
+            @click="handleCreate"
+          >
+            新建报价
+          </el-button>
+          <el-button
+            v-if="app.key === 'contracts' && canCreate"
+            type="primary"
+            plain
+            icon="Document"
+            @click="handleCreate"
+          >
+            新建合同
+          </el-button>
+          <el-button
+            v-if="app.key === 'receivables' && canCreate"
+            type="warning"
+            plain
+            icon="Money"
+            @click="handleCreate"
+          >
+            新建应收
           </el-button>
           <el-button
             v-if="app.key === 'follow_ups' && canCreate"
@@ -152,7 +191,7 @@
               </div>
               <div class="col-actions">
                 <el-switch
-                  :model-value="isStaticVisible(col.prop)"
+                  :model-value="!staticHidden.includes(col.prop)"
                   active-text="显示"
                   inactive-text="隐藏"
                   @change="toggleStaticColumn(col.prop, $event)"
@@ -385,10 +424,51 @@
             登记回款
           </el-button>
           <el-button
+            v-if="app.key === 'orders' && canCreate"
+            plain
+            icon="Money"
+            :loading="flowActionLoading"
+            @click="createReceivableFromOrder(selectedDetailRow)"
+          >
+            生成应收计划
+          </el-button>
+          <el-button
+            v-if="app.key === 'receivables' && canCreate"
+            plain
+            icon="Money"
+            @click="openPaymentDialog(selectedDetailRow)"
+          >
+            登记回款
+          </el-button>
+          <el-button
             v-if="app.key === 'opportunities' && canCreate"
             plain
             icon="Tickets"
             @click="openOrderDialog(selectedDetailRow)"
+          >
+            转销售订单
+          </el-button>
+          <el-button
+            v-if="app.key === 'opportunities' && canCreate"
+            plain
+            icon="Tickets"
+            @click="openQuoteDialogFromOpportunity(selectedDetailRow)"
+          >
+            新建报价
+          </el-button>
+          <el-button
+            v-if="app.key === 'quotes' && canCreate"
+            plain
+            icon="Document"
+            @click="createContractFromQuote(selectedDetailRow)"
+          >
+            生成合同
+          </el-button>
+          <el-button
+            v-if="app.key === 'contracts' && canCreate"
+            plain
+            icon="Tickets"
+            @click="createOrdersFromContract(selectedDetailRow)"
           >
             转销售订单
           </el-button>
@@ -555,280 +635,50 @@
       </div>
     </el-dialog>
 
-    <el-dialog
-      v-model="quickDialogVisible"
+    <SalesQuickDialog
+      v-model:visible="quickDialogVisible"
       :title="quickDialogTitle"
-      width="620px"
-      append-to-body
-      destroy-on-close
+      :mode="quickMode"
+      :loading="quickLoading"
+      :submitting="quickSubmitting"
+      :order-form="orderForm"
+      :payment-form="paymentForm"
+      :opportunity-form="opportunityForm"
+      :follow-form="followForm"
+      :quick-customers="quickCustomers"
+      :quick-bom-products="quickBomProducts"
+      :quick-orders="quickOrders"
+      :available-quick-receivables="availableQuickReceivables"
+      :selected-quick-receivable="selectedQuickReceivable"
+      :selected-quick-order="selectedQuickOrder"
+      :selected-quick-order-paid-amount="selectedQuickOrderPaidAmount"
+      :selected-quick-order-remain-amount="selectedQuickOrderRemainAmount"
+      :order-total-amount="orderTotalAmount"
+      :order-status-options="orderStatusOptions"
+      :payment-method-options="paymentMethodOptions"
+      :payment-status-options="paymentStatusOptions"
+      :follow-type-options="followTypeOptions"
+      :follow-result-options="followResultOptions"
+      :opportunity-stage-options="opportunityStageOptions"
+      :format-amount="formatAmount"
+      @submit="submitQuickDialog"
       @closed="resetQuickDialog"
-    >
-      <el-form
-        v-if="quickMode === 'order'"
-        class="quick-form"
-        label-width="96px"
-        :model="orderForm"
-      >
-        <el-form-item label="客户">
-          <el-select
-            v-model="orderForm.customer_id"
-            filterable
-            clearable
-            :loading="quickLoading"
-            placeholder="选择客户"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="customer in quickCustomers"
-              :key="customer.id"
-              :label="`${customer.name} / ${customer.customer_no}`"
-              :value="customer.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="产品名称">
-          <el-input v-model="orderForm.product_name" placeholder="请输入产品名称" />
-        </el-form-item>
-        <el-form-item label="BOM成品">
-          <el-select
-            v-model="orderForm.product_material_id"
-            filterable
-            clearable
-            :loading="quickLoading"
-            placeholder="选择后可进入BOM-MRP和生产计划"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="material in quickBomProducts"
-              :key="material.parent_material_id"
-              :label="`${material.parent_material_code} / ${material.parent_material_name}`"
-              :value="material.parent_material_id"
-            />
-          </el-select>
-        </el-form-item>
-        <div class="quick-form-row">
-          <el-form-item label="数量">
-            <el-input-number v-model="orderForm.quantity" :min="0" :precision="2" controls-position="right" />
-          </el-form-item>
-          <el-form-item label="单位">
-            <el-input v-model="orderForm.unit" placeholder="箱" />
-          </el-form-item>
-          <el-form-item label="单价">
-            <el-input-number v-model="orderForm.unit_price" :min="0" :precision="2" controls-position="right" />
-          </el-form-item>
-        </div>
-        <div class="quick-form-row">
-          <el-form-item label="订单日期">
-            <el-date-picker v-model="orderForm.order_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
-          </el-form-item>
-          <el-form-item label="交付日期">
-            <el-date-picker v-model="orderForm.delivery_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
-          </el-form-item>
-        </div>
-        <div class="quick-form-row">
-          <el-form-item label="订单状态">
-            <el-select v-model="orderForm.order_status" style="width: 100%;">
-              <el-option v-for="status in orderStatusOptions" :key="status" :label="status" :value="status" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="负责人">
-            <el-input v-model="orderForm.owner_name" placeholder="销售负责人" />
-          </el-form-item>
-        </div>
-        <div class="amount-preview">
-          <span>订单金额</span>
-          <strong>{{ formatAmount(orderTotalAmount) }}</strong>
-        </div>
-      </el-form>
+    />
 
-      <el-form
-        v-else-if="quickMode === 'payment'"
-        class="quick-form"
-        label-width="96px"
-        :model="paymentForm"
-      >
-        <el-form-item label="订单">
-          <el-select
-            v-model="paymentForm.order_id"
-            filterable
-            clearable
-            :loading="quickLoading"
-            placeholder="选择订单"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="order in quickOrders"
-              :key="order.id"
-              :label="`${order.order_no} / ${order.customer_name} / ${formatAmount(order.total_amount)}`"
-              :value="order.id"
-            />
-          </el-select>
-        </el-form-item>
-        <div v-if="selectedQuickOrder" class="quick-info">
-          <div><span>客户</span><strong>{{ selectedQuickOrder.customer_name }}</strong></div>
-          <div><span>产品</span><strong>{{ selectedQuickOrder.product_name }}</strong></div>
-          <div><span>订单金额</span><strong>{{ formatAmount(selectedQuickOrder.total_amount) }}</strong></div>
-          <div><span>已回款</span><strong>{{ formatAmount(selectedQuickOrderPaidAmount) }}</strong></div>
-          <div><span>未回款</span><strong>{{ formatAmount(selectedQuickOrderRemainAmount) }}</strong></div>
-        </div>
-        <el-form-item label="客户名称" v-else>
-          <el-input v-model="paymentForm.customer_name" placeholder="未选择订单时手工填写客户名称" />
-        </el-form-item>
-        <div class="quick-form-row">
-          <el-form-item label="回款金额">
-            <el-input-number v-model="paymentForm.amount" :min="0" :precision="2" controls-position="right" />
-          </el-form-item>
-          <el-form-item label="回款日期">
-            <el-date-picker v-model="paymentForm.payment_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
-          </el-form-item>
-        </div>
-        <div class="quick-form-row">
-          <el-form-item label="回款方式">
-            <el-select v-model="paymentForm.payment_method" style="width: 100%;">
-              <el-option v-for="method in paymentMethodOptions" :key="method" :label="method" :value="method" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="核销状态">
-            <el-select v-model="paymentForm.verify_status" style="width: 100%;">
-              <el-option v-for="status in paymentStatusOptions" :key="status" :label="status" :value="status" />
-            </el-select>
-          </el-form-item>
-        </div>
-        <el-form-item label="经办人">
-          <el-input v-model="paymentForm.handler_name" placeholder="经办人" />
-          </el-form-item>
-        </el-form>
-
-      <el-form
-        v-else-if="quickMode === 'opportunity'"
-        class="quick-form"
-        label-width="96px"
-        :model="opportunityForm"
-      >
-        <el-form-item label="客户">
-          <el-select
-            v-model="opportunityForm.customer_id"
-            filterable
-            clearable
-            :loading="quickLoading"
-            placeholder="选择客户"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="customer in quickCustomers"
-              :key="customer.id"
-              :label="`${customer.name} / ${customer.customer_no}`"
-              :value="customer.id"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="商机名称">
-          <el-input v-model="opportunityForm.opportunity_name" placeholder="请输入商机名称" />
-        </el-form-item>
-        <div class="quick-form-row">
-          <el-form-item label="预计金额">
-            <el-input-number v-model="opportunityForm.expected_amount" :min="0" :precision="2" controls-position="right" />
-          </el-form-item>
-          <el-form-item label="预计成交">
-            <el-date-picker v-model="opportunityForm.expected_close_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
-          </el-form-item>
-        </div>
-        <div class="quick-form-row">
-          <el-form-item label="阶段">
-            <el-select v-model="opportunityForm.stage" style="width: 100%;">
-              <el-option v-for="stage in opportunityStageOptions" :key="stage" :label="stage" :value="stage" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="赢率">
-            <el-input-number v-model="opportunityForm.probability" :min="0" :max="100" :precision="0" controls-position="right" />
-          </el-form-item>
-        </div>
-        <div class="quick-form-row">
-          <el-form-item label="负责人">
-            <el-input v-model="opportunityForm.owner_name" placeholder="销售负责人" />
-          </el-form-item>
-          <el-form-item label="下次动作">
-            <el-input v-model="opportunityForm.next_action" placeholder="下一步推进动作" />
-          </el-form-item>
-        </div>
-        <el-form-item label="备注">
-          <el-input
-            v-model="opportunityForm.remark"
-            type="textarea"
-            :rows="3"
-            placeholder="记录需求、预算、竞争情况和成交阻碍"
-          />
-        </el-form-item>
-      </el-form>
-
-      <el-form
-        v-else-if="quickMode === 'follow'"
-        class="quick-form"
-        label-width="96px"
-        :model="followForm"
-      >
-        <el-form-item label="客户">
-          <el-select
-            v-model="followForm.customer_id"
-            filterable
-            clearable
-            :loading="quickLoading"
-            placeholder="选择客户"
-            style="width: 100%;"
-          >
-            <el-option
-              v-for="customer in quickCustomers"
-              :key="customer.id"
-              :label="`${customer.name} / ${customer.customer_no}`"
-              :value="customer.id"
-            />
-          </el-select>
-        </el-form-item>
-        <div class="quick-form-row">
-          <el-form-item label="跟进日期">
-            <el-date-picker v-model="followForm.follow_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
-          </el-form-item>
-          <el-form-item label="下次跟进">
-            <el-date-picker v-model="followForm.next_follow_at" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
-          </el-form-item>
-        </div>
-        <div class="quick-form-row">
-          <el-form-item label="跟进方式">
-            <el-select v-model="followForm.follow_type" style="width: 100%;">
-              <el-option v-for="type in followTypeOptions" :key="type" :label="type" :value="type" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="跟进结果">
-            <el-select v-model="followForm.follow_result" style="width: 100%;">
-              <el-option v-for="result in followResultOptions" :key="result" :label="result" :value="result" />
-            </el-select>
-          </el-form-item>
-        </div>
-        <div class="quick-form-row">
-          <el-form-item label="联系人">
-            <el-input v-model="followForm.contact_name" placeholder="联系人" />
-          </el-form-item>
-          <el-form-item label="负责人">
-            <el-input v-model="followForm.owner_name" placeholder="销售负责人" />
-          </el-form-item>
-        </div>
-        <el-form-item label="跟进纪要">
-          <el-input
-            v-model="followForm.follow_content"
-            type="textarea"
-            :rows="4"
-            placeholder="记录客户诉求、报价反馈、风险和下一步动作"
-          />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <el-button @click="quickDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="quickSubmitting" @click="submitQuickDialog">
-          保存
-        </el-button>
-      </template>
-    </el-dialog>
+    <SalesQuoteItemsDialog
+      v-model:visible="quoteItemsVisible"
+      :quote-no="selectedQuote?.quote_no || ''"
+      :loading="quoteItemsLoading"
+      :saving="quoteItemsSaving"
+      :ready="quoteItemsReady"
+      :items="quoteItems"
+      :total="quoteItemsTotal"
+      :format-amount="formatAmount"
+      @update-amount="updateQuoteItemAmount"
+      @add="addQuoteItem"
+      @remove="removeQuoteItem"
+      @save="saveQuoteItems"
+    />
   </div>
 </template>
 
@@ -845,6 +695,9 @@ import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
 import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
+import { useSalesDocumentFlow } from '@/composables/use-sales-document-flow'
+import SalesQuickDialog from '@/components/SalesQuickDialog.vue'
+import SalesQuoteItemsDialog from '@/components/SalesQuoteItemsDialog.vue'
 import { findSalesApp, CUSTOMER_COLUMNS } from '@/utils/sales-apps'
 import {
   buildSalesAttentionSummary,
@@ -896,7 +749,6 @@ import {
   buildSalesQuickOrderEntry,
   buildSalesQuickOrderFallbackPayload,
   buildSalesQuickOrderForm,
-  buildSalesQuickPaymentEntry,
   buildSalesQuickPaymentForm,
   calculateSalesQuickOrderTotal
 } from '@/domain/sales-grid-quick-entry-policy'
@@ -948,7 +800,7 @@ const addDaysText = (days) => {
   return date.toISOString().slice(0, 10)
 }
 
-const orderStatusOptions = ['草稿', '已确认', '生产中', '已发货', '已完成', '已取消']
+const orderStatusOptions = ['草稿', '已确认', '生产中', '部分出库', '已发货', '已完成', '已取消']
 const paymentMethodOptions = ['银行转账', '承兑汇票', '现金', '其他']
 const paymentStatusOptions = ['待核销', '部分核销', '已核销']
 const followTypeOptions = ['电话沟通', '微信沟通', '上门拜访', '视频会议', '展会接洽', '其他']
@@ -997,21 +849,32 @@ const resolveAttention = (row) => getSalesRecordAttention(app.value?.key, row, {
   task: 'monitor'
 })
 const rowAttentionFilter = (row) => matchesSalesAttentionFilter(app.value?.key, row, attentionFilter.value)
+const ROW_ACTION_PERMISSIONS = Object.freeze({
+  'create-order': 'op:sales_order.create',
+  'create-follow': 'op:sales_follow_up.create',
+  'create-opportunity': 'op:sales_opportunity.create',
+  'create-quote': 'op:sales_quote.create',
+  'create-payment': 'op:sales_payment.create',
+  'create-receivable': 'op:sales_receivable.create'
+})
+const canRunRowAction = (key) => {
+  const permission = ROW_ACTION_PERMISSIONS[key] || ''
+  return !permission || hasPerm(permission)
+}
 const resolveRowActions = (row) => {
   if (!row) return []
   if (app.value.key === 'customers') {
     const actions = []
-    if (canCreate.value) {
-      actions.push({ key: 'create-order', label: '建订单', type: 'success', icon: 'Tickets' })
-      actions.push({ key: 'create-follow', label: '跟进', type: 'primary', icon: 'ChatLineSquare' })
-      actions.push({ key: 'create-opportunity', label: '商机', type: 'primary', icon: 'TrendCharts' })
-    }
+    if (canRunRowAction('create-order')) actions.push({ key: 'create-order', label: '建订单', type: 'success', icon: 'Tickets' })
+    if (canRunRowAction('create-follow')) actions.push({ key: 'create-follow', label: '跟进', type: 'primary', icon: 'ChatLineSquare' })
+    if (canRunRowAction('create-opportunity')) actions.push({ key: 'create-opportunity', label: '商机', type: 'primary', icon: 'TrendCharts' })
     return actions
   }
   if (app.value.key === 'orders') {
     const actions = []
+    if (canRunRowAction('create-payment')) actions.push({ key: 'create-payment', label: '回款', type: 'warning', icon: 'Money' })
+    if (canRunRowAction('create-receivable')) actions.push({ key: 'create-receivable', label: '应收', type: 'warning', icon: 'Money' })
     if (canCreate.value) {
-      actions.push({ key: 'create-payment', label: '回款', type: 'warning', icon: 'Money' })
       actions.push({ key: 'push-purchase', label: '采购', type: 'success', icon: 'Position' })
       actions.push({ key: 'push-shipment', label: '出货', type: 'warning', icon: 'Promotion' })
     }
@@ -1023,10 +886,13 @@ const resolveRowActions = (row) => {
       : []
   }
   if (app.value.key === 'opportunities') {
-    return canCreate.value
-      ? [{ key: 'create-order', label: '转订单', type: 'success', icon: 'Tickets' }]
-      : []
+    return [
+      ...(canRunRowAction('create-order') ? [{ key: 'create-order', label: '转订单', type: 'success', icon: 'Tickets' }] : []),
+      ...(canRunRowAction('create-quote') ? [{ key: 'create-quote', label: '新建报价', type: 'primary', icon: 'Document' }] : [])
+    ]
   }
+  const extendedActions = resolveExtendedRowActions(row)
+  if (extendedActions) return extendedActions
   return []
 }
 const quickDialogTitle = computed(() => {
@@ -1044,9 +910,6 @@ const selectedQuickBomProduct = computed(() => {
   if (!selectedId) return null
   return quickBomProducts.value.find((material) => normalizeId(material.parent_material_id) === selectedId) || null
 })
-const selectedQuickOrder = computed(() => {
-  return quickOrders.value.find((order) => order.id === paymentForm.order_id) || null
-})
 const selectedFollowCustomer = computed(() => {
   return quickCustomers.value.find((customer) => customer.id === followForm.customer_id) || null
 })
@@ -1054,21 +917,6 @@ const selectedOpportunityCustomer = computed(() => {
   return quickCustomers.value.find((customer) => customer.id === opportunityForm.customer_id) || null
 })
 const orderTotalAmount = computed(() => calculateSalesQuickOrderTotal(orderForm))
-const selectedQuickOrderPaidAmount = computed(() => {
-  const order = selectedQuickOrder.value
-  if (!order) return 0
-  return quickOrderPayments.value
-    .filter((payment) => {
-      if (paymentForm.order_id) return payment.order_id === paymentForm.order_id
-      return payment.order_no && payment.order_no === order.order_no
-    })
-    .reduce((sum, payment) => sum + toAmount(payment.amount), 0)
-})
-const selectedQuickOrderRemainAmount = computed(() => {
-  const order = selectedQuickOrder.value
-  if (!order) return 0
-  return Math.max(toAmount(order.total_amount) - selectedQuickOrderPaidAmount.value, 0)
-})
 const flowPrimaryOrder = computed(() => flowSelectedRows.value[0] || selectedDetailRow.value || null)
 const salesFlowNodes = computed(() => buildSalesFlowNodes({ order: flowPrimaryOrder.value, docs: salesFlowDocs.value }))
 const salesDownstreamState = computed(() => getSalesFlowDownstreamState({ nextStep: flowNextStep.value, docs: salesFlowDocs.value }))
@@ -1984,6 +1832,69 @@ const writeDocumentAudit = async ({ actionType, source, target, reason = '', pay
   }).catch(() => null)
 }
 
+const {
+  quoteItemsVisible,
+  quoteItemsLoading,
+  quoteItemsSaving,
+  quoteItemsReady,
+  selectedQuote,
+  quoteItems,
+  quickReceivableSchedules,
+  selectedQuickReceivable,
+  availableQuickReceivables,
+  selectedQuickOrder,
+  selectedQuickOrderPaidAmount,
+  selectedQuickOrderRemainAmount,
+  clearQuickReceivableSchedules,
+  quoteItemsTotal,
+  loadQuickReceivableSchedules,
+  openPaymentDialog,
+  submitQuickPayment,
+  updateQuoteItemAmount,
+  openQuoteItems,
+  addQuoteItem,
+  removeQuoteItem,
+  saveQuoteItems,
+  updateSalesState,
+  openQuoteDialogFromOpportunity,
+  createContractFromQuote,
+  createOrdersFromContract,
+  createReceivableFromOrder,
+  pushOrdersToReceivables,
+  resolveExtendedRowActions,
+  handleExtendedRowAction
+} = useSalesDocumentFlow({
+  request,
+  toAmount,
+  safeEq,
+  getErrorMessage,
+  todayText,
+  nextDocNo,
+  addDaysText,
+  gridRef,
+  router,
+  canEdit,
+  selectedDetailRow,
+  flowActionLoading,
+  getSelectedSalesOrders,
+  createDocumentLink,
+  writeDocumentAudit,
+  refreshSelectedDetail,
+  formatAmount,
+  paymentForm,
+  quickMode,
+  quickDialogVisible,
+  quickLoading,
+  quickOrders,
+  quickOrderPayments,
+  syncCustomerReceivableFromRow,
+  hasPerm,
+  canCreate,
+  canEditPermission: canEdit,
+  appKey: computed(() => app.value.key),
+  isOrderActive
+})
+
 const loadQuickCustomers = async () => {
   const rows = await request({
     url: '/sales_customers?select=*&status=neq.deleted&order=created_at.desc&limit=200',
@@ -2008,31 +1919,16 @@ const loadQuickBomProducts = async () => {
   }
 }
 
-const loadQuickOrders = async () => {
-  const rows = await request({
-    url: `/sales_orders?select=*&status=neq.deleted&order_status=neq.${safeEq('已取消')}&order=order_date.desc&limit=200`,
-    method: 'get',
-    headers: { 'Accept-Profile': 'public' }
-  })
-  quickOrders.value = Array.isArray(rows) ? rows : []
-}
-
-const loadQuickOrderPayments = async () => {
-  const rows = await request({
-    url: '/sales_payments?select=*&status=neq.deleted&order=payment_date.desc&limit=200',
-    method: 'get',
-    headers: { 'Accept-Profile': 'public' }
-  })
-  quickOrderPayments.value = Array.isArray(rows) ? rows : []
-}
-
 const resetOrderForm = (source = null) => {
-  currentOrderSource.value = source?.opportunity_no ? source : null
+  const isBusinessSource = Boolean(source?.opportunity_no || source?.quote_no || source?.contract_no)
+  currentOrderSource.value = isBusinessSource ? source : null
   Object.assign(orderForm, buildSalesQuickOrderForm(source, { today: todayText(), deliveryDate: addDaysText(7) }))
-}
-
-const resetPaymentForm = (source = null) => {
-  Object.assign(paymentForm, buildSalesQuickPaymentForm(source, { today: todayText() }))
+  if (isBusinessSource) {
+    orderForm.customer_id = source?.customer_id || ''
+    orderForm.product_name = source?.product_name || source?.opportunity_name || source?.contract_title || source?.quote_title || orderForm.product_name
+    orderForm.unit_price = toAmount(source?.expected_amount || source?.contract_amount || source?.total_amount || orderForm.unit_price)
+    orderForm.owner_name = source?.owner_name || orderForm.owner_name
+  }
 }
 
 const resetFollowForm = (source = null) => {
@@ -2051,8 +1947,9 @@ const openOrderDialog = async (source = null) => {
   try {
     await loadQuickCustomers()
     await loadQuickBomProducts()
-    if (source?.name && !orderForm.customer_id) {
-      const matched = quickCustomers.value.find((customer) => customer.name === source.name)
+    const sourceCustomerName = source?.name || source?.customer_name
+    if (sourceCustomerName && !orderForm.customer_id) {
+      const matched = quickCustomers.value.find((customer) => customer.name === sourceCustomerName)
       if (matched) orderForm.customer_id = matched.id
     }
   } catch (e) {
@@ -2096,25 +1993,6 @@ const openOpportunityDialog = async (source = null) => {
   } catch (e) {
     console.warn('load quick customers failed', e)
     ElMessage.warning('客户列表加载失败')
-  } finally {
-    quickLoading.value = false
-  }
-}
-
-const openPaymentDialog = async (source = null) => {
-  quickMode.value = 'payment'
-  quickDialogVisible.value = true
-  resetPaymentForm(source)
-  quickLoading.value = true
-  try {
-    await Promise.all([loadQuickOrders(), loadQuickOrderPayments()])
-    if (source?.order_no && !paymentForm.order_id) {
-      const matched = quickOrders.value.find((order) => order.order_no === source.order_no)
-      if (matched) paymentForm.order_id = matched.id
-    }
-  } catch (e) {
-    console.warn('load quick orders failed', e)
-    ElMessage.warning('订单列表加载失败')
   } finally {
     quickLoading.value = false
   }
@@ -2448,6 +2326,7 @@ const resetQuickDialog = () => {
   quickMode.value = ''
   quickSubmitting.value = false
   currentOrderSource.value = null
+  clearQuickReceivableSchedules()
 }
 
 const submitQuickOrder = async () => {
@@ -2493,29 +2372,6 @@ const submitQuickOrder = async () => {
     })
   }
   ElMessage.success('销售订单已创建')
-}
-
-const submitQuickPayment = async () => {
-  const order = selectedQuickOrder.value
-  const result = buildSalesQuickPaymentEntry({
-    form: paymentForm,
-    order,
-    paymentNo: `PAY${Date.now().toString().slice(-8)}`,
-    today: todayText()
-  })
-  if (result.error) {
-    ElMessage.warning(result.error)
-    return
-  }
-  const payload = result.payload
-  await request({
-    url: '/sales_payments',
-    method: 'post',
-    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-    data: payload
-  })
-  await syncCustomerReceivableFromRow(payload)
-  ElMessage.success('回款记录已创建')
 }
 
 const submitQuickOpportunity = async () => {
@@ -2570,15 +2426,17 @@ const submitQuickDialog = async () => {
   if (!quickMode.value) return
   quickSubmitting.value = true
   try {
+    let saved = true
     if (quickMode.value === 'order') {
       await submitQuickOrder()
     } else if (quickMode.value === 'payment') {
-      await submitQuickPayment()
+      saved = await submitQuickPayment()
     } else if (quickMode.value === 'opportunity') {
       await submitQuickOpportunity()
     } else if (quickMode.value === 'follow') {
       await submitQuickFollow()
     }
+    if (saved === false) return
     quickDialogVisible.value = false
     if (gridRef.value?.loadData) await gridRef.value.loadData()
     if (selectedDetailRow.value) await refreshSelectedDetail()
@@ -2939,6 +2797,11 @@ const handleViewDocument = (row) => {
 
 const handleRowAction = ({ action, row }) => {
   if (!action || action.disabled || !row) return
+  if (!canRunRowAction(action.key)) {
+    ElMessage.warning('当前账号没有执行此操作的权限')
+    return
+  }
+  if (handleExtendedRowAction(action, row)) return
   if (action.key === 'create-order') {
     openOrderDialog(row)
     return
@@ -2949,10 +2812,6 @@ const handleRowAction = ({ action, row }) => {
   }
   if (action.key === 'create-opportunity') {
     openOpportunityDialog(row)
-    return
-  }
-  if (action.key === 'create-payment') {
-    openPaymentDialog(row)
     return
   }
   if (action.key === 'push-purchase') {
@@ -3229,7 +3088,6 @@ const openColumnConfig = () => {
   colConfigVisible.value = true
 }
 
-const isStaticVisible = (prop) => !staticHidden.value.includes(prop)
 const toggleStaticColumn = async (prop, visible) => {
   const previousHidden = [...staticHidden.value]
   const has = staticHidden.value.includes(prop)
@@ -3308,22 +3166,6 @@ watch(selectedOpportunityCustomer, (customer) => {
   if (!customer || quickMode.value !== 'opportunity') return
   if (!opportunityForm.opportunity_name) opportunityForm.opportunity_name = `${customer.name} 新商机`
   if (!opportunityForm.owner_name) opportunityForm.owner_name = customer.owner_name || ''
-})
-
-watch(selectedQuickOrder, (order) => {
-  if (!order || quickMode.value !== 'payment') return
-  paymentForm.customer_name = order.customer_name || ''
-  if (!paymentForm.handler_name) paymentForm.handler_name = order.owner_name || ''
-  const remain = selectedQuickOrderRemainAmount.value
-  if (remain > 0) paymentForm.amount = remain
-  paymentForm.verify_status = remain > 0 && remain <= toAmount(paymentForm.amount) ? '已核销' : '部分核销'
-})
-
-watch(() => paymentForm.amount, (amount) => {
-  const order = selectedQuickOrder.value
-  if (!order || quickMode.value !== 'payment') return
-  const totalAfterPayment = selectedQuickOrderPaidAmount.value + toAmount(amount)
-  paymentForm.verify_status = totalAfterPayment >= toAmount(order.total_amount) ? '已核销' : '部分核销'
 })
 
 watch([attentionFilter, gridApiUrl], () => {
@@ -3489,74 +3331,6 @@ onUnmounted(() => {
   color: #303133;
 }
 
-.quick-form {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.quick-form-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 12px;
-}
-
-.quick-form-row:has(.el-form-item:nth-child(3)) {
-  grid-template-columns: 1fr 120px 1fr;
-}
-
-.quick-form :deep(.el-input-number) {
-  width: 100%;
-}
-
-.amount-preview {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  background: #f8fafc;
-  font-size: 13px;
-  color: #606266;
-}
-
-.amount-preview strong {
-  font-size: 18px;
-  color: #303133;
-}
-
-.quick-info {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: -4px 0 16px 96px;
-  padding: 12px;
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  background: #f8fafc;
-}
-
-.quick-info div {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.quick-info span {
-  font-size: 12px;
-  color: #909399;
-}
-
-.quick-info strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
-  color: #303133;
-}
-	
 .column-manager { padding: 0 5px; }
 .section-title { font-weight: bold; margin-bottom: 10px; color: #303133; font-size: 14px; }
 .empty-tip { color: #909399; font-size: 12px; margin-bottom: 10px; font-style: italic; }
@@ -3805,17 +3579,11 @@ onUnmounted(() => {
     flex-wrap: wrap;
   }
 
-  .quick-form-row,
-  .quick-form-row:has(.el-form-item:nth-child(3)),
-  .quick-info,
   .metric-grid,
   .flow-chain,
   .flow-doc-panel {
     grid-template-columns: 1fr;
   }
 
-  .quick-info {
-    margin-left: 0;
-  }
 }
 </style>

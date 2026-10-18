@@ -18,6 +18,7 @@ const ORDER_STATUS_OPTIONS = [
   { label: '草稿', value: '草稿' },
   { label: '已确认', value: '已确认' },
   { label: '生产中', value: '生产中' },
+  { label: '部分出库', value: '部分出库' },
   { label: '已发货', value: '已发货' },
   { label: '已完成', value: '已完成' },
   { label: '已取消', value: '已取消' }
@@ -27,6 +28,39 @@ const PAYMENT_STATUS_OPTIONS = [
   { label: '待核销', value: '待核销' },
   { label: '部分核销', value: '部分核销' },
   { label: '已核销', value: '已核销' }
+]
+
+const QUOTE_APPROVAL_STATUS_OPTIONS = [
+  { label: '草稿', value: '草稿' },
+  { label: '待审批', value: '待审批' },
+  { label: '已通过', value: '已通过' },
+  { label: '已驳回', value: '已驳回' },
+  { label: '已作废', value: '已作废' }
+]
+
+const CONTRACT_SIGNING_STATUS_OPTIONS = [
+  { label: '未签订', value: '未签订' },
+  { label: '待签订', value: '待签订' },
+  { label: '部分签订', value: '部分签订' },
+  { label: '已签订', value: '已签订' },
+  { label: '已终止', value: '已终止' }
+]
+
+const QUOTE_STATUS_OPTIONS = [
+  { label: '草稿', value: '草稿' },
+  { label: '已发送', value: '已发送' },
+  { label: '已接受', value: '已接受' },
+  { label: '已拒绝', value: '已拒绝' },
+  { label: '已过期', value: '已过期' },
+  { label: '已作废', value: '已作废' }
+]
+
+const RECEIVABLE_STATUS_OPTIONS = [
+  { label: '待收款', value: '待收款' },
+  { label: '部分收款', value: '部分收款' },
+  { label: '已收款', value: '已收款' },
+  { label: '逾期', value: '逾期' },
+  { label: '已作废', value: '已作废' }
 ]
 
 const FOLLOW_TYPE_OPTIONS = [
@@ -184,6 +218,58 @@ export const OPPORTUNITY_COLUMNS = [
   { label: '预计成交', prop: 'expected_close_date', width: 120 },
   { label: '负责人', prop: 'owner_name', width: 120 },
   { label: '下次动作', prop: 'next_action', width: 180 },
+  { label: '备注', prop: 'remark', width: 220, multiLine: true }
+]
+
+export const QUOTE_COLUMNS = [
+  { label: '报价单号', prop: 'quote_no', editable: false, width: 150 },
+  { label: '报价版本', prop: 'version_no', type: 'number', width: 100 },
+  { label: '报价标题', prop: 'quote_title', width: 190 },
+  { label: '客户名称', prop: 'customer_name', width: 180 },
+  { label: '报价日期', prop: 'quote_date', width: 120 },
+  { label: '有效期至', prop: 'valid_until', width: 120 },
+  { label: '币种', prop: 'currency', width: 80 },
+  { label: '未税小计', prop: 'subtotal', type: 'number', width: 120 },
+  { label: '税额', prop: 'tax_amount', type: 'number', width: 110 },
+  { label: '报价金额', prop: 'total_amount', type: 'number', editable: false, width: 120 },
+  { label: '账期(天)', prop: 'payment_term_days', type: 'number', width: 100 },
+  { label: '审批状态', prop: 'approval_status', type: 'select', options: QUOTE_APPROVAL_STATUS_OPTIONS, width: 110 },
+  { label: '报价状态', prop: 'quote_status', type: 'select', options: QUOTE_STATUS_OPTIONS, width: 110 },
+  { label: '负责人', prop: 'owner_name', width: 120 },
+  { label: '备注', prop: 'remark', width: 220, multiLine: true }
+]
+
+export const CONTRACT_COLUMNS = [
+  { label: '合同编号', prop: 'contract_no', editable: false, width: 150 },
+  { label: '合同版本', prop: 'contract_version', type: 'number', width: 100 },
+  { label: '合同名称', prop: 'contract_title', width: 190 },
+  { label: '客户名称', prop: 'customer_name', width: 180 },
+  { label: '关联报价', prop: 'quote_no', width: 150 },
+  { label: '币种', prop: 'currency', width: 80 },
+  { label: '合同金额', prop: 'contract_amount', type: 'number', width: 120 },
+  { label: '签订日期', prop: 'sign_date', width: 120 },
+  { label: '生效日期', prop: 'effective_date', width: 120 },
+  { label: '到期日期', prop: 'expiry_date', width: 120 },
+  { label: '账期(天)', prop: 'payment_term_days', type: 'number', width: 100 },
+  { label: '审批状态', prop: 'approval_status', type: 'select', options: QUOTE_APPROVAL_STATUS_OPTIONS, width: 110 },
+  { label: '签订状态', prop: 'signing_status', type: 'select', options: CONTRACT_SIGNING_STATUS_OPTIONS, width: 110 },
+  { label: '负责人', prop: 'owner_name', width: 120 },
+  { label: '备注', prop: 'remark', width: 220, multiLine: true }
+]
+
+export const RECEIVABLE_COLUMNS = [
+  { label: '应收计划号', prop: 'schedule_no', editable: false, width: 150 },
+  { label: '客户名称', prop: 'customer_name', width: 180 },
+  { label: '合同编号', prop: 'contract_no', width: 150 },
+  { label: '订单号', prop: 'order_no', width: 150 },
+  { label: '收款节点', prop: 'installment_no', type: 'number', width: 100 },
+  { label: '到期日期', prop: 'due_date', width: 120 },
+  { label: '计划金额', prop: 'planned_amount', type: 'number', width: 120 },
+  { label: '已收金额', prop: 'received_amount', type: 'number', width: 120 },
+  { label: '应收余额', prop: 'outstanding_amount', type: 'number', editable: false, width: 120 },
+  { label: '状态', prop: 'schedule_status', type: 'select', options: RECEIVABLE_STATUS_OPTIONS, width: 110 },
+  { label: '账龄状态', prop: 'aging_status', editable: false, width: 110 },
+  { label: '负责人', prop: 'owner_name', width: 120 },
   { label: '备注', prop: 'remark', width: 220, multiLine: true }
 ]
 
@@ -349,6 +435,153 @@ export const SALES_APPS = [
       delivery_date: null,
       order_status: '草稿',
       owner_name: '',
+      properties: {}
+    })
+  },
+  {
+    key: 'quotes',
+    name: '销售报价',
+    desc: '报价明细、审批状态、有效期与商务条件',
+    route: '/app/quotes',
+    perm: 'app:sales_quote',
+    aclModule: 'sales_quote',
+    apiUrl: '/sales_quotes?status=neq.deleted',
+    writeUrl: '/sales_quotes',
+    writeMode: 'patch',
+    viewId: 'sales_quotes',
+    configKey: 'sales_quotes_cols',
+    icon: 'Tickets',
+    tone: 'indigo',
+    enableDetail: false,
+    staticColumns: QUOTE_COLUMNS,
+    summaryConfig: {
+      ...DEFAULT_SUMMARY,
+      rules: { subtotal: 'sum', tax_amount: 'sum', total_amount: 'sum' }
+    },
+    ops: {
+      create: 'op:sales_quote.create',
+      edit: 'op:sales_quote.edit',
+      delete: 'op:sales_quote.delete',
+      export: 'op:sales_quote.export',
+      config: 'op:sales_quote.config'
+    },
+    createPayload: () => ({
+      quote_no: `QT${Date.now().toString().slice(-8)}`,
+      version_no: 1,
+      opportunity_id: null,
+      customer_id: null,
+      customer_name: '待选择客户',
+      quote_title: '新销售报价',
+      quote_date: new Date().toISOString().slice(0, 10),
+      valid_until: null,
+      currency: 'CNY',
+      subtotal: 0,
+      tax_amount: 0,
+      total_amount: 0,
+      payment_term_days: 0,
+      delivery_terms: '',
+      approval_status: '草稿',
+      quote_status: '草稿',
+      owner_name: '',
+      remark: '',
+      status: 'active',
+      properties: {}
+    })
+  },
+  {
+    key: 'contracts',
+    name: '销售合同',
+    desc: '合同审批、签订状态、履行信息与账期条件',
+    route: '/app/contracts',
+    perm: 'app:sales_contract',
+    aclModule: 'sales_contract',
+    apiUrl: '/sales_contracts?status=neq.deleted',
+    writeUrl: '/sales_contracts',
+    writeMode: 'patch',
+    viewId: 'sales_contracts',
+    configKey: 'sales_contracts_cols',
+    icon: 'Document',
+    tone: 'cyan',
+    enableDetail: false,
+    staticColumns: CONTRACT_COLUMNS,
+    summaryConfig: {
+      ...DEFAULT_SUMMARY,
+      rules: { contract_amount: 'sum' }
+    },
+    ops: {
+      create: 'op:sales_contract.create',
+      edit: 'op:sales_contract.edit',
+      delete: 'op:sales_contract.delete',
+      export: 'op:sales_contract.export',
+      config: 'op:sales_contract.config'
+    },
+    createPayload: () => ({
+      contract_no: `CT${Date.now().toString().slice(-8)}`,
+      contract_version: 1,
+      quote_id: null,
+      quote_no: '',
+      customer_id: null,
+      customer_name: '待选择客户',
+      contract_title: '新销售合同',
+      sign_date: null,
+      effective_date: new Date().toISOString().slice(0, 10),
+      expiry_date: null,
+      contract_amount: 0,
+      currency: 'CNY',
+      payment_term_days: 0,
+      approval_status: '草稿',
+      signing_status: '待签订',
+      owner_name: '',
+      remark: '',
+      status: 'active',
+      properties: {}
+    })
+  },
+  {
+    key: 'receivables',
+    name: '应收与账期',
+    desc: '应收计划、收款节点、余额与逾期提醒',
+    route: '/app/receivables',
+    perm: 'app:sales_receivable',
+    aclModule: 'sales_receivable',
+    apiUrl: '/v_sales_receivable_aging?status=neq.deleted',
+    writeUrl: '/sales_receivable_schedule',
+    writeMode: 'patch',
+    viewId: 'sales_receivable_schedule',
+    configKey: 'sales_receivable_schedule_cols',
+    icon: 'Money',
+    tone: 'orange',
+    enableDetail: false,
+    staticColumns: RECEIVABLE_COLUMNS,
+    summaryConfig: {
+      ...DEFAULT_SUMMARY,
+      rules: { planned_amount: 'sum', received_amount: 'sum', outstanding_amount: 'sum' }
+    },
+    ops: {
+      create: 'op:sales_receivable.create',
+      edit: 'op:sales_receivable.edit',
+      delete: 'op:sales_receivable.delete',
+      export: 'op:sales_receivable.export',
+      config: 'op:sales_receivable.config'
+    },
+    createPayload: () => ({
+      schedule_no: `AR${Date.now().toString().slice(-8)}`,
+      customer_id: null,
+      customer_name: '待选择客户',
+      order_id: null,
+      order_no: '',
+      contract_id: null,
+      contract_no: '',
+      payment_node_id: null,
+      installment_no: 1,
+      planned_amount: 0,
+      received_amount: 0,
+      due_date: new Date().toISOString().slice(0, 10),
+      received_date: null,
+      schedule_status: '待收款',
+      owner_name: '',
+      remark: '',
+      status: 'active',
       properties: {}
     })
   },
