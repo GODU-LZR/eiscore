@@ -46,12 +46,13 @@ assert.deepEqual(buildSalesQuickOrderForm({
 assert.equal(buildSalesQuickOrderForm({ id: 3, opportunity_no: 'OPP-3' }, dates).customer_id, '')
 
 assert.deepEqual(buildSalesQuickPaymentForm({
-  order_id: 9,
+  order_id: 9, schedule_id: '',
   name: '客户A',
   amount: '80',
   handler_name: '李四'
 }, { today: '2026-09-01' }), {
   order_id: 9,
+  schedule_id: '',
   customer_name: '客户A',
   amount: 80,
   payment_date: '2026-09-01',
@@ -137,7 +138,7 @@ assert.deepEqual(buildSalesQuickPaymentEntry({
   paymentNo: 'PAY-1',
   today: '2026-09-01'
 }).payload, {
-  payment_no: 'PAY-1', order_id: null, order_no: '', customer_id: null, customer_name: '手工客户', amount: 20,
+  payment_no: 'PAY-1', order_id: null, order_no: '', schedule_id: null, customer_id: null, customer_name: '手工客户', amount: 20,
   payment_date: '2026-09-01', payment_method: '银行转账', verify_status: '待核销', handler_name: '',
   status: 'active', properties: { 来源: '快捷登记回款' }
 })
@@ -178,6 +179,7 @@ for (const forbidden of ['from \'vue\'', 'element-plus', 'request({', 'axios', '
 }
 
 const pageSource = readFileSync(resolve(repoRoot, 'eiscore-sales/src/components/SalesAppGrid.vue'), 'utf8')
+const flowSource = readFileSync(resolve(repoRoot, 'eiscore-sales/src/composables/use-sales-document-flow.js'), 'utf8')
 assert.match(pageSource, /from ['"]@\/domain\/sales-grid-quick-entry-policy['"]/)
 for (const removedDefinition of [
   'const orderForm = reactive({',
@@ -193,12 +195,12 @@ for (const removedDefinition of [
 }
 for (const requiredCall of [
   'buildSalesQuickOrderEntry({',
-  'buildSalesQuickPaymentEntry({',
   'buildSalesQuickOpportunityEntry({',
   'buildSalesQuickFollowEntry({'
 ]) {
   assert.equal(pageSource.includes(requiredCall), true, `SalesAppGrid lost ${requiredCall}`)
 }
+assert.equal(flowSource.includes('buildSalesQuickPaymentEntry({'), true, 'document-flow composable lost buildSalesQuickPaymentEntry({')
 assert.ok(pageSource.split(/\r?\n/).length <= 3822)
 
 console.log('PASS: SalesAppGrid quick-entry policy preserves four forms, validations, payloads and order fallback')
