@@ -17,18 +17,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { onMounted, ref } from 'vue'
+import { onMounted, onBeforeUnmount, ref } from 'vue'
 import { getAuthHeader } from '@/utils/auth'
-import { prepareHarnessAuth } from '@/services/harness-auth-client'
+import { prepareBusinessHarnessAuth as prepareHarnessAuth } from '@/services/business-harness-auth'
 
 const harnessReady = ref(false)
 const harnessFailed = ref(false)
+let disposed = false
+onBeforeUnmount(() => { disposed = true })
 
 onMounted(async () => {
+  const authorization = getAuthHeader().Authorization || ''
+  const isCurrent = () => !disposed && !!authorization && getAuthHeader().Authorization === authorization
   const ready = await prepareHarnessAuth({
     harnessWebUrl: '/harness-embed/',
     authorization: getAuthHeader().Authorization || ''
-  })
+  }, isCurrent)
+  if (!isCurrent()) return
   harnessReady.value = ready
   harnessFailed.value = !ready
 })

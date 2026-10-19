@@ -13,6 +13,8 @@ const targets = [
   'eiscore-base/src/utils/ai-bridge.js',
   'eiscore-base/src/views/SettingsView.vue',
   'eiscore-base/src/views/HomeView.vue',
+  'eiscore-base/src/components/harness/BusinessHarnessFrame.vue',
+  'eiscore-base/src/services/business-harness-auth.js',
   'eiscore-base/src/micro/index.js'
 ]
 
@@ -38,8 +40,17 @@ assert.doesNotMatch(settings, /import\s*{\s*getToken\s*}\s*from\s*['"]@\/utils\/
 assert.doesNotMatch(settings, /const getAuthToken/)
 
 const home = readSource('eiscore-base/src/views/HomeView.vue')
-assert.match(home, /prepareHarnessAuth as prepareHarnessAuthRequest/)
-assert.match(home, /authorization: getAuthHeader\(\)\.Authorization/)
+assert.match(home, /<HarnessWorkspaceSlot\s+:active="activeMode === 'harness'"\s*\/>/)
+assert.doesNotMatch(home, /getAuthHeader|prepare(?:Business)?HarnessAuth|<iframe\b/, 'Home must delegate authentication and iframe ownership to the shared host')
+
+const frame = readSource('eiscore-base/src/components/harness/BusinessHarnessFrame.vue')
+assert.match(frame, /import\s*\{\s*getAuthHeader\s*\}\s*from\s*['"]@\/utils\/auth['"]/)
+assert.match(frame, /import\s*\{\s*prepareBusinessHarnessAuth\s*\}\s*from\s*['"]@\/services\/business-harness-auth['"]/)
+assert.match(frame, /const authorization = getAuthHeader\(\)\.Authorization \|\| ''/)
+assert.match(frame, /prepareBusinessHarnessAuth\(\{\s*harnessWebUrl,\s*authorization\s*\},\s*\(\) => id === requestId && !!authorization\)/)
+
+const businessHarnessAuth = readSource('eiscore-base/src/services/business-harness-auth.js')
+assert.match(businessHarnessAuth, /import\s*\{\s*prepareHarnessAuth\s*\}\s*from\s*['"]\.\/harness-auth-client['"]/)
 
 const micro = readSource('eiscore-base/src/micro/index.js')
 assert.match(micro, /import\s*\{\s*setUserInfo\s*\}\s*from\s*['"]@\/utils\/auth['"]/)

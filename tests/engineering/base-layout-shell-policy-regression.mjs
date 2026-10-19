@@ -58,10 +58,10 @@ assert.deepEqual(BASE_WORKER_ASSISTANT_HIDDEN_ROUTES, [
   '/quality/dashboard',
   '/equipment/dashboard'
 ])
-for (const path of ['/', '/ai/enterprise', '/ai/enterprise/chat', '/sales/cockpit', '/sales/cockpit/detail']) {
+for (const path of ['/', '/ai/enterprise', '/ai/enterprise/chat', '/sales/cockpit', '/sales/cockpit/detail', '/apps/flash-builder', '/apps/flash-builder/project']) {
   assert.equal(isBaseWorkerAssistantVisible(path), false, `assistant should be hidden on ${path}`)
 }
-for (const path of ['/sales/cockpits', '/sales/orders', '/apps/', '/materials/inventory-dashboard-v2']) {
+for (const path of ['/sales/cockpits', '/sales/orders', '/apps/', '/materials/inventory-dashboard-v2', '/apps/flash-builders']) {
   assert.equal(isBaseWorkerAssistantVisible(path), true, `assistant should remain visible on ${path}`)
 }
 
