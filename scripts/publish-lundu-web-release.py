@@ -168,7 +168,7 @@ class EntryTags(HTMLParser):
     def __init__(self, html):
         super().__init__()
         self.assets = []
-        self.icons = {}
+        self.icons = []
         self.feed(html)
 
     def handle_starttag(self, tag, attrs):
@@ -178,8 +178,7 @@ class EntryTags(HTMLParser):
         if tag == 'link' and attrs.get('href'):
             rel = attrs.get('rel', '').lower()
             if rel in ('icon', 'shortcut icon', 'apple-touch-icon'):
-                require(rel not in self.icons, 'duplicate favicon relation: ' + rel)
-                self.icons[rel] = attrs['href']
+                self.icons.append((rel, attrs['href']))
             if rel in ('stylesheet', 'modulepreload', 'preload', 'icon',
                        'shortcut icon', 'apple-touch-icon'):
                 self.assets.append(attrs['href'])
@@ -264,9 +263,10 @@ def validate_candidate(root, policy):
                 continue
             require(local_url(asset, policy['origin'], entry) in files, 'entry asset missing: ' + asset)
         if not mount:
-            require(set(tags.icons) == {'icon', 'shortcut icon', 'apple-touch-icon'}
+            require(len(tags.icons) == 3 and sorted(rel for rel, _ in tags.icons) in
+                    [['apple-touch-icon', 'icon', 'icon'], ['apple-touch-icon', 'icon', 'shortcut icon']]
                     and all(local_url(url, policy['origin']) == local_url(policy['favicon'], policy['origin'])
-                            for url in tags.icons.values()), 'three Lundu favicon references required')
+                            for _, url in tags.icons), 'three Lundu favicon references required')
             for asset in tags.assets:
                 if asset.startswith('/assets/'):
                     text = (root / local_url(asset, policy['origin'])).read_text(encoding='utf-8')

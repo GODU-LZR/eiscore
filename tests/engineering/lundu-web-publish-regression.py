@@ -126,6 +126,19 @@ class PublishTests(unittest.TestCase):
         with self.assertRaisesRegex(release.InvalidRelease, 'source is absent'):
             self.valid()
 
+    def test_real_generated_duplicate_icon_structure_preserves_all_png_targets(self):
+        html = (self.stage / 'index.html').read_text()
+        write(self.stage, 'index.html', html.replace('rel="shortcut icon"', 'rel="icon"'))
+        manifest(self.stage, self.receipt['manifestVersion'])
+        refresh_receipt(self.stage, self.receipt)
+        self.valid()
+        write(self.stage, 'index.html', html.replace('rel="shortcut icon"', 'rel="icon"').replace(
+            POLICY['favicon'], '/enterprise-assets/site/lundu-logo.png', 1))
+        manifest(self.stage, self.receipt['manifestVersion'])
+        refresh_receipt(self.stage, self.receipt)
+        with self.assertRaisesRegex(release.InvalidRelease, 'favicon'):
+            self.valid()
+
     def test_same_size_tampering_is_rejected(self):
         target = self.stage / 'assets/main.js'
         original = target.read_bytes()

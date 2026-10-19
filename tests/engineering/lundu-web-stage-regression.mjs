@@ -4,12 +4,17 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileHashes, protectedPath, sha256, stampRelease, treeSha256, validateSite } from '../../scripts/stage-lundu-web-release.mjs'
+import { assertBuildEnvironment, fileHashes, protectedPath, sha256, stampRelease, treeSha256, validateSite } from '../../scripts/stage-lundu-web-release.mjs'
 
 const root = mkdtempSync(join(tmpdir(), 'lundu-release-'))
 const put = (name, value) => { mkdirSync(join(root, name, '..'), { recursive: true }); writeFileSync(join(root, name), value) }
 const policy = { enterpriseId: 'lundu', carouselCount: 6, mounts: ['', 'mobile'], favicon: '/enterprise-assets/site/icon.png' }
 try {
+  assertBuildEnvironment(root, {})
+  assert.throws(() => assertBuildEnvironment(root, { VITE_ENTERPRISE_SHARE_TITLE: 'unexpected' }), /inherited VITE/)
+  put('eiscore-base/.env.local', 'VITE_UNEXPECTED=value')
+  assert.throws(() => assertBuildEnvironment(root, {}), /unrecorded Vite/)
+  rmSync(join(root, 'eiscore-base'), { recursive: true })
   const slides = Array.from({ length: 6 }, (_, i) => `/enterprise-assets/site/${i}.jpg`)
   for (const name of [...slides, policy.favicon]) put(name, 'art')
   put('assets/PumpBomViewer-123.js', 'viewer')
