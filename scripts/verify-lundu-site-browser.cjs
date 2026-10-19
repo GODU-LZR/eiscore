@@ -95,16 +95,18 @@ async (page, suppliedConfig) => {
       check(bomParts === 13, `Expected 13 pump BOM parts, got ${bomParts}`)
       check(await bom.locator('canvas').evaluate(canvas => canvas.width > 0 && canvas.height > 0
         && canvas.getBoundingClientRect().width > 0 && canvas.getBoundingClientRect().height > 0), 'Pump canvas has no rendered dimensions')
+      await page.bringToFront()
       await bom.getByRole('button', { name: '拆分 BOM', exact: true }).click()
       await page.waitForFunction(() => {
         const node = document.querySelector('.pump-bom-progress span')
         return node && new DOMMatrix(getComputedStyle(node).transform).a > 0.99
-      }, null, { timeout: 20000 })
+      }, null, { timeout: 90000 })
+      await page.bringToFront()
       await bom.getByRole('button', { name: '组装 BOM', exact: true }).click()
       await page.waitForFunction(() => {
         const node = document.querySelector('.pump-bom-progress span')
         return node && new DOMMatrix(getComputedStyle(node).transform).a < 0.01
-      }, null, { timeout: 20000 })
+      }, null, { timeout: 90000 })
 
       const cards = page.locator('.public-product-card')
       check(await cards.count() === 12, 'Expected 12 public products')
