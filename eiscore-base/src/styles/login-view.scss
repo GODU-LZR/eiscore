@@ -6048,7 +6048,7 @@
   transform: none;
 }
 
-/* Crop the packshots' background margin inside a stable thumbnail. */
+/* Keep the full product visible inside a stable thumbnail. */
 .quote-line {
   grid-template-columns: 112px minmax(0, 1fr) 90px 34px;
   min-height: 112px;
@@ -6070,9 +6070,9 @@
   min-height: 112px;
   border: 0;
   border-radius: 0;
-  object-fit: cover !important;
+  object-fit: contain;
   object-position: center;
-  transform: scale(1.15);
+  transform: none;
 }
 
 /* Keep every scroll surface quiet and consistent with the Lundu blue theme. */
@@ -6131,7 +6131,6 @@
 
   .quote-line img {
     min-height: 80px;
-    transform: scale(1.12);
   }
 }
 
