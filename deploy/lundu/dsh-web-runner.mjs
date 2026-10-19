@@ -68,7 +68,12 @@ export const resolveDefaultWorkspace = (
 export const resolveHarnessPatchPath = (patchValue = process.env.DSH_PATCH_PATH) =>
   String(patchValue || '').trim() || '/opt/eiscore-harness/dsh-web.patch.yml'
 
-const start = () => {
+const start = async () => {
+// The shared runner also serves Flash. Only the business profile loads this
+// presentation layer; no host/static-site release is involved.
+const businessUi = process.env.EISCORE_HARNESS_CAPABILITY_PROFILE === 'business'
+  ? await import(new URL('./business-web-ui.mjs', import.meta.url))
+  : null
 ensureStartupProfile()
 
 const defaultWorkspace = resolveDefaultWorkspace()
@@ -292,6 +297,7 @@ const isAuthenticated = async (headers) => {
 }
 
 const proxy = http.createServer((request, response) => {
+  if (businessUi?.handleBusinessUi(request, response)) return
   const path = request.url || '/'
   const headers = { ...request.headers, cookie: mapAuthCookiesToUpstream(request.headers.cookie, authCookiePrefix) }
   bootstrapDshAuth(headers).then(({ headers: authenticatedHeaders, setCookies }) => {
@@ -312,7 +318,8 @@ const proxy = http.createServer((request, response) => {
 
 const proxyAuthenticatedRequest = (request, response, headers = request.headers, bootstrapCookies = []) => {
   const rewriteAuthStart = request.method === 'POST' && (request.url || '').split('?', 1)[0] === '/api/eiscore/auth/start'
-  const upstreamHeaders = rewriteAuthStart ? { ...headers, 'accept-encoding': 'identity' } : headers
+  const rewriteHtml = businessUi && isHtmlNavigation(request)
+  const upstreamHeaders = rewriteAuthStart || rewriteHtml ? { ...headers, 'accept-encoding': 'identity' } : headers
   const upstream = http.request({
     hostname: '127.0.0.1',
     port: 3080,
@@ -326,14 +333,17 @@ const proxyAuthenticatedRequest = (request, response, headers = request.headers,
       ...cookieHeaders(upstreamResponse.headers['set-cookie'])
     ], authCookiePrefix)
     if (setCookies.length) responseHeaders['set-cookie'] = setCookies
-    if (rewriteAuthStart) {
+    const injectHtml = rewriteHtml && /^text\/html(?:;|$)/i.test(String(responseHeaders['content-type'] || ''))
+    if (rewriteAuthStart || injectHtml) {
       const chunks = []
       upstreamResponse.on('data', (chunk) => chunks.push(chunk))
       upstreamResponse.on('end', () => {
-        const body = rewriteAuthStartBody(Buffer.concat(chunks).toString('utf8'), headers)
+        const original = Buffer.concat(chunks).toString('utf8')
+        const body = injectHtml ? businessUi.injectBusinessUi(original) : rewriteAuthStartBody(original, headers)
         delete responseHeaders['transfer-encoding']
         delete responseHeaders['content-encoding']
         delete responseHeaders.etag
+        if (injectHtml) responseHeaders['cache-control'] = 'no-store'
         responseHeaders['content-length'] = Buffer.byteLength(body)
         response.writeHead(upstreamResponse.statusCode || 502, responseHeaders)
         response.end(body)
@@ -378,4 +388,4 @@ proxy.listen(3081, '0.0.0.0')
 dsh.on('exit', (code) => process.exit(code ?? 1))
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) start()
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await start()

@@ -1,0 +1,28 @@
+[data-slot="conversation.hero.workspace"],
+[data-slot="conversation.hero.agentPreset"],
+[data-slot="sidebar.workspaces"] .bhn1Oq_headerActions,
+[data-slot="sidebar.workspaces"] .YDXeBa_projectRow,
+[data-slot="sidebar.workspaces"] [aria-label="添加工作区"],
+[data-slot="sidebar.workspaces"] [aria-label="Add workspace"],
+button[aria-label="选择工作区"],
+button[aria-label="Choose workspace"],
+button[aria-label="选择模式"],
+button[aria-label="Choose mode"],
+button[aria-label^="访问模式，当前："],
+button[aria-label^="Access mode, current:"] {
+  display: none !important;
+}
+
+.md-code-block.eis-visual-code-block { display: block !important; }
+.md-code-block.eis-visual-code-block > :not(.eis-visual-render),
+.md-code-block.eis-visual-code-block[data-eis-visual-status="error"] { display: none !important; }
+.eis-visual-output { display: block; width: 100%; max-width: 1080px; min-width: 0; margin: 12px 0; overflow: hidden; border: 1px solid #dbe2ea; border-radius: 8px; background: #fff; box-sizing: border-box; }
+.eis-visual-frame { display: block; width: 100%; height: 460px; min-width: 0; border: 0; background: #fff; }
+.eis-visual-status { margin: 0; padding: 12px 16px; color: #64748b; font: 13px/1.5 system-ui, sans-serif; white-space: normal; }
+[data-eis-visual-status="ready"] .eis-visual-status { display: none; }
+@media (max-width: 480px) { .eis-visual-output { margin: 8px 0; border-radius: 6px; } .eis-visual-frame { height: 400px; } }
+@media (max-width: 768px) {
+  [data-slot="conversation.view"] :has(> [data-chat-flow]) { padding-inline: 12px; }
+  [data-slot="conversation.session.header"] > header { padding-inline: 12px; }
+  [data-slot="conversation.composer"] :has(> [data-composer-card]) { padding-inline: 8px; }
+}
