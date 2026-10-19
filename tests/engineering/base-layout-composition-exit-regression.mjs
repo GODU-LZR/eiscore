@@ -61,7 +61,7 @@ for (const file of policyFiles) {
     assert.equal(policySource.includes(forbidden), false, `${file} gained runtime dependency: ${forbidden}`)
   }
 }
-assert.equal(policyExports, 41)
+assert.equal(policyExports, 42)
 
 const count = (pattern) => (source.match(pattern) || []).length
 assert.ok(count(/\.requestJson\(/g) <= 6, 'base layout added host HTTP orchestration')

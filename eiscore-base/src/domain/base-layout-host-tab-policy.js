@@ -5,6 +5,9 @@ import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '../utils/mic
 
 export const HOST_ENTRY_TAB_KEY = '/'
 
+// Business Harness lives in the workbench iframe, never a second host tab.
+export const isStandaloneBusinessHarnessPath = (path) => /^\/(?:harness(?:-embed)?|embed\/(?:digital-twin|smart-bi)|ai\/enterprise)(?:\/|[?#]|$)/.test(String(path || ''))
+
 const MODULE_ENTRY_TITLES = {
   '/': '首页',
   '/materials': '仓储管理',

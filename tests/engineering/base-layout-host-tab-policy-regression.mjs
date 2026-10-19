@@ -15,6 +15,7 @@ import {
   getHostPurchaseDocumentAppKey,
   isHostModuleAppPath,
   isHostModuleEntryPath,
+  isStandaloneBusinessHarnessPath,
   normalizeHostFallbackTitle,
   normalizeHostTabPath,
   normalizeHostTabQuery,
@@ -26,6 +27,12 @@ import {
 const repoRoot = resolve(import.meta.dirname, '../..')
 
 assert.equal(HOST_ENTRY_TAB_KEY, '/')
+for (const path of ['/harness', '/harness/', '/harness?from=old', '/harness-embed/#digital-twin', '/embed/digital-twin', '/embed/smart-bi', '/ai/enterprise/chat']) {
+  assert.equal(isStandaloneBusinessHarnessPath(path), true, path)
+}
+for (const path of ['/', '/hr/users', '/apps/flash-builder/1', '/harness-flash-embed/', '/harness-bridge', '/harnessing', '/embed/digital-twinning', '/ai/enterprises']) {
+  assert.equal(isStandaloneBusinessHarnessPath(path), false, path)
+}
 for (const [input, expected] of [
   ['', '/'], ['apps', '/apps/'], ['/apps/index.html', '/apps/'], ['/materials/', '/materials'],
   ['/sales/apps/', '/sales'], ['/materials/sales/app/orders', '/sales/app/orders'],
