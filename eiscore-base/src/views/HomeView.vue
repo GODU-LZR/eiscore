@@ -7,8 +7,7 @@
           <component :is="activeModeMeta.icon" />
         </el-icon>
         <span class="header-title">{{ activeModeMeta.title }}</span>
-        <el-tag v-if="activeMode === 'twin'" size="small" type="success" effect="plain">AI 助手</el-tag>
-        <el-tag v-else-if="activeMode === 'enterprise'" size="small" type="warning" effect="plain">智能 BI</el-tag>
+        <el-tag v-if="activeMode === 'harness'" size="small" type="success" effect="plain">AI 工作台</el-tag>
         <el-tag v-else size="small" type="primary" effect="plain">单据流转</el-tag>
       </div>
       <div class="header-right">
@@ -42,19 +41,18 @@
       </div>
     </div>
 
-    <div v-if="activeMode === 'twin' || activeMode === 'enterprise'" class="harness-wrapper">
+    <div v-show="activeMode === 'harness'" class="harness-wrapper" :aria-busy="harnessAuthPending">
       <iframe
         v-if="harnessAuthReady && !harnessFrameFailed"
-        ref="harnessFrameRef"
         class="harness-frame"
         :src="harnessFrameUrl"
         title="DeepSeek Harness 对话工作台"
-        @load="syncHarnessFeature"
         @error="harnessFrameFailed = true"
       ></iframe>
       <div v-else class="harness-loading" role="status" aria-live="polite">
         <el-icon :class="{ 'is-loading': harnessAuthPending }"><Loading /></el-icon>
         <span>{{ harnessFrameFailed ? 'DeepSeek Harness 加载失败，请重新登录' : '正在加载 DeepSeek Harness' }}</span>
+        <el-button v-if="harnessFrameFailed && !harnessAuthPending" size="small" @click="prepareHarnessAuth">重试</el-button>
       </div>
     </div>
     <div v-show="activeMode === 'flow'" class="flow-wrapper">
@@ -73,9 +71,7 @@ import { useUserStore } from '@/stores/user'
 import { getAuthHeader } from '@/utils/auth'
 import { prepareHarnessAuth as prepareHarnessAuthRequest } from '@/services/harness-auth-client'
 import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
-import {
-  Loading, DataAnalysis, Service, Share
-} from '@element-plus/icons-vue'
+import { Loading, Service, Share } from '@element-plus/icons-vue'
 
 
 // ── Store & Auth ──
@@ -93,29 +89,12 @@ const DEFAULT_WORKBENCH_MODE = 'flow'
 const activeMode = ref(DEFAULT_WORKBENCH_MODE)
 const harnessFrameFailed = ref(false)
 const harnessWebUrl = import.meta.env.VITE_HARNESS_WEB_URL || '/harness-embed/'
-const harnessWebEnabled = Boolean(harnessWebUrl)
 const harnessAuthReady = ref(false)
 const harnessAuthPending = ref(false)
 let harnessAuthRequestId = 0
 const harnessFrameUrl = harnessWebUrl
-const harnessFrameRef = ref(null)
-const syncHarnessFeature = () => {
-  const frameWindow = harnessFrameRef.value?.contentWindow
-  if (!frameWindow) return
-  const feature = activeMode.value === 'enterprise' ? 'enterprise-bi' : 'digital-twin'
-  try {
-    frameWindow.dispatchEvent(new frameWindow.CustomEvent('eiscore:harness-feature', { detail: feature }))
-  } catch {
-    // A separately hosted Harness cannot be accessed by the host document.
-  }
-}
 
 const prepareHarnessAuth = async () => {
-  if (!harnessWebEnabled) {
-    harnessAuthReady.value = true
-    harnessAuthPending.value = false
-    return true
-  }
   const requestId = ++harnessAuthRequestId
   harnessAuthPending.value = true
   harnessFrameFailed.value = false
@@ -126,32 +105,30 @@ const prepareHarnessAuth = async () => {
       harnessWebUrl,
       authorization: getAuthHeader().Authorization || ''
     })
+  } catch {
+    ready = false
   } finally {
     if (requestId === harnessAuthRequestId) {
       harnessAuthReady.value = ready
       harnessAuthPending.value = false
+      harnessFrameFailed.value = !ready
     }
   }
   return ready
 }
 const modeOptions = [
-  { label: '数字分身', value: 'twin', desc: '个人工作助手', badge: 'AI', icon: Service },
-  { label: '智能 BI', value: 'enterprise', desc: '经营数据分析', badge: 'BI', icon: DataAnalysis },
+  { label: 'DeepSeek Harness', value: 'harness', desc: '数字分身与智慧 BI', badge: 'AI', icon: Service },
   { label: '业务流程', value: 'flow', desc: '流程与单据', badge: 'Flow', icon: Share }
 ]
 
 const activeModeMeta = computed(() => {
-  if (activeMode.value === 'enterprise') return { title: '智能 BI', icon: DataAnalysis }
-  if (activeMode.value === 'flow') return { title: '业务流程', icon: Share }
-  return { title: '我的数字分身', icon: Service }
+  if (activeMode.value === 'harness') return { title: 'DeepSeek Harness', icon: Service }
+  return { title: '业务流程', icon: Share }
 })
 
 watch(activeMode, (val) => {
-  harnessFrameFailed.value = false
-  harnessAuthPending.value = false
-  harnessAuthReady.value = false
-  if (val === 'twin' || val === 'enterprise') {
-    void prepareHarnessAuth().then(() => syncHarnessFeature())
+  if (val === 'harness' && !harnessAuthPending.value && (!harnessAuthReady.value || harnessFrameFailed.value)) {
+    void prepareHarnessAuth()
   }
 })
 </script>
@@ -234,7 +211,7 @@ $border-color: var(--el-border-color, #dcdfe6);
 
   .mode-switcher {
     display: grid;
-    grid-template-columns: repeat(3, minmax(128px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
     min-width: min(540px, 56vw);
     padding: 3px;
@@ -354,8 +331,10 @@ $border-color: var(--el-border-color, #dcdfe6);
   }
 }
 
-// ── 数字分身整体 ──
+// ── Harness 工作台 ──
 .harness-wrapper {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -433,7 +412,7 @@ $border-color: var(--el-border-color, #dcdfe6);
     }
 
     .mode-card {
-      flex: 0 0 154px;
+      flex: 0 0 220px;
       scroll-snap-align: start;
     }
 
