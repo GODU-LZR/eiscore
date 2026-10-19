@@ -227,7 +227,7 @@
       </el-main>
     </el-container>
 
-    <AiCopilot v-if="showWorkerAssistant" mode="worker" data-guide="worker-assistant" />
+    <BusinessHarnessHost :worker-visible="showWorkerAssistant" />
     <el-dialog
       v-model="guideWelcomeVisible"
       title="新手指引"
@@ -324,7 +324,7 @@ import {
   pickBaseRecommendedGuide
 } from '@/domain/base-layout-guide-policy'
 
-const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
+const BusinessHarnessHost = defineAsyncComponent(() => import('@/components/harness/BusinessHarnessHost.vue'))
 const isCollapse = ref(false)
 const router = useRouter()
 const route = useRoute()

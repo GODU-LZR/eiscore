@@ -4,6 +4,7 @@
 import { reactive, watch } from 'vue'
 import request from '@/utils/request'
 import { getToken } from '@/utils/auth'
+import { openHarnessAssistant } from '@/services/business-harness-controller'
 import {
   buildGridAgentQueryPayload,
   formatGridAgentQueryResultForPrompt,
@@ -132,11 +133,11 @@ class AiBridge {
     this.lastCommandId = command.id
 
     if (command.type === 'open-worker') {
-      this.setMode('worker')
-      this.openWindow()
-      if (typeof command.prompt === 'string' && command.prompt.trim()) {
-        this.sendMessage(command.prompt)
-      }
+      return openHarnessAssistant({
+        id: command.id,
+        type: 'open-worker',
+        prompt: typeof command.prompt === 'string' ? command.prompt : ''
+      })
     }
   }
 

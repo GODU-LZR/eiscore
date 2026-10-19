@@ -32,6 +32,110 @@
   noticeObserver.observe(document, { childList: true, subtree: true })
   dismissNotice()
 
+  const installWorkerDraft = () => {
+    if (window.parent === window) return
+    const seen = new Map()
+    const pending = []
+    let timer, notice, composing = false
+    const result = (entry) => window.parent.postMessage({
+      type: 'eiscore:harness-draft-result', version: 1, id: entry.id, status: entry.status
+    }, location.origin)
+    const composer = () => [...document.querySelectorAll('[data-composer-input][contenteditable="true"]')]
+      .find((input) => input.getAttribute('aria-disabled') !== 'true' && input.getClientRects().length)
+    const draft = (input) => String(input.innerText ?? input.textContent ?? '').replace(/\r\n?/g, '\n').trim()
+    const showPending = () => {
+      notice?.remove()
+      notice = null
+      if (!pending.length || !document.body) return
+      const entry = pending[0]
+      notice = document.createElement('aside')
+      notice.className = 'eis-worker-draft-notice'
+      notice.setAttribute('aria-label', '待接收工作指令')
+      const label = document.createElement('span')
+      label.textContent = entry.message || `收到工作指令${pending.length > 1 ? `（${pending.length} 条）` : ''}，尚未发送`
+      const accept = document.createElement('button')
+      accept.type = 'button'
+      accept.textContent = entry.consent ? '替换当前草稿' : '填入草稿'
+      accept.addEventListener('click', () => applyPending(true))
+      notice.append(label, accept)
+      document.body.appendChild(notice)
+    }
+    const applyPending = async (replace = false) => {
+      clearTimeout(timer)
+      const entry = pending[0]
+      if (!entry || entry.applying) return
+      const input = composer()
+      if (!input || composing) {
+        entry.message = '输入栏尚未就绪，请稍后填入草稿'
+        showPending()
+        // A late workspace/composer gets 15 seconds; the visible button remains after that.
+        if (++entry.attempts <= 60) timer = setTimeout(() => applyPending(), 250)
+        return
+      }
+      if ((draft(input) || entry.consent) && !replace) {
+        entry.consent = true
+        entry.message = '当前草稿已保留，工作指令尚未发送'
+        showPending()
+        return
+      }
+      entry.applying = true
+      try {
+        input.focus({ preventScroll: true })
+        const range = document.createRange()
+        range.selectNodeContents(input)
+        const selection = window.getSelection()
+        selection.removeAllRanges()
+        selection.addRange(range)
+        document.dispatchEvent(new Event('selectionchange'))
+        // The upstream Lexical composer handles paste via keyboard.paste(), updating its draft store.
+        const transfer = new DataTransfer()
+        transfer.setData('text/plain', entry.prompt)
+        input.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer }))
+        await new Promise((resolve) => setTimeout(resolve, 0))
+        if (draft(input) !== entry.prompt.trim()) throw new Error('Composer did not adopt the draft')
+        entry.status = 'applied'
+        result(entry)
+        pending.shift()
+        showPending()
+        if (pending.length) applyPending()
+      } catch {
+        entry.consent = true
+        entry.message = '工作指令尚未填入，请重试；不会自动发送'
+        showPending()
+      } finally {
+        entry.applying = false
+      }
+    }
+    window.addEventListener('message', (event) => {
+      const data = event.data
+      if (event.source !== window.parent || event.origin !== location.origin || !data || typeof data !== 'object' || Array.isArray(data)
+        || data.type !== 'eiscore:harness-draft' || data.version !== 1
+        || Object.keys(data).some((key) => !['type', 'version', 'id', 'prompt'].includes(key))
+        || typeof data.id !== 'string' || !data.id.trim() || data.id.length > 128
+        || typeof data.prompt !== 'string' || !data.prompt.trim() || data.prompt.length > 12000) return
+      const previous = seen.get(data.id)
+      if (previous) { result(previous); return }
+      // No ACK on overflow: the host retains the command and can retry after capacity opens.
+      if (pending.length >= 8) return
+      if (seen.size >= 256) {
+        for (const [id, entry] of seen) {
+          if (entry.status === 'applied') seen.delete(id)
+          if (seen.size < 256) break
+        }
+      }
+      const entry = { id: data.id, prompt: data.prompt, status: 'queued', attempts: 0, consent: false }
+      seen.set(entry.id, entry)
+      pending.push(entry)
+      result(entry)
+      if (pending.length === 1) applyPending()
+      else showPending()
+    })
+    document.addEventListener('compositionstart', () => { composing = true }, true)
+    document.addEventListener('compositionend', () => { composing = false }, true)
+    window.addEventListener('pagehide', () => clearTimeout(timer))
+  }
+  installWorkerDraft()
+
   const MAX_SOURCE = 192 * 1024
   const aliases = {
     echarts: 'echarts', echart: 'echarts', 'e-chart': 'echarts',

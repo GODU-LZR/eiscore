@@ -18,11 +18,7 @@
           <span class="title">{{ assistantTitle }}</span>
         </div>
         <div class="header-right">
-          <el-tooltip v-if="isWorker" :content="isWorkerFullscreen ? '退出全屏' : '全屏'" placement="bottom">
-            <el-icon class="action-icon" @click="toggleFullscreen">
-              <component :is="isWorkerFullscreen ? ScaleToOriginal : FullScreen" />
-            </el-icon>
-          </el-tooltip>
+          <HarnessFullscreenButton v-if="isWorker" :fullscreen="isWorkerFullscreen" @toggle="toggleFullscreen" />
           <el-tooltip content="新建对话" placement="bottom">
             <el-icon class="action-icon" @click="aiBridge.createNewSession()"><Plus /></el-icon>
           </el-tooltip>
@@ -528,12 +524,13 @@ import {
 } from '@shared/smart-bi-config'
 import {
   Operation, Close, Plus, Delete, Paperclip, Position, Loading, Document,
-  Refresh, FullScreen, ScaleToOriginal, UserFilled, DataAnalysis, Service
+  Refresh, UserFilled, DataAnalysis, Service
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import MarkdownIt from 'markdown-it'
 import { useRouter } from 'vue-router'
 import { getWorkerFullscreen, saveWorkerFullscreen } from '@shared/eis-ui-preferences.mjs'
+import HarnessFullscreenButton from '@/components/harness/HarnessFullscreenButton.vue'
 import {
   buildAiWorkflowAclModule as buildWorkflowAclModule,
   buildAiWorkflowOps as buildWorkflowOps,

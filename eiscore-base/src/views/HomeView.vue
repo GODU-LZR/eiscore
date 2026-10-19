@@ -41,19 +41,8 @@
       </div>
     </div>
 
-    <div v-show="activeMode === 'harness'" class="harness-wrapper" :aria-busy="harnessAuthPending">
-      <iframe
-        v-if="harnessAuthReady && !harnessFrameFailed"
-        class="harness-frame"
-        :src="harnessFrameUrl"
-        title="DeepSeek Harness 对话工作台"
-        @error="harnessFrameFailed = true"
-      ></iframe>
-      <div v-else class="harness-loading" role="status" aria-live="polite">
-        <el-icon :class="{ 'is-loading': harnessAuthPending }"><Loading /></el-icon>
-        <span>{{ harnessFrameFailed ? 'DeepSeek Harness 加载失败，请重新登录' : '正在加载 DeepSeek Harness' }}</span>
-        <el-button v-if="harnessFrameFailed && !harnessAuthPending" size="small" @click="prepareHarnessAuth">重试</el-button>
-      </div>
+    <div v-show="activeMode === 'harness'" class="harness-wrapper">
+      <HarnessWorkspaceSlot :active="activeMode === 'harness'" />
     </div>
     <div v-show="activeMode === 'flow'" class="flow-wrapper">
       <BusinessFlowMap />
@@ -66,12 +55,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useUserStore } from '@/stores/user'
-import { getAuthHeader } from '@/utils/auth'
-import { prepareHarnessAuth as prepareHarnessAuthRequest } from '@/services/harness-auth-client'
 import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
-import { Loading, Service, Share } from '@element-plus/icons-vue'
+import HarnessWorkspaceSlot from '@/components/harness/HarnessWorkspaceSlot.vue'
+import { Service, Share } from '@element-plus/icons-vue'
 
 
 // ── Store & Auth ──
@@ -87,35 +75,6 @@ const isAdmin = computed(() => {
 // ── 模式切换 ──
 const DEFAULT_WORKBENCH_MODE = 'flow'
 const activeMode = ref(DEFAULT_WORKBENCH_MODE)
-const harnessFrameFailed = ref(false)
-const harnessWebUrl = import.meta.env.VITE_HARNESS_WEB_URL || '/harness-embed/'
-const harnessAuthReady = ref(false)
-const harnessAuthPending = ref(false)
-let harnessAuthRequestId = 0
-const harnessFrameUrl = harnessWebUrl
-
-const prepareHarnessAuth = async () => {
-  const requestId = ++harnessAuthRequestId
-  harnessAuthPending.value = true
-  harnessFrameFailed.value = false
-  harnessAuthReady.value = false
-  let ready = false
-  try {
-    ready = await prepareHarnessAuthRequest({
-      harnessWebUrl,
-      authorization: getAuthHeader().Authorization || ''
-    })
-  } catch {
-    ready = false
-  } finally {
-    if (requestId === harnessAuthRequestId) {
-      harnessAuthReady.value = ready
-      harnessAuthPending.value = false
-      harnessFrameFailed.value = !ready
-    }
-  }
-  return ready
-}
 const modeOptions = [
   { label: 'DeepSeek Harness', value: 'harness', desc: '数字分身与智慧 BI', badge: 'AI', icon: Service },
   { label: '业务流程', value: 'flow', desc: '流程与单据', badge: 'Flow', icon: Share }
@@ -126,11 +85,6 @@ const activeModeMeta = computed(() => {
   return { title: '业务流程', icon: Share }
 })
 
-watch(activeMode, (val) => {
-  if (val === 'harness' && !harnessAuthPending.value && (!harnessAuthReady.value || harnessFrameFailed.value)) {
-    void prepareHarnessAuth()
-  }
-})
 </script>
 
 <style scoped lang="scss">
@@ -346,26 +300,6 @@ $border-color: var(--el-border-color, #dcdfe6);
   min-height: 0;
   overflow: hidden;
   position: relative;
-}
-
-.harness-frame {
-  width: 100%;
-  height: 100%;
-  flex: 1;
-  min-height: 0;
-  border: 0;
-  background: #fff;
-}
-
-.harness-loading {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--el-text-color-secondary);
-  background: #fff;
 }
 
 @media (max-width: 1180px) {

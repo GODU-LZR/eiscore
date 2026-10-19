@@ -49,6 +49,7 @@ export const BASE_WORKER_ASSISTANT_HIDDEN_ROUTES = [
 
 export const isBaseWorkerAssistantVisible = (path) => {
   const routePath = path || '/'
+  if (/^\/apps\/flash-builder(?:\/|$)/.test(routePath)) return false
   if (routePath === '/' || routePath.startsWith('/ai/enterprise')) return false
   return !BASE_WORKER_ASSISTANT_HIDDEN_ROUTES.some((prefix) => (
     routePath === prefix || routePath.startsWith(`${prefix}/`)
