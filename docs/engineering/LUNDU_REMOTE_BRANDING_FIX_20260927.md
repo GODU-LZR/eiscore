@@ -1,5 +1,9 @@
 # 伦度线上品牌误显示修复记录
 
+2026-10-20 发布约束更新：本文件保留历史事故证据；已有伦度站点的更新统一遵循
+`deploy/lundu/README.md` 的受锁发布工具，不再复用下文历史手工覆盖命令。
+完整来源/艺术保护、真实公开配置四视口验收及线上基线匹配为必过门禁，详见 EIS-011。
+
 ## 现象与根因
 
 2026-09-27 检查 `https://lundu.eiscore.top/login` 时页面显示君乐缘。远端 `/config/eiscore-enterprise.json` 实际已是伦度配置，包含 `enterprise.id=lundu` 和 `branding.logoUrl=/enterprise-assets/site/lundu-logo.png`；问题出在静态前端发布目录不匹配：

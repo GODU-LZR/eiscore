@@ -22,6 +22,12 @@
 
 ## 轻量发布协作协议
 
+2026-10-20 EIS-011 补充（优先于下面的历史手工发布示例）：伦度 Web 必须使用
+`npm run release:lundu:prepare`、真实公开配置的 `verify-lundu-site-browser.cjs` 和
+`publish-lundu-web-release.py`。操作步骤见 `deploy/lundu/README.md`。只有入口/艺术文件
+存在、候选与主分支一致或HTTP 200，均不再足以放行；必须包含独立站修复、完整12入口、
+逐字节来源证明与四视口浏览器证据，并在发布锁内匹配当前线上基线。禁止手工覆盖 assets。
+
 伦度远端当前是开发/验收 Docker Compose 环境，不是严格生产环境。三个 Agent 都可以在自己的职责范围内发布，不设置单一发布权限；协作目标是避免互相覆盖和让服务回退到错误客户版本。
 
 以下规则对所有 Agent 生效：

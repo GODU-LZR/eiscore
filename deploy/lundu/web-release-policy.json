@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "requiredSourceCommit": "937b548aa7afd1ce35d108040c0da32d0ab32e5c",
+  "enterpriseId": "lundu",
+  "origin": "https://lundu.eiscore.top",
+  "mounts": ["", "apps", "company-site", "decision", "equipment", "hr", "materials", "mobile", "production", "purchase", "quality", "sales"],
+  "carouselCount": 6,
+  "bomParts": 13,
+  "productCount": 12,
+  "favicon": "/enterprise-assets/site/lundu-favicon.png"
+}
