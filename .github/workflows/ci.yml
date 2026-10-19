@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - codex/systematic-refactor
+      - codex/fix-eis011-*
   pull_request:
   workflow_dispatch:
 
@@ -39,6 +41,9 @@ jobs:
         env:
           EISCORE_QUALITY_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: npm run test:quality
+
+      - name: Guard Lundu source and web releases
+        run: npm run test:lundu-web-release
 
       - name: Run isolated database integration gates
         run: npm run test:database:docker

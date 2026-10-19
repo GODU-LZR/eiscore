@@ -2,6 +2,34 @@
 
 这套部署使用 EISCore codex 重构分支的构建产物，单独运行 Postgres、PostgREST、Agent Runtime 和 Nginx。远端工作目录为 `/opt/lundu-eiscore`，`source/` 是仓库源码，`release/` 是前端制品，`compose.yml` 使用独立的 `lundu-eiscore` 项目名和卷。
 
+## 已有站点的 Web 更新（EIS-011）
+
+宿主同时承载工作台与公开独立站，工作台改动也必须保护公开站。下面是已有站点的必经路径；不得用手工 `cp`、`tar` 覆盖运行中的 `release` 或仅替换 assets。
+
+1. 声明目标为伦度 `web`、干净分支/提交、候选路径和影响。抓取当前完整 release 作只读 baseline，并记录其 manifest/index SHA-256；不从其他企业或历史目录猜基线。
+2. 运行 `npm run test:lundu-web-release`。然后在干净隔离 worktree 执行：
+
+   ```sh
+   npm run release:lundu:prepare -- --baseline /path/to/live-snapshot --output /path/to/new-candidate
+   ```
+
+   准备器检查 `937b548a` 来源和实际图片/公开档案回归，按锁文件安装、实际构建宿主；保留并逐字节验证11个微应用及艺术/配置；生成12入口、独立发布 stamp、完整 manifest 和 `release-provenance.json`。任何失败不用于发布。
+3. 用专用 Playwright CLI 会话在伦度 origin 映射候选静态文件（包含 provenance），保持 `/agent/company-site/public/*` 使用真实远端 GET。设 `window.__LUNDU_RELEASE_CHECK__={expectedVersion,expectedTreeSha256}`，运行 `scripts/verify-lundu-site-browser.cjs` 并将返回 JSON 存到候选外。它必须等待真实 published-site，验四视口的六轮播、13零件拆组、12产品/详情/采购图、Logo/favicon及无溢出/错误品牌；禁止 mock `{site:null}` 冒充公开页验收。验后不能再修改候选。
+4. 首次或修改缓存流程时，用 `serve-lundu-release-candidates.mjs <old> <candidate>` 启动临时 localhost 服务，在独立浏览器运行 `verify-lundu-service-worker-upgrade.cjs`，验证旧受控 SW 升级；结束关闭该自有服务。不能通过清用户缓存代替升级测试。
+5. 将完整候选根目录（无外层 dist 包装）归档，记录 SHA-256；上传归档、浏览器 JSON、提交中的 Python 工具和 policy 到伦度独立 staging。先本机 `--validate-only`，再远端 `--check-only`；后者持共享发布锁，核当前 baseline、全部保护文件、Nginx、实际mount/HTTP字节和容器身份，但不切换。正式发布去掉该开关：
+
+   ```sh
+   python3 /opt/lundu-eiscore/tools/publish-lundu-web-release.py \
+     --policy /opt/lundu-eiscore/deploy/lundu/web-release-policy.json \
+     --archive /path/to/candidate.tar.gz --archive-sha256 <sha256> \
+     --evidence /path/to/browser.json --evidence-sha256 <sha256>
+   ```
+
+   工具拒绝来源缺失、额外/缺失/改动文件、过期或不匹配的验收证明、旧线上基线、污染路径及并行锁。只原子切换完整站点并重建伦度 web，逐字节检查HTTP和非web容器不变；失败自动回退完整旧站，备份在 `backups/web-before-*`。不读出秘密，不迁移或回退业务数据库。
+6. 在真实线上复跑公开浏览器检查，报告实际重建服务、主包/manifest数量、来源、回退目录和结果。候选验证不能混报线上通过。
+
+`release-provenance.json` 绑定全部文件的实际字节（自身除外），独立于基于mtime/size的缓存manifest版本。来源/验收JSON是协作一致性证据，不是签名证明；具备root权限的人仍可绕开工具。本规则和机器门禁用于阻止既有事故路径，不作“任何人为操作都绝不可能覆盖”的承诺。
+
 部署顺序：
 
 1. 复制源码和前端制品到远端，生成仅存在于远端的 `.env`。
