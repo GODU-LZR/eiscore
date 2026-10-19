@@ -119,6 +119,28 @@ assert.equal(portal.previewMode, true)
 assert.equal(portal.factStatus, 'pending')
 assert.ok(Object.isFrozen(portal.products))
 
+const catalogOrderedPortal = enterprisePortalFromSiteConfig({
+  content: {
+    pages: [{
+      slug: 'home',
+      blocks: [{
+        type: 'product-catalog',
+        productCodes: ['PUMP-002', 'PUMP-001']
+      }]
+    }],
+    products: [
+      { productCode: 'MOTOR-001', name: '电机一号' },
+      { productCode: 'PUMP-001', name: '水泵一号' },
+      { productCode: 'PUMP-002', name: '水泵二号' }
+    ]
+  }
+})
+assert.deepEqual(catalogOrderedPortal.products.map((product) => product.code), [
+  'PUMP-002',
+  'PUMP-001',
+  'MOTOR-001'
+])
+
 assert.equal(Object.hasOwn(portal.loginBranding, 'aboutImage'), false)
 assert.equal(Object.hasOwn(portal.loginBranding, 'aboutImageAlt'), false)
 const aboutDeploymentConfig = {
@@ -257,6 +279,60 @@ const mergedSlides = mergeEnterpriseProfileIntoSystemConfig({
   }
 })
 assert.equal(mergedSlides.loginBranding.carouselImages[0].hasEmbeddedText, true)
+
+const legacySlidesPreservedWhenPortalIsEmpty = mergeEnterpriseProfileIntoSystemConfig({
+  loginBranding: { carouselImages: [{ url: '/legacy-hero.jpg', hasEmbeddedText: true }] }
+}, {
+  ...profile,
+  portal: {
+    ...profile.portal,
+    loginBranding: {
+      ...profile.portal.loginBranding,
+      carouselImages: []
+    }
+  }
+})
+assert.deepEqual(legacySlidesPreservedWhenPortalIsEmpty.loginBranding.carouselImages, [
+  { url: '/legacy-hero.jpg', hasEmbeddedText: true }
+])
+
+const sparsePortalKeepsDeploymentBranding = mergeEnterpriseProfileIntoSystemConfig({
+  loginBranding: {
+    slogan: '部署静态标语',
+    metrics: [{ label: '项目', value: '6000 个项目' }],
+    businessChain: [{ title: '水泵产品', description: '部署静态产品链' }],
+    capabilities: [{ title: '受控制造', description: '部署静态能力' }],
+    navItems: [{ label: '产品方向', anchor: 'products' }],
+    backgroundImage: '/legacy-background.jpg'
+  }
+}, {
+  ...profile,
+  portal: {
+    ...profile.portal,
+    loginBranding: {
+      slogan: '',
+      metrics: [],
+      businessChain: [],
+      capabilities: [],
+      navItems: [],
+      backgroundImage: ''
+    }
+  }
+})
+assert.equal(sparsePortalKeepsDeploymentBranding.loginBranding.slogan, '部署静态标语')
+assert.deepEqual(sparsePortalKeepsDeploymentBranding.loginBranding.metrics, [
+  { label: '项目', value: '6000 个项目' }
+])
+assert.deepEqual(sparsePortalKeepsDeploymentBranding.loginBranding.businessChain, [
+  { title: '水泵产品', description: '部署静态产品链' }
+])
+assert.deepEqual(sparsePortalKeepsDeploymentBranding.loginBranding.capabilities, [
+  { title: '受控制造', description: '部署静态能力' }
+])
+assert.deepEqual(sparsePortalKeepsDeploymentBranding.loginBranding.navItems, [
+  { label: '产品方向', anchor: 'products' }
+])
+assert.equal(sparsePortalKeepsDeploymentBranding.loginBranding.backgroundImage, '/legacy-background.jpg')
 
 const persisted = stripEnterpriseProfileFromSystemConfig(merged)
 assert.equal(Object.hasOwn(persisted.loginBranding, 'companyName'), false)

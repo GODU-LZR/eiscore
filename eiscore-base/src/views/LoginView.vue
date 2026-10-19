@@ -447,7 +447,7 @@
             <div v-if="quoteCount" class="quote-summary"><strong>{{ quoteCount }}</strong><span>{{ commerceUi.quoteSummary }}</span></div>
             <div v-if="quoteItems.length" class="quote-lines">
               <article v-for="item in quoteItems" :key="item.code" class="quote-line">
-                <div class="quote-line-media"><img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.name" /></div>
+                <div class="quote-line-media"><img v-if="item.imageUrl" :src="item.imageUrl" :alt="item.imageAlt || item.name" @error="handleQuoteProductImageError($event, item)" /></div>
                 <div><strong>{{ item.name }}</strong><small>{{ item.category }}</small></div>
                 <label><span class="sr-only">{{ commerceUi.quantityLabel }}</span><input v-model.number="item.quantity" type="number" min="1" max="99999" @change="normalizeQuoteQuantity(item)" /></label>
                 <button type="button" class="quote-remove" :aria-label="commerceUi.removeLabel" @click="removeFromQuote(item.code)">×</button>
@@ -626,6 +626,7 @@ import { mix } from '@/utils/theme'
 import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { normalizeLoginBranding } from '@eiscore/platform/login-branding'
 import { applyEnterpriseSeoHead, buildEnterpriseSeoHead } from '@eiscore/platform/enterprise-seo'
+import { fallbackProductImageAfterError, resolveProductImageUrl } from '@/utils/product-image.mjs'
 import { completeHarnessAuth } from '@/services/harness-auth-client'
 import { readPublicServiceContent, localizedPublicServices } from '@/services/public-service-content'
 import customerServiceAvatar from '@/assets/customer-service-avatar.png'
@@ -841,9 +842,18 @@ const PRODUCT_IMAGE_BY_CODE = Object.freeze({
   'LUNDU-PUMP-WQ': '/enterprise-assets/site/framed/product-wq-card.jpg',
   'LUNDU-PUMP-JET': '/enterprise-assets/site/framed/product-jet-card.jpg'
 })
+const PRODUCT_IMAGE_FALLBACKS = getEnterpriseConfig(globalThis)?.enterprise?.id === 'lundu' ? Object.freeze({
+  byCode: PRODUCT_IMAGE_BY_CODE,
+  submersiblePump: PRODUCT_IMAGE_BY_CODE['LUNDU-PUMP-WQ'],
+  pipelinePump: PRODUCT_IMAGE_BY_CODE['LUNDU-PUMP-PST'],
+  jetPump: PRODUCT_IMAGE_BY_CODE['LUNDU-PUMP-JET'],
+  singlePhaseMotor: PRODUCT_IMAGE_BY_CODE['LUNDU-MOTOR-YC'],
+  threePhaseMotor: PRODUCT_IMAGE_BY_CODE['LUNDU-MOTOR-YE3'],
+  motor: '/enterprise-assets/site/lundu-overview-motors.png'
+}) : Object.freeze({})
 const publicProducts = computed(() => (Array.isArray(portal.value.products) ? portal.value.products : []).map((product) => {
   const detail = PRODUCT_DETAILS[product.code]
-  const imageUrl = product.imageUrl || PRODUCT_IMAGE_BY_CODE[product.code] || ''
+  const imageUrl = resolveProductImageUrl(product, PRODUCT_IMAGE_FALLBACKS)
   if (!detail || activeLocale.value.toLowerCase().startsWith('en')) return { ...product, imageUrl }
   return {
     ...product,
@@ -860,7 +870,7 @@ const manufacturingSeries = computed(() => businessChainItems.value.slice(0, 3).
     ...item,
     number: String(index + 1).padStart(2, '0'),
     label: activeLocale.value.toLowerCase().startsWith('en') ? 'Product series' : '产品系列',
-    imageUrl: product?.imageUrl || PRODUCT_IMAGE_BY_CODE[manufacturingSeriesCodes[index]] || galleryImages.value[index]?.url || '',
+    imageUrl: product?.imageUrl || PRODUCT_IMAGE_FALLBACKS.byCode?.[manufacturingSeriesCodes[index]] || galleryImages.value[index]?.url || '',
     imageAlt: product?.imageAlt || item.title
   }
 }))
@@ -1065,6 +1075,14 @@ const addToQuote = (product) => {
     quoteItems.value.push({ ...product, quantity: 1 })
   }
   quoteVisible.value = true
+}
+
+const handleQuoteProductImageError = (event, item) => {
+  item.imageUrl = fallbackProductImageAfterError(
+    event.currentTarget.getAttribute('src'),
+    item,
+    PRODUCT_IMAGE_FALLBACKS
+  )
 }
 
 const removeFromQuote = (code) => {
@@ -1349,7 +1367,7 @@ const revealSections = () => {
       entry.target.classList.add('is-visible')
       revealObserver.unobserve(entry.target)
     })
-  }, { threshold: 0.18 })
+  }, { threshold: 0 })
   targets.forEach(item => revealObserver.observe(item))
 }
 
