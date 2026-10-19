@@ -45,6 +45,13 @@ export function assertSource(repo, required) {
   return git(['rev-parse', 'HEAD'])
 }
 
+export function assertBuildEnvironment(repo, environment = process.env) {
+  for (const name of ['.env', '.env.local', '.env.production', '.env.production.local']) {
+    assert(!existsSync(join(repo, 'eiscore-base', name)), `unrecorded Vite input forbidden: ${name}`)
+  }
+  assert(!Object.keys(environment).some(name => name.startsWith('VITE_')), 'inherited VITE_* inputs forbidden; use tracked deployment config')
+}
+
 export function validateSite(root, baselineFiles, policy) {
   const files = fileHashes(root)
   for (const [name, hash] of Object.entries(baselineFiles)) {
@@ -87,6 +94,7 @@ function main() {
   const repo = resolve(fileURLToPath(new URL('..', import.meta.url)))
   const policy = json(join(repo, 'deploy/lundu/web-release-policy.json'))
   const sourceCommit = assertSource(repo, policy.requiredSourceCommit)
+  assertBuildEnvironment(repo)
   const baseline = resolve(options.baseline)
   const output = resolve(options.output)
   assert(!existsSync(output), 'candidate output must not already exist')
@@ -107,7 +115,7 @@ function main() {
   const npmCli = process.env.npm_execpath || join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')
   assert(existsSync(npmCli), 'run through npm so npm_execpath identifies the installed CLI')
   // Reinstall from the lockfile rather than trusting a shared node_modules/junction.
-  node([npmCli, '--prefix', 'eiscore-base', 'ci', '--no-audit', '--no-fund'])
+  node([npmCli, '--prefix', 'eiscore-base', 'ci', '--prefer-offline', '--no-audit', '--no-fund'])
   const buildArgs = [npmCli, '--prefix', 'eiscore-base', 'run', 'build']
   const buildOutput = execFileSync(process.execPath, buildArgs, { cwd: repo, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 })
   process.stdout.write(buildOutput)
