@@ -155,7 +155,8 @@ async function fetchExactCount({
   apiUrl,
   profile = 'public',
   baseFilter = '',
-  searchQuery = ''
+  searchQuery = '',
+  timeout
 } = {}) {
   if (typeof globalThis.fetch !== 'function') return null
   const sourceUrl = trimApiPrefix(apiUrl || '')
@@ -165,6 +166,7 @@ async function fetchExactCount({
   const url = `/${baseUrl.replace(/^\/+/, '')}${filterQuery ? `?${filterQuery}` : ''}`
   const { headers } = await getSharedHttpClient().requestJson(url, {
     method: 'GET',
+    timeoutMs: timeout,
     headers: {
       'Accept-Profile': profile,
       Prefer: 'count=exact',
@@ -184,7 +186,9 @@ async function loadAppCardStatsRaw({
   viewId,
   stats = [countStat()],
   baseFilter = '',
-  searchQuery = ''
+  searchQuery = '',
+  timeout,
+  exactCountOnly = false
 } = {}) {
   if (!request || !(apiUrl || app?.apiUrl)) return {}
   const normalizedStats = stats.map(normalizeStatSpec)
@@ -205,7 +209,8 @@ async function loadAppCardStatsRaw({
         apiUrl: baseUrl || sourceUrl,
         profile: profileName,
         baseFilter: filterQuery,
-        searchQuery
+        searchQuery,
+        timeout
       })
       if (exactCount !== null) {
         countAllColumns.forEach((col) => {
@@ -218,6 +223,7 @@ async function loadAppCardStatsRaw({
   }
 
   const rpcColumns = exactCount !== null ? aggregateColumns : statColumns
+  if (exactCountOnly && !aggregateColumns.length) return values
   if (!rpcColumns.length) return values
 
   const payload = {
@@ -235,17 +241,26 @@ async function loadAppCardStatsRaw({
     }))
   }
 
-  const response = await request({
-    url: '/rpc/eis_grid_summary',
-    method: 'post',
-    headers: {
-      'Accept-Profile': 'public',
-      'Content-Profile': 'public'
-    },
-    data: { payload },
-    silentError: true,
-    suppressErrorMessage: true
-  })
+  let response
+  try {
+    response = await request({
+      url: '/rpc/eis_grid_summary',
+      method: 'post',
+      headers: {
+        'Accept-Profile': 'public',
+        'Content-Profile': 'public'
+      },
+      data: { payload },
+      ...(timeout === undefined ? {} : { timeout }),
+      silentError: true,
+      suppressErrorMessage: true
+    })
+  } catch {
+    // Keep exact counts that were already resolved when the aggregate RPC is
+    // unavailable. A transient summary failure must not turn the whole card
+    // into an empty result (and therefore a misleading zero).
+    return values
+  }
 
   const resultMap = response?.results || {}
   return rpcColumns.reduce((acc, col) => {
@@ -266,7 +281,9 @@ export async function loadAppCardStats({
   viewId,
   stats = [countStat()],
   baseFilter = '',
-  searchQuery = ''
+  searchQuery = '',
+  timeout,
+  exactCountOnly = false
 } = {}) {
   const normalizedStats = stats.map(normalizeStatSpec)
   if (!normalizedStats.length) return {}
@@ -289,7 +306,9 @@ export async function loadAppCardStats({
     viewId,
     stats: group.stats,
     baseFilter: group.filter,
-    searchQuery: group.search
+    searchQuery: group.search,
+    timeout,
+    exactCountOnly
   })))
 
   return entries.reduce((acc, values) => ({ ...acc, ...values }), {})
@@ -302,7 +321,8 @@ export async function loadAppCardStatsGroup({
   commonStats = [countStat()],
   stats = [],
   extraFilters = {},
-  baseFilter = ''
+  baseFilter = '',
+  timeout
 } = {}) {
   const specs = [
     ...commonStats.map(normalizeStatSpec),
@@ -326,7 +346,8 @@ export async function loadAppCardStatsGroup({
       profile,
       stats: group.stats,
       baseFilter: group.filter,
-      searchQuery: group.searchQuery
+      searchQuery: group.searchQuery,
+      timeout
     })
     return values
   }))
@@ -338,7 +359,8 @@ export async function loadAppsCardStats({
   request,
   apps = [],
   profile = 'public',
-  getStats
+  getStats,
+  timeout
 } = {}) {
   const results = await Promise.allSettled(apps.map(async (app) => {
     const specs = typeof getStats === 'function' ? getStats(app) : null
@@ -350,7 +372,8 @@ export async function loadAppsCardStats({
       commonStats: specs.commonStats,
       stats: specs.stats,
       extraFilters: specs.extraFilters,
-      baseFilter: specs.baseFilter
+      baseFilter: specs.baseFilter,
+      timeout
     })
     return [app.key, values]
   }))

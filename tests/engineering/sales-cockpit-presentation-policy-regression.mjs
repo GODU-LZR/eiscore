@@ -57,15 +57,16 @@ const rows = [
   { id: 'active', status: 'active', order_status: '已确认', stage: '需求确认' },
   { id: 'deleted', status: 'deleted', order_status: '已确认', stage: '需求确认' },
   { id: 'cancelled', status: 'active', order_status: '已取消', stage: '需求确认' },
+  { id: 'won', status: 'active', order_status: '已确认', stage: '赢单' },
   { id: 'lost', status: 'active', order_status: '已确认', stage: '输单' },
   { id: 'paused', status: 'active', order_status: '已确认', stage: '搁置' }
 ]
-assert.deepEqual(selectActiveSalesCustomers(rows).map((row) => row.id), ['active', 'cancelled', 'lost', 'paused'])
-assert.deepEqual(selectActiveSalesOrders(rows).map((row) => row.id), ['active', 'lost', 'paused'])
-assert.deepEqual(selectActiveSalesPayments(rows).map((row) => row.id), ['active', 'cancelled', 'lost', 'paused'])
+assert.deepEqual(selectActiveSalesCustomers(rows).map((row) => row.id), ['active', 'cancelled', 'won', 'lost', 'paused'])
+assert.deepEqual(selectActiveSalesOrders(rows).map((row) => row.id), ['active', 'won', 'lost', 'paused'])
+assert.deepEqual(selectActiveSalesPayments(rows).map((row) => row.id), ['active', 'cancelled', 'won', 'lost', 'paused'])
 assert.deepEqual(selectActiveSalesOpportunities(rows).map((row) => row.id), ['active', 'cancelled'])
-assert.deepEqual(selectActiveSalesFollowUps(rows).map((row) => row.id), ['active', 'cancelled', 'lost', 'paused'])
-assert.deepEqual(rows.map((row) => row.id), ['active', 'deleted', 'cancelled', 'lost', 'paused'])
+assert.deepEqual(selectActiveSalesFollowUps(rows).map((row) => row.id), ['active', 'cancelled', 'won', 'lost', 'paused'])
+assert.deepEqual(rows.map((row) => row.id), ['active', 'deleted', 'cancelled', 'won', 'lost', 'paused'])
 
 const moduleSource = readFileSync(resolve(repoRoot, 'eiscore-sales/src/domain/sales-cockpit-presentation-policy.js'), 'utf8')
 for (const forbidden of [

@@ -7,6 +7,7 @@ import {
   normalizeSalesCockpitRows,
   parseSalesCockpitDateTime
 } from './sales-cockpit-presentation-policy.js'
+import { isFollowUpOpen } from '../utils/sales-attention.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -60,7 +61,7 @@ export const buildSalesRiskItems = ({
 export const buildSalesActionItems = ({ referenceTime, followUps = [], opportunities = [] } = {}) => {
   const weekLimit = startOfSalesCockpitDay(referenceTime) + 7 * DAY_MS
   const followActions = normalizeSalesCockpitRows(followUps)
-    .filter((row) => row?.next_follow_at && !['已成交', '无效'].includes(row.follow_result) && parseSalesCockpitDateTime(row.next_follow_at) <= weekLimit)
+    .filter((row) => row?.next_follow_at && isFollowUpOpen(row) && parseSalesCockpitDateTime(row.next_follow_at) <= weekLimit)
     .slice(0, 4)
     .map((row) => ({
       key: `follow-${row.id}`,

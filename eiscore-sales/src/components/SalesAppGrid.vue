@@ -18,7 +18,7 @@
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="gridApiUrl"
+        :api-url="gridDataApiUrl"
         :write-url="app.writeUrl || ''"
         :include-properties="app.includeProperties !== false"
         write-mode="patch"
@@ -54,6 +54,8 @@
         @row-action="handleRowAction"
         @data-load-error="handleDataLoadError"
         @data-loaded="handleDataLoaded"
+        @delete-complete="refreshFollowUpAttention()"
+        @data-saved="refreshFollowUpAttention()"
         @cell-value-changed="handleSalesCellValueChanged"
       >
         <template #toolbar>
@@ -696,11 +698,11 @@ import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from
 import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
 import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
 import { useSalesDocumentFlow } from '@/composables/use-sales-document-flow'
+import { useSalesFollowUpAttention } from '@/composables/use-sales-follow-up-attention'
 import SalesQuickDialog from '@/components/SalesQuickDialog.vue'
 import SalesQuoteItemsDialog from '@/components/SalesQuoteItemsDialog.vue'
 import { findSalesApp, CUSTOMER_COLUMNS } from '@/utils/sales-apps'
 import {
-  buildSalesAttentionSummary,
   getSalesRecordAttention,
   matchesSalesAttentionFilter
 } from '@/utils/sales-attention'
@@ -833,14 +835,12 @@ const canDelete = computed(() => hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
 const canConfig = computed(() => hasPerm(opPerms.value.config))
 const attentionRows = computed(() => lastLoadedRows.value)
-const attentionSummary = computed(() => buildSalesAttentionSummary(app.value?.key, attentionRows.value))
-const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesSalesAttentionFilter(app.value?.key, row, 'todo')).length)
 const attentionFilterOptions = computed(() => [
-  { value: 'all', label: `全部 ${attentionSummary.value.total}` },
-  { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical}` },
-  { value: 'warning', label: `预警 ${attentionSummary.value.counts.warning}` },
-  { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus}` },
-  { value: 'todo', label: `待处理 ${attentionTodoCount.value}` }
+  { value: 'all', label: `全部 ${attentionSummary.value.total ?? '—'}` },
+  { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical ?? '—'}` },
+  { value: 'warning', label: `预警 ${attentionSummary.value.counts.warning ?? '—'}` },
+  { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus ?? '—'}` },
+  { value: 'todo', label: `待处理 ${attentionTodoCount.value ?? '—'}` }
 ])
 const resolveAttention = (row) => getSalesRecordAttention(app.value?.key, row, {
   role: 'sales',
@@ -848,7 +848,7 @@ const resolveAttention = (row) => getSalesRecordAttention(app.value?.key, row, {
   device: 'desktop',
   task: 'monitor'
 })
-const rowAttentionFilter = (row) => matchesSalesAttentionFilter(app.value?.key, row, attentionFilter.value)
+const rowAttentionFilter = (row) => app.value?.key === 'follow_ups' || matchesSalesAttentionFilter(app.value?.key, row, attentionFilter.value)
 const ROW_ACTION_PERMISSIONS = Object.freeze({
   'create-order': 'op:sales_order.create',
   'create-follow': 'op:sales_follow_up.create',
@@ -987,6 +987,15 @@ const detailBusinessMetrics = computed(() => buildSalesDetailBusinessMetrics({
 }))
 
 const extraColumns = ref([])
+const {
+  summary: attentionSummary, todoCount: attentionTodoCount,
+  dataApiUrl: gridDataApiUrl,
+  refresh: refreshFollowUpAttention,
+  handleDataLoaded: handleFollowUpAttentionLoaded
+} = useSalesFollowUpAttention({
+  app, apiUrl: gridApiUrl, attentionFilter, request, rows: attentionRows,
+  searchText: lastSearchText, staticColumns, extraColumns
+})
 const hasSyncedFieldAcl = ref(false)
 
 const isEditing = ref(false)
@@ -1156,6 +1165,7 @@ const handleDataLoaded = (payload) => {
   lastLoadedRows.value = rows.filter(isRowActive)
   lastSearchText.value = payload?.searchText || ''
   lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
+  handleFollowUpAttentionLoaded(payload)
   syncAiContext(visibleRows.filter(isRowActive), { searchText: lastSearchText.value })
 }
 
@@ -3168,9 +3178,9 @@ watch(selectedOpportunityCustomer, (customer) => {
   if (!opportunityForm.owner_name) opportunityForm.owner_name = customer.owner_name || ''
 })
 
-watch([attentionFilter, gridApiUrl], () => {
+watch([attentionFilter, gridDataApiUrl], () => {
   gridRef.value?.loadData?.()
-})
+}, { flush: 'post' })
  
 onMounted(() => {
   loadStaticColumnsConfig().then(loadColumnsConfig)
