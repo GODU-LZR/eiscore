@@ -243,7 +243,7 @@ for (const target of [
   })
   await assert.rejects(service({ url: '/equipment_assets' }), (error) => error === networkError)
   assert.deepEqual(notifications, [{
-    message: 'Network Error',
+    message: '网络连接失败，请检查网络后重试',
     event: {
       code: 'network',
       status: 0,
@@ -251,25 +251,83 @@ for (const target of [
       path: '/equipment_assets'
     }
   }])
+  assert.equal(networkError.message, notifications[0].message)
+}
+
+{
+  const calls = []
+  const service = createPlatformAxiosClient({
+    axios: createAxiosStub(async (config) => {
+      calls.push(config)
+      return { status: 200, data: [], config }
+    }),
+    timeoutMs: 15000
+  })
+  await service({ url: '/system_configs?key=eq.sales_customers_cols', method: 'get' })
+  await service({ url: '/sales_follow_ups?limit=200', method: 'get', timeout: 25000 })
+  assert.deepEqual(calls.map(({ timeout }) => timeout), [15000, 25000])
+}
+
+for (const [code, originalMessage, expectedMessage, expectedCode] of [
+  ['ECONNABORTED', 'timeout of 5000ms exceeded', '请求超时，请稍后重试', 'timeout'],
+  ['ETIMEDOUT', 'timeout of 15000ms exceeded', '请求超时，请稍后重试', 'timeout'],
+  ['ERR_NETWORK', 'Network Error', '网络连接失败，请检查网络后重试', 'network'],
+  ['', 'Failed to fetch', '网络连接失败，请检查网络后重试', 'network'],
+  ['ERR_CANCELED', 'canceled', '请求已取消', 'aborted']
+]) {
+  const notifications = []
+  const originalError = Object.assign(new Error(originalMessage), { code })
+  const service = createPlatformAxiosClient({
+    axios: createAxiosStub(async () => { throw originalError }),
+    notifyError: (message, event) => notifications.push({ message, event })
+  })
+  await assert.rejects(service({ url: '/sales_follow_ups?select=*' }), (error) => {
+    assert.equal(error, originalError)
+    assert.equal(error.message, expectedMessage)
+    assert.doesNotMatch(error.stack, /timeout of \d+ms exceeded|Network Error|Failed to fetch|: canceled/)
+    return true
+  })
+  assert.deepEqual(notifications, [{
+    message: expectedMessage,
+    event: { code: expectedCode, status: 0, method: 'GET', path: '/sales_follow_ups' }
+  }])
+}
+
+{
+  const notifications = []
+  const calls = []
+  const service = createPlatformAxiosClient({
+    axios: createAxiosStub(async (config) => {
+      calls.push(config)
+      throw Object.assign(new Error(`timeout of ${config.timeout}ms exceeded`), { code: 'ECONNABORTED' })
+    }),
+    timeoutMs: 15000,
+    notifyError: (message) => notifications.push(message)
+  })
+  await assert.rejects(service({ url: '/sales_orders', method: 'post', data: { order_no: 'contract-only' } }), /请求超时/)
+  assert.equal(calls.length, 1, 'A timed out write must not be retried')
+  assert.equal(calls[0].timeout, 15000)
+  assert.deepEqual(notifications, ['请求超时，请稍后重试'])
 }
 
 {
   const errors = [
     Object.assign(new Error('Request failed with status code 401'), { response: { status: 401 } }),
-    Object.assign(new Error('Request failed with status code 500'), { response: { status: 500 } })
+    Object.assign(new Error('Request failed with status code 500'), { response: { status: 500 } }),
+    Object.assign(new Error('timeout of 15000ms exceeded'), { code: 'ECONNABORTED' }),
+    Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' })
   ]
   const notifications = []
   const unauthorizedEvents = []
   const service = createPlatformAxiosClient({
     axios: createAxiosStub(async () => { throw errors.shift() }),
-    shouldNotifyError: (config) => (
-      config.silentError !== true && config.suppressErrorMessage !== true
-    ),
     notifyError: (message, event) => notifications.push({ message, event }),
     onUnauthorized: (event) => unauthorizedEvents.push(event)
   })
   await assert.rejects(service({ url: '/sales_orders', silentError: true }))
   await assert.rejects(service({ url: '/sales_orders', suppressErrorMessage: true }))
+  await assert.rejects(service({ url: '/sales_orders', silentError: true }), /请求超时/)
+  await assert.rejects(service({ url: '/sales_orders', suppressErrorMessage: true }), /网络连接失败/)
   assert.deepEqual(notifications, [])
   assert.deepEqual(unauthorizedEvents, [{
     code: 'unauthorized',

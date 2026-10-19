@@ -12,11 +12,6 @@ export const DEFAULT_AXIOS_TIMEOUT_MS = 8_000
 
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001F\u007F]/
 const SAFE_AXIOS_MESSAGE_PATTERNS = Object.freeze([
-  /^Network Error$/i,
-  /^Failed to fetch$/i,
-  /^Request aborted$/i,
-  /^canceled$/i,
-  /^timeout of \d+ms exceeded$/i,
   /^Request failed with status code \d{3}$/i
 ])
 const SAFE_ERROR_HEADER_NAMES = new Set([
@@ -198,6 +193,10 @@ function classifyAxiosError(error) {
 }
 
 function safeAxiosErrorMessage(error) {
+  const code = classifyAxiosError(error)
+  if (code === 'timeout') return '请求超时，请稍后重试'
+  if (code === 'aborted') return '请求已取消'
+  if (code === 'network') return '网络连接失败，请检查网络后重试'
   if (error instanceof PlatformHttpError) return error.message
   const message = typeof error?.message === 'string' ? error.message.trim() : ''
   return SAFE_AXIOS_MESSAGE_PATTERNS.some((pattern) => pattern.test(message))
@@ -309,7 +308,9 @@ export function createPlatformAxiosClient({
   getAccessToken = () => '',
   onUnauthorized = () => {},
   notifyError = () => {},
-  shouldNotifyError = () => true,
+  shouldNotifyError = (config) => (
+    config.silentError !== true && config.suppressErrorMessage !== true
+  ),
   shouldHandleUnauthorized = () => true,
   resolveErrorMessage,
   defaultProfile = '',

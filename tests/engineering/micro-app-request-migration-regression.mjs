@@ -11,11 +11,11 @@ for (const [moduleId, timeoutMs, defaultProfile, expectedAccept, expectedSilence
   ['quality', 8000, 'public', false, false, false],
   ['equipment', 8000, 'public', true, false, false],
   ['purchase', 5000, 'public', false, true, false],
-  ['sales', 5000, 'public', false, true, false],
-  ['hr', 5000, 'hr', false, false, false],
+  ['sales', 15000, 'public', false, true, false],
+  ['hr', 15000, 'hr', false, false, false],
   ['apps', 8000, 'app_center', false, false, false],
   ['production', 8000, 'scm', false, true, true],
-  ['materials', 5000, '', false, false, false]
+  ['materials', 15000, '', false, false, false]
 ]) {
   const requestPath = resolve(repoRoot, `eiscore-${moduleId}/src/utils/request.js`)
   const source = readFileSync(requestPath, 'utf8')
