@@ -53,6 +53,16 @@ for (const item of vendor) {
 }
 mkdirSync(output, { recursive: true })
 cpSync(join(original, 'client-plugins'), join(output, 'client-plugins'), { recursive: true })
+// Keep the existing authenticated API adapters, without auto-mounting their
+// obsolete client UI. The original manifests stay in the captured baseline.
+const transformations = ['digital-twin', 'enterprise-bi'].map(name => {
+  const path = `client-plugins/${name}/package.json`
+  const manifest = JSON.parse(readFileSync(join(output, path), 'utf8'))
+  if (!manifest.dsh?.client) throw new Error('Expected captured client declaration: ' + path)
+  delete manifest.dsh.client
+  writeFileSync(join(output, path), JSON.stringify(manifest, null, 2) + '\n')
+  return { path, sourceSha256: hash(join(original, path)), sha256: hash(join(output, path)), change: 'omit-legacy-client-ui; preserve-server-api' }
+})
 for (const [from, to] of overlays) {
   mkdirSync(dirname(join(output, to)), { recursive: true })
   cpSync(join(sourceRoot, from), join(output, to))
@@ -62,6 +72,6 @@ for (const match of readFileSync(join(output, 'dsh-web.patch.yml'), 'utf8').matc
   if (!existsSync(join(output, match[1]))) throw new Error('Patch module missing from package: ' + match[1])
 }
 const files = inventory(output)
-const manifest = { schemaVersion: 1, sourceCommit, files, inherited, overlays: overlays.map(([source, path]) => ({ source, path, sha256: hash(join(sourceRoot, source)) })), vendor }
+const manifest = { schemaVersion: 1, sourceCommit, files, inherited, transformations, overlays: overlays.map(([source, path]) => ({ source, path, sha256: hash(join(sourceRoot, source)) })), vendor }
 writeFileSync(join(output, 'harness-package.json'), JSON.stringify(manifest, null, 2) + '\n')
 console.log(JSON.stringify({ sourceCommit, output, files: files.length, manifestSha256: hash(join(output, 'harness-package.json')) }))
