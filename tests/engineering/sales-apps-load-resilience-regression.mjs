@@ -32,7 +32,7 @@ const scope = {
   onMounted: () => {},
   watch: () => {},
   useRouter: () => ({ push: async () => {}, currentRoute: ref({ path: '' }) }),
-  ChatLineSquare: {}, DataAnalysis: {}, DataBoard: {}, Money: {}, Tickets: {}, TrendCharts: {}, User: {},
+  ChatLineSquare: {}, DataAnalysis: {}, DataBoard: {}, Document: {}, Money: {}, Tickets: {}, TrendCharts: {}, User: {},
   SALES_APPS,
   hasPerm: () => true,
   pushAiContext: () => {},
