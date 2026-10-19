@@ -71,7 +71,7 @@ writeFileSync(join(root, 'config/frontend-dist-manifest.json'), JSON.stringify({
   host: 'eiscore-base', mounts, count: mounts.length
 }, null, 2) + '\n')
 NODE
-node scripts/generate-client-cache-manifest.mjs "$YAYU_RELEASES_ROOT/$version"
+node deploy/yayu/generate-cache-manifest.mjs "$YAYU_RELEASES_ROOT/$version"
 bash deploy/yayu/publish.sh "$version" --check-only
 printf '%s\n' "$EISCORE_SOURCE_REVISION" > "$YAYU_RELEASES_ROOT/$version/.complete"
 printf 'Candidate ready: %s (not published)\n' "$YAYU_RELEASES_ROOT/$version"
