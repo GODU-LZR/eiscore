@@ -577,7 +577,7 @@ watch(visibleApps, syncSalesAppsContext)
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 168px;
+  min-height: 168px;
   margin-bottom: 20px;
   cursor: pointer;
   border-radius: 8px;
@@ -701,43 +701,41 @@ watch(visibleApps, syncSalesAppsContext)
 .app-metrics {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 96px), 1fr));
   gap: 10px;
 }
 
 .metric-item {
   min-width: 0;
-  height: 42px;
-  padding: 0 10px;
+  min-height: 58px;
+  padding: 8px 10px;
   box-sizing: border-box;
   border-radius: 8px;
   background: #f6f8fb;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 6px;
 }
 
 .metric-item strong {
-  min-width: 52px;
+  min-width: 0;
   overflow: visible;
   color: #303133;
   font-size: 17px;
   line-height: 1;
   font-weight: 800;
-  text-align: right;
+  text-align: left;
   white-space: nowrap;
 }
 
 .metric-item span {
   min-width: 0;
-  flex: 1;
   color: #909399;
   font-size: 11px;
-  line-height: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .app-enter {
