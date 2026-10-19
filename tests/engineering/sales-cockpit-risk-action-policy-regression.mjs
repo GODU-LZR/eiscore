@@ -48,7 +48,8 @@ const actions = buildSalesActionItems({
   followUps: [
     { id: 'f1', customer_name: '甲公司', next_follow_at: '2026-06-08', follow_type: '电话', owner_name: '王浩', follow_result: '待跟进' },
     { id: 'f2', follow_no: 'FU-2', next_follow_at: '2026-06-10', follow_type: '拜访', owner_name: '陈雨', follow_result: '待跟进' },
-    { id: 'f3', customer_name: '已成交', next_follow_at: '2026-06-03', follow_result: '已成交' }
+    { id: 'f3', customer_name: '已成交', next_follow_at: '2026-06-03', follow_result: '已成交' },
+    { id: 'f4', customer_name: '已暂缓', next_follow_at: '2026-06-03', follow_result: '暂缓' }
   ],
   opportunities: [
     { id: 'p1', opportunity_name: '行动商机', stage: '商务谈判', next_action: '提交报价' },

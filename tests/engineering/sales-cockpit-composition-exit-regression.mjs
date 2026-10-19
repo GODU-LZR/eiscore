@@ -11,7 +11,7 @@ const source = readFileSync(pagePath, 'utf8')
 const lines = source.split(/\r?\n/)
 const lineCount = lines.at(-1) === '' ? lines.length - 1 : lines.length
 
-assert.ok(lineCount <= 1753, `SalesCockpit grew beyond its 1753-line exit baseline: ${lineCount}`)
+assert.ok(lineCount <= 1783, `SalesCockpit grew beyond its 1783-line exit baseline: ${lineCount}`)
 
 const markerLine = (marker) => lines.findIndex((line) => line === marker)
 const templateStart = markerLine('<template>')
@@ -24,9 +24,9 @@ assert.equal(templateStart, 0)
 assert.ok(templateStart < templateEnd)
 assert.ok(templateEnd < scriptStart && scriptStart < scriptEnd)
 assert.ok(scriptEnd < styleStart && styleStart < styleEnd)
-assert.ok(templateEnd - templateStart + 1 <= 316)
-assert.ok(scriptEnd - scriptStart + 1 <= 247)
-assert.ok(styleEnd - styleStart + 1 <= 1187)
+assert.ok(templateEnd - templateStart + 1 <= 322)
+assert.ok(scriptEnd - scriptStart + 1 <= 265)
+assert.ok(styleEnd - styleStart + 1 <= 1194)
 
 const policyImports = [...source.matchAll(/from ['"](@\/domain\/sales-cockpit-[^'"]+-policy\.js)['"]/g)]
   .map((match) => match[1])
@@ -55,7 +55,7 @@ for (const file of policyFiles) {
   }
   assert.equal(/new Date\(\s*\)/.test(policySource), false, `${file} gained implicit current time`)
 }
-assert.equal(policyExports, 37)
+assert.equal(policyExports, 38)
 
 const count = (pattern) => (source.match(pattern) || []).length
 assert.equal(count(/\brequest\s*\(/g), 1)
@@ -83,5 +83,7 @@ for (const forbidden of [/\bfetch\s*\(/, /\baxios\b/, /(?:local|session)Storage/
 for (const retainedBoundary of ['buildSalesCockpitQueryRequests().map((config) => request(config))', 'pushAiContext(buildCockpitContext())', 'router.push(`/app/${key}`)', "router.push('/apps')", 'target.requestFullscreen?.()', 'document.exitFullscreen?.()', "document.addEventListener('fullscreenchange', handleFullscreenChange)", "window.addEventListener('resize', scheduleCockpitScale)", 'new ResizeObserver(scheduleCockpitScale)', "window.removeEventListener('resize', scheduleCockpitScale)", "document.removeEventListener('fullscreenchange', handleFullscreenChange)", 'onMounted(() => {', 'onBeforeUnmount(() => {']) {
   assert.equal(source.includes(retainedBoundary), true, `SalesCockpit lost retained composition boundary: ${retainedBoundary}`)
 }
+assert.equal(source.includes('Promise.allSettled('), true)
+assert.equal(source.includes('mergeSalesCockpitData(previousRows, results, loadedSources.value)'), true)
 
 console.log(`PASS: SalesCockpit composition exit gate (${lineCount} lines, ${policyImports.length} policy modules, ${policyExports} policy exports)`)

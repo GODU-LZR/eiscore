@@ -323,6 +323,7 @@ export const SALES_APPS = [
     perm: 'app:sales_follow_up',
     aclModule: 'sales_follow_up',
     apiUrl: '/sales_follow_ups?status=neq.deleted',
+    timeField: 'follow_date',
     writeUrl: '/sales_follow_ups',
     writeMode: 'patch',
     viewId: 'sales_follow_ups',

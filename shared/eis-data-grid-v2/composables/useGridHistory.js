@@ -205,6 +205,7 @@ export function useGridHistory(
         const entries = Array.from(rowUpdatesMap.values())
 
         if (entries.length > 0) {
+            let didSave = false
             if (writeMode === 'patch') {
               await Promise.all(entries.map(async (entry) => {
                 const rowId = entry.rowNode?.data?.id
@@ -219,6 +220,7 @@ export function useGridHistory(
                   headers: { 'Accept-Profile': resolveProfile(props.acceptProfile), 'Content-Profile': resolveProfile(props.contentProfile), 'Prefer': 'return=representation' },
                   data: patchPayload
                 })
+                didSave = true
                 if (isUserLifecycle()) {
                   const saved = Array.isArray(savedRows) ? savedRows.find(row => String(row.id) === String(rowId)) : null
                   if (!saved) throw new Error('用户保存未返回数据，请刷新后确认')
@@ -253,6 +255,7 @@ export function useGridHistory(
                   headers: { 'Accept-Profile': resolveProfile(props.acceptProfile), 'Content-Profile': resolveProfile(props.contentProfile), 'Prefer': 'resolution=merge-duplicates,return=representation' },
                   data: apiPayload
               })
+              didSave = true
               affectedNodes.forEach(({ node, newVer }) => {
                 if (newVer !== null) node.data.version = newVer
               })
@@ -266,6 +269,7 @@ export function useGridHistory(
               })
               if (!isSystemOperation.value) ElMessage.success(`已保存 ${apiPayload.length} 行变更`)
             }
+            if (didSave) historyServices.onSaved?.({ rows: entries.map((entry) => entry.rowNode.data) })
         }
     } catch (e) {
       if (isUserLifecycle()) {

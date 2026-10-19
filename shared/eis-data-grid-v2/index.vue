@@ -275,7 +275,7 @@ const adapterServices = entryAdapter.services || {}
 const GeoDialog = entryAdapter.GeoDialog
 
 // 🟢 声明事件：增加 view-document
-const emit = defineEmits(['create', 'config-columns', 'view-document', 'row-action', 'data-loaded', 'data-load-error', 'cell-value-changed', 'selection-changed', 'delete-complete'])
+const emit = defineEmits(['create', 'config-columns', 'view-document', 'row-action', 'data-loaded', 'data-load-error', 'data-saved', 'cell-value-changed', 'selection-changed', 'delete-complete'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = String(currentUser).toLowerCase() === 'admin'
@@ -351,7 +351,7 @@ const historyHooks = useGridHistory(
   gridData,
   { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals },
   entryAdapter.historyOptions || {},
-  { debounce: adapterServices.debounce, isCellReadOnly, isRowLocked }
+  { debounce: adapterServices.debounce, isCellReadOnly, isRowLocked, onSaved: (payload) => emit('data-saved', payload) }
 )
 const {
   history, isSystemOperation,

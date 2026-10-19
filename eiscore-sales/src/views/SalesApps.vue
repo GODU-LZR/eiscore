@@ -5,6 +5,7 @@
         <h2>销售应用</h2>
         <p>选择一个应用进入管理</p>
       </div>
+      <el-button :loading="cardLoading" @click="loadCardData">刷新</el-button>
     </div>
 
     <el-row :gutter="20">
@@ -84,6 +85,18 @@ import {
   sortByAttention
 } from '@shared/app-card-attention'
 import {
+  buildSalesFollowUpAttentionStats,
+  isCustomerOverCredit,
+  isFollowUpOpen,
+  isSalesOpportunityClosed,
+  isSalesOrderClosed,
+  offsetDateText as salesOffsetDateText,
+  SALES_CLOSED_FOLLOW_RESULTS,
+  SALES_FOLLOW_UP_DUE_WINDOW_DAYS,
+  SALES_ORDER_DUE_WINDOW_DAYS,
+  todayText as salesTodayText
+} from '@/utils/sales-attention'
+import {
   combineQueryParts,
   countStat,
   filterPart,
@@ -99,18 +112,31 @@ const iconMap = { ChatLineSquare, DataAnalysis, DataBoard, Money, Tickets, Trend
 const appRows = ref(Object.fromEntries(SALES_APPS.map((app) => [app.key, []])))
 const serverStats = ref({})
 const cardLoading = ref(false)
+const CARD_LOAD_MAX_ATTEMPTS = 2
+const CARD_ROW_LIMIT = 200
+const cardStatsStates = ref({})
+const cardLoadStates = ref(Object.fromEntries(SALES_APPS.map((app) => [app.key, {
+  status: 'idle',
+  attempts: 0,
+  hasData: false
+}])))
 
 const rowsOf = (key) => appRows.value[key] || []
 const statsOf = (key) => serverStats.value[key] || {}
 const sourceKeyOf = (app) => app.sourceAppKey || (app.key === 'shipment_requests' ? 'orders' : app.key)
-const isClosedOrder = (row) => ['已完成', '已取消'].includes(String(row.order_status || '').trim())
-const isClosedOpportunity = (row) => ['赢单', '输单', '搁置'].includes(String(row.stage || '').trim())
-const today = () => new Date().toISOString().slice(0, 10)
-const offsetDate = (days) => {
-  const next = new Date()
-  next.setDate(next.getDate() + days)
-  return next.toISOString().slice(0, 10)
+const loadStateOf = (key) => cardLoadStates.value[key] || { status: 'idle', attempts: 0, hasData: false }
+const hasStat = (stats, key) => stats?.[key] !== null && stats?.[key] !== '' && Number.isFinite(Number(stats?.[key]))
+const validStats = (stats = {}) => Object.fromEntries(Object.entries(stats || {}).filter(([key]) => hasStat(stats, key)))
+const updateCardLoadState = (key, patch) => {
+  cardLoadStates.value = {
+    ...cardLoadStates.value,
+    [key]: { ...loadStateOf(key), ...patch }
+  }
 }
+const isClosedOrder = isSalesOrderClosed
+const isClosedOpportunity = isSalesOpportunityClosed
+const today = salesTodayText
+const offsetDate = salesOffsetDateText
 
 const salesCardStatsSpec = (app) => {
   if (app.key === 'customers') {
@@ -123,13 +149,18 @@ const salesCardStatsSpec = (app) => {
     }
   }
   if (app.key === 'follow_ups') {
-    const closed = filterPart('follow_result', 'in', ['已成交', '无效', '暂缓'])
+    const todo = buildSalesFollowUpAttentionStats().find((stat) => stat.key === 'todo').filter
     return {
       stats: [
         countStat('total'),
-        countStat('due', combineQueryParts(filterPart('next_follow_at', 'gte', today()), filterPart('next_follow_at', 'lte', offsetDate(1)), filterPart('follow_result', 'neq', '已成交'))),
-        countStat('overdue', combineQueryParts(filterPart('next_follow_at', 'lt', today()), filterPart('follow_result', 'neq', '已成交'))),
-        countStat('closed', closed)
+        countStat('due', combineQueryParts(
+          filterPart('next_follow_at', 'gte', today()),
+          filterPart('next_follow_at', 'lte', offsetDate(SALES_FOLLOW_UP_DUE_WINDOW_DAYS)),
+          todo
+        )),
+        countStat('overdue', combineQueryParts(filterPart('next_follow_at', 'lt', today()), todo)),
+        countStat('todo', todo),
+        countStat('closed', filterPart('follow_result', 'in', SALES_CLOSED_FOLLOW_RESULTS))
       ]
     }
   }
@@ -151,7 +182,7 @@ const salesCardStatsSpec = (app) => {
         countStat('total'),
         countStat('open', filterPart('order_status', 'not.in', ['已完成', '已取消'])),
         countStat('overdue', combineQueryParts(filterPart('delivery_date', 'lt', today()), filterPart('order_status', 'not.in', ['已完成', '已取消']))),
-        countStat('due', combineQueryParts(filterPart('delivery_date', 'gte', today()), filterPart('delivery_date', 'lte', offsetDate(3)), filterPart('order_status', 'not.in', ['已完成', '已取消']))),
+        countStat('due', combineQueryParts(filterPart('delivery_date', 'gte', today()), filterPart('delivery_date', 'lte', offsetDate(SALES_ORDER_DUE_WINDOW_DAYS)), filterPart('order_status', 'not.in', ['已完成', '已取消']))),
         sumStat('orderAmount', 'total_amount')
       ]
     }
@@ -168,33 +199,89 @@ const salesCardStatsSpec = (app) => {
   return { stats: [countStat('total')] }
 }
 
+const loadAppRowsWithRetry = async (app) => {
+  const previousState = loadStateOf(app.key)
+  updateCardLoadState(app.key, { status: 'loading', attempts: 0 })
+  let lastError = null
+
+  for (let attempt = 1; attempt <= CARD_LOAD_MAX_ATTEMPTS; attempt += 1) {
+    updateCardLoadState(app.key, { status: 'loading', attempts: attempt })
+    try {
+      const rows = await request({
+        url: appendQuery(app.apiUrl, { limit: CARD_ROW_LIMIT }),
+        method: 'get',
+        timeout: 15000,
+        silentError: true,
+        suppressErrorMessage: true
+      })
+      if (!Array.isArray(rows)) throw new Error('销售应用返回数据格式无效')
+      appRows.value = { ...appRows.value, [app.key]: rows }
+      updateCardLoadState(app.key, { status: 'ready', attempts: attempt, hasData: true })
+      return rows
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  updateCardLoadState(app.key, {
+    status: 'error',
+    attempts: CARD_LOAD_MAX_ATTEMPTS,
+    hasData: previousState.hasData
+  })
+  throw lastError || new Error('销售应用数据加载失败')
+}
+
+const mergeServerStats = (statsResult) => {
+  if (!statsResult || typeof statsResult !== 'object') return
+  const next = { ...serverStats.value }
+  Object.entries(statsResult).forEach(([key, values]) => {
+    const resolved = validStats(values)
+    if (!Object.keys(resolved).length) return
+    next[key] = { ...(next[key] || {}), ...resolved }
+  })
+  serverStats.value = next
+}
+
+const loadCardStatsWithRetry = async (apps) => {
+  const resolved = {}
+  let pending = apps
+  for (let attempt = 1; attempt <= CARD_LOAD_MAX_ATTEMPTS && pending.length; attempt += 1) {
+    pending.forEach((app) => {
+      cardStatsStates.value = { ...cardStatsStates.value, [app.key]: { status: 'loading', attempts: attempt } }
+    })
+    const statsResult = await loadAppsCardStats({
+      request,
+      apps: pending,
+      profile: 'public',
+      timeout: 15000,
+      getStats: (app) => ({
+        ...salesCardStatsSpec(app),
+        commonStats: [],
+        stats: salesCardStatsSpec(app).stats.filter((spec) => !hasStat(resolved[app.key], spec.key))
+      })
+    }).catch(() => ({}))
+    mergeServerStats(statsResult)
+    pending = pending.filter((app) => {
+      resolved[app.key] = { ...resolved[app.key], ...validStats(statsResult?.[app.key]) }
+      const missing = salesCardStatsSpec(app).stats.some((spec) => !hasStat(resolved[app.key], spec.key))
+      cardStatsStates.value = {
+        ...cardStatsStates.value,
+        [app.key]: { status: missing ? (attempt === CARD_LOAD_MAX_ATTEMPTS ? 'error' : 'loading') : 'ready', attempts: attempt }
+      }
+      return missing
+    })
+  }
+}
+
 const loadCardData = async () => {
   if (cardLoading.value) return
   cardLoading.value = true
   try {
     const apps = SALES_APPS.filter((app) => app.apiUrl)
-    const [statsResult, results] = await Promise.all([
-      loadAppsCardStats({
-        request,
-        apps,
-        profile: 'public',
-        getStats: salesCardStatsSpec
-      }).catch(() => ({})),
-      Promise.allSettled(apps.map((app) => request({
-        url: appendQuery(app.apiUrl, { limit: 200 }),
-        method: 'get',
-        silentError: true,
-        suppressErrorMessage: true
-      })))
+    await Promise.all([
+      loadCardStatsWithRetry(apps),
+      Promise.allSettled(apps.map(loadAppRowsWithRetry))
     ])
-    const next = { ...appRows.value }
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled' && Array.isArray(result.value)) {
-        next[apps[index].key] = result.value
-      }
-    })
-    appRows.value = next
-    serverStats.value = { ...serverStats.value, ...statsResult }
   } finally {
     cardLoading.value = false
   }
@@ -215,17 +302,22 @@ const cardMap = computed(() => {
   const pausedCustomers = statNumber(customerStats, 'paused', customers.filter((row) => row.customer_status === '暂停合作').length)
   const customerTotal = statNumber(customerStats, 'total', customers.length)
   const receivable = statNumber(customerStats, 'receivable', customers.reduce((sum, row) => sum + numberValue(row.receivable_balance), 0))
-  const overCredit = customers.filter((row) => numberValue(row.receivable_balance) > numberValue(row.credit_limit) && numberValue(row.credit_limit) > 0).length
+  const overCredit = customers.filter(isCustomerOverCredit).length
   const overdueFollowFallback = followUps.filter((row) => {
     const delta = daysBetween(row.next_follow_at)
-    return delta !== null && delta < 0 && !['已成交', '无效', '暂缓'].includes(row.follow_result)
+    return delta !== null && delta < 0 && isFollowUpOpen(row)
   }).length
   const dueFollowFallback = followUps.filter((row) => {
     const delta = daysBetween(row.next_follow_at)
-    return delta !== null && delta >= 0 && delta <= 1 && !['已成交', '无效', '暂缓'].includes(row.follow_result)
+    return delta !== null && delta >= 0 && delta <= SALES_FOLLOW_UP_DUE_WINDOW_DAYS && isFollowUpOpen(row)
+  }).length
+  const todoFollowFallback = followUps.filter((row) => {
+    const delta = daysBetween(row.next_follow_at)
+    return isFollowUpOpen(row) && (delta === null || delta <= SALES_FOLLOW_UP_DUE_WINDOW_DAYS)
   }).length
   const overdueFollow = statNumber(followStats, 'overdue', overdueFollowFallback)
   const dueFollow = statNumber(followStats, 'due', dueFollowFallback)
+  const todoFollow = statNumber(followStats, 'todo', todoFollowFallback)
   const activeOppFallback = opportunities.filter((row) => !isClosedOpportunity(row)).length
   const activeOpp = statNumber(oppStats, 'active', activeOppFallback)
   const overdueOppFallback = opportunities.filter((row) => {
@@ -247,7 +339,7 @@ const cardMap = computed(() => {
   }).length
   const dueOrdersFallback = orders.filter((row) => {
     const delta = daysBetween(row.delivery_date)
-    return delta !== null && delta >= 0 && delta <= 3 && !isClosedOrder(row)
+    return delta !== null && delta >= 0 && delta <= SALES_ORDER_DUE_WINDOW_DAYS && !isClosedOrder(row)
   }).length
   const openOrders = statNumber(orderStats, 'open', openOrdersFallback)
   const overdueOrders = statNumber(orderStats, 'overdue', overdueOrdersFallback)
@@ -258,7 +350,7 @@ const cardMap = computed(() => {
 
   return {
     customers: cardFromScore({
-      score: overCredit > 0 ? 78 : (pausedCustomers > 0 ? 50 : 28),
+      score: overCredit > 0 ? 92 : (pausedCustomers > 0 ? 50 : 28),
       metrics: [
         { label: '客户数', value: `${customerTotal}` },
         { label: '应收', value: moneyText(receivable) }
@@ -269,7 +361,8 @@ const cardMap = computed(() => {
       score: overdueFollow > 0 ? 70 : (dueFollow > 0 ? 52 : 26),
       metrics: [
         { label: '今日/明日', value: `${dueFollow}` },
-        { label: '逾期跟进', value: `${overdueFollow}` }
+        { label: '逾期跟进', value: `${overdueFollow}` },
+        { label: '待处理', value: `${todoFollow}` }
       ],
       brief: overdueFollow > 0 ? '优先补跟进动作' : (dueFollow > 0 ? '处理近期跟进' : '沉淀客户沟通')
     }),
@@ -308,14 +401,69 @@ const cardMap = computed(() => {
   }
 })
 
+const cardForApp = (app) => {
+  const sourceKey = sourceKeyOf(app)
+  const rows = rowsOf(sourceKey)
+  const state = loadStateOf(sourceKey)
+  const stats = statsOf(sourceKey)
+  const generic = buildGenericCard(app, rows, false)
+  if (!SALES_APPS.some((source) => source.key === sourceKey && source.apiUrl)) {
+    return {
+      ...generic,
+      statusText: '可用',
+      metrics: [{ label: '入口', value: '已就绪' }, { label: '状态', value: '可用' }]
+    }
+  }
+  const completeRows = state.hasData && rows.length < CARD_ROW_LIMIT
+    && (!hasStat(stats, 'total') || rows.length >= Number(stats.total))
+  const metricStats = {
+    customers: [['total'], ['receivable']],
+    follow_ups: [['due'], ['overdue'], ['todo']],
+    opportunities: [['active'], ['total', 'won']],
+    orders: [['open'], ['due', 'overdue']],
+    payments: [['unverified'], ['paymentAmount']]
+  }[sourceKey] || [['total'], ['total']]
+  const card = cardMap.value[app.key] || cardMap.value[sourceKey] || {
+    ...generic,
+    metrics: [{ label: '记录数', value: `${statNumber(stats, 'total', rows.length)}` }, generic.metrics[1]]
+  }
+  const metrics = card.metrics.map((metric, index) => ({
+    ...metric,
+    value: completeRows || metricStats[index]?.every((key) => hasStat(stats, key)) ? metric.value : '—'
+  }))
+  const hasMetrics = metrics.some((metric) => metric.value !== '—')
+  const partial = metrics.some((metric) => metric.value === '—')
+    || state.status === 'error' || (!completeRows && cardStatsStates.value[sourceKey]?.status === 'error')
+  const loading = state.status === 'idle' || state.status === 'loading'
+    || cardStatsStates.value[sourceKey]?.status === 'loading'
+  if (!hasMetrics) {
+    const failed = !loading
+    return {
+      ...card,
+      score: 0,
+      attentionLevel: 'normal',
+      status: failed ? 'warn' : 'info',
+      statusText: failed ? '暂不可用' : (state.attempts > 1 ? '重试中' : '同步中'),
+      metrics,
+      brief: failed ? '数据加载失败，请稍后重试' : app.desc
+    }
+  }
+  if (!partial) return { ...card, metrics }
+  return {
+    ...card,
+    metrics,
+    status: 'warn',
+    statusText: '部分可用',
+    brief: state.hasData ? '部分数据暂不可用，保留已加载数据' : '统计已加载，明细暂不可用'
+  }
+}
+
 const visibleApps = computed(() => SALES_APPS
   .filter((app) => isAppVisible(displayVisibility.value, 'sales', app.key))
   .filter((app) => !app.perm || hasPerm(app.perm))
   .map((app) => ({
     ...app,
-    card: cardLoading.value && !rowsOf(sourceKeyOf(app)).length
-      ? buildGenericCard(app, rowsOf(sourceKeyOf(app)), true)
-      : (cardMap.value[app.key] || cardMap.value[sourceKeyOf(app)] || buildGenericCard(app, rowsOf(sourceKeyOf(app)), cardLoading.value))
+    card: cardForApp(app)
   }))
   .sort(sortByAttention))
 
@@ -553,7 +701,7 @@ watch(visibleApps, syncSalesAppsContext)
 .app-metrics {
   margin-top: 12px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 

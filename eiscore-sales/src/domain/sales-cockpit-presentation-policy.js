@@ -67,7 +67,7 @@ export const selectActiveSalesPayments = (rows) => (
 )
 
 export const selectActiveSalesOpportunities = (rows) => (
-  normalizeSalesCockpitRows(rows).filter((row) => row?.status !== 'deleted' && !['输单', '搁置'].includes(row?.stage))
+  normalizeSalesCockpitRows(rows).filter((row) => row?.status !== 'deleted' && !['赢单', '输单', '搁置'].includes(row?.stage))
 )
 
 export const selectActiveSalesFollowUps = (rows) => (
