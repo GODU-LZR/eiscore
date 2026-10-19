@@ -294,6 +294,7 @@ import {
   buildHostTabRouteId as buildHostRouteId,
   isHostModuleAppPath as isModuleAppPath,
   isHostModuleEntryPath as isModuleEntryPath,
+  isStandaloneBusinessHarnessPath,
   normalizeHostTabPath as normalizeHostPath,
   normalizeHostTabQuery as normalizeHostQuery,
   resolveHostTabDot,
@@ -2959,7 +2960,7 @@ const restoreHostTabs = () => {
     parsed.forEach((item) => {
       if (!item || typeof item !== 'object') return
       const path = normalizeHostPath(item.path)
-      if (!isEnterprisePathEnabled(path, enterpriseConfig)) return
+      if (isStandaloneBusinessHarnessPath(path) || !isEnterprisePathEnabled(path, enterpriseConfig)) return
       const query = normalizeHostQuery(item.query)
       const defaultKey = buildDefaultTabKey(path, query)
       const forceDefaultKey = isModuleEntryPath(path) ||
@@ -3029,7 +3030,7 @@ const resolveTabByRoute = (path, query) => {
 }
 
 const syncHostTabsWithRoute = () => {
-  if (route.path === '/login') return
+  if (route.path === '/login' || isStandaloneBusinessHarnessPath(route.path)) return
   const path = normalizeHostPath(route.path)
   const query = normalizeHostQuery(route.query)
   const routeId = buildHostRouteId(path, query)
@@ -3083,7 +3084,7 @@ const closeHostTab = (key) => {
 const handleOpenHostTab = (payload) => {
   const detail = payload && typeof payload === 'object' ? payload : {}
   const path = normalizeHostPath(detail.path)
-  if (!path || !isEnterprisePathEnabled(path, enterpriseConfig)) return
+  if (!path || isStandaloneBusinessHarnessPath(path) || !isEnterprisePathEnabled(path, enterpriseConfig)) return
   const query = normalizeHostQuery(detail.query)
   const key = String(detail.tabKey || buildDefaultTabKey(path, query)).trim()
   const title = resolveHostTabTitle(path, query, detail.tabTitle)
