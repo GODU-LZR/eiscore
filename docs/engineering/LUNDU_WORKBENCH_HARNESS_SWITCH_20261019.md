@@ -33,6 +33,21 @@
 
 本地证据在 `output/playwright/lundu-workbench-20261019/`：`setup.cjs`、`verify.cjs`、`verification.json`，以及桌面流程/Harness、窄屏 Harness、认证失败四张截图。生成物不提交源码仓库。
 
+## 原生页面补验与推送（2026-10-20）
+
+源码任务提交 `25b953fb891fbb7083bc7873d7a55a47e9311fdc` 已推送到 `eiscore/codex/fix-eis-010-workbench-harness`，主分支串行整合提交为 `499aa61ea03a3b42e09590e4f6ff5db4a42676e5`。两分支均通过 GitHub `ls-remote --heads` 核对完整提交号。没有推送 DeepSeek 的 `origin`，没有改持久 Git/代理配置。
+
+已用本机安装的原生 DSH `0.1.2-rc.1`、独立临时 `DSH_HOME`、3098 端口和候选宿主 4181 补验真实 iframe 页面。测试代理复用现有 Nginx 的资源替换规则；插件来自既有 `.codex-tmp/harness-delivery-candidate/client-plugins` 编译制品，未改产品插件或正式配置。Chrome 实测：
+
+- 宿主仍仅有两个模式；原生 Harness 的会话侧栏及“数字分身”“智能 BI”内部按钮真实渲染。
+- 两个内部业务面板均可打开、关闭；未连接 EISCore 时显示“需要先连接 EISCore”。
+- 往返业务流程后，iframe DOM、document、智能 BI 面板选择和原生搜索输入均保留。
+- 1440px 与 390px 截图已视觉检查；JavaScript pageerror 为 0。两个预期 401 均来自未登录业务身份的 `/harness-embed-api/eiscore/auth/status`。
+
+这一轮使用真实 Harness 文档、脚本、WebSocket 及业务 UI 插件，但宿主身份、认证交接和业务 API 仍为测试替身，不证明真实 EISCore 身份接力、业务操作或 Provider completion 通过。临时无 Provider 配置，原生 API Key 引导由测试点击“稍后配置”关闭，未填入密钥。现有 smoke 脚本的 15 秒启动窗口曾超时；保留独立实例等待后成功启动并完成上述验收，没有修改 smoke 或产品启动器。
+
+新增本地证据：`native-preview.mjs`、`setup-native.cjs`、`verify-native.cjs`、`native-verification.json`、脱敏 `native-startup.json`，以及 `native-twin.png`、`native-bi.png`、`native-narrow.png`。真实页面客户端/构建包 SHA256 记录在该 JSON；既有插件编译制品并未因此取得新的 clean-build provenance。补验后关闭本任务 Chrome 与临时进程，未启动或替换共享栈。
+
 ## 整合与退出
 
 仅整合 HomeView、回归、npm 测试入口与本记录/问题台账。正式本地服务或远端生效需要另行准备并校验完整 12 入口制品；当前不能声称运行态已生效。若撤销此交互，回退本任务提交即可；无需数据迁移或数据库回退。
