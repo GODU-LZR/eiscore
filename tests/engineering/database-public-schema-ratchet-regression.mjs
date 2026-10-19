@@ -74,6 +74,25 @@ assert.deepEqual(result.descriptor.approvedAdditions, [{
   objects: [
     'FUNCTION:flash_agent_context()'
   ]
+}, {
+  'migrationId': 'core-029',
+  'adr': 'docs/engineering/adr/0023-sales-document-flow-public-contract.md',
+  'objects': [
+    'TABLE:sales_quotes',
+    'TABLE:sales_quote_items',
+    'TABLE:sales_contracts',
+    'TABLE:sales_contract_payment_nodes',
+    'TABLE:sales_receivable_schedule',
+    'VIEW:v_sales_receivable_aging',
+    'FUNCTION:refresh_sales_receivable_schedule(uuid)',
+    'FUNCTION:sync_sales_payment_receivable_schedule()',
+    'TRIGGER:sales_quotes trg_sales_quotes_updated_at',
+    'TRIGGER:sales_quote_items trg_sales_quote_items_updated_at',
+    'TRIGGER:sales_contracts trg_sales_contracts_updated_at',
+    'TRIGGER:sales_contract_payment_nodes trg_sales_contract_payment_nodes_updated_at',
+    'TRIGGER:sales_receivable_schedule trg_sales_receivable_schedule_updated_at',
+    'TRIGGER:sales_payments trg_sales_payments_sync_receivable_schedule'
+  ]
 }])
 
 const allowed = baselinePublicObjects(result.baselineCatalog, result.descriptor)

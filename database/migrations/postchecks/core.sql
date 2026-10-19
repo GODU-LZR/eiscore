@@ -508,3 +508,45 @@ BEGIN
   PERFORM set_config('request.jwt.claim.app_role', coalesce(saved_role, ''), true);
 END
 $twin_admin_authorization$;
+
+DO $sales_document_contract$
+DECLARE
+  table_name text;
+BEGIN
+  FOREACH table_name IN ARRAY ARRAY[
+    'sales_quotes', 'sales_quote_items', 'sales_contracts',
+    'sales_contract_payment_nodes', 'sales_receivable_schedule'
+  ] LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'public' AND c.relname = table_name AND c.relrowsecurity
+    ) OR NOT has_table_privilege('web_user', format('public.%I', table_name), 'SELECT')
+      OR NOT has_table_privilege('web_user', format('public.%I', table_name), 'INSERT')
+      OR NOT has_table_privilege('web_user', format('public.%I', table_name), 'UPDATE')
+      OR NOT has_table_privilege('web_user', format('public.%I', table_name), 'DELETE')
+      OR NOT has_table_privilege('eiscore_agent', format('public.%I', table_name), 'SELECT')
+      OR NOT has_table_privilege('eiscore_agent', format('public.%I', table_name), 'INSERT')
+      OR NOT has_table_privilege('eiscore_agent', format('public.%I', table_name), 'UPDATE')
+      OR has_table_privilege('web_anon', format('public.%I', table_name), 'SELECT')
+      OR has_table_privilege('eiscore_flash_agent', format('public.%I', table_name), 'SELECT')
+      OR has_table_privilege('eiscore_agent', format('public.%I', table_name), 'DELETE') THEN
+      RAISE EXCEPTION 'sales document table access boundary is incomplete: %', table_name;
+    END IF;
+  END LOOP;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class WHERE oid = 'public.v_sales_receivable_aging'::regclass
+      AND reloptions @> ARRAY['security_invoker=true']::text[]
+  ) OR NOT has_table_privilege('web_user', 'public.v_sales_receivable_aging', 'SELECT')
+    OR has_table_privilege('web_anon', 'public.v_sales_receivable_aging', 'SELECT')
+    OR has_function_privilege('web_user', 'public.refresh_sales_receivable_schedule(uuid)', 'EXECUTE')
+    OR has_function_privilege('web_user', 'public.sync_sales_payment_receivable_schedule()', 'EXECUTE') THEN
+    RAISE EXCEPTION 'sales aging view or internal synchronization privileges are invalid';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgrelid = 'public.sales_payments'::regclass
+      AND tgname = 'trg_sales_payments_sync_receivable_schedule' AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'sales payment synchronization trigger is missing';
+  END IF;
+END
+$sales_document_contract$;

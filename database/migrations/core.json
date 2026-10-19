@@ -355,6 +355,32 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-028",
+      "path": "database/migrations/sql/core-028-fix-twin-admin-session-contract.sql",
+      "sha256": "a7500e14cbbc5c07fa080899de22dd46d46514b6fa9b2d98de5bbec1d31bef38",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-029",
+      "path": "database/migrations/sql/core-029-sales-document-flow.sql",
+      "sha256": "aa6467b6de190b1d96a0f0edb720586edef369851225272dcfeb52499e4b382a",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

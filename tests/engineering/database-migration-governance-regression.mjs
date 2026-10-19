@@ -49,14 +49,20 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 27)
+assert.equal(coreResult.migrations.length, 29)
 assert.deepEqual(coreResult.migrations.map((entry) => entry.id),
-  Array.from({ length: 27 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
+  Array.from({ length: 29 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
 const twinAdminHistory = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-025-twin-admin-session-overview.sql'), 'utf8')
 const twinAdminCorrection = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-027-reject-missing-twin-admin-role.sql'), 'utf8')
 assert.match(twinAdminHistory, /IF app_role <> 'super_admin' THEN/, 'the original migration must remain immutable')
 assert.match(twinAdminCorrection, /IF app_role IS DISTINCT FROM 'super_admin' THEN/)
-assert.equal(coreResult.migrations.at(-1).path, 'database/migrations/sql/core-027-reject-missing-twin-admin-role.sql')
+assert.equal(coreResult.migrations.at(-1).path, 'database/migrations/sql/core-029-sales-document-flow.sql')
+const twinAdminContract = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-028-fix-twin-admin-session-contract.sql'), 'utf8')
+assert.match(twinAdminContract, /NULLIF\(current_setting\('request.jwt.claims', true\), ''\)::jsonb/)
+assert.match(twinAdminContract, /IF app_role IS DISTINCT FROM 'super_admin' THEN/)
+assert.match(twinAdminContract, /ALTER FUNCTION public\.admin_twin_sessions\(integer\) OWNER TO eiscore_owner/)
+assert.match(twinAdminContract, /REVOKE ALL ON FUNCTION public\.admin_twin_sessions\(integer\) FROM PUBLIC/)
+assert.match(twinAdminContract, /GRANT EXECUTE ON FUNCTION public\.admin_twin_sessions\(integer\) TO web_user/)
 
 // Rehashing a rewritten published migration must not make governance pass.
 const portable = (text) => text.replaceAll('\r\n', '\n')

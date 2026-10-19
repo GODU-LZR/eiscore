@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "enterprise": {"id": "yayu", "displayName": "雅御", "shortName": "雅御"},
+  "branding": {
+    "productName": "雅御 EISCore",
+    "themeColor": "#1557A6",
+    "logoUrl": "",
+    "login": {
+      "slogan": "雅御企业协同工作区",
+      "description": "雅御开发与测试环境",
+      "siteTag": "雅御",
+      "backgroundImage": "",
+      "announcement": "开发与测试环境",
+      "authTitle": "登录雅御工作区",
+      "showSecondaryAction": false,
+      "metrics": [], "trustBadges": [], "businessChain": [], "capabilities": [],
+      "carouselImages": [], "leaders": [], "navItems": [],
+      "footerText": "雅御 EISCore", "icpText": ""
+    }
+  },
+  "endpoints": {"publicBaseUrl": "https://yayu.eiscore.top", "apiBasePath": "/api", "agentBasePath": "/agent", "realtimeWsPath": "/ws"},
+  "modules": {"hr": true, "materials": true, "apps": true, "company-site": false, "sales": true, "purchase": true, "production": false, "quality": false, "equipment": false, "decision": false, "mobile": true},
+  "features": {"documentIntake": false, "enterpriseAi": true}
+}
