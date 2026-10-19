@@ -34,7 +34,7 @@
 - 六张轮播配置及艺术资源保留；三维 canvas 就绪，拆分/组装按钮可操作，移动端可在 canvas 区域滚动页面。截图已逐张视觉检查，位于 `output/playwright/lundu-product-images-candidate-{catalog,quote,pump-exploded,pump-assembled}-*.png`。
 - 没有提交采购单、发送客服消息或写入业务数据；采购单验收仅使用本会话浏览器存储。
 
-上述是候选验收，不代表远端生效。实际发布、线上验收与回退路径在完成后补充。
+本节记录发布前候选验收；实际远端发布与线上验收见下文。
 
 ### 发布门禁发现与处置
 
@@ -43,3 +43,30 @@
 该图片是历史 tracked `public` 兼容副本，Vite 会复制进静态制品。仓库通用 Nginx 和 2026-10-09 恢复记录已有精确静态 location，但伦度部署配置缺少该规则，导致被 `/agent/` 通用 API 代理截走。伦度当前页面没有引用该历史图片。
 
 将同一精确静态规则补到 `deploy/lundu/nginx/lundu-eiscore.conf`，发布时只增量补入远端配置，保留其余配置和所有代理。完整 609 项 manifest 不删减，前端制品无需重建。配置和 release 均备份，失败时一起恢复；仍只重建 web。
+
+### 实际远端发布（已完成）
+
+2026-10-19 07:06 UTC（北京时间 15:06）在共享锁 `/opt/lundu-eiscore/.lundu-web-publish.lock` 内发布成功。源码提交 `9ff93969a16fe3ac96fa3b1d6457f04e5c403e3e`，部署配置提交 `68de0ac5`，均已推送到 `eiscore/codex/fix-lundu-empty-carousel`。这表示任务分支已推送，不表示重构主分支已整合。
+
+- 完整 12 入口归档：外层工作区 `output/lundu-product-images-20261019/lundu-product-images-9ff93969.tar.gz`，42,153,022 bytes；SHA-256 `46d652f036e89bcfd623d6553b9fd0cb2e46a0ce9881404f0954d0bd0a6c2e8d`。
+- 运行目录：`/opt/lundu-eiscore/release`；线上 manifest `2ef653fcc2779be6` / 609 项 / 77,427,670 bytes；入口 `/assets/index-D2z3lVl9.js`。
+- 只在远端原 Nginx 配置中增量加入上述精确静态规则，没有用工作树的整份配置覆盖远端其他代理。
+- 实际只重建 `lundu-eiscore-web-1`，新容器 `18b8d49f05be`。`agent`、`deepseek-web`、`api`、`db` 的容器 ID 和启动时间均未改变；未操作惠众。
+- `nginx -t` 通过；既有重复 MIME 警告及既有 DeepSeek Web orphan 提示未作清理。
+- 旧完整 release：`/opt/lundu-eiscore/backups/release-pre-product-images-20261019T070604Z`。
+- 旧 Nginx 配置：`/opt/lundu-eiscore/backups/nginx-pre-product-images-20261019T070604Z.conf`。
+
+回退时先持有同一发布锁，确认当前版本没有被后续发布替换；保留当前完整 release 后恢复上述 release 和 Nginx 配置，只执行 `docker compose --env-file /opt/lundu-eiscore/.env -f /opt/lundu-eiscore/compose.yml up -d --no-deps --force-recreate web`。不得回退数据库或重建其他服务。
+
+### 真实线上验收（已通过）
+
+- 发布门禁从服务器实际 HTTP 入口读取全部 609 项及 manifest/config/SW，每项 SHA-256 均与制品一致。首次发布失败的兼容厂房图已返回 200。
+- 独立只读 HTTPS 复核：12 个精确 `index.html` 入口均 200，字节与候选一致；manifest 为 JSON；Logo 为 `image/png`；兼容厂房图为 `image/jpeg`；主包、登录包和三维水泵包均正确返回 JavaScript 且哈希一致。公开档案仍为伦度、83 产品，无跨企业品牌。
+- Playwright 使用真实 `https://lundu.eiscore.top`，没有静态拦截，在 390×844、414×896、768×1024、1440×900 全部通过：12 产品卡、0 字符占位、0 坏图，详情图、旧采购单恢复、水泵/电机缩略图与数量均正常；无横向溢出和浏览器错误。
+- 六张轮播逐一点击并解码成功，六个 URL 各不相同；水泵分别等待拆分进度到 1、组装到 0 后截图，移动端 canvas 上滚动仍正常。
+- 共 12 张线上截图已逐张视觉复核：四视口产品区、四视口采购单、手机与桌面完整拆分/组装。图片主体完整、采购单不再使用“三”等首字占位。
+- 另用允许 Service Worker 的独立浏览器上下文验证受控后刷新：worker `/sw.js` 生效，缓存名对应本次 manifest，12 产品图片全部正常，无占位、溢出或页面错误；截图已检查。此项为新上下文刷新检查，不宣称覆盖所有历史浏览器缓存升级路径。
+
+发布日志：外层工作区 `output/lundu-product-images-20261019/deployment-final.log`。线上脚本、日志与截图在本工作树 `output/playwright/lundu-product-images-*`，其中 `remote-qa.log` 和 `remote-cache-qa.log` 记录真实运行结果；文件名包含 `candidate` 的证据仍仅代表候选。
+
+本次没有写业务数据库、提交订单或调用真实客服模型。缺图产品使用现有系列展示图，不代表已补齐每个 SKU 的独立实拍照片。
