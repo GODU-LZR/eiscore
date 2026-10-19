@@ -53,3 +53,5 @@ softcopyright_extract/
 # Flash runtime drafts are generated under the application workspace. Keep
 # historical tracked fixtures, but do not add new runtime drafts by accident.
 /eiscore-apps/src/views/drafts/.app-drafts/*.vue
+# Generated, checksum-locked Harness visualization libraries.
+/agent-harness/web-ui/vendor/
