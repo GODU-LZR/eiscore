@@ -29,11 +29,15 @@ export CI=true
 export npm_config_audit=false
 export npm_config_fund=false
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+export VITE_ENTERPRISE_SHARE_TITLE="$(node -p 'JSON.parse(require("fs").readFileSync("deploy/yayu/site-profile.json", "utf8")).site.seo.title')"
+export VITE_ENTERPRISE_SHARE_IMAGE='/enterprise-assets/yayu/yayu-hero.webp'
+export VITE_ENTERPRISE_SHARE_ORIGIN='https://yayu.eiscore.top'
+export VITE_ENTERPRISE_FAVICON='/enterprise-assets/yayu/favicon.png'
 for package in . packages/eiscore-platform eiscore-base eiscore-apps eiscore-company-site eiscore-hr eiscore-materials eiscore-sales eiscore-mobile; do
   npm --prefix "$package" ci --no-audit --no-fund
 done
 
-for test in platform-auth-session-regression enterprise-module-routing-regression enterprise-config-regression sales-follow-up-attention-regression sales-apps-load-resilience-regression; do
+for test in platform-auth-session-regression enterprise-module-routing-regression enterprise-config-regression enterprise-industry-site-regression sales-follow-up-attention-regression sales-apps-load-resilience-regression; do
   node "tests/engineering/$test.mjs"
 done
 for package in eiscore-base eiscore-apps eiscore-company-site eiscore-hr eiscore-materials eiscore-sales eiscore-mobile; do
@@ -61,10 +65,6 @@ for (const file of ['index.html', 'sw.js']) {
 }
 mkdirSync(join(root, 'config'), { recursive: true })
 cpSync('deploy/yayu/site-profile.json', join(root, 'config/site-profile.json'))
-cpSync('deploy/yayu/login.css', join(root, 'config/deployment-login.css'))
-const indexPath = join(root, 'index.html')
-const index = readFileSync(indexPath, 'utf8')
-writeFileSync(indexPath, index.replace('</head>', '    <link rel="stylesheet" href="/config/deployment-login.css">\n  </head>'))
 writeFileSync(join(root, 'config/frontend-dist-manifest.json'), JSON.stringify({
   enterpriseId: 'yayu', sourceRevision: process.env.EISCORE_SOURCE_REVISION,
   release: process.env.YAYU_RELEASE_VERSION, generatedAt: new Date().toISOString(),

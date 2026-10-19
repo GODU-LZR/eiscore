@@ -1,8 +1,10 @@
 # 雅御独立开发测试环境
 
-源码使用 `雅御` 分支，部署根目录 `/opt/yayu-eiscore`，公网入口 `https://yayu.eiscore.top` 与 `*.yayu.eiscore.top`。独立站页面内容另行确认，本环境先提供同源登录和 EISCore 业务模块。数据库不包含惠众、伦度业务与演示数据。
+源码使用 `雅御` 分支，部署根目录 `/opt/yayu-eiscore`，公网入口 `https://yayu.eiscore.top` 与 `*.yayu.eiscore.top`。本分支官网采用青绿山水与企业业务内容，复用同源登录和 EISCore 业务模块；线上是否生效以实际发布版本和浏览器验收为准。数据库不包含惠众、伦度业务与演示数据。
 
-当前公开入口使用部署层 `login.css` 隐藏继承的产品宣传、采购和客服内容，只保留企业标识、登录按钮和原有认证弹窗。构建时复制为 `/config/deployment-login.css` 并写入宿主入口；不修改 Vue 页面或认证流程，后续官网方案确定后可移除此部署覆盖。
+官网由 `site-profile.json` 的标准 `{ site, content }` 公共配置驱动，`site.template=industry-ink-v1` 选择通用产业官网组件。品牌名称、业务介绍、艺术资源路径与 SEO 均在部署配置中；其他企业未配置此模板时保留原页面。宿主 `/login` 展示官网，“企业登录”开启原有认证弹窗；`?login=1`、业务路由的 `redirect` 和 Harness 登录交接沿用原流程，已登录用户仍进入工作台。本轮不改变认证函数、路由或用户存储。
+
+构建不再复制或注入临时 `login.css`，该历史文件不属于新发布制品。官网资源由宿主公共目录进入候选，不能放在仍被禁止的 `/company-site/` 路径下。新官网不会实例化旧产品三维展示、采购列表或客服界面；旧版本发布目录保留作为整体回退目标。
 
 `source/` 用于雅御开发；`releases/<version>/` 为构建候选，`releases/current` 为当前静态制品，`releases/previous` 为上次成功版本。Web 必须将整个 releases 目录只读挂载为 `/srv/releases`，以 `/srv/releases/current` 为站点根；容器固定名称 `yayu-eiscore-web`，独立 loopback `127.0.0.1:18396`。
 
@@ -17,7 +19,7 @@ docker compose --profile tools run --rm -e EISCORE_SOURCE_REVISION=<40位源码�
 
 也可在独立源码目录使用宿主 Node 20.19 执行相同脚本：显式设置 `YAYU_SOURCE_ROOT=/opt/yayu-eiscore/source`、`YAYU_RELEASES_ROOT=/opt/yayu-eiscore/releases` 和 `EISCORE_SOURCE_REVISION`，并先准备该源码副本自己的雅御 public 配置；不得修改其他企业源码或制品。
 
-脚本按 lockfile 安装根、平台 SDK 和七个前端依赖，运行认证、模块路由、企业配置与两项销售回归（共五项）；构建前还会独立校验实际雅御品牌配置，避免依赖示例企业专属断言。随后逐个构建并聚合到新候选。候选版本号不可覆盖；失败候选保留排查，下一次使用新版本。它不会修改 `current`。
+脚本按 lockfile 安装根、平台 SDK 和七个前端依赖，运行认证、模块路由、企业配置、产业官网与两项销售回归（共六项）；构建前还会独立校验实际雅御品牌配置，避免依赖示例企业专属断言。随后逐个构建并聚合到新候选。候选版本号不可覆盖；失败候选保留排查，下一次使用新版本。它不会修改 `current`。
 
 在宿主先只读检查，再切换当前版本：
 
@@ -31,6 +33,8 @@ bash source/deploy/yayu/publish.sh dev-20261020-001
 回退调用相同发布脚本，参数改为历史成功版本；无需重启 Web。旧哈希资源请求若跨越发布时刻可能返回 404，刷新会加载新入口；本开发环境保留历史发布目录用于人工回退，不提供跨版本哈希资源合并。并发发布需由同一负责窗口串行执行。
 
 现有 `*.eiscore.top` 证书仅覆盖主域 `yayu.eiscore.top`，二级通配符必须使用包含 `*.yayu.eiscore.top` 的独立 DNS-01 证书。公共边缘 Nginx 的变更由部署负责人备份、检查并 reload；本静态发布脚本不会修改边缘服务或其他客户服务。
+
+本地 UI 预览在安装宿主依赖后运行 `node deploy/yayu/preview.mjs`，入口为 `http://127.0.0.1:18420/login`。专用脚本提供雅御 runtime 配置（本地 `publicBaseUrl` 为空）及标准公共 profile（`site.domain` 与本地 hostname 一致），阻断对其他企业后端的代理和写入。SDK 的域名校验保持启用。仓库默认 `eiscore-base/public/config/eiscore-enterprise.json` 不是雅御配置，正式雅御构建通过 Compose 只读挂载覆盖它；直接运行普通 Vite 不能作为雅御验收。使用真实雅御 API 验证登录需要独立安排同源代理，纯 UI 预览不代表认证或业务链已通过。
 
 初始化仅适用于新建雅御空库：Compose 的 db 依次导入 roles-v2、v1 schema/register 与独立运行密钥。保存真实 pg_dump 备份后，使用 `scripts/apply-runtime-migrations.mjs` 依次执行 runtime-v2、company-site、core 三个当前 manifest，明确指定 `--db-container yayu-eiscore-db`、备份证据、源码版本与操作者。重跑运行密钥脚本恢复 core-026 后的独立角色配置，再通过环境变量传入 `YAYU_ADMIN_USERNAME`、`YAYU_ADMIN_PASSWORD`（至少24字符）、`YAYU_ENTERPRISE_ID=yayu` 和 `YAYU_PRODUCT_NAME`，运行 `bootstrap.sql`。不得使用其他企业库或凭据。当前冻结 v6/v7 描述符与新源码存在漂移，本环境使用当前受治理迁移及实际 postcheck，不宣称通过冻结版本的完整发布契约。
 

@@ -347,6 +347,7 @@ function deploymentFallback(enterpriseConfig) {
   const displayName = text(config?.enterprise?.displayName, 'EISCore 企业')
   return freezeProfile({
     source: 'deployment-fallback',
+    template: '',
     siteKey: text(config?.enterprise?.id, 'eiscore-default'),
     legalName: displayName,
     displayName,
@@ -412,6 +413,7 @@ export function enterpriseProfileFromSiteConfig(payload, {
 
   return freezeProfile({
     source: 'published-site',
+    template: text(site.template || site.templateKey),
     siteKey: text(site.siteKey || site.site_key),
     legalName,
     displayName,

@@ -1,5 +1,12 @@
 <template>
-  <div class="login-page" :class="{ 'is-scrolled': pageScrolled || isServicePage }" :style="pageStyle">
+  <div class="login-page" :class="{ 'is-scrolled': pageScrolled || isServicePage, 'is-industry-site': isIndustrySite }" :style="pageStyle">
+    <EnterpriseIndustrySite
+      v-if="isIndustrySite"
+      :profile="systemStore.enterpriseProfile"
+      :branding="branding"
+      @login="focusLogin"
+    />
+    <template v-else-if="portalReady">
     <header class="site-header">
       <div class="brand-lockup">
         <div class="brand-mark" :class="{ 'has-logo': branding.logo }">
@@ -417,8 +424,10 @@
         </div>
       </section>
     </main>
+    </template>
 
     <Teleport to="body">
+      <template v-if="portalReady && !isIndustrySite">
       <Transition name="commerce-dialog">
         <div v-if="productDetail" class="commerce-overlay" @click.self="productDetail = null">
           <section class="commerce-modal product-detail-modal" role="dialog" aria-modal="true">
@@ -548,6 +557,7 @@
         </div>
       </Transition>
 
+      </template>
       <Transition name="auth-dialog">
         <div v-if="loginVisible" class="auth-overlay" @click.self="closeLogin">
           <section
@@ -605,7 +615,7 @@
       </Transition>
     </Teleport>
 
-    <footer class="site-footer">
+    <footer v-if="portalReady && !isIndustrySite" class="site-footer">
       <span>{{ branding.footerText }}</span>
       <span v-if="branding.icpText">{{ branding.icpText }}</span>
     </footer>
@@ -629,6 +639,7 @@ import { applyEnterpriseSeoHead, buildEnterpriseSeoHead } from '@eiscore/platfor
 import { completeHarnessAuth } from '@/services/harness-auth-client'
 import { readPublicServiceContent, localizedPublicServices } from '@/services/public-service-content'
 import customerServiceAvatar from '@/assets/customer-service-avatar.png'
+import EnterpriseIndustrySite from '@/components/EnterpriseIndustrySite.vue'
 
 const Product3DViewer = defineAsyncComponent(() => import('@/components/Product3DViewer.vue'))
 const PineappleProcessViewer = defineAsyncComponent(() => import('@/components/PineappleProcessViewer.vue'))
@@ -640,6 +651,7 @@ const route = useRoute()
 const userStore = useUserStore()
 const systemStore = useSystemStore()
 const loading = ref(false)
+const portalReady = ref(false)
 const loginVisible = ref(false)
 const quoteVisible = ref(false)
 const productDetail = ref(null)
@@ -662,6 +674,7 @@ const paymentReserved = ref(false)
 const leadForm = reactive({ companyName: '', contactName: '', email: '', phone: '', targetDate: '', message: '' })
 const loginFormRef = ref(null)
 const headerLoginRef = ref(null)
+let loginTrigger = null
 const pageScrolled = ref(false)
 const switchingLocale = ref(false)
 const activeSolutionIndex = ref(0)
@@ -696,6 +709,7 @@ const productActionText = computed(() => (
 ))
 const isEnglish = computed(() => activeLocale.value.toLowerCase().startsWith('en'))
 const isServicePage = computed(() => route.name === 'public-service')
+const isIndustrySite = computed(() => !isServicePage.value && systemStore.enterpriseProfile?.template === 'industry-ink-v1')
 const serviceId = computed(() => String(route.params.serviceId || ''))
 const localizedServices = computed(() => localizedPublicServices(serviceContent.value, activeLocale.value))
 const servicePages = computed(() => localizedServices.value?.pages || [])
@@ -980,7 +994,7 @@ const stopHeroAutoplay = () => {
 
 const startHeroAutoplay = () => {
   stopHeroAutoplay()
-  if (isServicePage.value || heroPaused.value || prefersReducedMotion() || carouselItems.value.length < 2) return
+  if (!portalReady.value || isIndustrySite.value || isServicePage.value || heroPaused.value || prefersReducedMotion() || carouselItems.value.length < 2) return
   heroTimer = window.setInterval(() => {
     activeHeroIndex.value = (activeHeroIndex.value + 1) % carouselItems.value.length
   }, 6500)
@@ -1306,6 +1320,7 @@ const hydrateInquiryList = () => {
 }
 
 const focusLogin = async () => {
+  loginTrigger = document.activeElement
   loginVisible.value = true
   await nextTick()
   requestAnimationFrame(() => {
@@ -1321,7 +1336,8 @@ const closeLogin = async () => {
   loginVisible.value = false
   loginFormRef.value?.clearValidate?.()
   await nextTick()
-  headerLoginRef.value?.focus?.()
+  const trigger = loginTrigger || headerLoginRef.value
+  trigger?.focus?.()
 }
 
 watch(loginVisible, (visible) => {
@@ -1411,24 +1427,30 @@ const switchLocale = async (locale) => {
 }
 
 onMounted(async () => {
-  updateCustomerServiceViewport()
-  window.visualViewport?.addEventListener('resize', updateCustomerServiceViewport)
-  window.visualViewport?.addEventListener('scroll', updateCustomerServiceViewport)
+  await nextTick()
   const requestedLocale = new URLSearchParams(window.location.search).get('lang') || ''
   try {
-    await Promise.all([
-      systemStore.loadConfig({ locale: requestedLocale }),
-      readPublicServiceContent().then(content => { serviceContent.value = content }).catch(() => {})
-        .finally(() => { servicesLoading.value = false })
-    ])
+    await systemStore.loadConfig({ locale: requestedLocale })
+    if (!isIndustrySite.value) {
+      await readPublicServiceContent().then(content => { serviceContent.value = content }).catch(() => {})
+    }
   } finally {
+    servicesLoading.value = false
+    portalReady.value = true
     await nextTick()
     window.__EISCORE_INITIAL_CONTENT_READY__ = true
     window.dispatchEvent(new Event('eiscore:initial-content-ready'))
   }
-  hydrateInquiryList()
   systemStore.initTheme()
-  startHeroAutoplay()
+  if (!isIndustrySite.value) {
+    updateCustomerServiceViewport()
+    window.visualViewport?.addEventListener('resize', updateCustomerServiceViewport)
+    window.visualViewport?.addEventListener('scroll', updateCustomerServiceViewport)
+    hydrateInquiryList()
+    startHeroAutoplay()
+    handleScroll()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+  }
   refreshSeoHead()
   if (
     route.query.login === '1' ||
@@ -1439,10 +1461,8 @@ onMounted(async () => {
     await nextTick()
     loginFormRef.value?.$el?.querySelector?.('input')?.focus?.()
   }
-  handleScroll()
-  window.addEventListener('scroll', handleScroll, { passive: true })
   requestAnimationFrame(() => {
-    revealSections()
+    if (!isIndustrySite.value) revealSections()
     if (route.hash) scrollToSection(route.hash.slice(1))
   })
 })
@@ -1631,4 +1651,8 @@ const handleLogin = async () => {
 
 <style scoped lang="scss">
 @import "../styles/login-view.scss";
+
+.login-page.is-industry-site {
+  overflow-x: clip;
+}
 </style>

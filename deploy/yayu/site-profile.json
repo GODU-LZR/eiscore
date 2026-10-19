@@ -1,1 +1,119 @@
-{"siteKey":"yayu","name":"雅御","displayName":"雅御","shortName":"雅御","domain":"yayu.eiscore.top","description":"雅御开发与测试环境","themeColor":"#1557A6","logoUrl":"","status":"draft","enabledLocales":["zh-CN"],"defaultLocale":"zh-CN","locale":"zh-CN","publishedVersion":0,"portal":{"loginBranding":{"slogan":"雅御企业协同工作区","description":"雅御开发与测试环境","headerLoginText":"企业登录","authTitle":"登录雅御工作区","showSecondaryAction":false}}}
+{
+  "ok": true,
+  "site": {
+    "siteKey": "yayu",
+    "brandName": "雅御科技",
+    "brandShortName": "雅御",
+    "domain": "yayu.eiscore.top",
+    "template": "industry-ink-v1",
+    "status": "published",
+    "publishedVersion": 1,
+    "defaultLocale": "zh-CN",
+    "enabledLocales": ["zh-CN"],
+    "theme": { "primaryColor": "#285d57" },
+    "trademark": {
+      "asset": "/enterprise-assets/yayu/yayu-calligraphy-transparent.webp",
+      "faviconUrl": "/enterprise-assets/yayu/favicon.png"
+    },
+    "settings": { "publicPath": "/login" },
+    "contact": {},
+    "seo": {
+      "title": "雅御科技｜AI产业服务与企业数字化",
+      "description": "雅御科技以 EISCore 与行业 Agent 为技术底座，连接智能终端、企业数字化、园区产业服务与文旅内容运营，提供方案、交付与持续服务。",
+      "keywords": ["雅御科技", "EISCore", "行业Agent", "企业数字化", "园区产业服务", "具身智能"]
+    }
+  },
+  "content": {
+    "requestedLocale": "zh-CN",
+    "pages": [{
+      "slug": "home",
+      "title": "让 AI 成为企业经营伙伴",
+      "summary": "以技术连接业务，以服务连接产业。",
+      "blocks": {
+        "homepage": {
+          "brandName": "雅御科技",
+          "brandShortName": "雅御",
+          "hero": {
+            "eyebrow": "AI 产业运营服务",
+            "titleLines": ["让 AI 成为", "企业经营伙伴"],
+            "summary": "以 EISCore 与行业 Agent 为技术底座，连接智能终端、企业经营与产业场景。从需求诊断到项目交付，与伙伴共同开展长期服务。",
+            "image": { "src": "/enterprise-assets/yayu/yayu-hero.webp", "alt": "青绿山水与江湖，雅御科技品牌艺术" },
+            "signals": ["技术平台", "场景交付", "产业协作"]
+          },
+          "navItems": [
+            { "label": "产品与技术", "anchor": "products" },
+            { "label": "业务服务", "anchor": "solutions" },
+            { "label": "园区合作", "anchor": "industry" },
+            { "label": "关于雅御", "anchor": "about" }
+          ],
+          "headerLoginText": "企业登录",
+          "authKicker": "企业工作区",
+          "authTitle": "登录雅御工作区",
+          "announcement": "连接工作台、销售、仓储、人事与应用中心",
+          "primaryActionText": "登录工作区",
+          "authSafeNote": "账号由管理员统一分配",
+          "authFootnote": "仅供企业授权人员使用",
+          "scrollCueText": "探索业务",
+          "metricsSectionKicker": "雅御所做",
+          "metricsSectionTitle": "连接技术、业务与产业",
+          "aboutSectionKicker": "园区产业服务",
+          "aboutImage": "/enterprise-assets/yayu/business-overview.webp",
+          "aboutImageAlt": "雅御科技业务全景，来自公司提供的品牌图片",
+          "overviewFactoryImage": "/enterprise-assets/yayu/yayu-industry.webp",
+          "overviewFactoryImageAlt": "山水中的产业园，园区数字化服务概念插图",
+          "capabilitiesSectionKicker": "从一个场景开始",
+          "capabilitiesSectionTitle": "让园区拥有持续服务企业的能力",
+          "capabilities": [
+            { "title": "技术平台", "description": "通过 EISCore 与行业 Agent，连接企业数据、业务单据和协作流程。" },
+            { "title": "应用交付", "description": "组合模型、算力与智能终端，为具体场景提供接入、适配和部署服务。" },
+            { "title": "产业协作", "description": "围绕园区与行业项目，开展企业服务、资源对接、培训和持续运营。" }
+          ],
+          "businessChain": [
+            { "title": "需求诊断", "description": "了解企业流程与现场需求，确定优先解决的问题。" },
+            { "title": "方案匹配", "description": "匹配软件、行业 Agent、终端和服务资源。" },
+            { "title": "场景试点", "description": "选择具体企业或业务场景，明确试点目标与交付边界。" },
+            { "title": "项目交付", "description": "推进系统接入、应用部署、培训和使用验证。" },
+            { "title": "持续服务", "description": "跟进使用反馈，优化应用并逐步扩展合作。" }
+          ],
+          "productSectionKicker": "产品与技术",
+          "productSectionTitle": "让技术进入日常经营",
+          "solutionSectionKicker": "业务服务",
+          "solutionSectionTitle": "从企业现场，延伸到产业场景",
+          "footerNote": "雅御科技 · 联合共建 · 联合交付 · 长期服务"
+        }
+      }
+    }],
+    "products": [
+      {
+        "id": "enterprise-platform",
+        "name": "EISCore 企业数字化",
+        "category": "企业经营底座",
+        "summary": "围绕企业经营组织工作台、销售、仓储、人事与应用协作，并面向资料采集、业务单据生成和数据复核开展应用服务。",
+        "applications": ["资料采集", "业务处理", "复核协作", "销售管理", "仓储管理", "人事协作"]
+      },
+      {
+        "id": "industry-agent",
+        "name": "行业 Agent 应用",
+        "category": "行业流程协作",
+        "summary": "结合企业规则与实际工作流程，规划行业 Agent 的任务、工具与人工复核环节，推动应用接入和持续运维。",
+        "applications": ["制造与商贸", "农业与文旅", "政务与教育", "流程协作", "交付运维"]
+      },
+      {
+        "id": "intelligent-terminal",
+        "name": "智能终端与模型算力",
+        "category": "软硬件适配交付",
+        "summary": "围绕机器人、AI 眼镜与边缘设备等终端方向，组合模型接入、算力采购、设备适配及部署交付服务。",
+        "applications": ["模型接入", "算力部署", "终端适配", "园区导览", "会议接待", "任务提醒"]
+      }
+    ],
+    "solutions": [
+      { "id": "enterprise", "name": "企业数字化与行业 Agent", "category": "企业经营", "summary": "从销售、仓储、人事等经营流程出发，组合企业管理工具与行业 Agent，梳理数据、单据和人员协作。", "applications": ["EISCore 专项技术", "Agent 行业应用", "业务流程梳理", "应用部署与运维"] },
+      { "id": "park", "name": "园区运营与企业服务", "category": "园区产业", "summary": "与园区资源方共同梳理入驻企业需求，以数字化工具、项目服务和运营支持开展试点合作。", "applications": ["园区招商协作", "企业入驻与项目孵化", "政府项目与政策服务", "AI 商学院与人才培训"] },
+      { "id": "model-supply", "name": "大模型供应链与设备采购", "category": "模型与算力", "summary": "按照场景需求整合模型资源、算力与高精专设备，衔接采购、部署、终端适配和项目交付。", "applications": ["大模型供应链", "高精专设备采购", "边缘与云端算力", "部署交付"] },
+      { "id": "embodied", "name": "具身智能与终端集成", "category": "智能终端", "summary": "面向企业与园区的交互场景，探索机器人和 AI 眼镜等终端的集成、场景验证与应用服务。", "applications": ["具身智能运营终端", "企业 AI 秘书", "园区导览与会议接待", "AI 眼镜研发协同"] },
+      { "id": "culture-content", "name": "数字化文旅与 AI 内容", "category": "文旅与传播", "summary": "围绕城市文旅、品牌内容和数字导览，组合内容策划、AI 制作、账号运营与传播服务。", "applications": ["数字化文旅", "AI MCN", "品牌 IP 与 AI 漫剧", "短视频与内容运营"] },
+      { "id": "industry-partnership", "name": "产业资源与资本协作", "category": "产业合作", "summary": "围绕项目发展需求，开展产业资源、协会交流、政策与资本对接；具体参与方式由项目合作确定。", "applications": ["人工智能产业协会交流", "产业资源对接", "AI 金融服务方向", "AI 行业投资与 VC 对接"] }
+    ],
+    "faq": []
+  }
+}
