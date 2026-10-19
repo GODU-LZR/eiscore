@@ -72,7 +72,7 @@ onBeforeUnmount(() => {
 .worker-trigger { position: fixed; bottom: 30px; right: 30px; z-index: 2000; width: 60px; height: 60px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; border: 0; border-radius: 16px; background: var(--el-color-primary); color: #fff; cursor: pointer; box-shadow: 0 4px 18px #0002; }
 .worker-trigger span:first-child { font-size: 24px; }
 .worker-trigger span:last-child { font-size: 10px; }
-.harness-host { position: fixed; top: 80px; right: 30px; width: 380px; height: calc(100dvh - 160px); z-index: 2000; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--el-border-color); border-radius: 16px; background: var(--el-bg-color); box-shadow: 0 8px 32px #0003; }
+.harness-host { position: fixed; top: 80px; right: 30px; width: 380px; height: calc(100dvh - 160px); box-sizing: border-box; z-index: 2000; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--el-border-color); border-radius: 16px; background: var(--el-bg-color); box-shadow: 0 8px 32px #0003; }
 .harness-host.is-workspace { right: auto; z-index: 1; border: 0; border-radius: 0; box-shadow: none; }
 .harness-host.is-fullscreen { inset: 0; width: 100%; height: 100dvh; border-radius: 0; }
 .worker-header { height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid var(--el-border-color); color: var(--el-text-color-primary); }
