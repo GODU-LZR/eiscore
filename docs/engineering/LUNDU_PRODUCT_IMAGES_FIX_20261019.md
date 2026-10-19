@@ -35,3 +35,11 @@
 - 没有提交采购单、发送客服消息或写入业务数据；采购单验收仅使用本会话浏览器存储。
 
 上述是候选验收，不代表远端生效。实际发布、线上验收与回退路径在完成后补充。
+
+### 发布门禁发现与处置
+
+首次 SFTP 传输断开，没有切换 release；改用 SCP 兼容传输后，制品 SHA-256 核对通过。第一次切换后全清单 HTTP 门禁遇到 `/agent/company-site/public/assets/site/factory-overview.jpg` 返回 404，已自动回退，复核远端 manifest 恢复为 `56fc8646ccb90f09` / 549 项。
+
+该图片是历史 tracked `public` 兼容副本，Vite 会复制进静态制品。仓库通用 Nginx 和 2026-10-09 恢复记录已有精确静态 location，但伦度部署配置缺少该规则，导致被 `/agent/` 通用 API 代理截走。伦度当前页面没有引用该历史图片。
+
+将同一精确静态规则补到 `deploy/lundu/nginx/lundu-eiscore.conf`，发布时只增量补入远端配置，保留其余配置和所有代理。完整 609 项 manifest 不删减，前端制品无需重建。配置和 release 均备份，失败时一起恢复；仍只重建 web。
