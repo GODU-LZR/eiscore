@@ -8,7 +8,8 @@
       <HarnessFullscreenButton :fullscreen="fullscreen" @toggle="toggleFullscreen" />
       <button type="button" class="worker-close" aria-label="关闭工作助手" @click="businessHarnessState.assistantOpen = false"><el-icon><Close /></el-icon></button>
     </header>
-    <BusinessHarnessFrame v-if="started && !excluded" :active="visible" />
+    <BusinessHarnessFrame v-if="assistantStarted && !excluded" v-show="assistantVisible" :active="assistantVisible" persona="work-assistant" />
+    <BusinessHarnessFrame v-if="workbenchStarted && !excluded" v-show="workspaceVisible" :active="workspaceVisible" persona="workbench" />
   </section>
 </template>
 
@@ -27,11 +28,14 @@ const props = defineProps({ workerVisible: Boolean })
 const route = useRoute()
 const userStore = useUserStore()
 const fullscreen = ref(getWorkerFullscreen())
-const started = ref(false)
+const assistantStarted = ref(false)
+const workbenchStarted = ref(false)
+const started = computed(() => assistantStarted.value || workbenchStarted.value)
 const workspaceStyle = ref({})
 const excluded = computed(() => /^\/apps\/flash-builder(?:\/|$)/.test(route.path) || isStandaloneBusinessHarnessPath(route.path))
 const workspaceVisible = computed(() => !excluded.value && route.path === '/' && !!businessHarnessState.workspace)
-const visible = computed(() => !excluded.value && (workspaceVisible.value || (props.workerVisible && businessHarnessState.assistantOpen)))
+const assistantVisible = computed(() => !excluded.value && !workspaceVisible.value && props.workerVisible && businessHarnessState.assistantOpen)
+const visible = computed(() => !excluded.value && (workspaceVisible.value || assistantVisible.value))
 let resizeObserver
 
 function measureWorkspace() {
@@ -44,9 +48,14 @@ function toggleFullscreen() {
   fullscreen.value = !fullscreen.value
   saveWorkerFullscreen(fullscreen.value)
 }
-watch(visible, (value) => { if (value) started.value = true })
-watch(excluded, (value) => { if (value) { resetBusinessHarness(); started.value = false } })
-watch(() => userStore.token, resetBusinessHarness)
+watch(assistantVisible, (value) => { if (value) assistantStarted.value = true })
+watch(workspaceVisible, (value) => { if (value) workbenchStarted.value = true })
+watch(excluded, (value) => { if (value) { resetBusinessHarness(); assistantStarted.value = false; workbenchStarted.value = false } })
+watch(() => userStore.token, () => {
+  resetBusinessHarness()
+  assistantStarted.value = false
+  workbenchStarted.value = workspaceVisible.value
+})
 watch([() => businessHarnessState.workspace, workspaceVisible], () => {
   resizeObserver?.disconnect()
   if (businessHarnessState.workspace) resizeObserver?.observe(businessHarnessState.workspace)
@@ -56,7 +65,8 @@ onMounted(() => {
   resizeObserver = new ResizeObserver(measureWorkspace)
   if (businessHarnessState.workspace) resizeObserver.observe(businessHarnessState.workspace)
   measureWorkspace()
-  if (visible.value) started.value = true
+  if (assistantVisible.value) assistantStarted.value = true
+  if (workspaceVisible.value) workbenchStarted.value = true
   window.addEventListener('resize', measureWorkspace)
   window.addEventListener('scroll', measureWorkspace, true)
 })
