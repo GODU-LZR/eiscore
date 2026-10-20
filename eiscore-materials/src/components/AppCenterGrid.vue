@@ -17,6 +17,7 @@
         ref="gridRef"
         :view-id="app.viewId"
         :api-url="gridApiUrl"
+        :default-order="configRef.defaultOrder || 'id.desc'"
         :write-url="apiUrl"
         :profile="schemaName"
         :accept-profile="schemaName"
@@ -895,6 +896,7 @@ onUnmounted(() => {
 })
 
 defineExpose({
+  prependRow: (row) => gridRef.value?.prependRow?.(row),
   reload: () => gridRef.value?.loadData?.()
 })
 </script>

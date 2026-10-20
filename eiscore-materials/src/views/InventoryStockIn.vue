@@ -461,7 +461,7 @@ const gridConfig = {
   includeProperties: false,
   patchRequiredFields: ['draft_type', 'status', 'material_id', 'warehouse_id', 'quantity', 'unit', 'io_type'],
   fieldDefaults: { draft_type: 'in', status: 'created', io_type: '' },
-  defaultOrder: 'created_at.desc',
+  defaultOrder: 'created_at.desc.nullslast,id.desc',
   aclModule: 'mms_inventory',
   summaryConfig: { label: '总计', rules: {}, expressions: {} },
   staticColumns: [
@@ -1047,7 +1047,18 @@ const submitStockIn = async () => {
       ElMessage.success('已创建入库草稿')
     }
     drawer.visible = false
-    gridRef.value?.loadData?.()
+    let inserted = false
+    if (createdRow?.id) {
+      const rows = await request({
+        url: '/v_inventory_drafts',
+        method: 'get',
+        params: { id: `eq.${createdRow.id}`, limit: 1 },
+        headers: { 'Accept-Profile': 'scm' }
+      }).catch(() => [])
+      const row = Array.isArray(rows) ? rows[0] : null
+      if (row?.id) inserted = await gridRef.value?.prependRow?.(row)
+    }
+    if (!inserted) await gridRef.value?.loadData?.()
   } catch (e) {
     ElMessage.error(getErrorMessage(e, '创建草稿失败'))
   } finally {

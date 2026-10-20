@@ -136,7 +136,12 @@ export function useGridFormula(
     
     columns.forEach(col => {
       const isProp = !props.staticColumns.find(c => c.prop === col.prop)
-      const values = data.map(row => { const v = isProp ? row.properties?.[col.prop] : row[col.prop]; return (v === null || v === undefined || v === '') ? null : v }).filter(v => v !== null)
+      const values = data.map(row => {
+        const field = col.summaryField || col.prop
+        const value = isProp || col.storeInProperties === true ? row.properties?.[field] : row[field]
+        const v = col.summaryTransform === 'array_length' ? (Array.isArray(value) ? value.length : 0) : value
+        return (v === null || v === undefined || v === '') ? null : v
+      }).filter(v => v !== null)
       let rule = activeSummaryConfig.rules[col.prop] || 'none'
       let result = null
       if (values.length > 0) {

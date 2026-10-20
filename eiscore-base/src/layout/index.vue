@@ -1,9 +1,19 @@
 <template>
-  <el-container class="layout-container">
+  <el-container class="layout-container" :class="{ 'is-mobile': isMobile, 'is-mobile-menu-open': isMobile && mobileMenuOpen }">
+    <button
+      v-if="isMobile && mobileMenuOpen"
+      type="button"
+      class="layout-menu-backdrop"
+      aria-label="关闭导航菜单"
+      @click="closeMobileMenu(true)"
+    ></button>
     <el-aside
-      :width="isCollapse ? '64px' : '200px'"
+      id="enterprise-navigation"
+      :width="isMobile ? '200px' : isCollapse ? '64px' : '200px'"
       class="layout-aside"
       data-guide="layout-aside"
+      :aria-hidden="isMobile && !mobileMenuOpen ? 'true' : undefined"
+      :inert="isMobile && !mobileMenuOpen"
       :style="{ backgroundColor: asideTheme.menuBg }"
     >
       <div
@@ -11,7 +21,7 @@
         data-guide="layout-logo"
         :style="{ backgroundColor: asideTheme.logoBg, color: asideTheme.menuText }"
       >
-        <span v-if="!isCollapse" class="logo-text">{{ config?.title || '管理系统' }}</span>
+        <span v-if="isMobile || !isCollapse" class="logo-text">{{ config?.title || '管理系统' }}</span>
         <span v-else class="logo-text">EIS</span>
       </div>
 
@@ -22,7 +32,7 @@
         :text-color="asideTheme.menuText"
         :active-text-color="asideTheme.menuActiveText"
         :router="false"
-        :collapse="isCollapse"
+        :collapse="!isMobile && isCollapse"
         :collapse-transition="false"
         @select="handleMenuSelect"
         style="border-right: none;"
@@ -77,11 +87,20 @@
         :style="{ backgroundColor: asideTheme.headerBg }"
       >
         <div class="header-left">
-          <div class="collapse-btn" data-guide="collapse-button" @click="toggleCollapse">
+          <button
+            ref="collapseButtonRef"
+            type="button"
+            class="collapse-btn"
+            data-guide="collapse-button"
+            aria-controls="enterprise-navigation"
+            :aria-expanded="isMobile ? mobileMenuOpen : !isCollapse"
+            :aria-label="isMobile ? (mobileMenuOpen ? '关闭导航菜单' : '打开导航菜单') : (isCollapse ? '展开导航菜单' : '收起导航菜单')"
+            @click="toggleCollapse"
+          >
             <el-icon size="20" :color="isDark ? '#fff' : '#333'">
-              <component :is="isCollapse ? 'Expand' : 'Fold'" />
+              <component :is="isMobile ? (mobileMenuOpen ? 'Fold' : 'Expand') : (isCollapse ? 'Expand' : 'Fold')" />
             </el-icon>
-          </div>
+          </button>
           <div class="host-tabs-wrap" data-guide="host-tabs">
             <div class="host-tabs-scroll">
               <button
@@ -227,7 +246,7 @@
       </el-main>
     </el-container>
 
-    <AiCopilot v-if="showWorkerAssistant" mode="worker" data-guide="worker-assistant" />
+    <BusinessHarnessHost :worker-visible="showWorkerAssistant" />
     <el-dialog
       v-model="guideWelcomeVisible"
       title="新手指引"
@@ -288,6 +307,7 @@ import {
   writeGuideProgress
 } from '@shared/eis-guide-progress-store.mjs'
 import { readHostTabs, writeHostTabs } from '@shared/eis-host-tabs-store.mjs'
+import { isStandaloneBusinessHarnessPath } from '@/services/business-harness-controller'
 import {
   HOST_ENTRY_TAB_KEY as ENTRY_TAB_KEY,
   buildDefaultHostTabKey as buildDefaultTabKey,
@@ -323,8 +343,26 @@ import {
   pickBaseRecommendedGuide
 } from '@/domain/base-layout-guide-policy'
 
-const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
+const BusinessHarnessHost = defineAsyncComponent(() => import('@/components/harness/BusinessHarnessHost.vue'))
 const isCollapse = ref(false)
+const mobileMediaQuery = window.matchMedia('(max-width: 768px)')
+const isMobile = ref(mobileMediaQuery.matches)
+const mobileMenuOpen = ref(false)
+const collapseButtonRef = ref(null)
+const closeMobileMenu = (restoreFocus = false) => {
+  mobileMenuOpen.value = false
+  if (restoreFocus) nextTick(() => collapseButtonRef.value?.focus())
+}
+const handleMobileViewportChange = ({ matches }) => {
+  isMobile.value = matches
+  closeMobileMenu()
+}
+const handleLayoutKeydown = (event) => {
+  if (event.key === 'Escape' && isMobile.value && mobileMenuOpen.value) {
+    event.preventDefault()
+    closeMobileMenu(true)
+  }
+}
 const router = useRouter()
 const route = useRoute()
 let userInfoPoller = null
@@ -699,6 +737,8 @@ const handleUserInfoStorage = (event) => {
 }
 
 onMounted(() => {
+  mobileMediaQuery.addEventListener('change', handleMobileViewportChange)
+  window.addEventListener('keydown', handleLayoutKeydown)
   window.addEventListener('user-info-updated', refreshUserInfo)
   window.addEventListener('message', handleUserInfoMessage)
   window.addEventListener('message', handleGuideRegisterMessage)
@@ -712,7 +752,6 @@ onMounted(() => {
   ensureSuperAdminScopes()
   scheduleSuperScopeRetry()
   maybeOpenWelcomeGuide()
-  scheduleVisibleMicroAppWarmup()
   scheduleGuideDomRefresh()
   if (typeof MutationObserver !== 'undefined') {
     const target = document.querySelector('[data-guide="layout-main"]') || document.body
@@ -730,6 +769,8 @@ onMounted(() => {
   }, 500)
 })
 onUnmounted(() => {
+  mobileMediaQuery.removeEventListener('change', handleMobileViewportChange)
+  window.removeEventListener('keydown', handleLayoutKeydown)
   window.removeEventListener('user-info-updated', refreshUserInfo)
   window.removeEventListener('message', handleUserInfoMessage)
   window.removeEventListener('message', handleGuideRegisterMessage)
@@ -771,13 +812,12 @@ watch(guideUserKey, () => {
   loadGuideProgress()
   fetchSopLearningRecords()
   maybeOpenWelcomeGuide()
-  scheduleVisibleMicroAppWarmup()
 })
 
 watch(() => route.fullPath, () => {
+  closeMobileMenu()
   scheduleGuideDomRefresh()
   window.setTimeout(scheduleGuideDomRefresh, 500)
-  scheduleVisibleMicroAppWarmup()
 })
 
 watch(() => userStore.userInfo, () => {
@@ -790,6 +830,7 @@ watch(isDark, (val) => {
 })
 
 const activeMenu = computed(() => {
+  if (route.path === '/' || route.path === '/workbench') return '/'
   if (route.path.startsWith('/materials')) return '/materials'
   if (route.path.startsWith('/hr')) return '/hr'
   if (route.path.startsWith('/apps')) return '/apps/'
@@ -803,8 +844,13 @@ const activeMenu = computed(() => {
   return route.path
 })
 
+// 惠众版首期只开放六个目标模块：工作台内承载数字分身与智慧 BI。
+// 其他微应用保留在代码和路由中，待后续范围明确后再开放入口。
+const HUIZONG_MODULE_SCOPE = new Set(['home', 'hr', 'materials', 'apps', 'sales'])
 const canShowModule = (moduleKey) => (
-  enterpriseConfig.modules?.[moduleKey] !== false && isModuleVisible(displayVisibility.value, moduleKey)
+  HUIZONG_MODULE_SCOPE.has(moduleKey) &&
+  enterpriseConfig.modules?.[moduleKey] !== false &&
+  isModuleVisible(displayVisibility.value, moduleKey)
 )
 const roleValues = computed(() => {
   const info = userStore.userInfo || {}
@@ -2926,7 +2972,7 @@ const handleGuideRegisterMessage = (event) => {
 }
 
 const hostOpenTabAliasMap = new Map()
-const hostTabs = ref([{ key: '/', path: '/', query: {}, title: '首页', closable: false, dot: 'home', routeId: '/' }])
+const hostTabs = ref([{ key: '/', path: '/workbench', query: {}, title: '工作台', closable: false, dot: 'home', routeId: '/workbench' }])
 const activeHostTabKey = ref('/')
 
 const resolveHostTabTitle = (path, query = {}, fallback = '') => resolveHostTabTitlePolicy(
@@ -2952,14 +2998,14 @@ const restoreHostTabs = () => {
   try {
     const parsed = readHostTabs()
     if (!parsed.length) return
-    let entryTab = { key: ENTRY_TAB_KEY, path: '/', query: {}, title: '首页', closable: false, dot: 'home', routeId: '/' }
+    let entryTab = { key: ENTRY_TAB_KEY, path: '/workbench', query: {}, title: '工作台', closable: false, dot: 'home', routeId: '/workbench' }
     const next = []
     const seen = new Set()
     const seenRouteIds = new Set()
     parsed.forEach((item) => {
       if (!item || typeof item !== 'object') return
       const path = normalizeHostPath(item.path)
-      if (!isEnterprisePathEnabled(path, enterpriseConfig)) return
+      if (isStandaloneBusinessHarnessPath(path) || !isEnterprisePathEnabled(path, enterpriseConfig)) return
       const query = normalizeHostQuery(item.query)
       const defaultKey = buildDefaultTabKey(path, query)
       const forceDefaultKey = isModuleEntryPath(path) ||
@@ -2970,7 +3016,7 @@ const restoreHostTabs = () => {
       const key = String(forceDefaultKey ? defaultKey : (item.key || defaultKey)).trim()
       const routeId = buildHostRouteId(path, query)
       if (!key) return
-      if (key === ENTRY_TAB_KEY) {
+      if (key === ENTRY_TAB_KEY && path === '/workbench') {
         entryTab = {
           key: ENTRY_TAB_KEY,
           path,
@@ -3004,7 +3050,9 @@ const restoreHostTabs = () => {
 const upsertHostTab = ({ key, path, query = {}, title = '' }) => {
   const normalizedPath = normalizeHostPath(path)
   const normalizedQuery = normalizeHostQuery(query)
-  const tabKey = String(key || buildDefaultTabKey(normalizedPath, normalizedQuery)).trim()
+  const defaultKey = buildDefaultTabKey(normalizedPath, normalizedQuery)
+  const requestedKey = String(key || defaultKey).trim()
+  const tabKey = isModuleEntryPath(normalizedPath) ? defaultKey : requestedKey
   const routeId = buildHostRouteId(normalizedPath, normalizedQuery)
   const next = {
     key: tabKey,
@@ -3029,7 +3077,7 @@ const resolveTabByRoute = (path, query) => {
 }
 
 const syncHostTabsWithRoute = () => {
-  if (route.path === '/login') return
+  if (route.path === '/login' || isStandaloneBusinessHarnessPath(route.path)) return
   const path = normalizeHostPath(route.path)
   const query = normalizeHostQuery(route.query)
   const routeId = buildHostRouteId(path, query)
@@ -3083,7 +3131,7 @@ const closeHostTab = (key) => {
 const handleOpenHostTab = (payload) => {
   const detail = payload && typeof payload === 'object' ? payload : {}
   const path = normalizeHostPath(detail.path)
-  if (!path || !isEnterprisePathEnabled(path, enterpriseConfig)) return
+  if (!path || isStandaloneBusinessHarnessPath(path) || !isEnterprisePathEnabled(path, enterpriseConfig)) return
   const query = normalizeHostQuery(detail.query)
   const key = String(detail.tabKey || buildDefaultTabKey(path, query)).trim()
   const title = resolveHostTabTitle(path, query, detail.tabTitle)
@@ -3095,6 +3143,7 @@ const handleOpenHostTab = (payload) => {
 }
 
 const handleMenuSelect = (index) => {
+  closeMobileMenu()
   const path = normalizeHostPath(index)
   if (!path) return
   const moduleKey = getBaseModuleKeyFromPath(path)
@@ -3132,6 +3181,10 @@ onUnmounted(() => {
 })
 
 const toggleCollapse = () => {
+  if (isMobile.value) {
+    mobileMenuOpen.value = !mobileMenuOpen.value
+    return
+  }
   isCollapse.value = !isCollapse.value
 }
 
@@ -3181,6 +3234,10 @@ const handleCommand = (command) => {
       min-width: 0;
 
       .collapse-btn {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: inherit;
         margin-right: 15px;
         cursor: pointer;
         display: flex;
@@ -3501,6 +3558,52 @@ const handleCommand = (command) => {
   display: flex !important;
   flex-direction: column !important;
   box-sizing: border-box !important;
+}
+
+.layout-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  border: 0;
+  padding: 0;
+  background: rgba(15, 23, 42, .4);
+  cursor: pointer;
+}
+
+.layout-container.is-mobile {
+  height: 100dvh;
+
+  .layout-aside {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 2001;
+    height: 100dvh;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+    box-shadow: 4px 0 20px rgba(15, 23, 42, .16);
+  }
+
+  &.is-mobile-menu-open .layout-aside {
+    visibility: visible;
+    transform: translateX(0);
+  }
+
+  .main-container {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .layout-header {
+    padding-inline: 12px;
+  }
+
+  .layout-header .collapse-btn {
+    min-width: 36px;
+    min-height: 44px;
+    justify-content: center;
+    margin-right: 8px;
+  }
 }
 
 :global(.driver-popover-title) {

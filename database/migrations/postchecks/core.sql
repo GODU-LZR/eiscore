@@ -508,3 +508,28 @@ BEGIN
   PERFORM set_config('request.jwt.claim.app_role', coalesce(saved_role, ''), true);
 END
 $twin_admin_authorization$;
+
+DO $twin_admin_contract$
+DECLARE
+  twin_admin_definition text;
+  twin_admin_owner text;
+BEGIN
+  IF to_regprocedure('public.admin_twin_sessions(integer)') IS NULL THEN
+    RAISE EXCEPTION 'admin_twin_sessions RPC is missing';
+  END IF;
+
+  SELECT pg_get_functiondef(p.oid), owner_role.rolname
+    INTO twin_admin_definition, twin_admin_owner
+  FROM pg_proc AS p
+  JOIN pg_roles AS owner_role ON owner_role.oid = p.proowner
+  WHERE p.oid = 'public.admin_twin_sessions(integer)'::regprocedure;
+
+  IF twin_admin_owner IS DISTINCT FROM 'eiscore_owner' THEN
+    RAISE EXCEPTION 'admin_twin_sessions must be owned by eiscore_owner';
+  END IF;
+
+  IF twin_admin_definition !~ $$NULLIF\(current_setting\('request\.jwt\.claims', true\), ''\)::jsonb$$ THEN
+    RAISE EXCEPTION 'admin_twin_sessions must cast JWT claims to jsonb before COALESCE';
+  END IF;
+END
+$twin_admin_contract$;

@@ -12,10 +12,6 @@ export const SALES_ATTENTION_LEVEL_OPTIONS = [
   { label: '次要', value: 'silent' }
 ]
 
-export const SALES_CLOSED_FOLLOW_RESULTS = Object.freeze(['已成交', '无效', '暂缓'])
-export const SALES_ORDER_DUE_WINDOW_DAYS = 2
-export const SALES_FOLLOW_UP_DUE_WINDOW_DAYS = 1
-
 const LEVEL_META = {
   silent: { label: '次要', status: 'info', tagType: 'info' },
   normal: { label: '正常', status: 'ok', tagType: 'success' },
@@ -33,24 +29,6 @@ export const parseDate = (value) => {
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date
-}
-
-export const localDateText = (date = new Date()) => {
-  const next = new Date(date)
-  if (Number.isNaN(next.getTime())) return ''
-  const year = next.getFullYear()
-  const month = String(next.getMonth() + 1).padStart(2, '0')
-  const day = String(next.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-export const todayText = () => localDateText(new Date())
-
-export const offsetDateText = (days = 0, base = new Date()) => {
-  const next = new Date(base)
-  if (Number.isNaN(next.getTime())) return ''
-  next.setDate(next.getDate() + Number(days || 0))
-  return localDateText(next)
 }
 
 const dayStart = (date = new Date()) => {
@@ -147,69 +125,6 @@ const manualAttention = (appKey, row, level) => {
 const isClosedOrder = (row = {}) => ['已完成', '已取消'].includes(String(row.order_status || '').trim())
 const isClosedOpportunity = (row = {}) => ['赢单', '输单', '搁置'].includes(String(row.stage || '').trim())
 
-export const isSalesOrderClosed = isClosedOrder
-export const isSalesOpportunityClosed = isClosedOpportunity
-export const isFollowUpClosed = (rowOrResult = {}) => {
-  const result = typeof rowOrResult === 'string'
-    ? rowOrResult
-    : rowOrResult?.follow_result
-  return SALES_CLOSED_FOLLOW_RESULTS.includes(String(result || '').trim())
-}
-export const isFollowUpOpen = (rowOrResult = {}) => !isFollowUpClosed(rowOrResult)
-
-export function buildSalesFollowUpAttentionStats({
-  today = todayText(),
-  tomorrow = offsetDateText(SALES_FOLLOW_UP_DUE_WINDOW_DAYS),
-  topLevelAttention = false
-} = {}) {
-  const and = (...parts) => `and(${parts.join(',')})`
-  const or = (...parts) => `or(${parts.join(',')})`
-  const match = (field, values, negate = false) => `${field}.${negate ? 'not.' : ''}match."^[[:space:]]*(${values.join('|')})[[:space:]]*$"`
-  const propertyField = 'properties->>attention_level'
-  const manual = (level) => topLevelAttention
-    ? or(match(propertyField, [level]), and(`${propertyField}.is.null`, match('attention_level', [level])))
-    : match(propertyField, [level])
-  const automatic = topLevelAttention
-    ? or(
-      and(`${propertyField}.not.is.null`, match(propertyField, SALES_ATTENTION_LEVELS, true)),
-      and(`${propertyField}.is.null`, or('attention_level.is.null', match('attention_level', SALES_ATTENTION_LEVELS, true)))
-    )
-    : or(`${propertyField}.is.null`, match(propertyField, SALES_ATTENTION_LEVELS, true))
-  const closed = match('follow_result', SALES_CLOSED_FOLLOW_RESULTS)
-  const open = or('follow_result.is.null', match('follow_result', SALES_CLOSED_FOLLOW_RESULTS, true))
-  const due = and(`next_follow_at.gte.${today}`, `next_follow_at.lte.${tomorrow}`)
-  const intent = and('follow_result.in.(有意向,报价中)', or('next_follow_at.is.null', `next_follow_at.gte.${today}`))
-  const filter = (condition) => `and=(${condition})`
-  return [
-    { key: 'total', filter: '' },
-    { key: 'critical', filter: filter(manual('critical')) },
-    { key: 'warning', filter: filter(or(manual('warning'), and(automatic, open, `next_follow_at.lt.${today}`))) },
-    { key: 'focus', filter: filter(or(manual('focus'), and(automatic, open, or(intent, due)))) },
-    { key: 'silent', filter: filter(or(manual('silent'), and(automatic, closed))) },
-    { key: 'todo', filter: filter(and(open, or('next_follow_at.is.null', `next_follow_at.lte.${tomorrow}`))) }
-  ]
-}
-
-export function buildSalesFollowUpAttentionSummary(stats = {}) {
-  const count = (key) => {
-    const value = stats[key]
-    return value !== null && value !== undefined && Number.isFinite(Number(value)) && Number(value) >= 0
-      ? Number(value)
-      : null
-  }
-  const total = count('total')
-  const counts = Object.fromEntries(['critical', 'warning', 'focus', 'silent'].map((key) => [key, count(key)]))
-  counts.normal = total !== null && Object.values(counts).every((value) => value !== null)
-    ? Math.max(0, total - Object.values(counts).reduce((sum, value) => sum + value, 0))
-    : null
-  return { total, counts, todo: count('todo') }
-}
-
-export const isCustomerOverCredit = (row = {}) => {
-  const creditLimit = numberValue(row.credit_limit)
-  return creditLimit > 0 && numberValue(row.receivable_balance) > creditLimit
-}
-
 function customerAttention(row) {
   const creditLimit = numberValue(row.credit_limit)
   const receivable = numberValue(row.receivable_balance)
@@ -245,7 +160,7 @@ function orderAttention(row, appKey = 'orders') {
 
   if (!closed && dueDays !== null && dueDays < 0) {
     candidates.push({ score: 88, level: 'critical', reason: `交付日期逾期 ${Math.abs(dueDays)} 天`, action: '下推出货/出库' })
-  } else if (!closed && dueDays !== null && dueDays <= SALES_ORDER_DUE_WINDOW_DAYS) {
+  } else if (!closed && dueDays !== null && dueDays <= 2) {
     candidates.push({ score: 72, level: 'warning', reason: dueDays === 0 ? '今日交付' : `${dueDays} 天内交付`, action: '确认交付准备' })
   }
   if (!closed && row.order_status === '草稿') {
@@ -297,16 +212,16 @@ function followAttention(row) {
   if (row.follow_result === '有意向' || row.follow_result === '报价中') {
     candidates.push({ score: 58, level: 'focus', reason: `${row.follow_result}客户需推进`, action: '推进商机' })
   }
-  if (nextDays !== null && nextDays < 0 && isFollowUpOpen(row)) {
+  if (nextDays !== null && nextDays < 0 && !['已成交', '无效', '暂缓'].includes(row.follow_result)) {
     candidates.push({ score: 78, level: 'warning', reason: `下次跟进逾期 ${Math.abs(nextDays)} 天`, action: '补登记跟进' })
-  } else if (nextDays !== null && nextDays <= SALES_FOLLOW_UP_DUE_WINDOW_DAYS && isFollowUpOpen(row)) {
+  } else if (nextDays !== null && nextDays <= 1 && !['已成交', '无效', '暂缓'].includes(row.follow_result)) {
     candidates.push({ score: 62, level: 'focus', reason: nextDays === 0 ? '今日需要跟进' : '明日需要跟进', action: '安排跟进' })
   }
 
   return pickStrongest('follow_ups', row, candidates, {
-    score: isFollowUpClosed(row) ? 18 : 36,
+    score: ['已成交', '无效'].includes(row.follow_result) ? 18 : 36,
     reason: firstText(row.follow_result, '跟进记录已保存'),
-    action: isFollowUpClosed(row) ? '归档' : '继续跟进'
+    action: ['已成交', '无效'].includes(row.follow_result) ? '归档' : '继续跟进'
   })
 }
 
@@ -407,12 +322,12 @@ export function matchesSalesAttentionFilter(appKey, row = {}, filter = 'all') {
   }
   if (appKey === 'orders' || appKey === 'shipment_requests') {
     const deliveryDays = daysBetween(row.delivery_date)
-    return !isClosedOrder(row) && ((deliveryDays !== null && deliveryDays <= SALES_ORDER_DUE_WINDOW_DAYS) || ['草稿', '已确认', '生产中'].includes(row.order_status))
+    return !isClosedOrder(row) && ((deliveryDays !== null && deliveryDays <= 2) || ['草稿', '已确认', '生产中'].includes(row.order_status))
   }
   if (appKey === 'payments') return row.verify_status !== '已核销'
   if (appKey === 'follow_ups') {
     const nextDays = daysBetween(row.next_follow_at)
-    return isFollowUpOpen(row) && (nextDays === null || nextDays <= SALES_FOLLOW_UP_DUE_WINDOW_DAYS)
+    return !['已成交', '无效'].includes(row.follow_result) && (nextDays === null || nextDays <= 1)
   }
   if (appKey === 'opportunities') return !isClosedOpportunity(row)
   return ['critical', 'warning', 'focus'].includes(attention.level)

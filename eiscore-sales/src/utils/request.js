@@ -15,7 +15,7 @@ const service = createPlatformAxiosClient({
     config.silentError !== true && config.suppressErrorMessage !== true
   ),
   defaultProfile: 'public',
-  timeoutMs: 15000
+  timeoutMs: 5000
 })
 
 export default service

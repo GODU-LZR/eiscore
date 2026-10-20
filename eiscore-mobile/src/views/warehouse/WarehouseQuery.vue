@@ -239,6 +239,7 @@ async function loadLocations(wh) {
     for (const loc of locArr) {
       if (loc.level === 2) {
         const children = await fetchChildren(loc.id)
+        if (Array.isArray(children) && children.length === 0) flat.push(loc)
         ;(Array.isArray(children) ? children : []).forEach(c => {
           flat.push({
             id: c.id, code: c.code, name: `${loc.name} / ${c.name}`, level: c.level,

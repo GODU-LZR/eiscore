@@ -2,18 +2,18 @@
   "$schema": "../../../config/enterprise.schema.json",
   "schemaVersion": 1,
   "enterprise": {
-    "id": "lundu",
-    "displayName": "伦度机电有限公司",
-    "shortName": "伦度机电"
+    "id": "huizhong",
+    "displayName": "惠众消防集团",
+    "shortName": "惠众消防"
   },
   "branding": {
-    "productName": "伦度机电数字化工厂",
-    "themeColor": "#1557A6",
-    "logoUrl": "/enterprise-assets/site/lundu-logo.png",
+    "productName": "惠众消防集团数字化管理平台",
+    "themeColor": "#2563a6",
+    "logoUrl": "/company-site/enterprise-assets/site/huizhong/huizhong-logo.png",
     "login": {
-      "slogan": "专注电机与水泵产品，服务稳定运行。",
-      "description": "伦度机电有限公司位于浙江省台州市温岭市沈岙工业园区，是集设计、开发、制造、销售与服务为一体的现代化企业，专业生产三相与单相异步电动机，以及管道泵、陆上泵、潜水泵和污水泵等产品。公司以技术力量、生产经验和检测设备为基础，组织受控的生产流程，持续提供稳定质量、完善售后与面向项目的定制配套服务。",
-      "siteTag": "电机与水泵制造",
+      "slogan": "消防管道与通风管道，项目协同更清晰。",
+      "description": "惠众消防集团面向消防管道、通风管道及消防工程配套项目，围绕销售跟进、项目交付、物料与人员协同开展日常经营。",
+      "siteTag": "消防工程配套",
       "announcement": "面向授权人员的企业协同入口",
       "headerLoginText": "企业登录",
       "authKicker": "企业协同",
@@ -23,156 +23,33 @@
       "primaryActionText": "登录",
       "secondaryActionText": "了解平台",
       "secondaryActionUrl": "/eiscore",
-      "showSecondaryAction": false,
-      "passBadgeText": "企业账户",
-      "businessChainTitle": "产品体系与制造能力",
       "scrollCueText": "查看企业信息",
       "metricsSectionKicker": "企业概况",
-      "metricsSectionTitle": "企业规模与产品范围",
+      "metricsSectionTitle": "项目、物料与交付在同一条链路",
       "aboutSectionKicker": "公司简介",
-      "aboutImage": "/enterprise-assets/site/lundu-world-routes-20261008.webp",
-      "aboutImageAlt": "伦度机电位于浙江台州温岭，蓝色路线连接欧美及中东主要国家",
-      "overviewProductImage": "/enterprise-assets/site/lundu-overview-motors.png",
-      "overviewProductImageAlt": "伦度电机产品组合",
-      "overviewFactoryImage": "/enterprise-assets/site/lundu-overview-factory.png",
-      "overviewFactoryImageAlt": "伦度机电生产厂房",
       "capabilitiesSectionKicker": "业务体系",
-      "capabilitiesSectionTitle": "从产品开发到交付服务",
-      "leadersSectionKicker": "联系伦度",
-      "leadersSectionTitle": "联系伦度",
-      "backgroundImage": "/enterprise-assets/site/crops/hero-wide.jpg",
-      "navItems": [
-        {
-          "label": "企业概况",
-          "anchor": "overview"
-        },
-        {
-          "label": "产品方向",
-          "anchor": "products"
-        },
-        {
-          "label": "制造能力",
-          "anchor": "capabilities"
-        }
-      ],
-      "metrics": [
-        {
-          "label": "项目",
-          "value": "6000 个项目"
-        },
-        {
-          "label": "装车量",
-          "value": "4500 吨装车量"
-        },
-        {
-          "label": "合同额",
-          "value": "35 亿合同额"
-        },
-        {
-          "label": "企业所在地",
-          "value": "浙江省台州市温岭市沈岙工业园区"
-        }
-      ],
-      "trustBadges": [
-        {
-          "label": "研发·制造·销售·服务"
-        },
-        {
-          "label": "电机与水泵产品"
-        },
-        {
-          "label": "浙江台州温岭"
-        }
-      ],
-      "businessChain": [
-        {
-          "title": "电机产品",
-          "description": "覆盖 YE4、YE3、YD、YVF2、YEJ2 三相异步电动机，以及 YC、YL、YY 单相异步电动机。"
-        },
-        {
-          "title": "潜水泵产品",
-          "description": "覆盖 QDX/QX、QD、WQD/WQ、WQX、JYWQ、GNWQ、QY 等系列潜水电泵，以及管道泵、陆上泵和污水泵产品分类。"
-        },
-        {
-          "title": "管道泵与自吸泵",
-          "description": "提供 PST 标准管道离心泵、ISW/IRG 管道泵及 JET 自吸喷射泵产品。"
-        },
-        {
-          "title": "品质与交付",
-          "description": "围绕电机与水泵规格组织制造、装配与检验，从产品要求到包装发运，让采购与交付信息清楚一致。"
-        },
-        {
-          "title": "技术与服务",
-          "description": "面向设备配套、工程采购与维修备件，提供电机与水泵选型、定制配套沟通和售后支持。"
-        }
-      ],
-      "capabilities": [
-        {
-          "title": "设计开发与技术力量",
-          "description": "以电机与水泵产品为核心开展设计开发，依托技术力量与生产经验完善产品系列。"
-        },
-        {
-          "title": "生产制造与过程控制",
-          "description": "生产流程处于受控状态，围绕产品规格组织制造、装配和过程管理。"
-        },
-        {
-          "title": "检测与质量管理",
-          "description": "配备完善的检测设备，对关键工序和产品质量进行检验，保持产品质量稳定。"
-        },
-        {
-          "title": "定制配套与售后服务",
-          "description": "面向工程项目、配套采购与维修备件提供定制配套、交付协同和售后支持。"
-        }
-      ],
+      "capabilitiesSectionTitle": "从客户跟进到项目交付",
+      "leadersSectionKicker": "联系惠众",
+      "leadersSectionTitle": "联系惠众",
+      "backgroundImage": "/company-site/enterprise-assets/site/huizhong/hero-cylinder-room.png",
       "carouselImages": [
         {
-          "url": "/enterprise-assets/site/crops/hero-wide.jpg",
-          "title": "产品体系",
-          "subtitle": "电机与水泵产品",
-          "hasEmbeddedText": true
+          "url": "/company-site/enterprise-assets/site/huizhong/hero-cylinder-room.png",
+          "title": "消防设备",
+          "subtitle": "气体灭火设备与项目配套"
         },
         {
-          "url": "/enterprise-assets/site/crops/generated-pump-product-wide.jpg",
-          "title": "水泵产品",
-          "subtitle": "覆盖多种应用工况"
-        },
-        {
-          "url": "/enterprise-assets/site/crops/generated-motor-product-wide.jpg",
-          "title": "电机产品",
-          "subtitle": "稳定可靠的动力单元"
-        },
-        {
-          "url": "/enterprise-assets/site/crops/generated-application-flow-wide.jpg",
-          "title": "应用服务",
-          "subtitle": "面向工程与配套需求"
-        },
-        {
-          "url": "/enterprise-assets/site/crops/generated-factory-floor-wide.jpg",
-          "title": "制造现场",
-          "subtitle": "规范组织生产与装配"
-        },
-        {
-          "url": "/enterprise-assets/site/crops/generated-component-detail-wide.jpg",
-          "title": "质量控制",
-          "subtitle": "关注产品细节与检验"
+          "url": "/company-site/enterprise-assets/site/huizhong/hero-engineering-inspection.png",
+          "title": "项目服务",
+          "subtitle": "技术支持与交付协同"
         }
       ],
-      "leaders": [],
-      "footerText": "伦度机电有限公司 · 浙江省台州市温岭市沈岙工业园区 · 电话 15857606321 · info@lundujd.com · 统一社会信用代码 91331081095226001F",
-      "icpText": "浙ICP备2022026291号-1",
-      "mobile": {
-        "description": "伦度机电有限公司位于浙江省台州市温岭市沈岙工业园区，是集设计、开发、制造、销售与服务为一体的现代化企业，专业生产电机与水泵产品。",
-        "authFootnote": "账号由企业统一创建",
-        "showSecondaryAction": false,
-        "passBadgeText": "企业账户",
-        "businessChainTitle": "产品体系与制造能力",
-        "footerText": "伦度机电有限公司 · 浙江省台州市温岭市沈岙工业园区 · 电话 15857606321 · info@lundujd.com · 统一社会信用代码 91331081095226001F",
-        "icpText": "浙ICP备2022026291号-1"
-      }
+      "footerText": "惠众消防集团 · 消防管道与通风管道项目协同",
+      "icpText": ""
     }
   },
   "endpoints": {
-    "publicBaseUrl": "",
+    "publicBaseUrl": "https://huizong.eiscore.top",
     "apiBasePath": "/api",
     "agentBasePath": "/agent",
     "realtimeWsPath": "/ws"
@@ -181,17 +58,17 @@
     "hr": true,
     "materials": true,
     "apps": true,
-    "company-site": true,
+    "company-site": false,
     "sales": true,
-    "purchase": true,
-    "production": true,
-    "quality": true,
-    "equipment": true,
-    "decision": true,
+    "purchase": false,
+    "production": false,
+    "quality": false,
+    "equipment": false,
+    "decision": false,
     "mobile": true
   },
   "features": {
-    "documentIntake": true,
+    "documentIntake": false,
     "enterpriseAi": true
   }
 }

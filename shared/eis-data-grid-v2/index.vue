@@ -275,7 +275,7 @@ const adapterServices = entryAdapter.services || {}
 const GeoDialog = entryAdapter.GeoDialog
 
 // 🟢 声明事件：增加 view-document
-const emit = defineEmits(['create', 'config-columns', 'view-document', 'row-action', 'data-loaded', 'data-load-error', 'data-saved', 'cell-value-changed', 'selection-changed', 'delete-complete'])
+const emit = defineEmits(['create', 'config-columns', 'view-document', 'row-action', 'data-loaded', 'data-load-error', 'cell-value-changed', 'selection-changed', 'delete-complete'])
 const userStore = useUserStore()
 const currentUser = userStore.userInfo?.username || 'Admin'
 const isAdmin = String(currentUser).toLowerCase() === 'admin'
@@ -301,7 +301,7 @@ const activeSummaryConfig = reactive({ label: '合计', rules: {}, expressions: 
 const workflowBinding = ref(null)
 const {
   gridData, gridColumns, context, gridComponents, searchText, isLoading,
-  isLoadingMore, hasMoreRows, loadData, loadNextPage,
+  isLoadingMore, hasMoreRows, loadData, loadNextPage, prependRow,
   handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules,
   columnLockState, setWorkflowBinding, getRowHeight, handleColumnResized,
   onGridReadyLayout, stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
@@ -351,7 +351,7 @@ const historyHooks = useGridHistory(
   gridData,
   { calculateRowFormulas, calculateTotals, pinnedBottomRowData, refreshTotals },
   entryAdapter.historyOptions || {},
-  { debounce: adapterServices.debounce, isCellReadOnly, isRowLocked, onSaved: (payload) => emit('data-saved', payload) }
+  { debounce: adapterServices.debounce, isCellReadOnly, isRowLocked }
 )
 const {
   history, isSystemOperation,
@@ -617,10 +617,6 @@ onUnmounted(() => {
   stopRowHeightResize?.()
 })
 
-const prependRow = (row) => {
-  if (!row) return
-  gridData.value = [row, ...gridData.value]
-}
 const refreshCells = (params) => {
   gridApi.value?.refreshCells(params || { force: true })
 }

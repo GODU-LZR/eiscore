@@ -1,5 +1,6 @@
 <template>
   <div class="login-page" :class="{ 'is-scrolled': pageScrolled || isServicePage }" :style="pageStyle">
+    <template v-if="!enterpriseAuthOnly">
     <header class="site-header">
       <div class="brand-lockup">
         <div class="brand-mark" :class="{ 'has-logo': branding.logo }">
@@ -417,8 +418,10 @@
         </div>
       </section>
     </main>
+    </template>
 
     <Teleport to="body">
+      <template v-if="!enterpriseAuthOnly">
       <Transition name="commerce-dialog">
         <div v-if="productDetail" class="commerce-overlay" @click.self="productDetail = null">
           <section class="commerce-modal product-detail-modal" role="dialog" aria-modal="true">
@@ -548,8 +551,9 @@
         </div>
       </Transition>
 
+      </template>
       <Transition name="auth-dialog">
-        <div v-if="loginVisible" class="auth-overlay" @click.self="closeLogin">
+        <div v-if="loginVisible" class="auth-overlay" :class="{ 'enterprise-auth-overlay': enterpriseAuthOnly }" :style="enterpriseAuthOnly ? enterpriseLoginStyle : null" @click.self="closeLogin">
           <section
             class="auth-panel"
             role="dialog"
@@ -558,11 +562,13 @@
             :aria-label="portalUi.authAriaLabel"
             @keydown.esc="closeLogin"
           >
-            <button type="button" class="auth-close" :aria-label="loginCloseLabel" @click="closeLogin">
+            <button v-if="!enterpriseAuthOnly" type="button" class="auth-close" :aria-label="loginCloseLabel" @click="closeLogin">
               <span aria-hidden="true">×</span>
             </button>
             <div class="auth-card">
               <div class="auth-card-header">
+                <img v-if="enterpriseAuthOnly && branding.logo" class="enterprise-auth-logo" :src="branding.logo" :alt="companyName" />
+                <p v-if="enterpriseAuthOnly" class="enterprise-auth-company">{{ companyName }}</p>
                 <span>{{ branding.authKicker }}</span>
                 <h2 id="employee-login-title">{{ branding.authTitle }}</h2>
                 <p class="auth-subtitle">{{ branding.announcement }}</p>
@@ -605,7 +611,7 @@
       </Transition>
     </Teleport>
 
-    <footer class="site-footer">
+    <footer v-if="!enterpriseAuthOnly" class="site-footer">
       <span>{{ branding.footerText }}</span>
       <span v-if="branding.icpText">{{ branding.icpText }}</span>
     </footer>
@@ -639,8 +645,9 @@ const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const systemStore = useSystemStore()
+const enterpriseAuthOnly = computed(() => getEnterpriseConfig(globalThis).modules?.purchase === false)
 const loading = ref(false)
-const loginVisible = ref(false)
+const loginVisible = ref(enterpriseAuthOnly.value)
 const quoteVisible = ref(false)
 const productDetail = ref(null)
 const agentVisible = ref(false)
@@ -688,6 +695,12 @@ const branding = computed(() => {
 })
 
 const companyName = computed(() => branding.value.companyName)
+const enterpriseLoginStyle = computed(() => ({
+  '--login-theme': safeThemeColor.value,
+  backgroundImage: branding.value.backgroundImage
+    ? `linear-gradient(135deg, rgba(9,22,38,.9), rgba(9,22,38,.5)), url(${JSON.stringify(branding.value.backgroundImage)})`
+    : 'linear-gradient(135deg, #102335, #1d344a)'
+}))
 const portal = computed(() => systemStore.enterpriseProfile?.portal || {})
 const portalUi = computed(() => portal.value.ui || {})
 const activeLocale = computed(() => systemStore.enterpriseLocale || systemStore.enterpriseProfile?.locale || 'zh-CN')
@@ -1318,6 +1331,7 @@ const selectSolution = (index) => {
 }
 
 const closeLogin = async () => {
+  if (enterpriseAuthOnly.value) return
   loginVisible.value = false
   loginFormRef.value?.clearValidate?.()
   await nextTick()
@@ -1411,14 +1425,18 @@ const switchLocale = async (locale) => {
 }
 
 onMounted(async () => {
-  updateCustomerServiceViewport()
-  window.visualViewport?.addEventListener('resize', updateCustomerServiceViewport)
-  window.visualViewport?.addEventListener('scroll', updateCustomerServiceViewport)
+  if (!enterpriseAuthOnly.value) {
+    updateCustomerServiceViewport()
+    window.visualViewport?.addEventListener('resize', updateCustomerServiceViewport)
+    window.visualViewport?.addEventListener('scroll', updateCustomerServiceViewport)
+  }
   const requestedLocale = new URLSearchParams(window.location.search).get('lang') || ''
   try {
+    const configLoad = systemStore.loadConfig({ locale: requestedLocale }).catch(() => null)
+    const configTimeout = new Promise((resolve) => window.setTimeout(resolve, 8000))
     await Promise.all([
-      systemStore.loadConfig({ locale: requestedLocale }),
-      readPublicServiceContent().then(content => { serviceContent.value = content }).catch(() => {})
+      Promise.race([configLoad, configTimeout]),
+      (enterpriseAuthOnly.value ? Promise.resolve() : readPublicServiceContent().then(content => { serviceContent.value = content }).catch(() => {}))
         .finally(() => { servicesLoading.value = false })
     ])
   } finally {
@@ -1426,11 +1444,12 @@ onMounted(async () => {
     window.__EISCORE_INITIAL_CONTENT_READY__ = true
     window.dispatchEvent(new Event('eiscore:initial-content-ready'))
   }
-  hydrateInquiryList()
+  if (!enterpriseAuthOnly.value) hydrateInquiryList()
   systemStore.initTheme()
   startHeroAutoplay()
   refreshSeoHead()
   if (
+    enterpriseAuthOnly.value ||
     route.query.login === '1' ||
     typeof route.query.redirect === 'string' ||
     (typeof route.query.dsh_return === 'string' && route.query.dsh_return)
@@ -1614,7 +1633,7 @@ const handleLogin = async () => {
         return
       }
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
-      const safeRedirect = /^\/(?!\/)/.test(redirect) ? redirect : '/'
+      const safeRedirect = /^\/(?!\/)/.test(redirect) ? redirect : '/workbench'
       if (safeRedirect.startsWith('/mobile/')) {
         window.location.assign(safeRedirect)
       } else {
@@ -1631,4 +1650,32 @@ const handleLogin = async () => {
 
 <style scoped lang="scss">
 @import "../styles/login-view.scss";
+
+.enterprise-auth-overlay {
+  min-height: 100dvh;
+  padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background-color: #102335;
+  background-position: center;
+  background-size: cover;
+  backdrop-filter: none;
+}
+
+.enterprise-auth-overlay .auth-panel {
+  max-height: calc(100dvh - 48px);
+}
+
+.enterprise-auth-logo {
+  display: block;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 18px;
+  object-fit: contain;
+}
+
+.enterprise-auth-company {
+  margin: 0 0 18px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+}
 </style>

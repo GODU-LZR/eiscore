@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" href="/company-site/enterprise-assets/site/huizhong/huizhong-logo.png?v=huizong-20261019">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
       #eiscore-bootstrap-loading {
@@ -94,7 +94,7 @@
           return
         }
 
-        var RELEASE_VERSION = '20260930051151'
+        var RELEASE_VERSION = 'huizong-20261019-charts4'
         var CACHE_PREFIX = 'eiscore-client-assets-v' + RELEASE_VERSION + '-'
         var VERSION_KEY = 'eiscore-client-version'
         var RELOAD_KEY = 'eiscore-client-reloaded-version'
@@ -160,22 +160,16 @@
 
         checkClientVersion()
 
-        window.addEventListener('load', function () {
-          schedule(function () {
-            navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
               .then(function () { return navigator.serviceWorker.ready })
               .then(function (registration) {
                 if (registration && typeof registration.update === 'function') {
                   registration.update().catch(function () {})
                 }
-                window.setTimeout(function () {
-                  var worker = registration.active || registration.waiting || registration.installing
-                  if (worker) worker.postMessage({ type: 'PRECACHE_CLIENT_ASSETS', mode: 'background' })
-                }, 18000)
+                // Load assets on demand. Bulk precaching hundreds of bundles can
+                // exhaust browser connection/resource limits on enterprise pages.
               })
               .catch(function () {})
-          }, { timeout: 12000 })
-        })
       })()
     </script>
   </head>

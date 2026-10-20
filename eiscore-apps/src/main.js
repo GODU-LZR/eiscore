@@ -25,6 +25,13 @@ patchElMessage()
 const MICRO_APP_NAME = 'eiscore-apps'
 const DEV_STANDALONE_PORT = '8083'
 
+if (typeof window !== 'undefined' && window.location.pathname === '/apps/index.html'
+  && new URLSearchParams(window.location.search).get('eis_flash_preview') === '1') {
+  const previewEntry = new URL(window.location.href)
+  previewEntry.pathname = '/apps/preview/flash-draft'
+  window.history.replaceState(window.history.state, '', `${previewEntry.pathname}${previewEntry.search}${previewEntry.hash}`)
+}
+
 let app = null
 let router = null
 let history = null

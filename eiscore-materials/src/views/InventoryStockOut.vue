@@ -24,6 +24,30 @@
       </div>
     </div>
 
+    <el-card v-if="pendingSalesOutbounds.length" shadow="never" class="pending-outbound-card">
+      <div class="pending-outbound-header">
+        <strong>待处理销售出库</strong>
+        <el-button link type="primary" :loading="pendingSalesOutboundsLoading" @click="loadPendingSalesOutbounds">刷新</el-button>
+      </div>
+      <el-table :data="pendingSalesOutbounds" size="small" stripe>
+        <el-table-column prop="outboundNo" label="销售出库单" min-width="150" />
+        <el-table-column prop="salesOrderNo" label="销售订单" min-width="140" />
+        <el-table-column prop="productName" label="物料" min-width="160" />
+        <el-table-column prop="quantity" label="数量" width="100" />
+        <el-table-column prop="statusLabel" label="状态" width="130" />
+        <el-table-column label="操作" width="130" fixed="right">
+          <template #default="scope">
+            <el-button
+              type="primary"
+              link
+              :disabled="!!scope.row.draft || scope.row.inProgress"
+              @click="openPendingSalesOutbound(scope.row)"
+            >{{ scope.row.draft ? '已建草稿' : (scope.row.inProgress ? '处理中' : '选择并出库') }}</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+
     <el-card
       shadow="never"
       class="grid-card"
@@ -86,7 +110,14 @@
             @reset-period="resetGridPeriod"
             @reset-filters="resetGridFilters"
           />
-          <el-button plain @click="goBatchRules">批次号规则</el-button>
+            <el-button
+              v-if="canRetrySalesOutboundSync"
+              plain
+              :icon="Refresh"
+              :loading="salesOutboundSyncLoading"
+              @click="retrySalesOutboundSync"
+            >重试销售关联</el-button>
+            <el-button plain @click="goBatchRules">批次号规则</el-button>
           <el-button :icon="Setting" circle @click="openTypeManager" title="管理出库类型" />
           <el-button type="primary" @click="openDrawer">出库登记</el-button>
         </template>
@@ -223,7 +254,7 @@
 import { ref, reactive, onMounted, computed, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Goods, Setting, Plus, Delete } from '@element-plus/icons-vue'
+import { Goods, Setting, Plus, Delete, Refresh } from '@element-plus/icons-vue'
 import EisDataGrid from '@/components/eis-data-grid-v2/index.vue'
 import request from '@/utils/request'
 import { hasPerm } from '@/utils/permission'
@@ -245,6 +276,14 @@ import {
   getMaterialRecordAttention,
   matchesMaterialAttentionFilter
 } from '@/utils/material-attention'
+import {
+  attachSalesOutboundDraft,
+  buildSalesOutboundDraftProperties,
+  claimSalesOutboundRequest,
+  completeSalesOutbound,
+  loadPendingSalesOutboundRequests,
+  releaseSalesOutboundClaim
+} from '@/utils/inventory-sales-outbound'
 
 const router = useRouter()
 const route = useRoute()
@@ -257,12 +296,17 @@ const warehouseFlat = ref([])
 const warehouseIndex = ref({})
 const batchOptions = ref([])
 const loadedRows = ref([])
+const pendingSalesOutbounds = ref([])
+const pendingSalesOutboundsLoading = ref(false)
+const pendingOutboundContext = ref(null)
+const salesOutboundSyncLoading = ref(false)
 const attentionFilter = ref('all')
 const lastGridLoadState = ref(buildGridLoadState())
 const lastSearchText = ref('')
 
 const userStore = useUserStore()
 const operatorName = computed(() => userStore.userInfo?.username || 'Admin')
+const canRetrySalesOutboundSync = computed(() => selectedRow.value?.status === 'active' && !!selectedRow.value?.transaction_no)
 const workflowContext = computed(() => {
   const query = route.query || {}
   const instanceId = String(query.wf_instance || '').trim()
@@ -288,6 +332,10 @@ const buildWorkflowProps = (baseProps = {}) => {
   next.workflow_app_id = ctx.workflowAppId || ''
   next.workflow_source = 'materials_inventory_stock_out'
   return next
+}
+
+const buildOutboundDraftProps = (link = null) => {
+  return buildWorkflowProps(buildSalesOutboundDraftProperties(link))
 }
 
 const ensureDraftWorkflowBinding = async (rowId) => {
@@ -419,6 +467,69 @@ const getErrorMessage = (error, fallback) => {
   return msg || fallback
 }
 
+const loadPendingSalesOutbounds = async () => {
+  pendingSalesOutboundsLoading.value = true
+  try {
+    pendingSalesOutbounds.value = await loadPendingSalesOutboundRequests(request)
+  } catch (error) {
+    pendingSalesOutbounds.value = []
+    console.warn('load pending sales outbounds failed', error)
+  } finally {
+    pendingSalesOutboundsLoading.value = false
+  }
+}
+
+const syncSalesOutboundCompletion = async (row) => {
+  try {
+    const drafts = await request({
+      url: `/inventory_drafts?id=eq.${encodeURIComponent(row.id)}&select=id,properties&limit=1`,
+      method: 'get',
+      headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' }
+    })
+    const draft = Array.isArray(drafts) ? drafts[0] : null
+    return await completeSalesOutbound(request, {
+      properties: draft?.properties || {},
+      row,
+      completedAt: new Date().toISOString()
+    })
+  } catch (error) {
+    console.error('sync sales outbound completion failed', error)
+    return false
+  }
+}
+
+const retrySalesOutboundSync = async () => {
+  if (!canRetrySalesOutboundSync.value) return
+  salesOutboundSyncLoading.value = true
+  try {
+    const synced = await syncSalesOutboundCompletion(selectedRow.value)
+    if (!synced) throw new Error('当前草稿没有销售出库关联，或销售单回写失败')
+    ElMessage.success('销售出库关联已同步')
+    await loadPendingSalesOutbounds()
+  } catch (error) {
+    ElMessage.error(getErrorMessage(error, '销售关联同步失败'))
+  } finally {
+    salesOutboundSyncLoading.value = false
+  }
+}
+
+const openPendingSalesOutbound = (item) => {
+  if (!item || item.draft || item.inProgress) return
+  openDrawer()
+  pendingOutboundContext.value = item
+  const matchedMaterial = materials.value.find((material) => (
+    (item.materialId != null && String(material.id) === String(item.materialId)) ||
+    (item.materialCode && material.batch_no === item.materialCode) ||
+    (item.productName && material.name === item.productName)
+  ))
+  drawer.form.material_id = matchedMaterial?.id || null
+  drawer.form.quantity = Number(item.quantity) > 0 ? Number(item.quantity) : 1
+  drawer.form.unit = item.unit || drawer.form.unit
+  drawer.form.io_type = '销售出库'
+  drawer.form.remark = `销售出库 ${item.outboundNo || item.salesOrderNo || ''}`.trim()
+  ensureIoTypeOption(drawer.form.io_type)
+}
+
 /* ── 仓库名称解析 ── */
 const buildWarehouseIndex = (list) => {
   const map = {}
@@ -501,7 +612,7 @@ const gridConfig = {
   includeProperties: false,
   patchRequiredFields: ['draft_type', 'status', 'material_id', 'warehouse_id', 'quantity', 'unit', 'batch_id', 'io_type'],
   fieldDefaults: { draft_type: 'out', status: 'created', io_type: '' },
-  defaultOrder: 'created_at.desc',
+  defaultOrder: 'created_at.desc.nullslast,id.desc',
   aclModule: 'mms_inventory',
   summaryConfig: { label: '总计', rules: {}, expressions: {} },
   staticColumns: [
@@ -712,6 +823,7 @@ const getDefaultIoType = () => {
 
 const openDrawer = () => {
   drawer.visible = true
+  pendingOutboundContext.value = null
   const defaultIoType = getDefaultIoType()
   drawer.form = {
     material_id: null,
@@ -913,7 +1025,17 @@ const submitStockOut = async () => {
   }
 
   drawer.loading = true
+  const outboundItem = pendingOutboundContext.value
+  const claimedOutboundLinks = []
+  let outboundDraftCreated = false
+  let linkSyncFailed = false
   try {
+    if (outboundItem) {
+      for (const link of outboundItem.links?.length ? outboundItem.links : [outboundItem.link]) {
+        await claimSalesOutboundRequest(request, link)
+        claimedOutboundLinks.push(link)
+      }
+    }
     const created = await request({
       url: '/inventory_drafts',
       method: 'post',
@@ -930,24 +1052,56 @@ const submitStockOut = async () => {
         io_type: normalizeTypeName(io_type),
         remark,
         operator: operatorName.value,
-        properties: buildWorkflowProps()
+        properties: pendingOutboundContext.value
+          ? buildOutboundDraftProps(pendingOutboundContext.value.link)
+          : buildWorkflowProps()
       }
     })
 
     const createdRow = Array.isArray(created) ? created[0] : created
     if (createdRow?.id) {
+      outboundDraftCreated = Boolean(outboundItem)
       await ensureDraftWorkflowBinding(createdRow.id)
+      const outboundNo = outboundItem?.outboundNo || ''
+      if (outboundNo) {
+        try {
+          await attachSalesOutboundDraft(request, outboundNo, createdRow.id)
+        } catch (error) {
+          linkSyncFailed = true
+          console.error('attach sales outbound draft failed', error)
+        }
+      }
     }
 
-    if (workflowContext.value.active) {
+    if (linkSyncFailed) {
+      ElMessage.warning('出库草稿已创建，销售关联同步失败；草稿属性已保存关联编号')
+    } else if (workflowContext.value.active) {
       ElMessage.success(`已创建出库草稿并关联流程单号 ${workflowContext.value.instanceId}`)
     } else {
       ElMessage.success('已创建出库草稿')
     }
     drawer.visible = false
-    gridRef.value?.loadData?.()
+    pendingOutboundContext.value = null
+    let inserted = false
+    if (createdRow?.id) {
+      const rows = await request({
+        url: '/v_inventory_drafts',
+        method: 'get',
+        params: { id: `eq.${createdRow.id}`, limit: 1 },
+        headers: { 'Accept-Profile': 'scm' }
+      }).catch(() => [])
+      const row = Array.isArray(rows) ? rows[0] : null
+      if (row?.id) inserted = await gridRef.value?.prependRow?.(row)
+    }
+    if (!inserted) await gridRef.value?.loadData?.()
+    await loadPendingSalesOutbounds()
     loadBatches()
   } catch (e) {
+    if (claimedOutboundLinks.length && !outboundDraftCreated) {
+      await Promise.all(claimedOutboundLinks.map((link) => releaseSalesOutboundClaim(request, link).catch((releaseError) => {
+        console.error('release sales outbound claim failed', releaseError)
+      })))
+    }
     ElMessage.error(getErrorMessage(e, '创建草稿失败'))
   } finally {
     drawer.loading = false
@@ -989,6 +1143,11 @@ const handleCellValueChanged = async (params) => {
 
   if (field === 'status') {
     if (params.newValue !== 'active' || params.oldValue === 'active') return
+    if (row.transaction_no || row.properties?.inventory_draft_id && row.properties?.status === '已出库') {
+      ElMessage.warning('该出库草稿已经生效，不能重复扣减库存')
+      gridRef.value?.loadData?.()
+      return
+    }
     await ensureDraftWorkflowBinding(row.id)
     if (!row.material_id || !row.warehouse_id || !row.quantity || !row.unit || !row.batch_no || !normalizeTypeName(row.io_type)) {
       ElMessage.warning('草稿信息不完整，无法生效')
@@ -1001,39 +1160,88 @@ const handleCellValueChanged = async (params) => {
       gridRef.value?.loadData?.()
       return
     }
+    let stockCommitted = false
+    let transactionNo = row.transaction_no || `SOUT-${row.id}`
     try {
-      const res = await request({
-        url: '/rpc/stock_out',
-        method: 'post',
+      let existingTransactions = await request({
+        url: `/inventory_transactions?transaction_no=eq.${encodeURIComponent(transactionNo)}&select=transaction_no,batch_id&limit=1`,
+        method: 'get',
+        headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
+        silentError: true
+      })
+      let transaction = Array.isArray(existingTransactions) ? existingTransactions[0] : null
+      if (!transaction) {
+        try {
+          transaction = await request({
+            url: '/rpc/stock_out',
+            method: 'post',
+            headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
+            data: {
+              p_material_id: row.material_id,
+              p_warehouse_id: row.warehouse_id,
+              p_quantity: row.quantity,
+              p_unit: row.unit,
+              p_batch_no: row.batch_no,
+              p_transaction_no: transactionNo,
+              p_io_type: normalizeTypeName(row.io_type) || null,
+              p_remark: row.remark,
+              p_operator: operatorName.value
+            }
+          })
+        } catch (stockError) {
+          existingTransactions = await request({
+            url: `/inventory_transactions?transaction_no=eq.${encodeURIComponent(transactionNo)}&select=transaction_no,batch_id&limit=1`,
+            method: 'get',
+            headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
+            silentError: true
+          }).catch(() => [])
+          transaction = Array.isArray(existingTransactions) ? existingTransactions[0] : null
+          if (!transaction) throw stockError
+        }
+      }
+      transactionNo = transaction?.transaction_no || transactionNo
+      stockCommitted = true
+      const completedRow = {
+        ...row,
+        status: 'active',
+        transaction_no: transactionNo,
+        batch_id: transaction?.batch_id || row.batch_id || null
+      }
+      await request({
+        url: `/inventory_drafts?id=eq.${encodeURIComponent(row.id)}`,
+        method: 'patch',
         headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
         data: {
-          p_material_id: row.material_id,
-          p_warehouse_id: row.warehouse_id,
-          p_quantity: row.quantity,
-          p_unit: row.unit,
-          p_batch_no: row.batch_no,
-          p_io_type: normalizeTypeName(row.io_type) || null,
-          p_remark: row.remark,
-          p_operator: operatorName.value
+          status: 'active',
+          transaction_no: completedRow.transaction_no,
+          batch_id: completedRow.batch_id
         }
       })
-
-      await request({
-        url: `/inventory_drafts?id=eq.${row.id}`,
-        method: 'patch',
-        headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
-        data: { status: 'active', transaction_no: res?.transaction_no || null, batch_id: res?.batch_id || row.batch_id || null }
-      })
+      const synced = await syncSalesOutboundCompletion(completedRow)
+      if (!synced) {
+        ElMessage.warning('库存已扣减，销售出库链路同步失败；请重试同步，不会重复扣库')
+      }
       ElMessage.success('出库已生效')
       loadBatches()
+      loadPendingSalesOutbounds()
     } catch (e) {
-      await request({
-        url: `/inventory_drafts?id=eq.${row.id}`,
-        method: 'patch',
-        headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
-        data: { status: 'created' }
-      })
-      ElMessage.error(getErrorMessage(e, '出库生效失败'))
+      if (stockCommitted) {
+        await request({
+          url: `/inventory_drafts?id=eq.${encodeURIComponent(row.id)}`,
+          method: 'patch',
+          headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
+          data: { status: 'active', transaction_no: transactionNo }
+        }).catch((statusError) => console.error('persist completed stock-out draft failed', statusError))
+        ElMessage.warning('库存已扣减，但草稿状态同步失败；再次生效会复用原出库流水，不会重复扣库')
+      } else {
+        await request({
+          url: `/inventory_drafts?id=eq.${encodeURIComponent(row.id)}`,
+          method: 'patch',
+          headers: { 'Accept-Profile': 'scm', 'Content-Profile': 'scm' },
+          data: { status: 'created' }
+        }).catch((statusError) => console.error('restore failed stock-out draft failed', statusError))
+        ElMessage.error(getErrorMessage(e, '出库生效失败'))
+      }
     } finally {
       gridRef.value?.loadData?.()
     }
@@ -1187,6 +1395,7 @@ onMounted(async () => {
   await loadIoTypes()
   await Promise.all([loadMaterials(), loadWarehouses()])
   await loadBatches()
+  await loadPendingSalesOutbounds()
   await nextTick()
   gridRef.value?.loadData?.()
 })
@@ -1323,6 +1532,18 @@ watch(gridApiUrl, () => {
   padding: 10px 16px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   border-left: 3px solid #409eff;
+}
+
+.pending-outbound-card {
+  flex: 0 0 auto;
+  border-radius: 8px;
+}
+
+.pending-outbound-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
 }
 
 .stock-info-header {

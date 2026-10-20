@@ -39,8 +39,13 @@
           <div class="stat-value">{{ stats.materialCount }}</div>
         </div>
         <div class="stat-card fresh">
-          <div class="stat-label">库存总量</div>
-          <div class="stat-value">{{ fmtNum(stats.totalQty) }}</div>
+          <div class="stat-label">库存数量</div>
+          <div class="stat-value unit-totals">
+            <span v-for="item in stats.quantityTotals" :key="item.unit">
+              {{ fmtNum(item.qty) }}<small>{{ item.unit || '未标单位' }}</small>
+            </span>
+            <span v-if="stats.quantityTotals.length === 0">0</span>
+          </div>
         </div>
         <div class="stat-card dark">
           <div class="stat-label">盘点单数</div>
@@ -53,13 +58,13 @@
         <div class="section-head">
           <div>
             <h2>库存分布</h2>
-            <p>各仓库当前库存总量对比。</p>
+            <p>各仓库按计量单位汇总。</p>
           </div>
         </div>
         <div class="bar-chart">
           <div
             v-for="item in stockDistribution"
-            :key="item.name"
+            :key="item.name + '|' + item.unit"
             class="bar-row"
           >
             <div class="bar-label">{{ item.name }}</div>
@@ -69,7 +74,7 @@
                 :style="{ width: item.pct + '%' }"
               />
             </div>
-            <div class="bar-value">{{ fmtNum(item.qty) }}</div>
+            <div class="bar-value">{{ fmtNum(item.qty) }}{{ item.unit }}</div>
           </div>
           <div v-if="stockDistribution.length === 0" class="state empty">暂无数据</div>
         </div>
@@ -79,8 +84,8 @@
       <section class="card-section">
         <div class="section-head">
           <div>
-            <h2>物料库存 TOP 10</h2>
-            <p>按可用库存数量排序。</p>
+            <h2>物料库存明细</h2>
+            <p>按物料编码显示前 10 种，数量以各自单位计。</p>
           </div>
         </div>
         <div class="rank-list">
@@ -126,7 +131,7 @@
             </div>
             <div class="tx-qty">
               <span :class="getTxClass(tx.transaction_type)">
-                {{ getTxSign(tx.transaction_type) }}{{ tx.quantity || 0 }}
+                {{ getTxSign(tx.transaction_type) }}{{ Math.abs(Number(tx.quantity) || 0) }}
               </span>
             </div>
           </div>
@@ -183,7 +188,7 @@ const loadingMsg = ref('正在加载报表数据...')
 const stats = reactive({
   warehouseCount: 0,
   materialCount: 0,
-  totalQty: 0,
+  quantityTotals: [],
   checkCount: 0
 })
 
@@ -219,7 +224,7 @@ async function loadStats() {
     const allMaterials = new Map() // code -> { name, code, unit, qty }
 
     for (const wh of whList) {
-      let whQty = 0
+      const whQuantities = new Map()
       const locs = await fetchChildren(wh.id)
       const locArr = Array.isArray(locs) ? locs : []
 
@@ -227,7 +232,8 @@ async function loadStats() {
       for (const loc of locArr) {
         if (loc.level === 2) {
           const children = await fetchChildren(loc.id)
-          ;(Array.isArray(children) ? children : []).forEach(c => flat.push(c))
+          if (Array.isArray(children) && children.length === 0) flat.push(loc)
+          else (Array.isArray(children) ? children : []).forEach(c => flat.push(c))
         } else {
           flat.push(loc)
         }
@@ -238,7 +244,8 @@ async function loadStats() {
           const inv = await fetchInventory(loc.id)
           ;(Array.isArray(inv) ? inv : []).forEach(m => {
             const qty = Number(m.available_qty || 0)
-            whQty += qty
+            const unit = m.unit || ''
+            whQuantities.set(unit, (whQuantities.get(unit) || 0) + qty)
             const existing = allMaterials.get(m.material_code)
             if (existing) {
               existing.qty += qty
@@ -246,7 +253,7 @@ async function loadStats() {
               allMaterials.set(m.material_code, {
                 name: m.material_name || '--',
                 code: m.material_code || '--',
-                unit: m.unit || '',
+                unit,
                 qty
               })
             }
@@ -254,23 +261,32 @@ async function loadStats() {
         } catch { /* skip */ }
       }
 
-      whStocks.push({ name: wh.name || wh.code, qty: whQty })
+      if (whQuantities.size === 0) whQuantities.set('', 0)
+      for (const [unit, qty] of whQuantities) {
+        whStocks.push({ name: wh.name || wh.code, unit, qty })
+      }
     }
 
     // 统计
     stats.materialCount = allMaterials.size
-    stats.totalQty = [...allMaterials.values()].reduce((s, m) => s + m.qty, 0)
+    const quantityTotals = new Map()
+    for (const material of allMaterials.values()) {
+      quantityTotals.set(material.unit, (quantityTotals.get(material.unit) || 0) + material.qty)
+    }
+    stats.quantityTotals = [...quantityTotals].map(([unit, qty]) => ({ unit, qty }))
 
     // 库存分布
-    const maxQty = Math.max(...whStocks.map(s => s.qty), 1)
+    const maxByUnit = new Map()
+    for (const stock of whStocks) {
+      maxByUnit.set(stock.unit, Math.max(maxByUnit.get(stock.unit) || 1, stock.qty))
+    }
     stockDistribution.value = whStocks.map(s => ({
       ...s,
-      pct: Math.round((s.qty / maxQty) * 100)
+      pct: Math.round((s.qty / maxByUnit.get(s.unit)) * 100)
     }))
 
-    // 物料 TOP 10
     materialTop.value = [...allMaterials.values()]
-      .sort((a, b) => b.qty - a.qty)
+      .sort((a, b) => String(a.code).localeCompare(String(b.code)))
       .slice(0, 10)
   } catch {
     showToast('加载统计数据失败')
@@ -379,6 +395,8 @@ function getStatusClass(status) {
 .stat-card.dark{background:linear-gradient(135deg,#1f2d3d 0%,#44556b 100%);color:#fff}
 .stat-label{font-size:12px;opacity:.8}
 .stat-value{font-size:20px;font-weight:700;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.unit-totals{display:flex;flex-direction:column;gap:2px;font-size:18px;white-space:normal}
+.unit-totals small{margin-left:4px;font-size:12px;font-weight:400}
 
 /* 卡片区块 */
 .card-section{background:#fff;border-radius:18px;padding:16px 18px;box-shadow:0 12px 26px rgba(20,37,90,.08);animation:riseIn .5s ease both}

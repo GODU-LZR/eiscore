@@ -518,15 +518,8 @@ async function createApp() {
   creating.value = true
   try {
     const token = getToken()
-    const categoryMap = {
-      workflow: 1,
-      data: 2,
-      flash: 3
-    }
-
     const payload = {
       ...newAppForm.value,
-      category_id: categoryMap[newAppForm.value.app_type],
       status: 'draft',
       config: ensureSemanticConfig({})
     }
@@ -534,7 +527,8 @@ async function createApp() {
     const response = await axios.post(toAbsoluteApiUrl(`${apiBase}/apps`), payload, {
       headers: {
         ...getAppCenterHeaders(token),
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation'
       }
     })
 

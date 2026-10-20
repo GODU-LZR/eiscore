@@ -980,6 +980,7 @@ const handleImportDone = (event) => {
 }
 
 defineExpose({
+  prependRow: (row) => gridRef.value?.prependRow?.(row),
   loadData: () => gridRef.value?.loadData?.(),
   reload: () => gridRef.value?.loadData?.()
 })

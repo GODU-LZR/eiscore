@@ -3,6 +3,8 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 import { clearAuth, getToken, parseJwt, redirectToEnterpriseLogin } from '@/utils/auth'
+import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
+import { getStoredDisplayVisibility, isModuleVisible } from '@shared/eis-display-control'
 
 const router = createRouter({
   history: createWebHistory('/mobile/'),
@@ -11,7 +13,7 @@ const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('@/views/LoginView.vue'),
-      meta: { requiresAuth: false, title: '伦度机电' }
+      meta: { requiresAuth: false, title: '企业登录' }
     },
     {
       path: '/',
@@ -23,34 +25,34 @@ const router = createRouter({
       path: '/pda',
       name: 'PdaEntry',
       component: () => import('@/views/pda/PdaEntry.vue'),
-      meta: { requiresAuth: true, title: 'PDA盘点' }
+      meta: { requiresAuth: true, title: 'PDA盘点', module: 'materials' }
     },
     // 盘点模块
     {
       path: '/check',
       name: 'CheckOverview',
       component: () => import('@/views/check/CheckOverview.vue'),
-      meta: { requiresAuth: true, title: '库存盘点' }
+      meta: { requiresAuth: true, title: '库存盘点', module: 'materials' }
     },
     {
       path: '/check/warehouse/:code',
       name: 'CheckWarehouse',
       component: () => import('@/views/check/CheckWarehouse.vue'),
-      meta: { requiresAuth: true, title: '仓库详情' },
+      meta: { requiresAuth: true, title: '仓库详情', module: 'materials' },
       props: true
     },
     {
       path: '/check/location/:code',
       name: 'CheckLocation',
       component: () => import('@/views/check/CheckLocation.vue'),
-      meta: { requiresAuth: true, title: '库位盘点' },
+      meta: { requiresAuth: true, title: '库位盘点', module: 'materials' },
       props: true
     },
     {
       path: '/check/material/:id',
       name: 'CheckMaterial',
       component: () => import('@/views/check/CheckMaterial.vue'),
-      meta: { requiresAuth: true, title: '物料详情' },
+      meta: { requiresAuth: true, title: '物料详情', module: 'materials' },
       props: true
     },
     // 仓库查询模块
@@ -58,48 +60,48 @@ const router = createRouter({
       path: '/warehouse',
       name: 'WarehouseQuery',
       component: () => import('@/views/warehouse/WarehouseQuery.vue'),
-      meta: { requiresAuth: true, title: '仓库查询' }
+      meta: { requiresAuth: true, title: '仓库查询', module: 'materials' }
     },
     // 数据报表模块
     {
       path: '/report',
       name: 'DataReport',
       component: () => import('@/views/report/DataReport.vue'),
-      meta: { requiresAuth: true, title: '数据报表' }
+      meta: { requiresAuth: true, title: '数据报表', module: 'materials' }
     },
     // 扫码出入库模块
     {
       path: '/stock',
       name: 'StockScan',
       component: () => import('@/views/stock/StockScan.vue'),
-      meta: { requiresAuth: true, title: '扫码出入库' }
+      meta: { requiresAuth: true, title: '扫码出入库', module: 'materials' }
     },
     // 仓储助手模块
     {
       path: '/assistant',
       name: 'WarehouseAssistant',
       component: () => import('@/views/assistant/WarehouseAssistant.vue'),
-      meta: { requiresAuth: true, title: '仓储助手' }
+      meta: { requiresAuth: true, title: '仓储助手', module: 'materials' }
     },
     // 智能 BI 模块
     {
       path: '/enterprise',
       name: 'EnterpriseAssistant',
       component: () => import('@/views/assistant/EnterpriseAssistant.vue'),
-      meta: { requiresAuth: true, title: '智能 BI' }
+      meta: { requiresAuth: true, title: '智能 BI', module: 'decision' }
     },
     // 考勤模块
     {
       path: '/attendance',
       name: 'AttendanceOverview',
       component: () => import('@/views/attendance/AttendanceOverview.vue'),
-      meta: { requiresAuth: true, title: '考勤中心' }
+      meta: { requiresAuth: true, title: '考勤中心', module: 'hr' }
     },
     {
       path: '/attendance/detail/:id',
       name: 'AttendanceDetail',
       component: () => import('@/views/attendance/AttendanceDetail.vue'),
-      meta: { requiresAuth: true, title: '考勤详情' },
+      meta: { requiresAuth: true, title: '考勤详情', module: 'hr' },
       props: true
     },
     // 标签打印模块
@@ -107,13 +109,13 @@ const router = createRouter({
       path: '/printing',
       name: 'PrintingIndex',
       component: () => import('@/views/printing/PrintingIndex.vue'),
-      meta: { requiresAuth: true, title: '标签打印' }
+      meta: { requiresAuth: true, title: '标签打印', module: 'materials' }
     },
     {
       path: '/printing/label',
       name: 'PrintingLabel',
       component: () => import('@/views/printing/PrintingLabel.vue'),
-      meta: { requiresAuth: false, title: '标签预览' }
+      meta: { requiresAuth: false, title: '标签预览', module: 'materials' }
     },
     {
       // 未匹配路由 → 首页
@@ -126,13 +128,22 @@ const router = createRouter({
 // 路由守卫：校验鉴权
 router.beforeEach((to, _from, next) => {
   // 动态标题
-  if (to.meta.title) {
-    document.title = `${to.meta.title} - 企业移动端`
+  const config = getEnterpriseConfig(globalThis)
+  const enterpriseTitle = config.branding?.productName || config.enterprise.displayName
+  const pageTitle = to.meta.title
+  if (pageTitle) {
+    document.title = `${pageTitle} - ${enterpriseTitle}`
   }
 
   if (to.name === 'login') {
     redirectToEnterpriseLogin(to.query.redirect || '/mobile/')
     next(false)
+    return
+  }
+
+  const moduleId = to.meta.module
+  if (moduleId && (config.modules?.[moduleId] === false || !isModuleVisible(getStoredDisplayVisibility(), moduleId))) {
+    next({ path: '/', replace: true })
     return
   }
 

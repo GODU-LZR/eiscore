@@ -12,8 +12,10 @@ import { useSystemStore } from '@/stores/system'
 const systemStore = useSystemStore()
 
 onMounted(async () => {
-  await systemStore.loadConfig()
-  // 初始化系统配置（应用保存的主题色等）
+  // Do not block the host router while an optional configuration endpoint is slow.
+  // The login page must still mount so authentication can redirect to the workbench.
+  const timeout = new Promise((resolve) => window.setTimeout(resolve, 8000))
+  await Promise.race([systemStore.loadConfig().catch(() => null), timeout])
   systemStore.initTheme()
 })
 </script>

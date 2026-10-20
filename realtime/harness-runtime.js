@@ -485,6 +485,7 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
     dispatch: toolGateway.execute
   });
   const profileGateway = Object.freeze({
+    registry,
     execute: async (request = {}) => {
       const capability = String(request.capability_id || request.capabilityId || '').trim();
       if (allowedCapabilities && !allowedCapabilities.has(capability)) {

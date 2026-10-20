@@ -6,7 +6,8 @@ import { canonicalizeMicroChainPath, ensureAbsoluteHostPath } from '../utils/mic
 export const HOST_ENTRY_TAB_KEY = '/'
 
 const MODULE_ENTRY_TITLES = {
-  '/': '首页',
+  '/': '工作台',
+  '/workbench': '工作台',
   '/materials': '仓储管理',
   '/hr': '人事管理',
   '/apps/': '应用中心',
@@ -88,6 +89,7 @@ const MODULE_DIRECT_APP_ROUTES = [
 
 export const normalizeHostTabPath = (value) => {
   const raw = canonicalizeMicroChainPath(ensureAbsoluteHostPath(value))
+  if (raw === '/' || raw === '/workbench' || raw === '/workbench/') return '/workbench'
   if (raw === '/apps' || raw === '/apps/index.html') return '/apps/'
   if (raw === '/company-site/' || raw === '/company-site/index.html') return '/company-site'
   if (raw === '/materials/' || raw === '/materials/index.html' || raw === '/materials/apps' || raw === '/materials/apps/') return '/materials'
@@ -143,7 +145,7 @@ export const buildHostTabRouteId = (path, query = {}) => {
 }
 
 export const resolveHostTabDot = (path) => {
-  if (path === '/') return 'home'
+  if (path === '/' || path === '/workbench') return 'home'
   for (const moduleName of ['materials', 'hr', 'apps', 'company-site', 'sales', 'purchase', 'production', 'quality', 'equipment', 'decision']) {
     if (path.startsWith(`/${moduleName}`)) return moduleName
   }
@@ -154,6 +156,7 @@ export const getHostEntryTitle = (path) => MODULE_ENTRY_TITLES[path] || '首页'
 
 export const isHostModuleEntryPath = (path) => [
   '/',
+  '/workbench',
   '/materials',
   '/hr',
   '/apps/',
@@ -231,7 +234,8 @@ export const resolveHostTabTitle = (
 }
 
 export const buildDefaultHostTabKey = (path, query = {}) => {
-  if (isHostModuleEntryPath(path)) return HOST_ENTRY_TAB_KEY
+  if (path === '/' || path === '/workbench') return HOST_ENTRY_TAB_KEY
+  if (isHostModuleEntryPath(path)) return path
   const purchaseDocumentAppKey = getHostPurchaseDocumentAppKey(path, query)
   if (purchaseDocumentAppKey) return `/purchase/app/${purchaseDocumentAppKey}`
   const directAppRoute = getHostDirectAppRoute(path)

@@ -2,7 +2,6 @@
 // Copyright (c) 2026 林志荣
 
 import {
-  DEFAULT_ENTERPRISE_CONFIG,
   ENTERPRISE_CONFIG_GLOBAL,
   getEnterpriseConfig,
   publishEnterpriseConfig,
@@ -17,13 +16,31 @@ export async function bootstrapEnterpriseConfig({
   fetchImpl = globalThis.fetch,
   onWarning = () => {}
 } = {}) {
-  const config = await loadEnterpriseConfig({
-    fetchImpl,
-    globalConfig: runtimeTarget?.[ENTERPRISE_CONFIG_GLOBAL],
-    required: isProduction,
-    onWarning
+  const controller = new AbortController()
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = globalThis.setTimeout(() => {
+      controller.abort()
+      onWarning({ code: 'config-timeout', source: '/config/eiscore-enterprise.json' })
+      reject(new Error('Enterprise configuration request timed out'))
+    }, 8000)
   })
-  return publishEnterpriseConfig(config, runtimeTarget)
+  try {
+    const config = await Promise.race([
+      loadEnterpriseConfig({
+        fetchImpl: typeof fetchImpl === 'function'
+          ? (url, options) => fetchImpl(url, { ...options, signal: controller.signal })
+          : fetchImpl,
+        globalConfig: runtimeTarget?.[ENTERPRISE_CONFIG_GLOBAL],
+        required: isProduction,
+        onWarning
+      }),
+      timeout
+    ])
+    return publishEnterpriseConfig(config, runtimeTarget)
+  } finally {
+    globalThis.clearTimeout(timer)
+  }
 }
 
 export function renderEnterpriseConfigFailure(documentImpl = globalThis.document) {

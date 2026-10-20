@@ -22,7 +22,7 @@ export const ENTERPRISE_MODULE_DEPENDENCIES = Object.freeze({
   materials: Object.freeze(['apps']),
   apps: Object.freeze([]),
   'company-site': Object.freeze([]),
-  sales: Object.freeze(['apps', 'materials', 'purchase']),
+  sales: Object.freeze(['apps', 'materials']),
   purchase: Object.freeze(['apps', 'materials']),
   production: Object.freeze(['apps', 'materials', 'quality']),
   quality: Object.freeze(['apps']),

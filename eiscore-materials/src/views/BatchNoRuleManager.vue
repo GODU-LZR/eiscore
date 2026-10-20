@@ -118,6 +118,7 @@ const appData = computed(() => ({
   config: {
     table: 'scm.batch_no_rules',
     viewId: 'batch_rules',
+    defaultOrder: 'created_at.desc.nullslast,id.desc',
     hideActions: true,
     configKey: 'batch_rules_cols_v2',
     skipColumnConfig: true,
@@ -228,7 +229,7 @@ const submitCreate = async () => {
       ElMessage.warning('规则名称已存在，请更换名称')
       return
     }
-    await request({
+    const created = await request({
       url: '/batch_no_rules',
       method: 'post',
       headers: { 'Content-Profile': 'scm', 'Accept-Profile': 'scm', 'Prefer': 'return=representation' },
@@ -253,7 +254,10 @@ const submitCreate = async () => {
       status: '启用',
       description: ''
     }
-    gridRef.value?.reload?.()
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (!createdRow?.id || !await gridRef.value?.prependRow?.(createdRow)) {
+      await gridRef.value?.reload?.()
+    }
   } catch (e) {
     if (e?.response?.status === 409) {
       ElMessage.error('规则名称已存在，请更换名称')

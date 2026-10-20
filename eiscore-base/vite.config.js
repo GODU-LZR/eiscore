@@ -130,31 +130,31 @@ export default defineConfig(({ command }) => ({
         changeOrigin: true,
         ws: true
       },
-      // Keep the local click-test entry self-contained: Harness Web is served
-      // by the isolated Compose gateway, while the browser stays on :8080.
+      // Keep Harness Web same-origin with the host. The local Nginx gateway
+      // owns the auth bridge and can be overridden for another test topology.
       '/harness-embed-api': {
-        target: 'http://127.0.0.1:18080',
-        // Preserve the browser's :8080 Host so the Harness auth origin
-        // matches the same-origin callback used by the click-test UI.
+        target: devProxyTargets.harness,
+        // Preserve the browser Host so the Harness auth origin matches the
+        // same-origin callback used by the host workbench.
         changeOrigin: false,
         ws: true
       },
       '/harness-embed-assets': {
-        target: 'http://127.0.0.1:18080',
+        target: devProxyTargets.harness,
         changeOrigin: false
       },
       '/harness-embed-plugins': {
-        target: 'http://127.0.0.1:18080',
+        target: devProxyTargets.harness,
         changeOrigin: false,
         ws: true
       },
       '/harness-embed': {
-        target: 'http://127.0.0.1:18080',
+        target: devProxyTargets.harness,
         changeOrigin: false,
         ws: true
       },
       '/plugins': {
-        target: 'http://127.0.0.1:18080',
+        target: devProxyTargets.harness,
         changeOrigin: false,
         ws: true
       },
@@ -312,6 +312,7 @@ export default defineConfig(({ command }) => ({
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)), // 🟢 修复：这里加了逗号
       '@shared': fileURLToPath(new URL('../shared', import.meta.url)),
+      '@eiscore/platform': fileURLToPath(new URL('../packages/eiscore-platform/src', import.meta.url)),
       'vue': 'vue/dist/vue.esm-bundler.js'
     },
   },

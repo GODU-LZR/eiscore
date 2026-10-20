@@ -680,7 +680,14 @@ export function useGridCore(
       : { flex: 1, minWidth }
 
     const extraColDef = {}
-    if (typeof col.valueGetter === 'function') extraColDef.valueGetter = col.valueGetter
+    if (typeof col.valueGetter === 'function') {
+      extraColDef.valueGetter = (params) => {
+        if (params?.node?.rowPinned) {
+          return isDynamic ? params.data?.properties?.[col.prop] : params.data?.[col.prop]
+        }
+        return col.valueGetter(params)
+      }
+    }
     if (typeof col.valueSetter === 'function') extraColDef.valueSetter = col.valueSetter
     if (typeof col.valueParser === 'function') extraColDef.valueParser = col.valueParser
     if (col.multiLine) extraColDef.multiLine = true
@@ -1064,7 +1071,7 @@ export function useGridCore(
     }
   })
 
-  const { isLoadingMore, hasMoreRows, loadData, loadNextPage } = createPagedGridLoader({
+  const { isLoadingMore, hasMoreRows, loadData, loadNextPage, prependRow } = createPagedGridLoader({
     props,
     gridData,
     searchText,
@@ -1080,7 +1087,7 @@ export function useGridCore(
 
   return {
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
-    isLoadingMore, hasMoreRows, loadData, loadNextPage, handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules, columnLockState,
+    isLoadingMore, hasMoreRows, loadData, loadNextPage, prependRow, handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules, columnLockState,
     setWorkflowBinding, getRowHeight, handleColumnResized, onGridReadyLayout,
     stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
   }

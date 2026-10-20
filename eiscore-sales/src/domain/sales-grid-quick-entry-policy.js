@@ -18,7 +18,6 @@ export const buildSalesQuickOrderForm = (source = null, { today = '', deliveryDa
 
 export const buildSalesQuickPaymentForm = (source = null, { today = '' } = {}) => ({
   order_id: source?.id || source?.order_id || '',
-  schedule_id: source?.schedule_id || '',
   customer_name: source?.customer_name || source?.name || '',
   amount: toSalesAmount(source?.total_amount || source?.amount || 0),
   payment_date: today,
@@ -103,29 +102,21 @@ export const buildSalesQuickOrderFallbackPayload = (payload, bomProduct) => {
   return fallbackPayload
 }
 
-export const buildSalesQuickPaymentEntry = ({ form = {}, order, schedule, paymentNo, today = '' } = {}) => {
-  const customerName = order?.customer_name || schedule?.customer_name || form.customer_name?.trim()
+export const buildSalesQuickPaymentEntry = ({ form = {}, order, paymentNo, today = '' } = {}) => {
+  const customerName = order?.customer_name || form.customer_name?.trim()
   if (order && !isSalesOrderActive(order)) {
     return { error: '已取消或已删除的订单不能登记回款', payload: null }
   }
   if (!customerName) return { error: '请选择订单或填写客户名称', payload: null }
   const amount = toSalesAmount(form.amount)
   if (amount <= 0) return { error: '回款金额必须大于 0', payload: null }
-  const scheduleOutstanding = schedule
-    ? toSalesAmount(schedule.outstanding_amount ?? (toSalesAmount(schedule.planned_amount) - toSalesAmount(schedule.received_amount)))
-    : 0
-  if (schedule && amount > scheduleOutstanding) return { error: '回款金额不能超过应收计划的未收余额', payload: null }
-  const properties = { 来源: '快捷登记回款' }
-  if (schedule?.schedule_no) properties.应收计划编号 = schedule.schedule_no
-  if (schedule?.contract_no) properties.合同编号 = schedule.contract_no
   return {
     error: '',
     payload: {
       payment_no: paymentNo,
-      order_id: order?.id || schedule?.order_id || form.order_id || null,
-      order_no: order?.order_no || schedule?.order_no || form.order_no || '',
-      schedule_id: schedule?.id || form.schedule_id || null,
-      customer_id: order?.customer_id || schedule?.customer_id || form.customer_id || null,
+      order_id: order?.id || null,
+      order_no: order?.order_no || '',
+      customer_id: order?.customer_id || null,
       customer_name: customerName,
       amount,
       payment_date: form.payment_date || today,
@@ -133,7 +124,7 @@ export const buildSalesQuickPaymentEntry = ({ form = {}, order, schedule, paymen
       verify_status: form.verify_status || '待核销',
       handler_name: form.handler_name || order?.owner_name || '',
       status: 'active',
-      properties
+      properties: { 来源: '快捷登记回款' }
     }
   }
 }

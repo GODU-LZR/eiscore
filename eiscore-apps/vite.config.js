@@ -33,6 +33,7 @@ export default defineConfig({
     resolve: {
       dedupe: sharedFrontendDedupe,
       alias: {
+      '@eiscore/platform': fileURLToPath(new URL('../packages/eiscore-platform/src', import.meta.url)),
       '@': fileURLToPath(new URL('./src', import.meta.url)),
       '@shared': fileURLToPath(new URL('../shared', import.meta.url))
     }

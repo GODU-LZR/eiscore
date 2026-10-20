@@ -553,9 +553,7 @@ async function handleLogin() {
       // 用户详情获取失败不影响登录
     }
 
-    if (!setAuth(token, userInfo)) {
-      throw new Error('登录信息保存失败，请允许浏览器存储后重试；仍失败请联系管理员')
-    }
+    setAuth(token, userInfo)
 
     if (form.remember) {
       rememberUsername(form.username)

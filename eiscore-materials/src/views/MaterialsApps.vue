@@ -81,6 +81,7 @@ import {
   statNumber
 } from '@shared/app-card-server-stats'
 import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
+import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 
 const router = useRouter()
 const apps = MATERIAL_APPS
@@ -392,6 +393,7 @@ const cardMap = computed(() => {
 })
 
 const visibleApps = computed(() => apps
+  .filter((app) => getEnterpriseConfig(globalThis).modules?.production !== false || !['production-stock-in', 'production-picking'].includes(app.key))
   .filter((app) => isAppVisible(displayVisibility.value, 'materials', app.key))
   .filter((app) => app.key !== 'inventory-dashboard' && (!app.perm || hasPerm(app.perm)))
   .map((app) => ({

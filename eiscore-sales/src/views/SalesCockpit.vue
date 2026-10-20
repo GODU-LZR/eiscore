@@ -13,8 +13,8 @@
         <div class="hdr-center">
           <div class="live-badge">
             <span class="pulse-dot"></span>
-            <span role="status" aria-live="polite">{{ loading ? '数据刷新中' : dataLoadState === 'partial' ? '部分数据暂不可用' : dataLoadState === 'error' ? '数据暂不可用' : '实时经营监控' }}</span>
-            <span class="live-count">{{ loadedSources[1] ? stats.orderCount : '—' }} 笔订单</span>
+            <span>{{ loading ? '数据刷新中' : '实时经营监控' }}</span>
+            <span class="live-count">{{ stats.orderCount }} 笔订单</span>
             <span class="live-count live-freshness">更新 {{ lastUpdatedText }}</span>
             <span class="live-count live-freshness">{{ refreshCountdown }}s 后刷新</span>
           </div>
@@ -28,11 +28,6 @@
       </header>
 
       <main class="hud-body">
-        <div v-if="!hasCompleteBaseline" class="cockpit-load-state" role="status" :aria-busy="loading">
-          <strong>{{ loading || dataLoadState === 'loading' ? '正在加载销售经营数据' : dataLoadState === 'partial' ? '部分经营数据暂不可用' : '经营数据暂不可用' }}</strong>
-          <p>{{ loading || dataLoadState === 'loading' ? '正在读取客户、订单、商机、收款和跟进数据。' : '经营数据尚未完整加载，请点击顶部“刷新”重试。' }}</p>
-        </div>
-        <template v-else>
         <aside class="col col-left">
           <section class="box kpi-box">
             <div class="box-hdr">总体指标</div>
@@ -314,7 +309,6 @@
             </div>
           </section>
         </aside>
-        </template>
       </main>
       </section>
     </div>
@@ -363,16 +357,13 @@ import { buildSalesActivityEvents } from '@/domain/sales-cockpit-activity-policy
 import { buildSalesCockpitAiContext } from '@/domain/sales-cockpit-context-policy.js'
 import { buildSalesCockpitQueryRequests } from '@/domain/sales-cockpit-query-policy.js'
 import { decrementSalesCockpitRefreshCountdown, formatSalesCockpitClock } from '@/domain/sales-cockpit-clock-policy.js'
-import { mergeSalesCockpitData } from '@/domain/sales-cockpit-data-policy.js'
+import { normalizeSalesCockpitData } from '@/domain/sales-cockpit-data-policy.js'
 import { getSalesCockpitFullscreenAction } from '@/domain/sales-cockpit-fullscreen-policy.js'
 import { buildSalesCockpitFrame } from '@/domain/sales-cockpit-shell-policy.js'
 
 const router = useRouter()
 const rootRef = ref(null)
 const loading = ref(false)
-const dataLoadState = ref('loading')
-const loadedSources = ref([false, false, false, false, false])
-const hasCompleteBaseline = computed(() => loadedSources.value.every(Boolean))
 const isFullscreen = ref(false)
 const screenRef = ref(null)
 const clock = ref('')
@@ -466,7 +457,6 @@ const buildCockpitContext = () => buildSalesCockpitAiContext({
 })
 
 const syncCockpitContext = () => {
-  if (!hasCompleteBaseline.value) return
   pushAiContext(buildCockpitContext())
 }
 
@@ -493,35 +483,22 @@ const scheduleCockpitScale = () => {
 }
 
 const loadCockpitData = async () => {
-  if (loading.value) return
   loading.value = true
-  const previousRows = [
-    customers.value,
-    orders.value,
-    opportunities.value,
-    payments.value,
-    followUps.value
-  ]
   try {
-    const results = await Promise.allSettled(
+    const [customerRows, orderRows, opportunityRows, paymentRows, followRows] = await Promise.all(
       buildSalesCockpitQueryRequests().map((config) => request(config))
     )
-    const merged = mergeSalesCockpitData(previousRows, results, loadedSources.value)
-    dataLoadState.value = merged.state
-    loadedSources.value = merged.loadedSources
-    if (merged.updated) {
-      customers.value = merged.customers
-      orders.value = merged.orders
-      opportunities.value = merged.opportunities
-      payments.value = merged.payments
-      followUps.value = merged.followUps
-      lastUpdatedAt.value = new Date().toISOString()
-    }
+    const normalized = normalizeSalesCockpitData([customerRows, orderRows, opportunityRows, paymentRows, followRows])
+    customers.value = normalized.customers
+    orders.value = normalized.orders
+    opportunities.value = normalized.opportunities
+    payments.value = normalized.payments
+    followUps.value = normalized.followUps
+    lastUpdatedAt.value = new Date().toISOString()
+    refreshCountdown.value = refreshIntervalSeconds
   } catch (error) {
-    dataLoadState.value = 'error'
     console.warn('加载销售驾驶舱失败', error)
   } finally {
-    refreshCountdown.value = refreshIntervalSeconds
     loading.value = false
     syncCockpitContext()
   }
@@ -845,13 +822,6 @@ watch([stats, kpiCards, opportunityFunnel, ownerPerformance, receivableCustomers
   min-height: 0;
   padding: 12px;
   overflow: hidden;
-}
-
-.cockpit-load-state {
-  margin: auto;
-  text-align: center;
-  color: var(--text2);
-  font-size: 16px;
 }
 
 .col {

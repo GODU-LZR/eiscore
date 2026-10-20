@@ -15,12 +15,9 @@ export const useUserStore = defineStore('user', () => {
   const userInfo = ref(getUserInfo() || {})
 
   const login = (userData) => {
-    if (!setAuth(userData.token, userData.user)) {
-      logout()
-      throw new Error('登录信息保存失败，请允许浏览器存储后重试；仍失败请联系管理员')
-    }
     token.value = userData.token
     userInfo.value = userData.user
+    setAuth(userData.token, userData.user)
   }
 
   const logout = () => {

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-const RELEASE_VERSION = '20260930051151'
+const RELEASE_VERSION = 'huizong-20261019-charts4'
 const CACHE_PREFIX = `eiscore-client-assets-v${RELEASE_VERSION}-`
 const MANIFEST_URL = '/asset-manifest.json'
 const STATIC_EXT_RE = /\.(?:js|css|png|jpg|jpeg|gif|ico|svg|webp|avif|woff2?|ttf|eot)$/i
 const HTML_ENTRY_RE = /^\/(?:index\.html|(?:hr|materials|apps|sales|purchase|production|quality|equipment|decision|mobile)\/index\.html)$/
-const RUNTIME_PREFIXES = ['/api/', '/rpc/', '/agent/', '/ai/', '/flash/', '/twin/', '/document-intake/', '/company-site/']
+const RUNTIME_PREFIXES = ['/api/', '/rpc/', '/agent/', '/ai/', '/flash/', '/twin/', '/document-intake/', '/company-site/', '/harness-embed/', '/harness-embed-api/', '/harness-embed-assets/', '/harness-embed-plugins/', '/harness-brand/', '/plugins/']
 
 let manifestPromise = null
 

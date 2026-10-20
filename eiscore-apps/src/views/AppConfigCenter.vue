@@ -547,10 +547,8 @@ const createApp = async () => {
   creating.value = true
   try {
     const token = getToken()
-    const categoryMap = { workflow: 1, data: 2, flash: 3, custom: 4 }
     const payload = {
       ...newAppForm.value,
-      category_id: categoryMap[newAppForm.value.app_type],
       status: 'draft',
       config: ensureSemanticConfig({})
     }

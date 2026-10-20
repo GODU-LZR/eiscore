@@ -18,13 +18,13 @@
       <eis-data-grid
         ref="gridRef"
         :view-id="app.viewId"
-        :api-url="gridDataApiUrl"
+        :api-url="gridApiUrl"
         :write-url="app.writeUrl || ''"
         :include-properties="app.includeProperties !== false"
         write-mode="patch"
         :patch-required-fields="app.patchRequiredFields || []"
         :field-defaults="app.fieldDefaults || {}"
-        :default-order="app.defaultOrder || 'id.desc'"
+        :default-order="app.defaultOrder || 'created_at.desc.nullslast,id.desc'"
         accept-profile="public"
         content-profile="public"
         :static-columns="staticColumns"
@@ -54,8 +54,6 @@
         @row-action="handleRowAction"
         @data-load-error="handleDataLoadError"
         @data-loaded="handleDataLoaded"
-        @delete-complete="refreshFollowUpAttention()"
-        @data-saved="refreshFollowUpAttention()"
         @cell-value-changed="handleSalesCellValueChanged"
       >
         <template #toolbar>
@@ -97,17 +95,7 @@
             从客户建订单
           </el-button>
           <el-button
-            v-if="app.key === 'orders' && canCreate"
-            type="warning"
-            plain
-            icon="Money"
-            :loading="flowActionLoading"
-            @click="pushOrdersToReceivables"
-          >
-            生成应收计划
-          </el-button>
-          <el-button
-            v-if="app.key === 'orders' && canCreate"
+            v-if="app.key === 'orders' && canCreate && purchaseEnabled"
             type="success"
             plain
             icon="Position"
@@ -134,33 +122,6 @@
             @click="openOpportunityDialog()"
           >
             新建商机
-          </el-button>
-          <el-button
-            v-if="app.key === 'quotes' && canCreate"
-            type="primary"
-            plain
-            icon="Tickets"
-            @click="handleCreate"
-          >
-            新建报价
-          </el-button>
-          <el-button
-            v-if="app.key === 'contracts' && canCreate"
-            type="primary"
-            plain
-            icon="Document"
-            @click="handleCreate"
-          >
-            新建合同
-          </el-button>
-          <el-button
-            v-if="app.key === 'receivables' && canCreate"
-            type="warning"
-            plain
-            icon="Money"
-            @click="handleCreate"
-          >
-            新建应收
           </el-button>
           <el-button
             v-if="app.key === 'follow_ups' && canCreate"
@@ -193,7 +154,7 @@
               </div>
               <div class="col-actions">
                 <el-switch
-                  :model-value="!staticHidden.includes(col.prop)"
+                  :model-value="isStaticVisible(col.prop)"
                   active-text="显示"
                   inactive-text="隐藏"
                   @change="toggleStaticColumn(col.prop, $event)"
@@ -426,51 +387,10 @@
             登记回款
           </el-button>
           <el-button
-            v-if="app.key === 'orders' && canCreate"
-            plain
-            icon="Money"
-            :loading="flowActionLoading"
-            @click="createReceivableFromOrder(selectedDetailRow)"
-          >
-            生成应收计划
-          </el-button>
-          <el-button
-            v-if="app.key === 'receivables' && canCreate"
-            plain
-            icon="Money"
-            @click="openPaymentDialog(selectedDetailRow)"
-          >
-            登记回款
-          </el-button>
-          <el-button
             v-if="app.key === 'opportunities' && canCreate"
             plain
             icon="Tickets"
             @click="openOrderDialog(selectedDetailRow)"
-          >
-            转销售订单
-          </el-button>
-          <el-button
-            v-if="app.key === 'opportunities' && canCreate"
-            plain
-            icon="Tickets"
-            @click="openQuoteDialogFromOpportunity(selectedDetailRow)"
-          >
-            新建报价
-          </el-button>
-          <el-button
-            v-if="app.key === 'quotes' && canCreate"
-            plain
-            icon="Document"
-            @click="createContractFromQuote(selectedDetailRow)"
-          >
-            生成合同
-          </el-button>
-          <el-button
-            v-if="app.key === 'contracts' && canCreate"
-            plain
-            icon="Tickets"
-            @click="createOrdersFromContract(selectedDetailRow)"
           >
             转销售订单
           </el-button>
@@ -564,7 +484,7 @@
             <strong>{{ flowSelectedRows.length }}</strong>
           </div>
           <el-radio-group v-model="flowNextStep" size="small">
-            <el-radio-button label="purchase_demand">采购需求</el-radio-button>
+            <el-radio-button v-if="purchaseEnabled" label="purchase_demand">采购需求</el-radio-button>
             <el-radio-button label="shipment_request">出货申请</el-radio-button>
             <el-radio-button label="sales_outbound">销售出库</el-radio-button>
           </el-radio-group>
@@ -597,6 +517,7 @@
           </el-button>
           <el-button
             type="warning"
+            v-if="purchaseEnabled"
             data-sop-action="sales-reverse-flow-push"
             data-sop-title="反审核或撤销销售下推"
             data-sop-desc="撤销销售订单到采购需求的链路，仅在下游未继续生成单据时允许。"
@@ -610,7 +531,7 @@
           </el-button>
         </div>
         <el-alert
-          v-if="!canReverseSalesDemand && salesFlowDocs.purchaseDemand"
+          v-if="purchaseEnabled && !canReverseSalesDemand && salesFlowDocs.purchaseDemand"
           data-guide="flow-risk"
           title="采购需求已生成下游单据时不能直接撤销，需要先从采购订单、到货、入库逐级反审核。"
           type="warning"
@@ -637,50 +558,281 @@
       </div>
     </el-dialog>
 
-    <SalesQuickDialog
-      v-model:visible="quickDialogVisible"
+    <el-dialog
+      v-model="quickDialogVisible"
       :title="quickDialogTitle"
-      :mode="quickMode"
-      :loading="quickLoading"
-      :submitting="quickSubmitting"
-      :order-form="orderForm"
-      :payment-form="paymentForm"
-      :opportunity-form="opportunityForm"
-      :follow-form="followForm"
-      :quick-customers="quickCustomers"
-      :quick-bom-products="quickBomProducts"
-      :quick-orders="quickOrders"
-      :available-quick-receivables="availableQuickReceivables"
-      :selected-quick-receivable="selectedQuickReceivable"
-      :selected-quick-order="selectedQuickOrder"
-      :selected-quick-order-paid-amount="selectedQuickOrderPaidAmount"
-      :selected-quick-order-remain-amount="selectedQuickOrderRemainAmount"
-      :order-total-amount="orderTotalAmount"
-      :order-status-options="orderStatusOptions"
-      :payment-method-options="paymentMethodOptions"
-      :payment-status-options="paymentStatusOptions"
-      :follow-type-options="followTypeOptions"
-      :follow-result-options="followResultOptions"
-      :opportunity-stage-options="opportunityStageOptions"
-      :format-amount="formatAmount"
-      @submit="submitQuickDialog"
+      width="620px"
+      style="max-width: calc(100vw - 32px);"
+      append-to-body
+      destroy-on-close
       @closed="resetQuickDialog"
-    />
+    >
+      <el-form
+        v-if="quickMode === 'order'"
+        class="quick-form"
+        label-width="96px"
+        :model="orderForm"
+      >
+        <el-form-item label="客户">
+          <el-select
+            v-model="orderForm.customer_id"
+            filterable
+            clearable
+            :loading="quickLoading"
+            placeholder="选择客户"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="customer in quickCustomers"
+              :key="customer.id"
+              :label="`${customer.name} / ${customer.customer_no}`"
+              :value="customer.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="产品名称">
+          <el-input v-model="orderForm.product_name" placeholder="请输入产品名称" />
+        </el-form-item>
+        <el-form-item label="BOM成品">
+          <el-select
+            v-model="orderForm.product_material_id"
+            filterable
+            clearable
+            :loading="quickLoading"
+            placeholder="选择后可进入BOM-MRP和生产计划"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="material in quickBomProducts"
+              :key="material.parent_material_id"
+              :label="`${material.parent_material_code} / ${material.parent_material_name}`"
+              :value="material.parent_material_id"
+            />
+          </el-select>
+        </el-form-item>
+        <div class="quick-form-row">
+          <el-form-item label="数量">
+            <el-input-number v-model="orderForm.quantity" :min="0" :precision="2" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="单位" label-width="48px">
+            <el-input v-model="orderForm.unit" placeholder="箱" />
+          </el-form-item>
+          <el-form-item label="单价">
+            <el-input-number v-model="orderForm.unit_price" :min="0" :precision="2" controls-position="right" />
+          </el-form-item>
+        </div>
+        <div class="quick-form-row">
+          <el-form-item label="订单日期">
+            <el-date-picker v-model="orderForm.order_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </el-form-item>
+          <el-form-item label="交付日期">
+            <el-date-picker v-model="orderForm.delivery_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </el-form-item>
+        </div>
+        <div class="quick-form-row">
+          <el-form-item label="订单状态">
+            <el-select v-model="orderForm.order_status" style="width: 100%;">
+              <el-option v-for="status in orderStatusOptions" :key="status" :label="status" :value="status" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="负责人">
+            <el-input v-model="orderForm.owner_name" placeholder="销售负责人" />
+          </el-form-item>
+        </div>
+        <div class="amount-preview">
+          <span>订单金额</span>
+          <strong>{{ formatAmount(orderTotalAmount) }}</strong>
+        </div>
+      </el-form>
 
-    <SalesQuoteItemsDialog
-      v-model:visible="quoteItemsVisible"
-      :quote-no="selectedQuote?.quote_no || ''"
-      :loading="quoteItemsLoading"
-      :saving="quoteItemsSaving"
-      :ready="quoteItemsReady"
-      :items="quoteItems"
-      :total="quoteItemsTotal"
-      :format-amount="formatAmount"
-      @update-amount="updateQuoteItemAmount"
-      @add="addQuoteItem"
-      @remove="removeQuoteItem"
-      @save="saveQuoteItems"
-    />
+      <el-form
+        v-else-if="quickMode === 'payment'"
+        class="quick-form"
+        label-width="96px"
+        :model="paymentForm"
+      >
+        <el-form-item label="订单">
+          <el-select
+            v-model="paymentForm.order_id"
+            filterable
+            clearable
+            :loading="quickLoading"
+            placeholder="选择订单"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="order in quickOrders"
+              :key="order.id"
+              :label="`${order.order_no} / ${order.customer_name} / ${formatAmount(order.total_amount)}`"
+              :value="order.id"
+            />
+          </el-select>
+        </el-form-item>
+        <div v-if="selectedQuickOrder" class="quick-info">
+          <div><span>客户</span><strong>{{ selectedQuickOrder.customer_name }}</strong></div>
+          <div><span>产品</span><strong>{{ selectedQuickOrder.product_name }}</strong></div>
+          <div><span>订单金额</span><strong>{{ formatAmount(selectedQuickOrder.total_amount) }}</strong></div>
+          <div><span>已回款</span><strong>{{ formatAmount(selectedQuickOrderPaidAmount) }}</strong></div>
+          <div><span>未回款</span><strong>{{ formatAmount(selectedQuickOrderRemainAmount) }}</strong></div>
+        </div>
+        <el-form-item label="客户名称" v-else>
+          <el-input v-model="paymentForm.customer_name" placeholder="未选择订单时手工填写客户名称" />
+        </el-form-item>
+        <div class="quick-form-row">
+          <el-form-item label="回款金额">
+            <el-input-number v-model="paymentForm.amount" :min="0" :precision="2" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="回款日期">
+            <el-date-picker v-model="paymentForm.payment_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </el-form-item>
+        </div>
+        <div class="quick-form-row">
+          <el-form-item label="回款方式">
+            <el-select v-model="paymentForm.payment_method" style="width: 100%;">
+              <el-option v-for="method in paymentMethodOptions" :key="method" :label="method" :value="method" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="核销状态">
+            <el-select v-model="paymentForm.verify_status" style="width: 100%;">
+              <el-option v-for="status in paymentStatusOptions" :key="status" :label="status" :value="status" />
+            </el-select>
+          </el-form-item>
+        </div>
+        <el-form-item label="经办人">
+          <el-input v-model="paymentForm.handler_name" placeholder="经办人" />
+          </el-form-item>
+        </el-form>
+
+      <el-form
+        v-else-if="quickMode === 'opportunity'"
+        class="quick-form"
+        label-width="96px"
+        :model="opportunityForm"
+      >
+        <el-form-item label="客户">
+          <el-select
+            v-model="opportunityForm.customer_id"
+            filterable
+            clearable
+            :loading="quickLoading"
+            placeholder="选择客户"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="customer in quickCustomers"
+              :key="customer.id"
+              :label="`${customer.name} / ${customer.customer_no}`"
+              :value="customer.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="商机名称">
+          <el-input v-model="opportunityForm.opportunity_name" placeholder="请输入商机名称" />
+        </el-form-item>
+        <div class="quick-form-row">
+          <el-form-item label="预计金额">
+            <el-input-number v-model="opportunityForm.expected_amount" :min="0" :precision="2" controls-position="right" />
+          </el-form-item>
+          <el-form-item label="预计成交">
+            <el-date-picker v-model="opportunityForm.expected_close_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </el-form-item>
+        </div>
+        <div class="quick-form-row">
+          <el-form-item label="阶段">
+            <el-select v-model="opportunityForm.stage" style="width: 100%;">
+              <el-option v-for="stage in opportunityStageOptions" :key="stage" :label="stage" :value="stage" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="赢率">
+            <el-input-number v-model="opportunityForm.probability" :min="0" :max="100" :precision="0" controls-position="right" />
+          </el-form-item>
+        </div>
+        <div class="quick-form-row">
+          <el-form-item label="负责人">
+            <el-input v-model="opportunityForm.owner_name" placeholder="销售负责人" />
+          </el-form-item>
+          <el-form-item label="下次动作">
+            <el-input v-model="opportunityForm.next_action" placeholder="下一步推进动作" />
+          </el-form-item>
+        </div>
+        <el-form-item label="备注">
+          <el-input
+            v-model="opportunityForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="记录需求、预算、竞争情况和成交阻碍"
+          />
+        </el-form-item>
+      </el-form>
+
+      <el-form
+        v-else-if="quickMode === 'follow'"
+        class="quick-form"
+        label-width="96px"
+        :model="followForm"
+      >
+        <el-form-item label="客户">
+          <el-select
+            v-model="followForm.customer_id"
+            filterable
+            clearable
+            :loading="quickLoading"
+            placeholder="选择客户"
+            style="width: 100%;"
+          >
+            <el-option
+              v-for="customer in quickCustomers"
+              :key="customer.id"
+              :label="`${customer.name} / ${customer.customer_no}`"
+              :value="customer.id"
+            />
+          </el-select>
+        </el-form-item>
+        <div class="quick-form-row">
+          <el-form-item label="跟进日期">
+            <el-date-picker v-model="followForm.follow_date" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </el-form-item>
+          <el-form-item label="下次跟进">
+            <el-date-picker v-model="followForm.next_follow_at" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </el-form-item>
+        </div>
+        <div class="quick-form-row">
+          <el-form-item label="跟进方式">
+            <el-select v-model="followForm.follow_type" style="width: 100%;">
+              <el-option v-for="type in followTypeOptions" :key="type" :label="type" :value="type" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="跟进结果">
+            <el-select v-model="followForm.follow_result" style="width: 100%;">
+              <el-option v-for="result in followResultOptions" :key="result" :label="result" :value="result" />
+            </el-select>
+          </el-form-item>
+        </div>
+        <div class="quick-form-row">
+          <el-form-item label="联系人">
+            <el-input v-model="followForm.contact_name" placeholder="联系人" />
+          </el-form-item>
+          <el-form-item label="负责人">
+            <el-input v-model="followForm.owner_name" placeholder="销售负责人" />
+          </el-form-item>
+        </div>
+        <el-form-item label="跟进纪要">
+          <el-input
+            v-model="followForm.follow_content"
+            type="textarea"
+            :rows="4"
+            placeholder="记录客户诉求、报价反馈、风险和下一步动作"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="quickDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="quickSubmitting" @click="submitQuickDialog">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -697,17 +849,15 @@ import { pushAiContext, pushAiCommand } from '@/utils/ai-context'
 import { buildGridAgentContext, buildGridLoadState, enrichLoadedDataStats } from '@shared/eis-grid-agent-context'
 import GridCompactFilter from '@shared/eis-grid-compact-filter.vue'
 import { useEisGridAppFilters } from '@shared/use-eis-grid-app-filters'
-import { useSalesDocumentFlow } from '@/composables/use-sales-document-flow'
-import { useSalesFollowUpAttention } from '@/composables/use-sales-follow-up-attention'
-import SalesQuickDialog from '@/components/SalesQuickDialog.vue'
-import SalesQuoteItemsDialog from '@/components/SalesQuoteItemsDialog.vue'
 import { findSalesApp, CUSTOMER_COLUMNS } from '@/utils/sales-apps'
 import {
+  buildSalesAttentionSummary,
   getSalesRecordAttention,
   matchesSalesAttentionFilter
 } from '@/utils/sales-attention'
 import { getRealtimeClient } from '@/utils/realtime'
 import { hasPerm } from '@/utils/permission'
+import { getEnterpriseConfig, isEnterpriseModuleEnabled } from '@eiscore/platform/enterprise-config'
 import { openSalesFlowTarget } from '@/platform/sales-flow-navigation'
 import {
   buildSalesDataSample as buildDataSample,
@@ -751,6 +901,7 @@ import {
   buildSalesQuickOrderEntry,
   buildSalesQuickOrderFallbackPayload,
   buildSalesQuickOrderForm,
+  buildSalesQuickPaymentEntry,
   buildSalesQuickPaymentForm,
   calculateSalesQuickOrderTotal
 } from '@/domain/sales-grid-quick-entry-policy'
@@ -802,7 +953,7 @@ const addDaysText = (days) => {
   return date.toISOString().slice(0, 10)
 }
 
-const orderStatusOptions = ['草稿', '已确认', '生产中', '部分出库', '已发货', '已完成', '已取消']
+const orderStatusOptions = ['草稿', '已确认', '生产中', '已发货', '已完成', '已取消']
 const paymentMethodOptions = ['银行转账', '承兑汇票', '现金', '其他']
 const paymentStatusOptions = ['待核销', '部分核销', '已核销']
 const followTypeOptions = ['电话沟通', '微信沟通', '上门拜访', '视频会议', '展会接洽', '其他']
@@ -828,19 +979,23 @@ const app = computed(() => props.appConfig || findSalesApp(props.appKey) || {
 })
 
 const opPerms = computed(() => app.value?.ops || {})
+const readOnly = computed(() => app.value?.readOnly === true)
+const purchaseEnabled = computed(() => isEnterpriseModuleEnabled(getEnterpriseConfig(window), 'purchase'))
 const enableRealtime = computed(() => app.value?.enableRealtime === true)
-const canCreate = computed(() => hasPerm(opPerms.value.create))
-const canEdit = computed(() => hasPerm(opPerms.value.edit))
-const canDelete = computed(() => hasPerm(opPerms.value.delete))
+const canCreate = computed(() => !readOnly.value && hasPerm(opPerms.value.create))
+const canEdit = computed(() => !readOnly.value && hasPerm(opPerms.value.edit))
+const canDelete = computed(() => !readOnly.value && hasPerm(opPerms.value.delete))
 const canExport = computed(() => hasPerm(opPerms.value.export))
-const canConfig = computed(() => hasPerm(opPerms.value.config))
+const canConfig = computed(() => !readOnly.value && hasPerm(opPerms.value.config))
 const attentionRows = computed(() => lastLoadedRows.value)
+const attentionSummary = computed(() => buildSalesAttentionSummary(app.value?.key, attentionRows.value))
+const attentionTodoCount = computed(() => attentionRows.value.filter((row) => matchesSalesAttentionFilter(app.value?.key, row, 'todo')).length)
 const attentionFilterOptions = computed(() => [
-  { value: 'all', label: `全部 ${attentionSummary.value.total ?? '—'}` },
-  { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical ?? '—'}` },
-  { value: 'warning', label: `预警 ${attentionSummary.value.counts.warning ?? '—'}` },
-  { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus ?? '—'}` },
-  { value: 'todo', label: `待处理 ${attentionTodoCount.value ?? '—'}` }
+  { value: 'all', label: `全部 ${attentionSummary.value.total}` },
+  { value: 'critical', label: `紧急 ${attentionSummary.value.counts.critical}` },
+  { value: 'warning', label: `预警 ${attentionSummary.value.counts.warning}` },
+  { value: 'focus', label: `重点 ${attentionSummary.value.counts.focus}` },
+  { value: 'todo', label: `待处理 ${attentionTodoCount.value}` }
 ])
 const resolveAttention = (row) => getSalesRecordAttention(app.value?.key, row, {
   role: 'sales',
@@ -848,34 +1003,23 @@ const resolveAttention = (row) => getSalesRecordAttention(app.value?.key, row, {
   device: 'desktop',
   task: 'monitor'
 })
-const rowAttentionFilter = (row) => app.value?.key === 'follow_ups' || matchesSalesAttentionFilter(app.value?.key, row, attentionFilter.value)
-const ROW_ACTION_PERMISSIONS = Object.freeze({
-  'create-order': 'op:sales_order.create',
-  'create-follow': 'op:sales_follow_up.create',
-  'create-opportunity': 'op:sales_opportunity.create',
-  'create-quote': 'op:sales_quote.create',
-  'create-payment': 'op:sales_payment.create',
-  'create-receivable': 'op:sales_receivable.create'
-})
-const canRunRowAction = (key) => {
-  const permission = ROW_ACTION_PERMISSIONS[key] || ''
-  return !permission || hasPerm(permission)
-}
+const rowAttentionFilter = (row) => matchesSalesAttentionFilter(app.value?.key, row, attentionFilter.value)
 const resolveRowActions = (row) => {
-  if (!row) return []
+  if (!row || readOnly.value) return []
   if (app.value.key === 'customers') {
     const actions = []
-    if (canRunRowAction('create-order')) actions.push({ key: 'create-order', label: '建订单', type: 'success', icon: 'Tickets' })
-    if (canRunRowAction('create-follow')) actions.push({ key: 'create-follow', label: '跟进', type: 'primary', icon: 'ChatLineSquare' })
-    if (canRunRowAction('create-opportunity')) actions.push({ key: 'create-opportunity', label: '商机', type: 'primary', icon: 'TrendCharts' })
+    if (canCreate.value) {
+      actions.push({ key: 'create-order', label: '建订单', type: 'success', icon: 'Tickets' })
+      actions.push({ key: 'create-follow', label: '跟进', type: 'primary', icon: 'ChatLineSquare' })
+      actions.push({ key: 'create-opportunity', label: '商机', type: 'primary', icon: 'TrendCharts' })
+    }
     return actions
   }
   if (app.value.key === 'orders') {
     const actions = []
-    if (canRunRowAction('create-payment')) actions.push({ key: 'create-payment', label: '回款', type: 'warning', icon: 'Money' })
-    if (canRunRowAction('create-receivable')) actions.push({ key: 'create-receivable', label: '应收', type: 'warning', icon: 'Money' })
     if (canCreate.value) {
-      actions.push({ key: 'push-purchase', label: '采购', type: 'success', icon: 'Position' })
+      actions.push({ key: 'create-payment', label: '回款', type: 'warning', icon: 'Money' })
+      if (purchaseEnabled.value) actions.push({ key: 'push-purchase', label: '采购', type: 'success', icon: 'Position' })
       actions.push({ key: 'push-shipment', label: '出货', type: 'warning', icon: 'Promotion' })
     }
     return actions
@@ -886,13 +1030,10 @@ const resolveRowActions = (row) => {
       : []
   }
   if (app.value.key === 'opportunities') {
-    return [
-      ...(canRunRowAction('create-order') ? [{ key: 'create-order', label: '转订单', type: 'success', icon: 'Tickets' }] : []),
-      ...(canRunRowAction('create-quote') ? [{ key: 'create-quote', label: '新建报价', type: 'primary', icon: 'Document' }] : [])
-    ]
+    return canCreate.value
+      ? [{ key: 'create-order', label: '转订单', type: 'success', icon: 'Tickets' }]
+      : []
   }
-  const extendedActions = resolveExtendedRowActions(row)
-  if (extendedActions) return extendedActions
   return []
 }
 const quickDialogTitle = computed(() => {
@@ -910,6 +1051,9 @@ const selectedQuickBomProduct = computed(() => {
   if (!selectedId) return null
   return quickBomProducts.value.find((material) => normalizeId(material.parent_material_id) === selectedId) || null
 })
+const selectedQuickOrder = computed(() => {
+  return quickOrders.value.find((order) => order.id === paymentForm.order_id) || null
+})
 const selectedFollowCustomer = computed(() => {
   return quickCustomers.value.find((customer) => customer.id === followForm.customer_id) || null
 })
@@ -917,15 +1061,31 @@ const selectedOpportunityCustomer = computed(() => {
   return quickCustomers.value.find((customer) => customer.id === opportunityForm.customer_id) || null
 })
 const orderTotalAmount = computed(() => calculateSalesQuickOrderTotal(orderForm))
+const selectedQuickOrderPaidAmount = computed(() => {
+  const order = selectedQuickOrder.value
+  if (!order) return 0
+  return quickOrderPayments.value
+    .filter((payment) => {
+      if (paymentForm.order_id) return payment.order_id === paymentForm.order_id
+      return payment.order_no && payment.order_no === order.order_no
+    })
+    .reduce((sum, payment) => sum + toAmount(payment.amount), 0)
+})
+const selectedQuickOrderRemainAmount = computed(() => {
+  const order = selectedQuickOrder.value
+  if (!order) return 0
+  return Math.max(toAmount(order.total_amount) - selectedQuickOrderPaidAmount.value, 0)
+})
 const flowPrimaryOrder = computed(() => flowSelectedRows.value[0] || selectedDetailRow.value || null)
-const salesFlowNodes = computed(() => buildSalesFlowNodes({ order: flowPrimaryOrder.value, docs: salesFlowDocs.value }))
+const salesFlowNodes = computed(() => buildSalesFlowNodes({ order: flowPrimaryOrder.value, docs: salesFlowDocs.value })
+  .filter((node) => purchaseEnabled.value || !['pr', 'po', 'pa', 'in'].includes(node.key)))
 const salesDownstreamState = computed(() => getSalesFlowDownstreamState({ nextStep: flowNextStep.value, docs: salesFlowDocs.value }))
 const flowConfirmButtonType = computed(() => salesDownstreamState.value.buttonType)
 const salesDownstreamLabel = computed(() => salesDownstreamState.value.label)
 const salesDownstreamDocNo = computed(() => salesDownstreamState.value.docNo)
 const salesDownstreamStatus = computed(() => salesDownstreamState.value.status)
 const canReverseSalesDemand = computed(() => {
-  return flowSelectedRows.value.length === 1
+  return purchaseEnabled.value && flowSelectedRows.value.length === 1
     && Boolean(salesFlowDocs.value?.purchaseDemand)
     && !salesFlowDocs.value?.purchaseOrder
     && hasPerm('op:business_flow.reverse')
@@ -987,15 +1147,6 @@ const detailBusinessMetrics = computed(() => buildSalesDetailBusinessMetrics({
 }))
 
 const extraColumns = ref([])
-const {
-  summary: attentionSummary, todoCount: attentionTodoCount,
-  dataApiUrl: gridDataApiUrl,
-  refresh: refreshFollowUpAttention,
-  handleDataLoaded: handleFollowUpAttentionLoaded
-} = useSalesFollowUpAttention({
-  app, apiUrl: gridApiUrl, attentionFilter, request, rows: attentionRows,
-  searchText: lastSearchText, staticColumns, extraColumns
-})
 const hasSyncedFieldAcl = ref(false)
 
 const isEditing = ref(false)
@@ -1165,7 +1316,6 @@ const handleDataLoaded = (payload) => {
   lastLoadedRows.value = rows.filter(isRowActive)
   lastSearchText.value = payload?.searchText || ''
   lastGridLoadState.value = buildGridLoadState(payload, rows, visibleRows)
-  handleFollowUpAttentionLoaded(payload)
   syncAiContext(visibleRows.filter(isRowActive), { searchText: lastSearchText.value })
 }
 
@@ -1596,7 +1746,7 @@ const loadDetailRelations = async (row) => {
 
 const resetBusinessFlowDialog = () => {
   flowSelectedRows.value = []
-  flowNextStep.value = 'purchase_demand'
+  flowNextStep.value = purchaseEnabled.value ? 'purchase_demand' : 'shipment_request'
   salesFlowDocs.value = {}
   salesFlowRelationLinks.value = []
   flowLoading.value = false
@@ -1751,6 +1901,7 @@ const getSelectedSalesOrders = () => {
 }
 
 const openBatchPushFlowDialog = async () => {
+  if (!purchaseEnabled.value) return
   const rows = getSelectedSalesOrders()
   if (!rows.length) {
     ElMessage.warning('请先在表格中选择要下推的销售订单')
@@ -1784,6 +1935,7 @@ const openBatchShipmentFlowDialog = async () => {
 }
 
 const openSalesFlowDialogForRow = async (row, nextStep = 'purchase_demand') => {
+  if (nextStep === 'purchase_demand' && !purchaseEnabled.value) return
   if (!row?.id && !row?.order_no) {
     ElMessage.warning('该销售订单缺少业务编号，不能下推')
     return
@@ -1842,69 +1994,6 @@ const writeDocumentAudit = async ({ actionType, source, target, reason = '', pay
   }).catch(() => null)
 }
 
-const {
-  quoteItemsVisible,
-  quoteItemsLoading,
-  quoteItemsSaving,
-  quoteItemsReady,
-  selectedQuote,
-  quoteItems,
-  quickReceivableSchedules,
-  selectedQuickReceivable,
-  availableQuickReceivables,
-  selectedQuickOrder,
-  selectedQuickOrderPaidAmount,
-  selectedQuickOrderRemainAmount,
-  clearQuickReceivableSchedules,
-  quoteItemsTotal,
-  loadQuickReceivableSchedules,
-  openPaymentDialog,
-  submitQuickPayment,
-  updateQuoteItemAmount,
-  openQuoteItems,
-  addQuoteItem,
-  removeQuoteItem,
-  saveQuoteItems,
-  updateSalesState,
-  openQuoteDialogFromOpportunity,
-  createContractFromQuote,
-  createOrdersFromContract,
-  createReceivableFromOrder,
-  pushOrdersToReceivables,
-  resolveExtendedRowActions,
-  handleExtendedRowAction
-} = useSalesDocumentFlow({
-  request,
-  toAmount,
-  safeEq,
-  getErrorMessage,
-  todayText,
-  nextDocNo,
-  addDaysText,
-  gridRef,
-  router,
-  canEdit,
-  selectedDetailRow,
-  flowActionLoading,
-  getSelectedSalesOrders,
-  createDocumentLink,
-  writeDocumentAudit,
-  refreshSelectedDetail,
-  formatAmount,
-  paymentForm,
-  quickMode,
-  quickDialogVisible,
-  quickLoading,
-  quickOrders,
-  quickOrderPayments,
-  syncCustomerReceivableFromRow,
-  hasPerm,
-  canCreate,
-  canEditPermission: canEdit,
-  appKey: computed(() => app.value.key),
-  isOrderActive
-})
-
 const loadQuickCustomers = async () => {
   const rows = await request({
     url: '/sales_customers?select=*&status=neq.deleted&order=created_at.desc&limit=200',
@@ -1929,16 +2018,31 @@ const loadQuickBomProducts = async () => {
   }
 }
 
+const loadQuickOrders = async () => {
+  const rows = await request({
+    url: `/sales_orders?select=*&status=neq.deleted&order_status=neq.${safeEq('已取消')}&order=order_date.desc&limit=200`,
+    method: 'get',
+    headers: { 'Accept-Profile': 'public' }
+  })
+  quickOrders.value = Array.isArray(rows) ? rows : []
+}
+
+const loadQuickOrderPayments = async () => {
+  const rows = await request({
+    url: '/sales_payments?select=*&status=neq.deleted&order=payment_date.desc&limit=200',
+    method: 'get',
+    headers: { 'Accept-Profile': 'public' }
+  })
+  quickOrderPayments.value = Array.isArray(rows) ? rows : []
+}
+
 const resetOrderForm = (source = null) => {
-  const isBusinessSource = Boolean(source?.opportunity_no || source?.quote_no || source?.contract_no)
-  currentOrderSource.value = isBusinessSource ? source : null
+  currentOrderSource.value = source?.opportunity_no ? source : null
   Object.assign(orderForm, buildSalesQuickOrderForm(source, { today: todayText(), deliveryDate: addDaysText(7) }))
-  if (isBusinessSource) {
-    orderForm.customer_id = source?.customer_id || ''
-    orderForm.product_name = source?.product_name || source?.opportunity_name || source?.contract_title || source?.quote_title || orderForm.product_name
-    orderForm.unit_price = toAmount(source?.expected_amount || source?.contract_amount || source?.total_amount || orderForm.unit_price)
-    orderForm.owner_name = source?.owner_name || orderForm.owner_name
-  }
+}
+
+const resetPaymentForm = (source = null) => {
+  Object.assign(paymentForm, buildSalesQuickPaymentForm(source, { today: todayText() }))
 }
 
 const resetFollowForm = (source = null) => {
@@ -1957,9 +2061,8 @@ const openOrderDialog = async (source = null) => {
   try {
     await loadQuickCustomers()
     await loadQuickBomProducts()
-    const sourceCustomerName = source?.name || source?.customer_name
-    if (sourceCustomerName && !orderForm.customer_id) {
-      const matched = quickCustomers.value.find((customer) => customer.name === sourceCustomerName)
+    if (source?.name && !orderForm.customer_id) {
+      const matched = quickCustomers.value.find((customer) => customer.name === source.name)
       if (matched) orderForm.customer_id = matched.id
     }
   } catch (e) {
@@ -2003,6 +2106,25 @@ const openOpportunityDialog = async (source = null) => {
   } catch (e) {
     console.warn('load quick customers failed', e)
     ElMessage.warning('客户列表加载失败')
+  } finally {
+    quickLoading.value = false
+  }
+}
+
+const openPaymentDialog = async (source = null) => {
+  quickMode.value = 'payment'
+  quickDialogVisible.value = true
+  resetPaymentForm(source)
+  quickLoading.value = true
+  try {
+    await Promise.all([loadQuickOrders(), loadQuickOrderPayments()])
+    if (source?.order_no && !paymentForm.order_id) {
+      const matched = quickOrders.value.find((order) => order.order_no === source.order_no)
+      if (matched) paymentForm.order_id = matched.id
+    }
+  } catch (e) {
+    console.warn('load quick orders failed', e)
+    ElMessage.warning('订单列表加载失败')
   } finally {
     quickLoading.value = false
   }
@@ -2146,6 +2268,7 @@ const jumpToSalesOutboundPage = () => {
 }
 
 const pushOrderToPurchaseDemand = async () => {
+  if (!purchaseEnabled.value) return
   if (flowNextStep.value !== 'purchase_demand') {
     ElMessage.warning('请选择要下推的下一流程')
     return
@@ -2336,7 +2459,11 @@ const resetQuickDialog = () => {
   quickMode.value = ''
   quickSubmitting.value = false
   currentOrderSource.value = null
-  clearQuickReceivableSchedules()
+}
+
+const applyCreatedRow = async (row) => {
+  if (row && await gridRef.value?.prependRow?.(row)) return
+  await gridRef.value?.loadData?.()
 }
 
 const submitQuickOrder = async () => {
@@ -2355,20 +2482,21 @@ const submitQuickOrder = async () => {
     return
   }
   const payload = result.payload
+  let createdRows
   try {
-    await request({
+    createdRows = await request({
       url: '/sales_orders',
       method: 'post',
-      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=representation' },
       data: payload,
       silentError: Boolean(payload.product_material_id)
     })
   } catch (e) {
     if (!isMissingColumnError(e, 'product_material_id')) throw e
-    await request({
+    createdRows = await request({
       url: '/sales_orders',
       method: 'post',
-      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=representation' },
       data: buildSalesQuickOrderFallbackPayload(payload, bomProduct)
     })
   }
@@ -2382,6 +2510,31 @@ const submitQuickOrder = async () => {
     })
   }
   ElMessage.success('销售订单已创建')
+  return { appKey: 'orders', row: Array.isArray(createdRows) ? createdRows[0] : createdRows }
+}
+
+const submitQuickPayment = async () => {
+  const order = selectedQuickOrder.value
+  const result = buildSalesQuickPaymentEntry({
+    form: paymentForm,
+    order,
+    paymentNo: `PAY${Date.now().toString().slice(-8)}`,
+    today: todayText()
+  })
+  if (result.error) {
+    ElMessage.warning(result.error)
+    return
+  }
+  const payload = result.payload
+  const createdRows = await request({
+    url: '/sales_payments',
+    method: 'post',
+    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=representation' },
+    data: payload
+  })
+  await syncCustomerReceivableFromRow(payload)
+  ElMessage.success('回款记录已创建')
+  return { appKey: 'payments', row: Array.isArray(createdRows) ? createdRows[0] : createdRows }
 }
 
 const submitQuickOpportunity = async () => {
@@ -2395,13 +2548,14 @@ const submitQuickOpportunity = async () => {
     ElMessage.warning(result.error)
     return
   }
-  await request({
+  const createdRows = await request({
     url: '/sales_opportunities',
     method: 'post',
-    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=representation' },
     data: result.payload
   })
   ElMessage.success('销售商机已创建')
+  return { appKey: 'opportunities', row: Array.isArray(createdRows) ? createdRows[0] : createdRows }
 }
 
 const submitQuickFollow = async () => {
@@ -2417,10 +2571,10 @@ const submitQuickFollow = async () => {
     return
   }
   const payload = result.payload
-  await request({
+  const createdRows = await request({
     url: '/sales_follow_ups',
     method: 'post',
-    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=representation' },
     data: payload
   })
   await request({
@@ -2430,25 +2584,27 @@ const submitQuickFollow = async () => {
     data: result.customerPatch
   })
   ElMessage.success('客户跟进已创建')
+  return { appKey: 'follow_ups', row: Array.isArray(createdRows) ? createdRows[0] : createdRows }
 }
 
 const submitQuickDialog = async () => {
   if (!quickMode.value) return
   quickSubmitting.value = true
   try {
-    let saved = true
+    let created
     if (quickMode.value === 'order') {
-      await submitQuickOrder()
+      created = await submitQuickOrder()
     } else if (quickMode.value === 'payment') {
-      saved = await submitQuickPayment()
+      created = await submitQuickPayment()
     } else if (quickMode.value === 'opportunity') {
-      await submitQuickOpportunity()
+      created = await submitQuickOpportunity()
     } else if (quickMode.value === 'follow') {
-      await submitQuickFollow()
+      created = await submitQuickFollow()
     }
-    if (saved === false) return
+    if (!created) return
     quickDialogVisible.value = false
-    if (gridRef.value?.loadData) await gridRef.value.loadData()
+    if (created.appKey === app.value.key) await applyCreatedRow(created.row)
+    else await gridRef.value?.loadData?.()
     if (selectedDetailRow.value) await refreshSelectedDetail()
   } catch (e) {
     console.error(e)
@@ -2591,7 +2747,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
       writeUrl: apiUrl,
       profile: 'public',
       contentProfile: 'public',
-      defaultOrder: app.value.defaultOrder || 'id.desc',
+      defaultOrder: app.value.defaultOrder || 'created_at.desc.nullslast,id.desc',
       columns,
       staticColumns: allStaticColumns,
       extraColumns: extraColumns.value,
@@ -2599,14 +2755,14 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
       searchText: overrides.searchText ?? lastSearchText.value ?? '',
       dataScope,
       loadState: lastGridLoadState.value,
-      allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
+      allowImport: !readOnly.value && (overrides.allowImport !== undefined ? overrides.allowImport : true),
       importTarget,
       summaryScope: summaryScope.value
     }),
     aiScene: overrides.aiScene || 'grid_chat',
-    allowFormula: !!overrides.allowFormula,
-    allowFormulaOnce: !!overrides.allowFormulaOnce,
-    allowImport: overrides.allowImport !== undefined ? overrides.allowImport : true,
+    allowFormula: !readOnly.value && !!overrides.allowFormula,
+    allowFormulaOnce: !readOnly.value && !!overrides.allowFormulaOnce,
+    allowImport: !readOnly.value && (overrides.allowImport !== undefined ? overrides.allowImport : true),
     ...importMeta,
     importTarget
   })
@@ -2806,12 +2962,7 @@ const handleViewDocument = (row) => {
 }
 
 const handleRowAction = ({ action, row }) => {
-  if (!action || action.disabled || !row) return
-  if (!canRunRowAction(action.key)) {
-    ElMessage.warning('当前账号没有执行此操作的权限')
-    return
-  }
-  if (handleExtendedRowAction(action, row)) return
+  if (!action || action.disabled || !row || readOnly.value) return
   if (action.key === 'create-order') {
     openOrderDialog(row)
     return
@@ -2822,6 +2973,10 @@ const handleRowAction = ({ action, row }) => {
   }
   if (action.key === 'create-opportunity') {
     openOpportunityDialog(row)
+    return
+  }
+  if (action.key === 'create-payment') {
+    openPaymentDialog(row)
     return
   }
   if (action.key === 'push-purchase') {
@@ -3098,6 +3253,7 @@ const openColumnConfig = () => {
   colConfigVisible.value = true
 }
 
+const isStaticVisible = (prop) => !staticHidden.value.includes(prop)
 const toggleStaticColumn = async (prop, visible) => {
   const previousHidden = [...staticHidden.value]
   const has = staticHidden.value.includes(prop)
@@ -3117,6 +3273,7 @@ const toggleStaticColumn = async (prop, visible) => {
 }
 
 const handleCreate = async () => {
+  if (!canCreate.value) return
   if (app.value.key === 'orders') {
     await openOrderDialog()
     return
@@ -3137,13 +3294,13 @@ const handleCreate = async () => {
     const payload = typeof app.value.createPayload === 'function'
       ? app.value.createPayload()
       : { name: '新记录', properties: {} }
-    await request({
+    const createdRows = await request({
       url: app.value.writeUrl || normalizeApiBaseUrl(app.value.apiUrl),
       method: 'post',
-      headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public' },
+      headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public', Prefer: 'return=representation' },
       data: payload
     })
-    if(gridRef.value) await gridRef.value.loadData()
+    await applyCreatedRow(Array.isArray(createdRows) ? createdRows[0] : createdRows)
     ElMessage.success('已创建新行')
   } catch(e) {
     console.error(e)
@@ -3178,9 +3335,25 @@ watch(selectedOpportunityCustomer, (customer) => {
   if (!opportunityForm.owner_name) opportunityForm.owner_name = customer.owner_name || ''
 })
 
-watch([attentionFilter, gridDataApiUrl], () => {
+watch(selectedQuickOrder, (order) => {
+  if (!order || quickMode.value !== 'payment') return
+  paymentForm.customer_name = order.customer_name || ''
+  if (!paymentForm.handler_name) paymentForm.handler_name = order.owner_name || ''
+  const remain = selectedQuickOrderRemainAmount.value
+  if (remain > 0) paymentForm.amount = remain
+  paymentForm.verify_status = remain > 0 && remain <= toAmount(paymentForm.amount) ? '已核销' : '部分核销'
+})
+
+watch(() => paymentForm.amount, (amount) => {
+  const order = selectedQuickOrder.value
+  if (!order || quickMode.value !== 'payment') return
+  const totalAfterPayment = selectedQuickOrderPaidAmount.value + toAmount(amount)
+  paymentForm.verify_status = totalAfterPayment >= toAmount(order.total_amount) ? '已核销' : '部分核销'
+})
+
+watch([attentionFilter, gridApiUrl], () => {
   gridRef.value?.loadData?.()
-}, { flush: 'post' })
+})
  
 onMounted(() => {
   loadStaticColumnsConfig().then(loadColumnsConfig)
@@ -3338,6 +3511,74 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 15px;
+  color: #303133;
+}
+
+.quick-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quick-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 12px;
+}
+
+.quick-form-row:has(.el-form-item:nth-child(3)) {
+  grid-template-columns: minmax(0, 1fr) 144px minmax(0, 1fr);
+}
+
+.quick-form :deep(.el-input-number) {
+  width: 100%;
+}
+
+.amount-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #f8fafc;
+  font-size: 13px;
+  color: #606266;
+}
+
+.amount-preview strong {
+  font-size: 18px;
+  color: #303133;
+}
+
+.quick-info {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: -4px 0 16px 96px;
+  padding: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.quick-info div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quick-info span {
+  font-size: 12px;
+  color: #909399;
+}
+
+.quick-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
   color: #303133;
 }
 
@@ -3589,11 +3830,17 @@ onUnmounted(() => {
     flex-wrap: wrap;
   }
 
+  .quick-form-row,
+  .quick-form-row:has(.el-form-item:nth-child(3)),
+  .quick-info,
   .metric-grid,
   .flow-chain,
   .flow-doc-panel {
     grid-template-columns: 1fr;
   }
 
+  .quick-info {
+    margin-left: 0;
+  }
 }
 </style>

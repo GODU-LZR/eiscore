@@ -17,6 +17,7 @@
         ref="gridRef"
         :view-id="app.viewId"
         :api-url="gridApiUrl"
+        :default-order="app.defaultOrder || 'id.desc'"
         write-mode="patch"
         :patch-required-fields="requiredFields"
         :field-defaults="fieldDefaults"
@@ -1155,10 +1156,10 @@ const toggleStaticColumn = async (prop, visible) => {
 
 const handleCreate = async () => {
   try {
-    await request({
+    const created = await request({
       url: '/archives',
       method: 'post',
-      headers: { 'Content-Profile': 'hr' },
+      headers: { 'Accept-Profile': 'hr', 'Content-Profile': 'hr', Prefer: 'return=representation' },
       data: { 
         name: '新员工', 
         status: '试用', 
@@ -1167,7 +1168,10 @@ const handleCreate = async () => {
         properties: {}
       }
     })
-    if(gridRef.value) await gridRef.value.loadData()
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (!createdRow?.id || !await gridRef.value?.prependRow?.(createdRow)) {
+      await gridRef.value?.loadData?.()
+    }
     ElMessage.success('已创建新行')
   } catch(e) {
     console.error(e)

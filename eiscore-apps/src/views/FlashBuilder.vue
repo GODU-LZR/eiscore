@@ -79,6 +79,7 @@ const modeLabel = 'Harness iframe'
 const DRAFT_FILE_PATH = 'src/views/drafts/FlashDraft.vue'
 const DRAFT_ROOT_PATH = 'src/views/drafts'
 const PREVIEW_ROUTE = '/apps/preview/flash-draft'
+const PREVIEW_ENTRY = '/apps/index.html?eis_flash_preview=1'
 
 const harnessFrameRef = ref(null)
 const harnessAuthReady = ref(false)
@@ -106,7 +107,7 @@ let lastObservedDraft = ''
 let authRequestId = 0
 const processedHarnessEventKeys = new Set()
 
-const previewUrl = computed(() => `${PREVIEW_ROUTE}?appId=${encodeURIComponent(appId.value)}&_t=${previewNonce.value}`)
+const previewUrl = computed(() => `${PREVIEW_ENTRY}&appId=${encodeURIComponent(appId.value)}&_t=${previewNonce.value}`)
 const previewRatioValue = computed(() => parseFlashPreviewRatio(previewRatioWidth.value, previewRatioHeight.value))
 const previewStageStyle = computed(() => buildFlashPreviewStageStyle(previewRatioValue.value))
 

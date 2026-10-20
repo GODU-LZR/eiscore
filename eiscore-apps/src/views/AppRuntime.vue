@@ -976,7 +976,7 @@ const flashPublishedSrcdoc = computed(() => {
 
 const flashRuntimeUrl = computed(() => {
   if (!flashRuntimeReady.value || !runtimeAppId.value) return ''
-  return `/apps/preview/flash-draft?appId=${encodeURIComponent(runtimeAppId.value)}&_t=${flashRuntimeNonce.value}`
+  return `/apps/index.html?eis_flash_preview=1&appId=${encodeURIComponent(runtimeAppId.value)}&_t=${flashRuntimeNonce.value}`
 })
 
 const prepareFlashRuntimeSource = async (row) => {

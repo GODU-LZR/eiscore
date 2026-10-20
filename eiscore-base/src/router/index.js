@@ -53,6 +53,7 @@ const router = createRouter({
       children: [
         {
           path: '',
+          alias: '/workbench',
           name: 'home',
           component: () => import('../views/HomeView.vue')
         },
@@ -153,6 +154,17 @@ router.beforeEach((to, from, next) => {
     return
   }
 
+  // Keep the authenticated application entry separate from the public site served at `/`.
+  if (to.path === '/') {
+    next({
+      path: '/workbench',
+      query: to.query,
+      hash: to.hash,
+      replace: true
+    })
+    return
+  }
+
   const enterpriseNavigation = resolveEnterpriseNavigation({
     path: canonicalPath,
     enterpriseConfig: getEnterpriseConfig(window),
@@ -180,7 +192,7 @@ router.beforeEach((to, from, next) => {
     next({ path: '/login', query: { redirect: to.fullPath } })
   } else if (to.path === '/login' && token && !expired) {
     const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : ''
-    const safeRedirect = /^\/(?!\/)/.test(redirect) ? redirect : '/'
+    const safeRedirect = /^\/(?!\/)/.test(redirect) ? redirect : '/workbench'
     if (safeRedirect.startsWith('/mobile/')) {
       window.location.href = safeRedirect
     } else {

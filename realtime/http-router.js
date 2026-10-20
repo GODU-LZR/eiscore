@@ -87,7 +87,10 @@ const FLASH_HTTP_ROUTE_MANIFEST = Object.freeze(CORE_HTTP_ROUTE_MANIFEST.filter(
 }));
 
 const BUSINESS_HTTP_ROUTE_MANIFEST = Object.freeze([
-  ...CORE_HTTP_ROUTE_MANIFEST.filter((entry) => !entry.path?.startsWith('/flash/')),
+  ...CORE_HTTP_ROUTE_MANIFEST.filter((entry) => {
+    const path = entry.path || '';
+    return !path.startsWith('/flash/') && path !== '/internal/harness/session';
+  }),
   ...COMPANY_HTTP_ROUTE_MANIFEST
 ]);
 

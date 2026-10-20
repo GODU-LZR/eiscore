@@ -9,7 +9,7 @@
     </div>
 
     <div class="grid-wrap">
-      <MaterialAppGrid :key="gridKey" :app-config="appConfig">
+      <MaterialAppGrid ref="gridRef" :key="gridKey" :app-config="appConfig">
         <template #toolbar>
           <el-form :inline="true" :model="filters" class="query-form query-form-inline" size="small" @submit.prevent>
             <el-form-item label="仓库">
@@ -67,6 +67,7 @@ import MaterialAppGrid from '@/components/MaterialAppGrid.vue'
 import request from '@/utils/request'
 
 const router = useRouter()
+const gridRef = ref(null)
 const filters = reactive({
   warehouseId: null,
   materialCategoryCode: '',
@@ -433,7 +434,7 @@ const loadMaterialCategories = async () => {
 
 onMounted(async () => {
   await Promise.all([loadWarehouses(), loadMaterialCategories()])
-  applyFilters()
+  await gridRef.value?.reload?.()
 })
 </script>
 

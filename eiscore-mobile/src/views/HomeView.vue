@@ -13,18 +13,18 @@
       <!-- Hero 区域 -->
       <section class="hero">
         <div class="hero-copy">
-          <span class="hero-badge">EISCore Mobile</span>
+          <span class="hero-badge">{{ enterpriseName }}</span>
           <h1>{{ greetingText }}，{{ displayName }}</h1>
           <p>轻量移动工作台，掌控仓库与业务动态。</p>
         </div>
         <div class="hero-actions">
-          <button class="action-btn scan" @click="handleScan">
+          <button v-if="isAppShown('pda')" class="action-btn scan" @click="handleScan">
             <span class="action-title">扫码入口</span>
             <span class="action-desc">仓库 / 库位 / 物料</span>
           </button>
           <button class="action-btn desktop" @click="goDesktop">
             <span class="action-title">桌面版</span>
-            <span class="action-desc">切换到完整桌面端</span>
+            <span class="action-desc">进入企业工作台</span>
           </button>
         </div>
       </section>
@@ -41,7 +41,7 @@
         </div>
         <div class="stat-card dark">
           <div class="stat-label">应用模块</div>
-          <div class="stat-value">{{ apps.length }}</div>
+          <div class="stat-value">{{ visibleApps.length }}</div>
         </div>
       </section>
 
@@ -93,7 +93,7 @@
           </div>
         </div>
         <div class="quick-list">
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'pda'))">
+          <div v-if="isAppShown('pda')" class="quick-card" @click="openApp(apps.find(a => a.key === 'pda'))">
             <div class="quick-icon scan-bg"><List class="el-icon-svg" /></div>
             <div class="quick-info">
               <div class="quick-name">库存盘点</div>
@@ -101,7 +101,7 @@
             </div>
             <i class="chevron" />
           </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'stock'))">
+          <div v-if="isAppShown('stock')" class="quick-card" @click="openApp(apps.find(a => a.key === 'stock'))">
             <div class="quick-icon stock-bg"><Upload class="el-icon-svg" /></div>
             <div class="quick-info">
               <div class="quick-name">扫码出入库</div>
@@ -109,7 +109,7 @@
             </div>
             <i class="chevron" />
           </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'printing'))">
+          <div v-if="isAppShown('printing')" class="quick-card" @click="openApp(apps.find(a => a.key === 'printing'))">
             <div class="quick-icon print-bg"><Printer class="el-icon-svg" /></div>
             <div class="quick-info">
               <div class="quick-name">标签打印</div>
@@ -117,7 +117,7 @@
             </div>
             <i class="chevron" />
           </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'assistant'))">
+          <div v-if="isAppShown('assistant')" class="quick-card" @click="openApp(apps.find(a => a.key === 'assistant'))">
             <div class="quick-icon assistant-bg"><ChatDotRound class="el-icon-svg" /></div>
             <div class="quick-info">
               <div class="quick-name">仓储助手</div>
@@ -125,7 +125,7 @@
             </div>
             <i class="chevron" />
           </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'enterprise'))">
+          <div v-if="isAppShown('enterprise')" class="quick-card" @click="openApp(apps.find(a => a.key === 'enterprise'))">
             <div class="quick-icon enterprise-bg"><TrendCharts class="el-icon-svg" /></div>
             <div class="quick-info">
               <div class="quick-name">智能 BI</div>
@@ -133,7 +133,7 @@
             </div>
             <i class="chevron" />
           </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'attendance'))">
+          <div v-if="isAppShown('attendance')" class="quick-card" @click="openApp(apps.find(a => a.key === 'attendance'))">
             <div class="quick-icon attendance-bg"><Clock class="el-icon-svg" /></div>
             <div class="quick-info">
               <div class="quick-name">考勤打卡</div>
@@ -182,11 +182,16 @@ import { ref, computed, onMounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { getUserInfo, clearAuth } from '@/utils/auth'
-import { Box, OfficeBuilding, CircleCheck, DataLine, Bell, User, List, Monitor, SwitchButton, Upload, Printer, ChatDotRound, TrendCharts, Clock } from '@element-plus/icons-vue'
+import { Box, OfficeBuilding, Grid, ShoppingCart, DataLine, Bell, User, List, Monitor, SwitchButton, Upload, Printer, ChatDotRound, TrendCharts, Clock } from '@element-plus/icons-vue'
 import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
+import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
+import { isModuleVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
 const showSettings = ref(false)
+const enterpriseConfig = getEnterpriseConfig(globalThis)
+const enterpriseName = enterpriseConfig.enterprise.shortName || enterpriseConfig.enterprise.displayName
+const { visibility } = useDisplayVisibility()
 
 // 用户信息
 const userInfo = ref(null)
@@ -220,6 +225,7 @@ const todayDate = computed(() => {
 const apps = [
   {
     key: 'pda',
+    module: 'materials',
     label: '库存盘点',
     icon: markRaw(Box),
     bg: 'rgba(245, 158, 11, 0.12)',
@@ -229,6 +235,7 @@ const apps = [
   },
   {
     key: 'warehouse',
+    module: 'materials',
     label: '仓库查询',
     icon: markRaw(OfficeBuilding),
     bg: 'rgba(34, 197, 94, 0.12)',
@@ -238,6 +245,7 @@ const apps = [
   },
   {
     key: 'stock',
+    module: 'materials',
     label: '扫码出入库',
     icon: markRaw(Upload),
     bg: 'rgba(16, 185, 129, 0.12)',
@@ -247,6 +255,7 @@ const apps = [
   },
   {
     key: 'printing',
+    module: 'materials',
     label: '标签打印',
     icon: markRaw(Printer),
     bg: 'rgba(99, 102, 241, 0.12)',
@@ -256,6 +265,7 @@ const apps = [
   },
   {
     key: 'assistant',
+    module: 'materials',
     label: '仓储助手',
     icon: markRaw(ChatDotRound),
     bg: 'rgba(27, 109, 255, 0.12)',
@@ -265,6 +275,7 @@ const apps = [
   },
   {
     key: 'enterprise',
+    module: 'decision',
     label: '智能 BI',
     icon: markRaw(TrendCharts),
     bg: 'rgba(108, 59, 255, 0.12)',
@@ -274,6 +285,7 @@ const apps = [
   },
   {
     key: 'attendance',
+    module: 'hr',
     label: '考勤打卡',
     icon: markRaw(Clock),
     bg: 'rgba(34, 197, 94, 0.12)',
@@ -282,16 +294,28 @@ const apps = [
     badge: ''
   },
   {
-    key: 'approve',
-    label: '审批中心',
-    icon: markRaw(CircleCheck),
+    key: 'sales',
+    module: 'sales',
+    label: '销售管理',
+    icon: markRaw(ShoppingCart),
+    bg: 'rgba(37, 99, 166, 0.12)',
+    desc: '进入桌面版客户、商机与订单',
+    desktopPath: '/sales/',
+    badge: ''
+  },
+  {
+    key: 'apps',
+    module: 'apps',
+    label: '应用中心',
+    icon: markRaw(Grid),
     bg: 'rgba(139, 92, 246, 0.12)',
-    desc: '采购、领料等审批流转',
-    route: null,
-    badge: '即将上线'
+    desc: '进入桌面版业务应用与审批',
+    desktopPath: '/apps/',
+    badge: ''
   },
   {
     key: 'report',
+    module: 'materials',
     label: '数据报表',
     icon: markRaw(DataLine),
     bg: 'rgba(6, 182, 212, 0.12)',
@@ -301,6 +325,7 @@ const apps = [
   },
   {
     key: 'notice',
+    module: 'home',
     label: '通知公告',
     icon: markRaw(Bell),
     bg: 'rgba(239, 68, 68, 0.12)',
@@ -310,6 +335,7 @@ const apps = [
   },
   {
     key: 'contacts',
+    module: 'hr',
     label: '通讯录',
     icon: markRaw(User),
     bg: 'rgba(59, 130, 246, 0.12)',
@@ -328,7 +354,8 @@ const mobileAttentionScoreMap = {
   assistant: 38,
   enterprise: 34,
   report: 32,
-  approve: 18,
+  sales: 60,
+  apps: 54,
   notice: 16,
   contacts: 14
 }
@@ -342,12 +369,20 @@ const mobileAttentionBriefMap = {
   assistant: '查询分析',
   enterprise: '智能 BI',
   report: '查看报表',
-  approve: '待上线',
+  sales: '进入销售',
+  apps: '进入应用',
   notice: '待上线',
   contacts: '待上线'
 }
 
-const attentionApps = computed(() => apps
+const visibleApps = computed(() => apps.filter((app) => (
+  enterpriseConfig.modules?.[app.module] !== false
+  && isModuleVisible(visibility.value, app.module)
+  && (!app.feature || enterpriseConfig.features?.[app.feature] !== false)
+)))
+const isAppShown = (key) => visibleApps.value.some((app) => app.key === key)
+
+const attentionApps = computed(() => visibleApps.value
   .map((app) => ({
     ...app,
     card: cardFromScore({
@@ -359,7 +394,11 @@ const attentionApps = computed(() => apps
   .sort(sortByAttention))
 
 function openApp(app) {
-  if (!app) return
+  if (!app || !isAppShown(app.key)) return
+  if (app.desktopPath) {
+    window.location.assign(`${app.desktopPath}?eis_skip_mobile_redirect=1`)
+    return
+  }
   if (app.route) {
     router.push(app.route)
   } else {
@@ -367,8 +406,8 @@ function openApp(app) {
   }
 }
 
-function handleScan() { router.push('/check') }
-function goDesktop() { window.location.href = '/' }
+function handleScan() { openApp(apps.find((app) => app.key === 'pda')) }
+function goDesktop() { window.location.assign('/workbench?eis_skip_mobile_redirect=1') }
 
 async function handleLogout() {
   try {

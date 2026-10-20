@@ -13,7 +13,8 @@
         ref="gridRef"
         view-id="hr_user_manage"
         acl-module="hr_user"
-        api-url="/v_users_manage?order=id.asc"
+        api-url="/v_users_manage"
+        default-order="created_at.desc.nullslast,id.desc"
         write-url="/v_users_manage"
         write-mode="patch"
         :patch-required-fields="['id']"
@@ -189,7 +190,8 @@ const syncAiContext = (rows = [], payload = null) => {
     app: 'hr',
     view: 'user-manage',
     viewId: 'hr_user_manage',
-    apiUrl: '/v_users_manage?order=id.asc',
+    apiUrl: '/v_users_manage',
+    defaultOrder: 'created_at.desc.nullslast,id.desc',
     writeUrl: '/v_users_manage',
     profile: 'public',
     contentProfile: 'public',
@@ -261,7 +263,7 @@ const handleCreate = async () => {
     const userRes = await request({
       url: '/users',
       method: 'post',
-      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
+      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=representation' },
       data: {
         username: `user_${suffix}`,
         password: '123456',
@@ -278,7 +280,18 @@ const handleCreate = async () => {
         data: { user_id: newUser.id, role_id: defaultRole }
       })
     }
-    gridRef.value?.loadData()
+    let inserted = false
+    if (newUser?.id) {
+      const rows = await request({
+        url: '/v_users_manage',
+        method: 'get',
+        params: { id: `eq.${newUser.id}`, limit: 1 },
+        headers: { 'Accept-Profile': 'public' }
+      }).catch(() => [])
+      const row = Array.isArray(rows) ? rows[0] : null
+      if (row?.id) inserted = await gridRef.value?.prependRow?.(row)
+    }
+    if (!inserted) await gridRef.value?.loadData?.()
     ElMessage.success('已创建新用户')
   } catch (e) {
     console.error(e)

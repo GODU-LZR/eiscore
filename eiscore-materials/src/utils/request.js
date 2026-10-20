@@ -45,7 +45,7 @@ const service = createPlatformAxiosClient({
   onUnauthorized: () => clearAuthAndRedirect('/login'),
   notifyError: (message) => ElMessage.error(message),
   defaultProfile: (_config, { path }) => resolveDefaultProfile(path),
-  timeoutMs: 15000
+  timeoutMs: 5000
 })
 
 export default service

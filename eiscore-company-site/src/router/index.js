@@ -15,34 +15,15 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      name: 'CompanySiteOps',
-      component: () => import('@/views/CompanySiteOps.vue')
+      redirect: '/huizhong'
     },
     {
-      path: '/cue-builder',
-      name: 'CueBuilder',
-      component: () => import('@/views/CueBuilder.vue'),
-      meta: { title: '3D 定制器与 BOM' }
+      path: '/huizhong',
+      name: 'HuizhongSite',
+      component: () => import('@/views/HuizhongSite.vue'),
+      meta: { title: '广东惠众消防科技有限公司 · 消防设备与技术服务' }
     },
-    {
-      path: '/factory-demo',
-      name: 'FactoryDemo',
-      component: () => import('@/views/FactoryDemo.vue'),
-      meta: { title: '全厂演示调度台' }
-    },
-    {
-      path: '/jinwei',
-      name: 'JinweiSite',
-      component: () => import('@/views/JinweiSite.vue'),
-      meta: { title: '湛江市经纬网厂 · 网具制造' }
-    },
-    {
-      path: '/preview',
-      name: 'EnterpriseSitePreview',
-      component: () => import('@/views/EnterpriseSitePreview.vue'),
-      meta: { title: '企业案例预览' }
-    },
-    { path: '/:pathMatch(.*)*', redirect: '/' }
+    { path: '/:pathMatch(.*)*', redirect: '/huizhong' }
   ]
 })
 

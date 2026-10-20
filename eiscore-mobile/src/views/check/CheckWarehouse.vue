@@ -171,6 +171,7 @@ async function loadWarehouse() {
     for (const loc of locArr) {
       if (loc.level === 2) {
         const children = await fetchLocationsByWarehouse(loc.id)
+        if (Array.isArray(children) && children.length === 0) flattened.push(loc)
         ;(Array.isArray(children) ? children : []).forEach(c => {
           flattened.push({
             id: c.id, code: c.code, name: `${loc.name} / ${c.name}`, level: c.level,
