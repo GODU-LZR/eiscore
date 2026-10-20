@@ -8,9 +8,15 @@ class EventSource {
   constructor(url, options) { opened.push({ url, options }) }
 }
 const requests = []
+const styles = []
+const document = { createElement: (tag) => { assert.equal(tag, 'style'); return {} }, head: { append: (style) => styles.push(style) } }
 const window = { EventSource, fetch: (...args) => requests.push(args) }
 const location = { href: 'https://example.test/harness-flash-embed/?eiscoreAppId=app&eiscoreSessionId=flash-app', origin: 'https://example.test', search: '?eiscoreAppId=app&eiscoreSessionId=flash-app' }
-vm.runInNewContext(readFileSync(new URL('./flash-ui.js', import.meta.url), 'utf8'), { window, location, addEventListener() {}, URL, URLSearchParams, Request, Headers })
+vm.runInNewContext(readFileSync(new URL('./flash-ui.js', import.meta.url), 'utf8'), { document, window, location, addEventListener() {}, URL, URLSearchParams, Request, Headers })
+assert.equal(styles.length, 1)
+assert.match(styles[0].textContent, /\[data-composer-card\] button\[aria-haspopup="listbox"\]\[aria-label="指令"\]/)
+assert.match(styles[0].textContent, /\[aria-label="Commands"\]/)
+assert.match(styles[0].textContent, /display: none !important/)
 
 const events = new window.EventSource('/plugins/events', { withCredentials: true })
 assert.ok(events instanceof EventSource)

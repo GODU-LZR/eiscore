@@ -1,4 +1,7 @@
 (() => {
+  const commandStyle = document.createElement('style')
+  commandStyle.textContent = '[data-composer-card] button[aria-haspopup="listbox"][aria-label="指令"], [data-composer-card] button[aria-haspopup="listbox"][aria-label="Commands"] { display: none !important; }'
+  document.head.append(commandStyle)
   const NativeEventSource = window.EventSource
   window.EventSource = class extends NativeEventSource {
     constructor(input, options) {
