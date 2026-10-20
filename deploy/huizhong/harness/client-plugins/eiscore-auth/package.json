@@ -1,0 +1,24 @@
+{
+  "name": "@eiscore/dsh-client-eiscore-auth",
+  "version": "1.0.0",
+  "description": "Server-side EISCore identity handoff for DeepSeek Harness",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.4"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.4",
+    "@deepseek-ai/dsh-client-connection": "0.1.2-rc.1"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "package": "echarts",
+    "version": "6.1.0",
+    "file": "echarts.min.js",
+    "license": "Apache-2.0",
+    "packageIntegrity": "sha512-q0yaFPggC9FUdsWH4blavRWFmxdrIodbkoKNAjJudAI6CA9gNPxHtV2RcZNEepZVlk4yvBYkOkbk6HIVpIyHZA==",
+    "sha256": "b66b25aeb4df84e33199dc21694014d336d222cbd9deb0e5a7c14bd6aa0d0fd0",
+    "bytes": 1121883
+  },
+  {
+    "package": "@viz-js/viz",
+    "version": "3.31.0",
+    "file": "viz-standalone.js",
+    "license": "MIT",
+    "packageIntegrity": "sha512-r7zlQdRvcwvIpjHGgs+KNWHeE/P5/Dq7k8ZAKaMCbZqomxCBJV78gVuQYaHzFVca+kB0mX0fMW9UFevCOBG50A==",
+    "sha256": "c9e0b310f9883910e01c66054b48b7ff4be3d8695141116635e72b0af152692e",
+    "bytes": 1329882
+  }
+]

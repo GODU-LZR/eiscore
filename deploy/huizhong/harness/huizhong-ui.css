@@ -1,0 +1,85 @@
+﻿[data-slot="conversation.hero.workspace"],
+[data-slot="conversation.hero.agentPreset"],
+[data-slot="sidebar.workspaces"] .bhn1Oq_headerActions,
+[data-slot="sidebar.workspaces"] .YDXeBa_projectRow,
+[data-slot="sidebar.workspaces"] [aria-label="添加工作区"],
+[data-slot="sidebar.workspaces"] [aria-label="Add workspace"],
+button[aria-label="选择工作区"],
+button[aria-label="Choose workspace"],
+button[aria-label="选择模式"],
+button[aria-label="Choose mode"],
+button[aria-label^="访问模式，当前："],
+button[aria-label^="Access mode, current:"] {
+  display: none !important;
+}
+
+.md-code-block.eis-visual-code-block { display: block !important; }
+.md-code-block.eis-visual-code-block > :not(.eis-visual-render),
+.md-code-block.eis-visual-code-block[data-eis-visual-status="error"] { display: none !important; }
+.eis-visual-output { display: block; width: 100%; max-width: 1080px; min-width: 0; margin: 12px 0; overflow: hidden; border: 1px solid #dbe2ea; border-radius: 8px; background: #fff; box-sizing: border-box; }
+.eis-visual-frame { display: block; width: 100%; height: 460px; min-width: 0; border: 0; background: #fff; }
+.eis-visual-status { margin: 0; padding: 12px 16px; color: #64748b; font: 13px/1.5 system-ui, sans-serif; white-space: normal; }
+[data-eis-visual-status="ready"] .eis-visual-status { display: none; }
+@media (max-width: 480px) { .eis-visual-output { margin: 8px 0; border-radius: 6px; } .eis-visual-frame { height: 400px; } }
+@media (max-width: 768px) {
+  [data-slot="conversation.view"] :has(> [data-chat-flow]) { padding-inline: 12px; }
+  [data-slot="conversation.session.header"] > header { padding-inline: 12px; }
+  [data-slot="conversation.composer"] :has(> [data-composer-card]) { padding-inline: 8px; }
+}
+/* A narrow assistant keeps its conversation width when native history opens. */
+@media (max-width: 600px) {
+  [data-slot="root"] > :has([data-slot="sidebar"]) {
+    grid-template-columns: 56px minmax(0, 1fr) 0 !important;
+  }
+  [data-slot="root"] > :has([data-slot="sidebar"]) > :has(> [data-slot="sidebar"]) {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    width: 56px;
+    z-index: 20;
+  }
+  [data-slot="root"] > :has([data-slot="sidebar"]) > :has([data-slot="conversation"]),
+  [data-slot="conversation"] > div { grid-column: 2; grid-row: 1; }
+  [data-slot="root"] > :has([data-slot="sidebar"]) > :has([data-slot="details"]),
+  [data-slot="details"] > div { grid-column: 3; grid-row: 1; }
+  [data-slot="root"] > :has([data-slot="sidebar"]) > :has(> [data-slot="sidebar"] button:is([aria-label="收起侧边栏"], [aria-label="Collapse sidebar"])) {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(280px, calc(100vw - 48px));
+    max-width: calc(100vw - 48px);
+    box-shadow: 8px 0 24px #0f172a26;
+  }
+  [data-slot="sidebar"] > :has(button:is([aria-label="收起侧边栏"], [aria-label="Collapse sidebar"])) {
+    width: 100%;
+    max-width: 100%;
+  }
+  [data-slot="conversation"] > div,
+  [data-composer-seat],
+  [data-slot="conversation.composer"] :has(> [data-slot="conversation.composer.bar"]),
+  [data-slot="conversation.composer.bar"] > div {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  [data-slot="conversation.composer"] :has(> [data-slot="conversation.composer.bar"]) > :has([data-slot="conversation.hero.brand.mark"]),
+  [data-slot="conversation.composer"] :has(> button:is([aria-label="选择工作区"], [aria-label="Choose workspace"])) {
+    display: none;
+  }
+  [data-slot="conversation.composer.bar"] > div { padding-inline: 8px; }
+  html[data-eis-harness-entry="worker"][data-eis-harness-entry-state="ready"] [data-phase="hero"] [data-slot="conversation.composer.bar"] > div::before {
+    content: "员工助手 · 填表、清洗、查询与操作指导";
+    padding: 0 2px 10px;
+    color: #64748b;
+    font: 12px/1.6 system-ui, sans-serif;
+  }
+  [data-composer-card] { min-width: 0; width: 100%; }
+  [data-composer-input] { min-height: 76px !important; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+  [data-input-scroll] { max-height: min(240px, 36dvh); }
+  [data-slot="conversation.input.model"] { min-width: 0; }
+  button:is([aria-label^="选择模型，"], [aria-label^="Choose model,"]) { white-space: nowrap; }
+  [role="menu"], [role="listbox"] { max-width: calc(100vw - 16px); box-sizing: border-box; }
+}
+.eis-worker-draft-notice { position: fixed; inset: 12px 12px auto; z-index: 1000; box-sizing: border-box; display: flex; align-items: center; gap: 10px; max-width: 520px; margin-inline: auto; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; box-shadow: 0 3px 12px #0f172a1a; font: 13px/1.5 system-ui, sans-serif; }
+.eis-worker-draft-notice span { flex: 1; min-width: 0; }
+.eis-worker-draft-notice button { flex: 0 0 auto; max-width: 45%; border: 1px solid #94a3b8; border-radius: 5px; padding: 5px 8px; background: #f8fafc; color: #0f172a; font: inherit; cursor: pointer; }
+.eis-worker-draft-notice button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }

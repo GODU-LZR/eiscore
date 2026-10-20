@@ -1,0 +1,231 @@
+{
+  "$schema": "https://eiscore.local/agent-harness/plugin-contract.v1.json",
+  "contract_version": "1.0.0",
+  "plugins": [
+    {
+      "plugin_id": "flash-builder",
+      "agent_id": "flash_builder",
+      "capabilities": [
+        "eiscore_flash_read",
+        "eiscore_flash_write"
+      ],
+      "capability_policies": {
+        "eiscore_flash_read": {
+          "intent": "read_flash_tool",
+          "object": "flash_tool",
+          "risk": "low",
+          "permissions": [
+            "flash:read"
+          ],
+          "input_schema": {
+            "type": "object",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tool_id"
+                ],
+                "properties": {
+                  "tool_id": {
+                    "type": "string"
+                  },
+                  "toolId": {
+                    "type": "string"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "toolId"
+                ],
+                "properties": {
+                  "tool_id": {
+                    "type": "string"
+                  },
+                  "toolId": {
+                    "type": "string"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              }
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "chat_input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "messages"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "stream": {
+                "type": "boolean"
+              },
+              "context": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "chat_output_schema": {
+            "type": "object",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "output_text"
+                ],
+                "properties": {
+                  "output_text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "choices"
+                ],
+                "properties": {
+                  "choices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "audit_required": true,
+          "timeout_ms": 60000
+        },
+        "eiscore_flash_write": {
+          "intent": "execute_flash_tool",
+          "object": "flash_tool",
+          "risk": "high",
+          "permissions": [
+            "flash:write"
+          ],
+          "input_schema": {
+            "type": "object",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tool_id"
+                ],
+                "properties": {
+                  "tool_id": {
+                    "type": "string"
+                  },
+                  "toolId": {
+                    "type": "string"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "toolId"
+                ],
+                "properties": {
+                  "tool_id": {
+                    "type": "string"
+                  },
+                  "toolId": {
+                    "type": "string"
+                  },
+                  "arguments": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              }
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "confirm_required": true,
+          "idempotency_required": true,
+          "audit_required": true,
+          "timeout_ms": 60000
+        }
+      },
+      "permissions": [
+        "flash:read",
+        "flash:write"
+      ],
+      "risk": "high",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "confirm_required": true,
+      "idempotency_required": true,
+      "audit_required": true,
+      "timeout_ms": 60000
+    }
+  ]
+}

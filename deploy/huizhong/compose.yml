@@ -1,0 +1,128 @@
+name: huizong-eiscore
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: huizong-eiscore-db
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: eiscore
+    volumes:
+      - huizong_pgdata:/var/lib/postgresql/data
+      - ./source/database/bootstrap/roles-v2.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro
+      - ./source/scripts/configure-database-runtime-secrets-v2.sh:/runtime-secrets.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U postgres -d eiscore']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  api:
+    image: postgrest/postgrest:latest
+    container_name: huizong-eiscore-api
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: 'postgres://eiscore_authenticator:${POSTGREST_DB_PASSWORD:?required}@db:5432/eiscore'
+      PGRST_DB_SCHEMAS: public,hr,scm,app_center,workflow,app_data,company_site
+      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_JWT_SECRET: '${PGRST_JWT_SECRET:?required}'
+      PGRST_OPENAPI_SERVER_PROXY_URI: https://huizong.eiscore.top/api
+    depends_on: {db: {condition: service_healthy}}
+  agent:
+    build: {context: ./source, dockerfile: realtime/Dockerfile.prod}
+    image: eiscore/huizong-agent:20261017
+    container_name: huizong-eiscore-agent
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      RUNTIME_PROFILE: business
+      NODE_ENV: production
+      PORT: 8078
+      EISCORE_DB_HOST: db
+      EISCORE_DB_PORT: 5432
+      EISCORE_DB_NAME: eiscore
+      EISCORE_AGENT_DB_USER: eiscore_agent
+      AGENT_POSTGREST_URL: http://api:3000
+      COMPANY_SITE_PREVIEW_ALLOW_DRAFT: 'false'
+      EISCORE_HARNESS_ENABLED: 'true'
+      EISCORE_HARNESS_URL: http://harness-bridge:3080
+      EISCORE_HARNESS_AUDIT_FILE: /var/lib/eiscore/harness-audit.jsonl
+    volumes:
+      - ./harness:/agent-harness:ro
+      - harness_audit:/var/lib/eiscore
+    depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
+  harness-bridge:
+    image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
+    container_name: huizong-eiscore-harness-bridge
+    restart: unless-stopped
+    init: true
+    user: '10001:10001'
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    entrypoint: [node]
+    command: [/opt/eiscore-harness/dsh-http-bridge.mjs]
+    env_file: [.env]
+    environment:
+      PORT: 3080
+      DSH_BIN: /opt/bridge/node_modules/.bin/dsh
+      DSH_HOME: /var/lib/dsh
+      DSH_PROVIDER: deepseek
+      DSH_MODEL: deepseek-chat
+      HARNESS_PROFILE: business
+      HARNESS_PLUGINS: worker-grid,company-sales,independent-site-sales
+      DSH_CWD: /opt/eiscore-harness
+      DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
+      EISCORE_TOOL_PROXY_URL: http://agent:8078/internal/harness/tool
+      BRIDGE_STATE_FILE: /var/lib/dsh/bridge-state.json
+    volumes:
+      - harness_bridge_home:/var/lib/dsh
+      - ./harness:/opt/eiscore-harness:ro
+    depends_on: {agent: {condition: service_started}}
+  deepseek-web:
+    image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
+    container_name: huizong-eiscore-deepseek-web
+    restart: unless-stopped
+    init: true
+    user: '10001:10001'
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    entrypoint: [node]
+    command: [--expose-internals, /opt/eiscore-harness/dsh-web-runner.mjs]
+    env_file: [.env]
+    environment:
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/business
+      DSH_DEFAULT_WORKSPACE_TITLE: 业务助手工作区
+      DSH_TRUSTED_HOST: huizong.eiscore.top
+      DSH_PATCH_PATH: /opt/eiscore-harness/dsh-web.patch.yml
+      EISCORE_HARNESS_CAPABILITY_PROFILE: business
+      EISCORE_GATEWAY_URL: http://agent:8078
+      EISCORE_AUTH_URL: https://huizong.eiscore.top
+      EISCORE_AUTH_ORIGINS: https://huizong.eiscore.top
+      EISCORE_TOOL_PROXY_URL: http://agent:8078/internal/harness/tool
+    volumes:
+      - deepseek_web_home:/var/lib/dsh
+      - ./harness:/opt/eiscore-harness:ro
+    depends_on: {agent: {condition: service_started}}
+  web:
+    image: nginx:1.27-alpine
+    container_name: huizong-eiscore-web
+    restart: unless-stopped
+    ports: ['127.0.0.1:18395:80']
+    volumes:
+      - ./release:/usr/share/nginx/html:ro
+      - ./nginx/huizong.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./harness:/srv/huizong-harness:ro
+    depends_on: [api, agent, deepseek-web]
+volumes:
+  huizong_pgdata:
+  harness_audit:
+  harness_bridge_home:
+  deepseek_web_home:
+networks:
+  default:
+    name: huizong-eiscore-internal

@@ -1,0 +1,1102 @@
+{
+  "$schema": "https://eiscore.local/agent-harness/plugin-contract.v1.json",
+  "contract_version": "1.0.0",
+  "plugins": [
+    {
+      "plugin_id": "worker-grid",
+      "agent_id": "worker_assistant",
+      "capabilities": [
+        "eiscore_grid_query"
+      ],
+      "capability_policies": {
+        "eiscore_grid_query": {
+          "intent": "query_grid",
+          "object": "grid_dataset",
+          "risk": "low",
+          "permissions": [
+            "module:materials",
+            "module:hr",
+            "app:hr_user",
+            "op:hr_user.view"
+          ],
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "dataset"
+            ],
+            "properties": {
+              "dataset": {
+                "type": "string",
+                "enum": [
+                  "materials",
+                  "inventory",
+                  "employees",
+                  "users"
+                ]
+              },
+              "select": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              "filters": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "limit": {
+                "type": "integer"
+              },
+              "order": {
+                "type": "string"
+              }
+            }
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "dataset",
+              "rows",
+              "limit"
+            ],
+            "properties": {
+              "dataset": {
+                "type": "string"
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "integer"
+              }
+            }
+          },
+          "chat_input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "messages"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "stream": {
+                "type": "boolean"
+              },
+              "context": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "chat_output_schema": {
+            "type": "object",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "output_text"
+                ],
+                "properties": {
+                  "output_text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "choices"
+                ],
+                "properties": {
+                  "choices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "audit_required": true,
+          "timeout_ms": 30000
+        }
+      },
+      "permissions": [
+        "module:materials",
+        "module:hr",
+        "app:hr_user",
+        "op:hr_user.view"
+      ],
+      "risk": "low",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "confirm_required": false,
+      "idempotency_required": false,
+      "audit_required": true,
+      "timeout_ms": 30000
+    },
+    {
+      "plugin_id": "company-sales",
+      "agent_id": "company_sales_agent",
+      "capabilities": [
+        "eiscore_sales_context",
+        "eiscore_sales_write"
+      ],
+      "capability_policies": {
+        "eiscore_sales_context": {
+          "intent": "read_sales_context",
+          "object": "sales_order",
+          "risk": "low",
+          "permissions": [
+            "sales:read"
+          ],
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "dataset": {
+                "type": "string",
+                "enum": [
+                  "sales_orders"
+                ]
+              },
+              "select": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                ]
+              },
+              "filters": {
+                "type": "object",
+                "additionalProperties": true
+              },
+              "limit": {
+                "type": "integer"
+              },
+              "order": {
+                "type": "string"
+              }
+            }
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "dataset",
+              "rows",
+              "limit"
+            ],
+            "properties": {
+              "dataset": {
+                "type": "string"
+              },
+              "rows": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "limit": {
+                "type": "integer"
+              }
+            }
+          },
+          "chat_input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "messages"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "stream": {
+                "type": "boolean"
+              },
+              "context": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "chat_output_schema": {
+            "type": "object",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "output_text"
+                ],
+                "properties": {
+                  "output_text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "choices"
+                ],
+                "properties": {
+                  "choices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "audit_required": true,
+          "timeout_ms": 60000
+        },
+        "eiscore_sales_write": {
+          "intent": "execute_sales_write",
+          "object": "sales_order",
+          "risk": "high",
+          "permissions": [
+            "sales:write"
+          ],
+          "input_schema": {
+            "type": "object",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operation"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "qualify_lead"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "qualify_lead"
+                    ]
+                  },
+                  "lead_id": {
+                    "type": "string"
+                  },
+                  "leadId": {
+                    "type": "string"
+                  },
+                  "score": {
+                    "type": "number"
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "qualify_lead"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "qualify_lead"
+                    ]
+                  },
+                  "lead_id": {
+                    "type": "string"
+                  },
+                  "leadId": {
+                    "type": "string"
+                  },
+                  "score": {
+                    "type": "number"
+                  },
+                  "reasons": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operation"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity_draft_create"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity_draft_create"
+                    ]
+                  },
+                  "lead_id": {
+                    "type": "string"
+                  },
+                  "leadId": {
+                    "type": "string"
+                  },
+                  "productItems": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "estimatedAmount": {
+                    "type": "number"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "stage": {
+                    "type": "string"
+                  },
+                  "qualification": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "sourceSessionId": {
+                    "type": "string"
+                  },
+                  "source_session_id": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity_draft_create"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity_draft_create"
+                    ]
+                  },
+                  "lead_id": {
+                    "type": "string"
+                  },
+                  "leadId": {
+                    "type": "string"
+                  },
+                  "productItems": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "estimatedAmount": {
+                    "type": "number"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "stage": {
+                    "type": "string"
+                  },
+                  "qualification": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "sourceSessionId": {
+                    "type": "string"
+                  },
+                  "source_session_id": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operation"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "quote_draft_create"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "quote_draft_create"
+                    ]
+                  },
+                  "opportunity_id": {
+                    "type": "string"
+                  },
+                  "opportunityId": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "validUntil": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "valid_until": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "priceSource": {
+                    "type": "string"
+                  },
+                  "price_source": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "quote_draft_create"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "quote_draft_create"
+                    ]
+                  },
+                  "opportunity_id": {
+                    "type": "string"
+                  },
+                  "opportunityId": {
+                    "type": "string"
+                  },
+                  "currency": {
+                    "type": "string"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "validUntil": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "valid_until": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "priceSource": {
+                    "type": "string"
+                  },
+                  "price_source": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operation"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "sales_order_draft_create"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "sales_order_draft_create"
+                    ]
+                  },
+                  "quote_id": {
+                    "type": "string"
+                  },
+                  "quoteId": {
+                    "type": "string"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "deliveryDate": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "delivery_date": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "sales_order_draft_create"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "sales_order_draft_create"
+                    ]
+                  },
+                  "quote_id": {
+                    "type": "string"
+                  },
+                  "quoteId": {
+                    "type": "string"
+                  },
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  },
+                  "deliveryDate": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "delivery_date": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operation"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "sales_approval"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "sales_approval"
+                    ]
+                  },
+                  "object_type": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity",
+                      "quote",
+                      "sales_order"
+                    ]
+                  },
+                  "objectType": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity",
+                      "quote",
+                      "sales_order"
+                    ]
+                  },
+                  "object_id": {
+                    "type": "string"
+                  },
+                  "objectId": {
+                    "type": "string"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject"
+                    ]
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "sales_approval"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "sales_approval"
+                    ]
+                  },
+                  "object_type": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity",
+                      "quote",
+                      "sales_order"
+                    ]
+                  },
+                  "objectType": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity",
+                      "quote",
+                      "sales_order"
+                    ]
+                  },
+                  "object_id": {
+                    "type": "string"
+                  },
+                  "objectId": {
+                    "type": "string"
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject"
+                    ]
+                  },
+                  "comment": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operation"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "sales_sync_enqueue"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "sales_sync_enqueue"
+                    ]
+                  },
+                  "object_type": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity",
+                      "quote",
+                      "sales_order"
+                    ]
+                  },
+                  "objectType": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity",
+                      "quote",
+                      "sales_order"
+                    ]
+                  },
+                  "object_id": {
+                    "type": "string"
+                  },
+                  "objectId": {
+                    "type": "string"
+                  },
+                  "targetSystem": {
+                    "type": "string"
+                  },
+                  "target_system": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "action"
+                ],
+                "properties": {
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "sales_sync_enqueue"
+                    ]
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "sales_sync_enqueue"
+                    ]
+                  },
+                  "object_type": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity",
+                      "quote",
+                      "sales_order"
+                    ]
+                  },
+                  "objectType": {
+                    "type": "string",
+                    "enum": [
+                      "opportunity",
+                      "quote",
+                      "sales_order"
+                    ]
+                  },
+                  "object_id": {
+                    "type": "string"
+                  },
+                  "objectId": {
+                    "type": "string"
+                  },
+                  "targetSystem": {
+                    "type": "string"
+                  },
+                  "target_system": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "confirm_required": true,
+          "idempotency_required": true,
+          "audit_required": true,
+          "timeout_ms": 60000
+        }
+      },
+      "permissions": [
+        "sales:read",
+        "sales:write"
+      ],
+      "risk": "high",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "confirm_required": true,
+      "idempotency_required": true,
+      "audit_required": true,
+      "timeout_ms": 60000
+    },
+    {
+      "plugin_id": "independent-site-sales",
+      "agent_id": "site_sales",
+      "capabilities": [
+        "eiscore_site_sales"
+      ],
+      "capability_policies": {
+        "eiscore_site_sales": {
+          "intent": "read_site_sales_context",
+          "object": "site_catalog",
+          "risk": "low",
+          "permissions": [
+            "site:sales"
+          ],
+          "input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "view": {
+                "type": "string"
+              },
+              "view_id": {
+                "type": "string"
+              }
+            }
+          },
+          "output_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "context",
+              "view",
+              "data"
+            ],
+            "properties": {
+              "context": {
+                "type": "string"
+              },
+              "view": {
+                "type": "string"
+              },
+              "data": {
+                "type": "object"
+              }
+            }
+          },
+          "chat_input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "messages"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "stream": {
+                "type": "boolean"
+              },
+              "context": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          },
+          "chat_output_schema": {
+            "type": "object",
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "output_text"
+                ],
+                "properties": {
+                  "output_text": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "choices"
+                ],
+                "properties": {
+                  "choices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "audit_required": true,
+          "timeout_ms": 30000
+        }
+      },
+      "permissions": [
+        "site:sales"
+      ],
+      "risk": "low",
+      "input_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "output_schema": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "confirm_required": false,
+      "idempotency_required": false,
+      "audit_required": true,
+      "timeout_ms": 30000
+    }
+  ]
+}

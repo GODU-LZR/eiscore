@@ -1,0 +1,8 @@
+{
+  "name": "@eiscore/harness-runtime-image",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.2-rc.1"
+  }
+}

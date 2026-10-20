@@ -1,0 +1,96 @@
+services:
+  flash-agent:
+    image: eiscore/huizong-agent:20261017
+    container_name: huizong-eiscore-flash-agent
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8078
+      RUNTIME_PROFILE: flash
+      PGRST_JWT_SECRET: '${PGRST_JWT_SECRET:?required}'
+      AGENT_POSTGREST_ROLE: eiscore_flash_agent
+      AGENT_POSTGREST_URL: http://api:3000
+      EISCORE_HARNESS_ENABLED: 'true'
+      EISCORE_HARNESS_URL: http://flash-harness-bridge:3080
+      EISCORE_HARNESS_AUDIT_FILE: /var/lib/eiscore/flash-harness-audit.jsonl
+      EISCORE_HARNESS_AUDIT_HASH_KEY: '${FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY:?required}'
+      EISCORE_HARNESS_BRIDGE_SECRET: '${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?required}'
+      EISCORE_TOOL_PROXY_SECRET: '${FLASH_EISCORE_TOOL_PROXY_SECRET:?required}'
+      FLASH_PROJECT_PATH: eiscore-apps/src/views/drafts
+      FLASH_WORKDIR: /var/lib/flash-drafts
+    volumes:
+      - ./flash-harness:/agent-harness:ro
+      - ./flash-harness/flash-workspace-service.js:/app/flash-workspace-service.js:ro
+      - flash_harness_audit:/var/lib/eiscore
+      - flash_drafts:/var/lib/flash-drafts
+    depends_on: {api: {condition: service_started}}
+  flash-harness-bridge:
+    image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
+    container_name: huizong-eiscore-flash-harness-bridge
+    restart: unless-stopped
+    init: true
+    user: '10001:10001'
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    entrypoint: [node]
+    command: [/opt/eiscore-harness/dsh-http-bridge.mjs]
+    environment:
+      PORT: 3080
+      DSH_BIN: /opt/bridge/node_modules/.bin/dsh
+      DSH_HOME: /var/lib/dsh
+      DSH_PROVIDER: deepseek-official
+      DSH_MODEL: deepseek-v4-flash
+      DEEPSEEK_API_KEY: '${DEEPSEEK_API_KEY:?required}'
+      HARNESS_PROFILE: flash
+      HARNESS_PLUGINS: flash-builder
+      EISCORE_HARNESS_CAPABILITY_PROFILE: flash
+      DSH_CWD: /opt/eiscore-harness
+      DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
+      EISCORE_TOOL_PROXY_URL: http://flash-agent:8078/internal/harness/tool
+      EISCORE_HARNESS_BRIDGE_SECRET: '${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?required}'
+      EISCORE_TOOL_PROXY_SECRET: '${FLASH_EISCORE_TOOL_PROXY_SECRET:?required}'
+      BRIDGE_STATE_FILE: /var/lib/dsh/bridge-state.json
+    volumes:
+      - flash_bridge_home:/var/lib/dsh
+      - ./flash-harness:/opt/eiscore-harness:ro
+    depends_on: {flash-agent: {condition: service_started}}
+  flash-web:
+    image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
+    container_name: huizong-eiscore-flash-web
+    restart: unless-stopped
+    init: true
+    user: '10001:10001'
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    entrypoint: [node]
+    command: [--expose-internals, /opt/eiscore-harness/dsh-web-runner.mjs]
+    environment:
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/flash
+      DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
+      DSH_TRUSTED_HOST: huizong.eiscore.top
+      DSH_PATCH_PATH: /opt/eiscore-harness/dsh-flash-web.patch.yml
+      EISCORE_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
+      EISCORE_HARNESS_CAPABILITY_PROFILE: flash
+      DEEPSEEK_API_KEY: '${DEEPSEEK_API_KEY:?required}'
+      EISCORE_GATEWAY_URL: http://flash-agent:8078
+      EISCORE_FLASH_REQUIRE_WEB_CONTEXT: 'true'
+      EISCORE_AUTH_GATEWAY_URL: http://agent:8078
+      EISCORE_AUTH_URL: https://huizong.eiscore.top
+      EISCORE_AUTH_ORIGINS: https://huizong.eiscore.top
+      EISCORE_TOOL_PROXY_URL: http://flash-agent:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: '${FLASH_EISCORE_TOOL_PROXY_SECRET:?required}'
+    volumes:
+      - flash_web_home:/var/lib/dsh
+      - ./flash-harness:/opt/eiscore-harness:ro
+    depends_on: {flash-agent: {condition: service_started}}
+volumes:
+  flash_harness_audit:
+  flash_drafts:
+  flash_bridge_home:
+  flash_web_home:

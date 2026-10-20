@@ -1,0 +1,2 @@
+# Keep vendored distribution bytes identical to their upstream checksums.
+harness/vendor/** -text
