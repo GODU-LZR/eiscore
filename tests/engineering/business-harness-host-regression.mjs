@@ -88,8 +88,8 @@ function setup(source, names, context = {}) {
   return { state, sandbox, listeners, timers, lifecycle, flush, runTimers }
 }
 
-function frameHarness(active = false, queue = authQueue(), token = 'identity-a') {
-  const props = { active }
+function frameHarness(active = false, queue = authQueue(), token = 'identity-a', persona = 'work-assistant') {
+  const props = { active, persona }
   const user = { token }
   const shared = { pendingDraft: null }
   const calls = queue.calls
@@ -117,7 +117,7 @@ function frameHarness(active = false, queue = authQueue(), token = 'identity-a')
   await tick()
   assert.equal(test.calls.length, 1)
   assert.equal(test.state.pending.value, true)
-  assert.equal(test.calls[0].options.harnessWebUrl, '/harness-embed/')
+  assert.equal(test.calls[0].options.harnessWebUrl, '/harness-assistant-embed/')
   assert.equal(test.calls[0].options.authorization, 'Bearer identity-a')
   test.props.active = false
   test.flush()
@@ -310,7 +310,7 @@ for (const view of ['HarnessView', 'EmbedView']) {
   }
 }
 
-// Only the exact frame and origin may acknowledge a draft. No message sends the prompt.
+// Only the work-assistant frame may receive/acknowledge a draft. No message sends the prompt.
 {
   const test = frameHarness(true)
   const draft = { id: 'command-a', prompt: 'Inspect this record' }
@@ -357,10 +357,41 @@ for (const view of ['HarnessView', 'EmbedView']) {
   assert.equal(test.listeners.length, 0)
 }
 
+// Workbench keeps its own auth/iframe lifecycle but cannot observe or consume assistant drafts.
+{
+  const test = frameHarness(false, authQueue(), 'workbench-identity', 'workbench')
+  assert.equal(test.calls.length, 0, 'hidden workbench must not authenticate')
+  test.props.active = true
+  test.flush()
+  await tick()
+  assert.equal(test.calls.length, 1)
+  assert.equal(test.calls[0].options.harnessWebUrl, '/harness-workbench-embed/')
+  test.calls[0].resolve(true)
+  await tick()
+  assert.equal(test.state.ready.value, true)
+  const draft = { id: 'assistant-only', prompt: 'Do not enter workbench' }
+  test.shared.pendingDraft = draft
+  test.flush()
+  assert.equal(test.sent.length, 0, 'workbench must not send assistant drafts')
+  assert.equal(test.timers.size, 0, 'workbench must not schedule draft retries')
+  test.state.receiveDraftResult({
+    origin: 'https://host.test', source: test.contentWindow,
+    data: { type: 'eiscore:harness-draft-result', version: 1, id: draft.id, status: 'applied' }
+  })
+  assert.equal(test.shared.pendingDraft, draft, 'workbench must not consume assistant drafts')
+  test.props.active = false
+  test.flush()
+  assert.equal(test.state.ready.value, true, 'workbench iframe remains ready while hidden')
+  test.props.active = true
+  test.flush()
+  assert.equal(test.calls.length, 1, 'reopening workbench must preserve its authenticated iframe')
+}
+
 // One fixed frame is retained through visibility/fullscreen/geometry changes.
-assert.equal((hostSource.match(/<BusinessHarnessFrame\b/g) || []).length, 1)
+assert.equal((hostSource.match(/<BusinessHarnessFrame\b/g) || []).length, 2)
 assert.match(hostSource, /<section v-show="visible"/)
-assert.match(hostSource, /<BusinessHarnessFrame v-if="started && !excluded" :active="visible"/)
+assert.match(hostSource, /<BusinessHarnessFrame v-if="assistantStarted && !excluded" v-show="assistantVisible" :active="assistantVisible" persona="work-assistant"/)
+assert.match(hostSource, /<BusinessHarnessFrame v-if="workbenchStarted && !excluded" v-show="workspaceVisible" :active="workspaceVisible" persona="workbench"/)
 assert.doesNotMatch(hostSource, /<Teleport\b|appendChild\(|replaceChild\(|<iframe\b/)
 assert.equal((frameSource.match(/<iframe\b/g) || []).length, 1)
 assert.match(frameSource, /<iframe v-if="ready && !failed"/)
@@ -375,7 +406,7 @@ assert.match(readFileSync(resolve(repoRoot, 'eiscore-base/src/components/AiCopil
   const observations = []
   let resetCalls = 0
   const reset = () => { resetCalls++; shared.assistantOpen = false; shared.pendingDraft = null }
-  const test = setup(hostSource, 'visible, workspaceVisible, excluded, started, fullscreen, workspaceStyle, toggleFullscreen, measureWorkspace', {
+  const test = setup(hostSource, 'visible, assistantVisible, workspaceVisible, excluded, started, fullscreen, workspaceStyle, toggleFullscreen, measureWorkspace', {
     defineProps: () => props,
     useRoute: () => route,
     useUserStore: () => user,
@@ -427,7 +458,12 @@ assert.match(readFileSync(resolve(repoRoot, 'eiscore-base/src/components/AiCopil
   assert.equal(test.state.workspaceStyle.value.width, '900px')
   assert.equal(test.state.workspaceStyle.value.height, '600px')
   assert.equal(observations.includes(shared.workspace), true)
+  shared.assistantOpen = true
+  test.flush()
+  assert.equal(test.state.assistantVisible.value, false, 'workbench takes precedence over the assistant on the shared workspace route')
+  assert.equal(test.state.visible.value, true)
   shared.workspace = null
+  shared.assistantOpen = false
   test.flush()
   assert.equal(test.state.visible.value, false)
   assert.equal(Object.keys(test.state.workspaceStyle.value).length, 0)
