@@ -420,6 +420,19 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-033",
+      "path": "database/migrations/sql/core-033-static-field-acl-bootstrap.sql",
+      "sha256": "eae53ea2767a349b99b4fea40a24ffdb69e89c8b25d0fefb13c18ff4f6075fb5",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }
