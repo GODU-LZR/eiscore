@@ -68,7 +68,7 @@
 
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ChatLineSquare, DataAnalysis, DataBoard, Money, Tickets, TrendCharts, User } from '@element-plus/icons-vue'
+import { ChatLineSquare, DataAnalysis, DataBoard, Document, Money, Tickets, TrendCharts, User } from '@element-plus/icons-vue'
 import { SALES_APPS } from '@/utils/sales-apps'
 import { hasPerm } from '@/utils/permission'
 import request from '@/utils/request'
@@ -95,7 +95,7 @@ import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
 const { visibility: displayVisibility } = useDisplayVisibility()
-const iconMap = { ChatLineSquare, DataAnalysis, DataBoard, Money, Tickets, TrendCharts, User }
+const iconMap = { ChatLineSquare, DataAnalysis, DataBoard, Document, Money, Tickets, TrendCharts, User }
 const appRows = ref(Object.fromEntries(SALES_APPS.map((app) => [app.key, []])))
 const serverStats = ref({})
 const cardLoading = ref(false)
