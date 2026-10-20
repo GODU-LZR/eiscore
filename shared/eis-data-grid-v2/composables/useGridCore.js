@@ -310,7 +310,7 @@ export function useGridCore(
 
   // 🟢 修复 2：禁止双击编辑操作列
   const isCellReadOnly = (params) => {
-    const colId = legacyAppColumns ? params.colDef.field : (params.colDef.colId || params.colDef.field)
+    const colId = params.colDef.colId || params.colDef.field
     if (props.canEdit === false && !params.node.rowPinned) return true
     if (aclModule.value === 'hr_user' && params.data?._userStatusPending) return true
     if (!legacyAppColumns && (colId === 'rowCheckbox' || params.colDef.checkboxSelection)) return true
@@ -349,7 +349,7 @@ export function useGridCore(
     // 仅业务锁定或列锁定使用条纹样式，权限只读用灰底
     'cell-locked-pattern': (params) => {
       if (props.enableColumnLock === false) return false
-      const colId = params.colDef.field
+      const colId = params.colDef.colId || params.colDef.field
       if (isRowLocked(params.data)) return true
       if (colId && columnLockState[colId]) return true
       return false

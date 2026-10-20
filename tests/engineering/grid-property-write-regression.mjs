@@ -50,6 +50,17 @@ assert.equal(withGetter.valueGetter({ node: { rowPinned: 'bottom' }, data: { pro
 const dependsOn = actual(core, 'resolveDependsOnField', { props: { staticColumns } })
 assert.equal(dependsOn({ dependsOn: 'spec' }), 'properties.spec')
 assert.equal(dependsOn({ dependsOn: 'name' }), 'name')
+const headerScript = read('shared/eis-data-grid-v2/components/renderers/LockHeader.vue').split('<script setup>')[1].split('</script>')[0]
+assert.equal(actual(headerScript, 'colKey', { props: { params: { column: { getColId: () => spec.colId } } } }), 'spec')
+for (const legacyAppColumns of [false, true]) {
+  const bindings = {
+    props: {}, legacyAppColumns, aclModule: { value: 'mms_ledger' }, materialColumns: true,
+    purchaseStatusEditable: false, columnLockState: { spec: 'fixture-user' },
+    isRowLocked: () => false, getFieldAcl: () => null, shouldShowByWorkflow: () => true, canEditByWorkflow: () => true
+  }
+  assert.equal(actual(core, 'isCellReadOnly', bindings)({ node: {}, data: row, colDef: spec }), true, 'JSON-backed static column lock blocks editing')
+  assert.equal(actual(core, 'cellClassRules', bindings)['cell-locked-pattern']({ data: row, colDef: spec }), true, 'lock stripe uses the same stable key')
+}
 
 const historySource = read('shared/eis-data-grid-v2/composables/useGridHistory.js')
 const errors = []

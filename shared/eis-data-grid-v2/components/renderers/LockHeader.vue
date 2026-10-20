@@ -35,7 +35,7 @@ import { ElIcon, ElTooltip } from 'element-plus'
 import { SortUp, SortDown, Lock, Unlock, Filter, Sort } from '@element-plus/icons-vue'
 
 const props = defineProps(['params'])
-const colKey = props.params.column.getColDef().field || props.params.column.colId
+const colKey = props.params.column.getColId()
 const gridComp = props.params.context.componentParent
 
 const lockInfo = computed(() => gridComp.columnLockState[colKey])
