@@ -30,3 +30,29 @@ button[aria-label^="Access mode, current:"] {
   [data-slot="conversation.session.header"] > header { padding-inline: 12px; }
   [data-slot="conversation.composer"] :has(> [data-composer-card]) { padding-inline: 8px; }
 }
+
+/* Keep the model trigger readable beside the send button in the 380px worker panel. */
+@media (max-width: 420px) {
+  [data-composer-card] div:has(> button[aria-label="发送消息"]) {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    gap: 4px !important;
+    justify-content: flex-end !important;
+  }
+
+  [data-composer-card] button[aria-label^="选择模型"] {
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  [data-composer-card] button[aria-label^="选择模型"] > span:nth-child(2) {
+    display: none !important;
+  }
+
+  [data-composer-card] button[aria-label^="选择模型"] > span:first-child {
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+}

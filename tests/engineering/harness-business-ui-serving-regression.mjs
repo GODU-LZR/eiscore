@@ -2,6 +2,14 @@ import assert from 'node:assert/strict'
 import http from 'node:http'
 import { once } from 'node:events'
 import { handleBusinessUi, injectBusinessUi } from '../../agent-harness/business-web-ui.mjs'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+const businessUiCss = readFileSync(join(import.meta.dirname, '../../agent-harness/web-ui/business-ui.css'), 'utf8')
+assert.match(businessUiCss, /@media \(max-width: 420px\)/)
+assert.match(businessUiCss, /button\[aria-label\^="选择模型"\][\s\S]*?max-width: none !important/)
+assert.match(businessUiCss, /button\[aria-label\^="选择模型"\] > span:nth-child\(2\)[\s\S]*?display: none !important/)
+assert.match(businessUiCss, /div:has\(> button\[aria-label="发送消息"\]\)[\s\S]*?margin-left: 0 !important/)
 
 if (process.argv.includes('--with-vendor')) {
   const html = '<html><head><base href="/"></head><body></body></html>'
