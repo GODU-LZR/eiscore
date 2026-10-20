@@ -34,6 +34,8 @@
   disabled: true
 - id: commands
   disabled: true
+- id: ui-commands
+  disabled: true
 - id: command-compact
   disabled: true
 - id: command-feedback
