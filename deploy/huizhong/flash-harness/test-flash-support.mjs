@@ -7,9 +7,10 @@ import { mapAuthCookiesToUpstream, mapAuthSetCookiesToBrowser, shouldBootstrapDs
 import { createBusinessSessionProxy } from './web-session-proxy.mjs'
 
 const flashPatch = readFileSync(new URL('./dsh-flash-web.patch.yml', import.meta.url), 'utf8')
-for (const id of ['commands', 'ui-commands', 'command-compact', 'command-feedback', 'command-goal']) {
+for (const id of ['commands', 'command-compact', 'command-feedback', 'command-goal']) {
   assert.match(flashPatch, new RegExp(`(?:^|\\n)- id: ${id}\\r?\\n  disabled: true(?:\\r?\\n|$)`), `Flash must keep ${id} disabled`)
 }
+assert.doesNotMatch(flashPatch, /(?:^|\n)- id: ui-commands\r?\n  disabled: true/, 'Keep commandUi service available to model and permission selectors')
 
 const cookies = mapAuthCookiesToUpstream('eiscore-session=business; dsh-auth-localhost=business-dsh; flash-eiscore-session=flash-user; flash-dsh-auth-localhost=flash-dsh', 'flash-')
 assert.equal(cookies, 'eiscore-session=flash-user; dsh-auth-localhost=flash-dsh')
