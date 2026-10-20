@@ -29,7 +29,7 @@
 
 - 本次不启动或重建共享 18080，不部署伦度远端，不写业务数据库；因此真实登录、真实 Provider completion 和登录后业务点击链路仍待在目标运行态验收。
 - DSH 文件系统 workspace 是按 persona 服务共享的命名空间，不是按用户/tenant 独立目录。通用 fs/bash 已被 restricted profile 禁止；EISCore 业务工具继续按认证用户和 RLS 约束。
-- 候选分支尚未 cherry-pick 到 `codex/systematic-refactor`，也未推送远端；需统筹在确认工作树基线后串行整合。
+- 候选分支尚未 cherry-pick 到 `codex/systematic-refactor`；候选分支已推送到 `eiscore/codex/fix-eis-015-harness-personas-20261020`，远端确认 SHA 为 `0bcd7314e7a201067d1577d809a36a1a36d6a2da`。需统筹在确认主工作树基线后串行整合。
 
 ## 交接
 
@@ -37,4 +37,4 @@
 - 分支：`codex/fix-eis-015-harness-personas-20261020`
 - 基线：`2b538d30`
 - UI 子提交：`986e269b`
-- 完整隔离提交：`68eb9cdd`
+- 完整隔离提交：`0bcd7314`
