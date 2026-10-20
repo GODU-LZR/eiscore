@@ -96,9 +96,11 @@ window.__ModuleLoader__.load({
           if (!ctx.workspaces.list.getSnapshot().items.some((workspace) => workspace.workspaceId === workspaceId)) throw new Error('business workspace unavailable')
           // Never reuse the native workspace's arbitrary blank session across roles.
           const list = ctx.sessions.list.getSnapshot()
+          const archived = new Set(ctx.workspaces.list.getSnapshot().archivedSessionIds || [])
+          const available = (id) => list.byId[id] && !archived.has(id) && roles.get(id) === request.entry
           const preferred = selected.get(request.entry)
-          let id = !fresh && roles.get(preferred) === request.entry && list.byId[preferred] ? preferred : undefined
-          if (!fresh && !id) id = list.ids.filter((candidate) => roles.get(candidate) === request.entry).sort((a, b) => (list.byId[b]?.updatedAt || 0) - (list.byId[a]?.updatedAt || 0))[0]
+          let id = !fresh && available(preferred) ? preferred : undefined
+          if (!fresh && !id) id = list.ids.filter(available).sort((a, b) => (list.byId[b]?.updatedAt || 0) - (list.byId[a]?.updatedAt || 0))[0]
           if (!id) id = await create(request.entry)
           if (!active(request, version)) return
           ctx.sessions.open(id)

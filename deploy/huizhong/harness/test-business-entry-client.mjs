@@ -17,6 +17,7 @@ let dispose
 let renderDraft = ''
 let beforeCreate
 const subscribers = new Set()
+const archivedSessionIds = []
 const notify = () => { for (const callback of subscribers) callback() }
 const parent = { postMessage: (value) => sent.push(value) }
 const window = {
@@ -66,7 +67,7 @@ const workspace = { startSession() { originalNewCalls++ } }
 const nativeStart = workspace.startSession
 const context = {
   sessions,
-  workspaces: { list: { getSnapshot: () => ({ phase: 'ready', items: [{ workspaceId: 'business-ws', path: '/workspaces/business' }, { workspaceId: 'old-workspace' }] }) } },
+  workspaces: { list: { getSnapshot: () => ({ phase: 'ready', archivedSessionIds, items: [{ workspaceId: 'business-ws', path: '/workspaces/business' }, { workspaceId: 'old-workspace' }] }) } },
   conversation: { input: { for: (ctx) => ({ state: { getSnapshot: () => ({ draft: drafts.get(ctx.id) || '' }) } }) } },
   uiWorkspace: workspace,
   on: (type, callback) => { if (type === 'dispose') dispose = callback }
@@ -117,6 +118,21 @@ assert.equal(originalNewCalls, 0)
 assert.equal(sessionRoles.get(current).entry, 'workbench')
 assert.equal(requests.at(-1).input.workspaceId, 'business-ws')
 
+// Archiving a selected role session reuses an older live session, never archived history.
+const latestAnalysisId = current
+archivedSessionIds.push(latestAnalysisId)
+send('workbench', 'archive-latest')
+await waitFor(() => ack('archive-latest'))
+assert.equal(current, analysisId)
+// When every session of the requested role is archived, create a fresh same-role session.
+archivedSessionIds.push(analysisId)
+send('workbench', 'archive-all')
+await waitFor(() => ack('archive-all'))
+assert.notEqual(current, analysisId)
+assert.notEqual(current, latestAnalysisId)
+assert.equal(sessionRoles.get(current).entry, 'workbench')
+assert.equal(archivedSessionIds.includes(current), false)
+
 // Manual old/other-role history continues using the original persona and cannot receive host drafts.
 sessions.open(workerId)
 assert.equal(dataset.eisHarnessEntryReady, 'false')
@@ -153,4 +169,4 @@ dispose()
 assert.equal(window.fetch, nativeFetch)
 assert.equal(workspace.startSession, nativeStart)
 assert.equal(dataset.eisHarnessEntryReady, 'false')
-console.log('PASS: native workspace/session selection, independent drafts, native New Session role, history prompts, strict parent protocol, stale switch, identity reset, cleanup')
+console.log('PASS: native workspace/session selection, archived-session fallback and recreation, independent drafts, native New Session role, history prompts, strict parent protocol, stale switch, identity reset, cleanup')
