@@ -21,6 +21,7 @@
 - `npm run test:eiscore-embed`：通过，包含双 iframe 生命周期、身份切换和 Flash 路由隔离。
 - `npm run test:harness-web-isolation`、`npm run test:harness-runtime-boundaries`、`npm run test:harness-read-http`、`npm run test:harness-bridge`：通过。
 - `npm run test:runtime-image`：通过；三份 Compose 静态配置检查通过。
+- `npm run test:production-config`：通过；包含 Lundu artifact、Web smoke、业务 UI/visual 和发布器回归。
 - `eiscore-base`：`npm ci` 后 `npm run build -- --mode test` 通过，构建输出为候选 worktree 的 `eiscore-base/dist`。
 - SDK loopback：`ok=true`、一次受控工具代理调用、两次 mock model 请求；这不是真实 Provider 上线证明。
 - Playwright 隔离浏览器：`http://127.0.0.1:4185/login` 渲染伦度品牌、轮播图、采购单入口和水泵 BOM 三维动画；企业登录弹窗可打开。证据：`output/eis015-login.png`。
@@ -29,7 +30,7 @@
 
 - 本次不启动或重建共享 18080，不部署伦度远端，不写业务数据库；因此真实登录、真实 Provider completion 和登录后业务点击链路仍待在目标运行态验收。
 - DSH 文件系统 workspace 是按 persona 服务共享的命名空间，不是按用户/tenant 独立目录。通用 fs/bash 已被 restricted profile 禁止；EISCore 业务工具继续按认证用户和 RLS 约束。
-- 候选分支尚未 cherry-pick 到 `codex/systematic-refactor`；候选分支已推送到 `eiscore/codex/fix-eis-015-harness-personas-20261020`，远端确认 SHA 为 `0bcd7314e7a201067d1577d809a36a1a36d6a2da`。需统筹在确认主工作树基线后串行整合。
+- 候选分支尚未 cherry-pick 到 `codex/systematic-refactor`；候选分支已推送到 `eiscore/codex/fix-eis-015-harness-personas-20261020`，最新远端提交为 `11d7e3c7`（包含 persona 生产配置回归断言修订）。需统筹在确认主工作树基线后串行整合。
 
 ## 交接
 
@@ -38,3 +39,4 @@
 - 基线：`2b538d30`
 - UI 子提交：`986e269b`
 - 完整隔离提交：`0bcd7314`
+- 生产配置回归修订：`11d7e3c7`
