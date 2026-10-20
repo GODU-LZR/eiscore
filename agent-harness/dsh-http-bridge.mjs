@@ -8,7 +8,15 @@ import { pathToFileURL } from 'node:url'
 const require = createRequire(import.meta.url)
 const { createBridgeHandler, PROTOCOL } = require('./http-bridge.js')
 const { loadPluginRegistry } = require('./plugin-registry.js')
-const { PROFILE_PLUGINS, normalizeProfile, pluginsForProfile, requireHarnessProfile } = require('./profile-policy.js')
+const {
+  PROFILE_PLUGINS,
+  normalizeProfile,
+  pluginsForProfile,
+  pluginsForPersona,
+  requireHarnessProfile,
+  requireHarnessPersona,
+  validateHarnessPersonaProfile
+} = require('./profile-policy.js')
 
 const BUSINESS_PLUGINS = PROFILE_PLUGINS.business
 const FLASH_PLUGINS = PROFILE_PLUGINS.flash
@@ -57,7 +65,7 @@ export const validateHarnessToolArtifacts = ({ root = process.env.DSH_CWD || pro
   const patch = String(patchFile || '').trim()
   const issues = []
   if (!base || !isAbsolute(base) || !safeDirectory(base)) issues.push('DSH_CWD must be an existing absolute non-symlink directory')
-  for (const file of ['eiscore-tools.mjs', 'eiscore-restricted.cordis.yml']) {
+  for (const file of ['eiscore-tools.mjs', 'persona-policy.mjs', 'eiscore-restricted.cordis.yml']) {
     if (!base || !regularFile(join(base, file))) issues.push(`${file} must be a regular file under DSH_CWD`)
   }
   if (patch) {
@@ -137,6 +145,7 @@ class DshSdkProcess {
     this.cwd = cwd
     this.env = env
     this.spawnImpl = spawnImpl
+    this.persona = String(options.persona || env.HARNESS_PERSONA || '').trim().toLowerCase()
     this.timeoutMs = timeoutMs
     this.drainTimeoutMs = drainTimeoutMs
     this.rpcTimeoutMs = rpcTimeoutMs
@@ -395,13 +404,19 @@ const pluginList = (configured = process.env.HARNESS_PLUGINS) => {
   // an empty list also keeps readiness and direct probes fail-closed.
   if (configuredProfile && !['business', 'flash'].includes(configuredProfile)) return []
   const profile = configuredProfile
-  const source = profile === 'flash'
-    ? pluginsForProfile(profile).join(',')
-    : profile === 'business'
-      ? pluginsForProfile(profile).join(',')
-      : (configured === undefined ? DEFAULT_PLUGINS.join(',') : String(configured))
+  const configuredPersona = String(process.env.HARNESS_PERSONA || '').trim().toLowerCase()
+  if (!configuredPersona) return []
+  if (configuredPersona) {
+    try { validateHarnessPersonaProfile(profile, requireHarnessPersona(configuredPersona)) } catch { return [] }
+  }
+  const configuredPlugins = configured === undefined
+    ? null
+    : new Set(String(configured).split(',').map((value) => value.trim()).filter(Boolean))
+  const source = pluginsForPersona(configuredPersona).filter((pluginId) =>
+    !configuredPlugins || configuredPlugins.has(pluginId)
+  )
   const seen = new Set()
-  return source.split(',').map((value) => value.trim()).filter((plugin_id) => {
+  return source.filter((plugin_id) => {
     if (!REGISTERED_PLUGIN_IDS.has(plugin_id) || seen.has(plugin_id)) return false
     seen.add(plugin_id)
     return true
@@ -412,10 +427,14 @@ const start = () => {
   validateHarnessToolArtifacts()
   const secrets = validateBridgeSecrets()
   const harnessProfile = requireHarnessProfile(process.env.HARNESS_PROFILE)
+  const harnessPersona = validateHarnessPersonaProfile(
+    harnessProfile,
+    requireHarnessPersona(process.env.HARNESS_PERSONA)
+  )
   const profile = process.env.DSH_PROFILE || 'sdk'
   const args = ['--profile', profile]
   if (process.env.DSH_PATCH) args.push('--patch', process.env.DSH_PATCH)
-  const runtime = new DshSdkProcess({ args })
+  const runtime = new DshSdkProcess({ args, persona: harnessPersona })
   const handler = createBridgeHandler({
     invoke: createInvoke({ runtime }),
     readiness: async () => {
@@ -433,6 +452,7 @@ const start = () => {
     },
     pluginList,
     profile: harnessProfile,
+    persona: harnessPersona,
     bridgeSecret: secrets.bridgeSecret,
     maxConcurrent: envInt(process.env, 'BRIDGE_MAX_CONCURRENT_REQUESTS', 16),
     maxSessions: envInt(process.env, 'BRIDGE_MAX_SESSIONS', 1000),

@@ -5,7 +5,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runInNewContext } from 'node:vm'
 import { PassThrough, Readable } from 'node:stream'
-import { ensureStartupProfile, resolveDefaultWorkspace, resolveHarnessPatchPath } from './dsh-web-runner.mjs'
+import {
+  ensureStartupProfile,
+  getHarnessAuthReturnPath,
+  mapDshAuthCookiesToUpstream,
+  mapDshAuthSetCookiesToBrowser,
+  resolveDefaultWorkspace,
+  resolveHarnessPatchPath
+} from './dsh-web-runner.mjs'
 
 const home = mkdtempSync(join(tmpdir(), 'eiscore-dsh-web-profile-'))
 try {
@@ -37,6 +44,14 @@ try {
   assert.throws(() => ensureStartupProfile(''), /DSH_HOME is required/)
   assert.equal(resolveHarnessPatchPath(''), '/opt/eiscore-harness/dsh-web.patch.yml')
   assert.equal(resolveHarnessPatchPath('/opt/eiscore-harness/dsh-flash-web.patch.yml'), '/opt/eiscore-harness/dsh-flash-web.patch.yml')
+  assert.equal(getHarnessAuthReturnPath('', 'workbench'), '/harness-workbench-embed-api/eiscore/auth/handoff')
+  assert.equal(getHarnessAuthReturnPath('/harness-assistant-embed-api/eiscore/auth/handoff', 'work-assistant'), '/harness-assistant-embed-api/eiscore/auth/handoff')
+  assert.equal(getHarnessAuthReturnPath('/harness-workbench-embed-api/eiscore/auth/handoff', 'workbench'), '/harness-workbench-embed-api/eiscore/auth/handoff')
+  assert.equal(getHarnessAuthReturnPath('/harness-flash-embed-api/eiscore/auth/handoff', 'flash'), '/harness-flash-embed-api/eiscore/auth/handoff')
+  assert.throws(() => getHarnessAuthReturnPath('/harness-assistant-embed-api/eiscore/auth/handoff', 'workbench'), /does not match persona/)
+  assert.throws(() => getHarnessAuthReturnPath('/harness-unknown-embed-api/eiscore/auth/handoff', 'workbench'), /does not match persona/)
+  assert.equal(mapDshAuthCookiesToUpstream('assistant-dsh-auth-token=a; workbench-dsh-auth-token=b; theme=dark', 'assistant-'), 'dsh-auth-token=a; theme=dark')
+  assert.deepEqual(mapDshAuthSetCookiesToBrowser(['dsh-auth-token=a; Path=/'], 'assistant-'), ['assistant-dsh-auth-token=a; Path=/'])
   assert.equal(resolveDefaultWorkspace('/var/lib/dsh/workspaces/flash', home), '/var/lib/dsh/workspaces/flash')
   assert.throws(() => resolveDefaultWorkspace('relative/path', home), /DSH_DEFAULT_WORKSPACE must be an absolute path/)
 } finally {
@@ -90,6 +105,7 @@ const forward = async ({ business = true, type = 'text/html; charset=utf-8', htm
     withToken: (value) => value,
     rewriteAuthStartBody: (body) => body,
     mapAuthSetCookiesToBrowser: (cookies) => cookies,
+    browserSetCookies: (cookies) => mapDshAuthSetCookiesToBrowser(cookies, ''),
     cookieHeaders: (value) => value || [],
     authCookiePrefix: '',
     http: { request(options, callback) {

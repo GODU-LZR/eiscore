@@ -18,7 +18,7 @@ import { prepareBusinessHarnessAuth as prepareHarnessAuth } from '@/services/bus
 
 const route = useRoute()
 const feature = route.params.feature === 'smart-bi' ? 'smart-bi' : 'digital-twin'
-const frameUrl = computed(() => `/harness-embed/#${feature}`)
+const frameUrl = computed(() => `/harness-workbench-embed/#${feature}`)
 const harnessReady = ref(false)
 const harnessFailed = ref(false)
 let disposed = false
@@ -28,7 +28,8 @@ onMounted(async () => {
   const authorization = getAuthHeader().Authorization || ''
   const isCurrent = () => !disposed && !!authorization && getAuthHeader().Authorization === authorization
   const ready = await prepareHarnessAuth({
-    harnessWebUrl: '/harness-embed/',
+    persona: 'workbench',
+    harnessWebUrl: '/harness-workbench-embed/',
     authorization: getAuthHeader().Authorization || ''
   }, isCurrent)
   if (!isCurrent()) return

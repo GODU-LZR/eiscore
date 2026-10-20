@@ -433,7 +433,8 @@ const submitPortalLogin = async () => {
       handoffPayload = await requestPublicJson('/company-site/auth/handoff', {
         service: 'agent',
         method: 'POST',
-        headers: { Authorization: `Bearer ${payload.token}` }
+        headers: { Authorization: `Bearer ${payload.token}`, 'Content-Type': 'application/json' },
+        body: { audience: 'workbench' }
       })
     } catch {
       throw new Error('handoff-failed')

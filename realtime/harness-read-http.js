@@ -1,12 +1,17 @@
 'use strict';
 
-const visibleAgents = (plugins, user = {}) => {
+const visibleAgents = (plugins, user = {}, { pluginIds, capabilityIds } = {}) => {
   const permissions = new Set(Array.isArray(user.permissions) ? user.permissions.map(String) : []);
+  const allowedPlugins = pluginIds == null ? null : new Set(pluginIds);
+  const allowedCapabilities = capabilityIds == null ? null : new Set(capabilityIds);
   return (Array.isArray(plugins) ? plugins : []).map((plugin) => {
+    if (allowedPlugins && !allowedPlugins.has(plugin.plugin_id)) return null;
     const capabilities = (Array.isArray(plugin.capabilities) ? plugin.capabilities : []).filter((capability) => {
+      if (allowedCapabilities && !allowedCapabilities.has(capability)) return false;
       const required = plugin.capability_policies?.[capability]?.permissions || plugin.permissions || [];
       return !required.length || permissions.has('*') || required.some((permission) => permissions.has(permission));
     });
+    if (!capabilities.length) return null;
     const capabilityPolicies = Object.fromEntries(capabilities.map((capability) => {
       const policy = plugin.capability_policies?.[capability] || plugin;
       return [capability, {
@@ -21,19 +26,20 @@ const visibleAgents = (plugins, user = {}) => {
       }];
     }));
     return { plugin_id: plugin.plugin_id, agent_id: plugin.agent_id, capabilities, capability_policies: capabilityPolicies, risk: plugin.risk };
-  }).filter(({ capabilities }) => capabilities.length > 0);
+  }).filter(Boolean);
 };
 
-const createHarnessReadHttpHandlers = ({ authorize, registry, fetchSnapshot, sendJson, enabled = false }) => {
+const createHarnessReadHttpHandlers = ({ authorize, registry, fetchSnapshot, sendJson, enabled = false, pluginIds, capabilityIds }) => {
+  const visibility = { pluginIds, capabilityIds };
   const handleConfig = (req, res) => {
     const user = authorize(req, res);
     if (!user) return;
-    sendJson(res, 200, { enabled: !!enabled, provider: 'deepseek-harness', stream: true, agents: visibleAgents(registry.list(), user) });
+    sendJson(res, 200, { enabled: !!enabled, provider: 'deepseek-harness', stream: true, agents: visibleAgents(registry.list(), user, visibility) });
   };
   const handleAgents = (req, res) => {
     const user = authorize(req, res);
     if (!user) return;
-    sendJson(res, 200, { role: user.role || '', agents: visibleAgents(registry.list(), user) });
+    sendJson(res, 200, { role: user.role || '', agents: visibleAgents(registry.list(), user, visibility) });
   };
   const handleBusinessSnapshot = async (req, res) => {
     const user = authorize(req, res);

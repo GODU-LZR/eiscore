@@ -45,3 +45,6 @@
 - insert:
     - id: eiscore-tools
       name: './eiscore-tools.mjs'
+    - id: eiscore-persona-policy
+      name: './persona-policy.mjs'
+      inject: [systemPrompt]

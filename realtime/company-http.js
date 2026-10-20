@@ -120,6 +120,11 @@ function createCompanyHttpModule({
     );
   const handoffs = new Map();
   const handoffTtlMs = Math.max(10_000, Number(env.COMPANY_AUTH_HANDOFF_TTL_MS) || 60_000);
+  const handoffAudiences = new Set(['work-assistant', 'workbench', 'flash']);
+  const fixedHandoffAudience = text(env.COMPANY_AUTH_HANDOFF_AUDIENCE).toLowerCase();
+  if (fixedHandoffAudience && !handoffAudiences.has(fixedHandoffAudience)) {
+    throw new TypeError('COMPANY_AUTH_HANDOFF_AUDIENCE must be a supported Harness persona');
+  }
 
   const pathname = (req) => getRequestPath(req);
   const partsAfter = (req, prefix) => pathname(req).slice(prefix.length).split('/').filter(Boolean).map(decodePart);
@@ -197,10 +202,20 @@ function createCompanyHttpModule({
         sendJson(res, 401, { code: 'HARNESS_AUTH_REQUIRED', message: 'Authenticated tenant context is required' }, { 'Cache-Control': 'no-store' });
         return;
       }
+      let body = {};
+      try { body = await readJsonBody(req, 4 * 1024); } catch (error) {
+        sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' }, { 'Cache-Control': 'no-store' });
+        return;
+      }
+      const audience = text(fixedHandoffAudience || body?.audience).toLowerCase();
+      if (!handoffAudiences.has(audience) || (fixedHandoffAudience && text(body?.audience).toLowerCase() && text(body?.audience).toLowerCase() !== fixedHandoffAudience)) {
+        sendJson(res, 400, { code: 'HANDOFF_AUDIENCE_INVALID', message: 'A valid Harness audience is required' }, { 'Cache-Control': 'no-store' });
+        return;
+      }
       purgeHandoffs();
       const code = crypto.randomBytes(32).toString('base64url');
-      handoffs.set(code, { token, expiresAt: now() + handoffTtlMs });
-      sendJson(res, 201, { code, expiresIn: Math.floor(handoffTtlMs / 1000) }, { 'Cache-Control': 'no-store' });
+      handoffs.set(code, { token, audience, expiresAt: now() + handoffTtlMs });
+      sendJson(res, 201, { code, audience, expiresIn: Math.floor(handoffTtlMs / 1000) }, { 'Cache-Control': 'no-store' });
     },
     async handleConsumeAuthHandoff(req, res) {
       let body;
@@ -211,6 +226,7 @@ function createCompanyHttpModule({
         return;
       }
       const code = text(body?.code);
+      const audience = text(body?.audience).toLowerCase();
       if (!/^[A-Za-z0-9_-]{32,128}$/.test(code)) {
         sendJson(res, 400, { code: 'INVALID_HANDOFF', message: 'Invalid login handoff code' }, { 'Cache-Control': 'no-store' });
         return;
@@ -218,6 +234,10 @@ function createCompanyHttpModule({
       purgeHandoffs();
       const entry = handoffs.get(code);
       handoffs.delete(code);
+      if (!entry || !handoffAudiences.has(audience) || entry.audience !== audience) {
+        sendJson(res, 410, { code: 'HANDOFF_AUDIENCE_MISMATCH', message: 'Login handoff is bound to another Harness audience' }, { 'Cache-Control': 'no-store' });
+        return;
+      }
       const payload = entry && entry.expiresAt > now() ? verifyToken(entry.token) : null;
       const user = payload ? asUser(payload, entry.token) : null;
       if (!payload || !tenantContextGuard(user)) {

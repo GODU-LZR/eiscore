@@ -2,7 +2,7 @@
 
 const { visibleAgents } = require('./harness-read-http');
 
-const createHarnessHttpHandlers = ({ authorize, gateway, enabled, readJsonBody, sendJson }) => {
+const createHarnessHttpHandlers = ({ authorize, gateway, enabled, readJsonBody, sendJson, pluginIds, capabilityIds }) => {
   const handleExecute = async (req, res) => {
     const user = authorize(req, res);
     if (!user) return;
@@ -23,7 +23,7 @@ const createHarnessHttpHandlers = ({ authorize, gateway, enabled, readJsonBody, 
   const handleMetrics = (req, res) => {
     const user = authorize(req, res);
     if (!user) return;
-    sendJson(res, 200, { enabled: !!enabled, registry: visibleAgents(gateway.registry.list(), user) });
+    sendJson(res, 200, { enabled: !!enabled, registry: visibleAgents(gateway.registry.list(), user, { pluginIds, capabilityIds }) });
   };
 
   return Object.freeze({ handleExecute, handleMetrics });

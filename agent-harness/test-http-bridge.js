@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const http = require('node:http');
 const fs = require('node:fs/promises');
 const os = require('node:os');
@@ -81,13 +82,14 @@ const bridgeSecret = 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6';
 const bridgeAuthServer = http.createServer(createBridgeHandler({
   bridgeSecret,
   profile: 'business',
+  persona: 'workbench',
   pluginList: () => [{ plugin_id: 'enterprise-bi' }, { plugin_id: 'flash-builder' }],
   invoke: async (request) => { bridgeAuthCalls += 1; assert.equal(request.headers['x-eis-harness-bridge-secret'], undefined); return { status: 200, payload: { ok: true } }; }
 }));
 await new Promise((resolve) => bridgeAuthServer.listen(0, resolve));
 const bridgeAuthPort = bridgeAuthServer.address().port;
-const bridgeAuthWorkspace = workspaceForOwner('u1', 't1', 'business');
-const bridgeAuthHeaders = { 'x-eis-harness-protocol': PROTOCOL, 'x-eis-ai-session': 'bridge-auth-session', 'x-eis-request-id': 'bridge-auth-request', 'x-eis-plugin-id': 'enterprise-bi', 'x-eis-owner-subject': 'u1', 'x-eis-owner-tenant': 't1', 'x-eis-workspace-id': bridgeAuthWorkspace, 'x-eis-harness-mode': 'standard', 'content-type': 'application/json' };
+const bridgeAuthWorkspace = workspaceForOwner('u1', 't1', 'business', 'workbench');
+const bridgeAuthHeaders = { 'x-eis-harness-protocol': PROTOCOL, 'x-eis-ai-session': 'bridge-auth-session', 'x-eis-request-id': 'bridge-auth-request', 'x-eis-plugin-id': 'enterprise-bi', 'x-eis-owner-subject': 'u1', 'x-eis-owner-tenant': 't1', 'x-eis-workspace-id': bridgeAuthWorkspace, 'x-eis-harness-persona': 'workbench', 'x-eis-harness-mode': 'standard', 'content-type': 'application/json' };
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: bridgeAuthHeaders }, { messages: [] });
 assert.equal(response.status, 401);
 assert.equal(response.body.code, 'HARNESS_BRIDGE_UNAUTHORIZED');
@@ -96,6 +98,12 @@ assert.equal(response.status, 401);
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
 assert.equal(response.status, 200);
 assert.equal(bridgeAuthCalls, 1);
+response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-ai-session': 'bridge-auth-cross-persona', 'x-eis-request-id': 'bridge-auth-cross-persona-request', 'x-eis-harness-persona': 'work-assistant', 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
+assert.equal(response.status, 403);
+assert.equal(response.body.code, 'HARNESS_PERSONA_FORBIDDEN');
+response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-ai-session': 'bridge-auth-session', 'x-eis-request-id': 'bridge-auth-cross-tenant-request', 'x-eis-owner-tenant': 't2', 'x-eis-workspace-id': workspaceForOwner('u1', 't2', 'business', 'workbench'), 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
+assert.equal(response.status, 403);
+assert.equal(response.body.code, 'HARNESS_SESSION_OWNERSHIP_DENIED', 'strict workbench sessions must not cross tenants');
 response = await requestAt(bridgeAuthPort, { method: 'GET', path: '/v1/plugins', headers: { 'x-eis-harness-protocol': PROTOCOL } });
 assert.deepEqual(response.body.plugins, [{ plugin_id: 'enterprise-bi' }], 'business Bridge must filter a misconfigured Flash plugin');
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-ai-session': 'bridge-auth-flash-plugin', 'x-eis-request-id': 'bridge-auth-flash-plugin-request', 'x-eis-plugin-id': 'flash-builder', 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
@@ -217,6 +225,52 @@ response = await requestAt(reloadedPort, { method: 'GET', path: '/metrics', head
 assert.equal(response.body.state_persistence, true);
 await new Promise((resolve) => reloadedServer.close(resolve));
 await fs.rm(stateDirectory, { recursive: true, force: true });
+
+const legacyWorkbenchDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'eiscore-harness-bridge-legacy-workbench-'));
+const legacyWorkbenchStateFile = path.join(legacyWorkbenchDirectory, 'bridge-state.json');
+const legacyWorkbenchWorkspace = workspaceForOwner('u1', 't1', 'business', 'workbench');
+const legacyHash = (value) => crypto.createHash('sha256').update(value).digest('hex');
+const legacyWorkbenchOwner = `${legacyHash('u1')}:${legacyHash('t1')}:${legacyHash(legacyWorkbenchWorkspace)}:standard`;
+const legacyWorkbenchRequestKey = `${legacyWorkbenchOwner}:enterprise-bi:legacy-workbench-request`;
+await fs.writeFile(legacyWorkbenchStateFile, JSON.stringify({
+  version: 1,
+  sessions: [['legacy-workbench-session', { owner: legacyWorkbenchOwner, plugin: 'enterprise-bi', lastUsedAt: Date.now() }]],
+  requests: [[legacyWorkbenchRequestKey, Date.now()]]
+}));
+const legacyWorkbenchServer = http.createServer(createBridgeHandler({
+  stateFile: legacyWorkbenchStateFile,
+  bridgeSecret,
+  profile: 'business',
+  persona: 'workbench',
+  pluginList: () => [{ plugin_id: 'enterprise-bi' }],
+  invoke: async () => ({ status: 200, payload: { ok: true } })
+}));
+await new Promise((resolve) => legacyWorkbenchServer.listen(0, resolve));
+const legacyWorkbenchHeaders = {
+  'x-eis-harness-protocol': PROTOCOL,
+  'x-eis-harness-bridge-secret': bridgeSecret,
+  'x-eis-owner-subject': 'u1',
+  'x-eis-owner-tenant': 't1',
+  'x-eis-workspace-id': legacyWorkbenchWorkspace,
+  'x-eis-harness-persona': 'workbench',
+  'x-eis-harness-mode': 'standard',
+  'x-eis-plugin-id': 'enterprise-bi',
+  'content-type': 'application/json'
+};
+response = await requestAt(legacyWorkbenchServer.address().port, {
+  method: 'POST',
+  path: '/v1/chat/completions',
+  headers: { ...legacyWorkbenchHeaders, 'x-eis-ai-session': 'legacy-workbench-session', 'x-eis-request-id': 'legacy-workbench-resume-request' }
+}, { messages: [] });
+assert.equal(response.status, 200, 'legacy protected workbench sessions must remain resumable');
+response = await requestAt(legacyWorkbenchServer.address().port, {
+  method: 'POST',
+  path: '/v1/chat/completions',
+  headers: { ...legacyWorkbenchHeaders, 'x-eis-ai-session': 'legacy-workbench-new-session', 'x-eis-request-id': 'legacy-workbench-request' }
+}, { messages: [] });
+assert.equal(response.status, 409, 'legacy protected workbench replay keys must remain idempotent');
+await new Promise((resolve) => legacyWorkbenchServer.close(resolve));
+await fs.rm(legacyWorkbenchDirectory, { recursive: true, force: true });
 
 const corruptDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'eiscore-harness-bridge-corrupt-'));
 const corruptStateFile = path.join(corruptDirectory, 'bridge-state.json');

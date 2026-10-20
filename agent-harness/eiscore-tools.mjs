@@ -1,5 +1,9 @@
 // Same-process DeepSeek Harness tools. The parent EISCore runtime owns the
 // authenticated session context; this plugin only forwards a capability call.
+import { createRequire } from 'node:module'
+
+const require = createRequire(import.meta.url)
+const { capabilitiesForPersona, requireHarnessPersona, validateHarnessPersonaProfile } = require('./profile-policy.js')
 
 const ALL_CAPABILITIES = Object.freeze([
   'eiscore_enterprise_snapshot',
@@ -25,9 +29,17 @@ const FLASH_CAPABILITIES = Object.freeze(['eiscore_flash_read', 'eiscore_flash_w
 const BUSINESS_CAPABILITIES = Object.freeze(ALL_CAPABILITIES.filter((capability) => !FLASH_CAPABILITIES.includes(capability)))
 const FLASH_PROFILE = String(process.env.EISCORE_HARNESS_CAPABILITY_PROFILE || '').trim() === 'flash'
 const BUSINESS_PROFILE = String(process.env.EISCORE_HARNESS_CAPABILITY_PROFILE || '').trim() === 'business'
-const CAPABILITIES = Object.freeze(
+const configuredPersona = String(process.env.HARNESS_PERSONA || process.env.EISCORE_HARNESS_PERSONA || process.env.RUNTIME_PERSONA || '').trim().toLowerCase()
+const configuredProfile = String(process.env.EISCORE_HARNESS_CAPABILITY_PROFILE || process.env.RUNTIME_PROFILE || '').trim().toLowerCase()
+const PERSONA_CAPABILITIES = configuredPersona
+  ? capabilitiesForPersona(validateHarnessPersonaProfile(
+    configuredProfile || (configuredPersona === 'flash' ? 'flash' : 'business'),
+    requireHarnessPersona(configuredPersona, 'HARNESS_PERSONA')
+  ))
+  : null
+const CAPABILITIES = Object.freeze(PERSONA_CAPABILITIES || (
   FLASH_PROFILE ? FLASH_CAPABILITIES : (BUSINESS_PROFILE ? BUSINESS_CAPABILITIES : ALL_CAPABILITIES)
-)
+))
 
 // Keep the SDK-side cooperative deadline aligned with the server-side
 // capability contract. The Gateway remains the authoritative hard timeout.

@@ -4,7 +4,14 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { workspaceForProfileOwner, pluginsForProfile, requireHarnessProfile } = require('./profile-policy');
+const {
+  workspaceForProfileOwner,
+  workspaceForPersonaOwner,
+  pluginsForProfile,
+  pluginsForPersona,
+  requireHarnessProfile,
+  validateHarnessPersonaProfile
+} = require('./profile-policy');
 
 const PROTOCOL = 'eiscore-agent-v1';
 const BRIDGE_ERROR_CODES = new Set([
@@ -22,11 +29,12 @@ const json = (res, status, payload) => {
 const validSession = (value) => /^[a-zA-Z0-9._:-]{1,256}$/.test(String(value || ''));
 const validReplayKey = (value) => /^[a-zA-Z0-9._:-]{1,1024}$/.test(String(value || ''));
 const hashIdentity = (value) => crypto.createHash('sha256').update(String(value || '')).digest('hex');
-const workspaceForOwner = (subject, tenant, profile = '') => {
+const workspaceForOwner = (subject, tenant, profile = '', persona = '') => {
+  if (persona) return workspaceForPersonaOwner(persona, subject, tenant);
   if (profile) return workspaceForProfileOwner(profile, subject, tenant);
   return `ws_${hashIdentity(JSON.stringify([String(tenant || ''), String(subject || '')]))}`;
 };
-const expectedOwner = (subject, tenant, workspace, mode) => `${hashIdentity(subject)}:${hashIdentity(tenant)}:${hashIdentity(workspace)}:${mode}`;
+const expectedOwner = (subject, tenant, workspace, mode, persona = '') => `${hashIdentity(subject)}:${hashIdentity(tenant)}:${hashIdentity(workspace)}:${mode}${persona && persona !== 'workbench' ? `:${hashIdentity(persona)}` : ''}`;
 const sameSecret = (received, expected) => {
   const left = Buffer.from(String(received || ''));
   const right = Buffer.from(String(expected || ''));
@@ -77,7 +85,7 @@ const normalizeState = (value) => {
   for (const entry of value.sessions) {
     if (!Array.isArray(entry) || entry.length !== 2 || !validSession(entry[0])) throw new Error('invalid bridge session state');
     const [key, session] = entry;
-    if (!session || typeof session !== 'object' || !/^[a-f0-9]{64}:[a-f0-9]{64}(?::[a-f0-9]{64}:standard)?$/.test(String(session.owner)) || !String(session.plugin || '').trim() || !Number.isFinite(Number(session.lastUsedAt))) throw new Error('invalid bridge session state');
+    if (!session || typeof session !== 'object' || !/^(?:[a-f0-9]{64}:[a-f0-9]{64}|[a-f0-9]{64}:[a-f0-9]{64}:[a-f0-9]{64}:standard(?::[a-f0-9]{64})?)$/.test(String(session.owner)) || !String(session.plugin || '').trim() || !Number.isFinite(Number(session.lastUsedAt))) throw new Error('invalid bridge session state');
     sessions.set(String(key), { owner: String(session.owner), plugin: String(session.plugin).trim(), lastUsedAt: Number(session.lastUsedAt) });
   }
   const requests = new Map();
@@ -88,15 +96,19 @@ const normalizeState = (value) => {
   return { sessions, requests };
 };
 
-const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async () => ({ ok: true }), maxConcurrent = 16, maxSessions = 1000, maxTrackedRequests = 10000, maxBodyBytes = 2 * 1024 * 1024, maxResponseBytes = 2 * 1024 * 1024, sessionTtlMs = 24 * 60 * 60 * 1000, stateFile = '', bridgeSecret = '', profile = '', clock = () => Date.now() } = {}) => {
+const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async () => ({ ok: true }), maxConcurrent = 16, maxSessions = 1000, maxTrackedRequests = 10000, maxBodyBytes = 2 * 1024 * 1024, maxResponseBytes = 2 * 1024 * 1024, sessionTtlMs = 24 * 60 * 60 * 1000, stateFile = '', bridgeSecret = '', profile = '', persona = '', clock = () => Date.now() } = {}) => {
   if (typeof invoke !== 'function') throw new TypeError('Bridge invoke is required');
   if (typeof readiness !== 'function') throw new TypeError('Bridge readiness is required');
   if (stateFile && !path.isAbsolute(stateFile)) throw new TypeError('Bridge stateFile must be absolute');
   const bridgeProfile = profile ? requireHarnessProfile(profile, 'HARNESS_PROFILE') : '';
+  const bridgePersona = persona
+    ? validateHarnessPersonaProfile(bridgeProfile || (String(persona).trim().toLowerCase() === 'flash' ? 'flash' : 'business'), persona)
+    : '';
+  if (bridgeSecret && !bridgePersona) throw new TypeError('HARNESS_PERSONA is required for a protected Harness Bridge');
   const effectivePluginList = () => {
     const configured = pluginList();
-    if (!bridgeProfile) return configured;
-    const allowed = new Set(pluginsForProfile(bridgeProfile));
+    const allowed = new Set(bridgePersona ? pluginsForPersona(bridgePersona) : bridgeProfile ? pluginsForProfile(bridgeProfile) : []);
+    if (!bridgePersona && !bridgeProfile) return configured;
     return (Array.isArray(configured) ? configured : []).filter((entry) => allowed.has(
       String(typeof entry === 'string' ? entry : entry?.plugin_id || '').trim()
     ));
@@ -186,16 +198,18 @@ const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async 
     if (!ownerSubject || !ownerTenant) return json(res, 401, { code: 'HARNESS_OWNER_REQUIRED' });
     const requestedWorkspace = String(req.headers['x-eis-workspace-id'] || '').trim();
     const requestedMode = String(req.headers['x-eis-harness-mode'] || '').trim().toLowerCase();
+    const requestedPersona = String(req.headers['x-eis-harness-persona'] || '').trim().toLowerCase();
     const strictIdentity = Boolean(bridgeSecret);
-    const workspace = requestedWorkspace || workspaceForOwner(ownerSubject, ownerTenant, bridgeProfile);
+    const workspace = requestedWorkspace || workspaceForOwner(ownerSubject, ownerTenant, bridgeProfile, bridgePersona);
     const mode = requestedMode || 'standard';
-    if (strictIdentity && requestedWorkspace !== workspaceForOwner(ownerSubject, ownerTenant, bridgeProfile)) return json(res, 403, { code: 'HARNESS_WORKSPACE_FORBIDDEN' });
+    if (strictIdentity && bridgePersona && requestedPersona !== bridgePersona) return json(res, 403, { code: 'HARNESS_PERSONA_FORBIDDEN' });
+    if (strictIdentity && requestedWorkspace !== workspaceForOwner(ownerSubject, ownerTenant, bridgeProfile, bridgePersona)) return json(res, 403, { code: 'HARNESS_WORKSPACE_FORBIDDEN' });
     if (mode !== 'standard') return json(res, 403, { code: 'HARNESS_MODE_FORBIDDEN' });
     const plugin = String(req.headers['x-eis-plugin-id'] || '').trim();
     if (!plugin) return json(res, 400, { code: 'HARNESS_PLUGIN_REQUIRED' });
     if (!normalizePluginIds(effectivePluginList()).has(plugin)) return json(res, 404, { code: 'HARNESS_PLUGIN_UNAVAILABLE', message: 'Harness plugin is unavailable' });
     const owner = strictIdentity
-      ? expectedOwner(ownerSubject, ownerTenant, workspace, 'standard')
+      ? expectedOwner(ownerSubject, ownerTenant, workspace, 'standard', bridgePersona)
       : `${hashIdentity(ownerSubject)}:${hashIdentity(ownerTenant)}`;
     const replayKey = `${owner}:${plugin}:${requestId}`;
     if (requests.has(requestId) || requests.has(`legacy:${requestId}`) || requests.has(replayKey)) return json(res, 409, { code: 'HARNESS_REQUEST_REPLAY' });

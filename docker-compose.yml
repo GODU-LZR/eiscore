@@ -54,7 +54,8 @@ services:
       - api
       - deepseek-web
       - deepseek-flash-web
-    networks: [data-plane, business-internal, flash-internal]
+      - deepseek-assistant-web
+    networks: [data-plane, business-internal, business-assistant-internal, flash-internal]
 
   deepseek-web:
     build:
@@ -73,6 +74,10 @@ services:
       DSH_HOME: /var/lib/dsh
       DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/business
       DSH_DEFAULT_WORKSPACE_TITLE: 业务助手工作区
+      EISCORE_HARNESS_PERSONA: workbench
+      EISCORE_AUTH_COOKIE_PREFIX: workbench-
+      EISCORE_DSH_AUTH_COOKIE_PREFIX: workbench-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-workbench-embed-api/eiscore/auth/handoff
       EISCORE_HARNESS_CAPABILITY_PROFILE: business
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
       EISCORE_GATEWAY_URL: http://agent-runtime:8078
@@ -86,7 +91,9 @@ services:
       - ./agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
     depends_on:
       - agent-runtime
-    networks: [business-internal]
+    networks:
+      business-internal:
+        aliases: [deepseek-workbench-web]
 
   deepseek-flash-web:
     build:
@@ -107,6 +114,8 @@ services:
       DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
       DSH_PATCH_PATH: /opt/eiscore-harness/dsh-flash-web.patch.yml
       EISCORE_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_DSH_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_HARNESS_PERSONA: flash
       EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
       EISCORE_HARNESS_CAPABILITY_PROFILE: flash
       DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
@@ -122,6 +131,46 @@ services:
     depends_on:
       - flash-agent-runtime
     networks: [flash-internal]
+
+  # Coding assistant and business workbench use separate Web profiles. The
+  # existing deepseek-web service remains the workbench/history owner.
+  deepseek-assistant-web:
+    build:
+      context: .
+      dockerfile: agent-harness/Dockerfile
+    container_name: eiscore-deepseek-assistant-web
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m"]
+    command: ["/opt/eiscore-harness/dsh-web-runner.mjs"]
+    environment:
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/assistant
+      DSH_DEFAULT_WORKSPACE_TITLE: 工作助手工作区
+      EISCORE_HARNESS_PERSONA: work-assistant
+      EISCORE_HARNESS_CAPABILITY_PROFILE: business
+      EISCORE_AUTH_COOKIE_PREFIX: assistant-
+      EISCORE_DSH_AUTH_COOKIE_PREFIX: assistant-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-assistant-embed-api/eiscore/auth/handoff
+      DSH_PATCH_PATH: /opt/eiscore-harness/dsh-assistant-web.patch.yml
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
+      EISCORE_GATEWAY_URL: http://assistant-agent-runtime:8078
+      EISCORE_AUTH_URL: "${EISCORE_AUTH_URL:-http://localhost}"
+      EISCORE_TOOL_PROXY_URL: http://assistant-agent-runtime:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: "${ASSISTANT_EISCORE_TOOL_PROXY_SECRET:?ASSISTANT_EISCORE_TOOL_PROXY_SECRET is required}"
+    volumes:
+      - deepseek_assistant_web_dsh_home:/var/lib/dsh
+      - ./agent-harness:/opt/eiscore-harness:ro
+      - ./agent-harness/dsh-assistant-web.patch.yml:/opt/eiscore-harness/dsh-assistant-web.patch.yml:ro
+      - ./agent-harness/dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
+      - ./agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+    depends_on:
+      - assistant-agent-runtime
+    networks: [business-assistant-internal]
 
   agent-runtime:
     build:
@@ -148,6 +197,7 @@ services:
       PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
       EISCORE_HARNESS_ENABLED: "${EISCORE_HARNESS_ENABLED:-true}"
       RUNTIME_PROFILE: business
+      HARNESS_PERSONA: workbench
       EISCORE_HARNESS_URL: "${EISCORE_HARNESS_URL:-http://harness-bridge:3080}"
       EISCORE_HARNESS_AUDIT_FILE: "${EISCORE_HARNESS_AUDIT_FILE:-/var/lib/eiscore/harness-audit.jsonl}"
       EISCORE_HARNESS_AUDIT_HASH_KEY: "${EISCORE_HARNESS_AUDIT_HASH_KEY:?EISCORE_HARNESS_AUDIT_HASH_KEY is required}"
@@ -171,6 +221,49 @@ services:
       - db
     networks: [data-plane, business-internal]
 
+  assistant-agent-runtime:
+    build:
+      context: .
+      dockerfile: realtime/Dockerfile
+    container_name: eiscore-assistant-agent-runtime
+    restart: always
+    command: sh -lc "node index.js"
+    env_file:
+      - ./env/.env
+    environment:
+      EISCORE_DB_HOST: db
+      EISCORE_DB_PORT: 5432
+      EISCORE_DB_NAME: eiscore
+      EISCORE_AGENT_DB_USER: eiscore_agent
+      AGENT_DB_PASSWORD: "${AGENT_DB_PASSWORD:?AGENT_DB_PASSWORD is required}"
+      NODE_ENV: development
+      COMPANY_SITE_PREVIEW_ALLOW_DRAFT: "true"
+      CHANNEL: eis_events
+      PGRST_JWT_SECRET: "${PGRST_JWT_SECRET:?PGRST_JWT_SECRET is required}"
+      EISCORE_HARNESS_ENABLED: "${EISCORE_HARNESS_ENABLED:-true}"
+      RUNTIME_PROFILE: business
+      HARNESS_PERSONA: work-assistant
+      EISCORE_HARNESS_URL: http://assistant-harness-bridge:3080
+      EISCORE_HARNESS_AUDIT_FILE: "${ASSISTANT_EISCORE_HARNESS_AUDIT_FILE:-/var/lib/eiscore/assistant-harness-audit.jsonl}"
+      EISCORE_HARNESS_AUDIT_HASH_KEY: "${ASSISTANT_EISCORE_HARNESS_AUDIT_HASH_KEY:?ASSISTANT_EISCORE_HARNESS_AUDIT_HASH_KEY is required}"
+      EISCORE_HARNESS_BRIDGE_SECRET: "${ASSISTANT_EISCORE_HARNESS_BRIDGE_SECRET:?ASSISTANT_EISCORE_HARNESS_BRIDGE_SECRET is required}"
+      EISCORE_TOOL_PROXY_SECRET: "${ASSISTANT_EISCORE_TOOL_PROXY_SECRET:?ASSISTANT_EISCORE_TOOL_PROXY_SECRET is required}"
+      FLASH_PROJECT_PATH: "${FLASH_PROJECT_PATH:-eiscore-apps/src/views/drafts}"
+      FLASH_WORKDIR: "${FLASH_WORKDIR:-/workspace/eiscore-apps/src/views/drafts}"
+    volumes:
+      - ./realtime:/app
+      - ./agent-harness:/agent-harness:ro
+      - ./eiscore-base:/workspace/eiscore-base
+      - ./eiscore-hr:/workspace/eiscore-hr
+      - ./eiscore-materials:/workspace/eiscore-materials
+      - ./eiscore-apps:/workspace/eiscore-apps
+      - ./eiscore-equipment:/workspace/eiscore-equipment
+      - assistant_document_intake_data:/app/data/document-intake
+      - assistant_harness_audit:/var/lib/eiscore
+    depends_on:
+      - db
+    networks: [data-plane, business-assistant-internal]
+
   flash-agent-runtime:
     build:
       context: .
@@ -182,6 +275,7 @@ services:
       - ./env/.env
     environment:
       RUNTIME_PROFILE: flash
+      HARNESS_PERSONA: flash
       EISCORE_DB_HOST: db
       EISCORE_DB_PORT: 5432
       EISCORE_DB_NAME: eiscore
@@ -231,6 +325,7 @@ services:
       DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
       DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
       HARNESS_PROFILE: business
+      HARNESS_PERSONA: workbench
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
       DSH_CWD: /opt/eiscore-harness
       DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
@@ -261,6 +356,59 @@ services:
       - agent-runtime
     networks: [business-internal]
 
+  assistant-harness-bridge:
+    build:
+      context: .
+      dockerfile: agent-harness/Dockerfile
+    container_name: eiscore-assistant-harness-bridge
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=256m"]
+    command: ["/opt/eiscore-harness/dsh-http-bridge.mjs"]
+    environment:
+      PORT: 3080
+      DSH_BIN: /opt/bridge/node_modules/.bin/dsh
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/assistant
+      DSH_DEFAULT_WORKSPACE_TITLE: 工作助手工作区
+      DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
+      DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
+      HARNESS_PROFILE: business
+      HARNESS_PERSONA: work-assistant
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
+      DSH_CWD: /opt/eiscore-harness
+      DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
+      EISCORE_TOOL_PROXY_URL: http://assistant-agent-runtime:8078/internal/harness/tool
+      EISCORE_HARNESS_BRIDGE_SECRET: "${ASSISTANT_EISCORE_HARNESS_BRIDGE_SECRET:?ASSISTANT_EISCORE_HARNESS_BRIDGE_SECRET is required}"
+      EISCORE_TOOL_PROXY_SECRET: "${ASSISTANT_EISCORE_TOOL_PROXY_SECRET:?ASSISTANT_EISCORE_TOOL_PROXY_SECRET is required}"
+      HARNESS_PLUGINS: worker-grid,enterprise-bi,document-intake,workflow,company-sales
+      BRIDGE_MAX_CONCURRENT_REQUESTS: "${BRIDGE_MAX_CONCURRENT_REQUESTS:-16}"
+      BRIDGE_MAX_SESSIONS: "${BRIDGE_MAX_SESSIONS:-1000}"
+      BRIDGE_MAX_TRACKED_REQUESTS: "${BRIDGE_MAX_TRACKED_REQUESTS:-10000}"
+      BRIDGE_MAX_BODY_BYTES: "${BRIDGE_MAX_BODY_BYTES:-2097152}"
+      BRIDGE_MAX_RESPONSE_BYTES: "${BRIDGE_MAX_RESPONSE_BYTES:-2097152}"
+      BRIDGE_SESSION_TTL_MS: "${BRIDGE_SESSION_TTL_MS:-86400000}"
+      BRIDGE_PROMPT_TIMEOUT_MS: "${BRIDGE_PROMPT_TIMEOUT_MS:-120000}"
+      BRIDGE_SESSION_DRAIN_TIMEOUT_MS: "${BRIDGE_SESSION_DRAIN_TIMEOUT_MS:-120000}"
+      BRIDGE_RPC_TIMEOUT_MS: "${BRIDGE_RPC_TIMEOUT_MS:-120000}"
+      BRIDGE_SHUTDOWN_TIMEOUT_MS: "${BRIDGE_SHUTDOWN_TIMEOUT_MS:-1000}"
+      BRIDGE_STATE_FILE: "${ASSISTANT_BRIDGE_STATE_FILE:-/var/lib/dsh/assistant-bridge-state.json}"
+    healthcheck:
+      test: [CMD-SHELL, "node -e \"fetch('http://127.0.0.1:3080/readyz').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - assistant_harness_bridge_dsh_home:/var/lib/dsh
+      - ./agent-harness:/opt/eiscore-harness:ro
+    depends_on:
+      - assistant-agent-runtime
+    networks: [business-assistant-internal]
+
   flash-harness-bridge:
     build:
       context: .
@@ -283,6 +431,7 @@ services:
       DSH_PROVIDER: "${DSH_PROVIDER:?DSH_PROVIDER is required}"
       DSH_MODEL: "${DSH_MODEL:?DSH_MODEL is required}"
       HARNESS_PROFILE: flash
+      HARNESS_PERSONA: flash
       HARNESS_PLUGINS: flash-builder
       DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
       DSH_CWD: /opt/eiscore-harness
@@ -312,6 +461,10 @@ volumes:
   flash_harness_bridge_dsh_home:
   deepseek_web_dsh_home:
   deepseek_flash_web_dsh_home:
+  deepseek_assistant_web_dsh_home:
+  assistant_document_intake_data:
+  assistant_harness_audit:
+  assistant_harness_bridge_dsh_home:
 
 networks:
   data-plane:
@@ -320,3 +473,5 @@ networks:
     name: eiscore-business-internal
   flash-internal:
     name: eiscore-flash-internal
+  business-assistant-internal:
+    name: eiscore-business-assistant-internal

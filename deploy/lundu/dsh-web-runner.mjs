@@ -68,7 +68,44 @@ export const resolveDefaultWorkspace = (
 export const resolveHarnessPatchPath = (patchValue = process.env.DSH_PATCH_PATH) =>
   String(patchValue || '').trim() || '/opt/eiscore-harness/dsh-web.patch.yml'
 
+const cookieHeaders = (value) => Array.isArray(value) ? value : value ? [value] : []
+
+export const mapDshAuthCookiesToUpstream = (cookieHeader = '', prefix = process.env.EISCORE_DSH_AUTH_COOKIE_PREFIX || '') => String(cookieHeader || '')
+  .split(';').map((part) => part.trim()).filter(Boolean).flatMap((part) => {
+    const separator = part.indexOf('=')
+    if (separator < 1) return []
+    const name = part.slice(0, separator)
+    if (!name.includes('dsh-auth-')) return [part]
+    if (prefix) return name.startsWith(`${prefix}dsh-auth-`) ? [`${name.slice(prefix.length)}${part.slice(separator)}`] : []
+    return name.startsWith('dsh-auth-') ? [part] : []
+  }).join('; ')
+
+export const mapDshAuthSetCookiesToBrowser = (setCookies, prefix = process.env.EISCORE_DSH_AUTH_COOKIE_PREFIX || '') => cookieHeaders(setCookies).map((value) =>
+  prefix ? String(value).replace(/^(dsh-auth-[^=]+=)/, `${prefix}$1`) : String(value)
+)
+
+const HARNESS_AUTH_RETURN_PATHS = new Set([
+  '/harness-assistant-embed-api/eiscore/auth/handoff',
+  '/harness-workbench-embed-api/eiscore/auth/handoff',
+  '/harness-flash-embed-api/eiscore/auth/handoff'
+])
+export const getHarnessAuthReturnPath = (
+  value = process.env.EISCORE_HARNESS_AUTH_RETURN_PATH,
+  persona = process.env.EISCORE_HARNESS_PERSONA || 'workbench'
+) => {
+  const expected = {
+    'work-assistant': '/harness-assistant-embed-api/eiscore/auth/handoff',
+    workbench: '/harness-workbench-embed-api/eiscore/auth/handoff',
+    flash: '/harness-flash-embed-api/eiscore/auth/handoff'
+  }[String(persona || '').trim().toLowerCase()]
+  if (!expected) throw new Error('Unsupported Harness persona')
+  const requested = String(value || '').trim()
+  if (requested && (!HARNESS_AUTH_RETURN_PATHS.has(requested) || requested !== expected)) throw new Error('Harness auth return path does not match persona')
+  return expected
+}
+
 const start = async () => {
+getHarnessAuthReturnPath()
 // The shared runner also serves Flash. Only the business profile loads this
 // presentation layer; no host/static-site release is involved.
 const businessUi = process.env.EISCORE_HARNESS_CAPABILITY_PROFILE === 'business'
@@ -110,7 +147,10 @@ const withToken = (path, headers = {}, force = false) => {
   // but still requires the web startup token for the upstream gateway.
   // The EISCore session cookie is unrelated to DSH's startup token. Only the
   // DSH auth cookie means the startup redirect has already been completed.
-  const hasDshAuth = String(headers.cookie || '').split(';').some((part) => part.trim().startsWith('dsh-auth-'))
+  const hasDshAuth = String(headers.cookie || '').split(';').some((part) => {
+    const name = part.trim().split('=', 1)[0]
+    return name.startsWith('dsh-auth-') || (dshAuthCookiePrefix && name.startsWith(`${dshAuthCookiePrefix}dsh-auth-`))
+  })
   if (!startupToken || hasDshAuth || /(?:^|[?&])token=/.test(path)) return path
   const joiner = path.includes('?') ? '&' : '?'
   return `${path}${joiner}token=${encodeURIComponent(startupToken)}`
@@ -118,6 +158,9 @@ const withToken = (path, headers = {}, force = false) => {
 
 const authCookiePrefix = /^[a-z0-9_-]*$/i.test(process.env.EISCORE_AUTH_COOKIE_PREFIX || '')
   ? process.env.EISCORE_AUTH_COOKIE_PREFIX || ''
+  : ''
+const dshAuthCookiePrefix = /^[a-z0-9_-]*$/i.test(process.env.EISCORE_DSH_AUTH_COOKIE_PREFIX || '')
+  ? process.env.EISCORE_DSH_AUTH_COOKIE_PREFIX || ''
   : ''
 const authCookieNames = ['eiscore-session', 'eiscore-auth-state']
 const cookieHeaders = (value) => Array.isArray(value) ? value : value ? [value] : []
@@ -139,6 +182,8 @@ const mapAuthSetCookiesToBrowser = (setCookies, prefix = authCookiePrefix) => {
     (_match, separator, name) => `${separator}${prefix}${name}=`
   ))
 }
+const upstreamCookie = (value) => mapDshAuthCookiesToUpstream(mapAuthCookiesToUpstream(value, authCookiePrefix), dshAuthCookiePrefix)
+const browserSetCookies = (value) => mapDshAuthSetCookiesToBrowser(mapAuthSetCookiesToBrowser(value, authCookiePrefix), dshAuthCookiePrefix)
 const requestOrigin = (headers = {}) => {
   const proto = String(headers['x-forwarded-proto'] || 'http').split(',')[0].trim()
   const host = String(headers['x-forwarded-host'] || headers.host || '').split(',')[0].trim()
@@ -151,9 +196,6 @@ const allowedAuthOrigin = (headers = {}) => {
   const current = requestOrigin(headers)
   return current && allowed.includes(current) ? current : configured
 }
-const getHarnessAuthReturnPath = () => process.env.EISCORE_HARNESS_AUTH_RETURN_PATH === '/harness-flash-embed-api/eiscore/auth/handoff'
-  ? process.env.EISCORE_HARNESS_AUTH_RETURN_PATH
-  : '/harness-embed-api/eiscore/auth/handoff'
 const rewriteAuthStartBody = (body, headers = {}) => {
   const origin = allowedAuthOrigin(headers)
   if (!origin) return body
@@ -278,7 +320,7 @@ const redirectToLogin = async (request, response, headers, bootstrapCookies = []
       location: target.href,
       'cache-control': 'no-store',
       ...(bootstrapCookies.length || start.headers['set-cookie'] ? {
-        'set-cookie': mapAuthSetCookiesToBrowser([...bootstrapCookies, ...cookieHeaders(start.headers['set-cookie'])], authCookiePrefix)
+      'set-cookie': browserSetCookies([...bootstrapCookies, ...cookieHeaders(start.headers['set-cookie'])])
       } : {})
     }).end()
   } catch {
@@ -299,7 +341,7 @@ const isAuthenticated = async (headers) => {
 const proxy = http.createServer((request, response) => {
   if (businessUi?.handleBusinessUi(request, response)) return
   const path = request.url || '/'
-  const headers = { ...request.headers, cookie: mapAuthCookiesToUpstream(request.headers.cookie, authCookiePrefix) }
+  const headers = { ...request.headers, cookie: upstreamCookie(request.headers.cookie) }
   bootstrapDshAuth(headers).then(({ headers: authenticatedHeaders, setCookies }) => {
     if (!isPublicPath(path, request.method)) {
       return isAuthenticated(authenticatedHeaders).then((authenticated) => {
@@ -328,10 +370,10 @@ const proxyAuthenticatedRequest = (request, response, headers = request.headers,
     headers: upstreamHeaders
   }, (upstreamResponse) => {
     const responseHeaders = { ...upstreamResponse.headers }
-    const setCookies = mapAuthSetCookiesToBrowser([
+    const setCookies = browserSetCookies([
       ...bootstrapCookies,
       ...cookieHeaders(upstreamResponse.headers['set-cookie'])
-    ], authCookiePrefix)
+    ])
     if (setCookies.length) responseHeaders['set-cookie'] = setCookies
     const injectHtml = rewriteHtml && /^text\/html(?:;|$)/i.test(String(responseHeaders['content-type'] || ''))
     if (rewriteAuthStart || injectHtml) {
@@ -374,7 +416,7 @@ proxy.on('upgrade', (request, socket, head) => {
     socket.on('error', close)
     upstream.on('error', close)
   }
-  const headers = { ...request.headers, cookie: mapAuthCookiesToUpstream(request.headers.cookie, authCookiePrefix) }
+  const headers = { ...request.headers, cookie: upstreamCookie(request.headers.cookie) }
   bootstrapDshAuth(headers).then(({ headers: authenticatedHeaders }) => {
     if (isPublicPath(request.url || '/', request.method)) return connect(authenticatedHeaders)
     return isAuthenticated(authenticatedHeaders).then((authenticated) => {

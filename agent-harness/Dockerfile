@@ -9,10 +9,14 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
 COPY agent-harness/dsh-http-bridge.mjs /opt/eiscore-harness/dsh-http-bridge.mjs
 COPY agent-harness/http-bridge.js /opt/eiscore-harness/http-bridge.js
 COPY agent-harness/eiscore-tools.mjs /opt/eiscore-harness/eiscore-tools.mjs
+COPY agent-harness/profile-policy.js /opt/eiscore-harness/profile-policy.js
+COPY agent-harness/persona-policy.mjs /opt/eiscore-harness/persona-policy.mjs
 COPY agent-harness/eiscore-restricted.cordis.yml /opt/eiscore-harness/eiscore-restricted.cordis.yml
 COPY agent-harness/dsh-web-runner.mjs /opt/eiscore-harness/dsh-web-runner.mjs
 COPY agent-harness/dsh-web.patch.yml /opt/eiscore-harness/dsh-web.patch.yml
+COPY agent-harness/dsh-assistant-web.patch.yml /opt/eiscore-harness/dsh-assistant-web.patch.yml
 COPY agent-harness/dsh-web-defaults.mjs /opt/eiscore-harness/dsh-web-defaults.mjs
+COPY agent-harness/visual-response-policy.mjs /opt/eiscore-harness/visual-response-policy.mjs
 COPY agent-harness/plugin-registry.js /opt/eiscore-harness/plugin-registry.js
 COPY agent-harness/plugin-contract.v1.json /opt/eiscore-harness/plugin-contract.v1.json
 COPY agent-harness/plugin-registry.js /opt/plugin-registry.js

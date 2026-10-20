@@ -116,14 +116,15 @@ async function expectPageVisible(page, point) {
 async function expectInteractiveSurface(page, point) {
   await expectPageVisible(page, point)
   const expectedTexts = point.expected || [point.name]
+  const harnessFrameSelector = 'iframe[src*="/harness-assistant-embed/"], iframe[src*="/harness-workbench-embed/"]'
   if (point.route?.startsWith('/ai/enterprise')) {
-    await page.locator('iframe[src*="/harness-embed/"]').first().waitFor({ state: 'attached', timeout: 30_000 })
+    await page.locator(harnessFrameSelector).first().waitFor({ state: 'attached', timeout: 30_000 })
   }
   // The iframe is attached before its navigation commits. Resolve the frame
   // through the locator so the assertion cannot race page.frames() discovery.
   const harnessFrame = point.route?.startsWith('/ai/enterprise')
-    ? await page.locator('iframe[src*="/harness-embed/"]').first().contentFrame()
-    : page.frames().find((frame) => frame !== page.mainFrame() && frame.url().includes('/harness-embed/'))
+    ? await page.locator(harnessFrameSelector).first().contentFrame()
+    : page.frames().find((frame) => frame !== page.mainFrame() && /\/harness-(?:assistant|workbench)-embed\//.test(frame.url()))
   if (harnessFrame) {
     // The native Harness onboarding asks first-time, keyless users whether
     // they want to configure the official provider.  Selecting "Configure

@@ -10,6 +10,8 @@ const previousEnv = new Map();
 const auditFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'eiscore-harness-runtime-')), 'audit.jsonl');
 for (const [key, value] of Object.entries({
   EISCORE_HARNESS_ENABLED: 'false',
+  RUNTIME_PROFILE: 'business',
+  HARNESS_PERSONA: 'workbench',
   EISCORE_HARNESS_URL: '',
   EISCORE_HARNESS_AUDIT_FILE: auditFile,
   EISCORE_HARNESS_AUDIT_HASH_KEY: 'HarnessAudit9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
@@ -30,8 +32,8 @@ try {
   const runtime = createHarnessRuntime({
     authorizeHttpRequest: () => user,
     authorizeTwinRequest: () => user,
-    readJsonBody: async () => ({}),
-    sendJson: () => {},
+    readJsonBody: async () => ({ session_id: 'foreign-session', app_id: 'app-1' }),
+    sendJson: (res, status, payload) => { res.status = status; res.payload = payload; },
     setCorsHeaders: () => {},
     streamTextAsSse: () => {},
     executeFlashToolCall: async (...args) => { flashCalls.push(args); return { status: 200, payload: { ok: true, data: {} } }; },
@@ -54,6 +56,14 @@ try {
     fetchSemanticContext: async () => ({ accessPolicy: { roleScoped: true }, fieldAclAvailable: true, permissions: user.permissions })
   });
   assert.equal(runtime.enabled, false);
+  const metricsResponse = {};
+  runtime.handlers.handleMetrics({}, metricsResponse);
+  assert.equal(metricsResponse.status, 200, 'runtime metrics must expose the profile registry through the real HTTP handler');
+  assert.ok(Array.isArray(metricsResponse.payload.registry));
+  const flashRegistration = {};
+  await runtime.handlers.handleSessionRegister({}, flashRegistration);
+  assert.equal(flashRegistration.status, 404, 'workbench must not register Flash sessions');
+  assert.equal(flashCalls.length, 0, 'non-Flash persona must be rejected before reading Flash draft authorization');
 
   const workflow = await runtime.toolGateway.execute({
     request_id: 'runtime-workflow-1',
@@ -102,6 +112,43 @@ try {
   }
   assert.equal(postgrestCalls.at(-1).request.query.site_key, 'eq.primary');
   assert.equal(postgrestCalls.at(-1).request.query.status, 'eq.published');
+
+  const configuredPersona = process.env.HARNESS_PERSONA;
+  const configuredEiscorePersona = process.env.EISCORE_HARNESS_PERSONA;
+  delete process.env.HARNESS_PERSONA;
+  delete process.env.EISCORE_HARNESS_PERSONA;
+  const unconfigured = createHarnessRuntime({
+    authorizeHttpRequest: () => user,
+    authorizeTwinRequest: () => user,
+    readJsonBody: async () => ({}),
+    sendJson: () => {},
+    setCorsHeaders: () => {},
+    streamTextAsSse: () => {},
+    executeFlashToolCall: async () => ({ status: 200, payload: { ok: true, data: {} } }),
+    executeWorkflowToolCall: async () => ({ data: { items: [] } }),
+    executeEnterpriseSnapshot: async () => ({}),
+    executeDigitalTwinContext: async () => ({}),
+    executeDigitalTwinChat: async () => ({}),
+    documentEntryWorker: { runPlan: async () => true },
+    documentFixedEntryWorker: { runPlan: async () => true },
+    createTwinPersistence: () => ({}),
+    callPostgrestWithUser: async () => ({ data: [] }),
+    fetchSemanticContext: async () => ({ accessPolicy: { roleScoped: true }, fieldAclAvailable: true })
+  });
+  const unconfiguredCall = await unconfigured.gateway.execute({
+    request_id: 'runtime-no-persona-1',
+    plugin_id: 'enterprise-bi',
+    agent_id: 'enterprise_analyst',
+    capability_id: 'eiscore_enterprise_query',
+    user,
+    payload: {}
+  });
+  assert.equal(unconfiguredCall.ok, false);
+  assert.equal(unconfiguredCall.code, 'HARNESS_TOOL_UNAVAILABLE', 'a business runtime without an explicit persona must fail closed');
+  if (configuredPersona === undefined) delete process.env.HARNESS_PERSONA;
+  else process.env.HARNESS_PERSONA = configuredPersona;
+  if (configuredEiscorePersona === undefined) delete process.env.EISCORE_HARNESS_PERSONA;
+  else process.env.EISCORE_HARNESS_PERSONA = configuredEiscorePersona;
   console.log('PASS: Harness runtime defaults wire engineering and site-sales contexts through user-bound PostgREST');
 } finally {
   for (const [key, value] of previousEnv) {

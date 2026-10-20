@@ -1,0 +1,16 @@
+- id: ui-eiscore-embed
+  disabled: true
+
+- insert:
+    - id: eiscore-auth
+      name: '/opt/eiscore-harness/client-plugins/eiscore-auth/lib/index.js'
+      inject: [connection]
+    - id: eiscore-tools
+      name: '/opt/eiscore-harness/eiscore-tools.mjs'
+      inject: [tools]
+    - id: eiscore-persona-policy
+      name: '/opt/eiscore-harness/persona-policy.mjs'
+      inject: [systemPrompt]
+    - id: eiscore-dsh-web-defaults
+      name: '/opt/eiscore-harness/dsh-web-defaults.mjs'
+      inject: [workspaceRegistry]
