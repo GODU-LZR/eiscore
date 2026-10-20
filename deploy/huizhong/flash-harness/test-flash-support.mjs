@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import { Readable } from 'node:stream'
+import { readFileSync } from 'node:fs'
 import { bindFlashContext } from './flash-context-plugin.mjs'
 import { mapAuthCookiesToUpstream, mapAuthSetCookiesToBrowser, shouldBootstrapDshAuth } from './dsh-web-runner.mjs'
 import { createBusinessSessionProxy } from './web-session-proxy.mjs'
+
+const flashPatch = readFileSync(new URL('./dsh-flash-web.patch.yml', import.meta.url), 'utf8')
+for (const id of ['commands', 'ui-commands', 'command-compact', 'command-feedback', 'command-goal']) {
+  assert.match(flashPatch, new RegExp(`(?:^|\\n)- id: ${id}\\r?\\n  disabled: true(?:\\r?\\n|$)`), `Flash must keep ${id} disabled`)
+}
 
 const cookies = mapAuthCookiesToUpstream('eiscore-session=business; dsh-auth-localhost=business-dsh; flash-eiscore-session=flash-user; flash-dsh-auth-localhost=flash-dsh', 'flash-')
 assert.equal(cookies, 'eiscore-session=flash-user; dsh-auth-localhost=flash-dsh')
