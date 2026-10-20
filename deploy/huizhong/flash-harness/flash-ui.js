@@ -1,4 +1,12 @@
 (() => {
+  const NativeEventSource = window.EventSource
+  window.EventSource = class extends NativeEventSource {
+    constructor(input, options) {
+      const target = new URL(input, location.href)
+      if (target.origin === location.origin && target.pathname === '/plugins/events') target.pathname = '/harness-flash-embed-plugins/events'
+      super(target.href, options)
+    }
+  }
   const params = new URLSearchParams(location.search)
   let appId = params.get('eiscoreAppId') || ''
   let sessionId = params.get('eiscoreSessionId') || ''
