@@ -16,7 +16,15 @@ const { createHarnessDocumentCommitExecutor } = require('./harness-document-comm
 const { createHarnessContextCapabilities } = require('./harness-context-capabilities');
 const { sanitizeMultimodalPayload } = require('./harness-multimodal');
 const { createHarnessTwinChatExecutor } = require('./harness-twin-chat-capability');
-const { requireHarnessProfile, workspaceForProfileOwner } = require('../agent-harness/profile-policy');
+const {
+  requireHarnessProfile,
+  requireHarnessPersona,
+  workspaceForProfileOwner,
+  workspaceForPersonaOwner,
+  pluginsForPersona,
+  capabilitiesForPersona,
+  validateHarnessPersonaProfile
+} = require('../agent-harness/profile-policy');
 
 const WORKFLOW_CONTEXT_TOOL_ALLOWLIST = Object.freeze([
   'flash.workflow.definition.list',
@@ -143,19 +151,26 @@ const resolveHarnessOwnerTenant = (user = {}) => String(user.tenant_id || user.t
 const resolveHarnessOwnerSubject = (user = {}) => String(user.id || user.sub || user.username || '').trim();
 const resolveHarnessRuntimeProfile = (value = process.env.RUNTIME_PROFILE || 'business') =>
   requireHarnessProfile(value, 'RUNTIME_PROFILE');
-const resolveHarnessWorkspaceId = (user = {}, profile = resolveHarnessRuntimeProfile()) => {
+const resolveHarnessPersona = (value = process.env.HARNESS_PERSONA || process.env.EISCORE_HARNESS_PERSONA || process.env.RUNTIME_PERSONA || '') => {
+  const persona = String(value || '').trim().toLowerCase();
+  return persona ? requireHarnessPersona(persona, 'HARNESS_PERSONA') : '';
+};
+const resolveHarnessWorkspaceId = (user = {}, profile = resolveHarnessRuntimeProfile(), persona = resolveHarnessPersona()) => {
   const subject = resolveHarnessOwnerSubject(user);
   const tenant = resolveHarnessOwnerTenant(user);
   if (!subject || !tenant) return '';
-  return workspaceForProfileOwner(profile, subject, tenant);
+  return persona ? workspaceForPersonaOwner(persona, subject, tenant) : workspaceForProfileOwner(profile, subject, tenant);
 };
 const resolveHarnessMode = () => 'standard';
 const resolveHarnessDispatchScope = (request = {}) => {
   const subject = resolveHarnessOwnerSubject(request.user);
   const tenant = resolveHarnessOwnerTenant(request.user);
   const plugin = String(request.plugin?.plugin_id || request.plugin_id || '').trim();
-  const profile = resolveHarnessRuntimeProfile(request.runtime_profile || request.runtimeProfile);
-  return JSON.stringify([profile, subject, tenant, resolveHarnessWorkspaceId(request.user, profile), plugin, resolveHarnessMode(request)]);
+  // Persona is a trusted service boundary. Never let a request body/header
+  // select the audit or workspace scope; the runtime environment owns it.
+  const profile = resolveHarnessRuntimeProfile();
+  const persona = resolveHarnessPersona();
+  return JSON.stringify([profile, persona, subject, tenant, resolveHarnessWorkspaceId(request.user, profile, persona), plugin, resolveHarnessMode(request)]);
 };
 const buildHarnessBridgeHeaders = (request = {}) => ({
   'content-type': 'application/json',
@@ -165,7 +180,8 @@ const buildHarnessBridgeHeaders = (request = {}) => ({
   'x-eis-plugin-id': String(request.plugin?.plugin_id || ''),
   'x-eis-owner-subject': resolveHarnessOwnerSubject(request.user),
   'x-eis-owner-tenant': resolveHarnessOwnerTenant(request.user),
-  'x-eis-workspace-id': resolveHarnessWorkspaceId(request.user),
+  'x-eis-workspace-id': resolveHarnessWorkspaceId(request.user, resolveHarnessRuntimeProfile(), resolveHarnessPersona()),
+  'x-eis-harness-persona': resolveHarnessPersona(),
   'x-eis-harness-mode': resolveHarnessMode(request),
   'x-eis-harness-bridge-secret': String(process.env.EISCORE_HARNESS_BRIDGE_SECRET || '')
 });
@@ -412,16 +428,16 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
     envText(process.env.RUNTIME_PROFILE, 'business').toLowerCase() || 'business'
   );
   const flashOnly = runtimeProfile === 'flash';
-  const allowedCapabilities = flashOnly
-    ? new Set(['eiscore_flash_read', 'eiscore_flash_write'])
-    : new Set([
-      'eiscore_enterprise_snapshot', 'eiscore_enterprise_query', 'eiscore_multimodal_translate',
-      'eiscore_multimodal_ocr', 'eiscore_multimodal_map_locate', 'eiscore_grid_query',
-      'eiscore_twin_context', 'eiscore_twin_chat', 'eiscore_workflow_context', 'eiscore_workflow_write',
-      'eiscore_sales_context', 'eiscore_sales_write', 'eiscore_document_plan', 'eiscore_document_commit',
-      'eiscore_engineering_context', 'eiscore_site_sales'
-    ]);
   const enabled = isHarnessConfigurationReady(process.env);
+  const configuredPersona = resolveHarnessPersona();
+  if (enabled && !configuredPersona) throw new TypeError('HARNESS_PERSONA is required when Harness is enabled');
+  const runtimePersona = configuredPersona
+    ? validateHarnessPersonaProfile(runtimeProfile, configuredPersona)
+    : '';
+  const allowedPluginIds = runtimePersona ? pluginsForPersona(runtimePersona) : [];
+  const allowedCapabilities = runtimePersona
+    ? new Set(capabilitiesForPersona(runtimePersona))
+    : new Set();
   // A missing bridge URL must fail closed; never silently target a process-local
   // loopback service that could be an unrelated or retired runtime.
   const bridgeUrl = envText(process.env.EISCORE_HARNESS_URL, '').replace(/\/+$/, '');
@@ -491,10 +507,15 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
     dispatch: toolGateway.execute
   });
   const profileGateway = Object.freeze({
+    registry,
     execute: async (request = {}) => {
       const capability = String(request.capability_id || request.capabilityId || '').trim();
+      const pluginId = String(request.plugin?.plugin_id || request.plugin_id || '').trim();
       if (allowedCapabilities && !allowedCapabilities.has(capability)) {
         return { ok: false, status: 404, code: 'HARNESS_TOOL_UNAVAILABLE', message: 'Harness tool capability is not available' };
+      }
+      if (runtimePersona && pluginId && !pluginsForPersona(runtimePersona).includes(pluginId)) {
+        return { ok: false, status: 404, code: 'HARNESS_PLUGIN_UNAVAILABLE', message: 'Harness plugin is unavailable' };
       }
       return toolExecutionGateway.execute(request);
     }
@@ -511,6 +532,10 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
   const handleSessionRegister = async (req, res) => {
     const user = authorizeHttpRequest(req, res);
     if (!user) return;
+    if (runtimePersona !== 'flash' || !allowedCapabilities.has('eiscore_flash_read')) {
+      sendJson(res, 404, { code: 'HARNESS_PERSONA_FORBIDDEN', message: 'Flash session registration is unavailable' });
+      return;
+    }
     if (!enabled) { sendJson(res, 503, { code: 'HARNESS_DISABLED', message: 'DeepSeek Harness is disabled' }); return; }
     let body;
     try { body = await readJsonBody(req, 64 * 1024); } catch { sendJson(res, 400, { code: 'HARNESS_BAD_REQUEST', message: 'Invalid request body' }); return; }
@@ -572,8 +597,8 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
     if (existing && existing.scope === resolveHarnessDispatchScope({ plugin: { plugin_id: 'flash-builder' }, user })) registeredDispatches.delete(sessionId);
     sendJson(res, 200, { ok: true });
   };
-  const http = createHarnessHttpHandlers({ authorize: authorizeHttpRequest, gateway: profileGateway, enabled, readJsonBody, sendJson });
-  const read = createHarnessReadHttpHandlers({ authorize: authorizeHttpRequest, registry, enabled, fetchSnapshot: async (user, { signal } = {}) => {
+  const http = createHarnessHttpHandlers({ authorize: authorizeHttpRequest, gateway: profileGateway, enabled, readJsonBody, sendJson, pluginIds: allowedPluginIds, capabilityIds: [...allowedCapabilities] });
+  const read = createHarnessReadHttpHandlers({ authorize: authorizeHttpRequest, registry, enabled, pluginIds: allowedPluginIds, capabilityIds: [...allowedCapabilities], fetchSnapshot: async (user, { signal } = {}) => {
     const result = await profileGateway.execute({ plugin_id: 'enterprise-bi', agent_id: 'enterprise_analyst', capability_id: 'eiscore_enterprise_snapshot', user, payload: {}, signal });
     if (!result.ok) {
       const error = new Error(result.message || 'Harness snapshot failed');
@@ -586,7 +611,7 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
   const chat = createHarnessChatHttpHandler({ authorize: authorizeHttpRequest, readJsonBody, sendJson, gateway: profileGateway, setCorsHeaders, streamTextAsSse, enabled });
   const capability = createHarnessCapabilityHttpHandlers({ authorize: authorizeHttpRequest, gateway: profileGateway, readJsonBody, sendJson, enabled });
   const twin = createHarnessTwinChatHttpHandler({ authorize: authorizeTwinRequest, readJsonBody, sendJson, gateway: profileGateway, createPersistence: createTwinPersistence, managePersistence: true, setCorsHeaders, streamTextAsSse, enabled });
-  return Object.freeze({ enabled, gateway: profileGateway, toolGateway: profileGateway, runtimeProfile, handlers: Object.freeze({ ...http, ...read, ...capability, handleChat: chat, handleTwinChat: twin, handleToolProxy, handleSessionRegister, handleSessionUnregister }) });
+  return Object.freeze({ enabled, gateway: profileGateway, toolGateway: profileGateway, runtimeProfile, runtimePersona, handlers: Object.freeze({ ...http, ...read, ...capability, handleChat: chat, handleTwinChat: twin, handleToolProxy, handleSessionRegister, handleSessionUnregister }) });
 };
 
 module.exports = {
@@ -606,6 +631,7 @@ module.exports = {
   resolveHarnessOwnerSubject,
   resolveHarnessOwnerTenant,
   resolveHarnessRuntimeProfile,
+  resolveHarnessPersona,
   resolveHarnessWorkspaceId,
   resolveHarnessMode,
   resolveHarnessDispatchScope

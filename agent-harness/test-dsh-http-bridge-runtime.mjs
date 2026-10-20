@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const artifactRoot = mkdtempSync(join(tmpdir(), 'eiscore-harness-bridge-artifacts-'))
+const previousPersona = process.env.HARNESS_PERSONA
+const previousProfile = process.env.HARNESS_PROFILE
 try {
+  process.env.HARNESS_PERSONA = 'workbench'
+  process.env.HARNESS_PROFILE = 'business'
   const validSecrets = validateBridgeSecrets({
     bridgeSecret: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
     toolProxySecret: 'HarnessProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6'
@@ -16,6 +20,7 @@ try {
   assert.throws(() => validateBridgeSecrets({ bridgeSecret: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6', toolProxySecret: 'short' }), /EISCORE_TOOL_PROXY_SECRET must be at least 32 characters/)
   assert.throws(() => validateBridgeSecrets({ bridgeSecret: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6', toolProxySecret: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6' }), /secrets must be independent/)
   writeFileSync(join(artifactRoot, 'eiscore-tools.mjs'), 'export function apply() {}\n')
+  writeFileSync(join(artifactRoot, 'persona-policy.mjs'), 'export function apply() {}\n')
   writeFileSync(join(artifactRoot, 'eiscore-restricted.cordis.yml'), '- insert: []\n')
   const patchFile = join(artifactRoot, 'patch.yml')
   const externalPatchFile = join(tmpdir(), 'eiscore-harness-external-patch.yml')
@@ -48,6 +53,10 @@ try {
   assert.throws(() => new DshSdkProcess({ timeoutMs: 0 }), /BRIDGE_PROMPT_TIMEOUT_MS must be a positive integer/)
   assert.throws(() => new DshSdkProcess({ shutdownTimeoutMs: -1 }), /BRIDGE_SHUTDOWN_TIMEOUT_MS must be a positive integer/)
 } finally {
+  if (previousPersona === undefined) delete process.env.HARNESS_PERSONA
+  else process.env.HARNESS_PERSONA = previousPersona
+  if (previousProfile === undefined) delete process.env.HARNESS_PROFILE
+  else process.env.HARNESS_PROFILE = previousProfile
   rmSync(artifactRoot, { recursive: true, force: true })
   rmSync(join(tmpdir(), 'eiscore-harness-external-patch.yml'), { force: true })
   rmSync(join(tmpdir(), 'eiscore-harness-root-file'), { force: true })
@@ -70,16 +79,27 @@ assert.match(workerBlocks[2].text, /"totalCount":6/)
 assert.match(workerBlocks[2].text, /"scope":"loaded_rows"/)
 assert.doesNotMatch(workerBlocks[2].text, /must-not-leak|"dataSample"|"sample"/)
 assert.equal(assistantText({ event: { type: 'assistant/message', data: { message: { content: [{ type: 'text', text: 'answer' }] } } } }), 'answer')
-assert.deepEqual(pluginList('enterprise-bi,unknown,digital-twin'), [
-  { plugin_id: 'enterprise-bi' },
-  { plugin_id: 'digital-twin' }
-], 'Bridge must filter plugin ids against the registered contract')
-assert.deepEqual(pluginList('digital-twin,digital-twin,enterprise-bi,digital-twin'), [
-  { plugin_id: 'digital-twin' },
-  { plugin_id: 'enterprise-bi' }
-], 'Bridge must expose each registered plugin at most once')
-assert.deepEqual(pluginList('unknown'), [], 'an unknown-only plugin configuration must fail closed')
-assert.deepEqual(pluginList(''), [], 'an explicitly empty plugin configuration must fail closed')
+const pluginListPreviousPersona = process.env.HARNESS_PERSONA
+const pluginListPreviousProfile = process.env.HARNESS_PROFILE
+try {
+  process.env.HARNESS_PERSONA = 'workbench'
+  process.env.HARNESS_PROFILE = 'business'
+  assert.deepEqual(pluginList('enterprise-bi,unknown,digital-twin'), [
+    { plugin_id: 'enterprise-bi' },
+    { plugin_id: 'digital-twin' }
+  ], 'Bridge must filter plugin ids against the registered contract')
+  assert.deepEqual(pluginList('digital-twin,digital-twin,enterprise-bi,digital-twin'), [
+    { plugin_id: 'enterprise-bi' },
+    { plugin_id: 'digital-twin' }
+  ], 'Bridge must expose each registered plugin at most once')
+  assert.deepEqual(pluginList('unknown'), [], 'an unknown-only plugin configuration must fail closed')
+  assert.deepEqual(pluginList(''), [], 'an explicitly empty plugin configuration must fail closed')
+} finally {
+  if (pluginListPreviousPersona === undefined) delete process.env.HARNESS_PERSONA
+  else process.env.HARNESS_PERSONA = pluginListPreviousPersona
+  if (pluginListPreviousProfile === undefined) delete process.env.HARNESS_PROFILE
+  else process.env.HARNESS_PROFILE = pluginListPreviousProfile
+}
 
 const childScript = [
   "process.stdin.setEncoding('utf8');",

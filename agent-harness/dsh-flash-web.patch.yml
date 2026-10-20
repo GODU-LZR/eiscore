@@ -8,6 +8,9 @@
     - id: eiscore-tools
       name: '/opt/eiscore-harness/eiscore-tools.mjs'
       inject: [tools]
+    - id: eiscore-persona-policy
+      name: '/opt/eiscore-harness/persona-policy.mjs'
+      inject: [systemPrompt]
     - id: eiscore-flash-context
       name: '/opt/eiscore-harness/client-plugins/flash-context/lib/index.js'
       inject: [connection, webServer]

@@ -13,7 +13,7 @@ const rootDockerignore = readFileSync(resolve(repoRoot, '.dockerignore'), 'utf8'
 
 assert.match(rootDockerignore, /^\*\*\/node_modules$/m, 'root .dockerignore must exclude dependency trees')
 assert.match(rootDockerignore, /^\*\*\/dist$/m, 'root .dockerignore must exclude frontend build output')
-for (const requiredInput of ['!realtime/', '!realtime/*.js', '!realtime/package.json', '!realtime/package-lock.json', '!agent-harness/', '!agent-harness/plugin-registry.js', '!agent-harness/audit-ledger.js', '!agent-harness/plugin-contract.v1.json', '!agent-harness/dsh-http-bridge.mjs', '!agent-harness/http-bridge.js']) {
+for (const requiredInput of ['!realtime/', '!realtime/*.js', '!realtime/package.json', '!realtime/package-lock.json', '!agent-harness/', '!agent-harness/plugin-registry.js', '!agent-harness/audit-ledger.js', '!agent-harness/plugin-contract.v1.json', '!agent-harness/profile-policy.js', '!agent-harness/dsh-http-bridge.mjs', '!agent-harness/http-bridge.js']) {
   assert.match(rootDockerignore, new RegExp(`^${requiredInput.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'), `root .dockerignore must include ${requiredInput}`)
 }
 
@@ -36,7 +36,7 @@ for (const dockerfileName of ['Dockerfile', 'Dockerfile.prod']) {
   assert.match(source, new RegExp(`^FROM ${expectedBase.replaceAll('.', '\\.')}$`, 'm'))
   assert.match(source, /npm ci\b/)
   assert.match(source, /^COPY realtime\/\*\.js \.\/$/m)
-  for (const dependency of ['plugin-registry.js', 'audit-ledger.js', 'plugin-contract.v1.json']) {
+  for (const dependency of ['plugin-registry.js', 'audit-ledger.js', 'plugin-contract.v1.json', 'profile-policy.js']) {
     assert.match(source, new RegExp('^COPY agent-harness/' + dependency.replace('.', '\\.'), 'm'), dockerfileName + ' must package ' + dependency)
   }
   assert.match(source, /^HEALTHCHECK\b/m)
@@ -59,6 +59,7 @@ for (const dockerignore of ['Dockerfile.dockerignore', 'Dockerfile.prod.dockerig
   assert.match(ignoreSource, /^realtime\/\*$/m, dockerignore + ' must exclude non-runtime realtime descendants')
   assert.match(ignoreSource, /^agent-harness\/\*$/m, dockerignore + ' must exclude non-runtime Harness descendants')
   assert.match(ignoreSource, /!agent-harness\/plugin-registry\.js/)
+  assert.match(ignoreSource, /!agent-harness\/profile-policy\.js/)
   assert.match(ignoreSource, /!realtime\/\*\.js/)
 }
 const harnessDockerfile = readFileSync(resolve(repoRoot, 'agent-harness/Dockerfile'), 'utf8')

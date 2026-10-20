@@ -153,6 +153,75 @@ export default defineConfig(({ command }) => ({
         changeOrigin: false,
         ws: true
       },
+      '/harness-assistant-embed-api': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-assistant-embed-assets': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false
+      },
+      '/harness-assistant-embed-plugins': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-assistant-embed-plugins-events': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false
+      },
+      '/harness-assistant-embed': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-workbench-embed-api': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-workbench-embed-assets': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false
+      },
+      '/harness-workbench-embed-plugins': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-workbench-embed-plugins-events': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false
+      },
+      '/harness-workbench-embed': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-flash-embed-api': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-flash-embed-assets': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false
+      },
+      '/harness-flash-embed-plugins': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
+      '/harness-flash-embed-plugins-events': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false
+      },
+      '/harness-flash-embed': {
+        target: 'http://127.0.0.1:18080',
+        changeOrigin: false,
+        ws: true
+      },
       '/plugins': {
         target: 'http://127.0.0.1:18080',
         changeOrigin: false,

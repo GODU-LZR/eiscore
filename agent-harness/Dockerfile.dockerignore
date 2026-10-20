@@ -6,10 +6,14 @@
 !agent-harness/dsh-http-bridge.mjs
 !agent-harness/http-bridge.js
 !agent-harness/eiscore-tools.mjs
+!agent-harness/profile-policy.js
+!agent-harness/persona-policy.mjs
 !agent-harness/eiscore-restricted.cordis.yml
 !agent-harness/dsh-web-runner.mjs
 !agent-harness/dsh-web.patch.yml
+!agent-harness/dsh-assistant-web.patch.yml
 !agent-harness/dsh-web-defaults.mjs
 !agent-harness/dsh-flash-web.patch.yml
+!agent-harness/visual-response-policy.mjs
 !agent-harness/plugin-registry.js
 !agent-harness/plugin-contract.v1.json

@@ -12,6 +12,10 @@ services:
       DSH_HOME: /var/lib/dsh
       DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/business
       DSH_DEFAULT_WORKSPACE_TITLE: 业务助手工作区
+      EISCORE_HARNESS_PERSONA: workbench
+      EISCORE_AUTH_COOKIE_PREFIX: workbench-
+      EISCORE_DSH_AUTH_COOKIE_PREFIX: workbench-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-workbench-embed-api/eiscore/auth/handoff
       EISCORE_HARNESS_CAPABILITY_PROFILE: business
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:?DEEPSEEK_API_KEY is required}"
       EISCORE_GATEWAY_URL: http://agent:8078
@@ -24,6 +28,8 @@ services:
       - ./dsh-web.patch.yml:/opt/eiscore-harness/dsh-web.patch.yml:ro
       - ./dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
       - ./source/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+      - ./source/agent-harness/persona-policy.mjs:/opt/eiscore-harness/persona-policy.mjs:ro
+      - ./source/agent-harness/visual-response-policy.mjs:/opt/eiscore-harness/visual-response-policy.mjs:ro
     networks: [business-internal]
     depends_on:
       agent:
@@ -44,6 +50,8 @@ services:
       DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
       DSH_PATCH_PATH: /opt/eiscore-harness/dsh-flash-web.patch.yml
       EISCORE_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_DSH_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_HARNESS_PERSONA: flash
       EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
       EISCORE_HARNESS_CAPABILITY_PROFILE: flash
       DEEPSEEK_API_KEY: "${FLASH_DEEPSEEK_API_KEY:?FLASH_DEEPSEEK_API_KEY is required}"
@@ -57,6 +65,7 @@ services:
       - ./dsh-web-runner.mjs:/opt/eiscore-harness/dsh-web-runner.mjs:ro
       - ./dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
       - ./source/agent-harness/dsh-web-defaults.mjs:/opt/eiscore-harness/dsh-web-defaults.mjs:ro
+      - ./source/agent-harness/persona-policy.mjs:/opt/eiscore-harness/persona-policy.mjs:ro
     networks: [flash-internal]
     depends_on:
       flash-agent-runtime:

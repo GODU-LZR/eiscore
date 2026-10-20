@@ -44,6 +44,22 @@ assert.equal(workflowReadView[0].capability_policies.eiscore_workflow_context.co
 assert.equal(workflowReadView[0].capability_policies.eiscore_workflow_context.idempotency_required, false);
 assert.equal(Object.hasOwn(workflowReadView[0].capability_policies, 'eiscore_workflow_write'), false);
 
+const assistantReadView = visibleAgents([{
+  plugin_id: 'enterprise-bi',
+  agent_id: 'enterprise_analyst',
+  capabilities: ['eiscore_enterprise_snapshot', 'eiscore_enterprise_query', 'eiscore_multimodal_ocr'],
+  capability_policies: {},
+  risk: 'low'
+}], { permissions: ['*'] }, {
+  pluginIds: ['enterprise-bi'],
+  capabilityIds: ['eiscore_multimodal_ocr']
+});
+assert.deepEqual(assistantReadView.map(({ capabilities }) => capabilities), [['eiscore_multimodal_ocr']], 'work assistant must not advertise BI snapshot/query capabilities');
+assert.deepEqual(visibleAgents([{ plugin_id: 'flash-builder', agent_id: 'flash_builder', capabilities: ['eiscore_flash_read'] }], { permissions: ['*'] }, {
+  pluginIds: [],
+  capabilityIds: []
+}), [], 'unconfigured persona must expose no plugins');
+
 const run = async (enabled) => {
   let response;
   const handlers = createHarnessReadHttpHandlers({

@@ -9,9 +9,14 @@ const require = createRequire(import.meta.url)
 const {
   PROFILE_IDS,
   PROFILE_PLUGINS,
+  PERSONA_IDS,
+  capabilitiesForPersona,
   isHarnessProfile,
+  pluginsForPersona,
   pluginsForProfile,
   requireHarnessProfile,
+  validateHarnessPersonaProfile,
+  workspaceForPersonaOwner,
   workspaceForProfileOwner
 } = require('../../agent-harness/profile-policy.js')
 const { workspaceForOwner } = require('../../agent-harness/http-bridge.js')
@@ -30,28 +35,59 @@ assert.deepEqual([...pluginsForProfile('business')], PROFILE_PLUGINS.business)
 assert.deepEqual([...pluginsForProfile('flash')], ['flash-builder'])
 assert.equal(PROFILE_PLUGINS.business.includes('flash-builder'), false)
 assert.equal(PROFILE_PLUGINS.flash.some((plugin) => plugin !== 'flash-builder'), false)
+assert.deepEqual(PERSONA_IDS, ['work-assistant', 'workbench', 'flash'])
+assert.deepEqual([...pluginsForPersona('work-assistant')], ['worker-grid', 'enterprise-bi', 'document-intake', 'workflow', 'company-sales'])
+assert.deepEqual([...pluginsForPersona('workbench')], ['enterprise-bi', 'digital-twin', 'workflow', 'company-sales', 'engineering', 'independent-site-sales'])
+assert.deepEqual([...pluginsForPersona('flash')], ['flash-builder'])
+assert.equal(capabilitiesForPersona('work-assistant').includes('eiscore_enterprise_query'), false)
+assert.equal(capabilitiesForPersona('work-assistant').includes('eiscore_enterprise_snapshot'), false)
+assert.equal(capabilitiesForPersona('workbench').includes('eiscore_enterprise_query'), true)
+assert.throws(() => validateHarnessPersonaProfile('flash', 'work-assistant'), /incompatible/)
+assert.throws(() => validateHarnessPersonaProfile('business', 'flash'), /incompatible/)
 
 const previousProfile = process.env.HARNESS_PROFILE
 const previousPlugins = process.env.HARNESS_PLUGINS
+const previousPersona = process.env.HARNESS_PERSONA
 try {
   process.env.HARNESS_PLUGINS = 'enterprise-bi,flash-builder'
   process.env.HARNESS_PROFILE = 'business'
-  assert.deepEqual(pluginList(), PROFILE_PLUGINS.business.map((plugin_id) => ({ plugin_id })))
+  delete process.env.HARNESS_PERSONA
+  assert.deepEqual(pluginList(), [], 'a Bridge without an explicit persona must expose no plugins')
   process.env.HARNESS_PROFILE = 'flash'
+  assert.deepEqual(pluginList(), [], 'a Flash Bridge without an explicit persona must expose no plugins')
+  process.env.HARNESS_PROFILE = 'business'
+  process.env.HARNESS_PERSONA = 'work-assistant'
+  process.env.HARNESS_PLUGINS = 'enterprise-bi,worker-grid,document-intake,workflow,company-sales,digital-twin,engineering,independent-site-sales'
+  assert.deepEqual(pluginList(), ['worker-grid', 'enterprise-bi', 'document-intake', 'workflow', 'company-sales'].map((plugin_id) => ({ plugin_id })))
+  process.env.HARNESS_PERSONA = 'workbench'
+  assert.deepEqual(pluginList(), ['enterprise-bi', 'digital-twin', 'workflow', 'company-sales', 'engineering', 'independent-site-sales'].map((plugin_id) => ({ plugin_id })))
+  process.env.HARNESS_PERSONA = 'flash'
+  process.env.HARNESS_PROFILE = 'flash'
+  process.env.HARNESS_PLUGINS = 'flash-builder,enterprise-bi'
   assert.deepEqual(pluginList(), [{ plugin_id: 'flash-builder' }])
   process.env.HARNESS_PROFILE = 'invalid'
   assert.deepEqual(pluginList(), [], 'invalid Bridge profile must expose no plugins')
   assert.throws(() => createBridgeHandler({ profile: 'invalid', invoke: async () => ({}) }), /HARNESS_PROFILE must be one of/)
+  assert.throws(() => createBridgeHandler({ profile: 'flash', persona: 'work-assistant', invoke: async () => ({}) }), /incompatible/)
+  assert.throws(() => createBridgeHandler({ profile: 'business', bridgeSecret: 'secret', invoke: async () => ({}) }), /HARNESS_PERSONA is required/)
 } finally {
   if (previousProfile === undefined) delete process.env.HARNESS_PROFILE
   else process.env.HARNESS_PROFILE = previousProfile
   if (previousPlugins === undefined) delete process.env.HARNESS_PLUGINS
   else process.env.HARNESS_PLUGINS = previousPlugins
+  if (previousPersona === undefined) delete process.env.HARNESS_PERSONA
+  else process.env.HARNESS_PERSONA = previousPersona
 }
 
 const businessWorkspace = workspaceForProfileOwner('business', 'user-1', 'tenant-1')
 const flashWorkspace = workspaceForProfileOwner('flash', 'user-1', 'tenant-1')
+const assistantWorkspace = workspaceForPersonaOwner('work-assistant', 'user-1', 'tenant-1')
+const workbenchWorkspace = workspaceForPersonaOwner('workbench', 'user-1', 'tenant-1')
+const flashPersonaWorkspace = workspaceForPersonaOwner('flash', 'user-1', 'tenant-1')
 assert.notEqual(businessWorkspace, flashWorkspace, 'business and flash workspaces must be disjoint')
+assert.notEqual(assistantWorkspace, workbenchWorkspace, 'assistant and workbench workspaces must be disjoint')
+assert.equal(workbenchWorkspace, businessWorkspace, 'workbench must retain the legacy business workspace')
+assert.equal(flashPersonaWorkspace, flashWorkspace, 'Flash must retain the legacy flash workspace')
 assert.equal(workspaceForOwner('user-1', 'tenant-1', 'business'), businessWorkspace)
 assert.equal(workspaceForOwner('user-1', 'tenant-1', 'flash'), flashWorkspace)
 assert.match(businessWorkspace, /^business_ws_[a-f0-9]{64}$/)

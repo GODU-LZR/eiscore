@@ -1611,24 +1611,35 @@ const handleLogin = async () => {
       if (dshReturn) {
         const returnUrl = new URL(dshReturn, window.location.origin)
         const returnPaths = [
-          '/harness-embed-api/eiscore/auth/handoff',
+          '/harness-assistant-embed-api/eiscore/auth/handoff',
+          '/harness-workbench-embed-api/eiscore/auth/handoff',
           '/harness-flash-embed-api/eiscore/auth/handoff'
         ]
         if (returnUrl.origin !== window.location.origin || !returnPaths.includes(returnUrl.pathname)) {
           throw new Error('无效的 Harness 回调地址')
         }
+        const audience = returnUrl.pathname.startsWith('/harness-flash-embed-api/')
+          ? 'flash'
+          : returnUrl.pathname.startsWith('/harness-assistant-embed-api/')
+            ? 'work-assistant'
+            : 'workbench'
         const handoffResponse = await fetch('/company-site/auth/handoff', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${realToken}`, Accept: 'application/json' }
+          headers: { Authorization: `Bearer ${realToken}`, Accept: 'application/json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audience })
         })
         const handoff = await handoffResponse.json().catch(() => ({}))
         if (!handoffResponse.ok || !handoff.code) throw new Error('Harness 登录交接失败，请重试')
         if (!await completeHarnessAuth({ code: handoff.code, callbackPath: returnUrl.pathname })) {
           throw new Error('Harness 登录交接失败，请重试')
         }
-        window.location.assign(returnUrl.pathname.startsWith('/harness-flash-embed-api/')
-          ? '/harness-flash-embed/#flash-builder'
-          : '/harness')
+        if (returnUrl.pathname.startsWith('/harness-flash-embed-api/')) {
+          window.location.assign('/harness-flash-embed/#flash-builder')
+        } else if (returnUrl.pathname.startsWith('/harness-assistant-embed-api/')) {
+          window.location.assign('/')
+        } else {
+          window.location.assign('/harness')
+        }
         return
       }
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''

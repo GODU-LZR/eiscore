@@ -9,7 +9,8 @@ export const REQUIRED_PLUGIN_FILES = Object.freeze([
 ])
 export const REQUIRED_DSH_TOOL_FILES = Object.freeze([
   ['eiscore-tools', 'eiscore-tools.mjs'],
-  ['eiscore-restricted', 'eiscore-restricted.cordis.yml']
+  ['eiscore-restricted', 'eiscore-restricted.cordis.yml'],
+  ['eiscore-persona-policy', 'persona-policy.mjs']
 ])
 
 export class LunduHarnessArtifactValidationError extends Error {
