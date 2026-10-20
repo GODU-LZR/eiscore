@@ -179,7 +179,7 @@ for (const [rule, expected] of [['avg', 150], ['count', 2]]) {
 }
 
 // Material fields can be displayed as static columns while stored in JSON.
-// The request must read JSON, and the pinned row must retain its static field.
+// The body and pinned row use the same JSON field path while preserving column IDs.
 const storedProps = { ...props, staticColumns: [
   { prop: 'conversion_ratio', label: '换算比例', type: 'number', storeInProperties: true },
   { prop: 'spec', label: '规格', storeInProperties: true }
@@ -192,22 +192,23 @@ const [storedRow] = await loadServerSummary({
   props: storedProps, summaryConfig: storedConfig, evaluateFormulaExpression,
   request: async () => ({ results: { conversion_ratio: { value: 15 }, spec: { value: 2 } } })
 })
-assert.equal(storedRow.conversion_ratio, 15)
-assert.equal(storedRow.spec, 2)
-assert.equal(storedRow.properties.conversion_ratio, undefined)
+assert.equal(storedRow.properties.conversion_ratio, 15)
+assert.equal(storedRow.properties.spec, 2)
+assert.equal(storedRow.conversion_ratio, undefined)
 assert.equal(storedRow.properties.derived, 30)
-assert.equal(createColDef(storedProps.staticColumns[0], false).field, 'conversion_ratio')
+assert.equal(createColDef(storedProps.staticColumns[0], false).field, 'properties.conversion_ratio')
+assert.equal(createColDef(storedProps.staticColumns[0], false).colId, 'conversion_ratio')
 const storedRows = [
   { properties: { conversion_ratio: 10, spec: 'DN100' } },
   { properties: { conversion_ratio: 5, spec: 'DN200' } }
 ]
 const storedLocal = makeTotals(async () => { throw new Error('RPC unavailable') }, storedProps, storedConfig, storedRows)
-assert.equal(storedLocal.calculateTotals(storedRows)[0].conversion_ratio, storedRow.conversion_ratio)
-assert.equal(storedLocal.calculateTotals(storedRows)[0].spec, storedRow.spec)
+assert.equal(storedLocal.calculateTotals(storedRows)[0].properties.conversion_ratio, storedRow.properties.conversion_ratio)
+assert.equal(storedLocal.calculateTotals(storedRows)[0].properties.spec, storedRow.properties.spec)
 assert.equal(storedLocal.calculateTotals(storedRows)[0].properties.derived, storedRow.properties.derived)
 await storedLocal.refreshTotals()
 assert.equal(storedLocal.serverSummaryState.available, false)
-assert.equal(storedLocal.pinnedBottomRowData.value[0].conversion_ratio, 15)
+assert.equal(storedLocal.pinnedBottomRowData.value[0].properties.conversion_ratio, 15)
 
 // Use the actual attendance column metadata, without executing its row getter.
 const attendance = await readFile(new URL('../eiscore-hr/src/views/HrAttendanceView.vue', import.meta.url), 'utf8')

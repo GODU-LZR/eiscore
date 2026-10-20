@@ -151,7 +151,7 @@
     "test:smart-bi": "node tests/smart-bi/config-regression.mjs",
     "test:eiscore-embed": "node tests/engineering/eiscore-embed-route-regression.mjs",
     "test:grid-agent": "node tests/grid-agent/query-regression.mjs",
-    "test:grid-utils": "node tests/grid-utils/shared-regression.mjs",
+    "test:grid-utils": "node tests/grid-utils/shared-regression.mjs && node tests/engineering/grid-property-write-regression.mjs",
     "test:grid-paging": "node tests/engineering/grid-paging-regression.mjs",
     "test:http-client": "node tests/engineering/http-client-regression.mjs",
     "test:production-config": "node tests/engineering/production-config-regression.mjs && node tests/engineering/lundu-harness-artifact-regression.mjs && node deploy/lundu/test-dsh-web-runner.mjs && npm run test:harness-web-smoke",

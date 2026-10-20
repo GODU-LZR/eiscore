@@ -33,12 +33,12 @@ const documentActionOptions = new Map([
 const expectedExposes = new Map([
   ['apps', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'recalculateServerFormulas']],
   ['equipment', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'recalculateServerFormulas']],
-  ['hr', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'recalculateServerFormulas']],
-  ['materials', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'refreshCells', 'recalculateServerFormulas']],
+  ['hr', ['loadData', 'loadNextPage', 'prependRow', 'setWorkflowBinding', 'recalculateServerFormulas']],
+  ['materials', ['loadData', 'loadNextPage', 'prependRow', 'setWorkflowBinding', 'refreshCells', 'recalculateServerFormulas']],
   ['production', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'refreshCells', 'recalculateServerFormulas']],
   ['purchase', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'getSelectedRows', 'recalculateServerFormulas']],
   ['quality', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'recalculateServerFormulas']],
-  ['sales', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'getSelectedRows', 'recalculateServerFormulas']]
+  ['sales', ['loadData', 'loadNextPage', 'prependRow', 'setWorkflowBinding', 'getSelectedRows', 'recalculateServerFormulas']]
 ])
 
 for (const dependency of ['vue', 'element-plus', '@element-plus/icons-vue', 'ag-grid-community', 'ag-grid-vue3', 'leaflet', 'html2canvas']) {

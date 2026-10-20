@@ -128,7 +128,7 @@ export function buildServerSummaryRow({
     const rule = summaryConfig?.rules?.[col.prop]
     if (rule && rule !== 'none' && typeof value === 'number' && Number.isFinite(value)) {
       const displayVal = Number(value.toFixed(2))
-      const isProp = !(props.staticColumns || []).some((item) => item.prop === col.prop)
+      const isProp = col.storeInProperties === true || !(props.staticColumns || []).some((item) => item.prop === col.prop)
       if (isProp) totalRow.properties[col.prop] = displayVal
       else totalRow[col.prop] = displayVal
     }
@@ -141,7 +141,7 @@ export function buildServerSummaryRow({
       const evaluated = evaluateFormulaExpression(expr.replace(/\{(.+?)\}/g, (match, key) => valueMap[key] ?? 0))
       if (evaluated !== undefined && !Number.isNaN(evaluated) && Number.isFinite(evaluated)) {
         const displayVal = Number(evaluated.toFixed(2))
-        const isProp = !(props.staticColumns || []).some((item) => item.prop === col.prop)
+        const isProp = col.storeInProperties === true || !(props.staticColumns || []).some((item) => item.prop === col.prop)
         if (isProp) totalRow.properties[col.prop] = displayVal
         else totalRow[col.prop] = displayVal
       }

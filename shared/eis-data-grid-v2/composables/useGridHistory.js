@@ -151,6 +151,7 @@ export function useGridHistory(
   const debouncedSave = debounce(async () => {
     if (pendingChanges.length === 0) return
     const changesToProcess = [...pendingChanges]; pendingChanges.length = 0; isRemoteUpdating.value = true 
+    const persistedNodes = new Set()
     try {
         const writeMode = getWriteMode()
         const rowUpdatesMap = new Map()
@@ -206,7 +207,7 @@ export function useGridHistory(
 
         if (entries.length > 0) {
             if (writeMode === 'patch') {
-              await Promise.all(entries.map(async (entry) => {
+              const outcomes = await Promise.allSettled(entries.map(async (entry) => {
                 const rowId = entry.rowNode?.data?.id
                 if (!rowId) return
                 if (!entry.payload || Object.keys(entry.payload).length === 0) return
@@ -226,7 +227,10 @@ export function useGridHistory(
                   delete entry.rowNode.data._userStatusPending
                   delete entry.rowNode.data._userStatusBeforeSave
                 }
+                persistedNodes.add(entry.rowNode)
               }))
+              const failure = outcomes.find(outcome => outcome.status === 'rejected')
+              if (failure) throw failure.reason
               gridApi.value.refreshCells({ rowNodes: entries.map(i => i.rowNode), force: false })
               writeGridOperationLog({
                 request,
@@ -253,6 +257,7 @@ export function useGridHistory(
                   headers: { 'Accept-Profile': resolveProfile(props.acceptProfile), 'Content-Profile': resolveProfile(props.contentProfile), 'Prefer': 'resolution=merge-duplicates,return=representation' },
                   data: apiPayload
               })
+              entries.forEach(entry => persistedNodes.add(entry.rowNode))
               affectedNodes.forEach(({ node, newVer }) => {
                 if (newVer !== null) node.data.version = newVer
               })
@@ -268,22 +273,24 @@ export function useGridHistory(
             }
         }
     } catch (e) {
+      const failedChanges = changesToProcess.filter(change => !persistedNodes.has(change.rowNode))
+      const affectedNodes = [...new Set(failedChanges.map(change => change.rowNode))]
       if (isUserLifecycle()) {
-        const affectedNodes = [...new Set(changesToProcess.map(change => change.rowNode))]
         affectedNodes.forEach(node => {
           if (node.data._userStatusPending) node.data.status = node.data._userStatusBeforeSave
           delete node.data._userStatusPending
           delete node.data._userStatusBeforeSave
         })
-        for (const { rowNode, colDef, newValue, oldValue } of [...changesToProcess].reverse()) {
-          if (colDef.field === '_status') continue
-          const keys = colDef.field.split('.')
-          const target = keys.slice(0, -1).reduce((value, key) => value?.[key], rowNode.data)
-          const key = keys[keys.length - 1]
-          if (target && target[key] === newValue) target[key] = oldValue
-        }
-        gridApi.value.refreshCells({ rowNodes: affectedNodes, force: true })
       }
+      for (const { rowNode, colDef, newValue, oldValue } of [...failedChanges].reverse()) {
+        if (colDef.field === '_status') continue
+        const keys = colDef.field.split('.')
+        const target = keys.slice(0, -1).reduce((value, key) => value?.[key], rowNode.data)
+        const key = keys[keys.length - 1]
+        if (target && target[key] === newValue) target[key] = oldValue
+      }
+      gridApi.value.refreshCells({ rowNodes: affectedNodes, force: true })
+      refreshSummaryTotals()
       const detail = e?.response?.data?.message || e?.response?.data?.details || e?.message
       ElMessage.error(detail || '保存失败')
     } 

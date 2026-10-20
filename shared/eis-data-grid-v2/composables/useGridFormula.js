@@ -95,7 +95,7 @@ export function useGridFormula(
 
     let hasChanges = false
     const rowDataMap = {}
-    props.staticColumns.forEach(c => { rowDataMap[c.prop] = rowNode.data[c.prop]; rowDataMap[c.label] = rowNode.data[c.prop] })
+    props.staticColumns.forEach(c => { const val = c.storeInProperties === true ? rowNode.data.properties?.[c.prop] : rowNode.data[c.prop]; rowDataMap[c.prop] = val; rowDataMap[c.label] = val })
     props.extraColumns.forEach(c => { const val = rowNode.data.properties?.[c.prop]; rowDataMap[c.prop] = val; rowDataMap[c.label] = val })
 
     formulaCols.forEach(col => {
@@ -135,7 +135,7 @@ export function useGridFormula(
     const columns = [...props.staticColumns, ...props.extraColumns]
     
     columns.forEach(col => {
-      const isProp = !props.staticColumns.find(c => c.prop === col.prop)
+      const isProp = col.storeInProperties === true || !props.staticColumns.find(c => c.prop === col.prop)
       const values = data.map(row => {
         const field = col.summaryField || col.prop
         const value = isProp || col.storeInProperties === true ? row.properties?.[field] : row[field]
@@ -170,7 +170,7 @@ export function useGridFormula(
         try {
           const res = evaluateFormulaExpression(expr.replace(/\{(.+?)\}/g, (m,k) => valueMap[k]??0))
           if (res !== undefined && !isNaN(res) && isFinite(res)) {
-             const d = Number(res.toFixed(2)); const isP = !props.staticColumns.find(c => c.prop === col.prop)
+             const d = Number(res.toFixed(2)); const isP = col.storeInProperties === true || !props.staticColumns.find(c => c.prop === col.prop)
              if (isP) totalRow.properties[col.prop] = d; else totalRow[col.prop] = d
           }
         } catch(e){}
@@ -180,7 +180,7 @@ export function useGridFormula(
     columns.forEach(col => {
       const rule = activeSummaryConfig.rules[col.prop]; const hasF = !!activeSummaryConfig.expressions?.[col.prop]
       if ((!rule || rule === 'none') && !hasF) {
-        const isP = !props.staticColumns.find(c => c.prop === col.prop)
+        const isP = col.storeInProperties === true || !props.staticColumns.find(c => c.prop === col.prop)
         if (isP) delete totalRow.properties[col.prop]; else delete totalRow[col.prop]
       }
     })
