@@ -23,6 +23,9 @@ assert.equal(config.enterprise.id, 'yayu', 'Mount the Yayu runtime config over t
 assert.equal(config.endpoints.publicBaseUrl, 'https://yayu.eiscore.top')
 for (const id of ['hr', 'materials', 'apps', 'sales', 'purchase', 'mobile']) assert.equal(config.modules[id], true)
 for (const id of ['company-site', 'production', 'quality', 'equipment', 'decision']) assert.equal(config.modules[id], false)
+assert.equal(config.features.materialsVisible, false)
+assert.equal(config.features.purchaseVisible, false)
+assert.equal(config.features.appCenterVisible, true)
 NODE
 
 export CI=true
@@ -33,25 +36,25 @@ export VITE_ENTERPRISE_SHARE_TITLE="$(node -p 'JSON.parse(require("fs").readFile
 export VITE_ENTERPRISE_SHARE_IMAGE='/enterprise-assets/yayu/yayu-hero.webp'
 export VITE_ENTERPRISE_SHARE_ORIGIN='https://yayu.eiscore.top'
 export VITE_ENTERPRISE_FAVICON='/enterprise-assets/yayu/favicon.png'
-for package in . packages/eiscore-platform eiscore-base eiscore-apps eiscore-company-site eiscore-hr eiscore-materials eiscore-sales eiscore-mobile; do
+for package in . packages/eiscore-platform eiscore-base eiscore-apps eiscore-hr eiscore-sales eiscore-mobile; do
   npm --prefix "$package" ci --no-audit --no-fund
 done
 
-for test in platform-auth-session-regression enterprise-module-routing-regression enterprise-config-regression enterprise-industry-site-regression sales-follow-up-attention-regression sales-apps-load-resilience-regression; do
+for test in platform-auth-session-regression enterprise-module-routing-regression enterprise-config-regression enterprise-industry-site-regression sales-follow-up-attention-regression sales-apps-load-resilience-regression harness-auth-client-regression eiscore-embed-route-regression sales-flow-navigation-regression yayu-runtime-routing-regression; do
   node "tests/engineering/$test.mjs"
 done
-for package in eiscore-base eiscore-apps eiscore-company-site eiscore-hr eiscore-materials eiscore-sales eiscore-mobile; do
+for package in eiscore-base eiscore-apps eiscore-hr eiscore-sales eiscore-mobile; do
   npm --prefix "$package" run build
 done
 
-# The shared aggregator requires all twelve applications. This deployment has seven entries.
+# This tenant exposes only the workbench, sales, HR, and mobile entry points.
 node --input-type=module <<'NODE'
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 const root = join(process.env.YAYU_RELEASES_ROOT, process.env.YAYU_RELEASE_VERSION)
 mkdirSync(root, { recursive: false })
 cpSync('eiscore-base/dist', root, { recursive: true })
-const mounts = ['apps', 'company-site', 'hr', 'materials', 'sales', 'mobile']
+const mounts = ['apps', 'hr', 'sales', 'mobile']
 for (const mount of mounts) {
   const source = `eiscore-${mount}/dist`
   if (!existsSync(join(source, 'index.html'))) throw new Error(`Missing build: ${mount}`)

@@ -227,7 +227,7 @@
       </el-main>
     </el-container>
 
-    <AiCopilot v-if="showWorkerAssistant" mode="worker" data-guide="worker-assistant" />
+    <HarnessAssistantLauncher v-if="showWorkerAssistant" data-guide="worker-assistant" />
     <el-dialog
       v-model="guideWelcomeVisible"
       title="新手指引"
@@ -251,7 +251,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { defineAsyncComponent, ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
@@ -323,7 +323,7 @@ import {
   pickBaseRecommendedGuide
 } from '@/domain/base-layout-guide-policy'
 
-const AiCopilot = defineAsyncComponent(() => import('@/components/AiCopilot.vue'))
+import HarnessAssistantLauncher from '@/components/HarnessAssistantLauncher.vue'
 const isCollapse = ref(false)
 const router = useRouter()
 const route = useRoute()
@@ -803,9 +803,17 @@ const activeMenu = computed(() => {
   return route.path
 })
 
-const canShowModule = (moduleKey) => (
-  enterpriseConfig.modules?.[moduleKey] !== false && isModuleVisible(displayVisibility.value, moduleKey)
-)
+const MODULE_VISIBILITY_FEATURES = Object.freeze({
+  materials: 'materialsVisible',
+  purchase: 'purchaseVisible',
+  apps: 'appCenterVisible'
+})
+const canShowModule = (moduleKey) => {
+  const visibilityFeature = MODULE_VISIBILITY_FEATURES[moduleKey]
+  return enterpriseConfig.modules?.[moduleKey] !== false &&
+    (!visibilityFeature || enterpriseConfig.features?.[visibilityFeature] !== false) &&
+    isModuleVisible(displayVisibility.value, moduleKey)
+}
 const roleValues = computed(() => {
   const info = userStore.userInfo || {}
   return [info.app_role, info.appRole, info.role, info.role_code, info.roleCode, info.dbRole, info.db_role]
@@ -907,9 +915,9 @@ const SOP_MODULE_INFO = {
     risk: '未发布或配置不完整的应用会影响业务人员录入和流程流转。'
   },
   sales: {
-    purpose: '管理客户、跟进、商机、销售订单、出货申请和回款记录。',
-    focus: '客户状态、订单交期、销售金额、出货进度和回款核销。',
-    risk: '订单、交期或回款状态不准确会影响交付计划和财务对账。'
+    purpose: '管理客户、跟进、商机、报价、合同、销售订单和应收回款。',
+    focus: '客户状态、商机阶段、合同金额、订单交付和回款核销。',
+    risk: '客户、订单或回款状态不准确会影响销售推进和财务对账。'
   },
   purchase: {
     purpose: '管理供应商、采购需求、采购订单、到货跟踪和采购驾驶舱。',
@@ -952,8 +960,8 @@ const SOP_MODULE_WORKFLOW_INFO = {
     done: '完成后应用应能被目标岗位访问，并能完成真实数据录入或流程流转。'
   },
   sales: {
-    sequence: '一般按“先维护客户和商机，再确认订单交付，最后跟踪出货和回款”的顺序工作。',
-    done: '完成后订单、出货、采购需求或回款记录要能按单号追溯。'
+    sequence: '一般按“先维护客户和商机，再完成报价与合同，随后生成订单并跟踪应收”的顺序工作。',
+    done: '完成后客户、商机、报价、合同、订单和应收记录要能按编号追溯。'
   },
   purchase: {
     sequence: '一般按“先看采购需求，再生成订单，随后跟踪到货、质检和入库”的顺序工作。',
@@ -981,7 +989,7 @@ const SOP_MODULE_APP_COMPLETE = {
   materials: '处理完成后回到库存台账或库存查询，用物料、批次、仓库和来源单号复核库存变化。',
   hr: '处理完成后回到人员、组织或用户列表，确认员工状态、岗位、账号和权限已经生效。',
   apps: '处理完成后用目标用户角色试运行应用，确认字段、权限、流程和发布状态都正确。',
-  sales: '处理完成后用客户、订单号或回款单号搜索，确认下游出货、采购需求或回款状态已经回写。',
+  sales: '处理完成后用客户、合同号、订单号或回款单号搜索，确认销售链路和应收状态已经回写。',
   purchase: '处理完成后用需求号、订单号或到货单号复核，确认采购、质检和入库链路没有断点。',
   production: '处理完成后按工单号复核，确认领料、报工、质检、入库或缺料状态已经同步。',
   quality: '处理完成后按检验单号或 NCR 单号复核，确认整改责任、期限、验证结论和附件证据完整。',

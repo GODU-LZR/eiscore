@@ -20,6 +20,12 @@ const router = createRouter({
       meta: { requiresAuth: true, title: '工作台' }
     },
     {
+      path: '/harness',
+      name: 'HarnessWorkbench',
+      component: () => import('@/views/HarnessView.vue'),
+      meta: { requiresAuth: true, title: 'DeepSeek Harness' }
+    },
+    {
       path: '/pda',
       name: 'PdaEntry',
       component: () => import('@/views/pda/PdaEntry.vue'),
@@ -85,8 +91,8 @@ const router = createRouter({
     {
       path: '/enterprise',
       name: 'EnterpriseAssistant',
-      component: () => import('@/views/assistant/EnterpriseAssistant.vue'),
-      meta: { requiresAuth: true, title: '智能 BI' }
+      redirect: '/harness',
+      meta: { requiresAuth: true, title: 'DeepSeek Harness' }
     },
     // 考勤模块
     {

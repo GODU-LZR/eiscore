@@ -97,17 +97,7 @@
             从客户建订单
           </el-button>
           <el-button
-            v-if="app.key === 'orders' && canCreate"
-            type="warning"
-            plain
-            icon="Money"
-            :loading="flowActionLoading"
-            @click="pushOrdersToReceivables"
-          >
-            生成应收计划
-          </el-button>
-          <el-button
-            v-if="app.key === 'orders' && canCreate"
+            v-if="app.key === 'orders' && canCreate && enterpriseConfig.features?.purchaseVisible !== false"
             type="success"
             plain
             icon="Position"
@@ -117,7 +107,7 @@
             下推采购需求
           </el-button>
           <el-button
-            v-if="['orders', 'shipment_requests'].includes(app.key) && canCreate"
+            v-if="['orders', 'shipment_requests'].includes(app.key) && canCreate && enterpriseConfig.features?.salesShipping !== false"
             type="warning"
             plain
             icon="Promotion"
@@ -125,6 +115,16 @@
             @click="openBatchShipmentFlowDialog"
           >
             {{ app.key === 'shipment_requests' ? '下推销售出库' : '下推出货/出库' }}
+          </el-button>
+          <el-button
+            v-if="app.key === 'orders' && canCreate"
+            type="warning"
+            plain
+            icon="Money"
+            :loading="flowActionLoading"
+            @click="pushOrdersToReceivables"
+          >
+            生成应收计划
           </el-button>
           <el-button
             v-if="app.key === 'opportunities' && canCreate"
@@ -553,9 +553,9 @@
         data-guide="flow-wrapper"
         data-sop-flow="sales-flow-push"
         data-sop-title="销售订单业务下推流程"
-        data-sop-desc="按销售订单、采购需求、出货申请、销售出库的链路完成销售订单下推。"
-        data-sop-steps="先选择可流转的销售订单|确认下一环节是采购需求、出货申请还是销售出库|检查单据链路是否已有下游记录|点击确认下推并跳转|到下游应用搜索单号复核状态"
-        data-sop-risk="销售下推会影响采购需求、出货计划和库存出库。已取消、已删除、已下推或数量异常的订单不要重复下推。"
+        data-sop-desc="按销售订单和应收计划完成销售单据闭环。"
+        data-sop-steps="先选择可流转的销售订单|确认订单金额和回款计划|检查是否已有应收记录|点击确认生成应收计划|在应收应用中复核状态"
+        data-sop-risk="应收计划会影响回款跟踪。已取消、已删除或金额异常的订单不要重复生成。"
         v-loading="flowLoading"
       >
         <div class="flow-push-header" data-guide="flow-selection">
@@ -563,10 +563,8 @@
             <span>已选择销售订单</span>
             <strong>{{ flowSelectedRows.length }}</strong>
           </div>
-          <el-radio-group v-model="flowNextStep" size="small">
+          <el-radio-group v-if="enterpriseConfig.features?.purchaseVisible !== false" v-model="flowNextStep" size="small">
             <el-radio-button label="purchase_demand">采购需求</el-radio-button>
-            <el-radio-button label="shipment_request">出货申请</el-radio-button>
-            <el-radio-button label="sales_outbound">销售出库</el-radio-button>
           </el-radio-group>
         </div>
         <div class="flow-chain" data-guide="flow-chain">
@@ -586,9 +584,9 @@
             data-guide="flow-confirm"
             data-sop-action="sales-confirm-flow-push"
             data-sop-title="确认销售下推并跳转"
-            data-sop-desc="确认当前销售订单链路，并生成采购需求、出货申请或销售出库链路。"
-            data-sop-steps="复核已选销售订单数量|确认下一环节是否正确|查看链路中是否已有下游单据|点击确认下推并跳转|跳转后搜索新单据并复核状态"
-            data-sop-risk="确认后会生成或关联下游单据，错误下推会影响采购、出货和库存。"
+            data-sop-desc="确认销售订单并生成应收计划。"
+            data-sop-steps="复核已选销售订单数量|确认订单金额|查看是否已有应收计划|点击确认生成并跳转|在应收应用中复核状态"
+            data-sop-risk="确认后会生成应收计划，重复操作会造成回款跟踪混乱。"
             :type="flowConfirmButtonType"
             :loading="flowActionLoading"
             @click="confirmSalesFlowPush"
@@ -760,6 +758,7 @@ const props = defineProps({
   appConfig: { type: Object, default: null }
 })
 
+const enterpriseConfig = globalThis.__EISCORE_ENTERPRISE_CONFIG__ || { features: {} }
 const router = useRouter()
 const gridRef = ref(null)
 const lastLoadedRows = ref([])
@@ -874,14 +873,16 @@ const resolveRowActions = (row) => {
     const actions = []
     if (canRunRowAction('create-payment')) actions.push({ key: 'create-payment', label: '回款', type: 'warning', icon: 'Money' })
     if (canRunRowAction('create-receivable')) actions.push({ key: 'create-receivable', label: '应收', type: 'warning', icon: 'Money' })
-    if (canCreate.value) {
+    if (canCreate.value && enterpriseConfig.features?.purchaseVisible !== false) {
       actions.push({ key: 'push-purchase', label: '采购', type: 'success', icon: 'Position' })
+    }
+    if (canCreate.value && enterpriseConfig.features?.salesShipping !== false) {
       actions.push({ key: 'push-shipment', label: '出货', type: 'warning', icon: 'Promotion' })
     }
     return actions
   }
   if (app.value.key === 'shipment_requests') {
-    return canCreate.value
+    return canCreate.value && enterpriseConfig.features?.salesShipping !== false
       ? [{ key: 'push-outbound', label: '出库', type: 'warning', icon: 'Promotion' }]
       : []
   }

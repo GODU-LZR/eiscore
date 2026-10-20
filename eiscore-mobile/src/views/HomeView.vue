@@ -15,12 +15,12 @@
         <div class="hero-copy">
           <span class="hero-badge">EISCore Mobile</span>
           <h1>{{ greetingText }}，{{ displayName }}</h1>
-          <p>轻量移动工作台，掌控仓库与业务动态。</p>
+          <p>轻量移动工作台，处理销售、人事与智能协作。</p>
         </div>
         <div class="hero-actions">
-          <button class="action-btn scan" @click="handleScan">
-            <span class="action-title">扫码入口</span>
-            <span class="action-desc">仓库 / 库位 / 物料</span>
+          <button class="action-btn scan" @click="openApp(apps.find(a => a.key === 'harness'))">
+            <span class="action-title">DeepSeek Harness</span>
+            <span class="action-desc">工作助手与闪念</span>
           </button>
           <button class="action-btn desktop" @click="goDesktop">
             <span class="action-title">桌面版</span>
@@ -93,51 +93,27 @@
           </div>
         </div>
         <div class="quick-list">
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'pda'))">
-            <div class="quick-icon scan-bg"><List class="el-icon-svg" /></div>
+          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'harness'))">
+            <div class="quick-icon scan-bg"><ChatDotRound class="el-icon-svg" /></div>
             <div class="quick-info">
-              <div class="quick-name">库存盘点</div>
-              <div class="quick-desc">扫码盘点仓库与库位物料</div>
+              <div class="quick-name">DeepSeek Harness</div>
+              <div class="quick-desc">工作助手与闪念预览</div>
             </div>
             <i class="chevron" />
           </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'stock'))">
-            <div class="quick-icon stock-bg"><Upload class="el-icon-svg" /></div>
+          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'sales'))">
+            <div class="quick-icon stock-bg"><Sell class="el-icon-svg" /></div>
             <div class="quick-info">
-              <div class="quick-name">扫码出入库</div>
-              <div class="quick-desc">快速入库与出库登记</div>
+              <div class="quick-name">销售管理</div>
+              <div class="quick-desc">客户、商机、合同与回款</div>
             </div>
             <i class="chevron" />
           </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'printing'))">
-            <div class="quick-icon print-bg"><Printer class="el-icon-svg" /></div>
+          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'hr'))">
+            <div class="quick-icon print-bg"><User class="el-icon-svg" /></div>
             <div class="quick-info">
-              <div class="quick-name">标签打印</div>
-              <div class="quick-desc">打印仓库、库位、物料标签</div>
-            </div>
-            <i class="chevron" />
-          </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'assistant'))">
-            <div class="quick-icon assistant-bg"><ChatDotRound class="el-icon-svg" /></div>
-            <div class="quick-info">
-              <div class="quick-name">仓储助手</div>
-              <div class="quick-desc">AI 智能查询库存与数据分析</div>
-            </div>
-            <i class="chevron" />
-          </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'enterprise'))">
-            <div class="quick-icon enterprise-bg"><TrendCharts class="el-icon-svg" /></div>
-            <div class="quick-info">
-              <div class="quick-name">智能 BI</div>
-              <div class="quick-desc">自动问数、指标图表与风险建议</div>
-            </div>
-            <i class="chevron" />
-          </div>
-          <div class="quick-card" @click="openApp(apps.find(a => a.key === 'attendance'))">
-            <div class="quick-icon attendance-bg"><Clock class="el-icon-svg" /></div>
-            <div class="quick-info">
-              <div class="quick-name">考勤打卡</div>
-              <div class="quick-desc">查看考勤记录与快速打卡</div>
+              <div class="quick-name">人事管理</div>
+              <div class="quick-desc">员工、组织与考勤信息</div>
             </div>
             <i class="chevron" />
           </div>
@@ -182,7 +158,7 @@ import { ref, computed, onMounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showToast } from 'vant'
 import { getUserInfo, clearAuth } from '@/utils/auth'
-import { Box, OfficeBuilding, CircleCheck, DataLine, Bell, User, List, Monitor, SwitchButton, Upload, Printer, ChatDotRound, TrendCharts, Clock } from '@element-plus/icons-vue'
+import { Box, OfficeBuilding, CircleCheck, DataLine, Bell, User, List, Monitor, SwitchButton, Upload, Printer, ChatDotRound, TrendCharts, Clock, Sell } from '@element-plus/icons-vue'
 import { cardFromScore, sortByAttention } from '@shared/app-card-attention'
 
 const router = useRouter()
@@ -219,132 +195,55 @@ const todayDate = computed(() => {
 // 应用列表
 const apps = [
   {
-    key: 'pda',
-    label: '库存盘点',
-    icon: markRaw(Box),
-    bg: 'rgba(245, 158, 11, 0.12)',
-    desc: '扫码盘点、冷库离线模式',
-    route: '/check',
-    badge: ''
-  },
-  {
-    key: 'warehouse',
-    label: '仓库查询',
-    icon: markRaw(OfficeBuilding),
-    bg: 'rgba(34, 197, 94, 0.12)',
-    desc: '查看仓库与库位信息',
-    route: '/warehouse',
-    badge: ''
-  },
-  {
-    key: 'stock',
-    label: '扫码出入库',
-    icon: markRaw(Upload),
-    bg: 'rgba(16, 185, 129, 0.12)',
-    desc: '扫码入库、出库登记',
-    route: '/stock',
-    badge: ''
-  },
-  {
-    key: 'printing',
-    label: '标签打印',
-    icon: markRaw(Printer),
-    bg: 'rgba(99, 102, 241, 0.12)',
-    desc: '仓库、库位、物料标签',
-    route: '/printing',
-    badge: ''
-  },
-  {
-    key: 'assistant',
-    label: '仓储助手',
+    key: 'harness',
+    label: 'DeepSeek Harness',
     icon: markRaw(ChatDotRound),
+    bg: 'rgba(40, 93, 87, 0.12)',
+    desc: '工作助手与闪念预览',
+    route: '/harness',
+    badge: ''
+  },
+  {
+    key: 'sales',
+    label: '销售管理',
+    icon: markRaw(Sell),
     bg: 'rgba(27, 109, 255, 0.12)',
-    desc: 'AI 智能查询与图表分析',
-    route: '/assistant',
+    desc: '客户、商机、合同与回款',
+    route: '/sales',
     badge: ''
   },
   {
-    key: 'enterprise',
-    label: '智能 BI',
-    icon: markRaw(TrendCharts),
-    bg: 'rgba(108, 59, 255, 0.12)',
-    desc: '自动问数、指标图表与洞察',
-    route: '/enterprise',
-    badge: ''
-  },
-  {
-    key: 'attendance',
-    label: '考勤打卡',
-    icon: markRaw(Clock),
-    bg: 'rgba(34, 197, 94, 0.12)',
-    desc: '查看考勤记录、快速打卡',
-    route: '/attendance',
-    badge: ''
-  },
-  {
-    key: 'approve',
-    label: '审批中心',
-    icon: markRaw(CircleCheck),
-    bg: 'rgba(139, 92, 246, 0.12)',
-    desc: '采购、领料等审批流转',
-    route: null,
-    badge: '即将上线'
-  },
-  {
-    key: 'report',
-    label: '数据报表',
-    icon: markRaw(DataLine),
-    bg: 'rgba(6, 182, 212, 0.12)',
-    desc: '库存、出入库数据分析',
-    route: '/report',
-    badge: ''
-  },
-  {
-    key: 'notice',
-    label: '通知公告',
-    icon: markRaw(Bell),
-    bg: 'rgba(239, 68, 68, 0.12)',
-    desc: '系统消息与公告通知',
-    route: null,
-    badge: '即将上线'
-  },
-  {
-    key: 'contacts',
-    label: '通讯录',
+    key: 'hr',
+    label: '人事管理',
     icon: markRaw(User),
-    bg: 'rgba(59, 130, 246, 0.12)',
-    desc: '企业通讯录与组织架构',
+    bg: 'rgba(34, 197, 94, 0.12)',
+    desc: '员工、组织与考勤信息',
+    route: '/hr',
+    badge: ''
+  },
+  {
+    key: 'desktop',
+    label: '桌面工作台',
+    icon: markRaw(Monitor),
+    bg: 'rgba(31, 45, 61, 0.12)',
+    desc: '打开完整桌面端',
     route: null,
-    badge: '即将上线'
+    badge: ''
   }
 ]
 
 const mobileAttentionScoreMap = {
-  pda: 62,
-  stock: 58,
-  attendance: 52,
-  warehouse: 46,
-  printing: 40,
-  assistant: 38,
-  enterprise: 34,
-  report: 32,
-  approve: 18,
-  notice: 16,
-  contacts: 14
+  harness: 62,
+  sales: 54,
+  hr: 48,
+  desktop: 30
 }
 
 const mobileAttentionBriefMap = {
-  pda: '优先执行',
-  stock: '快速登记',
-  attendance: '今日处理',
-  warehouse: '随手查询',
-  printing: '现场打印',
-  assistant: '查询分析',
-  enterprise: '智能 BI',
-  report: '查看报表',
-  approve: '待上线',
-  notice: '待上线',
-  contacts: '待上线'
+  harness: '工作助手',
+  sales: '销售处理',
+  hr: '人员管理',
+  desktop: '完整工作台'
 }
 
 const attentionApps = computed(() => apps
@@ -360,8 +259,13 @@ const attentionApps = computed(() => apps
 
 function openApp(app) {
   if (!app) return
+  if (app.key === 'desktop') {
+    goDesktop()
+    return
+  }
   if (app.route) {
-    router.push(app.route)
+    if (app.route === '/sales' || app.route === '/hr') window.location.href = app.route
+    else router.push(app.route)
   } else {
     showToast({ message: `${app.label} 即将上线`, icon: 'info-o' })
   }

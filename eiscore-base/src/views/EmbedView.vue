@@ -1,6 +1,6 @@
 <template>
   <main class="embed-view" :data-embed-feature="feature">
-    <iframe v-if="harnessReady && !harnessFailed" class="harness-frame" :src="frameUrl" :title="feature === 'smart-bi' ? 'DeepSeek Harness 智能 BI' : 'DeepSeek Harness 数字分身'"></iframe>
+    <iframe v-if="harnessReady && !harnessFailed" class="harness-frame" :src="frameUrl" title="DeepSeek Harness 工作台"></iframe>
     <div v-else class="harness-status" role="status">
       {{ harnessFailed ? 'DeepSeek Harness 认证失败，请重新登录' : '正在建立 Harness 会话' }}
     </div>
@@ -17,8 +17,8 @@ import { getAuthHeader } from '@/utils/auth'
 import { prepareHarnessAuth } from '@/services/harness-auth-client'
 
 const route = useRoute()
-const feature = route.params.feature === 'smart-bi' ? 'smart-bi' : 'digital-twin'
-const frameUrl = computed(() => `/harness-embed/#${feature}`)
+const feature = 'harness'
+const frameUrl = computed(() => '/harness-embed/')
 const harnessReady = ref(false)
 const harnessFailed = ref(false)
 

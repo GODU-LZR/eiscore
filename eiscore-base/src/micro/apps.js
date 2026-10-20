@@ -95,8 +95,13 @@ const appDefinitions = [
 export function createMicroApps(enterpriseConfig = DEFAULT_ENTERPRISE_CONFIG) {
   const resolvedConfig = enterpriseConfig || DEFAULT_ENTERPRISE_CONFIG
   const modules = resolvedConfig.modules || DEFAULT_ENTERPRISE_CONFIG.modules
+  const featureVisibility = { materials: 'materialsVisible', purchase: 'purchaseVisible', apps: 'appCenterVisible' }
   return appDefinitions
     .filter((app) => modules[app.moduleId] !== false)
+    .filter((app) => {
+      const feature = featureVisibility[app.moduleId]
+      return !feature || resolvedConfig.features?.[feature] !== false
+    })
     .map(({ moduleId, ...app }) => ({
       ...app,
       props: { enterpriseConfig: resolvedConfig }

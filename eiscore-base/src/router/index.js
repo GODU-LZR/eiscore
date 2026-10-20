@@ -35,7 +35,7 @@ const router = createRouter({
       meta: { requiresAuth: false, publicLanding: true }
     },
     {
-      path: '/embed/:feature(digital-twin|smart-bi)',
+      path: '/embed/:feature(harness)',
       name: 'embed-feature',
       component: () => import('../views/EmbedView.vue'),
       meta: { requiresAuth: true }

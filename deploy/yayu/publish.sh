@@ -16,7 +16,7 @@ import { resolve, sep } from 'node:path'
 const releases = realpathSync(process.env.YAYU_RELEASES_ROOT)
 const root = realpathSync(resolve(releases, process.env.YAYU_RELEASE_VERSION))
 assert.ok(root.startsWith(releases + sep), 'Candidate must stay inside isolated releases')
-const mounts = ['', 'apps', 'company-site', 'hr', 'materials', 'sales', 'mobile']
+const mounts = ['', 'apps', 'hr', 'sales', 'mobile']
 let checked = 0
 for (const mount of mounts) {
   const relative = mount ? `${mount}/index.html` : 'index.html'
@@ -45,7 +45,7 @@ for (const url of manifest.urls) {
   const file = resolve(root, '.' + url)
   assert.ok(file.startsWith(root + sep) && existsSync(file), `Manifest asset missing: ${url}`)
 }
-console.log(`Validated seven entries, ${checked} entry assets, ${manifest.urls.length} manifest assets`)
+console.log(`Validated ${mounts.length} entries, ${checked} entry assets, ${manifest.urls.length} manifest assets`)
 NODE
 [[ "${2:-}" != '--check-only' ]] || exit 0
 [[ -s "$YAYU_RELEASES_ROOT/$version/.complete" ]] || { echo 'Candidate build is incomplete' >&2; exit 1; }

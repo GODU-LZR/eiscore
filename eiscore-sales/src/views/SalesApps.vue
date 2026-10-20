@@ -108,6 +108,7 @@ import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 
 const router = useRouter()
 const { visibility: displayVisibility } = useDisplayVisibility()
+const enterpriseConfig = globalThis.__EISCORE_ENTERPRISE_CONFIG__ || { features: {} }
 const iconMap = { ChatLineSquare, DataAnalysis, DataBoard, Document, Money, Tickets, TrendCharts, User }
 const appRows = ref(Object.fromEntries(SALES_APPS.map((app) => [app.key, []])))
 const serverStats = ref({})
@@ -460,6 +461,7 @@ const cardForApp = (app) => {
 
 const visibleApps = computed(() => SALES_APPS
   .filter((app) => isAppVisible(displayVisibility.value, 'sales', app.key))
+  .filter((app) => app.key !== 'shipment_requests' || enterpriseConfig.features?.salesShipping !== false)
   .filter((app) => !app.perm || hasPerm(app.perm))
   .map((app) => ({
     ...app,

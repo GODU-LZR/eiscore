@@ -7,8 +7,7 @@
           <component :is="activeModeMeta.icon" />
         </el-icon>
         <span class="header-title">{{ activeModeMeta.title }}</span>
-        <el-tag v-if="activeMode === 'twin'" size="small" type="success" effect="plain">AI 助手</el-tag>
-        <el-tag v-else-if="activeMode === 'enterprise'" size="small" type="warning" effect="plain">智能 BI</el-tag>
+        <el-tag v-if="activeMode === 'harness'" size="small" type="success" effect="plain">DeepSeek Harness</el-tag>
         <el-tag v-else size="small" type="primary" effect="plain">单据流转</el-tag>
       </div>
       <div class="header-right">
@@ -42,7 +41,7 @@
       </div>
     </div>
 
-    <div v-if="activeMode === 'twin' || activeMode === 'enterprise'" class="harness-wrapper">
+    <div v-if="activeMode === 'harness'" class="harness-wrapper">
       <iframe
         v-if="harnessAuthReady && !harnessFrameFailed"
         ref="harnessFrameRef"
@@ -73,9 +72,7 @@ import { useUserStore } from '@/stores/user'
 import { getAuthHeader } from '@/utils/auth'
 import { prepareHarnessAuth as prepareHarnessAuthRequest } from '@/services/harness-auth-client'
 import BusinessFlowMap from '@/components/business-flow/BusinessFlowMap.vue'
-import {
-  Loading, DataAnalysis, Service, Share
-} from '@element-plus/icons-vue'
+import { Loading, Service, Share } from '@element-plus/icons-vue'
 
 
 // ── Store & Auth ──
@@ -102,7 +99,7 @@ const harnessFrameRef = ref(null)
 const syncHarnessFeature = () => {
   const frameWindow = harnessFrameRef.value?.contentWindow
   if (!frameWindow) return
-  const feature = activeMode.value === 'enterprise' ? 'enterprise-bi' : 'digital-twin'
+  const feature = 'business'
   try {
     frameWindow.dispatchEvent(new frameWindow.CustomEvent('eiscore:harness-feature', { detail: feature }))
   } catch {
@@ -135,22 +132,21 @@ const prepareHarnessAuth = async () => {
   return ready
 }
 const modeOptions = [
-  { label: '数字分身', value: 'twin', desc: '个人工作助手', badge: 'AI', icon: Service },
-  { label: '智能 BI', value: 'enterprise', desc: '经营数据分析', badge: 'BI', icon: DataAnalysis },
+  { label: 'DeepSeek Harness', value: 'harness', desc: '工作助手与闪念', badge: 'AI', icon: Service },
   { label: '业务流程', value: 'flow', desc: '流程与单据', badge: 'Flow', icon: Share }
 ]
 
 const activeModeMeta = computed(() => {
-  if (activeMode.value === 'enterprise') return { title: '智能 BI', icon: DataAnalysis }
+  if (activeMode.value === 'harness') return { title: 'DeepSeek Harness', icon: Service }
   if (activeMode.value === 'flow') return { title: '业务流程', icon: Share }
-  return { title: '我的数字分身', icon: Service }
+  return { title: 'DeepSeek Harness', icon: Service }
 })
 
 watch(activeMode, (val) => {
   harnessFrameFailed.value = false
   harnessAuthPending.value = false
   harnessAuthReady.value = false
-  if (val === 'twin' || val === 'enterprise') {
+  if (val === 'harness') {
     void prepareHarnessAuth().then(() => syncHarnessFeature())
   }
 })
@@ -234,7 +230,7 @@ $border-color: var(--el-border-color, #dcdfe6);
 
   .mode-switcher {
     display: grid;
-    grid-template-columns: repeat(3, minmax(128px, 1fr));
+    grid-template-columns: repeat(2, minmax(148px, 1fr));
     gap: 6px;
     min-width: min(540px, 56vw);
     padding: 3px;
@@ -354,7 +350,7 @@ $border-color: var(--el-border-color, #dcdfe6);
   }
 }
 
-// ── 数字分身整体 ──
+// ── Harness 工作台 ──
 .harness-wrapper {
   flex: 1;
   min-height: 0;

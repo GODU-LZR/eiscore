@@ -3,8 +3,8 @@
     <iframe
       v-if="harnessReady && !harnessFailed"
       class="harness-frame"
-      src="/harness-embed/#digital-twin"
-      title="DeepSeek Harness 数字分身"
+      src="/harness-embed/"
+      title="DeepSeek Harness 工作台"
     ></iframe>
     <div v-else class="harness-status" role="status">
       <span v-if="!harnessFailed">正在建立 Harness 会话</span>

@@ -40,4 +40,4 @@ bash source/deploy/yayu/publish.sh dev-20261020-001
 
 `core-028` 修复管理员会话函数；`core-029` 补齐既有销售页面所需报价、合同与应收结构。`verify-sales.sql` 在独立雅御身份校验后，以 web_user 在事务内检验收款同步，再执行 ROLLBACK。仅操作本测试库，不可对客户生产库运行。
 
-业务 Runtime 使用独立镜像；DB/API/Web 使用固定摘要。Harness 的程序包复制为独立只读部署输入，状态、工具密钥和数据库凭据均独立生成；未配置 `DEEPSEEK_API_KEY` 时保持 `EISCORE_HARNESS_ENABLED=false`，不宣称真实模型已验收。此环境不包含 Flash Runtime/Bridge，闪念代码生成与预览未交付。配置业务 AI 后仅重建雅御 agent、harness-bridge 与 deepseek-web。官网、AI 提供方和新增业务开发分别继续，不自动更新其他企业。
+业务 Runtime 使用独立镜像；DB/API/Web 使用固定摘要。Harness 的程序包复制为独立只读部署输入，状态、工具密钥和数据库凭据均独立生成；未配置 `DEEPSEEK_API_KEY` 或 `FLASH_DEEPSEEK_API_KEY` 时保持 `EISCORE_HARNESS_ENABLED=false`，不宣称真实模型已验收。闪念链路使用独立的 `flash-agent-runtime`、`flash-harness-bridge`、`deepseek-flash-web`、数据库角色、状态卷和 `flash` 网络，入口为 `/flash/` 与 `/harness-flash-embed/`。配置业务或闪念 AI 后只重建雅御对应服务，不能复用另一链路的密钥或工作区。官网、AI 提供方和新增业务开发分别继续，不自动更新其他企业。

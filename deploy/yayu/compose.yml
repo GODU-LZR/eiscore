@@ -64,6 +64,37 @@ services:
       - harness_audit:/var/lib/eiscore
     depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
     networks: [data, business]
+  flash-agent-runtime:
+    build: {context: ./source, dockerfile: realtime/Dockerfile.prod}
+    image: eiscore/yayu-flash-runtime:3199a61
+    container_name: yayu-eiscore-flash-agent
+    restart: unless-stopped
+    environment:
+      RUNTIME_PROFILE: flash
+      NODE_ENV: production
+      PORT: 8078
+      EISCORE_DB_HOST: db
+      EISCORE_DB_PORT: 5432
+      EISCORE_DB_NAME: eiscore
+      EISCORE_AGENT_DB_USER: eiscore_flash_agent
+      AGENT_DB_PASSWORD: ${FLASH_AGENT_DB_PASSWORD:?required}
+      AGENT_POSTGREST_ROLE: eiscore_flash_agent
+      AGENT_POSTGREST_URL: http://api:3000
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET:?required}
+      EISCORE_HARNESS_ENABLED: ${EISCORE_HARNESS_ENABLED:-false}
+      EISCORE_HARNESS_URL: http://flash-harness-bridge:3080
+      EISCORE_HARNESS_AUDIT_FILE: /var/lib/eiscore/flash-harness-audit.jsonl
+      EISCORE_HARNESS_AUDIT_HASH_KEY: ${FLASH_EISCORE_HARNESS_AUDIT_HASH_KEY:?required}
+      EISCORE_HARNESS_BRIDGE_SECRET: ${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?required}
+      EISCORE_TOOL_PROXY_SECRET: ${FLASH_EISCORE_TOOL_PROXY_SECRET:?required}
+      FLASH_PROJECT_PATH: ${FLASH_PROJECT_PATH:-eiscore-apps/src/views/drafts}
+      FLASH_WORKDIR: ${FLASH_WORKDIR:-/workspace/eiscore-apps/src/views/drafts}
+    volumes:
+      - ./harness:/agent-harness:ro
+      - flash_harness_audit:/var/lib/eiscore
+      - flash_drafts:/workspace/eiscore-apps/src/views/drafts
+    depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
+    networks: [data, flash]
   harness-bridge:
     image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
     container_name: yayu-eiscore-harness-bridge
@@ -126,6 +157,71 @@ services:
       - ./harness:/opt/eiscore-harness:ro
     depends_on: [agent]
     networks: [business]
+  deepseek-flash-web:
+    image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
+    container_name: yayu-eiscore-deepseek-flash-web
+    restart: unless-stopped
+    init: true
+    user: '10001:10001'
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    entrypoint: [node]
+    command: [--expose-internals, /opt/eiscore-harness/dsh-web-runner.mjs]
+    environment:
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/flash
+      DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
+      DSH_TRUSTED_HOST: yayu.eiscore.top
+      DSH_PATCH_PATH: /opt/eiscore-harness/dsh-flash-web.patch.yml
+      EISCORE_AUTH_COOKIE_PREFIX: flash-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
+      DEEPSEEK_API_KEY: ${FLASH_DEEPSEEK_API_KEY:-}
+      EISCORE_HARNESS_CAPABILITY_PROFILE: flash
+      EISCORE_GATEWAY_URL: http://flash-agent-runtime:8078
+      EISCORE_AUTH_URL: https://yayu.eiscore.top
+      EISCORE_AUTH_ORIGINS: https://yayu.eiscore.top
+      EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: ${FLASH_EISCORE_TOOL_PROXY_SECRET:?required}
+    volumes:
+      - flash_deepseek_web_home:/var/lib/dsh
+      - ./harness:/opt/eiscore-harness:ro
+      - ./dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
+    depends_on: [flash-agent-runtime]
+    networks: [flash]
+  flash-harness-bridge:
+    image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
+    container_name: yayu-eiscore-flash-harness-bridge
+    restart: unless-stopped
+    init: true
+    user: '10001:10001'
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    entrypoint: [node]
+    command: [/opt/eiscore-harness/dsh-http-bridge.mjs]
+    environment:
+      PORT: 3080
+      DSH_BIN: /opt/bridge/node_modules/.bin/dsh
+      DSH_HOME: /var/lib/dsh
+      DSH_PROVIDER: deepseek
+      DSH_MODEL: deepseek-chat
+      DEEPSEEK_API_KEY: ${FLASH_DEEPSEEK_API_KEY:-}
+      HARNESS_PROFILE: flash
+      HARNESS_PLUGINS: flash-builder
+      DSH_CWD: /opt/eiscore-harness
+      DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
+      EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
+      EISCORE_HARNESS_BRIDGE_SECRET: ${FLASH_EISCORE_HARNESS_BRIDGE_SECRET:?required}
+      EISCORE_TOOL_PROXY_SECRET: ${FLASH_EISCORE_TOOL_PROXY_SECRET:?required}
+      BRIDGE_STATE_FILE: /var/lib/dsh/flash-bridge-state.json
+    volumes:
+      - flash_harness_bridge_home:/var/lib/dsh
+      - ./harness:/opt/eiscore-harness:ro
+    depends_on: [flash-agent-runtime]
+    networks: [flash]
   web:
     image: nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     container_name: yayu-eiscore-web
@@ -133,9 +229,9 @@ services:
     ports: ['127.0.0.1:18396:80']
     volumes:
       - ./releases:/srv/releases:ro
-      - ./nginx/yayu.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on: [api, agent, deepseek-web]
-    networks: [data, business, edge]
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on: [api, agent, deepseek-web, flash-agent-runtime, deepseek-flash-web, flash-harness-bridge]
+    networks: [data, business, flash, edge]
   builder:
     image: node:20.19.0-bookworm-slim@sha256:5cfa999422613d3b34f766cbb814d964cbfcb76aaf3607e805da21cccb352bac
     profiles: [tools]
@@ -152,10 +248,16 @@ volumes:
   harness_audit:
   harness_bridge_home:
   deepseek_web_home:
+  flash_harness_audit:
+  flash_harness_bridge_home:
+  flash_deepseek_web_home:
+  flash_drafts:
 networks:
   data:
     name: yayu-eiscore-data
   business:
     name: yayu-eiscore-business
+  flash:
+    name: yayu-eiscore-flash
   edge:
     name: yayu-eiscore-edge

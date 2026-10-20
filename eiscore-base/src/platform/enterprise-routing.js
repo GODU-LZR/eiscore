@@ -8,6 +8,12 @@ import {
 
 export function isEnterprisePathEnabled(path, enterpriseConfig) {
   const moduleId = enterpriseModuleForPath(path)
+  const visibilityFeature = {
+    materials: 'materialsVisible',
+    purchase: 'purchaseVisible',
+    apps: 'appCenterVisible'
+  }[moduleId]
+  if (visibilityFeature && enterpriseConfig?.features?.[visibilityFeature] === false) return false
   return !moduleId || isEnterpriseModuleEnabled(enterpriseConfig, moduleId)
 }
 

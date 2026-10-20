@@ -4,7 +4,7 @@
   "branding": {
     "productName": "雅御 EISCore",
     "themeColor": "#285d57",
-    "logoUrl": "/enterprise-assets/yayu/yayu-calligraphy-transparent.webp",
+    "logoUrl": "/enterprise-assets/yayu/yayu-logo-generated.png",
     "login": {
       "slogan": "让 AI 成为企业经营伙伴",
       "description": "以 EISCore 与行业 Agent 为技术底座，连接智能终端、企业数字化与产业场景。",
@@ -20,5 +20,5 @@
   },
   "endpoints": {"publicBaseUrl": "https://yayu.eiscore.top", "apiBasePath": "/api", "agentBasePath": "/agent", "realtimeWsPath": "/ws"},
   "modules": {"hr": true, "materials": true, "apps": true, "company-site": false, "sales": true, "purchase": true, "production": false, "quality": false, "equipment": false, "decision": false, "mobile": true},
-  "features": {"documentIntake": false, "enterpriseAi": true}
+  "features": {"documentIntake": false, "enterpriseAi": true, "materialsVisible": false, "purchaseVisible": false, "appCenterVisible": true, "salesShipping": false, "flashHarness": true}
 }

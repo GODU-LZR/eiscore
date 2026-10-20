@@ -11,6 +11,7 @@
     "./enterprise-profile": "./src/enterprise-profile.mjs",
     "./enterprise-seo": "./src/enterprise-seo.mjs",
     "./http-client": "./src/http-client.mjs",
+    "./harness-auth": "./src/harness-auth.mjs",
     "./login-branding": "./src/login-branding.mjs",
     "./navigation": "./src/navigation.mjs",
     "./permission": "./src/permission.mjs",

@@ -42,54 +42,20 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 const flowNodes = [
-  { key: 'start', label: '开始', x: 105, y: 78, w: 150, h: 70, variant: 'start' },
-  { key: 'sales_order', label: '销售订单', x: 345, y: 78, w: 195, h: 70, route: '/sales/app/orders' },
-  { key: 'bom', label: 'BOM', x: 585, y: 78, w: 195, h: 70, route: '/production/app/bom_list' },
-  { key: 'process_template', label: '工艺模板', x: 825, y: 78, w: 195, h: 70, route: '/production/bom' },
-  { key: 'equipment_check', label: '设备巡检', x: 1065, y: 78, w: 195, h: 70, route: '/equipment/app/equipment_patrols' },
-
-  { key: 'purchase_order', label: '采购订单', x: 105, y: 220, w: 195, h: 70, route: '/purchase/app/orders' },
-  { key: 'production_order', label: '生产订单', x: 345, y: 220, w: 195, h: 70, route: '/production/app/plans' },
-  { key: 'inspection_order', label: '检验单', x: 825, y: 220, w: 195, h: 70, route: '/quality/app/inspection_orders' },
-  { key: 'shipment_request', label: '销售出货申请', x: 1065, y: 220, w: 195, h: 70, route: '/sales/app/shipment_requests' },
-
-  { key: 'purchase_inbound', label: '采购入库', x: 105, y: 360, w: 195, h: 70, route: '/materials/inventory-stock-in?ioType=采购入库' },
-  { key: 'production_materials', label: '生产订单用料清单', x: 345, y: 360, w: 195, h: 70, route: '/production/app/work_order_items' },
-  { key: 'work_order', label: '生产工单', x: 585, y: 360, w: 195, h: 70, route: '/production/app/work_orders' },
-  { key: 'production_inspection', label: '生产检验', x: 825, y: 360, w: 195, h: 70, variant: 'light', route: '/quality/app/production_inspections' },
-  { key: 'shipment_order', label: '销售出库单', x: 1065, y: 360, w: 195, h: 70, route: '/materials/inventory-stock-out?ioType=销售出库' },
-
-  { key: 'purchase_inventory', label: '库存信息', x: 105, y: 500, w: 195, h: 70, variant: 'outline', route: '/materials/inventory-current' },
-  { key: 'picking_order', label: '生产领料单', x: 345, y: 500, w: 195, h: 70, route: '/materials/inventory-stock-out?ioType=生产领料' },
-  { key: 'report_order', label: '订单/工单报工', x: 585, y: 500, w: 195, h: 70, variant: 'light', route: '/production/app/work_orders' },
-  { key: 'sales_inventory', label: '库存信息', x: 1065, y: 500, w: 195, h: 70, variant: 'outline', route: '/materials/inventory-current' },
-
-  { key: 'material_inventory', label: '库存信息', x: 345, y: 640, w: 195, h: 70, variant: 'outline', route: '/materials/inventory-current' },
-  { key: 'production_inbound', label: '生产入库单', x: 585, y: 640, w: 195, h: 70, route: '/materials/inventory-stock-in?ioType=生产入库' },
-  { key: 'finished_inventory', label: '库存信息', x: 585, y: 780, w: 195, h: 70, variant: 'outline', route: '/materials/inventory-current' }
+  { key: 'customer', label: '客户', x: 80, y: 110, w: 195, h: 70, variant: 'start', route: '/sales/app/customers' },
+  { key: 'opportunity', label: '销售商机', x: 420, y: 110, w: 195, h: 70, route: '/sales/app/opportunities' },
+  { key: 'quote', label: '销售报价', x: 760, y: 110, w: 195, h: 70, route: '/sales/app/quotes' },
+  { key: 'contract', label: '销售合同', x: 1100, y: 110, w: 195, h: 70, route: '/sales/app/contracts' },
+  { key: 'order', label: '销售订单', x: 420, y: 340, w: 195, h: 70, route: '/sales/app/orders' },
+  { key: 'receivable', label: '应收回款', x: 760, y: 340, w: 195, h: 70, variant: 'outline', route: '/sales/app/receivables' }
 ]
 
 const flowLines = [
-  { key: 'start-sales', path: 'M255 113 H345' },
-  { key: 'sales-down', path: 'M442 148 V178 H200 V220' },
-  { key: 'sales-production', path: 'M442 148 V220' },
-  { key: 'sales-branch', path: 'M442 178 H920 V220' },
-  { key: 'sales-shipment', path: 'M920 178 H1162 V220' },
-
-  { key: 'purchase-inbound', path: 'M202 290 V360' },
-  { key: 'purchase-inventory', path: 'M202 430 V500' },
-
-  { key: 'production-materials', path: 'M442 290 V360' },
-  { key: 'production-work-branch', path: 'M442 325 H682 V360' },
-  { key: 'materials-picking', path: 'M442 430 V500' },
-  { key: 'picking-inventory', path: 'M442 570 V640' },
-  { key: 'work-report', path: 'M682 430 V500' },
-  { key: 'report-inbound', path: 'M682 570 V640' },
-  { key: 'inbound-finished', path: 'M682 710 V780' },
-
-  { key: 'inspection-production', path: 'M922 290 V360' },
-  { key: 'shipment-out', path: 'M1162 290 V360' },
-  { key: 'shipment-inventory', path: 'M1162 430 V500' }
+  { key: 'customer-opportunity', path: 'M275 145 H420' },
+  { key: 'opportunity-quote', path: 'M615 145 H760' },
+  { key: 'quote-contract', path: 'M955 145 H1100' },
+  { key: 'contract-order', path: 'M1198 180 V275 H518 V340' },
+  { key: 'order-receivable', path: 'M615 375 H760' }
 ]
 
 const getNodeStyle = (node) => ({
