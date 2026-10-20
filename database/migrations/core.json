@@ -407,6 +407,19 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-032",
+      "path": "database/migrations/sql/core-032-anonymous-api-boundary.sql",
+      "sha256": "1bb6c6be04250b82ebdef548e78d1427490461cb53705b8a99c524811e929647",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }
