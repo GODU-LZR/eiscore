@@ -139,6 +139,28 @@ export const createAuthStatusCache = (ttlMs = 3000, maxEntries = 256) => {
   }
 }
 
+export const respondToDisabledCommandList = async (request, response, { authenticated = false, setCookies = [] } = {}) => {
+  if (request.method !== 'POST' || String(request.url || '').split('?', 1)[0] !== '/api/commands/list') return false
+  const send = (status, value) => response.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store',
+    ...(setCookies.length ? { 'set-cookie': setCookies } : {})
+  }).end(JSON.stringify(value))
+  if (!authenticated) { send(401, { authenticated: false, code: 'EISCORE_AUTH_REQUIRED' }); return true }
+  try {
+    const chunks = []
+    let size = 0
+    for await (const chunk of request) {
+      size += chunk.length
+      if (size > 4096) { send(413, { code: 'BODY_TOO_LARGE' }); return true }
+      chunks.push(chunk)
+    }
+    const message = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    if (message?.type !== 'client-request' || message.method !== 'commands/list' || typeof message.rpcId !== 'string' || !message.rpcId.trim() || message.rpcId.length > 128 || !message.payload || typeof message.payload !== 'object' || Array.isArray(message.payload)) throw new Error('BAD_REQUEST')
+    send(200, { type: 'server-response', rpcId: message.rpcId, result: { ok: true, value: [] } })
+  } catch { send(400, { code: 'BAD_REQUEST' }) }
+  return true
+}
+
 const start = () => {
 ensureStartupProfile()
 
@@ -398,11 +420,12 @@ const proxy = http.createServer((request, response) => {
     : Promise.resolve({ headers, setCookies: [] })
   bootstrap.then(({ headers: authenticatedHeaders, setCookies }) => {
     if (!isPublicPath(path, request.method)) {
-      return authorizeRequest(authenticatedHeaders, setCookies).then(({ headers: checkedHeaders, setCookies: checkedCookies, authenticated }) => {
+      return authorizeRequest(authenticatedHeaders, setCookies).then(async ({ headers: checkedHeaders, setCookies: checkedCookies, authenticated }) => {
         if (!authenticated) {
           if (isHtmlNavigation(request)) return redirectToLogin(request, response, checkedHeaders, checkedCookies)
           return rejectUnauthenticated(response)
         }
+        if (await respondToDisabledCommandList(request, response, { authenticated, setCookies: mapAuthSetCookiesToBrowser(checkedCookies, authCookiePrefix) })) return
         proxyAuthenticatedRequest(request, response, checkedHeaders, checkedCookies)
       })
     }
