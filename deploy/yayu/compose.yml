@@ -60,7 +60,7 @@ services:
       EISCORE_HARNESS_BRIDGE_SECRET: ${EISCORE_HARNESS_BRIDGE_SECRET:?required}
       EISCORE_TOOL_PROXY_SECRET: ${EISCORE_TOOL_PROXY_SECRET:?required}
     volumes:
-      - ./harness:/agent-harness:ro
+      - ${YAYU_HARNESS_ROOT:?YAYU_HARNESS_ROOT is required}:/agent-harness:ro
       - harness_audit:/var/lib/eiscore
     depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
     networks: [data, business]
@@ -90,7 +90,7 @@ services:
       FLASH_PROJECT_PATH: ${FLASH_PROJECT_PATH:-eiscore-apps/src/views/drafts}
       FLASH_WORKDIR: ${FLASH_WORKDIR:-/workspace/eiscore-apps/src/views/drafts}
     volumes:
-      - ./harness:/agent-harness:ro
+      - ${YAYU_HARNESS_ROOT:?YAYU_HARNESS_ROOT is required}:/agent-harness:ro
       - flash_harness_audit:/var/lib/eiscore
       - flash_drafts:/workspace/eiscore-apps/src/views/drafts
     depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
@@ -124,7 +124,7 @@ services:
       BRIDGE_STATE_FILE: /var/lib/dsh/bridge-state.json
     volumes:
       - harness_bridge_home:/var/lib/dsh
-      - ./harness:/opt/eiscore-harness:ro
+      - ${YAYU_HARNESS_ROOT:?YAYU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
     depends_on: [agent]
     networks: [business]
   deepseek-web:
@@ -147,6 +147,7 @@ services:
       DSH_PATCH_PATH: /opt/eiscore-harness/dsh-web.patch.yml
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       EISCORE_HARNESS_CAPABILITY_PROFILE: business
+      EISCORE_HARNESS_PUBLIC_PREFIX: /harness-embed
       EISCORE_GATEWAY_URL: http://agent:8078
       EISCORE_AUTH_URL: https://yayu.eiscore.top
       EISCORE_AUTH_ORIGINS: https://yayu.eiscore.top
@@ -154,7 +155,7 @@ services:
       EISCORE_TOOL_PROXY_SECRET: ${EISCORE_TOOL_PROXY_SECRET:?required}
     volumes:
       - deepseek_web_home:/var/lib/dsh
-      - ./harness:/opt/eiscore-harness:ro
+      - ${YAYU_HARNESS_ROOT:?YAYU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
     depends_on: [agent]
     networks: [business]
   deepseek-flash-web:
@@ -179,6 +180,7 @@ services:
       EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
       DEEPSEEK_API_KEY: ${FLASH_DEEPSEEK_API_KEY:-}
       EISCORE_HARNESS_CAPABILITY_PROFILE: flash
+      EISCORE_HARNESS_PUBLIC_PREFIX: /harness-flash-embed
       EISCORE_GATEWAY_URL: http://flash-agent-runtime:8078
       EISCORE_AUTH_URL: https://yayu.eiscore.top
       EISCORE_AUTH_ORIGINS: https://yayu.eiscore.top
@@ -186,8 +188,8 @@ services:
       EISCORE_TOOL_PROXY_SECRET: ${FLASH_EISCORE_TOOL_PROXY_SECRET:?required}
     volumes:
       - flash_deepseek_web_home:/var/lib/dsh
-      - ./harness:/opt/eiscore-harness:ro
-      - ./dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
+      - ${YAYU_HARNESS_ROOT:?YAYU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
+      - ./source/agent-harness/dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
     depends_on: [flash-agent-runtime]
     networks: [flash]
   flash-harness-bridge:
@@ -219,7 +221,7 @@ services:
       BRIDGE_STATE_FILE: /var/lib/dsh/flash-bridge-state.json
     volumes:
       - flash_harness_bridge_home:/var/lib/dsh
-      - ./harness:/opt/eiscore-harness:ro
+      - ${YAYU_HARNESS_ROOT:?YAYU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
     depends_on: [flash-agent-runtime]
     networks: [flash]
   web:

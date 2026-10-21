@@ -9,6 +9,11 @@
 !agent-harness/eiscore-restricted.cordis.yml
 !agent-harness/dsh-web-runner.mjs
 !agent-harness/dsh-web.patch.yml
+!agent-harness/business-web-ui.mjs
+!agent-harness/visual-web-ui.mjs
+!agent-harness/visual-response-policy.mjs
+!agent-harness/web-ui/
+!agent-harness/web-ui/**
 !agent-harness/dsh-web-defaults.mjs
 !agent-harness/dsh-flash-web.patch.yml
 !agent-harness/plugin-registry.js

@@ -9,6 +9,14 @@ export const EIS_THEME_VARIABLES = [
   '--primary-color',
   '--page-bg-tint',
   '--card-bg-tint',
+  '--eis-surface-color',
+  '--el-bg-color-page',
+  '--el-bg-color',
+  '--el-bg-color-overlay',
+  '--el-fill-color-blank',
+  '--el-fill-color-light',
+  '--el-fill-color-lighter',
+  '--el-fill-color-extra-light',
   ...Array.from({ length: 9 }, (_, index) => `--el-color-primary-light-${index + 1}`)
 ]
 

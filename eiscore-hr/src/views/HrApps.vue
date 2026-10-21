@@ -348,7 +348,7 @@ onMounted(loadCardData)
   padding: 20px;
   min-height: 100vh;
   box-sizing: border-box;
-  background: #f5f7fb;
+  background: var(--eis-surface-color, #f5f7fb);
 }
 
 .apps-header {
@@ -506,7 +506,7 @@ onMounted(loadCardData)
   padding: 0 10px;
   box-sizing: border-box;
   border-radius: 8px;
-  background: #f6f8fb;
+  background: var(--eis-surface-color, #f6f8fb);
   display: flex;
   align-items: center;
   justify-content: space-between;

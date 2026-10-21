@@ -49,14 +49,31 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 29)
+assert.equal(coreResult.migrations.length, 32)
 assert.deepEqual(coreResult.migrations.map((entry) => entry.id),
-  Array.from({ length: 29 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
+  Array.from({ length: 32 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
 const twinAdminHistory = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-025-twin-admin-session-overview.sql'), 'utf8')
 const twinAdminCorrection = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-027-reject-missing-twin-admin-role.sql'), 'utf8')
 assert.match(twinAdminHistory, /IF app_role <> 'super_admin' THEN/, 'the original migration must remain immutable')
 assert.match(twinAdminCorrection, /IF app_role IS DISTINCT FROM 'super_admin' THEN/)
-assert.equal(coreResult.migrations.at(-1).path, 'database/migrations/sql/core-029-sales-document-flow.sql')
+assert.equal(coreResult.migrations.at(-1).path, 'database/migrations/sql/core-032-fix-flash-agent-context.sql')
+const flashContextSql = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-032-fix-flash-agent-context.sql'), 'utf8')
+assert.match(flashContextSql, /actor_username text :=/)
+assert.match(flashContextSql, /u\.username = actor_username/)
+assert.doesNotMatch(flashContextSql, /u\.username = username/)
+const gridSummarySql = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-030-grid-summary-consistency.sql'), 'utf8')
+assert.match(gridSummarySql,
+  /if raw_value in \('true','false'\) and condition_prop like 'properties->>%' then\s+condition_sql := format\('%s = %L',condition_field,raw_value\);/i,
+  'JSON-backed boolean filters must compare text values instead of using IS with a boolean literal')
+assert.match(gridSummarySql, /SECURITY INVOKER/i, 'grid summary must execute with caller permissions')
+assert.match(gridSummarySql, /has_table_privilege\(current_user, rel, 'SELECT'\)/i, 'grid summary must enforce caller SELECT privilege')
+assert.match(gridSummarySql, /rel_kind not in \('r', 'p', 'v'\)/i, 'grid summary must reject unsupported relation kinds')
+assert.match(gridSummarySql, /or rel_is_partition/i, 'grid summary must reject direct partition-child access')
+assert.match(gridSummarySql, /rel_options @> ARRAY\['security_invoker=true'\]/i, 'grid summary must reject non-invoker views')
+assert.equal((gridSummarySql.match(/ALTER VIEW public\.v_(?:roles_manage|role_permissions_matrix|role_data_scopes_matrix) SET \(security_invoker = true\)/g) || []).length, 3)
+const attendancePolicySql = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-031-hr-attendance-read-policy-performance.sql'), 'utf8')
+assert.equal((attendancePolicySql.match(/ALTER POLICY hr_attendance_(?:records|month_overrides)_select/g) || []).length, 2)
+assert.equal((attendancePolicySql.match(/WHEN \(SELECT hr\.can_access_employee\(NULL::bigint, 'hr_attendance'\)\)/g) || []).length, 2)
 const twinAdminContract = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-028-fix-twin-admin-session-contract.sql'), 'utf8')
 assert.match(twinAdminContract, /NULLIF\(current_setting\('request.jwt.claims', true\), ''\)::jsonb/)
 assert.match(twinAdminContract, /IF app_role IS DISTINCT FROM 'super_admin' THEN/)
@@ -85,6 +102,15 @@ for (const path of ['manifest.json', 'register.sql', 'schema.sql', 'object-catal
 assert.ok(coreResult.migrations.every((entry) => entry.rollbackStrategy === 'backup-restore'))
 const core009Sql = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-009-retire-legacy-twin-model.sql'), 'utf8')
 const corePostcheckSql = readFileSync(resolve(repoRoot, 'database/migrations/postchecks/core.sql'), 'utf8')
+assert.match(corePostcheckSql,
+  /attendance read policies must evaluate all-scope once and retain row scope/)
+assert.match(corePostcheckSql,
+  /Flash authorization context must use an unambiguous actor username variable/)
+assert.match(corePostcheckSql, /p\.prosecdef, pg_get_functiondef\(p\.oid\)/)
+assert.match(corePostcheckSql, /has_table_privilege\(current_user/)
+assert.match(corePostcheckSql, /rel_kind not in/)
+assert.match(corePostcheckSql, /security_invoker=true/)
+assert.match(corePostcheckSql, /ACL summary views must execute with caller permissions/)
 for (const marker of [
   "UPDATE app_data.twin_sessions",
   "SET model = 'deepseek-harness'",

@@ -9,8 +9,10 @@ import { loadAndValidateMigrationManifest } from '../../scripts/check-database-m
 const repoRoot = resolve(import.meta.dirname, '../..')
 const manifest = loadAndValidateMigrationManifest({ repoRoot, manifestPath: 'database/migrations/core.json' })
 assert.deepEqual(manifest.errors, [])
-assert.equal(manifest.migrations.at(-1).id, 'core-029')
-const sql = readFileSync(resolve(repoRoot, manifest.migrations.at(-1).path), 'utf8')
+assert.equal(manifest.migrations.at(-1).id, 'core-032')
+const salesMigration = manifest.migrations.find(({ id }) => id === 'core-029')
+assert.ok(salesMigration, 'sales document schema must remain in core-029')
+const sql = readFileSync(resolve(repoRoot, salesMigration.path), 'utf8')
 for (const [key, table] of [
   ['quotes', 'sales_quotes'], ['contracts', 'sales_contracts'], ['receivables', 'sales_receivable_schedule']
 ]) {

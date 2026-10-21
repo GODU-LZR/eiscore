@@ -132,11 +132,12 @@ class AiBridge {
     this.lastCommandId = command.id
 
     if (command.type === 'open-worker') {
-      this.setMode('worker')
-      this.openWindow()
-      if (typeof command.prompt === 'string' && command.prompt.trim()) {
-        this.sendMessage(command.prompt)
-      }
+      window.dispatchEvent(new CustomEvent('eis-harness-open-worker', {
+        detail: {
+          id: String(command.id),
+          prompt: typeof command.prompt === 'string' ? command.prompt : ''
+        }
+      }))
     }
   }
 

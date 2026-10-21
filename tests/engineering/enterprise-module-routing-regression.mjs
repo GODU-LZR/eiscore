@@ -2,6 +2,7 @@
 // Copyright (c) 2026 林志荣
 
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   DEFAULT_ENTERPRISE_CONFIG,
   ENTERPRISE_MODULE_IDS,
@@ -40,6 +41,23 @@ assert.deepEqual(
   { type: 'redirect', path: '/', reason: 'module-disabled', moduleId: 'quality' }
 )
 assert.equal(isEnterprisePathEnabled('/quality/dashboard', restricted), false)
+const hiddenApps = JSON.parse(JSON.stringify(DEFAULT_ENTERPRISE_CONFIG))
+hiddenApps.features.appCenterVisible = false
+hiddenApps.features.flashHarness = true
+const hiddenAppsConfig = parseEnterpriseConfig(hiddenApps, { source: 'hidden app center' })
+assert.equal(isEnterprisePathEnabled('/apps/', hiddenAppsConfig), false)
+assert.equal(isEnterprisePathEnabled('/apps/flash-builder/demo', hiddenAppsConfig), true)
+assert.equal(isEnterprisePathEnabled('/apps/preview/flash-draft', hiddenAppsConfig), true)
+assert.equal(isEnterprisePathEnabled('/apps/app/demo?flash=1', hiddenAppsConfig), true)
+assert.equal(isEnterprisePathEnabled('/apps/app/demo', hiddenAppsConfig), false)
+assert.equal(isEnterprisePathEnabled('/apps/app/demo?flash=0', hiddenAppsConfig), false)
+const routerSource = readFileSync(new URL('../../eiscore-base/src/router/index.js', import.meta.url), 'utf8')
+assert.match(routerSource, /resolveEnterpriseNavigation\(\{[\s\S]*path: to\.fullPath/)
+const hiddenWithoutHarness = structuredClone(hiddenApps)
+hiddenWithoutHarness.features.flashHarness = false
+const hiddenWithoutHarnessConfig = parseEnterpriseConfig(hiddenWithoutHarness, { source: 'hidden app center without flash harness' })
+assert.equal(isEnterprisePathEnabled('/apps/flash-builder/demo', hiddenWithoutHarnessConfig), false)
+assert.equal(isEnterprisePathEnabled('/apps/preview/flash-draft', hiddenWithoutHarnessConfig), false)
 assert.equal(isEnterprisePathEnabled('/settings', restricted), true)
 assert.equal(resolveEnterpriseNavigation({
   path: '/materials',

@@ -15,6 +15,8 @@ import { patchElMessage } from '@/utils/message-patch'
 import { hasPerm, getPermissions } from '@/utils/permission'
 import { installFlashRuntimeBridge } from '@/utils/flash-runtime-bridge'
 import { getToken, isTokenExpired, clearAuthAndRedirect } from '@/utils/auth'
+import { getEnterpriseConfig, loadEnterpriseConfig, publishEnterpriseConfig } from '@eiscore/platform/enterprise-config'
+import { isAppCenterRouteAvailable } from '@/domain/standalone-entry-policy.mjs'
 import { installEisThemeSync } from '@shared/eis-theme-sync'
 
 import App from './App.vue'
@@ -24,6 +26,13 @@ patchElMessage()
 
 const MICRO_APP_NAME = 'eiscore-apps'
 const DEV_STANDALONE_PORT = '8083'
+
+if (typeof window !== 'undefined' && window.location.pathname === '/apps/index.html'
+  && new URLSearchParams(window.location.search).get('eis_flash_preview') === '1') {
+  const previewEntry = new URL(window.location.href)
+  previewEntry.pathname = '/apps/preview/flash-draft'
+  window.history.replaceState(window.history.state, '', `${previewEntry.pathname}${previewEntry.search}${previewEntry.hash}`)
+}
 
 let app = null
 let router = null
@@ -136,6 +145,7 @@ function render(props = {}) {
     history,
     routes
   })
+  const enterpriseConfig = props.enterpriseConfig || getEnterpriseConfig(window)
   const canAccessAppCenterManage = () => hasPerm('module:app') || hasPerm('module:apps')
   const canAccessAppCenterEntry = () => {
     if (canAccessAppCenterManage()) return true
@@ -148,6 +158,10 @@ function render(props = {}) {
         clearAuthAndRedirect('/login')
         return
       }
+    }
+    if (!isAppCenterRouteAvailable(to.path, enterpriseConfig, { query: to.query })) {
+      window.location.replace('/')
+      return false
     }
     if (to.meta?.requiresManage && !canAccessAppCenterManage()) {
       return next('/')
@@ -196,5 +210,14 @@ renderWithQiankun(lifecycle)
 ensureQiankunLifecycleBucket(lifecycle)
 
 if (shouldRenderStandalone()) {
-  render()
+  loadEnterpriseConfig({
+    globalConfig: window.__EISCORE_ENTERPRISE_CONFIG__,
+    required: import.meta.env.PROD
+  }).then((enterpriseConfig) => {
+    publishEnterpriseConfig(enterpriseConfig, window)
+    render({ enterpriseConfig })
+  }).catch(() => {
+    const root = document.getElementById('app')
+    if (root) root.textContent = '系统配置加载失败，请联系管理员。'
+  })
 }

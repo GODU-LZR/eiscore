@@ -14,12 +14,17 @@ import { hasPerm } from '@/utils/permission'
 
 const route = useRoute()
 const router = useRouter()
+const enterpriseConfig = globalThis.__EISCORE_ENTERPRISE_CONFIG__ || { features: {} }
 
 const appKey = computed(() => route.params.key || 'customers')
 const appConfig = computed(() => findSalesApp(appKey.value))
 
 watchEffect(() => {
   if (!appConfig.value) {
+    router.replace('/apps')
+    return
+  }
+  if (appKey.value === 'shipment_requests' && enterpriseConfig.features?.salesShipping === false) {
     router.replace('/apps')
     return
   }

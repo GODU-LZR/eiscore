@@ -33,9 +33,9 @@ const corePlan = loadRuntimeMigrationPlan({
   manifestPath: 'database/migrations/core.json'
 })
 assert.equal(corePlan.name, 'core')
-assert.equal(corePlan.migrations.length, 29)
+assert.equal(corePlan.migrations.length, 32)
 assert.deepEqual(corePlan.migrations.map((entry) => entry.id),
-  Array.from({ length: 29 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
+  Array.from({ length: 32 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
 
 assert.deepEqual(
   parseRuntimeMigrationArgs([

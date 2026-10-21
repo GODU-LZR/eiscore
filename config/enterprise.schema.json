@@ -135,6 +135,7 @@
       "properties": {
         "productName": { "type": "string", "minLength": 1, "maxLength": 120 },
         "themeColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "surfaceColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
         "logoUrl": { "type": "string" },
         "login": {
           "allOf": [{ "$ref": "#/$defs/loginFields" }],

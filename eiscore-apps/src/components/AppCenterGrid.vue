@@ -1564,9 +1564,10 @@ const handleCreate = async () => {
       data: finalPayload
     })
     const created = Array.isArray(res) ? res[0] : res
-    if (created && gridRef.value?.prependRow) {
-      gridRef.value.prependRow(created)
-    } else if (gridRef.value?.loadData) {
+    const prepended = created && gridRef.value?.prependRow
+      ? gridRef.value.prependRow(created)
+      : false
+    if (!prepended && gridRef.value?.loadData) {
       await gridRef.value.loadData()
     }
     if (workflowContext.value.active) {

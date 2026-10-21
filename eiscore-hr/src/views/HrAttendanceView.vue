@@ -586,6 +586,8 @@ const dayColumns = computed(() => [
   {
     label: '打卡次数',
     prop: 'punch_count',
+    summaryField: 'punch_times',
+    summaryTransform: 'array_length',
     width: 90,
     editable: false,
     searchable: false,
@@ -748,9 +750,10 @@ const handleCreate = async () => {
     return
   }
   try {
-    await request({
+    const created = await request({
       url: '/attendance_records',
       method: 'post',
+      headers: { Prefer: 'return=representation' },
       data: {
         att_date: currentDay.value,
         person_type: 'temp',
@@ -758,7 +761,10 @@ const handleCreate = async () => {
         dept_name: deptValue.value || '未分配'
       }
     })
-    gridRef.value?.loadData()
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (!createdRow?.id || !await gridRef.value?.prependRow?.(createdRow)) {
+      await gridRef.value?.loadData?.()
+    }
   } catch (e) {
     ElMessage.error('新增失败')
   }

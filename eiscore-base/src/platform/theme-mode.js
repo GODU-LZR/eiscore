@@ -3,6 +3,7 @@
 
 import { ref, watch } from 'vue'
 import { useDark } from '@vueuse/core'
+import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import {
   GLOBAL_THEME_STORAGE_KEY,
   getGlobalTheme,
@@ -27,4 +28,8 @@ if (typeof window !== 'undefined') {
   })
 }
 
-export const useHostDarkMode = () => hostDarkMode
+export const useHostDarkMode = () => {
+  // An explicit deployment surface keeps the branded workspace in its light palette.
+  if (getEnterpriseConfig(globalThis).branding.surfaceColor) hostDarkMode.value = false
+  return hostDarkMode
+}

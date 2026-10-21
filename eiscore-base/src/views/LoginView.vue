@@ -574,6 +574,7 @@
             </button>
             <div class="auth-card">
               <div class="auth-card-header">
+                <img v-if="enterpriseLogoUrl" class="auth-brand-mark" :src="enterpriseLogoUrl" :alt="companyName" />
                 <span>{{ branding.authKicker }}</span>
                 <h2 id="employee-login-title">{{ branding.authTitle }}</h2>
                 <p class="auth-subtitle">{{ branding.announcement }}</p>
@@ -692,7 +693,8 @@ const loginForm = reactive({
 })
 
 const safeThemeColor = computed(() => {
-  const color = String(systemStore.config?.themeColor || systemStore.enterpriseProfile?.themeColor || '#409EFF').trim()
+  const configuredColor = getEnterpriseConfig(globalThis).branding?.themeColor
+  const color = String(configuredColor || systemStore.config?.themeColor || systemStore.enterpriseProfile?.themeColor || '#409EFF').trim()
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#409EFF'
 })
 
@@ -701,6 +703,7 @@ const branding = computed(() => {
   return normalizeLoginBranding(source, { enterpriseConfig: getEnterpriseConfig(globalThis) })
 })
 
+const enterpriseLogoUrl = computed(() => getEnterpriseConfig(globalThis).branding.logoUrl || '')
 const companyName = computed(() => branding.value.companyName)
 const portal = computed(() => systemStore.enterpriseProfile?.portal || {})
 const portalUi = computed(() => portal.value.ui || {})
@@ -1044,6 +1047,7 @@ const pageStyle = computed(() => {
     '--login-theme': theme,
     '--login-theme-light': tintLight,
     '--login-ink': ink,
+    '--el-color-primary': theme,
     backgroundColor: '#fff',
     backgroundImage: 'none'
   }

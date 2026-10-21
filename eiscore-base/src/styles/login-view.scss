@@ -403,7 +403,7 @@
   padding: 30px;
   box-sizing: border-box;
   border-radius: 3px;
-  background: #ffffff;
+  background: var(--eis-surface-color, #ffffff);
   border: 1px solid rgba(17, 24, 39, 0.12);
   box-shadow: 0 18px 42px rgba(2, 18, 13, 0.2);
   color: #111827;
@@ -426,7 +426,7 @@
   border: 0;
   border-radius: 50%;
   color: #4b5563;
-  background: #f3f4f6;
+  background: var(--eis-surface-color, #f3f4f6);
   font-size: 25px;
   line-height: 1;
   cursor: pointer;
@@ -464,6 +464,14 @@
 .auth-card:hover {
   transform: none;
   box-shadow: 0 18px 42px rgba(2, 18, 13, 0.2);
+}
+
+.auth-brand-mark {
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 16px;
+  object-fit: contain;
 }
 
 .auth-card-header span {
@@ -504,12 +512,12 @@
   border-radius: 4px;
   box-shadow: 0 0 0 1px #d7dce3 inset;
   transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--eis-surface-color, rgba(255, 255, 255, 0.92));
 }
 
 .login-form :deep(.el-input__wrapper.is-focus) {
   transform: translateY(-1px);
-  background: #ffffff;
+  background: var(--eis-surface-color, #ffffff);
   box-shadow:
     0 0 0 1px var(--login-theme) inset,
     0 8px 18px rgba(17, 24, 39, 0.08);

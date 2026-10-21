@@ -24,15 +24,25 @@ export const SALES_FLOW_TARGETS = Object.freeze({
   })
 })
 
+export const isSalesShippingEnabled = (enterpriseConfig = {}) => (
+  enterpriseConfig?.features?.salesShipping !== false
+)
+
 export function openSalesFlowTarget(targetId, {
   navigate = navigateEnterprisePath,
   onWarning = () => {},
+  salesShippingEnabled = true,
   ...navigationOptions
 } = {}) {
   const target = SALES_FLOW_TARGETS[targetId]
   if (!target) {
     const result = { ok: false, reason: 'unknown-sales-flow-target', moduleId: '', mode: 'none' }
     onWarning('未知业务页面，无法跳转。')
+    return result
+  }
+  if (!salesShippingEnabled && ['shipmentRequest', 'salesOutbound'].includes(targetId)) {
+    const result = { ok: false, reason: 'sales-shipping-disabled', moduleId: 'sales', mode: 'none' }
+    onWarning('当前企业销售流程不包含出货环节。')
     return result
   }
 

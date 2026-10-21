@@ -8,8 +8,10 @@
 
 import { onMounted } from 'vue'
 import { useSystemStore } from '@/stores/system'
+import { useHostDarkMode } from '@/platform/theme-mode'
 
 const systemStore = useSystemStore()
+useHostDarkMode()
 
 onMounted(async () => {
   await systemStore.loadConfig()
@@ -19,6 +21,61 @@ onMounted(async () => {
 </script>
 
 <style>
+html[data-eis-surface]:not(.dark) {
+  color-scheme: light;
+  --el-bg-color-page: var(--eis-surface-color);
+  --el-bg-color: var(--eis-surface-color);
+  --el-bg-color-overlay: var(--eis-surface-color);
+  --el-fill-color-blank: var(--eis-surface-color);
+  --el-fill-color-light: color-mix(in srgb, var(--eis-surface-color) 92%, #222b28);
+  --el-fill-color-lighter: color-mix(in srgb, var(--eis-surface-color) 96%, #222b28);
+  --el-fill-color-extra-light: var(--eis-surface-color);
+}
+
+/* Keep the configured light surface when the public login follows OS dark media rules. */
+html[data-eis-surface] .login-page,
+html[data-eis-surface] .auth-card {
+  background: var(--eis-surface-color) !important;
+  color: #222b28;
+}
+html[data-eis-surface] .auth-card {
+  border-color: #dcded5 !important;
+}
+html[data-eis-surface] .auth-card h2,
+html[data-eis-surface] .login-form .el-input__inner,
+html[data-eis-surface] .login-form .el-form-item__label {
+  color: #222b28;
+}
+html[data-eis-surface] .login-form .el-input__wrapper,
+html[data-eis-surface] .auth-close {
+  background: var(--eis-surface-color);
+}
+html[data-eis-surface] .auth-close,
+html[data-eis-surface] .auth-subtitle,
+html[data-eis-surface] .auth-footnote,
+html[data-eis-surface] .safe-note {
+  color: #69716c;
+}
+html[data-eis-surface] body .auth-overlay {
+  background: rgba(39, 37, 31, 0.58) !important;
+}
+html[data-eis-surface] body .auth-overlay .login-form .el-input__wrapper,
+html[data-eis-surface] body .auth-overlay .login-form .el-input__wrapper.is-focus {
+  background: var(--eis-surface-color) !important;
+  box-shadow: 0 0 0 1px #c8c5b9 inset;
+}
+html[data-eis-surface] body .auth-overlay .login-form .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--login-theme) inset, 0 6px 14px rgba(52, 48, 38, 0.1);
+}
+html[data-eis-surface] body .auth-overlay .login-form .el-input__inner,
+html[data-eis-surface] body .auth-overlay .login-form .el-checkbox__label {
+  color: #222b28 !important;
+}
+html[data-eis-surface] body .auth-overlay .login-form .el-checkbox__inner {
+  border-color: #8b9086;
+  background: var(--eis-surface-color);
+}
+
 /* 可以在这里设置全局的基础样式 */
 body {
   margin: 0;

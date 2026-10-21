@@ -166,7 +166,7 @@ $border-color: var(--el-border-color, #dcdfe6);
   flex: 1;
   min-height: 0;
   --ai-panel-bg: var(--el-color-primary-light-9, #f5f7fa);
-  --ai-panel-surface: #ffffff;
+  --ai-panel-surface: var(--eis-surface-color, #ffffff);
 }
 
 // ── 顶部栏 ──
@@ -236,7 +236,7 @@ $border-color: var(--el-border-color, #dcdfe6);
     padding: 3px;
     border: 1px solid #d7e0ea;
     border-radius: 8px;
-    background: #f6f8fb;
+    background: var(--eis-surface-color, #f6f8fb);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
   }
 
@@ -251,7 +251,7 @@ $border-color: var(--el-border-color, #dcdfe6);
     align-items: center;
     gap: 6px;
     color: #334155;
-    background: #ffffff;
+    background: var(--eis-surface-color, #ffffff);
     cursor: pointer;
     text-align: left;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);

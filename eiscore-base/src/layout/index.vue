@@ -11,8 +11,14 @@
         data-guide="layout-logo"
         :style="{ backgroundColor: asideTheme.logoBg, color: asideTheme.menuText }"
       >
+        <img
+          v-if="enterpriseConfig.branding.logoUrl"
+          class="logo-mark"
+          :src="enterpriseConfig.branding.logoUrl"
+          :alt="isCollapse ? (enterpriseConfig.enterprise.shortName || '企业标识') : ''"
+        />
         <span v-if="!isCollapse" class="logo-text">{{ config?.title || '管理系统' }}</span>
-        <span v-else class="logo-text">EIS</span>
+        <span v-else-if="!enterpriseConfig.branding.logoUrl" class="logo-text">EIS</span>
       </div>
 
       <el-menu
@@ -373,6 +379,10 @@ const guideProgressSyncLabel = computed(() => guideProgressSyncPresentation.valu
 const guideProgressSyncTagType = computed(() => guideProgressSyncPresentation.value.tagType)
 
 const applyUserTheme = () => {
+  if (enterpriseConfig.branding.surfaceColor) {
+    isDark.value = false
+    return
+  }
   const storedTheme = getUserTheme(userThemeIdentity.value)
   if (storedTheme === 'dark') isDark.value = true
   if (storedTheme === 'light') isDark.value = false
@@ -380,6 +390,7 @@ const applyUserTheme = () => {
 
 const asideTheme = computed(() => resolveBaseAsideTheme({
   primaryColor: config.value?.themeColor || '#409EFF',
+  surfaceColor: enterpriseConfig.branding.surfaceColor,
   isDark: isDark.value,
   mixColor: mix
 }))
@@ -3166,9 +3177,16 @@ const handleCommand = (command) => {
     .logo {
       height: 60px; line-height: 60px; text-align: center;
       font-size: 18px; font-weight: 600; color: white;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
       transition: background-color 0.3s;
       white-space: nowrap;
     }
+    .logo-mark {
+      width: 32px; height: 32px;
+      flex: 0 0 auto;
+      object-fit: contain;
+    }
+    .logo-text { overflow: hidden; text-overflow: ellipsis; }
     .el-menu { border-right: none; }
 
     .el-menu-vertical:not(.el-menu--collapse) {
@@ -3217,7 +3235,7 @@ const handleCommand = (command) => {
         max-width: 240px;
         border-radius: 10px 10px 0 0;
         border: 1px solid rgba(0, 0, 0, 0.08);
-        background: rgba(255, 255, 255, 0.68);
+        background: var(--eis-surface-color, rgba(255, 255, 255, 0.68));
         padding: 0 12px;
         display: inline-flex;
         align-items: center;
@@ -3228,7 +3246,7 @@ const handleCommand = (command) => {
       }
 
       .host-tab.active {
-        background: #ffffff;
+        background: var(--eis-surface-color, #ffffff);
         border-color: rgba(var(--el-color-primary-rgb), 0.45);
         box-shadow: 0 6px 14px rgba(var(--el-color-primary-rgb), 0.14);
       }

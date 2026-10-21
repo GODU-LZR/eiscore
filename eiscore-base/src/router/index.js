@@ -154,7 +154,7 @@ router.beforeEach((to, from, next) => {
   }
 
   const enterpriseNavigation = resolveEnterpriseNavigation({
-    path: canonicalPath,
+    path: to.fullPath,
     enterpriseConfig: getEnterpriseConfig(window),
     mobileDevice: isMobileDevice(),
     skipMobileRedirect: shouldSkipMobileRedirect(to),

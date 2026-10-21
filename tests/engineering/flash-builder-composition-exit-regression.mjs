@@ -115,7 +115,7 @@ for (const retainedBoundary of [
   "await syncDraft(); refreshPreview('正在呈现最新草稿...')",
   'sanitizeFlashPreviewSnapshotHtml(String(previewIframeRef.value?.contentDocument?.documentElement?.outerHTML || \'\'), {',
   "callFlashTool('flash.app.publish'",
-  'router.push(`/app/${appId.value}`)',
+  "router.push({ path: `/app/${appId.value}`, query: { flash: '1' } })",
   'onUnmounted(() => {'
 ]) {
   assert.equal(source.includes(retainedBoundary), true, `FlashBuilder lost retained composition boundary: ${retainedBoundary}`)

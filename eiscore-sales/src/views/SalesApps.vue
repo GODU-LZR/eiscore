@@ -109,6 +109,7 @@ import { isAppVisible, useDisplayVisibility } from '@shared/eis-display-control'
 const router = useRouter()
 const { visibility: displayVisibility } = useDisplayVisibility()
 const enterpriseConfig = globalThis.__EISCORE_ENTERPRISE_CONFIG__ || { features: {} }
+const salesShippingEnabled = enterpriseConfig.features?.salesShipping !== false
 const iconMap = { ChatLineSquare, DataAnalysis, DataBoard, Document, Money, Tickets, TrendCharts, User }
 const appRows = ref(Object.fromEntries(SALES_APPS.map((app) => [app.key, []])))
 const serverStats = ref({})
@@ -279,6 +280,7 @@ const loadCardData = async () => {
   cardLoading.value = true
   try {
     const apps = SALES_APPS.filter((app) => app.apiUrl)
+      .filter((app) => app.key !== 'shipment_requests' || salesShippingEnabled)
     await Promise.all([
       loadCardStatsWithRetry(apps),
       Promise.allSettled(apps.map(loadAppRowsWithRetry))
@@ -461,7 +463,7 @@ const cardForApp = (app) => {
 
 const visibleApps = computed(() => SALES_APPS
   .filter((app) => isAppVisible(displayVisibility.value, 'sales', app.key))
-  .filter((app) => app.key !== 'shipment_requests' || enterpriseConfig.features?.salesShipping !== false)
+  .filter((app) => app.key !== 'shipment_requests' || salesShippingEnabled)
   .filter((app) => !app.perm || hasPerm(app.perm))
   .map((app) => ({
     ...app,
@@ -544,7 +546,7 @@ watch(visibleApps, syncSalesAppsContext)
   min-height: 100vh;
   box-sizing: border-box;
   padding: 20px;
-  background: #f5f7fa;
+  background: var(--eis-surface-color, #f5f7fa);
 }
 
 .apps-header {
@@ -713,7 +715,7 @@ watch(visibleApps, syncSalesAppsContext)
   padding: 8px 10px;
   box-sizing: border-box;
   border-radius: 8px;
-  background: #f6f8fb;
+  background: var(--eis-surface-color, #f6f8fb);
   display: flex;
   flex-direction: column;
   align-items: flex-start;

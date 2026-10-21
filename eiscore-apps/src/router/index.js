@@ -6,7 +6,7 @@ export default [
     path: '/',
     name: 'AppDashboard',
     component: () => import('../views/AppDashboard.vue'),
-    meta: { title: '应用中心' }
+    meta: { title: '应用中心', requiresAppCenter: true }
   },
   {
     path: '/flash-builder/:appId?',

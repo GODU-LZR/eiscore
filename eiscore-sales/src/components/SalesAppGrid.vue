@@ -107,7 +107,7 @@
             下推采购需求
           </el-button>
           <el-button
-            v-if="['orders', 'shipment_requests'].includes(app.key) && canCreate && enterpriseConfig.features?.salesShipping !== false"
+            v-if="['orders', 'shipment_requests'].includes(app.key) && canCreate && salesShippingEnabled"
             type="warning"
             plain
             icon="Promotion"
@@ -731,6 +731,7 @@ import {
   SALES_FLOW_DOC_TYPES as DOC_TYPES,
   SALES_FLOW_RELATION_TYPES as RELATION_TYPES,
   assertSalesOrderFlowSource,
+  filterSalesOrderStatusOptions,
   buildSalesFlowNodes,
   buildSalesOrderPropertiesPatch,
   buildSalesOutboundPlan,
@@ -759,6 +760,7 @@ const props = defineProps({
 })
 
 const enterpriseConfig = globalThis.__EISCORE_ENTERPRISE_CONFIG__ || { features: {} }
+const salesShippingEnabled = enterpriseConfig.features?.salesShipping !== false
 const router = useRouter()
 const gridRef = ref(null)
 const lastLoadedRows = ref([])
@@ -801,7 +803,10 @@ const addDaysText = (days) => {
   return date.toISOString().slice(0, 10)
 }
 
-const orderStatusOptions = ['草稿', '已确认', '生产中', '部分出库', '已发货', '已完成', '已取消']
+const orderStatusOptions = computed(() => filterSalesOrderStatusOptions(
+  ['草稿', '已确认', '生产中', '部分出库', '已发货', '已完成', '已取消'],
+  salesShippingEnabled
+))
 const paymentMethodOptions = ['银行转账', '承兑汇票', '现金', '其他']
 const paymentStatusOptions = ['待核销', '部分核销', '已核销']
 const followTypeOptions = ['电话沟通', '微信沟通', '上门拜访', '视频会议', '展会接洽', '其他']
@@ -845,7 +850,8 @@ const resolveAttention = (row) => getSalesRecordAttention(app.value?.key, row, {
   role: 'sales',
   page: app.value?.key,
   device: 'desktop',
-  task: 'monitor'
+  task: 'monitor',
+  salesShippingEnabled
 })
 const rowAttentionFilter = (row) => app.value?.key === 'follow_ups' || matchesSalesAttentionFilter(app.value?.key, row, attentionFilter.value)
 const ROW_ACTION_PERMISSIONS = Object.freeze({
@@ -919,8 +925,8 @@ const selectedOpportunityCustomer = computed(() => {
 })
 const orderTotalAmount = computed(() => calculateSalesQuickOrderTotal(orderForm))
 const flowPrimaryOrder = computed(() => flowSelectedRows.value[0] || selectedDetailRow.value || null)
-const salesFlowNodes = computed(() => buildSalesFlowNodes({ order: flowPrimaryOrder.value, docs: salesFlowDocs.value }))
-const salesDownstreamState = computed(() => getSalesFlowDownstreamState({ nextStep: flowNextStep.value, docs: salesFlowDocs.value }))
+const salesFlowNodes = computed(() => buildSalesFlowNodes({ order: flowPrimaryOrder.value, docs: salesFlowDocs.value, includeShipping: salesShippingEnabled }))
+const salesDownstreamState = computed(() => getSalesFlowDownstreamState({ nextStep: flowNextStep.value, docs: salesFlowDocs.value, includeShipping: salesShippingEnabled }))
 const flowConfirmButtonType = computed(() => salesDownstreamState.value.buttonType)
 const salesDownstreamLabel = computed(() => salesDownstreamState.value.label)
 const salesDownstreamDocNo = computed(() => salesDownstreamState.value.docNo)
@@ -933,7 +939,13 @@ const canReverseSalesDemand = computed(() => {
 })
 
 const staticHidden = ref([])
-const staticColumnsAll = computed(() => app.value.staticColumns || CUSTOMER_COLUMNS)
+const staticColumnsAll = computed(() => {
+  const columns = app.value.staticColumns || CUSTOMER_COLUMNS
+  if (app.value.key !== 'orders' || salesShippingEnabled) return columns
+  return columns.map((column) => column.prop === 'order_status'
+    ? { ...column, options: filterSalesOrderStatusOptions(column.options, false) }
+    : column)
+})
 const staticColumns = computed(() =>
   staticColumnsAll.value.filter(col => !staticHidden.value.includes(col.prop))
 )
@@ -1699,27 +1711,29 @@ const loadSalesBusinessFlow = async (sourceOrder = null) => {
       }
     }
 
-    salesShipmentLinks = Array.isArray(salesDemandLinks)
-      ? salesDemandLinks.filter((link) => link.relation_type === RELATION_TYPES.SALES_TO_SHIPMENT_REQUEST)
-      : []
-    const shipmentLink = salesShipmentLinks[0]
-    if (shipmentLink) {
-      salesShipment = projectSalesShipmentLink(shipmentLink)
-      shipmentOutboundLinks = await request({
-        url: `/document_links?${activeLinkQuery(DOC_TYPES.SALES_SHIPMENT, shipmentLink.target_doc_id, shipmentLink.target_doc_no)}&select=*`,
-        method: 'get',
-        headers: { 'Accept-Profile': 'public' },
-        silentError: true
-      }).catch(() => [])
-      const outboundLink = Array.isArray(shipmentOutboundLinks)
-        ? shipmentOutboundLinks.find((link) => link.relation_type === RELATION_TYPES.SHIPMENT_REQUEST_TO_SALES_OUTBOUND)
-        : null
-      if (outboundLink) salesOutbound = projectSalesOutboundLink(outboundLink)
+    if (salesShippingEnabled) {
+      salesShipmentLinks = Array.isArray(salesDemandLinks)
+        ? salesDemandLinks.filter((link) => link.relation_type === RELATION_TYPES.SALES_TO_SHIPMENT_REQUEST)
+        : []
+      const shipmentLink = salesShipmentLinks[0]
+      if (shipmentLink) {
+        salesShipment = projectSalesShipmentLink(shipmentLink)
+        shipmentOutboundLinks = await request({
+          url: `/document_links?${activeLinkQuery(DOC_TYPES.SALES_SHIPMENT, shipmentLink.target_doc_id, shipmentLink.target_doc_no)}&select=*`,
+          method: 'get',
+          headers: { 'Accept-Profile': 'public' },
+          silentError: true
+        }).catch(() => [])
+        const outboundLink = Array.isArray(shipmentOutboundLinks)
+          ? shipmentOutboundLinks.find((link) => link.relation_type === RELATION_TYPES.SHIPMENT_REQUEST_TO_SALES_OUTBOUND)
+          : null
+        if (outboundLink) salesOutbound = projectSalesOutboundLink(outboundLink)
+      }
+      directOutboundLinks = Array.isArray(salesDemandLinks)
+        ? salesDemandLinks.filter((link) => link.relation_type === RELATION_TYPES.SALES_TO_OUTBOUND)
+        : []
+      if (!salesOutbound && directOutboundLinks[0]) salesOutbound = projectSalesOutboundLink(directOutboundLinks[0])
     }
-    directOutboundLinks = Array.isArray(salesDemandLinks)
-      ? salesDemandLinks.filter((link) => link.relation_type === RELATION_TYPES.SALES_TO_OUTBOUND)
-      : []
-    if (!salesOutbound && directOutboundLinks[0]) salesOutbound = projectSalesOutboundLink(directOutboundLinks[0])
 
     salesFlowDocs.value = { purchaseDemand, purchaseOrder, purchaseArrival, inventoryInbound, salesShipment, salesOutbound }
     salesFlowRelationLinks.value = [
@@ -1768,6 +1782,10 @@ const openBatchPushFlowDialog = async () => {
 }
 
 const openBatchShipmentFlowDialog = async () => {
+  if (!salesShippingEnabled) {
+    ElMessage.warning('雅御销售流程不包含出货环节')
+    return
+  }
   const rows = getSelectedSalesOrders()
   if (!rows.length) {
     ElMessage.warning('请先在表格中选择要下推出货的销售订单')
@@ -1785,6 +1803,10 @@ const openBatchShipmentFlowDialog = async () => {
 }
 
 const openSalesFlowDialogForRow = async (row, nextStep = 'purchase_demand') => {
+  if (!salesShippingEnabled && ['shipment_request', 'sales_outbound'].includes(nextStep)) {
+    ElMessage.warning('雅御销售流程不包含出货环节')
+    return
+  }
   if (!row?.id && !row?.order_no) {
     ElMessage.warning('该销售订单缺少业务编号，不能下推')
     return
@@ -2139,11 +2161,17 @@ const jumpToPurchaseDemandPage = () => {
 }
 
 const jumpToShipmentPage = () => {
-  openSalesFlowTarget('shipmentRequest', { onWarning: (message) => ElMessage.warning(message) })
+  openSalesFlowTarget('shipmentRequest', {
+    salesShippingEnabled,
+    onWarning: (message) => ElMessage.warning(message)
+  })
 }
 
 const jumpToSalesOutboundPage = () => {
-  openSalesFlowTarget('salesOutbound', { onWarning: (message) => ElMessage.warning(message) })
+  openSalesFlowTarget('salesOutbound', {
+    salesShippingEnabled,
+    onWarning: (message) => ElMessage.warning(message)
+  })
 }
 
 const pushOrderToPurchaseDemand = async () => {
@@ -2188,6 +2216,10 @@ const pushOrderToPurchaseDemand = async () => {
 }
 
 const pushOrdersToShipmentRequest = async () => {
+  if (!salesShippingEnabled) {
+    ElMessage.warning('雅御销售流程不包含出货环节')
+    return
+  }
   if (flowNextStep.value !== 'shipment_request') {
     ElMessage.warning('请选择要下推的下一流程')
     return
@@ -2227,6 +2259,10 @@ const pushOrdersToShipmentRequest = async () => {
 }
 
 const pushOrdersToSalesOutbound = async () => {
+  if (!salesShippingEnabled) {
+    ElMessage.warning('雅御销售流程不包含出货环节')
+    return
+  }
   if (flowNextStep.value !== 'sales_outbound') {
     ElMessage.warning('请选择要下推的下一流程')
     return
@@ -2266,6 +2302,10 @@ const pushOrdersToSalesOutbound = async () => {
 }
 
 const confirmSalesFlowPush = () => {
+  if (!salesShippingEnabled && ['shipment_request', 'sales_outbound'].includes(flowNextStep.value)) {
+    ElMessage.warning('雅御销售流程不包含出货环节')
+    return
+  }
   if (flowNextStep.value === 'shipment_request') return pushOrdersToShipmentRequest()
   if (flowNextStep.value === 'sales_outbound') return pushOrdersToSalesOutbound()
   return pushOrderToPurchaseDemand()
@@ -3138,13 +3178,16 @@ const handleCreate = async () => {
     const payload = typeof app.value.createPayload === 'function'
       ? app.value.createPayload()
       : { name: '新记录', properties: {} }
-    await request({
+    const created = await request({
       url: app.value.writeUrl || normalizeApiBaseUrl(app.value.apiUrl),
       method: 'post',
-      headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public' },
+      headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public', Prefer: 'return=representation' },
       data: payload
     })
-    if(gridRef.value) await gridRef.value.loadData()
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (!createdRow?.id || !await gridRef.value?.prependRow?.(createdRow)) {
+      await gridRef.value?.loadData?.()
+    }
     ElMessage.success('已创建新行')
   } catch(e) {
     console.error(e)

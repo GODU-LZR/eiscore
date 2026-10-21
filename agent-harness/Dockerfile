@@ -12,6 +12,10 @@ COPY agent-harness/eiscore-tools.mjs /opt/eiscore-harness/eiscore-tools.mjs
 COPY agent-harness/eiscore-restricted.cordis.yml /opt/eiscore-harness/eiscore-restricted.cordis.yml
 COPY agent-harness/dsh-web-runner.mjs /opt/eiscore-harness/dsh-web-runner.mjs
 COPY agent-harness/dsh-web.patch.yml /opt/eiscore-harness/dsh-web.patch.yml
+COPY agent-harness/business-web-ui.mjs /opt/eiscore-harness/business-web-ui.mjs
+COPY agent-harness/visual-web-ui.mjs /opt/eiscore-harness/visual-web-ui.mjs
+COPY agent-harness/visual-response-policy.mjs /opt/eiscore-harness/visual-response-policy.mjs
+COPY agent-harness/web-ui /opt/eiscore-harness/web-ui
 COPY agent-harness/dsh-web-defaults.mjs /opt/eiscore-harness/dsh-web-defaults.mjs
 COPY agent-harness/plugin-registry.js /opt/eiscore-harness/plugin-registry.js
 COPY agent-harness/plugin-contract.v1.json /opt/eiscore-harness/plugin-contract.v1.json

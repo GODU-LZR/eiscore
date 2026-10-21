@@ -23,6 +23,18 @@ export const SALES_FLOW_RELATION_TYPES = Object.freeze({
   SALES_TO_OUTBOUND: 'sales_to_outbound'
 })
 
+const SALES_SHIPPING_ORDER_STATUSES = new Set(['部分出库', '已发货'])
+
+export const filterSalesOrderStatusOptions = (options = [], salesShippingEnabled = true) => {
+  if (salesShippingEnabled || !Array.isArray(options)) return options
+  return options.filter((option) => {
+    const value = typeof option === 'object' && option !== null
+      ? option.value ?? option.label
+      : option
+    return !SALES_SHIPPING_ORDER_STATUSES.has(String(value || '').trim())
+  })
+}
+
 const requireSalesOrder = (order, missingMessage) => {
   if (!order?.id) throw new Error(missingMessage)
   if (!isSalesOrderActive(order)) {
@@ -69,17 +81,25 @@ export const projectSalesOutboundLink = (link) => {
   }
 }
 
-export const buildSalesFlowNodes = ({ order = {}, docs = {} } = {}) => [
-  { key: 'so', type: '销售订单', docNo: order.order_no, status: order.order_status, current: true },
-  { key: 'pr', type: '采购需求', docNo: docs.purchaseDemand?.demand_no, status: docs.purchaseDemand?.demand_status },
-  { key: 'po', type: '采购订单', docNo: docs.purchaseOrder?.order_no, status: docs.purchaseOrder?.order_status },
-  { key: 'pa', type: '到货/检验', docNo: docs.purchaseArrival?.arrival_no, status: docs.purchaseArrival?.arrival_status },
-  { key: 'in', type: '采购入库', docNo: docs.inventoryInbound?.inbound_no || docs.inventoryInbound?.docNo, status: docs.inventoryInbound?.status },
-  { key: 'ship', type: '出货申请', docNo: docs.salesShipment?.shipment_no || docs.salesShipment?.docNo, status: docs.salesShipment?.status },
-  { key: 'out', type: '销售出库', docNo: docs.salesOutbound?.outbound_no || docs.salesOutbound?.docNo, status: docs.salesOutbound?.status }
-]
+export const buildSalesFlowNodes = ({ order = {}, docs = {}, includeShipping = true } = {}) => {
+  const nodes = [
+    { key: 'so', type: '销售订单', docNo: order.order_no, status: order.order_status, current: true },
+    { key: 'pr', type: '采购需求', docNo: docs.purchaseDemand?.demand_no, status: docs.purchaseDemand?.demand_status },
+    { key: 'po', type: '采购订单', docNo: docs.purchaseOrder?.order_no, status: docs.purchaseOrder?.order_status },
+    { key: 'pa', type: '到货/检验', docNo: docs.purchaseArrival?.arrival_no, status: docs.purchaseArrival?.arrival_status },
+    { key: 'in', type: '采购入库', docNo: docs.inventoryInbound?.inbound_no || docs.inventoryInbound?.docNo, status: docs.inventoryInbound?.status }
+  ]
+  if (includeShipping) {
+    nodes.push(
+      { key: 'ship', type: '出货申请', docNo: docs.salesShipment?.shipment_no || docs.salesShipment?.docNo, status: docs.salesShipment?.status },
+      { key: 'out', type: '销售出库', docNo: docs.salesOutbound?.outbound_no || docs.salesOutbound?.docNo, status: docs.salesOutbound?.status }
+    )
+  }
+  return nodes
+}
 
-export const getSalesFlowDownstreamState = ({ nextStep, docs = {} } = {}) => {
+export const getSalesFlowDownstreamState = ({ nextStep, docs = {}, includeShipping = true } = {}) => {
+  if (!includeShipping && ['shipment_request', 'sales_outbound'].includes(nextStep)) nextStep = 'purchase_demand'
   if (nextStep === 'shipment_request') {
     return {
       label: '下游出货申请',

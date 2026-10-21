@@ -1,10 +1,11 @@
 # 雅御官网首版艺术资源
 
-- 书法标识与红印：来自用户提供的雅御科技山水业务图，原作裁切并保守移除背景，未重新生成书法。
+- 书法标识与红印：官网背景画使用用户提供的雅御科技山水业务图，印章图标使用 GPT Image 2 生成的透明底红色仿宋“雅御”印章。
 - `business-overview.webp`：用户原图的压缩版本，供业务全景查看。
 - `yayu-hero.webp`：GPT Image 2 生成的青绿山水品牌背景，2048 × 1152。
 - `yayu-industry.webp`：GPT Image 2 生成的山水产业园概念插图，1536 × 1024。页面标注为概念图，不作为已交付项目实拍。
-- `favicon.png`：从原作品牌红印裁切生成。
+- `yayu-red-fangsong-seal.png`：红色仿宋“雅御”印章，供官网标识与 EISCore 登录标识使用。
+- `yayu-red-fangsong-favicon.png`：同一印章的紧凑小尺寸版本，用于浏览器页签与移动设备图标。
 
 艺术资源位于 `eiscore-base/public/enterprise-assets/yayu`，由既有 Vite 静态资源流程收录。
 

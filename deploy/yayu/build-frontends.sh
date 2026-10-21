@@ -25,7 +25,7 @@ for (const id of ['hr', 'materials', 'apps', 'sales', 'purchase', 'mobile']) ass
 for (const id of ['company-site', 'production', 'quality', 'equipment', 'decision']) assert.equal(config.modules[id], false)
 assert.equal(config.features.materialsVisible, false)
 assert.equal(config.features.purchaseVisible, false)
-assert.equal(config.features.appCenterVisible, true)
+assert.equal(config.features.appCenterVisible, false)
 NODE
 
 export CI=true
@@ -35,12 +35,12 @@ export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 export VITE_ENTERPRISE_SHARE_TITLE="$(node -p 'JSON.parse(require("fs").readFileSync("deploy/yayu/site-profile.json", "utf8")).site.seo.title')"
 export VITE_ENTERPRISE_SHARE_IMAGE='/enterprise-assets/yayu/yayu-hero.webp'
 export VITE_ENTERPRISE_SHARE_ORIGIN='https://yayu.eiscore.top'
-export VITE_ENTERPRISE_FAVICON='/enterprise-assets/yayu/favicon.png'
+export VITE_ENTERPRISE_FAVICON='/enterprise-assets/yayu/yayu-red-fangsong-favicon.png'
 for package in . packages/eiscore-platform eiscore-base eiscore-apps eiscore-hr eiscore-sales eiscore-mobile; do
   npm --prefix "$package" ci --no-audit --no-fund
 done
 
-for test in platform-auth-session-regression enterprise-module-routing-regression enterprise-config-regression enterprise-industry-site-regression sales-follow-up-attention-regression sales-apps-load-resilience-regression harness-auth-client-regression eiscore-embed-route-regression sales-flow-navigation-regression yayu-runtime-routing-regression; do
+for test in platform-auth-session-regression enterprise-module-routing-regression enterprise-config-regression enterprise-industry-site-regression enterprise-surface-theme-regression sales-follow-up-attention-regression sales-apps-load-resilience-regression harness-auth-client-regression yayu-harness-artifact-regression yayu-harness-visual-renderer-regression yayu-harness-worker-draft-regression eiscore-embed-route-regression sales-flow-navigation-regression yayu-sales-shipping-regression yayu-runtime-routing-regression app-center-standalone-entry-regression grid-property-write-regression; do
   node "tests/engineering/$test.mjs"
 done
 for package in eiscore-base eiscore-apps eiscore-hr eiscore-sales eiscore-mobile; do
@@ -68,6 +68,7 @@ for (const file of ['index.html', 'sw.js']) {
 }
 mkdirSync(join(root, 'config'), { recursive: true })
 cpSync('deploy/yayu/site-profile.json', join(root, 'config/site-profile.json'))
+cpSync('eiscore-base/public/config/eiscore-enterprise.json', join(root, 'config/eiscore-enterprise.json'))
 writeFileSync(join(root, 'config/frontend-dist-manifest.json'), JSON.stringify({
   enterpriseId: 'yayu', sourceRevision: process.env.EISCORE_SOURCE_REVISION,
   release: process.env.YAYU_RELEASE_VERSION, generatedAt: new Date().toISOString(),

@@ -1395,7 +1395,6 @@ const createWorkflowAppFromAi = async ({ name, description, xml, associatedTable
   const appPayload = {
     name,
     description,
-    category_id: 1,
     app_type: 'workflow',
     status: 'draft',
     icon: '🔀',

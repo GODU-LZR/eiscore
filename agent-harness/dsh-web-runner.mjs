@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import http from 'node:http'
 import net from 'node:net'
@@ -81,7 +82,59 @@ export const getHarnessAuthReturnPath = (value = process.env.EISCORE_HARNESS_AUT
     ? '/harness-flash-embed-api/eiscore/auth/handoff'
     : '/harness-embed-api/eiscore/auth/handoff'
 
-const start = () => {
+export const isHtmlNavigation = (request) => {
+  if (request.method !== 'GET') return false
+  const destination = String(request.headers['sec-fetch-dest'] || '').toLowerCase()
+  if (destination === 'document' || destination === 'iframe') return true
+  return String(request.headers.accept || '').toLowerCase().includes('text/html')
+}
+
+export const shouldBootstrapDshAuth = (request) => !(
+  request.method === 'GET'
+  && String(request.url || '/').split('?', 1)[0] === '/'
+  && isHtmlNavigation(request)
+)
+
+export const hasDshAuthCookie = (cookieHeader = '') => String(cookieHeader || '')
+  .split(';').some((part) => /^dsh-auth-[^=]+=/.test(part.trim()))
+
+export const createAuthStatusCache = (ttlMs = 3000, maxEntries = 256) => {
+  const entries = new Map()
+  return {
+    get(key, load) {
+      const cached = entries.get(key)
+      if (cached && (cached.promise || cached.expiresAt > Date.now())) {
+        return cached.promise || Promise.resolve(cached.value)
+      }
+      const entry = { expiresAt: 0, promise: null }
+      entry.promise = Promise.resolve().then(load).then((value) => {
+        if (value?.authenticated === true) {
+          entry.value = value
+          entry.expiresAt = Date.now() + ttlMs
+          entry.promise = null
+        } else if (entries.get(key) === entry) {
+          entries.delete(key)
+        }
+        return value
+      }, (error) => {
+        if (entries.get(key) === entry) entries.delete(key)
+        throw error
+      })
+      if (!entries.has(key) && entries.size >= maxEntries) entries.delete(entries.keys().next().value)
+      entries.set(key, entry)
+      return entry.promise
+    },
+    delete(key) { entries.delete(key) }
+  }
+}
+
+const start = async () => {
+// Business-only shell assets are opt-in; Flash shares only the renderer and
+// keeps its existing auth, session and plugin surface unchanged.
+const businessUi = process.env.EISCORE_HARNESS_CAPABILITY_PROFILE === 'business'
+  ? await import(new URL('./business-web-ui.mjs', import.meta.url))
+  : null
+const visualUi = await import(new URL('./visual-web-ui.mjs', import.meta.url))
 ensureStartupProfile()
 
 const defaultWorkspace = String(
@@ -122,8 +175,7 @@ const withToken = (path, headers = {}, force = false) => {
   // but still requires the web startup token for the upstream gateway.
   // The EISCore session cookie is unrelated to DSH's startup token. Only the
   // DSH auth cookie means the startup redirect has already been completed.
-  const hasDshAuth = String(headers.cookie || '').split(';').some((part) => part.trim().startsWith('dsh-auth-'))
-  if (!startupToken || hasDshAuth || /(?:^|[?&])token=/.test(path)) return path
+  if (!startupToken || hasDshAuthCookie(headers.cookie) || /(?:^|[?&])token=/.test(path)) return path
   const joiner = path.includes('?') ? '&' : '?'
   return `${path}${joiner}token=${encodeURIComponent(startupToken)}`
 }
@@ -144,13 +196,6 @@ const PUBLIC_ROUTES = new Map([
 const isPublicPath = (path = '', method = 'GET') => {
   const pathname = String(path).split('?', 1)[0]
   return PUBLIC_ROUTES.get(pathname)?.has(String(method).toUpperCase()) === true
-}
-
-const isHtmlNavigation = (request) => {
-  if (request.method !== 'GET') return false
-  const destination = String(request.headers['sec-fetch-dest'] || '').toLowerCase()
-  if (destination === 'document' || destination === 'iframe') return true
-  return String(request.headers.accept || '').toLowerCase().includes('text/html')
 }
 
 const rejectUnauthenticated = (response) => {
@@ -210,6 +255,7 @@ const mergeCookies = (header, additions) => {
 }
 
 const bootstrapDshAuth = async (headers) => {
+  if (hasDshAuthCookie(headers.cookie)) return { headers, setCookies: [] }
   const cleanHeaders = withoutDshAuth(headers)
   try {
     const startup = await requestUpstream('/', cleanHeaders, 'GET')
@@ -293,30 +339,58 @@ const redirectToLogin = async (request, response, headers, bootstrapCookies = []
   }
 }
 
-const isAuthenticated = async (headers) => {
+const authStatusCache = createAuthStatusCache()
+const authStatusCacheKey = (headers = {}) => createHash('sha256').update(JSON.stringify([
+  headers.cookie || '',
+  headers.authorization || '',
+  headers.host || '',
+  headers['x-forwarded-host'] || '',
+  headers['x-forwarded-proto'] || ''
+])).digest('hex')
+
+const isAuthenticated = async (headers) => authStatusCache.get(authStatusCacheKey(headers), async () => {
   try {
     const status = await requestUpstream('/api/eiscore/auth/status', headers, 'GET')
-    if (status.statusCode !== 200) return false
-    return JSON.parse(status.body || '{}').authenticated === true
+    if (status.statusCode !== 200) return { authenticated: false, retryBootstrap: true }
+    return { authenticated: JSON.parse(status.body || '{}').authenticated === true, retryBootstrap: false }
   } catch {
-    return false
+    return { authenticated: false, retryBootstrap: true }
   }
+})
+
+const authorizeRequest = async (headers, bootstrapCookies) => {
+  let auth = await isAuthenticated(headers)
+  if (!auth.authenticated && auth.retryBootstrap && hasDshAuthCookie(headers.cookie)) {
+    const refreshed = await bootstrapDshAuth(withoutDshAuth(headers))
+    auth = await isAuthenticated(refreshed.headers)
+    return { ...refreshed, setCookies: [...bootstrapCookies, ...refreshed.setCookies], authenticated: auth.authenticated }
+  }
+  return { headers, setCookies: bootstrapCookies, authenticated: auth.authenticated }
 }
 
 const proxy = http.createServer((request, response) => {
+  if (visualUi.handleVisualUi(request, response)) return
+  if (businessUi?.handleBusinessUi(request, response)) return
   const path = request.url || '/'
   const headers = {
     ...request.headers,
     cookie: mapAuthCookiesToUpstream(request.headers.cookie, authCookiePrefix)
   }
-  bootstrapDshAuth(headers).then(({ headers: authenticatedHeaders, setCookies }) => {
+  const pathname = String(path).split('?', 1)[0]
+  if (request.method === 'POST' && ['/api/eiscore/auth/start', '/api/eiscore/auth/handoff', '/api/eiscore/auth/logout'].includes(pathname)) {
+    authStatusCache.delete(authStatusCacheKey(headers))
+  }
+  const bootstrap = shouldBootstrapDshAuth(request)
+    ? bootstrapDshAuth(headers)
+    : Promise.resolve({ headers, setCookies: [] })
+  bootstrap.then(({ headers: authenticatedHeaders, setCookies }) => {
     if (!isPublicPath(path, request.method)) {
-      return isAuthenticated(authenticatedHeaders).then((authenticated) => {
+      return authorizeRequest(authenticatedHeaders, setCookies).then(({ headers: checkedHeaders, setCookies: checkedCookies, authenticated }) => {
         if (!authenticated) {
-          if (isHtmlNavigation(request)) return redirectToLogin(request, response, authenticatedHeaders, setCookies)
+          if (isHtmlNavigation(request)) return redirectToLogin(request, response, checkedHeaders, checkedCookies)
           return rejectUnauthenticated(response)
         }
-        proxyAuthenticatedRequest(request, response, authenticatedHeaders, setCookies)
+        proxyAuthenticatedRequest(request, response, checkedHeaders, checkedCookies)
       })
     }
     proxyAuthenticatedRequest(request, response, authenticatedHeaders, setCookies)
@@ -327,7 +401,8 @@ const proxy = http.createServer((request, response) => {
 
 const proxyAuthenticatedRequest = (request, response, headers = request.headers, bootstrapCookies = []) => {
   const rewriteAuthStart = request.method === 'POST' && (request.url || '').split('?', 1)[0] === '/api/eiscore/auth/start'
-  const upstreamHeaders = rewriteAuthStart ? { ...headers, 'accept-encoding': 'identity' } : headers
+  const rewriteHtml = isHtmlNavigation(request)
+  const upstreamHeaders = rewriteAuthStart || rewriteHtml ? { ...headers, 'accept-encoding': 'identity' } : headers
   const upstream = http.request({
     hostname: '127.0.0.1',
     port: 3080,
@@ -341,14 +416,19 @@ const proxyAuthenticatedRequest = (request, response, headers = request.headers,
       ...cookieHeaders(upstreamResponse.headers['set-cookie'])
     ], authCookiePrefix)
     if (setCookies.length) responseHeaders['set-cookie'] = setCookies
-    if (rewriteAuthStart) {
+    const injectHtml = rewriteHtml && /^text\/html(?:;|$)/i.test(String(responseHeaders['content-type'] || ''))
+    if (rewriteAuthStart || injectHtml) {
       const chunks = []
       upstreamResponse.on('data', (chunk) => chunks.push(chunk))
       upstreamResponse.on('end', () => {
-        const body = rewriteAuthStartBody(Buffer.concat(chunks).toString('utf8'), headers)
+        const original = Buffer.concat(chunks).toString('utf8')
+        const body = injectHtml
+          ? (businessUi ? businessUi.injectBusinessUi(original) : visualUi.injectVisualUi(original))
+          : rewriteAuthStartBody(original, headers)
         delete responseHeaders['transfer-encoding']
         delete responseHeaders['content-encoding']
         delete responseHeaders.etag
+        if (injectHtml) responseHeaders['cache-control'] = 'no-store'
         responseHeaders['content-length'] = Buffer.byteLength(body)
         response.writeHead(upstreamResponse.statusCode || 502, responseHeaders)
         response.end(body)
@@ -385,8 +465,8 @@ proxy.on('upgrade', (request, socket, head) => {
   }
   bootstrapDshAuth(headers).then(({ headers: authenticatedHeaders }) => {
     if (isPublicPath(request.url || '/', request.method)) return connect(authenticatedHeaders)
-    return isAuthenticated(authenticatedHeaders).then((authenticated) => {
-      if (authenticated) return connect(authenticatedHeaders)
+    return authorizeRequest(authenticatedHeaders, []).then(({ headers: checkedHeaders, authenticated }) => {
+      if (authenticated) return connect(checkedHeaders)
       reject(401, 'EISCore authentication required')
     })
   }).catch(() => reject(401, 'EISCore authentication required'))
@@ -396,4 +476,4 @@ proxy.listen(3081, '0.0.0.0')
 dsh.on('exit', (code) => process.exit(code ?? 1))
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) start()
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await start()

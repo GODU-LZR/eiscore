@@ -9,14 +9,18 @@ const base = resolve(root, 'eiscore-base')
 const runtime = JSON.parse(readFileSync(new URL('./eiscore-enterprise.json', import.meta.url), 'utf8'))
 runtime.endpoints.publicBaseUrl = ''
 const profile = JSON.parse(readFileSync(new URL('./site-profile.json', import.meta.url), 'utf8'))
+const previewPort = Number(process.env.YAYU_PREVIEW_PORT || 18420)
+if (!Number.isInteger(previewPort) || previewPort < 1 || previewPort > 65535) {
+  throw new Error('YAYU_PREVIEW_PORT must be a valid TCP port')
+}
 process.env.VITE_ENTERPRISE_SHARE_TITLE = profile.site.seo.title
 process.env.VITE_ENTERPRISE_SHARE_DESCRIPTION = runtime.branding.login.description
-process.env.VITE_ENTERPRISE_FAVICON = '/enterprise-assets/yayu/favicon.png'
+process.env.VITE_ENTERPRISE_FAVICON = '/enterprise-assets/yayu/yayu-red-fangsong-favicon.png'
 const { createServer } = await import(pathToFileURL(resolve(base, 'node_modules/vite/dist/node/index.js')))
 const server = await createServer({
   root: base,
   configFile: resolve(base, 'vite.config.js'),
-  server: { host: '127.0.0.1', port: 18420, strictPort: true, open: false },
+  server: { host: '127.0.0.1', port: previewPort, strictPort: true, open: false },
   plugins: [{
     name: 'deployment-website-preview',
     configureServer(server) {

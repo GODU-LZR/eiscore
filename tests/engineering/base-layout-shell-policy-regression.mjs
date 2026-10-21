@@ -50,6 +50,20 @@ assert.deepEqual(mixCalls, [
   ['#123456', '#000000', 0.1],
   ['#123456', '#ffffff', 0.85]
 ])
+assert.deepEqual(resolveBaseAsideTheme({ primaryColor: '#285d57', surfaceColor: '#f7f5ef', isDark: false, mixColor }), {
+  menuBg: '#f7f5ef',
+  menuText: '#222b28',
+  menuActiveText: '#285d57',
+  logoBg: '#f7f5ef',
+  headerBg: '#f7f5ef'
+})
+assert.deepEqual(resolveBaseAsideTheme({ primaryColor: '#285d57', surfaceColor: '#f7f5ef', isDark: true, mixColor }), {
+  menuBg: '#001529',
+  menuText: '#fff',
+  menuActiveText: '#285d57',
+  logoBg: '#002140',
+  headerBg: '#001529'
+})
 
 assert.deepEqual(BASE_WORKER_ASSISTANT_HIDDEN_ROUTES, [
   '/materials/inventory-dashboard',

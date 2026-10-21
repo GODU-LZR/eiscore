@@ -2,7 +2,6 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
       #eiscore-bootstrap-loading {
@@ -13,8 +12,8 @@
         place-items: center;
         gap: 14px;
         align-content: center;
-        color: #1557a6;
-        background: #f8fafc;
+        color: var(--eis-bootstrap-theme-color, #1557a6);
+        background: var(--eis-bootstrap-surface-color, #f8fafc);
         transition: opacity 180ms ease, visibility 180ms ease;
       }
 
@@ -29,7 +28,7 @@
       .eiscore-bootstrap-loading__ring {
         width: 34px;
         height: 34px;
-        border: 3px solid rgba(21, 87, 166, 0.18);
+        border: 3px solid rgba(var(--eis-bootstrap-theme-rgb, 21, 87, 166), 0.18);
         border-top-color: currentColor;
         border-radius: 50%;
         animation: eiscore-bootstrap-loading-spin 800ms linear infinite;

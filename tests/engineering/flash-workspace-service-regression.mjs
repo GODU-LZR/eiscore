@@ -79,6 +79,10 @@ try {
   assert.equal(read.path, 'eiscore-apps/src/views/drafts/.app-drafts/app_one.vue')
   assert.equal(readFileSync(join(workdir, 'FlashDraft.vue'), 'utf8'), '<template>scoped</template>')
 
+  const missingScoped = await service.readDraftSource('app/two')
+  assert.equal(missingScoped.content, '', 'a missing app-scoped draft must not fall back to the shared preview draft')
+  assert.equal(missingScoped.path, 'eiscore-apps/src/views/drafts/.app-drafts/app_two.vue')
+
   const fingerprintsBefore = await service.readDraftFingerprintsSafe('app/one')
   assert.equal(fingerprintsBefore.preview.sha1, fingerprintsBefore.scoped.sha1)
   assert.equal(fingerprintsBefore.preview.bytes, Buffer.byteLength('<template>scoped</template>'))

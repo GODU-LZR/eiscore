@@ -140,10 +140,19 @@ const startQiankunWhenContainerReady = () => {
 }
 
 const bootstrap = async () => {
-  await bootstrapEnterpriseConfig({
+  const enterpriseConfig = await bootstrapEnterpriseConfig({
     isProduction: import.meta.env.PROD,
     onWarning: ({ code }) => console.warn(`[enterprise-config] ${code}`)
   })
+  const themeColor = enterpriseConfig.branding.themeColor
+  const rootStyle = document.documentElement.style
+  rootStyle.setProperty('--eis-bootstrap-theme-color', themeColor)
+  rootStyle.setProperty('--eis-bootstrap-theme-rgb', themeColor.slice(1).match(/.{2}/g).map((part) => parseInt(part, 16)).join(','))
+  if (enterpriseConfig.branding.surfaceColor) {
+    rootStyle.setProperty('--eis-bootstrap-surface-color', enterpriseConfig.branding.surfaceColor)
+  } else {
+    rootStyle.removeProperty('--eis-bootstrap-surface-color')
+  }
   mountHostApplication()
 
   // Start qiankun only after the authenticated layout has rendered its sub-app mount point.

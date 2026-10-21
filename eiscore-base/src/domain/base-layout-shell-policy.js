@@ -20,7 +20,7 @@ export const getBaseGuideProgressSyncPresentation = (state) => {
   return { label: '本地记录', tagType: 'info' }
 }
 
-export const resolveBaseAsideTheme = ({ primaryColor = '#409EFF', isDark = false, mixColor }) => {
+export const resolveBaseAsideTheme = ({ primaryColor = '#409EFF', surfaceColor = '', isDark = false, mixColor }) => {
   if (isDark) {
     return {
       menuBg: '#001529',
@@ -28,6 +28,15 @@ export const resolveBaseAsideTheme = ({ primaryColor = '#409EFF', isDark = false
       menuActiveText: primaryColor,
       logoBg: '#002140',
       headerBg: '#001529'
+    }
+  }
+  if (surfaceColor) {
+    return {
+      menuBg: surfaceColor,
+      menuText: '#222b28',
+      menuActiveText: primaryColor,
+      logoBg: surfaceColor,
+      headerBg: surfaceColor
     }
   }
   return {

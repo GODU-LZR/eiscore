@@ -514,8 +514,8 @@ export function useGridCore(
   const resolveDependsOnField = (col) => {
     if (!col?.dependsOn) return ''
     if (String(col.dependsOn).includes('.')) return col.dependsOn
-    const isStatic = props.staticColumns.some(item => item.prop === col.dependsOn)
-    return isStatic ? col.dependsOn : `properties.${col.dependsOn}`
+    const staticColumn = props.staticColumns.find(item => item.prop === col.dependsOn)
+    return staticColumn && staticColumn.storeInProperties !== true ? col.dependsOn : `properties.${col.dependsOn}`
   }
 
   watch(
@@ -671,7 +671,8 @@ export function useGridCore(
   }
 
   const createColDef = (col, isDynamic) => {
-    const field = isDynamic ? `properties.${col.prop}` : col.prop
+    const isPropertyField = isDynamic || col.storeInProperties === true
+    const field = isPropertyField ? `properties.${col.prop}` : col.prop
     const colId = isDynamic ? `properties.${col.prop}` : col.prop
     const minWidth = Math.max(Number(col.minWidth) || 0, getHeaderMinWidth(col.label), 150)
     const configuredWidth = getStoredColumnWidth(colId, col.width)
@@ -680,7 +681,14 @@ export function useGridCore(
       : { flex: 1, minWidth }
 
     const extraColDef = {}
-    if (typeof col.valueGetter === 'function') extraColDef.valueGetter = col.valueGetter
+    if (typeof col.valueGetter === 'function') {
+      extraColDef.valueGetter = (params) => {
+        if (params?.node?.rowPinned) {
+          return isPropertyField ? params.data?.properties?.[col.prop] : params.data?.[col.prop]
+        }
+        return col.valueGetter(params)
+      }
+    }
     if (typeof col.valueSetter === 'function') extraColDef.valueSetter = col.valueSetter
     if (typeof col.valueParser === 'function') extraColDef.valueParser = col.valueParser
     if (col.multiLine) extraColDef.multiLine = true
@@ -732,7 +740,7 @@ export function useGridCore(
     colDef.__aclCanView = aclSnapshot?.canView !== false
     colDef.__aclCanEdit = aclSnapshot?.canEdit !== false
 
-    if (isDynamic) {
+    if (isPropertyField) {
       colDef.valueSetter = (params) => {
         if (!params.data.properties || typeof params.data.properties !== 'object') {
           params.data.properties = {}
@@ -1064,7 +1072,7 @@ export function useGridCore(
     }
   })
 
-  const { isLoadingMore, hasMoreRows, loadData, loadNextPage } = createPagedGridLoader({
+  const { isLoadingMore, hasMoreRows, loadData, loadNextPage, prependRow } = createPagedGridLoader({
     props,
     gridData,
     searchText,
@@ -1080,7 +1088,7 @@ export function useGridCore(
 
   return {
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
-    isLoadingMore, hasMoreRows, loadData, loadNextPage, handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules, columnLockState,
+    isLoadingMore, hasMoreRows, loadData, loadNextPage, prependRow, handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules, columnLockState,
     setWorkflowBinding, getRowHeight, handleColumnResized, onGridReadyLayout,
     stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
   }

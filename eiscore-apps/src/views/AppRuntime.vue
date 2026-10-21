@@ -976,7 +976,7 @@ const flashPublishedSrcdoc = computed(() => {
 
 const flashRuntimeUrl = computed(() => {
   if (!flashRuntimeReady.value || !runtimeAppId.value) return ''
-  return `/apps/preview/flash-draft?appId=${encodeURIComponent(runtimeAppId.value)}&_t=${flashRuntimeNonce.value}`
+  return `/apps/index.html?eis_flash_preview=1&appId=${encodeURIComponent(runtimeAppId.value)}&_t=${flashRuntimeNonce.value}`
 })
 
 const prepareFlashRuntimeSource = async (row) => {
@@ -1978,6 +1978,11 @@ async function loadAppData() {
     appData.value = response.data?.[0] || null
     if (appData.value) {
       appData.value.config = parseJsonObject(appData.value.config) || {}
+    }
+    if (route.query.flash === '1' && appData.value?.app_type !== 'flash') {
+      ElMessage.warning('该入口仅支持闪念应用')
+      router.push('/')
+      return
     }
     const moduleKey = resolveAppAclModule(appData.value, appData.value?.config, targetAppId)
     if (moduleKey && !hasPerm(`app:${moduleKey}`)) {

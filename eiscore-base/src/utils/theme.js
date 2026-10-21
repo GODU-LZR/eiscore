@@ -4,6 +4,7 @@
 // src/utils/theme.js
 
 import { EIS_THEME_UPDATED_EVENT, syncEisThemeScopes } from '@shared/eis-theme-sync'
+import { getEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 
 // 混合函数 (保持不变)
 export const mix = (c1, c2, ratio) => {
@@ -28,6 +29,16 @@ export const mix = (c1, c2, ratio) => {
 
 export const setThemeColor = (color) => {
   const el = document.documentElement
+  const surfaceColor = getEnterpriseConfig(globalThis).branding.surfaceColor
+  if (surfaceColor) {
+    el.setAttribute('data-eis-surface', '')
+    el.style.setProperty('--eis-surface-color', surfaceColor)
+    el.style.setProperty('--eis-bootstrap-surface-color', surfaceColor)
+  } else {
+    el.removeAttribute('data-eis-surface')
+    el.style.removeProperty('--eis-surface-color')
+    el.style.removeProperty('--eis-bootstrap-surface-color')
+  }
   const pre = '--el-color-primary'
   const normalizedColor = typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color.trim())
     ? color.trim()
@@ -44,16 +55,18 @@ export const setThemeColor = (color) => {
   }
   el.style.setProperty(`${pre}-dark-2`, mix(normalizedColor, '#000000', 0.2))
   el.style.setProperty('--primary-color', normalizedColor)
+  el.style.setProperty('--eis-bootstrap-theme-color', normalizedColor)
+  el.style.setProperty('--eis-bootstrap-theme-rgb', `${r},${g},${b}`)
   
   // --- 🔴 核心修改区 ---
   
   // 1. 页面背景色 (原先的卡片微光)：95% 白 + 5% 主题色
   // 这会让整个大背景带有一层极淡的滤镜
-  el.style.setProperty('--page-bg-tint', mix(normalizedColor, '#ffffff', 0.95))
+  el.style.setProperty('--page-bg-tint', surfaceColor || mix(normalizedColor, '#ffffff', 0.95))
   
   // 2. 卡片/组件背景色 (加深)：85% 白 + 15% 主题色
   // 这比背景深 3 倍，能明显区分出"卡片"和"底色"
-  el.style.setProperty('--card-bg-tint', mix(normalizedColor, '#ffffff', 0.85))
+  el.style.setProperty('--card-bg-tint', surfaceColor || mix(normalizedColor, '#ffffff', 0.85))
 
   syncEisThemeScopes()
   window.dispatchEvent(new CustomEvent(EIS_THEME_UPDATED_EVENT, { detail: { color: normalizedColor } }))

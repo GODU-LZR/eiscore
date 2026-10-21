@@ -10,10 +10,10 @@
     "publishedVersion": 1,
     "defaultLocale": "zh-CN",
     "enabledLocales": ["zh-CN"],
-    "theme": { "primaryColor": "#285d57" },
+    "theme": { "primaryColor": "#9a7b46" },
     "trademark": {
-      "asset": "/enterprise-assets/yayu/yayu-site-mark-gpt-image-2.png",
-      "faviconUrl": "/enterprise-assets/yayu/favicon.png"
+      "asset": "/enterprise-assets/yayu/yayu-red-fangsong-seal.png",
+      "faviconUrl": "/enterprise-assets/yayu/yayu-red-fangsong-favicon.png"
     },
     "settings": { "publicPath": "/login" },
     "contact": {},
@@ -49,7 +49,7 @@
           "headerLoginText": "企业登录",
           "authKicker": "企业工作区",
           "authTitle": "登录雅御工作区",
-          "announcement": "连接工作台、销售、仓储、人事与应用中心",
+          "announcement": "连接工作台、销售与人事协作",
           "primaryActionText": "登录工作区",
           "authSafeNote": "账号由管理员统一分配",
           "authFootnote": "仅供企业授权人员使用",
@@ -88,8 +88,8 @@
         "id": "enterprise-platform",
         "name": "EISCore 企业数字化",
         "category": "企业经营底座",
-        "summary": "围绕企业经营组织工作台、销售、仓储、人事与应用协作，并面向资料采集、业务单据生成和数据复核开展应用服务。",
-        "applications": ["资料采集", "业务处理", "复核协作", "销售管理", "仓储管理", "人事协作"]
+        "summary": "围绕企业经营工作台、销售与人事协作，并面向资料采集、业务单据生成和数据复核开展应用服务。",
+        "applications": ["资料采集", "业务处理", "复核协作", "销售管理", "人事协作"]
       },
       {
         "id": "industry-agent",
@@ -107,7 +107,7 @@
       }
     ],
     "solutions": [
-      { "id": "enterprise", "name": "企业数字化与行业 Agent", "category": "企业经营", "summary": "从销售、仓储、人事等经营流程出发，组合企业管理工具与行业 Agent，梳理数据、单据和人员协作。", "applications": ["EISCore 专项技术", "Agent 行业应用", "业务流程梳理", "应用部署与运维"] },
+      { "id": "enterprise", "name": "企业数字化与行业 Agent", "category": "企业经营", "summary": "从销售、人事等经营流程出发，组合企业管理工具与行业 Agent，梳理数据、单据和人员协作。", "applications": ["EISCore 专项技术", "Agent 行业应用", "业务流程梳理", "应用部署与运维"] },
       { "id": "park", "name": "园区运营与企业服务", "category": "园区产业", "summary": "与园区资源方共同梳理入驻企业需求，以数字化工具、项目服务和运营支持开展试点合作。", "applications": ["园区招商协作", "企业入驻与项目孵化", "政府项目与政策服务", "AI 商学院与人才培训"] },
       { "id": "model-supply", "name": "大模型供应链与设备采购", "category": "模型与算力", "summary": "按照场景需求整合模型资源、算力与高精专设备，衔接采购、部署、终端适配和项目交付。", "applications": ["大模型供应链", "高精专设备采购", "边缘与云端算力", "部署交付"] },
       { "id": "embodied", "name": "具身智能与终端集成", "category": "智能终端", "summary": "面向企业与园区的交互场景，探索机器人和 AI 眼镜等终端的集成、场景验证与应用服务。", "applications": ["具身智能运营终端", "企业 AI 秘书", "园区导览与会议接待", "AI 眼镜研发协同"] },

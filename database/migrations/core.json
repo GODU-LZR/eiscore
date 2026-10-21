@@ -381,6 +381,45 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-030",
+      "path": "database/migrations/sql/core-030-grid-summary-consistency.sql",
+      "sha256": "f83dbd153a40a9139df2ffc823c25d49348fade02c9c0e884ef491a9ce55eaf1",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-031",
+      "path": "database/migrations/sql/core-031-hr-attendance-read-policy-performance.sql",
+      "sha256": "78fb8eb8debf37f3e0345352c0d6e11804336efda1b87752a1d60249b79fa1a9",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
+    },
+    {
+      "id": "core-032",
+      "path": "database/migrations/sql/core-032-fix-flash-agent-context.sql",
+      "sha256": "8d9b73b62de725848fb620f81738a3f1a7bef7a75a3bc16e051d6288b12a8393",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

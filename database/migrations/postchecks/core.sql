@@ -550,3 +550,65 @@ BEGIN
   END IF;
 END
 $sales_document_contract$;
+
+DO $hr_attendance_policy_performance$
+DECLARE optimized_policy_count integer;
+BEGIN
+  SELECT count(*) INTO optimized_policy_count
+  FROM pg_policy p
+  JOIN pg_class c ON c.oid = p.polrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'hr'
+    AND p.polname IN ('hr_attendance_records_select', 'hr_attendance_month_overrides_select')
+    AND p.polcmd = 'r'
+    AND position('can_access_employee' IN pg_get_expr(p.polqual, p.polrelid)) > 0
+    AND position('NULL' IN pg_get_expr(p.polqual, p.polrelid)) > 0
+    AND position('CASE' IN upper(pg_get_expr(p.polqual, p.polrelid))) > 0;
+  IF optimized_policy_count <> 2 THEN
+    RAISE EXCEPTION 'attendance read policies must evaluate all-scope once and retain row scope';
+  END IF;
+END
+$hr_attendance_policy_performance$;
+
+DO $flash_agent_context_contract$
+DECLARE flash_context_definition text;
+BEGIN
+  SELECT pg_get_functiondef('public.flash_agent_context()'::regprocedure)
+    INTO flash_context_definition;
+  IF position('actor_username text' IN lower(flash_context_definition)) = 0
+     OR position('u.username = actor_username' IN lower(flash_context_definition)) = 0
+     OR position('u.username = username' IN lower(flash_context_definition)) > 0 THEN
+    RAISE EXCEPTION 'Flash authorization context must use an unambiguous actor username variable';
+  END IF;
+END
+$flash_agent_context_contract$;
+
+DO $grid_summary_authorization_contract$
+DECLARE
+  summary_definition text;
+  is_security_definer boolean;
+  safe_acl_views integer;
+BEGIN
+  SELECT p.prosecdef, pg_get_functiondef(p.oid)
+    INTO is_security_definer, summary_definition
+  FROM pg_proc p
+  WHERE p.oid = 'public.eis_grid_summary(jsonb)'::regprocedure;
+  IF is_security_definer IS DISTINCT FROM false
+     OR summary_definition IS NULL
+     OR position('has_table_privilege(current_user' IN lower(summary_definition)) = 0
+     OR position('rel_kind not in' IN lower(summary_definition)) = 0
+     OR position('security_invoker=true' IN lower(summary_definition)) = 0 THEN
+    RAISE EXCEPTION 'grid summary RPC must enforce caller ACL and invoker-safe relation sources';
+  END IF;
+  SELECT count(*) INTO safe_acl_views
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public'
+    AND c.relname IN ('v_roles_manage', 'v_role_permissions_matrix', 'v_role_data_scopes_matrix')
+    AND c.relkind = 'v'
+    AND c.reloptions @> ARRAY['security_invoker=true'];
+  IF safe_acl_views <> 3 THEN
+    RAISE EXCEPTION 'ACL summary views must execute with caller permissions';
+  END IF;
+END
+$grid_summary_authorization_contract$;

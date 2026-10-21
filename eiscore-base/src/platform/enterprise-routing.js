@@ -13,7 +13,17 @@ export function isEnterprisePathEnabled(path, enterpriseConfig) {
     purchase: 'purchaseVisible',
     apps: 'appCenterVisible'
   }[moduleId]
-  if (visibilityFeature && enterpriseConfig?.features?.[visibilityFeature] === false) return false
+  const rawPath = String(path || '')
+  const normalizedPath = rawPath.split('?', 1)[0].replace(/\/+$/, '') || '/'
+  const query = rawPath.includes('?') ? new URLSearchParams(rawPath.slice(rawPath.indexOf('?') + 1)) : null
+  const isPublishedFlashRuntime = query?.get('flash') === '1'
+  const flashRuntimePath = moduleId === 'apps' && (
+    normalizedPath === '/apps/flash-builder' || normalizedPath.startsWith('/apps/flash-builder/') ||
+    normalizedPath === '/apps/preview' || normalizedPath.startsWith('/apps/preview/')
+    || (isPublishedFlashRuntime && (normalizedPath === '/apps/app' || normalizedPath.startsWith('/apps/app/')))
+  )
+  const flashHarnessEnabled = enterpriseConfig?.features?.flashHarness === true
+  if (visibilityFeature && enterpriseConfig?.features?.[visibilityFeature] === false && !(flashRuntimePath && flashHarnessEnabled)) return false
   return !moduleId || isEnterpriseModuleEnabled(enterpriseConfig, moduleId)
 }
 

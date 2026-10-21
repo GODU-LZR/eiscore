@@ -39,6 +39,24 @@ const disabled = openSalesFlowTarget('purchaseDemand', {
 assert.equal(disabled.ok, false)
 assert.equal(warnings.at(-1), '采购模块未启用，无法打开采购需求。')
 
+let shippingNavigationCalls = 0
+const shippingDisabled = openSalesFlowTarget('shipmentRequest', {
+  salesShippingEnabled: false,
+  navigate: () => {
+    shippingNavigationCalls += 1
+    return { ok: true }
+  },
+  onWarning: (message) => warnings.push(message)
+})
+assert.deepEqual(shippingDisabled, {
+  ok: false,
+  reason: 'sales-shipping-disabled',
+  moduleId: 'sales',
+  mode: 'none'
+})
+assert.equal(shippingNavigationCalls, 0)
+assert.equal(warnings.at(-1), '当前企业销售流程不包含出货环节。')
+
 const repoRoot = resolve(import.meta.dirname, '../..')
 const componentSource = readFileSync(
   resolve(repoRoot, 'eiscore-sales/src/components/SalesAppGrid.vue'),
@@ -47,6 +65,7 @@ const componentSource = readFileSync(
 assert.match(componentSource, /openSalesFlowTarget\('purchaseDemand'/)
 assert.match(componentSource, /openSalesFlowTarget\('shipmentRequest'/)
 assert.match(componentSource, /openSalesFlowTarget\('salesOutbound'/)
+assert.match(componentSource, /salesShippingEnabled,\s*onWarning:/)
 assert.doesNotMatch(componentSource, /window\.location\.href\s*=\s*['"]\/(purchase|sales|materials)\//)
 
 console.log('PASS: sales flow navigation adapter')

@@ -237,14 +237,19 @@ function customerAttention(row) {
   })
 }
 
-function orderAttention(row, appKey = 'orders') {
+function orderAttention(row, appKey = 'orders', salesShippingEnabled = true) {
   const closed = isClosedOrder(row)
   const dueDays = daysBetween(row.delivery_date)
   const amount = numberValue(row.total_amount)
   const candidates = []
 
   if (!closed && dueDays !== null && dueDays < 0) {
-    candidates.push({ score: 88, level: 'critical', reason: `交付日期逾期 ${Math.abs(dueDays)} 天`, action: '下推出货/出库' })
+    candidates.push({
+      score: 88,
+      level: 'critical',
+      reason: `交付日期逾期 ${Math.abs(dueDays)} 天`,
+      action: salesShippingEnabled ? '下推出货/出库' : '确认交付安排'
+    })
   } else if (!closed && dueDays !== null && dueDays <= SALES_ORDER_DUE_WINDOW_DAYS) {
     candidates.push({ score: 72, level: 'warning', reason: dueDays === 0 ? '今日交付' : `${dueDays} 天内交付`, action: '确认交付准备' })
   }
@@ -257,7 +262,7 @@ function orderAttention(row, appKey = 'orders') {
   if (!closed && amount >= 100000) {
     candidates.push({ score: 62, level: 'focus', reason: '大额订单需持续跟踪', action: '跟踪交付回款' })
   }
-  if (appKey === 'shipment_requests' && !closed && ['已确认', '生产中'].includes(row.order_status)) {
+  if (salesShippingEnabled && appKey === 'shipment_requests' && !closed && ['已确认', '生产中'].includes(row.order_status)) {
     candidates.push({ score: 66, level: 'warning', reason: '订单待出货处理', action: '下推销售出库' })
   }
 
@@ -345,10 +350,14 @@ export function getSalesRecordAttention(appKey, row = {}, context = {}) {
   const manualLevel = getManualAttentionLevel(row)
   if (manualLevel) return manualAttention(appKey, row, manualLevel)
 
+  const salesShippingEnabled = typeof context.salesShippingEnabled === 'boolean'
+    ? context.salesShippingEnabled
+    : globalThis.__EISCORE_ENTERPRISE_CONFIG__?.features?.salesShipping !== false
+
   const resolver = {
     customers: customerAttention,
-    orders: (item) => orderAttention(item, 'orders'),
-    shipment_requests: (item) => orderAttention(item, 'shipment_requests'),
+    orders: (item) => orderAttention(item, 'orders', salesShippingEnabled),
+    shipment_requests: (item) => orderAttention(item, 'shipment_requests', salesShippingEnabled),
     payments: paymentAttention,
     follow_ups: followAttention,
     opportunities: opportunityAttention
@@ -361,11 +370,11 @@ export function getSalesRecordAttention(appKey, row = {}, context = {}) {
   return resolver(row)
 }
 
-export function buildSalesAttentionSummary(appKey, rows = []) {
+export function buildSalesAttentionSummary(appKey, rows = [], context = {}) {
   const items = (Array.isArray(rows) ? rows : [])
     .map((row) => ({
       row,
-      attention: getSalesRecordAttention(appKey, row)
+      attention: getSalesRecordAttention(appKey, row, context)
     }))
     .sort((a, b) => b.attention.score - a.attention.score)
 

@@ -2,14 +2,13 @@
   disabled: true
 
 - insert:
+    - id: eiscore-visual-response-policy
+      name: '/opt/eiscore-harness/visual-response-policy.mjs'
+      inject: [systemPrompt]
+
+- insert:
     - id: eiscore-auth
       name: '/opt/eiscore-harness/client-plugins/eiscore-auth/lib/index.js'
-      inject: [connection]
-    - id: eiscore-digital-twin
-      name: '/opt/eiscore-harness/client-plugins/digital-twin/lib/index.js'
-      inject: [connection]
-    - id: eiscore-enterprise-bi
-      name: '/opt/eiscore-harness/client-plugins/enterprise-bi/lib/index.js'
       inject: [connection]
     - id: eiscore-tools
       name: '/opt/eiscore-harness/eiscore-tools.mjs'

@@ -163,8 +163,14 @@ const createFlashWorkspaceService = ({
       await syncScopedDraftToPreview(normalizedAppId);
     }
     const scopedTarget = normalizedAppId ? resolveScopedDraftFilePath(normalizedAppId) : '';
-    const target = scopedTarget && fsApi.existsSync(scopedTarget) ? scopedTarget : resolveDraftFilePath();
-    const content = await fsApi.promises.readFile(target, 'utf8');
+    const target = scopedTarget || resolveDraftFilePath();
+    let content;
+    try {
+      content = await fsApi.promises.readFile(target, 'utf8');
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+      content = '';
+    }
     return {
       appId: normalizedAppId,
       activeAppId: activeDraftAppId,

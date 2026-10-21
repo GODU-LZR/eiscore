@@ -49,18 +49,40 @@ export function buildServerSummaryPayload({ props, summaryConfig, searchText, bu
   const columns = [...(props.staticColumns || []), ...(props.extraColumns || [])]
   const rules = summaryConfig?.rules || {}
   const expressions = summaryConfig?.expressions || {}
+  const columnByReference = new Map()
+  columns.forEach((col) => {
+    if (!col?.prop) return
+    columnByReference.set(col.prop, col)
+    if (col.label) columnByReference.set(col.label, col)
+  })
+  const referencedProps = new Set()
+  Object.values(expressions).forEach((expression) => {
+    String(expression || '').replace(/\{(.+?)\}/g, (match, reference) => {
+      const col = columnByReference.get(reference)
+      if (col) referencedProps.add(col.prop)
+      return match
+    })
+  })
   const requestedColumns = columns
     .filter((col) => {
       if (!col?.prop) return false
       const rule = rules[col.prop]
-      return (rule && rule !== 'none') || !!expressions[col.prop]
+      return (rule && rule !== 'none') || !!expressions[col.prop] || referencedProps.has(col.prop)
     })
     .map((col) => ({
       prop: col.prop,
       label: col.label || col.prop,
-      source: (props.staticColumns || []).some((item) => item.prop === col.prop) ? 'column' : 'properties',
+      source: col.storeInProperties === true || !(props.staticColumns || []).some((item) => item.prop === col.prop)
+        ? 'properties'
+        : 'column',
+      ...(col.summaryField ? { field: col.summaryField } : {}),
+      ...(col.summaryTransform ? { transform: col.summaryTransform } : {}),
       type: col.type || 'text',
-      rule: rules[col.prop] || 'none'
+      rule: rules[col.prop] && rules[col.prop] !== 'none'
+        ? rules[col.prop]
+        : referencedProps.has(col.prop)
+          ? 'auto'
+          : 'none'
     }))
 
   if (!requestedColumns.length) return null
@@ -106,7 +128,7 @@ export function buildServerSummaryRow({
     const rule = summaryConfig?.rules?.[col.prop]
     if (rule && rule !== 'none' && typeof value === 'number' && Number.isFinite(value)) {
       const displayVal = Number(value.toFixed(2))
-      const isProp = !(props.staticColumns || []).some((item) => item.prop === col.prop)
+      const isProp = col.storeInProperties === true || !(props.staticColumns || []).some((item) => item.prop === col.prop)
       if (isProp) totalRow.properties[col.prop] = displayVal
       else totalRow[col.prop] = displayVal
     }
@@ -119,7 +141,7 @@ export function buildServerSummaryRow({
       const evaluated = evaluateFormulaExpression(expr.replace(/\{(.+?)\}/g, (match, key) => valueMap[key] ?? 0))
       if (evaluated !== undefined && !Number.isNaN(evaluated) && Number.isFinite(evaluated)) {
         const displayVal = Number(evaluated.toFixed(2))
-        const isProp = !(props.staticColumns || []).some((item) => item.prop === col.prop)
+        const isProp = col.storeInProperties === true || !(props.staticColumns || []).some((item) => item.prop === col.prop)
         if (isProp) totalRow.properties[col.prop] = displayVal
         else totalRow[col.prop] = displayVal
       }
@@ -152,6 +174,12 @@ export async function loadServerSummary({
     silentError: true,
     suppressErrorMessage: true
   })
+
+  const incomplete = payload.columns.some((col) => col.rule !== 'none' && (
+    typeof response?.results?.[col.prop]?.value !== 'number' ||
+    !Number.isFinite(response.results[col.prop].value)
+  ))
+  if (incomplete) throw new Error('服务端汇总未返回完整统计结果')
 
   return buildServerSummaryRow({
     response,

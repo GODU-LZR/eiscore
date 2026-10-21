@@ -100,7 +100,8 @@ export function createMicroApps(enterpriseConfig = DEFAULT_ENTERPRISE_CONFIG) {
     .filter((app) => modules[app.moduleId] !== false)
     .filter((app) => {
       const feature = featureVisibility[app.moduleId]
-      return !feature || resolvedConfig.features?.[feature] !== false
+      if (!feature || resolvedConfig.features?.[feature] !== false) return true
+      return app.moduleId === 'apps' && resolvedConfig.features?.flashHarness === true
     })
     .map(({ moduleId, ...app }) => ({
       ...app,

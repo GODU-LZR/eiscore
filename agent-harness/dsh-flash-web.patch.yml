@@ -2,6 +2,11 @@
   disabled: true
 
 - insert:
+    - id: eiscore-visual-response-policy
+      name: '/opt/eiscore-harness/visual-response-policy.mjs'
+      inject: [systemPrompt]
+
+- insert:
     - id: eiscore-auth
       name: '/opt/eiscore-harness/client-plugins/eiscore-auth/lib/index.js'
       inject: [connection]

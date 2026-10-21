@@ -55,8 +55,8 @@ const DEFAULT_SOURCE = {
 
 const TOP_LEVEL_KEYS = new Set(['$schema', 'schemaVersion', 'enterprise', 'branding', 'endpoints', 'modules', 'features'])
 const ENTERPRISE_KEYS = new Set(['id', 'displayName', 'shortName'])
-const BRANDING_KEYS_V1 = new Set(['productName', 'themeColor', 'logoUrl', 'login'])
-const BRANDING_KEYS_V2 = new Set(['productName', 'themeColor', 'logoUrl'])
+const BRANDING_KEYS_V1 = new Set(['productName', 'themeColor', 'surfaceColor', 'logoUrl', 'login'])
+const BRANDING_KEYS_V2 = new Set(['productName', 'themeColor', 'surfaceColor', 'logoUrl'])
 const LOGIN_TEXT_FIELDS = Object.freeze({
   slogan: 200,
   description: 1000,
@@ -260,6 +260,9 @@ export function validateEnterpriseConfig(input) {
     if (typeof input.branding.themeColor !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(input.branding.themeColor)) {
       issues.push(pathValue('$.branding.themeColor', 'invalid-color'))
     }
+    if (input.branding.surfaceColor !== undefined && (typeof input.branding.surfaceColor !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(input.branding.surfaceColor))) {
+      issues.push(pathValue('$.branding.surfaceColor', 'invalid-color'))
+    }
     if (typeof input.branding.logoUrl !== 'string' || !isSafeAssetUrl(input.branding.logoUrl)) {
       issues.push(pathValue('$.branding.logoUrl', 'unsafe-url'))
     }
@@ -368,6 +371,7 @@ function normalizeConfig(input) {
     branding: {
       productName: input.branding.productName.trim(),
       themeColor: input.branding.themeColor.toUpperCase(),
+      ...(input.branding.surfaceColor === undefined ? {} : { surfaceColor: input.branding.surfaceColor.toUpperCase() }),
       logoUrl: input.branding.logoUrl.trim(),
       ...(input.schemaVersion === 1
         ? { login: normalizeLoginProfile(input.branding.login, { allowMobile: true }) }
