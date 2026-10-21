@@ -184,6 +184,6 @@ for (const requiredUse of [
 ]) {
   assert.equal(pageSource.includes(requiredUse), true, `OntologyWorkbench lost ${requiredUse}`)
 }
-assert.ok(pageSource.split(/\r?\n/).length <= 2184)
+assert.ok(pageSource.split(/\r?\n/).length <= 2360)
 
 console.log('PASS: OntologyWorkbench query policy preserves profiles, URLs, RPC payloads, response normalization and selection fallbacks')

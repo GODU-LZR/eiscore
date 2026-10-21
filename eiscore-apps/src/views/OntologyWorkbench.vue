@@ -271,13 +271,36 @@
                 <div class="kg-graph-header">
                   <div class="kg-graph-title">子图视图</div>
                   <div class="kg-graph-stats">
+                    <el-radio-group v-model="graphDisplay" size="small" aria-label="知识图谱展示方式">
+                      <el-radio-button value="3d">3D 大脑</el-radio-button>
+                      <el-radio-button value="2d">二维图谱</el-radio-button>
+                    </el-radio-group>
                     <el-tag size="small" effect="plain">节点 {{ kgGraphStats.nodes }} 个</el-tag>
                     <el-tag size="small" effect="plain">边 {{ kgGraphStats.links }} 条</el-tag>
-                    <el-button size="small" text @click="resizeKgGraph">重绘</el-button>
+                    <el-button v-if="graphDisplay === '2d'" size="small" text @click="resizeKgGraph">重绘</el-button>
                   </div>
                 </div>
-                <div v-show="kgGraphStats.nodes" ref="kgGraphRef" class="kg-graph-canvas"></div>
-                <div v-if="!kgGraphStats.nodes" class="column-empty-tip">暂无子图</div>
+                <div class="brain-filter-toolbar">
+                  <el-select v-model="brainDomain" clearable size="small" placeholder="全部业务域" aria-label="知识图谱业务域">
+                    <el-option v-for="domain in ONTOLOGY_BRAIN_DOMAINS" :key="domain.key" :label="domain.label" :value="domain.key" />
+                  </el-select>
+                  <el-select :model-value="kgPickedNodeId" clearable filterable size="small" placeholder="选择子图节点" aria-label="选择子图节点" @change="brainHandlers.pickKgBrainNodeId">
+                    <el-option v-for="node in kgBrainGraph.nodes" :key="node.id" :label="node.label" :value="node.id" />
+                  </el-select>
+                </div>
+                <el-alert v-if="brainUnavailableReason" :title="brainUnavailableReason" type="info" :closable="false" show-icon />
+                <OntologyBrainGraph
+                  v-if="graphDisplay === '3d' && activeWorkbenchView === 'kg'"
+                  :graph="kgBrainGraph"
+                  :selected-node-id="kgPickedNodeId"
+                  :selected-edge-id="kgPickedEdgeId"
+                  :loading="kgLoading || kgNeighborLoading || kgPathLoading"
+                  @pick-node="brainHandlers.pickKgBrainNode"
+                  @pick-edge="brainHandlers.pickKgBrainEdge"
+                  @unavailable="brainHandlers.useTwoDimensionalGraph"
+                />
+                <div v-show="graphDisplay === '2d' && kgGraphStats.nodes" ref="kgGraphRef" class="kg-graph-canvas"></div>
+                <div v-if="graphDisplay === '2d' && !kgGraphStats.nodes" class="column-empty-tip">暂无子图</div>
                 <div v-if="kgSelectedEdge" class="kg-edge-proof">
                   <div class="kg-edge-proof-title">
                     <span>{{ kgSelectedEdge.from }} -[{{ predicateLabel(kgSelectedEdge.predicate) }}]-> {{ kgSelectedEdge.to }}</span>
@@ -550,6 +573,10 @@
             <div class="card-header">
               <span>图关系总览</span>
               <div class="header-controls">
+                <el-radio-group v-model="graphDisplay" size="small" aria-label="本体关系展示方式">
+                  <el-radio-button value="3d">3D 大脑</el-radio-button>
+                  <el-radio-button value="2d">二维图谱</el-radio-button>
+                </el-radio-group>
                 <el-select v-model="relationType" size="small" style="width: 140px">
                   <el-option label="全部类型" value="all" />
                   <el-option label="本体关系" value="ontology" />
@@ -572,8 +599,13 @@
               class="graph-search"
               placeholder="筛选关系（表名/关系词/说明）"
             />
-            <div class="graph-tip">点击表格图标可聚焦该表关系，再次点击可取消聚焦。</div>
-            <div class="graph-zoom">
+            <el-select v-model="brainDomain" clearable placeholder="全部业务域" aria-label="本体关系业务域" class="brain-domain-filter" style="width: 150px">
+              <el-option v-for="domain in ONTOLOGY_BRAIN_DOMAINS" :key="domain.key" :label="domain.label" :value="domain.key" />
+            </el-select>
+            <el-select v-model="selectedTable" clearable filterable placeholder="选择业务表" aria-label="选择业务表" class="brain-table-filter" style="width: 240px" @change="syncPickedRelation">
+              <el-option v-for="table in allTables" :key="table" :label="tableDisplayLabel(table)" :value="table" />
+            </el-select>
+            <div v-if="graphDisplay === '2d'" class="graph-zoom">
               <el-button size="small" @click="zoomOut">缩小</el-button>
               <el-slider
                 v-model="graphZoom"
@@ -588,8 +620,22 @@
             <el-tag effect="plain">当前展示 {{ graphRelations.length }} 条关系</el-tag>
           </div>
 
-          <div ref="graphHostRef" class="graph-host">
+          <el-alert v-if="relationError" :title="relationError" type="error" :closable="false" show-icon />
+          <el-alert v-if="brainUnavailableReason" :title="brainUnavailableReason" type="info" :closable="false" show-icon />
+          <div ref="graphHostRef" class="graph-host" :class="{ 'brain-host': graphDisplay === '3d' }">
+            <OntologyBrainGraph
+              v-if="graphDisplay === '3d' && activeWorkbenchView === 'relations'"
+              :graph="brainGraph"
+              :selected-node-id="selectedTable ? getOntologyKgNodeKey('table', selectedTable) : ''"
+              :selected-edge-id="pickedRelation ? getOntologyBrainRelationKey(pickedRelation) : ''"
+              :loading="loading"
+              :error="relationError"
+              @pick-node="node => toggleTableFocus(node.tableKey)"
+              @pick-edge="edge => pickRelation(edge.raw)"
+              @unavailable="useTwoDimensionalGraph"
+            />
             <OntologyRelationGraph
+              v-if="graphDisplay === '2d'"
               :relations="graphRelations"
               :selected-table="selectedTable"
               :picked-relation-id="pickedRelationId"
@@ -739,11 +785,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
 import OntologyRelationGraph from '@/components/OntologyRelationGraph.vue'
+import {
+  ONTOLOGY_BRAIN_DOMAINS,
+  buildOntologyBrainRelationGraph,
+  buildOntologyBrainKgGraph,
+  getOntologyBrainRelationKey
+} from '@/domain/ontology-brain-graph-policy'
 import {
   buildOntologyInsightMetricCards,
   buildOntologyReasoningMetricCards,
@@ -771,6 +823,8 @@ import {
   buildOntologyWorkbenchViews,
   formatOntologyKgTooltip,
   getOntologyActiveWorkbenchMeta,
+  getOntologyKgEdgeKey,
+  getOntologyKgNodeKey,
   getOntologyKgNodeTypeLabel as nodeTypeLabel,
   getOntologyPredicateLabel as predicateLabel
 } from '@/domain/ontology-workbench-kg-policy'
@@ -795,8 +849,15 @@ import {
 } from '@/domain/ontology-workbench-query-policy'
 
 const router = useRouter()
+const OntologyBrainGraph = defineAsyncComponent(() => import('@/components/OntologyBrainGraph.vue'))
 
 const loading = ref(false)
+const relationError = ref('')
+const graphDisplay = ref('3d')
+const brainDomain = ref('')
+const brainUnavailableReason = ref('')
+const kgPickedNodeId = ref('')
+const kgPickedEdgeId = ref('')
 const relations = ref([])
 const activeWorkbenchView = ref('relations')
 const searchText = ref('')
@@ -854,10 +915,17 @@ let kgGraphResizeObserver = null
 let kgChart = null
 let kgEchartsModulePromise = null
 
-const filteredRelations = computed(() => filterOntologyRelations(relations.value, {
+const searchedRelations = computed(() => filterOntologyRelations(relations.value, {
   relationType: relationType.value,
   searchText: searchText.value
 }))
+const filteredRelations = computed(() => {
+  if (!brainDomain.value) return searchedRelations.value
+  const visible = new Set(buildOntologyBrainRelationGraph({
+    relations: searchedRelations.value, domainFilter: brainDomain.value
+  }).edges.map((edge) => edge.raw))
+  return searchedRelations.value.filter((row) => visible.has(row))
+})
 const allTables = computed(() => collectOntologyRelationTables(filteredRelations.value))
 const graphRelations = computed(() => filterOntologyRelationsByTable(filteredRelations.value, selectedTable.value))
 const relationTypeCounts = computed(() => countOntologyRelationTypes(filteredRelations.value))
@@ -886,11 +954,22 @@ const insightMetricCards = computed(() => buildOntologyInsightMetricCards({
 }))
 
 const kgSelectedMetrics = computed(() => buildOntologyKgSelectedMetrics(kgSelectedNode.value || {}))
-const kgGraphPayload = computed(() => buildOntologyKgGraphPayload({
+const kgBrainGraph = computed(() => buildOntologyBrainKgGraph({
   selectedNode: kgSelectedNode.value,
   neighbors: kgNeighbors.value,
-  pathRows: kgPathRows.value
+  pathRows: kgPathRows.value,
+  domainFilter: brainDomain.value
 }))
+const kgGraphPayload = computed(() => {
+  const payload = buildOntologyKgGraphPayload({
+    selectedNode: kgSelectedNode.value, neighbors: kgNeighbors.value, pathRows: kgPathRows.value
+  })
+  const nodes = new Set(kgBrainGraph.value.nodes.map((node) => node.id))
+  const edges = new Set(kgBrainGraph.value.edges.map((edge) => edge.id))
+  const visibleNodes = payload.nodes.filter((node) => nodes.has(node.id))
+  const links = payload.links.filter((edge) => edges.has(getOntologyKgEdgeKey(edge)))
+  return { ...payload, nodes: visibleNodes, links, stats: { nodes: visibleNodes.length, links: links.length } }
+})
 
 const kgGraphStats = computed(() => kgGraphPayload.value.stats)
 
@@ -914,6 +993,40 @@ const filteredReasoningFacts = computed(() => filterOntologyReasoningFacts(
 ))
 
 const tableLabelMap = computed(() => buildOntologyTableLabelMap(filteredRelations.value))
+const brainGraph = computed(() => buildOntologyBrainRelationGraph({
+  relations: graphRelations.value, tableLabelMap: tableLabelMap.value
+}))
+
+const brainHandlers = {
+  useTwoDimensionalGraph(reason) {
+    brainUnavailableReason.value = reason
+    graphDisplay.value = '2d'
+  },
+  pickKgBrainNode(value) {
+    const id = typeof value === 'string' ? value : value?.id
+    const original = kgGraphPayload.value.nodes.find((item) => item.id === id)
+    if (!original) { kgPickedNodeId.value = ''; return }
+    kgPickedNodeId.value = id
+    kgPathTargetType.value = original.rawType
+    kgPathTargetId.value = original.rawId
+    kgSelectedEdge.value = null
+    kgPickedEdgeId.value = ''
+  },
+  pickKgBrainNodeId(id) {
+    this.pickKgBrainNode(id)
+  },
+  pickKgBrainEdge(edge) {
+    const raw = edge.raw
+    kgPickedEdgeId.value = edge.id
+    kgSelectedEdge.value = {
+      ...raw,
+      from: kgBrainGraph.value.nodes.find((node) => node.id === edge.source)?.label || edge.source,
+      to: kgBrainGraph.value.nodes.find((node) => node.id === edge.target)?.label || edge.target,
+      is_inferred: raw.is_inferred ?? raw.inferred,
+      rule_name: raw.rule_name || raw.inference_rule || raw.rule
+    }
+  }
+}
 
 const tableDisplayLabel = (table) => tableLabelMap.value[table] || table
 
@@ -1026,6 +1139,8 @@ const selectKgNode = async (row, options = {}) => {
   if (!row) return
   kgSelectedNode.value = row
   kgSelectedEdge.value = null
+  kgPickedNodeId.value = getOntologyKgNodeKey(row.node_type, row.node_id)
+  kgPickedEdgeId.value = ''
   if (!kgPathTargetId.value && row.node_type !== kgPathTargetType.value) {
     kgPathTargetType.value = row.node_type === 'role' ? 'table' : row.node_type
   }
@@ -1120,10 +1235,12 @@ const loadKgEcharts = async () => {
 
 const renderKgGraph = async () => {
   await nextTick()
+  if (graphDisplay.value !== '2d' || activeWorkbenchView.value !== 'kg') return
   const host = kgGraphRef.value
   if (!host) return
   const payload = kgGraphPayload.value
   const echarts = await loadKgEcharts()
+  if (graphDisplay.value !== '2d' || activeWorkbenchView.value !== 'kg' || !host.isConnected) return
   if (!kgChart) {
     kgChart = echarts.init(host)
   }
@@ -1134,7 +1251,8 @@ const renderKgGraph = async () => {
   kgChart.off('click')
   kgChart.on('click', (params) => {
     if (params.dataType === 'edge') {
-      kgSelectedEdge.value = params.data?.raw || null
+      const selected = kgBrainGraph.value.edges.find((edge) => edge.id === getOntologyKgEdgeKey(params.data || {}))
+      if (selected) brainHandlers.pickKgBrainEdge(selected)
       return
     }
     if (params.dataType === 'node') {
@@ -1143,6 +1261,8 @@ const renderKgGraph = async () => {
         kgPathTargetType.value = data.rawType
         kgPathTargetId.value = data.rawId
         kgSelectedEdge.value = null
+        kgPickedNodeId.value = data.id
+        kgPickedEdgeId.value = ''
       }
     }
   })
@@ -1211,6 +1331,7 @@ const renderKgGraph = async () => {
 }
 
 const resizeKgGraph = () => {
+  if (graphDisplay.value !== '2d' || activeWorkbenchView.value !== 'kg') return
   if (kgChart) {
     kgChart.resize()
     return
@@ -1330,11 +1451,14 @@ const bindGraphResizeObserver = () => {
 
 const reload = async () => {
   loading.value = true
+  relationError.value = ''
   try {
     relations.value = normalizeOntologyRows(await request(ONTOLOGY_RELATIONS_REQUEST))
     refreshedAt.value = new Date().toLocaleTimeString()
     syncSelectedTable()
   } catch (error) {
+    relations.value = []
+    relationError.value = '加载关系数据失败，请刷新后重试。'
     ElMessage.error('加载关系数据失败')
   } finally {
     loading.value = false
@@ -1358,16 +1482,29 @@ watch(columnTablesForDisplay, (tables) => {
 }, { immediate: true })
 
 watch(kgGraphPayload, () => {
+  if (!kgBrainGraph.value.nodes.some((node) => node.id === kgPickedNodeId.value)) kgPickedNodeId.value = ''
+  if (!kgBrainGraph.value.edges.some((edge) => edge.id === kgPickedEdgeId.value)) {
+    kgPickedEdgeId.value = ''
+    kgSelectedEdge.value = null
+  }
   void renderKgGraph()
 })
 
-watch(activeWorkbenchView, async (view) => {
+watch([graphDisplay, activeWorkbenchView], async ([display, view]) => {
+  if (display === '3d' || view !== 'kg') {
+    brainUnavailableReason.value = ''
+    kgChart?.dispose()
+    kgChart = null
+  }
   await nextTick()
+  updateGraphHostWidth()
   if (view === 'relations') {
     updateGraphHostWidth()
   }
-  if (view === 'kg') {
+  if (display === '2d' && view === 'kg') {
     resizeKgGraph()
+  } else {
+    void renderKgGraph()
   }
 })
 
@@ -2020,6 +2157,12 @@ onBeforeUnmount(() => {
 .graph-search {
   width: min(420px, 100%);
 }
+
+.brain-domain-filter { width: 150px; }
+.brain-table-filter { width: min(240px, 100%); }
+.brain-filter-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.brain-filter-toolbar > :deep(.el-select) { width: min(210px, 100%); }
+.graph-host.brain-host { min-height: 0; padding: 0; border: 0; overflow: hidden; }
 
 .graph-zoom {
   display: inline-flex;
