@@ -12,7 +12,7 @@
     "enabledLocales": ["zh-CN"],
     "theme": { "primaryColor": "#285d57" },
     "trademark": {
-      "asset": "/enterprise-assets/yayu/yayu-calligraphy-transparent.webp",
+      "asset": "/enterprise-assets/yayu/yayu-site-mark-gpt-image-2.png",
       "faviconUrl": "/enterprise-assets/yayu/favicon.png"
     },
     "settings": { "publicPath": "/login" },

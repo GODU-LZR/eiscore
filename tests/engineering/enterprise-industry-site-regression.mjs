@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
   DEFAULT_ENTERPRISE_PROFILE,
@@ -80,9 +80,12 @@ assert.equal(enterpriseProfileFromSiteConfig({}).template, '')
 assert.equal(DEFAULT_ENTERPRISE_PROFILE.template, '')
 
 const source = readFileSync(resolve(import.meta.dirname, '../../eiscore-base/src/views/LoginView.vue'), 'utf8')
+const siteSource = readFileSync(resolve(import.meta.dirname, '../../eiscore-base/src/components/EnterpriseIndustrySite.vue'), 'utf8')
 assert.match(source, /<EnterpriseIndustrySite\s+v-if="isIndustrySite"/)
 assert.match(source, /:profile="systemStore\.enterpriseProfile"/)
 assert.match(source, /:branding="branding"/)
+assert.match(source, /:theme-color="safeThemeColor"/)
+assert.match(source, /class="auth-overlay" :style="\{ '--login-theme': safeThemeColor \}"/)
 assert.match(source, /@login="focusLogin"/)
 assert.match(source, /<template v-else-if="portalReady">/)
 assert.match(source, /<template v-if="portalReady && !isIndustrySite">/)
@@ -91,5 +94,16 @@ assert.match(source, /!isServicePage\.value && systemStore\.enterpriseProfile\?\
 assert.match(source, /await systemStore\.loadConfig\([\s\S]*?if \(!isIndustrySite\.value\)\s*\{\s*await readPublicServiceContent/)
 assert.match(source, /portalReady\.value = true[\s\S]*?eiscore:initial-content-ready/)
 assert.match(source, /route\.query\.login === '1'/)
+assert.match(siteSource, /:style="\{ '--green': resolvedThemeColor \}"/)
+assert.doesNotMatch(siteSource, /profile\.siteKey\s*===/)
+assert.match(siteSource, /class="hero-brand-lockup"/)
+assert.match(siteSource, /background:var\(--green\)/)
+
+const repoRoot = resolve(import.meta.dirname, '../..')
+const yayuSite = JSON.parse(readFileSync(resolve(repoRoot, 'deploy/yayu/site-profile.json'), 'utf8'))
+const yayuRuntime = JSON.parse(readFileSync(resolve(repoRoot, 'deploy/yayu/eiscore-enterprise.json'), 'utf8'))
+assert.equal(yayuSite.site.theme.primaryColor.toUpperCase(), yayuRuntime.branding.themeColor.toUpperCase())
+assert.equal(yayuSite.site.trademark.asset, yayuRuntime.branding.logoUrl)
+assert.ok(existsSync(resolve(repoRoot, 'eiscore-base/public', yayuRuntime.branding.logoUrl.slice(1))))
 
 console.log('enterprise-industry-site-regression: PASS')

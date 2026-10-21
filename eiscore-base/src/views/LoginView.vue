@@ -4,6 +4,7 @@
       v-if="isIndustrySite"
       :profile="systemStore.enterpriseProfile"
       :branding="branding"
+      :theme-color="safeThemeColor"
       @login="focusLogin"
     />
     <template v-else-if="portalReady">
@@ -559,7 +560,7 @@
 
       </template>
       <Transition name="auth-dialog">
-        <div v-if="loginVisible" class="auth-overlay" @click.self="closeLogin">
+        <div v-if="loginVisible" class="auth-overlay" :style="{ '--login-theme': safeThemeColor }" @click.self="closeLogin">
           <section
             class="auth-panel"
             role="dialog"
