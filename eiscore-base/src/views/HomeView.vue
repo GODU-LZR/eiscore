@@ -352,6 +352,8 @@ $border-color: var(--el-border-color, #dcdfe6);
 
 // ── Harness 工作台 ──
 .harness-wrapper {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
