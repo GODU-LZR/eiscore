@@ -502,10 +502,14 @@ const buildAppRouteQuery = (app) => {
 const pushAppRoute = (path, app) => {
   const normalizedPath = String(path || '').trim()
   if (!normalizedPath) return
+  const target = router.resolve(normalizedPath)
+  const query = { ...target.query, ...buildAppRouteQuery(app) }
+  if (app?.app_type === 'flash' && /^\/app\/[^/]+\/?$/.test(target.path)) query.flash = '1'
   rememberAppTabTitle(app)
   router.push({
-    path: normalizedPath,
-    query: buildAppRouteQuery(app)
+    path: target.path,
+    query,
+    hash: target.hash
   }).catch(() => clearNavigationLoading())
 }
 

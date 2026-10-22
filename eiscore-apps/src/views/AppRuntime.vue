@@ -1947,6 +1947,7 @@ async function resolveAppIdByRoutePath(token) {
 onMounted(async () => {
   readCurrentActor()
   await loadAppData()
+  if (!appData.value) return
   await loadRuntimeData()
   startWorkflowAutoAdvanceWatcher()
 })
@@ -1980,6 +1981,7 @@ async function loadAppData() {
       appData.value.config = parseJsonObject(appData.value.config) || {}
     }
     if (route.query.flash === '1' && appData.value?.app_type !== 'flash') {
+      appData.value = null
       ElMessage.warning('该入口仅支持闪念应用')
       router.push('/')
       return

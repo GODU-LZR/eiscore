@@ -9,5 +9,5 @@ export function isAppCenterRouteAvailable(path, enterpriseConfig = {}, routeCont
   const isPublishedFlashRuntime = routeContext?.query?.flash === '1' || routeContext?.query?.flash === 1
   return normalizedPath === '/flash-builder' || normalizedPath.startsWith('/flash-builder/') ||
     normalizedPath === '/preview' || normalizedPath.startsWith('/preview/') ||
-    (isPublishedFlashRuntime && (normalizedPath === '/app' || normalizedPath.startsWith('/app/')))
+    (isPublishedFlashRuntime && /^\/app\/[^/]+$/.test(normalizedPath))
 }

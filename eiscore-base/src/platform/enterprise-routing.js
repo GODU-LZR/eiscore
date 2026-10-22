@@ -14,13 +14,13 @@ export function isEnterprisePathEnabled(path, enterpriseConfig) {
     apps: 'appCenterVisible'
   }[moduleId]
   const rawPath = String(path || '')
-  const normalizedPath = rawPath.split('?', 1)[0].replace(/\/+$/, '') || '/'
-  const query = rawPath.includes('?') ? new URLSearchParams(rawPath.slice(rawPath.indexOf('?') + 1)) : null
+  const normalizedPath = rawPath.split(/[?#]/, 1)[0].replace(/\/+$/, '') || '/'
+  const query = rawPath.includes('?') ? new URLSearchParams(rawPath.slice(rawPath.indexOf('?') + 1).split('#', 1)[0]) : null
   const isPublishedFlashRuntime = query?.get('flash') === '1'
   const flashRuntimePath = moduleId === 'apps' && (
     normalizedPath === '/apps/flash-builder' || normalizedPath.startsWith('/apps/flash-builder/') ||
     normalizedPath === '/apps/preview' || normalizedPath.startsWith('/apps/preview/')
-    || (isPublishedFlashRuntime && (normalizedPath === '/apps/app' || normalizedPath.startsWith('/apps/app/')))
+    || (isPublishedFlashRuntime && /^\/apps\/app\/[^/]+$/.test(normalizedPath))
   )
   const flashHarnessEnabled = enterpriseConfig?.features?.flashHarness === true
   if (visibilityFeature && enterpriseConfig?.features?.[visibilityFeature] === false && !(flashRuntimePath && flashHarnessEnabled)) return false
