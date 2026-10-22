@@ -160,6 +160,28 @@ resolveModule({ init: () => { chartInitializations++; return {} } })
 await pending
 assert.equal(chartInitializations, 0, 'a late ECharts import must not initialize after switching to 3D')
 
+const displayWatcher = ast.body.find((node) => node.expression?.callee?.name === 'watch'
+  && node.expression.arguments[0]?.elements?.map((item) => item.name).join(',') === 'graphDisplay,activeWorkbenchView')
+assert.ok(displayWatcher, 'missing actual display/view watcher')
+const displayCallback = displayWatcher.expression.arguments[1]
+for (const [mode, panel, keepChart] of [['2d', 'relations', false], ['3d', 'kg', false], ['2d', 'kg', true]]) {
+  let disposals = 0
+  const chart = { dispose: () => { disposals++ } }
+  const reason = ref('WebGL unavailable')
+  const transitionRuntime = {
+    chart, brainUnavailableReason: reason, nextTick,
+    updateGraphHostWidth: () => {}, resizeKgGraph: () => {}, renderKgGraph: () => {}
+  }
+  const transition = Function(...Object.keys(transitionRuntime), `
+    let kgChart = chart
+    return { run: (${script.slice(displayCallback.start, displayCallback.end)}), getChart: () => kgChart }
+  `)(...Object.values(transitionRuntime))
+  await transition.run([mode, panel])
+  assert.equal(reason.value, mode === '3d' ? '' : 'WebGL unavailable', `${mode}/${panel} must retain fallback notice until a 3D retry`)
+  assert.equal(transition.getChart(), keepChart ? chart : null, `${mode}/${panel} must preserve the KG renderer lifecycle`)
+  assert.equal(disposals, keepChart ? 0 : 1)
+}
+
 assert.match(source, /v-if="graphDisplay === '3d' && activeWorkbenchView === 'relations'"/)
 assert.match(source, /v-if="graphDisplay === '3d' && activeWorkbenchView === 'kg'"/)
 assert.equal((source.match(/@unavailable="brainHandlers\.useTwoDimensionalGraph"/g) || []).length, 2)

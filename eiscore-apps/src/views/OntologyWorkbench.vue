@@ -1491,8 +1491,8 @@ watch(kgGraphPayload, () => {
 })
 
 watch([graphDisplay, activeWorkbenchView], async ([display, view]) => {
+  if (display === '3d') brainUnavailableReason.value = ''
   if (display === '3d' || view !== 'kg') {
-    brainUnavailableReason.value = ''
     kgChart?.dispose()
     kgChart = null
   }
