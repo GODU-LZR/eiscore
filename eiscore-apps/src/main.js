@@ -17,6 +17,7 @@ import { installFlashRuntimeBridge } from '@/utils/flash-runtime-bridge'
 import { getToken, isTokenExpired, clearAuthAndRedirect } from '@/utils/auth'
 import { getEnterpriseConfig, loadEnterpriseConfig, publishEnterpriseConfig } from '@eiscore/platform/enterprise-config'
 import { isAppCenterRouteAvailable } from '@/domain/standalone-entry-policy.mjs'
+import { setThemeColor } from '../../eiscore-base/src/utils/theme.js'
 import { installEisThemeSync } from '@shared/eis-theme-sync'
 
 import App from './App.vue'
@@ -215,6 +216,7 @@ if (shouldRenderStandalone()) {
     required: import.meta.env.PROD
   }).then((enterpriseConfig) => {
     publishEnterpriseConfig(enterpriseConfig, window)
+    setThemeColor(enterpriseConfig.branding.themeColor)
     render({ enterpriseConfig })
   }).catch(() => {
     const root = document.getElementById('app')

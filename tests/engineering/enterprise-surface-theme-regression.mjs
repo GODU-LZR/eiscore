@@ -15,9 +15,12 @@ import {
 const repoRoot = resolve(import.meta.dirname, '../..')
 const readJson = (path) => JSON.parse(readFileSync(resolve(repoRoot, path), 'utf8'))
 const loginSource = readFileSync(resolve(repoRoot, 'eiscore-base/src/views/LoginView.vue'), 'utf8')
+const appsMainSource = readFileSync(resolve(repoRoot, 'eiscore-apps/src/main.js'), 'utf8')
 assert.match(loginSource, /getEnterpriseConfig\(globalThis\)\.branding\?\.themeColor/)
 assert.match(loginSource, /'--el-color-primary': theme/)
 assert.match(loginSource, /class="auth-overlay" :style="loginThemeStyle"/)
+assert.match(appsMainSource, /import \{ setThemeColor \} from '\.\.\/\.\.\/eiscore-base\/src\/utils\/theme\.js'/)
+assert.match(appsMainSource, /publishEnterpriseConfig\(enterpriseConfig, window\)\s+setThemeColor\(enterpriseConfig\.branding\.themeColor\)\s+render\(\{ enterpriseConfig \}\)/)
 
 for (const version of [1, 2]) {
   const suffix = version === 1 ? '' : '.v2'
