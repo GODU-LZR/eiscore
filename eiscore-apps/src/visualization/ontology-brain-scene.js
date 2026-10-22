@@ -10,6 +10,65 @@ export const BRAIN_DOMAINS = Object.freeze({
   shared: { label: '公共基础', color: '#62728d', center: [0, 4, -4.2] }
 })
 
+export const ONTOLOGY_SPACE_GRID = Object.freeze({ halfSize: 47, step: 2.5 })
+
+function isMajorGridLine(value) {
+  return Math.abs(Math.round(value / 10) * 10 - value) < 0.001
+}
+
+export function createOntologySpaceGrid() {
+  const { halfSize, step } = ONTOLOGY_SPACE_GRID
+  const normal = []
+  const major = []
+  const push = (target, ax, ay, az, bx, by, bz) => target.push(ax, ay, az, bx, by, bz)
+
+  for (let a = -halfSize; a <= halfSize + 0.001; a += step) {
+    for (let b = -halfSize; b <= halfSize + 0.001; b += step) {
+      const target = isMajorGridLine(a) || isMajorGridLine(b) ? major : normal
+      push(target, -halfSize, a, b, halfSize, a, b)
+      push(target, a, -halfSize, b, a, halfSize, b)
+      push(target, a, b, -halfSize, a, b, halfSize)
+    }
+  }
+
+  const group = new THREE.Group()
+  group.name = 'ontology-space-grid'
+  const addLines = (positions, opacity) => {
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    const material = new THREE.LineBasicMaterial({
+      color: '#31474d', transparent: true, opacity, depthWrite: false
+    })
+    const lines = new THREE.LineSegments(geometry, material)
+    lines.renderOrder = -2
+    group.add(lines)
+  }
+  addLines(normal, 0.045)
+  addLines(major, 0.09)
+  return group
+}
+
+function createOntologySpaceAxes() {
+  const length = ONTOLOGY_SPACE_GRID.halfSize * 0.66
+  const group = new THREE.Group()
+  group.name = 'ontology-space-axes'
+  const material = new THREE.LineBasicMaterial({
+    color: '#31474d', transparent: true, opacity: 0.16, depthWrite: false
+  })
+  const addAxis = (from, to) => {
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([from, to]),
+      material
+    )
+    line.renderOrder = -1
+    group.add(line)
+  }
+  addAxis(new THREE.Vector3(-length, 0, 0), new THREE.Vector3(length, 0, 0))
+  addAxis(new THREE.Vector3(0, -length, 0), new THREE.Vector3(0, length, 0))
+  addAxis(new THREE.Vector3(0, 0, -length), new THREE.Vector3(0, 0, length))
+  return group
+}
+
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 const gaussian = (value, center, width) => Math.exp(-(((value - center) / width) ** 2))
 const groove = (distance, width) => gaussian(distance, 0, width)
@@ -161,6 +220,7 @@ export function createOntologyBrainScene(host, callbacks = {}) {
   canvas.setAttribute('role', 'img')
   canvas.setAttribute('tabindex', '0')
   canvas.dataset.ready = 'false'
+  canvas.dataset.gridVisible = 'true'
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
   renderer.setClearColor('#f5f8f9', 1)
   host.appendChild(canvas)
@@ -175,6 +235,10 @@ export function createOntologyBrainScene(host, callbacks = {}) {
   const light = new THREE.DirectionalLight('#ffffff', 2)
   light.position.set(-15, 25, 30)
   scene.add(light)
+  const grid = createOntologySpaceGrid()
+  const axes = createOntologySpaceAxes()
+  scene.add(grid)
+  scene.add(axes)
   const brain = createVoxelBrain()
   scene.add(brain)
   const graphGroup = new THREE.Group()
@@ -352,6 +416,13 @@ export function createOntologyBrainScene(host, callbacks = {}) {
     canvas.dataset.ready = 'false'
     callbacks.onUnavailable?.('图形上下文已中断，已切换到二维关系视图。')
   }
+  function setGridVisible(value) {
+    const visible = Boolean(value)
+    grid.visible = visible
+    axes.visible = visible
+    canvas.dataset.gridVisible = String(visible)
+    invalidate()
+  }
   function visibility() {
     if (document.hidden && frame) { cancelAnimationFrame(frame); frame = 0 }
     else invalidate()
@@ -370,6 +441,7 @@ export function createOntologyBrainScene(host, callbacks = {}) {
   return {
     setGraph,
     setSelection: selection,
+    setGridVisible,
     setActive(value) {
       active = Boolean(value)
       controls.enabled = active
@@ -403,6 +475,8 @@ export function createOntologyBrainScene(host, callbacks = {}) {
       document.removeEventListener('visibilitychange', visibility)
       disposeGroup(brain)
       disposeGroup(graphGroup)
+      disposeGroup(grid)
+      disposeGroup(axes)
       renderer.dispose()
       renderer.forceContextLoss()
       canvas.remove()

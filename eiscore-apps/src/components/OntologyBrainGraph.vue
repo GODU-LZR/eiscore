@@ -14,6 +14,7 @@
         <button type="button" title="正面视角" aria-label="正面视角" :disabled="!ready" @click="scene?.front()"><el-icon><View /></el-icon></button>
         <button type="button" title="透视脑壳" aria-label="透视脑壳" :aria-pressed="transparent" :disabled="!ready" @click="toggleTransparent"><el-icon><Hide /></el-icon></button>
         <button type="button" title="聚焦选中节点" aria-label="聚焦选中节点" :disabled="!ready || !selectedNodeId" @click="scene?.focus(selectedNodeId)"><el-icon><Aim /></el-icon></button>
+        <button type="button" title="显示/隐藏空间网格" aria-label="显示/隐藏空间网格" :aria-pressed="gridVisible" :disabled="!ready" @click="toggleGrid"><el-icon><Grid /></el-icon></button>
       </div>
       <span class="brain-stat">{{ graph.nodes?.length || 0 }} 个节点 · {{ graph.edges?.length || 0 }} 条关系</span>
       <label class="brain-edge-picker">
@@ -54,7 +55,7 @@
 <script setup>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, shallowRef, watch } from 'vue'
-import { Aim, Hide, RefreshRight, View } from '@element-plus/icons-vue'
+import { Aim, Grid, Hide, RefreshRight, View } from '@element-plus/icons-vue'
 
 const props = defineProps({
   graph: { type: Object, default: () => ({ nodes: [], edges: [], domains: [], stats: {} }) },
@@ -68,6 +69,7 @@ const emit = defineEmits(['pick-node', 'pick-edge', 'unavailable'])
 const host = ref(null)
 const ready = ref(false)
 const transparent = ref(false)
+const gridVisible = ref(true)
 const unavailableReason = ref('')
 const hoverLabel = ref('')
 const labels = shallowRef([])
@@ -109,6 +111,10 @@ function toggleTransparent() {
   transparent.value = !transparent.value
   scene?.setTransparent(transparent.value)
 }
+function toggleGrid() {
+  gridVisible.value = !gridVisible.value
+  scene?.setGridVisible(gridVisible.value)
+}
 function syncActive() { scene?.setActive(props.active && keptActive) }
 function mobileChanged(event) {
   if (event.matches) unavailable('当前窄屏使用二维关系视图，保留相同的本体数据与筛选。')
@@ -130,6 +136,7 @@ onMounted(async () => {
     })
     scene.setGraph(props.graph)
     scene.setSelection(props.selectedNodeId, props.selectedEdgeId)
+    scene.setGridVisible(gridVisible.value)
     syncActive()
     ready.value = true
   } catch {
