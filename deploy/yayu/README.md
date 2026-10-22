@@ -1,6 +1,6 @@
 # 雅御独立开发测试环境
 
-源码使用 `雅御` 分支，部署根目录 `/opt/yayu-eiscore`，公网入口 `https://yayu.eiscore.top` 与 `*.yayu.eiscore.top`。本分支官网采用青绿山水与企业业务内容，复用同源登录和 EISCore 业务模块；线上是否生效以实际发布版本和浏览器验收为准。数据库不包含惠众、伦度业务与演示数据。
+部署根目录 `/opt/yayu-eiscore`，公网入口 `https://yayu.eiscore.top` 与 `*.yayu.eiscore.top`。官网、登录与工作区共用米黄色品牌配置和红色仿宋印章 Logo，复用同源登录和 EISCore 业务模块；线上是否生效以实际发布版本和浏览器验收为准。数据库不包含惠众、伦度业务与演示数据。
 
 官网由 `site-profile.json` 的标准 `{ site, content }` 公共配置驱动，`site.template=industry-ink-v1` 选择通用产业官网组件。品牌名称、业务介绍、艺术资源路径与 SEO 均在部署配置中；其他企业未配置此模板时保留原页面。宿主 `/login` 展示官网，“企业登录”开启原有认证弹窗；`?login=1`、业务路由的 `redirect` 和 Harness 登录交接沿用原流程，已登录用户仍进入工作台。本轮不改变认证函数、路由或用户存储。
 
@@ -28,7 +28,7 @@ bash source/deploy/yayu/publish.sh dev-20261020-001 --check-only
 bash source/deploy/yayu/publish.sh dev-20261020-001
 ```
 
-发布前要求雅御 Web 已启动；没有 current 的首次启动可暂时返回 404。发布验证七个入口的文件、链接资源、清单与企业身份，运行 `docker exec yayu-eiscore-web nginx -t`，原子切换 current 后从固定雅御 loopback 核对版本。失败时恢复原 current。公网开放前还须验证 HTTPS、真实登录、模块导航、API 与运行时健康。
+发布前要求雅御 Web 已启动；没有 current 的首次启动可暂时返回 404。发布验证五个入口的文件、链接资源、清单与企业身份，运行 `docker exec yayu-eiscore-web nginx -t`，原子切换 current 后从固定雅御 loopback 核对版本。失败时恢复原 current。公网开放前还须验证 HTTPS、真实登录、模块导航、API 与运行时健康。
 
 回退调用相同发布脚本，参数改为历史成功版本；无需重启 Web。旧哈希资源请求若跨越发布时刻可能返回 404，刷新会加载新入口；本开发环境保留历史发布目录用于人工回退，不提供跨版本哈希资源合并。并发发布需由同一负责窗口串行执行。
 
@@ -40,10 +40,11 @@ bash source/deploy/yayu/publish.sh dev-20261020-001
 
 `core-028` 修复管理员会话函数；`core-029` 补齐既有销售页面所需报价、合同与应收结构。`verify-sales.sql` 在独立雅御身份校验后，以 web_user 在事务内检验收款同步，再执行 ROLLBACK。仅操作本测试库，不可对客户生产库运行。
 
-业务 Runtime 使用独立镜像；DB/API/Web 使用固定摘要。Harness 必须由有版本来源记录的外部只读 bundle 提供，不能把忽略目录或临时构建目录当作制品。将 `YAYU_HARNESS_ROOT` 设置为该 bundle 的绝对路径，并在启动前执行：
+业务 Runtime 使用独立镜像；DB/API/Web 使用固定摘要。私有部署环境须显式设置 `YAYU_RUNTIME_IMAGE`、`EISCORE_SOURCE_REVISION`，可用 `YAYU_SOURCE_ROOT` 指向独立源码 worktree。新部署不能覆盖既有源码树。Harness 从受版本控制的 `agent-harness` 源码生成独立只读 bundle；不能挂载其他企业的运行目录。清洁提交后构建并校验：
 
 ```sh
-node source/scripts/validate-yayu-harness-artifacts.mjs --harness-root "$YAYU_HARNESS_ROOT" --flash-patch source/agent-harness/dsh-flash-web.patch.yml
+node "$YAYU_SOURCE_ROOT/scripts/build-yayu-harness-bundle.mjs" --output "$YAYU_HARNESS_ROOT"
+node "$YAYU_SOURCE_ROOT/scripts/validate-yayu-harness-artifacts.mjs" --harness-root "$YAYU_HARNESS_ROOT" --flash-patch "$YAYU_SOURCE_ROOT/agent-harness/dsh-flash-web.patch.yml"
 ```
 
-校验通过后才允许 Compose 读取该目录；业务 patch 必须包含 `eiscore-auth`，传入 `--flash-patch` 时还会校验雅御源码中的闪念 patch 引用 `eiscore-auth` 与 `flash-context`，并确认后者存在于 bundle。所有模式都会校验 Web/UI 运行时文件，避免空目录挂载遮蔽镜像内置 Runtime 文件。当前仓库没有这些外部编译插件的源代码或正式制品，因此本地构建不会生成它们，也不宣称 Harness 已上线。状态、工具密钥和数据库凭据均独立生成；未配置 `DEEPSEEK_API_KEY` 或 `FLASH_DEEPSEEK_API_KEY` 时保持 `EISCORE_HARNESS_ENABLED=false`，不宣称真实模型已验收。闪念链路使用独立的 `flash-agent-runtime`、`flash-harness-bridge`、`deepseek-flash-web`、数据库角色、状态卷和 `flash` 网络，入口为 `/flash/` 与 `/harness-flash-embed/`。配置业务或闪念 AI 后只重建雅御对应服务，不能复用另一链路的密钥或工作区。官网、AI 提供方和新增业务开发分别继续，不自动更新其他企业。
+校验通过后才允许 Compose 读取该目录；清单记录源码提交、来源和逐文件 SHA256。业务 patch 包含 `eiscore-auth`，闪念 patch 额外包含 `flash-context`。状态、工具密钥和数据库凭据分别生成；未配置 `DEEPSEEK_API_KEY` 或 `FLASH_DEEPSEEK_API_KEY` 时保持 `EISCORE_HARNESS_ENABLED=false`，不宣称真实模型已验收。提供方凭据由进程环境注入，不能进入源码、前端构建或报告。闪念链路使用独立的 `flash-agent-runtime`、`flash-harness-bridge`、`deepseek-flash-web`、数据库角色、状态卷和 `flash` 网络，入口为 `/flash/` 与 `/harness-flash-embed/`；其登录交接通过本站 HTTPS 的 `/company-site/auth/` 访问业务认证，不加入业务内部网络。配置业务或闪念 AI 后只重建雅御对应服务，不能复用另一链路的工具密钥或工作区。官网、AI 提供方和新增业务开发分别继续，不自动更新其他企业。

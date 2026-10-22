@@ -14,10 +14,10 @@ services:
       PGRST_JWT_SECRET: ${PGRST_JWT_SECRET:?required}
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./source/database/bootstrap/roles-v2.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro
-      - ./source/database/baselines/eiscore-db-v1/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ./source/database/baselines/eiscore-db-v1/register.sql:/docker-entrypoint-initdb.d/02_register.sql:ro
-      - ./source/scripts/configure-database-runtime-secrets-v2.sh:/docker-entrypoint-initdb.d/04_runtime_secrets.sh:ro
+      - ${YAYU_SOURCE_ROOT:-./source}/database/bootstrap/roles-v2.sql:/docker-entrypoint-initdb.d/00_roles.sql:ro
+      - ${YAYU_SOURCE_ROOT:-./source}/database/baselines/eiscore-db-v1/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ${YAYU_SOURCE_ROOT:-./source}/database/baselines/eiscore-db-v1/register.sql:/docker-entrypoint-initdb.d/02_register.sql:ro
+      - ${YAYU_SOURCE_ROOT:-./source}/scripts/configure-database-runtime-secrets-v2.sh:/docker-entrypoint-initdb.d/04_runtime_secrets.sh:ro
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U postgres -d eiscore']
       interval: 5s
@@ -37,8 +37,8 @@ services:
     depends_on: {db: {condition: service_healthy}}
     networks: [data]
   agent:
-    build: {context: ./source, dockerfile: realtime/Dockerfile.prod}
-    image: eiscore/yayu-runtime:3199a61
+    build: {context: '${YAYU_SOURCE_ROOT:-./source}', dockerfile: realtime/Dockerfile.prod}
+    image: ${YAYU_RUNTIME_IMAGE:?YAYU_RUNTIME_IMAGE is required}
     container_name: yayu-eiscore-agent
     restart: unless-stopped
     environment:
@@ -65,8 +65,8 @@ services:
     depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
     networks: [data, business]
   flash-agent-runtime:
-    build: {context: ./source, dockerfile: realtime/Dockerfile.prod}
-    image: eiscore/yayu-flash-runtime:3199a61
+    build: {context: '${YAYU_SOURCE_ROOT:-./source}', dockerfile: realtime/Dockerfile.prod}
+    image: ${YAYU_RUNTIME_IMAGE:?YAYU_RUNTIME_IMAGE is required}
     container_name: yayu-eiscore-flash-agent
     restart: unless-stopped
     environment:
@@ -182,6 +182,7 @@ services:
       EISCORE_HARNESS_CAPABILITY_PROFILE: flash
       EISCORE_HARNESS_PUBLIC_PREFIX: /harness-flash-embed
       EISCORE_GATEWAY_URL: http://flash-agent-runtime:8078
+      EISCORE_AUTH_GATEWAY_URL: https://yayu.eiscore.top
       EISCORE_AUTH_URL: https://yayu.eiscore.top
       EISCORE_AUTH_ORIGINS: https://yayu.eiscore.top
       EISCORE_TOOL_PROXY_URL: http://flash-agent-runtime:8078/internal/harness/tool
@@ -189,7 +190,6 @@ services:
     volumes:
       - flash_deepseek_web_home:/var/lib/dsh
       - ${YAYU_HARNESS_ROOT:?YAYU_HARNESS_ROOT is required}:/opt/eiscore-harness:ro
-      - ./source/agent-harness/dsh-flash-web.patch.yml:/opt/eiscore-harness/dsh-flash-web.patch.yml:ro
     depends_on: [flash-agent-runtime]
     networks: [flash]
   flash-harness-bridge:
@@ -239,9 +239,9 @@ services:
     profiles: [tools]
     working_dir: /workspace
     environment:
-      EISCORE_SOURCE_REVISION: ${EISCORE_SOURCE_REVISION:-3199a61a1941767fdaef27bf97160bdc4df05bdd}
+      EISCORE_SOURCE_REVISION: ${EISCORE_SOURCE_REVISION:?EISCORE_SOURCE_REVISION is required}
     volumes:
-      - ./source:/workspace
+      - ${YAYU_SOURCE_ROOT:-./source}:/workspace
       - ./releases:/releases
       - ./config/eiscore-enterprise.json:/workspace/eiscore-base/public/config/eiscore-enterprise.json:ro
     entrypoint: [bash, /workspace/deploy/yayu/build-frontends.sh]
