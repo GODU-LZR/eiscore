@@ -560,7 +560,7 @@
 
       </template>
       <Transition name="auth-dialog">
-        <div v-if="loginVisible" class="auth-overlay" :style="{ '--login-theme': safeThemeColor }" @click.self="closeLogin">
+        <div v-if="loginVisible" class="auth-overlay" :style="loginThemeStyle" @click.self="closeLogin">
           <section
             class="auth-panel"
             role="dialog"
@@ -696,6 +696,21 @@ const safeThemeColor = computed(() => {
   const configuredColor = getEnterpriseConfig(globalThis).branding?.themeColor
   const color = String(configuredColor || systemStore.config?.themeColor || systemStore.enterpriseProfile?.themeColor || '#409EFF').trim()
   return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#409EFF'
+})
+
+// Teleport places this dialog outside the page's themed ancestor.
+const loginThemeStyle = computed(() => {
+  const theme = safeThemeColor.value
+  const style = {
+    '--login-theme': theme,
+    '--el-color-primary': theme,
+    '--el-color-primary-rgb': [1, 3, 5].map((start) => parseInt(theme.slice(start, start + 2), 16)).join(','),
+    '--el-color-primary-dark-2': mix(theme, '#000000', 0.2)
+  }
+  for (let i = 1; i <= 9; i++) {
+    style[`--el-color-primary-light-${i}`] = mix(theme, '#ffffff', i / 10)
+  }
+  return style
 })
 
 const branding = computed(() => {

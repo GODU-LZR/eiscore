@@ -94,7 +94,7 @@ try {
   for (const name of ['dsh-web.patch.yml', 'dsh-flash-web.patch.yml']) {
     const patch = readFileSync(new URL(name, import.meta.url), 'utf8')
     for (const id of genericTools) assert.match(patch, new RegExp(`(?:^|\\n)- id: tool-${id}\\r?\\n  disabled: true(?:\\r?\\n|$)`), `${name} disables generic tool ${id}`)
-    for (const id of ['agent-presets', 'ui-agent-preset', 'session-log-download']) assert.match(patch, new RegExp(`(?:^|\\n)- id: ${id}\\r?\\n  disabled: true(?:\\r?\\n|$)`), `${name} disables ${id}`)
+    for (const id of ['agent-presets', 'ui-agent-preset', 'session-log-download', 'cordis-client-runner', 'ui-cordis']) assert.match(patch, new RegExp(`(?:^|\\n)- id: ${id}\\r?\\n  disabled: true(?:\\r?\\n|$)`), `${name} disables ${id}`)
     const model = patch.match(/(?:^|\n)- id: agent-default-model\r?\n  config:\r?\n    provider: !!js ([^\r\n]+)\r?\n    model: !!js ([^\r\n]+)/)
     assert.ok(model, `${name} supplies evaluated provider/model overrides`)
     for (const [env, expected] of [

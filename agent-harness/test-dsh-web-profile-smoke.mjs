@@ -76,6 +76,11 @@ if (arg('--child')) {
     const response = await fetch(url, { redirect: 'manual' })
     assert.ok([200, 302, 303].includes(response.status), 'Real Web server must accept its startup token')
     assert.equal(ctx.get('agentPresets'), undefined, 'Session presets must remain disabled')
+    for (const id of ['cordis-client-runner', 'ui-cordis']) {
+      const entry = [...ctx.loader.entries()].find((entry) => entry.options.id === id)
+      assert.ok(entry?.disabled, `${id} must not activate in the restricted Web profile`)
+      assert.equal(entry.fiber, undefined, `${id} must not reach the browser plugin roster`)
+    }
     const selection = { provider: 'deepseek-official', model: 'deepseek-flash' }
     assert.deepEqual(ctx.agentDefaultModel.currentSelection(), selection)
     const { sessionId, agentPreset } = await ctx.sessionController.create({ cwd: workspace })

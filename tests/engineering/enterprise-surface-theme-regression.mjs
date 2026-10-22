@@ -17,6 +17,7 @@ const readJson = (path) => JSON.parse(readFileSync(resolve(repoRoot, path), 'utf
 const loginSource = readFileSync(resolve(repoRoot, 'eiscore-base/src/views/LoginView.vue'), 'utf8')
 assert.match(loginSource, /getEnterpriseConfig\(globalThis\)\.branding\?\.themeColor/)
 assert.match(loginSource, /'--el-color-primary': theme/)
+assert.match(loginSource, /class="auth-overlay" :style="loginThemeStyle"/)
 
 for (const version of [1, 2]) {
   const suffix = version === 1 ? '' : '.v2'
@@ -77,6 +78,19 @@ assert.equal(properties.get('--eis-surface-color'), '#F7F0DF')
 assert.equal(properties.get('--page-bg-tint'), '#F7F0DF')
 assert.equal(properties.get('--card-bg-tint'), '#F7F0DF')
 assert.equal(properties.get('--el-color-primary'), '#285d57')
+const loginThemeBody = loginSource.match(/const loginThemeStyle = computed\(\(\) => \{([\s\S]*?)\n\}\)/)?.[1]
+assert.ok(loginThemeBody, 'the teleported login dialog must have its own theme')
+const loginTheme = runInNewContext(`(() => {${loginThemeBody}\n})()`, {
+  safeThemeColor: { value: '#9a7b46' }, mix: theme.mix
+})
+assert.equal(loginTheme['--login-theme'], '#9a7b46')
+assert.equal(loginTheme['--el-color-primary'], '#9a7b46')
+assert.equal(loginTheme['--el-color-primary-rgb'], '154,123,70')
+assert.equal(loginTheme['--el-color-primary-dark-2'], theme.mix('#9a7b46', '#000000', 0.2))
+for (let i = 1; i <= 9; i++) {
+  assert.equal(loginTheme[`--el-color-primary-light-${i}`], theme.mix('#9a7b46', '#ffffff', i / 10))
+}
+assert.equal(Object.hasOwn(loginTheme, 'backgroundColor'), false)
 currentConfig = DEFAULT_ENTERPRISE_CONFIG
 theme.setThemeColor('#409EFF')
 assert.equal(attributes.has('data-eis-surface'), false)

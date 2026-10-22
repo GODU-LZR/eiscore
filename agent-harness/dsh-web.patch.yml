@@ -48,6 +48,10 @@
   disabled: true
 - id: session-log-download
   disabled: true
+- id: cordis-client-runner
+  disabled: true
+- id: ui-cordis
+  disabled: true
 - id: agent-default-model
   config:
     provider: !!js process.env.DSH_PROVIDER || 'deepseek-official'

@@ -36,7 +36,10 @@ const normalizeConfig = (input = {}) => {
   const depth = Number(source.materialsCategoryDepth)
   return {
     title: String(source.title || enterpriseConfig.branding.productName),
-    themeColor: String(source.themeColor || enterpriseConfig.branding.themeColor),
+    // An explicit deployment palette keeps its accent and surface together.
+    themeColor: String(enterpriseConfig.branding.surfaceColor
+      ? enterpriseConfig.branding.themeColor
+      : source.themeColor || enterpriseConfig.branding.themeColor),
     notifications: source.notifications !== false,
     materialsCategoryDepth: depth === 3 ? 3 : 2,
     visibility: normalizeDisplayVisibility(source.visibility),

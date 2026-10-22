@@ -42,10 +42,10 @@ function published(locale) {
   }
 }
 
-function createHarness() {
+function createHarness(enterpriseConfig = DEFAULT_ENTERPRISE_CONFIG) {
   const configReads = [], profileReads = [], saves = [], themes = []
   const profileService = createEnterpriseProfileService({
-    enterpriseConfig: DEFAULT_ENTERPRISE_CONFIG,
+    enterpriseConfig,
     getRequestHost: () => 'factory.example.test',
     httpClient: { requestJson(path) {
       const request = { ...deferred(), path }
@@ -70,7 +70,7 @@ function createHarness() {
     defineStore: (_name, setup) => setup,
     ref: (value) => ({ value }),
     setThemeColor: (color) => themes.push(color),
-    getEnterpriseConfig: () => DEFAULT_ENTERPRISE_CONFIG,
+    getEnterpriseConfig: () => enterpriseConfig,
     normalizeEnterpriseLoginBranding: normalizeLoginBranding,
     normalizeDisplayVisibility,
     DEFAULT_ENTERPRISE_PROFILE,
@@ -164,6 +164,25 @@ function createHarness() {
   assert.equal(store.config.value.notifications, true)
   assert.equal(store.config.value.loginBranding.companyName, 'Example Manufacturing')
   assert.equal(store.enterpriseLocale.value, 'en-US')
+}
+
+// A deployment with an explicit surface keeps its brand accent despite stale saved settings.
+{
+  const enterpriseConfig = structuredClone(DEFAULT_ENTERPRISE_CONFIG)
+  enterpriseConfig.branding.themeColor = '#9a7b46'
+  enterpriseConfig.branding.surfaceColor = '#f7f0df'
+  const { store, configReads, profileReads, themes, saves } = createHarness(enterpriseConfig)
+  assert.equal(store.config.value.themeColor, '#9a7b46')
+  const load = store.loadConfig({ locale: 'zh-CN' })
+  configReads[0].resolve({ themeColor: '#409EFF' })
+  profileReads[0].resolve({ data: published('zh-CN') })
+  await load
+  store.initTheme()
+  assert.equal(store.config.value.themeColor, '#9a7b46')
+  assert.equal(themes.at(-1), '#9a7b46')
+  assert.equal(await store.saveConfig({ themeColor: '#654321' }), true)
+  assert.equal(store.config.value.themeColor, '#9a7b46')
+  assert.equal(saves[0].payload.themeColor, '#9a7b46')
 }
 
 // With no published profile to retain, initial failures still use deployment defaults.
