@@ -111,8 +111,8 @@ services:
       PORT: 3080
       DSH_BIN: /opt/bridge/node_modules/.bin/dsh
       DSH_HOME: /var/lib/dsh
-      DSH_PROVIDER: deepseek
-      DSH_MODEL: deepseek-chat
+      DSH_PROVIDER: deepseek-official
+      DSH_MODEL: deepseek-flash
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       HARNESS_PROFILE: business
       HARNESS_PLUGINS: worker-grid,company-sales,independent-site-sales
@@ -145,6 +145,8 @@ services:
       DSH_DEFAULT_WORKSPACE_TITLE: 业务助手工作区
       DSH_TRUSTED_HOST: yayu.eiscore.top
       DSH_PATCH_PATH: /opt/eiscore-harness/dsh-web.patch.yml
+      DSH_PROVIDER: deepseek-official
+      DSH_MODEL: deepseek-flash
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       EISCORE_HARNESS_CAPABILITY_PROFILE: business
       EISCORE_HARNESS_PUBLIC_PREFIX: /harness-embed
@@ -176,6 +178,8 @@ services:
       DSH_DEFAULT_WORKSPACE_TITLE: 闪念工作区
       DSH_TRUSTED_HOST: yayu.eiscore.top
       DSH_PATCH_PATH: /opt/eiscore-harness/dsh-flash-web.patch.yml
+      DSH_PROVIDER: deepseek-official
+      DSH_MODEL: deepseek-flash
       EISCORE_AUTH_COOKIE_PREFIX: flash-
       EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-flash-embed-api/eiscore/auth/handoff
       DEEPSEEK_API_KEY: ${FLASH_DEEPSEEK_API_KEY:-}
@@ -208,8 +212,8 @@ services:
       PORT: 3080
       DSH_BIN: /opt/bridge/node_modules/.bin/dsh
       DSH_HOME: /var/lib/dsh
-      DSH_PROVIDER: deepseek
-      DSH_MODEL: deepseek-chat
+      DSH_PROVIDER: deepseek-official
+      DSH_MODEL: deepseek-flash
       DEEPSEEK_API_KEY: ${FLASH_DEEPSEEK_API_KEY:-}
       HARNESS_PROFILE: flash
       HARNESS_PLUGINS: flash-builder
