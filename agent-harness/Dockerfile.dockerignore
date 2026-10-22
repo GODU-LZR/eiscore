@@ -8,6 +8,12 @@
 !agent-harness/eiscore-tools.mjs
 !agent-harness/eiscore-restricted.cordis.yml
 !agent-harness/dsh-web-runner.mjs
+!agent-harness/auth-plugin.mjs
+!agent-harness/business-session-bindings.mjs
+!agent-harness/session-access-policy.mjs
+!agent-harness/web-session-proxy.mjs
+!agent-harness/flash-context-plugin.mjs
+!agent-harness/flash-ui.js
 !agent-harness/dsh-web.patch.yml
 !agent-harness/business-web-ui.mjs
 !agent-harness/visual-web-ui.mjs

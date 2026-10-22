@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "description": "Generic native ESM adapters derived from registered runtime JavaScript. Current bundle hashes are recorded separately; these hashes identify the original adapters, not the modified generic sources.",
+  "sources": [
+    {
+      "target": "auth-plugin.mjs",
+      "revision": "0d4ca935b2366f60c837b181e2457b457934bbed",
+      "path": "deploy/huizhong/harness/client-plugins/eiscore-auth/lib/index.js",
+      "sha256": "685b7cdeba705116bec9dd9b8775662dfcfa8f247986460aa2b012c759e44aa3"
+    },
+    {
+      "target": "business-session-bindings.mjs",
+      "revision": "0d4ca935b2366f60c837b181e2457b457934bbed",
+      "path": "deploy/huizhong/harness/business-session-bindings.mjs",
+      "sha256": "c5dbe0387a15b73af1cdf3c8e62eca0cbe6fc59c2dab5aa20a72e62cf81c9b52"
+    },
+    {
+      "target": "web-session-proxy.mjs",
+      "revision": "0d4ca935b2366f60c837b181e2457b457934bbed",
+      "path": "deploy/huizhong/harness/web-session-proxy.mjs",
+      "sha256": "72ea8b5c1eee4c767a5dd70d9875321da2c13b73c30103133a854cedf46e344f"
+    },
+    {
+      "target": "flash-context-plugin.mjs",
+      "revision": "0d4ca935b2366f60c837b181e2457b457934bbed",
+      "path": "deploy/huizhong/flash-harness/flash-context-plugin.mjs",
+      "sha256": "383ae61a8187d21e20e977c3ae72fae238f102b2b1336e0cc87df934e3f3f471"
+    },
+    {
+      "target": "flash-ui.js",
+      "revision": "da8cdf72b5a7193c6b82e010e182de70bb8b76f6",
+      "path": "deploy/huizhong/flash-harness/flash-ui.js",
+      "sha256": "a2df0495088ff577c472f89eb42e32372f6a8aa65f676f98725cdd2b6b6093e0"
+    }
+  ]
+}

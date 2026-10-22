@@ -4,8 +4,15 @@ import {
   createAuthStatusCache,
   hasDshAuthCookie,
   isHtmlNavigation,
+  mapAuthCookiesToUpstream,
+  mapAuthSetCookiesToBrowser,
   shouldBootstrapDshAuth
 } from './dsh-web-runner.mjs'
+
+test('Flash maps both EISCore and DSH auth cookies without reusing business cookies', () => {
+  assert.equal(mapAuthCookiesToUpstream('eiscore-session=business; dsh-auth-app=business-dsh; flash-eiscore-session=flash; flash-dsh-auth-app=flash-dsh; preference=dark', 'flash-'), 'eiscore-session=flash; dsh-auth-app=flash-dsh; preference=dark')
+  assert.deepEqual(mapAuthSetCookiesToBrowser(['eiscore-session=s; Path=/; HttpOnly', 'dsh-auth-app=d; Path=/; HttpOnly'], 'flash-'), ['flash-eiscore-session=s; Path=/; HttpOnly', 'flash-dsh-auth-app=d; Path=/; HttpOnly'])
+})
 
 test('DSH auth cookie matching requires a complete cookie assignment', () => {
   assert.equal(hasDshAuthCookie('eiscore-session=abc; dsh-auth-workspace=xyz'), true)

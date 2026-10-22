@@ -11,6 +11,7 @@ COPY agent-harness/http-bridge.js /opt/eiscore-harness/http-bridge.js
 COPY agent-harness/eiscore-tools.mjs /opt/eiscore-harness/eiscore-tools.mjs
 COPY agent-harness/eiscore-restricted.cordis.yml /opt/eiscore-harness/eiscore-restricted.cordis.yml
 COPY agent-harness/dsh-web-runner.mjs /opt/eiscore-harness/dsh-web-runner.mjs
+COPY agent-harness/auth-plugin.mjs agent-harness/business-session-bindings.mjs agent-harness/session-access-policy.mjs agent-harness/web-session-proxy.mjs agent-harness/flash-context-plugin.mjs agent-harness/flash-ui.js /opt/eiscore-harness/
 COPY agent-harness/dsh-web.patch.yml /opt/eiscore-harness/dsh-web.patch.yml
 COPY agent-harness/business-web-ui.mjs /opt/eiscore-harness/business-web-ui.mjs
 COPY agent-harness/visual-web-ui.mjs /opt/eiscore-harness/visual-web-ui.mjs

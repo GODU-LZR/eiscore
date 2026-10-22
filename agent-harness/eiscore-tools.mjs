@@ -1,5 +1,10 @@
 // Same-process DeepSeek Harness tools. The parent EISCore runtime owns the
 // authenticated session context; this plugin only forwards a capability call.
+import { createHash, randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
+
+const { loadPluginRegistry } = createRequire(import.meta.url)('./plugin-registry.js')
+const policies = loadPluginRegistry().listCapabilities()
 
 const ALL_CAPABILITIES = Object.freeze([
   'eiscore_enterprise_snapshot',
@@ -295,6 +300,12 @@ const normalizeDshSchema = (schema, { root = true } = {}) => {
 const callProxy = async (name, args, exec) => {
   const baseUrl = proxyUrl()
   const secret = proxySecret()
+  if (FLASH_PROFILE) {
+    const actualSessionId = String(exec?.agent?.session?.id || '')
+    const binding = globalThis[FLASH_CONTEXT_KEY]?.get?.(actualSessionId)
+    const token = globalThis[Symbol.for('eiscore.dsh.auth-bridge')]?.toolToken?.(actualSessionId)
+    if (!token || !binding || binding.token !== token || !binding.appId || Number(binding.expiresAt || 0) <= Date.now()) throw new Error('The authenticated Flash app session is unavailable')
+  }
   const sessionId = flashContextSessionId(exec) || String(exec?.agent?.session?.id || '')
   if (!baseUrl || !sessionId || secret.length < 32) throw new Error('EISCore authorized tool proxy is unavailable')
   const response = await fetch(baseUrl, {
@@ -305,6 +316,30 @@ const callProxy = async (name, args, exec) => {
   })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(String(body?.message || 'EISCore authorized tool request failed'))
+  return body?.data === undefined ? body : body.data
+}
+
+const callWebCapability = async (ctx, capability, args, exec) => {
+  const sessionId = String(exec?.agent?.session?.id || '')
+  const token = globalThis[Symbol.for('eiscore.dsh.auth-bridge')]?.toolToken?.(sessionId)
+  if (!token) throw new Error('EISCore session authentication is required')
+  const policy = policies.find((item) => item.capability_id === capability)
+  if (!policy) throw new Error('EISCore capability is unavailable')
+  if (policy.confirm_required) {
+    const approval = ctx.get?.('approval')
+    if (!approval || !exec?.agent || await approval.request({ agent: exec.agent, toolName: capability, callId: exec.callId, signal: exec.signal, reason: '请确认此业务操作' }) !== 'allowed-once') throw new Error('The business operation was not approved')
+  }
+  const origin = new URL(String(process.env.EISCORE_GATEWAY_URL || ''))
+  if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('EISCore gateway is unavailable')
+  const requestId = randomUUID()
+  const idempotency = createHash('sha256').update(JSON.stringify([sessionId, exec.callId || requestId, capability, args])).digest('hex')
+  const response = await fetch(new URL('/ai/harness/execute', origin), {
+    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    body: JSON.stringify({ request_id: requestId, session_id: sessionId, plugin_id: policy.plugin_id, agent_id: policy.agent_id, capability_id: capability, payload: args || {}, mode: 'standard', ...(policy.confirm_required ? { confirmed: true, idempotency_key: idempotency } : {}) }),
+    signal: exec?.signal
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(String(body?.message || 'EISCore capability request failed'))
   return body?.data === undefined ? body : body.data
 }
 
@@ -336,6 +371,7 @@ export function apply(ctx) {
       output: { schema: normalizeDshSchema(schema?.output || { type: 'object' }), render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
       timeoutMs: CAPABILITY_TIMEOUTS[capability] || 30000,
       async execute(args, exec) {
+        if (BUSINESS_PROFILE) return callWebCapability(ctx, capability, args, exec)
         return callProxy(capability, args, exec)
       }
     })

@@ -1,52 +1,47 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { buildHarnessBundle } from '../../scripts/build-yayu-harness-bundle.mjs'
 
-const repoRoot = resolve(import.meta.dirname, '../..')
-const validator = resolve(repoRoot, 'scripts/validate-yayu-harness-artifacts.mjs')
-const tempRoot = mkdtempSync(join(tmpdir(), 'eiscore-yayu-harness-'))
-const requiredFiles = [
-  'audit-ledger.js', 'dsh-http-bridge.mjs', 'dsh-web-runner.mjs',
-  'dsh-web.patch.yml', 'dsh-web-defaults.mjs',
-  'eiscore-restricted.cordis.yml', 'eiscore-tools.mjs', 'http-bridge.js',
-  'plugin-contract.v1.json', 'plugin-registry.js', 'visual-response-policy.mjs',
-  'business-web-ui.mjs', 'visual-web-ui.mjs', 'web-ui/business-ui.css',
-  'web-ui/business-ui.js', 'web-ui/visual-runtime.css', 'web-ui/visual-runtime.js',
-  'web-ui/visual-ui.js', 'web-ui/vendor/echarts.min.js', 'web-ui/vendor/viz-standalone.js',
-  'client-plugins/eiscore-auth/lib/index.js'
-]
-
-const write = (relative, content = 'fixture') => {
-  const target = join(tempRoot, relative)
-  mkdirSync(dirname(target), { recursive: true })
-  writeFileSync(target, content)
-}
-
+const root = mkdtempSync(join(tmpdir(), 'eiscore-yayu-harness-'))
+const validator = resolve(import.meta.dirname, '../../scripts/validate-yayu-harness-artifacts.mjs')
+const patch = join(root, 'dsh-flash-web.patch.yml')
+const run = () => spawnSync(process.execPath, [validator, '--harness-root', root, '--flash-patch', patch], { encoding: 'utf8' })
+const output = (result) => result.stdout + result.stderr
 try {
-  for (const relative of requiredFiles) write(relative)
-  write('dsh-web.patch.yml', "name: business\nname: '/opt/eiscore-harness/client-plugins/eiscore-auth/lib/index.js'\n")
-  write('dsh-flash-web.patch.yml', "name: flash\nname: '/opt/eiscore-harness/client-plugins/eiscore-auth/lib/index.js'\nname: '/opt/eiscore-harness/client-plugins/flash-context/lib/index.js'\n")
-  const valid = spawnSync(process.execPath, [validator, '--harness-root', tempRoot], { encoding: 'utf8' })
-  assert.equal(valid.status, 0, valid.stderr || valid.stdout)
-
-  const flashPatch = join(tempRoot, 'dsh-flash-web.patch.yml')
-  write('dsh-flash-web.patch.yml', "name: flash\nname: '/opt/eiscore-harness/client-plugins/eiscore-auth/lib/index.js'\nname: '/opt/eiscore-harness/client-plugins/flash-context/lib/index.js'\n")
-  const missingFlashPlugin = spawnSync(process.execPath, [validator, '--harness-root', tempRoot, '--flash-patch', flashPatch], { encoding: 'utf8' })
-  assert.notEqual(missingFlashPlugin.status, 0)
-  assert.match(`${missingFlashPlugin.stdout}\n${missingFlashPlugin.stderr}`, /flash-context/)
-
-  write('client-plugins/flash-context/lib/index.js')
-  const validFlash = spawnSync(process.execPath, [validator, '--harness-root', tempRoot, '--flash-patch', flashPatch], { encoding: 'utf8' })
-  assert.equal(validFlash.status, 0, validFlash.stderr || validFlash.stdout)
-
-  write('dsh-flash-web.patch.yml', "name: flash\nname: '/opt/eiscore-harness/client-plugins/eiscore-auth/lib/index.js'\n")
-  const missingFlashContext = spawnSync(process.execPath, [validator, '--harness-root', tempRoot, '--flash-patch', flashPatch], { encoding: 'utf8' })
-  assert.notEqual(missingFlashContext.status, 0)
-  assert.match(`${missingFlashContext.stdout}\n${missingFlashContext.stderr}`, /flash-context/)
+  const manifest = buildHarnessBundle(root, 'regression')
+  assert.equal(manifest.kind, 'eiscore-harness-bundle')
+  const valid = run()
+  assert.equal(valid.status, 0, output(valid))
+  for (const id of ['eiscore-auth', 'flash-context']) {
+    const plugin = await import(pathToFileURL(join(root, `client-plugins/${id}/lib/index.js`)).href)
+    assert.equal(typeof plugin.apply, 'function')
+    assert.ok(plugin.inject.includes('connection'))
+  }
+  const auth = join(root, 'auth-plugin.mjs')
+  const original = readFileSync(auth)
+  writeFileSync(auth, original.toString() + '\n// tampered\n')
+  const tampered = run()
+  assert.notEqual(tampered.status, 0)
+  assert.match(output(tampered), /hash mismatch: auth-plugin/)
+  writeFileSync(auth, original)
+  const plugin = join(root, 'client-plugins/flash-context/lib/index.js')
+  const pluginSource = readFileSync(plugin)
+  rmSync(plugin)
+  const missing = run()
+  assert.notEqual(missing.status, 0)
+  assert.match(output(missing), /flash-context/)
+  writeFileSync(plugin, pluginSource)
+  const manifestPath = join(root, 'harness-artifact-manifest.json')
+  delete manifest.files['web-session-proxy.mjs']
+  writeFileSync(manifestPath, JSON.stringify(manifest))
+  const unlisted = run()
+  assert.notEqual(unlisted.status, 0)
+  assert.match(output(unlisted), /Manifest hash is required: web-session-proxy/)
 } finally {
-  rmSync(tempRoot, { recursive: true, force: true })
+  rmSync(root, { recursive: true, force: true })
 }
-
-console.log('PASS: Yayu Harness preflight requires auth for business and flash-context only for Flash')
+console.log('PASS: source bundle builds with exact hashes; tampered adapters, missing Flash plugin and unlisted proxy fail preflight')
