@@ -1013,7 +1013,7 @@ const brainHandlers = {
     kgPickedEdgeId.value = ''
   },
   pickKgBrainNodeId(id) {
-    this.pickKgBrainNode(id)
+    brainHandlers.pickKgBrainNode(id)
   },
   pickKgBrainEdge(edge) {
     const raw = edge.raw

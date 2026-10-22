@@ -106,6 +106,10 @@ const compareKgViews = () => {
 }
 compareKgViews()
 assert.deepEqual(view.kgGraphStats.value, { nodes: 4, links: 2 })
+const { pickKgBrainNodeId } = view
+pickKgBrainNodeId('table:public.sales_orders')
+assert.equal(view.kgPickedNodeId.value, 'table:public.sales_orders')
+assert.equal(view.kgPathTargetId.value, 'public.sales_orders')
 view.pickKgBrainNode('column:public.sales_orders.amount')
 assert.equal(view.kgPathTargetType.value, 'column')
 assert.equal(view.kgPathTargetId.value, 'public.sales_orders.amount')
