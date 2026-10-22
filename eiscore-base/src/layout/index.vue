@@ -233,7 +233,7 @@
       </el-main>
     </el-container>
 
-    <HarnessAssistantLauncher v-if="showWorkerAssistant" data-guide="worker-assistant" />
+    <BusinessHarnessHost :worker-visible="showWorkerAssistant" />
     <el-dialog
       v-model="guideWelcomeVisible"
       title="新手指引"
@@ -257,7 +257,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import { useToggle } from '@vueuse/core'
 import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
@@ -329,7 +329,7 @@ import {
   pickBaseRecommendedGuide
 } from '@/domain/base-layout-guide-policy'
 
-import HarnessAssistantLauncher from '@/components/HarnessAssistantLauncher.vue'
+const BusinessHarnessHost = defineAsyncComponent(() => import('@/components/harness/BusinessHarnessHost.vue'))
 const isCollapse = ref(false)
 const router = useRouter()
 const route = useRoute()

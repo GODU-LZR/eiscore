@@ -157,6 +157,24 @@
     sendWorkerDraftReply('applied', id)
   }
   window.addEventListener('message', handleWorkerDraftMessage)
+  const HARNESS_ENTRY_VERSION = 1
+  const HARNESS_ENTRIES = new Set(['worker', 'workbench'])
+  const sendHarnessEntryReply = (message) => window.parent.postMessage({ version: HARNESS_ENTRY_VERSION, ...message }, location.origin)
+  const handleHarnessEntryMessage = (event) => {
+    if (event.origin !== location.origin || event.source !== window.parent) return
+    const message = event.data
+    if (!message || message.type !== 'eiscore:harness-entry' || message.version !== HARNESS_ENTRY_VERSION) return
+    const entry = String(message.entry || '')
+    const id = String(message.id || '')
+    if (!HARNESS_ENTRIES.has(entry) || !/^[A-Za-z0-9._:-]{1,160}$/.test(id)) {
+      sendHarnessEntryReply({ type: 'eiscore:harness-entry-result', entry, id, status: 'failed' })
+      return
+    }
+    document.documentElement.dataset.eiscoreHarnessEntry = entry
+    sendHarnessEntryReply({ type: 'eiscore:harness-entry-ready' })
+    sendHarnessEntryReply({ type: 'eiscore:harness-entry-result', entry, id, status: 'applied' })
+  }
+  window.addEventListener('message', handleHarnessEntryMessage)
   const assets = new Map()
   const frames = new Map()
   const loadAsset = (path) => {

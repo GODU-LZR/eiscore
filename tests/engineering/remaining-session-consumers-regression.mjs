@@ -38,8 +38,11 @@ assert.doesNotMatch(settings, /import\s*{\s*getToken\s*}\s*from\s*['"]@\/utils\/
 assert.doesNotMatch(settings, /const getAuthToken/)
 
 const home = readSource('eiscore-base/src/views/HomeView.vue')
-assert.match(home, /prepareHarnessAuth as prepareHarnessAuthRequest/)
-assert.match(home, /authorization: getAuthHeader\(\)\.Authorization/)
+assert.match(home, /HarnessWorkspaceSlot/)
+assert.doesNotMatch(home, /prepareHarnessAuth as prepareHarnessAuthRequest/)
+const layout = readSource('eiscore-base/src/layout/index.vue')
+assert.match(layout, /BusinessHarnessHost/)
+assert.doesNotMatch(layout, /HarnessAssistantLauncher/)
 
 const micro = readSource('eiscore-base/src/micro/index.js')
 assert.match(micro, /import\s*\{\s*setUserInfo\s*\}\s*from\s*['"]@\/utils\/auth['"]/)
