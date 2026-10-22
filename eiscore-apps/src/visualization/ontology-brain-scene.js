@@ -239,6 +239,15 @@ export function createOntologyBrainScene(host, callbacks = {}) {
   const axes = createOntologySpaceAxes()
   scene.add(grid)
   scene.add(axes)
+  function recenterGrid() {
+    const { step } = ONTOLOGY_SPACE_GRID
+    grid.position.set(
+      Math.round(controls.target.x / step) * step,
+      Math.round(controls.target.y / step) * step,
+      Math.round(controls.target.z / step) * step
+    )
+  }
+  recenterGrid()
   const brain = createVoxelBrain()
   scene.add(brain)
   const graphGroup = new THREE.Group()
@@ -309,6 +318,7 @@ export function createOntologyBrainScene(host, callbacks = {}) {
   function reset(front = false) {
     const distance = Math.max(58, 44 / (camera.aspect || 1))
     controls.target.set(0, -0.4, 0)
+    recenterGrid()
     camera.position.copy(new THREE.Vector3(front ? 0 : 0.43, front ? 0.09 : 0.24, 1).normalize().multiplyScalar(distance))
     controls.update()
     invalidate()
@@ -423,13 +433,17 @@ export function createOntologyBrainScene(host, callbacks = {}) {
     canvas.dataset.gridVisible = String(visible)
     invalidate()
   }
+  function onControlsChange() {
+    recenterGrid()
+    invalidate()
+  }
   function visibility() {
     if (document.hidden && frame) { cancelAnimationFrame(frame); frame = 0 }
     else invalidate()
   }
   const observer = new ResizeObserver(resize)
   observer.observe(host)
-  controls.addEventListener('change', invalidate)
+  controls.addEventListener('change', onControlsChange)
   canvas.addEventListener('pointerdown', pointerDown)
   canvas.addEventListener('click', pick)
   canvas.addEventListener('pointermove', hover)
@@ -465,7 +479,7 @@ export function createOntologyBrainScene(host, callbacks = {}) {
       destroyed = true
       if (frame) cancelAnimationFrame(frame)
       observer.disconnect()
-      controls.removeEventListener('change', invalidate)
+      controls.removeEventListener('change', onControlsChange)
       controls.dispose()
       canvas.removeEventListener('pointerdown', pointerDown)
       canvas.removeEventListener('click', pick)
