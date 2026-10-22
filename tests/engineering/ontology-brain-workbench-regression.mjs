@@ -158,6 +158,8 @@ assert.equal(chartInitializations, 0, 'a late ECharts import must not initialize
 
 assert.match(source, /v-if="graphDisplay === '3d' && activeWorkbenchView === 'relations'"/)
 assert.match(source, /v-if="graphDisplay === '3d' && activeWorkbenchView === 'kg'"/)
+assert.equal((source.match(/@unavailable="brainHandlers\.useTwoDimensionalGraph"/g) || []).length, 2)
+assert.doesNotMatch(source, /@unavailable="useTwoDimensionalGraph"/)
 assert.match(source, /<OntologyRelationGraph[\s\S]*?:relations="graphRelations"/)
 const kgEdgeClick = source.match(/if \(params\.dataType === 'edge'\) \{([\s\S]*?)\n\s*\}/)?.[1] || ''
 assert.match(kgEdgeClick, /kgBrainGraph\.value\.edges\.find\(/, '2D KG edge selection must map to the adapter edge preserving original evidence')

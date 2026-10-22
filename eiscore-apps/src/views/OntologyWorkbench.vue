@@ -632,7 +632,7 @@
               :error="relationError"
               @pick-node="node => toggleTableFocus(node.tableKey)"
               @pick-edge="edge => pickRelation(edge.raw)"
-              @unavailable="useTwoDimensionalGraph"
+              @unavailable="brainHandlers.useTwoDimensionalGraph"
             />
             <OntologyRelationGraph
               v-if="graphDisplay === '2d'"
