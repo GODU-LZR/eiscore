@@ -222,7 +222,9 @@
     ])
     const configuration = JSON.stringify({ ...spec, token }).replace(/</g, '\\u003c')
     const csp = "default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'"
-    return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css.replace(/<\/style/gi, '<\\/style')}</style><script>window.__EIS_VISUAL__=${configuration}</script>${libraries.map((library) => `<script>${scriptsafe(library)}</script>`).join('')}<script>${scriptsafe(runtime)}</script></head><body>${spec.kind === 'html' ? `<main id="eis-html-root">${prepareHtml(spec.source)}</main>` : '<main id="main" aria-label="图表"></main>'}</body></html>`
+    const compactChartStyle = ['dot', 'html'].includes(spec.kind) ? ''
+      : '<style>@media(max-width:600px){#main{height:clamp(280px,52dvh,380px)!important;min-width:0}}</style>'
+    return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${css.replace(/<\/style/gi, '<\\/style')}</style>${compactChartStyle}<script>window.__EIS_VISUAL__=${configuration}</script>${libraries.map((library) => `<script>${scriptsafe(library)}</script>`).join('')}<script>${scriptsafe(runtime)}</script></head><body>${spec.kind === 'html' ? `<main id="eis-html-root">${prepareHtml(spec.source)}</main>` : '<main id="main" aria-label="图表"></main>'}</body></html>`
   }
   const dispose = (entry) => {
     entry.frame.contentWindow?.postMessage({ type: 'eis-visual-dispose', token: entry.token }, '*')
@@ -250,7 +252,9 @@
       link.remove()
     } else if (data.type === 'eis-visual-height') {
       const height = Number(data.height)
-      if (Number.isFinite(height)) entry.frame.style.height = `${Math.min(2400, Math.max(180, Math.ceil(height)))}px`
+      const compactChart = !['dot', 'html'].includes(entry.kind)
+      const maxHeight = window.matchMedia('(max-width: 600px)').matches && compactChart ? 420 : 2400
+      if (Number.isFinite(height)) entry.frame.style.height = `${Math.min(maxHeight, Math.max(180, Math.ceil(height)))}px`
     } else {
       clearTimeout(entry.timer)
       setState(entry, data.type === 'eis-visual-ready' ? 'ready' : 'error')

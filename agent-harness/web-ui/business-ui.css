@@ -26,3 +26,51 @@ button[aria-label^="Access mode, current:"] {
   [data-slot="conversation.session.header"] > header { padding-inline: 12px; }
   [data-slot="conversation.composer"] :has(> [data-composer-card]) { padding-inline: 8px; }
 }
+/* Keep a narrow embedded assistant focused on the conversation. */
+@media (max-width: 600px) {
+  [data-slot="root"] > :has([data-slot="sidebar"]) {
+    grid-template-columns: 56px minmax(0, 1fr) 0 !important;
+  }
+  [data-slot="root"] > :has([data-slot="sidebar"]) > :has(> [data-slot="sidebar"]) {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    width: 56px;
+    z-index: 20;
+  }
+  [data-slot="root"] > :has([data-slot="sidebar"]) > :has([data-slot="conversation"]),
+  [data-slot="conversation"] > div { grid-column: 2; grid-row: 1; }
+  [data-slot="root"] > :has([data-slot="sidebar"]) > :has([data-slot="details"]),
+  [data-slot="details"] > div { grid-column: 3; grid-row: 1; }
+  [data-slot="root"] > :has([data-slot="sidebar"]) > :has(> [data-slot="sidebar"] button:is([aria-label="收起侧边栏"], [aria-label="Collapse sidebar"])) {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(280px, calc(100vw - 48px));
+    max-width: calc(100vw - 48px);
+    box-shadow: 8px 0 24px #0f172a26;
+  }
+  [data-slot="sidebar"] > :has(button:is([aria-label="收起侧边栏"], [aria-label="Collapse sidebar"])) {
+    width: 100%;
+    max-width: 100%;
+  }
+  [data-slot="conversation"] > div,
+  [data-composer-seat],
+  [data-slot="conversation.composer"] :has(> [data-slot="conversation.composer.bar"]),
+  [data-slot="conversation.composer.bar"] > div {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  [data-slot="conversation.composer"] :has(> [data-slot="conversation.composer.bar"]) > :has([data-slot="conversation.hero.brand.mark"]),
+  [data-slot="conversation.composer"] :has(> button:is([aria-label="选择工作区"], [aria-label="Choose workspace"])) {
+    display: none;
+  }
+  [data-slot="conversation.composer.bar"] > div { padding-inline: 8px; }
+  [data-composer-card] { min-width: 0; width: 100%; }
+  [data-composer-input] { min-height: 76px !important; font-size: 15px; line-height: 1.6; overflow-wrap: anywhere; }
+  [data-input-scroll] { max-height: min(240px, 36dvh); }
+  [data-slot="conversation.input.model"] { min-width: 0; }
+  button:is([aria-label^="选择模型，"], [aria-label^="Choose model,"]) { white-space: nowrap; }
+  [role="menu"], [role="listbox"] { max-width: calc(100vw - 16px); box-sizing: border-box; }
+  .eis-visual-output { margin: 8px 0; }
+}
