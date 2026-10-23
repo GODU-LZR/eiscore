@@ -452,6 +452,22 @@ const entryCards = computed(() => {
         ],
         brief: stats.workflow > 0 ? '查看流程审批态势' : '暂无流程应用'
       })
+    },
+    {
+      key: 'enterprise-knowledge',
+      name: '企业知识库',
+      desc: '三维知识图谱与智能对话工作台',
+      icon: 'DataAnalysis',
+      tone: 'teal',
+      visible: canManage.value,
+      card: cardFromScore({
+        score: 32,
+        metrics: [
+          { label: '网络', value: '3D' },
+          { label: '对话', value: '智能' }
+        ],
+        brief: '进入知识库工作台'
+      })
     }
   ].filter((entry) => entry.visible !== false)
     .filter((entry) => isAppVisible(displayVisibility.value, 'apps', entry.key))
@@ -623,6 +639,10 @@ function openEntryCard(entry) {
   if (entry.key === 'approval') {
     if (!startNavigationLoading(`entry:${entry.key}`, '正在打开审批中心')) return
     return goApprovalCenter()
+  }
+  if (entry.key === 'enterprise-knowledge') {
+    if (!startNavigationLoading(`entry:${entry.key}`, '正在打开企业知识库')) return
+    router.push('/enterprise-knowledge').catch(() => clearNavigationLoading())
   }
 }
 
@@ -872,6 +892,7 @@ onUnmounted(() => {
 .tone-orange { background: #e6a23c; }
 .tone-green { background: #67c23a; }
 .tone-purple { background: #8b5cf6; }
+.tone-teal { background: #0f766e; }
 
 .app-info {
   min-width: 0;

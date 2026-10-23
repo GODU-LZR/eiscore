@@ -39,6 +39,12 @@ export default [
     meta: { title: '本体关系工作台', requiresManage: true }
   },
   {
+    path: '/enterprise-knowledge/:appId?',
+    name: 'EnterpriseKnowledgeWorkbench',
+    component: () => import('../views/EnterpriseKnowledgeWorkbench.vue'),
+    meta: { title: '企业知识库', requiresManage: true }
+  },
+  {
     path: '/workflow-approval-center',
     name: 'WorkflowApprovalCenter',
     component: () => import('../views/WorkflowApprovalCenter.vue'),
