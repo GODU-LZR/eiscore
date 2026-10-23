@@ -237,7 +237,20 @@ const purchaseGridSource = readFileSync(resolve(repoRoot, 'eiscore-purchase/src/
 assert.match(purchaseGridSource, /canPrependCreatedRow = readResource === writeResource/)
 assert.match(purchaseGridSource, /!canPrependCreatedRow \|\| !await gridRef\.value\?\.prependRow\?\./)
 const appCenterSource = readFileSync(resolve(repoRoot, 'eiscore-apps/src/components/AppCenterGrid.vue'), 'utf8')
-assert.match(appCenterSource, /schemaName\.value === 'app_data' \? 'created_at\.desc\.nullslast,id\.desc'/)
+assert.match(appCenterSource, /configRef\.value\.defaultOrder \|\| 'created_at\.desc\.nullslast,id\.desc'/)
+for (const sourcePath of [
+  'eiscore-equipment/src/components/EquipmentAppGrid.vue',
+  'eiscore-hr/src/components/HrAppGrid.vue',
+  'eiscore-materials/src/components/HrStyleAppGrid.vue',
+  'eiscore-materials/src/components/MaterialAppGrid.vue',
+  'eiscore-materials/src/views/InventoryLedgerGrid.vue',
+  'eiscore-purchase/src/components/PurchaseAppGrid.vue',
+  'eiscore-quality/src/components/QualityAppGrid.vue',
+  'eiscore-sales/src/components/SalesAppGrid.vue'
+]) {
+  const source = readFileSync(resolve(repoRoot, sourcePath), 'utf8')
+  assert.match(source, /created_at\.desc\.nullslast,id\.desc'/, `${sourcePath} must use creation-time default order`)
+}
 
 for (const composable of ['useGridCore', 'useGridSelection', 'useGridFormula', 'useGridClipboard', 'useGridHistory']) {
   assert.match(sharedEntry, new RegExp(`from ['"]@shared/eis-data-grid-v2/composables/${composable}['"]`))

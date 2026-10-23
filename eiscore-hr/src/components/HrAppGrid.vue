@@ -17,7 +17,7 @@
         ref="gridRef"
         :view-id="app.viewId"
         :api-url="gridApiUrl"
-        :default-order="app.defaultOrder || 'id.desc'"
+        :default-order="app.defaultOrder || 'created_at.desc.nullslast,id.desc'"
         write-mode="patch"
         :patch-required-fields="requiredFields"
         :field-defaults="fieldDefaults"
@@ -752,7 +752,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
       writeUrl: '/archives',
       profile: 'hr',
       contentProfile: 'hr',
-      defaultOrder: app.value.defaultOrder || 'id.desc',
+      defaultOrder: app.value.defaultOrder || 'created_at.desc.nullslast,id.desc',
       columns,
       staticColumns: staticColumns.value,
       extraColumns: extraColumns.value,

@@ -24,7 +24,7 @@
         write-mode="patch"
         :patch-required-fields="app.patchRequiredFields || []"
         :field-defaults="app.fieldDefaults || {}"
-        :default-order="app.defaultOrder || 'id.desc'"
+        :default-order="app.defaultOrder || 'created_at.desc.nullslast,id.desc'"
         accept-profile="public"
         content-profile="public"
         :static-columns="staticColumns"
@@ -2632,7 +2632,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
       writeUrl: apiUrl,
       profile: 'public',
       contentProfile: 'public',
-      defaultOrder: app.value.defaultOrder || 'id.desc',
+      defaultOrder: app.value.defaultOrder || 'created_at.desc.nullslast,id.desc',
       columns,
       staticColumns: allStaticColumns,
       extraColumns: extraColumns.value,

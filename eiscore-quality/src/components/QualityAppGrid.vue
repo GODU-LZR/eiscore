@@ -16,6 +16,7 @@
         ref="gridRef"
         :view-id="app.viewId"
         :api-url="gridApiUrl"
+        :default-order="app.defaultOrder || 'created_at.desc.nullslast,id.desc'"
         :write-url="app.writeUrl"
         :write-mode="app.writeMode || 'patch'"
         :include-properties="app.includeProperties !== false"
@@ -720,7 +721,7 @@ const syncAiContext = (rows = []) => {
       writeUrl: app.value?.writeUrl || app.value?.apiUrl,
       profile: app.value?.acceptProfile || 'public',
       contentProfile: app.value?.contentProfile || 'public',
-      defaultOrder: app.value?.defaultOrder || 'id.desc',
+      defaultOrder: app.value?.defaultOrder || 'created_at.desc.nullslast,id.desc',
       columns,
       staticColumns: staticColumns.value,
       extraColumns: extraColumns.value,

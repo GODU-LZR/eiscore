@@ -464,7 +464,7 @@ const canConfig = computed(() => isEnabledByConfig('canConfig') && hasPerm(opPer
 
 const includeProperties = computed(() => configRef.value.includeProperties !== false)
 const writeMode = computed(() => configRef.value.writeMode || 'upsert')
-const defaultOrder = computed(() => configRef.value.defaultOrder || (schemaName.value === 'app_data' ? 'created_at.desc.nullslast,id.desc' : 'id.desc'))
+const defaultOrder = computed(() => configRef.value.defaultOrder || 'created_at.desc.nullslast,id.desc')
 const aclModule = computed(() => configRef.value.aclModule || configRef.value.table || '')
 const fieldDefaults = computed(() => configRef.value.fieldDefaults || {})
 const primaryKey = computed(() => configRef.value.primaryKey || 'id')

@@ -109,6 +109,21 @@ export function mergeRowsById(currentRows, incomingRows) {
   return next
 }
 
+function compareTimestampMicros(left, right) {
+  const toEpochMicros = (value) => {
+    if (typeof value !== 'string') return null
+    const milliseconds = Date.parse(value)
+    if (!Number.isFinite(milliseconds)) return null
+    const fraction = value.match(/\.(\d+)(?=(?:Z|[+-]\d{2}:?\d{2})$)/i)?.[1] || ''
+    const subMillisecondMicros = fraction.slice(3, 6).padEnd(3, '0') || '0'
+    return BigInt(milliseconds) * 1000n + BigInt(subMillisecondMicros)
+  }
+  const leftMicros = toEpochMicros(left)
+  const rightMicros = toEpochMicros(right)
+  if (leftMicros === null || rightMicros === null) return null
+  return leftMicros === rightMicros ? 0 : leftMicros > rightMicros ? 1 : -1
+}
+
 export function matchesSavedRowQuery(row, query, columns = []) {
   for (const [field, filter] of query) {
     if (['select', 'order'].includes(field)) continue
@@ -324,9 +339,9 @@ export function createPagedGridLoader({
       if (!isIntegerId(row.id) || (first && !isIntegerId(first.id))) return false
       if (!existed && first && BigInt(row.id) < BigInt(first.id)) return false
     } else if (!existed && first) {
-      const createdAt = Date.parse(row.created_at)
-      const firstCreatedAt = Date.parse(first.created_at)
-      if (!Number.isFinite(createdAt) || !Number.isFinite(firstCreatedAt) || createdAt <= firstCreatedAt) return false
+      const createdAtOrder = compareTimestampMicros(row.created_at, first.created_at)
+      if (createdAtOrder === null || createdAtOrder < 0) return false
+      if (createdAtOrder === 0 && String(row.id).toLowerCase() < String(first.id).toLowerCase()) return false
     }
     const rawRows = [row, ...lastRawRows.value.filter(item => String(item?.id) !== key)]
     lastRawRows.value = rawRows

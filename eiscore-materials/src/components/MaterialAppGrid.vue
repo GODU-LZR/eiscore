@@ -14,7 +14,7 @@
         :write-mode="app.writeMode || 'upsert'"
         :field-defaults="app.fieldDefaults || {}"
         :patch-required-fields="app.patchRequiredFields || []"
-        :default-order="app.defaultOrder || 'id.desc'"
+        :default-order="app.defaultOrder || 'created_at.desc.nullslast,id.desc'"
         :acl-module="app.aclModule"
         :profile="appProfile"
         :accept-profile="appProfile"
@@ -767,7 +767,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
       writeUrl,
       profile: appProfile.value,
       contentProfile: appProfile.value,
-      defaultOrder: app.value.defaultOrder || 'id.desc',
+      defaultOrder: app.value.defaultOrder || 'created_at.desc.nullslast,id.desc',
       columns,
       staticColumns: staticColumns.value,
       extraColumns: extraColumns.value,

@@ -98,6 +98,81 @@ async function runStaleAclRaceRegression() {
   assert.equal(events.at(-1)?.payload?.searchText, 'needle')
 }
 
-await runStaleAclRaceRegression()
+async function runCreatedUuidRowPrependRegression() {
+  const props = {
+    apiUrl: '/sales_customers?status=neq.deleted',
+    defaultOrder: 'created_at.desc.nullslast,id.desc',
+    staticColumns: [],
+    extraColumns: [],
+    enableInfiniteScroll: true,
+    pageSize: 50,
+    maxClientRows: 1000,
+    acceptProfile: 'public',
+    contentProfile: 'public'
+  }
+  const gridData = ref([])
+  const searchText = ref('')
+  const isLoading = ref(false)
+  const requests = []
+  const loader = createPagedGridLoader({
+    props,
+    gridData,
+    searchText,
+    isLoading,
+    gridApi: ref(null),
+    eventEmitter: () => {},
+    loadFieldAcl: async () => {},
+    request: async ({ url }) => {
+      requests.push(url)
+      return [{
+        id: 'aaaa0000-0000-4000-8000-000000000001',
+        created_at: '2026-10-23T10:00:00.000Z',
+        status: 'active'
+      }]
+    },
+    buildSearchQuery: () => '',
+    ElMessage: { error: (message) => { throw new Error(message) } },
+    defaultProfile: 'public'
+  })
 
-console.log('PASS: grid paging stale-load regression')
+  await loader.loadData()
+  assert.match(requests[0], /order=created_at\.desc\.nullslast,id\.desc/)
+  const created = {
+    id: 'ffff0000-0000-4000-8000-000000000001',
+    created_at: '2026-10-24T10:00:00.000Z',
+    status: 'active'
+  }
+
+  assert.equal(loader.prependRow(created), true, 'created UUID row should prepend under created_at order')
+  assert.deepEqual(gridData.value.map((row) => row.id), [created.id, 'aaaa0000-0000-4000-8000-000000000001'])
+  assert.equal(requests.length, 1, 'prepending a created UUID row must not issue a full list reload')
+
+  const microsecondLoader = createPagedGridLoader({
+    props,
+    gridData: ref([]),
+    searchText: ref(''),
+    isLoading: ref(false),
+    gridApi: ref(null),
+    eventEmitter: () => {},
+    loadFieldAcl: async () => {},
+    request: async () => [{
+      id: 'bbbb0000-0000-4000-8000-000000000001',
+      created_at: '2026-10-24T10:00:00.123123Z',
+      status: 'active'
+    }],
+    buildSearchQuery: () => '',
+    ElMessage: { error: (message) => { throw new Error(message) } },
+    defaultProfile: 'public'
+  })
+  await microsecondLoader.loadData()
+  assert.equal(microsecondLoader.prependRow({
+    id: 'aaaa0000-0000-4000-8000-000000000001',
+    created_at: '2026-10-24T10:00:00.123456Z',
+    status: 'active'
+  }), true, 'a newer microsecond timestamp should prepend even within one JavaScript millisecond')
+}
+
+await runStaleAclRaceRegression()
+await runCreatedUuidRowPrependRegression()
+
+console.log('PASS: grid paging stale-load and created UUID row regressions')

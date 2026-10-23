@@ -23,7 +23,7 @@
         :write-mode="appConfig.writeMode || 'upsert'"
         :patch-required-fields="appConfig.patchRequiredFields || []"
         :field-defaults="appConfig.fieldDefaults || {}"
-        :default-order="appConfig.defaultOrder || 'id.desc'"
+        :default-order="appConfig.defaultOrder || 'created_at.desc.nullslast,id.desc'"
         :acl-module="appConfig.aclModule"
         :profile="appProfile"
         :accept-profile="appProfile"
@@ -378,7 +378,7 @@ const syncAiContext = (rows = [], payload = null) => {
     writeUrl: appConfig.value.writeUrl || '',
     profile: appProfile.value,
     contentProfile: appProfile.value,
-    defaultOrder: appConfig.value.defaultOrder || 'id.desc',
+    defaultOrder: appConfig.value.defaultOrder || 'created_at.desc.nullslast,id.desc',
     staticColumns: staticColumns.value,
     extraColumns: extraColumns.value,
     summaryConfig: summaryConfig.value,
