@@ -115,8 +115,9 @@ function compareTimestampMicros(left, right) {
     const milliseconds = Date.parse(value)
     if (!Number.isFinite(milliseconds)) return null
     const fraction = value.match(/\.(\d+)(?=(?:Z|[+-]\d{2}:?\d{2})$)/i)?.[1] || ''
-    const subMillisecondMicros = fraction.slice(3, 6).padEnd(3, '0') || '0'
-    return BigInt(milliseconds) * 1000n + BigInt(subMillisecondMicros)
+    const subMillisecondMicros = Number(fraction.slice(3, 6).padEnd(3, '0') || 0)
+    const epochMicros = milliseconds * 1000 + subMillisecondMicros
+    return Number.isSafeInteger(epochMicros) ? epochMicros : null
   }
   const leftMicros = toEpochMicros(left)
   const rightMicros = toEpochMicros(right)
