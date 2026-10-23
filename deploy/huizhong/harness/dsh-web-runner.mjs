@@ -103,6 +103,49 @@ export const hasDshAuthCookie = (cookieHeader = '', prefix = process.env.DSH_AUT
 
 export const shouldBootstrapDshAuth = (request) => !hasDshAuthCookie(request.headers?.cookie)
 
+export const isDshBootstrapRedirect = (request, upstreamResponse) => {
+  if (request.method !== 'GET' || String(request.url || '/').split('?', 1)[0] !== '/') return false
+  if (upstreamResponse?.statusCode !== 303) return false
+  const location = String(upstreamResponse.headers?.location || '')
+  if (!location.startsWith('/') || location.startsWith('//')) return false
+  try { return new URL(location, 'http://dsh-upstream').pathname === '/' } catch { return location === '/' }
+}
+export const shouldRefreshKnowledgeDshAuth = (request, upstreamResponse, profile = process.env.HARNESS_PROFILE) =>
+  String(profile || '').trim().toLowerCase() === 'knowledge' && isDshBootstrapRedirect(request, upstreamResponse)
+export const knowledgeDshBootstrapAction = (request, upstreamResponse, retryBootstrap, profile = process.env.HARNESS_PROFILE) => {
+  if (!shouldRefreshKnowledgeDshAuth(request, upstreamResponse, profile)) return 'forward'
+  return retryBootstrap ? 'refresh' : 'unavailable'
+}
+const withoutDshAuth = (headers = {}) => ({
+  ...headers,
+  cookie: String(headers.cookie || '').split(';')
+    .map((part) => part.trim())
+    .filter((part) => part && !/^dsh-auth-[^=]+=/.test(part))
+    .join('; ')
+})
+export const handleKnowledgeDshBootstrapRedirect = async ({
+  request, response, upstreamResponse, headers, bootstrapCookies = [], retryBootstrap,
+  profile = process.env.HARNESS_PROFILE, bootstrap, forward
+}) => {
+  const action = knowledgeDshBootstrapAction(request, upstreamResponse, retryBootstrap, profile)
+  if (action === 'forward') return false
+  upstreamResponse.resume()
+  if (action === 'refresh') {
+    try {
+      const refreshed = await bootstrap(withoutDshAuth(headers))
+      if (refreshed.setCookies.length) {
+        forward(request, response, refreshed.headers, [...bootstrapCookies, ...refreshed.setCookies], false)
+        return true
+      }
+    } catch {
+      // Fall through to the bounded error below rather than forwarding 303 /.
+    }
+  }
+  response.writeHead(503, { 'cache-control': 'no-store', 'content-type': 'application/json; charset=utf-8' })
+  response.end(JSON.stringify({ code: 'DSH_BOOTSTRAP_UNAVAILABLE' }))
+  return true
+}
+
 export const createSingleFlight = () => {
   const pending = new Map()
   return {
@@ -248,13 +291,6 @@ const requestUpstream = (path, headers = {}, method = 'GET') => new Promise((res
 
 const cookiePairs = (value) => cookieHeaders(value).map((item) => String(item).split(';', 1)[0]).filter(Boolean)
 const dshBootstrapFlights = createSingleFlight()
-const withoutDshAuth = (headers = {}) => ({
-  ...headers,
-  cookie: String(headers.cookie || '').split(';')
-    .map((part) => part.trim())
-    .filter((part) => part && !/^dsh-auth-[^=]+=/.test(part))
-    .join('; ')
-})
 const mergeCookies = (header, additions) => {
   const values = new Map()
   for (const part of String(header || '').split(';')) {
@@ -420,16 +456,28 @@ const proxy = http.createServer((request, response) => {
   })
 })
 
-const proxyRawRequest = (request, response, headers = request.headers, bootstrapCookies = []) => {
+const proxyRawRequest = (request, response, headers = request.headers, bootstrapCookies = [], retryBootstrap = true) => {
   const rewriteAuthStart = request.method === 'POST' && (request.url || '').split('?', 1)[0] === '/api/eiscore/auth/start'
+  const retryWithoutBody = !retryBootstrap && request.method === 'GET' && String(request.url || '/').split('?', 1)[0] === '/'
   const upstreamHeaders = rewriteAuthStart ? { ...headers, 'accept-encoding': 'identity' } : headers
+  if (retryWithoutBody) {
+    delete upstreamHeaders['content-length']
+    delete upstreamHeaders['transfer-encoding']
+  }
   const upstream = http.request({
     hostname: '127.0.0.1',
     port: 3080,
     method: request.method,
     path: withToken(request.url || '/', headers),
     headers: upstreamHeaders
-  }, (upstreamResponse) => {
+  }, async (upstreamResponse) => {
+    // A stale DSH cookie makes the upstream restart handshake return 303 /.
+    // Retrying once with a fresh bootstrap cookie prevents Nginx from turning
+    // that relative redirect into an endless iframe self-redirect.
+    if (await handleKnowledgeDshBootstrapRedirect({
+      request, response, upstreamResponse, headers, bootstrapCookies, retryBootstrap,
+      bootstrap: bootstrapDshAuth, forward: proxyRawRequest
+    })) return
     const responseHeaders = { ...upstreamResponse.headers }
     const setCookies = mapAuthSetCookiesToBrowser([
       ...bootstrapCookies,
@@ -454,7 +502,9 @@ const proxyRawRequest = (request, response, headers = request.headers, bootstrap
     upstreamResponse.pipe(response)
   })
   upstream.on('error', () => response.writeHead(502).end('DeepSeek Harness unavailable'))
-  request.pipe(upstream)
+  // A bounded retry must not pipe the already-consumed root navigation again.
+  if (retryWithoutBody) upstream.end()
+  else request.pipe(upstream)
 }
 
 const proxyAuthenticatedRequest = createBusinessSessionProxy({ withToken, forward: proxyRawRequest, mapCookies: (cookies) => mapAuthSetCookiesToBrowser(cookies, authCookiePrefix) })

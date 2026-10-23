@@ -18,6 +18,53 @@ assert.match(runnerSource, /const\s+proxyAuthenticatedRequest\s*=\s*createBusine
 assert.match(runnerSource, /proxyAuthenticatedRequest\(request,\s*response,\s*checkedHeaders,\s*checkedCookies\)/, 'The authenticated HTTP handler must invoke the bound session proxy')
 const runner = await import(pathToFileURL(resolve(root, 'dsh-web-runner.mjs')))
 assert.equal(typeof runner.shouldBootstrapDshAuth, 'function')
+assert.equal(typeof runner.isDshBootstrapRedirect, 'function')
+assert.equal(typeof runner.handleKnowledgeDshBootstrapRedirect, 'function')
+assert.equal(runner.isDshBootstrapRedirect(
+  { method: 'GET', url: '/' },
+  { statusCode: 303, headers: { location: '/' } }
+), true)
+assert.equal(runner.isDshBootstrapRedirect(
+  { method: 'GET', url: '/' },
+  { statusCode: 302, headers: { location: '/' } }
+), false)
+assert.equal(runner.isDshBootstrapRedirect(
+  { method: 'GET', url: '/assets/app.js' },
+  { statusCode: 303, headers: { location: '/' } }
+), false)
+assert.equal(runner.shouldRefreshKnowledgeDshAuth(
+  { method: 'GET', url: '/' },
+  { statusCode: 303, headers: { location: '/' } },
+  'knowledge'
+), true)
+assert.equal(runner.shouldRefreshKnowledgeDshAuth(
+  { method: 'GET', url: '/' },
+  { statusCode: 303, headers: { location: '/' } },
+  'business'
+), false)
+assert.equal(runner.shouldRefreshKnowledgeDshAuth(
+  { method: 'GET', url: '/' },
+  { statusCode: 303, headers: { location: '/' } },
+  'flash'
+), false)
+assert.equal(runner.knowledgeDshBootstrapAction(
+  { method: 'GET', url: '/' },
+  { statusCode: 303, headers: { location: '/?retry=1' } },
+  true,
+  'knowledge'
+), 'refresh')
+assert.equal(runner.knowledgeDshBootstrapAction(
+  { method: 'GET', url: '/' },
+  { statusCode: 303, headers: { location: '/' } },
+  false,
+  'knowledge'
+), 'unavailable')
+assert.equal(runner.knowledgeDshBootstrapAction(
+  { method: 'GET', url: '/' },
+  { statusCode: 303, headers: { location: 'https://other.example/' } },
+  true,
+  'knowledge'
+), 'forward')
 console.log('PASS: actual Web runner imports and connects authenticated requests to business session binding')
 const require = createRequire(import.meta.url)
 const { loadPluginRegistry } = require('./plugin-registry.js')
