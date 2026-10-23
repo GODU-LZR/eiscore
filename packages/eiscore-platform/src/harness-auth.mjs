@@ -12,7 +12,6 @@ export async function prepareHarnessAuth({ harnessWebUrl, authApiPrefix = '/harn
   const apiPrefix = String(authApiPrefix || '').trim()
   if (!HARNESS_AUTH_API_PREFIXES.has(apiPrefix)) return false
   try {
-    await request(harnessWebUrl, { method: 'GET', redirect: 'manual', headers: { Accept: 'text/html' } })
     const startResponse = await request(`${apiPrefix}/eiscore/auth/start`, {
       method: 'POST',
       headers: { Accept: 'application/json', ...(authorization ? { Authorization: authorization } : {}) }

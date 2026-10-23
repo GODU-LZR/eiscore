@@ -20,13 +20,12 @@ try {
 
   assert.equal(await prepareHarnessAuth({ harnessWebUrl: '/harness-embed/', authorization: 'Bearer token' }), true)
   assert.deepEqual(calls.map(({ url }) => url), [
-    '/harness-embed/',
     '/harness-embed-api/eiscore/auth/start',
     '/company-site/auth/handoff',
     '/harness-embed-api/eiscore/auth/handoff'
   ])
   assert.equal(calls[1].options.headers.Authorization, 'Bearer token')
-  assert.deepEqual(JSON.parse(calls[3].options.body), { code: 'single-use' })
+  assert.deepEqual(JSON.parse(calls[2].options.body), { code: 'single-use' })
 
   const rejectedCalls = []
   globalThis.fetch = async (url) => {
@@ -35,7 +34,7 @@ try {
     return { ok: true, json: async () => ({}) }
   }
   assert.equal(await prepareHarnessAuth({ harnessWebUrl: '/harness-embed/' }), false)
-  assert.deepEqual(rejectedCalls, ['/harness-embed/', '/harness-embed-api/eiscore/auth/start'])
+  assert.deepEqual(rejectedCalls, ['/harness-embed-api/eiscore/auth/start'])
 
   assert.equal(await prepareHarnessAuth({ harnessWebUrl: '/harness-embed/', authApiPrefix: '/other' }), false)
   console.log('PASS: shared Harness auth handshake and same-origin redirect validation')
