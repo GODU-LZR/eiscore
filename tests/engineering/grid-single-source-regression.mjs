@@ -32,13 +32,13 @@ const documentActionOptions = new Map([
 ])
 const expectedExposes = new Map([
   ['apps', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'recalculateServerFormulas']],
-  ['equipment', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'recalculateServerFormulas']],
-  ['hr', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'recalculateServerFormulas']],
-  ['materials', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'refreshCells', 'recalculateServerFormulas']],
-  ['production', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'refreshCells', 'recalculateServerFormulas']],
-  ['purchase', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'getSelectedRows', 'recalculateServerFormulas']],
-  ['quality', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'recalculateServerFormulas']],
-  ['sales', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'getSelectedRows', 'recalculateServerFormulas']]
+  ['equipment', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'recalculateServerFormulas']],
+  ['hr', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'recalculateServerFormulas']],
+  ['materials', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'refreshCells', 'recalculateServerFormulas']],
+  ['production', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'refreshCells', 'recalculateServerFormulas']],
+  ['purchase', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'getSelectedRows', 'recalculateServerFormulas']],
+  ['quality', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'recalculateServerFormulas']],
+  ['sales', ['loadData', 'loadNextPage', 'setWorkflowBinding', 'prependRow', 'getSelectedRows', 'recalculateServerFormulas']]
 ])
 
 for (const dependency of ['vue', 'element-plus', '@element-plus/icons-vue', 'ag-grid-community', 'ag-grid-vue3', 'leaflet', 'html2canvas']) {
@@ -213,6 +213,31 @@ for (const app of apps) {
     .sort()
   assert.deepEqual(exposed, [...expectedExposes.get(app)].sort())
 }
+
+const createFlows = new Map([
+  ['apps', ['eiscore-apps/src/components/AppCenterGrid.vue', 'Prefer: \'return=representation\'', 'prependRow(created)']],
+  ['equipment', ['eiscore-equipment/src/components/EquipmentAppGrid.vue', 'Prefer: \'return=representation\'', 'prependRow']],
+  ['hr', ['eiscore-hr/src/components/HrAppGrid.vue', 'Prefer: \'return=representation\'', 'prependRow']],
+  ['materials', ['eiscore-materials/src/components/MaterialAppGrid.vue', 'Prefer: \'return=representation\'', 'prependRow']],
+  ['purchase', ['eiscore-purchase/src/components/PurchaseAppGrid.vue', 'Prefer: \'return=representation\'', 'prependRow']],
+  ['quality', ['eiscore-quality/src/components/QualityAppGrid.vue', 'Prefer: \'return=representation\'', 'prependRow']],
+  ['sales', ['eiscore-sales/src/components/SalesAppGrid.vue', 'Prefer: \'return=representation\'', 'prependRow']]
+])
+for (const [app, [path, representation, insert]] of createFlows) {
+  const source = readFileSync(resolve(repoRoot, path), 'utf8')
+  assert.ok(source.includes(representation), `${app} create must request its inserted row`)
+  assert.ok(source.includes(insert), `${app} create must try first-row insertion`)
+  assert.match(source, app === 'apps'
+    ? /if \(!prepended && gridRef\.value\?\.loadData\)/
+    : app === 'purchase'
+      ? /if \(!createdRow\?\.id \|\| !canPrependCreatedRow \|\| !await gridRef\.value\?\.prependRow\?\.\(createdRow\)\) \{[\s\S]*?loadData/
+      : /if \(!createdRow\?\.id \|\| !await gridRef\.value\?\.prependRow\?\.\(createdRow\)\) \{[\s\S]*?loadData/)
+}
+const purchaseGridSource = readFileSync(resolve(repoRoot, 'eiscore-purchase/src/components/PurchaseAppGrid.vue'), 'utf8')
+assert.match(purchaseGridSource, /canPrependCreatedRow = readResource === writeResource/)
+assert.match(purchaseGridSource, /!canPrependCreatedRow \|\| !await gridRef\.value\?\.prependRow\?\./)
+const appCenterSource = readFileSync(resolve(repoRoot, 'eiscore-apps/src/components/AppCenterGrid.vue'), 'utf8')
+assert.match(appCenterSource, /schemaName\.value === 'app_data' \? 'created_at\.desc\.nullslast,id\.desc'/)
 
 for (const composable of ['useGridCore', 'useGridSelection', 'useGridFormula', 'useGridClipboard', 'useGridHistory']) {
   assert.match(sharedEntry, new RegExp(`from ['"]@shared/eis-data-grid-v2/composables/${composable}['"]`))

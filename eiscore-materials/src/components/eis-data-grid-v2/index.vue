@@ -55,9 +55,10 @@ const sharedGrid = ref(null)
 const invoke = (method, args) => sharedGrid.value?.[method]?.(...args)
 const loadData = (...args) => invoke('loadData', args)
 const loadNextPage = (...args) => invoke('loadNextPage', args)
+const prependRow = (...args) => invoke('prependRow', args)
 const setWorkflowBinding = (...args) => invoke('setWorkflowBinding', args)
 const refreshCells = (...args) => invoke('refreshCells', args)
 const recalculateServerFormulas = (...args) => invoke('recalculateServerFormulas', args)
 
-defineExpose({ loadData, loadNextPage, setWorkflowBinding, refreshCells, recalculateServerFormulas })
+defineExpose({ loadData, loadNextPage, prependRow, setWorkflowBinding, refreshCells, recalculateServerFormulas })
 </script>

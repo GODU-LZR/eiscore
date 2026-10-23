@@ -1565,13 +1565,19 @@ const handleCreate = async () => {
     const payload = typeof app.value.createPayload === 'function'
       ? app.value.createPayload()
       : { name: '新记录', properties: {} }
-    await request({
+    const created = await request({
       url: app.value.writeUrl || app.value.apiUrl,
       method: 'post',
-      headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public' },
+      headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public', Prefer: 'return=representation' },
       data: payload
     })
-    if(gridRef.value) await gridRef.value.loadData()
+    const createdRow = Array.isArray(created) ? created[0] : created
+    const readResource = String(app.value.apiUrl || '').split('?')[0].replace(/^\/+/, '')
+    const writeResource = String(app.value.writeUrl || app.value.apiUrl || '').split('?')[0].replace(/^\/+/, '')
+    const canPrependCreatedRow = readResource === writeResource
+    if (!createdRow?.id || !canPrependCreatedRow || !await gridRef.value?.prependRow?.(createdRow)) {
+      await gridRef.value?.loadData?.()
+    }
     ElMessage.success('已创建新行')
   } catch(e) {
     console.error(e)

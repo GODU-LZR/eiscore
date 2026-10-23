@@ -1173,13 +1173,16 @@ const handleCreate = async () => {
       payload.properties = {}
     }
     const writeUrl = app.value.writeUrl || (app.value.apiUrl || '/raw_materials').split('?')[0]
-    await request({
+    const created = await request({
       url: writeUrl,
       method: 'post',
-      headers: { 'Content-Profile': 'public' },
+      headers: { 'Accept-Profile': appProfile.value, 'Content-Profile': appProfile.value, Prefer: 'return=representation' },
       data: payload
     })
-    if (gridRef.value) await gridRef.value.loadData()
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (!createdRow?.id || !await gridRef.value?.prependRow?.(createdRow)) {
+      await gridRef.value?.loadData?.()
+    }
     ElMessage.success('已创建新行')
   } catch(e) {
     console.error(e)
@@ -1241,6 +1244,7 @@ watch([attentionFilter, gridApiUrl], () => {
 })
 
 defineExpose({
+  prependRow: (row) => gridRef.value?.prependRow?.(row),
   loadData: () => gridRef.value?.loadData?.(),
   reload: () => gridRef.value?.loadData?.()
 })

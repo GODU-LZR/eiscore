@@ -741,16 +741,20 @@ const syncAiContext = (rows = []) => {
 const handleCreate = async () => {
   if (!app.value?.writeUrl || !app.value?.createPayload) return
   try {
-    await request({
+    const created = await request({
       url: app.value.writeUrl,
       method: 'post',
       headers: {
         'Accept-Profile': app.value.acceptProfile || 'public',
-        'Content-Profile': app.value.contentProfile || 'public'
+        'Content-Profile': app.value.contentProfile || 'public',
+        Prefer: 'return=representation'
       },
       data: app.value.createPayload()
     })
-    await gridRef.value?.loadData?.()
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (!createdRow?.id || !await gridRef.value?.prependRow?.(createdRow)) {
+      await gridRef.value?.loadData?.()
+    }
     ElMessage.success('已创建新行')
   } catch (error) {
     fallbackMode.value = true
