@@ -1613,7 +1613,8 @@ const handleLogin = async () => {
         const returnUrl = new URL(dshReturn, window.location.origin)
         const returnPaths = [
           '/harness-embed-api/eiscore/auth/handoff',
-          '/harness-flash-embed-api/eiscore/auth/handoff'
+          '/harness-flash-embed-api/eiscore/auth/handoff',
+          '/harness-knowledge-embed-api/eiscore/auth/handoff'
         ]
         if (returnUrl.origin !== window.location.origin || !returnPaths.includes(returnUrl.pathname)) {
           throw new Error('无效的 Harness 回调地址')
@@ -1627,9 +1628,12 @@ const handleLogin = async () => {
         if (!await completeHarnessAuth({ code: handoff.code, callbackPath: returnUrl.pathname })) {
           throw new Error('Harness 登录交接失败，请重试')
         }
-        window.location.assign(returnUrl.pathname.startsWith('/harness-flash-embed-api/')
+        const returnPath = returnUrl.pathname
+        window.location.assign(returnPath.startsWith('/harness-flash-embed-api/')
           ? '/harness-flash-embed/#flash-builder'
-          : '/harness')
+          : returnPath.startsWith('/harness-knowledge-embed-api/')
+            ? '/harness-knowledge-embed/#digital-twin'
+            : '/harness')
         return
       }
       const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''

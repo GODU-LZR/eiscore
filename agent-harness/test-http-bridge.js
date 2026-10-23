@@ -99,6 +99,26 @@ assert.equal(bridgeAuthCalls, 1);
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-ai-session': 'bridge-auth-forged-workspace', 'x-eis-request-id': 'bridge-auth-forged-workspace-request', 'x-eis-workspace-id': 'ws_forged', 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
 assert.equal(response.status, 403);
 assert.equal(response.body.code, 'HARNESS_WORKSPACE_FORBIDDEN');
+const knowledgeWorkspace = `ws_${crypto.createHash('sha256').update(JSON.stringify(['t1', 'u1', 'knowledge'])).digest('hex')}`;
+response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: {
+  ...bridgeAuthHeaders,
+  'x-eis-ai-session': 'bridge-auth-knowledge-session',
+  'x-eis-request-id': 'bridge-auth-knowledge-request',
+  'x-eis-workspace-id': knowledgeWorkspace,
+  'x-eis-harness-namespace': 'knowledge',
+  'x-eis-harness-bridge-secret': bridgeSecret
+} }, { messages: [] });
+assert.equal(response.status, 200, 'knowledge namespace gets a distinct authenticated workspace');
+response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: {
+  ...bridgeAuthHeaders,
+  'x-eis-ai-session': 'bridge-auth-forged-namespace',
+  'x-eis-request-id': 'bridge-auth-forged-namespace-request',
+  'x-eis-workspace-id': bridgeAuthWorkspace,
+  'x-eis-harness-namespace': 'forged',
+  'x-eis-harness-bridge-secret': bridgeSecret
+} }, { messages: [] });
+assert.equal(response.status, 403);
+assert.equal(response.body.code, 'HARNESS_NAMESPACE_FORBIDDEN');
 response = await requestAt(bridgeAuthPort, { method: 'POST', path: '/v1/chat/completions', headers: { ...bridgeAuthHeaders, 'x-eis-ai-session': 'bridge-auth-nonstandard-mode', 'x-eis-request-id': 'bridge-auth-nonstandard-mode-request', 'x-eis-harness-mode': 'worker', 'x-eis-harness-bridge-secret': bridgeSecret } }, { messages: [] });
 assert.equal(response.status, 403);
 assert.equal(response.body.code, 'HARNESS_MODE_FORBIDDEN');

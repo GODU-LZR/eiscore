@@ -8,61 +8,28 @@
         <div>
           <p class="knowledge-eyebrow">企业知识库</p>
           <h1>知识网络工作台</h1>
-          <p class="knowledge-subtitle">在三维本体网络中浏览企业语义，并在同一工作区继续向 DeepSeek Harness 提问。</p>
+          <p class="knowledge-subtitle">通过知识库专属 DeepSeek Harness 进行对话。</p>
         </div>
-      </div>
-      <div class="knowledge-actions">
-        <el-tag effect="plain">{{ graph.nodes.length }} 个节点</el-tag>
-        <el-tag effect="plain">{{ graph.edges.length }} 条关系</el-tag>
-        <el-button :loading="loading" @click="loadRelations">
-          <el-icon><Refresh /></el-icon>
-          刷新图谱
-        </el-button>
       </div>
     </header>
-
-    <section class="knowledge-section brain-section" aria-labelledby="knowledge-brain-title">
-      <div class="section-heading">
-        <div>
-          <h2 id="knowledge-brain-title">三维大脑网络图谱</h2>
-          <p>默认显示已接入的本体关系，可按业务域聚焦。</p>
-        </div>
-        <label class="domain-filter">
-          <span>业务域</span>
-          <select v-model="brainDomain" aria-label="筛选业务域">
-            <option value="">全部业务域</option>
-            <option v-for="domain in graph.domains" :key="domain.key" :value="domain.key">{{ domain.label }}</option>
-          </select>
-        </label>
-      </div>
-      <div class="brain-frame">
-        <OntologyBrainGraph
-          :graph="graph"
-          :loading="loading"
-          :error="relationError"
-          :active="true"
-        />
-      </div>
-    </section>
 
     <section class="knowledge-section harness-section" aria-labelledby="knowledge-harness-title">
       <div class="section-heading">
         <div>
           <h2 id="knowledge-harness-title">DeepSeek Harness 对话</h2>
-          <p>使用当前登录会话连接智能助手，工作区与知识库上下文保持在同一页面。</p>
+          <p>使用当前登录会话连接知识库专属助手，工作区与普通工作台、闪念相互隔离。</p>
         </div>
-        <el-tag :type="harnessReady ? 'success' : (harnessFailed ? 'danger' : 'warning')" effect="plain">
-          {{ harnessReady ? '已连接' : (harnessFailed ? '连接失败' : '连接中') }}
+        <el-tag :type="harnessConnected ? 'success' : (harnessFailed ? 'danger' : 'warning')" effect="plain">
+          {{ harnessConnected ? '已连接' : (harnessFailed ? '连接失败' : '连接中') }}
         </el-tag>
       </div>
       <div class="harness-frame-wrap">
         <iframe
           v-if="harnessReady && !harnessFailed"
           class="harness-frame"
-          src="/harness-embed/#digital-twin"
+          src="/harness-knowledge-embed/#digital-twin"
           title="DeepSeek Harness 企业知识库对话"
           allow="clipboard-read; clipboard-write"
-          @load="harnessLoading = false"
           @error="handleHarnessError"
         ></iframe>
         <div v-else class="harness-status" role="status" aria-live="polite">
@@ -82,43 +49,18 @@
 
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import request from '@/utils/request'
 import { getAuthHeader } from '@/utils/auth'
-import OntologyBrainGraph from '@/components/OntologyBrainGraph.vue'
-import { buildOntologyBrainRelationGraph } from '@/domain/ontology-brain-graph-policy'
-import { ONTOLOGY_RELATIONS_REQUEST, normalizeOntologyRows } from '@/domain/ontology-workbench-query-policy'
 import { prepareBusinessHarnessAuth } from '../../../eiscore-base/src/services/business-harness-auth.js'
 
 const router = useRouter()
-const relations = ref([])
-const brainDomain = ref('')
-const loading = ref(false)
-const relationError = ref('')
 const harnessReady = ref(false)
 const harnessFailed = ref(false)
-const harnessLoading = ref(true)
+const harnessConnected = computed(() => harnessReady.value && !harnessFailed.value)
 let disposed = false
 let harnessRequestId = 0
 
-const graph = computed(() => buildOntologyBrainRelationGraph({
-  relations: relations.value,
-  domainFilter: brainDomain.value
-}))
-
-const loadRelations = async () => {
-  loading.value = true
-  relationError.value = ''
-  try {
-    relations.value = normalizeOntologyRows(await request(ONTOLOGY_RELATIONS_REQUEST))
-  } catch (error) {
-    relations.value = []
-    relationError.value = '本体关系加载失败，请刷新后重试。'
-    ElMessage.error(`本体关系加载失败：${error?.message || '网络错误'}`)
-  } finally {
-    loading.value = false
-  }
-}
+const KNOWLEDGE_HARNESS_WEB_URL = '/harness-knowledge-embed/'
+const KNOWLEDGE_HARNESS_AUTH_API_PREFIX = '/harness-knowledge-embed-api'
 
 const prepareHarnessFrame = async () => {
   const requestId = ++harnessRequestId
@@ -127,17 +69,15 @@ const prepareHarnessFrame = async () => {
     && requestId === harnessRequestId
     && !!authorization
     && getAuthHeader().Authorization === authorization
-  harnessLoading.value = true
   harnessFailed.value = false
   harnessReady.value = false
   const ready = await prepareBusinessHarnessAuth({
-    harnessWebUrl: '/harness-embed/',
-    authApiPrefix: '/harness-embed-api',
+    harnessWebUrl: KNOWLEDGE_HARNESS_WEB_URL,
+    authApiPrefix: KNOWLEDGE_HARNESS_AUTH_API_PREFIX,
     authorization
   }, isCurrent)
   if (!isCurrent()) return
   if (!ready) {
-    harnessLoading.value = false
     harnessFailed.value = true
     return
   }
@@ -145,7 +85,6 @@ const prepareHarnessFrame = async () => {
 }
 
 const handleHarnessError = () => {
-  harnessLoading.value = false
   harnessReady.value = false
   harnessFailed.value = true
 }
@@ -153,7 +92,6 @@ const handleHarnessError = () => {
 const goBack = () => router.push('/')
 
 onMounted(() => {
-  void loadRelations()
   void prepareHarnessFrame()
 })
 
@@ -202,15 +140,10 @@ onBeforeUnmount(() => {
 .knowledge-eyebrow { margin: 0 0 4px; color: #14766e; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
 h1 { margin: 0; color: #20353d; font-size: 24px; line-height: 1.25; }
 .knowledge-subtitle { max-width: 720px; margin: 7px 0 0; color: #63757c; font-size: 13px; line-height: 1.6; }
-.knowledge-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .knowledge-section { max-width: 1440px; margin: 0 auto 18px; border: 1px solid #dce5e7; background: #fff; box-shadow: 0 3px 12px #29444d0a; }
 .section-heading { padding: 15px 16px 12px; border-bottom: 1px solid #e5ecee; }
 h2 { margin: 0; color: #2a414a; font-size: 16px; line-height: 1.4; }
 .section-heading p { margin: 4px 0 0; color: #788990; font-size: 12px; line-height: 1.5; }
-.domain-filter { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; color: #60737b; font-size: 12px; }
-.domain-filter select { min-width: 140px; height: 30px; padding: 0 8px; border: 1px solid #cddadd; border-radius: 4px; color: #344952; background: #fff; font: inherit; }
-.brain-frame { padding: 0; }
-.brain-frame :deep(.ontology-brain) { border: 0; }
 .harness-frame-wrap { min-height: 520px; background: #f7fafb; }
 .harness-frame { display: block; width: 100%; height: 520px; border: 0; }
 .harness-status { display: flex; min-height: 520px; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #6c7c83; font-size: 13px; }
@@ -220,9 +153,6 @@ h2 { margin: 0; color: #2a414a; font-size: 16px; line-height: 1.4; }
 @media (max-width: 760px) {
   .knowledge-workbench { padding: 12px; }
   .knowledge-header, .section-heading { flex-direction: column; }
-  .knowledge-actions { justify-content: flex-start; }
-  .domain-filter { width: 100%; }
-  .domain-filter select { flex: 1; }
   h1 { font-size: 21px; }
   .harness-frame, .harness-status, .harness-frame-wrap { min-height: 460px; height: 460px; }
 }

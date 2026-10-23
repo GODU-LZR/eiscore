@@ -1,0 +1,62 @@
+{
+  "$schema": "https://eiscore.local/agent-harness/plugin-contract.v1.json",
+  "contract_version": "1.0.0",
+  "plugins": [
+    {
+      "plugin_id": "digital-twin",
+      "agent_id": "digital_twin",
+      "capabilities": ["eiscore_twin_context", "eiscore_twin_chat"],
+      "capability_policies": {
+        "eiscore_twin_context": {
+          "intent": "read_twin_context",
+          "object": "twin_context",
+          "risk": "low",
+          "permissions": ["twin:read"],
+          "input_schema": {
+            "type": "object",
+            "oneOf": [
+              { "type": "object", "additionalProperties": false, "required": ["tool_id"], "properties": { "tool_id": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true } } },
+              { "type": "object", "additionalProperties": false, "required": ["toolId"], "properties": { "toolId": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true } } },
+              { "type": "object", "additionalProperties": false, "required": ["tool_name"], "properties": { "tool_name": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true } } },
+              { "type": "object", "additionalProperties": false, "required": ["toolName"], "properties": { "toolName": { "type": "string" }, "arguments": { "type": "object", "additionalProperties": true } } }
+            ]
+          },
+          "output_schema": { "type": "object", "additionalProperties": true },
+          "audit_required": true,
+          "timeout_ms": 60000
+        },
+        "eiscore_twin_chat": {
+          "intent": "chat_with_twin",
+          "object": "twin_session",
+          "risk": "low",
+          "permissions": ["twin:read"],
+          "input_schema": {
+            "type": "object",
+            "oneOf": [
+              { "type": "object", "additionalProperties": false, "required": ["message"], "properties": { "message": { "type": "string" }, "session_id": { "type": "string" }, "sessionId": { "type": "string" }, "stream": { "type": "boolean" } } },
+              { "type": "object", "additionalProperties": false, "required": ["content"], "properties": { "content": { "type": "string" }, "session_id": { "type": "string" }, "sessionId": { "type": "string" }, "stream": { "type": "boolean" } } }
+            ]
+          },
+          "output_schema": { "type": "object", "additionalProperties": true },
+          "chat_input_schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["messages"],
+            "properties": { "messages": { "type": "array", "items": { "type": "object" } }, "stream": { "type": "boolean" }, "context": { "type": "object", "additionalProperties": true } }
+          },
+          "chat_output_schema": { "type": "object", "additionalProperties": true },
+          "audit_required": true,
+          "timeout_ms": 60000
+        }
+      },
+      "permissions": ["twin:read"],
+      "risk": "low",
+      "input_schema": { "type": "object", "additionalProperties": true },
+      "output_schema": { "type": "object", "additionalProperties": true },
+      "confirm_required": false,
+      "idempotency_required": false,
+      "audit_required": true,
+      "timeout_ms": 60000
+    }
+  ]
+}

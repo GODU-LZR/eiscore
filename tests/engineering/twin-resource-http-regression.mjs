@@ -17,6 +17,8 @@ let requestBody = {}
 let bodyError = null
 let failMethod = ''
 let persistenceCreations = 0
+let boundNamespaces = []
+let persistenceNamespaces = []
 const operations = []
 const responses = []
 
@@ -60,7 +62,9 @@ const handlers = createTwinResourceHttpHandlers({
     return authorized ? user : null
   },
   bindPgQueryForUser(value) {
-    assert.equal(value, user)
+    assert.equal(value.username, user.username)
+    assert.equal(value.token, user.token)
+    boundNamespaces.push(value.harness_namespace)
     return 'bound-query'
   },
   async readJsonBody() {
@@ -71,9 +75,10 @@ const handlers = createTwinResourceHttpHandlers({
     responses.push({ status, payload })
   },
   port: 8078,
-  createPersistence(pgQuery, username) {
+  createPersistence(pgQuery, username, namespace) {
     assert.equal(pgQuery, 'bound-query')
     assert.equal(username, 'operator')
+    persistenceNamespaces.push(namespace)
     persistenceCreations += 1
     return persistence
   }
@@ -85,6 +90,8 @@ const reset = () => {
   bodyError = null
   failMethod = ''
   persistenceCreations = 0
+  boundNamespaces.length = 0
+  persistenceNamespaces.length = 0
   operations.length = 0
   responses.length = 0
 }
@@ -98,6 +105,8 @@ assert.deepEqual(responses, [])
 reset()
 await handlers.handleSessionsList({ url: '/twin/sessions' }, {})
 assert.deepEqual(operations, [['listSessions', 30]])
+assert.deepEqual(boundNamespaces, ['business'])
+assert.deepEqual(persistenceNamespaces, ['business'])
 assert.deepEqual(responses, [{ status: 200, payload: { sessions: [{ id: 'session-1' }] } }])
 
 reset()
@@ -160,6 +169,35 @@ assert.deepEqual(responses, [{ status: 400, payload: { code: 'ID_REQUIRED', mess
 reset()
 await handlers.handleKnowledgeDelete({ url: '/twin/knowledge?id=file-2' }, {})
 assert.deepEqual(operations, [['deleteKnowledgeFile', 'file-2']])
+assert.deepEqual(responses, [{ status: 200, payload: { ok: true } }])
+
+const knowledgeHandlers = createTwinResourceHttpHandlers({
+  authorizeTwinRequest() {
+    return user
+  },
+  bindPgQueryForUser(value) {
+    assert.equal(value.harness_namespace, 'knowledge')
+    boundNamespaces.push(value.harness_namespace)
+    return 'bound-query'
+  },
+  readJsonBody: async () => ({}),
+  sendJson(_res, status, payload) {
+    responses.push({ status, payload })
+  },
+  port: 8078,
+  namespace: 'knowledge',
+  createPersistence(pgQuery, username, namespace) {
+    assert.equal(pgQuery, 'bound-query')
+    assert.equal(username, 'operator')
+    assert.equal(namespace, 'knowledge')
+    return persistence
+  }
+})
+
+reset()
+await knowledgeHandlers.handleKnowledgeDelete({ url: '/twin/knowledge?id=knowledge-file-1' }, {})
+assert.deepEqual(operations, [['deleteKnowledgeFile', 'knowledge-file-1']])
+assert.deepEqual(boundNamespaces, ['knowledge'])
 assert.deepEqual(responses, [{ status: 200, payload: { ok: true } }])
 
 assert.ok(Object.isFrozen(handlers))

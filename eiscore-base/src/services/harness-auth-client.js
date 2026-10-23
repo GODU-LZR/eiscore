@@ -8,7 +8,8 @@ const request = (url, options = {}) => globalThis.fetch(url, {
 
 const HARNESS_AUTH_API_PREFIXES = new Set([
   '/harness-embed-api',
-  '/harness-flash-embed-api'
+  '/harness-flash-embed-api',
+  '/harness-knowledge-embed-api'
 ])
 
 export async function prepareHarnessAuth({ harnessWebUrl, authApiPrefix = '/harness-embed-api', authorization = '' } = {}) {

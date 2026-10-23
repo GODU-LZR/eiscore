@@ -2,9 +2,11 @@
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const createHarnessTwinChatHttpHandler = ({ authorize, readJsonBody, sendJson, gateway, createPersistence, setCorsHeaders, streamTextAsSse, managePersistence = false, enabled = true }) => async (req, res) => {
+const createHarnessTwinChatHttpHandler = ({ authorize, readJsonBody, sendJson, gateway, createPersistence, setCorsHeaders, streamTextAsSse, managePersistence = false, enabled = true, namespace = 'business' }) => async (req, res) => {
   const user = authorize(req, res);
   if (!user) return;
+  // Namespace is selected by the server-bound route, never by request input.
+  const scopedUser = { ...user, harness_namespace: namespace };
   if (!enabled) { sendJson(res, 503, { code: 'HARNESS_DISABLED', message: 'DeepSeek Harness is disabled' }); return; }
   let body;
   try { body = await readJsonBody(req); } catch (error) { sendJson(res, 400, { code: 'BAD_REQUEST', message: error?.message === 'Payload too large' ? 'Payload too large' : 'Invalid request body' }); return; }
@@ -21,7 +23,7 @@ const createHarnessTwinChatHttpHandler = ({ authorize, readJsonBody, sendJson, g
         plugin_id: 'digital-twin',
         agent_id: 'digital_twin',
         capability_id: 'eiscore_twin_chat',
-        user,
+        user: scopedUser,
         signal: req.signal,
         payload: { message, ...(requestedSessionId ? { session_id: requestedSessionId } : {}), stream: body.stream !== false }
       });
@@ -44,7 +46,7 @@ const createHarnessTwinChatHttpHandler = ({ authorize, readJsonBody, sendJson, g
   let persistence;
   let sessionId = requestedSessionId || null;
   try {
-    persistence = createPersistence(user);
+    persistence = createPersistence(scopedUser);
     if (!persistence || typeof persistence.createSession !== 'function' || typeof persistence.saveMessage !== 'function' || typeof persistence.loadHistory !== 'function') throw new Error('Digital twin persistence is unavailable');
     if (sessionId) {
       if (typeof persistence.getSession !== 'function') throw new Error('Digital twin session ownership check is unavailable');
@@ -56,7 +58,7 @@ const createHarnessTwinChatHttpHandler = ({ authorize, readJsonBody, sendJson, g
     }
     const history = await persistence.loadHistory(sessionId, 12);
     await persistence.saveMessage(sessionId, 'user', message);
-    const result = await gateway.execute({ request_id: body.request_id || body.requestId, session_id: sessionId, plugin_id: 'digital-twin', agent_id: 'digital_twin', capability_id: 'eiscore_twin_chat', user, signal: req.signal, payload: { message, session_id: sessionId, history: Array.isArray(history) ? history.slice(-12) : [], stream: body.stream !== false } });
+    const result = await gateway.execute({ request_id: body.request_id || body.requestId, session_id: sessionId, plugin_id: 'digital-twin', agent_id: 'digital_twin', capability_id: 'eiscore_twin_chat', user: scopedUser, signal: req.signal, payload: { message, session_id: sessionId, history: Array.isArray(history) ? history.slice(-12) : [], stream: body.stream !== false } });
     if (!result.ok) { sendJson(res, result.status || 502, { code: result.code, message: result.message }); return; }
     const data = result.data || {};
     const answer = String(data.text || data.output_text || data.choices?.[0]?.message?.content || '').trim();

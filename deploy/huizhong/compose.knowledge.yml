@@ -1,0 +1,104 @@
+services:
+  knowledge-agent:
+    build: {context: ./source, dockerfile: realtime/Dockerfile.prod}
+    image: eiscore/huizong-agent:20261017
+    container_name: huizong-eiscore-knowledge-agent
+    restart: unless-stopped
+    env_file: [.env]
+    environment:
+      RUNTIME_PROFILE: knowledge
+      NODE_ENV: production
+      PORT: 8078
+      EISCORE_DB_HOST: db
+      EISCORE_DB_PORT: 5432
+      EISCORE_DB_NAME: eiscore
+      EISCORE_AGENT_DB_USER: eiscore_agent
+      AGENT_POSTGREST_URL: http://api:3000
+      EISCORE_HARNESS_ENABLED: 'true'
+      EISCORE_HARNESS_URL: http://knowledge-harness-bridge:3080
+      EISCORE_HARNESS_AUDIT_FILE: /var/lib/eiscore/knowledge-harness-audit.jsonl
+      EISCORE_HARNESS_AUDIT_HASH_KEY: '${KNOWLEDGE_EISCORE_HARNESS_AUDIT_HASH_KEY:?required}'
+      EISCORE_HARNESS_BRIDGE_SECRET: '${KNOWLEDGE_EISCORE_HARNESS_BRIDGE_SECRET:?required}'
+      EISCORE_TOOL_PROXY_SECRET: '${KNOWLEDGE_EISCORE_TOOL_PROXY_SECRET:?required}'
+    volumes:
+      - ./harness:/agent-harness:ro
+      - knowledge_harness_audit:/var/lib/eiscore
+    depends_on: {db: {condition: service_healthy}, api: {condition: service_started}}
+
+  knowledge-harness-bridge:
+    image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
+    container_name: huizong-eiscore-knowledge-harness-bridge
+    restart: unless-stopped
+    init: true
+    user: '10001:10001'
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    entrypoint: [node]
+    command: [/opt/eiscore-harness/dsh-http-bridge.mjs]
+    env_file: [.env]
+    environment:
+      PORT: 3080
+      DSH_BIN: /opt/bridge/node_modules/.bin/dsh
+      DSH_HOME: /var/lib/dsh
+      DSH_PROVIDER: deepseek
+      DSH_MODEL: deepseek-chat
+      HARNESS_PROFILE: knowledge
+      HARNESS_PLUGINS: digital-twin
+      EISCORE_HARNESS_PLUGIN_CONTRACT: /opt/eiscore-harness/knowledge-plugin-contract.v1.json
+      EISCORE_HARNESS_CAPABILITY_PROFILE: knowledge
+      EISCORE_HARNESS_BRIDGE_SECRET: '${KNOWLEDGE_EISCORE_HARNESS_BRIDGE_SECRET:?required}'
+      EISCORE_TOOL_PROXY_SECRET: '${KNOWLEDGE_EISCORE_TOOL_PROXY_SECRET:?required}'
+      DSH_CWD: /opt/eiscore-harness
+      DSH_PATCH: /opt/eiscore-harness/eiscore-restricted.cordis.yml
+      EISCORE_TOOL_PROXY_URL: http://knowledge-agent:8078/internal/harness/tool
+      BRIDGE_STATE_FILE: /var/lib/dsh/bridge-state.json
+    volumes:
+      - knowledge_bridge_home:/var/lib/dsh
+      - ./harness:/opt/eiscore-harness:ro
+    depends_on: {knowledge-agent: {condition: service_started}}
+
+  knowledge-web:
+    image: eiscore/deepseek-harness:0.1.2-rc.1-bridge1
+    container_name: huizong-eiscore-knowledge-web
+    restart: unless-stopped
+    init: true
+    user: '10001:10001'
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    entrypoint: [node]
+    command: [--expose-internals, /opt/eiscore-harness/dsh-web-runner.mjs]
+    env_file: [.env]
+    environment:
+      DSH_HOME: /var/lib/dsh
+      DSH_DEFAULT_WORKSPACE: /var/lib/dsh/workspaces/knowledge
+      DSH_DEFAULT_WORKSPACE_TITLE: 企业知识库工作区
+      DSH_TRUSTED_HOST: huizong.eiscore.top
+      DSH_PATCH_PATH: /opt/eiscore-harness/dsh-knowledge-web.patch.yml
+      DSH_AUTH_COOKIE_PREFIX: knowledge-
+      HARNESS_PROFILE: knowledge
+      EISCORE_HARNESS_PLUGIN_CONTRACT: /opt/eiscore-harness/knowledge-plugin-contract.v1.json
+      EISCORE_AUTH_COOKIE_PREFIX: knowledge-
+      EISCORE_HARNESS_AUTH_RETURN_PATH: /harness-knowledge-embed-api/eiscore/auth/handoff
+      EISCORE_HARNESS_CAPABILITY_PROFILE: knowledge
+      EISCORE_GATEWAY_URL: http://knowledge-agent:8078
+      EISCORE_AUTH_GATEWAY_URL: http://agent:8078
+      EISCORE_AUTH_URL: https://huizong.eiscore.top
+      EISCORE_AUTH_ORIGINS: https://huizong.eiscore.top
+      EISCORE_TOOL_PROXY_URL: http://knowledge-agent:8078/internal/harness/tool
+      EISCORE_TOOL_PROXY_SECRET: '${KNOWLEDGE_EISCORE_TOOL_PROXY_SECRET:?required}'
+    volumes:
+      - knowledge_web_home:/var/lib/dsh
+      - ./harness:/opt/eiscore-harness:ro
+    depends_on: {knowledge-agent: {condition: service_started}}
+
+  web:
+    depends_on: [api, agent, deepseek-web, flash-agent, flash-web, knowledge-agent, knowledge-harness-bridge, knowledge-web]
+
+volumes:
+  knowledge_harness_audit:
+  knowledge_bridge_home:
+  knowledge_web_home:

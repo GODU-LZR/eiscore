@@ -33,6 +33,17 @@ const KB_READ_CONTENT_CHARS = 200000;   // 读取数据库内保存的完整知�
 const KB_COMPACT_HEAD_LINES = 12;
 const KB_COMPACT_DATA_LINES = 36;
 const KB_COMPACT_IMPORTANT_LINES = 30;
+const TWIN_NAMESPACES = Object.freeze({ BUSINESS: 'business', KNOWLEDGE: 'knowledge' });
+const normalizeTwinNamespace = (value = TWIN_NAMESPACES.BUSINESS) => {
+  const namespace = String(value || '').trim().toLowerCase();
+  if (namespace !== TWIN_NAMESPACES.BUSINESS && namespace !== TWIN_NAMESPACES.KNOWLEDGE) {
+    const error = new Error('Digital twin namespace is invalid');
+    error.code = 'TWIN_NAMESPACE_INVALID';
+    error.httpStatus = 400;
+    throw error;
+  }
+  return namespace;
+};
 
 // ───────────────────── 工具结果截断 ──────────────────────
 
@@ -258,8 +269,9 @@ function normalizeAppRecord(row = {}) {
  * @param {Object}   user    - 当前用户对象 { username, role, token }
  * @returns {Object} tools map: { toolName: { description, parameters, execute } }
  */
-function createTwinTools(pgQuery, user, accessContext = null, refreshAccessContext = null) {
+function createTwinTools(pgQuery, user, accessContext = null, refreshAccessContext = null, namespace = user?.harness_namespace || TWIN_NAMESPACES.BUSINESS) {
   const username = user?.username || '';
+  const twinNamespace = normalizeTwinNamespace(namespace);
   const getAccessContext = async () => typeof refreshAccessContext === 'function'
     ? await refreshAccessContext(user)
     : accessContext;
@@ -520,6 +532,7 @@ function createTwinTools(pgQuery, user, accessContext = null, refreshAccessConte
         const limit = Math.min(Number(params.limit) || 5, KB_SEARCH_LIMIT);
         const commonQuery = {
           employee_id: `eq.${username}`,
+          harness_namespace: `eq.${twinNamespace}`,
           select: 'id,file_name,file_type,tags,summary,content_text,created_at,updated_at',
           limit: String(limit),
           order: 'updated_at.desc'
@@ -572,6 +585,7 @@ function createTwinTools(pgQuery, user, accessContext = null, refreshAccessConte
           method: 'GET', path: '/twin_knowledge_files',
           query: {
             employee_id: `eq.${username}`,
+          harness_namespace: `eq.${twinNamespace}`,
             select: 'id,file_name,file_type,file_size,tags,summary,created_at',
             limit: String(Math.min(Number(params.limit) || 20, 50)),
             order: 'updated_at.desc'
@@ -600,6 +614,7 @@ function createTwinTools(pgQuery, user, accessContext = null, refreshAccessConte
 
         const query = {
           employee_id: `eq.${username}`,
+          harness_namespace: `eq.${twinNamespace}`,
           select: 'id,file_name,file_type,file_size,tags,summary,content_text,created_at,updated_at',
           limit: '1',
           order: 'updated_at.desc'
@@ -816,7 +831,8 @@ function buildTwinSystemPrompt(user, semanticCtx) {
  * @param {string}   employeeId - 当前员工 username
  * @returns {Object} { createSession, getSession, saveMessage, saveToolLog, loadHistory, listSessions, deleteSession }
  */
-function createPersistence(pgQuery, employeeId) {
+function createPersistence(pgQuery, employeeId, namespace = TWIN_NAMESPACES.BUSINESS) {
+  const twinNamespace = normalizeTwinNamespace(namespace);
   return {
     /**
      * 创建新会话
@@ -824,7 +840,7 @@ function createPersistence(pgQuery, employeeId) {
     async createSession(title = '新对话') {
       const res = await pgQuery({
         method: 'POST', path: '/twin_sessions',
-        body: { employee_id: employeeId, title, model: 'deepseek-harness' },
+        body: { employee_id: employeeId, harness_namespace: twinNamespace, title, model: 'deepseek-harness' },
         acceptProfile: 'app_data',
         contentProfile: 'app_data',
         prefer: 'return=representation',
@@ -841,7 +857,7 @@ function createPersistence(pgQuery, employeeId) {
       if (!sessionId) return null;
       const res = await pgQuery({
         method: 'GET', path: '/twin_sessions',
-        query: { id: `eq.${sessionId}`, select: 'id,employee_id,title', limit: '1' },
+        query: { id: `eq.${sessionId}`, harness_namespace: `eq.${twinNamespace}`, select: 'id,employee_id,harness_namespace,title', limit: '1' },
         acceptProfile: 'app_data',
         timeoutMs: 5000
       });
@@ -855,6 +871,7 @@ function createPersistence(pgQuery, employeeId) {
       if (!sessionId) return;
       const body = {
         session_id: sessionId,
+        harness_namespace: twinNamespace,
         role,
         content: String(content || '').slice(0, 50000)
       };
@@ -870,7 +887,7 @@ function createPersistence(pgQuery, employeeId) {
       try {
         await pgQuery({
           method: 'PATCH', path: '/twin_sessions',
-          query: { id: `eq.${sessionId}` },
+          query: { id: `eq.${sessionId}`, harness_namespace: `eq.${twinNamespace}` },
           body: {
             updated_at: new Date().toISOString(),
             message_count: undefined  // PostgREST不支持increment，后续可用RPC
@@ -891,6 +908,7 @@ function createPersistence(pgQuery, employeeId) {
         method: 'POST', path: '/twin_tool_logs',
         body: {
           session_id: sessionId,
+          harness_namespace: twinNamespace,
           tool_name: logEntry.tool,
           tool_input: logEntry.input || {},
           tool_output: typeof logEntry.output === 'string'
@@ -914,6 +932,7 @@ function createPersistence(pgQuery, employeeId) {
         method: 'GET', path: '/twin_messages',
         query: {
           session_id: `eq.${sessionId}`,
+          harness_namespace: `eq.${twinNamespace}`,
           select: 'role,content,created_at',
           order: 'created_at.asc',
           limit: String(limit)
@@ -935,6 +954,7 @@ function createPersistence(pgQuery, employeeId) {
         method: 'GET', path: '/twin_sessions',
         query: {
           employee_id: `eq.${employeeId}`,
+          harness_namespace: `eq.${twinNamespace}`,
           select: 'id,title,summary,message_count,created_at,updated_at',
           order: 'updated_at.desc',
           limit: String(limit)
@@ -952,7 +972,7 @@ function createPersistence(pgQuery, employeeId) {
       if (!sessionId) return false;
       await pgQuery({
         method: 'DELETE', path: '/twin_sessions',
-        query: { id: `eq.${sessionId}` },
+        query: { id: `eq.${sessionId}`, harness_namespace: `eq.${twinNamespace}` },
         acceptProfile: 'app_data',
         contentProfile: 'app_data',
         timeoutMs: 5000
@@ -983,6 +1003,7 @@ function createPersistence(pgQuery, employeeId) {
     async uploadKnowledgeFile(fileData) {
       const body = {
         employee_id: employeeId,
+        harness_namespace: twinNamespace,
         file_name: fileData.fileName || '未命名文件',
         file_type: fileData.fileType || 'text/plain',
         file_size: Number(fileData.fileSize) || 0,
@@ -1012,6 +1033,7 @@ function createPersistence(pgQuery, employeeId) {
         method: 'GET', path: '/twin_knowledge_files',
         query: {
           employee_id: `eq.${employeeId}`,
+          harness_namespace: `eq.${twinNamespace}`,
           select: 'id,file_name,file_type,file_size,tags,summary,created_at,updated_at',
           order: 'updated_at.desc',
           limit: String(limit)
@@ -1029,7 +1051,7 @@ function createPersistence(pgQuery, employeeId) {
       if (!fileId) return false;
       await pgQuery({
         method: 'DELETE', path: '/twin_knowledge_files',
-        query: { id: `eq.${fileId}` },
+        query: { id: `eq.${fileId}`, harness_namespace: `eq.${twinNamespace}` },
         acceptProfile: 'app_data',
         contentProfile: 'app_data',
         timeoutMs: 5000
@@ -1045,5 +1067,7 @@ module.exports = {
   buildTwinSystemPrompt,
   createPersistence,
   truncateResult,
-  limitRows
+  limitRows,
+  TWIN_NAMESPACES,
+  normalizeTwinNamespace
 };

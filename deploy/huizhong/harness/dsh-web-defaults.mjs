@@ -2,7 +2,7 @@ import { mkdir } from 'node:fs/promises'
 
 const DEFAULT_WORKSPACE = () => String(
   process.env.DSH_DEFAULT_WORKSPACE
-  || `${String(process.env.DSH_HOME || process.cwd()).replace(/[\\/]$/, '')}/workspaces/business`
+  || `${String(process.env.DSH_HOME || process.cwd()).replace(/[\\/]$/, '')}/workspaces/${String(process.env.HARNESS_PROFILE || 'business').trim().toLowerCase() || 'business'}`
 ).trim()
 
 export const name = 'eiscore-dsh-web-defaults'

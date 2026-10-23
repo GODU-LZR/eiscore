@@ -21,7 +21,12 @@ const json = (res, status, payload) => {
 const validSession = (value) => /^[a-zA-Z0-9._:-]{1,256}$/.test(String(value || ''));
 const validReplayKey = (value) => /^[a-zA-Z0-9._:-]{1,1024}$/.test(String(value || ''));
 const hashIdentity = (value) => crypto.createHash('sha256').update(String(value || '')).digest('hex');
-const workspaceForOwner = (subject, tenant) => `ws_${hashIdentity(JSON.stringify([String(tenant || ''), String(subject || '')]))}`;
+const HARNESS_NAMESPACES = new Set(['business', 'knowledge']);
+const workspaceForOwner = (subject, tenant, namespace = 'business') => `ws_${hashIdentity(JSON.stringify(
+  namespace === 'business'
+    ? [String(tenant || ''), String(subject || '')]
+    : [String(tenant || ''), String(subject || ''), namespace]
+))}`;
 const expectedOwner = (subject, tenant, workspace, mode) => `${hashIdentity(subject)}:${hashIdentity(tenant)}:${hashIdentity(workspace)}:${mode}`;
 const sameSecret = (received, expected) => {
   const left = Buffer.from(String(received || ''));
@@ -171,12 +176,17 @@ const createBridgeHandler = ({ invoke, pluginList = () => [], readiness = async 
     const ownerSubject = String(req.headers['x-eis-owner-subject'] || '').trim();
     const ownerTenant = String(req.headers['x-eis-owner-tenant'] || '').trim();
     if (!ownerSubject || !ownerTenant) return json(res, 401, { code: 'HARNESS_OWNER_REQUIRED' });
+    const requestedNamespace = String(req.headers['x-eis-harness-namespace'] || 'business').trim().toLowerCase();
+    if (!HARNESS_NAMESPACES.has(requestedNamespace) || (!bridgeSecret && requestedNamespace !== 'business')) {
+      return json(res, 403, { code: 'HARNESS_NAMESPACE_FORBIDDEN' });
+    }
     const requestedWorkspace = String(req.headers['x-eis-workspace-id'] || '').trim();
     const requestedMode = String(req.headers['x-eis-harness-mode'] || '').trim().toLowerCase();
     const strictIdentity = Boolean(bridgeSecret);
-    const workspace = requestedWorkspace || workspaceForOwner(ownerSubject, ownerTenant);
+    const expectedWorkspace = workspaceForOwner(ownerSubject, ownerTenant, requestedNamespace);
+    const workspace = requestedWorkspace || expectedWorkspace;
     const mode = requestedMode || 'standard';
-    if (strictIdentity && requestedWorkspace !== workspaceForOwner(ownerSubject, ownerTenant)) return json(res, 403, { code: 'HARNESS_WORKSPACE_FORBIDDEN' });
+    if (strictIdentity && requestedWorkspace !== expectedWorkspace) return json(res, 403, { code: 'HARNESS_WORKSPACE_FORBIDDEN' });
     if (mode !== 'standard') return json(res, 403, { code: 'HARNESS_MODE_FORBIDDEN' });
     const plugin = String(req.headers['x-eis-plugin-id'] || '').trim();
     if (!plugin) return json(res, 400, { code: 'HARNESS_PLUGIN_REQUIRED' });

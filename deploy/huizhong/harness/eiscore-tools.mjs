@@ -3,7 +3,15 @@ import { createHash, randomUUID } from 'node:crypto'
 const require = createRequire(import.meta.url)
 const { loadPluginRegistry } = require('./plugin-registry.js')
 const registry = loadPluginRegistry()
-const policies = new Map(registry.listCapabilities().map((policy) => [policy.capability_id, policy]))
+const HARNESS_PROFILE = String(process.env.HARNESS_PROFILE || 'business').trim().toLowerCase()
+const PROFILE_PLUGIN_IDS = Object.freeze({
+  business: new Set(['worker-grid', 'company-sales', 'independent-site-sales']),
+  flash: new Set(),
+  knowledge: new Set(['digital-twin'])
+})
+const policies = new Map(registry.listCapabilities()
+  .filter((policy) => PROFILE_PLUGIN_IDS[HARNESS_PROFILE]?.has(policy.plugin_id))
+  .map((policy) => [policy.capability_id, policy]))
 const CAPABILITIES = Object.freeze([...policies.keys()])
 const CAPABILITY_TIMEOUTS = Object.freeze(Object.fromEntries([...policies].map(([id, policy]) => [id, policy.timeout_ms])))
 const proxyUrl = () => String(process.env.EISCORE_TOOL_PROXY_URL || '').replace(/\/+$/, '')
@@ -83,7 +91,9 @@ export function apply(ctx) {
           ? 'Read the current enterprise public website content. Only views site (website configuration), catalog (published products), and knowledge (published documents) exist. For business performance and order amounts use eiscore_sales_context with sales_orders.'
           : capability === 'eiscore_sales_context'
             ? 'Read sales orders for the signed-in enterprise using dataset sales_orders. Use these records to analyze order amounts, customers, dates and business performance; report the queried scope and do not infer totals from a limited sample. Identity, tenant and permissions are bound by the server.'
-            : 'Execute a sales business write for the signed-in enterprise. Explicit user approval is required. Identity, tenant, permissions and field visibility are bound by the server.',
+            : capability === 'eiscore_twin_context' || capability === 'eiscore_twin_chat'
+              ? 'Use the authenticated digital twin and current user knowledge files only. The server fixes the knowledge namespace and enforces ownership; do not request business, Flash, filesystem, shell or workflow access.'
+              : 'Execute a sales business write for the signed-in enterprise. Explicit user approval is required. Identity, tenant, permissions and field visibility are bound by the server.',
       parameters,
       output: { schema: normalizeDshSchema(policy.output_schema), render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }] },
       timeoutMs: policy.timeout_ms,

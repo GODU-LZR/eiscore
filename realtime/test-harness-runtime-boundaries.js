@@ -173,6 +173,30 @@ else process.env.EISCORE_HARNESS_BRIDGE_SECRET = previousBridgeSecret;
   assert.equal((await secondProviderResult).data.text, 'second');
   assert.equal(activeProviderDispatches.size, 0);
 
+  const knowledgeProviderDispatches = new Map();
+  let knowledgeProviderHeaders;
+  const knowledgeProviderDispatch = createHarnessProviderDispatch({
+    bridgeUrl: 'http://127.0.0.1:3080',
+    activeDispatches: knowledgeProviderDispatches,
+    namespace: 'knowledge',
+    fetchImpl: async (_url, options) => {
+      knowledgeProviderHeaders = options.headers;
+      assert.equal(knowledgeProviderDispatches.get('knowledge-session')?.request.user.harness_namespace, 'knowledge');
+      return { ok: true, status: 200, json: async () => ({ text: 'knowledge' }) };
+    }
+  });
+  const knowledgeProviderResult = await knowledgeProviderDispatch({
+    request_id: 'knowledge-request',
+    session_id: 'knowledge-session',
+    plugin: { plugin_id: 'digital-twin' },
+    user: { id: 'u1', tenant_id: 't1', harness_namespace: 'business' },
+    payload: { messages: [{ role: 'user', content: 'knowledge' }] }
+  });
+  assert.equal(knowledgeProviderResult.ok, true);
+  assert.equal(knowledgeProviderHeaders['x-eis-harness-namespace'], 'knowledge');
+  assert.match(knowledgeProviderHeaders['x-eis-workspace-id'], /^ws_[a-f0-9]{64}$/);
+  assert.equal(knowledgeProviderDispatches.size, 0);
+
   const multimodalRequests = [];
   const multimodalExecutor = createHarnessMultimodalExecutor({
     bridgeUrl: 'http://127.0.0.1:3080',

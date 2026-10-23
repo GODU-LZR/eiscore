@@ -14,6 +14,8 @@ const {
   CORE_HTTP_ROUTE_MANIFEST,
   BUSINESS_HTTP_ROUTE_MANIFEST,
   FLASH_HTTP_ROUTE_MANIFEST,
+  KNOWLEDGE_HTTP_ROUTE_MANIFEST,
+  INVALID_HTTP_ROUTE_MANIFEST,
   HTTP_ROUTE_MANIFEST,
   createHttpRequestHandler,
   normalizeAgentRequestPath
@@ -69,6 +71,13 @@ const expectedRoutes = [
   descriptor('GET', 'exact', '/flash/tools/registry', 'flash.handleToolsRegistryGet'),
   descriptor('POST', 'exact', '/flash/tools/call', 'flash.handleToolCall'),
   descriptor('POST', 'exact', '/twin/chat', 'harness.handleTwinChat'),
+  descriptor('POST', 'exact', '/twin/knowledge/chat', 'harness.handleKnowledgeTwinChat'),
+  descriptor('GET', 'exact', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionsList'),
+  descriptor('DELETE', 'exact', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionDelete'),
+  descriptor('GET', 'exact', '/twin/knowledge/messages', 'twin.handleKnowledgeMessagesGet'),
+  descriptor('GET', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFilesList'),
+  descriptor('POST', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpload'),
+  descriptor('DELETE', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileDelete'),
   descriptor('GET', 'exact', '/twin/sessions', 'twin.handleSessionsList'),
   descriptor('GET', 'exact', '/twin/admin/sessions', 'twin.handleAdminSessionsList'),
   descriptor('DELETE', 'exact', '/twin/sessions', 'twin.handleSessionDelete'),
@@ -93,7 +102,7 @@ const actualRoutes = HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
   entry.authorize
 ))
 
-assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 47)
+assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 54)
 assert.equal(HTTP_ROUTE_MANIFEST.length, CORE_HTTP_ROUTE_MANIFEST.length + COMPANY_HTTP_ROUTE_MANIFEST.length)
 assert.deepEqual(actualRoutes, expectedRoutes)
 assert.ok(Object.isFrozen(HTTP_ROUTE_MANIFEST))
@@ -231,12 +240,14 @@ const profileCases = [
   ['GET', '/company-site/public/site-config?locale=zh-CN', 'company.handleGetPublicSiteConfig', true, false],
   ['POST', '/company-site/auth/handoff', 'company.handleCreateAuthHandoff', true, false],
   ['POST', '/company-site/auth/handoff/consume', 'company.handleConsumeAuthHandoff', true, false],
-  ['POST', '/internal/harness/session', 'harness.handleSessionRegister', true, true],
-  ['DELETE', '/internal/harness/session', 'harness.handleSessionUnregister', true, true],
+  ['POST', '/internal/harness/session', 'harness.handleSessionRegister', false, true],
+  ['DELETE', '/internal/harness/session', 'harness.handleSessionUnregister', false, true],
   ['POST', '/internal/harness/tool', 'harness.handleToolProxy', true, true],
   ['GET', '/flash/draft', 'flash.handleDraftGet', false, true],
   ['GET', '/ai/config', 'harness.handleConfig', true, false],
   ['POST', '/twin/chat', 'harness.handleTwinChat', true, false],
+  ['POST', '/twin/knowledge/chat', 'harness.handleKnowledgeTwinChat', false, false],
+  ['GET', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionsList', false, false],
   ['PUT', '/health', 'health', true, true]
 ]
 const recordDispatch = (name) => (_req, res) => {
@@ -264,7 +275,19 @@ for (const [profile, routes, allowedIndex] of [
         handleSessionUnregister: recordDispatch('harness.handleSessionUnregister'),
         handleToolProxy: recordDispatch('harness.handleToolProxy'),
         handleConfig: recordDispatch('harness.handleConfig'),
-        handleTwinChat: recordDispatch('harness.handleTwinChat')
+        handleTwinChat: recordDispatch('harness.handleTwinChat'),
+        handleKnowledgeTwinChat: recordDispatch('harness.handleKnowledgeTwinChat')
+      },
+      twin: {
+        handleKnowledgeSessionsList: recordDispatch('twin.handleKnowledgeSessionsList'),
+        handleKnowledgeSessionDelete: recordDispatch('twin.handleKnowledgeSessionDelete'),
+        handleKnowledgeMessagesGet: recordDispatch('twin.handleKnowledgeMessagesGet'),
+        handleKnowledgeFilesList: recordDispatch('twin.handleKnowledgeFilesList'),
+        handleKnowledgeFileUpload: recordDispatch('twin.handleKnowledgeFileUpload'),
+        handleKnowledgeFileDelete: recordDispatch('twin.handleKnowledgeFileDelete'),
+        handleKnowledgeList: recordDispatch('twin.handleKnowledgeList'),
+        handleKnowledgeUpload: recordDispatch('twin.handleKnowledgeUpload'),
+        handleKnowledgeDelete: recordDispatch('twin.handleKnowledgeDelete')
       },
       flash: { handleDraftGet: recordDispatch('flash.handleDraftGet') }
     }
@@ -282,18 +305,141 @@ for (const [profile, routes, allowedIndex] of [
   }
   assert.ok(Object.isFrozen(routes))
 }
-assert.equal(BUSINESS_HTTP_ROUTE_MANIFEST.length, 84)
+const knowledgeProfileHandler = createHttpRequestHandler({
+  routes: KNOWLEDGE_HTTP_ROUTE_MANIFEST,
+  getRequestPath: (req) => normalizeAgentRequestPath(req.url),
+  setCorsHeaders: () => {},
+  handlers: {
+    health: recordDispatch('health'),
+    harness: {
+      handleToolProxy: recordDispatch('harness.handleToolProxy'),
+      handleKnowledgeTwinChat: recordDispatch('harness.handleKnowledgeTwinChat')
+    },
+    twin: {
+      handleKnowledgeSessionsList: recordDispatch('twin.handleKnowledgeSessionsList'),
+      handleKnowledgeSessionDelete: recordDispatch('twin.handleKnowledgeSessionDelete'),
+      handleKnowledgeMessagesGet: recordDispatch('twin.handleKnowledgeMessagesGet'),
+      handleKnowledgeFilesList: recordDispatch('twin.handleKnowledgeFilesList'),
+      handleKnowledgeFileUpload: recordDispatch('twin.handleKnowledgeFileUpload'),
+      handleKnowledgeFileDelete: recordDispatch('twin.handleKnowledgeFileDelete'),
+      handleKnowledgeList: recordDispatch('twin.handleKnowledgeList'),
+      handleKnowledgeUpload: recordDispatch('twin.handleKnowledgeUpload'),
+      handleKnowledgeDelete: recordDispatch('twin.handleKnowledgeDelete')
+    }
+  }
+})
+for (const [method, path, handler] of [
+  ['GET', '/health', 'health'],
+  ['POST', '/internal/harness/tool', 'harness.handleToolProxy'],
+  ['POST', '/twin/knowledge/chat', 'harness.handleKnowledgeTwinChat'],
+  ['GET', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionsList'],
+  ['DELETE', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionDelete'],
+  ['GET', '/twin/knowledge/messages', 'twin.handleKnowledgeMessagesGet'],
+  ['GET', '/twin/knowledge/files', 'twin.handleKnowledgeFilesList'],
+  ['POST', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpload'],
+  ['DELETE', '/twin/knowledge/files', 'twin.handleKnowledgeFileDelete'],
+  ['GET', '/twin/knowledge', 'twin.handleKnowledgeList'],
+  ['POST', '/twin/knowledge/upload', 'twin.handleKnowledgeUpload'],
+  ['DELETE', '/twin/knowledge', 'twin.handleKnowledgeDelete']
+]) {
+  for (const url of [path, `/agent${path}`]) {
+    events.length = 0
+    const response = createResponse()
+    await knowledgeProfileHandler({ method, url }, response)
+    assert.equal(response.status, 200, `knowledge: ${method} ${url}`)
+    assert.deepEqual(events, [handler], `knowledge: ${method} ${url}`)
+  }
+}
+for (const [method, path] of [['POST', '/twin/chat'], ['GET', '/ai/config'], ['POST', '/flash/draft'], ['POST', '/internal/harness/session']]) {
+  const response = createResponse()
+  await knowledgeProfileHandler({ method, url: path }, response)
+  assert.equal(response.status, 404, `knowledge must reject ${method} ${path}`)
+}
+assert.ok(Object.isFrozen(KNOWLEDGE_HTTP_ROUTE_MANIFEST))
+const invalidProfileHandler = createHttpRequestHandler({
+  routes: INVALID_HTTP_ROUTE_MANIFEST,
+  strictOptions: true,
+  getRequestPath: (req) => normalizeAgentRequestPath(req.url),
+  setCorsHeaders: (res) => { res.cors = true },
+  handlers: { health: recordDispatch('health') }
+})
+for (const url of ['/health', '/agent/health']) {
+  events.length = 0
+  const response = createResponse()
+  await invalidProfileHandler({ method: 'GET', url }, response)
+  assert.equal(response.status, 200, `unknown profile must retain health: ${url}`)
+  assert.deepEqual(events, ['health'])
+}
+for (const [url, expectedStatus] of [['/health', 204], ['/ai/config', 404], ['/company-site/public/site-config', 404]]) {
+  events.length = 0
+  const response = createResponse()
+  await invalidProfileHandler({ method: 'OPTIONS', url }, response)
+  assert.equal(response.status, expectedStatus, `unknown profile OPTIONS ${url}`)
+  assert.equal(response.cors, expectedStatus === 204)
+  assert.deepEqual(events, [])
+}
+for (const [method, path] of [
+  ['GET', '/ai/config'],
+  ['POST', '/ai/chat/completions'],
+  ['POST', '/internal/harness/tool'],
+  ['POST', '/twin/chat'],
+  ['POST', '/twin/knowledge/chat'],
+  ['POST', '/flash/draft'],
+  ['GET', '/company-site/public/site-config']
+]) {
+  for (const url of [path, `/agent${path}`]) {
+    events.length = 0
+    const response = createResponse()
+    await invalidProfileHandler({ method, url }, response)
+    assert.equal(response.status, 404, `unknown profile must reject ${method} ${url}`)
+    assert.deepEqual(events, [])
+  }
+}
+assert.deepEqual(INVALID_HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
+  entry.method,
+  entry.match,
+  entry.match === 'pattern' ? entry.pattern : entry.path,
+  entry.handler,
+  entry.authorize
+)), [descriptor('*', 'exact', '/health', 'health')])
+assert.ok(Object.isFrozen(INVALID_HTTP_ROUTE_MANIFEST))
+assert.equal(BUSINESS_HTTP_ROUTE_MANIFEST.length, 79)
 for (const entry of HTTP_ROUTE_MANIFEST) {
-  assert.equal(BUSINESS_HTTP_ROUTE_MANIFEST.includes(entry), !entry.path?.startsWith('/flash/'), entry.handler)
+  assert.equal(BUSINESS_HTTP_ROUTE_MANIFEST.includes(entry), !entry.path?.startsWith('/flash/') && !entry.path?.startsWith('/twin/knowledge') && entry.path !== '/internal/harness/session', entry.handler)
 }
 assert.deepEqual(FLASH_HTTP_ROUTE_MANIFEST, CORE_HTTP_ROUTE_MANIFEST.filter((entry) => [
   '/health', '/internal/harness/tool', '/internal/harness/session',
   '/flash/draft', '/flash/attachments', '/flash/tools/registry', '/flash/tools/call'
 ].includes(entry.path)))
 assert.equal(FLASH_HTTP_ROUTE_MANIFEST.length, 9)
+assert.deepEqual(KNOWLEDGE_HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
+  entry.method,
+  entry.match,
+  entry.match === 'pattern' ? entry.pattern : entry.path,
+  entry.handler,
+  entry.authorize
+)), [
+  descriptor('*', 'exact', '/health', 'health'),
+  descriptor('POST', 'exact', '/internal/harness/tool', 'harness.handleToolProxy'),
+  descriptor('POST', 'exact', '/twin/knowledge/chat', 'harness.handleKnowledgeTwinChat'),
+  descriptor('GET', 'exact', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionsList'),
+  descriptor('DELETE', 'exact', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionDelete'),
+  descriptor('GET', 'exact', '/twin/knowledge/messages', 'twin.handleKnowledgeMessagesGet'),
+  descriptor('GET', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFilesList'),
+  descriptor('POST', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpload'),
+  descriptor('DELETE', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileDelete'),
+  descriptor('GET', 'exact', '/twin/knowledge', 'twin.handleKnowledgeList'),
+  descriptor('POST', 'exact', '/twin/knowledge/upload', 'twin.handleKnowledgeUpload'),
+  descriptor('DELETE', 'exact', '/twin/knowledge', 'twin.handleKnowledgeDelete')
+])
 
 assert.match(indexSource, /http\.createServer\(createHttpRequestHandler\(/)
-assert.match(indexSource, /routes:\s*flashRuntime\s*\?\s*FLASH_HTTP_ROUTE_MANIFEST\s*:\s*BUSINESS_HTTP_ROUTE_MANIFEST/)
+assert.match(indexSource, /routes:\s*flashRuntime\s*\?\s*FLASH_HTTP_ROUTE_MANIFEST\s*:\s*knowledgeRuntime\s*\?\s*KNOWLEDGE_HTTP_ROUTE_MANIFEST\s*:\s*businessRuntime\s*\?\s*BUSINESS_HTTP_ROUTE_MANIFEST\s*:\s*INVALID_HTTP_ROUTE_MANIFEST/)
+assert.match(indexSource, /strictOptions:\s*!supportedRuntimeProfile/)
+assert.match(indexSource, /supportedRuntimeProfile\s*\?\s*200\s*:\s*503/)
+assert.match(indexSource, /if\s*\(supportedRuntimeProfile\)\s*attachWebSocketServer\(/)
+assert.match(indexSource, /wss\.on\('connection',\s*\(ws\)\s*=>\s*ws\.close\(1008,\s*'runtime_profile_invalid'\)\)/)
+assert.match(indexSource, /const databaseNotifier\s*=\s*!businessRuntime\s*&&\s*!knowledgeRuntime/)
 assert.doesNotMatch(indexSource, /pathname\s*===\s*['"]\/(?:health|document-intake|ai|flash|twin)/)
 assert.doesNotMatch(indexSource, /pathname\.startsWith\(['"]\/document-intake/)
 assert.doesNotMatch(indexSource, /\/\^\\\/document-intake[\s\S]*?\.test\(pathname\)/)

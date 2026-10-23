@@ -56,16 +56,22 @@ export const ensureStartupProfile = (homeValue = process.env.DSH_HOME) => {
 }
 
 const AUTH_COOKIE_NAMES = ['eiscore-session', 'eiscore-auth-state']
+const KNOWN_AUTH_COOKIE_PREFIXES = ['', 'flash-', 'knowledge-']
 export const mapAuthCookiesToUpstream = (cookieHeader = '', prefix = '') => {
-  if (!prefix) return String(cookieHeader || '')
   return String(cookieHeader || '').split(';').map((part) => part.trim()).filter(Boolean).flatMap((part) => {
     const separator = part.indexOf('=')
     if (separator < 1) return []
     const name = part.slice(0, separator)
     if (AUTH_COOKIE_NAMES.includes(name)) return []
-    return name.startsWith(prefix) && AUTH_COOKIE_NAMES.includes(name.slice(prefix.length))
-      ? [`${name.slice(prefix.length)}${part.slice(separator)}`]
-      : [part]
+    for (const knownPrefix of KNOWN_AUTH_COOKIE_PREFIXES) {
+      if (name.startsWith(`${knownPrefix}dsh-auth-`)) {
+        return knownPrefix === prefix ? [`${name.slice(prefix.length)}${part.slice(separator)}`] : []
+      }
+      if (name.startsWith(knownPrefix) && AUTH_COOKIE_NAMES.includes(name.slice(knownPrefix.length))) {
+        return knownPrefix === prefix ? [`${name.slice(prefix.length)}${part.slice(separator)}`] : []
+      }
+    }
+    return [part]
   }).join('; ')
 }
 
@@ -73,15 +79,17 @@ export const mapAuthSetCookiesToBrowser = (setCookies, prefix = '') => {
   const values = Array.isArray(setCookies) ? setCookies : setCookies ? [setCookies] : []
   if (!prefix) return values
   return values.map((value) => String(value).replace(
-    /(^|,\s*)(eiscore-session|eiscore-auth-state)=/g,
+    /(^|,\s*)(dsh-auth-[^=]+|eiscore-session|eiscore-auth-state)=/g,
     (_match, separator, name) => `${separator}${prefix}${name}=`
   ))
 }
 
-export const getHarnessAuthReturnPath = (value = process.env.EISCORE_HARNESS_AUTH_RETURN_PATH) =>
-  String(value || '').trim() === '/harness-flash-embed-api/eiscore/auth/handoff'
-    ? '/harness-flash-embed-api/eiscore/auth/handoff'
+export const getHarnessAuthReturnPath = (value = process.env.EISCORE_HARNESS_AUTH_RETURN_PATH) => {
+  const path = String(value || '').trim()
+  return ['/harness-flash-embed-api/eiscore/auth/handoff', '/harness-knowledge-embed-api/eiscore/auth/handoff'].includes(path)
+    ? path
     : '/harness-embed-api/eiscore/auth/handoff'
+}
 
 export const isHtmlNavigation = (request) => {
   if (request.method !== 'GET') return false
@@ -90,8 +98,8 @@ export const isHtmlNavigation = (request) => {
   return String(request.headers.accept || '').toLowerCase().includes('text/html')
 }
 
-export const hasDshAuthCookie = (cookieHeader = '') => String(cookieHeader || '')
-  .split(';').some((part) => /^dsh-auth-[^=]+=/.test(part.trim()))
+export const hasDshAuthCookie = (cookieHeader = '', prefix = process.env.DSH_AUTH_COOKIE_PREFIX || '') => String(cookieHeader || '')
+  .split(';').some((part) => new RegExp(`^${String(prefix || '').replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}dsh-auth-[^=]+=`).test(part.trim()))
 
 export const shouldBootstrapDshAuth = (request) => !hasDshAuthCookie(request.headers?.cookie)
 
@@ -144,7 +152,7 @@ ensureStartupProfile()
 
 const defaultWorkspace = String(
   process.env.DSH_DEFAULT_WORKSPACE
-  || `${String(process.env.DSH_HOME || process.cwd()).replace(/[\\/]$/, '')}/workspaces/flash`
+  || `${String(process.env.DSH_HOME || process.cwd()).replace(/[\\/]$/, '')}/workspaces/${String(process.env.HARNESS_PROFILE || 'flash').trim().toLowerCase() || 'flash'}`
 ).trim()
 if (!defaultWorkspace.startsWith('/')) throw new Error('DSH_DEFAULT_WORKSPACE must be an absolute path')
 mkdirSync(defaultWorkspace, { recursive: true })

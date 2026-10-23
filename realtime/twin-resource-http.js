@@ -13,14 +13,15 @@ const createTwinResourceHttpHandlers = ({
   port,
   createPersistence = defaultCreatePersistence,
   authorizeTwinAdminRequest,
-  audit
+  audit,
+  namespace = 'business'
 }) => {
   const handleSessionsList = async (req, res) => {
     const user = authorizeTwinRequest(req, res);
     if (!user) return;
     try {
-      const pgQuery = bindPgQueryForUser(user);
-      const persistence = createPersistence(pgQuery, user.username);
+      const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
+      const persistence = createPersistence(pgQuery, user.username, namespace);
       const sessions = await persistence.listSessions(30);
       sendJson(res, 200, { sessions });
     } catch (error) {
@@ -38,7 +39,7 @@ const createTwinResourceHttpHandlers = ({
     const rawLimit = Number(url.searchParams.get('limit') || 100);
     const limit = Number.isInteger(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 100;
     try {
-      const pgQuery = bindPgQueryForUser(user);
+      const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
       const result = await pgQuery({
         method: 'POST',
         path: '/rpc/admin_twin_sessions',
@@ -73,8 +74,8 @@ const createTwinResourceHttpHandlers = ({
         sendJson(res, 400, { code: 'ID_REQUIRED', message: 'session id is required' });
         return;
       }
-      const pgQuery = bindPgQueryForUser(user);
-      const persistence = createPersistence(pgQuery, user.username);
+      const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
+      const persistence = createPersistence(pgQuery, user.username, namespace);
       await persistence.deleteSession(sessionId);
       sendJson(res, 200, { ok: true });
     } catch (error) {
@@ -93,8 +94,8 @@ const createTwinResourceHttpHandlers = ({
         sendJson(res, 400, { code: 'SESSION_ID_REQUIRED', message: 'session_id is required' });
         return;
       }
-      const pgQuery = bindPgQueryForUser(user);
-      const persistence = createPersistence(pgQuery, user.username);
+      const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
+      const persistence = createPersistence(pgQuery, user.username, namespace);
       const messages = await persistence.loadHistory(sessionId, 50);
       sendJson(res, 200, { messages });
     } catch (error) {
@@ -113,8 +114,8 @@ const createTwinResourceHttpHandlers = ({
       return;
     }
     try {
-      const pgQuery = bindPgQueryForUser(user);
-      const persistence = createPersistence(pgQuery, user.username);
+      const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
+      const persistence = createPersistence(pgQuery, user.username, namespace);
       const file = await persistence.uploadKnowledgeFile(body);
       sendJson(res, 200, { ok: true, file });
     } catch (error) {
@@ -126,8 +127,8 @@ const createTwinResourceHttpHandlers = ({
     const user = authorizeTwinRequest(req, res);
     if (!user) return;
     try {
-      const pgQuery = bindPgQueryForUser(user);
-      const persistence = createPersistence(pgQuery, user.username);
+      const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
+      const persistence = createPersistence(pgQuery, user.username, namespace);
       const files = await persistence.listKnowledgeFiles(50);
       sendJson(res, 200, { files });
     } catch (error) {
@@ -145,8 +146,8 @@ const createTwinResourceHttpHandlers = ({
         sendJson(res, 400, { code: 'ID_REQUIRED', message: 'file id is required' });
         return;
       }
-      const pgQuery = bindPgQueryForUser(user);
-      const persistence = createPersistence(pgQuery, user.username);
+      const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
+      const persistence = createPersistence(pgQuery, user.username, namespace);
       await persistence.deleteKnowledgeFile(fileId);
       sendJson(res, 200, { ok: true });
     } catch (error) {

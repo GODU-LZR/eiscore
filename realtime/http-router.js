@@ -25,6 +25,14 @@ const normalizeAgentRequestPath = (value) => {
 };
 
 const DOCUMENT_INTAKE_ADMIN = 'documentIntakeAdmin';
+const KNOWLEDGE_TWIN_ROUTE_PATHS = new Set([
+  '/twin/knowledge/chat',
+  '/twin/knowledge/sessions',
+  '/twin/knowledge/messages',
+  '/twin/knowledge/files',
+  '/twin/knowledge',
+  '/twin/knowledge/upload'
+]);
 
 const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('*', '/health', 'health'),
@@ -67,6 +75,13 @@ const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('GET', '/flash/tools/registry', 'flash.handleToolsRegistryGet'),
   exact('POST', '/flash/tools/call', 'flash.handleToolCall'),
   exact('POST', '/twin/chat', 'harness.handleTwinChat'),
+  exact('POST', '/twin/knowledge/chat', 'harness.handleKnowledgeTwinChat'),
+  exact('GET', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionsList'),
+  exact('DELETE', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionDelete'),
+  exact('GET', '/twin/knowledge/messages', 'twin.handleKnowledgeMessagesGet'),
+  exact('GET', '/twin/knowledge/files', 'twin.handleKnowledgeFilesList'),
+  exact('POST', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpload'),
+  exact('DELETE', '/twin/knowledge/files', 'twin.handleKnowledgeFileDelete'),
   exact('GET', '/twin/sessions', 'twin.handleSessionsList'),
   exact('GET', '/twin/admin/sessions', 'twin.handleAdminSessionsList'),
   exact('DELETE', '/twin/sessions', 'twin.handleSessionDelete'),
@@ -86,10 +101,25 @@ const FLASH_HTTP_ROUTE_MANIFEST = Object.freeze(CORE_HTTP_ROUTE_MANIFEST.filter(
     || path.startsWith('/flash/');
 }));
 
+// Knowledge runs as its own profile. It receives only the health endpoint,
+// the authenticated Harness tool callback, and namespace-fixed twin routes.
+const KNOWLEDGE_HTTP_ROUTE_MANIFEST = Object.freeze(CORE_HTTP_ROUTE_MANIFEST.filter((entry) => {
+  const path = entry.path || '';
+  return path === '/health'
+    || path === '/internal/harness/tool'
+    || KNOWLEDGE_TWIN_ROUTE_PATHS.has(path);
+}));
+
+// An unrecognized runtime profile must never inherit the business route surface.
+const INVALID_HTTP_ROUTE_MANIFEST = Object.freeze(CORE_HTTP_ROUTE_MANIFEST.filter((entry) => entry.path === '/health'));
+
 const BUSINESS_HTTP_ROUTE_MANIFEST = Object.freeze([
   ...CORE_HTTP_ROUTE_MANIFEST.filter((entry) => {
     const path = entry.path || '';
-    return !path.startsWith('/flash/') && path !== '/internal/harness/session';
+    return !path.startsWith('/flash/')
+      && path !== '/internal/harness/session'
+      && path !== '/twin/knowledge'
+      && !path.startsWith('/twin/knowledge/');
   }),
   ...COMPANY_HTTP_ROUTE_MANIFEST
 ]);
@@ -125,7 +155,8 @@ const createHttpRequestHandler = ({
   getRequestPath,
   setCorsHeaders,
   handlers,
-  authorizers = {}
+  authorizers = {},
+  strictOptions = false
 }) => {
   if (typeof getRequestPath !== 'function' || typeof setCorsHeaders !== 'function') {
     throw new TypeError('HTTP router requires getRequestPath and setCorsHeaders');
@@ -135,6 +166,11 @@ const createHttpRequestHandler = ({
     const method = String(req.method || 'GET').toUpperCase();
 
     if (method === 'OPTIONS') {
+      if (strictOptions && !routes.some((entry) => matchesRoute(entry, method, getRequestPath(req)))) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
       setCorsHeaders(res);
       res.writeHead(204);
       res.end();
@@ -178,6 +214,8 @@ const createHttpRequestHandler = ({
 module.exports = {
   CORE_HTTP_ROUTE_MANIFEST,
   FLASH_HTTP_ROUTE_MANIFEST,
+  KNOWLEDGE_HTTP_ROUTE_MANIFEST,
+  INVALID_HTTP_ROUTE_MANIFEST,
   BUSINESS_HTTP_ROUTE_MANIFEST,
   HTTP_ROUTE_MANIFEST,
   createHttpRequestHandler,

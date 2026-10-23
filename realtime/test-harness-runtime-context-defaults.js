@@ -14,7 +14,8 @@ for (const [key, value] of Object.entries({
   EISCORE_HARNESS_AUDIT_FILE: auditFile,
   EISCORE_HARNESS_AUDIT_HASH_KEY: 'HarnessAudit9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
   EISCORE_HARNESS_BRIDGE_SECRET: 'HarnessBridge9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
-  EISCORE_TOOL_PROXY_SECRET: 'HarnessProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6'
+  EISCORE_TOOL_PROXY_SECRET: 'HarnessProxy9_Vt8Yp2Kx7Mq5Rw9Nc3Hz6',
+  RUNTIME_PROFILE: 'business'
 })) {
   previousEnv.set(key, process.env[key]);
   process.env[key] = value;
@@ -102,6 +103,107 @@ try {
   }
   assert.equal(postgrestCalls.at(-1).request.query.site_key, 'eq.primary');
   assert.equal(postgrestCalls.at(-1).request.query.status, 'eq.published');
+
+  process.env.RUNTIME_PROFILE = 'knowledge';
+  const previousKnowledgeHarnessUrl = process.env.EISCORE_HARNESS_URL;
+  process.env.EISCORE_HARNESS_URL = 'http://harness-bridge:3080';
+  const previousFetch = globalThis.fetch;
+  const knowledgeBridgeRequests = [];
+  const knowledgePersistenceOwners = [];
+  globalThis.fetch = async (_url, options) => {
+    knowledgeBridgeRequests.push(options);
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'knowledge answer' } }] }) };
+  };
+  try {
+    const knowledgeRuntime = createHarnessRuntime({
+      authorizeHttpRequest: () => user,
+      authorizeTwinRequest: () => user,
+      readJsonBody: async () => ({}),
+      sendJson: () => {},
+      setCorsHeaders: () => {},
+      streamTextAsSse: () => {},
+      executeFlashToolCall: async () => ({ status: 200, payload: { ok: true, data: {} } }),
+      executeDigitalTwinContext: async (requestUser) => ({ tool_id: 'digital_twin.context.read', result: { namespace: requestUser.harness_namespace } }),
+      createTwinPersistence: (requestUser) => {
+        knowledgePersistenceOwners.push(requestUser);
+        return {
+          async createSession() { return '22222222-2222-4222-8222-222222222222'; },
+          async getSession() { return { id: '22222222-2222-4222-8222-222222222222' }; },
+          async loadHistory() { return []; },
+          async saveMessage() {}
+        };
+      }
+    });
+    assert.equal(knowledgeRuntime.runtimeProfile, 'knowledge');
+    assert.equal(knowledgeRuntime.handlers.handleTwinChat, knowledgeRuntime.handlers.handleKnowledgeTwinChat);
+
+    const knowledgeChat = await knowledgeRuntime.gateway.execute({
+      request_id: 'knowledge-profile-chat',
+      plugin_id: 'digital-twin',
+      agent_id: 'digital_twin',
+      capability_id: 'eiscore_twin_chat',
+      user: { ...user, permissions: ['twin:read'], harness_namespace: 'business' },
+      payload: { message: '问知识库' }
+    });
+    assert.equal(knowledgeChat.ok, true);
+    assert.equal(knowledgePersistenceOwners[0].harness_namespace, 'knowledge', 'knowledge runtime must sign twin persistence as knowledge');
+    assert.equal(knowledgeBridgeRequests[0].headers['x-eis-harness-namespace'], 'knowledge', 'knowledge runtime bridge dispatch must not fall into business namespace');
+
+    const forbiddenBusinessCapability = await knowledgeRuntime.gateway.execute({
+      request_id: 'knowledge-profile-enterprise-query',
+      plugin_id: 'enterprise-bi',
+      agent_id: 'enterprise_analyst',
+      capability_id: 'eiscore_enterprise_query',
+      user: { ...user, permissions: ['enterprise:read'] },
+      payload: { dataset: 'sales' }
+    });
+    assert.equal(forbiddenBusinessCapability.status, 404);
+    assert.equal(forbiddenBusinessCapability.code, 'HARNESS_TOOL_UNAVAILABLE');
+  } finally {
+    process.env.EISCORE_HARNESS_URL = previousKnowledgeHarnessUrl;
+    globalThis.fetch = previousFetch;
+  }
+
+  process.env.RUNTIME_PROFILE = 'unknown';
+  const unknownRuntime = createHarnessRuntime({
+    authorizeHttpRequest: () => user,
+    authorizeTwinRequest: () => user,
+    readJsonBody: async () => ({}),
+    sendJson: () => {},
+    setCorsHeaders: () => {},
+    streamTextAsSse: () => {},
+    executeFlashToolCall: async () => ({ status: 200, payload: { ok: true, data: {} } })
+  });
+  assert.equal(unknownRuntime.runtimeProfile, 'unknown');
+  assert.equal(unknownRuntime.enabled, false, 'unknown runtime profiles must disable Harness');
+  const unknownResponses = [];
+  const disabledUnknownRuntime = createHarnessRuntime({
+    authorizeHttpRequest: () => user,
+    authorizeTwinRequest: () => user,
+    readJsonBody: async () => ({}),
+    sendJson: (_res, status, payload) => unknownResponses.push({ status, payload }),
+    setCorsHeaders: () => {},
+    streamTextAsSse: () => {},
+    executeFlashToolCall: async () => ({ status: 200, payload: { ok: true, data: {} } })
+  });
+  await disabledUnknownRuntime.handlers.handleExecute({ body: {} }, {});
+  assert.deepEqual(unknownResponses.at(-1), {
+    status: 503,
+    payload: { code: 'HARNESS_DISABLED', message: 'DeepSeek Harness is disabled' }
+  });
+  const unknownCapability = await unknownRuntime.gateway.execute({
+    request_id: 'unknown-profile-capability',
+    plugin_id: 'enterprise-bi',
+    capability_id: 'eiscore_enterprise_snapshot',
+    user,
+    payload: {}
+  });
+  assert.deepEqual(unknownCapability, {
+    ok: false,
+    status: 404,
+    code: 'HARNESS_TOOL_UNAVAILABLE',
+    message: 'Harness tool capability is not available'
+  });
   console.log('PASS: Harness runtime defaults wire engineering and site-sales contexts through user-bound PostgREST');
 } finally {
   for (const [key, value] of previousEnv) {

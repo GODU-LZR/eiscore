@@ -433,6 +433,19 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-034",
+      "path": "database/migrations/sql/core-034-isolate-digital-twin-workspaces.sql",
+      "sha256": "a6ee750f609d4607d19cb831ffb921b88a97e3eb7b33fe27c615c82cf5d52fde",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

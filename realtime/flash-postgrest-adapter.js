@@ -109,6 +109,9 @@ const createFlashPostgrestAdapter = ({
       sub: String(user?.id || user?.username || ''),
       username: String(user?.username || ''),
       tenant_id: String(user?.tenant_id || user?.tenantId || user?.tenant || ''),
+      // Namespace is injected by the authenticated server route, never by the
+      // request body. PostgREST RLS uses this signed claim for twin isolation.
+      harness_namespace: String(user?.harness_namespace || 'business'),
       role: userRole,
       app_role: String(user?.role || ''),
       permissions: Array.isArray(user?.permissions) ? user.permissions : []

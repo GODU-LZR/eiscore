@@ -13,6 +13,7 @@ const { createPersistence } = require('./twin-tools');
   assert.equal(sessionId, '11111111-1111-4111-8111-111111111111');
   assert.deepEqual(calls[0].body, {
     employee_id: 'operator',
+    harness_namespace: 'business',
     title: 'Harness chat',
     model: 'deepseek-harness'
   });

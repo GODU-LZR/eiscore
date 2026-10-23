@@ -115,6 +115,7 @@ assert.deepEqual(state.signCalls[0], {
     sub: '17',
     username: 'operator',
     tenant_id: 'tenant-a',
+    harness_namespace: 'business',
     role: 'web_user',
     app_role: 'manager',
     permissions: ['apps.read']
@@ -122,6 +123,9 @@ assert.deepEqual(state.signCalls[0], {
   secret: 'jwt-secret',
   options: { expiresIn: '15m' }
 })
+state.queue.push(jsonResponse(200, []))
+await adapter.callPostgrestWithUser({ ...user, harness_namespace: 'knowledge' }, { path: '/twin_sessions' })
+assert.equal(state.signCalls[1].payload.harness_namespace, 'knowledge', 'namespace must be server-signed for PostgREST RLS')
 assert.equal(state.scheduled[0].ms, 4321)
 assert.equal(state.cancelled[0], state.scheduled[0])
 
@@ -140,11 +144,11 @@ await adapter.callPostgrestWithUser(user, {
   prefer: 'return=representation',
   timeoutMs: 9876
 })
-const postCall = state.calls[1]
+const postCall = state.calls.at(-1)
 assert.equal(postCall.init.headers['Content-Profile'], 'app_center')
 assert.equal(postCall.init.headers['Content-Type'], 'application/json')
 assert.equal(postCall.init.body, '{"name":"demo"}')
-assert.equal(state.scheduled[1].ms, 9876)
+assert.equal(state.scheduled.at(-1).ms, 9876)
 
 state.queue.push(jsonResponse(204))
 await adapter.callPostgrestWithUser(user, {
@@ -152,7 +156,7 @@ await adapter.callPostgrestWithUser(user, {
   path: '/apps',
   contentProfile: 'app_center'
 })
-const deleteCall = state.calls[2]
+const deleteCall = state.calls.at(-1)
 assert.equal(deleteCall.init.headers['Content-Profile'], 'app_center')
 assert.equal(deleteCall.init.headers['Content-Type'], undefined)
 assert.equal(deleteCall.init.body, undefined)

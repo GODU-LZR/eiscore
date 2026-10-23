@@ -14,7 +14,7 @@ const deepFreeze = (value) => {
   return Object.freeze(value);
 };
 
-const loadPluginRegistry = (filePath = CONTRACT_PATH) => {
+const loadPluginRegistry = (filePath = process.env.EISCORE_HARNESS_PLUGIN_CONTRACT || CONTRACT_PATH) => {
   const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   if (raw?.contract_version !== '1.0.0' || !Array.isArray(raw.plugins) || raw.plugins.length === 0) {
     throw new Error('Invalid Harness plugin contract');

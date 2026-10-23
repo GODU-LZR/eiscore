@@ -11,7 +11,8 @@ const { loadPluginRegistry } = require('./plugin-registry.js')
 
 const DEFAULT_PLUGINS = Object.freeze(['worker-grid', 'company-sales', 'independent-site-sales'])
 const FLASH_PLUGINS = Object.freeze([])
-const BUSINESS_PLUGINS = Object.freeze(DEFAULT_PLUGINS.filter((pluginId) => pluginId !== 'flash-builder'))
+const BUSINESS_PLUGINS = DEFAULT_PLUGINS
+const KNOWLEDGE_PLUGINS = Object.freeze(['digital-twin'])
 const PLUGIN_REGISTRY = loadPluginRegistry()
 const REGISTERED_PLUGIN_IDS = new Set(PLUGIN_REGISTRY.list().map(({ plugin_id }) => plugin_id))
 const MAX_TIMER_MS = 2_147_483_647
@@ -391,7 +392,11 @@ const pluginList = (configured = process.env.HARNESS_PLUGINS) => {
     ? FLASH_PLUGINS.join(',')
     : profile === 'business'
       ? BUSINESS_PLUGINS.join(',')
-      : (configured === undefined ? DEFAULT_PLUGINS.join(',') : String(configured))
+      : profile === 'knowledge'
+        ? KNOWLEDGE_PLUGINS.join(',')
+        : profile
+          ? ''
+          : (configured === undefined ? DEFAULT_PLUGINS.join(',') : String(configured))
   const seen = new Set()
   return source.split(',').map((value) => value.trim()).filter((plugin_id) => {
     if (!REGISTERED_PLUGIN_IDS.has(plugin_id) || seen.has(plugin_id)) return false
@@ -442,4 +447,4 @@ const start = () => {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) start()
 
-export { DEFAULT_PLUGINS, FLASH_PLUGINS, BUSINESS_PLUGINS, DshSdkProcess, assistantText, createInvoke, imageBlock, pluginList, requestContentBlocks, PROTOCOL }
+export { DEFAULT_PLUGINS, FLASH_PLUGINS, BUSINESS_PLUGINS, KNOWLEDGE_PLUGINS, DshSdkProcess, assistantText, createInvoke, imageBlock, pluginList, requestContentBlocks, PROTOCOL }
