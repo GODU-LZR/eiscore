@@ -101,6 +101,9 @@ export const isHtmlNavigation = (request) => {
 export const hasDshAuthCookie = (cookieHeader = '', prefix = process.env.DSH_AUTH_COOKIE_PREFIX || '') => String(cookieHeader || '')
   .split(';').some((part) => new RegExp(`^${String(prefix || '').replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}dsh-auth-[^=]+=`).test(part.trim()))
 
+// Request headers are normalized to unprefixed DSH cookies before reaching the upstream.
+const hasUpstreamDshAuthCookie = (cookieHeader = '') => hasDshAuthCookie(cookieHeader, '')
+
 export const shouldBootstrapDshAuth = (request) => !hasDshAuthCookie(request.headers?.cookie)
 
 export const isDshBootstrapRedirect = (request, upstreamResponse) => {
@@ -231,7 +234,7 @@ const withToken = (path, headers = {}, force = false) => {
   // but still requires the web startup token for the upstream gateway.
   // The EISCore session cookie is unrelated to DSH's startup token. Only the
   // DSH auth cookie means the startup redirect has already been completed.
-  if (!startupToken || hasDshAuthCookie(headers.cookie) || /(?:^|[?&])token=/.test(path)) return path
+  if (!startupToken || hasUpstreamDshAuthCookie(headers.cookie) || /(?:^|[?&])token=/.test(path)) return path
   const joiner = path.includes('?') ? '&' : '?'
   return `${path}${joiner}token=${encodeURIComponent(startupToken)}`
 }
@@ -305,7 +308,7 @@ const mergeCookies = (header, additions) => {
 }
 
 const bootstrapDshAuth = async (headers) => {
-  if (hasDshAuthCookie(headers.cookie)) return { headers, setCookies: [] }
+  if (hasUpstreamDshAuthCookie(headers.cookie)) return { headers, setCookies: [] }
   const key = createHash('sha256').update(JSON.stringify([
     headers.cookie || '',
     headers.authorization || '',
@@ -419,7 +422,7 @@ const isAuthenticated = async (headers) => authStatusCache.get(authStatusCacheKe
 
 const authorizeRequest = async (headers, bootstrapCookies) => {
   let auth = await isAuthenticated(headers)
-  if (!auth.authenticated && auth.retryBootstrap && hasDshAuthCookie(headers.cookie)) {
+  if (!auth.authenticated && auth.retryBootstrap && hasUpstreamDshAuthCookie(headers.cookie)) {
     const refreshed = await bootstrapDshAuth(withoutDshAuth(headers))
     auth = await isAuthenticated(refreshed.headers)
     return { ...refreshed, setCookies: [...bootstrapCookies, ...refreshed.setCookies], authenticated: auth.authenticated }

@@ -1,8 +1,19 @@
 import assert from 'node:assert/strict'
-import { createAuthStatusCache, createSingleFlight, hasDshAuthCookie, shouldBootstrapDshAuth } from './dsh-web-runner.mjs'
+import {
+  createAuthStatusCache,
+  createSingleFlight,
+  hasDshAuthCookie,
+  mapAuthCookiesToUpstream,
+  shouldBootstrapDshAuth
+} from './dsh-web-runner.mjs'
 
 assert.equal(hasDshAuthCookie('session=one; dsh-auth-web=token'), true)
 assert.equal(hasDshAuthCookie('session=one; eiscore-session=token'), false)
+const knowledgeBrowserCookie = 'knowledge-dsh-auth-web=token'
+const knowledgeUpstreamCookie = mapAuthCookiesToUpstream(knowledgeBrowserCookie, 'knowledge-')
+assert.equal(knowledgeUpstreamCookie, 'dsh-auth-web=token')
+assert.equal(hasDshAuthCookie(knowledgeUpstreamCookie, ''), true)
+assert.equal(hasDshAuthCookie(knowledgeBrowserCookie, ''), false)
 assert.equal(shouldBootstrapDshAuth({ method: 'GET', url: '/', headers: { accept: 'text/html' } }), true)
 assert.equal(shouldBootstrapDshAuth({ method: 'GET', url: '/', headers: { 'sec-fetch-dest': 'iframe' } }), true)
 assert.equal(shouldBootstrapDshAuth({ method: 'GET', url: '/', headers: { cookie: 'dsh-auth-web=token' } }), false)
