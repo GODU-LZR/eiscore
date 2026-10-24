@@ -464,7 +464,7 @@ const canConfig = computed(() => isEnabledByConfig('canConfig') && hasPerm(opPer
 
 const includeProperties = computed(() => configRef.value.includeProperties !== false)
 const writeMode = computed(() => configRef.value.writeMode || 'upsert')
-const defaultOrder = computed(() => configRef.value.defaultOrder || 'id.desc')
+const defaultOrder = computed(() => configRef.value.defaultOrder || (schemaName.value === 'app_data' ? 'created_at.desc.nullslast,id.desc' : 'id.desc'))
 const aclModule = computed(() => configRef.value.aclModule || configRef.value.table || '')
 const fieldDefaults = computed(() => configRef.value.fieldDefaults || {})
 const primaryKey = computed(() => configRef.value.primaryKey || 'id')
@@ -1564,9 +1564,8 @@ const handleCreate = async () => {
       data: finalPayload
     })
     const created = Array.isArray(res) ? res[0] : res
-    if (created && gridRef.value?.prependRow) {
-      gridRef.value.prependRow(created)
-    } else if (gridRef.value?.loadData) {
+    const inserted = created && await gridRef.value?.prependRow?.(created)
+    if (!inserted && gridRef.value?.loadData) {
       await gridRef.value.loadData()
     }
     if (workflowContext.value.active) {

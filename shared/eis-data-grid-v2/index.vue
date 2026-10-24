@@ -301,7 +301,7 @@ const activeSummaryConfig = reactive({ label: '合计', rules: {}, expressions: 
 const workflowBinding = ref(null)
 const {
   gridData, gridColumns, context, gridComponents, searchText, isLoading,
-  isLoadingMore, hasMoreRows, loadData, loadNextPage,
+  isLoadingMore, hasMoreRows, loadData, loadNextPage, prependRow,
   handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules,
   columnLockState, setWorkflowBinding, getRowHeight, handleColumnResized,
   onGridReadyLayout, stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
@@ -617,10 +617,6 @@ onUnmounted(() => {
   stopRowHeightResize?.()
 })
 
-const prependRow = (row) => {
-  if (!row) return
-  gridData.value = [row, ...gridData.value]
-}
 const refreshCells = (params) => {
   gridApi.value?.refreshCells(params || { force: true })
 }

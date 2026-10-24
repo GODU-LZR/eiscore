@@ -61,6 +61,19 @@ export const useSalesDocumentFlow = ({
   const quickReceivableSchedules = ref([])
   const conversionLocks = new Set()
 
+  const createSalesRow = (table, data, options = {}) => request({
+    url: `/${table}`,
+    method: 'post',
+    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public', Prefer: 'return=representation' },
+    data,
+    ...options
+  })
+  const applyCreatedRow = async (targetAppKey, row) => {
+    if (targetAppKey === appKey?.value && row && await gridRef.value?.prependRow?.(row)) return true
+    await gridRef.value?.loadData?.()
+    return false
+  }
+
   const selectedQuickOrder = computed(() => quickOrders.value.find((order) => String(order.id) === String(paymentForm?.order_id)) || null)
   const selectedQuickOrderPaidAmount = computed(() => {
     const order = selectedQuickOrder.value
@@ -165,16 +178,11 @@ export const useSalesDocumentFlow = ({
       ElMessage.warning(result.error)
       return false
     }
-    await request({
-      url: '/sales_payments',
-      method: 'post',
-      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-      data: result.payload
-    })
+    const createdRows = await createSalesRow('sales_payments', result.payload)
     await syncCustomerReceivableFromRow(result.payload)
     await loadQuickReceivableSchedules()
     ElMessage.success('回款记录已创建')
-    return true
+    return { appKey: 'payments', row: Array.isArray(createdRows) ? createdRows[0] : createdRows }
   }
 
   const quoteItemAmount = (item) => Math.round(toAmount(item.quantity) * toAmount(item.unit_price) * toAmount(item.discount_rate ?? 100)) / 100
@@ -541,7 +549,7 @@ export const useSalesDocumentFlow = ({
   return {
     quoteItemsVisible, quoteItemsLoading, quoteItemsSaving, quoteItemsReady, selectedQuote, quoteItems,
     quickReceivableSchedules, selectedQuickReceivable, availableQuickReceivables, selectedQuickOrder, selectedQuickOrderPaidAmount, selectedQuickOrderRemainAmount, quoteItemsTotal,
-    loadQuickReceivableSchedules, clearQuickReceivableSchedules, openPaymentDialog, submitQuickPayment, quoteItemAmount, quoteItemPayload, openQuoteItems, addQuoteItem,
+    loadQuickReceivableSchedules, clearQuickReceivableSchedules, openPaymentDialog, submitQuickPayment, createSalesRow, applyCreatedRow, quoteItemAmount, quoteItemPayload, openQuoteItems, addQuoteItem,
     updateQuoteItemAmount, removeQuoteItem, saveQuoteItems, updateSalesState, openQuoteDialogFromOpportunity,
     createContractFromQuote, createOrdersFromContract, findExistingReceivableForOrder, pushSingleOrderToReceivable,
     createReceivableFromOrder, pushOrdersToReceivables, resolveExtendedRowActions, handleExtendedRowAction

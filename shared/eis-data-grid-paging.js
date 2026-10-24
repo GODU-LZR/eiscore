@@ -109,6 +109,82 @@ export function mergeRowsById(currentRows, incomingRows) {
   return next
 }
 
+export function matchesSavedRowQuery(row, query, columns = []) {
+  for (const [field, filter] of query) {
+    if (['select', 'order'].includes(field)) continue
+    if (!/^[a-zA-Z_][\w]*$/.test(field) || !Object.prototype.hasOwnProperty.call(row, field)) return null
+    const separator = filter.indexOf('.')
+    const operator = filter.slice(0, separator)
+    const expected = filter.slice(separator + 1)
+    const value = row[field]
+    if (value === undefined) return null
+    if (operator === 'is' && ['null', 'true', 'false'].includes(expected)) {
+      const target = expected === 'null' ? null : expected === 'true'
+      if (value !== target) return false
+      continue
+    }
+    if (!['eq', 'neq', 'gte', 'lte', 'gt', 'lt'].includes(operator) || /["\\]/.test(expected)) return null
+    if (value === null) return false
+    if (typeof value === 'object') return null
+    const type = columns.find(column => column?.prop === field)?.type
+    let left = value
+    let right = expected
+    if (typeof value === 'number' || ['number', 'decimal', 'currency', 'percent'].includes(type)) {
+      left = Number(value)
+      right = Number(expected)
+      if (!Number.isFinite(left) || !Number.isFinite(right)) return null
+    } else if (['date', 'datetime'].includes(type)) {
+      const pattern = type === 'date'
+        ? /^\d{4}-\d{2}-\d{2}$/
+        : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/i
+      if (!pattern.test(String(value)) || !pattern.test(expected)) return null
+      left = Date.parse(value)
+      right = Date.parse(expected)
+      if (!Number.isFinite(left) || !Number.isFinite(right)) return null
+    } else if (typeof value === 'boolean') {
+      if (!['true', 'false'].includes(expected)) return null
+      right = expected === 'true'
+    } else {
+      if (!['eq', 'neq'].includes(operator)) return null
+      left = String(value)
+    }
+    const matches = operator === 'eq' ? left === right
+      : operator === 'neq' ? left !== right
+        : operator === 'gte' ? left >= right
+          : operator === 'lte' ? left <= right
+            : operator === 'gt' ? left > right : left < right
+    if (!matches) return false
+  }
+  return true
+}
+
+function compareIdDescending(left, right) {
+  const isIntegerId = value => typeof value === 'number'
+    ? Number.isSafeInteger(value)
+    : typeof value === 'string' && /^-?(?:0|[1-9]\d*)$/.test(value)
+  if (isIntegerId(left) && isIntegerId(right)) {
+    const leftId = BigInt(left)
+    const rightId = BigInt(right)
+    return leftId === rightId ? 0 : leftId > rightId ? 1 : -1
+  }
+  const isUuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  if (isUuid(left) && isUuid(right)) {
+    const leftId = left.toLowerCase()
+    const rightId = right.toLowerCase()
+    return leftId === rightId ? 0 : leftId > rightId ? 1 : -1
+  }
+  return null
+}
+
+function timestampEpochMicros(value) {
+  if (typeof value !== 'string') return null
+  const milliseconds = Date.parse(value)
+  if (!Number.isFinite(milliseconds) || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return null
+  const fraction = value.match(/\.(\d+)(?=(?:Z|[+-]\d{2}:\d{2})$)/i)?.[1] || ''
+  const subMillisecondMicros = fraction.slice(3, 6).padEnd(3, '0') || '0'
+  return BigInt(milliseconds) * 1000n + BigInt(subMillisecondMicros)
+}
+
 export function createPagedGridLoader({
   props,
   gridData,
@@ -131,6 +207,7 @@ export function createPagedGridLoader({
   const minInitialRows = computed(() => Math.min(100, pageSize.value))
   const canPageCurrentUrl = computed(() => !!props.enableInfiniteScroll && !!props.apiUrl && !hasExplicitPaging(props.apiUrl))
   let loadSeq = 0
+  let loadedQueryKey = ''
 
   const buildDataUrl = (offset = 0, usePaging = canPageCurrentUrl.value) => buildPagedUrl({
     baseUrl: props.apiUrl,
@@ -152,6 +229,8 @@ export function createPagedGridLoader({
       'Content-Profile': contentProfile
     }
   }
+
+  const getQueryKey = () => JSON.stringify([buildDataUrl(0), buildRequestHeaders()])
 
   const emitDataLoaded = (append = false) => {
     if (!eventEmitter) return
@@ -190,24 +269,25 @@ export function createPagedGridLoader({
 
   const loadData = async () => {
     const seq = ++loadSeq
+    const queryKey = getQueryKey()
     isLoading.value = true
+    isLoadingMore.value = false
+    if (queryKey !== loadedQueryKey) resetLoadedRows()
     try {
-      await loadFieldAcl()
-      if (seq !== loadSeq) return
-      resetLoadedRows()
       const url = buildDataUrl(0, canPageCurrentUrl.value)
+      const [, res] = await Promise.all([
+        loadFieldAcl(),
+        url ? request({ url, method: 'get', headers: buildRequestHeaders() }) : Promise.resolve([])
+      ])
+      if (seq !== loadSeq) return
       if (!url) {
+        resetLoadedRows()
+        loadedQueryKey = queryKey
         emitDataLoaded(false)
         return
       }
 
       const usePaging = canPageCurrentUrl.value
-      const res = await request({
-        url,
-        method: 'get',
-        headers: buildRequestHeaders()
-      })
-      if (seq !== loadSeq) return
       const rows = Array.isArray(res) ? res : []
       const visibleRows = filterVisibleRows(rows, props.rowFilter)
       gridData.value = visibleRows
@@ -236,6 +316,7 @@ export function createPagedGridLoader({
         hasMoreRows.value = nextRows.length >= pageSize.value && gridData.value.length < maxClientRows.value
       }
 
+      loadedQueryKey = queryKey
       emitDataLoaded(false)
       scheduleInitialAutoSize()
     } catch (e) {
@@ -246,6 +327,54 @@ export function createPagedGridLoader({
     } finally {
       if (seq === loadSeq) isLoading.value = false
     }
+  }
+
+  const prependRow = (row) => {
+    if (!row || typeof row !== 'object' || row.id === undefined || row.id === null) return false
+    if (isLoading.value || isLoadingMore.value || !loadedQueryKey || loadedQueryKey !== getQueryKey()) return false
+    if (String(searchText.value || '').trim() || hasExplicitPaging(props.apiUrl)) return false
+
+    const query = new URLSearchParams(String(props.apiUrl || '').split('?')[1]?.split('#')[0] || '')
+    const matchesQuery = matchesSavedRowQuery(row, query, props.staticColumns)
+    if (matchesQuery === null) return false
+    const order = query.get('order') || props.defaultOrder || ''
+    if (!/^(?:id\.desc|created_at\.desc(?:\.nullslast)?(?:,id\.desc)?)$/i.test(order)) return false
+
+    const key = String(row.id)
+    const existingIndex = lastRawRows.value.findIndex(item => String(item?.id) === key)
+    const existed = existingIndex >= 0
+    if (existed && existingIndex !== 0) return false
+    if (!matchesQuery) return !existed
+    const first = lastRawRows.value[0]
+    if (existed && order.toLowerCase() !== 'id.desc') {
+      const existingCreatedAt = timestampEpochMicros(first?.created_at)
+      const createdAt = timestampEpochMicros(row.created_at)
+      if (existingCreatedAt === null || createdAt === null || existingCreatedAt !== createdAt) return false
+    }
+    if (order.toLowerCase() === 'id.desc') {
+      const isIntegerId = value => typeof value === 'number'
+        ? Number.isSafeInteger(value)
+        : typeof value === 'string' && /^-?(?:0|[1-9]\d*)$/.test(value)
+      if (!isIntegerId(row.id) || (first && !isIntegerId(first.id))) return false
+      if (!existed && first && BigInt(row.id) < BigInt(first.id)) return false
+    } else if (!existed && first) {
+      const createdAt = timestampEpochMicros(row.created_at)
+      const firstCreatedAt = timestampEpochMicros(first.created_at)
+      if (createdAt === null || firstCreatedAt === null || createdAt < firstCreatedAt) return false
+      if (createdAt === firstCreatedAt) {
+        const idOrder = compareIdDescending(row.id, first.id)
+        if (idOrder === null || idOrder <= 0) return false
+      }
+    }
+    const rawRows = [row, ...lastRawRows.value.filter(item => String(item?.id) !== key)]
+    lastRawRows.value = rawRows
+    gridData.value = [
+      ...filterVisibleRows([row], props.rowFilter),
+      ...gridData.value.filter(item => String(item?.id) !== key)
+    ]
+    if (!existed) pageOffset.value += 1
+    emitDataLoaded(false)
+    return true
   }
 
   const loadNextPage = async () => {
@@ -284,6 +413,7 @@ export function createPagedGridLoader({
     isLoadingMore,
     hasMoreRows,
     loadData,
-    loadNextPage
+    loadNextPage,
+    prependRow
   }
 }

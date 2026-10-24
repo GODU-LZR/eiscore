@@ -24,7 +24,7 @@
         write-mode="patch"
         :patch-required-fields="app.patchRequiredFields || []"
         :field-defaults="app.fieldDefaults || {}"
-        :default-order="app.defaultOrder || 'id.desc'"
+        :default-order="app.defaultOrder || 'created_at.desc.nullslast,id.desc'"
         accept-profile="public"
         content-profile="public"
         :static-columns="staticColumns"
@@ -1860,6 +1860,8 @@ const {
   loadQuickReceivableSchedules,
   openPaymentDialog,
   submitQuickPayment,
+  createSalesRow,
+  applyCreatedRow,
   updateQuoteItemAmount,
   openQuoteItems,
   addQuoteItem,
@@ -2352,25 +2354,15 @@ const submitQuickOrder = async () => {
   })
   if (result.error) {
     ElMessage.warning(result.error)
-    return
+    return false
   }
   const payload = result.payload
+  let createdRows
   try {
-    await request({
-      url: '/sales_orders',
-      method: 'post',
-      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-      data: payload,
-      silentError: Boolean(payload.product_material_id)
-    })
+    createdRows = await createSalesRow('sales_orders', payload, { silentError: Boolean(payload.product_material_id) })
   } catch (e) {
     if (!isMissingColumnError(e, 'product_material_id')) throw e
-    await request({
-      url: '/sales_orders',
-      method: 'post',
-      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-      data: buildSalesQuickOrderFallbackPayload(payload, bomProduct)
-    })
+    createdRows = await createSalesRow('sales_orders', buildSalesQuickOrderFallbackPayload(payload, bomProduct))
   }
   await syncCustomerReceivableFromRow(payload)
   if (currentOrderSource.value?.id && currentOrderSource.value?.opportunity_no) {
@@ -2382,6 +2374,7 @@ const submitQuickOrder = async () => {
     })
   }
   ElMessage.success('销售订单已创建')
+  return { appKey: 'orders', row: Array.isArray(createdRows) ? createdRows[0] : createdRows }
 }
 
 const submitQuickOpportunity = async () => {
@@ -2393,15 +2386,11 @@ const submitQuickOpportunity = async () => {
   })
   if (result.error) {
     ElMessage.warning(result.error)
-    return
+    return false
   }
-  await request({
-    url: '/sales_opportunities',
-    method: 'post',
-    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-    data: result.payload
-  })
+  const createdRows = await createSalesRow('sales_opportunities', result.payload)
   ElMessage.success('销售商机已创建')
+  return { appKey: 'opportunities', row: Array.isArray(createdRows) ? createdRows[0] : createdRows }
 }
 
 const submitQuickFollow = async () => {
@@ -2414,15 +2403,10 @@ const submitQuickFollow = async () => {
   })
   if (result.error) {
     ElMessage.warning(result.error)
-    return
+    return false
   }
   const payload = result.payload
-  await request({
-    url: '/sales_follow_ups',
-    method: 'post',
-    headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' },
-    data: payload
-  })
+  const createdRows = await createSalesRow('sales_follow_ups', payload)
   await request({
     url: `/sales_customers?id=eq.${safeEq(customer.id)}`,
     method: 'patch',
@@ -2430,6 +2414,7 @@ const submitQuickFollow = async () => {
     data: result.customerPatch
   })
   ElMessage.success('客户跟进已创建')
+  return { appKey: 'follow_ups', row: Array.isArray(createdRows) ? createdRows[0] : createdRows }
 }
 
 const submitQuickDialog = async () => {
@@ -2438,17 +2423,18 @@ const submitQuickDialog = async () => {
   try {
     let saved = true
     if (quickMode.value === 'order') {
-      await submitQuickOrder()
+      saved = await submitQuickOrder()
     } else if (quickMode.value === 'payment') {
       saved = await submitQuickPayment()
     } else if (quickMode.value === 'opportunity') {
-      await submitQuickOpportunity()
+      saved = await submitQuickOpportunity()
     } else if (quickMode.value === 'follow') {
-      await submitQuickFollow()
+      saved = await submitQuickFollow()
     }
     if (saved === false) return
     quickDialogVisible.value = false
-    if (gridRef.value?.loadData) await gridRef.value.loadData()
+    if (saved?.appKey) await applyCreatedRow(saved.appKey, saved.row)
+    else await gridRef.value?.loadData?.()
     if (selectedDetailRow.value) await refreshSelectedDetail()
   } catch (e) {
     console.error(e)
@@ -2591,7 +2577,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
       writeUrl: apiUrl,
       profile: 'public',
       contentProfile: 'public',
-      defaultOrder: app.value.defaultOrder || 'id.desc',
+      defaultOrder: app.value.defaultOrder || 'created_at.desc.nullslast,id.desc',
       columns,
       staticColumns: allStaticColumns,
       extraColumns: extraColumns.value,
@@ -3137,13 +3123,13 @@ const handleCreate = async () => {
     const payload = typeof app.value.createPayload === 'function'
       ? app.value.createPayload()
       : { name: '新记录', properties: {} }
-    await request({
+    const createdRows = await request({
       url: app.value.writeUrl || normalizeApiBaseUrl(app.value.apiUrl),
       method: 'post',
-      headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public' },
+      headers: { 'Content-Profile': 'public', 'Accept-Profile': 'public', Prefer: 'return=representation' },
       data: payload
     })
-    if(gridRef.value) await gridRef.value.loadData()
+    await applyCreatedRow(app.value.key, Array.isArray(createdRows) ? createdRows[0] : createdRows)
     ElMessage.success('已创建新行')
   } catch(e) {
     console.error(e)

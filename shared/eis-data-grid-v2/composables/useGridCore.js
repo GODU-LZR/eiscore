@@ -1064,7 +1064,7 @@ export function useGridCore(
     }
   })
 
-  const { isLoadingMore, hasMoreRows, loadData, loadNextPage } = createPagedGridLoader({
+  const { isLoadingMore, hasMoreRows, loadData, loadNextPage, prependRow } = createPagedGridLoader({
     props,
     gridData,
     searchText,
@@ -1080,7 +1080,7 @@ export function useGridCore(
 
   return {
     gridApi, gridData, gridColumns, context, gridComponents, searchText, isLoading,
-    isLoadingMore, hasMoreRows, loadData, loadNextPage, handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules, columnLockState,
+    isLoadingMore, hasMoreRows, loadData, loadNextPage, prependRow, handleToggleColumnLock, getCellStyle, isCellReadOnly, isRowLocked, rowClassRules, columnLockState,
     setWorkflowBinding, getRowHeight, handleColumnResized, onGridReadyLayout,
     stopRowHeightResize, startRowHeightResize, resetRowHeight, isRowHeightEdgeResizeEvent
   }

@@ -14,7 +14,7 @@
         :write-mode="app.writeMode || 'upsert'"
         :field-defaults="app.fieldDefaults || {}"
         :patch-required-fields="app.patchRequiredFields || []"
-        :default-order="app.defaultOrder || 'id.desc'"
+        :default-order="app.defaultOrder || 'created_at.desc.nullslast,id.desc'"
         :acl-module="app.aclModule"
         :profile="appProfile"
         :accept-profile="appProfile"
@@ -767,7 +767,7 @@ const syncAiContext = (rows = lastLoadedRows.value, overrides = {}) => {
       writeUrl,
       profile: appProfile.value,
       contentProfile: appProfile.value,
-      defaultOrder: app.value.defaultOrder || 'id.desc',
+      defaultOrder: app.value.defaultOrder || 'created_at.desc.nullslast,id.desc',
       columns,
       staticColumns: staticColumns.value,
       extraColumns: extraColumns.value,
@@ -1173,13 +1173,16 @@ const handleCreate = async () => {
       payload.properties = {}
     }
     const writeUrl = app.value.writeUrl || (app.value.apiUrl || '/raw_materials').split('?')[0]
-    await request({
+    const created = await request({
       url: writeUrl,
       method: 'post',
-      headers: { 'Content-Profile': 'public' },
+      headers: { 'Accept-Profile': appProfile.value, 'Content-Profile': appProfile.value, Prefer: 'return=representation' },
       data: payload
     })
-    if (gridRef.value) await gridRef.value.loadData()
+    const createdRow = Array.isArray(created) ? created[0] : created
+    if (!createdRow?.id || !await gridRef.value?.prependRow?.(createdRow)) {
+      await gridRef.value?.loadData?.()
+    }
     ElMessage.success('已创建新行')
   } catch(e) {
     console.error(e)
