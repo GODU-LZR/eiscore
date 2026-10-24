@@ -113,6 +113,16 @@ assert.equal(view.kgPathTargetId.value, 'public.sales_orders')
 view.pickKgBrainNode('column:public.sales_orders.amount')
 assert.equal(view.kgPathTargetType.value, 'column')
 assert.equal(view.kgPathTargetId.value, 'public.sales_orders.amount')
+view.kgPickedEdgeId.value = 'edge:stale'
+view.kgSelectedEdge.value = { id: 'edge:stale' }
+view.pickKgBrainNode('table:public.sales_orders')
+assert.equal(view.kgPickedNodeId.value, 'table:public.sales_orders')
+assert.equal(view.kgPathTargetType.value, 'table')
+assert.equal(view.kgPathTargetId.value, 'public.sales_orders')
+assert.equal(view.kgPickedEdgeId.value, '')
+assert.equal(view.kgSelectedEdge.value, null)
+const kgNodeClick = source.match(/if \(params\.dataType === 'node'\) \{([\s\S]*?)\n\s*\}/)?.[1] || ''
+assert.match(kgNodeClick, /brainHandlers\.pickKgBrainNode\(data\.id\)/, '2D KG and 3D brain node selection must share one handler')
 view.pickKgBrainEdge(view.kgBrainGraph.value.edges.find(({ id }) => id === 'edge:12'))
 assert.equal(view.kgSelectedEdge.value.is_inferred, true)
 assert.equal(view.kgSelectedEdge.value.rule_name, 'real-access-rule')

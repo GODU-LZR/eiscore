@@ -1258,11 +1258,7 @@ const renderKgGraph = async () => {
     if (params.dataType === 'node') {
       const data = params.data || {}
       if (data.rawType && data.rawId) {
-        kgPathTargetType.value = data.rawType
-        kgPathTargetId.value = data.rawId
-        kgSelectedEdge.value = null
-        kgPickedNodeId.value = data.id
-        kgPickedEdgeId.value = ''
+        brainHandlers.pickKgBrainNode(data.id)
       }
     }
   })

@@ -177,7 +177,7 @@ export const buildOntologyPathExplanationRequest = ({
 )
 
 export const ONTOLOGY_RELATIONS_REQUEST = {
-  url: '/ontology_table_relations?select=id,relation_type,subject_table,subject_column,predicate,object_table,object_column,bridge_table,details,subject_semantic_name,object_semantic_name&order=relation_type.asc,id.asc',
+  url: '/ontology_table_relations?select=id,relation_type,subject_table,subject_column,predicate,object_table,object_column,bridge_table,details,subject_semantic_name,object_semantic_name,subject_semantic_domain,object_semantic_domain&order=relation_type.asc,id.asc',
   method: 'get',
   headers: APP_DATA_HEADERS
 }
