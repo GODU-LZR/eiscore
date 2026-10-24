@@ -45,6 +45,21 @@ export async function prepareHarnessAuth({ harnessWebUrl, authApiPrefix = '/harn
   }
 }
 
+export async function refreshKnowledgeHarnessAuthState() {
+  try {
+    const response = await request('/harness-knowledge-embed-api/eiscore/auth/start', {
+      method: 'POST',
+      headers: { Accept: 'application/json' }
+    })
+    if (!response.ok) return false
+    const start = await response.json().catch(() => ({}))
+    const startUrl = new URL(start?.url || '', window.location.origin)
+    return startUrl.origin === window.location.origin && startUrl.pathname === '/login'
+  } catch {
+    return false
+  }
+}
+
 export async function completeHarnessAuth({ code, callbackPath = '/harness-embed-api/eiscore/auth/handoff' } = {}) {
   const path = String(callbackPath || '').trim()
   const handoffCode = String(code || '').trim()
