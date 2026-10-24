@@ -71,7 +71,12 @@ const businessBindings = createBusinessSessionBindings({ tokenForRequest: sessio
 var SESSION_COOKIE = "eiscore-session";
 var AUTH_STATE_COOKIE = "eiscore-auth-state";
 var SESSION_TTL_MS = 8 * 60 * 60 * 1e3;
-var AUTH_STATE_TTL_MS = 2 * 60 * 1e3;
+var DEFAULT_AUTH_STATE_TTL_MS = 2 * 60 * 1e3;
+var KNOWLEDGE_AUTH_STATE_TTL_MS = 10 * 60 * 1e3;
+var resolveAuthStateTtlMs = (profile = process.env.HARNESS_PROFILE) => profile === "knowledge"
+  ? KNOWLEDGE_AUTH_STATE_TTL_MS
+  : DEFAULT_AUTH_STATE_TTL_MS;
+var AUTH_STATE_TTL_MS = resolveAuthStateTtlMs();
 var MAX_SESSIONS = 256;
 var MAX_AUTH_STATES = 256;
 var CODE_PATTERN = /^[A-Za-z0-9_-]{32,128}$/;
@@ -264,5 +269,6 @@ function apply(ctx) {
 }
 export {
   apply,
-  inject
+  inject,
+  resolveAuthStateTtlMs
 };

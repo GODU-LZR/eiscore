@@ -7,12 +7,16 @@ import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('.', import.meta.url))
 const require = createRequire(import.meta.url)
 const { loadPluginRegistry } = require('./plugin-registry.js')
+const { resolveAuthStateTtlMs } = await import('./client-plugins/eiscore-auth/lib/index.js')
 const knowledgeContract = resolve(root, 'knowledge-plugin-contract.v1.json')
 const business = loadPluginRegistry(resolve(root, 'plugin-contract.v1.json'))
 const knowledge = loadPluginRegistry(knowledgeContract)
 assert.deepEqual(business.list().map(({ plugin_id }) => plugin_id).sort(), ['company-sales', 'independent-site-sales', 'worker-grid'])
 assert.deepEqual(knowledge.list().map(({ plugin_id }) => plugin_id), ['digital-twin'])
 assert.deepEqual(knowledge.listCapabilities().map(({ capability_id }) => capability_id).sort(), ['eiscore_twin_chat', 'eiscore_twin_context'])
+assert.equal(resolveAuthStateTtlMs('knowledge'), 600000)
+assert.equal(resolveAuthStateTtlMs('flash'), 120000)
+assert.equal(resolveAuthStateTtlMs('business'), 120000)
 
 const previous = {
   profile: process.env.HARNESS_PROFILE,
