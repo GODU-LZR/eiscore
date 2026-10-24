@@ -139,6 +139,8 @@ assert.deepEqual(buildOntologyPathExplanationRequest({
 })
 assert.equal(buildOntologyPathExplanationRequest({}).url, '/rpc/agent_explain_ontology_path')
 assert.equal(ONTOLOGY_RELATIONS_REQUEST.headers['Accept-Profile'], 'app_data')
+assert.match(ONTOLOGY_RELATIONS_REQUEST.url, /select=[^&]*subject_semantic_domain[^&]*object_semantic_domain/)
+assert.match(ONTOLOGY_RELATIONS_REQUEST.url, /order=relation_type\.asc,id\.asc$/)
 assert.deepEqual(normalizeOntologyRows(null), [])
 assert.deepEqual(normalizeOntologyFirstRow([{ id: 1 }, { id: 2 }]), { id: 1 })
 
