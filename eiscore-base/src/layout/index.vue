@@ -142,8 +142,8 @@
             <div class="guide-center">
               <div class="guide-center__header">
                 <div>
-                  <strong>全局引导中心</strong>
-                  <p>按当前页面和角色提供可执行的操作指引。</p>
+                  <strong>{{ guideCenterTitle }}</strong>
+                  <p>{{ guideCenterDescription }}</p>
                 </div>
                 <el-tag size="small" type="info">{{ availableGuides.length }} 项</el-tag>
               </div>
@@ -340,6 +340,8 @@ const avatarRenderSrc = computed(() => buildBaseAvatarRenderSrc(userStore.userIn
 const systemStore = useSystemStore()
 const userStore = useUserStore()
 const enterpriseConfig = getEnterpriseConfig(window)
+const compactSopEnabled = enterpriseConfig.features?.sopCompact === true
+const compactSopHiddenGuideIds = new Set(['role-path-warehouse', 'role-path-purchase', 'role-path-production', 'role-path-quality', 'role-path-equipment'])
 const { visibility: displayVisibility } = useDisplayVisibility()
 const { config } = storeToRefs(systemStore)
 const isDark = useHostDarkMode()
@@ -377,6 +379,8 @@ const guideUserKey = computed(() => {
 const guideProgressSyncPresentation = computed(() => getBaseGuideProgressSyncPresentation(guideProgressSyncState.value))
 const guideProgressSyncLabel = computed(() => guideProgressSyncPresentation.value.label)
 const guideProgressSyncTagType = computed(() => guideProgressSyncPresentation.value.tagType)
+const guideCenterTitle = computed(() => compactSopEnabled ? `${enterpriseConfig.enterprise?.shortName || '企业'}工作指引` : '全局引导中心')
+const guideCenterDescription = computed(() => compactSopEnabled ? '按销售、人事和 DeepSeek Harness 的实际工作路径提供操作指引。' : '按当前页面和角色提供可执行的操作指引。')
 
 const applyUserTheme = () => {
   if (enterpriseConfig.branding.surfaceColor) {
@@ -1039,6 +1043,7 @@ const SOP_APP_TITLES = {
     customers: '客户档案',
     follow_ups: '客户跟进',
     opportunities: '销售商机',
+    contracts: '销售合同',
     orders: '销售订单',
     shipment_requests: '销售出货申请',
     payments: '回款记录',
@@ -1244,6 +1249,11 @@ const SOP_APP_FUNCTIONS = {
       scenario: '跟踪潜在订单、评估销售漏斗和预测成交时使用。',
       action: '进入后维护阶段、赢率、预计成交日和下一步动作。'
     },
+    contracts: {
+      purpose: '维护销售合同、签署状态、金额、有效期和关联客户。',
+      scenario: '商机进入签约阶段或需要查阅、复核现有合同信息时使用。',
+      action: '进入后核对客户、合同编号、金额、签署状态、有效期和关联订单。'
+    },
     orders: {
       purpose: '管理销售订单、交付计划、数量和金额。',
       scenario: '接单、排交期、跟踪订单状态或准备发货时使用。',
@@ -1448,10 +1458,18 @@ const currentSopModule = computed(() => {
   return match ? MODULE_SOP_TITLES[match] : '当前页面'
 })
 
-const getCurrentModuleSopInfo = () => SOP_MODULE_INFO[currentSopModuleKey.value] || {
-  purpose: '处理当前页面可见的业务数据和操作入口。',
-  focus: '当前页面标题、应用卡片、状态、关键数量和可执行动作。',
-  risk: '操作前要确认当前模块和业务对象，避免处理错页面。'
+const getCurrentModuleSopInfo = () => {
+  const moduleKey = currentSopModuleKey.value
+  if (compactSopEnabled && moduleKey === 'sales') return {
+    purpose: '管理客户、跟进、商机、报价、合同、销售订单和应收回款。',
+    focus: '客户阶段、下一步跟进、合同金额、订单状态和回款核销。',
+    risk: '客户、合同或回款状态不准确会影响销售推进和财务对账。'
+  }
+  return SOP_MODULE_INFO[moduleKey] || {
+    purpose: '处理当前页面可见的业务数据和操作入口。',
+    focus: '当前页面标题、应用卡片、状态、关键数量和可执行动作。',
+    risk: '操作前要确认当前模块和业务对象，避免处理错页面。'
+  }
 }
 
 const getCurrentModuleWorkflowInfo = () => SOP_MODULE_WORKFLOW_INFO[currentSopModuleKey.value] || {
@@ -1492,6 +1510,13 @@ const getAppCardFunctionGuide = (card) => {
   const moduleKey = currentSopModuleKey.value
   const key = String(card?.key || '').trim()
   const configured = SOP_APP_FUNCTIONS[moduleKey]?.[key]
+  if (compactSopEnabled && moduleKey === 'sales' && key === 'orders') return {
+    ...(configured || {}),
+    purpose: configured?.purpose || '管理销售订单、履约日期、数量和金额。',
+    scenario: '接单、确认订单状态、金额和履约日期时使用。',
+    action: '进入后核对客户、产品、数量、履约日期、金额和订单状态。',
+    complete: getCurrentModuleCompleteText()
+  }
   if (configured) return {
     ...configured,
     complete: configured.complete || getCurrentModuleCompleteText()
@@ -1553,7 +1578,14 @@ const buildCurrentAppCardInfo = () => {
   const context = resolveCurrentAppRouteContext()
   if (!context?.moduleKey || !context?.appKey) return null
   const appName = SOP_APP_TITLES[context.moduleKey]?.[context.appKey] || '当前应用'
-  const configured = SOP_APP_FUNCTIONS[context.moduleKey]?.[context.appKey]
+  let configured = SOP_APP_FUNCTIONS[context.moduleKey]?.[context.appKey]
+  if (compactSopEnabled && context.moduleKey === 'sales' && context.appKey === 'orders') {
+    configured = {
+      ...configured,
+      scenario: '接单、确认订单状态、金额和履约日期时使用。',
+      action: '进入后核对客户、产品、数量、履约日期、金额和订单状态。'
+    }
+  }
   const guide = configured
     ? {
       ...configured,
@@ -1875,7 +1907,7 @@ const roleTaskGuideMap = computed(() => {
     canDecision.value
   ].some(Boolean)
 
-  return [
+  const guides = [
     {
       id: 'role-path-warehouse',
       title: '仓管员每日工作 SOP',
@@ -2207,7 +2239,50 @@ const roleTaskGuideMap = computed(() => {
       ]
     }
   ]
+  if (!compactSopEnabled) return guides
+  return guides
+    .filter((guide) => !compactSopHiddenGuideIds.has(guide.id))
+    .map((guide) => {
+      const descriptions = guide.id === 'role-path-sales' ? [
+            '每天先进入销售管理，查看客户、跟进、商机、报价、合同、销售订单和回款相关应用。',
+            '优先处理待跟进客户、阶段停滞商机、待报价或待签合同，以及临近回款的订单。',
+            '按客户、跟进、商机、报价/合同、订单和回款顺序推进，先确认当前阶段和下一步动作。',
+            '推进前确认客户、产品、数量、金额、日期和当前状态；完成后回到销售应用用编号复核关联记录。',
+            '当天结束前回查未跟进、停滞商机、待签合同、未完成订单和未回款记录。'
+          ] : guide.id === 'role-path-manager' ? [
+              '先看工作台待办，再进入销售和人事模块检查当天需要处理的事项。',
+              '销售侧优先核对待跟进客户、停滞商机、待签合同、未完成订单和未回款记录。',
+              '按“客户 - 跟进 - 商机 - 报价/合同 - 订单 - 回款”追踪销售进展，确认每条记录的负责人和下一步。',
+              '人事侧检查入转调离、员工档案、组织关系、账号状态和权限变更。',
+              '处理后回到原列表按编号或员工信息复核结果，确认状态、关联记录和责任人已更新。'
+            ] : null
+      if (!descriptions) return guide
+      return {
+        ...guide,
+        ...(guide.id === 'role-path-manager' && { routes: ['/', '/sales', '/hr', '/apps'] }),
+        description: guide.id === 'role-path-sales'
+          ? '按“客户 - 跟进 - 商机 - 报价/合同 - 订单 - 回款”的顺序推进销售闭环。'
+          : '按销售进展、人事待办和 Harness 草稿的风险排序巡检。',
+        steps: guide.steps.map((step, index) => ({ ...step, ...(guide.id === 'role-path-manager' && index === 3 && { element: '[data-guide="menu-hr"], [data-guide="menu-sales"]' }), popover: { ...step.popover, description: descriptions[index] || step.popover.description } }))
+      }
+    })
 })
+
+const compactHarnessGuide = {
+  id: 'yayu-harness-workflow',
+  title: 'DeepSeek Harness 闪念 SOP',
+  description: '在闪念中让 DeepSeek Harness 生成、修改、预览并发布业务草稿。',
+  type: 'sop',
+  category: '闪念与工作助手',
+  routes: ['/', '/apps'],
+  priority: 95,
+  when: () => compactSopEnabled,
+  steps: [
+    createGuideStep({ selector: '[data-guide="worker-assistant"], [data-guide="layout-main"]', title: '进入 DeepSeek Harness', description: '在工作台顶部切换到 DeepSeek Harness；在销售或人事页面也可以从右下角打开工作助手。', side: 'left' }),
+    createGuideStep({ selector: '[data-guide="subapp-viewport"], [data-guide="layout-main"]', title: '检查闪念草稿与预览', description: '在闪念中确认 HTML、DTO、ECharts 或流程输出，先预览结果，再继续修改。', side: 'left' }),
+    createGuideStep({ selector: '[data-guide="subapp-viewport"], [data-guide="layout-main"]', title: '确认后发布', description: '确认草稿内容、字段和图表无误后再发布；发布后回到对应销售或人事页面验证。', side: 'left' })
+  ]
+}
 
 const sopGuideMap = computed(() => {
   guideDomTick.value
@@ -2675,6 +2750,7 @@ const availableGuides = computed(() => {
     ...moduleGuideMap.value,
     ...roleTaskGuideMap.value,
     ...sopGuideMap.value,
+    ...(compactSopEnabled ? [compactHarnessGuide] : []),
     ...customGuides.value
   ]
   const map = new Map()
