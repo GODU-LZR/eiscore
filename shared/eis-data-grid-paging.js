@@ -182,7 +182,7 @@ function timestampEpochMicros(value) {
   if (!Number.isFinite(milliseconds) || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return null
   const fraction = value.match(/\.(\d+)(?=(?:Z|[+-]\d{2}:\d{2})$)/i)?.[1] || ''
   const subMillisecondMicros = fraction.slice(3, 6).padEnd(3, '0') || '0'
-  return BigInt(milliseconds) * 1000n + BigInt(subMillisecondMicros)
+  return BigInt(milliseconds) * BigInt(1000) + BigInt(subMillisecondMicros)
 }
 
 export function createPagedGridLoader({
