@@ -152,14 +152,20 @@ const selectNode = (node) => {
 }
 
 const toggleSelectedFileLink = async () => {
-  if (!props.selectedFile?.id || !selectedNode.value || linkLoading.value) return
+  const file = props.selectedFile
+  const node = selectedNode.value
+  if (!file?.id || !node || linkLoading.value) return
   linkLoading.value = true
   error.value = ''
   try {
-    const links = toggleKnowledgeOntologyLink(fileLinks.value, selectedNode.value)
-    const patch = buildKnowledgeFileMetadataPatch(props.selectedFile, links)
-    const result = await updateKnowledgeFile(props.selectedFile.id, patch)
-    emit('file-updated', result?.file || { ...props.selectedFile, metadata: patch.metadata })
+    const links = toggleKnowledgeOntologyLink(getKnowledgeOntologyLinks(file), node)
+    const patch = buildKnowledgeFileMetadataPatch(links)
+    const result = await updateKnowledgeFile(file.id, patch)
+    if (props.selectedFile?.id !== file.id) return
+    emit('file-updated', result?.file || {
+      ...file,
+      metadata: { ...file.metadata, ...patch.metadataPatch }
+    })
   } catch (cause) {
     error.value = cause?.message || '本体关联更新失败'
   } finally {

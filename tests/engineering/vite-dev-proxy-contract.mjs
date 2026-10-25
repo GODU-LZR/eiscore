@@ -23,19 +23,25 @@ const consumers = [
 assert.deepEqual(loadViteDevProxyTargets({}), {
   api: 'http://localhost:3000',
   agent: 'http://localhost:8078',
+  knowledgeAgent: 'http://localhost:18083',
   ide: 'http://localhost:8443',
-  microApps: 'http://127.0.0.1:18080'
+  microApps: 'http://127.0.0.1:18080',
+  harness: 'http://127.0.0.1'
 })
 assert.deepEqual(loadViteDevProxyTargets({
   VITE_DEV_API_PROXY_TARGET: 'http://127.0.0.1:13000',
   VITE_DEV_AGENT_PROXY_TARGET: 'http://127.0.0.1:18078',
+  VITE_DEV_KNOWLEDGE_AGENT_PROXY_TARGET: 'http://127.0.0.1:18087',
   VITE_FLASH_IDE_PROXY_TARGET: 'http://127.0.0.1:18443',
-  VITE_DEV_MICRO_APPS_PROXY_TARGET: 'http://127.0.0.1:18086'
+  VITE_DEV_MICRO_APPS_PROXY_TARGET: 'http://127.0.0.1:18086',
+  VITE_DEV_HARNESS_PROXY_TARGET: 'http://127.0.0.1:18081'
 }), {
   api: 'http://127.0.0.1:13000',
   agent: 'http://127.0.0.1:18078',
+  knowledgeAgent: 'http://127.0.0.1:18087',
   ide: 'http://127.0.0.1:18443',
-  microApps: 'http://127.0.0.1:18086'
+  microApps: 'http://127.0.0.1:18086',
+  harness: 'http://127.0.0.1:18081'
 })
 assert.throws(
   () => loadViteDevProxyTargets({ VITE_DEV_API_PROXY_TARGET: 'http://user:pass@localhost:3000' }),

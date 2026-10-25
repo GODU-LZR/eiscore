@@ -13,32 +13,50 @@
       </div>
     </header>
 
-    <section class="knowledge-section harness-section" aria-labelledby="knowledge-harness-title">
-      <div class="section-heading">
-        <div>
-          <h2 id="knowledge-harness-title">DeepSeek Harness 对话</h2>
-          <p>使用当前登录会话连接知识库专属助手，工作区与普通工作台、闪念相互隔离。</p>
+    <section class="knowledge-section workspace-section" aria-label="企业知识库工作区">
+      <nav class="mobile-workspace-tabs" aria-label="工作区视图">
+        <button type="button" :aria-pressed="mobileView === 'files'" @click="mobileView = 'files'">文件</button>
+        <button type="button" :aria-pressed="mobileView === 'chat'" @click="mobileView = 'chat'">对话</button>
+        <button type="button" :aria-pressed="mobileView === 'ontology'" @click="mobileView = 'ontology'">本体</button>
+      </nav>
+      <KnowledgeFilesPanel
+        :class="['workspace-files', { 'mobile-hidden': mobileView !== 'files' }]"
+        :selected-file="selectedKnowledgeFile"
+        @select-file="handleKnowledgeFileSelect"
+        @file-updated="handleKnowledgeFileUpdate"
+      />
+      <section :class="['harness-column', { 'mobile-hidden': mobileView !== 'chat' }]" aria-labelledby="knowledge-harness-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="knowledge-harness-title">DeepSeek Harness 对话</h2>
+            <p>当前用户的知识文件与本体范围通过受控接口提供给知识库助手。</p>
+          </div>
+          <el-tag :type="harnessConnected ? 'success' : (harnessFailed ? 'danger' : 'warning')" effect="plain">
+            {{ harnessConnected ? '已连接' : (harnessFailed ? '连接失败' : '连接中') }}
+          </el-tag>
         </div>
-        <el-tag :type="harnessConnected ? 'success' : (harnessFailed ? 'danger' : 'warning')" effect="plain">
-          {{ harnessConnected ? '已连接' : (harnessFailed ? '连接失败' : '连接中') }}
-        </el-tag>
-      </div>
-      <div class="harness-frame-wrap">
-        <iframe
-          v-if="harnessReady && !harnessFailed"
-          class="harness-frame"
-          src="/harness-knowledge-embed/#digital-twin"
-          title="DeepSeek Harness 企业知识库对话"
-          allow="clipboard-read; clipboard-write"
-          @error="handleHarnessError"
-        ></iframe>
-        <div v-else class="harness-status" role="status" aria-live="polite">
-          <el-icon v-if="!harnessFailed" class="is-loading"><Loading /></el-icon>
-          <el-icon v-else><Warning /></el-icon>
-          <span>{{ harnessFailed ? '认证或 Harness 服务连接失败，请刷新后重试。' : '正在建立 Harness 会话…' }}</span>
-          <el-button v-if="harnessFailed" size="small" @click="prepareHarnessFrame">重新连接</el-button>
+        <div class="harness-frame-wrap">
+          <iframe
+            v-if="harnessReady && !harnessFailed"
+            class="harness-frame"
+            src="/harness-knowledge-embed/#digital-twin"
+            title="DeepSeek Harness 企业知识库对话"
+            allow="clipboard-read; clipboard-write"
+            @error="handleHarnessError"
+          ></iframe>
+          <div v-else class="harness-status" role="status" aria-live="polite">
+            <el-icon v-if="!harnessFailed" class="is-loading"><Loading /></el-icon>
+            <el-icon v-else><Warning /></el-icon>
+            <span>{{ harnessFailed ? '认证或 Harness 服务连接失败，请刷新后重试。' : '正在建立 Harness 会话…' }}</span>
+            <el-button v-if="harnessFailed" size="small" @click="prepareHarnessFrame">重新连接</el-button>
+          </div>
         </div>
-      </div>
+      </section>
+      <KnowledgeOntologyPanel
+        :class="['workspace-ontology', { 'mobile-hidden': mobileView !== 'ontology' }]"
+        :selected-file="selectedKnowledgeFile"
+        @file-updated="handleKnowledgeFileUpdate"
+      />
     </section>
   </main>
 </template>
@@ -51,11 +69,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getAuthHeader } from '@/utils/auth'
 import { prepareBusinessHarnessAuth } from '../../../eiscore-base/src/services/business-harness-auth.js'
+import KnowledgeFilesPanel from '@/components/KnowledgeFilesPanel.vue'
+import KnowledgeOntologyPanel from '@/components/KnowledgeOntologyPanel.vue'
 
 const router = useRouter()
 const harnessReady = ref(false)
 const harnessFailed = ref(false)
 const harnessConnected = computed(() => harnessReady.value && !harnessFailed.value)
+const mobileView = ref('chat')
+const selectedKnowledgeFile = ref(null)
 let disposed = false
 let harnessRequestId = 0
 
@@ -87,6 +109,15 @@ const prepareHarnessFrame = async () => {
 const handleHarnessError = () => {
   harnessReady.value = false
   harnessFailed.value = true
+}
+
+const handleKnowledgeFileSelect = (file) => {
+  selectedKnowledgeFile.value = file || null
+}
+
+const handleKnowledgeFileUpdate = (file) => {
+  if (!file?.id || selectedKnowledgeFile.value?.id !== file.id) return
+  selectedKnowledgeFile.value = file
 }
 
 const goBack = () => router.push('/')
@@ -143,19 +174,27 @@ h1 { margin: 0; color: #20353d; font-size: 24px; line-height: 1.25; }
 .section-heading { padding: 15px 16px 12px; border-bottom: 1px solid #e5ecee; }
 h2 { margin: 0; color: #2a414a; font-size: 16px; line-height: 1.4; }
 .section-heading p { margin: 4px 0 0; color: #788990; font-size: 12px; line-height: 1.5; }
-.harness-frame-wrap { min-height: clamp(600px, 75vh, 900px); background: #f7fafb; }
-.harness-frame { display: block; width: 100%; height: clamp(600px, 75vh, 900px); border: 0; }
-.harness-status { display: flex; min-height: clamp(600px, 75vh, 900px); flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #6c7c83; font-size: 13px; }
+.workspace-section { display: grid; grid-template-columns: minmax(220px, 260px) minmax(440px, 1fr) minmax(260px, 320px); min-height: clamp(600px, 75vh, 900px); overflow: hidden; }
+.mobile-workspace-tabs { display: none; }
+.workspace-files, .workspace-ontology { min-height: clamp(600px, 75vh, 900px); }
+.harness-column { min-width: 0; border-right: 1px solid #e5ecee; border-left: 1px solid #e5ecee; }
+.harness-frame-wrap { min-height: clamp(540px, 68vh, 820px); background: #f7fafb; }
+.harness-frame { display: block; width: 100%; height: clamp(540px, 68vh, 820px); border: 0; }
+.harness-status { display: flex; min-height: clamp(540px, 68vh, 820px); flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #6c7c83; font-size: 13px; }
 .harness-status .el-icon { font-size: 22px; color: #14766e; }
 .harness-status .el-icon.is-loading { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 760px) {
+@media (max-width: 960px) {
   .knowledge-workbench { padding: 12px; }
   .knowledge-header, .section-heading { flex-direction: column; }
   h1 { font-size: 21px; }
-  .harness-frame, .harness-status, .harness-frame-wrap {
-    min-height: clamp(520px, 76vh, 720px);
-    height: clamp(520px, 76vh, 720px);
-  }
+  .workspace-section { display: block; min-height: 0; overflow: visible; }
+  .mobile-workspace-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 5px; border-bottom: 1px solid #e5ecee; background: #f7fafb; }
+  .mobile-workspace-tabs button { min-height: 36px; border: 1px solid transparent; border-radius: 4px; color: #60747b; background: transparent; cursor: pointer; }
+  .mobile-workspace-tabs button[aria-pressed="true"] { border-color: #b9d8d4; color: #146b64; background: #e9f5f3; font-weight: 600; }
+  .mobile-hidden { display: none !important; }
+  .workspace-files, .workspace-ontology { min-height: clamp(520px, 72vh, 760px); }
+  .harness-column { border: 0; }
+  .harness-frame, .harness-status, .harness-frame-wrap { min-height: clamp(520px, 76vh, 720px); height: clamp(520px, 76vh, 720px); }
 }
 </style>

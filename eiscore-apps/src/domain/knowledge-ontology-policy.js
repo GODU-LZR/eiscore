@@ -97,9 +97,8 @@ export const toggleKnowledgeOntologyLink = (links, node) => {
   return next.slice(0, 100)
 }
 
-export const buildKnowledgeFileMetadataPatch = (file, links) => ({
-  metadata: {
-    ...(file?.metadata && typeof file.metadata === 'object' ? file.metadata : {}),
+export const buildKnowledgeFileMetadataPatch = (links) => ({
+  metadataPatch: {
     knowledgeOntologyLinks: getKnowledgeOntologyLinks({ metadata: { knowledgeOntologyLinks: links } })
   }
 })

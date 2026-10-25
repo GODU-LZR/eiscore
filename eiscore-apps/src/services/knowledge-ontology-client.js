@@ -3,7 +3,7 @@
 
 import { getAuthHeader } from '@/utils/auth'
 
-const CONTEXT_PATH = '/twin/knowledge/ontology/context'
+const CONTEXT_PATH = '/harness-knowledge-agent/twin/knowledge/ontology/context'
 
 export const loadKnowledgeOntologyContext = async () => {
   const response = await fetch(CONTEXT_PATH, {

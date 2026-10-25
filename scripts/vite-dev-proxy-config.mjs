@@ -17,6 +17,7 @@ export function loadViteDevProxyTargets(env = process.env) {
   return Object.freeze({
     api: proxyOrigin(env, 'VITE_DEV_API_PROXY_TARGET', 'http://localhost:3000'),
     agent: proxyOrigin(env, 'VITE_DEV_AGENT_PROXY_TARGET', 'http://localhost:8078'),
+    knowledgeAgent: proxyOrigin(env, 'VITE_DEV_KNOWLEDGE_AGENT_PROXY_TARGET', 'http://localhost:18083'),
     ide: proxyOrigin(env, 'VITE_FLASH_IDE_PROXY_TARGET', 'http://localhost:8443'),
     microApps: proxyOrigin(env, 'VITE_DEV_MICRO_APPS_PROXY_TARGET', 'http://127.0.0.1:18080'),
     harness: proxyOrigin(env, 'VITE_DEV_HARNESS_PROXY_TARGET', 'http://127.0.0.1:80')

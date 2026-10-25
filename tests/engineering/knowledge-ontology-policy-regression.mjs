@@ -16,8 +16,9 @@ import {
 const component = readFileSync(resolve(import.meta.dirname, '../../eiscore-apps/src/components/KnowledgeOntologyPanel.vue'), 'utf8')
 assert.match(component, /selectedFile: \{ type: Object, default: null \}/)
 assert.match(component, /defineEmits\(\['select-node', 'file-updated'\]\)/)
-assert.match(component, /updateKnowledgeFile\(props\.selectedFile\.id, patch\)/)
-assert.match(component, /buildKnowledgeFileMetadataPatch\(props\.selectedFile, links\)/)
+assert.match(component, /updateKnowledgeFile\(file\.id, patch\)/)
+assert.match(component, /buildKnowledgeFileMetadataPatch\(links\)/)
+assert.match(component, /metadata: \{ \.\.\.file\.metadata, \.\.\.patch\.metadataPatch \}/)
 assert.match(component, /getKnowledgeOntologyLinks\(props\.selectedFile\)/)
 
 const context = normalizeKnowledgeOntologyContext({
@@ -52,12 +53,8 @@ const sourceFile = { id: 'f1', file_name: '订单资料.md', metadata: { folder:
 assert.deepEqual(getKnowledgeOntologyLinks(sourceFile), [])
 const linked = toggleKnowledgeOntologyLink([], { id: 'table:sales.orders', label: '销售订单', type: 'table' })
 assert.deepEqual(linked, [{ id: 'table:sales.orders', label: '销售订单', type: 'table' }])
-assert.deepEqual(buildKnowledgeFileMetadataPatch(sourceFile, linked), {
-  metadata: {
-    folder: '销售',
-    source: 'upload',
-    knowledgeOntologyLinks: linked
-  }
+assert.deepEqual(buildKnowledgeFileMetadataPatch(linked), {
+  metadataPatch: { knowledgeOntologyLinks: linked }
 })
 assert.deepEqual(toggleKnowledgeOntologyLink(linked, { id: 'table:sales.orders', label: '销售订单', type: 'table' }), [])
 

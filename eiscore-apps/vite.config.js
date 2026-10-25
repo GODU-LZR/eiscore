@@ -98,6 +98,12 @@ export default defineConfig({
         changeOrigin: true,
         ws: true
       },
+      '/harness-knowledge-agent': {
+        target: devProxyTargets.knowledgeAgent,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/harness-knowledge-agent/, ''),
+        ws: true
+      },
       '/document-intake': {
         target: devProxyTargets.agent,
         changeOrigin: true,
