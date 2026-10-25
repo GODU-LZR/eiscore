@@ -104,7 +104,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .knowledge-workbench {
   min-height: 100vh;
-  padding: 22px;
+  padding: 16px;
   color: #24343b;
   background: #f4f7f8;
   box-sizing: border-box;
@@ -118,7 +118,6 @@ onBeforeUnmount(() => {
 }
 .knowledge-header {
   margin: 0 auto 18px;
-  max-width: 1440px;
 }
 .knowledge-heading { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .back-button {
@@ -140,13 +139,13 @@ onBeforeUnmount(() => {
 .knowledge-eyebrow { margin: 0 0 4px; color: #14766e; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
 h1 { margin: 0; color: #20353d; font-size: 24px; line-height: 1.25; }
 .knowledge-subtitle { max-width: 720px; margin: 7px 0 0; color: #63757c; font-size: 13px; line-height: 1.6; }
-.knowledge-section { max-width: 1440px; margin: 0 auto 18px; border: 1px solid #dce5e7; background: #fff; box-shadow: 0 3px 12px #29444d0a; }
+.knowledge-section { margin: 0 auto 18px; border: 1px solid #dce5e7; background: #fff; box-shadow: 0 3px 12px #29444d0a; }
 .section-heading { padding: 15px 16px 12px; border-bottom: 1px solid #e5ecee; }
 h2 { margin: 0; color: #2a414a; font-size: 16px; line-height: 1.4; }
 .section-heading p { margin: 4px 0 0; color: #788990; font-size: 12px; line-height: 1.5; }
-.harness-frame-wrap { min-height: 520px; background: #f7fafb; }
-.harness-frame { display: block; width: 100%; height: 520px; border: 0; }
-.harness-status { display: flex; min-height: 520px; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #6c7c83; font-size: 13px; }
+.harness-frame-wrap { min-height: clamp(600px, 75vh, 900px); background: #f7fafb; }
+.harness-frame { display: block; width: 100%; height: clamp(600px, 75vh, 900px); border: 0; }
+.harness-status { display: flex; min-height: clamp(600px, 75vh, 900px); flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #6c7c83; font-size: 13px; }
 .harness-status .el-icon { font-size: 22px; color: #14766e; }
 .harness-status .el-icon.is-loading { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -154,6 +153,9 @@ h2 { margin: 0; color: #2a414a; font-size: 16px; line-height: 1.4; }
   .knowledge-workbench { padding: 12px; }
   .knowledge-header, .section-heading { flex-direction: column; }
   h1 { font-size: 21px; }
-  .harness-frame, .harness-status, .harness-frame-wrap { min-height: 460px; height: 460px; }
+  .harness-frame, .harness-status, .harness-frame-wrap {
+    min-height: clamp(520px, 76vh, 720px);
+    height: clamp(520px, 76vh, 720px);
+  }
 }
 </style>
