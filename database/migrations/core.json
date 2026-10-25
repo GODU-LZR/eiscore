@@ -446,6 +446,19 @@
         "strategy": "backup-restore",
         "backupRequired": true
       }
+    },
+    {
+      "id": "core-035",
+      "path": "database/migrations/sql/core-035-merge-twin-knowledge-file-metadata.sql",
+      "sha256": "20d5d717dfb829a78d88d1e8658142aab5a17063f0c350a4855cfe29bedca09b",
+      "transaction": "runner",
+      "lockTimeoutMs": 10000,
+      "statementTimeoutMs": 300000,
+      "idleTransactionTimeoutMs": 60000,
+      "rollback": {
+        "strategy": "backup-restore",
+        "backupRequired": true
+      }
     }
   ]
 }

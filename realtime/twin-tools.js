@@ -156,6 +156,33 @@ const normalizeKnowledgeFilePayload = (input, { partial = false } = {}) => {
   return body;
 };
 
+const normalizeKnowledgeMetadataPatch = (input) => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw knowledgeFileValidationError('metadata patch must be an object');
+  }
+  const patch = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!key || key.length > 120 || /[\u0000-\u001f\u007f]/.test(key)) {
+      throw knowledgeFileValidationError('metadata patch key is invalid');
+    }
+    if (['id', 'employee_id', 'harness_namespace'].includes(key)) {
+      throw knowledgeFileValidationError(`metadata patch key is reserved: ${key}`);
+    }
+    if (value === undefined) {
+      throw knowledgeFileValidationError('metadata patch values cannot be undefined');
+    }
+    patch[key] = value;
+  }
+  let serialized;
+  try {
+    serialized = JSON.stringify(patch);
+  } catch {
+    throw knowledgeFileValidationError('metadata patch is invalid');
+  }
+  if (serialized.length > 16000) throw knowledgeFileValidationError('metadata patch is too large');
+  return patch;
+};
+
 // ───────────────────── 工具结果截断 ──────────────────────
 
 function truncateResult(data) {
@@ -1178,6 +1205,23 @@ function createPersistence(pgQuery, employeeId, namespace = TWIN_NAMESPACES.BUSI
     async updateKnowledgeFile(fileId, patch = {}) {
       if (!fileId || !patch || typeof patch !== 'object' || Array.isArray(patch)) return null;
       const safeFileId = normalizeKnowledgeFileId(fileId);
+      if (Object.prototype.hasOwnProperty.call(patch, 'metadataPatch')) {
+        const metadataPatch = normalizeKnowledgeMetadataPatch(patch.metadataPatch);
+        const res = await pgQuery({
+          method: 'POST',
+          path: '/rpc/merge_twin_knowledge_file_metadata',
+          body: {
+            p_id: safeFileId,
+            p_employee_id: employeeId,
+            p_harness_namespace: twinNamespace,
+            p_metadata_patch: metadataPatch
+          },
+          acceptProfile: 'public',
+          contentProfile: 'public',
+          timeoutMs: 10000
+        });
+        return Array.isArray(res?.data) ? (res.data[0] || null) : (res?.data || null);
+      }
       const res = await pgQuery({
         method: 'PATCH', path: '/twin_knowledge_files',
         query: {
@@ -1230,5 +1274,6 @@ module.exports = {
   TWIN_NAMESPACES,
   normalizeTwinNamespace,
   normalizeKnowledgeFileId,
-  normalizeKnowledgeFilePayload
+  normalizeKnowledgeFilePayload,
+  normalizeKnowledgeMetadataPatch
 };

@@ -49,14 +49,28 @@ const coreResult = loadAndValidateMigrationManifest({
 })
 assert.deepEqual(coreResult.errors, [])
 assert.equal(coreResult.manifest.name, 'core')
-assert.equal(coreResult.migrations.length, 27)
+assert.equal(coreResult.migrations.length, 35)
 assert.deepEqual(coreResult.migrations.map((entry) => entry.id),
-  Array.from({ length: 27 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
+  Array.from({ length: 35 }, (_, index) => `core-${String(index + 1).padStart(3, '0')}`))
 const twinAdminHistory = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-025-twin-admin-session-overview.sql'), 'utf8')
 const twinAdminCorrection = readFileSync(resolve(repoRoot, 'database/migrations/sql/core-027-reject-missing-twin-admin-role.sql'), 'utf8')
 assert.match(twinAdminHistory, /IF app_role <> 'super_admin' THEN/, 'the original migration must remain immutable')
 assert.match(twinAdminCorrection, /IF app_role IS DISTINCT FROM 'super_admin' THEN/)
-assert.equal(coreResult.migrations.at(-1).path, 'database/migrations/sql/core-027-reject-missing-twin-admin-role.sql')
+assert.equal(coreResult.migrations.at(-1).path, 'database/migrations/sql/core-035-merge-twin-knowledge-file-metadata.sql')
+const twinMetadataMerge = readFileSync(resolve(repoRoot, coreResult.migrations.at(-1).path), 'utf8')
+for (const marker of [
+  'SECURITY INVOKER',
+  "p_harness_namespace IS DISTINCT FROM 'knowledge'",
+  "claim_namespace IS DISTINCT FROM 'knowledge'",
+  'p_employee_id IS DISTINCT FROM claim_username',
+  'file.employee_id = p_employee_id',
+  'file.harness_namespace = p_harness_namespace',
+  "jsonb_typeof(p_metadata_patch) IS DISTINCT FROM 'object'",
+  "jsonb_typeof(entry.value) = 'null'",
+  'OWNER TO eiscore_owner',
+  'FROM PUBLIC',
+  'TO web_user'
+]) assert.ok(twinMetadataMerge.includes(marker), `core-035 lost metadata merge boundary: ${marker}`)
 
 // Rehashing a rewritten published migration must not make governance pass.
 const portable = (text) => text.replaceAll('\r\n', '\n')
@@ -95,6 +109,14 @@ for (const marker of [
   "'{\"app_role\":\"super_admin\"}'",
   "set_config('request.jwt.claims', coalesce(saved_claims, ''), true)"
 ]) assert.ok(corePostcheckSql.includes(marker), `core postcheck lost Twin administrator authorization case: ${marker}`)
+for (const marker of [
+  'knowledge file metadata merge RPC is missing',
+  "function_owner IS DISTINCT FROM 'eiscore_owner' OR function_security_definer",
+  "has_function_privilege('web_anon', function_oid, 'EXECUTE')",
+  "claim_namespace IS DISTINCT FROM ''knowledge'''",
+  'p_employee_id IS DISTINCT FROM claim_username',
+  "jsonb_typeof(entry.value) = ''null''"
+]) assert.ok(corePostcheckSql.includes(marker), `core postcheck lost knowledge metadata merge guard: ${marker}`)
 assert.ok([...result.migrations, ...companySiteResult.migrations, ...coreResult.migrations]
   .every((entry) => Number.isInteger(entry.lockTimeoutMs)
     && Number.isInteger(entry.statementTimeoutMs)

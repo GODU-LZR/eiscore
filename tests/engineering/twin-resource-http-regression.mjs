@@ -60,7 +60,7 @@ const persistence = {
   async updateKnowledgeFile(id, patch) {
     maybeFail('updateKnowledgeFile')
     operations.push(['updateKnowledgeFile', id, patch])
-    return { id, file_name: patch.file_name || 'guide.txt', ...patch }
+    return { id, file_name: patch.file_name || 'guide.txt', metadata: patch.metadataPatch || patch.metadata || {}, ...patch }
   },
   async deleteKnowledgeFile(id) {
     maybeFail('deleteKnowledgeFile')
@@ -206,7 +206,7 @@ requestBody = {
 await handlers.handleKnowledgeUpdate({ url: `/twin/knowledge/files?id=${fileId}` }, {})
 assert.deepEqual(operations, [['updateKnowledgeFile', fileId, { file_name: 'renamed.txt' }]])
 assert.deepEqual(boundNamespaces, ['business'])
-assert.deepEqual(responses, [{ status: 200, payload: { ok: true, file: { id: fileId, file_name: 'renamed.txt' } } }])
+assert.deepEqual(responses, [{ status: 200, payload: { ok: true, file: { id: fileId, file_name: 'renamed.txt', metadata: {} } } }])
 
 reset()
 requestBody = { fileName: '   ' }
@@ -234,7 +234,7 @@ const knowledgeHandlers = createTwinResourceHttpHandlers({
     boundNamespaces.push(value.harness_namespace)
     return 'bound-query'
   },
-  readJsonBody: async () => ({}),
+  readJsonBody: async () => requestBody,
   sendJson(_res, status, payload) {
     responses.push({ status, payload })
   },
@@ -247,6 +247,24 @@ const knowledgeHandlers = createTwinResourceHttpHandlers({
     return persistence
   }
 })
+
+reset()
+requestBody = { metadataPatch: { knowledgeOntologyLinks: [{ id: 'table:sales.orders', label: '销售订单' }] } }
+await knowledgeHandlers.handleKnowledgeUpdate({ url: `/twin/knowledge/files?id=${fileId}` }, {})
+assert.deepEqual(operations, [[
+  'updateKnowledgeFile',
+  fileId,
+  { metadataPatch: { knowledgeOntologyLinks: [{ id: 'table:sales.orders', label: '销售订单' }] } }
+]])
+assert.deepEqual(boundNamespaces, ['knowledge'])
+assert.equal(responses[0].status, 200)
+assert.equal(responses[0].payload.ok, true)
+
+reset()
+requestBody = { metadataPatch: { folder: null }, fileName: 'mixed.txt' }
+await knowledgeHandlers.handleKnowledgeUpdate({ url: `/twin/knowledge/files?id=${fileId}` }, {})
+assert.deepEqual(operations, [])
+assert.equal(responses[0].status, 400)
 
 reset()
 await knowledgeHandlers.handleKnowledgeDelete({ url: `/twin/knowledge?id=${fileId}` }, {})

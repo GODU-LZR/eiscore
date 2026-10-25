@@ -65,6 +65,25 @@ const { createPersistence } = require('./twin-tools');
   assert.equal(updateRequest.body.employee_id, undefined);
   assert.ok(updateRequest.body.updated_at);
 
+  await knowledge.updateKnowledgeFile(knowledgeFileId, {
+    metadataPatch: { folder: null, source: 'upload', knowledgeOntologyLinks: [{ id: 'table:sales.orders', label: '销售订单' }] }
+  });
+  const metadataMergeRequest = calls.at(-1);
+  assert.equal(metadataMergeRequest.method, 'POST');
+  assert.equal(metadataMergeRequest.path, '/rpc/merge_twin_knowledge_file_metadata');
+  assert.deepEqual(metadataMergeRequest.body, {
+    p_id: knowledgeFileId,
+    p_employee_id: 'alice',
+    p_harness_namespace: 'knowledge',
+    p_metadata_patch: {
+      folder: null,
+      source: 'upload',
+      knowledgeOntologyLinks: [{ id: 'table:sales.orders', label: '销售订单' }]
+    }
+  });
+  assert.equal(metadataMergeRequest.acceptProfile, 'public');
+  assert.equal(metadataMergeRequest.contentProfile, 'public');
+
   const deleted = await knowledge.deleteKnowledgeFile(knowledgeFileId);
   const deleteRequest = calls.at(-1);
   assert.equal(deleted, true);

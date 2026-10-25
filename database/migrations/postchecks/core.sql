@@ -574,3 +574,48 @@ BEGIN
   END IF;
 END
 $anonymous_boundary_check$;
+
+DO $twin_knowledge_metadata_merge_check$
+DECLARE
+  function_oid regprocedure := to_regprocedure('public.merge_twin_knowledge_file_metadata(uuid,text,text,jsonb)');
+  function_definition text;
+  function_owner text;
+  function_security_definer boolean;
+BEGIN
+  IF function_oid IS NULL THEN
+    RAISE EXCEPTION 'knowledge file metadata merge RPC is missing';
+  END IF;
+
+  SELECT pg_get_functiondef(p.oid), owner_role.rolname, p.prosecdef
+    INTO function_definition, function_owner, function_security_definer
+  FROM pg_proc AS p
+  JOIN pg_roles AS owner_role ON owner_role.oid = p.proowner
+  WHERE p.oid = function_oid;
+
+  IF function_owner IS DISTINCT FROM 'eiscore_owner' OR function_security_definer THEN
+    RAISE EXCEPTION 'knowledge file metadata merge RPC must be owner-controlled SECURITY INVOKER';
+  END IF;
+  IF NOT has_function_privilege('web_user', function_oid, 'EXECUTE')
+     OR has_function_privilege('web_anon', function_oid, 'EXECUTE')
+     OR EXISTS (
+       SELECT 1
+       FROM pg_proc AS p
+       CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS acl
+       WHERE p.oid = function_oid
+         AND acl.grantee = 0
+         AND acl.privilege_type = 'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'knowledge file metadata merge RPC grants are not restricted to authenticated backend use';
+  END IF;
+  IF position('claim_namespace IS DISTINCT FROM ''knowledge''' IN function_definition) = 0
+     OR position('p_employee_id IS DISTINCT FROM claim_username' IN function_definition) = 0
+     OR position('file.employee_id = p_employee_id' IN function_definition) = 0
+     OR position('file.harness_namespace = p_harness_namespace' IN function_definition) = 0 THEN
+    RAISE EXCEPTION 'knowledge file metadata merge RPC owner or namespace checks are incomplete';
+  END IF;
+  IF position('jsonb_typeof(p_metadata_patch)' IN function_definition) = 0
+     OR position('jsonb_typeof(entry.value) = ''null''' IN function_definition) = 0 THEN
+    RAISE EXCEPTION 'knowledge file metadata merge RPC must validate object patches and remove null-valued keys';
+  END IF;
+END
+$twin_knowledge_metadata_merge_check$;

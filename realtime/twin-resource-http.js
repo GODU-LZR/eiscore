@@ -6,7 +6,8 @@
 const {
   createPersistence: defaultCreatePersistence,
   normalizeKnowledgeFileId,
-  normalizeKnowledgeFilePayload
+  normalizeKnowledgeFilePayload,
+  normalizeKnowledgeMetadataPatch
 } = require('./twin-tools');
 
 const createTwinResourceHttpHandlers = ({
@@ -177,7 +178,20 @@ const createTwinResourceHttpHandlers = ({
         return;
       }
       const fileId = normalizeKnowledgeFileId(rawFileId);
-      const patch = normalizeKnowledgeFilePayload(body, { partial: true });
+      let patch;
+      if (Object.prototype.hasOwnProperty.call(body, 'metadataPatch')) {
+        if (Object.keys(body).length !== 1) {
+          sendJson(res, 400, { code: 'TWIN_KB_INVALID', message: 'metadataPatch cannot be combined with other fields' });
+          return;
+        }
+        patch = { metadataPatch: normalizeKnowledgeMetadataPatch(body.metadataPatch) };
+        if (Object.keys(patch.metadataPatch).length === 0) {
+          sendJson(res, 400, { code: 'TWIN_KB_INVALID', message: 'metadataPatch cannot be empty' });
+          return;
+        }
+      } else {
+        patch = normalizeKnowledgeFilePayload(body, { partial: true });
+      }
       const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
       const persistence = createPersistence(pgQuery, user.username, namespace);
       const file = await persistence.updateKnowledgeFile(fileId, patch);
