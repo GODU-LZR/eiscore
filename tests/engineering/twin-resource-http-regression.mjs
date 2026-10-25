@@ -21,6 +21,7 @@ let boundNamespaces = []
 let persistenceNamespaces = []
 const operations = []
 const responses = []
+let deleteResult = true
 
 const maybeFail = (method) => {
   if (failMethod === method) throw new Error(`${method} failed`)
@@ -51,11 +52,23 @@ const persistence = {
     operations.push(['listKnowledgeFiles', limit])
     return [{ id: 'file-1' }]
   },
+  async getKnowledgeFile(id) {
+    maybeFail('getKnowledgeFile')
+    operations.push(['getKnowledgeFile', id])
+    return { id, file_name: 'guide.txt', content_text: 'content' }
+  },
+  async updateKnowledgeFile(id, patch) {
+    maybeFail('updateKnowledgeFile')
+    operations.push(['updateKnowledgeFile', id, patch])
+    return { id, file_name: patch.file_name || 'guide.txt', ...patch }
+  },
   async deleteKnowledgeFile(id) {
     maybeFail('deleteKnowledgeFile')
     operations.push(['deleteKnowledgeFile', id])
+    return deleteResult
   }
 }
+const fileId = '11111111-1111-4111-8111-111111111111'
 
 const handlers = createTwinResourceHttpHandlers({
   authorizeTwinRequest() {
@@ -94,6 +107,7 @@ const reset = () => {
   persistenceNamespaces.length = 0
   operations.length = 0
   responses.length = 0
+  deleteResult = true
 }
 
 reset()
@@ -167,9 +181,49 @@ assert.equal(persistenceCreations, 0)
 assert.deepEqual(responses, [{ status: 400, payload: { code: 'ID_REQUIRED', message: 'file id is required' } }])
 
 reset()
-await handlers.handleKnowledgeDelete({ url: '/twin/knowledge?id=file-2' }, {})
-assert.deepEqual(operations, [['deleteKnowledgeFile', 'file-2']])
+await handlers.handleKnowledgeList({ url: `/twin/knowledge?id=${fileId}` }, {})
+assert.deepEqual(operations, [['getKnowledgeFile', fileId]])
+assert.deepEqual(responses, [{ status: 200, payload: { file: { id: fileId, file_name: 'guide.txt', content_text: 'content' } } }])
+
+reset()
+await handlers.handleKnowledgeList({ url: '/twin/knowledge?id=invalid' }, {})
+assert.deepEqual(operations, [])
+assert.equal(responses[0].status, 400)
+assert.equal(responses[0].payload.code, 'TWIN_KB_INVALID')
+
+reset()
+await handlers.handleKnowledgeUpdate({ url: '/twin/knowledge/files' }, {})
+assert.equal(persistenceCreations, 0)
+assert.deepEqual(responses, [{ status: 400, payload: { code: 'ID_REQUIRED', message: 'file id is required' } }])
+
+reset()
+requestBody = {
+  fileName: 'renamed.txt',
+  employee_id: 'other-user',
+  harness_namespace: 'business',
+  id: '22222222-2222-4222-8222-222222222222'
+}
+await handlers.handleKnowledgeUpdate({ url: `/twin/knowledge/files?id=${fileId}` }, {})
+assert.deepEqual(operations, [['updateKnowledgeFile', fileId, { file_name: 'renamed.txt' }]])
+assert.deepEqual(boundNamespaces, ['business'])
+assert.deepEqual(responses, [{ status: 200, payload: { ok: true, file: { id: fileId, file_name: 'renamed.txt' } } }])
+
+reset()
+requestBody = { fileName: '   ' }
+await handlers.handleKnowledgeUpdate({ url: `/twin/knowledge/files?id=${fileId}` }, {})
+assert.deepEqual(operations, [])
+assert.equal(responses[0].status, 400)
+assert.equal(responses[0].payload.code, 'TWIN_KB_INVALID')
+
+reset()
+await handlers.handleKnowledgeDelete({ url: `/twin/knowledge?id=${fileId}` }, {})
+assert.deepEqual(operations, [['deleteKnowledgeFile', fileId]])
 assert.deepEqual(responses, [{ status: 200, payload: { ok: true } }])
+
+reset()
+deleteResult = false
+await handlers.handleKnowledgeDelete({ url: `/twin/knowledge?id=${fileId}` }, {})
+assert.equal(responses[0].status, 404)
 
 const knowledgeHandlers = createTwinResourceHttpHandlers({
   authorizeTwinRequest() {
@@ -195,8 +249,8 @@ const knowledgeHandlers = createTwinResourceHttpHandlers({
 })
 
 reset()
-await knowledgeHandlers.handleKnowledgeDelete({ url: '/twin/knowledge?id=knowledge-file-1' }, {})
-assert.deepEqual(operations, [['deleteKnowledgeFile', 'knowledge-file-1']])
+await knowledgeHandlers.handleKnowledgeDelete({ url: `/twin/knowledge?id=${fileId}` }, {})
+assert.deepEqual(operations, [['deleteKnowledgeFile', fileId]])
 assert.deepEqual(boundNamespaces, ['knowledge'])
 assert.deepEqual(responses, [{ status: 200, payload: { ok: true } }])
 

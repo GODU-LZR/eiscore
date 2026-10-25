@@ -3,7 +3,11 @@
 
 'use strict';
 
-const { createPersistence: defaultCreatePersistence } = require('./twin-tools');
+const {
+  createPersistence: defaultCreatePersistence,
+  normalizeKnowledgeFileId,
+  normalizeKnowledgeFilePayload
+} = require('./twin-tools');
 
 const createTwinResourceHttpHandlers = ({
   authorizeTwinRequest,
@@ -119,6 +123,10 @@ const createTwinResourceHttpHandlers = ({
       const file = await persistence.uploadKnowledgeFile(body);
       sendJson(res, 200, { ok: true, file });
     } catch (error) {
+      if (error?.httpStatus === 400 || error?.code === 'TWIN_KB_INVALID') {
+        sendJson(res, 400, { code: error.code || 'TWIN_KB_INVALID', message: error.message });
+        return;
+      }
       sendJson(res, 500, { code: 'TWIN_UPLOAD_FAILED', message: error?.message || 'Failed to upload file' });
     }
   };
@@ -127,12 +135,63 @@ const createTwinResourceHttpHandlers = ({
     const user = authorizeTwinRequest(req, res);
     if (!user) return;
     try {
+      const url = new URL(req.url || '/', `http://localhost:${port}`);
       const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
       const persistence = createPersistence(pgQuery, user.username, namespace);
+      const fileId = url.searchParams.get('id') || '';
+      if (fileId) {
+        const file = await persistence.getKnowledgeFile(normalizeKnowledgeFileId(fileId));
+        if (!file) {
+          sendJson(res, 404, { code: 'TWIN_KB_NOT_FOUND', message: 'Knowledge file not found' });
+          return;
+        }
+        sendJson(res, 200, { file });
+        return;
+      }
       const files = await persistence.listKnowledgeFiles(50);
       sendJson(res, 200, { files });
     } catch (error) {
+      if (error?.httpStatus === 400 || error?.code === 'TWIN_KB_INVALID') {
+        sendJson(res, 400, { code: error.code || 'TWIN_KB_INVALID', message: error.message });
+        return;
+      }
       sendJson(res, 500, { code: 'TWIN_KB_LIST_FAILED', message: error?.message || 'Failed to list knowledge files' });
+    }
+  };
+
+  const handleKnowledgeUpdate = async (req, res) => {
+    const user = authorizeTwinRequest(req, res);
+    if (!user) return;
+    let body = {};
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      sendJson(res, 400, { code: 'BAD_REQUEST', message: error.message || 'Invalid request body' });
+      return;
+    }
+    try {
+      const url = new URL(req.url || '/', `http://localhost:${port}`);
+      const rawFileId = url.searchParams.get('id') || '';
+      if (!rawFileId) {
+        sendJson(res, 400, { code: 'ID_REQUIRED', message: 'file id is required' });
+        return;
+      }
+      const fileId = normalizeKnowledgeFileId(rawFileId);
+      const patch = normalizeKnowledgeFilePayload(body, { partial: true });
+      const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
+      const persistence = createPersistence(pgQuery, user.username, namespace);
+      const file = await persistence.updateKnowledgeFile(fileId, patch);
+      if (!file) {
+        sendJson(res, 404, { code: 'TWIN_KB_NOT_FOUND', message: 'Knowledge file not found' });
+        return;
+      }
+      sendJson(res, 200, { ok: true, file });
+    } catch (error) {
+      if (error?.httpStatus === 400 || error?.code === 'TWIN_KB_INVALID') {
+        sendJson(res, 400, { code: error.code || 'TWIN_KB_INVALID', message: error.message });
+        return;
+      }
+      sendJson(res, 500, { code: 'TWIN_KB_UPDATE_FAILED', message: error?.message || 'Failed to update knowledge file' });
     }
   };
 
@@ -141,16 +200,25 @@ const createTwinResourceHttpHandlers = ({
     if (!user) return;
     try {
       const url = new URL(req.url, `http://localhost:${port}`);
-      const fileId = url.searchParams.get('id') || '';
-      if (!fileId) {
+      const rawFileId = url.searchParams.get('id') || '';
+      if (!rawFileId) {
         sendJson(res, 400, { code: 'ID_REQUIRED', message: 'file id is required' });
         return;
       }
+      const fileId = normalizeKnowledgeFileId(rawFileId);
       const pgQuery = bindPgQueryForUser({ ...user, harness_namespace: namespace });
       const persistence = createPersistence(pgQuery, user.username, namespace);
-      await persistence.deleteKnowledgeFile(fileId);
+      const deleted = await persistence.deleteKnowledgeFile(fileId);
+      if (!deleted) {
+        sendJson(res, 404, { code: 'TWIN_KB_NOT_FOUND', message: 'Knowledge file not found' });
+        return;
+      }
       sendJson(res, 200, { ok: true });
     } catch (error) {
+      if (error?.httpStatus === 400 || error?.code === 'TWIN_KB_INVALID') {
+        sendJson(res, 400, { code: error.code || 'TWIN_KB_INVALID', message: error.message });
+        return;
+      }
       sendJson(res, 500, { code: 'TWIN_KB_DELETE_FAILED', message: error?.message || 'Failed to delete knowledge file' });
     }
   };
@@ -162,6 +230,7 @@ const createTwinResourceHttpHandlers = ({
     handleMessagesGet,
     handleKnowledgeUpload,
     handleKnowledgeList,
+    handleKnowledgeUpdate,
     handleKnowledgeDelete
   });
 };

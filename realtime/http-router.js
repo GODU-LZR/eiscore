@@ -31,7 +31,8 @@ const KNOWLEDGE_TWIN_ROUTE_PATHS = new Set([
   '/twin/knowledge/messages',
   '/twin/knowledge/files',
   '/twin/knowledge',
-  '/twin/knowledge/upload'
+  '/twin/knowledge/upload',
+  '/twin/knowledge/ontology/context'
 ]);
 
 const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
@@ -76,11 +77,13 @@ const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('POST', '/flash/tools/call', 'flash.handleToolCall'),
   exact('POST', '/twin/chat', 'harness.handleTwinChat'),
   exact('POST', '/twin/knowledge/chat', 'harness.handleKnowledgeTwinChat'),
+  exact('GET', '/twin/knowledge/ontology/context', 'ontology.handleKnowledgeContext'),
   exact('GET', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionsList'),
   exact('DELETE', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionDelete'),
   exact('GET', '/twin/knowledge/messages', 'twin.handleKnowledgeMessagesGet'),
   exact('GET', '/twin/knowledge/files', 'twin.handleKnowledgeFilesList'),
   exact('POST', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpload'),
+  exact('PATCH', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpdate'),
   exact('DELETE', '/twin/knowledge/files', 'twin.handleKnowledgeFileDelete'),
   exact('GET', '/twin/sessions', 'twin.handleSessionsList'),
   exact('GET', '/twin/admin/sessions', 'twin.handleAdminSessionsList'),

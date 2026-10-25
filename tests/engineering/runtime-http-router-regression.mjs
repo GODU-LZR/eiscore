@@ -72,11 +72,13 @@ const expectedRoutes = [
   descriptor('POST', 'exact', '/flash/tools/call', 'flash.handleToolCall'),
   descriptor('POST', 'exact', '/twin/chat', 'harness.handleTwinChat'),
   descriptor('POST', 'exact', '/twin/knowledge/chat', 'harness.handleKnowledgeTwinChat'),
+  descriptor('GET', 'exact', '/twin/knowledge/ontology/context', 'ontology.handleKnowledgeContext'),
   descriptor('GET', 'exact', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionsList'),
   descriptor('DELETE', 'exact', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionDelete'),
   descriptor('GET', 'exact', '/twin/knowledge/messages', 'twin.handleKnowledgeMessagesGet'),
   descriptor('GET', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFilesList'),
   descriptor('POST', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpload'),
+  descriptor('PATCH', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpdate'),
   descriptor('DELETE', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileDelete'),
   descriptor('GET', 'exact', '/twin/sessions', 'twin.handleSessionsList'),
   descriptor('GET', 'exact', '/twin/admin/sessions', 'twin.handleAdminSessionsList'),
@@ -102,7 +104,7 @@ const actualRoutes = HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
   entry.authorize
 ))
 
-assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 54)
+assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 56)
 assert.equal(HTTP_ROUTE_MANIFEST.length, CORE_HTTP_ROUTE_MANIFEST.length + COMPANY_HTTP_ROUTE_MANIFEST.length)
 assert.deepEqual(actualRoutes, expectedRoutes)
 assert.ok(Object.isFrozen(HTTP_ROUTE_MANIFEST))
@@ -315,12 +317,16 @@ const knowledgeProfileHandler = createHttpRequestHandler({
       handleToolProxy: recordDispatch('harness.handleToolProxy'),
       handleKnowledgeTwinChat: recordDispatch('harness.handleKnowledgeTwinChat')
     },
+    ontology: {
+      handleKnowledgeContext: recordDispatch('ontology.handleKnowledgeContext')
+    },
     twin: {
       handleKnowledgeSessionsList: recordDispatch('twin.handleKnowledgeSessionsList'),
       handleKnowledgeSessionDelete: recordDispatch('twin.handleKnowledgeSessionDelete'),
       handleKnowledgeMessagesGet: recordDispatch('twin.handleKnowledgeMessagesGet'),
       handleKnowledgeFilesList: recordDispatch('twin.handleKnowledgeFilesList'),
       handleKnowledgeFileUpload: recordDispatch('twin.handleKnowledgeFileUpload'),
+      handleKnowledgeFileUpdate: recordDispatch('twin.handleKnowledgeFileUpdate'),
       handleKnowledgeFileDelete: recordDispatch('twin.handleKnowledgeFileDelete'),
       handleKnowledgeList: recordDispatch('twin.handleKnowledgeList'),
       handleKnowledgeUpload: recordDispatch('twin.handleKnowledgeUpload'),
@@ -332,11 +338,13 @@ for (const [method, path, handler] of [
   ['GET', '/health', 'health'],
   ['POST', '/internal/harness/tool', 'harness.handleToolProxy'],
   ['POST', '/twin/knowledge/chat', 'harness.handleKnowledgeTwinChat'],
+  ['GET', '/twin/knowledge/ontology/context', 'ontology.handleKnowledgeContext'],
   ['GET', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionsList'],
   ['DELETE', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionDelete'],
   ['GET', '/twin/knowledge/messages', 'twin.handleKnowledgeMessagesGet'],
   ['GET', '/twin/knowledge/files', 'twin.handleKnowledgeFilesList'],
   ['POST', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpload'],
+  ['PATCH', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpdate'],
   ['DELETE', '/twin/knowledge/files', 'twin.handleKnowledgeFileDelete'],
   ['GET', '/twin/knowledge', 'twin.handleKnowledgeList'],
   ['POST', '/twin/knowledge/upload', 'twin.handleKnowledgeUpload'],
@@ -422,11 +430,13 @@ assert.deepEqual(KNOWLEDGE_HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
   descriptor('*', 'exact', '/health', 'health'),
   descriptor('POST', 'exact', '/internal/harness/tool', 'harness.handleToolProxy'),
   descriptor('POST', 'exact', '/twin/knowledge/chat', 'harness.handleKnowledgeTwinChat'),
+  descriptor('GET', 'exact', '/twin/knowledge/ontology/context', 'ontology.handleKnowledgeContext'),
   descriptor('GET', 'exact', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionsList'),
   descriptor('DELETE', 'exact', '/twin/knowledge/sessions', 'twin.handleKnowledgeSessionDelete'),
   descriptor('GET', 'exact', '/twin/knowledge/messages', 'twin.handleKnowledgeMessagesGet'),
   descriptor('GET', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFilesList'),
   descriptor('POST', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpload'),
+  descriptor('PATCH', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileUpdate'),
   descriptor('DELETE', 'exact', '/twin/knowledge/files', 'twin.handleKnowledgeFileDelete'),
   descriptor('GET', 'exact', '/twin/knowledge', 'twin.handleKnowledgeList'),
   descriptor('POST', 'exact', '/twin/knowledge/upload', 'twin.handleKnowledgeUpload'),

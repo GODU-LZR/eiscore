@@ -33,6 +33,14 @@ const KB_READ_CONTENT_CHARS = 200000;   // 读取数据库内保存的完整知�
 const KB_COMPACT_HEAD_LINES = 12;
 const KB_COMPACT_DATA_LINES = 36;
 const KB_COMPACT_IMPORTANT_LINES = 30;
+const MAX_KNOWLEDGE_FILE_NAME_LENGTH = 255;
+const MAX_KNOWLEDGE_FILE_TYPE_LENGTH = 128;
+const MAX_KNOWLEDGE_FILE_TEXT_LENGTH = 200000;
+const MAX_KNOWLEDGE_FILE_BASE64_LENGTH = 5000000;
+const MAX_KNOWLEDGE_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_KNOWLEDGE_FILE_SUMMARY_LENGTH = 2000;
+const MAX_KNOWLEDGE_FILE_TAGS = 50;
+const MAX_KNOWLEDGE_FILE_TAG_LENGTH = 100;
 const TWIN_NAMESPACES = Object.freeze({ BUSINESS: 'business', KNOWLEDGE: 'knowledge' });
 const normalizeTwinNamespace = (value = TWIN_NAMESPACES.BUSINESS) => {
   const namespace = String(value || '').trim().toLowerCase();
@@ -43,6 +51,109 @@ const normalizeTwinNamespace = (value = TWIN_NAMESPACES.BUSINESS) => {
     throw error;
   }
   return namespace;
+};
+
+const knowledgeFileValidationError = (message) => {
+  const error = new Error(message);
+  error.code = 'TWIN_KB_INVALID';
+  error.httpStatus = 400;
+  return error;
+};
+
+const normalizeKnowledgeFileId = (value) => {
+  const fileId = String(value || '').trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fileId)) {
+    throw knowledgeFileValidationError('file id must be a UUID');
+  }
+  return fileId;
+};
+
+const normalizeKnowledgeFilePayload = (input, { partial = false } = {}) => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    throw knowledgeFileValidationError('file payload must be an object');
+  }
+  const has = (...keys) => keys.some((key) => Object.prototype.hasOwnProperty.call(input, key));
+  const first = (...keys) => {
+    const key = keys.find((item) => Object.prototype.hasOwnProperty.call(input, item));
+    return key ? input[key] : undefined;
+  };
+  const body = {};
+
+  if (!partial || has('fileName', 'file_name')) {
+    const fileName = String(first('fileName', 'file_name') ?? (partial ? '' : '未命名文件')).trim();
+    if (!fileName || fileName.length > MAX_KNOWLEDGE_FILE_NAME_LENGTH || /[\\/\u0000-\u001f\u007f]/.test(fileName)) {
+      throw knowledgeFileValidationError('file name is invalid or too long');
+    }
+    body.file_name = fileName;
+  }
+  if (!partial || has('fileType', 'file_type')) {
+    const fileType = String(first('fileType', 'file_type') ?? (partial ? '' : 'text/plain')).trim();
+    if (!fileType || fileType.length > MAX_KNOWLEDGE_FILE_TYPE_LENGTH || /[\u0000-\u001f\u007f]/.test(fileType)) {
+      throw knowledgeFileValidationError('file type is invalid or too long');
+    }
+    body.file_type = fileType;
+  }
+  if (!partial || has('contentText', 'content_text')) {
+    const contentText = String(first('contentText', 'content_text') ?? '');
+    if (contentText.length > MAX_KNOWLEDGE_FILE_TEXT_LENGTH) {
+      throw knowledgeFileValidationError('text content exceeds the knowledge file limit');
+    }
+    body.content_text = contentText;
+  }
+  if (!partial || has('contentB64', 'content_b64')) {
+    let contentB64 = String(first('contentB64', 'content_b64') ?? '');
+    contentB64 = contentB64.replace(/^data:[^,]*;base64,/i, '');
+    if (contentB64.length > MAX_KNOWLEDGE_FILE_BASE64_LENGTH || !/^(?:[A-Za-z0-9+/]*={0,2})$/.test(contentB64)) {
+      throw knowledgeFileValidationError('base64 content is invalid or too large');
+    }
+    body.content_b64 = contentB64;
+  }
+  if (!partial || has('fileSize', 'file_size')) {
+    const rawSize = first('fileSize', 'file_size');
+    const fileSize = rawSize === undefined || rawSize === null || rawSize === ''
+      ? (body.content_b64 ? Buffer.from(body.content_b64, 'base64').length : Buffer.byteLength(body.content_text || ''))
+      : Number(rawSize);
+    if (!Number.isSafeInteger(fileSize) || fileSize < 0 || fileSize > MAX_KNOWLEDGE_FILE_SIZE) {
+      throw knowledgeFileValidationError('file size is outside the supported limit');
+    }
+    body.file_size = fileSize;
+  }
+  if (!partial || has('tags')) {
+    const tags = first('tags') ?? [];
+    if (!Array.isArray(tags) || tags.length > MAX_KNOWLEDGE_FILE_TAGS) {
+      throw knowledgeFileValidationError('file tags are invalid or too many');
+    }
+    body.tags = tags.map((tag) => String(tag || '').trim()).filter(Boolean);
+    if (body.tags.some((tag) => tag.length > MAX_KNOWLEDGE_FILE_TAG_LENGTH)) {
+      throw knowledgeFileValidationError('a file tag is too long');
+    }
+  }
+  if (!partial || has('summary')) {
+    const summary = String(first('summary') ?? '');
+    if (summary.length > MAX_KNOWLEDGE_FILE_SUMMARY_LENGTH) {
+      throw knowledgeFileValidationError('file summary is too long');
+    }
+    body.summary = summary;
+  }
+  if (!partial || has('metadata')) {
+    const metadata = first('metadata') ?? {};
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      throw knowledgeFileValidationError('file metadata must be an object');
+    }
+    let serialized;
+    try {
+      serialized = JSON.stringify(metadata);
+    } catch {
+      throw knowledgeFileValidationError('file metadata is invalid');
+    }
+    if (serialized.length > 16000) throw knowledgeFileValidationError('file metadata is too large');
+    body.metadata = metadata;
+  }
+
+  if (partial && Object.keys(body).length === 0) {
+    throw knowledgeFileValidationError('at least one editable file field is required');
+  }
+  return body;
 };
 
 // ───────────────────── 工具结果截断 ──────────────────────
@@ -1004,14 +1115,7 @@ function createPersistence(pgQuery, employeeId, namespace = TWIN_NAMESPACES.BUSI
       const body = {
         employee_id: employeeId,
         harness_namespace: twinNamespace,
-        file_name: fileData.fileName || '未命名文件',
-        file_type: fileData.fileType || 'text/plain',
-        file_size: Number(fileData.fileSize) || 0,
-        content_text: String(fileData.contentText || '').slice(0, 200000),
-        content_b64: String(fileData.contentB64 || '').slice(0, 5000000),
-        tags: Array.isArray(fileData.tags) ? fileData.tags : [],
-        summary: String(fileData.summary || '').slice(0, 2000),
-        metadata: fileData.metadata || {}
+        ...normalizeKnowledgeFilePayload(fileData || {})
       };
       const res = await pgQuery({
         method: 'POST', path: '/twin_knowledge_files',
@@ -1034,7 +1138,7 @@ function createPersistence(pgQuery, employeeId, namespace = TWIN_NAMESPACES.BUSI
         query: {
           employee_id: `eq.${employeeId}`,
           harness_namespace: `eq.${twinNamespace}`,
-          select: 'id,file_name,file_type,file_size,tags,summary,created_at,updated_at',
+          select: 'id,file_name,file_type,file_size,tags,summary,metadata,created_at,updated_at',
           order: 'updated_at.desc',
           limit: String(limit)
         },
@@ -1045,18 +1149,73 @@ function createPersistence(pgQuery, employeeId, namespace = TWIN_NAMESPACES.BUSI
     },
 
     /**
+     * Read one knowledge file. The employee and namespace predicates are
+     * intentional even though the signed PostgREST JWT also applies RLS:
+     * they keep this adapter safe when it is exercised with a test gateway.
+     */
+    async getKnowledgeFile(fileId) {
+      if (!fileId) return null;
+      const safeFileId = normalizeKnowledgeFileId(fileId);
+      const res = await pgQuery({
+        method: 'GET', path: '/twin_knowledge_files',
+        query: {
+          id: `eq.${safeFileId}`,
+          employee_id: `eq.${employeeId}`,
+          harness_namespace: `eq.${twinNamespace}`,
+          select: 'id,file_name,file_type,file_size,content_text,content_b64,tags,summary,metadata,created_at,updated_at',
+          limit: '1'
+        },
+        acceptProfile: 'app_data',
+        timeoutMs: 5000
+      });
+      return Array.isArray(res?.data) ? (res.data[0] || null) : (res?.data || null);
+    },
+
+    /**
+     * Update an existing knowledge file. The handler supplies a validated
+     * whitelist, so identity and namespace cannot be changed by callers.
+     */
+    async updateKnowledgeFile(fileId, patch = {}) {
+      if (!fileId || !patch || typeof patch !== 'object' || Array.isArray(patch)) return null;
+      const safeFileId = normalizeKnowledgeFileId(fileId);
+      const res = await pgQuery({
+        method: 'PATCH', path: '/twin_knowledge_files',
+        query: {
+          id: `eq.${safeFileId}`,
+          employee_id: `eq.${employeeId}`,
+          harness_namespace: `eq.${twinNamespace}`
+        },
+        body: { ...patch, updated_at: new Date().toISOString() },
+        acceptProfile: 'app_data',
+        contentProfile: 'app_data',
+        prefer: 'return=representation',
+        timeoutMs: 10000
+      });
+      return Array.isArray(res?.data) ? (res.data[0] || null) : (res?.data || null);
+    },
+
+    /**
      * 删除知识库文件
      */
     async deleteKnowledgeFile(fileId) {
       if (!fileId) return false;
-      await pgQuery({
+      const safeFileId = normalizeKnowledgeFileId(fileId);
+      const res = await pgQuery({
         method: 'DELETE', path: '/twin_knowledge_files',
-        query: { id: `eq.${fileId}`, harness_namespace: `eq.${twinNamespace}` },
+        query: {
+          id: `eq.${safeFileId}`,
+          employee_id: `eq.${employeeId}`,
+          harness_namespace: `eq.${twinNamespace}`
+        },
         acceptProfile: 'app_data',
         contentProfile: 'app_data',
+        prefer: 'return=representation',
         timeoutMs: 5000
       });
-      return true;
+      if (Array.isArray(res?.data)) return res.data.length > 0;
+      // Some PostgREST-compatible test gateways omit a representation for a
+      // successful DELETE; preserve the historical success contract there.
+      return res?.data === undefined ? true : Boolean(res.data);
     }
   };
 }
@@ -1069,5 +1228,7 @@ module.exports = {
   truncateResult,
   limitRows,
   TWIN_NAMESPACES,
-  normalizeTwinNamespace
+  normalizeTwinNamespace,
+  normalizeKnowledgeFileId,
+  normalizeKnowledgeFilePayload
 };
