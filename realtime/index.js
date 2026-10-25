@@ -10,6 +10,7 @@ const { createCompanyHttpModule } = require('./company-http');
 const { createCompanySiteHandlers } = require('./company-site');
 const { createCompanySalesHandlers } = require('./company-sales-agent');
 const { createTwinResourceHttpHandlers } = require('./twin-resource-http');
+const { createKnowledgeOntologyHttpHandlers } = require('./knowledge-ontology-http');
 const { createFlashHttpHandlers } = require('./flash-http');
 const { attachWebSocketServer } = require('./websocket-server');
 const { createHarnessFlashToolCallHandler } = require('./flash-harness-ws');
@@ -619,6 +620,12 @@ const knowledgeTwinResourceHttpHandlers = createTwinResourceHttpHandlers({
   port,
   namespace: 'knowledge'
 });
+const knowledgeOntologyHttpHandlers = createKnowledgeOntologyHttpHandlers({
+  authorize: authorizeTwinRequest,
+  bindPgQueryForUser,
+  sendJson,
+  log: console
+});
 
 const companyQuery = (...args) => databaseNotifier.query(...args);
 const companySiteHandlers = businessRuntime
@@ -689,8 +696,10 @@ const server = http.createServer(createHttpRequestHandler({
       handleKnowledgeMessagesGet: knowledgeTwinResourceHttpHandlers.handleMessagesGet,
       handleKnowledgeFilesList: knowledgeTwinResourceHttpHandlers.handleKnowledgeList,
       handleKnowledgeFileUpload: knowledgeTwinResourceHttpHandlers.handleKnowledgeUpload,
+      handleKnowledgeFileUpdate: knowledgeTwinResourceHttpHandlers.handleKnowledgeUpdate,
       handleKnowledgeFileDelete: knowledgeTwinResourceHttpHandlers.handleKnowledgeDelete
     },
+    ontology: knowledgeOntologyHttpHandlers,
     company: companyHttp.handlers
   }
 }));
