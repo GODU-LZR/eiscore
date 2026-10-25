@@ -263,6 +263,7 @@ window.__ModuleLoader__.load({
         ctx.on('dispose', () => style.remove())
         ctx.slots.inject('sidebar.workspaces', () => ctx.slots.register({
           name: 'sidebar.workspaces',
+          priority: -1,
           inject: () => ({
             startSession: (workspaceId) => uiWorkspace.startSession(workspaceId),
             open: (sessionId) => sessions.open(sessionId),

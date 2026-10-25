@@ -102,6 +102,7 @@ plugin.apply({
 })
 assert.equal(appended.length, 1)
 assert.equal(registered.options.name, 'sidebar.workspaces')
+assert.equal(registered.options.priority, -1)
 assert.equal(typeof disposed, 'function')
 
 const workspaceState = {
