@@ -26,8 +26,8 @@ window.__ModuleLoader__.load({
       .eisKnowledgeTreeRow{height:34px;min-height:34px;display:flex;align-items:center;gap:2px;border-radius:8px}
       .eisKnowledgeTreeRow:hover,.eisKnowledgeTreeSession[aria-current="page"]{background:var(--dsw-alias-interactive-bg-hover)}
       .eisKnowledgeTreeNode,.eisKnowledgeTreeSession{height:100%;min-width:0;flex:1;display:flex;align-items:center;gap:6px;padding:0 6px;border:0;border-radius:8px;background:transparent;color:inherit;text-align:left;cursor:pointer;font:inherit}
-      .eisKnowledgeTreeNode{padding-left:calc(6px + var(--eis-tree-depth,0)*14px)}
-      .eisKnowledgeTreeSession{height:32px;min-height:32px;padding-left:calc(24px + var(--eis-tree-depth,0)*14px);font-size:13px;line-height:20px}
+      .eisKnowledgeTreeNode{padding-left:calc(6px + var(--eis-tree-indent,0px))}
+      .eisKnowledgeTreeSession{height:32px;min-height:32px;padding-left:calc(24px + var(--eis-tree-indent,0px));font-size:13px;line-height:20px}
       .eisKnowledgeTreeNode:hover,.eisKnowledgeTreeSession:hover{background:var(--dsw-alias-interactive-bg-hover)}
       .eisKnowledgeTreeDisclosure{width:14px;height:18px;flex:none;display:inline-flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-caption);transition:transform .15s var(--ds-ease-in-out)}
       .eisKnowledgeTreeDisclosure[data-open="true"]{transform:rotate(90deg)}
@@ -159,7 +159,7 @@ window.__ModuleLoader__.load({
         key: node.id,
         type: 'button',
         className: 'eisKnowledgeTreeSession',
-        style: { '--eis-tree-depth': depth },
+        style: { '--eis-tree-indent': `${depth * 14}px` },
         'aria-current': sessionState.current === node.sessionId ? 'page' : undefined,
         'data-tree-session': node.sessionId,
         title: node.title,
@@ -174,7 +174,7 @@ window.__ModuleLoader__.load({
             h('button', {
               type: 'button',
               className: 'eisKnowledgeTreeNode',
-              style: { '--eis-tree-depth': depth },
+              style: { '--eis-tree-indent': `${depth * 14}px` },
               'aria-expanded': String(isOpen),
               'data-tree-node': node.id,
               onClick: () => toggle(node.id)
