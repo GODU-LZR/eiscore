@@ -56,6 +56,9 @@
     - id: eiscore-knowledge-role
       name: '/opt/eiscore-harness/knowledge-role-policy.mjs'
       inject: [systemPrompt]
+    - id: eiscore-knowledge-enterprise-tree
+      name: '/opt/eiscore-harness/client-plugins/knowledge-enterprise-tree/lib/index.js'
+      inject: []
     - id: eiscore-dsh-web-defaults
       name: '/opt/eiscore-harness/dsh-web-defaults.mjs'
       inject: [workspaceRegistry]
