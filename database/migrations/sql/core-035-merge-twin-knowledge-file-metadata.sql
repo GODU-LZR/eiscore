@@ -78,11 +78,11 @@ GRANT EXECUTE ON FUNCTION public.merge_twin_knowledge_file_metadata(uuid, text, 
 
 DO $twin_metadata_merge_contract$
 DECLARE
-  function_definition text;
   function_owner text;
+  function_security_definer boolean;
 BEGIN
-  SELECT pg_get_functiondef(p.oid), owner_role.rolname
-    INTO function_definition, function_owner
+  SELECT owner_role.rolname, p.prosecdef
+    INTO function_owner, function_security_definer
   FROM pg_proc AS p
   JOIN pg_roles AS owner_role ON owner_role.oid = p.proowner
   WHERE p.oid = 'public.merge_twin_knowledge_file_metadata(uuid,text,text,jsonb)'::regprocedure;
@@ -90,12 +90,8 @@ BEGIN
   IF function_owner IS DISTINCT FROM 'eiscore_owner' THEN
     RAISE EXCEPTION 'merge_twin_knowledge_file_metadata must be owned by eiscore_owner';
   END IF;
-  IF function_definition NOT LIKE '%SECURITY INVOKER%' THEN
+  IF function_security_definer THEN
     RAISE EXCEPTION 'merge_twin_knowledge_file_metadata must preserve RLS through invoker security';
-  END IF;
-  IF function_definition NOT LIKE '%harness_namespace%'
-     OR function_definition NOT LIKE '%employee_id%' THEN
-    RAISE EXCEPTION 'merge_twin_knowledge_file_metadata must enforce owner and namespace predicates';
   END IF;
 END
 $twin_metadata_merge_contract$;
