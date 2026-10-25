@@ -10,6 +10,7 @@ const packageJson = JSON.parse(readFileSync(new URL('package.json', pluginDir), 
 assert.equal(packageJson.name, '@eiscore/dsh-client-knowledge-enterprise-tree')
 assert.equal(packageJson.dsh.client.platform, 'web')
 assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-primitives'))
+assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'))
 
 const modules = process.argv[2]
 if (modules) {
@@ -26,6 +27,19 @@ if (modules) {
 }
 
 const source = readFileSync(new URL('lib/client.js', pluginDir), 'utf8')
+assert.match(source, /sidebarRightTabs\.register\(/)
+assert.match(source, /name: 'sidebar\.right\.pane\.tab'/)
+assert.match(source, /name: 'sidebar\.right\.pane\.tab\.title'/)
+assert.match(source, /openOntology:\s*\(\)\s*=>\s*sidebarRight\?\.openTab\?\.\(ONTOLOGY_TAB_KIND\)/)
+for (const expected of [
+  "'/harness-knowledge-agent/twin/knowledge/files'",
+  'readKnowledgeFile',
+  'updateKnowledgeFile',
+  'deleteKnowledgeFile',
+  'data-knowledge-file-preview',
+  '重命名文件',
+  '删除文件'
+]) assert.match(source, new RegExp(expected.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')))
 const makeElement = (type, props, ...children) => ({ type, props: { ...props, children: children.length === 1 ? children[0] : children } })
 const hookState = []
 const pendingEffects = []
@@ -84,25 +98,39 @@ const renderComponent = (component, props) => {
 const calls = []
 let registered
 let disposed
+const disposals = []
+const slotRegistrations = []
+let ontologyType
 const services = {
   sessions: {
     open: (id) => calls.push(['open', id]),
     search: async () => ({ ok: true, value: { items: [{ sessionId: 's-old', snippet: '命中合同文本' }], hasMore: false } })
   },
   workspaces: { archiveSession: async () => {} },
-  uiWorkspace: { startSession: (id) => calls.push(['start', id]) }
+  uiWorkspace: { startSession: (id) => calls.push(['start', id]) },
+  sidebarRight: { openTab: (kind) => calls.push(['ontology', kind]) },
+  sidebarRightTabs: { register: (definition) => { ontologyType = definition; return () => {} } }
 }
 plugin.apply({
   get: (name) => services[name],
-  on: (event, callback) => { if (event === 'dispose') disposed = callback },
+  on: (event, callback) => { if (event === 'dispose') { disposed = callback; disposals.push(callback) } },
   slots: {
-    inject: (name, callback) => { assert.equal(name, 'sidebar.workspaces'); callback() },
-    register: (options, component) => { registered = { options, component } }
+    inject: (name, callback) => { callback(); return () => {} },
+    register: (options, component) => {
+      const entry = { options, component }
+      slotRegistrations.push(entry)
+      if (options.name === 'sidebar.workspaces') registered = entry
+      return () => {}
+    }
   }
 })
 assert.equal(appended.length, 1)
 assert.equal(registered.options.name, 'sidebar.workspaces')
 assert.equal(registered.options.priority, -1)
+assert.equal(ontologyType.kind, 'knowledge-ontology')
+assert.equal(ontologyType.id, '@eiscore/dsh-client-knowledge-ontology')
+assert.ok(slotRegistrations.some(({ options }) => options.name === 'sidebar.right.pane.tab' && options.key === ontologyType.id))
+assert.ok(slotRegistrations.some(({ options }) => options.name === 'sidebar.right.pane.tab.title' && options.key === ontologyType.id))
 assert.equal(typeof disposed, 'function')
 
 const workspaceState = {
@@ -196,6 +224,6 @@ const rail = flatten(renderComponent(registered.component, { ...componentProps, 
 rail.find((node) => node.props?.['aria-label'] === '展开企业知识库分类').props.onClick()
 assert.equal(expanded, 1)
 for (const cleanup of effectCleanups.values()) cleanup()
-disposed()
+for (const cleanup of disposals) cleanup()
 assert.equal(appended[0].removed, true)
 console.log('PASS: knowledge tree grouping, filtering, current-session state, collapse/expand, search, native open/new, and cleanup')
