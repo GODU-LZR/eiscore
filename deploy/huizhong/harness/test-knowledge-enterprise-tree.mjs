@@ -220,14 +220,24 @@ calls.length = 0
 rendered = renderSessionMenu(menuProps)
 let menuNodes = flatten(rendered)
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
-assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前工作区：企业知识库工作区/)
+assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前项目：知识库项目/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前会话：当前对话/)
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 const menuButton = menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史'))
 menuButton.props.onClick()
 rendered = renderSessionMenu(menuProps)
 menuNodes = flatten(rendered)
-assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /企业知识库|销售|重点客户|当前对话|历史对话/)
+assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /知识库项目|当前对话|历史对话/)
+assert.doesNotMatch(menuNodes.filter((node) => typeof node === 'string').join('|'), /销售|重点客户|其他会话/)
+assert.equal(menuNodes.some((node) => node.props?.['data-tree-node']?.startsWith('folder:')), false)
+const defaultWorkspaceNew = menuNodes.find((node) => node.props?.['data-tree-workspace-new'] === 'knowledge')
+assert.ok(defaultWorkspaceNew)
+defaultWorkspaceNew.props.onClick()
+assert.deepEqual(calls, [['start', 'knowledge']])
+calls.length = 0
+menuButton.props.onClick()
+rendered = renderSessionMenu(menuProps)
+menuNodes = flatten(rendered)
 const currentSession = menuNodes.find((node) => node.props?.['data-tree-session'] === 's-current')
 assert.equal(currentSession.props['aria-current'], 'page')
 menuNodes.find((node) => node.props?.['aria-label'] === '搜索会话').props.onClick()
@@ -254,6 +264,27 @@ const emptyMenuProps = {
 }
 const emptyMenu = flatten(renderSessionMenu(emptyMenuProps))
 assert.ok(emptyMenu.find((node) => node.props?.['aria-label']?.startsWith('会话历史')), 'session history remains visible before the first message')
+hookState.length = 0
+effectState.length = 0
+const otherWorkspaceProps = {
+  workspaceSource: observable({ phase: 'ready', archivedSessionIds: [], items: [
+    workspaceState.items[0],
+    { workspaceId: 'sales', title: '销售项目', path: '/var/lib/dsh/workspaces/sales/销售', sessionIds: ['s-other'] }
+  ] }),
+  sessionSource: observable({ ...sessionState, ids: [...sessionState.ids, 's-other'], byId: { ...sessionState.byId, 's-other': { id: 's-other', displayTitle: '销售会话', updatedAt: 5 } } }),
+  startSession: () => {},
+  open: () => {},
+  searchSessions: async () => ({ items: [], hasMore: false })
+}
+let otherWorkspaceNodes = flatten(renderSessionMenu(otherWorkspaceProps))
+otherWorkspaceNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props.onClick()
+otherWorkspaceNodes = flatten(renderSessionMenu(otherWorkspaceProps))
+const otherWorkspaceText = otherWorkspaceNodes.filter((node) => typeof node === 'string').join('|')
+assert.match(otherWorkspaceText, /销售项目|销售会话/)
+assert.doesNotMatch(otherWorkspaceText, /重点客户/)
+assert.equal(otherWorkspaceNodes.some((node) => node.props?.['data-tree-node']?.startsWith('folder:')), false)
+for (const cleanup of effectCleanups.values()) cleanup()
+effectCleanups.clear()
 hookState.length = 0
 effectState.length = 0
 const dock = slotRegistrations.find(({ options }) => options.id === '@eiscore/dsh-client-knowledge-ontology-dock')

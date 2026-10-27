@@ -154,43 +154,30 @@ window.__ModuleLoader__.load({
 
     const loadKnowledgeOntology = async () => requestKnowledge(KNOWLEDGE_ONTOLOGY_PATH)
 
-    const folderSegments = (path) => {
-      const parts = String(path || '').replace(/\\/g, '/').split('/').filter(Boolean)
-      const marker = parts.lastIndexOf('workspaces')
-      if (marker < 0 || marker + 1 >= parts.length) return []
-      return parts.slice(marker + 2).filter((part) => part !== '.' && part !== '..')
+    const isDefaultKnowledgeWorkspace = (workspace) => {
+      const pathParts = String(workspace?.path || '').replace(/\\/g, '/').split('/').filter(Boolean)
+      const marker = pathParts.lastIndexOf('workspaces')
+      return workspace?.workspaceId === 'knowledge' || marker >= 0 && pathParts[marker + 1] === 'knowledge'
     }
 
     const makeTree = (workspaces, sessions, archived) => {
-      const root = { id: ROOT_ID, title: '企业知识库', kind: 'root', children: [] }
-      const folderIndex = new Map([[ROOT_ID, root]])
+      const root = { id: ROOT_ID, title: '知识库项目', kind: 'root', children: [] }
       const accounted = new Set()
       for (const workspace of workspaces) {
-        let parent = root
-        let folderPath = ''
-        for (const segment of folderSegments(workspace.path)) {
-          folderPath += `/${segment}`
-          const id = `folder:${folderPath}`
-          let folder = folderIndex.get(id)
-          if (!folder) {
-            folder = { id, title: segment, kind: 'folder', children: [] }
-            folderIndex.set(id, folder)
-            parent.children.push(folder)
-          }
-          parent = folder
-        }
-        const workspaceNode = {
+        const isDefault = isDefaultKnowledgeWorkspace(workspace)
+        const parent = isDefault ? root : {
           id: `workspace:${workspace.workspaceId}`,
           title: workspace.title || '未命名工作区',
           kind: 'workspace',
           workspaceId: workspace.workspaceId,
           children: []
         }
+        if (isDefault) root.workspaceId = workspace.workspaceId
         for (const sessionId of Array.isArray(workspace.sessionIds) ? workspace.sessionIds : []) {
           const session = sessions.byId?.[sessionId]
           if (!session || archived.has(sessionId) || session.origin === 'subagent' || (session.blank && sessionId !== sessions.current)) continue
           accounted.add(sessionId)
-          workspaceNode.children.push({
+          parent.children.push({
             id: `session:${sessionId}`,
             title: session.blank ? '新会话' : session.displayTitle || session.title || '未命名会话',
             kind: 'session',
@@ -198,24 +185,19 @@ window.__ModuleLoader__.load({
             blank: session.blank === true
           })
         }
-        parent.children.push(workspaceNode)
+        if (!isDefault) root.children.push(parent)
       }
       const stray = (sessions.ids || []).map((id) => sessions.byId?.[id]).filter((session) =>
         session && !accounted.has(session.id) && !archived.has(session.id)
         && session.origin !== 'subagent' && (!session.blank || session.id === sessions.current)
       )
-      if (stray.length) root.children.push({
-        id: 'ungrouped-sessions',
-        title: '其他会话',
-        kind: 'folder',
-        children: stray.map((session) => ({
+      if (stray.length) root.children.push(...stray.map((session) => ({
           id: `session:${session.id}`,
           title: session.blank ? '新会话' : session.displayTitle || session.title || '未命名会话',
           kind: 'session',
           sessionId: session.id,
           blank: session.blank === true
-        }))
-      })
+        })))
       return root
     }
 
@@ -369,14 +351,11 @@ window.__ModuleLoader__.load({
       const sessionState = useLiveSnapshot(sessionSource, { phase: 'pending', current: undefined, ids: [], byId: {} })
       const workspaces = workspaceState.items || []
       const tree = makeTree(workspaces, sessionState, new Set(workspaceState.archivedSessionIds || []))
-      const currentWorkspace = workspaces.find((workspace) => (workspace.sessionIds || []).includes(sessionState.current))
+      const currentWorkspace = workspaces.find((workspace) => (workspace.sessionIds || []).includes(sessionState.current)) || workspaces.find(isDefaultKnowledgeWorkspace)
       const currentSession = sessionState.byId?.[sessionState.current]
       const currentSessionTitle = currentSession?.blank ? '新会话' : currentSession?.displayTitle || currentSession?.title || '选择会话'
-      const currentWorkspaceTitle = currentWorkspace?.title || '工作区'
-      const initialExpanded = [ROOT_ID].concat(workspaces.flatMap((workspace) => {
-        const segments = folderSegments(workspace.path)
-        return [...segments.map((_, index) => `folder:/${segments.slice(0, index + 1).join('/')}`), `workspace:${workspace.workspaceId}`]
-      }))
+      const currentProjectTitle = currentWorkspace ? isDefaultKnowledgeWorkspace(currentWorkspace) ? '知识库项目' : currentWorkspace.title || '未命名项目' : '知识库项目'
+      const initialExpanded = [ROOT_ID].concat(workspaces.filter((workspace) => !isDefaultKnowledgeWorkspace(workspace)).map((workspace) => `workspace:${workspace.workspaceId}`))
       const [menuOpen, setMenuOpen] = React.useState(false)
       const [expanded, setExpanded] = React.useState(() => new Set(initialExpanded))
       const [searchOpen, setSearchOpen] = React.useState(false)
@@ -393,7 +372,8 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         const current = currentWorkspace
         if (!current) return
-        const ids = [ROOT_ID, ...folderSegments(current.path).map((_, index, parts) => `folder:/${parts.slice(0, index + 1).join('/')}`), `workspace:${current.workspaceId}`]
+        const ids = [ROOT_ID]
+        if (!isDefaultKnowledgeWorkspace(current)) ids.push(`workspace:${current.workspaceId}`)
         setExpanded((previous) => new Set([...previous, ...ids]))
       }, [sessionState.current, currentWorkspace])
       React.useEffect(() => {
@@ -455,7 +435,7 @@ window.__ModuleLoader__.load({
               h('span', { className: 'eisKnowledgeTreeDisclosure', 'data-open': String(isOpen), 'aria-hidden': 'true' }, h(IconTriangleRightFill14, {})),
               h('span', { className: 'eisKnowledgeTreeFolder', 'aria-hidden': 'true' }, folderIcon(isOpen)),
               h('span', { className: 'eisKnowledgeTreeNodeLabel' }, node.title)),
-            node.kind === 'workspace' ? h('button', { type: 'button', className: 'eisKnowledgeSessionMenuNew', 'aria-label': `在${node.title}中新建会话`, title: '新建会话', 'data-tree-workspace-new': node.workspaceId, onClick: () => createSession(node.workspaceId) }, h(IconProjectAddOutline16, { size: 15 })) : null
+            node.workspaceId ? h('button', { type: 'button', className: 'eisKnowledgeSessionMenuNew', 'aria-label': `在${node.title}中新建会话`, title: '新建会话', 'data-tree-workspace-new': node.workspaceId, onClick: () => createSession(node.workspaceId) }, h(IconProjectAddOutline16, { size: 15 })) : null
           ),
           isOpen ? children.map((child) => renderNode(child, depth + 1)) : null
         )
@@ -467,16 +447,16 @@ window.__ModuleLoader__.load({
       }
 
       return h('div', { className: 'eisKnowledgeSessionMenu', 'data-knowledge-session-menu': '' },
-        h('button', { type: 'button', className: 'eisKnowledgeSessionMenuButton', 'aria-label': `会话历史，当前工作区：${currentWorkspaceTitle}，当前会话：${currentSessionTitle}`, title: `会话历史 · ${currentWorkspaceTitle} · ${currentSessionTitle}`, 'aria-expanded': String(menuOpen), onClick: () => setMenuOpen((value) => !value) },
+        h('button', { type: 'button', className: 'eisKnowledgeSessionMenuButton', 'aria-label': `会话历史，当前项目：${currentProjectTitle}，当前会话：${currentSessionTitle}`, title: `会话历史 · ${currentProjectTitle} · ${currentSessionTitle}`, 'aria-expanded': String(menuOpen), onClick: () => setMenuOpen((value) => !value) },
           h('span', { className: 'eisKnowledgeSessionMenuButtonIcon', 'aria-hidden': 'true' }, h(IconFolderOpen16, { size: 15 })),
           h('span', { className: 'eisKnowledgeSessionMenuWorkspace' }, '会话历史'),
           h('span', { className: 'eisKnowledgeSessionMenuDisclosure', 'aria-hidden': 'true' }, h(IconTriangleRightFill14, {}))),
-        menuOpen ? h('div', { className: 'eisKnowledgeSessionMenuPopover', role: 'menu', 'aria-label': '工作区和会话' },
+        menuOpen ? h('div', { className: 'eisKnowledgeSessionMenuPopover', role: 'menu', 'aria-label': '项目和会话' },
           h('div', { className: 'eisKnowledgeSessionMenuTitle' },
-            h('span', null, '工作区与会话'),
+            h('span', null, '项目与会话'),
             h('button', { type: 'button', className: 'eisKnowledgeTreeIconButton', 'aria-label': searchOpen ? '关闭搜索' : '搜索会话', title: searchOpen ? '关闭搜索' : '搜索会话', onClick: () => { setSearchOpen((value) => !value); setQuery('') } }, searchOpen ? h(IconCloseFill14, {}) : h(IconSearchOutline16, { size: 16 }))),
           searchOpen ? h('label', { className: 'eisKnowledgeSessionMenuSearch' }, h(IconSearchOutline16, { size: 14 }), h('input', { type: 'search', value: query, placeholder: '搜索会话内容', 'aria-label': '搜索会话内容', onChange: (event) => setQuery(event.target.value), onKeyDown: (event) => { if (event.key === 'Escape') setQuery('') } })) : null,
-          h('div', { className: 'eisKnowledgeSessionMenuScroll', role: 'tree', 'aria-label': '工作区和会话树' },
+          h('div', { className: 'eisKnowledgeSessionMenuScroll', role: 'tree', 'aria-label': '项目和会话树' },
             normalizedQuery ? searchState.status === 'loading' ? h('div', { className: 'eisKnowledgeSessionMenuStatus' }, '搜索中…') : searchState.status === 'error' ? h('div', { className: 'eisKnowledgeSessionMenuStatus' }, '搜索暂不可用') : searchState.items.length ? searchState.items.map(renderSearchResult) : h('div', { className: 'eisKnowledgeSessionMenuStatus' }, '没有找到匹配的会话')
               : workspaceState.phase === 'pending' || sessionState.phase === 'pending' ? h('div', { className: 'eisKnowledgeSessionMenuStatus' }, '正在加载会话…') : tree.children.length ? renderNode(tree, 0) : h('div', { className: 'eisKnowledgeSessionMenuStatus' }, '暂无工作区'))
         ) : null
