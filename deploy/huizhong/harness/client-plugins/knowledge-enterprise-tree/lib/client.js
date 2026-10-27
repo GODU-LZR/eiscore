@@ -53,14 +53,16 @@ window.__ModuleLoader__.load({
       .eisKnowledgeFilePreview{max-height:120px;overflow:auto;margin:0 5px 5px;padding:6px;border-radius:5px;background:var(--dsw-alias-fill-l3);color:var(--dsw-alias-label-secondary);font:10px/15px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
       .eisKnowledgeFilesInput{display:none}
       .eisKnowledgeSessionMenuOverlay{position:absolute;inset:0;z-index:21;pointer-events:none}
-      .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:absolute;top:12px;right:16px;pointer-events:auto}
-      .eisKnowledgeSessionMenu{position:relative;display:inline-flex;min-width:0;z-index:12}
-      .eisKnowledgeSessionMenuButton{display:flex;align-items:center;gap:5px;max-width:min(240px,30vw);height:30px;min-width:0;padding:0 8px;border:1px solid var(--dsw-alias-border-l3);border-radius:7px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:12px;line-height:18px}
+      .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:absolute;top:0;right:0;left:max(64px,var(--eisKnowledge-sidebar-width,64px));pointer-events:auto}
+      .eisKnowledgeSessionMenu{position:relative;display:block;min-width:0;z-index:12}
+      .eisKnowledgeSessionMenuButton{width:100%;display:flex;align-items:center;gap:8px;height:42px;min-width:0;padding:0 16px;border:0;border-bottom:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:13px;line-height:20px;text-align:left}
       .eisKnowledgeSessionMenuButton:hover,.eisKnowledgeSessionMenuButton[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
       .eisKnowledgeSessionMenuButtonIcon{display:inline-flex;flex:none;color:var(--dsw-alias-label-tertiary)}
       .eisKnowledgeSessionMenuWorkspace{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .eisKnowledgeSessionMenuDisclosure{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transform:rotate(90deg)}
-      .eisKnowledgeSessionMenuPopover{box-sizing:border-box;position:absolute;top:calc(100% + 8px);right:0;width:min(360px,calc(100vw - max(64px,var(--eisKnowledge-sidebar-width,64px)) - 24px));max-height:min(540px,70vh);display:flex;flex-direction:column;overflow:hidden;padding:6px;border:1px solid var(--dsw-alias-border-l3);border-radius:9px;background:var(--dsw-alias-bg-base);box-shadow:0 8px 28px #0002;color:var(--dsw-alias-label-primary)}
+      .eisKnowledgeSessionMenuProject{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:12px}
+      .eisKnowledgeSessionMenuDisclosure{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transform:rotate(90deg);transition:transform .15s var(--ds-ease-in-out)}
+      .eisKnowledgeSessionMenuDisclosure[data-open="true"]{transform:rotate(-90deg)}
+      .eisKnowledgeSessionMenuPanel{box-sizing:border-box;position:relative;width:100%;max-height:min(420px,55vh);display:flex;flex-direction:column;overflow:hidden;padding:6px;border-bottom:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base);box-shadow:0 8px 28px #0002;color:var(--dsw-alias-label-primary)}
       .eisKnowledgeSessionMenuTitle{min-height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 4px 3px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
       .eisKnowledgeSessionMenuSearch{height:30px;min-height:30px;display:flex;align-items:center;gap:6px;margin:0 2px 5px;padding:0 7px;border:1px solid var(--dsw-alias-border-l4);border-radius:6px;color:var(--dsw-alias-label-tertiary)}
       .eisKnowledgeSessionMenuSearch input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}
@@ -72,7 +74,7 @@ window.__ModuleLoader__.load({
       .eisKnowledgeSessionMenuNew{flex:none;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
       .eisKnowledgeSessionMenuNew:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
       .eisKnowledgeSessionMenuStatus{padding:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
-      @media(max-width:600px){.eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{top:8px;right:12px}.eisKnowledgeSessionMenuButton{max-width:min(160px,32vw)}.eisKnowledgeSessionMenuPopover{width:min(320px,calc(100vw - max(64px,var(--eisKnowledge-sidebar-width,64px)) - 24px));max-height:60vh}}
+      @media(max-width:600px){.eisKnowledgeSessionMenuButton{height:38px;padding:0 10px}.eisKnowledgeSessionMenuPanel{max-height:55vh}}
       .eisKnowledgeOntologyDock{position:absolute;inset:0 0 0 auto;box-sizing:border-box;width:min(360px,100%);display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l3);box-shadow:-8px 0 24px #0001;color:var(--dsw-alias-label-primary)}
       .eisKnowledgeOntologyDockHeader{height:42px;min-height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l4);font-size:13px;font-weight:500}
       .eisKnowledgeOntologyTab{height:100%;min-height:0;display:flex;flex-direction:column;padding:12px;color:var(--dsw-alias-label-primary);overflow:hidden}
@@ -356,7 +358,7 @@ window.__ModuleLoader__.load({
       const currentSessionTitle = currentSession?.blank ? '新会话' : currentSession?.displayTitle || currentSession?.title || '选择会话'
       const currentProjectTitle = currentWorkspace ? isDefaultKnowledgeWorkspace(currentWorkspace) ? '知识库项目' : currentWorkspace.title || '未命名项目' : '知识库项目'
       const initialExpanded = [ROOT_ID].concat(workspaces.filter((workspace) => !isDefaultKnowledgeWorkspace(workspace)).map((workspace) => `workspace:${workspace.workspaceId}`))
-      const [menuOpen, setMenuOpen] = React.useState(false)
+      const [menuOpen, setMenuOpen] = React.useState(true)
       const [expanded, setExpanded] = React.useState(() => new Set(initialExpanded))
       const [searchOpen, setSearchOpen] = React.useState(false)
       const [query, setQuery] = React.useState('')
@@ -450,8 +452,9 @@ window.__ModuleLoader__.load({
         h('button', { type: 'button', className: 'eisKnowledgeSessionMenuButton', 'aria-label': `会话历史，当前项目：${currentProjectTitle}，当前会话：${currentSessionTitle}`, title: `会话历史 · ${currentProjectTitle} · ${currentSessionTitle}`, 'aria-expanded': String(menuOpen), onClick: () => setMenuOpen((value) => !value) },
           h('span', { className: 'eisKnowledgeSessionMenuButtonIcon', 'aria-hidden': 'true' }, h(IconFolderOpen16, { size: 15 })),
           h('span', { className: 'eisKnowledgeSessionMenuWorkspace' }, '会话历史'),
-          h('span', { className: 'eisKnowledgeSessionMenuDisclosure', 'aria-hidden': 'true' }, h(IconTriangleRightFill14, {}))),
-        menuOpen ? h('div', { className: 'eisKnowledgeSessionMenuPopover', role: 'menu', 'aria-label': '项目和会话' },
+          h('span', { className: 'eisKnowledgeSessionMenuProject' }, currentProjectTitle),
+          h('span', { className: 'eisKnowledgeSessionMenuDisclosure', 'data-open': String(menuOpen), 'aria-hidden': 'true' }, h(IconTriangleRightFill14, {}))),
+        menuOpen ? h('div', { className: 'eisKnowledgeSessionMenuPanel', role: 'region', 'aria-label': '项目和会话', 'data-knowledge-session-panel': '' },
           h('div', { className: 'eisKnowledgeSessionMenuTitle' },
             h('span', null, '项目与会话'),
             h('button', { type: 'button', className: 'eisKnowledgeTreeIconButton', 'aria-label': searchOpen ? '关闭搜索' : '搜索会话', title: searchOpen ? '关闭搜索' : '搜索会话', onClick: () => { setSearchOpen((value) => !value); setQuery('') } }, searchOpen ? h(IconCloseFill14, {}) : h(IconSearchOutline16, { size: 16 }))),
