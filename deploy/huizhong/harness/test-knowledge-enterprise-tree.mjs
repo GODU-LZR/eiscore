@@ -30,6 +30,10 @@ if (modules) {
 const source = readFileSync(new URL('lib/client.js', pluginDir), 'utf8')
 assert.doesNotMatch(source, /sidebarRight|sidebar\.right\.pane/)
 assert.match(source, /name: 'shell\.overlay'/)
+assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:absolute;inset:0;z-index:21;pointer-events:none\}/)
+assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:absolute;top:12px;right:16px;pointer-events:auto\}/)
+assert.match(source, /width:min\(360px,calc\(100vw - max\(64px,var\(--eisKnowledge-sidebar-width,64px\)\) - 24px\)\)/)
+assert.match(source, /new MutationObserver\(update\)/)
 for (const expected of [
   "'/harness-knowledge-agent/twin/knowledge/files'",
   'readKnowledgeFile',
@@ -121,7 +125,7 @@ plugin.apply({
       const entry = { options, component }
       slotRegistrations.push(entry)
       if (options.name === 'sidebar.workspaces') registered = entry
-      if (options.name === 'conversation.session.header.actions') sessionMenu = entry
+      if (options.id === '@eiscore/dsh-client-knowledge-session-menu') sessionMenu = entry
       return () => {}
     }
   }
@@ -129,10 +133,10 @@ plugin.apply({
 assert.equal(appended.length, 1)
 assert.equal(registered.options.name, 'sidebar.workspaces')
 assert.equal(registered.options.priority, -1)
-assert.equal(sessionMenu.options.name, 'conversation.session.header.actions')
+assert.equal(sessionMenu.options.name, 'shell.overlay')
 assert.equal(sessionMenu.options.id, '@eiscore/dsh-client-knowledge-session-menu')
 assert.equal(sessionMenu.options.priority, 10)
-assert.deepEqual(slotRegistrations.map(({ options }) => options.name), ['sidebar.workspaces', 'conversation.session.header.actions', 'shell.overlay'])
+assert.deepEqual(slotRegistrations.map(({ options }) => options.name), ['sidebar.workspaces', 'shell.overlay', 'shell.overlay'])
 assert.equal(typeof disposals[0], 'function')
 
 const workspaceState = {
@@ -201,6 +205,11 @@ const menuProps = {
     return (await services.sessions.search(query, signal)).value
   }
 }
+const renderSessionMenu = (props) => {
+  const overlay = renderComponent(sessionMenu.component, props)
+  assert.equal(overlay.props['data-knowledge-session-menu-overlay'], '')
+  return renderComponent(overlay.props.children.type, overlay.props.children.props)
+}
 const injectedMenuProps = sessionMenu.options.inject()
 assert.equal(injectedMenuProps.workspaceSource, services.workspaces.list)
 assert.equal(injectedMenuProps.sessionSource, services.sessions.list)
@@ -208,7 +217,7 @@ injectedMenuProps.startSession('knowledge')
 injectedMenuProps.open('s-old')
 assert.deepEqual(calls.slice(-2), [['start', 'knowledge'], ['open', 's-old']])
 calls.length = 0
-rendered = renderComponent(sessionMenu.component, menuProps)
+rendered = renderSessionMenu(menuProps)
 let menuNodes = flatten(rendered)
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前工作区：企业知识库工作区/)
@@ -216,18 +225,18 @@ assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('�
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 const menuButton = menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史'))
 menuButton.props.onClick()
-rendered = renderComponent(sessionMenu.component, menuProps)
+rendered = renderSessionMenu(menuProps)
 menuNodes = flatten(rendered)
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /企业知识库|销售|重点客户|当前对话|历史对话/)
 const currentSession = menuNodes.find((node) => node.props?.['data-tree-session'] === 's-current')
 assert.equal(currentSession.props['aria-current'], 'page')
 menuNodes.find((node) => node.props?.['aria-label'] === '搜索会话').props.onClick()
-rendered = renderComponent(sessionMenu.component, menuProps)
+rendered = renderSessionMenu(menuProps)
 menuNodes = flatten(rendered)
 menuNodes.find((node) => node.type === 'input').props.onChange({ target: { value: '合同' } })
-rendered = renderComponent(sessionMenu.component, menuProps)
+rendered = renderSessionMenu(menuProps)
 await new Promise((resolve) => setTimeout(resolve, 220))
-rendered = renderComponent(sessionMenu.component, menuProps)
+rendered = renderSessionMenu(menuProps)
 menuNodes = flatten(rendered)
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /命中合同文本/)
 menuNodes.find((node) => node.props?.['data-tree-session'] === 's-old').props.onClick()
@@ -236,7 +245,18 @@ for (const cleanup of effectCleanups.values()) cleanup()
 effectCleanups.clear()
 hookState.length = 0
 effectState.length = 0
-const dock = slotRegistrations.find(({ options }) => options.name === 'shell.overlay')
+const emptyMenuProps = {
+  workspaceSource: observable({ phase: 'ready', items: [], archivedSessionIds: [] }),
+  sessionSource: observable({ phase: 'ready', current: undefined, ids: [], byId: {} }),
+  startSession: () => {},
+  open: () => {},
+  searchSessions: async () => ({ items: [], hasMore: false })
+}
+const emptyMenu = flatten(renderSessionMenu(emptyMenuProps))
+assert.ok(emptyMenu.find((node) => node.props?.['aria-label']?.startsWith('会话历史')), 'session history remains visible before the first message')
+hookState.length = 0
+effectState.length = 0
+const dock = slotRegistrations.find(({ options }) => options.id === '@eiscore/dsh-client-knowledge-ontology-dock')
 assert.equal(dock.options.id, '@eiscore/dsh-client-knowledge-ontology-dock')
 const dockProps = dock.options.inject()
 const treeProps = registered.options.inject()

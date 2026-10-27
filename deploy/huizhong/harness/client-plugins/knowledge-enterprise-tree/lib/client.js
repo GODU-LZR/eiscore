@@ -52,13 +52,15 @@ window.__ModuleLoader__.load({
       .eisKnowledgeFilesStatus{padding:7px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
       .eisKnowledgeFilePreview{max-height:120px;overflow:auto;margin:0 5px 5px;padding:6px;border-radius:5px;background:var(--dsw-alias-fill-l3);color:var(--dsw-alias-label-secondary);font:10px/15px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
       .eisKnowledgeFilesInput{display:none}
+      .eisKnowledgeSessionMenuOverlay{position:absolute;inset:0;z-index:21;pointer-events:none}
+      .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:absolute;top:12px;right:16px;pointer-events:auto}
       .eisKnowledgeSessionMenu{position:relative;display:inline-flex;min-width:0;z-index:12}
       .eisKnowledgeSessionMenuButton{display:flex;align-items:center;gap:5px;max-width:min(240px,30vw);height:30px;min-width:0;padding:0 8px;border:1px solid var(--dsw-alias-border-l3);border-radius:7px;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:12px;line-height:18px}
       .eisKnowledgeSessionMenuButton:hover,.eisKnowledgeSessionMenuButton[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
       .eisKnowledgeSessionMenuButtonIcon{display:inline-flex;flex:none;color:var(--dsw-alias-label-tertiary)}
       .eisKnowledgeSessionMenuWorkspace{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .eisKnowledgeSessionMenuDisclosure{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transform:rotate(90deg)}
-      .eisKnowledgeSessionMenuPopover{position:absolute;top:calc(100% + 8px);right:0;width:min(360px,calc(100vw - 24px));max-height:min(540px,70vh);display:flex;flex-direction:column;overflow:hidden;padding:6px;border:1px solid var(--dsw-alias-border-l3);border-radius:9px;background:var(--dsw-alias-bg-base);box-shadow:0 8px 28px #0002;color:var(--dsw-alias-label-primary)}
+      .eisKnowledgeSessionMenuPopover{box-sizing:border-box;position:absolute;top:calc(100% + 8px);right:0;width:min(360px,calc(100vw - max(64px,var(--eisKnowledge-sidebar-width,64px)) - 24px));max-height:min(540px,70vh);display:flex;flex-direction:column;overflow:hidden;padding:6px;border:1px solid var(--dsw-alias-border-l3);border-radius:9px;background:var(--dsw-alias-bg-base);box-shadow:0 8px 28px #0002;color:var(--dsw-alias-label-primary)}
       .eisKnowledgeSessionMenuTitle{min-height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 4px 3px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
       .eisKnowledgeSessionMenuSearch{height:30px;min-height:30px;display:flex;align-items:center;gap:6px;margin:0 2px 5px;padding:0 7px;border:1px solid var(--dsw-alias-border-l4);border-radius:6px;color:var(--dsw-alias-label-tertiary)}
       .eisKnowledgeSessionMenuSearch input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}
@@ -70,7 +72,7 @@ window.__ModuleLoader__.load({
       .eisKnowledgeSessionMenuNew{flex:none;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
       .eisKnowledgeSessionMenuNew:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
       .eisKnowledgeSessionMenuStatus{padding:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
-      @media(max-width:600px){.eisKnowledgeSessionMenuButton{max-width:min(160px,32vw)}.eisKnowledgeSessionMenuPopover{width:min(320px,calc(100vw - 72px));max-height:60vh}}
+      @media(max-width:600px){.eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{top:8px;right:12px}.eisKnowledgeSessionMenuButton{max-width:min(160px,32vw)}.eisKnowledgeSessionMenuPopover{width:min(320px,calc(100vw - max(64px,var(--eisKnowledge-sidebar-width,64px)) - 24px));max-height:60vh}}
       .eisKnowledgeOntologyDock{position:absolute;inset:0 0 0 auto;box-sizing:border-box;width:min(360px,100%);display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l3);box-shadow:-8px 0 24px #0001;color:var(--dsw-alias-label-primary)}
       .eisKnowledgeOntologyDockHeader{height:42px;min-height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l4);font-size:13px;font-weight:500}
       .eisKnowledgeOntologyTab{height:100%;min-height:0;display:flex;flex-direction:column;padding:12px;color:var(--dsw-alias-label-primary);overflow:hidden}
@@ -410,6 +412,19 @@ window.__ModuleLoader__.load({
         }, 180)
         return () => { window.clearTimeout(timer); controller.abort() }
       }, [menuOpen, normalizedQuery, searchSessions])
+      React.useEffect(() => {
+        const menuOverlay = document.querySelector?.('[data-knowledge-session-menu-overlay]')
+        const frame = menuOverlay?.parentElement?.parentElement
+        if (!menuOverlay || !frame) return undefined
+        const update = () => {
+          const firstTrack = String(frame.style?.gridTemplateColumns || '').match(/^\s*([\d.]+)px/)
+          menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-width', `${firstTrack ? Number(firstTrack[1]) : 0}px`)
+        }
+        update()
+        const observer = new MutationObserver(update)
+        observer.observe(frame, { attributes: true, attributeFilter: ['style'] })
+        return () => observer.disconnect()
+      }, [])
 
       const toggle = (id) => setExpanded((previous) => {
         const next = new Set(previous)
@@ -468,6 +483,8 @@ window.__ModuleLoader__.load({
       )
     }
 
+    const WorkspaceSessionMenuOverlay = (props) => h('div', { className: 'eisKnowledgeSessionMenuOverlay', 'data-knowledge-session-menu-overlay': '', style: { '--eisKnowledge-sidebar-width': '64px' } }, h(WorkspaceSessionMenu, props))
+
     return {
       inject: ['slots', 'sessions', 'uiWorkspace', 'workspaces'],
       apply(ctx) {
@@ -510,8 +527,8 @@ window.__ModuleLoader__.load({
           })
         }, EnterpriseWorkspaceTree))
 
-        ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
-          name: 'conversation.session.header.actions',
+        ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+          name: 'shell.overlay',
           id: '@eiscore/dsh-client-knowledge-session-menu',
           priority: 10,
           inject: () => ({
@@ -525,7 +542,7 @@ window.__ModuleLoader__.load({
               return result.value
             }
           })
-        }, WorkspaceSessionMenu))
+        }, WorkspaceSessionMenuOverlay))
 
         ctx.slots.inject('shell.overlay', () => ctx.slots.register({
           name: 'shell.overlay',
