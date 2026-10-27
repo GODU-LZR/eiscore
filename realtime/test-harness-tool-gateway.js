@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { TOOL_GATEWAY_CAPABILITIES, createHarnessToolGateway } = require('./harness-tool-gateway');
 
-assert.equal(TOOL_GATEWAY_CAPABILITIES.length, 18);
+assert.equal(TOOL_GATEWAY_CAPABILITIES.length, 20);
 assert.equal(new Set(TOOL_GATEWAY_CAPABILITIES).size, TOOL_GATEWAY_CAPABILITIES.length);
 
 (async () => {
@@ -17,6 +17,8 @@ assert.equal(new Set(TOOL_GATEWAY_CAPABILITIES).size, TOOL_GATEWAY_CAPABILITIES.
   let commitCalls = 0;
   let salesWriteCalls = 0;
   let salesContextCalls = 0;
+  let customerQueryCalls = 0;
+  let customerWriteCalls = 0;
   let queryCalls = 0;
   let twinChatCalls = 0;
   const multimodalCalls = [];
@@ -37,6 +39,8 @@ assert.equal(new Set(TOOL_GATEWAY_CAPABILITIES).size, TOOL_GATEWAY_CAPABILITIES.
     executeDocumentPlan: async (_user, payload) => { planCalls += 1; return { plans: [{ id: payload.plan_id || 'p1' }] }; },
     executeDocumentCommit: async (_user, payload) => { commitCalls += 1; return { committed: payload.plan_id }; },
     executeSalesWrite: async (_user, payload) => { salesWriteCalls += 1; return { operation: payload.operation }; },
+    executeCustomerQuery: async (user, payload) => { customerQueryCalls += 1; return { user: user.id, operation: payload.operation }; },
+    executeCustomerWrite: async (user, payload) => { customerWriteCalls += 1; return { user: user.id, operation: payload.operation }; },
     executeMultimodal: async (capability, user, payload, request) => {
       multimodalCalls.push({ capability, user, payload, request });
       if (capability === 'eiscore_multimodal_map_locate') return { choices: [{ message: { content: '深圳南山' } }] };
@@ -127,6 +131,14 @@ assert.equal(new Set(TOOL_GATEWAY_CAPABILITIES).size, TOOL_GATEWAY_CAPABILITIES.
   result = await gateway.execute({ capability_id: 'eiscore_sales_write', payload: { operation: 'opportunity_draft_create' }, user: { id: 'u5', tenant_id: 'tenant-e', token: 'jwt', permissions: ['sales:write'] }, confirmed: true, idempotency_key: '0123456789abcdef' });
   assert.deepEqual(result.data, { operation: 'opportunity_draft_create' });
   assert.equal(salesWriteCalls, 1);
+
+  result = await gateway.execute({ capability_id: 'eiscore_customer_query', payload: { operation: 'query' }, user: snapshotRequestUser, plugin_id: 'company-sales' });
+  assert.deepEqual(result.data, { user: 'u1', operation: 'query' });
+  assert.equal(customerQueryCalls, 1);
+
+  result = await gateway.execute({ capability_id: 'eiscore_customer_write', payload: { operation: 'update' }, user: snapshotRequestUser, plugin_id: 'company-sales' });
+  assert.deepEqual(result.data, { user: 'u1', operation: 'update' });
+  assert.equal(customerWriteCalls, 1);
 
   result = await gateway.execute({ capability_id: 'eiscore_multimodal_translate', payload: { text: 'hello', token: 'forged' }, user: snapshotRequestUser, plugin_id: 'enterprise-bi' });
   assert.equal(result.code, 'HARNESS_MULTIMODAL_INVALID');

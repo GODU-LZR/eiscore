@@ -57,6 +57,7 @@ const CORE_HTTP_ROUTE_MANIFEST = Object.freeze([
   exact('POST', '/ai/ocr', 'harness.handleCapability'),
   exact('POST', '/ai/map-locate', 'harness.handleCapability'),
   exact('POST', '/ai/harness/execute', 'harness.handleExecute'),
+  exact('POST', '/ai/harness/files/upload', 'customerFiles.handleUpload'),
   exact('POST', '/internal/harness/tool', 'harness.handleToolProxy'),
   exact('POST', '/internal/harness/session', 'harness.handleSessionRegister'),
   exact('DELETE', '/internal/harness/session', 'harness.handleSessionUnregister'),

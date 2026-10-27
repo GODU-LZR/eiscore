@@ -28,7 +28,15 @@
           >清空</el-button>
           <span class="file-limit">最多 {{ maxCount }} 个，单个不超过 {{ maxSizeMb }}MB</span>
         </div>
-        <div class="file-list" data-guide="file-list">
+        <div
+          class="file-list"
+          :class="{ 'is-dragging': isDragging }"
+          data-guide="file-list"
+          @dragenter.prevent="isDragging = true"
+          @dragover.prevent="isDragging = true"
+          @dragleave.prevent="handleDragLeave"
+          @drop.prevent="handleDrop"
+        >
           <div v-if="files.length === 0" class="file-empty">暂无文件</div>
           <div
             v-for="item in files"
@@ -69,11 +77,37 @@
 
       <div class="file-preview" data-guide="file-preview">
         <div v-if="activeFile" class="file-preview-body">
-          <img v-if="canPreview(activeFile) && isImage(activeFile)" :src="previewUrl(activeFile)" alt="预览" class="file-preview-img" />
-          <iframe v-else-if="canPreview(activeFile) && isPdf(activeFile)" :src="previewUrl(activeFile)" class="file-preview-pdf"></iframe>
-          <video v-else-if="canPreview(activeFile) && isVideo(activeFile)" :src="previewUrl(activeFile)" class="file-preview-media" controls />
-          <audio v-else-if="canPreview(activeFile) && isAudio(activeFile)" :src="previewUrl(activeFile)" class="file-preview-audio" controls />
-          <iframe v-else-if="canPreview(activeFile) && isDoc(activeFile)" :src="previewUrl(activeFile)" class="file-preview-doc"></iframe>
+          <img v-if="canPreview(activeFile) && activePreviewKind === 'image'" :src="previewUrl(activeFile)" alt="预览" class="file-preview-img" />
+          <iframe v-else-if="canPreview(activeFile) && activePreviewKind === 'pdf'" :src="previewUrl(activeFile)" class="file-preview-pdf"></iframe>
+          <video v-else-if="canPreview(activeFile) && activePreviewKind === 'video'" :src="previewUrl(activeFile)" class="file-preview-media" controls />
+          <audio v-else-if="canPreview(activeFile) && activePreviewKind === 'audio'" :src="previewUrl(activeFile)" class="file-preview-audio" controls />
+          <div v-else-if="previewLoading" class="file-preview-empty" role="status">正在加载预览…</div>
+          <div v-else-if="activePreviewKind === 'office' && officePreview?.kind === 'text'" class="file-preview-office file-preview-office-text">
+            <strong>{{ officeLabel(activeFile) }}</strong>
+            <pre>{{ officePreview.text }}</pre>
+            <el-button type="primary" @click="downloadFile(activeFile)">下载文件</el-button>
+          </div>
+          <div v-else-if="activePreviewKind === 'office' && officePreview?.kind === 'table'" class="file-preview-office file-preview-office-table">
+            <div v-for="sheet in officePreview.sheets" :key="sheet.name" class="office-sheet">
+              <strong>{{ sheet.name }}</strong>
+              <div class="office-table-scroll">
+                <table>
+                  <tbody>
+                    <tr v-for="(row, rowIndex) in sheet.rows" :key="`${sheet.name}-${rowIndex}`">
+                      <td v-for="(cell, cellIndex) in row" :key="`${sheet.name}-${rowIndex}-${cellIndex}`">{{ cell }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <el-button type="primary" @click="downloadFile(activeFile)">下载文件</el-button>
+          </div>
+          <div v-else-if="activePreviewKind === 'office'" class="file-preview-office">
+            <el-icon :size="42"><Document /></el-icon>
+            <strong>{{ officeLabel(activeFile) }}</strong>
+            <span>{{ officePreviewError ? '预览失败，文件已安全保存，可下载后打开。' : '此格式暂不支持内容预览，文件已安全保存，可下载后打开。' }}</span>
+            <el-button type="primary" @click="downloadFile(activeFile)">下载文件</el-button>
+          </div>
           <div v-else class="file-preview-empty">
             <div class="file-preview-text">暂不支持预览</div>
             <el-button type="primary" @click="downloadFile(activeFile)">下载查看</el-button>
@@ -101,8 +135,17 @@
 // Shared by all EIS Data Grid v2 consumers.
 
 import { ref, computed, watch } from 'vue'
+import { Document } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import request from '@/utils/request'
+import { getAuthHeader } from '@/utils/auth'
+import {
+  resolveFilePreviewKind,
+  selectFilesForUpload,
+  serializeFileItem,
+  shouldDeleteStoredFile,
+  shouldUploadFileToDatabase
+} from '../file-dialog-policy.mjs'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -114,12 +157,16 @@ const emit = defineEmits(['update:visible'])
 const files = ref([])
 const activeId = ref('')
 const fileInputRef = ref(null)
+const isDragging = ref(false)
+const previewLoading = ref(false)
+const officePreview = ref(null)
+const officePreviewError = ref(false)
 
 const colDef = computed(() => props.params?.colDef || {})
 const maxCount = computed(() => Math.max(1, Number(colDef.value.fileMaxCount) || 3))
 const maxSizeMb = computed(() => Math.max(1, Number(colDef.value.fileMaxSizeMb) || 20))
 
-const defaultAccept = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx', '.ppt', '.pptx', '.mp4', '.mp3']
+const defaultAccept = ['.jpg', '.jpeg', '.png', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.mp4', '.mp3']
 
 const parseAccept = (raw) => {
   if (!raw) return defaultAccept
@@ -140,6 +187,7 @@ const acceptRules = computed(() => parseAccept(colDef.value.fileAccept))
 const acceptAttr = computed(() => acceptRules.value.join(','))
 const fileStoreMode = computed(() => colDef.value.fileStoreMode || 'list')
 const fileUrlCache = new Map()
+const pendingFileHydrations = new Map()
 
 
 const parseMaybeJson = (value) => {
@@ -231,22 +279,29 @@ const normalizeItem = (item) => {
 const fetchFileDataUrl = async (fileId) => {
   if (!fileId) return { dataUrl: '', name: '' }
   if (fileUrlCache.has(fileId)) return fileUrlCache.get(fileId)
-  try {
-    const res = await request({
-      url: `/files?id=eq.${fileId}&select=content_base64,mime_type,filename`,
-      method: 'get',
-      headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
-    })
-    const row = Array.isArray(res) ? res[0] : null
-    if (!row?.content_base64) return { dataUrl: '', name: '' }
-    const mime = row.mime_type || 'application/octet-stream'
-    const dataUrl = `data:${mime};base64,${row.content_base64}`
-    const payload = { dataUrl, name: row.filename || '' }
-    fileUrlCache.set(fileId, payload)
-    return payload
-  } catch (e) {
-    return { dataUrl: '', name: '' }
-  }
+  if (pendingFileHydrations.has(fileId)) return pendingFileHydrations.get(fileId)
+  const pending = (async () => {
+    try {
+      const res = await request({
+        url: `/files?id=eq.${fileId}&select=content_base64,mime_type,filename`,
+        method: 'get',
+        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+      })
+      const row = Array.isArray(res) ? res[0] : null
+      if (!row?.content_base64) return { dataUrl: '', name: '' }
+      const mime = row.mime_type || 'application/octet-stream'
+      const dataUrl = `data:${mime};base64,${row.content_base64}`
+      const payload = { dataUrl, name: row.filename || '' }
+      fileUrlCache.set(fileId, payload)
+      return payload
+    } catch (e) {
+      return { dataUrl: '', name: '' }
+    } finally {
+      pendingFileHydrations.delete(fileId)
+    }
+  })()
+  pendingFileHydrations.set(fileId, pending)
+  return pending
 }
 
 const hydrateFileItem = async (item) => {
@@ -265,55 +320,69 @@ const hydrateFileItem = async (item) => {
   }
 }
 
+const loadOfficePreviewFor = async (item) => {
+  const loader = colDef.value.officePreviewLoader
+  if (!item || typeof loader !== 'function') return
+  const targetId = item.id
+  previewLoading.value = activeId.value === targetId
+  officePreview.value = null
+  officePreviewError.value = false
+  try {
+    const hydrated = await hydrateFileItem(item)
+    files.value = files.value.map(current => current.id === targetId ? hydrated : current)
+    const result = await loader({ item: hydrated, dataUrl: hydrated.dataUrl || '' })
+    if (activeId.value === targetId) officePreview.value = result || null
+  } catch {
+    if (activeId.value === targetId) officePreviewError.value = true
+  } finally {
+    if (activeId.value === targetId) previewLoading.value = false
+  }
+}
+
+const loadPreviewFor = async (item) => {
+  const kind = resolveFilePreviewKind(item)
+  if (kind === 'office') {
+    void loadOfficePreviewFor(item)
+    return
+  }
+  if (!item?.url || item.dataUrl || !item.url.startsWith('file:')) return
+  if (!['image', 'pdf', 'video', 'audio'].includes(kind)) return
+  const targetId = item.id
+  previewLoading.value = activeId.value === targetId
+  const hydrated = await hydrateFileItem(item)
+  files.value = files.value.map(current => current.id === targetId ? hydrated : current)
+  if (activeId.value === targetId) previewLoading.value = false
+}
+
 const setFilesFromValue = (value) => {
+  fileUrlCache.clear()
   const list = toList(value)
     .map(normalizeItem)
     .filter(Boolean)
   files.value = list
   activeId.value = list[0]?.id || ''
-  if (list.length > 0) {
-    Promise.all(list.map(hydrateFileItem)).then((next) => {
-      files.value = next
-      if (!activeId.value) activeId.value = next[0]?.id || ''
-    })
-  }
+  previewLoading.value = false
+  officePreview.value = null
+  officePreviewError.value = false
+  if (list.length > 0) void loadPreviewFor(list[0])
 }
 
 const activeFile = computed(() => files.value.find(item => item.id === activeId.value) || null)
+const activePreviewKind = computed(() => resolveFilePreviewKind(activeFile.value))
 
 const setActive = (id) => {
+  fileUrlCache.clear()
+  files.value = files.value.map(item => item.url?.startsWith('file:') ? { ...item, dataUrl: '' } : item)
   activeId.value = id
+  previewLoading.value = false
+  officePreview.value = null
+  officePreviewError.value = false
+  void loadPreviewFor(files.value.find(item => item.id === id))
 }
 
-const isImage = (item) => {
-  if (item?.dataUrl && String(item.dataUrl).startsWith('data:image/')) return true
-  const ext = item.ext || getExt(item.name)
-  if (item.type && item.type.startsWith('image/')) return true
-  return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(String(ext).toLowerCase())
-}
-
-const isPdf = (item) => {
-  if (item?.dataUrl && String(item.dataUrl).startsWith('data:application/pdf')) return true
-  const ext = item.ext || getExt(item.name)
-  if (item.type && item.type.includes('pdf')) return true
-  return String(ext).toLowerCase() === 'pdf'
-}
-
-const isVideo = (item) => {
-  const ext = item.ext || getExt(item.name)
-  if (item.type && item.type.startsWith('video/')) return true
-  return ['mp4', 'webm', 'ogg'].includes(String(ext).toLowerCase())
-}
-
-const isAudio = (item) => {
-  const ext = item.ext || getExt(item.name)
-  if (item.type && item.type.startsWith('audio/')) return true
-  return ['mp3', 'wav', 'ogg', 'm4a'].includes(String(ext).toLowerCase())
-}
-
-const isDoc = (item) => {
-  const ext = item.ext || getExt(item.name)
-  return String(ext).toLowerCase() === 'doc'
+const officeLabel = (item) => {
+  const ext = String(item?.ext || getExt(item?.name)).toUpperCase()
+  return ext ? `${ext} 文件` : '办公文件'
 }
 
 const isSafeResourceUrl = (value) => {
@@ -340,21 +409,6 @@ const formatSize = (size) => {
   return `${(value / 1024 / 1024).toFixed(1)}MB`
 }
 
-const isAllowedFile = (file) => {
-  const rules = acceptRules.value
-  if (!rules || rules.length === 0) return true
-  const ext = `.${getExt(file.name)}`
-  if (rules.includes('*/*')) return true
-  if (ext && rules.includes(ext.toLowerCase())) return true
-  if (file.type) {
-    const type = file.type.toLowerCase()
-    if (rules.includes(type)) return true
-    const base = type.split('/')[0]
-    if (rules.includes(`${base}/*`)) return true
-  }
-  return false
-}
-
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
   reader.onload = () => resolve(reader.result)
@@ -366,16 +420,7 @@ const updateCellValue = (list) => {
   const field = props.params?.colDef?.field
   if (!field || !props.params?.node) return
   const storeMode = fileStoreMode.value
-  const payload = list.map(item => ({
-    id: item.id,
-    name: item.name,
-    type: item.type,
-    size: item.size,
-    dataUrl: item.dataUrl,
-    url: item.url,
-    ext: item.ext,
-    uploadedAt: item.uploadedAt
-  }))
+  const payload = list.map(serializeFileItem)
   if (storeMode === 'url') {
     const first = payload[0]
     const value = first?.url || first?.dataUrl || first?.name || ''
@@ -422,6 +467,26 @@ const uploadToDb = async (file, dataUrl) => {
   return row
 }
 
+const uploadReferenceFile = async (file) => {
+  const response = await fetch('/agent/ai/harness/files/upload', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      ...getAuthHeader(),
+      'content-type': String(file.type || 'application/octet-stream').slice(0, 160),
+      'x-eiscore-file-name': encodeURIComponent(String(file.name || '').slice(0, 240))
+    },
+    body: file
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    if (response.status === 413) throw new Error('文件请求超过服务上限，请使用20MB以内文件')
+    throw new Error(String(body?.message || '文件保存失败'))
+  }
+  if (!body?.id) throw new Error('文件保存结果无效')
+  return body
+}
+
 const deleteFromDb = async (fileId) => {
   if (!fileId) return
   try {
@@ -438,10 +503,7 @@ const deleteFromDb = async (fileId) => {
   }
 }
 
-const handleFileInput = async (event) => {
-  const input = event.target
-  const picked = Array.from(input.files || [])
-  input.value = ''
+const processFiles = async (picked) => {
   if (picked.length === 0) return
 
   const remaining = maxCount.value - files.value.length
@@ -450,31 +512,35 @@ const handleFileInput = async (event) => {
     return
   }
 
-  let skippedType = 0
-  let skippedSize = 0
-  const accepted = []
-  picked.forEach(file => {
-    if (accepted.length >= remaining) return
-    if (!isAllowedFile(file)) {
-      skippedType += 1
-      return
-    }
-    if (file.size > maxSizeMb.value * 1024 * 1024) {
-      skippedSize += 1
-      return
-    }
-    accepted.push(file)
+  const { accepted, skippedType, skippedSize, skippedCount } = selectFilesForUpload(picked, {
+    currentCount: files.value.length,
+    maxCount: maxCount.value,
+    maxSizeBytes: maxSizeMb.value * 1024 * 1024,
+    acceptRules: acceptRules.value
   })
 
   if (skippedType > 0) ElMessage.warning('有文件格式不支持，已忽略')
   if (skippedSize > 0) ElMessage.warning(`有文件超过 ${maxSizeMb.value}MB，已忽略`)
+  if (skippedCount > 0) ElMessage.warning(`附件数量超过上限，已忽略 ${skippedCount} 个`)
   if (accepted.length === 0) return
 
   const newItems = []
   for (const file of accepted) {
     try {
-      const dataUrl = await readFileAsDataUrl(file)
-      if (fileStoreMode.value === 'url') {
+      const referenceMode = fileStoreMode.value === 'reference-list'
+      const dataUrl = referenceMode ? '' : await readFileAsDataUrl(file)
+      if (referenceMode) {
+        const saved = await uploadReferenceFile(file)
+        newItems.push({
+          id: saved.id,
+          name: saved.filename || file.name,
+          type: saved.mime_type || file.type || '',
+          size: saved.size_bytes || file.size || 0,
+          url: `file:${saved.id}`,
+          ext: getExt(saved.filename || file.name),
+          uploadedAt: saved.created_at || new Date().toISOString()
+        })
+      } else if (shouldUploadFileToDatabase(fileStoreMode.value)) {
         const saved = await uploadToDb(file, dataUrl)
         newItems.push({
           id: saved.id,
@@ -498,14 +564,33 @@ const handleFileInput = async (event) => {
         })
       }
     } catch (e) {
-      ElMessage.warning(`文件读取失败：${file.name}`)
+      ElMessage.warning(`文件读取或上传失败：${file.name}`)
     }
   }
 
   const next = [...files.value, ...newItems]
   files.value = next
-  if (!activeId.value && next.length > 0) activeId.value = next[0].id
+  if (!activeId.value && next.length > 0) {
+    activeId.value = next[0].id
+    void loadPreviewFor(next[0])
+  }
   updateCellValue(next)
+}
+
+const handleFileInput = async (event) => {
+  const input = event.target
+  const picked = Array.from(input.files || [])
+  input.value = ''
+  await processFiles(picked)
+}
+
+const handleDragLeave = (event) => {
+  if (!event.currentTarget.contains(event.relatedTarget)) isDragging.value = false
+}
+
+const handleDrop = async (event) => {
+  isDragging.value = false
+  await processFiles(Array.from(event.dataTransfer?.files || []))
 }
 
 const triggerSelect = () => {
@@ -514,29 +599,43 @@ const triggerSelect = () => {
 
 const removeFile = (id) => {
   const target = files.value.find(item => item.id === id)
-  if (fileStoreMode.value === 'url' && target?.url?.startsWith('file:')) {
+  if (target?.url?.startsWith('file:')) fileUrlCache.delete(target.url.replace('file:', ''))
+  if (shouldDeleteStoredFile(fileStoreMode.value, target)) {
     deleteFromDb(target.url.replace('file:', ''))
   }
   const next = files.value.filter(item => item.id !== id)
   files.value = next
   if (activeId.value === id) {
     activeId.value = next[0]?.id || ''
+    previewLoading.value = false
+    officePreview.value = null
+    officePreviewError.value = false
+    void loadPreviewFor(next[0])
   }
   updateCellValue(next)
 }
 
 const clearFiles = () => {
-  if (fileStoreMode.value === 'url') {
-    files.value.forEach(item => {
-      if (item?.url?.startsWith('file:')) deleteFromDb(item.url.replace('file:', ''))
-    })
-  }
+  files.value.filter(item => shouldDeleteStoredFile(fileStoreMode.value, item))
+    .forEach(item => deleteFromDb(item.url.replace('file:', '')))
   files.value = []
+  fileUrlCache.clear()
   activeId.value = ''
+  previewLoading.value = false
+  officePreview.value = null
+  officePreviewError.value = false
   updateCellValue([])
 }
 
-const downloadFile = (item) => {
+const downloadFile = async (item) => {
+  if (item?.url?.startsWith('file:') && !item.dataUrl) {
+    const hydrated = await hydrateFileItem(item)
+    if (!hydrated.dataUrl) {
+      ElMessage.warning('文件读取失败，请稍后重试')
+      return
+    }
+    return downloadFile(hydrated)
+  }
   const url = item.dataUrl || item.url
   if (!isSafeResourceUrl(url)) {
     ElMessage.warning('当前文件无法下载')
@@ -552,6 +651,11 @@ const downloadFile = (item) => {
 }
 
 const closeDialog = () => {
+  fileUrlCache.clear()
+  files.value = files.value.map(item => item.url?.startsWith('file:') ? { ...item, dataUrl: '' } : item)
+  previewLoading.value = false
+  officePreview.value = null
+  officePreviewError.value = false
   emit('update:visible', false)
 }
 
@@ -598,6 +702,12 @@ watch(() => props.params, (val) => {
   background: #fafafa;
   max-height: 580px;
   overflow-y: auto;
+}
+
+.file-list.is-dragging {
+  border-color: #409eff;
+  background: #ecf5ff;
+  box-shadow: inset 0 0 0 1px rgba(64, 158, 255, .18);
 }
 
 .file-empty {
@@ -705,6 +815,77 @@ watch(() => props.params, (val) => {
   gap: 10px;
   align-items: center;
   justify-content: center;
+}
+
+.file-preview-office {
+  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  color: #606266;
+}
+
+.file-preview-office span {
+  max-width: 320px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.file-preview-office-text,
+.file-preview-office-table {
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: left;
+  overflow: auto;
+  max-height: 600px;
+}
+
+.file-preview-office-text strong,
+.file-preview-office-table > .el-button {
+  align-self: flex-start;
+}
+
+.file-preview-office-text pre {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #303133;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 13px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.office-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.office-table-scroll {
+  overflow: auto;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+
+.office-table-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.office-table-scroll td {
+  min-width: 90px;
+  padding: 7px 8px;
+  border-right: 1px solid #ebeef5;
+  border-bottom: 1px solid #ebeef5;
+  color: #303133;
+  white-space: pre-wrap;
+  vertical-align: top;
 }
 
 .file-preview-text {

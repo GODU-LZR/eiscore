@@ -45,6 +45,10 @@ let draftDecisionId = ''
 
 const WORKER_DRAFT_PROTOCOL = 'eiscore-harness-worker-draft'
 const WORKER_DRAFT_VERSION = 1
+const FILE_DROP_PROTOCOL = 'eiscore-harness-file-drop'
+const FILE_DROP_VERSION = 1
+const MAX_FILE_BYTES = 20 * 1024 * 1024
+const FILE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'mp4', 'mp3'])
 
 const currentEntry = () => props.entry === 'workbench' ? 'workbench' : 'worker'
 const clearEntry = () => {
@@ -139,6 +143,105 @@ function deliverDraft() {
   send()
 }
 
+const fileExtension = (name) => {
+  const value = String(name || '').trim().toLowerCase()
+  const index = value.lastIndexOf('.')
+  return index >= 0 ? value.slice(index + 1) : ''
+}
+
+const extractOfficeText = async (file) => {
+  const extension = fileExtension(file?.name)
+  try {
+    if (extension === 'docx') {
+      const mammoth = await import('mammoth')
+      const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
+      return String(result.value || '').replace(/\u0000/g, '').trim().slice(0, 4000)
+    }
+    if (['xls', 'xlsx'].includes(extension)) {
+      const module = await import('xlsx')
+      const XLSX = module.default || module
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', sheets: undefined })
+      let remaining = 4000
+      const sections = []
+      for (const name of workbook.SheetNames || []) {
+        if (remaining <= 0) break
+        const source = XLSX.utils.sheet_to_csv(workbook.Sheets[name], { FS: '\t' }).trim()
+        if (!source) continue
+        const section = `${name}:\n${source}`.slice(0, remaining)
+        sections.push(section)
+        remaining -= section.length
+      }
+      return sections.join('\n\n')
+    }
+  } catch {
+    return ''
+  }
+  return ''
+}
+
+async function uploadHarnessFile(file) {
+  if (!file || typeof file.arrayBuffer !== 'function') throw new Error('文件格式无效')
+  const name = String(file.name || '').trim().slice(0, 240)
+  const ext = fileExtension(name)
+  if (!name || !FILE_EXTENSIONS.has(ext)) throw new Error('文件格式不支持')
+  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > MAX_FILE_BYTES) throw new Error('文件不能超过20MB')
+  const response = await fetch('/harness-embed-api/eiscore/files/upload', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'content-type': String(file.type || 'application/octet-stream').slice(0, 160),
+      'x-eiscore-file-name': encodeURIComponent(name)
+    },
+    body: file
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    if (response.status === 413) throw new Error('文件请求超过服务上限，请使用20MB以内文件')
+    throw new Error(String(body?.message || '文件上传失败'))
+  }
+  const row = Array.isArray(body) ? body[0] : body
+  if (!row?.id) throw new Error('文件上传结果无效')
+  return {
+    id: row.id,
+    name: row.filename || name,
+    type: row.mime_type || file.type || '',
+    size: row.size_bytes || file.size,
+    url: `file:${row.id}`,
+    ext,
+    uploadedAt: row.created_at || new Date().toISOString()
+  }
+}
+
+async function receiveFileDrop(event) {
+  const message = event.data
+  if (event.origin !== window.location.origin || event.source !== frame.value?.contentWindow) return
+  if (!message || message.source !== 'eiscore-harness' || message.protocol !== FILE_DROP_PROTOCOL || message.version !== FILE_DROP_VERSION || message.type !== 'received') return
+  const id = String(message.id || '')
+  if (!/^[A-Za-z0-9._:-]{1,120}$/.test(id) || !Array.isArray(message.files) || message.files.length > 10) return
+  if (!hasCurrentAuthorization()) { invalidateAuthorization(); return }
+  const files = []
+  const errors = []
+  for (const file of message.files) {
+    try {
+      const saved = await uploadHarnessFile(file)
+      saved.contentExcerpt = await extractOfficeText(file)
+      files.push(saved)
+    } catch (error) { errors.push(`${file?.name || '文件'}：${error.message}`) }
+  }
+  if (!frame.value?.contentWindow) return
+  frame.value.contentWindow.postMessage({
+    source: 'eiscore-host',
+    protocol: FILE_DROP_PROTOCOL,
+    version: FILE_DROP_VERSION,
+    type: files.length ? 'uploaded' : 'error',
+    id,
+    files,
+    errors
+  }, window.location.origin)
+  if (errors.length) ElMessage.warning(errors.join('；'))
+  if (files.length) ElMessage.success(`已上传 ${files.length} 个文件，可在工作助手中归类并关联客户`)
+}
+
 function receiveDraftResult(event) {
   const result = event.data
   if (event.origin !== window.location.origin || event.source !== frame.value?.contentWindow) return
@@ -225,12 +328,16 @@ watch(() => userStore.token, () => {
   failed.value = false
   if (props.active) void prepare()
 })
-onMounted(() => window.addEventListener('message', receiveDraftResult))
+onMounted(() => {
+  window.addEventListener('message', receiveDraftResult)
+  window.addEventListener('message', receiveFileDrop)
+})
 onBeforeUnmount(() => {
   ++requestId
   clearTimeout(deliveryTimer)
   clearTimeout(entryTimer)
   window.removeEventListener('message', receiveDraftResult)
+  window.removeEventListener('message', receiveFileDrop)
 })
 </script>
 

@@ -251,10 +251,45 @@ async function authLogout(request) {
   if (id) sessions.delete(id);
   return json({ authenticated: false }, 200, { "set-cookie": `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict` });
 }
+
+const MAX_CUSTOMER_FILE_BYTES = 20 * 1024 * 1024
+const createCustomerFileUpload = ({ tokenForRequest = sessionToken, getGatewayOrigin = gatewayOrigin, fetchImpl = fetch } = {}) => async (request) => {
+  const token = tokenForRequest(request)
+  if (!token) return json({ code: 'UNAUTHORIZED' }, 401)
+  const origin = getGatewayOrigin()
+  if (!origin) return json({ code: 'EISCORE_GATEWAY_UNAVAILABLE' }, 503)
+  const contentType = text(request.headers.get('content-type')) || 'application/octet-stream'
+  const fileName = String(request.headers.get('x-eiscore-file-name') || '').trim().slice(0, 720)
+  if (!fileName || /[\r\n]/.test(fileName)) return json({ code: 'FILE_NAME_INVALID' }, 400)
+  const length = Number(request.headers.get('content-length'))
+  if (Number.isFinite(length) && length > MAX_CUSTOMER_FILE_BYTES) return json({ code: 'PAYLOAD_TOO_LARGE' }, 413)
+  if (!request.body) return json({ code: 'FILE_REQUIRED' }, 400)
+  try {
+    // registerHttpRoute bounds and buffers the ingress stream before invoking
+    // this handler. Forward its Web stream directly so the 20 MiB payload does
+    // not incur another ArrayBuffer copy in the DSH process.
+    const response = await fetchImpl(`${origin}/ai/harness/files/upload`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': contentType,
+        'x-eiscore-file-name': fileName
+      },
+      body: request.body,
+      duplex: 'half',
+      signal: request.signal
+    })
+    return new Response(response.body, {
+      status: response.status,
+      headers: { 'content-type': response.headers.get('content-type') || 'application/json', 'cache-control': 'no-store' }
+    })
+  } catch {
+    return json({ code: 'EISCORE_FILE_UPLOAD_UNAVAILABLE' }, 503)
+  }
+}
+const customerFileUpload = createCustomerFileUpload()
 var inject = ["connection", "webServer", "typertGateway"];
-function apply(ctx) {
-  ctx.effect(() => installSessionAccessPolicy({ webServer: ctx.webServer, gateway: ctx.typertGateway, bindings: businessBindings, tokenForRequest: sessionToken }));
-  installBridge();
+const createAuthRoutes = ({ profile = process.env.EISCORE_HARNESS_CAPABILITY_PROFILE, upload = customerFileUpload } = {}) => {
   const routes = [
     { path: "/api/eiscore/auth/bind-session", methods: ["POST"], fetch: businessBindings.bind },
     { path: "/api/eiscore/auth/start", methods: ["POST"], fetch: authStart },
@@ -262,9 +297,30 @@ function apply(ctx) {
     { path: "/api/eiscore/auth/handoff", methods: ["POST"], fetch: authHandoff },
     { path: "/api/eiscore/auth/logout", methods: ["POST"], fetch: authLogout }
   ];
-  for (const route of routes) registerHttpRoute(ctx, { path: route.path, method: route.methods[0], fetch: route.fetch, maxRequestBodyBytes: 4096 });
+  if (String(profile || '').trim() !== 'flash') {
+    routes.push({ path: "/api/eiscore/files/upload", methods: ["POST"], fetch: upload, maxRequestBodyBytes: MAX_CUSTOMER_FILE_BYTES });
+  }
+  return routes;
+};
+function apply(ctx) {
+  ctx.effect(() => installSessionAccessPolicy({ webServer: ctx.webServer, gateway: ctx.typertGateway, bindings: businessBindings, tokenForRequest: sessionToken }));
+  installBridge();
+  const routes = createAuthRoutes();
+  for (const route of routes) registerHttpRoute(ctx, {
+    path: route.path,
+    method: route.methods[0],
+    fetch: route.fetch,
+    // Authentication requests stay tiny, while the business file route owns
+    // its explicit 20 MiB raw-file limit. Do not collapse both contracts to
+    // the old 4 KiB auth-body ceiling.
+    maxRequestBodyBytes: route.maxRequestBodyBytes ?? 4096
+  });
 }
 export {
   apply,
-  inject
+  createAuthRoutes,
+  createCustomerFileUpload,
+  inject,
+  MAX_CUSTOMER_FILE_BYTES,
+  registerHttpRoute
 };

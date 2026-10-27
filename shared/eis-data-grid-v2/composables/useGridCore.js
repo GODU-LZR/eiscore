@@ -691,6 +691,7 @@ export function useGridCore(
     }
     if (typeof col.valueSetter === 'function') extraColDef.valueSetter = col.valueSetter
     if (typeof col.valueParser === 'function') extraColDef.valueParser = col.valueParser
+    if (typeof col.officePreviewLoader === 'function') extraColDef.officePreviewLoader = col.officePreviewLoader
     if (col.multiLine) extraColDef.multiLine = true
     if (Array.isArray(col.syncFields)) extraColDef.syncFields = col.syncFields
     if (col.cellEditor) extraColDef.cellEditor = col.cellEditor
@@ -858,6 +859,7 @@ export function useGridCore(
       return {
         ...colDef,
         editable: false,
+        ...(typeof col.officePreviewLoader === 'function' ? { officePreviewLoader: col.officePreviewLoader } : {}),
         cellRenderer: 'FileRenderer',
         fileMaxCount: col.fileMaxCount ?? 3,
         fileMaxSizeMb: col.fileMaxSizeMb ?? 20,

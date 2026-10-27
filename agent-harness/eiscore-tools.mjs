@@ -19,6 +19,8 @@ const ALL_CAPABILITIES = Object.freeze([
   'eiscore_workflow_write',
   'eiscore_sales_context',
   'eiscore_sales_write',
+  'eiscore_customer_query',
+  'eiscore_customer_write',
   'eiscore_document_plan',
   'eiscore_document_commit',
   'eiscore_flash_read',
@@ -49,6 +51,8 @@ const CAPABILITY_TIMEOUTS = Object.freeze({
   eiscore_workflow_write: 60000,
   eiscore_sales_context: 60000,
   eiscore_sales_write: 60000,
+  eiscore_customer_query: 30000,
+  eiscore_customer_write: 60000,
   eiscore_document_plan: 60000,
   eiscore_document_commit: 60000,
   eiscore_flash_read: 60000,
@@ -186,6 +190,27 @@ const SALES_CONTEXT_PARAMETERS = Object.freeze({
     filters: { type: 'object', additionalProperties: true }, limit: { type: 'integer' }, order: { type: 'string' }
   }
 })
+const CUSTOMER_QUERY_PARAMETERS = Object.freeze({
+  type: 'object', additionalProperties: false,
+  properties: {
+    operation: { type: 'string', enum: ['query', 'list', 'read'] },
+    customer_id: { type: 'string' }, customerId: { type: 'string' },
+    select: { oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
+    filters: { type: 'object', additionalProperties: true }, limit: { type: 'integer' }, order: { type: 'string' }
+  }
+})
+const CUSTOMER_WRITE_PARAMETERS = Object.freeze({
+  type: 'object', additionalProperties: false,
+  required: ['operation'],
+  properties: {
+    operation: { type: 'string', enum: ['create', 'update', 'delete', 'attach_file'] },
+    customer_id: { type: 'string' }, customerId: { type: 'string' }, id: { type: 'string' },
+    values: { type: 'object', additionalProperties: true },
+    expected_updated_at: { type: 'string' }, expectedUpdatedAt: { type: 'string' },
+    file_id: { type: 'string' }, fileId: { type: 'string' }, file_ref: { type: 'string' }, category: { type: 'string' },
+    classification_reason: { type: 'string' }, classificationReason: { type: 'string' }
+  }
+})
 const SALES_CONTEXT_OUTPUT = QUERY_OUTPUT
 const salesWriteVariant = (requiredKey, operation, properties) => ({
   type: 'object', additionalProperties: false, required: [requiredKey],
@@ -233,7 +258,9 @@ const TOOL_SCHEMAS = Object.freeze({
   eiscore_workflow_context: Object.freeze({ parameters: FLASH_PARAMETERS, output: { type: 'object', additionalProperties: true } }),
   eiscore_workflow_write: Object.freeze({ parameters: FLASH_PARAMETERS, output: { type: 'object', additionalProperties: true } }),
   eiscore_sales_context: Object.freeze({ parameters: SALES_CONTEXT_PARAMETERS, output: SALES_CONTEXT_OUTPUT }),
-  eiscore_sales_write: Object.freeze({ parameters: SALES_WRITE_PARAMETERS, output: { type: 'object', additionalProperties: true } })
+  eiscore_sales_write: Object.freeze({ parameters: SALES_WRITE_PARAMETERS, output: { type: 'object', additionalProperties: true } }),
+  eiscore_customer_query: Object.freeze({ parameters: CUSTOMER_QUERY_PARAMETERS, output: { type: 'object', additionalProperties: true } }),
+  eiscore_customer_write: Object.freeze({ parameters: CUSTOMER_WRITE_PARAMETERS, output: { type: 'object', additionalProperties: true } })
 })
 
 const proxyUrl = () => String(process.env.EISCORE_TOOL_PROXY_URL || '').replace(/\/+$/, '')
@@ -357,6 +384,12 @@ const capabilityDescription = (capability) => {
   }
   if (capability === 'eiscore_grid_query') {
     return `${base} Read-only datasets: materials, inventory, production_orders, employees (employee archives), users (user management; id, username, full_name, role_name, status only). Results are limited rows, not a full-table count. User creation is unsupported. Access is checked on every call.`
+  }
+  if (capability === 'eiscore_customer_query') {
+    return `${base} Query the authenticated user's sales customer archive, including properties.customer_files metadata. Results never include file binary content; use the file reference for preview/download.`
+  }
+  if (capability === 'eiscore_customer_write') {
+    return `${base} Manage the authenticated user's sales customer archive. Writes require explicit confirmation and are idempotent. Use expected_updated_at for update/delete/attach_file. File classification is based on filename, MIME and user supplied category only; the tool does not read file bytes.`
   }
   return base
 }

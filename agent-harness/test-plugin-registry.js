@@ -38,7 +38,7 @@ for (const capabilityId of [
   assert.deepEqual(policy.chat_input_schema.required, ['messages']);
   assert.equal(policy.chat_output_schema.type, 'object');
 }
-assert.equal(registry.listCapabilities().length, 18);
+assert.equal(registry.listCapabilities().length, 20);
 for (const capability of registry.listCapabilities()) {
   assert.equal(capability.input_schema.type, 'object');
   assert.equal(capability.output_schema.type, 'object');

@@ -3,7 +3,7 @@ import http from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { apply, capabilities, CAPABILITY_TIMEOUTS, normalizeDshSchema } from './eiscore-tools.mjs'
 
-assert.equal(capabilities.length, 18)
+assert.equal(capabilities.length, 20)
 assert.equal(new Set(capabilities).size, capabilities.length)
 assert.ok(capabilities.includes('eiscore_enterprise_snapshot'))
 assert.ok(capabilities.includes('eiscore_site_sales'))

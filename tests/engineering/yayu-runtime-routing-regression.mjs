@@ -9,6 +9,7 @@ const compose = readFileSync(new URL('../../deploy/yayu/compose.yml', import.met
 const salesGrid = readFileSync(new URL('../../eiscore-sales/src/components/SalesAppGrid.vue', import.meta.url), 'utf8')
 
 assert.doesNotMatch(nginx, /location ~ \^\/\(company-site\|materials\|purchase\|apps\|/)
+assert.match(nginx, /client_max_body_size 32m;/)
 assert.match(nginx, /location = \/apps\/index\.html \{ try_files \$uri =404; \}/)
 assert.match(nginx, /location \^~ \/apps\/ \{ try_files \$uri \$uri\/ \/apps\/index\.html; \}/)
 assert.match(nginx, /location \^~ \/flash\/ \{\s+proxy_pass http:\/\/flash-agent-runtime:8078;/)

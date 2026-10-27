@@ -37,6 +37,8 @@
   const WORKER_DRAFT_VERSION = 1
   const WORKER_DRAFT_MAX_LENGTH = 20000
   const WORKER_COMPOSER_SELECTOR = '[data-composer-input][contenteditable="true"]'
+  const FILE_DROP_PROTOCOL = 'eiscore-harness-file-drop'
+  const FILE_DROP_VERSION = 1
   const workerDrafts = new Map()
   const aliases = {
     echarts: 'echarts', echart: 'echarts', 'e-chart': 'echarts',
@@ -157,6 +159,57 @@
     sendWorkerDraftReply('applied', id)
   }
   window.addEventListener('message', handleWorkerDraftMessage)
+
+  // The Harness page is same-origin after the Yayu proxy rewrite. Keep binary
+  // files in the host upload path and send only stable file references back to
+  // the model-facing composer; this avoids duplicating Base64 data in chat.
+  const sendFileDropMessage = (type, id, extra = {}) => {
+    window.parent.postMessage({
+      source: 'eiscore-harness',
+      protocol: FILE_DROP_PROTOCOL,
+      version: FILE_DROP_VERSION,
+      type,
+      id,
+      ...extra
+    }, location.origin)
+  }
+  const hasFiles = (event) => [...(event.dataTransfer?.types || [])].includes('Files')
+  const handleFileDragOver = (event) => {
+    if (!hasFiles(event)) return
+    event.preventDefault()
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+    document.documentElement.dataset.eiscoreFileDrop = 'active'
+  }
+  const handleFileDragEnd = () => { delete document.documentElement.dataset.eiscoreFileDrop }
+  const handleFileDrop = (event) => {
+    if (!hasFiles(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    handleFileDragEnd()
+    const files = [...(event.dataTransfer?.files || [])]
+    if (!files.length) return
+    const id = `drop-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    sendFileDropMessage('received', id, { files })
+  }
+  document.addEventListener('dragover', handleFileDragOver, true)
+  document.addEventListener('dragleave', handleFileDragEnd, true)
+  document.addEventListener('drop', handleFileDrop, true)
+  window.addEventListener('message', async (event) => {
+    if (event.origin !== location.origin || event.source !== window.parent) return
+    const message = event.data
+    if (!message || message.source !== 'eiscore-host' || message.protocol !== FILE_DROP_PROTOCOL || message.version !== FILE_DROP_VERSION) return
+    if (message.type !== 'uploaded' || !Array.isArray(message.files) || !message.files.length) return
+    let remaining = 9000
+    const references = message.files.map((file) => {
+      const excerpt = text(file.contentExcerpt).slice(0, Math.max(0, remaining))
+      remaining -= excerpt.length
+      return `文件：${file.name || '未命名文件'}（${file.type || '未知格式'}；引用 ${file.id || ''}）${excerpt ? `\n内容节选：\n${excerpt}` : '\n尚无可读取的内容节选'}`
+    })
+    const prompt = `我刚上传了客户资料文件。请先根据文件名、格式以及已提供的内容节选建议分类；没有节选时，不要推断文件内容。先向我确认客户和分类，再调用客户档案能力把文件引用写入客户资料列。\n\n${references.join('\n\n')}`
+    const composer = await waitForWorkerComposer(3000)
+    if (!composer || readComposerText(composer)) return
+    try { pasteWorkerDraft(composer, prompt) } catch {}
+  })
   const HARNESS_ENTRY_VERSION = 1
   const HARNESS_ENTRIES = new Set(['worker', 'workbench'])
   const sendHarnessEntryReply = (message) => window.parent.postMessage({ version: HARNESS_ENTRY_VERSION, ...message }, location.origin)

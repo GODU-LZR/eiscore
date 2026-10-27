@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
+import { loadSalesOfficePreview } from './office-preview'
+
 const CUSTOMER_LEVEL_OPTIONS = [
   { label: '战略客户', value: '战略客户' },
   { label: '重点客户', value: '重点客户' },
@@ -115,7 +117,19 @@ export const CUSTOMER_COLUMNS = [
   { label: '客户状态', prop: 'customer_status', type: 'select', options: CUSTOMER_STATUS_OPTIONS, width: 120 },
   { label: '信用额度', prop: 'credit_limit', type: 'number', width: 120 },
   { label: '应收余额', prop: 'receivable_balance', type: 'number', width: 120 },
-  { label: '最近跟进', prop: 'last_follow_up_at', width: 140 }
+  { label: '最近跟进', prop: 'last_follow_up_at', width: 140 },
+  {
+    label: '客户资料',
+    prop: 'customer_files',
+    type: 'file',
+    storeInProperties: true,
+    fileMaxCount: 10,
+    fileMaxSizeMb: 20,
+    fileStoreMode: 'reference-list',
+    officePreviewLoader: loadSalesOfficePreview,
+    fileAccept: '.jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.mp4,.mp3',
+    width: 220
+  }
 ]
 
 export const ORDER_COLUMNS = [

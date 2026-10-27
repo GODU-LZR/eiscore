@@ -21,12 +21,14 @@ try {
   const tools = []
   const runtime = await import(`./eiscore-tools.mjs?business-web-test=${Date.now()}`)
   runtime.apply({ tools: { register: tool => tools.push(tool) }, get: name => name === 'approval' ? approval : undefined })
-  assert.equal(tools.length, 16)
+  assert.equal(tools.length, 18)
   assert.deepEqual(tools.map(tool => tool.name), [...runtime.capabilities])
   assert.ok(tools.every(tool => !tool.name.startsWith('eiscore_flash_')))
   const read = tools.find(tool => tool.name === 'eiscore_enterprise_snapshot')
   const write = tools.find(tool => tool.name === 'eiscore_sales_write')
-  assert.ok(read && write)
+  const customerQuery = tools.find(tool => tool.name === 'eiscore_customer_query')
+  const customerWrite = tools.find(tool => tool.name === 'eiscore_customer_write')
+  assert.ok(read && write && customerQuery && customerWrite)
   const exec = { agent: { session: { id: sessionId } }, callId: 'sales-write-call', signal: new AbortController().signal }
   globalThis.fetch = async (url, options) => {
     calls.push({ url: String(url), options, body: JSON.parse(options.body) })

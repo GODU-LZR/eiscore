@@ -16,6 +16,7 @@ assert.match(businessUi, /\[data-composer-input\]\[contenteditable="true"\]/)
 assert.match(businessUi, /new ClipboardEvent\('paste'/)
 
 const listeners = new Map()
+const documentListeners = new Map()
 const replies = []
 const parentWindow = { postMessage: (message, origin) => replies.push({ message, origin }) }
 const editor = {
@@ -33,7 +34,7 @@ const editor = {
     return true
   }
 }
-const body = { querySelectorAll: () => [] }
+const body = { dataset: {}, querySelectorAll: () => [] }
 const document = {
   currentScript: { src: 'https://app.example/harness-embed/eiscore-ui/business-ui.js' },
   body,
@@ -42,7 +43,12 @@ const document = {
   createElement: () => ({ setAttribute() {}, appendChild() {}, remove() {} }),
   querySelector: () => null,
   querySelectorAll: (selector) => selector === '[data-composer-input][contenteditable="true"]' ? [editor] : [],
-  createRange: () => ({ selectNodeContents() {} })
+  createRange: () => ({ selectNodeContents() {} }),
+  addEventListener: (type, listener) => {
+    const entries = documentListeners.get(type) || []
+    entries.push(listener)
+    documentListeners.set(type, entries)
+  }
 }
 class FakeMutationObserver {
   constructor(callback) { this.callback = callback }
@@ -112,4 +118,20 @@ await sendToHarness({ ...baseMessage, type: 'apply', id: 'conflict' })
 assert.equal(replies.at(-1).message.reason, 'draft-changed')
 assert.equal(editor.textContent, '用户刚刚输入的内容', 'late user edits must not be overwritten')
 
-console.log('PASS: Yayu Harness worker draft requires trusted origin, protects existing edits, pastes without sending')
+const droppedFile = { name: '报价单.xlsx', size: 2048, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
+let prevented = false
+let stopped = false
+const dropEvent = {
+  dataTransfer: { types: ['Files'], files: [droppedFile] },
+  preventDefault() { prevented = true },
+  stopPropagation() { stopped = true }
+}
+documentListeners.get('drop')[0](dropEvent)
+assert.equal(prevented, true)
+assert.equal(stopped, true)
+assert.equal(replies.at(-1).message.protocol, 'eiscore-harness-file-drop')
+assert.equal(replies.at(-1).message.type, 'received')
+assert.equal(replies.at(-1).message.files[0], droppedFile, 'the plugin forwards the original file without Base64 conversion')
+assert.equal(replies.at(-1).origin, 'https://app.example')
+
+console.log('PASS: Yayu Harness worker draft and file drop require trusted origin; files stay binary and drafts paste without sending')

@@ -37,7 +37,7 @@ for (const source of [compose, productionCompose]) {
 assert.equal(new Set(contractPlugins).size, contractPlugins.length, 'plugin contract must not contain duplicate ids')
 assert.equal(
   contract.plugins.reduce((count, plugin) => count + plugin.capabilities.length, 0),
-  18,
+  20,
   'the registered capability inventory must remain complete'
 )
 

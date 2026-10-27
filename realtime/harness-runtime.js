@@ -402,7 +402,7 @@ const createHarnessProviderDispatch = ({ bridgeUrl, activeDispatches, fetchImpl 
   };
 };
 
-const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall, executeEnterpriseSnapshot, executeDigitalTwinContext, executeDigitalTwinChat, executeDocumentPlan, executeSalesWrite, executeEngineeringContext, executeSiteSales, documentEntryWorker, documentFixedEntryWorker, createTwinPersistence, callPostgrestWithUser, fetchSemanticContext, envText = (value, fallback = '') => String(value ?? fallback).trim() }) => {
+const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall, executeEnterpriseSnapshot, executeDigitalTwinContext, executeDigitalTwinChat, executeDocumentPlan, executeSalesWrite, executeCustomerQuery, executeCustomerWrite, executeEngineeringContext, executeSiteSales, documentEntryWorker, documentFixedEntryWorker, createTwinPersistence, callPostgrestWithUser, fetchSemanticContext, envText = (value, fallback = '') => String(value ?? fallback).trim() }) => {
   const registry = loadPluginRegistry();
   const runtimeProfile = envText(process.env.RUNTIME_PROFILE, 'business').toLowerCase() || 'business';
   const flashOnly = runtimeProfile === 'flash';
@@ -413,6 +413,7 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
       'eiscore_multimodal_ocr', 'eiscore_multimodal_map_locate', 'eiscore_grid_query',
       'eiscore_twin_context', 'eiscore_twin_chat', 'eiscore_workflow_context', 'eiscore_workflow_write',
       'eiscore_sales_context', 'eiscore_sales_write', 'eiscore_document_plan', 'eiscore_document_commit',
+      'eiscore_customer_query', 'eiscore_customer_write',
       'eiscore_engineering_context', 'eiscore_site_sales'
     ]);
   const enabled = isHarnessConfigurationReady(process.env);
@@ -472,6 +473,8 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
     executeWorkflowWrite: executeWorkflowCapability('flash.workflow.instance.transition', WORKFLOW_WRITE_TOOL_ALLOWLIST, 'harness-workflow-write'),
     executeSalesContext: flashOnly ? null : executeFixedSalesContext(queryTools),
     executeSalesWrite,
+    executeCustomerQuery: flashOnly ? null : executeCustomerQuery,
+    executeCustomerWrite: flashOnly ? null : executeCustomerWrite,
     executeDocumentPlan,
     executeDocumentCommit,
     executeEngineeringContext: executeEngineeringContext || contextCapabilities?.executeEngineering,
