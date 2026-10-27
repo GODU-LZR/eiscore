@@ -30,7 +30,16 @@ function registerHttpRoute(ctx, route) {
       });
       const limit = route.maxRequestBodyBytes ?? 300 * 1024 * 1024;
       const tooLarge = () => {
-        res.writeHead(413, { connection: "close" }).end();
+        const payload = JSON.stringify({
+          code: "PAYLOAD_TOO_LARGE",
+          message: "File exceeds the 20 MiB upload limit"
+        });
+        res.writeHead(413, {
+          connection: "close",
+          "cache-control": "no-store",
+          "content-type": "application/json; charset=utf-8",
+          "content-length": Buffer.byteLength(payload)
+        }).end(payload);
         req.resume();
       };
       if (Number(req.headers["content-length"]) > limit) {

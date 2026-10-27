@@ -78,7 +78,9 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
     const fields = normalizeFields(input.select);
     const visible = filterVisibleFields(fields, context, CUSTOMER_MODULE);
     if (!visible.length) fail('HARNESS_PERMISSION_DENIED', 'No requested customer fields are visible', 403);
-    const query = { select: visible.join(','), limit: String(Math.min(Math.max(Number(input.limit) || 20, 1), MAX_LIMIT)), order: 'created_at.desc', ...buildFilters(input.filters) };
+    const filters = buildFilters(input.filters);
+    const query = { select: visible.join(','), limit: String(Math.min(Math.max(Number(input.limit) || 20, 1), MAX_LIMIT)), order: 'created_at.desc', ...filters };
+    if (!Object.hasOwn(filters, 'status')) query.status = 'neq.deleted';
     const customerId = text(input.customer_id || input.customerId || input.id, 80);
     if (customerId) {
       if (!isUuid(customerId)) fail('HARNESS_CUSTOMER_RESOURCE_ID_INVALID', 'customer_id must be a UUID');

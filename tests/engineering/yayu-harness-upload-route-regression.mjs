@@ -53,6 +53,18 @@ assert.equal(response.status, 201)
 assert.equal(capturedBytes, 5 * 1024)
 assert.deepEqual(received, ['notes.txt'])
 
+const oversized = { ...request, resume() {}, async *[Symbol.asyncIterator]() { yield Buffer.alloc(MAX_BODY_BYTES + 1, 0x61) } }
+const oversizedResponse = new PassThrough()
+oversizedResponse.writeHead = (status, headers) => { oversizedResponse.status = status; oversizedResponse.headers = headers; oversizedResponse.headersSent = true; return oversizedResponse }
+oversizedResponse.end = (body, ...args) => { oversizedResponse.ended = true; oversizedResponse.body = String(body || ''); PassThrough.prototype.end.call(oversizedResponse, body, ...args) }
+const oversizedRoute = { ...fileRoute, method: 'POST', fetch: async () => new Response(null, { status: 201 }) }
+const oversizedRegistered = []
+auth.registerHttpRoute({ ...ctx, webServer: { register(value) { oversizedRegistered.push(value) } } }, oversizedRoute)
+await oversizedRegistered[0].handler(oversized, oversizedResponse)
+assert.equal(oversizedResponse.status, 413)
+assert.equal(oversizedResponse.headers['content-type'], 'application/json; charset=utf-8')
+assert.deepEqual(JSON.parse(oversizedResponse.body), { code: 'PAYLOAD_TOO_LARGE', message: 'File exceeds the 20 MiB upload limit' })
+
 const authorize = () => ({ id: 'user-1', tenant_id: 'tenant-1' })
 const upload = createCustomerFileUploadHandler({
   authorize,

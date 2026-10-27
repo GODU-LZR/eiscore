@@ -7,6 +7,13 @@ import net from 'node:net'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+const MAX_CUSTOMER_FILE_BYTES = 20 * 1024 * 1024
+const CUSTOMER_FILE_UPLOAD_PATH = '/api/eiscore/files/upload'
+const customerFileTooLargePayload = () => JSON.stringify({
+  code: 'PAYLOAD_TOO_LARGE',
+  message: 'File exceeds the 20 MiB upload limit'
+})
+
 export const ensureStartupProfile = (homeValue = process.env.DSH_HOME) => {
   const home = String(homeValue || '').trim()
   if (!home) throw new Error('DSH_HOME is required for the Web profile')
@@ -441,7 +448,24 @@ const proxyRawRequest = (request, response, headers = request.headers, bootstrap
     response.writeHead(upstreamResponse.statusCode || 502, responseHeaders)
     upstreamResponse.pipe(response)
   })
-  upstream.on('error', () => response.writeHead(502).end('DeepSeek Harness unavailable'))
+  upstream.on('error', () => {
+    // The DSH route may intentionally close its side after returning a
+    // structured 413. Do not overwrite that response with a misleading 502.
+    if (response.headersSent || response.destroyed) return
+    const contentLength = Number(request.headers['content-length'])
+    if ((request.url || '').split('?', 1)[0] === CUSTOMER_FILE_UPLOAD_PATH
+      && Number.isFinite(contentLength) && contentLength > MAX_CUSTOMER_FILE_BYTES) {
+      const payload = customerFileTooLargePayload()
+      response.writeHead(413, {
+        connection: 'close',
+        'cache-control': 'no-store',
+        'content-type': 'application/json; charset=utf-8',
+        'content-length': Buffer.byteLength(payload)
+      }).end(payload)
+      return
+    }
+    response.writeHead(502).end('DeepSeek Harness unavailable')
+  })
   request.pipe(upstream)
 }
 

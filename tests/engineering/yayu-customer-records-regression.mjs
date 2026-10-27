@@ -49,6 +49,7 @@ const query = await executor.execute(user, { operation: 'query', select: ['id', 
 assert.deepEqual(query.rows[0], { id: customerId, name: '客户一', properties: {}, updated_at: '2026-10-27T00:00:00Z' })
 assert.ok(calls[0].query.select.includes('id'))
 assert.equal(calls[0].query.select.includes('contact_phone'), false, 'hidden fields must be removed before PostgREST')
+assert.equal(calls[0].query.status, 'neq.deleted', 'default customer queries must exclude soft-deleted rows')
 
 await assert.rejects(
   executor.execute(user, { operation: 'update', customer_id: customerId, expected_updated_at: '2026-10-27T00:00:00Z', values: { contact_phone: '13800000000' } }, { idempotency_key: 'update-contact-phone-1' }),
