@@ -11,8 +11,9 @@ export const resolveFilePreviewKind = (file) => {
   const ext = getExtension(file)
   if (type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return 'image'
   if (type.includes('pdf') || ext === 'pdf') return 'pdf'
-  if (type.startsWith('video/') || ['mp4', 'webm', 'ogg'].includes(ext)) return 'video'
-  if (type.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) return 'audio'
+  if (type.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'm4a', 'aac', 'flac'].includes(ext)) return 'audio'
+  if (type.startsWith('video/') || ['mp4', 'webm'].includes(ext)) return 'video'
+  if (['md', 'txt', 'csv'].includes(ext)) return 'text'
   if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return 'office'
   return 'unsupported'
 }

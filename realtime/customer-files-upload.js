@@ -14,7 +14,17 @@ const MIME_BY_EXTENSION = Object.freeze({
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ppt: 'application/vnd.ms-powerpoint',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  mp4: 'video/mp4', mp3: 'audio/mpeg'
+  mp4: 'video/mp4', mp3: 'audio/mpeg',
+  md: 'text/markdown', txt: 'text/plain', csv: 'text/csv',
+  wav: 'audio/wav', m4a: 'audio/mp4', ogg: 'audio/ogg',
+  aac: 'audio/aac', flac: 'audio/flac'
+});
+const MIME_ALIASES_BY_EXTENSION = Object.freeze({
+  md: ['text/x-markdown'],
+  wav: ['audio/wave', 'audio/x-wav'],
+  m4a: ['audio/x-m4a'],
+  ogg: ['application/ogg'],
+  flac: ['audio/x-flac']
 });
 const ALLOWED_MIMES = new Set(Object.values(MIME_BY_EXTENSION));
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -51,7 +61,8 @@ const resolveMime = (filename, requested) => {
   const expected = MIME_BY_EXTENSION[extension];
   const supplied = text(requested, 120).split(';')[0].toLowerCase();
   if (!expected || !ALLOWED_MIMES.has(expected)) throw fail('FILE_TYPE_INVALID', 'This file type is not supported');
-  if (supplied && supplied !== 'application/octet-stream' && supplied !== expected) throw fail('FILE_TYPE_INVALID', 'The filename and file type do not match');
+  const accepted = new Set([expected, ...(MIME_ALIASES_BY_EXTENSION[extension] || [])]);
+  if (supplied && supplied !== 'application/octet-stream' && !accepted.has(supplied)) throw fail('FILE_TYPE_INVALID', 'The filename and file type do not match');
   return expected;
 };
 

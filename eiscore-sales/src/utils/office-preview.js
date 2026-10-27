@@ -21,10 +21,23 @@ const arrayBufferFromDataUrl = (value) => {
   return bytes.buffer
 }
 
+const textFromArrayBuffer = (arrayBuffer) => {
+  try {
+    return new TextDecoder('utf-8', { fatal: false }).decode(arrayBuffer)
+  } catch {
+    return ''
+  }
+}
+
 export async function loadSalesOfficePreview({ item, dataUrl } = {}) {
   const extension = extensionOf(item)
   const arrayBuffer = arrayBufferFromDataUrl(dataUrl)
   if (!arrayBuffer) return null
+
+  if (['md', 'txt', 'csv'].includes(extension)) {
+    const text = textFromArrayBuffer(arrayBuffer).replace(/\u0000/g, '').trim().slice(0, MAX_TEXT_CHARS)
+    return text ? { kind: 'text', text } : null
+  }
 
   if (extension === 'docx') {
     const module = await import('mammoth')

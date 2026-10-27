@@ -82,7 +82,7 @@
           <video v-else-if="canPreview(activeFile) && activePreviewKind === 'video'" :src="previewUrl(activeFile)" class="file-preview-media" controls />
           <audio v-else-if="canPreview(activeFile) && activePreviewKind === 'audio'" :src="previewUrl(activeFile)" class="file-preview-audio" controls />
           <div v-else-if="previewLoading" class="file-preview-empty" role="status">正在加载预览…</div>
-          <div v-else-if="activePreviewKind === 'office' && officePreview?.kind === 'text'" class="file-preview-office file-preview-office-text">
+          <div v-else-if="['office', 'text'].includes(activePreviewKind) && officePreview?.kind === 'text'" class="file-preview-office file-preview-office-text">
             <strong>{{ officeLabel(activeFile) }}</strong>
             <pre>{{ officePreview.text }}</pre>
             <el-button type="primary" @click="downloadFile(activeFile)">下载文件</el-button>
@@ -102,7 +102,7 @@
             </div>
             <el-button type="primary" @click="downloadFile(activeFile)">下载文件</el-button>
           </div>
-          <div v-else-if="activePreviewKind === 'office'" class="file-preview-office">
+          <div v-else-if="['office', 'text'].includes(activePreviewKind)" class="file-preview-office">
             <el-icon :size="42"><Document /></el-icon>
             <strong>{{ officeLabel(activeFile) }}</strong>
             <span>{{ officePreviewError ? '预览失败，文件已安全保存，可下载后打开。' : '此格式暂不支持内容预览，文件已安全保存，可下载后打开。' }}</span>
@@ -342,7 +342,7 @@ const loadOfficePreviewFor = async (item) => {
 
 const loadPreviewFor = async (item) => {
   const kind = resolveFilePreviewKind(item)
-  if (kind === 'office') {
+  if (kind === 'office' || kind === 'text') {
     void loadOfficePreviewFor(item)
     return
   }

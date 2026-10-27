@@ -2,14 +2,16 @@
 
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
+import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { PassThrough } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 
 const require = createRequire(import.meta.url)
 const auth = await import(new URL('../../agent-harness/auth-plugin.mjs', import.meta.url))
-const { createCustomerFileUploadHandler, MAX_BODY_BYTES } = require(fileURLToPath(new URL('../../realtime/customer-files-upload.js', import.meta.url)))
+const { createCustomerFileUploadHandler, MAX_BODY_BYTES, resolveMime } = require(fileURLToPath(new URL('../../realtime/customer-files-upload.js', import.meta.url)))
 const { CORE_HTTP_ROUTE_MANIFEST, FLASH_HTTP_ROUTE_MANIFEST, BUSINESS_HTTP_ROUTE_MANIFEST } = require(fileURLToPath(new URL('../../realtime/http-router.js', import.meta.url)))
+const harnessFrame = readFileSync(new URL('../../eiscore-base/src/components/harness/BusinessHarnessFrame.vue', import.meta.url), 'utf8')
 
 const businessRoutes = auth.createAuthRoutes({ profile: 'business', upload: () => new Response('{}', { status: 201 }) })
 const flashRoutes = auth.createAuthRoutes({ profile: 'flash', upload: () => new Response('{}', { status: 201 }) })
@@ -17,6 +19,21 @@ const fileRoute = businessRoutes.find((route) => route.path === '/api/eiscore/fi
 assert.equal(fileRoute?.maxRequestBodyBytes, 20 * 1024 * 1024)
 assert.equal(flashRoutes.some((route) => route.path === '/api/eiscore/files/upload'), false)
 assert.equal(MAX_BODY_BYTES, 20 * 1024 * 1024)
+for (const extension of ['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'md', 'txt', 'wav', 'm4a', 'ogg', 'aac', 'flac']) {
+  assert.match(harnessFrame, new RegExp(`['"]${extension}['"]`), `${extension} Harness extension`)
+}
+for (const [filename, mime] of [
+  ['deck.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+  ['report.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ['sheet.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  ['brief.md', 'text/markdown'],
+  ['notes.txt', 'text/plain'],
+  ['call.m4a', 'audio/mp4'],
+  ['call.wav', 'audio/wav'],
+  ['call.flac', 'audio/flac']
+]) assert.equal(resolveMime(filename, mime), mime, `${filename} MIME allowlist`)
+assert.equal(resolveMime('memo.md', 'text/x-markdown'), 'text/markdown')
+assert.equal(resolveMime('voice.wav', 'audio/x-wav'), 'audio/wav')
 assert.ok(BUSINESS_HTTP_ROUTE_MANIFEST.some((route) => route.path === '/ai/harness/files/upload'))
 assert.ok(BUSINESS_HTTP_ROUTE_MANIFEST.some((route) => route.path === '/ai/harness/files/read'))
 assert.ok(BUSINESS_HTTP_ROUTE_MANIFEST.some((route) => route.path === '/ai/harness/files/delete'))

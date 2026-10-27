@@ -127,7 +127,7 @@ export const CUSTOMER_COLUMNS = [
     fileMaxSizeMb: 20,
     fileStoreMode: 'reference-list',
     officePreviewLoader: loadSalesOfficePreview,
-    fileAccept: '.jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.mp4,.mp3',
+    fileAccept: '.jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.mp4,.mp3,.md,.txt,.csv,.wav,.m4a,.ogg,.aac,.flac',
     width: 220
   }
 ]

@@ -48,7 +48,10 @@ const WORKER_DRAFT_VERSION = 1
 const FILE_DROP_PROTOCOL = 'eiscore-harness-file-drop'
 const FILE_DROP_VERSION = 1
 const MAX_FILE_BYTES = 20 * 1024 * 1024
-const FILE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'mp4', 'mp3'])
+const FILE_EXTENSIONS = new Set([
+  'jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'mp4', 'mp3',
+  'md', 'txt', 'csv', 'wav', 'm4a', 'ogg', 'aac', 'flac'
+])
 
 const currentEntry = () => props.entry === 'workbench' ? 'workbench' : 'worker'
 const clearEntry = () => {
@@ -149,9 +152,13 @@ const fileExtension = (name) => {
   return index >= 0 ? value.slice(index + 1) : ''
 }
 
-const extractOfficeText = async (file) => {
+const extractFileExcerpt = async (file) => {
   const extension = fileExtension(file?.name)
   try {
+    if (['md', 'txt', 'csv'].includes(extension)) {
+      const text = await file.text()
+      return String(text || '').replace(/\u0000/g, '').trim().slice(0, 4000)
+    }
     if (extension === 'docx') {
       const mammoth = await import('mammoth')
       const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
@@ -224,7 +231,7 @@ async function receiveFileDrop(event) {
   for (const file of message.files) {
     try {
       const saved = await uploadHarnessFile(file)
-      saved.contentExcerpt = await extractOfficeText(file)
+      saved.contentExcerpt = await extractFileExcerpt(file)
       files.push(saved)
     } catch (error) { errors.push(`${file?.name || '文件'}：${error.message}`) }
   }
