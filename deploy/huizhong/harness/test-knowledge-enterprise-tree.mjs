@@ -100,14 +100,16 @@ const renderComponent = (component, props) => {
 
 const calls = []
 let registered
+let sessionMenu
 const disposals = []
 const slotRegistrations = []
 const services = {
   sessions: {
+    list: { getSnapshot: () => ({ phase: 'ready', current: 's-current', ids: [], byId: {} }), subscribe: () => () => {} },
     open: (id) => calls.push(['open', id]),
     search: async () => ({ ok: true, value: { items: [{ sessionId: 's-old', snippet: '命中合同文本' }], hasMore: false } })
   },
-  workspaces: { archiveSession: async () => {} },
+  workspaces: { list: { getSnapshot: () => ({ phase: 'ready', items: [], archivedSessionIds: [] }), subscribe: () => () => {} }, archiveSession: async () => {} },
   uiWorkspace: { startSession: (id) => calls.push(['start', id]) }
 }
 plugin.apply({
@@ -119,6 +121,7 @@ plugin.apply({
       const entry = { options, component }
       slotRegistrations.push(entry)
       if (options.name === 'sidebar.workspaces') registered = entry
+      if (options.name === 'conversation.session.header.actions') sessionMenu = entry
       return () => {}
     }
   }
@@ -126,7 +129,10 @@ plugin.apply({
 assert.equal(appended.length, 1)
 assert.equal(registered.options.name, 'sidebar.workspaces')
 assert.equal(registered.options.priority, -1)
-assert.deepEqual(slotRegistrations.map(({ options }) => options.name), ['sidebar.workspaces', 'shell.overlay'])
+assert.equal(sessionMenu.options.name, 'conversation.session.header.actions')
+assert.equal(sessionMenu.options.id, '@eiscore/dsh-client-knowledge-session-menu')
+assert.equal(sessionMenu.options.priority, 10)
+assert.deepEqual(slotRegistrations.map(({ options }) => options.name), ['sidebar.workspaces', 'conversation.session.header.actions', 'shell.overlay'])
 assert.equal(typeof disposals[0], 'function')
 
 const workspaceState = {
@@ -154,14 +160,12 @@ const sessionState = {
 const componentProps = {
   wide: true,
   expandSidebar: () => calls.push(['expand']),
-  useWorkspaces: (select) => select(workspaceState),
-  useSessions: (select) => select(sessionState),
-  startSession: (id) => services.uiWorkspace.startSession(id),
-  open: (id) => services.sessions.open(id),
-  searchSessions: async (query, signal) => {
-    calls.push(['search', query, signal.aborted])
-    return (await services.sessions.search(query, signal)).value
-  }
+  listFiles: async () => [{ id: 'file-1', file_name: '安全手册.md', file_size: 1024 }],
+  readFile: async (id) => ({ id, file_name: '安全手册.md', content_text: '文件内容' }),
+  uploadFile: async () => {},
+  updateFile: async () => {},
+  deleteFile: async () => {},
+  openOntology: () => calls.push(['ontology'])
 }
 let rendered = renderComponent(registered.component, componentProps)
 const flatten = (node, output = []) => {
@@ -173,52 +177,59 @@ const flatten = (node, output = []) => {
   return output
 }
 let nodes = flatten(rendered)
+const fileSection = rendered.props.children
+nodes = flatten(renderComponent(fileSection.type, fileSection.props))
 const text = nodes.filter((node) => typeof node === 'string').join('|')
-const heading = nodes.find((node) => node.props?.className === 'eisKnowledgeTreeLabel')
-assert.equal(heading.props.children, '工作区')
-assert.match(text, /企业知识库/)
-assert.match(text, /销售/)
-assert.match(text, /重点客户/)
-assert.match(text, /企业知识库工作区/)
-assert.match(text, /当前对话/)
-assert.match(text, /历史对话/)
-assert.doesNotMatch(text, /已归档|子任务|blank-other/)
-const rootNode = nodes.find((node) => node.props?.['data-tree-node'] === 'enterprise-knowledge-root')
-const salesNode = nodes.find((node) => node.props?.['data-tree-node'] === 'folder:/销售')
-const nestedFolderNode = nodes.find((node) => node.props?.['data-tree-node'] === 'folder:/销售/重点客户')
-const workspaceNode = nodes.find((node) => node.props?.['data-tree-node'] === 'workspace:knowledge')
-assert.equal(rootNode.props.style['--eis-tree-indent'], '0px')
-assert.equal(salesNode.props.style['--eis-tree-indent'], '14px')
-assert.equal(nestedFolderNode.props.style['--eis-tree-indent'], '28px')
-assert.equal(workspaceNode.props.style['--eis-tree-indent'], '42px')
-const currentSession = nodes.find((node) => node.props?.['data-tree-session'] === 's-current')
-const workspaceNew = nodes.find((node) => node.props?.['data-tree-workspace-new'] === 'knowledge')
-assert.equal(currentSession.props['aria-current'], 'page')
-currentSession.props.onClick()
-workspaceNew.props.onClick()
-assert.deepEqual(calls, [['open', 's-current'], ['start', 'knowledge']])
-rootNode.props.onClick()
-rendered = renderComponent(registered.component, componentProps)
-nodes = flatten(rendered)
-assert.equal(nodes.some((node) => node.props?.['data-tree-session'] === 's-current'), false)
-nodes.find((node) => node.props?.['data-tree-node'] === 'enterprise-knowledge-root').props.onClick()
-rendered = renderComponent(registered.component, componentProps)
-nodes = flatten(rendered)
-nodes.find((node) => node.props?.['aria-label'] === '搜索会话').props.onClick()
-rendered = renderComponent(registered.component, componentProps)
-nodes = flatten(rendered)
-nodes.find((node) => node.type === 'input').props.onChange({ target: { value: '合同' } })
-rendered = renderComponent(registered.component, componentProps)
-await new Promise((resolve) => setTimeout(resolve, 220))
-rendered = renderComponent(registered.component, componentProps)
-nodes = flatten(rendered)
-assert.match(nodes.filter((node) => typeof node === 'string').join('|'), /命中合同文本/)
-nodes.find((node) => node.props?.['data-tree-session'] === 's-old').props.onClick()
-assert.deepEqual(calls.slice(2).map((call) => call.slice(0, 2)), [['search', '合同'], ['open', 's-old']])
+assert.match(text, /知识文件/)
+assert.match(text, /上传/)
+assert.doesNotMatch(text, /企业知识库工作区|当前对话|历史对话/)
 let expanded = 0
 const rail = flatten(renderComponent(registered.component, { ...componentProps, wide: false, expandSidebar: () => expanded++ }))
-rail.find((node) => node.props?.['aria-label'] === '展开企业知识库分类').props.onClick()
+rail.find((node) => node.props?.['aria-label'] === '展开知识文件管理').props.onClick()
 assert.equal(expanded, 1)
+
+hookState.length = 0
+effectState.length = 0
+const observable = (value) => ({ getSnapshot: () => value, subscribe: () => () => {} })
+const menuProps = {
+  workspaceSource: observable(workspaceState),
+  sessionSource: observable(sessionState),
+  startSession: (id) => calls.push(['start', id]),
+  open: (id) => calls.push(['open', id]),
+  searchSessions: async (query, signal) => {
+    calls.push(['search', query, signal.aborted])
+    return (await services.sessions.search(query, signal)).value
+  }
+}
+const injectedMenuProps = sessionMenu.options.inject()
+assert.equal(injectedMenuProps.workspaceSource, services.workspaces.list)
+assert.equal(injectedMenuProps.sessionSource, services.sessions.list)
+injectedMenuProps.startSession('knowledge')
+injectedMenuProps.open('s-old')
+assert.deepEqual(calls.slice(-2), [['start', 'knowledge'], ['open', 's-old']])
+calls.length = 0
+rendered = renderComponent(sessionMenu.component, menuProps)
+let menuNodes = flatten(rendered)
+assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /企业知识库工作区/)
+assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('切换工作区和会话')).props['aria-label'], /当前会话：当前对话/)
+const menuButton = menuNodes.find((node) => node.props?.['aria-label']?.startsWith('切换工作区和会话'))
+menuButton.props.onClick()
+rendered = renderComponent(sessionMenu.component, menuProps)
+menuNodes = flatten(rendered)
+assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /企业知识库|销售|重点客户|当前对话|历史对话/)
+const currentSession = menuNodes.find((node) => node.props?.['data-tree-session'] === 's-current')
+assert.equal(currentSession.props['aria-current'], 'page')
+menuNodes.find((node) => node.props?.['aria-label'] === '搜索会话').props.onClick()
+rendered = renderComponent(sessionMenu.component, menuProps)
+menuNodes = flatten(rendered)
+menuNodes.find((node) => node.type === 'input').props.onChange({ target: { value: '合同' } })
+rendered = renderComponent(sessionMenu.component, menuProps)
+await new Promise((resolve) => setTimeout(resolve, 220))
+rendered = renderComponent(sessionMenu.component, menuProps)
+menuNodes = flatten(rendered)
+assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /命中合同文本/)
+menuNodes.find((node) => node.props?.['data-tree-session'] === 's-old').props.onClick()
+assert.deepEqual(calls, [['search', '合同', false], ['open', 's-old']])
 for (const cleanup of effectCleanups.values()) cleanup()
 effectCleanups.clear()
 hookState.length = 0
