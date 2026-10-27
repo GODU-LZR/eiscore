@@ -369,8 +369,8 @@ window.__ModuleLoader__.load({
       const tree = makeTree(workspaces, sessionState, new Set(workspaceState.archivedSessionIds || []))
       const currentWorkspace = workspaces.find((workspace) => (workspace.sessionIds || []).includes(sessionState.current))
       const currentSession = sessionState.byId?.[sessionState.current]
-      const currentWorkspaceTitle = currentWorkspace?.title || '工作区'
       const currentSessionTitle = currentSession?.blank ? '新会话' : currentSession?.displayTitle || currentSession?.title || '选择会话'
+      const currentWorkspaceTitle = currentWorkspace?.title || '工作区'
       const initialExpanded = [ROOT_ID].concat(workspaces.flatMap((workspace) => {
         const segments = folderSegments(workspace.path)
         return [...segments.map((_, index) => `folder:/${segments.slice(0, index + 1).join('/')}`), `workspace:${workspace.workspaceId}`]
@@ -452,9 +452,9 @@ window.__ModuleLoader__.load({
       }
 
       return h('div', { className: 'eisKnowledgeSessionMenu', 'data-knowledge-session-menu': '' },
-        h('button', { type: 'button', className: 'eisKnowledgeSessionMenuButton', 'aria-label': `切换工作区和会话，当前会话：${currentSessionTitle}`, 'aria-expanded': String(menuOpen), onClick: () => setMenuOpen((value) => !value) },
+        h('button', { type: 'button', className: 'eisKnowledgeSessionMenuButton', 'aria-label': `会话历史，当前工作区：${currentWorkspaceTitle}，当前会话：${currentSessionTitle}`, title: `会话历史 · ${currentWorkspaceTitle} · ${currentSessionTitle}`, 'aria-expanded': String(menuOpen), onClick: () => setMenuOpen((value) => !value) },
           h('span', { className: 'eisKnowledgeSessionMenuButtonIcon', 'aria-hidden': 'true' }, h(IconFolderOpen16, { size: 15 })),
-          h('span', { className: 'eisKnowledgeSessionMenuWorkspace', title: currentWorkspaceTitle }, currentWorkspaceTitle),
+          h('span', { className: 'eisKnowledgeSessionMenuWorkspace' }, '会话历史'),
           h('span', { className: 'eisKnowledgeSessionMenuDisclosure', 'aria-hidden': 'true' }, h(IconTriangleRightFill14, {}))),
         menuOpen ? h('div', { className: 'eisKnowledgeSessionMenuPopover', role: 'menu', 'aria-label': '工作区和会话' },
           h('div', { className: 'eisKnowledgeSessionMenuTitle' },
