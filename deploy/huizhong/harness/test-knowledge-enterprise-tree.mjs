@@ -30,8 +30,8 @@ if (modules) {
 const source = readFileSync(new URL('lib/client.js', pluginDir), 'utf8')
 assert.doesNotMatch(source, /sidebarRight|sidebar\.right\.pane/)
 assert.match(source, /name: 'shell\.overlay'/)
-assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:absolute;inset:0;z-index:21;pointer-events:none\}/)
-assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:absolute;top:0;right:0;left:var\(--eisKnowledge-sidebar-width,56px\);pointer-events:auto\}/)
+assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:fixed;inset:0;z-index:21;pointer-events:none\}/)
+assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:fixed;top:0;right:0;left:var\(--eisKnowledge-sidebar-right,56px\);pointer-events:auto\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuDisclosure\[data-open="true"\]\{transform:rotate\(-90deg\)\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuPanel\{box-sizing:border-box;position:relative;width:100%/)
 assert.match(source, /getBoundingClientRect/)
@@ -71,19 +71,16 @@ const icon = (name) => ({ displayName: name })
 let plugin
 const keyListeners = new Set()
 let sidebarWidth = 280
-const frameLeft = 32
+let sidebarLeft = 32
 const resizeObservers = new Set()
 const mutationObservers = new Set()
+const resizeListeners = new Set()
+const sidebarFrame = { style: { gridTemplateColumns: '280px minmax(0, 1fr)' } }
 const sidebarColumn = {
-  getBoundingClientRect: () => ({ right: frameLeft + sidebarWidth })
-}
-const frame = {
-  firstElementChild: sidebarColumn,
-  style: { gridTemplateColumns: '280px minmax(0, 1fr)' },
-  getBoundingClientRect: () => ({ left: frameLeft })
+  parentElement: sidebarFrame,
+  getBoundingClientRect: () => ({ left: sidebarLeft, right: sidebarLeft + sidebarWidth })
 }
 const menuOverlayElement = {
-  parentElement: { parentElement: frame },
   style: {
     values: {},
     setProperty(name, value) { this.values[name] = value }
@@ -96,7 +93,7 @@ class ResizeObserver {
 }
 class MutationObserver {
   constructor(callback) { this.callback = callback; mutationObservers.add(this) }
-  observe(target, options) { assert.equal(target, frame); assert.equal(Array.from(options.attributeFilter).join(','), 'class,style'); this.target = target }
+  observe(target, options) { assert.equal(target, sidebarFrame); assert.equal(Array.from(options.attributeFilter).join(','), 'class,style'); this.target = target }
   disconnect() { mutationObservers.delete(this) }
 }
 const notifySidebarResize = (width) => {
@@ -105,14 +102,14 @@ const notifySidebarResize = (width) => {
 }
 const notifyFrameMutation = (width) => {
   sidebarWidth = width
-  frame.style.gridTemplateColumns = `${width}px minmax(0, 1fr)`
+  sidebarFrame.style.gridTemplateColumns = `${width}px minmax(0, 1fr)`
   for (const observer of mutationObservers) observer.callback()
 }
 const window = {
   setTimeout,
   clearTimeout,
-  addEventListener: (name, listener) => { assert.equal(name, 'keydown'); keyListeners.add(listener) },
-  removeEventListener: (name, listener) => { assert.equal(name, 'keydown'); keyListeners.delete(listener) },
+  addEventListener: (name, listener) => { if (name === 'keydown') keyListeners.add(listener); else { assert.equal(name, 'resize'); resizeListeners.add(listener) } },
+  removeEventListener: (name, listener) => { if (name === 'keydown') keyListeners.delete(listener); else { assert.equal(name, 'resize'); resizeListeners.delete(listener) } },
   __ModuleLoader__: { load: (descriptor) => { plugin = descriptor.factory((name) => name === 'react' ? React : {
     IconCloseFill14: icon('close'),
     IconFolderClose16: icon('folder-close'),
@@ -125,7 +122,7 @@ const window = {
 const appended = []
 const document = {
   createElement: () => ({ remove() { this.removed = true } }),
-  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : null,
+  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : null,
   head: { appendChild: (node) => appended.push(node) }
 }
 vm.runInNewContext(source, { window, document, AbortController, ResizeObserver, MutationObserver, Set, Map, String, Array, Object, Promise })
@@ -261,13 +258,16 @@ assert.deepEqual(calls.slice(-2), [['start', 'knowledge'], ['open', 's-old']])
 calls.length = 0
 rendered = renderSessionMenu(menuProps)
 let menuNodes = flatten(rendered)
-assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-width'], '280px')
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '312px')
 notifySidebarResize(56)
-assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-width'], '56px')
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '88px')
 notifySidebarResize(420)
-assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-width'], '420px')
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '452px')
 notifyFrameMutation(56)
-assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-width'], '56px')
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '88px')
+sidebarLeft = 0
+for (const listener of resizeListeners) listener()
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '56px')
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前项目：知识库项目/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前会话：当前对话/)
@@ -311,6 +311,7 @@ for (const cleanup of effectCleanups.values()) cleanup()
 effectCleanups.clear()
 assert.equal(resizeObservers.size, 0)
 assert.equal(mutationObservers.size, 0)
+assert.equal(resizeListeners.size, 0)
 hookState.length = 0
 effectState.length = 0
 const emptyMenuProps = {
@@ -343,6 +344,7 @@ for (const cleanup of effectCleanups.values()) cleanup()
 effectCleanups.clear()
 assert.equal(resizeObservers.size, 0)
 assert.equal(mutationObservers.size, 0)
+assert.equal(resizeListeners.size, 0)
 hookState.length = 0
 effectState.length = 0
 const dock = slotRegistrations.find(({ options }) => options.id === '@eiscore/dsh-client-knowledge-ontology-dock')
