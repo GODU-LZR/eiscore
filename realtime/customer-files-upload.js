@@ -17,7 +17,9 @@ const MIME_BY_EXTENSION = Object.freeze({
   mp4: 'video/mp4', mp3: 'audio/mpeg'
 });
 const ALLOWED_MIMES = new Set(Object.values(MIME_BY_EXTENSION));
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const text = (value, max = 240) => String(value ?? '').trim().slice(0, max);
+const object = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 const fail = (code, message, httpStatus = 400) => {
   const error = new Error(message);
   error.code = code;
@@ -53,10 +55,46 @@ const resolveMime = (filename, requested) => {
   return expected;
 };
 
+const requestFileId = (req) => {
+  const id = new URL(String(req.url || ''), 'http://localhost').searchParams.get('id') || '';
+  if (!UUID_RE.test(id)) throw fail('FILE_ID_INVALID', 'A valid file id is required');
+  return id;
+};
+
 const createCustomerFileUploadHandler = ({ authorize, sendJson, callPostgrestWithUser, fetchSemanticContext } = {}) => {
   if (typeof authorize !== 'function' || typeof sendJson !== 'function' || typeof callPostgrestWithUser !== 'function' || typeof fetchSemanticContext !== 'function') {
     throw new TypeError('Customer file upload dependencies are required');
   }
+
+  const requireFileContext = async (user, { write = false } = {}) => {
+    const context = await fetchSemanticContext(user);
+    if (!context?.accessPolicy?.roleScoped || context.fieldAclAvailable !== true) throw fail('HARNESS_PERMISSION_DENIED', 'Role-scoped customer permissions are unavailable', 403);
+    const permissions = new Set((Array.isArray(context.permissions) ? context.permissions : []).map((entry) => text(entry?.code || entry, 120)));
+    const superUser = context.accessPolicy.superUser === true;
+    if (!superUser && !permissions.has('app:sales_customer')) throw fail('HARNESS_PERMISSION_DENIED', 'Customer archive permission is not granted', 403);
+    if (write && !superUser && !['op:sales_customer.create', 'op:sales_customer.edit', 'op:sales_customer.delete'].some((permission) => permissions.has(permission))) throw fail('HARNESS_PERMISSION_DENIED', 'Customer archive edit permission is not granted', 403);
+    const acl = context.fieldAcl?.sales_customer?.customer_files;
+    if (write ? acl?.canEdit === false : acl?.canView === false) throw fail('HARNESS_PERMISSION_DENIED', `Customer file field is not ${write ? 'editable' : 'visible'}`, 403);
+    return { context, permissions, superUser };
+  };
+
+  const loadOwnedFile = async (user, fileId, { includeContent = false } = {}) => {
+    const select = includeContent
+      ? 'id,filename,mime_type,size_bytes,content_base64,created_at,extra'
+      : 'id,filename,mime_type,size_bytes,created_at,extra';
+    const response = await callPostgrestWithUser(user, {
+      method: 'GET',
+      path: '/files',
+      query: { select, id: `eq.${fileId}`, limit: '1' },
+      acceptProfile: 'public',
+      timeoutMs: 8000
+    });
+    const row = Array.isArray(response?.data) ? response.data[0] : null;
+    if (!row) throw fail('FILE_NOT_FOUND', 'File was not found', 404);
+    const owner = object(row.extra);
+    if (owner.source !== 'harness_customer_archive' || owner.uploaded_by !== text(user.id || user.username, 160) || owner.tenant_id !== text(user.tenant_id || user.tenantId, 160)) throw fail('FILE_FORBIDDEN', 'File does not belong to the current user and tenant', 403);
+    return row;
+  };
 
   const handleUpload = async (req, res) => {
     const user = authorize(req, res);
@@ -68,14 +106,7 @@ const createCustomerFileUploadHandler = ({ authorize, sendJson, callPostgrestWit
       return;
     }
     try {
-      const context = await fetchSemanticContext(user);
-      if (!context?.accessPolicy?.roleScoped || context.fieldAclAvailable !== true) throw fail('HARNESS_PERMISSION_DENIED', 'Role-scoped customer permissions are unavailable', 403);
-      const permissions = new Set((Array.isArray(context.permissions) ? context.permissions : []).map((entry) => text(entry?.code || entry, 120)));
-      const superUser = context.accessPolicy.superUser === true;
-      if (!superUser && !permissions.has('app:sales_customer')) throw fail('HARNESS_PERMISSION_DENIED', 'Customer archive permission is not granted', 403);
-      if (!superUser && !['op:sales_customer.create', 'op:sales_customer.edit'].some((permission) => permissions.has(permission))) throw fail('HARNESS_PERMISSION_DENIED', 'Customer archive edit permission is not granted', 403);
-      const acl = context.fieldAcl?.sales_customer?.customer_files;
-      if (acl?.canEdit === false) throw fail('HARNESS_PERMISSION_DENIED', 'Customer file field is not editable', 403);
+      await requireFileContext(user, { write: true });
 
       const body = await readRawBody(req, MAX_BODY_BYTES);
       if (!body.length) throw fail('FILE_REQUIRED', 'File body is empty');
@@ -112,7 +143,38 @@ const createCustomerFileUploadHandler = ({ authorize, sendJson, callPostgrestWit
     }
   };
 
-  return Object.freeze({ handleUpload });
+  const handleRead = async (req, res) => {
+    const user = authorize(req, res);
+    if (!user) return;
+    try {
+      const id = requestFileId(req);
+      await requireFileContext(user);
+      const row = await loadOwnedFile(user, id, { includeContent: true });
+      if (!row.content_base64) throw fail('FILE_CONTENT_UNAVAILABLE', 'File content is unavailable', 404);
+      sendJson(res, 200, { id: row.id, filename: row.filename, mime_type: row.mime_type, size_bytes: Number(row.size_bytes || 0), content_base64: row.content_base64, created_at: row.created_at || '' });
+    } catch (error) {
+      const status = Number(error?.httpStatus || 500);
+      sendJson(res, status, { code: text(error?.code || 'FILE_READ_FAILED', 80), message: status >= 500 ? 'File read failed' : text(error?.message || 'File read was rejected', 240) });
+    }
+  };
+
+  const handleDelete = async (req, res) => {
+    const user = authorize(req, res);
+    if (!user) return;
+    try {
+      const id = requestFileId(req);
+      const { permissions, superUser } = await requireFileContext(user, { write: true });
+      if (!superUser && !permissions.has('op:sales_customer.edit') && !permissions.has('op:sales_customer.delete')) throw fail('HARNESS_PERMISSION_DENIED', 'Customer archive file delete permission is not granted', 403);
+      await loadOwnedFile(user, id);
+      await callPostgrestWithUser(user, { method: 'DELETE', path: '/files', query: { id: `eq.${id}` }, acceptProfile: 'public', contentProfile: 'public', prefer: 'return=representation', timeoutMs: 8000 });
+      sendJson(res, 200, { deleted: true, id });
+    } catch (error) {
+      const status = Number(error?.httpStatus || 500);
+      sendJson(res, status, { code: text(error?.code || 'FILE_DELETE_FAILED', 80), message: status >= 500 ? 'File delete failed' : text(error?.message || 'File delete was rejected', 240) });
+    }
+  };
+
+  return Object.freeze({ handleDelete, handleRead, handleUpload });
 };
 
-module.exports = { ALLOWED_MIMES, MAX_BODY_BYTES, MAX_FILE_BYTES, createCustomerFileUploadHandler, normalizeFilename, resolveMime };
+module.exports = { ALLOWED_MIMES, MAX_BODY_BYTES, MAX_FILE_BYTES, createCustomerFileUploadHandler, normalizeFilename, requestFileId, resolveMime };

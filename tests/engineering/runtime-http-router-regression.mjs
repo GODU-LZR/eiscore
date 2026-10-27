@@ -60,6 +60,8 @@ const expectedRoutes = [
   descriptor('POST', 'exact', '/ai/map-locate', 'harness.handleCapability'),
   descriptor('POST', 'exact', '/ai/harness/execute', 'harness.handleExecute'),
   descriptor('POST', 'exact', '/ai/harness/files/upload', 'customerFiles.handleUpload'),
+  descriptor('GET', 'exact', '/ai/harness/files/read', 'customerFiles.handleRead'),
+  descriptor('DELETE', 'exact', '/ai/harness/files/delete', 'customerFiles.handleDelete'),
   descriptor('POST', 'exact', '/internal/harness/tool', 'harness.handleToolProxy'),
   descriptor('POST', 'exact', '/internal/harness/session', 'harness.handleSessionRegister'),
   descriptor('DELETE', 'exact', '/internal/harness/session', 'harness.handleSessionUnregister'),
@@ -94,7 +96,7 @@ const actualRoutes = HTTP_ROUTE_MANIFEST.map((entry) => descriptor(
   entry.authorize
 ))
 
-assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 48)
+assert.equal(CORE_HTTP_ROUTE_MANIFEST.length, 50)
 assert.equal(HTTP_ROUTE_MANIFEST.length, CORE_HTTP_ROUTE_MANIFEST.length + COMPANY_HTTP_ROUTE_MANIFEST.length)
 assert.deepEqual(actualRoutes, expectedRoutes)
 assert.ok(Object.isFrozen(HTTP_ROUTE_MANIFEST))
@@ -238,6 +240,8 @@ const profileCases = [
   ['GET', '/flash/draft', 'flash.handleDraftGet', false, true],
   ['GET', '/ai/config', 'harness.handleConfig', true, false],
   ['POST', '/ai/harness/files/upload', 'customerFiles.handleUpload', true, false],
+  ['GET', '/ai/harness/files/read', 'customerFiles.handleRead', true, false],
+  ['DELETE', '/ai/harness/files/delete', 'customerFiles.handleDelete', true, false],
   ['POST', '/twin/chat', 'harness.handleTwinChat', true, false],
   ['PUT', '/health', 'health', true, true]
 ]
@@ -268,7 +272,11 @@ for (const [profile, routes, allowedIndex] of [
         handleConfig: recordDispatch('harness.handleConfig'),
         handleTwinChat: recordDispatch('harness.handleTwinChat')
       },
-      customerFiles: { handleUpload: recordDispatch('customerFiles.handleUpload') },
+      customerFiles: {
+        handleDelete: recordDispatch('customerFiles.handleDelete'),
+        handleRead: recordDispatch('customerFiles.handleRead'),
+        handleUpload: recordDispatch('customerFiles.handleUpload')
+      },
       flash: { handleDraftGet: recordDispatch('flash.handleDraftGet') }
     }
   })
@@ -285,7 +293,7 @@ for (const [profile, routes, allowedIndex] of [
   }
   assert.ok(Object.isFrozen(routes))
 }
-assert.equal(BUSINESS_HTTP_ROUTE_MANIFEST.length, 85)
+assert.equal(BUSINESS_HTTP_ROUTE_MANIFEST.length, 87)
 for (const entry of HTTP_ROUTE_MANIFEST) {
   assert.equal(BUSINESS_HTTP_ROUTE_MANIFEST.includes(entry), !entry.path?.startsWith('/flash/'), entry.handler)
 }

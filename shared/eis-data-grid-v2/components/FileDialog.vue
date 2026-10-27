@@ -282,12 +282,13 @@ const fetchFileDataUrl = async (fileId) => {
   if (pendingFileHydrations.has(fileId)) return pendingFileHydrations.get(fileId)
   const pending = (async () => {
     try {
-      const res = await request({
-        url: `/files?id=eq.${fileId}&select=content_base64,mime_type,filename`,
-        method: 'get',
-        headers: { 'Accept-Profile': 'public', 'Content-Profile': 'public' }
+      const response = await fetch(`/agent/ai/harness/files/read?id=${encodeURIComponent(fileId)}`, {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { ...getAuthHeader() }
       })
-      const row = Array.isArray(res) ? res[0] : null
+      if (!response.ok) return { dataUrl: '', name: '' }
+      const row = await response.json().catch(() => null)
       if (!row?.content_base64) return { dataUrl: '', name: '' }
       const mime = row.mime_type || 'application/octet-stream'
       const dataUrl = `data:${mime};base64,${row.content_base64}`
@@ -503,6 +504,18 @@ const deleteFromDb = async (fileId) => {
   }
 }
 
+const deleteReferenceFile = async (fileId) => {
+  if (!fileId) return
+  try {
+    await fetch(`/agent/ai/harness/files/delete?id=${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+      headers: { ...getAuthHeader() }
+    })
+    fileUrlCache.delete(fileId)
+  } catch {}
+}
+
 const processFiles = async (picked) => {
   if (picked.length === 0) return
 
@@ -601,7 +614,9 @@ const removeFile = (id) => {
   const target = files.value.find(item => item.id === id)
   if (target?.url?.startsWith('file:')) fileUrlCache.delete(target.url.replace('file:', ''))
   if (shouldDeleteStoredFile(fileStoreMode.value, target)) {
-    deleteFromDb(target.url.replace('file:', ''))
+    const fileId = target.url.replace('file:', '')
+    if (fileStoreMode.value === 'reference-list') deleteReferenceFile(fileId)
+    else deleteFromDb(fileId)
   }
   const next = files.value.filter(item => item.id !== id)
   files.value = next
@@ -617,7 +632,11 @@ const removeFile = (id) => {
 
 const clearFiles = () => {
   files.value.filter(item => shouldDeleteStoredFile(fileStoreMode.value, item))
-    .forEach(item => deleteFromDb(item.url.replace('file:', '')))
+    .forEach(item => {
+      const fileId = item.url.replace('file:', '')
+      if (fileStoreMode.value === 'reference-list') deleteReferenceFile(fileId)
+      else deleteFromDb(fileId)
+    })
   files.value = []
   fileUrlCache.clear()
   activeId.value = ''

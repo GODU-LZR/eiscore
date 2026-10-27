@@ -18,6 +18,8 @@ assert.equal(fileRoute?.maxRequestBodyBytes, 20 * 1024 * 1024)
 assert.equal(flashRoutes.some((route) => route.path === '/api/eiscore/files/upload'), false)
 assert.equal(MAX_BODY_BYTES, 20 * 1024 * 1024)
 assert.ok(BUSINESS_HTTP_ROUTE_MANIFEST.some((route) => route.path === '/ai/harness/files/upload'))
+assert.ok(BUSINESS_HTTP_ROUTE_MANIFEST.some((route) => route.path === '/ai/harness/files/read'))
+assert.ok(BUSINESS_HTTP_ROUTE_MANIFEST.some((route) => route.path === '/ai/harness/files/delete'))
 assert.equal(FLASH_HTTP_ROUTE_MANIFEST.some((route) => route.path === '/ai/harness/files/upload'), false)
 assert.ok(CORE_HTTP_ROUTE_MANIFEST.some((route) => route.path === '/ai/harness/files/upload'))
 
@@ -69,5 +71,30 @@ uploadRequest.emit('data', Buffer.alloc(5 * 1024, 0x61))
 uploadRequest.emit('end')
 await uploadPromise
 assert.equal(uploadResponse.status, 201)
+
+const ownedFileId = '22222222-2222-4222-8222-222222222222'
+const secureResponses = []
+const secure = createCustomerFileUploadHandler({
+  authorize,
+  sendJson: (res, status, payload) => { res.status = status; res.payload = payload; secureResponses.push({ status, payload }) },
+  fetchSemanticContext: async () => ({
+    accessPolicy: { roleScoped: true, superUser: false },
+    fieldAclAvailable: true,
+    permissions: [{ code: 'app:sales_customer' }, { code: 'op:sales_customer.edit' }],
+    fieldAcl: { sales_customer: { customer_files: { canView: true, canEdit: true } } }
+  }),
+  callPostgrestWithUser: async (_user, options) => {
+    if (options.method === 'GET') return { data: [{ id: ownedFileId, filename: 'notes.pdf', mime_type: 'application/pdf', size_bytes: 12, content_base64: 'cGRm', extra: { source: 'harness_customer_archive', uploaded_by: 'user-1', tenant_id: 'tenant-1' } }] }
+    return { data: [{ id: ownedFileId }] }
+  }
+})
+const readResponse = {}
+await secure.handleRead({ url: `/api/eiscore/files/read?id=${ownedFileId}`, headers: {} }, readResponse)
+assert.equal(readResponse.status, 200)
+assert.equal(readResponse.payload.content_base64, 'cGRm')
+const deleteResponse = {}
+await secure.handleDelete({ url: `/api/eiscore/files/delete?id=${ownedFileId}`, headers: {} }, deleteResponse)
+assert.equal(deleteResponse.status, 200)
+assert.equal(deleteResponse.payload.deleted, true)
 
 console.log('PASS: Yayu business file upload route keeps the 20 MiB limit, rejects Flash exposure, and avoids the 4 KiB auth ceiling')
