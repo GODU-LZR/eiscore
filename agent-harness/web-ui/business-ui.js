@@ -234,12 +234,13 @@
   const handleFileDragEnd = () => { clearFileDropOverlay() }
   const handleFileDrop = (event) => {
     if (!claimFileDrop(event)) return
-    delete document.documentElement.dataset.eiscoreFileDrop
+    clearFileDropOverlay()
     const files = [...(event.dataTransfer?.files || [])]
     if (!files.length) { handleFileDragEnd(); return }
     const id = `drop-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
     sendFileDropMessage('received', id, { files })
   }
+  document.addEventListener('dragenter', handleFileDragOver, true)
   document.addEventListener('dragover', handleFileDragOver, true)
   document.addEventListener('dragleave', handleFileDragEnd, true)
   document.addEventListener('drop', handleFileDrop, true)

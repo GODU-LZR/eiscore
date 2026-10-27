@@ -160,6 +160,8 @@ const dragEvent = {
 }
 documentListeners.get('dragover')[0](dragEvent)
 assert.equal(body.dataset.eiscoreFileDrop, 'active')
+documentListeners.get('dragenter')[0](dragEvent)
+assert.equal(body.dataset.eiscoreFileDrop, 'active', 'dragenter must claim file drops before the image-only Harness handler')
 const dropEvent = {
   dataTransfer: { types: ['Files'], files: [droppedFile] },
   preventDefault() { prevented = true },
@@ -170,7 +172,7 @@ documentListeners.get('drop')[0](dropEvent)
 assert.equal(prevented, true)
 assert.equal(stopped, true, 'the host must claim file drops before the image-only Harness handler')
 assert.equal(stoppedImmediately, true, 'the host must stop same-target image-only handlers')
-assert.equal(dropOverlayRemoved, false, 'the overlay stays visible while the host uploads the dropped file')
+assert.equal(dropOverlayRemoved, true, 'the drop clears the native image-only overlay before upload completes')
 assert.equal(body.dataset.eiscoreFileDrop, undefined, 'the plugin drop state must clear when the file is received')
 assert.equal(replies.at(-1).message.protocol, 'eiscore-harness-file-drop')
 assert.equal(replies.at(-1).message.type, 'received')
@@ -182,5 +184,12 @@ await listeners.get('message')[1]({
   data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'test-file', name: droppedFile.name }] }
 })
 assert.equal(dropOverlayRemoved, true, 'the host upload response clears the native image-only overlay')
+dropOverlayRemoved = false
+await listeners.get('message')[1]({
+  origin: 'https://app.example',
+  source: parentWindow,
+  data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'error', errors: ['文件格式不支持'] }
+})
+assert.equal(dropOverlayRemoved, true, 'an upload error response also clears the native image-only overlay')
 
 console.log('PASS: Yayu Harness worker draft and file drop require trusted origin; files stay binary and drafts paste without sending')
