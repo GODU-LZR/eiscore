@@ -141,20 +141,25 @@ assert.equal(editor.textContent, '用户刚刚输入的内容', 'late user edits
 const droppedFile = { name: '报价单.xlsx', size: 2048, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
 let prevented = false
 let stopped = false
+let stoppedImmediately = false
 const dragEvent = {
   dataTransfer: { types: ['Files'], dropEffect: '' },
-  preventDefault() { prevented = true }
+  preventDefault() { prevented = true },
+  stopPropagation() { stopped = true },
+  stopImmediatePropagation() { stoppedImmediately = true }
 }
 documentListeners.get('dragover')[0](dragEvent)
 assert.equal(body.dataset.eiscoreFileDrop, 'active')
 const dropEvent = {
   dataTransfer: { types: ['Files'], files: [droppedFile] },
   preventDefault() { prevented = true },
-  stopPropagation() { stopped = true }
+  stopPropagation() { stopped = true },
+  stopImmediatePropagation() { stoppedImmediately = true }
 }
 documentListeners.get('drop')[0](dropEvent)
 assert.equal(prevented, true)
-assert.equal(stopped, false, 'the Harness drop handler must receive the event to clear its native overlay')
+assert.equal(stopped, true, 'the host must claim file drops before the image-only Harness handler')
+assert.equal(stoppedImmediately, true, 'the host must stop same-target image-only handlers')
 assert.equal(body.dataset.eiscoreFileDrop, undefined, 'the plugin drop state must clear when the file is received')
 assert.equal(replies.at(-1).message.protocol, 'eiscore-harness-file-drop')
 assert.equal(replies.at(-1).message.type, 'received')

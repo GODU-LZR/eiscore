@@ -206,16 +206,21 @@
     }, location.origin)
   }
   const hasFiles = (event) => [...(event.dataTransfer?.types || [])].includes('Files')
-  const handleFileDragOver = (event) => {
-    if (!hasFiles(event)) return
+  const claimFileDrop = (event) => {
+    if (!hasFiles(event)) return false
     event.preventDefault()
+    event.stopPropagation?.()
+    event.stopImmediatePropagation?.()
+    return true
+  }
+  const handleFileDragOver = (event) => {
+    if (!claimFileDrop(event)) return
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
     document.documentElement.dataset.eiscoreFileDrop = 'active'
   }
   const handleFileDragEnd = () => { delete document.documentElement.dataset.eiscoreFileDrop }
   const handleFileDrop = (event) => {
-    if (!hasFiles(event)) return
-    event.preventDefault()
+    if (!claimFileDrop(event)) return
     handleFileDragEnd()
     const files = [...(event.dataTransfer?.files || [])]
     if (!files.length) return
