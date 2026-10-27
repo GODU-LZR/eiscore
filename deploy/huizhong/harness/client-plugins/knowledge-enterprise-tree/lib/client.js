@@ -53,7 +53,7 @@ window.__ModuleLoader__.load({
       .eisKnowledgeFilePreview{max-height:120px;overflow:auto;margin:0 5px 5px;padding:6px;border-radius:5px;background:var(--dsw-alias-fill-l3);color:var(--dsw-alias-label-secondary);font:10px/15px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
       .eisKnowledgeFilesInput{display:none}
       .eisKnowledgeSessionMenuOverlay{position:absolute;inset:0;z-index:21;pointer-events:none}
-      .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:absolute;top:0;right:0;left:max(64px,var(--eisKnowledge-sidebar-width,64px));pointer-events:auto}
+      .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:absolute;top:0;right:0;left:var(--eisKnowledge-sidebar-width,56px);pointer-events:auto}
       .eisKnowledgeSessionMenu{position:relative;display:block;min-width:0;z-index:12}
       .eisKnowledgeSessionMenuButton{width:100%;display:flex;align-items:center;gap:8px;height:42px;min-width:0;padding:0 16px;border:0;border-bottom:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:13px;line-height:20px;text-align:left}
       .eisKnowledgeSessionMenuButton:hover,.eisKnowledgeSessionMenuButton[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
@@ -398,14 +398,24 @@ window.__ModuleLoader__.load({
         const menuOverlay = document.querySelector?.('[data-knowledge-session-menu-overlay]')
         const frame = menuOverlay?.parentElement?.parentElement
         if (!menuOverlay || !frame) return undefined
+        const sidebarColumn = frame.firstElementChild
         const update = () => {
+          const frameRect = frame.getBoundingClientRect?.()
+          const sidebarRect = sidebarColumn?.getBoundingClientRect?.()
+          const measuredWidth = frameRect && sidebarRect ? Math.max(0, Math.round(sidebarRect.right - frameRect.left)) : undefined
           const firstTrack = String(frame.style?.gridTemplateColumns || '').match(/^\s*([\d.]+)px/)
-          menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-width', `${firstTrack ? Number(firstTrack[1]) : 0}px`)
+          const width = measuredWidth === undefined ? (firstTrack ? Number(firstTrack[1]) : 56) : measuredWidth
+          menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-width', `${width}px`)
         }
         update()
-        const observer = new MutationObserver(update)
-        observer.observe(frame, { attributes: true, attributeFilter: ['style'] })
-        return () => observer.disconnect()
+        const resizeObserver = typeof ResizeObserver === 'function' && sidebarColumn ? new ResizeObserver(update) : undefined
+        resizeObserver?.observe(sidebarColumn)
+        const mutationObserver = typeof MutationObserver === 'function' ? new MutationObserver(update) : undefined
+        mutationObserver?.observe(frame, { attributes: true, attributeFilter: ['class', 'style'] })
+        return () => {
+          resizeObserver?.disconnect()
+          mutationObserver?.disconnect()
+        }
       }, [])
 
       const toggle = (id) => setExpanded((previous) => {
@@ -466,7 +476,7 @@ window.__ModuleLoader__.load({
       )
     }
 
-    const WorkspaceSessionMenuOverlay = (props) => h('div', { className: 'eisKnowledgeSessionMenuOverlay', 'data-knowledge-session-menu-overlay': '', style: { '--eisKnowledge-sidebar-width': '64px' } }, h(WorkspaceSessionMenu, props))
+    const WorkspaceSessionMenuOverlay = (props) => h('div', { className: 'eisKnowledgeSessionMenuOverlay', 'data-knowledge-session-menu-overlay': '', style: { '--eisKnowledge-sidebar-width': '56px' } }, h(WorkspaceSessionMenu, props))
 
     return {
       inject: ['slots', 'sessions', 'uiWorkspace', 'workspaces'],

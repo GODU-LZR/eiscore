@@ -31,9 +31,11 @@ const source = readFileSync(new URL('lib/client.js', pluginDir), 'utf8')
 assert.doesNotMatch(source, /sidebarRight|sidebar\.right\.pane/)
 assert.match(source, /name: 'shell\.overlay'/)
 assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:absolute;inset:0;z-index:21;pointer-events:none\}/)
-assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:absolute;top:0;right:0;left:max\(64px,var\(--eisKnowledge-sidebar-width,64px\)\);pointer-events:auto\}/)
+assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:absolute;top:0;right:0;left:var\(--eisKnowledge-sidebar-width,56px\);pointer-events:auto\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuDisclosure\[data-open="true"\]\{transform:rotate\(-90deg\)\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuPanel\{box-sizing:border-box;position:relative;width:100%/)
+assert.match(source, /getBoundingClientRect/)
+assert.match(source, /new ResizeObserver\(update\)/)
 assert.match(source, /new MutationObserver\(update\)/)
 for (const expected of [
   "'/harness-knowledge-agent/twin/knowledge/files'",
@@ -68,6 +70,44 @@ const React = {
 const icon = (name) => ({ displayName: name })
 let plugin
 const keyListeners = new Set()
+let sidebarWidth = 280
+const frameLeft = 32
+const resizeObservers = new Set()
+const mutationObservers = new Set()
+const sidebarColumn = {
+  getBoundingClientRect: () => ({ right: frameLeft + sidebarWidth })
+}
+const frame = {
+  firstElementChild: sidebarColumn,
+  style: { gridTemplateColumns: '280px minmax(0, 1fr)' },
+  getBoundingClientRect: () => ({ left: frameLeft })
+}
+const menuOverlayElement = {
+  parentElement: { parentElement: frame },
+  style: {
+    values: {},
+    setProperty(name, value) { this.values[name] = value }
+  }
+}
+class ResizeObserver {
+  constructor(callback) { this.callback = callback; resizeObservers.add(this) }
+  observe(target) { assert.equal(target, sidebarColumn); this.target = target }
+  disconnect() { resizeObservers.delete(this) }
+}
+class MutationObserver {
+  constructor(callback) { this.callback = callback; mutationObservers.add(this) }
+  observe(target, options) { assert.equal(target, frame); assert.equal(Array.from(options.attributeFilter).join(','), 'class,style'); this.target = target }
+  disconnect() { mutationObservers.delete(this) }
+}
+const notifySidebarResize = (width) => {
+  sidebarWidth = width
+  for (const observer of resizeObservers) observer.callback()
+}
+const notifyFrameMutation = (width) => {
+  sidebarWidth = width
+  frame.style.gridTemplateColumns = `${width}px minmax(0, 1fr)`
+  for (const observer of mutationObservers) observer.callback()
+}
 const window = {
   setTimeout,
   clearTimeout,
@@ -85,9 +125,10 @@ const window = {
 const appended = []
 const document = {
   createElement: () => ({ remove() { this.removed = true } }),
+  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : null,
   head: { appendChild: (node) => appended.push(node) }
 }
-vm.runInNewContext(source, { window, document, AbortController, Set, Map, String, Array, Object, Promise })
+vm.runInNewContext(source, { window, document, AbortController, ResizeObserver, MutationObserver, Set, Map, String, Array, Object, Promise })
 assert.equal(plugin.inject.includes('slots'), true)
 assert.deepEqual(Array.from(plugin.inject), ['slots', 'sessions', 'uiWorkspace', 'workspaces'])
 const renderComponent = (component, props) => {
@@ -220,6 +261,13 @@ assert.deepEqual(calls.slice(-2), [['start', 'knowledge'], ['open', 's-old']])
 calls.length = 0
 rendered = renderSessionMenu(menuProps)
 let menuNodes = flatten(rendered)
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-width'], '280px')
+notifySidebarResize(56)
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-width'], '56px')
+notifySidebarResize(420)
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-width'], '420px')
+notifyFrameMutation(56)
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-width'], '56px')
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前项目：知识库项目/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前会话：当前对话/)
@@ -261,6 +309,8 @@ menuNodes.find((node) => node.props?.['data-tree-session'] === 's-old').props.on
 assert.deepEqual(calls, [['search', '合同', false], ['open', 's-old']])
 for (const cleanup of effectCleanups.values()) cleanup()
 effectCleanups.clear()
+assert.equal(resizeObservers.size, 0)
+assert.equal(mutationObservers.size, 0)
 hookState.length = 0
 effectState.length = 0
 const emptyMenuProps = {
@@ -291,6 +341,8 @@ assert.doesNotMatch(otherWorkspaceText, /重点客户/)
 assert.equal(otherWorkspaceNodes.some((node) => node.props?.['data-tree-node']?.startsWith('folder:')), false)
 for (const cleanup of effectCleanups.values()) cleanup()
 effectCleanups.clear()
+assert.equal(resizeObservers.size, 0)
+assert.equal(mutationObservers.size, 0)
 hookState.length = 0
 effectState.length = 0
 const dock = slotRegistrations.find(({ options }) => options.id === '@eiscore/dsh-client-knowledge-ontology-dock')
