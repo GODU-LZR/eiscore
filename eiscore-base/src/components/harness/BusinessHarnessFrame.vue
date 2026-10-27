@@ -219,35 +219,50 @@ async function uploadHarnessFile(file) {
   }
 }
 
+const createFileDropId = () => `drop-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+async function processFileDrop(files, id = createFileDropId()) {
+  if (!Array.isArray(files) || !files.length || files.length > 10) return false
+  if (!hasCurrentAuthorization()) { invalidateAuthorization(); return false }
+  const uploaded = []
+  const errors = []
+  for (const file of files) {
+    try {
+      const saved = await uploadHarnessFile(file)
+      saved.contentExcerpt = await extractFileExcerpt(file)
+      uploaded.push(saved)
+    } catch (error) { errors.push(`${file?.name || '文件'}：${error.message}`) }
+  }
+  if (!frame.value?.contentWindow) return false
+  frame.value.contentWindow.postMessage({
+    source: 'eiscore-host',
+    protocol: FILE_DROP_PROTOCOL,
+    version: FILE_DROP_VERSION,
+    type: uploaded.length ? 'uploaded' : 'error',
+    id,
+    files: uploaded,
+    errors
+  }, window.location.origin)
+  if (errors.length) ElMessage.warning(errors.join('；'))
+  if (uploaded.length) ElMessage.success(`已上传 ${uploaded.length} 个文件，可在工作助手中归类并关联客户`)
+  return uploaded.length > 0
+}
+
 async function receiveFileDrop(event) {
   const message = event.data
   if (event.origin !== window.location.origin || event.source !== frame.value?.contentWindow) return
   if (!message || message.source !== 'eiscore-harness' || message.protocol !== FILE_DROP_PROTOCOL || message.version !== FILE_DROP_VERSION || message.type !== 'received') return
   const id = String(message.id || '')
   if (!/^[A-Za-z0-9._:-]{1,120}$/.test(id) || !Array.isArray(message.files) || message.files.length > 10) return
-  if (!hasCurrentAuthorization()) { invalidateAuthorization(); return }
-  const files = []
-  const errors = []
-  for (const file of message.files) {
-    try {
-      const saved = await uploadHarnessFile(file)
-      saved.contentExcerpt = await extractFileExcerpt(file)
-      files.push(saved)
-    } catch (error) { errors.push(`${file?.name || '文件'}：${error.message}`) }
-  }
-  if (!frame.value?.contentWindow) return
-  frame.value.contentWindow.postMessage({
-    source: 'eiscore-host',
-    protocol: FILE_DROP_PROTOCOL,
-    version: FILE_DROP_VERSION,
-    type: files.length ? 'uploaded' : 'error',
-    id,
-    files,
-    errors
-  }, window.location.origin)
-  if (errors.length) ElMessage.warning(errors.join('；'))
-  if (files.length) ElMessage.success(`已上传 ${files.length} 个文件，可在工作助手中归类并关联客户`)
+  await processFileDrop(message.files, id)
 }
+
+async function acceptDroppedFiles(fileList) {
+  const files = Array.from(fileList || [])
+  return processFileDrop(files)
+}
+
+defineExpose({ acceptDroppedFiles })
 
 function receiveDraftResult(event) {
   const result = event.data

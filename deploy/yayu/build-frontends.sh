@@ -40,7 +40,7 @@ for package in . packages/eiscore-platform eiscore-base eiscore-apps eiscore-hr 
   npm --prefix "$package" ci --no-audit --no-fund
 done
 
-for test in platform-auth-session-regression enterprise-module-routing-regression enterprise-config-regression enterprise-industry-site-regression enterprise-surface-theme-regression sales-follow-up-attention-regression sales-apps-load-resilience-regression harness-auth-client-regression yayu-harness-artifact-regression yayu-harness-visual-renderer-regression yayu-harness-worker-draft-regression eiscore-embed-route-regression sales-flow-navigation-regression yayu-sales-shipping-regression yayu-runtime-routing-regression app-center-standalone-entry-regression grid-property-write-regression; do
+for test in platform-auth-session-regression enterprise-module-routing-regression enterprise-config-regression enterprise-industry-site-regression enterprise-surface-theme-regression sales-follow-up-attention-regression sales-apps-load-resilience-regression harness-auth-client-regression yayu-harness-artifact-regression yayu-harness-visual-renderer-regression yayu-harness-worker-draft-regression yayu-harness-panel-drop-regression eiscore-embed-route-regression sales-flow-navigation-regression yayu-sales-shipping-regression yayu-runtime-routing-regression app-center-standalone-entry-regression grid-property-write-regression; do
   node "tests/engineering/$test.mjs"
 done
 for package in eiscore-base eiscore-apps eiscore-hr eiscore-sales eiscore-mobile; do

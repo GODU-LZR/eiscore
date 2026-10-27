@@ -2,13 +2,14 @@
   <button v-if="!excluded && workerVisible && !businessHarnessState.assistantOpen && !workspaceVisible" type="button" class="worker-trigger" data-guide="worker-assistant" @click="openHarnessAssistant()">
     <img class="worker-logo" :src="deepseekIcon" alt="" aria-hidden="true" /><span>工作助手</span>
   </button>
-  <section v-show="visible" class="harness-host" :class="{ 'is-workspace': workspaceVisible, 'is-fullscreen': fullscreen && !workspaceVisible }" :style="workspaceStyle" aria-label="DeepSeek Harness 工作助手">
+  <section v-show="visible" class="harness-host" :class="{ 'is-workspace': workspaceVisible, 'is-fullscreen': fullscreen && !workspaceVisible, 'is-file-drop-target': fileDropActive }" :style="workspaceStyle" aria-label="DeepSeek Harness 工作助手" @dragenter="handleHostDragEnter" @dragover="handleHostDragOver" @dragleave="handleHostDragLeave" @drop="handleHostDrop">
     <header v-show="!workspaceVisible" class="worker-header">
       <strong>DeepSeek Harness</strong>
       <HarnessFullscreenButton :fullscreen="fullscreen" @toggle="toggleFullscreen" />
       <button type="button" class="worker-close" aria-label="关闭工作助手" @click="closeAssistant"><el-icon><Close /></el-icon></button>
     </header>
-    <BusinessHarnessFrame v-if="started && !excluded" :active="visible" :entry="workspaceVisible ? 'workbench' : 'worker'" />
+    <BusinessHarnessFrame ref="harnessFrameRef" v-if="started && !excluded" :active="visible" :entry="workspaceVisible ? 'workbench' : 'worker'" />
+    <div v-if="fileDropActive" class="file-drop-capture" aria-hidden="true">释放文件以添加</div>
   </section>
 </template>
 
@@ -16,6 +17,7 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { Close } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { getWorkerFullscreen, saveWorkerFullscreen } from '@shared/eis-ui-preferences.mjs'
 import { useUserStore } from '@/stores/user'
 import { businessHarnessState, isStandaloneBusinessHarnessPath, openHarnessAssistant, resetBusinessHarness } from '@/services/business-harness-controller'
@@ -29,6 +31,8 @@ const userStore = useUserStore()
 const fullscreen = ref(getWorkerFullscreen())
 const started = ref(false)
 const workspaceStyle = ref({})
+const fileDropActive = ref(false)
+const harnessFrameRef = ref(null)
 const excluded = computed(() => /^\/apps\/flash-builder(?:\/|$)/.test(route.path) || isStandaloneBusinessHarnessPath(route.path))
 const workspaceVisible = computed(() => !excluded.value && !businessHarnessState.workerCommandActive && (route.path === '/workbench' || route.path === '/') && !!businessHarnessState.workspace)
 const visible = computed(() => !excluded.value && (workspaceVisible.value || ((props.workerVisible || businessHarnessState.workerCommandActive) && businessHarnessState.assistantOpen)))
@@ -47,6 +51,39 @@ function toggleFullscreen() {
 function closeAssistant() {
   businessHarnessState.assistantOpen = false
   businessHarnessState.workerCommandActive = false
+}
+function hasFiles(event) {
+  return Array.from(event?.dataTransfer?.types || []).includes('Files')
+}
+function handleHostDragEnter(event) {
+  if (!hasFiles(event)) return
+  event.preventDefault()
+  fileDropActive.value = true
+}
+function handleHostDragOver(event) {
+  if (!hasFiles(event)) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
+  fileDropActive.value = true
+}
+function handleHostDragLeave(event) {
+  if (!fileDropActive.value) return
+  const nextTarget = event.relatedTarget
+  if (nextTarget && event.currentTarget?.contains?.(nextTarget)) return
+  fileDropActive.value = false
+}
+function handleHostDrop(event) {
+  if (!hasFiles(event)) return
+  event.preventDefault()
+  event.stopPropagation()
+  fileDropActive.value = false
+  const files = Array.from(event.dataTransfer?.files || [])
+  if (!files.length) return
+  if (typeof harnessFrameRef.value?.acceptDroppedFiles !== 'function') {
+    ElMessage.warning('工作助手正在加载，请稍后重试')
+    return
+  }
+  void harnessFrameRef.value.acceptDroppedFiles(files)
 }
 function handleWorkerCommand(event) {
   const detail = event?.detail
@@ -84,6 +121,8 @@ onBeforeUnmount(() => {
 .worker-logo { display: block; width: 28px; height: 28px; object-fit: contain; }
 .worker-trigger span:last-child { font-size: 10px; }
 .harness-host { position: fixed; top: 80px; right: 30px; width: 380px; height: calc(100dvh - 160px); box-sizing: border-box; z-index: 2000; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--el-border-color); border-radius: 16px; background: var(--el-bg-color); box-shadow: 0 8px 32px #0003; }
+.harness-host.is-file-drop-target { border-color: var(--el-color-primary); box-shadow: 0 0 0 2px var(--el-color-primary-light-8), 0 8px 32px #0003; }
+.file-drop-capture { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; pointer-events: none; color: var(--el-color-primary); background: rgba(255, 255, 255, .72); font-size: 14px; font-weight: 600; }
 .harness-host.is-workspace { right: auto; z-index: 1; border: 0; border-radius: 0; box-shadow: none; }
 .harness-host.is-fullscreen { inset: 0; width: 100%; height: 100dvh; border-radius: 0; }
 .worker-header { height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid var(--el-border-color); color: var(--el-text-color-primary); }
