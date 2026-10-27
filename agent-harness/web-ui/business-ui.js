@@ -39,6 +39,38 @@
   const WORKER_COMPOSER_SELECTOR = '[data-composer-input][contenteditable="true"]'
   const FILE_DROP_PROTOCOL = 'eiscore-harness-file-drop'
   const FILE_DROP_VERSION = 1
+  const FILE_DROP_COPY = Object.freeze([
+    [/请把\s*图片\s*拖拽在上面/g, '请把文件拖拽在上面'],
+    [/图片\s*拖动到此处即可添加/g, '文件拖动到此处即可添加'],
+    [/图片\s*拖拽在上面/g, '文件拖拽在上面'],
+    [/最多\s*(\d+)\s*张/g, '最多$1个文件'],
+    [/每张\s*(\d+(?:\.\d+)?\s*(?:MB|MiB|GB|GiB))/g, '每个文件$1']
+  ])
+  const rewriteFileDropCopy = (root) => {
+    if (!root) return
+    if (root.nodeType === 3) {
+      let value = root.nodeValue
+      for (const [pattern, replacement] of FILE_DROP_COPY) value = value.replace(pattern, replacement)
+      if (value !== root.nodeValue) root.nodeValue = value
+      return
+    }
+    if (typeof document.createTreeWalker !== 'function') return
+    const walker = document.createTreeWalker(root, 4)
+    let node
+    while ((node = walker.nextNode())) {
+      let value = node.nodeValue
+      for (const [pattern, replacement] of FILE_DROP_COPY) value = value.replace(pattern, replacement)
+      if (value !== node.nodeValue) node.nodeValue = value
+    }
+  }
+  const fileDropCopyObserver = new MutationObserver((records) => {
+    for (const record of records) {
+      if (record.type === 'characterData') rewriteFileDropCopy(record.target)
+      else for (const node of record.addedNodes) rewriteFileDropCopy(node)
+    }
+  })
+  fileDropCopyObserver.observe(document.documentElement, { childList: true, characterData: true, subtree: true })
+  rewriteFileDropCopy(document.body || document.documentElement)
   const workerDrafts = new Map()
   const aliases = {
     echarts: 'echarts', echart: 'echarts', 'e-chart': 'echarts',
@@ -184,7 +216,6 @@
   const handleFileDrop = (event) => {
     if (!hasFiles(event)) return
     event.preventDefault()
-    event.stopPropagation()
     handleFileDragEnd()
     const files = [...(event.dataTransfer?.files || [])]
     if (!files.length) return

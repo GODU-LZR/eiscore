@@ -18,6 +18,13 @@ assert.match(businessUi, /new ClipboardEvent\('paste'/)
 const listeners = new Map()
 const documentListeners = new Map()
 const replies = []
+const mutationObservers = []
+const dropCopyNodes = [
+  { nodeType: 3, nodeValue: '图片拖动到此处即可添加' },
+  { nodeType: 3, nodeValue: '最多 20 张' },
+  { nodeType: 3, nodeValue: '每张 20MB' },
+  { nodeType: 3, nodeValue: '请把图片拖拽在上面' }
+]
 const parentWindow = { postMessage: (message, origin) => replies.push({ message, origin }) }
 const editor = {
   isConnected: true,
@@ -41,6 +48,11 @@ const document = {
   documentElement: body,
   head: { appendChild() {} },
   createElement: () => ({ setAttribute() {}, appendChild() {}, remove() {} }),
+  createTreeWalker: (root, whatToShow) => {
+    assert.equal(whatToShow, 4, 'drop copy rewriting must walk text nodes only')
+    let index = 0
+    return { nextNode: () => dropCopyNodes[index++] || null }
+  },
   querySelector: () => null,
   querySelectorAll: (selector) => selector === '[data-composer-input][contenteditable="true"]' ? [editor] : [],
   createRange: () => ({ selectNodeContents() {} }),
@@ -51,8 +63,8 @@ const document = {
   }
 }
 class FakeMutationObserver {
-  constructor(callback) { this.callback = callback }
-  observe() {}
+  constructor(callback) { this.callback = callback; mutationObservers.push(this) }
+  observe(target, options) { this.options = options }
   disconnect() {}
 }
 class FakeDataTransfer {
@@ -87,6 +99,14 @@ const context = {
 }
 
 vm.runInNewContext(businessUi, context, { filename: 'business-ui.js' })
+assert.deepEqual(dropCopyNodes.map((node) => node.nodeValue), [
+  '文件拖动到此处即可添加', '最多20个文件', '每个文件20MB', '请把文件拖拽在上面'
+])
+assert.equal(mutationObservers[1].options.characterData, true, 'Harness text updates must be normalized after initial render too')
+const dynamicDropCopy = { nodeType: 3, nodeValue: '请把图片拖拽在上面' }
+mutationObservers[1].callback([{ type: 'childList', addedNodes: [dynamicDropCopy] }])
+dropCopyNodes.push(dynamicDropCopy)
+assert.equal(dropCopyNodes.at(-1).nodeValue, '请把文件拖拽在上面')
 const onWorkerMessage = listeners.get('message')[0]
 const baseMessage = { source: 'eiscore-host', protocol: 'eiscore-harness-worker-draft', version: 1 }
 const sendToHarness = async (data, source = parentWindow, origin = 'https://app.example') =>
@@ -121,6 +141,12 @@ assert.equal(editor.textContent, '用户刚刚输入的内容', 'late user edits
 const droppedFile = { name: '报价单.xlsx', size: 2048, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }
 let prevented = false
 let stopped = false
+const dragEvent = {
+  dataTransfer: { types: ['Files'], dropEffect: '' },
+  preventDefault() { prevented = true }
+}
+documentListeners.get('dragover')[0](dragEvent)
+assert.equal(body.dataset.eiscoreFileDrop, 'active')
 const dropEvent = {
   dataTransfer: { types: ['Files'], files: [droppedFile] },
   preventDefault() { prevented = true },
@@ -128,7 +154,8 @@ const dropEvent = {
 }
 documentListeners.get('drop')[0](dropEvent)
 assert.equal(prevented, true)
-assert.equal(stopped, true)
+assert.equal(stopped, false, 'the Harness drop handler must receive the event to clear its native overlay')
+assert.equal(body.dataset.eiscoreFileDrop, undefined, 'the plugin drop state must clear when the file is received')
 assert.equal(replies.at(-1).message.protocol, 'eiscore-harness-file-drop')
 assert.equal(replies.at(-1).message.type, 'received')
 assert.equal(replies.at(-1).message.files[0], droppedFile, 'the plugin forwards the original file without Base64 conversion')
