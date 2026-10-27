@@ -509,6 +509,7 @@ window.__ModuleLoader__.load({
 
         ctx.slots.inject('shell.overlay', () => ctx.slots.register({
           name: 'shell.overlay',
+          id: '@eiscore/dsh-client-knowledge-ontology-dock',
           inject: () => ({ getOpen, subscribe, close, loadOntology: loadKnowledgeOntology })
         }, KnowledgeOntologyDock))
       }

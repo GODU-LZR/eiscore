@@ -224,6 +224,7 @@ effectCleanups.clear()
 hookState.length = 0
 effectState.length = 0
 const dock = slotRegistrations.find(({ options }) => options.name === 'shell.overlay')
+assert.equal(dock.options.id, '@eiscore/dsh-client-knowledge-ontology-dock')
 const dockProps = dock.options.inject()
 const treeProps = registered.options.inject()
 assert.equal(renderComponent(dock.component, dockProps), null)
