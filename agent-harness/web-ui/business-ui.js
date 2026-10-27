@@ -63,6 +63,16 @@
       if (value !== node.nodeValue) node.nodeValue = value
     }
   }
+  const clearFileDropOverlay = () => {
+    delete document.documentElement.dataset.eiscoreFileDrop
+    const statuses = typeof document.querySelectorAll === 'function'
+      ? document.querySelectorAll('[role="status"]')
+      : []
+    for (const status of statuses) {
+      const copy = String(status?.textContent || '')
+      if (/(?:图片|文件).*(?:拖拽|拖动)|(?:拖拽|拖动).*(?:图片|文件)|最多\s*\d+\s*(?:张|个文件)|每(?:张|个文件)/i.test(copy)) status.remove?.()
+    }
+  }
   const fileDropCopyObserver = new MutationObserver((records) => {
     for (const record of records) {
       if (record.type === 'characterData') rewriteFileDropCopy(record.target)
@@ -218,7 +228,7 @@
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy'
     document.documentElement.dataset.eiscoreFileDrop = 'active'
   }
-  const handleFileDragEnd = () => { delete document.documentElement.dataset.eiscoreFileDrop }
+  const handleFileDragEnd = () => { clearFileDropOverlay() }
   const handleFileDrop = (event) => {
     if (!claimFileDrop(event)) return
     handleFileDragEnd()
@@ -227,6 +237,7 @@
     const id = `drop-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
     sendFileDropMessage('received', id, { files })
   }
+  document.addEventListener('dragenter', handleFileDragOver, true)
   document.addEventListener('dragover', handleFileDragOver, true)
   document.addEventListener('dragleave', handleFileDragEnd, true)
   document.addEventListener('drop', handleFileDrop, true)
@@ -234,6 +245,7 @@
     if (event.origin !== location.origin || event.source !== window.parent) return
     const message = event.data
     if (!message || message.source !== 'eiscore-host' || message.protocol !== FILE_DROP_PROTOCOL || message.version !== FILE_DROP_VERSION) return
+    clearFileDropOverlay()
     if (message.type !== 'uploaded' || !Array.isArray(message.files) || !message.files.length) return
     let remaining = 9000
     const references = message.files.map((file) => {

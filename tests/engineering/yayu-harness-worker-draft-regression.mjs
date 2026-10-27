@@ -42,6 +42,8 @@ const editor = {
   }
 }
 const body = { dataset: {}, querySelectorAll: () => [] }
+let dropOverlayRemoved = false
+const dropOverlay = { textContent: '请把文件拖拽在上面', remove() { dropOverlayRemoved = true } }
 const document = {
   currentScript: { src: 'https://app.example/harness-embed/eiscore-ui/business-ui.js' },
   body,
@@ -54,7 +56,11 @@ const document = {
     return { nextNode: () => dropCopyNodes[index++] || null }
   },
   querySelector: () => null,
-  querySelectorAll: (selector) => selector === '[data-composer-input][contenteditable="true"]' ? [editor] : [],
+  querySelectorAll: (selector) => {
+    if (selector === '[data-composer-input][contenteditable="true"]') return [editor]
+    if (selector === '[role="status"]') return [dropOverlay]
+    return []
+  },
   createRange: () => ({ selectNodeContents() {} }),
   addEventListener: (type, listener) => {
     const entries = documentListeners.get(type) || []
@@ -148,6 +154,8 @@ const dragEvent = {
   stopPropagation() { stopped = true },
   stopImmediatePropagation() { stoppedImmediately = true }
 }
+documentListeners.get('dragenter')[0](dragEvent)
+assert.equal(dropOverlayRemoved, false, 'dragenter must not clear the overlay before a file is dropped')
 documentListeners.get('dragover')[0](dragEvent)
 assert.equal(body.dataset.eiscoreFileDrop, 'active')
 const dropEvent = {
@@ -160,6 +168,7 @@ documentListeners.get('drop')[0](dropEvent)
 assert.equal(prevented, true)
 assert.equal(stopped, true, 'the host must claim file drops before the image-only Harness handler')
 assert.equal(stoppedImmediately, true, 'the host must stop same-target image-only handlers')
+assert.equal(dropOverlayRemoved, true, 'drop must clear the native image-only overlay')
 assert.equal(body.dataset.eiscoreFileDrop, undefined, 'the plugin drop state must clear when the file is received')
 assert.equal(replies.at(-1).message.protocol, 'eiscore-harness-file-drop')
 assert.equal(replies.at(-1).message.type, 'received')
