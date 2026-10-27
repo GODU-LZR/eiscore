@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (c) 2026 林志荣
 
-import { loadSalesOfficePreview } from './office-preview'
+import { loadSalesOfficePreview } from './office-preview.js'
 
 const CUSTOMER_LEVEL_OPTIONS = [
   { label: '战略客户', value: '战略客户' },
