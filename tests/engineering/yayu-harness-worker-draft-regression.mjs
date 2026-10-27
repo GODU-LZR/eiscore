@@ -20,6 +20,9 @@ const documentListeners = new Map()
 const replies = []
 const mutationObservers = []
 const dropCopyNodes = [
+  { nodeType: 3, nodeValue: 'Drag images here to add them' },
+  { nodeType: 3, nodeValue: 'Up to 20 images' },
+  { nodeType: 3, nodeValue: '20MB each' },
   { nodeType: 3, nodeValue: '图片拖动到此处即可添加' },
   { nodeType: 3, nodeValue: '最多 20 张' },
   { nodeType: 3, nodeValue: '每张 20MB' },
@@ -43,7 +46,7 @@ const editor = {
 }
 const body = { dataset: {}, querySelectorAll: () => [] }
 let dropOverlayRemoved = false
-const dropOverlay = { textContent: '请把文件拖拽在上面', remove() { dropOverlayRemoved = true } }
+const dropOverlay = { textContent: 'Drag files here to add themUp to 20 files20MB per file', remove() { dropOverlayRemoved = true } }
 const document = {
   currentScript: { src: 'https://app.example/harness-embed/eiscore-ui/business-ui.js' },
   body,
@@ -106,6 +109,7 @@ const context = {
 
 vm.runInNewContext(businessUi, context, { filename: 'business-ui.js' })
 assert.deepEqual(dropCopyNodes.map((node) => node.nodeValue), [
+  'Drag files here to add them', 'Up to 20 files', '20MB per file',
   '文件拖动到此处即可添加', '最多20个文件', '每个文件20MB', '请把文件拖拽在上面'
 ])
 assert.equal(mutationObservers[1].options.characterData, true, 'Harness text updates must be normalized after initial render too')
@@ -154,8 +158,6 @@ const dragEvent = {
   stopPropagation() { stopped = true },
   stopImmediatePropagation() { stoppedImmediately = true }
 }
-documentListeners.get('dragenter')[0](dragEvent)
-assert.equal(dropOverlayRemoved, false, 'dragenter must not clear the overlay before a file is dropped')
 documentListeners.get('dragover')[0](dragEvent)
 assert.equal(body.dataset.eiscoreFileDrop, 'active')
 const dropEvent = {
@@ -168,11 +170,17 @@ documentListeners.get('drop')[0](dropEvent)
 assert.equal(prevented, true)
 assert.equal(stopped, true, 'the host must claim file drops before the image-only Harness handler')
 assert.equal(stoppedImmediately, true, 'the host must stop same-target image-only handlers')
-assert.equal(dropOverlayRemoved, true, 'drop must clear the native image-only overlay')
+assert.equal(dropOverlayRemoved, false, 'the overlay stays visible while the host uploads the dropped file')
 assert.equal(body.dataset.eiscoreFileDrop, undefined, 'the plugin drop state must clear when the file is received')
 assert.equal(replies.at(-1).message.protocol, 'eiscore-harness-file-drop')
 assert.equal(replies.at(-1).message.type, 'received')
 assert.equal(replies.at(-1).message.files[0], droppedFile, 'the plugin forwards the original file without Base64 conversion')
 assert.equal(replies.at(-1).origin, 'https://app.example')
+await listeners.get('message')[1]({
+  origin: 'https://app.example',
+  source: parentWindow,
+  data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'test-file', name: droppedFile.name }] }
+})
+assert.equal(dropOverlayRemoved, true, 'the host upload response clears the native image-only overlay')
 
 console.log('PASS: Yayu Harness worker draft and file drop require trusted origin; files stay binary and drafts paste without sending')

@@ -40,6 +40,9 @@
   const FILE_DROP_PROTOCOL = 'eiscore-harness-file-drop'
   const FILE_DROP_VERSION = 1
   const FILE_DROP_COPY = Object.freeze([
+    [/Drag images here to add them/gi, 'Drag files here to add them'],
+    [/Up to\s*(\d+)\s*images/gi, 'Up to $1 files'],
+    [/([\d.]+\s*(?:MB|MiB|GB|GiB))\s*each/gi, '$1 per file'],
     [/请把\s*图片\s*拖拽在上面/g, '请把文件拖拽在上面'],
     [/图片\s*拖动到此处即可添加/g, '文件拖动到此处即可添加'],
     [/图片\s*拖拽在上面/g, '文件拖拽在上面'],
@@ -70,7 +73,7 @@
       : []
     for (const status of statuses) {
       const copy = String(status?.textContent || '')
-      if (/(?:图片|文件).*(?:拖拽|拖动)|(?:拖拽|拖动).*(?:图片|文件)|最多\s*\d+\s*(?:张|个文件)|每(?:张|个文件)/i.test(copy)) status.remove?.()
+      if (/(?:图片|文件).*(?:拖拽|拖动)|(?:拖拽|拖动).*(?:图片|文件)|最多\s*\d+\s*(?:张|个文件)|每(?:张|个文件)|drag\s+(?:images|files)\s+here\s+to\s+add|up to\s*\d+\s*(?:images|files)|[\d.]+\s*(?:mb|mib|gb|gib)\s*(?:each|per file)/i.test(copy)) status.remove?.()
     }
   }
   const fileDropCopyObserver = new MutationObserver((records) => {
@@ -231,13 +234,12 @@
   const handleFileDragEnd = () => { clearFileDropOverlay() }
   const handleFileDrop = (event) => {
     if (!claimFileDrop(event)) return
-    handleFileDragEnd()
+    delete document.documentElement.dataset.eiscoreFileDrop
     const files = [...(event.dataTransfer?.files || [])]
-    if (!files.length) return
+    if (!files.length) { handleFileDragEnd(); return }
     const id = `drop-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
     sendFileDropMessage('received', id, { files })
   }
-  document.addEventListener('dragenter', handleFileDragOver, true)
   document.addEventListener('dragover', handleFileDragOver, true)
   document.addEventListener('dragleave', handleFileDragEnd, true)
   document.addEventListener('drop', handleFileDrop, true)
