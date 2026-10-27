@@ -68,6 +68,7 @@
   }
   const clearFileDropOverlay = () => {
     delete document.documentElement.dataset.eiscoreFileDrop
+    window.dispatchEvent(new Event('dragend'))
     const statuses = typeof document.querySelectorAll === 'function'
       ? document.querySelectorAll('[role="status"]')
       : []

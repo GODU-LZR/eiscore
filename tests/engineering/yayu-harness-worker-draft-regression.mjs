@@ -46,6 +46,7 @@ const editor = {
 }
 const body = { dataset: {}, querySelectorAll: () => [] }
 let dropOverlayRemoved = false
+let nativeDropResetCount = 0
 const dropOverlay = { textContent: 'Drag files here to add themUp to 20 files20MB per file', remove() { dropOverlayRemoved = true } }
 const document = {
   currentScript: { src: 'https://app.example/harness-embed/eiscore-ui/business-ui.js' },
@@ -84,9 +85,13 @@ class FakeDataTransfer {
 class FakeClipboardEvent {
   constructor(type, options) { this.type = type; this.clipboardData = options.clipboardData }
 }
+class FakeEvent {
+  constructor(type) { this.type = type }
+}
 const window = {
   parent: parentWindow,
   getSelection: () => ({ removeAllRanges() {}, addRange() {} }),
+  dispatchEvent: (event) => { if (event.type === 'dragend') nativeDropResetCount++ },
   addEventListener: (type, listener) => {
     const entries = listeners.get(type) || []
     entries.push(listener)
@@ -101,6 +106,7 @@ const context = {
   MutationObserver: FakeMutationObserver,
   DataTransfer: FakeDataTransfer,
   ClipboardEvent: FakeClipboardEvent,
+  Event: FakeEvent,
   requestAnimationFrame: (callback) => callback(),
   setTimeout,
   clearTimeout,
@@ -173,6 +179,7 @@ assert.equal(prevented, true)
 assert.equal(stopped, true, 'the host must claim file drops before the image-only Harness handler')
 assert.equal(stoppedImmediately, true, 'the host must stop same-target image-only handlers')
 assert.equal(dropOverlayRemoved, true, 'the drop clears the native image-only overlay before upload completes')
+assert.equal(nativeDropResetCount, 1, 'the drop resets DeepSeek native drag state after blocking its drop listener')
 assert.equal(body.dataset.eiscoreFileDrop, undefined, 'the plugin drop state must clear when the file is received')
 assert.equal(replies.at(-1).message.protocol, 'eiscore-harness-file-drop')
 assert.equal(replies.at(-1).message.type, 'received')
@@ -184,6 +191,7 @@ await listeners.get('message')[1]({
   data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'test-file', name: droppedFile.name }] }
 })
 assert.equal(dropOverlayRemoved, true, 'the host upload response clears the native image-only overlay')
+assert.equal(nativeDropResetCount, 2, 'upload success keeps DeepSeek native drag state reset')
 dropOverlayRemoved = false
 await listeners.get('message')[1]({
   origin: 'https://app.example',
@@ -191,5 +199,6 @@ await listeners.get('message')[1]({
   data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'error', errors: ['文件格式不支持'] }
 })
 assert.equal(dropOverlayRemoved, true, 'an upload error response also clears the native image-only overlay')
+assert.equal(nativeDropResetCount, 3, 'upload errors keep DeepSeek native drag state reset')
 
 console.log('PASS: Yayu Harness worker draft and file drop require trusted origin; files stay binary and drafts paste without sending')
