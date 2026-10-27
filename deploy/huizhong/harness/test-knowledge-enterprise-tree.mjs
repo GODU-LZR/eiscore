@@ -10,7 +10,7 @@ const packageJson = JSON.parse(readFileSync(new URL('package.json', pluginDir), 
 assert.equal(packageJson.name, '@eiscore/dsh-client-knowledge-enterprise-tree')
 assert.equal(packageJson.dsh.client.platform, 'web')
 assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-primitives'))
-assert.ok(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'))
+assert.equal(packageJson.dsh.client.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'), false)
 
 const modules = process.argv[2]
 if (modules) {
@@ -23,14 +23,13 @@ if (modules) {
   assert.equal(resolved.packageName, packageJson.name)
   assert.equal(resolved.meta.clientPath, fileURLToPath(new URL('lib/client.js', pluginDir)))
   assert.ok(resolved.meta.inject.includes('@deepseek-ai/dsh-client-ui-workspace'))
+  assert.equal(resolved.meta.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'), false)
   assert.match(registry.initialBundleSnapshot(resolved.packageName, resolved.meta.clientPath).bundle.toString(), /window\.__ModuleLoader__\.load/)
 }
 
 const source = readFileSync(new URL('lib/client.js', pluginDir), 'utf8')
-assert.match(source, /sidebarRightTabs\.register\(/)
-assert.match(source, /name: 'sidebar\.right\.pane\.tab'/)
-assert.match(source, /name: 'sidebar\.right\.pane\.tab\.title'/)
-assert.match(source, /openOntology:\s*\(\)\s*=>\s*sidebarRight\?\.openTab\?\.\(ONTOLOGY_TAB_KIND\)/)
+assert.doesNotMatch(source, /sidebarRight|sidebar\.right\.pane/)
+assert.match(source, /name: 'shell\.overlay'/)
 for (const expected of [
   "'/harness-knowledge-agent/twin/knowledge/files'",
   'readKnowledgeFile',
@@ -63,9 +62,12 @@ const React = {
 }
 const icon = (name) => ({ displayName: name })
 let plugin
+const keyListeners = new Set()
 const window = {
   setTimeout,
   clearTimeout,
+  addEventListener: (name, listener) => { assert.equal(name, 'keydown'); keyListeners.add(listener) },
+  removeEventListener: (name, listener) => { assert.equal(name, 'keydown'); keyListeners.delete(listener) },
   __ModuleLoader__: { load: (descriptor) => { plugin = descriptor.factory((name) => name === 'react' ? React : {
     IconCloseFill14: icon('close'),
     IconFolderClose16: icon('folder-close'),
@@ -82,6 +84,7 @@ const document = {
 }
 vm.runInNewContext(source, { window, document, AbortController, Set, Map, String, Array, Object, Promise })
 assert.equal(plugin.inject.includes('slots'), true)
+assert.deepEqual(Array.from(plugin.inject), ['slots', 'sessions', 'uiWorkspace', 'workspaces'])
 const renderComponent = (component, props) => {
   pendingEffects.length = 0
   hookIndex = 0
@@ -97,23 +100,19 @@ const renderComponent = (component, props) => {
 
 const calls = []
 let registered
-let disposed
 const disposals = []
 const slotRegistrations = []
-let ontologyType
 const services = {
   sessions: {
     open: (id) => calls.push(['open', id]),
     search: async () => ({ ok: true, value: { items: [{ sessionId: 's-old', snippet: '命中合同文本' }], hasMore: false } })
   },
   workspaces: { archiveSession: async () => {} },
-  uiWorkspace: { startSession: (id) => calls.push(['start', id]) },
-  sidebarRight: { openTab: (kind) => calls.push(['ontology', kind]) },
-  sidebarRightTabs: { register: (definition) => { ontologyType = definition; return () => {} } }
+  uiWorkspace: { startSession: (id) => calls.push(['start', id]) }
 }
 plugin.apply({
-  get: (name) => services[name],
-  on: (event, callback) => { if (event === 'dispose') { disposed = callback; disposals.push(callback) } },
+  get: (name) => { assert.ok(name in services, `Unavailable service: ${name}`); return services[name] },
+  effect: (setup) => { const dispose = setup(); disposals.push(dispose); return dispose },
   slots: {
     inject: (name, callback) => { callback(); return () => {} },
     register: (options, component) => {
@@ -127,11 +126,8 @@ plugin.apply({
 assert.equal(appended.length, 1)
 assert.equal(registered.options.name, 'sidebar.workspaces')
 assert.equal(registered.options.priority, -1)
-assert.equal(ontologyType.kind, 'knowledge-ontology')
-assert.equal(ontologyType.id, '@eiscore/dsh-client-knowledge-ontology')
-assert.ok(slotRegistrations.some(({ options }) => options.name === 'sidebar.right.pane.tab' && options.key === ontologyType.id))
-assert.ok(slotRegistrations.some(({ options }) => options.name === 'sidebar.right.pane.tab.title' && options.key === ontologyType.id))
-assert.equal(typeof disposed, 'function')
+assert.deepEqual(slotRegistrations.map(({ options }) => options.name), ['sidebar.workspaces', 'shell.overlay'])
+assert.equal(typeof disposals[0], 'function')
 
 const workspaceState = {
   phase: 'ready',
@@ -224,6 +220,34 @@ const rail = flatten(renderComponent(registered.component, { ...componentProps, 
 rail.find((node) => node.props?.['aria-label'] === '展开企业知识库分类').props.onClick()
 assert.equal(expanded, 1)
 for (const cleanup of effectCleanups.values()) cleanup()
+effectCleanups.clear()
+hookState.length = 0
+effectState.length = 0
+const dock = slotRegistrations.find(({ options }) => options.name === 'shell.overlay')
+const dockProps = dock.options.inject()
+const treeProps = registered.options.inject()
+assert.equal(renderComponent(dock.component, dockProps), null)
+assert.equal(keyListeners.size, 0)
+treeProps.openOntology()
+let dockNodes = flatten(renderComponent(dock.component, dockProps))
+assert.equal(dockNodes.some((node) => node.props?.['data-knowledge-ontology-dock'] === ''), true)
+assert.equal(keyListeners.size, 1)
+const body = dockNodes.find((node) => typeof node.type === 'function')
+assert.equal(typeof body.props.loadOntology, 'function')
+dockNodes.find((node) => node.props?.['aria-label'] === '关闭本体面板').props.onClick()
+assert.equal(renderComponent(dock.component, dockProps), null)
+assert.equal(keyListeners.size, 0)
+treeProps.openOntology()
+renderComponent(dock.component, dockProps)
+for (const listener of keyListeners) listener({ key: 'Enter' })
+assert.notEqual(renderComponent(dock.component, dockProps), null)
+for (const listener of keyListeners) listener({ key: 'Escape' })
+assert.equal(renderComponent(dock.component, dockProps), null)
+assert.equal(keyListeners.size, 0)
+treeProps.openOntology()
+renderComponent(dock.component, dockProps)
+for (const cleanup of effectCleanups.values()) cleanup()
+assert.equal(keyListeners.size, 0)
 for (const cleanup of disposals) cleanup()
 assert.equal(appended[0].removed, true)
-console.log('PASS: knowledge tree grouping, filtering, current-session state, collapse/expand, search, native open/new, and cleanup')
+console.log('PASS: existing-service boot contract, knowledge tree grouping/filter/search/open/new, internal ontology dock open/close/Escape, native details preserved, and cleanup')

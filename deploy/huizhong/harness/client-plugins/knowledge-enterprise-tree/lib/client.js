@@ -52,6 +52,8 @@ window.__ModuleLoader__.load({
       .eisKnowledgeFilesStatus{padding:7px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
       .eisKnowledgeFilePreview{max-height:120px;overflow:auto;margin:0 5px 5px;padding:6px;border-radius:5px;background:var(--dsw-alias-fill-l3);color:var(--dsw-alias-label-secondary);font:10px/15px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
       .eisKnowledgeFilesInput{display:none}
+      .eisKnowledgeOntologyDock{position:absolute;inset:0 0 0 auto;box-sizing:border-box;width:min(360px,100%);display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l3);box-shadow:-8px 0 24px #0001;color:var(--dsw-alias-label-primary)}
+      .eisKnowledgeOntologyDockHeader{height:42px;min-height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l4);font-size:13px;font-weight:500}
       .eisKnowledgeOntologyTab{height:100%;min-height:0;display:flex;flex-direction:column;padding:12px;color:var(--dsw-alias-label-primary);overflow:hidden}
       .eisKnowledgeOntologyHeader{display:flex;align-items:center;gap:8px;margin-bottom:10px}
       .eisKnowledgeOntologyHeader strong{min-width:0;flex:1;font-size:14px;font-weight:600}
@@ -68,8 +70,6 @@ window.__ModuleLoader__.load({
 
     const KNOWLEDGE_FILES_PATH = '/harness-knowledge-agent/twin/knowledge/files'
     const KNOWLEDGE_ONTOLOGY_PATH = '/harness-knowledge-agent/twin/knowledge/ontology/context'
-    const ONTOLOGY_TAB_ID = '@eiscore/dsh-client-knowledge-ontology'
-    const ONTOLOGY_TAB_KIND = 'knowledge-ontology'
 
     const getAuthorization = () => {
       try {
@@ -298,7 +298,26 @@ window.__ModuleLoader__.load({
       )
     }
 
-    const KnowledgeOntologyTitle = () => h('span', null, '本体')
+    const KnowledgeOntologyDock = ({ getOpen, subscribe, close, loadOntology }) => {
+      const [open, setOpen] = React.useState(getOpen)
+      React.useEffect(() => {
+        const unsubscribe = subscribe(setOpen)
+        setOpen(getOpen())
+        return unsubscribe
+      }, [getOpen, subscribe])
+      React.useEffect(() => {
+        if (!open) return
+        const onKeyDown = (event) => { if (event.key === 'Escape') close() }
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+      }, [open, close])
+      if (!open) return null
+      return h('aside', { className: 'eisKnowledgeOntologyDock', 'aria-label': '本体面板', 'data-knowledge-ontology-dock': '' },
+        h('div', { className: 'eisKnowledgeOntologyDockHeader' },
+          h('span', null, '本体'),
+          h('button', { type: 'button', className: 'eisKnowledgeTreeIconButton', onClick: close, 'aria-label': '关闭本体面板', title: '关闭本体面板' }, h(IconCloseFill14, {}))),
+        h(KnowledgeOntologyBody, { loadOntology }))
+    }
 
     const EnterpriseWorkspaceTree = ({ wide, expandSidebar, useWorkspaces, useSessions, startSession, open, searchSessions, listFiles, readFile, uploadFile, updateFile, deleteFile, openOntology }) => {
       const workspaceState = useWorkspaces((state) => state)
@@ -448,17 +467,26 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      inject: ['slots', 'sessions', 'uiWorkspace', 'workspaces', 'sidebarRight', 'sidebarRightTabs'],
+      inject: ['slots', 'sessions', 'uiWorkspace', 'workspaces'],
       apply(ctx) {
         const sessions = ctx.get('sessions')
         const uiWorkspace = ctx.get('uiWorkspace')
-        const sidebarRight = ctx.get('sidebarRight')
-        const sidebarRightTabs = ctx.get('sidebarRightTabs')
+        let ontologyOpen = false
+        const listeners = new Set()
+        const setOntologyOpen = (open) => {
+          ontologyOpen = open
+          for (const listener of listeners) listener(open)
+        }
+        const getOpen = () => ontologyOpen
+        const subscribe = (listener) => { listeners.add(listener); return () => listeners.delete(listener) }
+        const close = () => setOntologyOpen(false)
         const style = document.createElement('style')
         style.id = STYLE_ID
         style.textContent = styles
-        document.head.appendChild(style)
-        ctx.on('dispose', () => style.remove())
+        ctx.effect(() => {
+          document.head.appendChild(style)
+          return () => { listeners.clear(); style.remove() }
+        })
         ctx.slots.inject('sidebar.workspaces', () => ctx.slots.register({
           name: 'sidebar.workspaces',
           priority: -1,
@@ -475,33 +503,14 @@ window.__ModuleLoader__.load({
             uploadFile: (file) => uploadKnowledgeFile(file),
             updateFile: (id, patch) => updateKnowledgeFile(id, patch),
             deleteFile: (id) => deleteKnowledgeFile(id),
-            openOntology: () => sidebarRight?.openTab?.(ONTOLOGY_TAB_KIND)
+            openOntology: () => setOntologyOpen(true)
           })
         }, EnterpriseWorkspaceTree))
 
-        if (sidebarRightTabs?.register && sidebarRight?.openTab) {
-          const tabDisposer = sidebarRightTabs.register({
-            id: ONTOLOGY_TAB_ID,
-            kind: ONTOLOGY_TAB_KIND,
-            patterns: ['dsh-resource://knowledge/**'],
-            priority: 'extension',
-            title: () => '本体'
-          })
-          const bodyDisposer = ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
-            name: 'sidebar.right.pane.tab',
-            key: ONTOLOGY_TAB_ID,
-            inject: () => ({ loadOntology: loadKnowledgeOntology })
-          }, KnowledgeOntologyBody))
-          const titleDisposer = ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({
-            name: 'sidebar.right.pane.tab.title',
-            key: ONTOLOGY_TAB_ID
-          }, KnowledgeOntologyTitle))
-          ctx.on('dispose', () => {
-            if (typeof tabDisposer === 'function') tabDisposer()
-            if (typeof bodyDisposer === 'function') bodyDisposer()
-            if (typeof titleDisposer === 'function') titleDisposer()
-          })
-        }
+        ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+          name: 'shell.overlay',
+          inject: () => ({ getOpen, subscribe, close, loadOntology: loadKnowledgeOntology })
+        }, KnowledgeOntologyDock))
       }
     }
   }
