@@ -123,7 +123,7 @@ export const CUSTOMER_COLUMNS = [
     prop: 'customer_files',
     type: 'file',
     storeInProperties: true,
-    fileMaxCount: 10,
+    fileMaxCount: 20,
     fileMaxSizeMb: 20,
     fileStoreMode: 'reference-list',
     officePreviewLoader: loadSalesOfficePreview,

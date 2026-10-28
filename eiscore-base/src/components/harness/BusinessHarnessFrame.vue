@@ -25,7 +25,7 @@ import { prepareBusinessHarnessAuth } from '@/services/business-harness-auth'
 import { businessHarnessState } from '@/services/business-harness-controller'
 
 const props = defineProps({ active: Boolean, entry: { type: String, default: 'worker' } })
-const emit = defineEmits(['file-drop-finished'])
+const emit = defineEmits(['file-drop-finished', 'file-drop-progress'])
 const userStore = useUserStore()
 const harnessWebUrl = import.meta.env.VITE_HARNESS_WEB_URL || '/harness-embed/'
 const frame = ref(null)
@@ -48,7 +48,10 @@ const WORKER_DRAFT_PROTOCOL = 'eiscore-harness-worker-draft'
 const WORKER_DRAFT_VERSION = 1
 const FILE_DROP_PROTOCOL = 'eiscore-harness-file-drop'
 const FILE_DROP_VERSION = 1
+const MAX_DROP_FILES = 20
 const MAX_FILE_BYTES = 20 * 1024 * 1024
+const FILE_UPLOAD_TIMEOUT_MS = 45_000
+const FILE_UPLOAD_CONCURRENCY = 3
 const FILE_EXTENSIONS = new Set([
   'jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'mp4', 'mp3',
   'md', 'txt', 'csv', 'wav', 'm4a', 'ogg', 'aac', 'flac'
@@ -193,47 +196,76 @@ async function uploadHarnessFile(file) {
   const ext = fileExtension(name)
   if (!name || !FILE_EXTENSIONS.has(ext)) throw new Error('文件格式不支持')
   if (!Number.isFinite(file.size) || file.size <= 0 || file.size > MAX_FILE_BYTES) throw new Error('文件不能超过20MB')
-  const response = await fetch('/harness-embed-api/eiscore/files/upload', {
-    method: 'POST',
-    credentials: 'same-origin',
-    headers: {
-      'content-type': String(file.type || 'application/octet-stream').slice(0, 160),
-      'x-eiscore-file-name': encodeURIComponent(name)
-    },
-    body: file
-  })
-  const body = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    if (response.status === 413) throw new Error('文件请求超过服务上限，请使用20MB以内文件')
-    throw new Error(String(body?.message || '文件上传失败'))
-  }
-  const row = Array.isArray(body) ? body[0] : body
-  if (!row?.id) throw new Error('文件上传结果无效')
-  return {
-    id: row.id,
-    name: row.filename || name,
-    type: row.mime_type || file.type || '',
-    size: row.size_bytes || file.size,
-    url: `file:${row.id}`,
-    ext,
-    uploadedAt: row.created_at || new Date().toISOString()
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), FILE_UPLOAD_TIMEOUT_MS)
+  try {
+    const response = await fetch('/harness-embed-api/eiscore/files/upload', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'content-type': String(file.type || 'application/octet-stream').slice(0, 160),
+        'x-eiscore-file-name': encodeURIComponent(name)
+      },
+      body: file,
+      signal: controller.signal
+    })
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      if (response.status === 413) throw new Error('文件请求超过服务上限，请使用20MB以内文件')
+      throw new Error(String(body?.message || '文件上传失败'))
+    }
+    const row = Array.isArray(body) ? body[0] : body
+    if (!row?.id) throw new Error('文件上传结果无效')
+    return {
+      id: row.id,
+      name: row.filename || name,
+      type: row.mime_type || file.type || '',
+      size: row.size_bytes || file.size,
+      url: `file:${row.id}`,
+      ext,
+      uploadedAt: row.created_at || new Date().toISOString()
+    }
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('文件上传超时，请检查网络后重试')
+    throw error
+  } finally {
+    window.clearTimeout(timeout)
   }
 }
 
 const createFileDropId = () => `drop-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
 async function processFileDrop(files, id = createFileDropId()) {
-  if (!Array.isArray(files) || !files.length || files.length > 10) return false
-  if (!hasCurrentAuthorization()) { invalidateAuthorization(); return false }
-  const uploaded = []
-  const errors = []
-  for (const file of files) {
-    try {
-      const saved = await uploadHarnessFile(file)
-      saved.contentExcerpt = await extractFileExcerpt(file)
-      uploaded.push(saved)
-    } catch (error) { errors.push(`${file?.name || '文件'}：${error.message}`) }
+  if (!Array.isArray(files) || !files.length) return false
+  if (files.length > MAX_DROP_FILES) {
+    ElMessage.warning(`一次最多上传 ${MAX_DROP_FILES} 个文件，请分批添加`)
+    emit('file-drop-progress', { status: 'rejected', completed: 0, total: files.length })
+    return false
   }
+  if (!hasCurrentAuthorization()) { invalidateAuthorization(); return false }
+  const uploadedByIndex = []
+  const errors = []
+  let nextIndex = 0
+  let completed = 0
+  emit('file-drop-progress', { status: 'started', completed, total: files.length })
+  const uploadOne = async () => {
+    while (nextIndex < files.length) {
+      const index = nextIndex++
+      const file = files[index]
+      try {
+        const saved = await uploadHarnessFile(file)
+        saved.contentExcerpt = await extractFileExcerpt(file)
+        uploadedByIndex[index] = saved
+      } catch (error) {
+        errors.push(`${file?.name || '文件'}：${error.message}`)
+      } finally {
+        completed += 1
+        emit('file-drop-progress', { status: 'progress', completed, total: files.length })
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(FILE_UPLOAD_CONCURRENCY, files.length) }, uploadOne))
+  const uploaded = uploadedByIndex.filter(Boolean)
   if (!frame.value?.contentWindow) return false
   frame.value.contentWindow.postMessage({
     source: 'eiscore-host',
@@ -246,6 +278,7 @@ async function processFileDrop(files, id = createFileDropId()) {
   }, window.location.origin)
   if (errors.length) ElMessage.warning(errors.join('；'))
   if (uploaded.length) ElMessage.success(`已上传 ${uploaded.length} 个文件，可在工作助手中归类并关联客户`)
+  emit('file-drop-progress', { status: 'finished', completed, total: files.length, uploaded: uploaded.length, failed: errors.length })
   return uploaded.length > 0
 }
 
@@ -255,7 +288,7 @@ async function receiveFileDrop(event) {
   if (!message || message.source !== 'eiscore-harness' || message.protocol !== FILE_DROP_PROTOCOL || message.version !== FILE_DROP_VERSION || message.type !== 'received') return
   emit('file-drop-finished')
   const id = String(message.id || '')
-  if (!/^[A-Za-z0-9._:-]{1,120}$/.test(id) || !Array.isArray(message.files) || message.files.length > 10) return
+  if (!/^[A-Za-z0-9._:-]{1,120}$/.test(id) || !Array.isArray(message.files) || message.files.length > MAX_DROP_FILES) return
   await processFileDrop(message.files, id)
 }
 

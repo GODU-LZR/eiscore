@@ -8,8 +8,9 @@
       <HarnessFullscreenButton :fullscreen="fullscreen" @toggle="toggleFullscreen" />
       <button type="button" class="worker-close" aria-label="关闭工作助手" @click="closeAssistant"><el-icon><Close /></el-icon></button>
     </header>
-    <BusinessHarnessFrame ref="harnessFrameRef" v-if="started && !excluded" :active="visible" :entry="workspaceVisible ? 'workbench' : 'worker'" @file-drop-finished="fileDropActive = false" />
+    <BusinessHarnessFrame ref="harnessFrameRef" v-if="started && !excluded" :active="visible" :entry="workspaceVisible ? 'workbench' : 'worker'" @file-drop-finished="fileDropActive = false" @file-drop-progress="handleFileDropProgress" />
     <div v-if="fileDropActive" class="file-drop-capture" aria-hidden="true">释放文件以添加</div>
+    <div v-if="fileDropProgress.active" class="file-drop-status" role="status" aria-live="polite">{{ fileDropStatusText }}</div>
   </section>
 </template>
 
@@ -32,6 +33,7 @@ const fullscreen = ref(getWorkerFullscreen())
 const started = ref(false)
 const workspaceStyle = ref({})
 const fileDropActive = ref(false)
+const fileDropProgress = ref({ active: false, status: '', completed: 0, total: 0, failed: 0 })
 const harnessFrameRef = ref(null)
 const excluded = computed(() => /^\/apps\/flash-builder(?:\/|$)/.test(route.path) || isStandaloneBusinessHarnessPath(route.path))
 const workspaceVisible = computed(() => !excluded.value && !businessHarnessState.workerCommandActive && (route.path === '/workbench' || route.path === '/') && !!businessHarnessState.workspace)
@@ -85,6 +87,30 @@ function handleHostDrop(event) {
   }
   void harnessFrameRef.value.acceptDroppedFiles(files)
 }
+function handleFileDropProgress(progress) {
+  const status = String(progress?.status || '')
+  if (status === 'started' || status === 'progress') {
+    fileDropProgress.value = {
+      active: true,
+      status,
+      completed: Number(progress.completed) || 0,
+      total: Number(progress.total) || 0,
+      failed: 0
+    }
+    return
+  }
+  fileDropProgress.value = {
+    active: false,
+    status,
+    completed: Number(progress?.completed) || 0,
+    total: Number(progress?.total) || 0,
+    failed: Number(progress?.failed) || 0
+  }
+}
+const fileDropStatusText = computed(() => {
+  const { completed, total } = fileDropProgress.value
+  return total ? `正在上传文件 ${completed}/${total}，可继续整理文字草稿` : '正在准备文件上传'
+})
 function handleWorkerCommand(event) {
   const detail = event?.detail
   if (!detail || typeof detail !== 'object') return
@@ -123,6 +149,7 @@ onBeforeUnmount(() => {
 .harness-host { position: fixed; top: 80px; right: 30px; width: 380px; height: calc(100dvh - 160px); box-sizing: border-box; z-index: 2000; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--el-border-color); border-radius: 16px; background: var(--el-bg-color); box-shadow: 0 8px 32px #0003; }
 .harness-host.is-file-drop-target { border-color: var(--el-color-primary); box-shadow: 0 0 0 2px var(--el-color-primary-light-8), 0 8px 32px #0003; }
 .file-drop-capture { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; pointer-events: none; color: var(--el-color-primary); background: rgba(255, 255, 255, .72); font-size: 14px; font-weight: 600; }
+.file-drop-status { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 5; padding: 8px 12px; border: 1px solid var(--el-border-color); border-radius: 8px; color: var(--el-text-color-regular); background: color-mix(in srgb, var(--el-bg-color) 94%, var(--el-color-primary)); box-shadow: 0 4px 16px #0002; font-size: 12px; text-align: center; }
 .harness-host.is-workspace { right: auto; z-index: 1; border: 0; border-radius: 0; box-shadow: none; }
 .harness-host.is-fullscreen { inset: 0; width: 100%; height: 100dvh; border-radius: 0; }
 .worker-header { height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid var(--el-border-color); color: var(--el-text-color-primary); }
