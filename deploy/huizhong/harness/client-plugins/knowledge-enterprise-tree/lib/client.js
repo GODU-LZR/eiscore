@@ -55,11 +55,10 @@ window.__ModuleLoader__.load({
       .eisKnowledgeSessionMenuOverlay{position:fixed;inset:0;z-index:21;pointer-events:none}
       .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:fixed;top:0;right:0;left:var(--eisKnowledge-sidebar-right,56px);pointer-events:auto}
       .eisKnowledgeSessionMenu{position:relative;display:block;min-width:0;z-index:12;container-type:inline-size}
-      .eisKnowledgeSessionMenuButton{box-sizing:border-box;width:100%;display:flex;align-items:center;gap:8px;height:42px;min-width:0;overflow:hidden;padding:0 16px;border:0;border-bottom:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:13px;line-height:20px;text-align:left}
+      .eisKnowledgeSessionMenuButton{box-sizing:border-box;position:relative;isolation:isolate;width:100%;display:flex;align-items:center;gap:8px;height:42px;min-width:0;overflow:hidden;padding:0 16px;border:0;border-bottom:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:13px;line-height:20px;text-align:left}
       .eisKnowledgeSessionMenuButton:hover,.eisKnowledgeSessionMenuButton[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
       .eisKnowledgeSessionMenuButtonIcon{display:inline-flex;flex:none;color:var(--dsw-alias-label-tertiary)}
-      .eisKnowledgeSessionMenuWorkspace{display:block;min-width:0;flex:0 0 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:20px}
-      .eisKnowledgeSessionMenuProject{display:block;box-sizing:border-box;min-width:0;flex:1 1 auto;overflow:hidden;margin-left:2px;padding-left:8px;border-left:1px solid var(--dsw-alias-border-l3);text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:20px}
+      .eisKnowledgeSessionMenuWorkspace{display:block;position:relative;min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:20px}
       .eisKnowledgeSessionMenuDisclosure{flex:none;display:inline-flex;color:var(--dsw-alias-label-tertiary);transform:rotate(90deg);transition:transform .15s var(--ds-ease-in-out)}
       .eisKnowledgeSessionMenuDisclosure[data-open="true"]{transform:rotate(-90deg)}
       .eisKnowledgeSessionMenuPanel{box-sizing:border-box;position:relative;width:100%;max-height:min(420px,55vh);display:flex;flex-direction:column;overflow:hidden;padding:6px;border-bottom:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base);box-shadow:0 8px 28px #0002;color:var(--dsw-alias-label-primary)}
@@ -74,7 +73,7 @@ window.__ModuleLoader__.load({
       .eisKnowledgeSessionMenuNew{flex:none;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:5px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
       .eisKnowledgeSessionMenuNew:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
       .eisKnowledgeSessionMenuStatus{padding:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
-      @container(max-width:180px){.eisKnowledgeSessionMenuButtonIcon,.eisKnowledgeSessionMenuProject{display:none}}
+      @container(max-width:180px){.eisKnowledgeSessionMenuButtonIcon{display:none}}
       @media(max-width:600px){.eisKnowledgeSessionMenuButton{height:38px;padding:0 10px}.eisKnowledgeSessionMenuPanel{max-height:55vh}}
       .eisKnowledgeOntologyDock{position:absolute;inset:0 0 0 auto;box-sizing:border-box;width:min(360px,100%);display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l3);box-shadow:-8px 0 24px #0001;color:var(--dsw-alias-label-primary)}
       .eisKnowledgeOntologyDockHeader{height:42px;min-height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l4);font-size:13px;font-weight:500}
@@ -462,7 +461,6 @@ window.__ModuleLoader__.load({
         h('button', { type: 'button', className: 'eisKnowledgeSessionMenuButton', 'aria-label': `会话历史，当前项目：${currentProjectTitle}，当前会话：${currentSessionTitle}`, title: `会话历史 · ${currentProjectTitle} · ${currentSessionTitle}`, 'aria-expanded': String(menuOpen), onClick: () => setMenuOpen((value) => !value) },
           h('span', { className: 'eisKnowledgeSessionMenuButtonIcon', 'aria-hidden': 'true' }, h(IconFolderOpen16, { size: 15 })),
           h('span', { className: 'eisKnowledgeSessionMenuWorkspace' }, '会话历史'),
-          h('span', { className: 'eisKnowledgeSessionMenuProject' }, currentProjectTitle),
           h('span', { className: 'eisKnowledgeSessionMenuDisclosure', 'data-open': String(menuOpen), 'aria-hidden': 'true' }, h(IconTriangleRightFill14, {}))),
         menuOpen ? h('div', { className: 'eisKnowledgeSessionMenuPanel', role: 'region', 'aria-label': '项目和会话', 'data-knowledge-session-panel': '' },
           h('div', { className: 'eisKnowledgeSessionMenuTitle' },
