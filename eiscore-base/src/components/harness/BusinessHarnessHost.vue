@@ -55,7 +55,8 @@ function closeAssistant() {
   businessHarnessState.workerCommandActive = false
 }
 function hasFiles(event) {
-  return Array.from(event?.dataTransfer?.types || []).includes('Files')
+  const transfer = event?.dataTransfer
+  return Array.from(transfer?.types || []).includes('Files') || Number(transfer?.files?.length) > 0
 }
 function handleHostDragEnter(event) {
   if (!hasFiles(event)) return

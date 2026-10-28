@@ -219,7 +219,10 @@
       ...extra
     }, location.origin)
   }
-  const hasFiles = (event) => [...(event.dataTransfer?.types || [])].includes('Files')
+  const hasFiles = (event) => {
+    const transfer = event?.dataTransfer
+    return [...(transfer?.types || [])].includes('Files') || Number(transfer?.files?.length) > 0
+  }
   const claimFileDrop = (event) => {
     if (!hasFiles(event)) return false
     event.preventDefault()

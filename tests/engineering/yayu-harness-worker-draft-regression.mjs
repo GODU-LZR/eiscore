@@ -205,4 +205,14 @@ await listeners.get('message')[1]({
 assert.equal(dropOverlayRemoved, true, 'an upload error response also clears the native image-only overlay')
 assert.equal(nativeDropResetCount, 3, 'upload errors keep DeepSeek native drag state reset')
 
+const filesOnlyDropEvent = {
+  dataTransfer: { types: [], files: [droppedFile], dropEffect: '' },
+  preventDefault() {},
+  stopPropagation() {},
+  stopImmediatePropagation() {}
+}
+documentListeners.get('drop')[0](filesOnlyDropEvent)
+assert.equal(replies.at(-1).message.type, 'received', 'file drops without a Files type marker must still be accepted')
+assert.equal(replies.at(-1).message.files[0], droppedFile)
+
 console.log('PASS: Yayu Harness worker draft and file drop require trusted origin; files stay binary and drafts paste without sending')
