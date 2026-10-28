@@ -25,6 +25,7 @@ import { prepareBusinessHarnessAuth } from '@/services/business-harness-auth'
 import { businessHarnessState } from '@/services/business-harness-controller'
 
 const props = defineProps({ active: Boolean, entry: { type: String, default: 'worker' } })
+const emit = defineEmits(['file-drop-finished'])
 const userStore = useUserStore()
 const harnessWebUrl = import.meta.env.VITE_HARNESS_WEB_URL || '/harness-embed/'
 const frame = ref(null)
@@ -252,6 +253,7 @@ async function receiveFileDrop(event) {
   const message = event.data
   if (event.origin !== window.location.origin || event.source !== frame.value?.contentWindow) return
   if (!message || message.source !== 'eiscore-harness' || message.protocol !== FILE_DROP_PROTOCOL || message.version !== FILE_DROP_VERSION || message.type !== 'received') return
+  emit('file-drop-finished')
   const id = String(message.id || '')
   if (!/^[A-Za-z0-9._:-]{1,120}$/.test(id) || !Array.isArray(message.files) || message.files.length > 10) return
   await processFileDrop(message.files, id)

@@ -8,7 +8,7 @@
       <HarnessFullscreenButton :fullscreen="fullscreen" @toggle="toggleFullscreen" />
       <button type="button" class="worker-close" aria-label="关闭工作助手" @click="closeAssistant"><el-icon><Close /></el-icon></button>
     </header>
-    <BusinessHarnessFrame ref="harnessFrameRef" v-if="started && !excluded" :active="visible" :entry="workspaceVisible ? 'workbench' : 'worker'" />
+    <BusinessHarnessFrame ref="harnessFrameRef" v-if="started && !excluded" :active="visible" :entry="workspaceVisible ? 'workbench' : 'worker'" @file-drop-finished="fileDropActive = false" />
     <div v-if="fileDropActive" class="file-drop-capture" aria-hidden="true">释放文件以添加</div>
   </section>
 </template>
