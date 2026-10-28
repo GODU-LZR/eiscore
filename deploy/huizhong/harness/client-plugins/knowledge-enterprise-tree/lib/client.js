@@ -75,8 +75,7 @@ window.__ModuleLoader__.load({
       .eisKnowledgeSessionMenuStatus{padding:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
       @container(max-width:180px){.eisKnowledgeSessionMenuButtonIcon{display:none}}
       @media(max-width:600px){.eisKnowledgeSessionMenuButton{height:38px;padding:0 10px}.eisKnowledgeSessionMenuPanel{max-height:55vh}}
-      .eisKnowledgeOntologyDock{position:fixed;inset:0 0 0 auto;box-sizing:border-box;width:56px;z-index:22;display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l3);box-shadow:-8px 0 24px #0001;color:var(--dsw-alias-label-primary);transition:width .18s var(--ds-ease-in-out)}
-      .eisKnowledgeOntologyDock[data-open="true"]{width:min(360px,calc(100vw - 56px))}
+      .eisKnowledgeOntologyDock{position:fixed;inset:0 0 0 auto;box-sizing:border-box;width:var(--eisKnowledge-ontology-right,56px);z-index:22;display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l3);box-shadow:-8px 0 24px #0001;color:var(--dsw-alias-label-primary);transition:width .18s var(--ds-ease-in-out)}
       .eisKnowledgeOntologyDockHeader{height:42px;min-height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l4);font-size:13px;font-weight:500}
       .eisKnowledgeOntologyDock[data-open="false"] .eisKnowledgeOntologyDockHeader{justify-content:center;padding:0}
       .eisKnowledgeOntologyDock[data-open="false"] .eisKnowledgeOntologyTitle{display:none}
@@ -318,8 +317,30 @@ window.__ModuleLoader__.load({
         return unsubscribe
       }, [getOpen, subscribe])
       React.useEffect(() => {
-        document.documentElement?.style?.setProperty?.('--eisKnowledge-ontology-right', open ? 'min(360px, calc(100vw - 56px))' : '56px')
-        return () => document.documentElement?.style?.setProperty?.('--eisKnowledge-ontology-right', '56px')
+        const sidebarSlot = document.querySelector?.('[data-slot="sidebar"]')
+        const sidebarColumn = sidebarSlot?.parentElement
+        const frame = sidebarColumn?.parentElement
+        if (!sidebarColumn || !frame) return undefined
+        const originalGridTemplateColumns = frame.style?.gridTemplateColumns || ''
+        const update = () => {
+          const sidebarWidth = Math.max(56, Math.round(sidebarColumn.getBoundingClientRect?.().width || 56))
+          const frameWidth = Math.round(frame.getBoundingClientRect?.().width || window.innerWidth || 0)
+          const minCenterWidth = frameWidth <= 600 ? 0 : 320
+          const ontologyWidth = open ? Math.min(360, Math.max(56, frameWidth - sidebarWidth - minCenterWidth)) : 56
+          const next = `${sidebarWidth}px minmax(0, 1fr) ${ontologyWidth}px`
+          if (frame.style?.gridTemplateColumns !== next) frame.style.gridTemplateColumns = next
+          document.documentElement?.style?.setProperty?.('--eisKnowledge-ontology-right', `${ontologyWidth}px`)
+        }
+        update()
+        const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : undefined
+        resizeObserver?.observe(sidebarColumn)
+        window.addEventListener('resize', update)
+        return () => {
+          resizeObserver?.disconnect()
+          window.removeEventListener('resize', update)
+          frame.style.gridTemplateColumns = originalGridTemplateColumns
+          document.documentElement?.style?.setProperty?.('--eisKnowledge-ontology-right', '56px')
+        }
       }, [open])
       React.useEffect(() => {
         if (!open) return

@@ -32,8 +32,7 @@ assert.doesNotMatch(source, /sidebarRight|sidebar\.right\.pane/)
 assert.match(source, /name: 'shell\.overlay'/)
 assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:fixed;inset:0 var\(--eisKnowledge-ontology-right,56px\) 0 0;z-index:21;pointer-events:none\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:fixed;top:0;right:var\(--eisKnowledge-ontology-right,56px\);left:var\(--eisKnowledge-sidebar-right,56px\);pointer-events:auto\}/)
-assert.match(source, /\.eisKnowledgeOntologyDock\{position:fixed;inset:0 0 0 auto;box-sizing:border-box;width:56px;/)
-assert.match(source, /\.eisKnowledgeOntologyDock\[data-open="true"\]\{width:min\(360px,calc\(100vw - 56px\)\)\}/)
+assert.match(source, /\.eisKnowledgeOntologyDock\{position:fixed;inset:0 0 0 auto;box-sizing:border-box;width:var\(--eisKnowledge-ontology-right,56px\);/)
 assert.match(source, /\.eisKnowledgeOntologyDock\[data-open="false"\] \.eisKnowledgeOntologyTitle\{display:none\}/)
 assert.match(source, /\.eisKnowledgeSessionMenu\{position:relative;display:block;min-width:0;z-index:12;container-type:inline-size\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuButton\{box-sizing:border-box;position:relative;isolation:isolate;/)
@@ -83,10 +82,10 @@ let sidebarLeft = 32
 const resizeObservers = new Set()
 const mutationObservers = new Set()
 const resizeListeners = new Set()
-const sidebarFrame = { style: { gridTemplateColumns: '280px minmax(0, 1fr)' } }
+const sidebarFrame = { style: { gridTemplateColumns: '280px minmax(0, 1fr)' }, getBoundingClientRect: () => ({ width: 1280 }) }
 const sidebarColumn = {
   parentElement: sidebarFrame,
-  getBoundingClientRect: () => ({ left: sidebarLeft, right: sidebarLeft + sidebarWidth })
+  getBoundingClientRect: () => ({ left: sidebarLeft, right: sidebarLeft + sidebarWidth, width: sidebarWidth })
 }
 const menuOverlayElement = {
   style: {
@@ -362,6 +361,8 @@ const dock = slotRegistrations.find(({ options }) => options.id === '@eiscore/ds
 assert.equal(dock.options.id, '@eiscore/dsh-client-knowledge-ontology-dock')
 const dockProps = dock.options.inject()
 const treeProps = registered.options.inject()
+sidebarWidth = 280
+sidebarFrame.style.gridTemplateColumns = '280px minmax(0, 1fr)'
 let dockNodes = flatten(renderComponent(dock.component, dockProps))
 assert.equal(dockNodes.find((node) => node.props?.['data-knowledge-ontology-dock'] === '').props['data-open'], 'false')
 assert.equal(dockNodes.find((node) => node.props?.['aria-label'] === '展开本体知识栏').props['aria-label'], '展开本体知识栏')
@@ -370,13 +371,16 @@ assert.equal(keyListeners.size, 0)
 dockNodes.find((node) => node.props?.['aria-label'] === '展开本体知识栏').props.onClick()
 dockNodes = flatten(renderComponent(dock.component, dockProps))
 assert.equal(dockNodes.find((node) => node.props?.['data-knowledge-ontology-dock'] === '').props['data-open'], 'true')
-assert.equal(documentRootStyle.values['--eisKnowledge-ontology-right'], 'min(360px, calc(100vw - 56px))')
+assert.equal(documentRootStyle.values['--eisKnowledge-ontology-right'], '360px')
+assert.equal(sidebarFrame.style.gridTemplateColumns, '280px minmax(0, 1fr) 360px')
 assert.equal(keyListeners.size, 1)
 const body = dockNodes.find((node) => typeof node.type === 'function')
 assert.equal(typeof body.props.loadOntology, 'function')
 dockNodes.find((node) => node.props?.['aria-label'] === '收起本体知识栏').props.onClick()
 dockNodes = flatten(renderComponent(dock.component, dockProps))
 assert.equal(dockNodes.find((node) => node.props?.['data-knowledge-ontology-dock'] === '').props['data-open'], 'false')
+assert.equal(sidebarFrame.style.gridTemplateColumns, '280px minmax(0, 1fr) 56px')
+assert.equal(documentRootStyle.values['--eisKnowledge-ontology-right'], '56px')
 assert.equal(keyListeners.size, 0)
 treeProps.openOntology()
 renderComponent(dock.component, dockProps)
@@ -389,6 +393,7 @@ treeProps.openOntology()
 renderComponent(dock.component, dockProps)
 for (const cleanup of effectCleanups.values()) cleanup()
 assert.equal(keyListeners.size, 0)
+assert.equal(sidebarFrame.style.gridTemplateColumns, '280px minmax(0, 1fr)')
 for (const cleanup of disposals) cleanup()
 assert.equal(appended[0].removed, true)
 console.log('PASS: existing-service boot contract, knowledge tree grouping/filter/search/open/new, internal ontology dock open/close/Escape, native details preserved, and cleanup')
