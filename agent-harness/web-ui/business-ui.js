@@ -259,8 +259,10 @@
     })
     const prompt = `我刚上传了客户资料文件。请先根据文件名、格式以及已提供的内容节选建议分类；没有节选时，不要推断文件内容。先向我确认客户和分类，再调用客户档案能力把文件引用写入客户资料列。\n\n${references.join('\n\n')}`
     const composer = await waitForWorkerComposer(3000)
-    if (!composer || readComposerText(composer)) return
-    try { pasteWorkerDraft(composer, prompt) } catch {}
+    if (!composer) return
+    const currentText = readComposerText(composer)
+    const nextText = currentText ? `${currentText}\n\n${prompt}` : prompt
+    try { pasteWorkerDraft(composer, nextText) } catch {}
   })
   const HARNESS_ENTRY_VERSION = 1
   const HARNESS_ENTRIES = new Set(['worker', 'workbench'])

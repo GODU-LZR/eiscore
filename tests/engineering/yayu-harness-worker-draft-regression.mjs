@@ -192,6 +192,10 @@ await listeners.get('message')[1]({
 })
 assert.equal(dropOverlayRemoved, true, 'the host upload response clears the native image-only overlay')
 assert.equal(nativeDropResetCount, 2, 'upload success keeps DeepSeek native drag state reset')
+assert.match(editor.textContent, /用户刚刚输入的内容/, 'file receipt must preserve a non-empty user draft')
+assert.match(editor.textContent, /报价单\.xlsx/, 'file receipt must display the uploaded filename in the composer')
+assert.match(editor.textContent, /引用 test-file/, 'file receipt must display the stored file reference in the composer')
+assert.equal(editor.events.at(-1), 'paste', 'file receipt must populate the composer without sending the message')
 dropOverlayRemoved = false
 await listeners.get('message')[1]({
   origin: 'https://app.example',
