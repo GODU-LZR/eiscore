@@ -52,8 +52,8 @@ window.__ModuleLoader__.load({
       .eisKnowledgeFilesStatus{padding:7px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
       .eisKnowledgeFilePreview{max-height:120px;overflow:auto;margin:0 5px 5px;padding:6px;border-radius:5px;background:var(--dsw-alias-fill-l3);color:var(--dsw-alias-label-secondary);font:10px/15px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
       .eisKnowledgeFilesInput{display:none}
-      .eisKnowledgeSessionMenuOverlay{position:fixed;inset:0;z-index:21;pointer-events:none}
-      .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:fixed;top:0;right:0;left:var(--eisKnowledge-sidebar-right,56px);pointer-events:auto}
+      .eisKnowledgeSessionMenuOverlay{position:fixed;inset:0 var(--eisKnowledge-ontology-right,56px) 0 0;z-index:21;pointer-events:none}
+      .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:fixed;top:0;right:var(--eisKnowledge-ontology-right,56px);left:var(--eisKnowledge-sidebar-right,56px);pointer-events:auto}
       .eisKnowledgeSessionMenu{position:relative;display:block;min-width:0;z-index:12;container-type:inline-size}
       .eisKnowledgeSessionMenuButton{box-sizing:border-box;position:relative;isolation:isolate;width:100%;display:flex;align-items:center;gap:8px;height:42px;min-width:0;overflow:hidden;padding:0 16px;border:0;border-bottom:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:13px;line-height:20px;text-align:left}
       .eisKnowledgeSessionMenuButton:hover,.eisKnowledgeSessionMenuButton[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
@@ -75,8 +75,15 @@ window.__ModuleLoader__.load({
       .eisKnowledgeSessionMenuStatus{padding:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
       @container(max-width:180px){.eisKnowledgeSessionMenuButtonIcon{display:none}}
       @media(max-width:600px){.eisKnowledgeSessionMenuButton{height:38px;padding:0 10px}.eisKnowledgeSessionMenuPanel{max-height:55vh}}
-      .eisKnowledgeOntologyDock{position:absolute;inset:0 0 0 auto;box-sizing:border-box;width:min(360px,100%);display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l3);box-shadow:-8px 0 24px #0001;color:var(--dsw-alias-label-primary)}
+      .eisKnowledgeOntologyDock{position:fixed;inset:0 0 0 auto;box-sizing:border-box;width:56px;z-index:22;display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l3);box-shadow:-8px 0 24px #0001;color:var(--dsw-alias-label-primary);transition:width .18s var(--ds-ease-in-out)}
+      .eisKnowledgeOntologyDock[data-open="true"]{width:min(360px,calc(100vw - 56px))}
       .eisKnowledgeOntologyDockHeader{height:42px;min-height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l4);font-size:13px;font-weight:500}
+      .eisKnowledgeOntologyDock[data-open="false"] .eisKnowledgeOntologyDockHeader{justify-content:center;padding:0}
+      .eisKnowledgeOntologyDock[data-open="false"] .eisKnowledgeOntologyTitle{display:none}
+      .eisKnowledgeOntologyDockToggle{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
+      .eisKnowledgeOntologyDockToggle:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
+      .eisKnowledgeOntologyDock[data-open="false"] .eisKnowledgeOntologyDockToggle svg{transform:rotate(180deg)}
+      .eisKnowledgeOntologyDockBody{min-height:0;flex:1;overflow:hidden}
       .eisKnowledgeOntologyTab{height:100%;min-height:0;display:flex;flex-direction:column;padding:12px;color:var(--dsw-alias-label-primary);overflow:hidden}
       .eisKnowledgeOntologyHeader{display:flex;align-items:center;gap:8px;margin-bottom:10px}
       .eisKnowledgeOntologyHeader strong{min-width:0;flex:1;font-size:14px;font-weight:600}
@@ -311,17 +318,20 @@ window.__ModuleLoader__.load({
         return unsubscribe
       }, [getOpen, subscribe])
       React.useEffect(() => {
+        document.documentElement?.style?.setProperty?.('--eisKnowledge-ontology-right', open ? 'min(360px, calc(100vw - 56px))' : '56px')
+        return () => document.documentElement?.style?.setProperty?.('--eisKnowledge-ontology-right', '56px')
+      }, [open])
+      React.useEffect(() => {
         if (!open) return
         const onKeyDown = (event) => { if (event.key === 'Escape') close() }
         window.addEventListener('keydown', onKeyDown)
         return () => window.removeEventListener('keydown', onKeyDown)
       }, [open, close])
-      if (!open) return null
-      return h('aside', { className: 'eisKnowledgeOntologyDock', 'aria-label': '本体面板', 'data-knowledge-ontology-dock': '' },
+      return h('aside', { className: 'eisKnowledgeOntologyDock', 'aria-label': open ? '本体知识栏' : '收起的本体知识栏', 'data-open': String(open), 'data-knowledge-ontology-dock': '' },
         h('div', { className: 'eisKnowledgeOntologyDockHeader' },
-          h('span', null, '本体'),
-          h('button', { type: 'button', className: 'eisKnowledgeTreeIconButton', onClick: close, 'aria-label': '关闭本体面板', title: '关闭本体面板' }, h(IconCloseFill14, {}))),
-        h(KnowledgeOntologyBody, { loadOntology }))
+          h('span', { className: 'eisKnowledgeOntologyTitle' }, '本体知识'),
+          h('button', { type: 'button', className: 'eisKnowledgeOntologyDockToggle', onClick: open ? close : () => setOpen(true), 'aria-label': open ? '收起本体知识栏' : '展开本体知识栏', title: open ? '收起本体知识栏' : '展开本体知识栏' }, h(IconTriangleRightFill14, {}))),
+        open ? h('div', { className: 'eisKnowledgeOntologyDockBody' }, h(KnowledgeOntologyBody, { loadOntology })) : null)
     }
 
     const useLiveSnapshot = (source, fallback) => {

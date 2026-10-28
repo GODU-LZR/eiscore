@@ -30,8 +30,11 @@ if (modules) {
 const source = readFileSync(new URL('lib/client.js', pluginDir), 'utf8')
 assert.doesNotMatch(source, /sidebarRight|sidebar\.right\.pane/)
 assert.match(source, /name: 'shell\.overlay'/)
-assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:fixed;inset:0;z-index:21;pointer-events:none\}/)
-assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:fixed;top:0;right:0;left:var\(--eisKnowledge-sidebar-right,56px\);pointer-events:auto\}/)
+assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:fixed;inset:0 var\(--eisKnowledge-ontology-right,56px\) 0 0;z-index:21;pointer-events:none\}/)
+assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:fixed;top:0;right:var\(--eisKnowledge-ontology-right,56px\);left:var\(--eisKnowledge-sidebar-right,56px\);pointer-events:auto\}/)
+assert.match(source, /\.eisKnowledgeOntologyDock\{position:fixed;inset:0 0 0 auto;box-sizing:border-box;width:56px;/)
+assert.match(source, /\.eisKnowledgeOntologyDock\[data-open="true"\]\{width:min\(360px,calc\(100vw - 56px\)\)\}/)
+assert.match(source, /\.eisKnowledgeOntologyDock\[data-open="false"\] \.eisKnowledgeOntologyTitle\{display:none\}/)
 assert.match(source, /\.eisKnowledgeSessionMenu\{position:relative;display:block;min-width:0;z-index:12;container-type:inline-size\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuButton\{box-sizing:border-box;position:relative;isolation:isolate;/)
 assert.match(source, /\.eisKnowledgeSessionMenuWorkspace\{display:block;position:relative;min-width:0;flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:20px\}/)
@@ -125,8 +128,10 @@ const window = {
   }) } }
 }
 const appended = []
+const documentRootStyle = { values: {}, setProperty(name, value) { this.values[name] = value } }
 const document = {
   createElement: () => ({ remove() { this.removed = true } }),
+  documentElement: { style: documentRootStyle },
   querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : null,
   head: { appendChild: (node) => appended.push(node) }
 }
@@ -357,23 +362,28 @@ const dock = slotRegistrations.find(({ options }) => options.id === '@eiscore/ds
 assert.equal(dock.options.id, '@eiscore/dsh-client-knowledge-ontology-dock')
 const dockProps = dock.options.inject()
 const treeProps = registered.options.inject()
-assert.equal(renderComponent(dock.component, dockProps), null)
-assert.equal(keyListeners.size, 0)
-treeProps.openOntology()
 let dockNodes = flatten(renderComponent(dock.component, dockProps))
-assert.equal(dockNodes.some((node) => node.props?.['data-knowledge-ontology-dock'] === ''), true)
+assert.equal(dockNodes.find((node) => node.props?.['data-knowledge-ontology-dock'] === '').props['data-open'], 'false')
+assert.equal(dockNodes.find((node) => node.props?.['aria-label'] === '展开本体知识栏').props['aria-label'], '展开本体知识栏')
+assert.equal(documentRootStyle.values['--eisKnowledge-ontology-right'], '56px')
+assert.equal(keyListeners.size, 0)
+dockNodes.find((node) => node.props?.['aria-label'] === '展开本体知识栏').props.onClick()
+dockNodes = flatten(renderComponent(dock.component, dockProps))
+assert.equal(dockNodes.find((node) => node.props?.['data-knowledge-ontology-dock'] === '').props['data-open'], 'true')
+assert.equal(documentRootStyle.values['--eisKnowledge-ontology-right'], 'min(360px, calc(100vw - 56px))')
 assert.equal(keyListeners.size, 1)
 const body = dockNodes.find((node) => typeof node.type === 'function')
 assert.equal(typeof body.props.loadOntology, 'function')
-dockNodes.find((node) => node.props?.['aria-label'] === '关闭本体面板').props.onClick()
-assert.equal(renderComponent(dock.component, dockProps), null)
+dockNodes.find((node) => node.props?.['aria-label'] === '收起本体知识栏').props.onClick()
+dockNodes = flatten(renderComponent(dock.component, dockProps))
+assert.equal(dockNodes.find((node) => node.props?.['data-knowledge-ontology-dock'] === '').props['data-open'], 'false')
 assert.equal(keyListeners.size, 0)
 treeProps.openOntology()
 renderComponent(dock.component, dockProps)
 for (const listener of keyListeners) listener({ key: 'Enter' })
-assert.notEqual(renderComponent(dock.component, dockProps), null)
+assert.equal(renderComponent(dock.component, dockProps).props['data-open'], 'true')
 for (const listener of keyListeners) listener({ key: 'Escape' })
-assert.equal(renderComponent(dock.component, dockProps), null)
+assert.equal(renderComponent(dock.component, dockProps).props['data-open'], 'false')
 assert.equal(keyListeners.size, 0)
 treeProps.openOntology()
 renderComponent(dock.component, dockProps)
