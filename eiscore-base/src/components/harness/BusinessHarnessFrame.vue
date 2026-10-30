@@ -52,6 +52,8 @@ const MAX_DROP_FILES = 20
 const MAX_FILE_BYTES = 20 * 1024 * 1024
 const FILE_UPLOAD_TIMEOUT_MS = 45_000
 const FILE_UPLOAD_CONCURRENCY = 3
+const FILE_REQUEST_TIMEOUT_MS = 15_000
+const FILE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/
 const FILE_EXTENSIONS = new Set([
   'jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'mp4', 'mp3',
   'md', 'txt', 'csv', 'wav', 'm4a', 'ogg', 'aac', 'flac'
@@ -233,6 +235,27 @@ async function uploadHarnessFile(file) {
   }
 }
 
+async function requestHarnessFile(path, options = {}) {
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), FILE_REQUEST_TIMEOUT_MS)
+  try {
+    const response = await fetch(path, {
+      credentials: 'same-origin',
+      ...options,
+      headers: { ...getAuthHeader(), ...(options.headers || {}) },
+      signal: controller.signal
+    })
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok) throw new Error(String(body?.message || '文件操作失败'))
+    return body
+  } catch (error) {
+    if (error?.name === 'AbortError') throw new Error('文件操作超时，请检查网络后重试')
+    throw error
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
 const createFileDropId = () => `drop-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
 async function processFileDrop(files, id = createFileDropId()) {
@@ -285,7 +308,40 @@ async function processFileDrop(files, id = createFileDropId()) {
 async function receiveFileDrop(event) {
   const message = event.data
   if (event.origin !== window.location.origin || event.source !== frame.value?.contentWindow) return
-  if (!message || message.source !== 'eiscore-harness' || message.protocol !== FILE_DROP_PROTOCOL || message.version !== FILE_DROP_VERSION || message.type !== 'received') return
+  if (!message || message.source !== 'eiscore-harness' || message.protocol !== FILE_DROP_PROTOCOL || message.version !== FILE_DROP_VERSION) return
+  if (message.type === 'delete-request' || message.type === 'preview-request') {
+    const fileId = String(message.fileId || '')
+    if (!FILE_ID_PATTERN.test(fileId) || !frame.value?.contentWindow) return
+    if (message.type === 'delete-request') {
+      try {
+        const body = await requestHarnessFile(`/agent/ai/harness/files/delete?id=${encodeURIComponent(fileId)}`, { method: 'DELETE' })
+        frame.value?.contentWindow?.postMessage({
+          source: 'eiscore-host', protocol: FILE_DROP_PROTOCOL, version: FILE_DROP_VERSION,
+          type: 'deleted', fileId, deleted: body?.deleted === true
+        }, window.location.origin)
+      } catch (error) {
+        frame.value?.contentWindow?.postMessage({
+          source: 'eiscore-host', protocol: FILE_DROP_PROTOCOL, version: FILE_DROP_VERSION,
+          type: 'delete-error', fileId, error: error?.message || '文件删除失败'
+        }, window.location.origin)
+      }
+      return
+    }
+    try {
+      const body = await requestHarnessFile(`/agent/ai/harness/files/read?id=${encodeURIComponent(fileId)}`)
+      frame.value?.contentWindow?.postMessage({
+        source: 'eiscore-host', protocol: FILE_DROP_PROTOCOL, version: FILE_DROP_VERSION,
+        type: 'previewed', fileId, file: body
+      }, window.location.origin)
+    } catch (error) {
+      frame.value?.contentWindow?.postMessage({
+        source: 'eiscore-host', protocol: FILE_DROP_PROTOCOL, version: FILE_DROP_VERSION,
+        type: 'preview-error', fileId, error: error?.message || '文件预览失败'
+      }, window.location.origin)
+    }
+    return
+  }
+  if (message.type !== 'received') return
   emit('file-drop-finished')
   const id = String(message.id || '')
   if (!/^[A-Za-z0-9._:-]{1,120}$/.test(id) || !Array.isArray(message.files) || message.files.length > MAX_DROP_FILES) return

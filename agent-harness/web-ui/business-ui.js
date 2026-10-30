@@ -103,6 +103,161 @@
   const getWorkerComposer = () => [...document.querySelectorAll(WORKER_COMPOSER_SELECTOR)]
     .reverse()
     .find((composer) => composer.isConnected && composer.getClientRects().length > 0) || null
+  const uploadedFiles = new Map()
+  const watchedComposers = new WeakSet()
+  const formatFileSize = (value) => {
+    const size = Number(value)
+    if (!Number.isFinite(size) || size <= 0) return '大小未知'
+    if (size < 1024) return `${size} B`
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`
+  }
+  const fileReference = (file) => {
+    const name = file.name || '未命名文件'
+    const type = file.type || '未知格式'
+    const id = file.id || ''
+    const excerpt = text(file.contentExcerpt).slice(0, 9000)
+    return `文件：${name}（${type}；引用 ${id}）${excerpt ? `\n内容节选：\n${excerpt}` : '\n尚无可读取的内容节选'}`
+  }
+  const attachmentRootFor = (composer) => {
+    const parent = composer?.parentElement
+    if (!parent) return null
+    let root = parent.querySelector?.('[data-eis-file-attachments]')
+    if (!root) {
+      root = document.createElement('div')
+      root.dataset.eisFileAttachments = 'true'
+      root.setAttribute('aria-label', '已添加文件')
+      parent.insertBefore?.(root, composer)
+    }
+    return root
+  }
+  const clearFileReferenceFromComposer = (file) => {
+    const composer = getWorkerComposer()
+    const reference = String(file?.referenceText || '')
+    if (!composer || !reference || !readComposerText(composer).includes(reference)) return
+    const current = readComposerText(composer)
+    const next = normalizedDraftText(current.replace(reference, '').replace(/\n{3,}/g, '\n\n'))
+    try { pasteWorkerDraft(composer, next) } catch {}
+  }
+  const sendFileDropMessage = (type, id, extra = {}) => {
+    window.parent.postMessage({
+      source: 'eiscore-harness',
+      protocol: FILE_DROP_PROTOCOL,
+      version: FILE_DROP_VERSION,
+      type,
+      id,
+      ...extra
+    }, location.origin)
+  }
+  const requestFilePreview = (file) => {
+    if (!file?.id || file.previewState === 'loading') return
+    file.previewState = 'loading'
+    file.previewError = ''
+    renderFileAttachments()
+    sendFileDropMessage('preview-request', `preview-${Date.now()}`, { fileId: file.id })
+  }
+  const requestFileDelete = (file) => {
+    if (!file?.id || file.deleteState === 'loading') return
+    if (typeof window.confirm === 'function' && !window.confirm(`永久删除“${file.name || '此文件'}”？此操作不可撤销。`)) return
+    file.deleteState = 'loading'
+    file.deleteError = ''
+    renderFileAttachments()
+    sendFileDropMessage('delete-request', `delete-${Date.now()}`, { fileId: file.id })
+  }
+  const removeFileFromDraft = (file) => {
+    clearFileReferenceFromComposer(file)
+    uploadedFiles.delete(file.id)
+    renderFileAttachments()
+  }
+  const renderFilePreview = (row, file) => {
+    if (!file.previewOpen) return
+    const preview = document.createElement('div')
+    preview.className = 'eis-file-preview'
+    if (file.previewState === 'loading') {
+      preview.textContent = '正在读取文件预览…'
+    } else if (file.previewError) {
+      preview.textContent = file.previewError
+    } else if (file.preview?.content_base64 && /^image\//i.test(file.preview.mime_type || file.type || '')) {
+      const image = document.createElement('img')
+      image.alt = file.name || '文件预览'
+      image.src = `data:${file.preview.mime_type || file.type};base64,${file.preview.content_base64}`
+      preview.appendChild(image)
+    } else if (file.preview?.content_base64 && /^audio\//i.test(file.preview.mime_type || file.type || '')) {
+      const audio = document.createElement('audio')
+      audio.controls = true
+      audio.src = `data:${file.preview.mime_type || file.type};base64,${file.preview.content_base64}`
+      preview.appendChild(audio)
+    } else if (text(file.contentExcerpt)) {
+      const excerpt = document.createElement('pre')
+      excerpt.textContent = file.contentExcerpt
+      preview.appendChild(excerpt)
+    } else {
+      preview.textContent = '该文件类型暂提供文件信息预览。'
+    }
+    row.appendChild(preview)
+  }
+  function renderFileAttachments(composer = getWorkerComposer()) {
+    const root = attachmentRootFor(composer)
+    if (!root) return
+    root.textContent = ''
+    if (!uploadedFiles.size) {
+      root.remove?.()
+      return
+    }
+    for (const file of uploadedFiles.values()) {
+      const row = document.createElement('div')
+      row.className = 'eis-file-attachment'
+      row.dataset.fileId = file.id
+      const icon = document.createElement('span')
+      icon.className = 'eis-file-attachment-icon'
+      icon.textContent = /^image\//i.test(file.type || '') ? '图' : /^audio\//i.test(file.type || '') ? '音' : '件'
+      const detail = document.createElement('span')
+      detail.className = 'eis-file-attachment-detail'
+      const name = document.createElement('strong')
+      name.textContent = file.name || '未命名文件'
+      const meta = document.createElement('small')
+      meta.textContent = `${file.type || '未知格式'} · ${formatFileSize(file.size)}${file.deleteState === 'loading' ? ' · 正在删除' : ''}`
+      detail.append(name, meta)
+      const preview = document.createElement('button')
+      preview.type = 'button'
+      preview.className = 'eis-file-attachment-action'
+      preview.textContent = file.previewOpen ? '收起' : '预览'
+      preview.title = file.previewOpen ? '收起文件预览' : '预览文件'
+      preview.addEventListener?.('click', () => {
+        file.previewOpen = !file.previewOpen
+        if (file.previewOpen && !file.preview && !file.contentExcerpt) requestFilePreview(file)
+        renderFileAttachments()
+      })
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'eis-file-attachment-action'
+      remove.textContent = '×'
+      remove.title = '从当前草稿移除（不删除原文件）'
+      remove.setAttribute('aria-label', `从当前草稿移除 ${file.name || '文件'}`)
+      remove.addEventListener?.('click', () => removeFileFromDraft(file))
+      const destroy = document.createElement('button')
+      destroy.type = 'button'
+      destroy.className = 'eis-file-attachment-action eis-file-attachment-delete'
+      destroy.textContent = file.deleteState === 'loading' ? '…' : '删'
+      destroy.title = '永久删除原文件'
+      destroy.setAttribute('aria-label', `永久删除 ${file.name || '文件'}`)
+      destroy.disabled = file.deleteState === 'loading'
+      destroy.addEventListener?.('click', () => requestFileDelete(file))
+      row.append(icon, detail, preview, remove, destroy)
+      renderFilePreview(row, file)
+      root.appendChild(row)
+    }
+  }
+  const watchComposer = (composer) => {
+    if (!composer || watchedComposers.has(composer)) return
+    watchedComposers.add(composer)
+    composer.addEventListener?.('input', () => {
+      if (!readComposerText(composer)) {
+        uploadedFiles.clear()
+        renderFileAttachments(composer)
+      }
+    })
+  }
   const sendWorkerDraftReply = (type, id, extra = {}) => {
     window.parent.postMessage({
       source: 'eiscore-harness',
@@ -209,16 +364,6 @@
   // The Harness page is same-origin after the Yayu proxy rewrite. Keep binary
   // files in the host upload path and send only stable file references back to
   // the model-facing composer; this avoids duplicating Base64 data in chat.
-  const sendFileDropMessage = (type, id, extra = {}) => {
-    window.parent.postMessage({
-      source: 'eiscore-harness',
-      protocol: FILE_DROP_PROTOCOL,
-      version: FILE_DROP_VERSION,
-      type,
-      id,
-      ...extra
-    }, location.origin)
-  }
   const hasFiles = (event) => {
     const transfer = event?.dataTransfer
     return [...(transfer?.types || [])].includes('Files') || Number(transfer?.files?.length) > 0
@@ -253,19 +398,46 @@
     const message = event.data
     if (!message || message.source !== 'eiscore-host' || message.protocol !== FILE_DROP_PROTOCOL || message.version !== FILE_DROP_VERSION) return
     clearFileDropOverlay()
+    if (message.type === 'deleted' || message.type === 'delete-error' || message.type === 'previewed' || message.type === 'preview-error') {
+      const fileId = String(message.fileId || '')
+      const file = uploadedFiles.get(fileId)
+      if (!file) return
+      if (message.type === 'deleted') {
+        clearFileReferenceFromComposer(file)
+        uploadedFiles.delete(fileId)
+      } else if (message.type === 'delete-error') {
+        file.deleteState = ''
+        file.deleteError = text(message.error) || '文件删除失败'
+      } else if (message.type === 'previewed') {
+        file.previewState = ''
+        file.previewError = ''
+        file.preview = message.file && typeof message.file === 'object' ? message.file : null
+      } else {
+        file.previewState = ''
+        file.previewError = text(message.error) || '文件预览失败'
+      }
+      renderFileAttachments()
+      return
+    }
     if (message.type !== 'uploaded' || !Array.isArray(message.files) || !message.files.length) return
     let remaining = 9000
     const references = message.files.map((file) => {
-      const excerpt = text(file.contentExcerpt).slice(0, Math.max(0, remaining))
+      const normalized = { ...file, id: String(file.id || ''), name: text(file.name) || '未命名文件', type: text(file.type) || '未知格式' }
+      normalized.referenceText = fileReference({ ...normalized, contentExcerpt: text(file.contentExcerpt).slice(0, Math.max(0, remaining)) })
+      normalized.contentExcerpt = text(file.contentExcerpt).slice(0, Math.max(0, remaining))
+      uploadedFiles.set(normalized.id, normalized)
+      const excerpt = normalized.contentExcerpt
       remaining -= excerpt.length
-      return `文件：${file.name || '未命名文件'}（${file.type || '未知格式'}；引用 ${file.id || ''}）${excerpt ? `\n内容节选：\n${excerpt}` : '\n尚无可读取的内容节选'}`
+      return normalized.referenceText
     })
     const prompt = `我刚上传了客户资料文件。请先根据文件名、格式以及已提供的内容节选建议分类；没有节选时，不要推断文件内容。先向我确认客户和分类，再调用客户档案能力把文件引用写入客户资料列。\n\n${references.join('\n\n')}`
     const composer = await waitForWorkerComposer(3000)
     if (!composer) return
+    watchComposer(composer)
     const currentText = readComposerText(composer)
     const nextText = currentText ? `${currentText}\n\n${prompt}` : prompt
     try { pasteWorkerDraft(composer, nextText) } catch {}
+    renderFileAttachments(composer)
   })
   const HARNESS_ENTRY_VERSION = 1
   const HARNESS_ENTRIES = new Set(['worker', 'workbench'])
