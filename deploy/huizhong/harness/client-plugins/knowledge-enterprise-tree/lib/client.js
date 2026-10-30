@@ -14,7 +14,7 @@ window.__ModuleLoader__.load({
     const ROOT_ID = 'enterprise-knowledge-root'
     const STYLE_ID = 'eiscore-knowledge-enterprise-tree-style'
     const styles = `
-      .eisKnowledgeTree{height:100%;min-height:0;display:flex;flex:1;flex-direction:column;color:var(--dsw-alias-label-primary)}
+      .eisKnowledgeTree{width:100%;min-width:0;max-width:100%;height:100%;min-height:0;display:flex;flex:1;flex-direction:column;overflow:hidden;color:var(--dsw-alias-label-primary)}
       .eisKnowledgeTreeHeader{height:42px;min-height:42px;display:flex;align-items:center;gap:6px;padding:0 8px}
       .eisKnowledgeTreeLabel{min-width:0;flex:1;font-size:13px;font-weight:500;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .eisKnowledgeTreeIconButton{width:28px;height:28px;flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer}
@@ -321,14 +321,14 @@ window.__ModuleLoader__.load({
         const sidebarColumn = sidebarSlot?.parentElement
         const frame = sidebarColumn?.parentElement
         if (!sidebarColumn || !frame) return undefined
-        const originalGridTemplateColumns = frame.style?.gridTemplateColumns || ''
+        const originalInlinePaddingRight = frame.style?.paddingRight || ''
+        const basePaddingRight = window.getComputedStyle?.(frame)?.paddingRight || originalInlinePaddingRight || '0px'
         const update = () => {
           const sidebarWidth = Math.max(56, Math.round(sidebarColumn.getBoundingClientRect?.().width || 56))
           const frameWidth = Math.round(frame.getBoundingClientRect?.().width || window.innerWidth || 0)
           const minCenterWidth = frameWidth <= 600 ? 0 : 320
           const ontologyWidth = open ? Math.min(360, Math.max(56, frameWidth - sidebarWidth - minCenterWidth)) : 56
-          const next = `${sidebarWidth}px minmax(0, 1fr) ${ontologyWidth}px`
-          if (frame.style?.gridTemplateColumns !== next) frame.style.gridTemplateColumns = next
+          if (frame.style) frame.style.paddingRight = `calc(${basePaddingRight} + ${ontologyWidth}px)`
           document.documentElement?.style?.setProperty?.('--eisKnowledge-ontology-right', `${ontologyWidth}px`)
         }
         update()
@@ -338,7 +338,7 @@ window.__ModuleLoader__.load({
         return () => {
           resizeObserver?.disconnect()
           window.removeEventListener('resize', update)
-          frame.style.gridTemplateColumns = originalGridTemplateColumns
+          if (frame.style) frame.style.paddingRight = originalInlinePaddingRight
           document.documentElement?.style?.setProperty?.('--eisKnowledge-ontology-right', '56px')
         }
       }, [open])

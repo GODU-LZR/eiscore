@@ -42,6 +42,8 @@ assert.match(source, /@container\(max-width:180px\)\{\.eisKnowledgeSessionMenuBu
 assert.match(source, /\.eisKnowledgeSessionMenuDisclosure\[data-open="true"\]\{transform:rotate\(-90deg\)\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuPanel\{box-sizing:border-box;position:relative;width:100%/)
 assert.match(source, /getBoundingClientRect/)
+assert.match(source, /frame\.style\.paddingRight = `calc\(\$\{basePaddingRight\} \+ \$\{ontologyWidth\}px\)`/)
+assert.doesNotMatch(source, /frame\.style\.gridTemplateColumns\s*=/)
 assert.match(source, /new ResizeObserver\(update\)/)
 assert.match(source, /new MutationObserver\(update\)/)
 for (const expected of [
@@ -82,7 +84,7 @@ let sidebarLeft = 32
 const resizeObservers = new Set()
 const mutationObservers = new Set()
 const resizeListeners = new Set()
-const sidebarFrame = { style: { gridTemplateColumns: '280px minmax(0, 1fr)' }, getBoundingClientRect: () => ({ width: 1280 }) }
+const sidebarFrame = { style: { gridTemplateColumns: '280px minmax(0, 1fr)', paddingRight: '12px' }, getBoundingClientRect: () => ({ width: 1280 }) }
 const sidebarColumn = {
   parentElement: sidebarFrame,
   getBoundingClientRect: () => ({ left: sidebarLeft, right: sidebarLeft + sidebarWidth, width: sidebarWidth })
@@ -105,6 +107,7 @@ class MutationObserver {
 }
 const notifySidebarResize = (width) => {
   sidebarWidth = width
+  sidebarFrame.style.gridTemplateColumns = `${width}px minmax(0, 1fr)`
   for (const observer of resizeObservers) observer.callback()
 }
 const notifyFrameMutation = (width) => {
@@ -115,6 +118,7 @@ const notifyFrameMutation = (width) => {
 const window = {
   setTimeout,
   clearTimeout,
+  getComputedStyle: () => ({ paddingRight: sidebarFrame.style.paddingRight || '12px' }),
   addEventListener: (name, listener) => { if (name === 'keydown') keyListeners.add(listener); else { assert.equal(name, 'resize'); resizeListeners.add(listener) } },
   removeEventListener: (name, listener) => { if (name === 'keydown') keyListeners.delete(listener); else { assert.equal(name, 'resize'); resizeListeners.delete(listener) } },
   __ModuleLoader__: { load: (descriptor) => { plugin = descriptor.factory((name) => name === 'react' ? React : {
@@ -367,21 +371,29 @@ let dockNodes = flatten(renderComponent(dock.component, dockProps))
 assert.equal(dockNodes.find((node) => node.props?.['data-knowledge-ontology-dock'] === '').props['data-open'], 'false')
 assert.equal(dockNodes.find((node) => node.props?.['aria-label'] === '展开本体知识栏').props['aria-label'], '展开本体知识栏')
 assert.equal(documentRootStyle.values['--eisKnowledge-ontology-right'], '56px')
+assert.equal(sidebarFrame.style.paddingRight, 'calc(12px + 56px)')
 assert.equal(keyListeners.size, 0)
 dockNodes.find((node) => node.props?.['aria-label'] === '展开本体知识栏').props.onClick()
 dockNodes = flatten(renderComponent(dock.component, dockProps))
 assert.equal(dockNodes.find((node) => node.props?.['data-knowledge-ontology-dock'] === '').props['data-open'], 'true')
 assert.equal(documentRootStyle.values['--eisKnowledge-ontology-right'], '360px')
-assert.equal(sidebarFrame.style.gridTemplateColumns, '280px minmax(0, 1fr) 360px')
+assert.equal(sidebarFrame.style.gridTemplateColumns, '280px minmax(0, 1fr)')
+assert.equal(sidebarFrame.style.paddingRight, 'calc(12px + 360px)')
 assert.equal(keyListeners.size, 1)
 const body = dockNodes.find((node) => typeof node.type === 'function')
 assert.equal(typeof body.props.loadOntology, 'function')
 dockNodes.find((node) => node.props?.['aria-label'] === '收起本体知识栏').props.onClick()
 dockNodes = flatten(renderComponent(dock.component, dockProps))
 assert.equal(dockNodes.find((node) => node.props?.['data-knowledge-ontology-dock'] === '').props['data-open'], 'false')
-assert.equal(sidebarFrame.style.gridTemplateColumns, '280px minmax(0, 1fr) 56px')
+assert.equal(sidebarFrame.style.gridTemplateColumns, '280px minmax(0, 1fr)')
+assert.equal(sidebarFrame.style.paddingRight, 'calc(12px + 56px)')
 assert.equal(documentRootStyle.values['--eisKnowledge-ontology-right'], '56px')
 assert.equal(keyListeners.size, 0)
+for (const width of [220, 160, 100, 56]) {
+  notifySidebarResize(width)
+  assert.equal(sidebarFrame.style.gridTemplateColumns, `${width}px minmax(0, 1fr)`)
+}
+assert.equal(sidebarFrame.style.paddingRight, 'calc(12px + 56px)')
 treeProps.openOntology()
 renderComponent(dock.component, dockProps)
 for (const listener of keyListeners) listener({ key: 'Enter' })
@@ -393,7 +405,7 @@ treeProps.openOntology()
 renderComponent(dock.component, dockProps)
 for (const cleanup of effectCleanups.values()) cleanup()
 assert.equal(keyListeners.size, 0)
-assert.equal(sidebarFrame.style.gridTemplateColumns, '280px minmax(0, 1fr)')
+assert.equal(sidebarFrame.style.paddingRight, '12px')
 for (const cleanup of disposals) cleanup()
 assert.equal(appended[0].removed, true)
 console.log('PASS: existing-service boot contract, knowledge tree grouping/filter/search/open/new, internal ontology dock open/close/Escape, native details preserved, and cleanup')
