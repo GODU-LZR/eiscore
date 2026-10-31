@@ -38,7 +38,7 @@ const permissionsFor = (context) => new Set((Array.isArray(context?.permissions)
 const canViewCustomerFiles = (context) => context?.fieldAcl?.[CUSTOMER_MODULE]?.customer_files?.canView !== false;
 const canEditCustomerFiles = (context) => context?.fieldAcl?.[CUSTOMER_MODULE]?.customer_files?.canEdit !== false;
 
-const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSemanticContext, notifyCustomerFilesUpdated = () => {}, now = () => new Date() } = {}) => {
+const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSemanticContext, notifyCustomerRecordUpdated = () => {}, notifyCustomerFilesUpdated = () => {}, now = () => new Date() } = {}) => {
   if (typeof callPostgrestWithUser !== 'function') throw new TypeError('Customer records PostgREST adapter is required');
   if (typeof fetchSemanticContext !== 'function') throw new TypeError('Customer records semantic context loader is required');
 
@@ -139,6 +139,18 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
     } catch {}
   };
 
+  const notifyCustomerRecordWrite = (user, customerId, operation) => {
+    if (!customerId) return;
+    try {
+      notifyCustomerRecordUpdated({
+        userId: text(user?.id || user?.username, 160),
+        tenantId: text(user?.tenant_id || user?.tenantId, 160),
+        customerId,
+        operation
+      });
+    } catch {}
+  };
+
   const normalizeValues = (input, { creating = false } = {}) => {
     const raw = object(input.values);
     const values = {};
@@ -202,10 +214,15 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
       if (!list.some((item) => item?.id === fileId)) list.push({ id: fileId, name: fileRow.filename, type: fileRow.mime_type, size: Number(fileRow.size_bytes), url: `file:${fileId}`, category: text(input.category || '未分类', 80), classificationReason: text(input.classification_reason || input.classificationReason || '', 500), source: 'harness', contentAvailable: false, attachedAt: now().toISOString() });
       properties.customer_files = list;
       const result = await updateCustomer(user, id, { properties }, row.updated_at, request, context);
+      notifyCustomerRecordWrite(user, id, operation);
       notifyCustomerFileWrite(user, id);
       return result;
     }
-    if (deleting) return updateCustomer(user, id, { status: 'deleted' }, input.expected_updated_at || input.expectedUpdatedAt, request, context);
+    if (deleting) {
+      const result = await updateCustomer(user, id, { status: 'deleted' }, input.expected_updated_at || input.expectedUpdatedAt, request, context);
+      notifyCustomerRecordWrite(user, id, operation);
+      return result;
+    }
     const values = normalizeValues(input, { creating });
     if (creating && !values.customer_no) {
       const idempotencyKey = text(request.idempotency_key || request.idempotencyKey, 128);
@@ -216,9 +233,13 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
       assertCustomerFileFieldWrite(values, context);
       assertFieldAclWrite(values, context, CUSTOMER_TABLE, CUSTOMER_MODULE);
       const response = await callPostgrestWithUser(user, { method: 'POST', path: '/sales_customers', body: values, acceptProfile: 'public', contentProfile: 'public', prefer: 'return=representation', timeoutMs: 10000 });
-      return { operation, row: Array.isArray(response?.data) ? response.data[0] : response?.data, fileContentAvailable: false };
+      const row = Array.isArray(response?.data) ? response.data[0] : response?.data;
+      notifyCustomerRecordWrite(user, row?.id, operation);
+      if (Object.hasOwn(values.properties || {}, 'customer_files')) notifyCustomerFileWrite(user, row?.id);
+      return { operation, row, fileContentAvailable: false };
     }
     const result = await updateCustomer(user, id, values, input.expected_updated_at || input.expectedUpdatedAt, request, context);
+    notifyCustomerRecordWrite(user, id, operation);
     if (Object.hasOwn(values.properties || {}, 'customer_files')) notifyCustomerFileWrite(user, id);
     return result;
   };

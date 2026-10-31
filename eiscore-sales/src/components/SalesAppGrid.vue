@@ -2928,7 +2928,7 @@ const parseRealtimePayload = (event) => {
 }
 
 const handleRealtimeEvent = (event) => {
-  if (event?.type === 'customer_files_updated' && app.value.key === 'customers') {
+  if (['customer_record_updated', 'customer_files_updated'].includes(event?.type) && app.value.key === 'customers') {
     scheduleGridReload()
     return
   }

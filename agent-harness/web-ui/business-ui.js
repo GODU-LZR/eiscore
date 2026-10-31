@@ -12,7 +12,7 @@
   const assetUrl = new URL(document.currentScript?.src || '/harness-embed/eiscore-ui/business-ui.js', location.href)
   if (assetUrl.origin !== location.origin) return
   const ASSET_ROOT = new URL('./', assetUrl).href
-  const VERSION = 'business-visual-v1'
+  const VERSION = 'business-visual-v2'
   const framePolicy = document.createElement('meta')
   framePolicy.httpEquiv = 'Content-Security-Policy'
   framePolicy.content = "frame-src 'none'"

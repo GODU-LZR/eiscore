@@ -34,6 +34,8 @@ button[aria-label^="Access mode, current:"] {
 .eis-file-preview img { display: block; max-width: min(100%, 320px); max-height: 160px; object-fit: contain; border-radius: 4px; }
 .eis-file-preview audio { display: block; width: min(100%, 360px); }
 .eis-file-preview pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 11px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+[data-composer-input][contenteditable="true"]::before,
+[data-composer-input][contenteditable="true"]::after { content: none !important; display: none !important; }
 @media (max-width: 480px) { .eis-visual-output { margin: 8px 0; border-radius: 6px; } .eis-visual-frame { height: 400px; } }
 @media (max-width: 768px) {
   [data-slot="conversation.view"] :has(> [data-chat-flow]) { padding-inline: 12px; }

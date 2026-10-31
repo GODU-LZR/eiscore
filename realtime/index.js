@@ -340,19 +340,30 @@ const authorizeHttpRequest = (req, res) => {
   return user;
 };
 
+const notifyCustomerRealtime = (userId, tenantId, event) => {
+  wss.clients.forEach((client) => {
+    if (client.readyState !== WebSocket.OPEN) return;
+    if (String(client.user?.id || '') !== userId || String(client.user?.tenant_id || '') !== tenantId) return;
+    sendWsJson(client, event);
+  });
+};
+
 const customerRecords = flashRuntime ? null : createHarnessCustomerRecordsExecutor({
   callPostgrestWithUser,
   fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user),
+  notifyCustomerRecordUpdated: ({ userId, tenantId, customerId, operation }) => {
+    notifyCustomerRealtime(userId, tenantId, {
+      type: 'customer_record_updated',
+      customer_id: customerId,
+      operation,
+      ts: new Date().toISOString()
+    });
+  },
   notifyCustomerFilesUpdated: ({ userId, tenantId, customerId }) => {
-    const event = {
+    notifyCustomerRealtime(userId, tenantId, {
       type: 'customer_files_updated',
       customer_id: customerId,
       ts: new Date().toISOString()
-    };
-    wss.clients.forEach((client) => {
-      if (client.readyState !== WebSocket.OPEN) return;
-      if (String(client.user?.id || '') !== userId || String(client.user?.tenant_id || '') !== tenantId) return;
-      sendWsJson(client, event);
     });
   }
 });
