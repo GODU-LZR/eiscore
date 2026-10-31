@@ -16,6 +16,7 @@
   const AUTH_RECOVERY_PROTOCOL = 'eiscore-harness-auth'
   const AUTH_RECOVERY_VERSION = 1
   const AUTH_RECOVERY_COOLDOWN_MS = 30_000
+  const AUTH_FETCH_WRAPPED = Symbol('eiscore-harness-auth-fetch')
   let authRecoverySent = false
   let authRecoveryTimer
   const notifyAuthRequired = () => {
@@ -30,15 +31,32 @@
       type: 'auth-required'
     }, location.origin)
   }
-  const nativeFetch = window.fetch
-  if (typeof nativeFetch === 'function') {
-    window.fetch = async (...args) => {
-      const response = await nativeFetch(...args)
+  const wrapAuthFetch = (fetchImpl) => {
+    if (typeof fetchImpl !== 'function' || fetchImpl[AUTH_FETCH_WRAPPED]) return fetchImpl
+    const wrapped = async (...args) => {
+      const response = await fetchImpl.apply(window, args)
       let pathname = ''
       try { pathname = new URL(typeof Request !== 'undefined' && args[0] instanceof Request ? args[0].url : String(args[0]), location.href).pathname } catch {}
       if (response?.status === 401 && ['/api/session/create', '/api/session/prompt'].includes(pathname)) notifyAuthRequired()
       return response
     }
+    try { Object.defineProperty(wrapped, AUTH_FETCH_WRAPPED, { value: true }) } catch {}
+    return wrapped
+  }
+  const nativeFetch = window.fetch
+  if (typeof nativeFetch === 'function') {
+    let wrappedFetch = wrapAuthFetch(nativeFetch)
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(window, 'fetch')
+      if (!descriptor || descriptor.configurable !== false) {
+        Object.defineProperty(window, 'fetch', {
+          configurable: true,
+          enumerable: descriptor?.enumerable ?? true,
+          get: () => wrappedFetch,
+          set: (value) => { wrappedFetch = wrapAuthFetch(value) }
+        })
+      } else window.fetch = wrappedFetch
+    } catch { window.fetch = wrappedFetch }
   }
   const framePolicy = document.createElement('meta')
   framePolicy.httpEquiv = 'Content-Security-Policy'

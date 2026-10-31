@@ -216,6 +216,7 @@ await window.fetch('/api/session/prompt', { method: 'POST' })
 await window.fetch('/api/session/list')
 assert.equal(replies.length, 1, 'auth recovery must not spam or react to unrelated 401 routes')
 recoveryTimers.shift()()
+window.fetch = async () => ({ status: 401 })
 await window.fetch('/api/session/prompt', { method: 'POST' })
 assert.equal(replies.length, 2, 'a later auth expiry must be able to request recovery again')
 replies.length = 0
