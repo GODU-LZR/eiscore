@@ -34,10 +34,23 @@ const dropCopyNodes = [
   { nodeType: 3, nodeValue: '请把图片拖拽在上面' }
 ]
 const parentWindow = { postMessage: (message, origin) => replies.push({ message, origin }) }
+const attachmentParent = {
+  children: [],
+  querySelector(selector) {
+    return selector === '[data-eis-file-attachments]'
+      ? this.children.find((node) => node.dataset?.eisFileAttachments === 'true') || null
+      : null
+  },
+  insertBefore(node, reference) {
+    node.parentElement = this
+    this.children.splice(Math.max(0, this.children.indexOf(reference)), 0, node)
+  }
+}
 const editor = {
   isConnected: true,
   innerText: 'Current draft',
   textContent: 'Current draft',
+  parentElement: attachmentParent,
   getClientRects: () => [{}],
   focus() {},
   dispatchEvent(event) {
@@ -58,7 +71,17 @@ const document = {
   body,
   documentElement: body,
   head: { appendChild() {} },
-  createElement: () => ({ setAttribute() {}, appendChild() {}, remove() {} }),
+  createElement: () => ({
+    dataset: {},
+    children: [],
+    setAttribute() {},
+    append(...nodes) { this.children.push(...nodes) },
+    appendChild(node) { this.children.push(node) },
+    addEventListener() {},
+    remove() {
+      if (this.parentElement) this.parentElement.children = this.parentElement.children.filter((node) => node !== this)
+    }
+  }),
   createTreeWalker: (root, whatToShow) => {
     assert.equal(whatToShow, 4, 'drop copy rewriting must walk text nodes only')
     let index = 0
@@ -201,6 +224,16 @@ assert.match(editor.textContent, /用户刚刚输入的内容/, 'file receipt mu
 assert.match(editor.textContent, /报价单\.xlsx/, 'file receipt must display the uploaded filename in the composer')
 assert.match(editor.textContent, /引用 test-file/, 'file receipt must display the stored file reference in the composer')
 assert.equal(editor.events.at(-1), 'paste', 'file receipt must populate the composer without sending the message')
+const attachmentObserver = mutationObservers.at(-1)
+const initialAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
+assert.equal(initialAttachmentRoot.children.length, 1, 'uploaded files must render an attachment row beside the composer')
+initialAttachmentRoot.remove()
+attachmentObserver.callback([{ type: 'childList', target: attachmentParent, removedNodes: [initialAttachmentRoot], addedNodes: [] }])
+const restoredAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
+assert.ok(restoredAttachmentRoot, 'a composer rerender must restore the removed attachment root')
+assert.equal(restoredAttachmentRoot.children.length, 1, 'restoring the root must also restore uploaded file rows')
+attachmentObserver.callback([{ type: 'childList', target: attachmentParent, addedNodes: [{}], removedNodes: [] }])
+assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]'), restoredAttachmentRoot, 'unrelated edits must not rebuild an intact attachment list')
 dropOverlayRemoved = false
 await listeners.get('message')[1]({
   origin: 'https://app.example',

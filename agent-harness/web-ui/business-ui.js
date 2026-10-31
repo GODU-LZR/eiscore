@@ -105,6 +105,20 @@
     .find((composer) => composer.isConnected && composer.getClientRects().length > 0) || null
   const uploadedFiles = new Map()
   const watchedComposers = new WeakSet()
+  let attachmentObserver
+  const ensureAttachmentObserver = () => {
+    if (attachmentObserver || typeof MutationObserver !== 'function') return
+    const root = document.documentElement || document.body
+    if (!root) return
+    attachmentObserver = new MutationObserver(() => {
+      if (!uploadedFiles.size) return
+      const composer = getWorkerComposer()
+      const attachmentRoot = composer?.parentElement?.querySelector?.('[data-eis-file-attachments]')
+      if (composer && !attachmentRoot) renderFileAttachments(composer)
+    })
+    attachmentObserver.observe(root, { childList: true, subtree: true })
+    window.addEventListener('pagehide', () => attachmentObserver?.disconnect(), { once: true })
+  }
   const formatFileSize = (value) => {
     const size = Number(value)
     if (!Number.isFinite(size) || size <= 0) return '大小未知'
@@ -430,6 +444,7 @@
       remaining -= excerpt.length
       return normalized.referenceText
     })
+    ensureAttachmentObserver()
     const prompt = `我刚上传了客户资料文件。请先根据文件名、格式以及已提供的内容节选建议分类；没有节选时，不要推断文件内容。先向我确认客户和分类，再调用客户档案能力把文件引用写入客户资料列。\n\n${references.join('\n\n')}`
     const composer = await waitForWorkerComposer(3000)
     if (!composer) return
