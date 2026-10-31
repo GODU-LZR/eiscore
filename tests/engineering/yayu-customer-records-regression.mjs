@@ -2,6 +2,8 @@
 
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 const require = createRequire(import.meta.url)
 const { createHarnessCustomerRecordsExecutor } = require('../../realtime/customer-records.js')
@@ -29,8 +31,10 @@ const context = {
   }
 }
 const calls = []
+const fileUpdateEvents = []
 const executor = createHarnessCustomerRecordsExecutor({
   fetchSemanticContext: async () => context,
+  notifyCustomerFilesUpdated: (event) => fileUpdateEvents.push(event),
   callPostgrestWithUser: async (_user, options) => {
     calls.push(options)
     if (options.method === 'GET' && options.path === '/sales_customers') {
@@ -75,5 +79,15 @@ const attached = await executor.execute(user, { operation: 'attach_file', custom
 assert.equal(attached.operation, 'update')
 assert.equal(calls.at(-1).query.updated_at, 'eq.2026-10-27T00:00:00Z')
 assert.equal(calls.at(-1).body.properties.customer_files[0].id, fileId)
+assert.deepEqual(fileUpdateEvents, [{ userId: user.id, tenantId: user.tenant_id, customerId }], 'successful attachment writes notify the matching user and tenant')
+
+const grid = readFileSync(resolve(import.meta.dirname, '../../eiscore-sales/src/components/SalesAppGrid.vue'), 'utf8')
+const frame = readFileSync(resolve(import.meta.dirname, '../../eiscore-base/src/components/harness/BusinessHarnessFrame.vue'), 'utf8')
+const businessUi = readFileSync(resolve(import.meta.dirname, '../../agent-harness/web-ui/business-ui.js'), 'utf8')
+assert.match(grid, /event\?\.type === 'customer_files_updated'[\s\S]{0,140}scheduleGridReload\(\)/, 'the customer grid reloads when attachment is committed')
+assert.match(grid, /enableRealtime\.value \|\| app\.value\.key === 'customers'/, 'customer archive always subscribes to the existing realtime client')
+assert.doesNotMatch(frame, /contentExcerpt|extractFileExcerpt/)
+assert.doesNotMatch(businessUi, /contentExcerpt|内容节选/)
+assert.doesNotMatch(frame, /eis-harness-files-uploaded/)
 
 console.log('PASS: customer archive Harness query/write ACL, idempotency, optimistic concurrency, and attachment ownership contract')

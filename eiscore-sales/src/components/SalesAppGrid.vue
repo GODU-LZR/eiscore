@@ -2928,6 +2928,10 @@ const parseRealtimePayload = (event) => {
 }
 
 const handleRealtimeEvent = (event) => {
+  if (event?.type === 'customer_files_updated' && app.value.key === 'customers') {
+    scheduleGridReload()
+    return
+  }
   const payload = parseRealtimePayload(event)
   if (!payload) return
   const tableName = normalizeApiBaseUrl(app.value.writeUrl || app.value.apiUrl).replace(/^\//, '')
@@ -3228,7 +3232,7 @@ watch([attentionFilter, gridDataApiUrl], () => {
  
 onMounted(() => {
   loadStaticColumnsConfig().then(loadColumnsConfig)
-  if (enableRealtime.value) {
+  if (enableRealtime.value || app.value.key === 'customers') {
     const realtime = getRealtimeClient()
     realtimeUnsub = realtime.subscribe(handleRealtimeEvent)
   }

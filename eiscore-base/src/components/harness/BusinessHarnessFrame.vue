@@ -158,40 +158,6 @@ const fileExtension = (name) => {
   return index >= 0 ? value.slice(index + 1) : ''
 }
 
-const extractFileExcerpt = async (file) => {
-  const extension = fileExtension(file?.name)
-  try {
-    if (['md', 'txt', 'csv'].includes(extension)) {
-      const text = await file.text()
-      return String(text || '').replace(/\u0000/g, '').trim().slice(0, 4000)
-    }
-    if (extension === 'docx') {
-      const mammoth = await import('mammoth')
-      const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })
-      return String(result.value || '').replace(/\u0000/g, '').trim().slice(0, 4000)
-    }
-    if (['xls', 'xlsx'].includes(extension)) {
-      const module = await import('xlsx')
-      const XLSX = module.default || module
-      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', sheets: undefined })
-      let remaining = 4000
-      const sections = []
-      for (const name of workbook.SheetNames || []) {
-        if (remaining <= 0) break
-        const source = XLSX.utils.sheet_to_csv(workbook.Sheets[name], { FS: '\t' }).trim()
-        if (!source) continue
-        const section = `${name}:\n${source}`.slice(0, remaining)
-        sections.push(section)
-        remaining -= section.length
-      }
-      return sections.join('\n\n')
-    }
-  } catch {
-    return ''
-  }
-  return ''
-}
-
 async function uploadHarnessFile(file) {
   if (!file || typeof file.arrayBuffer !== 'function') throw new Error('文件格式无效')
   const name = String(file.name || '').trim().slice(0, 240)
@@ -277,7 +243,6 @@ async function processFileDrop(files, id = createFileDropId()) {
       const file = files[index]
       try {
         const saved = await uploadHarnessFile(file)
-        saved.contentExcerpt = await extractFileExcerpt(file)
         uploadedByIndex[index] = saved
       } catch (error) {
         errors.push(`${file?.name || '文件'}：${error.message}`)

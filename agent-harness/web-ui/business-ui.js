@@ -131,8 +131,7 @@
     const name = file.name || '未命名文件'
     const type = file.type || '未知格式'
     const id = file.id || ''
-    const excerpt = text(file.contentExcerpt).slice(0, 9000)
-    return `文件：${name}（${type}；引用 ${id}）${excerpt ? `\n内容节选：\n${excerpt}` : '\n尚无可读取的内容节选'}`
+    return `文件：${name}（${type}；引用 ${id}）`
   }
   const attachmentRootFor = (composer) => {
     const parent = composer?.parentElement
@@ -202,10 +201,6 @@
       audio.controls = true
       audio.src = `data:${file.preview.mime_type || file.type};base64,${file.preview.content_base64}`
       preview.appendChild(audio)
-    } else if (text(file.contentExcerpt)) {
-      const excerpt = document.createElement('pre')
-      excerpt.textContent = file.contentExcerpt
-      preview.appendChild(excerpt)
     } else {
       preview.textContent = '该文件类型暂提供文件信息预览。'
     }
@@ -240,7 +235,7 @@
       preview.title = file.previewOpen ? '收起文件预览' : '预览文件'
       preview.addEventListener?.('click', () => {
         file.previewOpen = !file.previewOpen
-        if (file.previewOpen && !file.preview && !file.contentExcerpt) requestFilePreview(file)
+        if (file.previewOpen && !file.preview) requestFilePreview(file)
         renderFileAttachments()
       })
       const remove = document.createElement('button')
@@ -448,18 +443,14 @@
       return
     }
     if (message.type !== 'uploaded' || !Array.isArray(message.files) || !message.files.length) return
-    let remaining = 9000
     const references = message.files.map((file) => {
       const normalized = { ...file, id: String(file.id || ''), name: text(file.name) || '未命名文件', type: text(file.type) || '未知格式' }
-      normalized.referenceText = fileReference({ ...normalized, contentExcerpt: text(file.contentExcerpt).slice(0, Math.max(0, remaining)) })
-      normalized.contentExcerpt = text(file.contentExcerpt).slice(0, Math.max(0, remaining))
+      normalized.referenceText = fileReference(normalized)
       uploadedFiles.set(normalized.id, normalized)
-      const excerpt = normalized.contentExcerpt
-      remaining -= excerpt.length
       return normalized.referenceText
     })
     ensureAttachmentObserver()
-    const prompt = `我刚上传了客户资料文件。请先根据文件名、格式以及已提供的内容节选建议分类；没有节选时，不要推断文件内容。先向我确认客户和分类，再调用客户档案能力把文件引用写入客户资料列。\n\n${references.join('\n\n')}`
+    const prompt = `我刚上传了客户资料文件。请先根据文件名和格式建议分类，不要推断文件正文。先向我确认客户和分类，再调用客户档案能力把文件引用写入客户资料列。\n\n${references.join('\n\n')}`
     const composer = await waitForWorkerComposer(3000)
     if (!composer) return
     watchComposer(composer)

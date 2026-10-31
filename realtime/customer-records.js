@@ -38,7 +38,7 @@ const permissionsFor = (context) => new Set((Array.isArray(context?.permissions)
 const canViewCustomerFiles = (context) => context?.fieldAcl?.[CUSTOMER_MODULE]?.customer_files?.canView !== false;
 const canEditCustomerFiles = (context) => context?.fieldAcl?.[CUSTOMER_MODULE]?.customer_files?.canEdit !== false;
 
-const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSemanticContext, now = () => new Date() } = {}) => {
+const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSemanticContext, notifyCustomerFilesUpdated = () => {}, now = () => new Date() } = {}) => {
   if (typeof callPostgrestWithUser !== 'function') throw new TypeError('Customer records PostgREST adapter is required');
   if (typeof fetchSemanticContext !== 'function') throw new TypeError('Customer records semantic context loader is required');
 
@@ -129,6 +129,16 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
     }
   };
 
+  const notifyCustomerFileWrite = (user, customerId) => {
+    try {
+      notifyCustomerFilesUpdated({
+        userId: text(user?.id || user?.username, 160),
+        tenantId: text(user?.tenant_id || user?.tenantId, 160),
+        customerId
+      });
+    } catch {}
+  };
+
   const normalizeValues = (input, { creating = false } = {}) => {
     const raw = object(input.values);
     const values = {};
@@ -191,7 +201,9 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
       const list = Array.isArray(properties.customer_files) ? properties.customer_files.slice(0, 20) : [];
       if (!list.some((item) => item?.id === fileId)) list.push({ id: fileId, name: fileRow.filename, type: fileRow.mime_type, size: Number(fileRow.size_bytes), url: `file:${fileId}`, category: text(input.category || '未分类', 80), classificationReason: text(input.classification_reason || input.classificationReason || '', 500), source: 'harness', contentAvailable: false, attachedAt: now().toISOString() });
       properties.customer_files = list;
-      return updateCustomer(user, id, { properties }, row.updated_at, request, context);
+      const result = await updateCustomer(user, id, { properties }, row.updated_at, request, context);
+      notifyCustomerFileWrite(user, id);
+      return result;
     }
     if (deleting) return updateCustomer(user, id, { status: 'deleted' }, input.expected_updated_at || input.expectedUpdatedAt, request, context);
     const values = normalizeValues(input, { creating });
@@ -206,7 +218,9 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
       const response = await callPostgrestWithUser(user, { method: 'POST', path: '/sales_customers', body: values, acceptProfile: 'public', contentProfile: 'public', prefer: 'return=representation', timeoutMs: 10000 });
       return { operation, row: Array.isArray(response?.data) ? response.data[0] : response?.data, fileContentAvailable: false };
     }
-    return updateCustomer(user, id, values, input.expected_updated_at || input.expectedUpdatedAt, request, context);
+    const result = await updateCustomer(user, id, values, input.expected_updated_at || input.expectedUpdatedAt, request, context);
+    if (Object.hasOwn(values.properties || {}, 'customer_files')) notifyCustomerFileWrite(user, id);
+    return result;
   };
 
   const updateCustomer = async (user, id, values, expectedUpdatedAt, request, context) => {

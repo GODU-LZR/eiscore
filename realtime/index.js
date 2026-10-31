@@ -342,7 +342,19 @@ const authorizeHttpRequest = (req, res) => {
 
 const customerRecords = flashRuntime ? null : createHarnessCustomerRecordsExecutor({
   callPostgrestWithUser,
-  fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user)
+  fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user),
+  notifyCustomerFilesUpdated: ({ userId, tenantId, customerId }) => {
+    const event = {
+      type: 'customer_files_updated',
+      customer_id: customerId,
+      ts: new Date().toISOString()
+    };
+    wss.clients.forEach((client) => {
+      if (client.readyState !== WebSocket.OPEN) return;
+      if (String(client.user?.id || '') !== userId || String(client.user?.tenant_id || '') !== tenantId) return;
+      sendWsJson(client, event);
+    });
+  }
 });
 const executeCustomerQuery = customerRecords?.execute
   ? (user, payload = {}, request = {}) => customerRecords.execute(user, { ...payload, operation: 'query' }, request)
