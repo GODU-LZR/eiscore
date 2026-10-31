@@ -80,6 +80,47 @@ try {
   await write.execute(payload, exec)
   assert.equal(calls[2].body.idempotency_key, approved.body.idempotency_key, 'A retried approved tool call keeps its idempotency key')
   assert.notEqual(calls[2].body.request_id, approved.body.request_id)
+
+  const customerId = 'customer-sequence-1'
+  const version0 = '2026-10-31T00:00:00.000Z'
+  const version1 = '2026-10-31T00:01:00.000Z'
+  const version2 = '2026-10-31T00:02:00.000Z'
+  const version3 = '2026-10-31T00:03:00.000Z'
+  const version4 = '2026-10-31T00:04:00.000Z'
+  let sequentialWriteCount = 0
+  let customerWriteResponse = () => {
+    sequentialWriteCount++
+    const updatedAt = [version1, version2, version3, version4][sequentialWriteCount - 1]
+    return Response.json({ data: { operation: 'update', row: { id: customerId, updated_at: updatedAt } } })
+  }
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body)
+    calls.push({ url: String(url), options, body })
+    if (body.capability_id === customerQuery.name) return Response.json({ data: { operation: 'query', rows: [{ id: customerId, updated_at: version0 }] } })
+    if (body.capability_id === customerWrite.name) return customerWriteResponse(body)
+    return Response.json({ data: { accepted: true } })
+  }
+  await customerQuery.execute({ customer_id: customerId }, exec)
+  const repeatedCustomerWrite = { operation: 'update', customer_id: customerId, expected_updated_at: version0, values: { name: '连续更新' } }
+  await customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-1' })
+  await customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-2' })
+  assert.equal(calls.at(-2).body.payload.expected_updated_at, version0, 'the first customer write uses the queried row version')
+  assert.equal(calls.at(-1).body.payload.expected_updated_at, version1, 'a consecutive write automatically uses the latest successful row version')
+
+  customerWriteResponse = () => Response.json({ code: 'HARNESS_CUSTOMER_CONFLICT', message: 'Customer changed' }, { status: 409 })
+  await assert.rejects(customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-conflict' }), /Customer changed/)
+  assert.equal(calls.at(-1).body.payload.expected_updated_at, version2, 'a conflict uses the last successful version')
+  customerWriteResponse = () => Response.json({ data: { operation: 'update', row: { id: customerId, updated_at: version3 } } })
+  await customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-after-conflict' })
+  assert.equal(calls.at(-1).body.payload.expected_updated_at, version2, 'a failed write does not advance the cached version')
+
+  customerWriteResponse = () => Response.json({ ok: false, code: 'HARNESS_CUSTOMER_CONFLICT', message: 'Customer changed' })
+  await assert.rejects(customerWrite.execute({ ...repeatedCustomerWrite, operation: 'delete' }, { ...exec, callId: 'customer-delete-structured-failure' }), /Customer changed/)
+  assert.equal(calls.at(-1).body.payload.expected_updated_at, version3, 'a structured Harness failure does not clear the cached version')
+  customerWriteResponse = () => Response.json({ data: { operation: 'delete', row: { id: customerId, updated_at: version4 } } })
+  await customerWrite.execute({ ...repeatedCustomerWrite, operation: 'delete' }, { ...exec, callId: 'customer-delete-success' })
+  await customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-after-delete' })
+  assert.equal(calls.at(-1).body.payload.expected_updated_at, version0, 'a successful delete clears the cached row version')
   token = ''
   const beforeLogout = calls.length
   const beforeLogoutApproval = approvals.length

@@ -266,6 +266,56 @@ const TOOL_SCHEMAS = Object.freeze({
 const proxyUrl = () => String(process.env.EISCORE_TOOL_PROXY_URL || '').replace(/\/+$/, '')
 const proxySecret = () => String(process.env.EISCORE_TOOL_PROXY_SECRET || '')
 const FLASH_CONTEXT_KEY = Symbol.for('eiscore.dsh.flash-context')
+const CUSTOMER_WRITE_OPERATIONS = new Set(['update', 'delete', 'attach_file'])
+const customerWriteVersions = new Map()
+
+const customerWriteVersionKey = (sessionId, customerId) => `${sessionId}\u0000${customerId}`
+
+const rememberCustomerVersion = (sessionId, row) => {
+  const customerId = String(row?.id || '').trim()
+  const updatedAt = String(row?.updated_at || '').trim()
+  if (!sessionId || !customerId || !updatedAt) return
+  const key = customerWriteVersionKey(sessionId, customerId)
+  const current = customerWriteVersions.get(key)
+  if (current && Date.parse(current) > Date.parse(updatedAt)) return
+  customerWriteVersions.delete(key)
+  customerWriteVersions.set(key, updatedAt)
+  while (customerWriteVersions.size > 512) customerWriteVersions.delete(customerWriteVersions.keys().next().value)
+}
+
+const currentCustomerWriteVersion = (args, sessionId) => {
+  const operation = String(args?.operation || args?.action || '').trim()
+  if (!CUSTOMER_WRITE_OPERATIONS.has(operation)) return args
+  const customerId = String(args.customer_id || args.customerId || args.id || '').trim()
+  const current = customerId && sessionId ? customerWriteVersions.get(customerWriteVersionKey(sessionId, customerId)) : ''
+  if (!current) return args
+  const supplied = String(args.expected_updated_at || args.expectedUpdatedAt || '').trim()
+  if (supplied) {
+    const suppliedMs = Date.parse(supplied)
+    const currentMs = Date.parse(current)
+    if (!Number.isFinite(suppliedMs) || !Number.isFinite(currentMs) || currentMs <= suppliedMs) return args
+  }
+  return {
+    ...args,
+    expected_updated_at: current,
+    ...(Object.hasOwn(args, 'expectedUpdatedAt') ? { expectedUpdatedAt: current } : {})
+  }
+}
+
+const rememberCustomerVersions = (capability, sessionId, args, result) => {
+  if (!sessionId || !result || typeof result !== 'object') return
+  if (capability === 'eiscore_customer_query') {
+    for (const row of Array.isArray(result.rows) ? result.rows : []) rememberCustomerVersion(sessionId, row)
+    return
+  }
+  if (capability !== 'eiscore_customer_write') return
+  if (String(args?.operation || args?.action || '').trim() === 'delete') {
+    const customerId = String(args.customer_id || args.customerId || args.id || '').trim()
+    if (customerId) customerWriteVersions.delete(customerWriteVersionKey(sessionId, customerId))
+    return
+  }
+  rememberCustomerVersion(sessionId, result.row)
+}
 
 const flashContextSessionId = (exec) => {
   const currentSessionId = String(exec?.agent?.session?.id || '').trim()
@@ -359,15 +409,18 @@ const callWebCapability = async (ctx, capability, args, exec) => {
   const origin = new URL(String(process.env.EISCORE_GATEWAY_URL || ''))
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('EISCore gateway is unavailable')
   const requestId = randomUUID()
+  const payload = capability === 'eiscore_customer_write' ? currentCustomerWriteVersion(args, sessionId) : args
   const idempotency = createHash('sha256').update(JSON.stringify([sessionId, exec.callId || requestId, capability, args])).digest('hex')
   const response = await fetch(new URL('/ai/harness/execute', origin), {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify({ request_id: requestId, session_id: sessionId, plugin_id: policy.plugin_id, agent_id: policy.agent_id, capability_id: capability, payload: args || {}, mode: 'standard', ...(policy.confirm_required ? { confirmed: true, idempotency_key: idempotency } : {}) }),
+    body: JSON.stringify({ request_id: requestId, session_id: sessionId, plugin_id: policy.plugin_id, agent_id: policy.agent_id, capability_id: capability, payload: payload || {}, mode: 'standard', ...(policy.confirm_required ? { confirmed: true, idempotency_key: idempotency } : {}) }),
     signal: exec?.signal
   })
   const body = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(String(body?.message || 'EISCore capability request failed'))
-  return body?.data === undefined ? body : body.data
+  if (!response.ok || body?.ok === false) throw new Error(String(body?.message || 'EISCore capability request failed'))
+  const result = body?.data === undefined ? body : body.data
+  rememberCustomerVersions(capability, sessionId, payload, result)
+  return result
 }
 
 export const name = 'eiscore-tools'
@@ -389,7 +442,7 @@ const capabilityDescription = (capability) => {
     return `${base} Query the authenticated user's sales customer archive, including properties.customer_files metadata. Results never include file binary content; use the file reference for preview/download.`
   }
   if (capability === 'eiscore_customer_write') {
-    return `${base} Manage the authenticated user's sales customer archive. Writes require explicit confirmation and are idempotent. Use expected_updated_at for update/delete/attach_file. File classification is based on filename, MIME and user supplied category only; the tool does not read file bytes.`
+    return `${base} Manage the authenticated user's sales customer archive. Writes require explicit confirmation and are idempotent. Use expected_updated_at for update/delete/attach_file; after each successful write, use the returned row.updated_at for the next write, or query the row again before continuing. File classification is based on filename, MIME and user supplied category only; the tool does not read file bytes.`
   }
   return base
 }
