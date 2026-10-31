@@ -65,10 +65,12 @@ export async function ensureHarnessAuth(options = {}, isCurrent = () => true) {
   if (!isCurrent()) return false
   const apiPrefix = String(options.authApiPrefix || '/harness-embed-api').trim()
   const expectedUser = currentHarnessUser(options.authorization)
+  const forceHandoff = options.force === true
   if (!String(options.authorization || '').trim() || !HARNESS_AUTH_API_PREFIXES.has(apiPrefix)) {
     return isCurrent() ? prepareHarnessAuth(options, isCurrent) : false
   }
   if (!expectedUser) return isCurrent() ? prepareHarnessAuth(options, isCurrent) : false
+  if (forceHandoff) return isCurrent() ? prepareHarnessAuth(options, isCurrent) : false
   try {
     const response = await request(`${apiPrefix}/eiscore/auth/status`, {
       method: 'GET',

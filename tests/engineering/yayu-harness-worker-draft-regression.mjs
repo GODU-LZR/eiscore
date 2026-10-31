@@ -14,6 +14,7 @@ assert.match(launcher, /event\.origin !== harnessOrigin\(\) \|\| event\.source !
 assert.match(launcher, /ElMessageBox\.confirm/)
 assert.match(businessFrame, /AUTH_STATUS_INTERVAL_MS = 30_000/)
 assert.match(businessFrame, /prepareBusinessHarnessAuth\(/)
+assert.match(businessFrame, /refreshHarnessAuth\(\{ notify: true, force: true \}\)/)
 assert.match(businessFrame, /当前消息未自动重发/)
 assert.doesNotMatch(businessFrame, /session\/prompt/)
 assert.match(businessUi, /AUTH_RECOVERY_COOLDOWN_MS = 30_000/)

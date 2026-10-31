@@ -112,21 +112,24 @@ function invalidateAuthorization() {
   failed.value = true
 }
 
-async function refreshHarnessAuth({ notify = false } = {}) {
+async function refreshHarnessAuth({ notify = false, force = false } = {}) {
   if (!props.active || !ready.value || failed.value) return false
   if (!hasCurrentAuthorization()) { invalidateAuthorization(); return false }
-  if (authStatusFlight) return authStatusFlight
+  if (authStatusFlight) {
+    if (!force) return authStatusFlight
+    return authStatusFlight.catch(() => false).then(() => refreshHarnessAuth({ notify, force: true }))
+  }
   const id = requestId
   const authorization = authorizationSnapshot
   authStatusFlight = prepareBusinessHarnessAuth(
-    { harnessWebUrl, authorization },
+    { harnessWebUrl, authorization, force },
     () => id === requestId && props.active && getAuthHeader().Authorization === authorization
   ).then((success) => {
     if (id !== requestId || !props.active) return false
     if (success) {
       authorizationSnapshot = authorization
       authRefreshWarned = false
-      if (notify) ElMessage.info('工作助手已重新核验认证，当前消息未自动重发；请检查后手动重试')
+      if (notify) ElMessage.info('工作助手已重新建立认证，当前消息未自动重发；请检查后手动重试')
       return true
     }
     if (!authRefreshWarned) {
@@ -142,7 +145,7 @@ function receiveHarnessAuth(event) {
   if (event.origin !== window.location.origin || event.source !== frame.value?.contentWindow) return
   const message = event.data
   if (message?.source !== 'eiscore-harness' || message.protocol !== AUTH_RECOVERY_PROTOCOL || message.version !== AUTH_RECOVERY_VERSION || message.type !== 'auth-required') return
-  void refreshHarnessAuth({ notify: true })
+  void refreshHarnessAuth({ notify: true, force: true })
 }
 
 function startAuthStatusMonitor() {

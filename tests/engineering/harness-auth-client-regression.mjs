@@ -51,6 +51,20 @@ try {
   assert.equal(statusCalls[0].options.credentials, 'same-origin')
   assert.equal(statusCalls[0].options.cache, 'no-store')
 
+  const forcedRecoveryCalls = []
+  globalThis.fetch = async (url) => {
+    forcedRecoveryCalls.push(url)
+    if (url.endsWith('/auth/start')) return { ok: true, json: async () => ({ url: 'https://yayu.example/login?token=x' }) }
+    if (url === '/company-site/auth/handoff') return { ok: true, json: async () => ({ code: 'single-use' }) }
+    return { ok: true, json: async () => ({ authenticated: true, user: currentUser }) }
+  }
+  assert.equal(await ensureHarnessAuth({ harnessWebUrl: '/harness-embed/', authorization, force: true }), true)
+  assert.deepEqual(forcedRecoveryCalls, [
+    '/harness-embed-api/eiscore/auth/start',
+    '/company-site/auth/handoff',
+    '/harness-embed-api/eiscore/auth/handoff'
+  ], 'a prompt 401 must force a fresh Harness handoff even when the EISCore session cookie is valid')
+
   const switchedAccountCalls = []
   globalThis.fetch = async (url) => {
     switchedAccountCalls.push(url)
