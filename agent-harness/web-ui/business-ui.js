@@ -13,6 +13,33 @@
   if (assetUrl.origin !== location.origin) return
   const ASSET_ROOT = new URL('./', assetUrl).href
   const VERSION = 'business-visual-v2'
+  const AUTH_RECOVERY_PROTOCOL = 'eiscore-harness-auth'
+  const AUTH_RECOVERY_VERSION = 1
+  const AUTH_RECOVERY_COOLDOWN_MS = 30_000
+  let authRecoverySent = false
+  let authRecoveryTimer
+  const notifyAuthRequired = () => {
+    if (authRecoverySent) return
+    authRecoverySent = true
+    clearTimeout(authRecoveryTimer)
+    authRecoveryTimer = setTimeout(() => { authRecoverySent = false }, AUTH_RECOVERY_COOLDOWN_MS)
+    window.parent.postMessage({
+      source: 'eiscore-harness',
+      protocol: AUTH_RECOVERY_PROTOCOL,
+      version: AUTH_RECOVERY_VERSION,
+      type: 'auth-required'
+    }, location.origin)
+  }
+  const nativeFetch = window.fetch
+  if (typeof nativeFetch === 'function') {
+    window.fetch = async (...args) => {
+      const response = await nativeFetch(...args)
+      let pathname = ''
+      try { pathname = new URL(typeof Request !== 'undefined' && args[0] instanceof Request ? args[0].url : String(args[0]), location.href).pathname } catch {}
+      if (response?.status === 401 && ['/api/session/create', '/api/session/prompt'].includes(pathname)) notifyAuthRequired()
+      return response
+    }
+  }
   const framePolicy = document.createElement('meta')
   framePolicy.httpEquiv = 'Content-Security-Policy'
   framePolicy.content = "frame-src 'none'"

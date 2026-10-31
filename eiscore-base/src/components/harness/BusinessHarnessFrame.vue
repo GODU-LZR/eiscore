@@ -43,16 +43,22 @@ let entryRequest = null
 let entrySequence = 0
 let entryTimer
 let draftDecisionId = ''
+let authStatusTimer
+let authStatusFlight = null
+let authRefreshWarned = false
 
 const WORKER_DRAFT_PROTOCOL = 'eiscore-harness-worker-draft'
 const WORKER_DRAFT_VERSION = 1
 const FILE_DROP_PROTOCOL = 'eiscore-harness-file-drop'
 const FILE_DROP_VERSION = 1
+const AUTH_RECOVERY_PROTOCOL = 'eiscore-harness-auth'
+const AUTH_RECOVERY_VERSION = 1
 const MAX_DROP_FILES = 20
 const MAX_FILE_BYTES = 20 * 1024 * 1024
 const FILE_UPLOAD_TIMEOUT_MS = 45_000
 const FILE_UPLOAD_CONCURRENCY = 3
 const FILE_REQUEST_TIMEOUT_MS = 15_000
+const AUTH_STATUS_INTERVAL_MS = 30_000
 const FILE_ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/
 const FILE_EXTENSIONS = new Set([
   'jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'mp4', 'mp3',
@@ -94,6 +100,8 @@ function hasCurrentAuthorization() {
 
 function invalidateAuthorization() {
   ++requestId
+  clearInterval(authStatusTimer)
+  authStatusTimer = undefined
   clearTimeout(deliveryTimer)
   clearEntry()
   authorizationSnapshot = ''
@@ -102,6 +110,47 @@ function invalidateAuthorization() {
   ready.value = false
   pending.value = false
   failed.value = true
+}
+
+async function refreshHarnessAuth({ notify = false } = {}) {
+  if (!props.active || !ready.value || failed.value) return false
+  if (!hasCurrentAuthorization()) { invalidateAuthorization(); return false }
+  if (authStatusFlight) return authStatusFlight
+  const id = requestId
+  const authorization = authorizationSnapshot
+  authStatusFlight = prepareBusinessHarnessAuth(
+    { harnessWebUrl, authorization },
+    () => id === requestId && props.active && getAuthHeader().Authorization === authorization
+  ).then((success) => {
+    if (id !== requestId || !props.active) return false
+    if (success) {
+      authorizationSnapshot = authorization
+      authRefreshWarned = false
+      if (notify) ElMessage.info('工作助手已重新核验认证，当前消息未自动重发；请检查后手动重试')
+      return true
+    }
+    if (!authRefreshWarned) {
+      ElMessage.warning('工作助手认证已失效，当前消息未自动重发，请检查登录状态')
+      authRefreshWarned = true
+    }
+    return false
+  }).catch(() => false).finally(() => { authStatusFlight = null })
+  return authStatusFlight
+}
+
+function receiveHarnessAuth(event) {
+  if (event.origin !== window.location.origin || event.source !== frame.value?.contentWindow) return
+  const message = event.data
+  if (message?.source !== 'eiscore-harness' || message.protocol !== AUTH_RECOVERY_PROTOCOL || message.version !== AUTH_RECOVERY_VERSION || message.type !== 'auth-required') return
+  void refreshHarnessAuth({ notify: true })
+}
+
+function startAuthStatusMonitor() {
+  clearInterval(authStatusTimer)
+  authStatusTimer = undefined
+  if (props.active && ready.value && !failed.value) {
+    authStatusTimer = window.setInterval(() => { void refreshHarnessAuth() }, AUTH_STATUS_INTERVAL_MS)
+  }
 }
 
 async function prepare() {
@@ -124,6 +173,8 @@ async function prepare() {
   ready.value = success
   pending.value = false
   failed.value = !success
+  authRefreshWarned = false
+  startAuthStatusMonitor()
 }
 
 function deliverDraft() {
@@ -396,6 +447,13 @@ function receiveDraftResult(event) {
 watch(() => props.active, (active) => {
   if (active && authorizationSnapshot && !hasCurrentAuthorization()) invalidateAuthorization()
   if (active && !ready.value && !pending.value && !failed.value) void prepare()
+  if (active && ready.value && !failed.value) {
+    void refreshHarnessAuth()
+    startAuthStatusMonitor()
+  } else if (!active) {
+    clearInterval(authStatusTimer)
+    authStatusTimer = undefined
+  }
   if (active) syncEntry()
   else { clearTimeout(deliveryTimer); clearTimeout(entryTimer) }
 }, { immediate: true })
@@ -409,13 +467,16 @@ watch(() => userStore.token, () => {
 onMounted(() => {
   window.addEventListener('message', receiveDraftResult)
   window.addEventListener('message', receiveFileDrop)
+  window.addEventListener('message', receiveHarnessAuth)
 })
 onBeforeUnmount(() => {
   ++requestId
+  clearInterval(authStatusTimer)
   clearTimeout(deliveryTimer)
   clearTimeout(entryTimer)
   window.removeEventListener('message', receiveDraftResult)
   window.removeEventListener('message', receiveFileDrop)
+  window.removeEventListener('message', receiveHarnessAuth)
 })
 </script>
 

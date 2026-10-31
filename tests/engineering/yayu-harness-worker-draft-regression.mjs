@@ -6,11 +6,17 @@ import vm from 'node:vm'
 const read = (file) => readFileSync(resolve(file), 'utf8')
 const bridge = read('eiscore-base/src/utils/ai-bridge.js')
 const launcher = read('eiscore-base/src/components/HarnessAssistantLauncher.vue')
+const businessFrame = read('eiscore-base/src/components/harness/BusinessHarnessFrame.vue')
 const businessUi = read('agent-harness/web-ui/business-ui.js')
 
 assert.match(bridge, /eis-harness-open-worker/)
 assert.match(launcher, /event\.origin !== harnessOrigin\(\) \|\| event\.source !== frameRef\.value\?\.contentWindow/)
 assert.match(launcher, /ElMessageBox\.confirm/)
+assert.match(businessFrame, /AUTH_STATUS_INTERVAL_MS = 30_000/)
+assert.match(businessFrame, /prepareBusinessHarnessAuth\(/)
+assert.match(businessFrame, /当前消息未自动重发/)
+assert.doesNotMatch(businessFrame, /session\/prompt/)
+assert.match(businessUi, /AUTH_RECOVERY_COOLDOWN_MS = 30_000/)
 assert.match(launcher, /message\.hasExistingDraft === true/)
 assert.match(businessUi, /\[data-composer-input\]\[contenteditable="true"\]/)
 assert.match(businessUi, /document\.execCommand\('insertText', false, prompt\)/)
@@ -150,6 +156,11 @@ class FakeEvent {
 }
 const window = {
   parent: parentWindow,
+  fetch: async (...args) => {
+    window.fetchCalls ||= []
+    window.fetchCalls.push(args)
+    return { status: 401 }
+  },
   getSelection: () => ({ removeAllRanges() {}, addRange() {} }),
   dispatchEvent: (event) => { if (event.type === 'dragend') nativeDropResetCount++ },
   addEventListener: (type, listener) => {
@@ -158,6 +169,7 @@ const window = {
     listeners.set(type, entries)
   }
 }
+const recoveryTimers = []
 const context = {
   window,
   document,
@@ -168,7 +180,10 @@ const context = {
   ClipboardEvent: FakeClipboardEvent,
   Event: FakeEvent,
   requestAnimationFrame: (callback) => callback(),
-  setTimeout,
+  setTimeout: (callback, delay, ...args) => {
+    if (delay === 30_000) { recoveryTimers.push(callback); return recoveryTimers.length }
+    return setTimeout(callback, delay, ...args)
+  },
   clearTimeout,
   crypto: { randomUUID: () => 'test-token' }
 }
@@ -191,6 +206,18 @@ const sendToHarness = async (data, source = parentWindow, origin = 'https://app.
 await sendToHarness({ ...baseMessage, type: 'prepare', id: 'forged', prompt: 'ignored' }, parentWindow, 'https://attacker.example')
 await sendToHarness({ ...baseMessage, type: 'prepare', id: 'forged-source', prompt: 'ignored' }, {}, 'https://app.example')
 assert.equal(replies.length, 0, 'messages from another origin or window must be ignored')
+
+await window.fetch('/api/session/prompt', { method: 'POST' })
+assert.equal(replies.length, 1, 'a prompt 401 must notify the host once for session recovery')
+assert.equal(replies.at(-1).message.protocol, 'eiscore-harness-auth')
+assert.equal(replies.at(-1).message.type, 'auth-required')
+await window.fetch('/api/session/prompt', { method: 'POST' })
+await window.fetch('/api/session/list')
+assert.equal(replies.length, 1, 'auth recovery must not spam or react to unrelated 401 routes')
+recoveryTimers.shift()()
+await window.fetch('/api/session/prompt', { method: 'POST' })
+assert.equal(replies.length, 2, 'a later auth expiry must be able to request recovery again')
+replies.length = 0
 
 const prompt = '请整理当前销售合同并保留原有字段'
 await sendToHarness({ ...baseMessage, type: 'prepare', id: 'cancel-me', prompt })
