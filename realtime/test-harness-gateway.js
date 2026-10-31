@@ -343,6 +343,26 @@ assert.deepEqual({ ok: result.ok, status: result.status, code: result.code, mess
   message: 'DeepSeek Harness is unavailable'
 }, 'Gateway must normalize unknown dispatch errors before HTTP handlers expose them');
 
+const customerValidationGateway = createHarnessGateway({
+  audit: async () => {},
+  dispatch: async () => ({ ok: false, status: 400, code: 'HARNESS_CUSTOMER_WRITE_INVALID', message: 'Customer name is required' }),
+  auditKey: '0123456789abcdef0123456789abcdef'
+});
+result = await customerValidationGateway.execute({
+  plugin_id: 'company-sales',
+  agent_id: 'company_sales_agent',
+  capability_id: 'eiscore_customer_write',
+  user: { ...user, permissions: ['app:sales_customer'] },
+  payload: { operation: 'create', values: { name: '示例客户' } },
+  confirmed: true,
+  idempotency_key: 'customer-validation-0123456789'
+});
+assert.deepEqual({ ok: result.ok, status: result.status, code: result.code }, {
+  ok: false,
+  status: 400,
+  code: 'HARNESS_CUSTOMER_WRITE_INVALID'
+}, 'customer validation failures must not be disguised as Harness unavailability');
+
 result = await gateway.execute({ plugin_id: 'enterprise-bi', agent_id: 'enterprise_analyst', user });
 assert.equal(result.code, 'HARNESS_CAPABILITY_REQUIRED');
 assert.equal(dispatched, chatDispatches);
