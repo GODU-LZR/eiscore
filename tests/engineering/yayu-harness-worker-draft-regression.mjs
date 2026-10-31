@@ -13,6 +13,7 @@ assert.match(launcher, /event\.origin !== harnessOrigin\(\) \|\| event\.source !
 assert.match(launcher, /ElMessageBox\.confirm/)
 assert.match(launcher, /message\.hasExistingDraft === true/)
 assert.match(businessUi, /\[data-composer-input\]\[contenteditable="true"\]/)
+assert.match(businessUi, /document\.execCommand\('insertText', false, prompt\)/)
 assert.match(businessUi, /new ClipboardEvent\('paste'/)
 assert.match(businessUi, /const uploadedFiles = new Map\(\)/)
 assert.match(businessUi, /preview-request/)
@@ -66,6 +67,7 @@ const body = { dataset: {}, querySelectorAll: () => [] }
 let dropOverlayRemoved = false
 let nativeDropResetCount = 0
 const dropOverlay = { textContent: 'Drag files here to add themUp to 20 files20MB per file', remove() { dropOverlayRemoved = true } }
+const editingCommands = []
 const document = {
   currentScript: { src: 'https://app.example/harness-embed/eiscore-ui/business-ui.js' },
   body,
@@ -86,6 +88,12 @@ const document = {
     assert.equal(whatToShow, 4, 'drop copy rewriting must walk text nodes only')
     let index = 0
     return { nextNode: () => dropCopyNodes[index++] || null }
+  },
+  execCommand: (command, showUi, value) => {
+    editingCommands.push({ command, showUi, value })
+    editor.innerText = value
+    editor.textContent = value
+    return true
   },
   querySelector: () => null,
   querySelectorAll: (selector) => {
@@ -173,7 +181,8 @@ assert.equal(replies.at(-1).message.type, 'proposal')
 await sendToHarness({ ...baseMessage, type: 'apply', id: 'apply-me' })
 assert.equal(replies.at(-1).message.type, 'applied')
 assert.equal(editor.textContent, prompt)
-assert.deepEqual(editor.events, ['paste'], 'applying a draft must not activate a send control')
+assert.equal(editingCommands.at(-1).command, 'insertText', 'draft replacement should use the editor-native replace operation')
+assert.ok(!editor.events?.includes('paste'), 'draft replacement must not trigger a duplicate paste insertion')
 
 await sendToHarness({ ...baseMessage, type: 'prepare', id: 'conflict', prompt: '新的草稿' })
 editor.innerText = '用户刚刚输入的内容'
@@ -223,7 +232,7 @@ assert.equal(nativeDropResetCount, 2, 'upload success keeps DeepSeek native drag
 assert.match(editor.textContent, /用户刚刚输入的内容/, 'file receipt must preserve a non-empty user draft')
 assert.match(editor.textContent, /报价单\.xlsx/, 'file receipt must display the uploaded filename in the composer')
 assert.match(editor.textContent, /引用 test-file/, 'file receipt must display the stored file reference in the composer')
-assert.equal(editor.events.at(-1), 'paste', 'file receipt must populate the composer without sending the message')
+assert.equal(editingCommands.at(-1).command, 'insertText', 'file receipt must use the editor-native draft insertion operation')
 const attachmentObserver = mutationObservers.at(-1)
 const initialAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
 assert.equal(initialAttachmentRoot.children.length, 1, 'uploaded files must render an attachment row beside the composer')

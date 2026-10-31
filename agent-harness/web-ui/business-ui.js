@@ -300,13 +300,20 @@
     observer.observe(root, { childList: true, subtree: true })
   })
   const pasteWorkerDraft = (composer, prompt) => {
-    if (typeof DataTransfer !== 'function' || typeof ClipboardEvent !== 'function') return false
+    if (!composer || typeof prompt !== 'string') return false
     const selection = window.getSelection()
     const range = document.createRange()
     range.selectNodeContents(composer)
     selection.removeAllRanges()
     selection.addRange(range)
     composer.focus()
+    // Harness' contenteditable treats a synthetic paste as an insertion. Use
+    // the browser editing command first so replacing a removed file reference
+    // does not append a second draft; keep the paste path for older shells.
+    try {
+      if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, prompt)) return true
+    } catch {}
+    if (typeof DataTransfer !== 'function' || typeof ClipboardEvent !== 'function') return false
     const clipboardData = new DataTransfer()
     clipboardData.setData('text/plain', prompt)
     composer.dispatchEvent(new ClipboardEvent('paste', {
