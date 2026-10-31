@@ -52,7 +52,7 @@ const CAPABILITY_TIMEOUTS = Object.freeze({
   eiscore_sales_context: 60000,
   eiscore_sales_write: 60000,
   eiscore_customer_query: 30000,
-  eiscore_customer_write: 60000,
+  eiscore_customer_write: 120000,
   eiscore_document_plan: 60000,
   eiscore_document_commit: 60000,
   eiscore_flash_read: 60000,
@@ -267,16 +267,45 @@ const proxyUrl = () => String(process.env.EISCORE_TOOL_PROXY_URL || '').replace(
 const proxySecret = () => String(process.env.EISCORE_TOOL_PROXY_SECRET || '')
 const FLASH_CONTEXT_KEY = Symbol.for('eiscore.dsh.flash-context')
 const CUSTOMER_WRITE_OPERATIONS = new Set(['update', 'delete', 'attach_file'])
+const customerWriteVersions = new Map()
+
+const customerWriteVersionKey = (sessionId, customerId) => `${sessionId}\u0000${customerId}`
+
+const rememberCustomerVersion = (sessionId, row) => {
+  const customerId = String(row?.id || '').trim()
+  const updatedAt = String(row?.updated_at || '').trim()
+  if (!sessionId || !customerId || !updatedAt) return
+  const key = customerWriteVersionKey(sessionId, customerId)
+  const current = customerWriteVersions.get(key)
+  if (current && Date.parse(current) > Date.parse(updatedAt)) return
+  customerWriteVersions.delete(key)
+  customerWriteVersions.set(key, updatedAt)
+  while (customerWriteVersions.size > 512) customerWriteVersions.delete(customerWriteVersions.keys().next().value)
+}
 
 const customerWriteOperation = (args) => String(args?.operation || args?.action || '').trim()
 
 const customerWriteId = (args) => String(args?.customer_id || args?.customerId || args?.id || '').trim()
 
-const withLatestCustomerWriteVersion = async (ctx, args, exec) => {
+const withLatestCustomerWriteVersion = async (ctx, args, exec, sessionId) => {
   const operation = customerWriteOperation(args)
   if (!CUSTOMER_WRITE_OPERATIONS.has(operation)) return args
+  if (operation === 'attach_file') return args
   const customerId = customerWriteId(args)
   if (!customerId) throw new Error('customer_id is required for customer changes')
+  const key = customerWriteVersionKey(sessionId, customerId)
+  const cached = customerWriteVersions.get(key) || ''
+  const supplied = String(args.expected_updated_at || args.expectedUpdatedAt || '').trim()
+  const cachedMs = Date.parse(cached)
+  const suppliedMs = Date.parse(supplied)
+  if (cached && Number.isFinite(cachedMs) && (!supplied || !Number.isFinite(suppliedMs) || suppliedMs < cachedMs)) {
+    return {
+      ...args,
+      expected_updated_at: cached,
+      ...(Object.hasOwn(args, 'expectedUpdatedAt') ? { expectedUpdatedAt: cached } : {})
+    }
+  }
+  if (cached && supplied && Number.isFinite(suppliedMs) && suppliedMs >= cachedMs) return args
   const result = await callWebCapability(ctx, 'eiscore_customer_query', {
     operation: 'query', customer_id: customerId, select: ['id', 'updated_at'], limit: 1
   }, exec)
@@ -288,6 +317,21 @@ const withLatestCustomerWriteVersion = async (ctx, args, exec) => {
     expected_updated_at: updatedAt,
     ...(Object.hasOwn(args, 'expectedUpdatedAt') ? { expectedUpdatedAt: updatedAt } : {})
   }
+}
+
+const rememberCustomerVersions = (capability, sessionId, args, result) => {
+  if (!sessionId || !result || typeof result !== 'object') return
+  if (capability === 'eiscore_customer_query') {
+    for (const row of Array.isArray(result.rows) ? result.rows : []) rememberCustomerVersion(sessionId, row)
+    return
+  }
+  if (capability !== 'eiscore_customer_write') return
+  if (customerWriteOperation(args) === 'delete') {
+    const customerId = customerWriteId(args)
+    if (customerId) customerWriteVersions.delete(customerWriteVersionKey(sessionId, customerId))
+    return
+  }
+  rememberCustomerVersion(sessionId, result.row)
 }
 
 const flashContextSessionId = (exec) => {
@@ -382,7 +426,7 @@ const callWebCapability = async (ctx, capability, args, exec) => {
   const origin = new URL(String(process.env.EISCORE_GATEWAY_URL || ''))
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('EISCore gateway is unavailable')
   const requestId = randomUUID()
-  const payload = capability === 'eiscore_customer_write' ? await withLatestCustomerWriteVersion(ctx, args, exec) : args
+  const payload = capability === 'eiscore_customer_write' ? await withLatestCustomerWriteVersion(ctx, args, exec, sessionId) : args
   const idempotency = createHash('sha256').update(JSON.stringify([sessionId, exec.callId || requestId, capability, args])).digest('hex')
   const response = await fetch(new URL('/ai/harness/execute', origin), {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
@@ -392,6 +436,7 @@ const callWebCapability = async (ctx, capability, args, exec) => {
   const body = await response.json().catch(() => ({}))
   if (!response.ok || body?.ok === false) throw new Error(String(body?.message || 'EISCore capability request failed'))
   const result = body?.data === undefined ? body : body.data
+  rememberCustomerVersions(capability, sessionId, payload, result)
   return result
 }
 

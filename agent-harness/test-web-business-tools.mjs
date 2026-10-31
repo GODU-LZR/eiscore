@@ -40,7 +40,7 @@ try {
     await assert.rejects(read.execute({}, exec), /session authentication is required/)
   }
   assert.equal(calls.length, 0, 'Missing user authentication never falls back to the service proxy')
-  globalThis[authKey] = { toolToken: id => { assert.equal(id, sessionId); return token } }
+  globalThis[authKey] = { toolToken: id => { assert.ok([sessionId, 'business-web-cold-session'].includes(id)); return token } }
   assert.deepEqual(await read.execute({}, exec), { accepted: true })
   const first = calls[0]
   assert.equal(first.url, 'http://business-runtime:8078/ai/harness/execute')
@@ -110,25 +110,23 @@ try {
   const repeatedCustomerWrite = { operation: 'update', customer_id: customerId, expected_updated_at: version0, values: { name: '连续更新' } }
   await customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-1' })
   await customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-2' })
-  assert.equal(calls.at(-4).body.capability_id, customerQuery.name, 'each customer write refreshes the row version first')
-  assert.equal(calls.at(-3).body.payload.expected_updated_at, version0, 'the first customer write replaces the supplied version with the queried row version')
-  assert.equal(calls.at(-2).body.capability_id, customerQuery.name, 'a consecutive write queries again instead of trusting the cache')
-  assert.equal(calls.at(-1).body.payload.expected_updated_at, version1, 'a consecutive write uses the newest queried version')
+  assert.equal(calls.at(-3).body.capability_id, customerQuery.name, 'a cold customer write queries the row before writing')
+  assert.equal(calls.at(-2).body.payload.expected_updated_at, version0, 'the first customer write replaces the supplied version with the queried row version')
+  assert.equal(calls.at(-1).body.payload.expected_updated_at, version1, 'a consecutive write uses the newest successful version without another round trip')
 
   customerWriteResponse = () => Response.json({ code: 'HARNESS_CUSTOMER_CONFLICT', message: 'Customer changed' }, { status: 409 })
   await assert.rejects(customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-conflict' }), /Customer changed/)
-  assert.equal(calls.at(-2).body.capability_id, customerQuery.name, 'a conflict attempt refreshes the row version')
-  assert.equal(calls.at(-1).body.payload.expected_updated_at, version2, 'a conflict uses the version returned by the immediately preceding query')
+  assert.equal(calls.at(-1).body.payload.expected_updated_at, version2, 'a conflict uses the last successful version')
   customerWriteResponse = () => {
     latestVersion = version3
     return Response.json({ data: { operation: 'update', row: { id: customerId, updated_at: version3 } } })
   }
   await customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-after-conflict' })
-  assert.equal(calls.at(-1).body.payload.expected_updated_at, version2, 'a failed write does not change the version from the preceding query')
+  assert.equal(calls.at(-1).body.payload.expected_updated_at, version2, 'a failed write does not advance the cached version')
 
   customerWriteResponse = () => Response.json({ ok: false, code: 'HARNESS_CUSTOMER_CONFLICT', message: 'Customer changed' })
   await assert.rejects(customerWrite.execute({ ...repeatedCustomerWrite, operation: 'delete' }, { ...exec, callId: 'customer-delete-structured-failure' }), /Customer changed/)
-  assert.equal(calls.at(-1).body.payload.expected_updated_at, version3, 'a structured Harness failure uses the latest queried version')
+  assert.equal(calls.at(-1).body.payload.expected_updated_at, version3, 'a structured Harness failure uses the latest successful version')
   customerWriteResponse = () => {
     customerDeleted = true
     return Response.json({ data: { operation: 'delete', row: { id: customerId, updated_at: version4 } } })
@@ -142,6 +140,18 @@ try {
   const beforeQueryFailure = calls.length
   await assert.rejects(customerWrite.execute(repeatedCustomerWrite, { ...exec, callId: 'customer-write-after-query-failure' }), /Customer lookup unavailable/)
   assert.equal(calls.length, beforeQueryFailure + 1, 'a failed version query stops before a write request')
+  customerQueryFailure = false
+  const coldSession = { ...exec, agent: { session: { id: 'business-web-cold-session' } }, callId: 'customer-write-cold-cache' }
+  latestVersion = version3
+  customerWriteResponse = () => Response.json({ data: { operation: 'update', row: { id: customerId, updated_at: version4 } } })
+  const beforeColdWrite = calls.length
+  await customerWrite.execute(repeatedCustomerWrite, coldSession)
+  assert.equal(calls[beforeColdWrite].body.capability_id, customerQuery.name, 'a new Harness session refreshes a missing version cache')
+  assert.equal(calls[beforeColdWrite + 1].body.payload.expected_updated_at, version3, 'a missing cache never sends the stale caller version')
+  const beforeAttach = calls.length
+  await customerWrite.execute({ operation: 'attach_file', customer_id: customerId, file_id: 'file-1' }, { ...coldSession, callId: 'customer-attach-file' })
+  assert.equal(calls.length, beforeAttach + 1, 'file attachment uses the backend current-row check without a redundant version query')
+  assert.equal(calls[beforeAttach].body.payload.expected_updated_at, undefined)
   token = ''
   const beforeLogout = calls.length
   const beforeLogoutApproval = approvals.length
