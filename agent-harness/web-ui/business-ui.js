@@ -105,6 +105,7 @@
     .find((composer) => composer.isConnected && composer.getClientRects().length > 0) || null
   const uploadedFiles = new Map()
   const watchedComposers = new WeakSet()
+  const updatingComposerDraft = new WeakSet()
   let attachmentObserver
   const ensureAttachmentObserver = () => {
     if (attachmentObserver || typeof MutationObserver !== 'function') return
@@ -266,6 +267,7 @@
     if (!composer || watchedComposers.has(composer)) return
     watchedComposers.add(composer)
     composer.addEventListener?.('input', () => {
+      if (updatingComposerDraft.has(composer)) return
       if (!readComposerText(composer)) {
         uploadedFiles.clear()
         renderFileAttachments(composer)
@@ -306,22 +308,27 @@
     range.selectNodeContents(composer)
     selection.removeAllRanges()
     selection.addRange(range)
-    composer.focus()
-    // Harness' contenteditable treats a synthetic paste as an insertion. Use
-    // the browser editing command first so replacing a removed file reference
-    // does not append a second draft; keep the paste path for older shells.
+    updatingComposerDraft.add(composer)
     try {
-      if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, prompt)) return true
-    } catch {}
-    if (typeof DataTransfer !== 'function' || typeof ClipboardEvent !== 'function') return false
-    const clipboardData = new DataTransfer()
-    clipboardData.setData('text/plain', prompt)
-    composer.dispatchEvent(new ClipboardEvent('paste', {
-      bubbles: true,
-      cancelable: true,
-      clipboardData
-    }))
-    return true
+      composer.focus()
+      // Harness' contenteditable treats a synthetic paste as an insertion. Use
+      // the browser editing command first so replacing a removed file reference
+      // does not append a second draft; keep the paste path for older shells.
+      try {
+        if (typeof document.execCommand === 'function' && document.execCommand('insertText', false, prompt)) return true
+      } catch {}
+      if (typeof DataTransfer !== 'function' || typeof ClipboardEvent !== 'function') return false
+      const clipboardData = new DataTransfer()
+      clipboardData.setData('text/plain', prompt)
+      composer.dispatchEvent(new ClipboardEvent('paste', {
+        bubbles: true,
+        cancelable: true,
+        clipboardData
+      }))
+      return true
+    } finally {
+      updatingComposerDraft.delete(composer)
+    }
   }
   const handleWorkerDraftMessage = async (event) => {
     if (event.origin !== location.origin || event.source !== window.parent) return

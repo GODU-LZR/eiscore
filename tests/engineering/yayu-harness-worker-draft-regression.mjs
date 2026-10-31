@@ -25,6 +25,8 @@ const listeners = new Map()
 const documentListeners = new Map()
 const replies = []
 const mutationObservers = []
+const editorListeners = new Map()
+const buttonHandlers = []
 const dropCopyNodes = [
   { nodeType: 3, nodeValue: 'Drag images here to add them' },
   { nodeType: 3, nodeValue: 'Up to 20 images' },
@@ -54,6 +56,11 @@ const editor = {
   parentElement: attachmentParent,
   getClientRects: () => [{}],
   focus() {},
+  addEventListener(type, listener) {
+    const entries = editorListeners.get(type) || []
+    entries.push(listener)
+    editorListeners.set(type, entries)
+  },
   dispatchEvent(event) {
     this.events ||= []
     this.events.push(event.type)
@@ -73,17 +80,30 @@ const document = {
   body,
   documentElement: body,
   head: { appendChild() {} },
-  createElement: () => ({
-    dataset: {},
-    children: [],
-    setAttribute() {},
-    append(...nodes) { this.children.push(...nodes) },
-    appendChild(node) { this.children.push(node) },
-    addEventListener() {},
-    remove() {
-      if (this.parentElement) this.parentElement.children = this.parentElement.children.filter((node) => node !== this)
+  createElement: () => {
+    const node = {
+      dataset: {},
+      children: [],
+      title: '',
+      setAttribute() {},
+      append(...nodes) { this.children.push(...nodes) },
+      appendChild(node) { this.children.push(node) },
+      addEventListener(type, listener) {
+        if (type === 'click' && this.title) buttonHandlers.push({ title: this.title, listener })
+      },
+      remove() {
+        if (this.parentElement) this.parentElement.children = this.parentElement.children.filter((child) => child !== this)
+      }
     }
-  }),
+    Object.defineProperty(node, 'textContent', {
+      get() { return this._textContent || '' },
+      set(value) {
+        this._textContent = String(value ?? '')
+        if (!this._textContent) this.children = []
+      }
+    })
+    return node
+  },
   createTreeWalker: (root, whatToShow) => {
     assert.equal(whatToShow, 4, 'drop copy rewriting must walk text nodes only')
     let index = 0
@@ -91,8 +111,12 @@ const document = {
   },
   execCommand: (command, showUi, value) => {
     editingCommands.push({ command, showUi, value })
+    editor.innerText = ''
+    editor.textContent = ''
+    for (const listener of editorListeners.get('input') || []) listener()
     editor.innerText = value
     editor.textContent = value
+    for (const listener of editorListeners.get('input') || []) listener()
     return true
   },
   querySelector: () => null,
@@ -243,6 +267,21 @@ assert.ok(restoredAttachmentRoot, 'a composer rerender must restore the removed 
 assert.equal(restoredAttachmentRoot.children.length, 1, 'restoring the root must also restore uploaded file rows')
 attachmentObserver.callback([{ type: 'childList', target: attachmentParent, addedNodes: [{}], removedNodes: [] }])
 assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]'), restoredAttachmentRoot, 'unrelated edits must not rebuild an intact attachment list')
+await listeners.get('message')[1]({
+  origin: 'https://app.example',
+  source: parentWindow,
+  data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'second-file', name: '第二份资料.txt', type: 'text/plain' }] }
+})
+assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]').children.length, 2, 'a programmatic draft replacement must not clear existing or newly uploaded attachments')
+buttonHandlers.find(({ title }) => title === '从当前草稿移除（不删除原文件）').listener()
+assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]').children.length, 1, 'removing one draft attachment must leave other uploaded files visible')
+assert.match(editor.textContent, /引用 second-file/, 'removing an attachment must preserve other file references in the draft')
+assert.doesNotMatch(editor.textContent, /引用 test-file/, 'removing an attachment must remove its file reference from the draft')
+assert.equal(replies.filter(({ message }) => message.type === 'delete-request').length, 0, 'removing from the draft must not permanently delete the source file')
+editor.innerText = ''
+editor.textContent = ''
+for (const listener of editorListeners.get('input') || []) listener()
+assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]'), null, 'a real user clear must clear attachment references')
 dropOverlayRemoved = false
 await listeners.get('message')[1]({
   origin: 'https://app.example',
@@ -250,7 +289,7 @@ await listeners.get('message')[1]({
   data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'error', errors: ['文件格式不支持'] }
 })
 assert.equal(dropOverlayRemoved, true, 'an upload error response also clears the native image-only overlay')
-assert.equal(nativeDropResetCount, 3, 'upload errors keep DeepSeek native drag state reset')
+assert.equal(nativeDropResetCount, 4, 'upload errors keep DeepSeek native drag state reset')
 
 const filesOnlyDropEvent = {
   dataTransfer: { types: [], files: [droppedFile], dropEffect: '' },
