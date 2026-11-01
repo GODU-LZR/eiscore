@@ -363,6 +363,24 @@ assert.deepEqual({ ok: result.ok, status: result.status, code: result.code }, {
   code: 'HARNESS_CUSTOMER_WRITE_INVALID'
 }, 'customer validation failures must not be disguised as Harness unavailability');
 
+const customerBatchGateway = createHarnessGateway({
+  audit: async () => {},
+  dispatch: async () => ({ ok: false, status: 400, code: 'HARNESS_CUSTOMER_FILE_BATCH_INVALID', message: 'file_ids must contain 1-100 valid file ids' }),
+  auditKey: '0123456789abcdef0123456789abcdef'
+});
+result = await customerBatchGateway.execute({
+  plugin_id: 'company-sales',
+  agent_id: 'company_sales_agent',
+  capability_id: 'eiscore_customer_file_analyze',
+  user: { ...user, permissions: ['app:sales_customer'] },
+  payload: { file_ids: [] }
+});
+assert.deepEqual({ ok: result.ok, status: result.status, code: result.code }, {
+  ok: false,
+  status: 400,
+  code: 'HARNESS_CUSTOMER_FILE_BATCH_INVALID'
+}, 'customer file batch limits must remain stable HTTP validation failures');
+
 result = await gateway.execute({ plugin_id: 'enterprise-bi', agent_id: 'enterprise_analyst', user });
 assert.equal(result.code, 'HARNESS_CAPABILITY_REQUIRED');
 assert.equal(dispatched, chatDispatches);
