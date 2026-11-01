@@ -26,7 +26,7 @@ const { createAgentDatabaseConfig } = require('./database-config');
 const { createHarnessRuntime } = require('./harness-runtime');
 const { createHarnessSalesWriteExecutor } = require('./harness-sales-write');
 const { createHarnessCustomerRecordsExecutor } = require('./customer-records');
-const { createCustomerFileMatcher } = require('./customer-file-matcher');
+const { createCustomerFileMatcher, MAX_IMAGE_ANALYSIS_BYTES } = require('./customer-file-matcher');
 const { createCustomerFileUploadHandler } = require('./customer-files-upload');
 const { createAiContextService } = require('./ai-context-service');
 const { createTwinTools, createPersistence } = require('./twin-tools');
@@ -351,7 +351,7 @@ const notifyCustomerRealtime = (userId, tenantId, event) => {
 
 const customerRecords = flashRuntime ? null : createHarnessCustomerRecordsExecutor({
   callPostgrestWithUser,
-  fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user),
+  fetchSemanticContext: (user, request) => aiContextService.fetchSemanticContext(user, request),
   notifyCustomerRecordUpdated: ({ userId, tenantId, customerId, operation }) => {
     notifyCustomerRealtime(userId, tenantId, {
       type: 'customer_record_updated',
@@ -374,9 +374,48 @@ const executeCustomerQuery = customerRecords?.execute
 const executeCustomerWrite = customerRecords?.execute
   ? (user, payload = {}, request = {}) => customerRecords.execute(user, payload, request)
   : null;
+let harnessRuntime;
 const customerFileMatcher = flashRuntime ? null : createCustomerFileMatcher({
   callPostgrestWithUser,
-  fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user)
+  fetchSemanticContext: (user, request) => aiContextService.fetchSemanticContext(user, request),
+  analyzeImage: async ({ file, buffer, user, request }) => {
+    if (!harnessRuntime?.toolGateway?.execute) {
+      const error = new Error('Harness multimodal tool is unavailable');
+      error.code = 'HARNESS_TOOL_UNAVAILABLE';
+      error.httpStatus = 503;
+      throw error;
+    }
+    // The multimodal bridge accepts a bounded data URL. Larger images remain
+    // visible as pending so the user can confirm them manually instead of
+    // silently truncating their contents.
+    if (buffer.byteLength > MAX_IMAGE_ANALYSIS_BYTES) {
+      const error = new Error('Image exceeds the OCR analysis limit');
+      error.code = 'HARNESS_IMAGE_ANALYSIS_LIMIT';
+      error.httpStatus = 413;
+      throw error;
+    }
+    const mimeType = envText(file?.mime_type, 'application/octet-stream').toLowerCase();
+    const result = await harnessRuntime.toolGateway.execute({
+      request_id: request?.request_id || `customer-file-ocr:${file.id}`,
+      session_id: request?.session_id || `customer-file-ocr:${user?.id || user?.username || 'user'}`,
+      plugin_id: 'enterprise-bi',
+      agent_id: 'enterprise_analyst',
+      capability_id: 'eiscore_multimodal_ocr',
+      user,
+      payload: {
+        image_url: `data:${mimeType};base64,${buffer.toString('base64')}`,
+        prompt: '识别图片中与客户档案有关的全部文字，按阅读顺序返回纯文本；不要猜测未出现的内容。'
+      },
+      signal: request?.signal
+    });
+    if (!result?.ok) {
+      const error = new Error(result?.message || 'Harness multimodal tool failed');
+      error.code = result?.code || 'HARNESS_UPSTREAM_UNAVAILABLE';
+      error.httpStatus = Number(result?.status) || 502;
+      throw error;
+    }
+    return result.data || {};
+  }
 });
 const executeCustomerFileAnalyze = customerFileMatcher?.analyze
   ? (user, payload = {}, request = {}) => customerFileMatcher.analyze(user, payload, request)
@@ -479,7 +518,7 @@ const publicSiteSalesUser = Object.freeze({
   token: envText(process.env.COMPANY_SITE_HARNESS_TOKEN, `public-site-sales:${process.pid}:${Date.now()}`),
   permissions: ['site:sales']
 });
-const harnessRuntime = createHarnessRuntime({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall: flashRuntime ? null : async (user, payload = {}, source = '') => executeBusinessWorkflowTool(payload.tool_id || payload.toolId, payload.arguments || payload.args || {}, user, { traceId: payload.trace_id || payload.traceId, appId: payload.app_id || payload.appId, context: payload.context || {}, source }), executeEnterpriseSnapshot: flashRuntime ? null : (user, options = {}) => aiContextService.fetchBusinessSnapshot(user, options.accessContext), executeDigitalTwinContext, executeDocumentPlan: flashRuntime ? null : executeDocumentPlan, executeSalesWrite, executeCustomerQuery, executeCustomerWrite, executeCustomerFileAnalyze, executeSiteSales: flashRuntime ? null : async (_user, payload = {}) => {
+harnessRuntime = createHarnessRuntime({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall: flashRuntime ? null : async (user, payload = {}, source = '') => executeBusinessWorkflowTool(payload.tool_id || payload.toolId || '', payload.arguments || payload.args || {}, user, { traceId: payload.trace_id || payload.traceId, appId: payload.app_id || payload.appId, context: payload.context || {}, source }), executeEnterpriseSnapshot: flashRuntime ? null : (user, options = {}) => aiContextService.fetchBusinessSnapshot(user, options.accessContext), executeDigitalTwinContext, executeDocumentPlan: flashRuntime ? null : executeDocumentPlan, executeSalesWrite, executeCustomerQuery, executeCustomerWrite, executeCustomerFileAnalyze, executeSiteSales: flashRuntime ? null : async (_user, payload = {}) => {
   const view = envText(payload?.view || payload?.view_id, 'site');
   const locale = envText(payload?.locale, 'zh-CN');
   if (!['site', 'catalog', 'knowledge'].includes(view)) {

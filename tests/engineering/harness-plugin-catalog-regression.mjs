@@ -37,8 +37,20 @@ for (const source of [compose, productionCompose]) {
 assert.equal(new Set(contractPlugins).size, contractPlugins.length, 'plugin contract must not contain duplicate ids')
 assert.equal(
   contract.plugins.reduce((count, plugin) => count + plugin.capabilities.length, 0),
-  20,
+  21,
   'the registered capability inventory must remain complete'
+)
+const enterpriseBi = contract.plugins.find((plugin) => plugin.plugin_id === 'enterprise-bi')
+const companySales = contract.plugins.find((plugin) => plugin.plugin_id === 'company-sales')
+assert.deepEqual(
+  enterpriseBi.capability_policies.eiscore_multimodal_ocr.permissions,
+  ['module:bi', 'app:enterprise_bi', 'app:sales_customer'],
+  'customer archive OCR must retain BI access and allow the sales-customer app'
+)
+assert.deepEqual(
+  companySales.capability_policies.eiscore_customer_file_analyze.permissions,
+  ['app:sales_customer'],
+  'customer-file analysis must remain scoped to the sales-customer app'
 )
 
 console.log('PASS: Harness plugin contract, migration catalog, Bridge defaults and Lundu Compose stay aligned')

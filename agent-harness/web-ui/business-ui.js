@@ -195,7 +195,7 @@
     const reference = String(file?.referenceText || '')
     if (!composer || !reference || !readComposerText(composer).includes(reference)) return
     const current = readComposerText(composer)
-    const next = normalizedDraftText(current.replace(reference, '').replace(/\n{3,}/g, '\n\n'))
+    const next = normalizedDraftText(current.split(reference).join('').replace(/\n{3,}/g, '\n\n'))
     try { pasteWorkerDraft(composer, next) } catch {}
   }
   const sendFileDropMessage = (type, id, extra = {}) => {
@@ -488,14 +488,14 @@
       return
     }
     if (message.type !== 'uploaded' || !Array.isArray(message.files) || !message.files.length) return
-    const references = message.files.map((file) => {
+    message.files.forEach((file) => {
       const normalized = { ...file, id: String(file.id || ''), name: text(file.name) || '未命名文件', type: text(file.type) || '未知格式' }
       normalized.referenceText = fileReference(normalized)
       uploadedFiles.set(normalized.id, normalized)
-      return normalized.referenceText
     })
+    const references = [...uploadedFiles.values()].map(fileReference)
     ensureAttachmentObserver()
-    const prompt = `我刚上传了客户资料文件。请先根据文件名和格式建议分类，不要推断文件正文。先向我确认客户和分类，再调用客户档案能力把文件引用写入客户资料列。\n\n${references.join('\n\n')}`
+    const prompt = `我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，对下方文件引用中的所有 ID 去重后作为 file_ids 一次进行批量只读正文分析，并结合客户档案可见字段判断每个文件对应的客户。逐个返回 matched、needs_confirmation 或 unmatched、候选客户、命中依据和置信度；内容无法读取或候选不唯一时必须标记待确认，不能仅凭文件名猜测。分析不写业务数据；未经我看到结果后明确确认具体文件和客户，不要调用 customer_write 或 attach_file。只有确认后才复用 attach_file 写入客户资料列。\n\n${references.join('\n\n')}`
     const composer = await waitForWorkerComposer(3000)
     if (!composer) return
     watchComposer(composer)

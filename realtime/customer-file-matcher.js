@@ -6,6 +6,7 @@ const CUSTOMER_TABLE = 'public.sales_customers';
 const CUSTOMER_MODULE = 'sales_customer';
 const MAX_FILES = 100;
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
+const MAX_IMAGE_ANALYSIS_BYTES = 3 * 1024 * 1024 - 32;
 const MAX_CONTENT_CHARS = 120000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const text = (value, max = 240) => String(value ?? '').replace(/\u0000/g, ' ').trim().slice(0, max);
@@ -114,13 +115,22 @@ const parseStructuredBuffer = async (buffer, ext, mime) => {
   return null;
 };
 
-const extractContent = async (file) => {
+const extractContent = async (file, { analyzeImage, user, request } = {}) => {
   const base = text(file.filename, 240);
-  if (!file.content_base64) return { text: base, mode: 'metadata_only', contentUnderstood: false };
-  let buffer;
-  try { buffer = Buffer.from(String(file.content_base64), 'base64'); } catch { return { text: base, mode: 'metadata_only', contentUnderstood: false }; }
   const mime = text(file.mime_type, 120).toLowerCase();
   const ext = extensionOf(file.filename);
+  const isImage = mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'tif', 'tiff'].includes(ext);
+  const isAudio = mime.startsWith('audio/') || ['mp3', 'wav', 'm4a', 'ogg', 'aac', 'flac'].includes(ext);
+  const canUseOcr = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mime);
+  if (isImage && (!canUseOcr || Number(file.size_bytes || 0) > MAX_IMAGE_ANALYSIS_BYTES)) {
+    return { text: base, mode: 'vision_pending', contentUnderstood: false };
+  }
+  if (!file.content_base64) {
+    return { text: base, mode: isImage ? 'vision_pending' : isAudio ? 'transcription_pending' : 'metadata_only', contentUnderstood: false };
+  }
+  let buffer;
+  try { buffer = Buffer.from(String(file.content_base64), 'base64'); } catch { return { text: base, mode: 'metadata_only', contentUnderstood: false }; }
+  if (isImage && buffer.byteLength > MAX_IMAGE_ANALYSIS_BYTES) return { text: base, mode: 'vision_pending', contentUnderstood: false };
   const readable = mime.startsWith('text/') || ['txt', 'md', 'csv', 'json', 'xml', 'html', 'log'].includes(ext);
   if (readable) return { text: `${base}\n${parseTextBuffer(buffer)}`.slice(0, MAX_CONTENT_CHARS), mode: 'text', contentUnderstood: true };
   try {
@@ -129,8 +139,16 @@ const extractContent = async (file) => {
   } catch (error) {
     return { text: base, mode: 'parse_error', contentUnderstood: false, parseError: text(error?.message || error, 240) };
   }
-  const isImage = mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'tif', 'tiff'].includes(ext);
-  const isAudio = mime.startsWith('audio/') || ['mp3', 'wav', 'm4a', 'ogg', 'aac', 'flac'].includes(ext);
+  if (isImage && canUseOcr && typeof analyzeImage === 'function') {
+    try {
+      const recognized = await analyzeImage({ file, buffer, user, request });
+      const recognizedText = normalizeParsedText(recognized?.text || recognized);
+      if (recognizedText) return { text: `${base}\n${recognizedText}`.slice(0, MAX_CONTENT_CHARS), mode: 'vision_ocr', contentUnderstood: true };
+      return { text: base, mode: 'vision_empty', contentUnderstood: false };
+    } catch (error) {
+      return { text: base, mode: 'vision_unavailable', contentUnderstood: false, parseError: text(error?.message || error, 240) };
+    }
+  }
   return {
     text: base,
     mode: isImage ? 'vision_pending' : isAudio ? 'transcription_pending' : 'metadata_only',
@@ -168,12 +186,12 @@ const matchCustomerRows = (content, rows, { requireConfirmation = false } = {}) 
   return { status, confidence: top?.score || 0, candidates: matches.slice(0, 5) };
 };
 
-const createCustomerFileMatcher = ({ callPostgrestWithUser, fetchSemanticContext } = {}) => {
+const createCustomerFileMatcher = ({ callPostgrestWithUser, fetchSemanticContext, analyzeImage } = {}) => {
   if (typeof callPostgrestWithUser !== 'function') throw new TypeError('Customer file matcher PostgREST adapter is required');
   if (typeof fetchSemanticContext !== 'function') throw new TypeError('Customer file matcher semantic context loader is required');
 
-  const requireReadAccess = async (user) => {
-    const context = await fetchSemanticContext(user);
+  const requireReadAccess = async (user, request = {}) => {
+    const context = await fetchSemanticContext(user, request);
     if (!context?.accessPolicy?.roleScoped || context.fieldAclAvailable !== true) fail('HARNESS_PERMISSION_DENIED', 'Role-scoped customer permissions are unavailable', 403);
     const permissions = new Set((Array.isArray(context.permissions) ? context.permissions : []).map((entry) => text(entry?.code || entry, 120).toLowerCase()));
     if (context.accessPolicy.superUser !== true && !permissions.has('app:sales_customer')) fail('HARNESS_PERMISSION_DENIED', 'Customer archive permission is not granted', 403);
@@ -181,13 +199,13 @@ const createCustomerFileMatcher = ({ callPostgrestWithUser, fetchSemanticContext
     return context;
   };
 
-  const analyze = async (user, input = {}) => {
-    const context = await requireReadAccess(user);
+  const analyze = async (user, input = {}, request = {}) => {
+    const context = await requireReadAccess(user, request);
     const ids = normalizeIdList(input.file_ids || input.fileIds || input.files);
     const fileResponse = await callPostgrestWithUser(user, {
       method: 'GET', path: '/files',
-      query: { select: 'id,filename,mime_type,size_bytes,content_base64,sha256,created_at,extra', id: `in.(${ids.join(',')})`, limit: String(MAX_FILES) },
-      acceptProfile: 'public', timeoutMs: 15000
+      query: { select: 'id,filename,mime_type,size_bytes,sha256,created_at,extra', id: `in.(${ids.join(',')})`, limit: String(MAX_FILES) },
+      acceptProfile: 'public', timeoutMs: 15000, signal: request.signal
     });
     const files = Array.isArray(fileResponse?.data) ? fileResponse.data : [];
     const userId = text(user?.id || user?.username, 160);
@@ -207,13 +225,28 @@ const createCustomerFileMatcher = ({ callPostgrestWithUser, fetchSemanticContext
     const customerResponse = await callPostgrestWithUser(user, {
       method: 'GET', path: '/sales_customers',
       query: { select: visible.join(',') || select, status: 'neq.deleted', order: 'created_at.desc', limit: '500' },
-      acceptProfile: 'public', timeoutMs: 15000
+      acceptProfile: 'public', timeoutMs: 15000, signal: request.signal
     });
     const customers = Array.isArray(customerResponse?.data) ? customerResponse.data : [];
-    const results = await Promise.all(owned.map(async (file) => {
-      const extracted = await extractContent(file);
+    const results = [];
+    // Read and release one file body at a time. A batch may contain 100 files
+    // at the 100 MiB limit, so retaining all Base64 strings would multiply the
+    // gateway's memory requirement before analysis even starts.
+    for (const file of owned) {
+      const mime = text(file.mime_type, 120).toLowerCase();
+      const ext = extensionOf(file.filename);
+      const isImage = mime.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'tif', 'tiff'].includes(ext);
+      const supportedImage = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mime);
+      const readImage = isImage && supportedImage && Number(file.size_bytes || 0) <= MAX_IMAGE_ANALYSIS_BYTES;
+      const response = !isImage || readImage ? await callPostgrestWithUser(user, {
+        method: 'GET', path: '/files',
+        query: { select: 'id,content_base64', id: `eq.${file.id}`, limit: '1' },
+        acceptProfile: 'public', timeoutMs: 30000, signal: request.signal
+      }) : null;
+      const content = Array.isArray(response?.data) ? response.data[0]?.content_base64 : response?.data?.content_base64;
+      const extracted = await extractContent({ ...file, content_base64: content || '' }, { analyzeImage, user, request });
       const match = matchCustomerRows(extracted.text, customers, { requireConfirmation: !extracted.contentUnderstood });
-      return {
+      results.push({
         file_id: file.id,
         filename: text(file.filename, 240),
         mime_type: text(file.mime_type, 120),
@@ -222,12 +255,12 @@ const createCustomerFileMatcher = ({ callPostgrestWithUser, fetchSemanticContext
         ...(extracted.parseError ? { parse_error: extracted.parseError } : {}),
         ...match,
         recommendation: match.status === 'matched' ? '可在用户确认后调用 attach_file 写入客户资料列' : '请用户确认候选客户后再调用 attach_file'
-      };
-    }));
+      });
+    }
     return { operation: 'analyze', dataset: 'sales_customer_files', total: results.length, results, write_required: true };
   };
 
   return Object.freeze({ analyze, maxFiles: MAX_FILES });
 };
 
-module.exports = { MAX_FILES, createCustomerFileMatcher, extractContent, matchCustomerRows };
+module.exports = { MAX_FILES, MAX_IMAGE_ANALYSIS_BYTES, createCustomerFileMatcher, extractContent, matchCustomerRows };

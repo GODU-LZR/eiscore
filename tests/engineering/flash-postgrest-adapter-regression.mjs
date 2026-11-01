@@ -204,6 +204,49 @@ await assert.rejects(
   (error) => error instanceof FlashToolError && error.code === 'TIMEOUT' &&
     error.httpStatus === 504 && error.message === 'Tool upstream timeout after 55ms'
 )
+
+const externalAbort = {
+  aborted: false,
+  reason: new Error('caller cancelled'),
+  added: 0,
+  removed: 0,
+  listener: null,
+  addEventListener(type, listener) {
+    assert.equal(type, 'abort')
+    this.added += 1
+    this.listener = listener
+  },
+  removeEventListener(type, listener) {
+    assert.equal(type, 'abort')
+    assert.equal(listener, this.listener)
+    this.removed += 1
+    this.listener = null
+  }
+}
+let externalFetchSignal
+const externalHarness = createHarness({
+  fetchImpl: async (_url, init) => {
+    externalFetchSignal = init.signal
+    externalAbort.aborted = true
+    externalAbort.listener()
+    const error = new Error('caller cancelled')
+    error.name = 'AbortError'
+    throw error
+  }
+})
+await assert.rejects(
+  externalHarness.adapter.callPostgrestWithUser(user, {
+    path: '/cancelled',
+    signal: externalAbort,
+    timeoutMs: 12000
+  }),
+  (error) => error instanceof FlashToolError && error.code === 'TIMEOUT' && error.httpStatus === 504
+)
+assert.equal(externalFetchSignal.aborted, true, 'caller abort must abort the fetch signal')
+assert.equal(externalAbort.added, 1)
+assert.equal(externalAbort.removed, 1, 'caller abort listener must be removed after fetch settles')
+assert.equal(externalHarness.state.cancelled.length, 1, 'timeout must be cleared after caller abort')
+
 state.queue.push(new Error('network unavailable'))
 await assert.rejects(
   adapter.callPostgrestWithUser(user, { path: '/offline' }),

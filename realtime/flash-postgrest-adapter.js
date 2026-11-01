@@ -144,6 +144,10 @@ const createFlashPostgrestAdapter = ({
 
     const controller = new AbortController();
     const timeout = Number(options.timeoutMs || toolCallTimeoutMs);
+    const externalSignal = options.signal;
+    const onExternalAbort = () => controller.abort(externalSignal.reason);
+    if (externalSignal?.aborted) onExternalAbort();
+    else externalSignal?.addEventListener('abort', onExternalAbort, { once: true });
     const timeoutHandle = scheduleTimeout(() => controller.abort(), timeout);
     let response;
     try {
@@ -160,6 +164,7 @@ const createFlashPostgrestAdapter = ({
       throw new FlashToolError('UPSTREAM_ERROR', error?.message || 'Tool upstream request failed', { httpStatus: 502 });
     } finally {
       cancelTimeout(timeoutHandle);
+      externalSignal?.removeEventListener('abort', onExternalAbort);
     }
 
     const rawText = await response.text();

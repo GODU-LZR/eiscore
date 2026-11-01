@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import assert from 'node:assert/strict'
-import { createCustomerFileMatcher, extractContent, MAX_FILES } from '../../realtime/customer-file-matcher.js'
+import { createCustomerFileMatcher, extractContent, MAX_FILES, MAX_IMAGE_ANALYSIS_BYTES } from '../../realtime/customer-file-matcher.js'
 
 const user = { id: 'user-1', username: 'yayu', tenant_id: 'tenant-yayu' }
 const context = {
@@ -104,25 +104,40 @@ const customers = [
 ]
 const files = new Map()
 const calls = []
+const ocrCalls = []
+const semanticRequests = []
 const matcher = createCustomerFileMatcher({
-  fetchSemanticContext: async () => context,
+  fetchSemanticContext: async (_user, request) => {
+    semanticRequests.push(request)
+    return context
+  },
+  analyzeImage: async ({ file, buffer, user: requestUser, request }) => {
+    ocrCalls.push({ file, buffer, requestUser, request })
+    return { text: '客户编号 YA-001' }
+  },
   callPostgrestWithUser: async (_user, request) => {
     calls.push(request)
-    if (request.path === '/files') return { data: [...files.values()].filter((entry) => request.query.id.includes(entry.id)) }
+    if (request.path === '/files') return { data: [...files.values()]
+      .filter((entry) => request.query.id.includes(entry.id))
+      .map((entry) => Object.fromEntries(request.query.select.split(',').map((field) => [field, entry[field]]))) }
     if (request.path === '/sales_customers') return { data: customers }
     throw new Error(`unexpected path ${request.path}`)
   }
 })
 
-const analyze = async (fileIds) => matcher.analyze(user, { file_ids: fileIds })
+const analyze = async (fileIds, request = {}) => matcher.analyze(user, { file_ids: fileIds }, request)
 
 files.set(id(1), file(1, '客户编号 YA-001，联系人张三'))
-let result = await analyze([id(1), id(1)])
+const sharedRequest = { request_id: 'customer-file-analysis-1', session_id: 'session-1', signal: new AbortController().signal }
+let result = await analyze([id(1), id(1)], sharedRequest)
 assert.equal(result.total, 1, 'duplicate file ids must be deduplicated')
 assert.equal(result.results[0].status, 'matched')
 assert.equal(result.results[0].candidates[0].customer_id, 'customer-a')
 assert.equal(result.results[0].analysis_mode, 'text')
 assert.equal(result.write_required, true, 'analysis must never imply an automatic write')
+assert.equal(semanticRequests.at(-1), sharedRequest, 'semantic context must receive the request context')
+assert.equal(calls.filter((request) => request.path === '/files').every((request) => request.signal === sharedRequest.signal), true)
+assert.equal(calls.filter((request) => request.path === '/sales_customers').at(-1).signal, sharedRequest.signal)
 
 files.set(id(2), file(2, '客户名称：远方客户'))
 result = await analyze([id(2)])
@@ -147,6 +162,46 @@ result = await analyze([id(24)])
 assert.equal(result.results[0].analysis_mode, 'transcription_pending')
 assert.equal(result.results[0].content_understood, false)
 assert.notEqual(result.results[0].status, 'matched', 'untranscribed audio must never be auto-matched')
+
+files.set(id(25), file(25, Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), {}, { filename: 'scan-25.png', mime_type: 'image/png' }))
+const ocrRequest = { request_id: 'customer-file-analysis-25', session_id: 'session-25', signal: new AbortController().signal }
+result = await analyze([id(25)], ocrRequest)
+assert.equal(result.results[0].analysis_mode, 'vision_ocr')
+assert.equal(result.results[0].content_understood, true)
+assert.equal(result.results[0].status, 'matched', 'OCR text should participate in customer matching')
+assert.equal(ocrCalls.at(-1).request, ocrRequest, 'request context must reach the OCR adapter')
+assert.equal(calls.filter((request) => request.path === '/files').at(-1).signal, ocrRequest.signal)
+assert.equal(calls.filter((request) => request.path === '/sales_customers').at(-1).signal, ocrRequest.signal)
+
+files.set(id(26), file(26, Buffer.alloc(16), {}, { filename: 'oversized-26.png', mime_type: 'image/png' }))
+files.set(id(26), { ...files.get(id(26)), size_bytes: MAX_IMAGE_ANALYSIS_BYTES + 1 })
+const bodyReadCount = () => calls.filter((request) => request.path === '/files' && request.query.select === 'id,content_base64').length
+const bodyReadsBeforeLargeImage = bodyReadCount()
+result = await analyze([id(26)])
+assert.equal(result.results[0].analysis_mode, 'vision_pending', 'oversized OCR inputs remain explicitly pending')
+assert.equal(result.results[0].content_understood, false)
+assert.equal(bodyReadCount(), bodyReadsBeforeLargeImage, 'oversized images must not fetch their Base64 body for OCR')
+
+files.set(id(27), file(27, Buffer.from([1, 2, 3]), {}, { filename: 'scan-27.tiff', mime_type: 'image/tiff' }))
+result = await analyze([id(27)])
+assert.equal(result.results[0].analysis_mode, 'vision_pending', 'unsupported OCR formats must remain pending')
+assert.equal(ocrCalls.length, 1, 'unsupported image formats must not invoke OCR')
+
+const unavailableMatcher = createCustomerFileMatcher({
+  fetchSemanticContext: async () => context,
+  analyzeImage: async () => { throw Object.assign(new Error('OCR unavailable'), { code: 'HARNESS_TOOL_UNAVAILABLE' }) },
+  callPostgrestWithUser: async (_user, request) => {
+    if (request.path === '/files') return { data: [...files.values()]
+      .filter((entry) => request.query.id.includes(entry.id))
+      .map((entry) => Object.fromEntries(request.query.select.split(',').map((field) => [field, entry[field]]))) }
+    if (request.path === '/sales_customers') return { data: customers }
+    throw new Error(`unexpected path ${request.path}`)
+  }
+})
+result = await unavailableMatcher.analyze(user, { file_ids: [id(25)] })
+assert.equal(result.results[0].analysis_mode, 'vision_unavailable')
+assert.equal(result.results[0].content_understood, false)
+assert.notEqual(result.results[0].status, 'matched', 'OCR failures must require confirmation')
 
 files.set(id(3), file(3, '客户名称：雅御科技'))
 result = await analyze([id(3)])

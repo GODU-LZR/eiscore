@@ -46,7 +46,7 @@ const createAiContextService = ({
   }
 
 // ── 轻量本体语义上下文采集 ───────────────────────────────────
-  const fetchSemanticContext = async (user) => {
+  const fetchSemanticContext = async (user, request = {}) => {
   let context = null;
   try {
     const result = await callPostgrestWithUser(user, {
@@ -55,7 +55,8 @@ const createAiContextService = ({
       body: { p_query: '', p_limit: 200 },
       acceptProfile: 'public',
       contentProfile: 'public',
-      timeoutMs: 5000
+      timeoutMs: 5000,
+      signal: request.signal
     });
     context = result?.data;
   } catch (e) {
@@ -85,7 +86,8 @@ const createAiContextService = ({
           limit: String(roleCodes.length)
         },
         acceptProfile: 'public',
-        timeoutMs: 5000
+        timeoutMs: 5000,
+        signal: request.signal
       });
       const roleRows = Array.isArray(roleResult?.data) ? roleResult.data : [];
       const resolvedRoleCodes = new Set(roleRows.map((role) => String(role?.code || '').trim().toLowerCase()));
@@ -106,7 +108,8 @@ const createAiContextService = ({
           limit: '5001'
         },
         acceptProfile: 'public',
-        timeoutMs: 5000
+        timeoutMs: 5000,
+        signal: request.signal
       });
       const rows = Array.isArray(aclResult?.data) ? aclResult.data : [];
       if (rows.length > 5000) throw new Error('Field ACL result exceeded the safe limit');

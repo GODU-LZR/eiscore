@@ -285,6 +285,10 @@ assert.equal(nativeDropResetCount, 2, 'upload success keeps DeepSeek native drag
 assert.match(editor.textContent, /用户刚刚输入的内容/, 'file receipt must preserve a non-empty user draft')
 assert.match(editor.textContent, /报价单\.xlsx/, 'file receipt must display the uploaded filename in the composer')
 assert.match(editor.textContent, /引用 test-file/, 'file receipt must display the stored file reference in the composer')
+assert.match(editor.textContent, /eiscore_customer_file_analyze/, 'the uploaded-file draft must request content analysis')
+assert.match(editor.textContent, /作为 file_ids 一次进行批量只读正文分析/, 'the uploaded-file draft must pass referenced ids to the batch analyzer')
+assert.match(editor.textContent, /needs_confirmation/, 'the uploaded-file draft must preserve an explicit uncertain-match state')
+assert.match(editor.textContent, /未经我看到结果后明确确认具体文件和客户，不要调用 customer_write 或 attach_file/, 'analysis must not write before user confirmation')
 assert.equal(editingCommands.at(-1).command, 'insertText', 'file receipt must use the editor-native draft insertion operation')
 const attachmentObserver = mutationObservers.at(-1)
 const initialAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
@@ -302,10 +306,11 @@ await listeners.get('message')[1]({
   data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'second-file', name: '第二份资料.txt', type: 'text/plain' }] }
 })
 assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]').children.length, 2, 'a programmatic draft replacement must not clear existing or newly uploaded attachments')
+assert.match(editor.textContent, /引用 test-file[\s\S]*引用 second-file/, 'a new upload must preserve all pending file references for one analysis batch')
 buttonHandlers.find(({ title }) => title === '从当前草稿移除（不删除原文件）').listener()
 assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]').children.length, 1, 'removing one draft attachment must leave other uploaded files visible')
 assert.match(editor.textContent, /引用 second-file/, 'removing an attachment must preserve other file references in the draft')
-assert.doesNotMatch(editor.textContent, /引用 test-file/, 'removing an attachment must remove its file reference from the draft')
+assert.doesNotMatch(editor.textContent, /test-file/, 'removing an attachment must remove every occurrence of its file reference from the draft')
 assert.equal(replies.filter(({ message }) => message.type === 'delete-request').length, 0, 'removing from the draft must not permanently delete the source file')
 editor.innerText = ''
 editor.textContent = ''
