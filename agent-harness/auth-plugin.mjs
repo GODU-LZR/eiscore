@@ -32,7 +32,7 @@ function registerHttpRoute(ctx, route) {
       const tooLarge = () => {
         const payload = JSON.stringify({
           code: "PAYLOAD_TOO_LARGE",
-          message: "File exceeds the 20 MiB upload limit"
+          message: "File exceeds the 100 MiB upload limit"
         });
         res.writeHead(413, {
           connection: "close",
@@ -261,7 +261,7 @@ async function authLogout(request) {
   return json({ authenticated: false }, 200, { "set-cookie": `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict` });
 }
 
-const MAX_CUSTOMER_FILE_BYTES = 20 * 1024 * 1024
+const MAX_CUSTOMER_FILE_BYTES = 100 * 1024 * 1024
 const createCustomerFileUpload = ({ tokenForRequest = sessionToken, getGatewayOrigin = gatewayOrigin, fetchImpl = fetch } = {}) => async (request) => {
   const token = tokenForRequest(request)
   if (!token) return json({ code: 'UNAUTHORIZED' }, 401)
@@ -275,7 +275,7 @@ const createCustomerFileUpload = ({ tokenForRequest = sessionToken, getGatewayOr
   if (!request.body) return json({ code: 'FILE_REQUIRED' }, 400)
   try {
     // registerHttpRoute bounds and buffers the ingress stream before invoking
-    // this handler. Forward its Web stream directly so the 20 MiB payload does
+    // this handler. Forward its Web stream directly so the 100 MiB payload does
     // not incur another ArrayBuffer copy in the DSH process.
     const response = await fetchImpl(`${origin}/ai/harness/files/upload`, {
       method: 'POST',
@@ -320,7 +320,7 @@ function apply(ctx) {
     method: route.methods[0],
     fetch: route.fetch,
     // Authentication requests stay tiny, while the business file route owns
-    // its explicit 20 MiB raw-file limit. Do not collapse both contracts to
+    // its explicit 100 MiB raw-file limit. Do not collapse both contracts to
     // the old 4 KiB auth-body ceiling.
     maxRequestBodyBytes: route.maxRequestBodyBytes ?? 4096
   });

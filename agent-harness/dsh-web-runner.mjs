@@ -7,11 +7,11 @@ import net from 'node:net'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const MAX_CUSTOMER_FILE_BYTES = 20 * 1024 * 1024
+const MAX_CUSTOMER_FILE_BYTES = 100 * 1024 * 1024
 const CUSTOMER_FILE_UPLOAD_PATH = '/api/eiscore/files/upload'
 const customerFileTooLargePayload = () => JSON.stringify({
   code: 'PAYLOAD_TOO_LARGE',
-  message: 'File exceeds the 20 MiB upload limit'
+  message: 'File exceeds the 100 MiB upload limit'
 })
 
 export const ensureStartupProfile = (homeValue = process.env.DSH_HOME) => {

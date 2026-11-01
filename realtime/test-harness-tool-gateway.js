@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { TOOL_GATEWAY_CAPABILITIES, createHarnessToolGateway } = require('./harness-tool-gateway');
 
-assert.equal(TOOL_GATEWAY_CAPABILITIES.length, 20);
+assert.equal(TOOL_GATEWAY_CAPABILITIES.length, 21);
 assert.equal(new Set(TOOL_GATEWAY_CAPABILITIES).size, TOOL_GATEWAY_CAPABILITIES.length);
 
 (async () => {

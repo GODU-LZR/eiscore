@@ -61,7 +61,8 @@ const BRIDGE_ERROR_CODES = new Set([
   'HARNESS_WORKSPACE_FORBIDDEN',
   'HARNESS_PLUGIN_REQUIRED', 'HARNESS_PLUGIN_UNAVAILABLE', 'HARNESS_SESSION_OWNERSHIP_DENIED',
   'HARNESS_SESSION_CAPACITY_EXCEEDED', 'HARNESS_REQUEST_CAPACITY_EXCEEDED', 'HARNESS_BODY_TOO_LARGE', 'HARNESS_BAD_REQUEST',
-  'HARNESS_UPSTREAM_UNAVAILABLE', 'HARNESS_RUNTIME_EMPTY_COMPLETION', 'HARNESS_TOOL_UNAVAILABLE'
+  'HARNESS_UPSTREAM_UNAVAILABLE', 'HARNESS_RUNTIME_EMPTY_COMPLETION', 'HARNESS_TOOL_UNAVAILABLE',
+  'HARNESS_CUSTOMER_FILE_BATCH_INVALID', 'HARNESS_CUSTOMER_FILE_NOT_FOUND', 'HARNESS_CUSTOMER_FILE_FORBIDDEN'
 ]);
 const TOOL_PROXY_SESSION_RE = /^[a-zA-Z0-9._:-]{1,256}$/;
 const TOOL_PROXY_FORBIDDEN_KEYS = new Set([
@@ -87,6 +88,7 @@ const TOOL_PROXY_ERROR_CODES = new Set([
   'HARNESS_SALES_RESOURCE_ID_INVALID', 'HARNESS_SALES_OBJECT_TYPE_INVALID',
   'HARNESS_TWIN_PERSISTENCE_UNAVAILABLE', 'HARNESS_TWIN_PERSISTENCE_FAILED',
   'HARNESS_CONFIRMATION_REQUIRED', 'HARNESS_IDEMPOTENCY_REQUIRED', 'HARNESS_MULTIMODAL_INVALID',
+  'HARNESS_CUSTOMER_FILE_BATCH_INVALID', 'HARNESS_CUSTOMER_FILE_NOT_FOUND', 'HARNESS_CUSTOMER_FILE_FORBIDDEN',
   'MESSAGE_REQUIRED', 'SESSION_ID_INVALID', 'SESSION_ACCESS_DENIED',
   'TEXT_REQUIRED'
 ]);
@@ -402,7 +404,7 @@ const createHarnessProviderDispatch = ({ bridgeUrl, activeDispatches, fetchImpl 
   };
 };
 
-const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall, executeEnterpriseSnapshot, executeDigitalTwinContext, executeDigitalTwinChat, executeDocumentPlan, executeSalesWrite, executeCustomerQuery, executeCustomerWrite, executeEngineeringContext, executeSiteSales, documentEntryWorker, documentFixedEntryWorker, createTwinPersistence, callPostgrestWithUser, fetchSemanticContext, envText = (value, fallback = '') => String(value ?? fallback).trim() }) => {
+const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall, executeEnterpriseSnapshot, executeDigitalTwinContext, executeDigitalTwinChat, executeDocumentPlan, executeSalesWrite, executeCustomerQuery, executeCustomerWrite, executeCustomerFileAnalyze, executeEngineeringContext, executeSiteSales, documentEntryWorker, documentFixedEntryWorker, createTwinPersistence, callPostgrestWithUser, fetchSemanticContext, envText = (value, fallback = '') => String(value ?? fallback).trim() }) => {
   const registry = loadPluginRegistry();
   const runtimeProfile = envText(process.env.RUNTIME_PROFILE, 'business').toLowerCase() || 'business';
   const flashOnly = runtimeProfile === 'flash';
@@ -413,7 +415,7 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
       'eiscore_multimodal_ocr', 'eiscore_multimodal_map_locate', 'eiscore_grid_query',
       'eiscore_twin_context', 'eiscore_twin_chat', 'eiscore_workflow_context', 'eiscore_workflow_write',
       'eiscore_sales_context', 'eiscore_sales_write', 'eiscore_document_plan', 'eiscore_document_commit',
-      'eiscore_customer_query', 'eiscore_customer_write',
+      'eiscore_customer_query', 'eiscore_customer_write', 'eiscore_customer_file_analyze',
       'eiscore_engineering_context', 'eiscore_site_sales'
     ]);
   const enabled = isHarnessConfigurationReady(process.env);
@@ -475,6 +477,7 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
     executeSalesWrite,
     executeCustomerQuery: flashOnly ? null : executeCustomerQuery,
     executeCustomerWrite: flashOnly ? null : executeCustomerWrite,
+    executeCustomerFileAnalyze: flashOnly ? null : executeCustomerFileAnalyze,
     executeDocumentPlan,
     executeDocumentCommit,
     executeEngineeringContext: executeEngineeringContext || contextCapabilities?.executeEngineering,

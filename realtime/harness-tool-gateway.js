@@ -13,7 +13,7 @@ const TOOL_ERROR_CODES = new Set([
   'HARNESS_SALES_OPERATION_INVALID', 'HARNESS_SALES_RESOURCE_ID_INVALID', 'HARNESS_SALES_OBJECT_TYPE_INVALID',
   'HARNESS_CUSTOMER_OPERATION_INVALID', 'HARNESS_CUSTOMER_RESOURCE_ID_INVALID', 'HARNESS_CUSTOMER_QUERY_INVALID',
   'HARNESS_CUSTOMER_WRITE_INVALID', 'HARNESS_CUSTOMER_NOT_FOUND', 'HARNESS_CUSTOMER_FILE_INVALID',
-  'HARNESS_CUSTOMER_FILE_NOT_FOUND', 'HARNESS_CUSTOMER_FILE_FORBIDDEN', 'HARNESS_CUSTOMER_CONFLICT',
+  'HARNESS_CUSTOMER_FILE_NOT_FOUND', 'HARNESS_CUSTOMER_FILE_FORBIDDEN', 'HARNESS_CUSTOMER_FILE_BATCH_INVALID', 'HARNESS_CUSTOMER_CONFLICT',
   'HARNESS_TWIN_PERSISTENCE_UNAVAILABLE', 'HARNESS_TWIN_PERSISTENCE_FAILED', 'MESSAGE_REQUIRED', 'SESSION_ID_INVALID',
   'SESSION_ACCESS_DENIED', 'HARNESS_CONFIRMATION_REQUIRED', 'HARNESS_IDEMPOTENCY_REQUIRED',
   'HARNESS_MULTIMODAL_INVALID', 'TEXT_REQUIRED'
@@ -30,7 +30,7 @@ const TOOL_GATEWAY_CAPABILITIES = Object.freeze([
   'eiscore_document_plan', 'eiscore_document_commit', 'eiscore_enterprise_snapshot', 'eiscore_enterprise_query',
   'eiscore_grid_query', 'eiscore_flash_read', 'eiscore_flash_write', 'eiscore_twin_context', 'eiscore_twin_chat',
   'eiscore_workflow_context', 'eiscore_workflow_write', 'eiscore_sales_context', 'eiscore_sales_write',
-  'eiscore_customer_query', 'eiscore_customer_write',
+  'eiscore_customer_query', 'eiscore_customer_write', 'eiscore_customer_file_analyze',
   'eiscore_engineering_context', 'eiscore_site_sales', 'eiscore_multimodal_translate',
   'eiscore_multimodal_ocr', 'eiscore_multimodal_map_locate'
 ]);
@@ -72,6 +72,7 @@ const createHarnessToolGateway = ({
   executeSalesWrite,
   executeCustomerQuery,
   executeCustomerWrite,
+  executeCustomerFileAnalyze,
   executeDocumentPlan,
   executeDocumentCommit,
   executeEngineeringContext,
@@ -135,6 +136,7 @@ const createHarnessToolGateway = ({
       eiscore_sales_write: executeSalesWrite,
       eiscore_customer_query: executeCustomerQuery,
       eiscore_customer_write: executeCustomerWrite,
+      eiscore_customer_file_analyze: executeCustomerFileAnalyze,
       eiscore_document_plan: executeDocumentPlan,
       eiscore_document_commit: executeDocumentCommit,
       eiscore_engineering_context: executeEngineeringContext,

@@ -26,6 +26,7 @@ const { createAgentDatabaseConfig } = require('./database-config');
 const { createHarnessRuntime } = require('./harness-runtime');
 const { createHarnessSalesWriteExecutor } = require('./harness-sales-write');
 const { createHarnessCustomerRecordsExecutor } = require('./customer-records');
+const { createCustomerFileMatcher } = require('./customer-file-matcher');
 const { createCustomerFileUploadHandler } = require('./customer-files-upload');
 const { createAiContextService } = require('./ai-context-service');
 const { createTwinTools, createPersistence } = require('./twin-tools');
@@ -373,6 +374,13 @@ const executeCustomerQuery = customerRecords?.execute
 const executeCustomerWrite = customerRecords?.execute
   ? (user, payload = {}, request = {}) => customerRecords.execute(user, payload, request)
   : null;
+const customerFileMatcher = flashRuntime ? null : createCustomerFileMatcher({
+  callPostgrestWithUser,
+  fetchSemanticContext: (user) => aiContextService.fetchSemanticContext(user)
+});
+const executeCustomerFileAnalyze = customerFileMatcher?.analyze
+  ? (user, payload = {}, request = {}) => customerFileMatcher.analyze(user, payload, request)
+  : null;
 const customerFileUploadHandlers = flashRuntime ? { disabled: true } : createCustomerFileUploadHandler({
   authorize: authorizeHttpRequest,
   sendJson,
@@ -471,7 +479,7 @@ const publicSiteSalesUser = Object.freeze({
   token: envText(process.env.COMPANY_SITE_HARNESS_TOKEN, `public-site-sales:${process.pid}:${Date.now()}`),
   permissions: ['site:sales']
 });
-const harnessRuntime = createHarnessRuntime({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall: flashRuntime ? null : async (user, payload = {}, source = '') => executeBusinessWorkflowTool(payload.tool_id || payload.toolId, payload.arguments || payload.args || {}, user, { traceId: payload.trace_id || payload.traceId, appId: payload.app_id || payload.appId, context: payload.context || {}, source }), executeEnterpriseSnapshot: flashRuntime ? null : (user, options = {}) => aiContextService.fetchBusinessSnapshot(user, options.accessContext), executeDigitalTwinContext, executeDocumentPlan: flashRuntime ? null : executeDocumentPlan, executeSalesWrite, executeCustomerQuery, executeCustomerWrite, executeSiteSales: flashRuntime ? null : async (_user, payload = {}) => {
+const harnessRuntime = createHarnessRuntime({ authorizeHttpRequest, authorizeTwinRequest, readJsonBody, sendJson, setCorsHeaders, streamTextAsSse, executeFlashToolCall, executeWorkflowToolCall: flashRuntime ? null : async (user, payload = {}, source = '') => executeBusinessWorkflowTool(payload.tool_id || payload.toolId, payload.arguments || payload.args || {}, user, { traceId: payload.trace_id || payload.traceId, appId: payload.app_id || payload.appId, context: payload.context || {}, source }), executeEnterpriseSnapshot: flashRuntime ? null : (user, options = {}) => aiContextService.fetchBusinessSnapshot(user, options.accessContext), executeDigitalTwinContext, executeDocumentPlan: flashRuntime ? null : executeDocumentPlan, executeSalesWrite, executeCustomerQuery, executeCustomerWrite, executeCustomerFileAnalyze, executeSiteSales: flashRuntime ? null : async (_user, payload = {}) => {
   const view = envText(payload?.view || payload?.view_id, 'site');
   const locale = envText(payload?.locale, 'zh-CN');
   if (!['site', 'catalog', 'knowledge'].includes(view)) {

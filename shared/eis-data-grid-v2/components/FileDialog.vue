@@ -481,7 +481,7 @@ const uploadReferenceFile = async (file) => {
   })
   const body = await response.json().catch(() => ({}))
   if (!response.ok) {
-    if (response.status === 413) throw new Error('文件请求超过服务上限，请使用20MB以内文件')
+    if (response.status === 413) throw new Error(`文件请求超过服务上限，请使用${maxSizeMb.value}MB以内文件`)
     throw new Error(String(body?.message || '文件保存失败'))
   }
   if (!body?.id) throw new Error('文件保存结果无效')

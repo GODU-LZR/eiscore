@@ -612,3 +612,19 @@ BEGIN
   END IF;
 END
 $grid_summary_authorization_contract$;
+
+DO $customer_file_size_contract$
+DECLARE
+  constraint_definition text;
+BEGIN
+  SELECT pg_get_constraintdef(oid)
+    INTO constraint_definition
+  FROM pg_constraint
+  WHERE conrelid = 'public.files'::regclass
+    AND conname = 'files_size_bytes_check';
+  IF constraint_definition IS NULL
+     OR position('104857600' IN constraint_definition) = 0 THEN
+    RAISE EXCEPTION 'Customer archive files must allow up to 100 MiB';
+  END IF;
+END
+$customer_file_size_contract$;

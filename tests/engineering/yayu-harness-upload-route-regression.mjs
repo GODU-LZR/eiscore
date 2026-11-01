@@ -16,9 +16,9 @@ const harnessFrame = readFileSync(new URL('../../eiscore-base/src/components/har
 const businessRoutes = auth.createAuthRoutes({ profile: 'business', upload: () => new Response('{}', { status: 201 }) })
 const flashRoutes = auth.createAuthRoutes({ profile: 'flash', upload: () => new Response('{}', { status: 201 }) })
 const fileRoute = businessRoutes.find((route) => route.path === '/api/eiscore/files/upload')
-assert.equal(fileRoute?.maxRequestBodyBytes, 20 * 1024 * 1024)
+assert.equal(fileRoute?.maxRequestBodyBytes, 100 * 1024 * 1024)
 assert.equal(flashRoutes.some((route) => route.path === '/api/eiscore/files/upload'), false)
-assert.equal(MAX_BODY_BYTES, 20 * 1024 * 1024)
+assert.equal(MAX_BODY_BYTES, 100 * 1024 * 1024)
 for (const extension of ['ppt', 'pptx', 'doc', 'docx', 'xls', 'xlsx', 'md', 'txt', 'wav', 'm4a', 'ogg', 'aac', 'flac']) {
   assert.match(harnessFrame, new RegExp(`['"]${extension}['"]`), `${extension} Harness extension`)
 }
@@ -80,7 +80,7 @@ auth.registerHttpRoute({ ...ctx, webServer: { register(value) { oversizedRegiste
 await oversizedRegistered[0].handler(oversized, oversizedResponse)
 assert.equal(oversizedResponse.status, 413)
 assert.equal(oversizedResponse.headers['content-type'], 'application/json; charset=utf-8')
-assert.deepEqual(JSON.parse(oversizedResponse.body), { code: 'PAYLOAD_TOO_LARGE', message: 'File exceeds the 20 MiB upload limit' })
+assert.deepEqual(JSON.parse(oversizedResponse.body), { code: 'PAYLOAD_TOO_LARGE', message: 'File exceeds the 100 MiB upload limit' })
 
 const authorize = () => ({ id: 'user-1', tenant_id: 'tenant-1' })
 const upload = createCustomerFileUploadHandler({
@@ -126,4 +126,4 @@ await secure.handleDelete({ url: `/api/eiscore/files/delete?id=${ownedFileId}`, 
 assert.equal(deleteResponse.status, 200)
 assert.equal(deleteResponse.payload.deleted, true)
 
-console.log('PASS: Yayu business file upload route keeps the 20 MiB limit, rejects Flash exposure, and avoids the 4 KiB auth ceiling')
+console.log('PASS: Yayu business file upload route keeps the 100 MiB limit, rejects Flash exposure, and avoids the 4 KiB auth ceiling')

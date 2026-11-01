@@ -4,7 +4,7 @@
 
 const crypto = require('node:crypto');
 
-const MAX_FILE_BYTES = 20 * 1024 * 1024;
+const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const MAX_BODY_BYTES = MAX_FILE_BYTES;
 const MIME_BY_EXTENSION = Object.freeze({
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
@@ -46,7 +46,7 @@ const readRawBody = (req, maxBytes) => new Promise((resolve, reject) => {
     if (total > maxBytes) { oversized = true; return; }
     if (!oversized) chunks.push(Buffer.from(chunk));
   });
-  req.on('end', () => oversized ? reject(fail('PAYLOAD_TOO_LARGE', 'File exceeds the 20 MiB upload limit', 413)) : resolve(Buffer.concat(chunks)));
+  req.on('end', () => oversized ? reject(fail('PAYLOAD_TOO_LARGE', 'File exceeds the 100 MiB upload limit', 413)) : resolve(Buffer.concat(chunks)));
   req.on('error', reject);
 });
 
@@ -112,7 +112,7 @@ const createCustomerFileUploadHandler = ({ authorize, sendJson, callPostgrestWit
     if (!user) return;
     const length = Number(req.headers['content-length']);
     if (Number.isFinite(length) && length > MAX_BODY_BYTES) {
-      sendJson(res, 413, { code: 'PAYLOAD_TOO_LARGE', message: 'File exceeds the 20 MiB upload limit' });
+      sendJson(res, 413, { code: 'PAYLOAD_TOO_LARGE', message: 'File exceeds the 100 MiB upload limit' });
       req.resume?.();
       return;
     }
@@ -142,7 +142,7 @@ const createCustomerFileUploadHandler = ({ authorize, sendJson, callPostgrestWit
         acceptProfile: 'public',
         contentProfile: 'public',
         prefer: 'return=representation',
-        timeoutMs: 30000
+        timeoutMs: 180000
       });
       const row = Array.isArray(response?.data) ? response.data[0] : response?.data;
       if (!row?.id) throw fail('FILE_UPLOAD_FAILED', 'File could not be stored', 502);

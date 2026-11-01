@@ -8,6 +8,7 @@ const { assertFieldAclWrite, filterVisibleFields, prepareFieldAclRead, stripFiel
 const CUSTOMER_TABLE = 'public.sales_customers';
 const CUSTOMER_MODULE = 'sales_customer';
 const MAX_LIMIT = 100;
+const MAX_CUSTOMER_FILES = 100;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_TEXT_RE = /^[^\u0000-\u001f\u007f]{1,240}$/;
 
@@ -37,6 +38,14 @@ const permissionsFor = (context) => new Set((Array.isArray(context?.permissions)
   .map((item) => text(item?.code || item, 120).toLowerCase()).filter(Boolean));
 const canViewCustomerFiles = (context) => context?.fieldAcl?.[CUSTOMER_MODULE]?.customer_files?.canView !== false;
 const canEditCustomerFiles = (context) => context?.fieldAcl?.[CUSTOMER_MODULE]?.customer_files?.canEdit !== false;
+const customerTarget = (input = {}) => {
+  const rawId = text(input.customer_id || input.customerId || input.id, 80);
+  if (rawId && isUuid(rawId)) return { id: rawId, customerNo: '' };
+  return {
+    id: '',
+    customerNo: text(input.customer_no || input.customerNo || rawId, 160)
+  };
+};
 
 const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSemanticContext, notifyCustomerRecordUpdated = () => {}, notifyCustomerFilesUpdated = () => {}, now = () => new Date() } = {}) => {
   if (typeof callPostgrestWithUser !== 'function') throw new TypeError('Customer records PostgREST adapter is required');
@@ -81,10 +90,12 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
     const filters = buildFilters(input.filters);
     const query = { select: visible.join(','), limit: String(Math.min(Math.max(Number(input.limit) || 20, 1), MAX_LIMIT)), order: 'created_at.desc', ...filters };
     if (!Object.hasOwn(filters, 'status')) query.status = 'neq.deleted';
-    const customerId = text(input.customer_id || input.customerId || input.id, 80);
-    if (customerId) {
-      if (!isUuid(customerId)) fail('HARNESS_CUSTOMER_RESOURCE_ID_INVALID', 'customer_id must be a UUID');
-      query.id = `eq.${customerId}`;
+    const target = customerTarget(input);
+    if (target.id) {
+      query.id = `eq.${target.id}`;
+      query.limit = '1';
+    } else if (target.customerNo) {
+      query.customer_no = `eq.${target.customerNo}`;
       query.limit = '1';
     }
     const order = text(input.order, 100);
@@ -117,7 +128,7 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
       if (!safeKey || RESERVED_PROPERTY_KEYS.has(safeKey) || !/^[^\u0000-\u001f\u007f]{1,80}$/.test(safeKey)) fail('HARNESS_CUSTOMER_WRITE_INVALID', 'Customer property name is invalid');
       if (typeof item === 'string') output[safeKey] = item.slice(0, 20000);
       else if (typeof item === 'number' || typeof item === 'boolean' || item === null) output[safeKey] = item;
-      else if (Array.isArray(item)) output[safeKey] = item.slice(0, 20);
+      else if (Array.isArray(item)) output[safeKey] = item.slice(0, safeKey === 'customer_files' ? MAX_CUSTOMER_FILES : 20);
       else if (item && typeof item === 'object') output[safeKey] = item;
     }
     return output;
@@ -190,8 +201,8 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
       attach_file: 'op:sales_customer.edit'
     };
     if (context.accessPolicy.superUser !== true && !permissionsFor(context).has(permissionByOperation[operation])) fail('HARNESS_PERMISSION_DENIED', 'Customer archive operation permission is not granted', 403);
-    const id = text(input.customer_id || input.customerId || input.id, 80);
-    if (!creating && !isUuid(id)) fail('HARNESS_CUSTOMER_RESOURCE_ID_INVALID', 'customer_id must be a UUID');
+    const target = creating ? { id: '', customerNo: '' } : await resolveCustomerTarget(user, input);
+    const id = target.id;
     if (operation === 'attach_file') {
       if (!canEditCustomerFiles(context)) {
         fail('HARNESS_PERMISSION_DENIED', 'Customer file field is not editable', 403);
@@ -205,12 +216,12 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
       if (owner.source !== 'harness_customer_archive' || owner.uploaded_by !== text(user?.id || user?.username, 160) || owner.tenant_id !== text(user?.tenant_id || user?.tenantId, 160)) {
         fail('HARNESS_CUSTOMER_FILE_FORBIDDEN', 'File does not belong to the current user and tenant', 403);
       }
-      if (Number(fileRow.size_bytes) > 20 * 1024 * 1024) fail('HARNESS_CUSTOMER_FILE_INVALID', 'Uploaded file exceeds the 20 MiB limit');
+      if (Number(fileRow.size_bytes) > 100 * 1024 * 1024) fail('HARNESS_CUSTOMER_FILE_INVALID', 'Uploaded file exceeds the 100 MiB limit');
       const current = await callPostgrestWithUser(user, { method: 'GET', path: '/sales_customers', query: { select: 'id,properties,updated_at', id: `eq.${id}`, status: 'neq.deleted', limit: '1' }, acceptProfile: 'public', timeoutMs: 8000 });
       const row = Array.isArray(current?.data) ? current.data[0] : null;
       if (!row) fail('HARNESS_CUSTOMER_NOT_FOUND', 'Customer was not found', 404);
       const properties = normalizeProperties(row.properties);
-      const list = Array.isArray(properties.customer_files) ? properties.customer_files.slice(0, 20) : [];
+      const list = Array.isArray(properties.customer_files) ? properties.customer_files.slice(0, MAX_CUSTOMER_FILES) : [];
       if (!list.some((item) => item?.id === fileId)) list.push({ id: fileId, name: fileRow.filename, type: fileRow.mime_type, size: Number(fileRow.size_bytes), url: `file:${fileId}`, category: text(input.category || '未分类', 80), classificationReason: text(input.classification_reason || input.classificationReason || '', 500), source: 'harness', contentAvailable: false, attachedAt: now().toISOString() });
       properties.customer_files = list;
       const result = await updateCustomer(user, id, { properties }, row.updated_at, request, context);
@@ -242,6 +253,22 @@ const createHarnessCustomerRecordsExecutor = ({ callPostgrestWithUser, fetchSema
     notifyCustomerRecordWrite(user, id, operation);
     if (Object.hasOwn(values.properties || {}, 'customer_files')) notifyCustomerFileWrite(user, id);
     return result;
+  };
+
+  const resolveCustomerTarget = async (user, input) => {
+    const target = customerTarget(input);
+    if (target.id) return target;
+    if (!target.customerNo) fail('HARNESS_CUSTOMER_RESOURCE_ID_INVALID', 'customer_id or customer_no is required');
+    const response = await callPostgrestWithUser(user, {
+      method: 'GET',
+      path: '/sales_customers',
+      query: { select: 'id,customer_no,updated_at', customer_no: `eq.${target.customerNo}`, status: 'neq.deleted', limit: '1' },
+      acceptProfile: 'public',
+      timeoutMs: 8000
+    });
+    const row = Array.isArray(response?.data) ? response.data[0] : null;
+    if (!row?.id || !isUuid(row.id)) fail('HARNESS_CUSTOMER_NOT_FOUND', 'Customer was not found', 404);
+    return { id: row.id, customerNo: text(row.customer_no || target.customerNo, 160), updatedAt: text(row.updated_at, 80) };
   };
 
   const updateCustomer = async (user, id, values, expectedUpdatedAt, request, context) => {

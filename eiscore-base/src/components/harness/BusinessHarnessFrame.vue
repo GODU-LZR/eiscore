@@ -53,9 +53,9 @@ const FILE_DROP_PROTOCOL = 'eiscore-harness-file-drop'
 const FILE_DROP_VERSION = 1
 const AUTH_RECOVERY_PROTOCOL = 'eiscore-harness-auth'
 const AUTH_RECOVERY_VERSION = 1
-const MAX_DROP_FILES = 20
-const MAX_FILE_BYTES = 20 * 1024 * 1024
-const FILE_UPLOAD_TIMEOUT_MS = 45_000
+const MAX_DROP_FILES = 100
+const MAX_FILE_BYTES = 100 * 1024 * 1024
+const FILE_UPLOAD_TIMEOUT_MS = 180_000
 const FILE_UPLOAD_CONCURRENCY = 3
 const FILE_REQUEST_TIMEOUT_MS = 15_000
 const AUTH_STATUS_INTERVAL_MS = 30_000
@@ -217,7 +217,7 @@ async function uploadHarnessFile(file) {
   const name = String(file.name || '').trim().slice(0, 240)
   const ext = fileExtension(name)
   if (!name || !FILE_EXTENSIONS.has(ext)) throw new Error('文件格式不支持')
-  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > MAX_FILE_BYTES) throw new Error('文件不能超过20MB')
+  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > MAX_FILE_BYTES) throw new Error('文件不能超过100MB')
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), FILE_UPLOAD_TIMEOUT_MS)
   try {
@@ -233,7 +233,7 @@ async function uploadHarnessFile(file) {
     })
     const body = await response.json().catch(() => ({}))
     if (!response.ok) {
-      if (response.status === 413) throw new Error('文件请求超过服务上限，请使用20MB以内文件')
+      if (response.status === 413) throw new Error('文件请求超过服务上限，请使用100MB以内文件')
       throw new Error(String(body?.message || '文件上传失败'))
     }
     const row = Array.isArray(body) ? body[0] : body

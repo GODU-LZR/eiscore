@@ -21,6 +21,7 @@ const ALL_CAPABILITIES = Object.freeze([
   'eiscore_sales_write',
   'eiscore_customer_query',
   'eiscore_customer_write',
+  'eiscore_customer_file_analyze',
   'eiscore_document_plan',
   'eiscore_document_commit',
   'eiscore_flash_read',
@@ -53,6 +54,7 @@ const CAPABILITY_TIMEOUTS = Object.freeze({
   eiscore_sales_write: 60000,
   eiscore_customer_query: 30000,
   eiscore_customer_write: 120000,
+  eiscore_customer_file_analyze: 120000,
   eiscore_document_plan: 60000,
   eiscore_document_commit: 60000,
   eiscore_flash_read: 60000,
@@ -194,7 +196,7 @@ const CUSTOMER_QUERY_PARAMETERS = Object.freeze({
   type: 'object', additionalProperties: false,
   properties: {
     operation: { type: 'string', enum: ['query', 'list', 'read'] },
-    customer_id: { type: 'string' }, customerId: { type: 'string' },
+    customer_id: { type: 'string' }, customerId: { type: 'string' }, customer_no: { type: 'string' }, customerNo: { type: 'string' },
     select: { oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }] },
     filters: { type: 'object', additionalProperties: true }, limit: { type: 'integer' }, order: { type: 'string' }
   }
@@ -204,11 +206,19 @@ const CUSTOMER_WRITE_PARAMETERS = Object.freeze({
   required: ['operation'],
   properties: {
     operation: { type: 'string', enum: ['create', 'update', 'delete', 'attach_file'] },
-    customer_id: { type: 'string' }, customerId: { type: 'string' }, id: { type: 'string' },
+    customer_id: { type: 'string' }, customerId: { type: 'string' }, customer_no: { type: 'string' }, customerNo: { type: 'string' }, id: { type: 'string' },
     values: { type: 'object', additionalProperties: true },
     expected_updated_at: { type: 'string' }, expectedUpdatedAt: { type: 'string' },
     file_id: { type: 'string' }, fileId: { type: 'string' }, file_ref: { type: 'string' }, category: { type: 'string' },
     classification_reason: { type: 'string' }, classificationReason: { type: 'string' }
+  }
+})
+const CUSTOMER_FILE_ANALYZE_PARAMETERS = Object.freeze({
+  type: 'object', additionalProperties: false,
+  properties: {
+    file_ids: { type: 'array', items: { type: 'string' }, maxItems: 100 },
+    fileIds: { type: 'array', items: { type: 'string' }, maxItems: 100 },
+    files: { type: 'array', items: { type: 'string' }, maxItems: 100 }
   }
 })
 const SALES_CONTEXT_OUTPUT = QUERY_OUTPUT
@@ -260,7 +270,8 @@ const TOOL_SCHEMAS = Object.freeze({
   eiscore_sales_context: Object.freeze({ parameters: SALES_CONTEXT_PARAMETERS, output: SALES_CONTEXT_OUTPUT }),
   eiscore_sales_write: Object.freeze({ parameters: SALES_WRITE_PARAMETERS, output: { type: 'object', additionalProperties: true } }),
   eiscore_customer_query: Object.freeze({ parameters: CUSTOMER_QUERY_PARAMETERS, output: { type: 'object', additionalProperties: true } }),
-  eiscore_customer_write: Object.freeze({ parameters: CUSTOMER_WRITE_PARAMETERS, output: { type: 'object', additionalProperties: true } })
+  eiscore_customer_write: Object.freeze({ parameters: CUSTOMER_WRITE_PARAMETERS, output: { type: 'object', additionalProperties: true } }),
+  eiscore_customer_file_analyze: Object.freeze({ parameters: CUSTOMER_FILE_ANALYZE_PARAMETERS, output: { type: 'object', additionalProperties: true } })
 })
 
 const proxyUrl = () => String(process.env.EISCORE_TOOL_PROXY_URL || '').replace(/\/+$/, '')
@@ -285,7 +296,7 @@ const rememberCustomerVersion = (sessionId, row) => {
 
 const customerWriteOperation = (args) => String(args?.operation || args?.action || '').trim()
 
-const customerWriteId = (args) => String(args?.customer_id || args?.customerId || args?.id || '').trim()
+const customerWriteId = (args) => String(args?.customer_id || args?.customerId || args?.id || args?.customer_no || args?.customerNo || '').trim()
 
 const withLatestCustomerWriteVersion = async (ctx, args, exec, sessionId) => {
   const operation = customerWriteOperation(args)
@@ -306,9 +317,9 @@ const withLatestCustomerWriteVersion = async (ctx, args, exec, sessionId) => {
     }
   }
   if (cached && supplied && Number.isFinite(suppliedMs) && suppliedMs >= cachedMs) return args
-  const result = await callWebCapability(ctx, 'eiscore_customer_query', {
-    operation: 'query', customer_id: customerId, select: ['id', 'updated_at'], limit: 1
-  }, exec)
+  const lookup = { operation: 'query', select: ['id', 'customer_no', 'updated_at'], limit: 1 }
+  if (customerId) lookup.customer_id = customerId
+  const result = await callWebCapability(ctx, 'eiscore_customer_query', lookup, exec)
   const row = Array.isArray(result?.rows) ? result.rows[0] : null
   const updatedAt = String(row?.updated_at || '').trim()
   if (!row || !updatedAt) throw new Error('Customer was not found or has no version; write was not sent')
@@ -456,10 +467,13 @@ const capabilityDescription = (capability) => {
     return `${base} Read-only datasets: materials, inventory, production_orders, employees (employee archives), users (user management; id, username, full_name, role_name, status only). Results are limited rows, not a full-table count. User creation is unsupported. Access is checked on every call.`
   }
   if (capability === 'eiscore_customer_query') {
-    return `${base} Query the authenticated user's sales customer archive, including properties.customer_files metadata. Results never include file binary content; use the file reference for preview/download.`
+    return `${base} Query the authenticated user's sales customer archive, including properties.customer_files metadata. Use customer_no for the visible business number (for example EIS009-UI-20261031); customer_id is a UUID. Results never include file binary content; use the file reference for preview/download.`
   }
   if (capability === 'eiscore_customer_write') {
-    return `${base} Manage the authenticated user's sales customer archive. Writes require explicit confirmation and are idempotent. Use expected_updated_at for update/delete/attach_file; after each successful write, use the returned row.updated_at for the next write, or query the row again before continuing. File classification is based on filename, MIME and user supplied category only; the tool does not read file bytes.`
+    return `${base} Manage the authenticated user's sales customer archive. Use customer_no for the visible business number (for example EIS009-UI-20261031); customer_id is a UUID. Writes require explicit confirmation and are idempotent. Use expected_updated_at for update/delete/attach_file; after each successful write, use the returned row.updated_at for the next write, or query the row again before continuing. File attachments write only file metadata to properties.customer_files; do not copy file content into text fields.`
+  }
+  if (capability === 'eiscore_customer_file_analyze') {
+    return `${base} Read the authenticated user's uploaded customer-archive files, including file bytes when available, and return matched, needs_confirmation, or unmatched customer candidates using customer number, name, contact, phone, region, and owner signals. Analyze up to 100 files and never write data. A matched result still requires the user to confirm before calling eiscore_customer_write with operation=attach_file; needs_confirmation and unmatched results must not be auto-written. Do not retry writes automatically.`
   }
   return base
 }

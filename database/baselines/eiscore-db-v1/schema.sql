@@ -10969,7 +10969,7 @@ CREATE TABLE public.files (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT files_check CHECK ((octet_length(decode(content_base64, 'base64'::text)) = size_bytes)),
-    CONSTRAINT files_size_bytes_check CHECK (((size_bytes > 0) AND (size_bytes <= 20971520)))
+    CONSTRAINT files_size_bytes_check CHECK (((size_bytes > 0) AND (size_bytes <= 104857600)))
 );
 
 
