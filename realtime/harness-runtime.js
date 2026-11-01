@@ -572,7 +572,7 @@ const createHarnessRuntime = ({ authorizeHttpRequest, authorizeTwinRequest, read
     if (existing && existing.scope === resolveHarnessDispatchScope({ plugin: { plugin_id: 'flash-builder' }, user })) registeredDispatches.delete(sessionId);
     sendJson(res, 200, { ok: true });
   };
-  const http = createHarnessHttpHandlers({ authorize: authorizeHttpRequest, gateway: profileGateway, enabled, readJsonBody, sendJson });
+  const http = createHarnessHttpHandlers({ authorize: authorizeHttpRequest, gateway: profileGateway, registry, enabled, readJsonBody, sendJson });
   const read = createHarnessReadHttpHandlers({ authorize: authorizeHttpRequest, registry, enabled, fetchSnapshot: async (user, { signal } = {}) => {
     const result = await profileGateway.execute({ plugin_id: 'enterprise-bi', agent_id: 'enterprise_analyst', capability_id: 'eiscore_enterprise_snapshot', user, payload: {}, signal });
     if (!result.ok) {

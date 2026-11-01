@@ -89,10 +89,11 @@ const runMetrics = async () => {
   let response;
   const handlers = createHarnessHttpHandlers({
     authorize: () => ({ id: 'u1', tenant_id: 't1', permissions: ['module:bi'] }),
-    gateway: { registry: { list: () => [
+    gateway: { execute: async () => ({ ok: true }) },
+    registry: { list: () => [
       { plugin_id: 'enterprise-bi', agent_id: 'enterprise_analyst', capabilities: ['eiscore_enterprise_query'], capability_policies: { eiscore_enterprise_query: { permissions: ['module:bi'] } }, risk: 'low' },
       { plugin_id: 'worker-grid', agent_id: 'worker_assistant', capabilities: ['eiscore_grid_query'], capability_policies: { eiscore_grid_query: { permissions: ['module:production'] } }, risk: 'low' }
-    ] } },
+    ] },
     enabled: true,
     readJsonBody: async () => ({}),
     sendJson: (_res, status, payload) => { response = { status, payload }; }
