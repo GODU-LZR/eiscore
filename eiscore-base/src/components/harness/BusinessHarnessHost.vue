@@ -39,6 +39,7 @@ const excluded = computed(() => /^\/apps\/flash-builder(?:\/|$)/.test(route.path
 const workspaceVisible = computed(() => !excluded.value && !businessHarnessState.workerCommandActive && (route.path === '/workbench' || route.path === '/') && !!businessHarnessState.workspace)
 const visible = computed(() => !excluded.value && (workspaceVisible.value || ((props.workerVisible || businessHarnessState.workerCommandActive) && businessHarnessState.assistantOpen)))
 let resizeObserver
+let fileDropStatusTimer
 
 function measureWorkspace() {
   const element = businessHarnessState.workspace
@@ -91,25 +92,39 @@ function handleHostDrop(event) {
 function handleFileDropProgress(progress) {
   const status = String(progress?.status || '')
   if (status === 'started' || status === 'progress') {
+    clearTimeout(fileDropStatusTimer)
     fileDropProgress.value = {
       active: true,
       status,
       completed: Number(progress.completed) || 0,
       total: Number(progress.total) || 0,
+      uploaded: 0,
       failed: 0
     }
     return
   }
+  clearTimeout(fileDropStatusTimer)
   fileDropProgress.value = {
-    active: false,
+    active: status === 'finished' && (Number(progress?.uploaded) > 0 || Number(progress?.failed) > 0),
     status,
     completed: Number(progress?.completed) || 0,
     total: Number(progress?.total) || 0,
+    uploaded: Number(progress?.uploaded) || 0,
     failed: Number(progress?.failed) || 0
+  }
+  if (fileDropProgress.value.active) {
+    fileDropStatusTimer = window.setTimeout(() => {
+      fileDropProgress.value.active = false
+    }, 4000)
   }
 }
 const fileDropStatusText = computed(() => {
-  const { completed, total } = fileDropProgress.value
+  const { status, completed, total, uploaded, failed } = fileDropProgress.value
+  if (status === 'finished') {
+    if (uploaded > 0 && failed > 0) return `已上传 ${uploaded} 个文件，${failed} 个失败`
+    if (uploaded > 0) return `上传成功 ${uploaded} 个文件`
+    if (failed > 0) return `${failed} 个文件上传失败`
+  }
   return total ? `正在上传文件 ${completed}/${total}，可继续整理文字草稿` : '正在准备文件上传'
 })
 function handleWorkerCommand(event) {
@@ -135,6 +150,7 @@ onMounted(() => {
   window.addEventListener('eis-harness-open-worker', handleWorkerCommand)
 })
 onBeforeUnmount(() => {
+  clearTimeout(fileDropStatusTimer)
   resizeObserver?.disconnect()
   window.removeEventListener('resize', measureWorkspace)
   window.removeEventListener('scroll', measureWorkspace, true)
