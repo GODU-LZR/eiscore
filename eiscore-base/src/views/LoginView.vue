@@ -1639,6 +1639,19 @@ const handleLogin = async () => {
         if (returnUrl.origin !== window.location.origin || !returnPaths.includes(returnUrl.pathname)) {
           throw new Error('无效的 Harness 回调地址')
         }
+        const authApiPrefix = returnUrl.pathname.startsWith('/harness-flash-embed-api/')
+          ? '/harness-flash-embed-api'
+          : '/harness-embed-api'
+        const authStartResponse = await fetch(`${authApiPrefix}/eiscore/auth/start`, {
+          method: 'POST',
+          headers: { Accept: 'application/json' }
+        })
+        const authStart = await authStartResponse.json().catch(() => ({}))
+        if (!authStartResponse.ok || !authStart?.url) throw new Error('Harness 登录状态刷新失败，请重试')
+        const authStartUrl = new URL(authStart.url, window.location.origin)
+        if (authStartUrl.origin !== window.location.origin || authStartUrl.pathname !== '/login') {
+          throw new Error('Harness 登录状态刷新失败，请重试')
+        }
         const handoffResponse = await fetch('/company-site/auth/handoff', {
           method: 'POST',
           headers: { Authorization: `Bearer ${realToken}`, Accept: 'application/json' }
