@@ -75,6 +75,7 @@ window.__ModuleLoader__.load({
       .eisKnowledgeSessionMenuStatus{padding:8px;color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:18px}
       @container(max-width:180px){.eisKnowledgeSessionMenuButtonIcon{display:none}}
       @media(max-width:600px){.eisKnowledgeSessionMenuButton{height:38px;padding:0 10px}.eisKnowledgeSessionMenuPanel{max-height:55vh}}
+      .wSkVaW_scrollBody{overflow-anchor:none}
       .eisKnowledgeOntologyDock{position:fixed;inset:0 0 0 auto;box-sizing:border-box;width:var(--eisKnowledge-ontology-right,56px);z-index:22;display:flex;flex-direction:column;background:var(--dsw-alias-bg-base);border-left:1px solid var(--dsw-alias-border-l3);box-shadow:-8px 0 24px #0001;color:var(--dsw-alias-label-primary);transition:width .18s var(--ds-ease-in-out)}
       .eisKnowledgeOntologyDockHeader{height:42px;min-height:42px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--dsw-alias-border-l4);font-size:13px;font-weight:500}
       .eisKnowledgeOntologyDock[data-open="false"] .eisKnowledgeOntologyDockHeader{justify-content:center;padding:0}
