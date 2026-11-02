@@ -426,29 +426,42 @@ window.__ModuleLoader__.load({
         return () => { window.clearTimeout(timer); controller.abort() }
       }, [menuOpen, normalizedQuery, searchSessions])
       React.useEffect(() => {
-        const menuOverlay = document.querySelector?.('[data-knowledge-session-menu-overlay]')
-        const sidebarSlot = document.querySelector?.('[data-slot="sidebar"]')
-        const sidebarColumn = sidebarSlot?.parentElement
-        const nativeHeader = document.querySelector?.('header')
-        if (!menuOverlay || !sidebarColumn || !nativeHeader) return undefined
-        const sidebarFrame = sidebarColumn.parentElement
-        const update = () => {
+        let bound = false
+        let resizeObserver
+        let frameObserver
+        let measure
+        const update = (menuOverlay, sidebarColumn, nativeHeader) => {
           const sidebarRect = sidebarColumn.getBoundingClientRect?.()
           const headerRect = nativeHeader.getBoundingClientRect?.()
           if (sidebarRect) menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-right', `${Math.max(0, Math.round(sidebarRect.right))}px`)
           if (headerRect) menuOverlay.style?.setProperty?.('--eisKnowledge-session-header-bottom', `${Math.max(0, Math.round(headerRect.bottom))}px`)
         }
-        update()
-        const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : undefined
-        resizeObserver?.observe(sidebarColumn)
-        resizeObserver?.observe(nativeHeader)
-        const mutationObserver = typeof MutationObserver === 'function' && sidebarFrame ? new MutationObserver(update) : undefined
-        mutationObserver?.observe(sidebarFrame, { attributes: true, attributeFilter: ['class', 'style'] })
-        window.addEventListener('resize', update)
+        const bind = () => {
+          const menuOverlay = document.querySelector?.('[data-knowledge-session-menu-overlay]')
+          const sidebarColumn = document.querySelector?.('[data-slot="sidebar"]')?.parentElement
+          const nativeHeader = document.querySelector?.('header')
+          if (!menuOverlay || !sidebarColumn || !nativeHeader) return false
+          bound = true
+          const sidebarFrame = sidebarColumn.parentElement
+          measure = () => update(menuOverlay, sidebarColumn, nativeHeader)
+          measure()
+          resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : undefined
+          resizeObserver?.observe(sidebarColumn)
+          resizeObserver?.observe(nativeHeader)
+          frameObserver = typeof MutationObserver === 'function' && sidebarFrame ? new MutationObserver(measure) : undefined
+          frameObserver?.observe(sidebarFrame, { attributes: true, attributeFilter: ['class', 'style'] })
+          window.addEventListener('resize', measure)
+          return true
+        }
+        const readyObserver = typeof MutationObserver === 'function' && document.documentElement
+          ? new MutationObserver(() => { if (bind()) readyObserver.disconnect() })
+          : undefined
+        if (!bind()) readyObserver?.observe(document.documentElement, { childList: true, subtree: true })
         return () => {
+          readyObserver?.disconnect()
           resizeObserver?.disconnect()
-          mutationObserver?.disconnect()
-          window.removeEventListener('resize', update)
+          frameObserver?.disconnect()
+          if (bound) window.removeEventListener('resize', measure)
         }
       }, [])
 

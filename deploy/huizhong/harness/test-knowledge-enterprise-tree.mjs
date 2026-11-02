@@ -45,7 +45,8 @@ assert.match(source, /getBoundingClientRect/)
 assert.match(source, /frame\.style\.paddingRight = `calc\(\$\{basePaddingRight\} \+ \$\{ontologyWidth\}px\)`/)
 assert.doesNotMatch(source, /frame\.style\.gridTemplateColumns\s*=/)
 assert.match(source, /new ResizeObserver\(update\)/)
-assert.match(source, /new MutationObserver\(update\)/)
+assert.match(source, /new MutationObserver\(measure\)/)
+assert.match(source, /readyObserver\?\.observe\(document\.documentElement, \{ childList: true, subtree: true \}\)/)
 for (const expected of [
   "'/harness-knowledge-agent/twin/knowledge/files'",
   'readKnowledgeFile',
@@ -82,9 +83,12 @@ const keyListeners = new Set()
 let sidebarWidth = 280
 let sidebarLeft = 32
 let nativeHeaderBottom = 76
+let nativeHeaderAvailable = true
 const resizeObservers = new Set()
 const mutationObservers = new Set()
 const resizeListeners = new Set()
+const documentRootStyle = { values: {}, setProperty(name, value) { this.values[name] = value } }
+const documentRoot = { style: documentRootStyle }
 const sidebarFrame = { style: { gridTemplateColumns: '280px minmax(0, 1fr)', paddingRight: '12px' }, getBoundingClientRect: () => ({ width: 1280 }) }
 const sidebarColumn = {
   parentElement: sidebarFrame,
@@ -104,7 +108,11 @@ class ResizeObserver {
 }
 class MutationObserver {
   constructor(callback) { this.callback = callback; mutationObservers.add(this) }
-  observe(target, options) { assert.equal(target, sidebarFrame); assert.equal(Array.from(options.attributeFilter).join(','), 'class,style'); this.target = target }
+  observe(target, options) {
+    if (target === documentRoot) assert.equal(options.childList && options.subtree, true)
+    else { assert.equal(target, sidebarFrame); assert.equal(Array.from(options.attributeFilter).join(','), 'class,style') }
+    this.target = target
+  }
   disconnect() { mutationObservers.delete(this) }
 }
 const notifySidebarResize = (width) => {
@@ -133,11 +141,10 @@ const window = {
   }) } }
 }
 const appended = []
-const documentRootStyle = { values: {}, setProperty(name, value) { this.values[name] = value } }
 const document = {
   createElement: () => ({ remove() { this.removed = true } }),
-  documentElement: { style: documentRootStyle },
-  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === 'header' ? nativeHeader : null,
+  documentElement: documentRoot,
+  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === 'header' && nativeHeaderAvailable ? nativeHeader : null,
   head: { appendChild: (node) => appended.push(node) }
 }
 vm.runInNewContext(source, { window, document, AbortController, ResizeObserver, MutationObserver, Set, Map, String, Array, Object, Promise })
@@ -271,8 +278,15 @@ injectedMenuProps.startSession('knowledge')
 injectedMenuProps.open('s-old')
 assert.deepEqual(calls.slice(-2), [['start', 'knowledge'], ['open', 's-old']])
 calls.length = 0
+nativeHeaderAvailable = false
 rendered = renderSessionMenu(menuProps)
 let menuNodes = flatten(rendered)
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], undefined)
+const readinessObserver = [...mutationObservers].find((observer) => observer.target === documentRoot)
+assert.ok(readinessObserver, 'waits for the native header before positioning the session bar')
+nativeHeaderAvailable = true
+readinessObserver.callback()
+assert.equal(mutationObservers.has(readinessObserver), false)
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '312px')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
 const notifyHeaderResize = (bottom) => {
