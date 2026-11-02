@@ -52,8 +52,8 @@ window.__ModuleLoader__.load({
       .eisKnowledgeFilesStatus{padding:7px;color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:16px}
       .eisKnowledgeFilePreview{max-height:120px;overflow:auto;margin:0 5px 5px;padding:6px;border-radius:5px;background:var(--dsw-alias-fill-l3);color:var(--dsw-alias-label-secondary);font:10px/15px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
       .eisKnowledgeFilesInput{display:none}
-      .eisKnowledgeSessionMenuOverlay{position:fixed;inset:0 var(--eisKnowledge-ontology-right,56px) 0 0;z-index:21;pointer-events:none}
-      .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:fixed;top:0;right:var(--eisKnowledge-ontology-right,56px);left:var(--eisKnowledge-sidebar-right,56px);pointer-events:auto}
+      .eisKnowledgeSessionMenuOverlay{position:fixed;inset:var(--eisKnowledge-session-header-bottom,0px) var(--eisKnowledge-ontology-right,56px) 0 0;z-index:21;pointer-events:none}
+      .eisKnowledgeSessionMenuOverlay>.eisKnowledgeSessionMenu{position:fixed;top:var(--eisKnowledge-session-header-bottom,0px);right:var(--eisKnowledge-ontology-right,56px);left:var(--eisKnowledge-sidebar-right,56px);pointer-events:auto}
       .eisKnowledgeSessionMenu{position:relative;display:block;min-width:0;z-index:12;container-type:inline-size}
       .eisKnowledgeSessionMenuButton{box-sizing:border-box;position:relative;isolation:isolate;width:100%;display:flex;align-items:center;gap:8px;height:42px;min-width:0;overflow:hidden;padding:0 16px;border:0;border-bottom:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:13px;line-height:20px;text-align:left}
       .eisKnowledgeSessionMenuButton:hover,.eisKnowledgeSessionMenuButton[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
@@ -429,15 +429,19 @@ window.__ModuleLoader__.load({
         const menuOverlay = document.querySelector?.('[data-knowledge-session-menu-overlay]')
         const sidebarSlot = document.querySelector?.('[data-slot="sidebar"]')
         const sidebarColumn = sidebarSlot?.parentElement
-        if (!menuOverlay || !sidebarColumn) return undefined
+        const nativeHeader = document.querySelector?.('header')
+        if (!menuOverlay || !sidebarColumn || !nativeHeader) return undefined
         const sidebarFrame = sidebarColumn.parentElement
         const update = () => {
           const sidebarRect = sidebarColumn.getBoundingClientRect?.()
+          const headerRect = nativeHeader.getBoundingClientRect?.()
           if (sidebarRect) menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-right', `${Math.max(0, Math.round(sidebarRect.right))}px`)
+          if (headerRect) menuOverlay.style?.setProperty?.('--eisKnowledge-session-header-bottom', `${Math.max(0, Math.round(headerRect.bottom))}px`)
         }
         update()
         const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(update) : undefined
         resizeObserver?.observe(sidebarColumn)
+        resizeObserver?.observe(nativeHeader)
         const mutationObserver = typeof MutationObserver === 'function' && sidebarFrame ? new MutationObserver(update) : undefined
         mutationObserver?.observe(sidebarFrame, { attributes: true, attributeFilter: ['class', 'style'] })
         window.addEventListener('resize', update)

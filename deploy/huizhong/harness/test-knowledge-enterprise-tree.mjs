@@ -30,8 +30,8 @@ if (modules) {
 const source = readFileSync(new URL('lib/client.js', pluginDir), 'utf8')
 assert.doesNotMatch(source, /sidebarRight|sidebar\.right\.pane/)
 assert.match(source, /name: 'shell\.overlay'/)
-assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:fixed;inset:0 var\(--eisKnowledge-ontology-right,56px\) 0 0;z-index:21;pointer-events:none\}/)
-assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:fixed;top:0;right:var\(--eisKnowledge-ontology-right,56px\);left:var\(--eisKnowledge-sidebar-right,56px\);pointer-events:auto\}/)
+assert.match(source, /\.eisKnowledgeSessionMenuOverlay\{position:fixed;inset:var\(--eisKnowledge-session-header-bottom,0px\) var\(--eisKnowledge-ontology-right,56px\) 0 0;z-index:21;pointer-events:none\}/)
+assert.match(source, /\.eisKnowledgeSessionMenuOverlay>\.eisKnowledgeSessionMenu\{position:fixed;top:var\(--eisKnowledge-session-header-bottom,0px\);right:var\(--eisKnowledge-ontology-right,56px\);left:var\(--eisKnowledge-sidebar-right,56px\);pointer-events:auto\}/)
 assert.match(source, /\.eisKnowledgeOntologyDock\{position:fixed;inset:0 0 0 auto;box-sizing:border-box;width:var\(--eisKnowledge-ontology-right,56px\);/)
 assert.match(source, /\.eisKnowledgeOntologyDock\[data-open="false"\] \.eisKnowledgeOntologyTitle\{display:none\}/)
 assert.match(source, /\.eisKnowledgeSessionMenu\{position:relative;display:block;min-width:0;z-index:12;container-type:inline-size\}/)
@@ -81,6 +81,7 @@ let plugin
 const keyListeners = new Set()
 let sidebarWidth = 280
 let sidebarLeft = 32
+let nativeHeaderBottom = 76
 const resizeObservers = new Set()
 const mutationObservers = new Set()
 const resizeListeners = new Set()
@@ -89,6 +90,7 @@ const sidebarColumn = {
   parentElement: sidebarFrame,
   getBoundingClientRect: () => ({ left: sidebarLeft, right: sidebarLeft + sidebarWidth, width: sidebarWidth })
 }
+const nativeHeader = { getBoundingClientRect: () => ({ top: 0, bottom: nativeHeaderBottom, height: nativeHeaderBottom }) }
 const menuOverlayElement = {
   style: {
     values: {},
@@ -97,7 +99,7 @@ const menuOverlayElement = {
 }
 class ResizeObserver {
   constructor(callback) { this.callback = callback; resizeObservers.add(this) }
-  observe(target) { assert.equal(target, sidebarColumn); this.target = target }
+  observe(target) { assert.ok(target === sidebarColumn || target === nativeHeader); this.target = target }
   disconnect() { resizeObservers.delete(this) }
 }
 class MutationObserver {
@@ -135,7 +137,7 @@ const documentRootStyle = { values: {}, setProperty(name, value) { this.values[n
 const document = {
   createElement: () => ({ remove() { this.removed = true } }),
   documentElement: { style: documentRootStyle },
-  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : null,
+  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === 'header' ? nativeHeader : null,
   head: { appendChild: (node) => appended.push(node) }
 }
 vm.runInNewContext(source, { window, document, AbortController, ResizeObserver, MutationObserver, Set, Map, String, Array, Object, Promise })
@@ -272,6 +274,14 @@ calls.length = 0
 rendered = renderSessionMenu(menuProps)
 let menuNodes = flatten(rendered)
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '312px')
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
+const notifyHeaderResize = (bottom) => {
+  nativeHeaderBottom = bottom
+  for (const observer of resizeObservers) observer.callback()
+}
+notifyHeaderResize(84)
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '84px')
+notifyHeaderResize(76)
 notifySidebarResize(56)
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '88px')
 notifySidebarResize(420)
