@@ -441,6 +441,8 @@ window.__ModuleLoader__.load({
           const sidebarColumn = document.querySelector?.('[data-slot="sidebar"]')?.parentElement
           const nativeHeader = document.querySelector?.('header')
           if (!menuOverlay || !sidebarColumn || !nativeHeader) return false
+          const headerRect = nativeHeader.getBoundingClientRect?.()
+          if (!headerRect || headerRect.height <= 0) return false
           bound = true
           const sidebarFrame = sidebarColumn.parentElement
           measure = () => update(menuOverlay, sidebarColumn, nativeHeader)
@@ -456,7 +458,12 @@ window.__ModuleLoader__.load({
         const readyObserver = typeof MutationObserver === 'function' && document.documentElement
           ? new MutationObserver(() => { if (bind()) readyObserver.disconnect() })
           : undefined
-        if (!bind()) readyObserver?.observe(document.documentElement, { childList: true, subtree: true })
+        if (!bind()) readyObserver?.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['class', 'style']
+        })
         return () => {
           readyObserver?.disconnect()
           resizeObserver?.disconnect()

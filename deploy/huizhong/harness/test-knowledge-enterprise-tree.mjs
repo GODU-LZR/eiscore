@@ -46,7 +46,7 @@ assert.match(source, /frame\.style\.paddingRight = `calc\(\$\{basePaddingRight\}
 assert.doesNotMatch(source, /frame\.style\.gridTemplateColumns\s*=/)
 assert.match(source, /new ResizeObserver\(update\)/)
 assert.match(source, /new MutationObserver\(measure\)/)
-assert.match(source, /readyObserver\?\.observe\(document\.documentElement, \{ childList: true, subtree: true \}\)/)
+assert.match(source, /readyObserver\?\.observe\(document\.documentElement, \{[\s\S]*attributes: true,[\s\S]*attributeFilter: \['class', 'style'\][\s\S]*\}\)/)
 for (const expected of [
   "'/harness-knowledge-agent/twin/knowledge/files'",
   'readKnowledgeFile',
@@ -109,7 +109,11 @@ class ResizeObserver {
 class MutationObserver {
   constructor(callback) { this.callback = callback; mutationObservers.add(this) }
   observe(target, options) {
-    if (target === documentRoot) assert.equal(options.childList && options.subtree, true)
+    if (target === documentRoot) {
+      assert.equal(options.childList && options.subtree, true)
+      assert.equal(options.attributes, true)
+      assert.equal(Array.from(options.attributeFilter).join(','), 'class,style')
+    }
     else { assert.equal(target, sidebarFrame); assert.equal(Array.from(options.attributeFilter).join(','), 'class,style') }
     this.target = target
   }
@@ -285,8 +289,13 @@ assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bott
 const readinessObserver = [...mutationObservers].find((observer) => observer.target === documentRoot)
 assert.ok(readinessObserver, 'waits for the native header before positioning the session bar')
 nativeHeaderAvailable = true
+nativeHeaderBottom = 0
 readinessObserver.callback()
-assert.equal(mutationObservers.has(readinessObserver), false)
+assert.equal(mutationObservers.has(readinessObserver), true, 'waits while the native header exists but is hidden')
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], undefined)
+nativeHeaderBottom = 76
+readinessObserver.callback()
+assert.equal(mutationObservers.has(readinessObserver), false, 'binds after the native header becomes visible')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '312px')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
 const notifyHeaderResize = (bottom) => {
