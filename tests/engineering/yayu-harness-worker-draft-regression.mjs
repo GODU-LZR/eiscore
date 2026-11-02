@@ -219,6 +219,9 @@ recoveryTimers.shift()()
 window.fetch = async () => ({ status: 401 })
 await window.fetch('/api/session/prompt', { method: 'POST' })
 assert.equal(replies.length, 2, 'a later auth expiry must be able to request recovery again')
+recoveryTimers.shift()()
+await window.fetch('/harness-embed-api/session/prompt', { method: 'POST' })
+assert.equal(replies.length, 3, 'the reverse-proxied prompt path must also request auth recovery')
 replies.length = 0
 
 const prompt = '请整理当前销售合同并保留原有字段'
@@ -282,14 +285,8 @@ await listeners.get('message')[1]({
 })
 assert.equal(dropOverlayRemoved, true, 'the host upload response clears the native image-only overlay')
 assert.equal(nativeDropResetCount, 2, 'upload success keeps DeepSeek native drag state reset')
-assert.match(editor.textContent, /用户刚刚输入的内容/, 'file receipt must preserve a non-empty user draft')
-assert.match(editor.textContent, /报价单\.xlsx/, 'file receipt must display the uploaded filename in the composer')
-assert.match(editor.textContent, /引用 test-file/, 'file receipt must display the stored file reference in the composer')
-assert.match(editor.textContent, /eiscore_customer_file_analyze/, 'the uploaded-file draft must request content analysis')
-assert.match(editor.textContent, /作为 file_ids 一次进行批量只读正文分析/, 'the uploaded-file draft must pass referenced ids to the batch analyzer')
-assert.match(editor.textContent, /needs_confirmation/, 'the uploaded-file draft must preserve an explicit uncertain-match state')
-assert.match(editor.textContent, /未经我看到结果后明确确认具体文件和客户，不要调用 customer_write 或 attach_file/, 'analysis must not write before user confirmation')
-assert.equal(editingCommands.at(-1).command, 'insertText', 'file receipt must use the editor-native draft insertion operation')
+assert.equal(editor.textContent, '用户刚刚输入的内容', 'file receipt must not insert internal analysis text into the visible composer')
+assert.equal(editingCommands.length, 1, 'file receipt must not edit the visible composer')
 const attachmentObserver = mutationObservers.at(-1)
 const initialAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
 assert.equal(initialAttachmentRoot.children.length, 1, 'uploaded files must render an attachment row beside the composer')
@@ -306,16 +303,75 @@ await listeners.get('message')[1]({
   data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'second-file', name: '第二份资料.txt', type: 'text/plain' }] }
 })
 assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]').children.length, 2, 'a programmatic draft replacement must not clear existing or newly uploaded attachments')
-assert.match(editor.textContent, /引用 test-file[\s\S]*引用 second-file/, 'a new upload must preserve all pending file references for one analysis batch')
+assert.equal(editor.textContent, '用户刚刚输入的内容', 'multiple uploads must stay out of the visible composer')
+const promptEnvelope = {
+  type: 'client-request',
+  method: 'session/prompt',
+  payload: { args: { request: { sessionId: 'session-1', mode: 'queue', content: [{ type: 'text', text: '请整理这些客户资料' }] } } }
+}
+let promptResponseStatus = 503
+window.fetch = async (...args) => {
+  window.promptRequestArgs = args
+  return { status: promptResponseStatus, ok: promptResponseStatus >= 200 && promptResponseStatus < 300, clone: () => ({ json: async () => ({ result: { ok: true, value: {} } }) }) }
+}
+await window.fetch('/api/session/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(promptEnvelope) })
+const failedPromptBody = JSON.parse(window.promptRequestArgs[1].body)
+assert.equal(failedPromptBody.payload.args.request.content[0].text, '请整理这些客户资料', 'hidden context must preserve the user message')
+assert.match(failedPromptBody.payload.args.request.content[1].text, /eiscore_customer_file_analyze/)
+assert.match(failedPromptBody.payload.args.request.content[1].text, /needs_confirmation/)
+assert.match(failedPromptBody.payload.args.request.content[1].text, /未经我看到结果后明确确认具体文件和客户，不要调用 customer_write 或 attach_file/)
+assert.match(failedPromptBody.payload.args.request.content[1].text, /引用 test-file/)
+assert.match(failedPromptBody.payload.args.request.content[1].text, /引用 second-file/)
+assert.equal((failedPromptBody.payload.args.request.content[1].text.match(/引用 second-file/g) || []).length, 1, 'each uploaded reference must be included only once')
+assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]').children.length, 2, 'a failed prompt must keep attachments available')
 buttonHandlers.find(({ title }) => title === '从当前草稿移除（不删除原文件）').listener()
 assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]').children.length, 1, 'removing one draft attachment must leave other uploaded files visible')
-assert.match(editor.textContent, /引用 second-file/, 'removing an attachment must preserve other file references in the draft')
-assert.doesNotMatch(editor.textContent, /test-file/, 'removing an attachment must remove every occurrence of its file reference from the draft')
+assert.equal(editor.textContent, '用户刚刚输入的内容', 'removing an attachment must not change the natural-language draft')
 assert.equal(replies.filter(({ message }) => message.type === 'delete-request').length, 0, 'removing from the draft must not permanently delete the source file')
+promptResponseStatus = 200
+await window.fetch('/api/session/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(promptEnvelope) })
+assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]'), null, 'a queued prompt must clear attachment chips')
+assert.equal(editor.textContent, '用户刚刚输入的内容', 'hidden analysis context must never enter the visible composer')
+await listeners.get('message')[1]({
+  origin: 'https://app.example',
+  source: parentWindow,
+  data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'proxy-file', name: '代理路径资料.txt', type: 'text/plain' }] }
+})
+promptResponseStatus = 503
+await window.fetch('/harness-embed-api/session/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(promptEnvelope) })
+const proxiedPromptBody = JSON.parse(window.promptRequestArgs[1].body)
+assert.equal(proxiedPromptBody.payload.args.request.content[0].text, '请整理这些客户资料', 'proxy rewriting must preserve the natural-language message')
+assert.match(proxiedPromptBody.payload.args.request.content.at(-1).text, /引用 proxy-file/, 'the reverse-proxied prompt must carry uploaded file references')
+assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]').children.length, 1, 'a failed reverse-proxied prompt must keep its attachment')
+promptResponseStatus = 200
+await window.fetch('/harness-embed-api/session/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(promptEnvelope) })
+assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]'), null, 'a successful reverse-proxied prompt must clear its attachment')
+await listeners.get('message')[1]({
+  origin: 'https://app.example',
+  source: parentWindow,
+  data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'second-file', name: '第二份资料.txt', type: 'text/plain' }] }
+})
+let resolvePromptResponse
+window.fetch = async (...args) => {
+  window.promptRequestArgs = args
+  return await new Promise((resolve) => { resolvePromptResponse = resolve })
+}
+const pendingPrompt = window.fetch('/api/session/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(promptEnvelope) })
+assert.match(JSON.parse(window.promptRequestArgs[1].body).payload.args.request.content.at(-1).text, /引用 second-file/, 'the analysis reference must travel with the request started before another upload')
+await listeners.get('message')[1]({
+  origin: 'https://app.example',
+  source: parentWindow,
+  data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'uploaded', files: [{ id: 'later-file', name: '后续资料.txt', type: 'text/plain' }] }
+})
+resolvePromptResponse({ status: 200, ok: true, clone: () => ({ json: async () => ({ result: { queued: true } }) }) })
+await pendingPrompt
+const remainingAttachmentRoot = attachmentParent.querySelector('[data-eis-file-attachments]')
+assert.equal(remainingAttachmentRoot.children.length, 1, 'a successful request must not clear files uploaded after it started')
+assert.equal(remainingAttachmentRoot.children[0].dataset.fileId, 'later-file')
 editor.innerText = ''
 editor.textContent = ''
 for (const listener of editorListeners.get('input') || []) listener()
-assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]'), null, 'a real user clear must clear attachment references')
+assert.equal(attachmentParent.querySelector('[data-eis-file-attachments]'), remainingAttachmentRoot, 'clearing natural language must preserve unsent file attachments')
 dropOverlayRemoved = false
 await listeners.get('message')[1]({
   origin: 'https://app.example',
@@ -323,7 +379,7 @@ await listeners.get('message')[1]({
   data: { source: 'eiscore-host', protocol: 'eiscore-harness-file-drop', version: 1, type: 'error', errors: ['文件格式不支持'] }
 })
 assert.equal(dropOverlayRemoved, true, 'an upload error response also clears the native image-only overlay')
-assert.equal(nativeDropResetCount, 4, 'upload errors keep DeepSeek native drag state reset')
+assert.equal(nativeDropResetCount, 7, 'upload errors keep DeepSeek native drag state reset')
 
 const filesOnlyDropEvent = {
   dataTransfer: { types: [], files: [droppedFile], dropEffect: '' },

@@ -17,6 +17,10 @@
   const AUTH_RECOVERY_VERSION = 1
   const AUTH_RECOVERY_COOLDOWN_MS = 30_000
   const AUTH_FETCH_WRAPPED = Symbol('eiscore-harness-auth-fetch')
+  const PROMPT_PATHS = new Set(['/api/session/prompt', '/harness-embed-api/session/prompt'])
+  const SESSION_AUTH_PATHS = new Set(['/api/session/create', '/api/session/prompt', '/harness-embed-api/session/create', '/harness-embed-api/session/prompt'])
+  const CUSTOMER_FILE_ANALYSIS_CONTEXT = '我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，对下方文件引用中的所有 ID 去重后作为 file_ids 一次进行批量只读正文分析，并结合客户档案可见字段判断每个文件对应的客户。逐个返回 matched、needs_confirmation 或 unmatched、候选客户、命中依据和置信度；内容无法读取或候选不唯一时必须标记待确认，不能仅凭文件名猜测。分析不写业务数据；未经我看到结果后明确确认具体文件和客户，不要调用 customer_write 或 attach_file。只有确认后才复用 attach_file 写入客户资料列。'
+  const uploadedFiles = new Map()
   let authRecoverySent = false
   let authRecoveryTimer
   const notifyAuthRequired = () => {
@@ -34,10 +38,49 @@
   const wrapAuthFetch = (fetchImpl) => {
     if (typeof fetchImpl !== 'function' || fetchImpl[AUTH_FETCH_WRAPPED]) return fetchImpl
     const wrapped = async (...args) => {
-      const response = await fetchImpl.apply(window, args)
+      let requestArgs = args
+      let promptRequest = false
+      let sentFileIds = []
+      try {
+        const input = args[0]
+        const isRequest = typeof Request === 'function' && input instanceof Request
+        const url = new URL(isRequest ? input.url : String(input), location.href)
+        const method = String(args[1]?.method || (isRequest ? input.method : 'GET')).toUpperCase()
+        const body = isRequest && args[1]?.body === undefined ? await input.clone().text() : args[1]?.body
+        if (url.origin === location.origin && PROMPT_PATHS.has(url.pathname) && method === 'POST' && typeof body === 'string' && uploadedFiles.size) {
+          const envelope = JSON.parse(body)
+          const prompt = envelope?.payload?.args?.request
+          const methodName = String(envelope?.method || '')
+          if (envelope?.type === 'client-request' && methodName === 'session/prompt' && Array.isArray(prompt?.content)) {
+            const files = [...uploadedFiles.values()]
+            const fileIds = [...new Set(files.map((file) => String(file.id || '')).filter(Boolean))]
+            if (fileIds.length) {
+              const selectedFiles = files.filter((file) => fileIds.includes(String(file.id)))
+              const references = selectedFiles.map(fileReference)
+              prompt.content.push({ type: 'text', text: `[EISCORE_CUSTOMER_FILE_ANALYSIS]\n${CUSTOMER_FILE_ANALYSIS_CONTEXT}\n\n${references.join('\n\n')}` })
+              const serialized = JSON.stringify(envelope)
+              requestArgs = isRequest
+                ? [new Request(input, { ...args[1], body: serialized }), ...args.slice(2)]
+                : [input, { ...args[1], method, body: serialized }, ...args.slice(2)]
+              promptRequest = true
+              sentFileIds = fileIds
+            }
+          }
+        }
+      } catch {}
+      const response = await fetchImpl.apply(window, requestArgs)
       let pathname = ''
       try { pathname = new URL(typeof Request !== 'undefined' && args[0] instanceof Request ? args[0].url : String(args[0]), location.href).pathname } catch {}
-      if (response?.status === 401 && ['/api/session/create', '/api/session/prompt'].includes(pathname)) notifyAuthRequired()
+      if (response?.status === 401 && SESSION_AUTH_PATHS.has(pathname)) notifyAuthRequired()
+      if (promptRequest && response?.ok) {
+        try {
+          const payload = await response.clone().json()
+          if (!payload?.error && payload?.result !== undefined && payload.result?.ok !== false) {
+            sentFileIds.forEach((id) => uploadedFiles.delete(id))
+            renderFileAttachments()
+          }
+        } catch {}
+      }
       return response
     }
     try { Object.defineProperty(wrapped, AUTH_FETCH_WRAPPED, { value: true }) } catch {}
@@ -148,7 +191,6 @@
   const getWorkerComposer = () => [...document.querySelectorAll(WORKER_COMPOSER_SELECTOR)]
     .reverse()
     .find((composer) => composer.isConnected && composer.getClientRects().length > 0) || null
-  const uploadedFiles = new Map()
   const watchedComposers = new WeakSet()
   const updatingComposerDraft = new WeakSet()
   let attachmentObserver
@@ -308,10 +350,7 @@
     watchedComposers.add(composer)
     composer.addEventListener?.('input', () => {
       if (updatingComposerDraft.has(composer)) return
-      if (!readComposerText(composer)) {
-        uploadedFiles.clear()
-        renderFileAttachments(composer)
-      }
+      if (!readComposerText(composer)) renderFileAttachments(composer)
     })
   }
   const sendWorkerDraftReply = (type, id, extra = {}) => {
@@ -493,15 +532,10 @@
       normalized.referenceText = fileReference(normalized)
       uploadedFiles.set(normalized.id, normalized)
     })
-    const references = [...uploadedFiles.values()].map(fileReference)
     ensureAttachmentObserver()
-    const prompt = `我刚上传了客户档案资料文件。请调用 eiscore_customer_file_analyze，对下方文件引用中的所有 ID 去重后作为 file_ids 一次进行批量只读正文分析，并结合客户档案可见字段判断每个文件对应的客户。逐个返回 matched、needs_confirmation 或 unmatched、候选客户、命中依据和置信度；内容无法读取或候选不唯一时必须标记待确认，不能仅凭文件名猜测。分析不写业务数据；未经我看到结果后明确确认具体文件和客户，不要调用 customer_write 或 attach_file。只有确认后才复用 attach_file 写入客户资料列。\n\n${references.join('\n\n')}`
     const composer = await waitForWorkerComposer(3000)
     if (!composer) return
     watchComposer(composer)
-    const currentText = readComposerText(composer)
-    const nextText = currentText ? `${currentText}\n\n${prompt}` : prompt
-    try { pasteWorkerDraft(composer, nextText) } catch {}
     renderFileAttachments(composer)
   })
   const HARNESS_ENTRY_VERSION = 1
