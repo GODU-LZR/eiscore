@@ -429,12 +429,29 @@ window.__ModuleLoader__.load({
         let bound = false
         let resizeObserver
         let frameObserver
+        let contentObserver
         let measure
+        let conversationScrollBody
+        let originalConversationPaddingTop = ''
+        const restoreConversationPadding = () => {
+          if (conversationScrollBody?.style) conversationScrollBody.style.paddingTop = originalConversationPaddingTop
+          conversationScrollBody = undefined
+          originalConversationPaddingTop = ''
+        }
         const update = (menuOverlay, sidebarColumn, nativeHeader) => {
           const sidebarRect = sidebarColumn.getBoundingClientRect?.()
           const headerRect = nativeHeader.getBoundingClientRect?.()
           if (sidebarRect) menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-right', `${Math.max(0, Math.round(sidebarRect.right))}px`)
           if (headerRect) menuOverlay.style?.setProperty?.('--eisKnowledge-session-header-bottom', `${Math.max(0, Math.round(headerRect.bottom))}px`)
+          const sessionMenuButton = menuOverlay.querySelector?.('.eisKnowledgeSessionMenuButton')
+          const nextConversationScrollBody = document.querySelector?.('.wSkVaW_scrollBody')
+          if (nextConversationScrollBody !== conversationScrollBody) {
+            restoreConversationPadding()
+            conversationScrollBody = nextConversationScrollBody
+            originalConversationPaddingTop = conversationScrollBody?.style?.paddingTop || ''
+          }
+          const menuRect = sessionMenuButton?.getBoundingClientRect?.()
+          if (conversationScrollBody?.style && menuRect) conversationScrollBody.style.paddingTop = `${Math.max(0, Math.round(menuRect.height))}px`
         }
         const bind = () => {
           const menuOverlay = document.querySelector?.('[data-knowledge-session-menu-overlay]')
@@ -452,6 +469,8 @@ window.__ModuleLoader__.load({
           resizeObserver?.observe(nativeHeader)
           frameObserver = typeof MutationObserver === 'function' && sidebarFrame ? new MutationObserver(measure) : undefined
           frameObserver?.observe(sidebarFrame, { attributes: true, attributeFilter: ['class', 'style'] })
+          contentObserver = typeof MutationObserver === 'function' && document.documentElement ? new MutationObserver(measure) : undefined
+          contentObserver?.observe(document.documentElement, { childList: true, subtree: true })
           window.addEventListener('resize', measure)
           return true
         }
@@ -468,6 +487,8 @@ window.__ModuleLoader__.load({
           readyObserver?.disconnect()
           resizeObserver?.disconnect()
           frameObserver?.disconnect()
+          contentObserver?.disconnect()
+          restoreConversationPadding()
           if (bound) window.removeEventListener('resize', measure)
         }
       }, [])

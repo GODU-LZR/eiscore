@@ -84,6 +84,7 @@ let sidebarWidth = 280
 let sidebarLeft = 32
 let nativeHeaderBottom = 76
 let nativeHeaderAvailable = true
+let sessionMenuButtonHeight = 42
 const resizeObservers = new Set()
 const mutationObservers = new Set()
 const resizeListeners = new Set()
@@ -99,8 +100,13 @@ const menuOverlayElement = {
   style: {
     values: {},
     setProperty(name, value) { this.values[name] = value }
-  }
+  },
+  querySelector: (selector) => selector === '.eisKnowledgeSessionMenuButton'
+    ? { getBoundingClientRect: () => ({ height: sessionMenuButtonHeight }) }
+    : null
 }
+let conversationScrollBody = { style: { paddingTop: '' } }
+const initialConversationScrollBody = conversationScrollBody
 class ResizeObserver {
   constructor(callback) { this.callback = callback; resizeObservers.add(this) }
   observe(target) { assert.ok(target === sidebarColumn || target === nativeHeader); this.target = target }
@@ -111,8 +117,7 @@ class MutationObserver {
   observe(target, options) {
     if (target === documentRoot) {
       assert.equal(options.childList && options.subtree, true)
-      assert.equal(options.attributes, true)
-      assert.equal(Array.from(options.attributeFilter).join(','), 'class,style')
+      if (options.attributes) assert.equal(Array.from(options.attributeFilter).join(','), 'class,style')
     }
     else { assert.equal(target, sidebarFrame); assert.equal(Array.from(options.attributeFilter).join(','), 'class,style') }
     this.target = target
@@ -148,7 +153,7 @@ const appended = []
 const document = {
   createElement: () => ({ remove() { this.removed = true } }),
   documentElement: documentRoot,
-  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === 'header' && nativeHeaderAvailable ? nativeHeader : null,
+  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === 'header' && nativeHeaderAvailable ? nativeHeader : selector === '.wSkVaW_scrollBody' ? conversationScrollBody : null,
   head: { appendChild: (node) => appended.push(node) }
 }
 vm.runInNewContext(source, { window, document, AbortController, ResizeObserver, MutationObserver, Set, Map, String, Array, Object, Promise })
@@ -298,6 +303,7 @@ readinessObserver.callback()
 assert.equal(mutationObservers.has(readinessObserver), false, 'binds after the native header becomes visible')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '312px')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
+assert.equal(conversationScrollBody.style.paddingTop, '42px', 'desktop conversation content clears the 42px session button')
 const notifyHeaderResize = (bottom) => {
   nativeHeaderBottom = bottom
   for (const observer of resizeObservers) observer.callback()
@@ -314,6 +320,21 @@ assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '8
 sidebarLeft = 0
 for (const listener of resizeListeners) listener()
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '56px')
+sessionMenuButtonHeight = 38
+for (const listener of resizeListeners) listener()
+assert.equal(conversationScrollBody.style.paddingTop, '38px', 'narrow conversation content clears the 38px session button')
+sessionMenuButtonHeight = 42
+for (const listener of resizeListeners) listener()
+assert.equal(conversationScrollBody.style.paddingTop, '42px')
+const replacedConversationScrollBody = { style: { paddingTop: '3px' } }
+conversationScrollBody = replacedConversationScrollBody
+const contentObserver = [...mutationObservers].find((observer) => observer.target === documentRoot)
+assert.ok(contentObserver, 'tracks conversation content that mounts after the plugin')
+contentObserver.callback()
+assert.equal(conversationScrollBody.style.paddingTop, '42px')
+assert.equal(initialConversationScrollBody.style.paddingTop, '', 'replaced conversation body restores its original inline style')
+assert.equal(replacedConversationScrollBody.style.paddingTop, '42px')
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前项目：知识库项目/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前会话：当前对话/)
@@ -356,6 +377,7 @@ menuNodes.find((node) => node.props?.['data-tree-session'] === 's-old').props.on
 assert.deepEqual(calls, [['search', '合同', false], ['open', 's-old']])
 for (const cleanup of effectCleanups.values()) cleanup()
 effectCleanups.clear()
+assert.equal(replacedConversationScrollBody.style.paddingTop, '3px', 'plugin cleanup restores the conversation body inline style')
 assert.equal(resizeObservers.size, 0)
 assert.equal(mutationObservers.size, 0)
 assert.equal(resizeListeners.size, 0)
