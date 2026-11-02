@@ -307,13 +307,13 @@ readinessObserver.callback()
 assert.equal(mutationObservers.has(readinessObserver), false, 'binds after the native header becomes visible')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '312px')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
-assert.equal(conversationScrollBody.style.paddingTop, '185px', 'desktop conversation content clears the expanded session history panel')
+assert.equal(conversationScrollBody.style.paddingTop, '197px', 'desktop conversation content clears the expanded session history panel and shadow')
 sessionMenuHeight = 42
 for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '42px', 'collapsed desktop history reserves only its title bar')
+assert.equal(conversationScrollBody.style.paddingTop, '54px', 'collapsed desktop history also keeps a visual gap')
 sessionMenuHeight = 185
 for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '185px')
+assert.equal(conversationScrollBody.style.paddingTop, '197px')
 const notifyHeaderResize = (bottom) => {
   nativeHeaderBottom = bottom
   for (const observer of resizeObservers) observer.callback()
@@ -333,24 +333,24 @@ assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '5
 sessionMenuButtonHeight = 38
 sessionMenuHeight = 181
 for (const listener of resizeListeners) listener()
-assert.equal(conversationScrollBody.style.paddingTop, '181px', 'narrow conversation content clears the expanded history panel')
+assert.equal(conversationScrollBody.style.paddingTop, '193px', 'narrow conversation content clears the expanded history panel and shadow')
 for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '181px', 'narrow expanded history reserves its entire panel')
+assert.equal(conversationScrollBody.style.paddingTop, '193px', 'narrow expanded history reserves its entire panel and gap')
 sessionMenuHeight = 38
 for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '38px', 'collapsed narrow history reserves only its title bar')
+assert.equal(conversationScrollBody.style.paddingTop, '50px', 'collapsed narrow history keeps a visual gap')
 sessionMenuButtonHeight = 42
 sessionMenuHeight = 185
 for (const listener of resizeListeners) listener()
-assert.equal(conversationScrollBody.style.paddingTop, '185px')
+assert.equal(conversationScrollBody.style.paddingTop, '197px')
 const replacedConversationScrollBody = { style: { paddingTop: '3px' } }
 conversationScrollBody = replacedConversationScrollBody
 const contentObserver = [...mutationObservers].find((observer) => observer.target === documentRoot)
 assert.ok(contentObserver, 'tracks conversation content that mounts after the plugin')
 contentObserver.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '185px')
+assert.equal(conversationScrollBody.style.paddingTop, '197px')
 assert.equal(initialConversationScrollBody.style.paddingTop, '', 'replaced conversation body restores its original inline style')
-assert.equal(replacedConversationScrollBody.style.paddingTop, '185px')
+assert.equal(replacedConversationScrollBody.style.paddingTop, '197px')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前项目：知识库项目/)

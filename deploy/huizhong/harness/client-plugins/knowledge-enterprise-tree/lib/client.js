@@ -459,7 +459,7 @@ window.__ModuleLoader__.load({
             originalConversationPaddingTop = conversationScrollBody?.style?.paddingTop || ''
           }
           const menuRect = sessionMenu?.getBoundingClientRect?.()
-          if (conversationScrollBody?.style && menuRect) conversationScrollBody.style.paddingTop = `${Math.max(0, Math.round(menuRect.height))}px`
+          if (conversationScrollBody?.style && menuRect) conversationScrollBody.style.paddingTop = `${Math.max(0, Math.round(menuRect.height)) + 12}px`
         }
         const bind = () => {
           const menuOverlay = document.querySelector?.('[data-knowledge-session-menu-overlay]')
