@@ -428,9 +428,11 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         let bound = false
         let resizeObserver
+        let sessionMenuResizeObserver
         let frameObserver
         let contentObserver
         let measure
+        let observedSessionMenu
         let conversationScrollBody
         let originalConversationPaddingTop = ''
         const restoreConversationPadding = () => {
@@ -443,14 +445,20 @@ window.__ModuleLoader__.load({
           const headerRect = nativeHeader.getBoundingClientRect?.()
           if (sidebarRect) menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-right', `${Math.max(0, Math.round(sidebarRect.right))}px`)
           if (headerRect) menuOverlay.style?.setProperty?.('--eisKnowledge-session-header-bottom', `${Math.max(0, Math.round(headerRect.bottom))}px`)
-          const sessionMenuButton = menuOverlay.querySelector?.('.eisKnowledgeSessionMenuButton')
+          const sessionMenu = menuOverlay.querySelector?.('.eisKnowledgeSessionMenu')
+          if (sessionMenu !== observedSessionMenu) {
+            sessionMenuResizeObserver?.disconnect()
+            observedSessionMenu = sessionMenu
+            sessionMenuResizeObserver = typeof ResizeObserver === 'function' && sessionMenu ? new ResizeObserver(measure) : undefined
+            sessionMenuResizeObserver?.observe(sessionMenu)
+          }
           const nextConversationScrollBody = document.querySelector?.('.wSkVaW_scrollBody')
           if (nextConversationScrollBody !== conversationScrollBody) {
             restoreConversationPadding()
             conversationScrollBody = nextConversationScrollBody
             originalConversationPaddingTop = conversationScrollBody?.style?.paddingTop || ''
           }
-          const menuRect = sessionMenuButton?.getBoundingClientRect?.()
+          const menuRect = sessionMenu?.getBoundingClientRect?.()
           if (conversationScrollBody?.style && menuRect) conversationScrollBody.style.paddingTop = `${Math.max(0, Math.round(menuRect.height))}px`
         }
         const bind = () => {
@@ -486,6 +494,7 @@ window.__ModuleLoader__.load({
         return () => {
           readyObserver?.disconnect()
           resizeObserver?.disconnect()
+          sessionMenuResizeObserver?.disconnect()
           frameObserver?.disconnect()
           contentObserver?.disconnect()
           restoreConversationPadding()

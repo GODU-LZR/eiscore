@@ -85,6 +85,7 @@ let sidebarLeft = 32
 let nativeHeaderBottom = 76
 let nativeHeaderAvailable = true
 let sessionMenuButtonHeight = 42
+let sessionMenuHeight = 185
 const resizeObservers = new Set()
 const mutationObservers = new Set()
 const resizeListeners = new Set()
@@ -103,13 +104,16 @@ const menuOverlayElement = {
   },
   querySelector: (selector) => selector === '.eisKnowledgeSessionMenuButton'
     ? { getBoundingClientRect: () => ({ height: sessionMenuButtonHeight }) }
-    : null
+    : selector === '.eisKnowledgeSessionMenu'
+      ? sessionMenuElement
+      : null
 }
+const sessionMenuElement = { getBoundingClientRect: () => ({ height: sessionMenuHeight }) }
 let conversationScrollBody = { style: { paddingTop: '' } }
 const initialConversationScrollBody = conversationScrollBody
 class ResizeObserver {
   constructor(callback) { this.callback = callback; resizeObservers.add(this) }
-  observe(target) { assert.ok(target === sidebarColumn || target === nativeHeader); this.target = target }
+  observe(target) { assert.ok(target === sidebarColumn || target === nativeHeader || target === sessionMenuElement); this.target = target }
   disconnect() { resizeObservers.delete(this) }
 }
 class MutationObserver {
@@ -303,7 +307,13 @@ readinessObserver.callback()
 assert.equal(mutationObservers.has(readinessObserver), false, 'binds after the native header becomes visible')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '312px')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
-assert.equal(conversationScrollBody.style.paddingTop, '42px', 'desktop conversation content clears the 42px session button')
+assert.equal(conversationScrollBody.style.paddingTop, '185px', 'desktop conversation content clears the expanded session history panel')
+sessionMenuHeight = 42
+for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
+assert.equal(conversationScrollBody.style.paddingTop, '42px', 'collapsed desktop history reserves only its title bar')
+sessionMenuHeight = 185
+for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
+assert.equal(conversationScrollBody.style.paddingTop, '185px')
 const notifyHeaderResize = (bottom) => {
   nativeHeaderBottom = bottom
   for (const observer of resizeObservers) observer.callback()
@@ -321,19 +331,26 @@ sidebarLeft = 0
 for (const listener of resizeListeners) listener()
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '56px')
 sessionMenuButtonHeight = 38
+sessionMenuHeight = 181
 for (const listener of resizeListeners) listener()
-assert.equal(conversationScrollBody.style.paddingTop, '38px', 'narrow conversation content clears the 38px session button')
+assert.equal(conversationScrollBody.style.paddingTop, '181px', 'narrow conversation content clears the expanded history panel')
+for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
+assert.equal(conversationScrollBody.style.paddingTop, '181px', 'narrow expanded history reserves its entire panel')
+sessionMenuHeight = 38
+for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
+assert.equal(conversationScrollBody.style.paddingTop, '38px', 'collapsed narrow history reserves only its title bar')
 sessionMenuButtonHeight = 42
+sessionMenuHeight = 185
 for (const listener of resizeListeners) listener()
-assert.equal(conversationScrollBody.style.paddingTop, '42px')
+assert.equal(conversationScrollBody.style.paddingTop, '185px')
 const replacedConversationScrollBody = { style: { paddingTop: '3px' } }
 conversationScrollBody = replacedConversationScrollBody
 const contentObserver = [...mutationObservers].find((observer) => observer.target === documentRoot)
 assert.ok(contentObserver, 'tracks conversation content that mounts after the plugin')
 contentObserver.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '42px')
+assert.equal(conversationScrollBody.style.paddingTop, '185px')
 assert.equal(initialConversationScrollBody.style.paddingTop, '', 'replaced conversation body restores its original inline style')
-assert.equal(replacedConversationScrollBody.style.paddingTop, '42px')
+assert.equal(replacedConversationScrollBody.style.paddingTop, '185px')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前项目：知识库项目/)
