@@ -433,12 +433,12 @@ window.__ModuleLoader__.load({
         let contentObserver
         let measure
         let observedSessionMenu
-        let conversationScrollBody
-        let originalConversationPaddingTop = ''
-        const restoreConversationPadding = () => {
-          if (conversationScrollBody?.style) conversationScrollBody.style.paddingTop = originalConversationPaddingTop
-          conversationScrollBody = undefined
-          originalConversationPaddingTop = ''
+        let conversationBody
+        let originalConversationMarginTop = ''
+        const restoreConversationSpacing = () => {
+          if (conversationBody?.style) conversationBody.style.marginTop = originalConversationMarginTop
+          conversationBody = undefined
+          originalConversationMarginTop = ''
         }
         const update = (menuOverlay, sidebarColumn, nativeHeader) => {
           const sidebarRect = sidebarColumn.getBoundingClientRect?.()
@@ -452,14 +452,14 @@ window.__ModuleLoader__.load({
             sessionMenuResizeObserver = typeof ResizeObserver === 'function' && sessionMenu ? new ResizeObserver(measure) : undefined
             sessionMenuResizeObserver?.observe(sessionMenu)
           }
-          const nextConversationScrollBody = document.querySelector?.('.wSkVaW_scrollBody')
-          if (nextConversationScrollBody !== conversationScrollBody) {
-            restoreConversationPadding()
-            conversationScrollBody = nextConversationScrollBody
-            originalConversationPaddingTop = conversationScrollBody?.style?.paddingTop || ''
+          const nextConversationBody = document.querySelector?.('.wSkVaW_body')
+          if (nextConversationBody !== conversationBody) {
+            restoreConversationSpacing()
+            conversationBody = nextConversationBody
+            originalConversationMarginTop = conversationBody?.style?.marginTop || ''
           }
           const menuRect = sessionMenu?.getBoundingClientRect?.()
-          if (conversationScrollBody?.style && menuRect) conversationScrollBody.style.paddingTop = `${Math.max(0, Math.round(menuRect.height)) + 12}px`
+          if (conversationBody?.style && menuRect) conversationBody.style.marginTop = `${Math.max(0, Math.round(menuRect.height)) + 12}px`
         }
         const bind = () => {
           const menuOverlay = document.querySelector?.('[data-knowledge-session-menu-overlay]')
@@ -497,7 +497,7 @@ window.__ModuleLoader__.load({
           sessionMenuResizeObserver?.disconnect()
           frameObserver?.disconnect()
           contentObserver?.disconnect()
-          restoreConversationPadding()
+          restoreConversationSpacing()
           if (bound) window.removeEventListener('resize', measure)
         }
       }, [])

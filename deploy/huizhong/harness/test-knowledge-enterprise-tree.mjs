@@ -109,8 +109,8 @@ const menuOverlayElement = {
       : null
 }
 const sessionMenuElement = { getBoundingClientRect: () => ({ height: sessionMenuHeight }) }
-let conversationScrollBody = { style: { paddingTop: '' } }
-const initialConversationScrollBody = conversationScrollBody
+let conversationBody = { style: { marginTop: '' } }
+const initialConversationBody = conversationBody
 class ResizeObserver {
   constructor(callback) { this.callback = callback; resizeObservers.add(this) }
   observe(target) { assert.ok(target === sidebarColumn || target === nativeHeader || target === sessionMenuElement); this.target = target }
@@ -157,7 +157,7 @@ const appended = []
 const document = {
   createElement: () => ({ remove() { this.removed = true } }),
   documentElement: documentRoot,
-  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === 'header' && nativeHeaderAvailable ? nativeHeader : selector === '.wSkVaW_scrollBody' ? conversationScrollBody : null,
+  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === 'header' && nativeHeaderAvailable ? nativeHeader : selector === '.wSkVaW_body' ? conversationBody : null,
   head: { appendChild: (node) => appended.push(node) }
 }
 vm.runInNewContext(source, { window, document, AbortController, ResizeObserver, MutationObserver, Set, Map, String, Array, Object, Promise })
@@ -307,13 +307,13 @@ readinessObserver.callback()
 assert.equal(mutationObservers.has(readinessObserver), false, 'binds after the native header becomes visible')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '312px')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
-assert.equal(conversationScrollBody.style.paddingTop, '197px', 'desktop conversation content clears the expanded session history panel and shadow')
+assert.equal(conversationBody.style.marginTop, '197px', 'desktop conversation layout clears the expanded session history panel and shadow')
 sessionMenuHeight = 42
 for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '54px', 'collapsed desktop history also keeps a visual gap')
+assert.equal(conversationBody.style.marginTop, '54px', 'collapsed desktop history also keeps a visual gap')
 sessionMenuHeight = 185
 for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '197px')
+assert.equal(conversationBody.style.marginTop, '197px')
 const notifyHeaderResize = (bottom) => {
   nativeHeaderBottom = bottom
   for (const observer of resizeObservers) observer.callback()
@@ -333,24 +333,24 @@ assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '5
 sessionMenuButtonHeight = 38
 sessionMenuHeight = 181
 for (const listener of resizeListeners) listener()
-assert.equal(conversationScrollBody.style.paddingTop, '193px', 'narrow conversation content clears the expanded history panel and shadow')
+assert.equal(conversationBody.style.marginTop, '193px', 'narrow conversation layout clears the expanded history panel and shadow')
 for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '193px', 'narrow expanded history reserves its entire panel and gap')
+assert.equal(conversationBody.style.marginTop, '193px', 'narrow expanded history reserves its entire panel and gap')
 sessionMenuHeight = 38
 for (const observer of resizeObservers) if (observer.target === sessionMenuElement) observer.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '50px', 'collapsed narrow history keeps a visual gap')
+assert.equal(conversationBody.style.marginTop, '50px', 'collapsed narrow history keeps a visual gap')
 sessionMenuButtonHeight = 42
 sessionMenuHeight = 185
 for (const listener of resizeListeners) listener()
-assert.equal(conversationScrollBody.style.paddingTop, '197px')
-const replacedConversationScrollBody = { style: { paddingTop: '3px' } }
-conversationScrollBody = replacedConversationScrollBody
+assert.equal(conversationBody.style.marginTop, '197px')
+const replacedConversationBody = { style: { marginTop: '3px' } }
+conversationBody = replacedConversationBody
 const contentObserver = [...mutationObservers].find((observer) => observer.target === documentRoot)
 assert.ok(contentObserver, 'tracks conversation content that mounts after the plugin')
 contentObserver.callback()
-assert.equal(conversationScrollBody.style.paddingTop, '197px')
-assert.equal(initialConversationScrollBody.style.paddingTop, '', 'replaced conversation body restores its original inline style')
-assert.equal(replacedConversationScrollBody.style.paddingTop, '197px')
+assert.equal(conversationBody.style.marginTop, '197px')
+assert.equal(initialConversationBody.style.marginTop, '', 'replaced conversation body restores its original inline style')
+assert.equal(replacedConversationBody.style.marginTop, '197px')
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '76px')
 assert.match(menuNodes.filter((node) => typeof node === 'string').join('|'), /会话历史/)
 assert.match(menuNodes.find((node) => node.props?.['aria-label']?.startsWith('会话历史')).props['aria-label'], /当前项目：知识库项目/)
@@ -394,7 +394,7 @@ menuNodes.find((node) => node.props?.['data-tree-session'] === 's-old').props.on
 assert.deepEqual(calls, [['search', '合同', false], ['open', 's-old']])
 for (const cleanup of effectCleanups.values()) cleanup()
 effectCleanups.clear()
-assert.equal(replacedConversationScrollBody.style.paddingTop, '3px', 'plugin cleanup restores the conversation body inline style')
+assert.equal(replacedConversationBody.style.marginTop, '3px', 'plugin cleanup restores the conversation body inline style')
 assert.equal(resizeObservers.size, 0)
 assert.equal(mutationObservers.size, 0)
 assert.equal(resizeListeners.size, 0)
