@@ -83,6 +83,8 @@ let plugin
 const keyListeners = new Set()
 let sidebarWidth = 280
 let sidebarLeft = 32
+let filesPanelVisible = true
+let filesPanelRight = 272
 let nativeHeaderBottom = 76
 let nativeHeaderAvailable = true
 let sessionMenuButtonHeight = 42
@@ -96,6 +98,9 @@ const sidebarFrame = { style: { gridTemplateColumns: '280px minmax(0, 1fr)', pad
 const sidebarColumn = {
   parentElement: sidebarFrame,
   getBoundingClientRect: () => ({ left: sidebarLeft, right: sidebarLeft + sidebarWidth, width: sidebarWidth })
+}
+const filesPanel = {
+  getBoundingClientRect: () => ({ left: 20, right: filesPanelRight, width: filesPanelVisible ? filesPanelRight - 20 : 0, height: filesPanelVisible ? 605 : 0 })
 }
 const nativeHeader = { getBoundingClientRect: () => ({ top: 0, bottom: nativeHeaderBottom, height: nativeHeaderBottom }) }
 const menuOverlayElement = {
@@ -114,7 +119,7 @@ let conversationBody = { style: { marginTop: '' } }
 const initialConversationBody = conversationBody
 class ResizeObserver {
   constructor(callback) { this.callback = callback; resizeObservers.add(this) }
-  observe(target) { assert.ok(target === sidebarColumn || target === nativeHeader || target === sessionMenuElement); this.target = target }
+  observe(target) { assert.ok(target === sidebarColumn || target === filesPanel || target === nativeHeader || target === sessionMenuElement); this.target = target }
   disconnect() { resizeObservers.delete(this) }
 }
 class MutationObserver {
@@ -133,6 +138,12 @@ const notifySidebarResize = (width) => {
   sidebarWidth = width
   sidebarFrame.style.gridTemplateColumns = `${width}px minmax(0, 1fr)`
   for (const observer of resizeObservers) observer.callback()
+}
+const notifyFilesPanelResize = (visible, right = filesPanelRight) => {
+  filesPanelVisible = visible
+  filesPanelRight = right
+  for (const observer of mutationObservers) if (observer.target === documentRoot) observer.callback()
+  for (const observer of resizeObservers) if (observer.target === filesPanel) observer.callback()
 }
 const notifyFrameMutation = (width) => {
   sidebarWidth = width
@@ -158,7 +169,7 @@ const appended = []
 const document = {
   createElement: () => ({ remove() { this.removed = true } }),
   documentElement: documentRoot,
-  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === 'header' && nativeHeaderAvailable ? nativeHeader : selector === '.wSkVaW_body' ? conversationBody : null,
+  querySelector: (selector) => selector === '[data-knowledge-session-menu-overlay]' ? menuOverlayElement : selector === '[data-slot="sidebar"]' ? { parentElement: sidebarColumn } : selector === '[data-knowledge-files]' ? filesPanelVisible ? filesPanel : null : selector === 'header' && nativeHeaderAvailable ? nativeHeader : selector === '.wSkVaW_body' ? conversationBody : null,
   head: { appendChild: (node) => appended.push(node) }
 }
 vm.runInNewContext(source, { window, document, AbortController, ResizeObserver, MutationObserver, Set, Map, String, Array, Object, Promise })
@@ -323,10 +334,16 @@ notifyHeaderResize(84)
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-session-header-bottom'], '84px')
 notifyHeaderResize(76)
 notifySidebarResize(56)
-assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '88px')
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '272px', 'expanded knowledge files remain clear when the host sidebar collapses')
+notifyFilesPanelResize(false)
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '88px', 'collapsed knowledge files release their reserved width')
+notifyFilesPanelResize(true, 452)
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '452px', 'the session menu follows the expanded knowledge-files panel')
 notifySidebarResize(420)
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '452px')
 notifyFrameMutation(56)
+assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '452px')
+notifyFilesPanelResize(false)
 assert.equal(menuOverlayElement.style.values['--eisKnowledge-sidebar-right'], '88px')
 sidebarLeft = 0
 for (const listener of resizeListeners) listener()

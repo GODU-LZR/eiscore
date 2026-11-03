@@ -429,11 +429,13 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         let bound = false
         let resizeObserver
+        let filesResizeObserver
         let sessionMenuResizeObserver
         let frameObserver
         let contentObserver
         let measure
         let observedSessionMenu
+        let observedFilesPanel
         let conversationBody
         let originalConversationMarginTop = ''
         const restoreConversationSpacing = () => {
@@ -443,8 +445,17 @@ window.__ModuleLoader__.load({
         }
         const update = (menuOverlay, sidebarColumn, nativeHeader) => {
           const sidebarRect = sidebarColumn.getBoundingClientRect?.()
+          const filesPanel = document.querySelector?.('[data-knowledge-files]')
+          const filesRect = filesPanel?.getBoundingClientRect?.()
           const headerRect = nativeHeader.getBoundingClientRect?.()
-          if (sidebarRect) menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-right', `${Math.max(0, Math.round(sidebarRect.right))}px`)
+          if (filesPanel !== observedFilesPanel) {
+            filesResizeObserver?.disconnect()
+            observedFilesPanel = filesPanel
+            filesResizeObserver = typeof ResizeObserver === 'function' && filesPanel ? new ResizeObserver(measure) : undefined
+            filesResizeObserver?.observe(filesPanel)
+          }
+          const filesPanelRight = filesRect && filesRect.width > 0 && filesRect.height > 0 ? filesRect.right : 0
+          if (sidebarRect) menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-right', `${Math.max(0, Math.round(Math.max(sidebarRect.right, filesPanelRight)))}px`)
           if (headerRect) menuOverlay.style?.setProperty?.('--eisKnowledge-session-header-bottom', `${Math.max(0, Math.round(headerRect.bottom))}px`)
           const sessionMenu = menuOverlay.querySelector?.('.eisKnowledgeSessionMenu')
           if (sessionMenu !== observedSessionMenu) {
