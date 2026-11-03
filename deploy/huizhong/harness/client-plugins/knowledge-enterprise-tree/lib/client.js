@@ -430,12 +430,14 @@ window.__ModuleLoader__.load({
         let bound = false
         let resizeObserver
         let filesResizeObserver
+        let headerResizeObserver
         let sessionMenuResizeObserver
         let frameObserver
         let contentObserver
         let measure
         let observedSessionMenu
         let observedFilesPanel
+        let observedNativeHeader
         let conversationBody
         let originalConversationMarginTop = ''
         const restoreConversationSpacing = () => {
@@ -443,20 +445,27 @@ window.__ModuleLoader__.load({
           conversationBody = undefined
           originalConversationMarginTop = ''
         }
-        const update = (menuOverlay, sidebarColumn, nativeHeader) => {
+        const update = (menuOverlay, sidebarColumn) => {
           const sidebarRect = sidebarColumn.getBoundingClientRect?.()
           const filesPanel = document.querySelector?.('[data-knowledge-files]')
           const filesRect = filesPanel?.getBoundingClientRect?.()
-          const headerRect = nativeHeader.getBoundingClientRect?.()
+          const nativeHeader = document.querySelector?.('header')
+          const headerRect = nativeHeader?.getBoundingClientRect?.()
           if (filesPanel !== observedFilesPanel) {
             filesResizeObserver?.disconnect()
             observedFilesPanel = filesPanel
             filesResizeObserver = typeof ResizeObserver === 'function' && filesPanel ? new ResizeObserver(measure) : undefined
             filesResizeObserver?.observe(filesPanel)
           }
+          if (nativeHeader !== observedNativeHeader) {
+            headerResizeObserver?.disconnect()
+            observedNativeHeader = nativeHeader
+            headerResizeObserver = typeof ResizeObserver === 'function' && nativeHeader ? new ResizeObserver(measure) : undefined
+            headerResizeObserver?.observe(nativeHeader)
+          }
           const filesPanelRight = filesRect && filesRect.width > 0 && filesRect.height > 0 ? filesRect.right : 0
           if (sidebarRect) menuOverlay.style?.setProperty?.('--eisKnowledge-sidebar-right', `${Math.max(0, Math.round(Math.max(sidebarRect.right, filesPanelRight)))}px`)
-          if (headerRect) menuOverlay.style?.setProperty?.('--eisKnowledge-session-header-bottom', `${Math.max(0, Math.round(headerRect.bottom))}px`)
+          if (headerRect) menuOverlay.style?.setProperty?.('--eisKnowledge-session-header-bottom', `${Math.max(0, Math.round(headerRect.height > 0 ? headerRect.bottom : 0))}px`)
           const sessionMenu = menuOverlay.querySelector?.('.eisKnowledgeSessionMenu')
           if (sessionMenu !== observedSessionMenu) {
             sessionMenuResizeObserver?.disconnect()
@@ -474,19 +483,16 @@ window.__ModuleLoader__.load({
           if (conversationBody?.style && menuRect) conversationBody.style.marginTop = `${Math.max(0, Math.round(menuRect.height)) + 12}px`
         }
         const bind = () => {
+          if (bound) return true
           const menuOverlay = document.querySelector?.('[data-knowledge-session-menu-overlay]')
           const sidebarColumn = document.querySelector?.('[data-slot="sidebar"]')?.parentElement
-          const nativeHeader = document.querySelector?.('header')
-          if (!menuOverlay || !sidebarColumn || !nativeHeader) return false
-          const headerRect = nativeHeader.getBoundingClientRect?.()
-          if (!headerRect || headerRect.height <= 0) return false
+          if (!menuOverlay || !sidebarColumn) return false
           bound = true
           const sidebarFrame = sidebarColumn.parentElement
-          measure = () => update(menuOverlay, sidebarColumn, nativeHeader)
+          measure = () => update(menuOverlay, sidebarColumn)
           measure()
           resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : undefined
           resizeObserver?.observe(sidebarColumn)
-          resizeObserver?.observe(nativeHeader)
           frameObserver = typeof MutationObserver === 'function' && sidebarFrame ? new MutationObserver(measure) : undefined
           frameObserver?.observe(sidebarFrame, { attributes: true, attributeFilter: ['class', 'style'] })
           contentObserver = typeof MutationObserver === 'function' && document.documentElement ? new MutationObserver(measure) : undefined
@@ -504,13 +510,17 @@ window.__ModuleLoader__.load({
           attributeFilter: ['class', 'style']
         })
         return () => {
+          console.error('CLEANUP_OBSERVERS', Boolean(resizeObserver), Boolean(filesResizeObserver), Boolean(headerResizeObserver), Boolean(sessionMenuResizeObserver))
           readyObserver?.disconnect()
           resizeObserver?.disconnect()
+          filesResizeObserver?.disconnect()
+          headerResizeObserver?.disconnect()
           sessionMenuResizeObserver?.disconnect()
           frameObserver?.disconnect()
           contentObserver?.disconnect()
           restoreConversationSpacing()
-          if (bound) window.removeEventListener('resize', measure)
+          bound = false
+          window.removeEventListener('resize', measure)
         }
       }, [])
 
