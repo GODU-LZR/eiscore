@@ -510,7 +510,6 @@ window.__ModuleLoader__.load({
           attributeFilter: ['class', 'style']
         })
         return () => {
-          console.error('CLEANUP_OBSERVERS', Boolean(resizeObserver), Boolean(filesResizeObserver), Boolean(headerResizeObserver), Boolean(sessionMenuResizeObserver))
           readyObserver?.disconnect()
           resizeObserver?.disconnect()
           filesResizeObserver?.disconnect()
