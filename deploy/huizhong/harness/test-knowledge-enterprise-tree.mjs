@@ -42,7 +42,7 @@ assert.match(source, /@container\(max-width:180px\)\{\.eisKnowledgeSessionMenuBu
 assert.match(source, /\.eisKnowledgeSessionMenuDisclosure\[data-open="true"\]\{transform:rotate\(-90deg\)\}/)
 assert.match(source, /\.eisKnowledgeSessionMenuPanel\{box-sizing:border-box;position:relative;width:100%/)
 assert.match(source, /\.wSkVaW_scrollBody\{overflow-anchor:none\}/)
-assert.match(source, /\.wSkVaW_root\[data-phase=hero\] \.wSkVaW_scrollBody:has\(\.wSkVaW_composerHero\)\{justify-content:flex-end\}/)
+assert.match(source, /\.wSkVaW_root\[data-phase=hero\] \.wSkVaW_scrollBody:has\(\.wSkVaW_composerHero\)\{box-sizing:border-box;justify-content:flex-end;padding-bottom:24px\}/)
 assert.match(source, /getBoundingClientRect/)
 assert.match(source, /frame\.style\.paddingRight = `calc\(\$\{basePaddingRight\} \+ \$\{ontologyWidth\}px\)`/)
 assert.doesNotMatch(source, /frame\.style\.gridTemplateColumns\s*=/)
